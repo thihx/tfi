@@ -1,0 +1,403 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Time for Investment</title>
+    <link rel="stylesheet" href="css/styles.css">
+</head>
+<body>
+    <!-- Global Loading Overlay -->
+    <div id="globalLoader" class="global-loader" style="display: none;">
+        <div class="loader-content">
+            <div class="loader-brand">📈 Time for Investment</div>
+            <div class="loader-spinner"></div>
+            <div class="loader-progress">
+                <div class="loader-progress-bar">
+                    <div id="loaderProgressFill" class="loader-progress-fill" style="width:0%;"></div>
+                </div>
+                <div class="loader-progress-text">
+                    <span id="loaderPercent">0%</span>
+                    <span id="loaderMessage">Initializing...</span>
+                </div>
+            </div>
+        </div>
+    </div>
+    <!-- Login Screen -->
+    <div id="loginScreen" class="login-container">
+        <div class="login-box">
+            <h1>📈 Time for Investment</h1>
+            <p>AI-Powered Investment Analysis</p>
+            <input type="password" id="passwordInput" placeholder="Enter password">
+            <button onclick="login()">Login</button>
+            <div id="loginError" class="login-error"></div>
+        </div>
+    </div>
+
+    <!-- App Container -->
+    <div id="appContainer">
+        <!-- Header -->
+        <div class="header">
+            <h1>📈 Time for Investment</h1>
+            <div class="header-actions">
+                <button class="btn btn-secondary btn-sm" onclick="logout()">🚪 Logout</button>
+            </div>
+        </div>
+        
+        <!-- Navigation -->
+        <div class="nav">
+            <div class="nav-item active" onclick="showTab('dashboard')">📊 Dashboard</div>
+            <div class="nav-item" onclick="showTab('matches')">📅 Matches</div>
+            <div class="nav-item" onclick="showTab('watchlist')">👁️ Watchlist</div>
+            <div class="nav-item" onclick="showTab('recommendations')">🎯 Recommendations</div>
+            <div class="nav-item" onclick="showTab('settings')">⚙️ Settings</div>
+        </div>
+        
+        <!-- Main Content -->
+        <div class="main-content">
+            <!-- Dashboard Tab -->
+            <div class="tab-content active" id="tab-dashboard">
+                <div class="stats-grid">
+                    <div class="stat-card">
+                        <div class="stat-label">Total Bets</div>
+                        <div class="stat-value" id="stat-total-bets">0</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-label">Win Rate</div>
+                        <div class="stat-value" id="stat-win-rate">0%</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-label">Total P/L</div>
+                        <div class="stat-value" id="stat-pnl">$0</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-label">ROI</div>
+                        <div class="stat-value" id="stat-roi">0%</div>
+                    </div>
+                </div>
+                
+                <div class="card">
+                    <div class="card-header">
+                        <div class="card-title">📈 Recent Activity</div>
+                    </div>
+                    <div id="recent-activity">
+                        <div class="loading">
+                            <div class="spinner"></div>
+                            <p>Loading...</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Matches Tab -->
+            <div class="tab-content" id="tab-matches">
+                <div class="card">
+                    <div class="card-header">
+                        <div class="card-title">📅 Matches</div>
+                        <div style="display:flex; gap:8px; align-items:center;">
+                            <button id="matches-add-selected-btn" class="btn btn-primary btn-sm" onclick="addSelectedMatchesToWatchlist()" disabled style="font-size: 13px;">+ Selected Watches</button>
+                            <button class="btn btn-primary btn-sm" onclick="loadMatches()">🔄 Refresh</button>
+                        </div>
+                    </div>
+                    
+                    <div class="filters">
+                        <input type="text" class="filter-input" id="filter-search" 
+                               placeholder="🔍 Search teams..." oninput="debouncedFilterMatches()">
+                        
+                        <select class="filter-input" id="filter-status" onchange="filterMatches()">
+                            <option value="">All Status</option>
+                            <option value="NS">⏱️ Not Started</option>
+                            <option value="LIVE">🔴 Live</option>
+                        </select>
+                        
+                        <select class="filter-input" id="filter-league" onchange="filterMatches()">
+                            <option value="">All Leagues</option>
+                            <!-- Dynamically populated from match data -->
+                        </select>
+                        
+                        <select class="filter-input" id="filter-action" onchange="filterMatches()">
+                            <option value="">All Actions</option>
+                            <option value="not-watched">Not Watched</option>
+                            <option value="watched">Watched</option>
+                        </select>
+                        
+                        <input type="date" class="filter-input" id="filter-from" onchange="filterMatches()" title="From date">
+                        <input type="date" class="filter-input" id="filter-to" onchange="filterMatches()" title="To date">
+                        <button class="btn btn-secondary" onclick="clearAllFilters()">✖ Clear Filters</button>
+                        <div id="matches-filter-badges" style="margin-left:8px; display:inline-block;"></div>
+                    </div>
+                    
+                    <div class="table-container">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th style="cursor: pointer;" onclick="sortMatches('time')">
+                                        Time <span id="sort-time"></span>
+                                    </th>
+                                    <th style="cursor: pointer;" onclick="sortMatches('league')">
+                                        League <span id="sort-league"></span>
+                                    </th>
+                                    <th style="text-align: center;">Match</th>
+                                    <th style="width:40px; text-align: center;"><input id="matches-select-all" type="checkbox"></th>
+                                    <th style="text-align: center;">Score</th>
+                                    <th style="cursor: pointer; text-align: center;" onclick="sortMatches('status')">
+                                        Status <span id="sort-status"></span>
+                                    </th>
+                                    <th style="cursor: pointer; text-align: center;" onclick="sortMatches('action')">
+                                        Action <span id="sort-action"></span>
+                                    </th>
+                                </tr>
+                            </thead>
+                            <tbody id="matches-table">
+                                <tr>
+                                    <td colspan="6">
+                                        <div class="loading">
+                                            <div class="spinner"></div>
+                                        </div>
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                        <div id="matches-pagination" class="pagination" style="padding:12px 16px;"></div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Watchlist Tab -->
+            <div class="tab-content" id="tab-watchlist">
+                <div class="card">
+                    <div class="card-header">
+                        <div class="card-title">👁️ Watchlist</div>
+                        <div style="display:flex; gap:8px; align-items:center;">
+                            <button id="watchlist-delete-btn" class="btn btn-primary btn-sm" onclick="deleteSelectedUI()" disabled style="font-size: 13px;">Delete Selected Matches</button>
+                            <button class="btn btn-primary btn-sm" onclick="loadWatchlist()">🔄 Refresh</button>
+                        </div>
+                    </div>
+                    <div class="filters">
+                        <input type="text" class="filter-input" id="watchlist-filter-search" placeholder="🔍 Search teams..." oninput="debouncedFilterWatchlist()">
+                        <select class="filter-input" id="watchlist-filter-league" onchange="filterWatchlist()">
+                            <option value="">All Leagues</option>
+                        </select>
+                        <input type="date" class="filter-input" id="watchlist-filter-from" onchange="filterWatchlist()" title="From date">
+                        <input type="date" class="filter-input" id="watchlist-filter-to" onchange="filterWatchlist()" title="To date">
+                        <button class="btn btn-secondary" onclick="clearWatchlistFilters()">✖ Clear Filters</button>
+                        <div id="watchlist-filter-badges" style="margin-left:8px; display:inline-block;"></div>
+                    </div>
+
+                    <div class="table-container">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th style="cursor: pointer;" onclick="sortWatchlist('kickoff')">Time <span id="sort-watchlist-kickoff"></span></th>
+                                    <th style="text-align: center; cursor: pointer;" onclick="sortWatchlist('league')">League <span id="sort-watchlist-league"></span></th>
+                                    <th style="text-align: center; cursor: pointer;" onclick="sortWatchlist('match')">Match <span id="sort-watchlist-match"></span></th>
+                                    <th style="width:40px; text-align: center;"><input id="watchlist-select-all" type="checkbox"></th>
+                                    <th style="cursor: pointer;" onclick="sortWatchlist('mode')">Mode <span id="sort-watchlist-mode"></span></th>
+                                    <th style="cursor: pointer;" onclick="sortWatchlist('priority')">Priority <span id="sort-watchlist-priority"></span></th>
+                                    <th style="text-align: center;">Prediction</th>
+                                    <th style="text-align: center;">Condition</th>
+                                    <th style="cursor: pointer;" onclick="sortWatchlist('status')">Status <span id="sort-watchlist-status"></span></th>
+                                    <th style="text-align: center;">Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody id="watchlist-table">
+                                <tr>
+                                    <td colspan="10">
+                                        <div class="loading">
+                                            <div class="spinner"></div>
+                                        </div>
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                        <div id="watchlist-pagination" class="pagination" style="padding:12px 16px;"></div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Recommendations Tab -->
+            <div class="tab-content" id="tab-recommendations">
+                <div class="card">
+                    <div class="card-header">
+                        <div class="card-title">🎯 Recommendations</div>
+                        <button class="btn btn-primary btn-sm" onclick="loadRecommendations()">🔄 Refresh</button>
+                    </div>
+                    
+                    <div class="table-container">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>Time</th>
+                                    <th>Match</th>
+                                    <th>Bet Type</th>
+                                    <th>Selection</th>
+                                    <th>Odds</th>
+                                    <th>Confidence</th>
+                                    <th>Stake</th>
+                                    <th>Result</th>
+                                    <th>P/L</th>
+                                </tr>
+                            </thead>
+                            <tbody id="recommendations-table">
+                                <tr>
+                                    <td colspan="9">
+                                        <div class="loading">
+                                            <div class="spinner"></div>
+                                        </div>
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                        <div id="recommendations-pagination" class="pagination" style="padding:12px 16px;"></div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Settings Tab -->
+            <div class="tab-content" id="tab-settings">
+                <div class="card">
+                    <div class="card-header">
+                        <div class="card-title">⚙️ Settings</div>
+                    </div>
+                    
+                    <div style="padding: 20px;">
+                        <div class="form-group">
+                            <label>n8n Webhook Base URL:</label>
+                            <input type="text" id="setting-webhook-url" value="https://thihx.app.n8n.cloud">
+                        </div>
+                        
+                        <div class="form-group">
+                            <label>Default Betting Mode:</label>
+                            <select id="setting-default-mode">
+                                <option value="A">A - Aggressive</option>
+                                <option value="B" selected>B - Balanced</option>
+                                <option value="C">C - Conservative</option>
+                            </select>
+                        </div>
+                        
+                        <div class="form-group">
+                            <label>Change Password:</label>
+                            <input type="password" id="setting-new-password" placeholder="New password">
+                            <small style="color: var(--gray-500); display: block; margin-top: 5px;">
+                                Note: Requires code update to change password hash
+                            </small>
+                        </div>
+                        
+                        <button class="btn btn-primary" onclick="saveSettings()">💾 Save Settings</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Add to Watchlist Modal -->
+    <div class="modal-overlay" id="addWatchlistModal">
+        <div class="modal">
+            <div class="modal-header">
+                <div class="modal-title" id="watchlist-modal-title">➕ Add to Watchlist</div>
+                <button class="modal-close" onclick="closeModal('addWatchlistModal')">&times;</button>
+            </div>
+            
+            <form onsubmit="submitWatchlist(event)">
+                <input type="hidden" id="modal-match-id">
+                <input type="hidden" id="modal-edit-mode" value="add">
+                
+                <div class="form-group">
+                    <label>Match:</label>
+                    <input type="text" id="modal-match-display" readonly>
+                </div>
+                
+                <div class="form-row" style="grid-template-columns: 1fr 1fr 1fr;">
+                    <div class="form-group">
+                        <label>Mode:</label>
+                        <select id="modal-mode">
+                            <option value="A">A - Aggressive</option>
+                            <option value="B" selected>B - Balanced</option>
+                            <option value="C">C - Conservative</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>Priority:</label>
+                        <select id="modal-priority">
+                            <option value="1">1 - Low</option>
+                            <option value="2" selected>2 - Medium</option>
+                            <option value="3">3 - High</option>
+                        </select>
+                    </div>
+                    <div class="form-group" id="status-field-group">
+                        <label>Status:</label>
+                        <select id="modal-status">
+                            <option value="pending">🟡 Pending</option>
+                            <option value="active">🟢 Active</option>
+                        </select>
+                    </div>
+                </div>
+                
+                <!-- AI Recommended Section (only in Edit mode) -->
+                <div class="form-group" id="ai-recommended-section" style="display:none;">
+                    <div class="ai-recommended-box">
+                        <div class="ai-recommended-header">🤖 AI Recommended Condition</div>
+                        <div class="ai-recommended-content">
+                            <div class="ai-recommended-item">
+                                <label>Recommended Condition:</label>
+                                <div class="ai-recommended-value" id="modal-recommended-condition">-</div>
+                            </div>
+                            <div class="ai-recommended-item">
+                                <label>Reason:</label>
+                                <div class="ai-recommended-value" id="modal-recommended-reason">-</div>
+                            </div>
+                        </div>
+                        <button type="button" class="btn btn-primary btn-sm" id="apply-recommended-btn" onclick="applyRecommendedCondition()">
+                            ✨ Apply Recommended Condition
+                        </button>
+                    </div>
+                </div>
+                
+                <div class="form-group">
+                    <label>Conditions:</label>
+                    <div id="conditions-builder" class="cond-builder"></div>
+                    <div class="cond-actions">
+                        <button type="button" class="btn btn-secondary btn-sm" id="add-condition-btn">+ Add condition</button>
+                    </div>
+                    <input type="hidden" id="modal-conditions">
+                    <div class="cond-preview" id="conditions-preview"></div>
+                </div>
+                
+                <button type="submit" class="btn btn-primary" id="watchlist-modal-submit" style="width: 100%;">
+                    ➕ Add to Watchlist
+                </button>
+            </form>
+        </div>
+    </div>
+    
+    <!-- Toast -->
+    <div class="toast" id="toast"></div>
+
+    <!-- Confirm Delete Modal -->
+    <div class="modal-overlay" id="confirmDeleteModal" style="display:none;">
+        <div class="modal">
+            <div class="modal-header">
+                <div class="modal-title" id="confirm-delete-title">Confirm Delete</div>
+                <button class="modal-close" id="confirm-delete-close">&times;</button>
+            </div>
+            <div class="modal-body">
+                <p id="confirm-delete-desc">Are you sure you want to delete the selected items?</p>
+                <ul id="confirm-delete-list" style="max-height:200px; overflow:auto; margin:8px 0; padding-left: 16px;"></ul>
+            </div>
+            <div class="modal-footer" style="display:flex; gap:8px; justify-content:flex-end;">
+                <button class="btn btn-secondary" id="confirm-delete-cancel">Cancel</button>
+                <button class="btn btn-danger" id="confirm-delete-confirm">Delete</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Scripts -->
+    <script src="js/constants.js"></script>
+    <script src="js/config.js"></script>
+    <script src="js/auth.js"></script>
+    <script src="js/api.js"></script>
+    <script src="js/filters.js"></script>
+    <script src="js/render.js"></script>
+    <script src="js/ui.js"></script>
+</body>
+</html>
