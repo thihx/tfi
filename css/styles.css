@@ -1086,6 +1086,7 @@ table tbody#watchlist-table td:not(.select-col) {
 
 #watchlist-delete-btn {
     margin-right: 8px;
+}
 
 .toast.success {
     background: var(--success);
