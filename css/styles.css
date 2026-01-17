@@ -1585,6 +1585,18 @@ table td:last-child, table th:last-child {
         padding-top: 6px;
     }
 
+    .table-container.table-cards td[data-label="Condition"] {
+        grid-template-columns: 90px minmax(0, 1fr);
+    }
+
+    .table-container.table-cards td[data-label="Condition"] .cell-value {
+        justify-self: start;
+        text-align: left;
+        white-space: normal;
+        word-break: break-word;
+        overflow-wrap: anywhere;
+    }
+
     .table-container.table-cards td[data-label="Select"]::before {
         content: "";
     }
