@@ -590,6 +590,14 @@ table {
     border-collapse: collapse;
 }
 
+.score-status {
+    display: none;
+}
+
+.score-only {
+    display: block;
+}
+
 /* Ensure table cells align content to the middle vertically */
 table th, table td {
     vertical-align: middle;
@@ -631,6 +639,10 @@ td strong {
 
 tr:hover {
     background: var(--gray-50);
+}
+
+tbody tr:nth-child(even) {
+    background: #fafbfc;
 }
 
 /* Center-align watchlist cells (except select column) to match Matches layout */
@@ -1401,7 +1413,7 @@ table td:last-child, table th:last-child {
         font-weight: 600;
     }
 
-    .table-container.table-cards table {
+.table-container.table-cards table {
         border-collapse: separate;
         border-spacing: 0 16px;
     }
@@ -1476,6 +1488,23 @@ table td:last-child, table th:last-child {
         text-align: left;
     }
 
+    .table-container.table-cards .score-status {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 10px;
+    }
+
+    .table-container.table-cards .score-only {
+        display: none;
+    }
+
+    .table-container.table-cards .status-inline {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+    }
+
     .table-container.table-cards td[data-label="Match"] { order: 1; }
     .table-container.table-cards td[data-label="Status"] { order: 2; }
     .table-container.table-cards td[data-label="Time"] { order: 3; }
@@ -1496,6 +1525,14 @@ table td:last-child, table th:last-child {
 
     .table-container.table-cards td[data-label="Select"]::before {
         content: "";
+    }
+
+    .table-container.table-cards td.score-empty::before {
+        content: "";
+    }
+
+    .table-container.table-cards td.status-cell {
+        display: none;
     }
 
     .table-container.table-cards .match-teams {

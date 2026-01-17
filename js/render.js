@@ -464,6 +464,7 @@ function renderMatches() {
                 <div style="font-size: 11px; color: var(--gray-600); font-weight: 500;">${currentMinute ? (match.status === 'HT' ? currentMinute : currentMinute + "'") : ''}</div>
             </div>
         `;
+        const scoreIsEmpty = !score && !currentMinute;
             const leagueCode = getLeagueDisplayName(match.league_id, match.league_name || match.league || '');
         
         // Convert Seoul datetime to local browser time and format display
@@ -576,10 +577,16 @@ function renderMatches() {
                         <input class="select-checkbox" type="checkbox" data-select-id="${match.match_id}" data-home="${escapeQuotes(match.home_team)}" data-away="${escapeQuotes(match.away_team)}" data-date="${match.date}" data-league="${escapeQuotes(match.league_name || match.league || '')}" data-kickoff="${kickoffForSave}" ${checked} ${disabledCheckbox}>
                     </div>
                 </td>
-                <td data-label="Score" style="text-align: center;">
-                    <div class="cell-value">${scoreDisplay}</div>
+                <td data-label="Score / Status" class="${scoreIsEmpty ? 'score-empty' : ''}" style="text-align: center;">
+                    <div class="cell-value">
+                        <div class="score-status">
+                            ${scoreDisplay}
+                            <span class="status-inline">${statusBadge}</span>
+                        </div>
+                        <div class="score-only">${scoreDisplay}</div>
+                    </div>
                 </td>
-                <td data-label="Status" style="text-align: center;">
+                <td data-label="Status" class="status-cell" style="text-align: center;">
                     <div class="cell-value">${statusBadge}</div>
                 </td>
                 <td data-label="Action" style="text-align: center;">
