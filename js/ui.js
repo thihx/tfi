@@ -345,6 +345,7 @@ document.addEventListener('DOMContentLoaded', () => {
     // Handle checkbox change events (row select and select-all) via delegation
     const watchlistTable = document.getElementById('watchlist-table');
     const selectAllEl = document.getElementById('watchlist-select-all');
+    const selectAllMobileEl = document.getElementById('watchlist-select-all-mobile');
     if (watchlistTable) {
         watchlistTable.addEventListener('change', (ev) => {
             const cb = ev.target.closest('.select-checkbox');
@@ -361,7 +362,12 @@ document.addEventListener('DOMContentLoaded', () => {
                 updateDeleteSelectedButton();
                 // sync header checkbox
                 const anyUnchecked = watchlistTable.querySelectorAll('.select-checkbox:not(:checked)').length > 0;
-                if (selectAllEl) selectAllEl.checked = !anyUnchecked && watchlistTable.querySelectorAll('.select-checkbox').length > 0;
+                const allChecked = !anyUnchecked && watchlistTable.querySelectorAll('.select-checkbox').length > 0;
+                if (selectAllEl) selectAllEl.checked = allChecked;
+                if (selectAllMobileEl) selectAllMobileEl.checked = allChecked;
+                if (typeof updateWatchlistSelectCountFromDOM === 'function') {
+                    updateWatchlistSelectCountFromDOM();
+                }
             }
         });
     }

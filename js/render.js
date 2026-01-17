@@ -542,34 +542,50 @@ function renderMatches() {
         const disabledCheckbox = isWatched ? 'disabled title="Already in watchlist"' : '';
         return `
             <tr>
-                <td style="white-space: nowrap; text-align: center;">
-                    <span style="background: var(--gray-200); padding: 4px 8px; border-radius: 4px; font-weight: 600; color: var(--gray-900); font-size: 13px;">${timeDisplay}</span>
+                <td data-label="Time" style="white-space: nowrap; text-align: center;">
+                    <div class="cell-value">
+                        <span style="background: var(--gray-200); padding: 4px 8px; border-radius: 4px; font-weight: 600; color: var(--gray-900); font-size: 13px;">${timeDisplay}</span>
+                    </div>
                 </td>
-                <td style="text-align: center;"><span style="font-weight: 400;">${leagueCode}</span></td>
-                <td style="text-align: center;">
-                    <div class="match-teams">
-                        <div class="team-info">
-                            <img src="${match.home_logo}" 
-                                 alt="${match.home_team}" 
-                                 class="team-logo"
-                                 onerror="this.src='${PLACEHOLDER_HOME}'">
-                            <span style="font-weight: 400;">${match.home_team}</span>
-                        </div>
-                        <span class="match-vs">vs</span>
-                        <div class="team-info">
-                            <span style="font-weight: 400;">${match.away_team}</span>
-                            <img src="${match.away_logo}" 
-                                 alt="${match.away_team}" 
-                                 class="team-logo"
-                                 onerror="this.src='${PLACEHOLDER_AWAY}'">
+                <td data-label="League" style="text-align: center;">
+                    <div class="cell-value"><span style="font-weight: 400;">${leagueCode}</span></div>
+                </td>
+                <td data-label="Match" style="text-align: center;">
+                    <div class="cell-value match-cell">
+                        <div class="match-teams">
+                            <div class="team-info">
+                                <img src="${match.home_logo}" 
+                                     alt="${match.home_team}" 
+                                     class="team-logo"
+                                     onerror="this.src='${PLACEHOLDER_HOME}'">
+                                <span style="font-weight: 400;">${match.home_team}</span>
+                            </div>
+                            <span class="match-vs">vs</span>
+                            <div class="team-info">
+                                <span style="font-weight: 400;">${match.away_team}</span>
+                                <img src="${match.away_logo}" 
+                                     alt="${match.away_team}" 
+                                     class="team-logo"
+                                     onerror="this.src='${PLACEHOLDER_AWAY}'">
+                            </div>
                         </div>
                     </div>
                 </td>
-                <td class="select-col"><input class="select-checkbox" type="checkbox" data-select-id="${match.match_id}" data-home="${escapeQuotes(match.home_team)}" data-away="${escapeQuotes(match.away_team)}" data-date="${match.date}" data-league="${escapeQuotes(match.league_name || match.league || '')}" data-kickoff="${kickoffForSave}" ${checked} ${disabledCheckbox}></td>
-                <td style="text-align: center;">${scoreDisplay}</td>
-                <td style="text-align: center;">${statusBadge}</td>
-                <td style="text-align: center;">
-                    ${watchButton}
+                <td class="select-col" data-label="Select">
+                    <div class="cell-value">
+                        <input class="select-checkbox" type="checkbox" data-select-id="${match.match_id}" data-home="${escapeQuotes(match.home_team)}" data-away="${escapeQuotes(match.away_team)}" data-date="${match.date}" data-league="${escapeQuotes(match.league_name || match.league || '')}" data-kickoff="${kickoffForSave}" ${checked} ${disabledCheckbox}>
+                    </div>
+                </td>
+                <td data-label="Score" style="text-align: center;">
+                    <div class="cell-value">${scoreDisplay}</div>
+                </td>
+                <td data-label="Status" style="text-align: center;">
+                    <div class="cell-value">${statusBadge}</div>
+                </td>
+                <td data-label="Action" style="text-align: center;">
+                    <div class="cell-value">
+                        ${watchButton}
+                    </div>
                 </td>
             </tr>
         `;
@@ -586,6 +602,8 @@ function renderMatches() {
     });
     const headerSelect = document.getElementById('matches-select-all');
     if (headerSelect) headerSelect.onclick = () => toggleSelectAllMatches(headerSelect);
+    const mobileSelect = document.getElementById('matches-select-all-mobile');
+    if (mobileSelect) mobileSelect.onclick = () => toggleSelectAllMatches(mobileSelect);
 
     // Auto-deselect watched matches from selection state (using pre-built watchlistMap)
     watchlistMap.forEach((watchItem, matchId) => {
@@ -604,6 +622,15 @@ function renderMatches() {
         const allSelected = enabledIdsOnPage.length > 0 && enabledIdsOnPage.every(id => matchesSelected.has(id));
         selectAllEl.checked = allSelected;
     }
+    const selectAllMobileEl = document.getElementById('matches-select-all-mobile');
+    if (selectAllMobileEl) {
+        const enabledIdsOnPage = pageItems.filter(m => {
+            const mid = String(m.match_id);
+            return !watchlistMap.has(mid);
+        }).map(i => String(i.match_id));
+        const allSelected = enabledIdsOnPage.length > 0 && enabledIdsOnPage.every(id => matchesSelected.has(id));
+        selectAllMobileEl.checked = allSelected;
+    }
     updateAddSelectedButton();
 
     // Render pagination controls
@@ -620,6 +647,7 @@ function renderMatches() {
     }
     if (dateFrom || dateTo) badges.push({ type: 'Date', value: `${dateFrom || '—'} → ${dateTo || '—'}` });
     renderFilterBadges('matches-filter-badges', badges);
+    updateMatchesSelectCountFromDOM();
 }
 
 // Render small filter badges (containerId must exist)
@@ -635,6 +663,34 @@ function renderFilterBadges(containerId, badges) {
 
 // ===== Matches selection helpers =====
 let matchesSelected = new Set();
+
+function updateMatchesSelectCountFromDOM() {
+    const countEls = [
+        document.getElementById('matches-select-count'),
+        document.getElementById('matches-select-count-desktop')
+    ].filter(Boolean);
+    if (countEls.length === 0) return;
+    const tbody = document.getElementById('matches-table');
+    if (!tbody) {
+        countEls.forEach(el => el.textContent = '');
+        return;
+    }
+    const checkboxes = Array.from(tbody.querySelectorAll('.select-checkbox:not(:disabled)'));
+    const total = checkboxes.length;
+    const selected = checkboxes.filter(cb => cb.checked).length;
+    const text = total > 0 ? `(${selected}/${total})` : '';
+    const title = total > 0 ? `${selected} selected out of ${total}` : '';
+    countEls.forEach(el => {
+        el.textContent = text;
+        if (text) {
+            el.setAttribute('title', title);
+            el.style.display = '';
+        } else {
+            el.removeAttribute('title');
+            el.style.display = 'none';
+        }
+    });
+}
 
 function getSelectedMatchRowsFromDOM() {
     // Lấy tất cả các match_id đã tick từ matchesSelected Set (toàn bộ dataset, không chỉ trang hiện tại)
@@ -683,8 +739,12 @@ function toggleSelectRowMatches(id, checkboxEl) {
     const tbody = document.getElementById('matches-table');
     const anyUnchecked = tbody.querySelectorAll('.select-checkbox:not(:checked):not(:disabled)').length > 0;
     const selectAllEl = document.getElementById('matches-select-all');
-    if (selectAllEl) selectAllEl.checked = !anyUnchecked && tbody.querySelectorAll('.select-checkbox:not(:disabled)').length > 0;
+    const allChecked = !anyUnchecked && tbody.querySelectorAll('.select-checkbox:not(:disabled)').length > 0;
+    if (selectAllEl) selectAllEl.checked = allChecked;
+    const selectAllMobileEl = document.getElementById('matches-select-all-mobile');
+    if (selectAllMobileEl) selectAllMobileEl.checked = allChecked;
     updateAddSelectedButton();
+    updateMatchesSelectCountFromDOM();
 }
 
 function toggleSelectAllMatches(el) {
@@ -707,6 +767,12 @@ function toggleSelectAllMatches(el) {
         });
     }
     updateAddSelectedButton();
+
+    const headerSelect = document.getElementById('matches-select-all');
+    if (headerSelect && headerSelect !== el) headerSelect.checked = checked;
+    const mobileSelect = document.getElementById('matches-select-all-mobile');
+    if (mobileSelect && mobileSelect !== el) mobileSelect.checked = checked;
+    updateMatchesSelectCountFromDOM();
 }
 
 function updateAddSelectedButton() {
@@ -924,44 +990,66 @@ function renderWatchlist() {
 
         return `
             <tr>
-                <td style="white-space: nowrap; text-align: center;">
-                    <span style="background: var(--gray-200); padding: 4px 8px; border-radius: 4px; font-weight: 600; color: var(--gray-900); font-size: 13px;">${timeDisplay}</span>
+                <td data-label="Time" style="white-space: nowrap; text-align: center;">
+                    <div class="cell-value">
+                        <span style="background: var(--gray-200); padding: 4px 8px; border-radius: 4px; font-weight: 600; color: var(--gray-900); font-size: 13px;">${timeDisplay}</span>
+                    </div>
                 </td>
-                <td style="text-align: center;"><span style="font-weight: 400;">${leagueCode}</span></td>
-                <td style="text-align: center;">
-                    <div class="match-teams">
-                        <div class="team-info">
-                            <img src="${homeLogo}" 
-                                 alt="${item.home_team || ''}" 
-                                 class="team-logo"
-                                 onerror="this.src='${PLACEHOLDER_HOME}'">
-                            <span style="font-weight: 400;">${item.home_team || ''}</span>
-                        </div>
-                        <span class="match-vs">vs</span>
-                        <div class="team-info">
-                            <span style="font-weight: 400;">${item.away_team || ''}</span>
-                            <img src="${awayLogo}" 
-                                 alt="${item.away_team || ''}" 
-                                 class="team-logo"
-                                 onerror="this.src='${PLACEHOLDER_AWAY}'">
+                <td data-label="League" style="text-align: center;">
+                    <div class="cell-value"><span style="font-weight: 400;">${leagueCode}</span></div>
+                </td>
+                <td data-label="Match" style="text-align: center;">
+                    <div class="cell-value match-cell">
+                        <div class="match-teams">
+                            <div class="team-info">
+                                <img src="${homeLogo}" 
+                                     alt="${item.home_team || ''}" 
+                                     class="team-logo"
+                                     onerror="this.src='${PLACEHOLDER_HOME}'">
+                                <span style="font-weight: 400;">${item.home_team || ''}</span>
+                            </div>
+                            <span class="match-vs">vs</span>
+                            <div class="team-info">
+                                <span style="font-weight: 400;">${item.away_team || ''}</span>
+                                <img src="${awayLogo}" 
+                                     alt="${item.away_team || ''}" 
+                                     class="team-logo"
+                                     onerror="this.src='${PLACEHOLDER_AWAY}'">
+                            </div>
                         </div>
                     </div>
                 </td>
-                <td class="select-col"><input class="select-checkbox" type="checkbox" data-select-id="${item.match_id}" ${checked}></td>
-                <td>${modeBadge}</td>
-                <td style="text-align: center;">${priorityStars}</td>
-                <td style="text-align: center;">${predictionHtml}</td>
-                <td style="text-align: center;"><small>${item.custom_conditions || '-'}</small></td>
-                <td style="text-align: center;">${statusHtml}</td>
-                <td style="text-align: center;">
-                    <div style="display: inline-flex; gap: 6px; align-items: center;">
-                        <button class="btn btn-secondary btn-sm" style="padding: 4px 8px; font-size: 12px;" 
-                                onclick="openEditWatchlist('${item.match_id}', '${(item.home_team || '').replace(/'/g, "\\'")}', '${(item.away_team || '').replace(/'/g, "\\'")}', '${item.date || ''}', '${(item.league_name || item.league || '').replace(/'/g, "\\'")}', '${item.kickoff || ''}', '${item.mode || 'B'}', '${item.priority || 2}', '${(item.custom_conditions || '').replace(/'/g, "\\'")}', '${item.status || 'active'}', '${(item.recommended_custom_condition || '').replace(/'/g, "\\'")}', '${(item.recommended_condition_reason_vi || '').replace(/'/g, "\\'")}')">
-                            📝
-                        </button>
-                        <button class="btn btn-secondary btn-sm btn-delete-row" data-delete-id="${item.match_id}" style="padding: 4px 8px; font-size: 12px;">
-                            🗑️
-                        </button>
+                <td class="select-col" data-label="Select">
+                    <div class="cell-value">
+                        <input class="select-checkbox" type="checkbox" data-select-id="${item.match_id}" ${checked}>
+                    </div>
+                </td>
+                <td data-label="Mode">
+                    <div class="cell-value">${modeBadge}</div>
+                </td>
+                <td data-label="Priority" style="text-align: center;">
+                    <div class="cell-value">${priorityStars}</div>
+                </td>
+                <td data-label="Prediction" style="text-align: center;">
+                    <div class="cell-value">${predictionHtml}</div>
+                </td>
+                <td data-label="Condition" style="text-align: center;">
+                    <div class="cell-value"><small>${item.custom_conditions || '-'}</small></div>
+                </td>
+                <td data-label="Status" style="text-align: center;">
+                    <div class="cell-value">${statusHtml}</div>
+                </td>
+                <td data-label="Actions" style="text-align: center;">
+                    <div class="cell-value">
+                        <div style="display: inline-flex; gap: 6px; align-items: center;">
+                            <button class="btn btn-secondary btn-sm" style="padding: 4px 8px; font-size: 12px;" 
+                                    onclick="openEditWatchlist('${item.match_id}', '${(item.home_team || '').replace(/'/g, "\'")}', '${(item.away_team || '').replace(/'/g, "\'")}', '${item.date || ''}', '${(item.league_name || item.league || '').replace(/'/g, "\'")}', '${item.kickoff || ''}', '${item.mode || 'B'}', '${item.priority || 2}', '${(item.custom_conditions || '').replace(/'/g, "\'")}', '${item.status || 'active'}', '${(item.recommended_custom_condition || '').replace(/'/g, "\'")}', '${(item.recommended_condition_reason_vi || '').replace(/'/g, "\'")}')">
+                                dY"?
+                            </button>
+                            <button class="btn btn-secondary btn-sm btn-delete-row" data-delete-id="${item.match_id}" style="padding: 4px 8px; font-size: 12px;">
+                                dY-`?,?
+                            </button>
+                        </div>
                     </div>
                 </td>
             </tr>
@@ -976,12 +1064,23 @@ function renderWatchlist() {
             toggleSelectRowWatchlist(cb.dataset.selectId, cb);
         };
     });
+
+    const headerSelect = document.getElementById('watchlist-select-all');
+    if (headerSelect) headerSelect.onclick = () => toggleSelectAllWatchlist(headerSelect);
+    const mobileSelect = document.getElementById('watchlist-select-all-mobile');
+    if (mobileSelect) mobileSelect.onclick = () => toggleSelectAllWatchlist(mobileSelect);
     // keep select-all header checkbox in sync for current page
     const selectAllEl = document.getElementById('watchlist-select-all');
     if (selectAllEl) {
         const allIdsOnPage = pageItems.map(i => String(i.match_id));
         const allSelected = allIdsOnPage.length > 0 && allIdsOnPage.every(id => watchlistSelected.has(id));
         selectAllEl.checked = allSelected;
+    }
+    const selectAllMobileEl = document.getElementById('watchlist-select-all-mobile');
+    if (selectAllMobileEl) {
+        const allIdsOnPage = pageItems.map(i => String(i.match_id));
+        const allSelected = allIdsOnPage.length > 0 && allIdsOnPage.every(id => watchlistSelected.has(id));
+        selectAllMobileEl.checked = allSelected;
     }
 
     renderPagination('watchlist-pagination', watchlistPage, Math.ceil(totalItems / PAGE_SIZE), totalItems, 'watchlist');
@@ -993,6 +1092,35 @@ function renderWatchlist() {
     if (leagueFilter) watchBadges.push({ type: 'League', value: document.getElementById('watchlist-filter-league')?.value || '' });
     if (dateFrom || dateTo) watchBadges.push({ type: 'Date', value: `${dateFrom || '—'} → ${dateTo || '—'}` });
     renderFilterBadges('watchlist-filter-badges', watchBadges);
+    updateWatchlistSelectCountFromDOM();
+}
+
+function updateWatchlistSelectCountFromDOM() {
+    const countEls = [
+        document.getElementById('watchlist-select-count'),
+        document.getElementById('watchlist-select-count-desktop')
+    ].filter(Boolean);
+    if (countEls.length === 0) return;
+    const tbody = document.getElementById('watchlist-table');
+    if (!tbody) {
+        countEls.forEach(el => el.textContent = '');
+        return;
+    }
+    const checkboxes = Array.from(tbody.querySelectorAll('.select-checkbox'));
+    const total = checkboxes.length;
+    const selected = checkboxes.filter(cb => cb.checked).length;
+    const text = total > 0 ? `(${selected}/${total})` : '';
+    const title = total > 0 ? `${selected} selected out of ${total}` : '';
+    countEls.forEach(el => {
+        el.textContent = text;
+        if (text) {
+            el.setAttribute('title', title);
+            el.style.display = '';
+        } else {
+            el.removeAttribute('title');
+            el.style.display = 'none';
+        }
+    });
 }
 
 function toggleSelectRowWatchlist(id, checkboxEl) {
@@ -1002,8 +1130,12 @@ function toggleSelectRowWatchlist(id, checkboxEl) {
     const tbody = document.getElementById('watchlist-table');
     const anyUnchecked = tbody.querySelectorAll('.select-checkbox:not(:checked)').length > 0;
     const selectAllEl = document.getElementById('watchlist-select-all');
-    if (selectAllEl) selectAllEl.checked = !anyUnchecked && tbody.querySelectorAll('.select-checkbox').length > 0;
+    const allChecked = !anyUnchecked && tbody.querySelectorAll('.select-checkbox').length > 0;
+    if (selectAllEl) selectAllEl.checked = allChecked;
+    const selectAllMobileEl = document.getElementById('watchlist-select-all-mobile');
+    if (selectAllMobileEl) selectAllMobileEl.checked = allChecked;
     updateDeleteSelectedButton();
+    updateWatchlistSelectCountFromDOM();
 }
 
 function toggleSelectAllWatchlist(el) {
@@ -1026,6 +1158,12 @@ function toggleSelectAllWatchlist(el) {
         });
     }
     updateDeleteSelectedButton();
+
+    const headerSelect = document.getElementById('watchlist-select-all');
+    if (headerSelect && headerSelect !== el) headerSelect.checked = checked;
+    const mobileSelect = document.getElementById('watchlist-select-all-mobile');
+    if (mobileSelect && mobileSelect !== el) mobileSelect.checked = checked;
+    updateWatchlistSelectCountFromDOM();
 }
 
 function updateDeleteSelectedButton() {
@@ -1115,16 +1253,18 @@ function renderRecommendations() {
         
         return `
             <tr>
-                <td>${rec.created_at ? new Date(rec.created_at).toLocaleString('vi-VN') : '-'}</td>
-                <td>${rec.match_display || 'N/A'}</td>
-                <td>${rec.bet_type || '-'}</td>
-                <td><strong>${rec.selection || '-'}</strong></td>
-                <td><strong>${rec.odds || '-'}</strong></td>
-                <td>${confidence}</td>
-                <td>$${rec.stake_amount || '0'}</td>
-                <td>${resultBadge}</td>
-                <td style="font-weight: 700; color: ${rec.pnl >= 0 ? 'var(--success)' : 'var(--danger)'}">
-                    ${pnl}
+                <td data-label="Time"><span class="cell-value">${rec.created_at ? new Date(rec.created_at).toLocaleString('vi-VN') : '-'}</span></td>
+                <td data-label="Match"><span class="cell-value match-cell">${rec.match_display || 'N/A'}</span></td>
+                <td data-label="Bet Type"><span class="cell-value">${rec.bet_type || '-'}</span></td>
+                <td data-label="Selection"><span class="cell-value"><strong>${rec.selection || '-'}</strong></span></td>
+                <td data-label="Odds"><span class="cell-value"><strong>${rec.odds || '-'}</strong></span></td>
+                <td data-label="Confidence"><span class="cell-value">${confidence}</span></td>
+                <td data-label="Stake"><span class="cell-value">$${rec.stake_amount || '0'}</span></td>
+                <td data-label="Result"><span class="cell-value">${resultBadge}</span></td>
+                <td data-label="P/L">
+                    <span class="cell-value" style="font-weight: 700; color: ${rec.pnl >= 0 ? 'var(--success)' : 'var(--danger)'}">
+                        ${pnl}
+                    </span>
                 </td>
             </tr>
         `;

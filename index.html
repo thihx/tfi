@@ -127,7 +127,14 @@
                         <div id="matches-filter-badges" style="margin-left:8px; display:inline-block;"></div>
                     </div>
                     
-                    <div class="table-container">
+                    <div class="table-container table-cards">
+                        <div class="table-card-toolbar">
+                            <label class="card-select-all">
+                                <input id="matches-select-all-mobile" type="checkbox">
+                                Select all on page
+                                <span id="matches-select-count" class="card-select-count"></span>
+                            </label>
+                        </div>
                         <table>
                             <thead>
                                 <tr>
@@ -138,7 +145,10 @@
                                         League <span id="sort-league"></span>
                                     </th>
                                     <th style="text-align: center;">Match</th>
-                                    <th style="width:40px; text-align: center;"><input id="matches-select-all" type="checkbox"></th>
+                                    <th style="width:40px; text-align: center;">
+                                        <input id="matches-select-all" type="checkbox">
+                                        <span id="matches-select-count-desktop" class="table-select-count"></span>
+                                    </th>
                                     <th style="text-align: center;">Score</th>
                                     <th style="cursor: pointer; text-align: center;" onclick="sortMatches('status')">
                                         Status <span id="sort-status"></span>
@@ -184,14 +194,24 @@
                         <div id="watchlist-filter-badges" style="margin-left:8px; display:inline-block;"></div>
                     </div>
 
-                    <div class="table-container">
+                    <div class="table-container table-cards">
+                        <div class="table-card-toolbar">
+                            <label class="card-select-all">
+                                <input id="watchlist-select-all-mobile" type="checkbox">
+                                Select all on page
+                                <span id="watchlist-select-count" class="card-select-count"></span>
+                            </label>
+                        </div>
                         <table>
                             <thead>
                                 <tr>
                                     <th style="cursor: pointer;" onclick="sortWatchlist('kickoff')">Time <span id="sort-watchlist-kickoff"></span></th>
                                     <th style="text-align: center; cursor: pointer;" onclick="sortWatchlist('league')">League <span id="sort-watchlist-league"></span></th>
                                     <th style="text-align: center; cursor: pointer;" onclick="sortWatchlist('match')">Match <span id="sort-watchlist-match"></span></th>
-                                    <th style="width:40px; text-align: center;"><input id="watchlist-select-all" type="checkbox"></th>
+                                    <th style="width:40px; text-align: center;">
+                                        <input id="watchlist-select-all" type="checkbox">
+                                        <span id="watchlist-select-count-desktop" class="table-select-count"></span>
+                                    </th>
                                     <th style="cursor: pointer;" onclick="sortWatchlist('mode')">Mode <span id="sort-watchlist-mode"></span></th>
                                     <th style="cursor: pointer;" onclick="sortWatchlist('priority')">Priority <span id="sort-watchlist-priority"></span></th>
                                     <th style="text-align: center;">Prediction</th>
@@ -223,7 +243,7 @@
                         <button class="btn btn-primary btn-sm" onclick="loadRecommendations()">🔄 Refresh</button>
                     </div>
                     
-                    <div class="table-container">
+                    <div class="table-container table-cards">
                         <table>
                             <thead>
                                 <tr>
