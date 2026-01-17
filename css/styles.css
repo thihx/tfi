@@ -1403,7 +1403,7 @@ table td:last-child, table th:last-child {
 
     .table-container.table-cards table {
         border-collapse: separate;
-        border-spacing: 0 14px;
+        border-spacing: 0 16px;
     }
 
     .table-container.table-cards thead {
@@ -1418,10 +1418,13 @@ table td:last-child, table th:last-child {
     }
 
     .table-container.table-cards tr {
+        display: flex;
+        flex-direction: column;
+        gap: 2px;
         background: white;
         border: 1px solid var(--gray-200);
         border-radius: 12px;
-        padding: 14px 14px;
+        padding: 16px;
         box-shadow: 0 1px 2px rgba(0,0,0,0.06);
     }
 
@@ -1430,9 +1433,10 @@ table td:last-child, table th:last-child {
         grid-template-columns: 110px minmax(0, 1fr);
         gap: 10px;
         align-items: center;
-        padding: 8px 0;
+        padding: 10px 0;
         border: 0;
         text-align: left;
+        order: 10;
     }
 
     .table-container.table-cards td + td {
@@ -1464,11 +1468,34 @@ table td:last-child, table th:last-child {
         justify-self: end;
         text-align: right;
         min-width: 0;
+        line-height: 1.35;
     }
 
     .table-container.table-cards .cell-value.match-cell {
         justify-self: start;
         text-align: left;
+    }
+
+    .table-container.table-cards td[data-label="Match"] { order: 1; }
+    .table-container.table-cards td[data-label="Status"] { order: 2; }
+    .table-container.table-cards td[data-label="Time"] { order: 3; }
+    .table-container.table-cards td[data-label="League"] { order: 4; }
+    .table-container.table-cards td[data-label="Score"] { order: 5; }
+    .table-container.table-cards td[data-label="Mode"] { order: 5; }
+    .table-container.table-cards td[data-label="Priority"] { order: 6; }
+    .table-container.table-cards td[data-label="Prediction"] { order: 7; }
+    .table-container.table-cards td[data-label="Condition"] { order: 8; }
+    .table-container.table-cards td[data-label="Action"],
+    .table-container.table-cards td[data-label="Actions"] { order: 9; }
+    .table-container.table-cards td[data-label="Select"] { order: 11; }
+
+    .table-container.table-cards td[data-label="Select"] {
+        grid-template-columns: 1fr;
+        padding-top: 6px;
+    }
+
+    .table-container.table-cards td[data-label="Select"]::before {
+        content: "";
     }
 
     .table-container.table-cards .match-teams {
@@ -1488,6 +1515,17 @@ table td:last-child, table th:last-child {
 
     .table-container.table-cards .match-vs {
         font-size: 9px;
+    }
+
+    .table-container.table-cards .watch-wrapper {
+        justify-content: flex-start;
+        flex-wrap: wrap;
+        gap: 8px;
+    }
+
+    .table-container.table-cards .watch-btn {
+        width: auto !important;
+        min-width: 130px !important;
     }
 }
 
