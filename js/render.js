@@ -545,7 +545,10 @@ function renderMatches() {
             <tr>
                 <td data-label="Time" style="white-space: nowrap; text-align: center;">
                     <div class="cell-value">
-                        <span style="background: var(--gray-200); padding: 4px 8px; border-radius: 4px; font-weight: 600; color: var(--gray-900); font-size: 13px;">${timeDisplay}</span>
+                        <div class="time-status">
+                            <span class="time-pill" style="background: var(--gray-200); padding: 4px 8px; border-radius: 4px; font-weight: 600; color: var(--gray-900); font-size: 13px;">${timeDisplay}</span>
+                            <span class="status-inline">${statusBadge}</span>
+                        </div>
                     </div>
                 </td>
                 <td data-label="League" style="text-align: center;">
@@ -572,18 +575,14 @@ function renderMatches() {
                         </div>
                     </div>
                 </td>
-                <td class="select-col" data-label="Select">
+                <td class="select-col ${isWatched ? 'select-disabled' : ''}" data-label="Select">
                     <div class="cell-value">
                         <input class="select-checkbox" type="checkbox" data-select-id="${match.match_id}" data-home="${escapeQuotes(match.home_team)}" data-away="${escapeQuotes(match.away_team)}" data-date="${match.date}" data-league="${escapeQuotes(match.league_name || match.league || '')}" data-kickoff="${kickoffForSave}" ${checked} ${disabledCheckbox}>
                     </div>
                 </td>
-                <td data-label="Score / Status" class="${scoreIsEmpty ? 'score-empty' : ''}" style="text-align: center;">
+                <td data-label="Score" class="${scoreIsEmpty ? 'score-empty' : ''}" style="text-align: center;">
                     <div class="cell-value">
-                        <div class="score-status">
-                            ${scoreDisplay}
-                            <span class="status-inline">${statusBadge}</span>
-                        </div>
-                        <div class="score-only">${scoreDisplay}</div>
+                        ${scoreDisplay}
                     </div>
                 </td>
                 <td data-label="Status" class="status-cell" style="text-align: center;">

@@ -89,6 +89,8 @@ body {
     background: var(--gray-100);
     min-height: 100vh;
     font-weight: 400;
+    font-size: 14px;
+    line-height: 1.45;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
 }
@@ -590,6 +592,22 @@ table {
     border-collapse: collapse;
 }
 
+.time-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.time-status {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.time-status .status-inline {
+    display: none;
+}
+
 .score-status {
     display: none;
 }
@@ -601,6 +619,7 @@ table {
 /* Ensure table cells align content to the middle vertically */
 table th, table td {
     vertical-align: middle;
+    line-height: 1.35;
 }
 
 thead {
@@ -1488,18 +1507,15 @@ table td:last-child, table th:last-child {
         text-align: left;
     }
 
-    .table-container.table-cards .score-status {
+    .table-container.table-cards .time-status {
         display: flex;
         align-items: center;
         justify-content: space-between;
         gap: 10px;
+        width: 100%;
     }
 
-    .table-container.table-cards .score-only {
-        display: none;
-    }
-
-    .table-container.table-cards .status-inline {
+    .table-container.table-cards .time-status .status-inline {
         display: inline-flex;
         align-items: center;
         gap: 6px;
@@ -1532,6 +1548,10 @@ table td:last-child, table th:last-child {
     }
 
     .table-container.table-cards td.status-cell {
+        display: none;
+    }
+
+    .table-container.table-cards td.select-disabled {
         display: none;
     }
 
