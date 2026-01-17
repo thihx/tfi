@@ -679,7 +679,7 @@ function updateMatchesSelectCountFromDOM() {
     const total = checkboxes.length;
     const selected = checkboxes.filter(cb => cb.checked).length;
     const text = total > 0 ? `(${selected}/${total})` : '';
-    const title = total > 0 ? `${selected} selected out of ${total}` : '';
+    const title = total > 0 ? `${selected}/${total} selected` : '';
     countEls.forEach(el => {
         el.textContent = text;
         if (text) {
@@ -1110,7 +1110,7 @@ function updateWatchlistSelectCountFromDOM() {
     const total = checkboxes.length;
     const selected = checkboxes.filter(cb => cb.checked).length;
     const text = total > 0 ? `(${selected}/${total})` : '';
-    const title = total > 0 ? `${selected} selected out of ${total}` : '';
+    const title = total > 0 ? `${selected}/${total} selected` : '';
     countEls.forEach(el => {
         el.textContent = text;
         if (text) {

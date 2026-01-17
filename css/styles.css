@@ -1447,6 +1447,7 @@ table td:last-child, table th:last-child {
         font-size: 11px;
         text-transform: uppercase;
         letter-spacing: 0.4px;
+        line-height: 1.2;
     }
 
     .table-container.table-cards td[colspan] {
