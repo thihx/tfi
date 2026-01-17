@@ -1403,7 +1403,7 @@ table td:last-child, table th:last-child {
 
     .table-container.table-cards table {
         border-collapse: separate;
-        border-spacing: 0 10px;
+        border-spacing: 0 14px;
     }
 
     .table-container.table-cards thead {
@@ -1421,7 +1421,7 @@ table td:last-child, table th:last-child {
         background: white;
         border: 1px solid var(--gray-200);
         border-radius: 12px;
-        padding: 10px 12px;
+        padding: 14px 14px;
         box-shadow: 0 1px 2px rgba(0,0,0,0.06);
     }
 
@@ -1430,15 +1430,15 @@ table td:last-child, table th:last-child {
         grid-template-columns: 110px minmax(0, 1fr);
         gap: 10px;
         align-items: center;
-        padding: 6px 0;
+        padding: 8px 0;
         border: 0;
         text-align: left;
     }
 
     .table-container.table-cards td + td {
         border-top: 1px solid var(--gray-100);
-        padding-top: 8px;
-        margin-top: 2px;
+        padding-top: 10px;
+        margin-top: 4px;
     }
 
     .table-container.table-cards td::before {

@@ -1043,8 +1043,12 @@ function renderWatchlist() {
                     <div class="cell-value">
                         <div style="display: inline-flex; gap: 6px; align-items: center;">
                             <button class="btn btn-secondary btn-sm" style="padding: 4px 8px; font-size: 12px;" 
-                                    onclick="openEditWatchlist('${item.match_id}', '${(item.home_team || '').replace(/'/g, "\'")}', '${(item.away_team || '').replace(/'/g, "\'")}', '${item.date || ''}', '${(item.league_name || item.league || '').replace(/'/g, "\'")}', '${item.kickoff || ''}', '${item.mode || 'B'}', '${item.priority || 2}', '${(item.custom_conditions || '').replace(/'/g, "\'")}', '${item.status || 'active'}', '${(item.recommended_custom_condition || '').replace(/'/g, "\'")}', '${(item.recommended_condition_reason_vi || '').replace(/'/g, "\'")}')">
-                                dY"?
+                                    onclick="openEditWatchlist('${item.match_id}', '${(item.home_team || '').replace(/'/g, "\'")}', '${(item.away_team || '').replace(/'/g, "\'")}', '${item.date || ''}', '${(item.league_name || item.league || '').replace(/'/g, "\'")}', '${item.kickoff || ''}', '${item.mode || 'B'}', '${item.priority || 2}', '${(item.custom_conditions || '').replace(/'/g, "\'")}', '${item.status || 'active'}', '${(item.recommended_custom_condition || '').replace(/'/g, "\'")}', '${(item.recommended_condition_reason_vi || '').replace(/'/g, "\'")}')"
+                                    aria-label="Edit watchlist">
+                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                                    <path d="M12 20h9"></path>
+                                    <path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4 12.5-12.5z"></path>
+                                </svg>
                             </button>
                             <button class="btn btn-secondary btn-sm btn-delete-row" data-delete-id="${item.match_id}" style="padding: 4px 8px; font-size: 12px;">
                                 Delete
