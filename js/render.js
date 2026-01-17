@@ -1040,15 +1040,15 @@ function renderWatchlist() {
                     <div class="cell-value">${predictionHtml}</div>
                 </td>
                 <td data-label="Condition" style="text-align: center;">
-                    <div class="cell-value"><small>${item.custom_conditions || '-'}</small></div>
+                    <div class="cell-value"><small style="white-space: normal;">${item.custom_conditions || '-'}</small></div>
                 </td>
-                <td data-label="Status" style="text-align: center;">
+                <td data-label="Status" class="status-cell" style="text-align: center;">
                     <div class="cell-value">${statusHtml}</div>
                 </td>
                 <td data-label="Actions" style="text-align: center;">
                     <div class="cell-value">
                         <div style="display: inline-flex; gap: 6px; align-items: center;">
-                            <button class="btn btn-secondary btn-sm" style="padding: 4px 8px; font-size: 12px;" 
+                            <button class="btn btn-secondary btn-sm action-icon-btn" 
                                     onclick="openEditWatchlist('${item.match_id}', '${(item.home_team || '').replace(/'/g, "\'")}', '${(item.away_team || '').replace(/'/g, "\'")}', '${item.date || ''}', '${(item.league_name || item.league || '').replace(/'/g, "\'")}', '${item.kickoff || ''}', '${item.mode || 'B'}', '${item.priority || 2}', '${(item.custom_conditions || '').replace(/'/g, "\'")}', '${item.status || 'active'}', '${(item.recommended_custom_condition || '').replace(/'/g, "\'")}', '${(item.recommended_condition_reason_vi || '').replace(/'/g, "\'")}')"
                                     aria-label="Edit watchlist">
                                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
@@ -1056,8 +1056,14 @@ function renderWatchlist() {
                                     <path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4 12.5-12.5z"></path>
                                 </svg>
                             </button>
-                            <button class="btn btn-secondary btn-sm btn-delete-row" data-delete-id="${item.match_id}" style="padding: 4px 8px; font-size: 12px;">
-                                Delete
+                            <button class="btn btn-secondary btn-sm btn-delete-row action-icon-btn" data-delete-id="${item.match_id}" aria-label="Delete watchlist">
+                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                                    <polyline points="3 6 5 6 21 6"></polyline>
+                                    <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"></path>
+                                    <path d="M10 11v6"></path>
+                                    <path d="M14 11v6"></path>
+                                    <path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"></path>
+                                </svg>
                             </button>
                         </div>
                     </div>

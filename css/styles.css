@@ -649,6 +649,8 @@ td {
     font-size: 14px;
     font-weight: 400;
     color: var(--gray-700);
+    word-break: break-word;
+    overflow-wrap: anywhere;
 }
 
 td strong {
@@ -764,6 +766,29 @@ table tbody#watchlist-table td:not(.select-col) {
     border-radius: 12px;
     font-size: 12px;
     font-weight: 600;
+    line-height: 1.2;
+    white-space: nowrap;
+}
+
+.status-cell .badge {
+    padding: 4px 8px;
+    font-size: 11px;
+    border-radius: 999px;
+}
+
+.action-icon-btn {
+    width: 32px;
+    height: 32px;
+    padding: 0;
+    border-radius: 8px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.action-icon-btn svg {
+    width: 14px;
+    height: 14px;
 }
 
 .badge-ns {
