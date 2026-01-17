@@ -452,7 +452,7 @@ function renderMatches() {
     const start = (matchesPage - 1) * PAGE_SIZE;
     const pageItems = filtered.slice(start, start + PAGE_SIZE);
 
-    tbody.innerHTML = pageItems.map(match => {
+    const rowsHtml = pageItems.map(match => {
         const statusBadge = getStatusBadge(match.status);
         const score = match.home_score !== '' && match.home_score !== null 
             ? `${match.home_score} - ${match.away_score}` 
@@ -558,19 +558,19 @@ function renderMatches() {
                     <div class="cell-value match-cell">
                         <div class="match-teams">
                             <div class="team-info">
-                                <img src="${match.home_logo}" 
-                                     alt="${match.home_team}" 
-                                     class="team-logo"
-                                     onerror="this.src='${PLACEHOLDER_HOME}'">
+                            <img src="${match.home_logo}" loading="lazy" decoding="async"
+                                 alt="${match.home_team}" 
+                                 class="team-logo"
+                                 onerror="this.src='${PLACEHOLDER_HOME}'">
                                 <span style="font-weight: 400;">${match.home_team}</span>
                             </div>
                             <span class="match-vs">vs</span>
                             <div class="team-info">
                                 <span style="font-weight: 400;">${match.away_team}</span>
-                                <img src="${match.away_logo}" 
-                                     alt="${match.away_team}" 
-                                     class="team-logo"
-                                     onerror="this.src='${PLACEHOLDER_AWAY}'">
+                            <img src="${match.away_logo}" loading="lazy" decoding="async"
+                                 alt="${match.away_team}" 
+                                 class="team-logo"
+                                 onerror="this.src='${PLACEHOLDER_AWAY}'">
                             </div>
                         </div>
                     </div>
@@ -595,21 +595,22 @@ function renderMatches() {
                 </td>
             </tr>
         `;
-    }).join('');
-
-
-    // Attach selection handlers & sync checked state from matchesSelected
-    const tbodyEl = document.getElementById('matches-table');
-    tbodyEl.querySelectorAll('.select-checkbox').forEach(cb => {
-        cb.checked = matchesSelected.has(String(cb.dataset.selectId));
-        cb.onclick = () => {
-            toggleSelectRowMatches(cb.dataset.selectId, cb);
-        };
     });
-    const headerSelect = document.getElementById('matches-select-all');
-    if (headerSelect) headerSelect.onclick = () => toggleSelectAllMatches(headerSelect);
-    const mobileSelect = document.getElementById('matches-select-all-mobile');
-    if (mobileSelect) mobileSelect.onclick = () => toggleSelectAllMatches(mobileSelect);
+
+    const tbodyEl = document.getElementById('matches-table');
+    batchRenderTableRows(tbodyEl, rowsHtml, () => {
+        // Attach selection handlers & sync checked state from matchesSelected
+        tbodyEl.querySelectorAll('.select-checkbox').forEach(cb => {
+            cb.checked = matchesSelected.has(String(cb.dataset.selectId));
+            cb.onclick = () => {
+                toggleSelectRowMatches(cb.dataset.selectId, cb);
+            };
+        });
+        const headerSelect = document.getElementById('matches-select-all');
+        if (headerSelect) headerSelect.onclick = () => toggleSelectAllMatches(headerSelect);
+        const mobileSelect = document.getElementById('matches-select-all-mobile');
+        if (mobileSelect) mobileSelect.onclick = () => toggleSelectAllMatches(mobileSelect);
+    });
 
     // Auto-deselect watched matches from selection state (using pre-built watchlistMap)
     watchlistMap.forEach((watchItem, matchId) => {
@@ -665,6 +666,27 @@ function renderFilterBadges(containerId, badges) {
         return;
     }
     c.innerHTML = badges.map(b => `<span class="filter-badge">${b.type}: <strong>${escapeQuotes(b.value)}</strong></span>`).join(' ');
+}
+
+function batchRenderTableRows(tbody, rows, onComplete) {
+    if (!tbody) return;
+    const chunkSize = 40;
+    tbody.innerHTML = '';
+    let idx = 0;
+    const total = rows.length;
+
+    function renderChunk() {
+        const end = Math.min(idx + chunkSize, total);
+        tbody.insertAdjacentHTML('beforeend', rows.slice(idx, end).join(''));
+        idx = end;
+        if (idx < total) {
+            requestAnimationFrame(renderChunk);
+        } else if (typeof onComplete === 'function') {
+            onComplete();
+        }
+    }
+
+    requestAnimationFrame(renderChunk);
 }
 
 // ===== Matches selection helpers =====
@@ -945,7 +967,7 @@ function renderWatchlist() {
     const start = (watchlistPage - 1) * PAGE_SIZE;
     const pageItems = items.slice(start, start + PAGE_SIZE);
 
-    tbody.innerHTML = pageItems.map(item => {
+    const rowsHtml = pageItems.map(item => {
         // Use match_id as the primary identifier (Apps Script returns match_id, not separate id)
         if (!item.match_id) {
             console.error('Watchlist item missing match_id:', item);
@@ -1008,7 +1030,7 @@ function renderWatchlist() {
                     <div class="cell-value match-cell">
                         <div class="match-teams">
                             <div class="team-info">
-                                <img src="${homeLogo}" 
+                                <img src="${homeLogo}" loading="lazy" decoding="async"
                                      alt="${item.home_team || ''}" 
                                      class="team-logo"
                                      onerror="this.src='${PLACEHOLDER_HOME}'">
@@ -1017,7 +1039,7 @@ function renderWatchlist() {
                             <span class="match-vs">vs</span>
                             <div class="team-info">
                                 <span style="font-weight: 400;">${item.away_team || ''}</span>
-                                <img src="${awayLogo}" 
+                                <img src="${awayLogo}" loading="lazy" decoding="async"
                                      alt="${item.away_team || ''}" 
                                      class="team-logo"
                                      onerror="this.src='${PLACEHOLDER_AWAY}'">
@@ -1070,21 +1092,23 @@ function renderWatchlist() {
                 </td>
             </tr>
         `;
-    }).join('');
-
-    // Attach selection handlers & sync checked state from watchlistSelected
-    const tbodyEl = document.getElementById('watchlist-table');
-    tbodyEl.querySelectorAll('.select-checkbox').forEach(cb => {
-        cb.checked = watchlistSelected.has(String(cb.dataset.selectId));
-        cb.onclick = () => {
-            toggleSelectRowWatchlist(cb.dataset.selectId, cb);
-        };
     });
 
-    const headerSelect = document.getElementById('watchlist-select-all');
-    if (headerSelect) headerSelect.onclick = () => toggleSelectAllWatchlist(headerSelect);
-    const mobileSelect = document.getElementById('watchlist-select-all-mobile');
-    if (mobileSelect) mobileSelect.onclick = () => toggleSelectAllWatchlist(mobileSelect);
+    const tbodyEl = document.getElementById('watchlist-table');
+    batchRenderTableRows(tbodyEl, rowsHtml, () => {
+        // Attach selection handlers & sync checked state from watchlistSelected
+        tbodyEl.querySelectorAll('.select-checkbox').forEach(cb => {
+            cb.checked = watchlistSelected.has(String(cb.dataset.selectId));
+            cb.onclick = () => {
+                toggleSelectRowWatchlist(cb.dataset.selectId, cb);
+            };
+        });
+
+        const headerSelect = document.getElementById('watchlist-select-all');
+        if (headerSelect) headerSelect.onclick = () => toggleSelectAllWatchlist(headerSelect);
+        const mobileSelect = document.getElementById('watchlist-select-all-mobile');
+        if (mobileSelect) mobileSelect.onclick = () => toggleSelectAllWatchlist(mobileSelect);
+    });
     // keep select-all header checkbox in sync for current page
     const selectAllEl = document.getElementById('watchlist-select-all');
     if (selectAllEl) {
@@ -1241,13 +1265,101 @@ async function deleteSelectedUI() {
     }
 }
 
+let recommendationsVirtualState = {
+    rowHeight: 56,
+    overscan: 6,
+    attached: false,
+    measured: false,
+    container: null,
+    tbody: null
+};
+
+function renderRecommendationRow(rec) {
+    const resultBadge = rec.result ? getStatusBadge(rec.result.toUpperCase()) : '-';
+    const pnl = rec.pnl ? `${rec.pnl >= 0 ? '+' : ''}$${parseFloat(rec.pnl).toFixed(2)}` : '-';
+    const confidence = rec.confidence ? `${(parseFloat(rec.confidence) * 100).toFixed(0)}%` : '-';
+    return `
+        <tr class="rec-row">
+            <td data-label="Time"><span class="cell-value">${rec.created_at ? new Date(rec.created_at).toLocaleString('vi-VN') : '-'}</span></td>
+            <td data-label="Match"><span class="cell-value match-cell">${rec.match_display || 'N/A'}</span></td>
+            <td data-label="Bet Type"><span class="cell-value">${rec.bet_type || '-'}</span></td>
+            <td data-label="Selection"><span class="cell-value"><strong>${rec.selection || '-'}</strong></span></td>
+            <td data-label="Odds"><span class="cell-value"><strong>${rec.odds || '-'}</strong></span></td>
+            <td data-label="Confidence"><span class="cell-value">${confidence}</span></td>
+            <td data-label="Stake"><span class="cell-value">$${rec.stake_amount || '0'}</span></td>
+            <td data-label="Result"><span class="cell-value">${resultBadge}</span></td>
+            <td data-label="P/L">
+                <span class="cell-value" style="font-weight: 700; color: ${rec.pnl >= 0 ? 'var(--success)' : 'var(--danger)'}">
+                    ${pnl}
+                </span>
+            </td>
+        </tr>
+    `;
+}
+
+function renderRecommendationsPaged() {
+    const tbody = document.getElementById('recommendations-table');
+    if (!tbody) return;
+    const totalItems = recommendationsData.length;
+    const totalPages = Math.max(1, Math.ceil(totalItems / PAGE_SIZE));
+    if (recommendationsPage > totalPages) recommendationsPage = 1;
+    const start = (recommendationsPage - 1) * PAGE_SIZE;
+    const pageItems = recommendationsData.slice(start, start + PAGE_SIZE);
+    tbody.innerHTML = pageItems.map(renderRecommendationRow).join('');
+    renderPagination('recommendations-pagination', recommendationsPage, Math.ceil(totalItems / PAGE_SIZE), totalItems, 'recommendations');
+}
+
+function renderRecommendationsVirtualWindow() {
+    const { container, tbody, rowHeight, overscan } = recommendationsVirtualState;
+    if (!container || !tbody) return;
+    const total = recommendationsData.length;
+    const viewportHeight = container.clientHeight || 0;
+    const scrollTop = container.scrollTop || 0;
+    const visibleCount = Math.ceil(viewportHeight / rowHeight) + overscan * 2;
+    const startIndex = Math.max(0, Math.floor(scrollTop / rowHeight) - overscan);
+    const endIndex = Math.min(total, startIndex + visibleCount);
+    const before = startIndex * rowHeight;
+    const after = (total - endIndex) * rowHeight;
+    const rows = recommendationsData.slice(startIndex, endIndex).map(renderRecommendationRow).join('');
+    tbody.innerHTML = `
+        <tr class="spacer-row"><td colspan="9" style="height:${before}px"></td></tr>
+        ${rows}
+        <tr class="spacer-row"><td colspan="9" style="height:${after}px"></td></tr>
+    `;
+
+    if (!recommendationsVirtualState.measured) {
+        requestAnimationFrame(() => {
+            const firstRow = tbody.querySelector('.rec-row');
+            if (firstRow && firstRow.offsetHeight) {
+                recommendationsVirtualState.rowHeight = firstRow.offsetHeight;
+                recommendationsVirtualState.measured = true;
+                renderRecommendationsVirtualWindow();
+            }
+        });
+    }
+}
+
+function ensureRecommendationsVirtual() {
+    const tbody = document.getElementById('recommendations-table');
+    if (!tbody) return;
+    const container = tbody.closest('.table-container');
+    recommendationsVirtualState.container = container;
+    recommendationsVirtualState.tbody = tbody;
+    if (!recommendationsVirtualState.attached && container) {
+        container.addEventListener('scroll', renderRecommendationsVirtualWindow);
+        window.addEventListener('resize', renderRecommendationsVirtualWindow);
+        recommendationsVirtualState.attached = true;
+    }
+}
+
 function renderRecommendations() {
     const tbody = document.getElementById('recommendations-table');
-    
+    if (!tbody) return;
+
     if (recommendationsData.length === 0) {
         tbody.innerHTML = `
             <tr><td colspan="9" class="empty-state">
-                <div class="empty-state-icon">🎯</div>
+                <div class="empty-state-icon">dYZ_</div>
                 <p>No recommendations yet</p>
                 <p><small>Add matches to watchlist for AI analysis</small></p>
             </td></tr>
@@ -1255,36 +1367,16 @@ function renderRecommendations() {
         renderPagination('recommendations-pagination', 1, 0, 0, 'recommendations');
         return;
     }
-    // Pagination
-    const totalItems = recommendationsData.length;
-    const totalPages = Math.max(1, Math.ceil(totalItems / PAGE_SIZE));
-    if (recommendationsPage > totalPages) recommendationsPage = 1;
-    const start = (recommendationsPage - 1) * PAGE_SIZE;
-    const pageItems = recommendationsData.slice(start, start + PAGE_SIZE);
 
-    tbody.innerHTML = pageItems.map(rec => {
-        const resultBadge = rec.result ? getStatusBadge(rec.result.toUpperCase()) : '-';
-        const pnl = rec.pnl ? `${rec.pnl >= 0 ? '+' : ''}$${parseFloat(rec.pnl).toFixed(2)}` : '-';
-        const confidence = rec.confidence ? `${(parseFloat(rec.confidence) * 100).toFixed(0)}%` : '-';
-        
-        return `
-            <tr>
-                <td data-label="Time"><span class="cell-value">${rec.created_at ? new Date(rec.created_at).toLocaleString('vi-VN') : '-'}</span></td>
-                <td data-label="Match"><span class="cell-value match-cell">${rec.match_display || 'N/A'}</span></td>
-                <td data-label="Bet Type"><span class="cell-value">${rec.bet_type || '-'}</span></td>
-                <td data-label="Selection"><span class="cell-value"><strong>${rec.selection || '-'}</strong></span></td>
-                <td data-label="Odds"><span class="cell-value"><strong>${rec.odds || '-'}</strong></span></td>
-                <td data-label="Confidence"><span class="cell-value">${confidence}</span></td>
-                <td data-label="Stake"><span class="cell-value">$${rec.stake_amount || '0'}</span></td>
-                <td data-label="Result"><span class="cell-value">${resultBadge}</span></td>
-                <td data-label="P/L">
-                    <span class="cell-value" style="font-weight: 700; color: ${rec.pnl >= 0 ? 'var(--success)' : 'var(--danger)'}">
-                        ${pnl}
-                    </span>
-                </td>
-            </tr>
-        `;
-    }).join('');
+    const isMobile = window.matchMedia && window.matchMedia('(max-width: 768px)').matches;
+    if (isMobile) {
+        renderRecommendationsPaged();
+        return;
+    }
 
-    renderPagination('recommendations-pagination', recommendationsPage, Math.ceil(totalItems / PAGE_SIZE), totalItems, 'recommendations');
+    ensureRecommendationsVirtual();
+    const paginationEl = document.getElementById('recommendations-pagination');
+    if (paginationEl) paginationEl.innerHTML = '';
+    renderRecommendationsVirtualWindow();
 }
+
