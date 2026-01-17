@@ -1047,7 +1047,7 @@ function renderWatchlist() {
                                 dY"?
                             </button>
                             <button class="btn btn-secondary btn-sm btn-delete-row" data-delete-id="${item.match_id}" style="padding: 4px 8px; font-size: 12px;">
-                                dY-`?,?
+                                Delete
                             </button>
                         </div>
                     </div>
