@@ -77,6 +77,8 @@ export interface AppConfig {
   defaultMode: string;
   appsScriptUrl: string;
   apiKey: string;
+  /** When set, use PostgreSQL backend instead of Google Apps Script */
+  apiUrl: string;
 }
 
 // API response types

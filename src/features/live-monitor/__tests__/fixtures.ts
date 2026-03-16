@@ -325,5 +325,6 @@ export function createAppConfig() {
     defaultMode: 'B',
     appsScriptUrl: 'https://script.google.com/macros/s/test/exec',
     apiKey: 'test-api-key',
+    apiUrl: '',
   };
 }

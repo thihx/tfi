@@ -1,0 +1,183 @@
+/**
+ * ============================================================
+ * CHECK LIVE MATCHES AND TRIGGER N8N
+ * ============================================================
+ * Script kiểm tra các trận đấu đang diễn ra (live) trong Watchlist
+ * và gọi webhook n8n để xử lý tiếp phân tích.
+ * 
+ * Được thiết kế để chạy với time-based trigger (ví dụ: mỗi 1-2 phút)
+ * 
+ * Luồng xử lý:
+ * 1. Đọc danh sách match_id có status "active" từ sheet Watchlist
+ * 2. Đọc status của từng trận từ sheet Matches
+ * 3. Lọc ra các trận đang live (status thuộc LIVE_STATUSES)
+ * 4. Gọi webhook n8n với danh sách trận live (tách batch mỗi 5 trận)
+ * ============================================================
+ */
+
+/**
+ * Hàm main - Kiểm tra trận live và trigger n8n workflow
+ * 
+ * Logic:
+ * - Chỉ xử lý các trận có status = "active" trong Watchlist
+ * - Chỉ trigger n8n khi có ít nhất 1 trận đang live
+ * - Tự động tách batch để tránh quá tải n8n workflow
+ */
+function checkLiveMatchesAndTriggerN8n() {
+  const ss = SpreadsheetApp.openById(SPREADSHEET_ID);
+  
+  // ============================================================
+  // 1. ĐỌC WATCHLIST - Lấy danh sách match_id đang được theo dõi
+  // ============================================================
+  const watchlistSheet = ss.getSheetByName(WATCHLIST_SHEET_NAME);
+  if (!watchlistSheet) {
+    console.log('Watchlist sheet not found');
+    return;
+  }
+  
+  const watchlistValues = watchlistSheet.getDataRange().getValues();
+  if (watchlistValues.length < 2) {
+    console.log('Watchlist empty');
+    return;
+  }
+
+  // Tìm vị trí các cột cần thiết trong header
+  const watchlistHeader = watchlistValues[0];
+  const wlMatchIdIndex = watchlistHeader.indexOf(WATCHLIST_MATCH_ID_COL);
+  const wlStatusIndex  = watchlistHeader.indexOf(WATCHLIST_STATUS_COL);
+
+  if (wlMatchIdIndex === -1) {
+    console.log('WATCHLIST_MATCH_ID_COL not found in header');
+    return;
+  }
+
+  // Lọc các match_id có status = "active"
+  // Chỉ theo dõi những trận user đang quan tâm (active)
+  const activeMatchIds = [];
+  for (let i = 1; i < watchlistValues.length; i++) {
+    const row = watchlistValues[i];
+    const matchId = row[wlMatchIdIndex];
+    // Nếu không có cột status, mặc định coi là "active"
+    const wlStatus = wlStatusIndex >= 0 ? row[wlStatusIndex] : 'active';
+
+    // Bỏ qua dòng trống hoặc không active
+    if (!matchId) continue;
+    if (String(wlStatus).toLowerCase() !== 'active') continue;
+
+    activeMatchIds.push(String(matchId));
+  }
+
+  if (activeMatchIds.length === 0) {
+    console.log('No active matches in Watchlist');
+    return;
+  }
+
+  // ============================================================
+  // 2. ĐỌC MATCHES - Lấy status của từng trận đấu
+  // ============================================================
+  const matchesSheet = ss.getSheetByName(MATCHES_SHEET_NAME);
+  if (!matchesSheet) {
+    console.log('Matches sheet not found');
+    return;
+  }
+  
+  const matchesValues = matchesSheet.getDataRange().getValues();
+  if (matchesValues.length < 2) {
+    console.log('Matches empty');
+    return;
+  }
+
+  // Tìm vị trí các cột cần thiết trong header
+  const matchesHeader = matchesValues[0];
+  const mtMatchIdIndex = matchesHeader.indexOf(MATCHES_MATCH_ID_COL);
+  const mtStatusIndex  = matchesHeader.indexOf(MATCHES_STATUS_COL);
+
+  if (mtMatchIdIndex === -1 || mtStatusIndex === -1) {
+    console.log('MATCHES_MATCH_ID_COL or MATCHES_STATUS_COL not found in header');
+    return;
+  }
+
+  // Tạo map: match_id -> status để tra cứu nhanh O(1)
+  // Thay vì loop tìm kiếm O(n) cho mỗi match
+  const matchStatusMap = {};
+  for (let i = 1; i < matchesValues.length; i++) {
+    const row = matchesValues[i];
+    const matchId = row[mtMatchIdIndex];
+    const status  = row[mtStatusIndex];
+    if (!matchId) continue;
+    matchStatusMap[String(matchId)] = String(status);
+  }
+
+  // ============================================================
+  // 3. LỌC TRẬN LIVE - Kiểm tra trận nào đang diễn ra
+  // ============================================================
+  let hasLive = false;
+  const liveMatchIds = [];
+
+  for (const matchId of activeMatchIds) {
+    const status = matchStatusMap[matchId];
+    if (!status) continue;  // Match không tồn tại trong sheet Matches
+
+    // Kiểm tra status có thuộc danh sách LIVE_STATUSES không
+    // LIVE_STATUSES được định nghĩa trong config (ví dụ: ['1H', '2H'])
+    if (LIVE_STATUSES.indexOf(status) !== -1) {
+      hasLive = true;
+      liveMatchIds.push(matchId);
+    }
+  }
+
+  // Không có trận nào đang live → không cần gọi n8n
+  if (!hasLive) {
+    console.log('No live matches found, will not call n8n');
+    return;
+  }
+
+  // ============================================================
+  // 4. GỌI WEBHOOK N8N - Tách batch mỗi 5 trận để tránh quá tải
+  // ============================================================
+  // Lý do tách batch:
+  // - Tránh timeout khi n8n xử lý nhiều trận cùng lúc
+  // - Giảm tải cho API-Football (rate limit)
+  // - Dễ debug khi có lỗi
+  const BATCH_SIZE = 5;
+  const batches = [];
+
+  // Tách liveMatchIds thành các batch, mỗi batch tối đa 5 phần tử
+  // Ví dụ: [1,2,3,4,5,6,7] → [[1,2,3,4,5], [6,7]]
+  for (let i = 0; i < liveMatchIds.length; i += BATCH_SIZE) {
+    batches.push(liveMatchIds.slice(i, i + BATCH_SIZE));
+  }
+
+  // Gọi webhook cho từng batch
+  for (let batchIndex = 0; batchIndex < batches.length; batchIndex++) {
+    const batch = batches[batchIndex];
+    
+    // Chuẩn bị payload gửi đến n8n
+    const payload = {
+      source: 'apps-script',                    // Nguồn trigger (để n8n biết request từ đâu)
+      triggeredAt: new Date().toISOString(),    // Thời điểm trigger (ISO format)
+      liveMatchIds: batch,                      // Danh sách match_id trong batch này
+      batchInfo: {
+        current: batchIndex + 1,                // Batch thứ mấy (1-indexed cho dễ đọc)
+        total: batches.length,                  // Tổng số batch
+        totalMatches: liveMatchIds.length       // Tổng số trận live (để n8n biết context)
+      }
+    };
+
+    const options = {
+      method: 'post',
+      contentType: 'application/json',
+      payload: JSON.stringify(payload),
+      muteHttpExceptions: true                  // Không throw exception khi HTTP error
+    };
+
+    try {
+      const response = UrlFetchApp.fetch(N8N_WEBHOOK_URL, options);
+      console.log(`Batch ${batchIndex + 1}/${batches.length} - n8n webhook called, response code:`, response.getResponseCode());
+    } catch (e) {
+      // Log error nhưng tiếp tục xử lý batch tiếp theo
+      // Không để 1 batch fail làm dừng toàn bộ process
+      console.error(`Batch ${batchIndex + 1}/${batches.length} - Error calling n8n webhook:`, e);
+    }
+  }
+}

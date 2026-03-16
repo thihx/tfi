@@ -1,0 +1,309 @@
+/**
+ * ============================================================
+ * FETCH MATCHES JOB
+ * ============================================================
+ * Script tự động fetch danh sách trận đấu từ API-Football
+ * và lưu vào Google Sheet để theo dõi.
+ * 
+ * Được thiết kế để chạy với time-based trigger (ví dụ: mỗi 5-15 phút)
+ * 
+ * Luồng xử lý chính:
+ * 1. Đọc danh sách giải đấu được phê duyệt (Approved_Leagues)
+ * 2. Gọi API lấy fixtures cho hôm nay và ngày mai
+ * 3. Lọc theo league và status (chưa đá + đang đá)
+ * 4. Ghi kết quả vào sheet Matches
+ * ============================================================
+ */
+
+/**
+ * Hàm chính – dùng cho trigger time-based
+ * 
+ * Chức năng:
+ * - Fetch tất cả trận đấu từ API-Football cho hôm nay và ngày mai
+ * - Chỉ giữ lại các trận thuộc giải đấu đã được phê duyệt
+ * - Chỉ giữ lại các trận chưa đá hoặc đang đá (loại bỏ trận đã kết thúc)
+ * - Ghi đè toàn bộ data cũ trong sheet Matches
+ */
+function fetchMatchesJob() {
+  const ss = SpreadsheetApp.openById(SPREADSHEET_ID);
+
+  // ============================================================
+  // 1. ĐỌC DANH SÁCH GIẢI ĐẤU ĐƯỢC PHÊ DUYỆT
+  // ============================================================
+  // Chỉ fetch trận đấu của các giải có active = "yes"
+  const approvedLeagueIds = getApprovedLeagueIds_(ss);
+  if (approvedLeagueIds.length === 0) {
+    console.log('No active leagues found in Approved_Leagues, skip.');
+    return;
+  }
+
+  // ============================================================
+  // 2. TÍNH NGÀY HÔM NAY VÀ NGÀY MỐT (UTC)
+  // ============================================================
+  // Sử dụng UTC date để đồng bộ với logic n8n
+  const today = new Date();
+  const tomorrow = new Date(today);
+  tomorrow.setDate(tomorrow.getDate() + 1);
+
+  const dateFrom = today.toISOString().split('T')[0];     // Format: yyyy-MM-dd
+  const dateTo = tomorrow.toISOString().split('T')[0];    // Format: yyyy-MM-dd
+
+  // ============================================================
+  // 3. GỌI API FIXTURES CHO 1 NGÀY
+  // ============================================================
+  const todayMatches = fetchFixturesForDate_(dateFrom);
+  const tomorrowMatches = fetchFixturesForDate_(dateTo);
+  const allMatches = todayMatches.concat(tomorrowMatches);
+
+  console.log(
+    `Raw matches - Today: ${todayMatches.length}, Tomorrow: ${tomorrowMatches.length}, Total: ${allMatches.length}`
+  );
+
+  // ============================================================
+  // 4. LỌC THEO GIẢI ĐẤU
+  // ============================================================
+  // Chỉ giữ lại trận thuộc các giải đã được phê duyệt
+  const leagueFiltered = allMatches.filter(m =>
+    approvedLeagueIds.indexOf(String(m.league.id)) !== -1
+  );
+  console.log(`After league filter: ${leagueFiltered.length}`);
+
+  // ============================================================
+  // 5. LỌC THEO TRẠNG THÁI TRẬN ĐẤU
+  // ============================================================
+  // Các status được giữ lại:
+  // - NS: Not Started (chưa bắt đầu)
+  // - 1H: First Half (hiệp 1)
+  // - HT: Half Time (nghỉ giữa hiệp)
+  // - 2H: Second Half (hiệp 2)
+  // - ET: Extra Time (hiệp phụ)
+  // - BT: Break Time (nghỉ trước hiệp phụ)
+  // - P: Penalty (đá penalty)
+  // - LIVE: Đang diễn ra (generic)
+  // - INT: Interrupted (tạm dừng)
+  const allowedStatuses = ['NS', '1H', 'HT', '2H', 'ET', 'BT', 'P', 'LIVE', 'INT'];
+  const filtered = leagueFiltered.filter(m =>
+    allowedStatuses.indexOf(m.fixture.status.short) !== -1
+  );
+
+  console.log(`After status filter: ${filtered.length}`);
+  
+  // Log các status unique để debug
+  const uniqueStatuses = [...new Set(filtered.map(m => m.fixture.status.short))];
+  console.log(`Filtered statuses: ${uniqueStatuses.join(', ')}`);
+
+  // ============================================================
+  // 6. CHUYỂN ĐỔI SANG ĐỊNH DẠNG BẢNG
+  // ============================================================
+  const rows = buildMatchRows_(filtered);
+
+  // ============================================================
+  // 7. GHI VÀO SHEET MATCHES
+  // ============================================================
+  // Xóa toàn bộ data cũ, chỉ giữ header, rồi ghi data mới
+  writeMatches_(ss, rows);
+
+  console.log(
+    `✅ Saved ${rows.length} matches from ${new Set(rows.map(r => r[4])).size} leagues (${uniqueStatuses.join(', ')})`
+  );
+}
+
+/**
+ * Đọc sheet Approved_Leagues và trả về danh sách league_id đang active
+ * 
+ * @param {Spreadsheet} ss - Spreadsheet object
+ * @returns {string[]} - Mảng các league_id có active = "yes"
+ * 
+ * Yêu cầu sheet có các cột:
+ * - league_id: ID của giải đấu trên API-Football
+ * - active: "yes" nếu muốn theo dõi giải này
+ */
+function getApprovedLeagueIds_(ss) {
+  const sheet = ss.getSheetByName(APPROVED_LEAGUES_SHEET);
+  if (!sheet) {
+    throw new Error('Sheet "Approved_Leagues" not found');
+  }
+
+  const values = sheet.getDataRange().getValues();
+  if (values.length < 2) return []; // Chỉ có header, không có data
+
+  const header = values[0];
+  const data = values.slice(1); // Bỏ header
+
+  // Tạo map tên cột -> index để truy cập linh hoạt
+  const indexByName = {};
+  header.forEach((h, i) => {
+    indexByName[String(h).trim()] = i;
+  });
+
+  const idxActive = indexByName['active'];
+  const idxLeagueId = indexByName['league_id'];
+
+  // Validate cấu trúc sheet
+  if (idxActive == null || idxLeagueId == null) {
+    throw new Error('Approved_Leagues must have columns "league_id" and "active"');
+  }
+
+  // Lọc các league có active = "yes"
+  const ids = [];
+  data.forEach(row => {
+    const active = String(row[idxActive] || '').trim().toLowerCase();
+    if (active === 'yes') {
+      const id = row[idxLeagueId];
+      if (id !== '' && id != null) {
+        ids.push(String(id));
+      }
+    }
+  });
+
+  console.log(`Active leagues: ${ids.length} (ids: ${ids.join(', ')})`);
+  return ids;
+}
+
+/**
+ * Gọi API-Football để lấy danh sách fixtures cho 1 ngày cụ thể
+ * 
+ * @param {string} dateStr - Ngày cần query, format: yyyy-MM-dd
+ * @returns {Object[]} - Mảng các fixture objects từ API
+ * 
+ * API Endpoint: https://v3.football.api-sports.io/fixtures
+ * Params:
+ * - date: Ngày cần lấy
+ * - timezone: Timezone để convert giờ kick-off
+ */
+function fetchFixturesForDate_(dateStr) {
+  const baseUrl = 'https://v3.football.api-sports.io/fixtures';
+  const url =
+    baseUrl +
+    '?date=' +
+    encodeURIComponent(dateStr) +
+    '&timezone=' +
+    encodeURIComponent(TIME_ZONE);
+
+  const response = UrlFetchApp.fetch(url, {
+    method: 'get',
+    contentType: 'application/json',
+    headers: {
+      'x-apisports-key': API_FOOTBALL_KEY,  // API key cho API-Football
+    },
+    muteHttpExceptions: true,  // Không throw exception khi HTTP error
+  });
+
+  const code = response.getResponseCode();
+  const text = response.getContentText();
+
+  // Xử lý lỗi HTTP
+  if (code !== 200) {
+    console.log('API error for ' + dateStr + ': ' + code + ' ' + text);
+    return [];
+  }
+
+  // Parse JSON response
+  let data;
+  try {
+    data = JSON.parse(text);
+  } catch (e) {
+    console.log('JSON parse error for ' + dateStr + ': ' + e);
+    return [];
+  }
+
+  // Validate response structure
+  if (!data || !Array.isArray(data.response)) {
+    return [];
+  }
+  return data.response;
+}
+
+/**
+ * Chuyển đổi từ object API-Football sang array row cho sheet Matches
+ * 
+ * @param {Object[]} matches - Mảng fixture objects từ API
+ * @returns {Array[]} - Mảng các row để ghi vào sheet
+ * 
+ * Cấu trúc cột output (theo thứ tự):
+ * [0]  match_id     - ID trận đấu (unique)
+ * [1]  date         - Ngày đá (yyyy-MM-dd)
+ * [2]  kickoff      - Giờ đá (HH:mm)
+ * [3]  league_id    - ID giải đấu
+ * [4]  league_name  - Tên giải đấu
+ * [5]  home_team    - Tên đội nhà
+ * [6]  away_team    - Tên đội khách
+ * [7]  home_logo    - URL logo đội nhà
+ * [8]  away_logo    - URL logo đội khách
+ * [9]  venue        - Tên sân vận động
+ * [10] status       - Trạng thái trận đấu (NS, 1H, HT, 2H, FT,...)
+ * [11] home_score   - Số bàn đội nhà
+ * [12] away_score   - Số bàn đội khách
+ * [13] minute       - Phút hiện tại (nếu đang đá)
+ * [14] last_updated - Thời điểm cập nhật cuối
+ */
+function buildMatchRows_(matches) {
+  const nowIso = new Date().toISOString();
+
+  return matches.map(match => {
+    const fixture = match.fixture;
+    const league = match.league;
+    const teams = match.teams;
+    const goals = match.goals || {};
+
+    // Tách date và time từ ISO string
+    // Ví dụ: "2024-01-15T19:00:00+00:00" → date="2024-01-15", kickoff="19:00"
+    const parts = String(fixture.date).split('T');
+    const datePart = parts[0] || '';
+    const timePartFull = parts[1] || '';
+    const kickoff = timePartFull.substring(0, 5); // Lấy HH:mm
+
+    return [
+      String(fixture.id),                                    // match_id
+      datePart,                                              // date
+      kickoff,                                               // kickoff
+      String(league.id),                                     // league_id
+      league.name,                                           // league_name
+      teams.home.name,                                       // home_team
+      teams.away.name,                                       // away_team
+      teams.home.logo,                                       // home_logo
+      teams.away.logo,                                       // away_logo
+      fixture.venue && fixture.venue.name ? fixture.venue.name : 'TBD', // venue (default: TBD)
+      fixture.status.short,                                  // status
+      goals.home != null ? String(goals.home) : '',          // home_score (empty nếu chưa đá)
+      goals.away != null ? String(goals.away) : '',          // away_score (empty nếu chưa đá)
+      fixture.status.elapsed,                                // minute (phút hiện tại)
+      nowIso,                                                // last_updated
+    ];
+  });
+}
+
+/**
+ * Xóa dữ liệu cũ và ghi rows mới vào sheet Matches
+ * 
+ * @param {Spreadsheet} ss - Spreadsheet object
+ * @param {Array[]} rows - Mảng các row cần ghi
+ * 
+ * Lưu ý:
+ * - Giữ nguyên row header (row 1)
+ * - Xóa toàn bộ data từ row 2 trở đi trước khi ghi mới
+ * - Đây là full refresh, không phải incremental update
+ */
+function writeMatches_(ss, rows) {
+  const sheet = ss.getSheetByName(MATCHES_SHEET_NAME);
+  if (!sheet) {
+    throw new Error('Sheet "Matches" not found');
+  }
+
+  const lastRow = sheet.getLastRow();
+  const lastCol = sheet.getLastColumn();
+
+  // Xóa toàn bộ dữ liệu cũ dưới header (từ row 2)
+  if (lastRow > 1 && lastCol > 0) {
+    sheet.getRange(2, 1, lastRow - 1, lastCol).clearContent();
+  }
+
+  // Nếu không có data mới, chỉ clear và return
+  if (!rows || rows.length === 0) {
+    console.log('No matches after filtering – sheet cleared, nothing written.');
+    return;
+  }
+
+  // Ghi data mới bắt đầu từ row 2, column 1
+  sheet.getRange(2, 1, rows.length, rows[0].length).setValues(rows);
+}

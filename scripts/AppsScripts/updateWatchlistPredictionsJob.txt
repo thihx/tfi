@@ -1,0 +1,272 @@
+/**
+ * ============================================================
+ * WATCHLIST PREDICTIONS
+ * ============================================================
+ * Script tự động lấy dự đoán (predictions) từ API-Football
+ * cho các trận đấu trong sheet Watchlist.
+ * 
+ * Chức năng chính:
+ * - Đọc danh sách trận từ Watchlist
+ * - Chỉ xử lý các trận có status = "NS" (Not Started - chưa bắt đầu)
+ * - Gọi API predictions cho từng trận
+ * - Lưu JSON dự đoán (đã rút gọn) vào cột prediction
+ * 
+ * Có thể chạy thủ công hoặc gán time-based trigger
+ * ============================================================
+ */
+
+/**
+ * Hàm main – gọi thủ công hoặc gán time-based trigger
+ * 
+ * Luồng xử lý:
+ * 1. Đọc sheet Matches → tạo map match_id -> status
+ * 2. Đọc sheet Watchlist
+ * 3. Với mỗi trận có status = "NS":
+ *    - Gọi API predictions
+ *    - Lưu kết quả vào cột prediction (hoặc clear nếu không có)
+ */
+function updateWatchlistPredictionsJob() {
+  const ss = SpreadsheetApp.openById(SPREADSHEET_ID);
+
+  // ============================================================
+  // 1. ĐỌC SHEET MATCHES - Tạo map match_id -> status
+  // ============================================================
+  const matchesSheet = ss.getSheetByName(MATCHES_SHEET_NAME);
+  if (!matchesSheet) {
+    throw new Error('Sheet "Matches" not found');
+  }
+
+  const matchesValues = matchesSheet.getDataRange().getValues();
+  if (matchesValues.length < 2) {
+    console.log('Matches sheet has no data, skip.');
+    return;
+  }
+
+  const matchesHeader = matchesValues[0];
+  const matchesData = matchesValues.slice(1);  // Bỏ header
+
+  // Tạo map tên cột -> index (lowercase để so sánh không phân biệt hoa thường)
+  const matchesIndexByName = {};
+  matchesHeader.forEach((h, i) => {
+    matchesIndexByName[String(h).trim().toLowerCase()] = i;
+  });
+
+  // Tìm index các cột cần thiết
+  const matchesMatchIdIdx = matchesIndexByName[MATCHES_MATCH_ID_COL.toLowerCase()];
+  const matchesStatusIdx = matchesIndexByName[MATCHES_STATUS_COL.toLowerCase()];
+
+  // Validate cấu trúc sheet
+  if (matchesMatchIdIdx == null) {
+    throw new Error('Matches sheet must have column "match_id"');
+  }
+  if (matchesStatusIdx == null) {
+    throw new Error('Matches sheet must have column "status"');
+  }
+
+  // Tạo map: match_id (string) -> status (uppercase, trimmed)
+  // Dùng để tra cứu nhanh status của từng trận
+  const statusByMatchId = {};
+  matchesData.forEach(row => {
+    const mid = String(row[matchesMatchIdIdx] || '').trim();
+    const status = String(row[matchesStatusIdx] || '').trim().toUpperCase();
+    if (mid) {
+      statusByMatchId[mid] = status;
+    }
+  });
+
+  // ============================================================
+  // 2. ĐỌC SHEET WATCHLIST
+  // ============================================================
+  const watchlistSheet = ss.getSheetByName(WATCHLIST_SHEET_NAME);
+  if (!watchlistSheet) {
+    throw new Error('Sheet "Watchlist" not found');
+  }
+
+  const watchlistValues = watchlistSheet.getDataRange().getValues();
+  if (watchlistValues.length < 2) {
+    console.log('Watchlist is empty, skip.');
+    return;
+  }
+
+  const watchlistHeader = watchlistValues[0];
+  const watchlistData = watchlistValues.slice(1);  // Bỏ header
+
+  // Tạo map tên cột -> index
+  const watchlistIndexByName = {};
+  watchlistHeader.forEach((h, i) => {
+    watchlistIndexByName[String(h).trim().toLowerCase()] = i;
+  });
+
+  // Tìm index các cột cần thiết
+  const wlMatchIdIdx = watchlistIndexByName[MATCHES_MATCH_ID_COL.toLowerCase()];
+  const wlPredictionIdx = watchlistIndexByName[WATCHLIST_PREDICTION_COL_NAME.toLowerCase()];
+
+  // Validate cấu trúc sheet
+  if (wlMatchIdIdx == null) {
+    throw new Error('Watchlist sheet must have column "match_id"');
+  }
+  if (wlPredictionIdx == null) {
+    throw new Error('Watchlist sheet must have column "prediction"');
+  }
+
+  // Counters để tracking
+  let totalChecked = 0;   // Số trận NS đã kiểm tra
+  let totalUpdated = 0;   // Số trận đã cập nhật prediction
+
+  // ============================================================
+  // 3. DUYỆT TỪNG DÒNG WATCHLIST VÀ LẤY PREDICTION
+  // ============================================================
+  watchlistData.forEach((row, i) => {
+    const rowIndexSheet = i + 2;  // +2 vì: index 0-based + header ở dòng 1
+
+    const matchId = String(row[wlMatchIdIdx] || '').trim();
+    if (!matchId) {
+      return;  // Bỏ qua dòng không có match_id
+    }
+
+    // Lấy status của trận từ map (đã build từ sheet Matches)
+    const matchStatus = (statusByMatchId[matchId] || '').toUpperCase();
+
+    // ❗ CHỈ XỬ LÝ CÁC TRẬN CÓ STATUS = "NS" (Not Started)
+    // Lý do: Prediction chỉ có ý nghĩa cho trận chưa đá
+    if (matchStatus !== 'NS') {
+      return;
+    }
+
+    totalChecked++;
+
+    // Gọi API lấy prediction
+    const predictionObj = fetchPredictionForFixture_(matchId);
+
+    if (!predictionObj) {
+      // Không có prediction → clear ô prediction
+      watchlistSheet
+        .getRange(rowIndexSheet, wlPredictionIdx + 1)  // +1 vì getRange dùng 1-based index
+        .setValue('');
+      return;
+    }
+
+    // Có prediction → lưu JSON (đã rút gọn)
+    const jsonStr = JSON.stringify(predictionObj);
+    watchlistSheet
+      .getRange(rowIndexSheet, wlPredictionIdx + 1)
+      .setValue(jsonStr);
+
+    totalUpdated++;
+
+    // Sleep 200ms để tránh rate limit của API
+    // Có thể điều chỉnh tuỳ gói API đang dùng
+    Utilities.sleep(200);
+  });
+
+  console.log(
+    `✅ Watchlist Predictions: Checked ${totalChecked} NS matches, updated ${totalUpdated} predictions.`
+  );
+}
+
+/**
+ * Gọi API-Football predictions cho 1 fixture cụ thể
+ * 
+ * @param {string} fixtureId - ID của trận đấu (fixture.id)
+ * @returns {Object|null} - Object prediction đã rút gọn, hoặc null nếu không có
+ * 
+ * API Endpoint: https://v3.football.api-sports.io/predictions?fixture={id}
+ */
+function fetchPredictionForFixture_(fixtureId) {
+  const baseUrl = 'https://v3.football.api-sports.io/predictions';
+  const url = baseUrl + '?fixture=' + encodeURIComponent(fixtureId);
+
+  const options = {
+    method: 'get',
+    contentType: 'application/json',
+    headers: {
+      'x-apisports-key': API_FOOTBALL_KEY,
+    },
+    muteHttpExceptions: true,  // Không throw exception khi HTTP error
+  };
+
+  // Gọi API với error handling
+  let response;
+  try {
+    response = UrlFetchApp.fetch(url, options);
+  } catch (e) {
+    console.log('Prediction API request failed for fixture ' + fixtureId + ': ' + e);
+    return null;
+  }
+
+  const code = response.getResponseCode();
+  const text = response.getContentText();
+
+  // Xử lý lỗi HTTP
+  if (code !== 200) {
+    console.log(
+      'Prediction API error for fixture ' + fixtureId + ': ' + code + ' ' + text
+    );
+    return null;
+  }
+
+  // Parse JSON response
+  let data;
+  try {
+    data = JSON.parse(text);
+  } catch (e) {
+    console.log('Prediction JSON parse error for fixture ' + fixtureId + ': ' + e);
+    return null;
+  }
+
+  // Kiểm tra response có data không
+  // API trả về results = 0 hoặc response rỗng nếu không có prediction
+  if (!data || data.results === 0 || !Array.isArray(data.response) || data.response.length === 0) {
+    return null;
+  }
+
+  const item = data.response[0];
+
+  // Phòng trường hợp response[0] không có field predictions
+  if (!item.predictions) {
+    return null;
+  }
+
+  // Rút gọn JSON trước khi lưu (tiết kiệm dung lượng cell)
+  return buildSlimPrediction_(item);
+}
+
+/**
+ * Rút gọn object prediction từ API-Football
+ * 
+ * @param {Object} item - Raw prediction object từ API
+ * @returns {Object} - Object đã rút gọn chỉ chứa thông tin cần thiết
+ * 
+ * Thông tin giữ lại:
+ * - predictions: winner, win_or_draw, under_over, goals, advice, percent
+ * - comparison: form, att, def, goals, total
+ * 
+ * Thông tin bỏ qua (để giảm size):
+ * - league info
+ * - teams detail
+ * - h2h (head to head history)
+ * - poisson_distribution
+ * - các stats chi tiết khác
+ */
+function buildSlimPrediction_(item) {
+  const pred = item.predictions || {};
+  const comp = item.comparison || {};
+
+  return {
+    predictions: {
+      winner: pred.winner || null,          // { id, name, comment } - Đội được dự đoán thắng
+      win_or_draw: pred.win_or_draw,        // Boolean: Đội nhà thắng hoặc hoà?
+      under_over: pred.under_over,          // Dự đoán tổng bàn thắng (Under/Over)
+      goals: pred.goals || null,            // Dự đoán số bàn cho mỗi đội
+      advice: pred.advice,                  // Lời khuyên cá cược (text)
+      percent: pred.percent || null,        // Tỷ lệ % thắng/hoà/thua
+    },
+    comparison: {
+      form: comp.form || null,              // So sánh phong độ gần đây
+      att: comp.att || null,                // So sánh khả năng tấn công
+      def: comp.def || null,                // So sánh khả năng phòng ngự
+      goals: comp.goals || null,            // So sánh khả năng ghi bàn
+      total: comp.total || null,            // Điểm tổng hợp
+    },
+  };
+}

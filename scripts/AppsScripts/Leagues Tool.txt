@@ -1,0 +1,592 @@
+/**
+ * ============================================================
+ * APPROVED LEAGUES MANAGEMENT
+ * ============================================================
+ * Script quản lý danh sách giải đấu được phê duyệt.
+ * 
+ * Chức năng chính:
+ * - Fetch danh sách tất cả giải đấu từ API-Football
+ * - Phân loại theo tier (International, 1, 2, Cup, Other)
+ * - Tự động kích hoạt các giải đấu hàng đầu
+ * - Cung cấp UI menu để quản lý trong Google Sheets
+ * 
+ * Sử dụng:
+ * - Mở Google Sheets → Menu "⚽ Time For Investment Tools"
+ * - Chọn các chức năng tương ứng
+ * ============================================================
+ */
+
+/**
+ * Tạo custom menu khi mở spreadsheet
+ * 
+ * Menu items:
+ * - Setup Approved Leagues: Fetch data từ API và tạo sheet mới
+ * - Refresh All Data: Làm mới toàn bộ data
+ * - Activate Top Leagues Only: Chỉ kích hoạt giải tier 1 + International
+ * - Deactivate All Leagues: Tắt tất cả giải
+ * - Show Statistics: Hiển thị thống kê
+ */
+function onOpen() {
+  const ui = SpreadsheetApp.getUi();
+  ui.createMenu('⚽ Time For Investment Tools')
+    .addItem('🔧 Setup Approved Leagues (Fetch from API)', 'setupApprovedLeagues')
+    .addItem('🔄 Refresh All Data', 'refreshAllData')
+    .addItem('✅ Activate Top Leagues Only', 'activateTopLeaguesOnly')
+    .addItem('❌ Deactivate All Leagues', 'deactivateAllLeagues')
+    .addItem('📊 Show Statistics', 'showLeagueStatistics')
+    .addSeparator()
+    .addToUi();
+}
+
+/**
+ * Gọi API-Football với endpoint và params
+ * 
+ * @param {string} endpoint - API endpoint (ví dụ: '/leagues')
+ * @param {Object} params - Query parameters
+ * @returns {Object} - Parsed JSON response
+ * @throws {Error} - Nếu API trả về lỗi
+ */
+function callApiFootball(endpoint, params = {}) {
+  // Build URL với query params
+  let url = API_FOOTBALL_BASE_URL + endpoint;
+  const queryParams = Object.keys(params).map(key => `${key}=${params[key]}`).join('&');
+  if (queryParams) {
+    url += '?' + queryParams;
+  }
+  
+  const options = {
+    'method': 'get',
+    'headers': {
+      'x-rapidapi-key': API_FOOTBALL_KEY,
+      'x-rapidapi-host': 'v3.football.api-sports.io'
+    },
+    'muteHttpExceptions': true  // Không throw exception khi HTTP error
+  };
+  
+  Logger.log('Calling: ' + url);
+  
+  try {
+    const response = UrlFetchApp.fetch(url, options);
+    const data = JSON.parse(response.getContentText());
+    
+    // Kiểm tra API errors trong response
+    if (data.errors && Object.keys(data.errors).length > 0) {
+      throw new Error('API Error: ' + JSON.stringify(data.errors));
+    }
+    
+    return data;
+  } catch (e) {
+    Logger.log('API Error: ' + e.message);
+    throw e;
+  }
+}
+
+/**
+ * Hàm setup chính - Fetch và tạo sheet Approved Leagues
+ * 
+ * Luồng xử lý:
+ * 1. Tạo hoặc clear sheet
+ * 2. Fetch tất cả giải đấu từ API
+ * 3. Phân loại và ghi vào sheet
+ * 4. Format và thêm data validation
+ * 5. Hiển thị thống kê
+ */
+function setupApprovedLeagues() {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const ui = SpreadsheetApp.getUi();
+  
+  try {
+    Logger.log('Starting setup with API...');
+    ui.alert('🔄 Fetching Data', 'Please wait while we fetch league data from API-Football...\n\nThis may take 1-2 minutes.', ui.ButtonSet.OK);
+    
+    // ============================================================
+    // 1. TẠO HOẶC CLEAR SHEET
+    // ============================================================
+    let sheet = ss.getSheetByName(SHEET_NAME);
+    if (sheet) {
+      sheet.clear();
+      Logger.log('Cleared existing sheet');
+    } else {
+      sheet = ss.insertSheet(SHEET_NAME);
+      Logger.log('Created new sheet');
+    }
+    
+    // ============================================================
+    // 2. TẠO HEADERS
+    // ============================================================
+    const headers = [['league_id', 'league_name', 'country', 'tier', 'active', 'type', 'logo', 'last_updated']];
+    sheet.getRange(1, 1, 1, headers[0].length).setValues(headers);
+    
+    // ============================================================
+    // 3. FETCH DATA TỪ API
+    // ============================================================
+    const data = fetchLeaguesFromApi();
+    Logger.log('Got ' + data.length + ' leagues');
+    
+    if (data.length === 0) {
+      ui.alert('⚠️ Warning', 'No leagues found from API. Please check your API key.', ui.ButtonSet.OK);
+      return;
+    }
+    
+    // ============================================================
+    // 4. GHI DATA VÀ FORMAT
+    // ============================================================
+    sheet.getRange(2, 1, data.length, data[0].length).setValues(data);
+    
+    formatSheet(sheet, data.length);           // Format màu sắc, alignment
+    addDataValidation(sheet, data.length);     // Thêm dropdown Yes/No cho cột active
+    sheet.setFrozenRows(1);                    // Freeze header row
+    sheet.autoResizeColumns(1, 8);             // Auto resize tất cả cột
+    
+    // ============================================================
+    // 5. HIỂN THỊ THỐNG KÊ
+    // ============================================================
+    const stats = getLeagueStats(data);
+    
+    Logger.log('Setup complete');
+    
+    ui.alert(
+      '✅ Setup Complete!',
+      `Created ${SHEET_NAME} with:\n\n` +
+      `📊 Total: ${stats.total} leagues\n` +
+      `✅ Active: ${stats.active}\n` +
+      `❌ Inactive: ${stats.inactive}\n\n` +
+      `🌍 International: ${stats.international}\n` +
+      `🥇 Tier 1: ${stats.tier1}\n` +
+      `🥈 Tier 2: ${stats.tier2}\n\n` +
+      `Last updated: ${new Date().toLocaleString()}\n\n` +
+      `You can now use this sheet with your n8n workflow!`,
+      ui.ButtonSet.OK
+    );
+    
+  } catch (e) {
+    Logger.log('Error: ' + e.message);
+    ui.alert('❌ Error', e.message, ui.ButtonSet.OK);
+  }
+}
+
+/**
+ * Refresh data từ API (alias của setupApprovedLeagues)
+ */
+function refreshAllData() {
+  setupApprovedLeagues();
+}
+
+/**
+ * Fetch tất cả giải đấu từ API-Football và phân loại
+ * 
+ * @returns {Array[]} - Mảng các row để ghi vào sheet
+ * 
+ * Phân loại tier:
+ * - International: Các giải quốc tế (World Cup, Euro, Champions League,...)
+ * - Tier 1: Giải VĐQG hàng đầu mỗi quốc gia
+ * - Tier 2: Giải hạng 2 mỗi quốc gia
+ * - Cup: Các giải cúp quốc gia
+ * - Other: Các giải còn lại
+ * 
+ * Auto-activate:
+ * - International: Yes
+ * - Tier 1: Yes
+ * - Tier 2, Cup, Other: No
+ */
+function fetchLeaguesFromApi() {
+  const allLeagues = [];
+  
+  // ============================================================
+  // ĐỊNH NGHĨA CÁC QUỐC GIA VÀ LEAGUE ID TƯƠNG ỨNG
+  // ============================================================
+  // Map: Country name -> { tier1: [league_ids], tier2: [league_ids] }
+  const topCountries = {
+    // ===== TOP EUROPEAN LEAGUES =====
+    'England': { tier1: [39], tier2: [40] },      // Premier League, Championship
+    'Spain': { tier1: [140], tier2: [141] },      // La Liga, La Liga 2
+    'Italy': { tier1: [135], tier2: [136] },      // Serie A, Serie B
+    'Germany': { tier1: [78], tier2: [79] },      // Bundesliga, 2. Bundesliga
+    'France': { tier1: [61], tier2: [62] },       // Ligue 1, Ligue 2
+    'Portugal': { tier1: [94], tier2: [95] },     // Primeira Liga, Liga Portugal 2
+    'Netherlands': { tier1: [88], tier2: [89] },  // Eredivisie, Eerste Divisie
+    'Belgium': { tier1: [144], tier2: [145] },    // Pro League, Challenger Pro League
+    'Turkey': { tier1: [203], tier2: [204] },     // Süper Lig, 1. Lig
+    'Scotland': { tier1: [179], tier2: [180] },   // Premiership, Championship
+    'Denmark': { tier1: [119], tier2: [120] },    // Superliga, 1st Division
+    'Switzerland': { tier1: [207], tier2: [208] }, // Super League, Challenge League
+    'Austria': { tier1: [218], tier2: [219] },    // Bundesliga, 2. Liga
+    'Greece': { tier1: [197], tier2: [198] },     // Super League, Super League 2
+    'Norway': { tier1: [103], tier2: [104] },     // Eliteserien, OBOS-ligaen
+    'Sweden': { tier1: [113], tier2: [114] },     // Allsvenskan, Superettan
+    'Poland': { tier1: [106], tier2: [107] },     // Ekstraklasa, I Liga
+    'Czech-Republic': { tier1: [345], tier2: [346] }, // First League, FNL
+    'Croatia': { tier1: [210], tier2: [211] },    // HNL, Prva NL
+    'Serbia': { tier1: [286], tier2: [287] },     // Super Liga, Prva Liga
+    'Romania': { tier1: [283], tier2: [284] },    // Liga I, Liga II
+    'Ukraine': { tier1: [333], tier2: [334] },    // Premier League, Persha Liga
+    'Russia': { tier1: [235], tier2: [236] },     // Premier League, FNL
+    
+    // ===== AMERICAS =====
+    'Brazil': { tier1: [71], tier2: [72] },       // Serie A, Serie B
+    'Argentina': { tier1: [128], tier2: [129] },  // Liga Profesional, Primera Nacional
+    'Mexico': { tier1: [262], tier2: [263] },     // Liga MX, Liga de Expansión
+    'USA': { tier1: [253], tier2: [] },           // MLS
+    'Chile': { tier1: [265], tier2: [] },         // Primera División
+    'Colombia': { tier1: [239], tier2: [] },      // Liga BetPlay
+    'Uruguay': { tier1: [274], tier2: [] },       // Primera División
+    
+    // ===== ASIA =====
+    'Japan': { tier1: [98], tier2: [99] },        // J1 League, J2 League
+    'South-Korea': { tier1: [292], tier2: [] },   // K League 1
+    'Saudi-Arabia': { tier1: [307], tier2: [] },  // Pro League
+    'Qatar': { tier1: [274], tier2: [] },         // Stars League
+    'UAE': { tier1: [301], tier2: [] },           // Pro League
+    'China': { tier1: [17], tier2: [] },          // Super League
+    
+    // ===== OCEANIA =====
+    'Australia': { tier1: [188], tier2: [] }      // A-League
+  };
+  
+  // ============================================================
+  // ĐỊNH NGHĨA CÁC GIẢI QUỐC TẾ
+  // ============================================================
+  // Các league_id của giải quốc tế quan trọng
+  const internationalLeagues = [
+    2,    // UEFA Champions League
+    3,    // UEFA Europa League
+    848,  // UEFA Europa Conference League
+    1,    // World Cup
+    4,    // Euro Championship
+    5,    // UEFA Nations League
+    9,    // Copa America
+    531,  // UEFA Super Cup
+    11,   // FIFA Club World Cup
+    12,   // Olympic Games
+    15,   // FIFA Friendlies
+    13,   // CONCACAF Gold Cup
+    25,   // AFC Asian Cup
+    960   // Euro Qualifiers
+  ];
+  
+  // ============================================================
+  // GỌI API FETCH TẤT CẢ LEAGUES
+  // ============================================================
+  Logger.log('Fetching all leagues...');
+  const response = callApiFootball('/leagues');
+  
+  if (!response.response || response.response.length === 0) {
+    Logger.log('No leagues returned from API');
+    return [];
+  }
+  
+  Logger.log(`Processing ${response.response.length} leagues...`);
+  
+  // ============================================================
+  // XỬ LÝ VÀ PHÂN LOẠI TỪNG LEAGUE
+  // ============================================================
+  response.response.forEach(item => {
+    const league = item.league;
+    const country = item.country;
+    
+    const leagueId = league.id;
+    const leagueName = league.name;
+    const countryName = country.name;
+    const leagueType = league.type;  // 'League', 'Cup', etc.
+    const logoUrl = league.logo || '';
+    
+    // Xác định tier và active status
+    let tier = 'Other';
+    let active = 'No';
+    
+    // Kiểm tra giải quốc tế
+    if (internationalLeagues.includes(leagueId)) {
+      tier = 'International';
+      active = 'Yes';  // Auto-activate giải quốc tế
+    }
+    // Kiểm tra giải thuộc top countries
+    else if (topCountries[countryName]) {
+      const countryData = topCountries[countryName];
+      if (countryData.tier1.includes(leagueId)) {
+        tier = '1';
+        active = 'Yes';  // Auto-activate tier 1
+      } else if (countryData.tier2.includes(leagueId)) {
+        tier = '2';
+        active = 'No';
+      } else if (leagueType === 'Cup') {
+        tier = 'Cup';
+        active = 'No';
+      }
+    }
+    // Các giải khác
+    else if (leagueType === 'League') {
+      tier = '3';
+      active = 'No';
+    } else if (leagueType === 'Cup') {
+      tier = 'Cup';
+      active = 'No';
+    }
+    
+    // Thêm vào mảng kết quả
+    allLeagues.push([
+      leagueId,
+      leagueName,
+      countryName,
+      tier,
+      active,
+      leagueType,
+      logoUrl,
+      new Date().toISOString()
+    ]);
+  });
+  
+  // ============================================================
+  // SẮP XẾP KẾT QUẢ
+  // ============================================================
+  // Thứ tự: International → Country (A-Z) → Tier (1, 2, Cup, Other)
+  allLeagues.sort((a, b) => {
+    // International lên đầu
+    if (a[3] === 'International' && b[3] !== 'International') return -1;
+    if (a[3] !== 'International' && b[3] === 'International') return 1;
+    
+    // Sau đó theo country (alphabetical)
+    if (a[2] < b[2]) return -1;
+    if (a[2] > b[2]) return 1;
+    
+    // Cuối cùng theo tier
+    const tierOrder = { '1': 1, '2': 2, 'Cup': 3, '3': 4, 'Other': 5 };
+    return (tierOrder[a[3]] || 99) - (tierOrder[b[3]] || 99);
+  });
+  
+  Logger.log(`Processed ${allLeagues.length} leagues`);
+  
+  return allLeagues;
+}
+
+/**
+ * Format sheet với màu sắc và conditional formatting
+ * 
+ * @param {Sheet} sheet - Sheet object
+ * @param {number} dataRows - Số dòng data (không tính header)
+ * 
+ * Format áp dụng:
+ * - Header: Nền xanh, chữ trắng, bold
+ * - Dòng chẵn: Nền xám nhạt (alternate rows)
+ * - Active = Yes: Nền xanh lá, chữ xanh đậm
+ * - Active = No: Nền đỏ nhạt, chữ đỏ
+ * - Ẩn cột logo và last_updated
+ */
+function formatSheet(sheet, dataRows) {
+  // Format header row
+  const headerRange = sheet.getRange(1, 1, 1, 8);
+  headerRange
+    .setBackground('#4285f4')      // Google Blue
+    .setFontColor('#ffffff')
+    .setFontWeight('bold')
+    .setHorizontalAlignment('center');
+  
+  if (dataRows === 0) return;
+  
+  // Clear existing conditional format rules
+  sheet.clearConditionalFormatRules();
+  
+  const rules = [];
+  const dataRange = sheet.getRange(2, 1, dataRows, 8);
+  
+  // Rule 1: Alternate row colors (dòng chẵn có nền xám)
+  const alternateRule = SpreadsheetApp.newConditionalFormatRule()
+    .whenFormulaSatisfied('=MOD(ROW(),2)=0')
+    .setBackground('#f3f3f3')
+    .setRanges([dataRange])
+    .build();
+  rules.push(alternateRule);
+  
+  // Rule 2: Active = "Yes" → Xanh lá
+  const activeRange = sheet.getRange(2, 5, dataRows, 1);  // Cột active
+  const activeRule = SpreadsheetApp.newConditionalFormatRule()
+    .whenTextEqualTo('Yes')
+    .setBackground('#d9ead3')
+    .setFontColor('#38761d')
+    .setBold(true)
+    .setRanges([activeRange])
+    .build();
+  rules.push(activeRule);
+  
+  // Rule 3: Active = "No" → Đỏ nhạt
+  const inactiveRule = SpreadsheetApp.newConditionalFormatRule()
+    .whenTextEqualTo('No')
+    .setBackground('#f4cccc')
+    .setFontColor('#cc0000')
+    .setRanges([activeRange])
+    .build();
+  rules.push(inactiveRule);
+  
+  // Áp dụng tất cả rules
+  sheet.setConditionalFormatRules(rules);
+  
+  // Center align cột tier và active
+  sheet.getRange(2, 4, dataRows, 2).setHorizontalAlignment('center');
+  
+  // Ẩn cột logo (7) và last_updated (8) - không cần hiển thị
+  sheet.hideColumns(7, 2);
+}
+
+/**
+ * Thêm data validation dropdown cho cột active
+ * 
+ * @param {Sheet} sheet - Sheet object
+ * @param {number} dataRows - Số dòng data
+ * 
+ * Validation: Chỉ cho phép chọn "Yes" hoặc "No"
+ */
+function addDataValidation(sheet, dataRows) {
+  if (dataRows === 0) return;
+  
+  const activeRange = sheet.getRange(2, 5, dataRows, 1);  // Cột active
+  const rule = SpreadsheetApp.newDataValidation()
+    .requireValueInList(['Yes', 'No'], true)  // true = show dropdown
+    .setAllowInvalid(false)                   // Không cho phép giá trị khác
+    .build();
+  activeRange.setDataValidation(rule);
+}
+
+/**
+ * Tính thống kê từ data leagues
+ * 
+ * @param {Array[]} leagues - Mảng data leagues
+ * @returns {Object} - Object chứa các số liệu thống kê
+ */
+function getLeagueStats(leagues) {
+  const stats = {
+    total: leagues.length,
+    active: 0,
+    inactive: 0,
+    international: 0,
+    tier1: 0,
+    tier2: 0
+  };
+  
+  leagues.forEach(league => {
+    if (league[4] === 'Yes') stats.active++;
+    if (league[4] === 'No') stats.inactive++;
+    if (league[3] === 'International') stats.international++;
+    if (league[3] === '1') stats.tier1++;
+    if (league[3] === '2') stats.tier2++;
+  });
+  
+  return stats;
+}
+
+/**
+ * Kích hoạt chỉ các giải hàng đầu (International + Tier 1)
+ * Tắt tất cả các giải còn lại
+ */
+function activateTopLeaguesOnly() {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const sheet = ss.getSheetByName(SHEET_NAME);
+  
+  if (!sheet) {
+    SpreadsheetApp.getUi().alert('❌ Error', 'Sheet not found. Run Setup first.', SpreadsheetApp.getUi().ButtonSet.OK);
+    return;
+  }
+  
+  const data = sheet.getDataRange().getValues();
+  let activeCount = 0;
+  let inactiveCount = 0;
+  
+  // Duyệt từng dòng (bỏ header)
+  for (let i = 1; i < data.length; i++) {
+    const tier = data[i][3];  // Cột tier (index 3)
+    if (tier === 'International' || tier === '1') {
+      sheet.getRange(i + 1, 5).setValue('Yes');  // Kích hoạt
+      activeCount++;
+    } else {
+      sheet.getRange(i + 1, 5).setValue('No');   // Tắt
+      inactiveCount++;
+    }
+  }
+  
+  SpreadsheetApp.getUi().alert(
+    '✅ Done',
+    `Activated ${activeCount} top leagues\nDeactivated ${inactiveCount} other leagues`,
+    SpreadsheetApp.getUi().ButtonSet.OK
+  );
+}
+
+/**
+ * Tắt tất cả các giải đấu (set active = "No")
+ */
+function deactivateAllLeagues() {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const sheet = ss.getSheetByName(SHEET_NAME);
+  
+  if (!sheet) return;
+  
+  const lastRow = sheet.getLastRow();
+  if (lastRow > 1) {
+    // Set toàn bộ cột active = "No"
+    sheet.getRange(2, 5, lastRow - 1, 1).setValue('No');
+    SpreadsheetApp.getUi().alert('✅ Done', 'All leagues deactivated.', SpreadsheetApp.getUi().ButtonSet.OK);
+  }
+}
+
+/**
+ * Hiển thị dialog thống kê chi tiết
+ * 
+ * Thông tin hiển thị:
+ * - Tổng số giải
+ * - Số giải active/inactive
+ * - Phân bổ theo tier
+ * - Phân bổ theo type (League, Cup,...)
+ * - Top 10 quốc gia có nhiều giải nhất
+ */
+function showLeagueStatistics() {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const sheet = ss.getSheetByName(SHEET_NAME);
+  
+  if (!sheet) {
+    SpreadsheetApp.getUi().alert('❌ Error', 'Sheet not found.', SpreadsheetApp.getUi().ButtonSet.OK);
+    return;
+  }
+  
+  const data = sheet.getDataRange().getValues();
+  const leagues = data.slice(1);  // Bỏ header
+  const stats = getLeagueStats(leagues);
+  
+  // ============================================================
+  // THỐNG KÊ THEO QUỐC GIA
+  // ============================================================
+  const countryMap = new Map();
+  leagues.forEach(league => {
+    const country = league[2];  // Cột country
+    countryMap.set(country, (countryMap.get(country) || 0) + 1);
+  });
+  
+  // Lấy top 10 quốc gia có nhiều giải nhất
+  const topCountries = Array.from(countryMap.entries())
+    .sort((a, b) => b[1] - a[1])  // Sort giảm dần
+    .slice(0, 10)
+    .map(([country, count]) => `  ${country}: ${count}`)
+    .join('\n');
+  
+  // ============================================================
+  // THỐNG KÊ THEO TYPE
+  // ============================================================
+  const typeMap = new Map();
+  leagues.forEach(league => {
+    const type = league[5];  // Cột type
+    typeMap.set(type, (typeMap.get(type) || 0) + 1);
+  });
+  
+  const typeStats = Array.from(typeMap.entries())
+    .map(([type, count]) => `  ${type}: ${count}`)
+    .join('\n');
+  
+  // ============================================================
+  // HIỂN THỊ DIALOG
+  // ============================================================
+  SpreadsheetApp.getUi().alert(
+    '📊 Statistics',
+    `Total: ${stats.total}\n\n` +
+    `Status:\n  ✅ Active: ${stats.active}\n  ❌ Inactive: ${stats.inactive}\n\n` +
+    `Tier:\n  🌍 International: ${stats.international}\n  🥇 Tier 1: ${stats.tier1}\n  🥈 Tier 2: ${stats.tier2}\n\n` +
+    `Type:\n${typeStats}\n\n` +
+    `Top Countries:\n${topCountries}`,
+    SpreadsheetApp.getUi().ButtonSet.OK
+  );
+}

@@ -1,0 +1,195 @@
+/**
+ * ============================================================
+ * CHECK AND DELETE EXPIRED MATCHES
+ * ============================================================
+  * Luồng xử lý:
+ * 1. Đọc sheet Watchlist
+ * 2. Tìm cột date và kickoff theo header
+ * 3. Duyệt từng dòng (từ dưới lên để tránh lỗi index khi xóa)
+ * 4. Tính thời gian hết hạn = kickoff + 120 phút
+ * 5. Xóa dòng nếu đã quá thời gian hết hạn
+ *
+ * Có thể chạy thủ công hoặc gán time-based trigger
+ * ============================================================
+ **/
+function checkAndDeleteExpiredMatches() {
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var sheet = ss.getSheetByName(WATCHLIST_SHEET_NAME);
+
+  if (!sheet) {
+    console.log('Sheet "Watchlist" không tồn tại!');
+    return;
+  }
+
+  // ============================================================
+  // 1. LẤY THỜI GIAN HIỆN TẠI (TIMEZONE SEOUL)
+  // ============================================================
+  var seoulNow = new Date();
+  console.log('Giờ hiện tại Seoul: ' + Utilities.formatDate(seoulNow, 'Asia/Seoul', 'yyyy-MM-dd HH:mm:ss'));
+
+  // ============================================================
+  // 2. TÌM VỊ TRÍ CỘT DATE VÀ KICKOFF THEO HEADER
+  // ============================================================
+  var headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
+  var dateCol = headers.indexOf('date') + 1; // +1 vì indexOf trả về 0-based
+  var kickoffCol = headers.indexOf('kickoff') + 1;
+
+  // Validate cấu trúc sheet
+  if (dateCol === 0 || kickoffCol === 0) {
+    console.log('Không tìm thấy cột "date" hoặc "kickoff"!');
+    return;
+  }
+
+  console.log('Cột date: ' + dateCol + ', Cột kickoff: ' + kickoffCol);
+
+  // ============================================================
+  // 3. ĐỌC DỮ LIỆU
+  // ============================================================
+  var lastRow = sheet.getLastRow();
+  if (lastRow < 2) {
+    console.log('Không có dữ liệu để kiểm tra');
+    return;
+  }
+
+  // Đọc riêng cột date và kickoff (từ row 2 đến cuối)
+  var dateValues = sheet.getRange(2, dateCol, lastRow - 1, 1).getValues();
+  var kickoffValues = sheet.getRange(2, kickoffCol, lastRow - 1, 1).getValues();
+
+  // ============================================================
+  // 4. DUYỆT TỪ DƯỚI LÊN VÀ XÓA DÒNG HẾT HẠN
+  // ============================================================
+  // Lý do duyệt từ dưới lên: Khi xóa 1 dòng, các dòng phía dưới sẽ
+  // bị đẩy lên, nếu duyệt từ trên xuống sẽ bị lệch index
+  var deletedCount = 0;
+  var deletedRows = []; // Lưu thông tin các dòng đã xóa để log
+  var frozenRows = sheet.getFrozenRows();
+
+  for (var i = lastRow - 1; i >= 1; i--) {
+    var dateValue = dateValues[i - 1][0]; // i-1 vì array 0-based
+    var kickoffValue = kickoffValues[i - 1][0];
+
+    // Bỏ qua dòng có dữ liệu trống
+    if (!dateValue || !kickoffValue) {
+      console.log('Dòng ' + (i + 1) + ': Dữ liệu trống, bỏ qua');
+      continue;
+    }
+
+    // Parse datetime từ date + kickoff
+    var matchDateTime = parseMatchDateTime(dateValue, kickoffValue);
+
+    if (!matchDateTime) {
+      console.log('Dòng ' + (i + 1) + ': Không parse được dữ liệu');
+      continue;
+    }
+
+    // Tính thời gian hết hạn = kickoff + 120 phút
+    // 120 phút = thời gian tối đa 1 trận (90 phút + hiệp phụ + bù giờ)
+    var expireTime = new Date(matchDateTime.getTime() + 120 * 60 * 1000);
+
+    // Format để log
+    var matchStr = Utilities.formatDate(matchDateTime, 'Asia/Seoul', 'yyyy-MM-dd HH:mm');
+    var expireStr = Utilities.formatDate(expireTime, 'Asia/Seoul', 'yyyy-MM-dd HH:mm');
+
+    console.log('Dòng ' + (i + 1) + ': Match ' + matchStr + ' → Expire ' + expireStr);
+
+    // Kiểm tra và xóa nếu đã quá thời gian hết hạn
+    if (expireTime < seoulNow) {
+      var remainingNonFrozen = sheet.getMaxRows() - frozenRows;
+      if (remainingNonFrozen <= 1) {
+        // Không thể xóa hết mọi dòng non-frozen -> clearContent thay vì deleteRow
+        sheet.getRange(i + 1, 1, 1, sheet.getLastColumn()).clearContent();
+        deletedCount++;
+        deletedRows.push((i + 1) + ' (' + matchStr + ', cleared)');
+        console.log('→ ĐÃ CLEAR dòng ' + (i + 1) + ' (giữ lại 1 dòng non-frozen)');
+        continue;
+      }
+
+      sheet.deleteRow(i + 1); // +1 vì sheet row 1-based
+      deletedCount++;
+      deletedRows.push((i + 1) + ' (' + matchStr + ')');
+      console.log('→ ĐÃ XÓA dòng ' + (i + 1));
+    }
+  }
+
+  // Log tổng kết
+  var detail = deletedCount > 0 ? 'Xóa/clear dòng: ' + deletedRows.join(', ') : 'Không có dòng nào quá hạn';
+  console.log('=== Hoàn thành: Đã xử lý ' + deletedCount + ' dòng ===');
+  console.log(detail);
+}
+
+/**
+ * ============================================================
+ * HELPER FUNCTION: Parse date + time thành Date object
+ * ============================================================
+ *
+ * @param {Date|string} dateValue - Giá trị ngày (Date object hoặc string "dd/mm/yyyy")
+ * @param {Date|string} kickoffValue - Giá trị giờ (Date/Time object hoặc string "HH:mm")
+ * @returns {Date|null} - Date object kết hợp, hoặc null nếu parse lỗi
+ *
+ * Hỗ trợ các format input:
+ * - dateValue: Date object hoặc string "dd/mm/yyyy"
+ * - kickoffValue: Date/Time object hoặc string "HH:mm"
+ */
+function parseMatchDateTime(dateValue, kickoffValue) {
+  try {
+    var matchDate;
+
+    // ============================================================
+    // PARSE DATE
+    // ============================================================
+    if (dateValue instanceof Date) {
+      // Trường hợp 1: Đã là Date object (Google Sheets tự convert)
+      matchDate = new Date(dateValue);
+    } else {
+      // Trường hợp 2: String format "dd/mm/yyyy"
+      var dateStr = dateValue.toString().trim();
+      var dateParts = dateStr.split('/');
+      if (dateParts.length === 3) {
+        var day = parseInt(dateParts[0], 10);
+        var month = parseInt(dateParts[1], 10) - 1; // -1 vì month 0-based trong JS
+        var year = parseInt(dateParts[2], 10);
+        matchDate = new Date(year, month, day);
+      } else {
+        return null; // Format không hợp lệ
+      }
+    }
+
+    // ============================================================
+    // PARSE TIME
+    // ============================================================
+    var hour;
+    var minute;
+    if (kickoffValue instanceof Date) {
+      // Trường hợp 1: Date/Time object (Google Sheets lưu time dạng Date)
+      hour = kickoffValue.getHours();
+      minute = kickoffValue.getMinutes();
+    } else {
+      // Trường hợp 2: String format "HH:mm"
+      var timeStr = kickoffValue.toString().trim();
+      var timeParts = timeStr.split(':');
+      if (timeParts.length >= 2) {
+        hour = parseInt(timeParts[0], 10);
+        minute = parseInt(timeParts[1], 10);
+      } else {
+        return null; // Format không hợp lệ
+      }
+    }
+
+    // ============================================================
+    // KẾT HỢP DATE + TIME
+    // ============================================================
+    var result = new Date(
+      matchDate.getFullYear(),
+      matchDate.getMonth(),
+      matchDate.getDate(),
+      hour,
+      minute,
+      0 // seconds = 0
+    );
+
+    return result;
+  } catch (e) {
+    console.log('Lỗi parse: ' + e.message);
+    return null;
+  }
+}

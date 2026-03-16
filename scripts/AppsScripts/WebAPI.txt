@@ -1,0 +1,644 @@
+
+  ============================================================
+  WEB API - GOOGLE SHEETS REST API
+  ============================================================
+  Script cung cấp REST API để đọcghi dữ liệu từ Google Sheets.
+  Deploy dưới dạng Google Apps Script Web App.
+  
+  Endpoints
+  - GET  apiKey=xxx&resource=matches&action=getAll
+  - GET  apiKey=xxx&resource=matches&action=getById&ids=1,2,3
+  - POST { apiKey, resource, action create, data [...] }
+  - POST { apiKey, resource, action update, data [...] }
+  - POST { apiKey, resource, action delete, ids [...] }
+  
+  Resources hỗ trợ
+  - matches Danh sách trận đấu
+  - watchlist Danh sách trận đang theo dõi
+  - recommendations Danh sách đề xuất cá cược
+  - approved_leagues Danh sách giải đấu được phê duyệt
+  ============================================================
+ 
+
+ ============================================================
+ CẤU HÌNH RESOURCE - Map resource name - sheet config
+ ============================================================
+const RESOURCE_CONFIG = {
+  matches {
+    sheetName 'Matches',            Tên sheet trong Google Sheets
+    keyField 'match_id',            Cột primary key để updatedelete
+  },
+  watchlist {
+    sheetName 'Watchlist',
+    keyField 'match_id',
+  },
+  recommendations {
+    sheetName 'Recommendations',
+    keyField 'match_id',
+  },
+  approved_leagues {
+    sheetName 'Approved_Leagues',
+    keyField 'league_id',
+  },
+};
+
+
+  ============================================================
+  ENTRYPOINTS - Xử lý HTTP requests
+  ============================================================
+ 
+
+
+  Xử lý HTTP GET requests
+  
+  @param {Object} e - Event object từ Google Apps Script
+  @returns {TextOutput} - JSON response
+  
+  Supported actions
+  - getAll Lấy tất cả records từ resource
+  - getById Lấy records theo danh sách IDs
+  
+  Query params
+  - apiKey API key để xác thực (bắt buộc)
+  - resource Tên resource (matches, watchlist,...) (bắt buộc)
+  - action Hành động (getAll, getById) (bắt buộc)
+  - idsid Danh sách IDs, phân cách bằng dấu phẩy (cho getById)
+ 
+function doGet(e) {
+  try {
+    const params = e.parameter  {};
+
+     ============================================================
+     1. XÁC THỰC API KEY
+     ============================================================
+    if (!validateApiKey_(params.apiKey)) {
+      return jsonResponse_({ error 'Invalid apiKey' }, 401);
+    }
+
+    const resource = (params.resource  '').toLowerCase();
+    const action = (params.action  '').toLowerCase();
+
+     Validate resource
+    if (!RESOURCE_CONFIG[resource]) {
+      return jsonResponse_({ error 'Unknown resource' }, 400);
+    }
+
+     ============================================================
+     2. XỬ LÝ ACTION getAll
+     ============================================================
+    if (action === 'getall') {
+      const items = getAll_(resource);
+      return jsonResponse_({ resource, action, count items.length, items });
+    }
+
+     ============================================================
+     3. XỬ LÝ ACTION getById
+     ============================================================
+    if (action === 'getbyid') {
+      const idsParam = params.ids  params.id  '';
+      const ids = splitIds_(idsParam);
+      if (ids.length === 0) {
+        return jsonResponse_({ error 'No ids provided' }, 400);
+      }
+      const items = getByIds_(resource, ids);
+      return jsonResponse_({ resource, action, ids, count items.length, items });
+    }
+
+    return jsonResponse_({ error 'Unsupported action for GET' }, 400);
+  } catch (err) {
+    return jsonResponse_(
+      { error 'Internal error', message String(err) },
+      500
+    );
+  }
+}
+
+
+  Xử lý HTTP POST requests
+  
+  @param {Object} e - Event object từ Google Apps Script
+  @returns {TextOutput} - JSON response
+  
+  Supported actions
+  - create Tạo mới records
+  - update Cập nhật records theo key
+  - delete Xóa records theo IDs
+  
+  Request body (JSON)
+  - apiKey API key để xác thực (bắt buộc)
+  - resource Tên resource (bắt buộc)
+  - action Hành động (create, update, delete) (bắt buộc)
+  - data Array of objects (cho create, update)
+  - ids Array of IDs (cho delete)
+ 
+function doPost(e) {
+  try {
+     ============================================================
+     1. PARSE REQUEST BODY
+     ============================================================
+    const raw = e.postData && e.postData.contents  e.postData.contents  '';
+    if (!raw) {
+      return jsonResponse_({ error 'Empty request body' }, 400);
+    }
+
+    let body;
+    try {
+      body = JSON.parse(raw);
+    } catch (err) {
+      return jsonResponse_({ error 'Invalid JSON body', message String(err) }, 400);
+    }
+
+     ============================================================
+     2. XÁC THỰC API KEY
+     ============================================================
+    const apiKey = body.apiKey  body.key;
+    if (!validateApiKey_(apiKey)) {
+      return jsonResponse_({ error 'Invalid apiKey' }, 401);
+    }
+
+    const resource = (body.resource  '').toLowerCase();
+    const action = (body.action  '').toLowerCase();
+
+     Validate resource
+    if (!RESOURCE_CONFIG[resource]) {
+      return jsonResponse_({ error 'Unknown resource' }, 400);
+    }
+
+     ============================================================
+     3. XỬ LÝ ACTION create
+     ============================================================
+    if (action === 'create') {
+      if (!Array.isArray(body.data)  body.data.length === 0) {
+        return jsonResponse_({ error 'data must be a non-empty array' }, 400);
+      }
+      const inserted = createRows_(resource, body.data);
+      return jsonResponse_({
+        resource,
+        action,
+        insertedCount inserted.length,
+        items inserted,
+      });
+    }
+
+     ============================================================
+     4. XỬ LÝ ACTION update
+     ============================================================
+    if (action === 'update') {
+      if (!Array.isArray(body.data)  body.data.length === 0) {
+        return jsonResponse_({ error 'data must be a non-empty array' }, 400);
+      }
+      const updated = updateRowsByKey_(resource, body.data);
+      return jsonResponse_({
+        resource,
+        action,
+        updatedCount updated.length,
+        items updated,
+      });
+    }
+
+     ============================================================
+     5. XỬ LÝ ACTION delete
+     ============================================================
+    if (action === 'delete') {
+      const ids = body.ids  body.id  [];
+      const idList = Array.isArray(ids)  ids  [ids];
+       Normalize IDs convert to string, trim, filter empty
+      const normalizedIds = idList
+        .map(String)
+        .map((s) = s.trim())
+        .filter((s) = s);
+      if (normalizedIds.length === 0) {
+        return jsonResponse_({ error 'ids must be a non-empty array or value' }, 400);
+      }
+      const deletedCount = deleteRowsByKey_(resource, normalizedIds);
+      return jsonResponse_({
+        resource,
+        action,
+        ids normalizedIds,
+        deletedCount,
+      });
+    }
+
+    return jsonResponse_({ error 'Unsupported action for POST' }, 400);
+  } catch (err) {
+    return jsonResponse_(
+      { error 'Internal error', message String(err) },
+      500
+    );
+  }
+}
+
+
+  ============================================================
+  CORE HELPERS - Các hàm tiện ích chính
+  ============================================================
+ 
+
+
+  Xác thực API key
+  
+  @param {string} apiKey - API key từ request
+  @returns {boolean} - true nếu hợp lệ
+ 
+function validateApiKey_(apiKey) {
+  return apiKey && apiKey === API_WEB_KEY;
+}
+
+
+  Parse danh sách IDs từ param
+  Hỗ trợ cả array và string phân cách bằng dấu phẩy
+  
+  @param {stringArray} idsParam - IDs param từ request
+  @returns {string[]} - Array of normalized IDs
+  
+  Ví dụ
+  - 1,2,3 - [1, 2, 3]
+  - [1, 2] - [1, 2]
+ 
+function splitIds_(idsParam) {
+  if (!idsParam) return [];
+  if (Array.isArray(idsParam)) {
+    return idsParam
+      .map(String)
+      .map((s) = s.trim())
+      .filter((s) = s);
+  }
+  return String(idsParam)
+    .split(',')
+    .map((s) = s.trim())
+    .filter((s) = s);
+}
+
+
+  Lấy config của resource
+  
+  @param {string} resource - Tên resource
+  @returns {Object} - Config object { sheetName, keyField }
+  @throws {Error} - Nếu resource không tồn tại
+ 
+function getSheetConfig_(resource) {
+  const cfg = RESOURCE_CONFIG[resource];
+  if (!cfg) throw new Error('Unknown resource ' + resource);
+  return cfg;
+}
+
+
+  Lấy Sheet object từ tên sheet
+  
+  @param {string} sheetName - Tên sheet
+  @returns {Sheet} - Sheet object
+  @throws {Error} - Nếu sheet không tồn tại
+ 
+function getSheet_(sheetName) {
+  const ss = SpreadsheetApp.openById(SPREADSHEET_ID);
+  const sheet = ss.getSheetByName(sheetName);
+  if (!sheet) throw new Error('Sheet not found ' + sheetName);
+  return sheet;
+}
+
+
+  Đọc toàn bộ dữ liệu từ sheet
+  
+  @param {string} sheetName - Tên sheet
+  @returns {Object} - { sheet, headers, rows }
+    - sheet Sheet object
+    - headers Array of header names
+    - rows Array of { rowNumber, data } objects
+  
+  Quy ước
+  - Dòng 1 luôn là header
+  - Dữ liệu bắt đầu từ dòng 2
+  - rowNumber là 1-based (tương ứng với số dòng trong sheet)
+ 
+function loadSheetData_(sheetName) {
+  const sheet = getSheet_(sheetName);
+  const range = sheet.getDataRange();
+  const values = range.getValues();
+
+   Sheet hoàn toàn trống
+  if (values.length === 0) {
+    return {
+      sheet,
+      headers [],
+      rows [],
+    };
+  }
+
+   Dòng 1 luôn là header
+  const rawHeaders = values[0];
+  const headers = rawHeaders.map((h) = (h == null  ''  String(h)));
+
+   Parse các dòng data thành objects
+  const rows = [];
+  for (let r = 1; r  values.length; r++) {
+    const row = values[r];
+    const obj = {};
+    for (let c = 0; c  headers.length; c++) {
+      const header = headers[c];
+      if (!header) continue;   Skip cột không có header
+      obj[header] = row[c];
+    }
+    rows.push({
+      rowNumber r + 1,   1-based, vì dòng 1 là header
+      data obj,
+    });
+  }
+
+  return { sheet, headers, rows };
+}
+
+
+  Chuẩn hóa các giá trị DateTime trước khi trả JSON
+  
+  @param {string} resource - Tên resource
+  @param {Object} rowObj - Object data của 1 row
+  @returns {Object} - Object với các Date đã được format
+  
+  Format rules
+  - field 'date' 'yyyy-MM-dd'
+  - field 'kickoff' 'HHmm'
+  - field 'timestamp', 'created_at', 'updated_at' 'yyyy-MM-dd'T'HHmmss'
+  - các Date khác 'yyyy-MM-dd'T'HHmmss'
+ 
+function normalizeRowForResource_(resource, rowObj) {
+  const tz = Session.getScriptTimeZone();
+  const out = {};
+  for (const key in rowObj) {
+    if (!Object.prototype.hasOwnProperty.call(rowObj, key)) continue;
+    let val = rowObj[key];
+    
+     Chỉ xử lý nếu giá trị là Date object
+    if (val instanceof Date) {
+      if (key === 'date') {
+         Cột date chỉ hiển thị ngày
+        val = Utilities.formatDate(val, tz, 'yyyy-MM-dd');
+      } else if (key === 'kickoff') {
+         Cột kickoff chỉ hiển thị giờphút
+        val = Utilities.formatDate(val, tz, 'HHmm');
+      } else if (
+        key === 'timestamp' 
+        key === 'created_at' 
+        key === 'updated_at'
+      ) {
+         Các cột timestamp full datetime
+        val = Utilities.formatDate(val, tz, yyyy-MM-dd'T'HHmmss);
+      } else {
+         Fallback cho mọi Date khác
+        val = Utilities.formatDate(val, tz, yyyy-MM-dd'T'HHmmss);
+      }
+    }
+    out[key] = val;
+  }
+  return out;
+}
+
+
+  ============================================================
+  READ FUNCTIONS - Các hàm đọc dữ liệu
+  ============================================================
+ 
+
+
+  Lấy tất cả records từ resource
+  
+  @param {string} resource - Tên resource
+  @returns {Object[]} - Array of normalized record objects
+ 
+function getAll_(resource) {
+  const cfg = getSheetConfig_(resource);
+  const { rows } = loadSheetData_(cfg.sheetName);
+  return rows.map((r) = normalizeRowForResource_(resource, r.data));
+}
+
+
+  Lấy records theo danh sách IDs
+  
+  @param {string} resource - Tên resource
+  @param {string[]} ids - Array of IDs cần lấy
+  @returns {Object[]} - Array of matching records
+ 
+function getByIds_(resource, ids) {
+  const cfg = getSheetConfig_(resource);
+  const keyField = cfg.keyField;
+  const { rows } = loadSheetData_(cfg.sheetName);
+  
+   Tạo Set để lookup nhanh
+  const idSet = new Set(ids.map(String));
+  const result = [];
+  
+  rows.forEach((row) = {
+    const keyVal = row.data[keyField];
+    if (keyVal != null && idSet.has(String(keyVal))) {
+      result.push(normalizeRowForResource_(resource, row.data));
+    }
+  });
+  
+  return result;
+}
+
+
+  ============================================================
+  CREATE  UPDATE  DELETE FUNCTIONS
+  ============================================================
+ 
+
+
+  Tạo mới records trong sheet
+  
+  @param {string} resource - Tên resource
+  @param {Object[]} dataArray - Array of objects cần insert
+  @returns {Object[]} - Array of inserted records (normalized)
+  @throws {Error} - Nếu sheet không có header
+  
+  Lưu ý
+  - Sheet phải có header row sẵn
+  - Các field không có trong data sẽ được set empty string
+  - Records được append vào cuối sheet
+ 
+function createRows_(resource, dataArray) {
+  const cfg = getSheetConfig_(resource);
+  const sheet = getSheet_(cfg.sheetName);
+  const { headers } = loadSheetData_(cfg.sheetName);
+
+   Validate sheet phải có header
+  if (headers.length === 0) {
+    throw new Error(
+      'Sheet ' + cfg.sheetName + ' has no header row. Please add headers first.'
+    );
+  }
+
+  const rowsToAppend = [];
+  const normalizedItems = [];
+
+   Convert objects to row arrays theo thứ tự header
+  dataArray.forEach((item) = {
+    const row = [];
+    const normalized = {};
+    for (let c = 0; c  headers.length; c++) {
+      const h = headers[c];
+      if (!h) {
+        row.push('');
+        continue;
+      }
+      const val = item[h];
+      row.push(val === undefined  ''  val);
+      normalized[h] = val === undefined  ''  val;
+    }
+    rowsToAppend.push(row);
+    normalizedItems.push(normalized);
+  });
+
+   Batch write tất cả rows mới
+  if (rowsToAppend.length  0) {
+    const startRow = sheet.getLastRow() + 1;
+    const startCol = 1;
+    const numRows = rowsToAppend.length;
+    const numCols = headers.length;
+    sheet
+      .getRange(startRow, startCol, numRows, numCols)
+      .setValues(rowsToAppend);
+  }
+
+   Trả về bản đã normalize ngàygiờ
+  return normalizedItems.map((item) = normalizeRowForResource_(resource, item));
+}
+
+
+  Cập nhật records theo primary key
+  
+  @param {string} resource - Tên resource
+  @param {Object[]} dataArray - Array of objects cần update
+  @returns {Object[]} - Array of updated records (normalized)
+  
+  Lưu ý
+  - Mỗi object trong dataArray phải có keyField
+  - Chỉ update các record có key match
+  - Các field không có trong data sẽ giữ nguyên giá trị cũ
+ 
+function updateRowsByKey_(resource, dataArray) {
+  const cfg = getSheetConfig_(resource);
+  const keyField = cfg.keyField;
+  const { sheet, headers, rows } = loadSheetData_(cfg.sheetName);
+
+   Tạo map keyValue - row object để lookup nhanh
+  const map = new Map();
+  rows.forEach((row) = {
+    const keyVal = row.data[keyField];
+    if (keyVal != null) {
+      map.set(String(keyVal), row);
+    }
+  });
+
+  const updatedItems = [];
+  const updatesByRowNumber = new Map();   rowNumber - merged data object
+
+   Process từng item cần update
+  dataArray.forEach((item) = {
+    const keyVal = item[keyField];
+    if (keyVal == null) return;   Skip item không có key
+    
+    const keyStr = String(keyVal);
+    const rowInfo = map.get(keyStr);
+    if (!rowInfo) return;   Skip nếu không tìm thấy row
+
+     Merge giữ data cũ, ghi đè các field mới
+    const currentData = Object.assign({}, rowInfo.data);
+    Object.keys(item).forEach((field) = {
+      if (!field) return;
+      currentData[field] = item[field];
+    });
+
+    updatesByRowNumber.set(rowInfo.rowNumber, currentData);
+    updatedItems.push(currentData);
+  });
+
+  if (updatesByRowNumber.size === 0) {
+    return [];
+  }
+
+   Write updates từng dòng
+  const rowNumbers = Array.from(updatesByRowNumber.keys()).sort((a, b) = a - b);
+  rowNumbers.forEach((rowNumber) = {
+    const data = updatesByRowNumber.get(rowNumber);
+    const rowValues = [];
+    for (let c = 0; c  headers.length; c++) {
+      const h = headers[c];
+      if (!h) {
+        rowValues.push('');
+        continue;
+      }
+      const val = data[h];
+      rowValues.push(val === undefined  ''  val);
+    }
+    sheet
+      .getRange(rowNumber, 1, 1, headers.length)
+      .setValues([rowValues]);
+  });
+
+   Trả về bản đã normalize ngàygiờ
+  return updatedItems.map((item) = normalizeRowForResource_(resource, item));
+}
+
+
+  Xóa records theo danh sách IDs
+  
+  @param {string} resource - Tên resource
+  @param {string[]} ids - Array of IDs cần xóa
+  @returns {number} - Số records đã xóa
+  
+  Lưu ý
+  - Xóa từ dưới lên để không bị lệch rowNumber
+ 
+function deleteRowsByKey_(resource, ids) {
+  const cfg = getSheetConfig_(resource);
+  const keyField = cfg.keyField;
+  const { sheet, rows } = loadSheetData_(cfg.sheetName);
+
+   Tìm các row cần xóa
+  const idSet = new Set(ids.map(String));
+  const rowsToDelete = [];
+
+  rows.forEach((row) = {
+    const keyVal = row.data[keyField];
+    if (keyVal != null && idSet.has(String(keyVal))) {
+      rowsToDelete.push(row.rowNumber);
+    }
+  });
+
+  if (rowsToDelete.length === 0) {
+    return 0;
+  }
+
+   Xóa từ dưới lên để tránh lệch rowNumber
+   Ví dụ cần xóa dòng 3, 5 → xóa 5 trước, rồi xóa 3
+  rowsToDelete.sort((a, b) = b - a).forEach((rowNumber) = {
+    sheet.deleteRow(rowNumber);
+  });
+
+  return rowsToDelete.length;
+}
+
+
+  ============================================================
+  JSON RESPONSE HELPER
+  ============================================================
+ 
+
+
+  Tạo JSON response cho Web App
+  
+  @param {Object} obj - Object cần trả về
+  @param {number} statusCode - HTTP status code (chỉ để tham khảo, không thực sự set được)
+  @returns {TextOutput} - JSON text output
+  
+  Lưu ý
+  - Google Apps Script Web Apps không cho phép set HTTP status code trực tiếp
+  - Client cần check field 'error' trong response để biết có lỗi hay không
+ 
+function jsonResponse_(obj, statusCode) {
+  const output = ContentService.createTextOutput(
+    JSON.stringify(obj, null, 2)   Pretty print với 2 spaces
+  ).setMimeType(ContentService.MimeType.JSON);
+
+  return output;
+}

@@ -4,6 +4,9 @@ node_modules/
 # Build output
 dist/
 
+# Seed data cache
+scripts/seed-data.json
+
 # Coverage
 coverage/
 

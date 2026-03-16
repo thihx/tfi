@@ -7,6 +7,7 @@ const defaultConfig: AppConfig = {
   defaultMode: 'B',
   appsScriptUrl: import.meta.env.VITE_APPS_SCRIPT_URL,
   apiKey: import.meta.env.VITE_API_KEY,
+  apiUrl: import.meta.env.VITE_API_URL ?? '',
 };
 
 export function loadConfig(): AppConfig {

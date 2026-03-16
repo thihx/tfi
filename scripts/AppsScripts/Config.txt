@@ -1,0 +1,56 @@
+/**
+ * ============================================================
+ * CẤU HÌNH HỆ THỐNG FOOTBALL BETTING ANALYSIS
+ * ============================================================
+ * File chứa tất cả các hằng số cấu hình cho hệ thống
+ * Chỉnh sửa các giá trị tại đây khi cần thay đổi cấu hình
+ * ============================================================
+ */
+
+// ============================================================
+// API KEYS & CREDENTIALS
+// ============================================================
+const API_FOOTBALL_KEY = 'ab618542b8ada6f547a0e5e1cfeb72c8';  // API-Football (api-sports.io)
+const API_WEB_KEY = '3a28a55b9fcabc0f5d46c0139b4f1f23919cbcc46718ef12';  // Web API key
+
+// ============================================================
+// API ENDPOINTS
+// ============================================================
+const API_FOOTBALL_BASE_URL = 'https://v3.football.api-sports.io';
+const N8N_WEBHOOK_URL = 'https://thihx.app.n8n.cloud/webhook/live-monitor';
+
+// ============================================================
+// GOOGLE SHEETS
+// ============================================================
+const SPREADSHEET_ID = '1kwXtpKxtQE52lFnz5MRRV0dnzeftN_X5tD69CL12ycU';
+
+// Tên các sheet
+const MATCHES_SHEET_NAME = 'Matches';
+const WATCHLIST_SHEET_NAME = 'Watchlist';
+const APPROVED_LEAGUES_SHEET = 'Approved_Leagues';
+const APPROVED_LEAGUES_REVIEW_SHEET = 'Approved_Leagues_ForReview';
+
+// ============================================================
+// CẤU TRÚC CỘT - SHEET MATCHES
+// ============================================================
+const MATCHES_MATCH_ID_COL = 'match_id';
+const MATCHES_STATUS_COL = 'status';  // Status từ API-Football (NS, 1H, HT, 2H, FT,...)
+
+// ============================================================
+// CẤU TRÚC CỘT - SHEET WATCHLIST
+// ============================================================
+const WATCHLIST_MATCH_ID_COL = 'match_id';
+const WATCHLIST_STATUS_COL = 'status';  // Status theo dõi (active, pause,...)
+const WATCHLIST_PREDICTION_COL_NAME = 'prediction';
+
+// ============================================================
+// MATCH STATUS GROUPS
+// ============================================================
+// Các status được coi là "đang diễn ra" để trigger live monitoring
+// Full list: ['1H', '2H', 'ET', 'BT', 'P', 'LIVE']
+const LIVE_STATUSES = ['1H', '2H'];
+
+// ============================================================
+// TIMEZONE
+// ============================================================
+const TIME_ZONE = 'Asia/Seoul';
