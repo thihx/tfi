@@ -3,23 +3,18 @@ import { STATUS_BADGES, TOP_LEAGUES } from './constants';
 
 // ==================== APPLICATION CONFIG ====================
 const defaultConfig: AppConfig = {
-  webhookUrl: import.meta.env.VITE_WEBHOOK_URL,
   defaultMode: 'B',
-  appsScriptUrl: import.meta.env.VITE_APPS_SCRIPT_URL,
-  apiKey: import.meta.env.VITE_API_KEY,
-  apiUrl: import.meta.env.VITE_API_URL ?? '',
+  apiUrl: import.meta.env.VITE_API_URL ?? 'http://localhost:4000',
 };
 
 export function loadConfig(): AppConfig {
   return {
     ...defaultConfig,
-    webhookUrl: localStorage.getItem('webhookUrl') || defaultConfig.webhookUrl,
     defaultMode: localStorage.getItem('defaultMode') || defaultConfig.defaultMode,
   };
 }
 
 export function saveConfig(config: AppConfig): void {
-  localStorage.setItem('webhookUrl', config.webhookUrl);
   localStorage.setItem('defaultMode', config.defaultMode);
 }
 

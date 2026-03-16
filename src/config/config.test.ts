@@ -100,28 +100,22 @@ describe('loadConfig & saveConfig', () => {
 
   test('loadConfig returns default config when nothing saved', () => {
     const config = loadConfig();
-    expect(config.webhookUrl).toBeTruthy();
     expect(config.defaultMode).toBe('B');
-    expect(config.appsScriptUrl).toBeTruthy();
-    expect(config.apiKey).toBeTruthy();
+    expect(config.apiUrl).toBeTruthy();
   });
 
   test('saveConfig persists to localStorage', () => {
     const config = loadConfig();
-    config.webhookUrl = 'https://test.example.com';
     config.defaultMode = 'A';
     saveConfig(config);
 
-    expect(localStorage.setItem).toHaveBeenCalledWith('webhookUrl', 'https://test.example.com');
     expect(localStorage.setItem).toHaveBeenCalledWith('defaultMode', 'A');
   });
 
   test('loadConfig reads saved values', () => {
-    localStorage.setItem('webhookUrl', 'https://saved.example.com');
     localStorage.setItem('defaultMode', 'C');
 
     const config = loadConfig();
-    expect(config.webhookUrl).toBe('https://saved.example.com');
     expect(config.defaultMode).toBe('C');
   });
 });

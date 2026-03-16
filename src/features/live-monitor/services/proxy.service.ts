@@ -1,8 +1,7 @@
 // ============================================================
 // Proxy Service
-// Routes external API calls through Google Apps Script (GAS)
-// or the PG backend when config.apiUrl is set.
-// Football API, AI, and notifications always go through GAS.
+// Routes external API calls through the TFI backend server.
+// Football API, AI, and notifications all go through /api/proxy.
 // ============================================================
 
 import type { AppConfig } from '@/types';
@@ -15,59 +14,21 @@ import type {
   RecommendationData,
 } from '../types';
 
-interface GasResponse<T = unknown> {
-  success?: boolean;
-  resource?: string;
-  action?: string;
-  items?: T[];
-  data?: T;
-  error?: string;
+function apiUrl(config: AppConfig, path: string): string {
+  return `${config.apiUrl}${path}`;
 }
 
-async function gasPost<T>(config: AppConfig, body: Record<string, unknown>): Promise<T> {
-  const response = await fetch(config.appsScriptUrl, {
+async function postJson<T>(url: string, body: unknown): Promise<T> {
+  const res = await fetch(url, {
     method: 'POST',
-    headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-    body: JSON.stringify({ ...body, apiKey: config.apiKey }),
+    headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+    body: JSON.stringify(body),
   });
-
-  if (!response.ok) {
-    const errorText = await response.text();
-    throw new Error(`Proxy error ${response.status}: ${errorText.substring(0, 300)}`);
+  if (!res.ok) {
+    const text = await res.text();
+    throw new Error(`API error ${res.status}: ${text.substring(0, 300)}`);
   }
-
-  const result: GasResponse<T> = await response.json();
-  if (result.error) {
-    throw new Error(`GAS error: ${result.error}`);
-  }
-
-  return (result.data ?? result.items ?? result) as T;
-}
-
-async function gasGet<T>(config: AppConfig, params: Record<string, string>): Promise<T> {
-  const url = new URL(config.appsScriptUrl);
-  Object.entries(params).forEach(([k, v]) => url.searchParams.set(k, v));
-  url.searchParams.set('apiKey', config.apiKey);
-
-  const response = await fetch(url.toString(), {
-    method: 'GET',
-    headers: { Accept: 'application/json' },
-    mode: 'cors',
-    credentials: 'omit',
-    redirect: 'follow',
-  });
-
-  if (!response.ok) {
-    const errorText = await response.text();
-    throw new Error(`Proxy error ${response.status}: ${errorText.substring(0, 300)}`);
-  }
-
-  const result: GasResponse<T> = await response.json();
-  if (result.error) {
-    throw new Error(`GAS error: ${result.error}`);
-  }
-
-  return (result.data ?? result.items ?? result) as T;
+  return res.json();
 }
 
 // ==================== Football API Proxy ====================
@@ -76,38 +37,30 @@ export async function fetchLiveFixtures(
   config: AppConfig,
   matchIds: string[],
 ): Promise<FootballApiFixture[]> {
-  return gasPost<FootballApiFixture[]>(config, {
-    resource: 'football_api',
-    action: 'getLiveFixtures',
-    data: { match_ids: matchIds },
-  });
+  return postJson<FootballApiFixture[]>(
+    apiUrl(config, '/api/proxy/football/live-fixtures'),
+    { matchIds },
+  );
 }
 
 export async function fetchLiveOdds(
   config: AppConfig,
   matchId: string,
 ): Promise<FootballApiOddsResponse> {
-  return gasPost<FootballApiOddsResponse>(config, {
-    resource: 'football_api',
-    action: 'getLiveOdds',
-    data: { match_id: matchId },
-  });
+  return postJson<FootballApiOddsResponse>(
+    apiUrl(config, '/api/proxy/football/odds'),
+    { matchId },
+  );
 }
 
 // ==================== Watchlist Proxy ====================
 
 export async function fetchWatchlistMatches(config: AppConfig): Promise<WatchlistMatch[]> {
-  if (config.apiUrl) {
-    const res = await fetch(`${config.apiUrl}/api/watchlist`, {
-      headers: { Accept: 'application/json' },
-    });
-    if (!res.ok) throw new Error(`PG watchlist error ${res.status}`);
-    return res.json();
-  }
-  return gasGet<WatchlistMatch[]>(config, {
-    resource: 'watchlist',
-    action: 'getAll',
+  const res = await fetch(apiUrl(config, '/api/watchlist'), {
+    headers: { Accept: 'application/json' },
   });
+  if (!res.ok) throw new Error(`Watchlist error ${res.status}`);
+  return res.json();
 }
 
 // ==================== AI Analysis Proxy ====================
@@ -118,29 +71,27 @@ export async function runAiAnalysis(
   provider: 'gemini' | 'claude',
   model: string,
 ): Promise<string> {
-  return gasPost<string>(config, {
-    resource: 'ai',
-    action: 'analyze',
-    data: { prompt, provider, model },
-  });
+  const result = await postJson<{ text: string }>(
+    apiUrl(config, '/api/proxy/ai/analyze'),
+    { prompt, provider, model },
+  );
+  return result.text;
 }
 
 // ==================== Notification Proxy ====================
 
 export async function sendEmail(config: AppConfig, payload: EmailPayload): Promise<void> {
-  await gasPost<void>(config, {
-    resource: 'notification',
-    action: 'sendEmail',
-    data: payload,
-  });
+  await postJson<void>(
+    apiUrl(config, '/api/proxy/notify/email'),
+    payload,
+  );
 }
 
 export async function sendTelegram(config: AppConfig, payload: TelegramPayload): Promise<void> {
-  await gasPost<void>(config, {
-    resource: 'notification',
-    action: 'sendTelegram',
-    data: payload,
-  });
+  await postJson<void>(
+    apiUrl(config, '/api/proxy/notify/telegram'),
+    payload,
+  );
 }
 
 // ==================== Recommendation Proxy ====================
@@ -149,18 +100,10 @@ export async function saveRecommendation(
   config: AppConfig,
   data: RecommendationData,
 ): Promise<void> {
-  if (config.apiUrl) {
-    const res = await fetch(`${config.apiUrl}/api/recommendations`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
-      body: JSON.stringify(data),
-    });
-    if (!res.ok) throw new Error(`PG recommendation error ${res.status}`);
-    return;
-  }
-  await gasPost<void>(config, {
-    resource: 'recommendations',
-    action: 'create',
-    data: [data],
+  const res = await fetch(apiUrl(config, '/api/recommendations'), {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+    body: JSON.stringify(data),
   });
+  if (!res.ok) throw new Error(`Recommendation error ${res.status}`);
 }

@@ -13,6 +13,7 @@ import { watchlistRoutes } from './routes/watchlist.routes.js';
 import { recommendationRoutes } from './routes/recommendations.routes.js';
 import { pipelineRoutes } from './routes/pipeline-runs.routes.js';
 import { jobRoutes } from './routes/jobs.routes.js';
+import { proxyRoutes } from './routes/proxy.routes.js';
 import { startScheduler, stopScheduler } from './jobs/scheduler.js';
 
 const app = Fastify({ logger: true });
@@ -26,6 +27,7 @@ await app.register(watchlistRoutes);
 await app.register(recommendationRoutes);
 await app.register(pipelineRoutes);
 await app.register(jobRoutes);
+await app.register(proxyRoutes);
 
 // Health check
 app.get('/api/health', async () => ({ status: 'ok', timestamp: new Date().toISOString() }));

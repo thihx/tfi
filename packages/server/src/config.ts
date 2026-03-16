@@ -13,13 +13,16 @@ export const config = {
   footballApiKey: process.env['FOOTBALL_API_KEY'] || '',
   footballApiBaseUrl: process.env['FOOTBALL_API_BASE_URL'] || 'https://v3.football.api-sports.io',
 
-  // N8N Webhook
-  n8nWebhookUrl: process.env['N8N_WEBHOOK_URL'] || '',
+  // AI (Gemini)
+  geminiApiKey: process.env['GEMINI_API_KEY'] || '',
+
+  // Telegram
+  telegramBotToken: process.env['TELEGRAM_BOT_TOKEN'] || '',
 
   // Timezone
   timezone: process.env['TIMEZONE'] || 'Asia/Seoul',
 
-  // Job intervals (ms) — 0 = disabled  (defaults match Google Apps Script triggers)
+  // Job intervals (ms) — 0 = disabled
   jobFetchMatchesMs: Number(process.env['JOB_FETCH_MATCHES_MS'] || 1 * 60_000),         // 1 min
   jobPredictionsMs: Number(process.env['JOB_PREDICTIONS_MS'] || 30 * 60_000),            // 30 min
   jobExpireWatchlistMs: Number(process.env['JOB_EXPIRE_WATCHLIST_MS'] || 5 * 60_000),    // 5 min

@@ -73,11 +73,7 @@ export interface SortState {
 }
 
 export interface AppConfig {
-  webhookUrl: string;
   defaultMode: string;
-  appsScriptUrl: string;
-  apiKey: string;
-  /** When set, use PostgreSQL backend instead of Google Apps Script */
   apiUrl: string;
 }
 

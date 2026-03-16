@@ -321,10 +321,7 @@ export function createOddsResponse(overrides?: Partial<FootballApiOddsResponse>)
 
 export function createAppConfig() {
   return {
-    webhookUrl: 'https://test.example.com',
     defaultMode: 'B',
-    appsScriptUrl: 'https://script.google.com/macros/s/test/exec',
-    apiKey: 'test-api-key',
-    apiUrl: '',
+    apiUrl: 'http://localhost:4000',
   };
 }

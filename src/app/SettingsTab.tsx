@@ -26,7 +26,7 @@ const JOB_LABELS: Record<string, string> = {
   'fetch-matches': '⚽ Fetch Matches',
   'update-predictions': '🔮 Update Predictions',
   'expire-watchlist': '🧹 Expire Watchlist',
-  'check-live-trigger': '📡 Check Live & Trigger N8N',
+  'check-live-trigger': '📡 Check Live Matches',
 };
 
 function JobSchedulerPanel() {
@@ -135,17 +135,15 @@ export function SettingsTab() {
   const { showToast } = useToast();
   const { config } = state;
 
-  const [webhookUrl, setWebhookUrl] = useState(config.webhookUrl);
   const [defaultMode, setDefaultMode] = useState(config.defaultMode);
   const [newPassword, setNewPassword] = useState('');
 
   useEffect(() => {
-    setWebhookUrl(config.webhookUrl);
     setDefaultMode(config.defaultMode);
   }, [config]);
 
   const handleSave = () => {
-    saveConfig({ ...config, webhookUrl, defaultMode });
+    saveConfig({ ...config, defaultMode });
     if (newPassword) {
       showToast('⚠️ Password change requires code update', 'error');
     } else {
@@ -159,10 +157,6 @@ export function SettingsTab() {
         <div className="card-title">⚙️ Settings</div>
       </div>
       <div style={{ padding: '20px' }}>
-        <div className="form-group">
-          <label>n8n Webhook Base URL:</label>
-          <input type="text" value={webhookUrl} onChange={(e) => setWebhookUrl(e.target.value)} />
-        </div>
         <div className="form-group">
           <label>Default Betting Mode:</label>
           <select value={defaultMode} onChange={(e) => setDefaultMode(e.target.value)}>

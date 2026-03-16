@@ -86,6 +86,15 @@ export async function fetchFixturesForDate(date: string): Promise<ApiFixture[]> 
   return apiGet<ApiFixture>('/fixtures', { date, timezone: config.timezone });
 }
 
+export async function fetchFixturesByIds(ids: string[]): Promise<ApiFixture[]> {
+  if (ids.length === 0) return [];
+  return apiGet<ApiFixture>('/fixtures', { ids: ids.join('-') });
+}
+
+export async function fetchLiveOdds(fixtureId: string): Promise<unknown[]> {
+  return apiGet<unknown>('/odds/live', { fixture: fixtureId });
+}
+
 export async function fetchPrediction(fixtureId: string): Promise<ApiPrediction | null> {
   const results = await apiGet<ApiPrediction>('/predictions', { fixture: fixtureId });
   return results[0] ?? null;
