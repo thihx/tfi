@@ -15,6 +15,30 @@ import {
   createOddsResponse,
 } from './fixtures';
 
+// ==================== Timezone-safe date helpers ====================
+
+/**
+ * Generate date/time strings in the Asia/Seoul timezone so that
+ * filterActiveMatches (which uses getNowLocal('Asia/Seoul')) sees
+ * a consistent "now" regardless of the system timezone.
+ */
+function koreaDateTime(offsetMs = 0) {
+  const target = new Date(Date.now() + offsetMs);
+  const dateFmt = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Asia/Seoul',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  });
+  const timeFmt = new Intl.DateTimeFormat('en-GB', {
+    timeZone: 'Asia/Seoul',
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false,
+  });
+  return { date: dateFmt.format(target), time: timeFmt.format(target) };
+}
+
 // ==================== Module Mocks ====================
 
 // Mock proxy.service — all external network calls
@@ -55,12 +79,13 @@ function setupHappyPath() {
   const config = createConfig();
   (loadMonitorConfig as Mock).mockReturnValue(config);
 
-  // Watchlist returns one active match
+  // Watchlist returns one active match (1 hour ago in Korea time)
+  const ko = koreaDateTime(-60 * 60_000);
   (fetchWatchlistMatches as Mock).mockResolvedValue([
     createWatchlistMatch({
       match_id: '12345',
-      date: new Date().toISOString().slice(0, 10),
-      kickoff: new Date(Date.now() - 60 * 60_000).toTimeString().slice(0, 5),
+      date: ko.date,
+      kickoff: ko.time,
     }),
   ]);
 
@@ -178,11 +203,12 @@ describe('runPipeline — full flow', () => {
     const config = createConfig();
     (loadMonitorConfig as Mock).mockReturnValue(config);
 
+    const ko = koreaDateTime(-60 * 60_000);
     (fetchWatchlistMatches as Mock).mockResolvedValue([
       createWatchlistMatch({
         match_id: '12345',
-        date: new Date().toISOString().slice(0, 10),
-        kickoff: new Date(Date.now() - 60 * 60_000).toTimeString().slice(0, 5),
+        date: ko.date,
+        kickoff: ko.time,
       }),
     ]);
 
@@ -214,11 +240,12 @@ describe('runPipeline — full flow', () => {
     const config = createConfig();
     (loadMonitorConfig as Mock).mockReturnValue(config);
 
+    const ko = koreaDateTime(-60 * 60_000);
     (fetchWatchlistMatches as Mock).mockResolvedValue([
       createWatchlistMatch({
         match_id: '12345',
-        date: new Date().toISOString().slice(0, 10),
-        kickoff: new Date(Date.now() - 60 * 60_000).toTimeString().slice(0, 5),
+        date: ko.date,
+        kickoff: ko.time,
       }),
     ]);
     (fetchLiveFixtures as Mock).mockResolvedValue([createFootballApiFixture()]);
@@ -270,11 +297,12 @@ describe('runPipeline — full flow', () => {
     const config = createConfig();
     (loadMonitorConfig as Mock).mockReturnValue(config);
 
+    const ko = koreaDateTime(-60 * 60_000);
     (fetchWatchlistMatches as Mock).mockResolvedValue([
       createWatchlistMatch({
         match_id: '12345',
-        date: new Date().toISOString().slice(0, 10),
-        kickoff: new Date(Date.now() - 60 * 60_000).toTimeString().slice(0, 5),
+        date: ko.date,
+        kickoff: ko.time,
       }),
     ]);
     (fetchLiveFixtures as Mock).mockResolvedValue([createFootballApiFixture()]);

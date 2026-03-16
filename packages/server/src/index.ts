@@ -7,6 +7,7 @@ import Fastify from 'fastify';
 import cors from '@fastify/cors';
 import { config } from './config.js';
 import { closePool } from './db/pool.js';
+import { closeRedis } from './lib/redis.js';
 import { leagueRoutes } from './routes/leagues.routes.js';
 import { matchRoutes } from './routes/matches.routes.js';
 import { watchlistRoutes } from './routes/watchlist.routes.js';
@@ -38,6 +39,7 @@ const shutdown = async () => {
   stopScheduler();
   await app.close();
   await closePool();
+  await closeRedis();
   process.exit(0);
 };
 
@@ -47,7 +49,7 @@ process.on('SIGTERM', shutdown);
 try {
   await app.listen({ port: config.port, host: '0.0.0.0' });
   app.log.info(`TFI server listening on port ${config.port}`);
-  startScheduler();
+  await startScheduler();
 } catch (err) {
   app.log.error(err);
   process.exit(1);

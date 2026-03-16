@@ -19,6 +19,9 @@ export const config = {
   // Telegram
   telegramBotToken: process.env['TELEGRAM_BOT_TOKEN'] || '',
 
+  // Redis
+  redisUrl: process.env['REDIS_URL'] || '',
+
   // Timezone
   timezone: process.env['TIMEZONE'] || 'Asia/Seoul',
 
