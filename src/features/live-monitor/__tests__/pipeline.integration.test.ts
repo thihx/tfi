@@ -50,6 +50,9 @@ vi.mock('../services/proxy.service', () => ({
   sendEmail: vi.fn(),
   sendTelegram: vi.fn(),
   saveRecommendation: vi.fn(),
+  saveMatchSnapshot: vi.fn(),
+  saveOddsMovements: vi.fn(),
+  saveAiPerformance: vi.fn(),
 }));
 
 // Mock config (so we control loadMonitorConfig)
@@ -67,6 +70,9 @@ import {
   sendEmail,
   sendTelegram,
   saveRecommendation,
+  saveMatchSnapshot,
+  saveOddsMovements,
+  saveAiPerformance,
 } from '../services/proxy.service';
 
 import { loadMonitorConfig } from '../config';
@@ -113,7 +119,12 @@ function setupHappyPath() {
   // Notifications succeed
   (sendEmail as Mock).mockResolvedValue({ success: true });
   (sendTelegram as Mock).mockResolvedValue({ success: true });
-  (saveRecommendation as Mock).mockResolvedValue({ success: true });
+  (saveRecommendation as Mock).mockResolvedValue({ id: 42 });
+
+  // Data tracking (fire-and-forget)
+  (saveMatchSnapshot as Mock).mockResolvedValue(undefined);
+  (saveOddsMovements as Mock).mockResolvedValue(undefined);
+  (saveAiPerformance as Mock).mockResolvedValue(undefined);
 
   return config;
 }
@@ -270,7 +281,7 @@ describe('runPipeline — full flow', () => {
 
     (sendEmail as Mock).mockResolvedValue({ success: true });
     (sendTelegram as Mock).mockResolvedValue({ success: true });
-    (saveRecommendation as Mock).mockResolvedValue({ success: true });
+    (saveRecommendation as Mock).mockResolvedValue({ id: 99 });
 
     const ctx = await runPipeline(appConfig, { triggeredBy: 'manual' });
 
@@ -368,5 +379,119 @@ describe('runPipelineForMatch', () => {
     );
     // Pipeline still runs
     expect(ctx.stage).toBe('complete');
+  });
+});
+
+// ==================== Data Tracking Tests ====================
+
+describe('pipeline data tracking', () => {
+  test('calls saveMatchSnapshot after merging data', async () => {
+    setupHappyPath();
+
+    await runPipeline(appConfig, { triggeredBy: 'manual' });
+
+    expect(saveMatchSnapshot).toHaveBeenCalledTimes(1);
+    expect(saveMatchSnapshot).toHaveBeenCalledWith(
+      appConfig,
+      expect.objectContaining({
+        match_id: '12345',
+        minute: expect.any(Number),
+        status: expect.any(String),
+        home_score: expect.any(Number),
+        away_score: expect.any(Number),
+      }),
+    );
+  });
+
+  test('calls saveOddsMovements when odds are available', async () => {
+    setupHappyPath();
+
+    await runPipeline(appConfig, { triggeredBy: 'manual' });
+
+    expect(saveOddsMovements).toHaveBeenCalledTimes(1);
+    const movements = (saveOddsMovements as Mock).mock.calls[0]![1];
+    expect(Array.isArray(movements)).toBe(true);
+    expect(movements.length).toBeGreaterThan(0);
+    expect(movements[0]).toMatchObject({
+      match_id: '12345',
+      market: expect.any(String),
+    });
+  });
+
+  test('does not call saveOddsMovements when odds fetch fails', async () => {
+    setupHappyPath();
+    (fetchLiveOdds as Mock).mockRejectedValue(new Error('Odds API down'));
+
+    await runPipeline(appConfig, { triggeredBy: 'manual' });
+
+    expect(saveOddsMovements).not.toHaveBeenCalled();
+  });
+
+  test('calls saveAiPerformance after saving recommendation', async () => {
+    setupHappyPath();
+
+    await runPipeline(appConfig, { triggeredBy: 'manual' });
+
+    expect(saveAiPerformance).toHaveBeenCalledTimes(1);
+    expect(saveAiPerformance).toHaveBeenCalledWith(
+      appConfig,
+      expect.objectContaining({
+        recommendation_id: 42,
+        match_id: '12345',
+        ai_model: expect.any(String),
+        ai_should_push: true,
+        predicted_market: 'Over/Under',
+        league: expect.any(String),
+      }),
+    );
+  });
+
+  test('does not call saveAiPerformance when AI says no push (not saved)', async () => {
+    const config = createConfig();
+    (loadMonitorConfig as Mock).mockReturnValue(config);
+
+    const ko = koreaDateTime(-60 * 60_000);
+    (fetchWatchlistMatches as Mock).mockResolvedValue([
+      createWatchlistMatch({ match_id: '12345', date: ko.date, kickoff: ko.time }),
+    ]);
+    (fetchLiveFixtures as Mock).mockResolvedValue([createFootballApiFixture()]);
+    (fetchLiveOdds as Mock).mockResolvedValue(createOddsResponse());
+    (runAiAnalysis as Mock).mockResolvedValue(
+      JSON.stringify({
+        should_push: false, selection: '', bet_market: '',
+        market_chosen_reason: 'No value', confidence: 2,
+        reasoning_en: 'No signal.', reasoning_vi: 'Không.',
+        warnings: [], value_percent: 0, risk_level: 'HIGH', stake_percent: 0,
+      }),
+    );
+    (saveMatchSnapshot as Mock).mockResolvedValue(undefined);
+    (saveOddsMovements as Mock).mockResolvedValue(undefined);
+
+    await runPipeline(appConfig, { triggeredBy: 'manual' });
+
+    expect(saveRecommendation).not.toHaveBeenCalled();
+    expect(saveAiPerformance).not.toHaveBeenCalled();
+  });
+
+  test('tracking failure does not crash pipeline', async () => {
+    setupHappyPath();
+    (saveMatchSnapshot as Mock).mockRejectedValue(new Error('Snapshot DB down'));
+    (saveOddsMovements as Mock).mockRejectedValue(new Error('Odds DB down'));
+    (saveAiPerformance as Mock).mockRejectedValue(new Error('AI perf DB down'));
+
+    const ctx = await runPipeline(appConfig, { triggeredBy: 'manual' });
+
+    expect(ctx.stage).toBe('complete');
+    expect(ctx.results[0]!.saved).toBe(true);
+    expect(ctx.results[0]!.error).toBeUndefined();
+  });
+
+  test('still tracks snapshot even when odds fail', async () => {
+    setupHappyPath();
+    (fetchLiveOdds as Mock).mockRejectedValue(new Error('Odds API down'));
+
+    await runPipeline(appConfig, { triggeredBy: 'manual' });
+
+    expect(saveMatchSnapshot).toHaveBeenCalledTimes(1);
   });
 });

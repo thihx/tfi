@@ -99,11 +99,68 @@ export async function sendTelegram(config: AppConfig, payload: TelegramPayload):
 export async function saveRecommendation(
   config: AppConfig,
   data: RecommendationData,
-): Promise<void> {
+): Promise<{ id: number }> {
   const res = await fetch(apiUrl(config, '/api/recommendations'), {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
     body: JSON.stringify(data),
   });
   if (!res.ok) throw new Error(`Recommendation error ${res.status}`);
+  return res.json();
+}
+
+// ==================== Data Tracking Proxy ====================
+
+export async function saveMatchSnapshot(
+  config: AppConfig,
+  data: {
+    match_id: string;
+    minute: number;
+    status?: string;
+    home_score?: number;
+    away_score?: number;
+    stats?: Record<string, unknown>;
+    events?: unknown[];
+    odds?: Record<string, unknown>;
+    source?: string;
+  },
+): Promise<void> {
+  await postJson(apiUrl(config, '/api/snapshots'), data);
+}
+
+export async function saveOddsMovements(
+  config: AppConfig,
+  movements: Array<{
+    match_id: string;
+    match_minute?: number | null;
+    market: string;
+    bookmaker?: string;
+    line?: number | null;
+    price_1?: number | null;
+    price_2?: number | null;
+    price_x?: number | null;
+  }>,
+): Promise<void> {
+  if (movements.length === 0) return;
+  await postJson(apiUrl(config, '/api/odds/bulk'), movements);
+}
+
+export async function saveAiPerformance(
+  config: AppConfig,
+  data: {
+    recommendation_id: number;
+    match_id: string;
+    ai_model?: string;
+    prompt_version?: string;
+    ai_confidence?: number | null;
+    ai_should_push?: boolean;
+    predicted_market?: string;
+    predicted_selection?: string;
+    predicted_odds?: number | null;
+    match_minute?: number | null;
+    match_score?: string;
+    league?: string;
+  },
+): Promise<void> {
+  await postJson(apiUrl(config, '/api/ai-performance'), data);
 }

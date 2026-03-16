@@ -33,11 +33,21 @@ import { checkShouldProceed, shouldPush, shouldSave } from './filters.service';
 import { routeAndCallAi, parseAiResponse } from './ai-analysis.service';
 import { prepareRecommendationData } from './recommendation.service';
 import { notifyRecommendation } from './notification.service';
-import { saveRecommendation } from './proxy.service';
+import {
+  saveRecommendation,
+  saveMatchSnapshot,
+  saveOddsMovements,
+  saveAiPerformance,
+} from './proxy.service';
 
 // ==================== Pipeline Runner ====================
 
 export type PipelineEventCallback = (ctx: PipelineContext) => void;
+
+/** Fire-and-forget: swallow errors so tracking never breaks the pipeline */
+function trackSilent(promise: Promise<unknown> | undefined): void {
+  promise?.catch(() => {});
+}
 
 /**
  * Run the complete live monitor pipeline.
@@ -143,6 +153,62 @@ export async function runPipeline(
           };
         }
 
+        // ── Data Tracking: snapshot + odds movements ──
+        const currentMinute = typeof mergedWithOdds.minute === 'string'
+          ? parseInt(mergedWithOdds.minute, 10) || 0
+          : mergedWithOdds.minute;
+        const [homeScore, awayScore] = (mergedWithOdds.score ?? '0-0')
+          .split('-')
+          .map((s) => parseInt(s.trim(), 10) || 0);
+
+        trackSilent(
+          saveMatchSnapshot(appConfig, {
+            match_id: mergedWithOdds.match_id,
+            minute: currentMinute,
+            status: mergedWithOdds.status,
+            home_score: homeScore,
+            away_score: awayScore,
+            stats: mergedWithOdds.stats_compact as Record<string, unknown>,
+            events: mergedWithOdds.events_compact,
+            odds: mergedWithOdds.odds_canonical as Record<string, unknown>,
+          }),
+        );
+
+        if (mergedWithOdds.odds_available && mergedWithOdds.odds_canonical) {
+          const movements: Array<{
+            match_id: string; match_minute: number; market: string;
+            line?: number | null; price_1?: number | null; price_2?: number | null; price_x?: number | null;
+          }> = [];
+          const oc = mergedWithOdds.odds_canonical;
+
+          if (oc['1x2']) {
+            movements.push({
+              match_id: mergedWithOdds.match_id, match_minute: currentMinute, market: '1x2',
+              price_1: oc['1x2'].home, price_2: oc['1x2'].away, price_x: oc['1x2'].draw,
+            });
+          }
+          if (oc.ou) {
+            movements.push({
+              match_id: mergedWithOdds.match_id, match_minute: currentMinute, market: 'ou',
+              line: oc.ou.line, price_1: oc.ou.over, price_2: oc.ou.under,
+            });
+          }
+          if (oc.ah) {
+            movements.push({
+              match_id: mergedWithOdds.match_id, match_minute: currentMinute, market: 'ah',
+              line: oc.ah.line, price_1: oc.ah.home, price_2: oc.ah.away,
+            });
+          }
+          if (oc.btts) {
+            movements.push({
+              match_id: mergedWithOdds.match_id, match_minute: currentMinute, market: 'btts',
+              price_1: oc.btts.yes, price_2: oc.btts.no,
+            });
+          }
+
+          trackSilent(saveOddsMovements(appConfig, movements));
+        }
+
         // AI Analysis
         emit('building-prompt');
         emit('ai-analysis');
@@ -184,8 +250,26 @@ export async function runPipeline(
         if (shouldSave(parsed)) {
           emit('saving');
           try {
-            await saveRecommendation(appConfig, recommendation);
+            const savedRec = await saveRecommendation(appConfig, recommendation);
             matchResult.saved = true;
+
+            // ── Data Tracking: AI performance ──
+            trackSilent(
+              saveAiPerformance(appConfig, {
+                recommendation_id: savedRec.id,
+                match_id: mergedWithOdds.match_id,
+                ai_model: config.AI_MODEL,
+                prompt_version: config.AI_MODEL,
+                ai_confidence: parsed.ai_confidence,
+                ai_should_push: parsed.ai_should_push,
+                predicted_market: parsed.bet_market,
+                predicted_selection: parsed.ai_selection,
+                predicted_odds: parsed.usable_odd,
+                match_minute: currentMinute,
+                match_score: mergedWithOdds.score,
+                league: mergedWithOdds.league,
+              }),
+            );
           } catch (saveErr) {
             matchResult.error = (matchResult.error ? matchResult.error + '; ' : '') +
               `Save error: ${saveErr instanceof Error ? saveErr.message : String(saveErr)}`;
