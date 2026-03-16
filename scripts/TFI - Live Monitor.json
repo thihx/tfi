@@ -1,0 +1,1311 @@
+{
+  "name": "TFI - Live Monitor",
+  "nodes": [
+    {
+      "parameters": {
+        "jsCode": "const CONFIG = {\n  SPREADSHEET_ID: '1kwXtpKxtQE52lFnz5MRRV0dnzeftN_X5tD69CL12ycU',\n  SHEET_IDS: {\n    CONFIG: 1170756615,\n    MATCHES: 996094587,\n    WATCHLIST: 715101038,\n    RECOMMENDATIONS: 532487099,\n  },\n  TIMEZONE: 'Asia/Seoul',\n  MATCH_DURATION_MINUTES: 120,\n  MATCH_END_GRACE_MINUTES: 1,\n  FUTURE_WINDOW_MINUTES: 1,\n  MIN_MINUTE: 5,\n  MAX_MINUTE: 85,\n  SECOND_HALF_START_MINUTE: 5,\n  ONLY_LIVE: true,\n  MIN_CONFIDENCE: 5,\n  EMAIL_TO: 'huynhxuanthi@gmail.com',\n  BOOKMAKERS_PRIORITY: 'ALL',\n  AI_PROVIDER: 'gemini', \n  AI_MODEL: 'gemini-3.0-flash',\n  AI_TEMPERATURE: '1.0',\n  AI_MAX_TOKENS: '1024',\n  AI_PROMPT_VERSION: '0.1',\n};\n\n// ============================================================\n// NEW: Read webhook params for manual push support\n// ============================================================\nlet webhookParams = {\n  match_id: null,\n  match_ids: [],\n  force: false,\n  is_manual_push: false,\n};\n\ntry {\n  const wb = $(\"Webhook\").first().json || {};\n  const body = wb.body || {};\n  \n  if (body.match_id) {\n    webhookParams.match_id = String(body.match_id);\n    webhookParams.match_ids = [String(body.match_id)];\n  } else if (Array.isArray(body.match_ids) && body.match_ids.length > 0) {\n    webhookParams.match_ids = body.match_ids.map(id => String(id));\n  } else if (Array.isArray(body.liveMatchIds) && body.liveMatchIds.length > 0) {\n    webhookParams.match_ids = body.liveMatchIds.map(id => String(id));\n  }\n  \n  webhookParams.force = body.force === true;\n  webhookParams.is_manual_push = webhookParams.match_ids.length > 0;\n  \n  if (webhookParams.is_manual_push) {\n    console.log(`[Set Config] Manual push detected: ${webhookParams.match_ids.length} match(es), force=${webhookParams.force}`);\n  }\n} catch (e) {\n  console.log(\"[Set Config] No webhook body or error reading:\", e.message);\n}\n\nreturn { \n  json: { \n    ...CONFIG, \n    webhook_params: webhookParams,\n    is_manual_push: webhookParams.is_manual_push,\n  } \n};\n"
+      },
+      "id": "c25e318f-a684-4922-b1cb-c2cb743c834c",
+      "name": "Set Config",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -5984,
+        -992
+      ]
+    },
+    {
+      "parameters": {
+        "documentId": {
+          "__rl": true,
+          "value": "1kwXtpKxtQE52lFnz5MRRV0dnzeftN_X5tD69CL12ycU",
+          "mode": "list",
+          "cachedResultName": "Time_For_Investment"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": 715101038,
+          "mode": "list",
+          "cachedResultName": "Watchlist"
+        },
+        "options": {}
+      },
+      "id": "f387e1a8-0d4d-422f-93f4-6ce9dfc9dee6",
+      "name": "Get Active Matches",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.3,
+      "position": [
+        -5760,
+        -992
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "1Wv4qfdHrkA4hfjn",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const allMatches = $input.all();\nif (!allMatches.length) {\n  return [];\n}\n\nlet config = {};\nconst cfgNode = $(\"Set Config\");\nif (cfgNode && cfgNode.length > 0) {\n  config = cfgNode.first().json || {};\n}\n\nconst TIMEZONE = config.TIMEZONE || \"UTC\";\nconst MATCH_DURATION_MINUTES = Number(config.MATCH_DURATION_MINUTES ?? 120);\nconst MATCH_END_GRACE_MINUTES = Number(config.MATCH_END_GRACE_MINUTES ?? 5);\nconst FUTURE_WINDOW_MINUTES = Number(config.FUTURE_WINDOW_MINUTES ?? 1);\n\n// ============================================================\n// NEW: Read webhook params from Set Config\n// ============================================================\nconst webhookParams = config.webhook_params || {};\nconst forceAnalyze = webhookParams.force === true;\nconst isManualPush = webhookParams.is_manual_push === true;\n\nlet liveIds = webhookParams.match_ids || [];\n\nif (liveIds.length === 0) {\n  try {\n    const wb = $(\"Webhook\").first().json || {};\n    const body = wb.body || {};\n    if (Array.isArray(body.liveMatchIds)) {\n      liveIds = body.liveMatchIds.map(id => String(id));\n    }\n  } catch (e) {\n    console.log(\"[Filter Active Only] Cannot read liveMatchIds from Webhook:\", e.message);\n  }\n}\n\nfunction parseLocalDateTime(dateStr, timeStr) {\n  if (!dateStr) return null;\n  const dateParts = String(dateStr).trim().split(\"-\");\n  if (dateParts.length !== 3) return null;\n  const year = Number(dateParts[0]);\n  const month = Number(dateParts[1]);\n  const day = Number(dateParts[2]);\n  let hour = 0;\n  let minute = 0;\n  if (timeStr) {\n    const tParts = String(timeStr).trim().split(\":\");\n    hour = Number(tParts[0] || 0);\n    minute = Number(tParts[1] || 0);\n  }\n  if (!year || !month || !day) return null;\n  return new Date(Date.UTC(year, month - 1, day, hour, minute, 0, 0));\n}\n\nconst now = new Date();\nconst formatter = new Intl.DateTimeFormat(\"en-GB\", {\n  timeZone: TIMEZONE,\n  year: \"numeric\",\n  month: \"2-digit\",\n  day: \"2-digit\",\n  hour: \"2-digit\",\n  minute: \"2-digit\",\n  hour12: false,\n});\nconst parts = formatter.formatToParts(now);\nconst part = (type) => Number(parts.find((p) => p.type === type).value);\nconst nowLocal = new Date(\n  Date.UTC(\n    part(\"year\"),\n    part(\"month\") - 1,\n    part(\"day\"),\n    part(\"hour\"),\n    part(\"minute\"),\n    0,\n    0\n  )\n);\n\nlet relevant = [];\n\nif (liveIds.length > 0) {\n  const idSet = new Set(liveIds.map((id) => String(id)));\n  relevant = allMatches.filter((item) => {\n    const row = item.json || {};\n    const mid = String(row.match_id || \"\").trim();\n    return mid && idSet.has(mid);\n  });\n\n  console.log(\n    `[Filter Active Only] Using match IDs from webhook: ${liveIds.join(\", \")} -> matched ${relevant.length} rows in watchlist.`\n  );\n  \n  if (relevant.length < liveIds.length) {\n    const foundIds = new Set(relevant.map(item => String(item.json.match_id)));\n    const notFoundIds = liveIds.filter(id => !foundIds.has(id));\n    console.log(`[Filter Active Only] WARNING: IDs not found in watchlist: ${notFoundIds.join(\", \")}`);\n  }\n}\n\nif (!relevant.length && liveIds.length === 0) {\n  for (const item of allMatches) {\n    const row = item.json || {};\n    const dateStr = String(row.date || \"\").trim();\n    const kickoffStr = String(row.kickoff || \"\").trim();\n    const matchStart = parseLocalDateTime(dateStr, kickoffStr);\n    if (!matchStart) continue;\n\n    const matchEnd = new Date(matchStart.getTime() + MATCH_DURATION_MINUTES * 60000);\n    const diffKickoffMinutes = (matchStart - nowLocal) / 60000;\n    const diffEndMinutes = (matchEnd - nowLocal) / 60000;\n\n    if (diffKickoffMinutes > FUTURE_WINDOW_MINUTES) continue;\n    if (diffEndMinutes < -MATCH_END_GRACE_MINUTES) continue;\n\n    relevant.push(item);\n  }\n\n  console.log(`[Filter Active Only] Fallback by date/kickoff -> matched ${relevant.length} rows.`);\n}\n\nif (!relevant.length) {\n  console.log(\"[Filter Active Only] No matches in watchlist need checking at this time.\");\n  return [];\n}\n\n// ============================================================\n// NEW: Attach force_analyze flag to each item\n// ============================================================\nreturn relevant.map(item => ({\n  json: {\n    ...item.json,\n    force_analyze: forceAnalyze,\n    is_manual_push: isManualPush,\n  }\n}));\n"
+      },
+      "id": "238ec761-6700-48be-8dea-1ad0b23608e2",
+      "name": "Filter Active Only",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -5536,
+        -992
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 1
+          },
+          "conditions": [
+            {
+              "id": "check-has-matches",
+              "leftValue": "={{ $input.all().length }}",
+              "rightValue": 0,
+              "operator": {
+                "type": "number",
+                "operation": "gt"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "573394b7-8370-49ad-9a33-24adb422435c",
+      "name": "Has Active Matches?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        -5312,
+        -992
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const matches = $input.all();\nconst config = $('Set Config').first().json;\nif (matches.length === 0) throw new Error('No matches');\n\nreturn matches.map((item) => {\n  const match = item.json;\n  return { \n    json: { \n      config, \n      match_id: match.match_id, \n      home_team: match.home_team, \n      away_team: match.away_team, \n      league: match.league, \n      mode: match.mode || 'B', \n      custom_conditions: match.custom_conditions || '', \n      priority: match.priority || 3,\n      prediction: match.prediction || '',\n      // ============================================================\n      // NEW: Pass through force_analyze and is_manual_push flags\n      // ============================================================\n      force_analyze: match.force_analyze || false,\n      is_manual_push: match.is_manual_push || false,\n      recommended_custom_condition: match.recommended_custom_condition || '',\n      recommended_condition_reason: match.recommended_condition_reason || '',\n      recommended_condition_reason_vi: match.recommended_condition_reason_vi || '',\n    } \n  };\n});\n"
+      },
+      "id": "3783de2e-0875-40f0-bcca-83a389a06a4b",
+      "name": "Prepare Match Data",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -5088,
+        -992
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const items = $input.all();\nif (!items.length) throw new Error('No matches');\nconst matchMap = new Map();\nfor (const item of items) {\n  const m = item.json;\n  const id = String(m.match_id || '').trim();\n  if (id && !matchMap.has(id)) matchMap.set(id, { ...m, match_id: id });\n}\nconst matches = Array.from(matchMap.values());\nif (!matches.length) throw new Error('No valid match_id');\nconst batches = [];\nfor (let i = 0; i < matches.length; i += 20) {\n  const chunk = matches.slice(i, i + 20);\n  batches.push({ json: { ids: chunk.map(m => m.match_id).join('-'), matches: chunk } });\n}\nreturn batches;\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -4864,
+        -992
+      ],
+      "id": "1f7926c0-7d82-48f4-b56b-60390aa57767",
+      "name": "Build Fixtures Batch"
+    },
+    {
+      "parameters": {
+        "url": "=https://v3.football.api-sports.io/fixtures?ids={{ $json.ids }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "options": {
+          "timeout": 30000
+        }
+      },
+      "id": "f78c26ca-19a7-4644-9f75-76f3505b9b96",
+      "name": "Fetch Live Data",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [
+        -4640,
+        -992
+      ],
+      "retryOnFail": true,
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "fFgpqIOtkTS0ZzbQ",
+          "name": "Header Auth account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const batchItems = $('Build Fixtures Batch').all();\nconst responseItems = $input.all();\nif (!responseItems.length) throw new Error('No HTTP response');\n\nconst allMatches = [];\nfor (const batch of batchItems) {\n  if (Array.isArray(batch.json?.matches)) allMatches.push(...batch.json.matches);\n}\n\nconst allFixtures = [];\nfor (const item of responseItems) {\n  const apiData = item.json || {};\n  if (apiData.errors) {\n    const err = apiData.errors.rateLimit || apiData.errors.ids || apiData.errors.requests;\n    if (err) throw new Error(`API Error: ${err}`);\n  }\n  allFixtures.push(...(apiData.response || []));\n}\n\nconst fixtureMap = new Map();\nfor (const fx of allFixtures) {\n  const id = fx?.fixture?.id;\n  if (id) fixtureMap.set(String(id), fx);\n}\n\nconst getStatValue = (teamStats, statName) => {\n  if (!Array.isArray(teamStats)) return null;\n  const stat = teamStats.find(s => s.type === statName);\n  return stat?.value != null ? String(stat.value) : null;\n};\n\nconst twoSideStat = (homeStats, awayStats, statName) => {\n  const h = getStatValue(homeStats, statName) ?? '';\n  const a = getStatValue(awayStats, statName) ?? '';\n  return `${h}-${a}`;\n};\n\nconst parsePreMatchPrediction = (predictionRaw) => {\n  if (!predictionRaw) return null;\n  if (typeof predictionRaw === 'object' && predictionRaw !== null) return predictionRaw;\n  if (typeof predictionRaw === 'string') {\n    const trimmed = predictionRaw.trim();\n    if (!trimmed || trimmed === '{}') return null;\n    try {\n      return JSON.parse(trimmed);\n    } catch (e) {\n      console.log(`⚠️ Failed to parse pre_match_prediction: ${e.message}`);\n      return null;\n    }\n  }\n  return null;\n};\n\nconst buildPreMatchSummary = (prediction) => {\n  if (!prediction) return '';\n  const parts = [];\n  const pred = prediction.predictions || {};\n  const comp = prediction.comparison || {};\n  if (pred.advice) parts.push(pred.advice);\n  if (pred.winner?.name) parts.push(`Favourite: ${pred.winner.name}`);\n  if (pred.percent) {\n    const p = pred.percent;\n    parts.push(`H${p.home || '?'} D${p.draw || '?'} A${p.away || '?'}`);\n  }\n  if (comp.total?.home && comp.total?.away) {\n    parts.push(`Rating: ${comp.total.home} vs ${comp.total.away}`);\n  }\n  return parts.join(' | ');\n};\n\nconst outputs = [];\nfor (const match of allMatches) {\n  const matchId = String(match.match_id);\n  const fx = fixtureMap.get(matchId);\n  if (!fx) continue;\n\n  const status = fx.fixture?.status?.short || 'NS';\n  const minute = fx.fixture?.status?.elapsed ?? (status === 'FT' ? 90 : 0);\n  const homeGoals = fx.goals?.home ?? 0;\n  const awayGoals = fx.goals?.away ?? 0;\n\n  const statsArr = fx.statistics || [];\n  const homeStats = statsArr[0]?.statistics || [];\n  const awayStats = statsArr[1]?.statistics || [];\n\n  const stats = {\n    possession: twoSideStat(homeStats, awayStats, 'Ball Possession'),\n    shots: twoSideStat(homeStats, awayStats, 'Total Shots'),\n    shots_on_target: twoSideStat(homeStats, awayStats, 'Shots on Goal'),\n    shots_off_target: twoSideStat(homeStats, awayStats, 'Shots off Goal'),\n    corners: twoSideStat(homeStats, awayStats, 'Corner Kicks'),\n    fouls: twoSideStat(homeStats, awayStats, 'Fouls'),\n    yellow_cards: twoSideStat(homeStats, awayStats, 'Yellow Cards'),\n    red_cards: twoSideStat(homeStats, awayStats, 'Red Cards'),\n    saves: twoSideStat(homeStats, awayStats, 'Goalkeeper Saves'),\n  };\n\n  const parseTwoSide = (v) => {\n    if (!v) return { home: null, away: null };\n    const parts = String(v).split('-');\n    const h = (parts[0] || '').trim() || null;\n    const a = (parts[1] || '').trim() || null;\n    return { home: h, away: a };\n  };\n\n  const statsCompact = {\n    possession: parseTwoSide(stats.possession),\n    shots: parseTwoSide(stats.shots),\n    shots_on_target: parseTwoSide(stats.shots_on_target),\n    shots_off_target: parseTwoSide(stats.shots_off_target),\n    corners: parseTwoSide(stats.corners),\n    fouls: parseTwoSide(stats.fouls),\n    yellow_cards: parseTwoSide(stats.yellow_cards),\n    red_cards: parseTwoSide(stats.red_cards),\n    saves: parseTwoSide(stats.saves),\n  };\n\n  const rawEvents = Array.isArray(fx.events) ? fx.events : [];\n  const homeName = fx.teams?.home?.name || match.home_team || 'Home';\n  const awayName = fx.teams?.away?.name || match.away_team || 'Away';\n  const leagueName = fx.league?.name || match.league || 'Unknown league';\n  const homeTeamId = fx.teams?.home?.id;\n  const awayTeamId = fx.teams?.away?.id;\n\n  const summaryPieces = [];\n  const compactEvents = [];\n  \n  let goalsHomeEv = 0, goalsAwayEv = 0;\n  for (const ev of rawEvents.sort((a, b) => (a.time?.elapsed || 0) - (b.time?.elapsed || 0))) {\n    const m = ev.time?.elapsed;\n    const type = ev.type || '';\n    const detail = ev.detail || '';\n    const teamId = ev.team?.id;\n    let side = teamId === homeTeamId ? 'home' : (teamId === awayTeamId ? 'away' : 'unknown');\n    let sideName = side === 'home' ? homeName : (side === 'away' ? awayName : ev.team?.name || '');\n    \n    if (type === 'Goal') {\n      if (side === 'home') goalsHomeEv++; else if (side === 'away') goalsAwayEv++;\n      summaryPieces.push(`${m}'Goal ${sideName} ${goalsHomeEv}-${goalsAwayEv}`);\n      compactEvents.push({\n        minute: m ?? null,\n        type: 'goal',\n        side,\n        team: sideName,\n        score: `${goalsHomeEv}-${goalsAwayEv}`,\n      });\n    }\n    if (type === 'Card') {\n      summaryPieces.push(`${m}'${detail} ${sideName}`);\n      compactEvents.push({\n        minute: m ?? null,\n        type: 'card',\n        side,\n        team: sideName,\n        detail,\n      });\n    }\n  }\n\n  const preMatchPrediction = parsePreMatchPrediction(match.prediction);\n  const preMatchPredictionSummary = buildPreMatchSummary(preMatchPrediction);\n\n  outputs.push({\n    json: {\n      config: match.config, \n      match_id: match.match_id, \n      mode: match.mode, \n      custom_conditions: match.custom_conditions,\n      priority: match.priority ?? null,\n      // ============================================================\n      // NEW: Pass through force_analyze and is_manual_push flags\n      // ============================================================\n      force_analyze: match.force_analyze || false,\n      is_manual_push: match.is_manual_push || false,\n      recommended_custom_condition: match.recommended_custom_condition || '',\n      recommended_condition_reason: match.recommended_condition_reason || '',\n      recommended_condition_reason_vi: match.recommended_condition_reason_vi || '',\n      match: { \n        home: homeName, \n        away: awayName, \n        league: leagueName, \n        minute, \n        score: `${homeGoals}-${awayGoals}`, \n        status \n      },\n      stats,\n      stats_compact: statsCompact,\n      events_summary: summaryPieces.slice(-4).join(' | '),\n      events_compact: compactEvents.slice(-4),\n      pre_match_prediction: preMatchPrediction,\n      pre_match_prediction_summary: preMatchPredictionSummary,\n    },\n  });\n}\n\nif (!outputs.length) throw new Error('No merged matches');\nreturn outputs;\n"
+      },
+      "id": "1ca2357e-0ae3-4346-917a-fee8b71c00a2",
+      "name": "Merge Match Data",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -4416,
+        -992
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "// Check Should Proceed v3\n// NEW: Support force_analyze to bypass all filters\n\nconst item = $json || {};\nconst config = item.config || {};\nconst match = item.match || {};\nconst stats = item.stats || {};\n\n// ============================================================\n// NEW: Check force_analyze flag\n// ============================================================\nconst forceAnalyze = item.force_analyze === true;\nconst isManualPush = item.is_manual_push === true;\n\nconst statusRaw = String(match.status || '').toUpperCase();\nconst minute = Number(match.minute ?? 0) || 0;\n\nconst MIN_MINUTE = Number(config.MIN_MINUTE ?? 5);\nconst MAX_MINUTE = Number(config.MAX_MINUTE ?? 85);\nconst SECOND_HALF_START_MINUTE = Number(config.SECOND_HALF_START_MINUTE ?? 5);\n\nlet shouldProceed = true;\nconst reasons = [];\nconst skippedFilters = [];\n\nconst LIVE_STATUSES = ['1H', '2H'];\n\n// ============================================================\n// FILTER 1: Status check\n// ============================================================\nif (!LIVE_STATUSES.includes(statusRaw)) {\n  if (forceAnalyze) {\n    skippedFilters.push(`Status ${statusRaw || 'UNKNOWN'} not live (BYPASSED by force)`);\n    console.log(`[Check Should Proceed] FORCE: Bypassing status check for ${statusRaw}`);\n  } else {\n    shouldProceed = false;\n    reasons.push(`Status ${statusRaw || 'UNKNOWN'} not live`);\n  }\n}\n\n// ============================================================\n// FILTER 2: Minute window check\n// ============================================================\nif (shouldProceed || forceAnalyze) {\n  let effectiveMinMinute = MIN_MINUTE;\n\n  if (statusRaw === '2H') {\n    const secondHalfThreshold = 45 + SECOND_HALF_START_MINUTE;\n    if (secondHalfThreshold > effectiveMinMinute) {\n      effectiveMinMinute = secondHalfThreshold;\n    }\n  }\n\n  if (minute < effectiveMinMinute) {\n    if (forceAnalyze) {\n      skippedFilters.push(`Minute ${minute}' below minimum (${effectiveMinMinute}') (BYPASSED)`);\n      console.log(`[Check Should Proceed] FORCE: Bypassing minute minimum check`);\n    } else if (shouldProceed) {\n      shouldProceed = false;\n      reasons.push(`Minute ${minute}' below minimum window (${effectiveMinMinute}')`);\n    }\n  }\n\n  if (minute > MAX_MINUTE) {\n    if (forceAnalyze) {\n      skippedFilters.push(`Minute ${minute}' beyond maximum (${MAX_MINUTE}') (BYPASSED)`);\n      console.log(`[Check Should Proceed] FORCE: Bypassing minute maximum check`);\n    } else if (shouldProceed) {\n      shouldProceed = false;\n      reasons.push(`Minute ${minute}' beyond maximum window (${MAX_MINUTE}')`);\n    }\n  }\n}\n\n// ============================================================\n// FILTER 3: Stats quality check\n// ============================================================\nconst fields = [\n  stats.possession,\n  stats.shots,\n  stats.shots_on_target,\n  stats.corners,\n  stats.fouls,\n];\n\nlet total = 0;\nlet missing = 0;\n\nfor (const v of fields) {\n  if (v === undefined) continue;\n  total++;\n  const s = String(v).trim();\n  if (!s || s === '-' || s.toUpperCase() === 'NA') missing++;\n}\n\nconst missing_ratio = total ? Number((missing / total).toFixed(2)) : 1;\nlet stats_quality = 'UNKNOWN';\nif (missing_ratio > 0.75) stats_quality = 'VERY_POOR';\nelse if (missing_ratio > 0.5) stats_quality = 'POOR';\nelse if (missing_ratio > 0.25) stats_quality = 'FAIR';\nelse stats_quality = 'GOOD';\n\nconst stats_available = stats_quality === 'GOOD' || stats_quality === 'FAIR';\n\n// ============================================================\n// FILTER 4: Early game with poor stats\n// ============================================================\nif (\n  (shouldProceed || forceAnalyze) &&\n  LIVE_STATUSES.includes(statusRaw) &&\n  minute < 15 &&\n  (stats_quality === 'POOR' || stats_quality === 'VERY_POOR')\n) {\n  if (forceAnalyze) {\n    skippedFilters.push('Early game with poor stats (BYPASSED)');\n    console.log(`[Check Should Proceed] FORCE: Bypassing early game stats check`);\n  } else if (shouldProceed) {\n    shouldProceed = false;\n    reasons.push('Early game with poor stats');\n  }\n}\n\n// ============================================================\n// FINAL DECISION\n// ============================================================\nconst finalShouldProceed = forceAnalyze ? true : shouldProceed;\n\nif (forceAnalyze && !shouldProceed) {\n  console.log(`[Check Should Proceed] FORCE MODE: Would have been skipped due to: ${reasons.join(' | ')}`);\n}\n\nreturn {\n  json: {\n    ...item,\n    stats_meta: {\n      missing,\n      total,\n      missing_ratio,\n      stats_quality,\n    },\n    stats_available,\n    should_proceed: finalShouldProceed,\n    proceed_reason: finalShouldProceed\n      ? (forceAnalyze ? 'FORCE_ANALYZE' : 'LIVE_IN_WINDOW')\n      : reasons.join(' | '),\n    // ============================================================\n    // NEW: Track force mode info\n    // ============================================================\n    force_analyze: forceAnalyze,\n    is_manual_push: isManualPush,\n    skipped_filters: skippedFilters,\n    original_would_proceed: shouldProceed,\n  },\n};\n"
+      },
+      "id": "53f82e01-1b68-49ac-959c-3afa5762f0e8",
+      "name": "Check Should Proceed",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -4192,
+        -992
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 1
+          },
+          "conditions": [
+            {
+              "id": "check-should-proceed",
+              "leftValue": "={{ $json.should_proceed }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "4228ca97-2c71-4ca1-b645-c86a3a58cfd0",
+      "name": "Should Proceed?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        -3968,
+        -992
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "// ===========================================================================\n// Merge Odds to Match - PATCHED VERSION\n// Giữ nguyên 100% logic gốc + thêm:\n// 1. isHalfTimeMarket() filter\n// 2. checkOddsSanity() validation\n// ===========================================================================\n\nfunction safeObj(v) {\n  return v && typeof v === 'object' ? v : {};\n}\nfunction safeArr(v) {\n  return Array.isArray(v) ? v : [];\n}\nfunction toNumber(v, def = null) {\n  if (v === null || v === undefined) return def;\n  if (typeof v === 'number') return isNaN(v) ? def : v;\n  const n = Number(String(v).trim());\n  return isNaN(n) ? def : n;\n}\n\n// ===========================================================================\n// NEW: Half-time market detection\n// ===========================================================================\nfunction isHalfTimeMarket(betName) {\n  const name = betName.toLowerCase();\n  return (\n    name.includes('1st half') ||\n    name.includes('2nd half') ||\n    name.includes('(1st half)') ||\n    name.includes('(2nd half)') ||\n    name.includes('first half') ||\n    name.includes('second half') ||\n    name.includes(' 1h') ||\n    name.includes('1h ') ||\n    name.includes(' 2h') ||\n    name.includes('2h ') ||\n    name.includes(' ht') ||\n    name.endsWith(' ht') ||\n    name.includes('half time') ||\n    name.includes('halftime') ||\n    name.includes('half-time') ||\n    /\\b1h\\b/.test(name) ||\n    /\\b2h\\b/.test(name) ||\n    /\\bht\\b/.test(name)\n  );\n}\n\n// ===========================================================================\n// NEW: Sanity check for suspicious odds\n// ===========================================================================\nfunction checkOddsSanity(canonical, minute, scoreStr) {\n  const warnings = [];\n  const odds1x2 = canonical?.['1x2'];\n  if (!odds1x2) return warnings;\n  \n  const { home, draw, away } = odds1x2;\n  const parts = String(scoreStr || '0-0').split('-');\n  const homeGoals = parseInt(parts[0], 10) || 0;\n  const awayGoals = parseInt(parts[1], 10) || 0;\n  \n  // Late game sanity checks (minute >= 75)\n  if (minute >= 75) {\n    // Draw at level score in late game should have LOW odds (< 15), not high\n    if (homeGoals === awayGoals && draw > 15) {\n      warnings.push(`SANITY_FAIL: Draw @${draw} at ${minute}' with ${scoreStr} is unrealistic`);\n    }\n    \n    // Team leading by 2+ goals should have very low odds (< 5)\n    if (homeGoals >= awayGoals + 2 && home > 5) {\n      warnings.push(`SANITY_FAIL: Home @${home} leading 2+ at ${minute}' is unrealistic`);\n    }\n    if (awayGoals >= homeGoals + 2 && away > 5) {\n      warnings.push(`SANITY_FAIL: Away @${away} leading 2+ at ${minute}' is unrealistic`);\n    }\n    \n    // Leading team should have lower odds than trailing team\n    if (homeGoals > awayGoals && home > away) {\n      warnings.push(`SANITY_FAIL: Home leading but higher odds (H@${home} vs A@${away})`);\n    }\n    if (awayGoals > homeGoals && away > home) {\n      warnings.push(`SANITY_FAIL: Away leading but higher odds (A@${away} vs H@${home})`);\n    }\n  }\n  \n  // Extremely high odds in late game (> 50) is suspicious\n  if (minute >= 70 && (home > 50 || draw > 50 || away > 50)) {\n    warnings.push(`SANITY_FAIL: Extreme odds (H@${home}, D@${draw}, A@${away}) at ${minute}'`);\n  }\n  \n  return warnings;\n}\n\n// 1) Current odds HTTP response\nconst oddsResponse = safeObj($json);\n\n// 2) Match data from \"Should Proceed?\" node, same item index\nconst idx = $itemIndex ?? 0;\nlet matchData = {};\ntry {\n  const matchItems = $items('Should Proceed?', 0, 0);\n  if (matchItems[idx]) {\n    matchData = safeObj(matchItems[idx].json);\n  }\n} catch (e) {\n  console.log('⚠️ Could not read from \"Should Proceed?\":', e.message);\n}\n\n// NEW: Extract minute for sanity check\nconst matchInfo = matchData.match || {};\nconst minute = matchInfo.minute ?? 0;\n\nconst scoreStr =\n  (matchData.match && matchData.match.score) ||\n  matchData.score ||\n  '0-0';\n\nconst partsScore = String(scoreStr).split('-');\nconst homeGoals = parseInt(partsScore[0], 10) || 0;\nconst awayGoals = parseInt(partsScore[1], 10) || 0;\nconst totalGoals = homeGoals + awayGoals;\n\n// API error passthrough\nlet oddsError = null;\nif (oddsResponse.errors && Object.keys(oddsResponse.errors).length > 0) {\n  oddsError = JSON.stringify(oddsResponse.errors);\n}\n\n// 3) Normalize schema to \"bookmakers\"\nconst respArr = safeArr(oddsResponse.response);\nlet bookmakers = [];\nif (respArr.length > 0) {\n  const first = respArr[0];\n  if (Array.isArray(first.bookmakers) && first.bookmakers.length) {\n    bookmakers = first.bookmakers;\n  } else if (Array.isArray(first.odds) && first.odds.length) {\n    bookmakers = [\n      {\n        id: 0,\n        name: 'API-Football',\n        bets: first.odds,\n      },\n    ];\n  }\n}\n\n// 4) Init result structures\nlet oddsAvailable = false;\nconst usedBookmakers = [];\nconst availableOULines = [];\nconst availableAHLines = [];\nconst oddsMap = {};\n\nconst liveOdds = {\n  match_winner: null,\n  over_under: [],\n  asian_handicap: [],\n  btts: null,\n  corners_over_under: [],\n  corners_handicap: [],\n};\n\nif (bookmakers.length > 0) {\n  oddsAvailable = true;\n\n  const best1X2 = {\n    home: { odd: 0, bm: null },\n    draw: { odd: 0, bm: null },\n    away: { odd: 0, bm: null },\n  };\n\n  const bestBTTS = {\n    yes: { odd: 0, bm: null },\n    no: { odd: 0, bm: null },\n  };\n\n  for (const bk of bookmakers) {\n    const bkName = bk.name || 'Bookmaker';\n    usedBookmakers.push({ id: bk.id, name: bkName });\n\n    for (const bet of safeArr(bk.bets)) {\n      const betName = String(bet.name || '').toLowerCase();\n      const values = safeArr(bet.values);\n\n      // ===========================================================================\n      // PATCHED: Added isHalfTimeMarket check to all markets\n      // ===========================================================================\n      const isHalfMarket = isHalfTimeMarket(betName);\n\n      // --- 1X2 / Full-time Result ---\n      // PATCHED: Added !isHalfMarket check\n      // PATCHED: Exclude special minute markets (1x2 - 80 minutes, etc.)\n      const isSpecialMinuteMarket = /\\d+\\s*minute/.test(betName);\n      const isCornersMarket = betName.includes('corner');\n      \n      if (\n        !isHalfMarket &&\n        !isSpecialMinuteMarket &&\n        !isCornersMarket &&\n        (\n          betName.includes('1x2') ||\n          betName.includes('match winner') ||\n          betName === 'full time result' ||\n          betName === 'fulltime result' ||\n          betName.includes('fulltime result')\n        )\n      ) {\n        for (const v of values) {\n          let label = String(v.value || '').toLowerCase().trim();\n          const odd = toNumber(v.odd);\n          if (!odd || odd <= 1) continue;\n\n          if (label === 'home' || label === '1') {\n            if (odd > best1X2.home.odd) best1X2.home = { odd, bm: bkName };\n            oddsMap['home'] = Math.max(oddsMap['home'] || 0, odd);\n          }\n          if (label === 'draw' || label === 'x') {\n            if (odd > best1X2.draw.odd) best1X2.draw = { odd, bm: bkName };\n            oddsMap['draw'] = Math.max(oddsMap['draw'] || 0, odd);\n          }\n          if (label === 'away' || label === '2') {\n            if (odd > best1X2.away.odd) best1X2.away = { odd, bm: bkName };\n            oddsMap['away'] = Math.max(oddsMap['away'] || 0, odd);\n          }\n        }\n      }\n\n      // --- Total Goals Over/Under ---\n      // PATCHED: Added !isHalfMarket check\n      if (\n        !isHalfMarket &&\n        (\n          betName.includes('over/under') ||\n          betName.includes('over / under') ||\n          betName.includes('total goals') ||\n          betName.includes('match goals')\n        )\n      ) {\n        for (const v of values) {\n          const base = String(v.value || '').toLowerCase().trim(); // over/under\n          const hc = v.handicap != null ? String(v.handicap).trim() : '';\n          const odd = toNumber(v.odd);\n          if (!odd || odd <= 1) continue;\n          if (!hc) continue;\n\n          const sel = `${base} ${hc}`;\n          const key = sel.toLowerCase();\n\n          if (!oddsMap[key] || odd > oddsMap[key]) {\n            oddsMap[key] = odd;\n          }\n          if (!availableOULines.includes(sel)) {\n            availableOULines.push(sel);\n          }\n          liveOdds.over_under.push({\n            bookmaker: bkName,\n            selection: sel,\n            odd,\n          });\n        }\n      }\n\n      // --- Asian Handicap / Handicap ---\n      // PATCHED: Added !isHalfMarket check\n      if (\n        !isHalfMarket &&\n        (betName.includes('asian handicap') || betName.includes('handicap'))\n      ) {\n        for (const v of values) {\n          let side = String(v.value || '').toLowerCase().trim(); // home / away / 1 / 2\n          const hc = v.handicap != null ? String(v.handicap).trim() : '';\n          const odd = toNumber(v.odd);\n          if (!odd || odd <= 1) continue;\n          if (!hc) continue;\n\n          if (side === '1') side = 'home';\n          if (side === '2') side = 'away';\n\n          const sel = `${side} ${hc}`; // home +0.5\n          const key = sel.toLowerCase();\n          const display = `${side.toUpperCase()} (${hc})`;\n\n          if (!oddsMap[key] || odd > oddsMap[key]) {\n            oddsMap[key] = odd;\n          }\n          if (!availableAHLines.includes(display)) {\n            availableAHLines.push(display);\n          }\n          liveOdds.asian_handicap.push({\n            bookmaker: bkName,\n            selection: sel,\n            handicap: hc,\n            odd,\n          });\n        }\n      }\n\n      // --- Corners (Match Corners / Asian Corners) ---\n      // PATCHED: Added !isHalfMarket check\n      if (!isHalfMarket && betName.includes('corner')) {\n        for (const v of values) {\n          const base = String(v.value || '').toLowerCase().trim();\n          const hc = v.handicap != null ? String(v.handicap).trim() : '';\n          const odd = toNumber(v.odd);\n          if (!odd || odd <= 1) continue;\n\n          // Corners Over/Under\n          if (base === 'over' || base === 'under') {\n            if (!hc) continue;\n            const sel = `corners ${base} ${hc}`; // corners over 9.5\n            const key = sel.toLowerCase();\n\n            if (!oddsMap[key] || odd > oddsMap[key]) {\n              oddsMap[key] = odd;\n            }\n            if (!availableOULines.includes(sel)) {\n              availableOULines.push(sel);\n            }\n            liveOdds.corners_over_under.push({\n              bookmaker: bkName,\n              selection: sel,\n              odd,\n            });\n          }\n\n          // Corners Handicap home/away\n          if (['home', 'away', '1', '2'].includes(base)) {\n            let side = base;\n            if (side === '1') side = 'home';\n            if (side === '2') side = 'away';\n            if (!hc) continue;\n\n            const sel = `corners ${side} ${hc}`;\n            const key = sel.toLowerCase();\n\n            if (!oddsMap[key] || odd > oddsMap[key]) {\n              oddsMap[key] = odd;\n            }\n            if (!availableAHLines.includes(sel)) {\n              availableAHLines.push(sel);\n            }\n            liveOdds.corners_handicap.push({\n              bookmaker: bkName,\n              selection: sel,\n              odd,\n            });\n          }\n        }\n      }\n\n      // --- BTTS (Both Teams To Score) ---\n      // PATCHED: Added !isHalfMarket check\n      if (!isHalfMarket && (betName.includes('both teams') || betName === 'btts')) {\n        for (const v of values) {\n          const label = String(v.value || '').toLowerCase().trim(); // yes/no\n          const odd = toNumber(v.odd);\n          if (!odd || odd <= 1) continue;\n\n          if (label === 'yes') {\n            if (odd > bestBTTS.yes.odd) bestBTTS.yes = { odd, bm: bkName };\n            oddsMap['btts yes'] = Math.max(oddsMap['btts yes'] || 0, odd);\n          }\n          if (label === 'no') {\n            if (odd > bestBTTS.no.odd) bestBTTS.no = { odd, bm: bkName };\n            oddsMap['btts no'] = Math.max(oddsMap['btts no'] || 0, odd);\n          }\n        }\n      }\n    }\n  }\n\n  // Aggregate match winner\n  if (best1X2.home.odd > 0 || best1X2.away.odd > 0 || best1X2.draw.odd > 0) {\n    liveOdds.match_winner = {\n      home: best1X2.home.odd || null,\n      home_bookmaker: best1X2.home.bm || null,\n      draw: best1X2.draw.odd || null,\n      draw_bookmaker: best1X2.draw.bm || null,\n      away: best1X2.away.odd || null,\n      away_bookmaker: best1X2.away.bm || null,\n    };\n  }\n\n  // Aggregate BTTS\n  if (bestBTTS.yes.odd > 0 || bestBTTS.no.odd > 0) {\n    liveOdds.btts = {\n      yes: bestBTTS.yes.odd || null,\n      no: bestBTTS.no.odd || null,\n    };\n  }\n}\n\n\n\n\n// 4.x Build canonical odds snapshot for AI / logs (safe & compact)\nconst oddsCanonical = (() => {\n  const canonical = {};\n\n  // --- 1X2: từ liveOdds.match_winner ---\n  if (liveOdds.match_winner) {\n    canonical['1x2'] = {\n      home: liveOdds.match_winner.home ?? null,\n      draw: liveOdds.match_winner.draw ?? null,\n      away: liveOdds.match_winner.away ?? null,\n    };\n  } else {\n    canonical['1x2'] = null;\n  }\n\n  // Helper: build main line từ oddsMap theo regex\n const buildMainOU = (regexKey, regexParse) => {\n    const entries = Object.entries(oddsMap || {}).filter(([k]) =>\n      regexKey.test(k)\n    );\n    if (!entries.length) return null;\n\n    const lineMap = new Map();\n    for (const [k, odd] of entries) {\n      const m = k.match(regexParse);\n      if (!m) continue;\n      const dir = m[1];         // over / under\n      const lineStr = m[2];     // \"2.5\"\n      const line = Number(lineStr);\n      if (!Number.isFinite(line)) continue;\n\n      const key = lineStr;\n      if (!lineMap.has(key)) lineMap.set(key, {});\n      const entry = lineMap.get(key);\n      entry[dir] = Math.max(entry[dir] || 0, odd);\n    }\n\n    const sortedLines = Array.from(lineMap.keys())\n      .map((s) => Number(s))\n      .filter((n) => Number.isFinite(n))\n      .sort((a, b) => Math.abs(a) - Math.abs(b));\n\n    if (!sortedLines.length) return null;\n    const bestLineStr = sortedLines[0].toString();\n    const data = lineMap.get(bestLineStr) || {};\n    return {\n      line: Number(bestLineStr),\n      over: data.over ?? null,\n      under: data.under ?? null,\n    };\n  };\n\n  const buildMainAH = () => {\n    const entries = Object.entries(oddsMap || {}).filter(([k]) =>\n      /^(home|away)\\s+[-+]?[0-9]+(\\.[0-9]+)?$/.test(k)\n    );\n    if (!entries.length) return null;\n\n    const lineMap = new Map();\n    for (const [k, odd] of entries) {\n      const m = k.match(/^(home|away)\\s+([-+]?[0-9]+(\\.[0-9]+)?)/);\n      if (!m) continue;\n      const side = m[1];        // home / away\n      const lineStr = m[2];     // \"-0.25\"\n      const line = Number(lineStr);\n      if (!Number.isFinite(line)) continue;\n\n      const key = lineStr;\n      if (!lineMap.has(key)) lineMap.set(key, {});\n      const entry = lineMap.get(key);\n     entry[side] = Math.max(entry[side] || 0, odd);\n    }\n\n    const sortedLines = Array.from(lineMap.keys())\n      .map((s) => Number(s))\n      .filter((n) => Number.isFinite(n))\n      .sort((a, b) => Math.abs(a) - Math.abs(b));\n\n    if (!sortedLines.length) return null;\n   const bestLineStr = sortedLines[0].toString();\n    const data = lineMap.get(bestLineStr) || {};\n    return {\n      line: Number(bestLineStr),\n      home: data.home ?? null,\n      away: data.away ?? null,\n    };\n  };\n\n  // --- OU goals ---\n  canonical['ou'] = buildMainOU(\n    /^(over|under)\\s+[0-9]+(\\.[0-9]+)?$/,\n    /^(over|under)\\s+([0-9]+(\\.[0-9]+)?)/\n  );\n\n  // --- Asian handicap ---\n  canonical['ah'] = buildMainAH();\n\n  // --- Corners OU ---\n  canonical['corners_ou'] = buildMainOU(\n    /^corners\\s+(over|under)\\s+[0-9]+(\\.[0-9]+)?$/,\n    /^corners\\s+(over|under)\\s+([0-9]+(\\.[0-9]+)?)/\n  );\n\n  // --- BTTS ---\n  if (liveOdds.btts) {\n    canonical['btts'] = {\n      yes: liveOdds.btts.yes ?? null,\n      no: liveOdds.btts.no ?? null,\n    };\n  } else {\n    canonical['btts'] = null;\n  }\n  return canonical;\n})();\n\n\n// ===========================================================================\n// NEW: Sanity check after building canonical odds\n// ===========================================================================\nconst oddsSanityWarnings = checkOddsSanity(oddsCanonical, minute, scoreStr);\nconst oddsSuspicious = oddsSanityWarnings.length > 0;\n\nif (oddsSuspicious) {\n  console.log(`[${matchData.match_id}] SANITY: ${oddsSanityWarnings.join(' | ')}`);\n}\n\n\n// 5) odds_display summary\nlet oddsDisplay = '';\nif (oddsAvailable) {\n  const parts = [];\n\n  if (liveOdds.match_winner) {\n    const h = liveOdds.match_winner.home ?? 'N/A';\n    const d = liveOdds.match_winner.draw ?? 'N/A';\n    const a = liveOdds.match_winner.away ?? 'N/A';\n    parts.push(`1X2 H@${h} D@${d} A@${a}`);\n  }\n\n  if (liveOdds.over_under.length > 0) {\n    const ou = liveOdds.over_under[0];\n    parts.push(`OU ${ou.selection} @${ou.odd}`);\n  }\n\n  if (liveOdds.asian_handicap.length > 0) {\n    const ah = liveOdds.asian_handicap[0];\n    parts.push(`AH ${ah.selection} @${ah.odd}`);\n  }\n\n  if (liveOdds.corners_over_under.length > 0) {\n    const c = liveOdds.corners_over_under[0];\n    parts.push(`Corners ${c.selection} @${c.odd}`);\n  }\n\n  if (liveOdds.btts) {\n    const y = liveOdds.btts.yes ?? 'N/A';\n    const n = liveOdds.btts.no ?? 'N/A';\n    parts.push(`BTTS Yes@${y} No@${n}`);\n  }\n\n  oddsDisplay = parts.join(' || ');\n} else {\n  oddsDisplay = 'ODDS NOT AVAILABLE';\n}\n\n\n  return {\n  json: {\n    ...matchData,\n    live_odds: liveOdds,\n    odds_available: oddsAvailable,\n    odds_display: oddsDisplay,\n    odds_error: oddsError,\n    odds_bookmakers_used: usedBookmakers,\n    odds_mode: 'ALL',\n    available_ou_lines: availableOULines,\n    available_ah_lines: availableAHLines,\n    current_total_goals: totalGoals,\n    odds_map: oddsMap,\n    odds_canonical: oddsCanonical,\n    // NEW: Sanity check results\n    odds_sanity_warnings: oddsSanityWarnings,\n    odds_suspicious: oddsSuspicious,\n  },\n};"
+      },
+      "id": "e070bd9b-9c23-4bf7-b217-844327c0ac7e",
+      "name": "Merge Odds to Match",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -3520,
+        -992
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "// Parse AI Response - FIXED VERSION\n// ============================================================\n// CHANGES:\n// 1. Improved odds extraction from selection string\n// 2. Use oddsCanonical to map odds when oddsMap fails\n// 3. Better pattern matching for 1X2, O/U, BTTS, AH markets\n// 4. Added bet_market extraction from AI response\n// ============================================================\n\nfunction toNumber(val, fallback) {\n  if (val === null || val === undefined) return fallback;\n  const n = Number(val);\n  return Number.isFinite(n) ? n : fallback;\n}\n\nfunction extractJsonString(text) {\n  if (!text) return null;\n  const s = String(text);\n  let m = s.match(/```json([\\s\\S]*?)```/i);\n  if (m && m[1]) return m[1].trim();\n  m = s.match(/```([\\s\\S]*?)```/);\n  if (m && m[1]) return m[1].trim();\n  const first = s.indexOf(\"{\");\n  const last = s.lastIndexOf(\"}\");\n  if (first >= 0 && last > first) {\n    return s.slice(first, last + 1);\n  }\n  return null;\n}\n\n// ============================================================\n// NEW: Improved odds extraction function\n// ============================================================\nfunction extractOddsFromSelection(selection, oddsMap, oddsCanonical) {\n  if (!selection) return null;\n  \n  const sel = String(selection).toLowerCase().trim();\n  \n  // Method 1: Check if selection already contains @ price\n  const priceMatch = sel.match(/@\\s*([0-9]+\\.?[0-9]*)/);\n  if (priceMatch) {\n    const price = parseFloat(priceMatch[1]);\n    if (price > 1 && price < 100) return price;\n  }\n  \n  // Method 2: Direct match in oddsMap\n  const normalizedSel = sel.replace(/\\s+/g, \" \");\n  if (oddsMap && oddsMap[normalizedSel]) {\n    return parseFloat(oddsMap[normalizedSel]) || null;\n  }\n  \n  // Method 3: Detect market type from selection and get from canonical\n  const selLower = sel.toLowerCase();\n  \n  // 1X2 Markets\n  if (oddsCanonical && oddsCanonical['1x2']) {\n    const x = oddsCanonical['1x2'];\n    \n    // Home win patterns\n    if (selLower.includes('home win') || \n        selLower.includes('(home)') || \n        selLower.includes('home)') ||\n        selLower.match(/\\bhome\\b.*\\bwin\\b/) ||\n        selLower.match(/\\b1x2\\b.*\\bhome\\b/) ||\n        (selLower.includes('win') && !selLower.includes('away') && !selLower.includes('draw') && selLower.match(/^[^@]*win/))) {\n      if (x.home && x.home > 1) return x.home;\n    }\n    \n    // Away win patterns  \n    if (selLower.includes('away win') || \n        selLower.includes('(away)') ||\n        selLower.includes('away)') ||\n        selLower.match(/\\baway\\b.*\\bwin\\b/)) {\n      if (x.away && x.away > 1) return x.away;\n    }\n    \n    // Draw patterns\n    if (selLower.includes('draw') || selLower.includes('1x2 x')) {\n      if (x.draw && x.draw > 1) return x.draw;\n    }\n  }\n  \n  // Over/Under Markets\n  if (oddsCanonical && oddsCanonical['ou']) {\n    const ou = oddsCanonical['ou'];\n    \n    const overMatch = selLower.match(/over\\s+([0-9]+\\.?[0-9]*)/);\n    if (overMatch) {\n      const line = parseFloat(overMatch[1]);\n      if (ou.line === line && ou.over > 1) return ou.over;\n      if (oddsMap) {\n        const ouKey = `over ${overMatch[1]}`;\n        if (oddsMap[ouKey]) return parseFloat(oddsMap[ouKey]);\n      }\n    }\n    \n    const underMatch = selLower.match(/under\\s+([0-9]+\\.?[0-9]*)/);\n    if (underMatch) {\n      const line = parseFloat(underMatch[1]);\n      if (ou.line === line && ou.under > 1) return ou.under;\n      if (oddsMap) {\n        const ouKey = `under ${underMatch[1]}`;\n        if (oddsMap[ouKey]) return parseFloat(oddsMap[ouKey]);\n      }\n    }\n  }\n  \n  // BTTS Markets\n  if (oddsCanonical && oddsCanonical['btts']) {\n    const btts = oddsCanonical['btts'];\n    \n    if (selLower.includes('btts yes') || selLower.includes('both teams to score yes') || \n        (selLower.includes('btts') && selLower.includes('yes'))) {\n      if (btts.yes && btts.yes > 1) return btts.yes;\n    }\n    if (selLower.includes('btts no') || selLower.includes('both teams to score no') ||\n        (selLower.includes('btts') && selLower.includes('no'))) {\n      if (btts.no && btts.no > 1) return btts.no;\n    }\n  }\n  \n  // Simple key matching as fallback\n  if (oddsMap) {\n    const simpleKeys = ['home', 'away', 'draw'];\n    for (const key of simpleKeys) {\n      if (selLower.includes(key) && oddsMap[key]) {\n        return parseFloat(oddsMap[key]) || null;\n      }\n    }\n  }\n  \n  return null;\n}\n\nconst itemIndex = $itemIndex ?? 0;\nconst aiJson = $json || {};\n\nconst config = $(\"Set Config\").first().json || {};\nconst minMinute = Number(config.MIN_MINUTE ?? 0);\nconst maxMinute = Number(config.MAX_MINUTE ?? 120);\nconst minConfidence = Number(config.MIN_CONFIDENCE ?? 5);\nconst liveStatuses = [\"1H\", \"2H\", \"ET\", \"BT\", \"P\", \"LIVE\"];\n\nlet matchData = {};\ntry {\n  const merged = $items(\"Merge Odds to Match\", 0, 0);\n  if (merged[itemIndex]) {\n    matchData = merged[itemIndex].json || {};\n  }\n} catch (e) {\n  matchData = { matchData_error: String(e) };\n}\n\nlet aiRawText = \"\";\ntry {\n  const src = aiJson || {};\n  const content = src.content;\n  if (!aiRawText && Array.isArray(content) && content.length) {\n    const textPart = content.find(c => c && c.type === \"text\" && typeof c.text === \"string\") || content[0];\n    if (textPart && typeof textPart.text === \"string\") {\n      aiRawText = textPart.text;\n    }\n  }\n  if (!aiRawText && Array.isArray(src.candidates) && src.candidates.length) {\n    const first = src.candidates[0];\n    const parts = first && first.content && Array.isArray(first.content.parts) ? first.content.parts : [];\n    if (parts.length) {\n      const textPart = parts.find(p => typeof p.text === \"string\") || parts[0];\n      if (textPart && typeof textPart.text === \"string\") {\n        aiRawText = textPart.text;\n      }\n    }\n  }\n  if (!aiRawText && typeof src.output_text === \"string\") aiRawText = src.output_text;\n  if (!aiRawText && typeof src.text === \"string\") aiRawText = src.text;\n  if (!aiRawText && typeof src.completion === \"string\") aiRawText = src.completion;\n  if (!aiRawText && typeof src.result === \"string\") aiRawText = src.result;\n} catch (e) {\n  aiRawText = \"\";\n}\n\nlet parsed = {};\nlet parseError = null;\n\nconst jsonStr = extractJsonString(aiRawText);\nif (jsonStr) {\n  try {\n    parsed = JSON.parse(jsonStr);\n  } catch (err) {\n    parsed = {};\n    parseError = String(err);\n  }\n} else {\n  parseError = \"NO_JSON_FOUND\";\n}\n\nconst recs = Array.isArray(parsed.recommendations) ? parsed.recommendations : [];\nconst mainRec = recs[0] || {};\n\nconst aiSelectionRaw = mainRec.selection || mainRec.pick || mainRec.bet_on || parsed.selection || \"\";\nconst aiSelection = String(aiSelectionRaw || \"\").trim();\nconst aiOddRaw = toNumber(mainRec.odds, null);\n\n// ============================================================\n// NEW: Extract bet_market for deduplication\n// ============================================================\nconst aiBetMarketRaw = mainRec.bet_market || parsed.bet_market || \"\";\nconst aiBetMarket = String(aiBetMarketRaw || \"\").trim();\n\nlet aiConfidence = toNumber(mainRec.confidence, null);\nif (aiConfidence === null) aiConfidence = toNumber(parsed.confidence, null);\nif (aiConfidence === null && parsed.confidence_score !== undefined) {\n  aiConfidence = toNumber(parsed.confidence_score, null);\n}\n\nif (aiConfidence !== null) {\n  if (aiConfidence > 10 && aiConfidence <= 100) {\n    aiConfidence = aiConfidence / 10;\n  }\n  aiConfidence = Math.max(0, Math.min(10, aiConfidence));\n  aiConfidence = Math.round(aiConfidence);\n}\n\nconst aiShouldPushRaw = (() => {\n  if (typeof parsed.should_push === \"boolean\") return parsed.should_push;\n  if (typeof mainRec.should_push === \"boolean\") return mainRec.should_push;\n  return null;\n})();\n\nconst warnings = Array.isArray(parsed.warnings) ? parsed.warnings : [];\nconst reasoningEn = String(parsed.reasoning_en || mainRec.reasoning || parsed.reasoning || \"\");\nconst reasoningVi = String(parsed.reasoning_vi || \"\");\n\n// Odds map + canonical\nconst oddsMap = matchData.odds_map || {};\nconst oddsCanonical = matchData.odds_canonical || {};\nconst oddsAvailable = !!matchData.odds_available;\nconst minute = matchData.match?.minute ?? matchData.minute ?? null;\nconst status = (matchData.match?.status ?? matchData.status ?? \"\").toString().toUpperCase();\n\n// ============================================================\n// FIXED: Use improved odds extraction\n// ============================================================\nconst mappedOdd = extractOddsFromSelection(aiSelection, oddsMap, oddsCanonical);\nconst finalOdd = mappedOdd ?? aiOddRaw;\n\nconsole.log(`[Parse AI] Selection: \"${aiSelection}\"`);\nconsole.log(`[Parse AI] AI raw odd: ${aiOddRaw}, Mapped odd: ${mappedOdd}, Final: ${finalOdd}`);\nconsole.log(`[Parse AI] bet_market: \"${aiBetMarket}\"`);\n\nlet aiShouldBet;\nif (aiShouldPushRaw !== null) {\n  aiShouldBet = aiShouldPushRaw;\n} else {\n  aiShouldBet = !!(\n    aiSelection &&\n    aiSelection.trim() !== \"\" &&\n    finalOdd &&\n    finalOdd > 1.01 &&\n    aiConfidence !== null &&\n    aiConfidence >= minConfidence\n  );\n}\n\nconst safetyReasons = [];\nif (aiShouldBet) {\n  if (!aiSelection || aiSelection.trim() === \"\") safetyReasons.push(\"NO_SELECTION\");\n  if (!finalOdd || finalOdd <= 1.01) safetyReasons.push(\"ODDS_INVALID\");\n  if (aiConfidence === null) safetyReasons.push(\"NO_CONFIDENCE\");\n  if (aiConfidence !== null && aiConfidence < minConfidence) safetyReasons.push(\"CONFIDENCE_BELOW_MIN\");\n  if (minute !== null) {\n    if (minute < minMinute) safetyReasons.push(\"MINUTE_TOO_EARLY\");\n    if (minute > maxMinute) safetyReasons.push(\"MINUTE_TOO_LATE\");\n  }\n  if (status && !liveStatuses.includes(status)) safetyReasons.push(\"STATUS_NOT_LIVE\");\n  if (!oddsAvailable) safetyReasons.push(\"ODDS_NOT_AVAILABLE\");\n}\n\nlet systemShouldBet = false;\nif (aiShouldBet && safetyReasons.length === 0) {\n  systemShouldBet = true;\n}\n\nconst finalConf = aiConfidence ?? 0;\nconst recommendationEn = aiSelection && finalOdd\n  ? `${aiSelection} @${finalOdd}`\n  : \"No pick (AI does not recommend an idea)\";\n\nconst valuePercent = toNumber(parsed.value_percent, null);\nconst riskLevel = String(parsed.risk_level || \"\").toUpperCase();\nconst stakePercent = toNumber(parsed.stake_percent, null);\n\n// Custom condition handling\nlet cc = parsed.custom_condition || {};\nif (!cc || Object.keys(cc).length === 0) {\n  const flatStatus = parsed.custom_condition_status;\n  const flatMatched = typeof parsed.custom_condition_matched === \"boolean\" ? parsed.custom_condition_matched : undefined;\n  const flatSummaryEn = parsed.custom_condition_summary_en;\n  const flatSummaryVi = parsed.custom_condition_summary_vi;\n  const flatReasonEn = parsed.custom_condition_reason_en;\n  const flatReasonVi = parsed.custom_condition_reason_vi;\n  if (flatStatus || flatMatched !== undefined || flatSummaryEn || flatSummaryVi || flatReasonEn || flatReasonVi) {\n    cc = {\n      status: flatStatus,\n      matched: flatMatched,\n      summary_en: flatSummaryEn,\n      summary_vi: flatSummaryVi,\n      reason_en: flatReasonEn,\n      reason_vi: flatReasonVi,\n      raw: matchData.custom_conditions || \"\",\n      signals: parsed.custom_condition_signals,\n    };\n  } else {\n    cc = {};\n  }\n}\n\nconst ccRaw = String(cc.raw ?? matchData.custom_conditions ?? \"\").trim();\nconst ccStatus = cc.status || \"none\";\nconst ccMatched = !!cc.matched;\nconst ccSummaryEn = String(cc.summary_en ?? \"\");\nconst ccSummaryVi = String(cc.summary_vi ?? \"\");\nconst ccReasonEn = String(cc.reason_en ?? \"\");\nconst ccReasonVi = String(cc.reason_vi ?? \"\");\nconst ccSignals = Array.isArray(cc.signals) ? cc.signals : Array.isArray(parsed.custom_condition_signals) ? parsed.custom_condition_signals : [];\n\nconst conditionTriggeredSuggestion = String(parsed.condition_triggered_suggestion || \"\").trim();\nconst conditionTriggeredReasoningEn = String(parsed.condition_triggered_reasoning_en || \"\").trim();\nconst conditionTriggeredReasoningVi = String(parsed.condition_triggered_reasoning_vi || \"\").trim();\nconst conditionTriggeredConfidence = toNumber(parsed.condition_triggered_confidence, 0);\nconst conditionTriggeredStake = toNumber(parsed.condition_triggered_stake, 0);\n\nconst conditionTriggeredShouldPush = ccMatched && \n  conditionTriggeredSuggestion && \n  !conditionTriggeredSuggestion.toLowerCase().includes(\"no bet\") &&\n  conditionTriggeredConfidence >= minConfidence;\n\nreturn {\n  json: {\n    ...matchData,\n    ai_raw_text: aiRawText,\n    ai_json_source: aiJson,\n    ai_parsed: parsed,\n    ai_main_rec: mainRec,\n    ai_should_push_raw: aiShouldPushRaw,\n    ai_should_push: !!aiShouldBet,\n    ai_should_bet_raw: aiShouldPushRaw,\n    ai_should_bet: !!aiShouldBet,\n    ai_selection: aiSelection,\n    ai_bet_market: aiBetMarket,\n    ai_odd_raw: aiOddRaw,\n    ai_confidence: finalConf,\n    ai_warnings: warnings,\n    ai_reasoning_en: reasoningEn,\n    ai_reasoning_vi: reasoningVi,\n    parse_error: parseError,\n    ai_value_percent: valuePercent,\n    ai_risk_level: riskLevel,\n    ai_stake_percent: stakePercent,\n    mapped_odd: mappedOdd,\n    usable_odd: finalOdd,\n    system_should_bet: systemShouldBet,\n    safety_reasons: safetyReasons,\n    selection: aiSelection,\n    bet_market: aiBetMarket,\n    odds: finalOdd,\n    confidence: finalConf,\n    recommendation_en: recommendationEn,\n    recommendation_vi: \"\",\n    reasoning_en: reasoningEn,\n    reasoning_vi: reasoningVi,\n    warnings,\n    value_percent: valuePercent,\n    risk_level: riskLevel,\n    stake_percent: stakePercent,\n    ai_custom_condition: cc,\n    custom_condition_raw: ccRaw,\n    custom_condition_status: ccStatus,\n    custom_condition_matched: ccMatched,\n    custom_condition_summary_en: ccSummaryEn,\n    custom_condition_summary_vi: ccSummaryVi,\n    custom_condition_reason_en: ccReasonEn,\n    custom_condition_reason_vi: ccReasonVi,\n    custom_condition_signals: ccSignals,\n    condition_triggered_suggestion: conditionTriggeredSuggestion,\n    condition_triggered_reasoning_en: conditionTriggeredReasoningEn,\n    condition_triggered_reasoning_vi: conditionTriggeredReasoningVi,\n    condition_triggered_confidence: conditionTriggeredConfidence,\n    condition_triggered_stake: conditionTriggeredStake,\n    condition_triggered_should_push: conditionTriggeredShouldPush,\n  },\n};"
+      },
+      "id": "101cdea5-84b2-400b-b045-e9818cabfd33",
+      "name": "Parse AI Response",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -2496,
+        -992
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "value": "1kwXtpKxtQE52lFnz5MRRV0dnzeftN_X5tD69CL12ycU",
+          "mode": "list",
+          "cachedResultName": "Time_For_Investment"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": 532487099,
+          "mode": "list",
+          "cachedResultName": "Recommendations"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "match_id": "={{ $json.match_id }}",
+            "timestamp": "={{ $json.timestamp }}",
+            "minute": "={{ $json.minute }}",
+            "score": "={{ $json.score }}",
+            "bet_type": "={{ $json.bet_type }}",
+            "selection": "={{ $json.selection }}",
+            "odds": "={{ $json.odds }}",
+            "confidence": "={{ $json.confidence }}",
+            "value_percent": "={{ $json.value_percent }}",
+            "risk_level": "={{ $json.risk_level }}",
+            "stake_percent": "={{ $json.stake_percent }}",
+            "reasoning": "={{ $json.reasoning }}",
+            "key_factors": "={{ $json.key_factors }}",
+            "warnings": "={{ $json.warnings }}",
+            "ai_model": "={{ $json.ai_model }}",
+            "mode": "={{ $json.mode }}",
+            "notified": "={{ $json.notified }}",
+            "result": "={{ $json.result }}",
+            "actual_outcome": "={{ $json.actual_outcome}}",
+            "pnl": "={{ $json.pnl}}",
+            "settled_at": "={{ $json.settled_at}}",
+            "notification_channels": "={{ $json.notification_channels}}",
+            "league": "={{ $json.league}}",
+            "home_team": "={{ $json.home_team}}",
+            "away_team": "={{ $json.away_team}}",
+            "status": "={{ $json.status}}",
+            "condition_triggered_suggestion": "={{ $json.condition_triggered_suggestion}}",
+            "custom_condition_raw": "={{ $json.custom_condition_raw}}",
+            "execution_id": "={{ $json.execution_id}}",
+            "odds_snapshot": "={{ $json.odds_snapshot}}",
+            "stats_snapshot": "={{ $json.stats_snapshot}}",
+            "pre_match_prediction_summary": "={{ $json.pre_match_prediction_summary}}",
+            "custom_condition_matched": "={{ $json.custom_condition_matched}}",
+            "unique_key": "={{ $json.unique_key}}",
+            "bet_market": "={{ $json.bet_market }}"
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "match_id",
+              "displayName": "match_id",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "timestamp",
+              "displayName": "timestamp",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "unique_key",
+              "displayName": "unique_key",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "league",
+              "displayName": "league",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "home_team",
+              "displayName": "home_team",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "away_team",
+              "displayName": "away_team",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "status",
+              "displayName": "status",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "condition_triggered_suggestion",
+              "displayName": "condition_triggered_suggestion",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "custom_condition_raw",
+              "displayName": "custom_condition_raw",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "execution_id",
+              "displayName": "execution_id",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "odds_snapshot",
+              "displayName": "odds_snapshot",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "stats_snapshot",
+              "displayName": "stats_snapshot",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "pre_match_prediction_summary",
+              "displayName": "pre_match_prediction_summary",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "custom_condition_matched",
+              "displayName": "custom_condition_matched",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "minute",
+              "displayName": "minute",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "score",
+              "displayName": "score",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "bet_type",
+              "displayName": "bet_type",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "selection",
+              "displayName": "selection",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "odds",
+              "displayName": "odds",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "confidence",
+              "displayName": "confidence",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "value_percent",
+              "displayName": "value_percent",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "risk_level",
+              "displayName": "risk_level",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "stake_percent",
+              "displayName": "stake_percent",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "stake_amount",
+              "displayName": "stake_amount",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "reasoning",
+              "displayName": "reasoning",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "key_factors",
+              "displayName": "key_factors",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "warnings",
+              "displayName": "warnings",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "ai_model",
+              "displayName": "ai_model",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "mode",
+              "displayName": "mode",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "notified",
+              "displayName": "notified",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "notification_channels",
+              "displayName": "notification_channels",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "bet_market",
+              "displayName": "bet_market",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "result",
+              "displayName": "result",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "actual_outcome",
+              "displayName": "actual_outcome",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "pnl",
+              "displayName": "pnl",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "settled_at",
+              "displayName": "settled_at",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "_was_overridden",
+              "displayName": "_was_overridden",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "id": "37d59dbf-d3c5-4d23-a972-d50919851a4f",
+      "name": "Save Recommendation",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.3,
+      "position": [
+        -1600,
+        -1184
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "1Wv4qfdHrkA4hfjn",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Format Email - FIXED VERSION\n// ============================================================\n// CHANGES:\n// - FIXED: Moved recommended_condition_reason_vi display OUTSIDE of else block\n// - Now shows immediately after CONDITION TRIGGERED header when conditionsMatch = true\n// ============================================================\n\nconst items = $input.all();\nconst config = $(\"Set Config\").first().json || {};\nconst emailTo = (config.EMAIL_TO || \"\").trim();\nconst tz = config.TIMEZONE || \"UTC\";\n\nfunction esc(s) {\n  return String(s ?? \"\")\n    .replace(/&/g, \"&amp;\")\n    .replace(/</g, \"&lt;\")\n    .replace(/>/g, \"&gt;\");\n}\n\nfunction sortEvents(eventsStr) {\n  if (!eventsStr) return \"\";\n  const parts = String(eventsStr)\n    .split(\"|\")\n    .map((p) => p.trim())\n    .filter(Boolean);\n\n  if (!parts.length) return \"\";\n\n  const withMinute = parts.map((segment, idx) => {\n    const m = segment.match(/(\\d+)\\s*'/);\n    const minute = m ? parseInt(m[1], 10) : 9999 + idx;\n    return { minute, segment };\n  });\n\n  withMinute.sort((a, b) => a.minute - b.minute);\n  return withMinute.map((x) => x.segment).join(\" | \");\n}\n\n// Filter picks: trận có idea hoặc custom_condition_matched hoặc condition_triggered\nlet picks = items.filter((it) => {\n  if (!it || !it.json) return false;\n  const j = it.json;\n  return !!(\n    j.ai_should_push ||\n    j.system_should_bet ||\n    j.final_should_bet ||\n    j.custom_condition_matched ||\n    j.condition_triggered_should_push\n  );\n});\n\nif (!picks.length && items.length) {\n  picks = items;\n}\nif (!picks.length || !emailTo) {\n  return [];\n}\n\n// Local time\nconst now = new Date();\nconst timeLocal = now.toLocaleString(\"en-GB\", {\n  timeZone: tz,\n  year: \"numeric\",\n  month: \"2-digit\",\n  day: \"2-digit\",\n  hour: \"2-digit\",\n  minute: \"2-digit\",\n  hour12: false,\n});\nconst timeLabel = `${timeLocal}, ${tz}`;\n\nlet html = \"\";\nhtml += \"<html><body>\";\nhtml += `<h2>🎯 Live Investment Digest (${picks.length})</h2>`;\nhtml += `<p>Generated at <b>${esc(timeLabel)}</b></p>`;\n\nfor (const it of picks) {\n  const d = it.json || {};\n\n  const matchName =\n    d.match_display ||\n    d.match ||\n    `${d.home_team || d.match?.home || \"Home\"} vs ${d.away_team || d.match?.away || \"Away\"}`;\n\n  const league = d.league || d.match?.league || \"Unknown league\";\n  const minute = d.minute ?? d.match_minute ?? d.match?.minute ?? \"?\";\n  const score = d.score || d.match?.score || \"-\";\n\n  const selection = d.selection || d.ai_selection || \"\";\n  const odds =\n    d.odds_for_display ?? d.odds ?? d.usable_odd ?? d.ai_odd_raw ?? \"\";\n  const conf = d.confidence ?? d.ai_confidence ?? null;\n\n  const reasoningEn =\n    (d.reasoning_en || d.ai_reasoning_en || d.reasoning || \"\").trim();\n  const reasoningVi =\n    (d.reasoning_vi || d.ai_reasoning_vi || \"\").trim();\n\n  const eventsSummaryRaw = (d.events_summary || \"\").trim();\n  const eventsSummary = sortEvents(eventsSummaryRaw);\n\n  const warningsArr = Array.isArray(d.ai_warnings || d.warnings)\n    ? (d.ai_warnings || d.warnings)\n    : [];\n\n  const ccMatched = !!d.custom_condition_matched;\n  const ccStatus = d.custom_condition_status || \"none\";\n  const ccSummaryEn = (d.custom_condition_summary_en || \"\").trim();\n  const ccSummaryVi = (d.custom_condition_summary_vi || \"\").trim();\n  const ccReasonEn = (d.custom_condition_reason_en || \"\").trim();\n  const ccReasonVi = (d.custom_condition_reason_vi || \"\").trim();\n\n  // Condition-triggered suggestion fields\n  const ctSuggestion = (d.condition_triggered_suggestion || \"\").trim();\n  const ctReasoningEn = (d.condition_triggered_reasoning_en || \"\").trim();\n  const ctReasoningVi = (d.condition_triggered_reasoning_vi || \"\").trim();\n  const ctConfidence = d.condition_triggered_confidence ?? 0;\n  const ctStake = d.condition_triggered_stake ?? 0;\n\n  // =============================================================\n  // Get recommended_condition_reason_vi from Watchlist\n  // =============================================================\n  const recommendedConditionReasonVi = (d.recommended_condition_reason_vi || \"\").trim();\n  const recommendedConditionReason = (d.recommended_condition_reason || \"\").trim();\n  const recommendedCustomCondition = (d.recommended_custom_condition || \"\").trim();\n  const customConditions = (d.custom_conditions || d.custom_condition_raw || \"\").trim();\n\n  // Check if user accepted AI-recommended condition\n  const conditionsMatch = \n    recommendedCustomCondition && \n    customConditions && \n    recommendedCustomCondition.trim() === customConditions.trim();\n\n  html += \"<hr/>\";\n  html += `<h3>${esc(matchName)}</h3>`;\n  html += `<p>🏆 ${esc(league)}<br/>⏱ ${esc(minute)}' &nbsp; | &nbsp; 🔢 ${esc(score)}</p>`;\n\n  // Phân biệt các loại recommendation\n  const hasAiIdea =\n    !!selection && (d.ai_should_push === true || d.final_should_bet === true);\n\n  const hasConditionTriggered = \n    ccMatched && \n    ctSuggestion && \n    !ctSuggestion.toLowerCase().includes(\"no bet\");\n\n  const hasCustomOnly =\n    !hasAiIdea &&\n    !hasConditionTriggered &&\n    ccMatched &&\n    (ccStatus === \"evaluated\" || ccStatus === \"matched\");\n\n  // =============================================================\n  // SECTION 1: AI Direct Recommendation\n  // =============================================================\n  if (hasAiIdea) {\n  html += `<div style=\"background-color: #e8f5e9; padding: 10px; border-radius: 5px; margin: 10px 0;\">`;\n  html += `<p><b>💡 AI RECOMMENDATION</b></p>`;\n\n  const sel = selection || \"\";\n  const hasOddsInSelection = sel.includes(\"@\");\n\n  html += `<p><b>🎯 Idea:</b> ${esc(sel)}${\n    odds && !hasOddsInSelection ? \" @\" + esc(odds) : \"\"\n  }</p>`;\n\n  html += `<p><b>⭐ Confidence:</b> ${conf !== null ? esc(conf) : \"N/A\"}/10</p>`;\n\n  if (reasoningVi) {\n    html += `<p><i>${esc(reasoningVi)}</i></p>`;\n  } else if (reasoningEn) {\n    html += `<p><i>${esc(reasoningEn)}</i></p>`;\n  }\n\n  html += `</div>`;\n}\n\n\n  // =============================================================\n  // SECTION 2: Condition-Triggered Suggestion\n  // =============================================================\n  if (ccMatched && (ccStatus === \"evaluated\" || ccStatus === \"matched\")) {\n    html += `<div style=\"background-color: #fff3e0; padding: 10px; border-radius: 5px; margin: 10px 0; border-left: 4px solid #ff9800;\">`;\n    html += `<p><b>🧩 CONDITION TRIGGERED</b></p>`;\n    \n    // Show condition summary\n    if (ccSummaryVi) {\n      html += `<p>📋 ${esc(ccSummaryVi)}</p>`;\n    } else if (ccSummaryEn) {\n      html += `<p>📋 ${esc(ccSummaryEn)}</p>`;\n    }\n\n    // =============================================================\n    // FIXED: Show recommended condition reason when conditions match\n    // Moved OUTSIDE of else block to always show when conditionsMatch\n    // =============================================================\n    if (conditionsMatch && (recommendedConditionReasonVi || recommendedConditionReason)) {\n      html += `<div style=\"background-color: #e3f2fd; padding: 8px; margin: 8px 0; border-radius: 3px; border-left: 3px solid #2196f3;\">`;\n      html += `<p><b>💡 LÝ DO ĐỀ XUẤT ĐIỀU KIỆN:</b></p>`;\n      if (recommendedConditionReasonVi) {\n        html += `<p><i>${esc(recommendedConditionReasonVi)}</i></p>`;\n      } else {\n        html += `<p><i>${esc(recommendedConditionReason)}</i></p>`;\n      }\n      html += `</div>`;\n    }\n\n    // Show investment suggestion if available\n    if (hasConditionTriggered) {\n      html += `<div style=\"background-color: #fff8e1; padding: 8px; margin-top: 8px; border-radius: 3px;\">`;\n      html += `<p><b>💰 ĐỀ XUẤT ĐẦU TƯ:</b></p>`;\n      html += `<p style=\"font-size: 1.2em;\"><b>🎯 ${esc(ctSuggestion)}</b></p>`;\n      html += `<p>⭐ Confidence: <b>${esc(ctConfidence)}/10</b> &nbsp;|&nbsp; Stake: <b>${esc(ctStake)}%</b></p>`;\n      \n      if (ctReasoningVi) {\n        html += `<p><i>${esc(ctReasoningVi)}</i></p>`;\n      } else if (ctReasoningEn) {\n        html += `<p><i>${esc(ctReasoningEn)}</i></p>`;\n      }\n      html += `</div>`;\n    } else if (ctSuggestion && ctSuggestion.toLowerCase().includes(\"no bet\")) {\n      // Condition matched but AI says no bet\n      html += `<p><b>💰 ĐỀ XUẤT:</b> Không đặt cược</p>`;\n      if (ctReasoningVi) {\n        html += `<p><i>${esc(ctReasoningVi)}</i></p>`;\n      } else if (ctReasoningEn) {\n        html += `<p><i>${esc(ctReasoningEn)}</i></p>`;\n      }\n    } else {\n      // Condition matched but no specific suggestion\n      html += `<p>ℹ️ Điều kiện đã kích hoạt - xem xét cơ hội</p>`;\n      if (ccReasonVi) {\n        html += `<p><i>${esc(ccReasonVi)}</i></p>`;\n      } else if (ccReasonEn) {\n        html += `<p><i>${esc(ccReasonEn)}</i></p>`;\n      }\n    }\n    html += `</div>`;\n  }\n\n  // =============================================================\n  // SECTION 3: No actionable idea\n  // =============================================================\n  if (!hasAiIdea && !ccMatched) {\n    html += `<p><b>🎯 Idea:</b> No actionable idea from AI.</p>`;\n    \n    if (reasoningVi) {\n      html += `<p><i>${esc(reasoningVi)}</i></p>`;\n    } else if (reasoningEn) {\n      html += `<p><i>${esc(reasoningEn)}</i></p>`;\n    }\n  }\n\n  // Warnings\n  if (!hasAiIdea && warningsArr.length) {\n    html += `<p><b>ℹ️ Notes:</b> ${esc(warningsArr.join(\" | \"))}</p>`;\n  }\n\n  // Events\n  if (eventsSummary) {\n    html += `<p><b>📌 Recent events:</b> ${esc(eventsSummary)}</p>`;\n  }\n\n  // Stats\n  const stats = d.stats || {};\n  const statsParts = [];\n  if (stats.possession && stats.possession !== \"-\") {\n    statsParts.push(`Possession ${stats.possession}`);\n  }\n  if (stats.shots_on_target && stats.shots_on_target !== \"-\") {\n    statsParts.push(`Shots on target ${stats.shots_on_target}`);\n  }\n  if (stats.shots && stats.shots !== \"-\") {\n    statsParts.push(`Total shots ${stats.shots}`);\n  }\n  if (stats.corners && stats.corners !== \"-\") {\n    statsParts.push(`Corners ${stats.corners}`);\n  }\n\n  if (statsParts.length) {\n    html += `<p><b>📊 Stats:</b> ${esc(statsParts.join(\" · \"))}</p>`;\n  }\n}\n\nhtml += `<hr/><p style=\"color: #666;\">⚠️ AI suggestions & custom patterns are for information only. Please verify carefully before making any decision.</p>`;\nhtml += \"</body></html>\";\n\nreturn [\n  {\n    json: {\n      email_to: emailTo,\n      email_subject: `🎯 Live Investment Digest (${picks.length}) - ${timeLabel}`,\n      email_body_html: html,\n    },\n  },\n];"
+      },
+      "id": "1043f5b9-0dd1-4f66-bb53-883fcf42b48e",
+      "name": "Format Email",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -1824,
+        -992
+      ]
+    },
+    {
+      "parameters": {
+        "sendTo": "={{ $json.email_to }}",
+        "subject": "={{ $json.email_subject }}",
+        "message": "={{ $json.email_body_html }}",
+        "options": {
+          "appendAttribution": false
+        }
+      },
+      "id": "5f6a75ae-1946-4797-9dc9-1680f150f061",
+      "name": "Send Email",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.1,
+      "position": [
+        -1600,
+        -992
+      ],
+      "webhookId": "a277ed59-e9bf-4053-b923-8f22485427f8",
+      "retryOnFail": true,
+      "waitBetweenTries": 1000,
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "ALH4opEJTuudpOky",
+          "name": "Gmail account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const items = $input.all();\nconst config = $(\"Set Config\").first().json || {};\nconst tz = config.TIMEZONE || \"UTC\";\n\n// Escape HTML để Telegram (parse mode = HTML) không bị lỗi entity\nfunction escapeHtml(str) {\n  return String(str)\n    .replace(/&/g, '&amp;')\n    .replace(/</g, '&lt;')\n    .replace(/>/g, '&gt;');\n}\n\n// Phiên bản safe cho HTML\nfunction safeHtml(s, fallback = \"\") {\n  if (s === null || s === undefined) return fallback;\n  return escapeHtml(String(s));\n}\n\n// Sort events string by minute, e.g. \"23'Goal ... | 37'Card ...\"\nfunction sortEvents(eventsStr) {\n  if (!eventsStr) return \"\";\n  const parts = String(eventsStr)\n    .split(\"|\")\n    .map((p) => p.trim())\n    .filter(Boolean);\n\n  if (!parts.length) return \"\";\n\n  const withMinute = parts.map((segment, idx) => {\n    const m = segment.match(/(\\d+)\\s*'/);\n    const minute = m ? parseInt(m[1], 10) : 9999 + idx;\n    return { minute, segment };\n  });\n\n  withMinute.sort((a, b) => a.minute - b.minute);\n  return withMinute.map((x) => x.segment).join(\" | \");\n}\n\n// Pick các trận đáng báo cáo:\n// - có system_should_bet (AI có idea)\n// - hoặc custom_condition_matched (custom pattern hit)\n// - hoặc condition_triggered_should_push (NEW: condition triggered có suggestion)\nlet picks = items.filter((it) => {\n  if (!it || !it.json) return false;\n  const j = it.json;\n  return !!(\n    j.ai_should_push ||\n    j.system_should_bet ||\n    j.final_should_bet ||\n    j.custom_condition_matched ||\n    j.condition_triggered_should_push  // NEW\n  );\n});\n\n// Nếu vẫn không có gì mà vẫn có items → report tất cả (fallback)\nif (!picks.length && items.length) {\n  picks = items;\n}\n\n// Nếu vẫn không có → không gửi message\nif (!picks.length) {\n  return [];\n}\n\n// Local time label từ timezone config\nconst now = new Date();\nconst timeLocal = now.toLocaleString(\"en-GB\", {\n  timeZone: tz,\n  year: \"numeric\",\n  month: \"2-digit\",\n  day: \"2-digit\",\n  hour: \"2-digit\",\n  minute: \"2-digit\",\n  hour12: false,\n});\nconst timeLabel = `${timeLocal}, ${tz}`;\n\nconst lines = [];\nlines.push(`🎯 Live Investment Digest (${picks.length})`);\nlines.push(`Time: ${safeHtml(timeLabel)}`);\nlines.push(\"\");\n\n// Build từng trận\nfor (const it of picks) {\n  const d = it.json || {};\n\n  const matchName =\n    d.match_display ||\n    d.match ||\n    `${d.home_team || d.match?.home || \"Home\"} vs ${\n      d.away_team || d.match?.away || \"Away\"\n    }`;\n\n  const league = d.league || d.match?.league || \"Unknown league\";\n  const minute = d.minute ?? d.match_minute ?? d.match?.minute ?? \"?\";\n  const score = d.score || d.match?.score || \"-\";\n\n  const selection = d.selection || d.ai_selection || \"\";\n  const odds =\n    d.odds_for_display ?? d.odds ?? d.usable_odd ?? d.ai_odd_raw ?? \"\";\n  const conf = d.confidence ?? d.ai_confidence ?? null;\n\n  const reasoningEn =\n    (d.reasoning_en || d.ai_reasoning_en || d.reasoning || \"\").trim();\n  const reasoningVi = (d.reasoning_vi || d.ai_reasoning_vi || \"\").trim();\n\n  const eventsSummaryRaw = (d.events_summary || \"\").trim();\n  const eventsSummary = sortEvents(eventsSummaryRaw);\n\n  const warningsArr = Array.isArray(d.ai_warnings || d.warnings)\n    ? (d.ai_warnings || d.warnings)\n    : [];\n\n  const ccMatched = !!d.custom_condition_matched;\n  const ccStatus = d.custom_condition_status || \"none\";\n  const ccSummaryEn = (d.custom_condition_summary_en || \"\").trim();\n  const ccSummaryVi = (d.custom_condition_summary_vi || \"\").trim();\n  const ccReasonEn = (d.custom_condition_reason_en || \"\").trim();\n  const ccReasonVi = (d.custom_condition_reason_vi || \"\").trim();\n\n  // =============================================================\n  // Condition-triggered suggestion fields\n  // =============================================================\n  const ctSuggestion = (d.condition_triggered_suggestion || \"\").trim();\n  const ctReasoningEn = (d.condition_triggered_reasoning_en || \"\").trim();\n  const ctReasoningVi = (d.condition_triggered_reasoning_vi || \"\").trim();\n  const ctConfidence = d.condition_triggered_confidence ?? 0;\n  const ctStake = d.condition_triggered_stake ?? 0;\n  const ctShouldPush = !!d.condition_triggered_should_push;\n\n  // =============================================================\n  // Get recommended_condition_reason_vi from Watchlist\n  // =============================================================\n  const recommendedConditionReasonVi = (d.recommended_condition_reason_vi || \"\").trim();\n  const recommendedConditionReason = (d.recommended_condition_reason || \"\").trim();\n  const recommendedCustomCondition = (d.recommended_custom_condition || \"\").trim();\n  const customConditions = (d.custom_conditions || d.custom_condition_raw || \"\").trim();\n\n  // Check if user accepted AI-recommended condition\n  const conditionsMatch = \n    recommendedCustomCondition && \n    customConditions && \n    recommendedCustomCondition.trim() === customConditions.trim();\n\n  lines.push(`<b>${safeHtml(matchName)}</b>`);\n  lines.push(`🏆 ${safeHtml(league)}`);\n  lines.push(`⏱ ${safeHtml(minute)}' | 🔢 ${safeHtml(score)}`);\n\n  // Phân biệt:\n  // - hasAiIdea: AI thực sự recommend\n  // - hasConditionTriggered: condition triggered với suggestion\n  // - hasCustomOnly: chỉ có custom condition match (không có suggestion)\n  const hasAiIdea =\n    !!selection && (d.ai_should_push === true || d.final_should_bet === true);\n\n  const hasConditionTriggered = \n    ccMatched && \n    ctSuggestion && \n    !ctSuggestion.toLowerCase().includes(\"no bet\");\n\n  const hasCustomOnly =\n    !hasAiIdea &&\n    !hasConditionTriggered &&\n    ccMatched &&\n    (ccStatus === \"evaluated\" || ccStatus === \"matched\");\n\n  // =============================================================\n  // SECTION 1: AI Direct Recommendation (if any)\n  // =============================================================\n  if (hasAiIdea) {\n  lines.push(\"\");\n  lines.push(\"💡 <b>AI RECOMMENDATION</b>\");\n\n  const sel = selection || \"\";\n  const hasOddsInSelection = sel.includes(\"@\");\n\n  if (odds && !hasOddsInSelection) {\n    lines.push(`🎯 ${safeHtml(sel)} @${safeHtml(odds)}`);\n  } else {\n    lines.push(`🎯 ${safeHtml(sel)}`);\n  }\n\n  lines.push(`⭐ Confidence: ${conf !== null ? safeHtml(conf) : \"N/A\"}/10`);\n\n  if (reasoningVi) {\n    lines.push(`<i>${safeHtml(reasoningVi)}</i>`);\n  } else if (reasoningEn) {\n    lines.push(`<i>${safeHtml(reasoningEn)}</i>`);\n  }\n}\n\n\n  // =============================================================\n  // SECTION 2: Condition-Triggered Suggestion\n  // =============================================================\n  if (ccMatched && (ccStatus === \"evaluated\" || ccStatus === \"matched\")) {\n    lines.push(\"\");\n    lines.push(\"🧩 <b>CONDITION TRIGGERED</b>\");\n    \n    // Show condition summary\n    if (ccSummaryVi) {\n      lines.push(`📋 ${safeHtml(ccSummaryVi)}`);\n    } else if (ccSummaryEn) {\n      lines.push(`📋 ${safeHtml(ccSummaryEn)}`);\n    }\n\n    // =============================================================\n    // FIXED: Show recommended condition reason when conditions match\n    // Moved OUTSIDE of else block to always show when conditionsMatch\n    // =============================================================\n    if (conditionsMatch && (recommendedConditionReasonVi || recommendedConditionReason)) {\n      lines.push(\"\");\n      lines.push(\"💡 <b>LÝ DO ĐỀ XUẤT ĐIỀU KIỆN:</b>\");\n      if (recommendedConditionReasonVi) {\n        lines.push(`<i>${safeHtml(recommendedConditionReasonVi)}</i>`);\n      } else {\n        lines.push(`<i>${safeHtml(recommendedConditionReason)}</i>`);\n      }\n    }\n\n    // Show investment suggestion if available\n    if (hasConditionTriggered) {\n      lines.push(\"\");\n      lines.push(\"💰 <b>ĐỀ XUẤT ĐẦU TƯ:</b>\");\n      lines.push(`🎯 <b>${safeHtml(ctSuggestion)}</b>`);\n      lines.push(`⭐ Confidence: ${safeHtml(ctConfidence)}/10 | Stake: ${safeHtml(ctStake)}%`);\n      \n      if (ctReasoningVi) {\n        lines.push(`<i>${safeHtml(ctReasoningVi)}</i>`);\n      } else if (ctReasoningEn) {\n        lines.push(`<i>${safeHtml(ctReasoningEn)}</i>`);\n      }\n    } else if (ctSuggestion && ctSuggestion.toLowerCase().includes(\"no bet\")) {\n      // Condition matched but AI says no bet\n      lines.push(\"\");\n      lines.push(\"💰 <b>ĐỀ XUẤT:</b> Không đặt cược\");\n      if (ctReasoningVi) {\n        lines.push(`<i>${safeHtml(ctReasoningVi)}</i>`);\n      } else if (ctReasoningEn) {\n        lines.push(`<i>${safeHtml(ctReasoningEn)}</i>`);\n      }\n    } else {\n      // Condition matched but no specific suggestion\n      lines.push(\"ℹ️ Điều kiện đã kích hoạt - xem xét cơ hội\");\n      if (ccReasonVi) {\n        lines.push(`<i>${safeHtml(ccReasonVi)}</i>`);\n      } else if (ccReasonEn) {\n        lines.push(`<i>${safeHtml(ccReasonEn)}</i>`);\n      }\n    }\n  }\n\n  // =============================================================\n  // SECTION 3: No actionable idea\n  // =============================================================\n  if (!hasAiIdea && !ccMatched) {\n    lines.push(\"🎯 No actionable idea from AI.\");\n    \n    if (reasoningVi) {\n      lines.push(`<i>${safeHtml(reasoningVi)}</i>`);\n    } else if (reasoningEn) {\n      lines.push(`<i>${safeHtml(reasoningEn)}</i>`);\n    }\n  }\n\n  // Warnings (if no AI idea)\n  if (!hasAiIdea && warningsArr.length) {\n    lines.push(\n      `ℹ️ Notes: ${safeHtml(warningsArr.join(\" | \"))}`\n    );\n  }\n\n  // Stats\n  const stats = d.stats || {};\n  const statsParts = [];\n  if (stats.possession && stats.possession !== \"-\") {\n    statsParts.push(`Poss ${stats.possession}`);\n  }\n  if (stats.shots_on_target && stats.shots_on_target !== \"-\") {\n    statsParts.push(`SoT ${stats.shots_on_target}`);\n  }\n  if (stats.shots && stats.shots !== \"-\") {\n    statsParts.push(`Shots ${stats.shots}`);\n  }\n  if (stats.corners && stats.corners !== \"-\") {\n    statsParts.push(`Corners ${stats.corners}`);\n  }\n\n  if (statsParts.length) {\n    lines.push(`📊 ${statsParts.join(\" · \")}`);\n  }\n\n  if (eventsSummary) {\n    lines.push(`📌 ${safeHtml(eventsSummary)}`);\n  }\n\n  lines.push(\"────────────────────────────────────\");\n}\n\n// Disclaimer\nlines.push(\n  \"⚠️ AI suggestions are for information only. Verify carefully before any decision.\"\n);\n\n// Ghép thành text lớn rồi cắt nếu quá dài\nconst MAX_LEN = 3500; // < 4096 để an toàn\nconst allText = lines.join(\"\\n\");\n\nif (allText.length <= MAX_LEN) {\n  return [{ json: { text: allText } }];\n}\n\n// Nếu dài quá -> chia thành nhiều message theo dòng\nconst chunks = [];\nlet current = \"\";\n\nfor (const line of lines) {\n  const candidate = current ? current + \"\\n\" + line : line;\n  if (candidate.length > MAX_LEN && current) {\n    chunks.push(current);\n    current = line;\n  } else {\n    current = candidate;\n  }\n}\nif (current.trim()) {\n  chunks.push(current);\n}\n\n// Trả về nhiều item, node Telegram sẽ gửi nhiều tin nhắn\nreturn chunks.map((t) => ({\n  json: {\n    text: t,\n  },\n}));"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -1824,
+        -800
+      ],
+      "id": "038a462a-5448-46b1-8028-89c5fc0126d6",
+      "name": "Format Telegram Message"
+    },
+    {
+      "parameters": {
+        "chatId": "7373450294",
+        "text": "={{ $json.text }}",
+        "additionalFields": {
+          "appendAttribution": false,
+          "parse_mode": "HTML"
+        }
+      },
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        -1600,
+        -800
+      ],
+      "id": "3b7f6430-ce26-44b2-9b88-7d337625573d",
+      "name": "Send Message",
+      "webhookId": "df415e1d-62c7-43f9-b642-7801837b0910",
+      "retryOnFail": true,
+      "waitBetweenTries": 1000,
+      "credentials": {
+        "telegramApi": {
+          "id": "U82yocFPkoUmGLI9",
+          "name": "Telegram account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "live-monitor",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [
+        -6208,
+        -992
+      ],
+      "id": "d093191f-a54d-440d-af8f-2533e71d4c36",
+      "name": "Webhook",
+      "webhookId": "78f01b82-634a-491d-9093-e26c3224fba8"
+    },
+    {
+      "parameters": {
+        "url": "=https://v3.football.api-sports.io/odds/live?fixture={{ $json.match_id }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "options": {
+          "response": {},
+          "timeout": 30000
+        }
+      },
+      "id": "39e4a8cd-b5c1-4b63-b68c-67c2ef1e90f7",
+      "name": "Fetch Live Odds",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [
+        -3744,
+        -992
+      ],
+      "retryOnFail": true,
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "fFgpqIOtkTS0ZzbQ",
+          "name": "Header Auth account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "// Build AI Prompt - UPDATED VERSION\n// ============================================================\n// CHANGE LOG:\n// - Added bet_market field to OUTPUT FORMAT for deduplication\n// - Added BET_MARKET STANDARD VALUES definition\n// - Added SELECTION STANDARD FORMAT section for standardized selection output\n// - Added MARKET SELECTION PREFERENCE section: 1X2/BTTS No caution, prefer O/U\n//   (BTTS Yes is excluded from the stricter restriction)\n// - Added condensed 1X2/BTTS No reminder in DEFINITIONS & THRESHOLDS\n// - Added market_chosen_reason to JSON output contract\n// - Added RED_CARD_DETECTED, RED_CARD_ADJUSTED, 1X2_BTTS_NO_OVERRIDE to warnings\n// - Added reinforcement in FINAL REMINDER\n// - Added LIVE DATA INTERPRETATION FRAMEWORK section\n// - Added RED CARD PROTOCOL section in GLOBAL RULES\n// ============================================================\n\nconst data = $json || {};\nconst config = data.config || {};\nconst match = data.match || {};\nconst statsCompact = data.stats_compact || {};\n\n// Basic match info\nconst homeName = match.home || data.home_team || \"Home\";\nconst awayName = match.away || data.away_team || \"Away\";\nconst league = match.league || data.league || \"Unknown league\";\nconst minute = match.minute ?? \"?\";\nconst score = match.score || \"0-0\";\nconst status = match.status || \"UNKNOWN\";\n\n// ============================================================\n// Force analyze mode detection\n// ============================================================\nconst forceAnalyze = !!data.force_analyze;\nconst isManualPush = !!data.is_manual_push;\nconst skippedFilters = Array.isArray(data.skipped_filters) ? data.skipped_filters : [];\nconst originalWouldProceed = data.original_would_proceed !== false;\n\nconst statsAvailable = !!data.stats_available;\nconst oddsAvailable = !!data.odds_available;\nconst currentTotalGoals =\n  data.current_total_goals !== undefined &&\n  data.current_total_goals !== null\n    ? data.current_total_goals\n    : \"unknown\";\n\nconst oddsCanonical = data.odds_canonical || {};\nconst eventsCompact = Array.isArray(data.events_compact)\n  ? data.events_compact\n  : [];\n\nconst oddsSanityWarnings = Array.isArray(data.odds_sanity_warnings)\n  ? data.odds_sanity_warnings\n  : [];\nconst oddsSuspicious = !!data.odds_suspicious;\n\nconst customConditions = (data.custom_conditions || \"\").trim();\n\nconst recommendedCondition = (data.recommended_custom_condition || \"\").trim();\nconst recommendedConditionReason = (data.recommended_condition_reason || \"\").trim();\n\nconst preMatchPredictionSummary = data.pre_match_prediction_summary || \"\";\nconst preMatchPrediction = data.pre_match_prediction || null;\n\nconst statsMeta = data.stats_meta || {};\n\nlet preMatchCompact = null;\nif (preMatchPrediction && typeof preMatchPrediction === \"object\") {\n  const pmPred = preMatchPrediction.predictions || {};\n  const pmComp = preMatchPrediction.comparison || {};\n\n  preMatchCompact = {\n    pre_favourite: pmPred.winner?.name || null,\n    pre_win_or_draw: pmPred.win_or_draw ?? null,\n    pre_handicap_home: pmPred.goals?.home ?? null,\n    pre_handicap_away: pmPred.goals?.away ?? null,\n    pre_percent: pmPred.percent || null,\n    pre_form: pmComp.form || null,\n    pre_total_rating: pmComp.total || null,\n  };\n}\n\nconst MIN_CONFIDENCE = Number(config.MIN_CONFIDENCE ?? 5);\nconst MIN_ODDS = 1.50;\nconst LATE_PHASE_MINUTE = 75;\nconst VERY_LATE_PHASE_MINUTE = 85;\nconst ENDGAME_MINUTE = 88;\n\nconst incompleteMarkets = [];\nif (oddsCanonical) {\n  if (oddsCanonical['1x2']) {\n    const m = oddsCanonical['1x2'];\n    if (m.home === null || m.draw === null || m.away === null) {\n      incompleteMarkets.push('1x2');\n    }\n  }\n  if (oddsCanonical['ou']) {\n    const m = oddsCanonical['ou'];\n    if (m.line === null || m.over === null || m.under === null) {\n      incompleteMarkets.push('ou');\n    }\n  }\n  if (oddsCanonical['ah']) {\n    const m = oddsCanonical['ah'];\n    if (m.line === null || m.home === null || m.away === null) {\n      incompleteMarkets.push('ah');\n    }\n  }\n  if (oddsCanonical['btts']) {\n    const m = oddsCanonical['btts'];\n    if (m.yes === null || m.no === null) {\n      incompleteMarkets.push('btts');\n    }\n  }\n}\n\nconst oddsWarnings = incompleteMarkets.length > 0\n  ? `WARNING: Incomplete odds data for markets: ${incompleteMarkets.join(', ')}. Do NOT recommend these markets.`\n  : '';\n\n// ============================================================\n// Build force analyze context for prompt\n// ============================================================\nlet forceAnalyzeContext = \"\";\nif (forceAnalyze) {\n  forceAnalyzeContext = `\n============================================================\n⚠️ FORCE ANALYZE MODE - SPECIAL INSTRUCTIONS\n============================================================\nThis analysis was triggered by MANUAL USER REQUEST with force=true.\nThe user explicitly wants analysis even though normal filters would skip this match.\n\nBYPASSED FILTERS:\n${skippedFilters.length > 0 ? skippedFilters.map(f => '• ' + f).join('\\n') : '• None (match passed all filters)'}\n\nORIGINAL WOULD PROCEED: ${originalWouldProceed ? 'YES' : 'NO'}\n\nSPECIAL RULES FOR FORCE MODE:\n1. You MUST still evaluate the match objectively.\n2. If the match status is NOT live (HT, NS, FT, etc.):\n   - Acknowledge the non-live status in your reasoning.\n   - For HT (Half Time): You can analyze based on first half data and provide insights for second half.\n   - For NS (Not Started): Limited analysis possible - focus on pre-match data if available.\n   - For FT (Full Time): Match is over - no betting recommendation possible, but you can provide post-match analysis.\n3. Adjust confidence and stake based on data quality:\n   - If status is HT: confidence max 7, stake max 4%\n   - If status is NS/FT: should_push = false (explain why in reasoning)\n4. Be explicit in reasoning about any limitations due to match status.\n5. The user chose to force-analyze, so provide the best possible analysis with available data.\n\n`;\n}\n\nconst prompt = `\nYou are a professional live football investment insight analyst (not a gambler).\nYour task is to analyze ONE live match and determine whether there is exactly ONE realistic, high-quality investment idea, or no idea at all. You must also evaluate a user-defined custom condition objectively.\n${forceAnalyzeContext}\n============================================================\nDEFINITIONS & THRESHOLDS (READ FIRST)\n============================================================\nLATE GAME THRESHOLDS:\n- Late phase: minute >= ${LATE_PHASE_MINUTE}\n- Very late phase: minute >= ${VERY_LATE_PHASE_MINUTE}\n- Endgame: minute >= ${ENDGAME_MINUTE}\n\nMINIMUM ACCEPTABLE ODDS: ${MIN_ODDS}\n- NEVER recommend any market with price < ${MIN_ODDS}\n- If best available price < ${MIN_ODDS} → should_push = false\n\nODDS CANONICAL SCHEMA:\n- 1x2: {home, draw, away} - Full-time 1X2 prices (decimal odds)\n- ou: {line, over, under} - Over/Under total goals. \"line\" = goal threshold (e.g., 2.5)\n- ah: {line, home, away} - Asian Handicap. \"line\" = handicap for HOME team (negative = home gives, positive = home receives)\n- btts: {yes, no} - Both Teams To Score prices\n- corners_ou: {line, over, under} - Corner kick Over/Under\n\nNULL/PARTIAL DATA HANDLING:\n- If ANY field in a market is null → treat that ENTIRE market as unavailable\n- Only recommend markets where ALL prices are present and valid\n${oddsWarnings ? `• ${oddsWarnings}` : ''}\n\nBET_MARKET STANDARD VALUES (CRITICAL FOR DEDUPLICATION):\n- 1X2 markets: \"1x2_home\", \"1x2_away\", \"1x2_draw\"\n- Over/Under goals: \"over_0.5\", \"over_1.5\", \"over_2.5\", \"over_3.5\", \"over_4.5\", \"under_0.5\", \"under_1.5\", \"under_2.5\", \"under_3.5\", \"under_4.5\"\n- BTTS: \"btts_yes\", \"btts_no\"\n- Asian Handicap: \"ah_home_[line]\", \"ah_away_[line]\" (e.g., \"ah_home_-0.5\", \"ah_away_+1.0\")\n- Corners: \"corners_over_[line]\", \"corners_under_[line]\" (e.g., \"corners_over_9.5\")\n- Double Chance: \"dc_1x\", \"dc_x2\", \"dc_12\"\n- You MUST use EXACTLY one of these formats for bet_market field.\n\nSELECTION STANDARD FORMAT (CRITICAL FOR SETTLEMENT):\n- selection field MUST follow these EXACT formats. Do NOT add team names or extra text.\n- 1X2 markets:\n  - \"Home Win @[odds]\" (e.g., \"Home Win @2.10\")\n  - \"Away Win @[odds]\" (e.g., \"Away Win @1.85\")\n  - \"Draw @[odds]\" (e.g., \"Draw @3.20\")\n- Over/Under goals:\n  - \"Over [line] Goals @[odds]\" (e.g., \"Over 2.5 Goals @1.85\")\n  - \"Under [line] Goals @[odds]\" (e.g., \"Under 3.5 Goals @1.75\")\n- BTTS:\n  - \"BTTS Yes @[odds]\" (e.g., \"BTTS Yes @1.90\")\n  - \"BTTS No @[odds]\" (e.g., \"BTTS No @1.85\")\n- Asian Handicap:\n  - \"Home [line] @[odds]\" (e.g., \"Home -0.5 @1.95\", \"Home +1.0 @1.80\")\n  - \"Away [line] @[odds]\" (e.g., \"Away +0.5 @1.95\", \"Away -1.0 @2.10\")\n- Corners Over/Under:\n  - \"Corners Over [line] @[odds]\" (e.g., \"Corners Over 9.5 @1.80\")\n  - \"Corners Under [line] @[odds]\" (e.g., \"Corners Under 10.5 @1.90\")\n- Double Chance:\n  - \"1X @[odds]\" (Home or Draw)\n  - \"X2 @[odds]\" (Draw or Away)\n  - \"12 @[odds]\" (Home or Away)\n- FORBIDDEN patterns (DO NOT USE):\n  - \"Birmingham (Home) Win @2.25\" -> USE \"Home Win @2.25\"\n  - \"Away Win (Ipswich) @2.75\" -> USE \"Away Win @2.75\"\n  - \"Al-Qadisiyah FC (1x2 Home)\" -> USE \"Home Win @[odds]\"\n  - \"Over 2.5 Goals @1.85Over 2.5 Goals\" -> USE \"Over 2.5 Goals @1.85\"\n\nVALUE PERCENT CALCULATION:\n- value_percent = estimated edge over market price\n- Concept: (Your probability estimate - Implied probability) / Implied probability × 100\n- Example: You estimate 60% win chance, odds imply 50% → value_percent ≈ 20\n- Range: -50 to +100. Negative = no value. Positive = value found.\n- If cannot calculate reliably: value_percent = 0\n\n⚠️ EARLY REMINDER — MARKET CAUTION (details in full section below):\n- 1X2 and BTTS No require confidence >= 7 AND significant stat gaps AND pre-match support.\n- If ANY of those conditions is not met → do NOT recommend 1X2 or BTTS No → evaluate O/U instead.\n- BTTS Yes does NOT have this stricter requirement.\n- You MUST fill market_chosen_reason explaining WHY you chose or rejected each market.\n\n========================\nMATCH CONTEXT\n========================\n- Match: ${homeName} vs ${awayName}\n- League: ${league}\n- Minute: ${minute}\n- Score: ${score}\n- Status: ${status}\n- Force Analyze: ${forceAnalyze ? 'YES (manual push)' : 'NO (scheduled)'}\n- Is Manual Push: ${isManualPush ? 'YES' : 'NO'}\n\n========================\nLIVE STATS (COMPACT JSON)\n========================\n${JSON.stringify(statsCompact)}\n\nSTATS_AVAILABLE: ${statsAvailable}\n\n========================\nLIVE ODDS SNAPSHOT (CANONICAL JSON)\n========================\n${JSON.stringify(oddsCanonical)}\n\nODDS_AVAILABLE: ${oddsAvailable}\nCURRENT_TOTAL_GOALS: ${currentTotalGoals}\n${oddsSuspicious ? `\\n⚠️ ODDS SANITY CHECK FAILED:\\n${oddsSanityWarnings.map(w => '• ' + w).join('\\n')}\\nTreat ALL odds as UNRELIABLE. Behave as if ODDS_AVAILABLE = false.` : ''}\n\n========================\nPRE-MATCH PREDICTION (OPTIONAL)\n========================\n${preMatchCompact\n  ? JSON.stringify(preMatchCompact)\n  : preMatchPredictionSummary || \"No pre-match prediction available.\"}\n\n========================\nRECENT EVENTS (LAST 4)\n========================\n${JSON.stringify(eventsCompact)}\n\n========================\nLIVE DATA INTERPRETATION FRAMEWORK\n========================\nBefore forming any recommendation, you MUST reason through ALL of the following:\n\nSCORE STATE ANALYSIS:\n- Parse the current score into homeGoals and awayGoals.\n- Determine match state:\n  - LEVEL: homeGoals == awayGoals → both teams may accept draw, defensive tendency increases\n  - HOME_LEADING: homeGoals > awayGoals → home likely defends, away forced to attack\n  - AWAY_LEADING: awayGoals > homeGoals → away likely defends, home forced to attack\n- Score state DIRECTLY affects team behavior and should influence every market decision:\n  - Defending team co-cụm → Under / low goals more likely\n  - Chasing team attacks → game more open → Over / more goals possible\n  - Late game + LEVEL score → teams may settle → Under more likely\n- Do NOT recommend a market that contradicts the observable score state dynamics.\n\nGOALS REMAINING CALCULATION (MANDATORY FOR O/U):\n- Before recommending any Over/Under goals market, calculate:\n  - goalsNeeded = line - currentTotalGoals (for Over bets)\n  - minutesRemaining = 90 - currentMinute (approximate, ignoring added time)\n  - goalsPerMinuteNeeded = goalsNeeded / minutesRemaining\n- Feasibility thresholds (use as guidance, not hard limits):\n  - goalsPerMinuteNeeded > 0.10 (e.g., need 2+ goals in 15 min) → HIGH RISK, reduce confidence\n  - goalsPerMinuteNeeded > 0.15 (e.g., need 3+ goals in 20 min) → VERY HIGH RISK, should_push = false\n- For Under bets: check that current goals count already makes the line reachable or not.\n- You MUST reference this calculation in reasoning_en and reasoning_vi.\n\nSHOT QUALITY RATIO:\n- Calculate: shotQualityRatio = shots_on_target / total_shots (per team)\n- Interpretation:\n  - ratio >= 0.5 → high quality attacking → supports Over / BTTS Yes\n  - ratio 0.3–0.49 → moderate quality → neutral signal\n  - ratio < 0.3 → low quality, wasteful attacking → does NOT support Over bets\n- When total_shots is low (< 4), treat ratio as unreliable — do not over-weight it.\n- A team with high possession but low shot quality is NOT genuinely dominant.\n\nPOSSESSION QUALITY ASSESSMENT:\n- Raw possession % alone is NOT sufficient to determine dominance. You MUST combine:\n  - Possession % + shots_on_target + corners to assess TRUE attacking pressure\n  - High possession (>60%) + low shots on target (<2) = sterile possession, NOT dominance\n  - Moderate possession (50-60%) + high shots on target (>=4) = genuine attacking threat\n- For 1X2 recommendations: require BOTH possession gap AND shot quality gap to align.\n- For O/U recommendations: shot quality + score state are more important than possession.\n\nSUSTAINED PATTERN vs. SNAPSHOT WARNING:\n- Live stats at any given moment may reflect a short burst rather than the full game pattern.\n- Before recommending, ask: \"Are these stats consistent with the full match so far,\n  or could they reflect only the last 5-10 minutes?\"\n- If the match is early (< minute 30) and stats are extreme in one direction,\n  treat with extra caution — pattern may not be sustained.\n- Weight events_compact heavily: recent goals and cards often explain stat spikes.\n- If you detect a likely stat spike (e.g., extreme possession after a red card),\n  you MUST note this in reasoning and adjust confidence accordingly.\n\n========================\nCONFIG / MODE\n========================\n- MIN_CONFIDENCE: ${MIN_CONFIDENCE}\n- MIN_ODDS: ${MIN_ODDS}\n- LATE_PHASE_MINUTE: ${LATE_PHASE_MINUTE}\n- CUSTOM_CONDITIONS: ${customConditions || \"(none)\"}\n- STATS_META: ${JSON.stringify(statsMeta)}\n\n========================\nAI-RECOMMENDED CONDITION (FROM PRE-MATCH ANALYSIS)\n========================\nRECOMMENDED_CONDITION: ${recommendedCondition || \"(none)\"}\nRECOMMENDED_CONDITION_REASON: ${recommendedConditionReason || \"(none)\"}\n\n============================================================\nGLOBAL RULES — ALL DECISIONS MUST FOLLOW THESE PRINCIPLES\n============================================================\n\nMATCH STATUS HANDLING (CRITICAL FOR FORCE MODE)\n-----------------------------------------------\n- Status 1H or 2H: Match is LIVE → normal analysis applies.\n- Status HT (Half Time):\n    - Match is at break, first half data available.\n    - You CAN analyze and provide insights for second half.\n    - Reduce confidence (max 7) and stake (max 4%) due to uncertainty.\n    - Acknowledge HT status in reasoning.\n- Status NS (Not Started):\n    - Match has not begun, no live data.\n    - should_push = false (explain in reasoning).\n    - You may still evaluate custom_condition if based on pre-match data.\n- Status FT (Full Time):\n    - Match is finished, no betting possible.\n    - should_push = false (explain in reasoning).\n    - Provide post-match summary if useful.\n- Status PST/CANC/ABD/AWD/WO:\n    - Match postponed/cancelled/abandoned.\n    - should_push = false.\n    - Explain the status in reasoning.\n\nDATA AVAILABILITY RULES\n-----------------------\n- When STATS_AVAILABLE = true AND ODDS_AVAILABLE = true:\n    - You may recommend exactly ONE concrete idea if ALL rules are satisfied.\n\n- When STATS_AVAILABLE = true AND ODDS_AVAILABLE = false:\n    - Provide only qualitative reasoning.\n    - Normally should_push = false.\n    - Exception allowed ONLY if:\n        * Match state is extremely clear and directional.\n        * No numeric odds appear anywhere in reasoning.\n        * You explicitly state that odds are unavailable.\n        * confidence <= 6\n        * stake_percent <= 3\n\n- When STATS_AVAILABLE = false:\n    - Normally should_push = false.\n    - Exception allowed ONLY if:\n        * Match state is very clear from score + events alone.\n        * Any available odds (if present) contradict obvious match dynamics.\n        * Your reasoning does NOT rely on missing stats.\n        * confidence <= 6\n        * Explicit warning about missing stats must be included.\n\n- If a custom condition requires missing fields:\n    - custom_condition_status = \"parse_error\"\n    - custom_condition_matched = false\n    - Explain clearly which data is missing.\n\nSTATS META (QUALITY & GAPS)\n---------------------------\n- STATS_META provides additional information about the reliability and coverage of the live statistics.\n- When stats_meta.stats_quality is present:\n    - If stats_quality indicates low or degraded quality, you MUST:\n        * treat all stats more cautiously,\n        * favor lower confidence and lower stake_percent,\n        * mention this risk in warnings when it materially affects your decision.\n- When stats_meta.missing_fields is present:\n    - It lists stats fields that are known to be missing or unreliable.\n    - You MUST NOT base your reasoning or any custom condition evaluation on fields listed as missing.\n    - If a custom condition depends on any field listed in missing_fields:\n        * custom_condition_status = \"parse_error\"\n        * custom_condition_matched = false\n        * Explain that the condition cannot be evaluated due to missing data.\n\nLATE GAME / ENDGAME DISCIPLINE\n------------------------------\n- Use the LATE GAME THRESHOLDS defined above to determine match phase.\n- When minute >= ${LATE_PHASE_MINUTE} (late phase):\n    - Be more conservative with recommendations.\n    - Require stronger evidence for should_push = true.\n- When minute >= ${VERY_LATE_PHASE_MINUTE} (very late phase):\n    - should_push = true requires EXCEPTIONAL circumstances only.\n    - confidence and stake_percent MUST be reduced.\n- When minute >= ${ENDGAME_MINUTE} (endgame):\n    - Default to should_push = false unless opportunity is extraordinary.\n    - Maximum stake_percent = 2 even for exceptional cases.\n- You may only set should_push = true in late phases when ALL of the following are true:\n    - The opportunity is exceptionally clear and asymmetric, based on live evidence.\n    - Your reasoning explicitly explains why the opportunity remains realistic despite limited time.\n    - Your confidence and stake_percent reflect the additional risk.\n\nLEAGUE CONTEXT RULES\n--------------------\n- League tendencies are soft background only.\n- Live evidence ALWAYS overrides stereotypes.\n\nRED CARD PROTOCOL\n-----------------\n- Scan events_compact for any red card event before forming any recommendation.\n- If a red card is detected (either team):\n    - Add warning: \"RED_CARD_DETECTED: [team] reduced to 10 men at minute [X]\"\n    - Treat ALL previous stats as partially invalidated — they reflect a different\n      match balance than what currently exists.\n    - Re-evaluate every market from scratch based on the new 11v10 or 10v10 dynamic:\n        * Team with extra man: higher possession expected, more corners, more shots\n        * Team with fewer players: likely to defend deep, time-wasting, slower tempo\n        * Over bets: red card before minute 60 may INCREASE goals (more space)\n        * Over bets: red card after minute 70 → reduced time → less likely\n        * Under bets: red card after minute 70 with level/close score → more likely\n    - Reduce confidence by at least 1 point to account for post-red-card uncertainty.\n    - Add warning: \"RED_CARD_ADJUSTED: Recommendation adjusted for red card dynamics\"\n- If MULTIPLE red cards detected: confidence max 6, stake_percent max 3.\n- Do NOT ignore red card events even if stats appear stable — stats lag behind events.\n\n============================================================\nMARKET / ODDS REALISM RULES\n============================================================\n\nODDS INTERPRETATION PROHIBITION (RULE A)\n----------------------------------------\n- You MUST treat ALL odds EXACTLY as provided, with no reinterpretation.\n- You MUST NOT convert, adjust, approximate, normalize, or \"fix\" odds.\n- NO inferred or substituted values are permitted.\n\nFAKE / STALE / INCONSISTENT ODDS DETECTION (RULE B)\n---------------------------------------------------\n- You MUST treat odds as suspicious when they contradict:\n    - observable match dynamics (dominance, momentum)\n    - scoring events or disciplinary events\n    - typical sportsbook update behavior\n    - clear directional signals from live evidence\n\n- Common signs of stale/fake odds:\n    - 1x2 draw price too low for a drawn match (e.g., Draw @ 1.5 at 0-0 minute 40)\n    - Prices that don't reflect recent goals\n    - Asian Handicap line contradicting 1x2 favorite\n\n- When suspicious odds are detected:\n    - You MUST treat the entire odds snapshot as unreliable for pricing decisions.\n    - You MUST ignore all numeric PRICES in the snapshot.\n    - You MAY still reference market LINES (e.g., \"Over 2.5\", \"AH -0.5\") as market definitions.\n    - You MUST NOT quote or refer to any numeric prices in reasoning_en or reasoning_vi.\n    - From this point, behave as if ODDS_AVAILABLE = false for decision-making:\n        * Provide only qualitative reasoning based on score, time, stats and events.\n        * Normally set should_push = false.\n        * Exception allowed ONLY when:\n            - The match state is extremely clear and directional, AND\n            - Your idea is purely directional (e.g., \"Home win likely\", \"Expect more goals\"), AND\n            - confidence <= 6 and stake_percent <= 3, AND\n            - You explicitly state in both reasoning_en and reasoning_vi that the odds feed appears unreliable.\n\n============================================================\nMARKET PERIOD RULES\n============================================================\n- Unless explicitly stated, assume ALL markets refer to FULL-TIME.\n- DO NOT guess 1H or 2H markets based on price magnitude alone.\n- If selecting a first-half market:\n    - It must be explicitly indicated in the data.\n    - You must clearly label it as first-half in reasoning.\n- If period is ambiguous:\n    - should_push = false\n\n============================================================\nMARKET SELECTION PREFERENCE — 1X2 & BTTS NO CAUTION\n============================================================\n- Historical analysis shows 1X2 and BTTS No markets have significantly higher prediction\n  error rates compared to Over/Under goals markets in live betting.\n- When considering a 1X2 (Home Win / Draw / Away Win) or BTTS No recommendation,\n  ALL of the following conditions MUST be met:\n    - confidence >= 7 (stricter threshold — higher than other markets)\n    - Clear and significant gap in live stats, with at least TWO of the following\n      strongly favoring one side:\n        * Possession difference >= 15%\n        * Shots on target difference >= 3\n        * Corners difference >= 4\n    - Supporting pre-match context from at least ONE of:\n        * Significant team quality gap (overall rating or league ranking difference)\n        * One team is clearly superior in recent form\n        * Notable league standing gap (e.g., top 3 vs bottom 3)\n    - Live match dynamics CLEARLY and convincingly align with the predicted outcome —\n      marginal or ambiguous evidence does NOT qualify\n- If the above conditions are NOT all met for 1X2 or BTTS No:\n    - DO NOT recommend 1X2 or BTTS No markets\n    - Note: BTTS Yes is NOT subject to this restriction — it may be recommended\n      under normal validation rules without the stricter conditions above.\n    - Instead, evaluate Over/Under goals as the preferred alternative:\n        * Minute 5–65 (early/mid game): consider Over X.5 if attacking patterns are clear\n          (high shots, high possession pressure, open game)\n        * Minute 65+ (late game): consider Under X.5 if the match is low-scoring and both\n          teams show conservative or defensive play\n    - The Over/Under recommendation must still pass ALL other validation rules\n      (real odds present, all fields non-null, MIN_ODDS >= ${MIN_ODDS}, etc.)\n- This preference rule applies even when 1X2 or BTTS No odds are fully available and valid.\n- When you choose O/U over 1X2/BTTS No due to this rule, you MUST explicitly state in\n  both reasoning_en and reasoning_vi that you are recommending O/U because the\n  conditions for 1X2/BTTS No confidence were not sufficiently met.\n- You MUST always fill market_chosen_reason explaining your market selection decision.\n\n============================================================\nSTRICT MODE — MARKET VALIDATION & SAFETY RULES\n============================================================\nCORE PRINCIPLES\n---------------\n- NEVER invent odds or market lines.\n- ONLY use markets with real, non-null odds in the snapshot.\n- Ignore absent or incomplete markets entirely.\n\nMARKET MATCHING RULES\n---------------------\n- When should_push = true AND ODDS_AVAILABLE = true:\n    - selection MUST match a real, complete market from the snapshot.\n    - Any odds referenced MUST come directly from the snapshot.\n    - The referenced price MUST be >= ${MIN_ODDS}.\n\n- When should_push = true AND ODDS_AVAILABLE = false:\n    - selection must be generic directional (home / away / draw / over goals / under goals)\n    - NO numeric odds allowed anywhere in reasoning.\n\nFAIL-SAFE\n---------\n- If markets are contradictory, incomplete, or ambiguous → should_push = false.\n\nMINIMUM ODDS FILTER (RULE C)\n----------------------------\n- MINIMUM ACCEPTABLE ODDS: ${MIN_ODDS}\n- You MUST NOT recommend ANY market with odds below ${MIN_ODDS}.\n- When best available price < ${MIN_ODDS}:\n    - should_push = false\n    - selection = \"\"\n    - Add warning: \"Price below minimum threshold (${MIN_ODDS})\"\n    - Provide reasoning that the price is too low to justify the risk.\n\n============================================================\nPOSITION SIZING & RISK RULES\n============================================================\n- confidence MUST be 0–10.\n- stake_percent MUST be 0–10.\n- CRITICAL: stake_percent MUST ALWAYS be provided, even when should_push = false.\n  - When should_push = false: stake_percent = 0\n  - When should_push = true: follow confidence-based guidelines below\n- High volatility → lower stake & lower confidence.\n- Weak or marginal value → should_push = false.\n- Late game → reduce stake_percent proportionally.\n\nSTAKE GUIDELINES BY CONFIDENCE:\n- confidence 8-10: stake_percent 5-8 (exceptional clarity)\n- confidence 6-7: stake_percent 3-5 (good opportunity)\n- confidence 5: stake_percent 2-3 (marginal)\n- confidence < 5: should_push = false, stake_percent = 0\n\n============================================================\nPRE-MATCH PREDICTION RULES\n============================================================\n- Pre-match data is contextual only.\n- Must NEVER override live evidence.\n\nWHEN TO USE PRE-MATCH DATA:\n- When live stats are sparse but pre-match aligns with observed play style.\n- When detecting market overreaction (e.g., strong favourite concedes early → odds swing excessively).\n- As supporting evidence when live play confirms pre-match expectations.\n\nWHEN TO IGNORE PRE-MATCH DATA:\n- When live evidence clearly contradicts pre-match expectation.\n- When the match situation has fundamentally changed (red cards, injuries, tactical shifts).\n\nWEIGHT: Pre-match should contribute maximum 20% to your reasoning when used.\n\n============================================================\nCUSTOM CONDITIONS (INDEPENDENT EVALUATION - CRITICAL)\n============================================================\n⚠️ CRITICAL: Custom condition evaluation is COMPLETELY INDEPENDENT from should_push.\n\nWHY THIS MATTERS:\n- The user has set custom_conditions to monitor specific patterns they care about.\n- When custom_condition_matched = true, the user WILL be notified regardless of your investment opinion.\n- You MUST ALWAYS evaluate custom_conditions, even when should_push = false.\n\nINDEPENDENCE RULE:\n- should_push = your investment recommendation (betting value)\n- custom_condition_matched = whether user's specified pattern is detected (factual check)\n- These are TWO SEPARATE decisions. Both can be true, both can be false, or either one.\n\nFORMAT EXAMPLES:\n- Simple: \"shots_on_target_home >= 5\"\n- Compound: \"possession_home > 60 AND corners_home >= 5\"\n- Comparative: \"shots_on_target_home > shots_on_target_away * 2\"\n\nEXTENDED FORMAT (from Condition Generator):\n- Time/Score based: \"(Minute >= 65) AND (NOT Away leading) AND (Total goals <= 1)\"\n- These use: Minute, Total goals, Draw, Home leading, Away leading, NOT operators\n\nFIELD MAPPING (stats_compact → condition fields):\n- possession_home, possession_away → stats_compact.possession.home/away\n- shots_home, shots_away → stats_compact.shots.home/away\n- shots_on_target_home, shots_on_target_away → stats_compact.shots_on_target.home/away\n- corners_home, corners_away → stats_compact.corners.home/away\n- fouls_home, fouls_away → stats_compact.fouls.home/away\n\nSCORE/TIME MAPPING (for extended conditions):\n- Minute → current minute of match\n- Total goals → sum of goals (parse from score \"X-Y\")\n- Draw → score is \"X-X\" (equal goals)\n- Home leading → home goals > away goals\n- Away leading → away goals > home goals\n\nEVALUATION RULES:\n- If empty or \"(none)\":\n    - custom_condition_status = \"none\"\n    - custom_condition_matched = false\n    - custom_condition_summary_en = \"No custom condition specified.\"\n    - custom_condition_summary_vi = \"Không có điều kiện tùy chỉnh.\"\n    - custom_condition_reason_en = \"N/A\"\n    - custom_condition_reason_vi = \"N/A\"\n\n- If evaluable:\n    - custom_condition_status = \"evaluated\"\n    - custom_condition_matched = true/false (based ONLY on whether condition is met)\n    - Provide clear reasoning in EN & VI explaining current values vs threshold.\n\n- If missing required data:\n    - custom_condition_status = \"parse_error\"\n    - custom_condition_matched = false\n    - Explain what data is missing.\n\n============================================================\nCONDITION-TRIGGERED INVESTMENT SUGGESTION (NEW - CRITICAL)\n============================================================\n⚠️ WHEN custom_condition_matched = true, you MUST also provide investment suggestion.\n\nWHY THIS MATTERS:\n- The RECOMMENDED_CONDITION was generated by AI during PRE-MATCH analysis.\n- It was designed to detect a MEANINGFUL situation worth investigating.\n- When triggered, the user needs to know: \"What should I do NOW?\"\n\nWHEN CONDITION IS TRIGGERED (custom_condition_matched = true):\nYou MUST populate these additional fields:\n\n- condition_triggered_suggestion: The specific bet/market to consider\n  - Example: \"Away Win @2.10\" or \"Over 1.5 Goals @1.65\" or \"No bet - odds too low\"\n\n- condition_triggered_reasoning_en: WHY this suggestion makes sense given:\n  - The original condition rationale (RECOMMENDED_CONDITION_REASON)\n  - Current live match state (stats, momentum, events)\n  - Available odds and value assessment\n\n- condition_triggered_reasoning_vi: Vietnamese translation of above\n\n- condition_triggered_confidence: 0-10 confidence for this specific suggestion\n- condition_triggered_stake: Recommended stake % (0-10)\n\nIMPORTANT RULES FOR CONDITION-TRIGGERED SUGGESTIONS:\n1. The suggestion should ALIGN with the condition's intent\n2. If odds don't offer value despite condition being met:\n   - condition_triggered_suggestion = \"No bet - insufficient value\"\n   - Explain why in reasoning\n3. If match dynamics have CHANGED since pre-match:\n   - You MAY suggest something different from what condition implied\n   - But MUST explain the change in reasoning\n4. Always check current odds availability and MIN_ODDS threshold\n\n============================================================\nOUTPUT FORMAT — STRICT JSON CONTRACT\n============================================================\nYou MUST output a SINGLE JSON object with EXACTLY the following fields:\n\n{\n  \"should_push\": boolean,\n  \"selection\": string,\n  \"bet_market\": string,\n  \"market_chosen_reason\": string,\n  \"confidence\": number,\n  \"reasoning_en\": string,\n  \"reasoning_vi\": string,\n  \"warnings\": string[],\n  \"value_percent\": number,\n  \"risk_level\": \"LOW\" | \"MEDIUM\" | \"HIGH\",\n  \"stake_percent\": number,\n\n  \"custom_condition_matched\": boolean,\n  \"custom_condition_status\": \"none\" | \"evaluated\" | \"parse_error\",\n  \"custom_condition_summary_en\": string,\n  \"custom_condition_summary_vi\": string,\n  \"custom_condition_reason_en\": string,\n  \"custom_condition_reason_vi\": string,\n\n  \"condition_triggered_suggestion\": string,\n  \"condition_triggered_reasoning_en\": string,\n  \"condition_triggered_reasoning_vi\": string,\n  \"condition_triggered_confidence\": number,\n  \"condition_triggered_stake\": number\n}\n\nFIELD REQUIREMENTS:\n- ALL fields must exist and be non-null.\n- reasoning_en and reasoning_vi MUST contain 2–5 sentences (never empty).\n- selection = \"\" when should_push = false.\n- bet_market = standardized market type for deduplication (see BET_MARKET STANDARD VALUES above).\n- bet_market MUST match the selection's market type exactly.\n- bet_market = \"\" when should_push = false.\n- market_chosen_reason MUST always be non-empty. Explain:\n  - Which market(s) you considered\n  - Why you chose the final market OR why you rejected 1X2/BTTS No in favor of O/U\n  - Reference specific stat values that drove the decision\n  - Example when choosing O/U: \"Considered Home Win but possession gap only 8% and\n    shots on target gap only 1 — below 1X2 threshold. Switching to Over 2.5 because\n    both teams showing high shot quality (ratio 0.6+) and score state is LEVEL at 55'.\"\n  - Example when choosing 1X2: \"Home Win selected: confidence 8, possession gap 22%,\n    shots on target gap 5 (both above threshold), home ranked top 3 vs away bottom 4.\"\n  - Example when no bet: \"No bet: Stats available but odds feed unreliable. Cannot\n    confirm any market with sufficient confidence.\"\n- Examples for other fields:\n  - selection = \"Home Win @2.10\" → bet_market = \"1x2_home\"\n  - selection = \"Over 2.5 Goals @1.85\" → bet_market = \"over_2.5\"\n  - selection = \"BTTS Yes @1.90\" → bet_market = \"btts_yes\"\n  - selection = \"Away -0.5 @1.95\" → bet_market = \"ah_away_-0.5\"\n  - selection = \"Draw @3.20\" → bet_market = \"1x2_draw\"\n  - selection = \"Under 3.5 Goals @1.75\" → bet_market = \"under_3.5\"\n- warnings should use standardized prefixes:\n  ODDS_SUSPICIOUS, STATS_INCOMPLETE, LATE_GAME, LOW_VALUE, DATA_QUALITY,\n  FORCE_MODE, NON_LIVE_STATUS, 1X2_BTTS_NO_OVERRIDE, RED_CARD_DETECTED,\n  RED_CARD_ADJUSTED\n\n- When custom_condition_matched = false:\n  - condition_triggered_suggestion = \"\"\n  - condition_triggered_reasoning_en = \"Condition not triggered.\"\n  - condition_triggered_reasoning_vi = \"Điều kiện chưa được kích hoạt.\"\n  - condition_triggered_confidence = 0\n  - condition_triggered_stake = 0\n\n- When custom_condition_matched = true:\n  - condition_triggered_suggestion MUST be non-empty (either a bet or \"No bet - [reason]\")\n  - condition_triggered_reasoning MUST explain the suggestion based on live data\n  - condition_triggered_confidence and stake should reflect the opportunity quality\n\n- The FIRST character MUST be \"{\" and the LAST must be \"}\".\n- NO markdown, NO code fences, NO commentary outside JSON.\n\nFINAL REMINDER:\nIt is ALWAYS acceptable to output should_push = false.\nOnly output should_push = true when ALL rules and constraints are satisfied.\nWhen custom_condition_matched = true, ALWAYS provide a clear investment suggestion.\nFor FORCE MODE with non-live status (HT/NS/FT): should_push = false but provide analysis in reasoning.\n\n⚠️ FINAL CHECKLIST — run through this BEFORE writing the JSON:\n1. Did I scan events_compact for red cards? If yes → RED CARD PROTOCOL applied?\n2. Did I calculate goalsNeeded and goalsPerMinuteNeeded for any O/U recommendation?\n3. Did I assess shot quality ratio (shots_on_target / total_shots) for both teams?\n4. Did I combine possession + shots + score state — NOT just raw possession?\n5. Did I check 1X2/BTTS No conditions: confidence >= 7 AND 2+ stat gaps AND pre-match support?\n6. Did I fill market_chosen_reason with specific stat values?\n7. Did I evaluate custom_conditions independently from should_push?\n`;\n\nreturn {\n  json: {\n    ...data,\n    ai_prompt: prompt,\n  },\n};"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -3296,
+        -992
+      ],
+      "id": "e81dc167-608f-496e-8abf-0bf0070ae651",
+      "name": "Build AI Prompt"
+    },
+    {
+      "parameters": {
+        "modelId": {
+          "__rl": true,
+          "value": "claude-sonnet-4-20250514",
+          "mode": "list",
+          "cachedResultName": "claude-sonnet-4-20250514"
+        },
+        "messages": {
+          "values": [
+            {
+              "content": "={{ $json.ai_prompt }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.anthropic",
+      "typeVersion": 1,
+      "position": [
+        -2848,
+        -896
+      ],
+      "id": "c680e0c3-08f9-4940-baf9-ca9c410a0eea",
+      "name": "AI Analysis (Claude)1",
+      "retryOnFail": true,
+      "waitBetweenTries": 1000,
+      "credentials": {
+        "anthropicApi": {
+          "id": "MySM666fxIl72ckc",
+          "name": "Anthropic account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 1
+          },
+          "conditions": [
+            {
+              "id": "check-should-bet",
+              "leftValue": "={{ ($json.ai_should_push || ($json.custom_condition_matched && $json.custom_condition_status === \"evaluated\") || $json.condition_triggered_should_push) == true }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "84eb5fc7-90d2-4af6-91cc-5ce862135cf2",
+      "name": "Should Push?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        -2272,
+        -992
+      ]
+    },
+    {
+      "parameters": {
+        "modelId": {
+          "__rl": true,
+          "value": "models/gemini-3-pro-preview",
+          "mode": "list",
+          "cachedResultName": "models/gemini-3-pro-preview"
+        },
+        "messages": {
+          "values": [
+            {
+              "content": "={{ $json.ai_prompt }}"
+            }
+          ]
+        },
+        "simplify": false,
+        "jsonOutput": true,
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.googleGemini",
+      "typeVersion": 1,
+      "position": [
+        -2848,
+        -1088
+      ],
+      "id": "318214f8-f52a-4b79-91ac-664565a1cb1b",
+      "name": "Message a model",
+      "retryOnFail": true,
+      "waitBetweenTries": 1000,
+      "credentials": {
+        "googlePalmApi": {
+          "id": "WfjNLcX8IDV0a2sT",
+          "name": "Google Gemini(PaLM) Api account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "df70fb54-c46b-4f70-b9eb-ef8b81549293",
+              "leftValue": "={{ $json.config.AI_PROVIDER }}",
+              "rightValue": "gemini",
+              "operator": {
+                "type": "string",
+                "operation": "equals",
+                "name": "filter.operator.equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        -3072,
+        -992
+      ],
+      "id": "451f3dc5-3c64-47b4-a0d4-b56fad255d34",
+      "name": "Route AI Provider"
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "// Prepare Recommendation Data - UPDATED\n// ============================================================\n// THAY ĐỔI: Thêm unique_key = match_id + \"_\" + timestamp\n// ============================================================\n\nconst item = $json || {};\nconst config = item.config || {};\nconst match = item.match || {};\n\n// ============================================================\n// 1. BASIC MATCH INFO\n// ============================================================\nconst matchId = item.match_id || match.id || \"\";\nconst timestamp = new Date().toISOString();\n\n// NEW: Tạo unique_key\nconst uniqueKey = `${matchId}_${timestamp}`;\n\nconst homeName = match.home || item.home_team || \"Home\";\nconst awayName = match.away || item.away_team || \"Away\";\nconst matchDisplay = `${homeName} vs ${awayName}`;\n\nconst league = match.league || item.league || \"\";\nconst minute = match.minute ?? item.minute ?? null;\nconst score = match.score || item.score || \"\";\nconst status = match.status || item.status || \"\";\n\n// ============================================================\n// 2. AI RECOMMENDATION FIELDS\n// ============================================================\nconst selection = item.selection || item.ai_selection || \"\";\nconst betMarket = item.bet_market || item.ai_bet_market || \"\";\nconst odds = item.usable_odd ?? item.mapped_odd ?? item.odds ?? item.ai_odd_raw ?? null;\nconst confidence = item.confidence ?? item.ai_confidence ?? 0;\nconst valuePercent = item.value_percent ?? item.ai_value_percent ?? 0;\nconst riskLevel = item.risk_level || item.ai_risk_level || \"MEDIUM\";\nconst stakePercent = item.stake_percent ?? item.ai_stake_percent ?? 0;\n\n// ============================================================\n// 3. REASONING & WARNINGS\n// ============================================================\nconst reasoningVi = (item.reasoning_vi || item.ai_reasoning_vi || \"\").trim();\nconst reasoningEn = (item.reasoning_en || item.ai_reasoning_en || \"\").trim();\nconst reasoning = reasoningVi || reasoningEn || \"\";\n\nlet warnings = item.warnings || item.ai_warnings || [];\nif (Array.isArray(warnings)) {\n  warnings = JSON.stringify(warnings);\n} else if (typeof warnings !== \"string\") {\n  warnings = \"\";\n}\n\n// ============================================================\n// 4. METADATA\n// ============================================================\nconst aiModel = config.AI_MODEL || config.ai_model || \"\";\nconst mode = item.mode || \"B\";\nconst notified = \"yes\";\n\n// ============================================================\n// 5. RESULT FIELDS (để trống, sẽ được Evaluation workflow cập nhật)\n// ============================================================\nconst result = \"unknown\";\nconst actualOutcome = \"\";\nconst pnl = null;\nconst settledAt = \"\";\n\n// ============================================================\n// 6. ADDITIONAL CONTEXT\n// ============================================================\nconst stats = item.stats || {};\nconst statsSummary = [];\nif (stats.possession && stats.possession !== \"-\") {\n  statsSummary.push(`Poss:${stats.possession}`);\n}\nif (stats.shots_on_target && stats.shots_on_target !== \"-\") {\n  statsSummary.push(`SoT:${stats.shots_on_target}`);\n}\nif (stats.corners && stats.corners !== \"-\") {\n  statsSummary.push(`Corners:${stats.corners}`);\n}\nconst keyFactors = statsSummary.join(\" | \") || \"\";\n\n// ============================================================\n// 7. NEW COLUMNS\n// ============================================================\nconst customConditionMatched = item.custom_condition_matched ?? false;\nconst customConditionRaw = item.custom_conditions || item.custom_condition_raw || \"\";\nconst conditionTriggeredSuggestion = item.condition_triggered_suggestion || \"\";\nconst preMatchPredictionSummary = item.pre_match_prediction_summary || \"\";\n\nconst statsCompact = item.stats_compact || {};\nconst statsSnapshot = Object.keys(statsCompact).length > 0 \n  ? JSON.stringify(statsCompact) \n  : \"\";\n\nconst oddsCanonical = item.odds_canonical || {};\nconst oddsSnapshot = Object.keys(oddsCanonical).length > 0 \n  ? JSON.stringify(oddsCanonical) \n  : \"\";\n\nconst executionId = $execution.id || \"\";\n\n// ============================================================\n// OUTPUT\n// ============================================================\nreturn {\n  json: {\n    // NEW: Unique key for matching\n    unique_key: uniqueKey,\n    \n    // Core identification\n    match_id: matchId,\n    timestamp: timestamp,\n    \n    // Match info\n    match_display: matchDisplay,\n    league: league,\n    home_team: homeName,\n    away_team: awayName,\n    minute: minute,\n    score: score,\n    status: status,\n    \n    // Bet details\n    bet_type: \"Full Time\",\n    selection: selection,\n    bet_market: betMarket,\n    odds: odds,\n    \n    // AI assessment\n    confidence: confidence,\n    value_percent: valuePercent,\n    risk_level: riskLevel,\n    stake_percent: stakePercent,\n    \n    // Reasoning\n    reasoning: reasoning,\n    key_factors: keyFactors,\n    warnings: warnings,\n    \n    // Custom condition fields\n    custom_condition_matched: customConditionMatched,\n    custom_condition_raw: customConditionRaw,\n    condition_triggered_suggestion: conditionTriggeredSuggestion,\n    \n    // Pre-match & Snapshots\n    pre_match_prediction_summary: preMatchPredictionSummary,\n    stats_snapshot: statsSnapshot,\n    odds_snapshot: oddsSnapshot,\n    \n    // Metadata\n    ai_model: aiModel,\n    mode: mode,\n    notified: notified,\n    notification_channels: \"email,telegram\",\n    execution_id: executionId,\n    \n    // Result fields\n    result: result,\n    actual_outcome: actualOutcome,\n    pnl: pnl,\n    settled_at: settledAt,\n    \n    // PASS THROUGH for downstream nodes\n    match: match,\n    config: config,\n    stats: stats,\n    events_summary: item.events_summary || \"\",\n    \n    ai_should_push: item.ai_should_push,\n    system_should_bet: item.system_should_bet,\n    final_should_bet: item.final_should_bet,\n    \n    reasoning_en: reasoningEn,\n    reasoning_vi: reasoningVi,\n    ai_reasoning_en: reasoningEn,\n    ai_reasoning_vi: reasoningVi,\n    \n    custom_condition_status: item.custom_condition_status,\n    custom_condition_summary_en: item.custom_condition_summary_en,\n    custom_condition_summary_vi: item.custom_condition_summary_vi,\n    custom_condition_reason_en: item.custom_condition_reason_en,\n    custom_condition_reason_vi: item.custom_condition_reason_vi,\n    \n    condition_triggered_reasoning_en: item.condition_triggered_reasoning_en,\n    condition_triggered_reasoning_vi: item.condition_triggered_reasoning_vi,\n    condition_triggered_confidence: item.condition_triggered_confidence,\n    condition_triggered_stake: item.condition_triggered_stake,\n    condition_triggered_should_push: item.condition_triggered_should_push,\n    \n    odds_for_display: odds,\n    ai_selection: selection,\n    ai_confidence: confidence,\n    ai_warnings: item.ai_warnings || [],\n    // NEW: Pass through recommended condition reason fields\n    recommended_condition_reason_vi: item.recommended_condition_reason_vi || '',\n    recommended_custom_condition: item.recommended_custom_condition || '',\n    custom_conditions: item.custom_conditions || '',\n  },\n};"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -2048,
+        -992
+      ],
+      "id": "67d224a1-de17-43f6-8a00-964c3154a0cc",
+      "name": "Prepare Recommendation Data"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "3b6dc93d-1980-4298-a466-49418444b0c5",
+              "leftValue": "={{ $json.ai_should_push }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        -1824,
+        -1184
+      ],
+      "id": "ac56ba87-6052-413b-a1ba-c02d63329e9a",
+      "name": "Should Save?"
+    }
+  ],
+  "pinData": {
+    "Webhook": [
+      {
+        "json": {
+          "headers": {
+            "host": "thihx.app.n8n.cloud",
+            "user-agent": "Mozilla/5.0 (compatible; Google-Apps-Script; beanserver; +https://script.google.com; id: UAEmdDd98yb10OcE70WQrG9voDuHxax6YUg)",
+            "content-length": "92",
+            "accept-encoding": "gzip, br",
+            "cdn-loop": "cloudflare; loops=1; subreqs=1",
+            "cf-connecting-ip": "35.187.143.8",
+            "cf-ew-via": "15",
+            "cf-ipcountry": "US",
+            "cf-ray": "9a88a7f9836c4224-SEA",
+            "cf-visitor": "{\"scheme\":\"https\"}",
+            "cf-worker": "n8n.cloud",
+            "content-type": "application/json",
+            "x-forwarded-for": "35.187.143.8, 172.71.151.208",
+            "x-forwarded-host": "thihx.app.n8n.cloud",
+            "x-forwarded-port": "443",
+            "x-forwarded-proto": "https",
+            "x-forwarded-server": "traefik-prod-users-gwc-88-6587794787-vl6tt",
+            "x-is-trusted": "yes",
+            "x-real-ip": "35.187.143.8"
+          },
+          "params": {},
+          "query": {},
+          "body": {
+            "source": "apps-script",
+            "triggeredAt": "2025-12-04T04:45:45.530Z",
+            "liveMatchIds": [
+              "1488770"
+            ]
+          },
+          "webhookUrl": "https://thihx.app.n8n.cloud/webhook/live-monitor",
+          "executionMode": "production"
+        }
+      }
+    ]
+  },
+  "connections": {
+    "Set Config": {
+      "main": [
+        [
+          {
+            "node": "Get Active Matches",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Active Matches": {
+      "main": [
+        [
+          {
+            "node": "Filter Active Only",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Filter Active Only": {
+      "main": [
+        [
+          {
+            "node": "Has Active Matches?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Has Active Matches?": {
+      "main": [
+        [
+          {
+            "node": "Prepare Match Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Match Data": {
+      "main": [
+        [
+          {
+            "node": "Build Fixtures Batch",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Fixtures Batch": {
+      "main": [
+        [
+          {
+            "node": "Fetch Live Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch Live Data": {
+      "main": [
+        [
+          {
+            "node": "Merge Match Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Merge Match Data": {
+      "main": [
+        [
+          {
+            "node": "Check Should Proceed",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check Should Proceed": {
+      "main": [
+        [
+          {
+            "node": "Should Proceed?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Should Proceed?": {
+      "main": [
+        [
+          {
+            "node": "Fetch Live Odds",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Merge Odds to Match": {
+      "main": [
+        [
+          {
+            "node": "Build AI Prompt",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse AI Response": {
+      "main": [
+        [
+          {
+            "node": "Should Push?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Format Email": {
+      "main": [
+        [
+          {
+            "node": "Send Email",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Format Telegram Message": {
+      "main": [
+        [
+          {
+            "node": "Send Message",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "Set Config",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch Live Odds": {
+      "main": [
+        [
+          {
+            "node": "Merge Odds to Match",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build AI Prompt": {
+      "main": [
+        [
+          {
+            "node": "Route AI Provider",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI Analysis (Claude)1": {
+      "main": [
+        [
+          {
+            "node": "Parse AI Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Should Push?": {
+      "main": [
+        [
+          {
+            "node": "Prepare Recommendation Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Message a model": {
+      "main": [
+        [
+          {
+            "node": "Parse AI Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Route AI Provider": {
+      "main": [
+        [
+          {
+            "node": "Message a model",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "AI Analysis (Claude)1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Recommendation Data": {
+      "main": [
+        [
+          {
+            "node": "Format Email",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Format Telegram Message",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Should Save?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Should Save?": {
+      "main": [
+        [
+          {
+            "node": "Save Recommendation",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1",
+    "callerPolicy": "workflowsFromSameOwner",
+    "availableInMCP": true,
+    "errorWorkflow": "n4bRclRT209eSgGc",
+    "saveExecutionProgress": true,
+    "timeSavedMode": "fixed"
+  },
+  "versionId": "e8d7d766-567e-47c1-80f5-57b30d02a4db",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "0d0019cc374d5262facafdb66c7184708aa055a51021365f15a927fc2d5e077a"
+  },
+  "id": "768TPSUKpXzpobIw",
+  "tags": []
+}
