@@ -1,7 +1,8 @@
 // ============================================================
 // Proxy Service
-// Routes all external API calls through Google Apps Script
-// to keep API keys (Football API, AI, Telegram) server-side.
+// Routes external API calls through Google Apps Script (GAS)
+// or the PG backend when config.apiUrl is set.
+// Football API, AI, and notifications always go through GAS.
 // ============================================================
 
 import type { AppConfig } from '@/types';
@@ -96,6 +97,13 @@ export async function fetchLiveOdds(
 // ==================== Watchlist Proxy ====================
 
 export async function fetchWatchlistMatches(config: AppConfig): Promise<WatchlistMatch[]> {
+  if (config.apiUrl) {
+    const res = await fetch(`${config.apiUrl}/api/watchlist`, {
+      headers: { Accept: 'application/json' },
+    });
+    if (!res.ok) throw new Error(`PG watchlist error ${res.status}`);
+    return res.json();
+  }
   return gasGet<WatchlistMatch[]>(config, {
     resource: 'watchlist',
     action: 'getAll',
@@ -141,6 +149,15 @@ export async function saveRecommendation(
   config: AppConfig,
   data: RecommendationData,
 ): Promise<void> {
+  if (config.apiUrl) {
+    const res = await fetch(`${config.apiUrl}/api/recommendations`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+      body: JSON.stringify(data),
+    });
+    if (!res.ok) throw new Error(`PG recommendation error ${res.status}`);
+    return;
+  }
   await gasPost<void>(config, {
     resource: 'recommendations',
     action: 'create',
