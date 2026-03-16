@@ -12,6 +12,8 @@ import type {
   TelegramPayload,
   WatchlistMatch,
   RecommendationData,
+  PreviousRecommendation,
+  MatchTimelineSnapshot,
 } from '../types';
 
 function apiUrl(config: AppConfig, path: string): string {
@@ -107,6 +109,65 @@ export async function saveRecommendation(
   });
   if (!res.ok) throw new Error(`Recommendation error ${res.status}`);
   return res.json();
+}
+
+// ==================== AI Context Proxy ====================
+
+export async function fetchMatchRecommendations(
+  config: AppConfig,
+  matchId: string,
+): Promise<PreviousRecommendation[]> {
+  const res = await fetch(apiUrl(config, `/api/recommendations/match/${encodeURIComponent(matchId)}`), {
+    headers: { Accept: 'application/json' },
+  });
+  if (!res.ok) return [];
+  const rows: Array<{
+    minute: number | null;
+    selection: string;
+    bet_market: string;
+    confidence: number | null;
+    odds: number | null;
+    reasoning: string;
+    result: string;
+    timestamp: string;
+  }> = await res.json();
+  return rows.slice(0, 5).map((r) => ({
+    minute: r.minute,
+    selection: r.selection || '',
+    bet_market: r.bet_market || '',
+    confidence: r.confidence,
+    odds: r.odds,
+    reasoning: r.reasoning || '',
+    result: r.result || '',
+    timestamp: r.timestamp || '',
+  }));
+}
+
+export async function fetchMatchSnapshots(
+  config: AppConfig,
+  matchId: string,
+): Promise<MatchTimelineSnapshot[]> {
+  const res = await fetch(apiUrl(config, `/api/snapshots/match/${encodeURIComponent(matchId)}`), {
+    headers: { Accept: 'application/json' },
+  });
+  if (!res.ok) return [];
+  const rows: Array<{
+    minute: number;
+    home_score: number;
+    away_score: number;
+    stats: Record<string, string> | null;
+    status: string;
+  }> = await res.json();
+  // Keep last 10 snapshots for token budget
+  return rows.slice(-10).map((r) => ({
+    minute: r.minute,
+    score: `${r.home_score ?? 0}-${r.away_score ?? 0}`,
+    possession: r.stats?.possession || '-',
+    shots: r.stats?.shots || '-',
+    shots_on_target: r.stats?.shots_on_target || '-',
+    corners: r.stats?.corners || '-',
+    status: r.status || '',
+  }));
 }
 
 // ==================== Data Tracking Proxy ====================

@@ -283,6 +283,34 @@ export interface MergedMatchData {
   pre_match_prediction_summary: string;
 }
 
+// ==================== AI Prompt Context ====================
+
+export interface PreviousRecommendation {
+  minute: number | null;
+  selection: string;
+  bet_market: string;
+  confidence: number | null;
+  odds: number | null;
+  reasoning: string;
+  result: string;
+  timestamp: string;
+}
+
+export interface MatchTimelineSnapshot {
+  minute: number;
+  score: string;
+  possession: string;
+  shots: string;
+  shots_on_target: string;
+  corners: string;
+  status: string;
+}
+
+export interface AiPromptContext {
+  previousRecommendations: PreviousRecommendation[];
+  matchTimeline: MatchTimelineSnapshot[];
+}
+
 // ==================== Should Proceed ====================
 
 export interface ProceedCheckResult {
@@ -400,6 +428,8 @@ export type PipelineStage =
   | 'checking-proceed'
   | 'fetching-odds'
   | 'merging-odds'
+  | 'checking-staleness'
+  | 'fetching-context'
   | 'building-prompt'
   | 'ai-analysis'
   | 'parsing-response'
@@ -428,6 +458,7 @@ export interface PipelineMatchResult {
   parsedAi?: ParsedAiResponse;
   notified: boolean;
   saved: boolean;
+  skippedStale?: boolean;
   error?: string;
 }
 

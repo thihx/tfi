@@ -53,6 +53,13 @@ vi.mock('../services/proxy.service', () => ({
   saveMatchSnapshot: vi.fn(),
   saveOddsMovements: vi.fn(),
   saveAiPerformance: vi.fn(),
+  fetchMatchRecommendations: vi.fn(),
+  fetchMatchSnapshots: vi.fn(),
+}));
+
+// Mock staleness.service
+vi.mock('../services/staleness.service', () => ({
+  checkStaleness: vi.fn(),
 }));
 
 // Mock config (so we control loadMonitorConfig)
@@ -73,9 +80,12 @@ import {
   saveMatchSnapshot,
   saveOddsMovements,
   saveAiPerformance,
+  fetchMatchRecommendations,
+  fetchMatchSnapshots,
 } from '../services/proxy.service';
 
 import { loadMonitorConfig } from '../config';
+import { checkStaleness } from '../services/staleness.service';
 
 // ==================== Helpers ====================
 
@@ -126,6 +136,13 @@ function setupHappyPath() {
   (saveOddsMovements as Mock).mockResolvedValue(undefined);
   (saveAiPerformance as Mock).mockResolvedValue(undefined);
 
+  // Context fetching
+  (fetchMatchRecommendations as Mock).mockResolvedValue([]);
+  (fetchMatchSnapshots as Mock).mockResolvedValue([]);
+
+  // Staleness: not stale by default
+  (checkStaleness as Mock).mockReturnValue({ isStale: false, reason: 'first_analysis' });
+
   return config;
 }
 
@@ -133,6 +150,10 @@ function setupHappyPath() {
 
 beforeEach(() => {
   vi.resetAllMocks();
+  // Default context/staleness mocks — individual tests that use setupHappyPath override these
+  (fetchMatchRecommendations as Mock).mockResolvedValue([]);
+  (fetchMatchSnapshots as Mock).mockResolvedValue([]);
+  (checkStaleness as Mock).mockReturnValue({ isStale: false, reason: 'first_analysis' });
 });
 
 describe('runPipeline — full flow', () => {
@@ -466,6 +487,9 @@ describe('pipeline data tracking', () => {
     );
     (saveMatchSnapshot as Mock).mockResolvedValue(undefined);
     (saveOddsMovements as Mock).mockResolvedValue(undefined);
+    (fetchMatchRecommendations as Mock).mockResolvedValue([]);
+    (fetchMatchSnapshots as Mock).mockResolvedValue([]);
+    (checkStaleness as Mock).mockReturnValue({ isStale: false, reason: 'first_analysis' });
 
     await runPipeline(appConfig, { triggeredBy: 'manual' });
 
@@ -493,5 +517,126 @@ describe('pipeline data tracking', () => {
     await runPipeline(appConfig, { triggeredBy: 'manual' });
 
     expect(saveMatchSnapshot).toHaveBeenCalledTimes(1);
+  });
+});
+
+// ==================== Phase 3: Context & Staleness Tests ====================
+
+describe('pipeline context & staleness', () => {
+  test('fetches match recommendations and snapshots before AI call', async () => {
+    setupHappyPath();
+
+    await runPipeline(appConfig, { triggeredBy: 'manual' });
+
+    expect(fetchMatchRecommendations).toHaveBeenCalledWith(appConfig, '12345');
+    expect(fetchMatchSnapshots).toHaveBeenCalledWith(appConfig, '12345');
+  });
+
+  test('skips AI call when staleness check returns isStale=true', async () => {
+    setupHappyPath();
+    (checkStaleness as Mock).mockReturnValue({ isStale: true, reason: 'no_significant_change' });
+
+    const ctx = await runPipeline(appConfig, { triggeredBy: 'manual' });
+
+    expect(ctx.results).toHaveLength(1);
+    expect(ctx.results[0]!.skippedStale).toBe(true);
+    expect(runAiAnalysis).not.toHaveBeenCalled();
+    expect(saveRecommendation).not.toHaveBeenCalled();
+  });
+
+  test('does NOT skip AI when stale but force_analyze is true', async () => {
+    setupHappyPath();
+    // Override watchlist to force_analyze
+    const ko = koreaDateTime(-60 * 60_000);
+    (fetchWatchlistMatches as Mock).mockResolvedValue([
+      createWatchlistMatch({
+        match_id: '12345',
+        date: ko.date,
+        kickoff: ko.time,
+        mode: 'F', // Force mode
+      }),
+    ]);
+    (checkStaleness as Mock).mockReturnValue({ isStale: true, reason: 'no_significant_change' });
+
+    // force_analyze is set in prepareMatchData when mode='F' or match is in MANUAL_PUSH_MATCH_IDS
+    // For this test, we also set MANUAL_PUSH_MATCH_IDS
+    const config = createConfig({ MANUAL_PUSH_MATCH_IDS: ['12345'] });
+    (loadMonitorConfig as Mock).mockReturnValue(config);
+
+    await runPipeline(appConfig, { triggeredBy: 'manual', webhookMatchIds: ['12345'] });
+
+    // AI should still be called because force_analyze overrides staleness
+    expect(runAiAnalysis).toHaveBeenCalledTimes(1);
+  });
+
+  test('passes context to AI when previous recommendations exist', async () => {
+    setupHappyPath();
+    (fetchMatchRecommendations as Mock).mockResolvedValue([
+      {
+        minute: 55,
+        selection: 'Over 2.5 @1.90',
+        bet_market: 'over_2.5',
+        confidence: 7,
+        odds: 1.90,
+        reasoning: 'Both teams attacking well',
+        result: '',
+        timestamp: '2026-03-17T10:00:00Z',
+      },
+    ]);
+
+    await runPipeline(appConfig, { triggeredBy: 'manual' });
+
+    // AI was called (staleness returns not-stale by default)
+    expect(runAiAnalysis).toHaveBeenCalledTimes(1);
+    // checkStaleness was called with the last recommendation
+    expect(checkStaleness).toHaveBeenCalledWith(
+      expect.objectContaining({ match_id: '12345' }),
+      expect.objectContaining({ minute: 55, selection: 'Over 2.5 @1.90' }),
+    );
+  });
+
+  test('continues AI call when context fetch fails', async () => {
+    setupHappyPath();
+    (fetchMatchRecommendations as Mock).mockRejectedValue(new Error('Context DB down'));
+    (fetchMatchSnapshots as Mock).mockRejectedValue(new Error('Snapshot DB down'));
+
+    const ctx = await runPipeline(appConfig, { triggeredBy: 'manual' });
+
+    // Pipeline still completes with AI call
+    expect(ctx.stage).toBe('complete');
+    expect(runAiAnalysis).toHaveBeenCalledTimes(1);
+  });
+
+  test('emits checking-staleness and fetching-context stages', async () => {
+    setupHappyPath();
+
+    const stages: string[] = [];
+    await runPipeline(appConfig, {
+      triggeredBy: 'manual',
+      onProgress: (ctx: PipelineContext) => {
+        stages.push(ctx.stage);
+      },
+    });
+
+    expect(stages).toContain('checking-staleness');
+    expect(stages).toContain('fetching-context');
+    const idxStale = stages.indexOf('checking-staleness');
+    const idxContext = stages.indexOf('fetching-context');
+    const idxAi = stages.indexOf('ai-analysis');
+    expect(idxStale).toBeLessThan(idxContext);
+    expect(idxContext).toBeLessThan(idxAi);
+  });
+
+  test('saves prompt_version as v3-context-aware', async () => {
+    setupHappyPath();
+
+    await runPipeline(appConfig, { triggeredBy: 'manual' });
+
+    expect(saveAiPerformance).toHaveBeenCalledWith(
+      appConfig,
+      expect.objectContaining({
+        prompt_version: 'v3-context-aware',
+      }),
+    );
   });
 });

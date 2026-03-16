@@ -19,6 +19,7 @@ import type {
   PipelineContext,
   PipelineMatchResult,
   MergedMatchData,
+  AiPromptContext,
 } from '../types';
 
 import { loadMonitorConfig } from '../config';
@@ -38,7 +39,10 @@ import {
   saveMatchSnapshot,
   saveOddsMovements,
   saveAiPerformance,
+  fetchMatchRecommendations,
+  fetchMatchSnapshots,
 } from './proxy.service';
+import { checkStaleness } from './staleness.service';
 
 // ==================== Pipeline Runner ====================
 
@@ -209,10 +213,34 @@ export async function runPipeline(
           trackSilent(saveOddsMovements(appConfig, movements));
         }
 
+        // ── Staleness check + AI Context ──
+        emit('checking-staleness');
+        let aiContext: AiPromptContext = { previousRecommendations: [], matchTimeline: [] };
+        try {
+          const [prevRecs, snapshots] = await Promise.all([
+            fetchMatchRecommendations(appConfig, mergedWithOdds.match_id),
+            fetchMatchSnapshots(appConfig, mergedWithOdds.match_id),
+          ]);
+          aiContext = { previousRecommendations: prevRecs, matchTimeline: snapshots };
+        } catch {
+          // Context fetch failed — continue without context
+        }
+
+        // Check staleness: skip AI if nothing meaningful changed
+        const lastRec = aiContext.previousRecommendations[0] ?? null;
+        const staleness = checkStaleness(mergedWithOdds, lastRec);
+        if (staleness.isStale && !mergedWithOdds.force_analyze) {
+          matchResult.stage = 'complete';
+          matchResult.skippedStale = true;
+          ctx.results.push(matchResult);
+          continue;
+        }
+
         // AI Analysis
+        emit('fetching-context');
         emit('building-prompt');
         emit('ai-analysis');
-        const aiRawResponse = await routeAndCallAi(appConfig, config, mergedWithOdds);
+        const aiRawResponse = await routeAndCallAi(appConfig, config, mergedWithOdds, aiContext);
 
         // Parse AI response
         emit('parsing-response');
@@ -259,7 +287,7 @@ export async function runPipeline(
                 recommendation_id: savedRec.id,
                 match_id: mergedWithOdds.match_id,
                 ai_model: config.AI_MODEL,
-                prompt_version: config.AI_MODEL,
+                prompt_version: 'v3-context-aware',
                 ai_confidence: parsed.ai_confidence,
                 ai_should_push: parsed.ai_should_push,
                 predicted_market: parsed.bet_market,

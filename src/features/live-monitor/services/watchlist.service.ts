@@ -73,8 +73,10 @@ export function filterActiveMatches(
   const MATCH_END_GRACE_MINUTES = 1;
   const FUTURE_WINDOW_MINUTES = 1;
 
-  const forceAnalyze = false; // Will be set from webhook params
   const isManualPush = !!webhookMatchIds?.length;
+  const manualPushIds = new Set(
+    (config.MANUAL_PUSH_MATCH_IDS || []).map((id) => String(id)),
+  );
 
   let relevant: WatchlistMatch[] = [];
 
@@ -108,11 +110,15 @@ export function filterActiveMatches(
     }
   }
 
-  return relevant.map((item) => ({
-    ...item,
-    force_analyze: forceAnalyze,
-    is_manual_push: isManualPush,
-  }));
+  return relevant.map((item) => {
+    const mid = String(item.match_id || '').trim();
+    const forceAnalyze = item.mode === 'F' || manualPushIds.has(mid);
+    return {
+      ...item,
+      force_analyze: forceAnalyze,
+      is_manual_push: isManualPush,
+    };
+  });
 }
 
 /**

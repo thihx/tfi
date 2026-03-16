@@ -3,13 +3,13 @@
 // Equivalent to: "Build AI Prompt" node
 // ============================================================
 
-import type { MergedMatchData, LiveMonitorConfig, PreMatchCompact } from '../types';
+import type { MergedMatchData, LiveMonitorConfig, PreMatchCompact, AiPromptContext } from '../types';
 
 /**
  * Build the AI analysis prompt for a single match.
- * Mirrors the "Build AI Prompt" node exactly - massive ~500 line prompt.
+ * Accepts optional context with previous recommendations and match timeline.
  */
-export function buildAiPrompt(data: MergedMatchData): string {
+export function buildAiPrompt(data: MergedMatchData, context?: AiPromptContext): string {
   const config = (data.config || {}) as LiveMonitorConfig;
   const match = data.match || { home: '', away: '', league: '', minute: 0, score: '0-0', status: '' };
   const statsCompact = data.stats_compact || {};
@@ -244,6 +244,9 @@ RECENT EVENTS (LAST 4)
 ========================
 ${JSON.stringify(eventsCompact)}
 
+${buildPreviousRecommendationsSection(context)}
+${buildMatchTimelineSection(context)}
+${buildContinuityRulesSection(context)}
 ========================
 LIVE DATA INTERPRETATION FRAMEWORK
 ========================
@@ -750,4 +753,74 @@ For FORCE MODE with non-live status (HT/NS/FT): should_push = false but provide 
 `;
 
   return prompt;
+}
+
+// ==================== Context Section Builders ====================
+
+function buildPreviousRecommendationsSection(context?: AiPromptContext): string {
+  if (!context?.previousRecommendations?.length) return '';
+
+  const recs = context.previousRecommendations;
+  const lines = recs.map((r, i) => {
+    const resultStr = r.result ? ` | Result: ${r.result}` : '';
+    return `  ${i + 1}. [Min ${r.minute ?? '?'}] ${r.selection || 'No selection'} (${r.bet_market || '?'}) | Conf: ${r.confidence ?? 0}/10 | Odds: ${r.odds ?? 'N/A'}${resultStr}
+     Reasoning: ${r.reasoning ? r.reasoning.substring(0, 150) : 'N/A'}`;
+  });
+
+  return `========================
+PREVIOUS RECOMMENDATIONS FOR THIS MATCH (${recs.length})
+========================
+${lines.join('\n')}
+
+IMPORTANT: You have access to your previous recommendations above.
+- Reference them in your reasoning.
+- If your previous recommendation was correct and conditions still hold, you may reinforce it with updated confidence.
+- If conditions changed, explain what changed and why your new recommendation differs.
+- Do NOT repeat the exact same selection + bet_market unless odds have improved by >= 0.10.
+`;
+}
+
+function buildMatchTimelineSection(context?: AiPromptContext): string {
+  if (!context?.matchTimeline?.length) return '';
+
+  const timeline = context.matchTimeline;
+  const lines = timeline.map((s) =>
+    `  Min ${s.minute}: ${s.score} | Poss: ${s.possession} | Shots: ${s.shots} (OT: ${s.shots_on_target}) | Corners: ${s.corners}`,
+  );
+
+  return `========================
+MATCH PROGRESSION TIMELINE (${timeline.length} snapshots)
+========================
+${lines.join('\n')}
+
+USE THIS DATA TO:
+- Identify momentum shifts (possession swings, shot rate changes)
+- Detect sustained patterns vs temporary bursts
+- Assess whether the current stats represent a trend or a spike
+- Compare early-game vs current stats for trajectory analysis
+`;
+}
+
+function buildContinuityRulesSection(context?: AiPromptContext): string {
+  if (!context?.previousRecommendations?.length) return '';
+
+  return `========================
+ANALYSIS CONTINUITY RULES (CRITICAL)
+========================
+You have previous recommendations for this match. You MUST follow these rules:
+
+1. REFERENCE: Acknowledge your previous recommendation(s) in reasoning_en and reasoning_vi.
+2. CONSISTENCY: If the match conditions that supported your last recommendation STILL hold,
+   explain that continuity. Do NOT contradict yourself without explaining what changed.
+3. EVOLUTION: If conditions changed (goal, red card, momentum shift), clearly state what
+   changed and why your new assessment differs from the previous one.
+4. NO DUPLICATE: Do NOT output the exact same selection + bet_market as your most recent
+   recommendation UNLESS:
+   - Odds have improved by >= 0.10, OR
+   - Match minute advanced >= 5 since last recommendation
+   If neither condition is met → set should_push = false with reasoning:
+   "No significant change since last recommendation at minute [X]."
+5. CHAIN OF THOUGHT: Your reasoning should build upon previous analysis, not start fresh.
+   Think of this as a progressive report, not isolated snapshots.
+`;
 }

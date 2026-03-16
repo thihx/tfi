@@ -9,6 +9,7 @@ import type {
   MergedMatchData,
   ParsedAiResponse,
   OddsCanonical,
+  AiPromptContext,
 } from '../types';
 import { buildAiPrompt } from './ai-prompt.service';
 import { runAiAnalysis } from './proxy.service';
@@ -103,15 +104,16 @@ function extractOddsFromSelection(
 // ==================== Route & Call AI ====================
 
 /**
- * Route to the correct AI provider and call via GAS proxy.
+ * Route to the correct AI provider and call via proxy.
  * Returns raw AI text response.
  */
 export async function routeAndCallAi(
   appConfig: AppConfig,
   monitorConfig: LiveMonitorConfig,
   matchData: MergedMatchData,
+  context?: AiPromptContext,
 ): Promise<string> {
-  const prompt = buildAiPrompt(matchData);
+  const prompt = buildAiPrompt(matchData, context);
   const provider = monitorConfig.AI_PROVIDER;
   const model = monitorConfig.AI_MODEL;
   return runAiAnalysis(appConfig, prompt, provider, model);
