@@ -12,6 +12,7 @@ import { fetchMatchesJob } from './fetch-matches.job.js';
 import { updatePredictionsJob } from './update-predictions.job.js';
 import { expireWatchlistJob } from './expire-watchlist.job.js';
 import { checkLiveTriggerJob } from './check-live-trigger.job.js';
+import { autoSettleJob } from './auto-settle.job.js';
 import crypto from 'node:crypto';
 
 export interface JobInfo {
@@ -137,6 +138,7 @@ export async function startScheduler() {
   register('update-predictions', config.jobPredictionsMs, updatePredictionsJob, 10 * 60_000);
   register('expire-watchlist', config.jobExpireWatchlistMs, expireWatchlistJob);
   register('check-live-trigger', config.jobCheckLiveMs, checkLiveTriggerJob);
+  register('auto-settle', config.jobAutoSettleMs, autoSettleJob);
 
   // Restore state from Redis
   for (const job of jobs) {

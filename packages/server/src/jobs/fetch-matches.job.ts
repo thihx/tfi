@@ -12,6 +12,7 @@ import { config } from '../config.js';
 import { fetchFixturesForDate, type ApiFixture } from '../lib/football-api.js';
 import * as leagueRepo from '../repos/leagues.repo.js';
 import * as matchRepo from '../repos/matches.repo.js';
+import { archiveFinishedMatches } from '../repos/matches-history.repo.js';
 
 const ALLOWED_STATUSES = ['NS', '1H', 'HT', '2H', 'ET', 'BT', 'P', 'LIVE', 'INT'];
 
@@ -80,7 +81,14 @@ export async function fetchMatchesJob(): Promise<{ saved: number; leagues: numbe
   // 6. Transform to rows
   const rows = statusFiltered.map(fixtureToMatchRow);
 
-  // 7. Full-refresh matches table
+  // 7. Archive finished matches before TRUNCATE
+  const allCurrentMatches = await matchRepo.getAllMatches();
+  const archivedCount = await archiveFinishedMatches(allCurrentMatches);
+  if (archivedCount > 0) {
+    console.log(`[fetchMatchesJob] Archived ${archivedCount} FT matches to history`);
+  }
+
+  // 8. Full-refresh matches table
   const saved = await matchRepo.replaceAllMatches(rows);
   const uniqueLeagues = new Set(rows.map((r) => r.league_id)).size;
 

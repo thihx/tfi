@@ -4,6 +4,12 @@
 
 import { query, transaction } from '../db/pool.js';
 
+function toJsonb(val: unknown): string {
+  if (!val || val === '') return '{}';
+  if (typeof val === 'string') return val;
+  return JSON.stringify(val);
+}
+
 export interface RecommendationRow {
   id: number;
   unique_key: string;
@@ -16,9 +22,10 @@ export interface RecommendationRow {
   condition_triggered_suggestion: string;
   custom_condition_raw: string;
   execution_id: string;
-  odds_snapshot: string;
-  stats_snapshot: string;
+  odds_snapshot: Record<string, unknown> | string;
+  stats_snapshot: Record<string, unknown> | string;
   pre_match_prediction_summary: string;
+  prompt_version: string;
   custom_condition_matched: boolean;
   minute: number | null;
   score: string;
@@ -107,8 +114,8 @@ export async function createRecommendation(
       rec.condition_triggered_suggestion ?? '',
       rec.custom_condition_raw ?? '',
       rec.execution_id ?? '',
-      rec.odds_snapshot ?? '',
-      rec.stats_snapshot ?? '',
+      toJsonb(rec.odds_snapshot),
+      toJsonb(rec.stats_snapshot),
       rec.pre_match_prediction_summary ?? '',
       rec.custom_condition_matched ?? false,
       rec.minute ?? null,
@@ -170,8 +177,8 @@ export async function bulkCreateRecommendations(
           rec.condition_triggered_suggestion ?? '',
           rec.custom_condition_raw ?? '',
           rec.execution_id ?? '',
-          rec.odds_snapshot ?? '',
-          rec.stats_snapshot ?? '',
+          toJsonb(rec.odds_snapshot),
+          toJsonb(rec.stats_snapshot),
           rec.pre_match_prediction_summary ?? '',
           rec.custom_condition_matched ?? false,
           rec.minute ?? null,
