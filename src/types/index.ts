@@ -90,4 +90,4 @@ export interface ApiResponse<T> {
   ids?: string[];
 }
 
-export type TabName = 'dashboard' | 'matches' | 'watchlist' | 'recommendations' | 'settings';
+export type TabName = 'dashboard' | 'matches' | 'watchlist' | 'recommendations' | 'live-monitor' | 'settings';

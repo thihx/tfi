@@ -10,6 +10,7 @@ import { DashboardTab } from '@/app/DashboardTab';
 import { MatchesTab } from '@/app/MatchesTab';
 import { WatchlistTab } from '@/app/WatchlistTab';
 import { RecommendationsTab } from '@/app/RecommendationsTab';
+import { LiveMonitorTab } from '@/app/LiveMonitorTab';
 import { SettingsTab } from '@/app/SettingsTab';
 import type { TabName } from '@/types';
 
@@ -32,6 +33,7 @@ function AppContent() {
       case 'matches': return <MatchesTab />;
       case 'watchlist': return <WatchlistTab />;
       case 'recommendations': return <RecommendationsTab />;
+      case 'live-monitor': return <LiveMonitorTab />;
       case 'settings': return <SettingsTab />;
     }
   };
