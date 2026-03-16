@@ -1,0 +1,439 @@
+import { useState, useMemo, useEffect, useRef } from 'react';
+import { useAppState } from '@/hooks/useAppState';
+import { useToast } from '@/hooks/useToast';
+import { Pagination } from '@/components/ui/Pagination';
+import { Modal } from '@/components/ui/Modal';
+import { ConditionBuilder } from '@/components/ui/ConditionBuilder';
+import { PLACEHOLDER_HOME, PLACEHOLDER_AWAY } from '@/config/constants';
+import { convertSeoulToLocalDateTime, formatDateTimeDisplay, getLeagueDisplayName, debounce } from '@/lib/utils/helpers';
+import { normalizeToISO } from '@/lib/utils/helpers';
+import type { WatchlistItem, SortState } from '@/types';
+
+const PAGE_SIZE = 30;
+
+export function WatchlistTab() {
+  const { state, updateWatchlistItem, removeFromWatchlist, loadAllData } = useAppState();
+  const { showToast } = useToast();
+  const { watchlist, matches, approvedLeagues, config } = state;
+
+  const [search, setSearch] = useState('');
+  const [leagueFilter, setLeagueFilter] = useState('');
+  const [dateFrom, setDateFrom] = useState('');
+  const [dateTo, setDateTo] = useState('');
+  const [page, setPage] = useState(1);
+  const [sort, setSort] = useState<SortState>({ column: 'kickoff', order: 'asc' });
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+
+  // Edit modal state
+  const [editItem, setEditItem] = useState<WatchlistItem | null>(null);
+  const [editMode, setEditMode] = useState('');
+  const [editPriority, setEditPriority] = useState('2');
+  const [editStatus, setEditStatus] = useState('active');
+  const [editConditions, setEditConditions] = useState('');
+
+  // Delete confirm
+  const [deleteConfirm, setDeleteConfirm] = useState<string[] | null>(null);
+
+  // Debounced search
+  const [debouncedSearch, setDebouncedSearch] = useState('');
+  const debouncedSetSearch = useRef(debounce((v: string) => setDebouncedSearch(v), 250)).current;
+
+  // League options for filter
+  const leagueOptions = useMemo(() => {
+    const map = new Map<string, { id: string; displayName: string; count: number }>();
+    watchlist.forEach((i) => {
+      let leagueId = i.league_id;
+      if (!leagueId && i.match_id) {
+        const m = matches.find((x) => String(x.match_id) === String(i.match_id));
+        if (m) leagueId = m.league_id;
+      }
+      if (!leagueId) return;
+      const key = String(leagueId);
+      if (!map.has(key)) {
+        map.set(key, { id: key, displayName: getLeagueDisplayName(leagueId, i.league_name || i.league || '', approvedLeagues), count: 0 });
+      }
+      map.get(key)!.count++;
+    });
+    return Array.from(map.values()).sort((a, b) => b.count - a.count);
+  }, [watchlist, matches, approvedLeagues]);
+
+  // Filtered & sorted
+  const filtered = useMemo(() => {
+    let items = [...watchlist];
+    if (debouncedSearch) {
+      const s = debouncedSearch.toLowerCase();
+      items = items.filter((i) => `${i.home_team || ''} ${i.away_team || ''} ${i.league || ''}`.toLowerCase().includes(s));
+    }
+    if (leagueFilter) {
+      items = items.filter((i) => {
+        let lid = i.league_id;
+        if (!lid && i.match_id) { const m = matches.find((x) => String(x.match_id) === String(i.match_id)); if (m) lid = m.league_id; }
+        return String(lid) === leagueFilter;
+      });
+    }
+    if (dateFrom || dateTo) {
+      items = items.filter((i) => {
+        const iso = normalizeToISO(i.date);
+        if (!iso) return false;
+        if (dateFrom && iso < dateFrom) return false;
+        if (dateTo && iso > dateTo) return false;
+        return true;
+      });
+    }
+
+    if (sort.column) {
+      items.sort((a, b) => {
+        let valA: string | number | Date, valB: string | number | Date;
+        switch (sort.column) {
+          case 'kickoff':
+            valA = convertSeoulToLocalDateTime(a.date, a.kickoff || '00:00');
+            valB = convertSeoulToLocalDateTime(b.date, b.kickoff || '00:00');
+            break;
+          case 'league': valA = (a.league || '').toLowerCase(); valB = (b.league || '').toLowerCase(); break;
+          case 'match': valA = `${a.home_team} vs ${a.away_team}`.toLowerCase(); valB = `${b.home_team} vs ${b.away_team}`.toLowerCase(); break;
+          case 'mode': valA = a.mode || ''; valB = b.mode || ''; break;
+          case 'priority': valA = parseInt(String(a.priority)) || 0; valB = parseInt(String(b.priority)) || 0; break;
+          case 'status': valA = (a.status || '').toLowerCase(); valB = (b.status || '').toLowerCase(); break;
+          default: return 0;
+        }
+        if (valA < valB) return sort.order === 'asc' ? -1 : 1;
+        if (valA > valB) return sort.order === 'asc' ? 1 : -1;
+        return 0;
+      });
+    }
+    return items;
+  }, [watchlist, debouncedSearch, leagueFilter, dateFrom, dateTo, sort, matches]);
+
+  const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
+  const safePage = Math.min(page, totalPages);
+  const pageItems = filtered.slice((safePage - 1) * PAGE_SIZE, safePage * PAGE_SIZE);
+
+  useEffect(() => { setPage(1); }, [debouncedSearch, leagueFilter, dateFrom, dateTo]);
+
+  const handleSort = (col: string) => {
+    setSort((prev) => ({ column: col, order: prev.column === col && prev.order === 'asc' ? 'desc' : 'asc' }));
+    setPage(1);
+  };
+
+  const clearFilters = () => {
+    setSearch(''); setDebouncedSearch(''); setLeagueFilter(''); setDateFrom(''); setDateTo('');
+  };
+
+  const toggleSelect = (mid: string) => {
+    setSelected((prev) => { const s = new Set(prev); if (s.has(mid)) s.delete(mid); else s.add(mid); return s; });
+  };
+
+  const toggleSelectAll = () => {
+    const ids = pageItems.map((i) => String(i.match_id));
+    const allSel = ids.every((id) => selected.has(id));
+    setSelected((prev) => {
+      const s = new Set(prev);
+      if (allSel) ids.forEach((id) => s.delete(id)); else ids.forEach((id) => s.add(id));
+      return s;
+    });
+  };
+
+  const openEdit = (item: WatchlistItem) => {
+    setEditItem(item);
+    setEditMode(item.mode || config.defaultMode);
+    setEditPriority(String(item.priority || 2));
+    setEditStatus(item.status || 'active');
+    setEditConditions(item.custom_conditions || '');
+  };
+
+  const submitEdit = async () => {
+    if (!editItem) return;
+    const ok = await updateWatchlistItem({
+      match_id: editItem.match_id,
+      mode: editMode,
+      priority: parseInt(editPriority),
+      status: editStatus,
+      custom_conditions: editConditions,
+    });
+    setEditItem(null);
+    if (ok) showToast('✅ Watchlist item updated', 'success');
+    else showToast('❌ Failed to update', 'error');
+  };
+
+  const handleDeleteSingle = (mid: string) => {
+    setDeleteConfirm([mid]);
+  };
+
+  const handleDeleteSelected = () => {
+    const ids = Array.from(selected);
+    if (ids.length === 0) { showToast('No items selected', 'info'); return; }
+    setDeleteConfirm(ids);
+  };
+
+  const confirmDelete = async () => {
+    if (!deleteConfirm) return;
+    const ok = await removeFromWatchlist(deleteConfirm);
+    if (ok) {
+      showToast(`✅ Deleted ${deleteConfirm.length} item(s)`, 'success');
+      setSelected((prev) => { const s = new Set(prev); deleteConfirm.forEach((id) => s.delete(id)); return s; });
+    } else {
+      showToast('❌ Failed to delete', 'error');
+    }
+    setDeleteConfirm(null);
+  };
+
+  const sortIndicator = (col: string) => sort.column === col ? (sort.order === 'asc' ? '▲' : '▼') : '';
+  const allPageSelected = pageItems.length > 0 && pageItems.every((i) => selected.has(String(i.match_id)));
+
+  // Get team logos from matches data
+  const getLogos = (matchId: string) => {
+    const m = matches.find((x) => String(x.match_id) === matchId);
+    return { home: m?.home_logo || PLACEHOLDER_HOME, away: m?.away_logo || PLACEHOLDER_AWAY };
+  };
+
+  return (
+    <>
+      <div className="card">
+        <div className="card-header">
+          <div className="card-title">👁️ Watchlist</div>
+          <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+            <button className="btn btn-primary btn-sm" disabled={selected.size === 0} onClick={handleDeleteSelected} style={{ fontSize: '13px' }}>
+              {selected.size > 0 ? `Delete Selected Matches (${selected.size})` : 'Delete Selected Matches'}
+            </button>
+            <button className="btn btn-primary btn-sm" onClick={loadAllData}>🔄 Refresh</button>
+          </div>
+        </div>
+
+        <div className="filters">
+          <input type="text" className="filter-input" placeholder="🔍 Search teams..." value={search} onChange={(e) => { setSearch(e.target.value); debouncedSetSearch(e.target.value); }} />
+          <select className="filter-input" value={leagueFilter} onChange={(e) => setLeagueFilter(e.target.value)}>
+            <option value="">All Leagues</option>
+            {leagueOptions.map((l) => <option key={l.id} value={l.id}>{l.displayName} ({l.count})</option>)}
+          </select>
+          <input type="date" className="filter-input" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} title="From date" />
+          <input type="date" className="filter-input" value={dateTo} onChange={(e) => setDateTo(e.target.value)} title="To date" />
+          <button className="btn btn-secondary" onClick={clearFilters}>✖ Clear Filters</button>
+        </div>
+
+        <div className="table-container table-cards">
+          <table>
+            <thead>
+              <tr>
+                <th style={{ cursor: 'pointer' }} onClick={() => handleSort('kickoff')}>Time {sortIndicator('kickoff')}</th>
+                <th style={{ cursor: 'pointer', textAlign: 'center' }} onClick={() => handleSort('league')}>League {sortIndicator('league')}</th>
+                <th style={{ cursor: 'pointer', textAlign: 'center' }} onClick={() => handleSort('match')}>Match {sortIndicator('match')}</th>
+                <th style={{ width: 40, textAlign: 'center' }}>
+                  <input type="checkbox" checked={allPageSelected} onChange={toggleSelectAll} />
+                </th>
+                <th style={{ cursor: 'pointer' }} onClick={() => handleSort('mode')}>Mode {sortIndicator('mode')}</th>
+                <th style={{ cursor: 'pointer' }} onClick={() => handleSort('priority')}>Priority {sortIndicator('priority')}</th>
+                <th style={{ textAlign: 'center' }}>Prediction</th>
+                <th style={{ textAlign: 'center' }}>Condition</th>
+                <th style={{ cursor: 'pointer' }} onClick={() => handleSort('status')}>Status {sortIndicator('status')}</th>
+                <th style={{ textAlign: 'center' }}>Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {pageItems.length === 0 ? (
+                <tr><td colSpan={10} className="empty-state">
+                  <div className="empty-state-icon">👁️</div>
+                  <p>No matches in watchlist</p>
+                  <p><small>Go to Matches tab to add matches</small></p>
+                </td></tr>
+              ) : pageItems.map((item) => {
+                const logos = getLogos(String(item.match_id));
+                const localDT = convertSeoulToLocalDateTime(item.date, item.kickoff || '00:00');
+                const timeDisplay = formatDateTimeDisplay(localDT);
+                let leagueId = item.league_id;
+                if (!leagueId && item.match_id) { const m = matches.find((x) => String(x.match_id) === String(item.match_id)); if (m) leagueId = m.league_id; }
+                const leagueDisplay = getLeagueDisplayName(leagueId || '', item.league_name || item.league || '', approvedLeagues);
+
+                const modeColors: Record<string, { bg: string; color: string }> = { A: { bg: '#fef3c7', color: '#92400e' }, B: { bg: '#dbeafe', color: '#1e40af' }, C: { bg: '#d1fae5', color: '#065f46' } };
+                const mc = modeColors[item.mode] || modeColors.B!;
+                const p = Math.max(1, Math.min(3, parseInt(String(item.priority)) || 2));
+
+                return (
+                  <tr key={item.match_id}>
+                    <td data-label="Time" style={{ whiteSpace: 'nowrap', textAlign: 'center' }}>
+                      <div className="cell-value">
+                        <span style={{ background: 'var(--gray-200)', padding: '4px 8px', borderRadius: '4px', fontWeight: 600, color: 'var(--gray-900)', fontSize: '13px' }}>{timeDisplay}</span>
+                      </div>
+                    </td>
+                    <td data-label="League" style={{ textAlign: 'center' }}><div className="cell-value"><span style={{ fontWeight: 400 }}>{leagueDisplay}</span></div></td>
+                    <td data-label="Match" style={{ textAlign: 'center' }}>
+                      <div className="cell-value match-cell">
+                        <div className="match-teams">
+                          <div className="team-info">
+                            <img src={logos.home} loading="lazy" className="team-logo" onError={(e) => { (e.target as HTMLImageElement).src = PLACEHOLDER_HOME; }} alt={item.home_team} />
+                            <span style={{ fontWeight: 400 }}>{item.home_team}</span>
+                          </div>
+                          <span className="match-vs">vs</span>
+                          <div className="team-info">
+                            <span style={{ fontWeight: 400 }}>{item.away_team}</span>
+                            <img src={logos.away} loading="lazy" className="team-logo" onError={(e) => { (e.target as HTMLImageElement).src = PLACEHOLDER_AWAY; }} alt={item.away_team} />
+                          </div>
+                        </div>
+                      </div>
+                    </td>
+                    <td className="select-col" data-label="Select">
+                      <div className="cell-value">
+                        <input type="checkbox" checked={selected.has(String(item.match_id))} onChange={() => toggleSelect(String(item.match_id))} />
+                      </div>
+                    </td>
+                    <td data-label="Mode"><div className="cell-value"><span className="badge" style={{ background: mc.bg, color: mc.color }}>{item.mode}</span></div></td>
+                    <td data-label="Priority" style={{ textAlign: 'center' }}><div className="cell-value">{'⭐'.repeat(p)}</div></td>
+                    <td data-label="Prediction" style={{ textAlign: 'center' }}><div className="cell-value"><PredictionCell prediction={item.prediction} /></div></td>
+                    <td data-label="Condition" style={{ textAlign: 'center' }}><div className="cell-value"><small style={{ whiteSpace: 'normal' }}>{item.custom_conditions || '-'}</small></div></td>
+                    <td data-label="Status" className="status-cell" style={{ textAlign: 'center' }}>
+                      <div className="cell-value">
+                        {item.status === 'pending'
+                          ? <span className="badge" style={{ background: '#fef3c7', color: '#92400e' }}>🟡 Pending</span>
+                          : <span className="badge" style={{ background: '#d1fae5', color: '#065f46' }}>🟢 Active</span>}
+                      </div>
+                    </td>
+                    <td data-label="Actions" style={{ textAlign: 'center' }}>
+                      <div className="cell-value">
+                        <div style={{ display: 'inline-flex', gap: '6px', alignItems: 'center' }}>
+                          <button className="btn btn-secondary btn-sm action-icon-btn" onClick={() => openEdit(item)} aria-label="Edit">
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 20h9" /><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4 12.5-12.5z" /></svg>
+                          </button>
+                          <button className="btn btn-secondary btn-sm btn-delete-row action-icon-btn" onClick={() => handleDeleteSingle(String(item.match_id))} aria-label="Delete">
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6" /><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" /><path d="M10 11v6" /><path d="M14 11v6" /><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2" /></svg>
+                          </button>
+                        </div>
+                      </div>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+          <Pagination currentPage={safePage} totalPages={totalPages} onPageChange={setPage} />
+        </div>
+      </div>
+
+      {/* Edit Modal */}
+      <Modal open={!!editItem} title="📝 Edit Watchlist Item" onClose={() => setEditItem(null)}>
+        {editItem && (
+          <form onSubmit={(e) => { e.preventDefault(); submitEdit(); }}>
+            <div className="form-group">
+              <label>Match:</label>
+              <input type="text" readOnly value={`${editItem.home_team} vs ${editItem.away_team}`} />
+            </div>
+            <div className="form-row" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '12px' }}>
+              <div className="form-group">
+                <label>Mode:</label>
+                <select value={editMode} onChange={(e) => setEditMode(e.target.value)}>
+                  <option value="A">A - Aggressive</option>
+                  <option value="B">B - Balanced</option>
+                  <option value="C">C - Conservative</option>
+                </select>
+              </div>
+              <div className="form-group">
+                <label>Priority:</label>
+                <select value={editPriority} onChange={(e) => setEditPriority(e.target.value)}>
+                  <option value="1">1 - Low</option>
+                  <option value="2">2 - Medium</option>
+                  <option value="3">3 - High</option>
+                </select>
+              </div>
+              <div className="form-group">
+                <label>Status:</label>
+                <select value={editStatus} onChange={(e) => setEditStatus(e.target.value)}>
+                  <option value="pending">🟡 Pending</option>
+                  <option value="active">🟢 Active</option>
+                </select>
+              </div>
+            </div>
+
+            {editItem.recommended_custom_condition && (
+              <div className="form-group">
+                <div className="ai-recommended-box">
+                  <div className="ai-recommended-header">🤖 AI Recommended Condition</div>
+                  <div className="ai-recommended-content">
+                    <div className="ai-recommended-item">
+                      <label>Recommended Condition:</label>
+                      <div className="ai-recommended-value">{editItem.recommended_custom_condition}</div>
+                    </div>
+                    {editItem.recommended_condition_reason_vi && (
+                      <div className="ai-recommended-item">
+                        <label>Reason:</label>
+                        <div className="ai-recommended-value">{editItem.recommended_condition_reason_vi}</div>
+                      </div>
+                    )}
+                  </div>
+                  <button type="button" className="btn btn-primary btn-sm" onClick={() => {
+                    const current = editConditions.trim();
+                    if (current && current.includes(editItem.recommended_custom_condition!)) return;
+                    const rec = editItem.recommended_custom_condition!;
+                    setEditConditions(current ? `${current} OR (${rec})` : `(${rec})`);
+                  }}>
+                    ✨ Apply Recommended Condition
+                  </button>
+                </div>
+              </div>
+            )}
+
+            <ConditionBuilder initialValue={editConditions} onChange={setEditConditions} />
+            <button type="submit" className="btn btn-primary" style={{ width: '100%' }}>💾 Save Changes</button>
+          </form>
+        )}
+      </Modal>
+
+      {/* Delete Confirm Modal */}
+      <Modal
+        open={!!deleteConfirm}
+        title="Confirm Delete"
+        onClose={() => setDeleteConfirm(null)}
+        footer={
+          <>
+            <button className="btn btn-secondary" onClick={() => setDeleteConfirm(null)}>Cancel</button>
+            <button className="btn btn-danger" onClick={confirmDelete}>Delete</button>
+          </>
+        }
+      >
+        <p>Are you sure you want to delete {deleteConfirm?.length || 0} item(s)?</p>
+      </Modal>
+    </>
+  );
+}
+
+function PredictionCell({ prediction }: { prediction?: string }) {
+  if (!prediction) return <div className="prediction-empty">-</div>;
+  try {
+    const pred = typeof prediction === 'string' ? JSON.parse(prediction) : prediction;
+    if (!pred?.predictions) return <div className="prediction-empty">N/A</div>;
+    const p = pred.predictions;
+    const homePercent = parseInt(p.percent?.home) || 0;
+    const drawPercent = parseInt(p.percent?.draw) || 0;
+    const awayPercent = parseInt(p.percent?.away) || 0;
+    const winnerName = p.winner?.name || 'N/A';
+    const winnerShort = winnerName.length > 18 ? winnerName.substring(0, 15) + '...' : winnerName;
+    const winnerClass = winnerName.toLowerCase().includes('draw') ? 'draw' : homePercent > awayPercent ? 'home' : 'away';
+    const underOverBadge = p.under_over ? <span className="pred-tag">⚽ {p.under_over}</span> : null;
+
+    return (
+      <details className="pred-card">
+        <summary>
+          <div className="pred-box">
+            <div className="pred-row">
+              <span className={`pred-winner ${winnerClass}`}>🏆 {winnerShort}</span>
+              {underOverBadge}
+            </div>
+            <div className="pred-bar">
+              {homePercent > 0 && <div className="pred-seg home" style={{ width: `${homePercent}%` }} />}
+              {drawPercent > 0 && <div className="pred-seg draw" style={{ width: `${drawPercent}%` }} />}
+              {awayPercent > 0 && <div className="pred-seg away" style={{ width: `${awayPercent}%` }} />}
+            </div>
+            <div className="pred-percent">{homePercent}% | {drawPercent}% | {awayPercent}%</div>
+          </div>
+        </summary>
+        <div className="pred-details">
+          <div className="pred-detail-section">
+            <strong>🎯 Predictions:</strong>
+            <div className="pred-detail-item"><span>Winner:</span> <span>{winnerName}</span></div>
+            <div className="pred-detail-item"><span>Advice:</span> <span>{p.advice || 'No advice'}</span></div>
+            <div className="pred-detail-item"><span>Win %:</span> <span>{homePercent}% | {drawPercent}% | {awayPercent}%</span></div>
+          </div>
+        </div>
+      </details>
+    );
+  } catch {
+    return <div className="prediction-empty">Error</div>;
+  }
+}
