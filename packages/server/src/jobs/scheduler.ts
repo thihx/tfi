@@ -90,3 +90,27 @@ export async function triggerJob(name: string): Promise<JobInfo | null> {
   await runJob(job);
   return { name: job.name, intervalMs: job.intervalMs, lastRun: job.lastRun, lastError: job.lastError, running: job.running, enabled: job.enabled };
 }
+
+export function updateJobInterval(name: string, intervalMs: number): JobInfo | null {
+  const job = jobs.find((j) => j.name === name);
+  if (!job) return null;
+
+  // Stop existing timer
+  if (job.timer) {
+    clearInterval(job.timer);
+    job.timer = null;
+  }
+
+  job.intervalMs = intervalMs;
+  job.enabled = intervalMs > 0;
+
+  // Restart with new interval
+  if (job.enabled) {
+    job.timer = setInterval(() => runJob(job), job.intervalMs);
+    console.log(`[scheduler] Job "${job.name}" rescheduled every ${job.intervalMs / 1000}s`);
+  } else {
+    console.log(`[scheduler] Job "${job.name}" disabled`);
+  }
+
+  return { name: job.name, intervalMs: job.intervalMs, lastRun: job.lastRun, lastError: job.lastError, running: job.running, enabled: job.enabled };
+}
