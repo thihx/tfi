@@ -240,6 +240,8 @@ function PipelineStageIndicator({ stage }: { stage: PipelineContext['stage'] }) 
     { key: 'loading-watchlist', label: 'Watchlist', icon: '📋' },
     { key: 'fetching-live-data', label: 'Live Data', icon: '📡' },
     { key: 'merging-data', label: 'Merge', icon: '🔀' },
+    { key: 'checking-staleness', label: 'Staleness', icon: '🔍' },
+    { key: 'fetching-context', label: 'Context', icon: '📚' },
     { key: 'ai-analysis', label: 'AI Analysis', icon: '🤖' },
     { key: 'notifying', label: 'Notify', icon: '📨' },
     { key: 'complete', label: 'Done', icon: '✅' },
@@ -277,7 +279,8 @@ function MatchResultCard({ result }: { result: PipelineMatchResult }) {
           {result.notified && <span className="badge badge-active">Notified</span>}
           {result.saved && <span className="badge badge-won">Saved</span>}
           {result.stage === 'error' && <span className="badge badge-lost">Error</span>}
-          {!result.proceeded && result.stage === 'complete' && <span className="badge badge-ns">Skipped</span>}
+          {result.skippedStale && <span className="badge badge-ht" title="Skipped — no significant change since last analysis">⏭ Stale</span>}
+          {!result.proceeded && !result.skippedStale && result.stage === 'complete' && <span className="badge badge-ns">Skipped</span>}
         </div>
       </div>
 
@@ -430,6 +433,9 @@ export function LiveMonitorTab() {
                   <span>✅ {ctx.results.filter((r) => r.proceeded).length} analyzed</span>
                   <span>📨 {ctx.results.filter((r) => r.notified).length} notified</span>
                   <span>💾 {ctx.results.filter((r) => r.saved).length} saved</span>
+                  {ctx.results.some((r) => r.skippedStale) && (
+                    <span>⏭ {ctx.results.filter((r) => r.skippedStale).length} stale</span>
+                  )}
                 </div>
               </div>
               <div style={{ padding: '16px' }}>
