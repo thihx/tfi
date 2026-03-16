@@ -12,6 +12,8 @@ import { matchRoutes } from './routes/matches.routes.js';
 import { watchlistRoutes } from './routes/watchlist.routes.js';
 import { recommendationRoutes } from './routes/recommendations.routes.js';
 import { pipelineRoutes } from './routes/pipeline-runs.routes.js';
+import { jobRoutes } from './routes/jobs.routes.js';
+import { startScheduler, stopScheduler } from './jobs/scheduler.js';
 
 const app = Fastify({ logger: true });
 
@@ -23,6 +25,7 @@ await app.register(matchRoutes);
 await app.register(watchlistRoutes);
 await app.register(recommendationRoutes);
 await app.register(pipelineRoutes);
+await app.register(jobRoutes);
 
 // Health check
 app.get('/api/health', async () => ({ status: 'ok', timestamp: new Date().toISOString() }));
@@ -30,6 +33,7 @@ app.get('/api/health', async () => ({ status: 'ok', timestamp: new Date().toISOS
 // Graceful shutdown
 const shutdown = async () => {
   app.log.info('Shutting down…');
+  stopScheduler();
   await app.close();
   await closePool();
   process.exit(0);
@@ -41,6 +45,7 @@ process.on('SIGTERM', shutdown);
 try {
   await app.listen({ port: config.port, host: '0.0.0.0' });
   app.log.info(`TFI server listening on port ${config.port}`);
+  startScheduler();
 } catch (err) {
   app.log.error(err);
   process.exit(1);
