@@ -37,8 +37,8 @@ async function loadSeedData(): Promise<SeedData> {
   // Use dynamic import for xlsx (optional dependency)
   let XLSX: any;
   try {
-    // eslint-disable-next-line @typescript-eslint/no-require-imports
-    XLSX = await import(/* @vite-ignore */ 'xlsx' as string);
+    const mod = await import('xlsx');
+    XLSX = mod.default ?? mod;
   } catch {
     throw new Error(
       'xlsx package not installed. Run: npm install xlsx\n' +
