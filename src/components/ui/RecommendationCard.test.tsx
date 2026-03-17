@@ -94,9 +94,9 @@ describe('RecommendationCard', () => {
     expect(screen.getByText('Both teams have scored in first 30 mins, expect more goals.')).toBeInTheDocument();
   });
 
-  it('shows AI model name in reasoning header', () => {
+  it('shows AI Reasoning header', () => {
     render(<RecommendationCard rec={BASE} />);
-    expect(screen.getByText('· claude-sonnet-4-6')).toBeInTheDocument();
+    expect(screen.getByText('AI Reasoning')).toBeInTheDocument();
   });
 
   it('calls onViewMatch when match display is clicked', () => {

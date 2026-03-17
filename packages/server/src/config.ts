@@ -40,4 +40,9 @@ export const config = {
 
   // Live match statuses
   liveStatuses: (process.env['LIVE_STATUSES'] || '1H,2H').split(','),
+
+  // Auto pipeline
+  pipelineEnabled: process.env['PIPELINE_ENABLED'] !== 'false',          // auto-trigger AI for live matches
+  pipelineBatchSize: Number(process.env['PIPELINE_BATCH_SIZE'] || 3),    // matches per batch
+  pipelineTelegramChatId: process.env['PIPELINE_TELEGRAM_CHAT_ID'] || process.env['TELEGRAM_CHAT_ID'] || '',
 } as const;

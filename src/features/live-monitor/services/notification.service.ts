@@ -210,7 +210,7 @@ function buildEmailHtml(ctx: NotificationContext): string {
 
   html += `
     <div style="margin-top:12px;padding:8px;font-size:11px;color:#999;text-align:center;">
-      TFI Live Monitor | ${esc(new Date().toISOString())}
+      TFI Live Monitor | ${esc(new Date().toLocaleString())}
     </div>
   </div>
 </div>`;
@@ -297,7 +297,7 @@ function buildTelegramMessages(ctx: NotificationContext): string[] {
     text += `\n⚠️ <b>Warnings:</b> ${safeHtml(allWarnings.join(', '))}\n`;
   }
 
-  text += `\n<i>TFI Live Monitor | ${safeHtml(new Date().toISOString())}</i>`;
+  text += `\n<i>TFI Live Monitor | ${safeHtml(new Date().toLocaleString())}</i>`;
 
   // Chunk at 3500 chars for Telegram message limit
   const MAX_CHUNK = 3500;

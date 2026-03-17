@@ -11,47 +11,8 @@ import {
   fetchFixtureEvents, fetchFixtureStatistics, fetchFixtureLineups, fetchStandings,
 } from '../lib/football-api.js';
 import { fetchTheOddsLive } from '../lib/the-odds-api.js';
-
-// ==================== AI (Gemini) ====================
-
-async function callGemini(prompt: string, model: string): Promise<string> {
-  if (!config.geminiApiKey) throw new Error('GEMINI_API_KEY not configured');
-
-  const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${config.geminiApiKey}`;
-  const res = await fetch(url, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] }),
-  });
-
-  if (!res.ok) {
-    const text = await res.text();
-    throw new Error(`Gemini API ${res.status}: ${text.substring(0, 300)}`);
-  }
-
-  const data = await res.json() as {
-    candidates?: Array<{ content?: { parts?: Array<{ text?: string }> } }>;
-  };
-  return data.candidates?.[0]?.content?.parts?.[0]?.text ?? '';
-}
-
-// ==================== Telegram ====================
-
-async function sendTelegramMessage(chatId: string, text: string): Promise<void> {
-  if (!config.telegramBotToken) throw new Error('TELEGRAM_BOT_TOKEN not configured');
-
-  const url = `https://api.telegram.org/bot${config.telegramBotToken}/sendMessage`;
-  const res = await fetch(url, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ chat_id: chatId, text, parse_mode: 'HTML' }),
-  });
-
-  if (!res.ok) {
-    const body = await res.text();
-    throw new Error(`Telegram API ${res.status}: ${body.substring(0, 300)}`);
-  }
-}
+import { callGemini } from '../lib/gemini.js';
+import { sendTelegramMessage } from '../lib/telegram.js';
 
 // ==================== Routes ====================
 

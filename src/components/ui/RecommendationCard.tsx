@@ -204,7 +204,6 @@ function RecommendationCardBase({ rec, onViewMatch }: Props) {
           >
             <span style={{ fontSize: '12px', fontWeight: 600, color: 'var(--gray-500)' }}>
               AI Reasoning
-              {rec.ai_model && <span style={{ fontWeight: 400, color: 'var(--gray-400)' }}> · {rec.ai_model}</span>}
             </span>
             <span style={{ fontSize: '10px', color: 'var(--gray-400)' }}>{reasoningExpanded ? '▲' : '▼'}</span>
           </button>
