@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, lazy, Suspense } from 'react';
 import { AppProvider, useAppState } from '@/hooks/useAppState';
 import { ToastProvider } from '@/hooks/useToast';
 import { useAuth } from '@/hooks/useAuth';
@@ -7,13 +7,24 @@ import { GlobalLoader } from '@/components/ui/GlobalLoader';
 import { Header } from '@/components/layout/Header';
 import { Navigation } from '@/components/layout/Navigation';
 import { LoginScreen } from '@/app/LoginScreen';
-import { DashboardTab } from '@/app/DashboardTab';
-import { MatchesTab } from '@/app/MatchesTab';
-import { WatchlistTab } from '@/app/WatchlistTab';
-import { RecommendationsTab } from '@/app/RecommendationsTab';
-import { LiveMonitorTab } from '@/app/LiveMonitorTab';
-import { SettingsTab } from '@/app/SettingsTab';
 import type { TabName } from '@/types';
+
+// bundle-dynamic-imports: lazy-load each tab so users only download code for tabs they visit
+const DashboardTab = lazy(() => import('@/app/DashboardTab').then((m) => ({ default: m.DashboardTab })));
+const MatchesTab = lazy(() => import('@/app/MatchesTab').then((m) => ({ default: m.MatchesTab })));
+const WatchlistTab = lazy(() => import('@/app/WatchlistTab').then((m) => ({ default: m.WatchlistTab })));
+const RecommendationsTab = lazy(() => import('@/app/RecommendationsTab').then((m) => ({ default: m.RecommendationsTab })));
+const LiveMonitorTab = lazy(() => import('@/app/LiveMonitorTab').then((m) => ({ default: m.LiveMonitorTab })));
+const SettingsTab = lazy(() => import('@/app/SettingsTab').then((m) => ({ default: m.SettingsTab })));
+
+function TabFallback() {
+  return (
+    <div style={{ padding: '40px', textAlign: 'center', color: 'var(--gray-400)' }}>
+      <div className="loading-spinner" style={{ margin: '0 auto 12px' }} />
+      <p>Loading...</p>
+    </div>
+  );
+}
 
 function AppContent() {
   const { authed, error, login, logout } = useAuth();
@@ -46,7 +57,9 @@ function AppContent() {
         <Header onLogout={logout} />
         <Navigation activeTab={activeTab} onTabChange={setActiveTab} />
         <div className="main-content">
-          {renderTab()}
+          <Suspense fallback={<TabFallback />}>
+            {renderTab()}
+          </Suspense>
         </div>
       </div>
     </>

@@ -1,4 +1,4 @@
-import { createContext, useContext, useState, useCallback, useRef, type ReactNode } from 'react';
+import { createContext, useContext, useState, useCallback, useRef, useEffect, type ReactNode } from 'react';
 
 interface Toast {
   id: number;
@@ -27,6 +27,15 @@ export function ToastProvider({ children }: { children: ReactNode }) {
       timersRef.current.delete(id);
     }, 3000);
     timersRef.current.set(id, timer);
+  }, []);
+
+  // Clear all pending timers on unmount to prevent memory leaks
+  useEffect(() => {
+    const timers = timersRef.current;
+    return () => {
+      timers.forEach((timer) => clearTimeout(timer));
+      timers.clear();
+    };
   }, []);
 
   return (

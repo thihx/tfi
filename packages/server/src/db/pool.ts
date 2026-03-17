@@ -16,6 +16,13 @@ const pool = new pg.Pool({
   ssl: config.databaseUrl.includes('sslmode=require') ? { rejectUnauthorized: false } : false,
 });
 
+// Ensure every connection uses Asia/Seoul timezone so that
+// NOW(), timestamp::date casts, and (date + kickoff) < NOW() comparisons
+// all operate in the same timezone as our Football API data.
+pool.on('connect', (client) => {
+  client.query("SET timezone = 'Asia/Seoul'");
+});
+
 pool.on('error', (err) => {
   console.error('Unexpected PG pool error:', err);
 });

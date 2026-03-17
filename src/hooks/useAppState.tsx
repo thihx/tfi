@@ -2,6 +2,7 @@ import { createContext, useContext, useReducer, useCallback, useRef, type ReactN
 import type { AppConfig, Match, WatchlistItem, Recommendation, ApprovedLeague } from '@/types';
 import { loadConfig, saveConfig as persistConfig } from '@/config/config';
 import * as api from '@/lib/services/api';
+import { useToast } from '@/hooks/useToast';
 
 // ==================== State ====================
 interface AppState {
@@ -92,6 +93,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [state, dispatch] = useReducer(reducer, initialState);
   const stateRef = useRef(state);
   stateRef.current = state;
+  const { showToast } = useToast();
 
   const loadAllData = useCallback(async () => {
     const config = stateRef.current.config;
@@ -102,20 +104,41 @@ export function AppProvider({ children }: { children: ReactNode }) {
       dispatch({ type: 'SET_APPROVED_LEAGUES', payload: leagues });
       dispatch({ type: 'SET_LOADING', payload: { loading: true, progress: 25, message: 'Leagues loaded' } });
 
+      const errors: string[] = [];
+
       const [matches, watchlist, recommendations] = await Promise.all([
-        api.fetchMatches(config).catch(() => [] as Match[]),
-        api.fetchWatchlist(config).catch(() => [] as WatchlistItem[]),
-        api.fetchRecommendations(config).catch(() => [] as Recommendation[]),
+        api.fetchMatches(config).catch((err: unknown) => {
+          errors.push('matches');
+          console.error('[AppState] fetchMatches failed:', err);
+          return [] as Match[];
+        }),
+        api.fetchWatchlist(config).catch((err: unknown) => {
+          errors.push('watchlist');
+          console.error('[AppState] fetchWatchlist failed:', err);
+          return [] as WatchlistItem[];
+        }),
+        api.fetchRecommendations(config).catch((err: unknown) => {
+          errors.push('recommendations');
+          console.error('[AppState] fetchRecommendations failed:', err);
+          return [] as Recommendation[];
+        }),
       ]);
 
       dispatch({ type: 'SET_MATCHES', payload: matches });
       dispatch({ type: 'SET_WATCHLIST', payload: watchlist });
       dispatch({ type: 'SET_RECOMMENDATIONS', payload: recommendations });
       dispatch({ type: 'SET_LOADING', payload: { loading: true, progress: 100, message: 'Ready' } });
+
+      if (errors.length > 0) {
+        showToast(`Failed to load: ${errors.join(', ')}. Check network or API.`, 'error');
+      }
+    } catch (err: unknown) {
+      console.error('[AppState] loadAllData failed:', err);
+      showToast('Failed to load app data. Check your API connection.', 'error');
     } finally {
       dispatch({ type: 'SET_LOADING', payload: { loading: false, progress: 100, message: '' } });
     }
-  }, []);
+  }, [showToast]);
 
   const saveConfigFn = useCallback((config: AppConfig) => {
     persistConfig(config);

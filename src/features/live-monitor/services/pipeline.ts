@@ -48,9 +48,11 @@ import { checkStaleness } from './staleness.service';
 
 export type PipelineEventCallback = (ctx: PipelineContext) => void;
 
-/** Fire-and-forget: swallow errors so tracking never breaks the pipeline */
+/** Fire-and-forget: log errors so tracking failures are visible without breaking the pipeline */
 function trackSilent(promise: Promise<unknown> | undefined): void {
-  promise?.catch(() => {});
+  promise?.catch((err: unknown) => {
+    console.warn('[Pipeline] Tracking error (non-fatal):', err instanceof Error ? err.message : String(err));
+  });
 }
 
 /**

@@ -1,5 +1,24 @@
 import type { AppConfig, Match, WatchlistItem, Recommendation, ApprovedLeague, ApiResponse } from '@/types';
 
+// ==================== TYPED API ERROR ====================
+
+export class ApiError extends Error {
+  constructor(
+    public readonly status: number,
+    message: string,
+  ) {
+    super(message);
+    this.name = 'ApiError';
+  }
+  get isUnauthorized() { return this.status === 401; }
+  get isNotFound() { return this.status === 404; }
+  get isServerError() { return this.status >= 500; }
+}
+
+function formatApiError(status: number, text: string): ApiError {
+  return new ApiError(status, `HTTP ${status}: ${text.substring(0, 200)}`);
+}
+
 // ==================== PG BACKEND (Fastify) ====================
 
 async function pgFetch<T>(config: AppConfig, path: string): Promise<T> {
@@ -7,10 +26,7 @@ async function pgFetch<T>(config: AppConfig, path: string): Promise<T> {
     method: 'GET',
     headers: { Accept: 'application/json' },
   });
-  if (!response.ok) {
-    const errorText = await response.text();
-    throw new Error(`HTTP ${response.status}: ${errorText.substring(0, 200)}`);
-  }
+  if (!response.ok) throw formatApiError(response.status, await response.text());
   return response.json();
 }
 
@@ -20,23 +36,17 @@ async function pgPost<T>(config: AppConfig, path: string, body: unknown): Promis
     headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
     body: JSON.stringify(body),
   });
-  if (!response.ok) {
-    const errorText = await response.text();
-    throw new Error(`HTTP ${response.status}: ${errorText.substring(0, 200)}`);
-  }
+  if (!response.ok) throw formatApiError(response.status, await response.text());
   return response.json();
 }
 
-async function pgPut<T>(config: AppConfig, path: string, body: unknown): Promise<T> {
+async function pgPatch<T>(config: AppConfig, path: string, body: unknown): Promise<T> {
   const response = await fetch(`${config.apiUrl}${path}`, {
-    method: 'PUT',
+    method: 'PATCH',
     headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
     body: JSON.stringify(body),
   });
-  if (!response.ok) {
-    const errorText = await response.text();
-    throw new Error(`HTTP ${response.status}: ${errorText.substring(0, 200)}`);
-  }
+  if (!response.ok) throw formatApiError(response.status, await response.text());
   return response.json();
 }
 
@@ -46,10 +56,7 @@ async function pgDelete<T>(config: AppConfig, path: string, body?: unknown): Pro
     headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
     ...(body ? { body: JSON.stringify(body) } : {}),
   });
-  if (!response.ok) {
-    const errorText = await response.text();
-    throw new Error(`HTTP ${response.status}: ${errorText.substring(0, 200)}`);
-  }
+  if (!response.ok) throw formatApiError(response.status, await response.text());
   return response.json();
 }
 
@@ -64,8 +71,8 @@ export async function fetchWatchlist(config: AppConfig): Promise<WatchlistItem[]
 }
 
 export async function fetchRecommendations(config: AppConfig): Promise<Recommendation[]> {
-  // Initial load: fetch recent 200 for state (lightweight)
-  const data = await pgFetch<{ rows: Recommendation[]; total: number }>(config, '/api/recommendations?limit=200');
+  // Initial load: fetch first page only; RecommendationsTab handles full pagination
+  const data = await pgFetch<{ rows: Recommendation[]; total: number }>(config, '/api/recommendations?limit=30');
   return data.rows;
 }
 
@@ -145,11 +152,10 @@ export async function createWatchlistItems(
   config: AppConfig,
   items: Partial<WatchlistItem>[],
 ): Promise<ApiResponse<WatchlistItem>> {
-  const results: WatchlistItem[] = [];
-  for (const item of items) {
-    const created = await pgPost<WatchlistItem>(config, '/api/watchlist', item);
-    results.push(created);
-  }
+  // async-parallel: run all creates concurrently instead of sequentially
+  const results = await Promise.all(
+    items.map((item) => pgPost<WatchlistItem>(config, '/api/watchlist', item)),
+  );
   return { resource: 'watchlist', action: 'create', items: results, insertedCount: results.length };
 }
 
@@ -157,12 +163,11 @@ export async function updateWatchlistItems(
   config: AppConfig,
   items: Partial<WatchlistItem>[],
 ): Promise<ApiResponse<WatchlistItem>> {
-  const results: WatchlistItem[] = [];
-  for (const item of items) {
-    if (!item.match_id) continue;
-    const updated = await pgPut<WatchlistItem>(config, `/api/watchlist/${item.match_id}`, item);
-    results.push(updated);
-  }
+  const validItems = items.filter((item): item is Partial<WatchlistItem> & { match_id: string } => !!item.match_id);
+  // async-parallel + PATCH for partial updates
+  const results = await Promise.all(
+    validItems.map((item) => pgPatch<WatchlistItem>(config, `/api/watchlist/${item.match_id}`, item)),
+  );
   return { resource: 'watchlist', action: 'update', items: results, updatedCount: results.length };
 }
 
@@ -170,9 +175,8 @@ export async function deleteWatchlistItems(
   config: AppConfig,
   matchIds: string[],
 ): Promise<ApiResponse<WatchlistItem>> {
-  for (const id of matchIds) {
-    await pgDelete<{ deleted: boolean }>(config, `/api/watchlist/${id}`);
-  }
+  // async-parallel: run all deletes concurrently
+  await Promise.all(matchIds.map((id) => pgDelete<{ deleted: boolean }>(config, `/api/watchlist/${id}`)));
   return { resource: 'watchlist', action: 'delete', items: [], deletedCount: matchIds.length };
 }
 

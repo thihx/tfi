@@ -18,7 +18,11 @@ export class ErrorBoundary extends Component<Props, State> {
   }
 
   componentDidCatch(error: Error, info: ErrorInfo) {
-    console.error('[ErrorBoundary] Caught:', error, info.componentStack);
+    if (import.meta.env.DEV) {
+      console.error('[ErrorBoundary] Caught:', error, info.componentStack);
+    } else {
+      console.error('[ErrorBoundary]', error.message);
+    }
   }
 
   render() {
@@ -55,7 +59,11 @@ export class TabErrorBoundary extends Component<Props, State> {
   }
 
   componentDidCatch(error: Error, info: ErrorInfo) {
-    console.error('[TabErrorBoundary] Caught:', error, info.componentStack);
+    if (import.meta.env.DEV) {
+      console.error('[TabErrorBoundary] Caught:', error, info.componentStack);
+    } else {
+      console.error('[TabErrorBoundary]', error.message);
+    }
   }
 
   render() {

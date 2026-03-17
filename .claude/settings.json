@@ -1,0 +1,8 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(wc -l /c/tfi/src/**/*.ts /c/tfi/src/**/*.tsx)",
+      "Bash(npm run:*)"
+    ]
+  }
+}

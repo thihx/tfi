@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, memo } from 'react';
 import { useAppState } from '@/hooks/useAppState';
 import {
   AreaChart, Area, BarChart, Bar, XAxis, YAxis, CartesianGrid,
@@ -11,7 +11,8 @@ import { formatLocalDateTime } from '@/lib/utils/helpers';
 
 // ==================== Sub-components ====================
 
-function StatCard({ label, value, sub, color }: { label: string; value: string | number; sub?: string; color?: string }) {
+// rerender-memo: memoize sub-components so parent re-renders don't trigger chart redraws
+const StatCard = memo(function StatCard({ label, value, sub, color }: { label: string; value: string | number; sub?: string; color?: string }) {
   return (
     <div className="stat-card">
       <div className="stat-label">{label}</div>
@@ -19,9 +20,9 @@ function StatCard({ label, value, sub, color }: { label: string; value: string |
       {sub && <div className="stat-sub">{sub}</div>}
     </div>
   );
-}
+});
 
-function PnlChart({ data }: { data: { date: string; pnl: number; cumulative: number }[] }) {
+const PnlChart = memo(function PnlChart({ data }: { data: { date: string; pnl: number; cumulative: number }[] }) {
   if (!data.length) return null;
   return (
     <div className="card" style={{ marginBottom: '16px' }}>
@@ -45,7 +46,7 @@ function PnlChart({ data }: { data: { date: string; pnl: number; cumulative: num
       </div>
     </div>
   );
-}
+});
 
 const MARKET_COLORS: Record<string, string> = {
   'Over/Under': '#3b82f6',
@@ -54,7 +55,7 @@ const MARKET_COLORS: Record<string, string> = {
   'Asian Handicap': '#8b5cf6',
 };
 
-function MarketBreakdownChart({ data }: { data: Array<{ market: string } & BetStats> }) {
+const MarketBreakdownChart = memo(function MarketBreakdownChart({ data }: { data: Array<{ market: string } & BetStats> }) {
   if (!data.length) return null;
   const chartData = data.map((d) => ({
     name: d.market || 'Other',
@@ -92,9 +93,9 @@ function MarketBreakdownChart({ data }: { data: Array<{ market: string } & BetSt
       </div>
     </div>
   );
-}
+});
 
-function AiAccuracyPanel({ stats, models }: { stats: AiAccuracyStats | null; models: AiModelStats[] }) {
+const AiAccuracyPanel = memo(function AiAccuracyPanel({ stats, models }: { stats: AiAccuracyStats | null; models: AiModelStats[] }) {
   if (!stats) return null;
   const pieData = [
     { name: 'Correct', value: stats.correct, color: 'var(--success)' },
@@ -152,7 +153,7 @@ function AiAccuracyPanel({ stats, models }: { stats: AiAccuracyStats | null; mod
       </div>
     </div>
   );
-}
+});
 
 // ==================== Main Tab ====================
 
@@ -268,7 +269,7 @@ export function DashboardTab() {
                   const outcome = r.actual_outcome || '';
                   const outcomeShort = outcome.length > 35 ? outcome.slice(0, 33) + '…' : outcome;
                   return (
-                    <tr key={i}>
+                    <tr key={r.id ?? i}>
                       <td data-label="Date"><span className="cell-value" style={{ fontSize: '12px', color: 'var(--gray-500)' }}>{dtStr}</span></td>
                       <td data-label="League"><span className="cell-value" style={{ fontSize: '12px' }} title={String(r.league || '')}>{r.league ? (r.league.length > 20 ? r.league.slice(0, 18) + '…' : r.league) : '-'}</span></td>
                       <td data-label="Match"><span className="cell-value">{display}</span></td>

@@ -1,10 +1,25 @@
 import type { AppConfig } from '@/types';
 import { STATUS_BADGES, TOP_LEAGUES } from './constants';
 
+// ==================== ENV VALIDATION ====================
+(function validateEnv() {
+  const apiUrl = import.meta.env.VITE_API_URL as string | undefined;
+  if (!apiUrl && import.meta.env.MODE === 'production') {
+    // Non-fatal: app will fall back to localhost, but log prominently
+    console.error(
+      '[Config] VITE_API_URL is not set. The app will use http://localhost:4000 which will not work in production. ' +
+        'Set VITE_API_URL in your environment before building.',
+    );
+  }
+  if (apiUrl && !apiUrl.startsWith('http://') && !apiUrl.startsWith('https://')) {
+    console.error(`[Config] VITE_API_URL "${apiUrl}" does not start with http:// or https://.`);
+  }
+})();
+
 // ==================== APPLICATION CONFIG ====================
 const defaultConfig: AppConfig = {
   defaultMode: 'B',
-  apiUrl: import.meta.env.VITE_API_URL ?? 'http://localhost:4000',
+  apiUrl: (import.meta.env.VITE_API_URL as string | undefined) ?? 'http://localhost:4000',
 };
 
 export function loadConfig(): AppConfig {

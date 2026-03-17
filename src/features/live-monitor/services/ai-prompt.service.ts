@@ -5,11 +5,33 @@
 
 import type { MergedMatchData, LiveMonitorConfig, PreMatchCompact, AiPromptContext } from '../types';
 
+// js-cache-function-results: cache prompt by volatile inputs fingerprint.
+// The ~750-line prompt is expensive to allocate repeatedly; the AI API call dominates
+// latency, but caching avoids unnecessary GC pressure during rapid pipeline retries.
+const promptCache = new Map<string, string>();
+
+function getPromptCacheKey(data: MergedMatchData, context?: AiPromptContext): string {
+  const match = data.match || {};
+  return [
+    data.match_id ?? '',
+    (match as { minute?: unknown }).minute ?? '',
+    (match as { score?: unknown }).score ?? '',
+    data.force_analyze ? '1' : '0',
+    context?.previousRecommendations?.length ?? 0,
+    context?.matchTimeline?.length ?? 0,
+  ].join('|');
+}
+
 /**
  * Build the AI analysis prompt for a single match.
  * Accepts optional context with previous recommendations and match timeline.
+ * Results are cached by (match_id, minute, score, force_analyze, context length)
+ * to avoid redundant allocations during retries within the same pipeline tick.
  */
 export function buildAiPrompt(data: MergedMatchData, context?: AiPromptContext): string {
+  const cacheKey = getPromptCacheKey(data, context);
+  const cached = promptCache.get(cacheKey);
+  if (cached) return cached;
   const config = (data.config || {}) as LiveMonitorConfig;
   const match = data.match || { home: '', away: '', league: '', minute: 0, score: '0-0', status: '' };
   const statsCompact = data.stats_compact || {};
@@ -751,6 +773,10 @@ For FORCE MODE with non-live status (HT/NS/FT): should_push = false but provide 
 6. Did I fill market_chosen_reason with specific stat values?
 7. Did I evaluate custom_conditions independently from should_push?
 `;
+
+  // Bound cache size to prevent unbounded memory growth in long-running sessions
+  if (promptCache.size >= 50) promptCache.clear();
+  promptCache.set(cacheKey, prompt);
 
   return prompt;
 }

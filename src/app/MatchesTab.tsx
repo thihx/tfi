@@ -9,7 +9,6 @@ import { normalizeToISO } from '@/lib/utils/helpers';
 import type { Match, SortState, ApprovedLeague } from '@/types';
 import type { PipelineMatchResult } from '@/features/live-monitor/types';
 import { runPipelineForMatch } from '@/features/live-monitor/services/pipeline';
-import * as api from '@/lib/services/api';
 
 const PAGE_SIZE = 30;
 
@@ -120,15 +119,11 @@ export function MatchesTab() {
   // Reset page on filter change
   useEffect(() => { setPage(1); }, [debouncedSearch, statusFilter, leagueFilter, actionFilter, dateFrom, dateTo]);
 
-  // Auto-refresh every 60s
+  // Auto-refresh every 60s — call loadAllData so state is actually updated
   useEffect(() => {
-    const timer = setInterval(() => {
-      api.fetchMatches(config).then(() => {
-        // Re-fetch handled via loadAllData
-      }).catch(() => {});
-    }, 60000);
+    const timer = setInterval(() => { loadAllData(); }, 60000);
     return () => clearInterval(timer);
-  }, [config]);
+  }, [loadAllData]);
 
   const handleSort = (col: string) => {
     setSort((prev) => ({ column: col, order: prev.column === col && prev.order === 'asc' ? 'desc' : 'asc' }));
