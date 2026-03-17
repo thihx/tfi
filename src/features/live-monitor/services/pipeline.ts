@@ -21,6 +21,7 @@ import type {
   MergedMatchData,
   AiPromptContext,
 } from '../types';
+import { auditLog } from '@/lib/audit';
 
 import { loadMonitorConfig } from '../config';
 import {
@@ -94,6 +95,15 @@ export async function runPipeline(
     ctx.stage = stage;
     options.onProgress?.(ctx);
   };
+
+  const pipelineStart = Date.now();
+
+  auditLog(appConfig, {
+    category: 'PIPELINE',
+    action: 'PIPELINE_START',
+    actor: options.triggeredBy,
+    metadata: { triggeredBy: options.triggeredBy, webhookMatchIds: options.webhookMatchIds ?? null },
+  });
 
   try {
     // ========== Stage 1: Load & Filter Watchlist ==========
@@ -316,18 +326,58 @@ export async function runPipeline(
         }
 
         matchResult.stage = 'complete';
+
+        auditLog(appConfig, {
+          category: 'PIPELINE',
+          action: 'MATCH_ANALYZED',
+          match_id: matchResult.matchId,
+          metadata: { match: matchResult.matchDisplay, proceeded: matchResult.proceeded, notified: matchResult.notified, saved: matchResult.saved },
+        });
       } catch (matchErr) {
         matchResult.stage = 'error';
         matchResult.error = matchErr instanceof Error ? matchErr.message : String(matchErr);
+
+        auditLog(appConfig, {
+          category: 'PIPELINE',
+          action: 'MATCH_ANALYZED',
+          outcome: 'FAILURE',
+          match_id: matchResult.matchId,
+          error: matchResult.error,
+          metadata: { match: matchResult.matchDisplay },
+        });
       }
 
       ctx.results.push(matchResult);
     }
 
+    const duration = Date.now() - pipelineStart;
+    auditLog(appConfig, {
+      category: 'PIPELINE',
+      action: 'PIPELINE_COMPLETE',
+      actor: options.triggeredBy,
+      duration_ms: duration,
+      metadata: {
+        totalMatches: ctx.results.length,
+        proceeded: ctx.results.filter(r => r.proceeded).length,
+        notified: ctx.results.filter(r => r.notified).length,
+        saved: ctx.results.filter(r => r.saved).length,
+        errors: ctx.results.filter(r => r.error).length,
+      },
+    });
+
     emit('complete');
   } catch (err) {
     ctx.stage = 'error';
     ctx.error = err instanceof Error ? err.message : String(err);
+
+    auditLog(appConfig, {
+      category: 'PIPELINE',
+      action: 'PIPELINE_COMPLETE',
+      outcome: 'FAILURE',
+      actor: options.triggeredBy,
+      duration_ms: Date.now() - pipelineStart,
+      error: ctx.error,
+    });
   }
 
   return ctx;

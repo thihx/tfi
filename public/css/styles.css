@@ -980,18 +980,25 @@ table tbody#watchlist-table td:not(.select-col) {
 .modal {
     background: white;
     border-radius: 12px;
-    padding: 24px;
     width: 100%;
     max-width: 500px;
     max-height: 90vh;
-    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
 }
 
 .modal-header {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    margin-bottom: 20px;
+    padding: 20px 24px 16px;
+    flex-shrink: 0;
+    background: white;
+    border-bottom: 1px solid var(--gray-200);
+    position: sticky;
+    top: 0;
+    z-index: 1;
 }
 
 .modal-title {
@@ -1018,6 +1025,18 @@ table tbody#watchlist-table td:not(.select-col) {
 
 .modal-close:hover {
     background: var(--gray-100);
+}
+
+.modal-body {
+    overflow-y: auto;
+    padding: 20px 24px;
+    flex: 1;
+}
+
+.modal-footer {
+    padding: 12px 24px 16px;
+    flex-shrink: 0;
+    border-top: 1px solid var(--gray-200);
 }
 
 /* ==================== FORMS ==================== */

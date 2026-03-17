@@ -6,6 +6,7 @@ import type { FastifyInstance } from 'fastify';
 import * as repo from '../repos/recommendations.repo.js';
 import * as aiPerfRepo from '../repos/ai-performance.repo.js';
 import { reEvaluateAllResults } from '../jobs/re-evaluate.job.js';
+import { audit } from '../lib/audit.js';
 
 export async function recommendationRoutes(app: FastifyInstance) {
   app.get<{ Querystring: {
@@ -85,6 +86,21 @@ export async function recommendationRoutes(app: FastifyInstance) {
       return reply.code(201).send(rec);
     },
   );
+
+  // Hook: audit every recommendation save
+  app.addHook('onResponse', (request, reply, done) => {
+    if (request.method === 'POST' && request.url === '/api/recommendations' && reply.statusCode === 201) {
+      const body = request.body as Record<string, unknown> | undefined;
+      audit({
+        category: 'PIPELINE',
+        action: 'RECOMMENDATION_SAVED',
+        actor: 'pipeline',
+        match_id: body?.match_id as string | undefined,
+        metadata: { selection: body?.selection, bet_market: body?.bet_market, confidence: body?.confidence },
+      });
+    }
+    done();
+  });
 
   app.post<{ Body: Partial<repo.RecommendationCreate>[] }>(
     '/api/recommendations/bulk',

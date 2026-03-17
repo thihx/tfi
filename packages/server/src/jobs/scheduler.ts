@@ -8,6 +8,7 @@
 
 import { config } from '../config.js';
 import { getRedisClient } from '../lib/redis.js';
+import { audit } from '../lib/audit.js';
 import { fetchMatchesJob } from './fetch-matches.job.js';
 import { updatePredictionsJob } from './update-predictions.job.js';
 import { expireWatchlistJob } from './expire-watchlist.job.js';
@@ -129,16 +130,19 @@ async function runJob(job: ManagedJob) {
   await clearJobProgress(job.name);
   await reportJobProgress(job.name, 'starting', 'Starting...', 0);
 
+  const jobStart = Date.now();
   try {
     const result = await job.fn();
     job.lastRun = new Date().toISOString();
     job.lastError = null;
     job.runCount++;
     await completeJobProgress(job.name, result, null);
+    audit({ category: 'JOB', action: `JOB_${job.name.toUpperCase().replace(/-/g, '_')}`, outcome: 'SUCCESS', actor: 'scheduler', duration_ms: Date.now() - jobStart, metadata: result && typeof result === 'object' ? result as Record<string, unknown> : null });
     console.log(`[scheduler] Job "${job.name}" completed (#${job.runCount})`, result);
   } catch (err) {
     job.lastError = err instanceof Error ? err.message : String(err);
     await completeJobProgress(job.name, null, job.lastError);
+    audit({ category: 'JOB', action: `JOB_${job.name.toUpperCase().replace(/-/g, '_')}`, outcome: 'FAILURE', actor: 'scheduler', duration_ms: Date.now() - jobStart, error: job.lastError });
     console.error(`[scheduler] Job "${job.name}" failed:`, err);
   } finally {
     job.running = false;
@@ -170,8 +174,7 @@ export async function startScheduler() {
     console.log(`[scheduler] Job "${job.name}" every ${job.intervalMs / 1000}s (runs so far: ${job.runCount})`);
   }
 
-  console.log(`[scheduler] ✅ ${jobs.filter((j) => j.enabled).length} jobs started (instance: ${instanceId.slice(0, 8)})`);
-}
+  console.log(`[scheduler] ✅ ${jobs.filter((j) => j.enabled).length} jobs started (instance: ${instanceId.slice(0, 8)})`);  audit({ category: 'SYSTEM', action: 'SCHEDULER_START', actor: 'system', metadata: { enabledJobs: jobs.filter((j) => j.enabled).map((j) => j.name), instanceId: instanceId.slice(0, 8) } });}
 
 export function stopScheduler() {
   for (const job of jobs) {
@@ -201,6 +204,7 @@ export function triggerJob(name: string): { triggered: boolean } | null {
   if (!job) return null;
   if (job.running) return { triggered: false };
   // Fire and forget — progress tracked via Redis
+  audit({ category: 'JOB', action: 'JOB_MANUAL_TRIGGER', actor: 'user', metadata: { jobName: name } });
   runJob(job);
   return { triggered: true };
 }

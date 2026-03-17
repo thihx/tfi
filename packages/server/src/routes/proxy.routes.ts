@@ -5,6 +5,7 @@
 
 import type { FastifyInstance } from 'fastify';
 import { config } from '../config.js';
+import { audit } from '../lib/audit.js';
 import {
   fetchFixturesByIds, fetchLiveOdds, fetchPreMatchOdds, fetchPrediction,
   fetchFixtureEvents, fetchFixtureStatistics, fetchFixtureLineups, fetchStandings,
@@ -195,16 +196,19 @@ export async function proxyRoutes(app: FastifyInstance) {
   app.post<{ Body: { prompt: string; provider: string; model: string } }>(
     '/api/proxy/ai/analyze',
     async (req, reply) => {
+      const aiStart = Date.now();
       try {
         const { prompt, provider, model } = req.body;
 
         if (provider === 'gemini') {
           const text = await callGemini(prompt, model);
+          audit({ category: 'AI', action: 'AI_CALL', actor: 'pipeline', duration_ms: Date.now() - aiStart, metadata: { provider, model, promptLength: prompt.length, responseLength: text.length } });
           return { text };
         }
 
         return reply.code(400).send({ error: `AI provider "${provider}" not yet supported on server` });
       } catch (err) {
+        audit({ category: 'AI', action: 'AI_CALL', outcome: 'FAILURE', actor: 'pipeline', duration_ms: Date.now() - aiStart, error: err instanceof Error ? err.message : String(err) });
         app.log.error(err, 'proxy/ai/analyze failed');
         return reply.code(502).send({ error: err instanceof Error ? err.message : 'AI API error' });
       }
@@ -230,8 +234,10 @@ export async function proxyRoutes(app: FastifyInstance) {
       }
       try {
         await sendTelegramMessage(req.body.chat_id, req.body.text);
+        audit({ category: 'NOTIFICATION', action: 'TELEGRAM_SEND', actor: 'pipeline', metadata: { chatId: req.body.chat_id } });
         return { sent: true };
       } catch (err) {
+        audit({ category: 'NOTIFICATION', action: 'TELEGRAM_SEND', outcome: 'FAILURE', actor: 'pipeline', error: err instanceof Error ? err.message : String(err) });
         app.log.error(err, 'proxy/notify/telegram failed');
         return reply.code(502).send({ error: err instanceof Error ? err.message : 'Telegram API error' });
       }

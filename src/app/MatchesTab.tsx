@@ -34,6 +34,7 @@ export function MatchesTab() {
   const [viewMode, setViewMode] = useState<'table' | 'cards'>('table');
   const [aiResults, setAiResults] = useState<Map<string, { matchId: string; matchDisplay: string; result: PipelineMatchResult }>>(new Map());
   const [scoutMatch, setScoutMatch] = useState<Match | null>(null);
+  const aiResultsRef = useRef<HTMLDivElement>(null);
 
   // Debounced search
   const [debouncedSearch, setDebouncedSearch] = useState('');
@@ -172,6 +173,18 @@ export function MatchesTab() {
     const mid = String(m.match_id);
     if (analyzingMatches.has(mid)) return; // Already analyzing this match
 
+    // If result already exists, scroll to it instead of re-calling AI
+    if (aiResults.has(mid)) {
+      const el = document.getElementById(`ai-result-${mid}`);
+      if (el) {
+        el.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+        el.style.outline = '2px solid var(--primary)';
+        setTimeout(() => { el.style.outline = ''; }, 1500);
+      }
+      showToast(`📋 ${m.home_team} vs ${m.away_team} — showing cached result`, 'info');
+      return;
+    }
+
     // If not in watchlist, add first
     if (!watchlistMap.has(mid)) {
       setPendingAdds((prev) => new Set(prev).add(mid));
@@ -206,7 +219,7 @@ export function MatchesTab() {
     } finally {
       setAnalyzingMatches((prev) => { const s = new Set(prev); s.delete(mid); return s; });
     }
-  }, [analyzingMatches, watchlistMap, addToWatchlist, config, showToast]);
+  }, [analyzingMatches, aiResults, watchlistMap, addToWatchlist, config, showToast]);
 
   const toggleSelect = (mid: string, isWatched: boolean) => {
     if (isWatched) return;
@@ -309,14 +322,14 @@ export function MatchesTab() {
 
       {/* AI Result Panels */}
       {aiResults.size > 0 && (
-        <div style={{ margin: '12px 0', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+        <div ref={aiResultsRef} style={{ margin: '12px 0', display: 'flex', flexDirection: 'column', gap: '8px' }}>
           {aiResults.size > 1 && (
             <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
               <button className="btn btn-secondary btn-sm" onClick={() => setAiResults(new Map())}>Close All ({aiResults.size})</button>
             </div>
           )}
           {Array.from(aiResults.values()).map((entry) => (
-            <div key={entry.matchId} className="ai-result-panel" style={{ padding: '16px', background: 'var(--gray-50)', border: '1px solid var(--gray-200)', borderRadius: '8px' }}>
+            <div key={entry.matchId} id={`ai-result-${entry.matchId}`} className="ai-result-panel" style={{ padding: '16px', background: 'var(--gray-50)', border: '1px solid var(--gray-200)', borderRadius: '8px', transition: 'outline 0.3s' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
                 <h4 style={{ margin: 0, fontSize: '14px' }}>AI Analysis — {entry.matchDisplay}</h4>
                 <button className="btn btn-secondary btn-sm" onClick={() => setAiResults((prev) => { const m = new Map(prev); m.delete(entry.matchId); return m; })}>Close</button>
@@ -372,9 +385,9 @@ export function MatchesTab() {
                         ? { label: 'Saving…', onClick: () => {}, disabled: true }
                         : { label: '+ Watch', onClick: (match) => quickAdd(match), variant: 'primary' },
                     {
-                      label: analyzingMatches.has(String(m.match_id)) ? 'Analyzing…' : 'Ask AI',
+                      label: analyzingMatches.has(String(m.match_id)) ? 'Analyzing…' : aiResults.has(String(m.match_id)) ? '✅ View Result' : 'Ask AI',
                       onClick: (match) => askAi(match),
-                      variant: 'secondary',
+                      variant: aiResults.has(String(m.match_id)) ? 'success' as const : 'secondary' as const,
                       loading: analyzingMatches.has(String(m.match_id)),
                       disabled: analyzingMatches.has(String(m.match_id)),
                     },
@@ -417,6 +430,7 @@ export function MatchesTab() {
                 isPending={pendingAdds.has(String(m.match_id))}
                 isSelected={selected.has(String(m.match_id))}
                 isAnalyzing={analyzingMatches.has(String(m.match_id))}
+                hasResult={aiResults.has(String(m.match_id))}
                 leagues={leagues}
                 onQuickAdd={() => quickAdd(m)}
                 onToggleSelect={() => toggleSelect(String(m.match_id), watchlistMap.has(String(m.match_id)))}
@@ -452,6 +466,7 @@ interface MatchRowProps {
   isPending: boolean;
   isSelected: boolean;
   isAnalyzing: boolean;
+  hasResult: boolean;
   leagues: League[];
   onQuickAdd: () => void;
   onToggleSelect: () => void;
@@ -459,7 +474,7 @@ interface MatchRowProps {
   onDoubleClick: () => void;
 }
 
-function MatchRow({ match, isWatched, isPending, isSelected, isAnalyzing, leagues, onQuickAdd, onToggleSelect, onAskAi, onDoubleClick }: MatchRowProps) {
+function MatchRow({ match, isWatched, isPending, isSelected, isAnalyzing, hasResult, leagues, onQuickAdd, onToggleSelect, onAskAi, onDoubleClick }: MatchRowProps) {
   const localDT = convertSeoulToLocalDateTime(match.date, match.kickoff || '00:00');
   const timeDisplay = formatDateTimeDisplay(localDT);
   const leagueDisplay = getLeagueDisplayName(match.league_id, match.league_name || '', leagues);
@@ -522,9 +537,9 @@ function MatchRow({ match, isWatched, isPending, isSelected, isAnalyzing, league
               <span className="btn-text">+ Watch</span>
             </button>
           )}
-          <button className="btn btn-secondary btn-sm" onClick={onAskAi} disabled={isAnalyzing} title="Ask AI for analysis">
+          <button className={`btn ${hasResult ? 'btn-success' : 'btn-secondary'} btn-sm`} onClick={onAskAi} disabled={isAnalyzing} title={hasResult ? 'View cached result' : 'Ask AI for analysis'}>
             {isAnalyzing && <span className="inline-spinner" style={{ width: '14px', height: '14px' }} />}
-            <span className="btn-text" style={{ marginLeft: isAnalyzing ? '2px' : undefined }}>{isAnalyzing ? 'Analyzing...' : 'Ask AI'}</span>
+            <span className="btn-text" style={{ marginLeft: isAnalyzing ? '2px' : undefined }}>{isAnalyzing ? 'Analyzing...' : hasResult ? '✅ View Result' : 'Ask AI'}</span>
           </button>
         </div>
       </td>

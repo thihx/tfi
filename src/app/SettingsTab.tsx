@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { useAppState } from '@/hooks/useAppState';
 import { useToast } from '@/hooks/useToast';
 import { formatLocalTimeFull } from '@/lib/utils/helpers';
+import { AuditLogsPanel } from '@/components/AuditLogsPanel';
 
 interface JobProgress {
   step: string;
@@ -265,6 +266,14 @@ export function SettingsTab() {
       </div>
       <div style={{ padding: '20px' }}>
         <JobSchedulerPanel />
+      </div>
+
+      {/* Audit Trail Section */}
+      <div className="card-header" style={{ marginTop: '16px' }}>
+        <div className="card-title">Audit Trail</div>
+      </div>
+      <div style={{ padding: '20px' }}>
+        <AuditLogsPanel />
       </div>
     </div>
   );

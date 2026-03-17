@@ -39,6 +39,15 @@ vi.mock('../repos/ai-performance.repo.js', () => ({
   createAiPerformanceRecord: vi.fn().mockResolvedValue({ id: 1 }),
 }));
 
+// Mock audit — no DB in tests
+vi.mock('../lib/audit.js', () => ({
+  audit: vi.fn(),
+  auditSuccess: vi.fn(),
+  auditFailure: vi.fn(),
+  auditSkipped: vi.fn(),
+  auditWrap: vi.fn(),
+}));
+
 vi.mock('../jobs/re-evaluate.job.js', () => ({
   reEvaluateAllResults: vi.fn().mockResolvedValue({ corrected: 2, skipped: 8 }),
 }));

@@ -16,6 +16,15 @@ vi.mock('../config.js', () => ({
   },
 }));
 
+// Mock audit — no DB in tests
+vi.mock('../lib/audit.js', () => ({
+  audit: vi.fn(),
+  auditSuccess: vi.fn(),
+  auditFailure: vi.fn(),
+  auditSkipped: vi.fn(),
+  auditWrap: vi.fn(),
+}));
+
 // Mock football-api
 vi.mock('../lib/football-api.js', () => ({
   fetchFixturesByIds: vi.fn().mockRejectedValue(new Error('Football API timeout')),

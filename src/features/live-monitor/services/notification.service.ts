@@ -176,7 +176,7 @@ function buildEmailHtml(ctx: NotificationContext): string {
 
     const sc = matchData.stats_compact || {};
     for (const [key, val] of Object.entries(sc)) {
-      if (val && typeof val === 'object' && 'home' in val) {
+      if (val && typeof val === 'object' && 'home' in val && val.home != null && val.away != null && val.home !== '' && val.away !== '') {
         const label = key.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
         html += `<tr><td style="padding:3px 8px;text-align:left;">${esc(label)}</td><td style="padding:3px 8px;">${esc(String(val.home))}</td><td style="padding:3px 8px;">${esc(String(val.away))}</td></tr>`;
       }
@@ -275,7 +275,7 @@ function buildTelegramMessages(ctx: NotificationContext): string[] {
     text += '\n<b>📊 Live Stats</b>\n';
     const sc = matchData.stats_compact;
     for (const [key, val] of Object.entries(sc)) {
-      if (val && typeof val === 'object' && 'home' in val) {
+      if (val && typeof val === 'object' && 'home' in val && val.home != null && val.away != null && val.home !== '' && val.away !== '') {
         const label = key.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
         text += `${label}: ${val.home} - ${val.away}\n`;
       }

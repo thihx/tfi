@@ -7,6 +7,7 @@
 import type { AppConfig } from '@/types';
 import type { LiveMonitorConfig, PipelineContext } from './types';
 import { runPipeline } from './services/pipeline';
+import { auditLog } from '@/lib/audit';
 
 export type SchedulerStatus = 'idle' | 'running' | 'paused';
 
@@ -88,6 +89,8 @@ export function startScheduler(
   state.status = 'running';
   state.nextRunAt = new Date().toISOString();
 
+  auditLog(appConfig, { category: 'SCHEDULER', action: 'SCHEDULER_START', metadata: { intervalMs: state.intervalMs } });
+
   notify();
   tick();
 }
@@ -102,6 +105,9 @@ export function stopScheduler() {
   }
   state.status = 'idle';
   state.nextRunAt = null;
+
+  if (appConfigRef) auditLog(appConfigRef, { category: 'SCHEDULER', action: 'SCHEDULER_STOP', metadata: { runCount: state.runCount, errorCount: state.errorCount } });
+
   notify();
 }
 
@@ -115,6 +121,9 @@ export function pauseScheduler() {
   }
   state.status = 'paused';
   state.nextRunAt = null;
+
+  if (appConfigRef) auditLog(appConfigRef, { category: 'SCHEDULER', action: 'SCHEDULER_PAUSE' });
+
   notify();
 }
 
@@ -125,6 +134,9 @@ export function resumeScheduler() {
   if (state.status !== 'paused' || !appConfigRef) return;
   state.status = 'running';
   state.nextRunAt = new Date().toISOString();
+
+  auditLog(appConfigRef, { category: 'SCHEDULER', action: 'SCHEDULER_RESUME' });
+
   notify();
   tick();
 }

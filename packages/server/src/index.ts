@@ -25,6 +25,7 @@ import { oddsRoutes } from './routes/odds.routes.js';
 import { aiPerformanceRoutes } from './routes/ai-performance.routes.js';
 import { reportRoutes } from './routes/reports.routes.js';
 import { settingsRoutes } from './routes/settings.routes.js';
+import { auditLogRoutes } from './routes/audit-logs.routes.js';
 import { startScheduler, stopScheduler } from './jobs/scheduler.js';
 
 const app = Fastify({ logger: true });
@@ -87,6 +88,7 @@ await app.register(oddsRoutes);
 await app.register(aiPerformanceRoutes);
 await app.register(reportRoutes);
 await app.register(settingsRoutes);
+await app.register(auditLogRoutes);
 
 // Health check
 app.get('/api/health', async () => ({ status: 'ok', timestamp: new Date().toISOString() }));
