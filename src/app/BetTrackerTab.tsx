@@ -41,11 +41,11 @@ const KpiCard = memo(function KpiCard({
       : 'var(--gray-900)';
   return (
     <div className="stat-card">
-      <div className="stat-label" style={{ fontSize: '12px', color: 'var(--gray-500)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '6px' }}>
+      <div className="stat-label">
         {label}
       </div>
       <div style={{ fontSize: '26px', fontWeight: 800, color: valueColor, letterSpacing: '-0.5px' }}>{value}</div>
-      {sub && <div style={{ fontSize: '12px', color: 'var(--gray-400)', marginTop: '3px' }}>{sub}</div>}
+      {sub && <div className="stat-sub">{sub}</div>}
     </div>
   );
 });
@@ -65,7 +65,7 @@ const MarketChart = memo(function MarketChart({
   return (
     <div className="card" style={{ marginBottom: '20px' }}>
       <div className="card-header">
-        <div className="card-title">📊 P&L by Market</div>
+        <div className="card-title">P&amp;L by Market</div>
       </div>
       <div style={{ padding: '16px 8px 8px 0' }}>
         <ResponsiveContainer width="100%" height={200}>
@@ -83,7 +83,7 @@ const MarketChart = memo(function MarketChart({
           </BarChart>
         </ResponsiveContainer>
       </div>
-      <div style={{ padding: '0 20px 16px', display: 'flex', gap: '16px', flexWrap: 'wrap' }}>
+      <div className="flex-row-gap-16 flex-wrap" style={{ padding: '0 20px 16px' }}>
         {chartData.map((d) => (
           <span key={d.name} style={{ fontSize: '12px', color: 'var(--gray-600)' }}>
             <strong style={{ color: MARKET_COLORS[d.name] ?? 'var(--gray-700)' }}>{d.name}</strong>{' '}
@@ -136,13 +136,13 @@ function AddBetModal({ open, onClose, onSave, saving }: AddBetModalProps) {
   return (
     <Modal
       open={open}
-      title="💰 Log New Bet"
+      title="Log Investment"
       onClose={onClose}
       footer={
         <>
           <button className="btn btn-secondary" onClick={onClose} disabled={saving}>Cancel</button>
           <button className="btn btn-primary" onClick={handleSubmit} disabled={!valid || saving}>
-            {saving ? 'Saving…' : 'Add Bet'}
+            {saving ? 'Saving…' : 'Add'}
           </button>
         </>
       }
@@ -252,11 +252,11 @@ export function BetTrackerTab() {
         bookmaker: form.bookmaker.trim() || 'Unknown',
         recommendation_id: null,
       });
-      showToast('✅ Bet logged', 'success');
+      showToast('Investment logged', 'success');
       setShowAdd(false);
       await loadAll();
     } catch {
-      showToast('❌ Failed to save bet', 'error');
+      showToast('Failed to save', 'error');
     } finally {
       setSaving(false);
     }
@@ -269,7 +269,7 @@ export function BetTrackerTab() {
     <div>
       {/* KPI Row */}
       <div className="stats-grid" style={{ marginBottom: '20px' }}>
-        <KpiCard label="Total Bets"   value={String(stats?.total ?? '—')}   sub={`${stats?.pending ?? 0} pending`} />
+        <KpiCard label="Total Investments" value={String(stats?.total ?? '—')} sub={`${stats?.pending ?? 0} pending`} />
         <KpiCard label="Win Rate"     value={stats ? `${((stats.won / Math.max(stats.won + stats.lost, 1)) * 100).toFixed(1)}%` : '—'}
                  sub={stats ? `${stats.won}W · ${stats.lost}L` : undefined} />
         <KpiCard label="Total P/L"    value={stats ? `${pnlPositive ? '+' : ''}$${stats.total_pnl.toFixed(2)}` : '—'}
@@ -286,10 +286,8 @@ export function BetTrackerTab() {
       {/* Bets List */}
       <div className="card">
         <div className="card-header">
-          <div className="card-title">💰 Bet History</div>
           <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
-            <button className="btn btn-primary btn-sm" onClick={() => setShowAdd(true)}>+ Log Bet</button>
-            <button className="btn btn-secondary btn-sm" onClick={loadAll}>🔄</button>
+            <button className="btn btn-primary btn-sm" onClick={() => setShowAdd(true)}>+ Log Investment</button>
           </div>
         </div>
 
@@ -297,10 +295,10 @@ export function BetTrackerTab() {
         <div className="filters" style={{ padding: '12px 16px' }}>
           <select className="filter-input" value={resultFilter} onChange={(e) => setResultFilter(e.target.value)}>
             <option value="all">All Results</option>
-            <option value="pending">⏳ Pending</option>
-            <option value="win">✅ Won</option>
-            <option value="loss">❌ Lost</option>
-            <option value="push">➖ Push</option>
+            <option value="pending">Pending</option>
+            <option value="win">Won</option>
+            <option value="loss">Lost</option>
+            <option value="push">Push</option>
           </select>
           <select className="filter-input" value={marketFilter} onChange={(e) => setMarketFilter(e.target.value)}>
             <option value="all">All Markets</option>
@@ -308,7 +306,7 @@ export function BetTrackerTab() {
           </select>
           {(resultFilter !== 'all' || marketFilter !== 'all') && (
             <button className="btn btn-secondary btn-sm" onClick={() => { setResultFilter('all'); setMarketFilter('all'); }}>
-              ✖ Clear
+              Clear
             </button>
           )}
         </div>
@@ -317,14 +315,15 @@ export function BetTrackerTab() {
           {loading ? (
             <div style={{ padding: '48px', textAlign: 'center', color: 'var(--gray-400)' }}>
               <div className="loading-spinner" style={{ margin: '0 auto 12px' }} />
-              <p>Loading bets…</p>
+              <p>Loading…</p>
             </div>
           ) : pageItems.length === 0 ? (
             <div style={{ padding: '48px', textAlign: 'center', color: 'var(--gray-400)' }}>
-              <div style={{ fontSize: '36px', marginBottom: '12px' }}>💰</div>
-              <p>{bets.length === 0 ? 'No bets logged yet — click "+ Log Bet" to get started' : 'No bets match filters'}</p>
+              <p>{bets.length === 0 ? 'No investments logged yet — click "+ Log Investment" to get started' : 'No investments match filters'}</p>
             </div>
           ) : (
+            <>
+            <Pagination currentPage={safePage} totalPages={totalPages} onPageChange={setPage} />
             <table>
               <thead>
                 <tr>
@@ -377,9 +376,7 @@ export function BetTrackerTab() {
                 })}
               </tbody>
             </table>
-          )}
-          {!loading && filtered.length > PAGE_SIZE && (
-            <Pagination currentPage={safePage} totalPages={totalPages} onPageChange={setPage} />
+            </>
           )}
         </div>
       </div>

@@ -11,8 +11,8 @@
 
 import { config } from '../config.js';
 
-const GEMINI_ENDPOINT = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent';
-const REQUEST_TIMEOUT_MS = 30_000;
+const GEMINI_BASE = 'https://generativelanguage.googleapis.com/v1beta/models';
+const REQUEST_TIMEOUT_MS = 60_000;
 
 export interface StrategicContext {
   home_motivation: string;
@@ -48,7 +48,7 @@ export async function fetchStrategicContext(
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
 
-    const response = await fetch(`${GEMINI_ENDPOINT}?key=${config.geminiApiKey}`, {
+    const response = await fetch(`${GEMINI_BASE}/${config.geminiModel}:generateContent?key=${config.geminiApiKey}`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -56,7 +56,7 @@ export async function fetchStrategicContext(
         tools: [{ google_search: {} }],
         generationConfig: {
           temperature: 0.2,
-          maxOutputTokens: 1024,
+          maxOutputTokens: 4096,
         },
       }),
       signal: controller.signal,

@@ -17,7 +17,7 @@ export function useAuth() {
       setAuthenticated(true);
       setAuthed(true);
     } else {
-      setError('❌ Mật khẩu không đúng');
+      setError('Incorrect password');
     }
   }, []);
 

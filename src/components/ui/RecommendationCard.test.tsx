@@ -72,7 +72,7 @@ describe('RecommendationCard', () => {
 
   it('renders key factors section', () => {
     render(<RecommendationCard rec={BASE} />);
-    expect(screen.getByText('Key Factors')).toBeInTheDocument();
+    expect(screen.getByText('Factors')).toBeInTheDocument();
     expect(screen.getByText('High press intensity, xG divergence')).toBeInTheDocument();
   });
 

@@ -14,7 +14,16 @@ import { expireWatchlistJob } from './expire-watchlist.job.js';
 import { checkLiveTriggerJob } from './check-live-trigger.job.js';
 import { autoSettleJob } from './auto-settle.job.js';
 import { enrichWatchlistJob } from './enrich-watchlist.job.js';
+import {
+  type JobProgress,
+  clearJobProgress,
+  reportJobProgress,
+  completeJobProgress,
+  getJobProgress,
+} from './job-progress.js';
 import crypto from 'node:crypto';
+
+export type { JobProgress };
 
 export interface JobInfo {
   name: string;
@@ -24,6 +33,7 @@ export interface JobInfo {
   running: boolean;
   enabled: boolean;
   runCount: number;
+  progress: JobProgress | null;
 }
 
 interface ManagedJob {
@@ -116,15 +126,19 @@ async function runJob(job: ManagedJob) {
 
   job.running = true;
   await persistState(job);
+  await clearJobProgress(job.name);
+  await reportJobProgress(job.name, 'starting', 'Starting...', 0);
 
   try {
     const result = await job.fn();
     job.lastRun = new Date().toISOString();
     job.lastError = null;
     job.runCount++;
+    await completeJobProgress(job.name, result, null);
     console.log(`[scheduler] Job "${job.name}" completed (#${job.runCount})`, result);
   } catch (err) {
     job.lastError = err instanceof Error ? err.message : String(err);
+    await completeJobProgress(job.name, null, job.lastError);
     console.error(`[scheduler] Job "${job.name}" failed:`, err);
   } finally {
     job.running = false;
@@ -169,17 +183,26 @@ export function stopScheduler() {
   console.log('[scheduler] All jobs stopped');
 }
 
-export function getJobsStatus(): JobInfo[] {
-  return jobs.map(({ name, intervalMs, lastRun, lastError, running, enabled, runCount }) => ({
-    name, intervalMs, lastRun, lastError, running, enabled, runCount,
-  }));
+export async function getJobsStatus(): Promise<JobInfo[]> {
+  const result: JobInfo[] = [];
+  for (const job of jobs) {
+    const progress = await getJobProgress(job.name);
+    result.push({
+      name: job.name, intervalMs: job.intervalMs, lastRun: job.lastRun,
+      lastError: job.lastError, running: job.running, enabled: job.enabled,
+      runCount: job.runCount, progress,
+    });
+  }
+  return result;
 }
 
-export async function triggerJob(name: string): Promise<JobInfo | null> {
+export function triggerJob(name: string): { triggered: boolean } | null {
   const job = jobs.find((j) => j.name === name);
   if (!job) return null;
-  await runJob(job);
-  return { name: job.name, intervalMs: job.intervalMs, lastRun: job.lastRun, lastError: job.lastError, running: job.running, enabled: job.enabled, runCount: job.runCount };
+  if (job.running) return { triggered: false };
+  // Fire and forget — progress tracked via Redis
+  runJob(job);
+  return { triggered: true };
 }
 
 export function updateJobInterval(name: string, intervalMs: number): JobInfo | null {
@@ -201,5 +224,5 @@ export function updateJobInterval(name: string, intervalMs: number): JobInfo | n
     console.log(`[scheduler] Job "${job.name}" disabled`);
   }
 
-  return { name: job.name, intervalMs: job.intervalMs, lastRun: job.lastRun, lastError: job.lastError, running: job.running, enabled: job.enabled, runCount: job.runCount };
+  return { name: job.name, intervalMs: job.intervalMs, lastRun: job.lastRun, lastError: job.lastError, running: job.running, enabled: job.enabled, runCount: job.runCount, progress: null };
 }

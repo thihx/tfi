@@ -4,6 +4,7 @@
 
 import type { FastifyInstance } from 'fastify';
 import { getJobsStatus, triggerJob, updateJobInterval } from '../jobs/scheduler.js';
+import { setForceEnrich } from '../jobs/enrich-watchlist.job.js';
 
 export async function jobRoutes(app: FastifyInstance) {
   // GET /api/jobs — list all jobs and their status
@@ -11,13 +12,19 @@ export async function jobRoutes(app: FastifyInstance) {
     return getJobsStatus();
   });
 
-  // POST /api/jobs/:name/trigger — manually run a job
-  app.post<{ Params: { name: string } }>('/api/jobs/:name/trigger', async (req, reply) => {
-    const result = await triggerJob(req.params.name);
+  // POST /api/jobs/:name/trigger — manually run a job (non-blocking)
+  app.post<{ Params: { name: string }; Body: { force?: boolean } }>('/api/jobs/:name/trigger', async (req, reply) => {
+    if (req.params.name === 'enrich-watchlist' && req.body?.force) {
+      setForceEnrich();
+    }
+    const result = triggerJob(req.params.name);
     if (!result) {
       return reply.status(404).send({ error: `Job "${req.params.name}" not found` });
     }
-    return result;
+    if (!result.triggered) {
+      return reply.status(409).send({ error: 'Job is already running' });
+    }
+    return { triggered: true };
   });
 
   // PUT /api/jobs/:name — update job interval

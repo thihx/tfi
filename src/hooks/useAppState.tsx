@@ -1,5 +1,5 @@
 import { createContext, useContext, useReducer, useCallback, useRef, type ReactNode } from 'react';
-import type { AppConfig, Match, WatchlistItem, Recommendation, ApprovedLeague } from '@/types';
+import type { AppConfig, Match, WatchlistItem, Recommendation, League } from '@/types';
 import { loadConfig, saveConfig as persistConfig } from '@/config/config';
 import * as api from '@/lib/services/api';
 import { useToast } from '@/hooks/useToast';
@@ -10,7 +10,7 @@ interface AppState {
   matches: Match[];
   watchlist: WatchlistItem[];
   recommendations: Recommendation[];
-  approvedLeagues: ApprovedLeague[];
+  leagues: League[];
   loading: boolean;
   loadingProgress: number;
   loadingMessage: string;
@@ -21,7 +21,7 @@ type Action =
   | { type: 'SET_MATCHES'; payload: Match[] }
   | { type: 'SET_WATCHLIST'; payload: WatchlistItem[] }
   | { type: 'SET_RECOMMENDATIONS'; payload: Recommendation[] }
-  | { type: 'SET_APPROVED_LEAGUES'; payload: ApprovedLeague[] }
+  | { type: 'SET_LEAGUES'; payload: League[] }
   | { type: 'SET_LOADING'; payload: { loading: boolean; progress?: number; message?: string } }
   | { type: 'ADD_WATCHLIST_ITEMS'; payload: WatchlistItem[] }
   | { type: 'UPDATE_WATCHLIST_ITEM'; payload: Partial<WatchlistItem> & { match_id: string } }
@@ -32,7 +32,7 @@ const initialState: AppState = {
   matches: [],
   watchlist: [],
   recommendations: [],
-  approvedLeagues: [],
+  leagues: [],
   loading: false,
   loadingProgress: 0,
   loadingMessage: '',
@@ -48,8 +48,8 @@ function reducer(state: AppState, action: Action): AppState {
       return { ...state, watchlist: action.payload };
     case 'SET_RECOMMENDATIONS':
       return { ...state, recommendations: action.payload };
-    case 'SET_APPROVED_LEAGUES':
-      return { ...state, approvedLeagues: action.payload };
+    case 'SET_LEAGUES':
+      return { ...state, leagues: action.payload };
     case 'SET_LOADING':
       return {
         ...state,
@@ -80,7 +80,7 @@ function reducer(state: AppState, action: Action): AppState {
 interface AppContextValue {
   state: AppState;
   dispatch: React.Dispatch<Action>;
-  loadAllData: () => Promise<void>;
+  loadAllData: (silent?: boolean) => Promise<void>;
   saveConfig: (config: AppConfig) => void;
   addToWatchlist: (items: Partial<WatchlistItem>[]) => Promise<boolean>;
   updateWatchlistItem: (item: Partial<WatchlistItem> & { match_id: string }) => Promise<boolean>;
@@ -95,14 +95,18 @@ export function AppProvider({ children }: { children: ReactNode }) {
   stateRef.current = state;
   const { showToast } = useToast();
 
-  const loadAllData = useCallback(async () => {
+  const loadAllData = useCallback(async (silent = false) => {
     const config = stateRef.current.config;
-    dispatch({ type: 'SET_LOADING', payload: { loading: true, progress: 10, message: 'Loading data...' } });
+    if (!silent) {
+      dispatch({ type: 'SET_LOADING', payload: { loading: true, progress: 10, message: 'Loading data...' } });
+    }
 
     try {
       const leagues = await api.fetchApprovedLeagues(config);
-      dispatch({ type: 'SET_APPROVED_LEAGUES', payload: leagues });
-      dispatch({ type: 'SET_LOADING', payload: { loading: true, progress: 25, message: 'Leagues loaded' } });
+      dispatch({ type: 'SET_LEAGUES', payload: leagues });
+      if (!silent) {
+        dispatch({ type: 'SET_LOADING', payload: { loading: true, progress: 25, message: 'Leagues loaded' } });
+      }
 
       const errors: string[] = [];
 
@@ -127,16 +131,19 @@ export function AppProvider({ children }: { children: ReactNode }) {
       dispatch({ type: 'SET_MATCHES', payload: matches });
       dispatch({ type: 'SET_WATCHLIST', payload: watchlist });
       dispatch({ type: 'SET_RECOMMENDATIONS', payload: recommendations });
-      dispatch({ type: 'SET_LOADING', payload: { loading: true, progress: 100, message: 'Ready' } });
 
       if (errors.length > 0) {
         showToast(`Failed to load: ${errors.join(', ')}. Check network or API.`, 'error');
       }
     } catch (err: unknown) {
       console.error('[AppState] loadAllData failed:', err);
-      showToast('Failed to load app data. Check your API connection.', 'error');
+      if (!silent) {
+        showToast('Failed to load app data. Check your API connection.', 'error');
+      }
     } finally {
-      dispatch({ type: 'SET_LOADING', payload: { loading: false, progress: 100, message: '' } });
+      if (!silent) {
+        dispatch({ type: 'SET_LOADING', payload: { loading: false, progress: 100, message: '' } });
+      }
     }
   }, [showToast]);
 

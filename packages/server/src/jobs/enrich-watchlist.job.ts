@@ -10,9 +10,17 @@
 import { fetchStrategicContext, type StrategicContext } from '../lib/strategic-context.service.js';
 import * as matchRepo from '../repos/matches.repo.js';
 import * as watchlistRepo from '../repos/watchlist.repo.js';
+import { reportJobProgress } from './job-progress.js';
 
 const STALE_HOURS = 6;
 const API_DELAY_MS = 2000; // Respect Gemini rate limits
+
+let forceNext = false;
+
+/** Force next run to skip the stale-check and re-enrich all active entries. */
+export function setForceEnrich(): void {
+  forceNext = true;
+}
 
 function sleep(ms: number) {
   return new Promise((resolve) => setTimeout(resolve, ms));
@@ -44,7 +52,7 @@ function generateCondition(
   const h2h = (ctx.h2h_narrative || '').toLowerCase();
 
   // ── Pattern: Both teams in high-stakes situation ──
-  const urgentRe = /relegation|title race|must.?win|fighting for|battling|bottom [1-5]|play.?off|promotion|avoid.+drop/;
+  const urgentRe = /relegation|title race|must.?win|fighting for|battling|bottom [1-5]|play.?off|promotion|avoid.+drop|crucial|important|decisive|pressure|desperate|survival|top [1-4]\b|champion/;
   const homeUrgent = urgentRe.test(homeMot);
   const awayUrgent = urgentRe.test(awayMot);
   if (homeUrgent && awayUrgent) {
@@ -54,7 +62,7 @@ function generateCondition(
   }
 
   // ── Pattern: One team relaxed, other motivated ──
-  const relaxedRe = /nothing to play|mid.?table|safe|already (qualified|relegated)|no motivation|comfortable|secured|no pressure|no ambition/;
+  const relaxedRe = /nothing to play|mid.?table|safe|already (qualified|relegated)|no motivation|comfortable|secured|no pressure|no ambition|little to play|season over|dead rubber|meaningless|inconsequential|guaranteed/;
   const homeRelaxed = relaxedRe.test(homeMot);
   const awayRelaxed = relaxedRe.test(awayMot);
   if (homeRelaxed && !awayRelaxed) {
@@ -73,7 +81,7 @@ function generateCondition(
     const pos1 = parseInt(posMatch[1]!, 10);
     const pos2 = parseInt(posMatch[2]!, 10);
     const gap = Math.abs(pos1 - pos2);
-    if (gap >= 10) {
+    if (gap >= 5) {
       const favourite = pos1 < pos2 ? homeTeam : awayTeam;
       const underdog = pos1 < pos2 ? awayTeam : homeTeam;
       conditions.push(`Large position gap (${gap} places) → ${favourite} strongly favoured; avoid backing ${underdog} in 1X2`);
@@ -148,7 +156,15 @@ function generateCondition(
     reasonsVi.push('Lịch sử đối đầu thường có nhiều bàn thắng');
   }
 
-  if (conditions.length === 0) return null;
+  // ── Fallback: generate a basic recommendation from the summary ──
+  if (conditions.length === 0) {
+    const summary = (ctx.summary || '').trim();
+    if (!summary) return null;
+    // Use the AI-generated summary as a narrative condition
+    conditions.push(`Strategic context: ${summary}`);
+    reasons.push(`Based on AI analysis of match context: ${summary}`);
+    reasonsVi.push(`Dựa trên phân tích AI về bối cảnh trận đấu: ${summary}`);
+  }
 
   return {
     condition: conditions.join('; '),
@@ -158,7 +174,10 @@ function generateCondition(
 }
 
 export async function enrichWatchlistJob(): Promise<{ checked: number; enriched: number }> {
+  const JOB = 'enrich-watchlist';
+
   // Build match status map
+  await reportJobProgress(JOB, 'load', 'Loading matches and watchlist...', 5);
   const allMatches = await matchRepo.getAllMatches();
   const statusMap = new Map<string, string>();
   for (const m of allMatches) {
@@ -171,22 +190,39 @@ export async function enrichWatchlistJob(): Promise<{ checked: number; enriched:
     return { checked: 0, enriched: 0 };
   }
 
+  // Filter eligible entries first to get accurate count
+  const force = forceNext;
+  forceNext = false; // consume the flag
+  if (force) console.log('[enrichWatchlistJob] ⚡ Force mode — skipping stale check');
+
+  const now = Date.now();
+  const eligible = watchlist.filter((entry) => {
+    const matchStatus = statusMap.get(entry.match_id)?.toUpperCase() ?? '';
+    if (matchStatus !== 'NS' && matchStatus !== '') return false;
+
+    if (force) return true; // skip stale check in force mode
+
+    // Treat entries with poor/empty context as needing re-enrichment
+    const ctx = entry.strategic_context as Record<string, string> | null;
+    const hasPoorContext = ctx && (!ctx.summary || /^no data/i.test(ctx.summary));
+
+    if (entry.strategic_context_at && !hasPoorContext) {
+      const enrichedAt = new Date(entry.strategic_context_at).getTime();
+      if (now - enrichedAt < STALE_HOURS * 60 * 60 * 1000) return false;
+    }
+    return true;
+  });
+
   let checked = 0;
   let enriched = 0;
-  const now = Date.now();
 
-  for (const entry of watchlist) {
-    const matchStatus = statusMap.get(entry.match_id)?.toUpperCase() ?? '';
-    // Only enrich NS (Not Started) or upcoming matches
-    if (matchStatus !== 'NS' && matchStatus !== '') continue;
-
-    // Skip if already enriched recently
-    if (entry.strategic_context_at) {
-      const enrichedAt = new Date(entry.strategic_context_at).getTime();
-      if (now - enrichedAt < STALE_HOURS * 60 * 60 * 1000) continue;
-    }
-
+  for (const entry of eligible) {
     checked++;
+    await reportJobProgress(
+      JOB, 'enrich',
+      `Enriching ${checked}/${eligible.length}: ${entry.home_team} vs ${entry.away_team}`,
+      5 + (checked / eligible.length) * 90,
+    );
 
     try {
       const context = await fetchStrategicContext(
@@ -202,8 +238,9 @@ export async function enrichWatchlistJob(): Promise<{ checked: number; enriched:
           strategic_context_at: new Date().toISOString(),
         } as Partial<watchlistRepo.WatchlistRow>;
 
-        // Auto-generate conditions if not manually set
-        if (!entry.recommended_custom_condition) {
+        // Auto-generate conditions if not manually set, previous result was poor, or force mode
+        const existingCond = (entry.recommended_custom_condition || '').trim();
+        if (force || !existingCond || /^Strategic context:\s*No data/i.test(existingCond)) {
           const generated = generateCondition(context, entry.home_team, entry.away_team);
           if (generated) {
             (updateFields as Record<string, unknown>).recommended_custom_condition = generated.condition;

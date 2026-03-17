@@ -3,8 +3,12 @@
 // ============================================================
 
 import 'dotenv/config';
+import { fileURLToPath } from 'node:url';
+import { dirname, join } from 'node:path';
+import { existsSync } from 'node:fs';
 import Fastify from 'fastify';
 import cors from '@fastify/cors';
+import fastifyStatic from '@fastify/static';
 import { config } from './config.js';
 import { closePool, query } from './db/pool.js';
 import { closeRedis, getRedisClient } from './lib/redis.js';
@@ -19,6 +23,8 @@ import { betRoutes } from './routes/bets.routes.js';
 import { snapshotRoutes } from './routes/snapshots.routes.js';
 import { oddsRoutes } from './routes/odds.routes.js';
 import { aiPerformanceRoutes } from './routes/ai-performance.routes.js';
+import { reportRoutes } from './routes/reports.routes.js';
+import { settingsRoutes } from './routes/settings.routes.js';
 import { startScheduler, stopScheduler } from './jobs/scheduler.js';
 
 const app = Fastify({ logger: true });
@@ -55,7 +61,17 @@ async function validateConnections(): Promise<void> {
   }
 }
 
-await app.register(cors, { origin: config.corsOrigin });
+await app.register(cors, {
+  // Allow the configured origin plus any localhost port (covers multiple dev servers)
+  origin: (origin, cb) => {
+    if (!origin || origin === config.corsOrigin || /^https?:\/\/localhost(:\d+)?$/.test(origin)) {
+      cb(null, true);
+    } else {
+      cb(new Error(`CORS: origin ${origin} not allowed`), false);
+    }
+  },
+  methods: ['GET', 'HEAD', 'PUT', 'PATCH', 'POST', 'DELETE'],
+});
 
 // Register route modules
 await app.register(leagueRoutes);
@@ -69,9 +85,27 @@ await app.register(betRoutes);
 await app.register(snapshotRoutes);
 await app.register(oddsRoutes);
 await app.register(aiPerformanceRoutes);
+await app.register(reportRoutes);
+await app.register(settingsRoutes);
 
 // Health check
 app.get('/api/health', async () => ({ status: 'ok', timestamp: new Date().toISOString() }));
+
+// ── Static file serving (production single-container) ────────
+const __dirname = dirname(fileURLToPath(import.meta.url));
+const clientDir = join(__dirname, '..', 'client');
+if (existsSync(clientDir)) {
+  await app.register(fastifyStatic, { root: clientDir, wildcard: false });
+  // SPA fallback: serve index.html for non-API routes
+  app.setNotFoundHandler((req, reply) => {
+    if (req.url.startsWith('/api/')) {
+      reply.status(404).send({ error: 'Not found' });
+    } else {
+      reply.sendFile('index.html');
+    }
+  });
+  app.log.info(`Serving static files from ${clientDir}`);
+}
 
 // Graceful shutdown
 const shutdown = async () => {

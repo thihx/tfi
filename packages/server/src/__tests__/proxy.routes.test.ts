@@ -20,6 +20,7 @@ vi.mock('../config.js', () => ({
 vi.mock('../lib/football-api.js', () => ({
   fetchFixturesByIds: vi.fn().mockRejectedValue(new Error('Football API timeout')),
   fetchLiveOdds: vi.fn().mockRejectedValue(new Error('Football API 500: Internal Server Error')),
+  fetchPreMatchOdds: vi.fn().mockRejectedValue(new Error('Football API 500: Internal Server Error')),
 }));
 
 // Mock global fetch for Gemini and Telegram
@@ -50,15 +51,15 @@ describe('POST /api/proxy/football/live-fixtures — error handling', () => {
   });
 });
 
-describe('POST /api/proxy/football/odds — error handling', () => {
-  test('returns 502 on football API failure', async () => {
+describe('POST /api/proxy/football/odds — fallback behavior', () => {
+  test('returns empty response when both live and pre-match odds fail', async () => {
     const res = await app.inject({
       method: 'POST',
       url: '/api/proxy/football/odds',
       payload: { matchId: '100' },
     });
-    expect(res.statusCode).toBe(502);
-    expect(res.json().error).toContain('Football API');
+    expect(res.statusCode).toBe(200);
+    expect(res.json()).toEqual({ response: [] });
   });
 });
 

@@ -4,9 +4,9 @@ import { StatusBadge } from './StatusBadge';
 import { formatLocalDateTime } from '@/lib/utils/helpers';
 
 const RISK_COLORS: Record<string, { bg: string; color: string; border: string }> = {
-  LOW:    { bg: '#d1fae515', color: 'var(--success)',  border: '#d1fae540' },
-  MEDIUM: { bg: '#fef3c715', color: '#d97706',         border: '#fef3c740' },
-  HIGH:   { bg: '#fee2e215', color: 'var(--danger)',   border: '#fee2e240' },
+  LOW:    { bg: 'var(--gray-100)', color: 'var(--gray-600)',  border: 'var(--gray-200)' },
+  MEDIUM: { bg: 'var(--gray-100)', color: '#92400e',          border: 'var(--gray-200)' },
+  HIGH:   { bg: '#fee2e220',       color: '#b91c1c',          border: '#fca5a520' },
 };
 
 interface Props {
@@ -16,6 +16,7 @@ interface Props {
 
 function RecommendationCardBase({ rec, onViewMatch }: Props) {
   const [reasoningExpanded, setReasoningExpanded] = useState(false);
+  const [warningsExpanded, setWarningsExpanded] = useState(false);
 
   const pnlVal = rec.pnl != null ? parseFloat(String(rec.pnl)) : null;
   const pnlPositive = pnlVal != null && pnlVal >= 0;
@@ -25,7 +26,10 @@ function RecommendationCardBase({ rec, onViewMatch }: Props) {
   const display = rec.home_team && rec.away_team
     ? `${rec.home_team} vs ${rec.away_team}`
     : rec.match_display || 'N/A';
-  const isLive = rec.minute != null;
+  // Only show LIVE when there's no final result yet
+  const isLive = rec.minute != null && !rec.result;
+  // Validate score looks like "N-N", not a match_id
+  const displayScore = rec.score && /^\d{1,3}-\d{1,3}$/.test(rec.score.trim()) ? rec.score : '';
 
   return (
     <div className="card" style={{ padding: '0', marginBottom: '12px', overflow: 'hidden' }}>
@@ -44,9 +48,9 @@ function RecommendationCardBase({ rec, onViewMatch }: Props) {
         <div style={{ flex: 1, minWidth: 0 }}>
           <div
             style={{
-              fontSize: '15px',
-              fontWeight: 700,
-              color: rec.match_id && onViewMatch ? 'var(--primary)' : 'var(--gray-900)',
+              fontSize: '14px',
+              fontWeight: 600,
+              color: rec.match_id && onViewMatch ? 'var(--gray-800)' : 'var(--gray-900)',
               cursor: rec.match_id && onViewMatch ? 'pointer' : undefined,
               letterSpacing: '-0.2px',
               marginBottom: '3px',
@@ -71,7 +75,7 @@ function RecommendationCardBase({ rec, onViewMatch }: Props) {
           {isLive && (
             <span style={{ display: 'inline-flex', alignItems: 'center', gap: '5px' }}>
               <span className="badge badge-live" style={{ fontSize: '11px', padding: '2px 7px' }}>LIVE</span>
-              <span style={{ fontWeight: 700, fontSize: '14px', color: 'var(--gray-900)' }}>{rec.score || ''}</span>
+              {displayScore && <span style={{ fontWeight: 700, fontSize: '14px', color: 'var(--gray-900)' }}>{displayScore}</span>}
               <span style={{ fontSize: '12px', color: 'var(--gray-500)' }}>{rec.minute}&apos;</span>
             </span>
           )}
@@ -85,7 +89,7 @@ function RecommendationCardBase({ rec, onViewMatch }: Props) {
         {/* Selection */}
         <div>
           <div style={{ fontSize: '10px', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.5px', color: 'var(--gray-400)', marginBottom: '3px' }}>Selection</div>
-          <div style={{ fontWeight: 700, color: 'var(--gray-900)', fontSize: '14px' }}>{rec.selection || '—'}</div>
+          <div style={{ fontWeight: 600, color: 'var(--gray-900)', fontSize: '13px' }}>{rec.selection || '—'}</div>
           {(rec.bet_market || rec.bet_type) && (
             <div style={{ fontSize: '11px', color: 'var(--gray-500)', marginTop: '2px' }}>{rec.bet_market || rec.bet_type}</div>
           )}
@@ -94,18 +98,18 @@ function RecommendationCardBase({ rec, onViewMatch }: Props) {
         {/* Odds */}
         <div>
           <div style={{ fontSize: '10px', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.5px', color: 'var(--gray-400)', marginBottom: '3px' }}>Odds</div>
-          <div style={{ fontWeight: 700, fontSize: '18px', color: 'var(--primary)' }}>{rec.odds || '—'}</div>
+          <div style={{ fontWeight: 700, fontSize: '15px', color: 'var(--gray-800)' }}>{rec.odds || '—'}</div>
         </div>
 
         {/* Confidence */}
         {conf != null && (
           <div>
             <div style={{ fontSize: '10px', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.5px', color: 'var(--gray-400)', marginBottom: '3px' }}>Confidence</div>
-            <div style={{ fontWeight: 700, fontSize: '16px', color: conf >= 7 ? 'var(--success)' : conf >= 5 ? '#d97706' : 'var(--danger)' }}>
+            <div style={{ fontWeight: 600, fontSize: '13px', color: 'var(--gray-700)' }}>
               {conf}/10
             </div>
-            <div style={{ height: '4px', background: 'var(--gray-200)', borderRadius: '2px', marginTop: '4px', overflow: 'hidden' }}>
-              <div style={{ width: `${conf * 10}%`, height: '100%', background: conf >= 7 ? 'var(--success)' : conf >= 5 ? '#f59e0b' : 'var(--danger)', borderRadius: '2px', transition: 'width 0.3s' }} />
+            <div style={{ height: '3px', background: 'var(--gray-200)', borderRadius: '2px', marginTop: '4px', overflow: 'hidden' }}>
+              <div style={{ width: `${conf * 10}%`, height: '100%', background: 'var(--gray-400)', borderRadius: '2px', transition: 'width 0.3s' }} />
             </div>
           </div>
         )}
@@ -115,8 +119,8 @@ function RecommendationCardBase({ rec, onViewMatch }: Props) {
           <div>
             <div style={{ fontSize: '10px', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.5px', color: 'var(--gray-400)', marginBottom: '5px' }}>Risk</div>
             <span style={{
-              display: 'inline-block', padding: '3px 10px', borderRadius: '10px',
-              fontSize: '12px', fontWeight: 700,
+              display: 'inline-block', padding: '2px 8px', borderRadius: '4px',
+              fontSize: '11px', fontWeight: 600,
               color: riskStyle?.color ?? 'var(--gray-600)',
               background: riskStyle?.bg ?? 'var(--gray-100)',
               border: `1px solid ${riskStyle?.border ?? 'var(--gray-200)'}`,
@@ -130,7 +134,7 @@ function RecommendationCardBase({ rec, onViewMatch }: Props) {
         {rec.value_percent != null && (
           <div>
             <div style={{ fontSize: '10px', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.5px', color: 'var(--gray-400)', marginBottom: '3px' }}>Value</div>
-            <div style={{ fontWeight: 700, color: 'var(--success)', fontSize: '14px' }}>
+            <div style={{ fontWeight: 600, color: 'var(--gray-700)', fontSize: '13px' }}>
               +{parseFloat(String(rec.value_percent)).toFixed(1)}%
             </div>
           </div>
@@ -140,7 +144,7 @@ function RecommendationCardBase({ rec, onViewMatch }: Props) {
         {rec.stake_percent != null && (
           <div>
             <div style={{ fontSize: '10px', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.5px', color: 'var(--gray-400)', marginBottom: '3px' }}>Stake</div>
-            <div style={{ fontWeight: 700, color: 'var(--gray-700)', fontSize: '14px' }}>
+            <div style={{ fontWeight: 600, color: 'var(--gray-700)', fontSize: '13px' }}>
               {parseFloat(String(rec.stake_percent)).toFixed(0)}%
             </div>
           </div>
@@ -150,7 +154,7 @@ function RecommendationCardBase({ rec, onViewMatch }: Props) {
         {pnlVal != null && (
           <div>
             <div style={{ fontSize: '10px', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.5px', color: 'var(--gray-400)', marginBottom: '3px' }}>P/L</div>
-            <div style={{ fontWeight: 700, fontSize: '16px', color: pnlPositive ? 'var(--success)' : 'var(--danger)' }}>
+            <div style={{ fontWeight: 600, fontSize: '13px', color: pnlPositive ? '#15803d' : '#b91c1c' }}>
               {pnlPositive ? '+' : ''}${pnlVal.toFixed(2)}
             </div>
           </div>
@@ -159,21 +163,32 @@ function RecommendationCardBase({ rec, onViewMatch }: Props) {
 
       {/* Key Factors */}
       {rec.key_factors && (
-        <div style={{ padding: '10px 18px', borderTop: '1px solid var(--gray-100)', background: '#f8fffe' }}>
-          <div style={{ fontSize: '10px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.5px', color: 'var(--success)', marginBottom: '5px' }}>
-            Key Factors
+        <div style={{ padding: '8px 18px', borderTop: '1px solid var(--gray-100)', display: 'flex', gap: '8px', alignItems: 'baseline' }}>
+          <div style={{ fontSize: '10px', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.5px', color: 'var(--gray-400)', flexShrink: 0 }}>
+            Factors
           </div>
-          <div style={{ fontSize: '13px', color: 'var(--gray-700)', lineHeight: 1.5 }}>{rec.key_factors}</div>
+          <div style={{ fontSize: '12px', color: 'var(--gray-600)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{rec.key_factors}</div>
         </div>
       )}
 
-      {/* Warnings */}
-      {rec.warnings && (
-        <div style={{ padding: '10px 18px', borderTop: '1px solid var(--gray-100)', background: '#fffbf0' }}>
-          <div style={{ fontSize: '10px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.5px', color: '#d97706', marginBottom: '5px' }}>
-            Warnings
-          </div>
-          <div style={{ fontSize: '13px', color: '#92400e', lineHeight: 1.5 }}>{rec.warnings}</div>
+      {/* Warnings — collapsible, hidden when empty */}
+      {rec.warnings && !(Array.isArray(rec.warnings) && rec.warnings.length === 0) && String(rec.warnings) !== '[]' && String(rec.warnings).trim() !== '' && (
+        <div style={{ borderTop: '1px solid var(--gray-100)' }}>
+          <button
+            style={{
+              width: '100%', padding: '9px 18px', background: 'none', border: 'none',
+              cursor: 'pointer', textAlign: 'left', display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+            }}
+            onClick={() => setWarningsExpanded((v) => !v)}
+          >
+            <span style={{ fontSize: '12px', fontWeight: 600, color: '#92400e' }}>Warnings</span>
+            <span style={{ fontSize: '10px', color: 'var(--gray-400)' }}>{warningsExpanded ? '▲' : '▼'}</span>
+          </button>
+          {warningsExpanded && (
+            <div style={{ padding: '0 18px 14px', fontSize: '12px', color: '#92400e', lineHeight: 1.6 }}>
+              {String(rec.warnings)}
+            </div>
+          )}
         </div>
       )}
 
@@ -189,7 +204,7 @@ function RecommendationCardBase({ rec, onViewMatch }: Props) {
           >
             <span style={{ fontSize: '12px', fontWeight: 600, color: 'var(--gray-500)' }}>
               AI Reasoning
-              {rec.ai_model && <span style={{ marginLeft: '6px', fontSize: '10px', color: 'var(--gray-400)', fontWeight: 400 }}>· {rec.ai_model}</span>}
+              {rec.ai_model && <span style={{ fontWeight: 400, color: 'var(--gray-400)' }}> · {rec.ai_model}</span>}
             </span>
             <span style={{ fontSize: '10px', color: 'var(--gray-400)' }}>{reasoningExpanded ? '▲' : '▼'}</span>
           </button>

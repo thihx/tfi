@@ -1,0 +1,119 @@
+// ============================================================
+// Unit tests — Fetch Matches Job
+// ============================================================
+
+import { describe, test, expect, vi, beforeEach } from 'vitest';
+
+vi.mock('../lib/redis.js', () => ({
+  getRedisClient: () => ({ hget: vi.fn(), hset: vi.fn(), expire: vi.fn(), del: vi.fn() }),
+}));
+
+vi.mock('../jobs/job-progress.js', () => ({
+  reportJobProgress: vi.fn(),
+  completeJobProgress: vi.fn(),
+  clearJobProgress: vi.fn(),
+}));
+
+const mockActiveLeagues = [
+  { league_id: 39, name: 'Premier League', active: true },
+  { league_id: 140, name: 'La Liga', active: true },
+];
+
+const mockTopLeagues = [{ league_id: 39, name: 'Premier League', top_league: true }];
+
+vi.mock('../repos/leagues.repo.js', () => ({
+  getActiveLeagues: vi.fn().mockResolvedValue(mockActiveLeagues),
+  getTopLeagues: vi.fn().mockResolvedValue(mockTopLeagues),
+}));
+
+vi.mock('../repos/matches.repo.js', () => ({
+  getAllMatches: vi.fn().mockResolvedValue([]),
+  replaceAllMatches: vi.fn().mockImplementation((rows: unknown[]) => Promise.resolve(rows.length)),
+}));
+
+vi.mock('../repos/watchlist.repo.js', () => ({
+  getWatchlistByMatchId: vi.fn().mockResolvedValue(null),
+  createWatchlistEntry: vi.fn().mockResolvedValue({}),
+}));
+
+vi.mock('../repos/matches-history.repo.js', () => ({
+  archiveFinishedMatches: vi.fn().mockResolvedValue(0),
+}));
+
+const mkFixture = (id: number, leagueId: number, status: string, date: string, teamHome = 'Home', teamAway = 'Away') => ({
+  fixture: { id, date, status: { short: status, elapsed: null }, venue: { name: 'Stadium' } },
+  league: { id: leagueId, name: 'League' },
+  teams: { home: { name: teamHome, logo: '' }, away: { name: teamAway, logo: '' } },
+  goals: { home: null, away: null },
+});
+
+vi.mock('../lib/football-api.js', () => ({
+  fetchFixturesForDate: vi.fn().mockImplementation((date: string) => {
+    if (date.endsWith('17')) {
+      return Promise.resolve([
+        mkFixture(1001, 39, 'NS', `${date}T15:00:00+00:00`, 'Arsenal', 'Chelsea'),
+        mkFixture(1002, 140, 'NS', `${date}T20:00:00+00:00`, 'Barca', 'Real'),
+        mkFixture(1003, 999, 'NS', `${date}T18:00:00+00:00`, 'Unknown', 'Team'), // unlisted league
+      ]);
+    }
+    return Promise.resolve([
+      mkFixture(2001, 39, 'NS', `${date}T14:00:00+00:00`, 'Liverpool', 'Man City'),
+    ]);
+  }),
+}));
+
+vi.mock('../config.js', () => ({
+  config: { timezone: 'Asia/Ho_Chi_Minh' },
+}));
+
+const { fetchMatchesJob } = await import('../jobs/fetch-matches.job.js');
+
+beforeEach(() => {
+  vi.clearAllMocks();
+});
+
+describe('fetchMatchesJob', () => {
+  test('returns saved count and league count', async () => {
+    const result = await fetchMatchesJob();
+    expect(result.saved).toBe(3); // 2 from today (league 39 + 140) + 1 from tomorrow (league 39)
+    expect(result.leagues).toBeGreaterThanOrEqual(1);
+  });
+
+  test('filters out fixtures from non-active leagues', async () => {
+    const result = await fetchMatchesJob();
+    // fixture 1003 (league 999) should be filtered out
+    expect(result.saved).toBe(3);
+  });
+
+  test('returns 0 when no active leagues', async () => {
+    const leagueRepo = await import('../repos/leagues.repo.js');
+    vi.mocked(leagueRepo.getActiveLeagues).mockResolvedValueOnce([]);
+
+    const result = await fetchMatchesJob();
+    expect(result).toEqual({ saved: 0, leagues: 0 });
+  });
+
+  test('auto-adds top league NS matches to watchlist', async () => {
+    await fetchMatchesJob();
+
+    const watchlistRepo = await import('../repos/watchlist.repo.js');
+    // Should have attempted to add Arsenal vs Chelsea (league 39 = top, NS) and Liverpool vs Man City
+    expect(watchlistRepo.createWatchlistEntry).toHaveBeenCalled();
+    const calls = vi.mocked(watchlistRepo.createWatchlistEntry).mock.calls;
+    expect(calls.some((c) => (c[0] as Record<string, unknown>).added_by === 'top-league-auto')).toBe(true);
+  });
+
+  test('skips creating watchlist entry if already exists', async () => {
+    const watchlistRepo = await import('../repos/watchlist.repo.js');
+    vi.mocked(watchlistRepo.getWatchlistByMatchId).mockResolvedValue({ match_id: '1001' } as never);
+
+    await fetchMatchesJob();
+    expect(watchlistRepo.createWatchlistEntry).not.toHaveBeenCalled();
+  });
+
+  test('archives finished matches before refresh', async () => {
+    await fetchMatchesJob();
+    const historyRepo = await import('../repos/matches-history.repo.js');
+    expect(historyRepo.archiveFinishedMatches).toHaveBeenCalled();
+  });
+});

@@ -1,5 +1,5 @@
 // ============================================================
-// Approved Leagues Repository
+// Leagues Repository
 // ============================================================
 
 import { query, transaction } from '../db/pool.js';
@@ -10,6 +10,7 @@ export interface LeagueRow {
   country: string;
   tier: string;
   active: boolean;
+  top_league: boolean;
   type: string;
   logo: string;
   last_updated: string;
@@ -17,23 +18,30 @@ export interface LeagueRow {
 
 export async function getAllLeagues(): Promise<LeagueRow[]> {
   const result = await query<LeagueRow>(
-    'SELECT * FROM approved_leagues ORDER BY country, tier, league_name',
+    'SELECT * FROM leagues ORDER BY country, tier, league_name',
   );
   return result.rows;
 }
 
 export async function getActiveLeagues(): Promise<LeagueRow[]> {
   const result = await query<LeagueRow>(
-    'SELECT * FROM approved_leagues WHERE active = TRUE ORDER BY country, tier, league_name',
+    'SELECT * FROM leagues WHERE active = TRUE ORDER BY country, tier, league_name',
   );
   return result.rows;
 }
 
 export async function getLeagueById(leagueId: number): Promise<LeagueRow | null> {
-  const result = await query<LeagueRow>('SELECT * FROM approved_leagues WHERE league_id = $1', [
+  const result = await query<LeagueRow>('SELECT * FROM leagues WHERE league_id = $1', [
     leagueId,
   ]);
   return result.rows[0] ?? null;
+}
+
+export async function getTopLeagues(): Promise<LeagueRow[]> {
+  const result = await query<LeagueRow>(
+    'SELECT * FROM leagues WHERE top_league = TRUE ORDER BY country, tier, league_name',
+  );
+  return result.rows;
 }
 
 export async function upsertLeagues(leagues: Partial<LeagueRow>[]): Promise<number> {
@@ -42,15 +50,16 @@ export async function upsertLeagues(leagues: Partial<LeagueRow>[]): Promise<numb
     for (const l of leagues) {
       if (l.league_id == null) continue;
       await client.query(
-        `INSERT INTO approved_leagues (league_id, league_name, country, tier, active, type, logo, last_updated)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, NOW())
+        `INSERT INTO leagues (league_id, league_name, country, tier, active, top_league, type, logo, last_updated)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, NOW())
          ON CONFLICT (league_id) DO UPDATE SET
-           league_name = COALESCE(NULLIF($2,''), approved_leagues.league_name),
-           country = COALESCE(NULLIF($3,''), approved_leagues.country),
-           tier = COALESCE(NULLIF($4,''), approved_leagues.tier),
+           league_name = COALESCE(NULLIF($2,''), leagues.league_name),
+           country = COALESCE(NULLIF($3,''), leagues.country),
+           tier = COALESCE(NULLIF($4,''), leagues.tier),
            active = $5,
-           type = COALESCE(NULLIF($6,''), approved_leagues.type),
-           logo = COALESCE(NULLIF($7,''), approved_leagues.logo),
+           top_league = COALESCE($6, leagues.top_league),
+           type = COALESCE(NULLIF($7,''), leagues.type),
+           logo = COALESCE(NULLIF($8,''), leagues.logo),
            last_updated = NOW()`,
         [
           l.league_id,
@@ -58,6 +67,7 @@ export async function upsertLeagues(leagues: Partial<LeagueRow>[]): Promise<numb
           l.country ?? '',
           l.tier ?? '',
           l.active ?? false,
+          l.top_league ?? null,
           l.type ?? '',
           l.logo ?? '',
         ],
@@ -70,7 +80,7 @@ export async function upsertLeagues(leagues: Partial<LeagueRow>[]): Promise<numb
 
 export async function updateLeagueActive(leagueId: number, active: boolean): Promise<boolean> {
   const result = await query(
-    'UPDATE approved_leagues SET active = $1, last_updated = NOW() WHERE league_id = $2',
+    'UPDATE leagues SET active = $1, last_updated = NOW() WHERE league_id = $2',
     [active, leagueId],
   );
   return (result.rowCount ?? 0) > 0;
@@ -79,8 +89,25 @@ export async function updateLeagueActive(leagueId: number, active: boolean): Pro
 export async function bulkSetActive(leagueIds: number[], active: boolean): Promise<number> {
   if (leagueIds.length === 0) return 0;
   const result = await query(
-    'UPDATE approved_leagues SET active = $1, last_updated = NOW() WHERE league_id = ANY($2)',
+    'UPDATE leagues SET active = $1, last_updated = NOW() WHERE league_id = ANY($2)',
     [active, leagueIds],
+  );
+  return result.rowCount ?? 0;
+}
+
+export async function updateLeagueTopLeague(leagueId: number, topLeague: boolean): Promise<boolean> {
+  const result = await query(
+    'UPDATE leagues SET top_league = $1, last_updated = NOW() WHERE league_id = $2',
+    [topLeague, leagueId],
+  );
+  return (result.rowCount ?? 0) > 0;
+}
+
+export async function bulkSetTopLeague(leagueIds: number[], topLeague: boolean): Promise<number> {
+  if (leagueIds.length === 0) return 0;
+  const result = await query(
+    'UPDATE leagues SET top_league = $1, last_updated = NOW() WHERE league_id = ANY($2)',
+    [topLeague, leagueIds],
   );
   return result.rowCount ?? 0;
 }

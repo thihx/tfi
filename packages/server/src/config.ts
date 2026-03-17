@@ -15,6 +15,7 @@ export const config = {
 
   // AI (Gemini)
   geminiApiKey: process.env['GEMINI_API_KEY'] || '',
+  geminiModel: process.env['GEMINI_MODEL'] || 'gemini-3.1-pro-preview',
 
   // Telegram
   telegramBotToken: process.env['TELEGRAM_BOT_TOKEN'] || '',

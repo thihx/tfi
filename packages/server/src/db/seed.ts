@@ -16,7 +16,7 @@ const EXCEL_JSON_PATH = path.resolve(__dirname, '../../../../scripts/seed-data.j
 const EXCEL_PATH = path.resolve(__dirname, '../../../../scripts/Time_For_Investment.xlsx');
 
 interface SeedData {
-  approved_leagues: Record<string, unknown>[];
+  leagues: Record<string, unknown>[];
   matches: Record<string, unknown>[];
   watchlist: Record<string, unknown>[];
   recommendations: Record<string, unknown>[];
@@ -48,7 +48,7 @@ async function loadSeedData(): Promise<SeedData> {
 
   const workbook = XLSX.readFile(EXCEL_PATH);
   const data: SeedData = {
-    approved_leagues: [],
+    leagues: [],
     matches: [],
     watchlist: [],
     recommendations: [],
@@ -119,11 +119,11 @@ function toTime(val: unknown): string | null {
   return match?.[1] ?? null;
 }
 
-async function seedApprovedLeagues(data: Record<string, unknown>[]): Promise<number> {
+async function seedLeagues(data: Record<string, unknown>[]): Promise<number> {
   if (data.length === 0) return 0;
 
   return transaction(async (client) => {
-    await client.query('TRUNCATE approved_leagues CASCADE');
+    await client.query('TRUNCATE leagues CASCADE');
 
     let count = 0;
     for (const row of data) {
@@ -131,7 +131,7 @@ async function seedApprovedLeagues(data: Record<string, unknown>[]): Promise<num
       if (leagueId === null) continue;
 
       await client.query(
-        `INSERT INTO approved_leagues (league_id, league_name, country, tier, active, type, logo, last_updated)
+        `INSERT INTO leagues (league_id, league_name, country, tier, active, type, logo, last_updated)
          VALUES ($1, $2, $3, $4, $5, $6, $7, COALESCE($8, NOW()))
          ON CONFLICT (league_id) DO UPDATE SET
            league_name = EXCLUDED.league_name,
@@ -170,9 +170,9 @@ async function seedMatches(data: Record<string, unknown>[]): Promise<number> {
       if (!matchId) continue;
 
       const leagueId = toNumOrNull(row['league_id']);
-      // Skip match if league doesn't exist in approved_leagues
+      // Skip match if league doesn't exist in leagues
       if (leagueId !== null) {
-        const exists = await client.query('SELECT 1 FROM approved_leagues WHERE league_id = $1', [leagueId]);
+        const exists = await client.query('SELECT 1 FROM leagues WHERE league_id = $1', [leagueId]);
         if (exists.rowCount === 0) continue;
       } else {
         continue;
@@ -299,8 +299,8 @@ async function seed(): Promise<void> {
 
   const data = await loadSeedData();
 
-  const leagueCount = await seedApprovedLeagues(data.approved_leagues);
-  console.log(`✅ Approved Leagues: ${leagueCount} rows`);
+  const leagueCount = await seedLeagues(data.leagues);
+  console.log(`✅ Leagues: ${leagueCount} rows`);
 
   const matchCount = await seedMatches(data.matches);
   console.log(`✅ Matches: ${matchCount} rows`);

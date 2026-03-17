@@ -1,13 +1,15 @@
 import type { TabName } from '@/types';
 
-const TABS: { key: TabName; icon: string; label: string }[] = [
-  { key: 'dashboard', icon: '📊', label: 'Dashboard' },
-  { key: 'matches', icon: '📅', label: 'Matches' },
-  { key: 'watchlist', icon: '👁️', label: 'Watchlist' },
-  { key: 'recommendations', icon: '🎯', label: 'Recommendations' },
-  { key: 'bet-tracker', icon: '💰', label: 'Bet Tracker' },
-  { key: 'live-monitor', icon: '📡', label: 'Live Monitor' },
-  { key: 'settings', icon: '⚙️', label: 'Settings' },
+const TABS: { key: TabName; label: string }[] = [
+  { key: 'dashboard',       label: 'Dashboard' },
+  { key: 'leagues',         label: 'Leagues' },
+  { key: 'matches',         label: 'Matches' },
+  { key: 'watchlist',       label: 'Watchlist' },
+  { key: 'recommendations', label: 'Recommendations' },
+  { key: 'bet-tracker',     label: 'Investment Tracker' },
+  { key: 'live-monitor',    label: 'Live Monitor' },
+  { key: 'reports',         label: 'Reports' },
+  { key: 'settings',        label: 'Settings' },
 ];
 
 interface NavigationProps {
@@ -24,7 +26,7 @@ export function Navigation({ activeTab, onTabChange }: NavigationProps) {
           className={`nav-item${activeTab === t.key ? ' active' : ''}`}
           onClick={() => onTabChange(t.key)}
         >
-          {t.icon} {t.label}
+          {t.label}
         </div>
       ))}
     </div>

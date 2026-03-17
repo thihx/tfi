@@ -7,7 +7,7 @@ import {
   parseKickoffForSave,
   debounce,
 } from './helpers';
-import type { ApprovedLeague } from '@/types';
+import type { League } from '@/types';
 
 // ==================== convertSeoulToLocalDateTime ====================
 describe('convertSeoulToLocalDateTime', () => {
@@ -99,33 +99,33 @@ describe('normalizeToISO', () => {
 
 // ==================== getLeagueDisplayName ====================
 describe('getLeagueDisplayName', () => {
-  const approvedLeagues: ApprovedLeague[] = [
-    { league_id: 39, country: 'England', league_name: 'Premier League' },
-    { league_id: 140, country: 'Spain', league_name: 'La Liga' },
+  const leagues: League[] = [
+    { league_id: 39, country: 'England', league_name: 'Premier League', tier: '1', active: true, top_league: false, type: 'League', logo: '', last_updated: '' },
+    { league_id: 140, country: 'Spain', league_name: 'La Liga', tier: '1', active: true, top_league: false, type: 'League', logo: '', last_updated: '' },
   ];
 
   test('prepends country to league name', () => {
-    expect(getLeagueDisplayName(39, 'Premier League', approvedLeagues)).toBe('ENGLAND - Premier League');
+    expect(getLeagueDisplayName(39, 'Premier League', leagues)).toBe('ENGLAND - Premier League');
   });
 
   test('uses approved league name if leagueName is empty', () => {
-    expect(getLeagueDisplayName(140, '', approvedLeagues)).toBe('SPAIN - La Liga');
+    expect(getLeagueDisplayName(140, '', leagues)).toBe('SPAIN - La Liga');
   });
 
   test('returns leagueName when league not in approved list', () => {
-    expect(getLeagueDisplayName(999, 'Unknown League', approvedLeagues)).toBe('Unknown League');
+    expect(getLeagueDisplayName(999, 'Unknown League', leagues)).toBe('Unknown League');
   });
 
-  test('returns leagueName when approvedLeagues is empty', () => {
+  test('returns leagueName when leagues is empty', () => {
     expect(getLeagueDisplayName(39, 'Premier League', [])).toBe('Premier League');
   });
 
   test('handles string leagueId', () => {
-    expect(getLeagueDisplayName('39', 'Premier League', approvedLeagues)).toBe('ENGLAND - Premier League');
+    expect(getLeagueDisplayName('39', 'Premier League', leagues)).toBe('ENGLAND - Premier League');
   });
 
   test('handles undefined leagueId', () => {
-    expect(getLeagueDisplayName(undefined, 'Some League', approvedLeagues)).toBe('Some League');
+    expect(getLeagueDisplayName(undefined, 'Some League', leagues)).toBe('Some League');
   });
 });
 

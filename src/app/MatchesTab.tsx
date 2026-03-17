@@ -7,16 +7,17 @@ import { MatchCard } from '@/components/ui/MatchCard';
 import { LIVE_STATUSES, PLACEHOLDER_HOME, PLACEHOLDER_AWAY } from '@/config/constants';
 import { convertSeoulToLocalDateTime, formatDateTimeDisplay, getLeagueDisplayName, debounce, parseKickoffForSave } from '@/lib/utils/helpers';
 import { normalizeToISO } from '@/lib/utils/helpers';
-import type { Match, SortState, ApprovedLeague } from '@/types';
+import type { Match, SortState, League } from '@/types';
 import type { PipelineMatchResult } from '@/features/live-monitor/types';
 import { runPipelineForMatch } from '@/features/live-monitor/services/pipeline';
+import { MatchScoutModal } from '@/components/ui/MatchScoutModal';
 
 const PAGE_SIZE = 30;
 
 export function MatchesTab() {
   const { state, addToWatchlist, loadAllData } = useAppState();
   const { showToast } = useToast();
-  const { matches, watchlist, config, approvedLeagues } = state;
+  const { matches, watchlist, config, leagues } = state;
 
   // Filters
   const [search, setSearch] = useState('');
@@ -32,10 +33,24 @@ export function MatchesTab() {
   const [analyzingMatch, setAnalyzingMatch] = useState<string | null>(null);
   const [viewMode, setViewMode] = useState<'table' | 'cards'>('table');
   const [aiResult, setAiResult] = useState<{ matchId: string; matchDisplay: string; result: PipelineMatchResult } | null>(null);
+  const [scoutMatch, setScoutMatch] = useState<Match | null>(null);
 
   // Debounced search
   const [debouncedSearch, setDebouncedSearch] = useState('');
   const debouncedSetSearch = useRef(debounce((v: string) => setDebouncedSearch(v), 250)).current;
+  const searchRef = useRef<HTMLInputElement>(null);
+
+  // `/` key focuses search
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if (e.key === '/' && !(e.target instanceof HTMLInputElement) && !(e.target instanceof HTMLTextAreaElement)) {
+        e.preventDefault();
+        searchRef.current?.focus();
+      }
+    };
+    window.addEventListener('keydown', handler);
+    return () => window.removeEventListener('keydown', handler);
+  }, []);
   const handleSearchChange = (v: string) => {
     setSearch(v);
     debouncedSetSearch(v);
@@ -44,18 +59,22 @@ export function MatchesTab() {
   // Watchlist lookup map
   const watchlistMap = useMemo(() => new Map(watchlist.map((w) => [String(w.match_id), w])), [watchlist]);
 
-  // Available leagues for filter
+  // Available leagues for filter (top leagues first)
   const leagueOptions = useMemo(() => {
-    const map = new Map<string, { id: string; displayName: string; count: number }>();
+    const topIds = new Set(leagues.filter((l) => l.top_league).map((l) => String(l.league_id)));
+    const map = new Map<string, { id: string; displayName: string; count: number; isTop: boolean }>();
     matches.forEach((m) => {
       const key = String(m.league_id);
       if (!map.has(key)) {
-        map.set(key, { id: key, displayName: getLeagueDisplayName(m.league_id, m.league_name || '', approvedLeagues), count: 0 });
+        map.set(key, { id: key, displayName: getLeagueDisplayName(m.league_id, m.league_name || '', leagues), count: 0, isTop: topIds.has(key) });
       }
       map.get(key)!.count++;
     });
-    return Array.from(map.values()).sort((a, b) => b.count - a.count);
-  }, [matches, approvedLeagues]);
+    return Array.from(map.values()).sort((a, b) => {
+      if (a.isTop !== b.isTop) return a.isTop ? -1 : 1;
+      return b.count - a.count;
+    });
+  }, [matches, leagues]);
 
   // Filtered & sorted
   const filtered = useMemo(() => {
@@ -123,7 +142,7 @@ export function MatchesTab() {
 
   // Auto-refresh every 60s — call loadAllData so state is actually updated
   useEffect(() => {
-    const timer = setInterval(() => { loadAllData(); }, 60000);
+    const timer = setInterval(() => { loadAllData(true); }, 60000);
     return () => clearInterval(timer);
   }, [loadAllData]);
 
@@ -243,73 +262,80 @@ export function MatchesTab() {
 
   return (
     <div className="card">
-      <div className="card-header">
-        <div className="card-title">📅 Matches</div>
-        <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
-          {viewMode === 'table' && (
-            <button className="btn btn-primary btn-sm" disabled={selected.size === 0} onClick={addSelectedToWatchlist} style={{ fontSize: '13px' }}>
-              {selected.size > 0 ? `+ Selected Watches (${selected.size})` : '+ Selected Watches'}
-            </button>
+      {/* Toolbar: filters + view toggle */}
+      <div style={{ display: 'flex', alignItems: 'stretch', borderBottom: '1px solid var(--gray-200)' }}>
+        <div className="filters" style={{ flex: 1, borderBottom: 'none' }}>
+          <input ref={searchRef} type="text" className="filter-input" placeholder="Search teams… ( / )" value={search} onChange={(e) => handleSearchChange(e.target.value)} />
+          <select className="filter-input" value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}>
+            <option value="">All Status</option>
+            <option value="NS">Not Started</option>
+            <option value="LIVE">Live</option>
+          </select>
+          <select className="filter-input" value={leagueFilter} onChange={(e) => setLeagueFilter(e.target.value)}>
+            <option value="">All Leagues</option>
+            {leagueOptions.map((l) => <option key={l.id} value={l.id}>{l.displayName} ({l.count})</option>)}
+          </select>
+          <select className="filter-input" value={actionFilter} onChange={(e) => setActionFilter(e.target.value)}>
+            <option value="">All Actions</option>
+            <option value="not-watched">Not Watched</option>
+            <option value="watched">Watched</option>
+          </select>
+          <input type="date" className="filter-input" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} title="From date" />
+          <input type="date" className="filter-input" value={dateTo} onChange={(e) => setDateTo(e.target.value)} title="To date" />
+          {(search || statusFilter || leagueFilter || actionFilter || dateFrom || dateTo) && (
+            <button className="btn btn-secondary" onClick={clearFilters}>Clear</button>
           )}
+        </div>
+        {/* View toggle: icon buttons */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '2px', padding: '0 12px', flexShrink: 0, borderLeft: '1px solid var(--gray-100)' }}>
           <button
-            className={`btn btn-sm ${viewMode === 'cards' ? 'btn-primary' : 'btn-secondary'}`}
-            onClick={() => setViewMode((v) => v === 'table' ? 'cards' : 'table')}
-            title="Toggle card / table view"
+            onClick={() => setViewMode('table')}
+            title="Table view"
+            style={{ padding: '5px 7px', borderRadius: '5px', border: '1px solid', cursor: 'pointer', background: viewMode === 'table' ? 'var(--gray-800)' : 'transparent', borderColor: viewMode === 'table' ? 'var(--gray-800)' : 'var(--gray-300)', color: viewMode === 'table' ? '#fff' : 'var(--gray-500)', lineHeight: 0 }}
           >
-            {viewMode === 'cards' ? '☰ Table' : '⊞ Cards'}
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M3 15h18M9 3v18"/></svg>
           </button>
-          <button className="btn btn-primary btn-sm" onClick={loadAllData}>🔄 Refresh</button>
+          <button
+            onClick={() => setViewMode('cards')}
+            title="Card view"
+            style={{ padding: '5px 7px', borderRadius: '5px', border: '1px solid', cursor: 'pointer', background: viewMode === 'cards' ? 'var(--gray-800)' : 'transparent', borderColor: viewMode === 'cards' ? 'var(--gray-800)' : 'var(--gray-300)', color: viewMode === 'cards' ? '#fff' : 'var(--gray-500)', lineHeight: 0 }}
+          >
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
+          </button>
         </div>
       </div>
 
-      <div className="filters">
-        <input type="text" className="filter-input" placeholder="🔍 Search teams..." value={search} onChange={(e) => handleSearchChange(e.target.value)} />
-        <select className="filter-input" value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}>
-          <option value="">All Status</option>
-          <option value="NS">⏱️ Not Started</option>
-          <option value="LIVE">🔴 Live</option>
-        </select>
-        <select className="filter-input" value={leagueFilter} onChange={(e) => setLeagueFilter(e.target.value)}>
-          <option value="">All Leagues</option>
-          {leagueOptions.map((l) => <option key={l.id} value={l.id}>{l.displayName} ({l.count})</option>)}
-        </select>
-        <select className="filter-input" value={actionFilter} onChange={(e) => setActionFilter(e.target.value)}>
-          <option value="">All Actions</option>
-          <option value="not-watched">Not Watched</option>
-          <option value="watched">Watched</option>
-        </select>
-        <input type="date" className="filter-input" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} title="From date" />
-        <input type="date" className="filter-input" value={dateTo} onChange={(e) => setDateTo(e.target.value)} title="To date" />
-        <button className="btn btn-secondary" onClick={clearFilters}>✖ Clear Filters</button>
-        {badges.length > 0 && (
-          <div style={{ marginLeft: '8px', display: 'inline-block' }}>
-            {badges.map((b, i) => <span key={i} className="filter-badge">{b}</span>)}
-          </div>
-        )}
-      </div>
+      {/* Contextual selection bar — only shown when items are checked */}
+      {viewMode === 'table' && selected.size > 0 && (
+        <div style={{ padding: '7px 16px', background: '#f0f9ff', borderBottom: '1px solid #bae6fd', display: 'flex', alignItems: 'center', gap: '10px' }}>
+          <span style={{ fontSize: '12px', fontWeight: 500, color: 'var(--gray-600)' }}>{selected.size} selected</span>
+          <button className="btn btn-primary btn-sm" onClick={addSelectedToWatchlist}>+ Add to Watchlist</button>
+          <button className="btn btn-secondary btn-sm" style={{ marginLeft: 'auto' }} onClick={() => setSelected(new Set())}>Clear</button>
+        </div>
+      )}
 
       {/* AI Result Panel */}
       {aiResult && (
         <div className="ai-result-panel" style={{ margin: '12px 0', padding: '16px', background: 'var(--gray-50)', border: '1px solid var(--gray-200)', borderRadius: '8px' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
-            <h4 style={{ margin: 0, fontSize: '14px' }}>🤖 AI Analysis — {aiResult.matchDisplay}</h4>
-            <button className="btn btn-secondary btn-sm" onClick={() => setAiResult(null)}>✕ Close</button>
+            <h4 style={{ margin: 0, fontSize: '14px' }}>AI Analysis — {aiResult.matchDisplay}</h4>
+            <button className="btn btn-secondary btn-sm" onClick={() => setAiResult(null)}>Close</button>
           </div>
           {aiResult.result.parsedAi ? (() => {
             const ai = aiResult.result.parsedAi!;
             return (
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', fontSize: '13px' }}>
                 <div><strong>Selection:</strong> {ai.selection}</div>
-                <div><strong>Bet Market:</strong> {ai.bet_market}</div>
+                <div><strong>Market:</strong> {ai.bet_market}</div>
                 <div><strong>Confidence:</strong> {ai.confidence}%</div>
                 <div><strong>Risk:</strong> <span style={{ color: ai.risk_level === 'LOW' ? 'var(--green)' : ai.risk_level === 'HIGH' ? 'var(--red)' : 'var(--orange)' }}>{ai.risk_level}</span></div>
                 <div><strong>Stake:</strong> {ai.stake_percent}%</div>
                 <div><strong>Odds:</strong> {ai.odds_for_display ?? '—'}</div>
                 <div><strong>Value:</strong> {ai.value_percent}%</div>
-                <div><strong>Should Bet:</strong> {ai.final_should_bet ? '✅ Yes' : '❌ No'}</div>
+                <div><strong>Should Bet:</strong> {ai.final_should_bet ? 'Yes' : 'No'}</div>
                 <div style={{ gridColumn: '1 / -1' }}><strong>Reasoning:</strong> {ai.reasoning_vi || ai.reasoning_en}</div>
                 {ai.warnings.length > 0 && (
-                  <div style={{ gridColumn: '1 / -1', color: 'var(--orange)' }}><strong>⚠️ Warnings:</strong> {ai.warnings.join('; ')}</div>
+                  <div style={{ gridColumn: '1 / -1', color: 'var(--orange)' }}><strong>Warnings:</strong> {ai.warnings.join('; ')}</div>
                 )}
               </div>
             );
@@ -324,9 +350,9 @@ export function MatchesTab() {
       {/* Card view */}
       {viewMode === 'cards' && (
         <div style={{ padding: '16px' }}>
+          <Pagination currentPage={safePage} totalPages={totalPages} onPageChange={setPage} />
           {pageItems.length === 0 ? (
             <div style={{ padding: '48px', textAlign: 'center', color: 'var(--gray-400)' }}>
-              <div style={{ fontSize: '36px', marginBottom: '12px' }}>🔍</div>
               <p>No matches found</p>
               <button className="btn btn-secondary" onClick={clearFilters} style={{ marginTop: '10px' }}>Clear Filters</button>
             </div>
@@ -344,7 +370,7 @@ export function MatchesTab() {
                         ? { label: 'Saving…', onClick: () => {}, disabled: true }
                         : { label: '+ Watch', onClick: (match) => quickAdd(match), variant: 'primary' },
                     {
-                      label: analyzingMatch === String(m.match_id) ? 'Analyzing…' : '🤖 Ask AI',
+                      label: analyzingMatch === String(m.match_id) ? 'Analyzing…' : 'Ask AI',
                       onClick: (match) => askAi(match),
                       variant: 'secondary',
                       loading: analyzingMatch === String(m.match_id),
@@ -355,12 +381,12 @@ export function MatchesTab() {
               ))}
             </div>
           )}
-          <Pagination currentPage={safePage} totalPages={totalPages} onPageChange={setPage} />
         </div>
       )}
 
       {/* Table view */}
       {viewMode === 'table' && <div className="table-container table-cards">
+        <Pagination currentPage={safePage} totalPages={totalPages} onPageChange={setPage} />
         <table>
           <thead>
             <tr>
@@ -378,7 +404,6 @@ export function MatchesTab() {
           <tbody>
             {pageItems.length === 0 ? (
               <tr><td colSpan={7} className="empty-state">
-                <div className="empty-state-icon">🔍</div>
                 <p>No matches found</p>
                 <button className="btn btn-secondary" onClick={clearFilters} style={{ marginTop: '10px' }}>Clear Filters</button>
               </td></tr>
@@ -390,16 +415,31 @@ export function MatchesTab() {
                 isPending={pendingAdds.has(String(m.match_id))}
                 isSelected={selected.has(String(m.match_id))}
                 isAnalyzing={analyzingMatch === String(m.match_id)}
-                approvedLeagues={approvedLeagues}
+                leagues={leagues}
                 onQuickAdd={() => quickAdd(m)}
                 onToggleSelect={() => toggleSelect(String(m.match_id), watchlistMap.has(String(m.match_id)))}
                 onAskAi={() => askAi(m)}
+                onDoubleClick={() => setScoutMatch(m)}
               />
             ))}
           </tbody>
         </table>
-        <Pagination currentPage={safePage} totalPages={totalPages} onPageChange={setPage} />
       </div>}
+
+      {scoutMatch && (
+        <MatchScoutModal
+          open
+          matchId={String(scoutMatch.match_id)}
+          homeTeam={scoutMatch.home_team}
+          awayTeam={scoutMatch.away_team}
+          homeLogo={scoutMatch.home_logo}
+          awayLogo={scoutMatch.away_logo}
+          leagueName={scoutMatch.league_name ?? ''}
+          leagueId={scoutMatch.league_id}
+          status={scoutMatch.status}
+          onClose={() => setScoutMatch(null)}
+        />
+      )}
     </div>
   );
 }
@@ -410,21 +450,22 @@ interface MatchRowProps {
   isPending: boolean;
   isSelected: boolean;
   isAnalyzing: boolean;
-  approvedLeagues: ApprovedLeague[];
+  leagues: League[];
   onQuickAdd: () => void;
   onToggleSelect: () => void;
   onAskAi: () => void;
+  onDoubleClick: () => void;
 }
 
-function MatchRow({ match, isWatched, isPending, isSelected, isAnalyzing, approvedLeagues, onQuickAdd, onToggleSelect, onAskAi }: MatchRowProps) {
+function MatchRow({ match, isWatched, isPending, isSelected, isAnalyzing, leagues, onQuickAdd, onToggleSelect, onAskAi, onDoubleClick }: MatchRowProps) {
   const localDT = convertSeoulToLocalDateTime(match.date, match.kickoff || '00:00');
   const timeDisplay = formatDateTimeDisplay(localDT);
-  const leagueDisplay = getLeagueDisplayName(match.league_id, match.league_name || '', approvedLeagues);
+  const leagueDisplay = getLeagueDisplayName(match.league_id, match.league_name || '', leagues);
   const score = match.home_score != null && match.home_score !== '' ? `${match.home_score} - ${match.away_score}` : '';
   const currentMinute = match.status === 'HT' ? 'HT' : (match.current_minute ? `${match.current_minute}'` : '');
 
   return (
-    <tr>
+    <tr onDoubleClick={onDoubleClick} style={{ cursor: 'pointer' }} title="Double-click to view match details">
       <td data-label="Time" style={{ whiteSpace: 'nowrap', textAlign: 'center' }}>
         <div className="cell-value">
           <div className="time-status">
@@ -466,9 +507,9 @@ function MatchRow({ match, isWatched, isPending, isSelected, isAnalyzing, approv
         <div className="cell-value"><StatusBadge status={match.status} /></div>
       </td>
       <td data-label="Action" style={{ textAlign: 'center' }}>
-        <div className="cell-value" style={{ display: 'flex', gap: '4px', justifyContent: 'center', flexWrap: 'wrap' }}>
+        <div className="cell-value flex-row-gap-4 flex-center flex-wrap">
           {isWatched ? (
-            <button className="btn btn-success btn-sm watch-btn" disabled><span className="btn-text">✓ Watched</span></button>
+            <button className="btn btn-success btn-sm watch-btn" disabled><span className="btn-text">Watched</span></button>
           ) : isPending ? (
             <button className="btn btn-primary btn-sm watch-btn" disabled>
               <span className="inline-spinner" style={{ width: '14px', height: '14px' }} />
@@ -476,12 +517,12 @@ function MatchRow({ match, isWatched, isPending, isSelected, isAnalyzing, approv
             </button>
           ) : (
             <button className="btn btn-primary btn-sm watch-btn" onClick={onQuickAdd}>
-              <span className="btn-text">+&nbsp;Watch</span>
+              <span className="btn-text">+ Watch</span>
             </button>
           )}
           <button className="btn btn-secondary btn-sm" onClick={onAskAi} disabled={isAnalyzing} title="Ask AI for analysis">
-            {isAnalyzing ? <span className="inline-spinner" style={{ width: '14px', height: '14px' }} /> : '🤖'}
-            <span className="btn-text" style={{ marginLeft: '2px' }}>{isAnalyzing ? 'Analyzing...' : 'Ask AI'}</span>
+            {isAnalyzing && <span className="inline-spinner" style={{ width: '14px', height: '14px' }} />}
+            <span className="btn-text" style={{ marginLeft: isAnalyzing ? '2px' : undefined }}>{isAnalyzing ? 'Analyzing...' : 'Ask AI'}</span>
           </button>
         </div>
       </td>

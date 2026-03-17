@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { useAppState } from '@/hooks/useAppState';
 import { Pagination } from '@/components/ui/Pagination';
 import { StatusBadge } from '@/components/ui/StatusBadge';
@@ -9,6 +9,7 @@ import {
 } from 'recharts';
 import { fetchRecommendationsPaginated, fetchBetTypes, fetchDistinctLeagues } from '@/lib/services/api';
 import { formatLocalDateTime } from '@/lib/utils/helpers';
+import { PageHeader } from '@/components/ui/PageHeader';
 import type { Recommendation } from '@/types';
 
 type ViewMode = 'cards' | 'table';
@@ -26,15 +27,10 @@ const SORT_COL_MAP: Record<string, string> = {
   league: 'league',
 };
 
-const RISK_COLORS: Record<string, string> = {
-  LOW: 'var(--success)',
-  MEDIUM: '#f59e0b',
-  HIGH: 'var(--danger)',
-};
 
 export function RecommendationsTab() {
   const { state } = useAppState();
-  const { config } = state;
+  const { config, leagues: appLeagues } = state;
   const [page, setPage] = useState(1);
 
   // Filters
@@ -58,6 +54,30 @@ export function RecommendationsTab() {
   const [leagues, setLeagues] = useState<string[]>([]);
   const [loading, setLoading] = useState(false);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const searchRef = useRef<HTMLInputElement>(null);
+
+  // `/` key focuses search
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if (e.key === '/' && !(e.target instanceof HTMLInputElement) && !(e.target instanceof HTMLTextAreaElement)) {
+        e.preventDefault();
+        searchRef.current?.focus();
+      }
+    };
+    window.addEventListener('keydown', handler);
+    return () => window.removeEventListener('keydown', handler);
+  }, []);
+
+  // Sort leagues: top leagues first
+  const sortedLeagues = useMemo(() => {
+    const topNames = new Set(appLeagues.filter((l) => l.top_league).map((l) => l.league_name));
+    return [...leagues].sort((a, b) => {
+      const aTop = topNames.has(a);
+      const bTop = topNames.has(b);
+      if (aTop !== bTop) return aTop ? -1 : 1;
+      return a.localeCompare(b);
+    });
+  }, [leagues, appLeagues]);
 
   // Count active filters
   const activeFilterCount = [
@@ -162,81 +182,83 @@ export function RecommendationsTab() {
 
   return (
     <div>
-      {/* Summary bar */}
-      <div style={{ display: 'flex', gap: '16px', flexWrap: 'wrap', marginBottom: '12px', fontSize: '13px', color: 'var(--gray-500)', alignItems: 'center' }}>
-        <span>🎯 {summary.total} total</span>
-        <span style={{ color: 'var(--success)' }}>✅ {summary.won}W (page)</span>
-        <span style={{ color: 'var(--danger)' }}>❌ {summary.lost}L (page)</span>
-        <span style={{ color: summary.pnl >= 0 ? 'var(--success)' : 'var(--danger)', fontWeight: 600 }}>
-          P/L (page): {summary.pnl >= 0 ? '+' : ''}${summary.pnl.toFixed(2)}
-        </span>
-        {loading && <span style={{ color: 'var(--primary)' }}>⏳ Loading...</span>}
-      </div>
+      <PageHeader
+        subtitle={<>
+          <span>{summary.total} total</span>
+          <span className="text-positive">{summary.won}W</span>
+          <span className="text-negative">{summary.lost}L</span>
+          <span className={summary.pnl >= 0 ? 'text-positive' : 'text-negative'} style={{ fontWeight: 600 }}>
+            P/L: {summary.pnl >= 0 ? '+' : ''}${summary.pnl.toFixed(2)}
+          </span>
+          {loading && <span className="text-primary-color">Loading...</span>}
+        </>}
+      />
 
-      {/* Search + toolbar */}
-      <div className="card" style={{ marginBottom: '16px' }}>
-        <div className="filters" style={{ padding: '12px 16px' }}>
-          <input
-            type="text"
-            className="filter-input"
-            placeholder="🔍 Search match / selection..."
-            value={search}
-            onChange={(e) => { setSearch(e.target.value); setPage(1); }}
-            style={{ flex: '1 1 200px', minWidth: 160 }}
-          />
-          <select
-            className="filter-input"
-            value={resultFilter}
-            onChange={(e) => { setResultFilter(e.target.value); setPage(1); }}
-          >
-            <option value="all">All Status</option>
-            <option value="win">✅ Won</option>
-            <option value="loss">❌ Lost</option>
-            <option value="push">➖ Push</option>
-            <option value="pending">⏳ Pending</option>
-          </select>
-          <select
-            className="filter-input"
-            value={leagueFilter}
-            onChange={(e) => { setLeagueFilter(e.target.value); setPage(1); }}
-          >
-            <option value="all">All Leagues</option>
-            {leagues.map((l) => <option key={l} value={l}>{l}</option>)}
-          </select>
-          <select
-            className="filter-input"
-            value={betTypeFilter}
-            onChange={(e) => { setBetTypeFilter(e.target.value); setPage(1); }}
-          >
-            <option value="all">All Markets</option>
-            {betTypes.map((t) => <option key={t} value={t}>{t}</option>)}
-          </select>
-          <select
-            className="filter-input"
-            value={riskFilter}
-            onChange={(e) => { setRiskFilter(e.target.value); setPage(1); }}
-          >
-            <option value="all">All Risk</option>
-            <option value="LOW">Low</option>
-            <option value="MEDIUM">Medium</option>
-            <option value="HIGH">High</option>
-          </select>
-          <input type="date" className="filter-input" value={dateFrom} onChange={(e) => { setDateFrom(e.target.value); setPage(1); }} title="From date" />
-          <input type="date" className="filter-input" value={dateTo} onChange={(e) => { setDateTo(e.target.value); setPage(1); }} title="To date" />
-          {activeFilterCount > 0 && (
-            <button className="btn btn-secondary" onClick={clearFilters}>✖ Clear Filters</button>
-          )}
-          <button className={`btn btn-sm ${showChart ? 'btn-secondary' : 'btn-primary'}`} onClick={() => setShowChart((v) => !v)}>
-            {showChart ? '📊 Hide Chart' : '📈 Show Chart'}
-          </button>
-          <button
-            className={`btn btn-sm ${viewMode === 'cards' ? 'btn-primary' : 'btn-secondary'}`}
-            onClick={() => setViewMode((v) => v === 'cards' ? 'table' : 'cards')}
-            title="Toggle card / table view"
-          >
-            {viewMode === 'cards' ? '☰ Table' : '⊞ Cards'}
-          </button>
-          <button className="btn btn-primary btn-sm" onClick={() => fetchData(page)}>🔄</button>
+      {/* Filters + view/chart toggles */}
+      <div className="card mb-16">
+        <div style={{ display: 'flex', alignItems: 'stretch', borderBottom: '1px solid var(--gray-200)' }}>
+          <div style={{ flex: 1, display: 'flex', flexWrap: 'nowrap', alignItems: 'center', gap: '6px', padding: '8px 12px' }}>
+            <input
+              ref={searchRef}
+              type="text"
+              className="filter-input"
+              placeholder="Search match / selection… ( / )"
+              value={search}
+              onChange={(e) => { setSearch(e.target.value); setPage(1); }}
+              style={{ flex: '2 1 160px', minWidth: 0 }}
+            />
+            <select className="filter-input" value={resultFilter} onChange={(e) => { setResultFilter(e.target.value); setPage(1); }} style={{ flex: '1 1 100px', minWidth: 0 }}>
+              <option value="all">All Status</option>
+              <option value="win">Won</option>
+              <option value="loss">Lost</option>
+              <option value="push">Push</option>
+              <option value="pending">Pending</option>
+            </select>
+            <select className="filter-input" value={leagueFilter} onChange={(e) => { setLeagueFilter(e.target.value); setPage(1); }} style={{ flex: '1 1 110px', minWidth: 0 }}>
+              <option value="all">All Leagues</option>
+              {sortedLeagues.map((l) => <option key={l} value={l}>{l}</option>)}
+            </select>
+            <select className="filter-input" value={betTypeFilter} onChange={(e) => { setBetTypeFilter(e.target.value); setPage(1); }} style={{ flex: '1 1 100px', minWidth: 0 }}>
+              <option value="all">All Markets</option>
+              {betTypes.map((t) => <option key={t} value={t}>{t}</option>)}
+            </select>
+            <select className="filter-input" value={riskFilter} onChange={(e) => { setRiskFilter(e.target.value); setPage(1); }} style={{ flex: '1 1 90px', minWidth: 0 }}>
+              <option value="all">All Risk</option>
+              <option value="LOW">Low</option>
+              <option value="MEDIUM">Medium</option>
+              <option value="HIGH">High</option>
+            </select>
+            <input type="date" className="filter-input" value={dateFrom} onChange={(e) => { setDateFrom(e.target.value); setPage(1); }} title="From date" style={{ flex: '1 1 120px', minWidth: 0 }} />
+            <input type="date" className="filter-input" value={dateTo} onChange={(e) => { setDateTo(e.target.value); setPage(1); }} title="To date" style={{ flex: '1 1 120px', minWidth: 0 }} />
+            {activeFilterCount > 0 && (
+              <button className="btn btn-secondary" onClick={clearFilters} style={{ flexShrink: 0 }}>Clear</button>
+            )}
+          </div>
+
+          {/* Icon toggles: chart + view mode */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '2px', padding: '0 12px', flexShrink: 0, borderLeft: '1px solid var(--gray-100)' }}>
+            <button
+              onClick={() => setShowChart((v) => !v)}
+              title={showChart ? 'Hide chart' : 'Show P/L chart'}
+              style={{ padding: '5px 7px', borderRadius: '5px', border: '1px solid', cursor: 'pointer', background: showChart ? 'var(--gray-800)' : 'transparent', borderColor: showChart ? 'var(--gray-800)' : 'var(--gray-300)', color: showChart ? '#fff' : 'var(--gray-500)', lineHeight: 0 }}
+            >
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+            </button>
+            <button
+              onClick={() => setViewMode('table')}
+              title="Table view"
+              style={{ padding: '5px 7px', borderRadius: '5px', border: '1px solid', cursor: 'pointer', background: viewMode === 'table' ? 'var(--gray-800)' : 'transparent', borderColor: viewMode === 'table' ? 'var(--gray-800)' : 'var(--gray-300)', color: viewMode === 'table' ? '#fff' : 'var(--gray-500)', lineHeight: 0 }}
+            >
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M3 15h18M9 3v18"/></svg>
+            </button>
+            <button
+              onClick={() => setViewMode('cards')}
+              title="Card view"
+              style={{ padding: '5px 7px', borderRadius: '5px', border: '1px solid', cursor: 'pointer', background: viewMode === 'cards' ? 'var(--gray-800)' : 'transparent', borderColor: viewMode === 'cards' ? 'var(--gray-800)' : 'var(--gray-300)', color: viewMode === 'cards' ? '#fff' : 'var(--gray-500)', lineHeight: 0 }}
+            >
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
+            </button>
+          </div>
         </div>
       </div>
 
@@ -247,7 +269,7 @@ export function RecommendationsTab() {
             <ResponsiveContainer width="100%" height={180}>
               <AreaChart data={chartData}>
                 <CartesianGrid strokeDasharray="3 3" stroke="var(--gray-200)" />
-                <XAxis dataKey="idx" tick={{ fontSize: 10 }} label={{ value: 'Bet #', position: 'insideBottom', offset: -2, fontSize: 11 }} />
+                <XAxis dataKey="idx" tick={{ fontSize: 10 }} label={{ value: '#', position: 'insideBottom', offset: -2, fontSize: 11 }} />
                 <YAxis tick={{ fontSize: 10 }} tickFormatter={(v) => `$${v}`} />
                 <Tooltip formatter={(v) => [`$${Number(v).toFixed(2)}`, 'Cumulative P/L']} />
                 <Area type="monotone" dataKey="cumulative" stroke="var(--primary)" fill="var(--primary)" fillOpacity={0.15} strokeWidth={2} />
@@ -260,9 +282,9 @@ export function RecommendationsTab() {
       {/* Card view */}
       {viewMode === 'cards' && (
         <div>
+          <Pagination currentPage={page} totalPages={totalPages} onPageChange={setPage} />
           {rows.length === 0 ? (
             <div className="card" style={{ padding: '48px', textAlign: 'center', color: 'var(--gray-400)' }}>
-              <div style={{ fontSize: '36px', marginBottom: '12px' }}>🎯</div>
               <p>{loading ? 'Loading...' : 'No recommendations match filters'}</p>
             </div>
           ) : (
@@ -276,15 +298,13 @@ export function RecommendationsTab() {
               ))}
             </div>
           )}
-          <div style={{ marginTop: '12px' }}>
-            <Pagination currentPage={page} totalPages={totalPages} onPageChange={setPage} />
-          </div>
         </div>
       )}
 
       {/* Table view */}
       {viewMode === 'table' && <div className="card">
         <div className="table-container table-cards">
+          <Pagination currentPage={page} totalPages={totalPages} onPageChange={setPage} />
           <table>
             <thead>
               <tr>
@@ -303,7 +323,6 @@ export function RecommendationsTab() {
             <tbody>
               {rows.length === 0 ? (
                 <tr><td colSpan={10} className="empty-state">
-                  <div className="empty-state-icon">🎯</div>
                   <p>{loading ? 'Loading...' : 'No recommendations match filters'}</p>
                 </td></tr>
               ) : rows.map((rec, i) => {
@@ -321,7 +340,7 @@ export function RecommendationsTab() {
                 return (
                   <tr key={rec.id ?? i}>
                     <td data-label="Date">
-                      <span className="cell-value" style={{ fontSize: '13px' }}>{formatLocalDateTime(ts)}</span>
+                      <span className="cell-value"><span style={{ background: 'var(--gray-100)', padding: '3px 7px', borderRadius: '4px', fontWeight: 600, color: 'var(--gray-700)', fontSize: '12px', whiteSpace: 'nowrap' }}>{formatLocalDateTime(ts)}</span></span>
                     </td>
                     <td data-label="League">
                       <span className="cell-value" title={leagueName} style={{ fontSize: '12px', maxWidth: '150px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', display: 'inline-block' }}>
@@ -331,7 +350,7 @@ export function RecommendationsTab() {
                     <td data-label="Match">
                       <span
                         className="cell-value match-cell"
-                        style={{ cursor: rec.match_id ? 'pointer' : undefined, color: rec.match_id ? 'var(--primary)' : undefined }}
+                        style={{ cursor: rec.match_id ? 'pointer' : undefined, color: 'var(--gray-800)', textDecoration: rec.match_id ? 'underline' : undefined, textDecorationColor: 'var(--gray-300)' }}
                         onClick={() => rec.match_id && setDetailMatch({ id: rec.match_id, display })}
                       >
                         {display}
@@ -349,11 +368,10 @@ export function RecommendationsTab() {
                       <span className="cell-value">
                         {risk ? (
                           <span style={{
-                            display: 'inline-block', padding: '2px 8px', borderRadius: '10px',
-                            fontSize: '11px', fontWeight: 600,
-                            color: RISK_COLORS[risk] || 'var(--gray-500)',
-                            background: `${RISK_COLORS[risk] || 'var(--gray-300)'}15`,
-                            border: `1px solid ${RISK_COLORS[risk] || 'var(--gray-300)'}40`,
+                            display: 'inline-block', padding: '2px 8px', borderRadius: '4px',
+                            fontSize: '11px', fontWeight: 600, whiteSpace: 'nowrap',
+                            background: 'var(--gray-100)', color: 'var(--gray-600)',
+                            border: '1px solid var(--gray-200)',
                           }}>
                             {risk}
                           </span>
@@ -369,7 +387,7 @@ export function RecommendationsTab() {
                       <span className="cell-value">{rec.result ? <StatusBadge status={rec.result.toUpperCase()} /> : '-'}</span>
                     </td>
                     <td data-label="P/L" style={{ textAlign: 'right' }}>
-                      <span className="cell-value" style={{ fontWeight: 700, color: pnlVal >= 0 ? 'var(--success)' : 'var(--danger)' }}>
+                      <span className="cell-value" style={{ fontWeight: 600, color: pnlVal >= 0 ? '#15803d' : '#b91c1c' }}>
                         {pnl}
                       </span>
                     </td>
@@ -378,7 +396,6 @@ export function RecommendationsTab() {
               })}
             </tbody>
           </table>
-          <Pagination currentPage={page} totalPages={totalPages} onPageChange={setPage} />
         </div>
       </div>}
 

@@ -140,6 +140,82 @@ export async function fetchLiveOdds(fixtureId: string): Promise<unknown[]> {
   return apiGet<unknown>('/odds/live', { fixture: fixtureId });
 }
 
+export async function fetchPreMatchOdds(fixtureId: string): Promise<unknown[]> {
+  return apiGet<unknown>('/odds', { fixture: fixtureId });
+}
+
+// ==================== Fixture Detail ====================
+
+export interface ApiFixtureEvent {
+  time: { elapsed: number; extra: number | null };
+  team: { id: number; name: string; logo: string };
+  player: { id: number | null; name: string | null };
+  assist: { id: number | null; name: string | null };
+  type: string;
+  detail: string;
+  comments: string | null;
+}
+
+export interface ApiFixtureStat {
+  team: { id: number; name: string; logo: string };
+  statistics: Array<{ type: string; value: string | number | null }>;
+}
+
+export interface ApiFixtureLineupPlayer {
+  player: { id: number; name: string; number: number; pos: string; grid: string | null };
+}
+
+export interface ApiFixtureLineup {
+  team: { id: number; name: string; logo: string };
+  coach: { id: number | null; name: string | null; photo: string | null };
+  formation: string;
+  startXI: ApiFixtureLineupPlayer[];
+  substitutes: ApiFixtureLineupPlayer[];
+}
+
+export interface ApiStanding {
+  rank: number;
+  team: { id: number; name: string; logo: string };
+  points: number;
+  goalsDiff: number;
+  form: string;
+  description: string | null;
+  all: { played: number; win: number; draw: number; lose: number; goals: { for: number; against: number } };
+}
+
+export async function fetchFixtureEvents(fixtureId: string): Promise<ApiFixtureEvent[]> {
+  return apiGet<ApiFixtureEvent>('/fixtures/events', { fixture: fixtureId });
+}
+
+export async function fetchFixtureStatistics(fixtureId: string): Promise<ApiFixtureStat[]> {
+  return apiGet<ApiFixtureStat>('/fixtures/statistics', { fixture: fixtureId });
+}
+
+export async function fetchFixtureLineups(fixtureId: string): Promise<ApiFixtureLineup[]> {
+  return apiGet<ApiFixtureLineup>('/fixtures/lineups', { fixture: fixtureId });
+}
+
+export async function fetchStandings(leagueId: string, season: string): Promise<ApiStanding[]> {
+  interface StandingsWrapper { league: { standings: ApiStanding[][] } }
+  const results = await apiGet<StandingsWrapper>('/standings', { league: leagueId, season });
+  // standings[0] is the main group/table
+  return results[0]?.league?.standings?.[0] ?? [];
+}
+
+// ==================== Leagues ====================
+
+export interface ApiLeague {
+  league: { id: number; name: string; type: string; logo: string };
+  country: { name: string; code: string | null; flag: string | null };
+  seasons: { year: number; current: boolean }[];
+}
+
+export async function fetchAllLeagues(): Promise<ApiLeague[]> {
+  return apiGet<ApiLeague>('/leagues');
+}
+
+// ==================== Predictions ====================
+
 export async function fetchPrediction(fixtureId: string): Promise<ApiPrediction | null> {
   const results = await apiGet<ApiPrediction>('/predictions', { fixture: fixtureId });
   return results[0] ?? null;

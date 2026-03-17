@@ -1,4 +1,4 @@
-import type { ApprovedLeague } from '@/types';
+import type { League } from '@/types';
 
 /**
  * Convert Seoul datetime (UTC+9) to local browser time
@@ -128,13 +128,13 @@ export function normalizeToISO(dateStr: string | undefined | null): string | nul
 export function getLeagueDisplayName(
   leagueId: number | string | undefined,
   leagueName: string,
-  approvedLeagues: ApprovedLeague[],
+  leagues: League[],
 ): string {
-  if (!approvedLeagues || approvedLeagues.length === 0) return leagueName || '';
+  if (!leagues || leagues.length === 0) return leagueName || '';
   const searchId = parseInt(String(leagueId));
   if (isNaN(searchId)) return leagueName || '';
 
-  const league = approvedLeagues.find((l) => parseInt(String(l.league_id)) === searchId);
+  const league = leagues.find((l) => parseInt(String(l.league_id)) === searchId);
   if (league?.country) {
     return `${league.country.toUpperCase()} - ${leagueName || league.league_name || ''}`;
   }

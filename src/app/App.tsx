@@ -17,6 +17,8 @@ const WatchlistTab = lazy(() => import('@/app/WatchlistTab').then((m) => ({ defa
 const RecommendationsTab = lazy(() => import('@/app/RecommendationsTab').then((m) => ({ default: m.RecommendationsTab })));
 const BetTrackerTab = lazy(() => import('@/app/BetTrackerTab').then((m) => ({ default: m.BetTrackerTab })));
 const LiveMonitorTab = lazy(() => import('@/app/LiveMonitorTab').then((m) => ({ default: m.LiveMonitorTab })));
+const ReportsTab = lazy(() => import('@/app/ReportsTab').then((m) => ({ default: m.ReportsTab })));
+const LeaguesTab = lazy(() => import('@/app/LeaguesTab').then((m) => ({ default: m.LeaguesTab })));
 const SettingsTab = lazy(() => import('@/app/SettingsTab').then((m) => ({ default: m.SettingsTab })));
 
 function TabFallback() {
@@ -41,6 +43,13 @@ function AppContent() {
     if (authed) loadAllData();
   }, [authed, loadAllData]);
 
+  // Global navigation event (used by child tabs to navigate without prop drilling)
+  useEffect(() => {
+    const handler = (e: Event) => setActiveTab((e as CustomEvent<TabName>).detail);
+    window.addEventListener('tfi:navigate', handler);
+    return () => window.removeEventListener('tfi:navigate', handler);
+  }, []);
+
   // Responsive: switch between sidebar and top-nav layouts
   useEffect(() => {
     const mq = window.matchMedia('(max-width: 767px)');
@@ -61,6 +70,8 @@ function AppContent() {
       case 'recommendations':return <TabErrorBoundary key="recommendations"><RecommendationsTab /></TabErrorBoundary>;
       case 'bet-tracker':    return <TabErrorBoundary key="bet-tracker"><BetTrackerTab /></TabErrorBoundary>;
       case 'live-monitor':   return <TabErrorBoundary key="live-monitor"><LiveMonitorTab /></TabErrorBoundary>;
+      case 'reports':        return <TabErrorBoundary key="reports"><ReportsTab /></TabErrorBoundary>;
+      case 'leagues':        return <TabErrorBoundary key="leagues"><LeaguesTab /></TabErrorBoundary>;
       case 'settings':       return <TabErrorBoundary key="settings"><SettingsTab /></TabErrorBoundary>;
     }
   };
@@ -72,7 +83,7 @@ function AppContent() {
       {isMobile ? (
         /* ── Mobile: original top-nav layout ── */
         <div id="appContainer">
-          <Header onLogout={logout} />
+          <Header activeTab={activeTab} onLogout={logout} />
           <Navigation activeTab={activeTab} onTabChange={setActiveTab} />
           <div className="main-content">
             <Suspense fallback={<TabFallback />}>{renderTab()}</Suspense>
@@ -89,8 +100,8 @@ function AppContent() {
           />
 
           <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column' }}>
-            <Header onLogout={logout} />
-            <div style={{ flex: 1, padding: '28px 24px', maxWidth: '1400px', width: '100%', boxSizing: 'border-box' }}>
+            <Header activeTab={activeTab} onLogout={logout} />
+            <div style={{ flex: 1, padding: '28px 24px', minWidth: 0, overflow: 'auto' }}>
               <Suspense fallback={<TabFallback />}>{renderTab()}</Suspense>
             </div>
           </div>

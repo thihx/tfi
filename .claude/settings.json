@@ -6,7 +6,24 @@
       "Bash(find c:/tfi -name *.css -type f)",
       "Bash(find c:/tfi/src -name *.css -o -name index.css)",
       "Bash(find c:/tfi -maxdepth 3 -name *.css)",
-      "Read(//tmp/**)"
+      "Read(//tmp/**)",
+      "Bash(curl -s -w \"\\\\nHTTP %{http_code}\\\\n\" \"http://localhost:4000/api/recommendations/dashboard\")",
+      "Bash(netstat -ano)",
+      "Bash(curl -s -H \"Origin: http://localhost:3000\" -H \"Access-Control-Request-Method: GET\" -X OPTIONS \"http://localhost:4000/api/matches\" -w \"\\\\nStatus: %{http_code}\\\\n\" -i)",
+      "Read(//c/tfi/**)",
+      "Bash(xargs taskkill:*)",
+      "Bash(curl -s -H \"Origin: http://localhost:3001\" -H \"Access-Control-Request-Method: GET\" -X OPTIONS \"http://localhost:4000/api/matches\" -i)",
+      "Bash(cmd /c \"taskkill /PID 25332 /F\")",
+      "Bash(powershell -Command \"Stop-Process -Id 25332 -Force\")",
+      "Bash(curl -s -H \"Origin: http://localhost:3001\" -X OPTIONS \"http://localhost:4000/api/matches\" -i)",
+      "Bash(curl -s -H \"Origin: http://localhost:3001\" \"http://localhost:4000/api/matches?limit=1\" -w \"\\\\nHTTP %{http_code}\")",
+      "Bash(sed -n '859,900p' c:/tfi/public/css/styles.css)",
+      "Bash(sed -n '2220,2260p' c:/tfi/public/css/styles.css)",
+      "Bash(npx tsc:*)",
+      "Bash(npx vite:*)",
+      "Bash(grep -n \"card-header\\\\|card-title\" c:/tfi/src/app/*.tsx)",
+      "Bash(grep -A 10 \"export function.*Tab\\\\\\(\\\\\\)\" c:/tfi/src/app/*.tsx)",
+      "Bash(find c:tfipackagesserversrcroutes -type f -name *.ts)"
     ]
   }
 }

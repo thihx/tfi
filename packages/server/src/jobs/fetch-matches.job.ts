@@ -12,7 +12,9 @@ import { config } from '../config.js';
 import { fetchFixturesForDate, type ApiFixture } from '../lib/football-api.js';
 import * as leagueRepo from '../repos/leagues.repo.js';
 import * as matchRepo from '../repos/matches.repo.js';
+import * as watchlistRepo from '../repos/watchlist.repo.js';
 import { archiveFinishedMatches } from '../repos/matches-history.repo.js';
+import { reportJobProgress } from './job-progress.js';
 
 const ALLOWED_STATUSES = ['NS', '1H', 'HT', '2H', 'ET', 'BT', 'P', 'LIVE', 'INT'];
 
@@ -47,7 +49,10 @@ function fixtureToMatchRow(f: ApiFixture): matchRepo.MatchRow {
 }
 
 export async function fetchMatchesJob(): Promise<{ saved: number; leagues: number }> {
+  const JOB = 'fetch-matches';
+
   // 1. Get active league IDs
+  await reportJobProgress(JOB, 'leagues', 'Loading active leagues...', 5);
   const activeLeagues = await leagueRepo.getActiveLeagues();
   if (activeLeagues.length === 0) {
     console.log('[fetchMatchesJob] No active leagues, skip.');
@@ -63,6 +68,7 @@ export async function fetchMatchesJob(): Promise<{ saved: number; leagues: numbe
   const dateTo = toDateString(tomorrow, config.timezone);
 
   // 3. Fetch from API-Football
+  await reportJobProgress(JOB, 'api', `Fetching fixtures for ${dateFrom} and ${dateTo}...`, 15);
   const [todayFixtures, tomorrowFixtures] = await Promise.all([
     fetchFixturesForDate(dateFrom),
     fetchFixturesForDate(dateTo),
@@ -71,6 +77,7 @@ export async function fetchMatchesJob(): Promise<{ saved: number; leagues: numbe
   console.log(`[fetchMatchesJob] Raw: today=${todayFixtures.length} tomorrow=${tomorrowFixtures.length} total=${allFixtures.length}`);
 
   // 4. Filter by approved leagues
+  await reportJobProgress(JOB, 'filter', `Filtering ${allFixtures.length} fixtures by ${leagueIdSet.size} leagues...`, 40);
   const leagueFiltered = allFixtures.filter((f) => leagueIdSet.has(f.league.id));
 
   // 5. Filter by status
@@ -82,6 +89,7 @@ export async function fetchMatchesJob(): Promise<{ saved: number; leagues: numbe
   const rows = statusFiltered.map(fixtureToMatchRow);
 
   // 7. Archive finished matches before TRUNCATE
+  await reportJobProgress(JOB, 'archive', 'Archiving finished matches...', 55);
   const allCurrentMatches = await matchRepo.getAllMatches();
   const archivedCount = await archiveFinishedMatches(allCurrentMatches);
   if (archivedCount > 0) {
@@ -89,9 +97,54 @@ export async function fetchMatchesJob(): Promise<{ saved: number; leagues: numbe
   }
 
   // 8. Full-refresh matches table
+  await reportJobProgress(JOB, 'save', `Saving ${rows.length} matches...`, 70);
   const saved = await matchRepo.replaceAllMatches(rows);
   const uniqueLeagues = new Set(rows.map((r) => r.league_id)).size;
 
   console.log(`[fetchMatchesJob] ✅ Saved ${saved} matches from ${uniqueLeagues} leagues`);
+
+  // 9. Auto-add Top League matches to Watchlist (NS status only)
+  await reportJobProgress(JOB, 'top-leagues', 'Auto-adding top league matches to watchlist...', 85);
+  const topLeagues = await leagueRepo.getTopLeagues();
+  if (topLeagues.length > 0) {
+    const topLeagueIds = new Set(topLeagues.map((l) => l.league_id));
+    const topMatches = rows.filter((r) => topLeagueIds.has(r.league_id) && r.status === 'NS');
+
+    let added = 0;
+    for (const m of topMatches) {
+      const existing = await watchlistRepo.getWatchlistByMatchId(m.match_id);
+      if (existing) continue; // unique match_id constraint
+
+      await watchlistRepo.createWatchlistEntry({
+        match_id: m.match_id,
+        date: m.date,
+        league: m.league_name,
+        home_team: m.home_team,
+        away_team: m.away_team,
+        kickoff: m.kickoff,
+        mode: 'B',
+        prediction: null,
+        recommended_custom_condition: '',
+        recommended_condition_reason: '',
+        recommended_condition_reason_vi: '',
+        recommended_condition_at: null,
+        custom_conditions: '',
+        priority: 0,
+        status: 'active',
+        added_by: 'top-league-auto',
+        last_checked: null,
+        total_checks: 0,
+        recommendations_count: 0,
+        strategic_context: null,
+        strategic_context_at: null,
+      });
+      added++;
+    }
+
+    if (added > 0) {
+      console.log(`[fetchMatchesJob] ⭐ Auto-added ${added} top-league matches to watchlist`);
+    }
+  }
+
   return { saved, leagues: uniqueLeagues };
 }

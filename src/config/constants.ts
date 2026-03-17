@@ -48,7 +48,7 @@ export const LEAGUE_TIERS: Record<string, number[]> = {
 
 // ==================== STATUS BADGES ====================
 export const STATUS_BADGES: Record<string, StatusBadgeInfo> = {
-  NS: { label: '⏱️ Not Started', class: 'badge-ns' },
+  NS: { label: 'Not Started', class: 'badge-ns' },
   FT: { label: 'Finished', class: 'badge-ft' },
   '1H': { label: '● 1st Half', class: 'badge-live' },
   '2H': { label: '● 2nd Half', class: 'badge-live' },
@@ -63,9 +63,9 @@ export const STATUS_BADGES: Record<string, StatusBadgeInfo> = {
   SUSP: { label: 'Suspended', class: 'badge-pending' },
   AWD: { label: 'Awarded', class: 'badge-ft' },
   // Recommendation result statuses
-  WIN: { label: '✅ Won', class: 'badge-won' },
-  LOSS: { label: '❌ Lost', class: 'badge-lost' },
-  PUSH: { label: '➖ Push', class: 'badge-pending' },
+  WIN: { label: 'Won', class: 'badge-won' },
+  LOSS: { label: 'Lost', class: 'badge-lost' },
+  PUSH: { label: 'Push', class: 'badge-pending' },
 };
 
 export const LIVE_STATUSES = ['1H', '2H', 'HT', 'ET', 'BT', 'P', 'LIVE', 'INT'];
@@ -82,10 +82,10 @@ export const MARKET_COLORS: Record<string, string> = {
 
 // ==================== BET RESULT BADGES ====================
 export const BET_RESULT_BADGES: Record<string, { cls: string; label: string }> = {
-  win:     { cls: 'badge-won',     label: '✅ Won' },
-  loss:    { cls: 'badge-lost',    label: '❌ Lost' },
-  push:    { cls: 'badge-pending', label: '➖ Push' },
-  pending: { cls: 'badge-ns',      label: '⏳ Pending' },
+  win:     { cls: 'badge-won',     label: 'Won' },
+  loss:    { cls: 'badge-lost',    label: 'Lost' },
+  push:    { cls: 'badge-pending', label: 'Push' },
+  pending: { cls: 'badge-ns',      label: 'Pending' },
 };
 
 // ==================== SVG PLACEHOLDERS ====================

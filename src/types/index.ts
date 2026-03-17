@@ -18,6 +18,18 @@ export interface Match {
   prediction?: string;
 }
 
+export interface StrategicContext {
+  home_motivation: string;
+  away_motivation: string;
+  league_positions: string;
+  fixture_congestion: string;
+  rotation_risk: string;
+  key_absences: string;
+  h2h_narrative: string;
+  summary: string;
+  searched_at: string;
+}
+
 export interface WatchlistItem {
   match_id: string;
   date: string;
@@ -34,7 +46,10 @@ export interface WatchlistItem {
   added_at?: string;
   prediction?: string;
   recommended_custom_condition?: string;
+  recommended_condition_reason?: string;
   recommended_condition_reason_vi?: string;
+  strategic_context?: StrategicContext | null;
+  strategic_context_at?: string | null;
 }
 
 export interface Recommendation {
@@ -68,11 +83,20 @@ export interface Recommendation {
   created_at?: string;
 }
 
-export interface ApprovedLeague {
+export interface League {
   league_id: number;
   league_name: string;
   country: string;
+  tier: string;
+  active: boolean;
+  top_league: boolean;
+  type: string;
+  logo: string;
+  last_updated: string;
 }
+
+/** @deprecated Use League instead */
+export type ApprovedLeague = League;
 
 export interface LeagueInfo {
   name: string;
@@ -106,4 +130,4 @@ export interface ApiResponse<T> {
   ids?: string[];
 }
 
-export type TabName = 'dashboard' | 'matches' | 'watchlist' | 'recommendations' | 'bet-tracker' | 'live-monitor' | 'settings';
+export type TabName = 'dashboard' | 'matches' | 'leagues' | 'watchlist' | 'recommendations' | 'bet-tracker' | 'live-monitor' | 'reports' | 'settings';

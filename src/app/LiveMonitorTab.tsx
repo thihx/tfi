@@ -2,11 +2,11 @@
 // Live Monitor Tab — Real-time pipeline control & results
 // ============================================================
 
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import { useAppState } from '@/hooks/useAppState';
 import { useScheduler } from '@/features/live-monitor/useScheduler';
 import type { PipelineContext, PipelineMatchResult, LiveMonitorConfig } from '@/features/live-monitor/types';
-import { loadMonitorConfig, saveMonitorConfig } from '@/features/live-monitor/config';
+import { createDefaultConfig, fetchMonitorConfig, persistMonitorConfig } from '@/features/live-monitor/config';
 import { formatLocalTimeFull } from '@/lib/utils/helpers';
 
 // ==================== Sub-components ====================
@@ -48,13 +48,13 @@ function SchedulerControls({
   return (
     <div className="card">
       <div className="card-header">
-        <div className="card-title">🎮 Scheduler Control</div>
+        <div className="card-title">Scheduler Control</div>
         <span style={{ color: statusColor, fontWeight: 600 }}>{statusLabel}</span>
       </div>
       <div style={{ padding: '20px' }}>
         <div className="monitor-controls">
           <div className="control-group">
-            <label>Interval (phút)</label>
+            <label>Interval (minutes)</label>
             <input
               type="number"
               min={1}
@@ -118,29 +118,46 @@ function SchedulerControls({
 }
 
 function ConfigPanel() {
-  const [config, setConfig] = useState(() => loadMonitorConfig());
+  const [config, setConfig] = useState<LiveMonitorConfig>(() => createDefaultConfig());
   const [saved, setSaved] = useState(false);
+  const [saveError, setSaveError] = useState('');
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    fetchMonitorConfig().then((c) => { setConfig(c); setLoading(false); });
+  }, []);
 
   const update = (key: keyof LiveMonitorConfig, value: string | number) => {
     setConfig((c) => ({ ...c, [key]: value }));
     setSaved(false);
+    setSaveError('');
   };
 
-  const handleSave = () => {
-    saveMonitorConfig(config);
-    setSaved(true);
-    setTimeout(() => setSaved(false), 2000);
+  const handleSave = async () => {
+    try {
+      await persistMonitorConfig(config);
+      setSaved(true);
+      setSaveError('');
+      setTimeout(() => setSaved(false), 2000);
+    } catch (err) {
+      console.error('[ConfigPanel] Save failed:', err);
+      setSaveError(err instanceof Error ? err.message : 'Save failed');
+    }
   };
 
   return (
     <div className="card">
       <div className="card-header">
-        <div className="card-title">⚙️ Monitor Config</div>
-        <button className="btn btn-primary btn-sm" onClick={handleSave}>
-          {saved ? '✅ Saved!' : '💾 Save'}
+        <div className="card-title">Monitor Config</div>
+        <button className="btn btn-primary btn-sm" onClick={handleSave} disabled={loading}>
+          {saved ? 'Saved!' : saveError ? '⚠ Error' : 'Save'}
         </button>
       </div>
+      {saveError && <div style={{ padding: '8px 20px', color: 'var(--danger)', fontSize: '13px' }}>{saveError}</div>}
       <div style={{ padding: '20px' }}>
+        {loading ? (
+          <div style={{ textAlign: 'center', padding: '20px', color: 'var(--gray-500)' }}>Loading config…</div>
+        ) : (
         <div className="config-grid">
           <div className="config-field">
             <label>AI Provider</label>
@@ -231,6 +248,7 @@ function ConfigPanel() {
             />
           </div>
         </div>
+        )}
       </div>
     </div>
   );
@@ -411,9 +429,9 @@ export function LiveMonitorTab() {
           {ctx && ctx.stage !== 'idle' && (
             <div className="card" style={{ marginBottom: '16px' }}>
               <div className="card-header">
-                <div className="card-title">📡 Pipeline Progress</div>
+                <div className="card-title">Pipeline Progress</div>
                 <small style={{ color: 'var(--gray-500)' }}>
-                  {ctx.triggeredBy === 'scheduled' ? '⏰ Scheduled' : '👆 Manual'} —{' '}
+                  {ctx.triggeredBy === 'scheduled' ? 'Scheduled' : 'Manual'} —{' '}
                   {ctx.startedAt ? formatLocalTimeFull(ctx.startedAt) : ''}
                 </small>
               </div>
@@ -451,10 +469,10 @@ export function LiveMonitorTab() {
                 <div style={{ padding: '60px 20px', textAlign: 'center' }}>
                   <div style={{ fontSize: '48px', marginBottom: '16px' }}>📡</div>
                   <p style={{ color: 'var(--gray-500)', fontSize: '16px' }}>
-                    Chưa có kết quả. Nhấn <strong>Run Once</strong> hoặc <strong>Start</strong> scheduler.
+                    No results yet. Press <strong>Run Once</strong> or <strong>Start</strong> the scheduler.
                   </p>
                   <p style={{ color: 'var(--gray-400)', fontSize: '13px', marginTop: '8px' }}>
-                    Pipeline sẽ tự động quét watchlist, fetch live data, AI analysis và gửi thông báo.
+                    The pipeline will automatically scan the watchlist, fetch live data, run AI analysis, and send notifications.
                   </p>
                 </div>
               </div>

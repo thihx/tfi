@@ -201,7 +201,7 @@ export function parseAiResponse(
     market_chosen_reason: '',
     confidence: 0,
     reasoning_en: 'AI response could not be parsed.',
-    reasoning_vi: 'Không thể phân tích phản hồi AI.',
+    reasoning_vi: 'AI response could not be parsed.',
     warnings: ['PARSE_ERROR'],
     value_percent: 0,
     risk_level: 'HIGH',

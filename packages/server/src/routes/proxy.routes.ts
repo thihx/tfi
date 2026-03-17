@@ -5,7 +5,10 @@
 
 import type { FastifyInstance } from 'fastify';
 import { config } from '../config.js';
-import { fetchFixturesByIds, fetchLiveOdds } from '../lib/football-api.js';
+import {
+  fetchFixturesByIds, fetchLiveOdds, fetchPreMatchOdds, fetchPrediction,
+  fetchFixtureEvents, fetchFixtureStatistics, fetchFixtureLineups, fetchStandings,
+} from '../lib/football-api.js';
 
 // ==================== AI (Gemini) ====================
 
@@ -64,12 +67,101 @@ export async function proxyRoutes(app: FastifyInstance) {
   });
 
   // POST /api/proxy/football/odds
+  // Tries live odds first, normalizes format, falls back to pre-match odds
   app.post<{ Body: { matchId: string } }>('/api/proxy/football/odds', async (req, reply) => {
     try {
-      const odds = await fetchLiveOdds(req.body.matchId);
-      return odds;
+      // 1. Try live odds first
+      let bookmakers: unknown[] = [];
+      try {
+        const liveOdds = await fetchLiveOdds(req.body.matchId) as Array<{
+          fixture?: unknown;
+          odds?: Array<{ id?: number; name?: string; values?: Array<{ value: string; odd: string }> }>;
+          bookmakers?: Array<{ id: number; name: string; bets: unknown[] }>;
+        }>;
+        if (liveOdds.length > 0 && liveOdds[0]) {
+          const entry = liveOdds[0];
+          if (Array.isArray(entry.bookmakers) && entry.bookmakers.length > 0) {
+            // Already in bookmaker format
+            bookmakers = entry.bookmakers;
+          } else if (Array.isArray(entry.odds) && entry.odds.length > 0) {
+            // Live format: odds[] → convert to single bookmaker with bets
+            bookmakers = [{
+              id: 0,
+              name: 'Live Odds',
+              bets: entry.odds.map((o) => ({
+                id: o.id ?? 0,
+                name: o.name ?? '',
+                values: o.values ?? [],
+              })),
+            }];
+          }
+        }
+      } catch {
+        // Live odds failed, will try pre-match
+      }
+
+      // 2. Fallback to pre-match odds if live returned nothing
+      if (bookmakers.length === 0) {
+        try {
+          const preMatch = await fetchPreMatchOdds(req.body.matchId) as Array<{
+            bookmakers?: Array<{ id: number; name: string; bets: unknown[] }>;
+          }>;
+          if (preMatch.length > 0 && preMatch[0] && Array.isArray(preMatch[0].bookmakers)) {
+            bookmakers = preMatch[0].bookmakers;
+          }
+        } catch {
+          // Pre-match odds also failed
+        }
+      }
+
+      // 3. Return in the format expected by frontend: { response: [{ bookmakers: [...] }] }
+      return {
+        response: bookmakers.length > 0
+          ? [{ fixture: { id: Number(req.body.matchId) }, bookmakers }]
+          : [],
+      };
     } catch (err) {
       app.log.error(err, 'proxy/football/odds failed');
+      return reply.code(502).send({ error: err instanceof Error ? err.message : 'Football API error' });
+    }
+  });
+
+  // POST /api/proxy/football/scout — aggregated match scout data
+  app.post<{
+    Body: { fixtureId: string; leagueId?: number; season?: number; status?: string };
+  }>('/api/proxy/football/scout', async (req, reply) => {
+    const { fixtureId, leagueId, season, status } = req.body;
+    const LIVE = ['1H', '2H', 'HT', 'ET', 'BT', 'P', 'LIVE', 'INT'];
+    const FINISHED = ['FT', 'AET', 'PEN'];
+    const hasStarted = status ? (LIVE.includes(status) || FINISHED.includes(status)) : false;
+
+    try {
+      const fixtures = await fetchFixturesByIds([fixtureId]);
+      const fixture = fixtures[0] ?? null;
+
+      let prediction = null;
+      let events: unknown[] = [];
+      let statistics: unknown[] = [];
+      let lineups: unknown[] = [];
+      let standings: unknown[] = [];
+
+      if (hasStarted) {
+        [events, statistics, lineups] = await Promise.all([
+          fetchFixtureEvents(fixtureId).catch(() => []),
+          fetchFixtureStatistics(fixtureId).catch(() => []),
+          fetchFixtureLineups(fixtureId).catch(() => []),
+        ]);
+      } else {
+        const seasonStr = season ? String(season) : String(new Date().getFullYear() - (new Date().getMonth() < 6 ? 1 : 0));
+        [prediction, standings] = await Promise.all([
+          fetchPrediction(fixtureId).catch(() => null),
+          leagueId ? fetchStandings(String(leagueId), seasonStr).catch(() => []) : Promise.resolve([]),
+        ]);
+      }
+
+      return { fixture, prediction, events, statistics, lineups, standings };
+    } catch (err) {
+      app.log.error(err, 'football/scout failed');
       return reply.code(502).send({ error: err instanceof Error ? err.message : 'Football API error' });
     }
   });

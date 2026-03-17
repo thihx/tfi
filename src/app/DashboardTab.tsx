@@ -9,6 +9,7 @@ import type { AiAccuracyStats, AiModelStats, BetStats, DashboardSummary } from '
 import { StatusBadge } from '@/components/ui/StatusBadge';
 import { formatLocalDateTime } from '@/lib/utils/helpers';
 import { MARKET_COLORS } from '@/config/constants';
+import { PageHeader } from '@/components/ui/PageHeader';
 
 // ==================== Sub-components ====================
 
@@ -27,7 +28,7 @@ const PnlChart = memo(function PnlChart({ data }: { data: { date: string; pnl: n
   if (!data.length) return null;
   return (
     <div className="card" style={{ marginBottom: '16px' }}>
-      <div className="card-header"><div className="card-title">📈 Cumulative P/L</div></div>
+      <div className="card-header"><div className="card-title">Cumulative P/L</div></div>
       <div style={{ padding: '16px 12px 8px 0' }}>
         <ResponsiveContainer width="100%" height={240}>
           <AreaChart data={data}>
@@ -62,7 +63,7 @@ const MarketBreakdownChart = memo(function MarketBreakdownChart({ data }: { data
 
   return (
     <div className="card" style={{ marginBottom: '16px' }}>
-      <div className="card-header"><div className="card-title">📊 Performance by Market</div></div>
+      <div className="card-header"><div className="card-title">Performance by Market</div></div>
       <div style={{ padding: '16px 12px 8px 0' }}>
         <ResponsiveContainer width="100%" height={200}>
           <BarChart data={chartData} layout="vertical">
@@ -75,9 +76,9 @@ const MarketBreakdownChart = memo(function MarketBreakdownChart({ data }: { data
           </BarChart>
         </ResponsiveContainer>
       </div>
-      <div style={{ padding: '0 20px 16px', display: 'flex', gap: '16px', flexWrap: 'wrap' }}>
+      <div className="flex-row-gap-16 flex-wrap" style={{ padding: '0 20px 16px' }}>
         {chartData.map((d) => (
-          <div key={d.name} style={{ fontSize: '12px', color: 'var(--gray-600)' }}>
+          <div key={d.name} className="text-sm text-secondary">
             <strong style={{ color: MARKET_COLORS[d.name] || 'var(--gray-700)' }}>{d.name}</strong>:{' '}
             <span style={{ color: d.pnl >= 0 ? 'var(--success)' : 'var(--danger)' }}>
               {d.pnl >= 0 ? '+' : ''}${d.pnl.toFixed(2)}
@@ -102,7 +103,7 @@ const AiAccuracyPanel = memo(function AiAccuracyPanel({ stats, models }: { stats
 
   return (
     <div className="card" style={{ marginBottom: '16px' }}>
-      <div className="card-header"><div className="card-title">🤖 AI Performance</div></div>
+      <div className="card-header"><div className="card-title">AI Performance</div></div>
       <div style={{ padding: '16px 20px', display: 'flex', gap: '24px', alignItems: 'center', flexWrap: 'wrap' }}>
         <div style={{ width: 140, height: 140 }}>
           <ResponsiveContainer>
@@ -115,10 +116,10 @@ const AiAccuracyPanel = memo(function AiAccuracyPanel({ stats, models }: { stats
           </ResponsiveContainer>
         </div>
         <div>
-          <div style={{ fontSize: '28px', fontWeight: 700, color: 'var(--primary)' }}>
+          <div className="stat-value-lg text-primary-color">
             {stats.accuracy.toFixed(1)}%
           </div>
-          <div style={{ fontSize: '13px', color: 'var(--gray-500)' }}>
+          <div className="text-base text-subtle">
             {stats.correct} correct / {settled} settled
           </div>
           {stats.pending > 0 && (
@@ -127,9 +128,9 @@ const AiAccuracyPanel = memo(function AiAccuracyPanel({ stats, models }: { stats
             </div>
           )}
           {/* Legend */}
-          <div style={{ display: 'flex', gap: '12px', marginTop: '10px', flexWrap: 'wrap' }}>
+          <div className="flex-row-gap-12 flex-wrap mt-8">
             {pieData.map((d) => (
-              <div key={d.name} style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '12px', color: 'var(--gray-600)' }}>
+              <div key={d.name} className="flex-row-gap-4 text-sm text-secondary">
                 <span style={{ width: 10, height: 10, borderRadius: '50%', backgroundColor: d.color, display: 'inline-block', flexShrink: 0 }} />
                 {d.name} ({d.value})
               </div>
@@ -199,6 +200,15 @@ export function DashboardTab() {
 
   return (
     <div className="dashboard">
+      <PageHeader
+        subtitle={<>
+          <span><strong>{d?.matchCount ?? 0}</strong> matches</span>
+          <span><strong>{d?.watchlistCount ?? 0}</strong> watchlist</span>
+          <span><strong>{d?.recCount ?? 0}</strong> recommendations</span>
+          {aiStats && <span>AI accuracy: <strong>{aiStats.accuracy.toFixed(1)}%</strong></span>}
+        </>}
+      />
+
       {/* Summary Stats */}
       <div className="stats-grid">
         <StatCard label="Total Bets" value={d?.totalBets ?? 0} sub={`${d?.pending ?? 0} pending`} />
@@ -215,14 +225,6 @@ export function DashboardTab() {
         />
       </div>
 
-      {/* Overview counts */}
-      <div className="dashboard-overview-bar">
-        <span>📊 {d?.matchCount ?? 0} matches</span>
-        <span>👁️ {d?.watchlistCount ?? 0} watchlist</span>
-        <span>🎯 {d?.recCount ?? 0} recommendations</span>
-        {aiStats && <span>🤖 AI accuracy: {aiStats.accuracy.toFixed(1)}%</span>}
-      </div>
-
       {/* Charts Row */}
       <div className="dashboard-charts-row">
         <PnlChart data={pnlTrend} />
@@ -235,8 +237,7 @@ export function DashboardTab() {
       {/* Recent Activity */}
       <div className="card">
         <div className="card-header">
-          <div className="card-title">📋 Recent Recommendations</div>
-          <button className="btn btn-sm btn-secondary" onClick={loadAll}>🔄</button>
+          <div className="card-title">Recent Recommendations</div>
         </div>
         {recentRecs.length > 0 ? (
           <div className="table-container table-cards">
@@ -265,7 +266,7 @@ export function DashboardTab() {
                   const outcomeShort = outcome.length > 35 ? outcome.slice(0, 33) + '…' : outcome;
                   return (
                     <tr key={r.id ?? i}>
-                      <td data-label="Date"><span className="cell-value" style={{ fontSize: '12px', color: 'var(--gray-500)' }}>{dtStr}</span></td>
+                      <td data-label="Date"><span className="cell-value"><span style={{ background: 'var(--gray-100)', padding: '3px 7px', borderRadius: '4px', fontWeight: 600, color: 'var(--gray-700)', fontSize: '12px', whiteSpace: 'nowrap' }}>{dtStr}</span></span></td>
                       <td data-label="League"><span className="cell-value" style={{ fontSize: '12px' }} title={String(r.league || '')}>{r.league ? (r.league.length > 20 ? r.league.slice(0, 18) + '…' : r.league) : '-'}</span></td>
                       <td data-label="Match"><span className="cell-value">{display}</span></td>
                       <td data-label="Selection"><span className="cell-value"><strong>{r.selection || '-'}</strong></span></td>
@@ -273,7 +274,7 @@ export function DashboardTab() {
                       <td data-label="Outcome"><span className="cell-value" title={outcome} style={{ fontSize: '12px', color: 'var(--gray-600)', maxWidth: '220px', display: 'inline-block', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{outcomeShort || '-'}</span></td>
                       <td data-label="Result" style={{ textAlign: 'center' }}><span className="cell-value">{r.result ? <StatusBadge status={r.result.toUpperCase()} /> : '-'}</span></td>
                       <td data-label="P/L" style={{ textAlign: 'right' }}>
-                        <span className="cell-value" style={{ fontWeight: 700, color: pnl >= 0 ? 'var(--success)' : 'var(--danger)' }}>
+                        <span className="cell-value" style={{ fontWeight: 600, color: pnl >= 0 ? '#15803d' : '#b91c1c' }}>
                           {pnl >= 0 ? '+' : ''}${pnl.toFixed(2)}
                         </span>
                       </td>
@@ -284,7 +285,7 @@ export function DashboardTab() {
             </table>
           </div>
         ) : (
-          <div style={{ padding: '40px 20px', textAlign: 'center', color: 'var(--gray-400)' }}>
+          <div className="empty-state-content">
             No recommendations yet
           </div>
         )}

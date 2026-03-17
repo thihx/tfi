@@ -5,6 +5,9 @@
 
 import type { LiveMonitorConfig } from './types';
 
+const API_BASE = import.meta.env.VITE_API_URL as string | undefined
+  ?? (import.meta.env.MODE === 'production' ? '' : 'http://localhost:4000');
+
 /**
  * Default pipeline configuration.
  * Mirrors the "Set Config" node in the n8n workflow exactly.
@@ -36,8 +39,8 @@ export function createDefaultConfig(overrides?: Partial<LiveMonitorConfig>): Liv
 }
 
 /**
- * Load config from localStorage with environment variable defaults.
- * Accepts optional overrides that take priority over stored values.
+ * Load config synchronously from localStorage cache (for pipeline use).
+ * The cache is kept in sync by fetchMonitorConfig / persistMonitorConfig.
  */
 export function loadMonitorConfig(overrides?: Partial<LiveMonitorConfig>): LiveMonitorConfig {
   let storedOverrides: Partial<LiveMonitorConfig> = {};
@@ -51,10 +54,46 @@ export function loadMonitorConfig(overrides?: Partial<LiveMonitorConfig>): LiveM
 }
 
 /**
- * Save config to localStorage.
+ * Save config to localStorage (sync cache only — use persistMonitorConfig for DB).
  */
 export function saveMonitorConfig(config: Partial<LiveMonitorConfig>): void {
   const current = loadMonitorConfig();
   const merged = { ...current, ...config };
   localStorage.setItem('liveMonitorConfig', JSON.stringify(merged));
+}
+
+// ── API-backed persistence (DB) ──────────────────────────────
+
+/**
+ * Fetch config from server DB + merge with defaults.
+ * Also updates the localStorage cache so pipeline can read it synchronously.
+ */
+export async function fetchMonitorConfig(): Promise<LiveMonitorConfig> {
+  try {
+    const res = await fetch(`${API_BASE}/api/settings`);
+    if (res.ok) {
+      const dbSettings = await res.json() as Partial<LiveMonitorConfig>;
+      const config = createDefaultConfig(dbSettings);
+      // Sync localStorage cache
+      localStorage.setItem('liveMonitorConfig', JSON.stringify(config));
+      return config;
+    }
+  } catch {
+    // Fallback to localStorage
+  }
+  return loadMonitorConfig();
+}
+
+/**
+ * Persist config to server DB and update localStorage cache.
+ */
+export async function persistMonitorConfig(config: Partial<LiveMonitorConfig>): Promise<void> {
+  // Always update localStorage cache immediately
+  saveMonitorConfig(config);
+  const res = await fetch(`${API_BASE}/api/settings`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(config),
+  });
+  if (!res.ok) throw new Error(`Save failed: ${res.status}`);
 }

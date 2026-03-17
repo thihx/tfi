@@ -1,4 +1,4 @@
-import type { AppConfig, Match, WatchlistItem, Recommendation, ApprovedLeague, ApiResponse } from '@/types';
+import type { AppConfig, Match, WatchlistItem, Recommendation, League, ApiResponse } from '@/types';
 
 // ==================== TYPED API ERROR ====================
 
@@ -43,6 +43,16 @@ async function pgPost<T>(config: AppConfig, path: string, body: unknown): Promis
 async function pgPatch<T>(config: AppConfig, path: string, body: unknown): Promise<T> {
   const response = await fetch(`${config.apiUrl}${path}`, {
     method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+    body: JSON.stringify(body),
+  });
+  if (!response.ok) throw formatApiError(response.status, await response.text());
+  return response.json();
+}
+
+async function pgPut<T>(config: AppConfig, path: string, body: unknown): Promise<T> {
+  const response = await fetch(`${config.apiUrl}${path}`, {
+    method: 'PUT',
     headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
     body: JSON.stringify(body),
   });
@@ -151,8 +161,59 @@ export async function fetchDistinctLeagues(config: AppConfig): Promise<string[]>
   return pgFetch<string[]>(config, '/api/recommendations/leagues');
 }
 
-export async function fetchApprovedLeagues(config: AppConfig): Promise<ApprovedLeague[]> {
-  return pgFetch<ApprovedLeague[]>(config, '/api/leagues');
+// ==================== Match Scout ====================
+
+export interface MatchScoutData {
+  fixture: {
+    fixture: { id: number; referee: string | null; venue: { name: string | null; city: string | null }; status: { short: string; elapsed: number | null }; periods: { first: number | null; second: number | null } };
+    league: { id: number; name: string; country: string; logo: string; round: string; season: number };
+    teams: { home: { id: number; name: string; logo: string }; away: { id: number; name: string; logo: string } };
+    goals: { home: number | null; away: number | null };
+  } | null;
+  prediction: {
+    predictions: { winner: { name: string } | null; advice: string; percent: { home: string; draw: string; away: string } | null; under_over: string | null };
+    comparison: { form: { home: string; away: string } | null; att: { home: string; away: string } | null; def: { home: string; away: string } | null };
+    h2h?: Array<{ fixture: { date: string }; teams: { home: { name: string; winner: boolean | null }; away: { name: string; winner: boolean | null } }; goals: { home: number | null; away: number | null } }>;
+    teams?: { home: { name: string; league?: { form?: string } }; away: { name: string; league?: { form?: string } } };
+  } | null;
+  events: Array<{ time: { elapsed: number; extra: number | null }; team: { name: string }; player: { name: string | null }; assist: { name: string | null }; type: string; detail: string }>;
+  statistics: Array<{ team: { name: string }; statistics: Array<{ type: string; value: string | number | null }> }>;
+  lineups: Array<{ team: { name: string; logo: string }; formation: string; coach: { name: string | null }; startXI: Array<{ player: { name: string; number: number; pos: string; grid: string | null } }>; substitutes: Array<{ player: { name: string; number: number; pos: string } }> }>;
+  standings: Array<{ rank: number; team: { name: string; logo: string }; points: number; goalsDiff: number; form: string; all: { played: number; win: number; draw: number; lose: number; goals: { for: number; against: number } } }>;
+}
+
+export async function fetchMatchScout(
+  config: AppConfig,
+  fixtureId: string,
+  opts: { leagueId?: number; season?: number; status?: string },
+): Promise<MatchScoutData> {
+  return pgPost<MatchScoutData>(config, '/api/proxy/football/scout', {
+    fixtureId, leagueId: opts.leagueId, season: opts.season, status: opts.status,
+  });
+}
+
+export async function fetchApprovedLeagues(config: AppConfig): Promise<League[]> {
+  return pgFetch<League[]>(config, '/api/leagues');
+}
+
+export async function toggleLeagueActive(config: AppConfig, leagueId: number, active: boolean): Promise<unknown> {
+  return pgPut(config, `/api/leagues/${leagueId}/active`, { active });
+}
+
+export async function bulkSetLeagueActive(config: AppConfig, ids: number[], active: boolean): Promise<{ updated: number }> {
+  return pgPost<{ updated: number }>(config, '/api/leagues/bulk-active', { ids, active });
+}
+
+export async function fetchLeaguesFromApi(config: AppConfig): Promise<{ fetched: number; upserted: number }> {
+  return pgPost<{ fetched: number; upserted: number }>(config, '/api/leagues/fetch-from-api', {});
+}
+
+export async function toggleLeagueTopLeague(config: AppConfig, leagueId: number, topLeague: boolean): Promise<unknown> {
+  return pgPut(config, `/api/leagues/${leagueId}/top-league`, { top_league: topLeague });
+}
+
+export async function bulkSetTopLeague(config: AppConfig, ids: number[], topLeague: boolean): Promise<{ updated: number }> {
+  return pgPost<{ updated: number }>(config, '/api/leagues/bulk-top-league', { ids, top_league: topLeague });
 }
 
 export async function createWatchlistItems(
@@ -214,7 +275,8 @@ export interface BetStats {
 }
 
 export async function fetchBets(config: AppConfig): Promise<BetRecord[]> {
-  return pgFetch<BetRecord[]>(config, '/api/bets');
+  const data = await pgFetch<{ rows: BetRecord[]; total: number } | BetRecord[]>(config, '/api/bets');
+  return Array.isArray(data) ? data : data.rows;
 }
 
 export async function fetchBetsByMatch(config: AppConfig, matchId: string): Promise<BetRecord[]> {
@@ -319,4 +381,127 @@ export async function fetchAiStats(config: AppConfig): Promise<AiAccuracyStats> 
 
 export async function fetchAiStatsByModel(config: AppConfig): Promise<AiModelStats[]> {
   return pgFetch<AiModelStats[]>(config, '/api/ai-performance/stats/by-model');
+}
+
+// ==================== REPORTS ====================
+
+export interface ReportPeriodFilter {
+  dateFrom?: string;
+  dateTo?: string;
+  period?: 'today' | '7d' | '30d' | '90d' | 'this-week' | 'this-month' | 'all';
+}
+
+function buildReportQs(filter: ReportPeriodFilter): string {
+  const qs = new URLSearchParams();
+  if (filter.dateFrom) qs.set('dateFrom', filter.dateFrom);
+  if (filter.dateTo) qs.set('dateTo', filter.dateTo);
+  if (filter.period) qs.set('period', filter.period);
+  const s = qs.toString();
+  return s ? `?${s}` : '';
+}
+
+export interface OverviewReport {
+  total: number; settled: number; wins: number; losses: number;
+  pushes: number; pending: number; winRate: number; totalPnl: number;
+  avgOdds: number; avgConfidence: number; roi: number;
+  bestDay: { date: string; pnl: number } | null;
+  worstDay: { date: string; pnl: number } | null;
+}
+
+export interface LeagueReportRow {
+  league: string; total: number; wins: number; losses: number; pushes: number;
+  winRate: number; pnl: number; avgOdds: number; avgConfidence: number; roi: number;
+}
+
+export interface MarketReportRow {
+  market: string; total: number; wins: number; losses: number;
+  winRate: number; pnl: number; avgOdds: number; roi: number;
+}
+
+export interface TimeReportRow {
+  period: string; periodStart: string; total: number; wins: number; losses: number;
+  winRate: number; pnl: number; cumPnl: number; avgOdds: number; roi: number;
+}
+
+export interface ConfidenceBandRow {
+  band: string; range: string; total: number; wins: number; losses: number;
+  winRate: number; expectedWinRate: number; pnl: number; avgOdds: number;
+}
+
+export interface OddsRangeRow {
+  range: string; total: number; wins: number; losses: number;
+  winRate: number; pnl: number; avgConfidence: number;
+}
+
+export interface MinuteBandRow {
+  band: string; total: number; wins: number; losses: number;
+  winRate: number; pnl: number; avgOdds: number;
+}
+
+export interface DailyPnlRow {
+  date: string; dayOfWeek: number; dayName: string;
+  total: number; wins: number; losses: number; pnl: number;
+}
+
+export interface DayOfWeekRow {
+  dayOfWeek: number; dayName: string; total: number; wins: number; losses: number;
+  winRate: number; pnl: number;
+}
+
+export interface LeagueMarketRow {
+  league: string; market: string; total: number; wins: number; losses: number;
+  winRate: number; pnl: number;
+}
+
+export interface AiInsightsData {
+  strongLeagues: Array<{ league: string; winRate: number; pnl: number; total: number }>;
+  weakLeagues: Array<{ league: string; winRate: number; pnl: number; total: number }>;
+  strongMarkets: Array<{ market: string; winRate: number; pnl: number; total: number }>;
+  weakMarkets: Array<{ market: string; winRate: number; pnl: number; total: number }>;
+  bestTimeSlots: Array<{ band: string; winRate: number; pnl: number; total: number }>;
+  worstTimeSlots: Array<{ band: string; winRate: number; pnl: number; total: number }>;
+  overconfidentBands: Array<{ band: string; avgConfidence: number; actualWinRate: number; gap: number }>;
+  recentTrend: 'improving' | 'declining' | 'stable';
+  recentWinRate: number;
+  overallWinRate: number;
+  streakInfo: { type: 'win' | 'loss'; count: number };
+  valueFinds: number;
+  safeBetAccuracy: number;
+}
+
+export async function fetchOverviewReport(config: AppConfig, f: ReportPeriodFilter): Promise<OverviewReport> {
+  return pgFetch<OverviewReport>(config, `/api/reports/overview${buildReportQs(f)}`);
+}
+export async function fetchLeagueReport(config: AppConfig, f: ReportPeriodFilter): Promise<LeagueReportRow[]> {
+  return pgFetch<LeagueReportRow[]>(config, `/api/reports/by-league${buildReportQs(f)}`);
+}
+export async function fetchMarketReport(config: AppConfig, f: ReportPeriodFilter): Promise<MarketReportRow[]> {
+  return pgFetch<MarketReportRow[]>(config, `/api/reports/by-market${buildReportQs(f)}`);
+}
+export async function fetchWeeklyReport(config: AppConfig, f: ReportPeriodFilter): Promise<TimeReportRow[]> {
+  return pgFetch<TimeReportRow[]>(config, `/api/reports/weekly${buildReportQs(f)}`);
+}
+export async function fetchMonthlyReport(config: AppConfig, f: ReportPeriodFilter): Promise<TimeReportRow[]> {
+  return pgFetch<TimeReportRow[]>(config, `/api/reports/monthly${buildReportQs(f)}`);
+}
+export async function fetchConfidenceReport(config: AppConfig, f: ReportPeriodFilter): Promise<ConfidenceBandRow[]> {
+  return pgFetch<ConfidenceBandRow[]>(config, `/api/reports/confidence${buildReportQs(f)}`);
+}
+export async function fetchOddsRangeReport(config: AppConfig, f: ReportPeriodFilter): Promise<OddsRangeRow[]> {
+  return pgFetch<OddsRangeRow[]>(config, `/api/reports/odds-range${buildReportQs(f)}`);
+}
+export async function fetchMinuteReport(config: AppConfig, f: ReportPeriodFilter): Promise<MinuteBandRow[]> {
+  return pgFetch<MinuteBandRow[]>(config, `/api/reports/by-minute${buildReportQs(f)}`);
+}
+export async function fetchDailyPnlReport(config: AppConfig, f: ReportPeriodFilter): Promise<DailyPnlRow[]> {
+  return pgFetch<DailyPnlRow[]>(config, `/api/reports/daily-pnl${buildReportQs(f)}`);
+}
+export async function fetchDayOfWeekReport(config: AppConfig, f: ReportPeriodFilter): Promise<DayOfWeekRow[]> {
+  return pgFetch<DayOfWeekRow[]>(config, `/api/reports/day-of-week${buildReportQs(f)}`);
+}
+export async function fetchLeagueMarketReport(config: AppConfig, f: ReportPeriodFilter): Promise<LeagueMarketRow[]> {
+  return pgFetch<LeagueMarketRow[]>(config, `/api/reports/league-market${buildReportQs(f)}`);
+}
+export async function fetchAiInsights(config: AppConfig, f: ReportPeriodFilter): Promise<AiInsightsData> {
+  return pgFetch<AiInsightsData>(config, `/api/reports/ai-insights${buildReportQs(f)}`);
 }

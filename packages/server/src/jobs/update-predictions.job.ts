@@ -11,6 +11,7 @@
 import { fetchPrediction, buildSlimPrediction } from '../lib/football-api.js';
 import * as matchRepo from '../repos/matches.repo.js';
 import * as watchlistRepo from '../repos/watchlist.repo.js';
+import { reportJobProgress } from './job-progress.js';
 
 const API_DELAY_MS = 200; // Rate-limit protection
 
@@ -19,7 +20,10 @@ function sleep(ms: number) {
 }
 
 export async function updatePredictionsJob(): Promise<{ checked: number; updated: number }> {
+  const JOB = 'update-predictions';
+
   // 1. Build match_id → status map
+  await reportJobProgress(JOB, 'load', 'Loading matches and watchlist...', 5);
   const allMatches = await matchRepo.getAllMatches();
   const statusMap = new Map<string, string>();
   for (const m of allMatches) {
@@ -33,15 +37,23 @@ export async function updatePredictionsJob(): Promise<{ checked: number; updated
     return { checked: 0, updated: 0 };
   }
 
+  // Collect NS entries to process
+  const nsEntries = watchlist.filter((entry) => {
+    const matchStatus = statusMap.get(entry.match_id)?.toUpperCase() ?? '';
+    return matchStatus === 'NS';
+  });
+
   let checked = 0;
   let updated = 0;
 
   // 3. Process each NS match
-  for (const entry of watchlist) {
-    const matchStatus = statusMap.get(entry.match_id)?.toUpperCase() ?? '';
-    if (matchStatus !== 'NS') continue;
-
+  for (const entry of nsEntries) {
     checked++;
+    await reportJobProgress(
+      JOB, 'predict',
+      `Fetching prediction ${checked}/${nsEntries.length}: ${entry.home_team} vs ${entry.away_team}`,
+      5 + (checked / nsEntries.length) * 90,
+    );
 
     try {
       const prediction = await fetchPrediction(entry.match_id);

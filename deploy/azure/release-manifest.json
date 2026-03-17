@@ -1,0 +1,12 @@
+{
+  "components": [
+    {
+      "name": "tfi",
+      "containerAppName": "tfi-app",
+      "repository": "tfi",
+      "dockerfile": "Dockerfile",
+      "ingress": "external",
+      "healthPath": "/api/health"
+    }
+  ]
+}

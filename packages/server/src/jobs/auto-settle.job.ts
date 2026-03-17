@@ -15,6 +15,7 @@ import * as aiPerfRepo from '../repos/ai-performance.repo.js';
 import { fetchFixturesByIds, type ApiFixture } from '../lib/football-api.js';
 import type { RecommendationRow } from '../repos/recommendations.repo.js';
 import type { MatchHistoryRow } from '../repos/matches-history.repo.js';
+import { reportJobProgress } from './job-progress.js';
 
 interface SettleResult {
   settled: number;
@@ -107,17 +108,22 @@ function round(n: number): number {
 }
 
 export async function autoSettleJob(): Promise<SettleResult> {
+  const JOB = 'auto-settle';
   const stats: SettleResult = { settled: 0, skipped: 0, errors: 0 };
 
   // ── 1. Settle unsettled recommendations ──
+  await reportJobProgress(JOB, 'load-recs', 'Loading unsettled recommendations...', 5);
   const unsettledRecs = await getUnsettledRecommendations();
   if (unsettledRecs.length > 0) {
+    await reportJobProgress(JOB, 'settle-recs', `Settling ${unsettledRecs.length} recommendations...`, 20);
     await settleRecommendations(unsettledRecs, stats);
   }
 
   // ── 2. Settle unsettled bets ──
+  await reportJobProgress(JOB, 'load-bets', 'Loading unsettled bets...', 55);
   const unsettledBets = await betsRepo.getUnsettledBets();
   if (unsettledBets.length > 0) {
+    await reportJobProgress(JOB, 'settle-bets', `Settling ${unsettledBets.length} bets...`, 65);
     await settleBets(unsettledBets, stats);
   }
 
