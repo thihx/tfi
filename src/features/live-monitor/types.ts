@@ -153,7 +153,7 @@ export interface FootballApiPrediction {
 // ==================== Live Odds Types ====================
 
 export interface FootballApiOddsResponse {
-  odds_source?: 'live' | 'pre-match';
+  odds_source?: 'live' | 'pre-match' | 'the-odds-api';
   response: Array<{
     fixture: { id: number };
     update: string;
@@ -300,7 +300,7 @@ export interface MergedMatchData {
   odds_available: boolean;
   odds_sanity_warnings: string[];
   odds_suspicious: boolean;
-  odds_source?: 'live' | 'pre-match';
+  odds_source?: 'live' | 'pre-match' | 'the-odds-api';
   derived_insights?: DerivedMatchInsights | null;
   pre_match_prediction: PreMatchPrediction | null;
   pre_match_prediction_summary: string;

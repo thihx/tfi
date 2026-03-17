@@ -27,7 +27,7 @@ function RecommendationCardBase({ rec, onViewMatch }: Props) {
     ? `${rec.home_team} vs ${rec.away_team}`
     : rec.match_display || 'N/A';
   // Only show LIVE when there's no final result yet
-  const isLive = rec.minute != null && !rec.result;
+  const isLive = rec.minute != null && (!rec.result || rec.result === 'pending');
   // Validate score looks like "N-N", not a match_id
   const displayScore = rec.score && /^\d{1,3}-\d{1,3}$/.test(rec.score.trim()) ? rec.score : '';
 

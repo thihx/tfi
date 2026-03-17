@@ -9,6 +9,7 @@ import {
   fetchFixturesByIds, fetchLiveOdds, fetchPreMatchOdds, fetchPrediction,
   fetchFixtureEvents, fetchFixtureStatistics, fetchFixtureLineups, fetchStandings,
 } from '../lib/football-api.js';
+import { fetchTheOddsLive } from '../lib/the-odds-api.js';
 
 // ==================== AI (Gemini) ====================
 
@@ -67,12 +68,12 @@ export async function proxyRoutes(app: FastifyInstance) {
   });
 
   // POST /api/proxy/football/odds
-  // Tries live odds first, normalizes format, falls back to pre-match odds
-  app.post<{ Body: { matchId: string } }>('/api/proxy/football/odds', async (req, reply) => {
+  // Fallback chain: API-Sports live → The Odds API → API-Sports pre-match
+  app.post<{ Body: { matchId: string; homeTeam?: string; awayTeam?: string; kickoffTimestamp?: number } }>('/api/proxy/football/odds', async (req, reply) => {
     try {
       // 1. Try live odds first
       let bookmakers: unknown[] = [];
-      let oddsSource: 'live' | 'pre-match' = 'live';
+      let oddsSource: 'live' | 'pre-match' | 'the-odds-api' = 'live';
       try {
         const liveOdds = await fetchLiveOdds(req.body.matchId) as Array<{
           fixture?: unknown;
@@ -98,12 +99,31 @@ export async function proxyRoutes(app: FastifyInstance) {
           }
         }
       } catch {
-        // Live odds failed, will try pre-match
+        // Live odds failed, will try fallbacks
       }
 
-      // 2. Fallback to pre-match odds if live returned nothing
+      // 2. Fallback to The Odds API if live returned nothing
+      if (bookmakers.length === 0 && req.body.homeTeam && req.body.awayTeam) {
+        oddsSource = 'the-odds-api';
+        try {
+          const theOddsResult = await fetchTheOddsLive(
+            req.body.homeTeam,
+            req.body.awayTeam,
+            Number(req.body.matchId),
+            req.body.kickoffTimestamp,
+          );
+          if (theOddsResult && Array.isArray(theOddsResult.bookmakers) && theOddsResult.bookmakers.length > 0) {
+            bookmakers = theOddsResult.bookmakers;
+          }
+        } catch {
+          // The Odds API failed, will try pre-match
+        }
+      }
+
+      // 3. Fallback to pre-match odds if still nothing
       if (bookmakers.length === 0) {
-        oddsSource = 'pre-match';
+        if (oddsSource !== 'the-odds-api') oddsSource = 'pre-match';
+        else oddsSource = 'pre-match';
         try {
           const preMatch = await fetchPreMatchOdds(req.body.matchId) as Array<{
             bookmakers?: Array<{ id: number; name: string; bets: unknown[] }>;
@@ -116,7 +136,7 @@ export async function proxyRoutes(app: FastifyInstance) {
         }
       }
 
-      // 3. Return in the format expected by frontend: { response: [{ bookmakers: [...] }] }
+      // 4. Return in the format expected by frontend: { response: [{ bookmakers: [...] }] }
       return {
         odds_source: oddsSource,
         response: bookmakers.length > 0

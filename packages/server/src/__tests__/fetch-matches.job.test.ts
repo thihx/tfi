@@ -47,9 +47,12 @@ const mkFixture = (id: number, leagueId: number, status: string, date: string, t
   goals: { home: null, away: null },
 });
 
+let fetchCallCount = 0;
 vi.mock('../lib/football-api.js', () => ({
   fetchFixturesForDate: vi.fn().mockImplementation((date: string) => {
-    if (date.endsWith('17')) {
+    fetchCallCount++;
+    // First call = today, second call = tomorrow
+    if (fetchCallCount % 2 === 1) {
       return Promise.resolve([
         mkFixture(1001, 39, 'NS', `${date}T15:00:00+00:00`, 'Arsenal', 'Chelsea'),
         mkFixture(1002, 140, 'NS', `${date}T20:00:00+00:00`, 'Barca', 'Real'),
@@ -70,6 +73,7 @@ const { fetchMatchesJob } = await import('../jobs/fetch-matches.job.js');
 
 beforeEach(() => {
   vi.clearAllMocks();
+  fetchCallCount = 0;
 });
 
 describe('fetchMatchesJob', () => {

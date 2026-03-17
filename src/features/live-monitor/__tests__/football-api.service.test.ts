@@ -116,7 +116,17 @@ describe('fetchFixtureOdds', () => {
 
     const result = await fetchFixtureOdds(appConfig, '12345');
 
-    expect(fetchLiveOdds).toHaveBeenCalledWith(appConfig, '12345');
+    expect(fetchLiveOdds).toHaveBeenCalledWith(appConfig, '12345', undefined, undefined);
+    expect(result).toEqual(odds);
+  });
+
+  test('passes team names when provided', async () => {
+    const odds = createOddsResponse();
+    (fetchLiveOdds as ReturnType<typeof vi.fn>).mockResolvedValue(odds);
+
+    const result = await fetchFixtureOdds(appConfig, '12345', 'Arsenal', 'Chelsea');
+
+    expect(fetchLiveOdds).toHaveBeenCalledWith(appConfig, '12345', 'Arsenal', 'Chelsea');
     expect(result).toEqual(odds);
   });
 

@@ -1,4 +1,4 @@
-import { useState, useEffect, lazy, Suspense } from 'react';
+import { useState, useEffect, useRef, lazy, Suspense } from 'react';
 import { AppProvider, useAppState } from '@/hooks/useAppState';
 import { ToastProvider } from '@/hooks/useToast';
 import { useAuth } from '@/hooks/useAuth';
@@ -41,6 +41,27 @@ function AppContent() {
 
   useEffect(() => {
     if (authed) loadAllData();
+  }, [authed, loadAllData]);
+
+  // Track last user activity — refresh only when active (within 5 minutes)
+  const lastActivityRef = useRef(Date.now());
+  useEffect(() => {
+    const ACTIVE_EVENTS = ['mousemove', 'keydown', 'click', 'scroll', 'touchstart'] as const;
+    const update = () => { lastActivityRef.current = Date.now(); };
+    ACTIVE_EVENTS.forEach((e) => window.addEventListener(e, update, { passive: true }));
+    return () => ACTIVE_EVENTS.forEach((e) => window.removeEventListener(e, update));
+  }, []);
+
+  // Global silent refresh every 60s — skipped if user has been idle for 5+ minutes
+  useEffect(() => {
+    if (!authed) return;
+    const IDLE_THRESHOLD_MS = 5 * 60 * 1000;
+    const timer = setInterval(() => {
+      if (Date.now() - lastActivityRef.current < IDLE_THRESHOLD_MS) {
+        loadAllData(true);
+      }
+    }, 60000);
+    return () => clearInterval(timer);
   }, [authed, loadAllData]);
 
   // Global navigation event (used by child tabs to navigate without prop drilling)

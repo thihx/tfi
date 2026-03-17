@@ -67,6 +67,7 @@ export function buildAiPrompt(data: MergedMatchData, context?: AiPromptContext):
 
   const oddsCanonical = data.odds_canonical || {};
   const eventsCompact = Array.isArray(data.events_compact) ? data.events_compact : [];
+  const derivedInsights = data.derived_insights || null;
 
   const oddsSanityWarnings = Array.isArray(data.odds_sanity_warnings)
     ? data.odds_sanity_warnings
@@ -264,9 +265,31 @@ LIVE STATS (COMPACT JSON)
 ${JSON.stringify(statsCompact)}
 
 STATS_AVAILABLE: ${statsAvailable}
-
+${!statsAvailable && derivedInsights ? `
 ========================
-${data.odds_source === 'pre-match' ? 'PRE-MATCH ODDS (REFERENCE ONLY — live odds unavailable)' : 'LIVE ODDS SNAPSHOT (CANONICAL JSON)'}
+DERIVED INSIGHTS (FROM EVENTS — API stats unavailable for this league)
+========================
+${JSON.stringify(derivedInsights)}
+
+These insights are DERIVED from match events (goals, cards, substitutions) because this league does not provide live statistics via the API.
+Available data points:
+- goal_tempo: goals per minute rate (higher = more attacking match)
+- btts_status: whether both teams have scored
+- home/away_goals_timeline: minutes when each team scored
+- last_goal_minute: when the most recent goal occurred (null = no goals)
+- total_cards, home/away_cards: card counts (proxy for match intensity/fouls)
+- home/away_reds: red card counts (critical for match dynamics)
+- home/away_subs: substitution counts (tactical changes indicator)
+- momentum: which team has more recent activity ('home'/'away'/'neutral')
+- intensity: match intensity level ('low'/'medium'/'high') based on events density
+
+IMPORTANT: You CAN still make recommendations using these derived insights + odds.
+Combine derived_insights with score, events timeline, and available odds to form analysis.
+Cards can proxy for foul intensity. Goal timeline reveals match tempo patterns.
+Reduce confidence by 1 compared to matches with full stats available.
+` : ''}
+========================
+${data.odds_source === 'pre-match' ? 'PRE-MATCH ODDS (REFERENCE ONLY — live odds unavailable)' : data.odds_source === 'the-odds-api' ? 'LIVE ODDS SNAPSHOT (via The Odds API fallback)' : 'LIVE ODDS SNAPSHOT (CANONICAL JSON)'}
 ========================
 ${JSON.stringify(oddsCanonical)}
 
@@ -418,13 +441,18 @@ DATA AVAILABILITY RULES
         * stake_percent <= 3
 
 - When STATS_AVAILABLE = false:
-    - Normally should_push = false.
-    - Exception allowed ONLY if:
-        * Match state is very clear from score + events alone.
-        * Any available odds (if present) contradict obvious match dynamics.
-        * Your reasoning does NOT rely on missing stats.
-        * confidence <= 6
-        * Explicit warning about missing stats must be included.
+    - If DERIVED INSIGHTS section is present (from events):
+        * You CAN make recommendations using derived insights + odds + events.
+        * Use goal_tempo, btts_status, cards, momentum, intensity as analytical inputs.
+        * confidence max 7 (cap reduced by 1 vs full stats).
+        * Add warning: "DERIVED_STATS_ONLY: Analysis based on event-derived data, full stats unavailable"
+        * You may set should_push = true if the derived data clearly supports the recommendation.
+    - If NO derived insights AND no events:
+        * Normally should_push = false.
+        * Exception allowed ONLY if:
+            - Match state is very clear from score alone.
+            - confidence <= 6
+            - Explicit warning about missing stats must be included.
 
 - If a custom condition requires missing fields:
     - custom_condition_status = "parse_error"

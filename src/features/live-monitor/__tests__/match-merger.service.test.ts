@@ -641,3 +641,189 @@ describe('mergeOddsToMatch — pre-match format', () => {
     expect(result.odds_sanity_warnings.length).toBeGreaterThan(0);
   });
 });
+
+// ============================================================
+// Derived Insights from Events
+// ============================================================
+
+describe('mergeMatchData — derived insights from events', () => {
+  const config = createConfig();
+
+  function makePrepared(overrides?: Record<string, unknown>) {
+    return {
+      config,
+      match_id: '12345',
+      home_team: 'Arsenal',
+      away_team: 'Chelsea',
+      league: 'Premier League',
+      mode: 'B',
+      custom_conditions: '',
+      priority: 3,
+      prediction: '',
+      force_analyze: false,
+      is_manual_push: false,
+      recommended_custom_condition: '',
+      recommended_condition_reason: '',
+      recommended_condition_reason_vi: '',
+      strategic_context: null as unknown,
+      ...overrides,
+    };
+  }
+
+  test('derives insights from events with goals, cards, subs', () => {
+    const fixture = createFootballApiFixture({
+      fixture: {
+        id: 12345,
+        referee: null,
+        timezone: 'UTC',
+        date: '2026-03-16T20:00:00+00:00',
+        timestamp: 1773955200,
+        periods: { first: 1773955200, second: 1773958800 },
+        venue: { id: null, name: null, city: null },
+        status: { long: 'Second Half', short: '2H', elapsed: 70 },
+      },
+      goals: { home: 2, away: 1 },
+      events: [
+        { time: { elapsed: 15, extra: null }, team: { id: 42, name: 'Arsenal', logo: '' }, player: { id: 1, name: 'Saka' }, assist: { id: null, name: null }, type: 'Goal', detail: 'Normal Goal', comments: null },
+        { time: { elapsed: 30, extra: null }, team: { id: 49, name: 'Chelsea', logo: '' }, player: { id: 2, name: 'Palmer' }, assist: { id: null, name: null }, type: 'Goal', detail: 'Normal Goal', comments: null },
+        { time: { elapsed: 35, extra: null }, team: { id: 42, name: 'Arsenal', logo: '' }, player: { id: 3, name: 'Rice' }, assist: { id: null, name: null }, type: 'Card', detail: 'Yellow Card', comments: null },
+        { time: { elapsed: 50, extra: null }, team: { id: 49, name: 'Chelsea', logo: '' }, player: { id: 4, name: 'Caicedo' }, assist: { id: null, name: null }, type: 'Card', detail: 'Yellow Card', comments: null },
+        { time: { elapsed: 55, extra: null }, team: { id: 42, name: 'Arsenal', logo: '' }, player: { id: 5, name: 'Havertz' }, assist: { id: null, name: null }, type: 'Goal', detail: 'Normal Goal', comments: null },
+        { time: { elapsed: 60, extra: null }, team: { id: 42, name: 'Arsenal', logo: '' }, player: { id: 6, name: 'Nketiah' }, assist: { id: 5, name: 'Havertz' }, type: 'subst', detail: 'Substitution 1', comments: null },
+        { time: { elapsed: 65, extra: null }, team: { id: 49, name: 'Chelsea', logo: '' }, player: { id: 7, name: 'Mudryk' }, assist: { id: 8, name: 'Jackson' }, type: 'subst', detail: 'Substitution 1', comments: null },
+      ],
+      statistics: [], // No stats available
+    });
+
+    const result = mergeMatchData([makePrepared()], [fixture]);
+    expect(result).toHaveLength(1);
+
+    const insights = result[0]!.derived_insights!;
+    expect(insights).toBeDefined();
+    expect(insights.source).toBe('events');
+    expect(insights.btts_status).toBe(true);
+    expect(insights.home_goals_timeline).toEqual([15, 55]);
+    expect(insights.away_goals_timeline).toEqual([30]);
+    expect(insights.last_goal_minute).toBe(55);
+    expect(insights.total_cards).toBe(2);
+    expect(insights.home_cards).toBe(1);
+    expect(insights.away_cards).toBe(1);
+    expect(insights.home_reds).toBe(0);
+    expect(insights.away_reds).toBe(0);
+    expect(insights.home_subs).toBe(1);
+    expect(insights.away_subs).toBe(1);
+    expect(insights.goal_tempo).toBeCloseTo(3 / 70, 3);
+    expect(insights.intensity).toBe('medium'); // (3 goals + 2 cards) / 70 ≈ 0.071
+  });
+
+  test('backfills yellow and red card stats from events when API stats empty', () => {
+    const fixture = createFootballApiFixture({
+      events: [
+        { time: { elapsed: 20, extra: null }, team: { id: 42, name: 'Arsenal', logo: '' }, player: { id: 1, name: 'Rice' }, assist: { id: null, name: null }, type: 'Card', detail: 'Yellow Card', comments: null },
+        { time: { elapsed: 40, extra: null }, team: { id: 49, name: 'Chelsea', logo: '' }, player: { id: 2, name: 'Caicedo' }, assist: { id: null, name: null }, type: 'Card', detail: 'Yellow Card', comments: null },
+        { time: { elapsed: 60, extra: null }, team: { id: 49, name: 'Chelsea', logo: '' }, player: { id: 2, name: 'Caicedo' }, assist: { id: null, name: null }, type: 'Card', detail: 'Red Card', comments: null },
+      ],
+      statistics: [], // Empty — no API stats
+    });
+
+    const result = mergeMatchData([makePrepared()], [fixture]);
+    const sc = result[0]!.stats_compact;
+    // Yellow cards: Arsenal 1, Chelsea 1 (the red is separate)
+    expect(sc.yellow_cards).toEqual({ home: '1', away: '1' });
+    // Red cards: Chelsea 1
+    expect(sc.red_cards).toEqual({ home: '0', away: '1' });
+  });
+
+  test('does NOT overwrite API stats with derived card counts', () => {
+    // When API stats ARE available, keep them
+    const fixture = createFootballApiFixture({
+      events: [
+        { time: { elapsed: 20, extra: null }, team: { id: 42, name: 'Arsenal', logo: '' }, player: { id: 1, name: 'Rice' }, assist: { id: null, name: null }, type: 'Card', detail: 'Yellow Card', comments: null },
+      ],
+      // Default fixture has statistics populated
+    });
+
+    const result = mergeMatchData([makePrepared()], [fixture]);
+    // Stats should come from API, not events
+    expect(result[0]!.stats_compact.yellow_cards).toEqual({ home: null, away: null });
+  });
+
+  test('no goals → btts_status false, last_goal_minute null', () => {
+    const fixture = createFootballApiFixture({
+      goals: { home: 0, away: 0 },
+      events: [
+        { time: { elapsed: 25, extra: null }, team: { id: 42, name: 'Arsenal', logo: '' }, player: { id: 1, name: 'Rice' }, assist: { id: null, name: null }, type: 'Card', detail: 'Yellow Card', comments: null },
+      ],
+      statistics: [],
+    });
+
+    const result = mergeMatchData([makePrepared()], [fixture]);
+    const insights = result[0]!.derived_insights!;
+    expect(insights.btts_status).toBe(false);
+    expect(insights.last_goal_minute).toBe(null);
+    expect(insights.goal_tempo).toBe(0);
+    expect(insights.home_goals_timeline).toEqual([]);
+    expect(insights.away_goals_timeline).toEqual([]);
+  });
+
+  test('high-intensity match: many cards + goals → intensity high', () => {
+    const fixture = createFootballApiFixture({
+      fixture: {
+        id: 12345,
+        referee: null,
+        timezone: 'UTC',
+        date: '2026-03-16T20:00:00+00:00',
+        timestamp: 1773955200,
+        periods: { first: 1773955200, second: 1773958800 },
+        venue: { id: null, name: null, city: null },
+        status: { long: 'Second Half', short: '2H', elapsed: 60 },
+      },
+      goals: { home: 3, away: 2 },
+      events: [
+        { time: { elapsed: 5, extra: null }, team: { id: 42, name: 'Arsenal', logo: '' }, player: { id: 1, name: 'A' }, assist: { id: null, name: null }, type: 'Goal', detail: 'Normal Goal', comments: null },
+        { time: { elapsed: 10, extra: null }, team: { id: 49, name: 'Chelsea', logo: '' }, player: { id: 2, name: 'B' }, assist: { id: null, name: null }, type: 'Goal', detail: 'Normal Goal', comments: null },
+        { time: { elapsed: 15, extra: null }, team: { id: 42, name: 'Arsenal', logo: '' }, player: { id: 3, name: 'C' }, assist: { id: null, name: null }, type: 'Card', detail: 'Yellow Card', comments: null },
+        { time: { elapsed: 20, extra: null }, team: { id: 49, name: 'Chelsea', logo: '' }, player: { id: 4, name: 'D' }, assist: { id: null, name: null }, type: 'Card', detail: 'Yellow Card', comments: null },
+        { time: { elapsed: 25, extra: null }, team: { id: 42, name: 'Arsenal', logo: '' }, player: { id: 5, name: 'E' }, assist: { id: null, name: null }, type: 'Goal', detail: 'Normal Goal', comments: null },
+        { time: { elapsed: 30, extra: null }, team: { id: 49, name: 'Chelsea', logo: '' }, player: { id: 6, name: 'F' }, assist: { id: null, name: null }, type: 'Goal', detail: 'Normal Goal', comments: null },
+        { time: { elapsed: 35, extra: null }, team: { id: 42, name: 'Arsenal', logo: '' }, player: { id: 7, name: 'G' }, assist: { id: null, name: null }, type: 'Goal', detail: 'Normal Goal', comments: null },
+      ],
+      statistics: [],
+    });
+
+    const result = mergeMatchData([makePrepared()], [fixture]);
+    const insights = result[0]!.derived_insights!;
+    // (5 goals + 2 cards) / 60 = 0.1167 > 0.1 → high intensity
+    expect(insights.intensity).toBe('high');
+    expect(insights.btts_status).toBe(true);
+    expect(insights.goal_tempo).toBeCloseTo(5 / 60, 3);
+  });
+
+  test('momentum goes to team with more recent events', () => {
+    const fixture = createFootballApiFixture({
+      fixture: {
+        id: 12345,
+        referee: null,
+        timezone: 'UTC',
+        date: '2026-03-16T20:00:00+00:00',
+        timestamp: 1773955200,
+        periods: { first: 1773955200, second: 1773958800 },
+        venue: { id: null, name: null, city: null },
+        status: { long: 'Second Half', short: '2H', elapsed: 75 },
+      },
+      goals: { home: 1, away: 2 },
+      events: [
+        { time: { elapsed: 10, extra: null }, team: { id: 42, name: 'Arsenal', logo: '' }, player: { id: 1, name: 'A' }, assist: { id: null, name: null }, type: 'Goal', detail: 'Normal Goal', comments: null },
+        // Chelsea 3 recent events in last 15 min (60-75)
+        { time: { elapsed: 62, extra: null }, team: { id: 49, name: 'Chelsea', logo: '' }, player: { id: 2, name: 'B' }, assist: { id: null, name: null }, type: 'Goal', detail: 'Normal Goal', comments: null },
+        { time: { elapsed: 68, extra: null }, team: { id: 49, name: 'Chelsea', logo: '' }, player: { id: 3, name: 'C' }, assist: { id: null, name: null }, type: 'Goal', detail: 'Normal Goal', comments: null },
+        { time: { elapsed: 70, extra: null }, team: { id: 49, name: 'Chelsea', logo: '' }, player: { id: 4, name: 'D' }, assist: { id: 5, name: 'E' }, type: 'subst', detail: 'Sub', comments: null },
+      ],
+      statistics: [],
+    });
+
+    const result = mergeMatchData([makePrepared()], [fixture]);
+    const insights = result[0]!.derived_insights!;
+    expect(insights.momentum).toBe('away');
+  });
+});

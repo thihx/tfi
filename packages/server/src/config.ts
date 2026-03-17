@@ -20,6 +20,10 @@ export const config = {
   // Telegram
   telegramBotToken: process.env['TELEGRAM_BOT_TOKEN'] || '',
 
+  // The Odds API (fallback odds)
+  theOddsApiKey: process.env['THE_ODDS_API_KEY'] || '',
+  theOddsApiBaseUrl: process.env['THE_ODDS_API_BASE_URL'] || 'https://api.the-odds-api.com/v4',
+
   // Redis
   redisUrl: process.env['REDIS_URL'] || '',
 

@@ -83,6 +83,89 @@ function buildPreMatchSummary(prediction: PreMatchPrediction | null): string {
   return parts.join(' | ');
 }
 
+// ==================== Derive Insights from Events ====================
+
+function deriveInsightsFromEvents(
+  events: EventCompact[],
+  minute: number,
+  homeName: string,
+  awayName: string,
+): DerivedMatchInsights {
+  const homeGoalsTimeline: number[] = [];
+  const awayGoalsTimeline: number[] = [];
+  let homeCards = 0;
+  let awayCards = 0;
+  let homeReds = 0;
+  let awayReds = 0;
+  let homeSubs = 0;
+  let awaySubs = 0;
+  let lastGoalMinute: number | null = null;
+
+  // Recent events in last 15 minutes for momentum calc
+  const recentThreshold = Math.max(0, minute - 15);
+  let homeRecentEvents = 0;
+  let awayRecentEvents = 0;
+
+  for (const ev of events) {
+    const isHome = ev.team === homeName;
+    const isAway = ev.team === awayName;
+
+    if (ev.type === 'goal') {
+      if (isHome) homeGoalsTimeline.push(ev.minute);
+      if (isAway) awayGoalsTimeline.push(ev.minute);
+      lastGoalMinute = Math.max(lastGoalMinute ?? 0, ev.minute);
+    }
+    if (ev.type === 'card') {
+      const isRed = ev.detail.toLowerCase().includes('red');
+      if (isHome) { homeCards++; if (isRed) homeReds++; }
+      if (isAway) { awayCards++; if (isRed) awayReds++; }
+    }
+    if (ev.type === 'subst') {
+      if (isHome) homeSubs++;
+      if (isAway) awaySubs++;
+    }
+
+    // Momentum: count recent events per team
+    if (ev.minute >= recentThreshold) {
+      if (isHome) homeRecentEvents++;
+      if (isAway) awayRecentEvents++;
+    }
+  }
+
+  const totalCards = homeCards + awayCards;
+  const totalGoals = homeGoalsTimeline.length + awayGoalsTimeline.length;
+  const goalTempo = minute > 0 ? totalGoals / minute : 0;
+
+  // Intensity based on events density
+  const eventsPerMinute = minute > 0 ? (totalGoals + totalCards) / minute : 0;
+  let intensity: 'low' | 'medium' | 'high' = 'low';
+  if (eventsPerMinute > 0.1) intensity = 'high';
+  else if (eventsPerMinute > 0.05) intensity = 'medium';
+
+  // Momentum: which team had more recent events
+  let momentum: 'home' | 'away' | 'neutral' = 'neutral';
+  if (homeRecentEvents > awayRecentEvents + 1) momentum = 'home';
+  else if (awayRecentEvents > homeRecentEvents + 1) momentum = 'away';
+
+  return {
+    goal_tempo: Math.round(goalTempo * 1000) / 1000,
+    btts_status: homeGoalsTimeline.length > 0 && awayGoalsTimeline.length > 0,
+    home_goals_timeline: homeGoalsTimeline,
+    away_goals_timeline: awayGoalsTimeline,
+    last_goal_minute: lastGoalMinute,
+    total_cards: totalCards,
+    home_cards: homeCards,
+    away_cards: awayCards,
+    home_reds: homeReds,
+    away_reds: awayReds,
+    home_subs: homeSubs,
+    away_subs: awaySubs,
+    momentum,
+    intensity,
+    source: 'events',
+  };
+}
+
 // ==================== Merge Match Data ====================
 
 interface PreparedMatch {
@@ -224,6 +307,28 @@ export function mergeMatchData(
     const preMatchPrediction = parsePreMatchPrediction(match.prediction);
     const preMatchPredictionSummary = buildPreMatchSummary(preMatchPrediction);
 
+    // Derive insights from events (useful when API stats are unavailable)
+    const allCompactEvents = [...compactEvents]; // all events, not sliced
+    const derivedInsights = deriveInsightsFromEvents(
+      allCompactEvents,
+      typeof minute === 'number' ? minute : 0,
+      homeName,
+      awayName,
+    );
+
+    // Backfill card stats from events when API stats are empty
+    const apiStatsEmpty = homeStats.length === 0 && awayStats.length === 0;
+    if (apiStatsEmpty) {
+      statsCompact.yellow_cards = {
+        home: String(derivedInsights.home_cards - derivedInsights.home_reds),
+        away: String(derivedInsights.away_cards - derivedInsights.away_reds),
+      };
+      statsCompact.red_cards = {
+        home: String(derivedInsights.home_reds),
+        away: String(derivedInsights.away_reds),
+      };
+    }
+
     outputs.push({
       match_id: match.match_id,
       config: match.config,
@@ -263,6 +368,7 @@ export function mergeMatchData(
       odds_sanity_warnings: [],
       odds_suspicious: false,
       odds_source: undefined,
+      derived_insights: derivedInsights,
       pre_match_prediction: preMatchPrediction,
       pre_match_prediction_summary: preMatchPredictionSummary,
       strategic_context: match.strategic_context || null,

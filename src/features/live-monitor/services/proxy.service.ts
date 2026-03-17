@@ -48,10 +48,13 @@ export async function fetchLiveFixtures(
 export async function fetchLiveOdds(
   config: AppConfig,
   matchId: string,
+  homeTeam?: string,
+  awayTeam?: string,
+  kickoffTimestamp?: number,
 ): Promise<FootballApiOddsResponse> {
   return postJson<FootballApiOddsResponse>(
     apiUrl(config, '/api/proxy/football/odds'),
-    { matchId },
+    { matchId, homeTeam, awayTeam, kickoffTimestamp },
   );
 }
 

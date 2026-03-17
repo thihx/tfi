@@ -44,6 +44,8 @@ export async function fetchAllFixtures(
 export async function fetchFixtureOdds(
   config: AppConfig,
   matchId: string,
+  homeTeam?: string,
+  awayTeam?: string,
 ): Promise<FootballApiOddsResponse> {
-  return fetchLiveOdds(config, matchId);
+  return fetchLiveOdds(config, matchId, homeTeam, awayTeam);
 }

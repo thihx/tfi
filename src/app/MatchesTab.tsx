@@ -15,7 +15,7 @@ import { MatchScoutModal } from '@/components/ui/MatchScoutModal';
 const PAGE_SIZE = 30;
 
 export function MatchesTab() {
-  const { state, addToWatchlist, loadAllData } = useAppState();
+  const { state, addToWatchlist } = useAppState();
   const { showToast } = useToast();
   const { matches, watchlist, config, leagues } = state;
 
@@ -139,12 +139,6 @@ export function MatchesTab() {
 
   // Reset page on filter change
   useEffect(() => { setPage(1); }, [debouncedSearch, statusFilter, leagueFilter, actionFilter, dateFrom, dateTo]);
-
-  // Auto-refresh every 60s — call loadAllData so state is actually updated
-  useEffect(() => {
-    const timer = setInterval(() => { loadAllData(true); }, 60000);
-    return () => clearInterval(timer);
-  }, [loadAllData]);
 
   const handleSort = (col: string) => {
     setSort((prev) => ({ column: col, order: prev.column === col && prev.order === 'asc' ? 'desc' : 'asc' }));

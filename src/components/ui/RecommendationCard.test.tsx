@@ -79,6 +79,7 @@ describe('RecommendationCard', () => {
   it('renders warnings section', () => {
     render(<RecommendationCard rec={BASE} />);
     expect(screen.getByText('Warnings')).toBeInTheDocument();
+    fireEvent.click(screen.getByText('Warnings'));
     expect(screen.getByText('Slight rain forecast')).toBeInTheDocument();
   });
 
