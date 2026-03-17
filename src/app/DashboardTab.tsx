@@ -104,7 +104,7 @@ const AiAccuracyPanel = memo(function AiAccuracyPanel({ stats, models }: { stats
   return (
     <div className="card" style={{ marginBottom: '16px' }}>
       <div className="card-header"><div className="card-title">AI Performance</div></div>
-      <div style={{ padding: '16px 20px', display: 'flex', gap: '24px', alignItems: 'center', flexWrap: 'wrap' }}>
+      <div style={{ padding: '12px 16px', display: 'flex', gap: '16px', alignItems: 'center', flexWrap: 'wrap' }}>
         <div style={{ width: 140, height: 140 }}>
           <ResponsiveContainer>
             <PieChart>

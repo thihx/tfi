@@ -284,7 +284,7 @@ export function RecommendationsTab() {
         <div>
           <Pagination currentPage={page} totalPages={totalPages} onPageChange={setPage} />
           {rows.length === 0 ? (
-            <div className="card" style={{ padding: '48px', textAlign: 'center', color: 'var(--gray-400)' }}>
+            <div className="card" style={{ padding: '24px', textAlign: 'center', color: 'var(--gray-400)' }}>
               <p>{loading ? 'Loading...' : 'No recommendations match filters'}</p>
             </div>
           ) : (

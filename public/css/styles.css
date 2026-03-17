@@ -124,13 +124,13 @@ body {
     text-align: center;
 }
 
-/* Pagination - refined modern UI */
+/* Pagination - compact */
 .pagination {
     display: flex;
     justify-content: center;
     align-items: center;
-    gap: 8px;
-    padding: 16px 0;
+    gap: 4px;
+    padding: 4px 0;
     width: 100%;
     margin: 0 auto;
 }
@@ -139,22 +139,23 @@ body {
 .pagination .page-group {
     display: inline-flex;
     align-items: center;
-    gap: 6px;
+    gap: 3px;
     background: #fff;
     border: 1px solid #e6e6e6;
-    border-radius: 10px;
-    padding: 6px;
-    box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+    border-radius: 8px;
+    padding: 3px;
+    box-shadow: 0 1px 4px rgba(0,0,0,0.06);
 }
 
 .pagination button {
-    min-width: 34px;
-    height: 34px;
-    padding: 0 12px;
+    min-width: 26px;
+    height: 26px;
+    padding: 0 6px;
     border: 1px solid #e0e0e0;
     background: #fafafa;
     color: #333;
-    border-radius: 8px;
+    border-radius: 6px;
+    font-size: 12px;
     cursor: pointer;
     transition: all 0.15s ease;
 }
@@ -1273,14 +1274,13 @@ table tbody#watchlist-table td:not(.select-col) {
     display: flex;
     align-items: center;
     justify-content: center;
-    gap: 12px;
-    /* keep pagination on a single line, allow horizontal scroll if overflow */
+    gap: 4px;
     flex-wrap: nowrap;
     overflow-x: auto;
     -webkit-overflow-scrolling: touch;
-    padding: 12px;
+    padding: 4px 0;
     width: 100%;
-    margin: 8px auto;
+    margin: 2px auto;
     white-space: nowrap;
 }
 

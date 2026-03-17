@@ -483,7 +483,7 @@ function KpiCard({ label, value, sub, color }: { label: string; value: string | 
 
 function EmptyReport({ message }: { message: string }) {
   return (
-    <div style={{ padding: '60px 20px', textAlign: 'center', color: 'var(--gray-400)' }}>
+    <div style={{ padding: '32px 20px', textAlign: 'center', color: 'var(--gray-400)' }}>
       <div style={{ fontSize: 40, marginBottom: 12 }}>📭</div>
       {message}
     </div>
@@ -635,7 +635,7 @@ export function ReportsTab() {
   const renderContent = () => {
     if (loading) {
       return (
-        <div style={{ padding: '60px 20px', textAlign: 'center', color: 'var(--gray-400)' }}>
+        <div style={{ padding: '32px 20px', textAlign: 'center', color: 'var(--gray-400)' }}>
           <div className="loading-spinner" style={{ margin: '0 auto 12px' }} />
           Loading report...
         </div>

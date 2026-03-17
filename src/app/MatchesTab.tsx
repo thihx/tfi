@@ -352,7 +352,7 @@ export function MatchesTab() {
         <div style={{ padding: '16px' }}>
           <Pagination currentPage={safePage} totalPages={totalPages} onPageChange={setPage} />
           {pageItems.length === 0 ? (
-            <div style={{ padding: '48px', textAlign: 'center', color: 'var(--gray-400)' }}>
+            <div style={{ padding: '24px', textAlign: 'center', color: 'var(--gray-400)' }}>
               <p>No matches found</p>
               <button className="btn btn-secondary" onClick={clearFilters} style={{ marginTop: '10px' }}>Clear Filters</button>
             </div>

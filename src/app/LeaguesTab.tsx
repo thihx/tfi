@@ -355,7 +355,7 @@ export function LeaguesTab() {
 
   if (loading) {
     return (
-      <div style={{ padding: 40, textAlign: 'center', color: 'var(--gray-400)' }}>
+      <div style={{ padding: 24, textAlign: 'center', color: 'var(--gray-400)' }}>
         <div className="loading-spinner" style={{ margin: '0 auto 12px' }} />
         <p>Loading leagues...</p>
       </div>

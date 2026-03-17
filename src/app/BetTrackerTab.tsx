@@ -63,7 +63,7 @@ const MarketChart = memo(function MarketChart({
     pnl:  parseFloat(d.total_pnl.toFixed(2)),
   }));
   return (
-    <div className="card" style={{ marginBottom: '20px' }}>
+    <div className="card" style={{ marginBottom: '12px' }}>
       <div className="card-header">
         <div className="card-title">P&amp;L by Market</div>
       </div>
@@ -268,7 +268,7 @@ export function BetTrackerTab() {
   return (
     <div>
       {/* KPI Row */}
-      <div className="stats-grid" style={{ marginBottom: '20px' }}>
+      <div className="stats-grid" style={{ marginBottom: '12px' }}>
         <KpiCard label="Total Investments" value={String(stats?.total ?? '—')} sub={`${stats?.pending ?? 0} pending`} />
         <KpiCard label="Win Rate"     value={stats ? `${((stats.won / Math.max(stats.won + stats.lost, 1)) * 100).toFixed(1)}%` : '—'}
                  sub={stats ? `${stats.won}W · ${stats.lost}L` : undefined} />
@@ -313,12 +313,12 @@ export function BetTrackerTab() {
 
         <div className="table-container">
           {loading ? (
-            <div style={{ padding: '48px', textAlign: 'center', color: 'var(--gray-400)' }}>
+            <div style={{ padding: '24px', textAlign: 'center', color: 'var(--gray-400)' }}>
               <div className="loading-spinner" style={{ margin: '0 auto 12px' }} />
               <p>Loading…</p>
             </div>
           ) : pageItems.length === 0 ? (
-            <div style={{ padding: '48px', textAlign: 'center', color: 'var(--gray-400)' }}>
+            <div style={{ padding: '24px', textAlign: 'center', color: 'var(--gray-400)' }}>
               <p>{bets.length === 0 ? 'No investments logged yet — click "+ Log Investment" to get started' : 'No investments match filters'}</p>
             </div>
           ) : (

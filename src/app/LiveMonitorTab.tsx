@@ -466,7 +466,7 @@ export function LiveMonitorTab() {
           ) : (
             !ctx && (
               <div className="card">
-                <div style={{ padding: '60px 20px', textAlign: 'center' }}>
+                <div style={{ padding: '32px 20px', textAlign: 'center' }}>
                   <div style={{ fontSize: '48px', marginBottom: '16px' }}>📡</div>
                   <p style={{ color: 'var(--gray-500)', fontSize: '16px' }}>
                     No results yet. Press <strong>Run Once</strong> or <strong>Start</strong> the scheduler.

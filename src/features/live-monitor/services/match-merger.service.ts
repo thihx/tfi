@@ -434,16 +434,24 @@ export function mergeOddsToMatch(
             betName.includes('match goals'))
         ) {
           for (const v of values) {
-            const base = String(v.value || '').toLowerCase().trim();
+            const raw = String(v.value || '').toLowerCase().trim();
             const hc = (v as Record<string, unknown>).handicap != null
               ? String((v as Record<string, unknown>).handicap).trim()
               : '';
             const odd = toNumber(v.odd) ?? 0;
             if (!odd || odd <= 1) continue;
-            if (!hc) continue;
 
-            const sel = `${base} ${hc}`;
-            const key = sel.toLowerCase();
+            // Live format: value="Over", handicap="2.5"
+            // Pre-match format: value="Over 2.5", handicap=""
+            let key: string;
+            if (hc) {
+              key = `${raw} ${hc}`.toLowerCase();
+            } else {
+              // Try to parse from value e.g. "over 2.5" → keep as-is
+              const m = raw.match(/^(over|under)\s+([0-9]+(?:\.[0-9]+)?)$/);
+              if (!m) continue;
+              key = raw;
+            }
             if (!oddsMap[key] || odd > oddsMap[key]) {
               oddsMap[key] = odd;
             }
@@ -456,18 +464,29 @@ export function mergeOddsToMatch(
           (betName.includes('asian handicap') || betName.includes('handicap'))
         ) {
           for (const v of values) {
-            let side = String(v.value || '').toLowerCase().trim();
+            let raw = String(v.value || '').toLowerCase().trim();
             const hc = (v as Record<string, unknown>).handicap != null
               ? String((v as Record<string, unknown>).handicap).trim()
               : '';
             const odd = toNumber(v.odd) ?? 0;
             if (!odd || odd <= 1) continue;
-            if (!hc) continue;
 
-            if (side === '1') side = 'home';
-            if (side === '2') side = 'away';
-
-            const key = `${side} ${hc}`.toLowerCase();
+            // Live format: value="Home", handicap="-1"
+            // Pre-match format: value="Home -1", handicap=""
+            let key: string;
+            if (hc) {
+              if (raw === '1') raw = 'home';
+              if (raw === '2') raw = 'away';
+              key = `${raw} ${hc}`.toLowerCase();
+            } else {
+              // Try to parse from value e.g. "home -1" or "away -0.5"
+              const m = raw.match(/^(home|away|1|2)\s+([-+]?[0-9]+(?:\.[0-9]+)?)$/);
+              if (!m) continue;
+              let side = m[1];
+              if (side === '1') side = 'home';
+              if (side === '2') side = 'away';
+              key = `${side} ${m[2]}`;
+            }
             if (!oddsMap[key] || odd > oddsMap[key]) {
               oddsMap[key] = odd;
             }
@@ -477,19 +496,24 @@ export function mergeOddsToMatch(
         // --- Corners ---
         if (!isHalfMarket && betName.includes('corner')) {
           for (const v of values) {
-            const base = String(v.value || '').toLowerCase().trim();
+            const raw = String(v.value || '').toLowerCase().trim();
             const hc = (v as Record<string, unknown>).handicap != null
               ? String((v as Record<string, unknown>).handicap).trim()
               : '';
             const odd = toNumber(v.odd) ?? 0;
             if (!odd || odd <= 1) continue;
 
-            if (base === 'over' || base === 'under') {
-              if (!hc) continue;
-              const key = `corners ${base} ${hc}`.toLowerCase();
-              if (!oddsMap[key] || odd > oddsMap[key]) {
-                oddsMap[key] = odd;
-              }
+            // Live format: value="Over", handicap="9.5"
+            // Pre-match format: value="Over 9.5", handicap=""
+            let key: string | null = null;
+            if (hc && (raw === 'over' || raw === 'under')) {
+              key = `corners ${raw} ${hc}`.toLowerCase();
+            } else {
+              const m = raw.match(/^(over|under)\s+([0-9]+(?:\.[0-9]+)?)$/);
+              if (m) key = `corners ${m[1]} ${m[2]}`.toLowerCase();
+            }
+            if (key && (!oddsMap[key] || odd > oddsMap[key])) {
+              oddsMap[key] = odd;
             }
           }
         }
@@ -591,18 +615,35 @@ function buildMainOU(
     entry[dir] = Math.max(entry[dir] || 0, odd);
   }
 
-  const sortedLines = Array.from(lineMap.keys())
-    .map((s) => Number(s))
-    .filter((n) => Number.isFinite(n))
-    .sort((a, b) => Math.abs(a) - Math.abs(b));
-
-  if (!sortedLines.length) return undefined;
-  const bestLineStr = String(sortedLines[0]);
-  const data = lineMap.get(bestLineStr) || {};
+  // Pick the most balanced line (smallest spread between over/under odds).
+  // This correctly selects e.g. O/U 2.5 from pre-match data with all lines.
+  let bestLine: string | null = null;
+  let bestSpread = Infinity;
+  for (const [lineStr, data] of lineMap) {
+    const o = data['over'];
+    const u = data['under'];
+    if (o && u) {
+      const spread = Math.abs(o - u);
+      if (spread < bestSpread) {
+        bestSpread = spread;
+        bestLine = lineStr;
+      }
+    }
+  }
+  // Fallback: pick smallest absolute line if no line has both sides
+  if (!bestLine) {
+    const sorted = Array.from(lineMap.keys())
+      .map((s) => Number(s))
+      .filter((n) => Number.isFinite(n))
+      .sort((a, b) => Math.abs(a) - Math.abs(b));
+    if (!sorted.length) return undefined;
+    bestLine = String(sorted[0]);
+  }
+  const bestData = lineMap.get(bestLine) || {};
   return {
-    line: Number(bestLineStr),
-    over: data['over'] ?? null,
-    under: data['under'] ?? null,
+    line: Number(bestLine),
+    over: bestData['over'] ?? null,
+    under: bestData['under'] ?? null,
   };
 }
 
@@ -628,17 +669,34 @@ function buildMainAH(
     entry[side] = Math.max(entry[side] || 0, odd);
   }
 
-  const sortedLines = Array.from(lineMap.keys())
-    .map((s) => Number(s))
-    .filter((n) => Number.isFinite(n))
-    .sort((a, b) => Math.abs(a) - Math.abs(b));
-
-  if (!sortedLines.length) return undefined;
-  const bestLineStr = String(sortedLines[0]);
-  const data = lineMap.get(bestLineStr) || {};
+  // Pick the most balanced line (smallest spread between home/away odds).
+  // This correctly selects e.g. AH -1 from pre-match data with all lines.
+  let bestLine: string | null = null;
+  let bestSpread = Infinity;
+  for (const [lineStr, data] of lineMap) {
+    const h = data['home'];
+    const a = data['away'];
+    if (h && a) {
+      const spread = Math.abs(h - a);
+      if (spread < bestSpread) {
+        bestSpread = spread;
+        bestLine = lineStr;
+      }
+    }
+  }
+  // Fallback: pick smallest absolute line if no line has both sides
+  if (!bestLine) {
+    const sorted = Array.from(lineMap.keys())
+      .map((s) => Number(s))
+      .filter((n) => Number.isFinite(n))
+      .sort((a, b) => Math.abs(a) - Math.abs(b));
+    if (!sorted.length) return undefined;
+    bestLine = String(sorted[0]);
+  }
+  const bestData = lineMap.get(bestLine) || {};
   return {
-    line: Number(bestLineStr),
-    home: data['home'] ?? null,
-    away: data['away'] ?? null,
+    line: Number(bestLine),
+    home: bestData['home'] ?? null,
+    away: bestData['away'] ?? null,
   };
 }
