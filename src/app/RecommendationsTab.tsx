@@ -3,12 +3,15 @@ import { useAppState } from '@/hooks/useAppState';
 import { Pagination } from '@/components/ui/Pagination';
 import { StatusBadge } from '@/components/ui/StatusBadge';
 import { MatchDetailModal } from '@/components/ui/MatchDetailModal';
+import { RecommendationCard } from '@/components/ui/RecommendationCard';
 import {
   AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
 } from 'recharts';
 import { fetchRecommendationsPaginated, fetchBetTypes, fetchDistinctLeagues } from '@/lib/services/api';
 import { formatLocalDateTime } from '@/lib/utils/helpers';
 import type { Recommendation } from '@/types';
+
+type ViewMode = 'cards' | 'table';
 
 const PAGE_SIZE = 30;
 
@@ -45,6 +48,7 @@ export function RecommendationsTab() {
   const [sortCol, setSortCol] = useState<SortCol>('');
   const [sortDir, setSortDir] = useState<SortDir>('desc');
   const [showChart, setShowChart] = useState(false);
+  const [viewMode, setViewMode] = useState<ViewMode>('cards');
   const [detailMatch, setDetailMatch] = useState<{ id: string; display: string } | null>(null);
 
   // Server data
@@ -225,6 +229,13 @@ export function RecommendationsTab() {
           <button className={`btn btn-sm ${showChart ? 'btn-secondary' : 'btn-primary'}`} onClick={() => setShowChart((v) => !v)}>
             {showChart ? '📊 Hide Chart' : '📈 Show Chart'}
           </button>
+          <button
+            className={`btn btn-sm ${viewMode === 'cards' ? 'btn-primary' : 'btn-secondary'}`}
+            onClick={() => setViewMode((v) => v === 'cards' ? 'table' : 'cards')}
+            title="Toggle card / table view"
+          >
+            {viewMode === 'cards' ? '☰ Table' : '⊞ Cards'}
+          </button>
           <button className="btn btn-primary btn-sm" onClick={() => fetchData(page)}>🔄</button>
         </div>
       </div>
@@ -246,8 +257,33 @@ export function RecommendationsTab() {
         </div>
       )}
 
-      {/* Table */}
-      <div className="card">
+      {/* Card view */}
+      {viewMode === 'cards' && (
+        <div>
+          {rows.length === 0 ? (
+            <div className="card" style={{ padding: '48px', textAlign: 'center', color: 'var(--gray-400)' }}>
+              <div style={{ fontSize: '36px', marginBottom: '12px' }}>🎯</div>
+              <p>{loading ? 'Loading...' : 'No recommendations match filters'}</p>
+            </div>
+          ) : (
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(360px, 1fr))', gap: '12px' }}>
+              {rows.map((rec, i) => (
+                <RecommendationCard
+                  key={rec.id ?? i}
+                  rec={rec}
+                  onViewMatch={(id, display) => setDetailMatch({ id, display })}
+                />
+              ))}
+            </div>
+          )}
+          <div style={{ marginTop: '12px' }}>
+            <Pagination currentPage={page} totalPages={totalPages} onPageChange={setPage} />
+          </div>
+        </div>
+      )}
+
+      {/* Table view */}
+      {viewMode === 'table' && <div className="card">
         <div className="table-container table-cards">
           <table>
             <thead>
@@ -344,7 +380,7 @@ export function RecommendationsTab() {
           </table>
           <Pagination currentPage={page} totalPages={totalPages} onPageChange={setPage} />
         </div>
-      </div>
+      </div>}
 
       {detailMatch && (
         <MatchDetailModal

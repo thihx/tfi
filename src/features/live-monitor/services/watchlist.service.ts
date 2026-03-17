@@ -166,6 +166,7 @@ export function prepareMatchData(
   recommended_custom_condition: string;
   recommended_condition_reason: string;
   recommended_condition_reason_vi: string;
+  strategic_context: unknown;
 }> {
   return matches.map((match) => ({
     config,
@@ -182,6 +183,7 @@ export function prepareMatchData(
     recommended_custom_condition: match.recommended_custom_condition || '',
     recommended_condition_reason: match.recommended_condition_reason || '',
     recommended_condition_reason_vi: match.recommended_condition_reason_vi || '',
+    strategic_context: match.strategic_context || null,
   }));
 }
 

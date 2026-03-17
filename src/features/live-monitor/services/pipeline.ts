@@ -41,6 +41,7 @@ import {
   saveAiPerformance,
   fetchMatchRecommendations,
   fetchMatchSnapshots,
+  fetchHistoricalPerformance,
 } from './proxy.service';
 import { checkStaleness } from './staleness.service';
 
@@ -62,7 +63,7 @@ function trackSilent(promise: Promise<unknown> | undefined): void {
 export async function runPipeline(
   appConfig: AppConfig,
   options: {
-    triggeredBy: 'manual' | 'scheduled' | 'webhook';
+    triggeredBy: 'manual' | 'scheduled' | 'webhook' | 'ask-ai';
     webhookMatchIds?: string[];
     configOverrides?: Partial<LiveMonitorConfig>;
     onProgress?: PipelineEventCallback;
@@ -116,6 +117,11 @@ export async function runPipeline(
     // ========== Stage 3: Merge Match Data ==========
     emit('merging-data');
     const mergedMatches = mergeMatchData(prepared, fixtures);
+
+    // ========== Stage 3.5: Fetch Historical Performance (once, cached) ==========
+    // This data is the same for all matches and is cached for 10 minutes,
+    // so it costs at most 1 HTTP call per 10-minute window.
+    const historicalPerformance = await fetchHistoricalPerformance(appConfig).catch(() => null);
 
     // ========== Stage 4: Process Each Match ==========
     for (const rawMatchData of mergedMatches) {
@@ -223,7 +229,7 @@ export async function runPipeline(
             fetchMatchRecommendations(appConfig, mergedWithOdds.match_id),
             fetchMatchSnapshots(appConfig, mergedWithOdds.match_id),
           ]);
-          aiContext = { previousRecommendations: prevRecs, matchTimeline: snapshots };
+          aiContext = { previousRecommendations: prevRecs, matchTimeline: snapshots, historicalPerformance };
         } catch {
           // Context fetch failed — continue without context
         }
@@ -260,7 +266,9 @@ export async function runPipeline(
         matchResult.recommendation = recommendation;
 
         // Should Push? → Notify
-        if (shouldPush(parsed)) {
+        // For ask-ai triggers, always send notification (forceNotify)
+        const isAskAi = options.triggeredBy === 'ask-ai';
+        if (isAskAi || shouldPush(parsed)) {
           emit('notifying');
           const notifyResult = await notifyRecommendation(
             appConfig,
@@ -268,6 +276,7 @@ export async function runPipeline(
             mergedWithOdds,
             parsed,
             recommendation,
+            { forceNotify: isAskAi },
           );
           matchResult.notified = notifyResult.emailSent || notifyResult.telegramSent;
 
@@ -325,7 +334,7 @@ export async function runPipeline(
 }
 
 /**
- * Run pipeline for a single specific match (manual trigger).
+ * Run pipeline for a single specific match (Ask AI button).
  */
 export async function runPipelineForMatch(
   appConfig: AppConfig,
@@ -333,7 +342,7 @@ export async function runPipelineForMatch(
   configOverrides?: Partial<LiveMonitorConfig>,
 ): Promise<PipelineContext> {
   return runPipeline(appConfig, {
-    triggeredBy: 'manual',
+    triggeredBy: 'ask-ai',
     webhookMatchIds: [matchId],
     configOverrides: {
       ...configOverrides,

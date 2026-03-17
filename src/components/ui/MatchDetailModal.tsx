@@ -1,16 +1,22 @@
 // ============================================================
-// Match Detail Modal — Snapshots timeline + Odds movement chart
+// Match Scout Panel — Timeline · Odds · AI Recs · Bets
 // ============================================================
 
 import { useState, useEffect, useCallback } from 'react';
 import { Modal } from './Modal';
+import { RecommendationCard } from './RecommendationCard';
 import { useAppState } from '@/hooks/useAppState';
 import {
   fetchSnapshotsByMatch,
   fetchOddsHistory,
+  fetchRecommendationsByMatch,
+  fetchBetsByMatch,
   type MatchSnapshot,
   type OddsMovement,
+  type BetRecord,
 } from '@/lib/services/api';
+import type { Recommendation } from '@/types';
+import { BET_RESULT_BADGES } from '@/config/constants';
 import {
   LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend,
 } from 'recharts';
@@ -22,25 +28,31 @@ interface MatchDetailModalProps {
   onClose: () => void;
 }
 
-type TabKey = 'timeline' | 'odds';
+type TabKey = 'timeline' | 'odds' | 'recs' | 'bets';
 
 export function MatchDetailModal({ open, matchId, matchDisplay, onClose }: MatchDetailModalProps) {
   const { state } = useAppState();
   const [tab, setTab] = useState<TabKey>('timeline');
   const [snapshots, setSnapshots] = useState<MatchSnapshot[]>([]);
-  const [odds, setOdds] = useState<OddsMovement[]>([]);
-  const [loading, setLoading] = useState(false);
+  const [odds, setOdds]           = useState<OddsMovement[]>([]);
+  const [recs, setRecs]           = useState<Recommendation[]>([]);
+  const [bets, setBets]           = useState<BetRecord[]>([]);
+  const [loading, setLoading]     = useState(false);
 
   const load = useCallback(async () => {
     if (!matchId || !open) return;
     setLoading(true);
     try {
-      const [snaps, oddsData] = await Promise.all([
+      const [snaps, oddsData, recsData, betsData] = await Promise.all([
         fetchSnapshotsByMatch(state.config, matchId),
         fetchOddsHistory(state.config, matchId),
+        fetchRecommendationsByMatch(state.config, matchId).catch(() => [] as Recommendation[]),
+        fetchBetsByMatch(state.config, matchId).catch(() => [] as BetRecord[]),
       ]);
       setSnapshots(snaps);
       setOdds(oddsData);
+      setRecs(recsData);
+      setBets(betsData);
     } catch {
       // Non-critical
     } finally {
@@ -53,34 +65,47 @@ export function MatchDetailModal({ open, matchId, matchDisplay, onClose }: Match
   return (
     <Modal open={open} title={`📊 ${matchDisplay}`} onClose={onClose}>
       {loading ? (
-        <div style={{ padding: '40px', textAlign: 'center', color: 'var(--gray-400)' }}>Loading...</div>
+        <div style={{ padding: '40px', textAlign: 'center', color: 'var(--gray-400)' }}>
+          <div className="loading-spinner" style={{ margin: '0 auto 12px' }} />
+          Loading match intelligence…
+        </div>
       ) : (
         <>
-          {/* Tab Selector */}
-          <div style={{ display: 'flex', gap: '8px', marginBottom: '16px' }}>
-            <button
-              className={`btn btn-sm ${tab === 'timeline' ? 'btn-primary' : 'btn-secondary'}`}
-              onClick={() => setTab('timeline')}
-            >
-              📋 Timeline ({snapshots.length})
-            </button>
-            <button
-              className={`btn btn-sm ${tab === 'odds' ? 'btn-primary' : 'btn-secondary'}`}
-              onClick={() => setTab('odds')}
-            >
-              📈 Odds ({odds.length})
-            </button>
+          {/* Tab bar */}
+          <div style={{ display: 'flex', gap: '6px', marginBottom: '16px', flexWrap: 'wrap' }}>
+            <TabBtn active={tab === 'timeline'} onClick={() => setTab('timeline')}>
+              📋 Timeline{snapshots.length > 0 ? ` (${snapshots.length})` : ''}
+            </TabBtn>
+            <TabBtn active={tab === 'odds'} onClick={() => setTab('odds')}>
+              📈 Odds{odds.length > 0 ? ` (${odds.length})` : ''}
+            </TabBtn>
+            <TabBtn active={tab === 'recs'} onClick={() => setTab('recs')}>
+              🎯 AI Recs{recs.length > 0 ? ` (${recs.length})` : ''}
+            </TabBtn>
+            <TabBtn active={tab === 'bets'} onClick={() => setTab('bets')}>
+              💰 Bets{bets.length > 0 ? ` (${bets.length})` : ''}
+            </TabBtn>
             <button className="btn btn-sm btn-secondary" onClick={load} style={{ marginLeft: 'auto' }}>🔄</button>
           </div>
 
-          {tab === 'timeline' ? (
-            <TimelineView snapshots={snapshots} />
-          ) : (
-            <OddsView odds={odds} />
-          )}
+          {tab === 'timeline' && <TimelineView snapshots={snapshots} />}
+          {tab === 'odds'     && <OddsView odds={odds} />}
+          {tab === 'recs'     && <RecsView recs={recs} />}
+          {tab === 'bets'     && <BetsView bets={bets} />}
         </>
       )}
     </Modal>
+  );
+}
+
+function TabBtn({ active, onClick, children }: { active: boolean; onClick: () => void; children: React.ReactNode }) {
+  return (
+    <button
+      className={`btn btn-sm ${active ? 'btn-primary' : 'btn-secondary'}`}
+      onClick={onClick}
+    >
+      {children}
+    </button>
   );
 }
 
@@ -163,13 +188,13 @@ function TimelineView({ snapshots }: { snapshots: MatchSnapshot[] }) {
 // ==================== Odds View ====================
 
 function OddsView({ odds }: { odds: OddsMovement[] }) {
+  // Hooks must be called before any early return (Rules of Hooks)
+  const markets = [...new Set(odds.map((o) => o.market))];
+  const [selectedMarket, setSelectedMarket] = useState(markets[0] || '');
+
   if (!odds.length) {
     return <EmptyState icon="📈" message="No odds movements recorded" />;
   }
-
-  // Group by market
-  const markets = [...new Set(odds.map((o) => o.market))];
-  const [selectedMarket, setSelectedMarket] = useState(markets[0] || '');
 
   const marketOdds = odds
     .filter((o) => o.market === selectedMarket)
@@ -247,6 +272,90 @@ function OddsView({ odds }: { odds: OddsMovement[] }) {
                 <td><span className="cell-value"><strong>{o.price_2 ?? '-'}</strong></span></td>
               </tr>
             ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
+// ==================== AI Recs View ====================
+
+function RecsView({ recs }: { recs: Recommendation[] }) {
+  if (!recs.length) {
+    return <EmptyState icon="🎯" message="No AI recommendations for this match yet" />;
+  }
+  return (
+    <div style={{ maxHeight: '420px', overflowY: 'auto', paddingRight: '4px' }}>
+      {recs.map((rec, i) => (
+        <RecommendationCard key={rec.id ?? i} rec={rec} />
+      ))}
+    </div>
+  );
+}
+
+// ==================== Bets View ====================
+
+
+function BetsView({ bets }: { bets: BetRecord[] }) {
+  if (!bets.length) {
+    return <EmptyState icon="💰" message="No bets recorded for this match" />;
+  }
+
+  const totalPnl = bets
+    .filter((b) => b.result !== 'pending')
+    .reduce((s, b) => s + (b.pnl ?? 0), 0);
+
+  return (
+    <div>
+      {/* Summary row */}
+      <div style={{ display: 'flex', gap: '20px', marginBottom: '12px', fontSize: '13px', flexWrap: 'wrap' }}>
+        <span style={{ color: 'var(--gray-500)' }}>💰 {bets.length} bet{bets.length !== 1 ? 's' : ''}</span>
+        <span style={{ color: 'var(--gray-500)' }}>
+          ✅ {bets.filter((b) => b.result === 'win').length}W ·{' '}
+          ❌ {bets.filter((b) => b.result === 'loss').length}L ·{' '}
+          ⏳ {bets.filter((b) => b.result === 'pending').length} open
+        </span>
+        {bets.some((b) => b.result !== 'pending') && (
+          <span style={{ fontWeight: 700, color: totalPnl >= 0 ? 'var(--success)' : 'var(--danger)' }}>
+            P/L: {totalPnl >= 0 ? '+' : ''}${totalPnl.toFixed(2)}
+          </span>
+        )}
+      </div>
+
+      <div className="table-container" style={{ maxHeight: '320px', overflow: 'auto' }}>
+        <table>
+          <thead>
+            <tr>
+              <th>Market</th>
+              <th>Selection</th>
+              <th style={{ textAlign: 'center' }}>Odds</th>
+              <th style={{ textAlign: 'center' }}>Stake</th>
+              <th>Bookmaker</th>
+              <th style={{ textAlign: 'center' }}>Result</th>
+              <th style={{ textAlign: 'right' }}>P/L</th>
+            </tr>
+          </thead>
+          <tbody>
+            {bets.map((bet) => {
+              const badge = BET_RESULT_BADGES[bet.result] ?? { cls: '', label: bet.result };
+              const pnl = bet.pnl ?? 0;
+              return (
+                <tr key={bet.id}>
+                  <td style={{ fontSize: '12px', color: 'var(--gray-600)' }}>{bet.market || '—'}</td>
+                  <td style={{ fontWeight: 600 }}>{bet.selection}</td>
+                  <td style={{ textAlign: 'center', fontWeight: 700, color: 'var(--primary)' }}>{bet.odds}</td>
+                  <td style={{ textAlign: 'center' }}>${bet.stake.toFixed(2)}</td>
+                  <td style={{ fontSize: '12px', color: 'var(--gray-500)' }}>{bet.bookmaker || '—'}</td>
+                  <td style={{ textAlign: 'center' }}>
+                    <span className={`badge ${badge.cls}`} style={{ fontSize: '11px' }}>{badge.label}</span>
+                  </td>
+                  <td style={{ textAlign: 'right', fontWeight: 700, color: pnl >= 0 ? 'var(--success)' : 'var(--danger)' }}>
+                    {bet.result === 'pending' ? '—' : `${pnl >= 0 ? '+' : ''}$${pnl.toFixed(2)}`}
+                  </td>
+                </tr>
+              );
+            })}
           </tbody>
         </table>
       </div>

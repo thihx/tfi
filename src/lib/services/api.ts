@@ -70,6 +70,13 @@ export async function fetchWatchlist(config: AppConfig): Promise<WatchlistItem[]
   return pgFetch<WatchlistItem[]>(config, '/api/watchlist');
 }
 
+export async function fetchRecommendationsByMatch(
+  config: AppConfig,
+  matchId: string,
+): Promise<Recommendation[]> {
+  return pgFetch<Recommendation[]>(config, `/api/recommendations/match/${encodeURIComponent(matchId)}`);
+}
+
 export async function fetchRecommendations(config: AppConfig): Promise<Recommendation[]> {
   // Initial load: fetch first page only; RecommendationsTab handles full pagination
   const data = await pgFetch<{ rows: Recommendation[]; total: number }>(config, '/api/recommendations?limit=30');

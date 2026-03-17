@@ -36,6 +36,15 @@ export interface ApiFixture {
 
 // ==================== Predictions ====================
 
+export interface ApiH2HFixture {
+  fixture: { id: number; date: string };
+  teams: {
+    home: { id: number; name: string; winner: boolean | null };
+    away: { id: number; name: string; winner: boolean | null };
+  };
+  goals: { home: number | null; away: number | null };
+}
+
 export interface ApiPrediction {
   predictions: {
     winner: { id: number; name: string; comment: string } | null;
@@ -51,8 +60,13 @@ export interface ApiPrediction {
     def: { home: string; away: string } | null;
     goals: { home: string; away: string } | null;
     total: { home: string; away: string } | null;
+    poisson_distribution?: { home: string; away: string } | null;
   };
-  // We ignore league, teams, h2h to keep it slim
+  h2h?: ApiH2HFixture[];
+  teams?: {
+    home: { id: number; name: string; league?: { form?: string } };
+    away: { id: number; name: string; league?: { form?: string } };
+  };
 }
 
 // ==================== API Calls ====================
@@ -133,10 +147,32 @@ export async function fetchPrediction(fixtureId: string): Promise<ApiPrediction 
 
 // ==================== Helpers ====================
 
-/** Build a slim prediction object (same format as Apps Script buildSlimPrediction_) */
+/** Build a slim prediction object — includes H2H summary and full comparison */
 export function buildSlimPrediction(item: ApiPrediction) {
   const pred = item.predictions;
   const comp = item.comparison;
+
+  // Build H2H summary (last 5 meetings max)
+  let h2hSummary: { total: number; home_wins: number; away_wins: number; draws: number } | null = null;
+  if (Array.isArray(item.h2h) && item.h2h.length > 0) {
+    const recent = item.h2h.slice(0, 5);
+    const homeName = item.teams?.home?.name;
+    let homeWins = 0, awayWins = 0, draws = 0;
+    for (const m of recent) {
+      const hGoals = m.goals?.home ?? 0;
+      const aGoals = m.goals?.away ?? 0;
+      if (hGoals === aGoals) { draws++; continue; }
+      const winnerName = hGoals > aGoals ? m.teams?.home?.name : m.teams?.away?.name;
+      if (winnerName === homeName) homeWins++;
+      else awayWins++;
+    }
+    h2hSummary = { total: recent.length, home_wins: homeWins, away_wins: awayWins, draws };
+  }
+
+  // Extract team form sequence (e.g., "WDLWW")
+  const homeForm = item.teams?.home?.league?.form || null;
+  const awayForm = item.teams?.away?.league?.form || null;
+
   return {
     predictions: {
       winner: pred.winner ?? null,
@@ -152,6 +188,9 @@ export function buildSlimPrediction(item: ApiPrediction) {
       def: comp.def ?? null,
       goals: comp.goals ?? null,
       total: comp.total ?? null,
+      poisson_distribution: comp.poisson_distribution ?? null,
     },
+    h2h_summary: h2hSummary,
+    team_form: (homeForm || awayForm) ? { home: homeForm, away: awayForm } : null,
   };
 }

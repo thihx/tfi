@@ -99,6 +99,7 @@ interface PreparedMatch {
   recommended_custom_condition: string;
   recommended_condition_reason: string;
   recommended_condition_reason_vi: string;
+  strategic_context: unknown;
 }
 
 /**
@@ -204,6 +205,19 @@ export function mergeMatchData(
           player: ev.player?.name || '',
         });
       }
+      if (type === 'subst') {
+        const playerOut = ev.player?.name || '';
+        const playerIn = ev.assist?.name || '';
+        summaryPieces.push(`${m}'Sub ${sideName} ${playerIn} for ${playerOut}`);
+        compactEvents.push({
+          minute: m ?? 0,
+          extra: ev.time?.extra ?? null,
+          team: sideName,
+          type: 'subst',
+          detail: `${playerIn} for ${playerOut}`,
+          player: playerIn,
+        });
+      }
     }
 
     const preMatchPrediction = parsePreMatchPrediction(match.prediction);
@@ -240,8 +254,8 @@ export function mergeMatchData(
       stats_available: false, // Will be set by filters
       stats_meta: {},
       stats,
-      events_compact: compactEvents.slice(-4),
-      events_summary: summaryPieces.slice(-4).join(' | '),
+      events_compact: compactEvents.slice(-8),
+      events_summary: summaryPieces.slice(-8).join(' | '),
       current_total_goals: homeGoals + awayGoals,
       odds_canonical: {},
       odds_available: false,
@@ -249,6 +263,7 @@ export function mergeMatchData(
       odds_suspicious: false,
       pre_match_prediction: preMatchPrediction,
       pre_match_prediction_summary: preMatchPredictionSummary,
+      strategic_context: match.strategic_context || null,
     });
   }
 

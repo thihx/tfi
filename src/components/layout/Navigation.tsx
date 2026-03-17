@@ -5,6 +5,7 @@ const TABS: { key: TabName; icon: string; label: string }[] = [
   { key: 'matches', icon: '📅', label: 'Matches' },
   { key: 'watchlist', icon: '👁️', label: 'Watchlist' },
   { key: 'recommendations', icon: '🎯', label: 'Recommendations' },
+  { key: 'bet-tracker', icon: '💰', label: 'Bet Tracker' },
   { key: 'live-monitor', icon: '📡', label: 'Live Monitor' },
   { key: 'settings', icon: '⚙️', label: 'Settings' },
 ];

@@ -106,4 +106,4 @@ export interface ApiResponse<T> {
   ids?: string[];
 }
 
-export type TabName = 'dashboard' | 'matches' | 'watchlist' | 'recommendations' | 'live-monitor' | 'settings';
+export type TabName = 'dashboard' | 'matches' | 'watchlist' | 'recommendations' | 'bet-tracker' | 'live-monitor' | 'settings';

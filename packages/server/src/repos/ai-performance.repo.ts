@@ -228,3 +228,143 @@ export async function cleanAndResync(): Promise<{ deleted: number; backfilled: n
 
   return { deleted, backfilled };
 }
+
+// ============================================================
+// Historical Performance Context for AI Prompt (Feedback Loop)
+// ============================================================
+
+export interface HistoricalPerformanceContext {
+  overall: { settled: number; correct: number; accuracy: number };
+  byMarket: Array<{ market: string; settled: number; correct: number; accuracy: number }>;
+  byConfidenceBand: Array<{ band: string; settled: number; correct: number; accuracy: number }>;
+  byMinuteBand: Array<{ band: string; settled: number; correct: number; accuracy: number }>;
+  byOddsRange: Array<{ range: string; settled: number; correct: number; accuracy: number }>;
+  byLeague: Array<{ league: string; settled: number; correct: number; accuracy: number }>;
+  generatedAt: string;
+}
+
+/**
+ * Aggregated historical performance data for injection into the AI prompt.
+ * Uses a single SQL call with multiple CTEs for efficiency.
+ * Caller should cache this result (data changes infrequently).
+ */
+export async function getHistoricalPerformanceContext(): Promise<HistoricalPerformanceContext> {
+  const r = await query<{
+    section: string;
+    label: string;
+    settled: string;
+    correct: string;
+  }>(
+    `WITH base AS (
+       SELECT ap.predicted_market, ap.ai_confidence, ap.match_minute,
+              ap.was_correct, ap.league
+       FROM ai_performance ap
+       JOIN recommendations r ON r.id = ap.recommendation_id
+       WHERE r.result IS DISTINCT FROM 'duplicate'
+         AND ap.was_correct IS NOT NULL
+         AND ap.ai_should_push = true
+     ),
+     overall AS (
+       SELECT 'overall' AS section, 'all' AS label,
+              COUNT(*)::text AS settled,
+              COUNT(*) FILTER (WHERE was_correct)::text AS correct
+       FROM base
+     ),
+     by_market AS (
+       SELECT 'market' AS section, predicted_market AS label,
+              COUNT(*)::text AS settled,
+              COUNT(*) FILTER (WHERE was_correct)::text AS correct
+       FROM base
+       WHERE predicted_market <> ''
+       GROUP BY predicted_market
+       HAVING COUNT(*) >= 3
+       ORDER BY COUNT(*) DESC
+       LIMIT 10
+     ),
+     by_confidence AS (
+       SELECT 'confidence' AS section,
+              CASE
+                WHEN ai_confidence >= 8 THEN '8-10 (high)'
+                WHEN ai_confidence >= 6 THEN '6-7 (medium)'
+                ELSE '1-5 (low)'
+              END AS label,
+              COUNT(*)::text AS settled,
+              COUNT(*) FILTER (WHERE was_correct)::text AS correct
+       FROM base
+       WHERE ai_confidence IS NOT NULL
+       GROUP BY label
+     ),
+     by_minute AS (
+       SELECT 'minute' AS section,
+              CASE
+                WHEN match_minute < 30 THEN '0-29 (early)'
+                WHEN match_minute < 60 THEN '30-59 (mid)'
+                WHEN match_minute < 75 THEN '60-74 (late)'
+                ELSE '75+ (endgame)'
+              END AS label,
+              COUNT(*)::text AS settled,
+              COUNT(*) FILTER (WHERE was_correct)::text AS correct
+       FROM base
+       WHERE match_minute IS NOT NULL
+       GROUP BY label
+     ),
+     by_odds AS (
+       SELECT 'odds' AS section,
+              CASE
+                WHEN predicted_odds < 1.50 THEN '<1.50'
+                WHEN predicted_odds < 1.70 THEN '1.50-1.69'
+                WHEN predicted_odds < 2.00 THEN '1.70-1.99'
+                WHEN predicted_odds < 2.50 THEN '2.00-2.49'
+                ELSE '2.50+'
+              END AS label,
+              COUNT(*)::text AS settled,
+              COUNT(*) FILTER (WHERE was_correct)::text AS correct
+       FROM base
+       WHERE predicted_odds IS NOT NULL
+       GROUP BY label
+     ),
+     by_league AS (
+       SELECT 'league' AS section, league AS label,
+              COUNT(*)::text AS settled,
+              COUNT(*) FILTER (WHERE was_correct)::text AS correct
+       FROM base
+       WHERE league <> ''
+       GROUP BY league
+       HAVING COUNT(*) >= 3
+       ORDER BY COUNT(*) DESC
+       LIMIT 8
+     )
+     SELECT * FROM overall
+     UNION ALL SELECT * FROM by_market
+     UNION ALL SELECT * FROM by_confidence
+     UNION ALL SELECT * FROM by_minute
+     UNION ALL SELECT * FROM by_odds
+     UNION ALL SELECT * FROM by_league`,
+  );
+
+  const rows = r.rows;
+
+  const findSection = (section: string) =>
+    rows.filter((row) => row.section === section).map((row) => ({
+      label: row.label,
+      settled: Number(row.settled),
+      correct: Number(row.correct),
+      accuracy: Number(row.settled) > 0
+        ? Math.round((Number(row.correct) / Number(row.settled)) * 10000) / 100
+        : 0,
+    }));
+
+  const overallRow = findSection('overall')[0];
+
+  return {
+    overall: overallRow
+      ? { settled: overallRow.settled, correct: overallRow.correct, accuracy: overallRow.accuracy }
+      : { settled: 0, correct: 0, accuracy: 0 },
+    byMarket: findSection('market').map((r) => ({ market: r.label, ...r })),
+    byConfidenceBand: findSection('confidence').map((r) => ({ band: r.label, ...r })),
+    byMinuteBand: findSection('minute').map((r) => ({ band: r.label, ...r })),
+    byOddsRange: findSection('odds').map((r) => ({ range: r.label, ...r })),
+    byLeague: findSection('league').map((r) => ({ league: r.label, ...r })),
+    generatedAt: new Date().toISOString(),
+  };
+}

@@ -153,6 +153,7 @@ export function createMergedMatchData(overrides?: Partial<MergedMatchData>): Mer
     odds_suspicious: false,
     pre_match_prediction: null,
     pre_match_prediction_summary: '',
+    strategic_context: null,
     ...overrides,
   };
 }

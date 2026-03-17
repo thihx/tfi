@@ -26,6 +26,8 @@ export interface WatchlistRow {
   last_checked: string | null;
   total_checks: number;
   recommendations_count: number;
+  strategic_context: unknown;
+  strategic_context_at: string | null;
 }
 
 export type WatchlistCreate = Omit<WatchlistRow, 'id' | 'added_at'>;
@@ -97,11 +99,14 @@ export async function updateWatchlistEntry(
     'mode', 'prediction', 'recommended_custom_condition', 'recommended_condition_reason',
     'recommended_condition_reason_vi', 'recommended_condition_at', 'custom_conditions',
     'priority', 'status', 'last_checked', 'total_checks', 'recommendations_count',
+    'strategic_context', 'strategic_context_at',
   ] as const;
 
   for (const key of allowed) {
     if (key in fields) {
-      const val = key === 'prediction' ? JSON.stringify(fields[key]) : (fields as Record<string, unknown>)[key];
+      const val = (key === 'prediction' || key === 'strategic_context')
+        ? JSON.stringify(fields[key])
+        : (fields as Record<string, unknown>)[key];
       sets.push(`${key} = $${idx}`);
       vals.push(val);
       idx++;

@@ -70,6 +70,24 @@ export const STATUS_BADGES: Record<string, StatusBadgeInfo> = {
 
 export const LIVE_STATUSES = ['1H', '2H', 'HT', 'ET', 'BT', 'P', 'LIVE', 'INT'];
 
+// ==================== MARKET COLORS ====================
+export const MARKET_COLORS: Record<string, string> = {
+  '1x2':            '#10b981',
+  'Over/Under':     '#3b82f6',
+  'Asian Handicap': '#8b5cf6',
+  'BTTS':           '#f59e0b',
+  'Double Chance':  '#06b6d4',
+  Other:            '#6b7280',
+};
+
+// ==================== BET RESULT BADGES ====================
+export const BET_RESULT_BADGES: Record<string, { cls: string; label: string }> = {
+  win:     { cls: 'badge-won',     label: '✅ Won' },
+  loss:    { cls: 'badge-lost',    label: '❌ Lost' },
+  push:    { cls: 'badge-pending', label: '➖ Push' },
+  pending: { cls: 'badge-ns',      label: '⏳ Pending' },
+};
+
 // ==================== SVG PLACEHOLDERS ====================
 export const PLACEHOLDER_HOME = "data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 width=%2224%22 height=%2224%22%3E%3Crect fill=%22%23e5e7eb%22 width=%2224%22 height=%2224%22 rx=%224%22/%3E%3Ctext x=%2250%25%22 y=%2250%25%22 dominant-baseline=%22middle%22 text-anchor=%22middle%22 font-size=%2212%22 font-weight=%22bold%22 fill=%22%23374151%22%3EH%3C/text%3E%3C/svg%3E";
 export const PLACEHOLDER_AWAY = "data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 width=%2224%22 height=%2224%22%3E%3Crect fill=%22%23e5e7eb%22 width=%2224%22 height=%2224%22 rx=%224%22/%3E%3Ctext x=%2250%25%22 y=%2250%25%22 dominant-baseline=%22middle%22 text-anchor=%22middle%22 font-size=%2212%22 font-weight=%22bold%22 fill=%22%23374151%22%3EA%3C/text%3E%3C/svg%3E";

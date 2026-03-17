@@ -8,6 +8,7 @@ import { fetchAiStats, fetchAiStatsByModel, fetchBetStatsByMarket, fetchDashboar
 import type { AiAccuracyStats, AiModelStats, BetStats, DashboardSummary } from '@/lib/services/api';
 import { StatusBadge } from '@/components/ui/StatusBadge';
 import { formatLocalDateTime } from '@/lib/utils/helpers';
+import { MARKET_COLORS } from '@/config/constants';
 
 // ==================== Sub-components ====================
 
@@ -48,12 +49,6 @@ const PnlChart = memo(function PnlChart({ data }: { data: { date: string; pnl: n
   );
 });
 
-const MARKET_COLORS: Record<string, string> = {
-  'Over/Under': '#3b82f6',
-  '1X2': '#10b981',
-  'BTTS': '#f59e0b',
-  'Asian Handicap': '#8b5cf6',
-};
 
 const MarketBreakdownChart = memo(function MarketBreakdownChart({ data }: { data: Array<{ market: string } & BetStats> }) {
   if (!data.length) return null;

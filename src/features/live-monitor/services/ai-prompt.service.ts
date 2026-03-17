@@ -12,13 +12,23 @@ const promptCache = new Map<string, string>();
 
 function getPromptCacheKey(data: MergedMatchData, context?: AiPromptContext): string {
   const match = data.match || {};
+  // Include content signature so tests with same-length but different recs don't collide
+  const recsSignature = context?.previousRecommendations
+    ?.map((r) => `${r.minute ?? 'x'}:${(r.selection ?? '').slice(0, 12)}:${r.confidence ?? 0}:${r.reasoning?.length ?? 0}`)
+    .join(',') ?? '';
+  const timelineSignature = context?.matchTimeline
+    ?.map((t) => `${(t as { minute?: unknown }).minute ?? ''}`)
+    .join(',') ?? '';
   return [
     data.match_id ?? '',
     (match as { minute?: unknown }).minute ?? '',
     (match as { score?: unknown }).score ?? '',
     data.force_analyze ? '1' : '0',
-    context?.previousRecommendations?.length ?? 0,
-    context?.matchTimeline?.length ?? 0,
+    recsSignature,
+    timelineSignature,
+    context?.historicalPerformance
+      ? `hp:${context.historicalPerformance.overall.settled}:${context.historicalPerformance.byMarket.length}:${context.historicalPerformance.byLeague.length}`
+      : 'hp:0',
   ].join('|');
 }
 
@@ -70,8 +80,11 @@ export function buildAiPrompt(data: MergedMatchData, context?: AiPromptContext):
   const preMatchPredictionSummary = data.pre_match_prediction_summary || '';
   const preMatchPrediction = data.pre_match_prediction || null;
   const statsMeta = data.stats_meta || {};
+  const strategicContext = data.strategic_context || null;
 
   let preMatchCompact: PreMatchCompact | null = null;
+  let h2hSummary: unknown = null;
+  let teamForm: unknown = null;
   if (preMatchPrediction && typeof preMatchPrediction === 'object') {
     const pmPred = (preMatchPrediction as Record<string, Record<string, unknown>>).predictions || {};
     const pmComp = (preMatchPrediction as Record<string, Record<string, unknown>>).comparison || {};
@@ -85,6 +98,11 @@ export function buildAiPrompt(data: MergedMatchData, context?: AiPromptContext):
       pre_form: (pmComp.form as { home: string | null; away: string | null }) || null,
       pre_total_rating: (pmComp.total as { home: string | null; away: string | null }) || null,
     };
+
+    // Extract enriched fields (H2H summary, att/def, team form, poisson)
+    const pred = preMatchPrediction as Record<string, unknown>;
+    h2hSummary = pred.h2h_summary || null;
+    teamForm = pred.team_form || null;
   }
 
   const MIN_CONFIDENCE = Number(config.MIN_CONFIDENCE ?? 5);
@@ -260,15 +278,23 @@ ${oddsSuspicious ? `\n⚠️ ODDS SANITY CHECK FAILED:\n${oddsSanityWarnings.map
 PRE-MATCH PREDICTION (OPTIONAL)
 ========================
 ${preMatchCompact ? JSON.stringify(preMatchCompact) : preMatchPredictionSummary || 'No pre-match prediction available.'}
+${h2hSummary ? `\nH2H_SUMMARY: ${JSON.stringify(h2hSummary)}` : ''}
+${teamForm ? `\nTEAM_FORM_SEQUENCE: ${JSON.stringify(teamForm)}` : ''}
 
+${buildStrategicContextSection(strategicContext)}
 ========================
-RECENT EVENTS (LAST 4)
+RECENT EVENTS (LAST 8)
 ========================
 ${JSON.stringify(eventsCompact)}
+NOTE: Events include goals, cards, AND substitutions (type "subst").
+- Attacking substitutions after 60' (e.g. striker for midfielder) signal intent to score → supports Over.
+- Defensive substitutions (e.g. defender for attacker) signal protecting a lead → supports Under.
+- Multiple subs by the same team = manager actively changing the game plan.
 
 ${buildPreviousRecommendationsSection(context)}
 ${buildMatchTimelineSection(context)}
 ${buildContinuityRulesSection(context)}
+${buildHistoricalPerformanceSection(context)}
 ========================
 LIVE DATA INTERPRETATION FRAMEWORK
 ========================
@@ -338,6 +364,17 @@ AI-RECOMMENDED CONDITION (FROM PRE-MATCH ANALYSIS)
 ========================
 RECOMMENDED_CONDITION: ${recommendedCondition || '(none)'}
 RECOMMENDED_CONDITION_REASON: ${recommendedConditionReason || '(none)'}
+
+RECOMMENDED CONDITION RULES:
+- These conditions are AUTO-GENERATED from pre-match strategic research (motivation, rotation, injuries, league positions, H2H).
+- If RECOMMENDED_CONDITION is "(none)", ignore this section entirely.
+- If present, you MUST incorporate these signals into your analysis:
+  1. Check if the live data CONFIRMS or CONTRADICTS the pre-match expectation.
+  2. If CONFIRMED (e.g., condition says "favor Away" and away is dominating stats) → increase confidence by 1.
+  3. If CONTRADICTED (e.g., condition says "rotated team" but they're dominating) → note in reasoning, do NOT blindly follow.
+  4. Conditions containing "→ favor X" suggest a market direction but do NOT override your own analysis.
+  5. Conditions containing "→ consider Under" or "→ consider Over" provide O/U direction based on external intel.
+  6. NEVER recommend solely based on RECOMMENDED_CONDITION — it must align with live stats + odds.
 
 ============================================================
 GLOBAL RULES — ALL DECISIONS MUST FOLLOW THESE PRINCIPLES
@@ -534,6 +571,86 @@ MARKET SELECTION PREFERENCE — 1X2 & BTTS NO CAUTION
 - You MUST always fill market_chosen_reason explaining your market selection decision.
 
 ============================================================
+DATA-DRIVEN RULES — PATTERNS FROM 1,100 HISTORICAL PREDICTIONS
+============================================================
+These rules are derived from statistical analysis of your own past predictions.
+They represent real patterns where you consistently lose money. FOLLOW STRICTLY.
+
+ODDS CEILING RULES (29.8% win rate at odds ≥2.50):
+- Odds ≥ 2.50: confidence CAPPED at 6, stake_percent CAPPED at 3%.
+  Add warning: "HIGH_ODDS_RISK: Historical win rate at odds ≥2.50 is only 29.8%."
+  You MUST explicitly justify why THIS bet overcomes the base rate.
+- Odds 2.00–2.49: confidence CAPPED at 7, stake_percent CAPPED at 4%.
+  Add warning: "ELEVATED_ODDS_RISK: Historical win rate at odds 2.00-2.49 is 39.7%."
+- Odds 1.50–1.69: This is your BEST range (61.8% win rate). Prefer markets here.
+
+1X2_HOME SUPPRESSION (35.6% win rate, 202 recs):
+- 1x2_home is your WORST high-volume market. In addition to the existing 1X2 caution rules:
+  - BEFORE minute 35: NEVER recommend 1x2_home. Set should_push = false.
+  - BEFORE minute 60: confidence CAPPED at 6 for 1x2_home, stake_percent CAPPED at 3%.
+  - AT ANY MINUTE: 1x2_home requires odds <= 2.00 (higher odds + 1x2_home = catastrophic 35% rate).
+  - If you feel drawn to 1x2_home, FIRST evaluate Over/Under as alternative.
+
+1X2_DRAW NEAR-BAN (30.3% win rate, 33 recs):
+- Draw predictions are nearly unprofitable. You MUST NOT recommend 1x2_draw unless ALL of:
+  - minute >= 70
+  - Score is level (X-X)
+  - Both teams show defensive/conservative stats (low shots, low corners)
+  - Odds <= 2.00
+  - confidence >= 7
+- If conditions are not ALL met → should_push = false for draw.
+
+VALUE PERCENT RECALIBRATION (high value = high error):
+- CRITICAL: Your value_percent estimates above 20% are ANTI-CORRELATED with success.
+  - value_percent 20%+: historical win rate = 41.4% — DO NOT trust high value estimates.
+  - value_percent 5-14%: historical win rate = 56% — this is your reliable range.
+- RULE: If your calculated value_percent exceeds 20%, you MUST:
+  - Re-examine your probability estimate — you are likely overconfident.
+  - Reduce value_percent toward the 10-15% range unless evidence is truly exceptional.
+  - Add warning: "VALUE_RECALIBRATED: Historical data shows 20%+ value estimates have 41% win rate."
+
+EARLY GAME CAUTION (44.8% win rate before minute 30):
+- Before minute 30: you have insufficient match data to make reliable predictions.
+  - For 1X2 markets: should_push = false before minute 35.
+  - For Over/Under and BTTS: confidence CAPPED at 6, stake_percent CAPPED at 3%.
+  - Add warning: "EARLY_GAME_RISK: Historical win rate before minute 30 is 44.8%."
+- Minutes 30-44: still below average (48.5%). Exercise restraint.
+
+OVER 3.5+ GOALS SCRUTINY (45.7% win rate):
+- over_3.5 and higher lines have below-average accuracy.
+- BEFORE recommending over_3.5+, you MUST verify:
+  - Current total goals >= line - 1 (e.g., for over_3.5, need at least 3 goals already)
+  - OR match is clearly open with BOTH teams scoring AND shots_on_target >= 4 each
+  - goalsPerMinuteNeeded <= 0.05 (generous threshold)
+- If these are not met → prefer lower lines (over_2.5, over_1.5) or Under markets.
+
+POSSESSION BIAS CORRECTION (root cause of most losses):
+- CRITICAL PATTERN: In 156/538 losses, the score was 0-0 despite "dominant" possession.
+  High possession (60%+) and many shots DO NOT reliably predict goals.
+- YOU MUST COUNTER-CHECK: When you see possession > 60% + many shots:
+  1. Check shots ON TARGET ratio: if shots_on_target / total_shots < 0.3 → "sterile dominance"
+  2. Check GK saves: high opponent GK saves = good defending, NOT imminent breakthrough
+  3. Check time: if minute > 60 and score 0-0 with high possession → trend favors UNDER, not OVER
+  4. Ask: "Has this dominance produced goals?" If NO → do not predict it will.
+- When score is 0-0 at minute 60+: REDUCE confidence by 1 for any Over bet.
+  Consider Under instead — the trend of not scoring is ESTABLISHED.
+
+RISK LEVEL DISCIPLINE (HIGH risk = 33.3% win rate):
+- NEVER set should_push = true when risk_level = "HIGH".
+  Historical win rate for HIGH risk is only 33.3%.
+- If your assessment yields HIGH risk → should_push = false automatically.
+- MEDIUM risk (50.6%) is acceptable but requires all other rules to pass.
+- LOW risk (64.3%) is your sweet spot — aim for LOW risk recommendations.
+
+SCORE 0-0 RULE (156 losses = #1 loss scenario):
+- When the current score is 0-0:
+  - Both teams have FAILED to score so far — this is information, not noise.
+  - After minute 55 with score 0-0: PREFER Under markets over any other market.
+  - After minute 65 with score 0-0: under_2.5 or under_1.5 are statistically favorable.
+  - DO NOT recommend 1x2_home or Over 2.5+ at 0-0 after minute 55 unless evidence is
+    truly extraordinary (recent goal disallowed, penalty pending, etc.).
+
+============================================================
 STRICT MODE — MARKET VALIDATION & SAFETY RULES
 ============================================================
 CORE PRINCIPLES
@@ -595,12 +712,15 @@ WHEN TO USE PRE-MATCH DATA:
 - When live stats are sparse but pre-match aligns with observed play style.
 - When detecting market overreaction (e.g., strong favourite concedes early → odds swing excessively).
 - As supporting evidence when live play confirms pre-match expectations.
+- H2H_SUMMARY: If one team dominates H2H (3+ wins in last 5), factor this into 1X2 assessment.
+- TEAM_FORM_SEQUENCE: Recent WDLWW pattern reveals momentum — weight recent matches more.
 
 WHEN TO IGNORE PRE-MATCH DATA:
 - When live evidence clearly contradicts pre-match expectation.
 - When the match situation has fundamentally changed (red cards, injuries, tactical shifts).
 
 WEIGHT: Pre-match should contribute maximum 20% to your reasoning when used.
+WEIGHT: Strategic context (motivation, rotation, congestion) can add up to 10% additional weight.
 
 ============================================================
 CUSTOM CONDITIONS (INDEPENDENT EVALUATION - CRITICAL)
@@ -772,10 +892,11 @@ For FORCE MODE with non-live status (HT/NS/FT): should_push = false but provide 
 5. Did I check 1X2/BTTS No conditions: confidence >= 7 AND 2+ stat gaps AND pre-match support?
 6. Did I fill market_chosen_reason with specific stat values?
 7. Did I evaluate custom_conditions independently from should_push?
+8. Did I check RECOMMENDED_CONDITION and note if live data confirms or contradicts it?
 `;
 
-  // Bound cache size to prevent unbounded memory growth in long-running sessions
-  if (promptCache.size >= 50) promptCache.clear();
+  // Evict oldest entry when cache is full (FIFO, avoids clearing all warm entries)
+  if (promptCache.size >= 50) promptCache.delete(promptCache.keys().next().value!);
   promptCache.set(cacheKey, prompt);
 
   return prompt;
@@ -849,4 +970,107 @@ You have previous recommendations for this match. You MUST follow these rules:
 5. CHAIN OF THOUGHT: Your reasoning should build upon previous analysis, not start fresh.
    Think of this as a progressive report, not isolated snapshots.
 `;
+}
+
+function buildHistoricalPerformanceSection(context?: AiPromptContext): string {
+  const perf = context?.historicalPerformance;
+  if (!perf || perf.overall.settled < 5) return '';
+
+  const lines: string[] = [];
+  lines.push('========================');
+  lines.push('YOUR HISTORICAL TRACK RECORD (SELF-LEARNING DATA)');
+  lines.push('========================');
+  lines.push(`Overall: ${perf.overall.accuracy}% accuracy (${perf.overall.correct}/${perf.overall.settled} settled)`);
+
+  if (perf.byMarket.length > 0) {
+    lines.push('');
+    lines.push('By Market:');
+    for (const m of perf.byMarket) {
+      const tag = m.accuracy >= 60 ? '(strong)' : m.accuracy < 45 ? '(WEAK — be cautious)' : '';
+      lines.push(`  ${m.market}: ${m.accuracy}% (${m.correct}/${m.settled}) ${tag}`);
+    }
+  }
+
+  if (perf.byConfidenceBand.length > 0) {
+    lines.push('');
+    lines.push('By Confidence Level:');
+    for (const c of perf.byConfidenceBand) {
+      lines.push(`  Conf ${c.band}: ${c.accuracy}% (${c.correct}/${c.settled})`);
+    }
+  }
+
+  if (perf.byMinuteBand.length > 0) {
+    lines.push('');
+    lines.push('By Match Phase:');
+    for (const m of perf.byMinuteBand) {
+      const tag = m.accuracy < 45 ? '(WEAK — reduce aggression)' : '';
+      lines.push(`  Min ${m.band}: ${m.accuracy}% (${m.correct}/${m.settled}) ${tag}`);
+    }
+  }
+
+  if (perf.byOddsRange.length > 0) {
+    lines.push('');
+    lines.push('By Odds Range:');
+    for (const o of perf.byOddsRange) {
+      const tag = o.accuracy < 40 ? '(DANGER — avoid)' : o.accuracy < 50 ? '(WEAK)' : o.accuracy >= 60 ? '(RELIABLE)' : '';
+      lines.push(`  Odds ${o.range}: ${o.accuracy}% (${o.correct}/${o.settled}) ${tag}`);
+    }
+  }
+
+  if (perf.byLeague.length > 0) {
+    lines.push('');
+    lines.push('By League (top leagues):');
+    for (const l of perf.byLeague) {
+      const tag = l.accuracy < 40 ? '(POOR — extra caution)' : l.accuracy >= 65 ? '(RELIABLE)' : '';
+      lines.push(`  ${l.league}: ${l.accuracy}% (${l.correct}/${l.settled}) ${tag}`);
+    }
+  }
+
+  lines.push('');
+  lines.push('USE THIS DATA TO:');
+  lines.push('- Reduce confidence in markets/phases where you historically perform poorly.');
+  lines.push('- Avoid markets tagged WEAK unless evidence is overwhelming.');
+  lines.push('- Increase confidence slightly in markets/phases where track record is strong.');
+  lines.push('- Adjust stake_percent proportionally to historical accuracy per market/phase.');
+  lines.push('');
+
+  return lines.join('\n');
+}
+
+function buildStrategicContextSection(strategicContext: unknown): string {
+  if (!strategicContext || typeof strategicContext !== 'object') return '';
+  const ctx = strategicContext as Record<string, string>;
+  const hasData = ctx.summary && ctx.summary !== 'No data found';
+  if (!hasData) return '';
+
+  const lines: string[] = [];
+  lines.push('========================');
+  lines.push('STRATEGIC CONTEXT (FROM PRE-MATCH RESEARCH)');
+  lines.push('========================');
+  if (ctx.home_motivation && ctx.home_motivation !== 'No data found')
+    lines.push(`HOME_MOTIVATION: ${ctx.home_motivation}`);
+  if (ctx.away_motivation && ctx.away_motivation !== 'No data found')
+    lines.push(`AWAY_MOTIVATION: ${ctx.away_motivation}`);
+  if (ctx.league_positions && ctx.league_positions !== 'No data found')
+    lines.push(`LEAGUE_POSITIONS: ${ctx.league_positions}`);
+  if (ctx.fixture_congestion && ctx.fixture_congestion !== 'No data found')
+    lines.push(`FIXTURE_CONGESTION: ${ctx.fixture_congestion}`);
+  if (ctx.rotation_risk && ctx.rotation_risk !== 'No data found')
+    lines.push(`ROTATION_RISK: ${ctx.rotation_risk}`);
+  if (ctx.key_absences && ctx.key_absences !== 'No data found')
+    lines.push(`KEY_ABSENCES: ${ctx.key_absences}`);
+  if (ctx.h2h_narrative && ctx.h2h_narrative !== 'No data found')
+    lines.push(`H2H_NARRATIVE: ${ctx.h2h_narrative}`);
+  lines.push(`SUMMARY: ${ctx.summary}`);
+  lines.push('');
+  lines.push('STRATEGIC CONTEXT RULES:');
+  lines.push('- LEAGUE_POSITIONS: Top 3 vs bottom 3 = strong favourite signal. If positions are close (within 3 places), treat as evenly matched → AVOID 1X2, prefer O/U or BTTS.');
+  lines.push('- If a team is likely to ROTATE key players, reduce confidence for that team winning (1X2) by 1-2 points.');
+  lines.push('- If a team has NOTHING TO PLAY FOR (mid-table, safe from relegation, no European push), expect lower intensity → favors Under, Draw.');
+  lines.push('- If both teams are in a TITLE RACE or RELEGATION BATTLE, expect high intensity → supports both attacking.');
+  lines.push('- FIXTURE_CONGESTION within 3 days of a major match significantly increases rotation risk.');
+  lines.push('- KEY_ABSENCES of star players (strikers, playmakers) should reduce expected goals for that team.');
+  lines.push('');
+
+  return lines.join('\n');
 }

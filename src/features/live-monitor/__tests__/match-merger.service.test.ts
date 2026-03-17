@@ -25,6 +25,7 @@ describe('mergeMatchData', () => {
       recommended_custom_condition: '',
       recommended_condition_reason: '',
       recommended_condition_reason_vi: '',
+      strategic_context: null as unknown,
       ...overrides,
     };
   }

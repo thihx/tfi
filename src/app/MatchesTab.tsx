@@ -3,6 +3,7 @@ import { useAppState } from '@/hooks/useAppState';
 import { useToast } from '@/hooks/useToast';
 import { Pagination } from '@/components/ui/Pagination';
 import { StatusBadge } from '@/components/ui/StatusBadge';
+import { MatchCard } from '@/components/ui/MatchCard';
 import { LIVE_STATUSES, PLACEHOLDER_HOME, PLACEHOLDER_AWAY } from '@/config/constants';
 import { convertSeoulToLocalDateTime, formatDateTimeDisplay, getLeagueDisplayName, debounce, parseKickoffForSave } from '@/lib/utils/helpers';
 import { normalizeToISO } from '@/lib/utils/helpers';
@@ -29,6 +30,7 @@ export function MatchesTab() {
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [pendingAdds, setPendingAdds] = useState<Set<string>>(new Set());
   const [analyzingMatch, setAnalyzingMatch] = useState<string | null>(null);
+  const [viewMode, setViewMode] = useState<'table' | 'cards'>('table');
   const [aiResult, setAiResult] = useState<{ matchId: string; matchDisplay: string; result: PipelineMatchResult } | null>(null);
 
   // Debounced search
@@ -244,8 +246,17 @@ export function MatchesTab() {
       <div className="card-header">
         <div className="card-title">📅 Matches</div>
         <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
-          <button className="btn btn-primary btn-sm" disabled={selected.size === 0} onClick={addSelectedToWatchlist} style={{ fontSize: '13px' }}>
-            {selected.size > 0 ? `+ Selected Watches (${selected.size})` : '+ Selected Watches'}
+          {viewMode === 'table' && (
+            <button className="btn btn-primary btn-sm" disabled={selected.size === 0} onClick={addSelectedToWatchlist} style={{ fontSize: '13px' }}>
+              {selected.size > 0 ? `+ Selected Watches (${selected.size})` : '+ Selected Watches'}
+            </button>
+          )}
+          <button
+            className={`btn btn-sm ${viewMode === 'cards' ? 'btn-primary' : 'btn-secondary'}`}
+            onClick={() => setViewMode((v) => v === 'table' ? 'cards' : 'table')}
+            title="Toggle card / table view"
+          >
+            {viewMode === 'cards' ? '☰ Table' : '⊞ Cards'}
           </button>
           <button className="btn btn-primary btn-sm" onClick={loadAllData}>🔄 Refresh</button>
         </div>
@@ -310,7 +321,46 @@ export function MatchesTab() {
         </div>
       )}
 
-      <div className="table-container table-cards">
+      {/* Card view */}
+      {viewMode === 'cards' && (
+        <div style={{ padding: '16px' }}>
+          {pageItems.length === 0 ? (
+            <div style={{ padding: '48px', textAlign: 'center', color: 'var(--gray-400)' }}>
+              <div style={{ fontSize: '36px', marginBottom: '12px' }}>🔍</div>
+              <p>No matches found</p>
+              <button className="btn btn-secondary" onClick={clearFilters} style={{ marginTop: '10px' }}>Clear Filters</button>
+            </div>
+          ) : (
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))', gap: '12px' }}>
+              {pageItems.map((m) => (
+                <MatchCard
+                  key={m.match_id}
+                  match={m}
+                  highlighted={selected.has(String(m.match_id))}
+                  actions={[
+                    watchlistMap.has(String(m.match_id))
+                      ? { label: '✓ Watched', onClick: () => {}, variant: 'success', disabled: true }
+                      : pendingAdds.has(String(m.match_id))
+                        ? { label: 'Saving…', onClick: () => {}, disabled: true }
+                        : { label: '+ Watch', onClick: (match) => quickAdd(match), variant: 'primary' },
+                    {
+                      label: analyzingMatch === String(m.match_id) ? 'Analyzing…' : '🤖 Ask AI',
+                      onClick: (match) => askAi(match),
+                      variant: 'secondary',
+                      loading: analyzingMatch === String(m.match_id),
+                      disabled: !!analyzingMatch,
+                    },
+                  ]}
+                />
+              ))}
+            </div>
+          )}
+          <Pagination currentPage={safePage} totalPages={totalPages} onPageChange={setPage} />
+        </div>
+      )}
+
+      {/* Table view */}
+      {viewMode === 'table' && <div className="table-container table-cards">
         <table>
           <thead>
             <tr>
@@ -349,7 +399,7 @@ export function MatchesTab() {
           </tbody>
         </table>
         <Pagination currentPage={safePage} totalPages={totalPages} onPageChange={setPage} />
-      </div>
+      </div>}
     </div>
   );
 }

@@ -55,6 +55,7 @@ vi.mock('../services/proxy.service', () => ({
   saveAiPerformance: vi.fn(),
   fetchMatchRecommendations: vi.fn(),
   fetchMatchSnapshots: vi.fn(),
+  fetchHistoricalPerformance: vi.fn().mockResolvedValue(null),
 }));
 
 // Mock staleness.service
@@ -82,6 +83,7 @@ import {
   saveAiPerformance,
   fetchMatchRecommendations,
   fetchMatchSnapshots,
+  fetchHistoricalPerformance,
 } from '../services/proxy.service';
 
 import { loadMonitorConfig } from '../config';
@@ -153,6 +155,7 @@ beforeEach(() => {
   // Default context/staleness mocks — individual tests that use setupHappyPath override these
   (fetchMatchRecommendations as Mock).mockResolvedValue([]);
   (fetchMatchSnapshots as Mock).mockResolvedValue([]);
+  (fetchHistoricalPerformance as Mock).mockResolvedValue(null);
   (checkStaleness as Mock).mockReturnValue({ isStale: false, reason: 'first_analysis' });
 });
 
@@ -386,7 +389,7 @@ describe('runPipelineForMatch', () => {
 
     const ctx = await runPipelineForMatch(appConfig, '12345');
 
-    expect(ctx.triggeredBy).toBe('manual');
+    expect(ctx.triggeredBy).toBe('ask-ai');
     expect(ctx.webhookMatchIds).toEqual(['12345']);
   });
 

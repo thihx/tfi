@@ -4,6 +4,11 @@
 
 import type { FastifyInstance } from 'fastify';
 import * as repo from '../repos/ai-performance.repo.js';
+import type { HistoricalPerformanceContext } from '../repos/ai-performance.repo.js';
+
+// ── In-memory cache for prompt-context (10-minute TTL) ──
+let promptContextCache: { data: HistoricalPerformanceContext; expiresAt: number } | null = null;
+const PROMPT_CONTEXT_TTL_MS = 10 * 60 * 1000; // 10 minutes
 
 export async function aiPerformanceRoutes(app: FastifyInstance) {
   app.get('/api/ai-performance/stats', async () => {
@@ -44,5 +49,17 @@ export async function aiPerformanceRoutes(app: FastifyInstance) {
 
   app.post('/api/ai-performance/resync', async () => {
     return repo.cleanAndResync();
+  });
+
+  // ── Prompt context: aggregated historical performance for AI feedback loop ──
+  // Cached server-side for 10 minutes to avoid repeated DB queries during rapid pipeline runs
+  app.get('/api/ai-performance/prompt-context', async () => {
+    const now = Date.now();
+    if (promptContextCache && promptContextCache.expiresAt > now) {
+      return promptContextCache.data;
+    }
+    const data = await repo.getHistoricalPerformanceContext();
+    promptContextCache = { data, expiresAt: now + PROMPT_CONTEXT_TTL_MS };
+    return data;
   });
 }

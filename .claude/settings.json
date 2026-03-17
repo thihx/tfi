@@ -2,7 +2,11 @@
   "permissions": {
     "allow": [
       "Bash(wc -l /c/tfi/src/**/*.ts /c/tfi/src/**/*.tsx)",
-      "Bash(npm run:*)"
+      "Bash(npm run:*)",
+      "Bash(find c:/tfi -name *.css -type f)",
+      "Bash(find c:/tfi/src -name *.css -o -name index.css)",
+      "Bash(find c:/tfi -maxdepth 3 -name *.css)",
+      "Read(//tmp/**)"
     ]
   }
 }

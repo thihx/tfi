@@ -55,6 +55,7 @@ export interface WatchlistMatch {
   recommended_condition_reason_vi?: string;
   pre_match_prediction_summary?: string;
   pre_match_prediction?: PreMatchPrediction | null;
+  strategic_context?: unknown;
 }
 
 export interface FilteredMatch extends WatchlistMatch {
@@ -282,6 +283,7 @@ export interface MergedMatchData {
   odds_suspicious: boolean;
   pre_match_prediction: PreMatchPrediction | null;
   pre_match_prediction_summary: string;
+  strategic_context: unknown;
 }
 
 // ==================== AI Prompt Context ====================
@@ -310,6 +312,16 @@ export interface MatchTimelineSnapshot {
 export interface AiPromptContext {
   previousRecommendations: PreviousRecommendation[];
   matchTimeline: MatchTimelineSnapshot[];
+  historicalPerformance?: HistoricalPerformanceSummary | null;
+}
+
+export interface HistoricalPerformanceSummary {
+  overall: { settled: number; correct: number; accuracy: number };
+  byMarket: Array<{ market: string; settled: number; correct: number; accuracy: number }>;
+  byConfidenceBand: Array<{ band: string; settled: number; correct: number; accuracy: number }>;
+  byMinuteBand: Array<{ band: string; settled: number; correct: number; accuracy: number }>;
+  byOddsRange: Array<{ range: string; settled: number; correct: number; accuracy: number }>;
+  byLeague: Array<{ league: string; settled: number; correct: number; accuracy: number }>;
 }
 
 // ==================== Should Proceed ====================
@@ -444,7 +456,7 @@ export interface PipelineContext {
   config: LiveMonitorConfig;
   stage: PipelineStage;
   startedAt: string;
-  triggeredBy: 'manual' | 'scheduled' | 'webhook';
+  triggeredBy: 'manual' | 'scheduled' | 'webhook' | 'ask-ai';
   webhookMatchIds?: string[];
   error?: string;
   results: PipelineMatchResult[];

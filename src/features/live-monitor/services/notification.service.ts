@@ -335,6 +335,7 @@ export interface NotificationResult {
 /**
  * Format and send notifications (email + telegram) for a recommendation.
  * Only sends when there's something actionable (ai_should_push, condition matched, etc).
+ * When forceNotify is true (manual Ask AI), always sends Telegram regardless of section.
  */
 export async function notifyRecommendation(
   appConfig: AppConfig,
@@ -342,6 +343,7 @@ export async function notifyRecommendation(
   matchData: MergedMatchData,
   parsed: ParsedAiResponse,
   recommendation: RecommendationData,
+  options?: { forceNotify?: boolean },
 ): Promise<NotificationResult> {
   const result: NotificationResult = {
     emailSent: false,
@@ -358,10 +360,11 @@ export async function notifyRecommendation(
   };
 
   const section = determineSection(ctx);
+  const forced = options?.forceNotify === true;
 
-  // Only notify for actionable sections
+  // Only notify for actionable sections (unless forced by manual trigger)
   const shouldNotify =
-    section === 'ai_recommendation' || section === 'condition_triggered';
+    forced || section === 'ai_recommendation' || section === 'condition_triggered';
 
   if (!shouldNotify) return result;
 
