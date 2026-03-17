@@ -20,10 +20,23 @@ export interface MatchRow {
   away_score: number | null;
   current_minute: number | null;
   last_updated: string;
+  home_reds?: number | null;
+  away_reds?: number | null;
 }
 
 export async function getAllMatches(): Promise<MatchRow[]> {
-  const result = await query<MatchRow>('SELECT * FROM matches ORDER BY date, kickoff');
+  const result = await query<MatchRow>(`
+    SELECT m.*,
+      (s.stats->'red_cards'->>'home')::int AS home_reds,
+      (s.stats->'red_cards'->>'away')::int AS away_reds
+    FROM matches m
+    LEFT JOIN LATERAL (
+      SELECT stats FROM match_snapshots
+      WHERE match_id = m.match_id
+      ORDER BY minute DESC LIMIT 1
+    ) s ON true
+    ORDER BY m.date, m.kickoff
+  `);
   return result.rows;
 }
 

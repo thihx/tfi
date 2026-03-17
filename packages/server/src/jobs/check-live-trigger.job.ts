@@ -63,7 +63,7 @@ export async function checkLiveTriggerJob(): Promise<{ liveCount: number; pipeli
 
   const pipelineResults: PipelineResult[] = [];
   for (let i = 0; i < batches.length; i++) {
-    const batch = batches[i];
+    const batch = batches[i]!;
     const progress = 70 + Math.round(((i + 1) / batches.length) * 25);
     await reportJobProgress(JOB, 'pipeline', `Batch ${i + 1}/${batches.length}: ${batch.join(', ')}`, progress);
 

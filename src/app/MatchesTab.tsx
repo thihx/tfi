@@ -498,9 +498,11 @@ function MatchRow({ match, isWatched, isPending, isSelected, isAnalyzing, hasRes
             <div className="team-info">
               <img src={match.home_logo} loading="lazy" decoding="async" alt={match.home_team} className="team-logo" onError={(e) => { (e.target as HTMLImageElement).src = PLACEHOLDER_HOME; }} />
               <span style={{ fontWeight: 400 }}>{match.home_team}</span>
+              {(match.home_reds ?? 0) > 0 && <span title={`${match.home_reds} red card(s)`} style={{ fontSize: 11, background: '#dc2626', color: '#fff', borderRadius: 3, padding: '0 4px', marginLeft: 4 }}>🟥×{match.home_reds}</span>}
             </div>
             <span className="match-vs">vs</span>
             <div className="team-info">
+              {(match.away_reds ?? 0) > 0 && <span title={`${match.away_reds} red card(s)`} style={{ fontSize: 11, background: '#dc2626', color: '#fff', borderRadius: 3, padding: '0 4px', marginRight: 4 }}>🟥×{match.away_reds}</span>}
               <span style={{ fontWeight: 400 }}>{match.away_team}</span>
               <img src={match.away_logo} loading="lazy" decoding="async" alt={match.away_team} className="team-logo" onError={(e) => { (e.target as HTMLImageElement).src = PLACEHOLDER_AWAY; }} />
             </div>

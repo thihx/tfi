@@ -25,7 +25,6 @@ import {
 } from './football-api.js';
 import { fetchTheOddsLive } from './the-odds-api.js';
 import * as watchlistRepo from '../repos/watchlist.repo.js';
-import * as matchRepo from '../repos/matches.repo.js';
 import { createRecommendation, getRecommendationsByMatchId } from '../repos/recommendations.repo.js';
 
 // ==================== Types ====================
@@ -298,7 +297,7 @@ function buildOddsCanonical(oddsResponse: unknown[]): { canonical: OddsCanonical
             if (!m) continue;
             key = raw;
           }
-          if (!oddsMap[key] || odd > oddsMap[key]) oddsMap[key] = odd;
+          if (!(key in oddsMap) || odd > (oddsMap[key] ?? 0)) oddsMap[key] = odd;
         }
       }
 
@@ -333,7 +332,7 @@ function buildOddsCanonical(oddsResponse: unknown[]): { canonical: OddsCanonical
             if (side === '2') side = 'away';
             key = `${side} ${m[2]}`;
           }
-          if (!oddsMap[key] || odd > oddsMap[key]) oddsMap[key] = odd;
+          if (!(key in oddsMap) || odd > (oddsMap[key] ?? 0)) oddsMap[key] = odd;
         }
       }
 
@@ -351,7 +350,7 @@ function buildOddsCanonical(oddsResponse: unknown[]): { canonical: OddsCanonical
             const m = raw.match(/^(over|under)\s+([0-9]+(?:\.[0-9]+)?)$/);
             if (m) key = `corners ${m[1]} ${m[2]}`;
           }
-          if (key && (!oddsMap[key] || odd > oddsMap[key])) oddsMap[key] = odd;
+          if (key && (!(key in oddsMap) || odd > (oddsMap[key] ?? 0))) oddsMap[key] = odd;
         }
       }
     }
@@ -817,7 +816,8 @@ export async function runPipelineBatch(matchIds: string[]): Promise<PipelineResu
   );
   const watchlistMap = new Map<string, watchlistRepo.WatchlistRow>();
   for (let i = 0; i < matchIds.length; i++) {
-    if (watchlistEntries[i]) watchlistMap.set(matchIds[i], watchlistEntries[i]!);
+    const id = matchIds[i]!;
+    if (watchlistEntries[i]) watchlistMap.set(id, watchlistEntries[i]!);
   }
 
   // Process matches sequentially to avoid API rate limits

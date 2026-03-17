@@ -16,6 +16,8 @@ export interface Match {
   status: string;
   current_minute?: string;
   prediction?: string;
+  home_reds?: number | null;
+  away_reds?: number | null;
 }
 
 export interface StrategicContext {

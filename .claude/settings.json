@@ -23,7 +23,11 @@
       "Bash(npx vite:*)",
       "Bash(grep -n \"card-header\\\\|card-title\" c:/tfi/src/app/*.tsx)",
       "Bash(grep -A 10 \"export function.*Tab\\\\\\(\\\\\\)\" c:/tfi/src/app/*.tsx)",
-      "Bash(find c:tfipackagesserversrcroutes -type f -name *.ts)"
+      "Bash(find c:tfipackagesserversrcroutes -type f -name *.ts)",
+      "Bash(grep -n \"home_reds\\\\|away_reds\\\\|red\" c:/tfi/packages/server/src/db/migrations/*.sql)",
+      "Bash(grep -n \"home_reds\\\\|away_reds\\\\|home_cards\\\\|away_cards\" c:/tfi/packages/server/src/db/migrations/*.sql)",
+      "Bash(grep -n \"red\\\\|card\\\\|snapshot\\\\|derived\\\\|events_json\\\\|stats\" c:/tfi/packages/server/src/db/migrations/*.sql)",
+      "Bash(grep -n \"home_reds\\\\|away_reds\\\\|red_card\\\\|derived_insights\\\\|stats_compact\\\\|events_summary\" c:/tfi/packages/server/src/db/migrations/*.sql)"
     ]
   }
 }
