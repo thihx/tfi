@@ -20,11 +20,27 @@ import { fetchWatchlistMatches } from './proxy.service';
  */
 function parseLocalDateTime(dateStr: string, timeStr: string): Date | null {
   if (!dateStr) return null;
-  const dateParts = dateStr.trim().split('-');
-  if (dateParts.length !== 3) return null;
-  const year = Number(dateParts[0]);
-  const month = Number(dateParts[1]);
-  const day = Number(dateParts[2]);
+
+  let year: number, month: number, day: number;
+  const trimmed = dateStr.trim();
+
+  if (trimmed.includes('T')) {
+    // ISO timestamp — extract Seoul date (UTC+9)
+    const d = new Date(trimmed);
+    if (isNaN(d.getTime())) return null;
+    const seoulMs = d.getTime() + 9 * 60 * 60 * 1000;
+    const sd = new Date(seoulMs);
+    year = sd.getUTCFullYear();
+    month = sd.getUTCMonth() + 1;
+    day = sd.getUTCDate();
+  } else {
+    const dateParts = trimmed.split('-');
+    if (dateParts.length !== 3) return null;
+    year = Number(dateParts[0]);
+    month = Number(dateParts[1]);
+    day = Number(dateParts[2]);
+  }
+
   let hour = 0;
   let minute = 0;
   if (timeStr) {
@@ -92,8 +108,15 @@ export function filterActiveMatches(
   // Fallback: filter by date/kickoff time window
   if (!relevant.length && (!webhookMatchIds || webhookMatchIds.length === 0)) {
     const nowLocal = getNowLocal(config.TIMEZONE);
+    const LIVE_MATCH_STATUSES = new Set(['1H', '2H', 'HT', 'ET', 'BT', 'P', 'LIVE', 'INT']);
 
     for (const item of allMatches) {
+      // Include any match whose actual status is LIVE (from matches table)
+      if (item.match_status && LIVE_MATCH_STATUSES.has(item.match_status)) {
+        relevant.push(item);
+        continue;
+      }
+
       const dateStr = String(item.date || '').trim();
       const kickoffStr = String(item.kickoff || '').trim();
       const matchStart = parseLocalDateTime(dateStr, kickoffStr);

@@ -10,6 +10,38 @@ import type {
   RecommendationData,
 } from '../types';
 
+/** Normalize selection text into a canonical market key for dedup. */
+function normalizeMarketKey(selection: string, betMarket?: string): string {
+  const sel = (selection || '').toLowerCase().trim();
+  const mkt = (betMarket || '').toLowerCase().trim();
+
+  if (mkt) return mkt;
+
+  // Asian Handicap (before home/win since "AH Home" contains "home")
+  if (/asian\s*handicap|\bah\s+[+-]?\d/i.test(sel)) return 'asian_handicap';
+  // Corners (before over/under since "Over 9.5 Corners" contains "over")
+  if (/corner/i.test(sel)) return 'corners';
+  // Over / Under
+  const ouMatch = sel.match(/(?:over|under)\s*([\d.]+)/);
+  if (ouMatch) {
+    const dir = sel.startsWith('under') ? 'under' : 'over';
+    return `${dir}_${ouMatch[1]}`;
+  }
+  // BTTS
+  if (/btts|both.?teams?.?to.?score/i.test(sel)) {
+    return sel.includes('no') ? 'btts_no' : 'btts_yes';
+  }
+  // Draw
+  if (/\bdraw\b/i.test(sel)) return '1x2_draw';
+  // Away
+  if (/\baway\b/i.test(sel)) return '1x2_away';
+  // Home / Win (must come after draw/away)
+  if (/\b(home|win)\b/i.test(sel)) return '1x2_home';
+
+  // Fallback: slugified selection
+  return sel.replace(/[^a-z0-9]+/g, '_').slice(0, 50) || 'unknown';
+}
+
 /**
  * Prepare the recommendation record from merged match data + parsed AI response.
  * Maps ~35 fields exactly like the n8n "Prepare Recommendation Data" node.
@@ -23,8 +55,12 @@ export function prepareRecommendationData(
   const now = new Date().toISOString();
   const match = matchData.match || { id: '', home: '', away: '', league: '', minute: '', score: '', status: '' };
 
-  // Build unique key for deduplication
-  const uniqueKey = `${matchData.match_id}_${parsed.bet_market || 'none'}_${match.minute || 0}`;
+  // Build unique key for deduplication: same match + same market = same bet
+  const marketKey = normalizeMarketKey(
+    parsed.ai_selection || parsed.selection || '',
+    parsed.bet_market,
+  );
+  const uniqueKey = `${matchData.match_id}_${marketKey}`;
 
   // Build display string
   const matchDisplay = `${match.home || matchData.home_team} vs ${match.away || matchData.away_team}`;

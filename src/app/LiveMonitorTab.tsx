@@ -7,6 +7,7 @@ import { useAppState } from '@/hooks/useAppState';
 import { useScheduler } from '@/features/live-monitor/useScheduler';
 import type { PipelineContext, PipelineMatchResult, LiveMonitorConfig } from '@/features/live-monitor/types';
 import { loadMonitorConfig, saveMonitorConfig } from '@/features/live-monitor/config';
+import { formatLocalTimeFull } from '@/lib/utils/helpers';
 
 // ==================== Sub-components ====================
 
@@ -101,13 +102,13 @@ function SchedulerControls({
           <div className="monitor-stat">
             <span className="monitor-stat-label">Last Run</span>
             <span className="monitor-stat-value">
-              {lastRun ? new Date(lastRun).toLocaleTimeString('vi-VN') : '—'}
+              {formatLocalTimeFull(lastRun)}
             </span>
           </div>
           <div className="monitor-stat">
             <span className="monitor-stat-label">Next Run</span>
             <span className="monitor-stat-value">
-              {nextRunAt ? new Date(nextRunAt).toLocaleTimeString('vi-VN') : '—'}
+              {formatLocalTimeFull(nextRunAt)}
             </span>
           </div>
         </div>
@@ -413,7 +414,7 @@ export function LiveMonitorTab() {
                 <div className="card-title">📡 Pipeline Progress</div>
                 <small style={{ color: 'var(--gray-500)' }}>
                   {ctx.triggeredBy === 'scheduled' ? '⏰ Scheduled' : '👆 Manual'} —{' '}
-                  {ctx.startedAt ? new Date(ctx.startedAt).toLocaleTimeString('vi-VN') : ''}
+                  {ctx.startedAt ? formatLocalTimeFull(ctx.startedAt) : ''}
                 </small>
               </div>
               <div style={{ padding: '16px 20px' }}>

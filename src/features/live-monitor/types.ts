@@ -47,6 +47,7 @@ export interface WatchlistMatch {
   priority: number;
   custom_conditions: string;
   status: string;
+  match_status?: string;
   added_at?: string;
   prediction?: string;
   recommended_custom_condition?: string;

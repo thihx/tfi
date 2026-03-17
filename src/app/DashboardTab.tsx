@@ -7,6 +7,7 @@ import {
 import { fetchAiStats, fetchAiStatsByModel, fetchBetStatsByMarket, fetchDashboardSummary } from '@/lib/services/api';
 import type { AiAccuracyStats, AiModelStats, BetStats, DashboardSummary } from '@/lib/services/api';
 import { StatusBadge } from '@/components/ui/StatusBadge';
+import { formatLocalDateTime } from '@/lib/utils/helpers';
 
 // ==================== Sub-components ====================
 
@@ -101,6 +102,8 @@ function AiAccuracyPanel({ stats, models }: { stats: AiAccuracyStats | null; mod
     { name: 'Pending', value: stats.pending, color: 'var(--gray-300)' },
   ].filter((d) => d.value > 0);
 
+  const settled = stats.correct + stats.incorrect;
+
   return (
     <div className="card" style={{ marginBottom: '16px' }}>
       <div className="card-header"><div className="card-title">🤖 AI Performance</div></div>
@@ -111,7 +114,7 @@ function AiAccuracyPanel({ stats, models }: { stats: AiAccuracyStats | null; mod
               <Pie data={pieData} dataKey="value" cx="50%" cy="50%" innerRadius={35} outerRadius={60} paddingAngle={2}>
                 {pieData.map((d, i) => <Cell key={i} fill={d.color} />)}
               </Pie>
-              <Tooltip />
+              <Tooltip formatter={(value, name) => [`${value} bets`, name]} />
             </PieChart>
           </ResponsiveContainer>
         </div>
@@ -120,10 +123,24 @@ function AiAccuracyPanel({ stats, models }: { stats: AiAccuracyStats | null; mod
             {stats.accuracy.toFixed(1)}%
           </div>
           <div style={{ fontSize: '13px', color: 'var(--gray-500)' }}>
-            {stats.correct} correct / {stats.total} total
+            {stats.correct} correct / {settled} settled
+          </div>
+          {stats.pending > 0 && (
+            <div style={{ fontSize: '12px', color: 'var(--gray-400)', marginTop: '2px' }}>
+              {stats.pending} pending · {stats.total} total
+            </div>
+          )}
+          {/* Legend */}
+          <div style={{ display: 'flex', gap: '12px', marginTop: '10px', flexWrap: 'wrap' }}>
+            {pieData.map((d) => (
+              <div key={d.name} style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '12px', color: 'var(--gray-600)' }}>
+                <span style={{ width: 10, height: 10, borderRadius: '50%', backgroundColor: d.color, display: 'inline-block', flexShrink: 0 }} />
+                {d.name} ({d.value})
+              </div>
+            ))}
           </div>
           {models.length > 0 && (
-            <div style={{ marginTop: '12px' }}>
+            <div style={{ marginTop: '10px', borderTop: '1px solid var(--gray-200)', paddingTop: '8px' }}>
               {models.map((m) => (
                 <div key={m.model} style={{ fontSize: '12px', color: 'var(--gray-600)', marginTop: '4px' }}>
                   <strong>{m.model}</strong>: {m.accuracy.toFixed(1)}% ({m.correct}/{m.total})
@@ -189,7 +206,7 @@ export function DashboardTab() {
       {/* Summary Stats */}
       <div className="stats-grid">
         <StatCard label="Total Bets" value={d?.totalBets ?? 0} sub={`${d?.pending ?? 0} pending`} />
-        <StatCard label="Win Rate" value={`${d?.winRate ?? 0}%`} sub={d?.streak ?? ''} />
+        <StatCard label="Win Rate" value={`${(d?.winRate ?? 0).toFixed(1)}%`} sub={d?.streak ?? ''} />
         <StatCard
           label="Total P/L"
           value={`${(d?.totalPnl ?? 0) >= 0 ? '+' : ''}$${(d?.totalPnl ?? 0).toFixed(2)}`}
@@ -226,15 +243,18 @@ export function DashboardTab() {
           <button className="btn btn-sm btn-secondary" onClick={loadAll}>🔄</button>
         </div>
         {recentRecs.length > 0 ? (
-          <div className="table-container">
+          <div className="table-container table-cards">
             <table>
               <thead>
                 <tr>
+                  <th style={{ width: '90px' }}>Date</th>
+                  <th>League</th>
                   <th>Match</th>
                   <th>Selection</th>
-                  <th>Odds</th>
-                  <th>Result</th>
-                  <th>P/L</th>
+                  <th style={{ textAlign: 'center' }}>Odds</th>
+                  <th>Outcome</th>
+                  <th style={{ textAlign: 'center' }}>Result</th>
+                  <th style={{ textAlign: 'right' }}>P/L</th>
                 </tr>
               </thead>
               <tbody>
@@ -243,13 +263,20 @@ export function DashboardTab() {
                   const display = r.home_team && r.away_team
                     ? `${r.home_team} vs ${r.away_team}`
                     : r.match_display || 'N/A';
+                  const ts = r.timestamp || r.created_at;
+                  const dtStr = formatLocalDateTime(ts);
+                  const outcome = r.actual_outcome || '';
+                  const outcomeShort = outcome.length > 35 ? outcome.slice(0, 33) + '…' : outcome;
                   return (
                     <tr key={i}>
-                      <td><span className="cell-value">{display}</span></td>
-                      <td><span className="cell-value"><strong>{r.selection || '-'}</strong></span></td>
-                      <td><span className="cell-value">{r.odds || '-'}</span></td>
-                      <td><span className="cell-value">{r.result ? <StatusBadge status={r.result.toUpperCase()} /> : '-'}</span></td>
-                      <td>
+                      <td data-label="Date"><span className="cell-value" style={{ fontSize: '12px', color: 'var(--gray-500)' }}>{dtStr}</span></td>
+                      <td data-label="League"><span className="cell-value" style={{ fontSize: '12px' }} title={String(r.league || '')}>{r.league ? (r.league.length > 20 ? r.league.slice(0, 18) + '…' : r.league) : '-'}</span></td>
+                      <td data-label="Match"><span className="cell-value">{display}</span></td>
+                      <td data-label="Selection"><span className="cell-value"><strong>{r.selection || '-'}</strong></span></td>
+                      <td data-label="Odds" style={{ textAlign: 'center' }}><span className="cell-value">{r.odds || '-'}</span></td>
+                      <td data-label="Outcome"><span className="cell-value" title={outcome} style={{ fontSize: '12px', color: 'var(--gray-600)', maxWidth: '220px', display: 'inline-block', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{outcomeShort || '-'}</span></td>
+                      <td data-label="Result" style={{ textAlign: 'center' }}><span className="cell-value">{r.result ? <StatusBadge status={r.result.toUpperCase()} /> : '-'}</span></td>
+                      <td data-label="P/L" style={{ textAlign: 'right' }}>
                         <span className="cell-value" style={{ fontWeight: 700, color: pnl >= 0 ? 'var(--success)' : 'var(--danger)' }}>
                           {pnl >= 0 ? '+' : ''}${pnl.toFixed(2)}
                         </span>

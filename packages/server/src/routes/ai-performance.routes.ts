@@ -36,4 +36,13 @@ export async function aiPerformanceRoutes(app: FastifyInstance) {
     const rec = await repo.createAiPerformanceRecord(req.body);
     return reply.code(201).send(rec);
   });
+
+  app.post('/api/ai-performance/backfill', async () => {
+    const count = await repo.backfillFromRecommendations();
+    return { backfilled: count };
+  });
+
+  app.post('/api/ai-performance/resync', async () => {
+    return repo.cleanAndResync();
+  });
 }

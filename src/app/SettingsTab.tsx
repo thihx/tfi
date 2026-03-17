@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useAppState } from '@/hooks/useAppState';
 import { useToast } from '@/hooks/useToast';
+import { formatLocalTimeFull } from '@/lib/utils/helpers';
 
 interface JobInfo {
   name: string;
@@ -101,7 +102,7 @@ function JobSchedulerPanel() {
           <div style={{ flex: '1', minWidth: '180px' }}>
             <strong>{JOB_LABELS[job.name] || job.name}</strong>
             <div style={{ fontSize: '12px', color: 'var(--gray-500)', marginTop: '4px' }}>
-              {job.lastRun ? `Last: ${new Date(job.lastRun).toLocaleTimeString()}` : 'Never run'}
+              {job.lastRun ? `Last: ${formatLocalTimeFull(job.lastRun)}` : 'Never run'}
               {job.lastError && <span style={{ color: 'var(--danger, red)', marginLeft: '8px' }}>⚠ {job.lastError}</span>}
               {job.running && <span style={{ color: 'var(--primary, dodgerblue)', marginLeft: '8px' }}>⏳ Running...</span>}
             </div>

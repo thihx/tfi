@@ -62,6 +62,10 @@ export const STATUS_BADGES: Record<string, StatusBadgeInfo> = {
   ABD: { label: 'Abandoned', class: 'badge-pending' },
   SUSP: { label: 'Suspended', class: 'badge-pending' },
   AWD: { label: 'Awarded', class: 'badge-ft' },
+  // Recommendation result statuses
+  WIN: { label: '✅ Won', class: 'badge-won' },
+  LOSS: { label: '❌ Lost', class: 'badge-lost' },
+  PUSH: { label: '➖ Push', class: 'badge-pending' },
 };
 
 export const LIVE_STATUSES = ['1H', '2H', 'HT', 'ET', 'BT', 'P', 'LIVE', 'INT'];

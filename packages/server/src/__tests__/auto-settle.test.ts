@@ -124,4 +124,73 @@ describe('evaluateBet', () => {
       expect(pnl).toBeCloseTo(-0.5);
     });
   });
+
+  describe('edge cases — normalized market keys', () => {
+    test('1x2_home market + "Team Win" selection works', () => {
+      const { result } = evaluateBet('1x2_home', 'Arsenal Win (1x2 Home)', 2.0, 1, 2, 0);
+      expect(result).toBe('win');
+    });
+
+    test('1x2_home market + home pick on draw is loss', () => {
+      const { result } = evaluateBet('1x2_home', 'Home Win', 2.0, 1, 1, 1);
+      expect(result).toBe('loss');
+    });
+
+    test('over_2.5 market + "Over 2.5" selection', () => {
+      const { result } = evaluateBet('over_2.5', 'Over 2.5 goals @ 1.85', 1.85, 1, 2, 1);
+      expect(result).toBe('win');
+    });
+
+    test('btts_yes market + "BTTS (Yes)" selection', () => {
+      const { result } = evaluateBet('btts_yes', 'BTTS (Yes) @ 1.75', 1.75, 1, 1, 1);
+      expect(result).toBe('win');
+    });
+
+    test('btts_yes market loses when one team blank', () => {
+      const { result } = evaluateBet('btts_yes', 'BTTS (Yes)', 1.75, 1, 2, 0);
+      expect(result).toBe('loss');
+    });
+
+    test('1x2_draw market + "Draw" selection wins on draw', () => {
+      const { result } = evaluateBet('1x2_draw', 'Draw @ 2.75', 2.75, 1, 0, 0);
+      expect(result).toBe('win');
+    });
+
+    test('1x2_away market + "Away Win" selection', () => {
+      const { result } = evaluateBet('1x2_away', 'Away Win', 2.50, 1, 0, 1);
+      expect(result).toBe('win');
+    });
+
+    test('under_1.5 market + "Under 1.5" selection', () => {
+      const { result } = evaluateBet('under_1.5', 'Under 1.5', 2.10, 1, 1, 0);
+      expect(result).toBe('win');
+    });
+
+    test('over 1.5 on match with 1 goal loses', () => {
+      const { result } = evaluateBet('over_1.5', 'Over 1.5', 1.50, 1, 1, 0);
+      expect(result).toBe('loss');
+    });
+
+    test('Asian handicap -0.5 home wins with 1 goal lead', () => {
+      const { result } = evaluateBet('ah-0.5', 'home', 1.95, 1, 1, 0);
+      expect(result).toBe('win');
+    });
+  });
+
+  describe('PnL calculations', () => {
+    test('win PnL = (odds - 1) * stakePercent', () => {
+      const { pnl } = evaluateBet('1x2', 'home', 2.50, 3, 2, 0);
+      expect(pnl).toBeCloseTo(4.5); // (2.5-1) * 3 = 4.5
+    });
+
+    test('loss PnL = -stakePercent', () => {
+      const { pnl } = evaluateBet('1x2', 'home', 2.50, 3, 0, 2);
+      expect(pnl).toBe(-3);
+    });
+
+    test('push PnL = 0', () => {
+      const { pnl } = evaluateBet('ou2.0', 'over', 1.85, 3, 1, 1);
+      expect(pnl).toBe(0);
+    });
+  });
 });

@@ -7,6 +7,8 @@ import { LIVE_STATUSES, PLACEHOLDER_HOME, PLACEHOLDER_AWAY } from '@/config/cons
 import { convertSeoulToLocalDateTime, formatDateTimeDisplay, getLeagueDisplayName, debounce, parseKickoffForSave } from '@/lib/utils/helpers';
 import { normalizeToISO } from '@/lib/utils/helpers';
 import type { Match, SortState, ApprovedLeague } from '@/types';
+import type { PipelineMatchResult } from '@/features/live-monitor/types';
+import { runPipelineForMatch } from '@/features/live-monitor/services/pipeline';
 import * as api from '@/lib/services/api';
 
 const PAGE_SIZE = 30;
@@ -27,6 +29,8 @@ export function MatchesTab() {
   const [sort, setSort] = useState<SortState>({ column: 'time', order: 'asc' });
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [pendingAdds, setPendingAdds] = useState<Set<string>>(new Set());
+  const [analyzingMatch, setAnalyzingMatch] = useState<string | null>(null);
+  const [aiResult, setAiResult] = useState<{ matchId: string; matchDisplay: string; result: PipelineMatchResult } | null>(null);
 
   // Debounced search
   const [debouncedSearch, setDebouncedSearch] = useState('');
@@ -154,6 +158,47 @@ export function MatchesTab() {
     if (!ok) showToast('❌ Failed to add to watchlist', 'error');
   }, [watchlistMap, pendingAdds, addToWatchlist, showToast]);
 
+  const askAi = useCallback(async (m: Match) => {
+    const mid = String(m.match_id);
+    if (analyzingMatch) return;
+
+    // If not in watchlist, add first
+    if (!watchlistMap.has(mid)) {
+      setPendingAdds((prev) => new Set(prev).add(mid));
+      const ok = await addToWatchlist([{
+        match_id: mid, date: m.date, league: m.league_name || '', home_team: m.home_team,
+        away_team: m.away_team, kickoff: parseKickoffForSave(m.kickoff),
+      }]);
+      setPendingAdds((prev) => { const s = new Set(prev); s.delete(mid); return s; });
+      if (!ok) { showToast('❌ Failed to add to watchlist', 'error'); return; }
+    }
+
+    setAnalyzingMatch(mid);
+    setAiResult(null);
+    showToast('🤖 Analyzing match with AI...', 'info');
+
+    try {
+      const ctx = await runPipelineForMatch(config, mid);
+      const matchResult = ctx.results[0];
+      if (matchResult) {
+        setAiResult({ matchId: mid, matchDisplay: `${m.home_team} vs ${m.away_team}`, result: matchResult });
+        if (matchResult.parsedAi) {
+          showToast('✅ AI analysis complete', 'success');
+        } else if (matchResult.error) {
+          showToast(`⚠️ AI analysis error: ${matchResult.error}`, 'error');
+        } else {
+          showToast('⚠️ Match skipped by pipeline filters', 'info');
+        }
+      } else {
+        showToast('⚠️ No results — match may not be active in watchlist', 'info');
+      }
+    } catch (err) {
+      showToast(`❌ AI analysis failed: ${err instanceof Error ? err.message : String(err)}`, 'error');
+    } finally {
+      setAnalyzingMatch(null);
+    }
+  }, [analyzingMatch, watchlistMap, addToWatchlist, config, showToast]);
+
   const toggleSelect = (mid: string, isWatched: boolean) => {
     if (isWatched) return;
     setSelected((prev) => {
@@ -237,6 +282,39 @@ export function MatchesTab() {
         )}
       </div>
 
+      {/* AI Result Panel */}
+      {aiResult && (
+        <div className="ai-result-panel" style={{ margin: '12px 0', padding: '16px', background: 'var(--gray-50)', border: '1px solid var(--gray-200)', borderRadius: '8px' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
+            <h4 style={{ margin: 0, fontSize: '14px' }}>🤖 AI Analysis — {aiResult.matchDisplay}</h4>
+            <button className="btn btn-secondary btn-sm" onClick={() => setAiResult(null)}>✕ Close</button>
+          </div>
+          {aiResult.result.parsedAi ? (() => {
+            const ai = aiResult.result.parsedAi!;
+            return (
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', fontSize: '13px' }}>
+                <div><strong>Selection:</strong> {ai.selection}</div>
+                <div><strong>Bet Market:</strong> {ai.bet_market}</div>
+                <div><strong>Confidence:</strong> {ai.confidence}%</div>
+                <div><strong>Risk:</strong> <span style={{ color: ai.risk_level === 'LOW' ? 'var(--green)' : ai.risk_level === 'HIGH' ? 'var(--red)' : 'var(--orange)' }}>{ai.risk_level}</span></div>
+                <div><strong>Stake:</strong> {ai.stake_percent}%</div>
+                <div><strong>Odds:</strong> {ai.odds_for_display ?? '—'}</div>
+                <div><strong>Value:</strong> {ai.value_percent}%</div>
+                <div><strong>Should Bet:</strong> {ai.final_should_bet ? '✅ Yes' : '❌ No'}</div>
+                <div style={{ gridColumn: '1 / -1' }}><strong>Reasoning:</strong> {ai.reasoning_vi || ai.reasoning_en}</div>
+                {ai.warnings.length > 0 && (
+                  <div style={{ gridColumn: '1 / -1', color: 'var(--orange)' }}><strong>⚠️ Warnings:</strong> {ai.warnings.join('; ')}</div>
+                )}
+              </div>
+            );
+          })() : aiResult.result.error ? (
+            <div style={{ color: 'var(--red)', fontSize: '13px' }}>❌ {aiResult.result.error}</div>
+          ) : (
+            <div style={{ color: 'var(--gray-600)', fontSize: '13px' }}>Match was skipped by pipeline filters (not active or no data available).</div>
+          )}
+        </div>
+      )}
+
       <div className="table-container table-cards">
         <table>
           <thead>
@@ -266,9 +344,11 @@ export function MatchesTab() {
                 isWatched={watchlistMap.has(String(m.match_id))}
                 isPending={pendingAdds.has(String(m.match_id))}
                 isSelected={selected.has(String(m.match_id))}
+                isAnalyzing={analyzingMatch === String(m.match_id)}
                 approvedLeagues={approvedLeagues}
                 onQuickAdd={() => quickAdd(m)}
                 onToggleSelect={() => toggleSelect(String(m.match_id), watchlistMap.has(String(m.match_id)))}
+                onAskAi={() => askAi(m)}
               />
             ))}
           </tbody>
@@ -284,12 +364,14 @@ interface MatchRowProps {
   isWatched: boolean;
   isPending: boolean;
   isSelected: boolean;
+  isAnalyzing: boolean;
   approvedLeagues: ApprovedLeague[];
   onQuickAdd: () => void;
   onToggleSelect: () => void;
+  onAskAi: () => void;
 }
 
-function MatchRow({ match, isWatched, isPending, isSelected, approvedLeagues, onQuickAdd, onToggleSelect }: MatchRowProps) {
+function MatchRow({ match, isWatched, isPending, isSelected, isAnalyzing, approvedLeagues, onQuickAdd, onToggleSelect, onAskAi }: MatchRowProps) {
   const localDT = convertSeoulToLocalDateTime(match.date, match.kickoff || '00:00');
   const timeDisplay = formatDateTimeDisplay(localDT);
   const leagueDisplay = getLeagueDisplayName(match.league_id, match.league_name || '', approvedLeagues);
@@ -339,25 +421,23 @@ function MatchRow({ match, isWatched, isPending, isSelected, approvedLeagues, on
         <div className="cell-value"><StatusBadge status={match.status} /></div>
       </td>
       <td data-label="Action" style={{ textAlign: 'center' }}>
-        <div className="cell-value">
+        <div className="cell-value" style={{ display: 'flex', gap: '4px', justifyContent: 'center', flexWrap: 'wrap' }}>
           {isWatched ? (
-            <div className="watch-wrapper">
-              <button className="btn btn-success btn-sm watch-btn" disabled><span className="btn-text">✓ Watched</span></button>
-            </div>
+            <button className="btn btn-success btn-sm watch-btn" disabled><span className="btn-text">✓ Watched</span></button>
           ) : isPending ? (
-            <div className="watch-wrapper">
-              <button className="btn btn-primary btn-sm watch-btn" disabled>
-                <span className="inline-spinner" style={{ width: '14px', height: '14px' }} />
-                <span className="btn-text">Saving...</span>
-              </button>
-            </div>
+            <button className="btn btn-primary btn-sm watch-btn" disabled>
+              <span className="inline-spinner" style={{ width: '14px', height: '14px' }} />
+              <span className="btn-text">Saving...</span>
+            </button>
           ) : (
-            <div className="watch-wrapper">
-              <button className="btn btn-primary btn-sm watch-btn" onClick={onQuickAdd}>
-                <span className="btn-text">+&nbsp;Watch</span>
-              </button>
-            </div>
+            <button className="btn btn-primary btn-sm watch-btn" onClick={onQuickAdd}>
+              <span className="btn-text">+&nbsp;Watch</span>
+            </button>
           )}
+          <button className="btn btn-secondary btn-sm" onClick={onAskAi} disabled={isAnalyzing} title="Ask AI for analysis">
+            {isAnalyzing ? <span className="inline-spinner" style={{ width: '14px', height: '14px' }} /> : '🤖'}
+            <span className="btn-text" style={{ marginLeft: '2px' }}>{isAnalyzing ? 'Analyzing...' : 'Ask AI'}</span>
+          </button>
         </div>
       </td>
     </tr>

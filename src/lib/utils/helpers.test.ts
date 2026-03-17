@@ -47,14 +47,14 @@ describe('convertSeoulToLocalDateTime', () => {
 
 // ==================== formatDateTimeDisplay ====================
 describe('formatDateTimeDisplay', () => {
-  test('formats date to DD-MM HH:mm', () => {
+  test('formats date to DD/MM HH:mm', () => {
     const date = new Date(2026, 2, 16, 14, 30); // March 16, 2026 14:30 local
-    expect(formatDateTimeDisplay(date)).toBe('16-03 14:30');
+    expect(formatDateTimeDisplay(date)).toBe('16/03 14:30');
   });
 
   test('pads single-digit values', () => {
     const date = new Date(2026, 0, 5, 8, 3); // Jan 5, 2026 08:03
-    expect(formatDateTimeDisplay(date)).toBe('05-01 08:03');
+    expect(formatDateTimeDisplay(date)).toBe('05/01 08:03');
   });
 
   test('returns empty string for invalid date', () => {

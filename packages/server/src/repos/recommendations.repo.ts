@@ -3,6 +3,12 @@
 // ============================================================
 
 import { query, transaction } from '../db/pool.js';
+import { normalizeMarket, buildDedupKey } from '../lib/normalize-market.js';
+
+export { normalizeMarket, buildDedupKey };
+
+/** SQL fragment: exclude duplicate-marked rows (IS DISTINCT FROM handles NULLs) */
+const NOT_DUP = `result IS DISTINCT FROM 'duplicate'`;
 
 function toJsonb(val: unknown): string {
   if (!val || val === '') return '{}';
@@ -57,10 +63,14 @@ export type RecommendationCreate = Omit<RecommendationRow, 'id'>;
 interface PaginationOpts {
   limit?: number;
   offset?: number;
-  result?: string;       // 'won' | 'lost' | 'push' | 'pending'
+  result?: string;       // 'win' | 'loss' | 'push' | 'pending'
   bet_type?: string;
+  league?: string;
+  date_from?: string;    // ISO date 'YYYY-MM-DD'
+  date_to?: string;      // ISO date 'YYYY-MM-DD'
+  risk_level?: string;   // 'LOW' | 'MEDIUM' | 'HIGH'
   search?: string;
-  sort_by?: string;      // 'time' | 'odds' | 'confidence' | 'pnl'
+  sort_by?: string;      // 'time' | 'odds' | 'confidence' | 'pnl' | 'league'
   sort_dir?: string;     // 'asc' | 'desc'
 }
 
@@ -78,17 +88,24 @@ export async function getAllRecommendations(opts: PaginationOpts = {}): Promise<
   // Result filter
   if (opts.result) {
     if (opts.result === 'pending') {
-      conditions.push(`(result = '' OR result IS NULL)`);
+      conditions.push(`(r.result IS NULL OR r.result NOT IN ('win','loss','push'))`);
+    } else if (opts.result === 'duplicate') {
+      conditions.push(`r.result = 'duplicate'`);
     } else {
-      conditions.push(`result = $${paramIdx}`);
+      conditions.push(`r.result = $${paramIdx}`);
       params.push(opts.result);
       paramIdx++;
     }
   }
 
+  // By default, exclude duplicates unless specifically filtering for them
+  if (opts.result !== 'duplicate') {
+    conditions.push(`r.${NOT_DUP}`);
+  }
+
   // Bet type filter
   if (opts.bet_type) {
-    conditions.push(`bet_type = $${paramIdx}`);
+    conditions.push(`r.bet_type = $${paramIdx}`);
     params.push(opts.bet_type);
     paramIdx++;
   }
@@ -96,9 +113,35 @@ export async function getAllRecommendations(opts: PaginationOpts = {}): Promise<
   // Search filter
   if (opts.search) {
     conditions.push(`(
-      home_team ILIKE $${paramIdx} OR away_team ILIKE $${paramIdx} OR selection ILIKE $${paramIdx}
+      r.home_team ILIKE $${paramIdx} OR r.away_team ILIKE $${paramIdx} OR r.selection ILIKE $${paramIdx}
     )`);
     params.push(`%${opts.search}%`);
+    paramIdx++;
+  }
+
+  // League filter
+  if (opts.league) {
+    conditions.push(`r.league = $${paramIdx}`);
+    params.push(opts.league);
+    paramIdx++;
+  }
+
+  // Date range filters
+  if (opts.date_from) {
+    conditions.push(`r.timestamp::date >= $${paramIdx}::date`);
+    params.push(opts.date_from);
+    paramIdx++;
+  }
+  if (opts.date_to) {
+    conditions.push(`r.timestamp::date <= $${paramIdx}::date`);
+    params.push(opts.date_to);
+    paramIdx++;
+  }
+
+  // Risk level filter
+  if (opts.risk_level) {
+    conditions.push(`r.risk_level = $${paramIdx}`);
+    params.push(opts.risk_level);
     paramIdx++;
   }
 
@@ -106,12 +149,13 @@ export async function getAllRecommendations(opts: PaginationOpts = {}): Promise<
 
   // Sort
   const sortMap: Record<string, string> = {
-    time: 'timestamp',
-    odds: 'odds',
-    confidence: 'confidence',
-    pnl: 'pnl',
+    time: 'r.timestamp',
+    odds: 'r.odds',
+    confidence: 'r.confidence',
+    pnl: 'r.pnl',
+    league: 'r.league',
   };
-  const sortCol = sortMap[opts.sort_by ?? ''] ?? 'timestamp';
+  const sortCol = sortMap[opts.sort_by ?? ''] ?? 'r.timestamp';
   const sortDir = opts.sort_dir === 'asc' ? 'ASC' : 'DESC';
   const orderClause = `ORDER BY ${sortCol} ${sortDir} NULLS LAST`;
 
@@ -120,12 +164,17 @@ export async function getAllRecommendations(opts: PaginationOpts = {}): Promise<
   params.push(limit, offset);
 
   const [data, countRes] = await Promise.all([
-    query<RecommendationRow>(
-      `SELECT * FROM recommendations ${whereClause} ${orderClause} LIMIT $${limitParam} OFFSET $${offsetParam}`,
+    query<RecommendationRow & { ft_score: string | null }>(
+      `SELECT r.*, CASE WHEN mh.home_score IS NOT NULL THEN mh.home_score || '-' || mh.away_score ELSE NULL END AS ft_score
+       FROM recommendations r
+       LEFT JOIN matches_history mh ON r.match_id = mh.match_id
+       ${whereClause}
+       ${orderClause}
+       LIMIT $${limitParam} OFFSET $${offsetParam}`,
       params,
     ),
     query<{ count: string }>(
-      `SELECT COUNT(*)::text as count FROM recommendations ${whereClause}`,
+      `SELECT COUNT(*)::text as count FROM recommendations r ${whereClause}`,
       params.slice(0, -2), // exclude limit/offset
     ),
   ]);
@@ -144,6 +193,8 @@ export async function getRecommendationsByMatchId(matchId: string): Promise<Reco
 export async function createRecommendation(
   rec: Partial<RecommendationCreate>,
 ): Promise<RecommendationRow> {
+  const dedupKey = rec.unique_key
+    ?? buildDedupKey(rec.match_id ?? '', rec.selection ?? '', rec.bet_market);
   const r = await query<RecommendationRow>(
     `INSERT INTO recommendations (
        unique_key, match_id, timestamp, league, home_team, away_team, status,
@@ -157,10 +208,23 @@ export async function createRecommendation(
        $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,
        $21,$22,$23,$24,$25,$26,$27,$28,$29,$30,$31,$32,$33,$34,$35,$36,$37
      )
-     ON CONFLICT (unique_key) DO NOTHING
+     ON CONFLICT (unique_key) DO UPDATE SET
+       minute = EXCLUDED.minute,
+       score = EXCLUDED.score,
+       odds = EXCLUDED.odds,
+       odds_snapshot = EXCLUDED.odds_snapshot,
+       stats_snapshot = EXCLUDED.stats_snapshot,
+       confidence = EXCLUDED.confidence,
+       value_percent = EXCLUDED.value_percent,
+       risk_level = EXCLUDED.risk_level,
+       stake_percent = EXCLUDED.stake_percent,
+       reasoning = EXCLUDED.reasoning,
+       key_factors = EXCLUDED.key_factors,
+       warnings = EXCLUDED.warnings,
+       timestamp = EXCLUDED.timestamp
      RETURNING *`,
     [
-      rec.unique_key ?? `${rec.match_id}_${rec.timestamp}`,
+      dedupKey,
       rec.match_id,
       rec.timestamp,
       rec.league ?? '',
@@ -206,8 +270,10 @@ export async function bulkCreateRecommendations(
   recs: Partial<RecommendationCreate>[],
 ): Promise<number> {
   return transaction(async (client) => {
-    let inserted = 0;
+    let upserted = 0;
     for (const rec of recs) {
+      const dedupKey = rec.unique_key
+        ?? buildDedupKey(rec.match_id ?? '', rec.selection ?? '', rec.bet_market);
       const result = await client.query(
         `INSERT INTO recommendations (
            unique_key, match_id, timestamp, league, home_team, away_team, status,
@@ -221,9 +287,22 @@ export async function bulkCreateRecommendations(
            $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,
            $21,$22,$23,$24,$25,$26,$27,$28,$29,$30,$31,$32,$33,$34,$35,$36,$37
          )
-         ON CONFLICT (unique_key) DO NOTHING`,
+         ON CONFLICT (unique_key) DO UPDATE SET
+           minute = EXCLUDED.minute,
+           score = EXCLUDED.score,
+           odds = EXCLUDED.odds,
+           odds_snapshot = EXCLUDED.odds_snapshot,
+           stats_snapshot = EXCLUDED.stats_snapshot,
+           confidence = EXCLUDED.confidence,
+           value_percent = EXCLUDED.value_percent,
+           risk_level = EXCLUDED.risk_level,
+           stake_percent = EXCLUDED.stake_percent,
+           reasoning = EXCLUDED.reasoning,
+           key_factors = EXCLUDED.key_factors,
+           warnings = EXCLUDED.warnings,
+           timestamp = EXCLUDED.timestamp`,
         [
-          rec.unique_key ?? `${rec.match_id}_${rec.timestamp}`,
+          dedupKey,
           rec.match_id,
           rec.timestamp,
           rec.league ?? '',
@@ -262,9 +341,9 @@ export async function bulkCreateRecommendations(
           rec._was_overridden ?? false,
         ],
       );
-      if ((result.rowCount ?? 0) > 0) inserted++;
+      if ((result.rowCount ?? 0) > 0) upserted++;
     }
-    return inserted;
+    return upserted;
   });
 }
 
@@ -311,7 +390,7 @@ export async function getStats(): Promise<RecStats> {
        COUNT(*) FILTER (WHERE result = 'duplicate')::text AS duplicates,
        COUNT(*) FILTER (WHERE result = '' OR result IS NULL)::text AS unsettled,
        COALESCE(SUM(pnl), 0)::text AS total_pnl
-     FROM recommendations`,
+     FROM recommendations WHERE ${NOT_DUP}`,
   );
 
   const row = r.rows[0]!;
@@ -362,29 +441,33 @@ export async function getDashboardSummary(): Promise<DashboardSummary> {
          COUNT(*) FILTER (WHERE result = 'win')::text AS wins,
          COUNT(*) FILTER (WHERE result = 'loss')::text AS losses,
          COUNT(*) FILTER (WHERE result = 'push')::text AS pushes,
-         COUNT(*) FILTER (WHERE result = '' OR result IS NULL)::text AS pending,
+         COUNT(*) FILTER (WHERE result IS NULL OR result NOT IN ('win','loss','push'))::text AS pending,
          COALESCE(SUM(pnl) FILTER (WHERE result IN ('win','loss','push')), 0)::text AS total_pnl,
-         COALESCE(SUM(stake_amount) FILTER (WHERE result IN ('win','loss','push')), 0)::text AS total_staked
-       FROM recommendations`),
+         COALESCE(SUM(COALESCE(stake_percent, 1)) FILTER (WHERE result IN ('win','loss','push')), 0)::text AS total_staked
+       FROM recommendations WHERE ${NOT_DUP}`),
 
     // P/L by date (aggregated)
     query<{ date: string; daily_pnl: string }>(`
       SELECT TO_CHAR(timestamp::date, 'DD/MM') AS date,
              SUM(pnl)::text AS daily_pnl
       FROM recommendations
-      WHERE result IN ('win', 'loss') AND timestamp IS NOT NULL
+      WHERE result IN ('win', 'loss') AND timestamp IS NOT NULL AND ${NOT_DUP}
       GROUP BY timestamp::date
       ORDER BY timestamp::date`),
 
-    // Recent 8 recommendations
-    query<RecommendationRow>(
-      `SELECT * FROM recommendations ORDER BY timestamp DESC LIMIT 8`,
+    // Recent 8 recommendations (with FT score from matches_history)
+    query<RecommendationRow & { ft_score: string | null }>(
+      `SELECT r.*, CASE WHEN mh.home_score IS NOT NULL THEN mh.home_score || '-' || mh.away_score ELSE NULL END AS ft_score
+       FROM recommendations r
+       LEFT JOIN matches_history mh ON r.match_id = mh.match_id
+       WHERE r.${NOT_DUP}
+       ORDER BY r.timestamp DESC LIMIT 8`,
     ),
 
     // Streak
     query<{ result: string }>(`
       SELECT result FROM recommendations
-      WHERE result IN ('win', 'loss')
+      WHERE result IN ('win', 'loss') AND ${NOT_DUP}
       ORDER BY timestamp DESC
       LIMIT 50`),
 
@@ -393,13 +476,15 @@ export async function getDashboardSummary(): Promise<DashboardSummary> {
       SELECT
         (SELECT COUNT(*)::text FROM matches) AS match_count,
         (SELECT COUNT(*)::text FROM watchlist) AS watchlist_count,
-        (SELECT COUNT(*)::text FROM recommendations) AS rec_count`),
+        (SELECT COUNT(*)::text FROM recommendations WHERE ${NOT_DUP}) AS rec_count`),
   ]);
 
   const s = statsRes.rows[0]!;
   const total = Number(s.total);
   const wins = Number(s.wins);
-  const winRate = total > 0 ? Math.round((wins / total) * 100) : 0;
+  const losses = Number(s.losses);
+  const decisive = wins + losses;
+  const winRate = decisive > 0 ? Math.round((wins / decisive) * 10000) / 100 : 0;
   const totalStaked = Number(s.total_staked);
   const totalPnl = Number(s.total_pnl);
   const roi = totalStaked > 0 ? Math.round((totalPnl / totalStaked) * 10000) / 100 : 0;
@@ -457,4 +542,74 @@ export async function getDistinctBetTypes(): Promise<string[]> {
     `SELECT DISTINCT bet_type FROM recommendations WHERE bet_type != '' ORDER BY bet_type`,
   );
   return r.rows.map((row) => row.bet_type);
+}
+
+/** Get distinct leagues for filter dropdown */
+export async function getDistinctLeagues(): Promise<string[]> {
+  const r = await query<{ league: string }>(
+    `SELECT DISTINCT league FROM recommendations WHERE league != '' AND ${NOT_DUP} ORDER BY league`,
+  );
+  return r.rows.map((row) => row.league);
+}
+
+/**
+ * Mark legacy duplicates: for each (match_id, normalized_market) group,
+ * keep the OLDEST record (MIN id) and mark the rest as result='duplicate', pnl=0.
+ * Also backfill bet_market from selection text where empty.
+ * Returns number of records marked as duplicate.
+ */
+export async function markLegacyDuplicates(): Promise<{
+  backfilledMarkets: number;
+  markedDuplicates: number;
+}> {
+  // Step 1: Backfill empty bet_market using normalizeMarket on selection text
+  const allEmpty = await query<{ id: number; selection: string; bet_market: string }>(
+    `SELECT id, selection, bet_market FROM recommendations WHERE bet_market = '' OR bet_market IS NULL`,
+  );
+  let backfilledMarkets = 0;
+  for (const row of allEmpty.rows) {
+    const mkt = normalizeMarket(row.selection, row.bet_market);
+    if (mkt && mkt !== 'unknown') {
+      await query(`UPDATE recommendations SET bet_market = $2 WHERE id = $1`, [row.id, mkt]);
+      backfilledMarkets++;
+    }
+  }
+
+  // Step 2: For each group of (match_id, normalizeMarket(selection, bet_market)),
+  // keep the first (MIN id) and mark rest as duplicate.
+  const result = await query<{ cnt: string }>(
+    `WITH normalized AS (
+       SELECT id, match_id,
+              CASE
+                WHEN selection ~* 'over\\s+[\\d.]+'  THEN 'over_'  || (regexp_match(selection, '(\\d+\\.?\\d*)'))[1]
+                WHEN selection ~* 'under\\s+[\\d.]+' THEN 'under_' || (regexp_match(selection, '(\\d+\\.?\\d*)'))[1]
+                WHEN selection ~* 'btts|both.?teams?.?to.?score' THEN
+                  CASE WHEN selection ~* 'no' THEN 'btts_no' ELSE 'btts_yes' END
+                WHEN selection ~* '\\bdraw\\b' THEN '1x2_draw'
+                WHEN selection ~* '\\baway\\b' OR bet_market = '1x2_away' THEN '1x2_away'
+                WHEN selection ~* '\\b(home|win)\\b' OR bet_market = '1x2_home' THEN '1x2_home'
+                WHEN selection ~* 'asian.?handicap|ah\\s' THEN 'asian_handicap'
+                WHEN selection ~* 'corner' THEN 'corners'
+                WHEN bet_market != '' AND bet_market IS NOT NULL THEN lower(bet_market)
+                ELSE lower(regexp_replace(selection, '[^a-z0-9]+', '_', 'gi'))
+              END AS norm_market
+       FROM recommendations
+       WHERE result != 'duplicate'
+     ),
+     keepers AS (
+       SELECT MIN(id) AS keep_id
+       FROM normalized
+       GROUP BY match_id, norm_market
+     )
+     UPDATE recommendations
+     SET result = 'duplicate', pnl = 0
+     WHERE id NOT IN (SELECT keep_id FROM keepers)
+       AND result != 'duplicate'
+     RETURNING id`,
+  );
+
+  return {
+    backfilledMarkets,
+    markedDuplicates: result.rowCount ?? 0,
+  };
 }

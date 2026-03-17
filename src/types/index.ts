@@ -38,17 +38,33 @@ export interface WatchlistItem {
 }
 
 export interface Recommendation {
+  id?: number;
   match_id?: string;
   match_display: string;
   home_team?: string;
   away_team?: string;
+  league?: string;
+  timestamp?: string;
+  minute?: number | null;
+  score?: string;
+  actual_outcome?: string;
   bet_type: string;
+  bet_market?: string;
   selection: string;
   odds: number | string;
   confidence: number | string;
+  value_percent?: number | string | null;
+  risk_level?: string;
+  stake_percent?: number | string | null;
   stake_amount: number | string;
+  reasoning?: string;
+  key_factors?: string;
+  warnings?: string;
+  ai_model?: string;
   result: string;
   pnl: number | string;
+  ft_score?: string | null;
+  settled_at?: string | null;
   created_at?: string;
 }
 

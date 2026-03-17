@@ -51,11 +51,11 @@ describe('prepareRecommendationData', () => {
     expect(result.reasoning).toBe('Arsenal pressing high');
   });
 
-  test('generates unique_key from match_id + bet_market + minute', () => {
+  test('generates unique_key from match_id + normalized market (no minute)', () => {
     const matchData = createMergedMatchData();
     const parsed = createParsedAiResponse({ bet_market: 'Over/Under' });
     const result = prepareRecommendationData(matchData, parsed, config, 'exec_001');
-    expect(result.unique_key).toBe('12345_Over/Under_65');
+    expect(result.unique_key).toBe('12345_over/under');
   });
 
   test('includes notification channels when should push', () => {

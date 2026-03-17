@@ -6,19 +6,27 @@ import { MatchDetailModal } from '@/components/ui/MatchDetailModal';
 import {
   AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
 } from 'recharts';
-import { fetchRecommendationsPaginated, fetchBetTypes } from '@/lib/services/api';
+import { fetchRecommendationsPaginated, fetchBetTypes, fetchDistinctLeagues } from '@/lib/services/api';
+import { formatLocalDateTime } from '@/lib/utils/helpers';
 import type { Recommendation } from '@/types';
 
 const PAGE_SIZE = 30;
 
-type SortCol = 'time' | 'odds' | 'confidence' | 'pnl' | '';
+type SortCol = 'time' | 'odds' | 'confidence' | 'pnl' | 'league' | '';
 type SortDir = 'asc' | 'desc';
 
 const SORT_COL_MAP: Record<string, string> = {
-  time: 'created_at',
+  time: 'time',
   odds: 'odds',
   confidence: 'confidence',
   pnl: 'pnl',
+  league: 'league',
+};
+
+const RISK_COLORS: Record<string, string> = {
+  LOW: 'var(--success)',
+  MEDIUM: '#f59e0b',
+  HIGH: 'var(--danger)',
 };
 
 export function RecommendationsTab() {
@@ -30,6 +38,10 @@ export function RecommendationsTab() {
   const [search, setSearch] = useState('');
   const [resultFilter, setResultFilter] = useState<string>('all');
   const [betTypeFilter, setBetTypeFilter] = useState<string>('all');
+  const [leagueFilter, setLeagueFilter] = useState<string>('all');
+  const [riskFilter, setRiskFilter] = useState<string>('all');
+  const [dateFrom, setDateFrom] = useState<string>('');
+  const [dateTo, setDateTo] = useState<string>('');
   const [sortCol, setSortCol] = useState<SortCol>('');
   const [sortDir, setSortDir] = useState<SortDir>('desc');
   const [showChart, setShowChart] = useState(false);
@@ -39,8 +51,19 @@ export function RecommendationsTab() {
   const [rows, setRows] = useState<Recommendation[]>([]);
   const [total, setTotal] = useState(0);
   const [betTypes, setBetTypes] = useState<string[]>([]);
+  const [leagues, setLeagues] = useState<string[]>([]);
   const [loading, setLoading] = useState(false);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Count active filters
+  const activeFilterCount = [
+    resultFilter !== 'all',
+    betTypeFilter !== 'all',
+    leagueFilter !== 'all',
+    riskFilter !== 'all',
+    dateFrom !== '',
+    dateTo !== '',
+  ].filter(Boolean).length;
 
   // Fetch recommendations from server
   const fetchData = useCallback(async (p: number) => {
@@ -51,6 +74,10 @@ export function RecommendationsTab() {
         offset: (p - 1) * PAGE_SIZE,
         result: resultFilter !== 'all' ? resultFilter : undefined,
         bet_type: betTypeFilter !== 'all' ? betTypeFilter : undefined,
+        league: leagueFilter !== 'all' ? leagueFilter : undefined,
+        risk_level: riskFilter !== 'all' ? riskFilter : undefined,
+        date_from: dateFrom || undefined,
+        date_to: dateTo || undefined,
         search: search.trim() || undefined,
         sort_by: sortCol ? SORT_COL_MAP[sortCol] : undefined,
         sort_dir: sortCol ? sortDir : undefined,
@@ -62,11 +89,12 @@ export function RecommendationsTab() {
     } finally {
       setLoading(false);
     }
-  }, [config, resultFilter, betTypeFilter, search, sortCol, sortDir]);
+  }, [config, resultFilter, betTypeFilter, leagueFilter, riskFilter, dateFrom, dateTo, search, sortCol, sortDir]);
 
-  // Load bet types once
+  // Load filter options once
   useEffect(() => {
     fetchBetTypes(config).then(setBetTypes).catch(() => {});
+    fetchDistinctLeagues(config).then(setLeagues).catch(() => {});
   }, [config]);
 
   // Debounced fetch on filter/page change
@@ -80,8 +108,8 @@ export function RecommendationsTab() {
 
   // Summary computed from server total + current page
   const summary = (() => {
-    const settled = rows.filter((r) => r.result === 'won' || r.result === 'lost');
-    const won = settled.filter((r) => r.result === 'won').length;
+    const settled = rows.filter((r) => r.result === 'win' || r.result === 'loss');
+    const won = settled.filter((r) => r.result === 'win').length;
     const pnl = settled.reduce((s, r) => s + parseFloat(String(r.pnl ?? 0)), 0);
     return { total, won, lost: settled.length - won, pnl };
   })();
@@ -90,8 +118,8 @@ export function RecommendationsTab() {
   const chartData = (() => {
     if (!showChart) return [];
     const sorted = [...rows]
-      .filter((r) => (r.result === 'won' || r.result === 'lost') && r.created_at)
-      .sort((a, b) => new Date(a.created_at!).getTime() - new Date(b.created_at!).getTime());
+      .filter((r) => (r.result === 'win' || r.result === 'loss') && (r.timestamp || r.created_at))
+      .sort((a, b) => new Date(a.timestamp || a.created_at!).getTime() - new Date(b.timestamp || b.created_at!).getTime());
 
     let cum = 0;
     return sorted.map((r, i) => {
@@ -117,10 +145,21 @@ export function RecommendationsTab() {
     return sortDir === 'asc' ? ' ↑' : ' ↓';
   };
 
+  const clearFilters = () => {
+    setResultFilter('all');
+    setBetTypeFilter('all');
+    setLeagueFilter('all');
+    setRiskFilter('all');
+    setDateFrom('');
+    setDateTo('');
+    setSearch('');
+    setPage(1);
+  };
+
   return (
     <div>
       {/* Summary bar */}
-      <div style={{ display: 'flex', gap: '16px', flexWrap: 'wrap', marginBottom: '12px', fontSize: '13px', color: 'var(--gray-500)' }}>
+      <div style={{ display: 'flex', gap: '16px', flexWrap: 'wrap', marginBottom: '12px', fontSize: '13px', color: 'var(--gray-500)', alignItems: 'center' }}>
         <span>🎯 {summary.total} total</span>
         <span style={{ color: 'var(--success)' }}>✅ {summary.won}W (page)</span>
         <span style={{ color: 'var(--danger)' }}>❌ {summary.lost}L (page)</span>
@@ -130,37 +169,59 @@ export function RecommendationsTab() {
         {loading && <span style={{ color: 'var(--primary)' }}>⏳ Loading...</span>}
       </div>
 
-      {/* Filters */}
+      {/* Search + toolbar */}
       <div className="card" style={{ marginBottom: '16px' }}>
-        <div style={{ padding: '12px 16px', display: 'flex', gap: '12px', flexWrap: 'wrap', alignItems: 'center' }}>
+        <div className="filters" style={{ padding: '12px 16px' }}>
           <input
             type="text"
-            className="monitor-input"
+            className="filter-input"
             placeholder="🔍 Search match / selection..."
             value={search}
             onChange={(e) => { setSearch(e.target.value); setPage(1); }}
             style={{ flex: '1 1 200px', minWidth: 160 }}
           />
           <select
-            className="monitor-input"
+            className="filter-input"
             value={resultFilter}
             onChange={(e) => { setResultFilter(e.target.value); setPage(1); }}
-            style={{ width: 120 }}
           >
-            <option value="all">All Results</option>
-            <option value="won">Won</option>
-            <option value="lost">Lost</option>
-            <option value="pending">Pending</option>
+            <option value="all">All Status</option>
+            <option value="win">✅ Won</option>
+            <option value="loss">❌ Lost</option>
+            <option value="push">➖ Push</option>
+            <option value="pending">⏳ Pending</option>
           </select>
           <select
-            className="monitor-input"
+            className="filter-input"
+            value={leagueFilter}
+            onChange={(e) => { setLeagueFilter(e.target.value); setPage(1); }}
+          >
+            <option value="all">All Leagues</option>
+            {leagues.map((l) => <option key={l} value={l}>{l}</option>)}
+          </select>
+          <select
+            className="filter-input"
             value={betTypeFilter}
             onChange={(e) => { setBetTypeFilter(e.target.value); setPage(1); }}
-            style={{ width: 140 }}
           >
             <option value="all">All Markets</option>
             {betTypes.map((t) => <option key={t} value={t}>{t}</option>)}
           </select>
+          <select
+            className="filter-input"
+            value={riskFilter}
+            onChange={(e) => { setRiskFilter(e.target.value); setPage(1); }}
+          >
+            <option value="all">All Risk</option>
+            <option value="LOW">Low</option>
+            <option value="MEDIUM">Medium</option>
+            <option value="HIGH">High</option>
+          </select>
+          <input type="date" className="filter-input" value={dateFrom} onChange={(e) => { setDateFrom(e.target.value); setPage(1); }} title="From date" />
+          <input type="date" className="filter-input" value={dateTo} onChange={(e) => { setDateTo(e.target.value); setPage(1); }} title="To date" />
+          {activeFilterCount > 0 && (
+            <button className="btn btn-secondary" onClick={clearFilters}>✖ Clear Filters</button>
+          )}
           <button className={`btn btn-sm ${showChart ? 'btn-secondary' : 'btn-primary'}`} onClick={() => setShowChart((v) => !v)}>
             {showChart ? '📊 Hide Chart' : '📈 Show Chart'}
           </button>
@@ -191,41 +252,88 @@ export function RecommendationsTab() {
           <table>
             <thead>
               <tr>
-                <th onClick={() => handleSort('time')} style={{ cursor: 'pointer' }}>Time{sortIcon('time')}</th>
+                <th onClick={() => handleSort('time')} style={{ cursor: 'pointer', width: '100px' }}>Date{sortIcon('time')}</th>
+                <th onClick={() => handleSort('league')} style={{ cursor: 'pointer' }}>League{sortIcon('league')}</th>
                 <th>Match</th>
-                <th>Bet Type</th>
                 <th>Selection</th>
-                <th onClick={() => handleSort('odds')} style={{ cursor: 'pointer' }}>Odds{sortIcon('odds')}</th>
-                <th onClick={() => handleSort('confidence')} style={{ cursor: 'pointer' }}>Confidence{sortIcon('confidence')}</th>
-                <th>Stake</th>
-                <th>Result</th>
-                <th onClick={() => handleSort('pnl')} style={{ cursor: 'pointer' }}>P/L{sortIcon('pnl')}</th>
+                <th onClick={() => handleSort('odds')} style={{ cursor: 'pointer', textAlign: 'center' }}>Odds{sortIcon('odds')}</th>
+                <th onClick={() => handleSort('confidence')} style={{ cursor: 'pointer', textAlign: 'center' }}>Conf.{sortIcon('confidence')}</th>
+                <th style={{ textAlign: 'center' }}>Risk</th>
+                <th>Outcome</th>
+                <th style={{ textAlign: 'center' }}>Result</th>
+                <th onClick={() => handleSort('pnl')} style={{ cursor: 'pointer', textAlign: 'right' }}>P/L{sortIcon('pnl')}</th>
               </tr>
             </thead>
             <tbody>
               {rows.length === 0 ? (
-                <tr><td colSpan={9} className="empty-state">
+                <tr><td colSpan={10} className="empty-state">
                   <div className="empty-state-icon">🎯</div>
                   <p>{loading ? 'Loading...' : 'No recommendations match filters'}</p>
                 </td></tr>
               ) : rows.map((rec, i) => {
-                const pnl = rec.pnl ? `${Number(rec.pnl) >= 0 ? '+' : ''}$${parseFloat(String(rec.pnl)).toFixed(2)}` : '-';
+                const pnlVal = parseFloat(String(rec.pnl ?? 0));
+                const pnl = rec.pnl != null ? `${pnlVal >= 0 ? '+' : ''}$${pnlVal.toFixed(2)}` : '-';
                 const conf = rec.confidence != null ? `${parseFloat(String(rec.confidence))}/10` : '-';
                 const display = rec.home_team && rec.away_team
                   ? `${rec.home_team} vs ${rec.away_team}`
                   : rec.match_display || 'N/A';
+                const ts = rec.timestamp || rec.created_at;
+                const risk = rec.risk_level || '';
+                const leagueName = rec.league || '-';
+                const outcome = rec.actual_outcome || '';
+                const outcomeShort = outcome.length > 40 ? outcome.slice(0, 38) + '…' : outcome;
                 return (
-                  <tr key={i}>
-                    <td data-label="Time"><span className="cell-value">{rec.created_at ? new Date(rec.created_at).toLocaleString('vi-VN') : '-'}</span></td>
-                    <td data-label="Match"><span className="cell-value match-cell" style={{ cursor: rec.match_id ? 'pointer' : undefined, textDecoration: rec.match_id ? 'underline' : undefined }} onClick={() => rec.match_id && setDetailMatch({ id: rec.match_id, display })}>{display}</span></td>
-                    <td data-label="Bet Type"><span className="cell-value">{rec.bet_type || '-'}</span></td>
-                    <td data-label="Selection"><span className="cell-value"><strong>{rec.selection || '-'}</strong></span></td>
-                    <td data-label="Odds"><span className="cell-value"><strong>{rec.odds || '-'}</strong></span></td>
-                    <td data-label="Confidence"><span className="cell-value">{conf}</span></td>
-                    <td data-label="Stake"><span className="cell-value">${rec.stake_amount || '0'}</span></td>
-                    <td data-label="Result"><span className="cell-value">{rec.result ? <StatusBadge status={rec.result.toUpperCase()} /> : '-'}</span></td>
-                    <td data-label="P/L">
-                      <span className="cell-value" style={{ fontWeight: 700, color: Number(rec.pnl) >= 0 ? 'var(--success)' : 'var(--danger)' }}>
+                  <tr key={rec.id ?? i}>
+                    <td data-label="Date">
+                      <span className="cell-value" style={{ fontSize: '13px' }}>{formatLocalDateTime(ts)}</span>
+                    </td>
+                    <td data-label="League">
+                      <span className="cell-value" title={leagueName} style={{ fontSize: '12px', maxWidth: '150px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', display: 'inline-block' }}>
+                        {leagueName}
+                      </span>
+                    </td>
+                    <td data-label="Match">
+                      <span
+                        className="cell-value match-cell"
+                        style={{ cursor: rec.match_id ? 'pointer' : undefined, color: rec.match_id ? 'var(--primary)' : undefined }}
+                        onClick={() => rec.match_id && setDetailMatch({ id: rec.match_id, display })}
+                      >
+                        {display}
+                      </span>
+                    </td>
+                    <td data-label="Selection">
+                      <span className="cell-value">
+                        <div><strong>{rec.selection || '-'}</strong></div>
+                        {rec.bet_type && <div style={{ fontSize: '11px', color: 'var(--gray-400)' }}>{rec.bet_type}</div>}
+                      </span>
+                    </td>
+                    <td data-label="Odds" style={{ textAlign: 'center' }}><span className="cell-value"><strong>{rec.odds || '-'}</strong></span></td>
+                    <td data-label="Confidence" style={{ textAlign: 'center' }}><span className="cell-value">{conf}</span></td>
+                    <td data-label="Risk" style={{ textAlign: 'center' }}>
+                      <span className="cell-value">
+                        {risk ? (
+                          <span style={{
+                            display: 'inline-block', padding: '2px 8px', borderRadius: '10px',
+                            fontSize: '11px', fontWeight: 600,
+                            color: RISK_COLORS[risk] || 'var(--gray-500)',
+                            background: `${RISK_COLORS[risk] || 'var(--gray-300)'}15`,
+                            border: `1px solid ${RISK_COLORS[risk] || 'var(--gray-300)'}40`,
+                          }}>
+                            {risk}
+                          </span>
+                        ) : '-'}
+                      </span>
+                    </td>
+                    <td data-label="Outcome">
+                      <span className="cell-value" title={outcome} style={{ fontSize: '12px', color: 'var(--gray-600)', maxWidth: '250px', display: 'inline-block', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                        {outcomeShort || '-'}
+                      </span>
+                    </td>
+                    <td data-label="Result" style={{ textAlign: 'center' }}>
+                      <span className="cell-value">{rec.result ? <StatusBadge status={rec.result.toUpperCase()} /> : '-'}</span>
+                    </td>
+                    <td data-label="P/L" style={{ textAlign: 'right' }}>
+                      <span className="cell-value" style={{ fontWeight: 700, color: pnlVal >= 0 ? 'var(--success)' : 'var(--danger)' }}>
                         {pnl}
                       </span>
                     </td>

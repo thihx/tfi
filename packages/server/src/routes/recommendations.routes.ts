@@ -4,11 +4,14 @@
 
 import type { FastifyInstance } from 'fastify';
 import * as repo from '../repos/recommendations.repo.js';
+import * as aiPerfRepo from '../repos/ai-performance.repo.js';
+import { reEvaluateAllResults } from '../jobs/re-evaluate.job.js';
 
 export async function recommendationRoutes(app: FastifyInstance) {
   app.get<{ Querystring: {
     limit?: string; offset?: string;
     result?: string; bet_type?: string; search?: string;
+    league?: string; date_from?: string; date_to?: string; risk_level?: string;
     sort_by?: string; sort_dir?: string;
   } }>(
     '/api/recommendations',
@@ -21,6 +24,10 @@ export async function recommendationRoutes(app: FastifyInstance) {
         result: req.query.result || undefined,
         bet_type: req.query.bet_type || undefined,
         search: req.query.search || undefined,
+        league: req.query.league || undefined,
+        date_from: req.query.date_from || undefined,
+        date_to: req.query.date_to || undefined,
+        risk_level: req.query.risk_level || undefined,
         sort_by: req.query.sort_by || undefined,
         sort_dir: req.query.sort_dir || undefined,
       });
@@ -33,6 +40,10 @@ export async function recommendationRoutes(app: FastifyInstance) {
 
   app.get('/api/recommendations/bet-types', async () => {
     return repo.getDistinctBetTypes();
+  });
+
+  app.get('/api/recommendations/leagues', async () => {
+    return repo.getDistinctLeagues();
   });
 
   app.get<{ Params: { matchId: string } }>(
@@ -51,6 +62,26 @@ export async function recommendationRoutes(app: FastifyInstance) {
     async (req, reply) => {
       if (!req.body.match_id) return reply.code(400).send({ error: 'match_id is required' });
       const rec = await repo.createRecommendation(req.body);
+
+      // Auto-create AI performance tracking record
+      if (rec.ai_model) {
+        try {
+          await aiPerfRepo.createAiPerformanceRecord({
+            recommendation_id: rec.id,
+            match_id: rec.match_id,
+            ai_model: rec.ai_model,
+            prompt_version: rec.prompt_version ?? '',
+            ai_confidence: rec.confidence,
+            predicted_market: rec.bet_market ?? '',
+            predicted_selection: rec.selection,
+            predicted_odds: rec.odds ? Number(rec.odds) : null,
+            match_minute: rec.minute,
+            match_score: rec.score ?? '',
+            league: rec.league ?? '',
+          });
+        } catch { /* non-critical — duplicate key or other */ }
+      }
+
       return reply.code(201).send(rec);
     },
   );
@@ -77,5 +108,15 @@ export async function recommendationRoutes(app: FastifyInstance) {
     );
     if (!rec) return reply.code(404).send({ error: 'Recommendation not found' });
     return rec;
+  });
+
+  // Mark legacy duplicates
+  app.post('/api/recommendations/mark-duplicates', async () => {
+    return repo.markLegacyDuplicates();
+  });
+
+  // Re-evaluate all results using real Football API scores
+  app.post('/api/recommendations/re-evaluate', async () => {
+    return reEvaluateAllResults();
   });
 }

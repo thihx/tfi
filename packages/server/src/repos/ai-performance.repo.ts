@@ -91,6 +91,8 @@ export async function getAccuracyStats(): Promise<{
   pending: number;
   accuracy: number;
 }> {
+  // Use recommendations as single source of truth for pending status
+  // (ai_performance.was_correct can get out of sync with recommendations.result)
   const r = await query<{
     total: string;
     correct: string;
@@ -99,10 +101,12 @@ export async function getAccuracyStats(): Promise<{
   }>(
     `SELECT
        COUNT(*)::text AS total,
-       COUNT(*) FILTER (WHERE was_correct = TRUE)::text AS correct,
-       COUNT(*) FILTER (WHERE was_correct = FALSE)::text AS incorrect,
-       COUNT(*) FILTER (WHERE was_correct IS NULL)::text AS pending
-     FROM ai_performance`,
+       COUNT(*) FILTER (WHERE ap.was_correct = TRUE)::text AS correct,
+       COUNT(*) FILTER (WHERE ap.was_correct = FALSE)::text AS incorrect,
+       COUNT(*) FILTER (WHERE r.result IS NULL OR r.result NOT IN ('win','loss','push'))::text AS pending
+     FROM ai_performance ap
+     JOIN recommendations r ON r.id = ap.recommendation_id
+     WHERE r.result IS DISTINCT FROM 'duplicate'`,
   );
 
   const row = r.rows[0]!;
@@ -118,6 +122,44 @@ export async function getAccuracyStats(): Promise<{
   };
 }
 
+/**
+ * Backfill ai_performance from recommendations that have no corresponding record.
+ */
+export async function backfillFromRecommendations(): Promise<number> {
+  const r = await query<{ cnt: string }>(
+    `WITH inserted AS (
+       INSERT INTO ai_performance (
+         recommendation_id, match_id, created_at,
+         ai_model, prompt_version, ai_confidence, ai_should_push,
+         predicted_market, predicted_selection, predicted_odds,
+         actual_result, actual_pnl, was_correct,
+         match_minute, match_score, league
+       )
+       SELECT
+         r.id, r.match_id, r.timestamp,
+         r.ai_model, COALESCE(r.prompt_version,''), r.confidence, false,
+         COALESCE(r.bet_market,''), r.selection, r.odds::numeric,
+         CASE WHEN r.result IN ('win','loss','push') THEN r.result ELSE '' END,
+         r.pnl::numeric,
+         CASE
+           WHEN r.result = 'win'  THEN true
+           WHEN r.result = 'loss' THEN false
+           ELSE NULL
+         END,
+         r.minute, COALESCE(r.score,''), COALESCE(r.league,'')
+       FROM recommendations r
+       WHERE NOT EXISTS (
+         SELECT 1 FROM ai_performance ap WHERE ap.recommendation_id = r.id
+       )
+       AND r.ai_model <> ''
+       AND r.result != 'duplicate'
+       RETURNING 1
+     )
+     SELECT COUNT(*)::text AS cnt FROM inserted`,
+  );
+  return Number(r.rows[0]?.cnt ?? 0);
+}
+
 export async function getAccuracyByModel(): Promise<
   Array<{ model: string; total: number; correct: number; accuracy: number }>
 > {
@@ -127,7 +169,11 @@ export async function getAccuracyByModel(): Promise<
        COUNT(*)::text AS total,
        COUNT(*) FILTER (WHERE was_correct = TRUE)::text AS correct,
        COUNT(*) FILTER (WHERE was_correct IS NOT NULL)::text AS settled
-     FROM ai_performance
+     FROM ai_performance ap
+     WHERE NOT EXISTS (
+       SELECT 1 FROM recommendations r
+       WHERE r.id = ap.recommendation_id AND r.result = 'duplicate'
+     )
      GROUP BY ai_model
      ORDER BY COUNT(*) DESC`,
   );
@@ -141,4 +187,44 @@ export async function getAccuracyByModel(): Promise<
         ? Math.round((Number(row.correct) / Number(row.settled)) * 10000) / 100
         : 0,
   }));
+}
+
+/**
+ * Remove ai_performance records that belong to duplicate recommendations,
+ * then re-sync from non-duplicate recommendations.
+ */
+export async function cleanAndResync(): Promise<{ deleted: number; backfilled: number }> {
+  // Delete records pointing to duplicates
+  const del = await query<{ cnt: string }>(
+    `WITH deleted AS (
+       DELETE FROM ai_performance ap
+       WHERE EXISTS (
+         SELECT 1 FROM recommendations r
+         WHERE r.id = ap.recommendation_id AND r.result = 'duplicate'
+       )
+       RETURNING 1
+     ) SELECT COUNT(*)::text AS cnt FROM deleted`,
+  );
+  const deleted = Number(del.rows[0]?.cnt ?? 0);
+
+  // Re-sync: update existing records with current recommendation results
+  await query(
+    `UPDATE ai_performance ap SET
+       actual_result = CASE WHEN r.result IN ('win','loss','push') THEN r.result ELSE '' END,
+       actual_pnl = r.pnl::numeric,
+       was_correct = CASE
+         WHEN r.result = 'win' THEN true
+         WHEN r.result = 'loss' THEN false
+         ELSE NULL
+       END
+     FROM recommendations r
+     WHERE r.id = ap.recommendation_id
+       AND r.result != 'duplicate'
+       AND r.result IN ('win','loss','push')`,
+  );
+
+  // Backfill any missing records
+  const backfilled = await backfillFromRecommendations();
+
+  return { deleted, backfilled };
 }

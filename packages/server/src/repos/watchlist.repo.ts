@@ -30,9 +30,17 @@ export interface WatchlistRow {
 
 export type WatchlistCreate = Omit<WatchlistRow, 'id' | 'added_at'>;
 
-export async function getAllWatchlist(): Promise<WatchlistRow[]> {
-  const r = await query<WatchlistRow>('SELECT * FROM watchlist ORDER BY date, kickoff');
-  return r.rows;
+export async function getAllWatchlist(): Promise<(WatchlistRow & { match_status?: string })[]> {
+  const r = await query<WatchlistRow & { match_status: string | null }>(
+    `SELECT w.*, m.status AS match_status
+     FROM watchlist w
+     LEFT JOIN matches m ON w.match_id = m.match_id::text
+     ORDER BY w.date, w.kickoff`,
+  );
+  return r.rows.map(row => ({
+    ...row,
+    match_status: row.match_status ?? undefined,
+  }));
 }
 
 export async function getActiveWatchlist(): Promise<WatchlistRow[]> {
@@ -124,10 +132,26 @@ export async function incrementChecks(matchId: string): Promise<void> {
 }
 
 export async function expireOldEntries(cutoffMinutes: number = 120): Promise<number> {
+  // Re-activate expired entries whose match is currently LIVE
+  await query(
+    `UPDATE watchlist SET status = 'active'
+     WHERE status = 'expired'
+       AND EXISTS (
+         SELECT 1 FROM matches m
+         WHERE m.match_id::text = watchlist.match_id
+           AND m.status IN ('1H','2H','HT','ET','BT','P','LIVE','INT')
+       )`,
+  );
+
   const r = await query(
     `UPDATE watchlist SET status = 'expired'
      WHERE status = 'active' AND date IS NOT NULL AND kickoff IS NOT NULL
-       AND (date + kickoff + $1 * INTERVAL '1 minute') < NOW()`,
+       AND (date + kickoff + $1 * INTERVAL '1 minute') < NOW()
+       AND NOT EXISTS (
+         SELECT 1 FROM matches m
+         WHERE m.match_id::text = watchlist.match_id
+           AND m.status IN ('1H','2H','HT','ET','BT','P','LIVE','INT')
+       )`,
     [cutoffMinutes],
   );
   return r.rowCount ?? 0;

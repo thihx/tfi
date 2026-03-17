@@ -238,7 +238,7 @@ function OddsView({ odds }: { odds: OddsMovement[] }) {
           <tbody>
             {marketOdds.map((o) => (
               <tr key={o.id}>
-                <td><span className="cell-value">{new Date(o.captured_at).toLocaleTimeString('vi-VN')}</span></td>
+                <td><span className="cell-value">{new Date(o.captured_at).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}</span></td>
                 <td><span className="cell-value">{o.match_minute ?? '-'}</span></td>
                 <td><span className="cell-value">{o.market}</span></td>
                 <td><span className="cell-value">{o.line ?? '-'}</span></td>

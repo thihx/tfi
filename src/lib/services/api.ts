@@ -80,6 +80,10 @@ export interface RecommendationQueryParams {
   result?: string;
   bet_type?: string;
   search?: string;
+  league?: string;
+  date_from?: string;
+  date_to?: string;
+  risk_level?: string;
   sort_by?: string;
   sort_dir?: string;
 }
@@ -94,6 +98,10 @@ export async function fetchRecommendationsPaginated(
   if (params.result && params.result !== 'all') qs.set('result', params.result);
   if (params.bet_type && params.bet_type !== 'all') qs.set('bet_type', params.bet_type);
   if (params.search) qs.set('search', params.search);
+  if (params.league && params.league !== 'all') qs.set('league', params.league);
+  if (params.date_from) qs.set('date_from', params.date_from);
+  if (params.date_to) qs.set('date_to', params.date_to);
+  if (params.risk_level && params.risk_level !== 'all') qs.set('risk_level', params.risk_level);
   if (params.sort_by) qs.set('sort_by', params.sort_by);
   if (params.sort_dir) qs.set('sort_dir', params.sort_dir);
   return pgFetch<PaginatedRecommendations>(config, `/api/recommendations?${qs.toString()}`);
@@ -123,6 +131,10 @@ export async function fetchDashboardSummary(config: AppConfig): Promise<Dashboar
 
 export async function fetchBetTypes(config: AppConfig): Promise<string[]> {
   return pgFetch<string[]>(config, '/api/recommendations/bet-types');
+}
+
+export async function fetchDistinctLeagues(config: AppConfig): Promise<string[]> {
+  return pgFetch<string[]>(config, '/api/recommendations/leagues');
 }
 
 export async function fetchApprovedLeagues(config: AppConfig): Promise<ApprovedLeague[]> {

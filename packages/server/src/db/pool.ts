@@ -5,6 +5,9 @@
 import pg from 'pg';
 import { config } from '../config.js';
 
+// Return DATE columns as plain "YYYY-MM-DD" strings instead of JS Date objects
+pg.types.setTypeParser(1082, (val: string) => val);
+
 const pool = new pg.Pool({
   connectionString: config.databaseUrl,
   max: 10,

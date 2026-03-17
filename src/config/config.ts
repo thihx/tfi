@@ -29,18 +29,6 @@ export function escapeHtml(str: string): string {
     .replace(/'/g, '&#039;');
 }
 
-export function formatDate(dateStr: string): string {
-  if (!dateStr) return '';
-  const date = new Date(dateStr);
-  return date.toLocaleDateString('vi-VN');
-}
-
-export function formatDateTime(dateStr: string): string {
-  if (!dateStr) return '';
-  const date = new Date(dateStr);
-  return date.toLocaleString('vi-VN');
-}
-
 export function getStatusBadge(status: string): { label: string; className: string } {
   const info = STATUS_BADGES[status] || { label: status, class: '' };
   return { label: info.label, className: info.class };

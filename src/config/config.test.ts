@@ -1,5 +1,5 @@
 import { describe, test, expect, beforeEach } from 'vitest';
-import { escapeHtml, formatDate, formatDateTime, getStatusBadge, getCountryFromLeague, getTierBadge, loadConfig, saveConfig } from './config';
+import { escapeHtml, getStatusBadge, getCountryFromLeague, getTierBadge, loadConfig, saveConfig } from './config';
 
 // ==================== escapeHtml ====================
 describe('escapeHtml', () => {
@@ -23,34 +23,6 @@ describe('escapeHtml', () => {
 
   test('returns empty string for falsy input', () => {
     expect(escapeHtml(null as unknown as string)).toBe('');
-  });
-});
-
-// ==================== formatDate ====================
-describe('formatDate', () => {
-  test('formats date string to vi-VN locale', () => {
-    const result = formatDate('2026-03-16');
-    // vi-VN format: DD/MM/YYYY
-    expect(result).toMatch(/16/);
-    expect(result).toMatch(/3/);
-    expect(result).toMatch(/2026/);
-  });
-
-  test('returns empty string for empty input', () => {
-    expect(formatDate('')).toBe('');
-  });
-});
-
-// ==================== formatDateTime ====================
-describe('formatDateTime', () => {
-  test('formats datetime string to vi-VN locale', () => {
-    const result = formatDateTime('2026-03-16T14:30:00');
-    expect(result).toMatch(/16/);
-    expect(result).toMatch(/2026/);
-  });
-
-  test('returns empty string for empty input', () => {
-    expect(formatDateTime('')).toBe('');
   });
 });
 

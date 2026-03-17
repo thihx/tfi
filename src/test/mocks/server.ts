@@ -88,7 +88,7 @@ export function createRecommendationFixture(overrides: Record<string, unknown> =
     odds: 1.85,
     confidence: 75,
     stake: 2,
-    result: 'Won',
+    result: 'win',
     pnl: 1.7,
     ...overrides,
   };
