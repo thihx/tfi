@@ -681,17 +681,24 @@ td strong {
     color: var(--gray-900);
 }
 
-tr:hover {
-    background: var(--gray-50);
-}
-
 tbody tr {
     content-visibility: auto;
     contain-intrinsic-size: 60px 500px;
+    transition: background 0.1s ease;
+    cursor: default;
 }
 
 tbody tr:nth-child(even) {
     background: #fafbfc;
+}
+
+tbody tr:hover {
+    background: var(--gray-100) !important;
+}
+
+/* Clickable rows (double-click to scout) */
+tbody tr[style*="pointer"] {
+    cursor: pointer;
 }
 
 /* Center-align watchlist cells (except select column) to match Matches layout */
@@ -1359,6 +1366,13 @@ table tbody#watchlist-table td:not(.select-col) {
 .btn:not(.watch-btn):disabled,
 .btn:not(.watch-btn)[disabled] {
     opacity: 0.6;
+}
+
+/* All disabled buttons — universal fallback */
+button:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+    pointer-events: none;
 }
 
 /* Keep watch buttons consistent width to avoid layout shift */

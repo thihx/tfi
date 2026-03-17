@@ -59,7 +59,7 @@ describe('POST /api/proxy/football/odds — fallback behavior', () => {
       payload: { matchId: '100' },
     });
     expect(res.statusCode).toBe(200);
-    expect(res.json()).toEqual({ response: [] });
+    expect(res.json()).toEqual({ odds_source: 'pre-match', response: [] });
   });
 });
 

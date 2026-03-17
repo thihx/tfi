@@ -266,13 +266,14 @@ ${JSON.stringify(statsCompact)}
 STATS_AVAILABLE: ${statsAvailable}
 
 ========================
-LIVE ODDS SNAPSHOT (CANONICAL JSON)
+${data.odds_source === 'pre-match' ? 'PRE-MATCH ODDS (REFERENCE ONLY — live odds unavailable)' : 'LIVE ODDS SNAPSHOT (CANONICAL JSON)'}
 ========================
 ${JSON.stringify(oddsCanonical)}
 
 ODDS_AVAILABLE: ${oddsAvailable}
+ODDS_SOURCE: ${data.odds_source || 'live'}
 CURRENT_TOTAL_GOALS: ${currentTotalGoals}
-${oddsSuspicious ? `\n⚠️ ODDS SANITY CHECK FAILED:\n${oddsSanityWarnings.map((w) => '• ' + w).join('\n')}\nTreat ALL odds as UNRELIABLE. Behave as if ODDS_AVAILABLE = false.` : ''}
+${data.odds_source === 'pre-match' ? `\nℹ️ These are PRE-MATCH opening odds (set before kickoff). Live odds are not available for this league/match.\nUse these as REFERENCE for market direction and value assessment, but note they do NOT reflect the current game state.\nYou CAN still make recommendations using these odds as a baseline — adjust your confidence based on how the match has evolved.` : ''}${oddsSuspicious ? `\n⚠️ ODDS SANITY CHECK FAILED:\n${oddsSanityWarnings.map((w) => '• ' + w).join('\n')}\nTreat ALL odds as UNRELIABLE. Behave as if ODDS_AVAILABLE = false.` : ''}
 
 ========================
 PRE-MATCH PREDICTION (OPTIONAL)

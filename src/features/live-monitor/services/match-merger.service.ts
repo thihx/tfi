@@ -12,6 +12,7 @@ import type {
   OddsCanonical,
   MergedMatchData,
   PreMatchPrediction,
+  DerivedMatchInsights,
 } from '../types';
 
 // ==================== Helpers ====================
@@ -261,6 +262,7 @@ export function mergeMatchData(
       odds_available: false,
       odds_sanity_warnings: [],
       odds_suspicious: false,
+      odds_source: undefined,
       pre_match_prediction: preMatchPrediction,
       pre_match_prediction_summary: preMatchPredictionSummary,
       strategic_context: match.strategic_context || null,
@@ -576,10 +578,20 @@ export function mergeOddsToMatch(
     };
   }
 
-  // Sanity check
+  // Sanity check — skip for pre-match odds since they don't reflect live game state
+  const oddsSource = oddsResponse.odds_source;
+  const isPreMatch = oddsSource === 'pre-match';
   const minute = typeof matchData.match.minute === 'number' ? matchData.match.minute : 0;
-  const oddsSanityWarnings = checkOddsSanity(oddsCanonical, minute, matchData.match.score);
-  const oddsSuspicious = oddsSanityWarnings.length > 0;
+  let oddsSanityWarnings: string[];
+  let oddsSuspicious: boolean;
+
+  if (isPreMatch) {
+    oddsSanityWarnings = ['PRE_MATCH_ODDS: Live odds unavailable, using pre-match opening odds as reference only'];
+    oddsSuspicious = false;
+  } else {
+    oddsSanityWarnings = checkOddsSanity(oddsCanonical, minute, matchData.match.score);
+    oddsSuspicious = oddsSanityWarnings.length > 0;
+  }
 
   return {
     ...matchData,
@@ -587,6 +599,7 @@ export function mergeOddsToMatch(
     odds_available: oddsAvailable,
     odds_sanity_warnings: oddsSanityWarnings,
     odds_suspicious: oddsSuspicious,
+    odds_source: oddsSource,
     current_total_goals: matchData.current_total_goals,
   };
 }

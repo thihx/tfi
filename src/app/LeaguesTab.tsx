@@ -82,7 +82,6 @@ const LeagueRow = memo(function LeagueRow({ league, onToggle, onToggleTop, selec
           onClick={() => onToggleTop(league.league_id, !league.top_league)}
           disabled={togglingTop}
           title={league.top_league ? 'Remove from Top Leagues' : 'Add to Top Leagues'}
-          style={{ opacity: togglingTop ? 0.5 : 1 }}
         >
           {togglingTop ? <span className="inline-spinner" style={{ width: 12, height: 12 }} /> : (league.top_league ? '⭐' : '☆')}
         </button>
@@ -93,7 +92,6 @@ const LeagueRow = memo(function LeagueRow({ league, onToggle, onToggleTop, selec
           onClick={() => onToggle(league.league_id, !league.active)}
           disabled={toggling}
           title={league.active ? 'Click to deactivate' : 'Click to activate'}
-          style={{ opacity: toggling ? 0.5 : 1 }}
         >
           {toggling ? <span className="inline-spinner" style={{ width: 12, height: 12, display: 'inline-block' }} /> : <span className="league-toggle-dot" />}
         </button>
@@ -167,6 +165,7 @@ export function LeaguesTab() {
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
   const [togglingIds, setTogglingIds] = useState<Set<number>>(new Set());
   const [togglingTopIds, setTogglingTopIds] = useState<Set<number>>(new Set());
+  const [confirmDeactivate, setConfirmDeactivate] = useState(false);
   const searchRef = useRef<HTMLInputElement>(null);
 
   // `/` key focuses search
@@ -432,14 +431,23 @@ export function LeaguesTab() {
       </div>
 
       {/* Contextual bulk actions */}
-      {selectedIds.size > 0 && (
+      {selectedIds.size > 0 && confirmDeactivate && (
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '7px 16px', background: '#fff1f2', borderBottom: '1px solid #fecdd3', fontSize: 13 }}>
+          <span style={{ fontWeight: 600, color: '#b91c1c' }}>
+            Deactivate {selectedIds.size} league{selectedIds.size > 1 ? 's' : ''}? This will remove them from all scans.
+          </span>
+          <button className="btn btn-sm btn-danger" onClick={() => { setConfirmDeactivate(false); handleBulkToggle(false); }}>Confirm</button>
+          <button className="btn btn-sm btn-secondary" onClick={() => setConfirmDeactivate(false)}>Cancel</button>
+        </div>
+      )}
+      {selectedIds.size > 0 && !confirmDeactivate && (
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '7px 16px', background: '#f0f9ff', borderBottom: '1px solid #bae6fd', fontSize: 13 }}>
           <span style={{ fontWeight: 600, color: 'var(--gray-700)', marginRight: 4 }}>{selectedIds.size} selected</span>
           <button className="btn btn-sm btn-success" onClick={() => handleBulkToggle(true)}>Activate</button>
-          <button className="btn btn-sm btn-danger" onClick={() => handleBulkToggle(false)}>Deactivate</button>
+          <button className="btn btn-sm btn-danger" onClick={() => setConfirmDeactivate(true)}>Deactivate</button>
           <button className="btn btn-sm btn-warning" onClick={() => handleBulkTopLeague(true)}>Set Top</button>
           <button className="btn btn-sm btn-secondary" onClick={() => handleBulkTopLeague(false)}>Unset Top</button>
-          <button className="btn btn-sm btn-secondary" onClick={() => setSelectedIds(new Set())} style={{ marginLeft: 'auto' }}>Clear</button>
+          <button className="btn btn-sm btn-secondary" onClick={() => { setSelectedIds(new Set()); setConfirmDeactivate(false); }} style={{ marginLeft: 'auto' }}>Clear</button>
         </div>
       )}
 

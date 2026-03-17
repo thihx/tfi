@@ -151,6 +151,7 @@ export function createMergedMatchData(overrides?: Partial<MergedMatchData>): Mer
     odds_available: true,
     odds_sanity_warnings: [],
     odds_suspicious: false,
+    odds_source: undefined,
     pre_match_prediction: null,
     pre_match_prediction_summary: '',
     strategic_context: null,

@@ -72,6 +72,7 @@ export async function proxyRoutes(app: FastifyInstance) {
     try {
       // 1. Try live odds first
       let bookmakers: unknown[] = [];
+      let oddsSource: 'live' | 'pre-match' = 'live';
       try {
         const liveOdds = await fetchLiveOdds(req.body.matchId) as Array<{
           fixture?: unknown;
@@ -102,6 +103,7 @@ export async function proxyRoutes(app: FastifyInstance) {
 
       // 2. Fallback to pre-match odds if live returned nothing
       if (bookmakers.length === 0) {
+        oddsSource = 'pre-match';
         try {
           const preMatch = await fetchPreMatchOdds(req.body.matchId) as Array<{
             bookmakers?: Array<{ id: number; name: string; bets: unknown[] }>;
@@ -116,6 +118,7 @@ export async function proxyRoutes(app: FastifyInstance) {
 
       // 3. Return in the format expected by frontend: { response: [{ bookmakers: [...] }] }
       return {
+        odds_source: oddsSource,
         response: bookmakers.length > 0
           ? [{ fixture: { id: Number(req.body.matchId) }, bookmakers }]
           : [],

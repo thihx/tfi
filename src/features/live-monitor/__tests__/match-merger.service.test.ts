@@ -222,18 +222,21 @@ describe('mergeOddsToMatch — pre-match format', () => {
     name: string;
     bets: Array<{ name: string; values: Array<{ value: string; odd: string; handicap?: string }> }>;
   }>) {
-    return createOddsResponse({
-      response: [{
-        fixture: { id: 12345 },
-        update: '',
-        league: { id: 1, name: 'RPL', country: 'RU', logo: '', flag: '', season: 2025 },
-        bookmakers: bookmakers.map((bk, i) => ({
-          id: i + 1,
-          name: bk.name,
-          bets: bk.bets.map((b, j) => ({ id: j + 1, name: b.name, values: b.values })),
-        })),
-      }],
-    });
+    return {
+      ...createOddsResponse({
+        response: [{
+          fixture: { id: 12345 },
+          update: '',
+          league: { id: 1, name: 'RPL', country: 'RU', logo: '', flag: '', season: 2025 },
+          bookmakers: bookmakers.map((bk, i) => ({
+            id: i + 1,
+            name: bk.name,
+            bets: bk.bets.map((b, j) => ({ id: j + 1, name: b.name, values: b.values })),
+          })),
+        }],
+      }),
+      odds_source: 'pre-match' as const,
+    };
   }
 
   test('parses 1x2 from pre-match Match Winner (value="Home", no handicap)', () => {
@@ -577,5 +580,64 @@ describe('mergeOddsToMatch — pre-match format', () => {
     expect(cou?.line).toBe(9.5);
     expect(cou?.over).toBe(1.76);
     expect(cou?.under).toBe(1.93);
+  });
+
+  test('pre-match odds do NOT trigger ODDS_SUSPICIOUS even at late game (min 83, score 4-0)', () => {
+    // Real scenario: FC Krasnodar 4-0 CSKA Moscow at min 83
+    // Pre-match odds look "wrong" vs live state but that's expected
+    const matchData = createMergedMatchData({
+      match: { id: '12345', home: 'FC Krasnodar', away: 'CSKA Moscow', league: 'RPL', minute: 83, score: '4-0', status: '2H' },
+      minute: 83,
+      score: '4-0',
+    });
+    const odds = preMatchOddsResponse([{
+      name: '10Bet',
+      bets: [
+        { name: 'Match Winner', values: [
+          { value: 'Home', odd: '1.53' }, { value: 'Draw', odd: '3.75' }, { value: 'Away', odd: '5.80' },
+        ]},
+        { name: 'Goals Over/Under', values: [
+          { value: 'Over 2.5', odd: '1.83', handicap: '' }, { value: 'Under 2.5', odd: '1.91', handicap: '' },
+        ]},
+      ],
+    }]);
+    const result = mergeOddsToMatch(matchData, odds);
+    // Should NOT be suspicious
+    expect(result.odds_suspicious).toBe(false);
+    expect(result.odds_source).toBe('pre-match');
+    // Should have a PRE_MATCH_ODDS warning (informational, not suspicious)
+    expect(result.odds_sanity_warnings).toHaveLength(1);
+    expect(result.odds_sanity_warnings[0]).toContain('PRE_MATCH_ODDS');
+    // Odds should still be available and parsed
+    expect(result.odds_available).toBe(true);
+    expect(result.odds_canonical['1x2']?.home).toBe(1.53);
+    expect(result.odds_canonical.ou?.line).toBe(2.5);
+  });
+
+  test('live odds still trigger ODDS_SUSPICIOUS at late game with stale-looking odds', () => {
+    // Same scenario but with live odds — should flag as suspicious
+    const matchData = createMergedMatchData({
+      match: { id: '12345', home: 'FC Krasnodar', away: 'CSKA Moscow', league: 'RPL', minute: 83, score: '4-0', status: '2H' },
+      minute: 83,
+      score: '4-0',
+    });
+    // Live odds with Home leading 4-0 but home odds > away odds = suspicious
+    const odds = createOddsResponse({
+      response: [{
+        fixture: { id: 12345 },
+        update: '',
+        league: { id: 1, name: 'RPL', country: 'RU', logo: '', flag: '', season: 2025 },
+        bookmakers: [{
+          id: 1, name: 'Live',
+          bets: [{ id: 1, name: 'Match Winner', values: [
+            { value: 'Home', odd: '6.00' }, { value: 'Draw', odd: '3.50' }, { value: 'Away', odd: '1.20' },
+          ]}],
+        }],
+      }],
+    });
+    const result = mergeOddsToMatch(matchData, odds);
+    // Should be suspicious — home leading 4-0 but odds say home is 6.00
+    expect(result.odds_suspicious).toBe(true);
+    expect(result.odds_sanity_warnings.length).toBeGreaterThan(0);
   });
 });

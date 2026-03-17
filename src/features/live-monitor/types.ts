@@ -153,6 +153,7 @@ export interface FootballApiPrediction {
 // ==================== Live Odds Types ====================
 
 export interface FootballApiOddsResponse {
+  odds_source?: 'live' | 'pre-match';
   response: Array<{
     fixture: { id: number };
     update: string;
@@ -237,6 +238,24 @@ export interface StatsMeta {
   missing_fields?: string[];
 }
 
+export interface DerivedMatchInsights {
+  goal_tempo: number;
+  btts_status: boolean;
+  home_goals_timeline: number[];
+  away_goals_timeline: number[];
+  last_goal_minute: number | null;
+  total_cards: number;
+  home_cards: number;
+  away_cards: number;
+  home_reds: number;
+  away_reds: number;
+  home_subs: number;
+  away_subs: number;
+  momentum: 'home' | 'away' | 'neutral';
+  intensity: 'low' | 'medium' | 'high';
+  source: 'events';
+}
+
 export interface MergedMatchData {
   match_id: string;
   config: LiveMonitorConfig;
@@ -281,6 +300,8 @@ export interface MergedMatchData {
   odds_available: boolean;
   odds_sanity_warnings: string[];
   odds_suspicious: boolean;
+  odds_source?: 'live' | 'pre-match';
+  derived_insights?: DerivedMatchInsights | null;
   pre_match_prediction: PreMatchPrediction | null;
   pre_match_prediction_summary: string;
   strategic_context: unknown;
