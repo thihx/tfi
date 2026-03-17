@@ -40,6 +40,8 @@ export interface WatchlistItem {
 export interface Recommendation {
   match_id?: string;
   match_display: string;
+  home_team?: string;
+  away_team?: string;
   bet_type: string;
   selection: string;
   odds: number | string;

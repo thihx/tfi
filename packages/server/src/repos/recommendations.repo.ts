@@ -57,6 +57,11 @@ export type RecommendationCreate = Omit<RecommendationRow, 'id'>;
 interface PaginationOpts {
   limit?: number;
   offset?: number;
+  result?: string;       // 'won' | 'lost' | 'push' | 'pending'
+  bet_type?: string;
+  search?: string;
+  sort_by?: string;      // 'time' | 'odds' | 'confidence' | 'pnl'
+  sort_dir?: string;     // 'asc' | 'desc'
 }
 
 export async function getAllRecommendations(opts: PaginationOpts = {}): Promise<{
@@ -66,12 +71,63 @@ export async function getAllRecommendations(opts: PaginationOpts = {}): Promise<
   const limit = opts.limit ?? 50;
   const offset = opts.offset ?? 0;
 
+  const conditions: string[] = [];
+  const params: unknown[] = [];
+  let paramIdx = 1;
+
+  // Result filter
+  if (opts.result) {
+    if (opts.result === 'pending') {
+      conditions.push(`(result = '' OR result IS NULL)`);
+    } else {
+      conditions.push(`result = $${paramIdx}`);
+      params.push(opts.result);
+      paramIdx++;
+    }
+  }
+
+  // Bet type filter
+  if (opts.bet_type) {
+    conditions.push(`bet_type = $${paramIdx}`);
+    params.push(opts.bet_type);
+    paramIdx++;
+  }
+
+  // Search filter
+  if (opts.search) {
+    conditions.push(`(
+      home_team ILIKE $${paramIdx} OR away_team ILIKE $${paramIdx} OR selection ILIKE $${paramIdx}
+    )`);
+    params.push(`%${opts.search}%`);
+    paramIdx++;
+  }
+
+  const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
+
+  // Sort
+  const sortMap: Record<string, string> = {
+    time: 'timestamp',
+    odds: 'odds',
+    confidence: 'confidence',
+    pnl: 'pnl',
+  };
+  const sortCol = sortMap[opts.sort_by ?? ''] ?? 'timestamp';
+  const sortDir = opts.sort_dir === 'asc' ? 'ASC' : 'DESC';
+  const orderClause = `ORDER BY ${sortCol} ${sortDir} NULLS LAST`;
+
+  const limitParam = paramIdx;
+  const offsetParam = paramIdx + 1;
+  params.push(limit, offset);
+
   const [data, countRes] = await Promise.all([
     query<RecommendationRow>(
-      'SELECT * FROM recommendations ORDER BY timestamp DESC LIMIT $1 OFFSET $2',
-      [limit, offset],
+      `SELECT * FROM recommendations ${whereClause} ${orderClause} LIMIT $${limitParam} OFFSET $${offsetParam}`,
+      params,
     ),
-    query<{ count: string }>('SELECT COUNT(*)::text as count FROM recommendations'),
+    query<{ count: string }>(
+      `SELECT COUNT(*)::text as count FROM recommendations ${whereClause}`,
+      params.slice(0, -2), // exclude limit/offset
+    ),
   ]);
 
   return { rows: data.rows, total: Number(countRes.rows[0]?.count ?? 0) };
@@ -273,4 +329,132 @@ export async function getStats(): Promise<RecStats> {
     total_pnl: Number(row.total_pnl),
     win_rate: settled > 0 ? Math.round((wins / settled) * 100) : 0,
   };
+}
+
+// ==================== Dashboard Summary ====================
+
+export interface DashboardSummary {
+  totalBets: number;
+  wins: number;
+  losses: number;
+  pushes: number;
+  pending: number;
+  winRate: number;
+  totalPnl: number;
+  totalStaked: number;
+  roi: number;
+  streak: string;
+  matchCount: number;
+  watchlistCount: number;
+  recCount: number;
+  pnlTrend: Array<{ date: string; pnl: number; cumulative: number }>;
+  recentRecs: RecommendationRow[];
+}
+
+export async function getDashboardSummary(): Promise<DashboardSummary> {
+  // All aggregation done in SQL — no loading 5000 rows client-side
+  const [statsRes, pnlRes, recentRes, streakRes, countsRes] = await Promise.all([
+    query<{
+      total: string; wins: string; losses: string; pushes: string; pending: string;
+      total_pnl: string; total_staked: string;
+    }>(`SELECT
+         COUNT(*) FILTER (WHERE result IN ('win','loss','push'))::text AS total,
+         COUNT(*) FILTER (WHERE result = 'win')::text AS wins,
+         COUNT(*) FILTER (WHERE result = 'loss')::text AS losses,
+         COUNT(*) FILTER (WHERE result = 'push')::text AS pushes,
+         COUNT(*) FILTER (WHERE result = '' OR result IS NULL)::text AS pending,
+         COALESCE(SUM(pnl) FILTER (WHERE result IN ('win','loss','push')), 0)::text AS total_pnl,
+         COALESCE(SUM(stake_amount) FILTER (WHERE result IN ('win','loss','push')), 0)::text AS total_staked
+       FROM recommendations`),
+
+    // P/L by date (aggregated)
+    query<{ date: string; daily_pnl: string }>(`
+      SELECT TO_CHAR(timestamp::date, 'DD/MM') AS date,
+             SUM(pnl)::text AS daily_pnl
+      FROM recommendations
+      WHERE result IN ('win', 'loss') AND timestamp IS NOT NULL
+      GROUP BY timestamp::date
+      ORDER BY timestamp::date`),
+
+    // Recent 8 recommendations
+    query<RecommendationRow>(
+      `SELECT * FROM recommendations ORDER BY timestamp DESC LIMIT 8`,
+    ),
+
+    // Streak
+    query<{ result: string }>(`
+      SELECT result FROM recommendations
+      WHERE result IN ('win', 'loss')
+      ORDER BY timestamp DESC
+      LIMIT 50`),
+
+    // Counts
+    query<{ match_count: string; watchlist_count: string; rec_count: string }>(`
+      SELECT
+        (SELECT COUNT(*)::text FROM matches) AS match_count,
+        (SELECT COUNT(*)::text FROM watchlist) AS watchlist_count,
+        (SELECT COUNT(*)::text FROM recommendations) AS rec_count`),
+  ]);
+
+  const s = statsRes.rows[0]!;
+  const total = Number(s.total);
+  const wins = Number(s.wins);
+  const winRate = total > 0 ? Math.round((wins / total) * 100) : 0;
+  const totalStaked = Number(s.total_staked);
+  const totalPnl = Number(s.total_pnl);
+  const roi = totalStaked > 0 ? Math.round((totalPnl / totalStaked) * 10000) / 100 : 0;
+
+  // Build cumulative P/L
+  let cumulative = 0;
+  const pnlTrend = pnlRes.rows.map((r) => {
+    const dailyPnl = parseFloat(r.daily_pnl);
+    cumulative += dailyPnl;
+    return {
+      date: r.date,
+      pnl: Math.round(dailyPnl * 100) / 100,
+      cumulative: Math.round(cumulative * 100) / 100,
+    };
+  });
+
+  // Compute streak
+  let streak = '';
+  if (streakRes.rows.length > 0) {
+    const first = streakRes.rows[0]!.result;
+    let count = 0;
+    for (const r of streakRes.rows) {
+      if (r.result === first) count++;
+      else break;
+    }
+    if (count > 1) {
+      streak = first === 'win' ? `${count}W streak` : `${count}L streak`;
+    }
+  }
+
+  const c = countsRes.rows[0]!;
+
+  return {
+    totalBets: total,
+    wins,
+    losses: Number(s.losses),
+    pushes: Number(s.pushes),
+    pending: Number(s.pending),
+    winRate,
+    totalPnl,
+    totalStaked,
+    roi,
+    streak,
+    matchCount: Number(c.match_count),
+    watchlistCount: Number(c.watchlist_count),
+    recCount: Number(c.rec_count),
+    pnlTrend,
+    recentRecs: recentRes.rows,
+  };
+}
+
+/** Get distinct bet_types for filter dropdown */
+export async function getDistinctBetTypes(): Promise<string[]> {
+  const r = await query<{ bet_type: string }>(
+    `SELECT DISTINCT bet_type FROM recommendations WHERE bet_type != '' ORDER BY bet_type`,
+  );
+  return r.rows.map((row) => row.bet_type);
 }

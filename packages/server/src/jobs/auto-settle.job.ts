@@ -3,14 +3,16 @@
 //
 // 1. Find unsettled recommendations (result = '' or NULL)
 // 2. Look up final scores from matches_history
-// 3. Determine win/loss/push based on selection vs actual score
-// 4. Update recommendations, bets, and ai_performance
+// 3. Fallback: call Football API for matches not yet archived
+// 4. Determine win/loss/push based on selection vs actual score
+// 5. Update recommendations, bets, and ai_performance
 // ============================================================
 
 import * as recommendationsRepo from '../repos/recommendations.repo.js';
 import * as betsRepo from '../repos/bets.repo.js';
 import * as matchHistoryRepo from '../repos/matches-history.repo.js';
 import * as aiPerfRepo from '../repos/ai-performance.repo.js';
+import { fetchFixturesByIds, type ApiFixture } from '../lib/football-api.js';
 import type { RecommendationRow } from '../repos/recommendations.repo.js';
 import type { MatchHistoryRow } from '../repos/matches-history.repo.js';
 
@@ -144,6 +146,12 @@ async function settleRecommendations(recs: RecommendationRow[], stats: SettleRes
     }
   }
 
+  // Fallback: fetch results from Football API for matches not in history
+  const missingIds = matchIds.filter((id) => !historyMap.has(id));
+  if (missingIds.length > 0) {
+    await fetchAndArchiveMissingResults(missingIds, historyMap);
+  }
+
   for (const rec of recs) {
     try {
       const hist = historyMap.get(rec.match_id);
@@ -191,6 +199,12 @@ async function settleBets(
     }
   }
 
+  // Fallback: fetch results from Football API for matches not in history
+  const missingIds = matchIds.filter((id) => !historyMap.has(id));
+  if (missingIds.length > 0) {
+    await fetchAndArchiveMissingResults(missingIds, historyMap);
+  }
+
   for (const bet of bets) {
     try {
       const hist = historyMap.get(bet.match_id);
@@ -215,6 +229,83 @@ async function settleBets(
     } catch (err) {
       console.error(`[autoSettleJob] Error settling bet ${bet.id}:`, err);
       stats.errors++;
+    }
+  }
+}
+
+// ==================== Football API Fallback ====================
+
+const FINISHED_STATUSES = new Set(['FT', 'AET', 'PEN', 'AWD', 'WO']);
+
+/**
+ * Fetch match results from Football API for match IDs not found in matches_history.
+ * If a fixture has finished (FT/AET/PEN/AWD/WO), archive it to matches_history
+ * and add it to the historyMap for immediate settlement.
+ */
+async function fetchAndArchiveMissingResults(
+  missingIds: string[],
+  historyMap: Map<string, MatchHistoryRow>,
+): Promise<void> {
+  let fixtures: ApiFixture[];
+  try {
+    fixtures = await fetchFixturesByIds(missingIds);
+  } catch (err) {
+    console.warn('[autoSettleJob] Football API fallback failed:', err instanceof Error ? err.message : err);
+    return;
+  }
+
+  for (const fx of fixtures) {
+    const matchId = String(fx.fixture.id);
+    const status = fx.fixture.status?.short ?? '';
+
+    if (!FINISHED_STATUSES.has(status)) continue;
+
+    const homeScore = fx.goals?.home ?? 0;
+    const awayScore = fx.goals?.away ?? 0;
+
+    // Archive to matches_history for future lookups
+    try {
+      const dateStr = fx.fixture.date ? fx.fixture.date.substring(0, 10) : '';
+      const timeStr = fx.fixture.date ? fx.fixture.date.substring(11, 16) : '00:00';
+
+      await matchHistoryRepo.archiveFinishedMatches([{
+        match_id: matchId,
+        date: dateStr,
+        kickoff: timeStr,
+        league_id: fx.league?.id ?? 0,
+        league_name: fx.league?.name ?? '',
+        home_team: fx.teams?.home?.name ?? '',
+        away_team: fx.teams?.away?.name ?? '',
+        venue: fx.fixture.venue?.name ?? 'TBD',
+        status,
+        home_score: homeScore,
+        away_score: awayScore,
+      } as unknown as import('../repos/matches.repo.js').MatchRow]);
+    } catch (err) {
+      console.warn(`[autoSettleJob] Failed to archive match ${matchId}:`, err instanceof Error ? err.message : err);
+    }
+
+    // Add to historyMap for immediate use
+    historyMap.set(matchId, {
+      match_id: matchId,
+      date: fx.fixture.date?.substring(0, 10) ?? '',
+      kickoff: fx.fixture.date?.substring(11, 16) ?? '00:00',
+      league_id: fx.league?.id ?? 0,
+      league_name: fx.league?.name ?? '',
+      home_team: fx.teams?.home?.name ?? '',
+      away_team: fx.teams?.away?.name ?? '',
+      venue: fx.fixture.venue?.name ?? 'TBD',
+      final_status: status,
+      home_score: homeScore,
+      away_score: awayScore,
+      archived_at: new Date().toISOString(),
+    });
+  }
+
+  if (fixtures.length > 0) {
+    const archived = fixtures.filter((fx) => FINISHED_STATUSES.has(fx.fixture.status?.short ?? '')).length;
+    if (archived > 0) {
+      console.log(`[autoSettleJob] Fetched ${fixtures.length} fixtures from API, archived ${archived} finished matches`);
     }
   }
 }

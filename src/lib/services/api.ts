@@ -64,8 +64,65 @@ export async function fetchWatchlist(config: AppConfig): Promise<WatchlistItem[]
 }
 
 export async function fetchRecommendations(config: AppConfig): Promise<Recommendation[]> {
-  const data = await pgFetch<{ rows: Recommendation[]; total: number }>(config, '/api/recommendations?limit=5000');
+  // Initial load: fetch recent 200 for state (lightweight)
+  const data = await pgFetch<{ rows: Recommendation[]; total: number }>(config, '/api/recommendations?limit=200');
   return data.rows;
+}
+
+export interface PaginatedRecommendations {
+  rows: Recommendation[];
+  total: number;
+}
+
+export interface RecommendationQueryParams {
+  limit?: number;
+  offset?: number;
+  result?: string;
+  bet_type?: string;
+  search?: string;
+  sort_by?: string;
+  sort_dir?: string;
+}
+
+export async function fetchRecommendationsPaginated(
+  config: AppConfig,
+  params: RecommendationQueryParams,
+): Promise<PaginatedRecommendations> {
+  const qs = new URLSearchParams();
+  if (params.limit) qs.set('limit', String(params.limit));
+  if (params.offset) qs.set('offset', String(params.offset));
+  if (params.result && params.result !== 'all') qs.set('result', params.result);
+  if (params.bet_type && params.bet_type !== 'all') qs.set('bet_type', params.bet_type);
+  if (params.search) qs.set('search', params.search);
+  if (params.sort_by) qs.set('sort_by', params.sort_by);
+  if (params.sort_dir) qs.set('sort_dir', params.sort_dir);
+  return pgFetch<PaginatedRecommendations>(config, `/api/recommendations?${qs.toString()}`);
+}
+
+export interface DashboardSummary {
+  totalBets: number;
+  wins: number;
+  losses: number;
+  pushes: number;
+  pending: number;
+  winRate: number;
+  totalPnl: number;
+  totalStaked: number;
+  roi: number;
+  streak: string;
+  matchCount: number;
+  watchlistCount: number;
+  recCount: number;
+  pnlTrend: Array<{ date: string; pnl: number; cumulative: number }>;
+  recentRecs: Recommendation[];
+}
+
+export async function fetchDashboardSummary(config: AppConfig): Promise<DashboardSummary> {
+  return pgFetch<DashboardSummary>(config, '/api/recommendations/dashboard');
+}
+
+export async function fetchBetTypes(config: AppConfig): Promise<string[]> {
+  return pgFetch<string[]>(config, '/api/recommendations/bet-types');
 }
 
 export async function fetchApprovedLeagues(config: AppConfig): Promise<ApprovedLeague[]> {

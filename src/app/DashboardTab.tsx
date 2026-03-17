@@ -1,11 +1,11 @@
-import { useMemo, useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useAppState } from '@/hooks/useAppState';
 import {
   AreaChart, Area, BarChart, Bar, XAxis, YAxis, CartesianGrid,
   Tooltip, ResponsiveContainer, Cell, PieChart, Pie,
 } from 'recharts';
-import { fetchAiStats, fetchAiStatsByModel, fetchBetStatsByMarket } from '@/lib/services/api';
-import type { AiAccuracyStats, AiModelStats, BetStats } from '@/lib/services/api';
+import { fetchAiStats, fetchAiStatsByModel, fetchBetStatsByMarket, fetchDashboardSummary } from '@/lib/services/api';
+import type { AiAccuracyStats, AiModelStats, BetStats, DashboardSummary } from '@/lib/services/api';
 import { StatusBadge } from '@/components/ui/StatusBadge';
 
 // ==================== Sub-components ====================
@@ -141,96 +141,78 @@ function AiAccuracyPanel({ stats, models }: { stats: AiAccuracyStats | null; mod
 
 export function DashboardTab() {
   const { state } = useAppState();
-  const { matches, watchlist, recommendations, config } = state;
+  const { config } = state;
 
-  // Fetch AI + market stats from backend
+  const [dashboard, setDashboard] = useState<DashboardSummary | null>(null);
   const [aiStats, setAiStats] = useState<AiAccuracyStats | null>(null);
   const [aiModels, setAiModels] = useState<AiModelStats[]>([]);
   const [marketStats, setMarketStats] = useState<Array<{ market: string } & BetStats>>([]);
+  const [loading, setLoading] = useState(true);
 
-  const loadStats = useCallback(async () => {
+  const loadAll = useCallback(async () => {
+    setLoading(true);
     try {
-      const [ai, models, markets] = await Promise.all([
-        fetchAiStats(config),
-        fetchAiStatsByModel(config),
-        fetchBetStatsByMarket(config),
+      const [dash, ai, models, markets] = await Promise.all([
+        fetchDashboardSummary(config),
+        fetchAiStats(config).catch(() => null),
+        fetchAiStatsByModel(config).catch(() => []),
+        fetchBetStatsByMarket(config).catch(() => []),
       ]);
+      setDashboard(dash);
       setAiStats(ai);
       setAiModels(models);
       setMarketStats(markets);
     } catch {
-      // Non-critical — dashboard still works without backend stats
+      // Non-critical
+    } finally {
+      setLoading(false);
     }
   }, [config]);
 
-  useEffect(() => { loadStats(); }, [loadStats]);
+  useEffect(() => { loadAll(); }, [loadAll]);
 
-  // Betting stats from local data
-  const stats = useMemo(() => {
-    const settled = recommendations.filter((r) => r.result === 'won' || r.result === 'lost');
-    const won = settled.filter((r) => r.result === 'won');
-    const totalBets = settled.length;
-    const winRate = totalBets > 0 ? ((won.length / totalBets) * 100).toFixed(1) : '0';
-    const totalPnL = settled.reduce((sum, r) => sum + parseFloat(String(r.pnl ?? 0)), 0);
-    const totalStaked = settled.reduce((sum, r) => sum + parseFloat(String(r.stake_amount ?? 0)), 0);
-    const roi = totalStaked > 0 ? ((totalPnL / totalStaked) * 100).toFixed(1) : '0';
-    const pending = recommendations.filter((r) => !r.result || r.result === 'pending').length;
-    const streak = computeStreak(settled);
-    return { totalBets, winRate, totalPnL, roi: parseFloat(roi), pending, streak };
-  }, [recommendations]);
+  if (loading && !dashboard) {
+    return (
+      <div className="dashboard-loading">
+        <div className="loading-spinner" />
+        <p>Loading dashboard...</p>
+      </div>
+    );
+  }
 
-  // P/L trend chart data — aggregate by date
-  const pnlChartData = useMemo(() => {
-    const settled = recommendations
-      .filter((r) => (r.result === 'won' || r.result === 'lost') && r.created_at)
-      .sort((a, b) => new Date(a.created_at!).getTime() - new Date(b.created_at!).getTime());
-
-    if (!settled.length) return [];
-
-    const byDate = new Map<string, number>();
-    for (const r of settled) {
-      const d = new Date(r.created_at!).toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit' });
-      byDate.set(d, (byDate.get(d) ?? 0) + parseFloat(String(r.pnl ?? 0)));
-    }
-
-    let cumulative = 0;
-    return [...byDate.entries()].map(([date, pnl]) => {
-      cumulative += pnl;
-      return { date, pnl: parseFloat(pnl.toFixed(2)), cumulative: parseFloat(cumulative.toFixed(2)) };
-    });
-  }, [recommendations]);
-
-  const recentItems = recommendations.slice(0, 8);
+  const d = dashboard;
+  const pnlTrend = d?.pnlTrend ?? [];
+  const recentRecs = d?.recentRecs ?? [];
 
   return (
-    <div>
+    <div className="dashboard">
       {/* Summary Stats */}
       <div className="stats-grid">
-        <StatCard label="Total Bets" value={stats.totalBets} sub={`${stats.pending} pending`} />
-        <StatCard label="Win Rate" value={`${stats.winRate}%`} sub={stats.streak} />
+        <StatCard label="Total Bets" value={d?.totalBets ?? 0} sub={`${d?.pending ?? 0} pending`} />
+        <StatCard label="Win Rate" value={`${d?.winRate ?? 0}%`} sub={d?.streak ?? ''} />
         <StatCard
           label="Total P/L"
-          value={`${stats.totalPnL >= 0 ? '+' : ''}$${stats.totalPnL.toFixed(2)}`}
-          color={stats.totalPnL >= 0 ? 'positive' : 'negative'}
+          value={`${(d?.totalPnl ?? 0) >= 0 ? '+' : ''}$${(d?.totalPnl ?? 0).toFixed(2)}`}
+          color={(d?.totalPnl ?? 0) >= 0 ? 'positive' : 'negative'}
         />
         <StatCard
           label="ROI"
-          value={`${stats.roi >= 0 ? '+' : ''}${stats.roi.toFixed(1)}%`}
-          color={stats.roi >= 0 ? 'positive' : 'negative'}
+          value={`${(d?.roi ?? 0) >= 0 ? '+' : ''}${(d?.roi ?? 0).toFixed(1)}%`}
+          color={(d?.roi ?? 0) >= 0 ? 'positive' : 'negative'}
         />
       </div>
 
       {/* Overview counts */}
-      <div style={{ padding: '8px 0 4px', display: 'flex', gap: '16px', flexWrap: 'wrap', fontSize: '13px', color: 'var(--gray-500)' }}>
-        <span>📊 {matches.length} matches</span>
-        <span>👁️ {watchlist.length} watchlist</span>
-        <span>🎯 {recommendations.length} recommendations</span>
+      <div className="dashboard-overview-bar">
+        <span>📊 {d?.matchCount ?? 0} matches</span>
+        <span>👁️ {d?.watchlistCount ?? 0} watchlist</span>
+        <span>🎯 {d?.recCount ?? 0} recommendations</span>
         {aiStats && <span>🤖 AI accuracy: {aiStats.accuracy.toFixed(1)}%</span>}
       </div>
 
       {/* Charts Row */}
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', marginTop: '16px' }}>
-        <PnlChart data={pnlChartData} />
+      <div className="dashboard-charts-row">
+        <PnlChart data={pnlTrend} />
         <AiAccuracyPanel stats={aiStats} models={aiModels} />
       </div>
 
@@ -241,9 +223,9 @@ export function DashboardTab() {
       <div className="card">
         <div className="card-header">
           <div className="card-title">📋 Recent Recommendations</div>
-          <button className="btn btn-sm btn-secondary" onClick={loadStats}>🔄</button>
+          <button className="btn btn-sm btn-secondary" onClick={loadAll}>🔄</button>
         </div>
-        {recentItems.length > 0 ? (
+        {recentRecs.length > 0 ? (
           <div className="table-container">
             <table>
               <thead>
@@ -256,11 +238,14 @@ export function DashboardTab() {
                 </tr>
               </thead>
               <tbody>
-                {recentItems.map((r, i) => {
+                {recentRecs.map((r, i) => {
                   const pnl = parseFloat(String(r.pnl ?? 0));
+                  const display = r.home_team && r.away_team
+                    ? `${r.home_team} vs ${r.away_team}`
+                    : r.match_display || 'N/A';
                   return (
                     <tr key={i}>
-                      <td><span className="cell-value">{r.match_display || 'N/A'}</span></td>
+                      <td><span className="cell-value">{display}</span></td>
                       <td><span className="cell-value"><strong>{r.selection || '-'}</strong></span></td>
                       <td><span className="cell-value">{r.odds || '-'}</span></td>
                       <td><span className="cell-value">{r.result ? <StatusBadge status={r.result.toUpperCase()} /> : '-'}</span></td>
@@ -285,16 +270,4 @@ export function DashboardTab() {
   );
 }
 
-// ==================== Helpers ====================
-
-function computeStreak(settled: Array<{ result: string }>): string {
-  if (!settled.length) return '';
-  let count = 0;
-  const lastResult = settled[settled.length - 1]!.result;
-  for (let i = settled.length - 1; i >= 0; i--) {
-    if (settled[i]!.result === lastResult) count++;
-    else break;
-  }
-  if (count <= 1) return '';
-  return lastResult === 'won' ? `🔥 ${count}W streak` : `${count}L streak`;
-}
+// No local helpers needed — all data comes from server

@@ -6,14 +6,34 @@ import type { FastifyInstance } from 'fastify';
 import * as repo from '../repos/recommendations.repo.js';
 
 export async function recommendationRoutes(app: FastifyInstance) {
-  app.get<{ Querystring: { limit?: string; offset?: string } }>(
+  app.get<{ Querystring: {
+    limit?: string; offset?: string;
+    result?: string; bet_type?: string; search?: string;
+    sort_by?: string; sort_dir?: string;
+  } }>(
     '/api/recommendations',
     async (req) => {
       const limit = Number(req.query.limit) || 50;
       const offset = Number(req.query.offset) || 0;
-      return repo.getAllRecommendations({ limit, offset });
+      return repo.getAllRecommendations({
+        limit,
+        offset,
+        result: req.query.result || undefined,
+        bet_type: req.query.bet_type || undefined,
+        search: req.query.search || undefined,
+        sort_by: req.query.sort_by || undefined,
+        sort_dir: req.query.sort_dir || undefined,
+      });
     },
   );
+
+  app.get('/api/recommendations/dashboard', async () => {
+    return repo.getDashboardSummary();
+  });
+
+  app.get('/api/recommendations/bet-types', async () => {
+    return repo.getDistinctBetTypes();
+  });
 
   app.get<{ Params: { matchId: string } }>(
     '/api/recommendations/match/:matchId',
