@@ -82,7 +82,7 @@ export function AuditLogsPanel() {
   const [expandedId, setExpandedId] = useState<number | null>(null);
 
   const fetchStats = useCallback(async () => {
-    if (!apiUrl) return;
+    if (apiUrl == null) return;
     try {
       const res = await fetch(`${apiUrl}/api/audit-logs/stats`);
       if (res.ok) setStats(await res.json());
@@ -90,7 +90,7 @@ export function AuditLogsPanel() {
   }, [apiUrl]);
 
   const fetchLogs = useCallback(async () => {
-    if (!apiUrl) return;
+    if (apiUrl == null) return;
     setLoading(true);
     try {
       const params = new URLSearchParams();
@@ -103,7 +103,7 @@ export function AuditLogsPanel() {
       const res = await fetch(`${apiUrl}/api/audit-logs?${params.toString()}`);
       if (res.ok) {
         const data = await res.json();
-        setLogs(data.logs);
+        setLogs(data.rows ?? data.logs);
         setTotal(data.total);
       }
     } catch { /* ignore */ }
@@ -116,7 +116,7 @@ export function AuditLogsPanel() {
   const totalPages = Math.ceil(total / PAGE_SIZE) || 1;
 
   const handleExport = async () => {
-    if (!apiUrl) return;
+    if (apiUrl == null) return;
     try {
       const params = new URLSearchParams();
       params.set('limit', '5000');
@@ -127,7 +127,7 @@ export function AuditLogsPanel() {
       const res = await fetch(`${apiUrl}/api/audit-logs?${params.toString()}`);
       if (!res.ok) return;
       const data = await res.json();
-      const rows = (data.logs as AuditLogEntry[]).map((l) => ({
+      const rows = ((data.rows ?? data.logs) as AuditLogEntry[]).map((l) => ({
         id: l.id,
         timestamp: l.timestamp,
         category: l.category,
@@ -158,7 +158,7 @@ export function AuditLogsPanel() {
     } catch { /* ignore */ }
   };
 
-  if (!apiUrl) {
+  if (apiUrl == null) {
     return <p style={{ color: 'var(--gray-500)' }}>Backend URL not configured</p>;
   }
 
