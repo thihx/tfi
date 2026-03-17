@@ -334,6 +334,7 @@ export interface AiPromptContext {
   previousRecommendations: PreviousRecommendation[];
   matchTimeline: MatchTimelineSnapshot[];
   historicalPerformance?: HistoricalPerformanceSummary | null;
+  noHistoricalContext?: boolean;
 }
 
 export interface HistoricalPerformanceSummary {

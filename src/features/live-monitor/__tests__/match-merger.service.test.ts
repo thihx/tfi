@@ -622,6 +622,7 @@ describe('mergeOddsToMatch — pre-match format', () => {
       score: '4-0',
     });
     // Live odds with Home leading 4-0 but home odds > away odds = suspicious
+    // Use valid margin (~105%) so 1X2 survives margin check and hits directional sanity check
     const odds = createOddsResponse({
       response: [{
         fixture: { id: 12345 },
@@ -630,15 +631,155 @@ describe('mergeOddsToMatch — pre-match format', () => {
         bookmakers: [{
           id: 1, name: 'Live',
           bets: [{ id: 1, name: 'Match Winner', values: [
-            { value: 'Home', odd: '6.00' }, { value: 'Draw', odd: '3.50' }, { value: 'Away', odd: '1.20' },
+            { value: 'Home', odd: '3.00' }, { value: 'Draw', odd: '3.20' }, { value: 'Away', odd: '2.10' },
           ]}],
         }],
       }],
     });
     const result = mergeOddsToMatch(matchData, odds);
-    // Should be suspicious — home leading 4-0 but odds say home is 6.00
+    // Should be suspicious — home leading 4-0 but home odds higher than away
     expect(result.odds_suspicious).toBe(true);
-    expect(result.odds_sanity_warnings.length).toBeGreaterThan(0);
+    expect(result.odds_sanity_warnings.some(w => w.includes('SANITY_FAIL'))).toBe(true);
+  });
+
+  test('removes AH market with implied probability ~75% (margin too low)', () => {
+    const matchData = createMergedMatchData({
+      match: { id: '12345', home: 'Watford', away: 'Wrexham', league: 'EFL Championship', minute: 57, score: '2-1', status: '2H' },
+    });
+    const odds = createOddsResponse({
+      response: [{
+        fixture: { id: 12345 },
+        update: '',
+        league: { id: 1, name: 'EFL', country: 'EN', logo: '', flag: '', season: 2025 },
+        bookmakers: [
+          {
+            id: 1, name: 'BM1',
+            bets: [
+              { id: 1, name: 'Match Winner', values: [
+                { value: 'Home', odd: '1.90' }, { value: 'Draw', odd: '3.40' }, { value: 'Away', odd: '4.20' },
+              ]},
+              // AH with extremely wide margin (~67% implied probability)
+              { id: 2, name: 'Asian Handicap', values: [
+                { value: 'Home', odd: '3.50', handicap: '-1' }, { value: 'Away', odd: '3.00', handicap: '-1' },
+              ]},
+            ],
+          },
+        ],
+      }],
+    });
+    const result = mergeOddsToMatch(matchData, odds);
+
+    // 1X2 should survive (1/1.90 + 1/3.40 + 1/4.20 ≈ 1.058 = 105.8% — valid)
+    expect(result.odds_canonical['1x2']).toBeDefined();
+    // AH should be removed (1/3.50 + 1/3.00 ≈ 0.619 = 61.9% — way below 85%)
+    expect(result.odds_canonical['ah']).toBeUndefined();
+    // Not broadly suspicious (no SANITY_FAIL, only MARGIN_INVALID)
+    expect(result.odds_suspicious).toBe(false);
+    // Should have a MARGIN_INVALID warning
+    expect(result.odds_sanity_warnings.some(w => w.includes('MARGIN_INVALID'))).toBe(true);
+    // Odds still available because 1X2 remains
+    expect(result.odds_available).toBe(true);
+  });
+
+  test('removes corners OU with implied probability ~75%', () => {
+    const matchData = createMergedMatchData({
+      match: { id: '12345', home: 'A', away: 'B', league: 'L', minute: 57, score: '2-1', status: '2H' },
+    });
+    const odds = createOddsResponse({
+      response: [{
+        fixture: { id: 12345 },
+        update: '',
+        league: { id: 1, name: 'L', country: 'EN', logo: '', flag: '', season: 2025 },
+        bookmakers: [{
+          id: 1, name: 'BM1',
+          bets: [
+            { id: 1, name: 'Match Winner', values: [
+              { value: 'Home', odd: '1.80' }, { value: 'Draw', odd: '3.50' }, { value: 'Away', odd: '4.50' },
+            ]},
+            // Corners OU with terrible margin
+            { id: 2, name: 'Total Corners', values: [
+              { value: 'Over', odd: '3.20', handicap: '9.5' }, { value: 'Under', odd: '2.80', handicap: '9.5' },
+            ]},
+          ],
+        }],
+      }],
+    });
+    const result = mergeOddsToMatch(matchData, odds);
+
+    // 1X2 valid
+    expect(result.odds_canonical['1x2']).toBeDefined();
+    // Corners removed (1/3.20 + 1/2.80 ≈ 0.669 = 66.9%)
+    expect(result.odds_canonical['corners_ou']).toBeUndefined();
+    expect(result.odds_suspicious).toBe(false);
+  });
+
+  test('keeps markets with normal margin (100-110%)', () => {
+    const matchData = createMergedMatchData({
+      match: { id: '12345', home: 'A', away: 'B', league: 'L', minute: 45, score: '1-1', status: '2H' },
+    });
+    const odds = createOddsResponse({
+      response: [{
+        fixture: { id: 12345 },
+        update: '',
+        league: { id: 1, name: 'L', country: 'EN', logo: '', flag: '', season: 2025 },
+        bookmakers: [{
+          id: 1, name: 'BM1',
+          bets: [
+            { id: 1, name: 'Match Winner', values: [
+              { value: 'Home', odd: '2.50' }, { value: 'Draw', odd: '3.00' }, { value: 'Away', odd: '3.10' },
+            ]},
+            { id: 2, name: 'Goals Over/Under', values: [
+              { value: 'Over', odd: '1.85', handicap: '2.5' }, { value: 'Under', odd: '1.95', handicap: '2.5' },
+            ]},
+            { id: 3, name: 'Both Teams Score', values: [
+              { value: 'Yes', odd: '1.80' }, { value: 'No', odd: '1.90' },
+            ]},
+          ],
+        }],
+      }],
+    });
+    const result = mergeOddsToMatch(matchData, odds);
+
+    // All markets should survive
+    expect(result.odds_canonical['1x2']).toBeDefined();
+    expect(result.odds_canonical['ou']).toBeDefined();
+    expect(result.odds_canonical['btts']).toBeDefined();
+    expect(result.odds_suspicious).toBe(false);
+    expect(result.odds_sanity_warnings).toHaveLength(0);
+  });
+
+  test('sets odds_available=false when all markets fail margin validation', () => {
+    const matchData = createMergedMatchData({
+      match: { id: '12345', home: 'A', away: 'B', league: 'L', minute: 57, score: '2-1', status: '2H' },
+    });
+    // All markets have terrible margins
+    const odds = createOddsResponse({
+      response: [{
+        fixture: { id: 12345 },
+        update: '',
+        league: { id: 1, name: 'L', country: 'EN', logo: '', flag: '', season: 2025 },
+        bookmakers: [{
+          id: 1, name: 'BM1',
+          bets: [
+            { id: 1, name: 'Match Winner', values: [
+              { value: 'Home', odd: '4.00' }, { value: 'Draw', odd: '5.00' }, { value: 'Away', odd: '6.00' },
+            ]},
+            { id: 2, name: 'Goals Over/Under', values: [
+              { value: 'Over', odd: '4.00', handicap: '2.5' }, { value: 'Under', odd: '4.00', handicap: '2.5' },
+            ]},
+          ],
+        }],
+      }],
+    });
+    const result = mergeOddsToMatch(matchData, odds);
+
+    // All markets removed
+    expect(result.odds_canonical['1x2']).toBeUndefined();
+    expect(result.odds_canonical['ou']).toBeUndefined();
+    // No valid markets → odds_available = false
+    expect(result.odds_available).toBe(false);
+    // Multiple MARGIN_INVALID warnings
+    expect(result.odds_sanity_warnings.filter(w => w.includes('MARGIN_INVALID')).length).toBeGreaterThanOrEqual(2);
   });
 });
 

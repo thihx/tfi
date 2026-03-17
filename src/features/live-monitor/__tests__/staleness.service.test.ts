@@ -41,7 +41,7 @@ describe('checkStaleness', () => {
     const match = createMergedMatchData({
       minute: 62,
       events_compact: [
-        { minute: 23, extra: null, team: 'Arsenal', type: 'Goal', detail: 'Normal Goal', player: 'Saka' },
+        { minute: 23, extra: null, team: 'Arsenal', type: 'goal', detail: 'Normal Goal', player: 'Saka' },
       ],
     });
     const lastRec = createPrevRec({ minute: 60 });
@@ -55,8 +55,8 @@ describe('checkStaleness', () => {
       minute: 62,
       score: '2-0',
       events_compact: [
-        { minute: 23, extra: null, team: 'Arsenal', type: 'Goal', detail: 'Normal Goal', player: 'Saka' },
-        { minute: 61, extra: null, team: 'Arsenal', type: 'Goal', detail: 'Normal Goal', player: 'Havertz' },
+        { minute: 23, extra: null, team: 'Arsenal', type: 'goal', detail: 'Normal Goal', player: 'Saka' },
+        { minute: 61, extra: null, team: 'Arsenal', type: 'goal', detail: 'Normal Goal', player: 'Havertz' },
       ],
     });
     const lastRec = createPrevRec({ minute: 60 });
@@ -69,7 +69,7 @@ describe('checkStaleness', () => {
     const match = createMergedMatchData({
       minute: 62,
       events_compact: [
-        { minute: 61, extra: null, team: 'Chelsea', type: 'Red Card', detail: 'Direct', player: 'Silva' },
+        { minute: 61, extra: null, team: 'Chelsea', type: 'card', detail: 'red card', player: 'Silva' },
       ],
     });
     const lastRec = createPrevRec({ minute: 60 });

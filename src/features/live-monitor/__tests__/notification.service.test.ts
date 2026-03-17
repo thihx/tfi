@@ -75,7 +75,7 @@ describe('_determineSection', () => {
     expect(_determineSection(ctx)).toBe('condition_triggered');
   });
 
-  test('returns condition_triggered when custom_condition matched (even without trigger push)', () => {
+  test('returns no_actionable when custom_condition matched but no trigger push', () => {
     const ctx = {
       recommendation: createRecommendation(),
       parsed: createParsedAiResponse({
@@ -87,7 +87,7 @@ describe('_determineSection', () => {
       matchData: createMergedMatchData(),
       config: createConfig(),
     };
-    expect(_determineSection(ctx)).toBe('condition_triggered');
+    expect(_determineSection(ctx)).toBe('no_actionable');
   });
 
   test('returns no_actionable when nothing triggers', () => {
@@ -202,7 +202,7 @@ describe('_buildEmailHtml', () => {
       config: createConfig(),
     };
     const html = _buildEmailHtml(ctx);
-    expect(html).toContain('ODDS_INVALID');
+    expect(html).toContain('Odds could not be validated');
     expect(html).toContain('MINUTE_TOO_LATE');
   });
 });

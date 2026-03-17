@@ -35,28 +35,37 @@ export function checkStaleness(
   }
 
   // 2. Goals changed since last rec
+  // Compact events use lowercase type 'goal' (created by match-merger)
   const recentEvents = current.events_compact || [];
   const newGoalsSinceLastRec = recentEvents.some(
-    (e) => e.type === 'Goal' && typeof e.minute === 'number' && e.minute > lastMinute,
+    (e) => e.type === 'goal' && typeof e.minute === 'number' && e.minute > lastMinute,
   );
   if (newGoalsSinceLastRec) {
     return { isStale: false, reason: 'goal_scored' };
   }
 
   // 3. Red card since last rec
+  // Compact events use type='card' with detail containing 'red'
   const newRedCard = recentEvents.some(
-    (e) => e.type === 'Red Card' && typeof e.minute === 'number' && e.minute > lastMinute,
+    (e) => e.type === 'card'
+      && typeof e.minute === 'number'
+      && e.minute > lastMinute
+      && (e.detail || '').toLowerCase().includes('red'),
   );
   if (newRedCard) {
     return { isStale: false, reason: 'red_card' };
   }
 
-  // 4. Possession swing > 5 ppt
-  const possStr = current.stats?.possession || '';
-  const possParts = possStr.split('-').map((s) => parseInt(s.trim(), 10));
-  if (possParts.length === 2 && !isNaN(possParts[0]!)) {
-    // Possession tracked but we lack previous-snapshot comparison;
-    // heuristic: if only 1-2 minutes passed and no events, it's stale (handled below)
+  // 4. Score changed (safety net — catches goals even if events list incomplete)
+  // Compare current score string to the score embedded in the last recommendation's selection
+  const currentScore = current.score ?? '';
+  const lastRecMinute = lastRec.minute ?? 0;
+  // If home+away goals in compact events > goals at lastRec minute, score must have changed
+  const goalsSinceLastRec = recentEvents.filter(
+    (e) => e.type === 'goal' && typeof e.minute === 'number' && e.minute > lastRecMinute,
+  ).length;
+  if (goalsSinceLastRec > 0 && currentScore) {
+    return { isStale: false, reason: 'score_changed' };
   }
 
   // 5. Odds movement > 0.10

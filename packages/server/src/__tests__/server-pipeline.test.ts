@@ -14,6 +14,8 @@ vi.mock('../config.js', () => ({
     pipelineTelegramChatId: '123456',
     pipelineEnabled: true,
     pipelineBatchSize: 3,
+    pipelineMinOdds: 1.5,
+    pipelineMinConfidence: 5,
   },
 }));
 

@@ -50,10 +50,10 @@ import { checkStaleness } from './staleness.service';
 
 export type PipelineEventCallback = (ctx: PipelineContext) => void;
 
-/** Fire-and-forget: log errors so tracking failures are visible without breaking the pipeline */
-function trackSilent(promise: Promise<unknown> | undefined): void {
+/** Fire-and-forget: log errors with context so failures are visible and recoverable */
+function trackSilent(promise: Promise<unknown> | undefined, label = 'unknown'): void {
   promise?.catch((err: unknown) => {
-    console.warn('[Pipeline] Tracking error (non-fatal):', err instanceof Error ? err.message : String(err));
+    console.warn(`[Pipeline] Tracking failure (${label}) — data may be lost:`, err instanceof Error ? err.message : String(err));
   });
 }
 
@@ -194,6 +194,7 @@ export async function runPipeline(
             events: mergedWithOdds.events_compact,
             odds: mergedWithOdds.odds_canonical as Record<string, unknown>,
           }),
+          `snapshot:${mergedWithOdds.match_id}@${currentMinute}`,
         );
 
         if (mergedWithOdds.odds_available && mergedWithOdds.odds_canonical) {
@@ -228,20 +229,20 @@ export async function runPipeline(
             });
           }
 
-          trackSilent(saveOddsMovements(appConfig, movements));
+          trackSilent(saveOddsMovements(appConfig, movements), `odds:${mergedWithOdds.match_id}@${currentMinute}`);
         }
 
         // ── Staleness check + AI Context ──
         emit('checking-staleness');
-        let aiContext: AiPromptContext = { previousRecommendations: [], matchTimeline: [] };
+        let aiContext: AiPromptContext = { previousRecommendations: [], matchTimeline: [], noHistoricalContext: true };
         try {
           const [prevRecs, snapshots] = await Promise.all([
             fetchMatchRecommendations(appConfig, mergedWithOdds.match_id),
             fetchMatchSnapshots(appConfig, mergedWithOdds.match_id),
           ]);
           aiContext = { previousRecommendations: prevRecs, matchTimeline: snapshots, historicalPerformance };
-        } catch {
-          // Context fetch failed — continue without context
+        } catch (ctxErr) {
+          console.warn('[Pipeline] AI context fetch failed — proceeding without history:', ctxErr instanceof Error ? ctxErr.message : String(ctxErr));
         }
 
         // Check staleness: skip AI if nothing meaningful changed
@@ -296,7 +297,9 @@ export async function runPipeline(
         }
 
         // Should Save? → Save
-        if (shouldSave(parsed)) {
+        // For ask-ai triggers, always save if AI produced a selection (recommendation)
+        const hasSelection = !!(parsed.ai_selection || parsed.selection);
+        if (shouldSave(parsed) || (isAskAi && hasSelection)) {
           emit('saving');
           try {
             const savedRec = await saveRecommendation(appConfig, recommendation);

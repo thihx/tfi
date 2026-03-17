@@ -404,12 +404,81 @@ function isHalfTimeMarket(betName: string): boolean {
   );
 }
 
+/**
+ * Validate implied-probability margins for each market.
+ * Removes markets with unrealistic margins (implied probability outside 85-115% for 2-way,
+ * 90-120% for 3-way), since those indicate stale/corrupted data.
+ * Returns warnings for removed markets.
+ */
+function validateMarketMargins(canonical: OddsCanonical): string[] {
+  const warnings: string[] = [];
+
+  // Helper: implied probability = 1/odds
+  const ip = (o: number | null | undefined) => (o && o > 1 ? 1 / o : 0);
+
+  // 1X2 (3-way): valid range 90%-120%
+  const odds1x2 = canonical['1x2'];
+  if (odds1x2) {
+    const total = ip(odds1x2.home) + ip(odds1x2.draw) + ip(odds1x2.away);
+    if (total > 0 && (total < 0.90 || total > 1.20)) {
+      warnings.push(`MARGIN_INVALID: 1X2 implied probability ${(total * 100).toFixed(1)}% outside 90-120% range — removed`);
+      delete canonical['1x2'];
+    }
+  }
+
+  // OU (2-way): valid range 85%-115%
+  const ou = canonical['ou'];
+  if (ou && ou.over !== null && ou.under !== null) {
+    const total = ip(ou.over) + ip(ou.under);
+    if (total > 0 && (total < 0.85 || total > 1.15)) {
+      warnings.push(`MARGIN_INVALID: O/U ${ou.line} implied probability ${(total * 100).toFixed(1)}% outside 85-115% range — removed`);
+      delete canonical['ou'];
+    }
+  }
+
+  // AH (2-way): valid range 85%-115%
+  const ah = canonical['ah'];
+  if (ah && ah.home !== null && ah.away !== null) {
+    const total = ip(ah.home) + ip(ah.away);
+    if (total > 0 && (total < 0.85 || total > 1.15)) {
+      warnings.push(`MARGIN_INVALID: AH ${ah.line} implied probability ${(total * 100).toFixed(1)}% outside 85-115% range — removed`);
+      delete canonical['ah'];
+    }
+  }
+
+  // BTTS (2-way): valid range 85%-115%
+  const btts = canonical['btts'];
+  if (btts && btts.yes !== null && btts.no !== null) {
+    const total = ip(btts.yes) + ip(btts.no);
+    if (total > 0 && (total < 0.85 || total > 1.15)) {
+      warnings.push(`MARGIN_INVALID: BTTS implied probability ${(total * 100).toFixed(1)}% outside 85-115% range — removed`);
+      delete canonical['btts'];
+    }
+  }
+
+  // Corners OU (2-way): valid range 85%-115%
+  const cornersOu = canonical['corners_ou'];
+  if (cornersOu && cornersOu.over !== null && cornersOu.under !== null) {
+    const total = ip(cornersOu.over) + ip(cornersOu.under);
+    if (total > 0 && (total < 0.85 || total > 1.15)) {
+      warnings.push(`MARGIN_INVALID: Corners O/U ${cornersOu.line} implied probability ${(total * 100).toFixed(1)}% outside 85-115% range — removed`);
+      delete canonical['corners_ou'];
+    }
+  }
+
+  return warnings;
+}
+
 function checkOddsSanity(
   canonical: OddsCanonical,
   minute: number,
   scoreStr: string,
 ): string[] {
   const warnings: string[] = [];
+
+  // Phase 1: Margin validation (all minutes) — removes bad markets
+  warnings.push(...validateMarketMargins(canonical));
+
   const odds1x2 = canonical?.['1x2'];
   if (!odds1x2) return warnings;
 
@@ -418,6 +487,7 @@ function checkOddsSanity(
   const homeGoals = parseInt(parts[0] ?? '0', 10) || 0;
   const awayGoals = parseInt(parts[1] ?? '0', 10) || 0;
 
+  // Phase 2: Late-game directional checks (minute >= 75)
   if (minute >= 75) {
     if (homeGoals === awayGoals && draw !== null && draw > 15) {
       warnings.push(`SANITY_FAIL: Draw @${draw} at ${minute}' with ${scoreStr} is unrealistic`);
@@ -444,6 +514,7 @@ function checkOddsSanity(
     }
   }
 
+  // Phase 3: Extreme odds check (minute >= 70)
   if (
     minute >= 70 &&
     ((home !== null && home > 50) ||
@@ -696,13 +767,22 @@ export function mergeOddsToMatch(
     oddsSuspicious = false;
   } else {
     oddsSanityWarnings = checkOddsSanity(oddsCanonical, minute, matchData.match.score);
-    oddsSuspicious = oddsSanityWarnings.length > 0;
+    // Only mark as broadly suspicious for SANITY_FAIL warnings (directional/extreme),
+    // not for MARGIN_INVALID (those markets are already removed from canonical)
+    oddsSuspicious = oddsSanityWarnings.some(w => w.startsWith('SANITY_FAIL'));
   }
+
+  // Check if any valid markets remain after margin validation
+  const hasAnyMarket = !!(
+    oddsCanonical['1x2'] || oddsCanonical['ou'] || oddsCanonical['ah'] ||
+    oddsCanonical['btts'] || oddsCanonical['corners_ou']
+  );
+  const oddsStillAvailable = oddsAvailable && hasAnyMarket;
 
   return {
     ...matchData,
     odds_canonical: oddsCanonical,
-    odds_available: oddsAvailable,
+    odds_available: oddsStillAvailable,
     odds_sanity_warnings: oddsSanityWarnings,
     odds_suspicious: oddsSuspicious,
     odds_source: oddsSource,

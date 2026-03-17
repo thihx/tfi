@@ -30,6 +30,34 @@ function safeHtml(text: string): string {
   return esc(text).replace(/\n/g, '<br>');
 }
 
+/** Internal-only warning codes — not meaningful to end users, omit from notifications */
+const INTERNAL_WARNINGS = new Set(['FORCE_MODE', 'EARLY_GAME_RISK']);
+
+/** Map raw warning codes to user-readable descriptions */
+function formatWarning(code: string): string {
+  const map: Record<string, string> = {
+    ODDS_SUSPICIOUS: 'Odds flagged as suspicious',
+    STATS_INCOMPLETE: 'Live stats incomplete',
+    LATE_GAME: 'Late game — high volatility',
+    LOW_VALUE: 'Low value bet detected',
+    DATA_QUALITY: 'Data quality issues',
+    NON_LIVE_STATUS: 'Match not yet live',
+    RED_CARD_DETECTED: 'Red card in match',
+    RED_CARD_ADJUSTED: 'Analysis adjusted for red card',
+    '1X2_BTTS_NO_OVERRIDE': '1X2/BTTS override applied',
+    CONFIDENCE_BELOW_MIN: 'Confidence below minimum threshold',
+    ODDS_INVALID: 'Odds could not be validated',
+    '1X2_TOO_EARLY': '1X2 market too early (before min 35)',
+  };
+  return map[code] ?? code;
+}
+
+function formatWarnings(warnings: string[]): string[] {
+  return warnings
+    .filter((w) => !INTERNAL_WARNINGS.has(w))
+    .map(formatWarning);
+}
+
 function sortEvents(events: EventCompact[]): EventCompact[] {
   return [...events].sort((a, b) => {
     const minDiff = (a.minute || 0) - (b.minute || 0);
@@ -76,8 +104,8 @@ type NotificationSection = 'ai_recommendation' | 'condition_triggered' | 'no_act
 function determineSection(ctx: NotificationContext): NotificationSection {
   const { parsed } = ctx;
   if (parsed.ai_should_push && parsed.should_push) return 'ai_recommendation';
+  // Only treat as actionable condition if AI also says to push
   if (parsed.custom_condition_matched && parsed.condition_triggered_should_push) return 'condition_triggered';
-  if (parsed.custom_condition_matched) return 'condition_triggered';
   return 'no_actionable';
 }
 
@@ -199,7 +227,7 @@ function buildEmailHtml(ctx: NotificationContext): string {
   }
 
   // Warnings
-  const allWarnings = parsed.warnings || [];
+  const allWarnings = formatWarnings(parsed.warnings || []);
   if (allWarnings.length > 0) {
     html += `
     <hr style="border:none;border-top:1px solid #e0e0e0;margin:12px 0;">
@@ -292,7 +320,7 @@ function buildTelegramMessages(ctx: NotificationContext): string[] {
   }
 
   // Warnings
-  const allWarnings = parsed.warnings || [];
+  const allWarnings = formatWarnings(parsed.warnings || []);
   if (allWarnings.length > 0) {
     text += `\n⚠️ <b>Warnings:</b> ${safeHtml(allWarnings.join(', '))}\n`;
   }

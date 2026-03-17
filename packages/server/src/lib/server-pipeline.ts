@@ -137,6 +137,8 @@ function toNumber(v: unknown): number | null {
 function deriveInsightsFromEvents(
   events: EventCompact[],
   minute: number,
+  homeName: string,
+  awayName: string,
 ): DerivedInsights {
   const homeGoalsTimeline: number[] = [];
   const awayGoalsTimeline: number[] = [];
@@ -147,19 +149,27 @@ function deriveInsightsFromEvents(
   let homeRecent = 0, awayRecent = 0;
 
   for (const ev of events) {
+    const isHome = ev.team === homeName;
+    const isAway = ev.team === awayName;
+
     if (ev.type === 'goal') {
-      // We don't know which is home/away from just the event here,
-      // but we use the events as labeled by the team name
       lastGoalMinute = Math.max(lastGoalMinute ?? 0, ev.minute);
+      if (isHome) homeGoalsTimeline.push(ev.minute);
+      else if (isAway) awayGoalsTimeline.push(ev.minute);
     }
     if (ev.type === 'card') {
-      const isRed = ev.detail.toLowerCase().includes('red');
-      // We'll count all cards together; home/away split handled at build time
-      homeCards++; // simplified; full split done at match merge level
-      if (isRed) homeReds++;
+      const isRed = (ev.detail || '').toLowerCase().includes('red');
+      if (isHome) { homeCards++; if (isRed) homeReds++; }
+      else if (isAway) { awayCards++; if (isRed) awayReds++; }
     }
-    if (ev.type === 'subst') homeSubs++;
-    if (ev.minute >= recentThreshold) homeRecent++;
+    if (ev.type === 'subst') {
+      if (isHome) homeSubs++;
+      else if (isAway) awaySubs++;
+    }
+    if (ev.minute >= recentThreshold) {
+      if (isHome) homeRecent++;
+      else if (isAway) awayRecent++;
+    }
   }
 
   const totalCards = homeCards + awayCards;
@@ -377,7 +387,32 @@ function buildOddsCanonical(oddsResponse: unknown[]): { canonical: OddsCanonical
     canonical['btts'] = { yes: bestBTTS.yes || null, no: bestBTTS.no || null };
   }
 
-  return { canonical, available: true };
+  // Validate implied-probability margins — remove markets with unrealistic margins
+  const ip = (o: number | null | undefined) => (o && o > 1 ? 1 / o : 0);
+
+  if (canonical['1x2']) {
+    const t = ip(canonical['1x2'].home) + ip(canonical['1x2'].draw) + ip(canonical['1x2'].away);
+    if (t > 0 && (t < 0.90 || t > 1.20)) delete canonical['1x2'];
+  }
+  if (canonical['ou'] && canonical['ou'].over !== null && canonical['ou'].under !== null) {
+    const t = ip(canonical['ou'].over) + ip(canonical['ou'].under);
+    if (t > 0 && (t < 0.85 || t > 1.15)) delete canonical['ou'];
+  }
+  if (canonical['ah'] && canonical['ah'].home !== null && canonical['ah'].away !== null) {
+    const t = ip(canonical['ah'].home) + ip(canonical['ah'].away);
+    if (t > 0 && (t < 0.85 || t > 1.15)) delete canonical['ah'];
+  }
+  if (canonical['btts'] && canonical['btts'].yes !== null && canonical['btts'].no !== null) {
+    const t = ip(canonical['btts'].yes) + ip(canonical['btts'].no);
+    if (t > 0 && (t < 0.85 || t > 1.15)) delete canonical['btts'];
+  }
+  if (canonical['corners_ou'] && canonical['corners_ou'].over !== null && canonical['corners_ou'].under !== null) {
+    const t = ip(canonical['corners_ou'].over) + ip(canonical['corners_ou'].under);
+    if (t > 0 && (t < 0.85 || t > 1.15)) delete canonical['corners_ou'];
+  }
+
+  const hasAnyMarket = !!(canonical['1x2'] || canonical['ou'] || canonical['ah'] || canonical['btts'] || canonical['corners_ou']);
+  return { canonical, available: hasAnyMarket };
 }
 
 function buildMainOU(
@@ -460,7 +495,7 @@ function extractJsonString(text: string): string {
   return text.trim();
 }
 
-function parseAiResponse(aiText: string, oddsCanonical: OddsCanonical): ParsedAiResponse {
+function parseAiResponse(aiText: string, oddsCanonical: OddsCanonical, matchMinute = 0): ParsedAiResponse {
   const defaults: ParsedAiResponse = {
     should_push: false, selection: '', bet_market: '', confidence: 0,
     reasoning_en: 'AI response could not be parsed.', reasoning_vi: 'AI response could not be parsed.',
@@ -493,8 +528,8 @@ function parseAiResponse(aiText: string, oddsCanonical: OddsCanonical): ParsedAi
 
   // Map odds from selection
   const mappedOdd = extractOddsFromSelection(aiSelection, oddsCanonical);
-  const MIN_ODDS = 1.5;
-  const MIN_CONFIDENCE = 5;
+  const MIN_ODDS = config.pipelineMinOdds;
+  const MIN_CONFIDENCE = config.pipelineMinConfidence;
 
   const safetyWarnings: string[] = [];
   if (aiShouldPush && !aiSelection) safetyWarnings.push('NO_SELECTION');
@@ -502,7 +537,12 @@ function parseAiResponse(aiText: string, oddsCanonical: OddsCanonical): ParsedAi
   if (aiShouldPush && aiConfidence < MIN_CONFIDENCE) safetyWarnings.push('CONFIDENCE_BELOW_MIN');
   if (aiShouldPush && riskLevel === 'HIGH') safetyWarnings.push('HIGH_RISK');
 
-  const hasBlocking = safetyWarnings.some((w) => ['NO_SELECTION', 'CONFIDENCE_BELOW_MIN'].includes(w));
+  // Business rule: no 1X2 before minute 35
+  if (aiShouldPush && betMarket.toLowerCase().includes('1x2') && matchMinute < 35) {
+    safetyWarnings.push('1X2_TOO_EARLY');
+  }
+
+  const hasBlocking = safetyWarnings.some((w) => ['NO_SELECTION', 'CONFIDENCE_BELOW_MIN', '1X2_TOO_EARLY'].includes(w));
   const systemShouldBet = aiShouldPush && !hasBlocking;
   const usableOdd = mappedOdd !== null && mappedOdd >= MIN_ODDS ? mappedOdd : null;
   const finalShouldPush = systemShouldBet && usableOdd !== null;
@@ -616,12 +656,13 @@ async function processMatch(
     const statsAvailable = homeStats.length > 0 || awayStats.length > 0;
 
     const eventsCompact = buildEventsCompact(eventsRaw, homeTeamId, awayTeamId, homeName, awayName);
-    const derivedInsights = deriveInsightsFromEvents(eventsCompact, minute);
+    const derivedInsights = deriveInsightsFromEvents(eventsCompact, minute, homeName, awayName);
 
     // 2. Fetch odds (live first, fallback to pre-match, then The Odds API)
     let oddsCanonical: OddsCanonical = {};
     let oddsAvailable = false;
     let oddsSource: string = 'none';
+    let oddsFetchedAt: string | null = null;
 
     const liveOdds = await fetchLiveOdds(matchId).catch(() => []);
     const liveResult = buildOddsCanonical(liveOdds);
@@ -629,6 +670,7 @@ async function processMatch(
       oddsCanonical = liveResult.canonical;
       oddsAvailable = true;
       oddsSource = 'live';
+      oddsFetchedAt = new Date().toISOString();
     }
 
     if (!oddsAvailable) {
@@ -639,6 +681,7 @@ async function processMatch(
         oddsCanonical = preResult.canonical;
         oddsAvailable = true;
         oddsSource = 'pre-match';
+        oddsFetchedAt = new Date().toISOString();
       }
     }
 
@@ -652,6 +695,7 @@ async function processMatch(
           oddsCanonical = fallback.canonical;
           oddsAvailable = true;
           oddsSource = 'the-odds-api';
+          oddsFetchedAt = new Date().toISOString();
         }
       }
     }
@@ -677,7 +721,7 @@ async function processMatch(
       homeName, awayName, league, minute, score, status,
       statsCompact, statsAvailable,
       eventsCompact: eventsCompact.slice(-8),
-      oddsCanonical, oddsAvailable, oddsSource,
+      oddsCanonical, oddsAvailable, oddsSource, oddsFetchedAt,
       derivedInsights: !statsAvailable ? derivedInsights : null,
       customConditions, recommendedCondition, recommendedConditionReason,
       currentTotalGoals: homeGoals + awayGoals,
@@ -691,7 +735,7 @@ async function processMatch(
     const aiText = await callGemini(prompt, model);
 
     // 6. Parse response
-    const parsed = parseAiResponse(aiText, oddsCanonical);
+    const parsed = parseAiResponse(aiText, oddsCanonical, minute);
 
     // 7. Save recommendation (always save for audit trail)
     const mappedOdd = extractOddsFromSelection(parsed.selection, oddsCanonical);
@@ -864,6 +908,7 @@ function buildServerPrompt(data: {
   oddsCanonical: OddsCanonical;
   oddsAvailable: boolean;
   oddsSource: string;
+  oddsFetchedAt: string | null;
   derivedInsights: DerivedInsights | null;
   customConditions: string;
   recommendedCondition: string;
@@ -873,11 +918,11 @@ function buildServerPrompt(data: {
   preMatchPredictionSummary: string;
   mode: string;
 }): string {
-  const MIN_CONFIDENCE = 5;
-  const MIN_ODDS = 1.5;
-  const LATE_PHASE_MINUTE = 75;
-  const VERY_LATE_PHASE_MINUTE = 85;
-  const ENDGAME_MINUTE = 88;
+  const MIN_CONFIDENCE = config.pipelineMinConfidence;
+  const MIN_ODDS = config.pipelineMinOdds;
+  const LATE_PHASE_MINUTE = config.pipelineLatePhaseMinute;
+  const VERY_LATE_PHASE_MINUTE = config.pipelineVeryLatePhaseMinute;
+  const ENDGAME_MINUTE = config.pipelineEndgameMinute;
 
   // Check incomplete markets
   const incompleteMarkets: string[] = [];
@@ -950,7 +995,11 @@ SELECTION STANDARD FORMAT:
 
 VALUE PERCENT CALCULATION:
 - value_percent = estimated edge over market price. Range: -50 to +100.
-${oddsWarnings ? `• ${oddsWarnings}` : ''}
+
+MARKET RESTRICTIONS (READ BEFORE VIEWING ODDS DATA):
+${oddsWarnings ? `• ${oddsWarnings}` : '• No restrictions — all available markets have complete odds data.'}
+- Do NOT recommend 1X2 markets before minute 35 (too early, game state can change completely).
+- Do NOT recommend any market with price < ${MIN_ODDS}.
 
 ========================
 MATCH CONTEXT
@@ -983,8 +1032,14 @@ ${JSON.stringify(data.oddsCanonical)}
 
 ODDS_AVAILABLE: ${data.oddsAvailable}
 ODDS_SOURCE: ${data.oddsSource}
+ODDS_FETCHED_AT: ${data.oddsFetchedAt ?? 'unknown'} (match minute at fetch: ${data.minute})
 CURRENT_TOTAL_GOALS: ${data.currentTotalGoals}
-${data.oddsSource === 'pre-match' ? '\nThese are PRE-MATCH opening odds. Live odds unavailable. Use as reference.\n' : ''}
+${data.oddsSource === 'pre-match' ? '\nCAUTION: These are PRE-MATCH opening odds fetched before kickoff. They do NOT reflect current in-play situation. Use only as directional reference — do NOT base stake/confidence on these odds alone.\n' : ''}${data.oddsSource === 'the-odds-api' ? '\nNOTE: These odds are from The Odds API (fallback). They may have slight delay vs Football API live odds.\n' : ''}
+ODDS METHODOLOGY:
+- Odds are the BEST available across multiple bookmakers (highest price per outcome).
+- Markets with invalid implied-probability margins have been PRE-REMOVED by the system.
+- If a market is present in the canonical data, it has PASSED margin validation and is RELIABLE.
+- Focus your analysis on the markets that ARE present. Do not infer missing markets.
 
 ========================
 RECENT EVENTS (LAST 8)

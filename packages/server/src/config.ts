@@ -15,7 +15,7 @@ export const config = {
 
   // AI (Gemini)
   geminiApiKey: process.env['GEMINI_API_KEY'] || '',
-  geminiModel: process.env['GEMINI_MODEL'] || 'gemini-3.1-pro-preview',
+  geminiModel: process.env['GEMINI_MODEL'] || 'gemini-3-pro-preview',
 
   // Telegram
   telegramBotToken: process.env['TELEGRAM_BOT_TOKEN'] || '',
@@ -39,10 +39,17 @@ export const config = {
   jobEnrichWatchlistMs: Number(process.env['JOB_ENRICH_WATCHLIST_MS'] || 60 * 60_000),   // 60 min
 
   // Live match statuses
-  liveStatuses: (process.env['LIVE_STATUSES'] || '1H,2H').split(','),
+  liveStatuses: (process.env['LIVE_STATUSES'] || '1H,2H').split(',').map(s => s.trim()),
 
   // Auto pipeline
   pipelineEnabled: process.env['PIPELINE_ENABLED'] !== 'false',          // auto-trigger AI for live matches
   pipelineBatchSize: Number(process.env['PIPELINE_BATCH_SIZE'] || 3),    // matches per batch
   pipelineTelegramChatId: process.env['PIPELINE_TELEGRAM_CHAT_ID'] || process.env['TELEGRAM_CHAT_ID'] || '',
+
+  // Pipeline AI thresholds (match frontend LiveMonitorConfig defaults)
+  pipelineMinConfidence: Number(process.env['PIPELINE_MIN_CONFIDENCE'] || 5),
+  pipelineMinOdds: Number(process.env['PIPELINE_MIN_ODDS'] || 1.5),
+  pipelineLatePhaseMinute: Number(process.env['PIPELINE_LATE_PHASE_MINUTE'] || 75),
+  pipelineVeryLatePhaseMinute: Number(process.env['PIPELINE_VERY_LATE_PHASE_MINUTE'] || 85),
+  pipelineEndgameMinute: Number(process.env['PIPELINE_ENDGAME_MINUTE'] || 88),
 } as const;

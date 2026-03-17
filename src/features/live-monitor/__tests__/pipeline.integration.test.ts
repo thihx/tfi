@@ -643,3 +643,138 @@ describe('pipeline context & staleness', () => {
     );
   });
 });
+
+// ==================== Ask AI — Always Save Recommendation Tests ====================
+
+describe('ask-ai always saves recommendation when AI has selection', () => {
+  test('saves recommendation even when ai_should_push=false if AI has a selection', async () => {
+    const config = createConfig();
+    (loadMonitorConfig as Mock).mockReturnValue(config);
+
+    const ko = koreaDateTime(-60 * 60_000);
+    (fetchWatchlistMatches as Mock).mockResolvedValue([
+      createWatchlistMatch({ match_id: '12345', date: ko.date, kickoff: ko.time }),
+    ]);
+    (fetchLiveFixtures as Mock).mockResolvedValue([createFootballApiFixture()]);
+    (fetchLiveOdds as Mock).mockResolvedValue(createOddsResponse());
+
+    // AI says don't push but still provides a selection (recommendation)
+    (runAiAnalysis as Mock).mockResolvedValue(
+      JSON.stringify({
+        should_push: false,
+        selection: 'Over 2.5 @1.85',
+        bet_market: 'Over/Under',
+        market_chosen_reason: 'Moderate signal only',
+        confidence: 5,
+        reasoning_en: 'Some shots but not convincing.',
+        reasoning_vi: 'Có một số cú sút nhưng chưa thuyết phục.',
+        warnings: ['Low confidence'],
+        value_percent: 5,
+        risk_level: 'HIGH',
+        stake_percent: 1,
+      }),
+    );
+
+    (saveRecommendation as Mock).mockResolvedValue({ id: 101 });
+    (saveMatchSnapshot as Mock).mockResolvedValue(undefined);
+    (saveOddsMovements as Mock).mockResolvedValue(undefined);
+    (saveAiPerformance as Mock).mockResolvedValue(undefined);
+    (fetchMatchRecommendations as Mock).mockResolvedValue([]);
+    (fetchMatchSnapshots as Mock).mockResolvedValue([]);
+    (checkStaleness as Mock).mockReturnValue({ isStale: false, reason: 'first_analysis' });
+
+    // Run via ask-ai trigger
+    const ctx = await runPipelineForMatch(appConfig, '12345');
+
+    expect(ctx.results[0]!.proceeded).toBe(true);
+    // Key assertion: saved even though ai_should_push=false
+    expect(ctx.results[0]!.saved).toBe(true);
+    expect(saveRecommendation).toHaveBeenCalledTimes(1);
+    expect(saveAiPerformance).toHaveBeenCalledTimes(1);
+  });
+
+  test('does NOT save recommendation via ask-ai when AI has no selection', async () => {
+    const config = createConfig();
+    (loadMonitorConfig as Mock).mockReturnValue(config);
+
+    const ko = koreaDateTime(-60 * 60_000);
+    (fetchWatchlistMatches as Mock).mockResolvedValue([
+      createWatchlistMatch({ match_id: '12345', date: ko.date, kickoff: ko.time }),
+    ]);
+    (fetchLiveFixtures as Mock).mockResolvedValue([createFootballApiFixture()]);
+    (fetchLiveOdds as Mock).mockResolvedValue(createOddsResponse());
+
+    // AI says don't push AND no selection (no recommendation)
+    (runAiAnalysis as Mock).mockResolvedValue(
+      JSON.stringify({
+        should_push: false,
+        selection: '',
+        bet_market: '',
+        market_chosen_reason: 'No clear value',
+        confidence: 2,
+        reasoning_en: 'No strong signal.',
+        reasoning_vi: 'Không có tín hiệu rõ ràng.',
+        warnings: [],
+        value_percent: 0,
+        risk_level: 'HIGH',
+        stake_percent: 0,
+      }),
+    );
+
+    (saveMatchSnapshot as Mock).mockResolvedValue(undefined);
+    (saveOddsMovements as Mock).mockResolvedValue(undefined);
+    (fetchMatchRecommendations as Mock).mockResolvedValue([]);
+    (fetchMatchSnapshots as Mock).mockResolvedValue([]);
+    (checkStaleness as Mock).mockReturnValue({ isStale: false, reason: 'first_analysis' });
+
+    const ctx = await runPipelineForMatch(appConfig, '12345');
+
+    expect(ctx.results[0]!.proceeded).toBe(true);
+    // No selection → not saved even via ask-ai
+    expect(ctx.results[0]!.saved).toBe(false);
+    expect(saveRecommendation).not.toHaveBeenCalled();
+  });
+
+  test('non-ask-ai trigger still does NOT save when ai_should_push=false', async () => {
+    const config = createConfig();
+    (loadMonitorConfig as Mock).mockReturnValue(config);
+
+    const ko = koreaDateTime(-60 * 60_000);
+    (fetchWatchlistMatches as Mock).mockResolvedValue([
+      createWatchlistMatch({ match_id: '12345', date: ko.date, kickoff: ko.time }),
+    ]);
+    (fetchLiveFixtures as Mock).mockResolvedValue([createFootballApiFixture()]);
+    (fetchLiveOdds as Mock).mockResolvedValue(createOddsResponse());
+
+    // AI has selection but says don't push
+    (runAiAnalysis as Mock).mockResolvedValue(
+      JSON.stringify({
+        should_push: false,
+        selection: 'Over 2.5 @1.85',
+        bet_market: 'Over/Under',
+        market_chosen_reason: 'Moderate signal',
+        confidence: 5,
+        reasoning_en: 'Some signal.',
+        reasoning_vi: 'Tín hiệu yếu.',
+        warnings: [],
+        value_percent: 5,
+        risk_level: 'HIGH',
+        stake_percent: 1,
+      }),
+    );
+
+    (saveMatchSnapshot as Mock).mockResolvedValue(undefined);
+    (saveOddsMovements as Mock).mockResolvedValue(undefined);
+    (fetchMatchRecommendations as Mock).mockResolvedValue([]);
+    (fetchMatchSnapshots as Mock).mockResolvedValue([]);
+    (checkStaleness as Mock).mockReturnValue({ isStale: false, reason: 'first_analysis' });
+
+    // Run via scheduled (not ask-ai)
+    const ctx = await runPipeline(appConfig, { triggeredBy: 'scheduled' });
+
+    expect(ctx.results[0]!.proceeded).toBe(true);
+    // Non-ask-ai with should_push=false → NOT saved (preserves existing behavior)
+    expect(ctx.results[0]!.saved).toBe(false);
+    expect(saveRecommendation).not.toHaveBeenCalled();
+  });
+});

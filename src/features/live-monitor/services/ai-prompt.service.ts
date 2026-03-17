@@ -193,6 +193,13 @@ ODDS CANONICAL SCHEMA:
 - btts: {yes, no} - Both Teams To Score prices
 - corners_ou: {line, over, under} - Corner kick Over/Under
 
+ODDS METHODOLOGY:
+- Odds are the BEST available across multiple bookmakers (highest price per outcome).
+- Markets with invalid implied-probability margins have been PRE-REMOVED by the system.
+- If a market is present in the canonical data, it has PASSED margin validation and is RELIABLE.
+- A missing market means either: no bookmaker carried it, OR it was removed due to bad margins.
+- Focus your analysis on the markets that ARE present. Do not infer missing markets.
+
 NULL/PARTIAL DATA HANDLING:
 - If ANY field in a market is null → treat that ENTIRE market as unavailable
 - Only recommend markets where ALL prices are present and valid

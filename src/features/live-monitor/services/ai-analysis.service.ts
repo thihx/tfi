@@ -301,6 +301,11 @@ export function parseAiResponse(
     if (minuteNum >= 90) safetyWarnings.push('MINUTE_TOO_LATE');
   }
 
+  // 1X2_TOO_EARLY: business rule — no 1X2 bets before minute 35
+  if (aiShouldPush && betMarket.toLowerCase().includes('1x2') && minuteNum !== null && minuteNum < 35) {
+    safetyWarnings.push('1X2_TOO_EARLY');
+  }
+
   // STATUS_NOT_LIVE
   if (!['1H', '2H'].includes(String(status))) {
     safetyWarnings.push('STATUS_NOT_LIVE');
@@ -313,7 +318,7 @@ export function parseAiResponse(
 
   // Determine system should bet
   const hasBlockingSafety = safetyWarnings.some((w) =>
-    ['NO_SELECTION', 'NO_CONFIDENCE', 'CONFIDENCE_BELOW_MIN', 'STATUS_NOT_LIVE'].includes(w),
+    ['NO_SELECTION', 'NO_CONFIDENCE', 'CONFIDENCE_BELOW_MIN', 'STATUS_NOT_LIVE', '1X2_TOO_EARLY'].includes(w),
   );
   const systemShouldBet = aiShouldPush && !hasBlockingSafety;
 
