@@ -106,6 +106,7 @@ export async function proxyRoutes(app: FastifyInstance) {
       if (bookmakers.length === 0 && req.body.homeTeam && req.body.awayTeam) {
         oddsSource = 'the-odds-api';
         try {
+          app.log.info(`[odds] Trying The Odds API fallback for "${req.body.homeTeam} vs ${req.body.awayTeam}"`);
           const theOddsResult = await fetchTheOddsLive(
             req.body.homeTeam,
             req.body.awayTeam,
@@ -114,9 +115,10 @@ export async function proxyRoutes(app: FastifyInstance) {
           );
           if (theOddsResult && Array.isArray(theOddsResult.bookmakers) && theOddsResult.bookmakers.length > 0) {
             bookmakers = theOddsResult.bookmakers;
+            app.log.info(`[odds] The Odds API returned ${theOddsResult.bookmakers.length} bookmakers`);
           }
-        } catch {
-          // The Odds API failed, will try pre-match
+        } catch (oddsErr) {
+          app.log.warn(oddsErr, '[odds] The Odds API fallback failed');
         }
       }
 

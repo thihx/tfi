@@ -40,7 +40,7 @@ interface TheOddsOutcome {
 
 // ==================== Team Name Matching ====================
 
-const TEAM_NOISE = /\b(fc|sc|cf|afc|ac|as|us|ss|cd|rcd|rc|ca|se|fk|bk|if|sk|gf|bfc|1\.|united|city|town|wanderers|rovers|albion|athletic|hotspur|wednesday|argyle|olympique|sporting|real|inter|dynamo|lokomotiv|zenit)\b/gi;
+const TEAM_NOISE = /\b(fc|sc|cf|afc|ac|as|us|ss|cd|rcd|rc|ca|se|fk|bk|if|sk|gf|bfc|1\.|united|city|town|wanderers|rovers|albion|athletic|hotspur|wednesday|argyle)\b/gi;
 
 function normalizeTeamName(name: string): string {
   return name
@@ -189,9 +189,15 @@ export function convertToApiSportsFormat(
 
 // ==================== API Calls ====================
 
+// In-memory cache for odds (avoids burning API credits on repeated calls)
+let cachedEvents: TheOddsEvent[] = [];
+let cacheExpiry = 0;
+const CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes
+
 /**
- * Fetch live/upcoming odds for soccer from The Odds API.
- * Uses sport 'soccer' with all available sub-sports.
+ * Fetch odds from The Odds API and find matching event.
+ * Uses a prioritized list of sport keys, stopping on first match.
+ * Results are cached for 5 minutes to conserve API credits (free tier: 500 req/month).
  */
 export async function fetchTheOddsLive(
   homeTeam: string,
@@ -201,33 +207,78 @@ export async function fetchTheOddsLive(
 ): Promise<{ fixture: { id: number }; bookmakers: unknown[] } | null> {
   if (!config.theOddsApiKey) return null;
 
-  // Fetch odds for multiple soccer leagues at once
+  // 1. Check cache first
+  if (Date.now() < cacheExpiry && cachedEvents.length > 0) {
+    const match = findMatchingEvent(cachedEvents, homeTeam, awayTeam, kickoffTimestamp);
+    if (match && match.bookmakers.length > 0) {
+      console.log(`[the-odds-api] Cache hit: "${homeTeam} vs ${awayTeam}" → "${match.home_team} vs ${match.away_team}" (${match.sport_key})`);
+      return convertToApiSportsFormat(match, fixtureId);
+    }
+    console.log(`[the-odds-api] Cache searched, no match for "${homeTeam} vs ${awayTeam}"`);
+    return null;
+  }
+
+  // 2. Fetch odds from prioritized sport keys (stop early on match)
+  // Priority order: UEFA cups, top 5, then rest — most likely sources first
   const sportKeys = [
+    // UEFA
+    'soccer_uefa_champs_league', 'soccer_uefa_europa_league',
+    'soccer_uefa_europa_conference_league',
+    // Top 5 leagues
     'soccer_epl', 'soccer_spain_la_liga', 'soccer_italy_serie_a',
     'soccer_germany_bundesliga', 'soccer_france_ligue_one',
-    'soccer_uefa_champs_league', 'soccer_uefa_europa_league',
-    'soccer_turkey_super_league', 'soccer_portugal_primeira_liga',
-    'soccer_netherlands_eredivisie', 'soccer_belgium_first_div',
-    'soccer_brazil_serie_a', 'soccer_mexico_ligamx',
+    // Other Europe
+    'soccer_portugal_primeira_liga', 'soccer_netherlands_eredivisie',
+    'soccer_belgium_first_div', 'soccer_turkey_super_league',
+    'soccer_austria_bundesliga', 'soccer_denmark_superliga',
+    'soccer_greece_super_league', 'soccer_norway_eliteserien',
+    'soccer_poland_ekstraklasa', 'soccer_sweden_allsvenskan',
+    'soccer_switzerland_superleague', 'soccer_spl',
+    // England lower + cups
+    'soccer_efl_champ', 'soccer_england_league1', 'soccer_england_league2',
+    'soccer_fa_cup', 'soccer_england_efl_cup',
+    // Germany/France/Spain/Italy lower + cups
+    'soccer_germany_bundesliga2', 'soccer_germany_liga3', 'soccer_germany_dfb_pokal',
+    'soccer_france_ligue_two', 'soccer_france_coupe_de_france',
+    'soccer_spain_segunda_division', 'soccer_spain_copa_del_rey',
+    'soccer_italy_serie_b',
+    // Americas
+    'soccer_brazil_campeonato', 'soccer_brazil_serie_b',
+    'soccer_argentina_primera_division', 'soccer_mexico_ligamx', 'soccer_usa_mls',
+    // Asia/Oceania
     'soccer_korea_kleague1', 'soccer_japan_j_league',
-    'soccer_australia_aleague', 'soccer_usa_mls',
-    'soccer_russia_premier_league', 'soccer_china_superleague',
-    'soccer_saudi_professional_league',
+    'soccer_australia_aleague', 'soccer_china_superleague',
+    // Other
+    'soccer_league_of_ireland',
+    'soccer_russia_premier_league',
+    'soccer_fifa_world_cup', 'soccer_fifa_world_cup_qualifiers_europe',
   ];
+
+  const allEvents: TheOddsEvent[] = [];
 
   for (const sportKey of sportKeys) {
     try {
       const events = await fetchOddsForSport(sportKey);
+      allEvents.push(...events);
+
+      // Check for match as we go — stop early if found
       const match = findMatchingEvent(events, homeTeam, awayTeam, kickoffTimestamp);
       if (match && match.bookmakers.length > 0) {
         console.log(`[the-odds-api] Matched "${homeTeam} vs ${awayTeam}" → "${match.home_team} vs ${match.away_team}" (${sportKey})`);
+        // Update cache with what we have so far
+        cachedEvents = allEvents;
+        cacheExpiry = Date.now() + CACHE_TTL_MS;
         return convertToApiSportsFormat(match, fixtureId);
       }
     } catch {
-      // This sport key failed or doesn't exist, try next
+      // This sport key failed, try next
     }
   }
 
+  // No match found — cache all events anyway to avoid re-fetching
+  cachedEvents = allEvents;
+  cacheExpiry = Date.now() + CACHE_TTL_MS;
+  console.log(`[the-odds-api] No match for "${homeTeam} vs ${awayTeam}" across ${sportKeys.length} sports (${allEvents.length} events cached)`);
   return null;
 }
 
