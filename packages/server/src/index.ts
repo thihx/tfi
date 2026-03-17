@@ -6,8 +6,8 @@ import 'dotenv/config';
 import Fastify from 'fastify';
 import cors from '@fastify/cors';
 import { config } from './config.js';
-import { closePool } from './db/pool.js';
-import { closeRedis } from './lib/redis.js';
+import { closePool, query } from './db/pool.js';
+import { closeRedis, getRedisClient } from './lib/redis.js';
 import { leagueRoutes } from './routes/leagues.routes.js';
 import { matchRoutes } from './routes/matches.routes.js';
 import { watchlistRoutes } from './routes/watchlist.routes.js';
@@ -22,6 +22,38 @@ import { aiPerformanceRoutes } from './routes/ai-performance.routes.js';
 import { startScheduler, stopScheduler } from './jobs/scheduler.js';
 
 const app = Fastify({ logger: true });
+
+// ── Process-level error handlers ─────────────────────────────
+process.on('uncaughtException', (err) => {
+  app.log.error({ err }, 'Uncaught exception');
+  // Let the process crash after logging — supervisor should restart
+});
+
+process.on('unhandledRejection', (reason) => {
+  app.log.error({ reason }, 'Unhandled rejection');
+});
+
+// ── Startup connection validation ────────────────────────────
+async function validateConnections(): Promise<void> {
+  // PostgreSQL
+  try {
+    await query('SELECT 1');
+    app.log.info('PostgreSQL connection OK');
+  } catch (err) {
+    app.log.error({ err }, 'PostgreSQL connection FAILED');
+    throw err;
+  }
+
+  // Redis
+  try {
+    const redis = getRedisClient();
+    await redis.ping();
+    app.log.info('Redis connection OK');
+  } catch (err) {
+    app.log.error({ err }, 'Redis connection FAILED');
+    throw err;
+  }
+}
 
 await app.register(cors, { origin: config.corsOrigin });
 
@@ -55,6 +87,7 @@ process.on('SIGINT', shutdown);
 process.on('SIGTERM', shutdown);
 
 try {
+  await validateConnections();
   await app.listen({ port: config.port, host: '0.0.0.0' });
   app.log.info(`TFI server listening on port ${config.port}`);
   await startScheduler();

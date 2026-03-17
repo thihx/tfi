@@ -20,6 +20,14 @@ export function getRedisClient(): Redis {
         keyPrefix: KEY_PREFIX,
         tls: url.startsWith('rediss://') ? {} : undefined,
       });
+
+      redisClient.on('error', (err) => {
+        console.error('[Redis] Connection error:', err.message);
+      });
+
+      redisClient.on('reconnecting', (ms: number) => {
+        console.log(`[Redis] Reconnecting in ${ms}ms...`);
+      });
     } else {
       throw new Error('REDIS_URL not configured');
     }

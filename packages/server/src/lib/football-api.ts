@@ -57,29 +57,60 @@ export interface ApiPrediction {
 
 // ==================== API Calls ====================
 
+const API_TIMEOUT_MS = 15_000;
+const MAX_RETRIES = 2;
+
 async function apiGet<T>(endpoint: string, params: Record<string, string> = {}): Promise<T[]> {
   if (!config.footballApiKey) throw new Error('FOOTBALL_API_KEY not configured');
 
   const url = new URL(config.footballApiBaseUrl + endpoint);
   for (const [k, v] of Object.entries(params)) url.searchParams.set(k, v);
 
-  const res = await fetch(url.toString(), {
-    headers: {
-      'x-apisports-key': config.footballApiKey,
-      Accept: 'application/json',
-    },
-  });
+  let lastError: Error | null = null;
+  for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
+    try {
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), API_TIMEOUT_MS);
 
-  if (!res.ok) {
-    const text = await res.text();
-    throw new Error(`Football API ${res.status}: ${text.substring(0, 300)}`);
+      const res = await fetch(url.toString(), {
+        headers: {
+          'x-apisports-key': config.footballApiKey,
+          Accept: 'application/json',
+        },
+        signal: controller.signal,
+      });
+
+      clearTimeout(timer);
+
+      if (res.status === 429) {
+        // Rate limited — wait and retry
+        const waitMs = 2000 * (attempt + 1);
+        console.warn(`[football-api] Rate limited (429), retrying in ${waitMs}ms...`);
+        await new Promise((r) => setTimeout(r, waitMs));
+        continue;
+      }
+
+      if (!res.ok) {
+        const text = await res.text();
+        throw new Error(`Football API ${res.status}: ${text.substring(0, 300)}`);
+      }
+
+      const data: ApiFootballResponse<T> = await res.json();
+      if (data.errors && Object.keys(data.errors).length > 0) {
+        throw new Error(`Football API errors: ${JSON.stringify(data.errors)}`);
+      }
+      return data.response;
+    } catch (err) {
+      lastError = err instanceof Error ? err : new Error(String(err));
+      if (attempt < MAX_RETRIES) {
+        const waitMs = 1000 * (attempt + 1);
+        console.warn(`[football-api] Attempt ${attempt + 1} failed, retrying in ${waitMs}ms...`, lastError.message);
+        await new Promise((r) => setTimeout(r, waitMs));
+      }
+    }
   }
 
-  const data: ApiFootballResponse<T> = await res.json();
-  if (data.errors && Object.keys(data.errors).length > 0) {
-    throw new Error(`Football API errors: ${JSON.stringify(data.errors)}`);
-  }
-  return data.response;
+  throw lastError ?? new Error('Football API request failed');
 }
 
 export async function fetchFixturesForDate(date: string): Promise<ApiFixture[]> {

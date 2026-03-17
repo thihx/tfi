@@ -53,30 +53,44 @@ async function sendTelegramMessage(chatId: string, text: string): Promise<void> 
 export async function proxyRoutes(app: FastifyInstance) {
 
   // POST /api/proxy/football/live-fixtures
-  app.post<{ Body: { matchIds: string[] } }>('/api/proxy/football/live-fixtures', async (req) => {
-    const fixtures = await fetchFixturesByIds(req.body.matchIds);
-    return fixtures;
+  app.post<{ Body: { matchIds: string[] } }>('/api/proxy/football/live-fixtures', async (req, reply) => {
+    try {
+      const fixtures = await fetchFixturesByIds(req.body.matchIds);
+      return fixtures;
+    } catch (err) {
+      app.log.error(err, 'proxy/football/live-fixtures failed');
+      return reply.code(502).send({ error: err instanceof Error ? err.message : 'Football API error' });
+    }
   });
 
   // POST /api/proxy/football/odds
-  app.post<{ Body: { matchId: string } }>('/api/proxy/football/odds', async (req) => {
-    const odds = await fetchLiveOdds(req.body.matchId);
-    return odds;
+  app.post<{ Body: { matchId: string } }>('/api/proxy/football/odds', async (req, reply) => {
+    try {
+      const odds = await fetchLiveOdds(req.body.matchId);
+      return odds;
+    } catch (err) {
+      app.log.error(err, 'proxy/football/odds failed');
+      return reply.code(502).send({ error: err instanceof Error ? err.message : 'Football API error' });
+    }
   });
 
   // POST /api/proxy/ai/analyze
   app.post<{ Body: { prompt: string; provider: string; model: string } }>(
     '/api/proxy/ai/analyze',
-    async (req) => {
-      const { prompt, provider, model } = req.body;
+    async (req, reply) => {
+      try {
+        const { prompt, provider, model } = req.body;
 
-      if (provider === 'gemini') {
-        const text = await callGemini(prompt, model);
-        return { text };
+        if (provider === 'gemini') {
+          const text = await callGemini(prompt, model);
+          return { text };
+        }
+
+        return reply.code(400).send({ error: `AI provider "${provider}" not yet supported on server` });
+      } catch (err) {
+        app.log.error(err, 'proxy/ai/analyze failed');
+        return reply.code(502).send({ error: err instanceof Error ? err.message : 'AI API error' });
       }
-
-      // Extensible: add claude, openai etc. here in the future
-      throw new Error(`AI provider "${provider}" not yet supported on server`);
     },
   );
 
@@ -97,8 +111,13 @@ export async function proxyRoutes(app: FastifyInstance) {
       if (!config.telegramBotToken) {
         return reply.status(200).send({ sent: false, reason: 'TELEGRAM_BOT_TOKEN not configured' });
       }
-      await sendTelegramMessage(req.body.chat_id, req.body.text);
-      return { sent: true };
+      try {
+        await sendTelegramMessage(req.body.chat_id, req.body.text);
+        return { sent: true };
+      } catch (err) {
+        app.log.error(err, 'proxy/notify/telegram failed');
+        return reply.code(502).send({ error: err instanceof Error ? err.message : 'Telegram API error' });
+      }
     },
   );
 }

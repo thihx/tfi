@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { AppProvider, useAppState } from '@/hooks/useAppState';
 import { ToastProvider } from '@/hooks/useToast';
 import { useAuth } from '@/hooks/useAuth';
+import { ErrorBoundary, TabErrorBoundary } from '@/components/ui/ErrorBoundary';
 import { GlobalLoader } from '@/components/ui/GlobalLoader';
 import { Header } from '@/components/layout/Header';
 import { Navigation } from '@/components/layout/Navigation';
@@ -29,12 +30,12 @@ function AppContent() {
 
   const renderTab = () => {
     switch (activeTab) {
-      case 'dashboard': return <DashboardTab />;
-      case 'matches': return <MatchesTab />;
-      case 'watchlist': return <WatchlistTab />;
-      case 'recommendations': return <RecommendationsTab />;
-      case 'live-monitor': return <LiveMonitorTab />;
-      case 'settings': return <SettingsTab />;
+      case 'dashboard': return <TabErrorBoundary key="dashboard"><DashboardTab /></TabErrorBoundary>;
+      case 'matches': return <TabErrorBoundary key="matches"><MatchesTab /></TabErrorBoundary>;
+      case 'watchlist': return <TabErrorBoundary key="watchlist"><WatchlistTab /></TabErrorBoundary>;
+      case 'recommendations': return <TabErrorBoundary key="recommendations"><RecommendationsTab /></TabErrorBoundary>;
+      case 'live-monitor': return <TabErrorBoundary key="live-monitor"><LiveMonitorTab /></TabErrorBoundary>;
+      case 'settings': return <TabErrorBoundary key="settings"><SettingsTab /></TabErrorBoundary>;
     }
   };
 
@@ -54,10 +55,12 @@ function AppContent() {
 
 export default function App() {
   return (
-    <ToastProvider>
-      <AppProvider>
-        <AppContent />
-      </AppProvider>
-    </ToastProvider>
+    <ErrorBoundary>
+      <ToastProvider>
+        <AppProvider>
+          <AppContent />
+        </AppProvider>
+      </ToastProvider>
+    </ErrorBoundary>
   );
 }

@@ -24,7 +24,7 @@ interface SettleResult {
  * Determine bet result based on market, selection, and final score.
  * Returns { result: 'win'|'loss'|'push', pnl: number }
  */
-function evaluateBet(
+export function evaluateBet(
   market: string,
   selection: string,
   odds: number,
@@ -136,8 +136,12 @@ async function settleRecommendations(recs: RecommendationRow[], stats: SettleRes
   const matchIds = [...new Set(recs.map((r) => r.match_id))];
   const historyMap = new Map<string, MatchHistoryRow>();
   for (const id of matchIds) {
-    const hist = await matchHistoryRepo.getHistoricalMatch(id);
-    if (hist) historyMap.set(id, hist);
+    try {
+      const hist = await matchHistoryRepo.getHistoricalMatch(id);
+      if (hist) historyMap.set(id, hist);
+    } catch (err) {
+      console.error(`[autoSettleJob] Failed to fetch history for match ${id}:`, err);
+    }
   }
 
   for (const rec of recs) {
@@ -179,8 +183,12 @@ async function settleBets(
   const matchIds = [...new Set(bets.map((b) => b.match_id))];
   const historyMap = new Map<string, MatchHistoryRow>();
   for (const id of matchIds) {
-    const hist = await matchHistoryRepo.getHistoricalMatch(id);
-    if (hist) historyMap.set(id, hist);
+    try {
+      const hist = await matchHistoryRepo.getHistoricalMatch(id);
+      if (hist) historyMap.set(id, hist);
+    } catch (err) {
+      console.error(`[autoSettleJob] Failed to fetch history for match ${id}:`, err);
+    }
   }
 
   for (const bet of bets) {
