@@ -39,9 +39,14 @@ function AppContent() {
     typeof window !== 'undefined' ? window.innerWidth < 768 : false,
   );
 
+  // Keep a stable ref to loadAllData so effects don't re-fire on reference changes
+  const loadAllDataRef = useRef(loadAllData);
+  useEffect(() => { loadAllDataRef.current = loadAllData; });
+
+  // Initial load — depends only on authed, never re-fires due to loadAllData reference changes
   useEffect(() => {
-    if (authed) loadAllData();
-  }, [authed, loadAllData]);
+    if (authed) loadAllDataRef.current();
+  }, [authed]);
 
   // Track last user activity — refresh only when active (within 5 minutes)
   const lastActivityRef = useRef(Date.now());
@@ -58,11 +63,11 @@ function AppContent() {
     const IDLE_THRESHOLD_MS = 5 * 60 * 1000;
     const timer = setInterval(() => {
       if (Date.now() - lastActivityRef.current < IDLE_THRESHOLD_MS) {
-        loadAllData(true);
+        loadAllDataRef.current(true);
       }
     }, 60000);
     return () => clearInterval(timer);
-  }, [authed, loadAllData]);
+  }, [authed]);
 
   // Global navigation event (used by child tabs to navigate without prop drilling)
   useEffect(() => {
