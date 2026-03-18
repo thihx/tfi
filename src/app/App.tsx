@@ -85,7 +85,7 @@ function AppContent() {
   }, []);
 
   if (!authed) {
-    return <LoginScreen onLogin={login} error={error} />;
+    return <LoginScreen onLogin={login} error={error ?? ''} />;
   }
 
   const renderTab = () => {

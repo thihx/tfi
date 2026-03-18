@@ -35,7 +35,7 @@ function sleep(ms: number) {
  * Strategic advice and reasoning go ONLY in reason/reason_vi fields.
  * Returns null if no strong signal detected.
  */
-function generateCondition(
+export function generateCondition(
   ctx: StrategicContext,
   homeTeam: string,
   awayTeam: string,

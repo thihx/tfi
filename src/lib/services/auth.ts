@@ -1,33 +1,67 @@
-import { PASSWORD_HASH } from '@/config/constants';
+// ============================================================
+// Auth Service — JWT-based (Google OAuth via backend)
+// ============================================================
 
-const AUTH_KEY = 'authenticated';
+const TOKEN_KEY = 'tfi_auth_token';
 
-export async function hashPassword(password: string): Promise<string> {
-  const encoder = new TextEncoder();
-  const data = encoder.encode(password);
-  const hashBuffer = await crypto.subtle.digest('SHA-256', data);
-  const hashArray = Array.from(new Uint8Array(hashBuffer));
-  return hashArray.map((b) => b.toString(16).padStart(2, '0')).join('');
+export interface AuthUser {
+  email: string;
+  name: string;
+  picture: string;
 }
 
-export async function verifyPassword(password: string): Promise<boolean> {
-  const hash = await hashPassword(password);
-  return hash === PASSWORD_HASH;
+// ── Token storage ─────────────────────────────────────────────
+
+export function getToken(): string | null {
+  return localStorage.getItem(TOKEN_KEY);
 }
 
-export function isAuthenticated(): boolean {
-  return localStorage.getItem(AUTH_KEY) === 'true';
+export function setToken(token: string): void {
+  localStorage.setItem(TOKEN_KEY, token);
 }
 
-export function setAuthenticated(value: boolean): void {
-  if (value) {
-    localStorage.setItem(AUTH_KEY, 'true');
-  } else {
-    localStorage.removeItem(AUTH_KEY);
+export function clearToken(): void {
+  localStorage.removeItem(TOKEN_KEY);
+}
+
+// ── Parse JWT payload (no signature verification — done server-side) ──
+
+function parsePayload(token: string): Record<string, unknown> | null {
+  try {
+    const parts = token.split('.');
+    if (parts.length !== 3) return null;
+    const payload = JSON.parse(atob(parts[1]!.replace(/-/g, '+').replace(/_/g, '/')));
+    return payload as Record<string, unknown>;
+  } catch {
+    return null;
   }
 }
 
+export function isTokenValid(token: string | null): boolean {
+  if (!token) return false;
+  const payload = parsePayload(token);
+  if (!payload) return false;
+  const exp = payload['exp'] as number | undefined;
+  if (exp && exp < Math.floor(Date.now() / 1000)) return false;
+  return true;
+}
+
+export function getUser(token: string | null): AuthUser | null {
+  if (!token) return null;
+  const payload = parsePayload(token);
+  if (!payload) return null;
+  return {
+    email:   String(payload['sub']     || ''),
+    name:    String(payload['name']    || ''),
+    picture: String(payload['picture'] || ''),
+  };
+}
+
+export function isAuthenticated(): boolean {
+  return isTokenValid(getToken());
+}
+
 export function logout(): void {
-  setAuthenticated(false);
+  clearToken();
   location.reload();
 }

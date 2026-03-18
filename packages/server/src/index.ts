@@ -27,6 +27,8 @@ import { reportRoutes } from './routes/reports.routes.js';
 import { settingsRoutes } from './routes/settings.routes.js';
 import { auditLogRoutes } from './routes/audit-logs.routes.js';
 import { startScheduler, stopScheduler } from './jobs/scheduler.js';
+import { authRoutes } from './routes/auth.routes.js';
+import { verifyToken } from './lib/jwt.js';
 
 const app = Fastify({ logger: true });
 
@@ -72,6 +74,25 @@ await app.register(cors, {
     }
   },
   methods: ['GET', 'HEAD', 'PUT', 'PATCH', 'POST', 'DELETE'],
+});
+
+// ── Auth routes (public — no JWT required) ───────────────────
+await app.register(authRoutes);
+
+// ── JWT guard: all /api/* routes except /api/auth/* and /api/health ──
+app.addHook('preHandler', async (req, reply) => {
+  const url = req.url.split('?')[0]!;
+  if (!url.startsWith('/api/') || url.startsWith('/api/auth/') || url === '/api/health') return;
+
+  const authHeader = req.headers['authorization'];
+  const token = authHeader?.startsWith('Bearer ') ? authHeader.slice(7) : null;
+  if (!token) {
+    return reply.status(401).send({ error: 'Unauthorized — no token' });
+  }
+  const payload = verifyToken(token, config.jwtSecret);
+  if (!payload) {
+    return reply.status(401).send({ error: 'Unauthorized — invalid or expired token' });
+  }
 });
 
 // Register route modules

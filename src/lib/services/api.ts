@@ -21,10 +21,15 @@ function formatApiError(status: number, text: string): ApiError {
 
 // ==================== PG BACKEND (Fastify) ====================
 
+function authHeader(): Record<string, string> {
+  const token = localStorage.getItem('tfi_auth_token');
+  return token ? { Authorization: `Bearer ${token}` } : {};
+}
+
 async function pgFetch<T>(config: AppConfig, path: string): Promise<T> {
   const response = await fetch(`${config.apiUrl}${path}`, {
     method: 'GET',
-    headers: { Accept: 'application/json' },
+    headers: { Accept: 'application/json', ...authHeader() },
   });
   if (!response.ok) throw formatApiError(response.status, await response.text());
   return response.json();
@@ -33,7 +38,7 @@ async function pgFetch<T>(config: AppConfig, path: string): Promise<T> {
 async function pgPost<T>(config: AppConfig, path: string, body: unknown): Promise<T> {
   const response = await fetch(`${config.apiUrl}${path}`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+    headers: { 'Content-Type': 'application/json', Accept: 'application/json', ...authHeader() },
     body: JSON.stringify(body),
   });
   if (!response.ok) throw formatApiError(response.status, await response.text());
@@ -43,7 +48,7 @@ async function pgPost<T>(config: AppConfig, path: string, body: unknown): Promis
 async function pgPatch<T>(config: AppConfig, path: string, body: unknown): Promise<T> {
   const response = await fetch(`${config.apiUrl}${path}`, {
     method: 'PATCH',
-    headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+    headers: { 'Content-Type': 'application/json', Accept: 'application/json', ...authHeader() },
     body: JSON.stringify(body),
   });
   if (!response.ok) throw formatApiError(response.status, await response.text());
@@ -53,7 +58,7 @@ async function pgPatch<T>(config: AppConfig, path: string, body: unknown): Promi
 async function pgPut<T>(config: AppConfig, path: string, body: unknown): Promise<T> {
   const response = await fetch(`${config.apiUrl}${path}`, {
     method: 'PUT',
-    headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+    headers: { 'Content-Type': 'application/json', Accept: 'application/json', ...authHeader() },
     body: JSON.stringify(body),
   });
   if (!response.ok) throw formatApiError(response.status, await response.text());
@@ -66,6 +71,7 @@ async function pgDelete<T>(config: AppConfig, path: string, body?: unknown): Pro
     method: 'DELETE',
     headers: {
       Accept: 'application/json',
+      ...authHeader(),
       ...(hasBody ? { 'Content-Type': 'application/json' } : {}),
     },
     ...(hasBody ? { body: JSON.stringify(body) } : {}),

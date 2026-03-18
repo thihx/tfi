@@ -750,6 +750,7 @@ async function processMatch(
     const customConditions = (watchlistEntry.custom_conditions || '').trim();
     const recommendedCondition = (watchlistEntry.recommended_custom_condition || '').trim();
     const recommendedConditionReason = (watchlistEntry.recommended_condition_reason || '').trim();
+    const strategicContext = watchlistEntry.strategic_context as Record<string, string> | null;
 
     const prompt = buildServerPrompt({
       homeName, awayName, league, minute, score, status,
@@ -758,6 +759,7 @@ async function processMatch(
       oddsCanonical, oddsAvailable, oddsSource, oddsFetchedAt,
       derivedInsights: !statsAvailable ? derivedInsights : null,
       customConditions, recommendedCondition, recommendedConditionReason,
+      strategicContext,
       currentTotalGoals: homeGoals + awayGoals,
       previousRecommendations: prevRecsContext,
       preMatchPredictionSummary: '',
@@ -958,6 +960,7 @@ function buildServerPrompt(data: {
   customConditions: string;
   recommendedCondition: string;
   recommendedConditionReason: string;
+  strategicContext: Record<string, string> | null;
   currentTotalGoals: number;
   previousRecommendations: Array<Record<string, unknown>>;
   preMatchPredictionSummary: string;
@@ -1046,6 +1049,7 @@ ${oddsWarnings ? `• ${oddsWarnings}` : '• No restrictions — all available 
 - Do NOT recommend 1X2 markets before minute 35 (too early, game state can change completely).
 - Do NOT recommend any market with price < ${MIN_ODDS}.
 
+${buildStrategicContextSection(data.strategicContext)}
 ========================
 MATCH CONTEXT
 ========================
@@ -1191,4 +1195,44 @@ ALL fields must exist. selection="" when should_push=false. bet_market="" when s
 The FIRST character MUST be "{" and the LAST must be "}".
 NO markdown, NO code fences, NO commentary outside JSON.
 `;
+}
+
+// ==================== Strategic Context Section ====================
+
+function buildStrategicContextSection(strategicContext: Record<string, string> | null): string {
+  if (!strategicContext || typeof strategicContext !== 'object') return '';
+  const ctx = strategicContext;
+  const hasData = ctx.summary && ctx.summary !== 'No data found';
+  if (!hasData) return '';
+
+  const lines: string[] = [];
+  lines.push('========================');
+  lines.push('STRATEGIC CONTEXT (FROM PRE-MATCH RESEARCH)');
+  lines.push('========================');
+  if (ctx.home_motivation && ctx.home_motivation !== 'No data found')
+    lines.push(`HOME_MOTIVATION: ${ctx.home_motivation}`);
+  if (ctx.away_motivation && ctx.away_motivation !== 'No data found')
+    lines.push(`AWAY_MOTIVATION: ${ctx.away_motivation}`);
+  if (ctx.league_positions && ctx.league_positions !== 'No data found')
+    lines.push(`LEAGUE_POSITIONS: ${ctx.league_positions}`);
+  if (ctx.fixture_congestion && ctx.fixture_congestion !== 'No data found')
+    lines.push(`FIXTURE_CONGESTION: ${ctx.fixture_congestion}`);
+  if (ctx.rotation_risk && ctx.rotation_risk !== 'No data found')
+    lines.push(`ROTATION_RISK: ${ctx.rotation_risk}`);
+  if (ctx.key_absences && ctx.key_absences !== 'No data found')
+    lines.push(`KEY_ABSENCES: ${ctx.key_absences}`);
+  if (ctx.h2h_narrative && ctx.h2h_narrative !== 'No data found')
+    lines.push(`H2H_NARRATIVE: ${ctx.h2h_narrative}`);
+  lines.push(`SUMMARY: ${ctx.summary}`);
+  lines.push('');
+  lines.push('STRATEGIC CONTEXT RULES:');
+  lines.push('- LEAGUE_POSITIONS: Top 3 vs bottom 3 = strong favourite signal. Within 3 places = evenly matched → AVOID 1X2, prefer O/U or BTTS.');
+  lines.push('- ROTATION: If team likely rotates key players, reduce confidence for that team winning by 1-2.');
+  lines.push('- NOTHING TO PLAY FOR: Expect lower intensity → favors Under, Draw.');
+  lines.push('- TITLE RACE / RELEGATION BATTLE: Expect high intensity → supports attacking.');
+  lines.push('- FIXTURE_CONGESTION within 3 days of major match significantly increases rotation risk.');
+  lines.push('- KEY_ABSENCES of star players should reduce expected goals for that team.');
+  lines.push('');
+
+  return lines.join('\n');
 }

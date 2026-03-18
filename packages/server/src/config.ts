@@ -30,6 +30,16 @@ export const config = {
   // Timezone
   timezone: process.env['TIMEZONE'] || 'Asia/Seoul',
 
+  // Google OAuth
+  googleClientId: process.env['GOOGLE_CLIENT_ID'] || '',
+  googleClientSecret: process.env['GOOGLE_CLIENT_SECRET'] || '',
+  frontendUrl: process.env['FRONTEND_URL'] || 'http://localhost:3000',
+  allowedEmails: (process.env['ALLOWED_EMAILS'] || '').split(',').map((s) => s.trim()).filter(Boolean),
+
+  // JWT (uses Node built-in crypto — no extra package needed)
+  jwtSecret: process.env['JWT_SECRET'] || 'tfi-dev-secret-change-me',
+  jwtExpiresInSeconds: Number(process.env['JWT_EXPIRES_IN_SECONDS'] || 604800), // 7 days
+
   // Job intervals (ms) — 0 = disabled
   jobFetchMatchesMs: Number(process.env['JOB_FETCH_MATCHES_MS'] || 1 * 60_000),         // 1 min
   jobPredictionsMs: Number(process.env['JOB_PREDICTIONS_MS'] || 30 * 60_000),            // 30 min
