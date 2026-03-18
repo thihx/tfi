@@ -21,14 +21,19 @@ function apiUrl(config: AppConfig, path: string): string {
 }
 
 async function postJson<T>(url: string, body: unknown): Promise<T> {
-  const res = await fetch(url, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
-    body: JSON.stringify(body),
-  });
+  let res: Response;
+  try {
+    res = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+      body: JSON.stringify(body),
+    });
+  } catch (err) {
+    throw new Error(`Network error calling ${url}: ${err instanceof Error ? err.message : String(err)}`);
+  }
   if (!res.ok) {
     const text = await res.text();
-    throw new Error(`API error ${res.status}: ${text.substring(0, 300)}`);
+    throw new Error(`API error ${res.status} from ${url}: ${text.substring(0, 300)}`);
   }
   return res.json();
 }

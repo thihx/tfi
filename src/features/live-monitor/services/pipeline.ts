@@ -337,16 +337,23 @@ export async function runPipeline(
           metadata: { match: matchResult.matchDisplay, proceeded: matchResult.proceeded, notified: matchResult.notified, saved: matchResult.saved },
         });
       } catch (matchErr) {
+        const errMsg = matchErr instanceof Error ? matchErr.message : String(matchErr);
+        const errStack = matchErr instanceof Error ? matchErr.stack?.split('\n').slice(0, 4).join(' | ') : undefined;
         matchResult.stage = 'error';
-        matchResult.error = matchErr instanceof Error ? matchErr.message : String(matchErr);
+        matchResult.error = errMsg;
 
         auditLog(appConfig, {
           category: 'PIPELINE',
           action: 'MATCH_ANALYZED',
           outcome: 'FAILURE',
           match_id: matchResult.matchId,
-          error: matchResult.error,
-          metadata: { match: matchResult.matchDisplay },
+          error: errMsg,
+          metadata: {
+            match: matchResult.matchDisplay,
+            failedAtStage: matchResult.stage,
+            proceeded: matchResult.proceeded,
+            stack: errStack,
+          },
         });
       }
 
