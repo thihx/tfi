@@ -737,66 +737,74 @@ async function processMatch(
     // 6. Parse response
     const parsed = parseAiResponse(aiText, oddsCanonical, minute);
 
-    // 7. Save recommendation (always save for audit trail)
-    const mappedOdd = extractOddsFromSelection(parsed.selection, oddsCanonical);
-    const rec = await createRecommendation({
-      match_id: matchId,
-      timestamp: new Date().toISOString(),
-      league,
-      home_team: homeName,
-      away_team: awayName,
-      status,
-      condition_triggered_suggestion: parsed.condition_triggered_suggestion,
-      custom_condition_raw: customConditions,
-      execution_id: `auto-pipeline-${Date.now()}`,
-      odds_snapshot: oddsCanonical as Record<string, unknown>,
-      stats_snapshot: statsCompact as unknown as Record<string, unknown>,
-      pre_match_prediction_summary: '',
-      custom_condition_matched: parsed.custom_condition_matched,
-      minute,
-      score,
-      bet_type: parsed.should_push ? 'AI' : 'NO_BET',
-      selection: parsed.selection,
-      odds: mappedOdd,
-      confidence: parsed.confidence,
-      value_percent: parsed.value_percent,
-      risk_level: parsed.risk_level,
-      stake_percent: parsed.stake_percent,
-      reasoning: parsed.reasoning_en,
-      key_factors: '',
-      warnings: parsed.warnings.join(', '),
-      ai_model: model,
-      mode: watchlistEntry.mode || 'B',
-      bet_market: parsed.bet_market,
-      notified: '',
-      notification_channels: '',
-    });
-
-    // 8. Send Telegram notification (only for actionable recommendations)
+    // 7. Only save actionable recommendations (matches frontend shouldSave logic)
+    const shouldSave = parsed.should_push || parsed.custom_condition_matched;
+    let saved = false;
+    let recId: number | null = null;
     let notified = false;
-    if (parsed.should_push && config.pipelineTelegramChatId) {
-      try {
-        const msg = buildTelegramMessage(matchDisplay, league, score, minute, status, parsed);
-        // Chunk for Telegram's 4096 char limit
-        const MAX_CHUNK = 3500;
-        if (msg.length <= MAX_CHUNK) {
-          await sendTelegramMessage(config.pipelineTelegramChatId, msg);
-        } else {
-          let remaining = msg;
-          while (remaining.length > 0) {
-            if (remaining.length <= MAX_CHUNK) {
-              await sendTelegramMessage(config.pipelineTelegramChatId, remaining);
-              break;
+
+    if (shouldSave) {
+      const mappedOdd = extractOddsFromSelection(parsed.selection, oddsCanonical);
+      const rec = await createRecommendation({
+        match_id: matchId,
+        timestamp: new Date().toISOString(),
+        league,
+        home_team: homeName,
+        away_team: awayName,
+        status,
+        condition_triggered_suggestion: parsed.condition_triggered_suggestion,
+        custom_condition_raw: customConditions,
+        execution_id: `auto-pipeline-${Date.now()}`,
+        odds_snapshot: oddsCanonical as Record<string, unknown>,
+        stats_snapshot: statsCompact as unknown as Record<string, unknown>,
+        pre_match_prediction_summary: '',
+        custom_condition_matched: parsed.custom_condition_matched,
+        minute,
+        score,
+        bet_type: parsed.should_push ? 'AI' : 'NO_BET',
+        selection: parsed.selection,
+        odds: mappedOdd,
+        confidence: parsed.confidence,
+        value_percent: parsed.value_percent,
+        risk_level: parsed.risk_level,
+        stake_percent: parsed.stake_percent,
+        reasoning: parsed.reasoning_en,
+        key_factors: '',
+        warnings: parsed.warnings.join(', '),
+        ai_model: model,
+        mode: watchlistEntry.mode || 'B',
+        bet_market: parsed.bet_market,
+        notified: '',
+        notification_channels: '',
+      });
+      saved = true;
+      recId = rec.id;
+
+      // 8. Send Telegram notification (only for actionable recommendations)
+      if (parsed.should_push && config.pipelineTelegramChatId) {
+        try {
+          const msg = buildTelegramMessage(matchDisplay, league, score, minute, status, parsed);
+          // Chunk for Telegram's 4096 char limit
+          const MAX_CHUNK = 3500;
+          if (msg.length <= MAX_CHUNK) {
+            await sendTelegramMessage(config.pipelineTelegramChatId, msg);
+          } else {
+            let remaining = msg;
+            while (remaining.length > 0) {
+              if (remaining.length <= MAX_CHUNK) {
+                await sendTelegramMessage(config.pipelineTelegramChatId, remaining);
+                break;
+              }
+              let breakIdx = remaining.lastIndexOf('\n', MAX_CHUNK);
+              if (breakIdx <= 0) breakIdx = MAX_CHUNK;
+              await sendTelegramMessage(config.pipelineTelegramChatId, remaining.substring(0, breakIdx));
+              remaining = remaining.substring(breakIdx).replace(/^\n/, '');
             }
-            let breakIdx = remaining.lastIndexOf('\n', MAX_CHUNK);
-            if (breakIdx <= 0) breakIdx = MAX_CHUNK;
-            await sendTelegramMessage(config.pipelineTelegramChatId, remaining.substring(0, breakIdx));
-            remaining = remaining.substring(breakIdx).replace(/^\n/, '');
           }
+          notified = true;
+        } catch (e) {
+          console.error(`[pipeline] Telegram notification failed for ${matchId}:`, e instanceof Error ? e.message : String(e));
         }
-        notified = true;
-      } catch (e) {
-        console.error(`[pipeline] Telegram notification failed for ${matchId}:`, e instanceof Error ? e.message : String(e));
       }
     }
 
@@ -808,14 +816,14 @@ async function processMatch(
       metadata: {
         matchId, matchDisplay, selection: parsed.selection,
         confidence: parsed.confidence, shouldPush: parsed.should_push,
-        recId: rec.id, notified,
+        saved, recId, notified,
       },
     });
 
     return {
       matchId, success: true, shouldPush: parsed.should_push,
       selection: parsed.selection, confidence: parsed.confidence,
-      saved: true, notified,
+      saved, notified,
     };
   } catch (error) {
     const errMsg = error instanceof Error ? error.message : String(error);

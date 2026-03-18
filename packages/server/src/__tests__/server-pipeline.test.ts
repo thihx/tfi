@@ -210,7 +210,7 @@ describe('runPipelineBatch', () => {
     expect(sendTelegramMessage).toHaveBeenCalledWith('123456', expect.stringContaining('AI RECOMMENDATION'));
   });
 
-  test('does NOT send Telegram when AI says should_push=false', async () => {
+  test('does NOT save or notify when AI says should_push=false', async () => {
     const { callGemini } = await import('../lib/gemini.js');
     vi.mocked(callGemini).mockResolvedValueOnce(JSON.stringify({
       should_push: false,
@@ -228,8 +228,11 @@ describe('runPipelineBatch', () => {
 
     const result = await runPipelineBatch(['100']);
     const { sendTelegramMessage } = await import('../lib/telegram.js');
+    const { createRecommendation } = await import('../repos/recommendations.repo.js');
     expect(sendTelegramMessage).not.toHaveBeenCalled();
+    expect(createRecommendation).not.toHaveBeenCalled();
     expect(result.results[0].shouldPush).toBe(false);
+    expect(result.results[0].saved).toBe(false);
     expect(result.results[0].notified).toBe(false);
   });
 
