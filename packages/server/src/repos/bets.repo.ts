@@ -106,7 +106,7 @@ export async function settleBet(
 ): Promise<BetRow | null> {
   const r = await query<BetRow>(
     `UPDATE bets SET result = $2, pnl = $3, final_score = $4, settled_by = $5, settled_at = NOW()
-     WHERE id = $1 RETURNING *`,
+     WHERE id = $1 AND (result = '' OR result IS NULL) RETURNING *`,
     [id, result, pnl, finalScore, settledBy],
   );
   return r.rows[0] ?? null;

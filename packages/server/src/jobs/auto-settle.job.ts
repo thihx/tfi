@@ -42,7 +42,11 @@ export function evaluateBet(
   // ── Over/Under ──
   if (marketLower.includes('over') || marketLower.includes('under') || marketLower.startsWith('ou')) {
     const lineMatch = marketLower.match(/([\d.]+)/);
-    const line = lineMatch?.[1] ? parseFloat(lineMatch[1]) : 2.5;
+    if (!lineMatch?.[1]) {
+      console.warn(`[auto-settle] Cannot parse O/U line from market: "${market}" — skipping`);
+      return { result: 'push', pnl: 0 };
+    }
+    const line = parseFloat(lineMatch[1]);
 
     const isOver = selLower.includes('over');
     const isUnder = selLower.includes('under');
@@ -87,7 +91,11 @@ export function evaluateBet(
   // ── Asian Handicap ──
   if (marketLower.includes('ah') || marketLower.includes('handicap')) {
     const lineMatch = marketLower.match(/([+-]?[\d.]+)/);
-    const line = lineMatch?.[1] ? parseFloat(lineMatch[1]) : 0;
+    if (!lineMatch?.[1]) {
+      console.warn(`[auto-settle] Cannot parse AH line from market: "${market}" — skipping`);
+      return { result: 'push', pnl: 0 };
+    }
+    const line = parseFloat(lineMatch[1]);
     const pickedHome = selLower.includes('home');
 
     const adjustedDiff = pickedHome
@@ -99,7 +107,8 @@ export function evaluateBet(
     return { result: 'loss', pnl: round(-stakePercent) };
   }
 
-  // Unknown market — skip auto-settle
+  // Unknown market — log and skip auto-settle
+  console.warn(`[auto-settle] Unknown market type: "${market}" for selection "${selection}" — returning push`);
   return { result: 'push', pnl: 0 };
 }
 
@@ -135,8 +144,10 @@ export async function autoSettleJob(): Promise<SettleResult> {
 }
 
 async function getUnsettledRecommendations(): Promise<RecommendationRow[]> {
-  const { rows } = await recommendationsRepo.getAllRecommendations({ limit: 1000 });
-  return rows.filter((r) => !r.result || r.result === '');
+  // Use 'pending' filter which maps to SQL: result IS NULL OR result NOT IN ('win','loss','push')
+  // Avoids full-table scan + client-side filter; handles >1000 rows correctly
+  const { rows } = await recommendationsRepo.getAllRecommendations({ result: 'pending', limit: 2000 });
+  return rows;
 }
 
 async function settleRecommendations(recs: RecommendationRow[], stats: SettleResult) {

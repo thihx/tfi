@@ -39,16 +39,22 @@ interface PipelineSettings {
   endgameMinute: number;
 }
 
+/** Parse a numeric setting from DB, falling back to envDefault if absent or NaN. */
+function parseNumSetting(raw: unknown, envDefault: number): number {
+  const n = Number(raw);
+  return isFinite(n) && raw !== '' && raw !== null && raw !== undefined ? n : envDefault;
+}
+
 async function loadPipelineSettings(): Promise<PipelineSettings> {
   const db = await getSettings().catch(() => ({} as Record<string, unknown>));
   return {
     telegramChatId: String(db['TELEGRAM_CHAT_ID'] || '') || config.pipelineTelegramChatId,
     aiModel: String(db['AI_MODEL'] || '') || config.geminiModel,
-    minConfidence: Number(db['MIN_CONFIDENCE']) || config.pipelineMinConfidence,
-    minOdds: Number(db['MIN_ODDS']) || config.pipelineMinOdds,
-    latePhaseMinute: Number(db['LATE_PHASE_MINUTE']) || config.pipelineLatePhaseMinute,
-    veryLatePhaseMinute: Number(db['VERY_LATE_PHASE_MINUTE']) || config.pipelineVeryLatePhaseMinute,
-    endgameMinute: Number(db['ENDGAME_MINUTE']) || config.pipelineEndgameMinute,
+    minConfidence: parseNumSetting(db['MIN_CONFIDENCE'], config.pipelineMinConfidence),
+    minOdds: parseNumSetting(db['MIN_ODDS'], config.pipelineMinOdds),
+    latePhaseMinute: parseNumSetting(db['LATE_PHASE_MINUTE'], config.pipelineLatePhaseMinute),
+    veryLatePhaseMinute: parseNumSetting(db['VERY_LATE_PHASE_MINUTE'], config.pipelineVeryLatePhaseMinute),
+    endgameMinute: parseNumSetting(db['ENDGAME_MINUTE'], config.pipelineEndgameMinute),
   };
 }
 
@@ -903,7 +909,8 @@ export async function runPipelineBatch(matchIds: string[]): Promise<PipelineResu
   }
 
   // Process matches sequentially to avoid API rate limits
-  for (const matchId of matchIds) {
+  for (let i = 0; i < matchIds.length; i++) {
+    const matchId = matchIds[i]!;
     const fixture = fixtureMap.get(matchId);
     const wl = watchlistMap.get(matchId);
     if (!fixture || !wl) {
@@ -922,7 +929,7 @@ export async function runPipelineBatch(matchIds: string[]): Promise<PipelineResu
     if (!matchResult.success) result.errors++;
 
     // Small delay between matches to avoid rate limiting
-    if (matchIds.indexOf(matchId) < matchIds.length - 1) {
+    if (i < matchIds.length - 1) {
       await new Promise((r) => setTimeout(r, 2000));
     }
   }

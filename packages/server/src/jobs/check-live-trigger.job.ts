@@ -39,7 +39,11 @@ export async function checkLiveTriggerJob(): Promise<{ liveCount: number; pipeli
   // 3. Increment check count for live watchlist entries
   await reportJobProgress(JOB, 'increment', `Updating ${liveMatchIds.length} live matches...`, 60);
   for (const id of liveMatchIds) {
-    await watchlistRepo.incrementChecks(id);
+    try {
+      await watchlistRepo.incrementChecks(id);
+    } catch (err) {
+      console.error(`[checkLiveTriggerJob] Failed to increment checks for ${id}:`, err);
+    }
   }
 
   console.log(`[checkLiveTriggerJob] ${liveMatchIds.length} live matches detected`);

@@ -67,12 +67,16 @@ export async function fetchMatchesJob(): Promise<{ saved: number; leagues: numbe
   const dateFrom = toDateString(now, config.timezone);
   const dateTo = toDateString(tomorrow, config.timezone);
 
-  // 3. Fetch from API-Football
+  // 3. Fetch from API-Football (allSettled so one day failing doesn't lose the other)
   await reportJobProgress(JOB, 'api', `Fetching fixtures for ${dateFrom} and ${dateTo}...`, 15);
-  const [todayFixtures, tomorrowFixtures] = await Promise.all([
+  const results = await Promise.allSettled([
     fetchFixturesForDate(dateFrom),
     fetchFixturesForDate(dateTo),
   ]);
+  const todayFixtures = results[0].status === 'fulfilled' ? results[0].value : [];
+  const tomorrowFixtures = results[1].status === 'fulfilled' ? results[1].value : [];
+  if (results[0].status === 'rejected') console.error('[fetchMatchesJob] Today fetch failed:', results[0].reason);
+  if (results[1].status === 'rejected') console.error('[fetchMatchesJob] Tomorrow fetch failed:', results[1].reason);
   const allFixtures = todayFixtures.concat(tomorrowFixtures);
   console.log(`[fetchMatchesJob] Raw: today=${todayFixtures.length} tomorrow=${tomorrowFixtures.length} total=${allFixtures.length}`);
 
@@ -119,32 +123,38 @@ export async function fetchMatchesJob(): Promise<{ saved: number; leagues: numbe
     let added = 0;
     for (const m of topMatches) {
       const existing = await watchlistRepo.getWatchlistByMatchId(m.match_id);
-      if (existing) continue; // unique match_id constraint
+      if (existing) continue;
 
-      await watchlistRepo.createWatchlistEntry({
-        match_id: m.match_id,
-        date: m.date,
-        league: m.league_name,
-        home_team: m.home_team,
-        away_team: m.away_team,
-        kickoff: m.kickoff,
-        mode: 'B',
-        prediction: null,
-        recommended_custom_condition: '',
-        recommended_condition_reason: '',
-        recommended_condition_reason_vi: '',
-        recommended_condition_at: null,
-        custom_conditions: '',
-        priority: 0,
-        status: 'active',
-        added_by: 'top-league-auto',
-        last_checked: null,
-        total_checks: 0,
-        recommendations_count: 0,
-        strategic_context: null,
-        strategic_context_at: null,
-      });
-      added++;
+      try {
+        await watchlistRepo.createWatchlistEntry({
+          match_id: m.match_id,
+          date: m.date,
+          league: m.league_name,
+          home_team: m.home_team,
+          away_team: m.away_team,
+          kickoff: m.kickoff,
+          mode: 'B',
+          prediction: null,
+          recommended_custom_condition: '',
+          recommended_condition_reason: '',
+          recommended_condition_reason_vi: '',
+          recommended_condition_at: null,
+          custom_conditions: '',
+          priority: 0,
+          status: 'active',
+          added_by: 'top-league-auto',
+          last_checked: null,
+          total_checks: 0,
+          recommendations_count: 0,
+          strategic_context: null,
+          strategic_context_at: null,
+        });
+        added++;
+      } catch (err: unknown) {
+        // Unique constraint violation from concurrent insert — safe to ignore
+        const msg = err instanceof Error ? err.message : String(err);
+        if (!msg.includes('duplicate') && !msg.includes('unique')) throw err;
+      }
     }
 
     if (added > 0) {

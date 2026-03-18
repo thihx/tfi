@@ -73,9 +73,10 @@ async function acquireLock(job: ManagedJob): Promise<boolean> {
     const ttlSec = Math.ceil(job.lockTtlMs / 1000);
     const result = await redis.set(lockKey(job.name), instanceId, 'EX', ttlSec, 'NX');
     return result === 'OK';
-  } catch {
-    // Redis down → allow job to run (graceful degradation)
-    return true;
+  } catch (err) {
+    // Redis down → refuse to run to prevent concurrent execution
+    console.error(`[scheduler] Redis unavailable for lock "${job.name}", skipping run:`, err);
+    return false;
   }
 }
 

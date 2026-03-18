@@ -87,8 +87,7 @@ export async function proxyRoutes(app: FastifyInstance) {
 
       // 3. Fallback to pre-match odds if still nothing
       if (bookmakers.length === 0) {
-        if (oddsSource !== 'the-odds-api') oddsSource = 'pre-match';
-        else oddsSource = 'pre-match';
+        oddsSource = 'pre-match';
         try {
           const preMatch = await fetchPreMatchOdds(req.body.matchId) as Array<{
             bookmakers?: Array<{ id: number; name: string; bets: unknown[] }>;

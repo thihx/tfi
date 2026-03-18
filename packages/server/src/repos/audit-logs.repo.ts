@@ -80,8 +80,9 @@ export async function getAuditLogs(filters: {
     params.push(filters.fromDate);
   }
   if (filters.toDate) {
+    const datePart = filters.toDate.includes('T') ? filters.toDate.split('T')[0] : filters.toDate;
     conditions.push(`timestamp <= $${paramIdx++}`);
-    params.push(filters.toDate + 'T23:59:59.999Z');
+    params.push(datePart + 'T23:59:59.999Z');
   }
 
   const where = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';

@@ -410,8 +410,9 @@ function isHalfTimeMarket(betName: string): boolean {
  * 90-120% for 3-way), since those indicate stale/corrupted data.
  * Returns warnings for removed markets.
  */
-function validateMarketMargins(canonical: OddsCanonical): string[] {
+function validateMarketMargins(canonical: OddsCanonical): { warnings: string[]; cleaned: OddsCanonical } {
   const warnings: string[] = [];
+  const cleaned = { ...canonical };
 
   // Helper: implied probability = 1/odds
   const ip = (o: number | null | undefined) => (o && o > 1 ? 1 / o : 0);
@@ -422,7 +423,7 @@ function validateMarketMargins(canonical: OddsCanonical): string[] {
     const total = ip(odds1x2.home) + ip(odds1x2.draw) + ip(odds1x2.away);
     if (total > 0 && (total < 0.90 || total > 1.20)) {
       warnings.push(`MARGIN_INVALID: 1X2 implied probability ${(total * 100).toFixed(1)}% outside 90-120% range — removed`);
-      delete canonical['1x2'];
+      delete cleaned['1x2'];
     }
   }
 
@@ -432,7 +433,7 @@ function validateMarketMargins(canonical: OddsCanonical): string[] {
     const total = ip(ou.over) + ip(ou.under);
     if (total > 0 && (total < 0.85 || total > 1.15)) {
       warnings.push(`MARGIN_INVALID: O/U ${ou.line} implied probability ${(total * 100).toFixed(1)}% outside 85-115% range — removed`);
-      delete canonical['ou'];
+      delete cleaned['ou'];
     }
   }
 
@@ -442,7 +443,7 @@ function validateMarketMargins(canonical: OddsCanonical): string[] {
     const total = ip(ah.home) + ip(ah.away);
     if (total > 0 && (total < 0.85 || total > 1.15)) {
       warnings.push(`MARGIN_INVALID: AH ${ah.line} implied probability ${(total * 100).toFixed(1)}% outside 85-115% range — removed`);
-      delete canonical['ah'];
+      delete cleaned['ah'];
     }
   }
 
@@ -452,7 +453,7 @@ function validateMarketMargins(canonical: OddsCanonical): string[] {
     const total = ip(btts.yes) + ip(btts.no);
     if (total > 0 && (total < 0.85 || total > 1.15)) {
       warnings.push(`MARGIN_INVALID: BTTS implied probability ${(total * 100).toFixed(1)}% outside 85-115% range — removed`);
-      delete canonical['btts'];
+      delete cleaned['btts'];
     }
   }
 
@@ -462,11 +463,11 @@ function validateMarketMargins(canonical: OddsCanonical): string[] {
     const total = ip(cornersOu.over) + ip(cornersOu.under);
     if (total > 0 && (total < 0.85 || total > 1.15)) {
       warnings.push(`MARGIN_INVALID: Corners O/U ${cornersOu.line} implied probability ${(total * 100).toFixed(1)}% outside 85-115% range — removed`);
-      delete canonical['corners_ou'];
+      delete cleaned['corners_ou'];
     }
   }
 
-  return warnings;
+  return { warnings, cleaned };
 }
 
 function checkOddsSanity(
@@ -476,8 +477,13 @@ function checkOddsSanity(
 ): string[] {
   const warnings: string[] = [];
 
-  // Phase 1: Margin validation (all minutes) — removes bad markets
-  warnings.push(...validateMarketMargins(canonical));
+  // Phase 1: Margin validation (all minutes) — removes bad markets from copy
+  const { warnings: marginWarnings, cleaned } = validateMarketMargins(canonical);
+  warnings.push(...marginWarnings);
+  // Apply cleaned result: remove keys that were stripped by validation
+  for (const k of Object.keys(canonical) as (keyof OddsCanonical)[]) {
+    if (!(k in cleaned)) delete canonical[k];
+  }
 
   const odds1x2 = canonical?.['1x2'];
   if (!odds1x2) return warnings;
