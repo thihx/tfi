@@ -285,80 +285,146 @@ function PipelineStageIndicator({ stage }: { stage: PipelineContext['stage'] }) 
   );
 }
 
-function MatchResultCard({ result }: { result: PipelineMatchResult }) {
+function ConfidenceBar({ value }: { value: number }) {
+  const pct = Math.min(100, Math.max(0, (value / 10) * 100));
+  const color = value >= 7 ? '#10b981' : value >= 5 ? '#f59e0b' : '#ef4444';
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', minWidth: '100px' }}>
+      <div style={{
+        flex: 1, height: '6px', borderRadius: '3px',
+        background: 'var(--gray-100)',
+        overflow: 'hidden',
+      }}>
+        <div style={{ width: `${pct}%`, height: '100%', background: color, borderRadius: '3px', transition: 'width 0.3s' }} />
+      </div>
+      <span style={{ fontSize: '12px', fontWeight: 600, color, minWidth: '28px' }}>{value}/10</span>
+    </div>
+  );
+}
+
+function RiskChip({ level }: { level: string }) {
+  const map: Record<string, { bg: string; color: string }> = {
+    LOW:    { bg: '#d1fae5', color: '#065f46' },
+    MEDIUM: { bg: '#fef3c7', color: '#92400e' },
+    HIGH:   { bg: '#fee2e2', color: '#991b1b' },
+  };
+  const style = map[level?.toUpperCase()] ?? { bg: '#f3f4f6', color: '#6b7280' };
+  return (
+    <span style={{
+      padding: '2px 8px', borderRadius: '10px',
+      fontSize: '11px', fontWeight: 700, letterSpacing: '0.3px',
+      background: style.bg, color: style.color,
+    }}>
+      {level || 'N/A'}
+    </span>
+  );
+}
+
+function MatchResultRow({ result }: { result: PipelineMatchResult }) {
+  const [expanded, setExpanded] = useState(false);
   const ai = result.parsedAi;
-  const rec = result.recommendation;
+
+  const hasPlay = !!(ai?.ai_selection);
+  const isError = result.stage === 'error';
+
+  const statusDot = isError ? '#ef4444'
+    : result.notified ? '#6366f1'
+    : hasPlay ? '#10b981'
+    : '#d1d5db';
 
   return (
-    <div className={`monitor-match-card ${result.stage === 'error' ? 'match-error' : result.notified ? 'match-notified' : ''}`}>
-      <div className="match-card-header">
-        <strong>{result.matchDisplay}</strong>
-        <div className="match-card-badges">
-          {result.proceeded && <span className="badge badge-live">Analyzed</span>}
-          {result.notified && <span className="badge badge-active">Notified</span>}
-          {result.saved && <span className="badge badge-won">Saved</span>}
-          {result.stage === 'error' && <span className="badge badge-lost">Error</span>}
-          {result.skippedStale && <span className="badge badge-ht" title="Skipped — no significant change since last analysis">⏭ Stale</span>}
-          {!result.proceeded && !result.skippedStale && result.stage === 'complete' && <span className="badge badge-ns">Skipped</span>}
+    <div style={{
+      borderBottom: '1px solid var(--gray-100)',
+      opacity: (!hasPlay && !isError) ? 0.6 : 1,
+      transition: 'opacity 0.15s',
+    }}>
+      {/* Main row */}
+      <div
+        onClick={() => ai?.reasoning_vi && setExpanded((v) => !v)}
+        style={{
+          display: 'grid',
+          gridTemplateColumns: '8px 1fr 140px 80px 120px 80px 80px 28px',
+          alignItems: 'center',
+          gap: '12px',
+          padding: '12px 16px',
+          cursor: ai?.reasoning_vi ? 'pointer' : 'default',
+          background: expanded ? 'var(--gray-50)' : 'transparent',
+          transition: 'background 0.1s',
+        }}
+      >
+        {/* Status dot */}
+        <div style={{ width: '8px', height: '8px', borderRadius: '50%', background: statusDot, flexShrink: 0 }} />
+
+        {/* Match name + badges */}
+        <div style={{ minWidth: 0 }}>
+          <div style={{ fontWeight: 600, fontSize: '13px', color: 'var(--gray-800)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+            {result.matchDisplay}
+          </div>
+          <div style={{ display: 'flex', gap: '4px', marginTop: '3px', flexWrap: 'wrap' }}>
+            {result.notified && <span className="badge badge-active" style={{ fontSize: '10px', padding: '1px 6px' }}>Notified</span>}
+            {result.saved && <span className="badge badge-won" style={{ fontSize: '10px', padding: '1px 6px' }}>Saved</span>}
+            {result.skippedStale && <span className="badge badge-ht" style={{ fontSize: '10px', padding: '1px 6px' }}>Stale</span>}
+            {isError && <span className="badge badge-lost" style={{ fontSize: '10px', padding: '1px 6px' }}>Error</span>}
+          </div>
         </div>
+
+        {/* Confidence bar */}
+        {ai ? <ConfidenceBar value={ai.ai_confidence ?? 0} /> : <span style={{ color: 'var(--gray-400)', fontSize: '12px' }}>—</span>}
+
+        {/* Risk */}
+        {ai ? <RiskChip level={ai.risk_level || 'HIGH'} /> : <span style={{ color: 'var(--gray-400)', fontSize: '12px' }}>—</span>}
+
+        {/* Selection + Market */}
+        <div style={{ minWidth: 0 }}>
+          {ai?.ai_selection ? (
+            <>
+              <div style={{ fontSize: '12px', fontWeight: 600, color: 'var(--gray-800)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{ai.ai_selection}</div>
+              <div style={{ fontSize: '11px', color: 'var(--gray-500)', marginTop: '1px' }}>{ai.bet_market || '—'}</div>
+            </>
+          ) : (
+            <span style={{ color: 'var(--gray-400)', fontSize: '12px' }}>No play</span>
+          )}
+        </div>
+
+        {/* Odds */}
+        <span style={{ fontSize: '13px', fontWeight: 600, color: 'var(--gray-700)' }}>
+          {ai?.odds_for_display ?? '—'}
+        </span>
+
+        {/* Stake */}
+        <span style={{ fontSize: '13px', fontWeight: 600, color: 'var(--gray-700)' }}>
+          {ai?.stake_percent ? `${ai.stake_percent}%` : '—'}
+        </span>
+
+        {/* Expand chevron */}
+        {ai?.reasoning_vi ? (
+          <span style={{ color: 'var(--gray-400)', fontSize: '12px', transition: 'transform 0.2s', display: 'inline-block', transform: expanded ? 'rotate(180deg)' : 'none' }}>▼</span>
+        ) : <span />}
       </div>
 
-      {ai && (
-        <div className="match-card-body">
-          <div className="match-ai-grid">
-            <div>
-              <span className="ai-label">Selection</span>
-              <span className="ai-value">{ai.ai_selection || '—'}</span>
-            </div>
-            <div>
-              <span className="ai-label">Market</span>
-              <span className="ai-value">{ai.bet_market || '—'}</span>
-            </div>
-            <div>
-              <span className="ai-label">Confidence</span>
-              <span className="ai-value">{ai.ai_confidence}/10</span>
-            </div>
-            <div>
-              <span className="ai-label">Odds</span>
-              <span className="ai-value">{ai.odds_for_display ?? '—'}</span>
-            </div>
-            <div>
-              <span className="ai-label">Risk</span>
-              <span className={`ai-value risk-${(ai.risk_level || 'HIGH').toLowerCase()}`}>
-                {ai.risk_level || 'N/A'}
-              </span>
-            </div>
-            <div>
-              <span className="ai-label">Stake</span>
-              <span className="ai-value">{ai.stake_percent ? `${ai.stake_percent}%` : '—'}</span>
-            </div>
-          </div>
-          {ai.reasoning_vi && (
-            <div className="match-reasoning">
-              <small>{ai.reasoning_vi}</small>
-            </div>
-          )}
+      {/* Expanded analysis */}
+      {expanded && ai?.reasoning_vi && (
+        <div style={{ padding: '0 16px 14px 36px', borderTop: '1px solid var(--gray-100)' }}>
+          <p style={{ fontSize: '13px', color: 'var(--gray-600)', lineHeight: 1.65, margin: '12px 0 0' }}>
+            {ai.reasoning_vi}
+          </p>
           {ai.warnings && ai.warnings.length > 0 && (
-            <div className="match-warnings">
+            <div style={{ display: 'flex', gap: '6px', marginTop: '10px', flexWrap: 'wrap' }}>
               {ai.warnings.map((w, i) => (
-                <span key={i} className="warning-tag">⚠ {w}</span>
+                <span key={i} style={{
+                  padding: '2px 8px', borderRadius: '6px',
+                  fontSize: '11px', fontWeight: 600,
+                  background: '#fef3c7', color: '#92400e',
+                }}>⚠ {w}</span>
               ))}
             </div>
           )}
         </div>
       )}
 
-      {rec && (
-        <div className="match-card-footer">
-          <small style={{ color: 'var(--gray-500)' }}>
-            Key: {rec.unique_key} | Factors: {rec.key_factors || '—'}
-          </small>
-        </div>
-      )}
-
-      {result.error && (
-        <div className="match-card-error">
-          <small>❌ {result.error}</small>
+      {isError && result.error && (
+        <div style={{ padding: '6px 16px 10px 36px', color: 'var(--danger)', fontSize: '12px' }}>
+          ❌ {result.error}
         </div>
       )}
     </div>
@@ -443,25 +509,56 @@ export function LiveMonitorTab() {
 
           {/* Match Results */}
           {ctx && ctx.results.length > 0 ? (
-            <div className="card">
+            <div className="card" style={{ overflow: 'hidden' }}>
+              {/* Header */}
               <div className="card-header">
                 <div className="card-title">
                   🎯 Results ({ctx.results.length} match{ctx.results.length > 1 ? 'es' : ''})
                 </div>
-                <div style={{ display: 'flex', gap: '12px', fontSize: '13px', color: 'var(--gray-500)' }}>
-                  <span>✅ {ctx.results.filter((r) => r.proceeded).length} analyzed</span>
-                  <span>📨 {ctx.results.filter((r) => r.notified).length} notified</span>
-                  <span>💾 {ctx.results.filter((r) => r.saved).length} saved</span>
-                  {ctx.results.some((r) => r.skippedStale) && (
-                    <span>⏭ {ctx.results.filter((r) => r.skippedStale).length} stale</span>
-                  )}
+                <div style={{ display: 'flex', gap: '16px', fontSize: '12px' }}>
+                  {[
+                    { label: 'Analyzed', count: ctx.results.filter((r) => r.proceeded).length, color: '#10b981' },
+                    { label: 'Notified', count: ctx.results.filter((r) => r.notified).length, color: '#6366f1' },
+                    { label: 'Saved',    count: ctx.results.filter((r) => r.saved).length,    color: '#f59e0b' },
+                  ].map(({ label, count, color }) => (
+                    <div key={label} style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
+                      <div style={{ width: '8px', height: '8px', borderRadius: '50%', background: color }} />
+                      <span style={{ color: 'var(--gray-500)' }}>{count} {label}</span>
+                    </div>
+                  ))}
                 </div>
               </div>
-              <div style={{ padding: '16px' }}>
-                {ctx.results.map((r, i) => (
-                  <MatchResultCard key={r.matchId || i} result={r} />
-                ))}
+
+              {/* Column headers */}
+              <div style={{
+                display: 'grid',
+                gridTemplateColumns: '8px 1fr 140px 80px 120px 80px 80px 28px',
+                gap: '12px',
+                padding: '8px 16px',
+                background: 'var(--gray-50)',
+                borderBottom: '1px solid var(--gray-200)',
+              }}>
+                <span />
+                <span style={{ fontSize: '11px', fontWeight: 600, color: 'var(--gray-400)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Match</span>
+                <span style={{ fontSize: '11px', fontWeight: 600, color: 'var(--gray-400)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Confidence</span>
+                <span style={{ fontSize: '11px', fontWeight: 600, color: 'var(--gray-400)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Risk</span>
+                <span style={{ fontSize: '11px', fontWeight: 600, color: 'var(--gray-400)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Selection</span>
+                <span style={{ fontSize: '11px', fontWeight: 600, color: 'var(--gray-400)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Odds</span>
+                <span style={{ fontSize: '11px', fontWeight: 600, color: 'var(--gray-400)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Stake</span>
+                <span />
               </div>
+
+              {/* Rows — sorted: has play first */}
+              {[...ctx.results]
+                .sort((a, b) => {
+                  const aPlay = a.parsedAi?.ai_selection ? 1 : 0;
+                  const bPlay = b.parsedAi?.ai_selection ? 1 : 0;
+                  return bPlay - aPlay;
+                })
+                .map((r, i) => (
+                  <MatchResultRow key={r.matchId || i} result={r} />
+                ))
+              }
             </div>
           ) : ctx ? (
             <div className="card">
