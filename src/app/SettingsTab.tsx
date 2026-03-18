@@ -3,6 +3,12 @@ import { useAppState } from '@/hooks/useAppState';
 import { useToast } from '@/hooks/useToast';
 import { formatLocalDateTime } from '@/lib/utils/helpers';
 import { AuditLogsPanel } from '@/components/AuditLogsPanel';
+import { getToken } from '@/lib/services/auth';
+
+function authHeaders(): Record<string, string> {
+  const t = getToken();
+  return t ? { Authorization: `Bearer ${t}` } : {};
+}
 
 interface JobProgress {
   step: string;
@@ -85,7 +91,7 @@ function JobSchedulerPanel() {
   const fetchJobs = useCallback(async () => {
     if (apiUrl == null) return;
     try {
-      const res = await fetch(`${apiUrl}/api/jobs`);
+      const res = await fetch(`${apiUrl}/api/jobs`, { headers: authHeaders() });
       if (res.ok) setJobs(await res.json());
     } catch { /* server offline */ }
   }, [apiUrl]);
@@ -105,7 +111,7 @@ function JobSchedulerPanel() {
     try {
       const res = await fetch(`${apiUrl}/api/jobs/${name}`, {
         method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', ...authHeaders() },
         body: JSON.stringify({ intervalMs }),
       });
       if (res.ok) {
@@ -123,7 +129,7 @@ function JobSchedulerPanel() {
     try {
       const res = await fetch(`${apiUrl}/api/jobs/${name}/trigger`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', ...authHeaders() },
         body: JSON.stringify(force ? { force: true } : {}),
       });
       if (res.ok) {
