@@ -12,12 +12,12 @@ const FEATURES = [
   {
     icon: '🎯',
     title: 'Smart Recommendations',
-    desc: 'Condition-based alerts and AI-generated betting recommendations with confidence scoring.',
+    desc: 'Condition-based alerts and AI-generated investment recommendations with confidence scoring.',
   },
   {
     icon: '📊',
     title: 'Full Performance Tracking',
-    desc: 'Track every bet, recommendation and P&L across all markets with automated settlement.',
+    desc: 'Track every investment, recommendation and P&L across all markets with automated settlement.',
   },
 ];
 
@@ -178,9 +178,6 @@ export function LoginScreen({ onLogin, error }: LoginScreenProps) {
             }}>
               Welcome back
             </h2>
-            <p style={{ color: '#6b7280', fontSize: '14px', margin: 0 }}>
-              Sign in to access your dashboard
-            </p>
           </div>
 
           {/* Google button */}
@@ -230,24 +227,15 @@ export function LoginScreen({ onLogin, error }: LoginScreenProps) {
             </div>
           )}
 
-          {/* Divider + note */}
-          <div style={{
-            marginTop: '32px', paddingTop: '24px',
-            borderTop: '1px solid #f3f4f6',
-            textAlign: 'center',
-          }}>
-            <p style={{ color: '#9ca3af', fontSize: '12px', margin: 0, lineHeight: 1.6 }}>
-              Access is restricted to authorised accounts only.
-            </p>
-          </div>
         </div>
 
         {/* Bottom copyright */}
         <div style={{
           position: 'absolute', bottom: '28px',
-          color: '#d1d5db', fontSize: '12px',
+          color: '#9ca3af', fontSize: '12px',
+          fontWeight: 500,
         }}>
-          © 2025 Time for Investment
+          TFI - Time for Investment v1.0, © 2025.
         </div>
       </div>
     </div>
