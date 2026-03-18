@@ -27,7 +27,13 @@
       "Bash(grep -n \"home_reds\\\\|away_reds\\\\|red\" c:/tfi/packages/server/src/db/migrations/*.sql)",
       "Bash(grep -n \"home_reds\\\\|away_reds\\\\|home_cards\\\\|away_cards\" c:/tfi/packages/server/src/db/migrations/*.sql)",
       "Bash(grep -n \"red\\\\|card\\\\|snapshot\\\\|derived\\\\|events_json\\\\|stats\" c:/tfi/packages/server/src/db/migrations/*.sql)",
-      "Bash(grep -n \"home_reds\\\\|away_reds\\\\|red_card\\\\|derived_insights\\\\|stats_compact\\\\|events_summary\" c:/tfi/packages/server/src/db/migrations/*.sql)"
+      "Bash(grep -n \"home_reds\\\\|away_reds\\\\|red_card\\\\|derived_insights\\\\|stats_compact\\\\|events_summary\" c:/tfi/packages/server/src/db/migrations/*.sql)",
+      "Bash(curl -s http://localhost:4000/api/leagues)",
+      "Bash(tasklist)",
+      "Read(//c//**)",
+      "Bash(curl -s -X DELETE http://localhost:4000/api/watchlist/test123 -H \"Content-Type: application/json\" -w \"\\\\nHTTP_STATUS:%{http_code}\")",
+      "Bash(curl -s http://localhost:4000/api/watchlist)",
+      "Bash(curl -s -X DELETE http://localhost:4000/api/watchlist/1530918 -H \"Accept: application/json\" -w \"\\\\nHTTP_STATUS:%{http_code}\")"
     ]
   }
 }

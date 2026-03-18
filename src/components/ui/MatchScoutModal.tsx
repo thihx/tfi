@@ -5,6 +5,7 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { Modal } from './Modal';
+import { formatLocalDateShortYear } from '@/lib/utils/helpers';
 import { useAppState } from '@/hooks/useAppState';
 import { fetchMatchScout, type MatchScoutData } from '@/lib/services/api';
 import { LIVE_STATUSES } from '@/config/constants';
@@ -403,7 +404,7 @@ function H2HSummary({ h2h, homeTeam, awayTeam }: { h2h: H2HArr | undefined; home
 
 function H2HRow({ match: m, homeTeam }: { match: H2HArr[number]; homeTeam: string }) {
   const hg = m.goals.home ?? 0, ag = m.goals.away ?? 0;
-  const date = new Date(m.fixture.date).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: '2-digit' });
+  const date = formatLocalDateShortYear(m.fixture.date);
   const isHomeWin = m.teams.home.winner === true;
   const isAwayWin = m.teams.away.winner === true;
   const isHomeTeam = m.teams.home.name.includes(homeTeam.split(' ')[0]!);

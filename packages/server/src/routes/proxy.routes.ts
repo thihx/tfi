@@ -9,6 +9,7 @@ import { audit } from '../lib/audit.js';
 import {
   fetchFixturesByIds, fetchLiveOdds, fetchPreMatchOdds, fetchPrediction,
   fetchFixtureEvents, fetchFixtureStatistics, fetchFixtureLineups, fetchStandings,
+  fetchFixturesByLeague,
 } from '../lib/football-api.js';
 import { fetchTheOddsLive } from '../lib/the-odds-api.js';
 import { callGemini } from '../lib/gemini.js';
@@ -152,6 +153,24 @@ export async function proxyRoutes(app: FastifyInstance) {
       return reply.code(502).send({ error: err instanceof Error ? err.message : 'Football API error' });
     }
   });
+
+  // GET /api/proxy/football/league-fixtures?leagueId=&season=&next=
+  app.get<{ Querystring: { leagueId: string; season?: string; next?: string } }>(
+    '/api/proxy/football/league-fixtures',
+    async (req, reply) => {
+      const leagueId = Number(req.query.leagueId);
+      if (!leagueId || isNaN(leagueId)) return reply.code(400).send({ error: 'leagueId required' });
+      const season = Number(req.query.season) || new Date().getFullYear() - (new Date().getMonth() < 7 ? 1 : 0);
+      const next = Math.min(Number(req.query.next) || 10, 20);
+      try {
+        const fixtures = await fetchFixturesByLeague(leagueId, season, next);
+        return fixtures;
+      } catch (err) {
+        app.log.error(err, 'proxy/football/league-fixtures failed');
+        return reply.code(502).send({ error: err instanceof Error ? err.message : 'Football API error' });
+      }
+    },
+  );
 
   // POST /api/proxy/ai/analyze
   app.post<{ Body: { prompt: string; provider: string; model: string } }>(

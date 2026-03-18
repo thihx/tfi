@@ -37,54 +37,94 @@ export function convertSeoulToLocalDateTime(dateStr: string, kickoffStr: string)
   return new Date(seoulDate.getTime() - 9 * 60 * 60 * 1000);
 }
 
-/**
- * Format a Date object to "DD/MM HH:mm" (local timezone)
- */
-export function formatDateTimeDisplay(dateObj: Date): string {
-  if (!(dateObj instanceof Date) || isNaN(dateObj.getTime())) return '';
-  const dd = String(dateObj.getDate()).padStart(2, '0');
-  const mm = String(dateObj.getMonth() + 1).padStart(2, '0');
-  const hh = String(dateObj.getHours()).padStart(2, '0');
-  const min = String(dateObj.getMinutes()).padStart(2, '0');
-  return `${dd}/${mm} ${hh}:${min}`;
+const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+
+// ── Format config from env (VITE_DATETIME_FORMAT, VITE_DATE_FORMAT, VITE_TIME_FORMAT) ──
+const ENV_DATETIME_FORMAT = import.meta.env['VITE_DATETIME_FORMAT'] as string | undefined;
+const ENV_DATE_FORMAT = import.meta.env['VITE_DATE_FORMAT'] as string | undefined;
+const ENV_TIME_FORMAT = import.meta.env['VITE_TIME_FORMAT'] as string | undefined;
+
+const DATETIME_FORMAT = ENV_DATETIME_FORMAT || 'DD-MMM-YYYY HH:mm';
+const DATE_FORMAT = ENV_DATE_FORMAT || 'DD-MMM-YYYY';
+const TIME_FORMAT = ENV_TIME_FORMAT || 'HH:mm';
+
+function applyFormat(fmt: string, d: Date): string {
+  const dd = String(d.getDate()).padStart(2, '0');
+  const mmm = MONTHS[d.getMonth()]!;
+  const yyyy = String(d.getFullYear());
+  const yy = yyyy.slice(2);
+  const hh = String(d.getHours()).padStart(2, '0');
+  const mm = String(d.getMinutes()).padStart(2, '0');
+  const ss = String(d.getSeconds()).padStart(2, '0');
+  return fmt
+    .replace('DD', dd)
+    .replace('MMM', mmm)
+    .replace('YYYY', yyyy)
+    .replace('YY', yy)
+    .replace('HH', hh)
+    .replace('mm', mm)
+    .replace('ss', ss);
 }
 
 /**
- * Format an ISO timestamp string to "DD/MM HH:mm" in browser local timezone
+ * Format a Date object using VITE_DATETIME_FORMAT (default: "DD-MMM-YYYY HH:mm")
+ */
+export function formatDateTimeDisplay(dateObj: Date): string {
+  if (!(dateObj instanceof Date) || isNaN(dateObj.getTime())) return '';
+  return applyFormat(DATETIME_FORMAT, dateObj);
+}
+
+/**
+ * Format an ISO timestamp string using VITE_DATETIME_FORMAT
  */
 export function formatLocalDateTime(ts?: string | null): string {
   if (!ts) return '-';
   const d = new Date(ts);
   if (isNaN(d.getTime())) return '-';
-  const dd = String(d.getDate()).padStart(2, '0');
-  const mm = String(d.getMonth() + 1).padStart(2, '0');
-  const hh = String(d.getHours()).padStart(2, '0');
-  const min = String(d.getMinutes()).padStart(2, '0');
-  return `${dd}/${mm} ${hh}:${min}`;
+  return applyFormat(DATETIME_FORMAT, d);
 }
 
 /**
- * Format an ISO timestamp string to "DD/MM" in browser local timezone
+ * Format an ISO timestamp string using VITE_DATE_FORMAT (default: "DD-MMM-YYYY")
  */
 export function formatLocalDate(ts?: string | null): string {
   if (!ts) return '-';
   const d = new Date(ts);
   if (isNaN(d.getTime())) return '-';
-  const dd = String(d.getDate()).padStart(2, '0');
-  const mm = String(d.getMonth() + 1).padStart(2, '0');
-  return `${dd}/${mm}`;
+  return applyFormat(DATE_FORMAT, d);
 }
 
 /**
- * Format an ISO timestamp string to "HH:mm" in browser local timezone
+ * Format an ISO timestamp string using VITE_TIME_FORMAT (default: "HH:mm")
  */
 export function formatLocalTime(ts?: string | null): string {
   if (!ts) return '';
   const d = new Date(ts);
   if (isNaN(d.getTime())) return '';
-  const hh = String(d.getHours()).padStart(2, '0');
-  const min = String(d.getMinutes()).padStart(2, '0');
-  return `${hh}:${min}`;
+  return applyFormat(TIME_FORMAT, d);
+}
+
+/**
+ * Format an ISO timestamp string with weekday prefix + VITE_DATETIME_FORMAT
+ * e.g. "Thu 19-Mar-2025 09:45"
+ */
+export function formatLocalDateTimeFull(ts?: string | null): string {
+  if (!ts) return '-';
+  const d = new Date(ts);
+  if (isNaN(d.getTime())) return '-';
+  const weekday = d.toLocaleDateString(undefined, { weekday: 'short' });
+  return `${weekday} ${applyFormat(DATETIME_FORMAT, d)}`;
+}
+
+/**
+ * Format an ISO timestamp string to short-year date: "DD-MMM-YY"
+ * e.g. "19-Mar-25" — for historical match lists
+ */
+export function formatLocalDateShortYear(ts?: string | null): string {
+  if (!ts) return '-';
+  const d = new Date(ts);
+  if (isNaN(d.getTime())) return '-';
+  return applyFormat(DATE_FORMAT.replace('YYYY', 'YY'), d);
 }
 
 /**

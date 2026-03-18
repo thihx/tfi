@@ -103,6 +103,12 @@ export async function fetchMatchesJob(): Promise<{ saved: number; leagues: numbe
 
   console.log(`[fetchMatchesJob] ✅ Saved ${saved} matches from ${uniqueLeagues} leagues`);
 
+  // 8b. Sync watchlist dates from refreshed matches (fixes stale date/kickoff)
+  const synced = await watchlistRepo.syncWatchlistDates();
+  if (synced > 0) {
+    console.log(`[fetchMatchesJob] Synced ${synced} watchlist date/kickoff entries`);
+  }
+
   // 9. Auto-add Top League matches to Watchlist (NS status only)
   await reportJobProgress(JOB, 'top-leagues', 'Auto-adding top league matches to watchlist...', 85);
   const topLeagues = await leagueRepo.getTopLeagues();

@@ -39,7 +39,7 @@ export async function getLeagueById(leagueId: number): Promise<LeagueRow | null>
 
 export async function getTopLeagues(): Promise<LeagueRow[]> {
   const result = await query<LeagueRow>(
-    'SELECT * FROM leagues WHERE top_league = TRUE ORDER BY country, tier, league_name',
+    'SELECT * FROM leagues WHERE top_league = TRUE AND active = TRUE ORDER BY country, tier, league_name',
   );
   return result.rows;
 }

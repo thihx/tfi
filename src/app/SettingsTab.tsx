@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useAppState } from '@/hooks/useAppState';
 import { useToast } from '@/hooks/useToast';
-import { formatLocalTimeFull } from '@/lib/utils/helpers';
+import { formatLocalDateTime } from '@/lib/utils/helpers';
 import { AuditLogsPanel } from '@/components/AuditLogsPanel';
 
 interface JobProgress {
@@ -36,30 +36,41 @@ const INTERVAL_OPTIONS = [
   { label: 'Every 60 min', value: 3_600_000 },
 ];
 
-const JOB_META: Record<string, { label: string; description: string }> = {
+const JOB_META: Record<string, { label: string; description: string; order: number }> = {
   'fetch-matches': {
     label: 'Fetch Matches',
     description: 'Fetches fixtures from Football API for active leagues, archives finished matches, and auto-adds top league NS matches to watchlist.',
-  },
-  'update-predictions': {
-    label: 'Update Predictions',
-    description: 'Fetches prediction data from Football API for all upcoming (NS) watchlist matches.',
-  },
-  'expire-watchlist': {
-    label: 'Expire Watchlist',
-    description: 'Marks watchlist entries as expired when kickoff time + 120 minutes has passed.',
-  },
-  'check-live-trigger': {
-    label: 'Check Live Matches',
-    description: 'Detects currently live watchlist matches and increments their check counters.',
-  },
-  'auto-settle': {
-    label: 'Auto Settle',
-    description: 'Settles pending recommendations and bets using final match scores from history or Football API.',
+    order: 1,
   },
   'enrich-watchlist': {
     label: 'Enrich Watchlist',
     description: 'Uses AI (Gemini) and web search to add strategic context and generate recommended conditions for watchlist entries.',
+    order: 2,
+  },
+  'update-predictions': {
+    label: 'Update Predictions',
+    description: 'Fetches prediction data from Football API for all upcoming (NS) watchlist matches.',
+    order: 3,
+  },
+  'check-live-trigger': {
+    label: 'Check Live Matches',
+    description: 'Detects currently live watchlist matches, triggers the AI analysis pipeline, and increments their check counters.',
+    order: 4,
+  },
+  'auto-settle': {
+    label: 'Auto Settle',
+    description: 'Settles pending recommendations and bets using final match scores from history or Football API.',
+    order: 5,
+  },
+  'expire-watchlist': {
+    label: 'Expire Watchlist',
+    description: 'Marks watchlist entries as expired when kickoff time + 120 minutes has passed.',
+    order: 6,
+  },
+  'purge-audit': {
+    label: 'Purge Audit Logs',
+    description: 'Deletes audit log entries older than the configured retention period (default: 30 days) to manage database growth.',
+    order: 7,
   },
 };
 
@@ -138,7 +149,7 @@ function JobSchedulerPanel() {
 
   return (
     <div className="job-scheduler">
-      {jobs.map((job) => {
+      {[...jobs].sort((a, b) => (JOB_META[a.name]?.order ?? 99) - (JOB_META[b.name]?.order ?? 99)).map((job) => {
         const meta = JOB_META[job.name];
         const label = meta?.label || job.name;
         const description = meta?.description || '';
@@ -155,7 +166,7 @@ function JobSchedulerPanel() {
                 <div className="job-label">{label}</div>
                 <div className="job-description">{description}</div>
                 <div className="job-meta">
-                  {job.lastRun ? `Last run: ${formatLocalTimeFull(job.lastRun)}` : 'Never run'}
+                  {job.lastRun ? `Last run: ${formatLocalDateTime(job.lastRun)}` : 'Never run'}
                   {job.runCount > 0 && <span className="job-run-count"> (#{job.runCount})</span>}
                   {job.lastError && !isRunning && (
                     <span className="job-error-text"> | Error: {job.lastError}</span>

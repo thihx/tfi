@@ -34,6 +34,7 @@ vi.mock('../repos/matches.repo.js', () => ({
 vi.mock('../repos/watchlist.repo.js', () => ({
   getWatchlistByMatchId: vi.fn().mockResolvedValue(null),
   createWatchlistEntry: vi.fn().mockResolvedValue({}),
+  syncWatchlistDates: vi.fn().mockResolvedValue(0),
 }));
 
 vi.mock('../repos/matches-history.repo.js', () => ({
@@ -119,5 +120,11 @@ describe('fetchMatchesJob', () => {
     await fetchMatchesJob();
     const historyRepo = await import('../repos/matches-history.repo.js');
     expect(historyRepo.archiveFinishedMatches).toHaveBeenCalled();
+  });
+
+  test('syncs watchlist dates after refresh', async () => {
+    await fetchMatchesJob();
+    const watchlistRepo = await import('../repos/watchlist.repo.js');
+    expect(watchlistRepo.syncWatchlistDates).toHaveBeenCalled();
   });
 });

@@ -4,7 +4,7 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { useAppState } from '@/hooks/useAppState';
-import { formatLocalTimeFull } from '@/lib/utils/helpers';
+import { formatLocalDateTime } from '@/lib/utils/helpers';
 
 interface AuditLogEntry {
   id: number;
@@ -261,7 +261,7 @@ export function AuditLogsPanel() {
                 }}
               >
                 <td style={{ padding: '6px', whiteSpace: 'nowrap', fontSize: '12px' }}>
-                  {formatLocalTimeFull(log.timestamp)}
+                  {formatLocalDateTime(log.timestamp)}
                 </td>
                 <td style={{ padding: '6px' }}>
                   <Badge label={log.category} colors={CATEGORY_COLORS[log.category]} />

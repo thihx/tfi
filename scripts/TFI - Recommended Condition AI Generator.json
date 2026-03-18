@@ -1,0 +1,867 @@
+{
+  "name": "TFI - Recommended Condition AI Generator",
+  "nodes": [
+    {
+      "parameters": {
+        "jsCode": "const CONFIG = {\n  SPREADSHEET_ID: '1kwXtpKxtQE52lFnz5MRRV0dnzeftN_X5tD69CL12ycU',\n  SHEET_IDS: {\n    CONFIG: 1170756615,\n    MATCHES: 996094587,\n    WATCHLIST: 715101038,\n    RECOMMENDATIONS: 532487099,\n  },\n  TIMEZONE: 'Asia/Seoul',\n  AI_PROVIDER: 'gemini',\n  AI_MODEL: 'gemini-2.0-flash',\n  AI_TEMPERATURE: '0.3',\n  AI_MAX_TOKENS: '4096',\n  PROCESS_MODES: ['A', 'B', 'C'],\n  SKIP_IF_HAS_CONDITION: true,\n  SKIP_IF_HAS_RECOMMENDATION: false,\n  MIN_PRIORITY: 1,\n  MAX_PRIORITY: 5,\n  PRE_MATCH_WINDOW_HOURS: 24,\n  // NEW: Batch size for AI calls\n  AI_BATCH_SIZE: 10,\n};\n\nreturn { json: CONFIG };\n"
+      },
+      "id": "694b45ad-f52a-4acb-86e9-e6802b2c16a2",
+      "name": "Set Config",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        976,
+        288
+      ]
+    },
+    {
+      "parameters": {
+        "documentId": {
+          "__rl": true,
+          "value": "1kwXtpKxtQE52lFnz5MRRV0dnzeftN_X5tD69CL12ycU",
+          "mode": "list",
+          "cachedResultName": "Time_For_Investment"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": 715101038,
+          "mode": "list",
+          "cachedResultName": "Watchlist"
+        },
+        "options": {}
+      },
+      "id": "c4292e58-dd2a-48cc-9c09-1d1ac51097b5",
+      "name": "Get Watchlist",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.3,
+      "position": [
+        1200,
+        288
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "1Wv4qfdHrkA4hfjn",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Filter Eligible Matches for Condition Generation\nconst allMatches = $input.all();\nif (!allMatches.length) {\n  console.log('[Filter Eligible] No matches in watchlist');\n  return [];\n}\n\nconst config = $('Set Config').first().json || {};\nconst TIMEZONE = config.TIMEZONE || 'UTC';\nconst PRE_MATCH_WINDOW_HOURS = Number(config.PRE_MATCH_WINDOW_HOURS ?? 24);\nconst PROCESS_MODES = config.PROCESS_MODES || ['A', 'B', 'C'];\nconst SKIP_IF_HAS_CONDITION = config.SKIP_IF_HAS_CONDITION !== false;\nconst SKIP_IF_HAS_RECOMMENDATION = config.SKIP_IF_HAS_RECOMMENDATION === true;\nconst MIN_PRIORITY = Number(config.MIN_PRIORITY ?? 1);\nconst MAX_PRIORITY = Number(config.MAX_PRIORITY ?? 5);\n\nconst now = new Date();\n\nfunction parseLocalDateTime(dateStr, timeStr) {\n  if (!dateStr) return null;\n  const dateParts = String(dateStr).trim().split('-');\n  if (dateParts.length !== 3) return null;\n  const year = Number(dateParts[0]);\n  const month = Number(dateParts[1]);\n  const day = Number(dateParts[2]);\n  let hour = 0, minute = 0;\n  if (timeStr) {\n    const tParts = String(timeStr).trim().split(':');\n    hour = Number(tParts[0] || 0);\n    minute = Number(tParts[1] || 0);\n  }\n  if (!year || !month || !day) return null;\n  return new Date(Date.UTC(year, month - 1, day, hour, minute, 0, 0));\n}\n\nconst eligible = [];\nconst skipped = { hasCondition: 0, hasRecommendation: 0, wrongMode: 0, wrongPriority: 0, tooFarAway: 0, invalid: 0 };\n\nfor (const item of allMatches) {\n  const row = item.json || {};\n  const matchId = String(row.match_id || '').trim();\n  \n  if (!matchId) {\n    skipped.invalid++;\n    continue;\n  }\n  \n  const mode = String(row.mode || 'B').trim().toUpperCase();\n  if (!PROCESS_MODES.includes(mode)) {\n    skipped.wrongMode++;\n    continue;\n  }\n  \n  const priority = Number(row.priority ?? 3);\n  if (priority < MIN_PRIORITY || priority > MAX_PRIORITY) {\n    skipped.wrongPriority++;\n    continue;\n  }\n  \n  const existingCondition = String(row.custom_conditions || '').trim();\n  if (SKIP_IF_HAS_CONDITION && existingCondition && existingCondition !== '(none)') {\n    skipped.hasCondition++;\n    continue;\n  }\n  \n  const existingRecommendation = String(row.recommended_custom_condition || '').trim();\n  if (SKIP_IF_HAS_RECOMMENDATION && existingRecommendation) {\n    skipped.hasRecommendation++;\n    continue;\n  }\n  \n  const dateStr = String(row.date || '').trim();\n  const kickoffStr = String(row.kickoff || '').trim();\n  const matchStart = parseLocalDateTime(dateStr, kickoffStr);\n  \n  if (matchStart) {\n    const hoursUntilKickoff = (matchStart - now) / (1000 * 60 * 60);\n    if (hoursUntilKickoff < -2 || hoursUntilKickoff > PRE_MATCH_WINDOW_HOURS) {\n      skipped.tooFarAway++;\n      continue;\n    }\n  }\n  \n  eligible.push({\n    json: {\n      ...row,\n      match_id: matchId,\n      mode,\n      priority,\n      hours_until_kickoff: matchStart ? Math.round((matchStart - now) / (1000 * 60 * 60) * 10) / 10 : null,\n    }\n  });\n}\n\nconsole.log(`[Filter Eligible] Total: ${allMatches.length}, Eligible: ${eligible.length}`);\nconsole.log(`[Filter Eligible] Skipped - hasCondition: ${skipped.hasCondition}, hasRecommendation: ${skipped.hasRecommendation}, wrongMode: ${skipped.wrongMode}, wrongPriority: ${skipped.wrongPriority}, tooFarAway: ${skipped.tooFarAway}, invalid: ${skipped.invalid}`);\n\nreturn eligible;\n"
+      },
+      "id": "43685bfb-6344-4c3b-b3ac-b5f5f95e4786",
+      "name": "Filter Eligible Matches",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1424,
+        288
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 1
+          },
+          "conditions": [
+            {
+              "id": "check-has-matches",
+              "leftValue": "={{ $input.all().length }}",
+              "rightValue": 0,
+              "operator": {
+                "type": "number",
+                "operation": "gt"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "571b17ed-b891-4f42-8815-5e2baa7d6149",
+      "name": "Has Eligible Matches?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        1648,
+        288
+      ]
+    },
+    {
+      "parameters": {
+        "url": "=https://v3.football.api-sports.io/predictions?fixture={{ $json.match_id }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "options": {
+          "batching": {
+            "batch": {
+              "batchSize": 5
+            }
+          },
+          "timeout": 30000
+        }
+      },
+      "id": "c3009ec0-0825-455a-b54a-c661db384d96",
+      "name": "Fetch Predictions",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [
+        1872,
+        288
+      ],
+      "retryOnFail": true,
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "fFgpqIOtkTS0ZzbQ",
+          "name": "Header Auth account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "// Merge Prediction with Match Data (runs for each item)\n// ENHANCED: Bao gồm dữ liệu teams chi tiết cho AI phân tích sâu\n// Cấu trúc gọn gàng, loại bỏ URLs/logos không cần thiết\n\nconst matchData = $items('Filter Eligible Matches')[$itemIndex].json;\nconst apiResp = $json || {};\n\n// Check for API errors\nif (apiResp.errors) {\n  const err = apiResp.errors.rateLimit || apiResp.errors.fixture || apiResp.errors.requests;\n  if (err) {\n    console.log(`[Merge] API Error for ${matchData.match_id}: ${err}`);\n  }\n}\n\n// Extract prediction from response\nlet prediction = null;\nif (Array.isArray(apiResp.response) && apiResp.response.length > 0) {\n  prediction = apiResp.response[0];\n}\n\n// Helper: Extract compact team stats\nfunction extractTeamStats(team, isHome) {\n  if (!team) return null;\n  \n  const last5 = team.last_5 || {};\n  const league = team.league || {};\n  const fixtures = league.fixtures || {};\n  const goals = league.goals || {};\n  const goalsFor = goals.for || {};\n  const goalsAgainst = goals.against || {};\n  \n  // Extract goals by minute (chỉ giữ percentage, bỏ total)\n  function extractMinuteStats(minuteData) {\n    if (!minuteData) return null;\n    const result = {};\n    for (const period of ['0-15', '16-30', '31-45', '46-60', '61-75', '76-90']) {\n      const pct = minuteData[period]?.percentage;\n      if (pct) result[period] = pct;\n    }\n    return Object.keys(result).length > 0 ? result : null;\n  }\n  \n  return {\n    name: team.name,\n    \n    // Phong độ 5 trận gần nhất\n    last_5: {\n      form: last5.form,           // \"60%\"\n      attack: last5.att,          // \"67%\"\n      defense: last5.def,         // \"56%\"\n      avg_scored: last5.goals?.for?.average,    // \"2.4\"\n      avg_conceded: last5.goals?.against?.average  // \"1.6\"\n    },\n    \n    // Form cả mùa (chuỗi W/D/L)\n    season_form: league.form,     // \"WDLDDLDWDDLLLWWWWLWWL\"\n    \n    // Thống kê thắng/hòa/thua - chỉ lấy phần relevant (home cho home team, away cho away team)\n    record: {\n      played: isHome ? fixtures.played?.home : fixtures.played?.away,\n      wins: isHome ? fixtures.wins?.home : fixtures.wins?.away,\n      draws: isHome ? fixtures.draws?.home : fixtures.draws?.away,\n      loses: isHome ? fixtures.loses?.home : fixtures.loses?.away,\n      // Thêm total để so sánh\n      total: {\n        played: fixtures.played?.total,\n        wins: fixtures.wins?.total,\n        draws: fixtures.draws?.total,\n        loses: fixtures.loses?.total\n      }\n    },\n    \n    // Bàn thắng theo khung giờ - RẤT HỮU ÍCH cho điều kiện Minute-based\n    goals_by_minute: {\n      scored: extractMinuteStats(goalsFor.minute),\n      conceded: extractMinuteStats(goalsAgainst.minute)\n    },\n    \n    // Trung bình bàn thắng/thua\n    avg_goals: {\n      scored: isHome ? goalsFor.average?.home : goalsFor.average?.away,\n      conceded: isHome ? goalsAgainst.average?.home : goalsAgainst.average?.away\n    },\n    \n    // Thống kê đặc biệt\n    clean_sheets: league.clean_sheet?.total,\n    failed_to_score: league.failed_to_score?.total,\n    \n    // Chuỗi thắng/thua lớn nhất\n    biggest_streak: {\n      wins: league.biggest?.streak?.wins,\n      draws: league.biggest?.streak?.draws,\n      loses: league.biggest?.streak?.loses\n    },\n    \n    // Under/Over stats - hữu ích cho Total goals conditions\n    under_over: {\n      scored: goalsFor.under_over,   // { \"0.5\": {over, under}, \"1.5\": {...}, ... }\n      conceded: goalsAgainst.under_over\n    }\n  };\n}\n\n// Build ENHANCED structured prediction data\nlet preMatchPrediction = null;\nlet preMatchSummary = '';\n\nif (prediction) {\n  const pred = prediction.predictions || {};\n  const comp = prediction.comparison || {};\n  const teams = prediction.teams || {};\n  \n  preMatchPrediction = {\n    // Core predictions (giữ nguyên)\n    predictions: {\n      winner: pred.winner ? { \n        id: pred.winner.id,\n        name: pred.winner.name,\n        comment: pred.winner.comment  // \"Win or draw\"\n      } : null,\n      win_or_draw: pred.win_or_draw ?? null,\n      under_over: pred.under_over,    // \"+2.5\" hoặc \"-2.5\"\n      goals: pred.goals ? {\n        home: pred.goals.home,\n        away: pred.goals.away\n      } : null,\n      percent: pred.percent ? {\n        home: pred.percent.home,\n        draw: pred.percent.draw,\n        away: pred.percent.away\n      } : null,\n      advice: pred.advice\n    },\n    \n    // Comparison scores\n    comparison: {\n      form: comp.form,           // { home: \"47%\", away: \"53%\" }\n      att: comp.att,             // Attack comparison\n      def: comp.def,             // Defense comparison  \n      poisson: comp.poisson_distribution,  // Poisson distribution\n      h2h: comp.h2h,             // Head to head\n      goals: comp.goals,         // Goals comparison\n      total: comp.total          // Overall rating { home: \"60.2%\", away: \"39.8%\" }\n    },\n    \n    // ENHANCED: Team detailed stats\n    teams: {\n      home: extractTeamStats(teams.home, true),\n      away: extractTeamStats(teams.away, false)\n    }\n  };\n  \n  // Build summary (giữ nguyên logic cũ)\n  const parts = [];\n  if (pred.advice) parts.push(pred.advice);\n  if (pred.winner?.name) parts.push(`Favourite: ${pred.winner.name}`);\n  if (pred.percent) {\n    parts.push(`H${pred.percent.home || '?'} D${pred.percent.draw || '?'} A${pred.percent.away || '?'}`);\n  }\n  if (pred.goals?.home && pred.goals?.away) {\n    parts.push(`Expected: ${pred.goals.home}-${pred.goals.away}`);\n  }\n  if (comp.total?.home && comp.total?.away) {\n    parts.push(`Rating: ${comp.total.home} vs ${comp.total.away}`);\n  }\n  if (pred.under_over) {\n    parts.push(`O/U: ${pred.under_over}`);\n  }\n  preMatchSummary = parts.join(' | ');\n}\n\nreturn {\n  json: {\n    ...matchData,\n    pre_match_prediction: preMatchPrediction,\n    pre_match_prediction_summary: preMatchSummary,\n    has_prediction: !!prediction,\n  }\n};"
+      },
+      "id": "7658798b-7001-4163-b739-3aa17c19bd1e",
+      "name": "Merge Predictions",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2096,
+        288
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// NEW: Batch matches for AI processing\n// Groups matches into batches of AI_BATCH_SIZE for efficient AI calls\n\nconst items = $input.all();\nconst config = $('Set Config').first().json || {};\nconst BATCH_SIZE = config.AI_BATCH_SIZE || 10;\n\nif (!items.length) return [];\n\nconst batches = [];\nfor (let i = 0; i < items.length; i += BATCH_SIZE) {\n  const batchMatches = items.slice(i, i + BATCH_SIZE).map(item => item.json);\n  batches.push({\n    json: {\n      batch_index: Math.floor(i / BATCH_SIZE) + 1,\n      batch_size: batchMatches.length,\n      matches: batchMatches,\n    }\n  });\n}\n\nconsole.log(`[Batch Matches] Created ${batches.length} batches from ${items.length} matches (batch size: ${BATCH_SIZE})`);\nreturn batches;\n"
+      },
+      "id": "e5ccca21-4d4a-40c1-b832-8f0d63ae1073",
+      "name": "Batch Matches",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2320,
+        288
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "// Build AI Prompt - Enhanced for Deep Analysis\n// ============================================================\n// CHANGE: Added reason_vi (Vietnamese) to output format\n// ============================================================\n\nconst batchData = $json || {};\nconst config = batchData.config || {};\nconst matches = Array.isArray(batchData.matches) ? batchData.matches : [];\nconst batchIndex = batchData.batch_index || 1;\n\nif (!matches.length) {\n  return { json: { ai_prompt: \"\", matches: [], batch_index: batchIndex } };\n}\n\n// --------------------\n// Helper function để build ENHANCED context cho MỖI match\n// --------------------\nfunction buildMatchContext(data) {\n  const match = data.match || {};\n  const stats = data.stats || data.live_stats || {};\n  const statsCompact = data.stats_compact || stats || {};\n  const events = Array.isArray(data.events_compact) ? data.events_compact : [];\n\n  const homeName = match.home || data.home_team || \"Home\";\n  const awayName = match.away || data.away_team || \"Away\";\n  const league = match.league || data.league || \"Unknown league\";\n  const matchId = data.match_id || match.match_id || \"N/A\";\n\n  const minuteRaw = match.minute ?? data.minute ?? data.match_minute ?? null;\n  const minute = (minuteRaw === \"\" || minuteRaw === undefined) ? null : minuteRaw;\n\n  const score = match.score || data.score || \"0-0\";\n  const status = match.status || data.status || \"UNKNOWN\";\n\n  const statsAvailable = !!data.stats_available;\n  const oddsAvailable = !!data.odds_available;\n\n  const oddsCanonical = data.odds_canonical || {};\n  const preMatchPrediction = data.pre_match_prediction || null;\n  const preMatchPredictionSummary = data.pre_match_prediction_summary || \"\";\n  const customConditionsExisting = (data.custom_conditions || \"\").trim();\n\n  // Extract ENHANCED pre-match data including team stats\n  let preMatchEnhanced = null;\n  if (preMatchPrediction && typeof preMatchPrediction === \"object\") {\n    const pmPred = preMatchPrediction.predictions || {};\n    const pmComp = preMatchPrediction.comparison || {};\n    const pmTeams = preMatchPrediction.teams || {};\n    \n    preMatchEnhanced = {\n      // Core predictions\n      favourite: pmPred.winner?.name || null,\n      favourite_comment: pmPred.winner?.comment || null,  // \"Win or draw\"\n      win_or_draw: pmPred.win_or_draw ?? null,\n      under_over: pmPred.under_over || null,  // \"+2.5\" or \"-2.5\"\n      expected_goals: pmPred.goals || null,\n      win_percent: pmPred.percent || null,\n      advice: pmPred.advice || null,\n      \n      // Comparison metrics\n      comparison: {\n        form: pmComp.form || null,\n        attack: pmComp.att || null,\n        defense: pmComp.def || null,\n        h2h: pmComp.h2h || null,\n        total: pmComp.total || null\n      },\n      \n      // HOME team detailed stats\n      home_stats: pmTeams.home ? {\n        last_5: pmTeams.home.last_5,           // { form, attack, defense, avg_scored, avg_conceded }\n        season_form: pmTeams.home.season_form, // \"WDLDDLDWDDLLLWWWWLWWL\"\n        record: pmTeams.home.record,           // { played, wins, draws, loses, total }\n        goals_by_minute: pmTeams.home.goals_by_minute,  // { scored: {0-15: %, ...}, conceded: {...} }\n        avg_goals: pmTeams.home.avg_goals,     // { scored, conceded }\n        clean_sheets: pmTeams.home.clean_sheets,\n        failed_to_score: pmTeams.home.failed_to_score,\n        biggest_streak: pmTeams.home.biggest_streak,\n        under_over: pmTeams.home.under_over    // O/U statistics\n      } : null,\n      \n      // AWAY team detailed stats\n      away_stats: pmTeams.away ? {\n        last_5: pmTeams.away.last_5,\n        season_form: pmTeams.away.season_form,\n        record: pmTeams.away.record,\n        goals_by_minute: pmTeams.away.goals_by_minute,\n        avg_goals: pmTeams.away.avg_goals,\n        clean_sheets: pmTeams.away.clean_sheets,\n        failed_to_score: pmTeams.away.failed_to_score,\n        biggest_streak: pmTeams.away.biggest_streak,\n        under_over: pmTeams.away.under_over\n      } : null\n    };\n  }\n\n  // Determine mode (pre-match vs in-play) WITHOUT assuming\n  const runMode = (minute === null || minute === undefined) ? \"PRE_MATCH\" : \"IN_PLAY\";\n\n  return {\n    matchId,\n    homeName,\n    awayName,\n    league,\n    minute,\n    score,\n    status,\n    statsAvailable,\n    statsCompact,\n    events,\n    oddsAvailable,\n    oddsCanonical,\n    preMatchEnhanced,\n    preMatchPredictionSummary,\n    customConditionsExisting,\n    runMode\n  };\n}\n\n// --------------------\n// Build context cho tất cả matches trong batch\n// --------------------\nconst matchContexts = matches.map(m => buildMatchContext(m));\n\n// Xác định RUN_MODE chung (dựa trên match đầu tiên hoặc majority)\nconst commonRunMode = matchContexts[0]?.runMode || \"PRE_MATCH\";\n\n// --------------------\n// Build MATCHES CONTEXT section với ENHANCED data\n// --------------------\nconst matchesContextStr = matchContexts.map((ctx, idx) => `\n--- MATCH ${idx + 1} ---\nmatch_id: ${ctx.matchId}\nMatch: ${ctx.homeName} vs ${ctx.awayName}\nLeague: ${ctx.league}\nMinute: ${ctx.minute === null ? \"(not provided)\" : ctx.minute}\nScore: ${ctx.score}\nStatus: ${ctx.status}\n\nLIVE_STATS_AVAILABLE: ${ctx.statsAvailable}\nLIVE_STATS (COMPACT JSON):\n${JSON.stringify(ctx.statsCompact)}\n\nLIVE_EVENTS (COMPACT JSON):\n${JSON.stringify(ctx.events)}\n\nLIVE_ODDS_AVAILABLE: ${ctx.oddsAvailable}\nLIVE_ODDS (CANONICAL JSON):\n${JSON.stringify(ctx.oddsCanonical)}\n\nPRE_MATCH_ANALYSIS (ENHANCED):\n${ctx.preMatchEnhanced\n  ? JSON.stringify(ctx.preMatchEnhanced)\n  : (ctx.preMatchPredictionSummary || \"No pre-match prediction available.\")}\n\nEXISTING_CUSTOM_CONDITION (may be empty):\n${ctx.customConditionsExisting || \"(none)\"}\n`).join(\"\\n\");\n\n// --------------------\n// Prompt (Recommendation v2.1 - Added Vietnamese translation)\n// --------------------\nconst prompt = `\nYou are an expert football monitoring systems analyst with deep statistical knowledge.\nYour job is NOT to recommend bets. Your job is to propose ONE high-quality \"custom condition\" expression that helps a live monitor decide WHEN to alert the user for deeper review later.\n\nThis system has two run modes:\n- PRE_MATCH: before kick-off (minute is missing or null)\n- IN_PLAY: live monitoring (minute is provided)\n\nYou MUST adapt your logic to the run mode. Do NOT rely on data that cannot exist in that mode.\n\n========================\nRUN MODE\n========================\nRUN_MODE: ${commonRunMode}\n\n========================\nMATCHES IN THIS BATCH (${matches.length} matches)\n========================\n${matchesContextStr}\n\n============================================================\nENHANCED DATA GUIDE\n============================================================\nThe PRE_MATCH_ANALYSIS now includes detailed team statistics. Use them wisely:\n\n1) TEAM FORM & RECORD:\n   - last_5: Recent 5-match form (form%, attack%, defense%, avg goals)\n   - season_form: Full season W/D/L string (e.g., \"WDLDDLDWDDLLLWWWWLWWL\")\n   - record: Wins/draws/loses (home-specific for home team, away-specific for away team)\n\n2) GOALS BY MINUTE (CRITICAL for Minute-based conditions):\n   - goals_by_minute.scored: When does this team typically score? (e.g., \"76-90\": \"21.57%\")\n   - goals_by_minute.conceded: When does this team typically concede?\n   - USE THIS to set intelligent Minute thresholds!\n   - Example: If home team concedes 31% of goals in 76-90 and away team scores 21% in 76-90,\n     a condition like \"(Minute >= 75) AND (Home leading) AND (Total goals <= 1)\" becomes meaningful.\n\n3) SPECIAL STATS:\n   - clean_sheets: Teams that keep clean sheets often = consider \"Total goals <= N\" conditions\n   - failed_to_score: Teams that fail to score often = consider expecting low-scoring scenarios\n   - biggest_streak: Teams on winning/losing streaks = momentum indicators\n\n4) UNDER/OVER STATS:\n   - under_over.scored/conceded: Historical O/U 0.5, 1.5, 2.5 performance\n   - Use to determine realistic \"Total goals\" thresholds\n\n5) COMPARISON METRICS:\n   - comparison.total: Overall strength comparison (e.g., \"60.2%\" vs \"39.8%\")\n   - comparison.attack/defense: Attacking/defensive quality comparison\n   - Use to identify mismatches or close contests\n\n============================================================\nTASK\n============================================================\nFor EACH match above, generate ONE recommended custom condition expression (string) to populate:\n- recommended_custom_condition\nand explanations in BOTH English and Vietnamese:\n- recommended_condition_reason (English)\n- recommended_condition_reason_vi (Vietnamese)\n\nYour condition should be SMART and DATA-DRIVEN:\n- Use goals_by_minute to pick meaningful Minute thresholds\n- Use team strength comparison to decide favorite/underdog scenarios\n- Use clean_sheet/failed_to_score to set realistic goal expectations\n- Combine multiple signals for high-quality, low-noise alerts\n\n============================================================\nKEY DESIGN PRINCIPLES (v2.0 — enhanced)\n============================================================\n\n1) DATA-DRIVEN MINUTE SELECTION\n- DO NOT just pick arbitrary minutes like 70 or 75.\n- LOOK at goals_by_minute data to find when teams are most dangerous.\n- Example: If away team scores 30% in \"16-30\" period, watch for early away goals.\n\n2) FORM-AWARE CONDITIONS\n- A team on a losing streak (last_5.form = \"20%\") may underperform.\n- A team that failed_to_score in 3+ matches needs different expectations.\n- Use season_form to identify momentum shifts.\n\n3) NOT TOO SIMPLE\n- A condition like \"(Minute >= X) AND (Draw)\" is usually too generic.\n- Prefer multi-signal conditions: combine game state + at least one dynamics signal OR an expectation-gap signal.\n\n4) MODE-AWARE\n- PRE_MATCH mode:\n  - You cannot use live stats, live events, minute, score (unless explicitly present).\n  - You may only use pre-match prediction fields IF provided.\n  - You should generate conditions that can be evaluated later IN_PLAY,\n    but base the *choice* of those conditions on pre-match team stats.\n- IN_PLAY mode:\n  - You may use minute/score/live stats/events if provided.\n  - If stats are not available, avoid stats-based atoms and focus on minute/score/events.\n\n5) FAVORITE / EXPECTATION GAP WITHOUT NEW TOKENS\n- If favourite = \"Away\" and comparison.total shows away is stronger,\n  then \"(NOT Away leading) AND (Minute >= 60)\" catches the underperforming favorite.\n\n6) DON'T DEPEND ON ODDS\n- Use odds only as soft context, DO NOT encode exact odds values.\n\n============================================================\nALLOWED ATOMIC CONDITIONS (STRICT SET)\n============================================================\nYour expression may ONLY use these atomic condition types (choose up to 10 total):\n\nA) Time / Score State\n- (Minute >= N)\n- (Minute <= N)\n- (Total goals <= N)\n- (Total goals >= N)\n- (Draw)\n- (Home leading)\n- (Away leading)\n- (NOT Home leading)\n- (NOT Away leading)\n\nB) Discipline / Events (ONLY if events data indicates cards exist reliably)\n- (Home red card)\n- (Away red card)\n\nC) Live Dynamics (ONLY if LIVE_STATS_AVAILABLE = true and the relevant fields exist)\n- (Shots_on_target_diff >= N)\n- (Total_shots_diff >= N)\n- (Corners_diff >= N)\n- (Possession_diff >= N)\n\nNotes:\n- \"diff\" means absolute difference between teams in that stat.\n- If you cannot confirm that a stat exists in the provided LIVE_STATS JSON, you MUST NOT use it.\n\n============================================================\nQUALITY RULES (IMPORTANT)\n============================================================\n\n- The expression MUST be logically coherent.\n- Use parentheses around every group to avoid ambiguity.\n- Do not exceed 10 atomic conditions.\n- Prefer 3–7 atomic conditions (tight but meaningful).\n- ALWAYS explain WHY you chose specific numbers based on the data.\n- If input data is insufficient to propose a meaningful condition, output:\n  - condition = \"\"\n  - reason = \"Insufficient input data to generate a reliable monitoring condition.\"\n  - reason_vi = \"Dữ liệu đầu vào không đủ để tạo điều kiện giám sát đáng tin cậy.\"\n\n============================================================\nOUTPUT FORMAT (STRICT) - UPDATED\n============================================================\nReturn a JSON ARRAY with exactly ${matches.length} objects, one for each match IN THE SAME ORDER as the input.\nNo markdown, no extra text. The response must start with \"[\" and end with \"]\".\n\n[\n  {\n    \"match_id\": <match_id from input>,\n    \"condition\": \"<recommended_custom_condition>\",\n    \"reason\": \"<recommended_condition_reason in ENGLISH - MUST reference specific data points used>\",\n    \"reason_vi\": \"<recommended_condition_reason in VIETNAMESE - same content as reason but translated>\"\n  },\n  ...\n]\n\nIMPORTANT:\n- The array MUST have exactly ${matches.length} elements.\n- Each object MUST include the match_id field matching the input.\n- The first character of your response must be \"[\" and the last character must be \"]\".\n- The \"reason\" field MUST be in English and explain which data points influenced your condition choice.\n- The \"reason_vi\" field MUST be in Vietnamese, a translation of the \"reason\" field.\n- Both reason fields should be concise but informative (2-4 sentences).\n`;\n\n// Attach prompt to payload for your AI Agent node\nreturn {\n  json: {\n    ...batchData,\n    ai_prompt: prompt,\n  },\n};"
+      },
+      "id": "d8fabd76-4494-43bd-95c4-3bfb58cd3717",
+      "name": "Build AI Prompt",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2544,
+        288
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 1
+          },
+          "conditions": [
+            {
+              "id": "route-to-gemini",
+              "leftValue": "={{ $('Set Config').first().json.AI_PROVIDER }}",
+              "rightValue": "gemini",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "1c9968c8-ca51-43ac-b173-951d17f7ef59",
+      "name": "Route AI Provider",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        2768,
+        288
+      ]
+    },
+    {
+      "parameters": {
+        "modelId": {
+          "__rl": true,
+          "value": "models/gemini-3-pro-preview",
+          "mode": "list",
+          "cachedResultName": "models/gemini-3-pro-preview"
+        },
+        "messages": {
+          "values": [
+            {
+              "content": "={{ $json.ai_prompt }}"
+            }
+          ]
+        },
+        "simplify": false,
+        "jsonOutput": true,
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.googleGemini",
+      "typeVersion": 1,
+      "position": [
+        2992,
+        192
+      ],
+      "id": "90618386-fcae-4040-a896-c579465a8580",
+      "name": "AI Analysis (Gemini)",
+      "retryOnFail": true,
+      "waitBetweenTries": 2000,
+      "credentials": {
+        "googlePalmApi": {
+          "id": "WfjNLcX8IDV0a2sT",
+          "name": "Google Gemini(PaLM) Api account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Parse ALL BATCH AI responses and split into individual items (Run Once for All Items)\n// ============================================================\n// CHANGE: Added extraction for reason_vi (Vietnamese translation)\n// ============================================================\n\nfunction extractJsonArray(text) {\n  if (!text) return null;\n  const codeBlockMatch = text.match(/```(?:json)?\\s*([\\s\\S]*?)```/);\n  if (codeBlockMatch) {\n    const inner = codeBlockMatch[1].trim();\n    const arrMatch = inner.match(/\\[[\\s\\S]*\\]/);\n    if (arrMatch) return arrMatch[0];\n  }\n  const jsonMatch = text.match(/\\[[\\s\\S]*\\]/);\n  return jsonMatch ? jsonMatch[0] : null;\n}\n\nfunction getAiText(src) {\n  try {\n    if (src?.candidates?.[0]?.content?.parts?.[0]?.text) return src.candidates[0].content.parts[0].text; // Gemini\n    if (src?.content?.[0]?.text) return src.content[0].text; // Claude\n    if (typeof src?.text === 'string') return src.text;\n    if (typeof src?.result === 'string') return src.result;\n  } catch (e) {}\n  return '';\n}\n\nconst aiItems = $input.all();\nconst buildItems = $items('Build AI Prompt'); // mỗi item là 1 batch { ai_prompt, matches, batch_index }\n\nconst outputs = [];\n\nfor (let i = 0; i < aiItems.length; i++) {\n  const src = aiItems[i].json || {};\n  const batchData = buildItems[i]?.json || {};\n  const originalMatches = Array.isArray(batchData.matches) ? batchData.matches : [];\n  const batchIndex = batchData.batch_index ?? (i + 1);\n\n  const aiRawText = getAiText(src);\n\n  let results = [];\n  let parseError = null;\n\n  const jsonStr = extractJsonArray(aiRawText);\n  if (jsonStr) {\n    try {\n      results = JSON.parse(jsonStr);\n      if (!Array.isArray(results)) results = [];\n    } catch (err) {\n      parseError = String(err);\n      results = [];\n    }\n  } else {\n    parseError = 'NO_JSON_ARRAY_FOUND';\n  }\n\n  const resultMap = new Map();\n  for (const r of results) {\n    if (r?.match_id != null) resultMap.set(String(r.match_id), r);\n  }\n\n  console.log(`[Parse] Batch ${batchIndex} had ${originalMatches.length} matches, AI returned ${results.length} results`);\n\n  for (const match of originalMatches) {\n    const matchId = String(match?.match_id ?? '');\n    const result = resultMap.get(matchId) || {};\n\n    outputs.push({\n      json: {\n        batch_index: batchIndex,\n\n        match_id: match?.match_id,\n        home_team: match?.home_team,\n        away_team: match?.away_team,\n        league: match?.league,\n        mode: match?.mode,\n        priority: match?.priority,\n        custom_conditions: match?.custom_conditions,\n        row_number: match?.row_number,\n\n        should_write: !!result?.condition,\n        recommended_custom_condition: result?.condition || '',\n        reason: result?.reason || '',\n        // ============================================================\n        // NEW: Extract Vietnamese translation\n        // ============================================================\n        reason_vi: result?.reason_vi || '',\n\n        has_prediction: match?.has_prediction,\n        pre_match_prediction_summary: match?.pre_match_prediction_summary,\n        parse_error: parseError,\n      }\n    });\n  }\n}\n\nreturn outputs;"
+      },
+      "id": "39898493-3bba-46ed-95d6-febf447e100c",
+      "name": "Parse AI Response",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        3344,
+        288
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 1
+          },
+          "conditions": [
+            {
+              "id": "check-should-write",
+              "leftValue": "={{ $json.should_write }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            },
+            {
+              "id": "check-has-condition",
+              "leftValue": "={{ $json.recommended_custom_condition }}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "notEquals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "30a64db9-4e94-459f-935e-c3afe5beb609",
+      "name": "Should Update?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        3568,
+        288
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "// Prepare row for updating Google Sheets\n// ============================================================\n// CHANGE: Added recommended_condition_reason_vi field\n// ============================================================\n\nconst data = $json || {};\n\nconst now = new Date();\nconst timestamp = now.toISOString();\n\nreturn {\n  json: {\n    match_id: Number(data.match_id),\n    recommended_custom_condition: data.recommended_custom_condition || '',\n    recommended_condition_reason: data.reason || '',\n    // ============================================================\n    // NEW: Vietnamese translation of reason\n    // ============================================================\n    recommended_condition_reason_vi: data.reason_vi || '',\n    recommended_condition_at: timestamp,\n    home_team: data.home_team,\n    away_team: data.away_team,\n  },\n};"
+      },
+      "id": "0a1fe4ed-0eb4-497b-b80a-78be882ac80f",
+      "name": "Prepare Update",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        3792,
+        192
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "documentId": {
+          "__rl": true,
+          "value": "1kwXtpKxtQE52lFnz5MRRV0dnzeftN_X5tD69CL12ycU",
+          "mode": "list",
+          "cachedResultName": "Time_For_Investment"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": 715101038,
+          "mode": "list",
+          "cachedResultName": "Watchlist"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "match_id": "={{ $json.match_id }}",
+            "recommended_custom_condition": "={{ $json.recommended_custom_condition }}",
+            "recommended_condition_reason": "={{ $json.recommended_condition_reason }}",
+            "recommended_condition_at": "={{ $json.recommended_condition_at }}",
+            "row_number": 0,
+            "custom_conditions": "={{ $json.recommended_custom_condition }}",
+            "recommended_condition_reason_vi": "={{ $json.recommended_condition_reason_vi}}"
+          },
+          "matchingColumns": [
+            "match_id"
+          ],
+          "schema": [
+            {
+              "id": "id",
+              "displayName": "id",
+              "required": false,
+              "defaultMatch": true,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "match_id",
+              "displayName": "match_id",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "date",
+              "displayName": "date",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "league",
+              "displayName": "league",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "home_team",
+              "displayName": "home_team",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "away_team",
+              "displayName": "away_team",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "kickoff",
+              "displayName": "kickoff",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "mode",
+              "displayName": "mode",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "prediction",
+              "displayName": "prediction",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "recommended_custom_condition",
+              "displayName": "recommended_custom_condition",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "recommended_condition_reason",
+              "displayName": "recommended_condition_reason",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "recommended_condition_reason_vi",
+              "displayName": "recommended_condition_reason_vi",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "recommended_condition_at",
+              "displayName": "recommended_condition_at",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "custom_conditions",
+              "displayName": "custom_conditions",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "priority",
+              "displayName": "priority",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "status",
+              "displayName": "status",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "added_at",
+              "displayName": "added_at",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "added_by",
+              "displayName": "added_by",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "last_checked",
+              "displayName": "last_checked",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "total_checks",
+              "displayName": "total_checks",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "recommendations_count",
+              "displayName": "recommendations_count",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "row_number",
+              "displayName": "row_number",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "number",
+              "canBeUsedToMatch": true,
+              "readOnly": true,
+              "removed": false
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "id": "14cdaaee-9fb9-4eae-8056-55ef3b0165f2",
+      "name": "Update Watchlist",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.3,
+      "position": [
+        4016,
+        192
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "1Wv4qfdHrkA4hfjn",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Log skipped items\nconst items = $input.all();\n\nconst skipped = items.map(i => ({\n  match_id: i.json.match_id,\n  match: `${i.json.home_team} vs ${i.json.away_team}`,\n  reason: i.json.reason || 'No condition generated',\n  parse_error: i.json.parse_error,\n}));\n\nconsole.log(`[Skipped] ${skipped.length} items without conditions`);\nreturn [{ json: { skipped_count: skipped.length, skipped } }];\n"
+      },
+      "id": "55f3a028-107c-4b87-a7ec-c3c6b7b7c0b4",
+      "name": "Log Skipped",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        3792,
+        384
+      ]
+    },
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "hours",
+              "hoursInterval": 2
+            }
+          ]
+        }
+      },
+      "id": "cfe6fa1f-684b-44ba-bc3b-0bbb117d5110",
+      "name": "Schedule Trigger",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        752,
+        192
+      ]
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "condition-generator",
+        "options": {}
+      },
+      "id": "c9ad1b11-8c93-4937-9c9b-a56b9e244966",
+      "name": "Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [
+        752,
+        384
+      ],
+      "webhookId": "condition-generator-webhook-001"
+    },
+    {
+      "parameters": {
+        "modelId": {
+          "__rl": true,
+          "value": "claude-sonnet-4-20250514",
+          "mode": "list",
+          "cachedResultName": "claude-sonnet-4-20250514"
+        },
+        "messages": {
+          "values": [
+            {
+              "content": "={{ $json.ai_prompt }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.anthropic",
+      "typeVersion": 1,
+      "position": [
+        2992,
+        384
+      ],
+      "id": "e24703fa-df12-41c7-b1d1-5ecce01ec3eb",
+      "name": "AI Analysis (Claude)1",
+      "retryOnFail": true,
+      "waitBetweenTries": 1000,
+      "credentials": {
+        "anthropicApi": {
+          "id": "MySM666fxIl72ckc",
+          "name": "Anthropic account"
+        }
+      }
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Set Config": {
+      "main": [
+        [
+          {
+            "node": "Get Watchlist",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Watchlist": {
+      "main": [
+        [
+          {
+            "node": "Filter Eligible Matches",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Filter Eligible Matches": {
+      "main": [
+        [
+          {
+            "node": "Has Eligible Matches?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Has Eligible Matches?": {
+      "main": [
+        [
+          {
+            "node": "Fetch Predictions",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch Predictions": {
+      "main": [
+        [
+          {
+            "node": "Merge Predictions",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Merge Predictions": {
+      "main": [
+        [
+          {
+            "node": "Batch Matches",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Batch Matches": {
+      "main": [
+        [
+          {
+            "node": "Build AI Prompt",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build AI Prompt": {
+      "main": [
+        [
+          {
+            "node": "Route AI Provider",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Route AI Provider": {
+      "main": [
+        [
+          {
+            "node": "AI Analysis (Gemini)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "AI Analysis (Claude)1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI Analysis (Gemini)": {
+      "main": [
+        [
+          {
+            "node": "Parse AI Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse AI Response": {
+      "main": [
+        [
+          {
+            "node": "Should Update?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Should Update?": {
+      "main": [
+        [
+          {
+            "node": "Prepare Update",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Log Skipped",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Update": {
+      "main": [
+        [
+          {
+            "node": "Update Watchlist",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Update Watchlist": {
+      "main": [
+        []
+      ]
+    },
+    "Schedule Trigger": {
+      "main": [
+        [
+          {
+            "node": "Set Config",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "Set Config",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI Analysis (Claude)1": {
+      "main": [
+        [
+          {
+            "node": "Parse AI Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1",
+    "timeSavedMode": "fixed",
+    "callerPolicy": "workflowsFromSameOwner",
+    "availableInMCP": false,
+    "errorWorkflow": "n4bRclRT209eSgGc"
+  },
+  "versionId": "8565afd7-739a-4761-8f01-be78b8e55636",
+  "meta": {
+    "instanceId": "0d0019cc374d5262facafdb66c7184708aa055a51021365f15a927fc2d5e077a"
+  },
+  "id": "AufwkkbDZNVXyGpY",
+  "tags": []
+}

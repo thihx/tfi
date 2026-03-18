@@ -1,5 +1,6 @@
 import { useState, useEffect, useMemo, useCallback, memo, useRef } from 'react';
 import { Pagination } from '@/components/ui/Pagination';
+import { LeagueFixturesDialog } from '@/components/ui/LeagueFixturesDialog';
 import { useAppState } from '@/hooks/useAppState';
 import { useToast } from '@/hooks/useToast';
 import {
@@ -40,13 +41,14 @@ interface LeagueRowProps {
   league: League;
   onToggle: (id: number, active: boolean) => void;
   onToggleTop: (id: number, topLeague: boolean) => void;
+  onViewFixtures: (league: League) => void;
   selected: boolean;
   onSelect: (id: number) => void;
   toggling: boolean;
   togglingTop: boolean;
 }
 
-const LeagueRow = memo(function LeagueRow({ league, onToggle, onToggleTop, selected, onSelect, toggling, togglingTop }: LeagueRowProps) {
+const LeagueRow = memo(function LeagueRow({ league, onToggle, onToggleTop, onViewFixtures, selected, onSelect, toggling, togglingTop }: LeagueRowProps) {
   return (
     <tr className={`league-row ${league.active ? '' : 'inactive'}`}>
       <td style={{ width: 36 }}>
@@ -63,9 +65,13 @@ const LeagueRow = memo(function LeagueRow({ league, onToggle, onToggleTop, selec
           <span className="league-logo-placeholder">🏟️</span>
         )}
       </td>
-      <td>
+      <td
+        style={{ cursor: 'pointer' }}
+        title="Click to view upcoming fixtures"
+        onClick={() => onViewFixtures(league)}
+      >
         <div className="league-name-cell">
-          <span className="league-name">{league.league_name}</span>
+          <span className="league-name" style={{ textDecoration: 'underline dotted', textUnderlineOffset: 3 }}>{league.league_name}</span>
           <span className="league-id">#{league.league_id}</span>
         </div>
       </td>
@@ -166,6 +172,7 @@ export function LeaguesTab() {
   const [togglingIds, setTogglingIds] = useState<Set<number>>(new Set());
   const [togglingTopIds, setTogglingTopIds] = useState<Set<number>>(new Set());
   const [confirmDeactivate, setConfirmDeactivate] = useState(false);
+  const [fixtureLeague, setFixtureLeague] = useState<League | null>(null);
   const searchRef = useRef<HTMLInputElement>(null);
 
   // `/` key focuses search
@@ -362,6 +369,7 @@ export function LeaguesTab() {
   }
 
   return (
+    <>
     <div className="leagues-tab">
       {/* Stats bar */}
       <StatsBar leagues={allLeagues} />
@@ -483,6 +491,7 @@ export function LeaguesTab() {
                 league={league}
                 onToggleTop={handleToggleTop}
                 onToggle={handleToggle}
+                onViewFixtures={setFixtureLeague}
                 selected={selectedIds.has(league.league_id)}
                 onSelect={handleSelect}
                 toggling={togglingIds.has(league.league_id)}
@@ -503,5 +512,11 @@ export function LeaguesTab() {
       </div>
 
     </div>
+
+    <LeagueFixturesDialog
+      league={fixtureLeague}
+      onClose={() => setFixtureLeague(null)}
+    />
+    </>
   );
 }

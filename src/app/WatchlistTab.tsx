@@ -5,7 +5,7 @@ import { Pagination } from '@/components/ui/Pagination';
 import { Modal } from '@/components/ui/Modal';
 import { ConditionBuilder } from '@/components/ui/ConditionBuilder';
 import { PLACEHOLDER_HOME, PLACEHOLDER_AWAY } from '@/config/constants';
-import { convertSeoulToLocalDateTime, formatDateTimeDisplay, getLeagueDisplayName, debounce } from '@/lib/utils/helpers';
+import { convertSeoulToLocalDateTime, formatDateTimeDisplay, formatLocalDateTime, getLeagueDisplayName, debounce } from '@/lib/utils/helpers';
 import { MatchScoutModal } from '@/components/ui/MatchScoutModal';
 import { normalizeToISO } from '@/lib/utils/helpers';
 import type { WatchlistItem, SortState } from '@/types';
@@ -19,6 +19,7 @@ export function WatchlistTab() {
 
   const [search, setSearch] = useState('');
   const [leagueFilter, setLeagueFilter] = useState('');
+  const [statusFilter, setStatusFilter] = useState('active');
   const [dateFrom, setDateFrom] = useState('');
   const [dateTo, setDateTo] = useState('');
   const [page, setPage] = useState(1);
@@ -80,6 +81,9 @@ export function WatchlistTab() {
   // Filtered & sorted
   const filtered = useMemo(() => {
     let items = [...watchlist];
+    if (statusFilter) {
+      items = items.filter((i) => (i.status || 'active') === statusFilter);
+    }
     if (debouncedSearch) {
       const s = debouncedSearch.toLowerCase();
       items = items.filter((i) => `${i.home_team || ''} ${i.away_team || ''} ${i.league || ''}`.toLowerCase().includes(s));
@@ -122,13 +126,13 @@ export function WatchlistTab() {
       });
     }
     return items;
-  }, [watchlist, debouncedSearch, leagueFilter, dateFrom, dateTo, sort, matches]);
+  }, [watchlist, debouncedSearch, leagueFilter, statusFilter, dateFrom, dateTo, sort, matches]);
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
   const safePage = Math.min(page, totalPages);
   const pageItems = filtered.slice((safePage - 1) * PAGE_SIZE, safePage * PAGE_SIZE);
 
-  useEffect(() => { setPage(1); }, [debouncedSearch, leagueFilter, dateFrom, dateTo]);
+  useEffect(() => { setPage(1); }, [debouncedSearch, leagueFilter, statusFilter, dateFrom, dateTo]);
 
   const handleSort = (col: string) => {
     setSort((prev) => ({ column: col, order: prev.column === col && prev.order === 'asc' ? 'desc' : 'asc' }));
@@ -136,7 +140,7 @@ export function WatchlistTab() {
   };
 
   const clearFilters = () => {
-    setSearch(''); setDebouncedSearch(''); setLeagueFilter(''); setDateFrom(''); setDateTo('');
+    setSearch(''); setDebouncedSearch(''); setLeagueFilter(''); setStatusFilter('active'); setDateFrom(''); setDateTo('');
   };
 
   const toggleSelect = (mid: string) => {
@@ -215,6 +219,12 @@ export function WatchlistTab() {
             <option value="">All Leagues</option>
             {leagueOptions.map((l) => <option key={l.id} value={l.id}>{l.displayName} ({l.count})</option>)}
           </select>
+          <select className="filter-input" value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} style={{ maxWidth: '130px' }}>
+            <option value="">All Status</option>
+            <option value="active">Active</option>
+            <option value="expired">Expired</option>
+            <option value="pending">Pending</option>
+          </select>
           <input type="date" className="filter-input" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} title="From date" />
           <input type="date" className="filter-input" value={dateTo} onChange={(e) => setDateTo(e.target.value)} title="To date" />
           <button className="btn btn-secondary" onClick={clearFilters}>Clear Filters</button>
@@ -252,8 +262,8 @@ export function WatchlistTab() {
               {pageItems.length === 0 ? (
                 <tr><td colSpan={10} className="empty-state">
                   <div className="empty-state-icon">👁️</div>
-                  <p>{debouncedSearch || leagueFilter || dateFrom || dateTo ? 'No matches found for your filters' : 'Your watchlist is empty'}</p>
-                  {!debouncedSearch && !leagueFilter && !dateFrom && !dateTo && (
+                  <p>{debouncedSearch || leagueFilter || (statusFilter && statusFilter !== 'active') || dateFrom || dateTo ? 'No matches found for your filters' : 'Your watchlist is empty'}</p>
+                  {!debouncedSearch && !leagueFilter && statusFilter === 'active' && !dateFrom && !dateTo && (
                     <button
                       className="btn btn-primary btn-sm"
                       style={{ marginTop: 8 }}
@@ -309,9 +319,11 @@ export function WatchlistTab() {
                     <td data-label="Condition" style={{ textAlign: 'center' }}><div className="cell-value"><small style={{ whiteSpace: 'normal' }}>{item.custom_conditions || '-'}</small></div></td>
                     <td data-label="Status" className="status-cell" style={{ textAlign: 'center' }}>
                       <div className="cell-value">
-                        {item.status === 'pending'
-                          ? <span className="badge" style={{ background: 'var(--gray-100)', color: 'var(--gray-600)', border: '1px solid var(--gray-200)' }}>Pending</span>
-                          : <span className="badge" style={{ background: 'var(--gray-100)', color: '#15803d', border: '1px solid #d1fae5' }}>Active</span>}
+                        {item.status === 'expired'
+                          ? <span className="badge" style={{ background: 'var(--gray-100)', color: 'var(--gray-600)', border: '1px solid var(--gray-200)' }}>Expired</span>
+                          : item.status === 'pending'
+                            ? <span className="badge" style={{ background: 'var(--gray-100)', color: '#b45309', border: '1px solid #fde68a' }}>Pending</span>
+                            : <span className="badge" style={{ background: 'var(--gray-100)', color: '#15803d', border: '1px solid #d1fae5' }}>Active</span>}
                       </div>
                     </td>
                     <td data-label="Actions" style={{ textAlign: 'center' }}>
@@ -424,7 +436,7 @@ export function WatchlistTab() {
                     )}
                   </div>
                   {editItem.strategic_context_at && (
-                    <div className="strategic-context-footer">Updated: {new Date(editItem.strategic_context_at).toLocaleString()}</div>
+                    <div className="strategic-context-footer">Updated: {formatLocalDateTime(editItem.strategic_context_at)}</div>
                   )}
                 </div>
               </div>

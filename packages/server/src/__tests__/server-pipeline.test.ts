@@ -134,6 +134,18 @@ vi.mock('../repos/recommendations.repo.js', () => ({
   getRecommendationsByMatchId: vi.fn().mockResolvedValue([]),
 }));
 
+vi.mock('../repos/settings.repo.js', () => ({
+  getSettings: vi.fn().mockResolvedValue({
+    TELEGRAM_CHAT_ID: '123456',
+    AI_MODEL: 'gemini-test',
+    MIN_CONFIDENCE: 5,
+    MIN_ODDS: 1.5,
+    LATE_PHASE_MINUTE: 75,
+    VERY_LATE_PHASE_MINUTE: 85,
+    ENDGAME_MINUTE: 88,
+  }),
+}));
+
 const { runPipelineBatch } = await import('../lib/server-pipeline.js');
 
 beforeEach(() => {
@@ -401,6 +413,11 @@ describe('runPipelineBatch', () => {
     const result = await runPipelineBatch(['100']);
     // parseAiResponse should block due to confidence < 5
     expect(result.results[0].shouldPush).toBe(false);
+    // But still SAVES because AI raw intent was should_push=true
+    expect(result.results[0].saved).toBe(true);
+    // No Telegram because system blocked it
+    const { sendTelegramMessage } = await import('../lib/telegram.js');
+    expect(sendTelegramMessage).not.toHaveBeenCalled();
   });
 
   test('safety: blocks should_push when no selection provided', async () => {
@@ -420,7 +437,13 @@ describe('runPipelineBatch', () => {
     }));
 
     const result = await runPipelineBatch(['100']);
+    // System blocks shouldPush (no selection)
     expect(result.results[0].shouldPush).toBe(false);
+    // But still SAVES because AI raw intent was should_push=true
+    expect(result.results[0].saved).toBe(true);
+    // No Telegram because system blocked it
+    const { sendTelegramMessage } = await import('../lib/telegram.js');
+    expect(sendTelegramMessage).not.toHaveBeenCalled();
   });
 
   test('Telegram handles long messages by chunking', async () => {

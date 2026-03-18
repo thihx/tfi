@@ -1,4 +1,4 @@
-import type { AppConfig, Match, WatchlistItem, Recommendation, League, ApiResponse } from '@/types';
+import type { AppConfig, Match, WatchlistItem, Recommendation, League, LeagueFixture, ApiResponse } from '@/types';
 
 // ==================== TYPED API ERROR ====================
 
@@ -61,10 +61,14 @@ async function pgPut<T>(config: AppConfig, path: string, body: unknown): Promise
 }
 
 async function pgDelete<T>(config: AppConfig, path: string, body?: unknown): Promise<T> {
+  const hasBody = body !== undefined;
   const response = await fetch(`${config.apiUrl}${path}`, {
     method: 'DELETE',
-    headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
-    ...(body ? { body: JSON.stringify(body) } : {}),
+    headers: {
+      Accept: 'application/json',
+      ...(hasBody ? { 'Content-Type': 'application/json' } : {}),
+    },
+    ...(hasBody ? { body: JSON.stringify(body) } : {}),
   });
   if (!response.ok) throw formatApiError(response.status, await response.text());
   return response.json();
@@ -194,6 +198,17 @@ export async function fetchMatchScout(
 
 export async function fetchApprovedLeagues(config: AppConfig): Promise<League[]> {
   return pgFetch<League[]>(config, '/api/leagues');
+}
+
+export async function fetchLeagueFixtures(
+  config: AppConfig,
+  leagueId: number,
+  season?: number,
+  next = 10,
+): Promise<LeagueFixture[]> {
+  const params = new URLSearchParams({ leagueId: String(leagueId), next: String(next) });
+  if (season) params.set('season', String(season));
+  return pgFetch<LeagueFixture[]>(config, `/api/proxy/football/league-fixtures?${params}`);
 }
 
 export async function toggleLeagueActive(config: AppConfig, leagueId: number, active: boolean): Promise<unknown> {

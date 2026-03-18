@@ -297,8 +297,9 @@ export async function runPipeline(
         }
 
         // Should Save? → Save
-        // For ask-ai triggers, always save if AI produced a selection (recommendation)
-        const hasSelection = !!(parsed.ai_selection || parsed.selection);
+        // For ask-ai triggers, save if AI produced a real selection (not "No Bet" / "-" / empty)
+        const selectionText = (parsed.ai_selection || parsed.selection || '').trim();
+        const hasSelection = !!selectionText && !/^(no\s*bet|-)$/i.test(selectionText);
         if (shouldSave(parsed) || (isAskAi && hasSelection)) {
           emit('saving');
           try {

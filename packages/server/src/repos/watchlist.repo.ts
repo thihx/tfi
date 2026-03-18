@@ -3,6 +3,7 @@
 // ============================================================
 
 import { query } from '../db/pool.js';
+import { config } from '../config.js';
 
 export interface WatchlistRow {
   id: number;
@@ -137,27 +138,40 @@ export async function incrementChecks(matchId: string): Promise<void> {
 }
 
 export async function expireOldEntries(cutoffMinutes: number = 120): Promise<number> {
-  // Re-activate expired entries whose match is currently LIVE
+  // Re-activate expired entries whose match is still active (NS or LIVE)
   await query(
     `UPDATE watchlist SET status = 'active'
      WHERE status = 'expired'
        AND EXISTS (
          SELECT 1 FROM matches m
          WHERE m.match_id::text = watchlist.match_id
-           AND m.status IN ('1H','2H','HT','ET','BT','P','LIVE','INT')
+           AND m.status IN ('NS','1H','2H','HT','ET','BT','P','LIVE','INT')
        )`,
   );
 
   const r = await query(
     `UPDATE watchlist SET status = 'expired'
      WHERE status = 'active' AND date IS NOT NULL AND kickoff IS NOT NULL
-       AND (date + kickoff + $1 * INTERVAL '1 minute') < NOW()
+       AND ((date + kickoff) AT TIME ZONE $2 + $1 * INTERVAL '1 minute') < NOW()
        AND NOT EXISTS (
          SELECT 1 FROM matches m
          WHERE m.match_id::text = watchlist.match_id
-           AND m.status IN ('1H','2H','HT','ET','BT','P','LIVE','INT')
+           AND m.status IN ('NS','1H','2H','HT','ET','BT','P','LIVE','INT')
        )`,
-    [cutoffMinutes],
+    [cutoffMinutes, config.timezone],
+  );
+  return r.rowCount ?? 0;
+}
+
+/** Sync watchlist date/kickoff from matches table (matches refresh may change them) */
+export async function syncWatchlistDates(): Promise<number> {
+  const r = await query(
+    `UPDATE watchlist w
+     SET date = m.date, kickoff = m.kickoff
+     FROM matches m
+     WHERE w.match_id = m.match_id::text
+       AND w.status = 'active'
+       AND (w.date != m.date OR w.kickoff != m.kickoff)`,
   );
   return r.rowCount ?? 0;
 }

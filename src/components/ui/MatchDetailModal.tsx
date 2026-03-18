@@ -5,6 +5,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { Modal } from './Modal';
 import { RecommendationCard } from './RecommendationCard';
+import { formatLocalTime, formatLocalDateTime } from '@/lib/utils/helpers';
 import { useAppState } from '@/hooks/useAppState';
 import {
   fetchSnapshotsByMatch,
@@ -201,7 +202,7 @@ function OddsView({ odds }: { odds: OddsMovement[] }) {
     .sort((a, b) => new Date(a.captured_at).getTime() - new Date(b.captured_at).getTime());
 
   const chartData = marketOdds.map((o) => ({
-    time: o.match_minute != null ? `${o.match_minute}'` : new Date(o.captured_at).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' }),
+    time: o.match_minute != null ? `${o.match_minute}'` : formatLocalTime(o.captured_at),
     price_1: o.price_1,
     price_2: o.price_2,
     price_x: o.price_x,
@@ -263,7 +264,7 @@ function OddsView({ odds }: { odds: OddsMovement[] }) {
           <tbody>
             {marketOdds.map((o) => (
               <tr key={o.id}>
-                <td><span className="cell-value">{new Date(o.captured_at).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}</span></td>
+                <td><span className="cell-value">{formatLocalDateTime(o.captured_at)}</span></td>
                 <td><span className="cell-value">{o.match_minute ?? '-'}</span></td>
                 <td><span className="cell-value">{o.market}</span></td>
                 <td><span className="cell-value">{o.line ?? '-'}</span></td>

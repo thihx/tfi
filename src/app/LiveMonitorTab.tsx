@@ -7,7 +7,7 @@ import { useAppState } from '@/hooks/useAppState';
 import { useScheduler } from '@/features/live-monitor/useScheduler';
 import type { PipelineContext, PipelineMatchResult, LiveMonitorConfig } from '@/features/live-monitor/types';
 import { createDefaultConfig, fetchMonitorConfig, persistMonitorConfig } from '@/features/live-monitor/config';
-import { formatLocalTimeFull } from '@/lib/utils/helpers';
+import { formatLocalDateTime } from '@/lib/utils/helpers';
 
 // ==================== Sub-components ====================
 
@@ -102,13 +102,13 @@ function SchedulerControls({
           <div className="monitor-stat">
             <span className="monitor-stat-label">Last Run</span>
             <span className="monitor-stat-value">
-              {formatLocalTimeFull(lastRun)}
+              {formatLocalDateTime(lastRun)}
             </span>
           </div>
           <div className="monitor-stat">
             <span className="monitor-stat-label">Next Run</span>
             <span className="monitor-stat-value">
-              {formatLocalTimeFull(nextRunAt)}
+              {formatLocalDateTime(nextRunAt)}
             </span>
           </div>
         </div>
@@ -432,7 +432,7 @@ export function LiveMonitorTab() {
                 <div className="card-title">Pipeline Progress</div>
                 <small style={{ color: 'var(--gray-500)' }}>
                   {ctx.triggeredBy === 'scheduled' ? 'Scheduled' : 'Manual'} —{' '}
-                  {ctx.startedAt ? formatLocalTimeFull(ctx.startedAt) : ''}
+                  {ctx.startedAt ? formatLocalDateTime(ctx.startedAt) : ''}
                 </small>
               </div>
               <div style={{ padding: '16px 20px' }}>
@@ -463,8 +463,20 @@ export function LiveMonitorTab() {
                 ))}
               </div>
             </div>
+          ) : ctx ? (
+            <div className="card">
+              <div style={{ padding: '32px 20px', textAlign: 'center' }}>
+                <div style={{ fontSize: '48px', marginBottom: '16px' }}>✅</div>
+                <p style={{ color: 'var(--gray-500)', fontSize: '16px' }}>
+                  Pipeline completed — no active matches to analyze.
+                </p>
+                <p style={{ color: 'var(--gray-400)', fontSize: '13px', marginTop: '8px' }}>
+                  Add matches to the Watchlist with status <strong>NS</strong> (Not Started) or wait for live matches (1H/2H).
+                  Last run: {ctx.startedAt ? formatLocalDateTime(ctx.startedAt) : '—'}
+                </p>
+              </div>
+            </div>
           ) : (
-            !ctx && (
               <div className="card">
                 <div style={{ padding: '32px 20px', textAlign: 'center' }}>
                   <div style={{ fontSize: '48px', marginBottom: '16px' }}>📡</div>
@@ -477,7 +489,7 @@ export function LiveMonitorTab() {
                 </div>
               </div>
             )
-          )}
+          }
 
           {/* Error display */}
           {ctx?.error && (

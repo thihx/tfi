@@ -26,6 +26,31 @@ import {
 import { fetchTheOddsLive } from './the-odds-api.js';
 import * as watchlistRepo from '../repos/watchlist.repo.js';
 import { createRecommendation, getRecommendationsByMatchId } from '../repos/recommendations.repo.js';
+import { getSettings } from '../repos/settings.repo.js';
+
+/** Resolved pipeline settings: DB values take priority, env vars as fallback */
+interface PipelineSettings {
+  telegramChatId: string;
+  aiModel: string;
+  minConfidence: number;
+  minOdds: number;
+  latePhaseMinute: number;
+  veryLatePhaseMinute: number;
+  endgameMinute: number;
+}
+
+async function loadPipelineSettings(): Promise<PipelineSettings> {
+  const db = await getSettings().catch(() => ({} as Record<string, unknown>));
+  return {
+    telegramChatId: String(db['TELEGRAM_CHAT_ID'] || '') || config.pipelineTelegramChatId,
+    aiModel: String(db['AI_MODEL'] || '') || config.geminiModel,
+    minConfidence: Number(db['MIN_CONFIDENCE']) || config.pipelineMinConfidence,
+    minOdds: Number(db['MIN_ODDS']) || config.pipelineMinOdds,
+    latePhaseMinute: Number(db['LATE_PHASE_MINUTE']) || config.pipelineLatePhaseMinute,
+    veryLatePhaseMinute: Number(db['VERY_LATE_PHASE_MINUTE']) || config.pipelineVeryLatePhaseMinute,
+    endgameMinute: Number(db['ENDGAME_MINUTE']) || config.pipelineEndgameMinute,
+  };
+}
 
 // ==================== Types ====================
 
@@ -80,6 +105,7 @@ interface DerivedInsights {
 
 interface ParsedAiResponse {
   should_push: boolean;
+  ai_should_push: boolean;
   selection: string;
   bet_market: string;
   confidence: number;
@@ -495,9 +521,9 @@ function extractJsonString(text: string): string {
   return text.trim();
 }
 
-function parseAiResponse(aiText: string, oddsCanonical: OddsCanonical, matchMinute = 0): ParsedAiResponse {
+function parseAiResponse(aiText: string, oddsCanonical: OddsCanonical, matchMinute = 0, pipelineSettings?: PipelineSettings): ParsedAiResponse {
   const defaults: ParsedAiResponse = {
-    should_push: false, selection: '', bet_market: '', confidence: 0,
+    should_push: false, ai_should_push: false, selection: '', bet_market: '', confidence: 0,
     reasoning_en: 'AI response could not be parsed.', reasoning_vi: 'AI response could not be parsed.',
     warnings: ['PARSE_ERROR'], value_percent: 0, risk_level: 'HIGH', stake_percent: 0,
     condition_triggered_suggestion: '', custom_condition_matched: false,
@@ -528,8 +554,8 @@ function parseAiResponse(aiText: string, oddsCanonical: OddsCanonical, matchMinu
 
   // Map odds from selection
   const mappedOdd = extractOddsFromSelection(aiSelection, oddsCanonical);
-  const MIN_ODDS = config.pipelineMinOdds;
-  const MIN_CONFIDENCE = config.pipelineMinConfidence;
+  const MIN_ODDS = pipelineSettings?.minOdds ?? config.pipelineMinOdds;
+  const MIN_CONFIDENCE = pipelineSettings?.minConfidence ?? config.pipelineMinConfidence;
 
   const safetyWarnings: string[] = [];
   if (aiShouldPush && !aiSelection) safetyWarnings.push('NO_SELECTION');
@@ -549,6 +575,7 @@ function parseAiResponse(aiText: string, oddsCanonical: OddsCanonical, matchMinu
 
   return {
     should_push: finalShouldPush,
+    ai_should_push: aiShouldPush,
     selection: aiSelection,
     bet_market: betMarket,
     confidence: aiConfidence,
@@ -629,6 +656,7 @@ async function processMatch(
   matchId: string,
   fixture: ApiFixture,
   watchlistEntry: watchlistRepo.WatchlistRow,
+  settings: PipelineSettings,
 ): Promise<MatchPipelineResult> {
   const matchDisplay = `${fixture.teams?.home?.name || watchlistEntry.home_team} vs ${fixture.teams?.away?.name || watchlistEntry.away_team}`;
 
@@ -728,17 +756,17 @@ async function processMatch(
       previousRecommendations: prevRecsContext,
       preMatchPredictionSummary: '',
       mode: watchlistEntry.mode || 'B',
-    });
+    }, settings);
 
     // 5. Call Gemini
-    const model = config.geminiModel;
+    const model = settings.aiModel;
     const aiText = await callGemini(prompt, model);
 
     // 6. Parse response
-    const parsed = parseAiResponse(aiText, oddsCanonical, minute);
+    const parsed = parseAiResponse(aiText, oddsCanonical, minute, settings);
 
-    // 7. Only save actionable recommendations (matches frontend shouldSave logic)
-    const shouldSave = parsed.should_push || parsed.custom_condition_matched;
+    // 7. Save when AI recommends (raw intent) or custom condition matched
+    const shouldSave = parsed.ai_should_push || parsed.custom_condition_matched;
     let saved = false;
     let recId: number | null = null;
     let notified = false;
@@ -761,7 +789,7 @@ async function processMatch(
         custom_condition_matched: parsed.custom_condition_matched,
         minute,
         score,
-        bet_type: parsed.should_push ? 'AI' : 'NO_BET',
+        bet_type: parsed.ai_should_push ? 'AI' : 'NO_BET',
         selection: parsed.selection,
         odds: mappedOdd,
         confidence: parsed.confidence,
@@ -781,23 +809,23 @@ async function processMatch(
       recId = rec.id;
 
       // 8. Send Telegram notification (only for actionable recommendations)
-      if (parsed.should_push && config.pipelineTelegramChatId) {
+      if (parsed.should_push && settings.telegramChatId) {
         try {
           const msg = buildTelegramMessage(matchDisplay, league, score, minute, status, parsed);
           // Chunk for Telegram's 4096 char limit
           const MAX_CHUNK = 3500;
           if (msg.length <= MAX_CHUNK) {
-            await sendTelegramMessage(config.pipelineTelegramChatId, msg);
+            await sendTelegramMessage(settings.telegramChatId, msg);
           } else {
             let remaining = msg;
             while (remaining.length > 0) {
               if (remaining.length <= MAX_CHUNK) {
-                await sendTelegramMessage(config.pipelineTelegramChatId, remaining);
+                await sendTelegramMessage(settings.telegramChatId, remaining);
                 break;
               }
               let breakIdx = remaining.lastIndexOf('\n', MAX_CHUNK);
               if (breakIdx <= 0) breakIdx = MAX_CHUNK;
-              await sendTelegramMessage(config.pipelineTelegramChatId, remaining.substring(0, breakIdx));
+              await sendTelegramMessage(settings.telegramChatId, remaining.substring(0, breakIdx));
               remaining = remaining.substring(breakIdx).replace(/^\n/, '');
             }
           }
@@ -856,7 +884,9 @@ export async function runPipelineBatch(matchIds: string[]): Promise<PipelineResu
   const result: PipelineResult = { totalMatches: matchIds.length, processed: 0, errors: 0, results: [] };
   if (matchIds.length === 0) return result;
 
-  console.log(`[pipeline] Processing batch of ${matchIds.length} matches: ${matchIds.join(', ')}`);
+  // Load settings from DB (user config saved via UI) with env fallback
+  const settings = await loadPipelineSettings();
+  console.log(`[pipeline] Processing batch of ${matchIds.length} matches: ${matchIds.join(', ')} (telegram: ${settings.telegramChatId ? 'YES' : 'NO'}, model: ${settings.aiModel})`);
 
   // Fetch all fixtures in one API call
   const fixtures = await fetchFixturesByIds(matchIds);
@@ -886,7 +916,7 @@ export async function runPipelineBatch(matchIds: string[]): Promise<PipelineResu
       continue;
     }
 
-    const matchResult = await processMatch(matchId, fixture, wl);
+    const matchResult = await processMatch(matchId, fixture, wl, settings);
     result.results.push(matchResult);
     result.processed++;
     if (!matchResult.success) result.errors++;
@@ -925,12 +955,12 @@ function buildServerPrompt(data: {
   previousRecommendations: Array<Record<string, unknown>>;
   preMatchPredictionSummary: string;
   mode: string;
-}): string {
-  const MIN_CONFIDENCE = config.pipelineMinConfidence;
-  const MIN_ODDS = config.pipelineMinOdds;
-  const LATE_PHASE_MINUTE = config.pipelineLatePhaseMinute;
-  const VERY_LATE_PHASE_MINUTE = config.pipelineVeryLatePhaseMinute;
-  const ENDGAME_MINUTE = config.pipelineEndgameMinute;
+}, settings: PipelineSettings): string {
+  const MIN_CONFIDENCE = settings.minConfidence;
+  const MIN_ODDS = settings.minOdds;
+  const LATE_PHASE_MINUTE = settings.latePhaseMinute;
+  const VERY_LATE_PHASE_MINUTE = settings.veryLatePhaseMinute;
+  const ENDGAME_MINUTE = settings.endgameMinute;
 
   // Check incomplete markets
   const incompleteMarkets: string[] = [];

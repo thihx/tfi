@@ -37,6 +37,8 @@ export const config = {
   jobCheckLiveMs: Number(process.env['JOB_CHECK_LIVE_MS'] || 5 * 60_000),                // 5 min
   jobAutoSettleMs: Number(process.env['JOB_AUTO_SETTLE_MS'] || 10 * 60_000),              // 10 min
   jobEnrichWatchlistMs: Number(process.env['JOB_ENRICH_WATCHLIST_MS'] || 60 * 60_000),   // 60 min
+  jobAuditPurgeMs: Number(process.env['JOB_AUDIT_PURGE_MS'] || 24 * 60 * 60_000),      // 24h
+  auditKeepDays: Number(process.env['AUDIT_KEEP_DAYS'] || 30),                          // 30 days
 
   // Live match statuses
   liveStatuses: (process.env['LIVE_STATUSES'] || '1H,2H').split(',').map(s => s.trim()),

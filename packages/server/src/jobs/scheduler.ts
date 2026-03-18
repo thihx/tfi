@@ -15,6 +15,7 @@ import { expireWatchlistJob } from './expire-watchlist.job.js';
 import { checkLiveTriggerJob } from './check-live-trigger.job.js';
 import { autoSettleJob } from './auto-settle.job.js';
 import { enrichWatchlistJob } from './enrich-watchlist.job.js';
+import { purgeAuditJob } from './purge-audit.job.js';
 import {
   type JobProgress,
   clearJobProgress,
@@ -153,12 +154,15 @@ async function runJob(job: ManagedJob) {
 
 export async function startScheduler() {
   // Register all jobs
+  // Register in logical pipeline order:
+  // 1. Ingest data → 2. Enrich → 3. Predict → 4. Live analysis → 5. Settle → 6. Cleanup
   register('fetch-matches', config.jobFetchMatchesMs, fetchMatchesJob);
+  register('enrich-watchlist', config.jobEnrichWatchlistMs, enrichWatchlistJob, 10 * 60_000);
   register('update-predictions', config.jobPredictionsMs, updatePredictionsJob, 10 * 60_000);
-  register('expire-watchlist', config.jobExpireWatchlistMs, expireWatchlistJob);
   register('check-live-trigger', config.jobCheckLiveMs, checkLiveTriggerJob);
   register('auto-settle', config.jobAutoSettleMs, autoSettleJob);
-  register('enrich-watchlist', config.jobEnrichWatchlistMs, enrichWatchlistJob, 10 * 60_000);
+  register('expire-watchlist', config.jobExpireWatchlistMs, expireWatchlistJob);
+  register('purge-audit', config.jobAuditPurgeMs, purgeAuditJob);
 
   // Restore state from Redis
   for (const job of jobs) {

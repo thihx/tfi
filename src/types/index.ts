@@ -100,6 +100,23 @@ export interface League {
 /** @deprecated Use League instead */
 export type ApprovedLeague = League;
 
+export interface LeagueFixture {
+  fixture: {
+    id: number;
+    date: string;
+    timestamp: number;
+    venue: { name: string | null; city: string | null };
+    status: { long: string; short: string; elapsed: number | null };
+    referee: string | null;
+  };
+  league: { id: number; name: string; country: string; round: string; season: number };
+  teams: {
+    home: { id: number; name: string; logo: string; winner: boolean | null };
+    away: { id: number; name: string; logo: string; winner: boolean | null };
+  };
+  goals: { home: number | null; away: number | null };
+}
+
 export interface LeagueInfo {
   name: string;
   country: string;

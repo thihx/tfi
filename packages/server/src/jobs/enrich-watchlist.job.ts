@@ -28,10 +28,11 @@ function sleep(ms: number) {
 
 /**
  * Generate a recommended_custom_condition from strategic context.
- * Produces hybrid output:
- *   - condition: evaluable format like "(Minute >= 60) AND (Total goals <= 1)"
- *     combined with narrative advice for the AI
- *   - reason / reason_vi: explanation in EN + VI
+ * Produces ONLY evaluable condition expressions using the allowed atomic set:
+ *   (Minute >= N), (Minute <= N), (Total goals <= N), (Total goals >= N),
+ *   (Draw), (Home leading), (Away leading), (NOT Home leading), (NOT Away leading)
+ * Combined with AND/OR operators.
+ * Strategic advice and reasoning go ONLY in reason/reason_vi fields.
  * Returns null if no strong signal detected.
  */
 function generateCondition(
@@ -39,7 +40,7 @@ function generateCondition(
   homeTeam: string,
   awayTeam: string,
 ): { condition: string; reason: string; reason_vi: string } | null {
-  const conditions: string[] = [];
+  const atoms: string[] = [];
   const reasons: string[] = [];
   const reasonsVi: string[] = [];
 
@@ -51,31 +52,31 @@ function generateCondition(
   const positions = (ctx.league_positions || '').toLowerCase();
   const h2h = (ctx.h2h_narrative || '').toLowerCase();
 
-  // ── Pattern: Both teams in high-stakes situation ──
+  // ── Pattern: Both teams in high-stakes situation → cautious start expected ──
   const urgentRe = /relegation|title race|must.?win|fighting for|battling|bottom [1-5]|play.?off|promotion|avoid.+drop|crucial|important|decisive|pressure|desperate|survival|top [1-4]\b|champion/;
   const homeUrgent = urgentRe.test(homeMot);
   const awayUrgent = urgentRe.test(awayMot);
   if (homeUrgent && awayUrgent) {
-    conditions.push('(Minute >= 45) AND (Total goals <= 0) → favor Under 1.5 or Under 2.5');
-    reasons.push('Both teams in high-stakes battle → tense start, cautious approach likely');
-    reasonsVi.push('Cả hai đội đều đang trong cuộc chiến căng thẳng → kỳ vọng trận đấu thận trọng ban đầu');
+    atoms.push('(Minute >= 45) AND (Total goals <= 0)');
+    reasons.push(`Both teams in high-stakes battle → tense start likely; favor Under 1.5 or Under 2.5`);
+    reasonsVi.push(`Cả hai đội đều đang trong cuộc chiến căng thẳng → kỳ vọng trận đấu thận trọng ban đầu; ưu tiên Under 1.5 hoặc Under 2.5`);
   }
 
-  // ── Pattern: One team relaxed, other motivated ──
+  // ── Pattern: One team relaxed, other motivated → dominant side expected ──
   const relaxedRe = /nothing to play|mid.?table|safe|already (qualified|relegated)|no motivation|comfortable|secured|no pressure|no ambition|little to play|season over|dead rubber|meaningless|inconsequential|guaranteed/;
   const homeRelaxed = relaxedRe.test(homeMot);
   const awayRelaxed = relaxedRe.test(awayMot);
   if (homeRelaxed && !awayRelaxed) {
-    conditions.push(`(Minute >= 30) AND (possession_away > 55) → favor ${awayTeam} or Away markets`);
-    reasons.push(`${homeTeam} low motivation; ${awayTeam} should dominate if committed`);
-    reasonsVi.push(`${homeTeam} thiếu động lực; ${awayTeam} nên chi phối nếu quyết tâm`);
+    atoms.push('(Minute >= 30) AND (NOT Away leading)');
+    reasons.push(`${homeTeam} low motivation; favor ${awayTeam} or Away markets if not leading by min 30`);
+    reasonsVi.push(`${homeTeam} thiếu động lực; ưu tiên ${awayTeam} hoặc Away nếu chưa dẫn ở phút 30`);
   } else if (awayRelaxed && !homeRelaxed) {
-    conditions.push(`(Minute >= 30) AND (possession_home > 55) → favor ${homeTeam} or Home markets`);
-    reasons.push(`${awayTeam} low motivation; ${homeTeam} should dominate if committed`);
-    reasonsVi.push(`${awayTeam} thiếu động lực; ${homeTeam} nên chi phối nếu quyết tâm`);
+    atoms.push('(Minute >= 30) AND (NOT Home leading)');
+    reasons.push(`${awayTeam} low motivation; favor ${homeTeam} or Home markets if not leading by min 30`);
+    reasonsVi.push(`${awayTeam} thiếu động lực; ưu tiên ${homeTeam} hoặc Home nếu chưa dẫn ở phút 30`);
   }
 
-  // ── Pattern: Large league position gap ──
+  // ── Pattern: Large league position gap → favourite expected to lead ──
   const posMatch = positions.match(/(\d+)(?:st|nd|rd|th).*?(\d+)(?:st|nd|rd|th)/);
   if (posMatch) {
     const pos1 = parseInt(posMatch[1]!, 10);
@@ -84,13 +85,15 @@ function generateCondition(
     if (gap >= 5) {
       const favourite = pos1 < pos2 ? homeTeam : awayTeam;
       const underdog = pos1 < pos2 ? awayTeam : homeTeam;
-      conditions.push(`Large position gap (${gap} places) → ${favourite} strongly favoured; avoid backing ${underdog} in 1X2`);
-      reasons.push(`${favourite} is ${Math.min(pos1, pos2)}th vs ${underdog} ${Math.max(pos1, pos2)}th — significant quality gap`);
-      reasonsVi.push(`${favourite} đứng thứ ${Math.min(pos1, pos2)} vs ${underdog} thứ ${Math.max(pos1, pos2)} — chênh lệch đẳng cấp lớn`);
+      // If favourite is underperforming (not leading by minute 60) → alert
+      const favIsHome = pos1 < pos2;
+      atoms.push(`(Minute >= 60) AND (${favIsHome ? 'NOT Home leading' : 'NOT Away leading'})`);
+      reasons.push(`${favourite} (${Math.min(pos1, pos2)}th) vs ${underdog} (${Math.max(pos1, pos2)}th) — gap of ${gap} places; alert if favourite not leading by 60'`);
+      reasonsVi.push(`${favourite} (thứ ${Math.min(pos1, pos2)}) vs ${underdog} (thứ ${Math.max(pos1, pos2)}) — chênh lệch ${gap} bậc; cảnh báo nếu đội mạnh chưa dẫn ở phút 60`);
     }
   }
 
-  // ── Pattern: Rotation risk → weakened lineup ──
+  // ── Pattern: Rotation risk → weakened lineup, expect fewer goals ──
   const homeLC = homeTeam.toLowerCase();
   const awayLC = awayTeam.toLowerCase();
   const noDataRe = /no data|no rotation|no significant|unlikely|low risk|none|no major/;
@@ -99,75 +102,78 @@ function generateCondition(
     const homeRotation = rotation.includes(homeLC) || (rotation.includes('home') && !rotation.includes('away'));
     const awayRotation = rotation.includes(awayLC) || (rotation.includes('away') && !rotation.includes('home'));
     if (homeRotation && !awayRotation) {
-      conditions.push(`${homeTeam} likely rotated → favor ${awayTeam}, Draw, or Under (weakened attack)`);
-      reasons.push(`${homeTeam} expected to rotate key players due to fixture congestion`);
-      reasonsVi.push(`${homeTeam} dự kiến xoay vòng cầu thủ chính do lịch thi đấu dày đặc`);
+      atoms.push('(Minute >= 60) AND (Total goals <= 1)');
+      reasons.push(`${homeTeam} expected to rotate → weakened attack; favor ${awayTeam}, Draw or Under`);
+      reasonsVi.push(`${homeTeam} dự kiến xoay vòng → tấn công suy yếu; ưu tiên ${awayTeam}, Hòa hoặc Under`);
     } else if (awayRotation && !homeRotation) {
-      conditions.push(`${awayTeam} likely rotated → favor ${homeTeam} or Under (weakened attack)`);
-      reasons.push(`${awayTeam} expected to rotate key players due to fixture congestion`);
-      reasonsVi.push(`${awayTeam} dự kiến xoay vòng cầu thủ chính do lịch thi đấu dày đặc`);
+      atoms.push('(Minute >= 60) AND (Total goals <= 1)');
+      reasons.push(`${awayTeam} expected to rotate → weakened attack; favor ${homeTeam} or Under`);
+      reasonsVi.push(`${awayTeam} dự kiến xoay vòng → tấn công suy yếu; ưu tiên ${homeTeam} hoặc Under`);
     }
   }
 
-  // ── Pattern: Key absences (smarter matching) ──
+  // ── Pattern: Key absences → lower goal expectation ──
   const noAbsenceRe = /no data|no major|no confirmed|no significant|none reported|no key|clean bill/;
   if (!noAbsenceRe.test(absences) && absences.length > 15) {
-    // Check if either team side is mentioned (fuzzy: first word of team name)
     const homeFirstWord = homeLC.split(/\s+/)[0]!;
     const awayFirstWord = awayLC.split(/\s+/)[0]!;
     const homeAbsent = absences.includes(homeLC) || absences.includes(homeFirstWord);
     const awayAbsent = absences.includes(awayLC) || absences.includes(awayFirstWord);
     const hasAttackerKeyword = /striker|forward|top scorer|star|playmaker|captain|goal.?scor/.test(absences);
     if ((homeAbsent || awayAbsent) && hasAttackerKeyword) {
-      conditions.push('Key attacker absent → consider Under markets, reduce expected goals for that side');
-      reasons.push('Confirmed absence of key attacking player reduces goal threat');
-      reasonsVi.push('Cầu thủ tấn công chủ chốt vắng mặt → giảm kỳ vọng bàn thắng');
+      atoms.push('(Total goals <= 1)');
+      reasons.push('Key attacker absent → reduced goal threat; consider Under markets');
+      reasonsVi.push('Cầu thủ tấn công chủ chốt vắng mặt → giảm kỳ vọng bàn thắng; xem xét Under');
     }
   }
 
-  // ── Pattern: CL/EL congestion within 3 days ──
+  // ── Pattern: CL/EL congestion within 3 days → fatigue, early goals ──
   const europeanRe = /champions league|europa league|conference league|ucl|uel|uecl/;
   const soonRe = /[1-3]\s*days?|tomorrow|mid.?week|next (tuesday|wednesday|thursday)|48.?hours?/;
   if (europeanRe.test(congestion) && soonRe.test(congestion)) {
-    conditions.push('European match within 3 days → watch for fatigue, sloppy defending, early goals possible');
-    reasons.push('Fixture congestion: European competition within 72h increases fatigue and error rate');
-    reasonsVi.push('Lịch thi đấu dày: cúp châu Âu trong 72 giờ → mệt mỏi, phòng ngự cẩu thả');
+    atoms.push('(Minute <= 30) AND (Total goals >= 1)');
+    reasons.push('European match within 72h → fatigue risk, sloppy defending, early goals possible');
+    reasonsVi.push('Cúp châu Âu trong 72 giờ → mệt mỏi, phòng ngự cẩu thả, có thể có bàn sớm');
   }
 
-  // ── Pattern: H2H dominant side ──
+  // ── Pattern: H2H dominant side → underperformance detection ──
   const h2hWinRe = /(?:won|winning)\s+(?:the\s+)?(?:last\s+)?(\d+)/;
   const h2hMatch = h2h.match(h2hWinRe);
   if (h2hMatch) {
     const winCount = parseInt(h2hMatch[1]!, 10);
     if (winCount >= 3) {
-      // Determine who's dominant
       const homeH2H = h2h.includes(homeLC) && h2h.indexOf(homeLC) < h2h.indexOf('won');
       const side = homeH2H ? homeTeam : awayTeam;
-      conditions.push(`H2H: ${side} won last ${winCount} meetings → strong psychological edge for ${side}`);
-      reasons.push(`${side} dominates H2H (${winCount} consecutive wins) — psychological advantage`);
-      reasonsVi.push(`${side} thống trị đối đầu (${winCount} trận thắng liên tiếp) — lợi thế tâm lý`);
+      const isHome = homeH2H;
+      atoms.push(`(Minute >= 60) AND (${isHome ? 'NOT Home leading' : 'NOT Away leading'})`);
+      reasons.push(`${side} won last ${winCount} H2H meetings → strong psychological edge; alert if not leading by 60'`);
+      reasonsVi.push(`${side} thắng ${winCount} trận đối đầu gần nhất → lợi thế tâm lý; cảnh báo nếu chưa dẫn ở phút 60`);
     }
   }
 
-  // ── Pattern: High-scoring H2H ──
+  // ── Pattern: High-scoring H2H → expect goals ──
   if (/high.?scoring|over 2\.5|avg.*[3-9]\.\d|goals? per game.*[3-9]/.test(h2h)) {
-    conditions.push('H2H history is high-scoring → Over 2.5 has historical support');
-    reasons.push('Head-to-head meetings tend to produce many goals');
-    reasonsVi.push('Lịch sử đối đầu thường có nhiều bàn thắng');
+    atoms.push('(Minute >= 60) AND (Total goals <= 1)');
+    reasons.push('H2H history is high-scoring → alert if under-performing at 60 min; Over 2.5 has historical support');
+    reasonsVi.push('Lịch sử đối đầu nhiều bàn thắng → cảnh báo nếu ít bàn ở phút 60; Over 2.5 có cơ sở');
   }
 
-  // ── Fallback: generate a basic recommendation from the summary ──
-  if (conditions.length === 0) {
+  // ── No patterns matched → fallback using summary ──
+  if (atoms.length === 0) {
     const summary = (ctx.summary || '').trim();
     if (!summary) return null;
-    // Use the AI-generated summary as a narrative condition
-    conditions.push(`Strategic context: ${summary}`);
-    reasons.push(`Based on AI analysis of match context: ${summary}`);
-    reasonsVi.push(`Dựa trên phân tích AI về bối cảnh trận đấu: ${summary}`);
+    // Default: alert at halftime if still goalless
+    atoms.push('(Minute >= 45) AND (Total goals <= 0)');
+    reasons.push(`Based on strategic context: ${summary}`);
+    reasonsVi.push(`Dựa trên bối cảnh chiến thuật: ${summary}`);
   }
 
+  // Combine all atoms with AND, deduplicate
+  const uniqueAtoms = [...new Set(atoms)];
+  const condition = uniqueAtoms.join(' AND ');
+
   return {
-    condition: conditions.join('; '),
+    condition,
     reason: reasons.join('. '),
     reason_vi: reasonsVi.join('. '),
   };
