@@ -233,7 +233,6 @@ export function SettingsTab() {
   const { config } = state;
 
   const [defaultMode, setDefaultMode] = useState(config.defaultMode);
-  const [newPassword, setNewPassword] = useState('');
 
   useEffect(() => {
     setDefaultMode(config.defaultMode);
@@ -241,11 +240,7 @@ export function SettingsTab() {
 
   const handleSave = () => {
     saveConfig({ ...config, defaultMode });
-    if (newPassword) {
-      showToast('⚠️ Password change requires code update', 'error');
-    } else {
-      showToast('✅ Settings saved!', 'success');
-    }
+    showToast('✅ Settings saved!', 'success');
   };
 
   return (
@@ -260,13 +255,6 @@ export function SettingsTab() {
             <option value="B">B - Balanced</option>
             <option value="C">C - Conservative</option>
           </select>
-        </div>
-        <div className="form-group">
-          <label>Change Password:</label>
-          <input type="password" placeholder="New password" value={newPassword} onChange={(e) => setNewPassword(e.target.value)} />
-          <small style={{ color: 'var(--gray-500)', display: 'block', marginTop: '5px' }}>
-            Note: Requires code update to change password hash
-          </small>
         </div>
         <button className="btn btn-primary" onClick={handleSave}>💾 Save Settings</button>
       </div>

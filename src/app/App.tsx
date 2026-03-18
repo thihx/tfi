@@ -31,7 +31,7 @@ function TabFallback() {
 }
 
 function AppContent() {
-  const { authed, error, login, logout } = useAuth();
+  const { authed, user, error, login, logout } = useAuth();
   const { state, loadAllData } = useAppState();
   const [activeTab, setActiveTab]         = useState<TabName>('dashboard');
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
@@ -84,10 +84,7 @@ function AppContent() {
     return () => mq.removeEventListener('change', handler);
   }, []);
 
-  // Auth gate: skip when VITE_AUTH_ENABLED is not 'true'
-  const authRequired = import.meta.env['VITE_AUTH_ENABLED'] === 'true';
-
-  if (authRequired && !authed) {
+  if (!authed) {
     return <LoginScreen onLogin={login} error={error ?? ''} />;
   }
 
@@ -112,7 +109,7 @@ function AppContent() {
       {isMobile ? (
         /* ── Mobile: original top-nav layout ── */
         <div id="appContainer">
-          <Header activeTab={activeTab} onLogout={logout} />
+          <Header activeTab={activeTab} onLogout={logout} user={user} />
           <Navigation activeTab={activeTab} onTabChange={setActiveTab} />
           <div className="main-content">
             <Suspense fallback={<TabFallback />}>{renderTab()}</Suspense>
@@ -129,7 +126,7 @@ function AppContent() {
           />
 
           <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column' }}>
-            <Header activeTab={activeTab} onLogout={logout} />
+            <Header activeTab={activeTab} onLogout={logout} user={user} />
             <div style={{ flex: 1, padding: '28px 24px', minWidth: 0, overflow: 'auto' }}>
               <Suspense fallback={<TabFallback />}>{renderTab()}</Suspense>
             </div>

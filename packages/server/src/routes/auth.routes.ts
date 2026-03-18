@@ -14,7 +14,14 @@ const GOOGLE_AUTH_URL  = 'https://accounts.google.com/o/oauth2/v2/auth';
 const GOOGLE_TOKEN_URL = 'https://oauth2.googleapis.com/token';
 const GOOGLE_USER_URL  = 'https://www.googleapis.com/oauth2/v2/userinfo';
 
-const REDIRECT_URI = `http://localhost:${config.port}/api/auth/google/callback`;
+// Dynamic: in production the callback goes through the public URL, not localhost
+function getRedirectUri(): string {
+  // If FRONTEND_URL looks like a deployed app, use the backend's own public URL for callback
+  const base = config.frontendUrl.includes('localhost')
+    ? `http://localhost:${config.port}`
+    : config.frontendUrl;
+  return `${base}/api/auth/google/callback`;
+}
 
 export async function authRoutes(app: FastifyInstance) {
 
@@ -22,7 +29,7 @@ export async function authRoutes(app: FastifyInstance) {
   app.get('/api/auth/google', async (_req, reply) => {
     const params = new URLSearchParams({
       client_id:     config.googleClientId,
-      redirect_uri:  REDIRECT_URI,
+      redirect_uri:  getRedirectUri(),
       response_type: 'code',
       scope:         'openid email profile',
       access_type:   'online',
@@ -51,7 +58,7 @@ export async function authRoutes(app: FastifyInstance) {
             code,
             client_id:     config.googleClientId,
             client_secret: config.googleClientSecret,
-            redirect_uri:  REDIRECT_URI,
+            redirect_uri:  getRedirectUri(),
             grant_type:    'authorization_code',
           }).toString(),
         });

@@ -16,6 +16,11 @@ export class ApiError extends Error {
 }
 
 function formatApiError(status: number, text: string): ApiError {
+  if (status === 401) {
+    // Token expired or invalid — force re-login
+    localStorage.removeItem('tfi_auth_token');
+    location.reload();
+  }
   return new ApiError(status, `HTTP ${status}: ${text.substring(0, 200)}`);
 }
 

@@ -5,6 +5,7 @@
 // ============================================================
 
 import type { AppConfig } from '@/types';
+import { getToken } from '@/lib/services/auth';
 import type {
   FootballApiFixture,
   FootballApiOddsResponse,
@@ -20,12 +21,17 @@ function apiUrl(config: AppConfig, path: string): string {
   return `${config.apiUrl}${path}`;
 }
 
+function authHeaders(): Record<string, string> {
+  const token = getToken();
+  return token ? { Authorization: `Bearer ${token}` } : {};
+}
+
 async function postJson<T>(url: string, body: unknown): Promise<T> {
   let res: Response;
   try {
     res = await fetch(url, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+      headers: { 'Content-Type': 'application/json', Accept: 'application/json', ...authHeaders() },
       body: JSON.stringify(body),
     });
   } catch (err) {
@@ -67,7 +73,7 @@ export async function fetchLiveOdds(
 
 export async function fetchWatchlistMatches(config: AppConfig): Promise<WatchlistMatch[]> {
   const res = await fetch(apiUrl(config, '/api/watchlist'), {
-    headers: { Accept: 'application/json' },
+    headers: { Accept: 'application/json', ...authHeaders() },
   });
   if (!res.ok) throw new Error(`Watchlist error ${res.status}`);
   return res.json();
@@ -112,7 +118,7 @@ export async function saveRecommendation(
 ): Promise<{ id: number }> {
   const res = await fetch(apiUrl(config, '/api/recommendations'), {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+    headers: { 'Content-Type': 'application/json', Accept: 'application/json', ...authHeaders() },
     body: JSON.stringify(data),
   });
   if (!res.ok) throw new Error(`Recommendation error ${res.status}`);
@@ -126,7 +132,7 @@ export async function fetchMatchRecommendations(
   matchId: string,
 ): Promise<PreviousRecommendation[]> {
   const res = await fetch(apiUrl(config, `/api/recommendations/match/${encodeURIComponent(matchId)}`), {
-    headers: { Accept: 'application/json' },
+    headers: { Accept: 'application/json', ...authHeaders() },
   });
   if (!res.ok) return [];
   const rows: Array<{
@@ -156,7 +162,7 @@ export async function fetchMatchSnapshots(
   matchId: string,
 ): Promise<MatchTimelineSnapshot[]> {
   const res = await fetch(apiUrl(config, `/api/snapshots/match/${encodeURIComponent(matchId)}`), {
-    headers: { Accept: 'application/json' },
+    headers: { Accept: 'application/json', ...authHeaders() },
   });
   if (!res.ok) return [];
   const rows: Array<{
@@ -263,7 +269,7 @@ export async function fetchHistoricalPerformance(
   }
   try {
     const res = await fetch(apiUrl(config, '/api/ai-performance/prompt-context'), {
-      headers: { Accept: 'application/json' },
+      headers: { Accept: 'application/json', ...authHeaders() },
     });
     if (!res.ok) return null;
     const data: HistoricalPerformanceContext = await res.json();

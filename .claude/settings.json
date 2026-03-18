@@ -33,7 +33,8 @@
       "Read(//c//**)",
       "Bash(curl -s -X DELETE http://localhost:4000/api/watchlist/test123 -H \"Content-Type: application/json\" -w \"\\\\nHTTP_STATUS:%{http_code}\")",
       "Bash(curl -s http://localhost:4000/api/watchlist)",
-      "Bash(curl -s -X DELETE http://localhost:4000/api/watchlist/1530918 -H \"Accept: application/json\" -w \"\\\\nHTTP_STATUS:%{http_code}\")"
+      "Bash(curl -s -X DELETE http://localhost:4000/api/watchlist/1530918 -H \"Accept: application/json\" -w \"\\\\nHTTP_STATUS:%{http_code}\")",
+      "Read(//dev/**)"
     ]
   }
 }

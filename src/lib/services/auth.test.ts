@@ -1,74 +1,83 @@
-import { describe, test, expect, beforeEach } from 'vitest';
-import { hashPassword, isAuthenticated, setAuthenticated, logout } from './auth';
+import { describe, test, expect, beforeEach, vi } from 'vitest';
+import { isAuthenticated, getToken, setToken, clearToken, isTokenValid, getUser, logout } from './auth';
+
+// Build a minimal valid JWT for testing (HS256 signature not verified client-side)
+function makeFakeJwt(payload: Record<string, unknown>): string {
+  const header  = btoa(JSON.stringify({ alg: 'HS256', typ: 'JWT' })).replace(/=/g, '');
+  const body    = btoa(JSON.stringify(payload)).replace(/=/g, '');
+  return `${header}.${body}.fakesig`;
+}
 
 describe('auth service', () => {
   beforeEach(() => {
     localStorage.clear();
   });
 
-  // ==================== hashPassword ====================
-  describe('hashPassword', () => {
-    test('returns a hex string', async () => {
-      const hash = await hashPassword('test-password');
-      expect(hash).toMatch(/^[0-9a-f]+$/);
-    });
-
-    test('returns consistent hash for same input', async () => {
-      const hash1 = await hashPassword('my-password');
-      const hash2 = await hashPassword('my-password');
-      expect(hash1).toBe(hash2);
-    });
-
-    test('returns different hash for different input', async () => {
-      const hash1 = await hashPassword('password-a');
-      const hash2 = await hashPassword('password-b');
-      expect(hash1).not.toBe(hash2);
-    });
-  });
-
-  // ==================== isAuthenticated ====================
   describe('isAuthenticated', () => {
-    test('returns false when not set', () => {
+    test('returns false when no token stored', () => {
       expect(isAuthenticated()).toBe(false);
     });
 
-    test('returns true when authenticated', () => {
-      localStorage.setItem('authenticated', 'true');
+    test('returns false for expired token', () => {
+      const token = makeFakeJwt({ sub: 'a@b.com', exp: 1 }); // expired in 1970
+      setToken(token);
+      expect(isAuthenticated()).toBe(false);
+    });
+
+    test('returns true for valid unexpired token', () => {
+      const token = makeFakeJwt({ sub: 'a@b.com', exp: Math.floor(Date.now() / 1000) + 3600 });
+      setToken(token);
       expect(isAuthenticated()).toBe(true);
     });
+  });
 
-    test('returns false for non-true value', () => {
-      localStorage.setItem('authenticated', 'false');
-      expect(isAuthenticated()).toBe(false);
+  describe('getToken / setToken / clearToken', () => {
+    test('stores and retrieves token', () => {
+      setToken('my.jwt.token');
+      expect(getToken()).toBe('my.jwt.token');
+    });
+
+    test('clearToken removes it', () => {
+      setToken('my.jwt.token');
+      clearToken();
+      expect(getToken()).toBeNull();
     });
   });
 
-  // ==================== setAuthenticated ====================
-  describe('setAuthenticated', () => {
-    test('sets localStorage to true', () => {
-      setAuthenticated(true);
-      expect(localStorage.setItem).toHaveBeenCalledWith('authenticated', 'true');
+  describe('isTokenValid', () => {
+    test('returns false for null', () => {
+      expect(isTokenValid(null)).toBe(false);
     });
 
-    test('removes localStorage key on false', () => {
-      setAuthenticated(false);
-      expect(localStorage.removeItem).toHaveBeenCalledWith('authenticated');
+    test('returns false for malformed token', () => {
+      expect(isTokenValid('not.a.token')).toBe(false);
     });
   });
 
-  // ==================== logout ====================
+  describe('getUser', () => {
+    test('extracts user fields from token', () => {
+      const token = makeFakeJwt({ sub: 'test@gmail.com', name: 'Test User', picture: 'https://pic', exp: Date.now() });
+      const user = getUser(token);
+      expect(user?.email).toBe('test@gmail.com');
+      expect(user?.name).toBe('Test User');
+    });
+
+    test('returns null for null token', () => {
+      expect(getUser(null)).toBeNull();
+    });
+  });
+
   describe('logout', () => {
-    test('clears authentication', () => {
-      // Mock location.reload to prevent jsdom error
+    test('clears token and reloads', () => {
+      setToken('some.jwt.token');
       const reloadMock = vi.fn();
       Object.defineProperty(globalThis, 'location', {
         value: { reload: reloadMock },
         writable: true,
         configurable: true,
       });
-
       logout();
-      expect(localStorage.removeItem).toHaveBeenCalledWith('authenticated');
+      expect(getToken()).toBeNull();
       expect(reloadMock).toHaveBeenCalled();
     });
   });

@@ -1,8 +1,5 @@
 import type { LeagueInfo, StatusBadgeInfo } from '@/types';
 
-// ==================== AUTHENTICATION ====================
-export const PASSWORD_HASH = '8c6976e5b5410415bde908bd4dee15dfb167a9c873fc4bb8a81f6f2ab448a918';
-
 // ==================== LEAGUE CODE MAPPING ====================
 export const LEAGUE_CODES: Record<number, string> = {
   39: 'ENG D1', 40: 'ENG D2', 140: 'ESP D1', 135: 'ITA D1',
