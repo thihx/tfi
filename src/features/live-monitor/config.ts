@@ -4,9 +4,15 @@
 // ============================================================
 
 import type { LiveMonitorConfig } from './types';
+import { getToken } from '@/lib/services/auth';
 
 const API_BASE = import.meta.env.VITE_API_URL as string | undefined
   ?? (import.meta.env.MODE === 'production' ? '' : 'http://localhost:4000');
+
+function authHeaders(): Record<string, string> {
+  const token = getToken();
+  return token ? { Authorization: `Bearer ${token}` } : {};
+}
 
 /**
  * Default pipeline configuration.
@@ -70,7 +76,9 @@ export function saveMonitorConfig(config: Partial<LiveMonitorConfig>): void {
  */
 export async function fetchMonitorConfig(): Promise<LiveMonitorConfig> {
   try {
-    const res = await fetch(`${API_BASE}/api/settings`);
+    const res = await fetch(`${API_BASE}/api/settings`, {
+      headers: { Accept: 'application/json', ...authHeaders() },
+    });
     if (res.ok) {
       const dbSettings = await res.json() as Partial<LiveMonitorConfig>;
       const config = createDefaultConfig(dbSettings);
@@ -92,7 +100,7 @@ export async function persistMonitorConfig(config: Partial<LiveMonitorConfig>): 
   saveMonitorConfig(config);
   const res = await fetch(`${API_BASE}/api/settings`, {
     method: 'PUT',
-    headers: { 'Content-Type': 'application/json' },
+    headers: { 'Content-Type': 'application/json', ...authHeaders() },
     body: JSON.stringify(config),
   });
   if (!res.ok) throw new Error(`Save failed: ${res.status}`);
