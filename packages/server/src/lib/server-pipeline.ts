@@ -751,6 +751,7 @@ async function processMatch(
     const recommendedCondition = (watchlistEntry.recommended_custom_condition || '').trim();
     const recommendedConditionReason = (watchlistEntry.recommended_condition_reason || '').trim();
     const strategicContext = watchlistEntry.strategic_context as Record<string, string> | null;
+    const prediction = watchlistEntry.prediction as Record<string, unknown> | null;
 
     const prompt = buildServerPrompt({
       homeName, awayName, league, minute, score, status,
@@ -760,6 +761,7 @@ async function processMatch(
       derivedInsights: !statsAvailable ? derivedInsights : null,
       customConditions, recommendedCondition, recommendedConditionReason,
       strategicContext,
+      prediction,
       currentTotalGoals: homeGoals + awayGoals,
       previousRecommendations: prevRecsContext,
       preMatchPredictionSummary: '',
@@ -961,6 +963,7 @@ function buildServerPrompt(data: {
   recommendedCondition: string;
   recommendedConditionReason: string;
   strategicContext: Record<string, string> | null;
+  prediction: Record<string, unknown> | null;
   currentTotalGoals: number;
   previousRecommendations: Array<Record<string, unknown>>;
   preMatchPredictionSummary: string;
@@ -1090,6 +1093,7 @@ ODDS METHODOLOGY:
 - If a market is present in the canonical data, it has PASSED margin validation and is RELIABLE.
 - Focus your analysis on the markets that ARE present. Do not infer missing markets.
 
+${buildPreMatchPredictionSection(data.prediction, data.preMatchPredictionSummary)}
 ========================
 RECENT EVENTS (LAST 8)
 ========================
@@ -1108,6 +1112,26 @@ AI-RECOMMENDED CONDITION
 ========================
 RECOMMENDED_CONDITION: ${data.recommendedCondition || '(none)'}
 RECOMMENDED_CONDITION_REASON: ${data.recommendedConditionReason || '(none)'}
+
+============================================================
+PRE-MATCH PREDICTION RULES
+============================================================
+- Pre-match data is contextual only.
+- Must NEVER override live evidence.
+
+WHEN TO USE PRE-MATCH DATA:
+- When live stats are sparse but pre-match aligns with observed play style.
+- When detecting market overreaction (e.g., strong favourite concedes early → odds swing excessively).
+- As supporting evidence when live play confirms pre-match expectations.
+- H2H_SUMMARY: If one team dominates H2H (3+ wins in last 5), factor this into 1X2 assessment.
+- TEAM_FORM_SEQUENCE: Recent WDLWW pattern reveals momentum — weight recent matches more.
+
+WHEN TO IGNORE PRE-MATCH DATA:
+- When live evidence clearly contradicts pre-match expectation.
+- When the match situation has fundamentally changed (red cards, injuries, tactical shifts).
+
+WEIGHT: Pre-match should contribute maximum 20% to your reasoning when used.
+WEIGHT: Strategic context (motivation, rotation, congestion) can add up to 10% additional weight.
 
 ============================================================
 GLOBAL RULES
@@ -1234,5 +1258,44 @@ function buildStrategicContextSection(strategicContext: Record<string, string> |
   lines.push('- KEY_ABSENCES of star players should reduce expected goals for that team.');
   lines.push('');
 
+  return lines.join('\n');
+}
+
+// ==================== Pre-Match Prediction Section ====================
+
+function buildPreMatchPredictionSection(prediction: Record<string, unknown> | null, summary: string): string {
+  if (!prediction && !summary) return '';
+
+  const lines: string[] = [];
+  lines.push('========================');
+  lines.push('PRE-MATCH PREDICTION (OPTIONAL)');
+  lines.push('========================');
+
+  if (prediction && typeof prediction === 'object') {
+    const pmPred = (prediction as Record<string, Record<string, unknown>>).predictions || {};
+    const pmComp = (prediction as Record<string, Record<string, unknown>>).comparison || {};
+
+    const compact: Record<string, unknown> = {
+      pre_favourite: (pmPred.winner as Record<string, unknown>)?.name || null,
+      pre_win_or_draw: pmPred.win_or_draw ?? null,
+      pre_handicap_home: (pmPred.goals as Record<string, unknown>)?.home ?? null,
+      pre_handicap_away: (pmPred.goals as Record<string, unknown>)?.away ?? null,
+      pre_percent: pmPred.percent || null,
+      pre_form: (pmComp.form as Record<string, unknown>) || null,
+      pre_total_rating: (pmComp.total as Record<string, unknown>) || null,
+    };
+
+    lines.push(JSON.stringify(compact));
+
+    const h2hSummary = prediction.h2h_summary;
+    if (h2hSummary) lines.push(`H2H_SUMMARY: ${JSON.stringify(h2hSummary)}`);
+
+    const teamForm = prediction.team_form;
+    if (teamForm) lines.push(`TEAM_FORM_SEQUENCE: ${JSON.stringify(teamForm)}`);
+  } else {
+    lines.push(summary || 'No pre-match prediction available.');
+  }
+
+  lines.push('');
   return lines.join('\n');
 }
