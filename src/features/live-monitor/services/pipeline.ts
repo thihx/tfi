@@ -276,28 +276,9 @@ export async function runPipeline(
         );
         matchResult.recommendation = recommendation;
 
-        // Should Push? → Notify
-        // For ask-ai triggers, always send notification (forceNotify)
-        const isAskAi = options.triggeredBy === 'ask-ai';
-        if (isAskAi || shouldPush(parsed)) {
-          emit('notifying');
-          const notifyResult = await notifyRecommendation(
-            appConfig,
-            config,
-            mergedWithOdds,
-            parsed,
-            recommendation,
-            { forceNotify: isAskAi },
-          );
-          matchResult.notified = notifyResult.emailSent || notifyResult.telegramSent;
-
-          if (notifyResult.errors.length > 0) {
-            matchResult.error = notifyResult.errors.join('; ');
-          }
-        }
-
-        // Should Save? → Save
+        // Should Save? → Save (BEFORE notification to ensure data is persisted)
         // For ask-ai triggers, save if AI produced a real selection (not "No Bet" / "-" / empty)
+        const isAskAi = options.triggeredBy === 'ask-ai';
         const selectionText = (parsed.ai_selection || parsed.selection || '').trim();
         const hasSelection = !!selectionText && !/^(no\s*bet|-)$/i.test(selectionText);
         if (shouldSave(parsed) || (isAskAi && hasSelection)) {
@@ -326,6 +307,25 @@ export async function runPipeline(
           } catch (saveErr) {
             matchResult.error = (matchResult.error ? matchResult.error + '; ' : '') +
               `Save error: ${saveErr instanceof Error ? saveErr.message : String(saveErr)}`;
+          }
+        }
+
+        // Should Push? → Notify (AFTER save)
+        if (isAskAi || shouldPush(parsed)) {
+          emit('notifying');
+          const notifyResult = await notifyRecommendation(
+            appConfig,
+            config,
+            mergedWithOdds,
+            parsed,
+            recommendation,
+            { forceNotify: isAskAi },
+          );
+          matchResult.notified = notifyResult.emailSent || notifyResult.telegramSent;
+
+          if (notifyResult.errors.length > 0) {
+            matchResult.error = (matchResult.error ? matchResult.error + '; ' : '') +
+              notifyResult.errors.join('; ');
           }
         }
 

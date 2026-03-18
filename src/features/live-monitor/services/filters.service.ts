@@ -171,8 +171,13 @@ export function shouldPush(data: ParsedAiResponse): boolean {
 
 /**
  * Should Save? - determines whether to save recommendation.
- * Mirrors the "Should Save?" If node.
+ * Must be consistent with shouldPush: if we notify, we must also save.
  */
 export function shouldSave(data: ParsedAiResponse): boolean {
-  return data.ai_should_push === true;
+  return !!(
+    data.ai_should_push ||
+    (data.custom_condition_matched &&
+      data.custom_condition_status === 'evaluated') ||
+    data.condition_triggered_should_push
+  );
 }
