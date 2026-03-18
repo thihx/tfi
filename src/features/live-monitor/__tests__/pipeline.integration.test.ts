@@ -221,6 +221,24 @@ describe('runPipeline — full flow', () => {
     expect(idxAi).toBeLessThan(idxNotify);
   });
 
+  test('emits saving BEFORE notifying (save-before-notify order)', async () => {
+    setupHappyPath();
+
+    const stages: string[] = [];
+    await runPipeline(appConfig, {
+      triggeredBy: 'manual',
+      onProgress: (ctx: PipelineContext) => {
+        stages.push(ctx.stage);
+      },
+    });
+
+    const idxSave = stages.indexOf('saving');
+    const idxNotify = stages.indexOf('notifying');
+    expect(idxSave).toBeGreaterThan(-1);
+    expect(idxNotify).toBeGreaterThan(-1);
+    expect(idxSave).toBeLessThan(idxNotify);
+  });
+
   test('returns early when no active matches', async () => {
     const config = createConfig();
     (loadMonitorConfig as Mock).mockReturnValue(config);

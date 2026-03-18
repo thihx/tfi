@@ -173,8 +173,56 @@ describe('shouldSave', () => {
     expect(shouldSave(parsed)).toBe(true);
   });
 
-  test('returns false when ai_should_push is false', () => {
-    const parsed = createParsedAiResponse({ ai_should_push: false });
+  test('returns false when ai_should_push is false and no conditions', () => {
+    const parsed = createParsedAiResponse({
+      ai_should_push: false,
+      custom_condition_matched: false,
+      condition_triggered_should_push: false,
+    });
     expect(shouldSave(parsed)).toBe(false);
+  });
+
+  test('returns true when custom_condition_matched + evaluated (consistent with shouldPush)', () => {
+    const parsed = createParsedAiResponse({
+      ai_should_push: false,
+      custom_condition_matched: true,
+      custom_condition_status: 'evaluated',
+    });
+    expect(shouldSave(parsed)).toBe(true);
+  });
+
+  test('returns true when condition_triggered_should_push (consistent with shouldPush)', () => {
+    const parsed = createParsedAiResponse({
+      ai_should_push: false,
+      condition_triggered_should_push: true,
+    });
+    expect(shouldSave(parsed)).toBe(true);
+  });
+
+  test('returns false when custom_condition_matched but status is none', () => {
+    const parsed = createParsedAiResponse({
+      ai_should_push: false,
+      custom_condition_matched: true,
+      custom_condition_status: 'none',
+    });
+    expect(shouldSave(parsed)).toBe(false);
+  });
+
+  test('shouldSave matches shouldPush for all key scenarios', () => {
+    // Scenario: AI push only
+    const s1 = createParsedAiResponse({ ai_should_push: true, custom_condition_matched: false, condition_triggered_should_push: false });
+    expect(shouldSave(s1)).toBe(shouldPush(s1));
+
+    // Scenario: condition matched only
+    const s2 = createParsedAiResponse({ ai_should_push: false, custom_condition_matched: true, custom_condition_status: 'evaluated', condition_triggered_should_push: false });
+    expect(shouldSave(s2)).toBe(shouldPush(s2));
+
+    // Scenario: condition triggered only
+    const s3 = createParsedAiResponse({ ai_should_push: false, custom_condition_matched: false, condition_triggered_should_push: true });
+    expect(shouldSave(s3)).toBe(shouldPush(s3));
+
+    // Scenario: nothing triggers
+    const s4 = createParsedAiResponse({ ai_should_push: false, custom_condition_matched: false, condition_triggered_should_push: false });
+    expect(shouldSave(s4)).toBe(shouldPush(s4));
   });
 });

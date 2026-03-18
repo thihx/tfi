@@ -257,6 +257,61 @@ describe('notification edge cases', () => {
     expect(sendTelegram).not.toHaveBeenCalled();
   });
 
+  test('custom condition matched — both saved AND notified', async () => {
+    setupDefaults();
+    const ko = koreaDateTime(-60 * 60_000);
+
+    (fetchWatchlistMatches as Mock).mockResolvedValue([
+      createWatchlistMatch({ match_id: '12345', date: ko.date, kickoff: ko.time }),
+    ]);
+    (fetchLiveFixtures as Mock).mockResolvedValue([createFootballApiFixture()]);
+    (fetchLiveOdds as Mock).mockResolvedValue(createOddsResponse());
+    (runAiAnalysis as Mock).mockResolvedValue(aiResponse({
+      should_push: false,
+      ai_should_push: false,
+      custom_condition_matched: true,
+      custom_condition_status: 'evaluated',
+      condition_triggered_should_push: false,
+      confidence: 6,
+    }));
+
+    const ctx = await runPipeline(appConfig, { triggeredBy: 'manual' });
+
+    const r = ctx.results[0]!;
+    expect(r.proceeded).toBe(true);
+    expect(r.saved).toBe(true);
+    expect(saveRecommendation).toHaveBeenCalledTimes(1);
+  });
+
+  test('condition_triggered_should_push — both saved AND notified', async () => {
+    setupDefaults();
+    const ko = koreaDateTime(-60 * 60_000);
+
+    (fetchWatchlistMatches as Mock).mockResolvedValue([
+      createWatchlistMatch({ match_id: '12345', date: ko.date, kickoff: ko.time }),
+    ]);
+    (fetchLiveFixtures as Mock).mockResolvedValue([createFootballApiFixture()]);
+    (fetchLiveOdds as Mock).mockResolvedValue(createOddsResponse());
+    // AI says no push, but custom condition triggers with valid suggestion + confidence
+    (runAiAnalysis as Mock).mockResolvedValue(aiResponse({
+      should_push: false,
+      custom_condition_matched: true,
+      custom_condition_status: 'evaluated',
+      condition_triggered_suggestion: 'Over 2.5 @1.85',
+      condition_triggered_confidence: 7,
+      condition_triggered_stake: 3,
+      condition_triggered_reasoning_en: 'Condition met',
+      confidence: 3,
+    }));
+
+    const ctx = await runPipeline(appConfig, { triggeredBy: 'manual' });
+
+    const r = ctx.results[0]!;
+    expect(r.proceeded).toBe(true);
+    expect(r.saved).toBe(true);
+    expect(saveRecommendation).toHaveBeenCalledTimes(1);
+  });
+
   test('email fails but telegram succeeds — partial notification', async () => {
     setupDefaults();
     const ko = koreaDateTime(-60 * 60_000);
