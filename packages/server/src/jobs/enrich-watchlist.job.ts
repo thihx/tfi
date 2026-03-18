@@ -244,9 +244,11 @@ export async function enrichWatchlistJob(): Promise<{ checked: number; enriched:
           strategic_context_at: new Date().toISOString(),
         } as Partial<watchlistRepo.WatchlistRow>;
 
-        // Auto-generate conditions if not manually set, previous result was poor, or force mode
+        // Auto-generate conditions if not manually set, still in old narrative format, or force mode
+        // Valid evaluable conditions always start with '(' — anything else is old format
         const existingCond = (entry.recommended_custom_condition || '').trim();
-        if (force || !existingCond || /^Strategic context:\s*No data/i.test(existingCond)) {
+        const isEvaluable = existingCond.startsWith('(');
+        if (force || !existingCond || !isEvaluable) {
           const generated = generateCondition(context, entry.home_team, entry.away_team);
           if (generated) {
             (updateFields as Record<string, unknown>).recommended_custom_condition = generated.condition;

@@ -125,7 +125,7 @@ describe('enrichWatchlistJob', () => {
     vi.mocked(watchlistRepo.getActiveWatchlist).mockResolvedValueOnce([
       {
         match_id: '500', home_team: 'X', away_team: 'Y', league: 'L', date: '2026-03-17',
-        status: 'active', strategic_context_at: null, recommended_custom_condition: 'Over 2.5 goals',
+        status: 'active', strategic_context_at: null, recommended_custom_condition: '(Minute >= 45) AND (Total goals <= 0)',
       },
     ] as never);
     const matchRepo = await import('../repos/matches.repo.js');
