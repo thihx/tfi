@@ -84,7 +84,10 @@ function AppContent() {
     return () => mq.removeEventListener('change', handler);
   }, []);
 
-  if (!authed) {
+  // Auth gate: skip when VITE_AUTH_ENABLED is not 'true'
+  const authRequired = import.meta.env['VITE_AUTH_ENABLED'] === 'true';
+
+  if (authRequired && !authed) {
     return <LoginScreen onLogin={login} error={error ?? ''} />;
   }
 

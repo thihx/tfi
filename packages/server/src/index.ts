@@ -79,21 +79,27 @@ await app.register(cors, {
 // ── Auth routes (public — no JWT required) ───────────────────
 await app.register(authRoutes);
 
-// ── JWT guard: all /api/* routes except /api/auth/* and /api/health ──
-app.addHook('preHandler', async (req, reply) => {
-  const url = req.url.split('?')[0]!;
-  if (!url.startsWith('/api/') || url.startsWith('/api/auth/') || url === '/api/health') return;
+// ── JWT guard: only active when Google OAuth is fully configured ──
+const authEnabled = !!(config.googleClientId && config.googleClientSecret);
+if (authEnabled) {
+  app.addHook('preHandler', async (req, reply) => {
+    const url = req.url.split('?')[0]!;
+    if (!url.startsWith('/api/') || url.startsWith('/api/auth/') || url === '/api/health') return;
 
-  const authHeader = req.headers['authorization'];
-  const token = authHeader?.startsWith('Bearer ') ? authHeader.slice(7) : null;
-  if (!token) {
-    return reply.status(401).send({ error: 'Unauthorized — no token' });
-  }
-  const payload = verifyToken(token, config.jwtSecret);
-  if (!payload) {
-    return reply.status(401).send({ error: 'Unauthorized — invalid or expired token' });
-  }
-});
+    const authHeader = req.headers['authorization'];
+    const token = authHeader?.startsWith('Bearer ') ? authHeader.slice(7) : null;
+    if (!token) {
+      return reply.status(401).send({ error: 'Unauthorized — no token' });
+    }
+    const payload = verifyToken(token, config.jwtSecret);
+    if (!payload) {
+      return reply.status(401).send({ error: 'Unauthorized — invalid or expired token' });
+    }
+  });
+  app.log.info('[auth] JWT guard ENABLED (Google OAuth configured)');
+} else {
+  app.log.info('[auth] JWT guard DISABLED (GOOGLE_CLIENT_ID / GOOGLE_CLIENT_SECRET not set)');
+}
 
 // Register route modules
 await app.register(leagueRoutes);
