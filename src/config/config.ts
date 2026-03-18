@@ -4,7 +4,7 @@ import { STATUS_BADGES, TOP_LEAGUES } from './constants';
 // ==================== ENV VALIDATION ====================
 (function validateEnv() {
   const apiUrl = import.meta.env.VITE_API_URL as string | undefined;
-  if (apiUrl && !apiUrl.startsWith('http://') && !apiUrl.startsWith('https://')) {
+  if (apiUrl && !apiUrl.startsWith('http://') && !apiUrl.startsWith('https://') && apiUrl !== '') {
     console.error(`[Config] VITE_API_URL "${apiUrl}" does not start with http:// or https://.`);
   }
 })();

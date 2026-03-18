@@ -15,7 +15,8 @@ RUN npm ci --ignore-scripts
 COPY tsconfig.json vite.config.ts index.html ./
 COPY public ./public
 COPY src ./src
-RUN npx vite build
+# In production single-container mode, API is same-origin (no VITE_API_URL needed)
+RUN VITE_API_URL= npx vite build
 
 # ── Stage 2: Build server (Fastify) ─────────────────────────
 FROM base AS server-build
