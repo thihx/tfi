@@ -15,6 +15,10 @@ coverage/
 .env.local
 .env.*.local
 .env.azure
+.env.e2e
+
+# Playwright auth state (contains real tokens)
+e2e/.auth.json
 
 # IDE
 .vscode/*

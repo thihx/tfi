@@ -288,7 +288,7 @@ export function RecommendationsTab() {
               <p>{loading ? 'Loading...' : 'No recommendations match filters'}</p>
             </div>
           ) : (
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(360px, 1fr))', gap: '12px' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(min(100%, 360px), 1fr))', gap: '12px' }}>
               {rows.map((rec, i) => (
                 <RecommendationCard
                   key={rec.id ?? i}

@@ -3,6 +3,7 @@ import { useAppState } from '@/hooks/useAppState';
 import { useToast } from '@/hooks/useToast';
 import { formatLocalDateTime } from '@/lib/utils/helpers';
 import { AuditLogsPanel } from '@/components/AuditLogsPanel';
+import { IntegrationHealthPanel } from '@/components/IntegrationHealthPanel';
 import { getToken } from '@/lib/services/auth';
 
 function authHeaders(): Record<string, string> {
@@ -47,6 +48,11 @@ const JOB_META: Record<string, { label: string; description: string; order: numb
     label: 'Fetch Matches',
     description: 'Fetches fixtures from Football API for active leagues, archives finished matches, and auto-adds top league NS matches to watchlist.',
     order: 1,
+  },
+  'integration-health': {
+    label: 'Integration Health',
+    description: 'Probes all external services (DB, Redis, APIs, Telegram) and sends Telegram alert when a service goes down or recovers.',
+    order: 8,
   },
   'enrich-watchlist': {
     label: 'Enrich Watchlist',
@@ -271,6 +277,14 @@ export function SettingsTab() {
       </div>
       <div style={{ padding: '20px' }}>
         <JobSchedulerPanel />
+      </div>
+
+      {/* Integration Health Section */}
+      <div className="card-header" style={{ marginTop: '16px' }}>
+        <div className="card-title">Integration Health</div>
+      </div>
+      <div style={{ padding: '20px' }}>
+        <IntegrationHealthPanel />
       </div>
 
       {/* Audit Trail Section */}

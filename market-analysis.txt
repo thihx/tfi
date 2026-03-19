@@ -1,0 +1,689 @@
+=== MARKET PERFORMANCE BREAKDOWN ===
+  1x2_home             total= 202 W= 72 L=130 P= 0 pend=  0 winRate=35.6% pnl=-185.89
+  btts_yes             total= 167 W= 91 L= 76 P= 0 pend=  0 winRate=54.5% pnl=-4.55
+  over_1.5             total= 148 W= 86 L= 62 P= 0 pend=  0 winRate=58.1% pnl=23.82
+  btts_no              total= 110 W= 61 L= 49 P= 0 pend=  0 winRate=55.5% pnl=-39.46
+  1x2_away             total=  89 W= 49 L= 40 P= 0 pend=  0 winRate=55.1% pnl=46.14
+  over_3.5             total=  81 W= 37 L= 44 P= 0 pend=  0 winRate=45.7% pnl=-40.69
+  over_2.5             total=  80 W= 46 L= 34 P= 0 pend=  0 winRate=57.5% pnl=-5.40
+  over_0.5             total=  68 W= 33 L= 35 P= 0 pend=  0 winRate=48.5% pnl=-28.44
+  1x2_draw             total=  33 W= 10 L= 23 P= 0 pend=  0 winRate=30.3% pnl=-34.23
+  over_4.5             total=  16 W=  8 L=  8 P= 0 pend=  0 winRate=50.0% pnl=-10.16
+  under_1.5            total=  14 W= 11 L=  3 P= 0 pend=  0 winRate=78.6% pnl=15.74
+  under_0.5            total=  13 W=  9 L=  4 P= 0 pend=  0 winRate=69.2% pnl=9.00
+  under_2.5            total=  13 W=  8 L=  5 P= 0 pend=  0 winRate=61.5% pnl=1.07
+  (empty)              total=  13 W=  0 L=  0 P=13 pend=  0 winRate=N/A% pnl=0.00
+  under_3.5            total=  13 W=  6 L=  7 P= 0 pend=  0 winRate=46.2% pnl=-4.83
+  over_5.5             total=   9 W=  3 L=  6 P= 0 pend=  0 winRate=33.3% pnl=-12.80
+  under_4.5            total=   4 W=  2 L=  2 P= 0 pend=  0 winRate=50.0% pnl=-1.04
+  ah_home_-1           total=   4 W=  3 L=  0 P= 1 pend=  0 winRate=100.0% pnl=7.99
+  over_6.5             total=   3 W=  3 L=  0 P= 0 pend=  0 winRate=100.0% pnl=7.10
+  ah_-1                total=   3 W=  0 L=  2 P= 1 pend=  0 winRate=0.0% pnl=-8.00
+  ah_home_0            total=   2 W=  0 L=  1 P= 1 pend=  0 winRate=0.0% pnl=-4.00
+  under_5.25           total=   1 W=  1 L=  0 P= 0 pend=  0 winRate=100.0% pnl=3.00
+  under_2.25           total=   1 W=  1 L=  0 P= 0 pend=  0 winRate=100.0% pnl=3.88
+  under_12             total=   1 W=  1 L=  0 P= 0 pend=  0 winRate=100.0% pnl=13.75
+  over_7.5             total=   1 W=  1 L=  0 P= 0 pend=  0 winRate=100.0% pnl=1.85
+  corners_over_9.5     total=   1 W=  0 L=  1 P= 0 pend=  0 winRate=0.0% pnl=-6.00
+  over_9               total=   1 W=  0 L=  1 P= 0 pend=  0 winRate=0.0% pnl=-3.00
+  over_11              total=   1 W=  0 L=  1 P= 0 pend=  0 winRate=0.0% pnl=-4.00
+  over_8.5             total=   1 W=  1 L=  0 P= 0 pend=  0 winRate=100.0% pnl=1.85
+  corners_over_8       total=   1 W=  0 L=  1 P= 0 pend=  0 winRate=0.0% pnl=-4.00
+  under_6              total=   1 W=  1 L=  0 P= 0 pend=  0 winRate=100.0% pnl=9.60
+  under_3.0            total=   1 W=  0 L=  0 P= 1 pend=  0 winRate=N/A% pnl=0.00
+  under_4.0            total=   1 W=  1 L=  0 P= 0 pend=  0 winRate=100.0% pnl=15.00
+  over_96              total=   1 W=  0 L=  1 P= 0 pend=  0 winRate=0.0% pnl=-4.00
+  over_14              total=   1 W=  0 L=  1 P= 0 pend=  0 winRate=0.0% pnl=-3.00
+  under_3.25           total=   1 W=  1 L=  0 P= 0 pend=  0 winRate=100.0% pnl=3.50
+  corners_over_7       total=   1 W=  0 L=  1 P= 0 pend=  0 winRate=0.0% pnl=-4.00
+  over_12              total=   1 W=  0 L=  1 P= 0 pend=  0 winRate=0.0% pnl=-4.00
+  under_5.5            total=   1 W=  0 L=  1 P= 0 pend=  0 winRate=0.0% pnl=-3.00
+
+=== BTTS DETAIL BY SELECTION ===
+  [btts_yes] "BTTS Yes @1.615" total=18 W=13 L=5 winRate=72.2% pnl=10.31
+  [btts_no] "BTTS No @1.571" total=15 W=8 L=7 winRate=53.3% pnl=-6.90
+  [btts_no] "BTTS No @1.615" total=15 W=11 L=4 winRate=73.3% pnl=6.57
+  [btts_yes] "BTTS Yes @1.8" total=13 W=5 L=8 winRate=38.5% pnl=-12.00
+  [btts_yes] "BTTS Yes @1.75" total=12 W=7 L=5 winRate=58.3% pnl=-1.37
+  [btts_yes] "BTTS Yes @1.95" total=12 W=4 L=8 winRate=33.3% pnl=-13.70
+  [btts_yes] "BTTS Yes @1.666" total=11 W=8 L=3 winRate=72.7% pnl=8.32
+  [btts_no] "BTTS No @1.533" total=10 W=5 L=5 winRate=50.0% pnl=-8.41
+  [btts_no] "BTTS No @1.666" total=10 W=5 L=5 winRate=50.0% pnl=-5.36
+  [btts_yes] "BTTS Yes @1.909" total=9 W=5 L=4 winRate=55.6% pnl=3.38
+  [btts_yes] "BTTS Yes @1.533" total=8 W=7 L=1 winRate=87.5% pnl=8.79
+  [btts_yes] "BTTS Yes @2.05" total=8 W=5 L=3 winRate=62.5% pnl=4.75
+  [btts_no] "BTTS No @1.5" total=7 W=4 L=3 winRate=57.1% pnl=-1.50
+  [btts_yes] "BTTS Yes @1.833" total=7 W=3 L=4 winRate=42.9% pnl=-3.84
+  [btts_yes] "BTTS Yes @2.1" total=6 W=3 L=3 winRate=50.0% pnl=2.10
+  [btts_yes] "BTTS Yes @1.571" total=6 W=3 L=3 winRate=50.0% pnl=-7.87
+  [btts_no] "BTTS No @1.75" total=6 W=4 L=2 winRate=66.7% pnl=1.75
+  [btts_yes] "BTTS Yes @1.7" total=4 W=3 L=1 winRate=75.0% pnl=3.00
+  [btts_no] "BTTS No @1.8" total=4 W=3 L=1 winRate=75.0% pnl=5.80
+  [btts_yes] "BTTS Yes @2.25" total=3 W=2 L=1 winRate=66.7% pnl=7.00
+  [btts_no] "BTTS No @1.833" total=3 W=1 L=2 winRate=33.3% pnl=-3.50
+  [btts_yes] "BTTS Yes @2.375" total=3 W=1 L=2 winRate=33.3% pnl=-1.87
+  [btts_yes] "BTTS Yes @1.727" total=3 W=2 L=1 winRate=66.7% pnl=2.09
+  [btts_yes] "BTTS Yes @2.2" total=3 W=0 L=3 winRate=0.0% pnl=-9.00
+  [btts_no] "BTTS No @1.909" total=3 W=2 L=1 winRate=66.7% pnl=3.28
+  [btts_yes] "BTTS Yes @1.50" total=3 W=2 L=1 winRate=66.7% pnl=0.00
+  [btts_no] "BTTS No @1.727" total=3 W=1 L=2 winRate=33.3% pnl=-4.09
+  [btts_no] "BTTS No @1.57" total=3 W=3 L=0 winRate=100.0% pnl=5.99
+  [btts_no] "BTTS No @2.375" total=2 W=0 L=2 winRate=0.0% pnl=-7.00
+  [btts_yes] "BTTS Yes @2.625" total=2 W=0 L=2 winRate=0.0% pnl=-5.00
+  [btts_no] "BTTS No @ 1.571" total=2 W=0 L=2 winRate=0.0% pnl=-7.00
+  [btts_yes] "BTTS Yes @2.10" total=2 W=2 L=0 winRate=100.0% pnl=7.70
+  [btts_no] "BTTS No @1.80" total=2 W=0 L=2 winRate=0.0% pnl=-7.00
+  [btts_yes] "BTTS Yes @2.0" total=2 W=0 L=2 winRate=0.0% pnl=-7.00
+  [btts_no] "BTTS No @2.1" total=2 W=2 L=0 winRate=100.0% pnl=6.60
+  [btts_no] "BTTS No @1.95" total=2 W=1 L=1 winRate=50.0% pnl=-0.20
+  [btts_yes] "BTTS Yes @2.50" total=2 W=2 L=0 winRate=100.0% pnl=9.00
+  [btts_no] "BTTS - No" total=2 W=1 L=1 winRate=50.0% pnl=-2.15
+  [btts_no] "BTTS No @ 1.7" total=2 W=2 L=0 winRate=100.0% pnl=5.60
+  [btts_yes] "Both Teams To Score - Yes" total=1 W=0 L=1 winRate=0.0% pnl=-3.00
+  [btts_yes] "BTTS Yes @ 1.615" total=1 W=1 L=0 winRate=100.0% pnl=2.46
+  [btts_no] "Both Teams To Score - No @1.70" total=1 W=0 L=1 winRate=0.0% pnl=-4.00
+  [btts_yes] "BTTS Yes @3.50" total=1 W=0 L=1 winRate=0.0% pnl=-3.00
+  [btts_yes] "BTTS Yes @4.0" total=1 W=0 L=1 winRate=0.0% pnl=-4.00
+  [btts_yes] "BTTS Yes @2.00" total=1 W=0 L=1 winRate=0.0% pnl=-4.00
+  [btts_no] "BTTS No @1.94" total=1 W=0 L=1 winRate=0.0% pnl=-4.00
+  [btts_no] "BTTS No @3.4" total=1 W=0 L=1 winRate=0.0% pnl=-4.00
+  [btts_no] "BTTS No @2.00" total=1 W=0 L=1 winRate=0.0% pnl=-3.00
+  [btts_yes] "BTTS (Yes) @ 1.7" total=1 W=0 L=1 winRate=0.0% pnl=-3.00
+  [btts_yes] "Both Teams To Score (Yes) @ 1.666" total=1 W=0 L=1 winRate=0.0% pnl=-4.00
+  [btts_no] "BTTS No @1.70" total=1 W=1 L=0 winRate=100.0% pnl=2.80
+  [btts_yes] "BTTS Yes @3.4" total=1 W=1 L=0 winRate=100.0% pnl=9.60
+  [btts_no] "BTTS No @1.91" total=1 W=1 L=0 winRate=100.0% pnl=2.73
+  [btts_yes] "Both Teams To Score Yes @2.50" total=1 W=1 L=0 winRate=100.0% pnl=4.50
+  [btts_yes] "Both Teams To Score Yes @1.571" total=1 W=0 L=1 winRate=0.0% pnl=-3.00
+  [btts_yes] "BTTS Yes @2.75" total=1 W=1 L=0 winRate=100.0% pnl=7.00
+  [btts_no] "BTTS No @2.05" total=1 W=0 L=1 winRate=0.0% pnl=-4.00
+  [btts_yes] "BTTS Yes @ 1.8" total=1 W=0 L=1 winRate=0.0% pnl=-3.00
+  [btts_yes] "Both Teams To Score (Yes) @ 1.571" total=1 W=1 L=0 winRate=100.0% pnl=1.71
+  [btts_no] "Both Teams To Score: No" total=1 W=0 L=1 winRate=0.0% pnl=-4.00
+  [btts_yes] "Both Teams To Score Yes @1.80" total=1 W=1 L=0 winRate=100.0% pnl=3.20
+  [btts_yes] "BTTS Yes @1.91" total=1 W=1 L=0 winRate=100.0% pnl=3.64
+  [btts_no] "BTTS No @ 1.533" total=1 W=1 L=0 winRate=100.0% pnl=1.60
+  [btts_yes] "BTTS Yes @1.70" total=1 W=0 L=1 winRate=0.0% pnl=-3.00
+  [btts_no] "BTTS No @1.53" total=1 W=1 L=0 winRate=100.0% pnl=2.12
+  [btts_no] "BTTS No @1.50" total=1 W=1 L=0 winRate=100.0% pnl=1.00
+  [btts_yes] "BTTS Yes @ 2.00" total=1 W=1 L=0 winRate=100.0% pnl=4.00
+  [btts_yes] "BTTS - Yes" total=1 W=1 L=0 winRate=100.0% pnl=2.18
+  [btts_yes] "BTTS Yes @3.40" total=1 W=0 L=1 winRate=0.0% pnl=-4.00
+  [btts_yes] "BTTS Yes @2" total=1 W=0 L=1 winRate=0.0% pnl=-3.00
+  [btts_no] "BTTS: No" total=1 W=0 L=1 winRate=0.0% pnl=-3.00
+  [btts_yes] "Both Teams To Score Yes @2.10" total=1 W=0 L=1 winRate=0.0% pnl=-3.50
+  [btts_no] "BTTS No @1.7" total=1 W=1 L=0 winRate=100.0% pnl=2.10
+  [btts_no] "BTTS No @2.25" total=1 W=0 L=1 winRate=0.0% pnl=-3.00
+  [btts_no] "BTTS No" total=1 W=0 L=1 winRate=0.0% pnl=-3.00
+  [btts_yes] "BTTS (Yes) @ 1.5" total=1 W=1 L=0 winRate=100.0% pnl=1.50
+  [btts_yes] "Both Teams To Score - Yes @1.571" total=1 W=1 L=0 winRate=100.0% pnl=2.28
+  [btts_no] "Both Teams To Score: No @ 1.571" total=1 W=1 L=0 winRate=100.0% pnl=1.71
+  [btts_no] "Both Teams To Score - No" total=1 W=1 L=0 winRate=100.0% pnl=-4.00
+  [btts_yes] "BTTS Yes @1.83" total=1 W=1 L=0 winRate=100.0% pnl=2.49
+  [btts_yes] "BTTS (Yes) @ 1.75" total=1 W=1 L=0 winRate=100.0% pnl=-3.00
+  [btts_yes] "BTTS Yes @1.80" total=1 W=0 L=1 winRate=0.0% pnl=-4.00
+  [btts_yes] "BTTS Yes @3.00" total=1 W=0 L=1 winRate=0.0% pnl=-3.00
+  [btts_yes] "BTTS Yes @3.25" total=1 W=0 L=1 winRate=0.0% pnl=-4.00
+  [btts_yes] "BTTS Yes @2.20" total=1 W=1 L=0 winRate=100.0% pnl=3.60
+  [btts_yes] "BTTS Yes @ 2.05" total=1 W=0 L=1 winRate=0.0% pnl=-3.00
+
+=== RECENT BTTS LOSSES ===
+
+  [Wed Mar 18 2026 00:00:00 GMT+0900 (Korean Standard Time)] Avispa Fukuoka vs Shimizu S-pulse (J1 League)
+    Min:64 Score:0-1 Sel:"BTTS No @1.94" Odds:1.940 Conf:7
+    Result:loss Actual:1-1 PnL:-4.00
+    Reasoning: The match is unfolding exactly as expected—a low-intensity, gritty affair with limited scoring chances. After 64 minutes, there are only 3 shots on target combined (1 for Fukuoka, 2 for Shimizu). With Shimizu taking the lead at 59', they are highly l
+
+  [Sun Mar 15 2026 00:00:00 GMT+0900 (Korean Standard Time)] Werder Bremen vs FSV Mainz 05 (Bundesliga)
+    Min:56 Score:0-2 Sel:"BTTS Yes @1.666" Odds:1.666 Conf:6
+    Result:loss Actual:Only away team scored (0-2) PnL:-3.00
+    Reasoning: Werder Bremen đang bị dẫn 0-2 trên sân nhà dù là đội được đánh giá cao hơn hẳn trước trận. Họ đang áp đảo thời lượng kiểm soát bóng với 64% và gây sức ép lớn, thể hiện qua 5 quả phạt góc. Mainz nhiều khả năng sẽ lùi sâu phòng ngự để bảo toàn lợi thế 
+
+  [Sun Mar 15 2026 00:00:00 GMT+0900 (Korean Standard Time)] Manchester United vs Aston Villa (Premier League)
+    Min:62 Score:1-0 Sel:"BTTS No @1.571" Odds:1.571 Conf:7
+    Result:loss Actual:Both teams scored (3-1) PnL:-4.00
+    Reasoning: Manchester United đang hoàn toàn kiểm soát trận đấu với lợi thế dẫn trước 1-0 và không cho Aston Villa có bất kỳ cú sút trúng đích nào sau 62 phút thi đấu. Các chỉ số tấn công của Villa cực kỳ yếu kém với chỉ 5 cú sút tổng cộng và tỷ lệ chất lượng dứ
+
+  [Sat Mar 14 2026 00:00:00 GMT+0900 (Korean Standard Time)] Vitoria vs Atletico-MG (Serie A)
+    Min:45 Score:1-0 Sel:"BTTS Yes @1.8" Odds:1.800 Conf:6
+    Result:loss Actual:Both teams did not score (2-0) PnL:-4.00
+    Reasoning: Vitoria đang dẫn 1-0, đồng nghĩa chỉ cần thêm 1 bàn thắng từ đội khách là kèo BTTS Yes sẽ nổ. Với 45 phút còn lại, tỷ lệ bàn thắng cần thiết mỗi phút chỉ khoảng 0.022, hoàn toàn khả thi so với diễn biến trên sân. Atletico-MG đang áp đảo với 66% thời 
+
+  [Sat Mar 14 2026 00:00:00 GMT+0900 (Korean Standard Time)] Kilmarnock vs Heart Of Midlothian (Premiership)
+    Min:66 Score:1-0 Sel:"BTTS Yes @1.80" Odds:1.800 Conf:6
+    Result:loss Actual:Home scored 1, Away scored 0, so both teams did not score PnL:-4.00
+    Reasoning: Kilmarnock đang dẫn 1-0, buộc đội cửa trên là Hearts phải dồn lên tấn công tìm bàn gỡ. Hearts kiểm soát bóng 58%, tung ra 12 cú sút và hưởng 6 quả phạt góc, cho thấy sức ép liên tục. Hàng thủ của Kilmarnock thường chơi thiếu tập trung trong hiệp hai.
+
+  [Sat Mar 14 2026 00:00:00 GMT+0900 (Korean Standard Time)] Al-Fateh vs Al-Hilal Saudi FC (Pro League)
+    Min:57 Score:0-1 Sel:"BTTS Yes @2.625" Odds:2.625 Conf:6
+    Result:loss Actual:Both teams did not score (0-1) PnL:-3.00
+    Reasoning: Al-Fateh đang bị dẫn 0-1 và buộc phải đẩy cao đội hình tấn công trong hiệp hai. Mặc dù bị đánh giá thấp hơn nhiều so với Al-Hilal, đội chủ nhà đã cho thấy sự nguy hiểm thực sự trên hàng công với 8 cú sút và 4 lần trúng đích (tỷ lệ chính xác ấn tượng 
+
+  [Sat Mar 14 2026 00:00:00 GMT+0900 (Korean Standard Time)] Chelsea vs Newcastle (Premier League)
+    Min:65 Score:0-1 Sel:"BTTS Yes @1.8" Odds:1.800 Conf:6
+    Result:loss Actual:Chelsea scored 0, Newcastle scored 1 (BTTS: No) PnL:-4.00
+    Reasoning: Chelsea đang bị dẫn 0-1 ở phút 65 nhưng tạo ra áp lực tấn công khổng lồ với 65% thời lượng kiểm soát bóng, 14 cú sút và 5 quả phạt góc. Dù độ chính xác trong các pha dứt điểm chưa cao (chỉ 3 trúng đích), khối lượng tấn công lớn cho thấy khả năng họ g
+
+  [Sat Mar 14 2026 00:00:00 GMT+0900 (Korean Standard Time)] Oviedo vs Valencia (La Liga)
+    Min:44 Score:1-0 Sel:"BTTS Yes @1.615" Odds:1.615 Conf:6
+    Result:loss Actual:Match ended 1-0, both teams did not score PnL:-3.00
+    Reasoning: Oviedo đang dẫn 1-0 khi hiệp một sắp khép lại, đáp ứng thành công một nửa điều kiện của kèo hai đội ghi bàn. Valencia, đội cửa trên trước trận với phong độ áp đảo (82%), đang bị dẫn trước và buộc phải dâng cao tấn công mạnh mẽ trong hiệp hai. Đội khá
+
+  [Sat Mar 14 2026 00:00:00 GMT+0900 (Korean Standard Time)] West Brom vs Hull City (Championship)
+    Min:35 Score:1-0 Sel:"BTTS Yes @1.7" Odds:1.700 Conf:6
+    Result:loss Actual:Final score 3-0, only one team scored PnL:-4.00
+    Reasoning: West Brom đang dẫn trước 1-0 ở phút 35, buộc đội được đánh giá cao hơn trước trận là Hull City phải sớm đẩy cao đội hình tìm bàn gỡ. Trận đấu đang diễn ra cởi mở với tổng cộng 14 cú sút và 5 lần trúng đích từ hai đội, cho thấy nhịp độ tấn công cao. H
+
+  [Sat Mar 14 2026 00:00:00 GMT+0900 (Korean Standard Time)] Girona vs Athletic Club (La Liga)
+    Min:57 Score:1-0 Sel:"BTTS Yes @1.95" Odds:1.950 Conf:6
+    Result:loss Actual:Both teams did not score (Final Score: 3-0) PnL:-4.00
+    Reasoning: Girona có bàn thắng sớm ở phút thứ 4, buộc đội cửa trên Athletic Club phải dâng cao tìm bàn gỡ. Đội khách đang áp đảo về số pha dứt điểm (8 so với 5) và phạt góc (3 so với 1), thể hiện rõ ý đồ tấn công. Với 33 phút còn lại, Athletic chỉ cần ghi 1 bàn
+
+  [Sat Mar 14 2026 00:00:00 GMT+0900 (Korean Standard Time)] Tokyo Verdy vs Urawa (J1 League)
+    Min:63 Score:1-0 Sel:"BTTS Yes @1.75" Odds:1.750 Conf:6
+    Result:loss Actual:Only one team scored (1-0) PnL:-4.00
+    Reasoning: Tokyo Verdy đang dẫn 1-0 từ sớm nhưng đã lùi sâu phòng ngự, chỉ cầm bóng 31% và có đúng 1 cú sút trúng đích từ đầu trận. Urawa, đội được đánh giá cao hơn trước trận, đang áp đảo với 69% thời lượng kiểm soát bóng, tạo ra sức ép liên tục với 4 quả phạt
+
+  [Mon Mar 02 2026 00:00:00 GMT+0900 (Korean Standard Time)] Real Madrid vs Getafe (La Liga)
+    Min:70 Score:0-1 Sel:"BTTS Yes @1.615" Odds:1.615 Conf:7
+    Result:loss Actual:Score 0-1, Real Madrid failed to score PnL:-4.00
+    Reasoning: Real Madrid đang dồn ép Getafe với 78% thời lượng kiểm soát bóng và 5 cú sút trúng đích nhưng lại bị dẫn 0-1. Thủ môn của Getafe đã có 5 pha cứu thua, cho thấy sức ép là rất lớn và thực tế chứ không chỉ là cầm bóng vô hại. Với 20 phút còn lại, Real M
+
+  [Sun Mar 01 2026 00:00:00 GMT+0900 (Korean Standard Time)] Cercle Brugge vs Dender (Jupiler Pro League)
+    Min:40 Score:0-0 Sel:"BTTS Yes @2.625" Odds:2.625 Conf:5
+    Result:loss Actual:Final score 0-0, both teams did not score PnL:-2.00
+    Reasoning: Mặc dù tỷ số là 0-0 ở phút 40, các chỉ số cơ bản cho thấy một thế trận rất cởi mở với 8 cú sút trúng đích (5 cho Chủ, 3 cho Khách) và tổng cộng 14 pha dứt điểm. Cả hai thủ môn đều phải hoạt động vất vả với 8 pha cứu thua, cho thấy bàn thắng chỉ đang 
+
+  [Sat Feb 28 2026 00:00:00 GMT+0900 (Korean Standard Time)] 1899 Hoffenheim vs FC St. Pauli (Bundesliga)
+    Min:69 Score:0-1 Sel:"BTTS Yes @1.615" Odds:1.615 Conf:7
+    Result:loss Actual:Final score 0-1, only FC St. Pauli scored (Both Teams Scored: No) PnL:-4.00
+    Reasoning: Hoffenheim đang bị dẫn 0-1 mặc dù áp đảo thế trận với 61% quyền kiểm soát bóng và 7 cú sút trúng đích (Tỷ lệ chất lượng sút 0.47). Tỷ số này buộc đội chủ nhà phải tấn công mạnh mẽ, và số lượng sút trúng đích cao cho thấy họ đang tạo ra cơ hội tốt như
+
+  [Sat Feb 28 2026 00:00:00 GMT+0900 (Korean Standard Time)] Macarthur vs Western Sydney Wanderers (A-League)
+    Min:61 Score:0-3 Sel:"BTTS Yes @1.70" Odds:1.700 Conf:6
+    Result:loss Actual:Macarthur 0 - 4 Western Sydney Wanderers (Only one team scored) PnL:-3.00
+    Reasoning: Macarthur đang bị dẫn 0-3 và buộc phải dồn lên tấn công, thể hiện qua 59% thời gian kiểm soát bóng và 11 cú sút. Mặc dù độ chính xác hiện tại chưa cao (chỉ 1 cú sút trúng đích), số lượng cơ hội được tạo ra vẫn mang lại khả năng ghi bàn. Trận đấu đang
+
+  [Sat Feb 28 2026 00:00:00 GMT+0900 (Korean Standard Time)] V-varen Nagasaki vs Cerezo Osaka (J1 League)
+    Min:66 Score:1-0 Sel:"BTTS Yes @1.8" Odds:1.800 Conf:6
+    Result:loss Actual:Final score 1-0, only V-varen Nagasaki scored PnL:-4.00
+    Reasoning: Trận đấu đang có cường độ tấn công cao với tổng cộng 26 cú sút trong 66 phút nhưng mới chỉ có 1 bàn thắng. Đội được đánh giá cao hơn là Cerezo Osaka đang bị dẫn trước và buộc phải dâng cao, họ duy trì tỷ lệ sút trúng đích tốt (50% với 4/8 cú sút). Kh
+
+  [Sat Feb 28 2026 00:00:00 GMT+0900 (Korean Standard Time)] FC Tokyo vs Kashiwa Reysol (J1 League)
+    Min:60 Score:0-1 Sel:"BTTS Yes @2" Odds:2.000 Conf:6
+    Result:loss Actual:Final Score 0-2, only Away team scored PnL:-3.00
+    Reasoning: FC Tokyo, đội được đánh giá cao hơn trước trận, đang bị dẫn 0-1 và buộc phải dâng cao tìm bàn gỡ. Dù chỉ cầm bóng 38%, họ đã tung ra tới 9 cú sút, cho thấy nỗ lực tấn công đáng kể. Kashiwa đang chơi hiệu quả nhưng có xu hướng lùi sâu bảo toàn tỉ số, 
+
+  [Sat Feb 28 2026 00:00:00 GMT+0900 (Korean Standard Time)] Central Coast Mariners vs Newcastle Jets (A-League)
+    Min:45 Score:0-0 Sel:"BTTS Yes @2.2" Odds:2.200 Conf:6
+    Result:loss Actual:Final score 0-0, neither team scored PnL:-3.00
+    Reasoning: Mặc dù tỷ số hiệp 1 là 0-0, các chỉ số thống kê cho thấy một thế trận đôi công với tổng cộng 12 cú sút và 5 lần sút trúng đích. Đội chủ nhà Central Coast tuy bị đánh giá thấp hơn nhưng đang chơi ngang ngửa về kiểm soát bóng và thậm chí dẫn trước về s
+
+  [Thu Feb 26 2026 00:00:00 GMT+0900 (Korean Standard Time)] VfB Stuttgart vs Celtic (UEFA Europa League)
+    Min:74 Score:0-1 Sel:"BTTS Yes @1.75" Odds:1.750 Conf:7
+    Result:loss Actual:Score was 0-1 (Only Away Team Scored) PnL:-4.00
+    Reasoning: Stuttgart đang bị dẫn 0-1 dù áp đảo hoàn toàn với 63% thời lượng kiểm soát bóng, tung ra 16 cú sút so với 2 của Celtic. Với 5 cú sút trúng đích và 9 quả phạt góc, đội chủ nhà đang tạo ra sức ép cực lớn và bàn thắng gỡ hòa là điều tất yếu. Celtic đã p
+
+  [Thu Feb 26 2026 00:00:00 GMT+0900 (Korean Standard Time)] Ferencvarosi TC vs Ludogorets (UEFA Europa League)
+    Min:61 Score:2-0 Sel:"BTTS Yes @2.375" Odds:2.375 Conf:6
+    Result:loss Actual:Final Score 2-0 (Home: 2, Away: 0). Only one team scored, so BTTS Yes failed. PnL:-3.00
+    Reasoning: Ludogorets đang nỗ lực tìm bàn gỡ khi bị dẫn 0-2, kiểm soát bóng vượt trội (58%) cùng 9 cú sút và 4 phạt góc, cho thấy họ đang gây sức ép đáng kể. Ferencvarosi nhiều khả năng sẽ chơi thấp để bảo toàn tỉ số, điều này thường tạo điều kiện cho đối phươn
+
+=== PERFORMANCE BY CONFIDENCE LEVEL ===
+  Conf= 8 total=   7 W=  4 L=  3 winRate=57.1%
+  Conf= 7 total= 297 W=152 L=145 winRate=51.2%
+  Conf= 6 total= 757 W=380 L=377 winRate=50.2%
+  Conf= 5 total=  25 W= 10 L= 15 winRate=40.0%
+
+=== PERFORMANCE BY MINUTE RANGE ===
+  0-29     total= 105 W= 47 L= 58 winRate=44.8%
+  30-45    total= 188 W=100 L= 88 winRate=53.2%
+  46-60    total= 166 W= 78 L= 88 winRate=47.0%
+  61-75    total= 441 W=228 L=213 winRate=51.7%
+  76+      total= 186 W= 93 L= 93 winRate=50.0%
+
+=== LAST 30 SETTLED RECOMMENDATIONS ===
+  [Wed Mar 18 2026 00:00:00 GMT+0900 (Korean Standard Time)] Nagoya Grampus vs Sanfrecce Hiroshima    min=75 score=2-1 sel="Corners Over 9.5 @1.9" mkt=corners_over_9.5 odds=1.900 conf=8 => loss pnl=-6.00
+  [Wed Mar 18 2026 00:00:00 GMT+0900 (Korean Standard Time)] Avispa Fukuoka vs Shimizu S-pulse        min=68 score=0-1 sel="Under 2.25 Goals @1.97" mkt=under_2.25 odds=1.970 conf=7 => win pnl=3.88
+  [Wed Mar 18 2026 00:00:00 GMT+0900 (Korean Standard Time)] Avispa Fukuoka vs Shimizu S-pulse        min=64 score=0-1 sel="BTTS No @1.94" mkt=btts_no odds=1.940 conf=7 => loss pnl=-4.00
+  [Sun Mar 15 2026 00:00:00 GMT+0900 (Korean Standard Time)] Werder Bremen vs FSV Mainz 05            min=71 score=0-2 sel="Over 2.5 Goals @1.615" mkt=over_2.5 odds=1.615 conf=6 => loss pnl=-4.00
+  [Sun Mar 15 2026 00:00:00 GMT+0900 (Korean Standard Time)] Werder Bremen vs FSV Mainz 05            min=56 score=0-2 sel="BTTS Yes @1.666" mkt=btts_yes odds=1.666 conf=6 => loss pnl=-3.00
+  [Sun Mar 15 2026 00:00:00 GMT+0900 (Korean Standard Time)] Crystal Palace vs Leeds                  min=82 score=0-0 sel="Under 0.5 Goals @1.533" mkt=under_0.5 odds=1.533 conf=7 => win pnl=2.13
+  [Sun Mar 15 2026 00:00:00 GMT+0900 (Korean Standard Time)] Pisa vs Cagliari                         min=77 score=46025 sel="Corners Over 7 @1.727" mkt=corners_over_7 odds=1.727 conf=7 => loss pnl=-4.00
+  [Sun Mar 15 2026 00:00:00 GMT+0900 (Korean Standard Time)] Pisa vs Cagliari                         min=72 score=46025 sel="Over 4.5 Goals @1.85" mkt=over_4.5 odds=1.850 conf=7 => loss pnl=-4.00
+  [Sun Mar 15 2026 00:00:00 GMT+0900 (Korean Standard Time)] Nottingham Forest vs Fulham              min=77 score=0-0 sel="Under 0.5 Goals @1.625" mkt=under_0.5 odds=1.625 conf=6 => win pnl=1.88
+  [Sun Mar 15 2026 00:00:00 GMT+0900 (Korean Standard Time)] Dundee vs Dundee Utd                     min=68 score=0-2 sel="Over 2.5 Goals @1.727" mkt=over_2.5 odds=1.727 conf=6 => win pnl=2.91
+  [Sun Mar 15 2026 00:00:00 GMT+0900 (Korean Standard Time)] Manchester United vs Aston Villa         min=72 score=46024 sel="Over 3.5 Goals @1.666" mkt=over_3.5 odds=1.666 conf=6 => win pnl=2.66
+  [Sun Mar 15 2026 00:00:00 GMT+0900 (Korean Standard Time)] Sassuolo vs Bologna                      min=72 score=0-1 sel="Over 1.5 Goals @1.727" mkt=over_1.5 odds=1.727 conf=6 => loss pnl=-4.00
+  [Sun Mar 15 2026 00:00:00 GMT+0900 (Korean Standard Time)] Dundee vs Dundee Utd                     min=63 score=0-1 sel="Over 1.5 Goals @1.571" mkt=over_1.5 odds=1.571 conf=6 => win pnl=2.28
+  [Sun Mar 15 2026 00:00:00 GMT+0900 (Korean Standard Time)] Pisa vs Cagliari                         min=62 score=3-0 sel="Over 3.5 Goals @1.615" mkt=over_3.5 odds=1.615 conf=7 => win pnl=3.08
+  [Sun Mar 15 2026 00:00:00 GMT+0900 (Korean Standard Time)] Manchester United vs Aston Villa         min=62 score=1-0 sel="BTTS No @1.571" mkt=btts_no odds=1.571 conf=7 => loss pnl=-4.00
+  [Sun Mar 15 2026 00:00:00 GMT+0900 (Korean Standard Time)] Pisa vs Cagliari                         min=52 score=2-0 sel="BTTS Yes @1.533" mkt=btts_yes odds=1.533 conf=6 => win pnl=2.13
+  [Sun Mar 15 2026 00:00:00 GMT+0900 (Korean Standard Time)] AZ Alkmaar vs Heracles                   min=83 score=3-0 sel="Under 3.5 Goals @1.65" mkt=under_3.5 odds=1.650 conf=6 => loss pnl=-3.00
+  [Sun Mar 15 2026 00:00:00 GMT+0900 (Korean Standard Time)] Feyenoord vs Excelsior                   min=73 score=46024 sel="Over 3.5 Goals @1.575" mkt=over_3.5 odds=1.575 conf=6 => loss pnl=-4.00
+  [Sun Mar 15 2026 00:00:00 GMT+0900 (Korean Standard Time)] AZ Alkmaar vs Heracles                   min=57 score=2-0 sel="BTTS No @1.5" mkt=btts_no odds=1.500 conf=7 => win pnl=2.00
+  [Sun Mar 15 2026 00:00:00 GMT+0900 (Korean Standard Time)] Kasımpaşa vs Eyüpspor                    min=73 score=1-0 sel="Under 1.5 Goals @1.85" mkt=under_1.5 odds=1.850 conf=6 => win pnl=2.55
+  [Sun Mar 15 2026 00:00:00 GMT+0900 (Korean Standard Time)] Mallorca vs Espanyol                     min=77 score=46023 sel="Over 2.5 Goals @2.1" mkt=over_2.5 odds=2.100 conf=5 => win pnl=2.20
+  [Sun Mar 15 2026 00:00:00 GMT+0900 (Korean Standard Time)] Sakaryaspor vs Van Spor Kulübü           min=70 score=46023 sel="Over 2.5 Goals @1.825" mkt=over_2.5 odds=1.825 conf=6 => win pnl=3.30
+  [Sun Mar 15 2026 00:00:00 GMT+0900 (Korean Standard Time)] Mallorca vs Espanyol                     min=61 score=0-1 sel="Over 1.5 Goals @1.5" mkt=over_1.5 odds=1.500 conf=7 => win pnl=2.00
+  [Sun Mar 15 2026 00:00:00 GMT+0900 (Korean Standard Time)] Mallorca vs Espanyol                     min=57 score=0-1 sel="BTTS Yes @1.533" mkt=btts_yes odds=1.533 conf=7 => win pnl=2.13
+  [Sun Mar 15 2026 00:00:00 GMT+0900 (Korean Standard Time)] ST Mirren vs Rangers                     min=70 score=0-1 sel="Over 1.5 Goals @1.727" mkt=over_1.5 odds=1.727 conf=7 => loss pnl=-4.00
+  [Sun Mar 15 2026 00:00:00 GMT+0900 (Korean Standard Time)] Hellas Verona vs Genoa                   min=69 score=0-1 sel="Under 1.5 Goals @1.775" mkt=under_1.5 odds=1.775 conf=6 => loss pnl=-4.00
+  [Sun Mar 15 2026 00:00:00 GMT+0900 (Korean Standard Time)] ST Mirren vs Rangers                     min=45 score=0-1 sel="BTTS No @1.571" mkt=btts_no odds=1.571 conf=7 => win pnl=2.28
+  [Sun Mar 15 2026 00:00:00 GMT+0900 (Korean Standard Time)] Twente vs Utrecht                        min=71 score=0-2 sel="Over 2.5 Goals @1.6" mkt=over_2.5 odds=1.600 conf=6 => loss pnl=-4.00
+  [Sun Mar 15 2026 00:00:00 GMT+0900 (Korean Standard Time)] ST Mirren vs Rangers                     min=30 score=0-0 sel="Away Win @1.5" mkt=1x2_away odds=1.500 conf=7 => win pnl=2.00
+  [Sun Mar 15 2026 00:00:00 GMT+0900 (Korean Standard Time)] Sivasspor vs Ümraniyespor                min=72 score=1-0 sel="Over 1.5 Goals @1.95" mkt=over_1.5 odds=1.950 conf=6 => loss pnl=-4.00
+
+=== CORNERS MARKET DETAIL ===
+  [Wed Mar 18 2026 00:00:00 GMT+0900 (Korean Standard Time)] Nagoya Grampus vs Sanfrecce Hiroshima min=75 score=2-1 sel="Corners Over 9.5 @1.9" => loss pnl=-6.00
+  [Sun Mar 15 2026 00:00:00 GMT+0900 (Korean Standard Time)] Pisa vs Cagliari                    min=77 score=46025 sel="Corners Over 7 @1.727" => loss pnl=-4.00
+  [Wed Feb 04 2026 00:00:00 GMT+0900 (Korean Standard Time)] The Strongest vs Deportivo Tachira FC min=59 score=1-0 sel="Corners Over 8 @1.909" => loss pnl=-4.00
+  [Mon Jan 19 2026 00:00:00 GMT+0900 (Korean Standard Time)] Lazio vs Como                       min=76 score=0-3 sel="Under 4.0 Corners @4.0" => win pnl=15.00
+  [Mon Jan 19 2026 00:00:00 GMT+0900 (Korean Standard Time)] BB Bodrumspor vs Sivasspor          min=81 score=46054 sel="Over 9 Corners @2.00" => loss pnl=-3.00
+  [Sun Jan 18 2026 00:00:00 GMT+0900 (Korean Standard Time)] VfB Stuttgart vs Union Berlin       min=77 score=1-0 sel="Corners Over 11 @1.80" => loss pnl=-4.00
+  [Sun Jan 18 2026 00:00:00 GMT+0900 (Korean Standard Time)] Gent vs Anderlecht                  min=82 score=46055 sel="Over 14 Corners @2.20" => loss pnl=-3.00
+  [Sun Jan 18 2026 00:00:00 GMT+0900 (Korean Standard Time)] VfL Bochum vs SV Darmstadt 98       min=77 score=46083 sel="Corners Over 12 @1.533" => loss pnl=-4.00
+  [Sat Jan 17 2026 00:00:00 GMT+0900 (Korean Standard Time)] FC Luzern vs FC Lugano              min=83 score=46144 sel="Under 12 Corners @3.75" => win pnl=13.75
+  [Sat Jan 17 2026 00:00:00 GMT+0900 (Korean Standard Time)] Egypt vs Nigeria                    min=81 score=0-0 sel="Under 6 Corners @3.40" => win pnl=9.60
+  [Fri Dec 26 2025 00:00:00 GMT+0900 (Korean Standard Time)] Morocco vs Mali                     min=80 score=45658 sel="Over 5.5 Corners @ 1.65" => loss pnl=-3.00
+
+=== BTTS NO (Both Teams NOT Score) DETAIL ===
+  [Wed Mar 18 2026 00:00:00 GMT+0900 (Korean Standard Time)] Avispa Fukuoka vs Shimizu S-pulse   min=64 score=0-1 sel="BTTS No @1.94" odds=1.940 conf=7 => loss pnl=-4.00
+  [Sun Mar 15 2026 00:00:00 GMT+0900 (Korean Standard Time)] Manchester United vs Aston Villa    min=62 score=1-0 sel="BTTS No @1.571" odds=1.571 conf=7 => loss pnl=-4.00
+  [Sun Mar 15 2026 00:00:00 GMT+0900 (Korean Standard Time)] AZ Alkmaar vs Heracles              min=57 score=2-0 sel="BTTS No @1.5" odds=1.500 conf=7 => win pnl=2.00
+  [Sun Mar 15 2026 00:00:00 GMT+0900 (Korean Standard Time)] ST Mirren vs Rangers                min=45 score=0-1 sel="BTTS No @1.571" odds=1.571 conf=7 => win pnl=2.28
+  [Sun Mar 15 2026 00:00:00 GMT+0900 (Korean Standard Time)] Sivasspor vs Ümraniyespor           min=45 score=0-0 sel="BTTS No @1.666" odds=1.666 conf=7 => win pnl=2.66
+  [Tue Feb 24 2026 00:00:00 GMT+0900 (Korean Standard Time)] Southampton vs QPR                  min=51 score=3-0 sel="BTTS No @1.571" odds=1.571 conf=7 => win pnl=2.28
+  [Tue Feb 24 2026 00:00:00 GMT+0900 (Korean Standard Time)] Newcastle vs Qarabag                min=41 score=2-0 sel="BTTS No @1.533" odds=1.533 conf=7 => loss pnl=-4.00
+  [Mon Feb 23 2026 00:00:00 GMT+0900 (Korean Standard Time)] Famalicao vs Casa Pia               min=52 score=1-0 sel="BTTS No @1.5" odds=1.500 conf=7 => win pnl=2.00
+  [Mon Feb 23 2026 00:00:00 GMT+0900 (Korean Standard Time)] Al-Qadisiyah FC vs Al-Ettifaq       min=45 score=2-0 sel="BTTS No @1.5" odds=1.500 conf=7 => win pnl=2.00
+  [Sun Feb 22 2026 00:00:00 GMT+0900 (Korean Standard Time)] Aarhus vs Viborg                    min=43 score=1-0 sel="BTTS No @1.909" odds=1.909 conf=7 => loss pnl=-4.00
+  [Sun Feb 22 2026 00:00:00 GMT+0900 (Korean Standard Time)] Silkeborg vs FC Midtjylland         min=60 score=0-2 sel="BTTS No @1.571" odds=1.571 conf=7 => win pnl=2.28
+  [Sun Feb 22 2026 00:00:00 GMT+0900 (Korean Standard Time)] Sheffield Utd vs Sheffield Wednesday min=30 score=2-0 sel="BTTS No @1.571" odds=1.571 conf=6 => loss pnl=-3.00
+  [Sun Feb 22 2026 00:00:00 GMT+0900 (Korean Standard Time)] Genoa vs Torino                     min=45 score=2-0 sel="BTTS No @1.615" odds=1.615 conf=6 => win pnl=1.85
+  [Sun Feb 22 2026 00:00:00 GMT+0900 (Korean Standard Time)] Erzurum BB vs Serik Belediyespor    min=15 score=1-0 sel="BTTS No @1.615" odds=1.615 conf=6 => win pnl=1.85
+  [Sun Feb 22 2026 00:00:00 GMT+0900 (Korean Standard Time)] Cerezo Osaka vs Sanfrecce Hiroshima min=58 score=0-1 sel="BTTS No @1.666" odds=1.666 conf=6 => loss pnl=-3.00
+  [Sun Feb 22 2026 00:00:00 GMT+0900 (Korean Standard Time)] Central Coast Mariners vs Western Sydney Wanderers min=51 score=0-1 sel="BTTS No @1.571" odds=1.571 conf=6 => loss pnl=-3.00
+  [Sun Feb 22 2026 00:00:00 GMT+0900 (Korean Standard Time)] Kyoto Sanga vs Avispa Fukuoka       min=45 score=1-0 sel="BTTS No @1.615" odds=1.615 conf=6 => win pnl=1.85
+  [Sat Feb 21 2026 00:00:00 GMT+0900 (Korean Standard Time)] Paris Saint Germain vs Metz         min=35 score=1-0 sel="BTTS No @1.571" odds=1.571 conf=6 => win pnl=2.28
+  [Sat Feb 21 2026 00:00:00 GMT+0900 (Korean Standard Time)] ST Mirren vs Motherwell             min=45 score=0-2 sel="BTTS No @1.909" odds=1.909 conf=7 => win pnl=3.64
+  [Sat Feb 21 2026 00:00:00 GMT+0900 (Korean Standard Time)] Union Berlin vs Bayer Leverkusen    min=66 score=1-0 sel="BTTS No @1.7" odds=1.700 conf=6 => win pnl=2.10
+  [Sat Feb 21 2026 00:00:00 GMT+0900 (Korean Standard Time)] Bayern München vs Eintracht Frankfurt min=38 score=2-0 sel="BTTS No @1.571" odds=1.571 conf=6 => loss pnl=-3.00
+  [Sat Feb 21 2026 00:00:00 GMT+0900 (Korean Standard Time)] Stoke City vs Leicester             min=52 score=1-0 sel="BTTS No @1.615" odds=1.615 conf=7 => loss pnl=-4.00
+  [Sat Feb 21 2026 00:00:00 GMT+0900 (Korean Standard Time)] West Brom vs Coventry               min=30 score=0-1 sel="BTTS No @2.1" odds=2.100 conf=6 => win pnl=3.30
+  [Sat Feb 21 2026 00:00:00 GMT+0900 (Korean Standard Time)] Tigres UANL vs Pachuca              min=67 score=1-0 sel="BTTS No @1.666" odds=1.666 conf=6 => loss pnl=-4.00
+  [Fri Feb 20 2026 00:00:00 GMT+0900 (Korean Standard Time)] Adelaide United vs Perth Glory      min=63 score=3-0 sel="BTTS No @1.615" odds=1.615 conf=6 => win pnl=1.85
+  [Tue Feb 17 2026 00:00:00 GMT+0900 (Korean Standard Time)] Hatayspor vs 76 Iğdır Belediyespor  min=5 score=0-0 sel="BTTS No @1.727" odds=1.727 conf=7 => win pnl=2.91
+  [Tue Feb 17 2026 00:00:00 GMT+0900 (Korean Standard Time)] Machida Zelvia vs Chengdu Better City min=30 score=2-0 sel="BTTS No @1.666" odds=1.666 conf=6 => loss pnl=-4.00
+  [Mon Feb 16 2026 00:00:00 GMT+0900 (Korean Standard Time)] Sharjah FC vs Nasaf                 min=66 score=0-1 sel="BTTS No @1.80" odds=1.800 conf=6 => loss pnl=-3.00
+  [Sun Feb 15 2026 00:00:00 GMT+0900 (Korean Standard Time)] Torino vs Bologna                   min=60 score=0-1 sel="BTTS No @1.533" odds=1.533 conf=6 => loss pnl=-3.00
+  [Sun Feb 15 2026 00:00:00 GMT+0900 (Korean Standard Time)] Odense vs FC Midtjylland            min=54 score=0-4 sel="BTTS No @1.615" odds=1.615 conf=6 => loss pnl=-3.00
+
+=== BTTS YES (Both Teams Score) DETAIL ===
+  [Sun Mar 15 2026 00:00:00 GMT+0900 (Korean Standard Time)] Werder Bremen vs FSV Mainz 05       min=56 score=0-2 sel="BTTS Yes @1.666" odds=1.666 conf=6 => loss pnl=-3.00
+  [Sun Mar 15 2026 00:00:00 GMT+0900 (Korean Standard Time)] Pisa vs Cagliari                    min=52 score=2-0 sel="BTTS Yes @1.533" odds=1.533 conf=6 => win pnl=2.13
+  [Sun Mar 15 2026 00:00:00 GMT+0900 (Korean Standard Time)] Mallorca vs Espanyol                min=57 score=0-1 sel="BTTS Yes @1.533" odds=1.533 conf=7 => win pnl=2.13
+  [Sat Mar 14 2026 00:00:00 GMT+0900 (Korean Standard Time)] Vitoria vs Atletico-MG              min=45 score=1-0 sel="BTTS Yes @1.8" odds=1.800 conf=6 => loss pnl=-4.00
+  [Sat Mar 14 2026 00:00:00 GMT+0900 (Korean Standard Time)] Kilmarnock vs Heart Of Midlothian   min=66 score=1-0 sel="BTTS Yes @1.80" odds=1.800 conf=6 => loss pnl=-4.00
+  [Sat Mar 14 2026 00:00:00 GMT+0900 (Korean Standard Time)] Al-Fateh vs Al-Hilal Saudi FC       min=57 score=0-1 sel="BTTS Yes @2.625" odds=2.625 conf=6 => loss pnl=-3.00
+  [Sat Mar 14 2026 00:00:00 GMT+0900 (Korean Standard Time)] Chelsea vs Newcastle                min=65 score=0-1 sel="BTTS Yes @1.8" odds=1.800 conf=6 => loss pnl=-4.00
+  [Sat Mar 14 2026 00:00:00 GMT+0900 (Korean Standard Time)] Pendikspor vs İstanbulspor          min=59 score=0-1 sel="BTTS Yes @1.666" odds=1.666 conf=7 => win pnl=2.66
+  [Sat Mar 14 2026 00:00:00 GMT+0900 (Korean Standard Time)] Oviedo vs Valencia                  min=44 score=1-0 sel="BTTS Yes @1.615" odds=1.615 conf=6 => loss pnl=-3.00
+  [Sat Mar 14 2026 00:00:00 GMT+0900 (Korean Standard Time)] FC Volendam vs Fortuna Sittard      min=67 score=0-2 sel="BTTS Yes @2.05" odds=2.050 conf=6 => win pnl=4.20
+  [Sat Mar 14 2026 00:00:00 GMT+0900 (Korean Standard Time)] West Brom vs Hull City              min=35 score=1-0 sel="BTTS Yes @1.7" odds=1.700 conf=6 => loss pnl=-4.00
+  [Sat Mar 14 2026 00:00:00 GMT+0900 (Korean Standard Time)] Girona vs Athletic Club             min=57 score=1-0 sel="BTTS Yes @1.95" odds=1.950 conf=6 => loss pnl=-4.00
+  [Sat Mar 14 2026 00:00:00 GMT+0900 (Korean Standard Time)] Tokyo Verdy vs Urawa                min=63 score=1-0 sel="BTTS Yes @1.75" odds=1.750 conf=6 => loss pnl=-4.00
+  [Tue Mar 03 2026 00:00:00 GMT+0900 (Korean Standard Time)] Melbourne City vs Buriram United    min=45 score=0-1 sel="BTTS Yes @1.666" odds=1.666 conf=6 => win pnl=2.00
+  [Mon Mar 02 2026 00:00:00 GMT+0900 (Korean Standard Time)] Real Madrid vs Getafe               min=70 score=0-1 sel="BTTS Yes @1.615" odds=1.615 conf=7 => loss pnl=-4.00
+  [Sun Mar 01 2026 00:00:00 GMT+0900 (Korean Standard Time)] Girona vs Celta Vigo                min=51 score=1-0 sel="BTTS Yes @1.75" odds=1.750 conf=7 => win pnl=3.00
+  [Sun Mar 01 2026 00:00:00 GMT+0900 (Korean Standard Time)] Casa Pia vs Moreirense              min=56 score=1-0 sel="BTTS Yes @2.05" odds=2.050 conf=6 => win pnl=3.15
+  [Sun Mar 01 2026 00:00:00 GMT+0900 (Korean Standard Time)] Cercle Brugge vs Dender             min=40 score=0-0 sel="BTTS Yes @2.625" odds=2.625 conf=5 => loss pnl=-2.00
+  [Sun Mar 01 2026 00:00:00 GMT+0900 (Korean Standard Time)] Real Betis vs Sevilla               min=45 score=2-0 sel="BTTS Yes @1.95" odds=1.950 conf=6 => win pnl=2.85
+  [Sat Feb 28 2026 00:00:00 GMT+0900 (Korean Standard Time)] 1899 Hoffenheim vs FC St. Pauli     min=69 score=0-1 sel="BTTS Yes @1.615" odds=1.615 conf=7 => loss pnl=-4.00
+  [Sat Feb 28 2026 00:00:00 GMT+0900 (Korean Standard Time)] Bournemouth vs Sunderland           min=64 score=0-1 sel="BTTS Yes @1.909" odds=1.909 conf=7 => win pnl=3.64
+  [Sat Feb 28 2026 00:00:00 GMT+0900 (Korean Standard Time)] Macarthur vs Western Sydney Wanderers min=61 score=0-3 sel="BTTS Yes @1.70" odds=1.700 conf=6 => loss pnl=-3.00
+  [Sat Feb 28 2026 00:00:00 GMT+0900 (Korean Standard Time)] V-varen Nagasaki vs Cerezo Osaka    min=66 score=1-0 sel="BTTS Yes @1.8" odds=1.800 conf=6 => loss pnl=-4.00
+  [Sat Feb 28 2026 00:00:00 GMT+0900 (Korean Standard Time)] FC Tokyo vs Kashiwa Reysol          min=60 score=0-1 sel="BTTS Yes @2" odds=2.000 conf=6 => loss pnl=-3.00
+  [Sat Feb 28 2026 00:00:00 GMT+0900 (Korean Standard Time)] Central Coast Mariners vs Newcastle Jets min=45 score=0-0 sel="BTTS Yes @2.2" odds=2.200 conf=6 => loss pnl=-3.00
+  [Fri Feb 27 2026 00:00:00 GMT+0900 (Korean Standard Time)] Sanfrecce Hiroshima vs Kyoto Sanga  min=57 score=1-0 sel="BTTS Yes @2.05" odds=2.050 conf=5 => win pnl=2.10
+  [Thu Feb 26 2026 00:00:00 GMT+0900 (Korean Standard Time)] VfB Stuttgart vs Celtic             min=74 score=0-1 sel="BTTS Yes @1.75" odds=1.750 conf=7 => loss pnl=-4.00
+  [Thu Feb 26 2026 00:00:00 GMT+0900 (Korean Standard Time)] Ferencvarosi TC vs Ludogorets       min=61 score=2-0 sel="BTTS Yes @2.375" odds=2.375 conf=6 => loss pnl=-3.00
+  [Thu Feb 26 2026 00:00:00 GMT+0900 (Korean Standard Time)] Plzen vs Panathinaikos              min=59 score=0-1 sel="BTTS Yes @1.7" odds=1.700 conf=5 => win pnl=2.10
+  [Thu Feb 26 2026 00:00:00 GMT+0900 (Korean Standard Time)] FK Crvena Zvezda vs Lille           min=24 score=0-1 sel="BTTS Yes @1.533" odds=1.533 conf=6 => loss pnl=-4.00
+
+=== ALL BTTS RECOMMENDATIONS (full list) ===
+  [Wed Mar 18 2026 00:00:00 GMT+0900 (Korean Standard Time)] Avispa Fukuoka vs Shimizu S-pulse   min=64 score=0-1 sel="BTTS No @1.94" mkt=btts_no odds=1.940 conf=7 => loss pnl=-4.00
+  [Sun Mar 15 2026 00:00:00 GMT+0900 (Korean Standard Time)] Werder Bremen vs FSV Mainz 05       min=56 score=0-2 sel="BTTS Yes @1.666" mkt=btts_yes odds=1.666 conf=6 => loss pnl=-3.00
+  [Sun Mar 15 2026 00:00:00 GMT+0900 (Korean Standard Time)] Manchester United vs Aston Villa    min=62 score=1-0 sel="BTTS No @1.571" mkt=btts_no odds=1.571 conf=7 => loss pnl=-4.00
+  [Sun Mar 15 2026 00:00:00 GMT+0900 (Korean Standard Time)] Pisa vs Cagliari                    min=52 score=2-0 sel="BTTS Yes @1.533" mkt=btts_yes odds=1.533 conf=6 => win pnl=2.13
+  [Sun Mar 15 2026 00:00:00 GMT+0900 (Korean Standard Time)] AZ Alkmaar vs Heracles              min=57 score=2-0 sel="BTTS No @1.5" mkt=btts_no odds=1.500 conf=7 => win pnl=2.00
+  [Sun Mar 15 2026 00:00:00 GMT+0900 (Korean Standard Time)] Mallorca vs Espanyol                min=57 score=0-1 sel="BTTS Yes @1.533" mkt=btts_yes odds=1.533 conf=7 => win pnl=2.13
+  [Sun Mar 15 2026 00:00:00 GMT+0900 (Korean Standard Time)] ST Mirren vs Rangers                min=45 score=0-1 sel="BTTS No @1.571" mkt=btts_no odds=1.571 conf=7 => win pnl=2.28
+  [Sun Mar 15 2026 00:00:00 GMT+0900 (Korean Standard Time)] Sivasspor vs Ümraniyespor           min=45 score=0-0 sel="BTTS No @1.666" mkt=btts_no odds=1.666 conf=7 => win pnl=2.66
+  [Sat Mar 14 2026 00:00:00 GMT+0900 (Korean Standard Time)] Vitoria vs Atletico-MG              min=45 score=1-0 sel="BTTS Yes @1.8" mkt=btts_yes odds=1.800 conf=6 => loss pnl=-4.00
+  [Sat Mar 14 2026 00:00:00 GMT+0900 (Korean Standard Time)] Kilmarnock vs Heart Of Midlothian   min=66 score=1-0 sel="BTTS Yes @1.80" mkt=btts_yes odds=1.800 conf=6 => loss pnl=-4.00
+  [Sat Mar 14 2026 00:00:00 GMT+0900 (Korean Standard Time)] Al-Fateh vs Al-Hilal Saudi FC       min=57 score=0-1 sel="BTTS Yes @2.625" mkt=btts_yes odds=2.625 conf=6 => loss pnl=-3.00
+  [Sat Mar 14 2026 00:00:00 GMT+0900 (Korean Standard Time)] Chelsea vs Newcastle                min=65 score=0-1 sel="BTTS Yes @1.8" mkt=btts_yes odds=1.800 conf=6 => loss pnl=-4.00
+  [Sat Mar 14 2026 00:00:00 GMT+0900 (Korean Standard Time)] Pendikspor vs İstanbulspor          min=59 score=0-1 sel="BTTS Yes @1.666" mkt=btts_yes odds=1.666 conf=7 => win pnl=2.66
+  [Sat Mar 14 2026 00:00:00 GMT+0900 (Korean Standard Time)] Oviedo vs Valencia                  min=44 score=1-0 sel="BTTS Yes @1.615" mkt=btts_yes odds=1.615 conf=6 => loss pnl=-3.00
+  [Sat Mar 14 2026 00:00:00 GMT+0900 (Korean Standard Time)] FC Volendam vs Fortuna Sittard      min=67 score=0-2 sel="BTTS Yes @2.05" mkt=btts_yes odds=2.050 conf=6 => win pnl=4.20
+  [Sat Mar 14 2026 00:00:00 GMT+0900 (Korean Standard Time)] West Brom vs Hull City              min=35 score=1-0 sel="BTTS Yes @1.7" mkt=btts_yes odds=1.700 conf=6 => loss pnl=-4.00
+  [Sat Mar 14 2026 00:00:00 GMT+0900 (Korean Standard Time)] Girona vs Athletic Club             min=57 score=1-0 sel="BTTS Yes @1.95" mkt=btts_yes odds=1.950 conf=6 => loss pnl=-4.00
+  [Sat Mar 14 2026 00:00:00 GMT+0900 (Korean Standard Time)] Tokyo Verdy vs Urawa                min=63 score=1-0 sel="BTTS Yes @1.75" mkt=btts_yes odds=1.750 conf=6 => loss pnl=-4.00
+  [Tue Mar 03 2026 00:00:00 GMT+0900 (Korean Standard Time)] Melbourne City vs Buriram United    min=45 score=0-1 sel="BTTS Yes @1.666" mkt=btts_yes odds=1.666 conf=6 => win pnl=2.00
+  [Mon Mar 02 2026 00:00:00 GMT+0900 (Korean Standard Time)] Real Madrid vs Getafe               min=70 score=0-1 sel="BTTS Yes @1.615" mkt=btts_yes odds=1.615 conf=7 => loss pnl=-4.00
+  [Sun Mar 01 2026 00:00:00 GMT+0900 (Korean Standard Time)] Girona vs Celta Vigo                min=51 score=1-0 sel="BTTS Yes @1.75" mkt=btts_yes odds=1.750 conf=7 => win pnl=3.00
+  [Sun Mar 01 2026 00:00:00 GMT+0900 (Korean Standard Time)] Casa Pia vs Moreirense              min=56 score=1-0 sel="BTTS Yes @2.05" mkt=btts_yes odds=2.050 conf=6 => win pnl=3.15
+  [Sun Mar 01 2026 00:00:00 GMT+0900 (Korean Standard Time)] Cercle Brugge vs Dender             min=40 score=0-0 sel="BTTS Yes @2.625" mkt=btts_yes odds=2.625 conf=5 => loss pnl=-2.00
+  [Sun Mar 01 2026 00:00:00 GMT+0900 (Korean Standard Time)] Real Betis vs Sevilla               min=45 score=2-0 sel="BTTS Yes @1.95" mkt=btts_yes odds=1.950 conf=6 => win pnl=2.85
+  [Sat Feb 28 2026 00:00:00 GMT+0900 (Korean Standard Time)] 1899 Hoffenheim vs FC St. Pauli     min=69 score=0-1 sel="BTTS Yes @1.615" mkt=btts_yes odds=1.615 conf=7 => loss pnl=-4.00
+  [Sat Feb 28 2026 00:00:00 GMT+0900 (Korean Standard Time)] Bournemouth vs Sunderland           min=64 score=0-1 sel="BTTS Yes @1.909" mkt=btts_yes odds=1.909 conf=7 => win pnl=3.64
+  [Sat Feb 28 2026 00:00:00 GMT+0900 (Korean Standard Time)] Macarthur vs Western Sydney Wanderers min=61 score=0-3 sel="BTTS Yes @1.70" mkt=btts_yes odds=1.700 conf=6 => loss pnl=-3.00
+  [Sat Feb 28 2026 00:00:00 GMT+0900 (Korean Standard Time)] V-varen Nagasaki vs Cerezo Osaka    min=66 score=1-0 sel="BTTS Yes @1.8" mkt=btts_yes odds=1.800 conf=6 => loss pnl=-4.00
+  [Sat Feb 28 2026 00:00:00 GMT+0900 (Korean Standard Time)] FC Tokyo vs Kashiwa Reysol          min=60 score=0-1 sel="BTTS Yes @2" mkt=btts_yes odds=2.000 conf=6 => loss pnl=-3.00
+  [Sat Feb 28 2026 00:00:00 GMT+0900 (Korean Standard Time)] Central Coast Mariners vs Newcastle Jets min=45 score=0-0 sel="BTTS Yes @2.2" mkt=btts_yes odds=2.200 conf=6 => loss pnl=-3.00
+  [Fri Feb 27 2026 00:00:00 GMT+0900 (Korean Standard Time)] Sanfrecce Hiroshima vs Kyoto Sanga  min=57 score=1-0 sel="BTTS Yes @2.05" mkt=btts_yes odds=2.050 conf=5 => win pnl=2.10
+  [Thu Feb 26 2026 00:00:00 GMT+0900 (Korean Standard Time)] VfB Stuttgart vs Celtic             min=74 score=0-1 sel="BTTS Yes @1.75" mkt=btts_yes odds=1.750 conf=7 => loss pnl=-4.00
+  [Thu Feb 26 2026 00:00:00 GMT+0900 (Korean Standard Time)] Ferencvarosi TC vs Ludogorets       min=61 score=2-0 sel="BTTS Yes @2.375" mkt=btts_yes odds=2.375 conf=6 => loss pnl=-3.00
+  [Thu Feb 26 2026 00:00:00 GMT+0900 (Korean Standard Time)] Plzen vs Panathinaikos              min=59 score=0-1 sel="BTTS Yes @1.7" mkt=btts_yes odds=1.700 conf=5 => win pnl=2.10
+  [Thu Feb 26 2026 00:00:00 GMT+0900 (Korean Standard Time)] FK Crvena Zvezda vs Lille           min=24 score=0-1 sel="BTTS Yes @1.533" mkt=btts_yes odds=1.533 conf=6 => loss pnl=-4.00
+  [Tue Feb 24 2026 00:00:00 GMT+0900 (Korean Standard Time)] Huachipato vs Carabobo FC           min=58 score=0-2 sel="BTTS Yes @1.615" mkt=btts_yes odds=1.615 conf=7 => win pnl=2.46
+  [Tue Feb 24 2026 00:00:00 GMT+0900 (Korean Standard Time)] Southampton vs QPR                  min=51 score=3-0 sel="BTTS No @1.571" mkt=btts_no odds=1.571 conf=7 => win pnl=2.28
+  [Tue Feb 24 2026 00:00:00 GMT+0900 (Korean Standard Time)] Newcastle vs Qarabag                min=41 score=2-0 sel="BTTS No @1.533" mkt=btts_no odds=1.533 conf=7 => loss pnl=-4.00
+  [Tue Feb 24 2026 00:00:00 GMT+0900 (Korean Standard Time)] Atletico Madrid vs Club Brugge KV   min=30 score=1-0 sel="BTTS Yes @1.615" mkt=btts_yes odds=1.615 conf=5 => win pnl=1.23
+  [Mon Feb 23 2026 00:00:00 GMT+0900 (Korean Standard Time)] Famalicao vs Casa Pia               min=52 score=1-0 sel="BTTS No @1.5" mkt=btts_no odds=1.500 conf=7 => win pnl=2.00
+  [Mon Feb 23 2026 00:00:00 GMT+0900 (Korean Standard Time)] Al-Qadisiyah FC vs Al-Ettifaq       min=45 score=2-0 sel="BTTS No @1.5" mkt=btts_no odds=1.500 conf=7 => win pnl=2.00
+  [Mon Feb 23 2026 00:00:00 GMT+0900 (Korean Standard Time)] Pendikspor vs Keçiörengücü          min=62 score=0-1 sel="BTTS Yes @1.727" mkt=btts_yes odds=1.727 conf=6 => loss pnl=-3.00
+  [Mon Feb 23 2026 00:00:00 GMT+0900 (Korean Standard Time)] U.N.A.M. - Pumas vs Monterrey       min=69 score=2-0 sel="BTTS Yes @2.05" mkt=btts_yes odds=2.050 conf=7 => loss pnl=-4.00
+  [Sun Feb 22 2026 00:00:00 GMT+0900 (Korean Standard Time)] Zulte Waregem vs Anderlecht         min=53 score=0-3 sel="BTTS Yes @1.75" mkt=btts_yes odds=1.750 conf=6 => win pnl=2.25
+  [Sun Feb 22 2026 00:00:00 GMT+0900 (Korean Standard Time)] BB Bodrumspor vs Manisa BBSK        min=65 score=0-1 sel="BTTS Yes @1.833" mkt=btts_yes odds=1.833 conf=7 => win pnl=3.33
+  [Sun Feb 22 2026 00:00:00 GMT+0900 (Korean Standard Time)] Aarhus vs Viborg                    min=43 score=1-0 sel="BTTS No @1.909" mkt=btts_no odds=1.909 conf=7 => loss pnl=-4.00
+  [Sun Feb 22 2026 00:00:00 GMT+0900 (Korean Standard Time)] Livingston vs Rangers               min=78 score=2-0 sel="BTTS Yes @1.533" mkt=btts_yes odds=1.533 conf=6 => win pnl=1.60
+  [Sun Feb 22 2026 00:00:00 GMT+0900 (Korean Standard Time)] Silkeborg vs FC Midtjylland         min=60 score=0-2 sel="BTTS No @1.571" mkt=btts_no odds=1.571 conf=7 => win pnl=2.28
+  [Sun Feb 22 2026 00:00:00 GMT+0900 (Korean Standard Time)] D. La Serena vs Universidad de Concepcion min=31 score=1-0 sel="BTTS Yes @1.571" mkt=btts_yes odds=1.571 conf=6 => win pnl=1.71
+  [Sun Feb 22 2026 00:00:00 GMT+0900 (Korean Standard Time)] Sunderland vs Fulham                min=57 score=0-1 sel="BTTS Yes @2.1" mkt=btts_yes odds=2.100 conf=6 => win pnl=3.30
+  [Sun Feb 22 2026 00:00:00 GMT+0900 (Korean Standard Time)] Atalanta vs Napoli                  min=45 score=0-1 sel="BTTS Yes @1.7" mkt=btts_yes odds=1.700 conf=6 => win pnl=2.10
+  [Sun Feb 22 2026 00:00:00 GMT+0900 (Korean Standard Time)] Genk vs Standard Liege              min=70 score=0-2 sel="BTTS Yes @1.75" mkt=btts_yes odds=1.750 conf=7 => loss pnl=-4.00
+  [Sun Feb 22 2026 00:00:00 GMT+0900 (Korean Standard Time)] Sheffield Utd vs Sheffield Wednesday min=30 score=2-0 sel="BTTS No @1.571" mkt=btts_no odds=1.571 conf=6 => loss pnl=-3.00
+  [Sun Feb 22 2026 00:00:00 GMT+0900 (Korean Standard Time)] Genoa vs Torino                     min=45 score=2-0 sel="BTTS No @1.615" mkt=btts_no odds=1.615 conf=6 => win pnl=1.85
+  [Sun Feb 22 2026 00:00:00 GMT+0900 (Korean Standard Time)] Erzurum BB vs Serik Belediyespor    min=15 score=1-0 sel="BTTS No @1.615" mkt=btts_no odds=1.615 conf=6 => win pnl=1.85
+  [Sun Feb 22 2026 00:00:00 GMT+0900 (Korean Standard Time)] Newcastle Jets vs Macarthur         min=45 score=0-0 sel="BTTS Yes @1.95" mkt=btts_yes odds=1.950 conf=6 => loss pnl=-3.00
+  [Sun Feb 22 2026 00:00:00 GMT+0900 (Korean Standard Time)] Cerezo Osaka vs Sanfrecce Hiroshima min=58 score=0-1 sel="BTTS No @1.666" mkt=btts_no odds=1.666 conf=6 => loss pnl=-3.00
+  [Sun Feb 22 2026 00:00:00 GMT+0900 (Korean Standard Time)] Central Coast Mariners vs Western Sydney Wanderers min=51 score=0-1 sel="BTTS No @1.571" mkt=btts_no odds=1.571 conf=6 => loss pnl=-3.00
+  [Sun Feb 22 2026 00:00:00 GMT+0900 (Korean Standard Time)] Kyoto Sanga vs Avispa Fukuoka       min=45 score=1-0 sel="BTTS No @1.615" mkt=btts_no odds=1.615 conf=6 => win pnl=1.85
+  [Sat Feb 21 2026 00:00:00 GMT+0900 (Korean Standard Time)] Ajax vs NEC Nijmegen                min=54 score=1-0 sel="BTTS Yes @1.8" mkt=btts_yes odds=1.800 conf=6 => win pnl=3.20
+  [Sat Feb 21 2026 00:00:00 GMT+0900 (Korean Standard Time)] Paris Saint Germain vs Metz         min=35 score=1-0 sel="BTTS No @1.571" mkt=btts_no odds=1.571 conf=6 => win pnl=2.28
+  [Sat Feb 21 2026 00:00:00 GMT+0900 (Korean Standard Time)] Grasshoppers vs FC Zurich           min=45 score=0-1 sel="BTTS Yes @1.666" mkt=btts_yes odds=1.666 conf=6 => win pnl=2.00
+  [Sat Feb 21 2026 00:00:00 GMT+0900 (Korean Standard Time)] ST Mirren vs Motherwell             min=45 score=0-2 sel="BTTS No @1.909" mkt=btts_no odds=1.909 conf=7 => win pnl=3.64
+  [Sat Feb 21 2026 00:00:00 GMT+0900 (Korean Standard Time)] Union Berlin vs Bayer Leverkusen    min=66 score=1-0 sel="BTTS No @1.7" mkt=btts_no odds=1.700 conf=6 => win pnl=2.10
+  [Sat Feb 21 2026 00:00:00 GMT+0900 (Korean Standard Time)] VfL Wolfsburg vs FC Augsburg        min=51 score=1-0 sel="BTTS Yes @1.666" mkt=btts_yes odds=1.666 conf=6 => win pnl=2.00
+  [Sat Feb 21 2026 00:00:00 GMT+0900 (Korean Standard Time)] Juventus vs Como                    min=52 score=0-1 sel="BTTS Yes @1.571" mkt=btts_yes odds=1.571 conf=6 => loss pnl=-4.00
+  [Sat Feb 21 2026 00:00:00 GMT+0900 (Korean Standard Time)] Bayern München vs Eintracht Frankfurt min=38 score=2-0 sel="BTTS No @1.571" mkt=btts_no odds=1.571 conf=6 => loss pnl=-3.00
+  [Sat Feb 21 2026 00:00:00 GMT+0900 (Korean Standard Time)] Real Sociedad vs Oviedo             min=56 score=0-2 sel="BTTS Yes @1.615" mkt=btts_yes odds=1.615 conf=6 => win pnl=1.85
+  [Sat Feb 21 2026 00:00:00 GMT+0900 (Korean Standard Time)] Stoke City vs Leicester             min=52 score=1-0 sel="BTTS No @1.615" mkt=btts_no odds=1.615 conf=7 => loss pnl=-4.00
+  [Sat Feb 21 2026 00:00:00 GMT+0900 (Korean Standard Time)] Karlsruher SC vs Holstein Kiel      min=58 score=1-0 sel="BTTS Yes @1.8" mkt=btts_yes odds=1.800 conf=7 => win pnl=3.20
+  [Sat Feb 21 2026 00:00:00 GMT+0900 (Korean Standard Time)] West Brom vs Coventry               min=30 score=0-1 sel="BTTS No @2.1" mkt=btts_no odds=2.100 conf=6 => win pnl=3.30
+  [Sat Feb 21 2026 00:00:00 GMT+0900 (Korean Standard Time)] Puebla vs Club America              min=29 score=0-0 sel="BTTS Yes @2.375" mkt=btts_yes odds=2.375 conf=6 => loss pnl=-3.00
+  [Sat Feb 21 2026 00:00:00 GMT+0900 (Korean Standard Time)] Deportivo Pereira vs Deportivo Pasto min=59 score=1-0 sel="BTTS Yes @2.25" mkt=btts_yes odds=2.250 conf=7 => win pnl=5.00
+  [Sat Feb 21 2026 00:00:00 GMT+0900 (Korean Standard Time)] Tigres UANL vs Pachuca              min=67 score=1-0 sel="BTTS No @1.666" mkt=btts_no odds=1.666 conf=6 => loss pnl=-4.00
+  [Fri Feb 20 2026 00:00:00 GMT+0900 (Korean Standard Time)] Adelaide United vs Perth Glory      min=63 score=3-0 sel="BTTS No @1.615" mkt=btts_no odds=1.615 conf=6 => win pnl=1.85
+  [Fri Feb 20 2026 00:00:00 GMT+0900 (Korean Standard Time)] Atletico Paranaense vs Corinthians  min=61 score=0-1 sel="BTTS Yes @2.0" mkt=btts_yes odds=2.000 conf=6 => loss pnl=-4.00
+  [Thu Feb 19 2026 00:00:00 GMT+0900 (Korean Standard Time)] Sarıyer vs Amed                     min=66 score=0-1 sel="BTTS Yes @1.8" mkt=btts_yes odds=1.800 conf=7 => win pnl=3.20
+  [Tue Feb 17 2026 00:00:00 GMT+0900 (Korean Standard Time)] Hatayspor vs 76 Iğdır Belediyespor  min=5 score=0-0 sel="BTTS No @1.727" mkt=btts_no odds=1.727 conf=7 => win pnl=2.91
+  [Tue Feb 17 2026 00:00:00 GMT+0900 (Korean Standard Time)] Machida Zelvia vs Chengdu Better City min=30 score=2-0 sel="BTTS No @1.666" mkt=btts_no odds=1.666 conf=6 => loss pnl=-4.00
+  [Mon Feb 16 2026 00:00:00 GMT+0900 (Korean Standard Time)] Coventry vs Middlesbrough           min=62 score=2-0 sel="BTTS Yes @2.05" mkt=btts_yes odds=2.050 conf=6 => win pnl=3.15
+  [Mon Feb 16 2026 00:00:00 GMT+0900 (Korean Standard Time)] Rio Ave vs Moreirense               min=40 score=0-1 sel="BTTS Yes @1.615" mkt=btts_yes odds=1.615 conf=6 => win pnl=1.85
+  [Mon Feb 16 2026 00:00:00 GMT+0900 (Korean Standard Time)] Al-Hilal Saudi FC vs Al Wahda FC    min=30 score=1-0 sel="BTTS Yes @1.727" mkt=btts_yes odds=1.727 conf=6 => win pnl=2.18
+  [Mon Feb 16 2026 00:00:00 GMT+0900 (Korean Standard Time)] Sharjah FC vs Nasaf                 min=66 score=0-1 sel="BTTS No @1.80" mkt=btts_no odds=1.800 conf=6 => loss pnl=-3.00
+  [Sun Feb 15 2026 00:00:00 GMT+0900 (Korean Standard Time)] Mallorca vs Real Betis              min=55 score=0-2 sel="BTTS Yes @1.95" mkt=btts_yes odds=1.950 conf=6 => win pnl=2.85
+  [Sun Feb 15 2026 00:00:00 GMT+0900 (Korean Standard Time)] AVS vs Estoril                      min=67 score=1-0 sel="BTTS Yes @1.8" mkt=btts_yes odds=1.800 conf=6 => loss pnl=-3.00
+  [Sun Feb 15 2026 00:00:00 GMT+0900 (Korean Standard Time)] Universitatea Craiova vs FCSB       min=36 score=1-0 sel="BTTS Yes @1.8" mkt=btts_yes odds=1.800 conf=7 => loss pnl=-4.00
+  [Sun Feb 15 2026 00:00:00 GMT+0900 (Korean Standard Time)] Torino vs Bologna                   min=60 score=0-1 sel="BTTS No @1.533" mkt=btts_no odds=1.533 conf=6 => loss pnl=-3.00
+  [Sun Feb 15 2026 00:00:00 GMT+0900 (Korean Standard Time)] RB Leipzig vs VfL Wolfsburg         min=66 score=0-1 sel="BTTS Yes @1.533" mkt=btts_yes odds=1.533 conf=7 => win pnl=2.13
+  [Sun Feb 15 2026 00:00:00 GMT+0900 (Korean Standard Time)] FC Basel 1893 vs FC Lugano          min=53 score=1-0 sel="BTTS Yes @1.833" mkt=btts_yes odds=1.833 conf=6 => win pnl=3.33
+  [Sun Feb 15 2026 00:00:00 GMT+0900 (Korean Standard Time)] Odense vs FC Midtjylland            min=54 score=0-4 sel="BTTS No @1.615" mkt=btts_no odds=1.615 conf=6 => loss pnl=-3.00
+  [Sun Feb 15 2026 00:00:00 GMT+0900 (Korean Standard Time)] Telstar vs Twente                   min=72 score=1-0 sel="BTTS Yes @1.91" mkt=btts_yes odds=1.910 conf=7 => win pnl=3.64
+  [Sun Feb 15 2026 00:00:00 GMT+0900 (Korean Standard Time)] Oviedo vs Athletic Club             min=54 score=1-0 sel="BTTS Yes @1.909" mkt=btts_yes odds=1.909 conf=7 => win pnl=3.64
+  [Sun Feb 15 2026 00:00:00 GMT+0900 (Korean Standard Time)] 1. FC Magdeburg vs Arminia Bielefeld min=57 score=0-1 sel="BTTS Yes @1.666" mkt=btts_yes odds=1.666 conf=6 => loss pnl=-3.00
+  [Sun Feb 15 2026 00:00:00 GMT+0900 (Korean Standard Time)] Birmingham vs Leeds                 min=66 score=0-1 sel="BTTS Yes @2.25" mkt=btts_yes odds=2.250 conf=7 => win pnl=5.00
+  [Sun Feb 15 2026 00:00:00 GMT+0900 (Korean Standard Time)] Holstein Kiel vs FC Schalke 04      min=30 score=0-2 sel="BTTS Yes @1.571" mkt=btts_yes odds=1.571 conf=6 => win pnl=1.71
+  [Sun Feb 15 2026 00:00:00 GMT+0900 (Korean Standard Time)] Uta Arad vs FC Botosani             min=45 score=1-0 sel="BTTS No @1.833" mkt=btts_no odds=1.833 conf=6 => loss pnl=-3.00
+  [Sun Feb 15 2026 00:00:00 GMT+0900 (Korean Standard Time)] Kocaelispor vs Gazişehir Gaziantep  min=45 score=1-0 sel="BTTS Yes @1.909" mkt=btts_yes odds=1.909 conf=6 => loss pnl=-3.00
+  [Sun Feb 15 2026 00:00:00 GMT+0900 (Korean Standard Time)] Kashiwa Reysol vs Tokyo Verdy       min=45 score=1-0 sel="BTTS No @1.571" mkt=btts_no odds=1.571 conf=6 => loss pnl=-4.00
+  [Sun Feb 15 2026 00:00:00 GMT+0900 (Korean Standard Time)] Guadalajara Chivas vs Club America  min=57 score=1-0 sel="BTTS No @1.533" mkt=btts_no odds=1.533 conf=6 => win pnl=2.13
+  [Sat Feb 14 2026 00:00:00 GMT+0900 (Korean Standard Time)] Groningen vs Utrecht                min=69 score=1-0 sel="BTTS Yes @2.375" mkt=btts_yes odds=2.375 conf=6 => win pnl=4.13
+  [Sat Feb 14 2026 00:00:00 GMT+0900 (Korean Standard Time)] Dynamo Dresden vs SV Elversberg     min=56 score=1-0 sel="BTTS Yes @1.666" mkt=btts_yes odds=1.666 conf=6 => win pnl=2.00
+  [Sat Feb 14 2026 00:00:00 GMT+0900 (Korean Standard Time)] BSC Young Boys vs FC Winterthur     min=33 score=0-0 sel="BTTS No @1.5" mkt=btts_no odds=1.500 conf=6 => loss pnl=-3.00
+  [Sat Feb 14 2026 00:00:00 GMT+0900 (Korean Standard Time)] Guimaraes vs Estrela                min=63 score=0-1 sel="BTTS Yes @1.615" mkt=btts_yes odds=1.615 conf=7 => win pnl=2.46
+  [Sat Feb 14 2026 00:00:00 GMT+0900 (Korean Standard Time)] Lille vs Stade Brestois 29          min=64 score=0-1 sel="BTTS Yes @1.666" mkt=btts_yes odds=1.666 conf=7 => win pnl=2.66
+  [Sat Feb 14 2026 00:00:00 GMT+0900 (Korean Standard Time)] Charleroi vs Gent                   min=66 score=0-2 sel="BTTS Yes @1.95" mkt=btts_yes odds=1.950 conf=7 => win pnl=3.80
+  [Sat Feb 14 2026 00:00:00 GMT+0900 (Korean Standard Time)] Lazio vs Atalanta                   min=60 score=0-1 sel="BTTS Yes @2.1" mkt=btts_yes odds=2.100 conf=6 => loss pnl=-3.00
+  [Sat Feb 14 2026 00:00:00 GMT+0900 (Korean Standard Time)] Al-Fateh vs Al-Nassr                min=45 score=0-1 sel="BTTS Yes @1.833" mkt=btts_yes odds=1.833 conf=7 => loss pnl=-4.00
+  [Sat Feb 14 2026 00:00:00 GMT+0900 (Korean Standard Time)] FC Zurich vs FC Luzern              min=58 score=0-2 sel="BTTS No @1.727" mkt=btts_no odds=1.727 conf=6 => loss pnl=-3.00
+  [Sat Feb 14 2026 00:00:00 GMT+0900 (Korean Standard Time)] Al-Fateh vs Al-Nassr                min=20 score=0-1 sel="BTTS No @2.1" mkt=btts_no odds=2.100 conf=6 => win pnl=3.30
+  [Sat Feb 14 2026 00:00:00 GMT+0900 (Korean Standard Time)] FC Copenhagen vs FC Nordsjaelland   min=45 score=1-0 sel="BTTS Yes @1.7" mkt=btts_yes odds=1.700 conf=6 => win pnl=2.80
+  [Sat Feb 14 2026 00:00:00 GMT+0900 (Korean Standard Time)] Al Najma vs Al Kholood              min=53 score=1-0 sel="BTTS Yes @1.571" mkt=btts_yes odds=1.571 conf=6 => win pnl=1.71
+  [Sat Feb 14 2026 00:00:00 GMT+0900 (Korean Standard Time)] Sheffield Wednesday vs Millwall     min=68 score=1-0 sel="BTTS Yes @1.615" mkt=btts_yes odds=1.615 conf=7 => win pnl=2.46
+  [Sat Feb 14 2026 00:00:00 GMT+0900 (Korean Standard Time)] Getafe vs Villarreal                min=50 score=1-0 sel="BTTS No @1.75" mkt=btts_no odds=1.750 conf=6 => loss pnl=-4.00
+  [Sat Feb 14 2026 00:00:00 GMT+0900 (Korean Standard Time)] Norwich vs West Brom                min=52 score=1-0 sel="BTTS No @1.615" mkt=btts_no odds=1.615 conf=6 => loss pnl=-4.00
+  [Sat Feb 14 2026 00:00:00 GMT+0900 (Korean Standard Time)] Burnley vs Mansfield Town           min=29 score=1-0 sel="BTTS No @1.75" mkt=btts_no odds=1.750 conf=6 => loss pnl=-4.00
+  [Sat Feb 14 2026 00:00:00 GMT+0900 (Korean Standard Time)] Como vs Fiorentina                  min=63 score=0-2 sel="BTTS Yes @1.615" mkt=btts_yes odds=1.615 conf=6 => win pnl=1.85
+  [Sat Feb 14 2026 00:00:00 GMT+0900 (Korean Standard Time)] Bayer Leverkusen vs FC St. Pauli    min=45 score=2-0 sel="BTTS No @1.615" mkt=btts_no odds=1.615 conf=6 => win pnl=1.85
+  [Sat Feb 14 2026 00:00:00 GMT+0900 (Korean Standard Time)] 1. FC Kaiserslautern vs SpVgg Greuther Fürth min=67 score=1-0 sel="BTTS Yes @2.2" mkt=btts_yes odds=2.200 conf=6 => loss pnl=-3.00
+  [Sat Feb 14 2026 00:00:00 GMT+0900 (Korean Standard Time)] Genclerbirligi vs Rizespor          min=60 score=2-0 sel="BTTS Yes @1.83" mkt=btts_yes odds=1.830 conf=6 => win pnl=2.49
+  [Sun Feb 08 2026 00:00:00 GMT+0900 (Korean Standard Time)] Benfica vs Alverca                  min=29 score=1-0 sel="BTTS No @1.615" mkt=btts_no odds=1.615 conf=7 => loss pnl=-4.00
+  [Sun Feb 08 2026 00:00:00 GMT+0900 (Korean Standard Time)] KV Mechelen vs Antwerp              min=61 score=1-0 sel="BTTS Yes @2.25" mkt=btts_yes odds=2.250 conf=6 => loss pnl=-3.00
+  [Sun Feb 08 2026 00:00:00 GMT+0900 (Korean Standard Time)] Atletico Madrid vs Real Betis       min=69 score=0-1 sel="BTTS Yes @1.615" mkt=btts_yes odds=1.615 conf=6 => loss pnl=-3.00
+  [Sun Feb 08 2026 00:00:00 GMT+0900 (Korean Standard Time)] Club Brugge KV vs Standard Liege    min=25 score=0-0 sel="BTTS No @ 1.533" mkt=btts_no odds=1.533 conf=6 => win pnl=1.60
+  [Sun Feb 08 2026 00:00:00 GMT+0900 (Korean Standard Time)] Atletico Madrid vs Real Betis       min=13 score=0-0 sel="BTTS No @1.8" mkt=btts_no odds=1.800 conf=6 => win pnl=2.40
+  [Sun Feb 08 2026 00:00:00 GMT+0900 (Korean Standard Time)] Rizespor vs Galatasaray             min=54 score=0-1 sel="BTTS Yes @1.909" mkt=btts_yes odds=1.909 conf=6 => loss pnl=-3.00
+  [Sun Feb 08 2026 00:00:00 GMT+0900 (Korean Standard Time)] Nice vs Monaco                      min=31 score=0-0 sel="BTTS No @1.8" mkt=btts_no odds=1.800 conf=6 => win pnl=3.20
+  [Sat Feb 07 2026 00:00:00 GMT+0900 (Korean Standard Time)] Nantes vs Lyon                      min=61 score=0-1 sel="BTTS Yes @1.8" mkt=btts_yes odds=1.800 conf=6 => loss pnl=-3.00
+  [Sat Feb 07 2026 00:00:00 GMT+0900 (Korean Standard Time)] Nantes vs Lyon                      min=57 score=0-1 sel="BTTS No @1.615" mkt=btts_no odds=1.615 conf=6 => win pnl=1.85
+  [Sat Feb 07 2026 00:00:00 GMT+0900 (Korean Standard Time)] Samsunspor vs Trabzonspor           min=68 score=0-1 sel="BTTS No @1.571" mkt=btts_no odds=1.571 conf=6 => win pnl=2.28
+  [Sat Feb 07 2026 00:00:00 GMT+0900 (Korean Standard Time)] Burnley vs West Ham                 min=60 score=0-2 sel="BTTS Yes @1.95" mkt=btts_yes odds=1.950 conf=7 => loss pnl=-4.00
+  [Sat Feb 07 2026 00:00:00 GMT+0900 (Korean Standard Time)] Fulham vs Everton                   min=58 score=1-0 sel="BTTS Yes @2.20" mkt=btts_yes odds=2.200 conf=6 => win pnl=3.60
+  [Sat Feb 07 2026 00:00:00 GMT+0900 (Korean Standard Time)] Preston vs Portsmouth               min=50 score=1-0 sel="BTTS Yes @1.95" mkt=btts_yes odds=1.950 conf=6 => loss pnl=-4.00
+  [Sat Feb 07 2026 00:00:00 GMT+0900 (Korean Standard Time)] Bournemouth vs Aston Villa          min=50 score=0-1 sel="BTTS Yes @1.615" mkt=btts_yes odds=1.615 conf=7 => win pnl=2.46
+  [Sat Feb 07 2026 00:00:00 GMT+0900 (Korean Standard Time)] FC St. Pauli vs VfB Stuttgart       min=65 score=2-0 sel="BTTS No @1.95" mkt=btts_no odds=1.950 conf=6 => loss pnl=-4.00
+  [Sat Feb 07 2026 00:00:00 GMT+0900 (Korean Standard Time)] FSV Mainz 05 vs FC Augsburg         min=45 score=1-0 sel="BTTS Yes @1.8" mkt=btts_yes odds=1.800 conf=6 => loss pnl=-3.00
+  [Sat Feb 07 2026 00:00:00 GMT+0900 (Korean Standard Time)] Derby vs Ipswich                    min=57 score=0-1 sel="BTTS No @1.5" mkt=btts_no odds=1.500 conf=6 => loss pnl=-3.00
+  [Sun Feb 01 2026 00:00:00 GMT+0900 (Korean Standard Time)] Bucaramanga vs Alianza Valledupar   min=41 score=2-0 sel="BTTS Yes @2.2" mkt=btts_yes odds=2.200 conf=6 => loss pnl=-3.00
+  [Sun Feb 01 2026 00:00:00 GMT+0900 (Korean Standard Time)] Al-Ittihad FC vs Al Najma           min=20 score=1-0 sel="BTTS No @1.833" mkt=btts_no odds=1.833 conf=6 => win pnl=2.50
+  [Sun Feb 01 2026 00:00:00 GMT+0900 (Korean Standard Time)] Nice vs Stade Brestois 29           min=59 score=0-2 sel="BTTS Yes @1.8" mkt=btts_yes odds=1.800 conf=6 => win pnl=3.20
+  [Sun Feb 01 2026 00:00:00 GMT+0900 (Korean Standard Time)] Cremonese vs Inter                  min=20 score=0-1 sel="BTTS No @1.70" mkt=btts_no odds=1.700 conf=6 => win pnl=2.80
+  [Sun Feb 01 2026 00:00:00 GMT+0900 (Korean Standard Time)] Rivers United vs Power Dynamos      min=53 score=0-1 sel="BTTS Yes @1.833" mkt=btts_yes odds=1.833 conf=6 => loss pnl=-3.00
+  [Sun Feb 01 2026 00:00:00 GMT+0900 (Korean Standard Time)] Angers vs Metz                      min=36 score=1-0 sel="BTTS No @1.5" mkt=btts_no odds=1.500 conf=6 => win pnl=1.50
+  [Sun Feb 01 2026 00:00:00 GMT+0900 (Korean Standard Time)] Pyramids FC vs Renaissance Berkane  min=45 score=1-0 sel="BTTS No @1.666" mkt=btts_no odds=1.666 conf=6 => win pnl=2.66
+  [Sun Feb 01 2026 00:00:00 GMT+0900 (Korean Standard Time)] Heerenveen vs Utrecht               min=32 score=1-0 sel="BTTS Yes @1.615" mkt=btts_yes odds=1.615 conf=6 => win pnl=1.85
+  [Sun Feb 01 2026 00:00:00 GMT+0900 (Korean Standard Time)] FC Basel 1893 vs FC Thun            min=45 score=0-1 sel="BTTS Yes @1.615" mkt=btts_yes odds=1.615 conf=7 => win pnl=2.46
+  [Sun Feb 01 2026 00:00:00 GMT+0900 (Korean Standard Time)] Aston Villa vs Brentford            min=72 score=0-1 sel="BTTS Yes @1.571" mkt=btts_yes odds=1.571 conf=7 => loss pnl=-4.00
+  [Sun Feb 01 2026 00:00:00 GMT+0900 (Korean Standard Time)] Genclerbirligi vs Gazişehir Gaziantep min=58 score=1-0 sel="BTTS No @1.727" mkt=btts_no odds=1.727 conf=6 => loss pnl=-4.00
+  [Sun Feb 01 2026 00:00:00 GMT+0900 (Korean Standard Time)] Lyon vs Lille                       min=56 score=1-0 sel="BTTS Yes @1.95" mkt=btts_yes odds=1.950 conf=6 => loss pnl=-3.00
+  [Sun Feb 01 2026 00:00:00 GMT+0900 (Korean Standard Time)] Stellenbosch vs CR Belouizdad       min=50 score=0-1 sel="BTTS Yes @1.833" mkt=btts_yes odds=1.833 conf=6 => loss pnl=-3.00
+  [Sun Feb 01 2026 00:00:00 GMT+0900 (Korean Standard Time)] Bandırmaspor vs Van BB              min=45 score=1-0 sel="BTTS Yes @1.833" mkt=btts_yes odds=1.833 conf=6 => loss pnl=-3.00
+  [Sat Jan 31 2026 00:00:00 GMT+0900 (Korean Standard Time)] Sparta Rotterdam vs Groningen       min=58 score=1-0 sel="BTTS No @1.75" mkt=btts_no odds=1.750 conf=6 => win pnl=2.25
+  [Sat Jan 31 2026 00:00:00 GMT+0900 (Korean Standard Time)] Monaco vs Rennes                    min=45 score=1-0 sel="BTTS Yes @1.615" mkt=btts_yes odds=1.615 conf=7 => loss pnl=-4.00
+  [Sat Jan 31 2026 00:00:00 GMT+0900 (Korean Standard Time)] PEC Zwolle vs Telstar               min=30 score=0-0 sel="BTTS Yes @2.1" mkt=btts_yes odds=2.100 conf=7 => win pnl=4.40
+  [Sat Jan 31 2026 00:00:00 GMT+0900 (Korean Standard Time)] Wolves vs Bournemouth               min=55 score=0-1 sel="BTTS No @1.75" mkt=btts_no odds=1.750 conf=6 => win pnl=2.25
+  [Sat Jan 31 2026 00:00:00 GMT+0900 (Korean Standard Time)] Werder Bremen vs Borussia Mönchengladbach min=62 score=0-1 sel="BTTS Yes @1.909" mkt=btts_yes odds=1.909 conf=6 => win pnl=2.73
+  [Sat Jan 31 2026 00:00:00 GMT+0900 (Korean Standard Time)] Cercle Brugge vs Antwerp            min=45 score=0-1 sel="BTTS No @1.57" mkt=btts_no odds=1.570 conf=6 => win pnl=1.71
+  [Sat Jan 31 2026 00:00:00 GMT+0900 (Korean Standard Time)] Leeds vs Arsenal                    min=45 score=0-2 sel="BTTS No @1.666" mkt=btts_no odds=1.666 conf=6 => win pnl=2.00
+  [Sat Jan 31 2026 00:00:00 GMT+0900 (Korean Standard Time)] 1899 Hoffenheim vs Union Berlin     min=45 score=2-0 sel="BTTS Yes @1.75" mkt=btts_yes odds=1.750 conf=6 => win pnl=2.25
+  [Sat Jan 31 2026 00:00:00 GMT+0900 (Korean Standard Time)] Pisa vs Sassuolo                    min=45 score=0-1 sel="BTTS Yes @1.75" mkt=btts_yes odds=1.750 conf=6 => win pnl=2.25
+  [Sat Jan 31 2026 00:00:00 GMT+0900 (Korean Standard Time)] Eintracht Braunschweig vs Karlsruher SC min=61 score=1-0 sel="BTTS No @1.533" mkt=btts_no odds=1.533 conf=6 => win pnl=2.13
+  [Sat Jan 31 2026 00:00:00 GMT+0900 (Korean Standard Time)] Leicester vs Charlton               min=45 score=0-1 sel="BTTS No @1.75" mkt=btts_no odds=1.750 conf=7 => win pnl=3.00
+  [Sat Jan 31 2026 00:00:00 GMT+0900 (Korean Standard Time)] VfL Bochum vs FC Schalke 04         min=53 score=2-0 sel="BTTS No @1.909" mkt=btts_no odds=1.909 conf=6 => win pnl=3.64
+  [Sun Jan 25 2026 00:00:00 GMT+0900 (Korean Standard Time)] AS Roma vs AC Milan                 min=65 score=0-1 sel="BTTS Yes @2.10" mkt=btts_yes odds=2.100 conf=6 => win pnl=3.30
+  [Sun Jan 25 2026 00:00:00 GMT+0900 (Korean Standard Time)] Lille vs Strasbourg                 min=53 score=0-2 sel="BTTS Yes @1.533" mkt=btts_yes odds=1.533 conf=6 => win pnl=1.60
+  [Sun Jan 25 2026 00:00:00 GMT+0900 (Korean Standard Time)] Alaves vs Real Betis                min=45 score=1-0 sel="BTTS Yes @1.666" mkt=btts_yes odds=1.666 conf=6 => win pnl=2.00
+  [Sun Jan 25 2026 00:00:00 GMT+0900 (Korean Standard Time)] Real Sociedad vs Celta Vigo         min=70 score=1-0 sel="BTTS Yes @1.95" mkt=btts_yes odds=1.950 conf=7 => win pnl=3.80
+  [Sun Jan 25 2026 00:00:00 GMT+0900 (Korean Standard Time)] Juventus vs Napoli                  min=55 score=1-0 sel="BTTS No @1.533" mkt=btts_no odds=1.533 conf=6 => win pnl=1.60
+  [Sun Jan 25 2026 00:00:00 GMT+0900 (Korean Standard Time)] Stade Brestois 29 vs Toulouse       min=55 score=0-2 sel="BTTS Yes @2.1" mkt=btts_yes odds=2.100 conf=6 => loss pnl=-3.00
+  [Sun Jan 25 2026 00:00:00 GMT+0900 (Korean Standard Time)] Fenerbahçe vs Göztepe               min=24 score=1-0 sel="BTTS No @1.833" mkt=btts_no odds=1.833 conf=6 => loss pnl=-3.00
+  [Sun Jan 25 2026 00:00:00 GMT+0900 (Korean Standard Time)] Utrecht vs Sparta Rotterdam         min=66 score=0-1 sel="BTTS Yes @1.909" mkt=btts_yes odds=1.909 conf=6 => loss pnl=-3.00
+  [Sun Jan 25 2026 00:00:00 GMT+0900 (Korean Standard Time)] Manisa BBSK vs İstanbulspor         min=45 score=1-0 sel="BTTS Yes @1.8" mkt=btts_yes odds=1.800 conf=6 => loss pnl=-3.00
+  [Sun Jan 25 2026 00:00:00 GMT+0900 (Korean Standard Time)] Nacional vs Rio Ave                 min=45 score=1-0 sel="BTTS Yes @1.666" mkt=btts_yes odds=1.666 conf=6 => loss pnl=-3.00
+  [Sun Jan 25 2026 00:00:00 GMT+0900 (Korean Standard Time)] Newcastle vs Aston Villa            min=65 score=0-1 sel="BTTS Yes @1.75" mkt=btts_yes odds=1.750 conf=6 => loss pnl=-3.00
+  [Sun Jan 25 2026 00:00:00 GMT+0900 (Korean Standard Time)] Genoa vs Bologna                    min=51 score=0-2 sel="BTTS No @1.666" mkt=btts_no odds=1.666 conf=6 => loss pnl=-3.00
+  [Sun Jan 25 2026 00:00:00 GMT+0900 (Korean Standard Time)] FC Thun vs BSC Young Boys           min=51 score=1-0 sel="BTTS Yes @1.727" mkt=btts_yes odds=1.727 conf=6 => win pnl=2.91
+  [Sun Jan 25 2026 00:00:00 GMT+0900 (Korean Standard Time)] FC Schalke 04 vs 1. FC Kaiserslautern min=62 score=0-1 sel="BTTS Yes @1.833" mkt=btts_yes odds=1.833 conf=6 => win pnl=2.50
+  [Sun Jan 25 2026 00:00:00 GMT+0900 (Korean Standard Time)] Atletico Madrid vs Mallorca         min=32 score=1-0 sel="BTTS No @1.615" mkt=btts_no odds=1.615 conf=6 => win pnl=1.85
+  [Sun Jan 25 2026 00:00:00 GMT+0900 (Korean Standard Time)] Sarıyer vs Yeni Çorumspor           min=45 score=0-1 sel="BTTS No @1.8" mkt=btts_no odds=1.800 conf=6 => loss pnl=-3.00
+  [Wed Jan 21 2026 00:00:00 GMT+0900 (Korean Standard Time)] Marseille vs Liverpool              min=60 score=0-1 sel="BTTS Yes @2.1" mkt=btts_yes odds=2.100 conf=6 => loss pnl=-4.00
+  [Wed Jan 21 2026 00:00:00 GMT+0900 (Korean Standard Time)] Southampton vs Sheffield Utd        min=59 score=1-0 sel="BTTS Yes @ 2.05" mkt=btts_yes odds=2.050 conf=6 => loss pnl=-3.00
+  [Wed Jan 21 2026 00:00:00 GMT+0900 (Korean Standard Time)] AZ Alkmaar vs Excelsior             min=20 score=0-0 sel="BTTS No @1.666" mkt=btts_no odds=1.666 conf=6 => loss pnl=-4.00
+  [Mon Jan 19 2026 00:00:00 GMT+0900 (Korean Standard Time)] Elche vs Sevilla                    min=51 score=1-0 sel="BTTS Yes @1.909" mkt=btts_yes odds=1.909 conf=6 => win pnl=3.64
+  [Mon Jan 19 2026 00:00:00 GMT+0900 (Korean Standard Time)] Brighton vs Bournemouth             min=26 score=0-0 sel="Both Teams To Score Yes @1.80" mkt=btts_yes odds=1.800 conf=7 => win pnl=3.20
+  [Mon Jan 19 2026 00:00:00 GMT+0900 (Korean Standard Time)] Lazio vs Como                       min=19 score=0-1 sel="BTTS Yes @1.50" mkt=btts_yes odds=1.500 conf=6 => loss pnl=-3.00
+  [Mon Jan 19 2026 00:00:00 GMT+0900 (Korean Standard Time)] Göztepe vs Rizespor                 min=59 score=1-0 sel="BTTS Yes @2.1" mkt=btts_yes odds=2.100 conf=7 => win pnl=4.40
+  [Mon Jan 19 2026 00:00:00 GMT+0900 (Korean Standard Time)] Cremonese vs Verona                 min=25 score=0-0 sel="BTTS No @1.571" mkt=btts_no odds=1.571 conf=6 => win pnl=1.71
+  [Mon Jan 19 2026 00:00:00 GMT+0900 (Korean Standard Time)] BB Bodrumspor vs Sivasspor          min=45 score=1-0 sel="BTTS Yes @1.909" mkt=btts_yes odds=1.909 conf=6 => win pnl=2.73
+  [Mon Jan 19 2026 00:00:00 GMT+0900 (Korean Standard Time)] Konyaspor vs Eyüpspor               min=83 score=0-1 sel="BTTS Yes @2.75" mkt=btts_yes odds=2.750 conf=7 => win pnl=7.00
+  [Sun Jan 18 2026 00:00:00 GMT+0900 (Korean Standard Time)] VfB Stuttgart vs Union Berlin       min=62 score=1-0 sel="BTTS No @1.5" mkt=btts_no odds=1.500 conf=6 => loss pnl=-3.00
+  [Sun Jan 18 2026 00:00:00 GMT+0900 (Korean Standard Time)] Wolves vs Newcastle                 min=53 score=0-0 sel="BTTS Yes @3.50" mkt=btts_yes odds=3.500 conf=6 => loss pnl=-3.00
+  [Sun Jan 18 2026 00:00:00 GMT+0900 (Korean Standard Time)] Heracles vs Twente                  min=64 score=0-2 sel="BTTS Yes @2.00" mkt=btts_yes odds=2.000 conf=6 => loss pnl=-4.00
+  [Sun Jan 18 2026 00:00:00 GMT+0900 (Korean Standard Time)] VfB Stuttgart vs Union Berlin       min=26 score=0-0 sel="BTTS Yes @2.05" mkt=btts_yes odds=2.050 conf=6 => win pnl=3.15
+  [Sun Jan 18 2026 00:00:00 GMT+0900 (Korean Standard Time)] Kocaelispor vs Trabzonspor          min=44 score=1-0 sel="Both Teams To Score - Yes @1.571" mkt=btts_yes odds=1.571 conf=7 => win pnl=2.28
+  [Sun Jan 18 2026 00:00:00 GMT+0900 (Korean Standard Time)] Genclerbirligi vs Samsunspor        min=24 score=0-0 sel="BTTS Yes @2.50" mkt=btts_yes odds=2.500 conf=6 => win pnl=4.50
+  [Sun Jan 18 2026 00:00:00 GMT+0900 (Korean Standard Time)] Bologna vs Fiorentina               min=24 score=0-1 sel="BTTS No @3.4" mkt=btts_no odds=3.400 conf=7 => loss pnl=-4.00
+  [Sun Jan 18 2026 00:00:00 GMT+0900 (Korean Standard Time)] Strasbourg vs Metz                  min=21 score=1-0 sel="BTTS Yes @1.75" mkt=btts_yes odds=1.750 conf=6 => win pnl=2.63
+  [Sun Jan 18 2026 00:00:00 GMT+0900 (Korean Standard Time)] Csikszereda vs FC Botosani          min=45 score=0-0 sel="Both Teams To Score Yes @1.571" mkt=btts_yes odds=1.571 conf=6 => loss pnl=-3.00
+  [Sun Jan 18 2026 00:00:00 GMT+0900 (Korean Standard Time)] Heracles vs Twente                  min=28 score=0-0 sel="BTTS No @1.571" mkt=btts_no odds=1.571 conf=6 => win pnl=1.71
+  [Sun Jan 18 2026 00:00:00 GMT+0900 (Korean Standard Time)] Holstein Kiel vs SC Paderborn 07    min=62 score=1-0 sel="BTTS Yes @1.909" mkt=btts_yes odds=1.909 conf=6 => loss pnl=-4.00
+  [Sun Jan 18 2026 00:00:00 GMT+0900 (Korean Standard Time)] Boluspor vs Sarıyer                 min=44 score=0-1 sel="BTTS Yes @1.50" mkt=btts_yes odds=1.500 conf=6 => win pnl=1.50
+  [Sun Jan 18 2026 00:00:00 GMT+0900 (Korean Standard Time)] Servette FC vs FC Zurich            min=26 score=1-0 sel="BTTS No @2.25" mkt=btts_no odds=2.250 conf=6 => loss pnl=-3.00
+  [Sun Jan 18 2026 00:00:00 GMT+0900 (Korean Standard Time)] 1. FC Kaiserslautern vs Hannover 96 min=41 score=0-0 sel="BTTS Yes @2.50" mkt=btts_yes odds=2.500 conf=6 => win pnl=4.50
+  [Sun Jan 18 2026 00:00:00 GMT+0900 (Korean Standard Time)] Gent vs Anderlecht                  min=33 score=0-1 sel="BTTS Yes @1.533" mkt=btts_yes odds=1.533 conf=6 => win pnl=1.60
+  [Sun Jan 18 2026 00:00:00 GMT+0900 (Korean Standard Time)] 1. FC Kaiserslautern vs Hannover 96 min=36 score=0-0 sel="BTTS No @1.571" mkt=btts_no odds=1.571 conf=6 => loss pnl=-3.00
+  [Sun Jan 18 2026 00:00:00 GMT+0900 (Korean Standard Time)] Heerenveen vs Groningen             min=51 score=0-0 sel="BTTS Yes @3.00" mkt=btts_yes odds=3.000 conf=6 => loss pnl=-3.00
+  [Sun Jan 18 2026 00:00:00 GMT+0900 (Korean Standard Time)] Erzurum BB vs Amed                  min=71 score=1-0 sel="BTTS Yes @3.25" mkt=btts_yes odds=3.250 conf=7 => loss pnl=-4.00
+  [Sun Jan 18 2026 00:00:00 GMT+0900 (Korean Standard Time)] Parma vs Genoa                      min=19 score=0-0 sel="BTTS No @1.50" mkt=btts_no odds=1.500 conf=5 => win pnl=1.00
+  [Sun Jan 18 2026 00:00:00 GMT+0900 (Korean Standard Time)] Sydney vs Wellington Phoenix        min=54 score=0-1 sel="BTTS No @1.75" mkt=btts_no odds=1.750 conf=6 => win pnl=2.25
+  [Sun Jan 18 2026 00:00:00 GMT+0900 (Korean Standard Time)] Sydney vs Wellington Phoenix        min=24 score=0-0 sel="BTTS Yes @2.05" mkt=btts_yes odds=2.050 conf=6 => loss pnl=-3.00
+  [Sun Jan 18 2026 00:00:00 GMT+0900 (Korean Standard Time)] Necaxa vs Atlas                     min=67 score=0-1 sel="BTTS No @1.615" mkt=btts_no odds=1.615 conf=6 => win pnl=1.85
+  [Sat Jan 17 2026 00:00:00 GMT+0900 (Korean Standard Time)] Real Betis vs Villarreal            min=65 score=1-0 sel="BTTS No @1.615" mkt=btts_no odds=1.615 conf=7 => win pnl=2.46
+  [Sat Jan 17 2026 00:00:00 GMT+0900 (Korean Standard Time)] Cagliari vs Juventus                min=76 score=1-0 sel="BTTS Yes @2.05" mkt=btts_yes odds=2.050 conf=7 => loss pnl=-4.00
+  [Sat Jan 17 2026 00:00:00 GMT+0900 (Korean Standard Time)] Real Betis vs Villarreal            min=51 score=0-0 sel="BTTS Yes @3.40" mkt=btts_yes odds=3.400 conf=6 => loss pnl=-4.00
+  [Sat Jan 17 2026 00:00:00 GMT+0900 (Korean Standard Time)] Rio Ave vs Benfica                  min=24 score=0-1 sel="BTTS No @1.95" mkt=btts_no odds=1.950 conf=7 => win pnl=3.80
+  [Sat Jan 17 2026 00:00:00 GMT+0900 (Korean Standard Time)] Angers vs Marseille                 min=20 score=0-1 sel="BTTS No @2.05" mkt=btts_no odds=2.050 conf=7 => loss pnl=-4.00
+  [Sat Jan 17 2026 00:00:00 GMT+0900 (Korean Standard Time)] Excelsior vs Telstar                min=68 score=0-2 sel="Both Teams To Score - No @1.70" mkt=btts_no odds=1.700 conf=7 => loss pnl=-4.00
+  [Sat Jan 17 2026 00:00:00 GMT+0900 (Korean Standard Time)] Union St. Gilloise vs KV Mechelen   min=39 score=1-0 sel="BTTS No @1.53" mkt=btts_no odds=1.530 conf=7 => win pnl=2.12
+  [Sat Jan 17 2026 00:00:00 GMT+0900 (Korean Standard Time)] Hertha BSC vs FC Schalke 04         min=16 score=0-0 sel="BTTS Yes @2.0" mkt=btts_yes odds=2.000 conf=6 => loss pnl=-3.00
+  [Sat Jan 17 2026 00:00:00 GMT+0900 (Korean Standard Time)] Excelsior vs Telstar                min=29 score=0-0 sel="BTTS Yes @2.10" mkt=btts_yes odds=2.100 conf=6 => win pnl=4.40
+  [Sat Jan 17 2026 00:00:00 GMT+0900 (Korean Standard Time)] PEC Zwolle vs AZ Alkmaar            min=71 score=2-0 sel="BTTS Yes @ 2.00" mkt=btts_yes odds=2.000 conf=7 => win pnl=4.00
+  [Sat Jan 17 2026 00:00:00 GMT+0900 (Korean Standard Time)] Swansea vs Birmingham               min=61 score=1-0 sel="BTTS No @1.571" mkt=btts_no odds=1.571 conf=7 => loss pnl=-4.00
+  [Sat Jan 17 2026 00:00:00 GMT+0900 (Korean Standard Time)] AVS vs Arouca                       min=45 score=0-1 sel="BTTS No @1.571" mkt=btts_no odds=1.571 conf=7 => win pnl=2.28
+  [Sat Jan 17 2026 00:00:00 GMT+0900 (Korean Standard Time)] Toulouse vs Nice                    min=45 score=2-0 sel="BTTS Yes @1.75" mkt=btts_yes odds=1.750 conf=6 => win pnl=3.00
+  [Sat Jan 17 2026 00:00:00 GMT+0900 (Korean Standard Time)] Toulouse vs Nice                    min=41 score=1-0 sel="BTTS No @2.00" mkt=btts_no odds=2.000 conf=6 => loss pnl=-3.00
+  [Sat Jan 17 2026 00:00:00 GMT+0900 (Korean Standard Time)] KVC Westerlo vs Cercle Brugge       min=62 score=0-2 sel="Both Teams To Score Yes @2.10" mkt=btts_yes odds=2.100 conf=6 => loss pnl=-3.50
+  [Sat Jan 17 2026 00:00:00 GMT+0900 (Korean Standard Time)] Napoli vs Sassuolo                  min=75 score=1-0 sel="BTTS Yes @4.0" mkt=btts_yes odds=4.000 conf=7 => loss pnl=-4.00
+  [Sat Jan 17 2026 00:00:00 GMT+0900 (Korean Standard Time)] Osasuna vs Oviedo                   min=40 score=0-0 sel="BTTS Yes @3.4" mkt=btts_yes odds=3.400 conf=7 => win pnl=9.60
+  [Sat Jan 17 2026 00:00:00 GMT+0900 (Korean Standard Time)] Al-Nassr vs Al Shabab               min=25 score=2-0 sel="BTTS No @2.375" mkt=btts_no odds=2.375 conf=7 => loss pnl=-4.00
+  [Sat Jan 17 2026 00:00:00 GMT+0900 (Korean Standard Time)] FC Luzern vs FC Lugano              min=40 score=1-0 sel="BTTS Yes @1.50" mkt=btts_yes odds=1.500 conf=6 => win pnl=1.50
+  [Sat Jan 17 2026 00:00:00 GMT+0900 (Korean Standard Time)] Galatasaray vs Gazişehir Gaziantep  min=34 score=0-0 sel="Both Teams To Score Yes @2.50" mkt=btts_yes odds=2.500 conf=6 => win pnl=4.50
+  [Sat Jan 17 2026 00:00:00 GMT+0900 (Korean Standard Time)] Galatasaray vs Gazişehir Gaziantep  min=24 score=0-0 sel="BTTS No @1.533" mkt=btts_no odds=1.533 conf=7 => loss pnl=-4.00
+  [Sat Jan 17 2026 00:00:00 GMT+0900 (Korean Standard Time)] Napoli vs Sassuolo                  min=19 score=1-0 sel="BTTS No @1.8" mkt=btts_no odds=1.800 conf=6 => win pnl=3.20
+  [Sat Jan 17 2026 00:00:00 GMT+0900 (Korean Standard Time)] Udinese vs Inter                    min=34 score=0-1 sel="BTTS No @1.57" mkt=btts_no odds=1.570 conf=7 => win pnl=2.28
+  [Sat Jan 17 2026 00:00:00 GMT+0900 (Korean Standard Time)] Manchester United vs Manchester City min=67 score=1-0 sel="BTTS Yes @1.95" mkt=btts_yes odds=1.950 conf=6 => loss pnl=-3.00
+  [Sat Jan 17 2026 00:00:00 GMT+0900 (Korean Standard Time)] Ipswich vs Blackburn                min=45 score=2-0 sel="BTTS No @1.615" mkt=btts_no odds=1.615 conf=6 => win pnl=1.85
+  [Sat Jan 17 2026 00:00:00 GMT+0900 (Korean Standard Time)] 1. FC Nürnberg vs SV Elversberg     min=52 score=0-1 sel="BTTS Yes @1.615" mkt=btts_yes odds=1.615 conf=7 => win pnl=2.46
+  [Sat Jan 17 2026 00:00:00 GMT+0900 (Korean Standard Time)] Adelaide United vs Melbourne Victory min=62 score=1-0 sel="BTTS Yes @1.8" mkt=btts_yes odds=1.800 conf=6 => win pnl=3.20
+  [Sat Jan 17 2026 00:00:00 GMT+0900 (Korean Standard Time)] Western Sydney Wanderers vs Newcastle Jets min=64 score=0-2 sel="BTTS Yes @1.75" mkt=btts_yes odds=1.750 conf=6 => win pnl=2.25
+  [Fri Jan 16 2026 00:00:00 GMT+0900 (Korean Standard Time)] Paris Saint Germain vs Lille        min=36 score=1-0 sel="BTTS Yes @1.95" mkt=btts_yes odds=1.950 conf=6 => loss pnl=-3.00
+  [Mon Jan 12 2026 00:00:00 GMT+0900 (Korean Standard Time)] Juventus vs Cremonese               min=35 score=2-0 sel="BTTS No @ 1.7" mkt=btts_no odds=1.700 conf=7 => win pnl=2.80
+  [Sun Jan 11 2026 00:00:00 GMT+0900 (Korean Standard Time)] Manchester United vs Brighton       min=63 score=0-1 sel="BTTS Yes @1.615" mkt=btts_yes odds=1.615 conf=7 => win pnl=2.46
+  [Sun Jan 11 2026 00:00:00 GMT+0900 (Korean Standard Time)] West Ham vs QPR                     min=52 score=1-0 sel="BTTS No @ 1.571" mkt=btts_no odds=1.571 conf=6 => loss pnl=-4.00
+  [Sun Jan 11 2026 00:00:00 GMT+0900 (Korean Standard Time)] Telstar vs Ajax                     min=31 score=0-2 sel="BTTS No @2.375" mkt=btts_no odds=2.375 conf=6 => loss pnl=-3.00
+  [Sat Jan 10 2026 00:00:00 GMT+0900 (Korean Standard Time)] Fulham vs Middlesbrough             min=58 score=0-1 sel="BTTS Yes @1.533" mkt=btts_yes odds=1.533 conf=6 => win pnl=1.60
+  [Sat Jan 10 2026 00:00:00 GMT+0900 (Korean Standard Time)] AZ Alkmaar vs FC Volendam           min=19 score=1-0 sel="BTTS No @1.91" mkt=btts_no odds=1.910 conf=6 => win pnl=2.73
+  [Sat Jan 10 2026 00:00:00 GMT+0900 (Korean Standard Time)] Como vs Bologna                     min=72 score=0-1 sel="BTTS Yes @1.666" mkt=btts_yes odds=1.666 conf=6 => win pnl=2.00
+  [Sat Jan 10 2026 00:00:00 GMT+0900 (Korean Standard Time)] Celtic vs Dundee Utd                min=29 score=1-0 sel="BTTS No @1.666" mkt=btts_no odds=1.666 conf=7 => win pnl=2.66
+  [Thu Jan 08 2026 00:00:00 GMT+0900 (Korean Standard Time)] AC Milan vs Genoa                   min=63 score=0-1 sel="BTTS Yes @1.615" mkt=btts_yes odds=1.615 conf=7 => win pnl=2.46
+  [Thu Jan 08 2026 00:00:00 GMT+0900 (Korean Standard Time)] Atletico Madrid vs Real Madrid      min=50 score=0-1 sel="BTTS Yes @ 1.615" mkt=btts_yes odds=1.615 conf=6 => win pnl=2.46
+  [Tue Jan 06 2026 00:00:00 GMT+0900 (Korean Standard Time)] Melbourne City vs Brisbane Roar     min=50 score=1-0 sel="BTTS No @1.533" mkt=btts_no odds=1.533 conf=6 => win pnl=1.60
+  [Mon Jan 05 2026 00:00:00 GMT+0900 (Korean Standard Time)] Nigeria vs Mozambique               min=23 score=1-0 sel="BTTS No @1.615" mkt=btts_no odds=1.615 conf=7 => win pnl=2.46
+  [Sun Jan 04 2026 00:00:00 GMT+0900 (Korean Standard Time)] Middlesbrough vs Southampton        min=61 score=1-0 sel="BTTS No @1.666" mkt=btts_no odds=1.666 conf=7 => win pnl=2.66
+  [Sun Jan 04 2026 00:00:00 GMT+0900 (Korean Standard Time)] Middlesbrough vs Southampton        min=56 score=1-0 sel="BTTS Yes @1.95" mkt=btts_yes odds=1.950 conf=6 => loss pnl=-3.00
+  [Sun Jan 04 2026 00:00:00 GMT+0900 (Korean Standard Time)] Tottenham vs Sunderland             min=56 score=1-0 sel="BTTS No @1.533" mkt=btts_no odds=1.533 conf=6 => loss pnl=-3.00
+  [Sun Jan 04 2026 00:00:00 GMT+0900 (Korean Standard Time)] Sevilla vs Levante                  min=65 score=0-1 sel="BTTS Yes @1.75" mkt=btts_yes odds=1.750 conf=7 => loss pnl=-4.00
+  [Sat Jan 03 2026 00:00:00 GMT+0900 (Korean Standard Time)] Brighton vs Burnley                 min=45 score=1-0 sel="BTTS No @1.57" mkt=btts_no odds=1.570 conf=6 => win pnl=2.00
+  [Sat Jan 03 2026 00:00:00 GMT+0900 (Korean Standard Time)] Al-Fayha vs Al Kholood              min=35 score=0-1 sel="BTTS Yes @1.571" mkt=btts_yes odds=1.571 conf=7 => loss pnl=-5.00
+  [Sat Jan 03 2026 00:00:00 GMT+0900 (Korean Standard Time)] Genoa vs Pisa                       min=34 score=1-0 sel="BTTS No @1.80" mkt=btts_no odds=1.800 conf=6 => loss pnl=-4.00
+  [Sat Jan 03 2026 00:00:00 GMT+0900 (Korean Standard Time)] Aston Villa vs Nottingham Forest    min=58 score=2-0 sel="BTTS No @1.533" mkt=btts_no odds=1.533 conf=6 => loss pnl=-4.00
+  [Sat Jan 03 2026 00:00:00 GMT+0900 (Korean Standard Time)] Como vs Udinese                     min=50 score=1-0 sel="BTTS No @1.533" mkt=btts_no odds=1.533 conf=7 => win pnl=2.13
+  [Fri Jan 02 2026 00:00:00 GMT+0900 (Korean Standard Time)] Al Najma vs Al Khaleej Saihat       min=65 score=1-0 sel="BTTS - Yes" mkt=btts_yes odds=1.727 conf=6 => win pnl=2.18
+  [Thu Jan 01 2026 00:00:00 GMT+0900 (Korean Standard Time)] Bristol City vs Portsmouth          min=45 score=2-0 sel="Both Teams To Score - No" mkt=btts_no odds=null conf=6 => win pnl=-4.00
+  [Thu Jan 01 2026 00:00:00 GMT+0900 (Korean Standard Time)] Preston vs Sheffield Wednesday      min=36 score=1-0 sel="BTTS No @ 1.7" mkt=btts_no odds=1.700 conf=7 => win pnl=2.80
+  [Thu Jan 01 2026 00:00:00 GMT+0900 (Korean Standard Time)] Ipswich vs Oxford United            min=30 score=1-0 sel="BTTS No @ 1.571" mkt=btts_no odds=1.571 conf=6 => loss pnl=-3.00
+  [Tue Dec 30 2025 00:00:00 GMT+0900 (Korean Standard Time)] Uganda vs Nigeria                   min=35 score=0-1 sel="BTTS: No" mkt=btts_no odds=1.727 conf=6 => loss pnl=-3.00
+  [Mon Dec 29 2025 00:00:00 GMT+0900 (Korean Standard Time)] Middlesbrough vs Hull City          min=66 score=0-1 sel="Both Teams To Score (Yes) @ 1.666" mkt=btts_yes odds=1.666 conf=7 => loss pnl=-4.00
+  [Mon Dec 29 2025 00:00:00 GMT+0900 (Korean Standard Time)] Stoke City vs Sheffield Utd         min=61 score=0-2 sel="BTTS - No" mkt=btts_no odds=1.533 conf=7 => loss pnl=-4.00
+  [Mon Dec 29 2025 00:00:00 GMT+0900 (Korean Standard Time)] Millwall vs Bristol City            min=45 score=1-0 sel="Both Teams To Score (Yes) @ 1.571" mkt=btts_yes odds=1.571 conf=6 => win pnl=1.71
+  [Mon Dec 29 2025 00:00:00 GMT+0900 (Korean Standard Time)] AS Roma vs Genoa                    min=23 score=2-0 sel="Both Teams To Score: No" mkt=btts_no odds=null conf=6 => loss pnl=-4.00
+  [Sun Dec 28 2025 00:00:00 GMT+0900 (Korean Standard Time)] Algeria vs Burkina Faso             min=57 score=1-0 sel="BTTS - No" mkt=btts_no odds=1.615 conf=6 => win pnl=1.85
+  [Sun Dec 28 2025 00:00:00 GMT+0900 (Korean Standard Time)] Crystal Palace vs Tottenham         min=56 score=0-1 sel="Both Teams To Score - Yes" mkt=btts_yes odds=null conf=6 => loss pnl=-3.00
+  [Sun Dec 28 2025 00:00:00 GMT+0900 (Korean Standard Time)] Sunderland vs Leeds                 min=45 score=1-0 sel="BTTS (Yes) @ 1.5" mkt=btts_yes odds=1.500 conf=6 => win pnl=1.50
+  [Sat Dec 27 2025 00:00:00 GMT+0900 (Korean Standard Time)] Pendikspor vs Erokspor              min=54 score=0-1 sel="BTTS Yes @ 1.8" mkt=btts_yes odds=1.800 conf=6 => loss pnl=-3.00
+  [Sat Dec 27 2025 00:00:00 GMT+0900 (Korean Standard Time)] Lecce vs Como                       min=45 score=0-1 sel="Both Teams To Score: No @ 1.571" mkt=btts_no odds=1.571 conf=6 => win pnl=1.71
+  [Fri Dec 26 2025 00:00:00 GMT+0900 (Korean Standard Time)] Manchester United vs Newcastle      min=52 score=1-0 sel="BTTS (Yes) @ 1.7" mkt=btts_yes odds=null conf=6 => loss pnl=-3.00
+  [Fri Dec 26 2025 00:00:00 GMT+0900 (Korean Standard Time)] West Brom vs Bristol City           min=55 score=0-2 sel="BTTS (Yes) @ 1.75" mkt=btts_yes odds=null conf=6 => win pnl=-3.00
+  [Fri Dec 26 2025 00:00:00 GMT+0900 (Korean Standard Time)] Angola vs Zimbabwe                  min=30 score=1-0 sel="BTTS No" mkt=btts_no odds=1.800 conf=6 => loss pnl=-3.00
+
+=== MARKET PERFORMANCE DETAIL (avg conf/odds/minute by W/L) ===
+  1x2_away             loss  cnt= 40 avgConf=6.1 avgOdds=2.36 avgMin=48
+  1x2_away             win   cnt= 49 avgConf=6.3 avgOdds=2.06 avgMin=46
+  1x2_draw             loss  cnt= 23 avgConf=6.2 avgOdds=3.03 avgMin=55
+  1x2_draw             win   cnt= 10 avgConf=6.0 avgOdds=2.62 avgMin=54
+  1x2_home             loss  cnt=130 avgConf=6.4 avgOdds=2.32 avgMin=46
+  1x2_home             win   cnt= 72 avgConf=6.4 avgOdds=2.11 avgMin=47
+  ah_-1                loss  cnt=  2 avgConf=7.0 avgOdds=1.83 avgMin=45
+  ah_home_0            loss  cnt=  1 avgConf=7.0 avgOdds=1.88 avgMin=60
+  ah_home_-1           win   cnt=  3 avgConf=6.7 avgOdds=1.72 avgMin=46
+  btts_no              loss  cnt= 49 avgConf=6.3 avgOdds=1.75 avgMin=44
+  btts_no              win   cnt= 61 avgConf=6.3 avgOdds=1.66 avgMin=42
+  btts_yes             loss  cnt= 76 avgConf=6.2 avgOdds=1.99 avgMin=54
+  btts_yes             win   cnt= 91 avgConf=6.3 avgOdds=1.83 avgMin=52
+  corners_over_7       loss  cnt=  1 avgConf=7.0 avgOdds=1.73 avgMin=77
+  corners_over_8       loss  cnt=  1 avgConf=6.0 avgOdds=1.91 avgMin=59
+  corners_over_9.5     loss  cnt=  1 avgConf=8.0 avgOdds=1.90 avgMin=75
+  over_0.5             loss  cnt= 35 avgConf=6.2 avgOdds=2.11 avgMin=76
+  over_0.5             win   cnt= 33 avgConf=6.2 avgOdds=1.77 avgMin=68
+  over_11              loss  cnt=  1 avgConf=7.0 avgOdds=1.80 avgMin=77
+  over_12              loss  cnt=  1 avgConf=7.0 avgOdds=1.53 avgMin=77
+  over_14              loss  cnt=  1 avgConf=6.0 avgOdds=2.20 avgMin=82
+  over_1.5             loss  cnt= 62 avgConf=6.1 avgOdds=1.89 avgMin=74
+  over_1.5             win   cnt= 86 avgConf=6.2 avgOdds=1.79 avgMin=71
+  over_2.5             loss  cnt= 34 avgConf=6.2 avgOdds=1.79 avgMin=72
+  over_2.5             win   cnt= 46 avgConf=6.2 avgOdds=1.75 avgMin=71
+  over_3.5             loss  cnt= 44 avgConf=6.2 avgOdds=1.87 avgMin=74
+  over_3.5             win   cnt= 37 avgConf=6.3 avgOdds=1.76 avgMin=73
+  over_4.5             loss  cnt=  8 avgConf=6.4 avgOdds=1.81 avgMin=73
+  over_4.5             win   cnt=  8 avgConf=6.1 avgOdds=1.69 avgMin=71
+  over_5.5             loss  cnt=  6 avgConf=6.2 avgOdds=1.79 avgMin=74
+  over_5.5             win   cnt=  3 avgConf=6.0 avgOdds=1.90 avgMin=76
+  over_6.5             win   cnt=  3 avgConf=6.7 avgOdds=1.67 avgMin=72
+  over_7.5             win   cnt=  1 avgConf=5.0 avgOdds=1.93 avgMin=80
+  over_8.5             win   cnt=  1 avgConf=6.0 avgOdds=1.62 avgMin=76
+  over_9               loss  cnt=  1 avgConf=6.0 avgOdds=2.00 avgMin=81
+  over_96              loss  cnt=  1 avgConf=7.0 avgOdds=2.25 avgMin=26
+  under_0.5            loss  cnt=  4 avgConf=6.0 avgOdds=1.87 avgMin=73
+  under_0.5            win   cnt=  9 avgConf=6.6 avgOdds=1.69 avgMin=77
+  under_12             win   cnt=  1 avgConf=8.0 avgOdds=3.75 avgMin=83
+  under_1.5            loss  cnt=  3 avgConf=6.3 avgOdds=1.86 avgMin=73
+  under_1.5            win   cnt= 11 avgConf=6.0 avgOdds=1.79 avgMin=75
+  under_2.25           win   cnt=  1 avgConf=7.0 avgOdds=1.97 avgMin=68
+  under_2.5            loss  cnt=  5 avgConf=6.8 avgOdds=1.90 avgMin=72
+  under_2.5            win   cnt=  8 avgConf=6.0 avgOdds=1.77 avgMin=77
+  under_3.25           win   cnt=  1 avgConf=6.0 avgOdds=1.88 avgMin=66
+  under_3.5            loss  cnt=  7 avgConf=6.1 avgOdds=1.77 avgMin=77
+  under_3.5            win   cnt=  6 avgConf=6.0 avgOdds=1.97 avgMin=75
+  under_4.0            win   cnt=  1 avgConf=8.0 avgOdds=4.00 avgMin=76
+  under_4.5            loss  cnt=  2 avgConf=6.0 avgOdds=1.85 avgMin=77
+  under_4.5            win   cnt=  2 avgConf=6.0 avgOdds=1.83 avgMin=82
+  under_5.25           win   cnt=  1 avgConf=7.0 avgOdds=1.75 avgMin=73
+  under_5.5            loss  cnt=  1 avgConf=6.0 avgOdds=1.50 avgMin=84
+  under_6              win   cnt=  1 avgConf=7.0 avgOdds=3.40 avgMin=81
+
+=== OVERALL SUMMARY ===
+  Total recs: 1103 | Settled: 1086 | W: 546 | L: 540 | Win Rate: 50.3% | Total PnL: -251.20

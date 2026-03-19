@@ -34,7 +34,32 @@
       "Bash(curl -s -X DELETE http://localhost:4000/api/watchlist/test123 -H \"Content-Type: application/json\" -w \"\\\\nHTTP_STATUS:%{http_code}\")",
       "Bash(curl -s http://localhost:4000/api/watchlist)",
       "Bash(curl -s -X DELETE http://localhost:4000/api/watchlist/1530918 -H \"Accept: application/json\" -w \"\\\\nHTTP_STATUS:%{http_code}\")",
-      "Read(//dev/**)"
+      "Read(//dev/**)",
+      "Bash(grep -r \"width.*[0-9]\\\\{3,\\\\}px\\\\|height.*[0-9]\\\\{3,\\\\}px\\\\|gridTemplateColumns.*[0-9]\\\\{2,\\\\}px\\\\|overflow.*hidden\\\\|grid.*fixed\" /c/tfi/src --include=\"*.tsx\" --include=\"*.ts\")",
+      "Read(//c/vocs/**)",
+      "Bash(xargs grep:*)",
+      "Bash(find /c/vocs -name *.prisma -o -name schema.prisma)",
+      "Bash(grep -r \"fetch\\\\|new URL\\\\|axios\\\\|http\" /c/tfi/packages/server/src/lib/*.ts)",
+      "WebSearch",
+      "WebFetch(domain:playwright.dev)",
+      "WebFetch(domain:dev.to)",
+      "Bash(npm install:*)",
+      "Bash(npx playwright:*)",
+      "Bash(findstr :3000)",
+      "Bash(taskkill /PID 30224 /F)",
+      "Bash(cmd /c \"taskkill /PID 30224 /F\")",
+      "Bash(cmd /c taskkill /F /PID 30224)",
+      "Bash(cmd /c \"tasklist /FI \"\"PID eq 30224\"\" 2>&1\")",
+      "Bash(cmd /c \"tasklist /FI \"\"PID eq 30224\"\"\")",
+      "Bash(cmd /c tasklist /FI \"PID eq 30224\")",
+      "Bash(echo \"exit: $?\")",
+      "Bash(cmd /c \"for /f \"\"tokens=5\"\" %a in \\(''netstat -aon ^| find \"\":3000\"\" ^| find \"\"LISTENING\"\"''\\) do taskkill /F /PID %a\")",
+      "Bash(npx --yes kill-port 3000)",
+      "Bash(for f:*)",
+      "Bash(do)",
+      "Bash(echo \"=== $f ===\")",
+      "Bash(done)",
+      "Bash(head -20 grep -i \"columnheader\\\\|League\\\\|Match\\\\|Selection\" c:/tfi/test-results/recommendations-Recommendations-shows-table-column-headers-chromium/error-context.md)"
     ]
   }
 }

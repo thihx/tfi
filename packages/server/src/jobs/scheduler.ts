@@ -16,6 +16,7 @@ import { checkLiveTriggerJob } from './check-live-trigger.job.js';
 import { autoSettleJob } from './auto-settle.job.js';
 import { enrichWatchlistJob } from './enrich-watchlist.job.js';
 import { purgeAuditJob } from './purge-audit.job.js';
+import { integrationHealthJob } from './integration-health.job.js';
 import {
   type JobProgress,
   clearJobProgress,
@@ -164,6 +165,7 @@ export async function startScheduler() {
   register('auto-settle', config.jobAutoSettleMs, autoSettleJob);
   register('expire-watchlist', config.jobExpireWatchlistMs, expireWatchlistJob);
   register('purge-audit', config.jobAuditPurgeMs, purgeAuditJob);
+  register('integration-health', config.jobIntegrationHealthMs, integrationHealthJob);
 
   // Restore state from Redis
   for (const job of jobs) {

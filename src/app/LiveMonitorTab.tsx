@@ -529,36 +529,41 @@ export function LiveMonitorTab() {
                 </div>
               </div>
 
-              {/* Column headers */}
-              <div style={{
-                display: 'grid',
-                gridTemplateColumns: '8px 1fr 140px 80px 120px 80px 80px 28px',
-                gap: '12px',
-                padding: '8px 16px',
-                background: 'var(--gray-50)',
-                borderBottom: '1px solid var(--gray-200)',
-              }}>
-                <span />
-                <span style={{ fontSize: '11px', fontWeight: 600, color: 'var(--gray-400)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Match</span>
-                <span style={{ fontSize: '11px', fontWeight: 600, color: 'var(--gray-400)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Confidence</span>
-                <span style={{ fontSize: '11px', fontWeight: 600, color: 'var(--gray-400)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Risk</span>
-                <span style={{ fontSize: '11px', fontWeight: 600, color: 'var(--gray-400)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Selection</span>
-                <span style={{ fontSize: '11px', fontWeight: 600, color: 'var(--gray-400)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Odds</span>
-                <span style={{ fontSize: '11px', fontWeight: 600, color: 'var(--gray-400)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Stake</span>
-                <span />
-              </div>
+              {/* Scrollable table body */}
+              <div style={{ overflowX: 'auto' }}>
+                <div style={{ minWidth: '700px' }}>
+                  {/* Column headers */}
+                  <div style={{
+                    display: 'grid',
+                    gridTemplateColumns: '8px 1fr 140px 80px 120px 80px 80px 28px',
+                    gap: '12px',
+                    padding: '8px 16px',
+                    background: 'var(--gray-50)',
+                    borderBottom: '1px solid var(--gray-200)',
+                  }}>
+                    <span />
+                    <span style={{ fontSize: '11px', fontWeight: 600, color: 'var(--gray-400)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Match</span>
+                    <span style={{ fontSize: '11px', fontWeight: 600, color: 'var(--gray-400)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Confidence</span>
+                    <span style={{ fontSize: '11px', fontWeight: 600, color: 'var(--gray-400)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Risk</span>
+                    <span style={{ fontSize: '11px', fontWeight: 600, color: 'var(--gray-400)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Selection</span>
+                    <span style={{ fontSize: '11px', fontWeight: 600, color: 'var(--gray-400)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Odds</span>
+                    <span style={{ fontSize: '11px', fontWeight: 600, color: 'var(--gray-400)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Stake</span>
+                    <span />
+                  </div>
 
-              {/* Rows — sorted: has play first */}
-              {[...ctx.results]
-                .sort((a, b) => {
-                  const aPlay = a.parsedAi?.ai_selection ? 1 : 0;
-                  const bPlay = b.parsedAi?.ai_selection ? 1 : 0;
-                  return bPlay - aPlay;
-                })
-                .map((r, i) => (
-                  <MatchResultRow key={r.matchId || i} result={r} />
-                ))
-              }
+                  {/* Rows — sorted: has play first */}
+                  {[...ctx.results]
+                    .sort((a, b) => {
+                      const aPlay = a.parsedAi?.ai_selection ? 1 : 0;
+                      const bPlay = b.parsedAi?.ai_selection ? 1 : 0;
+                      return bPlay - aPlay;
+                    })
+                    .map((r, i) => (
+                      <MatchResultRow key={r.matchId || i} result={r} />
+                    ))
+                  }
+                </div>
+              </div>
             </div>
           ) : ctx ? (
             <div className="card">

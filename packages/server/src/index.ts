@@ -26,6 +26,7 @@ import { aiPerformanceRoutes } from './routes/ai-performance.routes.js';
 import { reportRoutes } from './routes/reports.routes.js';
 import { settingsRoutes } from './routes/settings.routes.js';
 import { auditLogRoutes } from './routes/audit-logs.routes.js';
+import { integrationsRoutes } from './routes/integrations.routes.js';
 import { startScheduler, stopScheduler } from './jobs/scheduler.js';
 import { authRoutes } from './routes/auth.routes.js';
 import { verifyToken } from './lib/jwt.js';
@@ -116,6 +117,7 @@ await app.register(aiPerformanceRoutes);
 await app.register(reportRoutes);
 await app.register(settingsRoutes);
 await app.register(auditLogRoutes);
+await app.register(integrationsRoutes);
 
 // Health check
 app.get('/api/health', async () => ({ status: 'ok', timestamp: new Date().toISOString() }));

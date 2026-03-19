@@ -65,6 +65,13 @@ export function buildAiPrompt(data: MergedMatchData, context?: AiPromptContext):
       ? data.current_total_goals
       : 'unknown';
 
+  // Compute current total corners from stats_compact for corner feasibility analysis
+  const cornersHome = parseInt(String(statsCompact?.corners?.home ?? ''), 10);
+  const cornersAway = parseInt(String(statsCompact?.corners?.away ?? ''), 10);
+  const currentTotalCorners = !isNaN(cornersHome) && !isNaN(cornersAway)
+    ? cornersHome + cornersAway
+    : 'unknown';
+
   const oddsCanonical = data.odds_canonical || {};
   const eventsCompact = Array.isArray(data.events_compact) ? data.events_compact : [];
   const derivedInsights = data.derived_insights || null;
@@ -303,6 +310,7 @@ ${JSON.stringify(oddsCanonical)}
 ODDS_AVAILABLE: ${oddsAvailable}
 ODDS_SOURCE: ${data.odds_source || 'live'}
 CURRENT_TOTAL_GOALS: ${currentTotalGoals}
+CURRENT_TOTAL_CORNERS: ${currentTotalCorners}
 ${data.odds_source === 'pre-match' ? `\nℹ️ These are PRE-MATCH opening odds (set before kickoff). Live odds are not available for this league/match.\nUse these as REFERENCE for market direction and value assessment, but note they do NOT reflect the current game state.\nYou CAN still make recommendations using these odds as a baseline — adjust your confidence based on how the match has evolved.` : ''}${oddsSuspicious ? `\n⚠️ ODDS SANITY CHECK FAILED:\n${oddsSanityWarnings.map((w) => '• ' + w).join('\n')}\nTreat ALL odds as UNRELIABLE. Behave as if ODDS_AVAILABLE = false.` : ''}
 
 ========================
@@ -353,6 +361,27 @@ GOALS REMAINING CALCULATION (MANDATORY FOR O/U):
   - goalsPerMinuteNeeded > 0.15 (e.g., need 3+ goals in 20 min) → VERY HIGH RISK, should_push = false
 - For Under bets: check that current goals count already makes the line reachable or not.
 - You MUST reference this calculation in reasoning_en and reasoning_vi.
+
+CORNERS REMAINING CALCULATION (MANDATORY FOR CORNERS O/U):
+- Before recommending any Corners Over/Under market, you MUST calculate:
+  - currentTotalCorners = corners_home + corners_away (from stats_compact, or use CURRENT_TOTAL_CORNERS above)
+  - cornersNeeded = line - currentTotalCorners (for Corners Over bets)
+  - minutesRemaining = 90 - currentMinute
+  - cornerTempoSoFar = currentTotalCorners / currentMinute (corners per minute this match)
+  - cornersPerMinuteNeeded = cornersNeeded / minutesRemaining
+- Feasibility check (MANDATORY):
+  - If cornersPerMinuteNeeded > cornerTempoSoFar × 1.5 → UNREALISTIC, should_push = false
+    (Example: match tempo is 0.11 corners/min but needs 0.17/min → exceeds 1.5× tempo)
+  - If cornersNeeded >= 3 AND minutesRemaining <= 20 → should_push = false
+    (3+ corners in 20 min is exceptional even in high-corner matches)
+  - If cornersNeeded >= 2 AND minutesRemaining <= 10 → should_push = false
+- Corner tempo context:
+  - Average match: ~10-11 total corners (~0.11-0.12 per minute)
+  - High-corner match: ~14+ corners (~0.15+ per minute)
+  - Low-corner match: ~7 corners (~0.08 per minute)
+  - Corner frequency typically DECREASES in late game (75+) due to time-wasting and defensive play
+- For Corners Under bets: verify current total doesn't already exceed the line.
+- You MUST reference this calculation in reasoning_en and reasoning_vi for any corners market.
 
 SHOT QUALITY RATIO:
 - Calculate: shotQualityRatio = shots_on_target / total_shots (per team)
@@ -678,13 +707,76 @@ RISK LEVEL DISCIPLINE (HIGH risk = 33.3% win rate):
 - MEDIUM risk (50.6%) is acceptable but requires all other rules to pass.
 - LOW risk (64.3%) is your sweet spot — aim for LOW risk recommendations.
 
+CORNERS MARKET DISCIPLINE:
+- Corner markets are inherently volatile — corner counts can stall for long periods then burst.
+- NEVER recommend Corners Over when cornersPerMinuteNeeded > cornerTempoSoFar × 1.5.
+- After minute 75: Corners Over requires cornersNeeded <= 1 (i.e., almost already hit).
+- After minute 80: should_push = false for any Corners Over market.
+- Corners Under is generally safer late — but verify current total is still below the line.
+- Add warning "CORNERS_FEASIBILITY: [tempo/needed analysis]" for any corners recommendation.
+
 SCORE 0-0 RULE (156 losses = #1 loss scenario):
 - When the current score is 0-0:
   - Both teams have FAILED to score so far — this is information, not noise.
-  - After minute 55 with score 0-0: PREFER Under markets over any other market.
-  - After minute 65 with score 0-0: under_2.5 or under_1.5 are statistically favorable.
-  - DO NOT recommend 1x2_home or Over 2.5+ at 0-0 after minute 55 unless evidence is
-    truly extraordinary (recent goal disallowed, penalty pending, etc.).
+  - After minute 55 with score 0-0: PREFER GOALS Under markets (under_2.5, under_1.5, under_0.5).
+    "Under" here means GOALS under, NOT corners_under or any other under market.
+  - After minute 65 with score 0-0: under_2.5 or under_1.5 are the statistically preferred markets.
+  - DO NOT recommend 1x2_home, Over 2.5+, or corners markets at 0-0 after minute 55 unless
+    evidence is truly extraordinary (recent goal disallowed, penalty pending, etc.).
+
+BTTS YES DISCIPLINE (54.5% win rate, PnL -4.55 — break-even trap):
+- BTTS Yes has 54.5% win rate but NEGATIVE PnL. The avg odds (~1.83) require 54.6% to break even.
+  This means BTTS Yes has ZERO edge at average odds — you are betting at exactly the break-even rate.
+- MANDATORY BREAK-EVEN CHECK for BTTS Yes:
+  - Calculate break_even_rate = 1 / odds (e.g., 1/1.83 = 54.6%)
+  - Your estimated probability MUST EXCEED break_even_rate by at least 5% to justify the bet.
+  - If estimated_probability <= break_even_rate + 5% → should_push = false.
+  - Add warning: "BTTS_YES_BREAKEVEN: Break-even rate {X}%, my estimate {Y}%, edge {Z}%."
+- BTTS Yes at odds >= 2.00: historical win rate drops to near 0% profitability. AVOID.
+  If odds >= 2.00 for BTTS Yes → should_push = false unless ALL of:
+    - Both teams have shots_on_target >= 2
+    - Both teams have shown attacking patterns (not just possession)
+    - minute >= 30 (enough data to assess)
+    - You explicitly justify why BOTH teams can score
+- BTTS Yes ANTI-PATTERN — "Pressure ≠ Goals":
+  - One team dominating does NOT mean BOTH teams score.
+  - For BTTS Yes, you need evidence that BOTH teams are dangerous:
+    - Check shots_on_target for EACH team independently
+    - Check if the weaker team has ANY attacking signals (counter-attacks, shots, corners)
+    - If weaker team has 0 shots_on_target → BTTS Yes is unjustified, should_push = false
+- BTTS Yes with score 0-0 after minute 60:
+  - Neither team has scored → BTTS Yes requires BOTH teams to score, which is even harder.
+  - REDUCE confidence by 2 for BTTS Yes at 0-0 after minute 60.
+  - Prefer Under markets instead.
+
+BTTS NO DISCIPLINE (55.5% win rate, PnL -39.46 — worst BTTS market):
+- BTTS No has 55.5% win rate but PnL is -39.46, your WORST BTTS market by PnL.
+  The problem: BTTS No odds are typically too low (avg ~1.65) to compensate for losses.
+  Break-even at 1.65 odds = 60.6% — you are 5% SHORT of break-even.
+- BTTS No is ALREADY restricted by 1X2 & BTTS No caution rules above.
+  Additional restrictions based on data:
+  - BTTS No requires odds >= 1.70 (below this, mathematically unprofitable).
+  - BTTS No when BOTH teams have shots_on_target >= 2: should_push = false.
+    Both teams are proving they can hit the target → BTTS No is risky.
+  - BTTS No is ONLY justified when:
+    - Score gap >= 2 (e.g., 2-0, 3-1) — trailing team likely chasing, conceding shape
+    - OR minute >= 70 AND one team has 0 shots_on_target → that team genuinely cannot score
+    - OR minute >= 75 AND score shows exactly one team scoring (X-0 or 0-X)
+  - Add warning: "BTTS_NO_RISK: Historical PnL is -39.46 despite 55.5% win rate due to low odds."
+
+BREAK-EVEN CALCULATION (MANDATORY FOR ALL RECOMMENDATIONS):
+- BEFORE recommending ANY market with should_push = true, you MUST:
+  1. Calculate break_even_rate = 1 / odds × 100 (e.g., odds 1.85 → 54.1%)
+  2. Estimate your TRUE probability of the bet winning (be honest, not optimistic)
+  3. Calculate edge = estimated_probability - break_even_rate
+  4. If edge < 3% → the bet has insufficient value → should_push = false
+  5. You MUST include this EXACT text format in reasoning_en for EVERY recommendation
+     where should_push = true: "Break-even: X%, My estimate: Y%, Edge: Z%"
+     This is NON-NEGOTIABLE. If this text is missing, the recommendation is INVALID.
+- This prevents the #1 systematic error: recommending bets where you are right >50%
+  of the time but still lose money because odds don't compensate.
+- Historical validation: confidence 5 → 40% win rate, 6 → 50.2%, 7 → 51.2%, 8 → 57.1%
+  Map your confidence to these actual win rates when estimating probability.
 
 ============================================================
 STRICT MODE — MARKET VALIDATION & SAFETY RULES
@@ -929,6 +1021,10 @@ For FORCE MODE with non-live status (HT/NS/FT): should_push = false but provide 
 6. Did I fill market_chosen_reason with specific stat values?
 7. Did I evaluate custom_conditions independently from should_push?
 8. Did I check RECOMMENDED_CONDITION and note if live data confirms or contradicts it?
+9. For any CORNERS O/U recommendation: did I calculate cornersNeeded, cornerTempoSoFar, and cornersPerMinuteNeeded?
+10. BREAK-EVEN CHECK: Did I calculate 1/odds and compare to my estimated probability? Is edge >= 3%?
+11. BTTS YES: Did I verify BOTH teams have attacking evidence (shots_on_target >= 1 each)? Is estimated_probability > break_even_rate + 5%?
+12. BTTS NO: Did I verify odds >= 1.70? Did I check that opponent shots_on_target < 2? Is there a score gap or clean sheet pattern?
 `;
 
   // Evict oldest entry when cache is full (FIFO, avoids clearing all warm entries)

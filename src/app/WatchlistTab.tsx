@@ -354,7 +354,7 @@ export function WatchlistTab() {
               <label>Match:</label>
               <input type="text" readOnly value={`${editItem.home_team} vs ${editItem.away_team}`} />
             </div>
-            <div className="form-row" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '12px' }}>
+            <div className="form-row" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(min(100%, 160px), 1fr))', gap: '12px' }}>
               <div className="form-group">
                 <label>Mode:</label>
                 <select value={editMode} onChange={(e) => setEditMode(e.target.value)}>

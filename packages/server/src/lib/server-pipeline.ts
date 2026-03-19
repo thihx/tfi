@@ -975,6 +975,13 @@ function buildServerPrompt(data: {
   const VERY_LATE_PHASE_MINUTE = settings.veryLatePhaseMinute;
   const ENDGAME_MINUTE = settings.endgameMinute;
 
+  // Compute current total corners from stats_compact
+  const cornersHome = parseInt(String(data.statsCompact?.corners?.home ?? ''), 10);
+  const cornersAway = parseInt(String(data.statsCompact?.corners?.away ?? ''), 10);
+  const currentTotalCorners = !isNaN(cornersHome) && !isNaN(cornersAway)
+    ? cornersHome + cornersAway
+    : 'unknown';
+
   // Check incomplete markets
   const incompleteMarkets: string[] = [];
   const oc = data.oddsCanonical;
@@ -1086,6 +1093,7 @@ ODDS_AVAILABLE: ${data.oddsAvailable}
 ODDS_SOURCE: ${data.oddsSource}
 ODDS_FETCHED_AT: ${data.oddsFetchedAt ?? 'unknown'} (match minute at fetch: ${data.minute})
 CURRENT_TOTAL_GOALS: ${data.currentTotalGoals}
+CURRENT_TOTAL_CORNERS: ${currentTotalCorners}
 ${data.oddsSource === 'pre-match' ? '\nCAUTION: These are PRE-MATCH opening odds fetched before kickoff. They do NOT reflect current in-play situation. Use only as directional reference — do NOT base stake/confidence on these odds alone.\n' : ''}${data.oddsSource === 'the-odds-api' ? '\nNOTE: These odds are from The Odds API (fallback). They may have slight delay vs Football API live odds.\n' : ''}
 ODDS METHODOLOGY:
 - Odds are the BEST available across multiple bookmakers (highest price per outcome).
@@ -1161,8 +1169,31 @@ MARKET SELECTION:
 - Odds >= 2.50: confidence cap 6, stake cap 3%.
 - Before minute 30: early game caution, 1X2 should_push=false before minute 35.
 - Over 3.5+: need current goals >= line-1 or clearly open match.
-- Score 0-0 after minute 55: prefer Under markets.
+- CORNERS O/U: MUST calculate cornerTempoSoFar, cornersNeeded, cornersPerMinuteNeeded.
+  - If cornersPerMinuteNeeded > cornerTempoSoFar × 1.5 → should_push = false.
+  - If cornersNeeded >= 3 AND minutesRemaining <= 20 → should_push = false.
+  - After minute 75: Corners Over requires cornersNeeded <= 1.
+  - After minute 80: should_push = false for any Corners Over.
+- Score 0-0 after minute 55: prefer GOALS Under markets (under_2.5, under_1.5). NOT corners_under.
 - risk_level = HIGH → should_push = false.
+
+BTTS RULES (DATA-DRIVEN):
+- BTTS YES: 54.5% win rate but PnL -4.55 (break-even trap at avg odds ~1.83).
+  - MANDATORY: Calculate break_even_rate = 1/odds. Estimated probability must exceed break_even_rate + 5%.
+  - Odds >= 2.00 for BTTS Yes → should_push = false unless BOTH teams have shots_on_target >= 2.
+  - "Pressure ≠ Goals": Need evidence BOTH teams are dangerous. If weaker team has 0 SOT → no BTTS Yes.
+  - Score 0-0 after minute 60: reduce confidence by 2 for BTTS Yes, prefer Under.
+- BTTS NO: 55.5% win rate but PnL -39.46 (worst BTTS market, odds too low).
+  - Requires odds >= 1.70 (below = mathematically unprofitable).
+  - If BOTH teams have shots_on_target >= 2 → should_push = false for BTTS No.
+  - Only justified: score gap >= 2, OR minute >= 70 + one team has 0 SOT, OR minute >= 75 + clean sheet.
+
+BREAK-EVEN CHECK (MANDATORY FOR ALL):
+- Before recommending ANY market: break_even_rate = 1/odds × 100.
+- Estimated probability must exceed break_even_rate by >= 3% (edge >= 3%).
+- If edge < 3% → should_push = false.
+- MUST include EXACT text in reasoning_en: "Break-even: X%, My estimate: Y%, Edge: Z%" — NON-NEGOTIABLE.
+- Reference: confidence 5→40%, 6→50.2%, 7→51.2%, 8→57.1% actual win rates.
 
 ODDS RULES:
 - Treat odds exactly as provided, no adjustments.

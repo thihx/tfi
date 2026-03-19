@@ -324,7 +324,8 @@ export function BetTrackerTab() {
           ) : (
             <>
             <Pagination currentPage={safePage} totalPages={totalPages} onPageChange={setPage} />
-            <table>
+            <div style={{ overflowX: 'auto' }}>
+            <table style={{ minWidth: '700px' }}>
               <thead>
                 <tr>
                   <th style={{ width: '110px' }}>Placed</th>
@@ -376,6 +377,7 @@ export function BetTrackerTab() {
                 })}
               </tbody>
             </table>
+            </div>
             </>
           )}
         </div>

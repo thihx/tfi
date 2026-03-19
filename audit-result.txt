@@ -1,0 +1,137 @@
+﻿
+[1m[46m RUN [49m[22m [36mv3.2.4 [39m[90mC:/tfi[39m
+
+ [32mΓ£ô[39m src/features/live-monitor/__tests__/ai-prompt-audit.test.ts[2m > [22mAI Prompt Audit ΓÇö Data-Driven Rules[2m > [22mBTTS-Y1: BTTS Yes at odds >= 2.00 ΓÇö should reject or heavily caveat[33m 33349[2mms[22m[39m
+ [32mΓ£ô[39m src/features/live-monitor/__tests__/ai-prompt-audit.test.ts[2m > [22mAI Prompt Audit ΓÇö Data-Driven Rules[2m > [22mBTTS-Y2: BTTS Yes ΓÇö opposing team has 0 SOT (pressure Γëá goals)[33m 23309[2mms[22m[39m
+ [32mΓ£ô[39m src/features/live-monitor/__tests__/ai-prompt-audit.test.ts[2m > [22mAI Prompt Audit ΓÇö Data-Driven Rules[2m > [22mBTTS-Y3: BTTS Yes at 0-0 after minute 60 ΓÇö confidence reduced[33m 34990[2mms[22m[39m
+ [32mΓ£ô[39m src/features/live-monitor/__tests__/ai-prompt-audit.test.ts[2m > [22mAI Prompt Audit ΓÇö Data-Driven Rules[2m > [22mBTTS-Y4: Valid BTTS Yes ΓÇö both teams attacking, good odds range[33m 35183[2mms[22m[39m
+ [32mΓ£ô[39m src/features/live-monitor/__tests__/ai-prompt-audit.test.ts[2m > [22mAI Prompt Audit ΓÇö Data-Driven Rules[2m > [22mBTTS-N1: BTTS No at odds < 1.70 ΓÇö mathematically unprofitable[33m 29844[2mms[22m[39m
+ [32mΓ£ô[39m src/features/live-monitor/__tests__/ai-prompt-audit.test.ts[2m > [22mAI Prompt Audit ΓÇö Data-Driven Rules[2m > [22mBTTS-N2: BTTS No when both teams have SOT >= 2 ΓÇö risky[33m 27694[2mms[22m[39m
+ [32mΓ£ô[39m src/features/live-monitor/__tests__/ai-prompt-audit.test.ts[2m > [22mAI Prompt Audit ΓÇö Data-Driven Rules[2m > [22mBTTS-N3: Valid BTTS No ΓÇö minute 78, score 2-0, opponent 0 SOT[33m 32085[2mms[22m[39m
+ [32mΓ£ô[39m src/features/live-monitor/__tests__/ai-prompt-audit.test.ts[2m > [22mAI Prompt Audit ΓÇö Data-Driven Rules[2m > [22mBE-1: Break-even calculation mentioned in reasoning[33m 31005[2mms[22m[39m
+ [32mΓ£ô[39m src/features/live-monitor/__tests__/ai-prompt-audit.test.ts[2m > [22mAI Prompt Audit ΓÇö Data-Driven Rules[2m > [22mOC-1: High odds >= 2.50 ΓÇö confidence capped at 6[33m 18511[2mms[22m[39m
+ [32mΓ£ô[39m src/features/live-monitor/__tests__/ai-prompt-audit.test.ts[2m > [22mAI Prompt Audit ΓÇö Data-Driven Rules[2m > [22m1X2-H1: 1x2_home before minute 35 ΓÇö NEVER recommend[33m 24832[2mms[22m[39m
+ [32mΓ£ô[39m src/features/live-monitor/__tests__/ai-prompt-audit.test.ts[2m > [22mAI Prompt Audit ΓÇö Data-Driven Rules[2m > [22mDR-1: Draw before minute 70 ΓÇö should not recommend[33m 22337[2mms[22m[39m
+ [32mΓ£ô[39m src/features/live-monitor/__tests__/ai-prompt-audit.test.ts[2m > [22mAI Prompt Audit ΓÇö Data-Driven Rules[2m > [22mEG-1: Before minute 30 ΓÇö restricted recommendations[33m 30595[2mms[22m[39m
+ [32mΓ£ô[39m src/features/live-monitor/__tests__/ai-prompt-audit.test.ts[2m > [22mAI Prompt Audit ΓÇö Data-Driven Rules[2m > [22mVP-1: High value_percent > 20% ΓÇö should be recalibrated[33m 25976[2mms[22m[39m
+ [32mΓ£ô[39m src/features/live-monitor/__tests__/ai-prompt-audit.test.ts[2m > [22mAI Prompt Audit ΓÇö Data-Driven Rules[2m > [22mPB-1: Sterile dominance ΓÇö 70% possession, 2/14 SOT, score 0-0[33m 19685[2mms[22m[39m
+ [32mΓ£ô[39m src/features/live-monitor/__tests__/ai-prompt-audit.test.ts[2m > [22mAI Prompt Audit ΓÇö Data-Driven Rules[2m > [22mZ0-1: Score 0-0 at minute 70 ΓÇö Under preferred[33m 25517[2mms[22m[39m
+ [32mΓ£ô[39m src/features/live-monitor/__tests__/ai-prompt-audit.test.ts[2m > [22mAI Prompt Audit ΓÇö Data-Driven Rules[2m > [22mRL-1: High risk assessment ΓÇö should_push = false[33m 24867[2mms[22m[39m
+ [32mΓ£ô[39m src/features/live-monitor/__tests__/ai-prompt-audit.test.ts[2m > [22mAI Prompt Audit ΓÇö Data-Driven Rules[2m > [22mCO-1: Corners Over after minute 80 ΓÇö must reject[33m 31382[2mms[22m[39m
+ [32mΓ£ô[39m src/features/live-monitor/__tests__/ai-prompt-audit.test.ts[2m > [22mAI Prompt Audit ΓÇö Data-Driven Rules[2m > [22mO35-1: Over 3.5 with 1 goal at minute 60 ΓÇö not feasible[33m 23221[2mms[22m[39m
+ [32mΓ£ô[39m src/features/live-monitor/__tests__/ai-prompt-audit.test.ts[2m > [22mAI Prompt Audit ΓÇö Data-Driven Rules[2m > [22mRC-1: Red card detected ΓÇö triggers RED_CARD_PROTOCOL[33m 23163[2mms[22m[39m
+ [32mΓ£ô[39m src/features/live-monitor/__tests__/ai-prompt-audit.test.ts[2m > [22mAI Prompt Audit ΓÇö Data-Driven Rules[2m > [22mEND-1: Endgame minute 89 ΓÇö very conservative[33m 30076[2mms[22m[39m
+ [32mΓ£ô[39m src/features/live-monitor/__tests__/ai-prompt-audit.test.ts[2m > [22mAI Prompt Audit ΓÇö Data-Driven Rules[2m > [22mOI-1: Suspicious odds ΓÇö contradicting match state[33m 18912[2mms[22m[39m
+ [32mΓ£ô[39m src/features/live-monitor/__tests__/ai-prompt-audit.test.ts[2m > [22mAI Prompt Audit ΓÇö Data-Driven Rules[2m > [22mMO-1: All odds below MIN_ODDS (1.50) ΓÇö should not push[33m 25576[2mms[22m[39m
+ [32mΓ£ô[39m src/features/live-monitor/__tests__/ai-prompt-audit.test.ts[2m > [22mAI Prompt Audit ΓÇö Data-Driven Rules[2m > [22mLG-1: Very late phase min 86 ΓÇö exceptional only[33m 30084[2mms[22m[39m
+ [32mΓ£ô[39m src/features/live-monitor/__tests__/ai-prompt-audit.test.ts[2m > [22mAI Prompt Audit ΓÇö Data-Driven Rules[2m > [22mCC-1: Custom condition met independently from should_push[33m 24634[2mms[22m[39m
+[90mstdout[2m | src/features/live-monitor/__tests__/ai-prompt-audit.test.ts[2m > [22m[2mAI Prompt Audit ΓÇö Data-Driven Rules[2m > [22m[2m=== FINAL REPORT ===
+[22m[39m
+================================================================================
+AI PROMPT AUDIT REPORT
+================================================================================
+
+Total Rules Tested: 25
+Passed: 23 (92%)
+Failed: 2 (8%)
+
+----------------------------------------
+FAILED RULES:
+----------------------------------------
+
+Γ¥î BE-1 ΓÇö Break-even calculation in reasoning
+   Details: AI did NOT mention break-even calculation ΓÇö rule not followed
+   AI Response: push=true, market=over_2.5, conf=7, stake=4%
+   Warnings: none
+
+Γ¥î Z0-1 ΓÇö 0-0 at min 70 ΓÇö Under preferred
+   Details: AI recommended corners_under_9.5 instead of Under at 0-0 minute 70
+   AI Response: push=true, market=corners_under_9.5, conf=7, stake=4%
+   Warnings: CORNERS_FEASIBILITY: Current corner tempo is 0.0857 corners/min. With 20 minutes remaining, it is highly probable to stay under 9.5 total corners.
+
+----------------------------------------
+PASSED RULES:
+----------------------------------------
+
+Γ£à BTTS-Y1 ΓÇö BTTS Yes at odds >= 2.00 with weak away attack
+   Details: Correctly avoided BTTS Yes
+
+Γ£à BTTS-Y2 ΓÇö BTTS Yes when opposing team has 0 SOT
+   Details: Correctly avoided BTTS Yes
+
+Γ£à BTTS-Y3 ΓÇö BTTS Yes at 0-0 after minute 60
+   Details: Correctly avoided BTTS Yes at 0-0
+
+Γ£à BTTS-Y4 ΓÇö Valid BTTS Yes scenario ΓÇö both teams attacking
+   Details: AI decision: should_push=true, market=corners_over_9.5. Mentions both teams: true
+
+Γ£à BTTS-N1 ΓÇö BTTS No at odds < 1.50 (MIN_ODDS)
+   Details: Correctly rejected BTTS No at low odds
+
+Γ£à BTTS-N2 ΓÇö BTTS No when both teams have SOT >= 2
+   Details: Correctly avoided BTTS No
+
+Γ£à BTTS-N3 ΓÇö Valid BTTS No scenario but odds below MIN_ODDS
+   Details: AI decision: should_push=true, market=ah_home_-0.5. BTTS No odds 1.28 < MIN_ODDS 1.50.
+
+Γ£à OC-1 ΓÇö Odds >= 2.50 ΓåÆ confidence cap 6, stake cap 3
+   Details: AI correctly did not push ΓÇö high odds risk acknowledged
+
+Γ£à 1X2-H1 ΓÇö 1x2_home before minute 35
+   Details: Correctly avoided 1x2_home early
+
+Γ£à DR-1 ΓÇö Draw before minute 70
+   Details: Correctly avoided Draw
+
+Γ£à EG-1 ΓÇö Early game (min 18) ΓÇö restricted
+   Details: AI recommended corners_over_9.5, conf=6
+
+Γ£à VP-1 ΓÇö Value > 20% recalibrated
+   Details: Value percent: 8.5 (within acceptable range or no push)
+
+Γ£à PB-1 ΓÇö Sterile dominance ΓÇö no Over or 1x2_home
+   Details: Correctly avoided possession bias trap
+
+Γ£à RL-1 ΓÇö HIGH risk ΓåÆ should_push = false
+   Details: Risk level assessed as LOW ΓÇö not HIGH, test not strictly applicable
+
+Γ£à CO-1 ΓÇö Corners Over after minute 80
+   Details: Correctly avoided Corners Over after minute 80
+
+Γ£à O35-1 ΓÇö Over 3.5 with only 1 goal ΓÇö not feasible
+   Details: Correctly avoided Over 3.5
+
+Γ£à RC-1 ΓÇö Red card ΓÇö mentioned in reasoning/warnings
+   Details: AI correctly identified red card
+
+Γ£à END-1 ΓÇö Endgame min 89 ΓÇö max stake 2%
+   Details: Stake: 2% (max 2%: true)
+
+Γ£à OI-1 ΓÇö Suspicious odds ΓÇö should flag
+   Details: AI correctly flagged suspicious odds
+
+Γ£à MO-1 ΓÇö Min odds filter ΓÇö selected odds >= 1.50
+   Details: AI correctly did not push ΓÇö most odds below MIN_ODDS
+
+Γ£à LG-1 ΓÇö Very late phase ΓÇö max stake 3%
+   Details: Stake: 3% at minute 86
+
+Γ£à CC-1 ΓÇö Custom condition evaluated independently
+   Details: status=evaluated, matched=true, should_push=true
+
+Γ£à TRAP-1 ΓÇö Combined trap ΓÇö avoids all pitfalls
+   Details: Correct: AI recommended under_2.5
+
+================================================================================
+END OF REPORT
+================================================================================
+
+
+ [32mΓ£ô[39m src/features/live-monitor/__tests__/ai-prompt-audit.test.ts[2m > [22mAI Prompt Audit ΓÇö Data-Driven Rules[2m > [22mTRAP-1: Combined trap ΓÇö possession + 0-0 + BTTS Yes temptation[33m 26681[2mms[22m[39m
+ [32mΓ£ô[39m src/features/live-monitor/__tests__/ai-prompt-audit.test.ts[2m > [22mAI Prompt Audit ΓÇö Data-Driven Rules[2m > [22m=== FINAL REPORT ===[32m 3[2mms[22m[39m
+
+[2m Test Files [22m [1m[32m1 passed[39m[22m[90m (1)[39m
+[2m      Tests [22m [1m[32m26 passed[39m[22m[90m (26)[39m
+[2m   Start at [22m 19:12:34
+[2m   Duration [22m 675.79s[2m (transform 117ms, setup 253ms, collect 112ms, tests 673.51s, environment 1.21s, prepare 158ms)[22m
+
