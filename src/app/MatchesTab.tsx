@@ -204,7 +204,10 @@ export function MatchesTab() {
       const matchResult = ctx.results[0];
       if (matchResult) {
         setAiResults((prev) => new Map(prev).set(mid, { matchId: mid, matchDisplay: `${m.home_team} vs ${m.away_team}`, result: matchResult }));
-        if (matchResult.parsedAi) {
+        if (matchResult.parsedAi && matchResult.error) {
+          // AI succeeded but save/other step failed — show warning with detail
+          showToast(`⚠️ ${m.home_team} vs ${m.away_team} — AI done but: ${matchResult.error}`, 'error');
+        } else if (matchResult.parsedAi) {
           showToast(`✅ ${m.home_team} vs ${m.away_team} — done`, 'success');
         } else if (matchResult.error) {
           showToast(`⚠️ ${m.home_team} vs ${m.away_team} error: ${matchResult.error}`, 'error');

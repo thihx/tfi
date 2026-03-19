@@ -41,6 +41,9 @@ const INTERVAL_OPTIONS = [
   { label: 'Every 15 min', value: 900_000 },
   { label: 'Every 30 min', value: 1_800_000 },
   { label: 'Every 60 min', value: 3_600_000 },
+  { label: 'Every 6 hours', value: 21_600_000 },
+  { label: 'Every 12 hours', value: 43_200_000 },
+  { label: 'Every 24 hours', value: 86_400_000 },
 ];
 
 const JOB_META: Record<string, { label: string; description: string; order: number }> = {
@@ -56,7 +59,7 @@ const JOB_META: Record<string, { label: string; description: string; order: numb
   },
   'enrich-watchlist': {
     label: 'Enrich Watchlist',
-    description: 'Uses AI (Gemini) and web search to add strategic context and generate recommended conditions for watchlist entries.',
+    description: 'Uses AI and web search to add strategic context and generate recommended conditions for watchlist entries.',
     order: 2,
   },
   'update-predictions': {
@@ -240,36 +243,8 @@ function JobSchedulerPanel() {
 }
 
 export function SettingsTab() {
-  const { state, saveConfig } = useAppState();
-  const { showToast } = useToast();
-  const { config } = state;
-
-  const [defaultMode, setDefaultMode] = useState(config.defaultMode);
-
-  useEffect(() => {
-    setDefaultMode(config.defaultMode);
-  }, [config]);
-
-  const handleSave = () => {
-    saveConfig({ ...config, defaultMode });
-    showToast('✅ Settings saved!', 'success');
-  };
-
   return (
     <div className="card">
-      <div className="card-header">
-      </div>
-      <div style={{ padding: '20px' }}>
-        <div className="form-group">
-          <label>Default Betting Mode:</label>
-          <select value={defaultMode} onChange={(e) => setDefaultMode(e.target.value)}>
-            <option value="A">A - Aggressive</option>
-            <option value="B">B - Balanced</option>
-            <option value="C">C - Conservative</option>
-          </select>
-        </div>
-        <button className="btn btn-primary" onClick={handleSave}>💾 Save Settings</button>
-      </div>
 
       {/* Job Scheduler Section */}
       <div className="card-header" style={{ marginTop: '16px' }}>

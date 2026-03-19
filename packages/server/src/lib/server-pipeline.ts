@@ -11,7 +11,7 @@
 
 import { config } from '../config.js';
 import { callGemini } from './gemini.js';
-import { sendTelegramMessage } from './telegram.js';
+import { sendTelegramMessage, sendTelegramPhoto } from './telegram.js';
 import { audit } from './audit.js';
 import {
   fetchFixturesByIds,
@@ -614,7 +614,155 @@ function extractOddsFromSelection(selection: string, canonical: OddsCanonical): 
   return null;
 }
 
+// ==================== Stats Chart (QuickChart.io) ====================
+
+function truncateAtWord(text: string, max: number): string {
+  if (text.length <= max) return text;
+  const idx = text.lastIndexOf(' ', max - 1);
+  return text.substring(0, idx > 0 ? idx : max) + '…';
+}
+
+function safeTruncateCaption(text: string, limit = 1020): string {
+  if (text.length <= limit) return text;
+  const idx = text.lastIndexOf('\n', limit);
+  return text.substring(0, idx > 0 ? idx : limit);
+}
+
+function buildStatsChartUrl(stats: StatsCompact, homeName: string, awayName: string, minute: number | string): string {
+  const n = (v: string | null): number => {
+    if (v == null || v === '') return 0;
+    const num = parseFloat(v.replace('%', ''));
+    return isNaN(num) ? 0 : num;
+  };
+
+  const share = (h: number, a: number): [number, number] => {
+    const total = h + a;
+    if (total === 0) return [0, 0];
+    return [Math.round(h / total * 100), Math.round(a / total * 100)];
+  };
+
+  const posH = n(stats.possession.home); const posA = n(stats.possession.away);
+  const shoH = n(stats.shots.home);      const shoA = n(stats.shots.away);
+  const sotH = n(stats.shots_on_target.home); const sotA = n(stats.shots_on_target.away);
+  const corH = n(stats.corners.home);    const corA = n(stats.corners.away);
+  const fouH = n(stats.fouls.home);      const fouA = n(stats.fouls.away);
+
+  if (posH + posA + shoH + shoA + sotH + sotA + corH + corA + fouH + fouA === 0) return '';
+
+  const [posHS, posAS] = posH + posA > 0 ? [posH, posA] : [0, 0];
+  const [shoHS, shoAS] = share(shoH, shoA);
+  const [sotHS, sotAS] = share(sotH, sotA);
+  const [corHS, corAS] = share(corH, corA);
+  const [fouHS, fouAS] = share(fouH, fouA);
+
+  const trim = (s: string, max = 14) => s.length > max ? s.substring(0, max - 1) + '…' : s;
+
+  const cfg = {
+    type: 'horizontalBar',
+    data: {
+      labels: [
+        `Poss (${posH}/${posA}%)`,
+        `Shots (${shoH}/${shoA})`,
+        `On Target (${sotH}/${sotA})`,
+        `Corners (${corH}/${corA})`,
+        `Fouls (${fouH}/${fouA})`,
+      ],
+      datasets: [
+        { label: trim(homeName), backgroundColor: '#3b82f6', data: [posHS, shoHS, sotHS, corHS, fouHS] },
+        { label: trim(awayName), backgroundColor: '#ef4444', data: [posAS, shoAS, sotAS, corAS, fouAS] },
+      ],
+    },
+    options: {
+      title: { display: true, text: `Live Stats — ${minute}'`, fontSize: 14 },
+      legend: { position: 'bottom' },
+      scales: {
+        xAxes: [{ stacked: true, ticks: { min: 0, max: 100 } }],
+        yAxes: [{ stacked: true }],
+      },
+    },
+  };
+
+  return `https://quickchart.io/chart?c=${encodeURIComponent(JSON.stringify(cfg))}&w=500&h=240&bkg=white`;
+}
+
+/** Condensed caption for sendPhoto (max 1024 chars). Stats replaced by chart image. */
+function buildTelegramCaption(
+  matchDisplay: string, league: string, score: string, minute: number | string, status: string,
+  parsed: ParsedAiResponse, eventsCompact: EventCompact[], model: string, mode: string,
+): string {
+  const isRec = parsed.should_push;
+  const isCondition = parsed.custom_condition_matched;
+  const emoji = isRec ? '🎯' : isCondition ? '⚡' : '📊';
+  const label = isRec ? 'AI RECOMMENDATION' : isCondition ? 'CONDITION TRIGGERED' : 'MATCH ANALYSIS';
+
+  const INTERNAL = new Set(['FORCE_MODE', 'EARLY_GAME_RISK']);
+
+  let text = `<b>${emoji} ${label}</b>\n`;
+  text += `<b>${safeHtml(matchDisplay)}</b>\n`;
+  text += `${safeHtml(league)}\n`;
+  text += `⏱ ${safeHtml(String(minute))}' | 📋 ${safeHtml(score)} | ${safeHtml(status)}\n`;
+  text += `🤖 ${safeHtml(model)} | Mode: ${safeHtml(mode)}\n`;
+
+  if (isRec) {
+    text += `\n<b>💰 ${safeHtml(parsed.selection)}</b>\n`;
+    text += `Confidence: ${parsed.confidence}/10 | Stake: ${parsed.stake_percent}% | Risk: ${safeHtml(parsed.risk_level)} | Value: ${parsed.value_percent}%\n`;
+    const reasoning = parsed.reasoning_vi || parsed.reasoning_en;
+    if (reasoning) text += `\n${safeHtml(truncateAtWord(reasoning, 280))}\n`;
+  } else {
+    const reasoning = parsed.reasoning_vi || parsed.reasoning_en;
+    if (reasoning) text += `\n${safeHtml(truncateAtWord(reasoning, 200))}\n`;
+  }
+
+  // Key events — goals + cards only, case-insensitive, max 6
+  const keyEvents = [...eventsCompact]
+    .sort((a, b) => a.minute - b.minute)
+    .filter((e) => { const t = e.type.toLowerCase(); return t === 'goal' || t === 'card'; })
+    .slice(-6);
+  if (keyEvents.length > 0) {
+    text += '\n';
+    for (const evt of keyEvents) {
+      const icon = getEventIcon(evt.type, evt.detail);
+      text += `${evt.minute}' ${icon} ${safeHtml(evt.team)} (${safeHtml(evt.detail)})\n`;
+    }
+  }
+
+  // Warnings (concise, max 3)
+  const displayWarnings = parsed.warnings.filter((w) => !INTERNAL.has(w)).slice(0, 3);
+  if (displayWarnings.length > 0) {
+    text += `\n⚠️ ${safeHtml(displayWarnings.join(' | '))}\n`;
+  }
+
+  // Footer last — safeTruncateCaption cuts at \n so this won't be mid-tag
+  const now = new Date().toLocaleString('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh' });
+  text += `\n<i>🤖 Auto Trigger | ${safeHtml(now)}</i>`;
+
+  return safeTruncateCaption(text);
+}
+
 // ==================== Build Telegram Message ====================
+
+function chunkMessage(text: string, maxLen = 3500): string[] {
+  if (text.length <= maxLen) return [text];
+  const chunks: string[] = [];
+  let remaining = text;
+  while (remaining.length > 0) {
+    if (remaining.length <= maxLen) { chunks.push(remaining); break; }
+    let idx = remaining.lastIndexOf('\n', maxLen);
+    if (idx <= 0) idx = maxLen;
+    chunks.push(remaining.substring(0, idx));
+    remaining = remaining.substring(idx).replace(/^\n/, '');
+  }
+  return chunks;
+}
+
+function getEventIcon(type: string, detail: string): string {
+  const t = type.toLowerCase();
+  const d = detail.toLowerCase();
+  if (t === 'goal') return d.includes('own') ? '⚽ OG' : d.includes('penalty') ? '⚽ P' : '⚽';
+  if (t === 'card') return d.includes('red') || d.includes('second yellow') ? '🟥' : '🟨';
+  if (t === 'subst') return '🔄';
+  return '•';
+}
 
 function buildTelegramMessage(
   matchDisplay: string,
@@ -623,32 +771,70 @@ function buildTelegramMessage(
   minute: number | string,
   status: string,
   parsed: ParsedAiResponse,
+  statsCompact: StatsCompact,
+  statsAvailable: boolean,
+  eventsCompact: EventCompact[],
+  model: string,
+  mode: string,
 ): string {
-  const emoji = parsed.should_push ? '🎯' : '📊';
-  const label = parsed.should_push ? 'AI RECOMMENDATION' : 'MATCH ANALYSIS';
+  const isRec = parsed.should_push;
+  const isCondition = parsed.custom_condition_matched;
+
+  const emoji = isRec ? '🎯' : isCondition ? '⚡' : '📊';
+  const label = isRec ? 'AI RECOMMENDATION' : isCondition ? 'CONDITION TRIGGERED' : 'MATCH ANALYSIS';
 
   let text = `<b>${emoji} ${label}</b>\n`;
   text += `<b>${safeHtml(matchDisplay)}</b>\n`;
   text += `${safeHtml(league)}\n`;
-  text += `⏱ ${safeHtml(String(minute))}' | 📋 ${safeHtml(score)} | ${safeHtml(status)}\n\n`;
+  text += `⏱ ${safeHtml(String(minute))}' | 📋 ${safeHtml(score)} | ${safeHtml(status)}\n`;
+  text += `🤖 ${safeHtml(model)} | Mode: ${safeHtml(mode)}\n`;
+  text += '\n';
 
-  if (parsed.should_push) {
-    text += `<b>💡 Selection:</b> ${safeHtml(parsed.selection)}\n`;
-    text += `<b>📊 Market:</b> ${safeHtml(parsed.bet_market)}\n`;
-    text += `<b>🎯 Confidence:</b> ${parsed.confidence}/10\n`;
-    text += `<b>💰 Stake:</b> ${parsed.stake_percent}%\n`;
-    text += `<b>📈 Value:</b> ${parsed.value_percent}%\n`;
-    text += `<b>⚡ Risk:</b> ${safeHtml(parsed.risk_level)}\n\n`;
+  if (isRec) {
+    text += `<b>💰 Investment Idea</b>\n`;
+    text += `Selection: <b>${safeHtml(parsed.selection)}</b>\n`;
+    text += `Market: ${safeHtml(parsed.bet_market)}\n`;
+    text += `Confidence: ${parsed.confidence}/10 | Stake: ${parsed.stake_percent}%\n`;
+    text += `Value: ${parsed.value_percent}% | Risk: ${safeHtml(parsed.risk_level)}\n`;
+    text += '\n';
+    text += `<b>📝 Reasoning (EN):</b>\n${safeHtml(parsed.reasoning_en)}\n\n`;
+    text += `<b>📝 Reasoning (VI):</b>\n${safeHtml(parsed.reasoning_vi)}\n`;
+  } else {
+    text += `<b>📝 Analysis (EN):</b>\n${safeHtml(parsed.reasoning_en)}\n\n`;
+    text += `<b>📝 Analysis (VI):</b>\n${safeHtml(parsed.reasoning_vi)}\n`;
   }
 
-  text += `<b>📝 Analysis (EN):</b>\n${safeHtml(parsed.reasoning_en)}\n\n`;
-  text += `<b>📝 Analysis (VI):</b>\n${safeHtml(parsed.reasoning_vi)}\n`;
+  // Live Stats
+  if (statsAvailable) {
+    const statLines: string[] = [];
+    for (const [key, val] of Object.entries(statsCompact)) {
+      if (val && val.home != null && val.away != null && val.home !== '' && val.away !== '') {
+        const label2 = key.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
+        statLines.push(`${label2}: ${val.home} - ${val.away}`);
+      }
+    }
+    if (statLines.length > 0) {
+      text += '\n<b>📊 Live Stats</b>\n' + statLines.join('\n') + '\n';
+    }
+  }
 
+  // Events
+  const recentEvents = eventsCompact.slice(-8);
+  if (recentEvents.length > 0) {
+    text += '\n<b>📋 Events</b>\n';
+    for (const evt of recentEvents) {
+      const icon = getEventIcon(evt.type, evt.detail);
+      text += `${evt.minute}' ${icon} ${safeHtml(evt.team)} - ${safeHtml(evt.player)} (${safeHtml(evt.detail)})\n`;
+    }
+  }
+
+  // Warnings
   if (parsed.warnings.length > 0) {
     text += `\n⚠️ <b>Warnings:</b> ${safeHtml(parsed.warnings.join(', '))}\n`;
   }
 
-  text += `\n<i>TFI Auto Pipeline | ${safeHtml(new Date().toISOString())}</i>`;
+  const now = new Date().toLocaleString('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh' });
+  text += `\n<i>🤖 Auto Trigger | ${safeHtml(now)}</i>`;
   return text;
 }
 
@@ -821,22 +1007,29 @@ async function processMatch(
       // 8. Send Telegram notification (only for actionable recommendations)
       if (parsed.should_push && settings.telegramChatId) {
         try {
-          const msg = buildTelegramMessage(matchDisplay, league, score, minute, status, parsed);
-          // Chunk for Telegram's 4096 char limit
-          const MAX_CHUNK = 3500;
-          if (msg.length <= MAX_CHUNK) {
-            await sendTelegramMessage(settings.telegramChatId, msg);
-          } else {
-            let remaining = msg;
-            while (remaining.length > 0) {
-              if (remaining.length <= MAX_CHUNK) {
-                await sendTelegramMessage(settings.telegramChatId, remaining);
-                break;
-              }
-              let breakIdx = remaining.lastIndexOf('\n', MAX_CHUNK);
-              if (breakIdx <= 0) breakIdx = MAX_CHUNK;
-              await sendTelegramMessage(settings.telegramChatId, remaining.substring(0, breakIdx));
-              remaining = remaining.substring(breakIdx).replace(/^\n/, '');
+          const mode = watchlistEntry.mode || 'B';
+          const chartUrl = statsAvailable ? buildStatsChartUrl(statsCompact, homeName, awayName, minute) : '';
+
+          let photoSent = false;
+          if (chartUrl) {
+            try {
+              const caption = buildTelegramCaption(
+                matchDisplay, league, score, minute, status, parsed, eventsCompact, model, mode,
+              );
+              await sendTelegramPhoto(settings.telegramChatId, chartUrl, caption);
+              photoSent = true;
+            } catch {
+              // QuickChart or Telegram photo failed — fall through to text
+            }
+          }
+
+          if (!photoSent) {
+            const msg = buildTelegramMessage(
+              matchDisplay, league, score, minute, status, parsed,
+              statsCompact, statsAvailable, eventsCompact, model, mode,
+            );
+            for (const chunk of chunkMessage(msg)) {
+              await sendTelegramMessage(settings.telegramChatId, chunk);
             }
           }
           notified = true;
@@ -1278,10 +1471,13 @@ function buildStrategicContextSection(strategicContext: Record<string, string> |
     lines.push(`KEY_ABSENCES: ${ctx.key_absences}`);
   if (ctx.h2h_narrative && ctx.h2h_narrative !== 'No data found')
     lines.push(`H2H_NARRATIVE: ${ctx.h2h_narrative}`);
+  if (ctx.competition_type && ctx.competition_type !== 'No data found')
+    lines.push(`COMPETITION_TYPE: ${ctx.competition_type}`);
   lines.push(`SUMMARY: ${ctx.summary}`);
   lines.push('');
   lines.push('STRATEGIC CONTEXT RULES:');
-  lines.push('- LEAGUE_POSITIONS: Top 3 vs bottom 3 = strong favourite signal. Within 3 places = evenly matched → AVOID 1X2, prefer O/U or BTTS.');
+  lines.push('- COMPETITION_TYPE: For european/international/friendly competitions, teams are from DIFFERENT domestic leagues. LEAGUE_POSITIONS CANNOT be compared across leagues — IGNORE position gap signals.');
+  lines.push('- LEAGUE_POSITIONS: ONLY for domestic_league matches: Top 3 vs bottom 3 = strong favourite signal. Within 3 places = evenly matched → AVOID 1X2, prefer O/U or BTTS.');
   lines.push('- ROTATION: If team likely rotates key players, reduce confidence for that team winning by 1-2.');
   lines.push('- NOTHING TO PLAY FOR: Expect lower intensity → favors Under, Draw.');
   lines.push('- TITLE RACE / RELEGATION BATTLE: Expect high intensity → supports attacking.');

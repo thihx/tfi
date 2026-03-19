@@ -14,13 +14,11 @@ const pool = new pg.Pool({
   idleTimeoutMillis: 30_000,
   connectionTimeoutMillis: 5_000,
   ssl: config.databaseUrl.includes('sslmode=require') ? { rejectUnauthorized: false } : false,
-});
-
-// Ensure every connection uses Asia/Seoul timezone so that
-// NOW(), timestamp::date casts, and (date + kickoff) < NOW() comparisons
-// all operate in the same timezone as our Football API data.
-pool.on('connect', (client) => {
-  client.query("SET timezone = 'Asia/Seoul'");
+  // onConnect is awaited by pg.Pool before handing client to queries,
+  // unlike pool.on('connect') which fires-and-forgets the callback.
+  onConnect: async (client) => {
+    await client.query(`SET timezone = '${config.timezone}'`);
+  },
 });
 
 pool.on('error', (err) => {

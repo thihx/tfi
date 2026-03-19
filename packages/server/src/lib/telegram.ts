@@ -19,3 +19,19 @@ export async function sendTelegramMessage(chatId: string, text: string): Promise
     throw new Error(`Telegram API ${res.status}: ${body.substring(0, 300)}`);
   }
 }
+
+export async function sendTelegramPhoto(chatId: string, photoUrl: string, caption: string): Promise<void> {
+  if (!config.telegramBotToken) throw new Error('TELEGRAM_BOT_TOKEN not configured');
+
+  const url = `https://api.telegram.org/bot${config.telegramBotToken}/sendPhoto`;
+  const res = await fetch(url, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ chat_id: chatId, photo: photoUrl, caption, parse_mode: 'HTML' }),
+  });
+
+  if (!res.ok) {
+    const body = await res.text();
+    throw new Error(`Telegram API ${res.status}: ${body.substring(0, 300)}`);
+  }
+}

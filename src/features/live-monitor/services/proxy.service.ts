@@ -121,7 +121,10 @@ export async function saveRecommendation(
     headers: { 'Content-Type': 'application/json', Accept: 'application/json', ...authHeaders() },
     body: JSON.stringify(data),
   });
-  if (!res.ok) throw new Error(`Recommendation error ${res.status}`);
+  if (!res.ok) {
+    const body = await res.text().catch(() => '');
+    throw new Error(`Recommendation error ${res.status}: ${body.substring(0, 300)}`);
+  }
   return res.json();
 }
 
@@ -180,6 +183,10 @@ export async function fetchMatchSnapshots(
     shots: r.stats?.shots || '-',
     shots_on_target: r.stats?.shots_on_target || '-',
     corners: r.stats?.corners || '-',
+    fouls: r.stats?.fouls || '-',
+    yellow_cards: r.stats?.yellow_cards || '-',
+    red_cards: r.stats?.red_cards || '-',
+    goalkeeper_saves: r.stats?.goalkeeper_saves || '-',
     status: r.status || '',
   }));
 }

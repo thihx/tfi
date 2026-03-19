@@ -1,0 +1,1025 @@
+﻿
+[1m[46m RUN [49m[22m [36mv3.2.4 [39m[90mC:/tfi[39m
+
+ [32mΓ£ô[39m src/components/ui/MatchCard.test.tsx[2m > [22mMatchCard[2m > [22mrenders team names[32m 127[2mms[22m[39m
+ [32mΓ£ô[39m src/components/ui/MatchCard.test.tsx[2m > [22mMatchCard[2m > [22mrenders league name[32m 19[2mms[22m[39m
+ [32mΓ£ô[39m src/components/ui/MatchCard.test.tsx[2m > [22mMatchCard[2m > [22mrenders NS status badge[32m 24[2mms[22m[39m
+ [32mΓ£ô[39m src/components/ui/MatchCard.test.tsx[2m > [22mMatchCard[2m > [22mrenders kickoff time for NS matches[32m 15[2mms[22m[39m
+ [32mΓ£ô[39m src/components/ui/MatchCard.test.tsx[2m > [22mMatchCard[2m > [22mshows "vs" when no score available[32m 32[2mms[22m[39m
+ [32mΓ£ô[39m src/components/ui/MatchCard.test.tsx[2m > [22mMatchCard[2m > [22mrenders live score[32m 149[2mms[22m[39m
+ [32mΓ£ô[39m src/components/ui/MatchCard.test.tsx[2m > [22mMatchCard[2m > [22mrenders live minute[32m 32[2mms[22m[39m
+ [32mΓ£ô[39m src/components/ui/MatchCard.test.tsx[2m > [22mMatchCard[2m > [22mrenders live status badge[32m 12[2mms[22m[39m
+ [32mΓ£ô[39m src/components/ui/MatchCard.test.tsx[2m > [22mMatchCard[2m > [22mrenders FT status badge[32m 13[2mms[22m[39m
+ [32mΓ£ô[39m src/components/ui/MatchCard.test.tsx[2m > [22mMatchCard[2m > [22mrenders prediction badge when present[32m 42[2mms[22m[39m
+ [32mΓ£ô[39m src/components/ui/MatchCard.test.tsx[2m > [22mMatchCard[2m > [22mdoes not render prediction section when absent[32m 12[2mms[22m[39m
+ [32mΓ£ô[39m src/lib/services/__tests__/api-extended.test.ts[2m > [22mmatches API[2m > [22mfetchMatches calls GET /api/matches[32m 17[2mms[22m[39m
+ [32mΓ£ô[39m src/lib/services/__tests__/api-extended.test.ts[2m > [22mwatchlist API[2m > [22mfetchWatchlist calls GET /api/watchlist[32m 3[2mms[22m[39m
+ [32mΓ£ô[39m src/lib/services/__tests__/api-extended.test.ts[2m > [22mwatchlist API[2m > [22mcreateWatchlistItems sends POST for each item[32m 2[2mms[22m[39m
+ [32mΓ£ô[39m src/lib/services/__tests__/api-extended.test.ts[2m > [22mwatchlist API[2m > [22mupdateWatchlistItems sends PATCH for each item[32m 2[2mms[22m[39m
+ [32mΓ£ô[39m src/lib/services/__tests__/api-extended.test.ts[2m > [22mwatchlist API[2m > [22mupdateWatchlistItems skips items without match_id[32m 3[2mms[22m[39m
+ [32mΓ£ô[39m src/lib/services/__tests__/api-extended.test.ts[2m > [22mwatchlist API[2m > [22mdeleteWatchlistItems sends DELETE for each ID[32m 2[2mms[22m[39m
+ [32mΓ£ô[39m src/lib/services/__tests__/api-extended.test.ts[2m > [22mrecommendations API[2m > [22mfetchRecommendations returns first page rows[32m 2[2mms[22m[39m
+ [32mΓ£ô[39m src/lib/services/__tests__/api-extended.test.ts[2m > [22mrecommendations API[2m > [22mfetchRecommendationsByMatch URL-encodes matchId[32m 1[2mms[22m[39m
+ [32mΓ£ô[39m src/lib/services/__tests__/api-extended.test.ts[2m > [22mrecommendations API[2m > [22mfetchRecommendationsPaginated builds query string from params[32m 4[2mms[22m[39m
+ [32mΓ£ô[39m src/lib/services/__tests__/api-extended.test.ts[2m > [22mrecommendations API[2m > [22mfetchRecommendationsPaginated skips "all" filter values[32m 3[2mms[22m[39m
+ [32mΓ£ô[39m src/lib/services/__tests__/api-extended.test.ts[2m > [22mrecommendations API[2m > [22mfetchDashboardSummary returns summary object[32m 9[2mms[22m[39m
+ [32mΓ£ô[39m src/lib/services/__tests__/api-extended.test.ts[2m > [22mrecommendations API[2m > [22mfetchBetTypes returns array[32m 3[2mms[22m[39m
+ [32mΓ£ô[39m src/lib/services/__tests__/api-extended.test.ts[2m > [22mrecommendations API[2m > [22mfetchDistinctLeagues returns array[32m 8[2mms[22m[39m
+ [32mΓ£ô[39m src/lib/services/__tests__/api-extended.test.ts[2m > [22mleagues API[2m > [22mfetchApprovedLeagues calls GET /api/leagues[32m 1[2mms[22m[39m
+ [32mΓ£ô[39m src/lib/services/__tests__/api-extended.test.ts[2m > [22mleagues API[2m > [22mtoggleLeagueActive calls PUT with active flag[32m 5[2mms[22m[39m
+ [32mΓ£ô[39m src/lib/services/__tests__/api-extended.test.ts[2m > [22mleagues API[2m > [22mbulkSetLeagueActive sends POST with ids and active[32m 1[2mms[22m[39m
+ [32mΓ£ô[39m src/lib/services/__tests__/api-extended.test.ts[2m > [22mleagues API[2m > [22mfetchLeaguesFromApi triggers sync[32m 1[2mms[22m[39m
+ [32mΓ£ô[39m src/lib/services/__tests__/api-extended.test.ts[2m > [22mleagues API[2m > [22mtoggleLeagueTopLeague sends PUT[32m 1[2mms[22m[39m
+ [32mΓ£ô[39m src/lib/services/__tests__/api-extended.test.ts[2m > [22mleagues API[2m > [22mbulkSetTopLeague sends POST[32m 1[2mms[22m[39m
+ [32mΓ£ô[39m src/lib/services/__tests__/api-extended.test.ts[2m > [22mreports API[2m > [22mcalls GET /api/reports/overview with period filter[32m 1[2mms[22m[39m
+ [32mΓ£ô[39m src/lib/services/__tests__/api-extended.test.ts[2m > [22mreports API[2m > [22mcalls GET /api/reports/by-league with period filter[32m 1[2mms[22m[39m
+ [32mΓ£ô[39m src/lib/services/__tests__/api-extended.test.ts[2m > [22mreports API[2m > [22mcalls GET /api/reports/by-market with period filter[32m 1[2mms[22m[39m
+ [32mΓ£ô[39m src/lib/services/__tests__/api-extended.test.ts[2m > [22mreports API[2m > [22mcalls GET /api/reports/weekly with period filter[32m 12[2mms[22m[39m
+ [32mΓ£ô[39m src/lib/services/__tests__/api-extended.test.ts[2m > [22mreports API[2m > [22mcalls GET /api/reports/monthly with period filter[32m 1[2mms[22m[39m
+ [32mΓ£ô[39m src/lib/services/__tests__/api-extended.test.ts[2m > [22mreports API[2m > [22mcalls GET /api/reports/confidence with period filter[32m 3[2mms[22m[39m
+ [32mΓ£ô[39m src/lib/services/__tests__/api-extended.test.ts[2m > [22mreports API[2m > [22mcalls GET /api/reports/odds-range with period filter[32m 9[2mms[22m[39m
+ [32mΓ£ô[39m src/lib/services/__tests__/api-extended.test.ts[2m > [22mreports API[2m > [22mcalls GET /api/reports/by-minute with period filter[32m 2[2mms[22m[39m
+ [32mΓ£ô[39m src/lib/services/__tests__/api-extended.test.ts[2m > [22mreports API[2m > [22mcalls GET /api/reports/daily-pnl with period filter[32m 1[2mms[22m[39m
+ [32mΓ£ô[39m src/lib/services/__tests__/api-extended.test.ts[2m > [22mreports API[2m > [22mcalls GET /api/reports/day-of-week with period filter[32m 1[2mms[22m[39m
+ [32mΓ£ô[39m src/lib/services/__tests__/api-extended.test.ts[2m > [22mreports API[2m > [22mcalls GET /api/reports/league-market with period filter[32m 1[2mms[22m[39m
+ [32mΓ£ô[39m src/lib/services/__tests__/api-extended.test.ts[2m > [22mreports API[2m > [22mcalls GET /api/reports/ai-insights with period filter[32m 1[2mms[22m[39m
+ [32mΓ£ô[39m src/lib/services/__tests__/api-extended.test.ts[2m > [22mreports API[2m > [22mreport with empty filter sends no query params[32m 1[2mms[22m[39m
+ [32mΓ£ô[39m src/lib/services/__tests__/api-extended.test.ts[2m > [22mApiError[2m > [22misUnauthorized for 401[32m 5[2mms[22m[39m
+ [32mΓ£ô[39m src/lib/services/__tests__/api-extended.test.ts[2m > [22mApiError[2m > [22misNotFound for 404[32m 5[2mms[22m[39m
+ [32mΓ£ô[39m src/lib/services/__tests__/api-extended.test.ts[2m > [22mApiError[2m > [22misServerError for 500+[32m 1[2mms[22m[39m
+ [32mΓ£ô[39m src/lib/services/__tests__/api-extended.test.ts[2m > [22mApiError[2m > [22mformatApiError truncates long messages[32m 8[2mms[22m[39m
+ [32mΓ£ô[39m src/components/ui/MatchCard.test.tsx[2m > [22mMatchCard[2m > [22mrenders team logo images[33m 312[2mms[22m[39m
+ [32mΓ£ô[39m src/components/ui/MatchCard.test.tsx[2m > [22mMatchCard[2m > [22mrenders without logos when not provided[32m 14[2mms[22m[39m
+ [32mΓ£ô[39m src/components/ui/MatchCard.test.tsx[2m > [22mMatchCard[2m > [22mcalls onClick when card is clicked[32m 29[2mms[22m[39m
+ [32mΓ£ô[39m src/components/ui/MatchCard.test.tsx[2m > [22mMatchCard[2m > [22mdoes not crash when onClick is not provided[32m 18[2mms[22m[39m
+ [32mΓ£ô[39m src/components/ui/MatchCard.test.tsx[2m > [22mMatchCard[2m > [22mrenders action buttons[32m 38[2mms[22m[39m
+ [32mΓ£ô[39m src/components/ui/MatchCard.test.tsx[2m > [22mMatchCard[2m > [22mfires action callback with match data[32m 36[2mms[22m[39m
+ [32mΓ£ô[39m src/components/ui/MatchCard.test.tsx[2m > [22mMatchCard[2m > [22maction click does not propagate to card onClick[32m 31[2mms[22m[39m
+ [32mΓ£ô[39m src/components/ui/MatchCard.test.tsx[2m > [22mMatchCard[2m > [22mdisables action button when disabled=true[32m 13[2mms[22m[39m
+ [32mΓ£ô[39m src/components/ui/MatchCard.test.tsx[2m > [22mMatchCard[2m > [22mapplies highlighted outline style[32m 14[2mms[22m[39m
+ [32mΓ£ô[39m src/components/ui/MatchCard.test.tsx[2m > [22mMatchCard[2m > [22mshows progress bar only for live matches[32m 26[2mms[22m[39m
+ [32mΓ£ô[39m src/features/live-monitor/__tests__/watchlist.service.test.ts[2m > [22mfilterActiveMatches[2m > [22mreturns empty array for empty input[32m 5[2mms[22m[39m
+ [32mΓ£ô[39m src/features/live-monitor/__tests__/watchlist.service.test.ts[2m > [22mfilterActiveMatches[2m > [22mfilters by webhookMatchIds when provided[32m 3[2mms[22m[39m
+ [32mΓ£ô[39m src/features/live-monitor/__tests__/watchlist.service.test.ts[2m > [22mfilterActiveMatches[2m > [22msets is_manual_push=true when webhookMatchIds provided[32m 1[2mms[22m[39m
+ [32mΓ£ô[39m src/features/live-monitor/__tests__/watchlist.service.test.ts[2m > [22mfilterActiveMatches[2m > [22msets force_analyze and is_manual_push=false when no webhookMatchIds[32m 79[2mms[22m[39m
+ [32mΓ£ô[39m src/features/live-monitor/__tests__/watchlist.service.test.ts[2m > [22mfilterActiveMatches[2m > [22mignores future matches beyond 1 minute window[32m 1[2mms[22m[39m
+ [32mΓ£ô[39m src/features/live-monitor/__tests__/watchlist.service.test.ts[2m > [22mfilterActiveMatches[2m > [22mignores matches that ended long ago[32m 1[2mms[22m[39m
+ [32mΓ£ô[39m src/features/live-monitor/__tests__/watchlist.service.test.ts[2m > [22mfilterActiveMatches[2m > [22mhandles matches with empty date gracefully[32m 1[2mms[22m[39m
+ [32mΓ£ô[39m src/features/live-monitor/__tests__/watchlist.service.test.ts[2m > [22mprepareMatchData[2m > [22mmaps filtered matches to pipeline format[32m 3[2mms[22m[39m
+ [32mΓ£ô[39m src/features/live-monitor/__tests__/watchlist.service.test.ts[2m > [22mprepareMatchData[2m > [22mdefaults missing fields[32m 2[2mms[22m[39m
+ [32mΓ£ô[39m src/features/live-monitor/__tests__/watchlist.service.test.ts[2m > [22mprepareMatchData[2m > [22mprefers league_name over league[32m 1[2mms[22m[39m
+ [32mΓ£ô[39m src/features/live-monitor/__tests__/watchlist.service.test.ts[2m > [22mbuildFixtureBatches[2m > [22mreturns empty array for empty input[32m 1[2mms[22m[39m
+ [32mΓ£ô[39m src/features/live-monitor/__tests__/watchlist.service.test.ts[2m > [22mbuildFixtureBatches[2m > [22mdeduplicates match IDs[32m 1[2mms[22m[39m
+ [32mΓ£ô[39m src/features/live-monitor/__tests__/watchlist.service.test.ts[2m > [22mbuildFixtureBatches[2m > [22mbatches in groups of 20[32m 1[2mms[22m[39m
+ [32mΓ£ô[39m src/features/live-monitor/__tests__/watchlist.service.test.ts[2m > [22mbuildFixtureBatches[2m > [22mhandles single match[32m 0[2mms[22m[39m
+ [32mΓ£ô[39m src/features/live-monitor/__tests__/watchlist.service.test.ts[2m > [22mbuildFixtureBatches[2m > [22mskips matches with empty match_id[32m 2[2mms[22m[39m
+ [32mΓ£ô[39m src/features/live-monitor/__tests__/pipeline.integration.test.ts[2m > [22mrunPipeline ΓÇö full flow[2m > [22mcompletes happy path: watchlist ΓåÆ AI ΓåÆ notify ΓåÆ save[32m 195[2mms[22m[39m
+ [32mΓ£ô[39m src/features/live-monitor/__tests__/pipeline.integration.test.ts[2m > [22mrunPipeline ΓÇö full flow[2m > [22mcalls services in correct order[32m 13[2mms[22m[39m
+ [32mΓ£ô[39m src/features/live-monitor/__tests__/pipeline.integration.test.ts[2m > [22mrunPipeline ΓÇö full flow[2m > [22memits progress stages in order[32m 41[2mms[22m[39m
+ [32mΓ£ô[39m src/features/live-monitor/__tests__/pipeline.integration.test.ts[2m > [22mrunPipeline ΓÇö full flow[2m > [22memits saving BEFORE notifying (save-before-notify order)[32m 12[2mms[22m[39m
+ [32mΓ£ô[39m src/features/live-monitor/__tests__/pipeline.integration.test.ts[2m > [22mrunPipeline ΓÇö full flow[2m > [22mreturns early when no active matches[32m 9[2mms[22m[39m
+ [32mΓ£ô[39m src/features/live-monitor/__tests__/pipeline.simulation.test.ts[2m > [22mmulti-match pipeline[2m > [22mprocesses 3 matches independently ΓÇö all proceed[32m 204[2mms[22m[39m
+ [32mΓ£ô[39m src/features/live-monitor/__tests__/pipeline.simulation.test.ts[2m > [22mmulti-match pipeline[2m > [22mmixed: 1 proceeds, 1 skipped by filter (HT), 1 stale[32m 15[2mms[22m[39m
+ [32mΓ£ô[39m src/features/live-monitor/__tests__/pipeline.simulation.test.ts[2m > [22mmulti-match pipeline[2m > [22mone match errors, others continue[32m 34[2mms[22m[39m
+ [32mΓ£ô[39m src/features/live-monitor/__tests__/pipeline.simulation.test.ts[2m > [22mnotification edge cases[2m > [22mAI says should_push=false ΓÇö no notification, still saved if shouldSave[32m 8[2mms[22m[39m
+ [32mΓ£ô[39m src/features/live-monitor/__tests__/pipeline.simulation.test.ts[2m > [22mnotification edge cases[2m > [22mcustom condition matched but no triggered push ΓÇö NOT saved (No Bet not saved)[32m 8[2mms[22m[39m
+ [32mΓ£ô[39m src/features/live-monitor/__tests__/pipeline.simulation.test.ts[2m > [22mnotification edge cases[2m > [22mcondition_triggered_should_push ΓÇö both saved AND notified[32m 10[2mms[22m[39m
+ [32mΓ£ô[39m src/features/live-monitor/__tests__/pipeline.simulation.test.ts[2m > [22mnotification edge cases[2m > [22memail fails but telegram succeeds ΓÇö partial notification[32m 9[2mms[22m[39m
+ [32mΓ£ô[39m src/features/live-monitor/__tests__/pipeline-comprehensive.test.ts[2m > [22mCat-A: Football API Data Simulation[2m > [22mA1: Normal live match (1H / 2H)[2m > [22m2H minute 65 ΓÇö proceeds, AI called, save+notify[32m 176[2mms[22m[39m
+ [32mΓ£ô[39m src/features/live-monitor/__tests__/pipeline-comprehensive.test.ts[2m > [22mCat-A: Football API Data Simulation[2m > [22mA1: Normal live match (1H / 2H)[2m > [22m1H minute 25 ΓÇö proceeds normally[32m 12[2mms[22m[39m
+ [32mΓ£ô[39m src/features/live-monitor/__tests__/pipeline-comprehensive.test.ts[2m > [22mCat-A: Football API Data Simulation[2m > [22mA1: Normal live match (1H / 2H)[2m > [22m2H minute 60, AI says no push ΓÇö proceeds but no save/notify[32m 10[2mms[22m[39m
+ [32mΓ£ô[39m src/features/live-monitor/__tests__/pipeline-comprehensive.test.ts[2m > [22mCat-A: Football API Data Simulation[2m > [22mA1: Normal live match (1H / 2H)[2m > [22mhigh-scoring game 3-2 ΓÇö proceeds, stats from events available[32m 9[2mms[22m[39m
+ [32mΓ£ô[39m src/features/live-monitor/__tests__/pipeline-comprehensive.test.ts[2m > [22mCat-A: Football API Data Simulation[2m > [22mA1: Normal live match (1H / 2H)[2m > [22mmatch with red card ΓÇö proceeds, AI still called[32m 8[2mms[22m[39m
+ [32mΓ£ô[39m src/features/live-monitor/__tests__/pipeline-comprehensive.test.ts[2m > [22mCat-A: Football API Data Simulation[2m > [22mA2: Non-live statuses (HT / FT / NS / ABD)[2m > [22mHT status ΓÇö does NOT proceed[32m 7[2mms[22m[39m
+ [32mΓ£ô[39m src/features/live-monitor/__tests__/pipeline-comprehensive.test.ts[2m > [22mCat-A: Football API Data Simulation[2m > [22mA2: Non-live statuses (HT / FT / NS / ABD)[2m > [22mFT status ΓÇö does NOT proceed[32m 10[2mms[22m[39m
+node.exe : [90mstderr[2m | 
+src/features/live-monitor/__tests__/pipeline.simulation.test.ts[2m > 
+[22m[2mdata tracking[2m > [22m[2msnapshot tracking failure does not crash 
+pipeline
+At line:1 char:1
++ & "C:\Program Files\nodejs/node.exe" "C:\Program Files\nodejs/node_mo ...
++ ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: ([90mstderr[2m... crash pipeline 
+   :String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+[22m[39m[Pipeline] Tracking failure (snapshot:12345@65) ΓÇö data may be 
+lost: Snapshot DB error
+
+ [32mΓ£ô[39m src/features/live-monitor/__tests__/pipeline.simulation.test.ts[2m > [22mnotification edge cases[2m > [22msave fails ΓÇö error recorded but pipeline continues[32m 17[2mms[22m[39m
+ [32mΓ£ô[39m src/features/live-monitor/__tests__/pipeline.simulation.test.ts[2m > [22modds fetch edge cases[2m > [22modds fail ΓÇö match continues with odds_available false[32m 30[2mms[22m[39m
+ [32mΓ£ô[39m src/features/live-monitor/__tests__/pipeline.simulation.test.ts[2m > [22mdata tracking[2m > [22msaves snapshot for each match that proceeds[32m 10[2mms[22m[39m
+ [32mΓ£ô[39m src/features/live-monitor/__tests__/pipeline.simulation.test.ts[2m > [22mdata tracking[2m > [22msaves AI performance after saving recommendation[32m 25[2mms[22m[39m
+ [32mΓ£ô[39m src/features/live-monitor/__tests__/pipeline.simulation.test.ts[2m > [22mdata tracking[2m > [22msnapshot tracking failure does not crash pipeline[32m 17[2mms[22m[39m
+ [32mΓ£ô[39m src/features/live-monitor/__tests__/pipeline.simulation.test.ts[2m > [22mforce_analyze behavior[2m > [22mforce_analyze bypasses staleness check[32m 12[2mms[22m[39m
+ [32mΓ£ô[39m src/features/live-monitor/__tests__/pipeline.simulation.test.ts[2m > [22mwatchlist edge cases[2m > [22mempty watchlist ΓÇö returns early[32m 2[2mms[22m[39m
+ [32mΓ£ô[39m src/features/live-monitor/__tests__/pipeline.integration.test.ts[2m > [22mrunPipeline ΓÇö full flow[2m > [22mskips match that fails checkShouldProceed (e.g. HT status)[32m 33[2mms[22m[39m
+ [32mΓ£ô[39m src/features/live-monitor/__tests__/pipeline.integration.test.ts[2m > [22mrunPipeline ΓÇö full flow[2m > [22mhandles AI saying should_push=false ΓÇö no notification, still saves[32m 20[2mms[22m[39m
+ [32mΓ£ô[39m src/features/live-monitor/__tests__/pipeline.integration.test.ts[2m > [22mrunPipeline ΓÇö full flow[2m > [22mcontinues processing when odds fetch fails[32m 8[2mms[22m[39m
+ [32mΓ£ô[39m src/features/live-monitor/__tests__/pipeline.integration.test.ts[2m > [22mrunPipeline ΓÇö full flow[2m > [22mcaptures error on individual match without crashing pipeline[32m 42[2mms[22m[39m
+ [32mΓ£ô[39m src/features/live-monitor/__tests__/pipeline.integration.test.ts[2m > [22mrunPipeline ΓÇö full flow[2m > [22msets ctx.error when watchlist fetch fails[32m 11[2mms[22m[39m
+[90mstderr[2m | 
+src/features/live-monitor/__tests__/pipeline.simulation.test.ts[2m > 
+[22m[2mAI context integration[2m > [22m[2mcontinues when context fetch 
+fails
+[22m[39m[Pipeline] AI context fetch failed ΓÇö proceeding without history: 
+DB error
+
+ [32mΓ£ô[39m src/features/live-monitor/__tests__/pipeline-comprehensive.test.ts[2m > [22mCat-A: Football API Data Simulation[2m > [22mA2: Non-live statuses (HT / FT / NS / ABD)[2m > [22mNS status ΓÇö does NOT proceed[32m 43[2mms[22m[39m
+ [32mΓ£ô[39m src/features/live-monitor/__tests__/pipeline-comprehensive.test.ts[2m > [22mCat-A: Football API Data Simulation[2m > [22mA2: Non-live statuses (HT / FT / NS / ABD)[2m > [22mABD status ΓÇö does NOT proceed[32m 36[2mms[22m[39m
+ [32mΓ£ô[39m src/features/live-monitor/__tests__/pipeline-comprehensive.test.ts[2m > [22mCat-A: Football API Data Simulation[2m > [22mA2: Non-live statuses (HT / FT / NS / ABD)[2m > [22mHT with force_analyze ΓÇö DOES proceed (filter bypassed)[32m 14[2mms[22m[39m
+ [32mΓ£ô[39m src/features/live-monitor/__tests__/pipeline-comprehensive.test.ts[2m > [22mCat-A: Football API Data Simulation[2m > [22mA3: Stats quality (missing / partial / early game)[2m > [22mno stats but 2H 55min ΓÇö proceeds (stats_quality poor but not early)[32m 7[2mms[22m[39m
+ [32mΓ£ô[39m src/features/live-monitor/__tests__/pipeline-comprehensive.test.ts[2m > [22mCat-A: Football API Data Simulation[2m > [22mA3: Stats quality (missing / partial / early game)[2m > [22mpartial stats (only possession) ΓÇö proceeds, AI handles partial data[32m 8[2mms[22m[39m
+ [32mΓ£ô[39m src/features/live-monitor/__tests__/pipeline-comprehensive.test.ts[2m > [22mCat-A: Football API Data Simulation[2m > [22mA3: Stats quality (missing / partial / early game)[2m > [22mearly game min 3, no stats ΓÇö does NOT proceed (filter 4: early + poor)[32m 5[2mms[22m[39m
+ [32mΓ£ô[39m src/features/live-monitor/__tests__/pipeline-comprehensive.test.ts[2m > [22mCat-A: Football API Data Simulation[2m > [22mA3: Stats quality (missing / partial / early game)[2m > [22mearly game min 3 with force_analyze ΓÇö DOES proceed[32m 8[2mms[22m[39m
+ [32mΓ£ô[39m src/features/live-monitor/__tests__/pipeline-comprehensive.test.ts[2m > [22mCat-A: Football API Data Simulation[2m > [22mA3: Stats quality (missing / partial / early game)[2m > [22mempty stats array, minute 60 ΓÇö proceeds (not early game)[32m 7[2mms[22m[39m
+ [32mΓ£ô[39m src/features/live-monitor/__tests__/pipeline-comprehensive.test.ts[2m > [22mCat-A: Football API Data Simulation[2m > [22mA4: Odds scenarios[2m > [22mno odds returned ΓÇö continues with odds_available=false[32m 12[2mms[22m[39m
+ [32mΓ£ô[39m src/features/live-monitor/__tests__/pipeline.integration.test.ts[2m > [22mrunPipeline ΓÇö full flow[2m > [22mmerges webhookMatchIds into config.MANUAL_PUSH_MATCH_IDS[32m 26[2mms[22m[39m
+ [32mΓ£ô[39m src/features/live-monitor/__tests__/pipeline.integration.test.ts[2m > [22mrunPipelineForMatch[2m > [22mruns pipeline for a single match ID[32m 46[2mms[22m[39m
+ [32mΓ£ô[39m src/features/live-monitor/__tests__/pipeline.integration.test.ts[2m > [22mrunPipelineForMatch[2m > [22mpasses configOverrides through[32m 22[2mms[22m[39m
+ [32mΓ£ô[39m src/features/live-monitor/__tests__/pipeline.integration.test.ts[2m > [22mpipeline data tracking[2m > [22mcalls saveMatchSnapshot after merging data[32m 11[2mms[22m[39m
+ [32mΓ£ô[39m src/features/live-monitor/__tests__/pipeline.integration.test.ts[2m > [22mpipeline data tracking[2m > [22mcalls saveOddsMovements when odds are available[32m 9[2mms[22m[39m
+ [32mΓ£ô[39m src/features/live-monitor/__tests__/pipeline.simulation.test.ts[2m > [22mwatchlist edge cases[2m > [22mwatchlist fetch fails ΓÇö sets ctx.error[32m 20[2mms[22m[39m
+ [32mΓ£ô[39m src/features/live-monitor/__tests__/pipeline.simulation.test.ts[2m > [22mconfig overrides[2m > [22mwebhook match IDs are merged into config[32m 33[2mms[22m[39m
+ [32mΓ£ô[39m src/features/live-monitor/__tests__/pipeline.simulation.test.ts[2m > [22mrunPipelineForMatch[2m > [22mruns pipeline for a single specific match[32m 6[2mms[22m[39m
+ [32mΓ£ô[39m src/features/live-monitor/__tests__/pipeline.simulation.test.ts[2m > [22mrunPipelineForMatch[2m > [22mpasses configOverrides through[32m 3[2mms[22m[39m
+ [32mΓ£ô[39m src/features/live-monitor/__tests__/pipeline.simulation.test.ts[2m > [22mprogress emission[2m > [22memits all expected stages for a happy-path match[32m 8[2mms[22m[39m
+ [32mΓ£ô[39m src/features/live-monitor/__tests__/pipeline.simulation.test.ts[2m > [22mprogress emission[2m > [22memits complete even when no active matches[32m 2[2mms[22m[39m
+ [32mΓ£ô[39m src/features/live-monitor/__tests__/pipeline.simulation.test.ts[2m > [22mAI context integration[2m > [22mfetches previous recommendations for AI context[32m 8[2mms[22m[39m
+ [32mΓ£ô[39m src/features/live-monitor/__tests__/pipeline.simulation.test.ts[2m > [22mAI context integration[2m > [22mcontinues when context fetch fails[32m 9[2mms[22m[39m
+ [32mΓ£ô[39m src/features/live-monitor/__tests__/pipeline.simulation.test.ts[2m > [22mcustom condition flow[2m > [22mcondition_triggered_should_push triggers notification[32m 6[2mms[22m[39m
+ [32mΓ£ô[39m src/features/live-monitor/__tests__/pipeline.simulation.test.ts[2m > [22mexecution tracking[2m > [22meach pipeline run generates unique execution[32m 3[2mms[22m[39m
+[90mstderr[2m | 
+src/features/live-monitor/__tests__/pipeline.integration.test.ts[2m > 
+[22m[2mpipeline data tracking[2m > [22m[2mtracking failure does not crash 
+pipeline
+[22m[39m[Pipeline] Tracking failure (snapshot:12345@65) ΓÇö data may be 
+lost: Snapshot DB down
+[Pipeline] Tracking failure (odds:12345@65) ΓÇö data may be lost: Odds DB down
+
+[90mstderr[2m | 
+src/features/live-monitor/__tests__/pipeline.integration.test.ts[2m > 
+[22m[2mpipeline data tracking[2m > [22m[2mtracking failure does not crash 
+pipeline
+[22m[39m[Pipeline] Tracking failure (unknown) ΓÇö data may be lost: AI perf 
+DB down
+
+ [32mΓ£ô[39m src/features/live-monitor/__tests__/pipeline.integration.test.ts[2m > [22mpipeline data tracking[2m > [22mdoes not call saveOddsMovements when odds fetch fails[32m 11[2mms[22m[39m
+ [32mΓ£ô[39m src/features/live-monitor/__tests__/pipeline.integration.test.ts[2m > [22mpipeline data tracking[2m > [22mcalls saveAiPerformance after saving recommendation[32m 12[2mms[22m[39m
+ [32mΓ£ô[39m src/features/live-monitor/__tests__/pipeline.integration.test.ts[2m > [22mpipeline data tracking[2m > [22mdoes not call saveAiPerformance when AI says no push (not saved)[32m 17[2mms[22m[39m
+ [32mΓ£ô[39m src/features/live-monitor/__tests__/pipeline.integration.test.ts[2m > [22mpipeline data tracking[2m > [22mtracking failure does not crash pipeline[32m 19[2mms[22m[39m
+ [32mΓ£ô[39m src/features/live-monitor/__tests__/pipeline.integration.test.ts[2m > [22mpipeline data tracking[2m > [22mstill tracks snapshot even when odds fail[32m 11[2mms[22m[39m
+ [32mΓ£ô[39m src/features/live-monitor/__tests__/pipeline.integration.test.ts[2m > [22mpipeline context & staleness[2m > [22mfetches match recommendations and snapshots before AI call[32m 33[2mms[22m[39m
+ [32mΓ£ô[39m src/features/live-monitor/__tests__/pipeline-comprehensive.test.ts[2m > [22mCat-A: Football API Data Simulation[2m > [22mA4: Odds scenarios[2m > [22mempty odds response ΓÇö AI still called[32m 38[2mms[22m[39m
+ [32mΓ£ô[39m src/features/live-monitor/__tests__/pipeline-comprehensive.test.ts[2m > [22mCat-A: Football API Data Simulation[2m > [22mA4: Odds scenarios[2m > [22mnormal odds ΓÇö saveOddsMovements called with multiple markets[32m 8[2mms[22m[39m
+ [32mΓ£ô[39m src/features/live-monitor/__tests__/pipeline-comprehensive.test.ts[2m > [22mCat-A: Football API Data Simulation[2m > [22mA4: Odds scenarios[2m > [22modds fetch timeout ΓÇö match still saves if AI pushes[32m 12[2mms[22m[39m
+ [32mΓ£ô[39m src/features/live-monitor/__tests__/pipeline-comprehensive.test.ts[2m > [22mCat-A: Football API Data Simulation[2m > [22mA4: Odds scenarios[2m > [22mmultiple odds fetch calls for multi-match ΓÇö each independent[32m 13[2mms[22m[39m
+ [32mΓ£ô[39m src/features/live-monitor/__tests__/pipeline-comprehensive.test.ts[2m > [22mCat-A: Football API Data Simulation[2m > [22mA5: Minute window boundary checks[2m > [22mminute 5 (=MIN_MINUTE) ΓÇö proceeds[32m 8[2mms[22m[39m
+ [32mΓ£ô[39m src/features/live-monitor/__tests__/pipeline-comprehensive.test.ts[2m > [22mCat-A: Football API Data Simulation[2m > [22mA5: Minute window boundary checks[2m > [22mminute 4 (< MIN_MINUTE) ΓÇö does NOT proceed[32m 7[2mms[22m[39m
+ [32mΓ£ô[39m src/features/live-monitor/__tests__/pipeline-comprehensive.test.ts[2m > [22mCat-A: Football API Data Simulation[2m > [22mA5: Minute window boundary checks[2m > [22mminute 85 (=MAX_MINUTE) ΓÇö proceeds[32m 33[2mms[22m[39m
+ [32mΓ£ô[39m src/features/live-monitor/__tests__/pipeline-comprehensive.test.ts[2m > [22mCat-A: Football API Data Simulation[2m > [22mA5: Minute window boundary checks[2m > [22mminute 86 (> MAX_MINUTE) ΓÇö does NOT proceed[32m 4[2mms[22m[39m
+ [32mΓ£ô[39m src/features/live-monitor/__tests__/pipeline-comprehensive.test.ts[2m > [22mCat-A: Football API Data Simulation[2m > [22mA5: Minute window boundary checks[2m > [22m2H minute 48 ΓÇö does NOT proceed (2H threshold = 45+5=50)[32m 5[2mms[22m[39m
+[90mstderr[2m | 
+src/features/live-monitor/__tests__/pipeline.integration.test.ts[2m > 
+[22m[2mpipeline context & staleness[2m > [22m[2mcontinues AI call when 
+context fetch fails
+[22m[39m[Pipeline] AI context fetch failed ΓÇö proceeding without history: 
+Context DB down
+
+ [32mΓ£ô[39m src/features/live-monitor/__tests__/pipeline.integration.test.ts[2m > [22mpipeline context & staleness[2m > [22mskips AI call when staleness check returns isStale=true[32m 15[2mms[22m[39m
+ [32mΓ£ô[39m src/features/live-monitor/__tests__/pipeline.integration.test.ts[2m > [22mpipeline context & staleness[2m > [22mdoes NOT skip AI when stale but force_analyze is true[32m 51[2mms[22m[39m
+ [32mΓ£ô[39m src/features/live-monitor/__tests__/pipeline.integration.test.ts[2m > [22mpipeline context & staleness[2m > [22mpasses context to AI when previous recommendations exist[32m 18[2mms[22m[39m
+ [32mΓ£ô[39m src/features/live-monitor/__tests__/pipeline.integration.test.ts[2m > [22mpipeline context & staleness[2m > [22mcontinues AI call when context fetch fails[32m 7[2mms[22m[39m
+ [32mΓ£ô[39m src/features/live-monitor/__tests__/pipeline.integration.test.ts[2m > [22mpipeline context & staleness[2m > [22memits checking-staleness and fetching-context stages[32m 11[2mms[22m[39m
+ [32mΓ£ô[39m src/features/live-monitor/__tests__/pipeline-comprehensive.test.ts[2m > [22mCat-A: Football API Data Simulation[2m > [22mA5: Minute window boundary checks[2m > [22m2H minute 50 ΓÇö proceeds (= 2H threshold)[32m 28[2mms[22m[39m
+ [32mΓ£ô[39m src/features/live-monitor/__tests__/pipeline-comprehensive.test.ts[2m > [22mCat-B: Auto-Trigger (scheduled) Pipeline[2m > [22mB1: Normal scheduled run[2m > [22mscheduled trigger ΓÇö full pipeline executes[32m 14[2mms[22m[39m
+ [32mΓ£ô[39m src/features/live-monitor/__tests__/pipeline-comprehensive.test.ts[2m > [22mCat-B: Auto-Trigger (scheduled) Pipeline[2m > [22mB1: Normal scheduled run[2m > [22mscheduled trigger calls all services in sequence[32m 31[2mms[22m[39m
+ [32mΓ£ô[39m src/features/live-monitor/__tests__/pipeline-comprehensive.test.ts[2m > [22mCat-B: Auto-Trigger (scheduled) Pipeline[2m > [22mB1: Normal scheduled run[2m > [22msnapshot is saved even for scheduled trigger[32m 27[2mms[22m[39m
+ [32mΓ£ô[39m src/features/live-monitor/__tests__/pipeline-comprehensive.test.ts[2m > [22mCat-B: Auto-Trigger (scheduled) Pipeline[2m > [22mB1: Normal scheduled run[2m > [22mscheduled with empty watchlist ΓÇö short-circuits[32m 3[2mms[22m[39m
+ [32mΓ£ô[39m src/features/live-monitor/__tests__/pipeline.integration.test.ts[2m > [22mpipeline context & staleness[2m > [22msaves prompt_version as v3-context-aware[32m 18[2mms[22m[39m
+ [32mΓ£ô[39m src/features/live-monitor/__tests__/pipeline.integration.test.ts[2m > [22mask-ai always saves recommendation when AI has selection[2m > [22msaves recommendation even when ai_should_push=false if AI has a selection[32m 28[2mms[22m[39m
+ [32mΓ£ô[39m src/features/live-monitor/__tests__/pipeline.integration.test.ts[2m > [22mask-ai always saves recommendation when AI has selection[2m > [22mdoes NOT save recommendation via ask-ai when AI has no selection[32m 7[2mms[22m[39m
+ [32mΓ£ô[39m src/features/live-monitor/__tests__/pipeline.integration.test.ts[2m > [22mask-ai always saves recommendation when AI has selection[2m > [22mask-ai does NOT save when AI selection is "No Bet"[32m 8[2mms[22m[39m
+ [32mΓ£ô[39m src/features/live-monitor/__tests__/pipeline-comprehensive.test.ts[2m > [22mCat-B: Auto-Trigger (scheduled) Pipeline[2m > [22mB1: Normal scheduled run[2m > [22mscheduled with multiple matches ΓÇö processes all[32m 34[2mms[22m[39m
+ [32mΓ£ô[39m src/features/live-monitor/__tests__/pipeline-comprehensive.test.ts[2m > [22mCat-B: Auto-Trigger (scheduled) Pipeline[2m > [22mB2: Filter rejections during scheduled run[2m > [22mall matches at HT ΓÇö none proceed[32m 13[2mms[22m[39m
+ [32mΓ£ô[39m src/features/live-monitor/__tests__/pipeline-comprehensive.test.ts[2m > [22mCat-B: Auto-Trigger (scheduled) Pipeline[2m > [22mB2: Filter rejections during scheduled run[2m > [22mone live, one HT ΓÇö only live proceeds[32m 28[2mms[22m[39m
+ [32mΓ£ô[39m src/features/live-monitor/__tests__/pipeline-comprehensive.test.ts[2m > [22mCat-B: Auto-Trigger (scheduled) Pipeline[2m > [22mB2: Filter rejections during scheduled run[2m > [22mlate minute 89 ΓÇö does NOT proceed (> MAX_MINUTE)[32m 5[2mms[22m[39m
+ [32mΓ£ô[39m src/features/live-monitor/__tests__/pipeline-comprehensive.test.ts[2m > [22mCat-B: Auto-Trigger (scheduled) Pipeline[2m > [22mB2: Filter rejections during scheduled run[2m > [22mFT match ΓÇö does NOT proceed[32m 5[2mms[22m[39m
+ [32mΓ£ô[39m src/features/live-monitor/__tests__/pipeline-comprehensive.test.ts[2m > [22mCat-B: Auto-Trigger (scheduled) Pipeline[2m > [22mB2: Filter rejections during scheduled run[2m > [22m2H early minute 48 ΓÇö blocked by 2H offset threshold[32m 4[2mms[22m[39m
+ [32mΓ£ô[39m src/features/live-monitor/__tests__/pipeline-comprehensive.test.ts[2m > [22mCat-B: Auto-Trigger (scheduled) Pipeline[2m > [22mB3: Staleness check during scheduled run[2m > [22mstale match ΓÇö skips AI completely[32m 4[2mms[22m[39m
+ [32mΓ£ô[39m src/features/live-monitor/__tests__/pipeline.integration.test.ts[2m > [22mask-ai always saves recommendation when AI has selection[2m > [22mnon-ask-ai trigger still does NOT save when ai_should_push=false[32m 61[2mms[22m[39m
+ [32mΓ£ô[39m src/features/live-monitor/__tests__/pipeline-comprehensive.test.ts[2m > [22mCat-B: Auto-Trigger (scheduled) Pipeline[2m > [22mB3: Staleness check during scheduled run[2m > [22mnot stale (first_analysis) ΓÇö AI called[32m 59[2mms[22m[39m
+ [32mΓ£ô[39m src/features/live-monitor/__tests__/pipeline-comprehensive.test.ts[2m > [22mCat-B: Auto-Trigger (scheduled) Pipeline[2m > [22mB3: Staleness check during scheduled run[2m > [22mstale but force_analyze ΓÇö AI still called[32m 22[2mms[22m[39m
+ [32mΓ£ô[39m src/features/live-monitor/__tests__/pipeline-comprehensive.test.ts[2m > [22mCat-B: Auto-Trigger (scheduled) Pipeline[2m > [22mB3: Staleness check during scheduled run[2m > [22mmixed: 1 stale + 1 fresh ΓÇö only fresh gets AI call[32m 20[2mms[22m[39m
+ [32mΓ£ô[39m src/features/live-monitor/__tests__/pipeline-comprehensive.test.ts[2m > [22mCat-B: Auto-Trigger (scheduled) Pipeline[2m > [22mB3: Staleness check during scheduled run[2m > [22msnapshot still saved even for stale match[32m 11[2mms[22m[39m
+ [32mΓ£ô[39m src/features/live-monitor/__tests__/pipeline-comprehensive.test.ts[2m > [22mCat-B: Auto-Trigger (scheduled) Pipeline[2m > [22mB4: AI response parsing edge cases[2m > [22mAI response wrapped in markdown ΓÇö parsed correctly[32m 17[2mms[22m[39m
+ [32mΓ£ô[39m src/features/live-monitor/__tests__/pipeline-comprehensive.test.ts[2m > [22mCat-B: Auto-Trigger (scheduled) Pipeline[2m > [22mB4: AI response parsing edge cases[2m > [22mAI confidence > 10 ΓÇö normalized to 0-10 scale[32m 17[2mms[22m[39m
+[90mstderr[2m | 
+src/features/live-monitor/__tests__/pipeline-comprehensive.test.ts[2m > 
+[22m[2mCat-B: Auto-Trigger (scheduled) Pipeline[2m > [22m[2mB5: Error 
+recovery during scheduled run[2m > [22m[2msnapshot tracking failure ΓÇö no 
+crash
+[22m[39m[Pipeline] Tracking failure (snapshot:12345@65) ΓÇö data may be 
+lost: Snapshot DB error
+
+[90mstderr[2m | 
+src/features/live-monitor/__tests__/pipeline-comprehensive.test.ts[2m > 
+[22m[2mCat-B: Auto-Trigger (scheduled) Pipeline[2m > [22m[2mB5: Error 
+recovery during scheduled run[2m > [22m[2mcontext fetch failure ΓÇö AI 
+called anyway (without context)
+[22m[39m[Pipeline] AI context fetch failed ΓÇö proceeding without history: 
+DB read fail
+
+ [32mΓ£ô[39m src/features/live-monitor/__tests__/pipeline-comprehensive.test.ts[2m > [22mCat-B: Auto-Trigger (scheduled) Pipeline[2m > [22mB4: AI response parsing edge cases[2m > [22mAI returns garbage ΓÇö results in parse error, no save[32m 68[2mms[22m[39m
+ [32mΓ£ô[39m src/features/live-monitor/__tests__/pipeline-comprehensive.test.ts[2m > [22mCat-B: Auto-Trigger (scheduled) Pipeline[2m > [22mB4: AI response parsing edge cases[2m > [22mAI returns empty string ΓÇö no save, no notify[32m 28[2mms[22m[39m
+ [32mΓ£ô[39m src/features/live-monitor/__tests__/pipeline-comprehensive.test.ts[2m > [22mCat-B: Auto-Trigger (scheduled) Pipeline[2m > [22mB4: AI response parsing edge cases[2m > [22mAI response with low confidence (below MIN_CONFIDENCE) ΓÇö system_should_bet=false[32m 9[2mms[22m[39m
+ [32mΓ£ô[39m src/features/live-monitor/__tests__/pipeline-comprehensive.test.ts[2m > [22mCat-B: Auto-Trigger (scheduled) Pipeline[2m > [22mB5: Error recovery during scheduled run[2m > [22mfixture fetch fails ΓÇö pipeline errors[32m 6[2mms[22m[39m
+ [32mΓ£ô[39m src/features/live-monitor/__tests__/pipeline-comprehensive.test.ts[2m > [22mCat-B: Auto-Trigger (scheduled) Pipeline[2m > [22mB5: Error recovery during scheduled run[2m > [22mAI service throws ΓÇö match has error, pipeline completes[32m 24[2mms[22m[39m
+ [32mΓ£ô[39m src/features/live-monitor/__tests__/pipeline-comprehensive.test.ts[2m > [22mCat-B: Auto-Trigger (scheduled) Pipeline[2m > [22mB5: Error recovery during scheduled run[2m > [22msave DB fails ΓÇö error recorded, match continues to notify[32m 7[2mms[22m[39m
+ [32mΓ£ô[39m src/features/live-monitor/__tests__/pipeline-comprehensive.test.ts[2m > [22mCat-B: Auto-Trigger (scheduled) Pipeline[2m > [22mB5: Error recovery during scheduled run[2m > [22msnapshot tracking failure ΓÇö no crash[32m 18[2mms[22m[39m
+ [32mΓ£ô[39m src/features/live-monitor/__tests__/historical-performance.test.ts[2m > [22mfetchHistoricalPerformance ΓÇö client-side cache[2m > [22mfetches data on first call[32m 25[2mms[22m[39m
+ [32mΓ£ô[39m src/features/live-monitor/__tests__/historical-performance.test.ts[2m > [22mfetchHistoricalPerformance ΓÇö client-side cache[2m > [22mreturns cached data on subsequent calls (no extra fetch)[32m 9[2mms[22m[39m
+ [32mΓ£ô[39m src/features/live-monitor/__tests__/historical-performance.test.ts[2m > [22mfetchHistoricalPerformance ΓÇö client-side cache[2m > [22mreturns null on fetch error without crashing[32m 10[2mms[22m[39m
+ [32mΓ£ô[39m src/features/live-monitor/__tests__/historical-performance.test.ts[2m > [22mfetchHistoricalPerformance ΓÇö client-side cache[2m > [22mreturns null on non-ok response[32m 8[2mms[22m[39m
+ [32mΓ£ô[39m src/features/live-monitor/__tests__/historical-performance.test.ts[2m > [22mfetchHistoricalPerformance ΓÇö client-side cache[2m > [22mclearPerformanceCache forces next call to refetch[32m 9[2mms[22m[39m
+ [32mΓ£ô[39m src/features/live-monitor/__tests__/historical-performance.test.ts[2m > [22mbuildHistoricalPerformanceSection ΓÇö edge cases[2m > [22mmarkets with exactly 45% accuracy get no tag[32m 22[2mms[22m[39m
+ [32mΓ£ô[39m src/features/live-monitor/__tests__/historical-performance.test.ts[2m > [22mbuildHistoricalPerformanceSection ΓÇö edge cases[2m > [22mexactly 5 settled records still shows section[32m 11[2mms[22m[39m
+ [32mΓ£ô[39m src/features/live-monitor/__tests__/pipeline-comprehensive.test.ts[2m > [22mCat-B: Auto-Trigger (scheduled) Pipeline[2m > [22mB5: Error recovery during scheduled run[2m > [22mcontext fetch failure ΓÇö AI called anyway (without context)[32m 16[2mms[22m[39m
+ [32mΓ£ô[39m src/features/live-monitor/__tests__/pipeline-comprehensive.test.ts[2m > [22mCat-C: Manual / Ask-AI Pipeline[2m > [22mC1: Ask-AI with real selection[2m > [22mask-ai with push selection ΓÇö save + notify with forceNotify[32m 9[2mms[22m[39m
+ [32mΓ£ô[39m src/features/live-monitor/__tests__/pipeline-comprehensive.test.ts[2m > [22mCat-C: Manual / Ask-AI Pipeline[2m > [22mC1: Ask-AI with real selection[2m > [22mask-ai with no-push AI but real selection ΓÇö still saves (isAskAi + hasSelection)[32m 11[2mms[22m[39m
+ [32mΓ£ô[39m src/features/live-monitor/__tests__/pipeline-comprehensive.test.ts[2m > [22mCat-C: Manual / Ask-AI Pipeline[2m > [22mC1: Ask-AI with real selection[2m > [22mask-ai sets MANUAL_PUSH_MATCH_IDS[32m 8[2mms[22m[39m
+ [32mΓ£ô[39m src/features/live-monitor/__tests__/pipeline-comprehensive.test.ts[2m > [22mCat-C: Manual / Ask-AI Pipeline[2m > [22mC1: Ask-AI with real selection[2m > [22mask-ai with configOverrides ΓÇö passes through[32m 6[2mms[22m[39m
+ [32mΓ£ô[39m src/features/live-monitor/__tests__/pipeline-comprehensive.test.ts[2m > [22mCat-C: Manual / Ask-AI Pipeline[2m > [22mC1: Ask-AI with real selection[2m > [22mask-ai bypasses staleness[32m 8[2mms[22m[39m
+ [32mΓ£ô[39m src/features/live-monitor/__tests__/pipeline-comprehensive.test.ts[2m > [22mCat-C: Manual / Ask-AI Pipeline[2m > [22mC2: Ask-AI with "No Bet" / empty selection[2m > [22mask-ai "No Bet" ΓÇö still notifies (forceNotify) but does NOT save via hasSelection[32m 17[2mms[22m[39m
+ [32mΓ£ô[39m src/features/live-monitor/__tests__/pipeline-comprehensive.test.ts[2m > [22mCat-C: Manual / Ask-AI Pipeline[2m > [22mC2: Ask-AI with "No Bet" / empty selection[2m > [22mask-ai empty selection ΓÇö not saved but notified[32m 19[2mms[22m[39m
+ [32mΓ£ô[39m src/features/live-monitor/__tests__/pipeline-comprehensive.test.ts[2m > [22mCat-C: Manual / Ask-AI Pipeline[2m > [22mC2: Ask-AI with "No Bet" / empty selection[2m > [22mask-ai selection="-" ΓÇö not saved but notified[32m 8[2mms[22m[39m
+ [32mΓ£ô[39m src/features/live-monitor/__tests__/pipeline-comprehensive.test.ts[2m > [22mCat-C: Manual / Ask-AI Pipeline[2m > [22mC2: Ask-AI with "No Bet" / empty selection[2m > [22mask-ai "no bet" (lowercase) ΓÇö not saved[32m 7[2mms[22m[39m
+ [32mΓ£ô[39m src/features/live-monitor/__tests__/historical-performance.test.ts[2m > [22mbuildHistoricalPerformanceSection ΓÇö edge cases[2m > [22mexactly 4 settled records hides section (minimum threshold)[32m 11[2mms[22m[39m
+ [32mΓ£ô[39m src/features/live-monitor/__tests__/historical-performance.test.ts[2m > [22mbuildHistoricalPerformanceSection ΓÇö edge cases[2m > [22mleague with 65% accuracy gets RELIABLE tag[32m 12[2mms[22m[39m
+ [32mΓ£ô[39m src/features/live-monitor/__tests__/historical-performance.test.ts[2m > [22mbuildHistoricalPerformanceSection ΓÇö edge cases[2m > [22mminute band with exactly 44% gets WEAK tag[32m 30[2mms[22m[39m
+ [32mΓ£ô[39m src/features/live-monitor/__tests__/pipeline-comprehensive.test.ts[2m > [22mCat-C: Manual / Ask-AI Pipeline[2m > [22mC2: Ask-AI with "No Bet" / empty selection[2m > [22mask-ai with whitespace-only selection ΓÇö not saved[32m 7[2mms[22m[39m
+ [32mΓ£ô[39m src/features/live-monitor/__tests__/pipeline-comprehensive.test.ts[2m > [22mCat-C: Manual / Ask-AI Pipeline[2m > [22mC3: Ask-AI force_analyze bypass[2m > [22mask-ai on HT match ΓÇö force_analyze bypasses status filter[32m 10[2mms[22m[39m
+ [32mΓ£ô[39m src/features/live-monitor/__tests__/pipeline-comprehensive.test.ts[2m > [22mCat-C: Manual / Ask-AI Pipeline[2m > [22mC3: Ask-AI force_analyze bypass[2m > [22mask-ai on FT match ΓÇö force_analyze bypasses[32m 12[2mms[22m[39m
+ [32mΓ£ô[39m src/features/live-monitor/__tests__/pipeline-comprehensive.test.ts[2m > [22mCat-C: Manual / Ask-AI Pipeline[2m > [22mC3: Ask-AI force_analyze bypass[2m > [22mask-ai on early game ΓÇö force_analyze bypasses minute filter[32m 17[2mms[22m[39m
+ [32mΓ£ô[39m src/features/live-monitor/__tests__/pipeline-comprehensive.test.ts[2m > [22mCat-C: Manual / Ask-AI Pipeline[2m > [22mC3: Ask-AI force_analyze bypass[2m > [22mask-ai on endgame ΓÇö force_analyze bypasses max minute filter[32m 13[2mms[22m[39m
+ [32mΓ£ô[39m src/features/live-monitor/__tests__/pipeline-comprehensive.test.ts[2m > [22mCat-C: Manual / Ask-AI Pipeline[2m > [22mC3: Ask-AI force_analyze bypass[2m > [22mask-ai bypasses all 4 filters simultaneously[32m 9[2mms[22m[39m
+ [32mΓ£ô[39m src/features/live-monitor/__tests__/pipeline-comprehensive.test.ts[2m > [22mCat-C: Manual / Ask-AI Pipeline[2m > [22mC4: Manual trigger (not ask-ai)[2m > [22mmanual trigger ΓÇö does NOT forceNotify[32m 10[2mms[22m[39m
+ [32mΓ£ô[39m src/features/live-monitor/__tests__/pipeline-comprehensive.test.ts[2m > [22mCat-C: Manual / Ask-AI Pipeline[2m > [22mC4: Manual trigger (not ask-ai)[2m > [22mmanual trigger with push ΓÇö saves and notifies[32m 13[2mms[22m[39m
+ [32mΓ£ô[39m src/features/live-monitor/__tests__/pipeline-comprehensive.test.ts[2m > [22mCat-C: Manual / Ask-AI Pipeline[2m > [22mC4: Manual trigger (not ask-ai)[2m > [22mmanual trigger does NOT set force_analyze (no MANUAL_PUSH_MATCH_IDS)[32m 14[2mms[22m[39m
+ [32mΓ£ô[39m src/components/ui/RecommendationCard.test.tsx[2m > [22mRecommendationCard[2m > [22mrenders match display from home/away team names[33m 716[2mms[22m[39m
+ [32mΓ£ô[39m src/features/live-monitor/__tests__/pipeline-comprehensive.test.ts[2m > [22mCat-C: Manual / Ask-AI Pipeline[2m > [22mC4: Manual trigger (not ask-ai)[2m > [22mmanual with webhook match IDs ΓÇö sets force_analyze[32m 38[2mms[22m[39m
+ [32mΓ£ô[39m src/features/live-monitor/__tests__/pipeline-comprehensive.test.ts[2m > [22mCat-C: Manual / Ask-AI Pipeline[2m > [22mC4: Manual trigger (not ask-ai)[2m > [22mwebhook trigger merges match IDs[32m 15[2mms[22m[39m
+ [32mΓ£ô[39m src/features/live-monitor/__tests__/pipeline-comprehensive.test.ts[2m > [22mCat-D: Push Notification Decisions[2m > [22mD1: AI recommendation ΓåÆ push notification[2m > [22mai_should_push=true ΓÇö email + telegram sent[32m 37[2mms[22m[39m
+ [32mΓ£ô[39m src/features/live-monitor/__tests__/pipeline-comprehensive.test.ts[2m > [22mCat-D: Push Notification Decisions[2m > [22mD1: AI recommendation ΓåÆ push notification[2m > [22mai_should_push=false, condition not matched ΓÇö NO notification[32m 14[2mms[22m[39m
+ [32mΓ£ô[39m src/features/live-monitor/__tests__/pipeline-comprehensive.test.ts[2m > [22mCat-D: Push Notification Decisions[2m > [22mD1: AI recommendation ΓåÆ push notification[2m > [22mai_should_push=true but system_should_bet=false (low confidence) ΓÇö enters notify but determineSection=no_actionable[32m 10[2mms[22m[39m
+ [32mΓ£ô[39m src/features/live-monitor/__tests__/pipeline-comprehensive.test.ts[2m > [22mCat-D: Push Notification Decisions[2m > [22mD1: AI recommendation ΓåÆ push notification[2m > [22mboth AI push and condition triggered ΓÇö both sections in notification[32m 10[2mms[22m[39m
+ [32mΓ£ô[39m src/components/ui/RecommendationCard.test.tsx[2m > [22mRecommendationCard[2m > [22mrenders league name[32m 125[2mms[22m[39m
+ [32mΓ£ô[39m src/features/live-monitor/__tests__/pipeline-comprehensive.test.ts[2m > [22mCat-D: Push Notification Decisions[2m > [22mD1: AI recommendation ΓåÆ push notification[2m > [22mask-ai with no push ΓÇö still notified (forceNotify)[32m 30[2mms[22m[39m
+ [32mΓ£ô[39m src/features/live-monitor/__tests__/pipeline-comprehensive.test.ts[2m > [22mCat-D: Push Notification Decisions[2m > [22mD2: Condition-triggered ΓåÆ push notification[2m > [22mcondition_triggered_should_push=true ΓÇö sends notifications[32m 53[2mms[22m[39m
+ [32mΓ£ô[39m src/features/live-monitor/__tests__/pipeline-comprehensive.test.ts[2m > [22mCat-D: Push Notification Decisions[2m > [22mD2: Condition-triggered ΓåÆ push notification[2m > [22mcondition matched but "No bet" suggestion ΓÇö no save, no notify[32m 18[2mms[22m[39m
+ [32mΓ£ô[39m src/features/live-monitor/__tests__/pipeline-comprehensive.test.ts[2m > [22mCat-D: Push Notification Decisions[2m > [22mD2: Condition-triggered ΓåÆ push notification[2m > [22mcondition matched with valid suggestion ΓÇö saves AND notifies[32m 29[2mms[22m[39m
+ [32mΓ£ô[39m src/features/live-monitor/__tests__/pipeline-comprehensive.test.ts[2m > [22mCat-D: Push Notification Decisions[2m > [22mD2: Condition-triggered ΓåÆ push notification[2m > [22mcondition not matched + AI no push ΓÇö no notification[32m 17[2mms[22m[39m
+ [32mΓ£ô[39m src/features/live-monitor/__tests__/pipeline-comprehensive.test.ts[2m > [22mCat-D: Push Notification Decisions[2m > [22mD2: Condition-triggered ΓåÆ push notification[2m > [22mcondition status=parse_error ΓÇö treated as not matched for push decision[32m 18[2mms[22m[39m
+ [32mΓ£ô[39m src/features/live-monitor/__tests__/pipeline-comprehensive.test.ts[2m > [22mCat-D: Push Notification Decisions[2m > [22mD3: Notification channel failures[2m > [22memail fails, telegram succeeds ΓÇö partial success[32m 14[2mms[22m[39m
+ [32mΓ£ô[39m src/features/live-monitor/__tests__/pipeline-comprehensive.test.ts[2m > [22mCat-D: Push Notification Decisions[2m > [22mD3: Notification channel failures[2m > [22mtelegram fails, email succeeds ΓÇö partial success[32m 12[2mms[22m[39m
+ [32mΓ£ô[39m src/features/live-monitor/__tests__/pipeline-comprehensive.test.ts[2m > [22mCat-D: Push Notification Decisions[2m > [22mD3: Notification channel failures[2m > [22mboth email and telegram fail ΓÇö errors recorded[32m 18[2mms[22m[39m
+ [32mΓ£ô[39m src/components/ui/RecommendationCard.test.tsx[2m > [22mRecommendationCard[2m > [22mrenders selection and bet market[32m 143[2mms[22m[39m
+ [32mΓ£ô[39m src/components/ui/RecommendationCard.test.tsx[2m > [22mRecommendationCard[2m > [22mrenders odds prominently[32m 63[2mms[22m[39m
+ [32mΓ£ô[39m src/features/live-monitor/__tests__/pipeline-comprehensive.test.ts[2m > [22mCat-D: Push Notification Decisions[2m > [22mD3: Notification channel failures[2m > [22mnotification fails but save succeeds ΓÇö data is preserved[32m 16[2mms[22m[39m
+ [32mΓ£ô[39m src/features/live-monitor/__tests__/pipeline-comprehensive.test.ts[2m > [22mCat-D: Push Notification Decisions[2m > [22mD3: Notification channel failures[2m > [22msave-before-notify order ΓÇö confirmed via stage emission[32m 14[2mms[22m[39m
+ [32mΓ£ô[39m src/features/live-monitor/__tests__/pipeline-comprehensive.test.ts[2m > [22mCat-E: Database Save Decisions & Data Integrity[2m > [22mE1: shouldSave trigger conditions[2m > [22mai_should_push=true ΓÇö saves[32m 16[2mms[22m[39m
+ [32mΓ£ô[39m src/features/live-monitor/__tests__/pipeline-comprehensive.test.ts[2m > [22mCat-E: Database Save Decisions & Data Integrity[2m > [22mE1: shouldSave trigger conditions[2m > [22mcondition_matched + evaluated (no triggered push) ΓÇö does NOT save[32m 13[2mms[22m[39m
+ [32mΓ£ô[39m src/features/live-monitor/__tests__/pipeline-comprehensive.test.ts[2m > [22mCat-E: Database Save Decisions & Data Integrity[2m > [22mE1: shouldSave trigger conditions[2m > [22mcondition_triggered_should_push=true ΓÇö saves[32m 29[2mms[22m[39m
+ [32mΓ£ô[39m src/features/live-monitor/__tests__/pipeline-comprehensive.test.ts[2m > [22mCat-E: Database Save Decisions & Data Integrity[2m > [22mE1: shouldSave trigger conditions[2m > [22mall false: no ai push, no condition, no triggered ΓÇö NO save[32m 12[2mms[22m[39m
+ [32mΓ£ô[39m src/features/live-monitor/__tests__/pipeline-comprehensive.test.ts[2m > [22mCat-E: Database Save Decisions & Data Integrity[2m > [22mE1: shouldSave trigger conditions[2m > [22mshouldSave consistent with shouldPush (both use same 2 conditions)[32m 10[2mms[22m[39m
+ [32mΓ£ô[39m src/components/ui/RecommendationCard.test.tsx[2m > [22mRecommendationCard[2m > [22mrenders confidence with bar[32m 57[2mms[22m[39m
+ [32mΓ£ô[39m src/components/ui/RecommendationCard.test.tsx[2m > [22mRecommendationCard[2m > [22mrenders risk level badge[32m 68[2mms[22m[39m
+ [32mΓ£ô[39m src/features/live-monitor/__tests__/pipeline-comprehensive.test.ts[2m > [22mCat-E: Database Save Decisions & Data Integrity[2m > [22mE2: Ask-AI save (isAskAi && hasSelection)[2m > [22mask-ai with real selection + AI no-push ΓÇö saves via isAskAi path[32m 10[2mms[22m[39m
+ [32mΓ£ô[39m src/features/live-monitor/__tests__/pipeline-comprehensive.test.ts[2m > [22mCat-E: Database Save Decisions & Data Integrity[2m > [22mE2: Ask-AI save (isAskAi && hasSelection)[2m > [22mask-ai with "No Bet" ΓÇö does NOT save[32m 8[2mms[22m[39m
+ [32mΓ£ô[39m src/features/live-monitor/__tests__/pipeline-comprehensive.test.ts[2m > [22mCat-E: Database Save Decisions & Data Integrity[2m > [22mE2: Ask-AI save (isAskAi && hasSelection)[2m > [22mask-ai with "-" selection ΓÇö does NOT save[32m 13[2mms[22m[39m
+ [32mΓ£ô[39m src/features/live-monitor/__tests__/pipeline-comprehensive.test.ts[2m > [22mCat-E: Database Save Decisions & Data Integrity[2m > [22mE2: Ask-AI save (isAskAi && hasSelection)[2m > [22mask-ai with empty selection ΓÇö does NOT save[32m 14[2mms[22m[39m
+ [32mΓ£ô[39m src/features/live-monitor/__tests__/pipeline-comprehensive.test.ts[2m > [22mCat-E: Database Save Decisions & Data Integrity[2m > [22mE2: Ask-AI save (isAskAi && hasSelection)[2m > [22mask-ai with "No Bet" case-insensitive ΓÇö does NOT save[32m 8[2mms[22m[39m
+ [32mΓ£ô[39m src/features/live-monitor/__tests__/pipeline-comprehensive.test.ts[2m > [22mCat-E: Database Save Decisions & Data Integrity[2m > [22mE3: Save data integrity[2m > [22mrecommendation includes execution_id[32m 18[2mms[22m[39m
+ [32mΓ£ô[39m src/features/live-monitor/__tests__/pipeline-comprehensive.test.ts[2m > [22mCat-E: Database Save Decisions & Data Integrity[2m > [22mE3: Save data integrity[2m > [22mrecommendation includes match metadata[32m 14[2mms[22m[39m
+ [32mΓ£ô[39m src/features/live-monitor/__tests__/pipeline-comprehensive.test.ts[2m > [22mCat-E: Database Save Decisions & Data Integrity[2m > [22mE3: Save data integrity[2m > [22mrecommendation includes AI model info[32m 12[2mms[22m[39m
+[90mstderr[2m | 
+src/features/live-monitor/__tests__/pipeline-comprehensive.test.ts[2m > 
+[22m[2mCat-E: Database Save Decisions & Data Integrity[2m > [22m[2mE4: 
+Snapshot and odds movement tracking[2m > [22m[2mtracking failures are 
+non-fatal
+[22m[39m[Pipeline] Tracking failure (snapshot:12345@65) ΓÇö data may be 
+lost: DB error
+[Pipeline] Tracking failure (odds:12345@65) ΓÇö data may be lost: DB error
+
+[90mstderr[2m | 
+src/features/live-monitor/__tests__/pipeline-comprehensive.test.ts[2m > 
+[22m[2mCat-E: Database Save Decisions & Data Integrity[2m > [22m[2mE4: 
+Snapshot and odds movement tracking[2m > [22m[2mtracking failures are 
+non-fatal
+[22m[39m[Pipeline] Tracking failure (unknown) ΓÇö data may be lost: DB error
+
+ [32mΓ£ô[39m src/components/ui/RecommendationCard.test.tsx[2m > [22mRecommendationCard[2m > [22mrenders value percent[32m 90[2mms[22m[39m
+ [32mΓ£ô[39m src/components/ui/RecommendationCard.test.tsx[2m > [22mRecommendationCard[2m > [22mrenders stake percent[32m 77[2mms[22m[39m
+ [32mΓ£ô[39m src/features/live-monitor/__tests__/pipeline-comprehensive.test.ts[2m > [22mCat-E: Database Save Decisions & Data Integrity[2m > [22mE3: Save data integrity[2m > [22msaveAiPerformance called with correct recommendation_id[32m 21[2mms[22m[39m
+ [32mΓ£ô[39m src/features/live-monitor/__tests__/pipeline-comprehensive.test.ts[2m > [22mCat-E: Database Save Decisions & Data Integrity[2m > [22mE3: Save data integrity[2m > [22mno save ΓåÆ no saveAiPerformance[32m 11[2mms[22m[39m
+ [32mΓ£ô[39m src/features/live-monitor/__tests__/pipeline-comprehensive.test.ts[2m > [22mCat-E: Database Save Decisions & Data Integrity[2m > [22mE4: Snapshot and odds movement tracking[2m > [22msaveMatchSnapshot called with correct data[32m 8[2mms[22m[39m
+ [32mΓ£ô[39m src/features/live-monitor/__tests__/pipeline-comprehensive.test.ts[2m > [22mCat-E: Database Save Decisions & Data Integrity[2m > [22mE4: Snapshot and odds movement tracking[2m > [22modds movements saved for each market[32m 7[2mms[22m[39m
+ [32mΓ£ô[39m src/features/live-monitor/__tests__/pipeline-comprehensive.test.ts[2m > [22mCat-E: Database Save Decisions & Data Integrity[2m > [22mE4: Snapshot and odds movement tracking[2m > [22modds unavailable ΓÇö no odds movements saved[32m 13[2mms[22m[39m
+ [32mΓ£ô[39m src/features/live-monitor/__tests__/pipeline-comprehensive.test.ts[2m > [22mCat-E: Database Save Decisions & Data Integrity[2m > [22mE4: Snapshot and odds movement tracking[2m > [22mtracking failures are non-fatal[32m 12[2mms[22m[39m
+ [32mΓ£ô[39m src/features/live-monitor/__tests__/pipeline-comprehensive.test.ts[2m > [22mCat-E: Database Save Decisions & Data Integrity[2m > [22mE4: Snapshot and odds movement tracking[2m > [22msnapshot saved per match in multi-match pipeline[32m 8[2mms[22m[39m
+ [32mΓ£ô[39m src/features/live-monitor/__tests__/pipeline-comprehensive.test.ts[2m > [22mCat-F: Custom Condition Logic[2m > [22mF1: Condition matched + valid suggestion[2m > [22mcondition_triggered_should_push ΓåÆ saves + notifies[32m 6[2mms[22m[39m
+ [32mΓ£ô[39m src/features/live-monitor/__tests__/pipeline-comprehensive.test.ts[2m > [22mCat-F: Custom Condition Logic[2m > [22mF1: Condition matched + valid suggestion[2m > [22mcondition triggered confidence >= MIN_CONFIDENCE ΓÇö push[32m 11[2mms[22m[39m
+ [32mΓ£ô[39m src/features/live-monitor/__tests__/pipeline-comprehensive.test.ts[2m > [22mCat-F: Custom Condition Logic[2m > [22mF1: Condition matched + valid suggestion[2m > [22mcondition triggered confidence < MIN_CONFIDENCE ΓÇö no save, no push[32m 7[2mms[22m[39m
+ [32mΓ£ô[39m src/features/live-monitor/__tests__/pipeline-comprehensive.test.ts[2m > [22mCat-F: Custom Condition Logic[2m > [22mF1: Condition matched + valid suggestion[2m > [22mcondition triggered with empty suggestion ΓÇö no save, no push[32m 13[2mms[22m[39m
+ [32mΓ£ô[39m src/features/live-monitor/__tests__/pipeline-comprehensive.test.ts[2m > [22mCat-F: Custom Condition Logic[2m > [22mF1: Condition matched + valid suggestion[2m > [22mcondition matched + AI also pushes ΓÇö both paths trigger[32m 29[2mms[22m[39m
+ [32mΓ£ô[39m src/features/live-monitor/__tests__/pipeline-comprehensive.test.ts[2m > [22mCat-F: Custom Condition Logic[2m > [22mF2: Condition matched + "No bet" suggestion[2m > [22m"No bet" condition suggestion ΓÇö condition_triggered_should_push=false[32m 18[2mms[22m[39m
+ [32mΓ£ô[39m src/features/live-monitor/__tests__/pipeline-comprehensive.test.ts[2m > [22mCat-F: Custom Condition Logic[2m > [22mF2: Condition matched + "No bet" suggestion[2m > [22m"No bet" but condition matched + evaluated ΓåÆ NOT saved, NOT notified[32m 16[2mms[22m[39m
+ [32mΓ£ô[39m src/features/live-monitor/__tests__/pipeline-comprehensive.test.ts[2m > [22mCat-F: Custom Condition Logic[2m > [22mF2: Condition matched + "No bet" suggestion[2m > [22m"no bet - insufficient value" starts with "no bet" ΓÇö triggered_should_push=false[32m 7[2mms[22m[39m
+ [32mΓ£ô[39m src/features/live-monitor/__tests__/pipeline-comprehensive.test.ts[2m > [22mCat-F: Custom Condition Logic[2m > [22mF2: Condition matched + "No bet" suggestion[2m > [22m"No Bet" case-insensitive ΓÇö triggered_should_push=false[32m 6[2mms[22m[39m
+ [32mΓ£ô[39m src/features/live-monitor/__tests__/pipeline-comprehensive.test.ts[2m > [22mCat-F: Custom Condition Logic[2m > [22mF2: Condition matched + "No bet" suggestion[2m > [22m"No bet" but low confidence anyway ΓÇö no triggered push[32m 7[2mms[22m[39m
+ [32mΓ£ô[39m src/features/live-monitor/__tests__/pipeline-comprehensive.test.ts[2m > [22mCat-F: Custom Condition Logic[2m > [22mF3: No custom condition[2m > [22mcondition_status=none, AI pushes ΓÇö normal AI push flow[32m 15[2mms[22m[39m
+ [32mΓ£ô[39m src/features/live-monitor/__tests__/pipeline-comprehensive.test.ts[2m > [22mCat-F: Custom Condition Logic[2m > [22mF3: No custom condition[2m > [22mcondition_status=none, AI no push ΓÇö no save/notify[32m 12[2mms[22m[39m
+ [32mΓ£ô[39m src/features/live-monitor/__tests__/pipeline-comprehensive.test.ts[2m > [22mCat-F: Custom Condition Logic[2m > [22mF3: No custom condition[2m > [22mcondition_status=none, no triggered suggestion ΓÇö clean result[32m 7[2mms[22m[39m
+ [32mΓ£ô[39m src/features/live-monitor/__tests__/pipeline-comprehensive.test.ts[2m > [22mCat-F: Custom Condition Logic[2m > [22mF3: No custom condition[2m > [22mno conditions in watchlist ΓÇö AI skips condition evaluation[32m 7[2mms[22m[39m
+ [32mΓ£ô[39m src/components/ui/RecommendationCard.test.tsx[2m > [22mRecommendationCard[2m > [22mrenders key factors section[32m 82[2mms[22m[39m
+ [32mΓ£ô[39m src/lib/utils/helpers.test.ts[2m > [22mconvertSeoulToLocalDateTime[2m > [22mconverts Seoul time to UTC by subtracting 9 hours[32m 4[2mms[22m[39m
+ [32mΓ£ô[39m src/lib/utils/helpers.test.ts[2m > [22mconvertSeoulToLocalDateTime[2m > [22mhandles midnight kickoff[32m 1[2mms[22m[39m
+ [32mΓ£ô[39m src/lib/utils/helpers.test.ts[2m > [22mconvertSeoulToLocalDateTime[2m > [22mreturns current date for empty dateStr[32m 3[2mms[22m[39m
+ [32mΓ£ô[39m src/lib/utils/helpers.test.ts[2m > [22mconvertSeoulToLocalDateTime[2m > [22mhandles missing kickoff string[32m 1[2mms[22m[39m
+ [32mΓ£ô[39m src/lib/utils/helpers.test.ts[2m > [22mconvertSeoulToLocalDateTime[2m > [22mhandles malformed date parts gracefully[32m 1[2mms[22m[39m
+ [32mΓ£ô[39m src/lib/utils/helpers.test.ts[2m > [22mformatDateTimeDisplay[2m > [22mformats date to DD-MMM-YYYY HH:mm[32m 1[2mms[22m[39m
+ [32mΓ£ô[39m src/lib/utils/helpers.test.ts[2m > [22mformatDateTimeDisplay[2m > [22mpads single-digit values[32m 0[2mms[22m[39m
+ [32mΓ£ô[39m src/lib/utils/helpers.test.ts[2m > [22mformatDateTimeDisplay[2m > [22mreturns empty string for invalid date[32m 0[2mms[22m[39m
+ [32mΓ£ô[39m src/lib/utils/helpers.test.ts[2m > [22mformatDateTimeDisplay[2m > [22mreturns empty string for non-Date input[32m 0[2mms[22m[39m
+ [32mΓ£ô[39m src/lib/utils/helpers.test.ts[2m > [22mnormalizeToISO[2m > [22mreturns ISO date as-is[32m 1[2mms[22m[39m
+ [32mΓ£ô[39m src/lib/utils/helpers.test.ts[2m > [22mnormalizeToISO[2m > [22mconverts DD/MM/YYYY to ISO[32m 1[2mms[22m[39m
+ [32mΓ£ô[39m src/lib/utils/helpers.test.ts[2m > [22mnormalizeToISO[2m > [22mconverts DD/MM/YYYY with padding[32m 0[2mms[22m[39m
+ [32mΓ£ô[39m src/lib/utils/helpers.test.ts[2m > [22mnormalizeToISO[2m > [22mreturns null for empty string[32m 0[2mms[22m[39m
+ [32mΓ£ô[39m src/lib/utils/helpers.test.ts[2m > [22mnormalizeToISO[2m > [22mreturns null for undefined[32m 0[2mms[22m[39m
+ [32mΓ£ô[39m src/lib/utils/helpers.test.ts[2m > [22mnormalizeToISO[2m > [22mreturns null for null[32m 0[2mms[22m[39m
+ [32mΓ£ô[39m src/lib/utils/helpers.test.ts[2m > [22mnormalizeToISO[2m > [22mreturns null for unparseable string[32m 0[2mms[22m[39m
+ [32mΓ£ô[39m src/lib/utils/helpers.test.ts[2m > [22mgetLeagueDisplayName[2m > [22mprepends country to league name[32m 0[2mms[22m[39m
+ [32mΓ£ô[39m src/lib/utils/helpers.test.ts[2m > [22mgetLeagueDisplayName[2m > [22muses approved league name if leagueName is empty[32m 0[2mms[22m[39m
+ [32mΓ£ô[39m src/lib/utils/helpers.test.ts[2m > [22mgetLeagueDisplayName[2m > [22mreturns leagueName when league not in approved list[32m 0[2mms[22m[39m
+ [32mΓ£ô[39m src/lib/utils/helpers.test.ts[2m > [22mgetLeagueDisplayName[2m > [22mreturns leagueName when leagues is empty[32m 0[2mms[22m[39m
+ [32mΓ£ô[39m src/lib/utils/helpers.test.ts[2m > [22mgetLeagueDisplayName[2m > [22mhandles string leagueId[32m 0[2mms[22m[39m
+ [32mΓ£ô[39m src/lib/utils/helpers.test.ts[2m > [22mgetLeagueDisplayName[2m > [22mhandles undefined leagueId[32m 0[2mms[22m[39m
+ [32mΓ£ô[39m src/lib/utils/helpers.test.ts[2m > [22mparseKickoffForSave[2m > [22mreturns HH:mm as-is[32m 1[2mms[22m[39m
+ [32mΓ£ô[39m src/lib/utils/helpers.test.ts[2m > [22mparseKickoffForSave[2m > [22mextracts UTC time from ISO datetime[32m 0[2mms[22m[39m
+ [32mΓ£ô[39m src/lib/utils/helpers.test.ts[2m > [22mparseKickoffForSave[2m > [22mreturns empty string for undefined[32m 0[2mms[22m[39m
+ [32mΓ£ô[39m src/lib/utils/helpers.test.ts[2m > [22mparseKickoffForSave[2m > [22mreturns empty string for empty string[32m 0[2mms[22m[39m
+ [32mΓ£ô[39m src/lib/utils/helpers.test.ts[2m > [22mparseKickoffForSave[2m > [22mreturns raw string if no pattern matches[32m 0[2mms[22m[39m
+ [32mΓ£ô[39m src/features/live-monitor/__tests__/pipeline-comprehensive.test.ts[2m > [22mCat-F: Custom Condition Logic[2m > [22mF3: No custom condition[2m > [22mwatchlist has conditions but AI says not matched ΓÇö no condition push[32m 6[2mms[22m[39m
+ [32mΓ£ô[39m src/features/live-monitor/__tests__/pipeline-comprehensive.test.ts[2m > [22mCat-F: Custom Condition Logic[2m > [22mF4: Condition parse_error[2m > [22mcondition_status=parse_error ΓÇö no condition push[32m 15[2mms[22m[39m
+ [32mΓ£ô[39m src/features/live-monitor/__tests__/pipeline-comprehensive.test.ts[2m > [22mCat-F: Custom Condition Logic[2m > [22mF4: Condition parse_error[2m > [22mparse_error with AI push ΓÇö still notified via AI path[32m 26[2mms[22m[39m
+ [32mΓ£ô[39m src/features/live-monitor/__tests__/pipeline-comprehensive.test.ts[2m > [22mCat-F: Custom Condition Logic[2m > [22mF4: Condition parse_error[2m > [22mparse_error does not set condition_triggered_should_push[32m 8[2mms[22m[39m
+ [32mΓ£ô[39m src/features/live-monitor/__tests__/pipeline-comprehensive.test.ts[2m > [22mCat-F: Custom Condition Logic[2m > [22mF4: Condition parse_error[2m > [22mparse_error + no AI push ΓÇö no save[32m 19[2mms[22m[39m
+ [32mΓ£ô[39m src/features/live-monitor/__tests__/pipeline-comprehensive.test.ts[2m > [22mCat-F: Custom Condition Logic[2m > [22mF4: Condition parse_error[2m > [22mparse_error + ask-ai with selection ΓÇö saves via ask-ai path[32m 29[2mms[22m[39m
+ [32mΓ£ô[39m src/components/ui/RecommendationCard.test.tsx[2m > [22mRecommendationCard[2m > [22mrenders warnings section[32m 135[2mms[22m[39m
+ [32mΓ£ô[39m src/components/ui/RecommendationCard.test.tsx[2m > [22mRecommendationCard[2m > [22mcollapses AI reasoning by default[32m 55[2mms[22m[39m
+ [32mΓ£ô[39m src/lib/utils/helpers.test.ts[2m > [22mdebounce[2m > [22mdelays function execution[32m 91[2mms[22m[39m
+ [32mΓ£ô[39m src/lib/utils/helpers.test.ts[2m > [22mdebounce[2m > [22mcancels previous call on rapid invocations[32m 97[2mms[22m[39m
+ [32mΓ£ô[39m src/components/ui/RecommendationCard.test.tsx[2m > [22mRecommendationCard[2m > [22mexpands AI reasoning on toggle[32m 60[2mms[22m[39m
+ [32mΓ£ô[39m src/components/ui/RecommendationCard.test.tsx[2m > [22mRecommendationCard[2m > [22mshows AI Reasoning header[32m 43[2mms[22m[39m
+ [32mΓ£ô[39m src/lib/utils/helpers.test.ts[2m > [22mdebounce[2m > [22mpasses arguments to the original function[32m 105[2mms[22m[39m
+ [32mΓ£ô[39m src/components/ui/RecommendationCard.test.tsx[2m > [22mRecommendationCard[2m > [22mcalls onViewMatch when match display is clicked[32m 66[2mms[22m[39m
+ [32mΓ£ô[39m src/components/ui/RecommendationCard.test.tsx[2m > [22mRecommendationCard[2m > [22mdoes not throw when onViewMatch is not provided[32m 47[2mms[22m[39m
+ [32mΓ£ô[39m src/features/live-monitor/__tests__/pipeline-comprehensive.test.ts[2m > [22mCat-F: Custom Condition Logic[2m > [22mF5: Complex condition interaction scenarios[2m > [22mAI push + condition matched + triggered ΓÇö all 3 conditions true = saves + notifies[32m 20[2mms[22m[39m
+ [32mΓ£ô[39m src/features/live-monitor/__tests__/pipeline-comprehensive.test.ts[2m > [22mCat-F: Custom Condition Logic[2m > [22mF5: Complex condition interaction scenarios[2m > [22mcondition matched=true, status=evaluated but NO triggered suggestion ΓÇö does NOT save[32m 13[2mms[22m[39m
+ [32mΓ£ô[39m src/features/live-monitor/__tests__/pipeline-comprehensive.test.ts[2m > [22mCat-F: Custom Condition Logic[2m > [22mF5: Complex condition interaction scenarios[2m > [22monly condition_triggered (no matched, no ai push) ΓÇö should NOT save[32m 11[2mms[22m[39m
+ [32mΓ£ô[39m src/features/live-monitor/__tests__/pipeline-comprehensive.test.ts[2m > [22mCat-F: Custom Condition Logic[2m > [22mF5: Complex condition interaction scenarios[2m > [22mask-ai + condition triggered ΓÇö both paths contribute to save[32m 23[2mms[22m[39m
+ [32mΓ£ô[39m src/features/live-monitor/__tests__/pipeline-comprehensive.test.ts[2m > [22mCat-F: Custom Condition Logic[2m > [22mF5: Complex condition interaction scenarios[2m > [22mmultiple matches: one with condition, one without ΓÇö independent processing[32m 24[2mms[22m[39m
+ [32mΓ£ô[39m src/components/ui/RecommendationCard.test.tsx[2m > [22mRecommendationCard[2m > [22mshows LIVE badge and score when minute is set[32m 69[2mms[22m[39m
+ [32mΓ£ô[39m src/components/ui/RecommendationCard.test.tsx[2m > [22mRecommendationCard[2m > [22mdoes not show LIVE badge when minute is null[32m 54[2mms[22m[39m
+ [32mΓ£ô[39m src/features/live-monitor/__tests__/scheduler.test.ts[2m > [22mstartScheduler[2m > [22msets status to running[32m 153[2mms[22m[39m
+ [32mΓ£ô[39m src/features/live-monitor/__tests__/scheduler.test.ts[2m > [22mstartScheduler[2m > [22mtriggers immediate pipeline run[32m 21[2mms[22m[39m
+ [32mΓ£ô[39m src/features/live-monitor/__tests__/scheduler.test.ts[2m > [22mstartScheduler[2m > [22muses custom intervalMs[32m 22[2mms[22m[39m
+ [32mΓ£ô[39m src/features/live-monitor/__tests__/scheduler.test.ts[2m > [22mstartScheduler[2m > [22mpasses configOverrides to pipeline[32m 20[2mms[22m[39m
+ [32mΓ£ô[39m src/features/live-monitor/__tests__/scheduler.test.ts[2m > [22mstartScheduler[2m > [22mstops previous scheduler before starting new one[32m 13[2mms[22m[39m
+ [32mΓ£ô[39m src/features/live-monitor/__tests__/scheduler.test.ts[2m > [22mstopScheduler[2m > [22msets status to idle[32m 7[2mms[22m[39m
+ [32mΓ£ô[39m src/features/live-monitor/__tests__/scheduler.test.ts[2m > [22mstopScheduler[2m > [22mclears nextRunAt[32m 8[2mms[22m[39m
+ [32mΓ£ô[39m src/components/ui/RecommendationCard.test.tsx[2m > [22mRecommendationCard[2m > [22mshows ft_score and actual_outcome in footer[32m 149[2mms[22m[39m
+ [32mΓ£ô[39m src/components/ui/RecommendationCard.test.tsx[2m > [22mRecommendationCard[2m > [22mrenders P/L with sign and color class[32m 38[2mms[22m[39m
+ [32mΓ£ô[39m src/components/ui/RecommendationCard.test.tsx[2m > [22mRecommendationCard[2m > [22mrenders negative P/L correctly[32m 28[2mms[22m[39m
+ [32mΓ£ô[39m src/components/ui/RecommendationCard.test.tsx[2m > [22mRecommendationCard[2m > [22mfalls back to match_display when home/away are absent[32m 49[2mms[22m[39m
+ [32mΓ£ô[39m src/components/ui/RecommendationCard.test.tsx[2m > [22mRecommendationCard[2m > [22mrenders without optional fields without crashing[32m 27[2mms[22m[39m
+ [32mΓ£ô[39m src/features/live-monitor/__tests__/scheduler.test.ts[2m > [22mstopScheduler[2m > [22mprevents further ticks[32m 76[2mms[22m[39m
+ [32mΓ£ô[39m src/features/live-monitor/__tests__/scheduler.test.ts[2m > [22mpauseScheduler[2m > [22msets status to paused[32m 16[2mms[22m[39m
+ [32mΓ£ô[39m src/features/live-monitor/__tests__/scheduler.test.ts[2m > [22mpauseScheduler[2m > [22mclears nextRunAt[32m 8[2mms[22m[39m
+ [32mΓ£ô[39m src/features/live-monitor/__tests__/scheduler.test.ts[2m > [22mpauseScheduler[2m > [22mstops ticking while paused[32m 57[2mms[22m[39m
+ [32mΓ£ô[39m src/features/live-monitor/__tests__/scheduler.test.ts[2m > [22mresumeScheduler[2m > [22msets status back to running after pause[32m 8[2mms[22m[39m
+ [32mΓ£ô[39m src/features/live-monitor/__tests__/scheduler.test.ts[2m > [22mresumeScheduler[2m > [22mresumes ticking after pause[32m 38[2mms[22m[39m
+ [32mΓ£ô[39m src/features/live-monitor/__tests__/scheduler.test.ts[2m > [22mresumeScheduler[2m > [22mdoes nothing if not paused[32m 4[2mms[22m[39m
+ [32mΓ£ô[39m src/features/live-monitor/__tests__/scheduler.test.ts[2m > [22mresumeScheduler[2m > [22mdoes nothing if idle[32m 7[2mms[22m[39m
+ [32mΓ£ô[39m src/features/live-monitor/__tests__/scheduler.test.ts[2m > [22mtick cycle[2m > [22mschedules next tick after completing[32m 42[2mms[22m[39m
+ [32mΓ£ô[39m src/features/live-monitor/__tests__/scheduler.test.ts[2m > [22mtick cycle[2m > [22mincrements runCount[32m 23[2mms[22m[39m
+ [32mΓ£ô[39m src/features/live-monitor/__tests__/scheduler.test.ts[2m > [22mtick cycle[2m > [22mincrements errorCount on pipeline error stage[32m 10[2mms[22m[39m
+ [32mΓ£ô[39m src/features/live-monitor/__tests__/scheduler.test.ts[2m > [22mtick cycle[2m > [22mincrements errorCount on pipeline throw[32m 11[2mms[22m[39m
+ [32mΓ£ô[39m src/features/live-monitor/__tests__/scheduler.test.ts[2m > [22mtick cycle[2m > [22mupdates lastRun after each tick[32m 15[2mms[22m[39m
+ [32mΓ£ô[39m src/features/live-monitor/__tests__/scheduler.test.ts[2m > [22mtick cycle[2m > [22mstores lastResult[32m 24[2mms[22m[39m
+ [32mΓ£ô[39m src/features/live-monitor/__tests__/scheduler.test.ts[2m > [22monSchedulerChange[2m > [22mnotifies listeners on state changes[32m 14[2mms[22m[39m
+ [32mΓ£ô[39m src/features/live-monitor/__tests__/scheduler.test.ts[2m > [22monSchedulerChange[2m > [22munsubscribe stops notifications[32m 9[2mms[22m[39m
+ [32mΓ£ô[39m src/features/live-monitor/__tests__/scheduler.test.ts[2m > [22monSchedulerChange[2m > [22mnotifies multiple listeners[32m 7[2mms[22m[39m
+ [32mΓ£ô[39m src/features/live-monitor/__tests__/scheduler.test.ts[2m > [22mtriggerManualRun[2m > [22mruns pipeline with manual triggeredBy[32m 10[2mms[22m[39m
+ [32mΓ£ô[39m src/features/live-monitor/__tests__/scheduler.test.ts[2m > [22mtriggerManualRun[2m > [22mupdates scheduler state after manual run[32m 7[2mms[22m[39m
+ [32mΓ£ô[39m src/features/live-monitor/__tests__/scheduler.test.ts[2m > [22mtriggerManualRun[2m > [22mincrements errorCount on error result[32m 4[2mms[22m[39m
+ [32mΓ£ô[39m src/features/live-monitor/__tests__/scheduler.test.ts[2m > [22mtriggerManualRun[2m > [22mpasses configOverrides[32m 8[2mms[22m[39m
+ [32mΓ£ô[39m src/features/live-monitor/__tests__/scheduler.test.ts[2m > [22mtriggerManualRun[2m > [22mreturns pipeline context[32m 5[2mms[22m[39m
+ [32mΓ£ô[39m src/app/WatchlistTab.test.tsx[2m > [22mWatchlistTab ΓÇö status filtering[2m > [22mdefaults to showing only active entries[33m 893[2mms[22m[39m
+ [32mΓ£ô[39m src/app/WatchlistTab.test.tsx[2m > [22mWatchlistTab ΓÇö status filtering[2m > [22mshows expired entries when status filter changed to Expired[33m 426[2mms[22m[39m
+ [32mΓ£ô[39m src/app/WatchlistTab.test.tsx[2m > [22mWatchlistTab ΓÇö status filtering[2m > [22mshows all entries when status filter set to All Status[33m 354[2mms[22m[39m
+ [32mΓ£ô[39m src/app/WatchlistTab.test.tsx[2m > [22mWatchlistTab ΓÇö status filtering[2m > [22mshows pending entries when status filter changed to Pending[32m 195[2mms[22m[39m
+ [32mΓ£ô[39m src/app/WatchlistTab.test.tsx[2m > [22mWatchlistTab ΓÇö status badge rendering[2m > [22mrenders Active badge for active entries[32m 111[2mms[22m[39m
+ [32mΓ£ô[39m src/app/WatchlistTab.test.tsx[2m > [22mWatchlistTab ΓÇö status badge rendering[2m > [22mrenders Expired badge for expired entries[32m 215[2mms[22m[39m
+ [32mΓ£ô[39m src/app/WatchlistTab.test.tsx[2m > [22mWatchlistTab ΓÇö status badge rendering[2m > [22mrenders Pending badge for pending entries[32m 169[2mms[22m[39m
+ [32mΓ£ô[39m src/app/WatchlistTab.test.tsx[2m > [22mWatchlistTab ΓÇö clear filters[2m > [22mresets status filter back to active on clear[33m 532[2mms[22m[39m
+ [32mΓ£ô[39m src/app/WatchlistTab.test.tsx[2m > [22mWatchlistTab ΓÇö empty state[2m > [22mshows empty state when no active entries exist[32m 32[2mms[22m[39m
+ [32mΓ£ô[39m src/app/WatchlistTab.test.tsx[2m > [22mWatchlistTab ΓÇö empty state[2m > [22mshows filter-aware empty message when filter yields no results[32m 148[2mms[22m[39m
+ [32mΓ£ô[39m src/features/live-monitor/__tests__/ai-prompt-context.test.ts[2m > [22mbuildAiPrompt ΓÇö context sections[2m > [22mincludes PREVIOUS RECOMMENDATIONS section when context has recommendations[32m 8[2mms[22m[39m
+ [32mΓ£ô[39m src/features/live-monitor/__tests__/ai-prompt-context.test.ts[2m > [22mbuildAiPrompt ΓÇö context sections[2m > [22mincludes multiple previous recommendations[32m 1[2mms[22m[39m
+ [32mΓ£ô[39m src/features/live-monitor/__tests__/ai-prompt-context.test.ts[2m > [22mbuildAiPrompt ΓÇö context sections[2m > [22mincludes MATCH PROGRESSION TIMELINE section when context has snapshots[32m 1[2mms[22m[39m
+ [32mΓ£ô[39m src/features/live-monitor/__tests__/ai-prompt-context.test.ts[2m > [22mbuildAiPrompt ΓÇö context sections[2m > [22mincludes ANALYSIS CONTINUITY RULES when previous recommendations exist[32m 1[2mms[22m[39m
+ [32mΓ£ô[39m src/features/live-monitor/__tests__/ai-prompt-context.test.ts[2m > [22mbuildAiPrompt ΓÇö context sections[2m > [22mdoes NOT include context sections when context is undefined[32m 1[2mms[22m[39m
+ [32mΓ£ô[39m src/features/live-monitor/__tests__/ai-prompt-context.test.ts[2m > [22mbuildAiPrompt ΓÇö context sections[2m > [22mdoes NOT include context sections when context is empty[32m 1[2mms[22m[39m
+ [32mΓ£ô[39m src/features/live-monitor/__tests__/ai-prompt-context.test.ts[2m > [22mbuildAiPrompt ΓÇö context sections[2m > [22mtruncates long reasoning in previous recommendation[32m 1[2mms[22m[39m
+ [32mΓ£ô[39m src/features/live-monitor/__tests__/ai-prompt-context.test.ts[2m > [22mbuildAiPrompt ΓÇö context sections[2m > [22mhandles null odds and minute in previous recommendation[32m 1[2mms[22m[39m
+ [32mΓ£ô[39m src/features/live-monitor/__tests__/ai-prompt-context.test.ts[2m > [22mbuildAiPrompt ΓÇö context sections[2m > [22mstill includes standard sections alongside context[32m 1[2mms[22m[39m
+ [32mΓ£ô[39m src/features/live-monitor/__tests__/ai-prompt-context.test.ts[2m > [22mbuildAiPrompt ΓÇö historical performance feedback loop[2m > [22mincludes HISTORICAL TRACK RECORD section when data is sufficient[32m 1[2mms[22m[39m
+ [32mΓ£ô[39m src/features/live-monitor/__tests__/ai-prompt-context.test.ts[2m > [22mbuildAiPrompt ΓÇö historical performance feedback loop[2m > [22mincludes market breakdown with WEAK tags for low accuracy[32m 1[2mms[22m[39m
+ [32mΓ£ô[39m src/features/live-monitor/__tests__/ai-prompt-context.test.ts[2m > [22mbuildAiPrompt ΓÇö historical performance feedback loop[2m > [22mincludes confidence band breakdown[32m 0[2mms[22m[39m
+ [32mΓ£ô[39m src/features/live-monitor/__tests__/ai-prompt-context.test.ts[2m > [22mbuildAiPrompt ΓÇö historical performance feedback loop[2m > [22mincludes minute band breakdown with WEAK tag for endgame[32m 0[2mms[22m[39m
+ [32mΓ£ô[39m src/features/live-monitor/__tests__/ai-prompt-context.test.ts[2m > [22mbuildAiPrompt ΓÇö historical performance feedback loop[2m > [22mincludes league breakdown with POOR and RELIABLE tags[32m 1[2mms[22m[39m
+ [32mΓ£ô[39m src/features/live-monitor/__tests__/ai-prompt-context.test.ts[2m > [22mbuildAiPrompt ΓÇö historical performance feedback loop[2m > [22mincludes self-learning action instructions[32m 1[2mms[22m[39m
+ [32mΓ£ô[39m src/features/live-monitor/__tests__/ai-prompt-context.test.ts[2m > [22mbuildAiPrompt ΓÇö historical performance feedback loop[2m > [22mdoes NOT include section when data has fewer than 5 settled[32m 0[2mms[22m[39m
+ [32mΓ£ô[39m src/features/live-monitor/__tests__/ai-prompt-context.test.ts[2m > [22mbuildAiPrompt ΓÇö historical performance feedback loop[2m > [22mdoes NOT include section when historicalPerformance is null[32m 0[2mms[22m[39m
+ [32mΓ£ô[39m src/features/live-monitor/__tests__/ai-prompt-context.test.ts[2m > [22mbuildAiPrompt ΓÇö historical performance feedback loop[2m > [22mdoes NOT include section when historicalPerformance is undefined[32m 0[2mms[22m[39m
+ [32mΓ£ô[39m src/features/live-monitor/__tests__/ai-prompt-context.test.ts[2m > [22mbuildAiPrompt ΓÇö historical performance feedback loop[2m > [22mhandles empty byMarket/byLeague arrays gracefully[32m 1[2mms[22m[39m
+ [32mΓ£ô[39m src/features/live-monitor/__tests__/ai-prompt-context.test.ts[2m > [22mbuildAiPrompt ΓÇö historical performance feedback loop[2m > [22mprompt cache key includes historical performance fingerprint[32m 0[2mms[22m[39m
+ [32mΓ£ô[39m src/features/live-monitor/__tests__/ai-prompt-context.test.ts[2m > [22mbuildAiPrompt ΓÇö historical performance feedback loop[2m > [22mcoexists with other context sections[32m 1[2mms[22m[39m
+ [32mΓ£ô[39m src/features/live-monitor/__tests__/match-merger.service.test.ts[2m > [22mmergeMatchData[2m > [22mmerges fixture data into prepared match[32m 15[2mms[22m[39m
+ [32mΓ£ô[39m src/features/live-monitor/__tests__/match-merger.service.test.ts[2m > [22mmergeMatchData[2m > [22mmaps stats from fixture statistics[32m 1[2mms[22m[39m
+ [32mΓ£ô[39m src/features/live-monitor/__tests__/match-merger.service.test.ts[2m > [22mmergeMatchData[2m > [22mmaps events from fixture[32m 1[2mms[22m[39m
+ [32mΓ£ô[39m src/features/live-monitor/__tests__/match-merger.service.test.ts[2m > [22mmergeMatchData[2m > [22mcalculates current_total_goals from fixture goals[32m 1[2mms[22m[39m
+ [32mΓ£ô[39m src/features/live-monitor/__tests__/match-merger.service.test.ts[2m > [22mmergeMatchData[2m > [22mskips matches without matching fixture[32m 1[2mms[22m[39m
+ [32mΓ£ô[39m src/features/live-monitor/__tests__/match-merger.service.test.ts[2m > [22mmergeMatchData[2m > [22mhandles empty fixtures array[32m 2[2mms[22m[39m
+ [32mΓ£ô[39m src/features/live-monitor/__tests__/match-merger.service.test.ts[2m > [22mmergeMatchData[2m > [22mhandles empty statistics in fixture[32m 1[2mms[22m[39m
+ [32mΓ£ô[39m src/features/live-monitor/__tests__/match-merger.service.test.ts[2m > [22mmergeMatchData[2m > [22mhandles FT status with default minute 90[32m 1[2mms[22m[39m
+ [32mΓ£ô[39m src/features/live-monitor/__tests__/match-merger.service.test.ts[2m > [22mmergeMatchData[2m > [22mpreserves original prepared fields (mode, custom_conditions, force_analyze)[32m 1[2mms[22m[39m
+ [32mΓ£ô[39m src/features/live-monitor/__tests__/match-merger.service.test.ts[2m > [22mmergeMatchData[2m > [22mmerges multiple matches correctly[32m 3[2mms[22m[39m
+ [32mΓ£ô[39m src/features/live-monitor/__tests__/match-merger.service.test.ts[2m > [22mmergeOddsToMatch[2m > [22mmerges odds from bookmaker response[32m 8[2mms[22m[39m
+ [32mΓ£ô[39m src/features/live-monitor/__tests__/match-merger.service.test.ts[2m > [22mmergeOddsToMatch[2m > [22msets 1x2 odds from Match Winner market[32m 1[2mms[22m[39m
+ [32mΓ£ô[39m src/features/live-monitor/__tests__/match-merger.service.test.ts[2m > [22mmergeOddsToMatch[2m > [22msets OU odds from Over/Under 2.5 market[32m 6[2mms[22m[39m
+ [32mΓ£ô[39m src/features/live-monitor/__tests__/match-merger.service.test.ts[2m > [22mmergeOddsToMatch[2m > [22msets BTTS odds from Both Teams Score market[32m 1[2mms[22m[39m
+ [32mΓ£ô[39m src/features/live-monitor/__tests__/match-merger.service.test.ts[2m > [22mmergeOddsToMatch[2m > [22mhandles empty odds response[32m 2[2mms[22m[39m
+ [32mΓ£ô[39m src/features/live-monitor/__tests__/match-merger.service.test.ts[2m > [22mmergeOddsToMatch[2m > [22mhandles response with empty bookmakers[32m 1[2mms[22m[39m
+ [32mΓ£ô[39m src/features/live-monitor/__tests__/match-merger.service.test.ts[2m > [22mmergeOddsToMatch[2m > [22mpreserves original match data fields[32m 1[2mms[22m[39m
+ [32mΓ£ô[39m src/features/live-monitor/__tests__/match-merger.service.test.ts[2m > [22mmergeOddsToMatch ΓÇö pre-match format[2m > [22mparses 1x2 from pre-match Match Winner (value="Home", no handicap)[32m 1[2mms[22m[39m
+ [32mΓ£ô[39m src/features/live-monitor/__tests__/match-merger.service.test.ts[2m > [22mmergeOddsToMatch ΓÇö pre-match format[2m > [22mparses Goals Over/Under from pre-match format (value="Over 2.5", handicap="")[32m 3[2mms[22m[39m
+ [32mΓ£ô[39m src/features/live-monitor/__tests__/match-merger.service.test.ts[2m > [22mmergeOddsToMatch ΓÇö pre-match format[2m > [22mparses Asian Handicap from pre-match format (value="Home -1", handicap="")[32m 2[2mms[22m[39m
+ [32mΓ£ô[39m src/features/live-monitor/__tests__/match-merger.service.test.ts[2m > [22mmergeOddsToMatch ΓÇö pre-match format[2m > [22mparses BTTS from pre-match format (value="Yes"/"No")[32m 4[2mms[22m[39m
+ [32mΓ£ô[39m src/features/live-monitor/__tests__/match-merger.service.test.ts[2m > [22mmergeOddsToMatch ΓÇö pre-match format[2m > [22mparses Corners Over Under from pre-match format (value="Over 9.5", handicap="")[32m 2[2mms[22m[39m
+ [32mΓ£ô[39m src/features/live-monitor/__tests__/match-merger.service.test.ts[2m > [22mmergeOddsToMatch ΓÇö pre-match format[2m > [22mmulti-bookmaker: picks best odds across bookmakers[32m 1[2mms[22m[39m
+ [32mΓ£ô[39m src/features/live-monitor/__tests__/match-merger.service.test.ts[2m > [22mmergeOddsToMatch ΓÇö pre-match format[2m > [22mhandles full pre-match data with all markets from multiple bookmakers[32m 2[2mms[22m[39m
+ [32mΓ£ô[39m src/features/live-monitor/__tests__/match-merger.service.test.ts[2m > [22mmergeOddsToMatch ΓÇö pre-match format[2m > [22mAH pre-match: handles fractional lines like -1.25, -0.75[32m 2[2mms[22m[39m
+ [32mΓ£ô[39m src/features/live-monitor/__tests__/match-merger.service.test.ts[2m > [22mmergeOddsToMatch ΓÇö pre-match format[2m > [22mOU pre-match: handles quarter lines like 1.75, 2.25[32m 1[2mms[22m[39m
+ [32mΓ£ô[39m src/features/live-monitor/__tests__/match-merger.service.test.ts[2m > [22mmergeOddsToMatch ΓÇö pre-match format[2m > [22mAH pre-match: handles positive lines like +0.25, +0.5[32m 10[2mms[22m[39m
+ [32mΓ£ô[39m src/features/live-monitor/__tests__/match-merger.service.test.ts[2m > [22mmergeOddsToMatch ΓÇö pre-match format[2m > [22mskips half-time markets in pre-match format[32m 1[2mms[22m[39m
+ [32mΓ£ô[39m src/features/live-monitor/__tests__/match-merger.service.test.ts[2m > [22mmergeOddsToMatch ΓÇö pre-match format[2m > [22mexisting live format still works (value="Over", handicap="2.5")[32m 1[2mms[22m[39m
+ [32mΓ£ô[39m src/features/live-monitor/__tests__/match-merger.service.test.ts[2m > [22mmergeOddsToMatch ΓÇö pre-match format[2m > [22mCorners pre-match: multiple lines from Marathonbet[32m 1[2mms[22m[39m
+ [32mΓ£ô[39m src/features/live-monitor/__tests__/match-merger.service.test.ts[2m > [22mmergeOddsToMatch ΓÇö pre-match format[2m > [22mpre-match odds do NOT trigger ODDS_SUSPICIOUS even at late game (min 83, score 4-0)[32m 2[2mms[22m[39m
+ [32mΓ£ô[39m src/features/live-monitor/__tests__/match-merger.service.test.ts[2m > [22mmergeOddsToMatch ΓÇö pre-match format[2m > [22mlive odds still trigger ODDS_SUSPICIOUS at late game with stale-looking odds[32m 1[2mms[22m[39m
+ [32mΓ£ô[39m src/features/live-monitor/__tests__/match-merger.service.test.ts[2m > [22mmergeOddsToMatch ΓÇö pre-match format[2m > [22mremoves AH market with implied probability ~75% (margin too low)[32m 1[2mms[22m[39m
+ [32mΓ£ô[39m src/features/live-monitor/__tests__/match-merger.service.test.ts[2m > [22mmergeOddsToMatch ΓÇö pre-match format[2m > [22mremoves corners OU with implied probability ~75%[32m 1[2mms[22m[39m
+ [32mΓ£ô[39m src/features/live-monitor/__tests__/match-merger.service.test.ts[2m > [22mmergeOddsToMatch ΓÇö pre-match format[2m > [22mkeeps markets with normal margin (100-110%)[32m 1[2mms[22m[39m
+ [32mΓ£ô[39m src/features/live-monitor/__tests__/match-merger.service.test.ts[2m > [22mmergeOddsToMatch ΓÇö pre-match format[2m > [22msets odds_available=false when all markets fail margin validation[32m 1[2mms[22m[39m
+ [32mΓ£ô[39m src/features/live-monitor/__tests__/match-merger.service.test.ts[2m > [22mmergeMatchData ΓÇö derived insights from events[2m > [22mderives insights from events with goals, cards, subs[32m 2[2mms[22m[39m
+ [32mΓ£ô[39m src/features/live-monitor/__tests__/match-merger.service.test.ts[2m > [22mmergeMatchData ΓÇö derived insights from events[2m > [22mbackfills yellow and red card stats from events when API stats empty[32m 1[2mms[22m[39m
+ [32mΓ£ô[39m src/features/live-monitor/__tests__/match-merger.service.test.ts[2m > [22mmergeMatchData ΓÇö derived insights from events[2m > [22mdoes NOT overwrite API stats with derived card counts[32m 1[2mms[22m[39m
+ [32mΓ£ô[39m src/features/live-monitor/__tests__/match-merger.service.test.ts[2m > [22mmergeMatchData ΓÇö derived insights from events[2m > [22mno goals ΓåÆ btts_status false, last_goal_minute null[32m 1[2mms[22m[39m
+ [32mΓ£ô[39m src/features/live-monitor/__tests__/match-merger.service.test.ts[2m > [22mmergeMatchData ΓÇö derived insights from events[2m > [22mhigh-intensity match: many cards + goals ΓåÆ intensity high[32m 1[2mms[22m[39m
+ [32mΓ£ô[39m src/features/live-monitor/__tests__/match-merger.service.test.ts[2m > [22mmergeMatchData ΓÇö derived insights from events[2m > [22mmomentum goes to team with more recent events[32m 0[2mms[22m[39m
+ [32mΓ£ô[39m src/features/live-monitor/__tests__/ai-analysis.service.test.ts[2m > [22mparseAiResponse[2m > [22mparses JSON from markdown code fence[32m 9[2mms[22m[39m
+ [32mΓ£ô[39m src/features/live-monitor/__tests__/ai-analysis.service.test.ts[2m > [22mparseAiResponse[2m > [22mparses JSON from generic code fence[32m 2[2mms[22m[39m
+ [32mΓ£ô[39m src/features/live-monitor/__tests__/ai-analysis.service.test.ts[2m > [22mparseAiResponse[2m > [22mparses raw JSON object (no fence)[32m 4[2mms[22m[39m
+ [32mΓ£ô[39m src/features/live-monitor/__tests__/ai-analysis.service.test.ts[2m > [22mparseAiResponse[2m > [22mreturns default result for empty response[32m 3[2mms[22m[39m
+ [32mΓ£ô[39m src/features/live-monitor/__tests__/ai-analysis.service.test.ts[2m > [22mparseAiResponse[2m > [22mreturns default result for invalid JSON[32m 1[2mms[22m[39m
+ [32mΓ£ô[39m src/features/live-monitor/__tests__/ai-analysis.service.test.ts[2m > [22mparseAiResponse[2m > [22mnormalizes confidence > 10 to 0-10 scale[32m 1[2mms[22m[39m
+ [32mΓ£ô[39m src/features/live-monitor/__tests__/ai-analysis.service.test.ts[2m > [22mparseAiResponse[2m > [22mextracts odds from @ notation in selection[32m 1[2mms[22m[39m
+ [32mΓ£ô[39m src/features/live-monitor/__tests__/ai-analysis.service.test.ts[2m > [22mparseAiResponse[2m > [22mextracts odds from canonical market (home win)[32m 1[2mms[22m[39m
+ [32mΓ£ô[39m src/features/live-monitor/__tests__/ai-analysis.service.test.ts[2m > [22mparseAiResponse[2m > [22mextracts odds for BTTS Yes[32m 1[2mms[22m[39m
+ [32mΓ£ô[39m src/features/live-monitor/__tests__/ai-analysis.service.test.ts[2m > [22mparseAiResponse[2m > [22madds NO_SELECTION when should_push=true but no selection[32m 2[2mms[22m[39m
+ [32mΓ£ô[39m src/features/live-monitor/__tests__/ai-analysis.service.test.ts[2m > [22mparseAiResponse[2m > [22madds NO_CONFIDENCE when should_push=true but confidence=0[32m 1[2mms[22m[39m
+ [32mΓ£ô[39m src/features/live-monitor/__tests__/ai-analysis.service.test.ts[2m > [22mparseAiResponse[2m > [22madds CONFIDENCE_BELOW_MIN when below threshold[32m 1[2mms[22m[39m
+ [32mΓ£ô[39m src/features/live-monitor/__tests__/ai-analysis.service.test.ts[2m > [22mparseAiResponse[2m > [22madds STATUS_NOT_LIVE for HT match[32m 1[2mms[22m[39m
+ [32mΓ£ô[39m src/features/live-monitor/__tests__/ai-analysis.service.test.ts[2m > [22mparseAiResponse[2m > [22madds MINUTE_TOO_EARLY for minute < 5[32m 1[2mms[22m[39m
+ [32mΓ£ô[39m src/features/live-monitor/__tests__/ai-analysis.service.test.ts[2m > [22mparseAiResponse[2m > [22madds MINUTE_TOO_LATE for minute >= 90[32m 1[2mms[22m[39m
+ [32mΓ£ô[39m src/features/live-monitor/__tests__/ai-analysis.service.test.ts[2m > [22mparseAiResponse[2m > [22madds ODDS_NOT_AVAILABLE when odds unavailable[32m 1[2mms[22m[39m
+ [32mΓ£ô[39m src/features/live-monitor/__tests__/ai-analysis.service.test.ts[2m > [22mparseAiResponse[2m > [22msystem_should_bet is true when push=true and no blocking warnings[32m 1[2mms[22m[39m
+ [32mΓ£ô[39m src/features/live-monitor/__tests__/ai-analysis.service.test.ts[2m > [22mparseAiResponse[2m > [22musable_odd is null when below MIN_ODDS[32m 0[2mms[22m[39m
+ [32mΓ£ô[39m src/features/live-monitor/__tests__/ai-analysis.service.test.ts[2m > [22mparseAiResponse[2m > [22mhandles custom condition matched with evaluated status[32m 1[2mms[22m[39m
+ [32mΓ£ô[39m src/features/live-monitor/__tests__/ai-analysis.service.test.ts[2m > [22mparseAiResponse[2m > [22mcondition_triggered_should_push is false when confidence below MIN[32m 0[2mms[22m[39m
+ [32mΓ£ô[39m src/features/live-monitor/__tests__/ai-analysis.service.test.ts[2m > [22mparseAiResponse[2m > [22mcondition_triggered_should_push is false for "no bet" suggestion[32m 0[2mms[22m[39m
+ [32mΓ£ô[39m src/features/live-monitor/__tests__/ai-analysis.service.test.ts[2m > [22mparseAiResponse[2m > [22mdefaults risk_level to HIGH for unknown values[32m 0[2mms[22m[39m
+ [32mΓ£ô[39m src/features/live-monitor/__tests__/ai-analysis.service.test.ts[2m > [22mparseAiResponse[2m > [22mhandles non-string response (type object safety)[32m 1[2mms[22m[39m
+ [32mΓ£ô[39m src/lib/services/__tests__/api.test.ts[2m > [22mbets API[2m > [22mfetchBets calls GET /api/bets[32m 15[2mms[22m[39m
+ [32mΓ£ô[39m src/lib/services/__tests__/api.test.ts[2m > [22mbets API[2m > [22mfetchBetsByMatch URL-encodes matchId[32m 2[2mms[22m[39m
+ [32mΓ£ô[39m src/lib/services/__tests__/api.test.ts[2m > [22mbets API[2m > [22mfetchBetStats returns stats object[32m 1[2mms[22m[39m
+ [32mΓ£ô[39m src/lib/services/__tests__/api.test.ts[2m > [22mbets API[2m > [22mfetchBetStatsByMarket returns array[32m 1[2mms[22m[39m
+ [32mΓ£ô[39m src/lib/services/__tests__/api.test.ts[2m > [22mbets API[2m > [22mcreateBet calls POST /api/bets[32m 2[2mms[22m[39m
+ [32mΓ£ô[39m src/lib/services/__tests__/api.test.ts[2m > [22msnapshots API[2m > [22mfetchSnapshotsByMatch returns snapshot array[32m 1[2mms[22m[39m
+ [32mΓ£ô[39m src/lib/services/__tests__/api.test.ts[2m > [22msnapshots API[2m > [22mfetchLatestSnapshot returns null when no snapshot[32m 1[2mms[22m[39m
+ [32mΓ£ô[39m src/lib/services/__tests__/api.test.ts[2m > [22msnapshots API[2m > [22mfetchLatestSnapshot returns snapshot when exists[32m 1[2mms[22m[39m
+ [32mΓ£ô[39m src/lib/services/__tests__/api.test.ts[2m > [22modds history API[2m > [22mfetchOddsHistory without market filter[32m 2[2mms[22m[39m
+ [32mΓ£ô[39m src/lib/services/__tests__/api.test.ts[2m > [22modds history API[2m > [22mfetchOddsHistory with market filter[32m 1[2mms[22m[39m
+ [32mΓ£ô[39m src/lib/services/__tests__/api.test.ts[2m > [22mAI performance API[2m > [22mfetchAiStats returns accuracy stats[32m 1[2mms[22m[39m
+ [32mΓ£ô[39m src/lib/services/__tests__/api.test.ts[2m > [22mAI performance API[2m > [22mfetchAiStatsByModel returns per-model stats[32m 1[2mms[22m[39m
+ [32mΓ£ô[39m src/lib/services/__tests__/api.test.ts[2m > [22merror handling[2m > [22mthrows on non-ok response[32m 4[2mms[22m[39m
+ [32mΓ£ô[39m src/features/live-monitor/__tests__/notification.service.test.ts[2m > [22m_determineSection[2m > [22mreturns ai_recommendation when ai_should_push + should_push[32m 5[2mms[22m[39m
+ [32mΓ£ô[39m src/features/live-monitor/__tests__/notification.service.test.ts[2m > [22m_determineSection[2m > [22mreturns condition_triggered when custom_condition + trigger push[32m 1[2mms[22m[39m
+ [32mΓ£ô[39m src/features/live-monitor/__tests__/notification.service.test.ts[2m > [22m_determineSection[2m > [22mreturns no_actionable when custom_condition matched but no trigger push[32m 1[2mms[22m[39m
+ [32mΓ£ô[39m src/features/live-monitor/__tests__/notification.service.test.ts[2m > [22m_determineSection[2m > [22mreturns no_actionable when nothing triggers[32m 1[2mms[22m[39m
+ [32mΓ£ô[39m src/features/live-monitor/__tests__/notification.service.test.ts[2m > [22m_buildEmailHtml[2m > [22mproduces HTML with match display[32m 4[2mms[22m[39m
+ [32mΓ£ô[39m src/features/live-monitor/__tests__/notification.service.test.ts[2m > [22m_buildEmailHtml[2m > [22mincludes investment details for ai_recommendation section[32m 1[2mms[22m[39m
+ [32mΓ£ô[39m src/features/live-monitor/__tests__/notification.service.test.ts[2m > [22m_buildEmailHtml[2m > [22mincludes stats table when stats available[32m 1[2mms[22m[39m
+ [32mΓ£ô[39m src/features/live-monitor/__tests__/notification.service.test.ts[2m > [22m_buildEmailHtml[2m > [22mincludes events when present[32m 1[2mms[22m[39m
+ [32mΓ£ô[39m src/features/live-monitor/__tests__/notification.service.test.ts[2m > [22m_buildEmailHtml[2m > [22mshows custom condition section when matched[32m 1[2mms[22m[39m
+ [32mΓ£ô[39m src/features/live-monitor/__tests__/notification.service.test.ts[2m > [22m_buildEmailHtml[2m > [22mescapes HTML special characters[32m 1[2mms[22m[39m
+ [32mΓ£ô[39m src/features/live-monitor/__tests__/notification.service.test.ts[2m > [22m_buildEmailHtml[2m > [22mincludes warnings section when present[32m 1[2mms[22m[39m
+ [32mΓ£ô[39m src/features/live-monitor/__tests__/notification.service.test.ts[2m > [22m_buildTelegramMessages[2m > [22mproduces message with match header[32m 2[2mms[22m[39m
+ [32mΓ£ô[39m src/features/live-monitor/__tests__/notification.service.test.ts[2m > [22m_buildTelegramMessages[2m > [22mchunks messages at 3500 chars[32m 2[2mms[22m[39m
+ [32mΓ£ô[39m src/features/live-monitor/__tests__/notification.service.test.ts[2m > [22m_buildTelegramMessages[2m > [22mincludes investment details for ai_recommendation[32m 1[2mms[22m[39m
+ [32mΓ£ô[39m src/features/live-monitor/__tests__/notification.service.test.ts[2m > [22m_buildTelegramMessages[2m > [22mshows condition triggered section[32m 1[2mms[22m[39m
+ [32mΓ£ô[39m src/features/live-monitor/__tests__/recommendation.service.test.ts[2m > [22mprepareRecommendationData[2m > [22mmaps all core fields correctly[32m 10[2mms[22m[39m
+ [32mΓ£ô[39m src/features/live-monitor/__tests__/recommendation.service.test.ts[2m > [22mprepareRecommendationData[2m > [22mmaps AI fields from parsed response[32m 2[2mms[22m[39m
+ [32mΓ£ô[39m src/features/live-monitor/__tests__/recommendation.service.test.ts[2m > [22mprepareRecommendationData[2m > [22mgenerates unique_key from match_id + normalized market (no minute)[32m 1[2mms[22m[39m
+ [32mΓ£ô[39m src/features/live-monitor/__tests__/recommendation.service.test.ts[2m > [22mprepareRecommendationData[2m > [22mincludes notification channels when should push[32m 1[2mms[22m[39m
+ [32mΓ£ô[39m src/features/live-monitor/__tests__/recommendation.service.test.ts[2m > [22mprepareRecommendationData[2m > [22mskips notification when not pushing[32m 1[2mms[22m[39m
+ [32mΓ£ô[39m src/features/live-monitor/__tests__/recommendation.service.test.ts[2m > [22mprepareRecommendationData[2m > [22mincludes stats_snapshot as JSON string[32m 1[2mms[22m[39m
+ [32mΓ£ô[39m src/features/live-monitor/__tests__/recommendation.service.test.ts[2m > [22mprepareRecommendationData[2m > [22mincludes odds_snapshot as JSON string[32m 1[2mms[22m[39m
+ [32mΓ£ô[39m src/features/live-monitor/__tests__/recommendation.service.test.ts[2m > [22mprepareRecommendationData[2m > [22mincludes AI model from config[32m 1[2mms[22m[39m
+ [32mΓ£ô[39m src/features/live-monitor/__tests__/recommendation.service.test.ts[2m > [22mprepareRecommendationData[2m > [22mbuilds key_factors from market_chosen_reason + warnings[32m 1[2mms[22m[39m
+ [32mΓ£ô[39m src/features/live-monitor/__tests__/recommendation.service.test.ts[2m > [22mprepareRecommendationData[2m > [22minitializes result/pnl fields as empty[32m 1[2mms[22m[39m
+ [32mΓ£ô[39m src/features/live-monitor/__tests__/recommendation.service.test.ts[2m > [22mprepareRecommendationData[2m > [22mhandles custom condition notification channels[32m 2[2mms[22m[39m
+ [32mΓ£ô[39m src/features/live-monitor/__tests__/football-api.service.test.ts[2m > [22mfetchFixturesBatch[2m > [22mcalls fetchLiveFixtures with batch match_ids[32m 8[2mms[22m[39m
+ [32mΓ£ô[39m src/features/live-monitor/__tests__/football-api.service.test.ts[2m > [22mfetchFixturesBatch[2m > [22mreturns empty array when API returns empty[32m 1[2mms[22m[39m
+ [32mΓ£ô[39m src/features/live-monitor/__tests__/football-api.service.test.ts[2m > [22mfetchFixturesBatch[2m > [22mpropagates errors[32m 3[2mms[22m[39m
+ [32mΓ£ô[39m src/features/live-monitor/__tests__/football-api.service.test.ts[2m > [22mfetchAllFixtures[2m > [22mfetches single batch[32m 1[2mms[22m[39m
+ [32mΓ£ô[39m src/features/live-monitor/__tests__/football-api.service.test.ts[2m > [22mfetchAllFixtures[2m > [22mfetches multiple batches sequentially[32m 2[2mms[22m[39m
+ [32mΓ£ô[39m src/features/live-monitor/__tests__/football-api.service.test.ts[2m > [22mfetchAllFixtures[2m > [22mhandles empty batches array[32m 1[2mms[22m[39m
+ [32mΓ£ô[39m src/features/live-monitor/__tests__/football-api.service.test.ts[2m > [22mfetchAllFixtures[2m > [22mconcatenates all fixtures from all batches[32m 1[2mms[22m[39m
+ [32mΓ£ô[39m src/features/live-monitor/__tests__/football-api.service.test.ts[2m > [22mfetchAllFixtures[2m > [22mstops on first batch error[32m 1[2mms[22m[39m
+ [32mΓ£ô[39m src/features/live-monitor/__tests__/football-api.service.test.ts[2m > [22mfetchFixtureOdds[2m > [22mcalls fetchLiveOdds with matchId[32m 1[2mms[22m[39m
+ [32mΓ£ô[39m src/features/live-monitor/__tests__/football-api.service.test.ts[2m > [22mfetchFixtureOdds[2m > [22mpasses team names when provided[32m 1[2mms[22m[39m
+ [32mΓ£ô[39m src/features/live-monitor/__tests__/football-api.service.test.ts[2m > [22mfetchFixtureOdds[2m > [22mpropagates errors[32m 1[2mms[22m[39m
+ [32mΓ£ô[39m src/features/live-monitor/__tests__/proxy-context.test.ts[2m > [22mfetchMatchRecommendations[2m > [22mreturns mapped recommendations on success[32m 10[2mms[22m[39m
+ [32mΓ£ô[39m src/features/live-monitor/__tests__/proxy-context.test.ts[2m > [22mfetchMatchRecommendations[2m > [22mreturns max 5 recommendations[32m 2[2mms[22m[39m
+ [32mΓ£ô[39m src/features/live-monitor/__tests__/proxy-context.test.ts[2m > [22mfetchMatchRecommendations[2m > [22mreturns empty array on HTTP error[32m 1[2mms[22m[39m
+ [32mΓ£ô[39m src/features/live-monitor/__tests__/proxy-context.test.ts[2m > [22mfetchMatchRecommendations[2m > [22mcalls correct URL with encoded matchId[32m 7[2mms[22m[39m
+ [31m├ù[39m src/features/live-monitor/__tests__/proxy-context.test.ts[2m > [22mfetchMatchSnapshots[2m > [22mreturns mapped snapshots on success[32m 26[2mms[22m[39m
+[31m   ΓåÆ expected { minute: 15, score: '0-0', ΓÇª(9) } to deeply equal { minute: 15, score: '0-0', ΓÇª(5) }[39m
+ [32mΓ£ô[39m src/features/live-monitor/__tests__/proxy-context.test.ts[2m > [22mfetchMatchSnapshots[2m > [22mreturns max 10 latest snapshots[32m 2[2mms[22m[39m
+ [32mΓ£ô[39m src/features/live-monitor/__tests__/proxy-context.test.ts[2m > [22mfetchMatchSnapshots[2m > [22mreturns empty array on HTTP error[32m 1[2mms[22m[39m
+ [32mΓ£ô[39m src/features/live-monitor/__tests__/proxy-context.test.ts[2m > [22mfetchMatchSnapshots[2m > [22mhandles null stats gracefully[32m 1[2mms[22m[39m
+ [32mΓ£ô[39m src/features/live-monitor/__tests__/filters.service.test.ts[2m > [22mcheckShouldProceed[2m > [22mallows a live 2H match within minute window[32m 4[2mms[22m[39m
+ [32mΓ£ô[39m src/features/live-monitor/__tests__/filters.service.test.ts[2m > [22mcheckShouldProceed[2m > [22mrejects non-live status (HT)[32m 1[2mms[22m[39m
+ [32mΓ£ô[39m src/features/live-monitor/__tests__/filters.service.test.ts[2m > [22mcheckShouldProceed[2m > [22mrejects non-live status (FT)[32m 1[2mms[22m[39m
+ [32mΓ£ô[39m src/features/live-monitor/__tests__/filters.service.test.ts[2m > [22mcheckShouldProceed[2m > [22mrejects match below MIN_MINUTE[32m 1[2mms[22m[39m
+ [32mΓ£ô[39m src/features/live-monitor/__tests__/filters.service.test.ts[2m > [22mcheckShouldProceed[2m > [22mrejects match above MAX_MINUTE[32m 1[2mms[22m[39m
+ [32mΓ£ô[39m src/features/live-monitor/__tests__/filters.service.test.ts[2m > [22mcheckShouldProceed[2m > [22mapplies 2H second-half threshold (minute 45 + SECOND_HALF_START_MINUTE)[32m 1[2mms[22m[39m
+ [32mΓ£ô[39m src/features/live-monitor/__tests__/filters.service.test.ts[2m > [22mcheckShouldProceed[2m > [22mallows 2H after second-half threshold[32m 0[2mms[22m[39m
+ [32mΓ£ô[39m src/features/live-monitor/__tests__/filters.service.test.ts[2m > [22mcheckShouldProceed[2m > [22mforce_analyze bypasses all filters[32m 1[2mms[22m[39m
+ [32mΓ£ô[39m src/features/live-monitor/__tests__/filters.service.test.ts[2m > [22mcheckShouldProceed[2m > [22mrejects early game with poor stats[32m 1[2mms[22m[39m
+ [32mΓ£ô[39m src/features/live-monitor/__tests__/filters.service.test.ts[2m > [22mcheckShouldProceed[2m > [22mcalculates stats_quality correctly for GOOD stats[32m 1[2mms[22m[39m
+ [32mΓ£ô[39m src/features/live-monitor/__tests__/filters.service.test.ts[2m > [22mcheckShouldProceed[2m > [22mcalculates stats_quality correctly for VERY_POOR stats[32m 0[2mms[22m[39m
+ [32mΓ£ô[39m src/features/live-monitor/__tests__/filters.service.test.ts[2m > [22mcheckShouldProceed[2m > [22mreturns enriched match data with original fields preserved[32m 1[2mms[22m[39m
+ [32mΓ£ô[39m src/features/live-monitor/__tests__/filters.service.test.ts[2m > [22mshouldPush[2m > [22mreturns true when ai_should_push is true[32m 0[2mms[22m[39m
+ [32mΓ£ô[39m src/features/live-monitor/__tests__/filters.service.test.ts[2m > [22mshouldPush[2m > [22mreturns false when custom_condition_matched + evaluated but no triggered push[32m 0[2mms[22m[39m
+ [32mΓ£ô[39m src/features/live-monitor/__tests__/filters.service.test.ts[2m > [22mshouldPush[2m > [22mreturns true when condition_triggered_should_push[32m 0[2mms[22m[39m
+ [32mΓ£ô[39m src/features/live-monitor/__tests__/filters.service.test.ts[2m > [22mshouldPush[2m > [22mreturns false when nothing triggers[32m 0[2mms[22m[39m
+ [32mΓ£ô[39m src/features/live-monitor/__tests__/filters.service.test.ts[2m > [22mshouldPush[2m > [22mreturns false when custom_condition_matched but status is none[32m 0[2mms[22m[39m
+ [32mΓ£ô[39m src/features/live-monitor/__tests__/filters.service.test.ts[2m > [22mshouldSave[2m > [22mreturns true when ai_should_push is true[32m 0[2mms[22m[39m
+ [32mΓ£ô[39m src/features/live-monitor/__tests__/filters.service.test.ts[2m > [22mshouldSave[2m > [22mreturns false when ai_should_push is false and no conditions[32m 0[2mms[22m[39m
+ [32mΓ£ô[39m src/features/live-monitor/__tests__/filters.service.test.ts[2m > [22mshouldSave[2m > [22mreturns false when custom_condition_matched + evaluated but no triggered push (No Bet not saved)[32m 0[2mms[22m[39m
+ [32mΓ£ô[39m src/features/live-monitor/__tests__/filters.service.test.ts[2m > [22mshouldSave[2m > [22mreturns true when condition_triggered_should_push (consistent with shouldPush)[32m 0[2mms[22m[39m
+ [32mΓ£ô[39m src/features/live-monitor/__tests__/filters.service.test.ts[2m > [22mshouldSave[2m > [22mreturns false when custom_condition_matched but status is none[32m 0[2mms[22m[39m
+ [32mΓ£ô[39m src/features/live-monitor/__tests__/filters.service.test.ts[2m > [22mshouldSave[2m > [22mshouldSave matches shouldPush for all key scenarios[32m 0[2mms[22m[39m
+ [32mΓ£ô[39m src/features/live-monitor/__tests__/staleness.service.test.ts[2m > [22mcheckStaleness[2m > [22mreturns not stale when no previous recommendation[32m 4[2mms[22m[39m
+ [32mΓ£ô[39m src/features/live-monitor/__tests__/staleness.service.test.ts[2m > [22mcheckStaleness[2m > [22mreturns not stale when >= 5 minutes elapsed[32m 1[2mms[22m[39m
+ [32mΓ£ô[39m src/features/live-monitor/__tests__/staleness.service.test.ts[2m > [22mcheckStaleness[2m > [22mreturns stale when < 3 minutes elapsed and no events[32m 1[2mms[22m[39m
+ [32mΓ£ô[39m src/features/live-monitor/__tests__/staleness.service.test.ts[2m > [22mcheckStaleness[2m > [22mreturns not stale when goal scored since last rec[32m 1[2mms[22m[39m
+ [32mΓ£ô[39m src/features/live-monitor/__tests__/staleness.service.test.ts[2m > [22mcheckStaleness[2m > [22mreturns not stale when red card since last rec[32m 1[2mms[22m[39m
+ [32mΓ£ô[39m src/features/live-monitor/__tests__/staleness.service.test.ts[2m > [22mcheckStaleness[2m > [22mreturns not stale when odds moved > 0.10[32m 1[2mms[22m[39m
+ [32mΓ£ô[39m src/features/live-monitor/__tests__/staleness.service.test.ts[2m > [22mcheckStaleness[2m > [22mhandles string minute in match data[32m 0[2mms[22m[39m
+ [32mΓ£ô[39m src/features/live-monitor/__tests__/staleness.service.test.ts[2m > [22mcheckStaleness[2m > [22mreturns not stale when lastRec minute is null[32m 0[2mms[22m[39m
+ [32mΓ£ô[39m src/features/live-monitor/__tests__/staleness.service.test.ts[2m > [22mcheckStaleness[2m > [22mreturns not stale at exactly 3 minutes (boundary)[32m 1[2mms[22m[39m
+ [32mΓ£ô[39m src/features/live-monitor/__tests__/staleness.service.test.ts[2m > [22mparseScore[2m > [22mparses normal score[32m 2[2mms[22m[39m
+ [32mΓ£ô[39m src/features/live-monitor/__tests__/staleness.service.test.ts[2m > [22mparseScore[2m > [22mhandles spaces[32m 1[2mms[22m[39m
+ [32mΓ£ô[39m src/features/live-monitor/__tests__/staleness.service.test.ts[2m > [22mparseScore[2m > [22mreturns 0-0 for empty string[32m 0[2mms[22m[39m
+ [32mΓ£ô[39m src/features/live-monitor/__tests__/staleness.service.test.ts[2m > [22mextractCurrentOddForMarket[2m > [22mextracts O/U over[32m 0[2mms[22m[39m
+ [32mΓ£ô[39m src/features/live-monitor/__tests__/staleness.service.test.ts[2m > [22mextractCurrentOddForMarket[2m > [22mextracts O/U under[32m 0[2mms[22m[39m
+ [32mΓ£ô[39m src/features/live-monitor/__tests__/staleness.service.test.ts[2m > [22mextractCurrentOddForMarket[2m > [22mextracts 1x2 home[32m 0[2mms[22m[39m
+ [32mΓ£ô[39m src/features/live-monitor/__tests__/staleness.service.test.ts[2m > [22mextractCurrentOddForMarket[2m > [22mextracts btts yes[32m 0[2mms[22m[39m
+ [32mΓ£ô[39m src/features/live-monitor/__tests__/staleness.service.test.ts[2m > [22mextractCurrentOddForMarket[2m > [22mextracts ah home[32m 0[2mms[22m[39m
+ [32mΓ£ô[39m src/features/live-monitor/__tests__/staleness.service.test.ts[2m > [22mextractCurrentOddForMarket[2m > [22mreturns null for unknown market[32m 0[2mms[22m[39m
+ [32mΓ£ô[39m src/lib/services/auth.test.ts[2m > [22mauth service[2m > [22misAuthenticated[2m > [22mreturns false when no token stored[32m 4[2mms[22m[39m
+ [32mΓ£ô[39m src/lib/services/auth.test.ts[2m > [22mauth service[2m > [22misAuthenticated[2m > [22mreturns false for expired token[32m 1[2mms[22m[39m
+ [32mΓ£ô[39m src/lib/services/auth.test.ts[2m > [22mauth service[2m > [22misAuthenticated[2m > [22mreturns true for valid unexpired token[32m 1[2mms[22m[39m
+ [32mΓ£ô[39m src/lib/services/auth.test.ts[2m > [22mauth service[2m > [22mgetToken / setToken / clearToken[2m > [22mstores and retrieves token[32m 1[2mms[22m[39m
+ [32mΓ£ô[39m src/lib/services/auth.test.ts[2m > [22mauth service[2m > [22mgetToken / setToken / clearToken[2m > [22mclearToken removes it[32m 1[2mms[22m[39m
+ [32mΓ£ô[39m src/lib/services/auth.test.ts[2m > [22mauth service[2m > [22misTokenValid[2m > [22mreturns false for null[32m 0[2mms[22m[39m
+ [32mΓ£ô[39m src/lib/services/auth.test.ts[2m > [22mauth service[2m > [22misTokenValid[2m > [22mreturns false for malformed token[32m 0[2mms[22m[39m
+ [32mΓ£ô[39m src/lib/services/auth.test.ts[2m > [22mauth service[2m > [22mgetUser[2m > [22mextracts user fields from token[32m 1[2mms[22m[39m
+ [32mΓ£ô[39m src/lib/services/auth.test.ts[2m > [22mauth service[2m > [22mgetUser[2m > [22mreturns null for null token[32m 0[2mms[22m[39m
+ [32mΓ£ô[39m src/lib/services/auth.test.ts[2m > [22mauth service[2m > [22mlogout[2m > [22mclears token and reloads[32m 1[2mms[22m[39m
+ [32mΓ£ô[39m src/config/config.test.ts[2m > [22mescapeHtml[2m > [22mescapes HTML special characters[32m 3[2mms[22m[39m
+ [32mΓ£ô[39m src/config/config.test.ts[2m > [22mescapeHtml[2m > [22mescapes ampersand[32m 1[2mms[22m[39m
+ [32mΓ£ô[39m src/config/config.test.ts[2m > [22mescapeHtml[2m > [22mescapes single quotes[32m 0[2mms[22m[39m
+ [32mΓ£ô[39m src/config/config.test.ts[2m > [22mescapeHtml[2m > [22mreturns empty string for empty input[32m 0[2mms[22m[39m
+ [32mΓ£ô[39m src/config/config.test.ts[2m > [22mescapeHtml[2m > [22mreturns empty string for falsy input[32m 0[2mms[22m[39m
+ [32mΓ£ô[39m src/config/config.test.ts[2m > [22mgetStatusBadge[2m > [22mreturns badge info for known status[32m 1[2mms[22m[39m
+ [32mΓ£ô[39m src/config/config.test.ts[2m > [22mgetStatusBadge[2m > [22mreturns raw status as label for unknown status[32m 0[2mms[22m[39m
+ [32mΓ£ô[39m src/config/config.test.ts[2m > [22mgetCountryFromLeague[2m > [22mreturns country for known league[32m 0[2mms[22m[39m
+ [32mΓ£ô[39m src/config/config.test.ts[2m > [22mgetCountryFromLeague[2m > [22mreturns "Other" for unknown league[32m 0[2mms[22m[39m
+ [32mΓ£ô[39m src/config/config.test.ts[2m > [22mgetTierBadge[2m > [22mreturns tier for known league[32m 1[2mms[22m[39m
+ [32mΓ£ô[39m src/config/config.test.ts[2m > [22mgetTierBadge[2m > [22mreturns null for unknown league[32m 0[2mms[22m[39m
+ [32mΓ£ô[39m src/config/config.test.ts[2m > [22mloadConfig & saveConfig[2m > [22mloadConfig returns default config when nothing saved[32m 1[2mms[22m[39m
+ [32mΓ£ô[39m src/config/config.test.ts[2m > [22mloadConfig & saveConfig[2m > [22msaveConfig persists to localStorage[32m 3[2mms[22m[39m
+ [32mΓ£ô[39m src/config/config.test.ts[2m > [22mloadConfig & saveConfig[2m > [22mloadConfig reads saved values[32m 0[2mms[22m[39m
+ [32mΓ£ô[39m src/features/live-monitor/__tests__/config.test.ts[2m > [22mcreateDefaultConfig[2m > [22mreturns all required fields with defaults[32m 4[2mms[22m[39m
+ [32mΓ£ô[39m src/features/live-monitor/__tests__/config.test.ts[2m > [22mcreateDefaultConfig[2m > [22mapplies overrides to defaults[32m 1[2mms[22m[39m
+ [32mΓ£ô[39m src/features/live-monitor/__tests__/config.test.ts[2m > [22mloadMonitorConfig[2m > [22mreturns default config when localStorage is empty[32m 1[2mms[22m[39m
+ [32mΓ£ô[39m src/features/live-monitor/__tests__/config.test.ts[2m > [22mloadMonitorConfig[2m > [22mmerges localStorage config with defaults[32m 1[2mms[22m[39m
+ [32mΓ£ô[39m src/features/live-monitor/__tests__/config.test.ts[2m > [22mloadMonitorConfig[2m > [22mapplies runtime overrides on top of localStorage[32m 0[2mms[22m[39m
+ [32mΓ£ô[39m src/features/live-monitor/__tests__/config.test.ts[2m > [22mloadMonitorConfig[2m > [22mhandles corrupted localStorage gracefully[32m 1[2mms[22m[39m
+ [32mΓ£ô[39m src/features/live-monitor/__tests__/config.test.ts[2m > [22msaveMonitorConfig[2m > [22msaves config to localStorage[32m 1[2mms[22m[39m
+ [32mΓ£ô[39m src/features/live-monitor/__tests__/config.test.ts[2m > [22msaveMonitorConfig[2m > [22msaved config can be loaded back[32m 1[2mms[22m[39m
+ [32mΓ£ô[39m src/features/live-monitor/services/recommendation.service.test.ts[2m > [22mprepareRecommendationData[2m > [22mgenerates dedup key without minute (matchId_normalizedMarket)[32m 3[2mms[22m[39m
+ [32mΓ£ô[39m src/features/live-monitor/services/recommendation.service.test.ts[2m > [22mprepareRecommendationData[2m > [22msame match + same market at different minutes produce same key[32m 1[2mms[22m[39m
+ [32mΓ£ô[39m src/features/live-monitor/services/recommendation.service.test.ts[2m > [22mprepareRecommendationData[2m > [22msame match + different markets produce different keys[32m 1[2mms[22m[39m
+ [32mΓ£ô[39m src/features/live-monitor/services/recommendation.service.test.ts[2m > [22mprepareRecommendationData[2m > [22mderives market from selection when bet_market is empty[32m 1[2mms[22m[39m
+ [32mΓ£ô[39m src/features/live-monitor/services/recommendation.service.test.ts[2m > [22mprepareRecommendationData[2m > [22mderives BTTS from selection text[32m 0[2mms[22m[39m
+ [32mΓ£ô[39m src/features/live-monitor/services/recommendation.service.test.ts[2m > [22mprepareRecommendationData[2m > [22mderives Draw from selection text[32m 0[2mms[22m[39m
+ [32mΓ£ô[39m src/features/live-monitor/__tests__/ai-integration.test.ts[2m > [22mAI Integration ΓÇö Real LLM[2m > [22mScenario 1: Normal 2H match ΓÇö valid response structure[33m 17601[2mms[22m[39m
+ [32mΓ£ô[39m src/features/live-monitor/__tests__/ai-integration.test.ts[2m > [22mAI Integration ΓÇö Real LLM[2m > [22mScenario 2: Early 1H match ΓÇö cautious response expected[33m 26223[2mms[22m[39m
+ [32mΓ£ô[39m src/features/live-monitor/__tests__/ai-prompt-audit.test.ts[2m > [22mAI Prompt Audit ΓÇö Data-Driven Rules[2m > [22mBTTS-Y1: BTTS Yes at odds >= 2.00 ΓÇö should reject or heavily caveat[33m 55324[2mms[22m[39m
+ [32mΓ£ô[39m src/features/live-monitor/__tests__/ai-integration.test.ts[2m > [22mAI Integration ΓÇö Real LLM[2m > [22mScenario 3: High-scoring 2H match ΓÇö expects attacking analysis[33m 18147[2mms[22m[39m
+ [32mΓ£ô[39m src/features/live-monitor/__tests__/ai-integration.test.ts[2m > [22mAI Integration ΓÇö Real LLM[2m > [22mScenario 4: Late game 0-0 ΓÇö favors Under or no push[33m 23911[2mms[22m[39m
+ [32mΓ£ô[39m src/features/live-monitor/__tests__/ai-prompt-audit.test.ts[2m > [22mAI Prompt Audit ΓÇö Data-Driven Rules[2m > [22mBTTS-Y2: BTTS Yes ΓÇö opposing team has 0 SOT (pressure Γëá goals)[33m 39394[2mms[22m[39m
+ [32mΓ£ô[39m src/features/live-monitor/__tests__/ai-integration.test.ts[2m > [22mAI Integration ΓÇö Real LLM[2m > [22mScenario 5: Red card detected ΓÇö adjusts analysis[33m 25148[2mms[22m[39m
+ [32mΓ£ô[39m src/features/live-monitor/__tests__/ai-prompt-audit.test.ts[2m > [22mAI Prompt Audit ΓÇö Data-Driven Rules[2m > [22mBTTS-Y3: BTTS Yes at 0-0 after minute 60 ΓÇö confidence reduced[33m 37893[2mms[22m[39m
+ [32mΓ£ô[39m src/features/live-monitor/__tests__/ai-integration.test.ts[2m > [22mAI Integration ΓÇö Real LLM[2m > [22mScenario 6: Custom condition ΓÇö evaluated independently[33m 37242[2mms[22m[39m
+ [32mΓ£ô[39m src/features/live-monitor/__tests__/ai-prompt-audit.test.ts[2m > [22mAI Prompt Audit ΓÇö Data-Driven Rules[2m > [22mBTTS-Y4: Valid BTTS Yes ΓÇö both teams attacking, good odds range[33m 38702[2mms[22m[39m
+ [32mΓ£ô[39m src/features/live-monitor/__tests__/ai-integration.test.ts[2m > [22mAI Integration ΓÇö Real LLM[2m > [22mScenario 7: Force analyze at HT ΓÇö should analyze but not push[33m 31355[2mms[22m[39m
+ [32mΓ£ô[39m src/features/live-monitor/__tests__/ai-integration.test.ts[2m > [22mAI Integration ΓÇö Real LLM[2m > [22mScenario 8: No odds ΓÇö should not push or be qualitative only[33m 20634[2mms[22m[39m
+ [32mΓ£ô[39m src/features/live-monitor/__tests__/ai-integration.test.ts[2m > [22mAI Integration ΓÇö Real LLM[2m > [22mScenario 9: Selection follows standard format when pushing[33m 20997[2mms[22m[39m
+ [32mΓ£ô[39m src/features/live-monitor/__tests__/ai-integration.test.ts[2m > [22mAI Integration ΓÇö Real LLM[2m > [22mScenario 10: bet_market uses standard values[33m 26867[2mms[22m[39m
+ [32mΓ£ô[39m src/features/live-monitor/__tests__/ai-prompt-audit.test.ts[2m > [22mAI Prompt Audit ΓÇö Data-Driven Rules[2m > [22mBTTS-N1: BTTS No at odds < 1.70 ΓÇö mathematically unprofitable[33m 39053[2mms[22m[39m
+ [32mΓ£ô[39m src/features/live-monitor/__tests__/ai-prompt-audit.test.ts[2m > [22mAI Prompt Audit ΓÇö Data-Driven Rules[2m > [22mBTTS-N2: BTTS No when both teams have SOT >= 2 ΓÇö risky[33m 40046[2mms[22m[39m
+ [32mΓ£ô[39m src/features/live-monitor/__tests__/ai-integration.test.ts[2m > [22mAI Integration ΓÇö Real LLM[2m > [22mScenario 11: Endgame minute ΓÇö should not push or max stake 2%[33m 27975[2mms[22m[39m
+ [32mΓ£ô[39m src/features/live-monitor/__tests__/ai-integration.test.ts[2m > [22mAI Integration ΓÇö Real LLM[2m > [22mScenario 12: Sterile dominance ΓÇö should not over-predict goals[33m 27593[2mms[22m[39m
+ [32mΓ£ô[39m src/features/live-monitor/__tests__/ai-prompt-audit.test.ts[2m > [22mAI Prompt Audit ΓÇö Data-Driven Rules[2m > [22mBTTS-N3: Valid BTTS No ΓÇö minute 78, score 2-0, opponent 0 SOT[33m 60733[2mms[22m[39m
+ [32mΓ£ô[39m src/features/live-monitor/__tests__/ai-integration.test.ts[2m > [22mAI Integration ΓÇö Real LLM[2m > [22mScenario 13: Response parsing produces valid ParsedAiResponse[33m 25718[2mms[22m[39m
+ [32mΓ£ô[39m src/features/live-monitor/__tests__/ai-integration.test.ts[2m > [22mAI Integration ΓÇö Real LLM[2m > [22mScenario 14: With previous recommendations ΓÇö no duplicate selection[33m 27648[2mms[22m[39m
+ [32mΓ£ô[39m src/features/live-monitor/__tests__/ai-prompt-audit.test.ts[2m > [22mAI Prompt Audit ΓÇö Data-Driven Rules[2m > [22mBE-1: Break-even calculation mentioned in reasoning[33m 52952[2mms[22m[39m
+ [32mΓ£ô[39m src/features/live-monitor/__tests__/ai-integration.test.ts[2m > [22mAI Integration ΓÇö Real LLM[2m > [22mScenario 15: With recommended condition ΓÇö condition evaluated[33m 23788[2mms[22m[39m
+ [32mΓ£ô[39m src/features/live-monitor/__tests__/ai-prompt-audit.test.ts[2m > [22mAI Prompt Audit ΓÇö Data-Driven Rules[2m > [22mOC-1: High odds >= 2.50 ΓÇö confidence capped at 6[33m 60314[2mms[22m[39m
+ [32mΓ£ô[39m src/features/live-monitor/__tests__/ai-prompt-audit.test.ts[2m > [22mAI Prompt Audit ΓÇö Data-Driven Rules[2m > [22m1X2-H1: 1x2_home before minute 35 ΓÇö NEVER recommend[33m 44684[2mms[22m[39m
+ [32mΓ£ô[39m src/features/live-monitor/__tests__/ai-prompt-audit.test.ts[2m > [22mAI Prompt Audit ΓÇö Data-Driven Rules[2m > [22mDR-1: Draw before minute 70 ΓÇö should not recommend[33m 29180[2mms[22m[39m
+ [32mΓ£ô[39m src/features/live-monitor/__tests__/ai-prompt-audit.test.ts[2m > [22mAI Prompt Audit ΓÇö Data-Driven Rules[2m > [22mEG-1: Before minute 30 ΓÇö restricted recommendations[33m 26308[2mms[22m[39m
+ [32mΓ£ô[39m src/features/live-monitor/__tests__/ai-prompt-audit.test.ts[2m > [22mAI Prompt Audit ΓÇö Data-Driven Rules[2m > [22mVP-1: High value_percent > 20% ΓÇö should be recalibrated[33m 36640[2mms[22m[39m
+ [32mΓ£ô[39m src/features/live-monitor/__tests__/ai-prompt-audit.test.ts[2m > [22mAI Prompt Audit ΓÇö Data-Driven Rules[2m > [22mPB-1: Sterile dominance ΓÇö 70% possession, 2/14 SOT, score 0-0[33m 39838[2mms[22m[39m
+ [32mΓ£ô[39m src/features/live-monitor/__tests__/ai-prompt-audit.test.ts[2m > [22mAI Prompt Audit ΓÇö Data-Driven Rules[2m > [22mZ0-1: Score 0-0 at minute 70 ΓÇö Under preferred[33m 57594[2mms[22m[39m
+ [32mΓ£ô[39m src/features/live-monitor/__tests__/ai-prompt-audit.test.ts[2m > [22mAI Prompt Audit ΓÇö Data-Driven Rules[2m > [22mRL-1: High risk assessment ΓÇö should_push = false[33m 54411[2mms[22m[39m
+ [32mΓ£ô[39m src/features/live-monitor/__tests__/ai-prompt-audit.test.ts[2m > [22mAI Prompt Audit ΓÇö Data-Driven Rules[2m > [22mCO-1: Corners Over after minute 80 ΓÇö must reject[33m 36159[2mms[22m[39m
+ [32mΓ£ô[39m src/features/live-monitor/__tests__/ai-prompt-audit.test.ts[2m > [22mAI Prompt Audit ΓÇö Data-Driven Rules[2m > [22mO35-1: Over 3.5 with 1 goal at minute 60 ΓÇö not feasible[33m 39505[2mms[22m[39m
+ [32mΓ£ô[39m src/features/live-monitor/__tests__/ai-prompt-audit.test.ts[2m > [22mAI Prompt Audit ΓÇö Data-Driven Rules[2m > [22mRC-1: Red card detected ΓÇö triggers RED_CARD_PROTOCOL[33m 28409[2mms[22m[39m
+ [32mΓ£ô[39m src/features/live-monitor/__tests__/ai-prompt-audit.test.ts[2m > [22mAI Prompt Audit ΓÇö Data-Driven Rules[2m > [22mEND-1: Endgame minute 89 ΓÇö very conservative[33m 27023[2mms[22m[39m
+ [32mΓ£ô[39m src/features/live-monitor/__tests__/ai-prompt-audit.test.ts[2m > [22mAI Prompt Audit ΓÇö Data-Driven Rules[2m > [22mOI-1: Suspicious odds ΓÇö contradicting match state[33m 21494[2mms[22m[39m
+ [32mΓ£ô[39m src/features/live-monitor/__tests__/ai-prompt-audit.test.ts[2m > [22mAI Prompt Audit ΓÇö Data-Driven Rules[2m > [22mMO-1: All odds below MIN_ODDS (1.50) ΓÇö should not push[33m 25819[2mms[22m[39m
+ [32mΓ£ô[39m src/features/live-monitor/__tests__/ai-prompt-audit.test.ts[2m > [22mAI Prompt Audit ΓÇö Data-Driven Rules[2m > [22mLG-1: Very late phase min 86 ΓÇö exceptional only[33m 30853[2mms[22m[39m
+ [32mΓ£ô[39m src/features/live-monitor/__tests__/ai-prompt-audit.test.ts[2m > [22mAI Prompt Audit ΓÇö Data-Driven Rules[2m > [22mCC-1: Custom condition met independently from should_push[33m 71421[2mms[22m[39m
+ [32mΓ£ô[39m src/features/live-monitor/__tests__/ai-prompt-audit.test.ts[2m > [22mAI Prompt Audit ΓÇö Data-Driven Rules[2m > [22mTRAP-1: Combined trap ΓÇö possession + 0-0 + BTTS Yes temptation[33m 46669[2mms[22m[39m
+ [32mΓ£ô[39m src/features/live-monitor/__tests__/ai-prompt-audit.test.ts[2m > [22mAI Prompt Audit ΓÇö Data-Driven Rules[2m > [22mBTTS-Y5: Valid BTTS Yes ΓÇö both teams 3+ SOT, odds 1.75[33m 33299[2mms[22m[39m
+ [32mΓ£ô[39m src/features/live-monitor/__tests__/ai-prompt-audit.test.ts[2m > [22mAI Prompt Audit ΓÇö Data-Driven Rules[2m > [22mBTTS-Y6: BTTS Yes at 1-1 minute 80 ΓÇö both already scored, irrelevant market[33m 35283[2mms[22m[39m
+ [32mΓ£ô[39m src/features/live-monitor/__tests__/ai-prompt-audit.test.ts[2m > [22mAI Prompt Audit ΓÇö Data-Driven Rules[2m > [22mBTTS-Y7: BTTS Yes at minute 30, 0-0 ΓÇö too early and no goals[33m 22136[2mms[22m[39m
+ [32mΓ£ô[39m src/features/live-monitor/__tests__/ai-prompt-audit.test.ts[2m > [22mAI Prompt Audit ΓÇö Data-Driven Rules[2m > [22mBTTS-Y8: BTTS Yes at odds 2.50 ΓÇö extreme high odds, should reject[33m 66830[2mms[22m[39m
+ [32mΓ£ô[39m src/features/live-monitor/__tests__/ai-prompt-audit.test.ts[2m > [22mAI Prompt Audit ΓÇö Data-Driven Rules[2m > [22mBTTS-N4: BTTS No valid ΓÇö 3-0, minute 70, opponent 0 SOT[33m 72086[2mms[22m[39m
+ [32mΓ£ô[39m src/features/live-monitor/__tests__/ai-prompt-audit.test.ts[2m > [22mAI Prompt Audit ΓÇö Data-Driven Rules[2m > [22mBTTS-N5: BTTS No at 1-1 ΓÇö both teams scored, BTTS already lost[33m 54868[2mms[22m[39m
+ [32mΓ£ô[39m src/features/live-monitor/__tests__/ai-prompt-audit.test.ts[2m > [22mAI Prompt Audit ΓÇö Data-Driven Rules[2m > [22mBTTS-N6: BTTS No valid ΓÇö min 80, 1-0, away 0 SOT, odds 1.75[33m 60461[2mms[22m[39m
+ [32mΓ£ô[39m src/features/live-monitor/__tests__/ai-prompt-audit.test.ts[2m > [22mAI Prompt Audit ΓÇö Data-Driven Rules[2m > [22mBE-2: Marginal edge ΓÇö odds 1.85, break-even 54.1% vs ~51% actual[33m 30069[2mms[22m[39m
+ [32mΓ£ô[39m src/features/live-monitor/__tests__/ai-prompt-audit.test.ts[2m > [22mAI Prompt Audit ΓÇö Data-Driven Rules[2m > [22mBE-3: Clear edge ΓÇö odds 2.10, strong evidence[33m 51487[2mms[22m[39m
+ [32mΓ£ô[39m src/features/live-monitor/__tests__/ai-prompt-audit.test.ts[2m > [22mAI Prompt Audit ΓÇö Data-Driven Rules[2m > [22mOC-2: Extreme odds 4.00+ ΓÇö should not push[33m 61778[2mms[22m[39m
+ [32mΓ£ô[39m src/features/live-monitor/__tests__/ai-prompt-audit.test.ts[2m > [22mAI Prompt Audit ΓÇö Data-Driven Rules[2m > [22mOC-3: Normal odds 1.65-1.90 ΓÇö no artificial cap[33m 62319[2mms[22m[39m
+ [32mΓ£ô[39m src/features/live-monitor/__tests__/ai-prompt-audit.test.ts[2m > [22mAI Prompt Audit ΓÇö Data-Driven Rules[2m > [22m1X2-H2: 1x2_home at minute 45, score 2-0 ΓÇö still cautious zone[33m 57748[2mms[22m[39m
+ [32mΓ£ô[39m src/features/live-monitor/__tests__/ai-prompt-audit.test.ts[2m > [22mAI Prompt Audit ΓÇö Data-Driven Rules[2m > [22m1X2-H3: 1x2_home at minute 70, 1-0, dominant ΓÇö may be valid[33m 59626[2mms[22m[39m
+ [32mΓ£ô[39m src/features/live-monitor/__tests__/ai-prompt-audit.test.ts[2m > [22mAI Prompt Audit ΓÇö Data-Driven Rules[2m > [22mDR-2: Draw at minute 78, 1-1 ΓÇö getting more acceptable[33m 33902[2mms[22m[39m
+ [32mΓ£ô[39m src/features/live-monitor/__tests__/ai-prompt-audit.test.ts[2m > [22mAI Prompt Audit ΓÇö Data-Driven Rules[2m > [22mDR-3: Draw at minute 40, 0-0 ΓÇö too early, must reject[33m 24848[2mms[22m[39m
+ [32mΓ£ô[39m src/features/live-monitor/__tests__/ai-prompt-audit.test.ts[2m > [22mAI Prompt Audit ΓÇö Data-Driven Rules[2m > [22mEG-2: Minute 10, 1-0 ΓÇö extremely early, no push[33m 29579[2mms[22m[39m
+ [32mΓ£ô[39m src/features/live-monitor/__tests__/ai-prompt-audit.test.ts[2m > [22mAI Prompt Audit ΓÇö Data-Driven Rules[2m > [22mEG-3: Minute 28, 2-1 ΓÇö borderline early, some action[33m 45942[2mms[22m[39m
+ [32mΓ£ô[39m src/features/live-monitor/__tests__/ai-prompt-audit.test.ts[2m > [22mAI Prompt Audit ΓÇö Data-Driven Rules[2m > [22mPB-2: 60% possession, 5/10 SOT ΓÇö effective, not sterile[33m 46798[2mms[22m[39m
+ [32mΓ£ô[39m src/features/live-monitor/__tests__/ai-prompt-audit.test.ts[2m > [22mAI Prompt Audit ΓÇö Data-Driven Rules[2m > [22mPB-3: 80% possession, 1/20 SOT ΓÇö extremely sterile[33m 40883[2mms[22m[39m
+ [32mΓ£ô[39m src/features/live-monitor/__tests__/ai-prompt-audit.test.ts[2m > [22mAI Prompt Audit ΓÇö Data-Driven Rules[2m > [22mZ0-2: Score 0-0 at minute 80 ΓÇö Under 1.5 strongly preferred[33m 28070[2mms[22m[39m
+ [32mΓ£ô[39m src/features/live-monitor/__tests__/ai-prompt-audit.test.ts[2m > [22mAI Prompt Audit ΓÇö Data-Driven Rules[2m > [22mZ0-3: Score 0-0 at minute 55 ΓÇö Under preference begins[33m 38119[2mms[22m[39m
+ [32mΓ£ô[39m src/features/live-monitor/__tests__/ai-prompt-audit.test.ts[2m > [22mAI Prompt Audit ΓÇö Data-Driven Rules[2m > [22mCO-2: Corners Over at min 70, need 1 more ΓÇö could be valid[33m 41966[2mms[22m[39m
+ [32mΓ£ô[39m src/features/live-monitor/__tests__/ai-prompt-audit.test.ts[2m > [22mAI Prompt Audit ΓÇö Data-Driven Rules[2m > [22mCO-3: Corners Under at min 85, well below line ΓÇö safe[33m 28958[2mms[22m[39m
+ [32mΓ£ô[39m src/features/live-monitor/__tests__/ai-prompt-audit.test.ts[2m > [22mAI Prompt Audit ΓÇö Data-Driven Rules[2m > [22mO35-2: Over 3.5 with 3 goals at min 50 ΓÇö feasible[33m 69813[2mms[22m[39m
+ [32mΓ£ô[39m src/features/live-monitor/__tests__/ai-prompt-audit.test.ts[2m > [22mAI Prompt Audit ΓÇö Data-Driven Rules[2m > [22mO35-3: Over 2.5 with 0 goals at min 70 ΓÇö nearly impossible[33m 33824[2mms[22m[39m
+ [32mΓ£ô[39m src/features/live-monitor/__tests__/ai-prompt-audit.test.ts[2m > [22mAI Prompt Audit ΓÇö Data-Driven Rules[2m > [22mRC-2: Two red cards ΓÇö extreme unpredictability[33m 32072[2mms[22m[39m
+ [32mΓ£ô[39m src/features/live-monitor/__tests__/ai-prompt-audit.test.ts[2m > [22mAI Prompt Audit ΓÇö Data-Driven Rules[2m > [22mRC-3: Away red card, home 1-0 ΓÇö home domination[33m 77471[2mms[22m[39m
+ [32mΓ£ô[39m src/features/live-monitor/__tests__/ai-prompt-audit.test.ts[2m > [22mAI Prompt Audit ΓÇö Data-Driven Rules[2m > [22mEND-2: Minute 92 added time ΓÇö absolute last moment[33m 20535[2mms[22m[39m
+ [32mΓ£ô[39m src/features/live-monitor/__tests__/ai-prompt-audit.test.ts[2m > [22mAI Prompt Audit ΓÇö Data-Driven Rules[2m > [22mEND-3: Minute 85, 3-0 domination ΓÇö conservative push possible[33m 31027[2mms[22m[39m
+ [32mΓ£ô[39m src/features/live-monitor/__tests__/ai-prompt-audit.test.ts[2m > [22mAI Prompt Audit ΓÇö Data-Driven Rules[2m > [22mLG-2: Minute 88, 2-1 ΓÇö exciting but must be conservative[33m 25811[2mms[22m[39m
+ [32mΓ£ô[39m src/features/live-monitor/__tests__/ai-prompt-audit.test.ts[2m > [22mAI Prompt Audit ΓÇö Data-Driven Rules[2m > [22mLG-3: Minute 83, 4-0 blowout ΓÇö limited options[33m 29622[2mms[22m[39m
+ [32mΓ£ô[39m src/features/live-monitor/__tests__/ai-prompt-audit.test.ts[2m > [22mAI Prompt Audit ΓÇö Data-Driven Rules[2m > [22mOI-2: Normal odds matching game state ΓÇö no flag[33m 34180[2mms[22m[39m
+ [32mΓ£ô[39m src/features/live-monitor/__tests__/ai-prompt-audit.test.ts[2m > [22mAI Prompt Audit ΓÇö Data-Driven Rules[2m > [22mMO-2: Market at exactly 1.50 ΓÇö borderline MIN_ODDS[33m 37800[2mms[22m[39m
+ [32mΓ£ô[39m src/features/live-monitor/__tests__/ai-prompt-audit.test.ts[2m > [22mAI Prompt Audit ΓÇö Data-Driven Rules[2m > [22mRL-2: Extreme chaos ΓÇö 3 red cards, volatile score[33m 58526[2mms[22m[39m
+ [32mΓ£ô[39m src/features/live-monitor/__tests__/ai-prompt-audit.test.ts[2m > [22mAI Prompt Audit ΓÇö Data-Driven Rules[2m > [22mVP-2: Value > 30% ΓÇö extreme overestimate[33m 38924[2mms[22m[39m
+ [32mΓ£ô[39m src/features/live-monitor/__tests__/ai-prompt-audit.test.ts[2m > [22mAI Prompt Audit ΓÇö Data-Driven Rules[2m > [22mCC-2: Custom condition NOT met ΓÇö reported as not matched[33m 31468[2mms[22m[39m
+ [32mΓ£ô[39m src/features/live-monitor/__tests__/ai-prompt-audit.test.ts[2m > [22mAI Prompt Audit ΓÇö Data-Driven Rules[2m > [22mTRAP-2: Leading + high possession + Over at high odds[33m 37435[2mms[22m[39m
+ [32mΓ£ô[39m src/features/live-monitor/__tests__/ai-prompt-audit.test.ts[2m > [22mAI Prompt Audit ΓÇö Data-Driven Rules[2m > [22mTRAP-3: BTTS No trap ΓÇö low odds + both SOT + open game[33m 45388[2mms[22m[39m
+ [32mΓ£ô[39m src/features/live-monitor/__tests__/ai-prompt-audit.test.ts[2m > [22mAI Prompt Audit ΓÇö Data-Driven Rules[2m > [22mTRAP-4: AH -1.5 temptation ΓÇö early lead, still cautious[33m 81843[2mms[22m[39m
+ [32mΓ£ô[39m src/features/live-monitor/__tests__/ai-prompt-audit.test.ts[2m > [22mAI Prompt Audit ΓÇö Data-Driven Rules[2m > [22mAH-1: Asian Handicap -0.5 valid ΓÇö dominating 2-0 at min 60[33m 63804[2mms[22m[39m
+ [32mΓ£ô[39m src/features/live-monitor/__tests__/ai-prompt-audit.test.ts[2m > [22mAI Prompt Audit ΓÇö Data-Driven Rules[2m > [22mAH-2: AH on underdog ΓÇö trailing team, risky bet[33m 31470[2mms[22m[39m
+ [32mΓ£ô[39m src/features/live-monitor/__tests__/ai-prompt-audit.test.ts[2m > [22mAI Prompt Audit ΓÇö Data-Driven Rules[2m > [22mHT-1: Halftime break ΓÇö analysis with limited live data[33m 39590[2mms[22m[39m
+ [32mΓ£ô[39m src/features/live-monitor/__tests__/ai-prompt-audit.test.ts[2m > [22mAI Prompt Audit ΓÇö Data-Driven Rules[2m > [22mMG-1: Open match 3-2 at min 55 ΓÇö active game[33m 55653[2mms[22m[39m
+[90mstdout[2m | src/features/live-monitor/__tests__/ai-prompt-audit.test.ts[2m > [22m[2mAI Prompt Audit ΓÇö Data-Driven Rules[2m > [22m[2m=== FINAL REPORT ===
+[22m[39m
+================================================================================
+AI PROMPT AUDIT REPORT
+================================================================================
+
+Total Rules Tested: 69
+Passed: 68 (99%)
+Failed: 1 (1%)
+
+----------------------------------------
+FAILED RULES:
+----------------------------------------
+
+Γ¥î OC-1 ΓÇö Odds >= 2.50 ΓåÆ confidence cap 6, stake cap 3
+   Details: Confidence: 7 (cap 6: false), Stake: 4 (cap 3: false), Warning: false
+   AI Response: push=true, market=corners_over_9.5, conf=7, stake=4%
+   Warnings: CORNERS_FEASIBILITY: 2 corners needed in 30 mins (0.067/min) vs current tempo of 0.133/min
+
+----------------------------------------
+PASSED RULES:
+----------------------------------------
+
+Γ£à BTTS-Y1 ΓÇö BTTS Yes at odds >= 2.00 with weak away attack
+   Details: Correctly avoided BTTS Yes
+
+Γ£à BTTS-Y2 ΓÇö BTTS Yes when opposing team has 0 SOT
+   Details: Correctly avoided BTTS Yes
+
+Γ£à BTTS-Y3 ΓÇö BTTS Yes at 0-0 after minute 60
+   Details: Correctly avoided BTTS Yes at 0-0
+
+Γ£à BTTS-Y4 ΓÇö Valid BTTS Yes scenario ΓÇö both teams attacking
+   Details: AI decision: should_push=true, market=btts_yes. Mentions both teams: true
+
+Γ£à BTTS-N1 ΓÇö BTTS No at odds < 1.50 (MIN_ODDS)
+   Details: Correctly rejected BTTS No at low odds
+
+Γ£à BTTS-N2 ΓÇö BTTS No when both teams have SOT >= 2
+   Details: Correctly avoided BTTS No
+
+Γ£à BTTS-N3 ΓÇö Valid BTTS No scenario but odds below MIN_ODDS
+   Details: AI decision: should_push=true, market=corners_over_9.5. BTTS No odds 1.28 < MIN_ODDS 1.50.
+
+Γ£à BE-1 ΓÇö Break-even calculation in reasoning
+   Details: AI mentioned break-even/edge/probability analysis
+
+Γ£à 1X2-H1 ΓÇö 1x2_home before minute 35
+   Details: Correctly avoided 1x2_home early
+
+Γ£à DR-1 ΓÇö Draw before minute 70
+   Details: Correctly avoided Draw
+
+Γ£à EG-1 ΓÇö Early game (min 18) ΓÇö restricted
+   Details: AI correctly did not push at minute 18
+
+Γ£à VP-1 ΓÇö Value > 20% recalibrated
+   Details: Value percent: 16 (within acceptable range or no push)
+
+Γ£à PB-1 ΓÇö Sterile dominance ΓÇö no Over or 1x2_home
+   Details: Correctly avoided possession bias trap
+
+Γ£à Z0-1 ΓÇö 0-0 at min 70 ΓÇö Under preferred
+   Details: AI did not push ΓÇö acceptable for 0-0 at minute 70 (odds may be too low)
+
+Γ£à RL-1 ΓÇö HIGH risk ΓåÆ should_push = false
+   Details: Correctly did not push with HIGH risk
+
+Γ£à CO-1 ΓÇö Corners Over after minute 80
+   Details: Correctly avoided Corners Over after minute 80
+
+Γ£à O35-1 ΓÇö Over 3.5 with only 1 goal ΓÇö not feasible
+   Details: Correctly avoided Over 3.5
+
+Γ£à RC-1 ΓÇö Red card ΓÇö mentioned in reasoning/warnings
+   Details: AI correctly identified red card
+
+Γ£à END-1 ΓÇö Endgame min 89 ΓÇö max stake 2%
+   Details: AI correctly did not push at minute 89
+
+Γ£à OI-1 ΓÇö Suspicious odds ΓÇö should flag
+   Details: AI correctly flagged suspicious odds
+
+Γ£à MO-1 ΓÇö Min odds filter ΓÇö selected odds >= 1.50
+   Details: AI correctly did not push ΓÇö most odds below MIN_ODDS
+
+Γ£à LG-1 ΓÇö Very late phase ΓÇö max stake 3%
+   Details: AI correctly did not push at minute 86
+
+Γ£à CC-1 ΓÇö Custom condition evaluated independently
+   Details: status=evaluated, matched=true, should_push=false
+
+Γ£à TRAP-1 ΓÇö Combined trap ΓÇö avoids all pitfalls
+   Details: Correct: AI recommended no push
+
+Γ£à BTTS-Y5 ΓÇö Valid BTTS Yes ΓÇö both teams 3+ SOT, odds 1.75
+   Details: AI decision: should_push=false, market=. Mentions both: false
+
+Γ£à BTTS-Y6 ΓÇö BTTS Yes already settled at 1.08 ΓÇö below MIN_ODDS
+   Details: Correctly avoided BTTS Yes at dead odds
+
+Γ£à BTTS-Y7 ΓÇö BTTS Yes early + away 0 SOT
+   Details: Correctly avoided BTTS Yes
+
+Γ£à BTTS-Y8 ΓÇö BTTS Yes extreme odds 2.50 + away 1 SOT
+   Details: Correctly rejected BTTS Yes
+
+Γ£à BTTS-N4 ΓÇö Valid BTTS No scenario but odds 1.22 < MIN_ODDS
+   Details: Correctly: no push
+
+Γ£à BTTS-N5 ΓÇö BTTS No when 1-1 ΓÇö already lost
+   Details: Correctly avoided dead BTTS No
+
+Γ£à BTTS-N6 ΓÇö Valid BTTS No ΓÇö late, clean sheet, good odds
+   Details: AI decision: should_push=false, market=
+
+Γ£à BE-2 ΓÇö Marginal edge with break-even check
+   Details: AI mentioned break-even calculation
+
+Γ£à BE-3 ΓÇö Clear edge ΓÇö break-even mentioned
+   Details: AI mentioned break-even. Market: over_2.5
+
+Γ£à OC-2 ΓÇö Extreme odds 4.00+ ΓÇö caps enforced
+   Details: AI correctly did not push with extreme odds
+
+Γ£à OC-3 ΓÇö Normal odds ΓÇö no artificial cap
+   Details: AI decision: push=true, market=over_2.5, conf=7, stake=4%
+
+Γ£à 1X2-H2 ΓÇö 1x2_home at 1.05 ΓÇö below MIN_ODDS
+   Details: Correctly: no push
+
+Γ£à 1X2-H3 ΓÇö 1x2_home late game, low odds
+   Details: AI decision: push=true, market=corners_over_9.5, conf=7
+
+Γ£à DR-2 ΓÇö Draw at min 78 ΓÇö acceptable zone
+   Details: AI decision: push=true, market=corners_under_9.5
+
+Γ£à DR-3 ΓÇö Draw at minute 40 ΓÇö far too early
+   Details: Correctly avoided Draw
+
+Γ£à EG-2 ΓÇö Minute 10 ΓÇö no 1X2
+   Details: Correctly did not push at minute 10
+
+Γ£à EG-3 ΓÇö Minute 28 ΓÇö no 1X2 despite action
+   Details: Decision: push=true, market=over_3.5
+
+Γ£à PB-2 ΓÇö Effective possession ΓÇö not sterile
+   Details: AI decision: push=true, market=corners_over_9.5
+
+Γ£à PB-3 ΓÇö Extreme sterile ΓÇö no Over/1x2_home
+   Details: Avoided sterile dominance trap
+
+Γ£à Z0-2 ΓÇö 0-0 at min 80 ΓÇö goals Under only
+   Details: No push ΓÇö acceptable for 0-0 at minute 80
+
+Γ£à Z0-3 ΓÇö 0-0 at min 55 ΓÇö not Over/1x2_home
+   Details: OK: under_2.5
+
+Γ£à CO-2 ΓÇö Corners Over ΓÇö need 1, 20 min left
+   Details: AI decision: push=true, market=corners_over_9.5
+
+Γ£à CO-3 ΓÇö Corners Under ΓÇö odds too low
+   Details: AI decision: push=false, market=
+
+Γ£à O35-2 ΓÇö Over 3.5 feasible ΓÇö 3 goals, 40 min left
+   Details: AI decision: push=false, market=
+
+Γ£à O35-3 ΓÇö Over 2.5 at 0-0 min 70 ΓÇö reject
+   Details: Correctly rejected
+
+Γ£à RC-2 ΓÇö Double red card ΓÇö acknowledged
+   Details: AI correctly identified red cards
+
+Γ£à RC-3 ΓÇö Away red card ΓÇö mentioned in analysis
+   Details: AI correctly factored in red card advantage
+
+Γ£à END-2 ΓÇö Minute 92 ΓÇö max stake 2%
+   Details: Correctly did not push at minute 92
+
+Γ£à END-3 ΓÇö Minute 85 domination ΓÇö conservative
+   Details: No push at minute 85 ΓÇö acceptable
+
+Γ£à LG-2 ΓÇö Minute 88 ΓÇö max stake 3%
+   Details: No push at minute 88 ΓÇö correct
+
+Γ£à LG-3 ΓÇö Minute 83 blowout ΓÇö conservative
+   Details: No push ΓÇö correct for blowout with dead odds
+
+Γ£à OI-2 ΓÇö Normal odds ΓÇö no suspicion
+   Details: AI decision: push=true, market=corners_over_9.5
+
+Γ£à MO-2 ΓÇö Borderline 1.50 odds
+   Details: AI decision: push=true, market=corners_over_9.5
+
+Γ£à RL-2 ΓÇö Extreme chaos ΓÇö HIGH risk expected
+   Details: Risk: HIGH, mentions red: true, push: false
+
+Γ£à VP-2 ΓÇö Value > 30% ΓÇö must be recalibrated
+   Details: Value: 0% ΓÇö within acceptable range
+
+Γ£à CC-2 ΓÇö Custom condition NOT met
+   Details: status=evaluated, matched=false
+
+Γ£à TRAP-2 ΓÇö Sterile dominance + Over temptation
+   Details: Correct: no push
+
+Γ£à TRAP-3 ΓÇö BTTS No at 1-1 ΓÇö already lost
+   Details: Correctly avoided dead BTTS No
+
+Γ£à TRAP-4 ΓÇö Early lead ΓÇö no 1X2 before min 35
+   Details: Decision: push=true, market=ah_home_-1.5
+
+Γ£à AH-1 ΓÇö Valid AH scenario ΓÇö 2-0 domination
+   Details: AI decision: push=false, market=, conf=0
+
+Γ£à AH-2 ΓÇö AH underdog ΓÇö risky analysis
+   Details: AI decision: push=false, market=
+
+Γ£à HT-1 ΓÇö Halftime ΓÇö conservative analysis
+   Details: Decision: push=false, market=
+
+Γ£à MG-1 ΓÇö High-scoring open match
+   Details: AI decision: push=false, market=, risk=HIGH
+
+Γ£à MG-2 ΓÇö Defensive 0-0 ΓÇö Under preferred
+   Details: Decision: push=true, market=corners_under_9.5
+
+================================================================================
+END OF REPORT
+================================================================================
+
+
+ [32mΓ£ô[39m src/features/live-monitor/__tests__/ai-prompt-audit.test.ts[2m > [22mAI Prompt Audit ΓÇö Data-Driven Rules[2m > [22mMG-2: Defensive battle 0-0 ΓÇö low activity[33m 28659[2mms[22m[39m
+ [32mΓ£ô[39m src/features/live-monitor/__tests__/ai-prompt-audit.test.ts[2m > [22mAI Prompt Audit ΓÇö Data-Driven Rules[2m > [22m=== FINAL REPORT ===[32m 11[2mms[22m[39m
+
+[31mΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»[39m[1m[41m Failed Tests 1 
+[49m[22m[31mΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»[39m
+
+[41m[1m FAIL [22m[49m 
+src/features/live-monitor/__tests__/proxy-context.test.ts[2m > 
+[22mfetchMatchSnapshots[2m > [22mreturns mapped snapshots on success
+[31m[1mAssertionError[22m: expected { minute: 15, score: '0-0', ΓÇª(9) } to 
+deeply equal { minute: 15, score: '0-0', ΓÇª(5) }[39m
+
+[32m- Expected[39m
+[31m+ Received[39m
+
+[2m  {[22m
+[2m    "corners": "2-1",[22m
+[31m+   "fouls": "-",[39m
+[31m+   "goalkeeper_saves": "-",[39m
+[2m    "minute": 15,[22m
+[2m    "possession": "55-45",[22m
+[31m+   "red_cards": "-",[39m
+[2m    "score": "0-0",[22m
+[2m    "shots": "3-1",[22m
+[2m    "shots_on_target": "1-0",[22m
+[2m    "status": "1H",[22m
+[31m+   "yellow_cards": "-",[39m
+[2m  }[22m
+
+[36m [2mΓ¥»[22m 
+src/features/live-monitor/__tests__/proxy-context.test.ts:[2m137:23[22m[39m
+    [90m135| [39m
+    [90m136| [39m    [34mexpect[39m(result)[33m.[39m[34mtoHaveLength[39
+m([34m2[39m)[33m;[39m
+    [90m137| [39m    
+[34mexpect[39m(result[[34m0[39m])[33m.[39m[34mtoEqual[39m({
+    [90m   | [39m                      [31m^[39m
+    [90m138| [39m      minute[33m:[39m [34m15[39m[33m,[39m
+    [90m139| [39m      score[33m:[39m [32m'0-0'[39m[33m,[39m
+
+[31m[2mΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»Γ
+Ä»[1/1]ΓÄ»[22m[39m
+
+
+[2m Test Files [22m [1m[31m1 failed[39m[22m[2m | [22m[1m[32m26 passed[39m[22m[90m (27)[39m
+[2m      Tests [22m [1m[31m1 failed[39m[22m[2m | [22m[1m[32m666 passed[39m[22m[90m (667)[39m
+[2m   Start at [22m 21:41:30
+[2m   Duration [22m 2978.30s[2m (transform 6.25s, setup 33.29s, collect 10.69s, tests 3364.95s, environment 145.39s, prepare 13.59s)[22m
+

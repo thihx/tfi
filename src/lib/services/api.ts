@@ -95,6 +95,14 @@ export async function fetchWatchlist(config: AppConfig): Promise<WatchlistItem[]
   return pgFetch<WatchlistItem[]>(config, '/api/watchlist');
 }
 
+export async function fetchWatchlistItem(config: AppConfig, matchId: string): Promise<WatchlistItem | null> {
+  try {
+    return await pgFetch<WatchlistItem>(config, `/api/watchlist/${encodeURIComponent(matchId)}`);
+  } catch {
+    return null;
+  }
+}
+
 export async function fetchRecommendationsByMatch(
   config: AppConfig,
   matchId: string,

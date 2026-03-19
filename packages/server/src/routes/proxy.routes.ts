@@ -13,7 +13,7 @@ import {
 } from '../lib/football-api.js';
 import { fetchTheOddsLive } from '../lib/the-odds-api.js';
 import { callGemini } from '../lib/gemini.js';
-import { sendTelegramMessage } from '../lib/telegram.js';
+import { sendTelegramMessage, sendTelegramPhoto } from '../lib/telegram.js';
 
 // ==================== Routes ====================
 
@@ -205,15 +205,20 @@ export async function proxyRoutes(app: FastifyInstance) {
   );
 
   // POST /api/proxy/notify/telegram
-  app.post<{ Body: { chat_id: string; text: string } }>(
+  app.post<{ Body: { chat_id: string; text: string; photo_url?: string } }>(
     '/api/proxy/notify/telegram',
     async (req, reply) => {
       if (!config.telegramBotToken) {
         return reply.status(200).send({ sent: false, reason: 'TELEGRAM_BOT_TOKEN not configured' });
       }
       try {
-        await sendTelegramMessage(req.body.chat_id, req.body.text);
-        audit({ category: 'NOTIFICATION', action: 'TELEGRAM_SEND', actor: 'pipeline', metadata: { chatId: req.body.chat_id } });
+        const { chat_id, text, photo_url } = req.body;
+        if (photo_url) {
+          await sendTelegramPhoto(chat_id, photo_url, text);
+        } else {
+          await sendTelegramMessage(chat_id, text);
+        }
+        audit({ category: 'NOTIFICATION', action: 'TELEGRAM_SEND', actor: 'pipeline', metadata: { chatId: chat_id, hasPhoto: !!photo_url } });
         return { sent: true };
       } catch (err) {
         audit({ category: 'NOTIFICATION', action: 'TELEGRAM_SEND', outcome: 'FAILURE', actor: 'pipeline', error: err instanceof Error ? err.message : String(err) });

@@ -30,6 +30,10 @@ export interface StrategicContext {
   h2h_narrative: string;
   summary: string;
   searched_at: string;
+  competition_type?: string;
+  ai_condition?: string;
+  ai_condition_reason?: string;
+  ai_condition_reason_vi?: string;
 }
 
 export interface WatchlistItem {

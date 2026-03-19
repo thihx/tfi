@@ -12,7 +12,6 @@ import type {
   MergedMatchData,
   EventCompact,
   EmailPayload,
-  TelegramPayload,
 } from '../types';
 import { sendEmail, sendTelegram } from './proxy.service';
 import { formatLocalDateTime } from '@/lib/utils/helpers';
@@ -247,7 +246,153 @@ function buildEmailHtml(ctx: NotificationContext): string {
   return html;
 }
 
+// ==================== Stats Chart (QuickChart.io) ====================
+
+interface StatPair { home: string | null | undefined; away: string | null | undefined }
+
+/** Truncate at last word boundary before max chars (never cuts mid-word). */
+function truncateAtWord(text: string, max: number): string {
+  if (text.length <= max) return text;
+  const idx = text.lastIndexOf(' ', max - 1);
+  return text.substring(0, idx > 0 ? idx : max) + '…';
+}
+
+/**
+ * Cut caption at last newline before the limit.
+ * Since all HTML tags (<b>, <i>) are opened and closed within the same line,
+ * cutting at \n guarantees no unclosed tags.
+ */
+function safeTruncateCaption(text: string, limit = 1020): string {
+  if (text.length <= limit) return text;
+  const idx = text.lastIndexOf('\n', limit);
+  return text.substring(0, idx > 0 ? idx : limit);
+}
+
+/**
+ * Stacked 100% horizontal bar chart — all stats normalized to home/away share.
+ * Labels include raw counts so actual numbers are still visible.
+ * Using share % fixes the scale-mixing issue (possession % vs counts on same axis).
+ */
+function buildStatsChartUrl(
+  statsCompact: Record<string, StatPair>,
+  homeName: string,
+  awayName: string,
+  minute: string | number,
+): string {
+  const n = (v: string | null | undefined): number => {
+    if (v == null || v === '') return 0;
+    const num = parseFloat(String(v).replace('%', ''));
+    return isNaN(num) ? 0 : num;
+  };
+
+  // share(h, a) → [homeShare%, awayShare%] where home+away=100
+  const share = (h: number, a: number): [number, number] => {
+    const total = h + a;
+    if (total === 0) return [0, 0];
+    return [Math.round(h / total * 100), Math.round(a / total * 100)];
+  };
+
+  const sc = statsCompact;
+  const posH = n(sc['possession']?.home); const posA = n(sc['possession']?.away);
+  const shoH = n(sc['shots']?.home);      const shoA = n(sc['shots']?.away);
+  const sotH = n(sc['shots_on_target']?.home); const sotA = n(sc['shots_on_target']?.away);
+  const corH = n(sc['corners']?.home);    const corA = n(sc['corners']?.away);
+  const fouH = n(sc['fouls']?.home);      const fouA = n(sc['fouls']?.away);
+
+  // Require at least some real data
+  const hasData = posH + posA + shoH + shoA + sotH + sotA + corH + corA + fouH + fouA > 0;
+  if (!hasData) return '';
+
+  const [posHS, posAS] = posH + posA > 0 ? [posH, posA] : [0, 0]; // possession already %
+  const [shoHS, shoAS] = share(shoH, shoA);
+  const [sotHS, sotAS] = share(sotH, sotA);
+  const [corHS, corAS] = share(corH, corA);
+  const [fouHS, fouAS] = share(fouH, fouA);
+
+  const trim = (s: string, max = 14) => s.length > max ? s.substring(0, max - 1) + '…' : s;
+
+  const cfg = {
+    type: 'horizontalBar',
+    data: {
+      labels: [
+        `Poss (${posH}/${posA}%)`,
+        `Shots (${shoH}/${shoA})`,
+        `On Target (${sotH}/${sotA})`,
+        `Corners (${corH}/${corA})`,
+        `Fouls (${fouH}/${fouA})`,
+      ],
+      datasets: [
+        { label: trim(homeName), backgroundColor: '#3b82f6', data: [posHS, shoHS, sotHS, corHS, fouHS] },
+        { label: trim(awayName), backgroundColor: '#ef4444', data: [posAS, shoAS, sotAS, corAS, fouAS] },
+      ],
+    },
+    options: {
+      title: { display: true, text: `Live Stats — ${minute}'`, fontSize: 14 },
+      legend: { position: 'bottom' },
+      scales: {
+        xAxes: [{ stacked: true, ticks: { min: 0, max: 100 } }],
+        yAxes: [{ stacked: true }],
+      },
+    },
+  };
+
+  return `https://quickchart.io/chart?c=${encodeURIComponent(JSON.stringify(cfg))}&w=500&h=240&bkg=white`;
+}
+
 // ==================== Format Telegram Message ====================
+
+/** Condensed caption for sendPhoto (max 1024 chars). Stats replaced by chart image. */
+function buildTelegramCaption(ctx: NotificationContext): string {
+  const { recommendation: rec, parsed, matchData } = ctx;
+  const section = determineSection(ctx);
+  const events = sortEvents(matchData.events_compact || []);
+
+  const emoji = section === 'ai_recommendation' ? '🎯' : section === 'condition_triggered' ? '⚡' : '📊';
+  const label = section === 'ai_recommendation' ? 'AI RECOMMENDATION' : section === 'condition_triggered' ? 'CONDITION TRIGGERED' : 'MATCH ANALYSIS';
+
+  let text = `<b>${emoji} ${label}</b>\n`;
+  text += `<b>${safeHtml(rec.match_display)}</b>\n`;
+  text += `${safeHtml(rec.league)}\n`;
+  text += `⏱ ${safeHtml(String(rec.minute))}' | 📋 ${safeHtml(rec.score)} | ${safeHtml(rec.status)}\n`;
+  text += `🤖 ${safeHtml(rec.ai_model)} | Mode: ${safeHtml(rec.mode)}\n`;
+
+  if (section === 'ai_recommendation') {
+    text += `\n<b>💰 ${safeHtml(rec.selection)}</b>\n`;
+    text += `Confidence: ${rec.confidence}/10 | Stake: ${rec.stake_percent}% | Risk: ${safeHtml(rec.risk_level)} | Value: ${rec.value_percent}%\n`;
+    // Prefer VI reasoning; truncate at word boundary
+    const reasoning = parsed.reasoning_vi || parsed.reasoning_en;
+    if (reasoning) text += `\n${safeHtml(truncateAtWord(reasoning, 280))}\n`;
+  } else if (section === 'condition_triggered' && parsed.condition_triggered_suggestion) {
+    text += `\n⚡ <b>${safeHtml(parsed.condition_triggered_suggestion)}</b>\n`;
+    text += `Confidence: ${parsed.condition_triggered_confidence}/10 | Stake: ${parsed.condition_triggered_stake}%\n`;
+  } else {
+    const reasoning = parsed.reasoning_vi || parsed.reasoning_en;
+    if (reasoning) text += `\n${safeHtml(truncateAtWord(reasoning, 200))}\n`;
+  }
+
+  // Key events — goals + cards only, case-insensitive, max 6
+  const keyEvents = events
+    .filter((e) => { const t = e.type.toLowerCase(); return t === 'goal' || t === 'card'; })
+    .slice(-6);
+  if (keyEvents.length > 0) {
+    text += '\n';
+    for (const evt of keyEvents) {
+      const icon = getEventIcon(evt);
+      text += `${formatMinute(evt)} ${icon} ${safeHtml(evt.team)} (${safeHtml(evt.detail)})\n`;
+    }
+  }
+
+  // Warnings (concise, max 3)
+  const allWarnings = formatWarnings(parsed.warnings || []);
+  if (allWarnings.length > 0) {
+    text += `\n⚠️ ${safeHtml(allWarnings.slice(0, 3).join(' | '))}\n`;
+  }
+
+  // Footer — added last so safeTruncateCaption never cuts it mid-tag
+  text += `\n<i>👆 Ask AI | ${safeHtml(formatLocalDateTime(new Date().toISOString()))}</i>`;
+
+  return safeTruncateCaption(text);
+}
 
 function buildTelegramMessages(ctx: NotificationContext): string[] {
   const { recommendation: rec, parsed, matchData } = ctx;
@@ -299,14 +444,14 @@ function buildTelegramMessages(ctx: NotificationContext): string[] {
     text += `<b>📝 Analysis (VI):</b>\n${safeHtml(parsed.reasoning_vi)}\n`;
   }
 
-  // Stats
+  // Stats (text fallback — shown when chart image is not available)
   if (matchData.stats_available && matchData.stats_compact) {
     text += '\n<b>📊 Live Stats</b>\n';
     const sc = matchData.stats_compact;
     for (const [key, val] of Object.entries(sc)) {
       if (val && typeof val === 'object' && 'home' in val && val.home != null && val.away != null && val.home !== '' && val.away !== '') {
-        const label = key.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
-        text += `${label}: ${val.home} - ${val.away}\n`;
+        const lbl = key.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
+        text += `${lbl}: ${val.home} - ${val.away}\n`;
       }
     }
   }
@@ -326,29 +471,22 @@ function buildTelegramMessages(ctx: NotificationContext): string[] {
     text += `\n⚠️ <b>Warnings:</b> ${safeHtml(allWarnings.join(', '))}\n`;
   }
 
-  text += `\n<i>TFI Live Monitor | ${safeHtml(formatLocalDateTime(new Date().toISOString()))}</i>`;
+  text += `\n<i>👆 Ask AI | ${safeHtml(formatLocalDateTime(new Date().toISOString()))}</i>`;
 
-  // Chunk at 3500 chars for Telegram message limit
-  const MAX_CHUNK = 3500;
-  if (text.length <= MAX_CHUNK) return [text];
+  return chunkMessage(text);
+}
 
+function chunkMessage(text: string, maxLen = 3500): string[] {
+  if (text.length <= maxLen) return [text];
   const chunks: string[] = [];
   let remaining = text;
-
   while (remaining.length > 0) {
-    if (remaining.length <= MAX_CHUNK) {
-      chunks.push(remaining);
-      break;
-    }
-
-    // Find a good break point (newline) within the limit
-    let breakIdx = remaining.lastIndexOf('\n', MAX_CHUNK);
-    if (breakIdx <= 0) breakIdx = MAX_CHUNK;
-
-    chunks.push(remaining.substring(0, breakIdx));
-    remaining = remaining.substring(breakIdx).replace(/^\n/, '');
+    if (remaining.length <= maxLen) { chunks.push(remaining); break; }
+    let idx = remaining.lastIndexOf('\n', maxLen);
+    if (idx <= 0) idx = maxLen;
+    chunks.push(remaining.substring(0, idx));
+    remaining = remaining.substring(idx).replace(/^\n/, '');
   }
-
   return chunks;
 }
 
@@ -418,16 +556,37 @@ export async function notifyRecommendation(
 
   // Format and send telegram messages
   try {
-    const messages = buildTelegramMessages(ctx);
-    result.telegramChunks = messages.length;
+    const chatId = monitorConfig.TELEGRAM_CHAT_ID;
 
-    for (const msg of messages) {
-      const telePayload: TelegramPayload = {
-        chat_id: monitorConfig.TELEGRAM_CHAT_ID,
-        text: msg,
-        parse_mode: 'HTML',
-      };
-      await sendTelegram(appConfig, telePayload);
+    // Use sendPhoto with chart when live stats are available — 1 message instead of chunked text
+    const hasStats = matchData.stats_available && matchData.stats_compact;
+    const chartUrl = hasStats
+      ? buildStatsChartUrl(
+          matchData.stats_compact as Record<string, StatPair>,
+          recommendation.home_team || '',
+          recommendation.away_team || '',
+          recommendation.minute ?? '',
+        )
+      : '';
+
+    let photoSent = false;
+    if (chartUrl) {
+      try {
+        const caption = buildTelegramCaption(ctx);
+        await sendTelegram(appConfig, { chat_id: chatId, text: caption, parse_mode: 'HTML', photo_url: chartUrl });
+        result.telegramChunks = 1;
+        photoSent = true;
+      } catch {
+        // QuickChart or Telegram photo failed — fall through to text message
+      }
+    }
+
+    if (!photoSent) {
+      const messages = buildTelegramMessages(ctx);
+      result.telegramChunks = messages.length;
+      for (const msg of messages) {
+        await sendTelegram(appConfig, { chat_id: chatId, text: msg, parse_mode: 'HTML' });
+      }
     }
 
     result.telegramSent = true;

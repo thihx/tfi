@@ -1064,7 +1064,7 @@ function buildMatchTimelineSection(context?: AiPromptContext): string {
 
   const timeline = context.matchTimeline;
   const lines = timeline.map((s) =>
-    `  Min ${s.minute}: ${s.score} | Poss: ${s.possession} | Shots: ${s.shots} (OT: ${s.shots_on_target}) | Corners: ${s.corners}`,
+    `  Min ${s.minute}: ${s.score} | Poss: ${s.possession} | Shots: ${s.shots} (OT: ${s.shots_on_target}) | Corners: ${s.corners} | Fouls: ${s.fouls} | Cards: ${s.yellow_cards}Y ${s.red_cards}R | GKSaves: ${s.goalkeeper_saves}`,
   );
 
   return `========================
@@ -1077,6 +1077,8 @@ USE THIS DATA TO:
 - Detect sustained patterns vs temporary bursts
 - Assess whether the current stats represent a trend or a spike
 - Compare early-game vs current stats for trajectory analysis
+- Fouls + cards indicate match intensity and discipline risks
+- GK saves ratio vs shots on target shows shooting quality
 `;
 }
 
@@ -1193,10 +1195,13 @@ function buildStrategicContextSection(strategicContext: unknown): string {
     lines.push(`KEY_ABSENCES: ${ctx.key_absences}`);
   if (ctx.h2h_narrative && ctx.h2h_narrative !== 'No data found')
     lines.push(`H2H_NARRATIVE: ${ctx.h2h_narrative}`);
+  if (ctx.competition_type && ctx.competition_type !== 'No data found')
+    lines.push(`COMPETITION_TYPE: ${ctx.competition_type}`);
   lines.push(`SUMMARY: ${ctx.summary}`);
   lines.push('');
   lines.push('STRATEGIC CONTEXT RULES:');
-  lines.push('- LEAGUE_POSITIONS: Top 3 vs bottom 3 = strong favourite signal. If positions are close (within 3 places), treat as evenly matched → AVOID 1X2, prefer O/U or BTTS.');
+  lines.push('- COMPETITION_TYPE: For european/international/friendly competitions, teams are from DIFFERENT domestic leagues. LEAGUE_POSITIONS CANNOT be compared across leagues — IGNORE position gap signals.');
+  lines.push('- LEAGUE_POSITIONS: ONLY for domestic_league matches: Top 3 vs bottom 3 = strong favourite signal. If positions are close (within 3 places), treat as evenly matched → AVOID 1X2, prefer O/U or BTTS.');
   lines.push('- If a team is likely to ROTATE key players, reduce confidence for that team winning (1X2) by 1-2 points.');
   lines.push('- If a team has NOTHING TO PLAY FOR (mid-table, safe from relegation, no European push), expect lower intensity → favors Under, Draw.');
   lines.push('- If both teams are in a TITLE RACE or RELEGATION BATTLE, expect high intensity → supports both attacking.');

@@ -1,5 +1,5 @@
 // ============================================================
-// Unit tests — Enrich Watchlist Job (enrichWatchlistJob + generateCondition)
+// Unit tests — Enrich Watchlist Job (enrichWatchlistJob)
 // ============================================================
 
 import { describe, test, expect, vi, beforeEach } from 'vitest';
@@ -55,6 +55,11 @@ vi.mock('../lib/strategic-context.service.js', () => ({
     h2h_narrative: 'Arsenal won last 3 meetings',
     league_positions: '2nd vs 18th',
     fixture_congestion: 'Champions League in 2 days',
+    competition_type: 'domestic_league',
+    summary: 'High-stakes domestic match',
+    ai_condition: '(Minute >= 60) AND (NOT Home leading)',
+    ai_condition_reason: 'Title race team expected to dominate',
+    ai_condition_reason_vi: 'Đội đua vô địch dự kiến áp đảo',
   }),
 }));
 
@@ -118,6 +123,19 @@ describe('enrichWatchlistJob', () => {
     const result = await enrichWatchlistJob();
     expect(result.checked).toBe(1);
     expect(result.enriched).toBe(0);
+  });
+
+  test('uses AI-generated condition from strategic context', async () => {
+    await enrichWatchlistJob();
+    const watchlistRepo = await import('../repos/watchlist.repo.js');
+    expect(watchlistRepo.updateWatchlistEntry).toHaveBeenCalledWith(
+      '100',
+      expect.objectContaining({
+        recommended_custom_condition: '(Minute >= 60) AND (NOT Home leading)',
+        recommended_condition_reason: 'Title race team expected to dominate',
+        recommended_condition_reason_vi: 'Đội đua vô địch dự kiến áp đảo',
+      }),
+    );
   });
 
   test('does not overwrite manually set conditions', async () => {

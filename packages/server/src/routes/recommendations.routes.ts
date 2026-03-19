@@ -62,7 +62,15 @@ export async function recommendationRoutes(app: FastifyInstance) {
     '/api/recommendations',
     async (req, reply) => {
       if (!req.body.match_id) return reply.code(400).send({ error: 'match_id is required' });
-      const rec = await repo.createRecommendation(req.body);
+
+      let rec: repo.RecommendationRow;
+      try {
+        rec = await repo.createRecommendation(req.body);
+      } catch (err) {
+        const errMsg = err instanceof Error ? err.message : String(err);
+        req.log.error({ err, matchId: req.body.match_id, selection: req.body.selection }, 'Failed to save recommendation');
+        return reply.code(500).send({ error: `Failed to save recommendation: ${errMsg}` });
+      }
 
       // Auto-create AI performance tracking record
       if (rec.ai_model) {

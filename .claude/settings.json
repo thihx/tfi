@@ -59,7 +59,12 @@
       "Bash(do)",
       "Bash(echo \"=== $f ===\")",
       "Bash(done)",
-      "Bash(head -20 grep -i \"columnheader\\\\|League\\\\|Match\\\\|Selection\" c:/tfi/test-results/recommendations-Recommendations-shows-table-column-headers-chromium/error-context.md)"
+      "Bash(head -20 grep -i \"columnheader\\\\|League\\\\|Match\\\\|Selection\" c:/tfi/test-results/recommendations-Recommendations-shows-table-column-headers-chromium/error-context.md)",
+      "Bash(grep -r proxy/notify/telegram c:tfi --include=*.ts --include=*.tsx --include=*.js)",
+      "Bash(find c:/tfi/packages -name *.ts -o -name *.tsx)",
+      "Bash(grep -r \"sendTelegramMessage\\\\|notifyTelegram\" c:/tfi/packages/client --include=*.ts --include=*.tsx)",
+      "Bash(grep -r \"telegram\\\\|Telegram\" c:/tfi/packages/client --include=*.ts --include=*.tsx)",
+      "Bash(grep -r \"analyze\\\\|ai/analyze\" c:/tfi/packages/server/src/routes --include=*.ts)"
     ]
   }
 }

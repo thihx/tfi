@@ -327,6 +327,10 @@ export interface MatchTimelineSnapshot {
   shots: string;
   shots_on_target: string;
   corners: string;
+  fouls: string;
+  yellow_cards: string;
+  red_cards: string;
+  goalkeeper_saves: string;
   status: string;
 }
 
@@ -450,6 +454,8 @@ export interface TelegramPayload {
   chat_id: string;
   text: string;
   parse_mode: 'HTML';
+  /** When set, sends a sendPhoto with chart image; text becomes the caption */
+  photo_url?: string;
 }
 
 // ==================== Pipeline ====================

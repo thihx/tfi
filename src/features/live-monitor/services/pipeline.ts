@@ -305,8 +305,50 @@ export async function runPipeline(
               }),
             );
           } catch (saveErr) {
-            matchResult.error = (matchResult.error ? matchResult.error + '; ' : '') +
-              `Save error: ${saveErr instanceof Error ? saveErr.message : String(saveErr)}`;
+            const errMsg = saveErr instanceof Error ? saveErr.message : String(saveErr);
+            console.error(`[Pipeline] Save FAILED for match ${mergedWithOdds.match_id}:`, errMsg);
+
+            // Retry once
+            try {
+              const savedRec = await saveRecommendation(appConfig, recommendation);
+              matchResult.saved = true;
+              console.info(`[Pipeline] Save RETRY succeeded for match ${mergedWithOdds.match_id}`);
+
+              trackSilent(
+                saveAiPerformance(appConfig, {
+                  recommendation_id: savedRec.id,
+                  match_id: mergedWithOdds.match_id,
+                  ai_model: config.AI_MODEL,
+                  prompt_version: 'v3-context-aware',
+                  ai_confidence: parsed.ai_confidence,
+                  ai_should_push: parsed.ai_should_push,
+                  predicted_market: parsed.bet_market,
+                  predicted_selection: parsed.ai_selection,
+                  predicted_odds: parsed.usable_odd,
+                  match_minute: currentMinute,
+                  match_score: mergedWithOdds.score,
+                  league: mergedWithOdds.league,
+                }),
+              );
+            } catch (retryErr) {
+              const retryMsg = retryErr instanceof Error ? retryErr.message : String(retryErr);
+              console.error(`[Pipeline] Save RETRY also failed for match ${mergedWithOdds.match_id}:`, retryMsg);
+              matchResult.error = (matchResult.error ? matchResult.error + '; ' : '') +
+                `Save error: ${errMsg} (retry: ${retryMsg})`;
+
+              auditLog(appConfig, {
+                category: 'PIPELINE',
+                action: 'RECOMMENDATION_SAVE_FAILED',
+                outcome: 'FAILURE',
+                match_id: mergedWithOdds.match_id,
+                error: `${errMsg} | retry: ${retryMsg}`,
+                metadata: {
+                  match: matchResult.matchDisplay,
+                  selection: parsed.ai_selection || parsed.selection,
+                  triggeredBy: options.triggeredBy,
+                },
+              });
+            }
           }
         }
 
