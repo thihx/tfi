@@ -123,7 +123,7 @@ export async function integrationHealthJob(): Promise<{
   const savePromises: Promise<void>[] = [];
 
   for (let i = 0; i < activeProbes.length; i++) {
-    const probe = activeProbes[i];
+    const probe = activeProbes[i]!;
     const prev = prevStates[i];
     const prevStatus = prev?.status ?? null;
 

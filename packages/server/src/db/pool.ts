@@ -8,18 +8,22 @@ import { config } from '../config.js';
 // Return DATE columns as plain "YYYY-MM-DD" strings instead of JS Date objects
 pg.types.setTypeParser(1082, (val: string) => val);
 
+// pg ≥ 8.13 supports `onConnect` in pool options (awaited before handing
+// the client to queries), but @types/pg hasn't added it yet.
+interface PoolConfigWithOnConnect extends pg.PoolConfig {
+  onConnect?: (client: pg.PoolClient) => Promise<void>;
+}
+
 const pool = new pg.Pool({
   connectionString: config.databaseUrl,
   max: 10,
   idleTimeoutMillis: 30_000,
   connectionTimeoutMillis: 5_000,
   ssl: config.databaseUrl.includes('sslmode=require') ? { rejectUnauthorized: false } : false,
-  // onConnect is awaited by pg.Pool before handing client to queries,
-  // unlike pool.on('connect') which fires-and-forgets the callback.
   onConnect: async (client) => {
     await client.query(`SET timezone = '${config.timezone}'`);
   },
-});
+} as PoolConfigWithOnConnect);
 
 pool.on('error', (err) => {
   console.error('Unexpected PG pool error:', err);
