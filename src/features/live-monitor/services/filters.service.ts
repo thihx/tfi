@@ -158,13 +158,12 @@ export function checkShouldProceed(
 
 /**
  * Should Push? - determines whether to send notifications.
- * Mirrors the "Should Push?" If node.
+ * Only push when AI recommends OR condition triggered with valid bet.
+ * "No Bet" results are excluded via condition_triggered_should_push logic.
  */
 export function shouldPush(data: ParsedAiResponse): boolean {
   return !!(
     data.ai_should_push ||
-    (data.custom_condition_matched &&
-      data.custom_condition_status === 'evaluated') ||
     data.condition_triggered_should_push
   );
 }
@@ -172,12 +171,11 @@ export function shouldPush(data: ParsedAiResponse): boolean {
 /**
  * Should Save? - determines whether to save recommendation.
  * Must be consistent with shouldPush: if we notify, we must also save.
+ * "No Bet" results are NOT saved.
  */
 export function shouldSave(data: ParsedAiResponse): boolean {
   return !!(
     data.ai_should_push ||
-    (data.custom_condition_matched &&
-      data.custom_condition_status === 'evaluated') ||
     data.condition_triggered_should_push
   );
 }

@@ -257,7 +257,7 @@ describe('notification edge cases', () => {
     expect(sendTelegram).not.toHaveBeenCalled();
   });
 
-  test('custom condition matched — both saved AND notified', async () => {
+  test('custom condition matched but no triggered push — NOT saved (No Bet not saved)', async () => {
     setupDefaults();
     const ko = koreaDateTime(-60 * 60_000);
 
@@ -279,8 +279,8 @@ describe('notification edge cases', () => {
 
     const r = ctx.results[0]!;
     expect(r.proceeded).toBe(true);
-    expect(r.saved).toBe(true);
-    expect(saveRecommendation).toHaveBeenCalledTimes(1);
+    expect(r.saved).toBe(false);
+    expect(saveRecommendation).not.toHaveBeenCalled();
   });
 
   test('condition_triggered_should_push — both saved AND notified', async () => {

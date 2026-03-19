@@ -131,13 +131,13 @@ describe('shouldPush', () => {
     expect(shouldPush(parsed)).toBe(true);
   });
 
-  test('returns true when custom_condition_matched + evaluated', () => {
+  test('returns false when custom_condition_matched + evaluated but no triggered push', () => {
     const parsed = createParsedAiResponse({
       ai_should_push: false,
       custom_condition_matched: true,
       custom_condition_status: 'evaluated',
     });
-    expect(shouldPush(parsed)).toBe(true);
+    expect(shouldPush(parsed)).toBe(false);
   });
 
   test('returns true when condition_triggered_should_push', () => {
@@ -182,13 +182,13 @@ describe('shouldSave', () => {
     expect(shouldSave(parsed)).toBe(false);
   });
 
-  test('returns true when custom_condition_matched + evaluated (consistent with shouldPush)', () => {
+  test('returns false when custom_condition_matched + evaluated but no triggered push (No Bet not saved)', () => {
     const parsed = createParsedAiResponse({
       ai_should_push: false,
       custom_condition_matched: true,
       custom_condition_status: 'evaluated',
     });
-    expect(shouldSave(parsed)).toBe(true);
+    expect(shouldSave(parsed)).toBe(false);
   });
 
   test('returns true when condition_triggered_should_push (consistent with shouldPush)', () => {
@@ -213,9 +213,10 @@ describe('shouldSave', () => {
     const s1 = createParsedAiResponse({ ai_should_push: true, custom_condition_matched: false, condition_triggered_should_push: false });
     expect(shouldSave(s1)).toBe(shouldPush(s1));
 
-    // Scenario: condition matched only
+    // Scenario: condition matched + evaluated but no triggered push → both false (No Bet not saved)
     const s2 = createParsedAiResponse({ ai_should_push: false, custom_condition_matched: true, custom_condition_status: 'evaluated', condition_triggered_should_push: false });
     expect(shouldSave(s2)).toBe(shouldPush(s2));
+    expect(shouldSave(s2)).toBe(false);
 
     // Scenario: condition triggered only
     const s3 = createParsedAiResponse({ ai_should_push: false, custom_condition_matched: false, condition_triggered_should_push: true });
