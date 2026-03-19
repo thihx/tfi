@@ -259,7 +259,7 @@ export async function createRecommendation(
       rec.result ?? '',
       rec.actual_outcome ?? '',
       rec.pnl ?? 0,
-      rec.settled_at ?? null,
+      rec.settled_at || null,
       rec._was_overridden ?? false,
     ],
   );

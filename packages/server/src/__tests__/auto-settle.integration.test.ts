@@ -30,6 +30,19 @@ vi.mock('../repos/ai-performance.repo.js', () => ({
 
 vi.mock('../lib/football-api.js', () => ({
   fetchFixturesByIds: vi.fn(),
+  fetchFixtureStatistics: vi.fn().mockResolvedValue([]),
+}));
+
+vi.mock('../lib/gemini.js', () => ({
+  callGemini: vi.fn(),
+}));
+
+vi.mock('../config.js', () => ({
+  config: { geminiApiKey: 'test-key', geminiModel: 'test-model' },
+}));
+
+vi.mock('../jobs/job-progress.js', () => ({
+  reportJobProgress: vi.fn(),
 }));
 
 import * as recommendationsRepo from '../repos/recommendations.repo.js';
@@ -37,6 +50,7 @@ import * as betsRepo from '../repos/bets.repo.js';
 import * as matchHistoryRepo from '../repos/matches-history.repo.js';
 import * as aiPerfRepo from '../repos/ai-performance.repo.js';
 import { fetchFixturesByIds } from '../lib/football-api.js';
+import { callGemini } from '../lib/gemini.js';
 
 // ==================== Helpers ====================
 
@@ -132,6 +146,11 @@ beforeEach(() => {
   (betsRepo.getUnsettledBets as Mock).mockResolvedValue([]);
 });
 
+/** Helper to set AI settle response */
+function mockAISettle(results: Array<{ id: number; result: string; explanation: string }>) {
+  (callGemini as Mock).mockResolvedValue(JSON.stringify(results));
+}
+
 // ==================== Tests ====================
 
 describe('autoSettleJob', () => {
@@ -139,12 +158,13 @@ describe('autoSettleJob', () => {
     const rec = makeRec({ match_id: '12345', bet_market: 'Over/Under 2.5', selection: 'Over 2.5', odds: 1.85, stake_percent: 3 });
     (recommendationsRepo.getAllRecommendations as Mock).mockResolvedValue({ rows: [rec] });
     (matchHistoryRepo.getHistoricalMatch as Mock).mockResolvedValue(makeHistory({ home_score: 2, away_score: 1 }));
+    mockAISettle([{ id: 1, result: 'win', explanation: 'Tổng bàn thắng là 3, vượt mức 2.5' }]);
 
     const stats = await autoSettleJob();
 
     expect(stats.settled).toBe(1);
     expect(stats.skipped).toBe(0);
-    expect(recommendationsRepo.settleRecommendation).toHaveBeenCalledWith(1, 'win', expect.closeTo(2.55), '2-1');
+    expect(recommendationsRepo.settleRecommendation).toHaveBeenCalledWith(1, 'win', expect.closeTo(2.55), expect.any(String));
     expect(aiPerfRepo.settleAiPerformance).toHaveBeenCalledWith(1, 'win', expect.closeTo(2.55), true);
     expect(fetchFixturesByIds).not.toHaveBeenCalled();
   });
@@ -154,12 +174,13 @@ describe('autoSettleJob', () => {
     (recommendationsRepo.getAllRecommendations as Mock).mockResolvedValue({ rows: [rec] });
     (matchHistoryRepo.getHistoricalMatch as Mock).mockResolvedValue(null);
     (fetchFixturesByIds as Mock).mockResolvedValue([makeApiFixture(99999, 3, 0)]);
+    mockAISettle([{ id: 1, result: 'win', explanation: 'Tổng bàn thắng là 3, vượt mức 2.5' }]);
 
     const stats = await autoSettleJob();
 
     expect(fetchFixturesByIds).toHaveBeenCalledWith(['99999']);
     expect(stats.settled).toBe(1);
-    expect(recommendationsRepo.settleRecommendation).toHaveBeenCalledWith(1, 'win', expect.closeTo(2.55), '3-0');
+    expect(recommendationsRepo.settleRecommendation).toHaveBeenCalledWith(1, 'win', expect.closeTo(2.55), expect.any(String));
     // Also archives the result
     expect(matchHistoryRepo.archiveFinishedMatches).toHaveBeenCalled();
   });
@@ -189,6 +210,10 @@ describe('autoSettleJob', () => {
       .mockResolvedValueOnce(makeHistory({ match_id: '100', home_score: 2, away_score: 1 }))
       .mockResolvedValueOnce(null);
     (fetchFixturesByIds as Mock).mockResolvedValue([makeApiFixture(200, 1, 2)]);
+    // AI settles each match group separately
+    (callGemini as Mock)
+      .mockResolvedValueOnce(JSON.stringify([{ id: 1, result: 'win', explanation: 'Over 2.5 thắng' }]))
+      .mockResolvedValueOnce(JSON.stringify([{ id: 2, result: 'win', explanation: 'BTTS thắng' }]));
 
     const stats = await autoSettleJob();
 
@@ -224,12 +249,13 @@ describe('autoSettleJob', () => {
     (recommendationsRepo.getAllRecommendations as Mock).mockResolvedValue({ rows: [rec] });
     (matchHistoryRepo.getHistoricalMatch as Mock).mockResolvedValue(null);
     (fetchFixturesByIds as Mock).mockResolvedValue([makeApiFixture(88888, 1, 0)]);
+    mockAISettle([{ id: 1, result: 'loss', explanation: 'Tổng bàn thắng là 1, không vượt mức 2.5' }]);
 
     const stats = await autoSettleJob();
 
     expect(stats.settled).toBe(1);
     // Over 2.5, total goals = 1 → loss
-    expect(recommendationsRepo.settleRecommendation).toHaveBeenCalledWith(1, 'loss', -3, '1-0');
+    expect(recommendationsRepo.settleRecommendation).toHaveBeenCalledWith(1, 'loss', -3, expect.any(String));
   });
 
   test('settles AET match from API', async () => {
@@ -237,11 +263,12 @@ describe('autoSettleJob', () => {
     (recommendationsRepo.getAllRecommendations as Mock).mockResolvedValue({ rows: [rec] });
     (matchHistoryRepo.getHistoricalMatch as Mock).mockResolvedValue(null);
     (fetchFixturesByIds as Mock).mockResolvedValue([makeApiFixture(66666, 2, 2, 'AET')]);
+    mockAISettle([{ id: 1, result: 'win', explanation: 'Tổng bàn thắng là 4, vượt mức 2.5' }]);
 
     const stats = await autoSettleJob();
 
     expect(stats.settled).toBe(1);
     // Over 2.5, total goals = 4 → win
-    expect(recommendationsRepo.settleRecommendation).toHaveBeenCalledWith(1, 'win', expect.closeTo(1.7), '2-2');
+    expect(recommendationsRepo.settleRecommendation).toHaveBeenCalledWith(1, 'win', expect.closeTo(1.7), expect.any(String));
   });
 });

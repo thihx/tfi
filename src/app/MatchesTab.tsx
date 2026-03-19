@@ -501,11 +501,13 @@ function MatchRow({ match, isWatched, isPending, isSelected, isAnalyzing, hasRes
             <div className="team-info">
               <img src={match.home_logo} loading="lazy" decoding="async" alt={match.home_team} className="team-logo" onError={(e) => { (e.target as HTMLImageElement).src = PLACEHOLDER_HOME; }} />
               <span style={{ fontWeight: 400 }}>{match.home_team}</span>
-              {(match.home_reds ?? 0) > 0 && <span title={`${match.home_reds} red card(s)`} style={{ display: 'inline-flex', alignItems: 'center', gap: 2, fontSize: 10, fontWeight: 700, background: '#dc2626', color: '#fff', borderRadius: 3, padding: '1px 5px', marginLeft: 5, letterSpacing: '0.3px' }}>■ {match.home_reds}</span>}
+              {(match.home_yellows ?? 0) > 0 && <span title={`${match.home_yellows} yellow card(s)`} style={{ display: 'inline-flex', alignItems: 'center', gap: 2, fontSize: 10, fontWeight: 700, background: '#ca8a04', color: '#fff', borderRadius: 3, padding: '1px 5px', marginLeft: 4, letterSpacing: '0.3px' }}>▪ {match.home_yellows}</span>}
+              {(match.home_reds ?? 0) > 0 && <span title={`${match.home_reds} red card(s)`} style={{ display: 'inline-flex', alignItems: 'center', gap: 2, fontSize: 10, fontWeight: 700, background: '#dc2626', color: '#fff', borderRadius: 3, padding: '1px 5px', marginLeft: 4, letterSpacing: '0.3px' }}>■ {match.home_reds}</span>}
             </div>
             <span className="match-vs">vs</span>
             <div className="team-info">
-              {(match.away_reds ?? 0) > 0 && <span title={`${match.away_reds} red card(s)`} style={{ display: 'inline-flex', alignItems: 'center', gap: 2, fontSize: 10, fontWeight: 700, background: '#dc2626', color: '#fff', borderRadius: 3, padding: '1px 5px', marginRight: 5, letterSpacing: '0.3px' }}>■ {match.away_reds}</span>}
+              {(match.away_reds ?? 0) > 0 && <span title={`${match.away_reds} red card(s)`} style={{ display: 'inline-flex', alignItems: 'center', gap: 2, fontSize: 10, fontWeight: 700, background: '#dc2626', color: '#fff', borderRadius: 3, padding: '1px 5px', marginRight: 4, letterSpacing: '0.3px' }}>■ {match.away_reds}</span>}
+              {(match.away_yellows ?? 0) > 0 && <span title={`${match.away_yellows} yellow card(s)`} style={{ display: 'inline-flex', alignItems: 'center', gap: 2, fontSize: 10, fontWeight: 700, background: '#ca8a04', color: '#fff', borderRadius: 3, padding: '1px 5px', marginRight: 4, letterSpacing: '0.3px' }}>▪ {match.away_yellows}</span>}
               <span style={{ fontWeight: 400 }}>{match.away_team}</span>
               <img src={match.away_logo} loading="lazy" decoding="async" alt={match.away_team} className="team-logo" onError={(e) => { (e.target as HTMLImageElement).src = PLACEHOLDER_AWAY; }} />
             </div>

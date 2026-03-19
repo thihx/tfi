@@ -1,19 +1,19 @@
 // ============================================================
-// Job: Re-Evaluate — Re-check all settled results using real scores
+// Job: Re-Evaluate — Re-check all settled results using AI
 //
 // 1. Fetch all non-duplicate recommendations (settled + unsettled)
 // 2. Look up final scores from matches_history + Football API
-// 3. Re-run evaluateBet() with real scores
+// 3. Use AI to re-evaluate all results with match data + statistics
 // 4. Compare with existing result, log & fix discrepancies
 // 5. Sync ai_performance
 // ============================================================
 
 import { query } from '../db/pool.js';
-import { evaluateBet } from './auto-settle.job.js';
+import { settleWithAI, type AISettleResult } from './auto-settle.job.js';
 import * as recommendationsRepo from '../repos/recommendations.repo.js';
 import * as matchHistoryRepo from '../repos/matches-history.repo.js';
 import * as aiPerfRepo from '../repos/ai-performance.repo.js';
-import { fetchFixturesByIds } from '../lib/football-api.js';
+import { fetchFixturesByIds, fetchFixtureStatistics } from '../lib/football-api.js';
 import type { MatchHistoryRow } from '../repos/matches-history.repo.js';
 import { normalizeMarket } from '../lib/normalize-market.js';
 
@@ -123,58 +123,113 @@ export async function reEvaluateAllResults(): Promise<ReEvalResult> {
     }
   }
 
-  // Step 4: Re-evaluate each recommendation
+  // Step 4: Fetch match statistics for all matches
+  const allMatchStatistics = new Map<string, Array<{ type: string; home: string | number | null; away: string | number | null }>>();
+  for (const matchId of matchIds) {
+    if (!historyMap.has(matchId)) continue;
+    try {
+      const statsRaw = await fetchFixtureStatistics(matchId);
+      if (statsRaw.length >= 2) {
+        const homeStats = statsRaw[0]!.statistics || [];
+        const awayStats = statsRaw[1]!.statistics || [];
+        const merged: Array<{ type: string; home: string | number | null; away: string | number | null }> = [];
+        for (const hs of homeStats) {
+          const as = awayStats.find(a => a.type === hs.type);
+          merged.push({ type: hs.type, home: hs.value, away: as?.value ?? null });
+        }
+        allMatchStatistics.set(matchId, merged);
+      }
+    } catch { /* skip */ }
+  }
+
+  // Step 5: Re-evaluate using AI — group by match for batch AI calls
+  const recsByMatch = new Map<string, recommendationsRepo.RecommendationRow[]>();
   for (const rec of allRecs.rows) {
     const hist = historyMap.get(rec.match_id);
     if (!hist) {
       result.skippedNoScore++;
       continue;
     }
+    const list = recsByMatch.get(rec.match_id) || [];
+    list.push(rec);
+    recsByMatch.set(rec.match_id, list);
+  }
 
-    // Determine the market to use for evaluation
-    const market = rec.bet_market || normalizeMarket(rec.selection, rec.bet_market);
+  for (const [matchId, matchRecs] of recsByMatch) {
+    const hist = historyMap.get(matchId)!;
 
-    const { result: newResult, pnl: newPnl } = evaluateBet(
-      market,
-      rec.selection,
-      rec.odds ?? 0,
-      rec.stake_percent ?? 1,
-      hist.home_score,
-      hist.away_score,
-    );
+    const betsToSettle = matchRecs.map(rec => ({
+      id: rec.id,
+      market: rec.bet_market || normalizeMarket(rec.selection, rec.bet_market),
+      selection: rec.selection,
+      odds: rec.odds ?? 0,
+      stakePercent: rec.stake_percent ?? 1,
+    }));
 
-    const finalScore = `${hist.home_score}-${hist.away_score}`;
-    const oldResult = rec.result || '';
-    const oldPnl = rec.pnl ?? 0;
+    let aiResults: AISettleResult[];
+    try {
+      aiResults = await settleWithAI(
+        {
+          matchId,
+          homeTeam: hist.home_team,
+          awayTeam: hist.away_team,
+          homeScore: hist.home_score,
+          awayScore: hist.away_score,
+          statistics: allMatchStatistics.get(matchId),
+        },
+        betsToSettle,
+      );
+    } catch (err) {
+      console.warn(`[re-evaluate] AI settle failed for match ${matchId}:`, err instanceof Error ? err.message : err);
+      result.skippedNoScore += matchRecs.length;
+      continue;
+    }
 
-    result.evaluated++;
+    const aiMap = new Map(aiResults.map(r => [r.id, r]));
 
-    // Check for discrepancy or newly settled
-    const isUnsettled = !oldResult || oldResult === '';
-    const isDiscrepancy = !isUnsettled && (oldResult !== newResult || Math.abs(oldPnl - newPnl) > 0.01);
+    for (const rec of matchRecs) {
+      const aiResult = aiMap.get(rec.id);
+      if (!aiResult) {
+        result.skippedNoScore++;
+        continue;
+      }
 
-    if (isUnsettled || isDiscrepancy) {
-      // Update the recommendation
-      await recommendationsRepo.settleRecommendation(rec.id, newResult, newPnl, finalScore);
+      const newResult = aiResult.result;
+      const newPnl = newResult === 'win'
+        ? Math.round(((rec.odds ?? 0) - 1) * (rec.stake_percent ?? 1) * 100) / 100
+        : newResult === 'loss'
+          ? Math.round(-(rec.stake_percent ?? 1) * 100) / 100
+          : 0;
 
-      // Update AI performance
-      await aiPerfRepo.settleAiPerformance(rec.id, newResult, newPnl, newResult === 'win');
+      const oldResult = rec.result || '';
+      const oldPnl = rec.pnl ?? 0;
+      const market = rec.bet_market || normalizeMarket(rec.selection, rec.bet_market);
 
-      if (isDiscrepancy) {
-        result.corrected++;
-        result.discrepancies.push({
-          id: rec.id,
-          matchId: rec.match_id,
-          selection: rec.selection,
-          market,
-          score: finalScore,
-          oldResult,
-          oldPnl,
-          newResult,
-          newPnl,
-        });
-      } else {
-        result.newlySettled++;
+      result.evaluated++;
+
+      const isUnsettled = !oldResult || oldResult === '';
+      const isDiscrepancy = !isUnsettled && (oldResult !== newResult || Math.abs(oldPnl - newPnl) > 0.01);
+
+      if (isUnsettled || isDiscrepancy) {
+        await recommendationsRepo.settleRecommendation(rec.id, newResult, newPnl, aiResult.explanation);
+        await aiPerfRepo.settleAiPerformance(rec.id, newResult, newPnl, newResult === 'win');
+
+        if (isDiscrepancy) {
+          result.corrected++;
+          result.discrepancies.push({
+            id: rec.id,
+            matchId: rec.match_id,
+            selection: rec.selection,
+            market,
+            score: aiResult.explanation,
+            oldResult,
+            oldPnl,
+            newResult,
+            newPnl,
+          });
+        } else {
+          result.newlySettled++;
+        }
       }
     }
   }

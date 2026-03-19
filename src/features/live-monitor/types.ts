@@ -439,7 +439,7 @@ export interface RecommendationData {
   result: string;
   actual_outcome: string;
   pnl: number | null;
-  settled_at: string;
+  settled_at: string | null;
 }
 
 // ==================== Notification ====================

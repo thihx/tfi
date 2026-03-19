@@ -9,7 +9,7 @@
 // ============================================================
 
 import { config } from '../config.js';
-import { fetchFixturesForDate, type ApiFixture } from '../lib/football-api.js';
+import { fetchFixturesForDate, fetchFixtureStatistics, type ApiFixture, type ApiFixtureStat } from '../lib/football-api.js';
 import * as leagueRepo from '../repos/leagues.repo.js';
 import * as matchRepo from '../repos/matches.repo.js';
 import * as watchlistRepo from '../repos/watchlist.repo.js';
@@ -17,6 +17,25 @@ import { archiveFinishedMatches } from '../repos/matches-history.repo.js';
 import { reportJobProgress } from './job-progress.js';
 
 const ALLOWED_STATUSES = ['NS', '1H', 'HT', '2H', 'ET', 'BT', 'P', 'LIVE', 'INT'];
+const LIVE_STATUSES   = new Set(['1H', 'HT', '2H', 'ET', 'BT', 'LIVE', 'INT']);
+
+/** Run tasks with max N in parallel */
+async function batchRun<T>(tasks: (() => Promise<T>)[], concurrency = 5): Promise<T[]> {
+  const results: T[] = [];
+  for (let i = 0; i < tasks.length; i += concurrency) {
+    const chunk = tasks.slice(i, i + concurrency);
+    results.push(...await Promise.all(chunk.map(t => t())));
+  }
+  return results;
+}
+
+/** Extract integer stat from team stats array */
+function statCount(stats: ApiFixtureStat[], teamIdx: 0 | 1, name: string): number {
+  const v = stats[teamIdx]?.statistics.find(s => s.type === name)?.value;
+  if (v == null) return 0;
+  const n = typeof v === 'number' ? v : parseInt(String(v), 10);
+  return isNaN(n) ? 0 : n;
+}
 
 function toDateString(d: Date, tz: string): string {
   const parts = new Intl.DateTimeFormat('en-CA', { timeZone: tz, year: 'numeric', month: '2-digit', day: '2-digit' }).formatToParts(d);
@@ -28,6 +47,7 @@ function fixtureToMatchRow(f: ApiFixture): matchRepo.MatchRow {
   const parts = String(f.fixture.date).split('T');
   const datePart = parts[0] || '';
   const kickoff = (parts[1] || '').substring(0, 5);
+  const ht = f.score?.halftime;
 
   return {
     match_id: String(f.fixture.id),
@@ -45,6 +65,18 @@ function fixtureToMatchRow(f: ApiFixture): matchRepo.MatchRow {
     away_score: f.goals.away,
     current_minute: f.fixture.status.elapsed,
     last_updated: new Date().toISOString(),
+    // Enriched from fixture (free)
+    home_team_id: f.teams.home.id,
+    away_team_id: f.teams.away.id,
+    round: f.league.round ?? '',
+    halftime_home: ht?.home ?? null,
+    halftime_away: ht?.away ?? null,
+    referee: f.fixture.referee ?? null,
+    // Stats defaults — overwritten for live matches
+    home_reds: 0,
+    away_reds: 0,
+    home_yellows: 0,
+    away_yellows: 0,
   };
 }
 
@@ -92,8 +124,36 @@ export async function fetchMatchesJob(): Promise<{ saved: number; leagues: numbe
   // 6. Transform to rows
   const rows = statusFiltered.map(fixtureToMatchRow);
 
+  // 6b. Enrich live matches with card stats from /fixtures/statistics
+  const liveRows = rows.filter(r => LIVE_STATUSES.has(r.status ?? ''));
+  if (liveRows.length > 0) {
+    await reportJobProgress(JOB, 'stats', `Fetching stats for ${liveRows.length} live matches...`, 55);
+    const statsMap = new Map<string, { home_reds: number; away_reds: number; home_yellows: number; away_yellows: number }>();
+
+    await batchRun(liveRows.map(r => async () => {
+      try {
+        const stats = await fetchFixtureStatistics(r.match_id);
+        statsMap.set(r.match_id, {
+          home_reds:    statCount(stats, 0, 'Red Cards'),
+          away_reds:    statCount(stats, 1, 'Red Cards'),
+          home_yellows: statCount(stats, 0, 'Yellow Cards'),
+          away_yellows: statCount(stats, 1, 'Yellow Cards'),
+        });
+      } catch (err) {
+        // Non-critical — keep defaults (0)
+        console.warn(`[fetchMatchesJob] Stats fetch failed for ${r.match_id}:`, err instanceof Error ? err.message : err);
+      }
+    }), 5);
+
+    for (const row of rows) {
+      const s = statsMap.get(row.match_id);
+      if (s) Object.assign(row, s);
+    }
+    console.log(`[fetchMatchesJob] Enriched stats for ${statsMap.size}/${liveRows.length} live matches`);
+  }
+
   // 7. Archive finished matches before TRUNCATE
-  await reportJobProgress(JOB, 'archive', 'Archiving finished matches...', 55);
+  await reportJobProgress(JOB, 'archive', 'Archiving finished matches...', 65);
   const allCurrentMatches = await matchRepo.getAllMatches();
   const archivedCount = await archiveFinishedMatches(allCurrentMatches);
   if (archivedCount > 0) {
@@ -101,7 +161,7 @@ export async function fetchMatchesJob(): Promise<{ saved: number; leagues: numbe
   }
 
   // 8. Full-refresh matches table
-  await reportJobProgress(JOB, 'save', `Saving ${rows.length} matches...`, 70);
+  await reportJobProgress(JOB, 'save', `Saving ${rows.length} matches...`, 78);
   const saved = await matchRepo.replaceAllMatches(rows);
   const uniqueLeagues = new Set(rows.map((r) => r.league_id)).size;
 

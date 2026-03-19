@@ -138,6 +138,6 @@ export function prepareRecommendationData(
     result: '',
     actual_outcome: '',
     pnl: null,
-    settled_at: '',
+    settled_at: null,
   };
 }

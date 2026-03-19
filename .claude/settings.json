@@ -64,7 +64,9 @@
       "Bash(find c:/tfi/packages -name *.ts -o -name *.tsx)",
       "Bash(grep -r \"sendTelegramMessage\\\\|notifyTelegram\" c:/tfi/packages/client --include=*.ts --include=*.tsx)",
       "Bash(grep -r \"telegram\\\\|Telegram\" c:/tfi/packages/client --include=*.ts --include=*.tsx)",
-      "Bash(grep -r \"analyze\\\\|ai/analyze\" c:/tfi/packages/server/src/routes --include=*.ts)"
+      "Bash(grep -r \"analyze\\\\|ai/analyze\" c:/tfi/packages/server/src/routes --include=*.ts)",
+      "Bash(psql \"postgresql://fkr:Panda%40241205@fkr-database.postgres.database.azure.com:5432/tfi?sslmode=require\" -f packages/server/src/db/migrations/008_match_enrichment.sql)",
+      "Bash(node -e \":*)"
     ]
   }
 }

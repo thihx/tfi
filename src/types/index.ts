@@ -16,8 +16,18 @@ export interface Match {
   status: string;
   current_minute?: string;
   prediction?: string;
+  // Enriched from /fixtures (free)
+  home_team_id?: number | null;
+  away_team_id?: number | null;
+  round?: string | null;
+  halftime_home?: number | null;
+  halftime_away?: number | null;
+  referee?: string | null;
+  // Enriched from /fixtures/statistics (live matches)
   home_reds?: number | null;
   away_reds?: number | null;
+  home_yellows?: number | null;
+  away_yellows?: number | null;
 }
 
 export interface StrategicContext {

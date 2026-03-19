@@ -35,6 +35,19 @@ vi.mock('../repos/ai-performance.repo.js', () => ({
 
 vi.mock('../lib/football-api.js', () => ({
   fetchFixturesByIds: vi.fn(),
+  fetchFixtureStatistics: vi.fn().mockResolvedValue([]),
+}));
+
+vi.mock('../lib/gemini.js', () => ({
+  callGemini: vi.fn(),
+}));
+
+vi.mock('../config.js', () => ({
+  config: { geminiApiKey: 'test-key', geminiModel: 'test-model' },
+}));
+
+vi.mock('../jobs/job-progress.js', () => ({
+  reportJobProgress: vi.fn(),
 }));
 
 vi.mock('../lib/normalize-market.js', () => ({
@@ -52,6 +65,7 @@ import * as recommendationsRepo from '../repos/recommendations.repo.js';
 import * as matchHistoryRepo from '../repos/matches-history.repo.js';
 import * as aiPerfRepo from '../repos/ai-performance.repo.js';
 import { fetchFixturesByIds } from '../lib/football-api.js';
+import { callGemini } from '../lib/gemini.js';
 
 // ==================== Helpers ====================
 
@@ -125,6 +139,11 @@ describe('reEvaluateAllResults', () => {
     vi.clearAllMocks();
   });
 
+  /** Helper to set AI settle response */
+  function mockAISettle(results: Array<{ id: number; result: string; explanation: string }>) {
+    (callGemini as Mock).mockResolvedValue(JSON.stringify(results));
+  }
+
   test('corrects wrong result with real score data', async () => {
     // Rec incorrectly marked as win, but real score is 0-2 (home loss)
     const rec = makeRec({
@@ -144,6 +163,7 @@ describe('reEvaluateAllResults', () => {
     );
     (recommendationsRepo.settleRecommendation as Mock).mockResolvedValueOnce(null);
     (aiPerfRepo.settleAiPerformance as Mock).mockResolvedValueOnce(null);
+    mockAISettle([{ id: 1, result: 'loss', explanation: 'Home thua 0-2' }]);
 
     const result = await reEvaluateAllResults();
 
@@ -156,7 +176,7 @@ describe('reEvaluateAllResults', () => {
 
     // Check the settle was called with correct values
     expect(recommendationsRepo.settleRecommendation).toHaveBeenCalledWith(
-      1, 'loss', -3, '0-2',
+      1, 'loss', -3, expect.any(String),
     );
     expect(aiPerfRepo.settleAiPerformance).toHaveBeenCalledWith(
       1, 'loss', -3, false,
@@ -193,6 +213,7 @@ describe('reEvaluateAllResults', () => {
     (matchHistoryRepo.getHistoricalMatch as Mock).mockResolvedValueOnce(
       makeHistory({ home_score: 2, away_score: 0 }),
     );
+    mockAISettle([{ id: 1, result: 'win', explanation: 'Home thắng 2-0' }]);
 
     const result = await reEvaluateAllResults();
 
@@ -231,6 +252,7 @@ describe('reEvaluateAllResults', () => {
     (matchHistoryRepo.archiveFinishedMatches as Mock).mockResolvedValueOnce(undefined);
     (recommendationsRepo.settleRecommendation as Mock).mockResolvedValueOnce(null);
     (aiPerfRepo.settleAiPerformance as Mock).mockResolvedValueOnce(null);
+    mockAISettle([{ id: 1, result: 'win', explanation: 'Over 2.5 thắng, 3 bàn' }]);
 
     const result = await reEvaluateAllResults();
 
@@ -257,13 +279,14 @@ describe('reEvaluateAllResults', () => {
     );
     (recommendationsRepo.settleRecommendation as Mock).mockResolvedValueOnce(null);
     (aiPerfRepo.settleAiPerformance as Mock).mockResolvedValueOnce(null);
+    mockAISettle([{ id: 1, result: 'win', explanation: 'BTTS thắng, 1-1' }]);
 
     const result = await reEvaluateAllResults();
 
     expect(result.newlySettled).toBe(1);
     expect(result.corrected).toBe(0);
     expect(recommendationsRepo.settleRecommendation).toHaveBeenCalledWith(
-      1, 'win', expect.closeTo(1.4, 1), '1-1',
+      1, 'win', expect.closeTo(1.4, 1), expect.any(String),
     );
   });
 
@@ -281,14 +304,19 @@ describe('reEvaluateAllResults', () => {
       .mockResolvedValueOnce(makeHistory({ match_id: '333', home_score: 1, away_score: 1 }));
     (recommendationsRepo.settleRecommendation as Mock).mockResolvedValue(null);
     (aiPerfRepo.settleAiPerformance as Mock).mockResolvedValue(null);
+    // AI settles each match group separately
+    (callGemini as Mock)
+      .mockResolvedValueOnce(JSON.stringify([{ id: 1, result: 'win', explanation: 'Home thắng 2-0' }]))
+      .mockResolvedValueOnce(JSON.stringify([{ id: 2, result: 'win', explanation: 'Over 2.5 thắng' }]))
+      .mockResolvedValueOnce(JSON.stringify([{ id: 3, result: 'win', explanation: 'Draw 1-1' }]));
 
     const result = await reEvaluateAllResults();
 
     expect(result.total).toBe(3);
     expect(result.evaluated).toBe(3);
-    // Rec 1: home win on 2-0 → correct, no change
-    // Rec 2: over 2.5 on 2-1=3 goals → should be win (was loss) → corrected
-    // Rec 3: draw on 1-1 → newly settled
+    // Rec 1: AI says win, old was win → no change
+    // Rec 2: AI says win, old was loss → corrected
+    // Rec 3: AI says win, old was '' → newly settled
     expect(result.corrected).toBe(1);
     expect(result.newlySettled).toBe(1);
   });

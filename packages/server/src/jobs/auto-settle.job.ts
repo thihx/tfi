@@ -4,7 +4,7 @@
 // 1. Find unsettled recommendations (result = '' or NULL)
 // 2. Look up final scores from matches_history
 // 3. Fallback: call Football API for matches not yet archived
-// 4. Determine win/loss/push based on selection vs actual score
+// 4. Call AI (Gemini) to determine win/loss/push + explanation
 // 5. Update recommendations, bets, and ai_performance
 // ============================================================
 
@@ -12,7 +12,9 @@ import * as recommendationsRepo from '../repos/recommendations.repo.js';
 import * as betsRepo from '../repos/bets.repo.js';
 import * as matchHistoryRepo from '../repos/matches-history.repo.js';
 import * as aiPerfRepo from '../repos/ai-performance.repo.js';
-import { fetchFixturesByIds, type ApiFixture } from '../lib/football-api.js';
+import { fetchFixturesByIds, fetchFixtureStatistics, type ApiFixture } from '../lib/football-api.js';
+import { callGemini } from '../lib/gemini.js';
+import { config } from '../config.js';
 import type { RecommendationRow } from '../repos/recommendations.repo.js';
 import type { MatchHistoryRow } from '../repos/matches-history.repo.js';
 import { reportJobProgress } from './job-progress.js';
@@ -23,93 +25,129 @@ interface SettleResult {
   errors: number;
 }
 
+// ==================== AI Settlement ====================
+
+interface MatchContext {
+  matchId: string;
+  homeTeam: string;
+  awayTeam: string;
+  homeScore: number;
+  awayScore: number;
+  statistics?: Array<{ type: string; home: string | number | null; away: string | number | null }>;
+}
+
+interface BetToSettle {
+  id: number;
+  market: string;
+  selection: string;
+  odds: number;
+  stakePercent: number;
+}
+
+export interface AISettleResult {
+  id: number;
+  result: 'win' | 'loss' | 'push';
+  explanation: string;
+}
+
+function buildSettlePrompt(match: MatchContext, bets: BetToSettle[]): string {
+  const score = `${match.homeScore}-${match.awayScore}`;
+  const totalGoals = match.homeScore + match.awayScore;
+
+  let statsSection = 'Không có thống kê chi tiết.';
+  if (match.statistics && match.statistics.length > 0) {
+    statsSection = match.statistics
+      .map(s => `- ${s.type}: ${s.home ?? '?'} (Home) - ${s.away ?? '?'} (Away)`)
+      .join('\n');
+  }
+
+  const betsSection = bets.map((b, i) =>
+    `${i + 1}. [ID: ${b.id}] Market: "${b.market}", Selection: "${b.selection}", Odds: ${b.odds}`,
+  ).join('\n');
+
+  return `Bạn là chuyên gia settle kèo bóng đá. Dựa vào kết quả trận đấu và thống kê, hãy xác định mỗi kèo THẮNG (win), THUA (loss), hay HÒA (push).
+
+KẾT QUẢ TRẬN ĐẤU:
+${match.homeTeam} ${score} ${match.awayTeam}
+Tổng bàn thắng: ${totalGoals}
+
+THỐNG KÊ TRẬN ĐẤU:
+${statsSection}
+
+CÁC KÈO CẦN SETTLE:
+${betsSection}
+
+QUY TẮC:
+- Over/Under goals: So sánh tổng bàn thắng (${totalGoals}) với line
+- Over/Under corners: So sánh tổng corners với line (dùng thống kê Corner Kicks)
+- Over/Under cards: So sánh tổng thẻ với line (dùng thống kê Yellow Cards + Red Cards)
+- BTTS (Both Teams To Score): Kiểm tra cả 2 đội đều ghi bàn
+- 1X2: Home win / Draw / Away win
+- Asian Handicap (AH): Áp dụng handicap vào tỷ số
+- Nếu giá trị thực tế bằng đúng line → result = "push"
+- Nếu không có thống kê cho kèo corners/cards → result = "push"
+
+Trả về CHỈ một JSON array hợp lệ (không markdown, không giải thích ngoài JSON):
+[
+  { "id": <bet_id>, "result": "win|loss|push", "explanation": "<giải thích ngắn gọn bằng tiếng Việt>" }
+]
+
+VÍ DỤ explanation:
+- "Tổng corners là 11, vượt mức 9.5 → Thắng"
+- "Tỷ số 2-0, chỉ đội nhà ghi bàn → BTTS No thắng"
+- "Tổng bàn thắng là 3, vượt mức 2.5"
+- "Đội nhà thắng 2-1, kèo Home Win đúng"
+
+QUAN TRỌNG: Trả về đúng ${bets.length} items, mỗi item cho một kèo. explanation phải ngắn gọn nhưng rõ ràng.`;
+}
+
+function parseAISettleResponse(aiText: string, bets: BetToSettle[]): AISettleResult[] {
+  // Extract JSON array from AI response
+  const jsonMatch = aiText.match(/\[[\s\S]*\]/);
+  if (!jsonMatch) {
+    console.error('[ai-settle] Cannot parse AI response as JSON array:', aiText.substring(0, 300));
+    return [];
+  }
+
+  try {
+    const parsed = JSON.parse(jsonMatch[0]) as Array<{ id: number; result: string; explanation: string }>;
+    const validResults = ['win', 'loss', 'push'];
+    const betIds = new Set(bets.map(b => b.id));
+
+    return parsed
+      .filter(item => betIds.has(item.id) && validResults.includes(item.result))
+      .map(item => ({
+        id: item.id,
+        result: item.result as 'win' | 'loss' | 'push',
+        explanation: String(item.explanation || '').substring(0, 500),
+      }));
+  } catch (err) {
+    console.error('[ai-settle] JSON parse error:', err instanceof Error ? err.message : err);
+    return [];
+  }
+}
+
 /**
- * Determine bet result based on market, selection, and final score.
- * Returns { result: 'win'|'loss'|'push', pnl: number }
+ * Settle a batch of bets for a single match using AI.
+ * Returns results with explanation. PNL is calculated by caller.
  */
-export function evaluateBet(
-  market: string,
-  selection: string,
-  odds: number,
-  stakePercent: number,
-  homeScore: number,
-  awayScore: number,
-): { result: 'win' | 'loss' | 'push'; pnl: number } {
-  const totalGoals = homeScore + awayScore;
-  const marketLower = market.toLowerCase();
-  const selLower = selection.toLowerCase();
+export async function settleWithAI(
+  match: MatchContext,
+  bets: BetToSettle[],
+): Promise<AISettleResult[]> {
+  const prompt = buildSettlePrompt(match, bets);
+  const model = config.geminiModel;
+  const aiText = await callGemini(prompt, model);
+  return parseAISettleResponse(aiText, bets);
+}
 
-  // ── Over/Under ──
-  if (marketLower.includes('over') || marketLower.includes('under') || marketLower.startsWith('ou')) {
-    const lineMatch = marketLower.match(/([\d.]+)/);
-    if (!lineMatch?.[1]) {
-      console.warn(`[auto-settle] Cannot parse O/U line from market: "${market}" — skipping`);
-      return { result: 'push', pnl: 0 };
-    }
-    const line = parseFloat(lineMatch[1]);
-
-    const isOver = selLower.includes('over');
-    const isUnder = selLower.includes('under');
-
-    if (totalGoals === line) return { result: 'push', pnl: 0 };
-    if (isOver && totalGoals > line) return { result: 'win', pnl: round((odds - 1) * stakePercent) };
-    if (isUnder && totalGoals < line) return { result: 'win', pnl: round((odds - 1) * stakePercent) };
-    return { result: 'loss', pnl: round(-stakePercent) };
-  }
-
-  // ── BTTS (Both Teams To Score) ──
-  if (marketLower.includes('btts') || marketLower.includes('both_teams')) {
-    const btts = homeScore > 0 && awayScore > 0;
-    const pickedYes = selLower.includes('yes');
-    if ((pickedYes && btts) || (!pickedYes && !btts)) {
-      return { result: 'win', pnl: round((odds - 1) * stakePercent) };
-    }
-    return { result: 'loss', pnl: round(-stakePercent) };
-  }
-
-  // ── 1X2 (Match Result) ──
-  if (marketLower.includes('1x2') || marketLower.includes('match_result')) {
-    let actualResult: 'home' | 'draw' | 'away';
-    if (homeScore > awayScore) actualResult = 'home';
-    else if (awayScore > homeScore) actualResult = 'away';
-    else actualResult = 'draw';
-
-    const pickedHome = selLower.includes('home') || selLower.startsWith('1');
-    const pickedDraw = selLower.includes('draw') || selLower.includes('x');
-    const pickedAway = selLower.includes('away') || selLower.startsWith('2');
-
-    if (
-      (pickedHome && actualResult === 'home') ||
-      (pickedDraw && actualResult === 'draw') ||
-      (pickedAway && actualResult === 'away')
-    ) {
-      return { result: 'win', pnl: round((odds - 1) * stakePercent) };
-    }
-    return { result: 'loss', pnl: round(-stakePercent) };
-  }
-
-  // ── Asian Handicap ──
-  if (marketLower.includes('ah') || marketLower.includes('handicap')) {
-    const lineMatch = marketLower.match(/([+-]?[\d.]+)/);
-    if (!lineMatch?.[1]) {
-      console.warn(`[auto-settle] Cannot parse AH line from market: "${market}" — skipping`);
-      return { result: 'push', pnl: 0 };
-    }
-    const line = parseFloat(lineMatch[1]);
-    const pickedHome = selLower.includes('home');
-
-    const adjustedDiff = pickedHome
-      ? homeScore - awayScore + line
-      : awayScore - homeScore - line;
-
-    if (adjustedDiff === 0) return { result: 'push', pnl: 0 };
-    if (adjustedDiff > 0) return { result: 'win', pnl: round((odds - 1) * stakePercent) };
-    return { result: 'loss', pnl: round(-stakePercent) };
-  }
-
-  // Unknown market — log and skip auto-settle
-  console.warn(`[auto-settle] Unknown market type: "${market}" for selection "${selection}" — returning push`);
-  return { result: 'push', pnl: 0 };
+/**
+ * Calculate PNL based on result, odds, and stake.
+ */
+function calcPnl(result: 'win' | 'loss' | 'push', odds: number, stakePercent: number): number {
+  if (result === 'win') return round((odds - 1) * stakePercent);
+  if (result === 'loss') return round(-stakePercent);
+  return 0;
 }
 
 function round(n: number): number {
@@ -169,34 +207,61 @@ async function settleRecommendations(recs: RecommendationRow[], stats: SettleRes
     await fetchAndArchiveMissingResults(missingIds, historyMap);
   }
 
+  // Fetch match statistics for all matches (AI needs full context)
+  const allStatsMap = await fetchMatchStatistics(matchIds);
+
+  // Group recs by match_id for batch AI settle
+  const recsByMatch = new Map<string, RecommendationRow[]>();
   for (const rec of recs) {
+    const list = recsByMatch.get(rec.match_id) || [];
+    list.push(rec);
+    recsByMatch.set(rec.match_id, list);
+  }
+
+  for (const [matchId, matchRecs] of recsByMatch) {
+    const hist = historyMap.get(matchId);
+    if (!hist) {
+      stats.skipped += matchRecs.length;
+      continue;
+    }
+
+    const matchContext: MatchContext = {
+      matchId,
+      homeTeam: hist.home_team,
+      awayTeam: hist.away_team,
+      homeScore: hist.home_score,
+      awayScore: hist.away_score,
+      statistics: allStatsMap.get(matchId),
+    };
+
+    const betsToSettle: BetToSettle[] = matchRecs.map(rec => ({
+      id: rec.id,
+      market: rec.bet_market || rec.bet_type,
+      selection: rec.selection,
+      odds: rec.odds ?? 0,
+      stakePercent: rec.stake_percent ?? 1,
+    }));
+
     try {
-      const hist = historyMap.get(rec.match_id);
-      if (!hist) {
-        stats.skipped++;
-        continue;
+      const aiResults = await settleWithAI(matchContext, betsToSettle);
+      const resultsMap = new Map(aiResults.map(r => [r.id, r]));
+
+      for (const rec of matchRecs) {
+        const aiResult = resultsMap.get(rec.id);
+        if (!aiResult) {
+          console.warn(`[autoSettleJob] AI did not return result for rec ${rec.id}, skipping`);
+          stats.skipped++;
+          continue;
+        }
+
+        const pnl = calcPnl(aiResult.result, rec.odds ?? 0, rec.stake_percent ?? 1);
+        await recommendationsRepo.settleRecommendation(rec.id, aiResult.result, pnl, aiResult.explanation);
+        await aiPerfRepo.settleAiPerformance(rec.id, aiResult.result, pnl, aiResult.result === 'win');
+        stats.settled++;
       }
-
-      const { result, pnl } = evaluateBet(
-        rec.bet_market || rec.bet_type,
-        rec.selection,
-        rec.odds ?? 0,
-        rec.stake_percent ?? 1,
-        hist.home_score,
-        hist.away_score,
-      );
-
-      const finalScore = `${hist.home_score}-${hist.away_score}`;
-
-      await recommendationsRepo.settleRecommendation(rec.id, result, pnl, finalScore);
-
-      // Update AI performance record if exists
-      await aiPerfRepo.settleAiPerformance(rec.id, result, pnl, result === 'win');
-
-      stats.settled++;
     } catch (err) {
-      console.error(`[autoSettleJob] Error settling rec ${rec.id}:`, err);
-      stats.errors++;
+      console.error(`[autoSettleJob] AI settle failed for match ${matchId}:`, err instanceof Error ? err.message : err);
+      stats.errors += matchRecs.length;
     }
   }
 }
@@ -222,32 +287,100 @@ async function settleBets(
     await fetchAndArchiveMissingResults(missingIds, historyMap);
   }
 
+  // Fetch match statistics for all matches
+  const allStatsMap = await fetchMatchStatistics(matchIds);
+
+  // Group bets by match_id
+  const betsByMatch = new Map<string, betsRepo.BetRow[]>();
   for (const bet of bets) {
+    const list = betsByMatch.get(bet.match_id) || [];
+    list.push(bet);
+    betsByMatch.set(bet.match_id, list);
+  }
+
+  for (const [matchId, matchBets] of betsByMatch) {
+    const hist = historyMap.get(matchId);
+    if (!hist) {
+      stats.skipped += matchBets.length;
+      continue;
+    }
+
+    const matchContext: MatchContext = {
+      matchId,
+      homeTeam: hist.home_team,
+      awayTeam: hist.away_team,
+      homeScore: hist.home_score,
+      awayScore: hist.away_score,
+      statistics: allStatsMap.get(matchId),
+    };
+
+    const betsToSettle: BetToSettle[] = matchBets.map(bet => ({
+      id: bet.id,
+      market: bet.bet_market,
+      selection: bet.selection,
+      odds: bet.odds,
+      stakePercent: bet.stake_percent || 1,
+    }));
+
     try {
-      const hist = historyMap.get(bet.match_id);
-      if (!hist) {
-        stats.skipped++;
-        continue;
+      const aiResults = await settleWithAI(matchContext, betsToSettle);
+      const resultsMap = new Map(aiResults.map(r => [r.id, r]));
+
+      for (const bet of matchBets) {
+        const aiResult = resultsMap.get(bet.id);
+        if (!aiResult) {
+          console.warn(`[autoSettleJob] AI did not return result for bet ${bet.id}, skipping`);
+          stats.skipped++;
+          continue;
+        }
+
+        const pnl = calcPnl(aiResult.result, bet.odds, bet.stake_percent || 1);
+        await betsRepo.settleBet(bet.id, aiResult.result, pnl, aiResult.explanation, 'auto');
+        stats.settled++;
       }
-
-      const { result, pnl } = evaluateBet(
-        bet.bet_market,
-        bet.selection,
-        bet.odds,
-        bet.stake_percent || 1,
-        hist.home_score,
-        hist.away_score,
-      );
-
-      const finalScore = `${hist.home_score}-${hist.away_score}`;
-      await betsRepo.settleBet(bet.id, result, pnl, finalScore, 'auto');
-
-      stats.settled++;
     } catch (err) {
-      console.error(`[autoSettleJob] Error settling bet ${bet.id}:`, err);
-      stats.errors++;
+      console.error(`[autoSettleJob] AI settle failed for match ${matchId}:`, err instanceof Error ? err.message : err);
+      stats.errors += matchBets.length;
     }
   }
+}
+
+// ==================== Statistics Fetcher ====================
+
+/**
+ * Fetch full match statistics from Football API for a list of match IDs.
+ * Returns a Map of matchId → array of stat objects (type, home, away).
+ */
+async function fetchMatchStatistics(
+  matchIds: string[],
+): Promise<Map<string, Array<{ type: string; home: string | number | null; away: string | number | null }>>> {
+  const statsMap = new Map<string, Array<{ type: string; home: string | number | null; away: string | number | null }>>();
+
+  for (const matchId of matchIds) {
+    try {
+      const statsRaw = await fetchFixtureStatistics(matchId);
+      if (statsRaw.length >= 2) {
+        const homeStats = statsRaw[0]!.statistics || [];
+        const awayStats = statsRaw[1]!.statistics || [];
+
+        // Merge home + away stats by type
+        const merged: Array<{ type: string; home: string | number | null; away: string | number | null }> = [];
+        for (const hs of homeStats) {
+          const as = awayStats.find(a => a.type === hs.type);
+          merged.push({ type: hs.type, home: hs.value, away: as?.value ?? null });
+        }
+        statsMap.set(matchId, merged);
+      }
+    } catch (err) {
+      console.warn(`[autoSettleJob] Failed to fetch statistics for match ${matchId}:`, err instanceof Error ? err.message : err);
+    }
+  }
+
+  if (matchIds.length > 0 && statsMap.size > 0) {
+    console.log(`[autoSettleJob] Fetched statistics for ${statsMap.size}/${matchIds.length} matches`);
+  }
+
+  return statsMap;
 }
 
 // ==================== Football API Fallback ====================

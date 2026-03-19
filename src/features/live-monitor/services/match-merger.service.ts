@@ -327,6 +327,18 @@ export function mergeMatchData(
         home: String(derivedInsights.home_reds),
         away: String(derivedInsights.away_reds),
       };
+    } else {
+      // API stats can lag behind events for red cards — always take the higher value
+      const apiHomeReds = toNumber(statsCompact.red_cards?.home, 0) ?? 0;
+      const apiAwayReds = toNumber(statsCompact.red_cards?.away, 0) ?? 0;
+      const evHomeReds = derivedInsights.home_reds;
+      const evAwayReds = derivedInsights.away_reds;
+      if (evHomeReds > apiHomeReds || evAwayReds > apiAwayReds) {
+        statsCompact.red_cards = {
+          home: String(Math.max(evHomeReds, apiHomeReds)),
+          away: String(Math.max(evAwayReds, apiAwayReds)),
+        };
+      }
     }
 
     outputs.push({

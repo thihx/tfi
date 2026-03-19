@@ -20,7 +20,8 @@ import {
 import type { Recommendation, WatchlistItem } from '@/types';
 import { BET_RESULT_BADGES } from '@/config/constants';
 import {
-  LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend,
+  LineChart, Line, BarChart, Bar, ComposedChart,
+  XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend,
 } from 'recharts';
 
 interface MatchDetailModalProps {
@@ -118,7 +119,7 @@ export function MatchDetailModal({ open, matchId, matchDisplay, onClose }: Match
           </div>
 
           {tab === 'context'  && <ContextView watchlist={watchlist} recs={recs} />}
-          {tab === 'timeline' && <TimelineView snapshots={snapshots} />}
+          {tab === 'timeline' && <TimelineView snapshots={snapshots} matchDisplay={matchDisplay} />}
           {tab === 'odds'     && <OddsView odds={odds} />}
           {tab === 'recs'     && <RecsView recs={recs} />}
           {tab === 'bets'     && <BetsView bets={bets} />}
@@ -279,68 +280,360 @@ function InfoBlock({ label, value, highlight, warn, colSpan }: {
 
 // ==================== Timeline View ====================
 
-function TimelineView({ snapshots }: { snapshots: MatchSnapshot[] }) {
+// ── Event types ───────────────────────────────────────────────────────────────
+
+// EventCompact matches what the pipeline actually saves to DB
+interface SnapEvent {
+  minute: number;
+  extra: number | null;
+  team: string;   // plain team name string
+  type: string;
+  detail: string;
+  player: string;
+}
+
+function getEventColor(type: string, detail: string): string {
+  const t = type.toLowerCase();
+  if (t === 'goal') return '#16a34a';
+  if (t === 'card') return detail.toLowerCase().includes('red') ? '#dc2626' : '#eab308';
+  if (t === 'subst') return '#9ca3af';
+  return '#a78bfa';
+}
+
+// ── Event waveform timeline ───────────────────────────────────────────────────
+
+function EventTimeline({ snapshots, matchDisplay }: { snapshots: MatchSnapshot[]; matchDisplay: string }) {
+  // Parse home / away names from "Home vs Away" or "Home - Away"
+  const parts = matchDisplay.split(/ vs |\s+v\s+|\s+-\s+/i).map(s => s.trim());
+  const homeName = parts[0] ?? '';
+  const awayName = parts[1] ?? '';
+
+  // Deduplicate events across all snapshots (later snapshots repeat earlier ones)
+  const seen = new Set<string>();
+  const events: SnapEvent[] = [];
+  for (const snap of snapshots) {
+    for (const raw of (snap.events as SnapEvent[])) {
+      if (raw?.minute == null || !raw?.team) continue;
+      const key = `${raw.minute}-${raw.team}-${raw.type}-${raw.detail}-${raw.player ?? ''}`;
+      if (!seen.has(key)) { seen.add(key); events.push(raw); }
+    }
+  }
+
+  if (!events.length) return null;
+
+  const maxMin = Math.max(90, ...events.map(e => e.minute));
+  const pct = (m: number) => `${Math.min(100, (m / maxMin) * 100).toFixed(2)}%`;
+
+  // Match team names with partial-match fallback
+  const nameMatch = (eventTeam: string, target: string) =>
+    !!target && (eventTeam === target || eventTeam.includes(target) || target.includes(eventTeam));
+
+  // Fallback: use first/second unique team name found in events
+  const teamNames = [...new Set(events.map(e => e.team))];
+  const resolvedHome = homeName || teamNames[0] || '';
+  const resolvedAway = awayName || teamNames[1] || '';
+
+  const homeEvents = events.filter(e =>
+    nameMatch(e.team, resolvedHome) && !nameMatch(e.team, resolvedAway),
+  );
+  const awayEvents = events.filter(e =>
+    nameMatch(e.team, resolvedAway) && !nameMatch(e.team, resolvedHome),
+  );
+
+  const barH = (type: string) =>
+    type.toLowerCase() === 'goal' ? 30 : type.toLowerCase() === 'subst' ? 16 : 22;
+
+  const LEGEND_ITEMS = [
+    { label: 'Goal', color: '#16a34a' },
+    { label: 'Yellow', color: '#eab308' },
+    { label: 'Red Card', color: '#dc2626' },
+    { label: 'Sub', color: '#9ca3af' },
+  ];
+
+  const EventBar = ({ e, dir }: { e: SnapEvent; dir: 'up' | 'down' }) => (
+    <div
+      title={`${e.minute}'${e.extra ? `+${e.extra}` : ''} ${e.type}${e.player ? ` — ${e.player}` : ''} (${e.detail})`}
+      style={{
+        position: 'absolute',
+        left: pct(e.minute),
+        [dir === 'up' ? 'bottom' : 'top']: 0,
+        width: 4,
+        height: barH(e.type),
+        background: getEventColor(e.type, e.detail),
+        borderRadius: dir === 'up' ? '2px 2px 0 0' : '0 0 2px 2px',
+        transform: 'translateX(-50%)',
+        opacity: 0.9,
+      }}
+    />
+  );
+
+  return (
+    <div style={{ marginBottom: '10px' }}>
+    <ChartPanel title="Match Events" subtitle="hover for details">
+      {/* Legend */}
+      <div style={{ display: 'flex', gap: 14, padding: '2px 12px 6px', flexWrap: 'wrap' }}>
+        {LEGEND_ITEMS.map(({ label, color }) => (
+          <span key={label} style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 10, color: 'var(--gray-500)' }}>
+            <span style={{ width: 4, height: 14, background: color, borderRadius: 1, display: 'inline-block' }} />
+            {label}
+          </span>
+        ))}
+      </div>
+
+      <div style={{ padding: '0 12px 10px' }}>
+        {/* Home row — events grow upward */}
+        <div style={{ display: 'flex', alignItems: 'flex-end', gap: 6 }}>
+          <span style={{ width: 16, fontSize: 10, fontWeight: 700, color: '#3b82f6', flexShrink: 0, textAlign: 'right', paddingBottom: 2 }}>H</span>
+          <div style={{ flex: 1, position: 'relative', height: 36 }}>
+            {homeEvents.map((e, i) => <EventBar key={i} e={e} dir="up" />)}
+          </div>
+        </div>
+
+        {/* Minute axis */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+          <span style={{ width: 16, flexShrink: 0 }} />
+          <div style={{ flex: 1, position: 'relative', height: 18 }}>
+            <div style={{ position: 'absolute', top: 4, left: 0, right: 0, height: 1, background: 'var(--gray-300)' }} />
+            {[15, 30, 45, 60, 75, 90].map(m => (
+              <div key={m} style={{ position: 'absolute', left: pct(m), transform: 'translateX(-50%)', top: 0, display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+                <div style={{ width: 1, height: 5, background: 'var(--gray-400)', marginTop: 2 }} />
+                <span style={{ fontSize: 9, color: 'var(--gray-400)', lineHeight: 1, marginTop: 1 }}>{m === 45 ? 'HT' : `${m}'`}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Away row — events grow downward */}
+        <div style={{ display: 'flex', alignItems: 'flex-start', gap: 6 }}>
+          <span style={{ width: 16, fontSize: 10, fontWeight: 700, color: '#ef4444', flexShrink: 0, textAlign: 'right', paddingTop: 2 }}>A</span>
+          <div style={{ flex: 1, position: 'relative', height: 36 }}>
+            {awayEvents.map((e, i) => <EventBar key={i} e={e} dir="down" />)}
+          </div>
+        </div>
+      </div>
+    </ChartPanel>
+    </div>
+  );
+}
+
+/** Extract home numeric value from a stat that may be a {home,away} object or plain number/string */
+function hNum(v: unknown): number | null {
+  if (v == null) return null;
+  if (typeof v === 'object') {
+    const n = Number((v as Record<string, unknown>).home);
+    return isNaN(n) ? null : n;
+  }
+  const n = parseInt(String(v), 10);
+  return isNaN(n) ? null : n;
+}
+
+function aNum(v: unknown): number | null {
+  if (v == null) return null;
+  if (typeof v === 'object') {
+    const n = Number((v as Record<string, unknown>).away);
+    return isNaN(n) ? null : n;
+  }
+  return null;
+}
+
+/** Thin labeled wrapper around each chart */
+function ChartPanel({ title, subtitle, children }: { title: string; subtitle?: string; children: React.ReactNode }) {
+  return (
+    <div style={{ background: 'var(--gray-50)', borderRadius: '8px', padding: '10px 2px 6px' }}>
+      <div style={{ paddingLeft: '12px', marginBottom: '2px' }}>
+        <span style={{ fontSize: '11px', fontWeight: 700, color: 'var(--gray-500)', textTransform: 'uppercase', letterSpacing: '0.6px' }}>{title}</span>
+        {subtitle && <span style={{ fontSize: '10px', color: 'var(--gray-400)', marginLeft: '6px' }}>{subtitle}</span>}
+      </div>
+      {children}
+    </div>
+  );
+}
+
+function TimelineView({ snapshots, matchDisplay }: { snapshots: MatchSnapshot[]; matchDisplay: string }) {
   if (!snapshots.length) {
     return <EmptyState icon="📋" message="No snapshots captured yet" />;
   }
 
   const sorted = [...snapshots].sort((a, b) => a.minute - b.minute);
 
-  const homeNum = (v: unknown): number | null => {
-    if (v == null) return null;
-    if (typeof v === 'object' && v !== null) {
-      const n = Number((v as Record<string, unknown>).home);
-      return isNaN(n) ? null : n;
-    }
-    const n = parseInt(String(v), 10);
-    return isNaN(n) ? null : n;
-  };
-
-  const awayNum = (v: unknown): number | null => {
-    if (v == null) return null;
-    if (typeof v === 'object' && v !== null) {
-      const n = Number((v as Record<string, unknown>).away);
-      return isNaN(n) ? null : n;
-    }
-    return null;
-  };
-
-  const chartData = sorted.map((s) => {
+  // Compute pass% from accurate/total passes objects
+  const passPercent = (s: MatchSnapshot, side: 'home' | 'away'): number | null => {
     const stats = (s.stats || {}) as Record<string, unknown>;
-    const cornersHome = homeNum(stats.corners) ?? 0;
-    const cornersAway = awayNum(stats.corners) ?? 0;
+    const acc = stats.passes_accurate;
+    const tot = stats.total_passes;
+    if (!acc || !tot || typeof acc !== 'object' || typeof tot !== 'object') return null;
+    const a = Number((acc as Record<string, unknown>)[side]);
+    const t = Number((tot as Record<string, unknown>)[side]);
+    return t > 0 ? Math.round(a / t * 100) : null;
+  };
+
+  // ── Dataset 1: Possession Battle ──────────────────────────────────
+  const possData = sorted.map((s) => {
+    const stats = (s.stats || {}) as Record<string, unknown>;
+    const h = hNum(stats.possession) ?? 50;
+    const a = aNum(stats.possession) ?? Math.max(0, 100 - h);
+    return { min: `${s.minute}'`, Home: h, Away: a };
+  });
+  const hasPoss = possData.some((d) => d.Home !== 50 || d.Away !== 50);
+
+  // ── Dataset 2: Chance Creation ────────────────────────────────────
+  const attackData = sorted.map((s) => {
+    const stats = (s.stats || {}) as Record<string, unknown>;
     return {
-      minute: s.minute,
-      goals: (s.home_score || 0) + (s.away_score || 0),
-      possession: homeNum(stats.possession),
-      sot: homeNum(stats.shots_on_target),
-      corners: cornersHome + cornersAway,
+      min: `${s.minute}'`,
+      'H Shots': hNum(stats.shots),
+      'H SOT':   hNum(stats.shots_on_target),
+      'A Shots': aNum(stats.shots),
+      'A SOT':   aNum(stats.shots_on_target),
+      'H Cor':   hNum(stats.corners),
+      'A Cor':   aNum(stats.corners),
     };
   });
+  const hasAttack = attackData.some(
+    (d) => (d['H Shots'] ?? 0) + (d['A Shots'] ?? 0) + (d['H SOT'] ?? 0) + (d['A SOT'] ?? 0) + (d['H Cor'] ?? 0) + (d['A Cor'] ?? 0) > 0,
+  );
+
+  // ── Dataset 3: Passing Quality ────────────────────────────────────
+  const passData = sorted.map((s) => ({
+    min: `${s.minute}'`,
+    'H Pass%': passPercent(s, 'home'),
+    'A Pass%': passPercent(s, 'away'),
+  }));
+  const hasPass = passData.some((d) => d['H Pass%'] != null || d['A Pass%'] != null);
+
+  // ── Dataset 4: Discipline ─────────────────────────────────────────
+  const disciplineData = sorted.map((s) => {
+    const stats = (s.stats || {}) as Record<string, unknown>;
+    return {
+      min: `${s.minute}'`,
+      'H Fouls': hNum(stats.fouls),
+      'A Fouls': aNum(stats.fouls),
+      'H YC':    hNum(stats.yellow_cards),
+      'A YC':    aNum(stats.yellow_cards),
+    };
+  });
+  const hasDiscipline = disciplineData.some(
+    (d) => (d['H Fouls'] ?? 0) + (d['A Fouls'] ?? 0) + (d['H YC'] ?? 0) + (d['A YC'] ?? 0) > 0,
+  );
+
+  const TICK = { fontSize: 10 } as const;
+  const GRID = { strokeDasharray: '3 3', stroke: 'var(--gray-200)' } as const;
+  const hasAnyChart = sorted.length > 1 && (hasPoss || hasAttack || hasPass || hasDiscipline);
+
+  const chartLegend = (items: { value: string; color: string; type?: 'square' | 'line' }[]) => (
+    <div style={{ display: 'flex', gap: '12px', justifyContent: 'center', flexWrap: 'wrap', paddingTop: 4 }}>
+      {items.map((item) => (
+        <span key={item.value} style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 11 }}>
+          {item.type === 'line' ? (
+            <span style={{ width: 14, height: 2, background: item.color, display: 'inline-block' }} />
+          ) : (
+            <span style={{ width: 10, height: 10, background: item.color, borderRadius: 2, display: 'inline-block' }} />
+          )}
+          {item.value}
+        </span>
+      ))}
+    </div>
+  );
 
   return (
     <div>
-      {chartData.length > 1 && (
-        <div style={{ marginBottom: '16px' }}>
-          <ResponsiveContainer width="100%" height={180}>
-            <LineChart data={chartData}>
-              <CartesianGrid strokeDasharray="3 3" stroke="var(--gray-200)" />
-              <XAxis dataKey="minute" tick={{ fontSize: 10 }} label={{ value: 'Min', position: 'insideBottom', offset: -2, fontSize: 10 }} />
-              <YAxis tick={{ fontSize: 10 }} />
-              <Tooltip formatter={(v, name) => [v, name]} labelFormatter={(l) => `Min ${l}'`} />
-              <Legend wrapperStyle={{ fontSize: 11 }} />
-              <Line type="monotone" dataKey="goals" name="Goals" stroke="var(--danger)" strokeWidth={2} dot={{ r: 3 }} />
-              {chartData.some((d) => d.possession != null) && (
-                <Line type="monotone" dataKey="possession" name="Poss% (H)" stroke="var(--primary)" strokeWidth={1} dot={false} />
-              )}
-              {chartData.some((d) => d.sot != null) && (
-                <Line type="monotone" dataKey="sot" name="SOT (H)" stroke="var(--success)" strokeWidth={1} dot={false} />
-              )}
-              {chartData.some((d) => d.corners > 0) && (
-                <Line type="monotone" dataKey="corners" name="Corners" stroke="var(--warning)" strokeWidth={1} dot={false} />
-              )}
-            </LineChart>
-          </ResponsiveContainer>
+      {/* Event waveform — goals, cards, subs per team on a 0-90 axis */}
+      <EventTimeline snapshots={snapshots} matchDisplay={matchDisplay} />
+
+      {hasAnyChart && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', marginBottom: '16px' }}>
+
+          {/* 1. Possession Battle — stacked 100% bar, shows who dominates */}
+          {hasPoss && (
+            <ChartPanel title="Possession Battle" subtitle="who controls the ball">
+              <ResponsiveContainer width="100%" height={130}>
+                <BarChart data={possData} barCategoryGap="30%">
+                  <CartesianGrid {...GRID} vertical={false} />
+                  <XAxis dataKey="min" tick={TICK} />
+                  <YAxis tick={TICK} domain={[0, 100]} tickFormatter={(v) => `${v}%`} width={32} />
+                  <Tooltip formatter={(v, name) => [`${v}%`, name]} />
+                  <Legend content={() => chartLegend([
+                    { value: 'Home', type: 'square', color: '#3b82f6' },
+                    { value: 'Away', type: 'square', color: '#ef4444' },
+                  ])} />
+                  <Bar dataKey="Home" stackId="a" fill="#3b82f6" />
+                  <Bar dataKey="Away" stackId="a" fill="#ef4444" />
+                </BarChart>
+              </ResponsiveContainer>
+            </ChartPanel>
+          )}
+
+          {/* 2. Chance Creation — grouped bars: Shots vs SOT per team, Corners as line */}
+          {hasAttack && (
+            <ChartPanel title="Chance Creation" subtitle="dark = Shots · light = SOT · dashed = Corners">
+              <ResponsiveContainer width="100%" height={155}>
+                <ComposedChart data={attackData} barCategoryGap="25%" barGap={1}>
+                  <CartesianGrid {...GRID} vertical={false} />
+                  <XAxis dataKey="min" tick={TICK} />
+                  <YAxis tick={TICK} width={24} />
+                  <Tooltip labelFormatter={(l) => `Min ${l}`} />
+                  <Legend content={() => chartLegend([
+                    { value: 'H Shots', type: 'square', color: '#1d4ed8' },
+                    { value: 'H SOT',   type: 'square', color: '#93c5fd' },
+                    { value: 'A Shots', type: 'square', color: '#b91c1c' },
+                    { value: 'A SOT',   type: 'square', color: '#fca5a5' },
+                    { value: 'H Cor',   type: 'line',   color: '#3b82f6' },
+                    { value: 'A Cor',   type: 'line',   color: '#ef4444' },
+                  ])} />
+                  <Bar dataKey="H Shots" fill="#1d4ed8" />
+                  <Bar dataKey="H SOT"   fill="#93c5fd" />
+                  <Bar dataKey="A Shots" fill="#b91c1c" />
+                  <Bar dataKey="A SOT"   fill="#fca5a5" />
+                  <Line type="monotone" dataKey="H Cor" stroke="#3b82f6" strokeWidth={2} dot={{ r: 3 }} connectNulls strokeDasharray="4 2" />
+                  <Line type="monotone" dataKey="A Cor" stroke="#ef4444" strokeWidth={2} dot={{ r: 3 }} connectNulls strokeDasharray="4 2" />
+                </ComposedChart>
+              </ResponsiveContainer>
+            </ChartPanel>
+          )}
+
+          {/* 3. Passing Quality — technical control H vs A */}
+          {hasPass && (
+            <ChartPanel title="Passing Quality" subtitle="pass accuracy % over time">
+              <ResponsiveContainer width="100%" height={130}>
+                <LineChart data={passData}>
+                  <CartesianGrid {...GRID} />
+                  <XAxis dataKey="min" tick={TICK} />
+                  <YAxis tick={TICK} domain={[0, 100]} tickFormatter={(v) => `${v}%`} width={32} />
+                  <Tooltip formatter={(v, name) => [`${v}%`, name]} labelFormatter={(l) => `Min ${l}`} />
+                  <Legend content={() => chartLegend([
+                    { value: 'H Pass%', type: 'line', color: '#3b82f6' },
+                    { value: 'A Pass%', type: 'line', color: '#ef4444' },
+                  ])} />
+                  <Line type="monotone" dataKey="H Pass%" stroke="#3b82f6" strokeWidth={2} dot={{ r: 3 }} connectNulls />
+                  <Line type="monotone" dataKey="A Pass%" stroke="#ef4444" strokeWidth={2} dot={{ r: 3 }} connectNulls />
+                </LineChart>
+              </ResponsiveContainer>
+            </ChartPanel>
+          )}
+
+          {/* 4. Discipline — fouls & yellow cards, match aggression risk */}
+          {hasDiscipline && (
+            <ChartPanel title="Discipline" subtitle="fouls · yellow cards">
+              <ResponsiveContainer width="100%" height={130}>
+                <BarChart data={disciplineData} barCategoryGap="25%">
+                  <CartesianGrid {...GRID} vertical={false} />
+                  <XAxis dataKey="min" tick={TICK} />
+                  <YAxis tick={TICK} width={24} />
+                  <Tooltip labelFormatter={(l) => `Min ${l}`} />
+                  <Legend content={() => chartLegend([
+                    { value: 'H Fouls', type: 'square', color: '#1d4ed8' },
+                    { value: 'H YC',    type: 'square', color: '#93c5fd' },
+                    { value: 'A Fouls', type: 'square', color: '#b91c1c' },
+                    { value: 'A YC',    type: 'square', color: '#fca5a5' },
+                  ])} />
+                  <Bar dataKey="H Fouls" fill="#1d4ed8" />
+                  <Bar dataKey="H YC"    fill="#93c5fd" />
+                  <Bar dataKey="A Fouls" fill="#b91c1c" />
+                  <Bar dataKey="A YC"    fill="#fca5a5" />
+                </BarChart>
+              </ResponsiveContainer>
+            </ChartPanel>
+          )}
         </div>
       )}
 

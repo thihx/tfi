@@ -20,23 +20,22 @@ export interface MatchRow {
   away_score: number | null;
   current_minute: number | null;
   last_updated: string;
-  home_reds?: number | null;
-  away_reds?: number | null;
+  // Enriched from /fixtures (free — no extra API call)
+  home_team_id?: number | null;
+  away_team_id?: number | null;
+  round?: string;
+  halftime_home?: number | null;
+  halftime_away?: number | null;
+  referee?: string | null;
+  // Enriched from /fixtures/statistics (live matches only)
+  home_reds?: number;
+  away_reds?: number;
+  home_yellows?: number;
+  away_yellows?: number;
 }
 
 export async function getAllMatches(): Promise<MatchRow[]> {
-  const result = await query<MatchRow>(`
-    SELECT m.*,
-      (s.stats->'red_cards'->>'home')::int AS home_reds,
-      (s.stats->'red_cards'->>'away')::int AS away_reds
-    FROM matches m
-    LEFT JOIN LATERAL (
-      SELECT stats FROM match_snapshots
-      WHERE match_id = m.match_id
-      ORDER BY minute DESC LIMIT 1
-    ) s ON true
-    ORDER BY m.date, m.kickoff
-  `);
+  const result = await query<MatchRow>('SELECT * FROM matches ORDER BY date, kickoff');
   return result.rows;
 }
 
@@ -66,10 +65,13 @@ export async function replaceAllMatches(matches: Partial<MatchRow>[]): Promise<n
     for (const m of matches) {
       if (!m.match_id) continue;
       await client.query(
-        `INSERT INTO matches (match_id, date, kickoff, league_id, league_name, home_team, away_team,
-                              home_logo, away_logo, venue, status, home_score, away_score,
-                              current_minute, last_updated)
-         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14, NOW())`,
+        `INSERT INTO matches (
+           match_id, date, kickoff, league_id, league_name, home_team, away_team,
+           home_logo, away_logo, venue, status, home_score, away_score, current_minute,
+           home_team_id, away_team_id, round, halftime_home, halftime_away, referee,
+           home_reds, away_reds, home_yellows, away_yellows,
+           last_updated
+         ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,NOW())`,
         [
           m.match_id,
           m.date,
@@ -85,6 +87,16 @@ export async function replaceAllMatches(matches: Partial<MatchRow>[]): Promise<n
           m.home_score ?? null,
           m.away_score ?? null,
           m.current_minute ?? null,
+          m.home_team_id ?? null,
+          m.away_team_id ?? null,
+          m.round ?? '',
+          m.halftime_home ?? null,
+          m.halftime_away ?? null,
+          m.referee ?? null,
+          m.home_reds ?? 0,
+          m.away_reds ?? 0,
+          m.home_yellows ?? 0,
+          m.away_yellows ?? 0,
         ],
       );
       count++;
