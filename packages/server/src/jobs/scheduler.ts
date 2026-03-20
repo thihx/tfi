@@ -247,6 +247,7 @@ export function updateJobInterval(name: string, intervalMs: number): JobInfo | n
 
   job.intervalMs = intervalMs;
   job.enabled = intervalMs > 0;
+  job.lockTtlMs = Math.max(intervalMs * 3, 60_000);
 
   if (job.enabled) {
     job.timer = setInterval(() => runJob(job), job.intervalMs);

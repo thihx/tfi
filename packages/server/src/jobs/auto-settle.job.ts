@@ -18,6 +18,7 @@ import { config } from '../config.js';
 import type { RecommendationRow } from '../repos/recommendations.repo.js';
 import type { MatchHistoryRow } from '../repos/matches-history.repo.js';
 import { reportJobProgress } from './job-progress.js';
+import { settleByRule } from '../lib/settle-rules.js';
 
 interface SettleResult {
   settled: number;
@@ -128,9 +129,48 @@ function parseAISettleResponse(aiText: string, bets: BetToSettle[]): AISettleRes
 }
 
 /**
- * Settle a batch of bets for a single match using AI.
+ * Settle a batch of bets for a single match.
+ * 1. Try deterministic rules first for each bet
+ * 2. For unresolved bets, batch-call AI
  * Returns results with explanation. PNL is calculated by caller.
  */
+export async function settleMatch(
+  match: MatchContext,
+  bets: BetToSettle[],
+): Promise<Map<number, AISettleResult>> {
+  const resultsMap = new Map<number, AISettleResult>();
+  const needAI: BetToSettle[] = [];
+
+  // Phase 1: deterministic rules
+  for (const bet of bets) {
+    const ruleResult = settleByRule({
+      market: bet.market,
+      selection: bet.selection,
+      homeScore: match.homeScore,
+      awayScore: match.awayScore,
+      statistics: match.statistics,
+    });
+    if (ruleResult) {
+      resultsMap.set(bet.id, { id: bet.id, result: ruleResult.result, explanation: ruleResult.explanation });
+    } else {
+      needAI.push(bet);
+    }
+  }
+
+  // Phase 2: AI fallback for unresolved markets
+  if (needAI.length > 0) {
+    const aiResults = await settleWithAI(match, needAI);
+    for (const r of aiResults) resultsMap.set(r.id, r);
+  }
+
+  if (bets.length > 0) {
+    console.log(`[autoSettleJob] Match ${match.matchId}: ${resultsMap.size - needAI.length} by rules, ${needAI.length} by AI`);
+  }
+
+  return resultsMap;
+}
+
+/** AI fallback for markets that can't be resolved by rules */
 export async function settleWithAI(
   match: MatchContext,
   bets: BetToSettle[],
@@ -243,13 +283,12 @@ async function settleRecommendations(recs: RecommendationRow[], stats: SettleRes
     }));
 
     try {
-      const aiResults = await settleWithAI(matchContext, betsToSettle);
-      const resultsMap = new Map(aiResults.map(r => [r.id, r]));
+      const resultsMap = await settleMatch(matchContext, betsToSettle);
 
       for (const rec of matchRecs) {
         const aiResult = resultsMap.get(rec.id);
         if (!aiResult) {
-          console.warn(`[autoSettleJob] AI did not return result for rec ${rec.id}, skipping`);
+          console.warn(`[autoSettleJob] No result for rec ${rec.id}, skipping`);
           stats.skipped++;
           continue;
         }
@@ -260,7 +299,7 @@ async function settleRecommendations(recs: RecommendationRow[], stats: SettleRes
         stats.settled++;
       }
     } catch (err) {
-      console.error(`[autoSettleJob] AI settle failed for match ${matchId}:`, err instanceof Error ? err.message : err);
+      console.error(`[autoSettleJob] Settle failed for match ${matchId}:`, err instanceof Error ? err.message : err);
       stats.errors += matchRecs.length;
     }
   }
@@ -323,13 +362,12 @@ async function settleBets(
     }));
 
     try {
-      const aiResults = await settleWithAI(matchContext, betsToSettle);
-      const resultsMap = new Map(aiResults.map(r => [r.id, r]));
+      const resultsMap = await settleMatch(matchContext, betsToSettle);
 
       for (const bet of matchBets) {
         const aiResult = resultsMap.get(bet.id);
         if (!aiResult) {
-          console.warn(`[autoSettleJob] AI did not return result for bet ${bet.id}, skipping`);
+          console.warn(`[autoSettleJob] No result for bet ${bet.id}, skipping`);
           stats.skipped++;
           continue;
         }
@@ -339,7 +377,7 @@ async function settleBets(
         stats.settled++;
       }
     } catch (err) {
-      console.error(`[autoSettleJob] AI settle failed for match ${matchId}:`, err instanceof Error ? err.message : err);
+      console.error(`[autoSettleJob] Settle failed for match ${matchId}:`, err instanceof Error ? err.message : err);
       stats.errors += matchBets.length;
     }
   }

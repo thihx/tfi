@@ -9,7 +9,7 @@
 // ============================================================
 
 import { query } from '../db/pool.js';
-import { settleWithAI, type AISettleResult } from './auto-settle.job.js';
+import { settleMatch, type AISettleResult } from './auto-settle.job.js';
 import * as recommendationsRepo from '../repos/recommendations.repo.js';
 import * as matchHistoryRepo from '../repos/matches-history.repo.js';
 import * as aiPerfRepo from '../repos/ai-performance.repo.js';
@@ -166,9 +166,9 @@ export async function reEvaluateAllResults(): Promise<ReEvalResult> {
       stakePercent: rec.stake_percent ?? 1,
     }));
 
-    let aiResults: AISettleResult[];
+    let resultsMap: Map<number, AISettleResult>;
     try {
-      aiResults = await settleWithAI(
+      resultsMap = await settleMatch(
         {
           matchId,
           homeTeam: hist.home_team,
@@ -180,15 +180,13 @@ export async function reEvaluateAllResults(): Promise<ReEvalResult> {
         betsToSettle,
       );
     } catch (err) {
-      console.warn(`[re-evaluate] AI settle failed for match ${matchId}:`, err instanceof Error ? err.message : err);
+      console.warn(`[re-evaluate] Settle failed for match ${matchId}:`, err instanceof Error ? err.message : err);
       result.skippedNoScore += matchRecs.length;
       continue;
     }
 
-    const aiMap = new Map(aiResults.map(r => [r.id, r]));
-
     for (const rec of matchRecs) {
-      const aiResult = aiMap.get(rec.id);
+      const aiResult = resultsMap.get(rec.id);
       if (!aiResult) {
         result.skippedNoScore++;
         continue;

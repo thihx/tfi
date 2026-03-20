@@ -105,12 +105,22 @@ export async function fetchMatchesJob(): Promise<{ saved: number; leagues: numbe
     fetchFixturesForDate(dateFrom),
     fetchFixturesForDate(dateTo),
   ]);
+  const todayOk = results[0].status === 'fulfilled';
+  const tomorrowOk = results[1].status === 'fulfilled';
   const todayFixtures = results[0].status === 'fulfilled' ? results[0].value : [];
   const tomorrowFixtures = results[1].status === 'fulfilled' ? results[1].value : [];
   if (results[0].status === 'rejected') console.error('[fetchMatchesJob] Today fetch failed:', results[0].reason);
   if (results[1].status === 'rejected') console.error('[fetchMatchesJob] Tomorrow fetch failed:', results[1].reason);
+
+  // Abort if BOTH days failed — nothing useful to save
+  if (!todayOk && !tomorrowOk) {
+    console.error('[fetchMatchesJob] Both API calls failed — aborting to preserve existing data');
+    throw new Error('Both fixture API calls failed');
+  }
+
   const allFixtures = todayFixtures.concat(tomorrowFixtures);
-  console.log(`[fetchMatchesJob] Raw: today=${todayFixtures.length} tomorrow=${tomorrowFixtures.length} total=${allFixtures.length}`);
+  const partialFailure = !todayOk || !tomorrowOk;
+  console.log(`[fetchMatchesJob] Raw: today=${todayFixtures.length} tomorrow=${tomorrowFixtures.length} total=${allFixtures.length}${partialFailure ? ' (PARTIAL — one day failed)' : ''}`);
 
   // 4. Filter by approved leagues
   await reportJobProgress(JOB, 'filter', `Filtering ${allFixtures.length} fixtures by ${leagueIdSet.size} leagues...`, 40);
@@ -161,9 +171,22 @@ export async function fetchMatchesJob(): Promise<{ saved: number; leagues: numbe
   }
 
   // 8. Full-refresh matches table
-  await reportJobProgress(JOB, 'save', `Saving ${rows.length} matches...`, 78);
-  const saved = await matchRepo.replaceAllMatches(rows);
-  const uniqueLeagues = new Set(rows.map((r) => r.league_id)).size;
+  // If one day's API call failed, preserve existing rows for the failed date
+  // to avoid deleting live/valid matches we couldn't re-fetch.
+  let mergedRows = rows;
+  if (partialFailure && allCurrentMatches.length > 0) {
+    const failedDate = !todayOk ? dateFrom : dateTo;
+    const newMatchIds = new Set(rows.map(r => r.match_id));
+    const preserved = allCurrentMatches.filter(m => m.date === failedDate && !newMatchIds.has(m.match_id));
+    if (preserved.length > 0) {
+      mergedRows = rows.concat(preserved);
+      console.log(`[fetchMatchesJob] Partial failure — preserved ${preserved.length} existing rows for ${failedDate}`);
+    }
+  }
+
+  await reportJobProgress(JOB, 'save', `Saving ${mergedRows.length} matches...`, 78);
+  const saved = await matchRepo.replaceAllMatches(mergedRows);
+  const uniqueLeagues = new Set(mergedRows.map((r) => r.league_id)).size;
 
   console.log(`[fetchMatchesJob] ✅ Saved ${saved} matches from ${uniqueLeagues} leagues`);
 
