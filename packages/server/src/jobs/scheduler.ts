@@ -188,6 +188,16 @@ export async function startScheduler() {
       continue;
     }
     job.timer = setInterval(() => runJob(job), job.intervalMs);
+
+    // If the job is overdue (lastRun + interval < now), run it immediately
+    // instead of waiting for the full interval to elapse.
+    const lastRunTs = job.lastRun ? new Date(job.lastRun).getTime() : 0;
+    const overdue = lastRunTs > 0 && (Date.now() - lastRunTs) > job.intervalMs;
+    if (overdue) {
+      console.log(`[scheduler] Job "${job.name}" is overdue (last ran ${job.lastRun}), running immediately`);
+      runJob(job);
+    }
+
     console.log(`[scheduler] Job "${job.name}" every ${job.intervalMs / 1000}s (runs so far: ${job.runCount})`);
   }
 
