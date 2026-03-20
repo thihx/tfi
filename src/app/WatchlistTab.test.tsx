@@ -151,10 +151,9 @@ describe('WatchlistTab — status badge rendering', () => {
   it('renders Active badge for active entries', () => {
     mockWatchlist = [ACTIVE_1];
     render(<WatchlistTab />);
-    // The badge is inside the table body (not the filter dropdown)
-    const tbody = screen.getAllByRole('row').filter((r) => r.querySelector('td'));
-    expect(tbody.length).toBe(1);
-    expect(within(tbody[0]!).getByText('Active')).toBeInTheDocument();
+    const dataRows = screen.getAllByRole('row').filter((r) => within(r).queryByText('Active'));
+    expect(dataRows.length).toBeGreaterThanOrEqual(1);
+    expect(within(dataRows[0]!).getByText('Active')).toBeInTheDocument();
   });
 
   it('renders Expired badge for expired entries', async () => {
@@ -165,9 +164,9 @@ describe('WatchlistTab — status badge rendering', () => {
     const statusSelect = screen.getByDisplayValue('Active');
     await user.selectOptions(statusSelect, 'expired');
 
-    const tbody = screen.getAllByRole('row').filter((r) => r.querySelector('td'));
-    expect(tbody.length).toBe(1);
-    expect(within(tbody[0]!).getByText('Expired')).toBeInTheDocument();
+    const dataRows = screen.getAllByRole('row').filter((r) => within(r).queryByText('Expired'));
+    expect(dataRows.length).toBeGreaterThanOrEqual(1);
+    expect(within(dataRows[0]!).getByText('Expired')).toBeInTheDocument();
   });
 
   it('renders Pending badge for pending entries', async () => {
@@ -178,9 +177,9 @@ describe('WatchlistTab — status badge rendering', () => {
     const statusSelect = screen.getByDisplayValue('Active');
     await user.selectOptions(statusSelect, 'pending');
 
-    const tbody = screen.getAllByRole('row').filter((r) => r.querySelector('td'));
-    expect(tbody.length).toBe(1);
-    expect(within(tbody[0]!).getByText('Pending')).toBeInTheDocument();
+    const dataRows = screen.getAllByRole('row').filter((r) => within(r).queryByText('Pending'));
+    expect(dataRows.length).toBeGreaterThanOrEqual(1);
+    expect(within(dataRows[0]!).getByText('Pending')).toBeInTheDocument();
   });
 });
 

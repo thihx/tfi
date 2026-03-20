@@ -89,13 +89,14 @@ export async function fetchWatchlistMatches(config: AppConfig): Promise<Watchlis
 
 export async function runAiAnalysis(
   config: AppConfig,
-  prompt: string,
+  matchId: string,
   provider: 'gemini' | 'claude',
   model: string,
+  forceAnalyze: boolean = false,
 ): Promise<string> {
   const result = await postJson<{ text: string }>(
     apiUrl(config, '/api/proxy/ai/analyze'),
-    { prompt, provider, model },
+    { matchId, provider, model, forceAnalyze },
   );
   return result.text;
 }

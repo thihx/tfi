@@ -33,6 +33,7 @@ vi.mock('../repos/matches.repo.js', () => ({
 
 vi.mock('../repos/watchlist.repo.js', () => ({
   getWatchlistByMatchId: vi.fn().mockResolvedValue(null),
+  getExistingWatchlistMatchIds: vi.fn().mockResolvedValue(new Set()),
   createWatchlistEntry: vi.fn().mockResolvedValue({}),
   syncWatchlistDates: vi.fn().mockResolvedValue(0),
 }));
@@ -110,10 +111,13 @@ describe('fetchMatchesJob', () => {
 
   test('skips creating watchlist entry if already exists', async () => {
     const watchlistRepo = await import('../repos/watchlist.repo.js');
-    vi.mocked(watchlistRepo.getWatchlistByMatchId).mockResolvedValue({ match_id: '1001' } as never);
+    vi.mocked(watchlistRepo.getExistingWatchlistMatchIds).mockResolvedValue(new Set(['1001']));
 
     await fetchMatchesJob();
-    expect(watchlistRepo.createWatchlistEntry).not.toHaveBeenCalled();
+    const createdMatchIds = vi.mocked(watchlistRepo.createWatchlistEntry).mock.calls.map(
+      (call) => String((call[0] as Record<string, unknown>).match_id),
+    );
+    expect(createdMatchIds).not.toContain('1001');
   });
 
   test('archives finished matches before refresh', async () => {

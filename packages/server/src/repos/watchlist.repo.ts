@@ -58,6 +58,16 @@ export async function getWatchlistByMatchId(matchId: string): Promise<WatchlistR
   return r.rows[0] ?? null;
 }
 
+/** Returns a Set of match_ids that already exist in the watchlist — single query for N ids. */
+export async function getExistingWatchlistMatchIds(matchIds: string[]): Promise<Set<string>> {
+  if (matchIds.length === 0) return new Set();
+  const r = await query<{ match_id: string }>(
+    'SELECT match_id FROM watchlist WHERE match_id = ANY($1)',
+    [matchIds],
+  );
+  return new Set(r.rows.map((row) => row.match_id));
+}
+
 export async function createWatchlistEntry(w: Partial<WatchlistCreate>): Promise<WatchlistRow> {
   const r = await query<WatchlistRow>(
     `INSERT INTO watchlist

@@ -11,7 +11,6 @@ import type {
   OddsCanonical,
   AiPromptContext,
 } from '../types';
-import { buildAiPrompt } from './ai-prompt.service';
 import { runAiAnalysis } from './proxy.service';
 
 // ==================== Helpers ====================
@@ -111,12 +110,17 @@ export async function routeAndCallAi(
   appConfig: AppConfig,
   monitorConfig: LiveMonitorConfig,
   matchData: MergedMatchData,
-  context?: AiPromptContext,
+  _context?: AiPromptContext,
 ): Promise<string> {
-  const prompt = buildAiPrompt(matchData, context);
   const provider = monitorConfig.AI_PROVIDER;
   const model = monitorConfig.AI_MODEL;
-  return runAiAnalysis(appConfig, prompt, provider, model);
+  return runAiAnalysis(
+    appConfig,
+    matchData.match_id,
+    provider,
+    model,
+    matchData.force_analyze === true || matchData.is_manual_push === true,
+  );
 }
 
 // ==================== Parse AI Response ====================

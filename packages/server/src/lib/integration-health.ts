@@ -196,20 +196,35 @@ async function probeTelegram(): Promise<IntegrationProbeResult> {
   if (!isConfigured(config.telegramBotToken)) {
     return makeResult(ID, LABEL, DESC, 'NOT_CONFIGURED', 0, 'TELEGRAM_BOT_TOKEN not set');
   }
-  try {
-    const { result: res, latencyMs } = await timed(() =>
-      withTimeout(
-        fetch(`https://api.telegram.org/bot${config.telegramBotToken}/getMe`),
-      ),
-    );
-    const data = await res.json() as { ok: boolean; result?: { username?: string } };
-    if (data.ok) {
-      return makeResult(ID, LABEL, DESC, 'HEALTHY', latencyMs, `Bot: @${data.result?.username ?? '?'}`);
+
+  // Retry up to 3 attempts with 2s delay — avoids false alarms from transient network blips.
+  // "fetch failed" with N/A latency is a network-level drop, not a real Telegram outage.
+  const MAX_ATTEMPTS = 3;
+  const RETRY_DELAY_MS = 2_000;
+  let lastErr: unknown;
+
+  for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
+    try {
+      const { result: res, latencyMs } = await timed(() =>
+        withTimeout(
+          fetch(`https://api.telegram.org/bot${config.telegramBotToken}/getMe`),
+        ),
+      );
+      const data = await res.json() as { ok: boolean; result?: { username?: string } };
+      if (data.ok) {
+        return makeResult(ID, LABEL, DESC, 'HEALTHY', latencyMs, `Bot: @${data.result?.username ?? '?'}`);
+      }
+      // HTTP response but Telegram returned ok=false — bad token, no point retrying
+      return makeResult(ID, LABEL, DESC, 'DOWN', latencyMs, 'Bot token invalid');
+    } catch (err: unknown) {
+      lastErr = err;
+      if (attempt < MAX_ATTEMPTS) {
+        await new Promise((resolve) => setTimeout(resolve, RETRY_DELAY_MS));
+      }
     }
-    return makeResult(ID, LABEL, DESC, 'DOWN', latencyMs, 'Bot token invalid');
-  } catch (err: unknown) {
-    return makeResult(ID, LABEL, DESC, 'DOWN', 0, (err as Error).message);
   }
+
+  return makeResult(ID, LABEL, DESC, 'DOWN', 0, (lastErr as Error).message);
 }
 
 async function probeGoogleOAuth(): Promise<IntegrationProbeResult> {

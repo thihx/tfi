@@ -18,6 +18,7 @@ import {
 import { callGemini } from '../lib/gemini.js';
 import { resolveMatchOdds } from '../lib/odds-resolver.js';
 import { sendTelegramMessage, sendTelegramPhoto } from '../lib/telegram.js';
+import { runPromptOnlyAnalysisForMatch } from '../lib/server-pipeline.js';
 
 // ==================== Routes ====================
 
@@ -130,21 +131,50 @@ export async function proxyRoutes(app: FastifyInstance) {
   );
 
   // POST /api/proxy/ai/analyze
-  app.post<{ Body: { prompt: string; provider: string; model: string } }>(
+  app.post<{
+    Body: {
+      prompt?: string;
+      matchId?: string;
+      provider: string;
+      model?: string;
+      forceAnalyze?: boolean;
+    };
+  }>(
     '/api/proxy/ai/analyze',
     async (req, reply) => {
       const aiStart = Date.now();
       try {
-        const { prompt, provider, model } = req.body;
+        const { prompt, matchId, provider, model, forceAnalyze } = req.body;
 
         if (provider === 'gemini') {
-          const text = await callGemini(prompt, model);
+          const resolvedModel = model || config.geminiModel;
+          const text = typeof prompt === 'string' && prompt.trim()
+            ? await callGemini(prompt, resolvedModel)
+            : typeof matchId === 'string' && matchId.trim()
+              ? (
+                  await runPromptOnlyAnalysisForMatch(matchId.trim(), {
+                    forceAnalyze: forceAnalyze === true,
+                    modelOverride: resolvedModel,
+                  })
+                ).text
+              : null;
+
+          if (text == null) {
+            return reply.code(400).send({ error: 'prompt or matchId is required' });
+          }
+
           audit({
             category: 'AI',
             action: 'AI_CALL',
             actor: 'pipeline',
             duration_ms: Date.now() - aiStart,
-            metadata: { provider, model, promptLength: prompt.length, responseLength: text.length },
+            metadata: {
+              provider,
+              model: resolvedModel,
+              promptLength: typeof prompt === 'string' ? prompt.length : null,
+              matchId: typeof matchId === 'string' ? matchId : null,
+              responseLength: text.length,
+            },
           });
           return { text };
         }

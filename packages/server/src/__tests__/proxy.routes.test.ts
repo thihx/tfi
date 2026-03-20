@@ -12,6 +12,7 @@ vi.mock('../config.js', () => ({
     databaseUrl: 'postgresql://test:test@localhost:5432/test',
     timezone: 'Asia/Seoul',
     geminiApiKey: 'test-key',
+    geminiModel: 'gemini-test',
     telegramBotToken: 'test-bot-token',
     footballApiKey: 'test-football-key',
     footballApiBaseUrl: 'https://api-football.example.com',
@@ -33,6 +34,14 @@ vi.mock('../lib/football-api.js', () => ({
   fetchFixturesByIds: vi.fn().mockRejectedValue(new Error('Football API timeout')),
   fetchLiveOdds: vi.fn().mockRejectedValue(new Error('Football API 500: Internal Server Error')),
   fetchPreMatchOdds: vi.fn().mockRejectedValue(new Error('Football API 500: Internal Server Error')),
+}));
+
+vi.mock('../lib/server-pipeline.js', () => ({
+  runPromptOnlyAnalysisForMatch: vi.fn().mockResolvedValue({
+    text: 'AI response here',
+    prompt: 'server prompt',
+    result: { success: true },
+  }),
 }));
 
 // Mock global fetch for Gemini and Telegram
@@ -114,6 +123,16 @@ describe('POST /api/proxy/ai/analyze — error handling', () => {
       method: 'POST',
       url: '/api/proxy/ai/analyze',
       payload: { prompt: 'test', provider: 'gemini', model: 'gemini-pro' },
+    });
+    expect(res.statusCode).toBe(200);
+    expect(res.json().text).toBe('AI response here');
+  });
+
+  test('builds prompt on server when only matchId is provided', async () => {
+    const res = await app.inject({
+      method: 'POST',
+      url: '/api/proxy/ai/analyze',
+      payload: { matchId: '12345', provider: 'gemini', model: 'gemini-pro', forceAnalyze: true },
     });
     expect(res.statusCode).toBe(200);
     expect(res.json().text).toBe('AI response here');

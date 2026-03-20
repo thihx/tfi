@@ -196,15 +196,9 @@ export function MatchesTab() {
       return;
     }
 
-    // If not in watchlist, add first
     if (!watchlistMap.has(mid)) {
-      setPendingAdds((prev) => new Set(prev).add(mid));
-      const ok = await addToWatchlist([{
-        match_id: mid, date: m.date, league: m.league_name || '', home_team: m.home_team,
-        away_team: m.away_team, kickoff: parseKickoffForSave(m.kickoff),
-      }]);
-      setPendingAdds((prev) => { const s = new Set(prev); s.delete(mid); return s; });
-      if (!ok) { showToast('❌ Failed to add to watchlist', 'error'); return; }
+      showToast('⚠️ Add this match to Watchlist before using Ask AI', 'info');
+      return;
     }
 
     setAnalyzingMatches((prev) => new Set(prev).add(mid));
@@ -233,7 +227,7 @@ export function MatchesTab() {
     } finally {
       setAnalyzingMatches((prev) => { const s = new Set(prev); s.delete(mid); return s; });
     }
-  }, [analyzingMatches, aiResults, watchlistMap, addToWatchlist, config, showToast]);
+  }, [analyzingMatches, aiResults, watchlistMap, config, showToast]);
 
   const toggleSelect = (mid: string, isWatched: boolean) => {
     if (isWatched) return;
@@ -403,7 +397,7 @@ export function MatchesTab() {
                       onClick: (match) => askAi(match),
                       variant: aiResults.has(String(m.match_id)) ? 'success' as const : 'secondary' as const,
                       loading: analyzingMatches.has(String(m.match_id)),
-                      disabled: analyzingMatches.has(String(m.match_id)),
+                      disabled: analyzingMatches.has(String(m.match_id)) || !watchlistMap.has(String(m.match_id)),
                     },
                   ]}
                 />
@@ -567,7 +561,7 @@ function MatchRow({ match, isWatched, isPending, isSelected, isAnalyzing, hasRes
               <span className="btn-text">+ Watch</span>
             </button>
           )}
-          <button className={`btn ${hasResult ? 'btn-success' : 'btn-secondary'} btn-sm`} onClick={onAskAi} disabled={isAnalyzing} title={hasResult ? 'View cached result' : 'Ask AI for analysis'}>
+          <button className={`btn ${hasResult ? 'btn-success' : 'btn-secondary'} btn-sm`} onClick={onAskAi} disabled={isAnalyzing || !isWatched} title={!isWatched ? 'Add this match to Watchlist to use Ask AI' : hasResult ? 'View cached result' : 'Ask AI for analysis'}>
             {isAnalyzing && <span className="inline-spinner" style={{ width: '14px', height: '14px' }} />}
             <span className="btn-text" style={{ marginLeft: isAnalyzing ? '2px' : undefined }}>{isAnalyzing ? 'Analyzing...' : hasResult ? '✅ View Result' : 'Ask AI'}</span>
           </button>

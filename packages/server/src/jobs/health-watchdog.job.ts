@@ -25,7 +25,11 @@ const CRITICAL_JOBS = new Set([
 ]);
 
 // How many multiples of a job's interval must elapse before it's "overdue"
+// (only applies when the job is NOT currently running)
 const OVERDUE_FACTOR = 2.5;
+
+// How many multiples of a job's interval before a RUNNING job is considered stuck
+const STUCK_FACTOR = 10;
 
 // Don't start alerting until scheduler has been up for at least this long (ms).
 // This prevents false alarms right after a container restart.
@@ -109,13 +113,16 @@ export async function healthWatchdogJob(): Promise<WatchdogResult> {
     checked++;
 
     const overdueThresholdMs = job.intervalMs * OVERDUE_FACTOR;
+    const stuckThresholdMs = job.intervalMs * STUCK_FACTOR;
     const lastRunTs = job.lastRun ? new Date(job.lastRun).getTime() : 0;
     const timeSinceLastRun = lastRunTs > 0 ? now - lastRunTs : Infinity;
-    const isOverdue = timeSinceLastRun > overdueThresholdMs;
+    // Only "overdue" if NOT currently running — a running job is just slow, not missed
+    const isOverdue = !job.running && timeSinceLastRun > overdueThresholdMs;
+    const isStuck = job.running && timeSinceLastRun > stuckThresholdMs;
 
     const prevAlert = await getAlertState(job.name);
 
-    if (isOverdue) {
+    if (isOverdue || isStuck) {
       overdueJobs.push(job.name);
 
       const cooledDown = !prevAlert || (now - new Date(prevAlert.lastAlertedAt).getTime() > ALERT_COOLDOWN_MS);
@@ -123,20 +130,22 @@ export async function healthWatchdogJob(): Promise<WatchdogResult> {
       if (cooledDown) {
         const chatId = config.pipelineTelegramChatId;
         if (chatId && config.telegramBotToken) {
-          const timeAgo = lastRunTs > 0 ? formatDuration(timeSinceLastRun) : 'chưa chạy lần nào';
+          const timeAgo = lastRunTs > 0 ? formatDuration(timeSinceLastRun) : 'never run';
           const expectedInterval = formatDuration(job.intervalMs);
-          const lastErr = job.lastError ? `\n<b>Lỗi cuối:</b> ${escapeHtml(job.lastError.substring(0, 200))}` : '';
+          const lastErr = job.lastError ? `\n<b>Last error:</b> ${escapeHtml(job.lastError.substring(0, 200))}` : '';
           const consecutive = (prevAlert?.consecutiveOverdue ?? 0) + 1;
+          const statusLabel = isStuck ? 'Job stuck (running too long)' : 'Job overdue';
+          const statusEmoji = isStuck ? '🔄' : '⚠️';
 
           const msg = [
-            `⚠️ <b>[TFI] Job quá hạn: ${escapeHtml(job.name)}</b>`,
+            `${statusEmoji} <b>[TFI] ${escapeHtml(statusLabel)}: ${escapeHtml(job.name)}</b>`,
             ``,
-            `<b>Interval cấu hình:</b> ${expectedInterval}`,
-            `<b>Lần chạy cuối:</b> ${timeAgo} trước`,
-            `<b>Quá hạn liên tiếp:</b> ${consecutive} lần`,
+            `<b>Configured interval:</b> ${expectedInterval}`,
+            `<b>Last completed:</b> ${timeAgo} ago`,
+            isStuck ? `<b>Status:</b> Currently running (possible hang)` : `<b>Consecutive overdue:</b> ${consecutive}x`,
             lastErr,
             ``,
-            `→ Kiểm tra <b>Settings → Jobs</b> để biết thêm chi tiết.`,
+            `→ Check <b>Settings → Jobs</b> for details.`,
           ].filter(Boolean).join('\n');
 
           try {
@@ -153,7 +162,7 @@ export async function healthWatchdogJob(): Promise<WatchdogResult> {
 
           audit({
             category: 'WATCHDOG',
-            action: 'JOB_OVERDUE_ALERT',
+            action: isStuck ? 'JOB_STUCK_ALERT' : 'JOB_OVERDUE_ALERT',
             outcome: 'FAILURE',
             actor: 'watchdog',
             metadata: {
@@ -162,6 +171,7 @@ export async function healthWatchdogJob(): Promise<WatchdogResult> {
               timeSinceLastRunMs: timeSinceLastRun === Infinity ? null : timeSinceLastRun,
               lastRun: job.lastRun,
               lastError: job.lastError,
+              running: job.running,
               consecutiveOverdue: (prevAlert?.consecutiveOverdue ?? 0) + 1,
             },
           });

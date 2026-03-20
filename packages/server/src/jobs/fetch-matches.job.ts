@@ -213,10 +213,12 @@ export async function fetchMatchesJob(): Promise<{ saved: number; leagues: numbe
     const topLeagueIds = new Set(topLeagues.map((l) => l.league_id));
     const topMatches = rows.filter((r) => topLeagueIds.has(r.league_id) && r.status === 'NS');
 
+    // Batch-check existing watchlist entries — one query instead of N sequential queries
+    const existingIds = await watchlistRepo.getExistingWatchlistMatchIds(topMatches.map((m) => m.match_id));
+
     let added = 0;
     for (const m of topMatches) {
-      const existing = await watchlistRepo.getWatchlistByMatchId(m.match_id);
-      if (existing) continue;
+      if (existingIds.has(m.match_id)) continue;
 
       try {
         await watchlistRepo.createWatchlistEntry({

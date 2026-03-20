@@ -36,6 +36,7 @@ import {
   extractStatusCode,
   recordProviderStatsSampleSafe,
 } from './provider-sampling.js';
+import { buildLiveAnalysisPrompt } from './live-analysis-prompt.js';
 
 /** Resolved pipeline settings: DB values take priority, env vars as fallback */
 interface PipelineSettings {
@@ -116,6 +117,10 @@ export interface PipelineExecutionOptions {
   shadowMode?: boolean;
   sampleProviderData?: boolean;
   skipSettingsLoad?: boolean;
+  forceAnalyze?: boolean;
+  skipProceedGate?: boolean;
+  skipStalenessGate?: boolean;
+  modelOverride?: string;
   dependencies?: Partial<PipelineDeps>;
   previousRecommendations?: Array<{
     minute: number | null;
@@ -1013,7 +1018,8 @@ async function processMatch(
     const score = `${homeGoals}-${awayGoals}`;
     const homeTeamId = fixture.teams?.home?.id;
     const awayTeamId = fixture.teams?.away?.id;
-    const forceAnalyze = (watchlistEntry.mode || 'B').toUpperCase() === 'F';
+    const forceAnalyze =
+      options.forceAnalyze === true || (watchlistEntry.mode || 'B').toUpperCase() === 'F';
 
     // 1. Fetch stats + events in parallel
     const statsStartedAt = Date.now();
@@ -1147,7 +1153,7 @@ async function processMatch(
 
     // 2. Check should proceed before fetching odds / AI
     const statsAvailable = proceed.statsAvailable;
-    if (!proceed.shouldProceed && !forceAnalyze) {
+    if (!proceed.shouldProceed && !forceAnalyze && options.skipProceedGate !== true) {
       if (!shadowMode) {
         audit({
           category: 'PIPELINE',
@@ -1265,7 +1271,7 @@ async function processMatch(
       },
       forceAnalyze,
     });
-    if (staleness.isStale && !forceAnalyze) {
+    if (staleness.isStale && !forceAnalyze && options.skipStalenessGate !== true) {
       if (!shadowMode) {
         audit({
           category: 'PIPELINE',
@@ -1332,6 +1338,7 @@ async function processMatch(
       customConditions, recommendedCondition, recommendedConditionReason,
       strategicContext,
       forceAnalyze,
+      isManualPush: options.forceAnalyze === true,
       prediction,
       currentTotalGoals: homeGoals + awayGoals,
       previousRecommendations: prevRecsContext,
@@ -1341,7 +1348,7 @@ async function processMatch(
     }, settings);
 
     // 6. Call Gemini
-    const model = settings.aiModel;
+    const model = options.modelOverride || settings.aiModel;
     const aiText = await deps.callGemini(prompt, model);
 
     // 7. Parse response
@@ -1512,6 +1519,43 @@ export async function runPipelineForFixture(
   return processMatch(matchId, fixture, watchlistEntry, settings, options);
 }
 
+export async function runPromptOnlyAnalysisForMatch(
+  matchId: string,
+  options: {
+    forceAnalyze?: boolean;
+    modelOverride?: string;
+  } = {},
+): Promise<{ text: string; prompt: string; result: MatchPipelineResult }> {
+  const [fixture, watchlistEntry] = await Promise.all([
+    fetchFixturesByIds([matchId]).then((rows) => rows[0] ?? null),
+    watchlistRepo.getWatchlistByMatchId(matchId),
+  ]);
+
+  if (!fixture) {
+    throw new Error(`Fixture not found for match ${matchId}`);
+  }
+  if (!watchlistEntry) {
+    throw new Error(`Watchlist entry not found for match ${matchId}`);
+  }
+
+  const result = await runPipelineForFixture(matchId, fixture, watchlistEntry, {
+    shadowMode: true,
+    sampleProviderData: false,
+    forceAnalyze: options.forceAnalyze,
+    skipProceedGate: true,
+    skipStalenessGate: true,
+    modelOverride: options.modelOverride,
+  });
+
+  const prompt = result.debug?.prompt;
+  const text = result.debug?.aiText;
+  if (!prompt || !text) {
+    throw new Error(`Prompt-only analysis did not produce AI output for match ${matchId}`);
+  }
+
+  return { text, prompt, result };
+}
+
 /**
  * Run the AI analysis pipeline for a batch of live match IDs.
  * Called by check-live-trigger job when live matches are detected.
@@ -1568,7 +1612,6 @@ export async function runPipelineBatch(matchIds: string[]): Promise<PipelineResu
 }
 
 // ==================== Build Server Prompt ====================
-// Simplified version of the frontend's buildAiPrompt — same rules, same JSON output format
 
 function buildServerPrompt(data: {
   homeName: string;
@@ -1592,6 +1635,7 @@ function buildServerPrompt(data: {
   recommendedConditionReason: string;
   strategicContext: Record<string, string> | null;
   forceAnalyze: boolean;
+  isManualPush: boolean;
   prediction: Record<string, unknown> | null;
   currentTotalGoals: number;
   previousRecommendations: Array<Record<string, unknown>>;
@@ -1599,382 +1643,50 @@ function buildServerPrompt(data: {
   mode: string;
   statsFallbackReason: string;
 }, settings: PipelineSettings): string {
-  const MIN_CONFIDENCE = settings.minConfidence;
-  const MIN_ODDS = settings.minOdds;
-  const LATE_PHASE_MINUTE = settings.latePhaseMinute;
-  const VERY_LATE_PHASE_MINUTE = settings.veryLatePhaseMinute;
-  const ENDGAME_MINUTE = settings.endgameMinute;
-
-  // Compute current total corners from stats_compact
-  const cornersHome = parseInt(String(data.statsCompact?.corners?.home ?? ''), 10);
-  const cornersAway = parseInt(String(data.statsCompact?.corners?.away ?? ''), 10);
-  const currentTotalCorners = !isNaN(cornersHome) && !isNaN(cornersAway)
-    ? cornersHome + cornersAway
-    : 'unknown';
-
-  // Check incomplete markets
-  const incompleteMarkets: string[] = [];
-  const oc = data.oddsCanonical;
-  if (oc['1x2']) {
-    if (oc['1x2'].home === null || oc['1x2'].draw === null || oc['1x2'].away === null) incompleteMarkets.push('1x2');
-  }
-  if (oc['ou']) {
-    if (oc['ou'].line === null || oc['ou'].over === null || oc['ou'].under === null) incompleteMarkets.push('ou');
-  }
-  if (oc['ah']) {
-    if (oc['ah'].line === null || oc['ah'].home === null || oc['ah'].away === null) incompleteMarkets.push('ah');
-  }
-  if (oc['btts']) {
-    if (oc['btts'].yes === null || oc['btts'].no === null) incompleteMarkets.push('btts');
-  }
-
-  const oddsWarnings = incompleteMarkets.length > 0
-    ? `WARNING: Incomplete odds data for markets: ${incompleteMarkets.join(', ')}. Do NOT recommend these markets.`
-    : '';
-
-  // Previous recommendations section
-  let prevRecsSection = '';
-  if (data.previousRecommendations.length > 0) {
-    const lines = data.previousRecommendations.map((r, i) => {
-      const resultStr = r.result ? ` | Result: ${r.result}` : '';
-      return `  ${i + 1}. [Min ${r.minute ?? '?'}] ${r.selection || 'No selection'} (${r.bet_market || '?'}) | Conf: ${r.confidence ?? 0}/10 | Odds: ${r.odds ?? 'N/A'}${resultStr}`;
-    });
-    prevRecsSection = `
-========================
-PREVIOUS RECOMMENDATIONS FOR THIS MATCH (${data.previousRecommendations.length})
-========================
-${lines.join('\n')}
-
-IMPORTANT: Reference previous recommendations. Do NOT repeat exact same selection + bet_market unless odds improved by >= 0.10 or minute advanced >= 5.
-`;
-  }
-
-  // NOTE: This prompt uses the same rules as the frontend prompt (ai-prompt.service.ts).
-  // The full ~900-line prompt is intentionally reused to ensure parity.
-  return `
-You are a professional live football investment insight analyst (not a gambler).
-Your task is to analyze ONE live match and determine whether there is exactly ONE realistic, high-quality investment idea, or no idea at all. You must also evaluate a user-defined custom condition objectively.
-
-============================================================
-DEFINITIONS & THRESHOLDS (READ FIRST)
-============================================================
-LATE GAME THRESHOLDS:
-- Late phase: minute >= ${LATE_PHASE_MINUTE}
-- Very late phase: minute >= ${VERY_LATE_PHASE_MINUTE}
-- Endgame: minute >= ${ENDGAME_MINUTE}
-
-MINIMUM ACCEPTABLE ODDS: ${MIN_ODDS}
-- NEVER recommend any market with price < ${MIN_ODDS}
-
-BET_MARKET STANDARD VALUES:
-- 1X2 markets: "1x2_home", "1x2_away", "1x2_draw"
-- Over/Under goals: "over_0.5", "over_1.5", "over_2.5", "over_3.5", "over_4.5", "under_0.5", "under_1.5", "under_2.5", "under_3.5", "under_4.5"
-- BTTS: "btts_yes", "btts_no"
-- Asian Handicap: "asian_handicap_home_[line]", "asian_handicap_away_[line]"
-- Corners: "corners_over_[line]", "corners_under_[line]"
-
-SELECTION STANDARD FORMAT:
-- 1X2: "Home Win @[odds]", "Away Win @[odds]", "Draw @[odds]"
-- Over/Under: "Over [line] Goals @[odds]", "Under [line] Goals @[odds]"
-- BTTS: "BTTS Yes @[odds]", "BTTS No @[odds]"
-- Asian Handicap: "Home [line] @[odds]", "Away [line] @[odds]"
-- Corners: "Corners Over [line] @[odds]", "Corners Under [line] @[odds]"
-- FORBIDDEN: Do NOT add team names in selection.
-
-VALUE PERCENT CALCULATION:
-- value_percent = estimated edge over market price. Range: -50 to +100.
-
-MARKET RESTRICTIONS (READ BEFORE VIEWING ODDS DATA):
-${oddsWarnings ? `• ${oddsWarnings}` : '• No restrictions — all available markets have complete odds data.'}
-- Do NOT recommend 1X2 markets before minute 35 (too early, game state can change completely).
-- Do NOT recommend any market with price < ${MIN_ODDS}.
-
-${buildStrategicContextSection(data.strategicContext)}
-========================
-MATCH CONTEXT
-========================
-- Match: ${data.homeName} vs ${data.awayName}
-- League: ${data.league}
-- Minute: ${data.minute}
-- Score: ${data.score}
-- Status: ${data.status}
-- Stats Source: ${data.statsSource}
-- Evidence Mode: ${data.evidenceMode}
-- Force Analyze: ${data.forceAnalyze ? 'YES (watchlist force mode)' : 'NO (auto-pipeline)'}
-- Is Manual Push: NO
-${data.statsFallbackReason ? `- Stats Fallback Note: ${data.statsFallbackReason}` : ''}
-
-========================
-LIVE STATS (COMPACT JSON)
-========================
-${JSON.stringify(data.statsCompact)}
-
-STATS_AVAILABLE: ${data.statsAvailable}
-STATS_SOURCE: ${data.statsSource}
-${!data.statsAvailable && data.derivedInsights ? `
-========================
-DERIVED INSIGHTS (FROM EVENTS)
-========================
-${JSON.stringify(data.derivedInsights)}
-These insights are DERIVED from match events. Reduce confidence by 1 compared to full stats.
-` : ''}
-========================
-${!data.oddsAvailable ? 'NO USABLE ODDS AVAILABLE' : data.oddsSource === 'pre-match' ? 'PRE-MATCH ODDS (REFERENCE ONLY)' : data.oddsSource === 'the-odds-api' ? 'LIVE ODDS (The Odds API fallback)' : 'LIVE ODDS SNAPSHOT (CANONICAL JSON)'}
-========================
-${JSON.stringify(data.oddsCanonical)}
-
-ODDS_AVAILABLE: ${data.oddsAvailable}
-ODDS_SOURCE: ${data.oddsSource}
-ODDS_FETCHED_AT: ${data.oddsFetchedAt ?? 'unknown'} (match minute at fetch: ${data.minute})
-CURRENT_TOTAL_GOALS: ${data.currentTotalGoals}
-CURRENT_TOTAL_CORNERS: ${currentTotalCorners}
-${data.oddsSource === 'pre-match' ? '\nCAUTION: These are PRE-MATCH opening odds fetched before kickoff. Live odds are unavailable for this match.\nYou CAN still use them as a baseline for market direction and value, but adjust confidence based on the current game state.\n' : ''}${data.oddsSource === 'the-odds-api' ? '\nNOTE: These odds are from The Odds API exact-event fallback. They may have slight delay vs Football API live odds.\n' : ''}${!data.oddsAvailable ? '\nNO_USABLE_ODDS: Treat odds as unavailable and be conservative.\n' : ''}
-ODDS METHODOLOGY:
-- Odds are the BEST available across multiple bookmakers (highest price per outcome).
-- Markets with invalid implied-probability margins have been PRE-REMOVED by the system.
-- If a market is present in the canonical data, it has PASSED margin validation and is RELIABLE.
-- Focus your analysis on the markets that ARE present. Do not infer missing markets.
-
-${buildPreMatchPredictionSection(data.prediction, data.preMatchPredictionSummary)}
-========================
-RECENT EVENTS (LAST 8)
-========================
-${JSON.stringify(data.eventsCompact)}
-
-EVENT_COUNT: ${data.eventsCompact.length}
-
-${prevRecsSection}
-========================
-CONFIG / MODE
-========================
-- MIN_CONFIDENCE: ${MIN_CONFIDENCE}
-- MIN_ODDS: ${MIN_ODDS}
-- CUSTOM_CONDITIONS: ${data.customConditions || '(none)'}
-- EVIDENCE_MODE: ${data.evidenceMode}
-
-========================
-AI-RECOMMENDED CONDITION
-========================
-RECOMMENDED_CONDITION: ${data.recommendedCondition || '(none)'}
-RECOMMENDED_CONDITION_REASON: ${data.recommendedConditionReason || '(none)'}
-
-============================================================
-PRE-MATCH PREDICTION RULES
-============================================================
-- Pre-match data is contextual only.
-- Must NEVER override live evidence.
-
-WHEN TO USE PRE-MATCH DATA:
-- When live stats are sparse but pre-match aligns with observed play style.
-- When detecting market overreaction (e.g., strong favourite concedes early → odds swing excessively).
-- As supporting evidence when live play confirms pre-match expectations.
-- H2H_SUMMARY: If one team dominates H2H (3+ wins in last 5), factor this into 1X2 assessment.
-- TEAM_FORM_SEQUENCE: Recent WDLWW pattern reveals momentum — weight recent matches more.
-
-WHEN TO IGNORE PRE-MATCH DATA:
-- When live evidence clearly contradicts pre-match expectation.
-- When the match situation has fundamentally changed (red cards, injuries, tactical shifts).
-
-WEIGHT: Pre-match should contribute maximum 20% to your reasoning when used.
-WEIGHT: Strategic context (motivation, rotation, congestion) can add up to 10% additional weight.
-
-============================================================
-GLOBAL RULES
-============================================================
-- Status 1H or 2H = LIVE → normal analysis.
-- Status HT: max confidence 7, max stake 4%.
-- Status NS/FT/PST/CANC: should_push = false.
-
-DATA RULES:
-- STATS + ODDS available: may recommend if all rules pass.
-- STATS only (no odds): should_push = false normally, exception only if extremely clear.
-- NO STATS but DERIVED INSIGHTS present: may recommend with confidence cap 7.
-- NO STATS and no events: should_push = false normally.
-
-EVIDENCE MODE RULES:
-- full_live_data: Normal evaluation path. All supported markets allowed if the rest of the rules pass.
-- stats_only: Stats are usable but odds are unavailable. Default should_push=false. Exceptional cases only.
-- odds_events_only_degraded: Odds usable, stats unavailable, events available. ONLY evaluate Over/Under or Asian Handicap. DO NOT recommend 1X2. DO NOT recommend BTTS. confidence cap 6. stake cap 3%.
-- events_only_degraded: Events available but stats and odds are both unavailable. should_push=false normally.
-- low_evidence: No usable stats, no usable odds, and no meaningful events. should_push=false.
-- If STATS_SOURCE = live-score-api-fallback, treat that fallback as the primary live stats source for this run. Do NOT blend or average it with missing API-Sports stats.
-
-LATE GAME DISCIPLINE:
-- minute >= ${LATE_PHASE_MINUTE}: be more conservative.
-- minute >= ${VERY_LATE_PHASE_MINUTE}: exceptional circumstances only.
-- minute >= ${ENDGAME_MINUTE}: default should_push = false, max stake 2%.
-
-RED CARD PROTOCOL:
-- Scan events for red cards. If found: add warning, reduce confidence by 1, re-evaluate.
-
-MARKET SELECTION:
-- 1X2 and BTTS No require confidence >= 7 AND significant stat gaps AND pre-match support.
-- If not met, evaluate Over/Under instead.
-- Historical data: 1x2_home worst market (35.6% win rate), 1x2_draw near-ban (30.3%).
-- Odds >= 2.50: confidence cap 6, stake cap 3%.
-- Before minute 30: early game caution, 1X2 should_push=false before minute 35.
-- Over 3.5+: need current goals >= line-1 or clearly open match.
-- CORNERS O/U: MUST calculate cornerTempoSoFar, cornersNeeded, cornersPerMinuteNeeded.
-  - If cornersPerMinuteNeeded > cornerTempoSoFar × 1.5 → should_push = false.
-  - If cornersNeeded >= 3 AND minutesRemaining <= 20 → should_push = false.
-  - After minute 75: Corners Over requires cornersNeeded <= 1.
-  - After minute 80: should_push = false for any Corners Over.
-- Score 0-0 after minute 55: prefer GOALS Under markets (under_2.5, under_1.5). NOT corners_under.
-- risk_level = HIGH → should_push = false.
-
-BTTS RULES (DATA-DRIVEN):
-- BTTS YES: 54.5% win rate but PnL -4.55 (break-even trap at avg odds ~1.83).
-  - MANDATORY: Calculate break_even_rate = 1/odds. Estimated probability must exceed break_even_rate + 5%.
-  - Odds >= 2.00 for BTTS Yes → should_push = false unless BOTH teams have shots_on_target >= 2.
-  - "Pressure ≠ Goals": Need evidence BOTH teams are dangerous. If weaker team has 0 SOT → no BTTS Yes.
-  - Score 0-0 after minute 60: reduce confidence by 2 for BTTS Yes, prefer Under.
-- BTTS NO: 55.5% win rate but PnL -39.46 (worst BTTS market, odds too low).
-  - Requires odds >= 1.70 (below = mathematically unprofitable).
-  - If BOTH teams have shots_on_target >= 2 → should_push = false for BTTS No.
-  - Only justified: score gap >= 2, OR minute >= 70 + one team has 0 SOT, OR minute >= 75 + clean sheet.
-
-BREAK-EVEN CHECK (MANDATORY FOR ALL):
-- Before recommending ANY market: break_even_rate = 1/odds × 100.
-- Estimated probability must exceed break_even_rate by >= 3% (edge >= 3%).
-- If edge < 3% → should_push = false.
-- MUST include EXACT text in reasoning_en: "Break-even: X%, My estimate: Y%, Edge: Z%" — NON-NEGOTIABLE.
-- Reference: confidence 5→40%, 6→50.2%, 7→51.2%, 8→57.1% actual win rates.
-
-ODDS RULES:
-- Treat odds exactly as provided, no adjustments.
-- Suspicious odds (contradicting match dynamics) → treat as unreliable → should_push = false normally.
-- Price < ${MIN_ODDS} → should_push = false.
-
-STAKE GUIDELINES:
-- confidence 8-10: stake 5-8%
-- confidence 6-7: stake 3-5%
-- confidence 5: stake 2-3%
-- confidence < 5: should_push = false, stake = 0
-
-============================================================
-CUSTOM CONDITIONS (INDEPENDENT EVALUATION)
-============================================================
-should_push = your investment recommendation.
-custom_condition_matched = whether user's condition pattern is detected (factual check).
-These are TWO SEPARATE decisions.
-
-When custom_condition_matched = true, provide:
-- condition_triggered_suggestion (bet or "No bet - reason")
-- condition_triggered_reasoning_en/vi
-- condition_triggered_confidence, condition_triggered_stake
-
-============================================================
-OUTPUT FORMAT — STRICT JSON
-============================================================
-{
-  "should_push": boolean,
-  "selection": string,
-  "bet_market": string,
-  "market_chosen_reason": string,
-  "confidence": number,
-  "reasoning_en": string,
-  "reasoning_vi": string,
-  "warnings": string[],
-  "value_percent": number,
-  "risk_level": "LOW" | "MEDIUM" | "HIGH",
-  "stake_percent": number,
-  "custom_condition_matched": boolean,
-  "custom_condition_status": "none" | "evaluated" | "parse_error",
-  "custom_condition_summary_en": string,
-  "custom_condition_summary_vi": string,
-  "custom_condition_reason_en": string,
-  "custom_condition_reason_vi": string,
-  "condition_triggered_suggestion": string,
-  "condition_triggered_reasoning_en": string,
-  "condition_triggered_reasoning_vi": string,
-  "condition_triggered_confidence": number,
-  "condition_triggered_stake": number
-}
-
-ALL fields must exist. selection="" when should_push=false. bet_market="" when should_push=false.
-The FIRST character MUST be "{" and the LAST must be "}".
-NO markdown, NO code fences, NO commentary outside JSON.
-`;
-}
-
-// ==================== Strategic Context Section ====================
-
-function buildStrategicContextSection(strategicContext: Record<string, string> | null): string {
-  if (!strategicContext || typeof strategicContext !== 'object') return '';
-  const ctx = strategicContext;
-  const hasData = ctx.summary && ctx.summary !== 'No data found';
-  if (!hasData) return '';
-
-  const lines: string[] = [];
-  lines.push('========================');
-  lines.push('STRATEGIC CONTEXT (FROM PRE-MATCH RESEARCH)');
-  lines.push('========================');
-  if (ctx.home_motivation && ctx.home_motivation !== 'No data found')
-    lines.push(`HOME_MOTIVATION: ${ctx.home_motivation}`);
-  if (ctx.away_motivation && ctx.away_motivation !== 'No data found')
-    lines.push(`AWAY_MOTIVATION: ${ctx.away_motivation}`);
-  if (ctx.league_positions && ctx.league_positions !== 'No data found')
-    lines.push(`LEAGUE_POSITIONS: ${ctx.league_positions}`);
-  if (ctx.fixture_congestion && ctx.fixture_congestion !== 'No data found')
-    lines.push(`FIXTURE_CONGESTION: ${ctx.fixture_congestion}`);
-  if (ctx.rotation_risk && ctx.rotation_risk !== 'No data found')
-    lines.push(`ROTATION_RISK: ${ctx.rotation_risk}`);
-  if (ctx.key_absences && ctx.key_absences !== 'No data found')
-    lines.push(`KEY_ABSENCES: ${ctx.key_absences}`);
-  if (ctx.h2h_narrative && ctx.h2h_narrative !== 'No data found')
-    lines.push(`H2H_NARRATIVE: ${ctx.h2h_narrative}`);
-  if (ctx.competition_type && ctx.competition_type !== 'No data found')
-    lines.push(`COMPETITION_TYPE: ${ctx.competition_type}`);
-  lines.push(`SUMMARY: ${ctx.summary}`);
-  lines.push('');
-  lines.push('STRATEGIC CONTEXT RULES:');
-  lines.push('- COMPETITION_TYPE: For european/international/friendly competitions, teams are from DIFFERENT domestic leagues. LEAGUE_POSITIONS CANNOT be compared across leagues — IGNORE position gap signals.');
-  lines.push('- LEAGUE_POSITIONS: ONLY for domestic_league matches: Top 3 vs bottom 3 = strong favourite signal. Within 3 places = evenly matched → AVOID 1X2, prefer O/U or BTTS.');
-  lines.push('- ROTATION: If team likely rotates key players, reduce confidence for that team winning by 1-2.');
-  lines.push('- NOTHING TO PLAY FOR: Expect lower intensity → favors Under, Draw.');
-  lines.push('- TITLE RACE / RELEGATION BATTLE: Expect high intensity → supports attacking.');
-  lines.push('- FIXTURE_CONGESTION within 3 days of major match significantly increases rotation risk.');
-  lines.push('- KEY_ABSENCES of star players should reduce expected goals for that team.');
-  lines.push('');
-
-  return lines.join('\n');
-}
-
-// ==================== Pre-Match Prediction Section ====================
-
-function buildPreMatchPredictionSection(prediction: Record<string, unknown> | null, summary: string): string {
-  if (!prediction && !summary) return '';
-
-  const lines: string[] = [];
-  lines.push('========================');
-  lines.push('PRE-MATCH PREDICTION (OPTIONAL)');
-  lines.push('========================');
-
-  if (prediction && typeof prediction === 'object') {
-    const pmPred = (prediction as Record<string, Record<string, unknown>>).predictions || {};
-    const pmComp = (prediction as Record<string, Record<string, unknown>>).comparison || {};
-
-    const compact: Record<string, unknown> = {
-      pre_favourite: (pmPred.winner as Record<string, unknown>)?.name || null,
-      pre_win_or_draw: pmPred.win_or_draw ?? null,
-      pre_handicap_home: (pmPred.goals as Record<string, unknown>)?.home ?? null,
-      pre_handicap_away: (pmPred.goals as Record<string, unknown>)?.away ?? null,
-      pre_percent: pmPred.percent || null,
-      pre_form: (pmComp.form as Record<string, unknown>) || null,
-      pre_total_rating: (pmComp.total as Record<string, unknown>) || null,
-    };
-
-    lines.push(JSON.stringify(compact));
-
-    const h2hSummary = prediction.h2h_summary;
-    if (h2hSummary) lines.push(`H2H_SUMMARY: ${JSON.stringify(h2hSummary)}`);
-
-    const teamForm = prediction.team_form;
-    if (teamForm) lines.push(`TEAM_FORM_SEQUENCE: ${JSON.stringify(teamForm)}`);
-  } else {
-    lines.push(summary || 'No pre-match prediction available.');
-  }
-
-  lines.push('');
-  return lines.join('\n');
+  return buildLiveAnalysisPrompt(
+    {
+      homeName: data.homeName,
+      awayName: data.awayName,
+      league: data.league,
+      minute: data.minute,
+      score: data.score,
+      status: data.status,
+      statsCompact: data.statsCompact,
+      statsAvailable: data.statsAvailable,
+      statsSource: data.statsSource,
+      evidenceMode: data.evidenceMode,
+      statsMeta: null,
+      eventsCompact: data.eventsCompact,
+      oddsCanonical: data.oddsCanonical as Record<string, unknown>,
+      oddsAvailable: data.oddsAvailable,
+      oddsSource: data.oddsSource,
+      oddsFetchedAt: data.oddsFetchedAt,
+      oddsSanityWarnings: [],
+      oddsSuspicious: false,
+      derivedInsights: data.derivedInsights as Record<string, unknown> | null,
+      customConditions: data.customConditions,
+      recommendedCondition: data.recommendedCondition,
+      recommendedConditionReason: data.recommendedConditionReason,
+      strategicContext: data.strategicContext,
+      forceAnalyze: data.forceAnalyze,
+      isManualPush: data.isManualPush,
+      skippedFilters: [],
+      originalWouldProceed: true,
+      prediction: data.prediction,
+      currentTotalGoals: data.currentTotalGoals,
+      previousRecommendations: data.previousRecommendations,
+      matchTimeline: [],
+      historicalPerformance: null,
+      preMatchPredictionSummary: data.preMatchPredictionSummary,
+      mode: data.mode,
+      statsFallbackReason: data.statsFallbackReason,
+    },
+    {
+      minConfidence: settings.minConfidence,
+      minOdds: settings.minOdds,
+      latePhaseMinute: settings.latePhaseMinute,
+      veryLatePhaseMinute: settings.veryLatePhaseMinute,
+      endgameMinute: settings.endgameMinute,
+    },
+  );
 }
