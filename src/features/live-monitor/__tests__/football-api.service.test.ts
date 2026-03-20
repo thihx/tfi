@@ -116,7 +116,17 @@ describe('fetchFixtureOdds', () => {
 
     const result = await fetchFixtureOdds(appConfig, '12345');
 
-    expect(fetchLiveOdds).toHaveBeenCalledWith(appConfig, '12345', undefined, undefined);
+    expect(fetchLiveOdds).toHaveBeenCalledWith(
+      appConfig,
+      '12345',
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+    );
     expect(result).toEqual(odds);
   });
 
@@ -126,7 +136,17 @@ describe('fetchFixtureOdds', () => {
 
     const result = await fetchFixtureOdds(appConfig, '12345', 'Arsenal', 'Chelsea');
 
-    expect(fetchLiveOdds).toHaveBeenCalledWith(appConfig, '12345', 'Arsenal', 'Chelsea');
+    expect(fetchLiveOdds).toHaveBeenCalledWith(
+      appConfig,
+      '12345',
+      'Arsenal',
+      'Chelsea',
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+    );
     expect(result).toEqual(odds);
   });
 

@@ -10,6 +10,7 @@ import {
 import { fetchRecommendationsPaginated, fetchBetTypes, fetchDistinctLeagues } from '@/lib/services/api';
 import { formatLocalDateTime } from '@/lib/utils/helpers';
 import { PageHeader } from '@/components/ui/PageHeader';
+import { DatePicker } from '@/components/ui/DatePicker';
 import type { Recommendation } from '@/types';
 
 type ViewMode = 'cards' | 'table';
@@ -228,8 +229,8 @@ export function RecommendationsTab() {
               <option value="MEDIUM">Medium</option>
               <option value="HIGH">High</option>
             </select>
-            <input type="date" className="filter-input" value={dateFrom} onChange={(e) => { setDateFrom(e.target.value); setPage(1); }} title="From date" style={{ flex: '1 1 120px', minWidth: 0 }} />
-            <input type="date" className="filter-input" value={dateTo} onChange={(e) => { setDateTo(e.target.value); setPage(1); }} title="To date" style={{ flex: '1 1 120px', minWidth: 0 }} />
+            <DatePicker className="filter-input" value={dateFrom} onChange={(v) => { setDateFrom(v); setPage(1); }} title="From date" placeholder="From date" style={{ flex: '1 1 120px', minWidth: 0 }} />
+            <DatePicker className="filter-input" value={dateTo} onChange={(v) => { setDateTo(v); setPage(1); }} title="To date" placeholder="To date" style={{ flex: '1 1 120px', minWidth: 0 }} />
             {activeFilterCount > 0 && (
               <button className="btn btn-secondary" onClick={clearFilters} style={{ flexShrink: 0 }}>Clear</button>
             )}
@@ -265,13 +266,22 @@ export function RecommendationsTab() {
       {/* P/L Chart */}
       {showChart && chartData.length > 0 && (
         <div className="card" style={{ marginBottom: '16px' }}>
-          <div style={{ padding: '16px 12px 8px 0' }}>
+          <div style={{ padding: '12px 16px 4px 16px', borderBottom: '1px solid var(--gray-100)' }}>
+            <span style={{ fontWeight: 600, fontSize: 13, color: 'var(--gray-700)' }}>Cumulative P/L</span>
+            <span style={{ fontSize: 11, color: 'var(--gray-400)', marginLeft: 8 }}>
+              Running profit/loss over settled recommendations (win/loss), sorted by time — based on current filter
+            </span>
+          </div>
+          <div style={{ padding: '8px 12px 8px 0' }}>
             <ResponsiveContainer width="100%" height={180}>
               <AreaChart data={chartData}>
                 <CartesianGrid strokeDasharray="3 3" stroke="var(--gray-200)" />
-                <XAxis dataKey="idx" tick={{ fontSize: 10 }} label={{ value: '#', position: 'insideBottom', offset: -2, fontSize: 11 }} />
-                <YAxis tick={{ fontSize: 10 }} tickFormatter={(v) => `$${v}`} />
-                <Tooltip formatter={(v) => [`$${Number(v).toFixed(2)}`, 'Cumulative P/L']} />
+                <XAxis dataKey="idx" tick={{ fontSize: 10 }} label={{ value: 'Pick #', position: 'insideBottom', offset: -2, fontSize: 11 }} />
+                <YAxis tick={{ fontSize: 10 }} tickFormatter={(v) => `$${v}`} label={{ value: 'P/L ($)', angle: -90, position: 'insideLeft', offset: 10, fontSize: 11 }} />
+                <Tooltip
+                  formatter={(v) => [`$${Number(v).toFixed(2)}`, 'Cumulative P/L']}
+                  labelFormatter={(label) => `Pick #${label}`}
+                />
                 <Area type="monotone" dataKey="cumulative" stroke="var(--primary)" fill="var(--primary)" fillOpacity={0.15} strokeWidth={2} />
               </AreaChart>
             </ResponsiveContainer>

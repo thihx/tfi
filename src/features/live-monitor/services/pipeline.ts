@@ -161,7 +161,19 @@ export async function runPipeline(
         emit('fetching-odds');
         let mergedWithOdds: MergedMatchData = matchData;
         try {
-          const oddsResponse = await fetchFixtureOdds(appConfig, matchData.match_id, matchData.home_team, matchData.away_team);
+          const oddsResponse = await fetchFixtureOdds(
+            appConfig,
+            matchData.match_id,
+            matchData.home_team,
+            matchData.away_team,
+            matchData.kickoff_timestamp ?? undefined,
+            matchData.league,
+            matchData.league_country ?? undefined,
+            matchData.status,
+            typeof matchData.minute === 'number'
+              ? matchData.minute
+              : Number.parseInt(String(matchData.minute ?? ''), 10) || undefined,
+          );
           emit('merging-odds');
           mergedWithOdds = mergeOddsToMatch(matchData, oddsResponse);
         } catch {

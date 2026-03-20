@@ -9,6 +9,8 @@
     "start": "node dist/index.js",
     "migrate": "tsx src/db/migrate.ts",
     "seed": "tsx src/db/seed.ts",
+    "replay:pipeline": "tsx src/scripts/replay-pipeline.ts",
+    "benchmark:live-score": "tsx src/scripts/benchmark-live-score.ts",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:watch": "vitest"

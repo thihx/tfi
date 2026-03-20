@@ -1,4 +1,5 @@
 import React, { useState, useMemo, useEffect, useRef } from 'react';
+import { DatePicker } from '@/components/ui/DatePicker';
 import { useAppState } from '@/hooks/useAppState';
 import { useToast } from '@/hooks/useToast';
 import { Pagination } from '@/components/ui/Pagination';
@@ -229,14 +230,14 @@ export function WatchlistTab() {
             <option value="">All Leagues</option>
             {leagueOptions.map((l) => <option key={l.id} value={l.id}>{l.displayName} ({l.count})</option>)}
           </select>
-          <select className="filter-input" value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} style={{ maxWidth: '130px' }}>
+          <select className="filter-input" value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}>
             <option value="">All Status</option>
             <option value="active">Active</option>
             <option value="expired">Expired</option>
             <option value="pending">Pending</option>
           </select>
-          <input type="date" className="filter-input" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} title="From date" />
-          <input type="date" className="filter-input" value={dateTo} onChange={(e) => setDateTo(e.target.value)} title="To date" />
+          <DatePicker className="filter-input" value={dateFrom} onChange={setDateFrom} title="From date" placeholder="From date" />
+          <DatePicker className="filter-input" value={dateTo} onChange={setDateTo} title="To date" placeholder="To date" />
           <button className="btn btn-secondary" onClick={clearFilters}>Clear Filters</button>
         </div>
 

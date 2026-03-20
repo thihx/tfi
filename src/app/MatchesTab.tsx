@@ -1,4 +1,5 @@
 import React, { useState, useMemo, useCallback, useEffect, useRef } from 'react';
+import { DatePicker } from '@/components/ui/DatePicker';
 import { useAppState } from '@/hooks/useAppState';
 import { useToast } from '@/hooks/useToast';
 import { Pagination } from '@/components/ui/Pagination';
@@ -299,8 +300,8 @@ export function MatchesTab() {
             <option value="not-watched">Not Watched</option>
             <option value="watched">Watched</option>
           </select>
-          <input type="date" className="filter-input" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} title="From date" />
-          <input type="date" className="filter-input" value={dateTo} onChange={(e) => setDateTo(e.target.value)} title="To date" />
+          <DatePicker className="filter-input" value={dateFrom} onChange={setDateFrom} title="From date" placeholder="From date" />
+          <DatePicker className="filter-input" value={dateTo} onChange={setDateTo} title="To date" placeholder="To date" />
           {(search || statusFilter || leagueFilter || actionFilter || dateFrom || dateTo) && (
             <button className="btn btn-secondary" onClick={clearFilters}>Clear</button>
           )}

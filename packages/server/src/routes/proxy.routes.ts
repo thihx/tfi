@@ -1,5 +1,5 @@
 // ============================================================
-// Proxy Routes — Football API, AI, Notifications
+// Proxy Routes - Football API, AI, Notifications
 // Replaces Google Apps Script proxy layer
 // ============================================================
 
@@ -7,12 +7,16 @@ import type { FastifyInstance } from 'fastify';
 import { config } from '../config.js';
 import { audit } from '../lib/audit.js';
 import {
-  fetchFixturesByIds, fetchLiveOdds, fetchPreMatchOdds, fetchPrediction,
-  fetchFixtureEvents, fetchFixtureStatistics, fetchFixtureLineups, fetchStandings,
+  fetchFixturesByIds,
+  fetchPrediction,
+  fetchFixtureEvents,
+  fetchFixtureStatistics,
+  fetchFixtureLineups,
+  fetchStandings,
   fetchFixturesByLeague,
 } from '../lib/football-api.js';
-import { fetchTheOddsLive } from '../lib/the-odds-api.js';
 import { callGemini } from '../lib/gemini.js';
+import { resolveMatchOdds } from '../lib/odds-resolver.js';
 import { sendTelegramMessage, sendTelegramPhoto } from '../lib/telegram.js';
 
 // ==================== Routes ====================
@@ -31,81 +35,35 @@ export async function proxyRoutes(app: FastifyInstance) {
   });
 
   // POST /api/proxy/football/odds
-  // Fallback chain: API-Sports live → The Odds API → API-Sports pre-match
-  app.post<{ Body: { matchId: string; homeTeam?: string; awayTeam?: string; kickoffTimestamp?: number } }>('/api/proxy/football/odds', async (req, reply) => {
+  // Fallback chain: API-Sports live -> The Odds exact-event -> API-Sports pre-match
+  app.post<{
+    Body: {
+      matchId: string;
+      homeTeam?: string;
+      awayTeam?: string;
+      kickoffTimestamp?: number;
+      leagueName?: string;
+      leagueCountry?: string;
+      status?: string;
+      matchMinute?: number;
+    };
+  }>('/api/proxy/football/odds', async (req, reply) => {
     try {
-      // 1. Try live odds first
-      let bookmakers: unknown[] = [];
-      let oddsSource: 'live' | 'pre-match' | 'the-odds-api' = 'live';
-      try {
-        const liveOdds = await fetchLiveOdds(req.body.matchId) as Array<{
-          fixture?: unknown;
-          odds?: Array<{ id?: number; name?: string; values?: Array<{ value: string; odd: string }> }>;
-          bookmakers?: Array<{ id: number; name: string; bets: unknown[] }>;
-        }>;
-        if (liveOdds.length > 0 && liveOdds[0]) {
-          const entry = liveOdds[0];
-          if (Array.isArray(entry.bookmakers) && entry.bookmakers.length > 0) {
-            // Already in bookmaker format
-            bookmakers = entry.bookmakers;
-          } else if (Array.isArray(entry.odds) && entry.odds.length > 0) {
-            // Live format: odds[] → convert to single bookmaker with bets
-            bookmakers = [{
-              id: 0,
-              name: 'Live Odds',
-              bets: entry.odds.map((o) => ({
-                id: o.id ?? 0,
-                name: o.name ?? '',
-                values: o.values ?? [],
-              })),
-            }];
-          }
-        }
-      } catch {
-        // Live odds failed, will try fallbacks
-      }
+      const resolved = await resolveMatchOdds({
+        matchId: req.body.matchId,
+        homeTeam: req.body.homeTeam,
+        awayTeam: req.body.awayTeam,
+        kickoffTimestamp: req.body.kickoffTimestamp,
+        leagueName: req.body.leagueName,
+        leagueCountry: req.body.leagueCountry,
+        status: req.body.status,
+        matchMinute: req.body.matchMinute,
+        consumer: 'proxy-route',
+      });
 
-      // 2. Fallback to The Odds API if live returned nothing
-      if (bookmakers.length === 0 && req.body.homeTeam && req.body.awayTeam) {
-        oddsSource = 'the-odds-api';
-        try {
-          app.log.info(`[odds] Trying The Odds API fallback for "${req.body.homeTeam} vs ${req.body.awayTeam}"`);
-          const theOddsResult = await fetchTheOddsLive(
-            req.body.homeTeam,
-            req.body.awayTeam,
-            Number(req.body.matchId),
-            req.body.kickoffTimestamp,
-          );
-          if (theOddsResult && Array.isArray(theOddsResult.bookmakers) && theOddsResult.bookmakers.length > 0) {
-            bookmakers = theOddsResult.bookmakers;
-            app.log.info(`[odds] The Odds API returned ${theOddsResult.bookmakers.length} bookmakers`);
-          }
-        } catch (oddsErr) {
-          app.log.warn(oddsErr, '[odds] The Odds API fallback failed');
-        }
-      }
-
-      // 3. Fallback to pre-match odds if still nothing
-      if (bookmakers.length === 0) {
-        oddsSource = 'pre-match';
-        try {
-          const preMatch = await fetchPreMatchOdds(req.body.matchId) as Array<{
-            bookmakers?: Array<{ id: number; name: string; bets: unknown[] }>;
-          }>;
-          if (preMatch.length > 0 && preMatch[0] && Array.isArray(preMatch[0].bookmakers)) {
-            bookmakers = preMatch[0].bookmakers;
-          }
-        } catch {
-          // Pre-match odds also failed
-        }
-      }
-
-      // 4. Return in the format expected by frontend: { response: [{ bookmakers: [...] }] }
       return {
-        odds_source: oddsSource,
-        response: bookmakers.length > 0
-          ? [{ fixture: { id: Number(req.body.matchId) }, bookmakers }]
-          : [],
+        odds_source: resolved.oddsSource === 'none' ? 'pre-match' : resolved.oddsSource,
+        response: resolved.response,
       };
     } catch (err) {
       app.log.error(err, 'proxy/football/odds failed');
@@ -113,7 +71,7 @@ export async function proxyRoutes(app: FastifyInstance) {
     }
   });
 
-  // POST /api/proxy/football/scout — aggregated match scout data
+  // POST /api/proxy/football/scout - aggregated match scout data
   app.post<{
     Body: { fixtureId: string; leagueId?: number; season?: number; status?: string };
   }>('/api/proxy/football/scout', async (req, reply) => {
@@ -181,25 +139,38 @@ export async function proxyRoutes(app: FastifyInstance) {
 
         if (provider === 'gemini') {
           const text = await callGemini(prompt, model);
-          audit({ category: 'AI', action: 'AI_CALL', actor: 'pipeline', duration_ms: Date.now() - aiStart, metadata: { provider, model, promptLength: prompt.length, responseLength: text.length } });
+          audit({
+            category: 'AI',
+            action: 'AI_CALL',
+            actor: 'pipeline',
+            duration_ms: Date.now() - aiStart,
+            metadata: { provider, model, promptLength: prompt.length, responseLength: text.length },
+          });
           return { text };
         }
 
         return reply.code(400).send({ error: `AI provider "${provider}" not yet supported on server` });
       } catch (err) {
-        audit({ category: 'AI', action: 'AI_CALL', outcome: 'FAILURE', actor: 'pipeline', duration_ms: Date.now() - aiStart, error: err instanceof Error ? err.message : String(err) });
+        audit({
+          category: 'AI',
+          action: 'AI_CALL',
+          outcome: 'FAILURE',
+          actor: 'pipeline',
+          duration_ms: Date.now() - aiStart,
+          error: err instanceof Error ? err.message : String(err),
+        });
         app.log.error(err, 'proxy/ai/analyze failed');
         return reply.code(502).send({ error: err instanceof Error ? err.message : 'AI API error' });
       }
     },
   );
 
-  // POST /api/proxy/notify/email  (placeholder — log only until SMTP configured)
+  // POST /api/proxy/notify/email  (placeholder - log only until SMTP configured)
   app.post<{ Body: { email_to: string; email_subject: string; email_body_html: string } }>(
     '/api/proxy/notify/email',
     async (req) => {
       const { email_to, email_subject } = req.body;
-      console.log(`[notify/email] To: ${email_to}, Subject: ${email_subject} (SMTP not configured — logged only)`);
+      console.log(`[notify/email] To: ${email_to}, Subject: ${email_subject} (SMTP not configured - logged only)`);
       return { sent: false, reason: 'SMTP not configured' };
     },
   );

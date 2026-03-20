@@ -21,6 +21,9 @@ vi.mock('../config.js', () => ({
     footballApiBaseUrl: 'https://v3.football.api-sports.io',
     theOddsApiKey:      'odds-key-123',
     theOddsApiBaseUrl:  'https://api.the-odds-api.com/v4',
+    liveScoreApiKey:    'live-score-key-123',
+    liveScoreApiSecret: 'live-score-secret-123',
+    liveScoreApiBaseUrl:'https://livescore-api.example.com/api-client',
     geminiApiKey:       'gemini-key-123',
     geminiModel:        'gemini-pro',
     telegramBotToken:   'bot123:TOKEN',
@@ -71,7 +74,7 @@ describe('checkAllIntegrations', () => {
     const { checkAllIntegrations } = await import('../lib/integration-health.js');
     const snapshot = await checkAllIntegrations();
 
-    expect(snapshot.services).toHaveLength(7);
+    expect(snapshot.services).toHaveLength(8);
     expect(snapshot.checkedAt).toBeTruthy();
     expect(snapshot.durationMs).toBeGreaterThanOrEqual(0);
     expect(['HEALTHY', 'DEGRADED', 'DOWN', 'NOT_CONFIGURED']).toContain(snapshot.overall);
@@ -145,6 +148,7 @@ describe('Redis probe', () => {
         redisUrl: '',
         footballApiKey: 'key', footballApiBaseUrl: 'https://x.com',
         theOddsApiKey: 'key', theOddsApiBaseUrl: 'https://x.com',
+        liveScoreApiKey: 'key', liveScoreApiSecret: 'secret', liveScoreApiBaseUrl: 'https://x.com',
         geminiApiKey: 'key', geminiModel: 'gemini',
         telegramBotToken: 'token',
         googleClientId: 'cid', googleClientSecret: 'csec',
@@ -209,6 +213,49 @@ describe('Gemini probe', () => {
     const { checkSingleIntegration } = await import('../lib/integration-health.js');
     const result = await checkSingleIntegration('gemini');
     expect(result!.status).toBe('DOWN');
+  });
+});
+
+// Live Score API probe
+
+describe('Live Score API probe', () => {
+  test('HEALTHY when live matches endpoint returns success:true', async () => {
+    global.fetch = mockFetch(200, {
+      success: true,
+      data: { match: [{ id: 1 }, { id: 2 }] },
+    });
+    const { checkSingleIntegration } = await import('../lib/integration-health.js');
+    const result = await checkSingleIntegration('live-score-api');
+    expect(result!.status).toBe('HEALTHY');
+    expect(result!.message).toContain('2');
+  });
+
+  test('DEGRADED when endpoint returns success:false', async () => {
+    global.fetch = mockFetch(200, {
+      success: false,
+      error: 'temporary issue',
+    });
+    const { checkSingleIntegration } = await import('../lib/integration-health.js');
+    const result = await checkSingleIntegration('live-score-api');
+    expect(result!.status).toBe('DEGRADED');
+  });
+
+  test('NOT_CONFIGURED when key/secret missing', async () => {
+    vi.doMock('../config.js', () => ({
+      config: {
+        redisUrl: 'redis://localhost:6379',
+        footballApiKey: 'key', footballApiBaseUrl: 'https://x.com',
+        theOddsApiKey: 'key', theOddsApiBaseUrl: 'https://x.com',
+        liveScoreApiKey: '', liveScoreApiSecret: '', liveScoreApiBaseUrl: 'https://x.com',
+        geminiApiKey: 'key', geminiModel: 'gemini',
+        telegramBotToken: 'token',
+        googleClientId: 'cid', googleClientSecret: 'csec',
+      },
+    }));
+    vi.resetModules();
+    const { checkSingleIntegration } = await import('../lib/integration-health.js');
+    const result = await checkSingleIntegration('live-score-api');
+    expect(result!.status).toBe('NOT_CONFIGURED');
   });
 });
 

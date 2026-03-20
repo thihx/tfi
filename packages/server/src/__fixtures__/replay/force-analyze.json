@@ -1,0 +1,38 @@
+{
+  "name": "force-analyze",
+  "matchId": "100",
+  "fixture": {
+    "fixture": {
+      "id": 100,
+      "date": "2026-03-20T12:00:00Z",
+      "timestamp": 1774008000,
+      "status": { "short": "1H", "elapsed": 3 }
+    },
+    "teams": {
+      "home": { "id": 1, "name": "Arsenal", "logo": "", "winner": null },
+      "away": { "id": 2, "name": "Chelsea", "logo": "", "winner": null }
+    },
+    "league": {
+      "id": 39,
+      "name": "Premier League",
+      "country": "England",
+      "logo": "",
+      "flag": null,
+      "season": 2026,
+      "round": "Regular Season - 28"
+    },
+    "goals": { "home": 0, "away": 0 },
+    "score": {}
+  },
+  "watchlistEntry": {
+    "mode": "F"
+  },
+  "statistics": [],
+  "events": [],
+  "liveOddsResponse": [],
+  "expected": {
+    "shouldPush": true,
+    "saved": false,
+    "notified": false
+  }
+}

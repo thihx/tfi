@@ -24,6 +24,13 @@ export const config = {
   theOddsApiKey: process.env['THE_ODDS_API_KEY'] || '',
   theOddsApiBaseUrl: process.env['THE_ODDS_API_BASE_URL'] || 'https://api.the-odds-api.com/v4',
 
+  // Live Score API (benchmark-only stats provider)
+  liveScoreApiKey: process.env['LIVE_SCORE_API_KEY'] || '',
+  liveScoreApiSecret: process.env['LIVE_SCORE_API_SECRET'] || '',
+  liveScoreApiBaseUrl: process.env['LIVE_SCORE_API_BASE_URL'] || 'https://livescore-api.com/api-client',
+  liveScoreBenchmarkEnabled: process.env['LIVE_SCORE_BENCHMARK_ENABLED'] === 'true',
+  liveScoreStatsFallbackEnabled: process.env['LIVE_SCORE_STATS_FALLBACK_ENABLED'] === 'true',
+
   // Redis
   redisUrl: process.env['REDIS_URL'] || '',
 
@@ -72,4 +79,7 @@ export const config = {
   pipelineLatePhaseMinute: Number(process.env['PIPELINE_LATE_PHASE_MINUTE'] || 75),
   pipelineVeryLatePhaseMinute: Number(process.env['PIPELINE_VERY_LATE_PHASE_MINUTE'] || 85),
   pipelineEndgameMinute: Number(process.env['PIPELINE_ENDGAME_MINUTE'] || 88),
+
+  // Provider sampling / observability
+  providerSamplingEnabled: process.env['PROVIDER_SAMPLING_ENABLED'] !== 'false',
 } as const;

@@ -2,9 +2,9 @@ import type { TabName } from '@/types';
 
 const TABS: { key: TabName; label: string }[] = [
   { key: 'dashboard',       label: 'Dashboard' },
-  { key: 'leagues',         label: 'Leagues' },
   { key: 'matches',         label: 'Matches' },
   { key: 'watchlist',       label: 'Watchlist' },
+  { key: 'leagues',         label: 'Leagues' },
   { key: 'recommendations', label: 'Recommendations' },
   { key: 'bet-tracker',     label: 'Investment Tracker' },
   { key: 'live-monitor',    label: 'Live Monitor' },

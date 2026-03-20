@@ -1,0 +1,89 @@
+{
+  "name": "live-odds",
+  "matchId": "100",
+  "fixture": {
+    "fixture": {
+      "id": 100,
+      "date": "2026-03-20T12:00:00Z",
+      "timestamp": 1774008000,
+      "status": { "short": "2H", "elapsed": 65 }
+    },
+    "teams": {
+      "home": { "id": 1, "name": "Arsenal", "logo": "", "winner": null },
+      "away": { "id": 2, "name": "Chelsea", "logo": "", "winner": null }
+    },
+    "league": {
+      "id": 39,
+      "name": "Premier League",
+      "country": "England",
+      "logo": "",
+      "flag": null,
+      "season": 2026,
+      "round": "Regular Season - 28"
+    },
+    "goals": { "home": 1, "away": 1 },
+    "score": {}
+  },
+  "statistics": [
+    {
+      "team": { "id": 1, "name": "Arsenal", "logo": "" },
+      "statistics": [
+        { "type": "Ball Possession", "value": "55%" },
+        { "type": "Total Shots", "value": 12 },
+        { "type": "Shots on Goal", "value": 5 },
+        { "type": "Corner Kicks", "value": 6 }
+      ]
+    },
+    {
+      "team": { "id": 2, "name": "Chelsea", "logo": "" },
+      "statistics": [
+        { "type": "Ball Possession", "value": "45%" },
+        { "type": "Total Shots", "value": 8 },
+        { "type": "Shots on Goal", "value": 3 },
+        { "type": "Corner Kicks", "value": 4 }
+      ]
+    }
+  ],
+  "events": [
+    {
+      "time": { "elapsed": 23, "extra": null },
+      "team": { "id": 1, "name": "Arsenal", "logo": "" },
+      "player": { "id": 10, "name": "Player A" },
+      "assist": { "id": null, "name": null },
+      "type": "Goal",
+      "detail": "Normal Goal",
+      "comments": null
+    },
+    {
+      "time": { "elapsed": 55, "extra": null },
+      "team": { "id": 2, "name": "Chelsea", "logo": "" },
+      "player": { "id": 20, "name": "Player B" },
+      "assist": { "id": null, "name": null },
+      "type": "Goal",
+      "detail": "Normal Goal",
+      "comments": null
+    }
+  ],
+  "liveOddsResponse": [
+    {
+      "fixture": { "id": 100 },
+      "odds": [
+        {
+          "id": 1,
+          "name": "Over/Under",
+          "values": [
+            { "value": "Over", "odd": "1.85", "handicap": "2.5" },
+            { "value": "Under", "odd": "2.00", "handicap": "2.5" }
+          ]
+        }
+      ]
+    }
+  ],
+  "expected": {
+    "shouldPush": true,
+    "oddsSource": "live",
+    "saved": false,
+    "notified": false,
+    "selectionContains": "Over 2.5"
+  }
+}

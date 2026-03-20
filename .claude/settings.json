@@ -69,7 +69,12 @@
       "Bash(node -e \":*)",
       "Bash(powershell.exe -Command \"Stop-Process -Id 15108 -Force -ErrorAction SilentlyContinue; Write-Output ''Done''\")",
       "Bash(powershell.exe -Command \"Stop-Process -Id 2232,14104 -Force; Write-Output ''Killed''\")",
-      "Bash(find /c/tfi/src -name *.css -o -name *.scss)"
+      "Bash(find /c/tfi/src -name *.css -o -name *.scss)",
+      "Bash(curl -s http://localhost:3000)",
+      "Bash(curl -s http://localhost:3001/api/health)",
+      "Bash(powershell.exe -Command \"Get-NetTCPConnection -LocalPort 3000,3001 -State Listen 2>$null | Select-Object LocalPort,OwningProcess\")",
+      "Bash(curl -s http://localhost:3001/api/jobs -H \"Authorization: Bearer test\")",
+      "Bash(curl -s -X POST http://localhost:3001/api/auth/local -H \"Content-Type: application/json\" -d '{\"\"username\"\":\"\"admin\"\",\"\"password\"\":\"\"admin\"\"}')"
     ],
     "additionalDirectories": [
       "\\tmp"

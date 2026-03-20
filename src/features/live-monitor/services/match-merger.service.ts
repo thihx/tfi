@@ -356,6 +356,8 @@ export function mergeMatchData(
       league: leagueName,
       home_team: homeName,
       away_team: awayName,
+      league_country: fx.league?.country ?? null,
+      kickoff_timestamp: fx.fixture?.timestamp ?? null,
       minute,
       score: `${homeGoals}-${awayGoals}`,
       status,

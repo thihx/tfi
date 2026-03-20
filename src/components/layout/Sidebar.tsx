@@ -57,9 +57,9 @@ const NAV_GROUPS: NavGroup[] = [
   {
     label: 'SCOUTING',
     items: [
-      { key: 'leagues',  label: 'Leagues' },
       { key: 'matches',   label: 'Matches' },
       { key: 'watchlist', label: 'Watchlist' },
+      { key: 'leagues',   label: 'Leagues' },
     ],
   },
   {

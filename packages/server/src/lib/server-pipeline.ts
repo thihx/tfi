@@ -15,24 +15,27 @@ import { sendTelegramMessage, sendTelegramPhoto } from './telegram.js';
 import { audit } from './audit.js';
 import {
   fetchFixturesByIds,
-  fetchLiveOdds,
-  fetchPreMatchOdds,
   fetchFixtureStatistics,
   fetchFixtureEvents,
   type ApiFixture,
   type ApiFixtureEvent,
   type ApiFixtureStat,
 } from './football-api.js';
-import { fetchTheOddsLive } from './the-odds-api.js';
 import * as watchlistRepo from '../repos/watchlist.repo.js';
 import { createRecommendation, getRecommendationsByMatchId } from '../repos/recommendations.repo.js';
 import { createAiPerformanceRecord } from '../repos/ai-performance.repo.js';
 import { getSettings } from '../repos/settings.repo.js';
 import { createSnapshot, getLatestSnapshot } from '../repos/match-snapshots.repo.js';
+import { resolveMatchOdds } from './odds-resolver.js';
 import {
   checkShouldProceedServer,
   checkStalenessServer,
 } from './server-pipeline-gates.js';
+import { fetchLiveScoreBenchmarkTrace } from './live-score-api.js';
+import {
+  extractStatusCode,
+  recordProviderStatsSampleSafe,
+} from './provider-sampling.js';
 
 /** Resolved pipeline settings: DB values take priority, env vars as fallback */
 interface PipelineSettings {
@@ -56,22 +59,80 @@ function parseNumSetting(raw: unknown, envDefault: number): number {
   return isFinite(n) && raw !== '' && raw !== null && raw !== undefined ? n : envDefault;
 }
 
+function buildConfigPipelineSettings(): PipelineSettings {
+  return {
+    telegramChatId: config.pipelineTelegramChatId,
+    aiModel: config.geminiModel,
+    minConfidence: config.pipelineMinConfidence,
+    minOdds: config.pipelineMinOdds,
+    minMinute: config.pipelineMinMinute,
+    maxMinute: config.pipelineMaxMinute,
+    secondHalfStartMinute: config.pipelineSecondHalfStartMinute,
+    reanalyzeMinMinutes: config.pipelineReanalyzeMinMinutes,
+    stalenessOddsDelta: config.pipelineStalenessOddsDelta,
+    latePhaseMinute: config.pipelineLatePhaseMinute,
+    veryLatePhaseMinute: config.pipelineVeryLatePhaseMinute,
+    endgameMinute: config.pipelineEndgameMinute,
+  };
+}
+
 async function loadPipelineSettings(): Promise<PipelineSettings> {
+  const fallback = buildConfigPipelineSettings();
   const db = await getSettings().catch(() => ({} as Record<string, unknown>));
   return {
-    telegramChatId: String(db['TELEGRAM_CHAT_ID'] || '') || config.pipelineTelegramChatId,
-    aiModel: String(db['AI_MODEL'] || '') || config.geminiModel,
-    minConfidence: parseNumSetting(db['MIN_CONFIDENCE'], config.pipelineMinConfidence),
-    minOdds: parseNumSetting(db['MIN_ODDS'], config.pipelineMinOdds),
-    minMinute: parseNumSetting(db['MIN_MINUTE'], config.pipelineMinMinute),
-    maxMinute: parseNumSetting(db['MAX_MINUTE'], config.pipelineMaxMinute),
-    secondHalfStartMinute: parseNumSetting(db['SECOND_HALF_START_MINUTE'], config.pipelineSecondHalfStartMinute),
-    reanalyzeMinMinutes: parseNumSetting(db['REANALYZE_MIN_MINUTES'], config.pipelineReanalyzeMinMinutes),
-    stalenessOddsDelta: parseNumSetting(db['STALENESS_ODDS_DELTA'], config.pipelineStalenessOddsDelta),
-    latePhaseMinute: parseNumSetting(db['LATE_PHASE_MINUTE'], config.pipelineLatePhaseMinute),
-    veryLatePhaseMinute: parseNumSetting(db['VERY_LATE_PHASE_MINUTE'], config.pipelineVeryLatePhaseMinute),
-    endgameMinute: parseNumSetting(db['ENDGAME_MINUTE'], config.pipelineEndgameMinute),
+    telegramChatId: String(db['TELEGRAM_CHAT_ID'] || '') || fallback.telegramChatId,
+    aiModel: String(db['AI_MODEL'] || '') || fallback.aiModel,
+    minConfidence: parseNumSetting(db['MIN_CONFIDENCE'], fallback.minConfidence),
+    minOdds: parseNumSetting(db['MIN_ODDS'], fallback.minOdds),
+    minMinute: parseNumSetting(db['MIN_MINUTE'], fallback.minMinute),
+    maxMinute: parseNumSetting(db['MAX_MINUTE'], fallback.maxMinute),
+    secondHalfStartMinute: parseNumSetting(db['SECOND_HALF_START_MINUTE'], fallback.secondHalfStartMinute),
+    reanalyzeMinMinutes: parseNumSetting(db['REANALYZE_MIN_MINUTES'], fallback.reanalyzeMinMinutes),
+    stalenessOddsDelta: parseNumSetting(db['STALENESS_ODDS_DELTA'], fallback.stalenessOddsDelta),
+    latePhaseMinute: parseNumSetting(db['LATE_PHASE_MINUTE'], fallback.latePhaseMinute),
+    veryLatePhaseMinute: parseNumSetting(db['VERY_LATE_PHASE_MINUTE'], fallback.veryLatePhaseMinute),
+    endgameMinute: parseNumSetting(db['ENDGAME_MINUTE'], fallback.endgameMinute),
   };
+}
+
+const defaultPipelineDeps = {
+  fetchFixtureStatistics,
+  fetchFixtureEvents,
+  resolveMatchOdds,
+  getRecommendationsByMatchId,
+  getLatestSnapshot,
+  createSnapshot,
+  callGemini,
+  createRecommendation,
+  createAiPerformanceRecord,
+  sendTelegramMessage,
+  sendTelegramPhoto,
+  fetchLiveScoreBenchmarkTrace,
+};
+
+type PipelineDeps = typeof defaultPipelineDeps;
+
+export interface PipelineExecutionOptions {
+  shadowMode?: boolean;
+  sampleProviderData?: boolean;
+  skipSettingsLoad?: boolean;
+  dependencies?: Partial<PipelineDeps>;
+  previousRecommendations?: Array<{
+    minute: number | null;
+    odds: number | null;
+    bet_market: string;
+    selection: string;
+    score: string;
+    result?: string;
+    confidence?: number | null;
+    reasoning?: string;
+  }> | null;
+  previousSnapshot?: {
+    minute: number;
+    home_score: number;
+    away_score: number;
+    odds: Record<string, unknown>;
+  } | null;
 }
 
 // ==================== Types ====================
@@ -125,6 +186,14 @@ interface DerivedInsights {
   intensity: 'low' | 'medium' | 'high';
 }
 
+type StatsSource = 'api-football' | 'live-score-api-fallback';
+type EvidenceMode =
+  | 'full_live_data'
+  | 'stats_only'
+  | 'odds_events_only_degraded'
+  | 'events_only_degraded'
+  | 'low_evidence';
+
 interface ParsedAiResponse {
   should_push: boolean;
   ai_should_push: boolean;
@@ -141,7 +210,7 @@ interface ParsedAiResponse {
   custom_condition_matched: boolean;
 }
 
-interface MatchPipelineResult {
+export interface MatchPipelineResult {
   matchId: string;
   success: boolean;
   shouldPush: boolean;
@@ -150,6 +219,21 @@ interface MatchPipelineResult {
   saved: boolean;
   notified: boolean;
   error?: string;
+  debug?: {
+    shadowMode: boolean;
+    skippedAt?: 'proceed' | 'staleness';
+    skipReason?: string;
+    oddsSource?: string;
+    oddsAvailable?: boolean;
+    statsAvailable?: boolean;
+    statsSource?: StatsSource;
+    evidenceMode?: EvidenceMode;
+    statsFallbackUsed?: boolean;
+    statsFallbackReason?: string;
+    prompt?: string;
+    aiText?: string;
+    parsed?: Record<string, unknown>;
+  };
 }
 
 export interface PipelineResult {
@@ -178,6 +262,52 @@ function toNumber(v: unknown): number | null {
   if (v === null || v === undefined || v === '') return null;
   const n = Number(v);
   return isNaN(n) ? null : n;
+}
+
+function summarizeStatsCoverage(
+  statsCompact: StatsCompact,
+  statsRaw: ApiFixtureStat[],
+  eventsRaw: ApiFixtureEvent[],
+  statsError: unknown,
+  eventsError: unknown,
+): Record<string, unknown> {
+  const fields = Object.entries(statsCompact);
+  const populated = fields.filter(([, value]) => value.home != null || value.away != null).length;
+  return {
+    team_count: statsRaw.length,
+    event_count: eventsRaw.length,
+    populated_stat_pairs: populated,
+    total_stat_pairs: fields.length,
+    has_possession: statsCompact.possession.home != null || statsCompact.possession.away != null,
+    has_shots: statsCompact.shots.home != null || statsCompact.shots.away != null,
+    has_shots_on_target: statsCompact.shots_on_target.home != null || statsCompact.shots_on_target.away != null,
+    has_corners: statsCompact.corners.home != null || statsCompact.corners.away != null,
+    stats_fetch_ok: !statsError,
+    events_fetch_ok: !eventsError,
+  };
+}
+
+function countPrimaryPopulatedStatPairs(statsCompact: StatsCompact): number {
+  const tracked = [
+    statsCompact.possession,
+    statsCompact.shots,
+    statsCompact.shots_on_target,
+    statsCompact.corners,
+    statsCompact.fouls,
+  ];
+  return tracked.filter((value) => value.home != null && value.away != null).length;
+}
+
+function deriveEvidenceMode(
+  statsAvailable: boolean,
+  oddsAvailable: boolean,
+  eventsCompact: EventCompact[],
+): EvidenceMode {
+  if (statsAvailable && oddsAvailable) return 'full_live_data';
+  if (statsAvailable && !oddsAvailable) return 'stats_only';
+  if (!statsAvailable && oddsAvailable && eventsCompact.length > 0) return 'odds_events_only_degraded';
+  if (!statsAvailable && !oddsAvailable && eventsCompact.length > 0) return 'events_only_degraded';
+  return 'low_evidence';
 }
 
 // ==================== Derive Insights from Events ====================
@@ -865,8 +995,12 @@ async function processMatch(
   fixture: ApiFixture,
   watchlistEntry: watchlistRepo.WatchlistRow,
   settings: PipelineSettings,
+  options: PipelineExecutionOptions = {},
 ): Promise<MatchPipelineResult> {
   const matchDisplay = `${fixture.teams?.home?.name || watchlistEntry.home_team} vs ${fixture.teams?.away?.name || watchlistEntry.away_team}`;
+  const deps: PipelineDeps = { ...defaultPipelineDeps, ...options.dependencies };
+  const shadowMode = options.shadowMode === true;
+  const sampleProviderData = options.sampleProviderData !== false;
 
   try {
     const homeName = fixture.teams?.home?.name || watchlistEntry.home_team;
@@ -882,22 +1016,29 @@ async function processMatch(
     const forceAnalyze = (watchlistEntry.mode || 'B').toUpperCase() === 'F';
 
     // 1. Fetch stats + events in parallel
-    const [statsRaw, eventsRaw] = await Promise.all([
-      fetchFixtureStatistics(matchId).catch(() => [] as ApiFixtureStat[]),
-      fetchFixtureEvents(matchId).catch(() => [] as ApiFixtureEvent[]),
+    const statsStartedAt = Date.now();
+    let statsError: unknown = null;
+    let eventsError: unknown = null;
+    const [apiStatsRaw, apiEventsRaw] = await Promise.all([
+      deps.fetchFixtureStatistics(matchId).catch((err) => {
+        statsError = err;
+        return [] as ApiFixtureStat[];
+      }),
+      deps.fetchFixtureEvents(matchId).catch((err) => {
+        eventsError = err;
+        return [] as ApiFixtureEvent[];
+      }),
     ]);
 
-    const homeStats = statsRaw[0]?.statistics || [];
-    const awayStats = statsRaw[1]?.statistics || [];
-    const statsCompact = buildStatsCompact(homeStats, awayStats);
-    const eventsCompact = buildEventsCompact(eventsRaw, homeTeamId, awayTeamId, homeName, awayName);
-    const derivedInsights = deriveInsightsFromEvents(eventsCompact, minute, homeName, awayName);
-
-    // 2. Check should proceed before fetching odds / AI
-    const proceed = checkShouldProceedServer(
+    const homeStats = apiStatsRaw[0]?.statistics || [];
+    const awayStats = apiStatsRaw[1]?.statistics || [];
+    const apiStatsCompact = buildStatsCompact(homeStats, awayStats);
+    const apiEventsCompact = buildEventsCompact(apiEventsRaw, homeTeamId, awayTeamId, homeName, awayName);
+    const apiCoverageFlags = summarizeStatsCoverage(apiStatsCompact, apiStatsRaw, apiEventsRaw, statsError, eventsError);
+    const apiProceed = checkShouldProceedServer(
       status,
       minute,
-      statsCompact,
+      apiStatsCompact,
       {
         minMinute: settings.minMinute,
         maxMinute: settings.maxMinute,
@@ -905,19 +1046,121 @@ async function processMatch(
       },
       forceAnalyze,
     );
+
+    if (sampleProviderData) {
+      void recordProviderStatsSampleSafe({
+        match_id: matchId,
+        match_minute: minute,
+        match_status: status,
+        provider: 'api-football',
+        consumer: shadowMode ? 'replay' : 'server-pipeline',
+        success: !statsError && !eventsError,
+        latency_ms: Date.now() - statsStartedAt,
+        status_code: extractStatusCode(statsError ?? eventsError),
+        error: [statsError, eventsError]
+          .filter(Boolean)
+          .map((err) => err instanceof Error ? err.message : String(err))
+          .join(' | '),
+        raw_payload: {
+          statistics: apiStatsRaw,
+          events: apiEventsRaw,
+        },
+        normalized_payload: apiStatsCompact,
+        coverage_flags: apiCoverageFlags,
+      });
+    }
+
+    let liveScoreTrace: Awaited<ReturnType<typeof fetchLiveScoreBenchmarkTrace>> | null = null;
+    if (config.liveScoreBenchmarkEnabled || config.liveScoreStatsFallbackEnabled) {
+      liveScoreTrace = await deps.fetchLiveScoreBenchmarkTrace(fixture);
+    }
+
+    if (sampleProviderData && liveScoreTrace) {
+      void recordProviderStatsSampleSafe({
+        match_id: matchId,
+        match_minute: minute,
+        match_status: status,
+        provider: 'live-score-api',
+        consumer: shadowMode ? 'replay' : 'server-pipeline',
+        success: liveScoreTrace.error == null && liveScoreTrace.matched,
+        latency_ms: liveScoreTrace.latencyMs,
+        status_code: liveScoreTrace.statusCode,
+        error: liveScoreTrace.error ?? '',
+        raw_payload: {
+          matched_match: liveScoreTrace.matchedMatch,
+          stats: liveScoreTrace.rawStats,
+          events: liveScoreTrace.rawEvents,
+          candidate_count: liveScoreTrace.rawLiveMatches.length,
+        },
+        normalized_payload: liveScoreTrace.statsCompact,
+        coverage_flags: liveScoreTrace.coverageFlags,
+      });
+    }
+
+    let statsCompact = apiStatsCompact;
+    let eventsCompact = apiEventsCompact;
+    let derivedInsights = deriveInsightsFromEvents(eventsCompact, minute, homeName, awayName);
+    let proceed = apiProceed;
+    let statsSource: StatsSource = 'api-football';
+    let statsFallbackUsed = false;
+    let statsFallbackReason = '';
+
+    if (config.liveScoreStatsFallbackEnabled && !apiProceed.statsAvailable) {
+      if (!liveScoreTrace || liveScoreTrace.error || !liveScoreTrace.matched) {
+        statsFallbackReason = `Live Score fallback unavailable: ${liveScoreTrace?.error || 'NO_LIVE_SCORE_MATCH'}`;
+      } else {
+        const liveScoreStatsCompact = liveScoreTrace.statsCompact as unknown as StatsCompact;
+        const liveScoreEventsCompact = buildEventsCompact(
+          liveScoreTrace.normalizedEvents,
+          homeTeamId,
+          awayTeamId,
+          homeName,
+          awayName,
+        );
+        const liveScoreProceed = checkShouldProceedServer(
+          status,
+          minute,
+          liveScoreStatsCompact,
+          {
+            minMinute: settings.minMinute,
+            maxMinute: settings.maxMinute,
+            secondHalfStartMinute: settings.secondHalfStartMinute,
+          },
+          forceAnalyze,
+        );
+        const apiPrimaryPairs = countPrimaryPopulatedStatPairs(apiStatsCompact);
+        const liveScorePrimaryPairs = countPrimaryPopulatedStatPairs(liveScoreStatsCompact);
+
+        if (liveScoreProceed.statsAvailable && liveScorePrimaryPairs > apiPrimaryPairs) {
+          statsCompact = liveScoreStatsCompact;
+          eventsCompact = liveScoreEventsCompact;
+          derivedInsights = deriveInsightsFromEvents(eventsCompact, minute, homeName, awayName);
+          proceed = liveScoreProceed;
+          statsSource = 'live-score-api-fallback';
+          statsFallbackUsed = true;
+          statsFallbackReason = `API-Sports stats unavailable (${apiProceed.statsMeta.statsQuality}); Live Score fallback accepted (${liveScoreProceed.statsMeta.statsQuality})`;
+        } else {
+          statsFallbackReason = `Live Score fallback rejected: api_pairs=${apiPrimaryPairs}, live_pairs=${liveScorePrimaryPairs}, live_quality=${liveScoreProceed.statsMeta.statsQuality}`;
+        }
+      }
+    }
+
+    // 2. Check should proceed before fetching odds / AI
     const statsAvailable = proceed.statsAvailable;
     if (!proceed.shouldProceed && !forceAnalyze) {
-      audit({
-        category: 'PIPELINE',
-        action: 'PIPELINE_MATCH_SKIPPED',
-        outcome: 'SKIPPED',
-        actor: 'auto-pipeline',
-        metadata: {
-          matchId,
-          matchDisplay,
-          reason: proceed.reason,
-        },
-      });
+      if (!shadowMode) {
+        audit({
+          category: 'PIPELINE',
+          action: 'PIPELINE_MATCH_SKIPPED',
+          outcome: 'SKIPPED',
+          actor: 'auto-pipeline',
+          metadata: {
+            matchId,
+            matchDisplay,
+            reason: proceed.reason,
+          },
+        });
+      }
 
       return {
         matchId,
@@ -927,71 +1170,72 @@ async function processMatch(
         confidence: 0,
         saved: false,
         notified: false,
+        debug: {
+          shadowMode,
+          skippedAt: 'proceed',
+          skipReason: proceed.reason,
+          statsAvailable,
+          statsSource,
+          statsFallbackUsed,
+          statsFallbackReason: statsFallbackReason || undefined,
+        },
       };
     }
 
-    // 3. Fetch odds (live first, fallback to pre-match, then The Odds API)
+    // 3. Fetch odds (live first, The Odds exact-event fallback, then pre-match)
     let oddsCanonical: OddsCanonical = {};
     let oddsAvailable = false;
     let oddsSource: string = 'none';
     let oddsFetchedAt: string | null = null;
 
-    const liveOdds = await fetchLiveOdds(matchId).catch(() => []);
-    const liveResult = buildOddsCanonical(liveOdds);
-    if (liveResult.available) {
-      oddsCanonical = liveResult.canonical;
+    const resolvedOdds = await deps.resolveMatchOdds({
+      matchId,
+      homeTeam: homeName,
+      awayTeam: awayName,
+      kickoffTimestamp: fixture.fixture?.timestamp,
+      leagueName: fixture.league?.name,
+      leagueCountry: fixture.league?.country,
+      status,
+      matchMinute: minute,
+      consumer: shadowMode ? 'replay' : 'server-pipeline',
+      sampleProviderData,
+    });
+
+    oddsSource = resolvedOdds.oddsSource;
+    oddsFetchedAt = resolvedOdds.oddsFetchedAt;
+
+    const oddsResult = buildOddsCanonical(resolvedOdds.response);
+    if (oddsResult.available) {
+      oddsCanonical = oddsResult.canonical;
       oddsAvailable = true;
-      oddsSource = 'live';
-      oddsFetchedAt = new Date().toISOString();
-    }
-
-    if (!oddsAvailable) {
-      // Try pre-match odds
-      const preMatchOdds = await fetchPreMatchOdds(matchId).catch(() => []);
-      const preResult = buildOddsCanonical(preMatchOdds);
-      if (preResult.available) {
-        oddsCanonical = preResult.canonical;
-        oddsAvailable = true;
-        oddsSource = 'pre-match';
-        oddsFetchedAt = new Date().toISOString();
-      }
-    }
-
-    if (!oddsAvailable) {
-      // Try The Odds API fallback
-      const kickoff = fixture.fixture?.timestamp;
-      const theOddsResult = await fetchTheOddsLive(homeName, awayName, Number(matchId), kickoff).catch(() => null);
-      if (theOddsResult && Array.isArray(theOddsResult.bookmakers) && theOddsResult.bookmakers.length > 0) {
-        const fallback = buildOddsCanonical([theOddsResult]);
-        if (fallback.available) {
-          oddsCanonical = fallback.canonical;
-          oddsAvailable = true;
-          oddsSource = 'the-odds-api';
-          oddsFetchedAt = new Date().toISOString();
-        }
-      }
     }
 
     // 4. Load prior context for staleness + prompt
     const [prevRecs, latestSnapshot] = await Promise.all([
-      getRecommendationsByMatchId(matchId).catch(() => []),
-      getLatestSnapshot(matchId).catch(() => null),
+      options.previousRecommendations !== undefined
+        ? Promise.resolve(options.previousRecommendations ?? [])
+        : deps.getRecommendationsByMatchId(matchId).catch(() => []),
+      options.previousSnapshot !== undefined
+        ? Promise.resolve(options.previousSnapshot)
+        : deps.getLatestSnapshot(matchId).catch(() => null),
     ]);
 
     // Track latest state for future gating and context.
-    await createSnapshot({
-      match_id: matchId,
-      minute,
-      status,
-      home_score: homeGoals,
-      away_score: awayGoals,
-      stats: statsCompact as unknown as Record<string, unknown>,
-      events: eventsCompact as unknown[],
-      odds: oddsCanonical as unknown as Record<string, unknown>,
-      source: 'server-pipeline',
-    }).catch((err) => {
-      console.warn(`[pipeline] Snapshot save failed for ${matchId}:`, err instanceof Error ? err.message : String(err));
-    });
+    if (!shadowMode) {
+      await deps.createSnapshot({
+        match_id: matchId,
+        minute,
+        status,
+        home_score: homeGoals,
+        away_score: awayGoals,
+        stats: statsCompact as unknown as Record<string, unknown>,
+        events: eventsCompact as unknown[],
+        odds: oddsCanonical as unknown as Record<string, unknown>,
+        source: statsFallbackUsed ? 'server-pipeline:live-score-fallback' : 'server-pipeline',
+      }).catch((err) => {
+        console.warn(`[pipeline] Snapshot save failed for ${matchId}:`, err instanceof Error ? err.message : String(err));
+      });
+    }
 
     const staleness = checkStalenessServer({
       minute,
@@ -1022,18 +1266,20 @@ async function processMatch(
       forceAnalyze,
     });
     if (staleness.isStale && !forceAnalyze) {
-      audit({
-        category: 'PIPELINE',
-        action: 'PIPELINE_MATCH_SKIPPED',
-        outcome: 'SKIPPED',
-        actor: 'auto-pipeline',
-        metadata: {
-          matchId,
-          matchDisplay,
-          reason: staleness.reason,
-          baseline: staleness.baseline,
-        },
-      });
+      if (!shadowMode) {
+        audit({
+          category: 'PIPELINE',
+          action: 'PIPELINE_MATCH_SKIPPED',
+          outcome: 'SKIPPED',
+          actor: 'auto-pipeline',
+          metadata: {
+            matchId,
+            matchDisplay,
+            reason: staleness.reason,
+            baseline: staleness.baseline,
+          },
+        });
+      }
 
       return {
         matchId,
@@ -1043,8 +1289,21 @@ async function processMatch(
         confidence: 0,
         saved: false,
         notified: false,
+        debug: {
+          shadowMode,
+          skippedAt: 'staleness',
+          skipReason: staleness.reason,
+          oddsSource,
+          oddsAvailable,
+          statsAvailable,
+          statsSource,
+          statsFallbackUsed,
+          statsFallbackReason: statsFallbackReason || undefined,
+        },
       };
     }
+
+    const evidenceMode = deriveEvidenceMode(statsAvailable, oddsAvailable, eventsCompact);
 
     // 5. Get previous recommendations for prompt context
     const prevRecsContext = prevRecs.slice(0, 5).map((r) => ({
@@ -1066,7 +1325,7 @@ async function processMatch(
 
     const prompt = buildServerPrompt({
       homeName, awayName, league, minute, score, status,
-      statsCompact, statsAvailable,
+      statsCompact, statsAvailable, statsSource, evidenceMode,
       eventsCompact: eventsCompact.slice(-8),
       oddsCanonical, oddsAvailable, oddsSource, oddsFetchedAt,
       derivedInsights: !statsAvailable ? derivedInsights : null,
@@ -1078,11 +1337,12 @@ async function processMatch(
       previousRecommendations: prevRecsContext,
       preMatchPredictionSummary: '',
       mode: watchlistEntry.mode || 'B',
+      statsFallbackReason,
     }, settings);
 
     // 6. Call Gemini
     const model = settings.aiModel;
-    const aiText = await callGemini(prompt, model);
+    const aiText = await deps.callGemini(prompt, model);
 
     // 7. Parse response
     const parsed = parseAiResponse(aiText, oddsCanonical, minute, settings);
@@ -1093,9 +1353,9 @@ async function processMatch(
     let recId: number | null = null;
     let notified = false;
 
-    if (shouldSave) {
+    if (shouldSave && !shadowMode) {
       const mappedOdd = extractOddsFromSelection(parsed.selection, oddsCanonical);
-      const rec = await createRecommendation({
+      const rec = await deps.createRecommendation({
         match_id: matchId,
         timestamp: new Date().toISOString(),
         league,
@@ -1133,7 +1393,7 @@ async function processMatch(
       // Auto-create AI performance tracking record (F3 audit fix)
       if (model) {
         try {
-          await createAiPerformanceRecord({
+          await deps.createAiPerformanceRecord({
             recommendation_id: rec.id,
             match_id: matchId,
             ai_model: model,
@@ -1162,7 +1422,7 @@ async function processMatch(
               const caption = buildTelegramCaption(
                 matchDisplay, league, score, minute, status, parsed, eventsCompact, model, mode,
               );
-              await sendTelegramPhoto(settings.telegramChatId, chartUrl, caption);
+              await deps.sendTelegramPhoto(settings.telegramChatId, chartUrl, caption);
               photoSent = true;
             } catch {
               // QuickChart or Telegram photo failed — fall through to text
@@ -1175,7 +1435,7 @@ async function processMatch(
               statsCompact, statsAvailable, eventsCompact, model, mode,
             );
             for (const chunk of chunkMessage(msg)) {
-              await sendTelegramMessage(settings.telegramChatId, chunk);
+              await deps.sendTelegramMessage(settings.telegramChatId, chunk);
             }
           }
           notified = true;
@@ -1185,35 +1445,52 @@ async function processMatch(
       }
     }
 
-    audit({
-      category: 'PIPELINE',
-      action: 'PIPELINE_MATCH_ANALYZED',
-      outcome: parsed.should_push ? 'SUCCESS' : 'SKIPPED',
-      actor: 'auto-pipeline',
-      metadata: {
-        matchId, matchDisplay, selection: parsed.selection,
-        confidence: parsed.confidence, shouldPush: parsed.should_push,
-        saved, recId, notified,
-      },
-    });
+    if (!shadowMode) {
+      audit({
+        category: 'PIPELINE',
+        action: 'PIPELINE_MATCH_ANALYZED',
+        outcome: parsed.should_push ? 'SUCCESS' : 'SKIPPED',
+        actor: 'auto-pipeline',
+        metadata: {
+          matchId, matchDisplay, selection: parsed.selection,
+          confidence: parsed.confidence, shouldPush: parsed.should_push,
+          saved, recId, notified,
+        },
+      });
+    }
 
     return {
       matchId, success: true, shouldPush: parsed.should_push,
       selection: parsed.selection, confidence: parsed.confidence,
       saved, notified,
+      debug: {
+        shadowMode,
+        oddsSource,
+        oddsAvailable,
+        statsAvailable,
+        statsSource,
+        evidenceMode,
+        statsFallbackUsed,
+        statsFallbackReason: statsFallbackReason || undefined,
+        prompt,
+        aiText,
+        parsed: parsed as unknown as Record<string, unknown>,
+      },
     };
   } catch (error) {
     const errMsg = error instanceof Error ? error.message : String(error);
     console.error(`[pipeline] Error processing match ${matchId}:`, errMsg);
 
-    audit({
-      category: 'PIPELINE',
-      action: 'PIPELINE_MATCH_ERROR',
-      outcome: 'FAILURE',
-      actor: 'auto-pipeline',
-      error: errMsg,
-      metadata: { matchId },
-    });
+    if (!shadowMode) {
+      audit({
+        category: 'PIPELINE',
+        action: 'PIPELINE_MATCH_ERROR',
+        outcome: 'FAILURE',
+        actor: 'auto-pipeline',
+        error: errMsg,
+        metadata: { matchId },
+      });
+    }
 
     return {
       matchId, success: false, shouldPush: false,
@@ -1224,6 +1501,16 @@ async function processMatch(
 }
 
 // ==================== Run Pipeline for Batch ====================
+
+export async function runPipelineForFixture(
+  matchId: string,
+  fixture: ApiFixture,
+  watchlistEntry: watchlistRepo.WatchlistRow,
+  options: PipelineExecutionOptions = {},
+): Promise<MatchPipelineResult> {
+  const settings = options.skipSettingsLoad ? buildConfigPipelineSettings() : await loadPipelineSettings();
+  return processMatch(matchId, fixture, watchlistEntry, settings, options);
+}
 
 /**
  * Run the AI analysis pipeline for a batch of live match IDs.
@@ -1292,6 +1579,8 @@ function buildServerPrompt(data: {
   status: string;
   statsCompact: StatsCompact;
   statsAvailable: boolean;
+  statsSource: StatsSource;
+  evidenceMode: EvidenceMode;
   eventsCompact: EventCompact[];
   oddsCanonical: OddsCanonical;
   oddsAvailable: boolean;
@@ -1308,6 +1597,7 @@ function buildServerPrompt(data: {
   previousRecommendations: Array<Record<string, unknown>>;
   preMatchPredictionSummary: string;
   mode: string;
+  statsFallbackReason: string;
 }, settings: PipelineSettings): string {
   const MIN_CONFIDENCE = settings.minConfidence;
   const MIN_ODDS = settings.minOdds;
@@ -1408,8 +1698,11 @@ MATCH CONTEXT
 - Minute: ${data.minute}
 - Score: ${data.score}
 - Status: ${data.status}
+- Stats Source: ${data.statsSource}
+- Evidence Mode: ${data.evidenceMode}
 - Force Analyze: ${data.forceAnalyze ? 'YES (watchlist force mode)' : 'NO (auto-pipeline)'}
 - Is Manual Push: NO
+${data.statsFallbackReason ? `- Stats Fallback Note: ${data.statsFallbackReason}` : ''}
 
 ========================
 LIVE STATS (COMPACT JSON)
@@ -1417,6 +1710,7 @@ LIVE STATS (COMPACT JSON)
 ${JSON.stringify(data.statsCompact)}
 
 STATS_AVAILABLE: ${data.statsAvailable}
+STATS_SOURCE: ${data.statsSource}
 ${!data.statsAvailable && data.derivedInsights ? `
 ========================
 DERIVED INSIGHTS (FROM EVENTS)
@@ -1425,7 +1719,7 @@ ${JSON.stringify(data.derivedInsights)}
 These insights are DERIVED from match events. Reduce confidence by 1 compared to full stats.
 ` : ''}
 ========================
-${data.oddsSource === 'pre-match' ? 'PRE-MATCH ODDS (REFERENCE ONLY)' : data.oddsSource === 'the-odds-api' ? 'LIVE ODDS (The Odds API fallback)' : 'LIVE ODDS SNAPSHOT (CANONICAL JSON)'}
+${!data.oddsAvailable ? 'NO USABLE ODDS AVAILABLE' : data.oddsSource === 'pre-match' ? 'PRE-MATCH ODDS (REFERENCE ONLY)' : data.oddsSource === 'the-odds-api' ? 'LIVE ODDS (The Odds API fallback)' : 'LIVE ODDS SNAPSHOT (CANONICAL JSON)'}
 ========================
 ${JSON.stringify(data.oddsCanonical)}
 
@@ -1434,7 +1728,7 @@ ODDS_SOURCE: ${data.oddsSource}
 ODDS_FETCHED_AT: ${data.oddsFetchedAt ?? 'unknown'} (match minute at fetch: ${data.minute})
 CURRENT_TOTAL_GOALS: ${data.currentTotalGoals}
 CURRENT_TOTAL_CORNERS: ${currentTotalCorners}
-${data.oddsSource === 'pre-match' ? '\nCAUTION: These are PRE-MATCH opening odds fetched before kickoff. They do NOT reflect current in-play situation. Use only as directional reference — do NOT base stake/confidence on these odds alone.\n' : ''}${data.oddsSource === 'the-odds-api' ? '\nNOTE: These odds are from The Odds API (fallback). They may have slight delay vs Football API live odds.\n' : ''}
+${data.oddsSource === 'pre-match' ? '\nCAUTION: These are PRE-MATCH opening odds fetched before kickoff. Live odds are unavailable for this match.\nYou CAN still use them as a baseline for market direction and value, but adjust confidence based on the current game state.\n' : ''}${data.oddsSource === 'the-odds-api' ? '\nNOTE: These odds are from The Odds API exact-event fallback. They may have slight delay vs Football API live odds.\n' : ''}${!data.oddsAvailable ? '\nNO_USABLE_ODDS: Treat odds as unavailable and be conservative.\n' : ''}
 ODDS METHODOLOGY:
 - Odds are the BEST available across multiple bookmakers (highest price per outcome).
 - Markets with invalid implied-probability margins have been PRE-REMOVED by the system.
@@ -1447,6 +1741,8 @@ RECENT EVENTS (LAST 8)
 ========================
 ${JSON.stringify(data.eventsCompact)}
 
+EVENT_COUNT: ${data.eventsCompact.length}
+
 ${prevRecsSection}
 ========================
 CONFIG / MODE
@@ -1454,6 +1750,7 @@ CONFIG / MODE
 - MIN_CONFIDENCE: ${MIN_CONFIDENCE}
 - MIN_ODDS: ${MIN_ODDS}
 - CUSTOM_CONDITIONS: ${data.customConditions || '(none)'}
+- EVIDENCE_MODE: ${data.evidenceMode}
 
 ========================
 AI-RECOMMENDED CONDITION
@@ -1493,6 +1790,14 @@ DATA RULES:
 - STATS only (no odds): should_push = false normally, exception only if extremely clear.
 - NO STATS but DERIVED INSIGHTS present: may recommend with confidence cap 7.
 - NO STATS and no events: should_push = false normally.
+
+EVIDENCE MODE RULES:
+- full_live_data: Normal evaluation path. All supported markets allowed if the rest of the rules pass.
+- stats_only: Stats are usable but odds are unavailable. Default should_push=false. Exceptional cases only.
+- odds_events_only_degraded: Odds usable, stats unavailable, events available. ONLY evaluate Over/Under or Asian Handicap. DO NOT recommend 1X2. DO NOT recommend BTTS. confidence cap 6. stake cap 3%.
+- events_only_degraded: Events available but stats and odds are both unavailable. should_push=false normally.
+- low_evidence: No usable stats, no usable odds, and no meaningful events. should_push=false.
+- If STATS_SOURCE = live-score-api-fallback, treat that fallback as the primary live stats source for this run. Do NOT blend or average it with missing API-Sports stats.
 
 LATE GAME DISCIPLINE:
 - minute >= ${LATE_PHASE_MINUTE}: be more conservative.

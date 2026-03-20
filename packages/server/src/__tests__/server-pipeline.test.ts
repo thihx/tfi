@@ -21,6 +21,8 @@ vi.mock('../config.js', () => ({
     pipelineSecondHalfStartMinute: 5,
     pipelineReanalyzeMinMinutes: 10,
     pipelineStalenessOddsDelta: 0.1,
+    liveScoreBenchmarkEnabled: true,
+    liveScoreStatsFallbackEnabled: true,
   },
 }));
 
@@ -113,7 +115,147 @@ vi.mock('../lib/football-api.js', () => ({
 }));
 
 vi.mock('../lib/the-odds-api.js', () => ({
-  fetchTheOddsLive: vi.fn().mockResolvedValue(null),
+  fetchTheOddsLiveDetailed: vi.fn().mockResolvedValue({
+    result: null,
+    matchedEvent: null,
+    rawEventOdds: null,
+    sportKey: null,
+    scannedSportKeys: [],
+    error: 'NO_EXACT_EVENT_MATCH',
+  }),
+}));
+
+vi.mock('../lib/live-score-api.js', () => ({
+  fetchLiveScoreBenchmarkTrace: vi.fn().mockResolvedValue({
+    matched: true,
+    providerMatchId: '695741',
+    providerFixtureId: '1840649',
+    matchedMatch: {
+      id: 695741,
+      fixture_id: 1840649,
+      home: { name: 'Team A' },
+      away: { name: 'Team B' },
+      competition: { name: 'Test League' },
+      time: '65',
+      scheduled: '14:00',
+    },
+    rawLiveMatches: [{ id: 695741 }],
+    rawStats: {
+      possesion: '54:46',
+      corners: '6:4',
+      attempts_on_goal: '12:8',
+      shots_on_target: '5:3',
+    },
+    rawEvents: [],
+    normalizedStats: [],
+    normalizedEvents: [],
+    statsCompact: {
+      possession: { home: '54', away: '46' },
+      shots: { home: '12', away: '8' },
+      shots_on_target: { home: '5', away: '3' },
+      corners: { home: '6', away: '4' },
+      fouls: { home: null, away: null },
+      offsides: { home: null, away: null },
+      yellow_cards: { home: null, away: null },
+      red_cards: { home: null, away: null },
+      goalkeeper_saves: { home: null, away: null },
+      blocked_shots: { home: null, away: null },
+      total_passes: { home: null, away: null },
+      passes_accurate: { home: null, away: null },
+    },
+    coverageFlags: {
+      matched: true,
+      has_possession: true,
+      has_shots: true,
+      has_shots_on_target: true,
+      has_corners: true,
+      event_count: 0,
+      populated_stat_pairs: 4,
+      total_stat_pairs: 12,
+    },
+    statusCode: 200,
+    latencyMs: 120,
+    error: null,
+  }),
+}));
+
+function buildLiveScoreTrace(overrides: Record<string, unknown> = {}) {
+  return {
+    matched: true,
+    providerMatchId: '695741',
+    providerFixtureId: '1840649',
+    matchedMatch: {
+      id: 695741,
+      fixture_id: 1840649,
+      home: { name: 'Team A' },
+      away: { name: 'Team B' },
+      competition: { name: 'Test League' },
+      time: '65',
+      scheduled: '14:00',
+    },
+    rawLiveMatches: [{ id: 695741 }],
+    rawStats: {
+      possesion: '54:46',
+      corners: '6:4',
+      attempts_on_goal: '12:8',
+      shots_on_target: '5:3',
+      fauls: '10:12',
+    },
+    rawEvents: [],
+    normalizedStats: [
+      { team: { id: 1 }, statistics: [
+        { type: 'Ball Possession', value: '54%' },
+        { type: 'Total Shots', value: 12 },
+        { type: 'Shots on Goal', value: 5 },
+        { type: 'Corner Kicks', value: 6 },
+        { type: 'Fouls', value: 10 },
+      ] },
+      { team: { id: 2 }, statistics: [
+        { type: 'Ball Possession', value: '46%' },
+        { type: 'Total Shots', value: 8 },
+        { type: 'Shots on Goal', value: 3 },
+        { type: 'Corner Kicks', value: 4 },
+        { type: 'Fouls', value: 12 },
+      ] },
+    ],
+    normalizedEvents: [
+      { time: { elapsed: 23 }, team: { id: 1, name: 'Team A', logo: '' }, type: 'Goal', detail: 'Normal Goal', player: { id: null, name: 'Player A' }, assist: { id: null, name: null }, comments: null },
+    ],
+    statsCompact: {
+      possession: { home: '54', away: '46' },
+      shots: { home: '12', away: '8' },
+      shots_on_target: { home: '5', away: '3' },
+      corners: { home: '6', away: '4' },
+      fouls: { home: '10', away: '12' },
+      offsides: { home: null, away: null },
+      yellow_cards: { home: null, away: null },
+      red_cards: { home: null, away: null },
+      goalkeeper_saves: { home: null, away: null },
+      blocked_shots: { home: null, away: null },
+      total_passes: { home: null, away: null },
+      passes_accurate: { home: null, away: null },
+    },
+    coverageFlags: {
+      matched: true,
+      has_possession: true,
+      has_shots: true,
+      has_shots_on_target: true,
+      has_corners: true,
+      event_count: 1,
+      populated_stat_pairs: 5,
+      total_stat_pairs: 12,
+    },
+    statusCode: 200,
+    latencyMs: 120,
+    error: null,
+    ...overrides,
+  };
+}
+
+vi.mock('../lib/provider-sampling.js', () => ({
+  extractStatusCode: vi.fn(() => null),
+  recordProviderStatsSampleSafe: vi.fn().mockResolvedValue(undefined),
+  recordProviderOddsSampleSafe: vi.fn().mockResolvedValue(undefined),
 }));
 
 const mockWatchlistEntry = {
@@ -201,6 +343,91 @@ describe('runPipelineBatch', () => {
     expect(footballApi.fetchFixtureStatistics).toHaveBeenCalledWith('100');
     expect(footballApi.fetchFixtureEvents).toHaveBeenCalledWith('100');
     expect(footballApi.fetchLiveOdds).toHaveBeenCalledWith('100');
+  });
+
+  test('records live-score benchmark samples without changing the main pipeline path', async () => {
+    await runPipelineBatch(['100']);
+
+    const liveScoreApi = await import('../lib/live-score-api.js');
+    expect(liveScoreApi.fetchLiveScoreBenchmarkTrace).toHaveBeenCalledWith(mockFixture);
+
+    const providerSampling = await import('../lib/provider-sampling.js');
+    const calls = vi.mocked(providerSampling.recordProviderStatsSampleSafe).mock.calls;
+    expect(calls.some(([sample]) => sample.provider === 'live-score-api' && sample.success === true)).toBe(true);
+    expect(calls.some(([sample]) => sample.provider === 'api-football' && sample.success === true)).toBe(true);
+  });
+
+  test('keeps API-Sports as stats source when current stats are already usable', async () => {
+    const result = await runPipelineBatch(['100']);
+
+    const { callGemini } = await import('../lib/gemini.js');
+    const prompt = vi.mocked(callGemini).mock.calls[0][0];
+    expect(prompt).toContain('STATS_SOURCE: api-football');
+    expect(prompt).toContain('EVIDENCE_MODE: full_live_data');
+    expect(result.results[0]?.debug?.statsSource).toBe('api-football');
+    expect(result.results[0]?.debug?.statsFallbackUsed).toBe(false);
+  });
+
+  test('uses Live Score fallback when API-Sports stats are unusable', async () => {
+    const footballApi = await import('../lib/football-api.js');
+    vi.mocked(footballApi.fetchFixtureStatistics).mockResolvedValueOnce([]);
+    vi.mocked(footballApi.fetchFixtureEvents).mockResolvedValueOnce([]);
+
+    const liveScoreApi = await import('../lib/live-score-api.js');
+    vi.mocked(liveScoreApi.fetchLiveScoreBenchmarkTrace).mockResolvedValueOnce(buildLiveScoreTrace());
+
+    const result = await runPipelineBatch(['100']);
+
+    const { callGemini } = await import('../lib/gemini.js');
+    const prompt = vi.mocked(callGemini).mock.calls[0][0];
+    expect(prompt).toContain('STATS_SOURCE: live-score-api-fallback');
+    expect(prompt).toContain('EVIDENCE_MODE: full_live_data');
+    expect(prompt).toContain('Stats Fallback Note: API-Sports stats unavailable');
+    expect(result.results[0]?.debug?.statsSource).toBe('live-score-api-fallback');
+    expect(result.results[0]?.debug?.statsFallbackUsed).toBe(true);
+  });
+
+  test('uses degraded odds+events mode when stats stay unavailable after fallback check', async () => {
+    const footballApi = await import('../lib/football-api.js');
+    vi.mocked(footballApi.fetchFixtureStatistics).mockResolvedValueOnce([]);
+    vi.mocked(footballApi.fetchFixtureEvents).mockResolvedValueOnce([
+      { time: { elapsed: 23 }, team: { id: 1 }, type: 'Goal', detail: 'Normal Goal', player: { name: 'Player A' } },
+      { time: { elapsed: 55 }, team: { id: 2 }, type: 'Goal', detail: 'Normal Goal', player: { name: 'Player B' } },
+    ] as never);
+
+    const liveScoreApi = await import('../lib/live-score-api.js');
+    vi.mocked(liveScoreApi.fetchLiveScoreBenchmarkTrace).mockResolvedValueOnce(buildLiveScoreTrace({
+      matched: false,
+      providerMatchId: null,
+      providerFixtureId: null,
+      matchedMatch: null,
+      rawLiveMatches: [],
+      rawStats: null,
+      rawEvents: [],
+      normalizedStats: [],
+      normalizedEvents: [],
+      coverageFlags: {
+        matched: false,
+        has_possession: false,
+        has_shots: false,
+        has_shots_on_target: false,
+        has_corners: false,
+        event_count: 0,
+        populated_stat_pairs: 0,
+        total_stat_pairs: 12,
+      },
+      error: 'NO_LIVE_SCORE_MATCH',
+    }));
+
+    const result = await runPipelineBatch(['100']);
+
+    const { callGemini } = await import('../lib/gemini.js');
+    const prompt = vi.mocked(callGemini).mock.calls[0][0];
+    expect(prompt).toContain('STATS_SOURCE: api-football');
+    expect(prompt).toContain('EVIDENCE_MODE: odds_events_only_degraded');
+    expect(prompt).toContain('ONLY evaluate Over/Under or Asian Handicap');
+    expect(result.results[0]?.debug?.statsFallbackUsed).toBe(false);
+    expect(result.results[0]?.success).toBe(true);
   });
 
   test('calls Gemini with prompt containing match context', async () => {
@@ -318,24 +545,108 @@ describe('runPipelineBatch', () => {
     expect(prompt).toContain('pre-match');
   });
 
+  test('normalizes live odds[] payloads before building canonical odds', async () => {
+    const footballApi = await import('../lib/football-api.js');
+    vi.mocked(footballApi.fetchLiveOdds).mockResolvedValueOnce([{
+      fixture: { id: 100 },
+      odds: [
+        {
+          id: 1,
+          name: 'Match Winner',
+          values: [
+            { value: 'Home', odd: '2.10' },
+            { value: 'Draw', odd: '3.40' },
+            { value: 'Away', odd: '3.50' },
+          ],
+        },
+        {
+          id: 2,
+          name: 'Over/Under',
+          values: [
+            { value: 'Over', odd: '1.85', handicap: '2.5' },
+            { value: 'Under', odd: '2.00', handicap: '2.5' },
+          ],
+        },
+      ],
+    }] as never);
+
+    await runPipelineBatch(['100']);
+
+    const { callGemini } = await import('../lib/gemini.js');
+    const prompt = vi.mocked(callGemini).mock.calls[0][0];
+    expect(prompt).toContain('"1x2"');
+    expect(prompt).toContain('"ou"');
+  });
+
+  test('uses The Odds fallback before pre-match in auto-pipeline', async () => {
+    const footballApi = await import('../lib/football-api.js');
+    vi.mocked(footballApi.fetchLiveOdds).mockResolvedValueOnce([]);
+    vi.mocked(footballApi.fetchPreMatchOdds).mockResolvedValueOnce([{
+      bookmakers: [{
+        name: 'PreMatchBook',
+        bets: [
+          { name: 'Over/Under', values: [
+            { value: 'Over', odd: '1.90', handicap: '2.5' },
+            { value: 'Under', odd: '1.95', handicap: '2.5' },
+          ] },
+        ],
+      }],
+    }] as never);
+
+    const theOddsApi = await import('../lib/the-odds-api.js');
+    vi.mocked(theOddsApi.fetchTheOddsLiveDetailed).mockResolvedValueOnce({
+      result: {
+        fixture: { id: 100 },
+        bookmakers: [{
+          name: 'FallbackBook',
+          bets: [{ name: 'Over/Under', values: [
+            { value: 'Over', odd: '1.80', handicap: '2.5' },
+            { value: 'Under', odd: '2.05', handicap: '2.5' },
+          ] }],
+        }],
+      },
+      matchedEvent: null,
+      rawEventOdds: null,
+      sportKey: 'soccer_epl',
+      scannedSportKeys: ['soccer_epl'],
+      error: null,
+    } as never);
+
+    await runPipelineBatch(['100']);
+
+    const { callGemini } = await import('../lib/gemini.js');
+    const prompt = vi.mocked(callGemini).mock.calls[0][0];
+    expect(theOddsApi.fetchTheOddsLiveDetailed).toHaveBeenCalled();
+    expect(footballApi.fetchPreMatchOdds).not.toHaveBeenCalled();
+    expect(prompt).toContain('ODDS_SOURCE: the-odds-api');
+  });
+
   test('falls back to The Odds API when both live and pre-match unavailable', async () => {
     const footballApi = await import('../lib/football-api.js');
     vi.mocked(footballApi.fetchLiveOdds).mockResolvedValueOnce([]);
     vi.mocked(footballApi.fetchPreMatchOdds).mockResolvedValueOnce([]);
 
     const theOddsApi = await import('../lib/the-odds-api.js');
-    vi.mocked(theOddsApi.fetchTheOddsLive).mockResolvedValueOnce({
-      bookmakers: [{
-        name: 'FallbackBook',
-        bets: [{ name: 'Over/Under', values: [
-          { value: 'Over', odd: '1.80', handicap: '2.5' },
-          { value: 'Under', odd: '2.05', handicap: '2.5' },
-        ] }],
-      }],
+    vi.mocked(theOddsApi.fetchTheOddsLiveDetailed).mockResolvedValueOnce({
+      result: {
+        fixture: { id: 100 },
+        bookmakers: [{
+          name: 'FallbackBook',
+          bets: [{ name: 'Over/Under', values: [
+            { value: 'Over', odd: '1.80', handicap: '2.5' },
+            { value: 'Under', odd: '2.05', handicap: '2.5' },
+          ] }],
+        }],
+      },
+      matchedEvent: null,
+      rawEventOdds: null,
+      sportKey: 'soccer_epl',
+      scannedSportKeys: ['soccer_epl'],
+      error: null,
     } as never);
 
     await runPipelineBatch(['100']);
-    expect(theOddsApi.fetchTheOddsLive).toHaveBeenCalled();
+    expect(theOddsApi.fetchTheOddsLiveDetailed).toHaveBeenCalled();
   });
 
   test('handles Gemini error gracefully', async () => {

@@ -46,6 +46,21 @@ export async function fetchFixtureOdds(
   matchId: string,
   homeTeam?: string,
   awayTeam?: string,
+  kickoffTimestamp?: number,
+  leagueName?: string,
+  leagueCountry?: string,
+  status?: string,
+  matchMinute?: number,
 ): Promise<FootballApiOddsResponse> {
-  return fetchLiveOdds(config, matchId, homeTeam, awayTeam);
+  return fetchLiveOdds(
+    config,
+    matchId,
+    homeTeam,
+    awayTeam,
+    kickoffTimestamp,
+    leagueName,
+    leagueCountry,
+    status,
+    matchMinute,
+  );
 }

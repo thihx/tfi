@@ -1,0 +1,110 @@
+{
+  "name": "the-odds-fallback",
+  "matchId": "100",
+  "fixture": {
+    "fixture": {
+      "id": 100,
+      "date": "2026-03-20T12:00:00Z",
+      "timestamp": 1774008000,
+      "status": { "short": "2H", "elapsed": 65 }
+    },
+    "teams": {
+      "home": { "id": 1, "name": "Arsenal", "logo": "", "winner": null },
+      "away": { "id": 2, "name": "Chelsea", "logo": "", "winner": null }
+    },
+    "league": {
+      "id": 39,
+      "name": "Premier League",
+      "country": "England",
+      "logo": "",
+      "flag": null,
+      "season": 2026,
+      "round": "Regular Season - 28"
+    },
+    "goals": { "home": 1, "away": 1 },
+    "score": {}
+  },
+  "statistics": [
+    {
+      "team": { "id": 1, "name": "Arsenal", "logo": "" },
+      "statistics": [
+        { "type": "Ball Possession", "value": "55%" },
+        { "type": "Total Shots", "value": 12 },
+        { "type": "Shots on Goal", "value": 5 },
+        { "type": "Corner Kicks", "value": 6 }
+      ]
+    },
+    {
+      "team": { "id": 2, "name": "Chelsea", "logo": "" },
+      "statistics": [
+        { "type": "Ball Possession", "value": "45%" },
+        { "type": "Total Shots", "value": 8 },
+        { "type": "Shots on Goal", "value": 3 },
+        { "type": "Corner Kicks", "value": 4 }
+      ]
+    }
+  ],
+  "events": [],
+  "liveOddsResponse": [],
+  "preMatchOddsResponse": [
+    {
+      "fixture": { "id": 100 },
+      "bookmakers": [
+        {
+          "id": 1,
+          "name": "PrematchBook",
+          "bets": [
+            {
+              "id": 2,
+              "name": "Over/Under",
+              "values": [
+                { "value": "Over", "odd": "1.95", "handicap": "2.5" },
+                { "value": "Under", "odd": "1.90", "handicap": "2.5" }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "theOddsEventsResponse": [
+    {
+      "id": "event-1",
+      "sport_key": "soccer_epl",
+      "sport_title": "EPL",
+      "commence_time": "2026-03-20T12:00:00Z",
+      "home_team": "Arsenal",
+      "away_team": "Chelsea"
+    }
+  ],
+  "theOddsEventOddsResponse": {
+    "id": "event-1",
+    "sport_key": "soccer_epl",
+    "sport_title": "EPL",
+    "commence_time": "2026-03-20T12:00:00Z",
+    "home_team": "Arsenal",
+    "away_team": "Chelsea",
+    "bookmakers": [
+      {
+        "key": "fallback",
+        "title": "FallbackBook",
+        "last_update": "2026-03-20T12:45:00Z",
+        "markets": [
+          {
+            "key": "totals",
+            "last_update": "2026-03-20T12:45:00Z",
+            "outcomes": [
+              { "name": "Over", "price": 1.8, "point": 2.5 },
+              { "name": "Under", "price": 2.05, "point": 2.5 }
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  "expected": {
+    "oddsSource": "the-odds-api",
+    "saved": false,
+    "notified": false
+  }
+}

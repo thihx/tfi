@@ -271,6 +271,8 @@ export interface MergedMatchData {
   league: string;
   home_team: string;
   away_team: string;
+  league_country?: string | null;
+  kickoff_timestamp?: number | null;
   minute: number | string;
   score: string;
   status: string;

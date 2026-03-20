@@ -9,10 +9,13 @@ import type { FastifyInstance } from 'fastify';
 // Mock config
 vi.mock('../config.js', () => ({
   config: {
+    databaseUrl: 'postgresql://test:test@localhost:5432/test',
+    timezone: 'Asia/Seoul',
     geminiApiKey: 'test-key',
     telegramBotToken: 'test-bot-token',
     footballApiKey: 'test-football-key',
     footballApiBaseUrl: 'https://api-football.example.com',
+    providerSamplingEnabled: false,
   },
 }));
 

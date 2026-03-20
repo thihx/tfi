@@ -105,7 +105,7 @@ function JobSchedulerPanel() {
   const fetchJobs = useCallback(async () => {
     if (apiUrl == null) return;
     try {
-      const res = await fetch(`${apiUrl}/api/jobs`, { headers: authHeaders() });
+      const res = await fetch(`${apiUrl}/api/jobs`, { headers: authHeaders(), credentials: 'include' });
       if (res.ok) setJobs(await res.json());
     } catch { /* server offline */ }
   }, [apiUrl]);
@@ -126,6 +126,7 @@ function JobSchedulerPanel() {
       const res = await fetch(`${apiUrl}/api/jobs/${name}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json', ...authHeaders() },
+        credentials: 'include',
         body: JSON.stringify({ intervalMs }),
       });
       if (res.ok) {
@@ -144,6 +145,7 @@ function JobSchedulerPanel() {
       const res = await fetch(`${apiUrl}/api/jobs/${name}/trigger`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', ...authHeaders() },
+        credentials: 'include',
         body: JSON.stringify(force ? { force: true } : {}),
       });
       if (res.ok) {

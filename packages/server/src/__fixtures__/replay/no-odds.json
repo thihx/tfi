@@ -1,0 +1,56 @@
+{
+  "name": "no-odds",
+  "matchId": "100",
+  "fixture": {
+    "fixture": {
+      "id": 100,
+      "date": "2026-03-20T12:00:00Z",
+      "timestamp": 1774008000,
+      "status": { "short": "2H", "elapsed": 65 }
+    },
+    "teams": {
+      "home": { "id": 1, "name": "Arsenal", "logo": "", "winner": null },
+      "away": { "id": 2, "name": "Chelsea", "logo": "", "winner": null }
+    },
+    "league": {
+      "id": 39,
+      "name": "Premier League",
+      "country": "England",
+      "logo": "",
+      "flag": null,
+      "season": 2026,
+      "round": "Regular Season - 28"
+    },
+    "goals": { "home": 1, "away": 1 },
+    "score": {}
+  },
+  "statistics": [
+    {
+      "team": { "id": 1, "name": "Arsenal", "logo": "" },
+      "statistics": [
+        { "type": "Ball Possession", "value": "55%" },
+        { "type": "Total Shots", "value": 12 },
+        { "type": "Shots on Goal", "value": 5 }
+      ]
+    },
+    {
+      "team": { "id": 2, "name": "Chelsea", "logo": "" },
+      "statistics": [
+        { "type": "Ball Possession", "value": "45%" },
+        { "type": "Total Shots", "value": 8 },
+        { "type": "Shots on Goal", "value": 3 }
+      ]
+    }
+  ],
+  "events": [],
+  "liveOddsResponse": [],
+  "preMatchOddsResponse": [],
+  "theOddsEventsResponse": [],
+  "theOddsEventOddsResponse": null,
+  "expected": {
+    "oddsSource": "none",
+    "saved": false,
+    "notified": false,
+    "selectionContains": "Over 2.5"
+  }
+}

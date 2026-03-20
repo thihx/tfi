@@ -136,6 +136,33 @@ async function probeOddsApi(): Promise<IntegrationProbeResult> {
   }
 }
 
+async function probeLiveScoreApi(): Promise<IntegrationProbeResult> {
+  const ID = 'live-score-api';
+  const LABEL = 'Live Score API';
+  const DESC = 'Benchmark live stats provider';
+  if (!isConfigured(config.liveScoreApiKey, config.liveScoreApiSecret)) {
+    return makeResult(ID, LABEL, DESC, 'NOT_CONFIGURED', 0, 'LIVE_SCORE_API_KEY/SECRET not set');
+  }
+  try {
+    const url = new URL(`${config.liveScoreApiBaseUrl}/matches/live.json`);
+    url.searchParams.set('key', config.liveScoreApiKey);
+    url.searchParams.set('secret', config.liveScoreApiSecret);
+
+    const { result: res, latencyMs } = await timed(() => withTimeout(fetch(url.toString())));
+    const data = await res.json() as { success?: boolean; error?: string; data?: { match?: unknown[] } };
+    if (res.ok && data.success) {
+      const count = Array.isArray(data.data?.match) ? data.data.match.length : 0;
+      return makeResult(ID, LABEL, DESC, 'HEALTHY', latencyMs, `Live matches visible: ${count}`);
+    }
+    if (res.status === 401 || res.status === 403) {
+      return makeResult(ID, LABEL, DESC, 'DOWN', latencyMs, `Auth error HTTP ${res.status}`);
+    }
+    return makeResult(ID, LABEL, DESC, 'DEGRADED', latencyMs, data.error || `HTTP ${res.status}`);
+  } catch (err: unknown) {
+    return makeResult(ID, LABEL, DESC, 'DOWN', 0, (err as Error).message);
+  }
+}
+
 async function probeGemini(): Promise<IntegrationProbeResult> {
   const ID = 'gemini';
   const LABEL = 'Google Gemini AI';
@@ -225,6 +252,7 @@ export async function checkAllIntegrations(): Promise<IntegrationHealthSnapshot>
     probeRedis(),
     probeFootballApi(),
     probeOddsApi(),
+    probeLiveScoreApi(),
     probeGemini(),
     probeTelegram(),
     probeGoogleOAuth(),
@@ -243,6 +271,7 @@ export async function checkSingleIntegration(id: string): Promise<IntegrationPro
     redis:        probeRedis,
     'football-api': probeFootballApi,
     'odds-api':   probeOddsApi,
+    'live-score-api': probeLiveScoreApi,
     gemini:       probeGemini,
     telegram:     probeTelegram,
     'google-oauth': probeGoogleOAuth,
