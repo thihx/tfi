@@ -16,6 +16,11 @@ vi.mock('../config.js', () => ({
     pipelineBatchSize: 3,
     pipelineMinOdds: 1.5,
     pipelineMinConfidence: 5,
+    pipelineMinMinute: 5,
+    pipelineMaxMinute: 85,
+    pipelineSecondHalfStartMinute: 5,
+    pipelineReanalyzeMinMinutes: 10,
+    pipelineStalenessOddsDelta: 0.1,
   },
 }));
 
@@ -52,6 +57,7 @@ vi.mock('../lib/gemini.js', () => ({
 
 vi.mock('../lib/telegram.js', () => ({
   sendTelegramMessage: vi.fn().mockResolvedValue(undefined),
+  sendTelegramPhoto: vi.fn().mockRejectedValue(new Error('photo unavailable in test')),
 }));
 
 const mockFixture = {
@@ -148,6 +154,11 @@ vi.mock('../repos/settings.repo.js', () => ({
     VERY_LATE_PHASE_MINUTE: 85,
     ENDGAME_MINUTE: 88,
   }),
+}));
+
+vi.mock('../repos/match-snapshots.repo.js', () => ({
+  createSnapshot: vi.fn().mockResolvedValue({ id: 1 }),
+  getLatestSnapshot: vi.fn().mockResolvedValue(null),
 }));
 
 const { runPipelineBatch } = await import('../lib/server-pipeline.js');
@@ -344,6 +355,76 @@ describe('runPipelineBatch', () => {
     // Still succeeds (saves with parse defaults), should_push=false
     expect(result.results[0].success).toBe(true);
     expect(result.results[0].shouldPush).toBe(false);
+  });
+
+  test('skips AI when match is outside proceed window', async () => {
+    const footballApi = await import('../lib/football-api.js');
+    vi.mocked(footballApi.fetchFixturesByIds).mockResolvedValueOnce([{
+      ...mockFixture,
+      fixture: { ...mockFixture.fixture, status: { short: '1H', elapsed: 3 } },
+    }] as never);
+
+    const result = await runPipelineBatch(['100']);
+
+    const { callGemini } = await import('../lib/gemini.js');
+    const { createRecommendation } = await import('../repos/recommendations.repo.js');
+    expect(footballApi.fetchLiveOdds).not.toHaveBeenCalled();
+    expect(callGemini).not.toHaveBeenCalled();
+    expect(createRecommendation).not.toHaveBeenCalled();
+    expect(result.results[0].success).toBe(true);
+    expect(result.results[0].shouldPush).toBe(false);
+    expect(result.results[0].saved).toBe(false);
+  });
+
+  test('skips AI when snapshot shows no significant change inside cooldown', async () => {
+    const snapshotsRepo = await import('../repos/match-snapshots.repo.js');
+    vi.mocked(snapshotsRepo.getLatestSnapshot).mockResolvedValueOnce({
+      id: 99,
+      match_id: '100',
+      captured_at: new Date().toISOString(),
+      source: 'server-pipeline',
+      minute: 63,
+      status: '2H',
+      home_score: 1,
+      away_score: 1,
+      stats: {},
+      events: [],
+      odds: {
+        '1x2': { home: 2.1, draw: 3.4, away: 3.5 },
+        ou: { line: 2.5, over: 1.85, under: 2.0 },
+        btts: { yes: 1.6, no: 2.15 },
+      },
+    } as never);
+
+    const result = await runPipelineBatch(['100']);
+
+    const { callGemini } = await import('../lib/gemini.js');
+    const { createSnapshot } = await import('../repos/match-snapshots.repo.js');
+    expect(createSnapshot).toHaveBeenCalledTimes(1);
+    expect(callGemini).not.toHaveBeenCalled();
+    expect(result.results[0].success).toBe(true);
+    expect(result.results[0].saved).toBe(false);
+    expect(result.results[0].notified).toBe(false);
+  });
+
+  test('force mode bypasses proceed and staleness gates', async () => {
+    const footballApi = await import('../lib/football-api.js');
+    vi.mocked(footballApi.fetchFixturesByIds).mockResolvedValueOnce([{
+      ...mockFixture,
+      fixture: { ...mockFixture.fixture, status: { short: '1H', elapsed: 3 } },
+    }] as never);
+
+    const watchlistRepo = await import('../repos/watchlist.repo.js');
+    vi.mocked(watchlistRepo.getWatchlistByMatchId).mockResolvedValueOnce({
+      ...mockWatchlistEntry,
+      mode: 'F',
+    } as never);
+
+    const result = await runPipelineBatch(['100']);
+
+    const { callGemini } = await import('../lib/gemini.js');
+    expect(callGemini).toHaveBeenCalledTimes(1);
+    expect(result.results[0].success).toBe(true);
   });
 
   test('processes multiple matches sequentially', async () => {

@@ -70,6 +70,9 @@
       "Bash(powershell.exe -Command \"Stop-Process -Id 15108 -Force -ErrorAction SilentlyContinue; Write-Output ''Done''\")",
       "Bash(powershell.exe -Command \"Stop-Process -Id 2232,14104 -Force; Write-Output ''Killed''\")",
       "Bash(find /c/tfi/src -name *.css -o -name *.scss)"
+    ],
+    "additionalDirectories": [
+      "\\tmp"
     ]
   }
 }

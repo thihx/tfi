@@ -123,6 +123,19 @@ describe('enrichWatchlistJob', () => {
     const result = await enrichWatchlistJob();
     expect(result.checked).toBe(1);
     expect(result.enriched).toBe(0);
+
+    const watchlistRepo = await import('../repos/watchlist.repo.js');
+    expect(watchlistRepo.updateWatchlistEntry).toHaveBeenCalledWith(
+      '100',
+      expect.objectContaining({
+        strategic_context: expect.objectContaining({
+          _meta: expect.objectContaining({
+            refresh_status: 'failed',
+            retry_after: expect.any(String),
+          }),
+        }),
+      }),
+    );
   });
 
   test('uses AI-generated condition from strategic context', async () => {
@@ -155,6 +168,98 @@ describe('enrichWatchlistJob', () => {
     expect(watchlistRepo.updateWatchlistEntry).toHaveBeenCalledWith(
       '500',
       expect.not.objectContaining({ recommended_custom_condition: expect.any(String) }),
+    );
+  });
+
+  test('skips poor context entries until retry_after passes', async () => {
+    const watchlistRepo = await import('../repos/watchlist.repo.js');
+    vi.mocked(watchlistRepo.getActiveWatchlist).mockResolvedValueOnce([
+      {
+        match_id: '600',
+        home_team: 'A',
+        away_team: 'B',
+        league: 'L',
+        date: '2026-03-17',
+        status: 'active',
+        strategic_context: {
+          summary: 'No data found',
+          _meta: {
+            refresh_status: 'poor',
+            retry_after: new Date(Date.now() + 2 * 60 * 60 * 1000).toISOString(),
+          },
+        },
+        strategic_context_at: sixHoursAgo,
+        recommended_custom_condition: '',
+      },
+    ] as never);
+    const matchRepo = await import('../repos/matches.repo.js');
+    vi.mocked(matchRepo.getAllMatches).mockResolvedValueOnce([
+      { match_id: '600', status: 'NS' },
+    ] as never);
+
+    const result = await enrichWatchlistJob();
+    const service = await import('../lib/strategic-context.service.js');
+
+    expect(result.checked).toBe(0);
+    expect(result.enriched).toBe(0);
+    expect(service.fetchStrategicContext).not.toHaveBeenCalled();
+  });
+
+  test('preserves usable context when a poor response arrives', async () => {
+    const watchlistRepo = await import('../repos/watchlist.repo.js');
+    vi.mocked(watchlistRepo.getActiveWatchlist).mockResolvedValueOnce([
+      {
+        match_id: '700',
+        home_team: 'A',
+        away_team: 'B',
+        league: 'L',
+        date: '2026-03-17',
+        status: 'active',
+        strategic_context: {
+          summary: 'Useful context',
+          home_motivation: 'Title race',
+          _meta: { refresh_status: 'good', failure_count: 0 },
+        },
+        strategic_context_at: sixHoursAgo,
+        recommended_custom_condition: '',
+      },
+    ] as never);
+    const matchRepo = await import('../repos/matches.repo.js');
+    vi.mocked(matchRepo.getAllMatches).mockResolvedValueOnce([
+      { match_id: '700', status: 'NS' },
+    ] as never);
+    const service = await import('../lib/strategic-context.service.js');
+    vi.mocked(service.fetchStrategicContext).mockResolvedValueOnce({
+      summary: 'No data found',
+      home_motivation: '',
+      away_motivation: '',
+      league_positions: '',
+      fixture_congestion: '',
+      rotation_risk: '',
+      key_absences: '',
+      h2h_narrative: '',
+      searched_at: new Date().toISOString(),
+      ai_condition: '',
+      ai_condition_reason: '',
+      ai_condition_reason_vi: '',
+    } as never);
+
+    const result = await enrichWatchlistJob();
+
+    expect(result.checked).toBe(1);
+    expect(result.enriched).toBe(0);
+    expect(watchlistRepo.updateWatchlistEntry).toHaveBeenCalledWith(
+      '700',
+      expect.objectContaining({
+        strategic_context: expect.objectContaining({
+          summary: 'Useful context',
+          home_motivation: 'Title race',
+          _meta: expect.objectContaining({
+            refresh_status: 'poor',
+            retry_after: expect.any(String),
+          }),
+        }),
+      }),
     );
   });
 });

@@ -1,21 +1,41 @@
 // ============================================================
 // Job: Enrich Watchlist with Strategic Context
 //
-// For each active watchlist entry that hasn't been enriched yet
-// (or was enriched >6h ago), fetch strategic match context
+// For each active watchlist entry that has not been enriched yet
+// (or was enriched more than 6h ago), fetch strategic match context
 // (motivation, rotation, injuries) via AI + Google Search.
 // Also auto-generates recommended_custom_condition from the context.
 // ============================================================
 
-import { fetchStrategicContext } from '../lib/strategic-context.service.js';
+import {
+  fetchStrategicContext,
+  type StrategicContext,
+} from '../lib/strategic-context.service.js';
 import * as matchRepo from '../repos/matches.repo.js';
 import * as watchlistRepo from '../repos/watchlist.repo.js';
 import { reportJobProgress } from './job-progress.js';
 
 const STALE_HOURS = 6;
-const API_DELAY_MS = 2000; // Respect API rate limits
+const POOR_CONTEXT_HOURS = 6;
+const API_DELAY_MS = 2000;
+const FAILURE_BACKOFF_HOURS = [1, 3, 6, 12] as const;
+const POOR_BACKOFF_HOURS = [6, 12, 24] as const;
 
 let forceNext = false;
+
+type RefreshStatus = 'good' | 'poor' | 'failed';
+
+interface StrategicContextMeta {
+  refresh_status?: RefreshStatus;
+  failure_count?: number;
+  last_attempt_at?: string;
+  retry_after?: string | null;
+  last_error?: string;
+}
+
+type StoredStrategicContext = Partial<StrategicContext> & {
+  _meta?: StrategicContextMeta;
+};
 
 /** Force next run to skip the stale-check and re-enrich all active entries. */
 export function setForceEnrich(): void {
@@ -26,15 +46,112 @@ function sleep(ms: number) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
+function isPoorSummary(summary: unknown): boolean {
+  const value = String(summary ?? '').trim();
+  return !value || /^no data/i.test(value);
+}
+
+function hasUsableContext(ctx: StoredStrategicContext | null): boolean {
+  return !!ctx && !isPoorSummary(ctx.summary);
+}
+
+function getRetryAfter(ctx: StoredStrategicContext | null): number | null {
+  const retryAt = ctx?._meta?.retry_after;
+  if (!retryAt) return null;
+  const ts = Date.parse(retryAt);
+  return Number.isFinite(ts) ? ts : null;
+}
+
+function pickBackoffHours(kind: 'poor' | 'failed', failureCount: number): number {
+  const table = kind === 'poor' ? POOR_BACKOFF_HOURS : FAILURE_BACKOFF_HOURS;
+  const index = Math.min(Math.max(failureCount - 1, 0), table.length - 1);
+  return table[index]!;
+}
+
+function buildBasePoorContext(attemptedAt: string): StoredStrategicContext {
+  return {
+    home_motivation: '',
+    away_motivation: '',
+    league_positions: '',
+    fixture_congestion: '',
+    rotation_risk: '',
+    key_absences: '',
+    h2h_narrative: '',
+    summary: 'No data found',
+    searched_at: attemptedAt,
+    competition_type: '',
+    ai_condition: '',
+    ai_condition_reason: '',
+    ai_condition_reason_vi: '',
+  };
+}
+
+function buildRetryContext(
+  current: StoredStrategicContext | null,
+  kind: 'poor' | 'failed',
+  attemptedAt: string,
+  seedContext: StoredStrategicContext | null = null,
+  errorMessage = '',
+): StoredStrategicContext {
+  const existing = current ?? null;
+  const usable = hasUsableContext(existing);
+  const previousFailures = Math.max(0, Number(existing?._meta?.failure_count ?? 0));
+  const failureCount = previousFailures + 1;
+  const retryHours = pickBackoffHours(kind, failureCount);
+  const retryAfter = new Date(Date.parse(attemptedAt) + retryHours * 60 * 60 * 1000).toISOString();
+
+  return {
+    ...(usable ? existing! : (seedContext ?? buildBasePoorContext(attemptedAt))),
+    _meta: {
+      refresh_status: kind,
+      failure_count: failureCount,
+      last_attempt_at: attemptedAt,
+      retry_after: retryAfter,
+      last_error: errorMessage || undefined,
+    },
+  };
+}
+
+function buildSuccessfulContext(context: StrategicContext, attemptedAt: string): StoredStrategicContext {
+  return {
+    ...context,
+    _meta: {
+      refresh_status: 'good',
+      failure_count: 0,
+      last_attempt_at: attemptedAt,
+      retry_after: null,
+    },
+  };
+}
+
+async function persistRetryState(
+  entry: watchlistRepo.WatchlistRow,
+  kind: 'poor' | 'failed',
+  attemptedAt: string,
+  seedContext: StoredStrategicContext | null = null,
+  errorMessage = '',
+): Promise<void> {
+  const existingContext = (entry.strategic_context as StoredStrategicContext | null) ?? null;
+  const retryContext = buildRetryContext(existingContext, kind, attemptedAt, seedContext, errorMessage);
+  const updateFields: Partial<watchlistRepo.WatchlistRow> = {
+    strategic_context: retryContext as unknown,
+  };
+
+  if (!hasUsableContext(existingContext)) {
+    updateFields.strategic_context_at = attemptedAt;
+  }
+
+  await watchlistRepo.updateWatchlistEntry(entry.match_id, updateFields);
+}
+
 export async function enrichWatchlistJob(): Promise<{ checked: number; enriched: number }> {
   const JOB = 'enrich-watchlist';
 
-  // Build match status map
   await reportJobProgress(JOB, 'load', 'Loading matches and watchlist...', 5);
   const allMatches = await matchRepo.getAllMatches();
   const statusMap = new Map<string, string>();
-  for (const m of allMatches) {
-    statusMap.set(m.match_id, m.status.toUpperCase());
+  for (const match of allMatches) {
+    statusMap.set(match.match_id, match.status.toUpperCase());
   }
 
   const watchlist = await watchlistRepo.getActiveWatchlist();
@@ -43,26 +160,31 @@ export async function enrichWatchlistJob(): Promise<{ checked: number; enriched:
     return { checked: 0, enriched: 0 };
   }
 
-  // Filter eligible entries first to get accurate count
   const force = forceNext;
-  forceNext = false; // consume the flag
-  if (force) console.log('[enrichWatchlistJob] ⚡ Force mode — skipping stale check');
+  forceNext = false;
+  if (force) console.log('[enrichWatchlistJob] Force mode - skipping stale check');
 
   const now = Date.now();
   const eligible = watchlist.filter((entry) => {
     const matchStatus = statusMap.get(entry.match_id)?.toUpperCase() ?? '';
     if (matchStatus !== 'NS' && matchStatus !== '') return false;
+    if (force) return true;
 
-    if (force) return true; // skip stale check in force mode
+    const ctx = (entry.strategic_context as StoredStrategicContext | null) ?? null;
+    const retryAfter = getRetryAfter(ctx);
+    if (retryAfter && retryAfter > now) return false;
 
-    // Treat entries with poor/empty context as needing re-enrichment
-    const ctx = entry.strategic_context as Record<string, string> | null;
-    const hasPoorContext = ctx && (!ctx.summary || /^no data/i.test(ctx.summary));
-
-    if (entry.strategic_context_at && !hasPoorContext) {
+    const poorContext = !!ctx && !hasUsableContext(ctx);
+    if (entry.strategic_context_at && !poorContext) {
       const enrichedAt = new Date(entry.strategic_context_at).getTime();
       if (now - enrichedAt < STALE_HOURS * 60 * 60 * 1000) return false;
     }
+
+    if (entry.strategic_context_at && poorContext) {
+      const enrichedAt = new Date(entry.strategic_context_at).getTime();
+      if (now - enrichedAt < POOR_CONTEXT_HOURS * 60 * 60 * 1000) return false;
+    }
+
     return true;
   });
 
@@ -72,10 +194,13 @@ export async function enrichWatchlistJob(): Promise<{ checked: number; enriched:
   for (const entry of eligible) {
     checked++;
     await reportJobProgress(
-      JOB, 'enrich',
+      JOB,
+      'enrich',
       `Enriching ${checked}/${eligible.length}: ${entry.home_team} vs ${entry.away_team}`,
       5 + (checked / eligible.length) * 90,
     );
+
+    const attemptedAt = new Date().toISOString();
 
     try {
       const context = await fetchStrategicContext(
@@ -85,42 +210,56 @@ export async function enrichWatchlistJob(): Promise<{ checked: number; enriched:
         entry.date,
       );
 
-      if (context) {
-        const updateFields: Partial<watchlistRepo.WatchlistRow> = {
-          strategic_context: context as unknown,
-          strategic_context_at: new Date().toISOString(),
-        } as Partial<watchlistRepo.WatchlistRow>;
-
-        // Auto-generate conditions if not manually set, still in old narrative format, or force mode
-        // Valid evaluable conditions always start with '(' — anything else is old format
-        const existingCond = (entry.recommended_custom_condition || '').trim();
-        const isEvaluable = existingCond.startsWith('(');
-        if (force || !existingCond || !isEvaluable) {
-          // AI-generated condition (context-aware, handles European comps)
-          const aiCond = (context.ai_condition || '').trim();
-          const aiCondIsEvaluable = aiCond.startsWith('(');
-
-          if (aiCondIsEvaluable) {
-            (updateFields as Record<string, unknown>).recommended_custom_condition = aiCond;
-            (updateFields as Record<string, unknown>).recommended_condition_reason = context.ai_condition_reason || '';
-            (updateFields as Record<string, unknown>).recommended_condition_reason_vi = context.ai_condition_reason_vi || '';
-            console.log(`[enrichWatchlistJob] 🤖 AI condition: ${aiCond}`);
-          } else {
-            console.log(`[enrichWatchlistJob] ⚠️ AI did not generate evaluable condition for ${entry.home_team} vs ${entry.away_team}`);
-          }
-        }
-
-        await watchlistRepo.updateWatchlistEntry(entry.match_id, updateFields);
-        enriched++;
-        console.log(`[enrichWatchlistJob] ✅ Enriched ${entry.home_team} vs ${entry.away_team}`);
+      if (!context) {
+        await persistRetryState(entry, 'failed', attemptedAt, null, 'empty_response');
+        await sleep(API_DELAY_MS);
+        continue;
       }
+
+      if (isPoorSummary(context.summary)) {
+        await persistRetryState(entry, 'poor', attemptedAt, context);
+        await sleep(API_DELAY_MS);
+        continue;
+      }
+
+      const updateFields: Partial<watchlistRepo.WatchlistRow> = {
+        strategic_context: buildSuccessfulContext(context, attemptedAt) as unknown,
+        strategic_context_at: attemptedAt,
+      };
+
+      const existingCond = (entry.recommended_custom_condition || '').trim();
+      const isEvaluable = existingCond.startsWith('(');
+      if (force || !existingCond || !isEvaluable) {
+        const aiCond = (context.ai_condition || '').trim();
+        const aiCondIsEvaluable = aiCond.startsWith('(');
+
+        if (aiCondIsEvaluable) {
+          (updateFields as Record<string, unknown>).recommended_custom_condition = aiCond;
+          (updateFields as Record<string, unknown>).recommended_condition_reason = context.ai_condition_reason || '';
+          (updateFields as Record<string, unknown>).recommended_condition_reason_vi = context.ai_condition_reason_vi || '';
+          console.log(`[enrichWatchlistJob] AI condition: ${aiCond}`);
+        } else {
+          console.log(`[enrichWatchlistJob] AI did not generate evaluable condition for ${entry.home_team} vs ${entry.away_team}`);
+        }
+      }
+
+      await watchlistRepo.updateWatchlistEntry(entry.match_id, updateFields);
+      enriched++;
+      console.log(`[enrichWatchlistJob] Enriched ${entry.home_team} vs ${entry.away_team}`);
     } catch (err) {
       console.error(`[enrichWatchlistJob] Error for match ${entry.match_id}:`, err);
+      await persistRetryState(
+        entry,
+        'failed',
+        attemptedAt,
+        null,
+        err instanceof Error ? err.message : String(err),
+      );
     }
 
     await sleep(API_DELAY_MS);
   }
 
-  console.log(`[enrichWatchlistJob] ✅ Checked ${checked}, enriched ${enriched}`);
+  console.log(`[enrichWatchlistJob] Checked ${checked}, enriched ${enriched}`);
   return { checked, enriched };
 }

@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect, useRef } from 'react';
+import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { useAppState } from '@/hooks/useAppState';
 import { useToast } from '@/hooks/useToast';
 import { Pagination } from '@/components/ui/Pagination';
@@ -11,6 +11,16 @@ import { normalizeToISO } from '@/lib/utils/helpers';
 import type { WatchlistItem, SortState } from '@/types';
 
 const PAGE_SIZE = 30;
+
+function getDateGroupLabel(localDT: Date): string {
+  const today = new Date();
+  const tomorrow = new Date(today);
+  tomorrow.setDate(today.getDate() + 1);
+  const same = (a: Date, b: Date) => a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate();
+  if (same(localDT, today)) return 'Today';
+  if (same(localDT, tomorrow)) return 'Tomorrow';
+  return localDT.toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' });
+}
 
 export function WatchlistTab() {
   const { state, updateWatchlistItem, removeFromWatchlist } = useAppState();
@@ -273,10 +283,18 @@ export function WatchlistTab() {
                     </button>
                   )}
                 </td></tr>
-              ) : pageItems.map((item) => {
+              ) : (() => {
+                const rows: React.ReactNode[] = [];
+                let lastLabel = '';
+                pageItems.forEach((item) => {
                 const logos = getLogos(String(item.match_id));
                 const localDT = convertSeoulToLocalDateTime(item.date, item.kickoff || '00:00');
                 const timeDisplay = formatDateTimeDisplay(localDT);
+                const dateLabel = getDateGroupLabel(localDT);
+                if (dateLabel !== lastLabel) {
+                  lastLabel = dateLabel;
+                  rows.push(<tr key={`grp-${dateLabel}`} className="date-group-row"><td>{dateLabel}</td><td colSpan={9} /></tr>);
+                }
                 let leagueId = item.league_id;
                 if (!leagueId && item.match_id) { const m = matches.find((x) => String(x.match_id) === String(item.match_id)); if (m) leagueId = m.league_id; }
                 const leagueDisplay = getLeagueDisplayName(leagueId || '', item.league_name || item.league || '', leagues);
@@ -285,7 +303,7 @@ export function WatchlistTab() {
                 const mc = modeColors[item.mode] || modeColors.B!;
                 const p = Math.max(1, Math.min(3, parseInt(String(item.priority)) || 2));
 
-                return (
+                rows.push(
                   <tr key={item.match_id} onDoubleClick={() => setScoutItem(item)} style={{ cursor: 'pointer' }} title="Double-click to view match details">
                     <td data-label="Time" style={{ whiteSpace: 'nowrap', textAlign: 'center' }}>
                       <div className="cell-value">
@@ -340,7 +358,9 @@ export function WatchlistTab() {
                     </td>
                   </tr>
                 );
-              })}
+              });
+              return rows;
+            })()}
             </tbody>
           </table>
         </div>

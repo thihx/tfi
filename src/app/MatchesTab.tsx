@@ -1,4 +1,4 @@
-import { useState, useMemo, useCallback, useEffect, useRef } from 'react';
+import React, { useState, useMemo, useCallback, useEffect, useRef } from 'react';
 import { useAppState } from '@/hooks/useAppState';
 import { useToast } from '@/hooks/useToast';
 import { Pagination } from '@/components/ui/Pagination';
@@ -13,6 +13,16 @@ import { runPipelineForMatch } from '@/features/live-monitor/services/pipeline';
 import { MatchScoutModal } from '@/components/ui/MatchScoutModal';
 
 const PAGE_SIZE = 30;
+
+function getDateGroupLabel(localDT: Date): string {
+  const today = new Date();
+  const tomorrow = new Date(today);
+  tomorrow.setDate(today.getDate() + 1);
+  const same = (a: Date, b: Date) => a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate();
+  if (same(localDT, today)) return 'Today';
+  if (same(localDT, tomorrow)) return 'Tomorrow';
+  return localDT.toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' });
+}
 
 export function MatchesTab() {
   const { state, addToWatchlist } = useAppState();
@@ -425,22 +435,34 @@ export function MatchesTab() {
                 <p>No matches found</p>
                 <button className="btn btn-secondary" onClick={clearFilters} style={{ marginTop: '10px' }}>Clear Filters</button>
               </td></tr>
-            ) : pageItems.map((m) => (
-              <MatchRow
-                key={m.match_id}
-                match={m}
-                isWatched={watchlistMap.has(String(m.match_id))}
-                isPending={pendingAdds.has(String(m.match_id))}
-                isSelected={selected.has(String(m.match_id))}
-                isAnalyzing={analyzingMatches.has(String(m.match_id))}
-                hasResult={aiResults.has(String(m.match_id))}
-                leagues={leagues}
-                onQuickAdd={() => quickAdd(m)}
-                onToggleSelect={() => toggleSelect(String(m.match_id), watchlistMap.has(String(m.match_id)))}
-                onAskAi={() => askAi(m)}
-                onDoubleClick={() => setScoutMatch(m)}
-              />
-            ))}
+            ) : (() => {
+              const rows: React.ReactNode[] = [];
+              let lastLabel = '';
+              pageItems.forEach((m) => {
+                const label = getDateGroupLabel(convertSeoulToLocalDateTime(m.date, m.kickoff || '00:00'));
+                if (label !== lastLabel) {
+                  lastLabel = label;
+                  rows.push(<tr key={`grp-${label}`} className="date-group-row"><td>{label}</td><td colSpan={6} /></tr>);
+                }
+                rows.push(
+                  <MatchRow
+                    key={m.match_id}
+                    match={m}
+                    isWatched={watchlistMap.has(String(m.match_id))}
+                    isPending={pendingAdds.has(String(m.match_id))}
+                    isSelected={selected.has(String(m.match_id))}
+                    isAnalyzing={analyzingMatches.has(String(m.match_id))}
+                    hasResult={aiResults.has(String(m.match_id))}
+                    leagues={leagues}
+                    onQuickAdd={() => quickAdd(m)}
+                    onToggleSelect={() => toggleSelect(String(m.match_id), watchlistMap.has(String(m.match_id)))}
+                    onAskAi={() => askAi(m)}
+                    onDoubleClick={() => setScoutMatch(m)}
+                  />
+                );
+              });
+              return rows;
+            })()}
           </tbody>
         </table>
       </div>}

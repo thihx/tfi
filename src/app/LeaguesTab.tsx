@@ -75,13 +75,13 @@ const LeagueRow = memo(function LeagueRow({ league, onToggle, onToggleTop, onVie
           <span className="league-id">#{league.league_id}</span>
         </div>
       </td>
-      <td>{league.country || '-'}</td>
-      <td>
+      <td style={{ whiteSpace: 'nowrap', width: '1%' }}>{league.country || '-'}</td>
+      <td style={{ whiteSpace: 'nowrap', width: '1%' }}>
         <span className="league-tier-badge" style={{ borderColor: TIER_COLORS[league.tier] || '#94a3b8', color: TIER_COLORS[league.tier] || '#94a3b8' }}>
           {league.tier || '-'}
         </span>
       </td>
-      <td>{league.type || '-'}</td>
+      <td style={{ whiteSpace: 'nowrap', width: '1%' }}>{league.type || '-'}</td>
       <td style={{ width: 48, textAlign: 'center' }}>
         <button
           className={`league-top-star ${league.top_league ? 'active' : ''}`}
@@ -370,7 +370,7 @@ export function LeaguesTab() {
 
   return (
     <>
-    <div className="leagues-tab">
+    <div className="card leagues-tab">
       {/* Stats bar */}
       <StatsBar leagues={allLeagues} />
 
@@ -475,13 +475,13 @@ export function LeaguesTab() {
                   title="Select all visible"
                 />
               </th>
-              <th style={{ width: 42 }}>Logo</th>
+              <th style={{ width: '1%', whiteSpace: 'nowrap' }}>Logo</th>
               <th>League</th>
-              <th>Country</th>
-              <th>Tier</th>
-              <th>Type</th>
-              <th style={{ width: 48 }}>Top</th>
-              <th style={{ width: 64 }}>Active</th>
+              <th style={{ width: '1%', whiteSpace: 'nowrap' }}>Country</th>
+              <th style={{ width: '1%', whiteSpace: 'nowrap' }}>Tier</th>
+              <th style={{ width: '1%', whiteSpace: 'nowrap' }}>Type</th>
+              <th style={{ width: '1%', whiteSpace: 'nowrap', textAlign: 'center' }}>Top</th>
+              <th style={{ width: '1%', whiteSpace: 'nowrap', textAlign: 'center' }}>Active</th>
             </tr>
           </thead>
           <tbody>

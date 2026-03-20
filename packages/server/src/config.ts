@@ -64,6 +64,11 @@ export const config = {
   // Pipeline AI thresholds (match frontend LiveMonitorConfig defaults)
   pipelineMinConfidence: Number(process.env['PIPELINE_MIN_CONFIDENCE'] || 5),
   pipelineMinOdds: Number(process.env['PIPELINE_MIN_ODDS'] || 1.5),
+  pipelineMinMinute: Number(process.env['PIPELINE_MIN_MINUTE'] || 5),
+  pipelineMaxMinute: Number(process.env['PIPELINE_MAX_MINUTE'] || 85),
+  pipelineSecondHalfStartMinute: Number(process.env['PIPELINE_SECOND_HALF_START_MINUTE'] || 5),
+  pipelineReanalyzeMinMinutes: Number(process.env['PIPELINE_REANALYZE_MIN_MINUTES'] || 10),
+  pipelineStalenessOddsDelta: Number(process.env['PIPELINE_STALENESS_ODDS_DELTA'] || 0.1),
   pipelineLatePhaseMinute: Number(process.env['PIPELINE_LATE_PHASE_MINUTE'] || 75),
   pipelineVeryLatePhaseMinute: Number(process.env['PIPELINE_VERY_LATE_PHASE_MINUTE'] || 85),
   pipelineEndgameMinute: Number(process.env['PIPELINE_ENDGAME_MINUTE'] || 88),

@@ -93,7 +93,9 @@ describe('GET /api/auth/google/callback', () => {
     expect(callbackRes.statusCode).toBe(302);
     expect(callbackRes.headers.location).toBe('http://localhost:3000/#auth=success');
     expect(callbackRes.headers.location).not.toContain('token=');
-    const setCookie = callbackRes.headers['set-cookie'];
+    const setCookie = Array.isArray(callbackRes.headers['set-cookie'])
+      ? callbackRes.headers['set-cookie'].join('; ')
+      : String(callbackRes.headers['set-cookie'] || '');
     expect(setCookie).toContain('tfi_oauth_state=');
     expect(setCookie).toContain('Max-Age=0');
     expect(setCookie).toContain('tfi_auth_token=');

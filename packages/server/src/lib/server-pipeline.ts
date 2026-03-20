@@ -28,6 +28,11 @@ import * as watchlistRepo from '../repos/watchlist.repo.js';
 import { createRecommendation, getRecommendationsByMatchId } from '../repos/recommendations.repo.js';
 import { createAiPerformanceRecord } from '../repos/ai-performance.repo.js';
 import { getSettings } from '../repos/settings.repo.js';
+import { createSnapshot, getLatestSnapshot } from '../repos/match-snapshots.repo.js';
+import {
+  checkShouldProceedServer,
+  checkStalenessServer,
+} from './server-pipeline-gates.js';
 
 /** Resolved pipeline settings: DB values take priority, env vars as fallback */
 interface PipelineSettings {
@@ -35,6 +40,11 @@ interface PipelineSettings {
   aiModel: string;
   minConfidence: number;
   minOdds: number;
+  minMinute: number;
+  maxMinute: number;
+  secondHalfStartMinute: number;
+  reanalyzeMinMinutes: number;
+  stalenessOddsDelta: number;
   latePhaseMinute: number;
   veryLatePhaseMinute: number;
   endgameMinute: number;
@@ -53,6 +63,11 @@ async function loadPipelineSettings(): Promise<PipelineSettings> {
     aiModel: String(db['AI_MODEL'] || '') || config.geminiModel,
     minConfidence: parseNumSetting(db['MIN_CONFIDENCE'], config.pipelineMinConfidence),
     minOdds: parseNumSetting(db['MIN_ODDS'], config.pipelineMinOdds),
+    minMinute: parseNumSetting(db['MIN_MINUTE'], config.pipelineMinMinute),
+    maxMinute: parseNumSetting(db['MAX_MINUTE'], config.pipelineMaxMinute),
+    secondHalfStartMinute: parseNumSetting(db['SECOND_HALF_START_MINUTE'], config.pipelineSecondHalfStartMinute),
+    reanalyzeMinMinutes: parseNumSetting(db['REANALYZE_MIN_MINUTES'], config.pipelineReanalyzeMinMinutes),
+    stalenessOddsDelta: parseNumSetting(db['STALENESS_ODDS_DELTA'], config.pipelineStalenessOddsDelta),
     latePhaseMinute: parseNumSetting(db['LATE_PHASE_MINUTE'], config.pipelineLatePhaseMinute),
     veryLatePhaseMinute: parseNumSetting(db['VERY_LATE_PHASE_MINUTE'], config.pipelineVeryLatePhaseMinute),
     endgameMinute: parseNumSetting(db['ENDGAME_MINUTE'], config.pipelineEndgameMinute),
@@ -864,6 +879,7 @@ async function processMatch(
     const score = `${homeGoals}-${awayGoals}`;
     const homeTeamId = fixture.teams?.home?.id;
     const awayTeamId = fixture.teams?.away?.id;
+    const forceAnalyze = (watchlistEntry.mode || 'B').toUpperCase() === 'F';
 
     // 1. Fetch stats + events in parallel
     const [statsRaw, eventsRaw] = await Promise.all([
@@ -874,12 +890,47 @@ async function processMatch(
     const homeStats = statsRaw[0]?.statistics || [];
     const awayStats = statsRaw[1]?.statistics || [];
     const statsCompact = buildStatsCompact(homeStats, awayStats);
-    const statsAvailable = homeStats.length > 0 || awayStats.length > 0;
-
     const eventsCompact = buildEventsCompact(eventsRaw, homeTeamId, awayTeamId, homeName, awayName);
     const derivedInsights = deriveInsightsFromEvents(eventsCompact, minute, homeName, awayName);
 
-    // 2. Fetch odds (live first, fallback to pre-match, then The Odds API)
+    // 2. Check should proceed before fetching odds / AI
+    const proceed = checkShouldProceedServer(
+      status,
+      minute,
+      statsCompact,
+      {
+        minMinute: settings.minMinute,
+        maxMinute: settings.maxMinute,
+        secondHalfStartMinute: settings.secondHalfStartMinute,
+      },
+      forceAnalyze,
+    );
+    const statsAvailable = proceed.statsAvailable;
+    if (!proceed.shouldProceed && !forceAnalyze) {
+      audit({
+        category: 'PIPELINE',
+        action: 'PIPELINE_MATCH_SKIPPED',
+        outcome: 'SKIPPED',
+        actor: 'auto-pipeline',
+        metadata: {
+          matchId,
+          matchDisplay,
+          reason: proceed.reason,
+        },
+      });
+
+      return {
+        matchId,
+        success: true,
+        shouldPush: false,
+        selection: '',
+        confidence: 0,
+        saved: false,
+        notified: false,
+      };
+    }
+
+    // 3. Fetch odds (live first, fallback to pre-match, then The Odds API)
     let oddsCanonical: OddsCanonical = {};
     let oddsAvailable = false;
     let oddsSource: string = 'none';
@@ -921,8 +972,81 @@ async function processMatch(
       }
     }
 
-    // 3. Get previous recommendations for context
-    const prevRecs = await getRecommendationsByMatchId(matchId).catch(() => []);
+    // 4. Load prior context for staleness + prompt
+    const [prevRecs, latestSnapshot] = await Promise.all([
+      getRecommendationsByMatchId(matchId).catch(() => []),
+      getLatestSnapshot(matchId).catch(() => null),
+    ]);
+
+    // Track latest state for future gating and context.
+    await createSnapshot({
+      match_id: matchId,
+      minute,
+      status,
+      home_score: homeGoals,
+      away_score: awayGoals,
+      stats: statsCompact as unknown as Record<string, unknown>,
+      events: eventsCompact as unknown[],
+      odds: oddsCanonical as unknown as Record<string, unknown>,
+      source: 'server-pipeline',
+    }).catch((err) => {
+      console.warn(`[pipeline] Snapshot save failed for ${matchId}:`, err instanceof Error ? err.message : String(err));
+    });
+
+    const staleness = checkStalenessServer({
+      minute,
+      score,
+      eventsCompact,
+      oddsCanonical: oddsCanonical as unknown as Record<string, unknown>,
+      previousRecommendation: prevRecs[0]
+        ? {
+            minute: prevRecs[0].minute,
+            odds: prevRecs[0].odds,
+            bet_market: prevRecs[0].bet_market,
+            selection: prevRecs[0].selection,
+            score: prevRecs[0].score,
+          }
+        : null,
+      previousSnapshot: latestSnapshot
+        ? {
+            minute: latestSnapshot.minute,
+            home_score: latestSnapshot.home_score,
+            away_score: latestSnapshot.away_score,
+            odds: latestSnapshot.odds,
+          }
+        : null,
+      settings: {
+        reanalyzeMinMinutes: settings.reanalyzeMinMinutes,
+        oddsMovementThreshold: settings.stalenessOddsDelta,
+      },
+      forceAnalyze,
+    });
+    if (staleness.isStale && !forceAnalyze) {
+      audit({
+        category: 'PIPELINE',
+        action: 'PIPELINE_MATCH_SKIPPED',
+        outcome: 'SKIPPED',
+        actor: 'auto-pipeline',
+        metadata: {
+          matchId,
+          matchDisplay,
+          reason: staleness.reason,
+          baseline: staleness.baseline,
+        },
+      });
+
+      return {
+        matchId,
+        success: true,
+        shouldPush: false,
+        selection: '',
+        confidence: 0,
+        saved: false,
+        notified: false,
+      };
+    }
+
+    // 5. Get previous recommendations for prompt context
     const prevRecsContext = prevRecs.slice(0, 5).map((r) => ({
       minute: r.minute,
       selection: r.selection,
@@ -948,6 +1072,7 @@ async function processMatch(
       derivedInsights: !statsAvailable ? derivedInsights : null,
       customConditions, recommendedCondition, recommendedConditionReason,
       strategicContext,
+      forceAnalyze,
       prediction,
       currentTotalGoals: homeGoals + awayGoals,
       previousRecommendations: prevRecsContext,
@@ -955,14 +1080,14 @@ async function processMatch(
       mode: watchlistEntry.mode || 'B',
     }, settings);
 
-    // 5. Call Gemini
+    // 6. Call Gemini
     const model = settings.aiModel;
     const aiText = await callGemini(prompt, model);
 
-    // 6. Parse response
+    // 7. Parse response
     const parsed = parseAiResponse(aiText, oddsCanonical, minute, settings);
 
-    // 7. Save when AI recommends (raw intent) or custom condition matched
+    // 8. Save when AI recommends (raw intent) or custom condition matched
     const shouldSave = parsed.ai_should_push || parsed.custom_condition_matched;
     let saved = false;
     let recId: number | null = null;
@@ -1025,7 +1150,7 @@ async function processMatch(
         } catch { /* non-critical — duplicate key or other */ }
       }
 
-      // 8. Send Telegram notification (only for actionable recommendations)
+      // 9. Send Telegram notification (only for actionable recommendations)
       if (parsed.should_push && settings.telegramChatId) {
         try {
           const mode = watchlistEntry.mode || 'B';
@@ -1177,6 +1302,7 @@ function buildServerPrompt(data: {
   recommendedCondition: string;
   recommendedConditionReason: string;
   strategicContext: Record<string, string> | null;
+  forceAnalyze: boolean;
   prediction: Record<string, unknown> | null;
   currentTotalGoals: number;
   previousRecommendations: Array<Record<string, unknown>>;
@@ -1282,7 +1408,7 @@ MATCH CONTEXT
 - Minute: ${data.minute}
 - Score: ${data.score}
 - Status: ${data.status}
-- Force Analyze: NO (auto-pipeline)
+- Force Analyze: ${data.forceAnalyze ? 'YES (watchlist force mode)' : 'NO (auto-pipeline)'}
 - Is Manual Push: NO
 
 ========================
