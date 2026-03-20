@@ -16,81 +16,118 @@ const {
   hasUsableStrategicContext,
 } = await import('../lib/strategic-context.service.js');
 
+function makeGeminiResponse(text: string, groundingMetadata?: Record<string, unknown>) {
+  return {
+    ok: true,
+    json: vi.fn().mockResolvedValue({
+      candidates: [{
+        content: {
+          parts: [{ text }],
+        },
+        ...(groundingMetadata ? { groundingMetadata } : {}),
+      }],
+    }),
+    text: vi.fn(),
+  };
+}
+
 beforeEach(() => {
   fetchMock.mockReset();
 });
 
 describe('strategic-context.service', () => {
   test('parses structured grounded response into v2 context with bilingual notes and quantitative priors', async () => {
-    fetchMock.mockResolvedValueOnce({
-      ok: true,
-      json: vi.fn().mockResolvedValue({
-        candidates: [{
-          content: {
-            parts: [{
-              text: JSON.stringify({
-                qualitative_en: {
-                  home_motivation: 'Home side is chasing the title.',
-                  away_motivation: 'Away side needs points to avoid relegation.',
-                  league_positions: 'Home 2nd, Away 18th in the same domestic league.',
-                  fixture_congestion: 'Home has a cup semifinal in three days.',
-                  rotation_risk: 'Moderate home rotation risk.',
-                  key_absences: 'Away missing first-choice center back.',
-                  h2h_narrative: 'Home won three of the last four meetings.',
-                  summary: 'Strong pre-match edge for the home attack, but rotation risk matters.',
-                },
-                qualitative_vi: {
-                  home_motivation: 'Chu nha dang dua vo dich.',
-                  away_motivation: 'Doi khach can diem de tranh xuong hang.',
-                  league_positions: 'Chu nha dung thu 2, doi khach dung thu 18 cung giai.',
-                  fixture_congestion: 'Chu nha co ban ket cup sau ba ngay.',
-                  rotation_risk: 'Rui ro xoay tua vua phai cho chu nha.',
-                  key_absences: 'Doi khach mat trung ve chinh.',
-                  h2h_narrative: 'Chu nha thang 3/4 lan doi dau gan nhat.',
-                  summary: 'Tien de truoc tran nghieng ve suc tan cong cua chu nha nhung can tru rui ro xoay tua.',
-                },
-                quantitative: {
-                  home_last5_points: 11,
-                  away_last5_points: 3,
-                  home_last5_goals_for: 9,
-                  away_last5_goals_for: 4,
-                  home_last5_goals_against: 4,
-                  away_last5_goals_against: 10,
-                  home_home_goals_avg: 1.9,
-                  away_away_goals_avg: 0.8,
-                  home_over_2_5_rate_last10: 60,
-                  away_over_2_5_rate_last10: 50,
-                  home_btts_rate_last10: 55,
-                  away_btts_rate_last10: 45,
-                  home_clean_sheet_rate_last10: 30,
-                  away_clean_sheet_rate_last10: 10,
-                  home_failed_to_score_rate_last10: 10,
-                  away_failed_to_score_rate_last10: 40,
-                },
-                competition_type: 'domestic_league',
-                condition_blueprint: {
-                  alert_window_start: 60,
-                  alert_window_end: null,
-                  preferred_score_state: 'not_home_leading',
-                  preferred_goal_state: 'any',
-                  favoured_side: 'home',
-                  alert_rationale_en: 'Home pressure profile supports a late trigger if they are not ahead by 60.',
-                  alert_rationale_vi: 'Ap luc cua chu nha ung ho trigger muon neu ho chua dan truoc o phut 60.',
-                },
-              }),
-            }],
-          },
-          groundingMetadata: {
-            webSearchQueries: ['Arsenal Chelsea injuries', 'Premier League table'],
-            groundingChunks: [
-              { web: { uri: 'https://www.reuters.com/world/uk/example-story', title: 'Reuters squad update' } },
-              { web: { uri: 'https://fbref.com/en/matches/example', title: 'FBref match report' } },
-            ],
-          },
-        }],
-      }),
-      text: vi.fn(),
-    });
+    fetchMock
+      .mockResolvedValueOnce(makeGeminiResponse(
+        `COMPETITION_TYPE: domestic_league
+HOME_MOTIVATION: Home side is chasing the title.
+AWAY_MOTIVATION: Away side needs points to avoid relegation.
+LEAGUE_POSITIONS: Home 2nd, Away 18th in the same domestic league.
+FIXTURE_CONGESTION: Home has a cup semifinal in three days.
+ROTATION_RISK: Moderate home rotation risk.
+KEY_ABSENCES: Away missing first-choice center back.
+H2H_NARRATIVE: Home won three of the last four meetings.
+SUMMARY: Strong pre-match edge for the home attack, but rotation risk matters.
+HOME_LAST5_POINTS: 11
+AWAY_LAST5_POINTS: 3
+HOME_LAST5_GOALS_FOR: 9
+AWAY_LAST5_GOALS_FOR: 4
+HOME_LAST5_GOALS_AGAINST: 4
+AWAY_LAST5_GOALS_AGAINST: 10
+HOME_HOME_GOALS_AVG: 1.9
+AWAY_AWAY_GOALS_AVG: 0.8
+HOME_OVER_2_5_RATE_LAST10: 60
+AWAY_OVER_2_5_RATE_LAST10: 50
+HOME_BTTS_RATE_LAST10: 55
+AWAY_BTTS_RATE_LAST10: 45
+HOME_CLEAN_SHEET_RATE_LAST10: 30
+AWAY_CLEAN_SHEET_RATE_LAST10: 10
+HOME_FAILED_TO_SCORE_RATE_LAST10: 10
+AWAY_FAILED_TO_SCORE_RATE_LAST10: 40
+ALERT_WINDOW_START: 60
+ALERT_WINDOW_END: null
+PREFERRED_SCORE_STATE: not_home_leading
+PREFERRED_GOAL_STATE: any
+FAVOURED_SIDE: home
+ALERT_RATIONALE: Home pressure profile supports a late trigger if they are not ahead by 60.`,
+        {
+          webSearchQueries: ['Arsenal Chelsea injuries', 'Premier League table'],
+          groundingChunks: [
+            { web: { uri: 'https://www.reuters.com/world/uk/example-story', title: 'Reuters squad update' } },
+            { web: { uri: 'https://fbref.com/en/matches/example', title: 'FBref match report' } },
+          ],
+        },
+      ))
+      .mockResolvedValueOnce(makeGeminiResponse(JSON.stringify({
+        qualitative_en: {
+          home_motivation: 'Home side is chasing the title.',
+          away_motivation: 'Away side needs points to avoid relegation.',
+          league_positions: 'Home 2nd, Away 18th in the same domestic league.',
+          fixture_congestion: 'Home has a cup semifinal in three days.',
+          rotation_risk: 'Moderate home rotation risk.',
+          key_absences: 'Away missing first-choice center back.',
+          h2h_narrative: 'Home won three of the last four meetings.',
+          summary: 'Strong pre-match edge for the home attack, but rotation risk matters.',
+        },
+        qualitative_vi: {
+          home_motivation: 'Chu nha dang dua vo dich.',
+          away_motivation: 'Doi khach can diem de tranh xuong hang.',
+          league_positions: 'Chu nha dung thu 2, doi khach dung thu 18 cung giai.',
+          fixture_congestion: 'Chu nha co ban ket cup sau ba ngay.',
+          rotation_risk: 'Rui ro xoay tua vua phai cho chu nha.',
+          key_absences: 'Doi khach mat trung ve chinh.',
+          h2h_narrative: 'Chu nha thang 3/4 lan doi dau gan nhat.',
+          summary: 'Tien de truoc tran nghieng ve suc tan cong cua chu nha nhung can tru rui ro xoay tua.',
+        },
+        quantitative: {
+          home_last5_points: 11,
+          away_last5_points: 3,
+          home_last5_goals_for: 9,
+          away_last5_goals_for: 4,
+          home_last5_goals_against: 4,
+          away_last5_goals_against: 10,
+          home_home_goals_avg: 1.9,
+          away_away_goals_avg: 0.8,
+          home_over_2_5_rate_last10: 60,
+          away_over_2_5_rate_last10: 50,
+          home_btts_rate_last10: 55,
+          away_btts_rate_last10: 45,
+          home_clean_sheet_rate_last10: 30,
+          away_clean_sheet_rate_last10: 10,
+          home_failed_to_score_rate_last10: 10,
+          away_failed_to_score_rate_last10: 40,
+        },
+        competition_type: 'domestic_league',
+        condition_blueprint: {
+          alert_window_start: 60,
+          alert_window_end: null,
+          preferred_score_state: 'not_home_leading',
+          preferred_goal_state: 'any',
+          favoured_side: 'home',
+          alert_rationale_en: 'Home pressure profile supports a late trigger if they are not ahead by 60.',
+          alert_rationale_vi: 'Ap luc cua chu nha ung ho trigger muon neu ho chua dan truoc o phut 60.',
+        },
+      })));
 
     const context = await fetchStrategicContext('Arsenal', 'Chelsea', 'Premier League', '2026-03-21');
 
@@ -112,54 +149,76 @@ describe('strategic-context.service', () => {
   });
 
   test('sends a research prompt that enforces trusted-source and cross-league safety rules', async () => {
-    fetchMock.mockResolvedValueOnce({
-      ok: true,
-      json: vi.fn().mockResolvedValue({
-        candidates: [{
-          content: {
-            parts: [{
-              text: JSON.stringify({
-                qualitative_en: {
-                  home_motivation: 'No data found',
-                  away_motivation: 'No data found',
-                  league_positions: 'No data found',
-                  fixture_congestion: 'No data found',
-                  rotation_risk: 'No data found',
-                  key_absences: 'No data found',
-                  h2h_narrative: 'No data found',
-                  summary: 'No data found',
-                },
-                qualitative_vi: {
-                  home_motivation: 'Khong tim thay du lieu',
-                  away_motivation: 'Khong tim thay du lieu',
-                  league_positions: 'Khong tim thay du lieu',
-                  fixture_congestion: 'Khong tim thay du lieu',
-                  rotation_risk: 'Khong tim thay du lieu',
-                  key_absences: 'Khong tim thay du lieu',
-                  h2h_narrative: 'Khong tim thay du lieu',
-                  summary: 'Khong tim thay du lieu',
-                },
-                quantitative: {},
-                competition_type: 'european',
-                condition_blueprint: {
-                  alert_window_start: null,
-                  alert_window_end: null,
-                  preferred_score_state: 'any',
-                  preferred_goal_state: 'any',
-                  favoured_side: 'none',
-                  alert_rationale_en: '',
-                  alert_rationale_vi: '',
-                },
-              }),
-            }],
-          },
-          groundingMetadata: {
-            groundingChunks: [],
-          },
-        }],
-      }),
-      text: vi.fn(),
-    });
+    fetchMock
+      .mockResolvedValueOnce(makeGeminiResponse(
+        `COMPETITION_TYPE: european
+HOME_MOTIVATION: No data found
+AWAY_MOTIVATION: No data found
+LEAGUE_POSITIONS: No data found
+FIXTURE_CONGESTION: No data found
+ROTATION_RISK: No data found
+KEY_ABSENCES: No data found
+H2H_NARRATIVE: No data found
+SUMMARY: No data found
+HOME_LAST5_POINTS: null
+AWAY_LAST5_POINTS: null
+HOME_LAST5_GOALS_FOR: null
+AWAY_LAST5_GOALS_FOR: null
+HOME_LAST5_GOALS_AGAINST: null
+AWAY_LAST5_GOALS_AGAINST: null
+HOME_HOME_GOALS_AVG: null
+AWAY_AWAY_GOALS_AVG: null
+HOME_OVER_2_5_RATE_LAST10: null
+AWAY_OVER_2_5_RATE_LAST10: null
+HOME_BTTS_RATE_LAST10: null
+AWAY_BTTS_RATE_LAST10: null
+HOME_CLEAN_SHEET_RATE_LAST10: null
+AWAY_CLEAN_SHEET_RATE_LAST10: null
+HOME_FAILED_TO_SCORE_RATE_LAST10: null
+AWAY_FAILED_TO_SCORE_RATE_LAST10: null
+ALERT_WINDOW_START: null
+ALERT_WINDOW_END: null
+PREFERRED_SCORE_STATE: any
+PREFERRED_GOAL_STATE: any
+FAVOURED_SIDE: none
+ALERT_RATIONALE:`,
+        {
+          groundingChunks: [],
+        },
+      ))
+      .mockResolvedValueOnce(makeGeminiResponse(JSON.stringify({
+        qualitative_en: {
+          home_motivation: 'No data found',
+          away_motivation: 'No data found',
+          league_positions: 'No data found',
+          fixture_congestion: 'No data found',
+          rotation_risk: 'No data found',
+          key_absences: 'No data found',
+          h2h_narrative: 'No data found',
+          summary: 'No data found',
+        },
+        qualitative_vi: {
+          home_motivation: 'Khong tim thay du lieu',
+          away_motivation: 'Khong tim thay du lieu',
+          league_positions: 'Khong tim thay du lieu',
+          fixture_congestion: 'Khong tim thay du lieu',
+          rotation_risk: 'Khong tim thay du lieu',
+          key_absences: 'Khong tim thay du lieu',
+          h2h_narrative: 'Khong tim thay du lieu',
+          summary: 'Khong tim thay du lieu',
+        },
+        quantitative: {},
+        competition_type: 'european',
+        condition_blueprint: {
+          alert_window_start: null,
+          alert_window_end: null,
+          preferred_score_state: 'any',
+          preferred_goal_state: 'any',
+          favoured_side: 'none',
+          alert_rationale_en: '',
+          alert_rationale_vi: '',
+        },
+      })));
 
     await fetchStrategicContext('Arsenal', 'Inter', 'UEFA Champions League', '2026-03-21');
 
@@ -174,59 +233,81 @@ describe('strategic-context.service', () => {
   });
 
   test('downgrades low-trust grounded search output to no-data context', async () => {
-    fetchMock.mockResolvedValueOnce({
-      ok: true,
-      json: vi.fn().mockResolvedValue({
-        candidates: [{
-          content: {
-            parts: [{
-              text: JSON.stringify({
-                qualitative_en: {
-                  home_motivation: 'Looks motivated.',
-                  away_motivation: 'Looks motivated.',
-                  league_positions: 'Unknown',
-                  fixture_congestion: 'Unknown',
-                  rotation_risk: 'Unknown',
-                  key_absences: 'Unknown',
-                  h2h_narrative: 'Unknown',
-                  summary: 'Narrative from weak sources.',
-                },
-                qualitative_vi: {
-                  home_motivation: 'Co dong luc.',
-                  away_motivation: 'Co dong luc.',
-                  league_positions: 'Khong ro',
-                  fixture_congestion: 'Khong ro',
-                  rotation_risk: 'Khong ro',
-                  key_absences: 'Khong ro',
-                  h2h_narrative: 'Khong ro',
-                  summary: 'Narrative tu nguon yeu.',
-                },
-                quantitative: {
-                  home_last5_points: 10,
-                  away_last5_points: 8,
-                },
-                competition_type: 'domestic_league',
-                condition_blueprint: {
-                  alert_window_start: 55,
-                  alert_window_end: null,
-                  preferred_score_state: 'draw',
-                  preferred_goal_state: 'any',
-                  favoured_side: 'none',
-                  alert_rationale_en: 'Weak evidence',
-                  alert_rationale_vi: 'Bang chung yeu',
-                },
-              }),
-            }],
-          },
-          groundingMetadata: {
-            groundingChunks: [
-              { web: { uri: 'https://best-betting-tips.example.com/post', title: 'Betting tips' } },
-            ],
-          },
-        }],
-      }),
-      text: vi.fn(),
-    });
+    fetchMock
+      .mockResolvedValueOnce(makeGeminiResponse(
+        `COMPETITION_TYPE: domestic_league
+HOME_MOTIVATION: Looks motivated.
+AWAY_MOTIVATION: Looks motivated.
+LEAGUE_POSITIONS: Unknown
+FIXTURE_CONGESTION: Unknown
+ROTATION_RISK: Unknown
+KEY_ABSENCES: Unknown
+H2H_NARRATIVE: Unknown
+SUMMARY: Narrative from weak sources.
+HOME_LAST5_POINTS: 10
+AWAY_LAST5_POINTS: 8
+HOME_LAST5_GOALS_FOR: null
+AWAY_LAST5_GOALS_FOR: null
+HOME_LAST5_GOALS_AGAINST: null
+AWAY_LAST5_GOALS_AGAINST: null
+HOME_HOME_GOALS_AVG: null
+AWAY_AWAY_GOALS_AVG: null
+HOME_OVER_2_5_RATE_LAST10: null
+AWAY_OVER_2_5_RATE_LAST10: null
+HOME_BTTS_RATE_LAST10: null
+AWAY_BTTS_RATE_LAST10: null
+HOME_CLEAN_SHEET_RATE_LAST10: null
+AWAY_CLEAN_SHEET_RATE_LAST10: null
+HOME_FAILED_TO_SCORE_RATE_LAST10: null
+AWAY_FAILED_TO_SCORE_RATE_LAST10: null
+ALERT_WINDOW_START: 55
+ALERT_WINDOW_END: null
+PREFERRED_SCORE_STATE: draw
+PREFERRED_GOAL_STATE: any
+FAVOURED_SIDE: none
+ALERT_RATIONALE: Weak evidence`,
+        {
+          groundingChunks: [
+            { web: { uri: 'https://best-betting-tips.example.com/post', title: 'Betting tips' } },
+          ],
+        },
+      ))
+      .mockResolvedValueOnce(makeGeminiResponse(JSON.stringify({
+        qualitative_en: {
+          home_motivation: 'Looks motivated.',
+          away_motivation: 'Looks motivated.',
+          league_positions: 'Unknown',
+          fixture_congestion: 'Unknown',
+          rotation_risk: 'Unknown',
+          key_absences: 'Unknown',
+          h2h_narrative: 'Unknown',
+          summary: 'Narrative from weak sources.',
+        },
+        qualitative_vi: {
+          home_motivation: 'Co dong luc.',
+          away_motivation: 'Co dong luc.',
+          league_positions: 'Khong ro',
+          fixture_congestion: 'Khong ro',
+          rotation_risk: 'Khong ro',
+          key_absences: 'Khong ro',
+          h2h_narrative: 'Khong ro',
+          summary: 'Narrative tu nguon yeu.',
+        },
+        quantitative: {
+          home_last5_points: 10,
+          away_last5_points: 8,
+        },
+        competition_type: 'domestic_league',
+        condition_blueprint: {
+          alert_window_start: 55,
+          alert_window_end: null,
+          preferred_score_state: 'draw',
+          preferred_goal_state: 'any',
+          favoured_side: 'none',
+          alert_rationale_en: 'Weak evidence',
+          alert_rationale_vi: 'Bang chung yeu',
+        },
+      })));
 
     const context = await fetchStrategicContext('Team A', 'Team B', 'League', '2026-03-21');
 

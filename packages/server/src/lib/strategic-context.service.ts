@@ -9,9 +9,16 @@
 // ============================================================
 
 import { config } from '../config.js';
+import {
+  classifyStrategicSourceDomain,
+  type StrategicSearchQuality,
+  type StrategicSourceTrustTier,
+  type StrategicSourceType,
+} from '../config/strategic-source-policy.js';
 
 const GEMINI_BASE = 'https://generativelanguage.googleapis.com/v1beta/models';
-const REQUEST_TIMEOUT_MS = 60_000;
+const REQUEST_TIMEOUT_MS = 90_000;
+const STRUCTURE_REQUEST_TIMEOUT_MS = 45_000;
 
 const NO_DATA = 'No data found';
 const NO_DATA_VI = 'Khong tim thay du lieu';
@@ -24,8 +31,6 @@ export type StrategicCompetitionType =
   | 'friendly'
   | '';
 
-export type StrategicSearchQuality = 'high' | 'medium' | 'low' | 'unknown';
-export type StrategicSourceTrustTier = 'tier_1' | 'tier_2' | 'tier_3' | 'rejected';
 export type StrategicConditionScoreState =
   | 'any'
   | 'draw'
@@ -41,14 +46,6 @@ export type StrategicConditionGoalState =
   | 'goals_gte_1'
   | 'goals_gte_2'
   | 'goals_gte_3';
-export type StrategicSourceType =
-  | 'official'
-  | 'major_news'
-  | 'stats_reference'
-  | 'aggregator'
-  | 'unknown'
-  | 'rejected';
-
 export interface StrategicContextNarrative {
   home_motivation: string;
   away_motivation: string;
@@ -162,77 +159,36 @@ const EMPTY_QUANTITATIVE: StrategicContextQuantitative = {
   away_failed_to_score_rate_last10: null,
 };
 
-const OFFICIAL_DOMAINS = [
-  'fifa.com',
-  'uefa.com',
-  'the-afc.com',
-  'cafonline.com',
-  'concacaf.com',
-  'ofcfootball.com',
-  'premierleague.com',
-  'laliga.com',
-  'seriea.it',
-  'bundesliga.com',
-  'ligue1.com',
-  'efl.com',
-  'mlssoccer.com',
-];
-
-const MAJOR_NEWS_DOMAINS = [
-  'reuters.com',
-  'apnews.com',
-  'bbc.com',
-  'bbc.co.uk',
-  'espn.com',
-  'skysports.com',
-  'theathletic.com',
-  'nbcsports.com',
-  'foxsports.com',
-  'goal.com',
-];
-
-const STATS_REFERENCE_DOMAINS = [
-  'fbref.com',
-  'soccerway.com',
-  'transfermarkt.com',
-  'transfermarkt.co.uk',
-  'sofascore.com',
-  'flashscore.com',
-  'fotmob.com',
-  'whoscored.com',
-  'worldfootball.net',
-];
-
-const REJECTED_DOMAIN_PATTERNS = [
-  'reddit.com',
-  'x.com',
-  'twitter.com',
-  'facebook.com',
-  'instagram.com',
-  'youtube.com',
-  'youtu.be',
-  'tiktok.com',
-  'telegram.me',
-  'blogspot.',
-  'wordpress.',
-  'medium.com',
-  'substack.com',
-  'tipster',
-  'betting',
-  'oddschecker',
-  'freesupertips',
-  'forum',
-];
-
 interface StrategicGroundingMetadata {
   queries: string[];
   sources: StrategicContextSource[];
+}
+
+interface DraftFallbackPayload {
+  competitionType: StrategicCompetitionType;
+  qualitativeEn: Partial<StrategicContextNarrative>;
+  quantitative: Partial<StrategicContextQuantitative>;
+  blueprint: StrategicConditionBlueprint | null;
+  reportedQueries: string[];
+  reportedDomains: string[];
 }
 
 function cleanText(value: unknown, fallback = ''): string {
   const text = typeof value === 'string' ? value : value == null ? '' : String(value);
   const normalized = text.replace(/\s+/g, ' ').trim();
   return normalized || fallback;
+}
+
+function parseDraftKeyValueLines(text: string): Record<string, string> {
+  const out: Record<string, string> = {};
+  for (const line of text.split(/\r?\n/)) {
+    const idx = line.indexOf(':');
+    if (idx <= 0) continue;
+    const key = line.slice(0, idx).trim().toUpperCase();
+    const value = line.slice(idx + 1).trim();
+    if (key) out[key] = value;
+  }
+  return out;
 }
 
 function cleanNarrativeField(value: unknown): string {
@@ -367,6 +323,59 @@ function normalizeConditionBlueprint(raw: unknown): StrategicConditionBlueprint 
   };
 }
 
+function parseReportedCsvLine(value: string | undefined): string[] {
+  return (value || '')
+    .split(',')
+    .map((item) => item.trim())
+    .filter(Boolean);
+}
+
+function extractDraftFallbackPayload(draftText: string): DraftFallbackPayload {
+  const lines = parseDraftKeyValueLines(draftText);
+  return {
+    competitionType: normalizeCompetitionType(lines['COMPETITION_TYPE']),
+    qualitativeEn: {
+      home_motivation: cleanNarrativeField(lines['HOME_MOTIVATION']),
+      away_motivation: cleanNarrativeField(lines['AWAY_MOTIVATION']),
+      league_positions: cleanNarrativeField(lines['LEAGUE_POSITIONS']),
+      fixture_congestion: cleanNarrativeField(lines['FIXTURE_CONGESTION']),
+      rotation_risk: cleanNarrativeField(lines['ROTATION_RISK']),
+      key_absences: cleanNarrativeField(lines['KEY_ABSENCES']),
+      h2h_narrative: cleanNarrativeField(lines['H2H_NARRATIVE']),
+      summary: cleanNarrativeField(lines['SUMMARY']),
+    },
+    quantitative: {
+      home_last5_points: toNullableInteger(lines['HOME_LAST5_POINTS']),
+      away_last5_points: toNullableInteger(lines['AWAY_LAST5_POINTS']),
+      home_last5_goals_for: toNullableInteger(lines['HOME_LAST5_GOALS_FOR']),
+      away_last5_goals_for: toNullableInteger(lines['AWAY_LAST5_GOALS_FOR']),
+      home_last5_goals_against: toNullableInteger(lines['HOME_LAST5_GOALS_AGAINST']),
+      away_last5_goals_against: toNullableInteger(lines['AWAY_LAST5_GOALS_AGAINST']),
+      home_home_goals_avg: toNullableNumber(lines['HOME_HOME_GOALS_AVG']),
+      away_away_goals_avg: toNullableNumber(lines['AWAY_AWAY_GOALS_AVG']),
+      home_over_2_5_rate_last10: toNullableNumber(lines['HOME_OVER_2_5_RATE_LAST10']),
+      away_over_2_5_rate_last10: toNullableNumber(lines['AWAY_OVER_2_5_RATE_LAST10']),
+      home_btts_rate_last10: toNullableNumber(lines['HOME_BTTS_RATE_LAST10']),
+      away_btts_rate_last10: toNullableNumber(lines['AWAY_BTTS_RATE_LAST10']),
+      home_clean_sheet_rate_last10: toNullableNumber(lines['HOME_CLEAN_SHEET_RATE_LAST10']),
+      away_clean_sheet_rate_last10: toNullableNumber(lines['AWAY_CLEAN_SHEET_RATE_LAST10']),
+      home_failed_to_score_rate_last10: toNullableNumber(lines['HOME_FAILED_TO_SCORE_RATE_LAST10']),
+      away_failed_to_score_rate_last10: toNullableNumber(lines['AWAY_FAILED_TO_SCORE_RATE_LAST10']),
+    },
+    blueprint: normalizeConditionBlueprint({
+      alert_window_start: lines['ALERT_WINDOW_START'],
+      alert_window_end: lines['ALERT_WINDOW_END'],
+      preferred_score_state: lines['PREFERRED_SCORE_STATE'],
+      preferred_goal_state: lines['PREFERRED_GOAL_STATE'],
+      favoured_side: lines['FAVOURED_SIDE'],
+      alert_rationale_en: lines['ALERT_RATIONALE'],
+      alert_rationale_vi: '',
+    }),
+    reportedQueries: parseReportedCsvLine(lines['SEARCH_QUERIES']),
+    reportedDomains: parseReportedCsvLine(lines['SOURCE_DOMAINS']).map((domain) => domain.toLowerCase()),
+  };
+}
+
 export function buildMachineConditionFromBlueprint(blueprint: StrategicConditionBlueprint | null | undefined): string {
   if (!blueprint) return '';
   const start = blueprint.alert_window_start;
@@ -427,10 +436,6 @@ export function countStrategicQuantitativeCoverage(quantitative: StrategicContex
   return Object.values(quantitative).filter((value) => value != null).length;
 }
 
-function matchesDomain(domain: string, candidate: string): boolean {
-  return domain === candidate || domain.endsWith(`.${candidate}`);
-}
-
 function extractDomain(url: string): string {
   try {
     return new URL(url).hostname.replace(/^www\./, '').toLowerCase();
@@ -445,27 +450,6 @@ function detectLanguage(domain: string, url: string): 'en' | 'vi' | 'unknown' {
   }
   if (domain) return 'en';
   return 'unknown';
-}
-
-function classifySource(domain: string): { trustTier: StrategicSourceTrustTier; sourceType: StrategicSourceType } {
-  if (!domain) return { trustTier: 'rejected', sourceType: 'rejected' };
-
-  if (REJECTED_DOMAIN_PATTERNS.some((pattern) => domain.includes(pattern))) {
-    return { trustTier: 'rejected', sourceType: 'rejected' };
-  }
-  if (OFFICIAL_DOMAINS.some((candidate) => matchesDomain(domain, candidate))) {
-    return { trustTier: 'tier_1', sourceType: 'official' };
-  }
-  if (MAJOR_NEWS_DOMAINS.some((candidate) => matchesDomain(domain, candidate))) {
-    return { trustTier: 'tier_1', sourceType: 'major_news' };
-  }
-  if (STATS_REFERENCE_DOMAINS.some((candidate) => matchesDomain(domain, candidate))) {
-    return { trustTier: 'tier_2', sourceType: 'stats_reference' };
-  }
-  if (domain.includes('score') || domain.includes('sport') || domain.includes('news')) {
-    return { trustTier: 'tier_3', sourceType: 'aggregator' };
-  }
-  return { trustTier: 'tier_3', sourceType: 'unknown' };
 }
 
 function computeSearchQuality(sources: StrategicContextSource[]): StrategicSearchQuality {
@@ -484,7 +468,12 @@ function extractCandidateText(data: Record<string, unknown>): string {
     ? firstCandidate.content as Record<string, unknown>
     : null;
   const parts = Array.isArray(content?.parts) ? content.parts as Array<Record<string, unknown>> : [];
-  return cleanText(parts[0]?.text);
+  const joined = parts
+    .map((part) => typeof part.text === 'string' ? part.text : '')
+    .filter(Boolean)
+    .join('\n')
+    .trim();
+  return joined;
 }
 
 function extractGroundingMetadata(data: unknown): StrategicGroundingMetadata {
@@ -507,7 +496,7 @@ function extractGroundingMetadata(data: unknown): StrategicGroundingMetadata {
       if (!url || urls.has(url)) continue;
       urls.add(url);
       const domain = extractDomain(url);
-      const classification = classifySource(domain);
+      const classification = classifyStrategicSourceDomain(domain);
       sources.push({
         title: cleanText(web?.title, domain || 'Unknown source'),
         url,
@@ -542,6 +531,38 @@ function buildSourceMeta(grounding: StrategicGroundingMetadata): StrategicContex
     rejected_source_count: rejected.length,
     rejected_domains: Array.from(new Set(rejected.map((source) => source.domain).filter(Boolean))),
   };
+}
+
+function buildReportedSource(domain: string): StrategicContextSource {
+  const normalizedDomain = cleanText(domain).toLowerCase();
+  const classification = classifyStrategicSourceDomain(normalizedDomain);
+  return {
+    title: normalizedDomain || 'Unknown source',
+    url: normalizedDomain ? `https://${normalizedDomain}` : '',
+    domain: normalizedDomain,
+    publisher: normalizedDomain || 'unknown',
+    language: detectLanguage(normalizedDomain, normalizedDomain ? `https://${normalizedDomain}` : ''),
+    source_type: classification.sourceType,
+    trust_tier: classification.trustTier,
+  };
+}
+
+function mergeSourceMeta(
+  primary: StrategicContextSourceMeta,
+  fallback: DraftFallbackPayload,
+): StrategicContextSourceMeta {
+  if (primary.sources.length > 0 || primary.web_search_queries.length > 0) {
+    return primary;
+  }
+
+  const reportedSources = Array.from(new Set(fallback.reportedDomains))
+    .filter(Boolean)
+    .map((domain) => buildReportedSource(domain));
+  const reportedQueries = Array.from(new Set(fallback.reportedQueries));
+  return buildSourceMeta({
+    queries: reportedQueries,
+    sources: reportedSources,
+  });
 }
 
 export function buildNoDataStrategicContext(searchedAt = new Date().toISOString()): StrategicContext {
@@ -661,6 +682,82 @@ function normalizeContextPayload(payload: unknown, searchedAt: string, sourceMet
   return context;
 }
 
+function mergeStrategicContextWithDraftFallback(
+  context: StrategicContext,
+  draftFallback: DraftFallbackPayload,
+  sourceMeta: StrategicContextSourceMeta,
+): StrategicContext {
+  if (sourceMeta.search_quality === 'low') {
+    return context;
+  }
+
+  const mergedQualitativeEn: StrategicContextNarrative = {
+    home_motivation: isNoDataText(context.qualitative.en.home_motivation) ? (draftFallback.qualitativeEn.home_motivation || context.qualitative.en.home_motivation) : context.qualitative.en.home_motivation,
+    away_motivation: isNoDataText(context.qualitative.en.away_motivation) ? (draftFallback.qualitativeEn.away_motivation || context.qualitative.en.away_motivation) : context.qualitative.en.away_motivation,
+    league_positions: isNoDataText(context.qualitative.en.league_positions) ? (draftFallback.qualitativeEn.league_positions || context.qualitative.en.league_positions) : context.qualitative.en.league_positions,
+    fixture_congestion: isNoDataText(context.qualitative.en.fixture_congestion) ? (draftFallback.qualitativeEn.fixture_congestion || context.qualitative.en.fixture_congestion) : context.qualitative.en.fixture_congestion,
+    rotation_risk: isNoDataText(context.qualitative.en.rotation_risk) ? (draftFallback.qualitativeEn.rotation_risk || context.qualitative.en.rotation_risk) : context.qualitative.en.rotation_risk,
+    key_absences: isNoDataText(context.qualitative.en.key_absences) ? (draftFallback.qualitativeEn.key_absences || context.qualitative.en.key_absences) : context.qualitative.en.key_absences,
+    h2h_narrative: isNoDataText(context.qualitative.en.h2h_narrative) ? (draftFallback.qualitativeEn.h2h_narrative || context.qualitative.en.h2h_narrative) : context.qualitative.en.h2h_narrative,
+    summary: isNoDataText(context.qualitative.en.summary) ? (draftFallback.qualitativeEn.summary || context.qualitative.en.summary) : context.qualitative.en.summary,
+  };
+
+  const mergedQuantitative: StrategicContextQuantitative = {
+    home_last5_points: context.quantitative.home_last5_points ?? draftFallback.quantitative.home_last5_points ?? null,
+    away_last5_points: context.quantitative.away_last5_points ?? draftFallback.quantitative.away_last5_points ?? null,
+    home_last5_goals_for: context.quantitative.home_last5_goals_for ?? draftFallback.quantitative.home_last5_goals_for ?? null,
+    away_last5_goals_for: context.quantitative.away_last5_goals_for ?? draftFallback.quantitative.away_last5_goals_for ?? null,
+    home_last5_goals_against: context.quantitative.home_last5_goals_against ?? draftFallback.quantitative.home_last5_goals_against ?? null,
+    away_last5_goals_against: context.quantitative.away_last5_goals_against ?? draftFallback.quantitative.away_last5_goals_against ?? null,
+    home_home_goals_avg: context.quantitative.home_home_goals_avg ?? draftFallback.quantitative.home_home_goals_avg ?? null,
+    away_away_goals_avg: context.quantitative.away_away_goals_avg ?? draftFallback.quantitative.away_away_goals_avg ?? null,
+    home_over_2_5_rate_last10: context.quantitative.home_over_2_5_rate_last10 ?? draftFallback.quantitative.home_over_2_5_rate_last10 ?? null,
+    away_over_2_5_rate_last10: context.quantitative.away_over_2_5_rate_last10 ?? draftFallback.quantitative.away_over_2_5_rate_last10 ?? null,
+    home_btts_rate_last10: context.quantitative.home_btts_rate_last10 ?? draftFallback.quantitative.home_btts_rate_last10 ?? null,
+    away_btts_rate_last10: context.quantitative.away_btts_rate_last10 ?? draftFallback.quantitative.away_btts_rate_last10 ?? null,
+    home_clean_sheet_rate_last10: context.quantitative.home_clean_sheet_rate_last10 ?? draftFallback.quantitative.home_clean_sheet_rate_last10 ?? null,
+    away_clean_sheet_rate_last10: context.quantitative.away_clean_sheet_rate_last10 ?? draftFallback.quantitative.away_clean_sheet_rate_last10 ?? null,
+    home_failed_to_score_rate_last10: context.quantitative.home_failed_to_score_rate_last10 ?? draftFallback.quantitative.home_failed_to_score_rate_last10 ?? null,
+    away_failed_to_score_rate_last10: context.quantitative.away_failed_to_score_rate_last10 ?? draftFallback.quantitative.away_failed_to_score_rate_last10 ?? null,
+  };
+
+  const blueprint = context.ai_condition_blueprint || draftFallback.blueprint;
+  const mergedSourceMeta = mergeSourceMeta(sourceMeta, draftFallback);
+
+  return {
+    ...context,
+    ...mergedQualitativeEn,
+    home_motivation_vi: context.home_motivation_vi || mergedQualitativeEn.home_motivation,
+    away_motivation_vi: context.away_motivation_vi || mergedQualitativeEn.away_motivation,
+    league_positions_vi: context.league_positions_vi || mergedQualitativeEn.league_positions,
+    fixture_congestion_vi: context.fixture_congestion_vi || mergedQualitativeEn.fixture_congestion,
+    rotation_risk_vi: context.rotation_risk_vi || mergedQualitativeEn.rotation_risk,
+    key_absences_vi: context.key_absences_vi || mergedQualitativeEn.key_absences,
+    h2h_narrative_vi: context.h2h_narrative_vi || mergedQualitativeEn.h2h_narrative,
+    summary_vi: context.summary_vi || mergedQualitativeEn.summary,
+    competition_type: context.competition_type || draftFallback.competitionType,
+    ai_condition_blueprint: blueprint,
+    ai_condition: context.ai_condition || buildMachineConditionFromBlueprint(blueprint),
+    ai_condition_reason: context.ai_condition_reason || blueprint?.alert_rationale_en || '',
+    ai_condition_reason_vi: context.ai_condition_reason_vi || blueprint?.alert_rationale_vi || '',
+    qualitative: {
+      en: mergedQualitativeEn,
+      vi: {
+        home_motivation: context.qualitative.vi.home_motivation || mergedQualitativeEn.home_motivation,
+        away_motivation: context.qualitative.vi.away_motivation || mergedQualitativeEn.away_motivation,
+        league_positions: context.qualitative.vi.league_positions || mergedQualitativeEn.league_positions,
+        fixture_congestion: context.qualitative.vi.fixture_congestion || mergedQualitativeEn.fixture_congestion,
+        rotation_risk: context.qualitative.vi.rotation_risk || mergedQualitativeEn.rotation_risk,
+        key_absences: context.qualitative.vi.key_absences || mergedQualitativeEn.key_absences,
+        h2h_narrative: context.qualitative.vi.h2h_narrative || mergedQualitativeEn.h2h_narrative,
+        summary: context.qualitative.vi.summary || mergedQualitativeEn.summary,
+      },
+    },
+    quantitative: mergedQuantitative,
+    source_meta: mergedSourceMeta,
+  };
+}
+
 function parseStrategicResponse(text: string, searchedAt: string, sourceMeta: StrategicContextSourceMeta): StrategicContext {
   const json = extractJsonString(text);
   if (!json) {
@@ -670,8 +767,111 @@ function parseStrategicResponse(text: string, searchedAt: string, sourceMeta: St
   return normalizeContextPayload(parsed, searchedAt, sourceMeta);
 }
 
-function buildResearchPrompt(homeTeam: string, awayTeam: string, league: string, dateStr: string): string {
-  return `You are a football pre-match research analyst preparing structured inputs for a live betting decision engine.
+interface GeminiGenerateOptions {
+  withSearch: boolean;
+  timeoutMs: number;
+  maxOutputTokens: number;
+  responseMimeType?: string;
+}
+
+async function generateGeminiContent(
+  prompt: string,
+  options: GeminiGenerateOptions,
+): Promise<Record<string, unknown> | null> {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), options.timeoutMs);
+
+  try {
+    const response = await fetch(`${GEMINI_BASE}/${config.geminiModel}:generateContent?key=${config.geminiApiKey}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        contents: [{ parts: [{ text: prompt }] }],
+        ...(options.withSearch ? { tools: [{ google_search: {} }] } : {}),
+        generationConfig: {
+          temperature: options.withSearch ? 0.2 : 0.1,
+          maxOutputTokens: options.maxOutputTokens,
+          ...(options.responseMimeType ? { responseMimeType: options.responseMimeType } : {}),
+        },
+      }),
+      signal: controller.signal,
+    });
+
+    if (!response.ok) {
+      const errText = await response.text().catch(() => '');
+      throw new Error(`Gemini API error ${response.status}: ${errText.substring(0, 300)}`);
+    }
+
+    return await response.json() as Record<string, unknown>;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+async function fetchGroundedResearchDraft(
+  homeTeam: string,
+  awayTeam: string,
+  league: string,
+  dateStr: string,
+): Promise<{ draftText: string; sourceMeta: StrategicContextSourceMeta; fallback: DraftFallbackPayload } | null> {
+  const prompt = buildGroundedResearchDraftPrompt(homeTeam, awayTeam, league, dateStr);
+  const data = await generateGeminiContent(prompt, {
+    withSearch: true,
+    timeoutMs: REQUEST_TIMEOUT_MS,
+    maxOutputTokens: 1400,
+  });
+  if (!data) return null;
+
+  const draftText = extractCandidateText(data);
+  if (!draftText) return null;
+
+  const fallback = extractDraftFallbackPayload(draftText);
+  const sourceMeta = mergeSourceMeta(buildSourceMeta(extractGroundingMetadata(data)), fallback);
+  return { draftText, sourceMeta, fallback };
+}
+
+async function buildStructuredStrategicContext(
+  draftText: string,
+  searchedAt: string,
+  sourceMeta: StrategicContextSourceMeta,
+  fallback: DraftFallbackPayload,
+): Promise<StrategicContext | null> {
+  const data = await generateGeminiContent(
+    buildStructuredStrategicContextPrompt(draftText, sourceMeta),
+    {
+      withSearch: false,
+      timeoutMs: STRUCTURE_REQUEST_TIMEOUT_MS,
+      maxOutputTokens: 2048,
+      responseMimeType: 'application/json',
+    },
+  );
+  if (!data) return null;
+
+  const text = extractCandidateText(data);
+  if (!text) return null;
+
+  try {
+    const parsed = parseStrategicResponse(text, searchedAt, sourceMeta);
+    return mergeStrategicContextWithDraftFallback(parsed, fallback, sourceMeta);
+  } catch {
+    const repaired = await generateGeminiContent(
+      buildStrategicJsonRepairPrompt(text, draftText, sourceMeta),
+      {
+        withSearch: false,
+        timeoutMs: STRUCTURE_REQUEST_TIMEOUT_MS,
+        maxOutputTokens: 2048,
+        responseMimeType: 'application/json',
+      },
+    );
+    const repairedText = repaired ? extractCandidateText(repaired) : '';
+    if (!repairedText) return null;
+    const repairedParsed = parseStrategicResponse(repairedText, searchedAt, sourceMeta);
+    return mergeStrategicContextWithDraftFallback(repairedParsed, fallback, sourceMeta);
+  }
+}
+
+function buildGroundedResearchDraftPrompt(homeTeam: string, awayTeam: string, league: string, dateStr: string): string {
+  return `You are a football pre-match research analyst preparing grounded raw notes for a live betting decision engine.
 
 Match:
 - Home team: ${homeTeam}
@@ -689,9 +889,10 @@ SEARCH DISCIPLINE:
 - If information cannot be verified from trustworthy sources, use "No data found" for narrative fields and null for numeric fields.
 - Do NOT invent exact numbers.
 - Do NOT infer team strength solely from brand size, reputation, or club-name recognition.
+- Return ENGLISH only in this step.
 
 TASKS:
-1. Produce concise bilingual qualitative notes:
+1. Produce concise qualitative notes:
    - home_motivation
    - away_motivation
    - league_positions
@@ -728,30 +929,83 @@ TASKS:
 CONDITION GENERATION RULES:
 - For european/international/friendly matches: the teams are from different domestic leagues, so do NOT compare their league positions directly.
 - If competition_type is unknown or unclear, leave it as an empty string and disable league-position-gap reasoning.
-- Do NOT output a free-form code expression directly.
-- Instead, fill condition_blueprint using only these enums:
+- Do NOT output code. Describe only the intended trigger logic briefly in plain English if a trigger is meaningful.
+
+OUTPUT:
+- Return PLAIN TEXT only, no JSON and no markdown table.
+- Keep total output under 300 words.
+- Every listed key must appear exactly once, even if the value is "No data found" or null.
+- Use exactly this key-value layout:
+COMPETITION_TYPE:
+HOME_MOTIVATION:
+AWAY_MOTIVATION:
+LEAGUE_POSITIONS:
+FIXTURE_CONGESTION:
+ROTATION_RISK:
+KEY_ABSENCES:
+H2H_NARRATIVE:
+SUMMARY:
+HOME_LAST5_POINTS:
+AWAY_LAST5_POINTS:
+HOME_LAST5_GOALS_FOR:
+AWAY_LAST5_GOALS_FOR:
+HOME_LAST5_GOALS_AGAINST:
+AWAY_LAST5_GOALS_AGAINST:
+HOME_HOME_GOALS_AVG:
+AWAY_AWAY_GOALS_AVG:
+HOME_OVER_2_5_RATE_LAST10:
+AWAY_OVER_2_5_RATE_LAST10:
+HOME_BTTS_RATE_LAST10:
+AWAY_BTTS_RATE_LAST10:
+HOME_CLEAN_SHEET_RATE_LAST10:
+AWAY_CLEAN_SHEET_RATE_LAST10:
+HOME_FAILED_TO_SCORE_RATE_LAST10:
+AWAY_FAILED_TO_SCORE_RATE_LAST10:
+ALERT_WINDOW_START:
+ALERT_WINDOW_END:
+PREFERRED_SCORE_STATE:
+PREFERRED_GOAL_STATE:
+FAVOURED_SIDE:
+ALERT_RATIONALE:
+SEARCH_QUERIES:
+SOURCE_DOMAINS:
+`;
+}
+
+function buildStructuredStrategicContextPrompt(
+  draftText: string,
+  sourceMeta: StrategicContextSourceMeta,
+): string {
+  const trustedDomains = sourceMeta.sources
+    .filter((source) => source.trust_tier === 'tier_1' || source.trust_tier === 'tier_2')
+    .map((source) => source.domain)
+    .join(', ') || '(none)';
+
+  return `You are converting grounded football research notes into STRICT JSON for a live betting system.
+
+SOURCE_QUALITY: ${sourceMeta.search_quality}
+TRUSTED_SOURCE_DOMAINS: ${trustedDomains}
+TRUSTED_SOURCE_COUNT: ${sourceMeta.trusted_source_count}
+REJECTED_SOURCE_COUNT: ${sourceMeta.rejected_source_count}
+
+RULES:
+- Use ONLY facts present in the grounded notes below.
+- If a field is missing or uncertain, use "No data found" for narrative fields and null for numeric fields.
+- Keep English and Vietnamese fields aligned to the same facts.
+- Keep each narrative field concise: usually <= 18 words. Keep summary <= 28 words.
+- Do NOT add commentary outside JSON.
+- Do NOT add extra keys.
+- If SOURCE_QUALITY is low or trusted source count is 0, prefer conservative no-data fields.
+- competition_type must be one of: "domestic_league", "domestic_cup", "european", "international", "friendly", or "".
+- condition_blueprint must use only allowed enums:
   - preferred_score_state: "any" | "draw" | "home_leading" | "away_leading" | "not_home_leading" | "not_away_leading"
   - preferred_goal_state: "any" | "goals_lte_0" | "goals_lte_1" | "goals_lte_2" | "goals_gte_1" | "goals_gte_2" | "goals_gte_3"
   - favoured_side: "home" | "away" | "none"
-- alert_window_start should usually be between 45 and 75 for meaningful live alerts.
-- alert_window_end is optional; use null when no upper bound is needed.
-- If there is not enough trustworthy evidence for a good condition, use:
-  - alert_window_start = null
-  - alert_window_end = null
-  - preferred_score_state = "any"
-  - preferred_goal_state = "any"
-  - favoured_side = "none"
-  - empty rationale strings
 
-OUTPUT:
-- Return STRICT JSON only.
-- No markdown, no code fences, no commentary outside JSON.
-- Narrative fields must be strings.
-- Numeric fields must be numbers or null.
-- Keep the English and Vietnamese narrative aligned to the same facts.
-- The server will derive ai_condition from condition_blueprint. Prefer filling condition_blueprint accurately over inventing ai_condition text.
+GROUNDED NOTES:
+${draftText}
 
-JSON SCHEMA:
+Return STRICT JSON only with this schema:
 {
   "qualitative_en": {
     "home_motivation": string,
@@ -791,7 +1045,7 @@ JSON SCHEMA:
     "home_failed_to_score_rate_last10": number | null,
     "away_failed_to_score_rate_last10": number | null
   },
-  "competition_type": "domestic_league" | "domestic_cup" | "european" | "international" | "friendly",
+  "competition_type": "domestic_league" | "domestic_cup" | "european" | "international" | "friendly" | "",
   "condition_blueprint": {
     "alert_window_start": number | null,
     "alert_window_end": number | null,
@@ -805,6 +1059,30 @@ JSON SCHEMA:
   "ai_condition_reason": string,
   "ai_condition_reason_vi": string
 }`;
+}
+
+function buildStrategicJsonRepairPrompt(
+  malformedText: string,
+  draftText: string,
+  sourceMeta: StrategicContextSourceMeta,
+): string {
+  return `Repair the malformed strategic-context output into STRICT JSON only.
+
+SOURCE_QUALITY: ${sourceMeta.search_quality}
+TRUSTED_SOURCE_COUNT: ${sourceMeta.trusted_source_count}
+REJECTED_SOURCE_COUNT: ${sourceMeta.rejected_source_count}
+
+Use only facts from GROUNDED NOTES below.
+If uncertain, use "No data found" for narrative fields and null for numeric fields.
+Do not add extra keys or commentary.
+
+GROUNDED NOTES:
+${draftText}
+
+MALFORMED OUTPUT TO REPAIR:
+${malformedText}
+
+Return the corrected JSON object only.`;
 }
 
 /**
@@ -825,45 +1103,40 @@ export async function fetchStrategicContext(
 
   const searchedAt = new Date().toISOString();
   const dateStr = matchDate || 'upcoming';
-  const prompt = buildResearchPrompt(homeTeam, awayTeam, league, dateStr);
 
   try {
-    const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
-
-    const response = await fetch(`${GEMINI_BASE}/${config.geminiModel}:generateContent?key=${config.geminiApiKey}`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        contents: [{ parts: [{ text: prompt }] }],
-        tools: [{ google_search: {} }],
-        generationConfig: {
-          temperature: 0.2,
-          maxOutputTokens: 4096,
-          responseMimeType: 'application/json',
-        },
-      }),
-      signal: controller.signal,
-    });
-
-    clearTimeout(timer);
-
-    if (!response.ok) {
-      const errText = await response.text().catch(() => '');
-      console.error(`[strategic-context] Gemini API error ${response.status}: ${errText.substring(0, 300)}`);
+    let grounded: { draftText: string; sourceMeta: StrategicContextSourceMeta; fallback: DraftFallbackPayload } | null = null;
+    let groundedError: unknown = null;
+    for (let attempt = 0; attempt < 2; attempt++) {
+      try {
+        grounded = await fetchGroundedResearchDraft(homeTeam, awayTeam, league, dateStr);
+        if (grounded) break;
+      } catch (err) {
+        groundedError = err;
+      }
+    }
+    if (!grounded) {
+      if (groundedError instanceof Error && groundedError.name === 'AbortError') {
+        console.error('[strategic-context] Grounded draft request timed out');
+      } else if (groundedError) {
+        console.error('[strategic-context] Grounded draft error:', groundedError instanceof Error ? groundedError.message : groundedError);
+      } else {
+        console.warn('[strategic-context] Empty grounded draft from Gemini');
+      }
       return null;
     }
 
-    const data = await response.json() as Record<string, unknown>;
-    const text = extractCandidateText(data);
-
-    if (!text) {
-      console.warn('[strategic-context] Empty response from Gemini');
+    const structured = await buildStructuredStrategicContext(
+      grounded.draftText,
+      searchedAt,
+      grounded.sourceMeta,
+      grounded.fallback,
+    );
+    if (!structured) {
+      console.error('[strategic-context] Structured JSON synthesis failed');
       return null;
     }
-
-    const sourceMeta = buildSourceMeta(extractGroundingMetadata(data));
-    return parseStrategicResponse(text, searchedAt, sourceMeta);
+    return structured;
   } catch (err) {
     if (err instanceof Error && err.name === 'AbortError') {
       console.error('[strategic-context] Request timed out');

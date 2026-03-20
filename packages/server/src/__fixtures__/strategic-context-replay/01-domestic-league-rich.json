@@ -1,0 +1,15 @@
+{
+  "name": "01-domestic-league-rich",
+  "homeTeam": "Arsenal",
+  "awayTeam": "Chelsea",
+  "league": "Premier League",
+  "matchDate": "2026-03-21",
+  "expected": {
+    "competitionType": "domestic_league",
+    "usable": true,
+    "minTrustedSources": 1,
+    "minQuantitativeCoverage": 4,
+    "searchQualityIn": ["high", "medium"],
+    "requireBilingual": true
+  }
+}

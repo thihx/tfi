@@ -1,0 +1,15 @@
+{
+  "name": "02-european-cross-league",
+  "homeTeam": "Arsenal",
+  "awayTeam": "Inter",
+  "league": "UEFA Champions League",
+  "matchDate": "2026-03-21",
+  "expected": {
+    "competitionType": "european",
+    "usable": true,
+    "minTrustedSources": 1,
+    "minQuantitativeCoverage": 4,
+    "searchQualityIn": ["high", "medium"],
+    "requireBilingual": true
+  }
+}

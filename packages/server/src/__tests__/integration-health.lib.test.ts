@@ -219,22 +219,24 @@ describe('Gemini probe', () => {
 // Live Score API probe
 
 describe('Live Score API probe', () => {
-  test('HEALTHY when live matches endpoint returns success:true', async () => {
-    global.fetch = mockFetch(200, {
-      success: true,
-      data: { match: [{ id: 1 }, { id: 2 }] },
-    });
+  test('HEALTHY when server responds 401 (reachability check, no quota consumed)', async () => {
+    // No credentials sent → server returns 401 → service is up
+    global.fetch = mockFetch(401, {});
     const { checkSingleIntegration } = await import('../lib/integration-health.js');
     const result = await checkSingleIntegration('live-score-api');
     expect(result!.status).toBe('HEALTHY');
-    expect(result!.message).toContain('2');
+    expect(result!.message).toContain('reachable');
   });
 
-  test('DEGRADED when endpoint returns success:false', async () => {
-    global.fetch = mockFetch(200, {
-      success: false,
-      error: 'temporary issue',
-    });
+  test('HEALTHY when server responds 200 without credentials', async () => {
+    global.fetch = mockFetch(200, {});
+    const { checkSingleIntegration } = await import('../lib/integration-health.js');
+    const result = await checkSingleIntegration('live-score-api');
+    expect(result!.status).toBe('HEALTHY');
+  });
+
+  test('DEGRADED when server returns unexpected 5xx', async () => {
+    global.fetch = mockFetch(503, {});
     const { checkSingleIntegration } = await import('../lib/integration-health.js');
     const result = await checkSingleIntegration('live-score-api');
     expect(result!.status).toBe('DEGRADED');

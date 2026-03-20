@@ -1,0 +1,102 @@
+{
+  "name": "02-threshold-edge-no-bet",
+  "matchId": "9202",
+  "fixture": {
+    "fixture": {
+      "id": 9202,
+      "date": "2026-03-21T12:00:00Z",
+      "timestamp": 1774094400,
+      "status": { "short": "2H", "elapsed": 62 }
+    },
+    "teams": {
+      "home": { "id": 221, "name": "Lazio", "logo": "", "winner": null },
+      "away": { "id": 222, "name": "Fiorentina", "logo": "", "winner": null }
+    },
+    "league": {
+      "id": 135,
+      "name": "Serie A",
+      "country": "Italy",
+      "logo": "",
+      "flag": null,
+      "season": 2026,
+      "round": "Regular Season - 29"
+    },
+    "goals": { "home": 1, "away": 1 },
+    "score": {}
+  },
+  "statistics": [
+    {
+      "team": { "id": 221, "name": "Lazio", "logo": "" },
+      "statistics": [
+        { "type": "Ball Possession", "value": "50%" },
+        { "type": "Total Shots", "value": 9 },
+        { "type": "Shots on Goal", "value": 3 },
+        { "type": "Corner Kicks", "value": 4 },
+        { "type": "Fouls", "value": 10 }
+      ]
+    },
+    {
+      "team": { "id": 222, "name": "Fiorentina", "logo": "" },
+      "statistics": [
+        { "type": "Ball Possession", "value": "50%" },
+        { "type": "Total Shots", "value": 8 },
+        { "type": "Shots on Goal", "value": 3 },
+        { "type": "Corner Kicks", "value": 4 },
+        { "type": "Fouls", "value": 11 }
+      ]
+    }
+  ],
+  "events": [
+    {
+      "time": { "elapsed": 16, "extra": null },
+      "team": { "id": 221, "name": "Lazio", "logo": "" },
+      "player": { "id": 2201, "name": "Home Midfielder" },
+      "assist": { "id": null, "name": null },
+      "type": "Goal",
+      "detail": "Normal Goal",
+      "comments": null
+    },
+    {
+      "time": { "elapsed": 54, "extra": null },
+      "team": { "id": 222, "name": "Fiorentina", "logo": "" },
+      "player": { "id": 2202, "name": "Away Forward" },
+      "assist": { "id": null, "name": null },
+      "type": "Goal",
+      "detail": "Normal Goal",
+      "comments": null
+    }
+  ],
+  "liveOddsResponse": [
+    {
+      "fixture": { "id": 9202 },
+      "odds": [
+        {
+          "id": 1,
+          "name": "Over/Under",
+          "values": [
+            { "value": "Over", "odd": "1.92", "handicap": "2.5" },
+            { "value": "Under", "odd": "1.92", "handicap": "2.5" }
+          ]
+        },
+        {
+          "id": 2,
+          "name": "Match Winner",
+          "values": [
+            { "value": "Home", "odd": "2.62" },
+            { "value": "Draw", "odd": "2.84" },
+            { "value": "Away", "odd": "2.88" }
+          ]
+        }
+      ]
+    }
+  ],
+  "expected": {
+    "analysisMode": "auto",
+    "evidenceMode": "full_live_data",
+    "statsSource": "api-football",
+    "oddsSource": "live",
+    "shouldPush": false,
+    "saved": false,
+    "notified": false
+  }
+}

@@ -1,0 +1,84 @@
+{
+  "name": "04-corners-late-no-bet",
+  "matchId": "9204",
+  "fixture": {
+    "fixture": {
+      "id": 9204,
+      "date": "2026-03-21T12:00:00Z",
+      "timestamp": 1774094400,
+      "status": { "short": "2H", "elapsed": 83 }
+    },
+    "teams": {
+      "home": { "id": 241, "name": "Real Sociedad", "logo": "", "winner": null },
+      "away": { "id": 242, "name": "Villarreal", "logo": "", "winner": null }
+    },
+    "league": {
+      "id": 140,
+      "name": "La Liga",
+      "country": "Spain",
+      "logo": "",
+      "flag": null,
+      "season": 2026,
+      "round": "Regular Season - 30"
+    },
+    "goals": { "home": 1, "away": 0 },
+    "score": {}
+  },
+  "statistics": [
+    {
+      "team": { "id": 241, "name": "Real Sociedad", "logo": "" },
+      "statistics": [
+        { "type": "Ball Possession", "value": "48%" },
+        { "type": "Total Shots", "value": 11 },
+        { "type": "Shots on Goal", "value": 4 },
+        { "type": "Corner Kicks", "value": 4 },
+        { "type": "Fouls", "value": 9 }
+      ]
+    },
+    {
+      "team": { "id": 242, "name": "Villarreal", "logo": "" },
+      "statistics": [
+        { "type": "Ball Possession", "value": "52%" },
+        { "type": "Total Shots", "value": 10 },
+        { "type": "Shots on Goal", "value": 3 },
+        { "type": "Corner Kicks", "value": 3 },
+        { "type": "Fouls", "value": 11 }
+      ]
+    }
+  ],
+  "events": [
+    {
+      "time": { "elapsed": 33, "extra": null },
+      "team": { "id": 241, "name": "Real Sociedad", "logo": "" },
+      "player": { "id": 2401, "name": "Home Winger" },
+      "assist": { "id": null, "name": null },
+      "type": "Goal",
+      "detail": "Normal Goal",
+      "comments": null
+    }
+  ],
+  "liveOddsResponse": [
+    {
+      "fixture": { "id": 9204 },
+      "odds": [
+        {
+          "id": 1,
+          "name": "Corners Over Under",
+          "values": [
+            { "value": "Over", "odd": "1.84", "handicap": "10.5" },
+            { "value": "Under", "odd": "1.96", "handicap": "10.5" }
+          ]
+        }
+      ]
+    }
+  ],
+  "expected": {
+    "analysisMode": "auto",
+    "evidenceMode": "full_live_data",
+    "statsSource": "api-football",
+    "oddsSource": "live",
+    "shouldPush": false,
+    "saved": false,
+    "notified": false
+  }
+}

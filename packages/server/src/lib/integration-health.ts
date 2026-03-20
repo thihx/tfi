@@ -123,13 +123,14 @@ async function probeOddsApi(): Promise<IntegrationProbeResult> {
     return makeResult(ID, LABEL, DESC, 'NOT_CONFIGURED', 0, 'THE_ODDS_API_KEY not set');
   }
   try {
+    // Reachability-only: call without apiKey → server returns 401 without consuming quota.
+    // Any HTTP response means the service is up; only a network error means DOWN.
     const { result: res, latencyMs } = await timed(() =>
-      withTimeout(
-        fetch(`${config.theOddsApiBaseUrl}/sports?apiKey=${config.theOddsApiKey}&all=false`),
-      ),
+      withTimeout(fetch(`${config.theOddsApiBaseUrl}/sports`)),
     );
-    if (res.ok) return makeResult(ID, LABEL, DESC, 'HEALTHY', latencyMs);
-    if (res.status === 401) return makeResult(ID, LABEL, DESC, 'DOWN', latencyMs, 'Invalid API key');
+    if (res.ok || res.status === 401 || res.status === 422) {
+      return makeResult(ID, LABEL, DESC, 'HEALTHY', latencyMs, 'API reachable (credentials configured)');
+    }
     return makeResult(ID, LABEL, DESC, 'DEGRADED', latencyMs, `HTTP ${res.status}`);
   } catch (err: unknown) {
     return makeResult(ID, LABEL, DESC, 'DOWN', 0, (err as Error).message);
@@ -144,20 +145,15 @@ async function probeLiveScoreApi(): Promise<IntegrationProbeResult> {
     return makeResult(ID, LABEL, DESC, 'NOT_CONFIGURED', 0, 'LIVE_SCORE_API_KEY/SECRET not set');
   }
   try {
-    const url = new URL(`${config.liveScoreApiBaseUrl}/matches/live.json`);
-    url.searchParams.set('key', config.liveScoreApiKey);
-    url.searchParams.set('secret', config.liveScoreApiSecret);
-
-    const { result: res, latencyMs } = await timed(() => withTimeout(fetch(url.toString())));
-    const data = await res.json() as { success?: boolean; error?: string; data?: { match?: unknown[] } };
-    if (res.ok && data.success) {
-      const count = Array.isArray(data.data?.match) ? data.data.match.length : 0;
-      return makeResult(ID, LABEL, DESC, 'HEALTHY', latencyMs, `Live matches visible: ${count}`);
+    // Reachability-only: call without credentials → server returns 4xx without consuming quota.
+    // Any HTTP response means the service is up; only a network error means DOWN.
+    const { result: res, latencyMs } = await timed(() =>
+      withTimeout(fetch(`${config.liveScoreApiBaseUrl}/scores/live.json`)),
+    );
+    if (res.ok || res.status === 400 || res.status === 401 || res.status === 403) {
+      return makeResult(ID, LABEL, DESC, 'HEALTHY', latencyMs, 'API reachable (credentials configured)');
     }
-    if (res.status === 401 || res.status === 403) {
-      return makeResult(ID, LABEL, DESC, 'DOWN', latencyMs, `Auth error HTTP ${res.status}`);
-    }
-    return makeResult(ID, LABEL, DESC, 'DEGRADED', latencyMs, data.error || `HTTP ${res.status}`);
+    return makeResult(ID, LABEL, DESC, 'DEGRADED', latencyMs, `HTTP ${res.status}`);
   } catch (err: unknown) {
     return makeResult(ID, LABEL, DESC, 'DOWN', 0, (err as Error).message);
   }

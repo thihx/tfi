@@ -1,0 +1,13 @@
+{
+  "name": "04-no-data-synthetic",
+  "homeTeam": "Replay Validation United 9104",
+  "awayTeam": "Prompt Safety Wanderers 9104",
+  "league": "Synthetic Verification Invitational",
+  "matchDate": "2026-03-21",
+  "expected": {
+    "usable": false,
+    "searchQualityIn": ["low", "unknown"],
+    "requireBilingual": true,
+    "expectNoData": true
+  }
+}

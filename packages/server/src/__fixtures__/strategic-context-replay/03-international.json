@@ -1,0 +1,15 @@
+{
+  "name": "03-international",
+  "homeTeam": "Brazil",
+  "awayTeam": "Argentina",
+  "league": "CONMEBOL World Cup Qualifiers",
+  "matchDate": "2026-03-21",
+  "expected": {
+    "competitionType": "international",
+    "usable": true,
+    "minTrustedSources": 1,
+    "minQuantitativeCoverage": 4,
+    "searchQualityIn": ["high", "medium"],
+    "requireBilingual": true
+  }
+}

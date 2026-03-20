@@ -1,0 +1,148 @@
+{
+  "name": "01-live-overrides-under-context",
+  "matchId": "9201",
+  "fixture": {
+    "fixture": {
+      "id": 9201,
+      "date": "2026-03-21T12:00:00Z",
+      "timestamp": 1774094400,
+      "status": { "short": "2H", "elapsed": 63 }
+    },
+    "teams": {
+      "home": { "id": 211, "name": "Benfica", "logo": "", "winner": null },
+      "away": { "id": 212, "name": "Porto", "logo": "", "winner": null }
+    },
+    "league": {
+      "id": 94,
+      "name": "Primeira Liga",
+      "country": "Portugal",
+      "logo": "",
+      "flag": null,
+      "season": 2026,
+      "round": "Regular Season - 26"
+    },
+    "goals": { "home": 1, "away": 1 },
+    "score": {}
+  },
+  "watchlistEntry": {
+    "strategic_context": {
+      "summary": "Pre-match priors lean under because both teams usually defend big matches carefully.",
+      "competition_type": "domestic_league",
+      "qualitative": {
+        "en": {
+          "home_motivation": "Title race pressure may create caution.",
+          "away_motivation": "Away side would accept a draw pre-match.",
+          "league_positions": "1st vs 2nd in the same domestic league.",
+          "fixture_congestion": "Normal weekly schedule.",
+          "rotation_risk": "Low rotation risk.",
+          "key_absences": "No major attacking absences.",
+          "h2h_narrative": "This matchup is often tactically conservative before kickoff.",
+          "summary": "Pre-match priors lean under because both teams usually defend big matches carefully."
+        },
+        "vi": {
+          "home_motivation": "Ap luc dua vo dich co the tao ra su than trong.",
+          "away_motivation": "Doi khach co the chap nhan hoa truoc tran.",
+          "league_positions": "Thu 1 vs thu 2 cung giai.",
+          "fixture_congestion": "Lich dau binh thuong.",
+          "rotation_risk": "Rui ro xoay tua thap.",
+          "key_absences": "Khong co mat mat tan cong lon.",
+          "h2h_narrative": "Cap dau nay thuong than trong truoc gio bong lan.",
+          "summary": "Tien de truoc tran nghieng ve xiu vi hai doi thuong phong ngu ky o dai chien."
+        }
+      },
+      "quantitative": {
+        "home_last5_points": 11,
+        "away_last5_points": 10,
+        "home_last5_goals_for": 7,
+        "away_last5_goals_for": 6,
+        "home_last5_goals_against": 3,
+        "away_last5_goals_against": 4,
+        "home_home_goals_avg": 1.4,
+        "away_away_goals_avg": 1.2,
+        "home_over_2_5_rate_last10": 35,
+        "away_over_2_5_rate_last10": 30,
+        "home_btts_rate_last10": 40,
+        "away_btts_rate_last10": 35,
+        "home_clean_sheet_rate_last10": 40,
+        "away_clean_sheet_rate_last10": 35,
+        "home_failed_to_score_rate_last10": 15,
+        "away_failed_to_score_rate_last10": 20
+      },
+      "source_meta": {
+        "search_quality": "high",
+        "sources": [
+          { "domain": "reuters.com", "trust_tier": "tier_1" },
+          { "domain": "fbref.com", "trust_tier": "tier_2" }
+        ]
+      }
+    }
+  },
+  "statistics": [
+    {
+      "team": { "id": 211, "name": "Benfica", "logo": "" },
+      "statistics": [
+        { "type": "Ball Possession", "value": "54%" },
+        { "type": "Total Shots", "value": 17 },
+        { "type": "Shots on Goal", "value": 7 },
+        { "type": "Corner Kicks", "value": 8 },
+        { "type": "Fouls", "value": 6 }
+      ]
+    },
+    {
+      "team": { "id": 212, "name": "Porto", "logo": "" },
+      "statistics": [
+        { "type": "Ball Possession", "value": "46%" },
+        { "type": "Total Shots", "value": 13 },
+        { "type": "Shots on Goal", "value": 5 },
+        { "type": "Corner Kicks", "value": 6 },
+        { "type": "Fouls", "value": 9 }
+      ]
+    }
+  ],
+  "events": [
+    {
+      "time": { "elapsed": 21, "extra": null },
+      "team": { "id": 211, "name": "Benfica", "logo": "" },
+      "player": { "id": 2101, "name": "Home Striker" },
+      "assist": { "id": null, "name": null },
+      "type": "Goal",
+      "detail": "Normal Goal",
+      "comments": null
+    },
+    {
+      "time": { "elapsed": 47, "extra": null },
+      "team": { "id": 212, "name": "Porto", "logo": "" },
+      "player": { "id": 2102, "name": "Away Winger" },
+      "assist": { "id": null, "name": null },
+      "type": "Goal",
+      "detail": "Normal Goal",
+      "comments": null
+    }
+  ],
+  "liveOddsResponse": [
+    {
+      "fixture": { "id": 9201 },
+      "odds": [
+        {
+          "id": 1,
+          "name": "Over/Under",
+          "values": [
+            { "value": "Over", "odd": "1.89", "handicap": "2.5" },
+            { "value": "Under", "odd": "1.97", "handicap": "2.5" }
+          ]
+        }
+      ]
+    }
+  ],
+  "expected": {
+    "analysisMode": "auto",
+    "evidenceMode": "full_live_data",
+    "statsSource": "api-football",
+    "oddsSource": "live",
+    "shouldPush": true,
+    "disallowedBetMarketPrefixes": ["under_"],
+    "selectionContains": "Over",
+    "saved": false,
+    "notified": false
+  }
+}
