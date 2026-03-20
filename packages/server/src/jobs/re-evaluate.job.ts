@@ -9,12 +9,11 @@
 // ============================================================
 
 import { query } from '../db/pool.js';
-import { settleMatch, type AISettleResult } from './auto-settle.job.js';
+import { settleMatch, type AISettleResult, batchRun } from './auto-settle.job.js';
 import * as recommendationsRepo from '../repos/recommendations.repo.js';
 import * as matchHistoryRepo from '../repos/matches-history.repo.js';
 import * as aiPerfRepo from '../repos/ai-performance.repo.js';
 import { fetchFixturesByIds, fetchFixtureStatistics } from '../lib/football-api.js';
-import type { MatchHistoryRow } from '../repos/matches-history.repo.js';
 import { normalizeMarket } from '../lib/normalize-market.js';
 
 export interface ReEvalResult {
@@ -52,16 +51,9 @@ export async function reEvaluateAllResults(): Promise<ReEvalResult> {
   );
   result.total = allRecs.rows.length;
 
-  // Step 2: Collect all unique match IDs and fetch scores
+  // Step 2: Collect all unique match IDs and fetch scores — single batch query
   const matchIds = [...new Set(allRecs.rows.map((r) => r.match_id))];
-  const historyMap = new Map<string, MatchHistoryRow>();
-
-  for (const id of matchIds) {
-    try {
-      const hist = await matchHistoryRepo.getHistoricalMatch(id);
-      if (hist) historyMap.set(id, hist);
-    } catch { /* skip */ }
-  }
+  const historyMap = await matchHistoryRepo.getHistoricalMatchesBatch(matchIds);
 
   // Step 3: Football API fallback for matches not in history — batch by 20
   const missingIds = matchIds.filter((id) => !historyMap.has(id));
@@ -123,24 +115,23 @@ export async function reEvaluateAllResults(): Promise<ReEvalResult> {
     }
   }
 
-  // Step 4: Fetch match statistics for all matches
-  const allMatchStatistics = new Map<string, Array<{ type: string; home: string | number | null; away: string | number | null }>>();
-  for (const matchId of matchIds) {
-    if (!historyMap.has(matchId)) continue;
+  // Step 4: Fetch match statistics — parallel (concurrency 5) instead of sequential
+  type StatRow = { type: string; home: string | number | null; away: string | number | null };
+  const allMatchStatistics = new Map<string, StatRow[]>();
+  const idsWithHistory = matchIds.filter((id) => historyMap.has(id));
+  await batchRun(idsWithHistory.map((matchId) => async () => {
     try {
       const statsRaw = await fetchFixtureStatistics(matchId);
       if (statsRaw.length >= 2) {
         const homeStats = statsRaw[0]!.statistics || [];
         const awayStats = statsRaw[1]!.statistics || [];
-        const merged: Array<{ type: string; home: string | number | null; away: string | number | null }> = [];
-        for (const hs of homeStats) {
-          const as = awayStats.find(a => a.type === hs.type);
-          merged.push({ type: hs.type, home: hs.value, away: as?.value ?? null });
-        }
-        allMatchStatistics.set(matchId, merged);
+        allMatchStatistics.set(matchId, homeStats.map((hs) => ({
+          type: hs.type, home: hs.value,
+          away: awayStats.find((a) => a.type === hs.type)?.value ?? null,
+        })));
       }
-    } catch { /* skip */ }
-  }
+    } catch { /* skip — stats are supplementary */ }
+  }), 5);
 
   // Step 5: Re-evaluate using AI — group by match for batch AI calls
   const recsByMatch = new Map<string, recommendationsRepo.RecommendationRow[]>();

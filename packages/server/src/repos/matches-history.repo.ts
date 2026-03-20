@@ -32,42 +32,53 @@ export async function archiveFinishedMatches(
   );
   if (finished.length === 0) return 0;
 
-  let archived = 0;
-  for (const m of finished) {
+  // Single multi-row INSERT per chunk (max 500 rows to stay well within pg's 65535 param limit)
+  const COLS = 11;
+  const CHUNK = 500;
+  let totalArchived = 0;
+
+  for (let offset = 0; offset < finished.length; offset += CHUNK) {
+    const chunk = finished.slice(offset, offset + CHUNK);
+    const placeholders = chunk.map((_, i) =>
+      `($${i*COLS+1},$${i*COLS+2},$${i*COLS+3},$${i*COLS+4},$${i*COLS+5},$${i*COLS+6},$${i*COLS+7},$${i*COLS+8},$${i*COLS+9},$${i*COLS+10},$${i*COLS+11})`,
+    ).join(',');
+    const params = chunk.flatMap((m) => [
+      m.match_id, m.date, m.kickoff, m.league_id, m.league_name ?? '',
+      m.home_team ?? '', m.away_team ?? '', m.venue ?? 'TBD', m.status,
+      m.home_score ?? 0, m.away_score ?? 0,
+    ]);
     const result = await query(
       `INSERT INTO matches_history (match_id, date, kickoff, league_id, league_name, home_team, away_team, venue, final_status, home_score, away_score)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+       VALUES ${placeholders}
        ON CONFLICT (match_id) DO UPDATE SET
          final_status = EXCLUDED.final_status,
-         home_score = EXCLUDED.home_score,
-         away_score = EXCLUDED.away_score,
-         archived_at = NOW()`,
-      [
-        m.match_id,
-        m.date,
-        m.kickoff,
-        m.league_id,
-        m.league_name ?? '',
-        m.home_team ?? '',
-        m.away_team ?? '',
-        m.venue ?? 'TBD',
-        m.status,
-        m.home_score ?? 0,
-        m.away_score ?? 0,
-      ],
+         home_score   = EXCLUDED.home_score,
+         away_score   = EXCLUDED.away_score,
+         archived_at  = NOW()`,
+      params,
     );
-    if ((result.rowCount ?? 0) > 0) archived++;
+    totalArchived += result.rowCount ?? 0;
   }
-  return archived;
+  return totalArchived;
 }
 
-/** Look up final score for a match (used by auto-settle) */
+/** Look up final score for a single match */
 export async function getHistoricalMatch(matchId: string): Promise<MatchHistoryRow | null> {
   const r = await query<MatchHistoryRow>(
     'SELECT * FROM matches_history WHERE match_id = $1',
     [matchId],
   );
   return r.rows[0] ?? null;
+}
+
+/** Batch-fetch historical matches — single query replacing N individual lookups */
+export async function getHistoricalMatchesBatch(matchIds: string[]): Promise<Map<string, MatchHistoryRow>> {
+  if (matchIds.length === 0) return new Map();
+  const r = await query<MatchHistoryRow>(
+    'SELECT * FROM matches_history WHERE match_id = ANY($1)',
+    [matchIds],
+  );
+  return new Map(r.rows.map((row) => [row.match_id, row]));
 }
 
 /** Get all historical matches for a date range */

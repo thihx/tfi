@@ -1,0 +1,62 @@
+{
+  "name": "02-stats-only",
+  "matchId": "9002",
+  "fixture": {
+    "fixture": {
+      "id": 9002,
+      "date": "2026-03-21T12:00:00Z",
+      "timestamp": 1774094400,
+      "status": { "short": "2H", "elapsed": 63 }
+    },
+    "teams": {
+      "home": { "id": 21, "name": "Atletico", "logo": "", "winner": null },
+      "away": { "id": 22, "name": "Sevilla", "logo": "", "winner": null }
+    },
+    "league": {
+      "id": 140,
+      "name": "La Liga",
+      "country": "Spain",
+      "logo": "",
+      "flag": null,
+      "season": 2026,
+      "round": "Regular Season - 30"
+    },
+    "goals": { "home": 0, "away": 0 },
+    "score": {}
+  },
+  "statistics": [
+    {
+      "team": { "id": 21, "name": "Atletico", "logo": "" },
+      "statistics": [
+        { "type": "Ball Possession", "value": "51%" },
+        { "type": "Total Shots", "value": 11 },
+        { "type": "Shots on Goal", "value": 3 },
+        { "type": "Corner Kicks", "value": 5 },
+        { "type": "Fouls", "value": 9 }
+      ]
+    },
+    {
+      "team": { "id": 22, "name": "Sevilla", "logo": "" },
+      "statistics": [
+        { "type": "Ball Possession", "value": "49%" },
+        { "type": "Total Shots", "value": 7 },
+        { "type": "Shots on Goal", "value": 2 },
+        { "type": "Corner Kicks", "value": 2 },
+        { "type": "Fouls", "value": 12 }
+      ]
+    }
+  ],
+  "events": [],
+  "liveOddsResponse": [],
+  "preMatchOddsResponse": [],
+  "theOddsEventsResponse": [],
+  "theOddsEventOddsResponse": null,
+  "expected": {
+    "analysisMode": "auto",
+    "evidenceMode": "stats_only",
+    "statsSource": "api-football",
+    "oddsSource": "none",
+    "saved": false,
+    "notified": false
+  }
+}

@@ -3,6 +3,7 @@ import type { ApiFixture, ApiFixtureEvent, ApiFixtureStat } from './football-api
 import { resolveMatchOdds, type ResolveMatchOddsResult } from './odds-resolver.js';
 import { fetchTheOddsLiveDetailed, type TheOddsEvent } from './the-odds-api.js';
 import { runPipelineForFixture, type MatchPipelineResult } from './server-pipeline.js';
+import type { PromptAnalysisMode, PromptEvidenceMode } from './live-analysis-prompt.js';
 import type { WatchlistRow } from '../repos/watchlist.repo.js';
 
 const DEFAULT_MOCK_AI_TEXT = JSON.stringify({
@@ -26,6 +27,12 @@ export interface ReplayScenario {
   matchId: string;
   fixture: ApiFixture;
   watchlistEntry?: Partial<WatchlistRow>;
+  pipelineOptions?: {
+    forceAnalyze?: boolean;
+    skipProceedGate?: boolean;
+    skipStalenessGate?: boolean;
+    modelOverride?: string;
+  };
   statistics?: ApiFixtureStat[];
   events?: ApiFixtureEvent[];
   liveOddsResponse?: unknown[];
@@ -53,6 +60,13 @@ export interface ReplayScenario {
   expected?: {
     shouldPush?: boolean;
     oddsSource?: string;
+    statsSource?: string;
+    analysisMode?: PromptAnalysisMode;
+    evidenceMode?: PromptEvidenceMode;
+    betMarket?: string;
+    disallowedBetMarketPrefixes?: string[];
+    selectionNotContains?: string;
+    warningContains?: string;
     saved?: boolean;
     notified?: boolean;
     selectionContains?: string;
@@ -105,6 +119,8 @@ function buildReplayWatchlistEntry(scenario: ReplayScenario): WatchlistRow {
     league: fixture.league?.name || '',
     home_team: fixture.teams?.home?.name || '',
     away_team: fixture.teams?.away?.name || '',
+    home_logo: fixture.teams?.home?.logo || '',
+    away_logo: fixture.teams?.away?.logo || '',
     kickoff: kickoff.kickoff,
     mode: 'B',
     prediction: null,
@@ -160,6 +176,9 @@ function evaluateAssertions(
   if (!expected) return [];
 
   const assertions: ReplayAssertionResult[] = [];
+  const parsed = (result.debug?.parsed ?? {}) as Record<string, unknown>;
+  const betMarket = String(parsed.bet_market || '');
+  const warnings = Array.isArray(parsed.warnings) ? parsed.warnings.map(String) : [];
   if (expected.shouldPush !== undefined) {
     assertions.push({
       field: 'shouldPush',
@@ -174,6 +193,46 @@ function evaluateAssertions(
       pass: result.debug?.oddsSource === expected.oddsSource,
       expected: expected.oddsSource,
       actual: result.debug?.oddsSource,
+    });
+  }
+  if (expected.statsSource !== undefined) {
+    assertions.push({
+      field: 'statsSource',
+      pass: result.debug?.statsSource === expected.statsSource,
+      expected: expected.statsSource,
+      actual: result.debug?.statsSource,
+    });
+  }
+  if (expected.analysisMode !== undefined) {
+    assertions.push({
+      field: 'analysisMode',
+      pass: result.debug?.analysisMode === expected.analysisMode,
+      expected: expected.analysisMode,
+      actual: result.debug?.analysisMode,
+    });
+  }
+  if (expected.evidenceMode !== undefined) {
+    assertions.push({
+      field: 'evidenceMode',
+      pass: result.debug?.evidenceMode === expected.evidenceMode,
+      expected: expected.evidenceMode,
+      actual: result.debug?.evidenceMode,
+    });
+  }
+  if (expected.betMarket !== undefined) {
+    assertions.push({
+      field: 'betMarket',
+      pass: betMarket === expected.betMarket,
+      expected: expected.betMarket,
+      actual: betMarket,
+    });
+  }
+  if (expected.disallowedBetMarketPrefixes !== undefined) {
+    assertions.push({
+      field: 'disallowedBetMarketPrefixes',
+      pass: !expected.disallowedBetMarketPrefixes.some((prefix) => betMarket.startsWith(prefix)),
+      expected: expected.disallowedBetMarketPrefixes,
+      actual: betMarket,
     });
   }
   if (expected.saved !== undefined) {
@@ -198,6 +257,22 @@ function evaluateAssertions(
       pass: result.selection.includes(expected.selectionContains),
       expected: expected.selectionContains,
       actual: result.selection,
+    });
+  }
+  if (expected.selectionNotContains !== undefined) {
+    assertions.push({
+      field: 'selectionNotContains',
+      pass: !result.selection.includes(expected.selectionNotContains),
+      expected: expected.selectionNotContains,
+      actual: result.selection,
+    });
+  }
+  if (expected.warningContains !== undefined) {
+    assertions.push({
+      field: 'warningContains',
+      pass: warnings.some((warning) => warning.includes(expected.warningContains!)),
+      expected: expected.warningContains,
+      actual: warnings,
     });
   }
   if (expected.skippedAt !== undefined) {
@@ -246,6 +321,10 @@ export async function runReplayScenario(
       shadowMode,
       sampleProviderData,
       skipSettingsLoad: true,
+      forceAnalyze: scenario.pipelineOptions?.forceAnalyze,
+      skipProceedGate: scenario.pipelineOptions?.skipProceedGate,
+      skipStalenessGate: scenario.pipelineOptions?.skipStalenessGate,
+      modelOverride: scenario.pipelineOptions?.modelOverride,
       previousRecommendations: scenario.previousRecommendations ?? null,
       previousSnapshot: scenario.previousSnapshot ?? null,
       dependencies,

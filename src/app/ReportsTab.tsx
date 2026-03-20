@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, memo } from 'react';
+import { useState, useEffect, useCallback, memo, useMemo } from 'react';
 import { useAppState } from '@/hooks/useAppState';
 import {
   BarChart, Bar, LineChart, Line, AreaChart, Area,
@@ -91,9 +91,15 @@ const OverviewSection = memo(function OverviewSection({ data }: { data: Overview
   );
 });
 
-const LeagueSection = memo(function LeagueSection({ data }: { data: LeagueReportRow[] }) {
+const LeagueSection = memo(function LeagueSection({ data, topLeagueNames }: { data: LeagueReportRow[]; topLeagueNames: Set<string> }) {
   if (!data.length) return <EmptyReport message="No league data for this period" />;
-  const chartData = data.slice(0, 15).map((d) => ({
+  const sorted = [...data].sort((a, b) => {
+    const aTop = topLeagueNames.has(a.league);
+    const bTop = topLeagueNames.has(b.league);
+    if (aTop !== bTop) return aTop ? -1 : 1;
+    return 0; // preserve original P/L order within each group
+  });
+  const chartData = sorted.slice(0, 15).map((d) => ({
     name: d.league.length > 20 ? d.league.slice(0, 18) + '…' : d.league,
     pnl: d.pnl,
     winRate: d.winRate,
@@ -103,7 +109,7 @@ const LeagueSection = memo(function LeagueSection({ data }: { data: LeagueReport
       <div className="card" style={{ marginBottom: 16 }}>
         <div className="card-header"><div className="card-title">P/L by League</div></div>
         <div style={{ padding: '16px 0 8px 0' }}>
-          <ResponsiveContainer width="100%" height={Math.max(200, data.slice(0, 15).length * 32)}>
+          <ResponsiveContainer width="100%" height={Math.max(200, sorted.slice(0, 15).length * 32)}>
             <BarChart data={chartData} layout="vertical">
               <CartesianGrid strokeDasharray="3 3" stroke="var(--gray-200)" />
               <XAxis type="number" tick={{ fontSize: 11 }} tickFormatter={(v) => `$${v}`} />
@@ -118,7 +124,7 @@ const LeagueSection = memo(function LeagueSection({ data }: { data: LeagueReport
       </div>
       <ReportTable
         columns={['League', 'Total', 'W', 'L', 'Win%', 'P/L', 'Avg Odds', 'Avg Conf', 'ROI']}
-        rows={data.map((d) => [
+        rows={sorted.map((d) => [
           d.league, d.total, d.wins, d.losses, wrStr(d.winRate),
           { value: pnlStr(d.pnl), color: pnlColor(d.pnl) },
           d.avgOdds.toFixed(2), d.avgConfidence.toFixed(1),
@@ -367,7 +373,7 @@ const DayOfWeekSection = memo(function DayOfWeekSection({ data }: { data: DayOfW
   );
 });
 
-const LeagueMarketSection = memo(function LeagueMarketSection({ data }: { data: LeagueMarketRow[] }) {
+const LeagueMarketSection = memo(function LeagueMarketSection({ data, topLeagueNames }: { data: LeagueMarketRow[]; topLeagueNames: Set<string> }) {
   if (!data.length) return <EmptyReport message="No cross data (need >= 3 bets per combination)" />;
   // Group by league
   const grouped = new Map<string, LeagueMarketRow[]>();
@@ -376,9 +382,15 @@ const LeagueMarketSection = memo(function LeagueMarketSection({ data }: { data: 
     existing.push(row);
     grouped.set(row.league, existing);
   }
+  const sortedEntries = [...grouped.entries()].sort(([a], [b]) => {
+    const aTop = topLeagueNames.has(a);
+    const bTop = topLeagueNames.has(b);
+    if (aTop !== bTop) return aTop ? -1 : 1;
+    return 0;
+  });
   return (
     <div>
-      {[...grouped.entries()].map(([league, rows]) => (
+      {sortedEntries.map(([league, rows]) => (
         <div key={league} className="card" style={{ marginBottom: 12 }}>
           <div className="card-header"><div className="card-title">{league}</div></div>
           <div className="table-container">
@@ -551,7 +563,8 @@ interface ReportData {
 
 export function ReportsTab() {
   const { state } = useAppState();
-  const { config } = state;
+  const { config, leagues: appLeagues } = state;
+  const topLeagueNames = useMemo(() => new Set(appLeagues.filter((l) => l.top_league).map((l) => l.league_name)), [appLeagues]);
 
   const [section, setSection] = useState<ReportSection>('overview');
   const [period, setPeriod] = useState<ReportPeriodFilter['period']>('all');
@@ -643,14 +656,14 @@ export function ReportsTab() {
     }
     switch (section) {
       case 'overview': return data.overview ? <OverviewSection data={data.overview} /> : <EmptyReport message="No data" />;
-      case 'league': return <LeagueSection data={data.leagues} />;
+      case 'league': return <LeagueSection data={data.leagues} topLeagueNames={topLeagueNames} />;
       case 'market': return <MarketSection data={data.markets} />;
       case 'time': return <TimeSection weekly={data.weekly} monthly={data.monthly} />;
       case 'confidence': return <ConfidenceSection data={data.confidence} />;
       case 'odds': return <OddsSection data={data.oddsRange} />;
       case 'minute': return <MinuteSection data={data.minutes} />;
       case 'day-of-week': return <DayOfWeekSection data={data.dayOfWeek} />;
-      case 'league-market': return <LeagueMarketSection data={data.leagueMarket} />;
+      case 'league-market': return <LeagueMarketSection data={data.leagueMarket} topLeagueNames={topLeagueNames} />;
       case 'ai-insights': return data.aiInsights ? <AiInsightsSection data={data.aiInsights} /> : <EmptyReport message="No AI insights data" />;
     }
   };

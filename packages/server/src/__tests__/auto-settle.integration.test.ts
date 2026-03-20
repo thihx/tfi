@@ -21,6 +21,7 @@ vi.mock('../repos/bets.repo.js', () => ({
 
 vi.mock('../repos/matches-history.repo.js', () => ({
   getHistoricalMatch: vi.fn(),
+  getHistoricalMatchesBatch: vi.fn(),
   archiveFinishedMatches: vi.fn(),
 }));
 
@@ -144,6 +145,7 @@ function makeApiFixture(id: number, homeGoals: number, awayGoals: number, status
 beforeEach(() => {
   vi.resetAllMocks();
   (betsRepo.getUnsettledBets as Mock).mockResolvedValue([]);
+  (matchHistoryRepo.getHistoricalMatchesBatch as Mock).mockResolvedValue(new Map());
 });
 
 /** Helper to set AI settle response */
@@ -157,7 +159,9 @@ describe('autoSettleJob', () => {
   test('settles recommendation using matches_history', async () => {
     const rec = makeRec({ match_id: '12345', bet_market: 'Over/Under 2.5', selection: 'Over 2.5', odds: 1.85, stake_percent: 3 });
     (recommendationsRepo.getAllRecommendations as Mock).mockResolvedValue({ rows: [rec] });
-    (matchHistoryRepo.getHistoricalMatch as Mock).mockResolvedValue(makeHistory({ home_score: 2, away_score: 1 }));
+    (matchHistoryRepo.getHistoricalMatchesBatch as Mock).mockResolvedValue(
+      new Map([['12345', makeHistory({ home_score: 2, away_score: 1 })]]),
+    );
     mockAISettle([{ id: 1, result: 'win', explanation: 'Tổng bàn thắng là 3, vượt mức 2.5' }]);
 
     const stats = await autoSettleJob();
@@ -172,7 +176,7 @@ describe('autoSettleJob', () => {
   test('falls back to Football API when matches_history is empty', async () => {
     const rec = makeRec({ match_id: '99999', bet_market: 'Over/Under 2.5', selection: 'Over 2.5', odds: 1.85, stake_percent: 3 });
     (recommendationsRepo.getAllRecommendations as Mock).mockResolvedValue({ rows: [rec] });
-    (matchHistoryRepo.getHistoricalMatch as Mock).mockResolvedValue(null);
+    (matchHistoryRepo.getHistoricalMatchesBatch as Mock).mockResolvedValue(new Map());
     (fetchFixturesByIds as Mock).mockResolvedValue([makeApiFixture(99999, 3, 0)]);
     mockAISettle([{ id: 1, result: 'win', explanation: 'Tổng bàn thắng là 3, vượt mức 2.5' }]);
 
@@ -188,7 +192,7 @@ describe('autoSettleJob', () => {
   test('skips recommendation when match is still live (not FT)', async () => {
     const rec = makeRec({ match_id: '77777' });
     (recommendationsRepo.getAllRecommendations as Mock).mockResolvedValue({ rows: [rec] });
-    (matchHistoryRepo.getHistoricalMatch as Mock).mockResolvedValue(null);
+    (matchHistoryRepo.getHistoricalMatchesBatch as Mock).mockResolvedValue(new Map());
     (fetchFixturesByIds as Mock).mockResolvedValue([
       makeApiFixture(77777, 1, 0, '2H'),
     ]);
@@ -206,9 +210,9 @@ describe('autoSettleJob', () => {
     (recommendationsRepo.getAllRecommendations as Mock).mockResolvedValue({ rows: [rec1, rec2] });
 
     // 100 is in history, 200 must come from API
-    (matchHistoryRepo.getHistoricalMatch as Mock)
-      .mockResolvedValueOnce(makeHistory({ match_id: '100', home_score: 2, away_score: 1 }))
-      .mockResolvedValueOnce(null);
+    (matchHistoryRepo.getHistoricalMatchesBatch as Mock).mockResolvedValue(
+      new Map([['100', makeHistory({ match_id: '100', home_score: 2, away_score: 1 })]]),
+    );
     (fetchFixturesByIds as Mock).mockResolvedValue([makeApiFixture(200, 1, 2)]);
     // AI settles each match group separately
     (callGemini as Mock)
@@ -224,7 +228,7 @@ describe('autoSettleJob', () => {
   test('Football API failure does not crash — missing matches skipped', async () => {
     const rec = makeRec({ match_id: '55555' });
     (recommendationsRepo.getAllRecommendations as Mock).mockResolvedValue({ rows: [rec] });
-    (matchHistoryRepo.getHistoricalMatch as Mock).mockResolvedValue(null);
+    (matchHistoryRepo.getHistoricalMatchesBatch as Mock).mockResolvedValue(new Map());
     (fetchFixturesByIds as Mock).mockRejectedValue(new Error('API key expired'));
 
     const stats = await autoSettleJob();
@@ -247,7 +251,7 @@ describe('autoSettleJob', () => {
   test('loss result correctly computed via API fallback', async () => {
     const rec = makeRec({ match_id: '88888', bet_market: 'Over/Under 2.5', selection: 'Over 2.5', odds: 1.85, stake_percent: 3 });
     (recommendationsRepo.getAllRecommendations as Mock).mockResolvedValue({ rows: [rec] });
-    (matchHistoryRepo.getHistoricalMatch as Mock).mockResolvedValue(null);
+    (matchHistoryRepo.getHistoricalMatchesBatch as Mock).mockResolvedValue(new Map());
     (fetchFixturesByIds as Mock).mockResolvedValue([makeApiFixture(88888, 1, 0)]);
     mockAISettle([{ id: 1, result: 'loss', explanation: 'Tổng bàn thắng là 1, không vượt mức 2.5' }]);
 
@@ -261,7 +265,9 @@ describe('autoSettleJob', () => {
   test('treats push as neutral in ai_performance', async () => {
     const rec = makeRec({ match_id: '54321', bet_market: 'over_2.0', selection: 'Over 2.0', odds: 1.85, stake_percent: 3 });
     (recommendationsRepo.getAllRecommendations as Mock).mockResolvedValue({ rows: [rec] });
-    (matchHistoryRepo.getHistoricalMatch as Mock).mockResolvedValue(makeHistory({ match_id: '54321', home_score: 1, away_score: 1 }));
+    (matchHistoryRepo.getHistoricalMatchesBatch as Mock).mockResolvedValue(
+      new Map([['54321', makeHistory({ match_id: '54321', home_score: 1, away_score: 1 })]]),
+    );
 
     const stats = await autoSettleJob();
 
@@ -273,7 +279,7 @@ describe('autoSettleJob', () => {
   test('settles AET match from API', async () => {
     const rec = makeRec({ match_id: '66666', bet_market: 'Over/Under 2.5', selection: 'Over 2.5', odds: 1.85, stake_percent: 2 });
     (recommendationsRepo.getAllRecommendations as Mock).mockResolvedValue({ rows: [rec] });
-    (matchHistoryRepo.getHistoricalMatch as Mock).mockResolvedValue(null);
+    (matchHistoryRepo.getHistoricalMatchesBatch as Mock).mockResolvedValue(new Map());
     (fetchFixturesByIds as Mock).mockResolvedValue([makeApiFixture(66666, 2, 2, 'AET')]);
     mockAISettle([{ id: 1, result: 'win', explanation: 'Tổng bàn thắng là 4, vượt mức 2.5' }]);
 

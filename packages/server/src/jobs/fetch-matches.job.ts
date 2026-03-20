@@ -15,6 +15,7 @@ import * as matchRepo from '../repos/matches.repo.js';
 import * as watchlistRepo from '../repos/watchlist.repo.js';
 import { archiveFinishedMatches } from '../repos/matches-history.repo.js';
 import { reportJobProgress } from './job-progress.js';
+import { getRedisClient } from '../lib/redis.js';
 
 const ALLOWED_STATUSES = ['NS', '1H', 'HT', '2H', 'ET', 'BT', 'P', 'LIVE', 'INT'];
 const LIVE_STATUSES   = new Set(['1H', 'HT', '2H', 'ET', 'BT', 'LIVE', 'INT']);
@@ -35,6 +36,29 @@ function statCount(stats: ApiFixtureStat[], teamIdx: 0 | 1, name: string): numbe
   if (v == null) return 0;
   const n = typeof v === 'number' ? v : parseInt(String(v), 10);
   return isNaN(n) ? 0 : n;
+}
+
+/** Redis key storing the earliest timestamp (ms) at which the next real fetch is allowed. */
+export const ADAPTIVE_SKIP_KEY = 'job:fetch-matches:next-run-at';
+
+/**
+ * Compute how many ms to wait before the next fetch, based on current match state.
+ * Pure function — easy to unit test.
+ */
+export function computeNextPollDelayMs(
+  state: matchRepo.MatchScheduleState,
+  baseIntervalMs: number,
+): number {
+  const MIN = 60_000;
+
+  if (state.liveCount > 0) return baseIntervalMs;           // live → base rate (1 min)
+  if (state.minsToNextKickoff === null) return 30 * MIN;    // no matches at all → 30 min
+
+  const m = state.minsToNextKickoff;
+  if (m <= 5)   return baseIntervalMs;                      // kicking off very soon → 1 min
+  if (m <= 120) return 2 * MIN;                             // within 2 hours → 2 min
+  if (m <= 360) return 5 * MIN;                             // within 6 hours → 5 min
+  return 30 * MIN;                                          // > 6 hours away → 30 min
 }
 
 function toDateString(d: Date, tz: string): string {
@@ -83,11 +107,29 @@ function fixtureToMatchRow(f: ApiFixture): matchRepo.MatchRow {
 export async function fetchMatchesJob(): Promise<{ saved: number; leagues: number }> {
   const JOB = 'fetch-matches';
 
+  // ── Adaptive skip: check if we should defer this run ──────────────────────
+  try {
+    const redis = getRedisClient();
+    const nextRunAt = await redis.get(ADAPTIVE_SKIP_KEY);
+    if (nextRunAt && Date.now() < Number(nextRunAt)) {
+      const remainSec = Math.round((Number(nextRunAt) - Date.now()) / 1000);
+      console.log(`[fetchMatchesJob] Skipping — next allowed run in ${remainSec}s`);
+      return { saved: 0, leagues: 0 };
+    }
+  } catch {
+    // Redis unavailable → proceed with fetch (safe fallback)
+  }
+
   // 1. Get active league IDs
   await reportJobProgress(JOB, 'leagues', 'Loading active leagues...', 5);
   const activeLeagues = await leagueRepo.getActiveLeagues();
   if (activeLeagues.length === 0) {
     console.log('[fetchMatchesJob] No active leagues, skip.');
+    // No active leagues — no point polling frequently
+    try {
+      const redis = getRedisClient();
+      await redis.set(ADAPTIVE_SKIP_KEY, String(Date.now() + 30 * 60_000), 'PX', 30 * 60_000 + 5_000);
+    } catch { /* non-critical */ }
     return { saved: 0, leagues: 0 };
   }
   const leagueIdSet = new Set(activeLeagues.map((l) => l.league_id));
@@ -227,6 +269,8 @@ export async function fetchMatchesJob(): Promise<{ saved: number; leagues: numbe
           league: m.league_name,
           home_team: m.home_team,
           away_team: m.away_team,
+          home_logo: m.home_logo,
+          away_logo: m.away_logo,
           kickoff: m.kickoff,
           mode: 'B',
           prediction: null,
@@ -255,6 +299,22 @@ export async function fetchMatchesJob(): Promise<{ saved: number; leagues: numbe
     if (added > 0) {
       console.log(`[fetchMatchesJob] ⭐ Auto-added ${added} top-league matches to watchlist`);
     }
+  }
+
+  // ── Adaptive polling: set next allowed run time based on match state ──────
+  try {
+    const scheduleState = await matchRepo.getMatchScheduleState(config.timezone);
+    const delayMs = computeNextPollDelayMs(scheduleState, config.jobFetchMatchesMs);
+    const redis = getRedisClient();
+    await redis.set(ADAPTIVE_SKIP_KEY, String(Date.now() + delayMs), 'PX', delayMs + 10_000);
+    if (delayMs > config.jobFetchMatchesMs) {
+      console.log(
+        `[fetchMatchesJob] Adaptive: next poll in ${(delayMs / 60_000).toFixed(0)}min` +
+        ` (live=${scheduleState.liveCount}, ns=${scheduleState.nsCount}, minsToNext=${scheduleState.minsToNextKickoff?.toFixed(1) ?? 'none'})`,
+      );
+    }
+  } catch {
+    // Non-critical — if this fails, job just runs at base interval
   }
 
   return { saved, leagues: uniqueLeagues };

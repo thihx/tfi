@@ -1,0 +1,154 @@
+{
+  "name": "01-early-full-data-no-1x2",
+  "matchId": "9101",
+  "fixture": {
+    "fixture": {
+      "id": 9101,
+      "date": "2026-03-21T12:00:00Z",
+      "timestamp": 1774094400,
+      "status": { "short": "1H", "elapsed": 28 }
+    },
+    "teams": {
+      "home": { "id": 111, "name": "PSV", "logo": "", "winner": null },
+      "away": { "id": 112, "name": "Utrecht", "logo": "", "winner": null }
+    },
+    "league": {
+      "id": 88,
+      "name": "Eredivisie",
+      "country": "Netherlands",
+      "logo": "",
+      "flag": null,
+      "season": 2026,
+      "round": "Regular Season - 28"
+    },
+    "goals": { "home": 0, "away": 0 },
+    "score": {}
+  },
+  "watchlistEntry": {
+    "strategic_context": {
+      "summary": "Strong territorial control from the home side, but still an early-game sample.",
+      "competition_type": "domestic_league",
+      "qualitative": {
+        "en": {
+          "home_motivation": "Home side is chasing the title.",
+          "away_motivation": "Away side needs points for European qualification.",
+          "league_positions": "2nd vs 6th in the same domestic league.",
+          "fixture_congestion": "Neither side has midweek travel.",
+          "rotation_risk": "Low rotation risk.",
+          "key_absences": "Away fullback suspended.",
+          "h2h_narrative": "Home side has controlled recent meetings territorially.",
+          "summary": "Strong territorial control from the home side, but still an early-game sample."
+        },
+        "vi": {
+          "home_motivation": "Chu nha dang dua vo dich.",
+          "away_motivation": "Doi khach can diem cho cuoc dua chau Au.",
+          "league_positions": "Thu 2 vs thu 6 cung mot giai.",
+          "fixture_congestion": "Hai doi khong bi lich giua tuan.",
+          "rotation_risk": "Rui ro xoay tua thap.",
+          "key_absences": "Hau ve bien doi khach bi treo gio.",
+          "h2h_narrative": "Chu nha kiem soat the tran tot o cac lan gap gan day.",
+          "summary": "Chu nha ap dao the tran nhung mau du lieu van con som."
+        }
+      },
+      "quantitative": {
+        "home_last5_points": 12,
+        "away_last5_points": 8,
+        "home_last5_goals_for": 11,
+        "away_last5_goals_for": 7,
+        "home_last5_goals_against": 4,
+        "away_last5_goals_against": 6,
+        "home_home_goals_avg": 2.1,
+        "away_away_goals_avg": 1.1,
+        "home_over_2_5_rate_last10": 65,
+        "away_over_2_5_rate_last10": 50,
+        "home_btts_rate_last10": 45,
+        "away_btts_rate_last10": 55,
+        "home_clean_sheet_rate_last10": 40,
+        "away_clean_sheet_rate_last10": 20,
+        "home_failed_to_score_rate_last10": 10,
+        "away_failed_to_score_rate_last10": 20
+      },
+      "source_meta": {
+        "search_quality": "high",
+        "sources": [
+          { "domain": "reuters.com", "trust_tier": "tier_1" },
+          { "domain": "fbref.com", "trust_tier": "tier_2" }
+        ]
+      }
+    }
+  },
+  "statistics": [
+    {
+      "team": { "id": 111, "name": "PSV", "logo": "" },
+      "statistics": [
+        { "type": "Ball Possession", "value": "68%" },
+        { "type": "Total Shots", "value": 11 },
+        { "type": "Shots on Goal", "value": 4 },
+        { "type": "Corner Kicks", "value": 6 },
+        { "type": "Fouls", "value": 4 }
+      ]
+    },
+    {
+      "team": { "id": 112, "name": "Utrecht", "logo": "" },
+      "statistics": [
+        { "type": "Ball Possession", "value": "32%" },
+        { "type": "Total Shots", "value": 2 },
+        { "type": "Shots on Goal", "value": 0 },
+        { "type": "Corner Kicks", "value": 1 },
+        { "type": "Fouls", "value": 8 }
+      ]
+    }
+  ],
+  "events": [
+    {
+      "time": { "elapsed": 19, "extra": null },
+      "team": { "id": 112, "name": "Utrecht", "logo": "" },
+      "player": { "id": 1112, "name": "Away Defender" },
+      "assist": { "id": null, "name": null },
+      "type": "Card",
+      "detail": "Yellow Card",
+      "comments": null
+    }
+  ],
+  "liveOddsResponse": [
+    {
+      "fixture": { "id": 9101 },
+      "odds": [
+        {
+          "id": 1,
+          "name": "Match Winner",
+          "values": [
+            { "value": "Home", "odd": "1.72" },
+            { "value": "Draw", "odd": "3.80" },
+            { "value": "Away", "odd": "5.40" }
+          ]
+        },
+        {
+          "id": 2,
+          "name": "Over/Under",
+          "values": [
+            { "value": "Over", "odd": "1.80", "handicap": "1.5" },
+            { "value": "Under", "odd": "2.02", "handicap": "1.5" }
+          ]
+        },
+        {
+          "id": 3,
+          "name": "Asian Handicap",
+          "values": [
+            { "value": "Home", "odd": "1.92", "handicap": "-0.5" },
+            { "value": "Away", "odd": "1.94", "handicap": "-0.5" }
+          ]
+        }
+      ]
+    }
+  ],
+  "expected": {
+    "analysisMode": "auto",
+    "evidenceMode": "full_live_data",
+    "statsSource": "api-football",
+    "oddsSource": "live",
+    "disallowedBetMarketPrefixes": ["1x2_"],
+    "saved": false,
+    "notified": false
+  }
+}

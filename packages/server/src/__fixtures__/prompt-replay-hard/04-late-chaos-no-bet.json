@@ -1,0 +1,132 @@
+{
+  "name": "04-late-chaos-no-bet",
+  "matchId": "9104",
+  "fixture": {
+    "fixture": {
+      "id": 9104,
+      "date": "2026-03-21T12:00:00Z",
+      "timestamp": 1774094400,
+      "status": { "short": "2H", "elapsed": 89 }
+    },
+    "teams": {
+      "home": { "id": 141, "name": "Napoli", "logo": "", "winner": null },
+      "away": { "id": 142, "name": "Atalanta", "logo": "", "winner": null }
+    },
+    "league": {
+      "id": 135,
+      "name": "Serie A",
+      "country": "Italy",
+      "logo": "",
+      "flag": null,
+      "season": 2026,
+      "round": "Regular Season - 30"
+    },
+    "goals": { "home": 2, "away": 2 },
+    "score": {}
+  },
+  "pipelineOptions": {
+    "skipProceedGate": true
+  },
+  "statistics": [
+    {
+      "team": { "id": 141, "name": "Napoli", "logo": "" },
+      "statistics": [
+        { "type": "Ball Possession", "value": "55%" },
+        { "type": "Total Shots", "value": 16 },
+        { "type": "Shots on Goal", "value": 7 },
+        { "type": "Corner Kicks", "value": 8 },
+        { "type": "Fouls", "value": 14 }
+      ]
+    },
+    {
+      "team": { "id": 142, "name": "Atalanta", "logo": "" },
+      "statistics": [
+        { "type": "Ball Possession", "value": "45%" },
+        { "type": "Total Shots", "value": 14 },
+        { "type": "Shots on Goal", "value": 6 },
+        { "type": "Corner Kicks", "value": 5 },
+        { "type": "Fouls", "value": 16 }
+      ]
+    }
+  ],
+  "events": [
+    {
+      "time": { "elapsed": 12, "extra": null },
+      "team": { "id": 141, "name": "Napoli", "logo": "" },
+      "player": { "id": 1401, "name": "Home Striker" },
+      "assist": { "id": null, "name": null },
+      "type": "Goal",
+      "detail": "Normal Goal",
+      "comments": null
+    },
+    {
+      "time": { "elapsed": 39, "extra": null },
+      "team": { "id": 142, "name": "Atalanta", "logo": "" },
+      "player": { "id": 1402, "name": "Away Striker" },
+      "assist": { "id": null, "name": null },
+      "type": "Goal",
+      "detail": "Normal Goal",
+      "comments": null
+    },
+    {
+      "time": { "elapsed": 71, "extra": null },
+      "team": { "id": 141, "name": "Napoli", "logo": "" },
+      "player": { "id": 1403, "name": "Home Winger" },
+      "assist": { "id": null, "name": null },
+      "type": "Goal",
+      "detail": "Normal Goal",
+      "comments": null
+    },
+    {
+      "time": { "elapsed": 84, "extra": null },
+      "team": { "id": 142, "name": "Atalanta", "logo": "" },
+      "player": { "id": 1404, "name": "Away Center Back" },
+      "assist": { "id": null, "name": null },
+      "type": "Card",
+      "detail": "Red Card",
+      "comments": null
+    },
+    {
+      "time": { "elapsed": 87, "extra": null },
+      "team": { "id": 142, "name": "Atalanta", "logo": "" },
+      "player": { "id": 1405, "name": "Away Substitute" },
+      "assist": { "id": null, "name": null },
+      "type": "Goal",
+      "detail": "Normal Goal",
+      "comments": null
+    }
+  ],
+  "liveOddsResponse": [
+    {
+      "fixture": { "id": 9104 },
+      "odds": [
+        {
+          "id": 1,
+          "name": "Match Winner",
+          "values": [
+            { "value": "Home", "odd": "2.22" },
+            { "value": "Draw", "odd": "2.40" },
+            { "value": "Away", "odd": "5.80" }
+          ]
+        },
+        {
+          "id": 2,
+          "name": "Over/Under",
+          "values": [
+            { "value": "Over", "odd": "1.70", "handicap": "4.5" },
+            { "value": "Under", "odd": "2.10", "handicap": "4.5" }
+          ]
+        }
+      ]
+    }
+  ],
+  "expected": {
+    "analysisMode": "auto",
+    "evidenceMode": "full_live_data",
+    "statsSource": "api-football",
+    "oddsSource": "live",
+    "shouldPush": false,
+    "saved": false,
+    "notified": false
+  }
+}

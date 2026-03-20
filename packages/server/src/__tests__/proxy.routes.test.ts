@@ -136,6 +136,12 @@ describe('POST /api/proxy/ai/analyze — error handling', () => {
     });
     expect(res.statusCode).toBe(200);
     expect(res.json().text).toBe('AI response here');
+
+    const pipeline = await import('../lib/server-pipeline.js');
+    expect(pipeline.runPromptOnlyAnalysisForMatch).toHaveBeenCalledWith('12345', {
+      forceAnalyze: true,
+      modelOverride: 'gemini-pro',
+    });
   });
 });
 

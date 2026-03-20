@@ -51,8 +51,22 @@ function isPoorSummary(summary: unknown): boolean {
   return !value || /^no data/i.test(value);
 }
 
+function getSourceQuality(ctx: StoredStrategicContext | null): string {
+  return String(ctx?.source_meta?.search_quality ?? 'unknown').trim().toLowerCase();
+}
+
+function countQuantitativeCoverage(ctx: StoredStrategicContext | null): number {
+  const quantitative = ctx?.quantitative;
+  if (!quantitative || typeof quantitative !== 'object') return 0;
+  return Object.values(quantitative as unknown as Record<string, unknown>).filter((value) => typeof value === 'number').length;
+}
+
 function hasUsableContext(ctx: StoredStrategicContext | null): boolean {
-  return !!ctx && !isPoorSummary(ctx.summary);
+  if (!ctx) return false;
+  const searchQuality = getSourceQuality(ctx);
+  if (searchQuality === 'low') return false;
+  if (!isPoorSummary(ctx.summary)) return true;
+  return countQuantitativeCoverage(ctx) >= 4;
 }
 
 function getRetryAfter(ctx: StoredStrategicContext | null): number | null {
@@ -78,11 +92,68 @@ function buildBasePoorContext(attemptedAt: string): StoredStrategicContext {
     key_absences: '',
     h2h_narrative: '',
     summary: 'No data found',
+    home_motivation_vi: '',
+    away_motivation_vi: '',
+    league_positions_vi: '',
+    fixture_congestion_vi: '',
+    rotation_risk_vi: '',
+    key_absences_vi: '',
+    h2h_narrative_vi: '',
+    summary_vi: 'Khong tim thay du lieu',
     searched_at: attemptedAt,
+    version: 2,
     competition_type: '',
     ai_condition: '',
     ai_condition_reason: '',
     ai_condition_reason_vi: '',
+    qualitative: {
+      en: {
+        home_motivation: '',
+        away_motivation: '',
+        league_positions: '',
+        fixture_congestion: '',
+        rotation_risk: '',
+        key_absences: '',
+        h2h_narrative: '',
+        summary: 'No data found',
+      },
+      vi: {
+        home_motivation: '',
+        away_motivation: '',
+        league_positions: '',
+        fixture_congestion: '',
+        rotation_risk: '',
+        key_absences: '',
+        h2h_narrative: '',
+        summary: 'Khong tim thay du lieu',
+      },
+    },
+    quantitative: {
+      home_last5_points: null,
+      away_last5_points: null,
+      home_last5_goals_for: null,
+      away_last5_goals_for: null,
+      home_last5_goals_against: null,
+      away_last5_goals_against: null,
+      home_home_goals_avg: null,
+      away_away_goals_avg: null,
+      home_over_2_5_rate_last10: null,
+      away_over_2_5_rate_last10: null,
+      home_btts_rate_last10: null,
+      away_btts_rate_last10: null,
+      home_clean_sheet_rate_last10: null,
+      away_clean_sheet_rate_last10: null,
+      home_failed_to_score_rate_last10: null,
+      away_failed_to_score_rate_last10: null,
+    },
+    source_meta: {
+      search_quality: 'unknown',
+      web_search_queries: [],
+      sources: [],
+      trusted_source_count: 0,
+      rejected_source_count: 0,
+      rejected_domains: [],
+    },
   };
 }
 
@@ -216,7 +287,7 @@ export async function enrichWatchlistJob(): Promise<{ checked: number; enriched:
         continue;
       }
 
-      if (isPoorSummary(context.summary)) {
+      if (!hasUsableContext(context)) {
         await persistRetryState(entry, 'poor', attemptedAt, context);
         await sleep(API_DELAY_MS);
         continue;

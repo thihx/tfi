@@ -5,7 +5,11 @@
 import { describe, test, expect, vi, beforeEach } from 'vitest';
 
 vi.mock('../lib/redis.js', () => ({
-  getRedisClient: () => ({ hget: vi.fn(), hset: vi.fn(), expire: vi.fn(), del: vi.fn() }),
+  getRedisClient: () => ({
+    hget: vi.fn(), hset: vi.fn(), expire: vi.fn(), del: vi.fn(),
+    get: vi.fn().mockResolvedValue(null),  // no skip key by default
+    set: vi.fn().mockResolvedValue('OK'),
+  }),
 }));
 
 vi.mock('../jobs/job-progress.js', () => ({
@@ -29,6 +33,7 @@ vi.mock('../repos/leagues.repo.js', () => ({
 vi.mock('../repos/matches.repo.js', () => ({
   getAllMatches: vi.fn().mockResolvedValue([]),
   replaceAllMatches: vi.fn().mockImplementation((rows: unknown[]) => Promise.resolve(rows.length)),
+  getMatchScheduleState: vi.fn().mockResolvedValue({ liveCount: 0, nsCount: 0, minsToNextKickoff: null }),
 }));
 
 vi.mock('../repos/watchlist.repo.js', () => ({
@@ -68,7 +73,7 @@ vi.mock('../lib/football-api.js', () => ({
 }));
 
 vi.mock('../config.js', () => ({
-  config: { timezone: 'Asia/Ho_Chi_Minh' },
+  config: { timezone: 'Asia/Ho_Chi_Minh', jobFetchMatchesMs: 60_000, pipelineEnabled: false },
 }));
 
 const { fetchMatchesJob } = await import('../jobs/fetch-matches.job.js');

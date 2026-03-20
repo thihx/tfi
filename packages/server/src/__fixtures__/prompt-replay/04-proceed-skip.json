@@ -1,0 +1,37 @@
+{
+  "name": "04-proceed-skip",
+  "matchId": "9004",
+  "fixture": {
+    "fixture": {
+      "id": 9004,
+      "date": "2026-03-21T12:00:00Z",
+      "timestamp": 1774094400,
+      "status": { "short": "1H", "elapsed": 3 }
+    },
+    "teams": {
+      "home": { "id": 41, "name": "PSV", "logo": "", "winner": null },
+      "away": { "id": 42, "name": "AZ", "logo": "", "winner": null }
+    },
+    "league": {
+      "id": 88,
+      "name": "Eredivisie",
+      "country": "Netherlands",
+      "logo": "",
+      "flag": null,
+      "season": 2026,
+      "round": "Regular Season - 27"
+    },
+    "goals": { "home": 0, "away": 0 },
+    "score": {}
+  },
+  "statistics": [],
+  "events": [],
+  "liveOddsResponse": [],
+  "expected": {
+    "analysisMode": "auto",
+    "shouldPush": false,
+    "saved": false,
+    "notified": false,
+    "skippedAt": "proceed"
+  }
+}

@@ -1,0 +1,114 @@
+{
+  "name": "03-degraded-disallowed-markets",
+  "matchId": "9103",
+  "fixture": {
+    "fixture": {
+      "id": 9103,
+      "date": "2026-03-21T12:00:00Z",
+      "timestamp": 1774094400,
+      "status": { "short": "2H", "elapsed": 74 }
+    },
+    "teams": {
+      "home": { "id": 131, "name": "River Plate", "logo": "", "winner": null },
+      "away": { "id": 132, "name": "Boca Juniors", "logo": "", "winner": null }
+    },
+    "league": {
+      "id": 128,
+      "name": "Liga Profesional Argentina",
+      "country": "Argentina",
+      "logo": "",
+      "flag": null,
+      "season": 2026,
+      "round": "Regular Season - 12"
+    },
+    "goals": { "home": 1, "away": 1 },
+    "score": {}
+  },
+  "statistics": [],
+  "events": [
+    {
+      "time": { "elapsed": 9, "extra": null },
+      "team": { "id": 131, "name": "River Plate", "logo": "" },
+      "player": { "id": 1301, "name": "Home Scorer" },
+      "assist": { "id": null, "name": null },
+      "type": "Goal",
+      "detail": "Normal Goal",
+      "comments": null
+    },
+    {
+      "time": { "elapsed": 61, "extra": null },
+      "team": { "id": 132, "name": "Boca Juniors", "logo": "" },
+      "player": { "id": 1302, "name": "Away Scorer" },
+      "assist": { "id": null, "name": null },
+      "type": "Goal",
+      "detail": "Normal Goal",
+      "comments": null
+    },
+    {
+      "time": { "elapsed": 70, "extra": null },
+      "team": { "id": 132, "name": "Boca Juniors", "logo": "" },
+      "player": { "id": 1303, "name": "Away Midfielder" },
+      "assist": { "id": null, "name": null },
+      "type": "Card",
+      "detail": "Yellow Card",
+      "comments": null
+    }
+  ],
+  "liveOddsResponse": [
+    {
+      "fixture": { "id": 9103 },
+      "odds": [
+        {
+          "id": 1,
+          "name": "Match Winner",
+          "values": [
+            { "value": "Home", "odd": "2.20" },
+            { "value": "Draw", "odd": "2.95" },
+            { "value": "Away", "odd": "3.50" }
+          ]
+        },
+        {
+          "id": 2,
+          "name": "Both Teams To Score",
+          "values": [
+            { "value": "Yes", "odd": "1.18" },
+            { "value": "No", "odd": "4.80" }
+          ]
+        },
+        {
+          "id": 3,
+          "name": "Corners Over Under",
+          "values": [
+            { "value": "Over", "odd": "1.88", "handicap": "10.5" },
+            { "value": "Under", "odd": "1.94", "handicap": "10.5" }
+          ]
+        },
+        {
+          "id": 4,
+          "name": "Over/Under",
+          "values": [
+            { "value": "Over", "odd": "1.92", "handicap": "2.5" },
+            { "value": "Under", "odd": "1.94", "handicap": "2.5" }
+          ]
+        },
+        {
+          "id": 5,
+          "name": "Asian Handicap",
+          "values": [
+            { "value": "Home", "odd": "1.96", "handicap": "-0.25" },
+            { "value": "Away", "odd": "1.90", "handicap": "-0.25" }
+          ]
+        }
+      ]
+    }
+  ],
+  "expected": {
+    "analysisMode": "auto",
+    "evidenceMode": "odds_events_only_degraded",
+    "statsSource": "api-football",
+    "oddsSource": "live",
+    "disallowedBetMarketPrefixes": ["1x2_", "btts_", "corners_"],
+    "saved": false,
+    "notified": false
+  }
+}

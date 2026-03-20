@@ -27,6 +27,7 @@ vi.mock('../repos/recommendations.repo.js', () => ({
 
 vi.mock('../repos/matches-history.repo.js', () => ({
   getHistoricalMatch: vi.fn(),
+  getHistoricalMatchesBatch: vi.fn(),
   archiveFinishedMatches: vi.fn(),
 }));
 
@@ -139,6 +140,7 @@ function makeHistory(overrides: Partial<MatchHistoryRow> = {}): MatchHistoryRow 
 describe('reEvaluateAllResults', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    (matchHistoryRepo.getHistoricalMatchesBatch as Mock).mockResolvedValue(new Map());
   });
 
   /** Helper to set AI settle response */
@@ -160,8 +162,8 @@ describe('reEvaluateAllResults', () => {
     });
 
     (query as Mock).mockResolvedValueOnce({ rows: [rec] }); // getAllRecs
-    (matchHistoryRepo.getHistoricalMatch as Mock).mockResolvedValueOnce(
-      makeHistory({ home_score: 0, away_score: 2 }),
+    (matchHistoryRepo.getHistoricalMatchesBatch as Mock).mockResolvedValueOnce(
+      new Map([['12345', makeHistory({ home_score: 0, away_score: 2 })]]),
     );
     (recommendationsRepo.settleRecommendation as Mock).mockResolvedValueOnce(null);
     (aiPerfRepo.settleAiPerformance as Mock).mockResolvedValueOnce(null);
@@ -189,7 +191,7 @@ describe('reEvaluateAllResults', () => {
     const rec = makeRec({ id: 1, match_id: '99999', result: 'win', pnl: 3 });
 
     (query as Mock).mockResolvedValueOnce({ rows: [rec] });
-    (matchHistoryRepo.getHistoricalMatch as Mock).mockResolvedValueOnce(null);
+    (matchHistoryRepo.getHistoricalMatchesBatch as Mock).mockResolvedValueOnce(new Map());
     (fetchFixturesByIds as Mock).mockResolvedValueOnce([]);
 
     const result = await reEvaluateAllResults();
@@ -212,8 +214,8 @@ describe('reEvaluateAllResults', () => {
     });
 
     (query as Mock).mockResolvedValueOnce({ rows: [rec] });
-    (matchHistoryRepo.getHistoricalMatch as Mock).mockResolvedValueOnce(
-      makeHistory({ home_score: 2, away_score: 0 }),
+    (matchHistoryRepo.getHistoricalMatchesBatch as Mock).mockResolvedValueOnce(
+      new Map([['12345', makeHistory({ home_score: 2, away_score: 0 })]]),
     );
     mockAISettle([{ id: 1, result: 'win', explanation: 'Home thắng 2-0' }]);
 
@@ -237,7 +239,7 @@ describe('reEvaluateAllResults', () => {
     });
 
     (query as Mock).mockResolvedValueOnce({ rows: [rec] });
-    (matchHistoryRepo.getHistoricalMatch as Mock).mockResolvedValueOnce(null);
+    (matchHistoryRepo.getHistoricalMatchesBatch as Mock).mockResolvedValueOnce(new Map());
     (fetchFixturesByIds as Mock).mockResolvedValueOnce([
       {
         fixture: {
@@ -276,8 +278,8 @@ describe('reEvaluateAllResults', () => {
     });
 
     (query as Mock).mockResolvedValueOnce({ rows: [rec] });
-    (matchHistoryRepo.getHistoricalMatch as Mock).mockResolvedValueOnce(
-      makeHistory({ home_score: 1, away_score: 1 }),
+    (matchHistoryRepo.getHistoricalMatchesBatch as Mock).mockResolvedValueOnce(
+      new Map([['12345', makeHistory({ home_score: 1, away_score: 1 })]]),
     );
     (recommendationsRepo.settleRecommendation as Mock).mockResolvedValueOnce(null);
     (aiPerfRepo.settleAiPerformance as Mock).mockResolvedValueOnce(null);
@@ -304,8 +306,8 @@ describe('reEvaluateAllResults', () => {
     });
 
     (query as Mock).mockResolvedValueOnce({ rows: [rec] });
-    (matchHistoryRepo.getHistoricalMatch as Mock).mockResolvedValueOnce(
-      makeHistory({ home_score: 1, away_score: 1 }),
+    (matchHistoryRepo.getHistoricalMatchesBatch as Mock).mockResolvedValueOnce(
+      new Map([['12345', makeHistory({ home_score: 1, away_score: 1 })]]),
     );
     (recommendationsRepo.settleRecommendation as Mock).mockResolvedValueOnce(null);
     (aiPerfRepo.settleAiPerformance as Mock).mockResolvedValueOnce(null);
@@ -327,10 +329,13 @@ describe('reEvaluateAllResults', () => {
     ];
 
     (query as Mock).mockResolvedValueOnce({ rows: recs });
-    (matchHistoryRepo.getHistoricalMatch as Mock)
-      .mockResolvedValueOnce(makeHistory({ match_id: '111', home_score: 2, away_score: 0 }))
-      .mockResolvedValueOnce(makeHistory({ match_id: '222', home_score: 2, away_score: 1 }))
-      .mockResolvedValueOnce(makeHistory({ match_id: '333', home_score: 1, away_score: 1 }));
+    (matchHistoryRepo.getHistoricalMatchesBatch as Mock).mockResolvedValueOnce(
+      new Map([
+        ['111', makeHistory({ match_id: '111', home_score: 2, away_score: 0 })],
+        ['222', makeHistory({ match_id: '222', home_score: 2, away_score: 1 })],
+        ['333', makeHistory({ match_id: '333', home_score: 1, away_score: 1 })],
+      ]),
+    );
     (recommendationsRepo.settleRecommendation as Mock).mockResolvedValue(null);
     (aiPerfRepo.settleAiPerformance as Mock).mockResolvedValue(null);
     // AI settles each match group separately

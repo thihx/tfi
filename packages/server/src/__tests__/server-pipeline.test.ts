@@ -3,6 +3,7 @@
 // ============================================================
 
 import { describe, test, expect, vi, beforeEach } from 'vitest';
+import { LIVE_ANALYSIS_PROMPT_VERSION } from '../lib/live-analysis-prompt.js';
 
 // ─── Mocks ───────────────────────────────────────────────
 
@@ -284,6 +285,26 @@ vi.mock('../repos/recommendations.repo.js', () => ({
 
 vi.mock('../repos/ai-performance.repo.js', () => ({
   createAiPerformanceRecord: vi.fn().mockResolvedValue({ id: 1 }),
+  getHistoricalPerformanceContext: vi.fn().mockResolvedValue({
+    overall: { settled: 18, correct: 11, accuracy: 61.11 },
+    byMarket: [
+      { market: 'over_2.5', settled: 10, correct: 7, accuracy: 70 },
+      { market: '1x2_home', settled: 9, correct: 4, accuracy: 44.44 },
+    ],
+    byConfidenceBand: [
+      { band: '8-10 (high)', settled: 11, correct: 8, accuracy: 72.73 },
+    ],
+    byMinuteBand: [
+      { band: '60-74 (late)', settled: 9, correct: 6, accuracy: 66.67 },
+    ],
+    byOddsRange: [
+      { range: '1.70-1.99', settled: 12, correct: 7, accuracy: 58.33 },
+    ],
+    byLeague: [
+      { league: 'Test League', settled: 8, correct: 5, accuracy: 62.5 },
+    ],
+    generatedAt: '2026-03-21T00:00:00.000Z',
+  }),
 }));
 
 vi.mock('../repos/settings.repo.js', () => ({
@@ -303,7 +324,10 @@ vi.mock('../repos/match-snapshots.repo.js', () => ({
   getLatestSnapshot: vi.fn().mockResolvedValue(null),
 }));
 
-const { runPipelineBatch } = await import('../lib/server-pipeline.js');
+const {
+  runPipelineBatch,
+  runPromptOnlyAnalysisForMatch,
+} = await import('../lib/server-pipeline.js');
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -425,9 +449,111 @@ describe('runPipelineBatch', () => {
     const prompt = vi.mocked(callGemini).mock.calls[0][0];
     expect(prompt).toContain('STATS_SOURCE: api-football');
     expect(prompt).toContain('EVIDENCE_MODE: odds_events_only_degraded');
-    expect(prompt).toContain('ONLY evaluate Over/Under or Asian Handicap');
+    expect(prompt).toContain('Allowed markets in this tier: O/U and selective AH only');
     expect(result.results[0]?.debug?.statsFallbackUsed).toBe(false);
     expect(result.results[0]?.success).toBe(true);
+  });
+
+  test('blocks BTTS recommendation when evidence tier only allows O/U or AH', async () => {
+    const footballApi = await import('../lib/football-api.js');
+    vi.mocked(footballApi.fetchFixtureStatistics).mockResolvedValueOnce([]);
+    vi.mocked(footballApi.fetchFixtureEvents).mockResolvedValueOnce([
+      { time: { elapsed: 23 }, team: { id: 1 }, type: 'Goal', detail: 'Normal Goal', player: { name: 'Player A' } },
+      { time: { elapsed: 55 }, team: { id: 2 }, type: 'Goal', detail: 'Normal Goal', player: { name: 'Player B' } },
+    ] as never);
+
+    const liveScoreApi = await import('../lib/live-score-api.js');
+    vi.mocked(liveScoreApi.fetchLiveScoreBenchmarkTrace).mockResolvedValueOnce(buildLiveScoreTrace({
+      matched: false,
+      providerMatchId: null,
+      providerFixtureId: null,
+      matchedMatch: null,
+      rawLiveMatches: [],
+      rawStats: null,
+      rawEvents: [],
+      normalizedStats: [],
+      normalizedEvents: [],
+      coverageFlags: {
+        matched: false,
+        has_possession: false,
+        has_shots: false,
+        has_shots_on_target: false,
+        has_corners: false,
+        event_count: 0,
+        populated_stat_pairs: 0,
+        total_stat_pairs: 12,
+      },
+      error: 'NO_LIVE_SCORE_MATCH',
+    }));
+
+    const { callGemini } = await import('../lib/gemini.js');
+    vi.mocked(callGemini).mockResolvedValueOnce(JSON.stringify({
+      should_push: true,
+      selection: 'BTTS Yes @1.60',
+      bet_market: 'btts_yes',
+      market_chosen_reason: 'Both teams already scored',
+      confidence: 7,
+      reasoning_en: 'Both teams already scored and the game is open.',
+      reasoning_vi: 'Ca hai doi da ghi ban va tran dau dang mo.',
+      warnings: [],
+      value_percent: 8,
+      risk_level: 'MEDIUM',
+      stake_percent: 4,
+      custom_condition_matched: false,
+      custom_condition_status: 'none',
+      custom_condition_summary_en: '',
+      custom_condition_summary_vi: '',
+      custom_condition_reason_en: '',
+      custom_condition_reason_vi: '',
+      condition_triggered_suggestion: '',
+      condition_triggered_reasoning_en: '',
+      condition_triggered_reasoning_vi: '',
+      condition_triggered_confidence: 0,
+      condition_triggered_stake: 0,
+    }));
+
+    const result = await runPipelineBatch(['100']);
+    expect(result.results[0]?.shouldPush).toBe(false);
+    expect(result.results[0]?.debug?.evidenceMode).toBe('odds_events_only_degraded');
+    expect(result.results[0]?.debug?.parsed?.warnings).toContain('MARKET_NOT_ALLOWED_FOR_EVIDENCE');
+  });
+
+  test('ignores hallucinated odds when canonical odds are unavailable', async () => {
+    const footballApi = await import('../lib/football-api.js');
+    vi.mocked(footballApi.fetchLiveOdds).mockResolvedValueOnce([]);
+    vi.mocked(footballApi.fetchPreMatchOdds).mockResolvedValueOnce([]);
+
+    const { callGemini } = await import('../lib/gemini.js');
+    vi.mocked(callGemini).mockResolvedValueOnce(JSON.stringify({
+      should_push: true,
+      selection: 'Over 2.5 Goals @1.88',
+      bet_market: 'over_2.5',
+      market_chosen_reason: 'AI attempted to infer a fair price without provider odds.',
+      confidence: 7,
+      reasoning_en: 'Tempo is decent but there are no reliable odds in the feed.',
+      reasoning_vi: 'Nhip do kha on nhung khong co odds tin cay trong feed.',
+      warnings: [],
+      value_percent: 6,
+      risk_level: 'MEDIUM',
+      stake_percent: 4,
+      custom_condition_matched: false,
+      custom_condition_status: 'none',
+      custom_condition_summary_en: '',
+      custom_condition_summary_vi: '',
+      custom_condition_reason_en: '',
+      custom_condition_reason_vi: '',
+      condition_triggered_suggestion: '',
+      condition_triggered_reasoning_en: '',
+      condition_triggered_reasoning_vi: '',
+      condition_triggered_confidence: 0,
+      condition_triggered_stake: 0,
+    }));
+
+    const result = await runPipelineBatch(['100']);
+    expect(result.results[0]?.shouldPush).toBe(false);
+    expect(result.results[0]?.debug?.evidenceMode).toBe('stats_only');
+    expect(result.results[0]?.debug?.parsed?.warnings).toContain('ODDS_INVALID');
+    expect(result.results[0]?.debug?.parsed?.warnings).toContain('MARKET_NOT_ALLOWED_FOR_EVIDENCE');
   });
 
   test('calls Gemini with prompt containing match context', async () => {
@@ -453,6 +579,7 @@ describe('runPipelineBatch', () => {
       away_team: 'Team B',
       selection: 'Over 2.5 Goals @1.85',
       confidence: 8,
+      prompt_version: LIVE_ANALYSIS_PROMPT_VERSION,
     }));
   });
 
@@ -464,6 +591,7 @@ describe('runPipelineBatch', () => {
     expect(createAiPerformanceRecord).toHaveBeenCalledWith(expect.objectContaining({
       match_id: '100',
       ai_model: 'gemini-test',
+      prompt_version: LIVE_ANALYSIS_PROMPT_VERSION,
       ai_should_push: true,
       predicted_market: 'over_2.5',
       predicted_selection: 'Over 2.5 Goals @1.85',
@@ -735,7 +863,22 @@ describe('runPipelineBatch', () => {
 
     const { callGemini } = await import('../lib/gemini.js');
     expect(callGemini).toHaveBeenCalledTimes(1);
+    const prompt = vi.mocked(callGemini).mock.calls[0][0];
+    expect(prompt).toContain('- Analysis Mode: system_force');
+    expect(prompt).toContain('- Trigger Provenance: watchlist/system force mode');
+    expect(prompt).not.toContain('MANUAL USER REQUEST');
     expect(result.results[0].success).toBe(true);
+    expect(result.results[0].debug?.analysisMode).toBe('system_force');
+  });
+
+  test('prompt-only Ask AI path marks manual_force provenance', async () => {
+    const result = await runPromptOnlyAnalysisForMatch('100', { forceAnalyze: true });
+
+    expect(result.prompt).toContain('- Analysis Mode: manual_force');
+    expect(result.prompt).toContain('- Trigger Provenance: manual Ask AI request');
+    expect(result.prompt).toContain('- Is Manual Push: YES');
+    expect(result.prompt).not.toContain('watchlist/system force mode, not by a direct manual Ask AI request');
+    expect(result.result.debug?.analysisMode).toBe('manual_force');
   });
 
   test('processes multiple matches sequentially', async () => {
@@ -778,6 +921,74 @@ describe('runPipelineBatch', () => {
     const prompt = vi.mocked(callGemini).mock.calls[0][0];
     expect(prompt).toContain('PREVIOUS RECOMMENDATIONS');
     expect(prompt).toContain('Over 1.5 @1.50');
+  });
+
+  test('injects dynamic performance priors into the prompt and removes static prior text', async () => {
+    await runPipelineBatch(['100']);
+
+    const { callGemini } = await import('../lib/gemini.js');
+    const prompt = vi.mocked(callGemini).mock.calls[0][0];
+    expect(prompt).toContain('DYNAMIC PERFORMANCE PRIORS (SELF-LEARNING DATA)');
+    expect(prompt).toContain('over_2.5: 70% (7/10) [supportive prior]');
+    expect(prompt).toContain('1x2_home: 44.44% (4/9) [caution prior]');
+    expect(prompt).not.toContain('1x2_home worst market (35.6% win rate)');
+    expect(prompt).not.toContain('BTTS YES: 54.5% win rate');
+    expect(prompt).not.toContain('confidence 5->40%, 6->50.2%, 7->51.2%, 8->57.1%');
+  });
+
+  test('injects strategic context v2 into the server prompt', async () => {
+    const watchlistRepo = await import('../repos/watchlist.repo.js');
+    vi.mocked(watchlistRepo.getWatchlistByMatchId).mockResolvedValueOnce({
+      ...mockWatchlistEntry,
+      strategic_context: {
+        summary: 'Structured strategic context summary.',
+        competition_type: 'domestic_league',
+        qualitative: {
+          en: {
+            home_motivation: 'Home side is chasing Europe.',
+            away_motivation: 'Away side needs points for survival.',
+            league_positions: '5th vs 17th',
+            fixture_congestion: 'Home has a cup match in three days.',
+            rotation_risk: 'Moderate home rotation risk.',
+            key_absences: 'Away missing two defenders.',
+            h2h_narrative: 'Home won three of the last four meetings.',
+            summary: 'Structured strategic context summary.',
+          },
+          vi: {
+            home_motivation: 'Chu nha dang dua top chau Au.',
+            away_motivation: 'Doi khach can diem de tru hang.',
+            league_positions: 'Thu 5 vs thu 17',
+            fixture_congestion: 'Chu nha da cup sau ba ngay.',
+            rotation_risk: 'Rui ro xoay tua vua phai.',
+            key_absences: 'Doi khach mat hai hau ve.',
+            h2h_narrative: 'Chu nha thang 3/4 lan gap gan nhat.',
+            summary: 'Tom tat strategic context co cau truc.',
+          },
+        },
+        quantitative: {
+          home_last5_points: 10,
+          away_last5_points: 3,
+          home_over_2_5_rate_last10: 60,
+          away_over_2_5_rate_last10: 40,
+        },
+        source_meta: {
+          search_quality: 'high',
+          sources: [
+            { domain: 'reuters.com', trust_tier: 'tier_1' },
+            { domain: 'fbref.com', trust_tier: 'tier_2' },
+          ],
+        },
+      },
+    } as never);
+
+    await runPipelineBatch(['100']);
+
+    const { callGemini } = await import('../lib/gemini.js');
+    const prompt = vi.mocked(callGemini).mock.calls[0][0];
+    expect(prompt).toContain('SOURCE_QUALITY: high');
+    expect(prompt).toContain('TRUSTED_SOURCE_DOMAINS: reuters.com, fbref.com');
+    expect(prompt).toContain('"home_last5_points":10');
+    expect(prompt).toContain('SUMMARY: Structured strategic context summary.');
   });
 
   test('logs audit on successful analysis', async () => {

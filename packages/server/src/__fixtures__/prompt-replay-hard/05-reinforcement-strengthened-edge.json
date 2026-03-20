@@ -1,0 +1,179 @@
+{
+  "name": "05-reinforcement-strengthened-edge",
+  "matchId": "9105",
+  "fixture": {
+    "fixture": {
+      "id": 9105,
+      "date": "2026-03-21T12:00:00Z",
+      "timestamp": 1774094400,
+      "status": { "short": "2H", "elapsed": 66 }
+    },
+    "teams": {
+      "home": { "id": 151, "name": "Marseille", "logo": "", "winner": null },
+      "away": { "id": 152, "name": "Lyon", "logo": "", "winner": null }
+    },
+    "league": {
+      "id": 61,
+      "name": "Ligue 1",
+      "country": "France",
+      "logo": "",
+      "flag": null,
+      "season": 2026,
+      "round": "Regular Season - 28"
+    },
+    "goals": { "home": 1, "away": 1 },
+    "score": {}
+  },
+  "pipelineOptions": {
+    "skipStalenessGate": true
+  },
+  "watchlistEntry": {
+    "strategic_context": {
+      "summary": "Both teams profile as chance-heavy and transition-oriented.",
+      "competition_type": "domestic_league",
+      "qualitative": {
+        "en": {
+          "home_motivation": "Home side is pushing for European spots.",
+          "away_motivation": "Away side also needs points for continental qualification.",
+          "league_positions": "5th vs 7th in the same domestic league.",
+          "fixture_congestion": "Normal weekly schedule.",
+          "rotation_risk": "Low rotation risk.",
+          "key_absences": "Away side missing one defensive midfielder.",
+          "h2h_narrative": "This matchup often stays open in transition.",
+          "summary": "Both teams profile as chance-heavy and transition-oriented."
+        },
+        "vi": {
+          "home_motivation": "Chu nha dang dua ve chau Au.",
+          "away_motivation": "Doi khach cung can diem cho ve chau Au.",
+          "league_positions": "Thu 5 vs thu 7 cung mot giai.",
+          "fixture_congestion": "Lich dau binh thuong hang tuan.",
+          "rotation_risk": "Rui ro xoay tua thap.",
+          "key_absences": "Doi khach vang mot tien ve phong ngu.",
+          "h2h_narrative": "Cap dau nay thuong mo trong cac pha chuyen trang thai.",
+          "summary": "Hai doi deu co profile tao co hoi va chuyen trang thai tot."
+        }
+      },
+      "quantitative": {
+        "home_last5_points": 9,
+        "away_last5_points": 8,
+        "home_last5_goals_for": 10,
+        "away_last5_goals_for": 8,
+        "home_last5_goals_against": 6,
+        "away_last5_goals_against": 7,
+        "home_home_goals_avg": 1.9,
+        "away_away_goals_avg": 1.4,
+        "home_over_2_5_rate_last10": 70,
+        "away_over_2_5_rate_last10": 65,
+        "home_btts_rate_last10": 60,
+        "away_btts_rate_last10": 65,
+        "home_clean_sheet_rate_last10": 15,
+        "away_clean_sheet_rate_last10": 15,
+        "home_failed_to_score_rate_last10": 10,
+        "away_failed_to_score_rate_last10": 15
+      },
+      "source_meta": {
+        "search_quality": "high",
+        "sources": [
+          { "domain": "reuters.com", "trust_tier": "tier_1" },
+          { "domain": "fbref.com", "trust_tier": "tier_2" }
+        ]
+      }
+    }
+  },
+  "statistics": [
+    {
+      "team": { "id": 151, "name": "Marseille", "logo": "" },
+      "statistics": [
+        { "type": "Ball Possession", "value": "58%" },
+        { "type": "Total Shots", "value": 18 },
+        { "type": "Shots on Goal", "value": 8 },
+        { "type": "Corner Kicks", "value": 9 },
+        { "type": "Fouls", "value": 7 }
+      ]
+    },
+    {
+      "team": { "id": 152, "name": "Lyon", "logo": "" },
+      "statistics": [
+        { "type": "Ball Possession", "value": "42%" },
+        { "type": "Total Shots", "value": 11 },
+        { "type": "Shots on Goal", "value": 4 },
+        { "type": "Corner Kicks", "value": 4 },
+        { "type": "Fouls", "value": 10 }
+      ]
+    }
+  ],
+  "events": [
+    {
+      "time": { "elapsed": 11, "extra": null },
+      "team": { "id": 151, "name": "Marseille", "logo": "" },
+      "player": { "id": 1501, "name": "Home Striker" },
+      "assist": { "id": null, "name": null },
+      "type": "Goal",
+      "detail": "Normal Goal",
+      "comments": null
+    },
+    {
+      "time": { "elapsed": 41, "extra": null },
+      "team": { "id": 152, "name": "Lyon", "logo": "" },
+      "player": { "id": 1502, "name": "Away Forward" },
+      "assist": { "id": null, "name": null },
+      "type": "Goal",
+      "detail": "Normal Goal",
+      "comments": null
+    },
+    {
+      "time": { "elapsed": 63, "extra": null },
+      "team": { "id": 151, "name": "Marseille", "logo": "" },
+      "player": { "id": 1503, "name": "Home Winger" },
+      "assist": { "id": null, "name": null },
+      "type": "Var",
+      "detail": "Goal cancelled",
+      "comments": null
+    }
+  ],
+  "liveOddsResponse": [
+    {
+      "fixture": { "id": 9105 },
+      "odds": [
+        {
+          "id": 1,
+          "name": "Over/Under",
+          "values": [
+            { "value": "Over", "odd": "1.94", "handicap": "2.5" },
+            { "value": "Under", "odd": "1.92", "handicap": "2.5" }
+          ]
+        },
+        {
+          "id": 2,
+          "name": "Both Teams To Score",
+          "values": [
+            { "value": "Yes", "odd": "1.08" },
+            { "value": "No", "odd": "6.20" }
+          ]
+        }
+      ]
+    }
+  ],
+  "previousRecommendations": [
+    {
+      "minute": 58,
+      "odds": 1.78,
+      "bet_market": "over_2.5",
+      "selection": "Over 2.5 Goals @1.78",
+      "score": "1-1",
+      "confidence": 6,
+      "reasoning": "Open game with enough shot volume to support another goal."
+    }
+  ],
+  "expected": {
+    "analysisMode": "auto",
+    "evidenceMode": "full_live_data",
+    "statsSource": "api-football",
+    "oddsSource": "live",
+    "shouldPush": true,
+    "betMarket": "over_2.5",
+    "selectionContains": "Over 2.5",
+    "saved": false,
+    "notified": false
+  }
+}

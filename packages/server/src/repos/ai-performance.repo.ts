@@ -257,7 +257,7 @@ export async function getHistoricalPerformanceContext(): Promise<HistoricalPerfo
     correct: string;
   }>(
     `WITH base AS (
-       SELECT ap.predicted_market, ap.ai_confidence, ap.match_minute,
+       SELECT ap.predicted_market, ap.ai_confidence, ap.match_minute, ap.predicted_odds,
               ap.was_correct, ap.league
        FROM ai_performance ap
        JOIN recommendations r ON r.id = ap.recommendation_id

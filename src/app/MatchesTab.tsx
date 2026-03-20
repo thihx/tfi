@@ -561,9 +561,17 @@ function MatchRow({ match, isWatched, isPending, isSelected, isAnalyzing, hasRes
               <span className="btn-text">+ Watch</span>
             </button>
           )}
-          <button className={`btn ${hasResult ? 'btn-success' : 'btn-secondary'} btn-sm`} onClick={onAskAi} disabled={isAnalyzing || !isWatched} title={!isWatched ? 'Add this match to Watchlist to use Ask AI' : hasResult ? 'View cached result' : 'Ask AI for analysis'}>
-            {isAnalyzing && <span className="inline-spinner" style={{ width: '14px', height: '14px' }} />}
-            <span className="btn-text" style={{ marginLeft: isAnalyzing ? '2px' : undefined }}>{isAnalyzing ? 'Analyzing...' : hasResult ? '✅ View Result' : 'Ask AI'}</span>
+          <button className={`btn ${hasResult ? 'btn-success' : 'btn-secondary'} btn-sm`} onClick={onAskAi} disabled={isAnalyzing || !isWatched} title={!isWatched ? 'Add this match to Watchlist to use Ask AI' : hasResult ? 'View cached result' : 'Ask AI for analysis'} style={{ minWidth: 36 }}>
+            {isAnalyzing
+              ? <span className="inline-spinner" style={{ width: '14px', height: '14px' }} />
+              : hasResult
+                ? <span style={{ fontSize: 13 }}>✅</span>
+                : <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor" aria-hidden style={{ display: 'block' }}>
+                    <path d="M12 2l1.5 4.5L18 8l-4.5 1.5L12 14l-1.5-4.5L6 8l4.5-1.5L12 2z"/>
+                    <path d="M19 14l.9 2.1 2.1.9-2.1.9-.9 2.1-.9-2.1-2.1-.9 2.1-.9.9-2.1z"/>
+                    <path d="M5 17l.6 1.4L7 19l-1.4.6L5 21l-.6-1.4L3 19l1.4-.6L5 17z"/>
+                  </svg>
+            }
           </button>
         </div>
       </td>

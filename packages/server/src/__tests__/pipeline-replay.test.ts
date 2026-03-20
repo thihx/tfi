@@ -225,4 +225,153 @@ describe('runReplayScenario', () => {
     expect(output.result.debug?.oddsSource).toBe('the-odds-api');
     expect(output.allPassed).toBe(true);
   });
+
+  test('supports manual force replay via pipeline options', async () => {
+    const output = await runReplayScenario({
+      name: 'manual-force-replay',
+      matchId: '100',
+      fixture: {
+        ...makeFixture(),
+        fixture: {
+          ...makeFixture().fixture,
+          status: { short: '1H', elapsed: 3 },
+        },
+        goals: { home: 0, away: 0 },
+      },
+      statistics: [],
+      events: [],
+      liveOddsResponse: [],
+      pipelineOptions: {
+        forceAnalyze: true,
+      },
+      expected: {
+        analysisMode: 'manual_force',
+        saved: false,
+        notified: false,
+      },
+    });
+
+    expect(output.result.debug?.analysisMode).toBe('manual_force');
+    expect(output.allPassed).toBe(true);
+  });
+
+  test('asserts evidenceMode and statsSource metadata when provided', async () => {
+    const output = await runReplayScenario({
+      name: 'metadata-assertions',
+      matchId: '100',
+      fixture: makeFixture(),
+      statistics: makeStats(),
+      events: makeEvents(),
+      liveOddsResponse: [{
+        fixture: { id: 100 },
+        odds: [{
+          id: 1,
+          name: 'Over/Under',
+          values: [
+            { value: 'Over', odd: '1.85', handicap: '2.5' },
+            { value: 'Under', odd: '2.00', handicap: '2.5' }
+          ]
+        }]
+      }],
+      expected: {
+        analysisMode: 'auto',
+        evidenceMode: 'full_live_data',
+        statsSource: 'api-football',
+        oddsSource: 'live',
+      },
+    });
+
+    expect(output.assertions.find((item) => item.field === 'evidenceMode')?.pass).toBe(true);
+    expect(output.assertions.find((item) => item.field === 'statsSource')?.pass).toBe(true);
+    expect(output.allPassed).toBe(true);
+  });
+
+  test('supports betMarket assertions and disallowed market prefixes', async () => {
+    const output = await runReplayScenario({
+      name: 'bet-market-assertions',
+      matchId: '100',
+      fixture: makeFixture(),
+      statistics: makeStats(),
+      events: makeEvents(),
+      liveOddsResponse: [{
+        fixture: { id: 100 },
+        odds: [{
+          id: 1,
+          name: 'Over/Under',
+          values: [
+            { value: 'Over', odd: '1.85', handicap: '2.5' },
+            { value: 'Under', odd: '2.00', handicap: '2.5' },
+          ],
+        }],
+      }],
+      mockAiText: JSON.stringify({
+        should_push: true,
+        ai_should_push: true,
+        selection: 'Over 2.5 Goals @1.85',
+        bet_market: 'over_2.5',
+        confidence: 7,
+        reasoning_en: 'Value stays with Over 2.5.',
+        reasoning_vi: 'Van co gia tri cho Over 2.5.',
+        warnings: ['DISCIPLINED_EDGE'],
+        value_percent: 9,
+        risk_level: 'MEDIUM',
+        stake_percent: 3,
+        condition_triggered_suggestion: '',
+        custom_condition_matched: false,
+      }),
+      expected: {
+        betMarket: 'over_2.5',
+        disallowedBetMarketPrefixes: ['1x2_', 'btts_'],
+        warningContains: 'DISCIPLINED_EDGE',
+      },
+    }, { llmMode: 'mock' });
+
+    expect(output.assertions.find((item) => item.field === 'betMarket')?.pass).toBe(true);
+    expect(output.assertions.find((item) => item.field === 'disallowedBetMarketPrefixes')?.pass).toBe(true);
+    expect(output.assertions.find((item) => item.field === 'warningContains')?.pass).toBe(true);
+    expect(output.allPassed).toBe(true);
+  });
+
+  test('fails when a disallowed bet market prefix is selected', async () => {
+    const output = await runReplayScenario({
+      name: 'disallowed-market',
+      matchId: '100',
+      fixture: makeFixture(),
+      statistics: makeStats(),
+      events: makeEvents(),
+      liveOddsResponse: [{
+        fixture: { id: 100 },
+        odds: [{
+          id: 1,
+          name: 'Match Winner',
+          values: [
+            { value: 'Home', odd: '1.90' },
+            { value: 'Draw', odd: '3.40' },
+            { value: 'Away', odd: '4.50' },
+          ],
+        }],
+      }],
+      mockAiText: JSON.stringify({
+        should_push: true,
+        ai_should_push: true,
+        selection: 'Home Win @1.90',
+        bet_market: '1x2_home',
+        confidence: 7,
+        reasoning_en: 'Mock 1x2 pick.',
+        reasoning_vi: 'Mock 1x2 pick.',
+        warnings: [],
+        value_percent: 6,
+        risk_level: 'MEDIUM',
+        stake_percent: 2,
+        condition_triggered_suggestion: '',
+        custom_condition_matched: false,
+      }),
+      expected: {
+        disallowedBetMarketPrefixes: ['1x2_'],
+      },
+    }, { llmMode: 'mock' });
+
+    expect(output.assertions.find((item) => item.field === 'disallowedBetMarketPrefixes')?.pass).toBe(false);
+    expect(output.allPassed).toBe(false);
+  });
 });

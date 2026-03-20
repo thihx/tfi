@@ -215,10 +215,13 @@ export function WatchlistTab() {
   const sortIndicator = (col: string) => sort.column === col ? (sort.order === 'asc' ? '▲' : '▼') : '';
   const allPageSelected = pageItems.length > 0 && pageItems.every((i) => selected.has(String(i.match_id)));
 
-  // Get team logos from matches data
-  const getLogos = (matchId: string) => {
+  // Get team logos: prefer logos stored on the watchlist item, fall back to live matches data
+  const getLogos = (matchId: string, item?: { home_logo?: string; away_logo?: string }) => {
     const m = matches.find((x) => String(x.match_id) === matchId);
-    return { home: m?.home_logo || PLACEHOLDER_HOME, away: m?.away_logo || PLACEHOLDER_AWAY };
+    return {
+      home: item?.home_logo || m?.home_logo || PLACEHOLDER_HOME,
+      away: item?.away_logo || m?.away_logo || PLACEHOLDER_AWAY,
+    };
   };
 
   return (
@@ -288,7 +291,7 @@ export function WatchlistTab() {
                 const rows: React.ReactNode[] = [];
                 let lastLabel = '';
                 pageItems.forEach((item) => {
-                const logos = getLogos(String(item.match_id));
+                const logos = getLogos(String(item.match_id), item);
                 const localDT = convertSeoulToLocalDateTime(item.date, item.kickoff || '00:00');
                 const timeDisplay = formatDateTimeDisplay(localDT);
                 const dateLabel = getDateGroupLabel(localDT);
@@ -509,8 +512,8 @@ export function WatchlistTab() {
             matchId={String(scoutItem.match_id)}
             homeTeam={scoutItem.home_team ?? ''}
             awayTeam={scoutItem.away_team ?? ''}
-            homeLogo={m?.home_logo}
-            awayLogo={m?.away_logo}
+            homeLogo={scoutItem.home_logo || m?.home_logo}
+            awayLogo={scoutItem.away_logo || m?.away_logo}
             leagueName={scoutItem.league_name || scoutItem.league || ''}
             leagueId={leagueId ?? undefined}
             status={m?.status}

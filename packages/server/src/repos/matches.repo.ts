@@ -130,3 +130,36 @@ export async function deleteMatchesByIds(ids: string[]): Promise<number> {
   const result = await query('DELETE FROM matches WHERE match_id = ANY($1)', [ids]);
   return result.rowCount ?? 0;
 }
+
+export interface MatchScheduleState {
+  liveCount: number;
+  nsCount: number;
+  minsToNextKickoff: number | null; // null = no NS matches
+}
+
+/**
+ * Cheap single-query snapshot of how "active" the match slate is.
+ * Used by fetch-matches to decide how long to wait before the next poll.
+ * date+kickoff are stored in config.timezone (same assumption as watchlist expiry query).
+ */
+export async function getMatchScheduleState(timezone: string): Promise<MatchScheduleState> {
+  const r = await query<{ live_count: string; ns_count: string; mins_to_next: string | null }>(
+    `SELECT
+       COUNT(*) FILTER (WHERE status IN ('1H','HT','2H','ET','BT','P','LIVE','INT')) AS live_count,
+       COUNT(*) FILTER (WHERE status = 'NS')                                          AS ns_count,
+       MIN(
+         EXTRACT(EPOCH FROM (
+           (date || ' ' || kickoff || ':00')::timestamp AT TIME ZONE $1 - NOW()
+         )) / 60
+       ) FILTER (WHERE status = 'NS')                                                 AS mins_to_next
+     FROM matches`,
+    [timezone],
+  );
+  const row = r.rows[0];
+  if (!row) return { liveCount: 0, nsCount: 0, minsToNextKickoff: null };
+  return {
+    liveCount: Number(row.live_count),
+    nsCount: Number(row.ns_count),
+    minsToNextKickoff: row.mins_to_next != null ? Number(row.mins_to_next) : null,
+  };
+}

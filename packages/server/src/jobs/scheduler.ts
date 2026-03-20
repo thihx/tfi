@@ -9,7 +9,7 @@
 import { config } from '../config.js';
 import { getRedisClient } from '../lib/redis.js';
 import { audit } from '../lib/audit.js';
-import { fetchMatchesJob } from './fetch-matches.job.js';
+import { fetchMatchesJob, ADAPTIVE_SKIP_KEY } from './fetch-matches.job.js';
 import { updatePredictionsJob } from './update-predictions.job.js';
 import { expireWatchlistJob } from './expire-watchlist.job.js';
 import { checkLiveTriggerJob } from './check-live-trigger.job.js';
@@ -51,6 +51,7 @@ interface ManagedJob {
   enabled: boolean;
   runCount: number;
   lockTtlMs: number;
+  skipKey?: string;
 }
 
 const jobs: ManagedJob[] = [];
@@ -66,12 +67,13 @@ export function getSchedulerUptime(): number {
 const lockKey = (name: string) => `job:lock:${name}`;
 const stateKey = (name: string) => `job:state:${name}`;
 
-function register(name: string, intervalMs: number, fn: () => Promise<unknown>, lockTtlMs?: number) {
+function register(name: string, intervalMs: number, fn: () => Promise<unknown>, lockTtlMs?: number, skipKey?: string) {
   jobs.push({
     name, intervalMs, fn,
     timer: null, lastRun: null, lastError: null,
     running: false, enabled: intervalMs > 0, runCount: 0,
     lockTtlMs: lockTtlMs ?? Math.max(intervalMs * 3, 60_000),
+    skipKey,
   });
 }
 
@@ -165,7 +167,7 @@ export async function startScheduler() {
   // Register all jobs
   // Register in logical pipeline order:
   // 1. Ingest data → 2. Enrich → 3. Predict → 4. Live analysis → 5. Settle → 6. Cleanup
-  register('fetch-matches', config.jobFetchMatchesMs, fetchMatchesJob);
+  register('fetch-matches', config.jobFetchMatchesMs, fetchMatchesJob, undefined, ADAPTIVE_SKIP_KEY);
   register('enrich-watchlist', config.jobEnrichWatchlistMs, enrichWatchlistJob, 10 * 60_000);
   register('update-predictions', config.jobPredictionsMs, updatePredictionsJob, 10 * 60_000);
   register('check-live-trigger', config.jobCheckLiveMs, checkLiveTriggerJob);
@@ -180,6 +182,15 @@ export async function startScheduler() {
   // Restore state from Redis
   for (const job of jobs) {
     await restoreState(job);
+  }
+
+  // Clear any stale adaptive skip keys so jobs run promptly after restart
+  for (const job of jobs) {
+    if (job.skipKey) {
+      try {
+        await getRedisClient().del(job.skipKey);
+      } catch { /* ignore */ }
+    }
   }
 
   for (const job of jobs) {
@@ -230,6 +241,10 @@ export function triggerJob(name: string): { triggered: boolean } | null {
   const job = jobs.find((j) => j.name === name);
   if (!job) return null;
   if (job.running) return { triggered: false };
+  // Clear adaptive skip key so manual trigger always runs immediately
+  if (job.skipKey) {
+    getRedisClient().del(job.skipKey).catch(() => { /* ignore */ });
+  }
   // Fire and forget — progress tracked via Redis
   audit({ category: 'JOB', action: 'JOB_MANUAL_TRIGGER', actor: 'user', metadata: { jobName: name } });
   runJob(job);

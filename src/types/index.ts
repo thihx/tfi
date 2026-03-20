@@ -42,8 +42,82 @@ export interface StrategicContext {
   searched_at: string;
   competition_type?: string;
   ai_condition?: string;
+  ai_condition_blueprint?: {
+    alert_window_start: number | null;
+    alert_window_end: number | null;
+    preferred_score_state: 'any' | 'draw' | 'home_leading' | 'away_leading' | 'not_home_leading' | 'not_away_leading';
+    preferred_goal_state: 'any' | 'goals_lte_0' | 'goals_lte_1' | 'goals_lte_2' | 'goals_gte_1' | 'goals_gte_2' | 'goals_gte_3';
+    favoured_side: 'home' | 'away' | 'none';
+    alert_rationale_en: string;
+    alert_rationale_vi: string;
+  } | null;
   ai_condition_reason?: string;
   ai_condition_reason_vi?: string;
+  version?: 2;
+  home_motivation_vi?: string;
+  away_motivation_vi?: string;
+  league_positions_vi?: string;
+  fixture_congestion_vi?: string;
+  rotation_risk_vi?: string;
+  key_absences_vi?: string;
+  h2h_narrative_vi?: string;
+  summary_vi?: string;
+  qualitative?: {
+    en: {
+      home_motivation: string;
+      away_motivation: string;
+      league_positions: string;
+      fixture_congestion: string;
+      rotation_risk: string;
+      key_absences: string;
+      h2h_narrative: string;
+      summary: string;
+    };
+    vi: {
+      home_motivation: string;
+      away_motivation: string;
+      league_positions: string;
+      fixture_congestion: string;
+      rotation_risk: string;
+      key_absences: string;
+      h2h_narrative: string;
+      summary: string;
+    };
+  };
+  quantitative?: {
+    home_last5_points: number | null;
+    away_last5_points: number | null;
+    home_last5_goals_for: number | null;
+    away_last5_goals_for: number | null;
+    home_last5_goals_against: number | null;
+    away_last5_goals_against: number | null;
+    home_home_goals_avg: number | null;
+    away_away_goals_avg: number | null;
+    home_over_2_5_rate_last10: number | null;
+    away_over_2_5_rate_last10: number | null;
+    home_btts_rate_last10: number | null;
+    away_btts_rate_last10: number | null;
+    home_clean_sheet_rate_last10: number | null;
+    away_clean_sheet_rate_last10: number | null;
+    home_failed_to_score_rate_last10: number | null;
+    away_failed_to_score_rate_last10: number | null;
+  };
+  source_meta?: {
+    search_quality: 'high' | 'medium' | 'low' | 'unknown';
+    web_search_queries: string[];
+    sources: Array<{
+      title: string;
+      url: string;
+      domain: string;
+      publisher: string;
+      language: 'en' | 'vi' | 'unknown';
+      source_type: 'official' | 'major_news' | 'stats_reference' | 'aggregator' | 'unknown' | 'rejected';
+      trust_tier: 'tier_1' | 'tier_2' | 'tier_3' | 'rejected';
+    }>;
+    trusted_source_count: number;
+    rejected_source_count: number;
+    rejected_domains: string[];
+  };
 }
 
 export interface WatchlistItem {
@@ -54,6 +128,8 @@ export interface WatchlistItem {
   league_name?: string;
   home_team: string;
   away_team: string;
+  home_logo?: string;
+  away_logo?: string;
   kickoff: string;
   mode: string;
   priority: number;

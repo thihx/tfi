@@ -122,14 +122,14 @@ function PreMatchView({ data, homeTeam, awayTeam, homeLogo, awayLogo, leagueName
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
       {/* ── Match Header ── */}
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '16px 0', borderBottom: '1px solid var(--gray-100)' }}>
+      <div style={{ background: 'var(--gray-50)', borderRadius: 8, padding: '12px 16px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
         <TeamBadge name={homeTeam} logo={homeLogo} align="left" />
         <div style={{ textAlign: 'center', flex: 1 }}>
-          {leagueName && <div style={{ fontSize: 11, color: 'var(--gray-400)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: 4 }}>{leagueName}</div>}
-          {round && <div style={{ fontSize: 11, color: 'var(--gray-400)', marginBottom: 4 }}>{round}</div>}
-          <div style={{ fontSize: 24, fontWeight: 800, color: 'var(--gray-800)', letterSpacing: '-1px' }}>vs</div>
-          {venue?.name && <div style={{ fontSize: 11, color: 'var(--gray-400)', marginTop: 4 }}>{venue.name}{venue.city ? `, ${venue.city}` : ''}</div>}
-          {referee && <div style={{ fontSize: 11, color: 'var(--gray-400)' }}>Ref: {referee}</div>}
+          {leagueName && <div style={{ fontSize: 10, color: 'var(--gray-400)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: 2 }}>{leagueName}</div>}
+          {round && <div style={{ fontSize: 10, color: 'var(--gray-400)', marginBottom: 2 }}>{round}</div>}
+          <div style={{ fontSize: 20, fontWeight: 800, color: 'var(--gray-700)', letterSpacing: '-1px' }}>VS</div>
+          {venue?.name && <div style={{ fontSize: 10, color: 'var(--gray-400)', marginTop: 2 }}>{venue.name}{venue.city ? `, ${venue.city}` : ''}</div>}
+          {referee && <div style={{ fontSize: 10, color: 'var(--gray-400)' }}>Ref: {referee}</div>}
         </div>
         <TeamBadge name={awayTeam} logo={awayLogo} align="right" />
       </div>
@@ -247,22 +247,22 @@ function LiveView({ data, homeTeam, awayTeam, homeLogo, awayLogo, leagueName, st
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
       {/* ── Live Score Header ── */}
-      <div style={{ background: isLive ? '#0f172a' : 'var(--gray-50)', borderRadius: 10, padding: '20px 24px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+      <div style={{ background: isLive ? '#0f172a' : 'var(--gray-50)', borderRadius: 8, padding: '12px 16px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
         <TeamBadge name={homeTeam} logo={homeLogo} align="left" dark={isLive} />
         <div style={{ textAlign: 'center', flex: 1 }}>
           {isLive && (
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, marginBottom: 6 }}>
-              <span style={{ width: 8, height: 8, borderRadius: '50%', background: '#ef4444', display: 'inline-block', animation: 'pulse 1.5s ease-in-out infinite' }} />
-              <span style={{ fontSize: 11, fontWeight: 700, color: '#ef4444', letterSpacing: '1px' }}>LIVE {elapsed ? `· ${elapsed}'` : ''}</span>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 5, marginBottom: 4 }}>
+              <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#ef4444', display: 'inline-block', animation: 'pulse 1.5s ease-in-out infinite' }} />
+              <span style={{ fontSize: 10, fontWeight: 700, color: '#ef4444', letterSpacing: '1px' }}>LIVE {elapsed ? `· ${elapsed}'` : ''}</span>
             </div>
           )}
           {!isLive && status && (
-            <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--gray-500)', letterSpacing: '1px', marginBottom: 6 }}>{status === 'HT' ? 'HALF TIME' : 'FULL TIME'}</div>
+            <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--gray-500)', letterSpacing: '1px', marginBottom: 4 }}>{status === 'HT' ? 'HALF TIME' : 'FULL TIME'}</div>
           )}
-          <div style={{ fontSize: 40, fontWeight: 900, color: isLive ? '#f9fafb' : 'var(--gray-900)', letterSpacing: '-2px', lineHeight: 1 }}>
+          <div style={{ fontSize: 28, fontWeight: 900, color: isLive ? '#f9fafb' : 'var(--gray-900)', letterSpacing: '-1px', lineHeight: 1 }}>
             {homeGoals} <span style={{ color: isLive ? '#4b5563' : 'var(--gray-300)' }}>–</span> {awayGoals}
           </div>
-          {leagueName && <div style={{ fontSize: 11, color: isLive ? '#6b7280' : 'var(--gray-400)', marginTop: 6 }}>{leagueName}</div>}
+          {leagueName && <div style={{ fontSize: 10, color: isLive ? '#6b7280' : 'var(--gray-400)', marginTop: 4 }}>{leagueName}</div>}
         </div>
         <TeamBadge name={awayTeam} logo={awayLogo} align="right" dark={isLive} />
       </div>
@@ -326,9 +326,9 @@ function EmptyNote({ children }: { children: React.ReactNode }) {
 function TeamBadge({ name, logo, align, dark }: { name: string; logo?: string; align: 'left' | 'right'; dark?: boolean }) {
   const color = dark ? '#f9fafb' : 'var(--gray-900)';
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', alignItems: align === 'left' ? 'flex-start' : 'flex-end', gap: 6, minWidth: 120, maxWidth: 180 }}>
-      {logo && <img src={logo} alt={name} style={{ width: 44, height: 44, objectFit: 'contain' }} onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }} />}
-      <div style={{ fontSize: 14, fontWeight: 700, color, textAlign: align === 'left' ? 'left' : 'right', lineHeight: 1.2 }}>{name}</div>
+    <div style={{ display: 'flex', flexDirection: 'column', alignItems: align === 'left' ? 'flex-start' : 'flex-end', gap: 4, minWidth: 100, maxWidth: 160 }}>
+      {logo && <img src={logo} alt={name} style={{ width: 32, height: 32, objectFit: 'contain' }} onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }} />}
+      <div style={{ fontSize: 12, fontWeight: 700, color, textAlign: align === 'left' ? 'left' : 'right', lineHeight: 1.2 }}>{name}</div>
     </div>
   );
 }

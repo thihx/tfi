@@ -176,6 +176,28 @@ describe('POST /api/recommendations', () => {
       predicted_market: 'over_2.5',
     }));
   });
+
+  test('propagates prompt_version into ai_performance rows', async () => {
+    await app.inject({
+      method: 'POST',
+      url: '/api/recommendations',
+      payload: {
+        match_id: '203',
+        selection: 'Over 2.5',
+        confidence: 80,
+        ai_model: 'gemini',
+        bet_type: 'AI',
+        bet_market: 'over_2.5',
+        prompt_version: 'v4-evidence-hardened',
+      },
+    });
+
+    const aiPerfRepo = await import('../repos/ai-performance.repo.js');
+    expect(aiPerfRepo.createAiPerformanceRecord).toHaveBeenCalledWith(expect.objectContaining({
+      match_id: '203',
+      prompt_version: 'v4-evidence-hardened',
+    }));
+  });
 });
 
 describe('POST /api/recommendations/bulk', () => {

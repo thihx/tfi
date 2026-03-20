@@ -229,17 +229,9 @@ async function getUnsettledRecommendations(): Promise<RecommendationRow[]> {
 }
 
 async function settleRecommendations(recs: RecommendationRow[], stats: SettleResult) {
-  // Batch-fetch historical matches for all unique match IDs
   const matchIds = [...new Set(recs.map((r) => r.match_id))];
-  const historyMap = new Map<string, MatchHistoryRow>();
-  for (const id of matchIds) {
-    try {
-      const hist = await matchHistoryRepo.getHistoricalMatch(id);
-      if (hist) historyMap.set(id, hist);
-    } catch (err) {
-      console.error(`[autoSettleJob] Failed to fetch history for match ${id}:`, err);
-    }
-  }
+  // Single batch query instead of N individual lookups
+  const historyMap = await matchHistoryRepo.getHistoricalMatchesBatch(matchIds);
 
   // Fallback: fetch results from Football API for matches not in history
   const missingIds = matchIds.filter((id) => !historyMap.has(id));
@@ -312,15 +304,8 @@ async function settleBets(
   stats: SettleResult,
 ) {
   const matchIds = [...new Set(bets.map((b) => b.match_id))];
-  const historyMap = new Map<string, MatchHistoryRow>();
-  for (const id of matchIds) {
-    try {
-      const hist = await matchHistoryRepo.getHistoricalMatch(id);
-      if (hist) historyMap.set(id, hist);
-    } catch (err) {
-      console.error(`[autoSettleJob] Failed to fetch history for match ${id}:`, err);
-    }
-  }
+  // Single batch query instead of N individual lookups
+  const historyMap = await matchHistoryRepo.getHistoricalMatchesBatch(matchIds);
 
   // Fallback: fetch results from Football API for matches not in history
   const missingIds = matchIds.filter((id) => !historyMap.has(id));
@@ -391,36 +376,45 @@ async function settleBets(
  * Fetch full match statistics from Football API for a list of match IDs.
  * Returns a Map of matchId → array of stat objects (type, home, away).
  */
+type StatRow = { type: string; home: string | number | null; away: string | number | null };
+
 async function fetchMatchStatistics(
   matchIds: string[],
-): Promise<Map<string, Array<{ type: string; home: string | number | null; away: string | number | null }>>> {
-  const statsMap = new Map<string, Array<{ type: string; home: string | number | null; away: string | number | null }>>();
+): Promise<Map<string, StatRow[]>> {
+  if (matchIds.length === 0) return new Map();
+  const statsMap = new Map<string, StatRow[]>();
 
-  for (const matchId of matchIds) {
+  // Parallel fetches (concurrency 5) instead of sequential
+  await batchRun(matchIds.map((matchId) => async () => {
     try {
       const statsRaw = await fetchFixtureStatistics(matchId);
       if (statsRaw.length >= 2) {
         const homeStats = statsRaw[0]!.statistics || [];
         const awayStats = statsRaw[1]!.statistics || [];
-
-        // Merge home + away stats by type
-        const merged: Array<{ type: string; home: string | number | null; away: string | number | null }> = [];
-        for (const hs of homeStats) {
-          const as = awayStats.find(a => a.type === hs.type);
-          merged.push({ type: hs.type, home: hs.value, away: as?.value ?? null });
-        }
+        const merged: StatRow[] = homeStats.map((hs) => ({
+          type: hs.type,
+          home: hs.value,
+          away: awayStats.find((a) => a.type === hs.type)?.value ?? null,
+        }));
         statsMap.set(matchId, merged);
       }
     } catch (err) {
-      console.warn(`[autoSettleJob] Failed to fetch statistics for match ${matchId}:`, err instanceof Error ? err.message : err);
+      console.warn(`[autoSettleJob] Stats fetch failed for ${matchId}:`, err instanceof Error ? err.message : err);
     }
-  }
+  }), 5);
 
-  if (matchIds.length > 0 && statsMap.size > 0) {
+  if (statsMap.size > 0) {
     console.log(`[autoSettleJob] Fetched statistics for ${statsMap.size}/${matchIds.length} matches`);
   }
-
   return statsMap;
+}
+
+export async function batchRun<T>(tasks: (() => Promise<T>)[], concurrency = 5): Promise<T[]> {
+  const results: T[] = [];
+  for (let i = 0; i < tasks.length; i += concurrency) {
+    results.push(...await Promise.all(tasks.slice(i, i + concurrency).map((t) => t())));
+  }
+  return results;
 }
 
 // ==================== Football API Fallback ====================

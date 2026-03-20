@@ -12,6 +12,8 @@ export interface WatchlistRow {
   league: string;
   home_team: string;
   away_team: string;
+  home_logo: string;
+  away_logo: string;
   kickoff: string | null;
   mode: string;
   prediction: unknown;
@@ -71,10 +73,10 @@ export async function getExistingWatchlistMatchIds(matchIds: string[]): Promise<
 export async function createWatchlistEntry(w: Partial<WatchlistCreate>): Promise<WatchlistRow> {
   const r = await query<WatchlistRow>(
     `INSERT INTO watchlist
-       (match_id, date, league, home_team, away_team, kickoff, mode, prediction,
+       (match_id, date, league, home_team, away_team, home_logo, away_logo, kickoff, mode, prediction,
         recommended_custom_condition, recommended_condition_reason, recommended_condition_reason_vi,
         recommended_condition_at, custom_conditions, priority, status, added_by)
-     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18)
      RETURNING *`,
     [
       w.match_id,
@@ -82,6 +84,8 @@ export async function createWatchlistEntry(w: Partial<WatchlistCreate>): Promise
       w.league ?? '',
       w.home_team ?? '',
       w.away_team ?? '',
+      w.home_logo ?? '',
+      w.away_logo ?? '',
       w.kickoff ?? null,
       w.mode ?? 'B',
       w.prediction ? JSON.stringify(w.prediction) : null,
@@ -141,9 +145,17 @@ export async function deleteWatchlistEntry(matchId: string): Promise<boolean> {
 
 export async function incrementChecks(matchId: string): Promise<void> {
   await query(
-    `UPDATE watchlist SET total_checks = total_checks + 1, last_checked = NOW()
-     WHERE match_id = $1`,
+    `UPDATE watchlist SET total_checks = total_checks + 1, last_checked = NOW() WHERE match_id = $1`,
     [matchId],
+  );
+}
+
+/** Batch-increment check counters — single query replacing N individual updates */
+export async function incrementChecksForMatches(matchIds: string[]): Promise<void> {
+  if (matchIds.length === 0) return;
+  await query(
+    `UPDATE watchlist SET total_checks = total_checks + 1, last_checked = NOW() WHERE match_id = ANY($1)`,
+    [matchIds],
   );
 }
 

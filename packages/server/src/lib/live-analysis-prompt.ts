@@ -1,10 +1,21 @@
 export type PromptStatsSource = 'api-football' | 'live-score-api-fallback' | string;
+export type PromptAnalysisMode = 'auto' | 'system_force' | 'manual_force';
 export type PromptEvidenceMode =
   | 'full_live_data'
   | 'stats_only'
   | 'odds_events_only_degraded'
   | 'events_only_degraded'
   | 'low_evidence';
+
+export const LIVE_ANALYSIS_PROMPT_VERSION = 'v4-evidence-hardened';
+
+interface EvidenceTierRule {
+  tier: 'tier_1' | 'tier_2' | 'tier_3' | 'tier_4';
+  label: string;
+  allowedMarkets: string;
+  forbiddenMarkets: string;
+  operationalRule: string;
+}
 
 interface TwoSideValue {
   home: string | number | null | undefined;
@@ -95,7 +106,8 @@ export interface LiveAnalysisPromptInput {
   customConditions: string;
   recommendedCondition: string;
   recommendedConditionReason: string;
-  strategicContext: Record<string, string> | null;
+  strategicContext: Record<string, unknown> | null;
+  analysisMode?: PromptAnalysisMode;
   forceAnalyze: boolean;
   isManualPush?: boolean;
   skippedFilters?: string[];
@@ -110,16 +122,44 @@ export interface LiveAnalysisPromptInput {
   statsFallbackReason: string;
 }
 
-function buildForceAnalyzeContext(data: LiveAnalysisPromptInput): string {
-  if (!data.forceAnalyze) return '';
+function resolveAnalysisMode(data: LiveAnalysisPromptInput): PromptAnalysisMode {
+  if (data.analysisMode) return data.analysisMode;
+  if (data.isManualPush) return 'manual_force';
+  if (data.forceAnalyze) return 'system_force';
+  return 'auto';
+}
+
+function describeTriggerProvenance(analysisMode: PromptAnalysisMode): string {
+  switch (analysisMode) {
+    case 'manual_force':
+      return 'manual Ask AI request';
+    case 'system_force':
+      return 'watchlist/system force mode';
+    default:
+      return 'scheduled automatic analysis';
+  }
+}
+
+function buildForceAnalyzeContext(
+  data: LiveAnalysisPromptInput,
+  analysisMode: PromptAnalysisMode,
+): string {
+  if (analysisMode === 'auto') return '';
   const skippedFilters = Array.isArray(data.skippedFilters) ? data.skippedFilters : [];
   const originalWouldProceed = data.originalWouldProceed !== false;
+  const triggerDescription = analysisMode === 'manual_force'
+    ? 'This analysis was explicitly requested by a user from the Ask AI flow.'
+    : 'This analysis was triggered by watchlist/system force mode, not by a direct manual Ask AI request.';
+  const disciplineRule = analysisMode === 'manual_force'
+    ? 'Because a user explicitly requested analysis, provide best-effort insight with clear limitations when evidence is weak.'
+    : 'Because this is still an automated/system-triggered run, keep normal betting discipline and do NOT soften standards just because force mode bypassed gates.';
   return `
 ============================================================
 FORCE ANALYZE MODE - SPECIAL INSTRUCTIONS
 ============================================================
-This analysis was triggered by MANUAL USER REQUEST with force=true.
-The user explicitly wants analysis even though normal filters would skip this match.
+ANALYSIS_MODE: ${analysisMode}
+${triggerDescription}
+Force mode only bypasses pipeline gating. It does NOT relax betting discipline.
 
 BYPASSED FILTERS:
 ${skippedFilters.length > 0 ? skippedFilters.map((f) => `- ${f}`).join('\n') : '- None (match passed all filters)'}
@@ -137,7 +177,7 @@ SPECIAL RULES FOR FORCE MODE:
    - If status is HT: confidence max 7, stake max 4%
    - If status is NS/FT: should_push = false (explain why in reasoning)
 4. Be explicit in reasoning about any limitations due to match status.
-5. The user chose to force-analyze, so provide the best possible analysis with available data.
+5. ${disciplineRule}
 `;
 }
 
@@ -156,11 +196,7 @@ PREVIOUS RECOMMENDATIONS FOR THIS MATCH (${recs.length})
 ========================
 ${lines.join('\n')}
 
-IMPORTANT: You have access to your previous recommendations above.
-- Reference them in your reasoning.
-- If your previous recommendation was correct and conditions still hold, you may reinforce it with updated confidence.
-- If conditions changed, explain what changed and why your new recommendation differs.
-- Do NOT repeat the exact same selection + bet_market unless odds have improved by >= 0.10.
+Use these records as context. The authoritative reinforcement / duplicate policy is defined in ANALYSIS CONTINUITY RULES below.
 `;
 }
 
@@ -201,111 +237,248 @@ You have previous recommendations for this match. You MUST follow these rules:
    explain that continuity. Do NOT contradict yourself without explaining what changed.
 3. EVOLUTION: If conditions changed (goal, red card, momentum shift), clearly state what
    changed and why your new assessment differs from the previous one.
-4. NO DUPLICATE: Do NOT output the exact same selection + bet_market as your most recent
-   recommendation UNLESS:
-   - Odds have improved by >= 0.10, OR
-   - Match minute advanced >= 5 since last recommendation
-   If neither condition is met -> set should_push = false with reasoning:
-   "No significant change since last recommendation at minute [X]."
+4. REINFORCEMENT VS DUPLICATE: Do NOT output the exact same selection + bet_market as your
+   most recent recommendation unless at least ONE of these is true:
+   - Odds improved by >= 0.10, OR
+   - There is a material match-state change (goal, red card, clear momentum shift, meaningful stat swing), OR
+   - Match minute advanced >= 5 AND the evidence is materially stronger than before
+   Never repeat the same pick solely because time passed.
+   If none of the conditions above are true -> set should_push = false with reasoning:
+   "No significant strengthening since last recommendation at minute [X]."
 5. CHAIN OF THOUGHT: Your reasoning should build upon previous analysis, not start fresh.
    Think of this as a progressive report, not isolated snapshots.
 `;
 }
 
+const DYNAMIC_PRIOR_MIN_SAMPLE = 8;
+
+function classifyDynamicPrior(bucket: { accuracy: number }): 'supportive prior' | 'caution prior' | 'neutral prior' {
+  if (bucket.accuracy >= 60) return 'supportive prior';
+  if (bucket.accuracy <= 45) return 'caution prior';
+  return 'neutral prior';
+}
+
+function filterSampledBuckets<T extends { settled: number }>(rows: T[]): T[] {
+  return rows.filter((row) => row.settled >= DYNAMIC_PRIOR_MIN_SAMPLE);
+}
+
 function buildHistoricalPerformanceSection(data: LiveAnalysisPromptInput): string {
   const perf = data.historicalPerformance;
-  if (!perf || perf.overall.settled < 5) return '';
+  if (!perf || perf.overall.settled < DYNAMIC_PRIOR_MIN_SAMPLE) return '';
 
   const lines: string[] = [];
   lines.push('========================');
-  lines.push('YOUR HISTORICAL TRACK RECORD (SELF-LEARNING DATA)');
+  lines.push('DYNAMIC PERFORMANCE PRIORS (SELF-LEARNING DATA)');
   lines.push('========================');
-  lines.push(`Overall: ${perf.overall.accuracy}% accuracy (${perf.overall.correct}/${perf.overall.settled} settled)`);
+  lines.push(`Overall prior: ${perf.overall.accuracy}% (${perf.overall.correct}/${perf.overall.settled})`);
+  lines.push(`Only buckets with settled >= ${DYNAMIC_PRIOR_MIN_SAMPLE} are shown below. Omitted buckets are low sample and must be ignored.`);
+  lines.push('Use these priors only to calibrate confidence/stake or break ties between similar options. They must NEVER override strong live evidence.');
 
-  if (perf.byMarket.length > 0) {
+  const marketBuckets = filterSampledBuckets(perf.byMarket);
+  if (marketBuckets.length > 0) {
     lines.push('');
-    lines.push('By Market:');
-    for (const m of perf.byMarket) {
-      const tag = m.accuracy >= 60 ? '(strong)' : m.accuracy < 45 ? '(WEAK - be cautious)' : '';
-      lines.push(`  ${m.market}: ${m.accuracy}% (${m.correct}/${m.settled}) ${tag}`);
+    lines.push(`Market priors (settled >= ${DYNAMIC_PRIOR_MIN_SAMPLE}):`);
+    for (const m of marketBuckets) {
+      lines.push(`  ${m.market}: ${m.accuracy}% (${m.correct}/${m.settled}) [${classifyDynamicPrior(m)}]`);
     }
   }
 
-  if (perf.byConfidenceBand.length > 0) {
+  const confidenceBuckets = filterSampledBuckets(perf.byConfidenceBand);
+  if (confidenceBuckets.length > 0) {
     lines.push('');
-    lines.push('By Confidence Level:');
-    for (const c of perf.byConfidenceBand) {
-      lines.push(`  Conf ${c.band}: ${c.accuracy}% (${c.correct}/${c.settled})`);
+    lines.push(`Confidence-band priors (settled >= ${DYNAMIC_PRIOR_MIN_SAMPLE}):`);
+    for (const c of confidenceBuckets) {
+      lines.push(`  Conf ${c.band}: ${c.accuracy}% (${c.correct}/${c.settled}) [${classifyDynamicPrior(c)}]`);
     }
   }
 
-  if (perf.byMinuteBand.length > 0) {
+  const minuteBuckets = filterSampledBuckets(perf.byMinuteBand);
+  if (minuteBuckets.length > 0) {
     lines.push('');
-    lines.push('By Match Phase:');
-    for (const m of perf.byMinuteBand) {
-      const tag = m.accuracy < 45 ? '(WEAK - reduce aggression)' : '';
-      lines.push(`  Min ${m.band}: ${m.accuracy}% (${m.correct}/${m.settled}) ${tag}`);
+    lines.push(`Match-phase priors (settled >= ${DYNAMIC_PRIOR_MIN_SAMPLE}):`);
+    for (const m of minuteBuckets) {
+      lines.push(`  Min ${m.band}: ${m.accuracy}% (${m.correct}/${m.settled}) [${classifyDynamicPrior(m)}]`);
     }
   }
 
-  if (perf.byOddsRange.length > 0) {
+  const oddsBuckets = filterSampledBuckets(perf.byOddsRange);
+  if (oddsBuckets.length > 0) {
     lines.push('');
-    lines.push('By Odds Range:');
-    for (const o of perf.byOddsRange) {
-      const tag = o.accuracy < 40 ? '(DANGER - avoid)' : o.accuracy < 50 ? '(WEAK)' : o.accuracy >= 60 ? '(RELIABLE)' : '';
-      lines.push(`  Odds ${o.range}: ${o.accuracy}% (${o.correct}/${o.settled}) ${tag}`);
+    lines.push(`Odds-range priors (settled >= ${DYNAMIC_PRIOR_MIN_SAMPLE}):`);
+    for (const o of oddsBuckets) {
+      lines.push(`  Odds ${o.range}: ${o.accuracy}% (${o.correct}/${o.settled}) [${classifyDynamicPrior(o)}]`);
     }
   }
 
-  if (perf.byLeague.length > 0) {
+  const leagueBuckets = filterSampledBuckets(perf.byLeague);
+  if (leagueBuckets.length > 0) {
     lines.push('');
-    lines.push('By League (top leagues):');
-    for (const l of perf.byLeague) {
-      const tag = l.accuracy < 40 ? '(POOR - extra caution)' : l.accuracy >= 65 ? '(RELIABLE)' : '';
-      lines.push(`  ${l.league}: ${l.accuracy}% (${l.correct}/${l.settled}) ${tag}`);
+    lines.push(`League priors (settled >= ${DYNAMIC_PRIOR_MIN_SAMPLE}):`);
+    for (const l of leagueBuckets) {
+      lines.push(`  ${l.league}: ${l.accuracy}% (${l.correct}/${l.settled}) [${classifyDynamicPrior(l)}]`);
     }
   }
 
   lines.push('');
-  lines.push('USE THIS DATA TO:');
-  lines.push('- Reduce confidence in markets/phases where you historically perform poorly.');
-  lines.push('- Avoid markets tagged WEAK unless evidence is overwhelming.');
-  lines.push('- Increase confidence slightly in markets/phases where track record is strong.');
-  lines.push('- Adjust stake_percent proportionally to historical accuracy per market/phase.');
+  lines.push('HOW TO USE THESE PRIORS:');
+  lines.push('- supportive prior: may slightly increase confidence or stake only when live evidence already supports the pick.');
+  lines.push('- caution prior: reduce aggression, require a larger live edge, or skip marginal bets.');
+  lines.push('- neutral prior: informational only, no strong calibration effect.');
+  lines.push('- Never treat historical priors as hard bans or standalone reasons to bet.');
   lines.push('');
 
   return lines.join('\n');
 }
 
-function buildStrategicContextSection(strategicContext: Record<string, string> | null): string {
+function getEvidenceTierRule(evidenceMode: PromptEvidenceMode): EvidenceTierRule {
+  switch (evidenceMode) {
+    case 'full_live_data':
+      return {
+        tier: 'tier_1',
+        label: 'Live stats + usable odds',
+        allowedMarkets: 'O/U, AH, BTTS, 1X2, Corners (if market exists and rules pass)',
+        forbiddenMarkets: 'None by tier; still subject to market-specific discipline',
+        operationalRule: 'Normal evaluation path. Strongest evidence tier.',
+      };
+    case 'stats_only':
+      return {
+        tier: 'tier_2',
+        label: 'Live stats + pre-match priors, but no usable live odds',
+        allowedMarkets: 'Analytical lean only. If no reliable reference price is present, default to NO BET.',
+        forbiddenMarkets: '1X2, BTTS No, and any action based on invented/hallucinated odds',
+        operationalRule: 'Use this tier for analysis and watchlist insight, not aggressive recommendations.',
+      };
+    case 'odds_events_only_degraded':
+      return {
+        tier: 'tier_3',
+        label: 'Usable odds + event timeline, but no usable live stats',
+        allowedMarkets: 'O/U and selective AH only',
+        forbiddenMarkets: '1X2, BTTS, Corners, Double Chance',
+        operationalRule: 'Degraded mode. Only low-complexity market families allowed.',
+      };
+    case 'events_only_degraded':
+      return {
+        tier: 'tier_4',
+        label: 'Event timeline only',
+        allowedMarkets: 'No actionable betting markets',
+        forbiddenMarkets: 'All markets',
+        operationalRule: 'Observation only. No recommendation unless a separate custom-condition fact check is required.',
+      };
+    default:
+      return {
+        tier: 'tier_4',
+        label: 'Low evidence / incomplete data',
+        allowedMarkets: 'No actionable betting markets',
+        forbiddenMarkets: 'All markets',
+        operationalRule: 'No-bet tier.',
+      };
+  }
+}
+
+function readStrategicText(value: unknown): string {
+  return typeof value === 'string' ? value.trim() : '';
+}
+
+function hasStrategicText(value: unknown): boolean {
+  const text = readStrategicText(value);
+  return !!text && !/^no data/i.test(text);
+}
+
+function getStrategicNarrative(
+  strategicContext: Record<string, unknown>,
+  lang: 'en' | 'vi',
+): Record<string, unknown> {
+  const qualitative = strategicContext.qualitative;
+  if (qualitative && typeof qualitative === 'object') {
+    const localized = (qualitative as Record<string, unknown>)[lang];
+    if (localized && typeof localized === 'object') {
+      return localized as Record<string, unknown>;
+    }
+  }
+  return strategicContext;
+}
+
+function getStrategicSourceMeta(strategicContext: Record<string, unknown>): Record<string, unknown> {
+  const sourceMeta = strategicContext.source_meta;
+  return sourceMeta && typeof sourceMeta === 'object'
+    ? sourceMeta as Record<string, unknown>
+    : {};
+}
+
+function getStrategicQuantitative(strategicContext: Record<string, unknown>): Record<string, number> {
+  const quantitative = strategicContext.quantitative;
+  if (!quantitative || typeof quantitative !== 'object') return {};
+  return Object.fromEntries(
+    Object.entries(quantitative as Record<string, unknown>).filter(([, value]) => typeof value === 'number'),
+  ) as Record<string, number>;
+}
+
+function buildStrategicContextSection(strategicContext: Record<string, unknown> | null): string {
   if (!strategicContext || typeof strategicContext !== 'object') return '';
   const ctx = strategicContext;
-  const hasData = ctx.summary && ctx.summary !== 'No data found';
-  if (!hasData) return '';
+  const narrativeEn = getStrategicNarrative(ctx, 'en');
+  const quantitative = getStrategicQuantitative(ctx);
+  const sourceMeta = getStrategicSourceMeta(ctx);
+  const searchQuality = readStrategicText(sourceMeta.search_quality) || 'unknown';
+  const trustedDomains = Array.isArray(sourceMeta.sources)
+    ? (sourceMeta.sources as Array<Record<string, unknown>>)
+      .filter((source) => {
+        const trust = readStrategicText(source.trust_tier);
+        return trust === 'tier_1' || trust === 'tier_2';
+      })
+      .map((source) => readStrategicText(source.domain))
+      .filter(Boolean)
+    : [];
+
+  const summary = readStrategicText(narrativeEn.summary || ctx.summary);
+  const hasNarrativeData = [
+    narrativeEn.home_motivation,
+    narrativeEn.away_motivation,
+    narrativeEn.league_positions,
+    narrativeEn.fixture_congestion,
+    narrativeEn.rotation_risk,
+    narrativeEn.key_absences,
+    narrativeEn.h2h_narrative,
+    summary,
+  ].some(hasStrategicText);
+  const hasQuantitativeData = Object.keys(quantitative).length > 0;
+  if (!hasNarrativeData && !hasQuantitativeData) return '';
 
   const lines: string[] = [];
   lines.push('========================');
   lines.push('STRATEGIC CONTEXT (FROM PRE-MATCH RESEARCH)');
   lines.push('========================');
-  if (ctx.home_motivation && ctx.home_motivation !== 'No data found')
-    lines.push(`HOME_MOTIVATION: ${ctx.home_motivation}`);
-  if (ctx.away_motivation && ctx.away_motivation !== 'No data found')
-    lines.push(`AWAY_MOTIVATION: ${ctx.away_motivation}`);
-  if (ctx.league_positions && ctx.league_positions !== 'No data found')
-    lines.push(`LEAGUE_POSITIONS: ${ctx.league_positions}`);
-  if (ctx.fixture_congestion && ctx.fixture_congestion !== 'No data found')
-    lines.push(`FIXTURE_CONGESTION: ${ctx.fixture_congestion}`);
-  if (ctx.rotation_risk && ctx.rotation_risk !== 'No data found')
-    lines.push(`ROTATION_RISK: ${ctx.rotation_risk}`);
-  if (ctx.key_absences && ctx.key_absences !== 'No data found')
-    lines.push(`KEY_ABSENCES: ${ctx.key_absences}`);
-  if (ctx.h2h_narrative && ctx.h2h_narrative !== 'No data found')
-    lines.push(`H2H_NARRATIVE: ${ctx.h2h_narrative}`);
-  if (ctx.competition_type && ctx.competition_type !== 'No data found')
-    lines.push(`COMPETITION_TYPE: ${ctx.competition_type}`);
-  lines.push(`SUMMARY: ${ctx.summary}`);
+  lines.push(`SOURCE_QUALITY: ${searchQuality}`);
+  if (trustedDomains.length > 0) {
+    lines.push(`TRUSTED_SOURCE_DOMAINS: ${Array.from(new Set(trustedDomains)).join(', ')}`);
+  }
+  if (hasStrategicText(narrativeEn.home_motivation || ctx.home_motivation))
+    lines.push(`HOME_MOTIVATION: ${readStrategicText(narrativeEn.home_motivation || ctx.home_motivation)}`);
+  if (hasStrategicText(narrativeEn.away_motivation || ctx.away_motivation))
+    lines.push(`AWAY_MOTIVATION: ${readStrategicText(narrativeEn.away_motivation || ctx.away_motivation)}`);
+  if (hasStrategicText(narrativeEn.league_positions || ctx.league_positions))
+    lines.push(`LEAGUE_POSITIONS: ${readStrategicText(narrativeEn.league_positions || ctx.league_positions)}`);
+  if (hasStrategicText(narrativeEn.fixture_congestion || ctx.fixture_congestion))
+    lines.push(`FIXTURE_CONGESTION: ${readStrategicText(narrativeEn.fixture_congestion || ctx.fixture_congestion)}`);
+  if (hasStrategicText(narrativeEn.rotation_risk || ctx.rotation_risk))
+    lines.push(`ROTATION_RISK: ${readStrategicText(narrativeEn.rotation_risk || ctx.rotation_risk)}`);
+  if (hasStrategicText(narrativeEn.key_absences || ctx.key_absences))
+    lines.push(`KEY_ABSENCES: ${readStrategicText(narrativeEn.key_absences || ctx.key_absences)}`);
+  if (hasStrategicText(narrativeEn.h2h_narrative || ctx.h2h_narrative))
+    lines.push(`H2H_NARRATIVE: ${readStrategicText(narrativeEn.h2h_narrative || ctx.h2h_narrative)}`);
+  if (hasStrategicText(ctx.competition_type))
+    lines.push(`COMPETITION_TYPE: ${readStrategicText(ctx.competition_type)}`);
+  if (hasStrategicText(summary)) {
+    lines.push(`SUMMARY: ${summary}`);
+  }
+  if (hasQuantitativeData) {
+    lines.push(`QUANTITATIVE_PREMATCH_PRIORS: ${JSON.stringify(quantitative)}`);
+  }
   lines.push('');
   lines.push('STRATEGIC CONTEXT RULES:');
+  lines.push('- Treat strategic context as secondary pre-match prior. Live stats/events/odds still dominate.');
+  lines.push('- If SOURCE_QUALITY is medium or unknown, use the context as soft guidance only and do NOT boost confidence aggressively.');
+  lines.push('- QUANTITATIVE_PREMATCH_PRIORS are baseline tendencies, not live evidence. Use them to calibrate O/U, BTTS, or AH lean only when live evidence aligns.');
   lines.push('- COMPETITION_TYPE: For european/international/friendly competitions, teams are from DIFFERENT domestic leagues. LEAGUE_POSITIONS CANNOT be compared across leagues - IGNORE position gap signals.');
   lines.push('- LEAGUE_POSITIONS: ONLY for domestic_league matches: Top 3 vs bottom 3 = strong favourite signal. Within 3 places = evenly matched -> AVOID 1X2, prefer O/U or BTTS.');
   lines.push('- ROTATION: If team likely rotates key players, reduce confidence for that team winning by 1-2.');
@@ -313,6 +486,8 @@ function buildStrategicContextSection(strategicContext: Record<string, string> |
   lines.push('- TITLE RACE / RELEGATION BATTLE: Expect high intensity -> supports attacking.');
   lines.push('- FIXTURE_CONGESTION within 3 days of major match significantly increases rotation risk.');
   lines.push('- KEY_ABSENCES of star players should reduce expected goals for that team.');
+  lines.push('- High Over 2.5 / BTTS rates may support attacking markets only if current tempo and shots agree.');
+  lines.push('- High clean-sheet or failed-to-score rates may support Under / BTTS No only if live evidence does not contradict them.');
   lines.push('');
 
   return lines.join('\n');
@@ -359,6 +534,7 @@ export function buildLiveAnalysisPrompt(
   data: LiveAnalysisPromptInput,
   settings: LiveAnalysisPromptSettings,
 ): string {
+  const analysisMode = resolveAnalysisMode(data);
   const MIN_CONFIDENCE = settings.minConfidence;
   const MIN_ODDS = settings.minOdds;
   const LATE_PHASE_MINUTE = settings.latePhaseMinute;
@@ -389,14 +565,17 @@ export function buildLiveAnalysisPrompt(
   const oddsWarnings = incompleteMarkets.length > 0
     ? `WARNING: Incomplete odds data for markets: ${incompleteMarkets.join(', ')}. Do NOT recommend these markets.`
     : '';
+  const evidenceTierRule = getEvidenceTierRule(data.evidenceMode);
 
   return `
 You are a professional live football investment insight analyst (not a gambler).
 Your task is to analyze ONE live match and determine whether there is exactly ONE realistic, high-quality investment idea, or no idea at all. You must also evaluate a user-defined custom condition objectively.
-${buildForceAnalyzeContext(data)}
+${buildForceAnalyzeContext(data, analysisMode)}
 ============================================================
 DEFINITIONS & THRESHOLDS (READ FIRST)
 ============================================================
+PROMPT_VERSION: ${LIVE_ANALYSIS_PROMPT_VERSION}
+
 LATE GAME THRESHOLDS:
 - Late phase: minute >= ${LATE_PHASE_MINUTE}
 - Very late phase: minute >= ${VERY_LATE_PHASE_MINUTE}
@@ -437,10 +616,12 @@ MATCH CONTEXT
 - Minute: ${data.minute}
 - Score: ${data.score}
 - Status: ${data.status}
+- Analysis Mode: ${analysisMode}
+- Trigger Provenance: ${describeTriggerProvenance(analysisMode)}
 - Stats Source: ${data.statsSource}
 - Evidence Mode: ${data.evidenceMode}
-- Force Analyze: ${data.forceAnalyze ? 'YES (watchlist force mode)' : 'NO (auto-pipeline)'}
-- Is Manual Push: ${data.isManualPush ? 'YES' : 'NO'}
+- Force Analyze: ${analysisMode === 'auto' ? 'NO' : 'YES'}
+- Is Manual Push: ${analysisMode === 'manual_force' ? 'YES' : 'NO'}
 ${data.statsFallbackReason ? `- Stats Fallback Note: ${data.statsFallbackReason}` : ''}
 
 ========================
@@ -494,6 +675,7 @@ CONFIG / MODE
 - MIN_ODDS: ${MIN_ODDS}
 - CUSTOM_CONDITIONS: ${data.customConditions || '(none)'}
 - EVIDENCE_MODE: ${data.evidenceMode}
+- EVIDENCE_TIER: ${evidenceTierRule.tier} (${evidenceTierRule.label})
 
 ========================
 AI-RECOMMENDED CONDITION
@@ -535,12 +717,19 @@ DATA RULES:
 - NO STATS and no events: should_push = false normally.
 
 EVIDENCE MODE RULES:
-- full_live_data: Normal evaluation path. All supported markets allowed if the rest of the rules pass.
-- stats_only: Stats are usable but odds are unavailable. Default should_push=false. Exceptional cases only.
-- odds_events_only_degraded: Odds usable, stats unavailable, events available. ONLY evaluate Over/Under or Asian Handicap. DO NOT recommend 1X2. DO NOT recommend BTTS. confidence cap 6. stake cap 3%.
-- events_only_degraded: Events available but stats and odds are both unavailable. should_push=false normally.
-- low_evidence: No usable stats, no usable odds, and no meaningful events. should_push=false.
+- Tier 1 / full_live_data: All supported markets can be evaluated if the rest of the rules pass.
+- Tier 2 / stats_only: Analytical tier only. No actionable recommendation without reliable odds. Default should_push=false.
+- Tier 3 / odds_events_only_degraded: ONLY evaluate O/U or Asian Handicap. confidence cap 6. stake cap 3%.
+- Tier 4 / events_only_degraded or low_evidence: No actionable recommendation.
 - If STATS_SOURCE = live-score-api-fallback, treat that fallback as the primary live stats source for this run. Do NOT blend or average it with missing API-Sports stats.
+
+AUTHORITATIVE EVIDENCE HIERARCHY:
+- CURRENT TIER FOR THIS MATCH: ${evidenceTierRule.tier} (${evidenceTierRule.label})
+- Allowed markets in this tier: ${evidenceTierRule.allowedMarkets}
+- Forbidden markets in this tier: ${evidenceTierRule.forbiddenMarkets}
+- Operational rule: ${evidenceTierRule.operationalRule}
+- NEVER choose a market outside the allowed tier, even if narrative context sounds persuasive.
+- Narrative or strategic-context priors can support a pick inside the allowed tier, but can NEVER upgrade a forbidden market into an allowed one.
 
 LATE GAME DISCIPLINE:
 - minute >= ${LATE_PHASE_MINUTE}: be more conservative.
@@ -551,9 +740,12 @@ RED CARD PROTOCOL:
 - Scan events for red cards. If found: add warning, reduce confidence by 1, re-evaluate.
 
 MARKET SELECTION:
-- 1X2 and BTTS No require confidence >= 7 AND significant stat gaps AND pre-match support.
+- 1X2 and BTTS No are Tier-1-only markets. They require full_live_data, confidence >= 7, significant stat gaps, and pre-match support.
+- BTTS Yes requires at least Tier 1 evidence. Do NOT recommend BTTS from Tier 3 or Tier 4.
+- AH and O/U are the only market families allowed in degraded Tier 3.
+- Corners markets require Tier 1 live stats and live corners data. No corners recommendation in Tier 2-4.
 - If not met, evaluate Over/Under instead.
-- Historical data: 1x2_home worst market (35.6% win rate), 1x2_draw near-ban (30.3%).
+- If DYNAMIC PERFORMANCE PRIORS are present and the chosen market is tagged as a caution prior, require a stronger live edge or skip the bet.
 - Odds >= 2.50: confidence cap 6, stake cap 3%.
 - Before minute 30: early game caution, 1X2 should_push=false before minute 35.
 - Over 3.5+: need current goals >= line-1 or clearly open match.
@@ -566,13 +758,13 @@ MARKET SELECTION:
 - risk_level = HIGH -> should_push = false.
 
 BTTS RULES (DATA-DRIVEN):
-- BTTS YES: 54.5% win rate but PnL -4.55 (break-even trap at avg odds ~1.83).
+- BTTS YES:
   - MANDATORY: Calculate break_even_rate = 1/odds. Estimated probability must exceed break_even_rate + 5%.
   - Odds >= 2.00 for BTTS Yes -> should_push = false unless BOTH teams have shots_on_target >= 2.
   - "Pressure != Goals": Need evidence BOTH teams are dangerous. If weaker team has 0 SOT -> no BTTS Yes.
   - Score 0-0 after minute 60: reduce confidence by 2 for BTTS Yes, prefer Under.
-- BTTS NO: 55.5% win rate but PnL -39.46 (worst BTTS market, odds too low).
-  - Requires odds >= 1.70 (below = mathematically unprofitable).
+- BTTS NO:
+  - Requires odds >= 1.70.
   - If BOTH teams have shots_on_target >= 2 -> should_push = false for BTTS No.
   - Only justified: score gap >= 2, OR minute >= 70 + one team has 0 SOT, OR minute >= 75 + clean sheet.
 
@@ -580,11 +772,13 @@ BREAK-EVEN CHECK (MANDATORY FOR ALL):
 - Before recommending ANY market: break_even_rate = 1/odds x 100.
 - Estimated probability must exceed break_even_rate by >= 3% (edge >= 3%).
 - If edge < 3% -> should_push = false.
-- MUST include EXACT text in reasoning_en: "Break-even: X%, My estimate: Y%, Edge: Z%" - NON-NEGOTIABLE.
-- Reference: confidence 5->40%, 6->50.2%, 7->51.2%, 8->57.1% actual win rates.
+- Report valuation using exact break-even from odds plus a rounded fair-value estimate or range.
+- Preferred wording style in reasoning_en: "Break-even about X%. My fair range is around Y-Z%. Edge looks about W%."
+- Do NOT pretend to know false precision. Rounded estimates are better than fabricated exact decimals.
 
 ODDS RULES:
 - Treat odds exactly as provided, no adjustments.
+- NEVER invent a price that is not present in the canonical odds for this run.
 - Suspicious odds (contradicting match dynamics) -> treat as unreliable -> should_push = false normally.
 - Price < ${MIN_ODDS} -> should_push = false.
 

@@ -1,0 +1,88 @@
+{
+  "name": "03-odds-events-only-degraded",
+  "matchId": "9003",
+  "fixture": {
+    "fixture": {
+      "id": 9003,
+      "date": "2026-03-21T12:00:00Z",
+      "timestamp": 1774094400,
+      "status": { "short": "2H", "elapsed": 71 }
+    },
+    "teams": {
+      "home": { "id": 31, "name": "Leeds", "logo": "", "winner": null },
+      "away": { "id": 32, "name": "Sunderland", "logo": "", "winner": null }
+    },
+    "league": {
+      "id": 40,
+      "name": "Championship",
+      "country": "England",
+      "logo": "",
+      "flag": null,
+      "season": 2026,
+      "round": "Regular Season - 34"
+    },
+    "goals": { "home": 1, "away": 1 },
+    "score": {}
+  },
+  "statistics": [],
+  "events": [
+    {
+      "time": { "elapsed": 18, "extra": null },
+      "team": { "id": 31, "name": "Leeds", "logo": "" },
+      "player": { "id": 301, "name": "Player C" },
+      "assist": { "id": null, "name": null },
+      "type": "Goal",
+      "detail": "Normal Goal",
+      "comments": null
+    },
+    {
+      "time": { "elapsed": 62, "extra": null },
+      "team": { "id": 32, "name": "Sunderland", "logo": "" },
+      "player": { "id": 302, "name": "Player D" },
+      "assist": { "id": null, "name": null },
+      "type": "Goal",
+      "detail": "Normal Goal",
+      "comments": null
+    },
+    {
+      "time": { "elapsed": 67, "extra": null },
+      "team": { "id": 31, "name": "Leeds", "logo": "" },
+      "player": { "id": 303, "name": "Player E" },
+      "assist": { "id": null, "name": null },
+      "type": "Card",
+      "detail": "Yellow Card",
+      "comments": null
+    }
+  ],
+  "liveOddsResponse": [
+    {
+      "fixture": { "id": 9003 },
+      "odds": [
+        {
+          "id": 1,
+          "name": "Over/Under",
+          "values": [
+            { "value": "Over", "odd": "1.91", "handicap": "2.5" },
+            { "value": "Under", "odd": "1.95", "handicap": "2.5" }
+          ]
+        },
+        {
+          "id": 2,
+          "name": "Asian Handicap",
+          "values": [
+            { "value": "Home", "odd": "1.97", "handicap": "-0.25" },
+            { "value": "Away", "odd": "1.90", "handicap": "-0.25" }
+          ]
+        }
+      ]
+    }
+  ],
+  "expected": {
+    "analysisMode": "auto",
+    "evidenceMode": "odds_events_only_degraded",
+    "statsSource": "api-football",
+    "oddsSource": "live",
+    "saved": false,
+    "notified": false
+  }
+}

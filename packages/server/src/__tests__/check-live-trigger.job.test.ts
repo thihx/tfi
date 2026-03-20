@@ -47,7 +47,7 @@ const mockWatchlist = [
 
 vi.mock('../repos/watchlist.repo.js', () => ({
   getActiveWatchlist: vi.fn().mockResolvedValue(mockWatchlist),
-  incrementChecks: vi.fn().mockResolvedValue(undefined),
+  incrementChecksForMatches: vi.fn().mockResolvedValue(undefined),
 }));
 
 vi.mock('../repos/matches.repo.js', () => ({
@@ -70,15 +70,14 @@ describe('checkLiveTriggerJob', () => {
     expect(result.liveCount).toBe(2);
 
     const watchlistRepo = await import('../repos/watchlist.repo.js');
-    expect(watchlistRepo.incrementChecks).toHaveBeenCalledTimes(2);
-    expect(watchlistRepo.incrementChecks).toHaveBeenCalledWith('100');
-    expect(watchlistRepo.incrementChecks).toHaveBeenCalledWith('300');
+    expect(watchlistRepo.incrementChecksForMatches).toHaveBeenCalledTimes(1);
+    expect(watchlistRepo.incrementChecksForMatches).toHaveBeenCalledWith(['100', '300']);
   });
 
   test('does not increment NS (non-live) matches', async () => {
     await checkLiveTriggerJob();
     const watchlistRepo = await import('../repos/watchlist.repo.js');
-    const calledWith = vi.mocked(watchlistRepo.incrementChecks).mock.calls.map((c) => c[0]);
+    const calledWith = vi.mocked(watchlistRepo.incrementChecksForMatches).mock.calls.flatMap((c) => c[0]);
     expect(calledWith).not.toContain('200');
   });
 

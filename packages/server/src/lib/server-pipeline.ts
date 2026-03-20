@@ -24,6 +24,10 @@ import {
 import * as watchlistRepo from '../repos/watchlist.repo.js';
 import { createRecommendation, getRecommendationsByMatchId } from '../repos/recommendations.repo.js';
 import { createAiPerformanceRecord } from '../repos/ai-performance.repo.js';
+import {
+  getHistoricalPerformanceContext,
+  type HistoricalPerformanceContext,
+} from '../repos/ai-performance.repo.js';
 import { getSettings } from '../repos/settings.repo.js';
 import { createSnapshot, getLatestSnapshot } from '../repos/match-snapshots.repo.js';
 import { resolveMatchOdds } from './odds-resolver.js';
@@ -36,7 +40,11 @@ import {
   extractStatusCode,
   recordProviderStatsSampleSafe,
 } from './provider-sampling.js';
-import { buildLiveAnalysisPrompt } from './live-analysis-prompt.js';
+import {
+  buildLiveAnalysisPrompt,
+  LIVE_ANALYSIS_PROMPT_VERSION,
+  type PromptAnalysisMode,
+} from './live-analysis-prompt.js';
 
 /** Resolved pipeline settings: DB values take priority, env vars as fallback */
 interface PipelineSettings {
@@ -106,12 +114,38 @@ const defaultPipelineDeps = {
   callGemini,
   createRecommendation,
   createAiPerformanceRecord,
+  getHistoricalPerformanceContext,
   sendTelegramMessage,
   sendTelegramPhoto,
   fetchLiveScoreBenchmarkTrace,
 };
 
 type PipelineDeps = typeof defaultPipelineDeps;
+
+const HISTORICAL_PROMPT_CONTEXT_TTL_MS = 10 * 60 * 1000;
+let historicalPromptContextCache: {
+  data: HistoricalPerformanceContext;
+  expiresAt: number;
+} | null = null;
+
+async function loadHistoricalPromptContext(deps: Pick<PipelineDeps, 'getHistoricalPerformanceContext'>) {
+  const now = Date.now();
+  if (historicalPromptContextCache && historicalPromptContextCache.expiresAt > now) {
+    return historicalPromptContextCache.data;
+  }
+
+  try {
+    const data = await deps.getHistoricalPerformanceContext();
+    historicalPromptContextCache = {
+      data,
+      expiresAt: now + HISTORICAL_PROMPT_CONTEXT_TTL_MS,
+    };
+    return data;
+  } catch (err) {
+    console.warn('[pipeline] Historical performance context unavailable:', err instanceof Error ? err.message : String(err));
+    return null;
+  }
+}
 
 export interface PipelineExecutionOptions {
   shadowMode?: boolean;
@@ -215,6 +249,39 @@ interface ParsedAiResponse {
   custom_condition_matched: boolean;
 }
 
+function isMarketAllowedForEvidenceMode(betMarket: string, evidenceMode: EvidenceMode): boolean {
+  const market = (betMarket || '').toLowerCase();
+  if (!market) return false;
+
+  switch (evidenceMode) {
+    case 'full_live_data':
+      return true;
+    case 'stats_only':
+      return false;
+    case 'odds_events_only_degraded':
+      return market.startsWith('over_')
+        || market.startsWith('under_')
+        || market.startsWith('asian_handicap_');
+    case 'events_only_degraded':
+    case 'low_evidence':
+    default:
+      return false;
+  }
+}
+
+function parseLineSuffix(prefix: string, betMarket: string): number | null {
+  if (!betMarket.startsWith(prefix)) return null;
+  const raw = betMarket.slice(prefix.length);
+  if (!raw) return null;
+  const line = Number(raw);
+  return Number.isFinite(line) ? line : null;
+}
+
+function sameLine(a: number | null | undefined, b: number | null | undefined): boolean {
+  if (a == null || b == null) return false;
+  return Math.abs(a - b) < 0.001;
+}
+
 export interface MatchPipelineResult {
   matchId: string;
   success: boolean;
@@ -228,6 +295,7 @@ export interface MatchPipelineResult {
     shadowMode: boolean;
     skippedAt?: 'proceed' | 'staleness';
     skipReason?: string;
+    analysisMode?: PromptAnalysisMode;
     oddsSource?: string;
     oddsAvailable?: boolean;
     statsAvailable?: boolean;
@@ -678,7 +746,13 @@ function extractJsonString(text: string): string {
   return text.trim();
 }
 
-function parseAiResponse(aiText: string, oddsCanonical: OddsCanonical, matchMinute = 0, pipelineSettings?: PipelineSettings): ParsedAiResponse {
+function parseAiResponse(
+  aiText: string,
+  oddsCanonical: OddsCanonical,
+  matchMinute = 0,
+  pipelineSettings?: PipelineSettings,
+  evidenceMode: EvidenceMode = 'full_live_data',
+): ParsedAiResponse {
   const defaults: ParsedAiResponse = {
     should_push: false, ai_should_push: false, selection: '', bet_market: '', confidence: 0,
     reasoning_en: 'AI response could not be parsed.', reasoning_vi: 'AI response could not be parsed.',
@@ -710,22 +784,35 @@ function parseAiResponse(aiText: string, oddsCanonical: OddsCanonical, matchMinu
   const aiShouldPush = parsed.should_push === true;
 
   // Map odds from selection
-  const mappedOdd = extractOddsFromSelection(aiSelection, oddsCanonical);
+  const mappedOdd = extractOddsFromSelection(aiSelection, betMarket, oddsCanonical);
   const MIN_ODDS = pipelineSettings?.minOdds ?? config.pipelineMinOdds;
   const MIN_CONFIDENCE = pipelineSettings?.minConfidence ?? config.pipelineMinConfidence;
 
   const safetyWarnings: string[] = [];
   if (aiShouldPush && !aiSelection) safetyWarnings.push('NO_SELECTION');
+  if (aiShouldPush && !betMarket) safetyWarnings.push('NO_BET_MARKET');
   if (aiShouldPush && mappedOdd === null) safetyWarnings.push('ODDS_INVALID');
   if (aiShouldPush && aiConfidence < MIN_CONFIDENCE) safetyWarnings.push('CONFIDENCE_BELOW_MIN');
   if (aiShouldPush && riskLevel === 'HIGH') safetyWarnings.push('HIGH_RISK');
+  if (aiShouldPush && valuePercent < 3) safetyWarnings.push('EDGE_BELOW_MIN');
+  if (aiShouldPush && !isMarketAllowedForEvidenceMode(betMarket, evidenceMode)) {
+    safetyWarnings.push('MARKET_NOT_ALLOWED_FOR_EVIDENCE');
+  }
 
   // Business rule: no 1X2 before minute 35
   if (aiShouldPush && betMarket.toLowerCase().includes('1x2') && matchMinute < 35) {
     safetyWarnings.push('1X2_TOO_EARLY');
   }
 
-  const hasBlocking = safetyWarnings.some((w) => ['NO_SELECTION', 'CONFIDENCE_BELOW_MIN', '1X2_TOO_EARLY'].includes(w));
+  const hasBlocking = safetyWarnings.some((w) => [
+    'NO_SELECTION',
+    'NO_BET_MARKET',
+    'CONFIDENCE_BELOW_MIN',
+    'HIGH_RISK',
+    'EDGE_BELOW_MIN',
+    'MARKET_NOT_ALLOWED_FOR_EVIDENCE',
+    '1X2_TOO_EARLY',
+  ].includes(w));
   const systemShouldBet = aiShouldPush && !hasBlocking;
   const usableOdd = mappedOdd !== null && mappedOdd >= MIN_ODDS ? mappedOdd : null;
   const finalShouldPush = systemShouldBet && usableOdd !== null;
@@ -747,21 +834,47 @@ function parseAiResponse(aiText: string, oddsCanonical: OddsCanonical, matchMinu
   };
 }
 
-function extractOddsFromSelection(selection: string, canonical: OddsCanonical): number | null {
-  if (!selection) return null;
-  const atMatch = selection.match(/@\s*([\d.]+)/);
-  if (atMatch?.[1]) {
-    const price = parseFloat(atMatch[1]);
-    if (!isNaN(price) && price > 1) return price;
-  }
+function extractOddsFromSelection(selection: string, betMarket: string, canonical: OddsCanonical): number | null {
+  if (!selection && !betMarket) return null;
+  const market = (betMarket || '').toLowerCase();
   const oc = canonical;
-  if (/home\s*win/i.test(selection) && oc['1x2']?.home) return oc['1x2'].home;
-  if (/away\s*win/i.test(selection) && oc['1x2']?.away) return oc['1x2'].away;
-  if (/\bdraw\b/i.test(selection) && oc['1x2']?.draw) return oc['1x2'].draw;
-  if (/over/i.test(selection) && oc.ou?.over) return oc.ou.over;
-  if (/under/i.test(selection) && oc.ou?.under) return oc.ou.under;
-  if (/btts\s*yes/i.test(selection) && oc.btts?.yes) return oc.btts.yes;
-  if (/btts\s*no/i.test(selection) && oc.btts?.no) return oc.btts.no;
+
+  if (market === '1x2_home') return oc['1x2']?.home ?? null;
+  if (market === '1x2_away') return oc['1x2']?.away ?? null;
+  if (market === '1x2_draw') return oc['1x2']?.draw ?? null;
+  if (market === 'btts_yes') return oc.btts?.yes ?? null;
+  if (market === 'btts_no') return oc.btts?.no ?? null;
+
+  const goalOverLine = parseLineSuffix('over_', market);
+  if (goalOverLine !== null) {
+    return sameLine(goalOverLine, oc.ou?.line) ? (oc.ou?.over ?? null) : null;
+  }
+
+  const goalUnderLine = parseLineSuffix('under_', market);
+  if (goalUnderLine !== null) {
+    return sameLine(goalUnderLine, oc.ou?.line) ? (oc.ou?.under ?? null) : null;
+  }
+
+  const ahHomeLine = parseLineSuffix('asian_handicap_home_', market);
+  if (ahHomeLine !== null) {
+    return sameLine(ahHomeLine, oc.ah?.line) ? (oc.ah?.home ?? null) : null;
+  }
+
+  const ahAwayLine = parseLineSuffix('asian_handicap_away_', market);
+  if (ahAwayLine !== null) {
+    return sameLine(ahAwayLine, oc.ah?.line) ? (oc.ah?.away ?? null) : null;
+  }
+
+  const cornersOverLine = parseLineSuffix('corners_over_', market);
+  if (cornersOverLine !== null) {
+    return sameLine(cornersOverLine, oc.corners_ou?.line) ? (oc.corners_ou?.over ?? null) : null;
+  }
+
+  const cornersUnderLine = parseLineSuffix('corners_under_', market);
+  if (cornersUnderLine !== null) {
+    return sameLine(cornersUnderLine, oc.corners_ou?.line) ? (oc.corners_ou?.under ?? null) : null;
+  }
+
   return null;
 }
 
@@ -1018,8 +1131,14 @@ async function processMatch(
     const score = `${homeGoals}-${awayGoals}`;
     const homeTeamId = fixture.teams?.home?.id;
     const awayTeamId = fixture.teams?.away?.id;
-    const forceAnalyze =
-      options.forceAnalyze === true || (watchlistEntry.mode || 'B').toUpperCase() === 'F';
+    const isManualForce = options.forceAnalyze === true;
+    const isSystemForce = !isManualForce && (watchlistEntry.mode || 'B').toUpperCase() === 'F';
+    const forceAnalyze = isManualForce || isSystemForce;
+    const analysisMode: PromptAnalysisMode = isManualForce
+      ? 'manual_force'
+      : isSystemForce
+        ? 'system_force'
+        : 'auto';
 
     // 1. Fetch stats + events in parallel
     const statsStartedAt = Date.now();
@@ -1180,6 +1299,7 @@ async function processMatch(
           shadowMode,
           skippedAt: 'proceed',
           skipReason: proceed.reason,
+          analysisMode,
           statsAvailable,
           statsSource,
           statsFallbackUsed,
@@ -1217,13 +1337,14 @@ async function processMatch(
     }
 
     // 4. Load prior context for staleness + prompt
-    const [prevRecs, latestSnapshot] = await Promise.all([
+    const [prevRecs, latestSnapshot, historicalPerformance] = await Promise.all([
       options.previousRecommendations !== undefined
         ? Promise.resolve(options.previousRecommendations ?? [])
         : deps.getRecommendationsByMatchId(matchId).catch(() => []),
       options.previousSnapshot !== undefined
         ? Promise.resolve(options.previousSnapshot)
         : deps.getLatestSnapshot(matchId).catch(() => null),
+      loadHistoricalPromptContext(deps),
     ]);
 
     // Track latest state for future gating and context.
@@ -1299,6 +1420,7 @@ async function processMatch(
           shadowMode,
           skippedAt: 'staleness',
           skipReason: staleness.reason,
+          analysisMode,
           oddsSource,
           oddsAvailable,
           statsAvailable,
@@ -1322,11 +1444,11 @@ async function processMatch(
       reasoning: r.reasoning?.substring(0, 150),
     }));
 
-    // 4. Build the prompt (using the same template as frontend)
+    // 5. Build the central server-side prompt
     const customConditions = (watchlistEntry.custom_conditions || '').trim();
     const recommendedCondition = (watchlistEntry.recommended_custom_condition || '').trim();
     const recommendedConditionReason = (watchlistEntry.recommended_condition_reason || '').trim();
-    const strategicContext = watchlistEntry.strategic_context as Record<string, string> | null;
+    const strategicContext = watchlistEntry.strategic_context as Record<string, unknown> | null;
     const prediction = watchlistEntry.prediction as Record<string, unknown> | null;
 
     const prompt = buildServerPrompt({
@@ -1337,11 +1459,13 @@ async function processMatch(
       derivedInsights: !statsAvailable ? derivedInsights : null,
       customConditions, recommendedCondition, recommendedConditionReason,
       strategicContext,
+      analysisMode,
       forceAnalyze,
-      isManualPush: options.forceAnalyze === true,
+      isManualPush: isManualForce,
       prediction,
       currentTotalGoals: homeGoals + awayGoals,
       previousRecommendations: prevRecsContext,
+      historicalPerformance,
       preMatchPredictionSummary: '',
       mode: watchlistEntry.mode || 'B',
       statsFallbackReason,
@@ -1352,7 +1476,7 @@ async function processMatch(
     const aiText = await deps.callGemini(prompt, model);
 
     // 7. Parse response
-    const parsed = parseAiResponse(aiText, oddsCanonical, minute, settings);
+    const parsed = parseAiResponse(aiText, oddsCanonical, minute, settings, evidenceMode);
 
     // 8. Save when AI recommends (raw intent) or custom condition matched
     const shouldSave = parsed.ai_should_push || parsed.custom_condition_matched;
@@ -1361,7 +1485,7 @@ async function processMatch(
     let notified = false;
 
     if (shouldSave && !shadowMode) {
-      const mappedOdd = extractOddsFromSelection(parsed.selection, oddsCanonical);
+      const mappedOdd = extractOddsFromSelection(parsed.selection, parsed.bet_market, oddsCanonical);
       const rec = await deps.createRecommendation({
         match_id: matchId,
         timestamp: new Date().toISOString(),
@@ -1375,6 +1499,7 @@ async function processMatch(
         odds_snapshot: oddsCanonical as Record<string, unknown>,
         stats_snapshot: statsCompact as unknown as Record<string, unknown>,
         pre_match_prediction_summary: '',
+        prompt_version: LIVE_ANALYSIS_PROMPT_VERSION,
         custom_condition_matched: parsed.custom_condition_matched,
         minute,
         score,
@@ -1404,7 +1529,7 @@ async function processMatch(
             recommendation_id: rec.id,
             match_id: matchId,
             ai_model: model,
-            prompt_version: '',
+            prompt_version: LIVE_ANALYSIS_PROMPT_VERSION,
             ai_confidence: parsed.confidence,
             ai_should_push: parsed.ai_should_push,
             predicted_market: parsed.bet_market || '',
@@ -1472,6 +1597,7 @@ async function processMatch(
       saved, notified,
       debug: {
         shadowMode,
+        analysisMode,
         oddsSource,
         oddsAvailable,
         statsAvailable,
@@ -1633,12 +1759,14 @@ function buildServerPrompt(data: {
   customConditions: string;
   recommendedCondition: string;
   recommendedConditionReason: string;
-  strategicContext: Record<string, string> | null;
+  strategicContext: Record<string, unknown> | null;
+  analysisMode: PromptAnalysisMode;
   forceAnalyze: boolean;
   isManualPush: boolean;
   prediction: Record<string, unknown> | null;
   currentTotalGoals: number;
   previousRecommendations: Array<Record<string, unknown>>;
+  historicalPerformance: HistoricalPerformanceContext | null;
   preMatchPredictionSummary: string;
   mode: string;
   statsFallbackReason: string;
@@ -1668,6 +1796,7 @@ function buildServerPrompt(data: {
       recommendedCondition: data.recommendedCondition,
       recommendedConditionReason: data.recommendedConditionReason,
       strategicContext: data.strategicContext,
+      analysisMode: data.analysisMode,
       forceAnalyze: data.forceAnalyze,
       isManualPush: data.isManualPush,
       skippedFilters: [],
@@ -1676,7 +1805,7 @@ function buildServerPrompt(data: {
       currentTotalGoals: data.currentTotalGoals,
       previousRecommendations: data.previousRecommendations,
       matchTimeline: [],
-      historicalPerformance: null,
+      historicalPerformance: data.historicalPerformance,
       preMatchPredictionSummary: data.preMatchPredictionSummary,
       mode: data.mode,
       statsFallbackReason: data.statsFallbackReason,

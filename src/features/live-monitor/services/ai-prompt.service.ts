@@ -1,6 +1,9 @@
 // ============================================================
 // AI Prompt Builder Service
-// Equivalent to: "Build AI Prompt" node
+// LEGACY TEST-ONLY MODULE.
+// Runtime live-analysis prompt generation is centralized on the server.
+// Keep this file only for historical prompt tests / fixture-based audits until
+// those tests are migrated to the server prompt builder.
 // ============================================================
 
 import type { MergedMatchData, LiveMonitorConfig, PreMatchCompact, AiPromptContext } from '../types';

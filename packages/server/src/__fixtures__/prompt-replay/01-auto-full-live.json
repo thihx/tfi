@@ -1,0 +1,164 @@
+{
+  "name": "01-auto-full-live",
+  "matchId": "9001",
+  "fixture": {
+    "fixture": {
+      "id": 9001,
+      "date": "2026-03-21T12:00:00Z",
+      "timestamp": 1774094400,
+      "status": { "short": "2H", "elapsed": 67 }
+    },
+    "teams": {
+      "home": { "id": 11, "name": "Arsenal", "logo": "", "winner": null },
+      "away": { "id": 12, "name": "Chelsea", "logo": "", "winner": null }
+    },
+    "league": {
+      "id": 39,
+      "name": "Premier League",
+      "country": "England",
+      "logo": "",
+      "flag": null,
+      "season": 2026,
+      "round": "Regular Season - 29"
+    },
+    "goals": { "home": 1, "away": 1 },
+    "score": {}
+  },
+  "watchlistEntry": {
+    "mode": "B",
+    "strategic_context": {
+      "summary": "Strong home attack prior with moderate rotation risk.",
+      "competition_type": "domestic_league",
+      "qualitative": {
+        "en": {
+          "home_motivation": "Home side is chasing Champions League qualification.",
+          "away_motivation": "Away side needs points for survival.",
+          "league_positions": "5th vs 17th in the same domestic league.",
+          "fixture_congestion": "Home has a cup match in three days.",
+          "rotation_risk": "Moderate home rotation risk.",
+          "key_absences": "Away missing a starting center back.",
+          "h2h_narrative": "Home won three of the last four meetings.",
+          "summary": "Strong home attack prior with moderate rotation risk."
+        },
+        "vi": {
+          "home_motivation": "Chu nha dang dua top 4.",
+          "away_motivation": "Doi khach can diem de tru hang.",
+          "league_positions": "Thu 5 vs thu 17 cung giai.",
+          "fixture_congestion": "Chu nha da cup sau ba ngay.",
+          "rotation_risk": "Rui ro xoay tua vua phai.",
+          "key_absences": "Doi khach mat trung ve chinh.",
+          "h2h_narrative": "Chu nha thang 3/4 lan gap gan nhat.",
+          "summary": "Tien de tan cong cua chu nha tot nhung can luu y xoay tua."
+        }
+      },
+      "quantitative": {
+        "home_last5_points": 10,
+        "away_last5_points": 4,
+        "home_last5_goals_for": 9,
+        "away_last5_goals_for": 4,
+        "home_last5_goals_against": 5,
+        "away_last5_goals_against": 9,
+        "home_home_goals_avg": 1.8,
+        "away_away_goals_avg": 0.9,
+        "home_over_2_5_rate_last10": 60,
+        "away_over_2_5_rate_last10": 45,
+        "home_btts_rate_last10": 55,
+        "away_btts_rate_last10": 40,
+        "home_clean_sheet_rate_last10": 30,
+        "away_clean_sheet_rate_last10": 10,
+        "home_failed_to_score_rate_last10": 10,
+        "away_failed_to_score_rate_last10": 35
+      },
+      "source_meta": {
+        "search_quality": "high",
+        "web_search_queries": ["Premier League injuries", "FBref Arsenal Chelsea"],
+        "sources": [
+          { "domain": "reuters.com", "trust_tier": "tier_1" },
+          { "domain": "fbref.com", "trust_tier": "tier_2" }
+        ]
+      }
+    }
+  },
+  "statistics": [
+    {
+      "team": { "id": 11, "name": "Arsenal", "logo": "" },
+      "statistics": [
+        { "type": "Ball Possession", "value": "57%" },
+        { "type": "Total Shots", "value": 14 },
+        { "type": "Shots on Goal", "value": 6 },
+        { "type": "Corner Kicks", "value": 7 },
+        { "type": "Fouls", "value": 10 }
+      ]
+    },
+    {
+      "team": { "id": 12, "name": "Chelsea", "logo": "" },
+      "statistics": [
+        { "type": "Ball Possession", "value": "43%" },
+        { "type": "Total Shots", "value": 8 },
+        { "type": "Shots on Goal", "value": 3 },
+        { "type": "Corner Kicks", "value": 3 },
+        { "type": "Fouls", "value": 13 }
+      ]
+    }
+  ],
+  "events": [
+    {
+      "time": { "elapsed": 14, "extra": null },
+      "team": { "id": 11, "name": "Arsenal", "logo": "" },
+      "player": { "id": 101, "name": "Player A" },
+      "assist": { "id": null, "name": null },
+      "type": "Goal",
+      "detail": "Normal Goal",
+      "comments": null
+    },
+    {
+      "time": { "elapsed": 49, "extra": null },
+      "team": { "id": 12, "name": "Chelsea", "logo": "" },
+      "player": { "id": 201, "name": "Player B" },
+      "assist": { "id": null, "name": null },
+      "type": "Goal",
+      "detail": "Normal Goal",
+      "comments": null
+    }
+  ],
+  "liveOddsResponse": [
+    {
+      "fixture": { "id": 9001 },
+      "odds": [
+        {
+          "id": 1,
+          "name": "Match Winner",
+          "values": [
+            { "value": "Home", "odd": "2.35" },
+            { "value": "Draw", "odd": "3.25" },
+            { "value": "Away", "odd": "3.20" }
+          ]
+        },
+        {
+          "id": 2,
+          "name": "Over/Under",
+          "values": [
+            { "value": "Over", "odd": "1.86", "handicap": "2.5" },
+            { "value": "Under", "odd": "1.98", "handicap": "2.5" }
+          ]
+        },
+        {
+          "id": 3,
+          "name": "Both Teams To Score",
+          "values": [
+            { "value": "Yes", "odd": "1.60" },
+            { "value": "No", "odd": "2.22" }
+          ]
+        }
+      ]
+    }
+  ],
+  "expected": {
+    "analysisMode": "auto",
+    "evidenceMode": "full_live_data",
+    "statsSource": "api-football",
+    "oddsSource": "live",
+    "saved": false,
+    "notified": false
+  }
+}

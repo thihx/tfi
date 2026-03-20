@@ -10,6 +10,7 @@
     "migrate": "tsx src/db/migrate.ts",
     "seed": "tsx src/db/seed.ts",
     "replay:pipeline": "tsx src/scripts/replay-pipeline.ts",
+    "replay:pipeline-suite": "tsx src/scripts/replay-pipeline-suite.ts",
     "benchmark:live-score": "tsx src/scripts/benchmark-live-score.ts",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
