@@ -1,9 +1,9 @@
 // ============================================================
-// Job: Health Watchdog — giám sát các job nghiệp vụ
+// Job: Health Watchdog
 //
-// Chạy mỗi 2 phút, kiểm tra các job nghiệp vụ quan trọng
-// có chạy đúng lịch hay không. Gửi cảnh báo Telegram khi
-// phát hiện job quá hạn, và thông báo khi job khôi phục.
+// Runs every 2 min. Monitors critical business jobs to ensure
+// they execute on schedule. Sends Telegram alert when a job
+// becomes overdue and notifies again when it recovers.
 // ============================================================
 
 import { getJobsStatus, getSchedulerUptime } from './scheduler.js';

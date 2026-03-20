@@ -87,6 +87,11 @@ const JOB_META: Record<string, { label: string; description: string; order: numb
     description: 'Deletes audit log entries older than the configured retention period (default: 30 days) to manage database growth.',
     order: 7,
   },
+  'health-watchdog': {
+    label: 'Health Watchdog',
+    description: 'Monitors all critical business jobs and sends Telegram alert when a job becomes overdue or recovers.',
+    order: 9,
+  },
 };
 
 function JobSchedulerPanel() {
