@@ -11,10 +11,7 @@ import type { WatchlistItem, AppConfig, Match, League } from '@/types';
 
 const defaultConfig: AppConfig = {
   apiUrl: 'http://localhost:4000',
-  apiKey: '',
   defaultMode: 'B',
-  defaultPriority: 2,
-  dateFormat: 'DD-MMM-YYYY HH:mm',
 };
 
 function makeItem(overrides: Partial<WatchlistItem> = {}): WatchlistItem {

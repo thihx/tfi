@@ -35,6 +35,16 @@ export async function watchlistRoutes(app: FastifyInstance) {
     },
   );
 
+  // PATCH alias — frontend uses PATCH for partial updates (F5 audit fix)
+  app.patch<{ Params: { matchId: string }; Body: Partial<repo.WatchlistRow> }>(
+    '/api/watchlist/:matchId',
+    async (req, reply) => {
+      const entry = await repo.updateWatchlistEntry(req.params.matchId, req.body);
+      if (!entry) return reply.code(404).send({ error: 'Watchlist entry not found' });
+      return entry;
+    },
+  );
+
   app.delete<{ Params: { matchId: string } }>('/api/watchlist/:matchId', async (req, reply) => {
     const ok = await repo.deleteWatchlistEntry(req.params.matchId);
     if (!ok) return reply.code(404).send({ error: 'Watchlist entry not found' });

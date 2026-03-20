@@ -15,7 +15,8 @@ vi.mock('../db/pool.js', () => ({
 
 vi.mock('../repos/recommendations.repo.js', () => ({
   settleRecommendation: vi.fn(),
-  normalizeMarket: vi.fn((sel: string) => {
+  normalizeMarket: vi.fn((sel: string, betMarket?: string) => {
+    if (betMarket) return betMarket;
     if (/over/i.test(sel)) return 'over_2.5';
     if (/btts/i.test(sel)) return 'btts_yes';
     if (/draw/i.test(sel)) return '1x2_draw';
@@ -51,7 +52,8 @@ vi.mock('../jobs/job-progress.js', () => ({
 }));
 
 vi.mock('../lib/normalize-market.js', () => ({
-  normalizeMarket: vi.fn((sel: string) => {
+  normalizeMarket: vi.fn((sel: string, betMarket?: string) => {
+    if (betMarket) return betMarket;
     if (/over/i.test(sel)) return 'over_2.5';
     if (/btts/i.test(sel)) return 'btts_yes';
     if (/draw/i.test(sel)) return '1x2_draw';
@@ -288,6 +290,33 @@ describe('reEvaluateAllResults', () => {
     expect(recommendationsRepo.settleRecommendation).toHaveBeenCalledWith(
       1, 'win', expect.closeTo(1.4, 1), expect.any(String),
     );
+  });
+
+  test('treats push as neutral when re-evaluating', async () => {
+    const rec = makeRec({
+      id: 1,
+      selection: 'Over 2.0',
+      bet_market: 'over_2.0',
+      odds: 1.85,
+      stake_percent: 3,
+      result: 'loss',
+      pnl: -3,
+    });
+
+    (query as Mock).mockResolvedValueOnce({ rows: [rec] });
+    (matchHistoryRepo.getHistoricalMatch as Mock).mockResolvedValueOnce(
+      makeHistory({ home_score: 1, away_score: 1 }),
+    );
+    (recommendationsRepo.settleRecommendation as Mock).mockResolvedValueOnce(null);
+    (aiPerfRepo.settleAiPerformance as Mock).mockResolvedValueOnce(null);
+
+    const result = await reEvaluateAllResults();
+
+    expect(result.corrected).toBe(1);
+    expect(recommendationsRepo.settleRecommendation).toHaveBeenCalledWith(
+      1, 'push', 0, expect.any(String),
+    );
+    expect(aiPerfRepo.settleAiPerformance).toHaveBeenCalledWith(1, 'push', 0, null);
   });
 
   test('handles multiple recs across different matches', async () => {

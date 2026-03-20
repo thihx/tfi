@@ -78,6 +78,7 @@ export async function fetchMonitorConfig(): Promise<LiveMonitorConfig> {
   try {
     const res = await fetch(`${API_BASE}/api/settings`, {
       headers: { Accept: 'application/json', ...authHeaders() },
+      credentials: 'include',
     });
     if (res.ok) {
       const dbSettings = await res.json() as Partial<LiveMonitorConfig>;
@@ -102,6 +103,7 @@ export async function persistMonitorConfig(config: Partial<LiveMonitorConfig>): 
     method: 'PUT',
     headers: { 'Content-Type': 'application/json', ...authHeaders() },
     body: JSON.stringify(config),
+    credentials: 'include',
   });
   if (!res.ok) throw new Error(`Save failed: ${res.status}`);
 }

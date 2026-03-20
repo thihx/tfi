@@ -13,7 +13,7 @@ import type { WatchlistItem, SortState } from '@/types';
 const PAGE_SIZE = 30;
 
 export function WatchlistTab() {
-  const { state, updateWatchlistItem, removeFromWatchlist, loadAllData } = useAppState();
+  const { state, updateWatchlistItem, removeFromWatchlist } = useAppState();
   const { showToast } = useToast();
   const { watchlist, matches, leagues, config } = state;
 

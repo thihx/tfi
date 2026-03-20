@@ -134,6 +134,10 @@ vi.mock('../repos/recommendations.repo.js', () => ({
   getRecommendationsByMatchId: vi.fn().mockResolvedValue([]),
 }));
 
+vi.mock('../repos/ai-performance.repo.js', () => ({
+  createAiPerformanceRecord: vi.fn().mockResolvedValue({ id: 1 }),
+}));
+
 vi.mock('../repos/settings.repo.js', () => ({
   getSettings: vi.fn().mockResolvedValue({
     TELEGRAM_CHAT_ID: '123456',
@@ -211,6 +215,20 @@ describe('runPipelineBatch', () => {
       away_team: 'Team B',
       selection: 'Over 2.5 Goals @1.85',
       confidence: 8,
+    }));
+  });
+
+  test('creates ai_performance tracking row when a recommendation is saved', async () => {
+    await runPipelineBatch(['100']);
+
+    const { createAiPerformanceRecord } = await import('../repos/ai-performance.repo.js');
+    expect(createAiPerformanceRecord).toHaveBeenCalledTimes(1);
+    expect(createAiPerformanceRecord).toHaveBeenCalledWith(expect.objectContaining({
+      match_id: '100',
+      ai_model: 'gemini-test',
+      ai_should_push: true,
+      predicted_market: 'over_2.5',
+      predicted_selection: 'Over 2.5 Goals @1.85',
     }));
   });
 

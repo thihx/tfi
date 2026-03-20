@@ -137,7 +137,7 @@ describe('POST /api/recommendations', () => {
     const res = await app.inject({
       method: 'POST',
       url: '/api/recommendations',
-      payload: { match_id: '200', selection: 'Over 2.5', confidence: 80, ai_model: 'gemini' },
+      payload: { match_id: '200', selection: 'Over 2.5', confidence: 80, ai_model: 'gemini', bet_type: 'AI', bet_market: 'over_2.5' },
     });
     expect(res.statusCode).toBe(201);
     expect(res.json().match_id).toBe('200');
@@ -160,6 +160,21 @@ describe('POST /api/recommendations', () => {
       payload: { match_id: '201', selection: 'BTTS Yes' },
     });
     expect(res.statusCode).toBe(201);
+  });
+
+  test('passes real ai_should_push=true into ai_performance rows', async () => {
+    await app.inject({
+      method: 'POST',
+      url: '/api/recommendations',
+      payload: { match_id: '202', selection: 'Over 2.5', confidence: 80, ai_model: 'gemini', bet_type: 'AI', bet_market: 'over_2.5' },
+    });
+
+    const aiPerfRepo = await import('../repos/ai-performance.repo.js');
+    expect(aiPerfRepo.createAiPerformanceRecord).toHaveBeenCalledWith(expect.objectContaining({
+      match_id: '202',
+      ai_should_push: true,
+      predicted_market: 'over_2.5',
+    }));
   });
 });
 

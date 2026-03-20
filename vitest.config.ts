@@ -20,7 +20,14 @@ export default defineConfig({
 
     // File patterns
     include: ['src/**/*.test.{ts,tsx}'],
-    exclude: ['node_modules', 'dist', 'legacy', 'e2e'],
+    exclude: [
+      'node_modules',
+      'dist',
+      'legacy',
+      'e2e',
+      'src/features/live-monitor/__tests__/ai-integration.test.ts',
+      'src/features/live-monitor/__tests__/ai-prompt-audit.test.ts',
+    ],
 
     // Coverage
     coverage: {

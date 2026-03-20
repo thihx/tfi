@@ -17,8 +17,7 @@ export class ApiError extends Error {
 
 function formatApiError(status: number, text: string): ApiError {
   if (status === 401) {
-    // Token expired or invalid — force re-login
-    localStorage.removeItem('tfi_auth_token');
+    // Session expired or unauthorized — force refresh to show login screen.
     location.reload();
   }
   return new ApiError(status, `HTTP ${status}: ${text.substring(0, 200)}`);
@@ -35,6 +34,7 @@ async function pgFetch<T>(config: AppConfig, path: string): Promise<T> {
   const response = await fetch(`${config.apiUrl}${path}`, {
     method: 'GET',
     headers: { Accept: 'application/json', ...authHeader() },
+    credentials: 'include',
   });
   if (!response.ok) throw formatApiError(response.status, await response.text());
   return response.json();
@@ -45,6 +45,7 @@ async function pgPost<T>(config: AppConfig, path: string, body: unknown): Promis
     method: 'POST',
     headers: { 'Content-Type': 'application/json', Accept: 'application/json', ...authHeader() },
     body: JSON.stringify(body),
+    credentials: 'include',
   });
   if (!response.ok) throw formatApiError(response.status, await response.text());
   return response.json();
@@ -55,6 +56,7 @@ async function pgPatch<T>(config: AppConfig, path: string, body: unknown): Promi
     method: 'PATCH',
     headers: { 'Content-Type': 'application/json', Accept: 'application/json', ...authHeader() },
     body: JSON.stringify(body),
+    credentials: 'include',
   });
   if (!response.ok) throw formatApiError(response.status, await response.text());
   return response.json();
@@ -65,6 +67,7 @@ async function pgPut<T>(config: AppConfig, path: string, body: unknown): Promise
     method: 'PUT',
     headers: { 'Content-Type': 'application/json', Accept: 'application/json', ...authHeader() },
     body: JSON.stringify(body),
+    credentials: 'include',
   });
   if (!response.ok) throw formatApiError(response.status, await response.text());
   return response.json();
@@ -80,6 +83,7 @@ async function pgDelete<T>(config: AppConfig, path: string, body?: unknown): Pro
       ...(hasBody ? { 'Content-Type': 'application/json' } : {}),
     },
     ...(hasBody ? { body: JSON.stringify(body) } : {}),
+    credentials: 'include',
   });
   if (!response.ok) throw formatApiError(response.status, await response.text());
   return response.json();

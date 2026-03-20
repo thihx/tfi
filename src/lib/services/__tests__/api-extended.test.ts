@@ -184,7 +184,7 @@ describe('leagues API', () => {
   test('fetchApprovedLeagues calls GET /api/leagues', async () => {
     globalThis.fetch = mockFetch([{ league_id: 39, name: 'PL' }]);
     const result = await fetchApprovedLeagues(config);
-    expect(result[0].league_id).toBe(39);
+    expect(result[0]!.league_id).toBe(39);
   });
 
   test('toggleLeagueActive calls PUT with active flag', async () => {

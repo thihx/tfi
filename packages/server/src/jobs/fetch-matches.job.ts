@@ -163,11 +163,21 @@ export async function fetchMatchesJob(): Promise<{ saved: number; leagues: numbe
   }
 
   // 7. Archive finished matches before TRUNCATE
+  // Archive from BOTH fresh API payload AND existing table to catch
+  // matches that transitioned to FT between polls (F2 audit fix).
   await reportJobProgress(JOB, 'archive', 'Archiving finished matches...', 65);
+  const freshFinished = leagueFiltered
+    .filter((f) => ['FT', 'AET', 'PEN', 'AWD', 'WO'].includes(f.fixture.status.short))
+    .map(fixtureToMatchRow);
   const allCurrentMatches = await matchRepo.getAllMatches();
-  const archivedCount = await archiveFinishedMatches(allCurrentMatches);
+  const archiveByMatchId = new Map<string, matchRepo.MatchRow>();
+  // Deduplicate by match_id (fresh rows take precedence — they have final score)
+  for (const row of allCurrentMatches) archiveByMatchId.set(row.match_id, row);
+  for (const row of freshFinished) archiveByMatchId.set(row.match_id, row);
+  const deduped = [...archiveByMatchId.values()];
+  const archivedCount = await archiveFinishedMatches(deduped);
   if (archivedCount > 0) {
-    console.log(`[fetchMatchesJob] Archived ${archivedCount} FT matches to history`);
+    console.log(`[fetchMatchesJob] Archived ${archivedCount} FT matches to history (${freshFinished.length} from fresh payload)`);
   }
 
   // 8. Full-refresh matches table

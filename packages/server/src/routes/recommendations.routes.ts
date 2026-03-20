@@ -72,7 +72,7 @@ export async function recommendationRoutes(app: FastifyInstance) {
         return reply.code(500).send({ error: `Failed to save recommendation: ${errMsg}` });
       }
 
-      // Auto-create AI performance tracking record
+      // Auto-create AI performance tracking record (F4 audit fix: pass real ai_should_push)
       if (rec.ai_model) {
         try {
           await aiPerfRepo.createAiPerformanceRecord({
@@ -81,6 +81,7 @@ export async function recommendationRoutes(app: FastifyInstance) {
             ai_model: rec.ai_model,
             prompt_version: rec.prompt_version ?? '',
             ai_confidence: rec.confidence,
+            ai_should_push: rec.bet_type === 'AI',
             predicted_market: rec.bet_market ?? '',
             predicted_selection: rec.selection,
             predicted_odds: rec.odds ? Number(rec.odds) : null,

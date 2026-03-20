@@ -122,6 +122,68 @@ describe('fetchMatchesJob', () => {
     expect(historyRepo.archiveFinishedMatches).toHaveBeenCalled();
   });
 
+  test('prefers fresh FT payload over stale live row when archiving', async () => {
+    const matchRepo = await import('../repos/matches.repo.js');
+    vi.mocked(matchRepo.getAllMatches).mockResolvedValueOnce([
+      {
+        match_id: '1001',
+        date: '2026-03-20',
+        kickoff: '15:00',
+        league_id: 39,
+        league_name: 'League',
+        home_team: 'Arsenal',
+        away_team: 'Chelsea',
+        home_logo: '',
+        away_logo: '',
+        venue: 'Stadium',
+        status: '2H',
+        home_score: 1,
+        away_score: 1,
+        current_minute: 88,
+        last_updated: '2026-03-20T14:58:00Z',
+        home_team_id: 1,
+        away_team_id: 2,
+        round: '',
+        halftime_home: null,
+        halftime_away: null,
+        referee: null,
+        home_reds: 0,
+        away_reds: 0,
+        home_yellows: 0,
+        away_yellows: 0,
+      },
+    ] as never);
+
+    const footballApi = await import('../lib/football-api.js');
+    vi.mocked(footballApi.fetchFixturesForDate)
+      .mockResolvedValueOnce([
+        {
+          fixture: {
+            id: 1001,
+            date: '2026-03-20T15:00:00+00:00',
+            status: { short: 'FT', elapsed: 90 },
+            venue: { name: 'Stadium' },
+            referee: null,
+          },
+          league: { id: 39, name: 'League', round: '' },
+          teams: {
+            home: { id: 1, name: 'Arsenal', logo: '' },
+            away: { id: 2, name: 'Chelsea', logo: '' },
+          },
+          goals: { home: 2, away: 1 },
+          score: { halftime: { home: 1, away: 1 } },
+        },
+      ] as never)
+      .mockResolvedValueOnce([]);
+
+    await fetchMatchesJob();
+
+    const historyRepo = await import('../repos/matches-history.repo.js');
+    const archivedRows = vi.mocked(historyRepo.archiveFinishedMatches).mock.calls[0]?.[0] as Array<Record<string, unknown>>;
+    const archived = archivedRows.find((row) => row.match_id === '1001');
+    expect(archived).toMatchObject({ status: 'FT', home_score: 2, away_score: 1 });
+  });
+
   test('syncs watchlist dates after refresh', async () => {
     await fetchMatchesJob();
     const watchlistRepo = await import('../repos/watchlist.repo.js');

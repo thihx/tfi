@@ -7,15 +7,32 @@
  * Uses bet_market if available, otherwise parses the selection text.
  */
 export function normalizeMarket(selection: string, betMarket?: string): string {
-  if (betMarket && betMarket.trim() !== '') return betMarket.trim().toLowerCase();
+  if (betMarket && betMarket.trim() !== '') {
+    const normalized = betMarket.trim().toLowerCase();
+    const asianHandicapAlias = normalized.match(/^ah_(home|away)(?:_([+-]?\d+\.?\d*))?$/);
+    if (asianHandicapAlias) {
+      const side = asianHandicapAlias[1]!;
+      const line = asianHandicapAlias[2];
+      return line ? `asian_handicap_${side}_${line}` : `asian_handicap_${side}`;
+    }
+    return normalized;
+  }
 
   const s = selection.toLowerCase().trim();
 
   // Asian Handicap (check BEFORE home/win since "AH Home" contains "home")
-  if (/asian\s*handicap|\bah\s+[+-]?\d/i.test(s)) return 'asian_handicap';
+  if (/asian\s*handicap|\bah\s+[+-]?\d/i.test(s)) {
+    const side = /away/i.test(s) ? 'away' : 'home';
+    const lineMatch = s.match(/[+-]?\d+\.?\d*/);
+    return lineMatch ? `asian_handicap_${side}_${lineMatch[0]}` : `asian_handicap_${side}`;
+  }
 
   // Corners (check BEFORE over/under since "Over 9.5 Corners" contains "over")
-  if (/corner/i.test(s)) return 'corners';
+  if (/corner/i.test(s)) {
+    const direction = /under/i.test(s) ? 'under' : 'over';
+    const lineMatch = s.match(/\d+\.?\d*/);
+    return lineMatch ? `corners_${direction}_${lineMatch[0]}` : 'corners';
+  }
 
   // Over X.X Goals
   const overMatch = s.match(/over\s+(\d+\.?\d*)/);

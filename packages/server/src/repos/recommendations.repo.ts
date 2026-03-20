@@ -193,8 +193,12 @@ export async function getRecommendationsByMatchId(matchId: string): Promise<Reco
 export async function createRecommendation(
   rec: Partial<RecommendationCreate>,
 ): Promise<RecommendationRow> {
+  const normalizedBetMarket = normalizeMarket(rec.selection ?? '', rec.bet_market);
+  const storedBetMarket = normalizedBetMarket === 'unknown' && !(rec.bet_market ?? '').trim()
+    ? ''
+    : normalizedBetMarket;
   const dedupKey = rec.unique_key
-    ?? buildDedupKey(rec.match_id ?? '', rec.selection ?? '', rec.bet_market);
+    ?? buildDedupKey(rec.match_id ?? '', rec.selection ?? '', storedBetMarket);
   const r = await query<RecommendationRow>(
     `INSERT INTO recommendations (
        unique_key, match_id, timestamp, league, home_team, away_team, status,
@@ -253,7 +257,7 @@ export async function createRecommendation(
       rec.warnings ?? '',
       rec.ai_model ?? '',
       rec.mode ?? 'B',
-      rec.bet_market ?? '',
+      storedBetMarket,
       rec.notified ?? '',
       rec.notification_channels ?? '',
       rec.result ?? '',
@@ -272,8 +276,12 @@ export async function bulkCreateRecommendations(
   return transaction(async (client) => {
     let upserted = 0;
     for (const rec of recs) {
+      const normalizedBetMarket = normalizeMarket(rec.selection ?? '', rec.bet_market);
+      const storedBetMarket = normalizedBetMarket === 'unknown' && !(rec.bet_market ?? '').trim()
+        ? ''
+        : normalizedBetMarket;
       const dedupKey = rec.unique_key
-        ?? buildDedupKey(rec.match_id ?? '', rec.selection ?? '', rec.bet_market);
+        ?? buildDedupKey(rec.match_id ?? '', rec.selection ?? '', storedBetMarket);
       const result = await client.query(
         `INSERT INTO recommendations (
            unique_key, match_id, timestamp, league, home_team, away_team, status,
@@ -331,7 +339,7 @@ export async function bulkCreateRecommendations(
           rec.warnings ?? '',
           rec.ai_model ?? '',
           rec.mode ?? 'B',
-          rec.bet_market ?? '',
+          storedBetMarket,
           rec.notified ?? '',
           rec.notification_channels ?? '',
           rec.result ?? '',

@@ -115,6 +115,28 @@ describe('PUT /api/watchlist/:matchId', () => {
   });
 });
 
+// F5 audit fix: PATCH /api/watchlist/:matchId
+describe('PATCH /api/watchlist/:matchId', () => {
+  test('updates an existing entry via PATCH', async () => {
+    const res = await app.inject({
+      method: 'PATCH',
+      url: '/api/watchlist/100',
+      payload: { priority: 5 },
+    });
+    expect(res.statusCode).toBe(200);
+    expect(res.json().priority).toBe(5);
+  });
+
+  test('returns 404 for non-existent entry via PATCH', async () => {
+    const res = await app.inject({
+      method: 'PATCH',
+      url: '/api/watchlist/999',
+      payload: { priority: 1 },
+    });
+    expect(res.statusCode).toBe(404);
+  });
+});
+
 describe('DELETE /api/watchlist/:matchId', () => {
   test('deletes an entry', async () => {
     const res = await app.inject({ method: 'DELETE', url: '/api/watchlist/100' });

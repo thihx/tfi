@@ -258,6 +258,18 @@ describe('autoSettleJob', () => {
     expect(recommendationsRepo.settleRecommendation).toHaveBeenCalledWith(1, 'loss', -3, expect.any(String));
   });
 
+  test('treats push as neutral in ai_performance', async () => {
+    const rec = makeRec({ match_id: '54321', bet_market: 'over_2.0', selection: 'Over 2.0', odds: 1.85, stake_percent: 3 });
+    (recommendationsRepo.getAllRecommendations as Mock).mockResolvedValue({ rows: [rec] });
+    (matchHistoryRepo.getHistoricalMatch as Mock).mockResolvedValue(makeHistory({ match_id: '54321', home_score: 1, away_score: 1 }));
+
+    const stats = await autoSettleJob();
+
+    expect(stats.settled).toBe(1);
+    expect(recommendationsRepo.settleRecommendation).toHaveBeenCalledWith(1, 'push', 0, expect.any(String));
+    expect(aiPerfRepo.settleAiPerformance).toHaveBeenCalledWith(1, 'push', 0, null);
+  });
+
   test('settles AET match from API', async () => {
     const rec = makeRec({ match_id: '66666', bet_market: 'Over/Under 2.5', selection: 'Over 2.5', odds: 1.85, stake_percent: 2 });
     (recommendationsRepo.getAllRecommendations as Mock).mockResolvedValue({ rows: [rec] });

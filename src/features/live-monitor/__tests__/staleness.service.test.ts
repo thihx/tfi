@@ -169,7 +169,7 @@ describe('extractCurrentOddForMarket', () => {
   });
 
   test('extracts ah home', () => {
-    expect(extractCurrentOddForMarket('ah_home_-0.5', 'Home -0.5 @1.9', oc)).toBe(1.9);
+    expect(extractCurrentOddForMarket('asian_handicap_home_-0.5', 'Home -0.5 @1.9', oc)).toBe(1.9);
   });
 
   test('returns null for unknown market', () => {

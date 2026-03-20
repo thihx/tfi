@@ -125,7 +125,7 @@ describe('prepareRecommendationData', () => {
     expect(result.result).toBe('');
     expect(result.actual_outcome).toBe('');
     expect(result.pnl).toBe(null);
-    expect(result.settled_at).toBe('');
+    expect(result.settled_at).toBe(null);
   });
 
   test('handles custom condition notification channels', () => {

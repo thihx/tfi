@@ -33,6 +33,7 @@ async function postJson<T>(url: string, body: unknown): Promise<T> {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', Accept: 'application/json', ...authHeaders() },
       body: JSON.stringify(body),
+      credentials: 'include',
     });
   } catch (err) {
     throw new Error(`Network error calling ${url}: ${err instanceof Error ? err.message : String(err)}`);
@@ -74,6 +75,7 @@ export async function fetchLiveOdds(
 export async function fetchWatchlistMatches(config: AppConfig): Promise<WatchlistMatch[]> {
   const res = await fetch(apiUrl(config, '/api/watchlist'), {
     headers: { Accept: 'application/json', ...authHeaders() },
+    credentials: 'include',
   });
   if (!res.ok) throw new Error(`Watchlist error ${res.status}`);
   return res.json();
@@ -120,6 +122,7 @@ export async function saveRecommendation(
     method: 'POST',
     headers: { 'Content-Type': 'application/json', Accept: 'application/json', ...authHeaders() },
     body: JSON.stringify(data),
+    credentials: 'include',
   });
   if (!res.ok) {
     const body = await res.text().catch(() => '');
@@ -136,6 +139,7 @@ export async function fetchMatchRecommendations(
 ): Promise<PreviousRecommendation[]> {
   const res = await fetch(apiUrl(config, `/api/recommendations/match/${encodeURIComponent(matchId)}`), {
     headers: { Accept: 'application/json', ...authHeaders() },
+    credentials: 'include',
   });
   if (!res.ok) return [];
   const rows: Array<{
@@ -166,6 +170,7 @@ export async function fetchMatchSnapshots(
 ): Promise<MatchTimelineSnapshot[]> {
   const res = await fetch(apiUrl(config, `/api/snapshots/match/${encodeURIComponent(matchId)}`), {
     headers: { Accept: 'application/json', ...authHeaders() },
+    credentials: 'include',
   });
   if (!res.ok) return [];
   const rows: Array<{
@@ -277,6 +282,7 @@ export async function fetchHistoricalPerformance(
   try {
     const res = await fetch(apiUrl(config, '/api/ai-performance/prompt-context'), {
       headers: { Accept: 'application/json', ...authHeaders() },
+      credentials: 'include',
     });
     if (!res.ok) return null;
     const data: HistoricalPerformanceContext = await res.json();

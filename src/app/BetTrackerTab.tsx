@@ -12,7 +12,7 @@ import { Modal } from '@/components/ui/Modal';
 import { Pagination } from '@/components/ui/Pagination';
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip,
-  ResponsiveContainer, Cell,
+  ResponsiveContainer,
 } from 'recharts';
 import {
   fetchBets,
@@ -74,9 +74,10 @@ const MarketChart = memo(function MarketChart({
             <XAxis type="number" tick={{ fontSize: 11 }} stroke="var(--gray-400)" />
             <YAxis type="category" dataKey="name" tick={{ fontSize: 12 }} width={120} stroke="var(--gray-400)" />
             <Tooltip
-              formatter={(v: number, name: string) =>
-                name === 'pnl' ? [`$${v.toFixed(2)}`, 'P/L'] : [v, name === 'won' ? 'Won' : 'Lost']
-              }
+              formatter={(v, name) => {
+                const n = Number(v);
+                return name === 'pnl' ? [`$${n.toFixed(2)}`, 'P/L'] : [n, name === 'won' ? 'Won' : 'Lost'];
+              }}
             />
             <Bar dataKey="won"  name="Won"  stackId="wl" fill="var(--success)" radius={[0, 0, 0, 0]} />
             <Bar dataKey="lost" name="Lost" stackId="wl" fill="var(--danger)"  radius={[0, 4, 4, 0]} />

@@ -127,7 +127,7 @@ function AppContent() {
 
           <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column' }}>
             <Header activeTab={activeTab} onLogout={logout} user={user} />
-            <div style={{ flex: 1, padding: '28px 24px', minWidth: 0, overflow: 'auto' }}>
+            <div style={{ flex: 1, padding: '20px', minWidth: 0, overflow: 'auto' }}>
               <Suspense fallback={<TabFallback />}>{renderTab()}</Suspense>
             </div>
           </div>

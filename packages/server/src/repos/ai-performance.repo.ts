@@ -72,7 +72,7 @@ export async function settleAiPerformance(
   recommendationId: number,
   result: string,
   pnl: number,
-  wasCorrect: boolean,
+  wasCorrect: boolean | null,
 ): Promise<AiPerformanceRow | null> {
   const r = await query<AiPerformanceRow>(
     `UPDATE ai_performance
@@ -137,7 +137,8 @@ export async function backfillFromRecommendations(): Promise<number> {
        )
        SELECT
          r.id, r.match_id, r.timestamp,
-         r.ai_model, COALESCE(r.prompt_version,''), r.confidence, false,
+         r.ai_model, COALESCE(r.prompt_version,''), r.confidence,
+         CASE WHEN r.bet_type = 'AI' THEN true ELSE false END,
          COALESCE(r.bet_market,''), r.selection, r.odds::numeric,
          CASE WHEN r.result IN ('win','loss','push') THEN r.result ELSE '' END,
          r.pnl::numeric,

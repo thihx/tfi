@@ -649,7 +649,7 @@ export function mergeOddsToMatch(
               if (!m) continue;
               key = raw;
             }
-            if (!oddsMap[key] || odd > oddsMap[key]) {
+            if (!oddsMap[key] || odd > oddsMap[key]!) {
               oddsMap[key] = odd;
             }
           }
@@ -684,7 +684,7 @@ export function mergeOddsToMatch(
               if (side === '2') side = 'away';
               key = `${side} ${m[2]}`;
             }
-            if (!oddsMap[key] || odd > oddsMap[key]) {
+            if (!oddsMap[key] || odd > oddsMap[key]!) {
               oddsMap[key] = odd;
             }
           }
@@ -709,7 +709,7 @@ export function mergeOddsToMatch(
               const m = raw.match(/^(over|under)\s+([0-9]+(?:\.[0-9]+)?)$/);
               if (m) key = `corners ${m[1]} ${m[2]}`.toLowerCase();
             }
-            if (key && (!oddsMap[key] || odd > oddsMap[key])) {
+            if (key && (!oddsMap[key] || odd > oddsMap[key]!)) {
               oddsMap[key] = odd;
             }
           }

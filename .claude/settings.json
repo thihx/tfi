@@ -66,7 +66,10 @@
       "Bash(grep -r \"telegram\\\\|Telegram\" c:/tfi/packages/client --include=*.ts --include=*.tsx)",
       "Bash(grep -r \"analyze\\\\|ai/analyze\" c:/tfi/packages/server/src/routes --include=*.ts)",
       "Bash(psql \"postgresql://fkr:Panda%40241205@fkr-database.postgres.database.azure.com:5432/tfi?sslmode=require\" -f packages/server/src/db/migrations/008_match_enrichment.sql)",
-      "Bash(node -e \":*)"
+      "Bash(node -e \":*)",
+      "Bash(powershell.exe -Command \"Stop-Process -Id 15108 -Force -ErrorAction SilentlyContinue; Write-Output ''Done''\")",
+      "Bash(powershell.exe -Command \"Stop-Process -Id 2232,14104 -Force; Write-Output ''Killed''\")",
+      "Bash(find /c/tfi/src -name *.css -o -name *.scss)"
     ]
   }
 }

@@ -68,8 +68,9 @@ describe('auth service', () => {
   });
 
   describe('logout', () => {
-    test('clears token and reloads', () => {
+    test('clears token and reloads', async () => {
       setToken('some.jwt.token');
+      globalThis.fetch = vi.fn().mockResolvedValue({ ok: true }) as unknown as typeof fetch;
       const reloadMock = vi.fn();
       Object.defineProperty(globalThis, 'location', {
         value: { reload: reloadMock },
@@ -77,7 +78,9 @@ describe('auth service', () => {
         configurable: true,
       });
       logout();
+      await Promise.resolve();
       expect(getToken()).toBeNull();
+      expect(globalThis.fetch).toHaveBeenCalled();
       expect(reloadMock).toHaveBeenCalled();
     });
   });

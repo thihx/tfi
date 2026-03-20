@@ -26,6 +26,7 @@ import {
 import { fetchTheOddsLive } from './the-odds-api.js';
 import * as watchlistRepo from '../repos/watchlist.repo.js';
 import { createRecommendation, getRecommendationsByMatchId } from '../repos/recommendations.repo.js';
+import { createAiPerformanceRecord } from '../repos/ai-performance.repo.js';
 import { getSettings } from '../repos/settings.repo.js';
 
 /** Resolved pipeline settings: DB values take priority, env vars as fallback */
@@ -1004,6 +1005,26 @@ async function processMatch(
       saved = true;
       recId = rec.id;
 
+      // Auto-create AI performance tracking record (F3 audit fix)
+      if (model) {
+        try {
+          await createAiPerformanceRecord({
+            recommendation_id: rec.id,
+            match_id: matchId,
+            ai_model: model,
+            prompt_version: '',
+            ai_confidence: parsed.confidence,
+            ai_should_push: parsed.ai_should_push,
+            predicted_market: parsed.bet_market || '',
+            predicted_selection: parsed.selection,
+            predicted_odds: mappedOdd ? Number(mappedOdd) : null,
+            match_minute: minute,
+            match_score: score,
+            league: league,
+          });
+        } catch { /* non-critical — duplicate key or other */ }
+      }
+
       // 8. Send Telegram notification (only for actionable recommendations)
       if (parsed.should_push && settings.telegramChatId) {
         try {
@@ -1233,7 +1254,7 @@ BET_MARKET STANDARD VALUES:
 - 1X2 markets: "1x2_home", "1x2_away", "1x2_draw"
 - Over/Under goals: "over_0.5", "over_1.5", "over_2.5", "over_3.5", "over_4.5", "under_0.5", "under_1.5", "under_2.5", "under_3.5", "under_4.5"
 - BTTS: "btts_yes", "btts_no"
-- Asian Handicap: "ah_home_[line]", "ah_away_[line]"
+- Asian Handicap: "asian_handicap_home_[line]", "asian_handicap_away_[line]"
 - Corners: "corners_over_[line]", "corners_under_[line]"
 
 SELECTION STANDARD FORMAT:

@@ -34,6 +34,7 @@ function loadGeminiApiKey(): string {
 
 const GEMINI_API_KEY = loadGeminiApiKey();
 const GEMINI_MODEL = 'gemini-2.5-flash';
+const RUN_LLM_TESTS = process.env['RUN_LLM_TESTS'] === '1';
 
 // ==================== Direct Gemini API Call ====================
 
@@ -112,7 +113,7 @@ function assertValidStructure(parsed: ParsedAiResponse) {
 
 // ==================== Test Suites ====================
 
-describe.skipIf(!GEMINI_API_KEY)('AI Integration — Real LLM', () => {
+describe.skipIf(!GEMINI_API_KEY || !RUN_LLM_TESTS)('AI Integration — Real LLM', () => {
 
   // ----------------------------------------------------------
   // Scenario 1: Normal 2H match with good stats and odds
@@ -664,7 +665,7 @@ describe.skipIf(!GEMINI_API_KEY)('AI Integration — Real LLM', () => {
         '1x2_home', '1x2_away', '1x2_draw',
         /^over_\d+\.?\d*$/, /^under_\d+\.?\d*$/,
         'btts_yes', 'btts_no',
-        /^ah_home_[+-]?\d+\.?\d*$/, /^ah_away_[+-]?\d+\.?\d*$/,
+        /^asian_handicap_home_[+-]?\d+\.?\d*$/, /^asian_handicap_away_[+-]?\d+\.?\d*$/,
         /^corners_over_\d+\.?\d*$/, /^corners_under_\d+\.?\d*$/,
         'dc_1x', 'dc_x2', 'dc_12',
       ];
@@ -887,6 +888,10 @@ describe.skipIf(!GEMINI_API_KEY)('AI Integration — Real LLM', () => {
           shots: '7-4',
           shots_on_target: '3-2',
           corners: '4-2',
+          fouls: '6-5',
+          yellow_cards: '1-1',
+          red_cards: '0-0',
+          goalkeeper_saves: '2-1',
           status: '1H',
         },
       ],

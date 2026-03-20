@@ -37,7 +37,8 @@ export const config = {
   allowedEmails: (process.env['ALLOWED_EMAILS'] || '').split(',').map((s) => s.trim()).filter(Boolean),
 
   // JWT (uses Node built-in crypto — no extra package needed)
-  jwtSecret: process.env['JWT_SECRET'] || 'tfi-dev-secret-change-me',
+  jwtSecret: process.env['JWT_SECRET'] || '',
+  nodeEnv: process.env['NODE_ENV'] || 'development',
   jwtExpiresInSeconds: Number(process.env['JWT_EXPIRES_IN_SECONDS'] || 604800), // 7 days
 
   // Job intervals (ms) — 0 = disabled

@@ -34,6 +34,7 @@ function loadGeminiApiKey(): string {
 
 const GEMINI_API_KEY = loadGeminiApiKey();
 const GEMINI_MODEL = 'gemini-3-pro-preview';
+const RUN_LLM_TESTS = process.env['RUN_LLM_TESTS'] === '1';
 
 // ==================== Direct Gemini API Call ====================
 
@@ -140,7 +141,7 @@ function recordResult(
 // TEST SUITES
 // ============================================================
 
-describe.skipIf(!GEMINI_API_KEY)('AI Prompt Audit — Data-Driven Rules', () => {
+describe.skipIf(!GEMINI_API_KEY || !RUN_LLM_TESTS)('AI Prompt Audit — Data-Driven Rules', () => {
 
   // ============================================================
   // BTTS YES RULES

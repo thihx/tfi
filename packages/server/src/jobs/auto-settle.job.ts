@@ -295,7 +295,9 @@ async function settleRecommendations(recs: RecommendationRow[], stats: SettleRes
 
         const pnl = calcPnl(aiResult.result, rec.odds ?? 0, rec.stake_percent ?? 1);
         await recommendationsRepo.settleRecommendation(rec.id, aiResult.result, pnl, aiResult.explanation);
-        await aiPerfRepo.settleAiPerformance(rec.id, aiResult.result, pnl, aiResult.result === 'win');
+        // F4: push → neutral (was_correct=null), not incorrect
+        const wasCorrect = aiResult.result === 'win' ? true : aiResult.result === 'loss' ? false : null;
+        await aiPerfRepo.settleAiPerformance(rec.id, aiResult.result, pnl, wasCorrect);
         stats.settled++;
       }
     } catch (err) {

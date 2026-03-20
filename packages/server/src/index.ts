@@ -1,51 +1,70 @@
 // ============================================================
-// TFI Server — Fastify + PostgreSQL
+// TFI Server - Fastify + PostgreSQL
 // ============================================================
 
 import 'dotenv/config';
-import { fileURLToPath } from 'node:url';
-import { dirname, join } from 'node:path';
 import { existsSync } from 'node:fs';
+import { dirname, join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import Fastify from 'fastify';
 import cors from '@fastify/cors';
 import fastifyStatic from '@fastify/static';
 import { config } from './config.js';
 import { closePool, query } from './db/pool.js';
 import { closeRedis, getRedisClient } from './lib/redis.js';
+import { verifyToken } from './lib/jwt.js';
+import { aiPerformanceRoutes } from './routes/ai-performance.routes.js';
+import { auditLogRoutes } from './routes/audit-logs.routes.js';
+import { authRoutes } from './routes/auth.routes.js';
+import { betRoutes } from './routes/bets.routes.js';
+import { integrationsRoutes } from './routes/integrations.routes.js';
 import { leagueRoutes } from './routes/leagues.routes.js';
 import { matchRoutes } from './routes/matches.routes.js';
-import { watchlistRoutes } from './routes/watchlist.routes.js';
-import { recommendationRoutes } from './routes/recommendations.routes.js';
-import { pipelineRoutes } from './routes/pipeline-runs.routes.js';
-import { jobRoutes } from './routes/jobs.routes.js';
-import { proxyRoutes } from './routes/proxy.routes.js';
-import { betRoutes } from './routes/bets.routes.js';
-import { snapshotRoutes } from './routes/snapshots.routes.js';
 import { oddsRoutes } from './routes/odds.routes.js';
-import { aiPerformanceRoutes } from './routes/ai-performance.routes.js';
+import { pipelineRoutes } from './routes/pipeline-runs.routes.js';
+import { proxyRoutes } from './routes/proxy.routes.js';
+import { recommendationRoutes } from './routes/recommendations.routes.js';
 import { reportRoutes } from './routes/reports.routes.js';
 import { settingsRoutes } from './routes/settings.routes.js';
-import { auditLogRoutes } from './routes/audit-logs.routes.js';
-import { integrationsRoutes } from './routes/integrations.routes.js';
+import { snapshotRoutes } from './routes/snapshots.routes.js';
+import { watchlistRoutes } from './routes/watchlist.routes.js';
+import { jobRoutes } from './routes/jobs.routes.js';
 import { startScheduler, stopScheduler } from './jobs/scheduler.js';
-import { authRoutes } from './routes/auth.routes.js';
-import { verifyToken } from './lib/jwt.js';
 
 const app = Fastify({ logger: true });
 
-// ── Process-level error handlers ─────────────────────────────
+function isLocalFrontendUrl(urlString: string): boolean {
+  try {
+    const { hostname } = new URL(urlString);
+    return hostname === 'localhost' || hostname === '127.0.0.1' || hostname === '0.0.0.0';
+  } catch {
+    return false;
+  }
+}
+
+function parseCookies(cookieHeader?: string): Record<string, string> {
+  const cookies: Record<string, string> = {};
+  for (const part of cookieHeader?.split(';') ?? []) {
+    const trimmed = part.trim();
+    if (!trimmed) continue;
+    const eqIdx = trimmed.indexOf('=');
+    if (eqIdx === -1) continue;
+    const key = trimmed.slice(0, eqIdx).trim();
+    const value = trimmed.slice(eqIdx + 1).trim();
+    cookies[key] = decodeURIComponent(value);
+  }
+  return cookies;
+}
+
 process.on('uncaughtException', (err) => {
   app.log.error({ err }, 'Uncaught exception');
-  // Let the process crash after logging — supervisor should restart
 });
 
 process.on('unhandledRejection', (reason) => {
   app.log.error({ reason }, 'Unhandled rejection');
 });
 
-// ── Startup connection validation ────────────────────────────
 async function validateConnections(): Promise<void> {
-  // PostgreSQL
   try {
     await query('SELECT 1');
     app.log.info('PostgreSQL connection OK');
@@ -54,7 +73,6 @@ async function validateConnections(): Promise<void> {
     throw err;
   }
 
-  // Redis
   try {
     const redis = getRedisClient();
     await redis.ping();
@@ -66,7 +84,6 @@ async function validateConnections(): Promise<void> {
 }
 
 await app.register(cors, {
-  // Allow the configured origin plus any localhost port (covers multiple dev servers)
   origin: (origin, cb) => {
     if (!origin || origin === config.corsOrigin || /^https?:\/\/localhost(:\d+)?$/.test(origin)) {
       cb(null, true);
@@ -75,34 +92,49 @@ await app.register(cors, {
     }
   },
   methods: ['GET', 'HEAD', 'PUT', 'PATCH', 'POST', 'DELETE'],
+  credentials: true,
 });
 
-// ── Auth routes (public — no JWT required) ───────────────────
 await app.register(authRoutes);
 
-// ── JWT guard: only active when Google OAuth is fully configured ──
-const authEnabled = !!(config.googleClientId && config.googleClientSecret);
-if (authEnabled) {
+const hasJwtSecret = config.jwtSecret.trim() !== '';
+const hasGoogleClientId = config.googleClientId.trim() !== '';
+const hasGoogleClientSecret = config.googleClientSecret.trim() !== '';
+const googleAuthConfigured = hasGoogleClientId && hasGoogleClientSecret;
+const localFrontend = isLocalFrontendUrl(config.frontendUrl);
+
+if (hasGoogleClientId !== hasGoogleClientSecret) {
+  throw new Error('FATAL: GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET must be configured together');
+}
+if (!hasJwtSecret && (hasGoogleClientId || hasGoogleClientSecret)) {
+  throw new Error('FATAL: JWT_SECRET is required whenever Google OAuth is configured');
+}
+if (!localFrontend && (!hasJwtSecret || !googleAuthConfigured)) {
+  throw new Error('FATAL: JWT_SECRET, GOOGLE_CLIENT_ID, and GOOGLE_CLIENT_SECRET are required for non-local deployments');
+}
+
+if (hasJwtSecret) {
   app.addHook('preHandler', async (req, reply) => {
     const url = req.url.split('?')[0]!;
     if (!url.startsWith('/api/') || url.startsWith('/api/auth/') || url === '/api/health') return;
 
     const authHeader = req.headers['authorization'];
-    const token = authHeader?.startsWith('Bearer ') ? authHeader.slice(7) : null;
+    const bearer = authHeader?.startsWith('Bearer ') ? authHeader.slice(7) : null;
+    const cookieToken = parseCookies(req.headers.cookie)['tfi_auth_token'] ?? null;
+    const token = bearer || cookieToken;
     if (!token) {
-      return reply.status(401).send({ error: 'Unauthorized — no token' });
+      return reply.status(401).send({ error: 'Unauthorized - no token' });
     }
     const payload = verifyToken(token, config.jwtSecret);
     if (!payload) {
-      return reply.status(401).send({ error: 'Unauthorized — invalid or expired token' });
+      return reply.status(401).send({ error: 'Unauthorized - invalid or expired token' });
     }
   });
-  app.log.info('[auth] JWT guard ENABLED (Google OAuth configured)');
+  app.log.info('[auth] JWT guard ENABLED');
 } else {
-  app.log.info('[auth] JWT guard DISABLED (GOOGLE_CLIENT_ID / GOOGLE_CLIENT_SECRET not set)');
+  app.log.warn('[auth] JWT guard DISABLED - local dev only because JWT_SECRET is not configured');
 }
 
-// Register route modules
 await app.register(leagueRoutes);
 await app.register(matchRoutes);
 await app.register(watchlistRoutes);
@@ -119,15 +151,12 @@ await app.register(settingsRoutes);
 await app.register(auditLogRoutes);
 await app.register(integrationsRoutes);
 
-// Health check
 app.get('/api/health', async () => ({ status: 'ok', timestamp: new Date().toISOString() }));
 
-// ── Static file serving (production single-container) ────────
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const clientDir = join(__dirname, '..', 'client');
 if (existsSync(clientDir)) {
   await app.register(fastifyStatic, { root: clientDir, wildcard: false });
-  // SPA fallback: serve index.html for non-API routes
   app.setNotFoundHandler((req, reply) => {
     if (req.url.startsWith('/api/')) {
       reply.status(404).send({ error: 'Not found' });
@@ -138,9 +167,8 @@ if (existsSync(clientDir)) {
   app.log.info(`Serving static files from ${clientDir}`);
 }
 
-// Graceful shutdown
 const shutdown = async () => {
-  app.log.info('Shutting down…');
+  app.log.info('Shutting down...');
   stopScheduler();
   await app.close();
   await closePool();

@@ -73,22 +73,45 @@ describe('normalizeMarket', () => {
   });
 
   describe('Asian Handicap', () => {
-    test('parses "Asian Handicap -1.5"', () => {
-      expect(normalizeMarket('Asian Handicap -1.5', '')).toBe('asian_handicap');
+    test('canonicalizes ah_home alias from bet_market', () => {
+      expect(normalizeMarket('Home -0.5 @1.90', 'ah_home_-0.5')).toBe('asian_handicap_home_-0.5');
+    });
+    test('parses "Asian Handicap -1.5" → includes side and line', () => {
+      expect(normalizeMarket('Asian Handicap -1.5', '')).toBe('asian_handicap_home_-1.5');
     });
 
-    test('parses "AH +0.5 Home"', () => {
-      expect(normalizeMarket('AH +0.5 Home', '')).toBe('asian_handicap');
+    test('parses "AH +0.5 Home" → home side', () => {
+      expect(normalizeMarket('AH +0.5 Home', '')).toBe('asian_handicap_home_+0.5');
+    });
+
+    test('parses "Asian Handicap Away -0.5" → away side', () => {
+      expect(normalizeMarket('Asian Handicap Away -0.5', '')).toBe('asian_handicap_away_-0.5');
+    });
+
+    test('different AH lines produce different keys (F8 collision fix)', () => {
+      const k1 = normalizeMarket('Asian Handicap -0.5', '');
+      const k2 = normalizeMarket('Asian Handicap -1.5', '');
+      expect(k1).not.toBe(k2);
     });
   });
 
   describe('Corners', () => {
-    test('parses "Over 9.5 Corners"', () => {
-      expect(normalizeMarket('Over 9.5 Corners', '')).toBe('corners');
+    test('parses "Over 9.5 Corners" → includes direction and line', () => {
+      expect(normalizeMarket('Over 9.5 Corners', '')).toBe('corners_over_9.5');
     });
 
-    test('parses "Corner Kicks Over 10.5"', () => {
-      expect(normalizeMarket('Corner Kicks Over 10.5', '')).toBe('corners');
+    test('parses "Corner Kicks Over 10.5" → includes direction and line', () => {
+      expect(normalizeMarket('Corner Kicks Over 10.5', '')).toBe('corners_over_10.5');
+    });
+
+    test('parses "Under 8.5 Corners" → under direction', () => {
+      expect(normalizeMarket('Under 8.5 Corners', '')).toBe('corners_under_8.5');
+    });
+
+    test('different corner lines produce different keys (F8 collision fix)', () => {
+      const k1 = normalizeMarket('Over 9.5 Corners', '');
+      const k2 = normalizeMarket('Over 10.5 Corners', '');
+      expect(k1).not.toBe(k2);
     });
   });
 

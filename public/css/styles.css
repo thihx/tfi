@@ -2969,13 +2969,13 @@ table td:last-child, table th:last-child {
 .job-scheduler {
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 4px;
 }
 
 .job-card {
   background: var(--bg-secondary, #f8f9fa);
-  border-radius: 8px;
-  padding: 14px;
+  border-radius: 6px;
+  padding: 8px 12px;
   border-left: 3px solid var(--gray-300, #ccc);
   transition: border-color 0.2s;
 }
@@ -2990,37 +2990,46 @@ table td:last-child, table th:last-child {
 
 .job-header {
   display: flex;
-  align-items: flex-start;
-  gap: 12px;
-  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
 }
 
 .job-info {
   flex: 1;
-  min-width: 200px;
+  min-width: 0;
+}
+
+.job-title-row {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  flex-wrap: wrap;
 }
 
 .job-label {
   font-weight: 600;
-  font-size: 14px;
+  font-size: 13px;
   color: var(--text-primary, #212529);
-}
-
-.job-description {
-  font-size: 12px;
-  color: var(--gray-500, #6c757d);
-  margin-top: 2px;
-  line-height: 1.4;
+  white-space: nowrap;
 }
 
 .job-meta {
   font-size: 11px;
+  color: var(--gray-400, #aaa);
+  white-space: nowrap;
+}
+
+.job-description {
+  font-size: 11px;
   color: var(--gray-500, #6c757d);
-  margin-top: 4px;
+  margin-top: 1px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .job-run-count {
-  color: var(--gray-400, #999);
+  color: var(--gray-400, #bbb);
 }
 
 .job-error-text {
@@ -3030,36 +3039,36 @@ table td:last-child, table th:last-child {
 .job-actions {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 6px;
   flex-shrink: 0;
 }
 
 .job-interval-select {
-  padding: 5px 8px;
-  border-radius: 6px;
+  padding: 3px 6px;
+  border-radius: 4px;
   border: 1px solid var(--gray-300, #ccc);
-  font-size: 12px;
+  font-size: 11px;
   background: var(--bg-primary, #fff);
   color: var(--text-primary, #212529);
 }
 
 /* Progress bar */
 .job-progress {
-  margin-top: 10px;
+  margin-top: 6px;
 }
 
 .job-progress-bar-bg {
   width: 100%;
-  height: 6px;
+  height: 4px;
   background: var(--gray-200, #e9ecef);
-  border-radius: 3px;
+  border-radius: 2px;
   overflow: hidden;
 }
 
 .job-progress-bar-fill {
   height: 100%;
   background: var(--primary, dodgerblue);
-  border-radius: 3px;
+  border-radius: 2px;
   transition: width 0.4s ease;
 }
 
@@ -3074,7 +3083,7 @@ table td:last-child, table th:last-child {
 .job-progress-text {
   font-size: 11px;
   color: var(--gray-500, #6c757d);
-  margin-top: 4px;
+  margin-top: 3px;
 }
 
 /* ==================== PAGE HEADER ==================== */
@@ -3182,13 +3191,27 @@ table td:last-child, table th:last-child {
   font-weight: 500;
 }
 
-@media (max-width: 600px) {
+@media (max-width: 540px) {
   .job-header {
-    flex-direction: column;
+    flex-wrap: wrap;
+  }
+
+  .job-info {
+    width: 100%;
+  }
+
+  .job-description {
+    white-space: normal;
+    overflow: visible;
+    text-overflow: unset;
   }
 
   .job-actions {
     width: 100%;
     justify-content: flex-end;
+  }
+
+  .job-interval-select {
+    flex: 1;
   }
 }

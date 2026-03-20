@@ -216,7 +216,7 @@ BET_MARKET STANDARD VALUES (CRITICAL FOR DEDUPLICATION):
 - 1X2 markets: "1x2_home", "1x2_away", "1x2_draw"
 - Over/Under goals: "over_0.5", "over_1.5", "over_2.5", "over_3.5", "over_4.5", "under_0.5", "under_1.5", "under_2.5", "under_3.5", "under_4.5"
 - BTTS: "btts_yes", "btts_no"
-- Asian Handicap: "ah_home_[line]", "ah_away_[line]" (e.g., "ah_home_-0.5", "ah_away_+1.0")
+- Asian Handicap: "asian_handicap_home_[line]", "asian_handicap_away_[line]" (e.g., "asian_handicap_home_-0.5", "asian_handicap_away_+1.0")
 - Corners: "corners_over_[line]", "corners_under_[line]" (e.g., "corners_over_9.5")
 - Double Chance: "dc_1x", "dc_x2", "dc_12"
 - You MUST use EXACTLY one of these formats for bet_market field.

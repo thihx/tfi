@@ -63,5 +63,12 @@ export function isAuthenticated(): boolean {
 
 export function logout(): void {
   clearToken();
-  location.reload();
+  const apiUrl = (import.meta as ImportMeta & { env?: { VITE_API_URL?: string } }).env?.VITE_API_URL || '';
+  const baseUrl = apiUrl || window.location.origin;
+  fetch(`${baseUrl}/api/auth/logout`, {
+    method: 'POST',
+    credentials: 'include',
+  }).finally(() => {
+    location.reload();
+  });
 }

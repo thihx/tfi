@@ -83,24 +83,36 @@ export function settleByRule(input: SettleInput): SettleOutput | null {
   }
 
   // ── Corners (Over/Under) ──
-  if (market === 'corners') {
+  if (market.startsWith('corners')) {
     const totalCorners = statValue(input.statistics, 'Corner Kicks');
     if (totalCorners === null) return null;  // no stats → fall back to AI
     // Parse line from selection text
-    const lineMatch = input.selection.match(/(\d+\.?\d*)/);
-    if (!lineMatch) return null;
-    const line = parseFloat(lineMatch[1]!);
-    const side = /under/i.test(input.selection) ? 'under' : 'over';
+    const marketMatch = market.match(/^corners_(over|under)_(\d+\.?\d*)$/);
+    const line = marketMatch
+      ? parseFloat(marketMatch[2]!)
+      : (() => {
+          const lineMatch = input.selection.match(/(\d+\.?\d*)/);
+          return lineMatch ? parseFloat(lineMatch[1]!) : null;
+        })();
+    if (line === null) return null;
+    const side = marketMatch?.[1] === 'under' || /under/i.test(input.selection) ? 'under' : 'over';
     return compareLineResult(totalCorners, line, side);
   }
 
   // ── Asian Handicap ──
-  if (market === 'asian_handicap') {
+  if (market.startsWith('asian_handicap')) {
     // Parse handicap value and side from selection
-    const ahMatch = input.selection.match(/([+-]?\d+\.?\d*)/);
-    if (!ahMatch) return null;
-    const handicap = parseFloat(ahMatch[1]!);
-    const isHome = !/away/i.test(input.selection);
+    const marketMatch = market.match(/^asian_handicap_(home|away)_([+-]?\d+\.?\d*)$/);
+    const selectionMatch = input.selection.match(/([+-]?\d+\.?\d*)/);
+    const handicap = marketMatch?.[2]
+      ? parseFloat(marketMatch[2])
+      : selectionMatch
+        ? parseFloat(selectionMatch[1]!)
+        : null;
+    if (handicap === null) return null;
+    const isHome = marketMatch?.[1]
+      ? marketMatch[1] === 'home'
+      : !/away/i.test(input.selection);
     const diff = isHome
       ? (input.homeScore - input.awayScore + handicap)
       : (input.awayScore - input.homeScore + handicap);

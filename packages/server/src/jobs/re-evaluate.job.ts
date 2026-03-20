@@ -210,7 +210,9 @@ export async function reEvaluateAllResults(): Promise<ReEvalResult> {
 
       if (isUnsettled || isDiscrepancy) {
         await recommendationsRepo.settleRecommendation(rec.id, newResult, newPnl, aiResult.explanation);
-        await aiPerfRepo.settleAiPerformance(rec.id, newResult, newPnl, newResult === 'win');
+        // F4: push → neutral (was_correct=null), not incorrect
+        const wasCorrect = newResult === 'win' ? true : newResult === 'loss' ? false : null;
+        await aiPerfRepo.settleAiPerformance(rec.id, newResult, newPnl, wasCorrect);
 
         if (isDiscrepancy) {
           result.corrected++;

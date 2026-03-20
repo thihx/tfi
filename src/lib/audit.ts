@@ -26,6 +26,7 @@ export function auditLog(config: AppConfig, entry: AuditEntry): void {
     method: 'POST',
     headers,
     body: JSON.stringify({ ...entry, actor: entry.actor ?? 'user' }),
+    credentials: 'include',
   }).catch(() => {
     // Silent — audit failure should never impact UX
   });

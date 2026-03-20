@@ -141,6 +141,10 @@ describe('fetchMatchSnapshots', () => {
       shots: '3-1',
       shots_on_target: '1-0',
       corners: '2-1',
+      fouls: '-',
+      yellow_cards: '-',
+      red_cards: '-',
+      goalkeeper_saves: '-',
       status: '1H',
     });
     expect(result[1]!.score).toBe('1-0');

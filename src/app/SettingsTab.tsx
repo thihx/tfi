@@ -183,15 +183,17 @@ function JobSchedulerPanel() {
           <div key={job.name} className={`job-card${isRunning ? ' job-running' : ''}${hasError ? ' job-error' : ''}`}>
             <div className="job-header">
               <div className="job-info">
-                <div className="job-label">{label}</div>
-                <div className="job-description">{description}</div>
-                <div className="job-meta">
-                  {job.lastRun ? `Last run: ${formatLocalDateTime(job.lastRun)}` : 'Never run'}
-                  {job.runCount > 0 && <span className="job-run-count"> (#{job.runCount})</span>}
-                  {job.lastError && !isRunning && (
-                    <span className="job-error-text"> | Error: {job.lastError}</span>
-                  )}
+                <div className="job-title-row">
+                  <span className="job-label">{label}</span>
+                  <span className="job-meta">
+                    {job.lastRun ? `Last run: ${formatLocalDateTime(job.lastRun)}` : 'Never run'}
+                    {job.runCount > 0 && <span className="job-run-count"> (#{job.runCount})</span>}
+                    {job.lastError && !isRunning && (
+                      <span className="job-error-text"> · {job.lastError}</span>
+                    )}
+                  </span>
                 </div>
+                <div className="job-description" title={description}>{description}</div>
               </div>
               <div className="job-actions">
                 <select
@@ -249,29 +251,29 @@ function JobSchedulerPanel() {
 
 export function SettingsTab() {
   return (
-    <div className="card">
+    <div className="card" style={{ maxWidth: 820 }}>
 
       {/* Job Scheduler Section */}
-      <div className="card-header" style={{ marginTop: '16px' }}>
+      <div className="card-header" style={{ padding: '14px 20px' }}>
         <div className="card-title">Job Scheduler</div>
       </div>
-      <div style={{ padding: '20px' }}>
+      <div style={{ padding: '12px 16px' }}>
         <JobSchedulerPanel />
       </div>
 
       {/* Integration Health Section */}
-      <div className="card-header" style={{ marginTop: '16px' }}>
+      <div className="card-header" style={{ padding: '14px 20px' }}>
         <div className="card-title">Integration Health</div>
       </div>
-      <div style={{ padding: '20px' }}>
+      <div style={{ padding: '12px 16px' }}>
         <IntegrationHealthPanel />
       </div>
 
       {/* Audit Trail Section */}
-      <div className="card-header" style={{ marginTop: '16px' }}>
+      <div className="card-header" style={{ padding: '14px 20px' }}>
         <div className="card-title">Audit Trail</div>
       </div>
-      <div style={{ padding: '20px' }}>
+      <div style={{ padding: '12px 16px' }}>
         <AuditLogsPanel />
       </div>
     </div>

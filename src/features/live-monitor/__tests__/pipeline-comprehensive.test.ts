@@ -13,14 +13,11 @@
 
 import { describe, test, expect, vi, beforeEach, type Mock } from 'vitest';
 import { runPipeline, runPipelineForMatch } from '../services/pipeline';
-import type { PipelineContext } from '../types';
 import {
   createAppConfig,
   createConfig,
   createWatchlistMatch,
   createFootballApiFixture,
-  createOddsResponse,
-  createOddsCanonical,
 } from './fixtures';
 import {
   fixtureNormal2H,
@@ -34,7 +31,6 @@ import {
   fixtureEarlyGame,
   fixtureWithRedCard,
   fixtureHighScoring,
-  fixtureLateGame,
   fixtureEndgame,
   fixture2HEarly,
   aiResponsePush,
@@ -871,7 +867,7 @@ describe('Cat-C: Manual / Ask-AI Pipeline', () => {
     });
 
     test('ask-ai bypasses staleness', async () => {
-      const config = defaults();
+      defaults();
       singleMatch(fixtureNormal2H(), aiResponsePush());
       (checkStaleness as Mock).mockReturnValue({ isStale: true, reason: 'recent' });
 
@@ -1354,7 +1350,7 @@ describe('Cat-E: Database Save Decisions & Data Integrity', () => {
       defaults();
       singleMatch(fixtureNormal2H(), aiResponsePush());
 
-      const ctx = await runPipeline(appConfig, { triggeredBy: 'scheduled' });
+      await runPipeline(appConfig, { triggeredBy: 'scheduled' });
 
       expect(saveRecommendation).toHaveBeenCalledTimes(1);
       const recData = (saveRecommendation as Mock).mock.calls[0]![1];
@@ -1366,7 +1362,7 @@ describe('Cat-E: Database Save Decisions & Data Integrity', () => {
       defaults();
       singleMatch(fixtureNormal2H(), aiResponsePush());
 
-      const ctx = await runPipeline(appConfig, { triggeredBy: 'scheduled' });
+      await runPipeline(appConfig, { triggeredBy: 'scheduled' });
 
       const recData = (saveRecommendation as Mock).mock.calls[0]![1];
       expect(recData.match_id).toBe('12345');

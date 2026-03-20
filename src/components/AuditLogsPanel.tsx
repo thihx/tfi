@@ -90,7 +90,10 @@ export function AuditLogsPanel() {
   const fetchStats = useCallback(async () => {
     if (apiUrl == null) return;
     try {
-      const res = await fetch(`${apiUrl}/api/audit-logs/stats`, { headers: authHeaders() });
+      const res = await fetch(`${apiUrl}/api/audit-logs/stats`, {
+        headers: authHeaders(),
+        credentials: 'include',
+      });
       if (res.ok) setStats(await res.json());
     } catch { /* ignore */ }
   }, [apiUrl]);
@@ -106,7 +109,10 @@ export function AuditLogsPanel() {
       if (filterOutcome) params.set('outcome', filterOutcome);
       if (filterAction) params.set('action', filterAction);
 
-      const res = await fetch(`${apiUrl}/api/audit-logs?${params.toString()}`, { headers: authHeaders() });
+      const res = await fetch(`${apiUrl}/api/audit-logs?${params.toString()}`, {
+        headers: authHeaders(),
+        credentials: 'include',
+      });
       if (res.ok) {
         const data = await res.json();
         setLogs(data.rows ?? data.logs);
@@ -130,7 +136,10 @@ export function AuditLogsPanel() {
       if (filterOutcome) params.set('outcome', filterOutcome);
       if (filterAction) params.set('action', filterAction);
 
-      const res = await fetch(`${apiUrl}/api/audit-logs?${params.toString()}`, { headers: authHeaders() });
+      const res = await fetch(`${apiUrl}/api/audit-logs?${params.toString()}`, {
+        headers: authHeaders(),
+        credentials: 'include',
+      });
       if (!res.ok) return;
       const data = await res.json();
       const rows = ((data.rows ?? data.logs) as AuditLogEntry[]).map((l) => ({

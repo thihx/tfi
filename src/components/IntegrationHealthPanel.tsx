@@ -78,7 +78,10 @@ export function IntegrationHealthPanel() {
     setLoading(true);
     setError(null);
     try {
-      const res = await fetch(`${API_URL}/api/integrations/health`, { headers: authHeaders() });
+      const res = await fetch(`${API_URL}/api/integrations/health`, {
+        headers: authHeaders(),
+        credentials: 'include',
+      });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       setSnapshot(await res.json());
     } catch (e: unknown) {
@@ -91,7 +94,10 @@ export function IntegrationHealthPanel() {
   const refreshSingle = useCallback(async (id: string) => {
     setRefreshingId(id);
     try {
-      const res = await fetch(`${API_URL}/api/integrations/health?service=${id}`, { headers: authHeaders() });
+      const res = await fetch(`${API_URL}/api/integrations/health?service=${id}`, {
+        headers: authHeaders(),
+        credentials: 'include',
+      });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const updated: ServiceResult = await res.json();
       setSnapshot((prev) => {
