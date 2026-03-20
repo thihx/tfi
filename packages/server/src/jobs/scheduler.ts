@@ -17,7 +17,7 @@ import { autoSettleJob } from './auto-settle.job.js';
 import { enrichWatchlistJob } from './enrich-watchlist.job.js';
 import { purgeAuditJob } from './purge-audit.job.js';
 import { integrationHealthJob } from './integration-health.job.js';
-import { jobHealthWatchdogJob } from './job-health-watchdog.job.js';
+import { healthWatchdogJob } from './health-watchdog.job.js';
 import {
   type JobProgress,
   clearJobProgress,
@@ -173,7 +173,7 @@ export async function startScheduler() {
   register('expire-watchlist', config.jobExpireWatchlistMs, expireWatchlistJob);
   register('purge-audit', config.jobAuditPurgeMs, purgeAuditJob);
   register('integration-health', config.jobIntegrationHealthMs, integrationHealthJob);
-  register('job-health-watchdog', config.jobHealthWatchdogMs, jobHealthWatchdogJob);
+  register('health-watchdog', config.jobHealthWatchdogMs, healthWatchdogJob);
 
   schedulerStartedAt = Date.now();
 

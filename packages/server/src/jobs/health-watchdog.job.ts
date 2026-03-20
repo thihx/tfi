@@ -1,9 +1,9 @@
 // ============================================================
-// Job: Health Watchdog — monitors all scheduled jobs
+// Job: Health Watchdog — giám sát các job nghiệp vụ
 //
-// Runs frequently (every 2 min) to check if critical business
-// jobs have executed within their expected interval.
-// Sends Telegram alert when a job becomes overdue.
+// Chạy mỗi 2 phút, kiểm tra các job nghiệp vụ quan trọng
+// có chạy đúng lịch hay không. Gửi cảnh báo Telegram khi
+// phát hiện job quá hạn, và thông báo khi job khôi phục.
 // ============================================================
 
 import { getJobsStatus, getSchedulerUptime } from './scheduler.js';
@@ -87,8 +87,8 @@ export interface WatchdogResult {
   recovered: string[];
 }
 
-export async function jobHealthWatchdogJob(): Promise<WatchdogResult> {
-  const JOB = 'job-health-watchdog';
+export async function healthWatchdogJob(): Promise<WatchdogResult> {
+  const JOB = 'health-watchdog';
   await reportJobProgress(JOB, 'check', 'Checking job health...', 10);
 
   const uptimeMs = getSchedulerUptime();

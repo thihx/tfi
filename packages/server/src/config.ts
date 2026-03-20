@@ -49,7 +49,7 @@ export const config = {
   jobEnrichWatchlistMs: Number(process.env['JOB_ENRICH_WATCHLIST_MS'] || 60 * 60_000),   // 60 min
   jobAuditPurgeMs: Number(process.env['JOB_AUDIT_PURGE_MS'] || 24 * 60 * 60_000),      // 24h
   jobIntegrationHealthMs: Number(process.env['JOB_INTEGRATION_HEALTH_MS'] || 30 * 60_000), // 30 min
-  jobHealthWatchdogMs: Number(process.env['JOB_HEALTH_WATCHDOG_MS'] || 2 * 60_000),       // 2 min
+  jobHealthWatchdogMs: Number(process.env['JOB_HEALTH_WATCHDOG_MS'] || 2 * 60_000),      // 2 min — giám sát job nghiệp vụ
   auditKeepDays: Number(process.env['AUDIT_KEEP_DAYS'] || 30),                          // 30 days
 
   // Live match statuses
