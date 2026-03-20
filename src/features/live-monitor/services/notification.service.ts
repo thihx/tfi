@@ -557,6 +557,10 @@ export async function notifyRecommendation(
   // Format and send telegram messages
   try {
     const chatId = monitorConfig.TELEGRAM_CHAT_ID;
+    if (!chatId) {
+      result.errors.push('Telegram skipped: TELEGRAM_CHAT_ID not configured');
+      return result;
+    }
 
     // Use sendPhoto with chart when live stats are available — 1 message instead of chunked text
     const hasStats = matchData.stats_available && matchData.stats_compact;

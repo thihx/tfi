@@ -17,6 +17,7 @@ import { autoSettleJob } from './auto-settle.job.js';
 import { enrichWatchlistJob } from './enrich-watchlist.job.js';
 import { purgeAuditJob } from './purge-audit.job.js';
 import { integrationHealthJob } from './integration-health.job.js';
+import { jobHealthWatchdogJob } from './job-health-watchdog.job.js';
 import {
   type JobProgress,
   clearJobProgress,
@@ -54,6 +55,12 @@ interface ManagedJob {
 
 const jobs: ManagedJob[] = [];
 const instanceId = crypto.randomUUID();
+let schedulerStartedAt = 0;
+
+/** Returns how long the scheduler has been running (ms). */
+export function getSchedulerUptime(): number {
+  return schedulerStartedAt > 0 ? Date.now() - schedulerStartedAt : 0;
+}
 
 // Redis key helpers (keyPrefix 'tfi:' is applied by ioredis)
 const lockKey = (name: string) => `job:lock:${name}`;
@@ -166,6 +173,9 @@ export async function startScheduler() {
   register('expire-watchlist', config.jobExpireWatchlistMs, expireWatchlistJob);
   register('purge-audit', config.jobAuditPurgeMs, purgeAuditJob);
   register('integration-health', config.jobIntegrationHealthMs, integrationHealthJob);
+  register('job-health-watchdog', config.jobHealthWatchdogMs, jobHealthWatchdogJob);
+
+  schedulerStartedAt = Date.now();
 
   // Restore state from Redis
   for (const job of jobs) {

@@ -69,7 +69,7 @@ if ([string]::IsNullOrWhiteSpace($appExists)) {
     --ingress external `
     --cpu 0.5 `
     --memory 1Gi `
-    --min-replicas 0 `
+    --min-replicas 1 `
     --max-replicas 1 `
     --registry-server $acrLoginServer 1>$null
 } else {

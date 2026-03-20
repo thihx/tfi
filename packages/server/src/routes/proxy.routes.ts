@@ -213,6 +213,9 @@ export async function proxyRoutes(app: FastifyInstance) {
       }
       try {
         const { chat_id, text, photo_url } = req.body;
+        if (!chat_id) {
+          return reply.status(200).send({ sent: false, reason: 'chat_id is empty' });
+        }
         if (photo_url) {
           await sendTelegramPhoto(chat_id, photo_url, text);
         } else {
