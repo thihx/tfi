@@ -48,6 +48,8 @@ function makeMatch(overrides: Partial<Parameters<typeof settleWithAI>[0]> = {}) 
     awayTeam: 'Team B',
     homeScore: 2,
     awayScore: 1,
+    finalStatus: 'FT',
+    settlementScope: 'regular_time' as const,
     ...overrides,
   };
 }
@@ -252,6 +254,21 @@ describe('settleWithAI', () => {
       const bets = makeBets([{ id: 1 }, { id: 2 }]);
       await settleWithAI(makeMatch(), bets);
       expect(mockCallGemini).toHaveBeenCalledTimes(1);
+    });
+
+    test('declares regular-time settlement scope for AET matches', async () => {
+      mockAIResponse([{ id: 1, result: 'win', explanation: 'test' }]);
+      const bets = makeBets([{ market: 'unsupported_market', selection: 'Unsupported' }]);
+
+      await settleWithAI(
+        makeMatch({ homeScore: 1, awayScore: 1, finalStatus: 'AET' }),
+        bets,
+      );
+
+      const promptArg = mockCallGemini.mock.calls[0]![0];
+      expect(promptArg).toContain('Trạng thái chính thức: AET');
+      expect(promptArg).toContain('Settlement scope: regular time only');
+      expect(promptArg).toContain('Extra time và penalty shootout KHÔNG được tính');
     });
   });
 

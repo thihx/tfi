@@ -19,6 +19,19 @@ import type { RecommendationRow } from '../repos/recommendations.repo.js';
 import type { MatchHistoryRow } from '../repos/matches-history.repo.js';
 import { reportJobProgress } from './job-progress.js';
 import { settleByRule } from '../lib/settle-rules.js';
+import {
+  calcSettlementPnl,
+  type FinalSettlementResult,
+  isFinalSettlementResult,
+  settlementWasCorrect,
+  type RegulationScore,
+} from '../lib/settle-types.js';
+import {
+  extractRegularTimeScoreFromFixture,
+  isNonStandardFinalStatus,
+  requiresRegularTimeBreakdown,
+  resolveSettlementScore,
+} from '../lib/settle-context.js';
 
 interface SettleResult {
   settled: number;
@@ -34,6 +47,8 @@ interface MatchContext {
   awayTeam: string;
   homeScore: number;
   awayScore: number;
+  finalStatus: string;
+  settlementScope: 'regular_time';
   statistics?: Array<{ type: string; home: string | number | null; away: string | number | null }>;
 }
 
@@ -47,7 +62,7 @@ interface BetToSettle {
 
 export interface AISettleResult {
   id: number;
-  result: 'win' | 'loss' | 'push';
+  result: FinalSettlementResult;
   explanation: string;
 }
 
@@ -71,6 +86,9 @@ function buildSettlePrompt(match: MatchContext, bets: BetToSettle[]): string {
 KẾT QUẢ TRẬN ĐẤU:
 ${match.homeTeam} ${score} ${match.awayTeam}
 Tổng bàn thắng: ${totalGoals}
+Trạng thái chính thức: ${match.finalStatus || 'FT'}
+Settlement scope: regular time only (90 phút + bù giờ). Extra time và penalty shootout KHÔNG được tính cho các market bóng đá tiêu chuẩn.
+Tỷ số ở trên đã là tỷ số dùng để settle theo settlement scope này.
 
 THỐNG KÊ TRẬN ĐẤU:
 ${statsSection}
@@ -112,14 +130,13 @@ function parseAISettleResponse(aiText: string, bets: BetToSettle[]): AISettleRes
 
   try {
     const parsed = JSON.parse(jsonMatch[0]) as Array<{ id: number; result: string; explanation: string }>;
-    const validResults = ['win', 'loss', 'push'];
     const betIds = new Set(bets.map(b => b.id));
 
     return parsed
-      .filter(item => betIds.has(item.id) && validResults.includes(item.result))
+      .filter(item => betIds.has(item.id) && isFinalSettlementResult(item.result))
       .map(item => ({
         id: item.id,
-        result: item.result as 'win' | 'loss' | 'push',
+        result: item.result as FinalSettlementResult,
         explanation: String(item.explanation || '').substring(0, 500),
       }));
   } catch (err) {
@@ -184,14 +201,8 @@ export async function settleWithAI(
 /**
  * Calculate PNL based on result, odds, and stake.
  */
-function calcPnl(result: 'win' | 'loss' | 'push', odds: number, stakePercent: number): number {
-  if (result === 'win') return round((odds - 1) * stakePercent);
-  if (result === 'loss') return round(-stakePercent);
-  return 0;
-}
-
-function round(n: number): number {
-  return Math.round(n * 100) / 100;
+function calcPnl(result: FinalSettlementResult, odds: number, stakePercent: number): number {
+  return calcSettlementPnl(result, odds, stakePercent);
 }
 
 export async function autoSettleJob(): Promise<SettleResult> {
@@ -232,11 +243,15 @@ async function settleRecommendations(recs: RecommendationRow[], stats: SettleRes
   const matchIds = [...new Set(recs.map((r) => r.match_id))];
   // Single batch query instead of N individual lookups
   const historyMap = await matchHistoryRepo.getHistoricalMatchesBatch(matchIds);
+  const regularTimeScoreMap = await fetchRegularTimeScoresForHistoryMatches(historyMap);
 
   // Fallback: fetch results from Football API for matches not in history
   const missingIds = matchIds.filter((id) => !historyMap.has(id));
   if (missingIds.length > 0) {
-    await fetchAndArchiveMissingResults(missingIds, historyMap);
+    const fetchedRegularTimeScores = await fetchAndArchiveMissingResults(missingIds, historyMap);
+    for (const [matchId, score] of fetchedRegularTimeScores) {
+      regularTimeScoreMap.set(matchId, score);
+    }
   }
 
   // Fetch match statistics for all matches (AI needs full context)
@@ -257,14 +272,11 @@ async function settleRecommendations(recs: RecommendationRow[], stats: SettleRes
       continue;
     }
 
-    const matchContext: MatchContext = {
-      matchId,
-      homeTeam: hist.home_team,
-      awayTeam: hist.away_team,
-      homeScore: hist.home_score,
-      awayScore: hist.away_score,
-      statistics: allStatsMap.get(matchId),
-    };
+    const matchContext = buildMatchContextForSettlement(matchId, hist, regularTimeScoreMap.get(matchId), allStatsMap.get(matchId));
+    if (!matchContext) {
+      stats.skipped += matchRecs.length;
+      continue;
+    }
 
     const betsToSettle: BetToSettle[] = matchRecs.map(rec => ({
       id: rec.id,
@@ -287,8 +299,7 @@ async function settleRecommendations(recs: RecommendationRow[], stats: SettleRes
 
         const pnl = calcPnl(aiResult.result, rec.odds ?? 0, rec.stake_percent ?? 1);
         await recommendationsRepo.settleRecommendation(rec.id, aiResult.result, pnl, aiResult.explanation);
-        // F4: push → neutral (was_correct=null), not incorrect
-        const wasCorrect = aiResult.result === 'win' ? true : aiResult.result === 'loss' ? false : null;
+        const wasCorrect = settlementWasCorrect(aiResult.result);
         await aiPerfRepo.settleAiPerformance(rec.id, aiResult.result, pnl, wasCorrect);
         stats.settled++;
       }
@@ -306,11 +317,15 @@ async function settleBets(
   const matchIds = [...new Set(bets.map((b) => b.match_id))];
   // Single batch query instead of N individual lookups
   const historyMap = await matchHistoryRepo.getHistoricalMatchesBatch(matchIds);
+  const regularTimeScoreMap = await fetchRegularTimeScoresForHistoryMatches(historyMap);
 
   // Fallback: fetch results from Football API for matches not in history
   const missingIds = matchIds.filter((id) => !historyMap.has(id));
   if (missingIds.length > 0) {
-    await fetchAndArchiveMissingResults(missingIds, historyMap);
+    const fetchedRegularTimeScores = await fetchAndArchiveMissingResults(missingIds, historyMap);
+    for (const [matchId, score] of fetchedRegularTimeScores) {
+      regularTimeScoreMap.set(matchId, score);
+    }
   }
 
   // Fetch match statistics for all matches
@@ -331,14 +346,11 @@ async function settleBets(
       continue;
     }
 
-    const matchContext: MatchContext = {
-      matchId,
-      homeTeam: hist.home_team,
-      awayTeam: hist.away_team,
-      homeScore: hist.home_score,
-      awayScore: hist.away_score,
-      statistics: allStatsMap.get(matchId),
-    };
+    const matchContext = buildMatchContextForSettlement(matchId, hist, regularTimeScoreMap.get(matchId), allStatsMap.get(matchId));
+    if (!matchContext) {
+      stats.skipped += matchBets.length;
+      continue;
+    }
 
     const betsToSettle: BetToSettle[] = matchBets.map(bet => ({
       id: bet.id,
@@ -421,6 +433,66 @@ export async function batchRun<T>(tasks: (() => Promise<T>)[], concurrency = 5):
 
 const FINISHED_STATUSES = new Set(['FT', 'AET', 'PEN', 'AWD', 'WO']);
 
+async function fetchRegularTimeScoresForHistoryMatches(
+  historyMap: Map<string, MatchHistoryRow>,
+): Promise<Map<string, RegulationScore>> {
+  const idsNeedingLookup = Array.from(historyMap.values())
+    .filter((hist) => requiresRegularTimeBreakdown(hist.final_status))
+    .map((hist) => hist.match_id);
+
+  return fetchRegularTimeScoresForMatchIds(idsNeedingLookup);
+}
+
+async function fetchRegularTimeScoresForMatchIds(matchIds: string[]): Promise<Map<string, RegulationScore>> {
+  const uniqueIds = [...new Set(matchIds.filter(Boolean))];
+  if (uniqueIds.length === 0) return new Map();
+
+  let fixtures: ApiFixture[] = [];
+  try {
+    fixtures = await fetchFixturesByIds(uniqueIds);
+  } catch (err) {
+    console.warn(
+      '[autoSettleJob] Failed to fetch regular-time scores:',
+      err instanceof Error ? err.message : err,
+    );
+    return new Map();
+  }
+  const out = new Map<string, RegulationScore>();
+  for (const fx of fixtures) {
+    const score = extractRegularTimeScoreFromFixture(fx);
+    if (score) out.set(String(fx.fixture.id), score);
+  }
+  return out;
+}
+
+function buildMatchContextForSettlement(
+  matchId: string,
+  hist: MatchHistoryRow,
+  regularTimeScore: RegulationScore | undefined,
+  statistics?: Array<{ type: string; home: string | number | null; away: string | number | null }>,
+): MatchContext | null {
+  if (isNonStandardFinalStatus(hist.final_status)) return null;
+
+  const settlementScore = resolveSettlementScore(
+    hist.final_status,
+    hist.home_score,
+    hist.away_score,
+    regularTimeScore,
+  );
+  if (!settlementScore) return null;
+
+  return {
+    matchId,
+    homeTeam: hist.home_team,
+    awayTeam: hist.away_team,
+    homeScore: settlementScore.home,
+    awayScore: settlementScore.away,
+    finalStatus: hist.final_status || 'FT',
+    settlementScope: 'regular_time',
+    statistics,
+  };
+}
+
 /**
  * Fetch match results from Football API for match IDs not found in matches_history.
  * If a fixture has finished (FT/AET/PEN/AWD/WO), archive it to matches_history
@@ -429,13 +501,14 @@ const FINISHED_STATUSES = new Set(['FT', 'AET', 'PEN', 'AWD', 'WO']);
 async function fetchAndArchiveMissingResults(
   missingIds: string[],
   historyMap: Map<string, MatchHistoryRow>,
-): Promise<void> {
+): Promise<Map<string, RegulationScore>> {
+  const regularTimeScores = new Map<string, RegulationScore>();
   let fixtures: ApiFixture[];
   try {
     fixtures = await fetchFixturesByIds(missingIds);
   } catch (err) {
     console.warn('[autoSettleJob] Football API fallback failed:', err instanceof Error ? err.message : err);
-    return;
+    return regularTimeScores;
   }
 
   for (const fx of fixtures) {
@@ -443,6 +516,11 @@ async function fetchAndArchiveMissingResults(
     const status = fx.fixture.status?.short ?? '';
 
     if (!FINISHED_STATUSES.has(status)) continue;
+
+    const regularTimeScore = extractRegularTimeScoreFromFixture(fx);
+    if (regularTimeScore) {
+      regularTimeScores.set(matchId, regularTimeScore);
+    }
 
     const homeScore = fx.goals?.home ?? 0;
     const awayScore = fx.goals?.away ?? 0;
@@ -492,4 +570,5 @@ async function fetchAndArchiveMissingResults(
       console.log(`[autoSettleJob] Fetched ${fixtures.length} fixtures from API, archived ${archived} finished matches`);
     }
   }
+  return regularTimeScores;
 }

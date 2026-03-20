@@ -13,8 +13,16 @@ import { settleMatch, type AISettleResult, batchRun } from './auto-settle.job.js
 import * as recommendationsRepo from '../repos/recommendations.repo.js';
 import * as matchHistoryRepo from '../repos/matches-history.repo.js';
 import * as aiPerfRepo from '../repos/ai-performance.repo.js';
-import { fetchFixturesByIds, fetchFixtureStatistics } from '../lib/football-api.js';
+import type { MatchHistoryRow } from '../repos/matches-history.repo.js';
+import { fetchFixturesByIds, fetchFixtureStatistics, type ApiFixture } from '../lib/football-api.js';
 import { normalizeMarket } from '../lib/normalize-market.js';
+import {
+  extractRegularTimeScoreFromFixture,
+  isNonStandardFinalStatus,
+  requiresRegularTimeBreakdown,
+  resolveSettlementScore,
+} from '../lib/settle-context.js';
+import { settlementWasCorrect, type RegulationScore } from '../lib/settle-types.js';
 
 export interface ReEvalResult {
   total: number;
@@ -54,6 +62,7 @@ export async function reEvaluateAllResults(): Promise<ReEvalResult> {
   // Step 2: Collect all unique match IDs and fetch scores — single batch query
   const matchIds = [...new Set(allRecs.rows.map((r) => r.match_id))];
   const historyMap = await matchHistoryRepo.getHistoricalMatchesBatch(matchIds);
+  const regularTimeScoreMap = await fetchRegularTimeScoresForHistoryMatches(historyMap);
 
   // Step 3: Football API fallback for matches not in history — batch by 20
   const missingIds = matchIds.filter((id) => !historyMap.has(id));
@@ -68,6 +77,11 @@ export async function reEvaluateAllResults(): Promise<ReEvalResult> {
           const mId = String(fx.fixture.id);
           const status = fx.fixture.status?.short ?? '';
           if (!FINISHED.has(status)) continue;
+
+          const regularTimeScore = extractRegularTimeScoreFromFixture(fx);
+          if (regularTimeScore) {
+            regularTimeScoreMap.set(mId, regularTimeScore);
+          }
 
           const homeScore = fx.goals?.home ?? 0;
           const awayScore = fx.goals?.away ?? 0;
@@ -148,6 +162,21 @@ export async function reEvaluateAllResults(): Promise<ReEvalResult> {
 
   for (const [matchId, matchRecs] of recsByMatch) {
     const hist = historyMap.get(matchId)!;
+    if (isNonStandardFinalStatus(hist.final_status)) {
+      result.skippedNoScore += matchRecs.length;
+      continue;
+    }
+
+    const settlementScore = resolveSettlementScore(
+      hist.final_status,
+      hist.home_score,
+      hist.away_score,
+      regularTimeScoreMap.get(matchId),
+    );
+    if (!settlementScore) {
+      result.skippedNoScore += matchRecs.length;
+      continue;
+    }
 
     const betsToSettle = matchRecs.map(rec => ({
       id: rec.id,
@@ -164,8 +193,10 @@ export async function reEvaluateAllResults(): Promise<ReEvalResult> {
           matchId,
           homeTeam: hist.home_team,
           awayTeam: hist.away_team,
-          homeScore: hist.home_score,
-          awayScore: hist.away_score,
+          homeScore: settlementScore.home,
+          awayScore: settlementScore.away,
+          finalStatus: hist.final_status || 'FT',
+          settlementScope: 'regular_time',
           statistics: allMatchStatistics.get(matchId),
         },
         betsToSettle,
@@ -201,8 +232,7 @@ export async function reEvaluateAllResults(): Promise<ReEvalResult> {
 
       if (isUnsettled || isDiscrepancy) {
         await recommendationsRepo.settleRecommendation(rec.id, newResult, newPnl, aiResult.explanation);
-        // F4: push → neutral (was_correct=null), not incorrect
-        const wasCorrect = newResult === 'win' ? true : newResult === 'loss' ? false : null;
+        const wasCorrect = settlementWasCorrect(newResult);
         await aiPerfRepo.settleAiPerformance(rec.id, newResult, newPnl, wasCorrect);
 
         if (isDiscrepancy) {
@@ -227,4 +257,32 @@ export async function reEvaluateAllResults(): Promise<ReEvalResult> {
 
   console.log(`[re-evaluate] Done: ${result.evaluated} evaluated, ${result.corrected} corrected, ${result.newlySettled} newly settled, ${result.skippedNoScore} no score`);
   return result;
+}
+
+async function fetchRegularTimeScoresForHistoryMatches(
+  historyMap: Map<string, MatchHistoryRow>,
+): Promise<Map<string, RegulationScore>> {
+  const idsNeedingLookup = Array.from(historyMap.values())
+    .filter((hist) => requiresRegularTimeBreakdown(hist.final_status))
+    .map((hist) => hist.match_id);
+
+  const uniqueIds = [...new Set(idsNeedingLookup.filter(Boolean))];
+  if (uniqueIds.length === 0) return new Map();
+
+  let fixtures: ApiFixture[] = [];
+  try {
+    fixtures = await fetchFixturesByIds(uniqueIds);
+  } catch (err) {
+    console.warn('[re-evaluate] Failed to fetch regular-time scores:', err instanceof Error ? err.message : err);
+    return new Map();
+  }
+
+  const scoreMap = new Map<string, RegulationScore>();
+  for (const fx of fixtures) {
+    const regularTimeScore = extractRegularTimeScoreFromFixture(fx);
+    if (regularTimeScore) {
+      scoreMap.set(String(fx.fixture.id), regularTimeScore);
+    }
+  }
+  return scoreMap;
 }

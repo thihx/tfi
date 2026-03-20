@@ -354,4 +354,56 @@ describe('reEvaluateAllResults', () => {
     expect(result.corrected).toBe(1);
     expect(result.newlySettled).toBe(1);
   });
+
+  test('re-fetches AET history fixture and settles using regular-time score', async () => {
+    const rec = makeRec({
+      id: 9,
+      match_id: '90909',
+      selection: 'Over 2.5',
+      bet_market: 'over_2.5',
+      odds: 1.85,
+      stake_percent: 2,
+      result: 'win',
+      pnl: 1.7,
+    });
+
+    (query as Mock).mockResolvedValueOnce({ rows: [rec] });
+    (matchHistoryRepo.getHistoricalMatchesBatch as Mock).mockResolvedValueOnce(
+      new Map([[
+        '90909',
+        makeHistory({
+          match_id: '90909',
+          final_status: 'AET',
+          home_score: 2,
+          away_score: 2,
+        }),
+      ]]),
+    );
+    (fetchFixturesByIds as Mock).mockResolvedValueOnce([{
+      fixture: {
+        id: 90909,
+        date: '2026-03-16T20:00:00+00:00',
+        status: { short: 'AET' },
+        venue: { name: 'Test Stadium' },
+      },
+      league: { id: 39, name: 'PL' },
+      teams: { home: { name: 'TeamA' }, away: { name: 'TeamB' } },
+      goals: { home: 2, away: 2 },
+      score: { fulltime: { home: 1, away: 1 } },
+    }]);
+    (recommendationsRepo.settleRecommendation as Mock).mockResolvedValueOnce(null);
+    (aiPerfRepo.settleAiPerformance as Mock).mockResolvedValueOnce(null);
+
+    const result = await reEvaluateAllResults();
+
+    expect(result.corrected).toBe(1);
+    expect(result.discrepancies[0]!.newResult).toBe('loss');
+    expect(recommendationsRepo.settleRecommendation).toHaveBeenCalledWith(
+      9,
+      'loss',
+      -2,
+      expect.any(String),
+    );
+    expect(callGemini).not.toHaveBeenCalled();
+  });
 });
