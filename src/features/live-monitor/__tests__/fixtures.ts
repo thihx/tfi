@@ -33,6 +33,7 @@ export function createConfig(overrides?: Partial<LiveMonitorConfig>): LiveMonito
     EMAIL_TO: 'test@example.com',
     TELEGRAM_CHAT_ID: '1234567',
     MANUAL_PUSH_MATCH_IDS: [],
+    NOTIFICATION_LANGUAGE: 'en',
     MIN_MINUTE: 5,
     MAX_MINUTE: 85,
     SECOND_HALF_START_MINUTE: 5,

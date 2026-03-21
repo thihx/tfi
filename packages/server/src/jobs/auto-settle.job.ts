@@ -25,6 +25,7 @@ import {
   isFinalSettlementResult,
   settlementWasCorrect,
   type RegulationScore,
+  type SettlementPersistenceMeta,
 } from '../lib/settle-types.js';
 import {
   extractRegularTimeScoreFromFixture,
@@ -32,6 +33,13 @@ import {
   requiresRegularTimeBreakdown,
   resolveSettlementScore,
 } from '../lib/settle-context.js';
+import {
+  buildSettlePrompt as buildStrictSettlePrompt,
+  parseAISettleResponse as parseStrictSettleResponse,
+  type ParsedSettleResult,
+  SETTLE_PROMPT_VERSION,
+} from '../lib/settle-prompt.js';
+import { auditSkipped } from '../lib/audit.js';
 
 interface SettleResult {
   settled: number;
@@ -62,11 +70,15 @@ interface BetToSettle {
 
 export interface AISettleResult {
   id: number;
-  result: FinalSettlementResult;
+  result: ParsedSettleResult['result'];
   explanation: string;
+  source?: 'rules' | 'ai';
 }
 
-function buildSettlePrompt(match: MatchContext, bets: BetToSettle[]): string {
+export function buildSettlePrompt(match: MatchContext, bets: BetToSettle[]): string {
+  return buildStrictSettlePrompt(match, bets);
+/*
+
   const score = `${match.homeScore}-${match.awayScore}`;
   const totalGoals = match.homeScore + match.awayScore;
 
@@ -118,9 +130,13 @@ VÍ DỤ explanation:
 - "Đội nhà thắng 2-1, kèo Home Win đúng"
 
 QUAN TRỌNG: Trả về đúng ${bets.length} items, mỗi item cho một kèo. explanation phải ngắn gọn nhưng rõ ràng.`;
+*/
 }
 
-function parseAISettleResponse(aiText: string, bets: BetToSettle[]): AISettleResult[] {
+export function parseAISettleResponse(aiText: string, bets: BetToSettle[]): AISettleResult[] {
+  return parseStrictSettleResponse(aiText, bets);
+/*
+
   // Extract JSON array from AI response
   const jsonMatch = aiText.match(/\[[\s\S]*\]/);
   if (!jsonMatch) {
@@ -143,6 +159,7 @@ function parseAISettleResponse(aiText: string, bets: BetToSettle[]): AISettleRes
     console.error('[ai-settle] JSON parse error:', err instanceof Error ? err.message : err);
     return [];
   }
+*/
 }
 
 /**
@@ -168,7 +185,12 @@ export async function settleMatch(
       statistics: match.statistics,
     });
     if (ruleResult) {
-      resultsMap.set(bet.id, { id: bet.id, result: ruleResult.result, explanation: ruleResult.explanation });
+      resultsMap.set(bet.id, {
+        id: bet.id,
+        result: ruleResult.result,
+        explanation: ruleResult.explanation,
+        source: 'rules',
+      });
     } else {
       needAI.push(bet);
     }
@@ -192,10 +214,13 @@ export async function settleWithAI(
   match: MatchContext,
   bets: BetToSettle[],
 ): Promise<AISettleResult[]> {
-  const prompt = buildSettlePrompt(match, bets);
+  const prompt = buildStrictSettlePrompt(match, bets);
   const model = config.geminiModel;
   const aiText = await callGemini(prompt, model);
-  return parseAISettleResponse(aiText, bets);
+  return parseStrictSettleResponse(aiText, bets).map((row) => ({
+    ...row,
+    source: 'ai',
+  }));
 }
 
 /**
@@ -203,6 +228,20 @@ export async function settleWithAI(
  */
 function calcPnl(result: FinalSettlementResult, odds: number, stakePercent: number): number {
   return calcSettlementPnl(result, odds, stakePercent);
+}
+
+function buildSettlementMeta(
+  source: AISettleResult['source'],
+  status: 'resolved' | 'corrected' | 'unresolved',
+  note: string,
+): SettlementPersistenceMeta {
+  return {
+    status,
+    method: source === 'rules' || source === 'ai' ? source : undefined,
+    settlePromptVersion: source === 'ai' ? SETTLE_PROMPT_VERSION : '',
+    note,
+    trusted: status !== 'unresolved',
+  };
 }
 
 export async function autoSettleJob(): Promise<SettleResult> {
@@ -233,8 +272,7 @@ export async function autoSettleJob(): Promise<SettleResult> {
 }
 
 async function getUnsettledRecommendations(): Promise<RecommendationRow[]> {
-  // Use 'pending' filter which maps to SQL: result IS NULL OR result NOT IN ('win','loss','push')
-  // Avoids full-table scan + client-side filter; handles >1000 rows correctly
+  // Use the repo's "pending" filter so quarter-line / void outcomes are not re-processed as open rows.
   const { rows } = await recommendationsRepo.getAllRecommendations({ result: 'pending', limit: 2000 });
   return rows;
 }
@@ -268,12 +306,40 @@ async function settleRecommendations(recs: RecommendationRow[], stats: SettleRes
   for (const [matchId, matchRecs] of recsByMatch) {
     const hist = historyMap.get(matchId);
     if (!hist) {
+      for (const rec of matchRecs) {
+        const note = 'No historical result available for settlement.';
+        await recommendationsRepo.markRecommendationUnresolved(rec.id, { note });
+        await aiPerfRepo.markAiPerformanceSettlementState(rec.id, {
+          status: 'unresolved',
+          trusted: false,
+          note,
+        });
+        auditSkipped('JOB', 'SETTLEMENT_UNRESOLVED', {
+          actor: 'auto-settle',
+          match_id: rec.match_id,
+          metadata: { recommendationId: rec.id, reason: note, selection: rec.selection },
+        });
+      }
       stats.skipped += matchRecs.length;
       continue;
     }
 
     const matchContext = buildMatchContextForSettlement(matchId, hist, regularTimeScoreMap.get(matchId), allStatsMap.get(matchId));
     if (!matchContext) {
+      for (const rec of matchRecs) {
+        const note = `Settlement context unavailable for final status ${hist.final_status}.`;
+        await recommendationsRepo.markRecommendationUnresolved(rec.id, { note });
+        await aiPerfRepo.markAiPerformanceSettlementState(rec.id, {
+          status: 'unresolved',
+          trusted: false,
+          note,
+        });
+        auditSkipped('JOB', 'SETTLEMENT_UNRESOLVED', {
+          actor: 'auto-settle',
+          match_id: rec.match_id,
+          metadata: { recommendationId: rec.id, reason: note, finalStatus: hist.final_status, selection: rec.selection },
+        });
+      }
       stats.skipped += matchRecs.length;
       continue;
     }
@@ -292,15 +358,52 @@ async function settleRecommendations(recs: RecommendationRow[], stats: SettleRes
       for (const rec of matchRecs) {
         const aiResult = resultsMap.get(rec.id);
         if (!aiResult) {
+          const note = 'No settlement result returned from settle pipeline.';
           console.warn(`[autoSettleJob] No result for rec ${rec.id}, skipping`);
+          await recommendationsRepo.markRecommendationUnresolved(rec.id, {
+            method: 'ai',
+            settlePromptVersion: SETTLE_PROMPT_VERSION,
+            note,
+          });
+          await aiPerfRepo.markAiPerformanceSettlementState(rec.id, {
+            status: 'unresolved',
+            method: 'ai',
+            settlePromptVersion: SETTLE_PROMPT_VERSION,
+            trusted: false,
+            note,
+          });
+          auditSkipped('JOB', 'SETTLEMENT_UNRESOLVED', {
+            actor: 'auto-settle',
+            match_id: rec.match_id,
+            metadata: { recommendationId: rec.id, reason: note, selection: rec.selection },
+          });
+          stats.skipped++;
+          continue;
+        }
+        if (!isFinalSettlementResult(aiResult.result)) {
+          console.warn(`[autoSettleJob] Unresolved settlement for rec ${rec.id}: ${aiResult.explanation}`);
+          const unresolvedMeta = buildSettlementMeta(aiResult.source, 'unresolved', aiResult.explanation);
+          await recommendationsRepo.markRecommendationUnresolved(rec.id, unresolvedMeta);
+          await aiPerfRepo.markAiPerformanceSettlementState(rec.id, unresolvedMeta);
+          auditSkipped('JOB', 'SETTLEMENT_UNRESOLVED', {
+            actor: 'auto-settle',
+            match_id: rec.match_id,
+            metadata: {
+              recommendationId: rec.id,
+              reason: aiResult.explanation,
+              source: aiResult.source ?? 'unknown',
+              selection: rec.selection,
+            },
+          });
           stats.skipped++;
           continue;
         }
 
         const pnl = calcPnl(aiResult.result, rec.odds ?? 0, rec.stake_percent ?? 1);
-        await recommendationsRepo.settleRecommendation(rec.id, aiResult.result, pnl, aiResult.explanation);
+        const settlementMeta = buildSettlementMeta(aiResult.source, 'resolved', aiResult.explanation);
+        await recommendationsRepo.settleRecommendation(rec.id, aiResult.result, pnl, aiResult.explanation, settlementMeta);
         const wasCorrect = settlementWasCorrect(aiResult.result);
-        await aiPerfRepo.settleAiPerformance(rec.id, aiResult.result, pnl, wasCorrect);
+        await aiPerfRepo.settleAiPerformance(rec.id, aiResult.result, pnl, wasCorrect, settlementMeta);
         stats.settled++;
       }
     } catch (err) {
@@ -342,12 +445,30 @@ async function settleBets(
   for (const [matchId, matchBets] of betsByMatch) {
     const hist = historyMap.get(matchId);
     if (!hist) {
+      for (const bet of matchBets) {
+        const note = 'No historical result available for settlement.';
+        await betsRepo.markBetUnresolved(bet.id, { note });
+        auditSkipped('JOB', 'BET_SETTLEMENT_UNRESOLVED', {
+          actor: 'auto-settle',
+          match_id: bet.match_id,
+          metadata: { betId: bet.id, reason: note, selection: bet.selection },
+        });
+      }
       stats.skipped += matchBets.length;
       continue;
     }
 
     const matchContext = buildMatchContextForSettlement(matchId, hist, regularTimeScoreMap.get(matchId), allStatsMap.get(matchId));
     if (!matchContext) {
+      for (const bet of matchBets) {
+        const note = `Settlement context unavailable for final status ${hist.final_status}.`;
+        await betsRepo.markBetUnresolved(bet.id, { note });
+        auditSkipped('JOB', 'BET_SETTLEMENT_UNRESOLVED', {
+          actor: 'auto-settle',
+          match_id: bet.match_id,
+          metadata: { betId: bet.id, reason: note, finalStatus: hist.final_status, selection: bet.selection },
+        });
+      }
       stats.skipped += matchBets.length;
       continue;
     }
@@ -366,13 +487,42 @@ async function settleBets(
       for (const bet of matchBets) {
         const aiResult = resultsMap.get(bet.id);
         if (!aiResult) {
+          const note = 'No settlement result returned from settle pipeline.';
           console.warn(`[autoSettleJob] No result for bet ${bet.id}, skipping`);
+          await betsRepo.markBetUnresolved(bet.id, {
+            method: 'ai',
+            settlePromptVersion: SETTLE_PROMPT_VERSION,
+            note,
+          });
+          auditSkipped('JOB', 'BET_SETTLEMENT_UNRESOLVED', {
+            actor: 'auto-settle',
+            match_id: bet.match_id,
+            metadata: { betId: bet.id, reason: note, selection: bet.selection },
+          });
+          stats.skipped++;
+          continue;
+        }
+        if (!isFinalSettlementResult(aiResult.result)) {
+          console.warn(`[autoSettleJob] Unresolved settlement for bet ${bet.id}: ${aiResult.explanation}`);
+          const unresolvedMeta = buildSettlementMeta(aiResult.source, 'unresolved', aiResult.explanation);
+          await betsRepo.markBetUnresolved(bet.id, unresolvedMeta);
+          auditSkipped('JOB', 'BET_SETTLEMENT_UNRESOLVED', {
+            actor: 'auto-settle',
+            match_id: bet.match_id,
+            metadata: {
+              betId: bet.id,
+              reason: aiResult.explanation,
+              source: aiResult.source ?? 'unknown',
+              selection: bet.selection,
+            },
+          });
           stats.skipped++;
           continue;
         }
 
         const pnl = calcPnl(aiResult.result, bet.odds, bet.stake_percent || 1);
-        await betsRepo.settleBet(bet.id, aiResult.result, pnl, aiResult.explanation, 'auto');
+        const settlementMeta = buildSettlementMeta(aiResult.source, 'resolved', aiResult.explanation);
+        await betsRepo.settleBet(bet.id, aiResult.result, pnl, aiResult.explanation, 'auto', settlementMeta);
         stats.settled++;
       }
     } catch (err) {

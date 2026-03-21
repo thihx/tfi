@@ -7,7 +7,7 @@
 // ============================================================
 
 import { normalizeMarket } from './normalize-market.js';
-import type { FinalSettlementResult } from './settle-types.js';
+import type { FinalSettlementResult, SettlementResult } from './settle-types.js';
 
 export interface SettleInput {
   market: string;
@@ -18,7 +18,7 @@ export interface SettleInput {
 }
 
 export interface SettleOutput {
-  result: FinalSettlementResult;
+  result: SettlementResult;
   explanation: string;
 }
 
@@ -157,7 +157,12 @@ export function settleByRule(input: SettleInput): SettleOutput | null {
 
   if (market.startsWith('corners')) {
     const totalCorners = statValue(input.statistics, 'Corner Kicks');
-    if (totalCorners === null) return null;
+    if (totalCorners === null) {
+      return {
+        result: 'unresolved',
+        explanation: 'Missing official corner statistics',
+      };
+    }
 
     const marketMatch = market.match(/^corners_(over|under)_(\d+(?:\.\d+)?)$/);
     const line = marketMatch
@@ -171,6 +176,18 @@ export function settleByRule(input: SettleInput): SettleOutput | null {
     const side = marketMatch?.[1] === 'under' || /under/i.test(input.selection) ? 'under' : 'over';
     const result = settleTotalMarket(totalCorners, line, side);
     return result ? { result, explanation: explainTotalResult(totalCorners, line, result) } : null;
+  }
+
+  if (looksLikeCardsMarket(market, input.selection)) {
+    const yellowCards = statValue(input.statistics, 'Yellow Cards');
+    const redCards = statValue(input.statistics, 'Red Cards');
+    if (yellowCards === null && redCards === null) {
+      return {
+        result: 'unresolved',
+        explanation: 'Missing official card statistics',
+      };
+    }
+    return null;
   }
 
   if (market.startsWith('asian_handicap')) {
@@ -197,4 +214,9 @@ export function settleByRule(input: SettleInput): SettleOutput | null {
   }
 
   return null;
+}
+
+function looksLikeCardsMarket(market: string, selection: string): boolean {
+  const combined = `${market} ${selection}`.toLowerCase();
+  return /\bcard/.test(combined) || /\byellow\b/.test(combined) || /\bred\b/.test(combined);
 }

@@ -1,0 +1,344 @@
+{
+  "generatedAt": "2026-03-21T03:44:23.706Z",
+  "migrationStatus": {
+    "pending": [],
+    "appliedTail": [
+      "007_audit_logs.sql",
+      "008_match_enrichment.sql",
+      "009_provider_samples.sql",
+      "010_watchlist_logos.sql",
+      "011_settlement_audit.sql"
+    ]
+  },
+  "liveMatches": [
+    {
+      "matchId": "1469683",
+      "league": "A-League",
+      "match": "Auckland vs Macarthur",
+      "status": "2H",
+      "minute": 85,
+      "score": "0-2"
+    },
+    {
+      "matchId": "1489154",
+      "league": "Primera División",
+      "match": "Guadalupe FC vs Sporting San Jose",
+      "status": "2H",
+      "minute": 78,
+      "score": "0-0"
+    },
+    {
+      "matchId": "1492563",
+      "league": "Liga MX",
+      "match": "Mazatlán vs Cruz Azul",
+      "status": "1H",
+      "minute": 36,
+      "score": "0-0"
+    }
+  ],
+  "upcomingMatches": [
+    {
+      "matchId": "1469684",
+      "league": "A-League",
+      "match": "Brisbane Roar vs Wellington Phoenix",
+      "kickoff": "2026-03-21 13:00:00"
+    },
+    {
+      "matchId": "1504719",
+      "league": "J1 League",
+      "match": "Fagiano Okayama vs V-varen Nagasaki",
+      "kickoff": "2026-03-21 14:00:00"
+    },
+    {
+      "matchId": "1506920",
+      "league": "K League 1",
+      "match": "Daejeon Citizen vs Jeonbuk Motors",
+      "kickoff": "2026-03-21 14:00:00"
+    }
+  ],
+  "enrichment": {
+    "selectedMatchIds": [
+      "1469684",
+      "1504719",
+      "1506920"
+    ],
+    "jobResult": {
+      "checked": 3,
+      "enriched": 2
+    },
+    "records": [
+      {
+        "matchId": "1469684",
+        "match": "Brisbane Roar vs Wellington Phoenix",
+        "league": "A-League",
+        "enrichedAt": "2026-03-21T03:44:26.582Z",
+        "sourceQuality": "unknown",
+        "trustedSourceCount": 0,
+        "quantitativeCoverage": 0,
+        "hasUsableSummary": true
+      },
+      {
+        "matchId": "1504719",
+        "match": "Fagiano Okayama vs V-varen Nagasaki",
+        "league": "J1 League",
+        "enrichedAt": "2026-03-21T03:45:10.603Z",
+        "sourceQuality": "medium",
+        "trustedSourceCount": 2,
+        "quantitativeCoverage": 1,
+        "hasUsableSummary": true
+      },
+      {
+        "matchId": "1506920",
+        "match": "Daejeon Citizen vs Jeonbuk Motors",
+        "league": "K League 1",
+        "enrichedAt": "2026-03-21T03:45:55.116Z",
+        "sourceQuality": "unknown",
+        "trustedSourceCount": 0,
+        "quantitativeCoverage": 0,
+        "hasUsableSummary": false
+      }
+    ]
+  },
+  "askAi": {
+    "matchId": "1469683",
+    "httpStatus": 200,
+    "responseLength": 1648
+  },
+  "liveRuns": [
+    {
+      "matchId": "1469683",
+      "match": "Auckland vs Macarthur",
+      "league": "A-League",
+      "status": "2H",
+      "minute": 85,
+      "mode": "auto",
+      "shadowMode": true,
+      "success": true,
+      "shouldPush": false,
+      "selection": "",
+      "confidence": 0,
+      "saved": false,
+      "notified": false,
+      "statsSource": "api-football",
+      "statsFallbackUsed": false
+    },
+    {
+      "matchId": "1469683",
+      "match": "Auckland vs Macarthur",
+      "league": "A-League",
+      "status": "2H",
+      "minute": 85,
+      "mode": "system_force",
+      "shadowMode": true,
+      "success": true,
+      "shouldPush": false,
+      "selection": "",
+      "confidence": 0,
+      "saved": false,
+      "notified": false,
+      "oddsSource": "live",
+      "statsSource": "api-football",
+      "evidenceMode": "full_live_data",
+      "statsFallbackUsed": false
+    },
+    {
+      "matchId": "1469683",
+      "match": "Auckland vs Macarthur",
+      "league": "A-League",
+      "status": "2H",
+      "minute": 85,
+      "mode": "manual_force",
+      "shadowMode": true,
+      "success": true,
+      "shouldPush": false,
+      "selection": "",
+      "confidence": 0,
+      "saved": false,
+      "notified": false,
+      "oddsSource": "live",
+      "statsSource": "api-football",
+      "evidenceMode": "full_live_data",
+      "statsFallbackUsed": false
+    },
+    {
+      "matchId": "1489154",
+      "match": "Guadalupe FC vs Sporting San Jose",
+      "league": "Primera División",
+      "status": "2H",
+      "minute": 78,
+      "mode": "auto",
+      "shadowMode": true,
+      "success": true,
+      "shouldPush": false,
+      "selection": "",
+      "confidence": 0,
+      "saved": false,
+      "notified": false,
+      "oddsSource": "live",
+      "statsSource": "api-football",
+      "evidenceMode": "odds_events_only_degraded",
+      "statsFallbackUsed": false,
+      "statsFallbackReason": "Live Score fallback rejected: api_pairs=0, live_pairs=1, live_quality=VERY_POOR"
+    },
+    {
+      "matchId": "1489154",
+      "match": "Guadalupe FC vs Sporting San Jose",
+      "league": "Primera División",
+      "status": "2H",
+      "minute": 78,
+      "mode": "system_force",
+      "shadowMode": true,
+      "success": true,
+      "shouldPush": false,
+      "selection": "",
+      "confidence": 0,
+      "saved": false,
+      "notified": false,
+      "oddsSource": "live",
+      "statsSource": "api-football",
+      "evidenceMode": "odds_events_only_degraded",
+      "statsFallbackUsed": false,
+      "statsFallbackReason": "Live Score fallback rejected: api_pairs=0, live_pairs=1, live_quality=VERY_POOR"
+    },
+    {
+      "matchId": "1489154",
+      "match": "Guadalupe FC vs Sporting San Jose",
+      "league": "Primera División",
+      "status": "2H",
+      "minute": 78,
+      "mode": "manual_force",
+      "shadowMode": true,
+      "success": true,
+      "shouldPush": false,
+      "selection": "",
+      "confidence": 0,
+      "saved": false,
+      "notified": false,
+      "oddsSource": "live",
+      "statsSource": "api-football",
+      "evidenceMode": "odds_events_only_degraded",
+      "statsFallbackUsed": false,
+      "statsFallbackReason": "Live Score fallback rejected: api_pairs=0, live_pairs=1, live_quality=VERY_POOR"
+    },
+    {
+      "matchId": "1492563",
+      "match": "Mazatlán vs Cruz Azul",
+      "league": "Liga MX",
+      "status": "1H",
+      "minute": 36,
+      "mode": "auto",
+      "shadowMode": true,
+      "success": true,
+      "shouldPush": false,
+      "selection": "",
+      "confidence": 0,
+      "saved": false,
+      "notified": false,
+      "oddsSource": "live",
+      "statsSource": "api-football",
+      "evidenceMode": "full_live_data",
+      "statsFallbackUsed": false
+    },
+    {
+      "matchId": "1492563",
+      "match": "Mazatlán vs Cruz Azul",
+      "league": "Liga MX",
+      "status": "1H",
+      "minute": 36,
+      "mode": "system_force",
+      "shadowMode": true,
+      "success": true,
+      "shouldPush": false,
+      "selection": "",
+      "confidence": 0,
+      "saved": false,
+      "notified": false,
+      "oddsSource": "live",
+      "statsSource": "api-football",
+      "evidenceMode": "full_live_data",
+      "statsFallbackUsed": false
+    },
+    {
+      "matchId": "1492563",
+      "match": "Mazatlán vs Cruz Azul",
+      "league": "Liga MX",
+      "status": "1H",
+      "minute": 36,
+      "mode": "manual_force",
+      "shadowMode": true,
+      "success": true,
+      "shouldPush": false,
+      "selection": "",
+      "confidence": 0,
+      "saved": false,
+      "notified": false,
+      "oddsSource": "live",
+      "statsSource": "api-football",
+      "evidenceMode": "full_live_data",
+      "statsFallbackUsed": false
+    }
+  ],
+  "batchRun": {
+    "matchIds": [
+      "1469683",
+      "1489154",
+      "1492563"
+    ],
+    "totalMatches": 3,
+    "processed": 3,
+    "errors": 0,
+    "shouldPushCount": 0,
+    "savedCount": 0
+  },
+  "saveAndNotify": {
+    "matchId": null,
+    "result": null,
+    "recommendationRow": null
+  },
+  "providerSamples": {
+    "stats": [
+      {
+        "provider": "api-football",
+        "consumer": "replay",
+        "sample_count": 28
+      },
+      {
+        "provider": "api-football",
+        "consumer": "server-pipeline",
+        "sample_count": 37
+      },
+      {
+        "provider": "live-score-api",
+        "consumer": "replay",
+        "sample_count": 28
+      },
+      {
+        "provider": "live-score-api",
+        "consumer": "server-pipeline",
+        "sample_count": 8
+      }
+    ],
+    "odds": [
+      {
+        "provider": "api-football",
+        "source": "live",
+        "consumer": "replay",
+        "sample_count": 25
+      },
+      {
+        "provider": "api-football",
+        "source": "live",
+        "consumer": "server-pipeline",
+        "sample_count": 27
+      }
+    ]
+  },
+  "settle": {
+    "autoSettle": {
+      "settled": 0,
+      "skipped": 2,
+      "errors": 0
+    },
+    "recentReportExists": true
+  }
+}

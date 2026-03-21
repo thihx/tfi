@@ -4,6 +4,12 @@ vi.mock('../config.js', () => ({
   config: {
     geminiApiKey: 'test-key',
     geminiModel: 'gemini-test',
+    geminiStrategicGroundedModel: 'gemini-strategic-grounded',
+    geminiStrategicStructuredModel: 'gemini-strategic-structured',
+    geminiStrategicGroundedMaxOutputTokens: 4000,
+    geminiStrategicStructuredMaxOutputTokens: 2048,
+    geminiStrategicGroundedThinkingBudget: 0,
+    geminiStrategicStructuredThinkingBudget: 0,
   },
 }));
 
@@ -232,6 +238,176 @@ ALERT_RATIONALE:`,
     expect(prompt).toContain('If competition_type is unknown or unclear, leave it as an empty string and disable league-position-gap reasoning.');
   });
 
+  test('uses strategic-context-specific Gemini model and thinking config for grounded and structured calls', async () => {
+    fetchMock
+      .mockResolvedValueOnce(makeGeminiResponse(
+        `COMPETITION_TYPE: domestic_league
+HOME_MOTIVATION: No data found
+AWAY_MOTIVATION: No data found
+LEAGUE_POSITIONS: No data found
+FIXTURE_CONGESTION: No data found
+ROTATION_RISK: No data found
+KEY_ABSENCES: No data found
+H2H_NARRATIVE: No data found
+SUMMARY: No data found
+HOME_LAST5_POINTS: null
+AWAY_LAST5_POINTS: null
+HOME_LAST5_GOALS_FOR: null
+AWAY_LAST5_GOALS_FOR: null
+HOME_LAST5_GOALS_AGAINST: null
+AWAY_LAST5_GOALS_AGAINST: null
+HOME_HOME_GOALS_AVG: null
+AWAY_AWAY_GOALS_AVG: null
+HOME_OVER_2_5_RATE_LAST10: null
+AWAY_OVER_2_5_RATE_LAST10: null
+HOME_BTTS_RATE_LAST10: null
+AWAY_BTTS_RATE_LAST10: null
+HOME_CLEAN_SHEET_RATE_LAST10: null
+AWAY_CLEAN_SHEET_RATE_LAST10: null
+HOME_FAILED_TO_SCORE_RATE_LAST10: null
+AWAY_FAILED_TO_SCORE_RATE_LAST10: null
+ALERT_WINDOW_START: null
+ALERT_WINDOW_END: null
+PREFERRED_SCORE_STATE: any
+PREFERRED_GOAL_STATE: any
+FAVOURED_SIDE: none
+ALERT_RATIONALE:`,
+        { groundingChunks: [] },
+      ))
+      .mockResolvedValueOnce(makeGeminiResponse(JSON.stringify({
+        qualitative_en: {
+          home_motivation: 'No data found',
+          away_motivation: 'No data found',
+          league_positions: 'No data found',
+          fixture_congestion: 'No data found',
+          rotation_risk: 'No data found',
+          key_absences: 'No data found',
+          h2h_narrative: 'No data found',
+          summary: 'No data found',
+        },
+        qualitative_vi: {
+          home_motivation: 'Khong tim thay du lieu',
+          away_motivation: 'Khong tim thay du lieu',
+          league_positions: 'Khong tim thay du lieu',
+          fixture_congestion: 'Khong tim thay du lieu',
+          rotation_risk: 'Khong tim thay du lieu',
+          key_absences: 'Khong tim thay du lieu',
+          h2h_narrative: 'Khong tim thay du lieu',
+          summary: 'Khong tim thay du lieu',
+        },
+        quantitative: {},
+        competition_type: 'domestic_league',
+        condition_blueprint: {
+          alert_window_start: null,
+          alert_window_end: null,
+          preferred_score_state: 'any',
+          preferred_goal_state: 'any',
+          favoured_side: 'none',
+          alert_rationale_en: '',
+          alert_rationale_vi: '',
+        },
+      })));
+
+    await fetchStrategicContext('Team A', 'Team B', 'League', '2026-03-21');
+
+    const groundedUrl = String(fetchMock.mock.calls[0]?.[0] ?? '');
+    const groundedBody = JSON.parse(String((fetchMock.mock.calls[0]?.[1] as { body?: string } | undefined)?.body ?? '{}'));
+    const structuredUrl = String(fetchMock.mock.calls[1]?.[0] ?? '');
+    const structuredBody = JSON.parse(String((fetchMock.mock.calls[1]?.[1] as { body?: string } | undefined)?.body ?? '{}'));
+
+    expect(groundedUrl).toContain('/gemini-strategic-grounded:generateContent');
+    expect(groundedBody.generationConfig?.responseMimeType).toBe('text/plain');
+    expect(groundedBody.thinkingConfig).toEqual({ thinkingBudget: 0 });
+    expect(structuredUrl).toContain('/gemini-strategic-structured:generateContent');
+    expect(structuredBody.generationConfig?.responseMimeType).toBe('application/json');
+    expect(structuredBody.thinkingConfig).toEqual({ thinkingBudget: 0 });
+  });
+
+  test('retries without thinkingConfig when Gemini rejects that field', async () => {
+    fetchMock
+      .mockResolvedValueOnce({
+        ok: false,
+        status: 400,
+        text: vi.fn().mockResolvedValue('Invalid JSON payload received. Unknown name "thinkingConfig": Cannot find field.'),
+      })
+      .mockResolvedValueOnce(makeGeminiResponse(
+        `COMPETITION_TYPE: domestic_league
+HOME_MOTIVATION: No data found
+AWAY_MOTIVATION: No data found
+LEAGUE_POSITIONS: No data found
+FIXTURE_CONGESTION: No data found
+ROTATION_RISK: No data found
+KEY_ABSENCES: No data found
+H2H_NARRATIVE: No data found
+SUMMARY: No data found
+HOME_LAST5_POINTS: null
+AWAY_LAST5_POINTS: null
+HOME_LAST5_GOALS_FOR: null
+AWAY_LAST5_GOALS_FOR: null
+HOME_LAST5_GOALS_AGAINST: null
+AWAY_LAST5_GOALS_AGAINST: null
+HOME_HOME_GOALS_AVG: null
+AWAY_AWAY_GOALS_AVG: null
+HOME_OVER_2_5_RATE_LAST10: null
+AWAY_OVER_2_5_RATE_LAST10: null
+HOME_BTTS_RATE_LAST10: null
+AWAY_BTTS_RATE_LAST10: null
+HOME_CLEAN_SHEET_RATE_LAST10: null
+AWAY_CLEAN_SHEET_RATE_LAST10: null
+HOME_FAILED_TO_SCORE_RATE_LAST10: null
+AWAY_FAILED_TO_SCORE_RATE_LAST10: null
+ALERT_WINDOW_START: null
+ALERT_WINDOW_END: null
+PREFERRED_SCORE_STATE: any
+PREFERRED_GOAL_STATE: any
+FAVOURED_SIDE: none
+ALERT_RATIONALE:`,
+        { groundingChunks: [] },
+      ))
+      .mockResolvedValueOnce(makeGeminiResponse(JSON.stringify({
+        qualitative_en: {
+          home_motivation: 'No data found',
+          away_motivation: 'No data found',
+          league_positions: 'No data found',
+          fixture_congestion: 'No data found',
+          rotation_risk: 'No data found',
+          key_absences: 'No data found',
+          h2h_narrative: 'No data found',
+          summary: 'No data found',
+        },
+        qualitative_vi: {
+          home_motivation: 'Khong tim thay du lieu',
+          away_motivation: 'Khong tim thay du lieu',
+          league_positions: 'Khong tim thay du lieu',
+          fixture_congestion: 'Khong tim thay du lieu',
+          rotation_risk: 'Khong tim thay du lieu',
+          key_absences: 'Khong tim thay du lieu',
+          h2h_narrative: 'Khong tim thay du lieu',
+          summary: 'Khong tim thay du lieu',
+        },
+        quantitative: {},
+        competition_type: 'domestic_league',
+        condition_blueprint: {
+          alert_window_start: null,
+          alert_window_end: null,
+          preferred_score_state: 'any',
+          preferred_goal_state: 'any',
+          favoured_side: 'none',
+          alert_rationale_en: '',
+          alert_rationale_vi: '',
+        },
+      })));
+
+    const context = await fetchStrategicContext('Retry Team A', 'Retry Team B', 'Retry League', '2026-03-21');
+
+    expect(context).not.toBeNull();
+    expect(fetchMock).toHaveBeenCalledTimes(3);
+    const firstBody = JSON.parse(String((fetchMock.mock.calls[0]?.[1] as { body?: string } | undefined)?.body ?? '{}'));
+    const secondBody = JSON.parse(String((fetchMock.mock.calls[1]?.[1] as { body?: string } | undefined)?.body ?? '{}'));
+    expect(firstBody.thinkingConfig).toEqual({ thinkingBudget: 0 });
+    expect(secondBody.thinkingConfig).toBeUndefined();
+  });
+
   test('downgrades low-trust grounded search output to no-data context', async () => {
     fetchMock
       .mockResolvedValueOnce(makeGeminiResponse(
@@ -317,6 +493,91 @@ ALERT_RATIONALE: Weak evidence`,
     expect(context?.ai_condition).toBe('');
     expect(context?.source_meta.search_quality).toBe('low');
     expect(context?.source_meta.rejected_source_count).toBe(1);
+  });
+
+  test('classifies wrapped Google grounding redirect sources by the original source title domain', async () => {
+    fetchMock
+      .mockResolvedValueOnce(makeGeminiResponse(
+        `COMPETITION_TYPE: domestic_league
+HOME_MOTIVATION: No data found
+AWAY_MOTIVATION: No data found
+LEAGUE_POSITIONS: No data found
+FIXTURE_CONGESTION: No data found
+ROTATION_RISK: No data found
+KEY_ABSENCES: No data found
+H2H_NARRATIVE: No data found
+SUMMARY: No data found
+HOME_LAST5_POINTS: null
+AWAY_LAST5_POINTS: null
+HOME_LAST5_GOALS_FOR: null
+AWAY_LAST5_GOALS_FOR: null
+HOME_LAST5_GOALS_AGAINST: null
+AWAY_LAST5_GOALS_AGAINST: null
+HOME_HOME_GOALS_AVG: null
+AWAY_AWAY_GOALS_AVG: null
+HOME_OVER_2_5_RATE_LAST10: null
+AWAY_OVER_2_5_RATE_LAST10: null
+HOME_BTTS_RATE_LAST10: null
+AWAY_BTTS_RATE_LAST10: null
+HOME_CLEAN_SHEET_RATE_LAST10: null
+AWAY_CLEAN_SHEET_RATE_LAST10: null
+HOME_FAILED_TO_SCORE_RATE_LAST10: null
+AWAY_FAILED_TO_SCORE_RATE_LAST10: null
+ALERT_WINDOW_START: null
+ALERT_WINDOW_END: null
+PREFERRED_SCORE_STATE: any
+PREFERRED_GOAL_STATE: any
+FAVOURED_SIDE: none
+ALERT_RATIONALE:
+SEARCH_QUERIES: Arsenal Chelsea form
+SOURCE_DOMAINS: fbref.com,premierleague.com`,
+        {
+          webSearchQueries: ['Arsenal Chelsea form'],
+          groundingChunks: [
+            { web: { uri: 'https://vertexaisearch.cloud.google.com/grounding-api-redirect/abc', title: 'fbref.com' } },
+            { web: { uri: 'https://vertexaisearch.cloud.google.com/grounding-api-redirect/def', title: 'premierleague.com' } },
+          ],
+        },
+      ))
+      .mockResolvedValueOnce(makeGeminiResponse(JSON.stringify({
+        qualitative_en: {
+          home_motivation: 'No data found',
+          away_motivation: 'No data found',
+          league_positions: 'No data found',
+          fixture_congestion: 'No data found',
+          rotation_risk: 'No data found',
+          key_absences: 'No data found',
+          h2h_narrative: 'No data found',
+          summary: 'No data found',
+        },
+        qualitative_vi: {
+          home_motivation: 'Khong tim thay du lieu',
+          away_motivation: 'Khong tim thay du lieu',
+          league_positions: 'Khong tim thay du lieu',
+          fixture_congestion: 'Khong tim thay du lieu',
+          rotation_risk: 'Khong tim thay du lieu',
+          key_absences: 'Khong tim thay du lieu',
+          h2h_narrative: 'Khong tim thay du lieu',
+          summary: 'Khong tim thay du lieu',
+        },
+        quantitative: {},
+        competition_type: 'domestic_league',
+        condition_blueprint: {
+          alert_window_start: null,
+          alert_window_end: null,
+          preferred_score_state: 'any',
+          preferred_goal_state: 'any',
+          favoured_side: 'none',
+          alert_rationale_en: '',
+          alert_rationale_vi: '',
+        },
+      })));
+
+    const context = await fetchStrategicContext('Arsenal', 'Chelsea', 'Premier League', '2026-03-21');
+
+    expect(context?.source_meta.sources.map((source) => source.domain)).toEqual(['fbref.com', 'premierleague.com']);
+    expect(context?.source_meta.trusted_source_count).toBe(2);
+    expect(context?.source_meta.search_quality).toBe('high');
   });
 
   test('builds machine condition from structured blueprint safely', () => {

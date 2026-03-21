@@ -4,14 +4,12 @@
 
 import { config } from '../config.js';
 
-const GEMINI_TIMEOUT_MS = 30_000;
-
 export async function callGemini(prompt: string, model: string): Promise<string> {
   if (!config.geminiApiKey) throw new Error('GEMINI_API_KEY not configured');
 
   const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${config.geminiApiKey}`;
   const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), GEMINI_TIMEOUT_MS);
+  const timer = setTimeout(() => controller.abort(), config.geminiTimeoutMs);
 
   let res: Response;
   try {

@@ -10,11 +10,13 @@ import type { MatchHistoryRow } from '../repos/matches-history.repo.js';
 vi.mock('../repos/recommendations.repo.js', () => ({
   getAllRecommendations: vi.fn(),
   settleRecommendation: vi.fn(),
+  markRecommendationUnresolved: vi.fn(),
 }));
 
 vi.mock('../repos/bets.repo.js', () => ({
   getUnsettledBets: vi.fn(),
   settleBet: vi.fn(),
+  markBetUnresolved: vi.fn(),
 }));
 
 vi.mock('../repos/matches-history.repo.js', () => ({
@@ -25,6 +27,7 @@ vi.mock('../repos/matches-history.repo.js', () => ({
 
 vi.mock('../repos/ai-performance.repo.js', () => ({
   settleAiPerformance: vi.fn(),
+  markAiPerformanceSettlementState: vi.fn(),
 }));
 
 vi.mock('../lib/football-api.js', () => ({
@@ -42,6 +45,14 @@ vi.mock('../config.js', () => ({
 
 vi.mock('../jobs/job-progress.js', () => ({
   reportJobProgress: vi.fn(),
+}));
+
+vi.mock('../lib/audit.js', () => ({
+  audit: vi.fn(),
+  auditSuccess: vi.fn(),
+  auditFailure: vi.fn(),
+  auditSkipped: vi.fn(),
+  auditWrap: vi.fn(),
 }));
 
 import * as recommendationsRepo from '../repos/recommendations.repo.js';
@@ -184,12 +195,14 @@ describe('autoSettleJob', () => {
       'win',
       expect.closeTo(2.55),
       expect.any(String),
+      expect.objectContaining({ status: 'resolved', method: 'rules' }),
     );
     expect(aiPerfRepo.settleAiPerformance).toHaveBeenCalledWith(
       1,
       'win',
       expect.closeTo(2.55),
       true,
+      expect.objectContaining({ status: 'resolved', method: 'rules', trusted: true }),
     );
     expect(fetchFixturesByIds).not.toHaveBeenCalled();
   });
@@ -215,6 +228,7 @@ describe('autoSettleJob', () => {
       'win',
       expect.closeTo(1.8),
       expect.any(String),
+      expect.objectContaining({ status: 'resolved', method: 'rules' }),
     );
     expect(callGemini).not.toHaveBeenCalled();
   });
@@ -241,6 +255,7 @@ describe('autoSettleJob', () => {
       'win',
       expect.closeTo(2.55),
       expect.any(String),
+      expect.objectContaining({ status: 'resolved', method: 'rules' }),
     );
     expect(matchHistoryRepo.archiveFinishedMatches).toHaveBeenCalled();
   });
@@ -334,6 +349,7 @@ describe('autoSettleJob', () => {
       'loss',
       -3,
       expect.any(String),
+      expect.objectContaining({ status: 'resolved', method: 'rules' }),
     );
   });
 
@@ -353,8 +369,20 @@ describe('autoSettleJob', () => {
     const stats = await autoSettleJob();
 
     expect(stats.settled).toBe(1);
-    expect(recommendationsRepo.settleRecommendation).toHaveBeenCalledWith(1, 'push', 0, expect.any(String));
-    expect(aiPerfRepo.settleAiPerformance).toHaveBeenCalledWith(1, 'push', 0, null);
+    expect(recommendationsRepo.settleRecommendation).toHaveBeenCalledWith(
+      1,
+      'push',
+      0,
+      expect.any(String),
+      expect.objectContaining({ status: 'resolved', method: 'rules' }),
+    );
+    expect(aiPerfRepo.settleAiPerformance).toHaveBeenCalledWith(
+      1,
+      'push',
+      0,
+      null,
+      expect.objectContaining({ status: 'resolved', method: 'rules', trusted: true }),
+    );
   });
 
   test('settles AET match using regular-time score from API fulltime breakdown', async () => {
@@ -374,7 +402,13 @@ describe('autoSettleJob', () => {
     const stats = await autoSettleJob();
 
     expect(stats.settled).toBe(1);
-    expect(recommendationsRepo.settleRecommendation).toHaveBeenCalledWith(1, 'loss', -2, expect.any(String));
+    expect(recommendationsRepo.settleRecommendation).toHaveBeenCalledWith(
+      1,
+      'loss',
+      -2,
+      expect.any(String),
+      expect.objectContaining({ status: 'resolved', method: 'rules' }),
+    );
     expect(callGemini).not.toHaveBeenCalled();
   });
 
@@ -395,6 +429,39 @@ describe('autoSettleJob', () => {
     expect(stats.settled).toBe(0);
     expect(stats.skipped).toBe(1);
     expect(recommendationsRepo.settleRecommendation).not.toHaveBeenCalled();
+    expect(recommendationsRepo.markRecommendationUnresolved).toHaveBeenCalledWith(
+      1,
+      expect.objectContaining({ note: expect.stringContaining('Settlement context unavailable') }),
+    );
+    expect(callGemini).not.toHaveBeenCalled();
+  });
+
+  test('marks corners market unresolved when official corner stats are missing', async () => {
+    const rec = makeRec({
+      match_id: '33333',
+      bet_market: 'corners_over_9.5',
+      selection: 'Corners Over 9.5',
+      odds: 1.95,
+      stake_percent: 2,
+    });
+    (recommendationsRepo.getAllRecommendations as Mock).mockResolvedValue({ rows: [rec] });
+    (matchHistoryRepo.getHistoricalMatchesBatch as Mock).mockResolvedValue(
+      new Map([['33333', makeHistory({ match_id: '33333', home_score: 2, away_score: 1 })]]),
+    );
+
+    const stats = await autoSettleJob();
+
+    expect(stats.settled).toBe(0);
+    expect(stats.skipped).toBe(1);
+    expect(recommendationsRepo.settleRecommendation).not.toHaveBeenCalled();
+    expect(recommendationsRepo.markRecommendationUnresolved).toHaveBeenCalledWith(
+      1,
+      expect.objectContaining({ method: 'rules', note: expect.stringContaining('Missing official corner statistics') }),
+    );
+    expect(aiPerfRepo.markAiPerformanceSettlementState).toHaveBeenCalledWith(
+      1,
+      expect.objectContaining({ status: 'unresolved', method: 'rules', trusted: false }),
+    );
     expect(callGemini).not.toHaveBeenCalled();
   });
 });

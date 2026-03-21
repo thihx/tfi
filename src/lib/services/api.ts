@@ -223,6 +223,10 @@ export async function fetchApprovedLeagues(config: AppConfig): Promise<League[]>
   return pgFetch<League[]>(config, '/api/leagues');
 }
 
+export async function fetchActiveLeagues(config: AppConfig): Promise<League[]> {
+  return pgFetch<League[]>(config, '/api/leagues/active');
+}
+
 export async function fetchLeagueFixtures(
   config: AppConfig,
   leagueId: number,

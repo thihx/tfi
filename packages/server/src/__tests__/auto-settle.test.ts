@@ -1,17 +1,18 @@
 // ============================================================
-// Unit tests — auto-settle AI-based settlement
+// Unit tests - auto-settle AI fallback settlement
 // ============================================================
 
-import { describe, test, expect, vi, beforeEach } from 'vitest';
+import { beforeEach, describe, expect, test, vi } from 'vitest';
 
-// Mock all repo/db modules to avoid pool.ts import chain
 vi.mock('../repos/recommendations.repo.js', () => ({
   getAllRecommendations: vi.fn(),
   settleRecommendation: vi.fn(),
+  markRecommendationUnresolved: vi.fn(),
 }));
 vi.mock('../repos/bets.repo.js', () => ({
   getUnsettledBets: vi.fn(),
   settleBet: vi.fn(),
+  markBetUnresolved: vi.fn(),
 }));
 vi.mock('../repos/matches-history.repo.js', () => ({
   getHistoricalMatch: vi.fn(),
@@ -19,6 +20,7 @@ vi.mock('../repos/matches-history.repo.js', () => ({
 }));
 vi.mock('../repos/ai-performance.repo.js', () => ({
   settleAiPerformance: vi.fn(),
+  markAiPerformanceSettlementState: vi.fn(),
 }));
 vi.mock('../lib/football-api.js', () => ({
   fetchFixturesByIds: vi.fn(),
@@ -27,18 +29,23 @@ vi.mock('../lib/football-api.js', () => ({
 vi.mock('../jobs/job-progress.js', () => ({
   reportJobProgress: vi.fn(),
 }));
-
-// Mock callGemini
 vi.mock('../lib/gemini.js', () => ({
   callGemini: vi.fn(),
 }));
-
 vi.mock('../config.js', () => ({
   config: { geminiApiKey: 'test-key', geminiModel: 'test-model' },
+}));
+vi.mock('../lib/audit.js', () => ({
+  audit: vi.fn(),
+  auditSuccess: vi.fn(),
+  auditFailure: vi.fn(),
+  auditSkipped: vi.fn(),
+  auditWrap: vi.fn(),
 }));
 
 import { settleWithAI, type AISettleResult } from '../jobs/auto-settle.job.js';
 import { callGemini } from '../lib/gemini.js';
+
 const mockCallGemini = vi.mocked(callGemini);
 
 function makeMatch(overrides: Partial<Parameters<typeof settleWithAI>[0]> = {}) {
@@ -74,96 +81,43 @@ beforeEach(() => {
 });
 
 describe('settleWithAI', () => {
-  describe('Over/Under Goals', () => {
-    test('over 2.5 wins when 3 goals', async () => {
-      mockAIResponse([{ id: 1, result: 'win', explanation: 'Tổng bàn thắng là 3, vượt mức 2.5' }]);
+  describe('basic unsupported market fallback', () => {
+    test('returns win for over 2.5 when AI says win', async () => {
+      mockAIResponse([{ id: 1, result: 'win', explanation: 'Tong ban thang la 3, vuot muc 2.5' }]);
       const results = await settleWithAI(makeMatch({ homeScore: 2, awayScore: 1 }), makeBets());
       expect(results).toHaveLength(1);
       expect(results[0]!.result).toBe('win');
       expect(results[0]!.explanation).toContain('3');
     });
 
-    test('over 2.5 loses when 1 goal', async () => {
-      mockAIResponse([{ id: 1, result: 'loss', explanation: 'Tổng bàn thắng là 1, không vượt mức 2.5' }]);
+    test('returns loss for over 2.5 when AI says loss', async () => {
+      mockAIResponse([{ id: 1, result: 'loss', explanation: 'Tong ban thang la 1, khong vuot muc 2.5' }]);
       const results = await settleWithAI(makeMatch({ homeScore: 1, awayScore: 0 }), makeBets());
       expect(results[0]!.result).toBe('loss');
     });
 
-    test('push when total equals line', async () => {
-      mockAIResponse([{ id: 1, result: 'push', explanation: 'Tổng bàn thắng bằng đúng line 2.0' }]);
+    test('supports push when AI returns push', async () => {
+      mockAIResponse([{ id: 1, result: 'push', explanation: 'Tong ban thang bang dung line 2.0' }]);
       const bets = makeBets([{ market: 'ou2.0', selection: 'Over 2.0' }]);
       const results = await settleWithAI(makeMatch({ homeScore: 1, awayScore: 1 }), bets);
       expect(results[0]!.result).toBe('push');
     });
-  });
 
-  describe('BTTS', () => {
-    test('BTTS yes wins when both score', async () => {
-      mockAIResponse([{ id: 1, result: 'win', explanation: 'Cả hai đội đều ghi bàn (1-2)' }]);
-      const bets = makeBets([{ market: 'btts_yes', selection: 'BTTS Yes' }]);
-      const results = await settleWithAI(makeMatch({ homeScore: 1, awayScore: 2 }), bets);
-      expect(results[0]!.result).toBe('win');
-    });
-
-    test('BTTS yes loses when one team blank', async () => {
-      mockAIResponse([{ id: 1, result: 'loss', explanation: 'Chỉ đội nhà ghi bàn (2-0)' }]);
-      const bets = makeBets([{ market: 'btts_yes', selection: 'BTTS Yes' }]);
-      const results = await settleWithAI(makeMatch({ homeScore: 2, awayScore: 0 }), bets);
-      expect(results[0]!.result).toBe('loss');
+    test('supports unresolved when AI says official evidence is missing', async () => {
+      mockAIResponse([{ id: 1, result: 'unresolved', explanation: 'Khong du thong ke chinh thuc' }]);
+      const bets = makeBets([{ market: 'cards_over_4.5', selection: 'Cards Over 4.5' }]);
+      const results = await settleWithAI(makeMatch(), bets);
+      expect(results).toHaveLength(1);
+      expect(results[0]!.result).toBe('unresolved');
     });
   });
 
-  describe('1X2', () => {
-    test('home win', async () => {
-      mockAIResponse([{ id: 1, result: 'win', explanation: 'Đội nhà thắng 2-0' }]);
-      const bets = makeBets([{ market: '1x2_home', selection: 'Home Win' }]);
-      const results = await settleWithAI(makeMatch({ homeScore: 2, awayScore: 0 }), bets);
-      expect(results[0]!.result).toBe('win');
-    });
-
-    test('home pick loses on away win', async () => {
-      mockAIResponse([{ id: 1, result: 'loss', explanation: 'Đội khách thắng 0-1' }]);
-      const bets = makeBets([{ market: '1x2_home', selection: 'Home Win' }]);
-      const results = await settleWithAI(makeMatch({ homeScore: 0, awayScore: 1 }), bets);
-      expect(results[0]!.result).toBe('loss');
-    });
-  });
-
-  describe('Corners (with statistics)', () => {
-    test('corners over 9.5 wins when 11 corners', async () => {
-      mockAIResponse([{ id: 1, result: 'win', explanation: 'Tổng corners là 11, vượt mức 9.5' }]);
-      const match = makeMatch({
-        statistics: [
-          { type: 'Corner Kicks', home: 6, away: 5 },
-          { type: 'Yellow Cards', home: 2, away: 3 },
-        ],
-      });
-      const bets = makeBets([{ market: 'corners_over_9.5', selection: 'Corners Over 9.5 @1.9' }]);
-      const results = await settleWithAI(match, bets);
-      expect(results[0]!.result).toBe('win');
-      expect(results[0]!.explanation).toContain('11');
-    });
-
-    test('corners over 8.5 loses when only 6 corners (not goals)', async () => {
-      mockAIResponse([{ id: 1, result: 'loss', explanation: 'Tổng corners là 6, không vượt mức 8.5' }]);
-      const match = makeMatch({
-        homeScore: 5, awayScore: 4, // 9 goals but only 6 corners
-        statistics: [
-          { type: 'Corner Kicks', home: 3, away: 3 },
-        ],
-      });
-      const bets = makeBets([{ market: 'corners_over_8.5', selection: 'Corners Over 8.5' }]);
-      const results = await settleWithAI(match, bets);
-      expect(results[0]!.result).toBe('loss');
-    });
-  });
-
-  describe('Multiple bets per match', () => {
-    test('settles multiple bets in one AI call', async () => {
+  describe('multiple bets', () => {
+    test('parses a full batch only when all items are present', async () => {
       mockAIResponse([
-        { id: 1, result: 'win', explanation: 'Tổng bàn thắng là 3, vượt mức 2.5' },
-        { id: 2, result: 'loss', explanation: 'Đội khách thắng 1-2, kèo Home Win thua' },
-        { id: 3, result: 'win', explanation: 'Cả hai đội đều ghi bàn' },
+        { id: 1, result: 'win', explanation: 'a' },
+        { id: 2, result: 'loss', explanation: 'b' },
+        { id: 3, result: 'win', explanation: 'c' },
       ]);
       const bets = makeBets([
         { id: 1, market: 'over_2.5', selection: 'Over 2.5' },
@@ -172,15 +126,13 @@ describe('settleWithAI', () => {
       ]);
       const results = await settleWithAI(makeMatch({ homeScore: 1, awayScore: 2 }), bets);
       expect(results).toHaveLength(3);
-      expect(results[0]!.result).toBe('win');
-      expect(results[1]!.result).toBe('loss');
-      expect(results[2]!.result).toBe('win');
+      expect(results.map((r) => r.result)).toEqual(['win', 'loss', 'win']);
     });
   });
 
-  describe('AI response parsing', () => {
-    test('handles AI response with markdown wrapper', async () => {
-      mockCallGemini.mockResolvedValueOnce('```json\n[{"id": 1, "result": "win", "explanation": "test"}]\n```');
+  describe('strict parser', () => {
+    test('accepts markdown-wrapped JSON', async () => {
+      mockCallGemini.mockResolvedValueOnce('```json\n[{"id":1,"result":"win","explanation":"test"}]\n```');
       const results = await settleWithAI(makeMatch(), makeBets());
       expect(results).toHaveLength(1);
       expect(results[0]!.result).toBe('win');
@@ -192,37 +144,50 @@ describe('settleWithAI', () => {
       expect(results).toHaveLength(0);
     });
 
-    test('filters out invalid result values', async () => {
+    test('rejects invalid result values', async () => {
       mockCallGemini.mockResolvedValueOnce(JSON.stringify([
         { id: 1, result: 'win', explanation: 'ok' },
         { id: 2, result: 'invalid', explanation: 'bad' },
       ]));
-      const bets = makeBets([{ id: 1 }, { id: 2 }]);
-      const results = await settleWithAI(makeMatch(), bets);
-      expect(results).toHaveLength(1);
-      expect(results[0]!.id).toBe(1);
+      const results = await settleWithAI(makeMatch(), makeBets([{ id: 1 }, { id: 2 }]));
+      expect(results).toHaveLength(0);
     });
 
-    test('filters out IDs not in bet list', async () => {
+    test('rejects foreign IDs', async () => {
       mockCallGemini.mockResolvedValueOnce(JSON.stringify([
         { id: 1, result: 'win', explanation: 'ok' },
         { id: 999, result: 'loss', explanation: 'unknown bet' },
       ]));
       const results = await settleWithAI(makeMatch(), makeBets([{ id: 1 }]));
-      expect(results).toHaveLength(1);
-      expect(results[0]!.id).toBe(1);
+      expect(results).toHaveLength(0);
+    });
+
+    test('rejects duplicate IDs', async () => {
+      mockCallGemini.mockResolvedValueOnce(JSON.stringify([
+        { id: 1, result: 'win', explanation: 'ok' },
+        { id: 1, result: 'loss', explanation: 'duplicate' },
+      ]));
+      const results = await settleWithAI(makeMatch(), makeBets([{ id: 1 }, { id: 2 }]));
+      expect(results).toHaveLength(0);
+    });
+
+    test('rejects missing items', async () => {
+      mockCallGemini.mockResolvedValueOnce(JSON.stringify([
+        { id: 1, result: 'win', explanation: 'ok' },
+      ]));
+      const results = await settleWithAI(makeMatch(), makeBets([{ id: 1 }, { id: 2 }]));
+      expect(results).toHaveLength(0);
     });
 
     test('truncates long explanations to 500 chars', async () => {
-      const longExplanation = 'A'.repeat(600);
-      mockAIResponse([{ id: 1, result: 'win', explanation: longExplanation }]);
+      mockAIResponse([{ id: 1, result: 'win', explanation: 'A'.repeat(600) }]);
       const results = await settleWithAI(makeMatch(), makeBets());
       expect(results[0]!.explanation.length).toBeLessThanOrEqual(500);
     });
   });
 
-  describe('prompt includes correct data', () => {
-    test('passes match statistics to AI prompt', async () => {
+  describe('prompt content', () => {
+    test('passes statistics into the AI prompt', async () => {
       mockAIResponse([{ id: 1, result: 'win', explanation: 'test' }]);
       const match = makeMatch({
         statistics: [
@@ -230,23 +195,30 @@ describe('settleWithAI', () => {
           { type: 'Ball Possession', home: '60%', away: '40%' },
         ],
       });
-      await settleWithAI(match, makeBets());
+
+      await settleWithAI(match, makeBets([{ market: 'unsupported_market', selection: 'Unsupported' }]));
 
       const promptArg = mockCallGemini.mock.calls[0]![0];
       expect(promptArg).toContain('Corner Kicks');
-      expect(promptArg).toContain('7');
       expect(promptArg).toContain('Ball Possession');
+      expect(promptArg).toContain('Only use official evidence');
     });
 
-    test('includes total goals in prompt', async () => {
+    test('declares regular-time scope and unresolved policy for AET matches', async () => {
       mockAIResponse([{ id: 1, result: 'win', explanation: 'test' }]);
-      await settleWithAI(makeMatch({ homeScore: 3, awayScore: 2 }), makeBets());
+      await settleWithAI(
+        makeMatch({ homeScore: 1, awayScore: 1, finalStatus: 'AET' }),
+        makeBets([{ market: 'unsupported_market', selection: 'Unsupported' }]),
+      );
 
       const promptArg = mockCallGemini.mock.calls[0]![0];
-      expect(promptArg).toContain('5'); // total goals
+      expect(promptArg).toContain('Official final status: AET');
+      expect(promptArg).toContain('Settlement scope: regular time only');
+      expect(promptArg).toContain('Missing data is NOT a push');
+      expect(promptArg).toContain('"unresolved"');
     });
 
-    test('calls Gemini once per settleWithAI invocation', async () => {
+    test('calls Gemini once per invocation', async () => {
       mockAIResponse([
         { id: 1, result: 'win', explanation: 'a' },
         { id: 2, result: 'loss', explanation: 'b' },
@@ -254,21 +226,6 @@ describe('settleWithAI', () => {
       const bets = makeBets([{ id: 1 }, { id: 2 }]);
       await settleWithAI(makeMatch(), bets);
       expect(mockCallGemini).toHaveBeenCalledTimes(1);
-    });
-
-    test('declares regular-time settlement scope for AET matches', async () => {
-      mockAIResponse([{ id: 1, result: 'win', explanation: 'test' }]);
-      const bets = makeBets([{ market: 'unsupported_market', selection: 'Unsupported' }]);
-
-      await settleWithAI(
-        makeMatch({ homeScore: 1, awayScore: 1, finalStatus: 'AET' }),
-        bets,
-      );
-
-      const promptArg = mockCallGemini.mock.calls[0]![0];
-      expect(promptArg).toContain('Trạng thái chính thức: AET');
-      expect(promptArg).toContain('Settlement scope: regular time only');
-      expect(promptArg).toContain('Extra time và penalty shootout KHÔNG được tính');
     });
   });
 

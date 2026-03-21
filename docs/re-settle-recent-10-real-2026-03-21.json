@@ -1,0 +1,360 @@
+{
+  "ranAt": "2026-03-21T02:03:46.006Z",
+  "matchCount": 10,
+  "recommendationCount": 18,
+  "updatedRows": 13,
+  "correctedRows": 2,
+  "provenanceRefreshedRows": 11,
+  "unresolvedRows": 0,
+  "skippedMatches": [
+    {
+      "matchId": "1388541",
+      "reason": "missing_history",
+      "recommendations": 2
+    },
+    {
+      "matchId": "1379263",
+      "reason": "missing_history",
+      "recommendations": 1
+    },
+    {
+      "matchId": "1379266",
+      "reason": "missing_history",
+      "recommendations": 1
+    },
+    {
+      "matchId": "1378150",
+      "reason": "missing_history",
+      "recommendations": 1
+    }
+  ],
+  "sourceCounts": {
+    "rules": 13,
+    "ai": 0,
+    "unknown": 0
+  },
+  "matches": [
+    {
+      "matchId": "1504713",
+      "match": "Nagoya Grampus vs Sanfrecce Hiroshima",
+      "finalStatus": "FT",
+      "score": "2-1",
+      "statsCount": 18,
+      "rows": [
+        {
+          "id": 11011,
+          "selection": "Corners Over 9.5 @1.9",
+          "betMarket": "corners_over_9.5",
+          "oldResult": "loss",
+          "oldPnl": -6,
+          "oldMethod": "legacy",
+          "newResult": "win",
+          "newPnl": 5.4,
+          "source": "rules",
+          "updated": true,
+          "note": "Actual 12 vs line 9.5 -> win"
+        }
+      ]
+    },
+    {
+      "matchId": "1504710",
+      "match": "Avispa Fukuoka vs Shimizu S-pulse",
+      "finalStatus": "PEN",
+      "score": "1-1",
+      "statsCount": 18,
+      "rows": [
+        {
+          "id": 11010,
+          "selection": "Under 2.25 Goals @1.97",
+          "betMarket": "under_2.25",
+          "oldResult": "win",
+          "oldPnl": 3.88,
+          "oldMethod": "legacy",
+          "newResult": "half_win",
+          "newPnl": 1.94,
+          "source": "rules",
+          "updated": true,
+          "note": "Actual 2 vs line 2.25 -> half_win"
+        },
+        {
+          "id": 11008,
+          "selection": "BTTS No @1.94",
+          "betMarket": "btts_no",
+          "oldResult": "loss",
+          "oldPnl": -4,
+          "oldMethod": "legacy",
+          "newResult": "loss",
+          "newPnl": -4,
+          "source": "rules",
+          "updated": true,
+          "note": "Score 1-1, BTTS No -> loss"
+        }
+      ]
+    },
+    {
+      "matchId": "1378149",
+      "match": "Pisa vs Cagliari",
+      "finalStatus": "FT",
+      "score": "3-1",
+      "statsCount": 18,
+      "rows": [
+        {
+          "id": 2211,
+          "selection": "Corners Over 7 @1.727",
+          "betMarket": "corners_over_7",
+          "oldResult": "loss",
+          "oldPnl": -4,
+          "oldMethod": "legacy",
+          "newResult": "loss",
+          "newPnl": -4,
+          "source": "rules",
+          "updated": true,
+          "note": "Actual 6 vs line 7 -> loss"
+        },
+        {
+          "id": 2209,
+          "selection": "Over 4.5 Goals @1.85",
+          "betMarket": "over_4.5",
+          "oldResult": "loss",
+          "oldPnl": -4,
+          "oldMethod": "legacy",
+          "newResult": "loss",
+          "newPnl": -4,
+          "source": "rules",
+          "updated": true,
+          "note": "Actual 4 vs line 4.5 -> loss"
+        },
+        {
+          "id": 2202,
+          "selection": "Over 3.5 Goals @1.615",
+          "betMarket": "over_3.5",
+          "oldResult": "win",
+          "oldPnl": 3.08,
+          "oldMethod": "legacy",
+          "newResult": "win",
+          "newPnl": 3.08,
+          "source": "rules",
+          "updated": true,
+          "note": "Actual 4 vs line 3.5 -> win"
+        },
+        {
+          "id": 2199,
+          "selection": "BTTS Yes @1.533",
+          "betMarket": "btts_yes",
+          "oldResult": "win",
+          "oldPnl": 2.13,
+          "oldMethod": "legacy",
+          "newResult": "win",
+          "newPnl": 2.13,
+          "source": "rules",
+          "updated": true,
+          "note": "Score 3-1, BTTS Yes -> win"
+        }
+      ]
+    },
+    {
+      "matchId": "1382842",
+      "match": "Dundee vs Dundee Utd",
+      "finalStatus": "FT",
+      "score": "2-2",
+      "statsCount": 18,
+      "rows": [
+        {
+          "id": 2207,
+          "selection": "Over 2.5 Goals @1.727",
+          "betMarket": "over_2.5",
+          "oldResult": "win",
+          "oldPnl": 2.91,
+          "oldMethod": "legacy",
+          "newResult": "win",
+          "newPnl": 2.91,
+          "source": "rules",
+          "updated": true,
+          "note": "Actual 4 vs line 2.5 -> win"
+        },
+        {
+          "id": 2203,
+          "selection": "Over 1.5 Goals @1.571",
+          "betMarket": "over_1.5",
+          "oldResult": "win",
+          "oldPnl": 2.28,
+          "oldMethod": "legacy",
+          "newResult": "win",
+          "newPnl": 2.28,
+          "source": "rules",
+          "updated": true,
+          "note": "Actual 4 vs line 1.5 -> win"
+        }
+      ]
+    },
+    {
+      "matchId": "1379265",
+      "match": "Manchester United vs Aston Villa",
+      "finalStatus": "FT",
+      "score": "3-1",
+      "statsCount": 18,
+      "rows": [
+        {
+          "id": 2206,
+          "selection": "Over 3.5 Goals @1.666",
+          "betMarket": "over_3.5",
+          "oldResult": "win",
+          "oldPnl": 2.66,
+          "oldMethod": "legacy",
+          "newResult": "win",
+          "newPnl": 2.66,
+          "source": "rules",
+          "updated": true,
+          "note": "Actual 4 vs line 3.5 -> win"
+        },
+        {
+          "id": 2201,
+          "selection": "BTTS No @1.571",
+          "betMarket": "btts_no",
+          "oldResult": "loss",
+          "oldPnl": -4,
+          "oldMethod": "legacy",
+          "newResult": "loss",
+          "newPnl": -4,
+          "source": "rules",
+          "updated": true,
+          "note": "Score 3-1, BTTS No -> loss"
+        }
+      ]
+    },
+    {
+      "matchId": "1381102",
+      "match": "AZ Alkmaar vs Heracles",
+      "finalStatus": "FT",
+      "score": "4-0",
+      "statsCount": 18,
+      "rows": [
+        {
+          "id": 2198,
+          "selection": "Under 3.5 Goals @1.65",
+          "betMarket": "under_3.5",
+          "oldResult": "loss",
+          "oldPnl": -3,
+          "oldMethod": "legacy",
+          "newResult": "loss",
+          "newPnl": -3,
+          "source": "rules",
+          "updated": true,
+          "note": "Actual 4 vs line 3.5 -> loss"
+        },
+        {
+          "id": 2195,
+          "selection": "BTTS No @1.5",
+          "betMarket": "btts_no",
+          "oldResult": "win",
+          "oldPnl": 2,
+          "oldMethod": "legacy",
+          "newResult": "win",
+          "newPnl": 2,
+          "source": "rules",
+          "updated": true,
+          "note": "Score 4-0, BTTS No -> win"
+        }
+      ]
+    }
+  ],
+  "aiFallbackProbe": [
+    {
+      "id": 2018,
+      "matchId": "1494559",
+      "selection": "Home -1 @1.833",
+      "rawBetMarket": "ah_home_-1",
+      "normalizedMarket": "ah_home_-1",
+      "source": "rules",
+      "result": "win",
+      "explanation": "AH home -1, adjusted diff +2 -> win"
+    },
+    {
+      "id": 1962,
+      "matchId": "1398586",
+      "selection": "Home -1 @1.666",
+      "rawBetMarket": "ah_home_-1",
+      "normalizedMarket": "ah_home_-1",
+      "source": "rules",
+      "result": "win",
+      "explanation": "AH home -1, adjusted diff +1 -> win"
+    },
+    {
+      "id": 1879,
+      "matchId": "1381076",
+      "selection": "Home -1 @1.833",
+      "rawBetMarket": "ah_home_-1",
+      "normalizedMarket": "ah_home_-1",
+      "source": "rules",
+      "result": "push",
+      "explanation": "AH home -1, adjusted diff 0 -> push"
+    },
+    {
+      "id": 1446,
+      "matchId": "1386926",
+      "selection": "Home 0 @1.875",
+      "rawBetMarket": "ah_home_0",
+      "normalizedMarket": "ah_home_0",
+      "source": "rules",
+      "result": "loss",
+      "explanation": "AH home 0, adjusted diff -1 -> loss"
+    },
+    {
+      "id": 1018,
+      "matchId": "1378081",
+      "selection": "Home 0 @1.575",
+      "rawBetMarket": "ah_home_0",
+      "normalizedMarket": "ah_home_0",
+      "source": "rules",
+      "result": "push",
+      "explanation": "AH home 0, adjusted diff 0 -> push"
+    },
+    {
+      "id": 946,
+      "matchId": "1391020",
+      "selection": "Home -1.0 @1.666",
+      "rawBetMarket": "ah_home_-1",
+      "normalizedMarket": "ah_home_-1",
+      "source": "rules",
+      "result": "win",
+      "explanation": "AH home -1, adjusted diff +2 -> win"
+    },
+    {
+      "id": 916,
+      "matchId": "1381003",
+      "selection": "AZ Alkmaar -0.5 @ 1.55",
+      "rawBetMarket": "",
+      "normalizedMarket": "az_alkmaar_0_5_1_55",
+      "source": "ai",
+      "result": "loss",
+      "explanation": "Trận đấu kết thúc với tỷ số hòa 1-1, do đó AZ Alkmaar thua kèo chấp -0.5."
+    },
+    {
+      "id": 820,
+      "matchId": "1391018",
+      "selection": "Barcelona -1.0 Asian Handicap @2.50",
+      "rawBetMarket": "",
+      "normalizedMarket": "asian_handicap_home_-1",
+      "source": "rules",
+      "result": "push",
+      "explanation": "AH home -1, adjusted diff 0 -> push"
+    }
+  ],
+  "postRunCorrections": [
+    {
+      "recommendationId": 11010,
+      "reason": "Quarter-line correction verified and persisted",
+      "result": "half_win",
+      "pnl": 1.94,
+      "method": "rules"
+    },
+    {
+      "recommendationId": 916,
+      "reason": "Legacy malformed market label re-settled with real Gemini",
+      "result": "loss",
+      "pnl": -3,
+      "method": "ai",
+      "settlePromptVersion": "v2-strict-settle"
+    }
+  ]
+}

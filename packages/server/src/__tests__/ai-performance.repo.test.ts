@@ -5,7 +5,11 @@ vi.mock('../db/pool.js', () => ({
 }));
 
 import { query } from '../db/pool.js';
-import { getHistoricalPerformanceContext } from '../repos/ai-performance.repo.js';
+import {
+  getAccuracyStats,
+  getHistoricalPerformanceContext,
+  settleAiPerformance,
+} from '../repos/ai-performance.repo.js';
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -37,5 +41,46 @@ describe('ai-performance repository', () => {
     expect(context.byOddsRange).toEqual([
       { range: '1.70-1.99', label: '1.70-1.99', settled: 7, correct: 4, accuracy: 57.14 },
     ]);
+  });
+
+  test('getAccuracyStats uses settlement trust instead of treating half outcomes as pending forever', async () => {
+    vi.mocked(query).mockResolvedValueOnce({
+      rows: [{ total: '12', correct: '5', incorrect: '3', pending: '4' }],
+    } as never);
+
+    const stats = await getAccuracyStats();
+
+    expect(query).toHaveBeenCalledWith(
+      expect.stringContaining('ap.settlement_trusted = TRUE'),
+    );
+    expect(query).toHaveBeenCalledWith(
+      expect.stringContaining("NOT IN ('win','loss','push','half_win','half_loss','void')"),
+    );
+    expect(stats).toEqual({
+      total: 12,
+      correct: 5,
+      incorrect: 3,
+      pending: 4,
+      accuracy: 62.5,
+    });
+  });
+
+  test('settleAiPerformance persists settlement provenance metadata', async () => {
+    vi.mocked(query).mockResolvedValueOnce({
+      rows: [{ id: 1, settlement_status: 'corrected', settlement_method: 'ai' }],
+    } as never);
+
+    await settleAiPerformance(11, 'half_loss', -1.5, null, {
+      status: 'corrected',
+      method: 'ai',
+      trusted: true,
+      settlePromptVersion: 'v1-strict-unresolved',
+      note: 'Quarter-line correction',
+    });
+
+    expect(query).toHaveBeenCalledWith(
+      expect.stringContaining('settlement_trusted'),
+      expect.arrayContaining(['corrected', 'ai', true, 'v1-strict-unresolved', 'Quarter-line correction']),
+    );
   });
 });

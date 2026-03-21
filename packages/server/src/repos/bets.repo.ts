@@ -3,6 +3,13 @@
 // ============================================================
 
 import { query } from '../db/pool.js';
+import {
+  FINAL_SETTLEMENT_RESULTS_SQL,
+  type SettlementPersistenceMeta,
+} from '../lib/settle-types.js';
+
+const FINAL_RESULT_SQL = `result IN (${FINAL_SETTLEMENT_RESULTS_SQL})`;
+const PENDING_RESULT_SQL = `(result IS NULL OR result = '' OR result NOT IN (${FINAL_SETTLEMENT_RESULTS_SQL}))`;
 
 export interface BetRow {
   id: number;
@@ -23,6 +30,10 @@ export interface BetRow {
   settled_at: string | null;
   settled_by: string;
   final_score: string;
+  settlement_status?: string;
+  settlement_method?: string;
+  settle_prompt_version?: string;
+  settlement_note?: string;
   notes: string;
   created_by: string;
 }
@@ -59,7 +70,7 @@ export async function getBetsByMatchId(matchId: string): Promise<BetRow[]> {
 
 export async function getUnsettledBets(): Promise<BetRow[]> {
   const r = await query<BetRow>(
-    `SELECT * FROM bets WHERE result = '' OR result IS NULL ORDER BY placed_at`,
+    `SELECT * FROM bets WHERE ${PENDING_RESULT_SQL} ORDER BY placed_at`,
   );
   return r.rows;
 }
@@ -70,8 +81,10 @@ export async function createBet(bet: Partial<BetCreate>): Promise<BetRow> {
        recommendation_id, match_id, bet_market, selection, odds,
        stake_percent, stake_amount, bookmaker,
        match_minute, match_score, match_status,
-       result, pnl, settled_at, settled_by, final_score, notes, created_by
-     ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18)
+       result, pnl, settled_at, settled_by, final_score,
+       settlement_status, settlement_method, settle_prompt_version, settlement_note,
+       notes, created_by
+     ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22)
      RETURNING *`,
     [
       bet.recommendation_id ?? null,
@@ -90,6 +103,10 @@ export async function createBet(bet: Partial<BetCreate>): Promise<BetRow> {
       bet.settled_at ?? null,
       bet.settled_by ?? '',
       bet.final_score ?? '',
+      bet.settlement_status ?? 'pending',
+      bet.settlement_method ?? '',
+      bet.settle_prompt_version ?? '',
+      bet.settlement_note ?? '',
       bet.notes ?? '',
       bet.created_by ?? 'system',
     ],
@@ -103,11 +120,53 @@ export async function settleBet(
   pnl: number,
   finalScore: string,
   settledBy: 'auto' | 'manual' = 'manual',
+  meta: SettlementPersistenceMeta = {},
 ): Promise<BetRow | null> {
   const r = await query<BetRow>(
-    `UPDATE bets SET result = $2, pnl = $3, final_score = $4, settled_by = $5, settled_at = NOW()
+    `UPDATE bets
+     SET result = $2,
+         pnl = $3,
+         final_score = $4,
+         settled_by = $5,
+         settled_at = NOW(),
+         settlement_status = $6,
+         settlement_method = $7,
+         settle_prompt_version = $8,
+         settlement_note = $9
      WHERE id = $1 AND (result = '' OR result IS NULL) RETURNING *`,
-    [id, result, pnl, finalScore, settledBy],
+    [
+      id,
+      result,
+      pnl,
+      finalScore,
+      settledBy,
+      meta.status ?? 'resolved',
+      meta.method ?? '',
+      meta.settlePromptVersion ?? '',
+      meta.note ?? finalScore,
+    ],
+  );
+  return r.rows[0] ?? null;
+}
+
+export async function markBetUnresolved(
+  id: number,
+  meta: SettlementPersistenceMeta = {},
+): Promise<BetRow | null> {
+  const r = await query<BetRow>(
+    `UPDATE bets
+     SET settlement_status = 'unresolved',
+         settlement_method = $2,
+         settle_prompt_version = $3,
+         settlement_note = $4
+     WHERE id = $1 AND (result = '' OR result IS NULL)
+     RETURNING *`,
+    [
+      id,
+      meta.method ?? '',
+      meta.settlePromptVersion ?? '',
+      meta.note ?? '',
+    ],
   );
   return r.rows[0] ?? null;
 }
@@ -140,9 +199,9 @@ export async function getBetStats(): Promise<BetStats> {
        COUNT(*) FILTER (WHERE result = 'win')::text AS wins,
        COUNT(*) FILTER (WHERE result = 'loss')::text AS losses,
        COUNT(*) FILTER (WHERE result = 'push')::text AS pushes,
-       COUNT(*) FILTER (WHERE result = '' OR result IS NULL)::text AS unsettled,
+       COUNT(*) FILTER (WHERE ${PENDING_RESULT_SQL})::text AS unsettled,
        COALESCE(SUM(pnl), 0)::text AS total_pnl,
-       COALESCE(SUM(stake_amount) FILTER (WHERE result IN ('win','loss','push')), 0)::text AS total_staked
+       COALESCE(SUM(stake_amount) FILTER (WHERE ${FINAL_RESULT_SQL}), 0)::text AS total_staked
      FROM bets`,
   );
 
@@ -179,7 +238,7 @@ export async function getBetStatsByMarket(): Promise<
        COUNT(*)::text AS total,
        COUNT(*) FILTER (WHERE result = 'win')::text AS wins,
        COALESCE(SUM(pnl), 0)::text AS pnl,
-       COUNT(*) FILTER (WHERE result IN ('win','loss','push'))::text AS settled
+       COUNT(*) FILTER (WHERE ${FINAL_RESULT_SQL})::text AS settled
      FROM bets
      GROUP BY bet_market
      ORDER BY COUNT(*) DESC`,

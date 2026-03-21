@@ -22,7 +22,11 @@ import {
   type ApiFixtureStat,
 } from './football-api.js';
 import * as watchlistRepo from '../repos/watchlist.repo.js';
-import { createRecommendation, getRecommendationsByMatchId } from '../repos/recommendations.repo.js';
+import {
+  createRecommendation,
+  getRecommendationsByMatchId,
+  markRecommendationNotified,
+} from '../repos/recommendations.repo.js';
 import { createAiPerformanceRecord } from '../repos/ai-performance.repo.js';
 import {
   getHistoricalPerformanceContext,
@@ -113,6 +117,7 @@ const defaultPipelineDeps = {
   createSnapshot,
   callGemini,
   createRecommendation,
+  markRecommendationNotified,
   createAiPerformanceRecord,
   getHistoricalPerformanceContext,
   sendTelegramMessage,
@@ -1569,6 +1574,9 @@ async function processMatch(
             for (const chunk of chunkMessage(msg)) {
               await deps.sendTelegramMessage(settings.telegramChatId, chunk);
             }
+          }
+          if (recId != null) {
+            await deps.markRecommendationNotified(recId, 'telegram').catch(() => undefined);
           }
           notified = true;
         } catch (e) {

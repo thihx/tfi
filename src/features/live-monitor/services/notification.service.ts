@@ -251,12 +251,6 @@ function buildEmailHtml(ctx: NotificationContext): string {
 interface StatPair { home: string | null | undefined; away: string | null | undefined }
 
 /** Truncate at last word boundary before max chars (never cuts mid-word). */
-function truncateAtWord(text: string, max: number): string {
-  if (text.length <= max) return text;
-  const idx = text.lastIndexOf(' ', max - 1);
-  return text.substring(0, idx > 0 ? idx : max) + '…';
-}
-
 /**
  * Cut caption at last newline before the limit.
  * Since all HTML tags (<b>, <i>) are opened and closed within the same line,
@@ -342,6 +336,10 @@ function buildStatsChartUrl(
 // ==================== Format Telegram Message ====================
 
 /** Condensed caption for sendPhoto (max 1024 chars). Stats replaced by chart image. */
+/**
+ * Short caption for the chart photo — match header + bet decision only.
+ * Reasoning is intentionally omitted here and sent as a separate follow-up message.
+ */
 function buildTelegramCaption(ctx: NotificationContext): string {
   const { recommendation: rec, parsed, matchData } = ctx;
   const section = determineSection(ctx);
@@ -358,16 +356,11 @@ function buildTelegramCaption(ctx: NotificationContext): string {
 
   if (section === 'ai_recommendation') {
     text += `\n<b>💰 ${safeHtml(rec.selection)}</b>\n`;
+    text += `Market: ${safeHtml(rec.bet_market)} | Odds: ${safeHtml(String(rec.odds ?? 'N/A'))}\n`;
     text += `Confidence: ${rec.confidence}/10 | Stake: ${rec.stake_percent}% | Risk: ${safeHtml(rec.risk_level)} | Value: ${rec.value_percent}%\n`;
-    // Prefer VI reasoning; truncate at word boundary
-    const reasoning = parsed.reasoning_vi || parsed.reasoning_en;
-    if (reasoning) text += `\n${safeHtml(truncateAtWord(reasoning, 280))}\n`;
   } else if (section === 'condition_triggered' && parsed.condition_triggered_suggestion) {
     text += `\n⚡ <b>${safeHtml(parsed.condition_triggered_suggestion)}</b>\n`;
     text += `Confidence: ${parsed.condition_triggered_confidence}/10 | Stake: ${parsed.condition_triggered_stake}%\n`;
-  } else {
-    const reasoning = parsed.reasoning_vi || parsed.reasoning_en;
-    if (reasoning) text += `\n${safeHtml(truncateAtWord(reasoning, 200))}\n`;
   }
 
   // Key events — goals + cards only, case-insensitive, max 6
@@ -388,16 +381,53 @@ function buildTelegramCaption(ctx: NotificationContext): string {
     text += `\n⚠️ ${safeHtml(allWarnings.slice(0, 3).join(' | '))}\n`;
   }
 
-  // Footer — added last so safeTruncateCaption never cuts it mid-tag
   text += `\n<i>👆 Ask AI | ${safeHtml(formatLocalDateTime(new Date().toISOString()))}</i>`;
 
   return safeTruncateCaption(text);
+}
+
+/**
+ * Full reasoning message sent after the chart photo — never truncated.
+ * Split into chunks if reasoning is very long.
+ */
+function buildReasoningMessages(ctx: NotificationContext): string[] {
+  const { recommendation: rec, parsed } = ctx;
+  const section = determineSection(ctx);
+  const lang = ctx.config.NOTIFICATION_LANGUAGE ?? 'vi';
+  const pickReasoning = (en: string, vi: string) =>
+    lang === 'vi' ? (vi || en) : (en || vi);
+  const reasoningLabel = lang === 'vi' ? 'Phân tích' : 'Reasoning';
+
+  let text = '';
+
+  if (section === 'ai_recommendation') {
+    const reasoning = pickReasoning(parsed.reasoning_en, parsed.reasoning_vi);
+    if (!reasoning) return [];
+    text += `<b>📝 ${reasoningLabel} — ${safeHtml(rec.match_display)}</b>\n\n`;
+    text += safeHtml(reasoning);
+  } else if (section === 'condition_triggered') {
+    const reasoning = pickReasoning(parsed.condition_triggered_reasoning_en, parsed.condition_triggered_reasoning_vi);
+    if (!reasoning) return [];
+    text += `<b>⚡ ${reasoningLabel} — ${safeHtml(rec.match_display)}</b>\n\n`;
+    text += safeHtml(reasoning);
+  } else {
+    const reasoning = pickReasoning(parsed.reasoning_en, parsed.reasoning_vi);
+    if (!reasoning) return [];
+    text += `<b>📊 ${reasoningLabel} — ${safeHtml(rec.match_display)}</b>\n\n`;
+    text += safeHtml(reasoning);
+  }
+
+  return chunkMessage(text);
 }
 
 function buildTelegramMessages(ctx: NotificationContext): string[] {
   const { recommendation: rec, parsed, matchData } = ctx;
   const section = determineSection(ctx);
   const events = sortEvents(matchData.events_compact || []);
+  const lang = ctx.config.NOTIFICATION_LANGUAGE ?? 'vi';
+  const pickReasoning = (en: string, vi: string) =>
+    lang === 'vi' ? (vi || en) : (en || vi);
+  const reasoningLabel = lang === 'vi' ? 'Phân tích' : 'Reasoning';
 
   const headerEmoji = section === 'ai_recommendation' ? '🎯' :
     section === 'condition_triggered' ? '⚡' : '📊';
@@ -420,28 +450,27 @@ function buildTelegramMessages(ctx: NotificationContext): string[] {
     text += `Confidence: ${rec.confidence}/10 | Stake: ${rec.stake_percent}%\n`;
     text += `Value: ${rec.value_percent}% | Risk: ${safeHtml(rec.risk_level)}\n`;
     text += '\n';
-    text += `<b>📝 Reasoning (EN):</b>\n${safeHtml(parsed.reasoning_en)}\n\n`;
-    text += `<b>📝 Reasoning (VI):</b>\n${safeHtml(parsed.reasoning_vi)}\n`;
+    text += `<b>📝 ${reasoningLabel}:</b>\n${safeHtml(pickReasoning(parsed.reasoning_en, parsed.reasoning_vi))}\n`;
   }
 
   if (section === 'condition_triggered' || parsed.custom_condition_matched) {
+    const condSummary = pickReasoning(parsed.custom_condition_summary_en, parsed.custom_condition_summary_en);
+    const condReason = pickReasoning(parsed.custom_condition_reason_en, parsed.custom_condition_reason_en);
     text += '\n<b>⚡ Custom Condition</b>\n';
     text += `Status: ${safeHtml(parsed.custom_condition_status)}\n`;
     text += `Matched: ${parsed.custom_condition_matched ? '✅ YES' : '❌ NO'}\n`;
-    text += `Summary: ${safeHtml(parsed.custom_condition_summary_en)}\n`;
-    text += `Reason: ${safeHtml(parsed.custom_condition_reason_en)}\n`;
+    text += `Summary: ${safeHtml(condSummary)}\n`;
+    text += `Reason: ${safeHtml(condReason)}\n`;
 
     if (parsed.condition_triggered_suggestion) {
       text += `\nSuggestion: <b>${safeHtml(parsed.condition_triggered_suggestion)}</b>\n`;
       text += `Confidence: ${parsed.condition_triggered_confidence}/10 | Stake: ${parsed.condition_triggered_stake}%\n`;
-      text += `Reasoning (EN): ${safeHtml(parsed.condition_triggered_reasoning_en)}\n`;
-      text += `Reasoning (VI): ${safeHtml(parsed.condition_triggered_reasoning_vi)}\n`;
+      text += `${reasoningLabel}: ${safeHtml(pickReasoning(parsed.condition_triggered_reasoning_en, parsed.condition_triggered_reasoning_vi))}\n`;
     }
   }
 
   if (section === 'no_actionable') {
-    text += `<b>📝 Analysis (EN):</b>\n${safeHtml(parsed.reasoning_en)}\n\n`;
-    text += `<b>📝 Analysis (VI):</b>\n${safeHtml(parsed.reasoning_vi)}\n`;
+    text += `<b>📝 ${reasoningLabel}:</b>\n${safeHtml(pickReasoning(parsed.reasoning_en, parsed.reasoning_vi))}\n`;
   }
 
   // Stats (text fallback — shown when chart image is not available)
@@ -580,8 +609,15 @@ export async function notifyRecommendation(
         await sendTelegram(appConfig, { chat_id: chatId, text: caption, parse_mode: 'HTML', photo_url: chartUrl });
         result.telegramChunks = 1;
         photoSent = true;
+        // Send full reasoning as a separate follow-up message (never truncated)
+        const reasoningMsgs = buildReasoningMessages(ctx);
+        for (const msg of reasoningMsgs) {
+          await sendTelegram(appConfig, { chat_id: chatId, text: msg, parse_mode: 'HTML' });
+          result.telegramChunks++;
+        }
       } catch {
         // QuickChart or Telegram photo failed — fall through to text message
+        photoSent = false;
       }
     }
 

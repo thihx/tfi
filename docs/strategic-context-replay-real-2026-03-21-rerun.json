@@ -1,0 +1,503 @@
+{
+  "dir": "C:\\tfi\\packages\\server\\src\\__fixtures__\\strategic-context-replay",
+  "total": 4,
+  "passed": 1,
+  "outputs": [
+    {
+      "scenarioName": "01-domestic-league-rich",
+      "success": true,
+      "context": {
+        "home_motivation": "No data found",
+        "away_motivation": "No data found",
+        "league_positions": "No data found",
+        "fixture_congestion": "No data found",
+        "rotation_risk": "No data found",
+        "key_absences": "No data found",
+        "h2h_narrative": "No data found",
+        "summary": "No data found",
+        "home_motivation_vi": "Không có dữ liệu",
+        "away_motivation_vi": "Không có dữ liệu",
+        "league_positions_vi": "Không có dữ liệu",
+        "fixture_congestion_vi": "Không có dữ liệu",
+        "rotation_risk_vi": "Không có dữ liệu",
+        "key_absences_vi": "Không có dữ liệu",
+        "h2h_narrative_vi": "Không có dữ liệu",
+        "summary_vi": "Không có dữ liệu",
+        "searched_at": "2026-03-21T01:56:46.515Z",
+        "version": 2,
+        "competition_type": "domestic_league",
+        "ai_condition": "No data found",
+        "ai_condition_blueprint": {
+          "alert_window_start": null,
+          "alert_window_end": null,
+          "preferred_score_state": "any",
+          "preferred_goal_state": "any",
+          "favoured_side": "none",
+          "alert_rationale_en": "No data found",
+          "alert_rationale_vi": "Không có dữ liệu"
+        },
+        "ai_condition_reason": "No data found",
+        "ai_condition_reason_vi": "Không có dữ liệu",
+        "qualitative": {
+          "en": {
+            "home_motivation": "No data found",
+            "away_motivation": "No data found",
+            "league_positions": "No data found",
+            "fixture_congestion": "No data found",
+            "rotation_risk": "No data found",
+            "key_absences": "No data found",
+            "h2h_narrative": "No data found",
+            "summary": "No data found"
+          },
+          "vi": {
+            "home_motivation": "Không có dữ liệu",
+            "away_motivation": "Không có dữ liệu",
+            "league_positions": "Không có dữ liệu",
+            "fixture_congestion": "Không có dữ liệu",
+            "rotation_risk": "Không có dữ liệu",
+            "key_absences": "Không có dữ liệu",
+            "h2h_narrative": "Không có dữ liệu",
+            "summary": "Không có dữ liệu"
+          }
+        },
+        "quantitative": {
+          "home_last5_points": null,
+          "away_last5_points": null,
+          "home_last5_goals_for": null,
+          "away_last5_goals_for": null,
+          "home_last5_goals_against": null,
+          "away_last5_goals_against": null,
+          "home_home_goals_avg": null,
+          "away_away_goals_avg": null,
+          "home_over_2_5_rate_last10": null,
+          "away_over_2_5_rate_last10": null,
+          "home_btts_rate_last10": null,
+          "away_btts_rate_last10": null,
+          "home_clean_sheet_rate_last10": null,
+          "away_clean_sheet_rate_last10": null,
+          "home_failed_to_score_rate_last10": null,
+          "away_failed_to_score_rate_last10": null
+        },
+        "source_meta": {
+          "search_quality": "unknown",
+          "web_search_queries": [],
+          "sources": [],
+          "trusted_source_count": 0,
+          "rejected_source_count": 0,
+          "rejected_domains": []
+        }
+      },
+      "assertions": [
+        {
+          "field": "competitionType",
+          "pass": true,
+          "expected": "domestic_league",
+          "actual": "domestic_league"
+        },
+        {
+          "field": "usable",
+          "pass": false,
+          "expected": true,
+          "actual": false
+        },
+        {
+          "field": "minTrustedSources",
+          "pass": false,
+          "expected": 1,
+          "actual": 0
+        },
+        {
+          "field": "minQuantitativeCoverage",
+          "pass": false,
+          "expected": 4,
+          "actual": 0
+        },
+        {
+          "field": "searchQualityIn",
+          "pass": false,
+          "expected": [
+            "high",
+            "medium"
+          ],
+          "actual": "unknown"
+        },
+        {
+          "field": "requireBilingual",
+          "pass": true,
+          "expected": true,
+          "actual": true
+        }
+      ],
+      "allPassed": false
+    },
+    {
+      "scenarioName": "02-european-cross-league",
+      "success": true,
+      "context": {
+        "home_motivation": "No data found",
+        "away_motivation": "No data found",
+        "league_positions": "No data found",
+        "fixture_congestion": "No data found",
+        "rotation_risk": "No data found",
+        "key_absences": "No data found",
+        "h2h_narrative": "No data found",
+        "summary": "No data found",
+        "home_motivation_vi": "Không có dữ liệu",
+        "away_motivation_vi": "Không có dữ liệu",
+        "league_positions_vi": "Không có dữ liệu",
+        "fixture_congestion_vi": "Không có dữ liệu",
+        "rotation_risk_vi": "Không có dữ liệu",
+        "key_absences_vi": "Không có dữ liệu",
+        "h2h_narrative_vi": "Không có dữ liệu",
+        "summary_vi": "Không có dữ liệu",
+        "searched_at": "2026-03-21T01:57:43.790Z",
+        "version": 2,
+        "competition_type": "european",
+        "ai_condition": "No data found",
+        "ai_condition_blueprint": {
+          "alert_window_start": null,
+          "alert_window_end": null,
+          "preferred_score_state": "any",
+          "preferred_goal_state": "any",
+          "favoured_side": "none",
+          "alert_rationale_en": "No data found",
+          "alert_rationale_vi": "Không có dữ liệu"
+        },
+        "ai_condition_reason": "No data found",
+        "ai_condition_reason_vi": "Không có dữ liệu",
+        "qualitative": {
+          "en": {
+            "home_motivation": "No data found",
+            "away_motivation": "No data found",
+            "league_positions": "No data found",
+            "fixture_congestion": "No data found",
+            "rotation_risk": "No data found",
+            "key_absences": "No data found",
+            "h2h_narrative": "No data found",
+            "summary": "No data found"
+          },
+          "vi": {
+            "home_motivation": "Không có dữ liệu",
+            "away_motivation": "Không có dữ liệu",
+            "league_positions": "Không có dữ liệu",
+            "fixture_congestion": "Không có dữ liệu",
+            "rotation_risk": "Không có dữ liệu",
+            "key_absences": "Không có dữ liệu",
+            "h2h_narrative": "Không có dữ liệu",
+            "summary": "Không có dữ liệu"
+          }
+        },
+        "quantitative": {
+          "home_last5_points": null,
+          "away_last5_points": null,
+          "home_last5_goals_for": null,
+          "away_last5_goals_for": null,
+          "home_last5_goals_against": null,
+          "away_last5_goals_against": null,
+          "home_home_goals_avg": null,
+          "away_away_goals_avg": null,
+          "home_over_2_5_rate_last10": null,
+          "away_over_2_5_rate_last10": null,
+          "home_btts_rate_last10": null,
+          "away_btts_rate_last10": null,
+          "home_clean_sheet_rate_last10": null,
+          "away_clean_sheet_rate_last10": null,
+          "home_failed_to_score_rate_last10": null,
+          "away_failed_to_score_rate_last10": null
+        },
+        "source_meta": {
+          "search_quality": "unknown",
+          "web_search_queries": [],
+          "sources": [],
+          "trusted_source_count": 0,
+          "rejected_source_count": 0,
+          "rejected_domains": []
+        }
+      },
+      "assertions": [
+        {
+          "field": "competitionType",
+          "pass": true,
+          "expected": "european",
+          "actual": "european"
+        },
+        {
+          "field": "usable",
+          "pass": false,
+          "expected": true,
+          "actual": false
+        },
+        {
+          "field": "minTrustedSources",
+          "pass": false,
+          "expected": 1,
+          "actual": 0
+        },
+        {
+          "field": "minQuantitativeCoverage",
+          "pass": false,
+          "expected": 4,
+          "actual": 0
+        },
+        {
+          "field": "searchQualityIn",
+          "pass": false,
+          "expected": [
+            "high",
+            "medium"
+          ],
+          "actual": "unknown"
+        },
+        {
+          "field": "requireBilingual",
+          "pass": true,
+          "expected": true,
+          "actual": true
+        }
+      ],
+      "allPassed": false
+    },
+    {
+      "scenarioName": "03-international",
+      "success": true,
+      "context": {
+        "home_motivation": "Brazil seeks home dominance and revenge for a 4-1 defeat, though already qualified for the World Cup.",
+        "away_motivation": "Argentina has already qualified for the 2026 World Cup.",
+        "league_positions": "No data found",
+        "fixture_congestion": "No data found",
+        "rotation_risk": "No data found",
+        "key_absences": "No data found",
+        "h2h_narrative": "Argentina previously defeated Brazil 4-1.",
+        "summary": "Brazil seeks revenge against Argentina after a 4-1 defeat. Both teams have already qualified for the World Cup.",
+        "home_motivation_vi": "Brazil tìm kiếm sự thống trị sân nhà và phục thù trận thua 4-1, dù đã vượt qua vòng loại.",
+        "away_motivation_vi": "Argentina đã chính thức vượt qua vòng loại World Cup 2026.",
+        "league_positions_vi": "Không có dữ liệu",
+        "fixture_congestion_vi": "Không có dữ liệu",
+        "rotation_risk_vi": "Không có dữ liệu",
+        "key_absences_vi": "Không có dữ liệu",
+        "h2h_narrative_vi": "Argentina trước đó đã đánh bại Brazil với tỷ số 4-1.",
+        "summary_vi": "Brazil tìm cách phục thù Argentina sau thất bại 4-1. Cả hai đội đều đã giành vé dự World Cup.",
+        "searched_at": "2026-03-21T01:58:23.742Z",
+        "version": 2,
+        "competition_type": "international",
+        "ai_condition": "No data found",
+        "ai_condition_blueprint": {
+          "alert_window_start": null,
+          "alert_window_end": null,
+          "preferred_score_state": "any",
+          "preferred_goal_state": "any",
+          "favoured_side": "none",
+          "alert_rationale_en": "No data found",
+          "alert_rationale_vi": "Không có dữ liệu"
+        },
+        "ai_condition_reason": "No data found",
+        "ai_condition_reason_vi": "Không có dữ liệu",
+        "qualitative": {
+          "en": {
+            "home_motivation": "Brazil seeks home dominance and revenge for a 4-1 defeat, though already qualified for the World Cup.",
+            "away_motivation": "Argentina has already qualified for the 2026 World Cup.",
+            "league_positions": "No data found",
+            "fixture_congestion": "No data found",
+            "rotation_risk": "No data found",
+            "key_absences": "No data found",
+            "h2h_narrative": "Argentina previously defeated Brazil 4-1.",
+            "summary": "Brazil seeks revenge against Argentina after a 4-1 defeat. Both teams have already qualified for the World Cup."
+          },
+          "vi": {
+            "home_motivation": "Brazil tìm kiếm sự thống trị sân nhà và phục thù trận thua 4-1, dù đã vượt qua vòng loại.",
+            "away_motivation": "Argentina đã chính thức vượt qua vòng loại World Cup 2026.",
+            "league_positions": "Không có dữ liệu",
+            "fixture_congestion": "Không có dữ liệu",
+            "rotation_risk": "Không có dữ liệu",
+            "key_absences": "Không có dữ liệu",
+            "h2h_narrative": "Argentina trước đó đã đánh bại Brazil với tỷ số 4-1.",
+            "summary": "Brazil tìm cách phục thù Argentina sau thất bại 4-1. Cả hai đội đều đã giành vé dự World Cup."
+          }
+        },
+        "quantitative": {
+          "home_last5_points": null,
+          "away_last5_points": null,
+          "home_last5_goals_for": null,
+          "away_last5_goals_for": null,
+          "home_last5_goals_against": null,
+          "away_last5_goals_against": null,
+          "home_home_goals_avg": null,
+          "away_away_goals_avg": null,
+          "home_over_2_5_rate_last10": null,
+          "away_over_2_5_rate_last10": null,
+          "home_btts_rate_last10": null,
+          "away_btts_rate_last10": null,
+          "home_clean_sheet_rate_last10": null,
+          "away_clean_sheet_rate_last10": null,
+          "home_failed_to_score_rate_last10": null,
+          "away_failed_to_score_rate_last10": null
+        },
+        "source_meta": {
+          "search_quality": "unknown",
+          "web_search_queries": [],
+          "sources": [],
+          "trusted_source_count": 0,
+          "rejected_source_count": 0,
+          "rejected_domains": []
+        }
+      },
+      "assertions": [
+        {
+          "field": "competitionType",
+          "pass": true,
+          "expected": "international",
+          "actual": "international"
+        },
+        {
+          "field": "usable",
+          "pass": true,
+          "expected": true,
+          "actual": true
+        },
+        {
+          "field": "minTrustedSources",
+          "pass": false,
+          "expected": 1,
+          "actual": 0
+        },
+        {
+          "field": "minQuantitativeCoverage",
+          "pass": false,
+          "expected": 4,
+          "actual": 0
+        },
+        {
+          "field": "searchQualityIn",
+          "pass": false,
+          "expected": [
+            "high",
+            "medium"
+          ],
+          "actual": "unknown"
+        },
+        {
+          "field": "requireBilingual",
+          "pass": true,
+          "expected": true,
+          "actual": true
+        }
+      ],
+      "allPassed": false
+    },
+    {
+      "scenarioName": "04-no-data-synthetic",
+      "success": true,
+      "context": {
+        "home_motivation": "No data found",
+        "away_motivation": "No data found",
+        "league_positions": "No data found",
+        "fixture_congestion": "No data found",
+        "rotation_risk": "No data found",
+        "key_absences": "No data found",
+        "h2h_narrative": "No data found",
+        "summary": "No data found",
+        "home_motivation_vi": "Không có dữ liệu",
+        "away_motivation_vi": "Không có dữ liệu",
+        "league_positions_vi": "Không có dữ liệu",
+        "fixture_congestion_vi": "Không có dữ liệu",
+        "rotation_risk_vi": "Không có dữ liệu",
+        "key_absences_vi": "Không có dữ liệu",
+        "h2h_narrative_vi": "Không có dữ liệu",
+        "summary_vi": "Không có dữ liệu",
+        "searched_at": "2026-03-21T01:59:23.630Z",
+        "version": 2,
+        "competition_type": "",
+        "ai_condition": "",
+        "ai_condition_blueprint": {
+          "alert_window_start": null,
+          "alert_window_end": null,
+          "preferred_score_state": "any",
+          "preferred_goal_state": "any",
+          "favoured_side": "none",
+          "alert_rationale_en": "No data found",
+          "alert_rationale_vi": "Không có dữ liệu"
+        },
+        "ai_condition_reason": "No data found",
+        "ai_condition_reason_vi": "Không có dữ liệu",
+        "qualitative": {
+          "en": {
+            "home_motivation": "No data found",
+            "away_motivation": "No data found",
+            "league_positions": "No data found",
+            "fixture_congestion": "No data found",
+            "rotation_risk": "No data found",
+            "key_absences": "No data found",
+            "h2h_narrative": "No data found",
+            "summary": "No data found"
+          },
+          "vi": {
+            "home_motivation": "Không có dữ liệu",
+            "away_motivation": "Không có dữ liệu",
+            "league_positions": "Không có dữ liệu",
+            "fixture_congestion": "Không có dữ liệu",
+            "rotation_risk": "Không có dữ liệu",
+            "key_absences": "Không có dữ liệu",
+            "h2h_narrative": "Không có dữ liệu",
+            "summary": "Không có dữ liệu"
+          }
+        },
+        "quantitative": {
+          "home_last5_points": null,
+          "away_last5_points": null,
+          "home_last5_goals_for": null,
+          "away_last5_goals_for": null,
+          "home_last5_goals_against": null,
+          "away_last5_goals_against": null,
+          "home_home_goals_avg": null,
+          "away_away_goals_avg": null,
+          "home_over_2_5_rate_last10": null,
+          "away_over_2_5_rate_last10": null,
+          "home_btts_rate_last10": null,
+          "away_btts_rate_last10": null,
+          "home_clean_sheet_rate_last10": null,
+          "away_clean_sheet_rate_last10": null,
+          "home_failed_to_score_rate_last10": null,
+          "away_failed_to_score_rate_last10": null
+        },
+        "source_meta": {
+          "search_quality": "unknown",
+          "web_search_queries": [],
+          "sources": [],
+          "trusted_source_count": 0,
+          "rejected_source_count": 0,
+          "rejected_domains": []
+        }
+      },
+      "assertions": [
+        {
+          "field": "usable",
+          "pass": true,
+          "expected": false,
+          "actual": false
+        },
+        {
+          "field": "searchQualityIn",
+          "pass": true,
+          "expected": [
+            "low",
+            "unknown"
+          ],
+          "actual": "unknown"
+        },
+        {
+          "field": "requireBilingual",
+          "pass": true,
+          "expected": true,
+          "actual": true
+        },
+        {
+          "field": "expectNoData",
+          "pass": true,
+          "expected": true,
+          "actual": true
+        }
+      ],
+      "allPassed": true
+    }
+  ]
+}

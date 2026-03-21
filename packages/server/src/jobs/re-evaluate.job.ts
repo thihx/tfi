@@ -22,7 +22,15 @@ import {
   requiresRegularTimeBreakdown,
   resolveSettlementScore,
 } from '../lib/settle-context.js';
-import { settlementWasCorrect, type RegulationScore } from '../lib/settle-types.js';
+import {
+  calcSettlementPnl,
+  isFinalSettlementResult,
+  settlementWasCorrect,
+  type RegulationScore,
+  type SettlementPersistenceMeta,
+} from '../lib/settle-types.js';
+import { SETTLE_PROMPT_VERSION } from '../lib/settle-prompt.js';
+import { auditSkipped, auditSuccess } from '../lib/audit.js';
 
 export interface ReEvalResult {
   total: number;
@@ -41,6 +49,20 @@ export interface ReEvalResult {
     newResult: string;
     newPnl: number;
   }>;
+}
+
+function buildSettlementMeta(
+  source: AISettleResult['source'],
+  status: 'resolved' | 'corrected',
+  note: string,
+): SettlementPersistenceMeta {
+  return {
+    status,
+    method: source === 'rules' || source === 'ai' ? source : undefined,
+    settlePromptVersion: source === 'ai' ? SETTLE_PROMPT_VERSION : '',
+    note,
+    trusted: true,
+  };
 }
 
 export async function reEvaluateAllResults(): Promise<ReEvalResult> {
@@ -210,16 +232,31 @@ export async function reEvaluateAllResults(): Promise<ReEvalResult> {
     for (const rec of matchRecs) {
       const aiResult = resultsMap.get(rec.id);
       if (!aiResult) {
+        auditSkipped('JOB', 'RE_EVALUATION_UNRESOLVED', {
+          actor: 're-evaluate',
+          match_id: rec.match_id,
+          metadata: { recommendationId: rec.id, reason: 'No settlement result returned from settle pipeline.', selection: rec.selection },
+        });
+        result.skippedNoScore++;
+        continue;
+      }
+      if (!isFinalSettlementResult(aiResult.result)) {
+        auditSkipped('JOB', 'RE_EVALUATION_UNRESOLVED', {
+          actor: 're-evaluate',
+          match_id: rec.match_id,
+          metadata: {
+            recommendationId: rec.id,
+            reason: aiResult.explanation,
+            source: aiResult.source ?? 'unknown',
+            selection: rec.selection,
+          },
+        });
         result.skippedNoScore++;
         continue;
       }
 
       const newResult = aiResult.result;
-      const newPnl = newResult === 'win'
-        ? Math.round(((rec.odds ?? 0) - 1) * (rec.stake_percent ?? 1) * 100) / 100
-        : newResult === 'loss'
-          ? Math.round(-(rec.stake_percent ?? 1) * 100) / 100
-          : 0;
+      const newPnl = calcSettlementPnl(newResult, rec.odds ?? 0, rec.stake_percent ?? 1);
 
       const oldResult = rec.result || '';
       const oldPnl = rec.pnl ?? 0;
@@ -231,11 +268,29 @@ export async function reEvaluateAllResults(): Promise<ReEvalResult> {
       const isDiscrepancy = !isUnsettled && (oldResult !== newResult || Math.abs(oldPnl - newPnl) > 0.01);
 
       if (isUnsettled || isDiscrepancy) {
-        await recommendationsRepo.settleRecommendation(rec.id, newResult, newPnl, aiResult.explanation);
+        const settlementMeta = buildSettlementMeta(
+          aiResult.source,
+          isDiscrepancy ? 'corrected' : 'resolved',
+          aiResult.explanation,
+        );
+        await recommendationsRepo.settleRecommendation(rec.id, newResult, newPnl, aiResult.explanation, settlementMeta);
         const wasCorrect = settlementWasCorrect(newResult);
-        await aiPerfRepo.settleAiPerformance(rec.id, newResult, newPnl, wasCorrect);
+        await aiPerfRepo.settleAiPerformance(rec.id, newResult, newPnl, wasCorrect, settlementMeta);
 
         if (isDiscrepancy) {
+          auditSuccess('JOB', 'SETTLEMENT_CORRECTED', {
+            actor: 're-evaluate',
+            match_id: rec.match_id,
+            metadata: {
+              recommendationId: rec.id,
+              oldResult,
+              newResult,
+              oldPnl,
+              newPnl,
+              source: aiResult.source ?? 'unknown',
+              promptVersion: settlementMeta.settlePromptVersion ?? '',
+            },
+          });
           result.corrected++;
           result.discrepancies.push({
             id: rec.id,

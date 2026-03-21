@@ -4,11 +4,17 @@
 
 import { query, transaction } from '../db/pool.js';
 import { normalizeMarket, buildDedupKey } from '../lib/normalize-market.js';
+import {
+  FINAL_SETTLEMENT_RESULTS_SQL,
+  type SettlementPersistenceMeta,
+} from '../lib/settle-types.js';
 
 export { normalizeMarket, buildDedupKey };
 
 /** SQL fragment: exclude duplicate-marked rows (IS DISTINCT FROM handles NULLs) */
 const NOT_DUP = `result IS DISTINCT FROM 'duplicate'`;
+const FINAL_RESULT_SQL = `result IN (${FINAL_SETTLEMENT_RESULTS_SQL})`;
+const PENDING_RESULT_SQL = `(result IS NULL OR result = '' OR result NOT IN (${FINAL_SETTLEMENT_RESULTS_SQL}))`;
 
 function toJsonb(val: unknown): string {
   if (!val || val === '') return '{}';
@@ -55,6 +61,10 @@ export interface RecommendationRow {
   actual_outcome: string;
   pnl: number;
   settled_at: string | null;
+  settlement_status?: string;
+  settlement_method?: string;
+  settle_prompt_version?: string;
+  settlement_note?: string;
   _was_overridden: boolean;
 }
 
@@ -88,7 +98,7 @@ export async function getAllRecommendations(opts: PaginationOpts = {}): Promise<
   // Result filter
   if (opts.result) {
     if (opts.result === 'pending') {
-      conditions.push(`(r.result IS NULL OR r.result NOT IN ('win','loss','push'))`);
+      conditions.push(`(r.result IS NULL OR r.result = '' OR r.result NOT IN (${FINAL_SETTLEMENT_RESULTS_SQL}))`);
     } else if (opts.result === 'duplicate') {
       conditions.push(`r.result = 'duplicate'`);
     } else {
@@ -207,10 +217,13 @@ export async function createRecommendation(
        minute, score, bet_type, selection, odds, confidence, value_percent, risk_level,
        stake_percent, stake_amount, reasoning, key_factors, warnings,
        ai_model, mode, bet_market, notified, notification_channels,
-       result, actual_outcome, pnl, settled_at, _was_overridden
+       result, actual_outcome, pnl, settled_at,
+       settlement_status, settlement_method, settle_prompt_version, settlement_note,
+       _was_overridden
      ) VALUES (
        $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,
-       $21,$22,$23,$24,$25,$26,$27,$28,$29,$30,$31,$32,$33,$34,$35,$36,$37,$38
+       $21,$22,$23,$24,$25,$26,$27,$28,$29,$30,$31,$32,$33,$34,$35,$36,$37,$38,
+       $39,$40,$41,$42
      )
      ON CONFLICT (unique_key) DO UPDATE SET
        minute = EXCLUDED.minute,
@@ -266,6 +279,10 @@ export async function createRecommendation(
       rec.actual_outcome ?? '',
       rec.pnl ?? 0,
       rec.settled_at || null,
+      rec.settlement_status ?? 'pending',
+      rec.settlement_method ?? '',
+      rec.settle_prompt_version ?? '',
+      rec.settlement_note ?? '',
       rec._was_overridden ?? false,
     ],
   );
@@ -292,10 +309,13 @@ export async function bulkCreateRecommendations(
            minute, score, bet_type, selection, odds, confidence, value_percent, risk_level,
            stake_percent, stake_amount, reasoning, key_factors, warnings,
            ai_model, mode, bet_market, notified, notification_channels,
-           result, actual_outcome, pnl, settled_at, _was_overridden
+           result, actual_outcome, pnl, settled_at,
+           settlement_status, settlement_method, settle_prompt_version, settlement_note,
+           _was_overridden
          ) VALUES (
            $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,
-           $21,$22,$23,$24,$25,$26,$27,$28,$29,$30,$31,$32,$33,$34,$35,$36,$37,$38
+           $21,$22,$23,$24,$25,$26,$27,$28,$29,$30,$31,$32,$33,$34,$35,$36,$37,$38,
+           $39,$40,$41,$42
          )
          ON CONFLICT (unique_key) DO UPDATE SET
            minute = EXCLUDED.minute,
@@ -350,6 +370,10 @@ export async function bulkCreateRecommendations(
           rec.actual_outcome ?? '',
           rec.pnl ?? 0,
           rec.settled_at ?? null,
+          rec.settlement_status ?? 'pending',
+          rec.settlement_method ?? '',
+          rec.settle_prompt_version ?? '',
+          rec.settlement_note ?? '',
           rec._was_overridden ?? false,
         ],
       );
@@ -364,11 +388,73 @@ export async function settleRecommendation(
   result: string,
   pnl: number,
   actualOutcome: string = '',
+  meta: SettlementPersistenceMeta = {},
 ): Promise<RecommendationRow | null> {
   const r = await query<RecommendationRow>(
-    `UPDATE recommendations SET result = $2, pnl = $3, actual_outcome = $4, settled_at = NOW()
+    `UPDATE recommendations
+     SET result = $2,
+         pnl = $3,
+         actual_outcome = $4,
+         settled_at = NOW(),
+         settlement_status = $5,
+         settlement_method = $6,
+         settle_prompt_version = $7,
+         settlement_note = $8
      WHERE id = $1 RETURNING *`,
-    [id, result, pnl, actualOutcome],
+    [
+      id,
+      result,
+      pnl,
+      actualOutcome,
+      meta.status ?? 'resolved',
+      meta.method ?? '',
+      meta.settlePromptVersion ?? '',
+      meta.note ?? actualOutcome,
+    ],
+  );
+  return r.rows[0] ?? null;
+}
+
+export async function markRecommendationUnresolved(
+  id: number,
+  meta: SettlementPersistenceMeta = {},
+): Promise<RecommendationRow | null> {
+  const r = await query<RecommendationRow>(
+    `UPDATE recommendations
+     SET settlement_status = 'unresolved',
+         settlement_method = $2,
+         settle_prompt_version = $3,
+         settlement_note = $4
+     WHERE id = $1
+     RETURNING *`,
+    [
+      id,
+      meta.method ?? '',
+      meta.settlePromptVersion ?? '',
+      meta.note ?? '',
+    ],
+  );
+  return r.rows[0] ?? null;
+}
+
+export async function markRecommendationNotified(
+  id: number,
+  channels: string | string[],
+): Promise<RecommendationRow | null> {
+  const normalizedChannels = Array.isArray(channels)
+    ? Array.from(new Set(channels.map((value) => String(value).trim()).filter(Boolean))).join(',')
+    : String(channels).trim();
+  const r = await query<RecommendationRow>(
+    `UPDATE recommendations
+     SET notified = $2,
+         notification_channels = $3
+     WHERE id = $1
+     RETURNING *`,
+    [
+      id,
+      normalizedChannels ? 'yes' : '',
+      normalizedChannels,
+    ],
   );
   return r.rows[0] ?? null;
 }
@@ -400,7 +486,7 @@ export async function getStats(): Promise<RecStats> {
        COUNT(*) FILTER (WHERE result = 'loss')::text AS losses,
        COUNT(*) FILTER (WHERE result = 'push')::text AS pushes,
        COUNT(*) FILTER (WHERE result = 'duplicate')::text AS duplicates,
-       COUNT(*) FILTER (WHERE result = '' OR result IS NULL)::text AS unsettled,
+       COUNT(*) FILTER (WHERE ${PENDING_RESULT_SQL})::text AS unsettled,
        COALESCE(SUM(pnl), 0)::text AS total_pnl
      FROM recommendations WHERE ${NOT_DUP}`,
   );
@@ -449,13 +535,13 @@ export async function getDashboardSummary(): Promise<DashboardSummary> {
       total: string; wins: string; losses: string; pushes: string; pending: string;
       total_pnl: string; total_staked: string;
     }>(`SELECT
-         COUNT(*) FILTER (WHERE result IN ('win','loss','push'))::text AS total,
+         COUNT(*) FILTER (WHERE ${FINAL_RESULT_SQL})::text AS total,
          COUNT(*) FILTER (WHERE result = 'win')::text AS wins,
          COUNT(*) FILTER (WHERE result = 'loss')::text AS losses,
          COUNT(*) FILTER (WHERE result = 'push')::text AS pushes,
-         COUNT(*) FILTER (WHERE result IS NULL OR result NOT IN ('win','loss','push'))::text AS pending,
-         COALESCE(SUM(pnl) FILTER (WHERE result IN ('win','loss','push')), 0)::text AS total_pnl,
-         COALESCE(SUM(COALESCE(stake_percent, 1)) FILTER (WHERE result IN ('win','loss','push')), 0)::text AS total_staked
+         COUNT(*) FILTER (WHERE ${PENDING_RESULT_SQL})::text AS pending,
+         COALESCE(SUM(pnl) FILTER (WHERE ${FINAL_RESULT_SQL}), 0)::text AS total_pnl,
+         COALESCE(SUM(COALESCE(stake_percent, 1)) FILTER (WHERE ${FINAL_RESULT_SQL}), 0)::text AS total_staked
        FROM recommendations WHERE ${NOT_DUP}`),
 
     // P/L by date (aggregated)
@@ -463,7 +549,7 @@ export async function getDashboardSummary(): Promise<DashboardSummary> {
       SELECT TO_CHAR(timestamp::date, 'DD/MM') AS date,
              SUM(pnl)::text AS daily_pnl
       FROM recommendations
-      WHERE result IN ('win', 'loss') AND timestamp IS NOT NULL AND ${NOT_DUP}
+      WHERE ${FINAL_RESULT_SQL} AND timestamp IS NOT NULL AND ${NOT_DUP}
       GROUP BY timestamp::date
       ORDER BY timestamp::date`),
 

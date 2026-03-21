@@ -23,9 +23,14 @@ Primary objectives:
 
 - Phase 1 complete on 2026-03-21
 - Phase 2 complete on 2026-03-21
+- Phase 3 complete on 2026-03-21
+- Phase 4 complete on 2026-03-21
 - Evidence:
   - `npm run typecheck --prefix packages/server`
   - `npm run test --prefix packages/server -- src/__tests__/settle-types.test.ts src/__tests__/auto-settle.test.ts src/__tests__/auto-settle.integration.test.ts src/__tests__/re-evaluate.test.ts`
+  - `npm run test --prefix packages/server -- src/__tests__/auto-settle.test.ts src/__tests__/settle-prompt.test.ts src/__tests__/auto-settle.integration.test.ts src/__tests__/re-evaluate.test.ts src/__tests__/settle-rules-quarter-line.test.ts`
+  - `npm run test --prefix packages/server -- src/__tests__/auto-settle.test.ts src/__tests__/auto-settle.integration.test.ts src/__tests__/re-evaluate.test.ts src/__tests__/recommendations.repo.test.ts src/__tests__/ai-performance.repo.test.ts src/__tests__/recommendations.routes.test.ts src/__tests__/bets.routes.test.ts`
+  - `npm run migrate --prefix packages/server`
   - `npm run test --prefix packages/server`
 
 ## Core Assumption

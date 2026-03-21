@@ -5,6 +5,7 @@
 import type { FastifyInstance } from 'fastify';
 import * as repo from '../repos/leagues.repo.js';
 import { fetchAllLeagues, type ApiLeague } from '../lib/football-api.js';
+import { getRedisClient } from '../lib/redis.js';
 
 // ── Tier classification (mirrors Apps Script logic) ──
 
@@ -69,13 +70,36 @@ function classifyLeague(item: ApiLeague): { tier: string; autoActive: boolean } 
   return { tier: 'Other', autoActive: false };
 }
 
+const ACTIVE_CACHE_KEY = 'cache:leagues:active';
+const ACTIVE_CACHE_TTL_SEC = 5 * 60; // 5 minutes
+
+async function getActiveLeaguesCached(): Promise<repo.LeagueRow[]> {
+  try {
+    const redis = getRedisClient();
+    const cached = await redis.get(ACTIVE_CACHE_KEY);
+    if (cached) return JSON.parse(cached) as repo.LeagueRow[];
+  } catch { /* Redis down → proceed to DB */ }
+
+  const leagues = await repo.getActiveLeagues();
+
+  try {
+    await getRedisClient().set(ACTIVE_CACHE_KEY, JSON.stringify(leagues), 'EX', ACTIVE_CACHE_TTL_SEC);
+  } catch { /* non-critical */ }
+
+  return leagues;
+}
+
+async function invalidateActiveLeaguesCache(): Promise<void> {
+  try { await getRedisClient().del(ACTIVE_CACHE_KEY); } catch { /* ignore */ }
+}
+
 export async function leagueRoutes(app: FastifyInstance) {
   app.get('/api/leagues', async () => {
     return repo.getAllLeagues();
   });
 
   app.get('/api/leagues/active', async () => {
-    return repo.getActiveLeagues();
+    return getActiveLeaguesCached();
   });
 
   app.get<{ Params: { id: string } }>('/api/leagues/:id', async (req, reply) => {
@@ -91,9 +115,10 @@ export async function leagueRoutes(app: FastifyInstance) {
     async (req, reply) => {
       const id = Number(req.params.id);
       if (Number.isNaN(id)) return reply.code(400).send({ error: 'Invalid league ID' });
-      const league = await repo.updateLeagueActive(id, req.body.active);
-      if (!league) return reply.code(404).send({ error: 'League not found' });
-      return league;
+      const ok = await repo.updateLeagueActive(id, req.body.active);
+      if (!ok) return reply.code(404).send({ error: 'League not found' });
+      void invalidateActiveLeaguesCache();
+      return { league_id: id, active: req.body.active };
     },
   );
 
@@ -101,6 +126,7 @@ export async function leagueRoutes(app: FastifyInstance) {
     '/api/leagues/bulk-active',
     async (req) => {
       const count = await repo.bulkSetActive(req.body.ids, req.body.active);
+      void invalidateActiveLeaguesCache();
       return { updated: count };
     },
   );
@@ -118,6 +144,7 @@ export async function leagueRoutes(app: FastifyInstance) {
       if (Number.isNaN(id)) return reply.code(400).send({ error: 'Invalid league ID' });
       const ok = await repo.updateLeagueTopLeague(id, req.body.top_league);
       if (!ok) return reply.code(404).send({ error: 'League not found' });
+      void invalidateActiveLeaguesCache();
       return { league_id: id, top_league: req.body.top_league };
     },
   );
@@ -126,6 +153,7 @@ export async function leagueRoutes(app: FastifyInstance) {
     '/api/leagues/bulk-top-league',
     async (req) => {
       const count = await repo.bulkSetTopLeague(req.body.ids, req.body.top_league);
+      void invalidateActiveLeaguesCache();
       return { updated: count };
     },
   );
@@ -165,6 +193,7 @@ export async function leagueRoutes(app: FastifyInstance) {
       });
 
       const count = await repo.upsertLeagues(toUpsert);
+      void invalidateActiveLeaguesCache();
       return { fetched: apiLeagues.length, upserted: count };
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);

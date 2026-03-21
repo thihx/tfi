@@ -7,6 +7,7 @@ import * as repo from '../repos/recommendations.repo.js';
 import * as aiPerfRepo from '../repos/ai-performance.repo.js';
 import { reEvaluateAllResults } from '../jobs/re-evaluate.job.js';
 import { audit } from '../lib/audit.js';
+import { isFinalSettlementResult, settlementWasCorrect } from '../lib/settle-types.js';
 
 export async function recommendationRoutes(app: FastifyInstance) {
   app.get<{ Querystring: {
@@ -130,8 +131,28 @@ export async function recommendationRoutes(app: FastifyInstance) {
       req.body.result,
       req.body.pnl,
       req.body.actual_outcome,
+      {
+        status: 'resolved',
+        method: 'manual',
+        note: req.body.actual_outcome ?? '',
+      },
     );
     if (!rec) return reply.code(404).send({ error: 'Recommendation not found' });
+    const wasCorrect = isFinalSettlementResult(req.body.result)
+      ? settlementWasCorrect(req.body.result)
+      : null;
+    await aiPerfRepo.settleAiPerformance(
+      id,
+      req.body.result,
+      req.body.pnl,
+      wasCorrect,
+      {
+        status: 'resolved',
+        method: 'manual',
+        trusted: true,
+        note: req.body.actual_outcome ?? '',
+      },
+    ).catch(() => null);
     return rec;
   });
 

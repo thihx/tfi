@@ -12,7 +12,27 @@ export const FINAL_SETTLEMENT_RESULTS = [
 ] as const;
 
 export type FinalSettlementResult = typeof FINAL_SETTLEMENT_RESULTS[number];
-export type SettlementResult = FinalSettlementResult | 'unresolved';
+export const SETTLEMENT_RESULTS = [...FINAL_SETTLEMENT_RESULTS, 'unresolved'] as const;
+export type SettlementResult = typeof SETTLEMENT_RESULTS[number];
+export const FINAL_SETTLEMENT_RESULTS_SQL = FINAL_SETTLEMENT_RESULTS.map((result) => `'${result}'`).join(',');
+
+export const DECISIVE_SETTLEMENT_RESULTS = ['win', 'loss'] as const;
+export type DecisiveSettlementResult = typeof DECISIVE_SETTLEMENT_RESULTS[number];
+export const DECISIVE_SETTLEMENT_RESULTS_SQL = DECISIVE_SETTLEMENT_RESULTS.map((result) => `'${result}'`).join(',');
+
+export const SETTLEMENT_METHODS = ['rules', 'ai', 'manual', 'legacy'] as const;
+export type SettlementMethod = typeof SETTLEMENT_METHODS[number];
+
+export const SETTLEMENT_STATUSES = ['pending', 'unresolved', 'resolved', 'corrected'] as const;
+export type SettlementStatus = typeof SETTLEMENT_STATUSES[number];
+
+export interface SettlementPersistenceMeta {
+  status?: SettlementStatus;
+  method?: SettlementMethod;
+  settlePromptVersion?: string;
+  note?: string;
+  trusted?: boolean;
+}
 
 export interface RegulationScore {
   home: number;
@@ -21,6 +41,10 @@ export interface RegulationScore {
 
 export function isFinalSettlementResult(value: string): value is FinalSettlementResult {
   return (FINAL_SETTLEMENT_RESULTS as readonly string[]).includes(value);
+}
+
+export function isSettlementResult(value: string): value is SettlementResult {
+  return (SETTLEMENT_RESULTS as readonly string[]).includes(value);
 }
 
 export function calcSettlementPnl(

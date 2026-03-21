@@ -52,6 +52,14 @@ vi.mock('../jobs/job-progress.js', () => ({
   reportJobProgress: vi.fn(),
 }));
 
+vi.mock('../lib/audit.js', () => ({
+  audit: vi.fn(),
+  auditSuccess: vi.fn(),
+  auditFailure: vi.fn(),
+  auditSkipped: vi.fn(),
+  auditWrap: vi.fn(),
+}));
+
 vi.mock('../lib/normalize-market.js', () => ({
   normalizeMarket: vi.fn((sel: string, betMarket?: string) => {
     if (betMarket) return betMarket;
@@ -180,10 +188,18 @@ describe('reEvaluateAllResults', () => {
 
     // Check the settle was called with correct values
     expect(recommendationsRepo.settleRecommendation).toHaveBeenCalledWith(
-      1, 'loss', -3, expect.any(String),
+      1,
+      'loss',
+      -3,
+      expect.any(String),
+      expect.objectContaining({ status: 'corrected', method: 'rules' }),
     );
     expect(aiPerfRepo.settleAiPerformance).toHaveBeenCalledWith(
-      1, 'loss', -3, false,
+      1,
+      'loss',
+      -3,
+      false,
+      expect.objectContaining({ status: 'corrected', method: 'rules', trusted: true }),
     );
   });
 
@@ -290,7 +306,11 @@ describe('reEvaluateAllResults', () => {
     expect(result.newlySettled).toBe(1);
     expect(result.corrected).toBe(0);
     expect(recommendationsRepo.settleRecommendation).toHaveBeenCalledWith(
-      1, 'win', expect.closeTo(1.4, 1), expect.any(String),
+      1,
+      'win',
+      expect.closeTo(1.4, 1),
+      expect.any(String),
+      expect.objectContaining({ status: 'resolved', method: 'rules' }),
     );
   });
 
@@ -316,9 +336,19 @@ describe('reEvaluateAllResults', () => {
 
     expect(result.corrected).toBe(1);
     expect(recommendationsRepo.settleRecommendation).toHaveBeenCalledWith(
-      1, 'push', 0, expect.any(String),
+      1,
+      'push',
+      0,
+      expect.any(String),
+      expect.objectContaining({ status: 'corrected', method: 'rules' }),
     );
-    expect(aiPerfRepo.settleAiPerformance).toHaveBeenCalledWith(1, 'push', 0, null);
+    expect(aiPerfRepo.settleAiPerformance).toHaveBeenCalledWith(
+      1,
+      'push',
+      0,
+      null,
+      expect.objectContaining({ status: 'corrected', method: 'rules', trusted: true }),
+    );
   });
 
   test('handles multiple recs across different matches', async () => {
@@ -403,6 +433,7 @@ describe('reEvaluateAllResults', () => {
       'loss',
       -2,
       expect.any(String),
+      expect.objectContaining({ status: 'corrected', method: 'rules' }),
     );
     expect(callGemini).not.toHaveBeenCalled();
   });

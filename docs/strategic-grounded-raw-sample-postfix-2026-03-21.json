@@ -1,0 +1,31 @@
+{
+  "candidates": [
+    {
+      "content": {
+        "parts": [
+          {
+            "text": "COMPETITION_TYPE: Premier League\nHOME_MOTIVATION: Top 4 push, title contention, London derby bragging rights.\nAWAY_MOTIVATION: Top 4 push, European qualification, London derby bragging rights.\nLEAGUE_POS"
+          }
+        ],
+        "role": "model"
+      },
+      "finishReason": "MAX_TOKENS",
+      "index": 0,
+      "groundingMetadata": {}
+    }
+  ],
+  "usageMetadata": {
+    "promptTokenCount": 436,
+    "candidatesTokenCount": 54,
+    "totalTokenCount": 1832,
+    "promptTokensDetails": [
+      {
+        "modality": "TEXT",
+        "tokenCount": 436
+      }
+    ],
+    "thoughtsTokenCount": 1342
+  },
+  "modelVersion": "gemini-2.5-flash",
+  "responseId": "dAS-adynNduZvr0Pm577-A0"
+}

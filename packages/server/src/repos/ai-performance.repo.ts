@@ -3,6 +3,12 @@
 // ============================================================
 
 import { query } from '../db/pool.js';
+import {
+  FINAL_SETTLEMENT_RESULTS_SQL,
+  type SettlementPersistenceMeta,
+} from '../lib/settle-types.js';
+
+const PENDING_RESULT_SQL = `(r.result IS NULL OR r.result = '' OR r.result NOT IN (${FINAL_SETTLEMENT_RESULTS_SQL}))`;
 
 export interface AiPerformanceRow {
   id: number;
@@ -21,6 +27,11 @@ export interface AiPerformanceRow {
   actual_pnl: number;
   was_correct: boolean | null;
   confidence_calibrated: boolean | null;
+  settlement_status?: string;
+  settlement_method?: string;
+  settle_prompt_version?: string;
+  settlement_trusted?: boolean;
+  settlement_note?: string;
   match_minute: number | null;
   match_score: string;
   league: string;
@@ -73,13 +84,56 @@ export async function settleAiPerformance(
   result: string,
   pnl: number,
   wasCorrect: boolean | null,
+  meta: SettlementPersistenceMeta = {},
 ): Promise<AiPerformanceRow | null> {
   const r = await query<AiPerformanceRow>(
     `UPDATE ai_performance
-     SET actual_result = $2, actual_pnl = $3, was_correct = $4
+     SET actual_result = $2,
+         actual_pnl = $3,
+         was_correct = $4,
+         settlement_status = $5,
+         settlement_method = $6,
+         settlement_trusted = $7,
+         settle_prompt_version = $8,
+         settlement_note = $9
      WHERE recommendation_id = $1
      RETURNING *`,
-    [recommendationId, result, pnl, wasCorrect],
+    [
+      recommendationId,
+      result,
+      pnl,
+      wasCorrect,
+      meta.status ?? 'resolved',
+      meta.method ?? '',
+      meta.trusted ?? true,
+      meta.settlePromptVersion ?? '',
+      meta.note ?? '',
+    ],
+  );
+  return r.rows[0] ?? null;
+}
+
+export async function markAiPerformanceSettlementState(
+  recommendationId: number,
+  meta: SettlementPersistenceMeta = {},
+): Promise<AiPerformanceRow | null> {
+  const r = await query<AiPerformanceRow>(
+    `UPDATE ai_performance
+     SET settlement_status = $2,
+         settlement_method = $3,
+         settlement_trusted = $4,
+         settle_prompt_version = $5,
+         settlement_note = $6
+     WHERE recommendation_id = $1
+     RETURNING *`,
+    [
+      recommendationId,
+      meta.status ?? 'unresolved',
+      meta.method ?? '',
+      meta.trusted ?? false,
+      meta.settlePromptVersion ?? '',
+      meta.note ?? '',
+    ],
   );
   return r.rows[0] ?? null;
 }
@@ -101,9 +155,13 @@ export async function getAccuracyStats(): Promise<{
   }>(
     `SELECT
        COUNT(*)::text AS total,
-       COUNT(*) FILTER (WHERE ap.was_correct = TRUE)::text AS correct,
-       COUNT(*) FILTER (WHERE ap.was_correct = FALSE)::text AS incorrect,
-       COUNT(*) FILTER (WHERE r.result IS NULL OR r.result NOT IN ('win','loss','push'))::text AS pending
+       COUNT(*) FILTER (WHERE ap.settlement_trusted = TRUE AND ap.was_correct = TRUE)::text AS correct,
+       COUNT(*) FILTER (WHERE ap.settlement_trusted = TRUE AND ap.was_correct = FALSE)::text AS incorrect,
+       COUNT(*) FILTER (
+         WHERE ap.settlement_status IN ('pending', 'unresolved')
+           OR ap.settlement_trusted = FALSE
+           OR ${PENDING_RESULT_SQL}
+       )::text AS pending
      FROM ai_performance ap
      JOIN recommendations r ON r.id = ap.recommendation_id
      WHERE r.result IS DISTINCT FROM 'duplicate'`,
@@ -133,6 +191,7 @@ export async function backfillFromRecommendations(): Promise<number> {
          ai_model, prompt_version, ai_confidence, ai_should_push,
          predicted_market, predicted_selection, predicted_odds,
          actual_result, actual_pnl, was_correct,
+         settlement_status, settlement_method, settle_prompt_version, settlement_trusted, settlement_note,
          match_minute, match_score, league
        )
        SELECT
@@ -140,13 +199,23 @@ export async function backfillFromRecommendations(): Promise<number> {
          r.ai_model, COALESCE(r.prompt_version,''), r.confidence,
          CASE WHEN r.bet_type = 'AI' THEN true ELSE false END,
          COALESCE(r.bet_market,''), r.selection, r.odds::numeric,
-         CASE WHEN r.result IN ('win','loss','push') THEN r.result ELSE '' END,
+         CASE WHEN r.result IN (${FINAL_SETTLEMENT_RESULTS_SQL}) THEN r.result ELSE '' END,
          r.pnl::numeric,
+         CASE WHEN r.result IN (${FINAL_SETTLEMENT_RESULTS_SQL}) THEN
+           CASE
+             WHEN r.result = 'win' THEN true
+             WHEN r.result = 'loss' THEN false
+             ELSE NULL
+           END
+         ELSE NULL END,
+         COALESCE(r.settlement_status, CASE WHEN r.result IN (${FINAL_SETTLEMENT_RESULTS_SQL}) THEN 'resolved' ELSE 'pending' END),
+         COALESCE(NULLIF(r.settlement_method, ''), CASE WHEN r.result IN (${FINAL_SETTLEMENT_RESULTS_SQL}) THEN 'legacy' ELSE '' END),
+         COALESCE(r.settle_prompt_version, ''),
          CASE
-           WHEN r.result = 'win'  THEN true
-           WHEN r.result = 'loss' THEN false
-           ELSE NULL
+           WHEN r.result IN (${FINAL_SETTLEMENT_RESULTS_SQL}) AND COALESCE(r.result, '') <> 'duplicate' THEN true
+           ELSE false
          END,
+         COALESCE(r.settlement_note, ''),
          r.minute, COALESCE(r.score,''), COALESCE(r.league,'')
        FROM recommendations r
        WHERE NOT EXISTS (
@@ -175,6 +244,7 @@ export async function getAccuracyByModel(): Promise<
        SELECT 1 FROM recommendations r
        WHERE r.id = ap.recommendation_id AND r.result = 'duplicate'
      )
+       AND ap.settlement_trusted = TRUE
      GROUP BY ai_model
      ORDER BY COUNT(*) DESC`,
   );
@@ -211,17 +281,33 @@ export async function cleanAndResync(): Promise<{ deleted: number; backfilled: n
   // Re-sync: update existing records with current recommendation results
   await query(
     `UPDATE ai_performance ap SET
-       actual_result = CASE WHEN r.result IN ('win','loss','push') THEN r.result ELSE '' END,
+       actual_result = CASE WHEN r.result IN (${FINAL_SETTLEMENT_RESULTS_SQL}) THEN r.result ELSE '' END,
        actual_pnl = r.pnl::numeric,
        was_correct = CASE
          WHEN r.result = 'win' THEN true
          WHEN r.result = 'loss' THEN false
          ELSE NULL
-       END
+       END,
+       settlement_status = CASE
+         WHEN COALESCE(r.settlement_status, '') <> '' THEN r.settlement_status
+         WHEN r.result IN (${FINAL_SETTLEMENT_RESULTS_SQL}) THEN 'resolved'
+         ELSE 'pending'
+       END,
+       settlement_method = CASE
+         WHEN COALESCE(r.settlement_method, '') <> '' THEN r.settlement_method
+         WHEN r.result IN (${FINAL_SETTLEMENT_RESULTS_SQL}) THEN 'legacy'
+         ELSE ''
+       END,
+       settle_prompt_version = COALESCE(r.settle_prompt_version, ''),
+       settlement_trusted = CASE
+         WHEN r.result IN (${FINAL_SETTLEMENT_RESULTS_SQL}) THEN TRUE
+         ELSE FALSE
+       END,
+       settlement_note = COALESCE(r.settlement_note, '')
      FROM recommendations r
      WHERE r.id = ap.recommendation_id
        AND r.result != 'duplicate'
-       AND r.result IN ('win','loss','push')`,
+      `,
   );
 
   // Backfill any missing records
@@ -262,6 +348,8 @@ export async function getHistoricalPerformanceContext(): Promise<HistoricalPerfo
        FROM ai_performance ap
        JOIN recommendations r ON r.id = ap.recommendation_id
        WHERE r.result IS DISTINCT FROM 'duplicate'
+         AND ap.settlement_trusted = TRUE
+         AND ap.settlement_status IN ('resolved', 'corrected')
          AND ap.was_correct IS NOT NULL
          AND ap.ai_should_push = true
      ),

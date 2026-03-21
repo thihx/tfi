@@ -444,6 +444,32 @@ function extractDomain(url: string): string {
   }
 }
 
+function extractDomainHint(text: string): string {
+  const normalized = cleanText(text).toLowerCase();
+  if (!normalized) return '';
+  const match = normalized.match(/([a-z0-9-]+(?:\.[a-z0-9-]+)+)/i);
+  return match?.[1]?.replace(/^www\./, '') || '';
+}
+
+function normalizeGroundedSourceIdentity(url: string, title: string): { domain: string; publisher: string } {
+  const urlDomain = extractDomain(url);
+  const titleDomain = extractDomainHint(title);
+  if (
+    (urlDomain === 'vertexaisearch.cloud.google.com' || urlDomain.endsWith('.googleusercontent.com'))
+    && titleDomain
+  ) {
+    return {
+      domain: titleDomain,
+      publisher: titleDomain,
+    };
+  }
+
+  return {
+    domain: urlDomain,
+    publisher: urlDomain || titleDomain || 'unknown',
+  };
+}
+
 function detectLanguage(domain: string, url: string): 'en' | 'vi' | 'unknown' {
   if (domain.endsWith('.vn') || /(?:^|[/?&])lang=vi(?:$|[&#])/i.test(url) || /\/vi(?:\/|$)/i.test(url)) {
     return 'vi';
@@ -495,13 +521,14 @@ function extractGroundingMetadata(data: unknown): StrategicGroundingMetadata {
       const url = cleanText(web?.uri);
       if (!url || urls.has(url)) continue;
       urls.add(url);
-      const domain = extractDomain(url);
+      const title = cleanText(web?.title, 'Unknown source');
+      const { domain, publisher } = normalizeGroundedSourceIdentity(url, title);
       const classification = classifyStrategicSourceDomain(domain);
       sources.push({
-        title: cleanText(web?.title, domain || 'Unknown source'),
+        title,
         url,
         domain,
-        publisher: domain || 'unknown',
+        publisher,
         language: detectLanguage(domain, url),
         source_type: classification.sourceType,
         trust_tier: classification.trustTier,
@@ -768,10 +795,12 @@ function parseStrategicResponse(text: string, searchedAt: string, sourceMeta: St
 }
 
 interface GeminiGenerateOptions {
+  model?: string;
   withSearch: boolean;
   timeoutMs: number;
   maxOutputTokens: number;
   responseMimeType?: string;
+  thinkingBudget?: number | null;
 }
 
 async function generateGeminiContent(
@@ -780,25 +809,49 @@ async function generateGeminiContent(
 ): Promise<Record<string, unknown> | null> {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), options.timeoutMs);
+  const model = options.model || config.geminiModel;
+  const thinkingBudget = typeof options.thinkingBudget === 'number' && Number.isFinite(options.thinkingBudget)
+    ? Math.max(0, Math.trunc(options.thinkingBudget))
+    : null;
+  const buildRequestBody = (includeThinkingConfig: boolean): string => JSON.stringify({
+    contents: [{ parts: [{ text: prompt }] }],
+    ...(options.withSearch ? { tools: [{ google_search: {} }] } : {}),
+    generationConfig: {
+      temperature: options.withSearch ? 0.2 : 0.1,
+      maxOutputTokens: options.maxOutputTokens,
+      ...(options.responseMimeType ? { responseMimeType: options.responseMimeType } : {}),
+    },
+    ...(includeThinkingConfig && thinkingBudget != null ? { thinkingConfig: { thinkingBudget } } : {}),
+  });
+  const requestUrl = `${GEMINI_BASE}/${model}:generateContent?key=${config.geminiApiKey}`;
 
   try {
-    const response = await fetch(`${GEMINI_BASE}/${config.geminiModel}:generateContent?key=${config.geminiApiKey}`, {
+    let body = buildRequestBody(true);
+    let response = await fetch(requestUrl, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        contents: [{ parts: [{ text: prompt }] }],
-        ...(options.withSearch ? { tools: [{ google_search: {} }] } : {}),
-        generationConfig: {
-          temperature: options.withSearch ? 0.2 : 0.1,
-          maxOutputTokens: options.maxOutputTokens,
-          ...(options.responseMimeType ? { responseMimeType: options.responseMimeType } : {}),
-        },
-      }),
+      body,
       signal: controller.signal,
     });
 
     if (!response.ok) {
-      const errText = await response.text().catch(() => '');
+      let errText = await response.text().catch(() => '');
+      const shouldRetryWithoutThinking = thinkingBudget != null
+        && response.status === 400
+        && /Unknown name "thinkingConfig"|Cannot find field/i.test(errText);
+      if (shouldRetryWithoutThinking) {
+        body = buildRequestBody(false);
+        response = await fetch(requestUrl, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body,
+          signal: controller.signal,
+        });
+        if (response.ok) {
+          return await response.json() as Record<string, unknown>;
+        }
+        errText = await response.text().catch(() => errText);
+      }
       throw new Error(`Gemini API error ${response.status}: ${errText.substring(0, 300)}`);
     }
 
@@ -816,9 +869,12 @@ async function fetchGroundedResearchDraft(
 ): Promise<{ draftText: string; sourceMeta: StrategicContextSourceMeta; fallback: DraftFallbackPayload } | null> {
   const prompt = buildGroundedResearchDraftPrompt(homeTeam, awayTeam, league, dateStr);
   const data = await generateGeminiContent(prompt, {
+    model: config.geminiStrategicGroundedModel || config.geminiModel,
     withSearch: true,
     timeoutMs: REQUEST_TIMEOUT_MS,
-    maxOutputTokens: 1400,
+    maxOutputTokens: config.geminiStrategicGroundedMaxOutputTokens,
+    responseMimeType: 'text/plain',
+    thinkingBudget: config.geminiStrategicGroundedThinkingBudget,
   });
   if (!data) return null;
 
@@ -839,10 +895,12 @@ async function buildStructuredStrategicContext(
   const data = await generateGeminiContent(
     buildStructuredStrategicContextPrompt(draftText, sourceMeta),
     {
+      model: config.geminiStrategicStructuredModel || config.geminiModel,
       withSearch: false,
       timeoutMs: STRUCTURE_REQUEST_TIMEOUT_MS,
-      maxOutputTokens: 2048,
+      maxOutputTokens: config.geminiStrategicStructuredMaxOutputTokens,
       responseMimeType: 'application/json',
+      thinkingBudget: config.geminiStrategicStructuredThinkingBudget,
     },
   );
   if (!data) return null;
@@ -857,10 +915,12 @@ async function buildStructuredStrategicContext(
     const repaired = await generateGeminiContent(
       buildStrategicJsonRepairPrompt(text, draftText, sourceMeta),
       {
+        model: config.geminiStrategicStructuredModel || config.geminiModel,
         withSearch: false,
         timeoutMs: STRUCTURE_REQUEST_TIMEOUT_MS,
-        maxOutputTokens: 2048,
+        maxOutputTokens: config.geminiStrategicStructuredMaxOutputTokens,
         responseMimeType: 'application/json',
+        thinkingBudget: config.geminiStrategicStructuredThinkingBudget,
       },
     );
     const repairedText = repaired ? extractCandidateText(repaired) : '';

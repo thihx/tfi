@@ -81,7 +81,10 @@ export const MARKET_COLORS: Record<string, string> = {
 export const BET_RESULT_BADGES: Record<string, { cls: string; label: string }> = {
   win:     { cls: 'badge-won',     label: 'Won' },
   loss:    { cls: 'badge-lost',    label: 'Lost' },
+  half_win:{ cls: 'badge-won',     label: 'Half Won' },
+  half_loss:{ cls: 'badge-lost',   label: 'Half Lost' },
   push:    { cls: 'badge-pending', label: 'Push' },
+  void:    { cls: 'badge-pending', label: 'Void' },
   pending: { cls: 'badge-ns',      label: 'Pending' },
 };
 

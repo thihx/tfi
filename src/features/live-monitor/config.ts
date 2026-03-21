@@ -40,6 +40,7 @@ export function createDefaultConfig(overrides?: Partial<LiveMonitorConfig>): Liv
     EMAIL_TO: '',
     TELEGRAM_CHAT_ID: '',
     MANUAL_PUSH_MATCH_IDS: [],
+    NOTIFICATION_LANGUAGE: 'vi',
     ...overrides,
   };
 }

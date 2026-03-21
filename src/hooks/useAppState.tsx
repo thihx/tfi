@@ -98,52 +98,46 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const loadAllData = useCallback(async (silent = false) => {
     const config = stateRef.current.config;
     if (!silent) {
-      dispatch({ type: 'SET_LOADING', payload: { loading: true, progress: 10, message: 'Loading data...' } });
+      dispatch({ type: 'SET_LOADING', payload: { loading: true, progress: 15, message: 'Loading...' } });
     }
 
-    try {
-      const leagues = await api.fetchApprovedLeagues(config);
-      dispatch({ type: 'SET_LEAGUES', payload: leagues });
-      if (!silent) {
-        dispatch({ type: 'SET_LOADING', payload: { loading: true, progress: 25, message: 'Leagues loaded' } });
-      }
+    const errors: string[] = [];
 
-      const errors: string[] = [];
+    // All 4 calls in parallel — no sequential dependency
+    const [leagues, matches, watchlist, recommendations] = await Promise.all([
+      api.fetchActiveLeagues(config).catch((err: unknown) => {
+        errors.push('leagues');
+        console.error('[AppState] fetchActiveLeagues failed:', err);
+        return [] as League[];
+      }),
+      api.fetchMatches(config).catch((err: unknown) => {
+        errors.push('matches');
+        console.error('[AppState] fetchMatches failed:', err);
+        return [] as Match[];
+      }),
+      api.fetchWatchlist(config).catch((err: unknown) => {
+        errors.push('watchlist');
+        console.error('[AppState] fetchWatchlist failed:', err);
+        return [] as WatchlistItem[];
+      }),
+      api.fetchRecommendations(config).catch((err: unknown) => {
+        errors.push('recommendations');
+        console.error('[AppState] fetchRecommendations failed:', err);
+        return [] as Recommendation[];
+      }),
+    ]);
 
-      const [matches, watchlist, recommendations] = await Promise.all([
-        api.fetchMatches(config).catch((err: unknown) => {
-          errors.push('matches');
-          console.error('[AppState] fetchMatches failed:', err);
-          return [] as Match[];
-        }),
-        api.fetchWatchlist(config).catch((err: unknown) => {
-          errors.push('watchlist');
-          console.error('[AppState] fetchWatchlist failed:', err);
-          return [] as WatchlistItem[];
-        }),
-        api.fetchRecommendations(config).catch((err: unknown) => {
-          errors.push('recommendations');
-          console.error('[AppState] fetchRecommendations failed:', err);
-          return [] as Recommendation[];
-        }),
-      ]);
+    dispatch({ type: 'SET_LEAGUES', payload: leagues });
+    dispatch({ type: 'SET_MATCHES', payload: matches });
+    dispatch({ type: 'SET_WATCHLIST', payload: watchlist });
+    dispatch({ type: 'SET_RECOMMENDATIONS', payload: recommendations });
 
-      dispatch({ type: 'SET_MATCHES', payload: matches });
-      dispatch({ type: 'SET_WATCHLIST', payload: watchlist });
-      dispatch({ type: 'SET_RECOMMENDATIONS', payload: recommendations });
+    if (errors.length > 0 && !silent) {
+      showToast(`Failed to load: ${errors.join(', ')}. Check network or API.`, 'error');
+    }
 
-      if (errors.length > 0) {
-        showToast(`Failed to load: ${errors.join(', ')}. Check network or API.`, 'error');
-      }
-    } catch (err: unknown) {
-      console.error('[AppState] loadAllData failed:', err);
-      if (!silent) {
-        showToast('Failed to load app data. Check your API connection.', 'error');
-      }
-    } finally {
-      if (!silent) {
-        dispatch({ type: 'SET_LOADING', payload: { loading: false, progress: 100, message: '' } });
-      }
+    if (!silent) {
+      dispatch({ type: 'SET_LOADING', payload: { loading: false, progress: 100, message: '' } });
     }
   }, [showToast]);
 

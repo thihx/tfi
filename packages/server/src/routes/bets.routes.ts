@@ -52,6 +52,11 @@ export async function betRoutes(app: FastifyInstance) {
       req.body.pnl,
       req.body.final_score ?? '',
       'manual',
+      {
+        status: 'resolved',
+        method: 'manual',
+        note: req.body.final_score ?? '',
+      },
     );
     if (!bet) return reply.code(404).send({ error: 'Bet not found' });
     return bet;

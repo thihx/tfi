@@ -281,6 +281,7 @@ vi.mock('../repos/matches.repo.js', () => ({
 vi.mock('../repos/recommendations.repo.js', () => ({
   createRecommendation: vi.fn().mockResolvedValue({ id: 999 }),
   getRecommendationsByMatchId: vi.fn().mockResolvedValue([]),
+  markRecommendationNotified: vi.fn().mockResolvedValue({ id: 999, notified: 'yes', notification_channels: 'telegram' }),
 }));
 
 vi.mock('../repos/ai-performance.repo.js', () => ({
@@ -602,8 +603,10 @@ describe('runPipelineBatch', () => {
     await runPipelineBatch(['100']);
 
     const { sendTelegramMessage } = await import('../lib/telegram.js');
+    const { markRecommendationNotified } = await import('../repos/recommendations.repo.js');
     expect(sendTelegramMessage).toHaveBeenCalledTimes(1);
     expect(sendTelegramMessage).toHaveBeenCalledWith('123456', expect.stringContaining('AI RECOMMENDATION'));
+    expect(markRecommendationNotified).toHaveBeenCalledWith(999, 'telegram');
   });
 
   test('does NOT save or notify when AI says should_push=false', async () => {

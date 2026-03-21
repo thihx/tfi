@@ -37,6 +37,7 @@ vi.mock('../repos/recommendations.repo.js', () => ({
 
 vi.mock('../repos/ai-performance.repo.js', () => ({
   createAiPerformanceRecord: vi.fn().mockResolvedValue({ id: 1 }),
+  settleAiPerformance: vi.fn().mockResolvedValue({ id: 1 }),
 }));
 
 // Mock audit — no DB in tests
@@ -226,6 +227,14 @@ describe('PUT /api/recommendations/:id/settle', () => {
     });
     expect(res.statusCode).toBe(200);
     expect(res.json().result).toBe('win');
+    const aiPerfRepo = await import('../repos/ai-performance.repo.js');
+    expect(aiPerfRepo.settleAiPerformance).toHaveBeenCalledWith(
+      1,
+      'win',
+      0.85,
+      true,
+      expect.objectContaining({ status: 'resolved', method: 'manual', trusted: true }),
+    );
   });
 
   test('returns 404 for non-existent recommendation', async () => {

@@ -1,0 +1,563 @@
+{
+  "dir": "C:\\tfi\\packages\\server\\src\\__fixtures__\\strategic-context-replay",
+  "total": 4,
+  "passed": 1,
+  "outputs": [
+    {
+      "scenarioName": "01-domestic-league-rich",
+      "success": true,
+      "context": {
+        "home_motivation": "High. Arsenal are 1st in Premier League, strong title race position, winning last 4 league matches.",
+        "away_motivation": "No data found",
+        "league_positions": "No data found",
+        "fixture_congestion": "No data found",
+        "rotation_risk": "No data found",
+        "key_absences": "No data found",
+        "h2h_narrative": "No data found",
+        "summary": "Arsenal are highly motivated, leading the Premier League and in excellent form with 4 consecutive wins.",
+        "home_motivation_vi": "Cao. Arsenal đứng thứ 1 Premier League, vị trí mạnh trong cuộc đua vô địch, thắng 4 trận gần nhất.",
+        "away_motivation_vi": "Không tìm thấy dữ liệu",
+        "league_positions_vi": "Không tìm thấy dữ liệu",
+        "fixture_congestion_vi": "Không tìm thấy dữ liệu",
+        "rotation_risk_vi": "Không tìm thấy dữ liệu",
+        "key_absences_vi": "Không tìm thấy dữ liệu",
+        "h2h_narrative_vi": "Không tìm thấy dữ liệu",
+        "summary_vi": "Arsenal rất có động lực, dẫn đầu Premier League và phong độ xuất sắc với 4 chiến thắng liên tiếp.",
+        "searched_at": "2026-03-21T02:34:59.594Z",
+        "version": 2,
+        "competition_type": "domestic_league",
+        "ai_condition": "No data found",
+        "ai_condition_blueprint": {
+          "alert_window_start": null,
+          "alert_window_end": null,
+          "preferred_score_state": "any",
+          "preferred_goal_state": "any",
+          "favoured_side": "none",
+          "alert_rationale_en": "No data found",
+          "alert_rationale_vi": "Không tìm thấy dữ liệu"
+        },
+        "ai_condition_reason": "No data found",
+        "ai_condition_reason_vi": "Không tìm thấy dữ liệu",
+        "qualitative": {
+          "en": {
+            "home_motivation": "High. Arsenal are 1st in Premier League, strong title race position, winning last 4 league matches.",
+            "away_motivation": "No data found",
+            "league_positions": "No data found",
+            "fixture_congestion": "No data found",
+            "rotation_risk": "No data found",
+            "key_absences": "No data found",
+            "h2h_narrative": "No data found",
+            "summary": "Arsenal are highly motivated, leading the Premier League and in excellent form with 4 consecutive wins."
+          },
+          "vi": {
+            "home_motivation": "Cao. Arsenal đứng thứ 1 Premier League, vị trí mạnh trong cuộc đua vô địch, thắng 4 trận gần nhất.",
+            "away_motivation": "Không tìm thấy dữ liệu",
+            "league_positions": "Không tìm thấy dữ liệu",
+            "fixture_congestion": "Không tìm thấy dữ liệu",
+            "rotation_risk": "Không tìm thấy dữ liệu",
+            "key_absences": "Không tìm thấy dữ liệu",
+            "h2h_narrative": "Không tìm thấy dữ liệu",
+            "summary": "Arsenal rất có động lực, dẫn đầu Premier League và phong độ xuất sắc với 4 chiến thắng liên tiếp."
+          }
+        },
+        "quantitative": {
+          "home_last5_points": null,
+          "away_last5_points": null,
+          "home_last5_goals_for": null,
+          "away_last5_goals_for": null,
+          "home_last5_goals_against": null,
+          "away_last5_goals_against": null,
+          "home_home_goals_avg": null,
+          "away_away_goals_avg": null,
+          "home_over_2_5_rate_last10": null,
+          "away_over_2_5_rate_last10": null,
+          "home_btts_rate_last10": null,
+          "away_btts_rate_last10": null,
+          "home_clean_sheet_rate_last10": null,
+          "away_clean_sheet_rate_last10": null,
+          "home_failed_to_score_rate_last10": null,
+          "away_failed_to_score_rate_last10": null
+        },
+        "source_meta": {
+          "search_quality": "unknown",
+          "web_search_queries": [
+            "Premier League competition type",
+            "Premier League table 2025-2026",
+            "Arsenal Premier League results 2025-2026",
+            "Chelsea Premier League results 2025-2026",
+            "Arsenal schedule March 2026",
+            "Chelsea schedule March 2026",
+            "Arsenal injuries March 2026",
+            "Chelsea injuries March 2026",
+            "Arsenal vs Chelsea head to head Premier League",
+            "Arsenal home goals average Premier League 2025-2026",
+            "Chelsea away goals average Premier League 2025-2026"
+          ],
+          "sources": [],
+          "trusted_source_count": 0,
+          "rejected_source_count": 0,
+          "rejected_domains": []
+        }
+      },
+      "assertions": [
+        {
+          "field": "competitionType",
+          "pass": true,
+          "expected": "domestic_league",
+          "actual": "domestic_league"
+        },
+        {
+          "field": "usable",
+          "pass": true,
+          "expected": true,
+          "actual": true
+        },
+        {
+          "field": "minTrustedSources",
+          "pass": false,
+          "expected": 1,
+          "actual": 0
+        },
+        {
+          "field": "minQuantitativeCoverage",
+          "pass": false,
+          "expected": 4,
+          "actual": 0
+        },
+        {
+          "field": "searchQualityIn",
+          "pass": false,
+          "expected": [
+            "high",
+            "medium"
+          ],
+          "actual": "unknown"
+        },
+        {
+          "field": "requireBilingual",
+          "pass": true,
+          "expected": true,
+          "actual": true
+        }
+      ],
+      "allPassed": false
+    },
+    {
+      "scenarioName": "02-european-cross-league",
+      "success": true,
+      "context": {
+        "home_motivation": "High motivation from strong domestic form (1st PL) and desire for European glory.",
+        "away_motivation": "No data found",
+        "league_positions": "Home team is 1st in Premier League.",
+        "fixture_congestion": "No data found",
+        "rotation_risk": "No data found",
+        "key_absences": "No data found",
+        "h2h_narrative": "No data found",
+        "summary": "Home team has high motivation due to strong domestic form (1st PL) and desire for European glory, progressing to quarter-finals.",
+        "home_motivation_vi": "Động lực cao từ phong độ tốt trong nước (hạng 1 PL) và khao khát vinh quang châu Âu.",
+        "away_motivation_vi": "Không có dữ liệu",
+        "league_positions_vi": "Đội nhà đứng thứ 1 tại Premier League.",
+        "fixture_congestion_vi": "Không có dữ liệu",
+        "rotation_risk_vi": "Không có dữ liệu",
+        "key_absences_vi": "Không có dữ liệu",
+        "h2h_narrative_vi": "Không có dữ liệu",
+        "summary_vi": "Đội nhà có động lực cao nhờ phong độ tốt trong nước (hạng 1 PL) và khao khát vinh quang châu Âu, đã vào tứ kết.",
+        "searched_at": "2026-03-21T02:35:26.907Z",
+        "version": 2,
+        "competition_type": "european",
+        "ai_condition": "No data found",
+        "ai_condition_blueprint": {
+          "alert_window_start": null,
+          "alert_window_end": null,
+          "preferred_score_state": "any",
+          "preferred_goal_state": "any",
+          "favoured_side": "none",
+          "alert_rationale_en": "No data found",
+          "alert_rationale_vi": "Không có dữ liệu"
+        },
+        "ai_condition_reason": "No data found",
+        "ai_condition_reason_vi": "Không có dữ liệu",
+        "qualitative": {
+          "en": {
+            "home_motivation": "High motivation from strong domestic form (1st PL) and desire for European glory.",
+            "away_motivation": "No data found",
+            "league_positions": "Home team is 1st in Premier League.",
+            "fixture_congestion": "No data found",
+            "rotation_risk": "No data found",
+            "key_absences": "No data found",
+            "h2h_narrative": "No data found",
+            "summary": "Home team has high motivation due to strong domestic form (1st PL) and desire for European glory, progressing to quarter-finals."
+          },
+          "vi": {
+            "home_motivation": "Động lực cao từ phong độ tốt trong nước (hạng 1 PL) và khao khát vinh quang châu Âu.",
+            "away_motivation": "Không có dữ liệu",
+            "league_positions": "Đội nhà đứng thứ 1 tại Premier League.",
+            "fixture_congestion": "Không có dữ liệu",
+            "rotation_risk": "Không có dữ liệu",
+            "key_absences": "Không có dữ liệu",
+            "h2h_narrative": "Không có dữ liệu",
+            "summary": "Đội nhà có động lực cao nhờ phong độ tốt trong nước (hạng 1 PL) và khao khát vinh quang châu Âu, đã vào tứ kết."
+          }
+        },
+        "quantitative": {
+          "home_last5_points": null,
+          "away_last5_points": null,
+          "home_last5_goals_for": null,
+          "away_last5_goals_for": null,
+          "home_last5_goals_against": null,
+          "away_last5_goals_against": null,
+          "home_home_goals_avg": null,
+          "away_away_goals_avg": null,
+          "home_over_2_5_rate_last10": null,
+          "away_over_2_5_rate_last10": null,
+          "home_btts_rate_last10": null,
+          "away_btts_rate_last10": null,
+          "home_clean_sheet_rate_last10": null,
+          "away_clean_sheet_rate_last10": null,
+          "home_failed_to_score_rate_last10": null,
+          "away_failed_to_score_rate_last10": null
+        },
+        "source_meta": {
+          "search_quality": "unknown",
+          "web_search_queries": [
+            "Arsenal UEFA Champions League motivation March 2026",
+            "Inter UEFA Champions League motivation March 2026",
+            "Arsenal Premier League table 2025-2026 March",
+            "Inter Serie A table 2025-2026 March",
+            "Arsenal match schedule March 2026",
+            "Inter match schedule March 2026",
+            "Arsenal injury update March 2026",
+            "Inter injury update March 2026",
+            "Arsenal vs Inter head to head record Champions League",
+            "Arsenal vs Inter past matches",
+            "Arsenal recent form 2025-2026 March",
+            "Inter recent form 2025-2026 March",
+            "Arsenal 2025-2026 season stats home goals average",
+            "Inter 2025-2026 season stats away goals average",
+            "Arsenal over 2.5 goals rate 2025-2026",
+            "Inter over 2.5 goals rate 2025-2026",
+            "Arsenal BTTS rate 2025-2026",
+            "Inter BTTS rate 2025-2026",
+            "Arsenal clean sheet rate 2025-2026",
+            "Inter clean sheet rate 2025-2026",
+            "Arsenal failed to score rate 2025-2026",
+            "Inter failed to score rate 2025-2026"
+          ],
+          "sources": [],
+          "trusted_source_count": 0,
+          "rejected_source_count": 0,
+          "rejected_domains": []
+        }
+      },
+      "assertions": [
+        {
+          "field": "competitionType",
+          "pass": true,
+          "expected": "european",
+          "actual": "european"
+        },
+        {
+          "field": "usable",
+          "pass": true,
+          "expected": true,
+          "actual": true
+        },
+        {
+          "field": "minTrustedSources",
+          "pass": false,
+          "expected": 1,
+          "actual": 0
+        },
+        {
+          "field": "minQuantitativeCoverage",
+          "pass": false,
+          "expected": 4,
+          "actual": 0
+        },
+        {
+          "field": "searchQualityIn",
+          "pass": false,
+          "expected": [
+            "high",
+            "medium"
+          ],
+          "actual": "unknown"
+        },
+        {
+          "field": "requireBilingual",
+          "pass": true,
+          "expected": true,
+          "actual": true
+        }
+      ],
+      "allPassed": false
+    },
+    {
+      "scenarioName": "03-international",
+      "success": true,
+      "context": {
+        "home_motivation": "No data found. CONMEBOL World Cup Qualifiers for 2026 concluded in September 2025. [cite: 1, 2, 4, 10,",
+        "away_motivation": "No data found",
+        "league_positions": "No data found",
+        "fixture_congestion": "No data found",
+        "rotation_risk": "No data found",
+        "key_absences": "No data found",
+        "h2h_narrative": "No data found",
+        "summary": "No data found",
+        "home_motivation_vi": "Không có dữ liệu. Vòng loại World Cup CONMEBOL 2026 đã kết thúc vào tháng 9 năm 2025.",
+        "away_motivation_vi": "Không có dữ liệu",
+        "league_positions_vi": "Không có dữ liệu",
+        "fixture_congestion_vi": "Không có dữ liệu",
+        "rotation_risk_vi": "Không có dữ liệu",
+        "key_absences_vi": "Không có dữ liệu",
+        "h2h_narrative_vi": "Không có dữ liệu",
+        "summary_vi": "Không có dữ liệu",
+        "searched_at": "2026-03-21T02:36:00.190Z",
+        "version": 2,
+        "competition_type": "international",
+        "ai_condition": "No data found",
+        "ai_condition_blueprint": {
+          "alert_window_start": null,
+          "alert_window_end": null,
+          "preferred_score_state": "any",
+          "preferred_goal_state": "any",
+          "favoured_side": "none",
+          "alert_rationale_en": "No data found",
+          "alert_rationale_vi": "Không có dữ liệu"
+        },
+        "ai_condition_reason": "No data found",
+        "ai_condition_reason_vi": "Không có dữ liệu",
+        "qualitative": {
+          "en": {
+            "home_motivation": "No data found. CONMEBOL World Cup Qualifiers for 2026 concluded in September 2025. [cite: 1, 2, 4, 10,",
+            "away_motivation": "No data found",
+            "league_positions": "No data found",
+            "fixture_congestion": "No data found",
+            "rotation_risk": "No data found",
+            "key_absences": "No data found",
+            "h2h_narrative": "No data found",
+            "summary": "No data found"
+          },
+          "vi": {
+            "home_motivation": "Không có dữ liệu. Vòng loại World Cup CONMEBOL 2026 đã kết thúc vào tháng 9 năm 2025.",
+            "away_motivation": "Không có dữ liệu",
+            "league_positions": "Không có dữ liệu",
+            "fixture_congestion": "Không có dữ liệu",
+            "rotation_risk": "Không có dữ liệu",
+            "key_absences": "Không có dữ liệu",
+            "h2h_narrative": "Không có dữ liệu",
+            "summary": "Không có dữ liệu"
+          }
+        },
+        "quantitative": {
+          "home_last5_points": null,
+          "away_last5_points": null,
+          "home_last5_goals_for": null,
+          "away_last5_goals_for": null,
+          "home_last5_goals_against": null,
+          "away_last5_goals_against": null,
+          "home_home_goals_avg": null,
+          "away_away_goals_avg": null,
+          "home_over_2_5_rate_last10": null,
+          "away_over_2_5_rate_last10": null,
+          "home_btts_rate_last10": null,
+          "away_btts_rate_last10": null,
+          "home_clean_sheet_rate_last10": null,
+          "away_clean_sheet_rate_last10": null,
+          "home_failed_to_score_rate_last10": null,
+          "away_failed_to_score_rate_last10": null
+        },
+        "source_meta": {
+          "search_quality": "unknown",
+          "web_search_queries": [
+            "CONMEBOL World Cup Qualifiers competition format",
+            "CONMEBOL World Cup Qualifiers standings 2026",
+            "Brazil national team CONMEBOL World Cup Qualifiers motivation",
+            "Argentina national team CONMEBOL World Cup Qualifiers motivation",
+            "Brazil national team schedule March 2026",
+            "Argentina national team schedule March 2026",
+            "Brazil vs Argentina CONMEBOL Qualifiers team news rotation",
+            "Brazil national team injuries suspensions CONMEBOL Qualifiers March 2026",
+            "Argentina national team injuries suspensions CONMEBOL Qualifiers March 2026",
+            "Brazil vs Argentina head to head CONMEBOL World Cup Qualifiers history",
+            "Brazil CONMEBOL World Cup Qualifiers results last 5 matches",
+            "Argentina CONMEBOL World Cup Qualifiers results last 5 matches",
+            "Brazil CONMEBOL World Cup Qualifiers stats home goals average",
+            "Argentina CONMEBOL World Cup Qualifiers stats away goals average",
+            "Brazil CONMEBOL World Cup Qualifiers last 10 matches stats over 2.5 BTTS clean sheet failed to score",
+            "Argentina CONMEBOL World Cup Qualifiers last 10 matches stats over 2.5 BTTS clean sheet failed to score"
+          ],
+          "sources": [],
+          "trusted_source_count": 0,
+          "rejected_source_count": 0,
+          "rejected_domains": []
+        }
+      },
+      "assertions": [
+        {
+          "field": "competitionType",
+          "pass": true,
+          "expected": "international",
+          "actual": "international"
+        },
+        {
+          "field": "usable",
+          "pass": false,
+          "expected": true,
+          "actual": false
+        },
+        {
+          "field": "minTrustedSources",
+          "pass": false,
+          "expected": 1,
+          "actual": 0
+        },
+        {
+          "field": "minQuantitativeCoverage",
+          "pass": false,
+          "expected": 4,
+          "actual": 0
+        },
+        {
+          "field": "searchQualityIn",
+          "pass": false,
+          "expected": [
+            "high",
+            "medium"
+          ],
+          "actual": "unknown"
+        },
+        {
+          "field": "requireBilingual",
+          "pass": true,
+          "expected": true,
+          "actual": true
+        }
+      ],
+      "allPassed": false
+    },
+    {
+      "scenarioName": "04-no-data-synthetic",
+      "success": true,
+      "context": {
+        "home_motivation": "No data found",
+        "away_motivation": "No data found",
+        "league_positions": "No data found",
+        "fixture_congestion": "No data found",
+        "rotation_risk": "No data found",
+        "key_absences": "No data found",
+        "h2h_narrative": "No data found",
+        "summary": "No data found",
+        "home_motivation_vi": "Không tìm thấy dữ liệu",
+        "away_motivation_vi": "Không tìm thấy dữ liệu",
+        "league_positions_vi": "Không tìm thấy dữ liệu",
+        "fixture_congestion_vi": "Không tìm thấy dữ liệu",
+        "rotation_risk_vi": "Không tìm thấy dữ liệu",
+        "key_absences_vi": "Không tìm thấy dữ liệu",
+        "h2h_narrative_vi": "Không tìm thấy dữ liệu",
+        "summary_vi": "Không tìm thấy dữ liệu",
+        "searched_at": "2026-03-21T02:36:29.246Z",
+        "version": 2,
+        "competition_type": "",
+        "ai_condition": "No data found",
+        "ai_condition_blueprint": {
+          "alert_window_start": null,
+          "alert_window_end": null,
+          "preferred_score_state": "any",
+          "preferred_goal_state": "any",
+          "favoured_side": "none",
+          "alert_rationale_en": "No meaningful monitoring condition can be generated due to the absence of verifiable data for the synthetic teams and competition.",
+          "alert_rationale_vi": "Không thể tạo điều kiện giám sát có ý nghĩa do thiếu dữ liệu xác minh cho các đội và giải đấu tổng hợp."
+        },
+        "ai_condition_reason": "No data found",
+        "ai_condition_reason_vi": "Không tìm thấy dữ liệu",
+        "qualitative": {
+          "en": {
+            "home_motivation": "No data found",
+            "away_motivation": "No data found",
+            "league_positions": "No data found",
+            "fixture_congestion": "No data found",
+            "rotation_risk": "No data found",
+            "key_absences": "No data found",
+            "h2h_narrative": "No data found",
+            "summary": "No data found"
+          },
+          "vi": {
+            "home_motivation": "Không tìm thấy dữ liệu",
+            "away_motivation": "Không tìm thấy dữ liệu",
+            "league_positions": "Không tìm thấy dữ liệu",
+            "fixture_congestion": "Không tìm thấy dữ liệu",
+            "rotation_risk": "Không tìm thấy dữ liệu",
+            "key_absences": "Không tìm thấy dữ liệu",
+            "h2h_narrative": "Không tìm thấy dữ liệu",
+            "summary": "Không tìm thấy dữ liệu"
+          }
+        },
+        "quantitative": {
+          "home_last5_points": null,
+          "away_last5_points": null,
+          "home_last5_goals_for": null,
+          "away_last5_goals_for": null,
+          "home_last5_goals_against": null,
+          "away_last5_goals_against": null,
+          "home_home_goals_avg": null,
+          "away_away_goals_avg": null,
+          "home_over_2_5_rate_last10": null,
+          "away_over_2_5_rate_last10": null,
+          "home_btts_rate_last10": null,
+          "away_btts_rate_last10": null,
+          "home_clean_sheet_rate_last10": null,
+          "away_clean_sheet_rate_last10": null,
+          "home_failed_to_score_rate_last10": null,
+          "away_failed_to_score_rate_last10": null
+        },
+        "source_meta": {
+          "search_quality": "unknown",
+          "web_search_queries": [
+            "Synthetic Verification Invitational football",
+            "Replay Validation United 9104 football",
+            "Prompt Safety Wanderers 9104 football",
+            "Synthetic Verification Invitational standings",
+            "Replay Validation United 9104 recent form",
+            "Prompt Safety Wanderers 9104 recent form",
+            "Replay Validation United 9104 vs Prompt Safety Wanderers 9104 h2h"
+          ],
+          "sources": [],
+          "trusted_source_count": 0,
+          "rejected_source_count": 0,
+          "rejected_domains": []
+        }
+      },
+      "assertions": [
+        {
+          "field": "usable",
+          "pass": true,
+          "expected": false,
+          "actual": false
+        },
+        {
+          "field": "searchQualityIn",
+          "pass": true,
+          "expected": [
+            "low",
+            "unknown"
+          ],
+          "actual": "unknown"
+        },
+        {
+          "field": "requireBilingual",
+          "pass": true,
+          "expected": true,
+          "actual": true
+        },
+        {
+          "field": "expectNoData",
+          "pass": true,
+          "expected": true,
+          "actual": true
+        }
+      ],
+      "allPassed": true
+    }
+  ]
+}

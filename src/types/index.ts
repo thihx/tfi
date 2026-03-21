@@ -172,6 +172,10 @@ export interface Recommendation {
   pnl: number | string;
   ft_score?: string | null;
   settled_at?: string | null;
+  settlement_status?: string;
+  settlement_method?: string;
+  settle_prompt_version?: string;
+  settlement_note?: string;
   created_at?: string;
 }
 

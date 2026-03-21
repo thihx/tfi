@@ -1,0 +1,158 @@
+{
+  "ranAt": "2026-03-21T02:07:27.966Z",
+  "chosen": [
+    {
+      "mode": "auto",
+      "matchId": "1492562"
+    },
+    {
+      "mode": "system",
+      "matchId": "1498392"
+    },
+    {
+      "mode": "early",
+      "matchId": "1469683"
+    }
+  ],
+  "results": [
+    {
+      "mode": "auto",
+      "matchId": "1492562",
+      "match": "Necaxa vs Club Tijuana",
+      "league": "Liga MX",
+      "status": "HT",
+      "elapsed": 45,
+      "watchlistMode": "B",
+      "watchlistCreated": false,
+      "originalMode": "B",
+      "success": true,
+      "shouldPush": false,
+      "selection": "",
+      "confidence": 0,
+      "saved": false,
+      "notified": false,
+      "error": "",
+      "debug": {
+        "analysisMode": "auto",
+        "statsAvailable": true,
+        "statsSource": "api-football",
+        "statsFallbackUsed": false,
+        "statsFallbackReason": ""
+      },
+      "providerSamples": {
+        "stats": 4,
+        "odds": 2
+      }
+    },
+    {
+      "mode": "system",
+      "matchId": "1498392",
+      "match": "San Martin S.J. vs San Martin Tucuman",
+      "league": "Primera Nacional",
+      "status": "2H",
+      "elapsed": 71,
+      "watchlistMode": "F",
+      "watchlistCreated": true,
+      "originalMode": "F",
+      "success": true,
+      "shouldPush": true,
+      "selection": "Under 1.5 Goals @1.525",
+      "confidence": 6,
+      "saved": false,
+      "notified": false,
+      "error": "",
+      "debug": {
+        "analysisMode": "system_force",
+        "oddsSource": "live",
+        "oddsAvailable": true,
+        "statsAvailable": false,
+        "statsSource": "api-football",
+        "evidenceMode": "odds_events_only_degraded",
+        "statsFallbackUsed": false,
+        "statsFallbackReason": "Live Score fallback rejected: api_pairs=0, live_pairs=1, live_quality=VERY_POOR"
+      },
+      "providerSamples": {
+        "stats": 2,
+        "odds": 1
+      }
+    },
+    {
+      "mode": "early",
+      "matchId": "1469683",
+      "match": "Auckland vs Macarthur",
+      "league": "A-League",
+      "status": "1H",
+      "elapsed": 6,
+      "watchlistMode": "B",
+      "watchlistCreated": true,
+      "originalMode": "B",
+      "success": true,
+      "shouldPush": false,
+      "selection": "",
+      "confidence": 0,
+      "saved": false,
+      "notified": false,
+      "error": "",
+      "debug": {
+        "analysisMode": "auto",
+        "oddsSource": "live",
+        "oddsAvailable": true,
+        "statsAvailable": true,
+        "statsSource": "api-football",
+        "evidenceMode": "full_live_data",
+        "statsFallbackUsed": false,
+        "statsFallbackReason": ""
+      },
+      "providerSamples": {
+        "stats": 2,
+        "odds": 1
+      }
+    },
+    {
+      "mode": "manual",
+      "matchId": "1498392",
+      "match": "San Martin S.J. vs San Martin Tucuman",
+      "league": "Primera Nacional",
+      "status": "2H",
+      "elapsed": 75,
+      "watchlistMode": "B",
+      "watchlistCreated": false,
+      "originalMode": "B",
+      "success": true,
+      "shouldPush": false,
+      "selection": "",
+      "confidence": 0,
+      "saved": false,
+      "notified": false,
+      "error": "",
+      "debug": {
+        "analysisMode": "manual_force",
+        "oddsSource": "live",
+        "oddsAvailable": true,
+        "statsAvailable": false,
+        "statsSource": "api-football",
+        "evidenceMode": "odds_events_only_degraded",
+        "statsFallbackUsed": false,
+        "statsFallbackReason": "Live Score fallback rejected: api_pairs=0, live_pairs=1, live_quality=VERY_POOR"
+      },
+      "providerSamples": {
+        "stats": 2,
+        "odds": 1
+      }
+    }
+  ],
+  "transientFailures": [
+    {
+      "mode": "manual",
+      "matchId": "1510098",
+      "match": "San Francisco FC vs Tauro FC",
+      "error": "This operation was aborted"
+    },
+    {
+      "mode": "manual",
+      "matchId": "1512546",
+      "match": "Cienciano vs FC Cajamarca",
+      "error": "This operation was aborted"
+    }
+  ]
+}

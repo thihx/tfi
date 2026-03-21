@@ -16,6 +16,17 @@ export const config = {
   // AI (Gemini)
   geminiApiKey: process.env['GEMINI_API_KEY'] || '',
   geminiModel: process.env['GEMINI_MODEL'] || 'gemini-3-pro-preview',
+  geminiTimeoutMs: Number(process.env['GEMINI_TIMEOUT_MS'] || 90000),
+  geminiStrategicGroundedModel: process.env['GEMINI_STRATEGIC_GROUNDED_MODEL'] || 'gemini-2.5-flash',
+  geminiStrategicStructuredModel: process.env['GEMINI_STRATEGIC_STRUCTURED_MODEL'] || 'gemini-2.5-flash',
+  geminiStrategicGroundedMaxOutputTokens: Number(process.env['GEMINI_STRATEGIC_GROUNDED_MAX_OUTPUT_TOKENS'] || 4000),
+  geminiStrategicStructuredMaxOutputTokens: Number(process.env['GEMINI_STRATEGIC_STRUCTURED_MAX_OUTPUT_TOKENS'] || 2048),
+  geminiStrategicGroundedThinkingBudget: process.env['GEMINI_STRATEGIC_GROUNDED_THINKING_BUDGET'] == null
+    ? 0
+    : Number(process.env['GEMINI_STRATEGIC_GROUNDED_THINKING_BUDGET']),
+  geminiStrategicStructuredThinkingBudget: process.env['GEMINI_STRATEGIC_STRUCTURED_THINKING_BUDGET'] == null
+    ? 0
+    : Number(process.env['GEMINI_STRATEGIC_STRUCTURED_THINKING_BUDGET']),
 
   // Telegram
   telegramBotToken: process.env['TELEGRAM_BOT_TOKEN'] || '',

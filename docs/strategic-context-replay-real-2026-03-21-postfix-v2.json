@@ -1,0 +1,633 @@
+{
+  "dir": "C:\\tfi\\packages\\server\\src\\__fixtures__\\strategic-context-replay",
+  "total": 4,
+  "passed": 1,
+  "outputs": [
+    {
+      "scenarioName": "01-domestic-league-rich",
+      "success": true,
+      "context": {
+        "home_motivation": "No data found",
+        "away_motivation": "No data found",
+        "league_positions": "No data found",
+        "fixture_congestion": "No data found",
+        "rotation_risk": "No data found",
+        "key_absences": "No data found",
+        "h2h_narrative": "Historically, matches between Arsenal and Chelsea in the Premier League are highly competitive London derbies. Recent encounters have seen varied results, with both teams securing wins. For example, in the 2023-24 season, Arsenal defeated Chelsea 5-0 at home in April 2024, while the reverse fixture in October 2023 ended in a 2-2 draw.",
+        "summary": "This is a significant Premier League London derby between two major clubs. Specific motivations, league positions, fixture congestion, rotation risks, and key absences for the March 21, 2026 fixture cannot be determined at this time. Historical head-to-head matches indicate a competitive rivalry with mixed results.",
+        "home_motivation_vi": "No data found",
+        "away_motivation_vi": "No data found",
+        "league_positions_vi": "No data found",
+        "fixture_congestion_vi": "No data found",
+        "rotation_risk_vi": "No data found",
+        "key_absences_vi": "No data found",
+        "h2h_narrative_vi": "No data found",
+        "summary_vi": "Khong tim thay du lieu",
+        "searched_at": "2026-03-21T02:42:44.708Z",
+        "version": 2,
+        "competition_type": "domestic_league",
+        "ai_condition": "",
+        "ai_condition_blueprint": {
+          "alert_window_start": null,
+          "alert_window_end": null,
+          "preferred_score_state": "any",
+          "preferred_goal_state": "any",
+          "favoured_side": "none",
+          "alert_rationale_en": "No data found",
+          "alert_rationale_vi": ""
+        },
+        "ai_condition_reason": "No data found",
+        "ai_condition_reason_vi": "",
+        "qualitative": {
+          "en": {
+            "home_motivation": "No data found",
+            "away_motivation": "No data found",
+            "league_positions": "No data found",
+            "fixture_congestion": "No data found",
+            "rotation_risk": "No data found",
+            "key_absences": "No data found",
+            "h2h_narrative": "Historically, matches between Arsenal and Chelsea in the Premier League are highly competitive London derbies. Recent encounters have seen varied results, with both teams securing wins. For example, in the 2023-24 season, Arsenal defeated Chelsea 5-0 at home in April 2024, while the reverse fixture in October 2023 ended in a 2-2 draw.",
+            "summary": "This is a significant Premier League London derby between two major clubs. Specific motivations, league positions, fixture congestion, rotation risks, and key absences for the March 21, 2026 fixture cannot be determined at this time. Historical head-to-head matches indicate a competitive rivalry with mixed results."
+          },
+          "vi": {
+            "home_motivation": "No data found",
+            "away_motivation": "No data found",
+            "league_positions": "No data found",
+            "fixture_congestion": "No data found",
+            "rotation_risk": "No data found",
+            "key_absences": "No data found",
+            "h2h_narrative": "No data found",
+            "summary": "Khong tim thay du lieu"
+          }
+        },
+        "quantitative": {
+          "home_last5_points": null,
+          "away_last5_points": null,
+          "home_last5_goals_for": null,
+          "away_last5_goals_for": null,
+          "home_last5_goals_against": null,
+          "away_last5_goals_against": null,
+          "home_home_goals_avg": null,
+          "away_away_goals_avg": null,
+          "home_over_2_5_rate_last10": null,
+          "away_over_2_5_rate_last10": null,
+          "home_btts_rate_last10": null,
+          "away_btts_rate_last10": null,
+          "home_clean_sheet_rate_last10": null,
+          "away_clean_sheet_rate_last10": null,
+          "home_failed_to_score_rate_last10": null,
+          "away_failed_to_score_rate_last10": null
+        },
+        "source_meta": {
+          "search_quality": "medium",
+          "web_search_queries": [
+            "Arsenal vs Chelsea head to head Premier League",
+            "Arsenal vs Chelsea 2023-2024 results"
+          ],
+          "sources": [
+            {
+              "title": "espn.com",
+              "url": "https://espn.com",
+              "domain": "espn.com",
+              "publisher": "espn.com",
+              "language": "en",
+              "source_type": "major_news",
+              "trust_tier": "tier_1"
+            }
+          ],
+          "trusted_source_count": 1,
+          "rejected_source_count": 0,
+          "rejected_domains": []
+        }
+      },
+      "assertions": [
+        {
+          "field": "competitionType",
+          "pass": true,
+          "expected": "domestic_league",
+          "actual": "domestic_league"
+        },
+        {
+          "field": "usable",
+          "pass": true,
+          "expected": true,
+          "actual": true
+        },
+        {
+          "field": "minTrustedSources",
+          "pass": true,
+          "expected": 1,
+          "actual": 1
+        },
+        {
+          "field": "minQuantitativeCoverage",
+          "pass": false,
+          "expected": 4,
+          "actual": 0
+        },
+        {
+          "field": "searchQualityIn",
+          "pass": true,
+          "expected": [
+            "high",
+            "medium"
+          ],
+          "actual": "medium"
+        },
+        {
+          "field": "requireBilingual",
+          "pass": true,
+          "expected": true,
+          "actual": true
+        }
+      ],
+      "allPassed": false
+    },
+    {
+      "scenarioName": "02-european-cross-league",
+      "success": true,
+      "context": {
+        "home_motivation": "",
+        "away_motivation": "",
+        "league_positions": "",
+        "fixture_congestion": "",
+        "rotation_risk": "",
+        "key_absences": "",
+        "h2h_narrative": "",
+        "summary": "No data found",
+        "home_motivation_vi": "",
+        "away_motivation_vi": "",
+        "league_positions_vi": "",
+        "fixture_congestion_vi": "",
+        "rotation_risk_vi": "",
+        "key_absences_vi": "",
+        "h2h_narrative_vi": "",
+        "summary_vi": "Khong tim thay du lieu",
+        "searched_at": "2026-03-21T02:43:57.863Z",
+        "version": 2,
+        "competition_type": "european",
+        "ai_condition": "",
+        "ai_condition_blueprint": null,
+        "ai_condition_reason": "",
+        "ai_condition_reason_vi": "",
+        "qualitative": {
+          "en": {
+            "home_motivation": "",
+            "away_motivation": "",
+            "league_positions": "",
+            "fixture_congestion": "",
+            "rotation_risk": "",
+            "key_absences": "",
+            "h2h_narrative": "",
+            "summary": "No data found"
+          },
+          "vi": {
+            "home_motivation": "",
+            "away_motivation": "",
+            "league_positions": "",
+            "fixture_congestion": "",
+            "rotation_risk": "",
+            "key_absences": "",
+            "h2h_narrative": "",
+            "summary": "Khong tim thay du lieu"
+          }
+        },
+        "quantitative": {
+          "home_last5_points": null,
+          "away_last5_points": null,
+          "home_last5_goals_for": null,
+          "away_last5_goals_for": null,
+          "home_last5_goals_against": null,
+          "away_last5_goals_against": null,
+          "home_home_goals_avg": null,
+          "away_away_goals_avg": null,
+          "home_over_2_5_rate_last10": null,
+          "away_over_2_5_rate_last10": null,
+          "home_btts_rate_last10": null,
+          "away_btts_rate_last10": null,
+          "home_clean_sheet_rate_last10": null,
+          "away_clean_sheet_rate_last10": null,
+          "home_failed_to_score_rate_last10": null,
+          "away_failed_to_score_rate_last10": null
+        },
+        "source_meta": {
+          "search_quality": "low",
+          "web_search_queries": [
+            "Arsenal Champions League 2025-2026 motivation",
+            "Inter Champions League 2025-2026 motivation",
+            "Arsenal Premier League position 2025-2026",
+            "Inter Serie A position 2025-2026",
+            "Arsenal fixture schedule March 2026",
+            "Inter fixture schedule March 2026",
+            "Arsenal injury update March 2026",
+            "Inter injury update March 2026",
+            "Arsenal vs Inter head to head record",
+            "Arsenal last 5 matches results all competitions 2025-2026",
+            "Inter last 5 matches results all competitions 2025-2026",
+            "Arsenal home goals average 2025-2026",
+            "Inter away goals average 2025-2026",
+            "Arsenal over 2.5 goals rate last 10 matches 2025-2026",
+            "Inter over 2.5 goals rate last 10 matches 2025-2026",
+            "Arsenal BTTS rate last 10 matches 2025-2026",
+            "Inter BTTS rate last 10 matches 2025-2026",
+            "Arsenal clean sheet rate last 10 matches 2025-2026",
+            "Inter clean sheet rate last 10 matches 2025-2026",
+            "Arsenal failed to score rate last 10 matches 2025-2026",
+            "Inter failed to score rate last 10 matches 2025-2026",
+            "Arsenal Champions League manager quotes Inter match 2026",
+            "Inter Champions League manager quotes Arsenal match 2026"
+          ],
+          "sources": [
+            {
+              "title": "sportstats365.com",
+              "url": "https://vertexaisearch.cloud.google.com/grounding-api-redirect/AUZIYQH1sve3_S0CKJZARpH2HdBPwIBUmBeCwGJzy-U-g5OqD8wOjIFGATKmg3Lff_gOteB6xJMURiR6CVQ4gHAUMS9QjYhvasVZ24Nb4iJaFSgPMt12kpY86ia9HfsQscniKXshtEpNhrKwLRQJf8R0troxGsX2RECV4kOUvnkJojO0ag==",
+              "domain": "vertexaisearch.cloud.google.com",
+              "publisher": "vertexaisearch.cloud.google.com",
+              "language": "en",
+              "source_type": "unknown",
+              "trust_tier": "tier_3"
+            },
+            {
+              "title": "nbcsports.com",
+              "url": "https://vertexaisearch.cloud.google.com/grounding-api-redirect/AUZIYQGJ7njtj-sYjASGXUhMavgFpHicD1WTmrUFlzN1f-YndazdnEPGPs3V9NNIheYbgMtfiGvASs9LEP3JMBEbta3k1-Go8YTA4hEc4VJsUmoEMHQovrRHrTqyIelseAGT_067JWtheEa8IkUJkc8iUuHAUqOR8qUX0-QCRni2kFCsOtt0O__TlzlbQLYgFFUrQfR8Halm5n1bmKvwVDKuwww=",
+              "domain": "vertexaisearch.cloud.google.com",
+              "publisher": "vertexaisearch.cloud.google.com",
+              "language": "en",
+              "source_type": "unknown",
+              "trust_tier": "tier_3"
+            },
+            {
+              "title": "fbref.com",
+              "url": "https://vertexaisearch.cloud.google.com/grounding-api-redirect/AUZIYQE9iFML04GZ7PZ849fVmgh91GaHWrU4EY0vUHhYFe7uYnNlcOJzLSKAP3B9_ZKr2-Gd4pkDL6mUnHCx-51KYf_p_73rFp8xAMLIDGPzkNUPXpfoAJ1Ctp8UDVIpwxpTrBmjpZwJKWgu06Aw0rleH_WM7XgpemhkBvFJHw8-b45w04ApFk4aseBUKs_OHlg0WLrXDVgd9K7s6LDyac9DRw9Jqx-eDEbVMmrC",
+              "domain": "vertexaisearch.cloud.google.com",
+              "publisher": "vertexaisearch.cloud.google.com",
+              "language": "en",
+              "source_type": "unknown",
+              "trust_tier": "tier_3"
+            },
+            {
+              "title": "premierleague.com",
+              "url": "https://vertexaisearch.cloud.google.com/grounding-api-redirect/AUZIYQEgN1UB47XAga8Gs1Da6rWWDnmsBv6es4-0LqLuYFLPGl0EdF4JeqkFZebvJtcbkP9Q-D3rJ3cONLUvpAuIyY6rXcliBKsVHcGEYoqpBhqBtwjjNcx6fCQn1LJObqRGMrqdHqq0oqZStlqsv8P44L7pHHrr4kc5Py52UNoevNYjmv7yR2JEAik=",
+              "domain": "vertexaisearch.cloud.google.com",
+              "publisher": "vertexaisearch.cloud.google.com",
+              "language": "en",
+              "source_type": "unknown",
+              "trust_tier": "tier_3"
+            },
+            {
+              "title": "fbref.com",
+              "url": "https://vertexaisearch.cloud.google.com/grounding-api-redirect/AUZIYQE0Q051BkE0InwB3c3VN2UFozxxC1vGYjjISrWSYCDmvQlFwmKKPJU75rxk85EmJO42ZbROBMyC4LgoyuWwN6OXe0ExpBTW4AgYfZVmudl9eY8tKVHN2kVBcGGcQbR55m6RZQShQuMuGvLFGjU=",
+              "domain": "vertexaisearch.cloud.google.com",
+              "publisher": "vertexaisearch.cloud.google.com",
+              "language": "en",
+              "source_type": "unknown",
+              "trust_tier": "tier_3"
+            },
+            {
+              "title": "foxsports.com",
+              "url": "https://vertexaisearch.cloud.google.com/grounding-api-redirect/AUZIYQHYN1aIzhkNnlnCH86gg_FDHladTFPGqS8oRc_n5wI1XIV85RzRN0k5VQBBdIWdTibkPA2FmIkzse8LX-33lfuh-UiqMOuN_kEgofTNwDMnPUKlJpDRbHrYJ5fhzjuft8gNaCJ6XfPOdV3XITqZ6YqMAw==",
+              "domain": "vertexaisearch.cloud.google.com",
+              "publisher": "vertexaisearch.cloud.google.com",
+              "language": "en",
+              "source_type": "unknown",
+              "trust_tier": "tier_3"
+            },
+            {
+              "title": "statmuse.com",
+              "url": "https://vertexaisearch.cloud.google.com/grounding-api-redirect/AUZIYQFfI_kJptoT0voyE2gbczTUQbkO4Y5qg9zTiNeHP4CZfTQSjlYsDM-57GXfB19Wwu_fibsBZWqkOnbcgfmLhm5olCgZ1oZZKX3jhpXG7LuDapiG-EYy0MsBd3ZgImdTzpxhY3EldFpBM44P0diwD8ARXvH1an5BnW4hRA==",
+              "domain": "vertexaisearch.cloud.google.com",
+              "publisher": "vertexaisearch.cloud.google.com",
+              "language": "en",
+              "source_type": "unknown",
+              "trust_tier": "tier_3"
+            },
+            {
+              "title": "wikipedia.org",
+              "url": "https://vertexaisearch.cloud.google.com/grounding-api-redirect/AUZIYQFszTiz0OSqxbz3ffsEMZd4K2Ld5b6jU9to4NtqY1BJ06Hg9PQXEYwTNfwQzxoepEojvSa5lxDIkLXcLbggw2reJ5cm3W9vhZRhQ8vN3798EaCFhFl9T4hwegKw0RrXknBC_6RwDvVfBVpAxHs4_SaQvE4BtX8b0BhK08Q=",
+              "domain": "vertexaisearch.cloud.google.com",
+              "publisher": "vertexaisearch.cloud.google.com",
+              "language": "en",
+              "source_type": "unknown",
+              "trust_tier": "tier_3"
+            }
+          ],
+          "trusted_source_count": 0,
+          "rejected_source_count": 0,
+          "rejected_domains": []
+        }
+      },
+      "assertions": [
+        {
+          "field": "competitionType",
+          "pass": true,
+          "expected": "european",
+          "actual": "european"
+        },
+        {
+          "field": "usable",
+          "pass": false,
+          "expected": true,
+          "actual": false
+        },
+        {
+          "field": "minTrustedSources",
+          "pass": false,
+          "expected": 1,
+          "actual": 0
+        },
+        {
+          "field": "minQuantitativeCoverage",
+          "pass": false,
+          "expected": 4,
+          "actual": 0
+        },
+        {
+          "field": "searchQualityIn",
+          "pass": false,
+          "expected": [
+            "high",
+            "medium"
+          ],
+          "actual": "low"
+        },
+        {
+          "field": "requireBilingual",
+          "pass": true,
+          "expected": true,
+          "actual": true
+        }
+      ],
+      "allPassed": false
+    },
+    {
+      "scenarioName": "03-international",
+      "success": true,
+      "context": {
+        "home_motivation": "",
+        "away_motivation": "",
+        "league_positions": "",
+        "fixture_congestion": "",
+        "rotation_risk": "",
+        "key_absences": "",
+        "h2h_narrative": "",
+        "summary": "No data found",
+        "home_motivation_vi": "",
+        "away_motivation_vi": "",
+        "league_positions_vi": "",
+        "fixture_congestion_vi": "",
+        "rotation_risk_vi": "",
+        "key_absences_vi": "",
+        "h2h_narrative_vi": "",
+        "summary_vi": "Khong tim thay du lieu",
+        "searched_at": "2026-03-21T02:44:38.574Z",
+        "version": 2,
+        "competition_type": "international",
+        "ai_condition": "",
+        "ai_condition_blueprint": null,
+        "ai_condition_reason": "",
+        "ai_condition_reason_vi": "",
+        "qualitative": {
+          "en": {
+            "home_motivation": "",
+            "away_motivation": "",
+            "league_positions": "",
+            "fixture_congestion": "",
+            "rotation_risk": "",
+            "key_absences": "",
+            "h2h_narrative": "",
+            "summary": "No data found"
+          },
+          "vi": {
+            "home_motivation": "",
+            "away_motivation": "",
+            "league_positions": "",
+            "fixture_congestion": "",
+            "rotation_risk": "",
+            "key_absences": "",
+            "h2h_narrative": "",
+            "summary": "Khong tim thay du lieu"
+          }
+        },
+        "quantitative": {
+          "home_last5_points": null,
+          "away_last5_points": null,
+          "home_last5_goals_for": null,
+          "away_last5_goals_for": null,
+          "home_last5_goals_against": null,
+          "away_last5_goals_against": null,
+          "home_home_goals_avg": null,
+          "away_away_goals_avg": null,
+          "home_over_2_5_rate_last10": null,
+          "away_over_2_5_rate_last10": null,
+          "home_btts_rate_last10": null,
+          "away_btts_rate_last10": null,
+          "home_clean_sheet_rate_last10": null,
+          "away_clean_sheet_rate_last10": null,
+          "home_failed_to_score_rate_last10": null,
+          "away_failed_to_score_rate_last10": null
+        },
+        "source_meta": {
+          "search_quality": "low",
+          "web_search_queries": [
+            "CONMEBOL World Cup Qualifiers 2026 standings",
+            "Brazil national football team CONMEBOL World Cup Qualifiers 2026 results",
+            "Argentina national football team CONMEBOL World Cup Qualifiers 2026 results",
+            "Brazil vs Argentina head to head CONMEBOL World Cup Qualifiers",
+            "Brazil national team injuries suspensions March 2026",
+            "Argentina national team injuries suspensions March 2026",
+            "Brazil national team schedule March 2026",
+            "Argentina national team schedule March 2026",
+            "Brazil national team CONMEBOL World Cup Qualifiers stats",
+            "Argentina national team CONMEBOL World Cup Qualifiers stats"
+          ],
+          "sources": [
+            {
+              "title": "fifa.com",
+              "url": "https://vertexaisearch.cloud.google.com/grounding-api-redirect/AUZIYQG07fryi2h-HuBm0qpcfUGShQVUFxVPv3xHWtGqCSU7C8nO_IwD1wf0in4gt1O5tAgw9ou5-EExIPa8e1xduNU6ESMhuo-M3_MDB2mpbaa4jfr9TOmyG0qassw56NIoGIgg_KBerMUzdw_15sIEG6Nbv9eungz8qs_QlEJ6Db8bs6UETsh1gV02oWrQmKsbe8yWxk3cot5K80ZJXckM",
+              "domain": "vertexaisearch.cloud.google.com",
+              "publisher": "vertexaisearch.cloud.google.com",
+              "language": "en",
+              "source_type": "unknown",
+              "trust_tier": "tier_3"
+            },
+            {
+              "title": "365scores.com",
+              "url": "https://vertexaisearch.cloud.google.com/grounding-api-redirect/AUZIYQH5tMPE_hM9ZDLR57qRJozZ99RYsEUAQkNL0xlCrtqxUkdnLTkdMQjtkkf_FCv685VaJk3Pm0u-ymwif5yqdDeirI7qLxoDuk3jlNl66f9CdFngYw-xkRlfbVPyj8V_iGD5VQMdH73FF4Dcev3eRam_lm4b-qUi397lpabxTFTKx-qWJx7YqrQueqAc",
+              "domain": "vertexaisearch.cloud.google.com",
+              "publisher": "vertexaisearch.cloud.google.com",
+              "language": "en",
+              "source_type": "unknown",
+              "trust_tier": "tier_3"
+            }
+          ],
+          "trusted_source_count": 0,
+          "rejected_source_count": 0,
+          "rejected_domains": []
+        }
+      },
+      "assertions": [
+        {
+          "field": "competitionType",
+          "pass": true,
+          "expected": "international",
+          "actual": "international"
+        },
+        {
+          "field": "usable",
+          "pass": false,
+          "expected": true,
+          "actual": false
+        },
+        {
+          "field": "minTrustedSources",
+          "pass": false,
+          "expected": 1,
+          "actual": 0
+        },
+        {
+          "field": "minQuantitativeCoverage",
+          "pass": false,
+          "expected": 4,
+          "actual": 0
+        },
+        {
+          "field": "searchQualityIn",
+          "pass": false,
+          "expected": [
+            "high",
+            "medium"
+          ],
+          "actual": "low"
+        },
+        {
+          "field": "requireBilingual",
+          "pass": true,
+          "expected": true,
+          "actual": true
+        }
+      ],
+      "allPassed": false
+    },
+    {
+      "scenarioName": "04-no-data-synthetic",
+      "success": true,
+      "context": {
+        "home_motivation": "No data found",
+        "away_motivation": "No data found",
+        "league_positions": "No data found",
+        "fixture_congestion": "No data found",
+        "rotation_risk": "No data found",
+        "key_absences": "No data found",
+        "h2h_narrative": "No data found",
+        "summary": "No data found for either team or the competition, suggesting these are synthetic entities for testing or fictional purposes.",
+        "home_motivation_vi": "Không tìm thấy dữ liệu",
+        "away_motivation_vi": "Không tìm thấy dữ liệu",
+        "league_positions_vi": "Không tìm thấy dữ liệu",
+        "fixture_congestion_vi": "Không tìm thấy dữ liệu",
+        "rotation_risk_vi": "Không tìm thấy dữ liệu",
+        "key_absences_vi": "Không tìm thấy dữ liệu",
+        "h2h_narrative_vi": "Không tìm thấy dữ liệu",
+        "summary_vi": "Không tìm thấy dữ liệu cho cả hai đội hoặc giải đấu, cho thấy đây là các thực thể tổng hợp để thử nghiệm hoặc mục đích hư cấu.",
+        "searched_at": "2026-03-21T02:45:46.777Z",
+        "version": 2,
+        "competition_type": "friendly",
+        "ai_condition": "No specific condition",
+        "ai_condition_blueprint": {
+          "alert_window_start": null,
+          "alert_window_end": null,
+          "preferred_score_state": "any",
+          "preferred_goal_state": "any",
+          "favoured_side": "none",
+          "alert_rationale_en": "No factual data available to establish a meaningful live betting condition.",
+          "alert_rationale_vi": "Không có dữ liệu thực tế để thiết lập điều kiện cá cược trực tiếp có ý nghĩa."
+        },
+        "ai_condition_reason": "No factual data available to establish a meaningful live betting condition.",
+        "ai_condition_reason_vi": "Không có dữ liệu thực tế để thiết lập điều kiện cá cược trực tiếp có ý nghĩa.",
+        "qualitative": {
+          "en": {
+            "home_motivation": "No data found",
+            "away_motivation": "No data found",
+            "league_positions": "No data found",
+            "fixture_congestion": "No data found",
+            "rotation_risk": "No data found",
+            "key_absences": "No data found",
+            "h2h_narrative": "No data found",
+            "summary": "No data found for either team or the competition, suggesting these are synthetic entities for testing or fictional purposes."
+          },
+          "vi": {
+            "home_motivation": "Không tìm thấy dữ liệu",
+            "away_motivation": "Không tìm thấy dữ liệu",
+            "league_positions": "Không tìm thấy dữ liệu",
+            "fixture_congestion": "Không tìm thấy dữ liệu",
+            "rotation_risk": "Không tìm thấy dữ liệu",
+            "key_absences": "Không tìm thấy dữ liệu",
+            "h2h_narrative": "Không tìm thấy dữ liệu",
+            "summary": "Không tìm thấy dữ liệu cho cả hai đội hoặc giải đấu, cho thấy đây là các thực thể tổng hợp để thử nghiệm hoặc mục đích hư cấu."
+          }
+        },
+        "quantitative": {
+          "home_last5_points": null,
+          "away_last5_points": null,
+          "home_last5_goals_for": null,
+          "away_last5_goals_for": null,
+          "home_last5_goals_against": null,
+          "away_last5_goals_against": null,
+          "home_home_goals_avg": null,
+          "away_away_goals_avg": null,
+          "home_over_2_5_rate_last10": null,
+          "away_over_2_5_rate_last10": null,
+          "home_btts_rate_last10": null,
+          "away_btts_rate_last10": null,
+          "home_clean_sheet_rate_last10": null,
+          "away_clean_sheet_rate_last10": null,
+          "home_failed_to_score_rate_last10": null,
+          "away_failed_to_score_rate_last10": null
+        },
+        "source_meta": {
+          "search_quality": "unknown",
+          "web_search_queries": [
+            "Synthetic Verification Invitational football",
+            "Replay Validation United 9104 football",
+            "Prompt Safety Wanderers 9104 football",
+            "Replay Validation United 9104 vs Prompt Safety Wanderers 9104",
+            "Synthetic Verification Invitational 2026-03-21"
+          ],
+          "sources": [],
+          "trusted_source_count": 0,
+          "rejected_source_count": 0,
+          "rejected_domains": []
+        }
+      },
+      "assertions": [
+        {
+          "field": "usable",
+          "pass": true,
+          "expected": false,
+          "actual": false
+        },
+        {
+          "field": "searchQualityIn",
+          "pass": true,
+          "expected": [
+            "low",
+            "unknown"
+          ],
+          "actual": "unknown"
+        },
+        {
+          "field": "requireBilingual",
+          "pass": true,
+          "expected": true,
+          "actual": true
+        },
+        {
+          "field": "expectNoData",
+          "pass": true,
+          "expected": true,
+          "actual": true
+        }
+      ],
+      "allPassed": true
+    }
+  ]
+}

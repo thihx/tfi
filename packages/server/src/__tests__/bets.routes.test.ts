@@ -5,6 +5,7 @@
 import { describe, test, expect, vi, beforeAll, afterAll } from 'vitest';
 import { buildApp } from './helpers.js';
 import type { FastifyInstance } from 'fastify';
+import * as repo from '../repos/bets.repo.js';
 
 // Mock the repo module
 vi.mock('../repos/bets.repo.js', () => ({
@@ -126,6 +127,14 @@ describe('PUT /api/bets/:id/settle', () => {
     });
     expect(res.statusCode).toBe(200);
     expect(res.json().result).toBe('win');
+    expect(repo.settleBet).toHaveBeenCalledWith(
+      1,
+      'win',
+      0.85,
+      '',
+      'manual',
+      expect.objectContaining({ status: 'resolved', method: 'manual' }),
+    );
   });
 
   test('returns 404 for non-existent bet', async () => {

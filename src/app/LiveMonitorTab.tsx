@@ -247,6 +247,17 @@ function ConfigPanel() {
               onChange={(e) => update('TELEGRAM_CHAT_ID', e.target.value)}
             />
           </div>
+          <div className="config-field">
+            <label>Push Notification Language</label>
+            <select
+              className="monitor-input"
+              value={config.NOTIFICATION_LANGUAGE}
+              onChange={(e) => update('NOTIFICATION_LANGUAGE', e.target.value)}
+            >
+              <option value="en">English</option>
+              <option value="vi">Tiếng Việt</option>
+            </select>
+          </div>
         </div>
         )}
       </div>

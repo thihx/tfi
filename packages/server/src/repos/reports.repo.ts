@@ -3,8 +3,13 @@
 // ============================================================
 
 import { query } from '../db/pool.js';
+import {
+  FINAL_SETTLEMENT_RESULTS_SQL,
+} from '../lib/settle-types.js';
 
 const NOT_DUP = `result IS DISTINCT FROM 'duplicate'`;
+const FINAL_RESULT_SQL = `result IN (${FINAL_SETTLEMENT_RESULTS_SQL})`;
+const PENDING_RESULT_SQL = `(result IS NULL OR result = '' OR result NOT IN (${FINAL_SETTLEMENT_RESULTS_SQL}))`;
 
 // ── Shared types ──────────────────────────────────────────
 
@@ -89,15 +94,15 @@ export async function getOverviewReport(filter: PeriodFilter): Promise<OverviewR
   }>(`
     SELECT
       COUNT(*)::text AS total,
-      COUNT(*) FILTER (WHERE result IN ('win','loss','push'))::text AS settled,
+      COUNT(*) FILTER (WHERE ${FINAL_RESULT_SQL})::text AS settled,
       COUNT(*) FILTER (WHERE result = 'win')::text AS wins,
       COUNT(*) FILTER (WHERE result = 'loss')::text AS losses,
       COUNT(*) FILTER (WHERE result = 'push')::text AS pushes,
-      COUNT(*) FILTER (WHERE result IS NULL OR result NOT IN ('win','loss','push'))::text AS pending,
-      COALESCE(SUM(pnl) FILTER (WHERE result IN ('win','loss','push')), 0)::text AS total_pnl,
+      COUNT(*) FILTER (WHERE ${PENDING_RESULT_SQL})::text AS pending,
+      COALESCE(SUM(pnl) FILTER (WHERE ${FINAL_RESULT_SQL}), 0)::text AS total_pnl,
       COALESCE(AVG(odds) FILTER (WHERE odds > 0), 0)::text AS avg_odds,
       COALESCE(AVG(confidence) FILTER (WHERE confidence IS NOT NULL), 0)::text AS avg_confidence,
-      COALESCE(SUM(COALESCE(stake_percent, 1)) FILTER (WHERE result IN ('win','loss','push')), 0)::text AS total_staked
+      COALESCE(SUM(COALESCE(stake_percent, 1)) FILTER (WHERE ${FINAL_RESULT_SQL}), 0)::text AS total_staked
     FROM recommendations r
     WHERE ${NOT_DUP} AND ${dc.clause}
   `, dc.params);
@@ -107,7 +112,7 @@ export async function getOverviewReport(filter: PeriodFilter): Promise<OverviewR
     SELECT TO_CHAR(timestamp::date, 'YYYY-MM-DD') AS date,
            SUM(pnl)::text AS daily_pnl
     FROM recommendations r
-    WHERE result IN ('win','loss') AND ${NOT_DUP} AND ${dc.clause}
+    WHERE ${FINAL_RESULT_SQL} AND ${NOT_DUP} AND ${dc.clause}
     GROUP BY timestamp::date
     ORDER BY SUM(pnl) DESC
   `, dc.params);
@@ -167,12 +172,12 @@ export async function getLeagueReport(filter: PeriodFilter): Promise<LeagueRow[]
       COUNT(*) FILTER (WHERE result = 'win')::text AS wins,
       COUNT(*) FILTER (WHERE result = 'loss')::text AS losses,
       COUNT(*) FILTER (WHERE result = 'push')::text AS pushes,
-      COALESCE(SUM(pnl) FILTER (WHERE result IN ('win','loss','push')), 0)::text AS pnl,
+      COALESCE(SUM(pnl) FILTER (WHERE ${FINAL_RESULT_SQL}), 0)::text AS pnl,
       COALESCE(AVG(odds) FILTER (WHERE odds > 0), 0)::text AS avg_odds,
       COALESCE(AVG(confidence) FILTER (WHERE confidence IS NOT NULL), 0)::text AS avg_confidence,
-      COALESCE(SUM(COALESCE(stake_percent, 1)) FILTER (WHERE result IN ('win','loss','push')), 0)::text AS total_staked
+      COALESCE(SUM(COALESCE(stake_percent, 1)) FILTER (WHERE ${FINAL_RESULT_SQL}), 0)::text AS total_staked
     FROM recommendations r
-    WHERE ${NOT_DUP} AND result IN ('win','loss','push') AND ${dc.clause}
+    WHERE ${NOT_DUP} AND ${FINAL_RESULT_SQL} AND ${dc.clause}
     GROUP BY COALESCE(NULLIF(league, ''), 'Unknown')
     HAVING COUNT(*) >= 2
     ORDER BY SUM(pnl) DESC
@@ -224,11 +229,11 @@ export async function getMarketReport(filter: PeriodFilter): Promise<MarketRow[]
       COUNT(*)::text AS total,
       COUNT(*) FILTER (WHERE result = 'win')::text AS wins,
       COUNT(*) FILTER (WHERE result = 'loss')::text AS losses,
-      COALESCE(SUM(pnl) FILTER (WHERE result IN ('win','loss','push')), 0)::text AS pnl,
+      COALESCE(SUM(pnl) FILTER (WHERE ${FINAL_RESULT_SQL}), 0)::text AS pnl,
       COALESCE(AVG(odds) FILTER (WHERE odds > 0), 0)::text AS avg_odds,
-      COALESCE(SUM(COALESCE(stake_percent, 1)) FILTER (WHERE result IN ('win','loss','push')), 0)::text AS total_staked
+      COALESCE(SUM(COALESCE(stake_percent, 1)) FILTER (WHERE ${FINAL_RESULT_SQL}), 0)::text AS total_staked
     FROM recommendations r
-    WHERE ${NOT_DUP} AND result IN ('win','loss','push') AND ${dc.clause}
+    WHERE ${NOT_DUP} AND ${FINAL_RESULT_SQL} AND ${dc.clause}
     GROUP BY COALESCE(NULLIF(bet_market, ''), bet_type)
     HAVING COUNT(*) >= 2
     ORDER BY SUM(pnl) DESC
@@ -282,11 +287,11 @@ export async function getWeeklyReport(filter: PeriodFilter): Promise<TimeRow[]> 
       COUNT(*)::text AS total,
       COUNT(*) FILTER (WHERE result = 'win')::text AS wins,
       COUNT(*) FILTER (WHERE result = 'loss')::text AS losses,
-      COALESCE(SUM(pnl) FILTER (WHERE result IN ('win','loss','push')), 0)::text AS pnl,
+      COALESCE(SUM(pnl) FILTER (WHERE ${FINAL_RESULT_SQL}), 0)::text AS pnl,
       COALESCE(AVG(odds) FILTER (WHERE odds > 0), 0)::text AS avg_odds,
-      COALESCE(SUM(COALESCE(stake_percent, 1)) FILTER (WHERE result IN ('win','loss','push')), 0)::text AS total_staked
+      COALESCE(SUM(COALESCE(stake_percent, 1)) FILTER (WHERE ${FINAL_RESULT_SQL}), 0)::text AS total_staked
     FROM recommendations r
-    WHERE ${NOT_DUP} AND result IN ('win','loss','push') AND ${dc.clause}
+    WHERE ${NOT_DUP} AND ${FINAL_RESULT_SQL} AND ${dc.clause}
     GROUP BY EXTRACT(WEEK FROM timestamp::date), EXTRACT(YEAR FROM timestamp::date)
     ORDER BY MIN(timestamp::date)
   `, dc.params);
@@ -328,11 +333,11 @@ export async function getMonthlyReport(filter: PeriodFilter): Promise<TimeRow[]>
       COUNT(*)::text AS total,
       COUNT(*) FILTER (WHERE result = 'win')::text AS wins,
       COUNT(*) FILTER (WHERE result = 'loss')::text AS losses,
-      COALESCE(SUM(pnl) FILTER (WHERE result IN ('win','loss','push')), 0)::text AS pnl,
+      COALESCE(SUM(pnl) FILTER (WHERE ${FINAL_RESULT_SQL}), 0)::text AS pnl,
       COALESCE(AVG(odds) FILTER (WHERE odds > 0), 0)::text AS avg_odds,
-      COALESCE(SUM(COALESCE(stake_percent, 1)) FILTER (WHERE result IN ('win','loss','push')), 0)::text AS total_staked
+      COALESCE(SUM(COALESCE(stake_percent, 1)) FILTER (WHERE ${FINAL_RESULT_SQL}), 0)::text AS total_staked
     FROM recommendations r
-    WHERE ${NOT_DUP} AND result IN ('win','loss','push') AND ${dc.clause}
+    WHERE ${NOT_DUP} AND ${FINAL_RESULT_SQL} AND ${dc.clause}
     GROUP BY TO_CHAR(timestamp::date, 'Mon YYYY'), date_trunc('month', timestamp::date)
     ORDER BY date_trunc('month', MIN(timestamp::date))
   `, dc.params);
@@ -567,7 +572,7 @@ export async function getDailyPnlReport(filter: PeriodFilter): Promise<DailyPnlR
       COUNT(*) FILTER (WHERE result = 'loss')::text AS losses,
       COALESCE(SUM(pnl), 0)::text AS pnl
     FROM recommendations r
-    WHERE ${NOT_DUP} AND result IN ('win','loss','push') AND ${dc.clause}
+    WHERE ${NOT_DUP} AND ${FINAL_RESULT_SQL} AND ${dc.clause}
     GROUP BY timestamp::date
     ORDER BY timestamp::date
   `, dc.params);
