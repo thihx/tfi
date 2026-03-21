@@ -3,7 +3,7 @@
 This policy controls how `strategic-context` classifies Google Search sources for trust filtering.
 
 Server files:
-- `packages/server/src/config/strategic-source-policy.base.json`
+- `packages/server/src/config/strategic-source-policy.base.ts`
 - `packages/server/src/config/strategic-source-policy.ts`
 - `packages/server/src/lib/strategic-context.service.ts`
 
@@ -45,6 +45,7 @@ STRATEGIC_REJECTED_DOMAIN_PATTERNS=rumour,gossip
 When trust filtering looks wrong, review in this order:
 
 1. `strategic-source-policy.base.json`
+   Now implemented as `strategic-source-policy.base.ts`
 2. server env overrides
 3. `strategic-source-policy.test.ts`
 4. `strategic-context.service` replay report

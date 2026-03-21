@@ -41,6 +41,18 @@ const ALERT_COOLDOWN_MS = 30 * 60_000; // 30 minutes
 // Redis keys
 const alertStateKey = (jobName: string) => `watchdog:alert:${jobName}`;
 
+/**
+ * In-memory cooldown fallback — prevents alert spam when Redis is unavailable
+ * and the Redis-backed AlertState cannot be read/written.
+ * Keyed by job name, value is the timestamp of the last alert sent.
+ */
+const inMemoryCooldown = new Map<string, number>();
+
+/** Exported for testing only — resets in-memory state between test runs. */
+export function _resetCooldownForTesting(): void {
+  inMemoryCooldown.clear();
+}
+
 interface AlertState {
   lastAlertedAt: string;
   consecutiveOverdue: number;
@@ -117,15 +129,34 @@ export async function healthWatchdogJob(): Promise<WatchdogResult> {
     const lastRunTs = job.lastRun ? new Date(job.lastRun).getTime() : 0;
     const timeSinceLastRun = lastRunTs > 0 ? now - lastRunTs : Infinity;
     // Only "overdue" if NOT currently running — a running job is just slow, not missed
-    const isOverdue = !job.running && timeSinceLastRun > overdueThresholdMs;
+    let isOverdue = !job.running && timeSinceLastRun > overdueThresholdMs;
     const isStuck = job.running && timeSinceLastRun > stuckThresholdMs;
+
+    // If the job has an adaptive skip key, check whether it is intentionally sleeping.
+    // A job sleeping due to adaptive polling is NOT overdue — it is working as designed.
+    if (isOverdue && job.skipKey) {
+      try {
+        const redis = getRedisClient();
+        const nextRunAt = await redis.get(job.skipKey);
+        if (nextRunAt && now < Number(nextRunAt)) {
+          isOverdue = false; // intentional sleep — suppress alert
+        }
+      } catch {
+        // Redis unavailable — cannot confirm skip, leave isOverdue as-is
+      }
+    }
 
     const prevAlert = await getAlertState(job.name);
 
     if (isOverdue || isStuck) {
       overdueJobs.push(job.name);
 
-      const cooledDown = !prevAlert || (now - new Date(prevAlert.lastAlertedAt).getTime() > ALERT_COOLDOWN_MS);
+      // Cooldown: prefer Redis-backed state; fall back to in-memory map so we
+      // never spam even when Redis is down.
+      const redisLastAlerted = prevAlert ? new Date(prevAlert.lastAlertedAt).getTime() : 0;
+      const memLastAlerted = inMemoryCooldown.get(job.name) ?? 0;
+      const lastAlertedAt = Math.max(redisLastAlerted, memLastAlerted);
+      const cooledDown = lastAlertedAt === 0 || (now - lastAlertedAt > ALERT_COOLDOWN_MS);
 
       if (cooledDown) {
         const chatId = config.pipelineTelegramChatId;
@@ -155,6 +186,8 @@ export async function healthWatchdogJob(): Promise<WatchdogResult> {
             console.error(`[watchdog] Failed to send alert for ${job.name}:`, err);
           }
 
+          // Update both Redis state and in-memory fallback
+          inMemoryCooldown.set(job.name, now);
           await setAlertState(job.name, {
             lastAlertedAt: new Date().toISOString(),
             consecutiveOverdue: consecutive,
@@ -177,9 +210,10 @@ export async function healthWatchdogJob(): Promise<WatchdogResult> {
           });
         }
       }
-    } else if (prevAlert) {
+    } else if (prevAlert || inMemoryCooldown.has(job.name)) {
       // Job recovered — was overdue before, now running normally
       recovered.push(job.name);
+      inMemoryCooldown.delete(job.name);
       await clearAlertState(job.name);
 
       const chatId = config.pipelineTelegramChatId;

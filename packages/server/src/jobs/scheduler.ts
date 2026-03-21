@@ -38,6 +38,8 @@ export interface JobInfo {
   enabled: boolean;
   runCount: number;
   progress: JobProgress | null;
+  /** Redis key used for intentional skip/defer (e.g. adaptive polling). Exposed so watchdog can distinguish intentional sleep from a real miss. */
+  skipKey?: string;
 }
 
 interface ManagedJob {
@@ -226,12 +228,31 @@ export function stopScheduler() {
 
 export async function getJobsStatus(): Promise<JobInfo[]> {
   const result: JobInfo[] = [];
+  let redis: ReturnType<typeof getRedisClient> | null = null;
+  try { redis = getRedisClient(); } catch { /* unavailable */ }
+
   for (const job of jobs) {
     const progress = await getJobProgress(job.name);
+
+    // Merge with Redis state so multi-instance deployments (e.g. local + Azure)
+    // see the most recent run even if it was completed by another instance.
+    let lastRun = job.lastRun;
+    let lastError = job.lastError;
+    let running = job.running;
+    if (redis) {
+      try {
+        const state = await redis.hgetall(stateKey(job.name));
+        if (state.lastRun && state.lastRun > (lastRun ?? '')) lastRun = state.lastRun;
+        if (state.lastError && !lastError) lastError = state.lastError;
+        // A job marked running in Redis by another instance takes precedence
+        if (state.running === '1' && !running) running = true;
+      } catch { /* ignore — use in-memory fallback */ }
+    }
+
     result.push({
-      name: job.name, intervalMs: job.intervalMs, lastRun: job.lastRun,
-      lastError: job.lastError, running: job.running, enabled: job.enabled,
-      runCount: job.runCount, progress,
+      name: job.name, intervalMs: job.intervalMs, lastRun,
+      lastError, running, enabled: job.enabled,
+      runCount: job.runCount, progress, skipKey: job.skipKey,
     });
   }
   return result;

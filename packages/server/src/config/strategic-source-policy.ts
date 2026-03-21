@@ -1,5 +1,5 @@
 import 'dotenv/config';
-import basePolicy from './strategic-source-policy.base.json';
+import { strategicSourcePolicyBase as basePolicy } from './strategic-source-policy.base.js';
 
 export type StrategicSearchQuality = 'high' | 'medium' | 'low' | 'unknown';
 export type StrategicSourceTrustTier = 'tier_1' | 'tier_2' | 'tier_3' | 'rejected';
@@ -39,7 +39,7 @@ function parseCsvEnv(value: string | undefined): string[] {
     .filter(Boolean);
 }
 
-function mergeUnique(base: string[], extra: string[]): string[] {
+function mergeUnique(base: readonly string[], extra: readonly string[]): string[] {
   return Array.from(new Set([...base, ...extra].map((item) => item.trim().toLowerCase()).filter(Boolean)));
 }
 
