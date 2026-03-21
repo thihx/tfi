@@ -1,8 +1,8 @@
 // ============================================================
 // Job: Enrich Watchlist with Strategic Context
 //
-// For each active watchlist entry that has not been enriched yet
-// (or was enriched more than 6h ago), fetch strategic match context
+// For each active watchlist entry that is within 2 hours of kickoff
+// and still lacks usable strategic context, fetch strategic match context
 // (motivation, rotation, injuries) via AI + Google Search.
 // Also auto-generates recommended_custom_condition from the context.
 // ============================================================
@@ -11,12 +11,13 @@ import {
   fetchStrategicContext,
   type StrategicContext,
 } from '../lib/strategic-context.service.js';
+import { config } from '../config.js';
 import * as matchRepo from '../repos/matches.repo.js';
 import * as watchlistRepo from '../repos/watchlist.repo.js';
 import { reportJobProgress } from './job-progress.js';
 
-const STALE_HOURS = 6;
-const POOR_CONTEXT_HOURS = 6;
+const PREMATCH_WINDOW_HOURS = 2;
+const PREMATCH_WINDOW_MINUTES = PREMATCH_WINDOW_HOURS * 60;
 const API_DELAY_MS = 2000;
 const FAILURE_BACKOFF_HOURS = [1, 3, 6, 12] as const;
 const POOR_BACKOFF_HOURS = [6, 12, 24] as const;
@@ -236,25 +237,27 @@ export async function enrichWatchlistJob(): Promise<{ checked: number; enriched:
   if (force) console.log('[enrichWatchlistJob] Force mode - skipping stale check');
 
   const now = Date.now();
+  const kickoffMinutesByMatchId = force
+    ? new Map<string, number | null>()
+    : await watchlistRepo.getKickoffMinutesForMatchIds(
+      watchlist.map((entry) => entry.match_id),
+      config.timezone,
+    );
   const eligible = watchlist.filter((entry) => {
     const matchStatus = statusMap.get(entry.match_id)?.toUpperCase() ?? '';
     if (matchStatus !== 'NS' && matchStatus !== '') return false;
     if (force) return true;
 
     const ctx = (entry.strategic_context as StoredStrategicContext | null) ?? null;
+    if (hasUsableContext(ctx)) return false;
+
+    const minsToKickoff = kickoffMinutesByMatchId.get(entry.match_id);
+    if (minsToKickoff == null || minsToKickoff < 0 || minsToKickoff > PREMATCH_WINDOW_MINUTES) {
+      return false;
+    }
+
     const retryAfter = getRetryAfter(ctx);
     if (retryAfter && retryAfter > now) return false;
-
-    const poorContext = !!ctx && !hasUsableContext(ctx);
-    if (entry.strategic_context_at && !poorContext) {
-      const enrichedAt = new Date(entry.strategic_context_at).getTime();
-      if (now - enrichedAt < STALE_HOURS * 60 * 60 * 1000) return false;
-    }
-
-    if (entry.strategic_context_at && poorContext) {
-      const enrichedAt = new Date(entry.strategic_context_at).getTime();
-      if (now - enrichedAt < POOR_CONTEXT_HOURS * 60 * 60 * 1000) return false;
-    }
 
     return true;
   });

@@ -126,6 +126,13 @@ const mockWatchlist = [
 
 vi.mock('../repos/watchlist.repo.js', () => ({
   getActiveWatchlist: vi.fn().mockResolvedValue(mockWatchlist),
+  getKickoffMinutesForMatchIds: vi.fn().mockImplementation((matchIds: string[]) => {
+    const map = new Map<string, number | null>();
+    for (const matchId of matchIds) {
+      map.set(matchId, matchId === '300' ? 240 : 60);
+    }
+    return Promise.resolve(map);
+  }),
   updateWatchlistEntry: vi.fn().mockResolvedValue({}),
 }));
 
@@ -135,12 +142,34 @@ vi.mock('../lib/strategic-context.service.js', () => ({
 
 const { enrichWatchlistJob } = await import('../jobs/enrich-watchlist.job.js');
 
-beforeEach(() => {
+beforeEach(async () => {
   vi.clearAllMocks();
+
+  const watchlistRepo = await import('../repos/watchlist.repo.js');
+  vi.mocked(watchlistRepo.getActiveWatchlist).mockResolvedValue(mockWatchlist as never);
+  vi.mocked(watchlistRepo.getKickoffMinutesForMatchIds).mockImplementation((matchIds: string[]) => {
+    const map = new Map<string, number | null>();
+    for (const matchId of matchIds) {
+      map.set(matchId, matchId === '300' ? 240 : 60);
+    }
+    return Promise.resolve(map);
+  });
+  vi.mocked(watchlistRepo.updateWatchlistEntry).mockResolvedValue({} as never);
+
+  const matchRepo = await import('../repos/matches.repo.js');
+  vi.mocked(matchRepo.getAllMatches).mockResolvedValue([
+    { match_id: '100', status: 'NS' },
+    { match_id: '200', status: '1H' },
+    { match_id: '300', status: 'NS' },
+  ] as never);
+
+  const service = await import('../lib/strategic-context.service.js');
+  vi.mocked(service.fetchStrategicContext).mockReset();
+  vi.mocked(service.fetchStrategicContext).mockResolvedValue(defaultStrategicContext as never);
 });
 
 describe('enrichWatchlistJob', () => {
-  test('only enriches NS entries not recently enriched', async () => {
+  test('only enriches NS entries inside the 2-hour kickoff window', async () => {
     const result = await enrichWatchlistJob();
     expect(result.checked).toBe(1);
     expect(result.enriched).toBe(1);
@@ -166,7 +195,7 @@ describe('enrichWatchlistJob', () => {
     expect(result).toEqual({ checked: 0, enriched: 0 });
   });
 
-  test('re-enriches entries older than 6 hours', async () => {
+  test('enriches entries within kickoff window even when previous timestamp is old', async () => {
     const watchlistRepo = await import('../repos/watchlist.repo.js');
     vi.mocked(watchlistRepo.getActiveWatchlist).mockResolvedValueOnce([
       {
@@ -181,6 +210,34 @@ describe('enrichWatchlistJob', () => {
 
     const result = await enrichWatchlistJob();
     expect(result.checked).toBe(1);
+  });
+
+  test('does not refresh usable context when kickoff is inside the window', async () => {
+    const watchlistRepo = await import('../repos/watchlist.repo.js');
+    vi.mocked(watchlistRepo.getActiveWatchlist).mockResolvedValueOnce([
+      {
+        match_id: '450',
+        home_team: 'A',
+        away_team: 'B',
+        league: 'L',
+        date: '2026-03-17',
+        status: 'active',
+        strategic_context: defaultStrategicContext,
+        strategic_context_at: sixHoursAgo,
+        recommended_custom_condition: '',
+      },
+    ] as never);
+    const matchRepo = await import('../repos/matches.repo.js');
+    vi.mocked(matchRepo.getAllMatches).mockResolvedValueOnce([
+      { match_id: '450', status: 'NS' },
+    ] as never);
+
+    const result = await enrichWatchlistJob();
+    const service = await import('../lib/strategic-context.service.js');
+
+    expect(result.checked).toBe(0);
+    expect(result.enriched).toBe(0);
+    expect(service.fetchStrategicContext).not.toHaveBeenCalled();
   });
 
   test('handles API errors gracefully', async () => {
@@ -273,7 +330,7 @@ describe('enrichWatchlistJob', () => {
     expect(service.fetchStrategicContext).not.toHaveBeenCalled();
   });
 
-  test('preserves usable context when a poor response arrives', async () => {
+  test('skips refreshing when usable context already exists, even if it is old', async () => {
     const watchlistRepo = await import('../repos/watchlist.repo.js');
     vi.mocked(watchlistRepo.getActiveWatchlist).mockResolvedValueOnce([
       {
@@ -297,34 +354,13 @@ describe('enrichWatchlistJob', () => {
     vi.mocked(matchRepo.getAllMatches).mockResolvedValueOnce([
       { match_id: '700', status: 'NS' },
     ] as never);
-    const service = await import('../lib/strategic-context.service.js');
-    vi.mocked(service.fetchStrategicContext).mockResolvedValueOnce({
-      ...defaultStrategicContext,
-      summary: 'No data found',
-      summary_vi: 'Khong tim thay du lieu',
-      source_meta: {
-        ...defaultStrategicContext.source_meta,
-        search_quality: 'low',
-      },
-    } as never);
-
     const result = await enrichWatchlistJob();
+    const service = await import('../lib/strategic-context.service.js');
 
-    expect(result.checked).toBe(1);
+    expect(result.checked).toBe(0);
     expect(result.enriched).toBe(0);
-    expect(watchlistRepo.updateWatchlistEntry).toHaveBeenCalledWith(
-      '700',
-      expect.objectContaining({
-        strategic_context: expect.objectContaining({
-          summary: 'Useful context',
-          home_motivation: 'Title race',
-          _meta: expect.objectContaining({
-            refresh_status: 'poor',
-            retry_after: expect.any(String),
-          }),
-        }),
-      }),
-    );
+    expect(service.fetchStrategicContext).not.toHaveBeenCalled();
+    expect(watchlistRepo.updateWatchlistEntry).not.toHaveBeenCalled();
   });
 
   test('accepts quantitative trusted context even when summary is still no-data', async () => {

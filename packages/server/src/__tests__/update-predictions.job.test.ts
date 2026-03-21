@@ -21,9 +21,9 @@ vi.mock('../repos/matches.repo.js', () => ({
 }));
 
 const mockWatchlist = [
-  { match_id: '100', home_team: 'Arsenal', away_team: 'Chelsea' },
-  { match_id: '200', home_team: 'Liverpool', away_team: 'Man City' },
-  { match_id: '300', home_team: 'Barca', away_team: 'Real' },
+  { match_id: '100', home_team: 'Arsenal', away_team: 'Chelsea', prediction: null },
+  { match_id: '200', home_team: 'Liverpool', away_team: 'Man City', prediction: null },
+  { match_id: '300', home_team: 'Barca', away_team: 'Real', prediction: null },
 ];
 
 vi.mock('../repos/watchlist.repo.js', () => ({
@@ -40,7 +40,7 @@ vi.mock('../lib/football-api.js', () => ({
   buildSlimPrediction: vi.fn().mockReturnValue({ winner: 'Arsenal', advice: 'Home win' }),
 }));
 
-const { updatePredictionsJob } = await import('../jobs/update-predictions.job.js');
+const { updatePredictionsJob, setForcePredictionRefresh } = await import('../jobs/update-predictions.job.js');
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -100,5 +100,34 @@ describe('updatePredictionsJob', () => {
       expect.stringContaining('Arsenal vs Chelsea'),
       expect.any(Number),
     );
+  });
+
+  test('skips NS entries that already have cached prediction data', async () => {
+    const watchlistRepo = await import('../repos/watchlist.repo.js');
+    vi.mocked(watchlistRepo.getAllWatchlist).mockResolvedValueOnce([
+      { match_id: '100', home_team: 'Arsenal', away_team: 'Chelsea', prediction: { predictions: { advice: 'Home win' } } },
+      { match_id: '300', home_team: 'Barca', away_team: 'Real', prediction: null },
+    ] as never);
+
+    const footballApi = await import('../lib/football-api.js');
+    const result = await updatePredictionsJob();
+
+    expect(result.checked).toBe(1);
+    expect(vi.mocked(footballApi.fetchPrediction)).not.toHaveBeenCalledWith('100');
+    expect(vi.mocked(footballApi.fetchPrediction)).toHaveBeenCalledWith('300');
+  });
+
+  test('force mode refreshes cached prediction rows', async () => {
+    const watchlistRepo = await import('../repos/watchlist.repo.js');
+    vi.mocked(watchlistRepo.getAllWatchlist).mockResolvedValueOnce([
+      { match_id: '100', home_team: 'Arsenal', away_team: 'Chelsea', prediction: { predictions: { advice: 'Home win' } } },
+    ] as never);
+
+    const footballApi = await import('../lib/football-api.js');
+    setForcePredictionRefresh();
+    const result = await updatePredictionsJob();
+
+    expect(result.checked).toBe(1);
+    expect(vi.mocked(footballApi.fetchPrediction)).toHaveBeenCalledWith('100');
   });
 });

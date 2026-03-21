@@ -14,9 +14,20 @@ import * as watchlistRepo from '../repos/watchlist.repo.js';
 import { reportJobProgress } from './job-progress.js';
 
 const API_DELAY_MS = 200; // Rate-limit protection
+let forceNext = false;
 
 function sleep(ms: number) {
   return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function hasStoredPrediction(prediction: unknown): boolean {
+  if (!prediction || typeof prediction !== 'object' || Array.isArray(prediction)) return false;
+  return Object.keys(prediction as Record<string, unknown>).length > 0;
+}
+
+/** Force next run to refresh predictions even when watchlist rows already have cached data. */
+export function setForcePredictionRefresh(): void {
+  forceNext = true;
 }
 
 export async function updatePredictionsJob(): Promise<{ checked: number; updated: number }> {
@@ -37,10 +48,15 @@ export async function updatePredictionsJob(): Promise<{ checked: number; updated
     return { checked: 0, updated: 0 };
   }
 
+  const force = forceNext;
+  forceNext = false;
+  if (force) console.log('[updatePredictionsJob] Force mode - refreshing cached predictions');
+
   // Collect NS entries to process
   const nsEntries = watchlist.filter((entry) => {
     const matchStatus = statusMap.get(entry.match_id)?.toUpperCase() ?? '';
-    return matchStatus === 'NS';
+    if (matchStatus !== 'NS') return false;
+    return force || !hasStoredPrediction(entry.prediction);
   });
 
   let checked = 0;

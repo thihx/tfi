@@ -31,6 +31,7 @@ export interface WatchlistRow {
   recommendations_count: number;
   strategic_context: unknown;
   strategic_context_at: string | null;
+  mins_to_kickoff?: number | null;
 }
 
 export type WatchlistCreate = Omit<WatchlistRow, 'id' | 'added_at'>;
@@ -53,6 +54,29 @@ export async function getActiveWatchlist(): Promise<WatchlistRow[]> {
     "SELECT * FROM watchlist WHERE status = 'active' ORDER BY priority DESC, date, kickoff",
   );
   return r.rows;
+}
+
+export async function getKickoffMinutesForMatchIds(
+  matchIds: string[],
+  timezone: string = config.timezone,
+): Promise<Map<string, number | null>> {
+  if (matchIds.length === 0) return new Map();
+  const r = await query<{ match_id: string; mins_to_kickoff: string | null }>(
+    `SELECT match_id,
+            CASE
+              WHEN date IS NULL OR kickoff IS NULL THEN NULL
+              ELSE EXTRACT(EPOCH FROM (
+                ((date || ' ' || kickoff || ':00')::timestamp AT TIME ZONE $2) - NOW()
+              )) / 60
+            END AS mins_to_kickoff
+       FROM watchlist
+      WHERE match_id = ANY($1)`,
+    [matchIds, timezone],
+  );
+  return new Map(r.rows.map((row) => [
+    row.match_id,
+    row.mins_to_kickoff != null ? Number(row.mins_to_kickoff) : null,
+  ]));
 }
 
 export async function getWatchlistByMatchId(matchId: string): Promise<WatchlistRow | null> {
