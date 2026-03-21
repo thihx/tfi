@@ -99,6 +99,7 @@ vi.mock('../repos/watchlist.repo.js', () => ({
 
 vi.mock('../repos/matches-history.repo.js', () => ({
   archiveFinishedMatches: vi.fn().mockResolvedValue(0),
+  getHistoricalMatchesBatch: vi.fn().mockResolvedValue(new Map()),
 }));
 
 vi.mock('../lib/football-api.js', () => ({

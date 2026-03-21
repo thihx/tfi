@@ -41,6 +41,7 @@ export function createDefaultConfig(overrides?: Partial<LiveMonitorConfig>): Liv
     TELEGRAM_CHAT_ID: '',
     MANUAL_PUSH_MATCH_IDS: [],
     NOTIFICATION_LANGUAGE: 'vi',
+    UI_LANGUAGE: 'vi',
     ...overrides,
   };
 }

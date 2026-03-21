@@ -13,9 +13,16 @@ import { fetchFixturesForDate, fetchFixtureStatistics, type ApiFixture, type Api
 import * as leagueRepo from '../repos/leagues.repo.js';
 import * as matchRepo from '../repos/matches.repo.js';
 import * as watchlistRepo from '../repos/watchlist.repo.js';
-import { archiveFinishedMatches } from '../repos/matches-history.repo.js';
+import {
+  archiveFinishedMatches,
+  getHistoricalMatchesBatch,
+  type MatchHistoryArchiveInput,
+  type MatchHistoryRow,
+} from '../repos/matches-history.repo.js';
 import { reportJobProgress } from './job-progress.js';
 import { getRedisClient } from '../lib/redis.js';
+import { extractRegularTimeScoreFromFixture } from '../lib/settle-context.js';
+import { mergeApiFixtureStatistics } from '../lib/settlement-stat-cache.js';
 
 const ALLOWED_STATUSES = ['NS', '1H', 'HT', '2H', 'ET', 'BT', 'P', 'LIVE', 'INT'];
 const LIVE_STATUSES   = new Set(['1H', 'HT', '2H', 'ET', 'BT', 'LIVE', 'INT']);
@@ -208,14 +215,22 @@ export async function fetchMatchesJob(): Promise<{ saved: number; leagues: numbe
   // Archive from BOTH fresh API payload AND existing table to catch
   // matches that transitioned to FT between polls (F2 audit fix).
   await reportJobProgress(JOB, 'archive', 'Archiving finished matches...', 65);
-  const freshFinished = leagueFiltered
-    .filter((f) => ['FT', 'AET', 'PEN', 'AWD', 'WO'].includes(f.fixture.status.short))
-    .map(fixtureToMatchRow);
+  const freshFinishedFixtures = leagueFiltered
+    .filter((f) => ['FT', 'AET', 'PEN', 'AWD', 'WO'].includes(f.fixture.status.short));
+  const freshFinished = freshFinishedFixtures.map(fixtureToMatchRow);
+  const finishedHistoryMap = await getHistoricalMatchesBatch(freshFinishedFixtures.map((fixture) => String(fixture.fixture.id)));
+  const finishedStatsMap = await buildFinishedStatsMap(freshFinishedFixtures, finishedHistoryMap);
   const allCurrentMatches = await matchRepo.getAllMatches();
-  const archiveByMatchId = new Map<string, matchRepo.MatchRow>();
+  const archiveByMatchId = new Map<string, MatchHistoryArchiveInput | matchRepo.MatchRow>();
   // Deduplicate by match_id (fresh rows take precedence — they have final score)
   for (const row of allCurrentMatches) archiveByMatchId.set(row.match_id, row);
-  for (const row of freshFinished) archiveByMatchId.set(row.match_id, row);
+  for (const fixture of freshFinishedFixtures) {
+    const matchId = String(fixture.fixture.id);
+    archiveByMatchId.set(
+      matchId,
+      buildArchiveRowFromFixture(fixture, finishedStatsMap.get(matchId) ?? []),
+    );
+  }
   const deduped = [...archiveByMatchId.values()];
   const archivedCount = await archiveFinishedMatches(deduped);
   if (archivedCount > 0) {
@@ -318,4 +333,56 @@ export async function fetchMatchesJob(): Promise<{ saved: number; leagues: numbe
   }
 
   return { saved, leagues: uniqueLeagues };
+}
+
+async function buildFinishedStatsMap(
+  fixtures: ApiFixture[],
+  historyMap: Map<string, MatchHistoryRow>,
+): Promise<Map<string, ReturnType<typeof mergeApiFixtureStatistics>>> {
+  const statsMap = new Map<string, ReturnType<typeof mergeApiFixtureStatistics>>();
+  const playableFinished = fixtures.filter((fixture) => {
+    if (!['FT', 'AET', 'PEN'].includes(fixture.fixture.status.short)) return false;
+    const storedStats = historyMap.get(String(fixture.fixture.id))?.settlement_stats;
+    return !Array.isArray(storedStats) || storedStats.length === 0;
+  });
+
+  await batchRun(playableFinished.map((fixture) => async () => {
+    try {
+      const statsRaw = await fetchFixtureStatistics(String(fixture.fixture.id));
+      const merged = mergeApiFixtureStatistics(statsRaw);
+      if (merged.length > 0) statsMap.set(String(fixture.fixture.id), merged);
+    } catch (err) {
+      console.warn(
+        `[fetchMatchesJob] Finished stats fetch failed for ${fixture.fixture.id}:`,
+        err instanceof Error ? err.message : err,
+      );
+    }
+  }), 5);
+
+  return statsMap;
+}
+
+function buildArchiveRowFromFixture(
+  fixture: ApiFixture,
+  settlementStats: ReturnType<typeof mergeApiFixtureStatistics>,
+): MatchHistoryArchiveInput {
+  const regularTimeScore = extractRegularTimeScoreFromFixture(fixture);
+  return {
+    match_id: String(fixture.fixture.id),
+    date: fixture.fixture.date.substring(0, 10),
+    kickoff: fixture.fixture.date.substring(11, 16),
+    league_id: fixture.league.id,
+    league_name: fixture.league.name,
+    home_team: fixture.teams.home.name,
+    away_team: fixture.teams.away.name,
+    venue: fixture.fixture.venue?.name || 'TBD',
+    final_status: fixture.fixture.status.short,
+    home_score: fixture.goals.home ?? 0,
+    away_score: fixture.goals.away ?? 0,
+    regular_home_score: regularTimeScore?.home ?? null,
+    regular_away_score: regularTimeScore?.away ?? null,
+    result_provider: 'api-football',
+    settlement_stats: settlementStats,
+    settlement_stats_provider: settlementStats.length > 0 ? 'api-football' : '',
+  };
 }

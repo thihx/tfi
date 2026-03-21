@@ -78,3 +78,13 @@ export async function getProviderOddsSamplesByMatch(
   );
   return result.rows;
 }
+
+export async function purgeProviderOddsSamples(keepDays: number): Promise<number> {
+  if (keepDays <= 0) return 0;
+  const result = await query(
+    `DELETE FROM provider_odds_samples
+     WHERE captured_at < NOW() - INTERVAL '1 day' * $1`,
+    [keepDays],
+  );
+  return result.rowCount ?? 0;
+}

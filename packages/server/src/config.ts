@@ -66,10 +66,14 @@ export const config = {
   jobCheckLiveMs: Number(process.env['JOB_CHECK_LIVE_MS'] || 5 * 60_000),                // 5 min
   jobAutoSettleMs: Number(process.env['JOB_AUTO_SETTLE_MS'] || 10 * 60_000),              // 10 min
   jobEnrichWatchlistMs: Number(process.env['JOB_ENRICH_WATCHLIST_MS'] || 60 * 60_000),   // 60 min
-  jobAuditPurgeMs: Number(process.env['JOB_AUDIT_PURGE_MS'] || 24 * 60 * 60_000),      // 24h
+  jobHousekeepingMs: Number(process.env['JOB_HOUSEKEEPING_MS'] || process.env['JOB_AUDIT_PURGE_MS'] || 24 * 60 * 60_000), // 24h
   jobIntegrationHealthMs: Number(process.env['JOB_INTEGRATION_HEALTH_MS'] || 30 * 60_000), // 30 min
   jobHealthWatchdogMs: Number(process.env['JOB_HEALTH_WATCHDOG_MS'] || 2 * 60_000),      // 2 min — health watchdog
   auditKeepDays: Number(process.env['AUDIT_KEEP_DAYS'] || 30),                          // 30 days
+  matchesHistoryKeepDays: Number(process.env['MATCHES_HISTORY_KEEP_DAYS'] || 120),
+  providerSamplesKeepDays: Number(process.env['PROVIDER_SAMPLES_KEEP_DAYS'] || 14),
+  matchSnapshotsKeepDays: Number(process.env['MATCH_SNAPSHOTS_KEEP_DAYS'] || 14),
+  oddsMovementsKeepDays: Number(process.env['ODDS_MOVEMENTS_KEEP_DAYS'] || 30),
 
   // Live match statuses
   liveStatuses: (process.env['LIVE_STATUSES'] || '1H,2H').split(',').map(s => s.trim()),

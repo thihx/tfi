@@ -7,6 +7,7 @@ import { Modal } from './Modal';
 import { RecommendationCard } from './RecommendationCard';
 import { formatLocalTime, formatLocalDateTime } from '@/lib/utils/helpers';
 import { useAppState } from '@/hooks/useAppState';
+import { useUiLanguage } from '@/hooks/useUiLanguage';
 import {
   fetchSnapshotsByMatch,
   fetchOddsHistory,
@@ -18,6 +19,7 @@ import {
   type BetRecord,
 } from '@/lib/services/api';
 import type { Recommendation, WatchlistItem } from '@/types';
+import { getStrategicNarrative, hasStrategicNarrative } from '@/lib/utils/strategicContext';
 import { BET_RESULT_BADGES } from '@/config/constants';
 import {
   LineChart, Line, BarChart, Bar, ComposedChart,
@@ -152,14 +154,23 @@ function TabBtn({ active, onClick, children }: { active: boolean; onClick: () =>
 // ==================== Context View ====================
 
 function ContextView({ watchlist, recs }: { watchlist: WatchlistItem | null; recs: Recommendation[] }) {
+  const uiLanguage = useUiLanguage();
   const latestRec = recs.length > 0
     ? [...recs].sort((a, b) => new Date(b.created_at ?? 0).getTime() - new Date(a.created_at ?? 0).getTime())[0]
     : null;
 
   const ctx = watchlist?.strategic_context;
-  const hasContext = !!(ctx && (ctx.summary || ctx.home_motivation || ctx.away_motivation));
+  const hasContext = hasStrategicNarrative(ctx, uiLanguage);
   const hasConditions = !!(watchlist?.custom_conditions || watchlist?.recommended_custom_condition);
   const hasReasoning = !!(latestRec?.reasoning || latestRec?.key_factors || latestRec?.warnings);
+  const summary = getStrategicNarrative(ctx, 'summary', uiLanguage);
+  const homeMotivation = getStrategicNarrative(ctx, 'home_motivation', uiLanguage);
+  const awayMotivation = getStrategicNarrative(ctx, 'away_motivation', uiLanguage);
+  const leaguePositions = getStrategicNarrative(ctx, 'league_positions', uiLanguage);
+  const fixtureCongestion = getStrategicNarrative(ctx, 'fixture_congestion', uiLanguage);
+  const rotationRisk = getStrategicNarrative(ctx, 'rotation_risk', uiLanguage);
+  const keyAbsences = getStrategicNarrative(ctx, 'key_absences', uiLanguage);
+  const h2hNarrative = getStrategicNarrative(ctx, 'h2h_narrative', uiLanguage);
 
   if (!watchlist && !latestRec) {
     return <EmptyState icon="🔍" message="No context data available for this match" />;
@@ -191,23 +202,23 @@ function ContextView({ watchlist, recs }: { watchlist: WatchlistItem | null; rec
       {/* Strategic Context */}
       {hasContext && ctx && (
         <Section title="🌐 Strategic Context">
-          {ctx.summary && (
+          {summary && (
             <div style={{
               padding: '12px 16px', background: 'var(--gray-50)', borderRadius: '8px',
               borderLeft: '3px solid var(--primary)', marginBottom: '12px',
               fontSize: '13px', lineHeight: '1.6', color: 'var(--gray-700)',
             }}>
-              {ctx.summary}
+              {summary}
             </div>
           )}
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
-            {ctx.home_motivation && <InfoBlock label="Home Motivation" value={ctx.home_motivation} />}
-            {ctx.away_motivation && <InfoBlock label="Away Motivation" value={ctx.away_motivation} />}
-            {ctx.league_positions && <InfoBlock label="League Positions" value={ctx.league_positions} />}
-            {ctx.fixture_congestion && <InfoBlock label="Fixture Congestion" value={ctx.fixture_congestion} />}
-            {ctx.rotation_risk && <InfoBlock label="Rotation Risk" value={ctx.rotation_risk} />}
-            {ctx.key_absences && <InfoBlock label="Key Absences" value={ctx.key_absences} />}
-            {ctx.h2h_narrative && <InfoBlock label="H2H Narrative" value={ctx.h2h_narrative} colSpan />}
+            {homeMotivation && <InfoBlock label="Home Motivation" value={homeMotivation} />}
+            {awayMotivation && <InfoBlock label="Away Motivation" value={awayMotivation} />}
+            {leaguePositions && <InfoBlock label="League Positions" value={leaguePositions} />}
+            {fixtureCongestion && <InfoBlock label="Fixture Congestion" value={fixtureCongestion} />}
+            {rotationRisk && <InfoBlock label="Rotation Risk" value={rotationRisk} />}
+            {keyAbsences && <InfoBlock label="Key Absences" value={keyAbsences} />}
+            {h2hNarrative && <InfoBlock label="H2H Narrative" value={h2hNarrative} colSpan />}
             {ctx.ai_condition && <InfoBlock label="AI Condition Signal" value={ctx.ai_condition} highlight />}
             {ctx.ai_condition_reason_vi && <InfoBlock label="Condition Reason (VI)" value={ctx.ai_condition_reason_vi} colSpan />}
           </div>

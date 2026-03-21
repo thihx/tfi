@@ -75,7 +75,8 @@
       "Bash(powershell.exe -Command \"Get-NetTCPConnection -LocalPort 3000,3001 -State Listen 2>$null | Select-Object LocalPort,OwningProcess\")",
       "Bash(curl -s http://localhost:3001/api/jobs -H \"Authorization: Bearer test\")",
       "Bash(curl -s -X POST http://localhost:3001/api/auth/local -H \"Content-Type: application/json\" -d '{\"\"username\"\":\"\"admin\"\",\"\"password\"\":\"\"admin\"\"}')",
-      "Bash(find /c/tfi/packages/server/src/routes -type f -name *.ts)"
+      "Bash(find /c/tfi/packages/server/src/routes -type f -name *.ts)",
+      "Bash(grep -rn \"api/jobs\\\\|JobInfo\\\\|intervalMs\\\\|runCount\" c:/tfi/src --include=*.ts --include=*.tsx -l)"
     ],
     "additionalDirectories": [
       "\\tmp"

@@ -13,7 +13,7 @@ import { settleMatch, type AISettleResult, batchRun } from './auto-settle.job.js
 import * as recommendationsRepo from '../repos/recommendations.repo.js';
 import * as matchHistoryRepo from '../repos/matches-history.repo.js';
 import * as aiPerfRepo from '../repos/ai-performance.repo.js';
-import type { MatchHistoryRow } from '../repos/matches-history.repo.js';
+import type { MatchHistoryArchiveInput, MatchHistoryRow } from '../repos/matches-history.repo.js';
 import { fetchFixturesByIds, fetchFixtureStatistics, type ApiFixture } from '../lib/football-api.js';
 import { normalizeMarket } from '../lib/normalize-market.js';
 import {
@@ -31,6 +31,11 @@ import {
 } from '../lib/settle-types.js';
 import { SETTLE_PROMPT_VERSION } from '../lib/settle-prompt.js';
 import { auditSkipped, auditSuccess } from '../lib/audit.js';
+import {
+  mergeApiFixtureStatistics,
+  parseStoredSettlementStats,
+  type SettlementStatRow,
+} from '../lib/settlement-stat-cache.js';
 
 export interface ReEvalResult {
   total: number;
@@ -75,18 +80,15 @@ export async function reEvaluateAllResults(): Promise<ReEvalResult> {
     discrepancies: [],
   };
 
-  // Step 1: Get ALL non-duplicate recommendations
   const allRecs = await query<recommendationsRepo.RecommendationRow>(
     `SELECT * FROM recommendations WHERE result != 'duplicate' ORDER BY id`,
   );
   result.total = allRecs.rows.length;
 
-  // Step 2: Collect all unique match IDs and fetch scores — single batch query
   const matchIds = [...new Set(allRecs.rows.map((r) => r.match_id))];
   const historyMap = await matchHistoryRepo.getHistoricalMatchesBatch(matchIds);
   const regularTimeScoreMap = await fetchRegularTimeScoresForHistoryMatches(historyMap);
 
-  // Step 3: Football API fallback for matches not in history — batch by 20
   const missingIds = matchIds.filter((id) => !historyMap.has(id));
   if (missingIds.length > 0) {
     const batchSize = 20;
@@ -94,82 +96,46 @@ export async function reEvaluateAllResults(): Promise<ReEvalResult> {
       const batch = missingIds.slice(i, i + batchSize);
       try {
         const fixtures = await fetchFixturesByIds(batch);
-        const FINISHED = new Set(['FT', 'AET', 'PEN', 'AWD', 'WO']);
+        const finished = new Set(['FT', 'AET', 'PEN', 'AWD', 'WO']);
         for (const fx of fixtures) {
-          const mId = String(fx.fixture.id);
+          const matchId = String(fx.fixture.id);
           const status = fx.fixture.status?.short ?? '';
-          if (!FINISHED.has(status)) continue;
+          if (!finished.has(status)) continue;
 
-          const regularTimeScore = extractRegularTimeScoreFromFixture(fx);
-          if (regularTimeScore) {
-            regularTimeScoreMap.set(mId, regularTimeScore);
+          const archiveRow = buildArchiveRowFromFixture(fx);
+          if (
+            typeof archiveRow.regular_home_score === 'number'
+            && typeof archiveRow.regular_away_score === 'number'
+          ) {
+            regularTimeScoreMap.set(matchId, {
+              home: archiveRow.regular_home_score,
+              away: archiveRow.regular_away_score,
+            });
           }
 
-          const homeScore = fx.goals?.home ?? 0;
-          const awayScore = fx.goals?.away ?? 0;
-
-          // Archive for future
           try {
-            await matchHistoryRepo.archiveFinishedMatches([{
-              match_id: mId,
-              date: fx.fixture.date?.substring(0, 10) ?? '',
-              kickoff: fx.fixture.date?.substring(11, 16) ?? '00:00',
-              league_id: fx.league?.id ?? 0,
-              league_name: fx.league?.name ?? '',
-              home_team: fx.teams?.home?.name ?? '',
-              away_team: fx.teams?.away?.name ?? '',
-              venue: fx.fixture.venue?.name ?? 'TBD',
-              status,
-              home_score: homeScore,
-              away_score: awayScore,
-            } as unknown as import('../repos/matches.repo.js').MatchRow]);
-          } catch { /* skip archive error */ }
+            await matchHistoryRepo.archiveFinishedMatches([archiveRow]);
+          } catch {
+            // Keep in-memory fallback even if archive write fails.
+          }
 
-          historyMap.set(mId, {
-            match_id: mId,
-            date: fx.fixture.date?.substring(0, 10) ?? '',
-            kickoff: fx.fixture.date?.substring(11, 16) ?? '00:00',
-            league_id: fx.league?.id ?? 0,
-            league_name: fx.league?.name ?? '',
-            home_team: fx.teams?.home?.name ?? '',
-            away_team: fx.teams?.away?.name ?? '',
-            venue: fx.fixture.venue?.name ?? 'TBD',
-            final_status: status,
-            home_score: homeScore,
-            away_score: awayScore,
+          historyMap.set(matchId, {
+            ...archiveRow,
             archived_at: new Date().toISOString(),
           });
         }
       } catch (err) {
-        console.warn(`[re-evaluate] Football API batch failed:`, err instanceof Error ? err.message : err);
+        console.warn('[re-evaluate] Football API batch failed:', err instanceof Error ? err.message : err);
       }
 
-      // Rate limit: wait 1s between batches
       if (i + batchSize < missingIds.length) {
-        await new Promise((r) => setTimeout(r, 1000));
+        await new Promise((resolve) => setTimeout(resolve, 1000));
       }
     }
   }
 
-  // Step 4: Fetch match statistics — parallel (concurrency 5) instead of sequential
-  type StatRow = { type: string; home: string | number | null; away: string | number | null };
-  const allMatchStatistics = new Map<string, StatRow[]>();
-  const idsWithHistory = matchIds.filter((id) => historyMap.has(id));
-  await batchRun(idsWithHistory.map((matchId) => async () => {
-    try {
-      const statsRaw = await fetchFixtureStatistics(matchId);
-      if (statsRaw.length >= 2) {
-        const homeStats = statsRaw[0]!.statistics || [];
-        const awayStats = statsRaw[1]!.statistics || [];
-        allMatchStatistics.set(matchId, homeStats.map((hs) => ({
-          type: hs.type, home: hs.value,
-          away: awayStats.find((a) => a.type === hs.type)?.value ?? null,
-        })));
-      }
-    } catch { /* skip — stats are supplementary */ }
-  }), 5);
+  const allMatchStatistics = await fetchMatchStatistics(matchIds, historyMap);
 
-  // Step 5: Re-evaluate using AI — group by match for batch AI calls
   const recsByMatch = new Map<string, recommendationsRepo.RecommendationRow[]>();
   for (const rec of allRecs.rows) {
     const hist = historyMap.get(rec.match_id);
@@ -183,7 +149,11 @@ export async function reEvaluateAllResults(): Promise<ReEvalResult> {
   }
 
   for (const [matchId, matchRecs] of recsByMatch) {
-    const hist = historyMap.get(matchId)!;
+    const hist = historyMap.get(matchId);
+    if (!hist) {
+      result.skippedNoScore += matchRecs.length;
+      continue;
+    }
     if (isNonStandardFinalStatus(hist.final_status)) {
       result.skippedNoScore += matchRecs.length;
       continue;
@@ -200,7 +170,7 @@ export async function reEvaluateAllResults(): Promise<ReEvalResult> {
       continue;
     }
 
-    const betsToSettle = matchRecs.map(rec => ({
+    const betsToSettle = matchRecs.map((rec) => ({
       id: rec.id,
       market: rec.bet_market || normalizeMarket(rec.selection, rec.bet_market),
       selection: rec.selection,
@@ -235,7 +205,11 @@ export async function reEvaluateAllResults(): Promise<ReEvalResult> {
         auditSkipped('JOB', 'RE_EVALUATION_UNRESOLVED', {
           actor: 're-evaluate',
           match_id: rec.match_id,
-          metadata: { recommendationId: rec.id, reason: 'No settlement result returned from settle pipeline.', selection: rec.selection },
+          metadata: {
+            recommendationId: rec.id,
+            reason: 'No settlement result returned from settle pipeline.',
+            selection: rec.selection,
+          },
         });
         result.skippedNoScore++;
         continue;
@@ -267,77 +241,154 @@ export async function reEvaluateAllResults(): Promise<ReEvalResult> {
       const isUnsettled = !oldResult || oldResult === '';
       const isDiscrepancy = !isUnsettled && (oldResult !== newResult || Math.abs(oldPnl - newPnl) > 0.01);
 
-      if (isUnsettled || isDiscrepancy) {
-        const settlementMeta = buildSettlementMeta(
-          aiResult.source,
-          isDiscrepancy ? 'corrected' : 'resolved',
-          aiResult.explanation,
-        );
-        await recommendationsRepo.settleRecommendation(rec.id, newResult, newPnl, aiResult.explanation, settlementMeta);
-        const wasCorrect = settlementWasCorrect(newResult);
-        await aiPerfRepo.settleAiPerformance(rec.id, newResult, newPnl, wasCorrect, settlementMeta);
+      if (!isUnsettled && !isDiscrepancy) continue;
 
-        if (isDiscrepancy) {
-          auditSuccess('JOB', 'SETTLEMENT_CORRECTED', {
-            actor: 're-evaluate',
-            match_id: rec.match_id,
-            metadata: {
-              recommendationId: rec.id,
-              oldResult,
-              newResult,
-              oldPnl,
-              newPnl,
-              source: aiResult.source ?? 'unknown',
-              promptVersion: settlementMeta.settlePromptVersion ?? '',
-            },
-          });
-          result.corrected++;
-          result.discrepancies.push({
-            id: rec.id,
-            matchId: rec.match_id,
-            selection: rec.selection,
-            market,
-            score: aiResult.explanation,
+      const settlementMeta = buildSettlementMeta(
+        aiResult.source,
+        isDiscrepancy ? 'corrected' : 'resolved',
+        aiResult.explanation,
+      );
+      await recommendationsRepo.settleRecommendation(rec.id, newResult, newPnl, aiResult.explanation, settlementMeta);
+      const wasCorrect = settlementWasCorrect(newResult);
+      await aiPerfRepo.settleAiPerformance(rec.id, newResult, newPnl, wasCorrect, settlementMeta);
+
+      if (isDiscrepancy) {
+        auditSuccess('JOB', 'SETTLEMENT_CORRECTED', {
+          actor: 're-evaluate',
+          match_id: rec.match_id,
+          metadata: {
+            recommendationId: rec.id,
             oldResult,
-            oldPnl,
             newResult,
+            oldPnl,
             newPnl,
-          });
-        } else {
-          result.newlySettled++;
-        }
+            source: aiResult.source ?? 'unknown',
+            promptVersion: settlementMeta.settlePromptVersion ?? '',
+          },
+        });
+        result.corrected++;
+        result.discrepancies.push({
+          id: rec.id,
+          matchId: rec.match_id,
+          selection: rec.selection,
+          market,
+          score: aiResult.explanation,
+          oldResult,
+          oldPnl,
+          newResult,
+          newPnl,
+        });
+      } else {
+        result.newlySettled++;
       }
     }
   }
 
-  console.log(`[re-evaluate] Done: ${result.evaluated} evaluated, ${result.corrected} corrected, ${result.newlySettled} newly settled, ${result.skippedNoScore} no score`);
+  console.log(
+    `[re-evaluate] Done: ${result.evaluated} evaluated, ${result.corrected} corrected, ${result.newlySettled} newly settled, ${result.skippedNoScore} no score`,
+  );
   return result;
+}
+
+async function fetchMatchStatistics(
+  matchIds: string[],
+  historyMap: Map<string, MatchHistoryRow>,
+): Promise<Map<string, SettlementStatRow[]>> {
+  const statsMap = new Map<string, SettlementStatRow[]>();
+  const idsNeedingStats: string[] = [];
+
+  for (const matchId of matchIds) {
+    const hist = historyMap.get(matchId);
+    if (!hist) continue;
+
+    const storedStats = parseStoredSettlementStats(hist.settlement_stats);
+    if (storedStats.length > 0) {
+      statsMap.set(matchId, storedStats);
+    } else {
+      idsNeedingStats.push(matchId);
+    }
+  }
+
+  await batchRun(idsNeedingStats.map((matchId) => async () => {
+    try {
+      const statsRaw = await fetchFixtureStatistics(matchId);
+      const merged = mergeApiFixtureStatistics(statsRaw);
+      if (merged.length === 0) return;
+      statsMap.set(matchId, merged);
+      await matchHistoryRepo.updateHistoricalMatchSettlementData(matchId, {
+        settlement_stats: merged,
+        settlement_stats_provider: 'api-football',
+      });
+    } catch {
+      // Stats are supplementary for re-evaluation.
+    }
+  }), 5);
+
+  return statsMap;
 }
 
 async function fetchRegularTimeScoresForHistoryMatches(
   historyMap: Map<string, MatchHistoryRow>,
 ): Promise<Map<string, RegulationScore>> {
+  const scoreMap = new Map<string, RegulationScore>();
   const idsNeedingLookup = Array.from(historyMap.values())
     .filter((hist) => requiresRegularTimeBreakdown(hist.final_status))
+    .filter((hist) => {
+      if (typeof hist.regular_home_score === 'number' && typeof hist.regular_away_score === 'number') {
+        scoreMap.set(hist.match_id, {
+          home: hist.regular_home_score,
+          away: hist.regular_away_score,
+        });
+        return false;
+      }
+      return true;
+    })
     .map((hist) => hist.match_id);
 
   const uniqueIds = [...new Set(idsNeedingLookup.filter(Boolean))];
-  if (uniqueIds.length === 0) return new Map();
+  if (uniqueIds.length === 0) return scoreMap;
 
   let fixtures: ApiFixture[] = [];
   try {
     fixtures = await fetchFixturesByIds(uniqueIds);
   } catch (err) {
     console.warn('[re-evaluate] Failed to fetch regular-time scores:', err instanceof Error ? err.message : err);
-    return new Map();
+    return scoreMap;
   }
 
-  const scoreMap = new Map<string, RegulationScore>();
   for (const fx of fixtures) {
     const regularTimeScore = extractRegularTimeScoreFromFixture(fx);
-    if (regularTimeScore) {
-      scoreMap.set(String(fx.fixture.id), regularTimeScore);
-    }
+    if (!regularTimeScore) continue;
+    const matchId = String(fx.fixture.id);
+    scoreMap.set(matchId, regularTimeScore);
+    await matchHistoryRepo.updateHistoricalMatchSettlementData(matchId, {
+      regular_home_score: regularTimeScore.home,
+      regular_away_score: regularTimeScore.away,
+      result_provider: 'api-football',
+    });
   }
+
   return scoreMap;
+}
+
+function buildArchiveRowFromFixture(fx: ApiFixture): MatchHistoryArchiveInput {
+  const regularTimeScore = extractRegularTimeScoreFromFixture(fx);
+  return {
+    match_id: String(fx.fixture.id),
+    date: fx.fixture.date?.substring(0, 10) ?? '',
+    kickoff: fx.fixture.date?.substring(11, 16) ?? '00:00',
+    league_id: fx.league?.id ?? 0,
+    league_name: fx.league?.name ?? '',
+    home_team: fx.teams?.home?.name ?? '',
+    away_team: fx.teams?.away?.name ?? '',
+    venue: fx.fixture.venue?.name ?? 'TBD',
+    final_status: fx.fixture.status?.short ?? '',
+    home_score: fx.goals?.home ?? 0,
+    away_score: fx.goals?.away ?? 0,
+    regular_home_score: regularTimeScore?.home ?? null,
+    regular_away_score: regularTimeScore?.away ?? null,
+    result_provider: 'api-football',
+    settlement_stats: [],
+    settlement_stats_provider: '',
+  };
 }

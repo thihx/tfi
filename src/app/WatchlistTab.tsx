@@ -2,6 +2,7 @@ import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { DatePicker } from '@/components/ui/DatePicker';
 import { useAppState } from '@/hooks/useAppState';
 import { useToast } from '@/hooks/useToast';
+import { useUiLanguage } from '@/hooks/useUiLanguage';
 import { Pagination } from '@/components/ui/Pagination';
 import { Modal } from '@/components/ui/Modal';
 import { ConditionBuilder } from '@/components/ui/ConditionBuilder';
@@ -9,6 +10,7 @@ import { PLACEHOLDER_HOME, PLACEHOLDER_AWAY } from '@/config/constants';
 import { convertSeoulToLocalDateTime, formatDateTimeDisplay, formatLocalDateTime, getLeagueDisplayName, debounce } from '@/lib/utils/helpers';
 import { MatchScoutModal } from '@/components/ui/MatchScoutModal';
 import { normalizeToISO } from '@/lib/utils/helpers';
+import { getStrategicNarrative } from '@/lib/utils/strategicContext';
 import type { WatchlistItem, SortState } from '@/types';
 
 const PAGE_SIZE = 30;
@@ -26,6 +28,7 @@ function getDateGroupLabel(localDT: Date): string {
 export function WatchlistTab() {
   const { state, updateWatchlistItem, removeFromWatchlist } = useAppState();
   const { showToast } = useToast();
+  const uiLanguage = useUiLanguage();
   const { watchlist, matches, leagues, config } = state;
 
   const [search, setSearch] = useState('');
@@ -374,6 +377,18 @@ export function WatchlistTab() {
       <Modal open={!!editItem} title="Edit Watchlist Item" onClose={() => setEditItem(null)} size="lg">
         {editItem && (
           <form onSubmit={(e) => { e.preventDefault(); submitEdit(); }}>
+            {(() => {
+              const ctx = editItem.strategic_context;
+              const homeMotivation = getStrategicNarrative(ctx, 'home_motivation', uiLanguage);
+              const awayMotivation = getStrategicNarrative(ctx, 'away_motivation', uiLanguage);
+              const leaguePositions = getStrategicNarrative(ctx, 'league_positions', uiLanguage);
+              const keyAbsences = getStrategicNarrative(ctx, 'key_absences', uiLanguage);
+              const rotationRisk = getStrategicNarrative(ctx, 'rotation_risk', uiLanguage);
+              const fixtureCongestion = getStrategicNarrative(ctx, 'fixture_congestion', uiLanguage);
+              const h2hNarrative = getStrategicNarrative(ctx, 'h2h_narrative', uiLanguage);
+              const summary = getStrategicNarrative(ctx, 'summary', uiLanguage);
+              return (
+                <>
             <div className="form-group">
               <label>Match:</label>
               <input type="text" readOnly value={`${editItem.home_team} vs ${editItem.away_team}`} />
@@ -410,52 +425,52 @@ export function WatchlistTab() {
                 <div className="strategic-context-box">
                   <div className="strategic-context-header">🧠 Strategic Context</div>
                   <div className="strategic-context-grid">
-                    {editItem.strategic_context.home_motivation && (
+                    {homeMotivation && (
                       <div className="strategic-context-item">
                         <span className="strategic-context-label">🏠 {editItem.home_team}</span>
-                        <span className="strategic-context-text">{editItem.strategic_context.home_motivation}</span>
+                        <span className="strategic-context-text">{homeMotivation}</span>
                       </div>
                     )}
-                    {editItem.strategic_context.away_motivation && (
+                    {awayMotivation && (
                       <div className="strategic-context-item">
                         <span className="strategic-context-label">✈️ {editItem.away_team}</span>
-                        <span className="strategic-context-text">{editItem.strategic_context.away_motivation}</span>
+                        <span className="strategic-context-text">{awayMotivation}</span>
                       </div>
                     )}
-                    {editItem.strategic_context.league_positions && (
+                    {leaguePositions && (
                       <div className="strategic-context-item">
                         <span className="strategic-context-label">📊 Positions</span>
-                        <span className="strategic-context-text">{editItem.strategic_context.league_positions}</span>
+                        <span className="strategic-context-text">{leaguePositions}</span>
                       </div>
                     )}
-                    {editItem.strategic_context.key_absences && (
+                    {keyAbsences && (
                       <div className="strategic-context-item">
                         <span className="strategic-context-label">🚑 Absences</span>
-                        <span className="strategic-context-text">{editItem.strategic_context.key_absences}</span>
+                        <span className="strategic-context-text">{keyAbsences}</span>
                       </div>
                     )}
-                    {editItem.strategic_context.rotation_risk && (
+                    {rotationRisk && (
                       <div className="strategic-context-item">
                         <span className="strategic-context-label">🔄 Rotation</span>
-                        <span className="strategic-context-text">{editItem.strategic_context.rotation_risk}</span>
+                        <span className="strategic-context-text">{rotationRisk}</span>
                       </div>
                     )}
-                    {editItem.strategic_context.fixture_congestion && (
+                    {fixtureCongestion && (
                       <div className="strategic-context-item">
                         <span className="strategic-context-label">📅 Fixture Congestion</span>
-                        <span className="strategic-context-text">{editItem.strategic_context.fixture_congestion}</span>
+                        <span className="strategic-context-text">{fixtureCongestion}</span>
                       </div>
                     )}
-                    {editItem.strategic_context.h2h_narrative && (
+                    {h2hNarrative && (
                       <div className="strategic-context-item">
                         <span className="strategic-context-label">⚔️ H2H</span>
-                        <span className="strategic-context-text">{editItem.strategic_context.h2h_narrative}</span>
+                        <span className="strategic-context-text">{h2hNarrative}</span>
                       </div>
                     )}
-                    {editItem.strategic_context.summary && (
+                    {summary && (
                       <div className="strategic-context-item strategic-context-summary">
                         <span className="strategic-context-label">📝 Summary</span>
-                        <span className="strategic-context-text">{editItem.strategic_context.summary}</span>
+                        <span className="strategic-context-text">{summary}</span>
                       </div>
                     )}
                   </div>
@@ -497,6 +512,9 @@ export function WatchlistTab() {
 
             <ConditionBuilder initialValue={editConditions} onChange={setEditConditions} />
             <button type="submit" className="btn btn-primary" style={{ width: '100%' }}>Save Changes</button>
+                </>
+              );
+            })()}
           </form>
         )}
       </Modal>

@@ -72,3 +72,13 @@ export async function getLatestSnapshot(matchId: string): Promise<MatchSnapshotR
   );
   return r.rows[0] ?? null;
 }
+
+export async function purgeMatchSnapshots(keepDays: number): Promise<number> {
+  if (keepDays <= 0) return 0;
+  const result = await query(
+    `DELETE FROM match_snapshots
+     WHERE captured_at < NOW() - INTERVAL '1 day' * $1`,
+    [keepDays],
+  );
+  return result.rowCount ?? 0;
+}

@@ -1,20 +1,89 @@
 // ============================================================
-// Job: Purge Audit Logs
-// Deletes audit_logs older than configured retention period.
+// Job: Housekeeping
+// Legacy file / job name preserved as purge-audit for scheduler
+// compatibility, but the cleanup now covers multiple high-growth
+// tables with separate retention windows.
 // ============================================================
 
 import { config } from '../config.js';
 import * as auditRepo from '../repos/audit-logs.repo.js';
+import * as historyRepo from '../repos/matches-history.repo.js';
+import * as providerStatsRepo from '../repos/provider-stats-samples.repo.js';
+import * as providerOddsRepo from '../repos/provider-odds-samples.repo.js';
+import * as snapshotsRepo from '../repos/match-snapshots.repo.js';
+import * as oddsMovementsRepo from '../repos/odds-movements.repo.js';
 import { reportJobProgress } from './job-progress.js';
 
-export async function purgeAuditJob(): Promise<{ deleted: number; keepDays: number }> {
-  const keepDays = config.auditKeepDays;
-  await reportJobProgress('purge-audit', 'purge', `Purging audit logs older than ${keepDays} days...`, 30);
-  const deleted = await auditRepo.purgeAuditLogs(keepDays);
+export interface HousekeepingResult {
+  auditDeleted: number;
+  matchesHistoryDeleted: number;
+  providerStatsDeleted: number;
+  providerOddsDeleted: number;
+  matchSnapshotsDeleted: number;
+  oddsMovementsDeleted: number;
+  totalDeleted: number;
+  keepDays: {
+    audit: number;
+    matchesHistory: number;
+    providerSamples: number;
+    matchSnapshots: number;
+    oddsMovements: number;
+  };
+}
 
-  if (deleted > 0) {
-    console.log(`[purgeAuditJob] ✅ Purged ${deleted} audit logs older than ${keepDays} days`);
+export async function purgeAuditJob(): Promise<HousekeepingResult> {
+  const keepDays = {
+    audit: config.auditKeepDays,
+    matchesHistory: config.matchesHistoryKeepDays,
+    providerSamples: config.providerSamplesKeepDays,
+    matchSnapshots: config.matchSnapshotsKeepDays,
+    oddsMovements: config.oddsMovementsKeepDays,
+  };
+
+  await reportJobProgress('purge-audit', 'purge', 'Running housekeeping cleanup...', 15);
+
+  const [
+    auditDeleted,
+    matchesHistoryDeleted,
+    providerStatsDeleted,
+    providerOddsDeleted,
+    matchSnapshotsDeleted,
+    oddsMovementsDeleted,
+  ] = await Promise.all([
+    auditRepo.purgeAuditLogs(keepDays.audit),
+    historyRepo.purgeHistoricalMatches(keepDays.matchesHistory),
+    providerStatsRepo.purgeProviderStatsSamples(keepDays.providerSamples),
+    providerOddsRepo.purgeProviderOddsSamples(keepDays.providerSamples),
+    snapshotsRepo.purgeMatchSnapshots(keepDays.matchSnapshots),
+    oddsMovementsRepo.purgeOddsMovements(keepDays.oddsMovements),
+  ]);
+
+  const totalDeleted =
+    auditDeleted
+    + matchesHistoryDeleted
+    + providerStatsDeleted
+    + providerOddsDeleted
+    + matchSnapshotsDeleted
+    + oddsMovementsDeleted;
+
+  if (totalDeleted > 0) {
+    console.log(
+      `[purgeAuditJob] Housekeeping deleted ${totalDeleted} rows ` +
+      `(audit=${auditDeleted}, history=${matchesHistoryDeleted}, providerStats=${providerStatsDeleted}, ` +
+      `providerOdds=${providerOddsDeleted}, snapshots=${matchSnapshotsDeleted}, oddsMovements=${oddsMovementsDeleted})`,
+    );
   }
 
-  return { deleted, keepDays };
+  return {
+    auditDeleted,
+    matchesHistoryDeleted,
+    providerStatsDeleted,
+    providerOddsDeleted,
+    matchSnapshotsDeleted,
+    oddsMovementsDeleted,
+    totalDeleted,
+    keepDays,
+  };
 }
+
+export const housekeepingJob = purgeAuditJob;

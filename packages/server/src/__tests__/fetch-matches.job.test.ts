@@ -45,6 +45,7 @@ vi.mock('../repos/watchlist.repo.js', () => ({
 
 vi.mock('../repos/matches-history.repo.js', () => ({
   archiveFinishedMatches: vi.fn().mockResolvedValue(0),
+  getHistoricalMatchesBatch: vi.fn().mockResolvedValue(new Map()),
 }));
 
 const mkFixture = (id: number, leagueId: number, status: string, date: string, teamHome = 'Home', teamAway = 'Away') => ({
@@ -70,6 +71,7 @@ vi.mock('../lib/football-api.js', () => ({
       mkFixture(2001, 39, 'NS', `${date}T14:00:00+00:00`, 'Liverpool', 'Man City'),
     ]);
   }),
+  fetchFixtureStatistics: vi.fn().mockResolvedValue([]),
 }));
 
 vi.mock('../config.js', () => ({
@@ -77,6 +79,7 @@ vi.mock('../config.js', () => ({
 }));
 
 const { fetchMatchesJob } = await import('../jobs/fetch-matches.job.js');
+const footballApi = await import('../lib/football-api.js');
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -163,7 +166,6 @@ describe('fetchMatchesJob', () => {
       },
     ] as never);
 
-    const footballApi = await import('../lib/football-api.js');
     vi.mocked(footballApi.fetchFixturesForDate)
       .mockResolvedValueOnce([
         {
@@ -190,7 +192,56 @@ describe('fetchMatchesJob', () => {
     const historyRepo = await import('../repos/matches-history.repo.js');
     const archivedRows = vi.mocked(historyRepo.archiveFinishedMatches).mock.calls[0]?.[0] as Array<Record<string, unknown>>;
     const archived = archivedRows.find((row) => row.match_id === '1001');
-    expect(archived).toMatchObject({ status: 'FT', home_score: 2, away_score: 1 });
+    expect(archived).toMatchObject({ final_status: 'FT', home_score: 2, away_score: 1 });
+  });
+
+  test('does not refetch finished stats when history already has settlement cache', async () => {
+    vi.mocked(footballApi.fetchFixturesForDate)
+      .mockResolvedValueOnce([
+        {
+          fixture: {
+            id: 1001,
+            date: '2026-03-20T15:00:00+00:00',
+            status: { short: 'FT', elapsed: 90 },
+            venue: { name: 'Stadium' },
+            referee: null,
+          },
+          league: { id: 39, name: 'League', round: '' },
+          teams: {
+            home: { id: 1, name: 'Arsenal', logo: '' },
+            away: { id: 2, name: 'Chelsea', logo: '' },
+          },
+          goals: { home: 2, away: 1 },
+          score: { halftime: { home: 1, away: 1 } },
+        },
+      ] as never)
+      .mockResolvedValueOnce([]);
+
+    const historyRepo = await import('../repos/matches-history.repo.js');
+    vi.mocked(historyRepo.getHistoricalMatchesBatch).mockResolvedValueOnce(
+      new Map([[
+        '1001',
+        {
+          match_id: '1001',
+          date: '2026-03-20',
+          kickoff: '15:00',
+          league_id: 39,
+          league_name: 'League',
+          home_team: 'Arsenal',
+          away_team: 'Chelsea',
+          venue: 'Stadium',
+          final_status: 'FT',
+          home_score: 2,
+          away_score: 1,
+          settlement_stats: [{ type: 'Corner Kicks', home: 6, away: 5 }],
+          archived_at: '2026-03-20T17:00:00Z',
+        },
+      ]]),
+    );
+
+    await fetchMatchesJob();
+
+    expect(footballApi.fetchFixtureStatistics).not.toHaveBeenCalled();
   });
 
   test('syncs watchlist dates after refresh', async () => {

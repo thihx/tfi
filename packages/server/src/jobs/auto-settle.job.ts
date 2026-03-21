@@ -16,7 +16,7 @@ import { fetchFixturesByIds, fetchFixtureStatistics, type ApiFixture } from '../
 import { callGemini } from '../lib/gemini.js';
 import { config } from '../config.js';
 import type { RecommendationRow } from '../repos/recommendations.repo.js';
-import type { MatchHistoryRow } from '../repos/matches-history.repo.js';
+import type { MatchHistoryArchiveInput, MatchHistoryRow } from '../repos/matches-history.repo.js';
 import { reportJobProgress } from './job-progress.js';
 import { settleByRule } from '../lib/settle-rules.js';
 import {
@@ -40,6 +40,11 @@ import {
   SETTLE_PROMPT_VERSION,
 } from '../lib/settle-prompt.js';
 import { auditSkipped } from '../lib/audit.js';
+import {
+  mergeApiFixtureStatistics,
+  parseStoredSettlementStats,
+  type SettlementStatRow,
+} from '../lib/settlement-stat-cache.js';
 
 interface SettleResult {
   settled: number;
@@ -57,7 +62,7 @@ interface MatchContext {
   awayScore: number;
   finalStatus: string;
   settlementScope: 'regular_time';
-  statistics?: Array<{ type: string; home: string | number | null; away: string | number | null }>;
+  statistics?: SettlementStatRow[];
 }
 
 interface BetToSettle {
@@ -293,7 +298,7 @@ async function settleRecommendations(recs: RecommendationRow[], stats: SettleRes
   }
 
   // Fetch match statistics for all matches (AI needs full context)
-  const allStatsMap = await fetchMatchStatistics(matchIds);
+  const allStatsMap = await fetchMatchStatistics(matchIds, historyMap);
 
   // Group recs by match_id for batch AI settle
   const recsByMatch = new Map<string, RecommendationRow[]>();
@@ -432,7 +437,7 @@ async function settleBets(
   }
 
   // Fetch match statistics for all matches
-  const allStatsMap = await fetchMatchStatistics(matchIds);
+  const allStatsMap = await fetchMatchStatistics(matchIds, historyMap);
 
   // Group bets by match_id
   const betsByMatch = new Map<string, betsRepo.BetRow[]>();
@@ -538,27 +543,37 @@ async function settleBets(
  * Fetch full match statistics from Football API for a list of match IDs.
  * Returns a Map of matchId → array of stat objects (type, home, away).
  */
-type StatRow = { type: string; home: string | number | null; away: string | number | null };
+type StatRow = SettlementStatRow;
 
 async function fetchMatchStatistics(
   matchIds: string[],
+  historyMap: Map<string, MatchHistoryRow>,
 ): Promise<Map<string, StatRow[]>> {
   if (matchIds.length === 0) return new Map();
   const statsMap = new Map<string, StatRow[]>();
+  const idsToFetch: string[] = [];
+
+  for (const matchId of matchIds) {
+    const hist = historyMap.get(matchId);
+    const storedStats = parseStoredSettlementStats(hist?.settlement_stats);
+    if (storedStats.length > 0) {
+      statsMap.set(matchId, storedStats);
+      continue;
+    }
+    if (hist) idsToFetch.push(matchId);
+  }
 
   // Parallel fetches (concurrency 5) instead of sequential
-  await batchRun(matchIds.map((matchId) => async () => {
+  await batchRun(idsToFetch.map((matchId) => async () => {
     try {
       const statsRaw = await fetchFixtureStatistics(matchId);
-      if (statsRaw.length >= 2) {
-        const homeStats = statsRaw[0]!.statistics || [];
-        const awayStats = statsRaw[1]!.statistics || [];
-        const merged: StatRow[] = homeStats.map((hs) => ({
-          type: hs.type,
-          home: hs.value,
-          away: awayStats.find((a) => a.type === hs.type)?.value ?? null,
-        }));
+      const merged = mergeApiFixtureStatistics(statsRaw);
+      if (merged.length > 0) {
         statsMap.set(matchId, merged);
+        await matchHistoryRepo.updateHistoricalMatchSettlementData(matchId, {
+          settlement_stats: merged,
+          settlement_stats_provider: 'api-football',
+        });
       }
     } catch (err) {
       console.warn(`[autoSettleJob] Stats fetch failed for ${matchId}:`, err instanceof Error ? err.message : err);
@@ -566,7 +581,7 @@ async function fetchMatchStatistics(
   }), 5);
 
   if (statsMap.size > 0) {
-    console.log(`[autoSettleJob] Fetched statistics for ${statsMap.size}/${matchIds.length} matches`);
+    console.log(`[autoSettleJob] Settlement stats ready for ${statsMap.size}/${matchIds.length} matches`);
   }
   return statsMap;
 }
@@ -586,11 +601,23 @@ const FINISHED_STATUSES = new Set(['FT', 'AET', 'PEN', 'AWD', 'WO']);
 async function fetchRegularTimeScoresForHistoryMatches(
   historyMap: Map<string, MatchHistoryRow>,
 ): Promise<Map<string, RegulationScore>> {
+  const out = new Map<string, RegulationScore>();
   const idsNeedingLookup = Array.from(historyMap.values())
     .filter((hist) => requiresRegularTimeBreakdown(hist.final_status))
+    .filter((hist) => {
+      const home = hist.regular_home_score;
+      const away = hist.regular_away_score;
+      if (typeof home === 'number' && typeof away === 'number') {
+        out.set(hist.match_id, { home, away });
+        return false;
+      }
+      return true;
+    })
     .map((hist) => hist.match_id);
 
-  return fetchRegularTimeScoresForMatchIds(idsNeedingLookup);
+  const fetched = await fetchRegularTimeScoresForMatchIds(idsNeedingLookup);
+  for (const [matchId, score] of fetched) out.set(matchId, score);
+  return out;
 }
 
 async function fetchRegularTimeScoresForMatchIds(matchIds: string[]): Promise<Map<string, RegulationScore>> {
@@ -610,7 +637,14 @@ async function fetchRegularTimeScoresForMatchIds(matchIds: string[]): Promise<Ma
   const out = new Map<string, RegulationScore>();
   for (const fx of fixtures) {
     const score = extractRegularTimeScoreFromFixture(fx);
-    if (score) out.set(String(fx.fixture.id), score);
+    if (!score) continue;
+    const matchId = String(fx.fixture.id);
+    out.set(matchId, score);
+    await matchHistoryRepo.updateHistoricalMatchSettlementData(matchId, {
+      regular_home_score: score.home,
+      regular_away_score: score.away,
+      result_provider: 'api-football',
+    });
   }
   return out;
 }
@@ -619,7 +653,7 @@ function buildMatchContextForSettlement(
   matchId: string,
   hist: MatchHistoryRow,
   regularTimeScore: RegulationScore | undefined,
-  statistics?: Array<{ type: string; home: string | number | null; away: string | number | null }>,
+  statistics?: SettlementStatRow[],
 ): MatchContext | null {
   if (isNonStandardFinalStatus(hist.final_status)) return null;
 
@@ -672,44 +706,18 @@ async function fetchAndArchiveMissingResults(
       regularTimeScores.set(matchId, regularTimeScore);
     }
 
-    const homeScore = fx.goals?.home ?? 0;
-    const awayScore = fx.goals?.away ?? 0;
+    const archiveRow = buildArchiveRowFromFixture(fx);
 
     // Archive to matches_history for future lookups
     try {
-      const dateStr = fx.fixture.date ? fx.fixture.date.substring(0, 10) : '';
-      const timeStr = fx.fixture.date ? fx.fixture.date.substring(11, 16) : '00:00';
-
-      await matchHistoryRepo.archiveFinishedMatches([{
-        match_id: matchId,
-        date: dateStr,
-        kickoff: timeStr,
-        league_id: fx.league?.id ?? 0,
-        league_name: fx.league?.name ?? '',
-        home_team: fx.teams?.home?.name ?? '',
-        away_team: fx.teams?.away?.name ?? '',
-        venue: fx.fixture.venue?.name ?? 'TBD',
-        status,
-        home_score: homeScore,
-        away_score: awayScore,
-      } as unknown as import('../repos/matches.repo.js').MatchRow]);
+      await matchHistoryRepo.archiveFinishedMatches([archiveRow]);
     } catch (err) {
       console.warn(`[autoSettleJob] Failed to archive match ${matchId}:`, err instanceof Error ? err.message : err);
     }
 
     // Add to historyMap for immediate use
     historyMap.set(matchId, {
-      match_id: matchId,
-      date: fx.fixture.date?.substring(0, 10) ?? '',
-      kickoff: fx.fixture.date?.substring(11, 16) ?? '00:00',
-      league_id: fx.league?.id ?? 0,
-      league_name: fx.league?.name ?? '',
-      home_team: fx.teams?.home?.name ?? '',
-      away_team: fx.teams?.away?.name ?? '',
-      venue: fx.fixture.venue?.name ?? 'TBD',
-      final_status: status,
-      home_score: homeScore,
-      away_score: awayScore,
+      ...archiveRow,
       archived_at: new Date().toISOString(),
     });
   }
@@ -721,4 +729,26 @@ async function fetchAndArchiveMissingResults(
     }
   }
   return regularTimeScores;
+}
+
+function buildArchiveRowFromFixture(fx: ApiFixture): MatchHistoryArchiveInput {
+  const regularTimeScore = extractRegularTimeScoreFromFixture(fx);
+  return {
+    match_id: String(fx.fixture.id),
+    date: fx.fixture.date?.substring(0, 10) ?? '',
+    kickoff: fx.fixture.date?.substring(11, 16) ?? '00:00',
+    league_id: fx.league?.id ?? 0,
+    league_name: fx.league?.name ?? '',
+    home_team: fx.teams?.home?.name ?? '',
+    away_team: fx.teams?.away?.name ?? '',
+    venue: fx.fixture.venue?.name ?? 'TBD',
+    final_status: fx.fixture.status?.short ?? '',
+    home_score: fx.goals?.home ?? 0,
+    away_score: fx.goals?.away ?? 0,
+    regular_home_score: regularTimeScore?.home ?? null,
+    regular_away_score: regularTimeScore?.away ?? null,
+    result_provider: 'api-football',
+    settlement_stats: [],
+    settlement_stats_provider: '',
+  };
 }

@@ -4,7 +4,10 @@ import { useToast } from '@/hooks/useToast';
 import { formatLocalDateTime } from '@/lib/utils/helpers';
 import { AuditLogsPanel } from '@/components/AuditLogsPanel';
 import { IntegrationHealthPanel } from '@/components/IntegrationHealthPanel';
+import { OpsMonitoringPanel } from '@/components/OpsMonitoringPanel';
 import { getToken } from '@/lib/services/auth';
+import { fetchMonitorConfig, persistMonitorConfig } from '@/features/live-monitor/config';
+import type { LiveMonitorConfig } from '@/features/live-monitor/types';
 
 function authHeaders(): Record<string, string> {
   const t = getToken();
@@ -30,6 +33,9 @@ interface JobInfo {
   enabled: boolean;
   runCount: number;
   progress: JobProgress | null;
+  concurrency: number;
+  activeRuns: number;
+  pendingRuns: number;
 }
 
 const INTERVAL_OPTIONS = [
@@ -180,6 +186,15 @@ function JobSchedulerPanel() {
         const isCompleted = progress?.completedAt && !isRunning;
         const hasError = !!job.lastError || !!progress?.error;
         const percent = progress?.percent ?? 0;
+        const isMulti = (job.concurrency ?? 1) > 1;
+        // Multi: disabled only when queue is full; Single: disabled when running
+        const isQueueFull = isMulti && job.activeRuns >= job.concurrency && job.pendingRuns >= job.concurrency;
+        const runDisabled = isMulti ? isQueueFull || triggering.has(job.name) : isRunning || triggering.has(job.name);
+
+        let runBtnLabel = 'Run';
+        if (triggering.has(job.name)) runBtnLabel = '...';
+        else if (isMulti && job.activeRuns >= job.concurrency) runBtnLabel = 'Queue';
+        else if (isRunning) runBtnLabel = 'Running...';
 
         return (
           <div key={job.name} className={`job-card${isRunning ? ' job-running' : ''}${hasError ? ' job-error' : ''}`}>
@@ -187,6 +202,15 @@ function JobSchedulerPanel() {
               <div className="job-info">
                 <div className="job-title-row">
                   <span className="job-label">{label}</span>
+                  {isMulti ? (
+                    <span className="job-concurrency-badge" title={`Max ${job.concurrency} parallel runs`}>
+                      ⚡ ×{job.concurrency}
+                      {job.activeRuns > 0 && <span style={{ color: 'var(--warning)' }}> {job.activeRuns}/{job.concurrency}</span>}
+                      {job.pendingRuns > 0 && <span style={{ color: 'var(--gray-500)' }}> +{job.pendingRuns} queued</span>}
+                    </span>
+                  ) : (
+                    <span className="job-concurrency-badge job-single" title="Single-threaded">🔒</span>
+                  )}
                   <span className="job-meta">
                     {job.lastRun ? `Last run: ${formatLocalDateTime(job.lastRun)}` : 'Never run'}
                     {job.runCount > 0 && <span className="job-run-count"> (#{job.runCount})</span>}
@@ -210,9 +234,9 @@ function JobSchedulerPanel() {
                 <button
                   className="btn btn-primary btn-sm"
                   onClick={() => handleTrigger(job.name)}
-                  disabled={isRunning || triggering.has(job.name)}
+                  disabled={runDisabled}
                 >
-                  {isRunning ? 'Running...' : 'Run'}
+                  {runBtnLabel}
                 </button>
                 {job.name === 'enrich-watchlist' && (
                   <button
@@ -252,8 +276,62 @@ function JobSchedulerPanel() {
 }
 
 export function SettingsTab() {
+  const { showToast } = useToast();
+  const [uiLanguage, setUiLanguage] = useState<'en' | 'vi'>('vi');
+
+  useEffect(() => {
+    let mounted = true;
+    fetchMonitorConfig()
+      .then((config: LiveMonitorConfig) => {
+        if (!mounted) return;
+        setUiLanguage(config.UI_LANGUAGE || config.NOTIFICATION_LANGUAGE || 'vi');
+      })
+      .catch(() => undefined);
+    return () => {
+      mounted = false;
+    };
+  }, []);
+
+  const handleLanguageChange = async (next: 'en' | 'vi') => {
+    setUiLanguage(next);
+    try {
+      await persistMonitorConfig({ UI_LANGUAGE: next });
+      window.dispatchEvent(new CustomEvent('tfi:settings-updated'));
+      showToast(`Display language -> ${next.toUpperCase()}`, 'success');
+    } catch {
+      showToast('Failed to save display language', 'error');
+    }
+  };
+
   return (
     <div className="card" style={{ maxWidth: 820 }}>
+
+      {/* Display Language Section */}
+      <div className="card-header" style={{ padding: '14px 20px' }}>
+        <div className="card-title">Display Language</div>
+      </div>
+      <div style={{ padding: '12px 16px', display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
+        <div style={{ color: 'var(--gray-600)', fontSize: '13px' }}>
+          Strategic context text follows this language when both EN/VI are available.
+        </div>
+        <select
+          className="job-interval-select"
+          value={uiLanguage}
+          onChange={(e) => handleLanguageChange(e.target.value === 'en' ? 'en' : 'vi')}
+          style={{ minWidth: '160px' }}
+        >
+          <option value="vi">Tiếng Việt</option>
+          <option value="en">English</option>
+        </select>
+      </div>
+
+      {/* Job Scheduler Section */}
+      <div className="card-header" style={{ padding: '14px 20px' }}>
+        <div className="card-title">Ops Monitoring</div>
+      </div>
+      <div style={{ padding: '12px 16px' }}>
+        <OpsMonitoringPanel />
+      </div>
 
       {/* Job Scheduler Section */}
       <div className="card-header" style={{ padding: '14px 20px' }}>

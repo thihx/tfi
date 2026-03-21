@@ -17,6 +17,7 @@ vi.mock('../repos/bets.repo.js', () => ({
 vi.mock('../repos/matches-history.repo.js', () => ({
   getHistoricalMatch: vi.fn(),
   archiveFinishedMatches: vi.fn(),
+  updateHistoricalMatchSettlementData: vi.fn(),
 }));
 vi.mock('../repos/ai-performance.repo.js', () => ({
   settleAiPerformance: vi.fn(),

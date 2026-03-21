@@ -29,6 +29,7 @@ vi.mock('../repos/matches-history.repo.js', () => ({
   getHistoricalMatch: vi.fn(),
   getHistoricalMatchesBatch: vi.fn(),
   archiveFinishedMatches: vi.fn(),
+  updateHistoricalMatchSettlementData: vi.fn(),
 }));
 
 vi.mock('../repos/ai-performance.repo.js', () => ({
@@ -75,7 +76,7 @@ import { query } from '../db/pool.js';
 import * as recommendationsRepo from '../repos/recommendations.repo.js';
 import * as matchHistoryRepo from '../repos/matches-history.repo.js';
 import * as aiPerfRepo from '../repos/ai-performance.repo.js';
-import { fetchFixturesByIds } from '../lib/football-api.js';
+import { fetchFixtureStatistics, fetchFixturesByIds } from '../lib/football-api.js';
 import { callGemini } from '../lib/gemini.js';
 
 // ==================== Helpers ====================
@@ -436,5 +437,79 @@ describe('reEvaluateAllResults', () => {
       expect.objectContaining({ status: 'corrected', method: 'rules' }),
     );
     expect(callGemini).not.toHaveBeenCalled();
+  });
+
+  test('uses cached settlement stats and skips fixture statistics fallback', async () => {
+    const rec = makeRec({
+      id: 10,
+      selection: 'Corners Over 9.5',
+      bet_market: 'corners_over_9.5',
+      odds: 1.95,
+      stake_percent: 2,
+      result: 'loss',
+      pnl: -2,
+    });
+
+    (query as Mock).mockResolvedValueOnce({ rows: [rec] });
+    (matchHistoryRepo.getHistoricalMatchesBatch as Mock).mockResolvedValueOnce(
+      new Map([['12345', makeHistory({
+        settlement_stats: [{ type: 'Corner Kicks', home: 7, away: 4 }],
+      })]]),
+    );
+    (recommendationsRepo.settleRecommendation as Mock).mockResolvedValueOnce(null);
+    (aiPerfRepo.settleAiPerformance as Mock).mockResolvedValueOnce(null);
+
+    const result = await reEvaluateAllResults();
+
+    expect(result.corrected).toBe(1);
+    expect(fetchFixtureStatistics).not.toHaveBeenCalled();
+    expect(callGemini).not.toHaveBeenCalled();
+    expect(recommendationsRepo.settleRecommendation).toHaveBeenCalledWith(
+      10,
+      'win',
+      expect.closeTo(1.9),
+      expect.any(String),
+      expect.objectContaining({ status: 'corrected', method: 'rules' }),
+    );
+  });
+
+  test('uses cached regular-time score from matches_history for AET without fixture lookup', async () => {
+    const rec = makeRec({
+      id: 11,
+      match_id: '91919',
+      selection: 'Over 2.5',
+      bet_market: 'over_2.5',
+      odds: 1.85,
+      stake_percent: 2,
+      result: 'win',
+      pnl: 1.7,
+    });
+
+    (query as Mock).mockResolvedValueOnce({ rows: [rec] });
+    (matchHistoryRepo.getHistoricalMatchesBatch as Mock).mockResolvedValueOnce(
+      new Map([['91919', makeHistory({
+        match_id: '91919',
+        final_status: 'AET',
+        home_score: 2,
+        away_score: 2,
+        regular_home_score: 1,
+        regular_away_score: 1,
+      })]]),
+    );
+    (recommendationsRepo.settleRecommendation as Mock).mockResolvedValueOnce(null);
+    (aiPerfRepo.settleAiPerformance as Mock).mockResolvedValueOnce(null);
+
+    const result = await reEvaluateAllResults();
+
+    expect(result.corrected).toBe(1);
+    expect(fetchFixturesByIds).not.toHaveBeenCalled();
+    expect(callGemini).not.toHaveBeenCalled();
+    expect(recommendationsRepo.settleRecommendation).toHaveBeenCalledWith(
+      11,
+      'loss',
+      -2,
+      expect.any(String),
+      expect.objectContaining({ status: 'corrected', method: 'rules' }),
+    );
   });
 });

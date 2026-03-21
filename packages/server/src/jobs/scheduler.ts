@@ -38,6 +38,12 @@ export interface JobInfo {
   enabled: boolean;
   runCount: number;
   progress: JobProgress | null;
+  /** Max number of concurrent runs allowed. 1 = single-threaded (default). */
+  concurrency: number;
+  /** Number of runs currently executing (for concurrency > 1 jobs). */
+  activeRuns: number;
+  /** Number of runs waiting for a free slot in the queue. */
+  pendingRuns: number;
   /** Redis key used for intentional skip/defer (e.g. adaptive polling). Exposed so watchdog can distinguish intentional sleep from a real miss. */
   skipKey?: string;
 }
@@ -53,6 +59,12 @@ interface ManagedJob {
   enabled: boolean;
   runCount: number;
   lockTtlMs: number;
+  /** Max concurrent runs. 1 = single (default). Jobs with concurrency > 1 skip the Redis distributed lock. */
+  concurrency: number;
+  /** Active run count for concurrent jobs. */
+  activeRuns: number;
+  /** Pending (queued) run count — max = concurrency. */
+  pendingRuns: number;
   skipKey?: string;
 }
 
@@ -69,12 +81,20 @@ export function getSchedulerUptime(): number {
 const lockKey = (name: string) => `job:lock:${name}`;
 const stateKey = (name: string) => `job:state:${name}`;
 
-function register(name: string, intervalMs: number, fn: () => Promise<unknown>, lockTtlMs?: number, skipKey?: string) {
+function register(
+  name: string,
+  intervalMs: number,
+  fn: () => Promise<unknown>,
+  lockTtlMs?: number,
+  skipKey?: string,
+  concurrency = 1,
+) {
   jobs.push({
     name, intervalMs, fn,
     timer: null, lastRun: null, lastError: null,
     running: false, enabled: intervalMs > 0, runCount: 0,
     lockTtlMs: lockTtlMs ?? Math.max(intervalMs * 3, 60_000),
+    concurrency, activeRuns: 0, pendingRuns: 0,
     skipKey,
   });
 }
@@ -131,37 +151,83 @@ async function restoreState(job: ManagedJob): Promise<void> {
 }
 
 async function runJob(job: ManagedJob) {
-  if (job.running) return;
+  if (job.concurrency === 1) {
+    // ── Single-run path: existing behavior (Redis distributed lock) ──────────
+    if (job.running) return;
 
-  const locked = await acquireLock(job);
-  if (!locked) {
-    console.log(`[scheduler] Job "${job.name}" skipped — another instance holds the lock`);
-    return;
-  }
+    const locked = await acquireLock(job);
+    if (!locked) {
+      console.log(`[scheduler] Job "${job.name}" skipped — another instance holds the lock`);
+      return;
+    }
 
-  job.running = true;
-  await persistState(job);
-  await clearJobProgress(job.name);
-  await reportJobProgress(job.name, 'starting', 'Starting...', 0);
-
-  const jobStart = Date.now();
-  try {
-    const result = await job.fn();
-    job.lastRun = new Date().toISOString();
-    job.lastError = null;
-    job.runCount++;
-    await completeJobProgress(job.name, result, null);
-    audit({ category: 'JOB', action: `JOB_${job.name.toUpperCase().replace(/-/g, '_')}`, outcome: 'SUCCESS', actor: 'scheduler', duration_ms: Date.now() - jobStart, metadata: result && typeof result === 'object' ? result as Record<string, unknown> : null });
-    console.log(`[scheduler] Job "${job.name}" completed (#${job.runCount})`, result);
-  } catch (err) {
-    job.lastError = err instanceof Error ? err.message : String(err);
-    await completeJobProgress(job.name, null, job.lastError);
-    audit({ category: 'JOB', action: `JOB_${job.name.toUpperCase().replace(/-/g, '_')}`, outcome: 'FAILURE', actor: 'scheduler', duration_ms: Date.now() - jobStart, error: job.lastError });
-    console.error(`[scheduler] Job "${job.name}" failed:`, err);
-  } finally {
-    job.running = false;
+    job.running = true;
     await persistState(job);
-    await releaseLock(job);
+    await clearJobProgress(job.name);
+    await reportJobProgress(job.name, 'starting', 'Starting...', 0);
+
+    const jobStart = Date.now();
+    try {
+      const result = await job.fn();
+      job.lastRun = new Date().toISOString();
+      job.lastError = null;
+      job.runCount++;
+      await completeJobProgress(job.name, result, null);
+      audit({ category: 'JOB', action: `JOB_${job.name.toUpperCase().replace(/-/g, '_')}`, outcome: 'SUCCESS', actor: 'scheduler', duration_ms: Date.now() - jobStart, metadata: result && typeof result === 'object' ? result as Record<string, unknown> : null });
+      console.log(`[scheduler] Job "${job.name}" completed (#${job.runCount})`, result);
+    } catch (err) {
+      job.lastError = err instanceof Error ? err.message : String(err);
+      await completeJobProgress(job.name, null, job.lastError);
+      audit({ category: 'JOB', action: `JOB_${job.name.toUpperCase().replace(/-/g, '_')}`, outcome: 'FAILURE', actor: 'scheduler', duration_ms: Date.now() - jobStart, error: job.lastError });
+      console.error(`[scheduler] Job "${job.name}" failed:`, err);
+    } finally {
+      job.running = false;
+      await persistState(job);
+      await releaseLock(job);
+    }
+  } else {
+    // ── Multi-run path: in-process concurrency with queue ───────────────────
+    // No Redis distributed lock — each instance manages its own concurrency.
+    if (job.activeRuns >= job.concurrency) {
+      // At capacity — queue if there's room (max queue = concurrency)
+      if (job.pendingRuns < job.concurrency) {
+        job.pendingRuns++;
+        console.log(`[scheduler] Job "${job.name}" queued (${job.activeRuns}/${job.concurrency} active, ${job.pendingRuns} pending)`);
+      } else {
+        console.log(`[scheduler] Job "${job.name}" dropped — queue full (${job.concurrency}/${job.concurrency} active + ${job.pendingRuns} pending)`);
+      }
+      return;
+    }
+
+    job.activeRuns++;
+    job.running = true;
+    await clearJobProgress(job.name);
+    await reportJobProgress(job.name, 'starting', 'Starting...', 0);
+
+    const jobStart = Date.now();
+    try {
+      const result = await job.fn();
+      job.lastRun = new Date().toISOString();
+      job.lastError = null;
+      job.runCount++;
+      await completeJobProgress(job.name, result, null);
+      audit({ category: 'JOB', action: `JOB_${job.name.toUpperCase().replace(/-/g, '_')}`, outcome: 'SUCCESS', actor: 'scheduler', duration_ms: Date.now() - jobStart, metadata: result && typeof result === 'object' ? result as Record<string, unknown> : null });
+      console.log(`[scheduler] Job "${job.name}" completed (#${job.runCount})`, result);
+    } catch (err) {
+      job.lastError = err instanceof Error ? err.message : String(err);
+      await completeJobProgress(job.name, null, job.lastError);
+      audit({ category: 'JOB', action: `JOB_${job.name.toUpperCase().replace(/-/g, '_')}`, outcome: 'FAILURE', actor: 'scheduler', duration_ms: Date.now() - jobStart, error: job.lastError });
+      console.error(`[scheduler] Job "${job.name}" failed:`, err);
+    } finally {
+      job.activeRuns--;
+      job.running = job.activeRuns > 0;
+      // Dequeue next pending run
+      if (job.pendingRuns > 0) {
+        job.pendingRuns--;
+        console.log(`[scheduler] Job "${job.name}" dequeuing pending run (${job.pendingRuns} remaining)`);
+        runJob(job);
+      }
+    }
   }
 }
 
@@ -172,10 +238,10 @@ export async function startScheduler() {
   register('fetch-matches', config.jobFetchMatchesMs, fetchMatchesJob, undefined, ADAPTIVE_SKIP_KEY);
   register('enrich-watchlist', config.jobEnrichWatchlistMs, enrichWatchlistJob, 10 * 60_000);
   register('update-predictions', config.jobPredictionsMs, updatePredictionsJob, 10 * 60_000);
-  register('check-live-trigger', config.jobCheckLiveMs, checkLiveTriggerJob);
+  register('check-live-trigger', config.jobCheckLiveMs, checkLiveTriggerJob, undefined, undefined, 3);
   register('auto-settle', config.jobAutoSettleMs, autoSettleJob);
   register('expire-watchlist', config.jobExpireWatchlistMs, expireWatchlistJob);
-  register('purge-audit', config.jobAuditPurgeMs, purgeAuditJob);
+  register('purge-audit', config.jobHousekeepingMs, purgeAuditJob);
   register('integration-health', config.jobIntegrationHealthMs, integrationHealthJob);
   register('health-watchdog', config.jobHealthWatchdogMs, healthWatchdogJob);
 
@@ -253,20 +319,35 @@ export async function getJobsStatus(): Promise<JobInfo[]> {
       name: job.name, intervalMs: job.intervalMs, lastRun,
       lastError, running, enabled: job.enabled,
       runCount: job.runCount, progress, skipKey: job.skipKey,
+      concurrency: job.concurrency,
+      activeRuns: job.activeRuns,
+      pendingRuns: job.pendingRuns,
     });
   }
   return result;
 }
 
-export function triggerJob(name: string): { triggered: boolean } | null {
+export function triggerJob(name: string): { triggered: boolean; queued?: boolean } | null {
   const job = jobs.find((j) => j.name === name);
   if (!job) return null;
+
+  // For concurrent jobs: only reject when queue is full
+  if (job.concurrency > 1) {
+    if (job.activeRuns >= job.concurrency && job.pendingRuns >= job.concurrency) {
+      return { triggered: false }; // queue full
+    }
+    audit({ category: 'JOB', action: 'JOB_MANUAL_TRIGGER', actor: 'user', metadata: { jobName: name } });
+    const willQueue = job.activeRuns >= job.concurrency;
+    runJob(job);
+    return { triggered: true, queued: willQueue };
+  }
+
+  // Single-run: reject if already running
   if (job.running) return { triggered: false };
   // Clear adaptive skip key so manual trigger always runs immediately
   if (job.skipKey) {
     getRedisClient().del(job.skipKey).catch(() => { /* ignore */ });
   }
-  // Fire and forget — progress tracked via Redis
   audit({ category: 'JOB', action: 'JOB_MANUAL_TRIGGER', actor: 'user', metadata: { jobName: name } });
   runJob(job);
   return { triggered: true };
@@ -292,5 +373,17 @@ export function updateJobInterval(name: string, intervalMs: number): JobInfo | n
     console.log(`[scheduler] Job "${job.name}" disabled`);
   }
 
-  return { name: job.name, intervalMs: job.intervalMs, lastRun: job.lastRun, lastError: job.lastError, running: job.running, enabled: job.enabled, runCount: job.runCount, progress: null };
+  return {
+    name: job.name,
+    intervalMs: job.intervalMs,
+    lastRun: job.lastRun,
+    lastError: job.lastError,
+    running: job.running,
+    enabled: job.enabled,
+    runCount: job.runCount,
+    progress: null,
+    concurrency: job.concurrency,
+    activeRuns: job.activeRuns,
+    pendingRuns: job.pendingRuns,
+  };
 }
