@@ -80,6 +80,29 @@ export interface NotificationOverview {
   deliveredRecommendations24h: number;
 }
 
+export interface PromptShadowVersionBreakdown {
+  executionRole: string;
+  promptVersion: string;
+  samples: number;
+  successRate: number;
+  avgLatencyMs: number;
+  avgPromptTokens: number;
+}
+
+export interface PromptShadowOverview {
+  windowHours: number;
+  runs24h: number;
+  shadowRows24h: number;
+  shadowSuccessRate24h: number;
+  comparedRuns24h: number;
+  shouldPushAgreementRate24h: number;
+  marketAgreementRate24h: number;
+  avgActiveLatencyMs24h: number;
+  avgShadowLatencyMs24h: number;
+  disagreementTypes: Array<{ type: string; count: number }>;
+  versionBreakdown: PromptShadowVersionBreakdown[];
+}
+
 export interface OpsMonitoringSnapshot {
   generatedAt: string;
   checklist: OpsChecklistItem[];
@@ -88,6 +111,7 @@ export interface OpsMonitoringSnapshot {
   providers: ProviderOverview;
   settlement: SettlementOverview;
   notifications: NotificationOverview;
+  promptShadow: PromptShadowOverview;
 }
 
 interface ChecklistInputs {
@@ -108,6 +132,7 @@ const PIPELINE_ACTIVITY_WINDOW_HOURS = 2;
 const PROVIDER_WINDOW_HOURS = 6;
 const SETTLEMENT_WINDOW_DAYS = 7;
 const NOTIFICATION_WINDOW_HOURS = 24;
+const PROMPT_SHADOW_WINDOW_HOURS = 24;
 
 function round(value: number, decimals = 1): number {
   const factor = 10 ** decimals;
@@ -228,6 +253,10 @@ export async function getOpsMonitoringSnapshot(): Promise<OpsMonitoringSnapshot>
     unresolvedMarketRes,
     notificationRes,
     deliveredRes,
+    promptShadowSummaryRes,
+    promptShadowComparedRes,
+    promptShadowDisagreementsRes,
+    promptShadowVersionBreakdownRes,
   ] = await Promise.all([
     query<{
       activity_2h: string;
@@ -408,6 +437,78 @@ export async function getOpsMonitoringSnapshot(): Promise<OpsMonitoringSnapshot>
        WHERE notified = 'yes'
          AND timestamp >= NOW() - INTERVAL '${NOTIFICATION_WINDOW_HOURS} hours'`,
     ),
+    query<{ runs: string; shadow_rows: string; shadow_successes: string }>(
+      `SELECT
+         COUNT(DISTINCT analysis_run_id)::text AS runs,
+         COUNT(*) FILTER (WHERE execution_role = 'shadow')::text AS shadow_rows,
+         COUNT(*) FILTER (WHERE execution_role = 'shadow' AND success = TRUE)::text AS shadow_successes
+       FROM prompt_shadow_runs
+       WHERE captured_at >= NOW() - INTERVAL '${PROMPT_SHADOW_WINDOW_HOURS} hours'`,
+    ),
+    query<{
+      compared: string;
+      same_should_push: string;
+      same_market: string;
+      active_avg_latency_ms: string | null;
+      shadow_avg_latency_ms: string | null;
+    }>(
+      `SELECT
+         COUNT(*)::text AS compared,
+         COUNT(*) FILTER (WHERE active.should_push = shadow.should_push)::text AS same_should_push,
+         COUNT(*) FILTER (WHERE COALESCE(active.bet_market, '') = COALESCE(shadow.bet_market, ''))::text AS same_market,
+         AVG(active.llm_latency_ms)::text AS active_avg_latency_ms,
+         AVG(shadow.llm_latency_ms)::text AS shadow_avg_latency_ms
+       FROM prompt_shadow_runs active
+       INNER JOIN prompt_shadow_runs shadow
+         ON shadow.analysis_run_id = active.analysis_run_id
+        AND shadow.execution_role = 'shadow'
+       WHERE active.execution_role = 'active'
+         AND active.success = TRUE
+         AND shadow.success = TRUE
+         AND active.captured_at >= NOW() - INTERVAL '${PROMPT_SHADOW_WINDOW_HOURS} hours'`,
+    ),
+    query<{ diff_type: string; count: string }>(
+      `SELECT diff_type, COUNT(*)::text AS count
+       FROM (
+         SELECT CASE
+           WHEN active.should_push <> shadow.should_push AND active.should_push = TRUE THEN 'active_push_shadow_no_push'
+           WHEN active.should_push <> shadow.should_push AND shadow.should_push = TRUE THEN 'shadow_push_active_no_push'
+           WHEN COALESCE(active.bet_market, '') <> COALESCE(shadow.bet_market, '') THEN 'market_mismatch'
+           ELSE 'aligned'
+         END AS diff_type
+         FROM prompt_shadow_runs active
+         INNER JOIN prompt_shadow_runs shadow
+           ON shadow.analysis_run_id = active.analysis_run_id
+          AND shadow.execution_role = 'shadow'
+         WHERE active.execution_role = 'active'
+           AND active.success = TRUE
+           AND shadow.success = TRUE
+           AND active.captured_at >= NOW() - INTERVAL '${PROMPT_SHADOW_WINDOW_HOURS} hours'
+       ) diff
+       WHERE diff_type <> 'aligned'
+       GROUP BY diff_type
+       ORDER BY COUNT(*) DESC`,
+    ),
+    query<{
+      execution_role: string;
+      prompt_version: string;
+      total: string;
+      successes: string;
+      avg_latency_ms: string | null;
+      avg_prompt_tokens: string | null;
+    }>(
+      `SELECT
+         execution_role,
+         prompt_version,
+         COUNT(*)::text AS total,
+         COUNT(*) FILTER (WHERE success = TRUE)::text AS successes,
+         AVG(llm_latency_ms)::text AS avg_latency_ms,
+         AVG(prompt_estimated_tokens)::text AS avg_prompt_tokens
+       FROM prompt_shadow_runs
+       WHERE captured_at >= NOW() - INTERVAL '${PROMPT_SHADOW_WINDOW_HOURS} hours'
+       GROUP BY execution_role, prompt_version
+       ORDER BY execution_role, prompt_version`,
+    ),
   ]);
 
   const pipelineSummary = pipelineSummaryRes.rows[0]!;
@@ -416,6 +517,8 @@ export async function getOpsMonitoringSnapshot(): Promise<OpsMonitoringSnapshot>
   const settlementSummary = settlementSummaryRes.rows[0]!;
   const notificationSummary = notificationRes.rows[0]!;
   const deliveredSummary = deliveredRes.rows[0]!;
+  const promptShadowSummary = promptShadowSummaryRes.rows[0]!;
+  const promptShadowCompared = promptShadowComparedRes.rows[0]!;
 
   const analyzed24h = Number(pipelineSummary.analyzed_24h);
   const shouldPush24h = Number(pipelineSummary.should_push_24h);
@@ -439,6 +542,20 @@ export async function getOpsMonitoringSnapshot(): Promise<OpsMonitoringSnapshot>
   const notificationAttempts24h = Number(notificationSummary.attempts);
   const notificationFailures24h = Number(notificationSummary.failures);
   const notificationFailureRate24h = pct(notificationFailures24h, notificationAttempts24h);
+  const promptShadowRuns24h = Number(promptShadowSummary.runs);
+  const promptShadowRows24h = Number(promptShadowSummary.shadow_rows);
+  const promptShadowSuccessRate24h = pct(Number(promptShadowSummary.shadow_successes), promptShadowRows24h);
+  const promptShadowComparedRuns24h = Number(promptShadowCompared.compared);
+  const promptShadowShouldPushAgreementRate24h = pct(
+    Number(promptShadowCompared.same_should_push),
+    promptShadowComparedRuns24h,
+  );
+  const promptShadowMarketAgreementRate24h = pct(
+    Number(promptShadowCompared.same_market),
+    promptShadowComparedRuns24h,
+  );
+  const promptShadowActiveLatencyMs24h = round(Number(promptShadowCompared.active_avg_latency_ms ?? 0), 0);
+  const promptShadowLatencyMs24h = round(Number(promptShadowCompared.shadow_avg_latency_ms ?? 0), 0);
 
   const providerStatsSuccessRate = pct(statsSuccesses, statsSamples);
   const providerOddsUsableRate = pct(oddsUsable, oddsSamples);
@@ -492,6 +609,20 @@ export async function getOpsMonitoringSnapshot(): Promise<OpsMonitoringSnapshot>
       value: `${notificationFailureRate24h}%`,
       tone: checklist.find((item) => item.id === 'notification-health')?.status ?? 'neutral',
       detail: `${notificationFailures24h}/${notificationAttempts24h} attempts`,
+    },
+    {
+      label: 'Prompt Agree 24h',
+      value: promptShadowComparedRuns24h > 0 ? `${promptShadowShouldPushAgreementRate24h}%` : 'n/a',
+      tone: promptShadowComparedRuns24h === 0
+        ? 'neutral'
+        : promptShadowShouldPushAgreementRate24h >= 90
+          ? 'pass'
+          : promptShadowShouldPushAgreementRate24h >= 75
+            ? 'warn'
+            : 'fail',
+      detail: promptShadowComparedRuns24h > 0
+        ? `${promptShadowComparedRuns24h} compared run(s)`
+        : 'no prompt shadow samples',
     },
   ];
 
@@ -572,6 +703,32 @@ export async function getOpsMonitoringSnapshot(): Promise<OpsMonitoringSnapshot>
       failures24h: notificationFailures24h,
       failureRate24h: notificationFailureRate24h,
       deliveredRecommendations24h: Number(deliveredSummary.count),
+    },
+    promptShadow: {
+      windowHours: PROMPT_SHADOW_WINDOW_HOURS,
+      runs24h: promptShadowRuns24h,
+      shadowRows24h: promptShadowRows24h,
+      shadowSuccessRate24h: promptShadowSuccessRate24h,
+      comparedRuns24h: promptShadowComparedRuns24h,
+      shouldPushAgreementRate24h: promptShadowShouldPushAgreementRate24h,
+      marketAgreementRate24h: promptShadowMarketAgreementRate24h,
+      avgActiveLatencyMs24h: promptShadowActiveLatencyMs24h,
+      avgShadowLatencyMs24h: promptShadowLatencyMs24h,
+      disagreementTypes: promptShadowDisagreementsRes.rows.map((row) => ({
+        type: row.diff_type,
+        count: Number(row.count),
+      })),
+      versionBreakdown: promptShadowVersionBreakdownRes.rows.map((row) => {
+        const samples = Number(row.total);
+        return {
+          executionRole: row.execution_role,
+          promptVersion: row.prompt_version,
+          samples,
+          successRate: pct(Number(row.successes), samples),
+          avgLatencyMs: round(Number(row.avg_latency_ms ?? 0), 0),
+          avgPromptTokens: round(Number(row.avg_prompt_tokens ?? 0), 0),
+        };
+      }),
     },
   };
 }

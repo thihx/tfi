@@ -2,6 +2,7 @@ import { describe, expect, test } from 'vitest';
 
 import {
   buildLiveAnalysisPrompt,
+  LIVE_ANALYSIS_PROMPT_CANDIDATE_VERSION,
   LIVE_ANALYSIS_PROMPT_VERSION,
   type LiveAnalysisPromptInput,
 } from '../lib/live-analysis-prompt.js';
@@ -289,5 +290,100 @@ describe('buildLiveAnalysisPrompt', () => {
     expect(prompt).toContain('Report valuation using exact break-even from odds plus a rounded fair-value estimate or range.');
     expect(prompt).toContain('Preferred wording style in reasoning_en: "Break-even about X%. My fair range is around Y-Z%. Edge looks about W%."');
     expect(prompt).not.toContain('MUST include EXACT text in reasoning_en: "Break-even: X%, My estimate: Y%, Edge: Z%"');
+  });
+
+  test('supports compact candidate prompt version without changing default baseline', () => {
+    const baseline = buildLiveAnalysisPrompt(baseInput, settings);
+    const candidate = buildLiveAnalysisPrompt(baseInput, settings, LIVE_ANALYSIS_PROMPT_CANDIDATE_VERSION);
+
+    expect(candidate).toContain(`PROMPT_VERSION: ${LIVE_ANALYSIS_PROMPT_CANDIDATE_VERSION}`);
+    expect(candidate.length).toBeLessThan(baseline.length);
+    expect(baseline).toContain(`PROMPT_VERSION: ${LIVE_ANALYSIS_PROMPT_VERSION}`);
+  });
+
+  test('candidate prompt enumerates exact canonical market keys and rejects generic aliases', () => {
+    const candidate = buildLiveAnalysisPrompt(baseInput, settings, LIVE_ANALYSIS_PROMPT_CANDIDATE_VERSION);
+
+    expect(candidate).toContain('EXACT OUTPUT ENUMS:');
+    expect(candidate).toContain('"1x2_home"');
+    expect(candidate).toContain('"over_2.5"');
+    expect(candidate).toContain('"under_2.5"');
+    expect(candidate).toContain('"asian_handicap_home_-0.25"');
+    expect(candidate).toContain('"asian_handicap_away_-0.25"');
+    expect(candidate).toContain('"btts_yes"');
+    expect(candidate).toContain('INVALID generic values: "ou", "over/under goals", "1X2", "btts", "asian_handicap", "corners".');
+    expect(candidate).toContain('NEVER wrap the JSON in markdown fences like ```json.');
+  });
+
+  test('candidate prompt raises an active corners sanity alert for late desync-like lines', () => {
+    const candidate = buildLiveAnalysisPrompt({
+      ...baseInput,
+      minute: 83,
+      score: '1-0',
+      statsCompact: {
+        ...baseInput.statsCompact,
+        corners: { home: 4, away: 3 },
+      },
+      oddsCanonical: {
+        corners_ou: { line: 10.5, over: 1.84, under: 1.96 },
+      },
+    }, settings, LIVE_ANALYSIS_PROMPT_CANDIDATE_VERSION);
+
+    expect(candidate).toContain('ACTIVE CORNERS SANITY ALERT: live corners show 7 vs bookmaker line 10.5 at minute 83.');
+    expect(candidate).toContain('assume stats desync/delay and skip ALL corners markets.');
+  });
+
+  test('betting-discipline candidate treats correlated same-family picks as one position', () => {
+    const candidate = buildLiveAnalysisPrompt({
+      ...baseInput,
+      previousRecommendations: [
+        {
+          minute: 70,
+          selection: 'Under 0.5 Goals @1.92',
+          bet_market: 'under_0.5',
+          confidence: 7,
+          odds: 1.92,
+          stake_percent: 3,
+        },
+        {
+          minute: 65,
+          selection: 'Under 0.75 Goals @1.90',
+          bet_market: 'under_0.75',
+          confidence: 7,
+          odds: 1.9,
+          stake_percent: 4,
+        },
+        {
+          minute: 54,
+          selection: 'Under 1 Goals @2.02',
+          bet_market: 'under_1',
+          confidence: 7,
+          odds: 2.02,
+          stake_percent: 4,
+        },
+      ],
+    }, settings, LIVE_ANALYSIS_PROMPT_CANDIDATE_VERSION);
+
+    expect(candidate).toContain('EXISTING MATCH EXPOSURE');
+    expect(candidate).toContain('Goals Under thesis: 3 prior pick(s), total prior stake 11%');
+    expect(candidate).toContain('Treat correlated lines in the same direction and market family as ONE existing position');
+    expect(candidate).toContain('Experienced football bettors usually prefer one clean entry at the best available line.');
+    expect(candidate).toContain('A looser or tighter line on the same unchanged thesis is NOT diversification.');
+    expect(candidate).toContain('Multiple nearby lines in the same direction are usually one thesis, not multiple separate bets.');
+  });
+
+  test('betting-discipline candidate rejects logically impossible odds feed states', () => {
+    const candidate = buildLiveAnalysisPrompt({
+      ...baseInput,
+      minute: 74,
+      score: '1-1',
+      oddsCanonical: {
+        ou: { line: 2.5, over: 2.08, under: 1.82 },
+        btts: { yes: 1.47, no: 2.6 },
+      },
+    }, settings, LIVE_ANALYSIS_PROMPT_CANDIDATE_VERSION);
+
+    expect(candidate).toContain('If the odds feed contains any market that is logically already settled by the current score/state, treat the entire odds feed as suspect and default to no bet.');
+    expect(candidate).toContain('Example of impossible feed state: BTTS Yes/No still quoted after both teams have already scored.');
   });
 });

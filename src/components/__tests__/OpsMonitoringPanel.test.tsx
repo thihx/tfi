@@ -70,6 +70,36 @@ const mockSnapshot = {
     failureRate24h: 10,
     deliveredRecommendations24h: 6,
   },
+  promptShadow: {
+    windowHours: 24,
+    runs24h: 4,
+    shadowRows24h: 4,
+    shadowSuccessRate24h: 100,
+    comparedRuns24h: 4,
+    shouldPushAgreementRate24h: 100,
+    marketAgreementRate24h: 75,
+    avgActiveLatencyMs24h: 19000,
+    avgShadowLatencyMs24h: 16000,
+    disagreementTypes: [{ type: 'market_mismatch', count: 1 }],
+    versionBreakdown: [
+      {
+        executionRole: 'active',
+        promptVersion: 'v4-evidence-hardened',
+        samples: 4,
+        successRate: 100,
+        avgLatencyMs: 19000,
+        avgPromptTokens: 3500,
+      },
+      {
+        executionRole: 'shadow',
+        promptVersion: 'v5-compact-a',
+        samples: 4,
+        successRate: 100,
+        avgLatencyMs: 16000,
+        avgPromptTokens: 2000,
+      },
+    ],
+  },
 };
 
 vi.mock('@/hooks/useAppState', () => ({
@@ -110,5 +140,7 @@ describe('OpsMonitoringPanel', () => {
     expect(screen.getByText('Stats Providers (6h)')).toBeInTheDocument();
     expect(screen.getByText('Settlement Method Mix (30d)')).toBeInTheDocument();
     expect(screen.getByText('Notifications (24h)')).toBeInTheDocument();
+    expect(screen.getByText('Prompt Shadow (24h)')).toBeInTheDocument();
+    expect(screen.getByText('Prompt Shadow Versions')).toBeInTheDocument();
   });
 });

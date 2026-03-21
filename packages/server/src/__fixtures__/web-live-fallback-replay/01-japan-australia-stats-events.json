@@ -1,0 +1,26 @@
+{
+  "name": "Japan W vs Australia W stats+events",
+  "request": {
+    "homeTeam": "Japan W",
+    "awayTeam": "Australia W",
+    "league": "AFC Asian Cup Women",
+    "matchDate": "2026-03-21",
+    "status": "HT",
+    "minute": 45,
+    "score": {
+      "home": 1,
+      "away": 0
+    },
+    "requestedSlots": {
+      "stats": true,
+      "events": true
+    }
+  },
+  "expected": {
+    "accepted": true,
+    "minPrimaryStatPairs": 3,
+    "minEventCount": 1,
+    "minTrustedSources": 1,
+    "searchQualityIn": ["high", "medium"]
+  }
+}

@@ -3,7 +3,7 @@ import type { ApiFixture, ApiFixtureEvent, ApiFixtureStat } from './football-api
 import { resolveMatchOdds, type ResolveMatchOddsResult } from './odds-resolver.js';
 import { fetchTheOddsLiveDetailed, type TheOddsEvent } from './the-odds-api.js';
 import { runPipelineForFixture, type MatchPipelineResult } from './server-pipeline.js';
-import type { PromptAnalysisMode, PromptEvidenceMode } from './live-analysis-prompt.js';
+import type { LiveAnalysisPromptVersion, PromptAnalysisMode, PromptEvidenceMode } from './live-analysis-prompt.js';
 import type { WatchlistRow } from '../repos/watchlist.repo.js';
 
 const DEFAULT_MOCK_AI_TEXT = JSON.stringify({
@@ -32,6 +32,7 @@ export interface ReplayScenario {
     skipProceedGate?: boolean;
     skipStalenessGate?: boolean;
     modelOverride?: string;
+    promptVersionOverride?: LiveAnalysisPromptVersion;
   };
   statistics?: ApiFixtureStat[];
   events?: ApiFixtureEvent[];
@@ -79,6 +80,7 @@ export interface ReplayRunOptions {
   oddsMode?: 'recorded' | 'live' | 'mock';
   shadowMode?: boolean;
   sampleProviderData?: boolean;
+  promptVersionOverride?: LiveAnalysisPromptVersion;
 }
 
 export interface ReplayAssertionResult {
@@ -325,6 +327,7 @@ export async function runReplayScenario(
       skipProceedGate: scenario.pipelineOptions?.skipProceedGate,
       skipStalenessGate: scenario.pipelineOptions?.skipStalenessGate,
       modelOverride: scenario.pipelineOptions?.modelOverride,
+      promptVersionOverride: options.promptVersionOverride ?? scenario.pipelineOptions?.promptVersionOverride,
       previousRecommendations: scenario.previousRecommendations ?? null,
       previousSnapshot: scenario.previousSnapshot ?? null,
       dependencies,

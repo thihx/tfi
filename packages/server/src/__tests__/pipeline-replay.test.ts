@@ -160,6 +160,12 @@ describe('runReplayScenario', () => {
     expect(output.result.notified).toBe(false);
     expect(output.result.debug?.shadowMode).toBe(true);
     expect(output.result.debug?.oddsSource).toBe('live');
+    expect(output.result.debug?.promptVersion).toBeTruthy();
+    expect(output.result.debug?.promptChars).toBeGreaterThan(0);
+    expect(output.result.debug?.promptEstimatedTokens).toBeGreaterThan(0);
+    expect(output.result.debug?.aiTextChars).toBeGreaterThan(0);
+    expect(output.result.debug?.aiTextEstimatedTokens).toBeGreaterThan(0);
+    expect(output.result.debug?.totalLatencyMs).toBeGreaterThanOrEqual(0);
     expect(output.allPassed).toBe(true);
   });
 
@@ -253,6 +259,32 @@ describe('runReplayScenario', () => {
 
     expect(output.result.debug?.analysisMode).toBe('manual_force');
     expect(output.allPassed).toBe(true);
+  });
+
+  test('supports prompt version override for candidate replay', async () => {
+    const output = await runReplayScenario({
+      name: 'candidate-prompt-replay',
+      matchId: '100',
+      fixture: makeFixture(),
+      statistics: makeStats(),
+      events: makeEvents(),
+      liveOddsResponse: [{
+        fixture: { id: 100 },
+        odds: [{
+          id: 1,
+          name: 'Over/Under',
+          values: [
+            { value: 'Over', odd: '1.85', handicap: '2.5' },
+            { value: 'Under', odd: '2.00', handicap: '2.5' },
+          ],
+        }],
+      }],
+    }, {
+      promptVersionOverride: 'v5-compact-a',
+    });
+
+    expect(output.result.debug?.promptVersion).toBe('v5-compact-a');
+    expect(output.result.debug?.promptChars).toBeGreaterThan(0);
   });
 
   test('asserts evidenceMode and statsSource metadata when provided', async () => {

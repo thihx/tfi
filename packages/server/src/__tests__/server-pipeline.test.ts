@@ -5,10 +5,8 @@
 import { describe, test, expect, vi, beforeEach } from 'vitest';
 import { LIVE_ANALYSIS_PROMPT_VERSION } from '../lib/live-analysis-prompt.js';
 
-// ─── Mocks ───────────────────────────────────────────────
-
-vi.mock('../config.js', () => ({
-  config: {
+const { mockConfig } = vi.hoisted(() => ({
+  mockConfig: {
     geminiApiKey: 'test-key',
     geminiModel: 'gemini-test',
     telegramBotToken: 'test-bot',
@@ -24,7 +22,17 @@ vi.mock('../config.js', () => ({
     pipelineStalenessOddsDelta: 0.1,
     liveScoreBenchmarkEnabled: true,
     liveScoreStatsFallbackEnabled: true,
+    liveAnalysisActivePromptVersion: '',
+    liveAnalysisShadowPromptVersion: '',
+    liveAnalysisShadowEnabled: false,
+    liveAnalysisShadowSampleRate: 0,
   },
+}));
+
+// ─── Mocks ───────────────────────────────────────────────
+
+vi.mock('../config.js', () => ({
+  config: mockConfig,
 }));
 
 vi.mock('../lib/audit.js', () => ({
@@ -325,6 +333,10 @@ vi.mock('../repos/match-snapshots.repo.js', () => ({
   getLatestSnapshot: vi.fn().mockResolvedValue(null),
 }));
 
+vi.mock('../repos/prompt-shadow-runs.repo.js', () => ({
+  createPromptShadowRun: vi.fn().mockResolvedValue({ id: 1 }),
+}));
+
 const {
   runPipelineBatch,
   runPromptOnlyAnalysisForMatch,
@@ -332,7 +344,16 @@ const {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  mockConfig.liveAnalysisActivePromptVersion = '';
+  mockConfig.liveAnalysisShadowPromptVersion = '';
+  mockConfig.liveAnalysisShadowEnabled = false;
+  mockConfig.liveAnalysisShadowSampleRate = 0;
 });
+
+async function flushAsyncWork() {
+  await Promise.resolve();
+  await Promise.resolve();
+}
 
 // ─── Tests ───────────────────────────────────────────────
 
@@ -882,6 +903,105 @@ describe('runPipelineBatch', () => {
     expect(result.prompt).toContain('- Is Manual Push: YES');
     expect(result.prompt).not.toContain('watchlist/system force mode, not by a direct manual Ask AI request');
     expect(result.result.debug?.analysisMode).toBe('manual_force');
+  });
+
+  test('records active and shadow prompt outputs with shared analysisRunId when shadow is enabled', async () => {
+    mockConfig.liveAnalysisShadowEnabled = true;
+    mockConfig.liveAnalysisShadowSampleRate = 1;
+    mockConfig.liveAnalysisActivePromptVersion = 'v4-evidence-hardened';
+    mockConfig.liveAnalysisShadowPromptVersion = 'v5-compact-a';
+
+    const result = await runPipelineBatch(['100']);
+    await flushAsyncWork();
+
+    const { callGemini } = await import('../lib/gemini.js');
+    const { createPromptShadowRun } = await import('../repos/prompt-shadow-runs.repo.js');
+    const shadowCalls = vi.mocked(createPromptShadowRun).mock.calls;
+
+    expect(callGemini).toHaveBeenCalledTimes(2);
+    expect(shadowCalls).toHaveLength(2);
+    expect(shadowCalls[0]?.[0].execution_role).toBe('active');
+    expect(shadowCalls[0]?.[0].prompt_version).toBe('v4-evidence-hardened');
+    expect(shadowCalls[1]?.[0].execution_role).toBe('shadow');
+    expect(shadowCalls[1]?.[0].prompt_version).toBe('v5-compact-a');
+    expect(shadowCalls[0]?.[0].analysis_run_id).toBe(shadowCalls[1]?.[0].analysis_run_id);
+    expect(result.results[0]?.saved).toBe(true);
+    expect(result.results[0]?.notified).toBe(true);
+    expect(result.results[0]?.debug?.analysisRunId).toBeTypeOf('string');
+  });
+
+  test('shadow prompt never creates extra recommendation, performance row, or notification side effects', async () => {
+    mockConfig.liveAnalysisShadowEnabled = true;
+    mockConfig.liveAnalysisShadowSampleRate = 1;
+    mockConfig.liveAnalysisActivePromptVersion = 'v4-evidence-hardened';
+    mockConfig.liveAnalysisShadowPromptVersion = 'v5-compact-a';
+
+    await runPipelineBatch(['100']);
+    await flushAsyncWork();
+
+    const { createRecommendation, markRecommendationNotified } = await import('../repos/recommendations.repo.js');
+    const { createAiPerformanceRecord } = await import('../repos/ai-performance.repo.js');
+    const { sendTelegramMessage } = await import('../lib/telegram.js');
+
+    expect(createRecommendation).toHaveBeenCalledTimes(1);
+    expect(createAiPerformanceRecord).toHaveBeenCalledTimes(1);
+    expect(markRecommendationNotified).toHaveBeenCalledTimes(1);
+    expect(sendTelegramMessage).toHaveBeenCalledTimes(1);
+  });
+
+  test('stores shadow failure separately without breaking active pipeline result', async () => {
+    mockConfig.liveAnalysisShadowEnabled = true;
+    mockConfig.liveAnalysisShadowSampleRate = 1;
+    mockConfig.liveAnalysisActivePromptVersion = 'v4-evidence-hardened';
+    mockConfig.liveAnalysisShadowPromptVersion = 'v5-compact-a';
+
+    const { callGemini } = await import('../lib/gemini.js');
+    vi.mocked(callGemini)
+      .mockResolvedValueOnce(JSON.stringify({
+        should_push: true,
+        selection: 'Over 2.5 Goals @1.85',
+        bet_market: 'over_2.5',
+        confidence: 8,
+        reasoning_en: 'Open match with high shot count',
+        reasoning_vi: 'Open match with high shot count',
+        warnings: [],
+        value_percent: 12,
+        risk_level: 'MEDIUM',
+        stake_percent: 5,
+        custom_condition_matched: false,
+      }))
+      .mockRejectedValueOnce(new Error('shadow llm aborted'));
+
+    const result = await runPipelineBatch(['100']);
+    await flushAsyncWork();
+
+    const { createPromptShadowRun } = await import('../repos/prompt-shadow-runs.repo.js');
+    const shadowCalls = vi.mocked(createPromptShadowRun).mock.calls;
+
+    expect(result.results[0]?.success).toBe(true);
+    expect(result.results[0]?.shouldPush).toBe(true);
+    expect(shadowCalls).toHaveLength(2);
+    expect(shadowCalls[1]?.[0]).toMatchObject({
+      execution_role: 'shadow',
+      prompt_version: 'v5-compact-a',
+      success: false,
+      error: 'shadow llm aborted',
+    });
+  });
+
+  test('does not run prompt shadow when prompt version override is explicitly supplied', async () => {
+    mockConfig.liveAnalysisShadowEnabled = true;
+    mockConfig.liveAnalysisShadowSampleRate = 1;
+    mockConfig.liveAnalysisActivePromptVersion = 'v4-evidence-hardened';
+    mockConfig.liveAnalysisShadowPromptVersion = 'v5-compact-a';
+
+    await runPromptOnlyAnalysisForMatch('100', { forceAnalyze: true, promptVersionOverride: LIVE_ANALYSIS_PROMPT_VERSION });
+    await flushAsyncWork();
+
+    const { callGemini } = await import('../lib/gemini.js');
+    const { createPromptShadowRun } = await import('../repos/prompt-shadow-runs.repo.js');
+    expect(callGemini).toHaveBeenCalledTimes(1);
+    expect(createPromptShadowRun).not.toHaveBeenCalled();
   });
 
   test('processes multiple matches sequentially', async () => {

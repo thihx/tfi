@@ -97,4 +97,11 @@ export const config = {
 
   // Provider sampling / observability
   providerSamplingEnabled: process.env['PROVIDER_SAMPLING_ENABLED'] !== 'false',
+
+  // Prompt shadow rollout
+  liveAnalysisActivePromptVersion: process.env['LIVE_ANALYSIS_ACTIVE_PROMPT_VERSION'] || '',
+  liveAnalysisShadowPromptVersion: process.env['LIVE_ANALYSIS_SHADOW_PROMPT_VERSION'] || '',
+  liveAnalysisShadowEnabled: process.env['LIVE_ANALYSIS_SHADOW_ENABLED'] === 'true',
+  liveAnalysisShadowSampleRate: Number(process.env['LIVE_ANALYSIS_SHADOW_SAMPLE_RATE'] || 0),
+  promptShadowKeepDays: Number(process.env['PROMPT_SHADOW_KEEP_DAYS'] || 14),
 } as const;

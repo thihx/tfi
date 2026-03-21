@@ -115,6 +115,43 @@ describe('ops-monitoring.repo', () => {
       })
       .mockResolvedValueOnce({
         rows: [{ count: '6' }],
+      })
+      .mockResolvedValueOnce({
+        rows: [{ runs: '4', shadow_rows: '4', shadow_successes: '4' }],
+      })
+      .mockResolvedValueOnce({
+        rows: [{
+          compared: '4',
+          same_should_push: '4',
+          same_market: '3',
+          active_avg_latency_ms: '19000',
+          shadow_avg_latency_ms: '16000',
+        }],
+      })
+      .mockResolvedValueOnce({
+        rows: [
+          { diff_type: 'market_mismatch', count: '1' },
+        ],
+      })
+      .mockResolvedValueOnce({
+        rows: [
+          {
+            execution_role: 'active',
+            prompt_version: 'v4-evidence-hardened',
+            total: '4',
+            successes: '4',
+            avg_latency_ms: '19000',
+            avg_prompt_tokens: '3500',
+          },
+          {
+            execution_role: 'shadow',
+            prompt_version: 'v5-compact-a',
+            total: '4',
+            successes: '4',
+            avg_latency_ms: '16000',
+            avg_prompt_tokens: '2000',
+          },
+        ],
       });
 
     const snapshot = await getOpsMonitoringSnapshot();
@@ -125,7 +162,10 @@ describe('ops-monitoring.repo', () => {
     expect(snapshot.providers.oddsUsableRate).toBe(75);
     expect(snapshot.settlement.recommendationPending).toBe(5);
     expect(snapshot.notifications.failureRate24h).toBe(10);
+    expect(snapshot.promptShadow.shouldPushAgreementRate24h).toBe(100);
+    expect(snapshot.promptShadow.marketAgreementRate24h).toBe(75);
     expect(snapshot.cards.find((card) => card.label === 'Push Rate 24h')?.value).toBe('40%');
+    expect(snapshot.cards.find((card) => card.label === 'Prompt Agree 24h')?.value).toBe('100%');
     expect(snapshot.checklist.some((item) => item.id === 'settlement-backlog')).toBe(true);
   });
 });

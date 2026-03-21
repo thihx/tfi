@@ -59,6 +59,8 @@ interface ManagedJob {
   enabled: boolean;
   runCount: number;
   lockTtlMs: number;
+  /** Hard timeout for a single run. If exceeded, the run is aborted with an error and running is reset. */
+  maxRunMs?: number;
   /** Max concurrent runs. 1 = single (default). Jobs with concurrency > 1 skip the Redis distributed lock. */
   concurrency: number;
   /** Active run count for concurrent jobs. */
@@ -88,12 +90,14 @@ function register(
   lockTtlMs?: number,
   skipKey?: string,
   concurrency = 1,
+  maxRunMs?: number,
 ) {
   jobs.push({
     name, intervalMs, fn,
     timer: null, lastRun: null, lastError: null,
     running: false, enabled: intervalMs > 0, runCount: 0,
     lockTtlMs: lockTtlMs ?? Math.max(intervalMs * 3, 60_000),
+    maxRunMs,
     concurrency, activeRuns: 0, pendingRuns: 0,
     skipKey,
   });
@@ -150,6 +154,18 @@ async function restoreState(job: ManagedJob): Promise<void> {
   }
 }
 
+function callWithTimeout(fn: () => Promise<unknown>, maxRunMs: number): Promise<unknown> {
+  return new Promise<unknown>((resolve, reject) => {
+    const timer = setTimeout(() => {
+      reject(new Error(`Job timed out after ${Math.round(maxRunMs / 60_000)}m`));
+    }, maxRunMs);
+    fn().then(
+      (r) => { clearTimeout(timer); resolve(r); },
+      (e) => { clearTimeout(timer); reject(e); },
+    );
+  });
+}
+
 async function runJob(job: ManagedJob) {
   if (job.concurrency === 1) {
     // ── Single-run path: existing behavior (Redis distributed lock) ──────────
@@ -168,7 +184,7 @@ async function runJob(job: ManagedJob) {
 
     const jobStart = Date.now();
     try {
-      const result = await job.fn();
+      const result = await (job.maxRunMs ? callWithTimeout(job.fn, job.maxRunMs) : job.fn());
       job.lastRun = new Date().toISOString();
       job.lastError = null;
       job.runCount++;
@@ -236,7 +252,7 @@ export async function startScheduler() {
   // Register in logical pipeline order:
   // 1. Ingest data → 2. Enrich → 3. Predict → 4. Live analysis → 5. Settle → 6. Cleanup
   register('fetch-matches', config.jobFetchMatchesMs, fetchMatchesJob, undefined, ADAPTIVE_SKIP_KEY);
-  register('enrich-watchlist', config.jobEnrichWatchlistMs, enrichWatchlistJob, 10 * 60_000);
+  register('enrich-watchlist', config.jobEnrichWatchlistMs, enrichWatchlistJob, 45 * 60_000, undefined, 1, 30 * 60_000);
   register('update-predictions', config.jobPredictionsMs, updatePredictionsJob, 10 * 60_000);
   register('check-live-trigger', config.jobCheckLiveMs, checkLiveTriggerJob, undefined, undefined, 3);
   register('auto-settle', config.jobAutoSettleMs, autoSettleJob);

@@ -26,8 +26,10 @@ export interface LiveMonitorConfig {
   EMAIL_TO: string;
   TELEGRAM_CHAT_ID: string;
   MANUAL_PUSH_MATCH_IDS: string[];
-  NOTIFICATION_LANGUAGE: 'en' | 'vi';
+  NOTIFICATION_LANGUAGE: 'en' | 'vi' | 'both';
   UI_LANGUAGE?: 'en' | 'vi';
+  TELEGRAM_ENABLED?: boolean;
+  ZALO_ENABLED?: boolean;
   MIN_MINUTE?: number;
   MAX_MINUTE?: number;
   SECOND_HALF_START_MINUTE?: number;

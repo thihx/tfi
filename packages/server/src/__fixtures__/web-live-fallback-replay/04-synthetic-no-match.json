@@ -1,0 +1,22 @@
+{
+  "name": "Synthetic no-match rejection",
+  "request": {
+    "homeTeam": "Zeta Phantom FC",
+    "awayTeam": "Omega Mirage United",
+    "league": "Neverland Premier League",
+    "matchDate": "2026-03-21",
+    "status": "HT",
+    "minute": 45,
+    "score": {
+      "home": 1,
+      "away": 0
+    },
+    "requestedSlots": {
+      "stats": true,
+      "events": true
+    }
+  },
+  "expected": {
+    "accepted": false
+  }
+}

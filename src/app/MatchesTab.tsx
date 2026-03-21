@@ -25,8 +25,10 @@ function getDateGroupLabel(localDT: Date): string {
   return localDT.toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' });
 }
 
+const AUTO_REFRESH_SEC = 60;
+
 export function MatchesTab() {
-  const { state, addToWatchlist } = useAppState();
+  const { state, addToWatchlist, loadAllData } = useAppState();
   const { showToast } = useToast();
   const { matches, watchlist, config, leagues } = state;
 
@@ -46,6 +48,23 @@ export function MatchesTab() {
   const [aiResults, setAiResults] = useState<Map<string, { matchId: string; matchDisplay: string; result: PipelineMatchResult }>>(new Map());
   const [scoutMatch, setScoutMatch] = useState<Match | null>(null);
   const aiResultsRef = useRef<HTMLDivElement>(null);
+
+  // Auto-refresh countdown — counts down each second, refreshes and resets at 0
+  const [refreshCountdown, setRefreshCountdown] = useState(AUTO_REFRESH_SEC);
+  const loadAllDataRef = useRef(loadAllData);
+  useEffect(() => { loadAllDataRef.current = loadAllData; });
+  useEffect(() => {
+    const tick = setInterval(() => {
+      setRefreshCountdown((prev) => {
+        if (prev <= 1) {
+          void loadAllDataRef.current(true);
+          return AUTO_REFRESH_SEC;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+    return () => clearInterval(tick);
+  }, []);
 
   // Debounced search
   const [debouncedSearch, setDebouncedSearch] = useState('');
@@ -300,8 +319,15 @@ export function MatchesTab() {
             <button className="btn btn-secondary" onClick={clearFilters}>Clear</button>
           )}
         </div>
-        {/* View toggle: icon buttons */}
+        {/* Auto-refresh countdown + view toggle */}
         <div style={{ display: 'flex', alignItems: 'center', gap: '2px', padding: '0 12px', flexShrink: 0, borderLeft: '1px solid var(--gray-100)' }}>
+          <span
+            title="Auto-refreshes every 60s. Click to refresh now."
+            onClick={() => { void loadAllData(true); setRefreshCountdown(AUTO_REFRESH_SEC); }}
+            style={{ fontSize: '11px', color: 'var(--gray-400)', cursor: 'pointer', marginRight: '6px', userSelect: 'none', whiteSpace: 'nowrap' }}
+          >
+            ↻ {refreshCountdown}s
+          </span>
           <button
             onClick={() => setViewMode('table')}
             title="Table view"

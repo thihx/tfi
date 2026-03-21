@@ -42,6 +42,8 @@ export function createDefaultConfig(overrides?: Partial<LiveMonitorConfig>): Liv
     MANUAL_PUSH_MATCH_IDS: [],
     NOTIFICATION_LANGUAGE: 'vi',
     UI_LANGUAGE: 'vi',
+    TELEGRAM_ENABLED: true,
+    ZALO_ENABLED: false,
     ...overrides,
   };
 }

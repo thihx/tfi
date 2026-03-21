@@ -1,0 +1,24 @@
+{
+  "name": "Liaoning Tieren vs Tianjin Jinmen Tiger stats-only",
+  "request": {
+    "homeTeam": "Liaoning Tieren",
+    "awayTeam": "Tianjin Jinmen Tiger",
+    "league": "Chinese Super League",
+    "matchDate": "2026-03-21",
+    "status": "FT",
+    "minute": 90,
+    "score": {
+      "home": 3,
+      "away": 0
+    },
+    "requestedSlots": {
+      "stats": true
+    }
+  },
+  "expected": {
+    "accepted": true,
+    "minPrimaryStatPairs": 4,
+    "minTrustedSources": 1,
+    "searchQualityIn": ["high", "medium"]
+  }
+}

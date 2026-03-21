@@ -19,6 +19,8 @@ export const strategicSourcePolicyBase = {
     'apnews.com',
     'bbc.com',
     'bbc.co.uk',
+    'theguardian.com',
+    'aljazeera.com',
     'espn.com',
     'skysports.com',
     'theathletic.com',

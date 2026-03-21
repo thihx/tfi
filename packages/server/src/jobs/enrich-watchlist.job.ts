@@ -264,8 +264,14 @@ export async function enrichWatchlistJob(): Promise<{ checked: number; enriched:
 
   let checked = 0;
   let enriched = 0;
+  const JOB_SOFT_DEADLINE_MS = 25 * 60_000; // stop accepting new matches after 25 min
+  const jobStarted = Date.now();
 
   for (const entry of eligible) {
+    if (Date.now() - jobStarted > JOB_SOFT_DEADLINE_MS) {
+      console.warn(`[enrichWatchlistJob] Soft deadline reached after ${Math.round((Date.now() - jobStarted) / 60_000)}m, stopping early (${checked}/${eligible.length} processed)`);
+      break;
+    }
     checked++;
     await reportJobProgress(
       JOB,

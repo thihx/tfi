@@ -66,7 +66,7 @@ export async function getKickoffMinutesForMatchIds(
             CASE
               WHEN date IS NULL OR kickoff IS NULL THEN NULL
               ELSE EXTRACT(EPOCH FROM (
-                ((date || ' ' || kickoff || ':00')::timestamp AT TIME ZONE $2) - NOW()
+                (date + kickoff) AT TIME ZONE $2 - NOW()
               )) / 60
             END AS mins_to_kickoff
        FROM watchlist

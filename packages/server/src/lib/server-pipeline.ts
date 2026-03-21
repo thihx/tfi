@@ -9,6 +9,7 @@
 //   6. Send Telegram notification
 // ============================================================
 
+import { randomUUID } from 'node:crypto';
 import { config } from '../config.js';
 import { callGemini } from './gemini.js';
 import { sendTelegramMessage, sendTelegramPhoto } from './telegram.js';
@@ -46,9 +47,12 @@ import {
 } from './provider-sampling.js';
 import {
   buildLiveAnalysisPrompt,
+  isLiveAnalysisPromptVersion,
   LIVE_ANALYSIS_PROMPT_VERSION,
+  type LiveAnalysisPromptVersion,
   type PromptAnalysisMode,
 } from './live-analysis-prompt.js';
+import { createPromptShadowRun } from '../repos/prompt-shadow-runs.repo.js';
 
 /** Resolved pipeline settings: DB values take priority, env vars as fallback */
 interface PipelineSettings {
@@ -64,6 +68,10 @@ interface PipelineSettings {
   latePhaseMinute: number;
   veryLatePhaseMinute: number;
   endgameMinute: number;
+  /** Notification language sent to Telegram. 'vi' = Vietnamese only, 'en' = English only, 'both' = EN then VI. Default: 'vi'. */
+  notificationLanguage: 'vi' | 'en' | 'both';
+  /** Master switch for Telegram notifications. Default: true. */
+  telegramEnabled: boolean;
 }
 
 /** Parse a numeric setting from DB, falling back to envDefault if absent or NaN. */
@@ -86,6 +94,8 @@ function buildConfigPipelineSettings(): PipelineSettings {
     latePhaseMinute: config.pipelineLatePhaseMinute,
     veryLatePhaseMinute: config.pipelineVeryLatePhaseMinute,
     endgameMinute: config.pipelineEndgameMinute,
+    notificationLanguage: 'vi',
+    telegramEnabled: true,
   };
 }
 
@@ -105,6 +115,10 @@ async function loadPipelineSettings(): Promise<PipelineSettings> {
     latePhaseMinute: parseNumSetting(db['LATE_PHASE_MINUTE'], fallback.latePhaseMinute),
     veryLatePhaseMinute: parseNumSetting(db['VERY_LATE_PHASE_MINUTE'], fallback.veryLatePhaseMinute),
     endgameMinute: parseNumSetting(db['ENDGAME_MINUTE'], fallback.endgameMinute),
+    notificationLanguage: (['vi', 'en', 'both'] as const).includes(db['NOTIFICATION_LANGUAGE'] as 'vi' | 'en' | 'both')
+      ? (db['NOTIFICATION_LANGUAGE'] as 'vi' | 'en' | 'both')
+      : fallback.notificationLanguage,
+    telegramEnabled: db['TELEGRAM_ENABLED'] === false ? false : fallback.telegramEnabled,
   };
 }
 
@@ -123,6 +137,7 @@ const defaultPipelineDeps = {
   sendTelegramMessage,
   sendTelegramPhoto,
   fetchLiveScoreBenchmarkTrace,
+  createPromptShadowRun,
 };
 
 type PipelineDeps = typeof defaultPipelineDeps;
@@ -160,6 +175,7 @@ export interface PipelineExecutionOptions {
   skipProceedGate?: boolean;
   skipStalenessGate?: boolean;
   modelOverride?: string;
+  promptVersionOverride?: LiveAnalysisPromptVersion;
   dependencies?: Partial<PipelineDeps>;
   previousRecommendations?: Array<{
     minute: number | null;
@@ -169,6 +185,7 @@ export interface PipelineExecutionOptions {
     score: string;
     result?: string;
     confidence?: number | null;
+    stake_percent?: number | null;
     reasoning?: string;
   }> | null;
   previousSnapshot?: {
@@ -297,6 +314,7 @@ export interface MatchPipelineResult {
   notified: boolean;
   error?: string;
   debug?: {
+    analysisRunId?: string;
     shadowMode: boolean;
     skippedAt?: 'proceed' | 'staleness';
     skipReason?: string;
@@ -308,6 +326,13 @@ export interface MatchPipelineResult {
     evidenceMode?: EvidenceMode;
     statsFallbackUsed?: boolean;
     statsFallbackReason?: string;
+    promptVersion?: string;
+    promptChars?: number;
+    promptEstimatedTokens?: number;
+    aiTextChars?: number;
+    aiTextEstimatedTokens?: number;
+    llmLatencyMs?: number;
+    totalLatencyMs?: number;
     prompt?: string;
     aiText?: string;
     parsed?: Record<string, unknown>;
@@ -386,6 +411,246 @@ function deriveEvidenceMode(
   if (!statsAvailable && oddsAvailable && eventsCompact.length > 0) return 'odds_events_only_degraded';
   if (!statsAvailable && !oddsAvailable && eventsCompact.length > 0) return 'events_only_degraded';
   return 'low_evidence';
+}
+
+function estimateTokenCount(text: string): number {
+  const trimmed = text.trim();
+  if (!trimmed) return 0;
+  return Math.ceil(trimmed.length / 4);
+}
+
+interface PromptExecutionArtifacts {
+  promptVersion: LiveAnalysisPromptVersion;
+  prompt: string;
+  promptChars: number;
+  promptEstimatedTokens: number;
+  aiText: string;
+  aiTextChars: number;
+  aiTextEstimatedTokens: number;
+  llmLatencyMs: number;
+  totalLatencyMs: number;
+  parsed: ParsedAiResponse;
+}
+
+interface PromptExecutionContext {
+  homeName: string;
+  awayName: string;
+  league: string;
+  minute: number;
+  score: string;
+  status: string;
+  statsCompact: StatsCompact;
+  statsAvailable: boolean;
+  statsSource: StatsSource;
+  evidenceMode: EvidenceMode;
+  eventsCompact: EventCompact[];
+  oddsCanonical: OddsCanonical;
+  oddsAvailable: boolean;
+  oddsSource: string;
+  oddsFetchedAt: string | null;
+  derivedInsights: DerivedInsights | null;
+  customConditions: string;
+  recommendedCondition: string;
+  recommendedConditionReason: string;
+  strategicContext: Record<string, unknown> | null;
+  analysisMode: PromptAnalysisMode;
+  forceAnalyze: boolean;
+  isManualPush: boolean;
+  prediction: Record<string, unknown> | null;
+  currentTotalGoals: number;
+  previousRecommendations: Array<Record<string, unknown>>;
+  historicalPerformance: HistoricalPerformanceContext | null;
+  preMatchPredictionSummary: string;
+  mode: string;
+  statsFallbackReason: string;
+}
+
+function resolveConfiguredPromptVersion(
+  configuredVersion: string | undefined,
+  fallback: LiveAnalysisPromptVersion,
+): LiveAnalysisPromptVersion {
+  if (!configuredVersion) return fallback;
+  const trimmed = configuredVersion.trim();
+  return isLiveAnalysisPromptVersion(trimmed) ? trimmed : fallback;
+}
+
+function clampShadowSampleRate(value: number): number {
+  if (!Number.isFinite(value)) return 0;
+  if (value <= 0) return 0;
+  if (value >= 1) return 1;
+  return value;
+}
+
+function computeStableSampleRatio(seed: string): number {
+  let hash = 2166136261;
+  for (let i = 0; i < seed.length; i++) {
+    hash ^= seed.charCodeAt(i);
+    hash = Math.imul(hash, 16777619);
+  }
+  return (hash >>> 0) / 4294967295;
+}
+
+function shouldRunPromptShadow(args: {
+  matchId: string;
+  minute: number;
+  activePromptVersion: LiveAnalysisPromptVersion;
+  shadowPromptVersion: LiveAnalysisPromptVersion;
+  shadowMode: boolean;
+  promptVersionOverride?: LiveAnalysisPromptVersion;
+}): boolean {
+  if (args.shadowMode) return false;
+  if (args.promptVersionOverride) return false;
+  if (!config.liveAnalysisShadowEnabled) return false;
+  if (args.activePromptVersion === args.shadowPromptVersion) return false;
+
+  const sampleRate = clampShadowSampleRate(config.liveAnalysisShadowSampleRate);
+  if (sampleRate <= 0) return false;
+  if (sampleRate >= 1) return true;
+
+  const ratio = computeStableSampleRatio(
+    `${args.matchId}:${args.minute}:${args.activePromptVersion}:${args.shadowPromptVersion}`,
+  );
+  return ratio < sampleRate;
+}
+
+async function executePromptAnalysis(
+  deps: Pick<PipelineDeps, 'callGemini'>,
+  model: string,
+  settings: PipelineSettings,
+  promptContext: PromptExecutionContext,
+  promptVersion: LiveAnalysisPromptVersion,
+): Promise<PromptExecutionArtifacts> {
+  const startedAt = Date.now();
+  const prompt = buildServerPrompt(promptContext, settings, promptVersion);
+  const promptChars = prompt.length;
+  const promptEstimatedTokens = estimateTokenCount(prompt);
+
+  const llmStartedAt = Date.now();
+  const aiText = await deps.callGemini(prompt, model);
+  const llmLatencyMs = Date.now() - llmStartedAt;
+  const aiTextChars = aiText.length;
+  const aiTextEstimatedTokens = estimateTokenCount(aiText);
+  const parsed = parseAiResponse(
+    aiText,
+    promptContext.oddsCanonical,
+    promptContext.minute,
+    settings,
+    promptContext.evidenceMode,
+  );
+
+  return {
+    promptVersion,
+    prompt,
+    promptChars,
+    promptEstimatedTokens,
+    aiText,
+    aiTextChars,
+    aiTextEstimatedTokens,
+    llmLatencyMs,
+    totalLatencyMs: Date.now() - startedAt,
+    parsed,
+  };
+}
+
+async function recordPromptShadowRunSafe(
+  deps: Pick<PipelineDeps, 'createPromptShadowRun'>,
+  row: Parameters<PipelineDeps['createPromptShadowRun']>[0],
+): Promise<void> {
+  try {
+    await deps.createPromptShadowRun(row);
+  } catch (err) {
+    console.warn(
+      '[pipeline] Prompt shadow run persistence failed:',
+      err instanceof Error ? err.message : String(err),
+    );
+  }
+}
+
+async function runPromptShadowComparison(args: {
+  deps: Pick<PipelineDeps, 'callGemini' | 'createPromptShadowRun'>;
+  analysisRunId: string;
+  matchId: string;
+  activePromptVersion: LiveAnalysisPromptVersion;
+  shadowPromptVersion: LiveAnalysisPromptVersion;
+  analysisMode: PromptAnalysisMode;
+  evidenceMode: EvidenceMode;
+  oddsSource: string;
+  statsSource: StatsSource;
+  promptContext: PromptExecutionContext;
+  activeAnalysis: PromptExecutionArtifacts;
+  model: string;
+  settings: PipelineSettings;
+}): Promise<void> {
+  await recordPromptShadowRunSafe(args.deps, {
+    analysis_run_id: args.analysisRunId,
+    match_id: args.matchId,
+    execution_role: 'active',
+    active_prompt_version: args.activePromptVersion,
+    prompt_version: args.activeAnalysis.promptVersion,
+    analysis_mode: args.analysisMode,
+    evidence_mode: args.evidenceMode,
+    success: true,
+    should_push: args.activeAnalysis.parsed.should_push,
+    ai_should_push: args.activeAnalysis.parsed.ai_should_push,
+    selection: args.activeAnalysis.parsed.selection,
+    bet_market: args.activeAnalysis.parsed.bet_market,
+    confidence: args.activeAnalysis.parsed.confidence,
+    warnings: args.activeAnalysis.parsed.warnings,
+    odds_source: args.oddsSource,
+    stats_source: args.statsSource,
+    prompt_estimated_tokens: args.activeAnalysis.promptEstimatedTokens,
+    response_estimated_tokens: args.activeAnalysis.aiTextEstimatedTokens,
+    llm_latency_ms: args.activeAnalysis.llmLatencyMs,
+    total_latency_ms: args.activeAnalysis.totalLatencyMs,
+  });
+
+  try {
+    const shadowAnalysis = await executePromptAnalysis(
+      args.deps,
+      args.model,
+      args.settings,
+      args.promptContext,
+      args.shadowPromptVersion,
+    );
+
+    await recordPromptShadowRunSafe(args.deps, {
+      analysis_run_id: args.analysisRunId,
+      match_id: args.matchId,
+      execution_role: 'shadow',
+      active_prompt_version: args.activePromptVersion,
+      prompt_version: args.shadowPromptVersion,
+      analysis_mode: args.analysisMode,
+      evidence_mode: args.evidenceMode,
+      success: true,
+      should_push: shadowAnalysis.parsed.should_push,
+      ai_should_push: shadowAnalysis.parsed.ai_should_push,
+      selection: shadowAnalysis.parsed.selection,
+      bet_market: shadowAnalysis.parsed.bet_market,
+      confidence: shadowAnalysis.parsed.confidence,
+      warnings: shadowAnalysis.parsed.warnings,
+      odds_source: args.oddsSource,
+      stats_source: args.statsSource,
+      prompt_estimated_tokens: shadowAnalysis.promptEstimatedTokens,
+      response_estimated_tokens: shadowAnalysis.aiTextEstimatedTokens,
+      llm_latency_ms: shadowAnalysis.llmLatencyMs,
+      total_latency_ms: shadowAnalysis.totalLatencyMs,
+    });
+  } catch (err) {
+    const error = err instanceof Error ? err.message : String(err);
+    await recordPromptShadowRunSafe(args.deps, {
+      analysis_run_id: args.analysisRunId,
+      match_id: args.matchId,
+      execution_role: 'shadow',
+      active_prompt_version: args.activePromptVersion,
+      prompt_version: args.shadowPromptVersion,
+      analysis_mode: args.analysisMode,
+      evidence_mode: args.evidenceMode,
+      success: false,
+      error,
+      odds_source: args.oddsSource,
+      stats_source: args.statsSource,
+    });
+  }
 }
 
 // ==================== Derive Insights from Events ====================
@@ -897,6 +1162,23 @@ function safeTruncateCaption(text: string, limit = 1020): string {
   return text.substring(0, idx > 0 ? idx : limit);
 }
 
+/** Pick reasoning text based on notification language setting. */
+function pickReasoning(parsed: ParsedAiResponse, lang: PipelineSettings['notificationLanguage']): string {
+  if (lang === 'en') return parsed.reasoning_en || parsed.reasoning_vi;
+  if (lang === 'both') return [parsed.reasoning_en, parsed.reasoning_vi].filter(Boolean).join('\n\n');
+  // default: 'vi'
+  return parsed.reasoning_vi || parsed.reasoning_en;
+}
+
+/** Map PromptAnalysisMode to a human-readable footer label. */
+function triggerLabel(mode: PromptAnalysisMode): string {
+  switch (mode) {
+    case 'system_force': return 'Force Mode';
+    case 'manual_force': return 'Manual Force';
+    default:             return 'Auto Trigger';
+  }
+}
+
 function buildStatsChartUrl(stats: StatsCompact, homeName: string, awayName: string, minute: number | string): string {
   const n = (v: string | null): number => {
     if (v == null || v === '') return 0;
@@ -958,6 +1240,8 @@ function buildStatsChartUrl(stats: StatsCompact, homeName: string, awayName: str
 function buildTelegramCaption(
   matchDisplay: string, league: string, score: string, minute: number | string, status: string,
   parsed: ParsedAiResponse, eventsCompact: EventCompact[], model: string, mode: string,
+  lang: PipelineSettings['notificationLanguage'],
+  trigger: PromptAnalysisMode,
 ): string {
   const isRec = parsed.should_push;
   const isCondition = parsed.custom_condition_matched;
@@ -975,11 +1259,11 @@ function buildTelegramCaption(
   if (isRec) {
     text += `\n<b>💰 ${safeHtml(parsed.selection)}</b>\n`;
     text += `Confidence: ${parsed.confidence}/10 | Stake: ${parsed.stake_percent}% | Risk: ${safeHtml(parsed.risk_level)} | Value: ${parsed.value_percent}%\n`;
-    const reasoning = parsed.reasoning_vi || parsed.reasoning_en;
-    if (reasoning) text += `\n${safeHtml(truncateAtWord(reasoning, 280))}\n`;
+    const reasoning = pickReasoning(parsed, lang);
+    if (reasoning) text += `\n${safeHtml(truncateAtWord(reasoning, 520))}\n`;
   } else {
-    const reasoning = parsed.reasoning_vi || parsed.reasoning_en;
-    if (reasoning) text += `\n${safeHtml(truncateAtWord(reasoning, 200))}\n`;
+    const reasoning = pickReasoning(parsed, lang);
+    if (reasoning) text += `\n${safeHtml(truncateAtWord(reasoning, 380))}\n`;
   }
 
   // Key events — goals + cards only, case-insensitive, max 6
@@ -1003,7 +1287,7 @@ function buildTelegramCaption(
 
   // Footer last — safeTruncateCaption cuts at \n so this won't be mid-tag
   const now = new Date().toLocaleString('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh' });
-  text += `\n<i>🤖 Auto Trigger | ${safeHtml(now)}</i>`;
+  text += `\n<i>🤖 ${safeHtml(triggerLabel(trigger))} | ${safeHtml(now)}</i>`;
 
   return safeTruncateCaption(text);
 }
@@ -1045,9 +1329,12 @@ function buildTelegramMessage(
   eventsCompact: EventCompact[],
   model: string,
   mode: string,
+  lang: PipelineSettings['notificationLanguage'],
+  trigger: PromptAnalysisMode,
 ): string {
   const isRec = parsed.should_push;
   const isCondition = parsed.custom_condition_matched;
+  const INTERNAL = new Set(['FORCE_MODE', 'EARLY_GAME_RISK']);
 
   const emoji = isRec ? '🎯' : isCondition ? '⚡' : '📊';
   const label = isRec ? 'AI RECOMMENDATION' : isCondition ? 'CONDITION TRIGGERED' : 'MATCH ANALYSIS';
@@ -1057,20 +1344,15 @@ function buildTelegramMessage(
   text += `${safeHtml(league)}\n`;
   text += `⏱ ${safeHtml(String(minute))}' | 📋 ${safeHtml(score)} | ${safeHtml(status)}\n`;
   text += `🤖 ${safeHtml(model)} | Mode: ${safeHtml(mode)}\n`;
-  text += '\n';
 
   if (isRec) {
-    text += `<b>💰 Investment Idea</b>\n`;
-    text += `Selection: <b>${safeHtml(parsed.selection)}</b>\n`;
-    text += `Market: ${safeHtml(parsed.bet_market)}\n`;
-    text += `Confidence: ${parsed.confidence}/10 | Stake: ${parsed.stake_percent}%\n`;
-    text += `Value: ${parsed.value_percent}% | Risk: ${safeHtml(parsed.risk_level)}\n`;
-    text += '\n';
-    text += `<b>📝 Reasoning (EN):</b>\n${safeHtml(parsed.reasoning_en)}\n\n`;
-    text += `<b>📝 Reasoning (VI):</b>\n${safeHtml(parsed.reasoning_vi)}\n`;
+    text += `\n<b>💰 ${safeHtml(parsed.selection)}</b>\n`;
+    text += `Confidence: ${parsed.confidence}/10 | Stake: ${parsed.stake_percent}% | Risk: ${safeHtml(parsed.risk_level)} | Value: ${parsed.value_percent}%\n`;
+    const reasoning = pickReasoning(parsed, lang);
+    if (reasoning) text += `\n${safeHtml(reasoning)}\n`;
   } else {
-    text += `<b>📝 Analysis (EN):</b>\n${safeHtml(parsed.reasoning_en)}\n\n`;
-    text += `<b>📝 Analysis (VI):</b>\n${safeHtml(parsed.reasoning_vi)}\n`;
+    const reasoning = pickReasoning(parsed, lang);
+    if (reasoning) text += `\n${safeHtml(reasoning)}\n`;
   }
 
   // Live Stats
@@ -1087,23 +1369,27 @@ function buildTelegramMessage(
     }
   }
 
-  // Events
-  const recentEvents = eventsCompact.slice(-8);
-  if (recentEvents.length > 0) {
+  // Key events — goals + cards only, case-insensitive, max 6
+  const keyEvents = [...eventsCompact]
+    .sort((a, b) => a.minute - b.minute)
+    .filter((e) => { const t = e.type.toLowerCase(); return t === 'goal' || t === 'card'; })
+    .slice(-6);
+  if (keyEvents.length > 0) {
     text += '\n<b>📋 Events</b>\n';
-    for (const evt of recentEvents) {
+    for (const evt of keyEvents) {
       const icon = getEventIcon(evt.type, evt.detail);
-      text += `${evt.minute}' ${icon} ${safeHtml(evt.team)} - ${safeHtml(evt.player)} (${safeHtml(evt.detail)})\n`;
+      text += `${evt.minute}' ${icon} ${safeHtml(evt.team)} (${safeHtml(evt.detail)})\n`;
     }
   }
 
-  // Warnings
-  if (parsed.warnings.length > 0) {
-    text += `\n⚠️ <b>Warnings:</b> ${safeHtml(parsed.warnings.join(', '))}\n`;
+  // Warnings (concise, max 3, hide internal flags)
+  const displayWarnings = parsed.warnings.filter((w) => !INTERNAL.has(w)).slice(0, 3);
+  if (displayWarnings.length > 0) {
+    text += `\n⚠️ ${safeHtml(displayWarnings.join(' | '))}\n`;
   }
 
   const now = new Date().toLocaleString('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh' });
-  text += `\n<i>🤖 Auto Trigger | ${safeHtml(now)}</i>`;
+  text += `\n<i>🤖 ${safeHtml(triggerLabel(trigger))} | ${safeHtml(now)}</i>`;
   return text;
 }
 
@@ -1124,6 +1410,14 @@ async function processMatch(
   const deps: PipelineDeps = { ...defaultPipelineDeps, ...options.dependencies };
   const shadowMode = options.shadowMode === true;
   const sampleProviderData = options.sampleProviderData !== false;
+  const startedAt = Date.now();
+  const activePromptVersion = options.promptVersionOverride
+    || resolveConfiguredPromptVersion(config.liveAnalysisActivePromptVersion, LIVE_ANALYSIS_PROMPT_VERSION);
+  const shadowPromptVersion = resolveConfiguredPromptVersion(
+    config.liveAnalysisShadowPromptVersion,
+    activePromptVersion,
+  );
+  const analysisRunId = randomUUID();
 
   try {
     const homeName = fixture.teams?.home?.name || watchlistEntry.home_team;
@@ -1301,6 +1595,7 @@ async function processMatch(
         saved: false,
         notified: false,
         debug: {
+          analysisRunId,
           shadowMode,
           skippedAt: 'proceed',
           skipReason: proceed.reason,
@@ -1309,6 +1604,7 @@ async function processMatch(
           statsSource,
           statsFallbackUsed,
           statsFallbackReason: statsFallbackReason || undefined,
+          totalLatencyMs: Date.now() - startedAt,
         },
       };
     }
@@ -1422,6 +1718,7 @@ async function processMatch(
         saved: false,
         notified: false,
         debug: {
+          analysisRunId,
           shadowMode,
           skippedAt: 'staleness',
           skipReason: staleness.reason,
@@ -1432,6 +1729,7 @@ async function processMatch(
           statsSource,
           statsFallbackUsed,
           statsFallbackReason: statsFallbackReason || undefined,
+          totalLatencyMs: Date.now() - startedAt,
         },
       };
     }
@@ -1445,6 +1743,7 @@ async function processMatch(
       bet_market: r.bet_market,
       confidence: r.confidence,
       odds: r.odds,
+      stake_percent: r.stake_percent,
       result: r.result,
       reasoning: r.reasoning?.substring(0, 150),
     }));
@@ -1456,7 +1755,7 @@ async function processMatch(
     const strategicContext = watchlistEntry.strategic_context as Record<string, unknown> | null;
     const prediction = watchlistEntry.prediction as Record<string, unknown> | null;
 
-    const prompt = buildServerPrompt({
+    const promptContext: PromptExecutionContext = {
       homeName, awayName, league, minute, score, status,
       statsCompact, statsAvailable, statsSource, evidenceMode,
       eventsCompact: eventsCompact.slice(-8),
@@ -1474,14 +1773,44 @@ async function processMatch(
       preMatchPredictionSummary: '',
       mode: watchlistEntry.mode || 'B',
       statsFallbackReason,
-    }, settings);
+    };
 
     // 6. Call Gemini
     const model = options.modelOverride || settings.aiModel;
-    const aiText = await deps.callGemini(prompt, model);
+    const activeAnalysis = await executePromptAnalysis(
+      deps,
+      model,
+      settings,
+      promptContext,
+      activePromptVersion,
+    );
+    const parsed = activeAnalysis.parsed;
+    const promptShadowRequested = shouldRunPromptShadow({
+      matchId,
+      minute,
+      activePromptVersion,
+      shadowPromptVersion,
+      shadowMode,
+      promptVersionOverride: options.promptVersionOverride,
+    });
 
-    // 7. Parse response
-    const parsed = parseAiResponse(aiText, oddsCanonical, minute, settings, evidenceMode);
+    if (promptShadowRequested) {
+      void runPromptShadowComparison({
+        deps,
+        analysisRunId,
+        matchId,
+        activePromptVersion,
+        shadowPromptVersion,
+        analysisMode,
+        evidenceMode,
+        oddsSource,
+        statsSource,
+        promptContext,
+        activeAnalysis,
+        model,
+        settings,
+      });
+    }
 
     // 8. Save when AI recommends (raw intent) or custom condition matched
     const shouldSave = parsed.ai_should_push || parsed.custom_condition_matched;
@@ -1504,7 +1833,7 @@ async function processMatch(
         odds_snapshot: oddsCanonical as Record<string, unknown>,
         stats_snapshot: statsCompact as unknown as Record<string, unknown>,
         pre_match_prediction_summary: '',
-        prompt_version: LIVE_ANALYSIS_PROMPT_VERSION,
+        prompt_version: activePromptVersion,
         custom_condition_matched: parsed.custom_condition_matched,
         minute,
         score,
@@ -1534,7 +1863,7 @@ async function processMatch(
             recommendation_id: rec.id,
             match_id: matchId,
             ai_model: model,
-            prompt_version: LIVE_ANALYSIS_PROMPT_VERSION,
+            prompt_version: activePromptVersion,
             ai_confidence: parsed.confidence,
             ai_should_push: parsed.ai_should_push,
             predicted_market: parsed.bet_market || '',
@@ -1548,7 +1877,7 @@ async function processMatch(
       }
 
       // 9. Send Telegram notification (only for actionable recommendations)
-      if (parsed.should_push && settings.telegramChatId) {
+      if (parsed.should_push && settings.telegramEnabled && settings.telegramChatId) {
         try {
           const mode = watchlistEntry.mode || 'B';
           const chartUrl = statsAvailable ? buildStatsChartUrl(statsCompact, homeName, awayName, minute) : '';
@@ -1558,6 +1887,7 @@ async function processMatch(
             try {
               const caption = buildTelegramCaption(
                 matchDisplay, league, score, minute, status, parsed, eventsCompact, model, mode,
+                settings.notificationLanguage, analysisMode,
               );
               await deps.sendTelegramPhoto(settings.telegramChatId, chartUrl, caption);
               photoSent = true;
@@ -1570,6 +1900,7 @@ async function processMatch(
             const msg = buildTelegramMessage(
               matchDisplay, league, score, minute, status, parsed,
               statsCompact, statsAvailable, eventsCompact, model, mode,
+              settings.notificationLanguage, analysisMode,
             );
             for (const chunk of chunkMessage(msg)) {
               await deps.sendTelegramMessage(settings.telegramChatId, chunk);
@@ -1604,6 +1935,7 @@ async function processMatch(
       selection: parsed.selection, confidence: parsed.confidence,
       saved, notified,
       debug: {
+        analysisRunId,
         shadowMode,
         analysisMode,
         oddsSource,
@@ -1613,8 +1945,15 @@ async function processMatch(
         evidenceMode,
         statsFallbackUsed,
         statsFallbackReason: statsFallbackReason || undefined,
-        prompt,
-        aiText,
+        promptVersion: activePromptVersion,
+        promptChars: activeAnalysis.promptChars,
+        promptEstimatedTokens: activeAnalysis.promptEstimatedTokens,
+        aiTextChars: activeAnalysis.aiTextChars,
+        aiTextEstimatedTokens: activeAnalysis.aiTextEstimatedTokens,
+        llmLatencyMs: activeAnalysis.llmLatencyMs,
+        totalLatencyMs: Date.now() - startedAt,
+        prompt: activeAnalysis.prompt,
+        aiText: activeAnalysis.aiText,
         parsed: parsed as unknown as Record<string, unknown>,
       },
     };
@@ -1637,6 +1976,11 @@ async function processMatch(
       matchId, success: false, shouldPush: false,
       selection: '', confidence: 0,
       saved: false, notified: false, error: errMsg,
+      debug: {
+        analysisRunId,
+        shadowMode,
+        totalLatencyMs: Date.now() - startedAt,
+      },
     };
   }
 }
@@ -1658,6 +2002,7 @@ export async function runPromptOnlyAnalysisForMatch(
   options: {
     forceAnalyze?: boolean;
     modelOverride?: string;
+    promptVersionOverride?: LiveAnalysisPromptVersion;
   } = {},
 ): Promise<{ text: string; prompt: string; result: MatchPipelineResult }> {
   const [fixture, watchlistEntry] = await Promise.all([
@@ -1679,6 +2024,7 @@ export async function runPromptOnlyAnalysisForMatch(
     skipProceedGate: true,
     skipStalenessGate: true,
     modelOverride: options.modelOverride,
+    promptVersionOverride: options.promptVersionOverride,
   });
 
   const prompt = result.debug?.prompt;
@@ -1778,7 +2124,7 @@ function buildServerPrompt(data: {
   preMatchPredictionSummary: string;
   mode: string;
   statsFallbackReason: string;
-}, settings: PipelineSettings): string {
+}, settings: PipelineSettings, promptVersion: LiveAnalysisPromptVersion = LIVE_ANALYSIS_PROMPT_VERSION): string {
   return buildLiveAnalysisPrompt(
     {
       homeName: data.homeName,
@@ -1825,5 +2171,6 @@ function buildServerPrompt(data: {
       veryLatePhaseMinute: settings.veryLatePhaseMinute,
       endgameMinute: settings.endgameMinute,
     },
+    promptVersion,
   );
 }

@@ -278,18 +278,20 @@ function JobSchedulerPanel() {
 export function SettingsTab() {
   const { showToast } = useToast();
   const [uiLanguage, setUiLanguage] = useState<'en' | 'vi'>('vi');
+  const [telegramEnabled, setTelegramEnabled] = useState(true);
+  const [notificationLanguage, setNotificationLanguage] = useState<'vi' | 'en' | 'both'>('vi');
 
   useEffect(() => {
     let mounted = true;
     fetchMonitorConfig()
       .then((config: LiveMonitorConfig) => {
         if (!mounted) return;
-        setUiLanguage(config.UI_LANGUAGE || config.NOTIFICATION_LANGUAGE || 'vi');
+        setUiLanguage(config.UI_LANGUAGE || 'vi');
+        setTelegramEnabled(config.TELEGRAM_ENABLED !== false);
+        setNotificationLanguage((config.NOTIFICATION_LANGUAGE as 'vi' | 'en' | 'both') || 'vi');
       })
       .catch(() => undefined);
-    return () => {
-      mounted = false;
-    };
+    return () => { mounted = false; };
   }, []);
 
   const handleLanguageChange = async (next: 'en' | 'vi') => {
@@ -300,6 +302,27 @@ export function SettingsTab() {
       showToast(`Display language -> ${next.toUpperCase()}`, 'success');
     } catch {
       showToast('Failed to save display language', 'error');
+    }
+  };
+
+  const handleTelegramToggle = async (enabled: boolean) => {
+    setTelegramEnabled(enabled);
+    try {
+      await persistMonitorConfig({ TELEGRAM_ENABLED: enabled });
+      showToast(`Telegram notifications ${enabled ? 'enabled' : 'disabled'}`, 'success');
+    } catch {
+      setTelegramEnabled(!enabled);
+      showToast('Failed to save setting', 'error');
+    }
+  };
+
+  const handleNotificationLanguage = async (lang: 'vi' | 'en' | 'both') => {
+    setNotificationLanguage(lang);
+    try {
+      await persistMonitorConfig({ NOTIFICATION_LANGUAGE: lang });
+      showToast(`Notification language -> ${lang.toUpperCase()}`, 'success');
+    } catch {
+      showToast('Failed to save setting', 'error');
     }
   };
 
@@ -323,6 +346,107 @@ export function SettingsTab() {
           <option value="vi">Tiếng Việt</option>
           <option value="en">English</option>
         </select>
+      </div>
+
+      {/* Notifications Section */}
+      <div className="card-header" style={{ padding: '14px 20px' }}>
+        <div className="card-title">Notifications</div>
+      </div>
+      <div style={{ padding: '12px 16px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
+
+        {/* Telegram */}
+        <div style={{
+          display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+          padding: '12px 14px', borderRadius: '8px',
+          border: `1px solid ${telegramEnabled ? '#bfdbfe' : 'var(--gray-200)'}`,
+          background: telegramEnabled ? '#eff6ff' : 'var(--gray-50)',
+          gap: '12px', flexWrap: 'wrap',
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px', minWidth: 0 }}>
+            <span style={{ fontSize: '20px' }}>✈️</span>
+            <div>
+              <div style={{ fontSize: '13px', fontWeight: 600, color: 'var(--gray-900)' }}>Telegram</div>
+              <div style={{ fontSize: '11px', color: 'var(--gray-500)', marginTop: '1px' }}>
+                Gửi khuyến nghị AI qua Telegram Bot
+              </div>
+            </div>
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexShrink: 0 }}>
+            <select
+              className="job-interval-select"
+              value={notificationLanguage}
+              onChange={(e) => handleNotificationLanguage(e.target.value as 'vi' | 'en' | 'both')}
+              disabled={!telegramEnabled}
+              style={{ minWidth: '120px', opacity: telegramEnabled ? 1 : 0.45 }}
+              title="Ngôn ngữ tin nhắn Telegram"
+            >
+              <option value="vi">Tiếng Việt</option>
+              <option value="en">English</option>
+              <option value="both">Both (EN + VI)</option>
+            </select>
+            {/* Toggle switch */}
+            <button
+              onClick={() => handleTelegramToggle(!telegramEnabled)}
+              title={telegramEnabled ? 'Tắt Telegram' : 'Bật Telegram'}
+              style={{
+                width: 44, height: 24, borderRadius: '999px', border: 'none', cursor: 'pointer',
+                background: telegramEnabled ? '#2563eb' : 'var(--gray-300)',
+                position: 'relative', flexShrink: 0, transition: 'background 0.2s',
+              }}
+            >
+              <span style={{
+                position: 'absolute', top: 3,
+                left: telegramEnabled ? 23 : 3,
+                width: 18, height: 18, borderRadius: '50%',
+                background: '#fff', boxShadow: '0 1px 3px rgba(0,0,0,0.2)',
+                transition: 'left 0.2s',
+              }} />
+            </button>
+            <span style={{ fontSize: '12px', fontWeight: 600, color: telegramEnabled ? '#2563eb' : 'var(--gray-400)', minWidth: 28 }}>
+              {telegramEnabled ? 'ON' : 'OFF'}
+            </span>
+          </div>
+        </div>
+
+        {/* Zalo — coming soon */}
+        <div style={{
+          display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+          padding: '12px 14px', borderRadius: '8px',
+          border: '1px solid var(--gray-200)',
+          background: 'var(--gray-50)',
+          gap: '12px', opacity: 0.6,
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px', minWidth: 0 }}>
+            <span style={{ fontSize: '20px' }}>💬</span>
+            <div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                <span style={{ fontSize: '13px', fontWeight: 600, color: 'var(--gray-900)' }}>Zalo</span>
+                <span style={{
+                  fontSize: '10px', fontWeight: 700, padding: '1px 6px', borderRadius: '999px',
+                  background: '#fde68a', color: '#92400e',
+                }}>Coming soon</span>
+              </div>
+              <div style={{ fontSize: '11px', color: 'var(--gray-500)', marginTop: '1px' }}>
+                Gửi thông báo qua Zalo OA
+              </div>
+            </div>
+          </div>
+          <button
+            disabled
+            style={{
+              width: 44, height: 24, borderRadius: '999px', border: 'none',
+              background: 'var(--gray-300)', cursor: 'not-allowed',
+              position: 'relative', flexShrink: 0,
+            }}
+          >
+            <span style={{
+              position: 'absolute', top: 3, left: 3,
+              width: 18, height: 18, borderRadius: '50%',
+              background: '#fff', boxShadow: '0 1px 3px rgba(0,0,0,0.2)',
+            }} />
+          </button>
+        </div>
+
       </div>
 
       {/* Job Scheduler Section */}

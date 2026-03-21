@@ -84,6 +84,29 @@ interface NotificationOverview {
   deliveredRecommendations24h: number;
 }
 
+interface PromptShadowVersionBreakdown {
+  executionRole: string;
+  promptVersion: string;
+  samples: number;
+  successRate: number;
+  avgLatencyMs: number;
+  avgPromptTokens: number;
+}
+
+interface PromptShadowOverview {
+  windowHours: number;
+  runs24h: number;
+  shadowRows24h: number;
+  shadowSuccessRate24h: number;
+  comparedRuns24h: number;
+  shouldPushAgreementRate24h: number;
+  marketAgreementRate24h: number;
+  avgActiveLatencyMs24h: number;
+  avgShadowLatencyMs24h: number;
+  disagreementTypes: Array<{ type: string; count: number }>;
+  versionBreakdown: PromptShadowVersionBreakdown[];
+}
+
 interface OpsMonitoringSnapshot {
   generatedAt: string;
   checklist: ChecklistItem[];
@@ -92,6 +115,7 @@ interface OpsMonitoringSnapshot {
   providers: ProviderOverview;
   settlement: SettlementOverview;
   notifications: NotificationOverview;
+  promptShadow: PromptShadowOverview;
 }
 
 function authHeaders(): Record<string, string> {
@@ -99,83 +123,154 @@ function authHeaders(): Record<string, string> {
   return token ? { Authorization: `Bearer ${token}` } : {};
 }
 
-const TONE_STYLE: Record<CardTone, { bg: string; border: string; text: string }> = {
-  pass: { bg: '#f0fdf4', border: '#bbf7d0', text: '#166534' },
-  warn: { bg: '#fffbeb', border: '#fde68a', text: '#92400e' },
-  fail: { bg: '#fef2f2', border: '#fecaca', text: '#991b1b' },
-  neutral: { bg: 'var(--gray-50)', border: 'var(--gray-200)', text: 'var(--gray-800)' },
+// ── Design tokens ──────────────────────────────────────────────────────────────
+
+const TONE: Record<CardTone, { bg: string; border: string; text: string; accent: string }> = {
+  pass:    { bg: '#f0fdf4', border: '#bbf7d0', text: '#166534', accent: '#16a34a' },
+  warn:    { bg: '#fffbeb', border: '#fde68a', text: '#92400e', accent: '#d97706' },
+  fail:    { bg: '#fef2f2', border: '#fecaca', text: '#991b1b', accent: '#dc2626' },
+  neutral: { bg: 'var(--gray-50)', border: 'var(--gray-200)', text: 'var(--gray-700)', accent: 'var(--gray-400)' },
 };
 
-function formatJobAction(action: string): string {
-  return action
-    .replace(/^JOB_/, '')
-    .toLowerCase()
-    .replace(/_/g, '-');
-}
+const STATUS_ICON: Record<ChecklistStatus, string> = {
+  pass: '✓',
+  warn: '!',
+  fail: '✗',
+};
 
-function StatusBadge({ status }: { status: ChecklistStatus }) {
-  const label = status === 'pass' ? 'PASS' : status === 'warn' ? 'WARN' : 'FAIL';
-  const style = TONE_STYLE[status];
+const STATUS_COLOR: Record<ChecklistStatus, { bg: string; text: string; ring: string }> = {
+  pass: { bg: '#dcfce7', text: '#166534', ring: '#86efac' },
+  warn: { bg: '#fef9c3', text: '#854d0e', ring: '#fde047' },
+  fail: { bg: '#fee2e2', text: '#991b1b', ring: '#fca5a5' },
+};
+
+// ── Sub-components ──────────────────────────────────────────────────────────────
+
+function ChecklistRow({ item }: { item: ChecklistItem }) {
+  const s = STATUS_COLOR[item.status];
   return (
-    <span style={{
-      display: 'inline-flex',
-      alignItems: 'center',
-      justifyContent: 'center',
-      minWidth: '52px',
-      padding: '3px 8px',
-      borderRadius: '9999px',
-      background: style.bg,
-      color: style.text,
-      border: `1px solid ${style.border}`,
-      fontSize: '11px',
-      fontWeight: 700,
+    <div style={{
+      display: 'flex', alignItems: 'flex-start', gap: '10px',
+      padding: '10px 12px',
+      borderLeft: `3px solid ${s.ring}`,
+      background: item.status !== 'pass' ? s.bg + '66' : 'transparent',
+      borderRadius: '0 6px 6px 0',
     }}>
-      {label}
-    </span>
-  );
-}
-
-function SectionTable({
-  title,
-  headers,
-  rows,
-}: {
-  title: string;
-  headers: string[];
-  rows: Array<Array<string | number>>;
-}) {
-  return (
-    <div style={{ border: '1px solid var(--gray-200)', borderRadius: '10px', overflow: 'hidden', background: '#fff' }}>
-      <div style={{ padding: '10px 12px', borderBottom: '1px solid var(--gray-200)', fontWeight: 700, fontSize: '13px' }}>
-        {title}
+      <div style={{
+        flexShrink: 0, width: 20, height: 20, borderRadius: '50%',
+        background: s.bg, border: `1.5px solid ${s.ring}`,
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+        fontSize: '11px', fontWeight: 800, color: s.text,
+      }}>
+        {STATUS_ICON[item.status]}
       </div>
-      <div style={{ overflowX: 'auto' }}>
-        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '12px' }}>
-          <thead>
-            <tr style={{ background: 'var(--gray-50)', textAlign: 'left' }}>
-              {headers.map((header) => (
-                <th key={header} style={{ padding: '8px 10px', borderBottom: '1px solid var(--gray-200)' }}>{header}</th>
-              ))}
-            </tr>
-          </thead>
-          <tbody>
-            {rows.length === 0 ? (
-              <tr>
-                <td colSpan={headers.length} style={{ padding: '12px 10px', color: 'var(--gray-500)' }}>No data</td>
-              </tr>
-            ) : rows.map((row, idx) => (
-              <tr key={`${title}-${idx}`} style={{ borderBottom: idx < rows.length - 1 ? '1px solid var(--gray-100)' : 'none' }}>
-                {row.map((cell, cellIdx) => (
-                  <td key={`${title}-${idx}-${cellIdx}`} style={{ padding: '8px 10px', whiteSpace: 'nowrap' }}>{cell}</td>
-                ))}
-              </tr>
-            ))}
-          </tbody>
-        </table>
+      <div style={{ minWidth: 0 }}>
+        <div style={{ fontSize: '13px', fontWeight: 600, color: 'var(--gray-900)', lineHeight: 1.3 }}>{item.label}</div>
+        <div style={{ fontSize: '11px', color: 'var(--gray-500)', marginTop: '2px', lineHeight: 1.4 }}>{item.detail}</div>
       </div>
     </div>
   );
 }
+
+function KpiCard({ card }: { card: MetricCard }) {
+  const t = TONE[card.tone];
+  return (
+    <div style={{
+      padding: '14px 16px', borderRadius: '10px',
+      background: t.bg, border: `1px solid ${t.border}`,
+      display: 'flex', flexDirection: 'column', gap: '2px',
+    }}>
+      <div style={{ fontSize: '11px', fontWeight: 500, color: 'var(--gray-500)', textTransform: 'uppercase', letterSpacing: '0.4px' }}>
+        {card.label}
+      </div>
+      <div style={{ fontSize: '26px', fontWeight: 800, color: t.text, lineHeight: 1.1, marginTop: '2px' }}>
+        {card.value}
+      </div>
+      {card.detail && (
+        <div style={{ fontSize: '11px', color: t.accent, marginTop: '4px', fontWeight: 500 }}>{card.detail}</div>
+      )}
+    </div>
+  );
+}
+
+function SectionHeader({ title, subtitle }: { title: string; subtitle?: string }) {
+  return (
+    <div style={{ marginBottom: '8px' }}>
+      <div style={{ fontSize: '12px', fontWeight: 700, color: 'var(--gray-700)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+        {title}
+      </div>
+      {subtitle && <div style={{ fontSize: '11px', color: 'var(--gray-400)', marginTop: '1px' }}>{subtitle}</div>}
+    </div>
+  );
+}
+
+function DataTable({ headers, rows, emptyText = 'No data' }: {
+  headers: string[];
+  rows: Array<Array<string | number>>;
+  emptyText?: string;
+}) {
+  return (
+    <div style={{ overflowX: 'auto', borderRadius: '8px', border: '1px solid var(--gray-150, #f0f0f0)' }}>
+      <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '12px' }}>
+        <thead>
+          <tr style={{ background: 'var(--gray-50)' }}>
+            {headers.map((h) => (
+              <th key={h} style={{
+                padding: '7px 10px', textAlign: 'left', fontWeight: 600,
+                color: 'var(--gray-500)', borderBottom: '1px solid var(--gray-200)',
+                whiteSpace: 'nowrap', fontSize: '11px', textTransform: 'uppercase', letterSpacing: '0.3px',
+              }}>{h}</th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+          {rows.length === 0 ? (
+            <tr>
+              <td colSpan={headers.length} style={{ padding: '12px 10px', color: 'var(--gray-400)', fontSize: '12px' }}>
+                {emptyText}
+              </td>
+            </tr>
+          ) : rows.map((row, i) => (
+            <tr key={i} style={{ borderBottom: i < rows.length - 1 ? '1px solid var(--gray-100)' : 'none' }}>
+              {row.map((cell, j) => (
+                <td key={j} style={{ padding: '7px 10px', color: 'var(--gray-700)', whiteSpace: 'nowrap' }}>{cell}</td>
+              ))}
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+function DataCard({ children }: { children: React.ReactNode }) {
+  return (
+    <div style={{ background: '#fff', border: '1px solid var(--gray-200)', borderRadius: '10px', padding: '14px 16px' }}>
+      {children}
+    </div>
+  );
+}
+
+function formatJobAction(action: string): string {
+  return action.replace(/^JOB_/, '').toLowerCase().replace(/_/g, '-');
+}
+
+function FunnelBar({ label, value, max, color }: { label: string; value: number; max: number; color: string }) {
+  const pct = max > 0 ? Math.round((value / max) * 100) : 0;
+  return (
+    <div style={{ marginBottom: '8px' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '3px', fontSize: '12px' }}>
+        <span style={{ color: 'var(--gray-600)' }}>{label}</span>
+        <span style={{ fontWeight: 600, color: 'var(--gray-800)' }}>{value} <span style={{ color: 'var(--gray-400)', fontWeight: 400 }}>({pct}%)</span></span>
+      </div>
+      <div style={{ height: '5px', background: 'var(--gray-100)', borderRadius: '999px', overflow: 'hidden' }}>
+        <div style={{ height: '100%', width: `${pct}%`, background: color, borderRadius: '999px', transition: 'width 0.4s ease' }} />
+      </div>
+    </div>
+  );
+}
+
+// ── Main component ──────────────────────────────────────────────────────────────
 
 export function OpsMonitoringPanel() {
   const { state } = useAppState();
@@ -185,7 +280,7 @@ export function OpsMonitoringPanel() {
   const [error, setError] = useState<string | null>(null);
 
   const fetchSnapshot = useCallback(async () => {
-    if (!apiUrl) return;
+    if (apiUrl == null) return;
     setLoading(true);
     setError(null);
     try {
@@ -193,7 +288,10 @@ export function OpsMonitoringPanel() {
         headers: authHeaders(),
         credentials: 'include',
       });
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({})) as { error?: string; detail?: string };
+        throw new Error(body.detail || body.error || `HTTP ${res.status}`);
+      }
       setSnapshot(await res.json());
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
@@ -208,164 +306,255 @@ export function OpsMonitoringPanel() {
     return () => window.clearInterval(timer);
   }, [fetchSnapshot]);
 
-  if (!apiUrl) {
+  if (apiUrl == null) {
     return <p style={{ color: 'var(--gray-500)' }}>Backend URL not configured</p>;
   }
 
+  // ── Overall health summary ─────────────────────────────────────────────────
+  const overallStatus: ChecklistStatus = snapshot
+    ? snapshot.checklist.some((c) => c.status === 'fail') ? 'fail'
+      : snapshot.checklist.some((c) => c.status === 'warn') ? 'warn'
+      : 'pass'
+    : 'pass';
+
+  const healthLabel = overallStatus === 'pass' ? 'All systems operational'
+    : overallStatus === 'warn' ? 'Needs attention'
+    : 'Critical issues detected';
+
+  const healthStyle = STATUS_COLOR[overallStatus];
+
   return (
-    <div>
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '12px', marginBottom: '14px', flexWrap: 'wrap' }}>
-        <div>
-          <div style={{ fontWeight: 700, fontSize: '15px', color: 'var(--gray-900)' }}>Ops Monitoring</div>
-          <div style={{ color: 'var(--gray-500)', fontSize: '12px', marginTop: '2px' }}>
-            Production safety checklist backed by pipeline, provider, settlement, and notification data.
-          </div>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+
+      {/* ── Top bar: health banner + refresh ── */}
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '12px', flexWrap: 'wrap' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+          {snapshot && (
+            <div style={{
+              display: 'inline-flex', alignItems: 'center', gap: '7px',
+              padding: '5px 12px', borderRadius: '999px',
+              background: healthStyle.bg, border: `1px solid ${healthStyle.ring}`,
+            }}>
+              <span style={{ fontSize: '13px', fontWeight: 800, color: healthStyle.text }}>
+                {STATUS_ICON[overallStatus]}
+              </span>
+              <span style={{ fontSize: '12px', fontWeight: 600, color: healthStyle.text }}>{healthLabel}</span>
+            </div>
+          )}
+          {!snapshot && !loading && !error && (
+            <span style={{ fontSize: '12px', color: 'var(--gray-400)' }}>Loading...</span>
+          )}
+          {loading && <span style={{ fontSize: '12px', color: 'var(--gray-400)' }}>Refreshing...</span>}
         </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '12px', color: 'var(--gray-500)' }}>
-          {snapshot && <span>Updated: {formatLocalDateTime(snapshot.generatedAt)}</span>}
-          <button className="btn btn-secondary btn-sm" onClick={() => void fetchSnapshot()} disabled={loading}>
-            {loading ? 'Refreshing...' : 'Refresh'}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+          {snapshot && (
+            <span style={{ fontSize: '11px', color: 'var(--gray-400)' }}>
+              Updated {formatLocalDateTime(snapshot.generatedAt)}
+            </span>
+          )}
+          <button
+            className="btn btn-secondary btn-sm"
+            onClick={() => void fetchSnapshot()}
+            disabled={loading}
+          >
+            {loading ? '...' : 'Refresh'}
           </button>
         </div>
       </div>
 
+      {/* ── Error ── */}
       {error && (
-        <div style={{ marginBottom: '14px', padding: '10px 12px', borderRadius: '8px', background: '#fef2f2', color: '#991b1b', border: '1px solid #fecaca', fontSize: '13px' }}>
-          Failed to load ops snapshot: {error}
+        <div style={{
+          padding: '10px 14px', borderRadius: '8px',
+          background: '#fef2f2', border: '1px solid #fecaca',
+          color: '#991b1b', fontSize: '13px',
+        }}>
+          {error}
         </div>
-      )}
-
-      {!snapshot && loading && (
-        <div style={{ color: 'var(--gray-500)', fontSize: '13px' }}>Loading ops monitoring snapshot...</div>
       )}
 
       {snapshot && (
         <>
-          <div style={{ border: '1px solid var(--gray-200)', borderRadius: '10px', background: '#fff', marginBottom: '16px' }}>
-            <div style={{ padding: '10px 12px', borderBottom: '1px solid var(--gray-200)', fontWeight: 700, fontSize: '13px' }}>
-              Post-Release Checklist
-            </div>
-            <div style={{ padding: '12px' }}>
-              {snapshot.checklist.map((item) => (
-                <div
-                  key={item.id}
-                  style={{
-                    display: 'grid',
-                    gridTemplateColumns: '70px minmax(0, 1fr)',
-                    gap: '10px',
-                    alignItems: 'start',
-                    padding: '8px 0',
-                    borderBottom: item.id !== snapshot.checklist[snapshot.checklist.length - 1]?.id ? '1px solid var(--gray-100)' : 'none',
-                  }}
-                >
-                  <StatusBadge status={item.status} />
-                  <div>
-                    <div style={{ fontWeight: 600, fontSize: '13px', color: 'var(--gray-900)' }}>{item.label}</div>
-                    <div style={{ fontSize: '12px', color: 'var(--gray-600)', marginTop: '2px' }}>{item.detail}</div>
+          {/* ── Section 1: Checklist ── */}
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(min(100%, 340px), 1fr))', gap: '6px' }}>
+            {snapshot.checklist.map((item) => <ChecklistRow key={item.id} item={item} />)}
+          </div>
+
+          {/* ── Section 2: KPI cards ── */}
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(140px, 1fr))', gap: '10px' }}>
+            {snapshot.cards.map((card) => <KpiCard key={card.label} card={card} />)}
+          </div>
+
+          {/* ── Section 3: Pipeline ── */}
+          <DataCard>
+            <SectionHeader title="Pipeline" subtitle="24h window" />
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
+              <div>
+                <div style={{ marginBottom: '12px' }}>
+                  <FunnelBar label="Analyzed" value={snapshot.pipeline.analyzed24h} max={snapshot.pipeline.analyzed24h + snapshot.pipeline.skipped24h} color="#6366f1" />
+                  <FunnelBar label="Should push" value={snapshot.pipeline.shouldPush24h} max={snapshot.pipeline.analyzed24h} color="#8b5cf6" />
+                  <FunnelBar label="Saved" value={snapshot.pipeline.saved24h} max={snapshot.pipeline.analyzed24h} color="#3b82f6" />
+                  <FunnelBar label="Notified" value={snapshot.pipeline.notified24h} max={snapshot.pipeline.shouldPush24h} color="#10b981" />
+                  <div style={{ marginTop: '8px', paddingTop: '8px', borderTop: '1px solid var(--gray-100)', display: 'flex', gap: '16px', fontSize: '12px' }}>
+                    <span style={{ color: 'var(--gray-500)' }}>Skipped: <strong style={{ color: 'var(--gray-700)' }}>{snapshot.pipeline.skipped24h}</strong></span>
+                    <span style={{ color: snapshot.pipeline.errors24h > 0 ? '#dc2626' : 'var(--gray-500)' }}>
+                      Errors: <strong>{snapshot.pipeline.errors24h}</strong>
+                    </span>
                   </div>
                 </div>
-              ))}
-            </div>
-          </div>
-
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: '10px', marginBottom: '16px' }}>
-            {snapshot.cards.map((card) => {
-              const tone = TONE_STYLE[card.tone];
-              return (
-                <div key={card.label} style={{ padding: '12px 14px', borderRadius: '10px', background: tone.bg, border: `1px solid ${tone.border}` }}>
-                  <div style={{ fontSize: '11px', color: 'var(--gray-500)', marginBottom: '6px' }}>{card.label}</div>
-                  <div style={{ fontSize: '24px', lineHeight: 1.1, fontWeight: 800, color: tone.text }}>{card.value}</div>
-                  {card.detail && <div style={{ marginTop: '6px', fontSize: '11px', color: 'var(--gray-600)' }}>{card.detail}</div>}
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                <div>
+                  <div style={{ fontSize: '11px', fontWeight: 600, color: 'var(--gray-500)', textTransform: 'uppercase', letterSpacing: '0.3px', marginBottom: '6px' }}>Top Skip Reasons</div>
+                  {snapshot.pipeline.topSkipReasons.length === 0
+                    ? <div style={{ fontSize: '12px', color: 'var(--gray-400)' }}>None</div>
+                    : snapshot.pipeline.topSkipReasons.map((r) => (
+                      <div key={r.reason} style={{ display: 'flex', justifyContent: 'space-between', fontSize: '12px', padding: '3px 0', borderBottom: '1px solid var(--gray-100)' }}>
+                        <span style={{ color: 'var(--gray-600)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', marginRight: 8 }}>{r.reason}</span>
+                        <span style={{ fontWeight: 600, color: 'var(--gray-800)', flexShrink: 0 }}>{r.count}</span>
+                      </div>
+                    ))
+                  }
                 </div>
-              );
-            })}
+                {snapshot.pipeline.jobFailuresByAction.length > 0 && (
+                  <div>
+                    <div style={{ fontSize: '11px', fontWeight: 600, color: '#dc2626', textTransform: 'uppercase', letterSpacing: '0.3px', marginBottom: '6px' }}>Job Failures (24h)</div>
+                    {snapshot.pipeline.jobFailuresByAction.map((r) => (
+                      <div key={r.action} style={{ display: 'flex', justifyContent: 'space-between', fontSize: '12px', padding: '3px 0', borderBottom: '1px solid var(--gray-100)' }}>
+                        <span style={{ color: 'var(--gray-600)' }}>{formatJobAction(r.action)}</span>
+                        <span style={{ fontWeight: 700, color: '#dc2626' }}>{r.count}</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+          </DataCard>
+
+          {/* ── Section 4: Providers ── */}
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 380px), 1fr))', gap: '12px' }}>
+            <DataCard>
+              <SectionHeader title={`Stats Providers`} subtitle={`Last ${snapshot.providers.statsWindowHours}h`} />
+              <DataTable
+                headers={['Provider', 'Success', 'Poss.', 'SOT', 'Latency']}
+                rows={snapshot.providers.statsByProvider.map((r) => [
+                  r.provider,
+                  `${r.successRate}% (${r.samples})`,
+                  `${r.possessionCoverageRate}%`,
+                  `${r.shotsOnTargetCoverageRate}%`,
+                  `${r.avgLatencyMs}ms`,
+                ])}
+                emptyText="No stats samples"
+              />
+            </DataCard>
+            <DataCard>
+              <SectionHeader title="Odds Providers" subtitle={`Last ${snapshot.providers.oddsWindowHours}h`} />
+              <DataTable
+                headers={['Provider', 'Source', 'Usable', 'OU', 'AH', 'Latency']}
+                rows={snapshot.providers.oddsByProvider.map((r) => [
+                  r.provider, r.source,
+                  `${r.usableRate}% (${r.samples})`,
+                  `${r.overUnderRate}%`,
+                  `${r.asianHandicapRate}%`,
+                  `${r.avgLatencyMs}ms`,
+                ])}
+                emptyText="No odds samples"
+              />
+            </DataCard>
           </div>
 
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 320px), 1fr))', gap: '12px' }}>
-            <SectionTable
-              title="Pipeline Funnel (24h)"
-              headers={['Metric', 'Value']}
-              rows={[
-                ['Analyzed', snapshot.pipeline.analyzed24h],
-                ['Should push', `${snapshot.pipeline.shouldPush24h} (${snapshot.pipeline.pushRate24h}%)`],
-                ['Saved', `${snapshot.pipeline.saved24h} (${snapshot.pipeline.saveRate24h}%)`],
-                ['Notified', `${snapshot.pipeline.notified24h} (${snapshot.pipeline.notifyRate24h}%)`],
-                ['Skipped', snapshot.pipeline.skipped24h],
-                ['Errors', snapshot.pipeline.errors24h],
-              ]}
-            />
+          {/* ── Section 5: Settlement + Notifications side by side ── */}
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 340px), 1fr))', gap: '12px' }}>
+            <DataCard>
+              <SectionHeader title="Settlement" />
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', marginBottom: '12px' }}>
+                {[
+                  { label: 'Rec. Pending', value: snapshot.settlement.recommendationPending, warn: snapshot.settlement.recommendationPending > 20 },
+                  { label: 'Rec. Unresolved', value: snapshot.settlement.recommendationUnresolved, warn: snapshot.settlement.recommendationUnresolved > 5 },
+                  { label: 'Bet Pending', value: snapshot.settlement.betPending, warn: snapshot.settlement.betPending > 20 },
+                  { label: 'Bet Unresolved', value: snapshot.settlement.betUnresolved, warn: snapshot.settlement.betUnresolved > 5 },
+                ].map((item) => (
+                  <div key={item.label} style={{ padding: '8px 10px', borderRadius: '6px', background: item.warn ? '#fef2f2' : 'var(--gray-50)', border: `1px solid ${item.warn ? '#fecaca' : 'var(--gray-200)'}` }}>
+                    <div style={{ fontSize: '10px', color: 'var(--gray-500)', textTransform: 'uppercase', letterSpacing: '0.3px' }}>{item.label}</div>
+                    <div style={{ fontSize: '20px', fontWeight: 800, color: item.warn ? '#dc2626' : 'var(--gray-800)', lineHeight: 1.2, marginTop: '2px' }}>{item.value}</div>
+                  </div>
+                ))}
+              </div>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
+                <div>
+                  <div style={{ fontSize: '11px', fontWeight: 600, color: 'var(--gray-500)', textTransform: 'uppercase', letterSpacing: '0.3px', marginBottom: '5px' }}>Method Mix (30d)</div>
+                  {snapshot.settlement.methodMix30d.map((r) => (
+                    <div key={r.method} style={{ display: 'flex', justifyContent: 'space-between', fontSize: '12px', padding: '2px 0' }}>
+                      <span style={{ color: 'var(--gray-600)' }}>{r.method}</span>
+                      <span style={{ fontWeight: 600 }}>{r.count}</span>
+                    </div>
+                  ))}
+                </div>
+                <div>
+                  <div style={{ fontSize: '11px', fontWeight: 600, color: 'var(--gray-500)', textTransform: 'uppercase', letterSpacing: '0.3px', marginBottom: '5px' }}>Unresolved Markets</div>
+                  {snapshot.settlement.unresolvedByMarket.map((r) => (
+                    <div key={r.market} style={{ display: 'flex', justifyContent: 'space-between', fontSize: '12px', padding: '2px 0' }}>
+                      <span style={{ color: 'var(--gray-600)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', marginRight: 4 }}>{r.market}</span>
+                      <span style={{ fontWeight: 600 }}>{r.count}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </DataCard>
 
-            <SectionTable
-              title="Top Skip Reasons (24h)"
-              headers={['Reason', 'Count']}
-              rows={snapshot.pipeline.topSkipReasons.map((row) => [row.reason, row.count])}
-            />
+            <DataCard>
+              <SectionHeader title="Notifications" subtitle="24h window" />
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', marginBottom: '12px' }}>
+                {[
+                  { label: 'Attempts', value: snapshot.notifications.attempts24h, warn: false },
+                  { label: 'Failures', value: snapshot.notifications.failures24h, warn: snapshot.notifications.failures24h > 0 },
+                  { label: 'Failure Rate', value: `${snapshot.notifications.failureRate24h}%`, warn: snapshot.notifications.failureRate24h > 10 },
+                  { label: 'Delivered', value: snapshot.notifications.deliveredRecommendations24h, warn: false },
+                ].map((item) => (
+                  <div key={item.label} style={{ padding: '8px 10px', borderRadius: '6px', background: item.warn ? '#fef2f2' : 'var(--gray-50)', border: `1px solid ${item.warn ? '#fecaca' : 'var(--gray-200)'}` }}>
+                    <div style={{ fontSize: '10px', color: 'var(--gray-500)', textTransform: 'uppercase', letterSpacing: '0.3px' }}>{item.label}</div>
+                    <div style={{ fontSize: '20px', fontWeight: 800, color: item.warn ? '#dc2626' : 'var(--gray-800)', lineHeight: 1.2, marginTop: '2px' }}>{item.value}</div>
+                  </div>
+                ))}
+              </div>
 
-            <SectionTable
-              title="Job Failures (24h)"
-              headers={['Job', 'Failures']}
-              rows={snapshot.pipeline.jobFailuresByAction.map((row) => [formatJobAction(row.action), row.count])}
-            />
-
-            <SectionTable
-              title={`Stats Providers (${snapshot.providers.statsWindowHours}h)`}
-              headers={['Provider', 'Success', 'Possession', 'SOT', 'Latency']}
-              rows={snapshot.providers.statsByProvider.map((row) => [
-                row.provider,
-                `${row.successRate}% (${row.samples})`,
-                `${row.possessionCoverageRate}%`,
-                `${row.shotsOnTargetCoverageRate}%`,
-                `${row.avgLatencyMs}ms`,
-              ])}
-            />
-
-            <SectionTable
-              title={`Odds Providers (${snapshot.providers.oddsWindowHours}h)`}
-              headers={['Provider', 'Source', 'Usable', 'OU', 'AH', 'Latency']}
-              rows={snapshot.providers.oddsByProvider.map((row) => [
-                row.provider,
-                row.source,
-                `${row.usableRate}% (${row.samples})`,
-                `${row.overUnderRate}%`,
-                `${row.asianHandicapRate}%`,
-                `${row.avgLatencyMs}ms`,
-              ])}
-            />
-
-            <SectionTable
-              title="Settlement"
-              headers={['Metric', 'Value']}
-              rows={[
-                ['Recommendation pending', snapshot.settlement.recommendationPending],
-                ['Recommendation unresolved', snapshot.settlement.recommendationUnresolved],
-                ['Bet pending', snapshot.settlement.betPending],
-                ['Bet unresolved', snapshot.settlement.betUnresolved],
-                ['Corrected last 7d', snapshot.settlement.recommendationCorrected7d],
-              ]}
-            />
-
-            <SectionTable
-              title="Settlement Method Mix (30d)"
-              headers={['Method', 'Count']}
-              rows={snapshot.settlement.methodMix30d.map((row) => [row.method, row.count])}
-            />
-
-            <SectionTable
-              title="Unresolved Markets"
-              headers={['Market', 'Count']}
-              rows={snapshot.settlement.unresolvedByMarket.map((row) => [row.market, row.count])}
-            />
-
-            <SectionTable
-              title="Notifications (24h)"
-              headers={['Metric', 'Value']}
-              rows={[
-                ['Attempts', snapshot.notifications.attempts24h],
-                ['Failures', snapshot.notifications.failures24h],
-                ['Failure rate', `${snapshot.notifications.failureRate24h}%`],
-                ['Delivered recommendations', snapshot.notifications.deliveredRecommendations24h],
-              ]}
-            />
+              {/* Prompt Shadow summary */}
+              <SectionHeader title="Prompt Shadow" subtitle={`Last ${snapshot.promptShadow.windowHours}h`} />
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '6px', marginBottom: '10px' }}>
+                {[
+                  { label: 'Runs', value: snapshot.promptShadow.runs24h },
+                  { label: 'Shadow rows', value: snapshot.promptShadow.shadowRows24h },
+                  { label: 'Should-push agree', value: `${snapshot.promptShadow.shouldPushAgreementRate24h}%` },
+                  { label: 'Market agree', value: `${snapshot.promptShadow.marketAgreementRate24h}%` },
+                ].map((item) => (
+                  <div key={item.label} style={{ fontSize: '12px', display: 'flex', justifyContent: 'space-between', padding: '3px 0', borderBottom: '1px solid var(--gray-100)' }}>
+                    <span style={{ color: 'var(--gray-500)' }}>{item.label}</span>
+                    <span style={{ fontWeight: 600, color: 'var(--gray-800)' }}>{item.value}</span>
+                  </div>
+                ))}
+              </div>
+              {snapshot.promptShadow.versionBreakdown.length > 0 && (
+                <DataTable
+                  headers={['Role', 'Version', 'Success', 'Latency']}
+                  rows={snapshot.promptShadow.versionBreakdown.map((r) => [
+                    r.executionRole, r.promptVersion,
+                    `${r.successRate}% (${r.samples})`,
+                    `${r.avgLatencyMs}ms`,
+                  ])}
+                />
+              )}
+              {snapshot.promptShadow.disagreementTypes.length > 0 && (
+                <div style={{ marginTop: '10px' }}>
+                  <div style={{ fontSize: '11px', fontWeight: 600, color: 'var(--gray-500)', textTransform: 'uppercase', letterSpacing: '0.3px', marginBottom: '5px' }}>Drift Types</div>
+                  {snapshot.promptShadow.disagreementTypes.map((r) => (
+                    <div key={r.type} style={{ display: 'flex', justifyContent: 'space-between', fontSize: '12px', padding: '2px 0' }}>
+                      <span style={{ color: 'var(--gray-600)' }}>{r.type}</span>
+                      <span style={{ fontWeight: 600 }}>{r.count}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </DataCard>
           </div>
         </>
       )}

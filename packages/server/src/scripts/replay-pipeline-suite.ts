@@ -70,10 +70,15 @@ function parseArgs(argv: string[]): SuiteArgs {
       i++;
       continue;
     }
+    if (arg === '--prompt-version' && next) {
+      options.promptVersionOverride = next as ReplayRunOptions['promptVersionOverride'];
+      i++;
+      continue;
+    }
   }
 
   if (!dirPath) {
-    throw new Error('Usage: tsx src/scripts/replay-pipeline-suite.ts --dir <folder> [--llm real|mock] [--odds recorded|live|mock] [--delay-ms N] [--retries N] [--report-json <file>] [--report-md <file>] [--no-shadow] [--sample-provider-data]');
+    throw new Error('Usage: tsx src/scripts/replay-pipeline-suite.ts --dir <folder> [--llm real|mock] [--odds recorded|live|mock] [--delay-ms N] [--retries N] [--report-json <file>] [--report-md <file>] [--prompt-version <version>] [--no-shadow] [--sample-provider-data]');
   }
 
   return {
@@ -90,16 +95,87 @@ function sleep(ms: number): Promise<void> {
   return new Promise((resolveSleep) => setTimeout(resolveSleep, ms));
 }
 
+function toMedian(values: number[]): number | null {
+  if (values.length === 0) return null;
+  const sorted = [...values].sort((a, b) => a - b);
+  const middle = Math.floor(sorted.length / 2);
+  if (sorted.length % 2 === 1) return sorted[middle] ?? null;
+  const left = sorted[middle - 1];
+  const right = sorted[middle];
+  if (left == null || right == null) return null;
+  return Math.round(((left + right) / 2) * 100) / 100;
+}
+
+function buildMetricSummary(outputs: ReplayRunOutput[]) {
+  const promptChars = outputs
+    .map((item) => item.result.debug?.promptChars)
+    .filter((value): value is number => typeof value === 'number');
+  const promptTokens = outputs
+    .map((item) => item.result.debug?.promptEstimatedTokens)
+    .filter((value): value is number => typeof value === 'number');
+  const aiTextChars = outputs
+    .map((item) => item.result.debug?.aiTextChars)
+    .filter((value): value is number => typeof value === 'number');
+  const aiTextTokens = outputs
+    .map((item) => item.result.debug?.aiTextEstimatedTokens)
+    .filter((value): value is number => typeof value === 'number');
+  const llmLatencyMs = outputs
+    .map((item) => item.result.debug?.llmLatencyMs)
+    .filter((value): value is number => typeof value === 'number');
+  const totalLatencyMs = outputs
+    .map((item) => item.result.debug?.totalLatencyMs)
+    .filter((value): value is number => typeof value === 'number');
+  const promptVersions = [...new Set(outputs
+    .map((item) => item.result.debug?.promptVersion)
+    .filter((value): value is string => typeof value === 'string' && value.length > 0))];
+  const oddsInvalidCount = outputs.filter((item) => {
+    const warnings = (item.result.debug?.parsed?.warnings ?? []) as unknown[];
+    return warnings.some((warning) => String(warning) === 'ODDS_INVALID');
+  }).length;
+  const aiPushBlockedCount = outputs.filter((item) => {
+    const parsed = (item.result.debug?.parsed ?? {}) as Record<string, unknown>;
+    return parsed.ai_should_push === true && item.result.shouldPush === false;
+  }).length;
+  const fencedJsonCount = outputs.filter((item) => {
+    const aiText = String(item.result.debug?.aiText ?? '').trimStart();
+    return aiText.startsWith('```');
+  }).length;
+
+  return {
+    promptVersions,
+    medianPromptChars: toMedian(promptChars),
+    medianPromptEstimatedTokens: toMedian(promptTokens),
+    medianAiTextChars: toMedian(aiTextChars),
+    medianAiTextEstimatedTokens: toMedian(aiTextTokens),
+    medianLlmLatencyMs: toMedian(llmLatencyMs),
+    medianTotalLatencyMs: toMedian(totalLatencyMs),
+    oddsInvalidCount,
+    aiPushBlockedCount,
+    fencedJsonCount,
+  };
+}
+
 function buildMarkdownReport(outputs: ReplayRunOutput[]): string {
   const passed = outputs.filter((item) => item.allPassed).length;
+  const metrics = buildMetricSummary(outputs);
   const lines: string[] = [
     '# Prompt Replay Suite Report',
     '',
     `- Total scenarios: ${outputs.length}`,
     `- Passed assertions: ${passed}/${outputs.length}`,
+    `- Prompt version(s): ${metrics.promptVersions.join(', ') || '(unknown)'}`,
+    `- Median prompt chars: ${metrics.medianPromptChars ?? 'n/a'}`,
+    `- Median prompt est. tokens: ${metrics.medianPromptEstimatedTokens ?? 'n/a'}`,
+    `- Median response chars: ${metrics.medianAiTextChars ?? 'n/a'}`,
+    `- Median response est. tokens: ${metrics.medianAiTextEstimatedTokens ?? 'n/a'}`,
+    `- Median LLM latency ms: ${metrics.medianLlmLatencyMs ?? 'n/a'}`,
+    `- Median total latency ms: ${metrics.medianTotalLatencyMs ?? 'n/a'}`,
+    `- ODDS_INVALID warnings: ${metrics.oddsInvalidCount}`,
+    `- AI push blocked by runtime: ${metrics.aiPushBlockedCount}`,
+    `- Markdown-fenced JSON responses: ${metrics.fencedJsonCount}`,
     '',
-    '| Scenario | Analysis Mode | Evidence Mode | Odds Source | Bet Market | Should Push | Selection | Confidence | Assertions |',
-    '| --- | --- | --- | --- | --- | --- | --- | --- | --- |',
+    '| Scenario | Analysis Mode | Evidence Mode | Odds Source | Bet Market | Should Push | Confidence | Prompt Tok. | Resp Tok. | LLM ms | Assertions |',
+    '| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |',
   ];
 
   for (const output of outputs) {
@@ -110,10 +186,9 @@ function buildMarkdownReport(outputs: ReplayRunOutput[]): string {
       : output.assertions.every((item) => item.pass)
         ? 'pass'
         : 'fail';
-    const selection = (result.selection || '').replace(/\|/g, '\\|') || '(none)';
     const betMarket = String(parsed.bet_market || '').replace(/\|/g, '\\|') || '(none)';
     lines.push(
-      `| ${output.scenarioName} | ${result.debug?.analysisMode ?? ''} | ${result.debug?.evidenceMode ?? ''} | ${result.debug?.oddsSource ?? ''} | ${betMarket} | ${result.shouldPush ? 'yes' : 'no'} | ${selection} | ${result.confidence} | ${assertions} |`,
+      `| ${output.scenarioName} | ${result.debug?.analysisMode ?? ''} | ${result.debug?.evidenceMode ?? ''} | ${result.debug?.oddsSource ?? ''} | ${betMarket} | ${result.shouldPush ? 'yes' : 'no'} | ${result.confidence} | ${result.debug?.promptEstimatedTokens ?? ''} | ${result.debug?.aiTextEstimatedTokens ?? ''} | ${result.debug?.llmLatencyMs ?? ''} | ${assertions} |`,
     );
   }
 
@@ -128,8 +203,15 @@ function buildMarkdownReport(outputs: ReplayRunOutput[]): string {
     lines.push(`- oddsMode: ${output.oddsMode}`);
     lines.push(`- analysisMode: ${result.debug?.analysisMode ?? ''}`);
     lines.push(`- evidenceMode: ${result.debug?.evidenceMode ?? ''}`);
+    lines.push(`- promptVersion: ${result.debug?.promptVersion ?? ''}`);
     lines.push(`- statsSource: ${result.debug?.statsSource ?? ''}`);
     lines.push(`- oddsSource: ${result.debug?.oddsSource ?? ''}`);
+    lines.push(`- promptChars: ${result.debug?.promptChars ?? ''}`);
+    lines.push(`- promptEstimatedTokens: ${result.debug?.promptEstimatedTokens ?? ''}`);
+    lines.push(`- aiTextChars: ${result.debug?.aiTextChars ?? ''}`);
+    lines.push(`- aiTextEstimatedTokens: ${result.debug?.aiTextEstimatedTokens ?? ''}`);
+    lines.push(`- llmLatencyMs: ${result.debug?.llmLatencyMs ?? ''}`);
+    lines.push(`- totalLatencyMs: ${result.debug?.totalLatencyMs ?? ''}`);
     lines.push(`- betMarket: ${String(((result.debug?.parsed ?? {}) as Record<string, unknown>).bet_market || '')}`);
     lines.push(`- shouldPush: ${String(result.shouldPush)}`);
     lines.push(`- saved: ${String(result.saved)}`);
@@ -189,6 +271,7 @@ async function main(): Promise<void> {
     dir: args.dirPath,
     total: outputs.length,
     passed: outputs.filter((item) => item.allPassed).length,
+    metrics: buildMetricSummary(outputs),
     outputs,
   };
 

@@ -30,6 +30,9 @@ vi.mock('../repos/match-snapshots.repo.js', () => ({
 vi.mock('../repos/odds-movements.repo.js', () => ({
   purgeOddsMovements: vi.fn().mockResolvedValue(13),
 }));
+vi.mock('../repos/prompt-shadow-runs.repo.js', () => ({
+  purgePromptShadowRuns: vi.fn().mockResolvedValue(6),
+}));
 
 const { purgeAuditJob } = await import('../jobs/purge-audit.job.js');
 
@@ -47,13 +50,15 @@ describe('purgeAuditJob', () => {
       providerOddsDeleted: 7,
       matchSnapshotsDeleted: 11,
       oddsMovementsDeleted: 13,
-      totalDeleted: 87,
+      promptShadowDeleted: 6,
+      totalDeleted: 93,
       keepDays: {
         audit: 30,
         matchesHistory: 120,
         providerSamples: 14,
         matchSnapshots: 14,
         oddsMovements: 30,
+        promptShadow: 14,
       },
     });
 
@@ -64,11 +69,13 @@ describe('purgeAuditJob', () => {
     const providerOddsRepo = await import('../repos/provider-odds-samples.repo.js');
     const snapshotsRepo = await import('../repos/match-snapshots.repo.js');
     const oddsRepo = await import('../repos/odds-movements.repo.js');
+    const promptShadowRepo = await import('../repos/prompt-shadow-runs.repo.js');
     expect(historyRepo.purgeHistoricalMatches).toHaveBeenCalledWith(120);
     expect(providerStatsRepo.purgeProviderStatsSamples).toHaveBeenCalledWith(14);
     expect(providerOddsRepo.purgeProviderOddsSamples).toHaveBeenCalledWith(14);
     expect(snapshotsRepo.purgeMatchSnapshots).toHaveBeenCalledWith(14);
     expect(oddsRepo.purgeOddsMovements).toHaveBeenCalledWith(30);
+    expect(promptShadowRepo.purgePromptShadowRuns).toHaveBeenCalledWith(14);
   });
 
   test('reports 0 when nothing to purge', async () => {
@@ -78,12 +85,14 @@ describe('purgeAuditJob', () => {
     const providerOddsRepo = await import('../repos/provider-odds-samples.repo.js');
     const snapshotsRepo = await import('../repos/match-snapshots.repo.js');
     const oddsRepo = await import('../repos/odds-movements.repo.js');
+    const promptShadowRepo = await import('../repos/prompt-shadow-runs.repo.js');
     vi.mocked(repo.purgeAuditLogs).mockResolvedValueOnce(0);
     vi.mocked(historyRepo.purgeHistoricalMatches).mockResolvedValueOnce(0);
     vi.mocked(providerStatsRepo.purgeProviderStatsSamples).mockResolvedValueOnce(0);
     vi.mocked(providerOddsRepo.purgeProviderOddsSamples).mockResolvedValueOnce(0);
     vi.mocked(snapshotsRepo.purgeMatchSnapshots).mockResolvedValueOnce(0);
     vi.mocked(oddsRepo.purgeOddsMovements).mockResolvedValueOnce(0);
+    vi.mocked(promptShadowRepo.purgePromptShadowRuns).mockResolvedValueOnce(0);
 
     const result = await purgeAuditJob();
     expect(result.totalDeleted).toBe(0);
