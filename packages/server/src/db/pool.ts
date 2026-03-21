@@ -14,12 +14,14 @@ interface PoolConfigWithOnConnect extends pg.PoolConfig {
   onConnect?: (client: pg.PoolClient) => Promise<void>;
 }
 
+const databaseUrl = String(config.databaseUrl ?? '');
+
 const pool = new pg.Pool({
-  connectionString: config.databaseUrl,
+  connectionString: databaseUrl,
   max: 10,
   idleTimeoutMillis: 30_000,
   connectionTimeoutMillis: 5_000,
-  ssl: config.databaseUrl.includes('sslmode=require') ? { rejectUnauthorized: false } : false,
+  ssl: databaseUrl.includes('sslmode=require') ? { rejectUnauthorized: false } : false,
   onConnect: async (client) => {
     await client.query(`SET timezone = '${config.timezone}'`);
   },

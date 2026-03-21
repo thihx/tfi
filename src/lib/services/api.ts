@@ -1,4 +1,4 @@
-import type { AppConfig, Match, WatchlistItem, Recommendation, League, LeagueFixture, ApiResponse } from '@/types';
+import type { AppConfig, Match, WatchlistItem, Recommendation, League, LeagueFixture, LeagueProfile, ApiResponse } from '@/types';
 
 // ==================== TYPED API ERROR ====================
 
@@ -256,6 +256,31 @@ export async function toggleLeagueTopLeague(config: AppConfig, leagueId: number,
 
 export async function bulkSetTopLeague(config: AppConfig, ids: number[], topLeague: boolean): Promise<{ updated: number }> {
   return pgPost<{ updated: number }>(config, '/api/leagues/bulk-top-league', { ids, top_league: topLeague });
+}
+
+export async function fetchLeagueProfiles(config: AppConfig): Promise<LeagueProfile[]> {
+  return pgFetch<LeagueProfile[]>(config, '/api/league-profiles');
+}
+
+export async function fetchLeagueProfile(config: AppConfig, leagueId: number): Promise<LeagueProfile | null> {
+  try {
+    return await pgFetch<LeagueProfile>(config, `/api/leagues/${leagueId}/profile`);
+  } catch (err) {
+    if (err instanceof ApiError && err.isNotFound) return null;
+    throw err;
+  }
+}
+
+export async function saveLeagueProfile(
+  config: AppConfig,
+  leagueId: number,
+  profile: Omit<LeagueProfile, 'league_id' | 'created_at' | 'updated_at'>,
+): Promise<LeagueProfile> {
+  return pgPut<LeagueProfile>(config, `/api/leagues/${leagueId}/profile`, profile);
+}
+
+export async function deleteLeagueProfile(config: AppConfig, leagueId: number): Promise<{ league_id: number; deleted: boolean }> {
+  return pgDelete<{ league_id: number; deleted: boolean }>(config, `/api/leagues/${leagueId}/profile`);
 }
 
 export async function createWatchlistItems(

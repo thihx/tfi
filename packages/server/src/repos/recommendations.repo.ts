@@ -50,6 +50,7 @@ export interface RecommendationRow {
   stake_percent: number | null;
   stake_amount: number | null;
   reasoning: string;
+  reasoning_vi: string;
   key_factors: string;
   warnings: string;
   ai_model: string;
@@ -215,7 +216,7 @@ export async function createRecommendation(
        condition_triggered_suggestion, custom_condition_raw, execution_id,
        odds_snapshot, stats_snapshot, pre_match_prediction_summary, prompt_version, custom_condition_matched,
        minute, score, bet_type, selection, odds, confidence, value_percent, risk_level,
-       stake_percent, stake_amount, reasoning, key_factors, warnings,
+       stake_percent, stake_amount, reasoning, reasoning_vi, key_factors, warnings,
        ai_model, mode, bet_market, notified, notification_channels,
        result, actual_outcome, pnl, settled_at,
        settlement_status, settlement_method, settle_prompt_version, settlement_note,
@@ -223,7 +224,7 @@ export async function createRecommendation(
      ) VALUES (
        $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,
        $21,$22,$23,$24,$25,$26,$27,$28,$29,$30,$31,$32,$33,$34,$35,$36,$37,$38,
-       $39,$40,$41,$42
+       $39,$40,$41,$42,$43
      )
      ON CONFLICT (unique_key) DO UPDATE SET
        minute = EXCLUDED.minute,
@@ -236,6 +237,7 @@ export async function createRecommendation(
        risk_level = EXCLUDED.risk_level,
        stake_percent = EXCLUDED.stake_percent,
        reasoning = EXCLUDED.reasoning,
+       reasoning_vi = EXCLUDED.reasoning_vi,
        key_factors = EXCLUDED.key_factors,
        warnings = EXCLUDED.warnings,
        prompt_version = EXCLUDED.prompt_version,
@@ -268,6 +270,7 @@ export async function createRecommendation(
       rec.stake_percent ?? null,
       rec.stake_amount ?? null,
       rec.reasoning ?? '',
+      rec.reasoning_vi ?? '',
       rec.key_factors ?? '',
       rec.warnings ?? '',
       rec.ai_model ?? '',
@@ -307,7 +310,7 @@ export async function bulkCreateRecommendations(
            condition_triggered_suggestion, custom_condition_raw, execution_id,
            odds_snapshot, stats_snapshot, pre_match_prediction_summary, prompt_version, custom_condition_matched,
            minute, score, bet_type, selection, odds, confidence, value_percent, risk_level,
-           stake_percent, stake_amount, reasoning, key_factors, warnings,
+           stake_percent, stake_amount, reasoning, reasoning_vi, key_factors, warnings,
            ai_model, mode, bet_market, notified, notification_channels,
            result, actual_outcome, pnl, settled_at,
            settlement_status, settlement_method, settle_prompt_version, settlement_note,
@@ -315,7 +318,7 @@ export async function bulkCreateRecommendations(
          ) VALUES (
            $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,
            $21,$22,$23,$24,$25,$26,$27,$28,$29,$30,$31,$32,$33,$34,$35,$36,$37,$38,
-           $39,$40,$41,$42
+           $39,$40,$41,$42,$43
          )
          ON CONFLICT (unique_key) DO UPDATE SET
            minute = EXCLUDED.minute,
@@ -328,6 +331,7 @@ export async function bulkCreateRecommendations(
            risk_level = EXCLUDED.risk_level,
            stake_percent = EXCLUDED.stake_percent,
            reasoning = EXCLUDED.reasoning,
+           reasoning_vi = EXCLUDED.reasoning_vi,
            key_factors = EXCLUDED.key_factors,
            warnings = EXCLUDED.warnings,
            prompt_version = EXCLUDED.prompt_version,
@@ -359,6 +363,7 @@ export async function bulkCreateRecommendations(
           rec.stake_percent ?? null,
           rec.stake_amount ?? null,
           rec.reasoning ?? '',
+          rec.reasoning_vi ?? '',
           rec.key_factors ?? '',
           rec.warnings ?? '',
           rec.ai_model ?? '',

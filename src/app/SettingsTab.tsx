@@ -116,7 +116,6 @@ function JobSchedulerPanel() {
     } catch { /* server offline */ }
   }, [apiUrl]);
 
-  // Poll faster when a job is running (2s) vs idle (5s)
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   useEffect(() => {
     fetchJobs();
@@ -155,7 +154,6 @@ function JobSchedulerPanel() {
         body: JSON.stringify(force ? { force: true } : {}),
       });
       if (res.ok) {
-        // Trigger accepted — progress will appear via polling
         fetchJobs();
       } else if (res.status === 409) {
         showToast('Job is already running', 'error');
@@ -187,7 +185,6 @@ function JobSchedulerPanel() {
         const hasError = !!job.lastError || !!progress?.error;
         const percent = progress?.percent ?? 0;
         const isMulti = (job.concurrency ?? 1) > 1;
-        // Multi: disabled only when queue is full; Single: disabled when running
         const isQueueFull = isMulti && job.activeRuns >= job.concurrency && job.pendingRuns >= job.concurrency;
         const runDisabled = isMulti ? isQueueFull || triggering.has(job.name) : isRunning || triggering.has(job.name);
 
@@ -252,7 +249,6 @@ function JobSchedulerPanel() {
               </div>
             </div>
 
-            {/* Progress bar — visible when running or just completed */}
             {progress && (isRunning || isCompleted) && (
               <div className="job-progress">
                 <div className="job-progress-bar-bg">
@@ -275,8 +271,48 @@ function JobSchedulerPanel() {
   );
 }
 
+// ── Toggle Switch ────────────────────────────────────────────────────────────
+
+function Toggle({ on, onChange, disabled }: { on: boolean; onChange: (v: boolean) => void; disabled?: boolean }) {
+  return (
+    <button
+      onClick={() => !disabled && onChange(!on)}
+      disabled={disabled}
+      style={{
+        width: 40, height: 22, borderRadius: '999px', border: 'none',
+        cursor: disabled ? 'not-allowed' : 'pointer',
+        background: on ? '#2563eb' : 'var(--gray-300)',
+        position: 'relative', flexShrink: 0, transition: 'background 0.2s',
+        opacity: disabled ? 0.5 : 1,
+      }}
+    >
+      <span style={{
+        position: 'absolute', top: 2,
+        left: on ? 20 : 2,
+        width: 18, height: 18, borderRadius: '50%',
+        background: '#fff', boxShadow: '0 1px 3px rgba(0,0,0,0.2)',
+        transition: 'left 0.2s',
+      }} />
+    </button>
+  );
+}
+
+// ── Tab constants ────────────────────────────────────────────────────────────
+
+type SettingsTab = 'general' | 'scheduler' | 'system' | 'audit';
+
+const TABS: { id: SettingsTab; label: string }[] = [
+  { id: 'general',   label: 'General' },
+  { id: 'scheduler', label: 'Scheduler' },
+  { id: 'system',    label: 'System' },
+  { id: 'audit',     label: 'Audit' },
+];
+
+// ── Main component ───────────────────────────────────────────────────────────
+
 export function SettingsTab() {
   const { showToast } = useToast();
+  const [activeTab, setActiveTab] = useState<SettingsTab>('general');
   const [uiLanguage, setUiLanguage] = useState<'en' | 'vi'>('vi');
   const [telegramEnabled, setTelegramEnabled] = useState(true);
   const [notificationLanguage, setNotificationLanguage] = useState<'vi' | 'en' | 'both'>('vi');
@@ -309,7 +345,7 @@ export function SettingsTab() {
     setTelegramEnabled(enabled);
     try {
       await persistMonitorConfig({ TELEGRAM_ENABLED: enabled });
-      showToast(`Telegram notifications ${enabled ? 'enabled' : 'disabled'}`, 'success');
+      showToast(`Telegram ${enabled ? 'enabled' : 'disabled'}`, 'success');
     } catch {
       setTelegramEnabled(!enabled);
       showToast('Failed to save setting', 'error');
@@ -327,159 +363,179 @@ export function SettingsTab() {
   };
 
   return (
-    <div className="card" style={{ maxWidth: 820 }}>
-
-      {/* Display Language Section */}
-      <div className="card-header" style={{ padding: '14px 20px' }}>
-        <div className="card-title">Display Language</div>
-      </div>
-      <div style={{ padding: '12px 16px', display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
-        <div style={{ color: 'var(--gray-600)', fontSize: '13px' }}>
-          Strategic context text follows this language when both EN/VI are available.
-        </div>
-        <select
-          className="job-interval-select"
-          value={uiLanguage}
-          onChange={(e) => handleLanguageChange(e.target.value === 'en' ? 'en' : 'vi')}
-          style={{ minWidth: '160px' }}
-        >
-          <option value="vi">Tiếng Việt</option>
-          <option value="en">English</option>
-        </select>
-      </div>
-
-      {/* Notifications Section */}
-      <div className="card-header" style={{ padding: '14px 20px' }}>
-        <div className="card-title">Notifications</div>
-      </div>
-      <div style={{ padding: '12px 16px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
-
-        {/* Telegram */}
-        <div style={{
-          display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-          padding: '12px 14px', borderRadius: '8px',
-          border: `1px solid ${telegramEnabled ? '#bfdbfe' : 'var(--gray-200)'}`,
-          background: telegramEnabled ? '#eff6ff' : 'var(--gray-50)',
-          gap: '12px', flexWrap: 'wrap',
-        }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '10px', minWidth: 0 }}>
-            <span style={{ fontSize: '20px' }}>✈️</span>
-            <div>
-              <div style={{ fontSize: '13px', fontWeight: 600, color: 'var(--gray-900)' }}>Telegram</div>
-              <div style={{ fontSize: '11px', color: 'var(--gray-500)', marginTop: '1px' }}>
-                Gửi khuyến nghị AI qua Telegram Bot
-              </div>
-            </div>
-          </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexShrink: 0 }}>
-            <select
-              className="job-interval-select"
-              value={notificationLanguage}
-              onChange={(e) => handleNotificationLanguage(e.target.value as 'vi' | 'en' | 'both')}
-              disabled={!telegramEnabled}
-              style={{ minWidth: '120px', opacity: telegramEnabled ? 1 : 0.45 }}
-              title="Ngôn ngữ tin nhắn Telegram"
-            >
-              <option value="vi">Tiếng Việt</option>
-              <option value="en">English</option>
-              <option value="both">Both (EN + VI)</option>
-            </select>
-            {/* Toggle switch */}
+    <div style={{ maxWidth: 860 }}>
+      {/* Tab bar */}
+      <div style={{
+        display: 'flex', gap: '2px',
+        borderBottom: '1px solid var(--gray-200)',
+        marginBottom: '20px',
+      }}>
+        {TABS.map((tab) => {
+          const active = activeTab === tab.id;
+          return (
             <button
-              onClick={() => handleTelegramToggle(!telegramEnabled)}
-              title={telegramEnabled ? 'Tắt Telegram' : 'Bật Telegram'}
+              key={tab.id}
+              onClick={() => setActiveTab(tab.id)}
               style={{
-                width: 44, height: 24, borderRadius: '999px', border: 'none', cursor: 'pointer',
-                background: telegramEnabled ? '#2563eb' : 'var(--gray-300)',
-                position: 'relative', flexShrink: 0, transition: 'background 0.2s',
+                padding: '9px 18px',
+                fontSize: '13px',
+                fontWeight: active ? 600 : 400,
+                color: active ? '#2563eb' : 'var(--gray-500)',
+                background: 'none',
+                border: 'none',
+                borderBottom: active ? '2px solid #2563eb' : '2px solid transparent',
+                cursor: 'pointer',
+                marginBottom: '-1px',
+                transition: 'color 0.15s',
+                whiteSpace: 'nowrap',
               }}
             >
-              <span style={{
-                position: 'absolute', top: 3,
-                left: telegramEnabled ? 23 : 3,
-                width: 18, height: 18, borderRadius: '50%',
-                background: '#fff', boxShadow: '0 1px 3px rgba(0,0,0,0.2)',
-                transition: 'left 0.2s',
-              }} />
+              {tab.label}
             </button>
-            <span style={{ fontSize: '12px', fontWeight: 600, color: telegramEnabled ? '#2563eb' : 'var(--gray-400)', minWidth: 28 }}>
-              {telegramEnabled ? 'ON' : 'OFF'}
-            </span>
-          </div>
-        </div>
+          );
+        })}
+      </div>
 
-        {/* Zalo — coming soon */}
-        <div style={{
-          display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-          padding: '12px 14px', borderRadius: '8px',
-          border: '1px solid var(--gray-200)',
-          background: 'var(--gray-50)',
-          gap: '12px', opacity: 0.6,
-        }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '10px', minWidth: 0 }}>
-            <span style={{ fontSize: '20px' }}>💬</span>
-            <div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                <span style={{ fontSize: '13px', fontWeight: 600, color: 'var(--gray-900)' }}>Zalo</span>
-                <span style={{
-                  fontSize: '10px', fontWeight: 700, padding: '1px 6px', borderRadius: '999px',
-                  background: '#fde68a', color: '#92400e',
-                }}>Coming soon</span>
-              </div>
-              <div style={{ fontSize: '11px', color: 'var(--gray-500)', marginTop: '1px' }}>
-                Gửi thông báo qua Zalo OA
+      {/* Tab: General */}
+      {activeTab === 'general' && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+
+          {/* Display Language */}
+          <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
+            <div style={{ padding: '12px 16px', borderBottom: '1px solid var(--gray-100)', background: 'var(--gray-50)' }}>
+              <div style={{ fontSize: '13px', fontWeight: 600, color: 'var(--gray-700)' }}>Display Language</div>
+              <div style={{ fontSize: '11px', color: 'var(--gray-400)', marginTop: '2px' }}>
+                Strategic context text follows this language when both EN/VI are available.
               </div>
             </div>
+            <div style={{ padding: '14px 16px', display: 'flex', alignItems: 'center', gap: '12px' }}>
+              <select
+                className="job-interval-select"
+                value={uiLanguage}
+                onChange={(e) => handleLanguageChange(e.target.value === 'en' ? 'en' : 'vi')}
+                style={{ minWidth: '160px' }}
+              >
+                <option value="vi">Tiếng Việt</option>
+                <option value="en">English</option>
+              </select>
+            </div>
           </div>
-          <button
-            disabled
-            style={{
-              width: 44, height: 24, borderRadius: '999px', border: 'none',
-              background: 'var(--gray-300)', cursor: 'not-allowed',
-              position: 'relative', flexShrink: 0,
-            }}
-          >
-            <span style={{
-              position: 'absolute', top: 3, left: 3,
-              width: 18, height: 18, borderRadius: '50%',
-              background: '#fff', boxShadow: '0 1px 3px rgba(0,0,0,0.2)',
-            }} />
-          </button>
+
+          {/* Notifications */}
+          <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
+            <div style={{ padding: '12px 16px', borderBottom: '1px solid var(--gray-100)', background: 'var(--gray-50)' }}>
+              <div style={{ fontSize: '13px', fontWeight: 600, color: 'var(--gray-700)' }}>Notifications</div>
+              <div style={{ fontSize: '11px', color: 'var(--gray-400)', marginTop: '2px' }}>
+                Manage outbound alert channels for AI recommendations.
+              </div>
+            </div>
+            <div style={{ padding: '12px 16px', display: 'flex', flexDirection: 'column', gap: '10px' }}>
+
+              {/* Telegram row */}
+              <div style={{
+                display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                padding: '12px 14px', borderRadius: '8px',
+                border: `1px solid ${telegramEnabled ? '#bfdbfe' : 'var(--gray-200)'}`,
+                background: telegramEnabled ? '#eff6ff' : 'var(--gray-50)',
+                gap: '12px', flexWrap: 'wrap',
+              }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '10px', minWidth: 0 }}>
+                  <span style={{ fontSize: '18px' }}>✈️</span>
+                  <div>
+                    <div style={{ fontSize: '13px', fontWeight: 600, color: 'var(--gray-900)' }}>Telegram</div>
+                    <div style={{ fontSize: '11px', color: 'var(--gray-500)', marginTop: '1px' }}>
+                      Gửi khuyến nghị AI qua Telegram Bot
+                    </div>
+                  </div>
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexShrink: 0 }}>
+                  <select
+                    className="job-interval-select"
+                    value={notificationLanguage}
+                    onChange={(e) => handleNotificationLanguage(e.target.value as 'vi' | 'en' | 'both')}
+                    disabled={!telegramEnabled}
+                    style={{ minWidth: '110px', opacity: telegramEnabled ? 1 : 0.45 }}
+                    title="Ngôn ngữ tin nhắn"
+                  >
+                    <option value="vi">Tiếng Việt</option>
+                    <option value="en">English</option>
+                    <option value="both">EN + VI</option>
+                  </select>
+                  <Toggle on={telegramEnabled} onChange={handleTelegramToggle} />
+                  <span style={{ fontSize: '11px', fontWeight: 600, color: telegramEnabled ? '#2563eb' : 'var(--gray-400)', minWidth: 26 }}>
+                    {telegramEnabled ? 'ON' : 'OFF'}
+                  </span>
+                </div>
+              </div>
+
+              {/* Zalo row — coming soon */}
+              <div style={{
+                display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                padding: '12px 14px', borderRadius: '8px',
+                border: '1px solid var(--gray-200)',
+                background: 'var(--gray-50)',
+                gap: '12px', opacity: 0.55,
+              }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                  <span style={{ fontSize: '18px' }}>💬</span>
+                  <div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                      <span style={{ fontSize: '13px', fontWeight: 600, color: 'var(--gray-900)' }}>Zalo</span>
+                      <span style={{ fontSize: '10px', fontWeight: 700, padding: '1px 6px', borderRadius: '999px', background: '#fde68a', color: '#92400e' }}>
+                        Coming soon
+                      </span>
+                    </div>
+                    <div style={{ fontSize: '11px', color: 'var(--gray-500)', marginTop: '1px' }}>Gửi thông báo qua Zalo OA</div>
+                  </div>
+                </div>
+                <Toggle on={false} onChange={() => {}} disabled />
+              </div>
+
+            </div>
+          </div>
         </div>
+      )}
 
-      </div>
+      {/* Tab: Scheduler */}
+      {activeTab === 'scheduler' && (
+        <div className="card" style={{ padding: '16px' }}>
+          <JobSchedulerPanel />
+        </div>
+      )}
 
-      {/* Job Scheduler Section */}
-      <div className="card-header" style={{ padding: '14px 20px' }}>
-        <div className="card-title">Ops Monitoring</div>
-      </div>
-      <div style={{ padding: '12px 16px' }}>
-        <OpsMonitoringPanel />
-      </div>
+      {/* Tab: System */}
+      {activeTab === 'system' && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+          <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
+            <div style={{ padding: '12px 16px', borderBottom: '1px solid var(--gray-100)', background: 'var(--gray-50)' }}>
+              <div style={{ fontSize: '13px', fontWeight: 600, color: 'var(--gray-700)' }}>Ops Monitoring</div>
+            </div>
+            <div style={{ padding: '12px 16px' }}>
+              <OpsMonitoringPanel />
+            </div>
+          </div>
+          <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
+            <div style={{ padding: '12px 16px', borderBottom: '1px solid var(--gray-100)', background: 'var(--gray-50)' }}>
+              <div style={{ fontSize: '13px', fontWeight: 600, color: 'var(--gray-700)' }}>Integration Health</div>
+            </div>
+            <div style={{ padding: '12px 16px' }}>
+              <IntegrationHealthPanel />
+            </div>
+          </div>
+        </div>
+      )}
 
-      {/* Job Scheduler Section */}
-      <div className="card-header" style={{ padding: '14px 20px' }}>
-        <div className="card-title">Job Scheduler</div>
-      </div>
-      <div style={{ padding: '12px 16px' }}>
-        <JobSchedulerPanel />
-      </div>
-
-      {/* Integration Health Section */}
-      <div className="card-header" style={{ padding: '14px 20px' }}>
-        <div className="card-title">Integration Health</div>
-      </div>
-      <div style={{ padding: '12px 16px' }}>
-        <IntegrationHealthPanel />
-      </div>
-
-      {/* Audit Trail Section */}
-      <div className="card-header" style={{ padding: '14px 20px' }}>
-        <div className="card-title">Audit Trail</div>
-      </div>
-      <div style={{ padding: '12px 16px' }}>
-        <AuditLogsPanel />
-      </div>
+      {/* Tab: Audit */}
+      {activeTab === 'audit' && (
+        <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
+          <div style={{ padding: '12px 16px', borderBottom: '1px solid var(--gray-100)', background: 'var(--gray-50)' }}>
+            <div style={{ fontSize: '13px', fontWeight: 600, color: 'var(--gray-700)' }}>Audit Trail</div>
+          </div>
+          <div style={{ padding: '12px 16px' }}>
+            <AuditLogsPanel />
+          </div>
+        </div>
+      )}
     </div>
   );
 }

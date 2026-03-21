@@ -11,6 +11,7 @@ import { fetchRecommendationsPaginated, fetchBetTypes, fetchDistinctLeagues } fr
 import { formatLocalDateTime } from '@/lib/utils/helpers';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { DatePicker } from '@/components/ui/DatePicker';
+import { loadMonitorConfig } from '@/features/live-monitor/config';
 import type { Recommendation } from '@/types';
 
 type ViewMode = 'cards' | 'table';
@@ -32,6 +33,7 @@ const SORT_COL_MAP: Record<string, string> = {
 export function RecommendationsTab() {
   const { state } = useAppState();
   const { config, leagues: appLeagues } = state;
+  const notificationLang = useMemo(() => loadMonitorConfig().NOTIFICATION_LANGUAGE ?? 'vi', []);
   const [page, setPage] = useState(1);
 
   // Filters
@@ -303,6 +305,7 @@ export function RecommendationsTab() {
                 <RecommendationCard
                   key={rec.id ?? i}
                   rec={rec}
+                  lang={notificationLang}
                   onViewMatch={(id, display) => setDetailMatch({ id, display })}
                 />
               ))}

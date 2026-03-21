@@ -4,6 +4,7 @@
 
 import type { FastifyInstance } from 'fastify';
 import * as repo from '../repos/leagues.repo.js';
+import * as profileRepo from '../repos/league-profiles.repo.js';
 import { fetchAllLeagues, type ApiLeague } from '../lib/football-api.js';
 import { getRedisClient } from '../lib/redis.js';
 
@@ -93,6 +94,56 @@ async function invalidateActiveLeaguesCache(): Promise<void> {
   try { await getRedisClient().del(ACTIVE_CACHE_KEY); } catch { /* ignore */ }
 }
 
+const TIER5_VALUES = new Set(['very_low', 'low', 'balanced', 'high', 'very_high']);
+const TIER3_VALUES = new Set(['low', 'medium', 'high']);
+const HOME_ADVANTAGE_VALUES = new Set(['low', 'normal', 'high']);
+
+function parseNullableNumber(value: unknown): number | null {
+  if (value == null || value === '') return null;
+  const num = Number(value);
+  return Number.isFinite(num) ? num : null;
+}
+
+function normalizeProfilePayload(body: Record<string, unknown>): profileRepo.LeagueProfileInput | null {
+  const tempoTier = String(body.tempo_tier ?? '').trim();
+  const goalTendency = String(body.goal_tendency ?? '').trim();
+  const homeAdvantageTier = String(body.home_advantage_tier ?? '').trim();
+  const cornersTendency = String(body.corners_tendency ?? '').trim();
+  const cardsTendency = String(body.cards_tendency ?? '').trim();
+  const volatilityTier = String(body.volatility_tier ?? '').trim();
+  const dataReliabilityTier = String(body.data_reliability_tier ?? '').trim();
+
+  if (
+    !TIER5_VALUES.has(tempoTier)
+    || !TIER5_VALUES.has(goalTendency)
+    || !HOME_ADVANTAGE_VALUES.has(homeAdvantageTier)
+    || !TIER5_VALUES.has(cornersTendency)
+    || !TIER5_VALUES.has(cardsTendency)
+    || !TIER3_VALUES.has(volatilityTier)
+    || !TIER3_VALUES.has(dataReliabilityTier)
+  ) {
+    return null;
+  }
+
+  return {
+    tempo_tier: tempoTier as profileRepo.LeagueProfileTier5,
+    goal_tendency: goalTendency as profileRepo.LeagueProfileTier5,
+    home_advantage_tier: homeAdvantageTier as profileRepo.LeagueProfileHomeAdvantageTier,
+    corners_tendency: cornersTendency as profileRepo.LeagueProfileTier5,
+    cards_tendency: cardsTendency as profileRepo.LeagueProfileTier5,
+    volatility_tier: volatilityTier as profileRepo.LeagueProfileTier3,
+    data_reliability_tier: dataReliabilityTier as profileRepo.LeagueProfileTier3,
+    avg_goals: parseNullableNumber(body.avg_goals),
+    over_2_5_rate: parseNullableNumber(body.over_2_5_rate),
+    btts_rate: parseNullableNumber(body.btts_rate),
+    late_goal_rate_75_plus: parseNullableNumber(body.late_goal_rate_75_plus),
+    avg_corners: parseNullableNumber(body.avg_corners),
+    avg_cards: parseNullableNumber(body.avg_cards),
+    notes_en: String(body.notes_en ?? '').trim(),
+    notes_vi: String(body.notes_vi ?? '').trim(),
+  };
+}
+
 export async function leagueRoutes(app: FastifyInstance) {
   app.get('/api/leagues', async () => {
     return repo.getAllLeagues();
@@ -135,6 +186,50 @@ export async function leagueRoutes(app: FastifyInstance) {
 
   app.get('/api/leagues/top', async () => {
     return repo.getTopLeagues();
+  });
+
+  app.get('/api/league-profiles', async () => {
+    return profileRepo.getAllLeagueProfiles();
+  });
+
+  app.get<{ Params: { id: string } }>('/api/leagues/:id/profile', async (req, reply) => {
+    const id = Number(req.params.id);
+    if (Number.isNaN(id)) return reply.code(400).send({ error: 'Invalid league ID' });
+    const league = await repo.getLeagueById(id);
+    if (!league) return reply.code(404).send({ error: 'League not found' });
+    const profile = await profileRepo.getLeagueProfileByLeagueId(id);
+    if (!profile) return reply.code(404).send({ error: 'League profile not found' });
+    return profile;
+  });
+
+  app.put<{ Params: { id: string }; Body: Record<string, unknown> }>(
+    '/api/leagues/:id/profile',
+    async (req, reply) => {
+      const id = Number(req.params.id);
+      if (Number.isNaN(id)) return reply.code(400).send({ error: 'Invalid league ID' });
+      const league = await repo.getLeagueById(id);
+      if (!league) return reply.code(404).send({ error: 'League not found' });
+
+      const payload = normalizeProfilePayload(req.body ?? {});
+      if (!payload) {
+        return reply.code(400).send({ error: 'Invalid league profile payload' });
+      }
+
+      const saved = await profileRepo.upsertLeagueProfile(id, payload);
+      void invalidateActiveLeaguesCache();
+      return saved;
+    },
+  );
+
+  app.delete<{ Params: { id: string } }>('/api/leagues/:id/profile', async (req, reply) => {
+    const id = Number(req.params.id);
+    if (Number.isNaN(id)) return reply.code(400).send({ error: 'Invalid league ID' });
+    const league = await repo.getLeagueById(id);
+    if (!league) return reply.code(404).send({ error: 'League not found' });
+    const ok = await profileRepo.deleteLeagueProfile(id);
+    if (!ok) return reply.code(404).send({ error: 'League profile not found' });
+    void invalidateActiveLeaguesCache();
+    return { league_id: id, deleted: true };
   });
 
   app.put<{ Params: { id: string }; Body: { top_league: boolean } }>(

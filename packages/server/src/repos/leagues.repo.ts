@@ -14,32 +14,71 @@ export interface LeagueRow {
   type: string;
   logo: string;
   last_updated: string;
+  has_profile?: boolean;
+  profile_updated_at?: string | null;
+  profile_volatility_tier?: string | null;
+  profile_data_reliability_tier?: string | null;
 }
 
 export async function getAllLeagues(): Promise<LeagueRow[]> {
   const result = await query<LeagueRow>(
-    'SELECT * FROM leagues ORDER BY country, tier, league_name',
+    `SELECT
+       l.*,
+       (lp.league_id IS NOT NULL) AS has_profile,
+       lp.updated_at AS profile_updated_at,
+       lp.volatility_tier AS profile_volatility_tier,
+       lp.data_reliability_tier AS profile_data_reliability_tier
+     FROM leagues l
+     LEFT JOIN league_profiles lp ON lp.league_id = l.league_id
+     ORDER BY l.country, l.tier, l.league_name`,
   );
   return result.rows;
 }
 
 export async function getActiveLeagues(): Promise<LeagueRow[]> {
   const result = await query<LeagueRow>(
-    'SELECT * FROM leagues WHERE active = TRUE ORDER BY country, tier, league_name',
+    `SELECT
+       l.*,
+       (lp.league_id IS NOT NULL) AS has_profile,
+       lp.updated_at AS profile_updated_at,
+       lp.volatility_tier AS profile_volatility_tier,
+       lp.data_reliability_tier AS profile_data_reliability_tier
+     FROM leagues l
+     LEFT JOIN league_profiles lp ON lp.league_id = l.league_id
+     WHERE l.active = TRUE
+     ORDER BY l.country, l.tier, l.league_name`,
   );
   return result.rows;
 }
 
 export async function getLeagueById(leagueId: number): Promise<LeagueRow | null> {
-  const result = await query<LeagueRow>('SELECT * FROM leagues WHERE league_id = $1', [
-    leagueId,
-  ]);
+  const result = await query<LeagueRow>(
+    `SELECT
+       l.*,
+       (lp.league_id IS NOT NULL) AS has_profile,
+       lp.updated_at AS profile_updated_at,
+       lp.volatility_tier AS profile_volatility_tier,
+       lp.data_reliability_tier AS profile_data_reliability_tier
+     FROM leagues l
+     LEFT JOIN league_profiles lp ON lp.league_id = l.league_id
+     WHERE l.league_id = $1`,
+    [leagueId],
+  );
   return result.rows[0] ?? null;
 }
 
 export async function getTopLeagues(): Promise<LeagueRow[]> {
   const result = await query<LeagueRow>(
-    'SELECT * FROM leagues WHERE top_league = TRUE AND active = TRUE ORDER BY country, tier, league_name',
+    `SELECT
+       l.*,
+       (lp.league_id IS NOT NULL) AS has_profile,
+       lp.updated_at AS profile_updated_at,
+       lp.volatility_tier AS profile_volatility_tier,
+       lp.data_reliability_tier AS profile_data_reliability_tier
+     FROM leagues l
+     LEFT JOIN league_profiles lp ON lp.league_id = l.league_id
+     WHERE l.top_league = TRUE AND l.active = TRUE
+     ORDER BY l.country, l.tier, l.league_name`,
   );
   return result.rows;
 }

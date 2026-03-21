@@ -117,6 +117,7 @@ export interface LiveAnalysisPromptInput {
   recommendedCondition: string;
   recommendedConditionReason: string;
   strategicContext: Record<string, unknown> | null;
+  leagueProfile?: Record<string, unknown> | null;
   analysisMode?: PromptAnalysisMode;
   forceAnalyze: boolean;
   isManualPush?: boolean;
@@ -423,6 +424,59 @@ function getStrategicQuantitative(strategicContext: Record<string, unknown>): Re
   ) as Record<string, number>;
 }
 
+function getLeagueProfileQuantitative(leagueProfile: Record<string, unknown>): Record<string, number> {
+  return Object.fromEntries(
+    [
+      'avg_goals',
+      'over_2_5_rate',
+      'btts_rate',
+      'late_goal_rate_75_plus',
+      'avg_corners',
+      'avg_cards',
+    ]
+      .map((key) => [key, leagueProfile[key]] as const)
+      .filter(([, value]) => typeof value === 'number'),
+  ) as Record<string, number>;
+}
+
+function buildLeagueProfileSection(leagueProfile: Record<string, unknown> | null): string {
+  if (!leagueProfile || typeof leagueProfile !== 'object') return '';
+  const quantitative = getLeagueProfileQuantitative(leagueProfile);
+  const lines: string[] = [];
+
+  const push = (label: string, value: unknown) => {
+    const text = readStrategicText(value);
+    if (text) lines.push(`${label}: ${text}`);
+  };
+
+  push('TEMPO_TIER', leagueProfile.tempo_tier);
+  push('GOAL_TENDENCY', leagueProfile.goal_tendency);
+  push('HOME_ADVANTAGE_TIER', leagueProfile.home_advantage_tier);
+  push('CORNERS_TENDENCY', leagueProfile.corners_tendency);
+  push('CARDS_TENDENCY', leagueProfile.cards_tendency);
+  push('VOLATILITY_TIER', leagueProfile.volatility_tier);
+  push('DATA_RELIABILITY_TIER', leagueProfile.data_reliability_tier);
+  if (Object.keys(quantitative).length > 0) {
+    lines.push(`LEAGUE_BASELINES: ${JSON.stringify(quantitative)}`);
+  }
+  const notes = readStrategicText(leagueProfile.notes_en);
+  if (notes) lines.push(`LEAGUE_PROFILE_NOTES: ${notes}`);
+  if (lines.length === 0) return '';
+
+  return `========================
+LEAGUE PROFILE
+========================
+${lines.join('\n')}
+
+LEAGUE PROFILE RULES:
+- Treat league profile as a competition prior only. It calibrates expectations but never overrides strong live evidence.
+- Low DATA_RELIABILITY_TIER means you should be more conservative, especially for niche markets and thin evidence.
+- High VOLATILITY_TIER means wider outcome spread: require cleaner value gaps and avoid aggressive confidence.
+- Goal / BTTS / corners / cards baselines should support a market only when live evidence and current game state agree.
+
+`;
+}
+
 function buildStrategicContextSection(strategicContext: Record<string, unknown> | null): string {
   if (!strategicContext || typeof strategicContext !== 'object') return '';
   const ctx = strategicContext;
@@ -635,6 +689,42 @@ function buildStrategicContextSectionCompact(strategicContext: Record<string, un
   lines.push('- Goal/BTTS/clean-sheet priors support a market only if live evidence agrees.');
   lines.push('');
   return lines.join('\n');
+}
+
+function buildLeagueProfileSectionCompact(leagueProfile: Record<string, unknown> | null): string {
+  if (!leagueProfile || typeof leagueProfile !== 'object') return '';
+  const quantitative = getLeagueProfileQuantitative(leagueProfile);
+  const lines: string[] = [];
+
+  const push = (label: string, value: unknown) => {
+    const text = readStrategicText(value);
+    if (text) lines.push(`${label}: ${text}`);
+  };
+
+  push('TEMPO_TIER', leagueProfile.tempo_tier);
+  push('GOAL_TENDENCY', leagueProfile.goal_tendency);
+  push('HOME_ADVANTAGE_TIER', leagueProfile.home_advantage_tier);
+  push('CORNERS_TENDENCY', leagueProfile.corners_tendency);
+  push('CARDS_TENDENCY', leagueProfile.cards_tendency);
+  push('VOLATILITY_TIER', leagueProfile.volatility_tier);
+  push('DATA_RELIABILITY_TIER', leagueProfile.data_reliability_tier);
+  if (Object.keys(quantitative).length > 0) lines.push(`LEAGUE_BASELINES: ${JSON.stringify(quantitative)}`);
+  const notes = readStrategicText(leagueProfile.notes_en);
+  if (notes) lines.push(`NOTES: ${notes}`);
+  if (lines.length === 0) return '';
+
+  return `========================
+LEAGUE PROFILE
+========================
+${lines.join('\n')}
+
+LEAGUE PROFILE RULES:
+- Competition prior only; live evidence dominates.
+- Low data reliability => lower aggression.
+- High volatility => require cleaner edges.
+- Market-specific tendencies matter only when live evidence aligns.
+
+`;
 }
 
 function buildPreviousRecommendationsSectionCompact(data: LiveAnalysisPromptInput): string {
@@ -896,7 +986,7 @@ PROMPT_VERSION: ${promptVersion}
 - Odds warning: ${oddsWarnings || 'none'}
 ${buildExactMarketContractSectionCompact(data)}
 
-${buildStrategicContextSectionCompact(data.strategicContext)}========================
+${buildStrategicContextSectionCompact(data.strategicContext)}${buildLeagueProfileSectionCompact(data.leagueProfile ?? null)}========================
 MATCH SNAPSHOT
 ========================
 - Match: ${data.homeName} vs ${data.awayName}
@@ -1100,6 +1190,7 @@ ${oddsWarnings ? `- ${oddsWarnings}` : '- No restrictions - all available market
 - Do NOT recommend any market with price < ${MIN_ODDS}.
 
 ${buildStrategicContextSection(data.strategicContext)}
+${buildLeagueProfileSection(data.leagueProfile ?? null)}
 ========================
 MATCH CONTEXT
 ========================

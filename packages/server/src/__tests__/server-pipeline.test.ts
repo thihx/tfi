@@ -74,7 +74,7 @@ vi.mock('../lib/telegram.js', () => ({
 const mockFixture = {
   fixture: { id: 100, status: { short: '2H', elapsed: 65 }, timestamp: 1700000000 },
   teams: { home: { id: 1, name: 'Team A' }, away: { id: 2, name: 'Team B' } },
-  league: { name: 'Test League' },
+  league: { id: 39, name: 'Test League' },
   goals: { home: 1, away: 1 },
 };
 
@@ -335,6 +335,27 @@ vi.mock('../repos/match-snapshots.repo.js', () => ({
 
 vi.mock('../repos/prompt-shadow-runs.repo.js', () => ({
   createPromptShadowRun: vi.fn().mockResolvedValue({ id: 1 }),
+}));
+
+vi.mock('../repos/league-profiles.repo.js', () => ({
+  getLeagueProfileByLeagueId: vi.fn().mockResolvedValue({
+    league_id: 39,
+    tempo_tier: 'high',
+    goal_tendency: 'high',
+    home_advantage_tier: 'normal',
+    corners_tendency: 'balanced',
+    cards_tendency: 'balanced',
+    volatility_tier: 'medium',
+    data_reliability_tier: 'high',
+    avg_goals: 2.9,
+    over_2_5_rate: 58,
+    btts_rate: 55,
+    late_goal_rate_75_plus: 29,
+    avg_corners: 9.4,
+    avg_cards: 4.1,
+    notes_en: 'Top league context',
+    notes_vi: 'Ngu canh giai dau top',
+  }),
 }));
 
 const {

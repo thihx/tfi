@@ -11,10 +11,23 @@ const RISK_COLORS: Record<string, { bg: string; color: string; border: string }>
 
 interface Props {
   rec: Recommendation;
+  lang?: 'en' | 'vi' | 'both';
   onViewMatch?: (matchId: string, display: string) => void;
 }
 
-function RecommendationCardBase({ rec, onViewMatch }: Props) {
+function pickReasoning(rec: Recommendation, lang?: 'en' | 'vi' | 'both'): string {
+  const en = rec.reasoning ?? '';
+  const vi = rec.reasoning_vi ?? '';
+  if (lang === 'en') return en || vi;
+  if (lang === 'both') {
+    if (en && vi && en !== vi) return `${en}\n\n${vi}`;
+    return en || vi;
+  }
+  // default: 'vi'
+  return vi || en;
+}
+
+function RecommendationCardBase({ rec, lang, onViewMatch }: Props) {
   const [reasoningExpanded, setReasoningExpanded] = useState(false);
   const [warningsExpanded, setWarningsExpanded] = useState(false);
 
@@ -26,34 +39,33 @@ function RecommendationCardBase({ rec, onViewMatch }: Props) {
   const display = rec.home_team && rec.away_team
     ? `${rec.home_team} vs ${rec.away_team}`
     : rec.match_display || 'N/A';
-  // Only show LIVE when there's no final result yet
   const isLive = rec.minute != null && (!rec.result || rec.result === 'pending');
-  // Validate score looks like "N-N", not a match_id
   const displayScore = rec.score && /^\d{1,3}-\d{1,3}$/.test(rec.score.trim()) ? rec.score : '';
+  const reasoning = pickReasoning(rec, lang);
 
   return (
-    <div className="card" style={{ padding: '0', marginBottom: '12px', overflow: 'hidden' }}>
+    <div className="card" style={{ padding: '0', marginBottom: '8px', overflow: 'hidden' }}>
 
-      {/* Header: Match + League + Time */}
+      {/* Header */}
       <div style={{
-        padding: '14px 18px 12px',
+        padding: '10px 14px 8px',
         borderBottom: '1px solid var(--gray-200)',
         background: 'linear-gradient(180deg, #fafbfc 0%, #ffffff 100%)',
         display: 'flex',
         justifyContent: 'space-between',
         alignItems: 'flex-start',
-        gap: '12px',
+        gap: '10px',
         flexWrap: 'wrap',
       }}>
         <div style={{ flex: 1, minWidth: 0 }}>
           <div
             style={{
-              fontSize: '14px',
+              fontSize: '13px',
               fontWeight: 600,
               color: rec.match_id && onViewMatch ? 'var(--gray-800)' : 'var(--gray-900)',
               cursor: rec.match_id && onViewMatch ? 'pointer' : undefined,
               letterSpacing: '-0.2px',
-              marginBottom: '3px',
+              marginBottom: '2px',
               whiteSpace: 'nowrap',
               overflow: 'hidden',
               textOverflow: 'ellipsis',
@@ -63,20 +75,19 @@ function RecommendationCardBase({ rec, onViewMatch }: Props) {
           >
             {display}
           </div>
-          <div style={{ fontSize: '12px', color: 'var(--gray-500)', display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap' }}>
+          <div style={{ fontSize: '11px', color: 'var(--gray-500)', display: 'flex', gap: '6px', alignItems: 'center', flexWrap: 'wrap' }}>
             {rec.league && <span>{rec.league}</span>}
             {rec.league && ts && <span style={{ color: 'var(--gray-300)' }}>·</span>}
             {ts && <span>{formatLocalDateTime(ts)}</span>}
           </div>
         </div>
 
-        {/* Live badge + score/minute */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexShrink: 0 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexShrink: 0 }}>
           {isLive && (
-            <span style={{ display: 'inline-flex', alignItems: 'center', gap: '5px' }}>
-              <span className="badge badge-live" style={{ fontSize: '11px', padding: '2px 7px' }}>LIVE</span>
-              {displayScore && <span style={{ fontWeight: 700, fontSize: '14px', color: 'var(--gray-900)' }}>{displayScore}</span>}
-              <span style={{ fontSize: '12px', color: 'var(--gray-500)' }}>{rec.minute}&apos;</span>
+            <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+              <span className="badge badge-live" style={{ fontSize: '10px', padding: '2px 6px' }}>LIVE</span>
+              {displayScore && <span style={{ fontWeight: 700, fontSize: '13px', color: 'var(--gray-900)' }}>{displayScore}</span>}
+              <span style={{ fontSize: '11px', color: 'var(--gray-500)' }}>{rec.minute}&apos;</span>
             </span>
           )}
           {rec.result && <StatusBadge status={rec.result.toUpperCase()} />}
@@ -84,42 +95,36 @@ function RecommendationCardBase({ rec, onViewMatch }: Props) {
       </div>
 
       {/* Core Bet Info */}
-      <div style={{ padding: '14px 18px', display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(110px, 1fr))', gap: '12px' }}>
+      <div style={{ padding: '10px 14px', display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(90px, 1fr))', gap: '8px' }}>
 
-        {/* Selection */}
         <div>
-          <div style={{ fontSize: '10px', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.5px', color: 'var(--gray-400)', marginBottom: '3px' }}>Selection</div>
-          <div style={{ fontWeight: 600, color: 'var(--gray-900)', fontSize: '13px' }}>{rec.selection || '—'}</div>
+          <div style={{ fontSize: '10px', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.5px', color: 'var(--gray-400)', marginBottom: '2px' }}>Selection</div>
+          <div style={{ fontWeight: 600, color: 'var(--gray-900)', fontSize: '12px' }}>{rec.selection || '—'}</div>
           {(rec.bet_market || rec.bet_type) && (
-            <div style={{ fontSize: '11px', color: 'var(--gray-500)', marginTop: '2px' }}>{rec.bet_market || rec.bet_type}</div>
+            <div style={{ fontSize: '11px', color: 'var(--gray-500)', marginTop: '1px' }}>{rec.bet_market || rec.bet_type}</div>
           )}
         </div>
 
-        {/* Odds */}
         <div>
-          <div style={{ fontSize: '10px', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.5px', color: 'var(--gray-400)', marginBottom: '3px' }}>Odds</div>
-          <div style={{ fontWeight: 700, fontSize: '15px', color: 'var(--gray-800)' }}>{rec.odds || '—'}</div>
+          <div style={{ fontSize: '10px', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.5px', color: 'var(--gray-400)', marginBottom: '2px' }}>Odds</div>
+          <div style={{ fontWeight: 700, fontSize: '14px', color: 'var(--gray-800)' }}>{rec.odds || '—'}</div>
         </div>
 
-        {/* Confidence */}
         {conf != null && (
           <div>
-            <div style={{ fontSize: '10px', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.5px', color: 'var(--gray-400)', marginBottom: '3px' }}>Confidence</div>
-            <div style={{ fontWeight: 600, fontSize: '13px', color: 'var(--gray-700)' }}>
-              {conf}/10
-            </div>
-            <div style={{ height: '3px', background: 'var(--gray-200)', borderRadius: '2px', marginTop: '4px', overflow: 'hidden' }}>
+            <div style={{ fontSize: '10px', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.5px', color: 'var(--gray-400)', marginBottom: '2px' }}>Confidence</div>
+            <div style={{ fontWeight: 600, fontSize: '12px', color: 'var(--gray-700)' }}>{conf}/10</div>
+            <div style={{ height: '3px', background: 'var(--gray-200)', borderRadius: '2px', marginTop: '3px', overflow: 'hidden' }}>
               <div style={{ width: `${conf * 10}%`, height: '100%', background: 'var(--gray-400)', borderRadius: '2px', transition: 'width 0.3s' }} />
             </div>
           </div>
         )}
 
-        {/* Risk */}
         {rec.risk_level && (
           <div>
-            <div style={{ fontSize: '10px', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.5px', color: 'var(--gray-400)', marginBottom: '5px' }}>Risk</div>
+            <div style={{ fontSize: '10px', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.5px', color: 'var(--gray-400)', marginBottom: '4px' }}>Risk</div>
             <span style={{
-              display: 'inline-block', padding: '2px 8px', borderRadius: '4px',
+              display: 'inline-block', padding: '1px 7px', borderRadius: '4px',
               fontSize: '11px', fontWeight: 600,
               color: riskStyle?.color ?? 'var(--gray-600)',
               background: riskStyle?.bg ?? 'var(--gray-100)',
@@ -130,31 +135,28 @@ function RecommendationCardBase({ rec, onViewMatch }: Props) {
           </div>
         )}
 
-        {/* Value % */}
         {rec.value_percent != null && (
           <div>
-            <div style={{ fontSize: '10px', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.5px', color: 'var(--gray-400)', marginBottom: '3px' }}>Value</div>
-            <div style={{ fontWeight: 600, color: 'var(--gray-700)', fontSize: '13px' }}>
+            <div style={{ fontSize: '10px', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.5px', color: 'var(--gray-400)', marginBottom: '2px' }}>Value</div>
+            <div style={{ fontWeight: 600, color: 'var(--gray-700)', fontSize: '12px' }}>
               +{parseFloat(String(rec.value_percent)).toFixed(1)}%
             </div>
           </div>
         )}
 
-        {/* Stake */}
         {rec.stake_percent != null && (
           <div>
-            <div style={{ fontSize: '10px', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.5px', color: 'var(--gray-400)', marginBottom: '3px' }}>Stake</div>
-            <div style={{ fontWeight: 600, color: 'var(--gray-700)', fontSize: '13px' }}>
+            <div style={{ fontSize: '10px', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.5px', color: 'var(--gray-400)', marginBottom: '2px' }}>Stake</div>
+            <div style={{ fontWeight: 600, color: 'var(--gray-700)', fontSize: '12px' }}>
               {parseFloat(String(rec.stake_percent)).toFixed(0)}%
             </div>
           </div>
         )}
 
-        {/* P/L */}
         {pnlVal != null && (
           <div>
-            <div style={{ fontSize: '10px', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.5px', color: 'var(--gray-400)', marginBottom: '3px' }}>P/L</div>
-            <div style={{ fontWeight: 600, fontSize: '13px', color: pnlPositive ? '#15803d' : '#b91c1c' }}>
+            <div style={{ fontSize: '10px', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.5px', color: 'var(--gray-400)', marginBottom: '2px' }}>P/L</div>
+            <div style={{ fontWeight: 600, fontSize: '12px', color: pnlPositive ? '#15803d' : '#b91c1c' }}>
               {pnlPositive ? '+' : ''}${pnlVal.toFixed(2)}
             </div>
           </div>
@@ -163,53 +165,51 @@ function RecommendationCardBase({ rec, onViewMatch }: Props) {
 
       {/* Key Factors */}
       {rec.key_factors && (
-        <div style={{ padding: '8px 18px', borderTop: '1px solid var(--gray-100)', display: 'flex', gap: '8px', alignItems: 'baseline' }}>
+        <div style={{ padding: '6px 14px', borderTop: '1px solid var(--gray-100)', display: 'flex', gap: '8px', alignItems: 'baseline' }}>
           <div style={{ fontSize: '10px', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.5px', color: 'var(--gray-400)', flexShrink: 0 }}>
             Factors
           </div>
-          <div style={{ fontSize: '12px', color: 'var(--gray-600)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{rec.key_factors}</div>
+          <div style={{ fontSize: '11px', color: 'var(--gray-600)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{rec.key_factors}</div>
         </div>
       )}
 
-      {/* Warnings — collapsible, hidden when empty */}
+      {/* Warnings */}
       {rec.warnings && !(Array.isArray(rec.warnings) && rec.warnings.length === 0) && String(rec.warnings) !== '[]' && String(rec.warnings).trim() !== '' && (
         <div style={{ borderTop: '1px solid var(--gray-100)' }}>
           <button
             style={{
-              width: '100%', padding: '9px 18px', background: 'none', border: 'none',
+              width: '100%', padding: '7px 14px', background: 'none', border: 'none',
               cursor: 'pointer', textAlign: 'left', display: 'flex', justifyContent: 'space-between', alignItems: 'center',
             }}
             onClick={() => setWarningsExpanded((v) => !v)}
           >
-            <span style={{ fontSize: '12px', fontWeight: 600, color: '#92400e' }}>Warnings</span>
+            <span style={{ fontSize: '11px', fontWeight: 600, color: '#92400e' }}>Warnings</span>
             <span style={{ fontSize: '10px', color: 'var(--gray-400)' }}>{warningsExpanded ? '▲' : '▼'}</span>
           </button>
           {warningsExpanded && (
-            <div style={{ padding: '0 18px 14px', fontSize: '12px', color: '#92400e', lineHeight: 1.6 }}>
+            <div style={{ padding: '0 14px 10px', fontSize: '11px', color: '#92400e', lineHeight: 1.6 }}>
               {String(rec.warnings)}
             </div>
           )}
         </div>
       )}
 
-      {/* AI Reasoning (collapsible) */}
-      {rec.reasoning && (
+      {/* AI Reasoning */}
+      {reasoning && (
         <div style={{ borderTop: '1px solid var(--gray-100)' }}>
           <button
             style={{
-              width: '100%', padding: '9px 18px', background: 'none', border: 'none',
+              width: '100%', padding: '7px 14px', background: 'none', border: 'none',
               cursor: 'pointer', textAlign: 'left', display: 'flex', justifyContent: 'space-between', alignItems: 'center',
             }}
             onClick={() => setReasoningExpanded((v) => !v)}
           >
-            <span style={{ fontSize: '12px', fontWeight: 600, color: 'var(--gray-500)' }}>
-              AI Reasoning
-            </span>
+            <span style={{ fontSize: '11px', fontWeight: 600, color: 'var(--gray-500)' }}>AI Reasoning</span>
             <span style={{ fontSize: '10px', color: 'var(--gray-400)' }}>{reasoningExpanded ? '▲' : '▼'}</span>
           </button>
           {reasoningExpanded && (
-            <div style={{ padding: '0 18px 14px', fontSize: '13px', color: 'var(--gray-600)', lineHeight: 1.6 }}>
-              {rec.reasoning}
+            <div style={{ padding: '0 14px 10px', fontSize: '12px', color: 'var(--gray-600)', lineHeight: 1.6, whiteSpace: 'pre-wrap' }}>
+              {reasoning}
             </div>
           )}
         </div>
@@ -218,17 +218,17 @@ function RecommendationCardBase({ rec, onViewMatch }: Props) {
       {/* Outcome / FT score footer */}
       {(rec.ft_score || rec.actual_outcome) && (
         <div style={{
-          padding: '9px 18px', borderTop: '1px solid var(--gray-200)',
+          padding: '7px 14px', borderTop: '1px solid var(--gray-200)',
           background: 'linear-gradient(180deg, #ffffff 0%, #fafbfc 100%)',
-          display: 'flex', gap: '16px', alignItems: 'center', flexWrap: 'wrap',
+          display: 'flex', gap: '14px', alignItems: 'center', flexWrap: 'wrap',
         }}>
           {rec.ft_score && (
-            <span style={{ fontSize: '12px', color: 'var(--gray-600)', fontWeight: 600 }}>
+            <span style={{ fontSize: '11px', color: 'var(--gray-600)', fontWeight: 600 }}>
               FT: <span style={{ color: 'var(--gray-900)' }}>{rec.ft_score}</span>
             </span>
           )}
           {rec.actual_outcome && (
-            <span style={{ fontSize: '12px', color: 'var(--gray-500)', flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={rec.actual_outcome}>
+            <span style={{ fontSize: '11px', color: 'var(--gray-500)', flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={rec.actual_outcome}>
               {rec.actual_outcome}
             </span>
           )}

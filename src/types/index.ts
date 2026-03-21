@@ -165,6 +165,7 @@ export interface Recommendation {
   stake_percent?: number | string | null;
   stake_amount: number | string;
   reasoning?: string;
+  reasoning_vi?: string;
   key_factors?: string;
   warnings?: string;
   ai_model?: string;
@@ -179,6 +180,27 @@ export interface Recommendation {
   created_at?: string;
 }
 
+export interface LeagueProfile {
+  league_id: number;
+  tempo_tier: 'very_low' | 'low' | 'balanced' | 'high' | 'very_high';
+  goal_tendency: 'very_low' | 'low' | 'balanced' | 'high' | 'very_high';
+  home_advantage_tier: 'low' | 'normal' | 'high';
+  corners_tendency: 'very_low' | 'low' | 'balanced' | 'high' | 'very_high';
+  cards_tendency: 'very_low' | 'low' | 'balanced' | 'high' | 'very_high';
+  volatility_tier: 'low' | 'medium' | 'high';
+  data_reliability_tier: 'low' | 'medium' | 'high';
+  avg_goals: number | null;
+  over_2_5_rate: number | null;
+  btts_rate: number | null;
+  late_goal_rate_75_plus: number | null;
+  avg_corners: number | null;
+  avg_cards: number | null;
+  notes_en: string;
+  notes_vi: string;
+  created_at: string;
+  updated_at: string;
+}
+
 export interface League {
   league_id: number;
   league_name: string;
@@ -189,6 +211,10 @@ export interface League {
   type: string;
   logo: string;
   last_updated: string;
+  has_profile?: boolean;
+  profile_updated_at?: string | null;
+  profile_volatility_tier?: string | null;
+  profile_data_reliability_tier?: string | null;
 }
 
 /** @deprecated Use League instead */

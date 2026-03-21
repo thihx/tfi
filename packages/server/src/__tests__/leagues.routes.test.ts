@@ -7,10 +7,31 @@ import { buildApp } from './helpers.js';
 import type { FastifyInstance } from 'fastify';
 
 const MOCK_LEAGUES = [
-  { league_id: 39, league_name: 'Premier League', country: 'England', tier: '1', active: true, top_league: false, type: 'League', logo: '', last_updated: '' },
-  { league_id: 140, league_name: 'La Liga', country: 'Spain', tier: '1', active: true, top_league: true, type: 'League', logo: '', last_updated: '' },
-  { league_id: 2, league_name: 'UEFA Champions League', country: 'World', tier: 'International', active: true, top_league: true, type: 'Cup', logo: '', last_updated: '' },
+  { league_id: 39, league_name: 'Premier League', country: 'England', tier: '1', active: true, top_league: false, type: 'League', logo: '', last_updated: '', has_profile: true, profile_updated_at: '2026-03-22T00:00:00Z', profile_volatility_tier: 'medium', profile_data_reliability_tier: 'high' },
+  { league_id: 140, league_name: 'La Liga', country: 'Spain', tier: '1', active: true, top_league: true, type: 'League', logo: '', last_updated: '', has_profile: false, profile_updated_at: null, profile_volatility_tier: null, profile_data_reliability_tier: null },
+  { league_id: 2, league_name: 'UEFA Champions League', country: 'World', tier: 'International', active: true, top_league: true, type: 'Cup', logo: '', last_updated: '', has_profile: false, profile_updated_at: null, profile_volatility_tier: null, profile_data_reliability_tier: null },
 ];
+
+const MOCK_PROFILE = {
+  league_id: 39,
+  tempo_tier: 'high',
+  goal_tendency: 'high',
+  home_advantage_tier: 'normal',
+  corners_tendency: 'balanced',
+  cards_tendency: 'low',
+  volatility_tier: 'medium',
+  data_reliability_tier: 'high',
+  avg_goals: 2.95,
+  over_2_5_rate: 61,
+  btts_rate: 57,
+  late_goal_rate_75_plus: 31,
+  avg_corners: 9.8,
+  avg_cards: 3.7,
+  notes_en: 'Fast, transition-heavy league.',
+  notes_vi: 'Giai dau co toc do cao.',
+  created_at: '2026-03-22T00:00:00Z',
+  updated_at: '2026-03-22T00:00:00Z',
+};
 
 vi.mock('../repos/leagues.repo.js', () => ({
   getAllLeagues: vi.fn().mockResolvedValue(MOCK_LEAGUES),
@@ -32,6 +53,19 @@ vi.mock('../repos/leagues.repo.js', () => ({
     Promise.resolve(ids.length),
   ),
   upsertLeagues: vi.fn().mockResolvedValue(0),
+}));
+
+vi.mock('../repos/league-profiles.repo.js', () => ({
+  getAllLeagueProfiles: vi.fn().mockResolvedValue([MOCK_PROFILE]),
+  getLeagueProfileByLeagueId: vi.fn().mockImplementation((id: number) =>
+    Promise.resolve(id === 39 ? MOCK_PROFILE : null),
+  ),
+  upsertLeagueProfile: vi.fn().mockImplementation((id: number, payload: Record<string, unknown>) =>
+    Promise.resolve({ ...MOCK_PROFILE, ...payload, league_id: id }),
+  ),
+  deleteLeagueProfile: vi.fn().mockImplementation((id: number) =>
+    Promise.resolve(id === 39),
+  ),
 }));
 
 // Mock Football API (for fetch-from-api endpoint)
@@ -95,6 +129,71 @@ describe('GET /api/leagues/top', () => {
     const body = res.json();
     expect(body).toHaveLength(2);
     expect(body.every((l: { top_league: boolean }) => l.top_league)).toBe(true);
+  });
+});
+
+describe('League profile routes', () => {
+  test('lists all league profiles', async () => {
+    const res = await app.inject({ method: 'GET', url: '/api/league-profiles' });
+    expect(res.statusCode).toBe(200);
+    expect(res.json()).toHaveLength(1);
+    expect(res.json()[0].league_id).toBe(39);
+  });
+
+  test('gets league profile by league id', async () => {
+    const res = await app.inject({ method: 'GET', url: '/api/leagues/39/profile' });
+    expect(res.statusCode).toBe(200);
+    expect(res.json().tempo_tier).toBe('high');
+  });
+
+  test('returns 404 when league profile is missing', async () => {
+    const res = await app.inject({ method: 'GET', url: '/api/leagues/140/profile' });
+    expect(res.statusCode).toBe(404);
+    expect(res.json().error).toBe('League profile not found');
+  });
+
+  test('upserts league profile', async () => {
+    const res = await app.inject({
+      method: 'PUT',
+      url: '/api/leagues/140/profile',
+      payload: {
+        tempo_tier: 'balanced',
+        goal_tendency: 'balanced',
+        home_advantage_tier: 'normal',
+        corners_tendency: 'balanced',
+        cards_tendency: 'balanced',
+        volatility_tier: 'medium',
+        data_reliability_tier: 'medium',
+        avg_goals: 2.5,
+        over_2_5_rate: 50,
+        btts_rate: 48,
+        late_goal_rate_75_plus: 28,
+        avg_corners: 9.1,
+        avg_cards: 4.2,
+        notes_en: 'Balanced profile',
+        notes_vi: 'Profile can bang',
+      },
+    });
+    expect(res.statusCode).toBe(200);
+    expect(res.json().league_id).toBe(140);
+    expect(res.json().tempo_tier).toBe('balanced');
+  });
+
+  test('rejects invalid league profile payload', async () => {
+    const res = await app.inject({
+      method: 'PUT',
+      url: '/api/leagues/140/profile',
+      payload: {
+        tempo_tier: 'wild',
+      },
+    });
+    expect(res.statusCode).toBe(400);
+  });
+
+  test('deletes league profile', async () => {
+    const res = await app.inject({ method: 'DELETE', url: '/api/leagues/39/profile' });
+    expect(res.statusCode).toBe(200);
+    expect(res.json()).toEqual({ league_id: 39, deleted: true });
   });
 });
 

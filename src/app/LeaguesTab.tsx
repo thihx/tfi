@@ -1,13 +1,15 @@
 import { useState, useEffect, useMemo, useCallback, memo, useRef } from 'react';
 import { Pagination } from '@/components/ui/Pagination';
 import { LeagueFixturesDialog } from '@/components/ui/LeagueFixturesDialog';
+import { LeagueProfileModal } from '@/components/ui/LeagueProfileModal';
 import { useAppState } from '@/hooks/useAppState';
 import { useToast } from '@/hooks/useToast';
 import {
   fetchApprovedLeagues, toggleLeagueActive, bulkSetLeagueActive, fetchLeaguesFromApi,
   toggleLeagueTopLeague, bulkSetTopLeague,
+  fetchLeagueProfile, saveLeagueProfile, deleteLeagueProfile,
 } from '@/lib/services/api';
-import type { League } from '@/types';
+import type { League, LeagueProfile } from '@/types';
 
 // ── Constants ──
 
@@ -42,13 +44,14 @@ interface LeagueRowProps {
   onToggle: (id: number, active: boolean) => void;
   onToggleTop: (id: number, topLeague: boolean) => void;
   onViewFixtures: (league: League) => void;
+  onEditProfile: (league: League) => void;
   selected: boolean;
   onSelect: (id: number) => void;
   toggling: boolean;
   togglingTop: boolean;
 }
 
-const LeagueRow = memo(function LeagueRow({ league, onToggle, onToggleTop, onViewFixtures, selected, onSelect, toggling, togglingTop }: LeagueRowProps) {
+const LeagueRow = memo(function LeagueRow({ league, onToggle, onToggleTop, onViewFixtures, onEditProfile, selected, onSelect, toggling, togglingTop }: LeagueRowProps) {
   return (
     <tr className={`league-row ${league.active ? '' : 'inactive'}`}>
       <td style={{ width: 36 }}>
@@ -92,6 +95,16 @@ const LeagueRow = memo(function LeagueRow({ league, onToggle, onToggleTop, onVie
           {togglingTop ? <span className="inline-spinner" style={{ width: 12, height: 12 }} /> : (league.top_league ? '⭐' : '☆')}
         </button>
       </td>
+      <td style={{ width: 118, textAlign: 'center' }}>
+        <button
+          className="btn btn-secondary"
+          onClick={() => onEditProfile(league)}
+          style={{ fontSize: 11, padding: '4px 8px', whiteSpace: 'nowrap' }}
+          title={league.has_profile ? 'Edit league profile' : 'Create league profile'}
+        >
+          {league.has_profile ? `Profile${league.profile_volatility_tier ? ` (${league.profile_volatility_tier})` : ''}` : 'Add Profile'}
+        </button>
+      </td>
       <td>
         <button
           className={`league-toggle ${league.active ? 'on' : 'off'}`}
@@ -110,6 +123,7 @@ const StatsBar = memo(function StatsBar({ leagues }: { leagues: League[] }) {
   const total = leagues.length;
   const active = leagues.filter((l) => l.active).length;
   const topCount = leagues.filter((l) => l.top_league).length;
+  const profileCount = leagues.filter((l) => l.has_profile).length;
   const byTier = useMemo(() => {
     const map: Record<string, { total: number; active: number }> = {};
     leagues.forEach((l) => {
@@ -139,6 +153,10 @@ const StatsBar = memo(function StatsBar({ leagues }: { leagues: League[] }) {
       <div className="leagues-stat top-league">
         <span className="leagues-stat-value" style={{ color: '#f59e0b' }}>{topCount}</span>
         <span className="leagues-stat-label">Top Leagues</span>
+      </div>
+      <div className="leagues-stat">
+        <span className="leagues-stat-value" style={{ color: '#0f766e' }}>{profileCount}</span>
+        <span className="leagues-stat-label">Profiles</span>
       </div>
       <div className="leagues-stats-divider" />
       {byTier.map(([tier, counts]) => (
@@ -173,6 +191,10 @@ export function LeaguesTab() {
   const [togglingTopIds, setTogglingTopIds] = useState<Set<number>>(new Set());
   const [confirmDeactivate, setConfirmDeactivate] = useState(false);
   const [fixtureLeague, setFixtureLeague] = useState<League | null>(null);
+  const [profileLeague, setProfileLeague] = useState<League | null>(null);
+  const [profileDraft, setProfileDraft] = useState<LeagueProfile | null>(null);
+  const [profileLoading, setProfileLoading] = useState(false);
+  const [profileSaving, setProfileSaving] = useState(false);
   const searchRef = useRef<HTMLInputElement>(null);
 
   // `/` key focuses search
@@ -338,6 +360,78 @@ export function LeaguesTab() {
     }
   }, [config, showToast, loadLeagues]);
 
+  const handleEditProfile = useCallback(async (league: League) => {
+    setProfileLeague(league);
+    setProfileLoading(true);
+    try {
+      const profile = await fetchLeagueProfile(config, league.league_id);
+      setProfileDraft(profile);
+    } catch (err) {
+      console.error('[LeaguesTab] load profile failed:', err);
+      setProfileDraft(null);
+      showToast('Failed to load league profile', 'error');
+    } finally {
+      setProfileLoading(false);
+    }
+  }, [config, showToast]);
+
+  const handleSaveProfile = useCallback(async (draft: Omit<LeagueProfile, 'league_id' | 'created_at' | 'updated_at'>) => {
+    if (!profileLeague) return;
+    setProfileSaving(true);
+    try {
+      const saved = await saveLeagueProfile(config, profileLeague.league_id, draft);
+      setProfileDraft(saved);
+      setAllLeagues((prev) => {
+        const next = prev.map((league) => league.league_id === profileLeague.league_id
+          ? {
+              ...league,
+              has_profile: true,
+              profile_updated_at: saved.updated_at,
+              profile_volatility_tier: saved.volatility_tier,
+              profile_data_reliability_tier: saved.data_reliability_tier,
+            }
+          : league);
+        dispatch({ type: 'SET_LEAGUES', payload: next });
+        return next;
+      });
+      showToast('League profile saved', 'success');
+    } catch (err) {
+      console.error('[LeaguesTab] save profile failed:', err);
+      showToast('Failed to save league profile', 'error');
+    } finally {
+      setProfileSaving(false);
+    }
+  }, [config, dispatch, profileLeague, showToast]);
+
+  const handleDeleteProfile = useCallback(async () => {
+    if (!profileLeague) return;
+    setProfileSaving(true);
+    try {
+      await deleteLeagueProfile(config, profileLeague.league_id);
+      setProfileDraft(null);
+      setAllLeagues((prev) => {
+        const next = prev.map((league) => league.league_id === profileLeague.league_id
+          ? {
+              ...league,
+              has_profile: false,
+              profile_updated_at: null,
+              profile_volatility_tier: null,
+              profile_data_reliability_tier: null,
+            }
+          : league);
+        dispatch({ type: 'SET_LEAGUES', payload: next });
+        return next;
+      });
+      showToast('League profile deleted', 'success');
+      setProfileLeague(null);
+    } catch (err) {
+      console.error('[LeaguesTab] delete profile failed:', err);
+      showToast('Failed to delete league profile', 'error');
+    } finally {
+      setProfileSaving(false);
+    }
+  }, [config, dispatch, profileLeague, showToast]);
+
   // Select helpers
   const handleSelect = useCallback((id: number) => {
     setSelectedIds((prev) => {
@@ -481,6 +575,7 @@ export function LeaguesTab() {
               <th style={{ width: '1%', whiteSpace: 'nowrap' }}>Tier</th>
               <th style={{ width: '1%', whiteSpace: 'nowrap' }}>Type</th>
               <th style={{ width: '1%', whiteSpace: 'nowrap', textAlign: 'center' }}>Top</th>
+              <th style={{ width: '1%', whiteSpace: 'nowrap', textAlign: 'center' }}>Profile</th>
               <th style={{ width: '1%', whiteSpace: 'nowrap', textAlign: 'center' }}>Active</th>
             </tr>
           </thead>
@@ -492,6 +587,7 @@ export function LeaguesTab() {
                 onToggleTop={handleToggleTop}
                 onToggle={handleToggle}
                 onViewFixtures={setFixtureLeague}
+                onEditProfile={handleEditProfile}
                 selected={selectedIds.has(league.league_id)}
                 onSelect={handleSelect}
                 toggling={togglingIds.has(league.league_id)}
@@ -500,7 +596,7 @@ export function LeaguesTab() {
             ))}
             {filtered.length === 0 && (
               <tr>
-                <td colSpan={8} style={{ textAlign: 'center', padding: 40, color: 'var(--gray-400)' }}>
+                <td colSpan={9} style={{ textAlign: 'center', padding: 40, color: 'var(--gray-400)' }}>
                   {search || filterTier !== 'all' || filterCountry !== 'all' || filterActive !== 'all' || filterTopLeague !== 'all'
                     ? 'No leagues match your filters'
                     : 'No leagues found. Click "Sync API" to fetch leagues.'}
@@ -516,6 +612,19 @@ export function LeaguesTab() {
     <LeagueFixturesDialog
       league={fixtureLeague}
       onClose={() => setFixtureLeague(null)}
+    />
+    <LeagueProfileModal
+      league={profileLeague}
+      profile={profileDraft}
+      loading={profileLoading}
+      saving={profileSaving}
+      onClose={() => {
+        if (profileSaving) return;
+        setProfileLeague(null);
+        setProfileDraft(null);
+      }}
+      onSave={handleSaveProfile}
+      onDelete={handleDeleteProfile}
     />
     </>
   );

@@ -53,6 +53,7 @@ import {
   type PromptAnalysisMode,
 } from './live-analysis-prompt.js';
 import { createPromptShadowRun } from '../repos/prompt-shadow-runs.repo.js';
+import { getLeagueProfileByLeagueId } from '../repos/league-profiles.repo.js';
 
 /** Resolved pipeline settings: DB values take priority, env vars as fallback */
 interface PipelineSettings {
@@ -138,6 +139,7 @@ const defaultPipelineDeps = {
   sendTelegramPhoto,
   fetchLiveScoreBenchmarkTrace,
   createPromptShadowRun,
+  getLeagueProfileByLeagueId,
 };
 
 type PipelineDeps = typeof defaultPipelineDeps;
@@ -453,6 +455,7 @@ interface PromptExecutionContext {
   recommendedCondition: string;
   recommendedConditionReason: string;
   strategicContext: Record<string, unknown> | null;
+  leagueProfile: Record<string, unknown> | null;
   analysisMode: PromptAnalysisMode;
   forceAnalyze: boolean;
   isManualPush: boolean;
@@ -1638,7 +1641,7 @@ async function processMatch(
     }
 
     // 4. Load prior context for staleness + prompt
-    const [prevRecs, latestSnapshot, historicalPerformance] = await Promise.all([
+    const [prevRecs, latestSnapshot, historicalPerformance, leagueProfile] = await Promise.all([
       options.previousRecommendations !== undefined
         ? Promise.resolve(options.previousRecommendations ?? [])
         : deps.getRecommendationsByMatchId(matchId).catch(() => []),
@@ -1646,6 +1649,9 @@ async function processMatch(
         ? Promise.resolve(options.previousSnapshot)
         : deps.getLatestSnapshot(matchId).catch(() => null),
       loadHistoricalPromptContext(deps),
+      fixture.league?.id
+        ? deps.getLeagueProfileByLeagueId(fixture.league.id).catch(() => null)
+        : Promise.resolve(null),
     ]);
 
     // Track latest state for future gating and context.
@@ -1763,6 +1769,7 @@ async function processMatch(
       derivedInsights: !statsAvailable ? derivedInsights : null,
       customConditions, recommendedCondition, recommendedConditionReason,
       strategicContext,
+      leagueProfile: leagueProfile as Record<string, unknown> | null,
       analysisMode,
       forceAnalyze,
       isManualPush: isManualForce,
@@ -1845,6 +1852,7 @@ async function processMatch(
         risk_level: parsed.risk_level,
         stake_percent: parsed.stake_percent,
         reasoning: parsed.reasoning_en,
+        reasoning_vi: parsed.reasoning_vi,
         key_factors: '',
         warnings: parsed.warnings.join(', '),
         ai_model: model,
@@ -2114,6 +2122,7 @@ function buildServerPrompt(data: {
   recommendedCondition: string;
   recommendedConditionReason: string;
   strategicContext: Record<string, unknown> | null;
+  leagueProfile: Record<string, unknown> | null;
   analysisMode: PromptAnalysisMode;
   forceAnalyze: boolean;
   isManualPush: boolean;
@@ -2150,6 +2159,7 @@ function buildServerPrompt(data: {
       recommendedCondition: data.recommendedCondition,
       recommendedConditionReason: data.recommendedConditionReason,
       strategicContext: data.strategicContext,
+      leagueProfile: data.leagueProfile,
       analysisMode: data.analysisMode,
       forceAnalyze: data.forceAnalyze,
       isManualPush: data.isManualPush,
