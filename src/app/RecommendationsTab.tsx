@@ -32,7 +32,7 @@ const SORT_COL_MAP: Record<string, string> = {
 
 export function RecommendationsTab() {
   const { state } = useAppState();
-  const { config, leagues: appLeagues } = state;
+  const { config, leagues: appLeagues, matches: appMatches } = state;
   const notificationLang = useMemo(() => loadMonitorConfig().NOTIFICATION_LANGUAGE ?? 'vi', []);
   const [page, setPage] = useState(1);
 
@@ -306,7 +306,12 @@ export function RecommendationsTab() {
                   key={rec.id ?? i}
                   rec={rec}
                   lang={notificationLang}
-                  onViewMatch={(id, display) => { if (id) setDetailMatch({ id, display }); }}
+                  onViewMatch={(id, display) => {
+                    const effectiveId = id || appMatches.find(
+                      m => m.home_team === rec.home_team && m.away_team === rec.away_team,
+                    )?.match_id || '';
+                    if (effectiveId) setDetailMatch({ id: effectiveId, display });
+                  }}
                 />
               ))}
             </div>
