@@ -13,6 +13,8 @@ export { normalizeMarket, buildDedupKey };
 
 /** SQL fragment: exclude duplicate-marked rows (IS DISTINCT FROM handles NULLs) */
 const NOT_DUP = `result IS DISTINCT FROM 'duplicate'`;
+const ACTIONABLE_REC_SQL = `bet_type IS DISTINCT FROM 'NO_BET'`;
+const ACTIONABLE_NOT_DUP = `${NOT_DUP} AND ${ACTIONABLE_REC_SQL}`;
 const FINAL_RESULT_SQL = `result IN (${FINAL_SETTLEMENT_RESULTS_SQL})`;
 const PENDING_RESULT_SQL = `(result IS NULL OR result = '' OR result NOT IN (${FINAL_SETTLEMENT_RESULTS_SQL}))`;
 
@@ -119,6 +121,8 @@ export async function getAllRecommendations(opts: PaginationOpts = {}): Promise<
     conditions.push(`r.bet_type = $${paramIdx}`);
     params.push(opts.bet_type);
     paramIdx++;
+  } else {
+    conditions.push(`r.${ACTIONABLE_REC_SQL}`);
   }
 
   // Search filter
@@ -195,7 +199,10 @@ export async function getAllRecommendations(opts: PaginationOpts = {}): Promise<
 
 export async function getRecommendationsByMatchId(matchId: string): Promise<RecommendationRow[]> {
   const r = await query<RecommendationRow>(
-    'SELECT * FROM recommendations WHERE match_id = $1 ORDER BY timestamp DESC',
+    `SELECT * FROM recommendations
+     WHERE match_id = $1
+       AND ${ACTIONABLE_REC_SQL}
+     ORDER BY timestamp DESC`,
     [matchId],
   );
   return r.rows;
@@ -493,7 +500,7 @@ export async function getStats(): Promise<RecStats> {
        COUNT(*) FILTER (WHERE result = 'duplicate')::text AS duplicates,
        COUNT(*) FILTER (WHERE ${PENDING_RESULT_SQL})::text AS unsettled,
        COALESCE(SUM(pnl), 0)::text AS total_pnl
-     FROM recommendations WHERE ${NOT_DUP}`,
+     FROM recommendations WHERE ${ACTIONABLE_NOT_DUP}`,
   );
 
   const row = r.rows[0]!;
@@ -547,14 +554,14 @@ export async function getDashboardSummary(): Promise<DashboardSummary> {
          COUNT(*) FILTER (WHERE ${PENDING_RESULT_SQL})::text AS pending,
          COALESCE(SUM(pnl) FILTER (WHERE ${FINAL_RESULT_SQL}), 0)::text AS total_pnl,
          COALESCE(SUM(COALESCE(stake_percent, 1)) FILTER (WHERE ${FINAL_RESULT_SQL}), 0)::text AS total_staked
-       FROM recommendations WHERE ${NOT_DUP}`),
+       FROM recommendations WHERE ${ACTIONABLE_NOT_DUP}`),
 
     // P/L by date (aggregated)
     query<{ date: string; daily_pnl: string }>(`
       SELECT TO_CHAR(timestamp::date, 'DD/MM') AS date,
              SUM(pnl)::text AS daily_pnl
       FROM recommendations
-      WHERE ${FINAL_RESULT_SQL} AND timestamp IS NOT NULL AND ${NOT_DUP}
+      WHERE ${FINAL_RESULT_SQL} AND timestamp IS NOT NULL AND ${ACTIONABLE_NOT_DUP}
       GROUP BY timestamp::date
       ORDER BY timestamp::date`),
 
@@ -563,14 +570,14 @@ export async function getDashboardSummary(): Promise<DashboardSummary> {
       `SELECT r.*, CASE WHEN mh.home_score IS NOT NULL THEN mh.home_score || '-' || mh.away_score ELSE NULL END AS ft_score
        FROM recommendations r
        LEFT JOIN matches_history mh ON r.match_id = mh.match_id
-       WHERE r.${NOT_DUP}
+       WHERE r.${ACTIONABLE_NOT_DUP}
        ORDER BY r.timestamp DESC LIMIT 8`,
     ),
 
     // Streak
     query<{ result: string }>(`
       SELECT result FROM recommendations
-      WHERE result IN ('win', 'loss') AND ${NOT_DUP}
+      WHERE result IN ('win', 'loss') AND ${ACTIONABLE_NOT_DUP}
       ORDER BY timestamp DESC
       LIMIT 50`),
 
@@ -579,7 +586,7 @@ export async function getDashboardSummary(): Promise<DashboardSummary> {
       SELECT
         (SELECT COUNT(*)::text FROM matches) AS match_count,
         (SELECT COUNT(*)::text FROM watchlist) AS watchlist_count,
-        (SELECT COUNT(*)::text FROM recommendations WHERE ${NOT_DUP}) AS rec_count`),
+        (SELECT COUNT(*)::text FROM recommendations WHERE ${ACTIONABLE_NOT_DUP}) AS rec_count`),
   ]);
 
   const s = statsRes.rows[0]!;
@@ -642,7 +649,11 @@ export async function getDashboardSummary(): Promise<DashboardSummary> {
 /** Get distinct bet_types for filter dropdown */
 export async function getDistinctBetTypes(): Promise<string[]> {
   const r = await query<{ bet_type: string }>(
-    `SELECT DISTINCT bet_type FROM recommendations WHERE bet_type != '' ORDER BY bet_type`,
+    `SELECT DISTINCT bet_type
+     FROM recommendations
+     WHERE bet_type != ''
+       AND ${ACTIONABLE_REC_SQL}
+     ORDER BY bet_type`,
   );
   return r.rows.map((row) => row.bet_type);
 }
@@ -650,7 +661,11 @@ export async function getDistinctBetTypes(): Promise<string[]> {
 /** Get distinct leagues for filter dropdown */
 export async function getDistinctLeagues(): Promise<string[]> {
   const r = await query<{ league: string }>(
-    `SELECT DISTINCT league FROM recommendations WHERE league != '' AND ${NOT_DUP} ORDER BY league`,
+    `SELECT DISTINCT league
+     FROM recommendations
+     WHERE league != ''
+       AND ${ACTIONABLE_NOT_DUP}
+     ORDER BY league`,
   );
   return r.rows.map((row) => row.league);
 }

@@ -1819,8 +1819,9 @@ async function processMatch(
       });
     }
 
-    // 8. Save when AI recommends (raw intent) or custom condition matched
-    const shouldSave = parsed.ai_should_push || parsed.custom_condition_matched;
+    // 8. Save only actionable AI intents. Condition-only "no bet" traces should
+    // not pollute recommendations / settlement / performance ledgers.
+    const shouldSave = parsed.ai_should_push;
     let saved = false;
     let recId: number | null = null;
     let notified = false;

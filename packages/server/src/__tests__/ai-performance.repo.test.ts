@@ -6,6 +6,7 @@ vi.mock('../db/pool.js', () => ({
 
 import { query } from '../db/pool.js';
 import {
+  backfillFromRecommendations,
   getAccuracyStats,
   getHistoricalPerformanceContext,
   settleAiPerformance,
@@ -29,6 +30,9 @@ describe('ai-performance repository', () => {
 
     expect(query).toHaveBeenCalledWith(
       expect.stringContaining('ap.predicted_odds'),
+    );
+    expect(query).toHaveBeenCalledWith(
+      expect.stringContaining("r.bet_type IS DISTINCT FROM 'NO_BET'"),
     );
     expect(context.overall).toEqual({
       settled: 10,
@@ -56,6 +60,9 @@ describe('ai-performance repository', () => {
     expect(query).toHaveBeenCalledWith(
       expect.stringContaining("NOT IN ('win','loss','push','half_win','half_loss','void')"),
     );
+    expect(query).toHaveBeenCalledWith(
+      expect.stringContaining("r.bet_type IS DISTINCT FROM 'NO_BET'"),
+    );
     expect(stats).toEqual({
       total: 12,
       correct: 5,
@@ -63,6 +70,19 @@ describe('ai-performance repository', () => {
       pending: 4,
       accuracy: 62.5,
     });
+  });
+
+  test('backfillFromRecommendations skips legacy NO_BET rows', async () => {
+    vi.mocked(query).mockResolvedValueOnce({
+      rows: [{ cnt: '7' }],
+    } as never);
+
+    const inserted = await backfillFromRecommendations();
+
+    expect(query).toHaveBeenCalledWith(
+      expect.stringContaining("r.bet_type IS DISTINCT FROM 'NO_BET'"),
+    );
+    expect(inserted).toBe(7);
   });
 
   test('settleAiPerformance persists settlement provenance metadata', async () => {

@@ -395,10 +395,15 @@ export async function getOpsMonitoringSnapshot(): Promise<OpsMonitoringSnapshot>
       bet_unresolved: string;
     }>(
       `SELECT
-         (SELECT COUNT(*) FROM recommendations WHERE settlement_status = 'pending')::text AS rec_pending,
-         (SELECT COUNT(*) FROM recommendations WHERE settlement_status = 'unresolved')::text AS rec_unresolved,
+         (SELECT COUNT(*) FROM recommendations
+           WHERE settlement_status = 'pending'
+             AND bet_type IS DISTINCT FROM 'NO_BET')::text AS rec_pending,
+         (SELECT COUNT(*) FROM recommendations
+           WHERE settlement_status = 'unresolved'
+             AND bet_type IS DISTINCT FROM 'NO_BET')::text AS rec_unresolved,
          (SELECT COUNT(*) FROM recommendations
             WHERE settlement_status = 'corrected'
+              AND bet_type IS DISTINCT FROM 'NO_BET'
               AND COALESCE(settled_at, timestamp) >= NOW() - INTERVAL '${SETTLEMENT_WINDOW_DAYS} days')::text AS rec_corrected_7d,
          (SELECT COUNT(*) FROM bets WHERE settlement_status = 'pending')::text AS bet_pending,
          (SELECT COUNT(*) FROM bets WHERE settlement_status = 'unresolved')::text AS bet_unresolved`,
@@ -409,6 +414,7 @@ export async function getOpsMonitoringSnapshot(): Promise<OpsMonitoringSnapshot>
          COUNT(*)::text AS count
        FROM recommendations
        WHERE settlement_status IN ('resolved', 'corrected')
+         AND bet_type IS DISTINCT FROM 'NO_BET'
          AND COALESCE(settled_at, timestamp) >= NOW() - INTERVAL '30 days'
        GROUP BY COALESCE(NULLIF(settlement_method, ''), 'unknown')
        ORDER BY COUNT(*) DESC`,
@@ -419,6 +425,7 @@ export async function getOpsMonitoringSnapshot(): Promise<OpsMonitoringSnapshot>
          COUNT(*)::text AS count
        FROM recommendations
        WHERE settlement_status = 'unresolved'
+         AND bet_type IS DISTINCT FROM 'NO_BET'
        GROUP BY COALESCE(NULLIF(bet_market, ''), bet_type, 'unknown')
        ORDER BY COUNT(*) DESC
        LIMIT 5`,

@@ -891,6 +891,35 @@ describe('runPipelineBatch', () => {
     expect(result.results[0].notified).toBe(false);
   });
 
+  test('does NOT save condition-only no-bet analyses into recommendations', async () => {
+    const { callGemini } = await import('../lib/gemini.js');
+    vi.mocked(callGemini).mockResolvedValueOnce(JSON.stringify({
+      should_push: false,
+      selection: '',
+      bet_market: '',
+      confidence: 0,
+      reasoning_en: 'Condition matched but no market has enough value.',
+      reasoning_vi: 'Condition match nhung khong co keo du value.',
+      warnings: ['EDGE_BELOW_MIN'],
+      value_percent: 0,
+      risk_level: 'HIGH',
+      stake_percent: 0,
+      custom_condition_matched: true,
+      condition_triggered_suggestion: 'No bet - negative EV',
+    }));
+
+    const result = await runPipelineBatch(['100']);
+    const { createRecommendation } = await import('../repos/recommendations.repo.js');
+    const { createAiPerformanceRecord } = await import('../repos/ai-performance.repo.js');
+    const { sendTelegramMessage } = await import('../lib/telegram.js');
+
+    expect(createRecommendation).not.toHaveBeenCalled();
+    expect(createAiPerformanceRecord).not.toHaveBeenCalled();
+    expect(sendTelegramMessage).not.toHaveBeenCalled();
+    expect(result.results[0].saved).toBe(false);
+    expect(result.results[0].shouldPush).toBe(false);
+  });
+
   test('force mode bypasses proceed and staleness gates', async () => {
     const footballApi = await import('../lib/football-api.js');
     vi.mocked(footballApi.fetchFixturesByIds).mockResolvedValueOnce([{

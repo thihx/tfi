@@ -191,6 +191,7 @@ export async function purgeHistoricalMatches(keepDays: number): Promise<number> 
          SELECT 1
          FROM recommendations r
          WHERE r.match_id = mh.match_id
+           AND r.bet_type IS DISTINCT FROM 'NO_BET'
            AND COALESCE(r.settlement_status, 'pending') IN ('pending', 'unresolved')
        )
        AND NOT EXISTS (

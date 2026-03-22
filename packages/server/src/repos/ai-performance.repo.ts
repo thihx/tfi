@@ -9,6 +9,8 @@ import {
 } from '../lib/settle-types.js';
 
 const PENDING_RESULT_SQL = `(r.result IS NULL OR r.result = '' OR r.result NOT IN (${FINAL_SETTLEMENT_RESULTS_SQL}))`;
+const ACTIONABLE_REC_SQL = `r.bet_type IS DISTINCT FROM 'NO_BET'`;
+const ACTIONABLE_NOT_DUP_SQL = `r.result IS DISTINCT FROM 'duplicate' AND ${ACTIONABLE_REC_SQL}`;
 
 export interface AiPerformanceRow {
   id: number;
@@ -164,7 +166,7 @@ export async function getAccuracyStats(): Promise<{
        )::text AS pending
      FROM ai_performance ap
      JOIN recommendations r ON r.id = ap.recommendation_id
-     WHERE r.result IS DISTINCT FROM 'duplicate'`,
+     WHERE ${ACTIONABLE_NOT_DUP_SQL}`,
   );
 
   const row = r.rows[0]!;
@@ -223,6 +225,7 @@ export async function backfillFromRecommendations(): Promise<number> {
        )
        AND r.ai_model <> ''
        AND r.result != 'duplicate'
+       AND r.bet_type IS DISTINCT FROM 'NO_BET'
        RETURNING 1
      )
      SELECT COUNT(*)::text AS cnt FROM inserted`,
@@ -242,7 +245,11 @@ export async function getAccuracyByModel(): Promise<
      FROM ai_performance ap
      WHERE NOT EXISTS (
        SELECT 1 FROM recommendations r
-       WHERE r.id = ap.recommendation_id AND r.result = 'duplicate'
+       WHERE r.id = ap.recommendation_id
+         AND (
+           r.result = 'duplicate'
+           OR r.bet_type = 'NO_BET'
+         )
      )
        AND ap.settlement_trusted = TRUE
      GROUP BY ai_model
@@ -261,17 +268,21 @@ export async function getAccuracyByModel(): Promise<
 }
 
 /**
- * Remove ai_performance records that belong to duplicate recommendations,
- * then re-sync from non-duplicate recommendations.
+ * Remove ai_performance records that belong to duplicate or non-actionable
+ * recommendations, then re-sync from actionable recommendations only.
  */
 export async function cleanAndResync(): Promise<{ deleted: number; backfilled: number }> {
-  // Delete records pointing to duplicates
+  // Delete records pointing to duplicates or legacy NO_BET rows.
   const del = await query<{ cnt: string }>(
     `WITH deleted AS (
        DELETE FROM ai_performance ap
        WHERE EXISTS (
          SELECT 1 FROM recommendations r
-         WHERE r.id = ap.recommendation_id AND r.result = 'duplicate'
+         WHERE r.id = ap.recommendation_id
+           AND (
+             r.result = 'duplicate'
+             OR r.bet_type = 'NO_BET'
+           )
        )
        RETURNING 1
      ) SELECT COUNT(*)::text AS cnt FROM deleted`,
@@ -307,6 +318,7 @@ export async function cleanAndResync(): Promise<{ deleted: number; backfilled: n
      FROM recommendations r
      WHERE r.id = ap.recommendation_id
        AND r.result != 'duplicate'
+       AND r.bet_type IS DISTINCT FROM 'NO_BET'
       `,
   );
 
@@ -347,7 +359,7 @@ export async function getHistoricalPerformanceContext(): Promise<HistoricalPerfo
               ap.was_correct, ap.league
        FROM ai_performance ap
        JOIN recommendations r ON r.id = ap.recommendation_id
-       WHERE r.result IS DISTINCT FROM 'duplicate'
+       WHERE ${ACTIONABLE_NOT_DUP_SQL}
          AND ap.settlement_trusted = TRUE
          AND ap.settlement_status IN ('resolved', 'corrected')
          AND ap.was_correct IS NOT NULL

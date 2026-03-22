@@ -7,7 +7,7 @@ import {
   FINAL_SETTLEMENT_RESULTS_SQL,
 } from '../lib/settle-types.js';
 
-const NOT_DUP = `result IS DISTINCT FROM 'duplicate'`;
+const NOT_DUP = `result IS DISTINCT FROM 'duplicate' AND bet_type IS DISTINCT FROM 'NO_BET'`;
 const FINAL_RESULT_SQL = `result IN (${FINAL_SETTLEMENT_RESULTS_SQL})`;
 const PENDING_RESULT_SQL = `(result IS NULL OR result = '' OR result NOT IN (${FINAL_SETTLEMENT_RESULTS_SQL}))`;
 

@@ -14,6 +14,8 @@ import {
   bulkCreateRecommendations,
   createRecommendation,
   getAllRecommendations,
+  getRecommendationsByMatchId,
+  getStats,
   markRecommendationNotified,
   settleRecommendation,
 } from '../repos/recommendations.repo.js';
@@ -70,6 +72,46 @@ describe('recommendations repository prompt versioning', () => {
       expect.stringContaining("NOT IN ('win','loss','push','half_win','half_loss','void')"),
       expect.any(Array),
     );
+    expect(query).toHaveBeenCalledWith(
+      expect.stringContaining("bet_type IS DISTINCT FROM 'NO_BET'"),
+      expect.any(Array),
+    );
+  });
+
+  test('allows explicit NO_BET filter without injecting default actionable exclusion', async () => {
+    vi.mocked(query)
+      .mockResolvedValueOnce({ rows: [] } as never)
+      .mockResolvedValueOnce({ rows: [{ count: '0' }] } as never);
+
+    await getAllRecommendations({ bet_type: 'NO_BET' });
+
+    const sql = vi.mocked(query).mock.calls[0]![0] as string;
+    expect(sql).toContain('r.bet_type = $1');
+    expect(sql).not.toContain("r.bet_type IS DISTINCT FROM 'NO_BET'");
+  });
+
+  test('getRecommendationsByMatchId excludes NO_BET rows from previous recommendation context', async () => {
+    vi.mocked(query).mockResolvedValueOnce({ rows: [] } as never);
+
+    await getRecommendationsByMatchId('100');
+
+    expect(query).toHaveBeenCalledWith(
+      expect.stringContaining("bet_type IS DISTINCT FROM 'NO_BET'"),
+      ['100'],
+    );
+  });
+
+  test('getStats excludes NO_BET rows from aggregate statistics', async () => {
+    vi.mocked(query).mockResolvedValueOnce({
+      rows: [{ total: '10', wins: '4', losses: '3', pushes: '1', duplicates: '2', unsettled: '2', total_pnl: '5.5' }],
+    } as never);
+
+    const stats = await getStats();
+
+    expect(query).toHaveBeenCalledWith(
+      expect.stringContaining("bet_type IS DISTINCT FROM 'NO_BET'"),
+    );
+    expect(stats.total).toBe(10);
   });
 
   test('settleRecommendation persists settlement provenance', async () => {
