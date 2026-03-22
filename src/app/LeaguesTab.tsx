@@ -142,14 +142,27 @@ const LeagueRow = memo(function LeagueRow({ league, onToggle, onToggleTop, onVie
           <span className="league-logo-placeholder">🏟️</span>
         )}
       </td>
-      <td
-        style={{ cursor: 'pointer' }}
-        title="Click to view upcoming fixtures"
-        onClick={() => onViewFixtures(league)}
-      >
-        <div className="league-name-cell">
+      <td style={{ cursor: 'pointer' }} title="Click to view upcoming fixtures" onClick={() => onViewFixtures(league)}>
+        <div className="league-name-cell" style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
           <span className="league-name" style={{ textDecoration: 'underline dotted', textUnderlineOffset: 3 }}>{league.league_name}</span>
           <span className="league-id">#{league.league_id}</span>
+          <button
+            onClick={(e) => { e.stopPropagation(); onToggleTeams(league.league_id); }}
+            title={teamsExpanded ? 'Collapse teams' : 'Show teams'}
+            style={{
+              background: teamsExpanded ? 'var(--gray-200)' : 'none',
+              border: '1px solid var(--gray-200)',
+              borderRadius: 4,
+              cursor: 'pointer',
+              width: 20, height: 20,
+              display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+              fontSize: 12, color: teamsExpanded ? 'var(--gray-700)' : 'var(--gray-400)',
+              fontWeight: 700,
+              flexShrink: 0,
+            }}
+          >
+            {teamsExpanded ? '−' : '+'}
+          </button>
         </div>
       </td>
       <td style={{ whiteSpace: 'nowrap', width: '1%' }}>{league.country || '-'}</td>
@@ -187,24 +200,6 @@ const LeagueRow = memo(function LeagueRow({ league, onToggle, onToggleTop, onVie
           title={league.active ? 'Click to deactivate' : 'Click to activate'}
         >
           {toggling ? <span className="inline-spinner" style={{ width: 12, height: 12, display: 'inline-block' }} /> : <span className="league-toggle-dot" />}
-        </button>
-      </td>
-      <td style={{ width: 40, textAlign: 'center' }}>
-        <button
-          onClick={() => onToggleTeams(league.league_id)}
-          title={teamsExpanded ? 'Collapse teams' : 'Show teams'}
-          style={{
-            background: teamsExpanded ? 'var(--gray-100)' : 'none',
-            border: '1px solid var(--gray-200)',
-            borderRadius: 4,
-            cursor: 'pointer',
-            width: 26, height: 26,
-            display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
-            fontSize: 14, color: teamsExpanded ? 'var(--gray-700)' : 'var(--gray-400)',
-            fontWeight: 600,
-          }}
-        >
-          {teamsExpanded ? '−' : '+'}
         </button>
       </td>
     </tr>
@@ -724,7 +719,6 @@ export function LeaguesTab() {
               <th style={{ width: '1%', whiteSpace: 'nowrap', textAlign: 'center' }}>Top</th>
               <th style={{ width: '1%', whiteSpace: 'nowrap', textAlign: 'center' }}>Profile</th>
               <th style={{ width: '1%', whiteSpace: 'nowrap', textAlign: 'center' }}>Active</th>
-              <th style={{ width: 40 }} />
             </tr>
           </thead>
           <tbody>
@@ -745,7 +739,7 @@ export function LeaguesTab() {
                 />
                 {expandedLeagueId === league.league_id && (
                   <tr>
-                    <td colSpan={10} style={{ padding: 0, background: 'var(--gray-50)', borderBottom: '2px solid var(--gray-200)' }}>
+                    <td colSpan={9} style={{ padding: 0, background: 'var(--gray-50)', borderBottom: '2px solid var(--gray-200)' }}>
                       <LeagueTeamsPanel
                         teams={leagueTeamsCache[league.league_id] ?? []}
                         loading={teamsLoading && !leagueTeamsCache[league.league_id]}
@@ -759,7 +753,7 @@ export function LeaguesTab() {
             ))}
             {filtered.length === 0 && (
               <tr>
-                <td colSpan={10} style={{ textAlign: 'center', padding: 40, color: 'var(--gray-400)' }}>
+                <td colSpan={9} style={{ textAlign: 'center', padding: 40, color: 'var(--gray-400)' }}>
                   {search || filterTier !== 'all' || filterCountry !== 'all' || filterActive !== 'all' || filterTopLeague !== 'all'
                     ? 'No leagues match your filters'
                     : 'No leagues found. Click "Sync API" to fetch leagues.'}
