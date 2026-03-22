@@ -73,6 +73,18 @@ export async function getLatestSnapshot(matchId: string): Promise<MatchSnapshotR
   return r.rows[0] ?? null;
 }
 
+export async function getLatestSnapshotsForMatches(matchIds: string[]): Promise<Map<string, MatchSnapshotRow>> {
+  if (matchIds.length === 0) return new Map();
+  const r = await query<MatchSnapshotRow>(
+    `SELECT DISTINCT ON (match_id) *
+     FROM match_snapshots
+     WHERE match_id = ANY($1)
+     ORDER BY match_id, minute DESC, captured_at DESC`,
+    [matchIds],
+  );
+  return new Map(r.rows.map((row) => [row.match_id, row] as const));
+}
+
 export async function purgeMatchSnapshots(keepDays: number): Promise<number> {
   if (keepDays <= 0) return 0;
   const result = await query(

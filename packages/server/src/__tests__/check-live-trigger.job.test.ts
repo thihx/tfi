@@ -50,6 +50,18 @@ vi.mock('../repos/watchlist.repo.js', () => ({
   incrementChecksForMatches: vi.fn().mockResolvedValue(undefined),
 }));
 
+vi.mock('../repos/match-snapshots.repo.js', () => ({
+  getLatestSnapshotsForMatches: vi.fn().mockResolvedValue(new Map()),
+}));
+
+vi.mock('../repos/recommendations.repo.js', () => ({
+  getLatestRecommendationsForMatches: vi.fn().mockResolvedValue(new Map()),
+}));
+
+vi.mock('../repos/settings.repo.js', () => ({
+  getSettings: vi.fn().mockResolvedValue({}),
+}));
+
 vi.mock('../repos/matches.repo.js', () => ({
   getMatchesByIds: vi.fn().mockResolvedValue([
     { match_id: '100', status: '1H' },  // live
@@ -115,6 +127,7 @@ describe('checkLiveTriggerJob', () => {
     expect(runPipelineBatch).toHaveBeenCalledWith(['100', '300']);
     expect(result.pipelineResults).toHaveLength(1);
     expect(result.pipelineResults![0].processed).toBe(2);
+    expect(result.candidateCount).toBe(2);
   });
 
   test('skips pipeline when pipelineEnabled is false', async () => {
@@ -125,6 +138,7 @@ describe('checkLiveTriggerJob', () => {
     const { runPipelineBatch } = await import('../lib/server-pipeline.js');
     expect(runPipelineBatch).not.toHaveBeenCalled();
     expect(result.liveCount).toBe(2);
+    expect(result.candidateCount).toBeUndefined();
     expect(result.pipelineResults).toBeUndefined();
 
     (config as Record<string, unknown>).pipelineEnabled = true;
@@ -165,5 +179,97 @@ describe('checkLiveTriggerJob', () => {
       action: 'PIPELINE_BATCH_ERROR',
       outcome: 'FAILURE',
     }));
+  });
+
+  test('skips pipeline completely when coarse candidate gate finds no changed live matches', async () => {
+    const snapshotsRepo = await import('../repos/match-snapshots.repo.js');
+    const recommendationsRepo = await import('../repos/recommendations.repo.js');
+    const matchRepo = await import('../repos/matches.repo.js');
+    vi.mocked(snapshotsRepo.getLatestSnapshotsForMatches).mockResolvedValueOnce(new Map([
+      ['100', {
+        id: 1,
+        match_id: '100',
+        captured_at: new Date().toISOString(),
+        source: 'server-pipeline',
+        minute: 64,
+        status: '1H',
+        home_score: 0,
+        away_score: 0,
+        stats: {},
+        events: [],
+        odds: {},
+      }],
+      ['300', {
+        id: 2,
+        match_id: '300',
+        captured_at: new Date().toISOString(),
+        source: 'server-pipeline',
+        minute: 64,
+        status: '2H',
+        home_score: 0,
+        away_score: 0,
+        stats: {},
+        events: [],
+        odds: {},
+      }],
+    ]));
+    vi.mocked(recommendationsRepo.getLatestRecommendationsForMatches).mockResolvedValueOnce(new Map());
+    vi.mocked(matchRepo.getMatchesByIds).mockResolvedValueOnce([
+      { match_id: '100', status: '1H', current_minute: 65, home_score: 0, away_score: 0 },
+      { match_id: '200', status: 'NS', current_minute: null, home_score: null, away_score: null },
+      { match_id: '300', status: '2H', current_minute: 65, home_score: 0, away_score: 0 },
+    ] as never);
+
+    const result = await checkLiveTriggerJob();
+    const { runPipelineBatch } = await import('../lib/server-pipeline.js');
+    expect(runPipelineBatch).not.toHaveBeenCalled();
+    expect(result.liveCount).toBe(2);
+    expect(result.candidateCount).toBe(0);
+    expect(result.pipelineResults).toEqual([]);
+  });
+
+  test('treats score changes as candidates even inside cooldown', async () => {
+    const snapshotsRepo = await import('../repos/match-snapshots.repo.js');
+    vi.mocked(snapshotsRepo.getLatestSnapshotsForMatches).mockResolvedValueOnce(new Map([
+      ['100', {
+        id: 1,
+        match_id: '100',
+        captured_at: new Date().toISOString(),
+        source: 'server-pipeline',
+        minute: 64,
+        status: '1H',
+        home_score: 0,
+        away_score: 0,
+        stats: {},
+        events: [],
+        odds: {},
+      }],
+      ['300', {
+        id: 2,
+        match_id: '300',
+        captured_at: new Date().toISOString(),
+        source: 'server-pipeline',
+        minute: 64,
+        status: '2H',
+        home_score: 0,
+        away_score: 0,
+        stats: {},
+        events: [],
+        odds: {},
+      }],
+    ]));
+
+    const matchRepo = await import('../repos/matches.repo.js');
+    vi.mocked(matchRepo.getMatchesByIds).mockResolvedValueOnce([
+      { match_id: '100', status: '1H', current_minute: 65, home_score: 1, away_score: 0 },
+      { match_id: '200', status: 'NS', current_minute: null, home_score: null, away_score: null },
+      { match_id: '300', status: '2H', current_minute: 65, home_score: 0, away_score: 0 },
+    ] as never);
+
+    const result = await checkLiveTriggerJob();
+    const { runPipelineBatch } = await import('../lib/server-pipeline.js');
+    expect(runPipelineBatch).toHaveBeenCalledTimes(1);
+    expect(runPipelineBatch).toHaveBeenCalledWith(['100']);
+    expect(result.candidateCount).toBe(1);
   });
 });

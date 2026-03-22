@@ -254,7 +254,7 @@ export async function startScheduler() {
   register('fetch-matches', config.jobFetchMatchesMs, fetchMatchesJob, undefined, ADAPTIVE_SKIP_KEY);
   register('enrich-watchlist', config.jobEnrichWatchlistMs, enrichWatchlistJob, 45 * 60_000, undefined, 1, 30 * 60_000);
   register('update-predictions', config.jobPredictionsMs, updatePredictionsJob, 10 * 60_000);
-  register('check-live-trigger', config.jobCheckLiveMs, checkLiveTriggerJob, undefined, undefined, 3);
+  register('check-live-trigger', config.jobCheckLiveMs, checkLiveTriggerJob);
   register('auto-settle', config.jobAutoSettleMs, autoSettleJob);
   register('expire-watchlist', config.jobExpireWatchlistMs, expireWatchlistJob);
   register('purge-audit', config.jobHousekeepingMs, purgeAuditJob);

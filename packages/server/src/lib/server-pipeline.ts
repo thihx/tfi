@@ -38,6 +38,7 @@ import { createSnapshot, getLatestSnapshot } from '../repos/match-snapshots.repo
 import { resolveMatchOdds } from './odds-resolver.js';
 import {
   checkShouldProceedServer,
+  checkCoarseStalenessServer,
   checkStalenessServer,
 } from './server-pipeline-gates.js';
 import { fetchLiveScoreBenchmarkTrace } from './live-score-api.js';
@@ -188,6 +189,7 @@ export interface PipelineExecutionOptions {
     bet_market: string;
     selection: string;
     score: string;
+    status?: string | null;
     result?: string;
     confidence?: number | null;
     stake_percent?: number | null;
@@ -197,6 +199,7 @@ export interface PipelineExecutionOptions {
     minute: number;
     home_score: number;
     away_score: number;
+    status?: string | null;
     odds: Record<string, unknown>;
   } | null;
 }
@@ -1662,6 +1665,79 @@ async function processMatch(
         ? 'system_force'
         : 'auto';
 
+    const [prevRecs, latestSnapshot] = await Promise.all([
+      options.previousRecommendations !== undefined
+        ? Promise.resolve(options.previousRecommendations ?? [])
+        : deps.getRecommendationsByMatchId(matchId).catch(() => []),
+      options.previousSnapshot !== undefined
+        ? Promise.resolve(options.previousSnapshot)
+        : deps.getLatestSnapshot(matchId).catch(() => null),
+    ]);
+
+    const coarseStaleness = checkCoarseStalenessServer({
+      minute,
+      status,
+      score,
+      previousRecommendation: prevRecs[0]
+        ? {
+            minute: prevRecs[0].minute,
+            odds: prevRecs[0].odds,
+            bet_market: prevRecs[0].bet_market,
+            selection: prevRecs[0].selection,
+            score: prevRecs[0].score,
+            status: prevRecs[0].status,
+          }
+        : null,
+      previousSnapshot: latestSnapshot
+        ? {
+            minute: latestSnapshot.minute,
+            home_score: latestSnapshot.home_score,
+            away_score: latestSnapshot.away_score,
+            status: latestSnapshot.status,
+            odds: latestSnapshot.odds,
+          }
+        : null,
+      settings: {
+        reanalyzeMinMinutes: settings.reanalyzeMinMinutes,
+      },
+      forceAnalyze,
+    });
+    if (coarseStaleness.isStale && !forceAnalyze && options.skipStalenessGate !== true) {
+      if (!shadowMode) {
+        audit({
+          category: 'PIPELINE',
+          action: 'PIPELINE_MATCH_SKIPPED',
+          outcome: 'SKIPPED',
+          actor: 'auto-pipeline',
+          metadata: {
+            matchId,
+            matchDisplay,
+            reason: coarseStaleness.reason,
+            baseline: coarseStaleness.baseline,
+            stage: 'coarse-staleness',
+          },
+        });
+      }
+
+      return {
+        matchId,
+        success: true,
+        shouldPush: false,
+        selection: '',
+        confidence: 0,
+        saved: false,
+        notified: false,
+        debug: {
+          analysisRunId,
+          shadowMode,
+          skippedAt: 'staleness',
+          skipReason: coarseStaleness.reason,
+          analysisMode,
+          totalLatencyMs: Date.now() - startedAt,
+        },
+      };
+    }
+
     // 1. Fetch stats + events in parallel
     const statsStartedAt = Date.now();
     let statsError: unknown = null;
@@ -1962,14 +2038,8 @@ async function processMatch(
       oddsAvailable = true;
     }
 
-    // 4. Load prior context for staleness + prompt
-    const [prevRecs, latestSnapshot, historicalPerformance, leagueProfile] = await Promise.all([
-      options.previousRecommendations !== undefined
-        ? Promise.resolve(options.previousRecommendations ?? [])
-        : deps.getRecommendationsByMatchId(matchId).catch(() => []),
-      options.previousSnapshot !== undefined
-        ? Promise.resolve(options.previousSnapshot)
-        : deps.getLatestSnapshot(matchId).catch(() => null),
+    // 4. Load prompt-only context after the heavy providers already passed coarse gating.
+    const [historicalPerformance, leagueProfile] = await Promise.all([
       loadHistoricalPromptContext(deps),
       fixture.league?.id
         ? deps.getLeagueProfileByLeagueId(fixture.league.id).catch(() => null)
@@ -1995,6 +2065,7 @@ async function processMatch(
 
     const staleness = checkStalenessServer({
       minute,
+      status,
       score,
       eventsCompact,
       oddsCanonical: oddsCanonical as unknown as Record<string, unknown>,
@@ -2005,6 +2076,7 @@ async function processMatch(
             bet_market: prevRecs[0].bet_market,
             selection: prevRecs[0].selection,
             score: prevRecs[0].score,
+            status: prevRecs[0].status,
           }
         : null,
       previousSnapshot: latestSnapshot
@@ -2012,6 +2084,7 @@ async function processMatch(
             minute: latestSnapshot.minute,
             home_score: latestSnapshot.home_score,
             away_score: latestSnapshot.away_score,
+            status: latestSnapshot.status,
             odds: latestSnapshot.odds,
           }
         : null,
@@ -2401,7 +2474,7 @@ export async function runPipelineBatch(matchIds: string[]): Promise<PipelineResu
     if (watchlistEntries[i]) watchlistMap.set(id, watchlistEntries[i]!);
   }
 
-  // Process matches sequentially to avoid API rate limits
+  // Process sequentially but keep the gap very small; coarse gating already removed most no-op work.
   for (let i = 0; i < matchIds.length; i++) {
     const matchId = matchIds[i]!;
     const fixture = fixtureMap.get(matchId);
@@ -2421,9 +2494,9 @@ export async function runPipelineBatch(matchIds: string[]): Promise<PipelineResu
     result.processed++;
     if (!matchResult.success) result.errors++;
 
-    // Small delay between matches to avoid rate limiting
+    // Small delay between matches to avoid bursty provider traffic
     if (i < matchIds.length - 1) {
-      await new Promise((r) => setTimeout(r, 2000));
+      await new Promise((r) => setTimeout(r, 250));
     }
   }
 

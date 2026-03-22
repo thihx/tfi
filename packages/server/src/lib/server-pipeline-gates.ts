@@ -22,12 +22,14 @@ export interface RecommendationBaseline {
   bet_market: string;
   selection: string;
   score?: string | null;
+  status?: string | null;
 }
 
 export interface SnapshotBaseline {
   minute: number;
   home_score: number;
   away_score: number;
+  status?: string | null;
   odds?: Record<string, unknown> | null;
 }
 
@@ -60,6 +62,13 @@ export interface PipelineStalenessResult {
   isStale: boolean;
   reason: string;
   baseline: 'none' | 'recommendation' | 'snapshot';
+}
+
+interface SelectedBaseline {
+  baseline: PipelineStalenessResult['baseline'];
+  baselineMinute: number | null;
+  baselineRec: RecommendationBaseline | null;
+  baselineSnapshot: SnapshotBaseline | null;
 }
 
 function hasMissingSide(value: { home: string | null; away: string | null } | undefined): boolean {
@@ -278,8 +287,129 @@ function oddsChangedMeaningfully(
   return false;
 }
 
+function selectLatestBaseline(
+  recommendation: RecommendationBaseline | null | undefined,
+  snapshot: SnapshotBaseline | null | undefined,
+): SelectedBaseline {
+  const safeRecommendation = recommendation ?? null;
+  const safeSnapshot = snapshot ?? null;
+  const recMinute = safeRecommendation?.minute ?? null;
+  const snapshotMinute = safeSnapshot?.minute ?? null;
+
+  let baseline: PipelineStalenessResult['baseline'] = 'none';
+  let baselineMinute: number | null = null;
+  let baselineRec: RecommendationBaseline | null = null;
+  let baselineSnapshot: SnapshotBaseline | null = null;
+
+  if (recMinute != null && snapshotMinute != null) {
+    if (recMinute >= snapshotMinute) {
+      baseline = 'recommendation';
+      baselineMinute = recMinute;
+      baselineRec = safeRecommendation;
+    } else {
+      baseline = 'snapshot';
+      baselineMinute = snapshotMinute;
+      baselineSnapshot = safeSnapshot;
+    }
+  } else if (recMinute != null) {
+    baseline = 'recommendation';
+    baselineMinute = recMinute;
+    baselineRec = safeRecommendation;
+  } else if (snapshotMinute != null) {
+    baseline = 'snapshot';
+    baselineMinute = snapshotMinute;
+    baselineSnapshot = safeSnapshot;
+  }
+
+  return { baseline, baselineMinute, baselineRec, baselineSnapshot };
+}
+
+export function resolveReanalyzeCooldownMinutes(
+  status: string | null | undefined,
+  minute: number,
+  baseMinutes: number,
+): number {
+  const base = Number.isFinite(baseMinutes) && baseMinutes > 0
+    ? Math.max(1, Math.round(baseMinutes))
+    : 10;
+  const currentMinute = Number.isFinite(minute) ? minute : 0;
+  const statusRaw = String(status || '').trim().toUpperCase();
+
+  let target = base;
+  if (statusRaw === '2H') {
+    if (currentMinute >= 80) target = 1;
+    else target = 2;
+  } else if (statusRaw === '1H') {
+    if (currentMinute >= 35) target = 3;
+    else if (currentMinute >= 20) target = 4;
+    else target = 5;
+  } else if (['HT', 'INT', 'LIVE', 'ET', 'BT'].includes(statusRaw)) {
+    target = 2;
+  }
+
+  return Math.max(1, Math.min(base, target));
+}
+
+export function checkCoarseStalenessServer(input: {
+  minute: number;
+  status?: string | null;
+  score: string;
+  previousRecommendation?: RecommendationBaseline | null;
+  previousSnapshot?: SnapshotBaseline | null;
+  settings: Pick<PipelineStalenessSettings, 'reanalyzeMinMinutes'>;
+  forceAnalyze?: boolean;
+}): PipelineStalenessResult {
+  if (input.forceAnalyze) {
+    return { isStale: false, reason: 'force_analyze', baseline: 'none' };
+  }
+
+  const currentMinute = Number.isFinite(input.minute) ? input.minute : 0;
+  if (currentMinute <= 0) {
+    return { isStale: false, reason: 'minute_unknown', baseline: 'none' };
+  }
+
+  const { baseline, baselineMinute, baselineRec, baselineSnapshot } = selectLatestBaseline(
+    input.previousRecommendation,
+    input.previousSnapshot,
+  );
+
+  if (baselineMinute === null) {
+    return { isStale: false, reason: 'first_analysis', baseline: 'none' };
+  }
+
+  const baselineStatus = String(baselineRec?.status ?? baselineSnapshot?.status ?? '').trim().toUpperCase();
+  const currentStatus = String(input.status || '').trim().toUpperCase();
+  if (baselineStatus && currentStatus && baselineStatus !== currentStatus) {
+    return { isStale: false, reason: 'phase_changed', baseline };
+  }
+
+  if (baselineRec?.score && baselineRec.score !== input.score) {
+    return { isStale: false, reason: 'score_changed', baseline };
+  }
+
+  if (baselineSnapshot) {
+    const snapshotScore = `${baselineSnapshot.home_score}-${baselineSnapshot.away_score}`;
+    if (snapshotScore !== input.score) {
+      return { isStale: false, reason: 'score_changed', baseline };
+    }
+  }
+
+  const effectiveCooldown = resolveReanalyzeCooldownMinutes(
+    currentStatus || baselineStatus,
+    currentMinute,
+    input.settings.reanalyzeMinMinutes,
+  );
+  const minuteDelta = Math.max(0, currentMinute - baselineMinute);
+  if (minuteDelta < effectiveCooldown) {
+    return { isStale: true, reason: 'no_significant_change', baseline };
+  }
+
+  return { isStale: false, reason: 'time_elapsed', baseline };
+}
+
 export function checkStalenessServer(input: {
   minute: number;
+  status?: string | null;
   score: string;
   eventsCompact: MinimalEventCompact[];
   oddsCanonical: Record<string, unknown> | null | undefined;
@@ -292,35 +422,10 @@ export function checkStalenessServer(input: {
     return { isStale: false, reason: 'force_analyze', baseline: 'none' };
   }
 
-  const recommendation = input.previousRecommendation ?? null;
-  const snapshot = input.previousSnapshot ?? null;
-  const recMinute = recommendation?.minute ?? null;
-  const snapshotMinute = snapshot?.minute ?? null;
-
-  let baseline: PipelineStalenessResult['baseline'] = 'none';
-  let baselineMinute: number | null = null;
-  let baselineRec: RecommendationBaseline | null = null;
-  let baselineSnapshot: SnapshotBaseline | null = null;
-
-  if (recMinute != null && snapshotMinute != null) {
-    if (recMinute >= snapshotMinute) {
-      baseline = 'recommendation';
-      baselineMinute = recMinute;
-      baselineRec = recommendation;
-    } else {
-      baseline = 'snapshot';
-      baselineMinute = snapshotMinute;
-      baselineSnapshot = snapshot;
-    }
-  } else if (recMinute != null) {
-    baseline = 'recommendation';
-    baselineMinute = recMinute;
-    baselineRec = recommendation;
-  } else if (snapshotMinute != null) {
-    baseline = 'snapshot';
-    baselineMinute = snapshotMinute;
-    baselineSnapshot = snapshot;
-  }
+  const { baseline, baselineMinute, baselineRec, baselineSnapshot } = selectLatestBaseline(
+    input.previousRecommendation,
+    input.previousSnapshot,
+  );
 
   if (baselineMinute === null) {
     return { isStale: false, reason: 'first_analysis', baseline: 'none' };
@@ -328,6 +433,8 @@ export function checkStalenessServer(input: {
 
   const currentMinute = Number.isFinite(input.minute) ? input.minute : 0;
   const minuteDelta = Math.max(0, currentMinute - baselineMinute);
+  const baselineStatus = String(baselineRec?.status ?? baselineSnapshot?.status ?? '').trim().toUpperCase();
+  const currentStatus = String(input.status || '').trim().toUpperCase();
 
   const newGoalSinceBaseline = input.eventsCompact.some(
     (event) => normalizeEventType(event.type) === 'goal' && event.minute > baselineMinute,
@@ -357,6 +464,10 @@ export function checkStalenessServer(input: {
     }
   }
 
+  if (baselineStatus && currentStatus && baselineStatus !== currentStatus) {
+    return { isStale: false, reason: 'phase_changed', baseline };
+  }
+
   if (
     baselineRec?.odds != null
     && baselineRec.bet_market
@@ -373,7 +484,12 @@ export function checkStalenessServer(input: {
     return { isStale: false, reason: 'odds_movement', baseline };
   }
 
-  if (minuteDelta < input.settings.reanalyzeMinMinutes) {
+  const effectiveCooldown = resolveReanalyzeCooldownMinutes(
+    currentStatus || baselineStatus,
+    currentMinute,
+    input.settings.reanalyzeMinMinutes,
+  );
+  if (minuteDelta < effectiveCooldown) {
     return { isStale: true, reason: 'no_significant_change', baseline };
   }
 

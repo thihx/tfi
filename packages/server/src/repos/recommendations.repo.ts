@@ -213,6 +213,19 @@ export async function getRecommendationsByMatchId(matchId: string): Promise<Reco
   return r.rows;
 }
 
+export async function getLatestRecommendationsForMatches(matchIds: string[]): Promise<Map<string, RecommendationRow>> {
+  if (matchIds.length === 0) return new Map();
+  const r = await query<RecommendationRow>(
+    `SELECT DISTINCT ON (match_id) *
+     FROM recommendations
+     WHERE match_id = ANY($1)
+       AND ${ACTIONABLE_REC_SQL}
+     ORDER BY match_id, timestamp DESC, id DESC`,
+    [matchIds],
+  );
+  return new Map(r.rows.map((row) => [row.match_id, row] as const));
+}
+
 export async function createRecommendation(
   rec: Partial<RecommendationCreate>,
 ): Promise<RecommendationRow> {

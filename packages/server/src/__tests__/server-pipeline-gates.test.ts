@@ -1,7 +1,9 @@
 import { describe, expect, test } from 'vitest';
 
 import {
+  checkCoarseStalenessServer,
   checkShouldProceedServer,
+  resolveReanalyzeCooldownMinutes,
   checkStalenessServer,
 } from '../lib/server-pipeline-gates.js';
 
@@ -57,16 +59,42 @@ describe('checkShouldProceedServer', () => {
 });
 
 describe('checkStalenessServer', () => {
+  test('coarse gate re-analyzes on phase change even inside cooldown', () => {
+    const result = checkCoarseStalenessServer({
+      minute: 47,
+      status: '2H',
+      score: '0-0',
+      previousSnapshot: {
+        minute: 45,
+        status: '1H',
+        home_score: 0,
+        away_score: 0,
+        odds: {},
+      },
+      settings: { reanalyzeMinMinutes: 10 },
+    });
+
+    expect(result.isStale).toBe(false);
+    expect(result.reason).toBe('phase_changed');
+  });
+
+  test('uses shorter dynamic cooldown late in the second half', () => {
+    expect(resolveReanalyzeCooldownMinutes('2H', 81, 10)).toBe(1);
+    expect(resolveReanalyzeCooldownMinutes('2H', 72, 10)).toBe(2);
+    expect(resolveReanalyzeCooldownMinutes('1H', 24, 10)).toBe(4);
+  });
+
   test('marks unchanged snapshot inside cooldown as stale', () => {
     const result = checkStalenessServer({
       minute: 65,
+      status: '2H',
       score: '1-1',
       eventsCompact: [],
       oddsCanonical: {
         ou: { line: 2.5, over: 1.85, under: 2.0 },
       },
       previousSnapshot: {
-        minute: 63,
+        minute: 64,
         home_score: 1,
         away_score: 1,
         odds: {
@@ -84,6 +112,7 @@ describe('checkStalenessServer', () => {
   test('re-analyzes when a goal happened after the baseline minute', () => {
     const result = checkStalenessServer({
       minute: 65,
+      status: '2H',
       score: '2-1',
       eventsCompact: [{ minute: 64, type: 'goal', detail: 'Normal Goal' }],
       oddsCanonical: {},
@@ -103,6 +132,7 @@ describe('checkStalenessServer', () => {
   test('re-analyzes when odds changed materially versus the prior snapshot', () => {
     const result = checkStalenessServer({
       minute: 65,
+      status: '2H',
       score: '1-1',
       eventsCompact: [],
       oddsCanonical: {
@@ -126,6 +156,7 @@ describe('checkStalenessServer', () => {
   test('re-analyzes once cooldown window fully elapsed', () => {
     const result = checkStalenessServer({
       minute: 75,
+      status: '2H',
       score: '1-1',
       eventsCompact: [],
       oddsCanonical: {},
@@ -147,6 +178,7 @@ describe('checkStalenessServer', () => {
   test('prefers the newer snapshot over an older recommendation baseline', () => {
     const result = checkStalenessServer({
       minute: 65,
+      status: '2H',
       score: '1-1',
       eventsCompact: [],
       oddsCanonical: {},
@@ -158,7 +190,7 @@ describe('checkStalenessServer', () => {
         score: '1-1',
       },
       previousSnapshot: {
-        minute: 63,
+        minute: 64,
         home_score: 1,
         away_score: 1,
         odds: {},

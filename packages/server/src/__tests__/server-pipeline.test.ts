@@ -1141,12 +1141,13 @@ describe('runPipelineBatch', () => {
 
   test('skips AI when snapshot shows no significant change inside cooldown', async () => {
     const snapshotsRepo = await import('../repos/match-snapshots.repo.js');
+    const footballApi = await import('../lib/football-api.js');
     vi.mocked(snapshotsRepo.getLatestSnapshot).mockResolvedValueOnce({
       id: 99,
       match_id: '100',
       captured_at: new Date().toISOString(),
       source: 'server-pipeline',
-      minute: 63,
+      minute: 64,
       status: '2H',
       home_score: 1,
       away_score: 1,
@@ -1163,7 +1164,9 @@ describe('runPipelineBatch', () => {
 
     const { callGemini } = await import('../lib/gemini.js');
     const { createSnapshot } = await import('../repos/match-snapshots.repo.js');
-    expect(createSnapshot).toHaveBeenCalledTimes(1);
+    expect(footballApi.fetchFixtureStatistics).not.toHaveBeenCalled();
+    expect(footballApi.fetchFixtureEvents).not.toHaveBeenCalled();
+    expect(createSnapshot).not.toHaveBeenCalled();
     expect(callGemini).not.toHaveBeenCalled();
     expect(result.results[0].success).toBe(true);
     expect(result.results[0].saved).toBe(false);
