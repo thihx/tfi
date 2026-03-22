@@ -6,6 +6,10 @@ import { ExpirationPlugin } from 'workbox-expiration';
 
 declare let self: ServiceWorkerGlobalScope;
 
+// Take over immediately when a new SW version is installed
+self.addEventListener('install', () => self.skipWaiting());
+self.addEventListener('activate', (event) => event.waitUntil(self.clients.claim()));
+
 // Precache all assets injected by VitePWA at build time
 precacheAndRoute(self.__WB_MANIFEST);
 
