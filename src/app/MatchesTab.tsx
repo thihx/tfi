@@ -34,6 +34,15 @@ function getDateGroupLabel(localDT: Date): string {
   return localDT.toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' });
 }
 
+/** Return yyyy-mm-dd for Seoul (UTC+9) date offset by offsetDays from today */
+function seoulDateISO(offsetDays: number): string {
+  const d = new Date(Date.now() + (9 * 3600 + offsetDays * 86400) * 1000);
+  const yyyy = d.getUTCFullYear();
+  const mo = String(d.getUTCMonth() + 1).padStart(2, '0');
+  const dd = String(d.getUTCDate()).padStart(2, '0');
+  return `${yyyy}-${mo}-${dd}`;
+}
+
 
 export function MatchesTab() {
   const { state, addToWatchlist, updateWatchlistItem, loadAllData } = useAppState();
@@ -95,17 +104,17 @@ export function MatchesTab() {
   const loadAllDataRef = useRef(loadAllData);
   useEffect(() => { loadAllDataRef.current = loadAllData; });
 
-  // Ref to the matches currently visible on screen — updated each render before the interval reads it
-  const pageItemsRef = useRef<Match[]>([]);
+  // Ref to ALL loaded matches — used by interval to detect live activity across all pages/filters
+  const allMatchesRef = useRef<Match[]>([]);
 
   // Refresh on mount
   useEffect(() => { void loadAllDataRef.current(true); }, []);
 
-  // Every 3s: call API only if at least 1 match on the current page is live
+  // Every 3s: call API only if at least 1 match in the full list is (or is about to be) live
   useEffect(() => {
     const tick = setInterval(() => {
       const now = Date.now();
-      const hasLikelyLive = pageItemsRef.current.some((m) => {
+      const hasLikelyLive = allMatchesRef.current.some((m) => {
         if (LIVE_STATUSES.includes(m.status)) return true;
         if (m.status === 'NS') {
           const kickoff = convertSeoulToLocalDateTime(m.date, m.kickoff || '00:00');
@@ -218,7 +227,7 @@ export function MatchesTab() {
   const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
   const safePage = Math.min(page, totalPages);
   const pageItems = filtered.slice((safePage - 1) * PAGE_SIZE, safePage * PAGE_SIZE);
-  pageItemsRef.current = pageItems; // keep ref in sync so the interval always reads the latest page
+  allMatchesRef.current = matches; // keep ref in sync so interval checks across all pages/filters
 
   useEffect(() => { if (page > totalPages) setPage(totalPages); }, [page, totalPages]);
 
@@ -341,6 +350,31 @@ export function MatchesTab() {
   const enabledOnPage = pageItems.filter((m) => !watchlistMap.has(String(m.match_id)));
   const allPageSelected = enabledOnPage.length > 0 && enabledOnPage.every((m) => selected.has(String(m.match_id)));
 
+  // Date tab shortcuts
+  const dateToday    = seoulDateISO(0);
+  const dateTomorrow = seoulDateISO(1);
+  const dateYesterday = seoulDateISO(-1);
+  const hasYesterday = matches.some((m) => {
+    const s = String(m.date);
+    const iso = s.includes('T')
+      ? (() => { const d = new Date(new Date(s).getTime() + 9 * 3600_000); return `${d.getUTCFullYear()}-${String(d.getUTCMonth()+1).padStart(2,'0')}-${String(d.getUTCDate()).padStart(2,'0')}`; })()
+      : s.substring(0, 10);
+    return iso === dateYesterday;
+  });
+  const activeDateTab =
+    dateFrom === dateToday    && dateTo === dateToday    ? 'today'
+    : dateFrom === dateTomorrow && dateTo === dateTomorrow ? 'tomorrow'
+    : dateFrom === dateYesterday && dateTo === dateYesterday ? 'yesterday'
+    : (!dateFrom && !dateTo) ? 'all'
+    : 'custom';
+  const tabBtn = (active: boolean) => ({
+    padding: '3px 10px', borderRadius: '12px', border: '1px solid',
+    cursor: 'pointer', fontSize: '12px', fontWeight: active ? 600 : 400,
+    background: active ? 'var(--gray-800)' : 'transparent',
+    borderColor: active ? 'var(--gray-800)' : 'var(--gray-300)',
+    color: active ? '#fff' : 'var(--gray-500)',
+  } as React.CSSProperties);
+
   // Filter badges
   const badges = [];
   if (debouncedSearch) badges.push(`Teams: ${debouncedSearch}`);
@@ -350,6 +384,16 @@ export function MatchesTab() {
 
   return (
     <div className="card">
+      {/* Date tab shortcuts */}
+      <div style={{ display: 'flex', gap: '6px', padding: '8px 12px', borderBottom: '1px solid var(--gray-200)', alignItems: 'center', flexWrap: 'wrap' }}>
+        <button style={tabBtn(activeDateTab === 'all')} onClick={() => { setDateFrom(''); setDateTo(''); }}>All</button>
+        {hasYesterday && (
+          <button style={tabBtn(activeDateTab === 'yesterday')} onClick={() => { setDateFrom(dateYesterday); setDateTo(dateYesterday); }}>Yesterday</button>
+        )}
+        <button style={tabBtn(activeDateTab === 'today')} onClick={() => { setDateFrom(dateToday); setDateTo(dateToday); }}>Today</button>
+        <button style={tabBtn(activeDateTab === 'tomorrow')} onClick={() => { setDateFrom(dateTomorrow); setDateTo(dateTomorrow); }}>Tomorrow</button>
+        <span style={{ marginLeft: 'auto', fontSize: '12px', color: 'var(--gray-400)' }}>{filtered.length} matches</span>
+      </div>
       {/* Toolbar: filters + view toggle */}
       <div style={{ display: 'flex', alignItems: 'stretch', borderBottom: '1px solid var(--gray-200)' }}>
         <div className="filters" style={{ flex: 1, borderBottom: 'none' }}>
