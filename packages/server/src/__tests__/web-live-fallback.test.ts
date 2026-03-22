@@ -365,6 +365,91 @@ describe('web-live-fallback', () => {
     expect(result.sourceMeta.sources.some((source) => source.domain === 'espn.com')).toBe(true);
   });
 
+  test('continues to ESPN deterministic fallback when Sofascore search throws 403', async () => {
+    fetchMock
+      .mockResolvedValueOnce({
+        ok: false,
+        status: 403,
+        url: 'https://www.sofascore.com/api/v1/search/teams/Kashima%20Antlers',
+        headers: makeHeaders({}),
+        text: vi.fn().mockResolvedValue('{"error":{"code":403,"reason":"Forbidden"}}'),
+        json: vi.fn(),
+      })
+      .mockResolvedValueOnce(makeJsonResponse(
+        'https://site.api.espn.com/apis/site/v2/sports/soccer/jpn.1/scoreboard?dates=20260322',
+        {
+          events: [
+            {
+              id: '401861800',
+              name: 'JEF United Chiba at Kashima Antlers',
+              competitions: [{
+                competitors: [
+                  { homeAway: 'home', team: { displayName: 'Kashima Antlers' }, score: '2' },
+                  { homeAway: 'away', team: { displayName: 'JEF United Chiba' }, score: '1' },
+                ],
+              }],
+              leagues: [{ name: 'Japanese J1 League' }],
+              status: { type: { shortDetail: 'FT' } },
+            },
+          ],
+        },
+      ))
+      .mockResolvedValueOnce(makeJsonResponse(
+        'https://site.api.espn.com/apis/site/v2/sports/soccer/all/summary?event=401861800',
+        {
+          header: {
+            competitions: [{
+              status: { type: { shortDetail: 'FT', name: 'STATUS_FULL_TIME' } },
+              groups: { name: 'Japanese J1 League' },
+              competitors: [
+                { homeAway: 'home', score: '2', team: { displayName: 'Kashima Antlers' } },
+                { homeAway: 'away', score: '1', team: { displayName: 'JEF United Chiba' } },
+              ],
+              details: [
+                {
+                  clock: { displayValue: "14'" },
+                  scoringPlay: true,
+                  team: { displayName: 'Kashima Antlers' },
+                  participants: [{ athlete: { displayName: 'Yuma Suzuki' } }],
+                },
+              ],
+            }],
+          },
+        },
+      ))
+      .mockResolvedValueOnce(makeHtmlResponse(
+        'https://www.espn.com/soccer/matchstats/_/gameId/401861800',
+        `
+          <section>
+            <header>Match Stats</header>
+            <span>Possession</span><div><span>58<span>%</span></span><span>42<span>%</span></span></div>
+            <span>Shots on Goal</span><div><span>7</span><span>3</span></div>
+            <span>Shot Attempts</span><div><span>16</span><span>8</span></div>
+            <span>Yellow Cards</span><div><span>1</span><span>2</span></div>
+            <span>Red Cards</span><div><span>0</span><span>0</span></div>
+            <span>Corner Kicks</span><div><span>8</span><span>4</span></div>
+            <span>Fouls</span><div><span>9</span><span>11</span></div>
+          </section>
+        `,
+      ));
+
+    const result = await fetchDeterministicWebLiveFallback({
+      homeTeam: 'Kashima Antlers',
+      awayTeam: 'JEF United Chiba',
+      league: 'Japanese J1 League',
+      matchDate: '2026-03-22',
+      status: 'FT',
+      minute: 90,
+      score: { home: 2, away: 1 },
+      requestedSlots: { stats: true, events: true },
+    });
+
+    expect(result.success).toBe(true);
+    expect(result.validation.accepted).toBe(true);
+    expect(result.structured?.matched_url).toContain('espn.com');
+    expect(result.error).toBeUndefined();
+  });
+
   test('accepts deterministic K League portal stats and events for live match coverage', async () => {
     fetchMock
       .mockResolvedValueOnce(makeHtmlResponse(

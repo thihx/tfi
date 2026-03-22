@@ -1892,18 +1892,25 @@ async function processMatch(
     }
 
     if (config.webLiveStatsFallbackEnabled && !proceed.statsAvailable) {
-      const webFallback = await deps.fetchDeterministicWebLiveFallback({
-        homeTeam: homeName,
-        awayTeam: awayName,
-        league: fixture.league?.name || '',
-        matchDate: fixture.fixture?.date ? String(fixture.fixture.date).slice(0, 10) : null,
-        status,
-        minute,
-        score: { home: homeGoals, away: awayGoals },
-        requestedSlots: { stats: true, events: true },
-      });
+      let webFallback: Awaited<ReturnType<typeof deps.fetchDeterministicWebLiveFallback>> | null = null;
+      try {
+        webFallback = await deps.fetchDeterministicWebLiveFallback({
+          homeTeam: homeName,
+          awayTeam: awayName,
+          league: fixture.league?.name || '',
+          matchDate: fixture.fixture?.date ? String(fixture.fixture.date).slice(0, 10) : null,
+          status,
+          minute,
+          score: { home: homeGoals, away: awayGoals },
+          requestedSlots: { stats: true, events: true },
+        });
+      } catch (err) {
+        const message = err instanceof Error ? err.message : String(err);
+        const detail = `Trusted web fallback unavailable: ${message}`;
+        statsFallbackReason = statsFallbackReason ? `${statsFallbackReason}; ${detail}` : detail;
+      }
 
-      if (sampleProviderData && webFallback.structured) {
+      if (webFallback && sampleProviderData && webFallback.structured) {
         void recordProviderStatsSampleSafe({
           match_id: matchId,
           match_minute: minute,
@@ -1928,8 +1935,10 @@ async function processMatch(
         });
       }
 
-      const criticalWebFallbackMismatch = hasCriticalWebFallbackMismatch(webFallback.validation.reasons);
-      if (webFallback.structured && webFallback.sourceMeta.trusted_source_count > 0 && !criticalWebFallbackMismatch) {
+      const criticalWebFallbackMismatch = webFallback
+        ? hasCriticalWebFallbackMismatch(webFallback.validation.reasons)
+        : false;
+      if (webFallback?.structured && webFallback.sourceMeta.trusted_source_count > 0 && !criticalWebFallbackMismatch) {
         const webStatsCompact = buildStatsCompactFromWebFallback(webFallback.structured.stats);
         const webEventsCompact = buildEventsCompactFromWebFallback(webFallback.structured.events, homeName, awayName);
         const mergedStatsCompact = mergeStatsCompact(statsCompact, webStatsCompact);
@@ -1964,9 +1973,12 @@ async function processMatch(
           statsFallbackReason = `Trusted web fallback rejected: current_pairs=${currentPrimaryPairs}, web_pairs=${webPrimaryPairs}, merged_pairs=${mergedPrimaryPairs}, current_events=${currentEventCount}, web_events=${webEventCount}`;
         }
       } else if (criticalWebFallbackMismatch) {
-        statsFallbackReason = `Trusted web fallback rejected on live-state mismatch: ${webFallback.validation.reasons.join(',')}`;
-      } else if (!statsFallbackReason && webFallback.error) {
+        const detail = `Trusted web fallback rejected on live-state mismatch: ${webFallback?.validation.reasons.join(',') || 'UNKNOWN'}`;
+        statsFallbackReason = statsFallbackReason ? `${statsFallbackReason}; ${detail}` : detail;
+      } else if (!statsFallbackReason && webFallback?.error) {
         statsFallbackReason = `Trusted web fallback unavailable: ${webFallback.error}`;
+      } else if (webFallback?.error) {
+        statsFallbackReason = `${statsFallbackReason}; Trusted web fallback unavailable: ${webFallback.error}`;
       }
     }
 

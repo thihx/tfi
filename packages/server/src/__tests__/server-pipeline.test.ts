@@ -733,6 +733,52 @@ describe('runPipelineBatch', () => {
     expect(String(result.results[0]?.debug?.statsFallbackReason || '')).toContain('live-state mismatch');
   });
 
+  test('keeps pipeline running when trusted web fallback throws provider error', async () => {
+    mockConfig.webLiveStatsFallbackEnabled = true;
+
+    const footballApi = await import('../lib/football-api.js');
+    vi.mocked(footballApi.fetchFixtureStatistics).mockResolvedValueOnce([]);
+    vi.mocked(footballApi.fetchFixtureEvents).mockResolvedValueOnce([
+      { time: { elapsed: 23 }, team: { id: 1 }, type: 'Goal', detail: 'Normal Goal', player: { name: 'Player A' } },
+      { time: { elapsed: 55 }, team: { id: 2 }, type: 'Goal', detail: 'Normal Goal', player: { name: 'Player B' } },
+    ] as never);
+
+    const liveScoreApi = await import('../lib/live-score-api.js');
+    vi.mocked(liveScoreApi.fetchLiveScoreBenchmarkTrace).mockResolvedValueOnce(buildLiveScoreTrace({
+      matched: false,
+      providerMatchId: null,
+      providerFixtureId: null,
+      matchedMatch: null,
+      rawLiveMatches: [],
+      rawStats: null,
+      rawEvents: [],
+      normalizedStats: [],
+      normalizedEvents: [],
+      coverageFlags: {
+        matched: false,
+        has_possession: false,
+        has_shots: false,
+        has_shots_on_target: false,
+        has_corners: false,
+        event_count: 0,
+        populated_stat_pairs: 0,
+        total_stat_pairs: 12,
+      },
+      error: 'NO_LIVE_SCORE_MATCH',
+    }));
+
+    const webFallback = await import('../lib/web-live-fallback.js');
+    vi.mocked(webFallback.fetchDeterministicWebLiveFallback).mockRejectedValueOnce(new Error('Sofascore 403: Forbidden'));
+
+    const result = await runPipelineBatch(['100']);
+
+    expect(result.errors).toBe(0);
+    expect(result.results[0]?.success).toBe(true);
+    expect(result.results[0]?.debug?.evidenceMode).toBe('odds_events_only_degraded');
+    expect(result.results[0]?.debug?.statsFallbackUsed).toBe(false);
+    expect(String(result.results[0]?.debug?.statsFallbackReason || '')).toContain('Trusted web fallback unavailable: Sofascore 403');
+  });
+
   test('uses degraded odds+events mode when stats stay unavailable after fallback check', async () => {
     const footballApi = await import('../lib/football-api.js');
     vi.mocked(footballApi.fetchFixtureStatistics).mockResolvedValueOnce([]);

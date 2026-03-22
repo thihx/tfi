@@ -1693,6 +1693,7 @@ export async function fetchDeterministicWebLiveFallback(
   let sourceMeta = emptySourceMeta();
   let bestStructured: WebFallbackStructuredData | null = null;
   let bestMeta = sourceMeta;
+  const resolverErrors: string[] = [];
 
   const deterministicResolvers = [
     tryResolveKLeaguePortalDataDeterministic,
@@ -1701,7 +1702,13 @@ export async function fetchDeterministicWebLiveFallback(
   ] as const;
 
   for (const resolver of deterministicResolvers) {
-    const resolved = await resolver(request, sourceMeta);
+    let resolved: { structured: WebFallbackStructuredData | null; sourceMeta: WebFallbackSourceMeta };
+    try {
+      resolved = await resolver(request, sourceMeta);
+    } catch (err) {
+      resolverErrors.push(err instanceof Error ? err.message : String(err));
+      continue;
+    }
     sourceMeta = resolved.sourceMeta;
     if (!resolved.structured) continue;
 
@@ -1744,7 +1751,9 @@ export async function fetchDeterministicWebLiveFallback(
     sourceMeta,
     fetchedPages: [],
     validation: validateWebLiveFallbackResult(request, null, sourceMeta),
-    error: 'NO_DETERMINISTIC_MATCH',
+    error: resolverErrors.length > 0
+      ? `NO_DETERMINISTIC_MATCH: ${resolverErrors.slice(0, 3).join(' | ')}`
+      : 'NO_DETERMINISTIC_MATCH',
   };
 }
 
