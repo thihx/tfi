@@ -1283,26 +1283,21 @@ function buildEventsTimelineUrl(
 
   let hScore = 0;
   let aScore = 0;
-  const hLineData: Record<string, unknown>[] = [{ x: 0, y: 0 }];
-  const aLineData: Record<string, unknown>[] = [{ x: 0, y: 0 }];
+  const hLineData: { x: number; y: number }[] = [{ x: 0, y: 0 }];
+  const aLineData: { x: number; y: number }[] = [{ x: 0, y: 0 }];
 
   for (const g of allGoals) {
     const x = toX(g);
-    if (g.team === homeName) {
-      hScore++;
-      hLineData.push({ x, y: hScore, label: `${hScore}-${aScore}`, above: true });
-    } else {
-      aScore++;
-      aLineData.push({ x, y: aScore, label: `${hScore}-${aScore}`, above: false });
-    }
+    if (g.team === homeName) { hScore++; hLineData.push({ x, y: hScore }); }
+    else                     { aScore++; aLineData.push({ x, y: aScore }); }
   }
   hLineData.push({ x: maxMin + 3, y: hScore });
   aLineData.push({ x: maxMin + 3, y: aScore });
 
   const maxScore = Math.max(2, hScore, aScore);
-  // Only show dot at goal moments — flat connecting segments have no dot
-  const hRadii = hLineData.map((d) => (d['label'] ? 6 : 0));
-  const aRadii = aLineData.map((d) => (d['label'] ? 6 : 0));
+  // Dot at goal moments only (non-zero step positions); endpoints get no dot
+  const hRadii = hLineData.map((d, i) => (i > 0 && i < hLineData.length - 1 ? 5 : 0));
+  const aRadii = aLineData.map((d, i) => (i > 0 && i < aLineData.length - 1 ? 5 : 0));
 
   // ── Cards: rectangles along the baseline ────────────────────────────
   const cards = relevant.filter((e) => e.type === 'card');
@@ -1314,7 +1309,7 @@ function buildEventsTimelineUrl(
     return {
       type: 'scatter',
       label: '',
-      data: evts.map((e) => ({ x: toX(e), y: yPos, label: `${toX(e)}'`, above: false })),
+      data: evts.map((e) => ({ x: toX(e), y: yPos })),
       backgroundColor: color,
       borderColor: '#fff',
       borderWidth: 1,
@@ -1365,28 +1360,31 @@ function buildEventsTimelineUrl(
     cardDs(redCards,    '#dc2626', 0),
   ].filter(Boolean);
 
-  // Title shows current scoreline prominently
-  const titleText = `${hLabel}  ${hScore} \u2013 ${aScore}  ${aLabel}`;
+  // Build subtitle: goal minutes + card events per team — no datalabels needed
+  const fmtMins = (evts: EventCompact[]) => evts.map((e) => `${toX(e)}'`).join(', ');
+  const hGoals = allGoals.filter((g) => g.team === homeName);
+  const aGoals = allGoals.filter((g) => g.team === awayName);
+  const subtitleParts: string[] = [];
+  if (hGoals.length) subtitleParts.push(`\u25b2 ${fmtMins(hGoals)}`);
+  if (aGoals.length) subtitleParts.push(`\u25bc ${fmtMins(aGoals)}`);
+  if (yellowCards.length) subtitleParts.push(`\uD83D\uDFE8 ${fmtMins(yellowCards)}`);
+  if (redCards.length)    subtitleParts.push(`\uD83D\uDFE5 ${fmtMins(redCards)}`);
+
+  const titleLine1 = `${hLabel}  ${hScore} \u2013 ${aScore}  ${aLabel}`;
+  const titleLine2 = subtitleParts.join('  \u00b7  ');
 
   const cfg = {
     type: 'line',
     data: { datasets },
     options: {
-      layout: { padding: { left: 8, right: 20, top: 12, bottom: 8 } },
-      title: { display: true, text: titleText, fontSize: 12, fontColor: '#1e293b', fontStyle: 'bold' },
-      legend: { display: false },
-      plugins: {
-        datalabels: {
-          // Only render labels where we explicitly set a label string (goal scores + card minutes)
-          display: "function(ctx){ var d=ctx.dataset.data[ctx.dataIndex]; return !!(d&&d.label); }",
-          formatter: "function(v){ return v.label||''; }",
-          align: "function(ctx){ var d=ctx.dataset.data[ctx.dataIndex]; return d&&d.above?'top':'bottom'; }",
-          anchor: "function(ctx){ var d=ctx.dataset.data[ctx.dataIndex]; return d&&d.above?'end':'start'; }",
-          color: '#1e293b',
-          font: { size: 9, weight: 'bold' },
-          offset: 3,
-        },
+      layout: { padding: { left: 8, right: 20, top: 10, bottom: 8 } },
+      title: {
+        display: true,
+        text: titleLine2 ? [titleLine1, titleLine2] : titleLine1,
+        fontSize: 12, fontColor: '#1e293b', fontStyle: 'bold',
       },
+      legend: { display: false },
+      plugins: { datalabels: { display: false } },
       scales: {
         xAxes: [{
           type: 'linear',

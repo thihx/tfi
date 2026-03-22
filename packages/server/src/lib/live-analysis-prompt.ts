@@ -456,9 +456,19 @@ function buildLeagueProfileSection(leagueProfile: Record<string, unknown> | null
   push('CARDS_TENDENCY', leagueProfile.cards_tendency);
   push('VOLATILITY_TIER', leagueProfile.volatility_tier);
   push('DATA_RELIABILITY_TIER', leagueProfile.data_reliability_tier);
+
+  // Inject quantitative baselines as labeled lines — all figures are league-wide
+  // per-match averages with BOTH teams combined, not per-team.
   if (Object.keys(quantitative).length > 0) {
-    lines.push(`LEAGUE_BASELINES: ${JSON.stringify(quantitative)}`);
+    lines.push('LEAGUE_BASELINES (per match, both teams combined, league-wide average):');
+    if (quantitative['avg_goals']             != null) lines.push(`  avg_goals:             ${quantitative['avg_goals']} goals/match`);
+    if (quantitative['over_2_5_rate']         != null) lines.push(`  over_2_5_rate:         ${(quantitative['over_2_5_rate']! * 100).toFixed(0)}% of matches end with >2.5 goals`);
+    if (quantitative['btts_rate']             != null) lines.push(`  btts_rate:             ${(quantitative['btts_rate']! * 100).toFixed(0)}% of matches where both teams scored`);
+    if (quantitative['late_goal_rate_75_plus']!= null) lines.push(`  late_goal_rate_75plus: ${(quantitative['late_goal_rate_75_plus']! * 100).toFixed(0)}% of matches have a goal after 75'`);
+    if (quantitative['avg_corners']           != null) lines.push(`  avg_corners:           ${quantitative['avg_corners']} corners/match`);
+    if (quantitative['avg_cards']             != null) lines.push(`  avg_cards:             ${quantitative['avg_cards']} yellow cards/match`);
   }
+
   const notes = readStrategicText(leagueProfile.notes_en);
   if (notes) lines.push(`LEAGUE_PROFILE_NOTES: ${notes}`);
   if (lines.length === 0) return '';
@@ -472,7 +482,8 @@ LEAGUE PROFILE RULES:
 - Treat league profile as a competition prior only. It calibrates expectations but never overrides strong live evidence.
 - Low DATA_RELIABILITY_TIER means you should be more conservative, especially for niche markets and thin evidence.
 - High VOLATILITY_TIER means wider outcome spread: require cleaner value gaps and avoid aggressive confidence.
-- Goal / BTTS / corners / cards baselines should support a market only when live evidence and current game state agree.
+- Baseline stats are league-wide per-match averages (both teams combined). Use them to calibrate expected pace, not as a guarantee for any individual match.
+- Market-specific baselines (corners, cards, goals) support a thesis only when live evidence and current game state agree.
 
 `;
 }
@@ -716,7 +727,16 @@ function buildLeagueProfileSectionCompact(leagueProfile: Record<string, unknown>
   push('CARDS_TENDENCY', leagueProfile.cards_tendency);
   push('VOLATILITY_TIER', leagueProfile.volatility_tier);
   push('DATA_RELIABILITY_TIER', leagueProfile.data_reliability_tier);
-  if (Object.keys(quantitative).length > 0) lines.push(`LEAGUE_BASELINES: ${JSON.stringify(quantitative)}`);
+  if (Object.keys(quantitative).length > 0) {
+    const parts: string[] = [];
+    if (quantitative['avg_goals']             != null) parts.push(`avg_goals=${quantitative['avg_goals']}g/match`);
+    if (quantitative['over_2_5_rate']         != null) parts.push(`o25=${(quantitative['over_2_5_rate']! * 100).toFixed(0)}%`);
+    if (quantitative['btts_rate']             != null) parts.push(`btts=${(quantitative['btts_rate']! * 100).toFixed(0)}%`);
+    if (quantitative['late_goal_rate_75_plus']!= null) parts.push(`late75+=${(quantitative['late_goal_rate_75_plus']! * 100).toFixed(0)}%`);
+    if (quantitative['avg_corners']           != null) parts.push(`avg_corners=${quantitative['avg_corners']}/match`);
+    if (quantitative['avg_cards']             != null) parts.push(`avg_cards=${quantitative['avg_cards']}/match`);
+    if (parts.length > 0) lines.push(`LEAGUE_BASELINES (both teams/match): ${parts.join(' | ')}`);
+  }
   const notes = readStrategicText(leagueProfile.notes_en);
   if (notes) lines.push(`NOTES: ${notes}`);
   if (lines.length === 0) return '';
@@ -730,7 +750,7 @@ LEAGUE PROFILE RULES:
 - Competition prior only; live evidence dominates.
 - Low data reliability => lower aggression.
 - High volatility => require cleaner edges.
-- Market-specific tendencies matter only when live evidence aligns.
+- Baselines are league-wide per-match averages (both teams combined). Market tendencies apply only when live evidence aligns.
 
 `;
 }

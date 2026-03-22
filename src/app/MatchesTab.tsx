@@ -34,7 +34,6 @@ function getDateGroupLabel(localDT: Date): string {
   return localDT.toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' });
 }
 
-const AUTO_REFRESH_SEC = 60;
 
 export function MatchesTab() {
   const { state, addToWatchlist, updateWatchlistItem, loadAllData } = useAppState();
@@ -93,42 +92,30 @@ export function MatchesTab() {
     return () => clearTimeout(timer);
   }, [lastAddedResultId]);
 
-  // Auto-refresh — immediate on mount/focus/visibility, then every AUTO_REFRESH_SEC seconds
-  const [refreshCountdown, setRefreshCountdown] = useState(AUTO_REFRESH_SEC);
   const loadAllDataRef = useRef(loadAllData);
   useEffect(() => { loadAllDataRef.current = loadAllData; });
 
-  // Stable refresh action: load immediately and reset countdown
-  const refreshNow = useCallback(() => {
-    void loadAllDataRef.current(true);
-    setRefreshCountdown(AUTO_REFRESH_SEC);
-  }, []);
+  // Ref to the matches currently visible on screen — updated each render before the interval reads it
+  const pageItemsRef = useRef<Match[]>([]);
 
-  // On mount: refresh immediately
-  useEffect(() => { refreshNow(); }, [refreshNow]);
+  // Refresh on mount
+  useEffect(() => { void loadAllDataRef.current(true); }, []);
 
-  // On browser tab visible or window focused: refresh immediately + reset timer
-  useEffect(() => {
-    const onVisible = () => { if (document.visibilityState === 'visible') refreshNow(); };
-    document.addEventListener('visibilitychange', onVisible);
-    window.addEventListener('focus', refreshNow);
-    return () => {
-      document.removeEventListener('visibilitychange', onVisible);
-      window.removeEventListener('focus', refreshNow);
-    };
-  }, [refreshNow]);
-
-  // Countdown ticker — fires every second, auto-refreshes when reaches 0
+  // Every 3s: call API only if at least 1 match on the current page is live
   useEffect(() => {
     const tick = setInterval(() => {
-      setRefreshCountdown((prev) => {
-        if (prev <= 1) {
-          void loadAllDataRef.current(true);
-          return AUTO_REFRESH_SEC;
+      const now = Date.now();
+      const hasLikelyLive = pageItemsRef.current.some((m) => {
+        if (LIVE_STATUSES.includes(m.status)) return true;
+        if (m.status === 'NS') {
+          const kickoff = convertSeoulToLocalDateTime(m.date, m.kickoff || '00:00');
+          const elapsedMin = (now - kickoff.getTime()) / 60_000;
+          return elapsedMin >= 0 && elapsedMin < 115;
         }
-        return prev - 1;
+        return false;
       });
-    }, 1000);
+      if (hasLikelyLive) void loadAllDataRef.current(true);
+    }, 3000);
     return () => clearInterval(tick);
   }, []);
 
@@ -231,6 +218,7 @@ export function MatchesTab() {
   const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
   const safePage = Math.min(page, totalPages);
   const pageItems = filtered.slice((safePage - 1) * PAGE_SIZE, safePage * PAGE_SIZE);
+  pageItemsRef.current = pageItems; // keep ref in sync so the interval always reads the latest page
 
   useEffect(() => { if (page > totalPages) setPage(totalPages); }, [page, totalPages]);
 
@@ -386,15 +374,8 @@ export function MatchesTab() {
             <button className="btn btn-secondary" onClick={clearFilters}>Clear</button>
           )}
         </div>
-        {/* Auto-refresh countdown + view toggle */}
+        {/* View toggle */}
         <div style={{ display: 'flex', alignItems: 'center', gap: '2px', padding: '0 12px', flexShrink: 0, borderLeft: '1px solid var(--gray-100)' }}>
-          <span
-            title="Auto-refreshes every 60s. Click to refresh now."
-            onClick={refreshNow}
-            style={{ fontSize: '11px', color: 'var(--gray-400)', cursor: 'pointer', marginRight: '6px', userSelect: 'none', whiteSpace: 'nowrap' }}
-          >
-            ↻ {refreshCountdown}s
-          </span>
           <button
             onClick={() => setViewMode('table')}
             title="Table view"

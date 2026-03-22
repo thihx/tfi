@@ -242,7 +242,7 @@ export function WatchlistEditModal({ item, defaultMode, uiLanguage, onClose, onS
                   </div>
                 )}
 
-                <label style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '8px 12px', borderRadius: '6px', background: 'var(--bg-secondary, #f8f8f8)', border: '1px solid var(--border-color, #e0e0e0)', cursor: 'pointer', userSelect: 'none' }}>
+                <label style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '10px 14px', borderRadius: '6px', background: 'var(--bg-secondary, #f8f8f8)', border: '1px solid var(--border-color, #e0e0e0)', cursor: 'pointer', userSelect: 'none', marginBottom: '16px' }}>
                   <input
                     type="checkbox"
                     checked={autoApplyRecommendedCondition}
@@ -255,7 +255,7 @@ export function WatchlistEditModal({ item, defaultMode, uiLanguage, onClose, onS
                 </label>
 
                 <ConditionBuilder initialValue={editConditions} onChange={setEditConditions} />
-                <button type="submit" className="btn btn-primary" style={{ width: '100%' }}>Save Changes</button>
+                <button type="submit" className="btn btn-primary" style={{ width: '100%', marginTop: '16px' }}>Save Changes</button>
               </>
             );
           })()}

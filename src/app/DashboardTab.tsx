@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, memo } from 'react';
 import { useAppState } from '@/hooks/useAppState';
 import {
-  AreaChart, Area, BarChart, Bar, XAxis, YAxis, CartesianGrid,
+  AreaChart, Area, XAxis, YAxis, CartesianGrid,
   Tooltip, ResponsiveContainer, Cell, PieChart, Pie,
 } from 'recharts';
 import { fetchAiStats, fetchAiStatsByModel, fetchDashboardSummary, fetchMarketReport } from '@/lib/services/api';
@@ -53,39 +53,55 @@ const PnlChart = memo(function PnlChart({ data }: { data: { date: string; pnl: n
 
 const MarketBreakdownChart = memo(function MarketBreakdownChart({ data }: { data: MarketReportRow[] }) {
   if (!data.length) return null;
-  const chartData = data.map((d) => ({
-    name: d.market || 'Other',
-    won: d.wins,
-    lost: d.losses,
-    roi: d.roi,
-    pnl: d.pnl,
-  }));
+  const sorted = [...data].sort((a, b) => b.pnl - a.pnl);
 
   return (
     <div className="card" style={{ marginBottom: '16px' }}>
       <div className="card-header"><div className="card-title">Recommendation Performance by Market</div></div>
-      <div style={{ padding: '16px 12px 8px 0' }}>
-        <ResponsiveContainer width="100%" height={200}>
-          <BarChart data={chartData} layout="vertical">
-            <CartesianGrid strokeDasharray="3 3" stroke="var(--gray-200)" />
-            <XAxis type="number" tick={{ fontSize: 11 }} />
-            <YAxis type="category" dataKey="name" tick={{ fontSize: 12 }} width={110} />
-            <Tooltip />
-            <Bar dataKey="won" name="Won" stackId="a" fill="var(--success)" radius={[0, 0, 0, 0]} />
-            <Bar dataKey="lost" name="Lost" stackId="a" fill="var(--danger)" radius={[0, 4, 4, 0]} />
-          </BarChart>
-        </ResponsiveContainer>
-      </div>
-      <div className="flex-row-gap-16 flex-wrap" style={{ padding: '0 20px 16px' }}>
-        {chartData.map((d) => (
-          <div key={d.name} className="text-sm text-secondary">
-            <strong style={{ color: MARKET_COLORS[d.name] || 'var(--gray-700)' }}>{d.name}</strong>:{' '}
-            <span style={{ color: d.pnl >= 0 ? 'var(--success)' : 'var(--danger)' }}>
-              {d.pnl >= 0 ? '+' : ''}${d.pnl.toFixed(2)}
-            </span>
-            {' · '}ROI {d.roi >= 0 ? '+' : ''}{d.roi}%
-          </div>
-        ))}
+      <div className="table-container" style={{ marginTop: 0 }}>
+        <table>
+          <thead>
+            <tr>
+              <th>Market</th>
+              <th style={{ textAlign: 'center', width: 40 }}>W</th>
+              <th style={{ textAlign: 'center', width: 40 }}>L</th>
+              <th style={{ width: 120 }}>Win %</th>
+              <th style={{ textAlign: 'right', width: 90 }}>P/L</th>
+              <th style={{ textAlign: 'right', width: 80 }}>ROI</th>
+            </tr>
+          </thead>
+          <tbody>
+            {sorted.map((d) => {
+              const total = d.wins + d.losses;
+              const winPct = total > 0 ? Math.round((d.wins / total) * 100) : 0;
+              const accent = MARKET_COLORS[d.market || ''] || 'var(--gray-400)';
+              return (
+                <tr key={d.market}>
+                  <td>
+                    <span style={{ fontWeight: 600, fontSize: '12px', color: accent }}>{d.market || 'Other'}</span>
+                    <span style={{ fontSize: '11px', color: 'var(--gray-400)', marginLeft: 6 }}>{total} bets</span>
+                  </td>
+                  <td style={{ textAlign: 'center', fontWeight: 700, color: 'var(--success)', fontSize: '13px' }}>{d.wins}</td>
+                  <td style={{ textAlign: 'center', fontWeight: 700, color: 'var(--danger)', fontSize: '13px' }}>{d.losses}</td>
+                  <td>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                      <div style={{ flex: 1, height: 5, background: 'var(--gray-200)', borderRadius: 3, overflow: 'hidden' }}>
+                        <div style={{ width: `${winPct}%`, height: '100%', background: winPct >= 50 ? 'var(--success)' : 'var(--danger)', borderRadius: 3 }} />
+                      </div>
+                      <span style={{ fontSize: '11px', color: 'var(--gray-600)', minWidth: 28, textAlign: 'right' }}>{winPct}%</span>
+                    </div>
+                  </td>
+                  <td style={{ textAlign: 'right', fontWeight: 700, whiteSpace: 'nowrap', color: d.pnl >= 0 ? 'var(--success)' : 'var(--danger)' }}>
+                    {d.pnl >= 0 ? '+' : ''}${d.pnl.toFixed(2)}
+                  </td>
+                  <td style={{ textAlign: 'right', whiteSpace: 'nowrap', color: d.roi >= 0 ? 'var(--success)' : 'var(--danger)' }}>
+                    {d.roi >= 0 ? '+' : ''}{d.roi}%
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
       </div>
     </div>
   );
