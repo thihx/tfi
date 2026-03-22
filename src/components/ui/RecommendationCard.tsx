@@ -62,15 +62,15 @@ function RecommendationCardBase({ rec, lang, onViewMatch }: Props) {
             style={{
               fontSize: '13px',
               fontWeight: 600,
-              color: rec.match_id && onViewMatch ? 'var(--gray-800)' : 'var(--gray-900)',
-              cursor: rec.match_id && onViewMatch ? 'pointer' : undefined,
+              color: onViewMatch ? 'var(--gray-800)' : 'var(--gray-900)',
+              cursor: onViewMatch ? 'pointer' : undefined,
               letterSpacing: '-0.2px',
               marginBottom: '2px',
               whiteSpace: 'nowrap',
               overflow: 'hidden',
               textOverflow: 'ellipsis',
             }}
-            onClick={() => rec.match_id && onViewMatch?.(rec.match_id, display)}
+            onClick={() => onViewMatch?.(rec.match_id ?? '', display)}
             title={display}
           >
             {display}
@@ -85,8 +85,8 @@ function RecommendationCardBase({ rec, lang, onViewMatch }: Props) {
         <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexShrink: 0 }}>
           {isLive && (
             <span
-              style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', cursor: rec.match_id && onViewMatch ? 'pointer' : undefined }}
-              onClick={() => rec.match_id && onViewMatch?.(rec.match_id, display)}
+              style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', cursor: onViewMatch ? 'pointer' : undefined }}
+              onClick={() => onViewMatch?.(rec.match_id ?? '', display)}
               title="Click to view match details"
             >
               <span className="badge badge-live" style={{ fontSize: '10px', padding: '2px 6px' }}>LIVE</span>

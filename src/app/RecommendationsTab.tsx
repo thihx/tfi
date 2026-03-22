@@ -306,7 +306,7 @@ export function RecommendationsTab() {
                   key={rec.id ?? i}
                   rec={rec}
                   lang={notificationLang}
-                  onViewMatch={(id, display) => setDetailMatch({ id, display })}
+                  onViewMatch={(id, display) => { if (id) setDetailMatch({ id, display }); }}
                 />
               ))}
             </div>
