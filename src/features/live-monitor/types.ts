@@ -30,6 +30,7 @@ export interface LiveMonitorConfig {
   UI_LANGUAGE?: 'en' | 'vi';
   TELEGRAM_ENABLED?: boolean;
   ZALO_ENABLED?: boolean;
+  AUTO_APPLY_RECOMMENDED_CONDITION?: boolean;
   MIN_MINUTE?: number;
   MAX_MINUTE?: number;
   SECOND_HALF_START_MINUTE?: number;
@@ -57,6 +58,7 @@ export interface WatchlistMatch {
   recommended_custom_condition?: string;
   recommended_condition_reason?: string;
   recommended_condition_reason_vi?: string;
+  auto_apply_recommended_condition?: boolean;
   pre_match_prediction_summary?: string;
   pre_match_prediction?: PreMatchPrediction | null;
   strategic_context?: unknown;

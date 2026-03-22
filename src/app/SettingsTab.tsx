@@ -316,6 +316,7 @@ export function SettingsTab() {
   const [uiLanguage, setUiLanguage] = useState<'en' | 'vi'>('vi');
   const [telegramEnabled, setTelegramEnabled] = useState(true);
   const [notificationLanguage, setNotificationLanguage] = useState<'vi' | 'en' | 'both'>('vi');
+  const [autoApplyRecommendedCondition, setAutoApplyRecommendedCondition] = useState(true);
 
   useEffect(() => {
     let mounted = true;
@@ -325,6 +326,7 @@ export function SettingsTab() {
         setUiLanguage(config.UI_LANGUAGE || 'vi');
         setTelegramEnabled(config.TELEGRAM_ENABLED !== false);
         setNotificationLanguage((config.NOTIFICATION_LANGUAGE as 'vi' | 'en' | 'both') || 'vi');
+        setAutoApplyRecommendedCondition(config.AUTO_APPLY_RECOMMENDED_CONDITION !== false);
       })
       .catch(() => undefined);
     return () => { mounted = false; };
@@ -358,6 +360,17 @@ export function SettingsTab() {
       await persistMonitorConfig({ NOTIFICATION_LANGUAGE: lang });
       showToast(`Notification language -> ${lang.toUpperCase()}`, 'success');
     } catch {
+      showToast('Failed to save setting', 'error');
+    }
+  };
+
+  const handleAutoApplyRecommendedCondition = async (enabled: boolean) => {
+    setAutoApplyRecommendedCondition(enabled);
+    try {
+      await persistMonitorConfig({ AUTO_APPLY_RECOMMENDED_CONDITION: enabled });
+      showToast(`Auto-apply recommended trigger condition ${enabled ? 'enabled' : 'disabled'}`, 'success');
+    } catch {
+      setAutoApplyRecommendedCondition(!enabled);
       showToast('Failed to save setting', 'error');
     }
   };
@@ -491,6 +504,43 @@ export function SettingsTab() {
                 <Toggle on={false} onChange={() => {}} disabled />
               </div>
 
+            </div>
+          </div>
+
+          {/* Watchlist Enrichment */}
+          <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
+            <div style={{ padding: '12px 16px', borderBottom: '1px solid var(--gray-100)', background: 'var(--gray-50)' }}>
+              <div style={{ fontSize: '13px', fontWeight: 600, color: 'var(--gray-700)' }}>Watchlist Enrichment</div>
+              <div style={{ fontSize: '11px', color: 'var(--gray-400)', marginTop: '2px' }}>
+                Default behavior for applying AI-recommended trigger conditions to watchlist entries.
+              </div>
+            </div>
+            <div style={{ padding: '12px 16px' }}>
+              <div style={{
+                display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                padding: '12px 14px', borderRadius: '8px',
+                border: `1px solid ${autoApplyRecommendedCondition ? '#bfdbfe' : 'var(--gray-200)'}`,
+                background: autoApplyRecommendedCondition ? '#eff6ff' : 'var(--gray-50)',
+                gap: '12px', flexWrap: 'wrap',
+              }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '10px', minWidth: 0 }}>
+                  <span style={{ fontSize: '18px' }}>🎯</span>
+                  <div>
+                    <div style={{ fontSize: '13px', fontWeight: 600, color: 'var(--gray-900)' }}>
+                      Auto-apply AI suggested trigger condition
+                    </div>
+                    <div style={{ fontSize: '11px', color: 'var(--gray-500)', marginTop: '1px' }}>
+                      For new or safely updatable watchlist entries, copy the AI recommendation into Trigger Condition by default.
+                    </div>
+                  </div>
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexShrink: 0 }}>
+                  <Toggle on={autoApplyRecommendedCondition} onChange={handleAutoApplyRecommendedCondition} />
+                  <span style={{ fontSize: '11px', fontWeight: 600, color: autoApplyRecommendedCondition ? '#2563eb' : 'var(--gray-400)', minWidth: 26 }}>
+                    {autoApplyRecommendedCondition ? 'ON' : 'OFF'}
+                  </span>
+                </div>
+              </div>
             </div>
           </div>
         </div>

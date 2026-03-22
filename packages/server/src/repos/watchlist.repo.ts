@@ -21,6 +21,7 @@ export interface WatchlistRow {
   recommended_condition_reason: string;
   recommended_condition_reason_vi: string;
   recommended_condition_at: string | null;
+  auto_apply_recommended_condition?: boolean;
   custom_conditions: string;
   priority: number;
   status: string;
@@ -99,8 +100,8 @@ export async function createWatchlistEntry(w: Partial<WatchlistCreate>): Promise
     `INSERT INTO watchlist
        (match_id, date, league, home_team, away_team, home_logo, away_logo, kickoff, mode, prediction,
         recommended_custom_condition, recommended_condition_reason, recommended_condition_reason_vi,
-        recommended_condition_at, custom_conditions, priority, status, added_by)
-     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18)
+        recommended_condition_at, auto_apply_recommended_condition, custom_conditions, priority, status, added_by)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19)
      RETURNING *`,
     [
       w.match_id,
@@ -117,6 +118,7 @@ export async function createWatchlistEntry(w: Partial<WatchlistCreate>): Promise
       w.recommended_condition_reason ?? '',
       w.recommended_condition_reason_vi ?? '',
       w.recommended_condition_at ?? null,
+      w.auto_apply_recommended_condition ?? true,
       w.custom_conditions ?? '',
       w.priority ?? 0,
       w.status ?? 'active',
@@ -136,7 +138,8 @@ export async function updateWatchlistEntry(
 
   const allowed = [
     'mode', 'prediction', 'recommended_custom_condition', 'recommended_condition_reason',
-    'recommended_condition_reason_vi', 'recommended_condition_at', 'custom_conditions',
+    'recommended_condition_reason_vi', 'recommended_condition_at', 'auto_apply_recommended_condition',
+    'custom_conditions',
     'priority', 'status', 'last_checked', 'total_checks', 'recommendations_count',
     'strategic_context', 'strategic_context_at',
   ] as const;

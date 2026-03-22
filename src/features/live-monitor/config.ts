@@ -44,6 +44,7 @@ export function createDefaultConfig(overrides?: Partial<LiveMonitorConfig>): Liv
     UI_LANGUAGE: 'vi',
     TELEGRAM_ENABLED: true,
     ZALO_ENABLED: false,
+    AUTO_APPLY_RECOMMENDED_CONDITION: true,
     ...overrides,
   };
 }

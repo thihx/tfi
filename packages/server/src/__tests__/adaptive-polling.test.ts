@@ -102,6 +102,12 @@ vi.mock('../repos/matches-history.repo.js', () => ({
   getHistoricalMatchesBatch: vi.fn().mockResolvedValue(new Map()),
 }));
 
+vi.mock('../repos/settings.repo.js', () => ({
+  getSettings: vi.fn().mockResolvedValue({
+    AUTO_APPLY_RECOMMENDED_CONDITION: true,
+  }),
+}));
+
 vi.mock('../lib/football-api.js', () => ({
   fetchFixturesForDate: vi.fn().mockResolvedValue([]),
   fetchFixtureStatistics: vi.fn().mockResolvedValue([]),

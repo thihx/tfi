@@ -39,3 +39,17 @@ export async function sendTelegramPhoto(chatId: string, photoUrl: string, captio
   const url = `https://api.telegram.org/bot${config.telegramBotToken}/sendPhoto`;
   await telegramFetch(url, { chat_id: chatId, photo: photoUrl, caption, parse_mode: 'HTML' });
 }
+
+/** Send multiple photos as a single album. Caption goes on the last photo. */
+export async function sendTelegramAlbum(chatId: string, photoUrls: string[], caption: string): Promise<void> {
+  if (!config.telegramBotToken) throw new Error('TELEGRAM_BOT_TOKEN not configured');
+  if (photoUrls.length === 0) return;
+  if (photoUrls.length === 1) { await sendTelegramPhoto(chatId, photoUrls[0]!, caption); return; }
+  const url = `https://api.telegram.org/bot${config.telegramBotToken}/sendMediaGroup`;
+  const media = photoUrls.map((u, i) => {
+    const item: Record<string, unknown> = { type: 'photo', media: u };
+    if (i === photoUrls.length - 1) { item.caption = caption; item.parse_mode = 'HTML'; }
+    return item;
+  });
+  await telegramFetch(url, { chat_id: chatId, media });
+}

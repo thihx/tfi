@@ -23,6 +23,7 @@ import { reportJobProgress } from './job-progress.js';
 import { getRedisClient } from '../lib/redis.js';
 import { extractRegularTimeScoreFromFixture } from '../lib/settle-context.js';
 import { mergeApiFixtureStatistics } from '../lib/settlement-stat-cache.js';
+import { getSettings } from '../repos/settings.repo.js';
 
 const ALLOWED_STATUSES = ['NS', '1H', 'HT', '2H', 'ET', 'BT', 'P', 'LIVE', 'INT'];
 const LIVE_STATUSES   = new Set(['1H', 'HT', '2H', 'ET', 'BT', 'LIVE', 'INT']);
@@ -267,6 +268,9 @@ export async function fetchMatchesJob(): Promise<{ saved: number; leagues: numbe
   await reportJobProgress(JOB, 'top-leagues', 'Auto-adding top league matches to watchlist...', 85);
   const topLeagues = await leagueRepo.getTopLeagues();
   if (topLeagues.length > 0) {
+    const settings = await getSettings().catch(() => ({}));
+    const autoApplyRecommendedCondition =
+      (settings as Record<string, unknown>).AUTO_APPLY_RECOMMENDED_CONDITION !== false;
     const topLeagueIds = new Set(topLeagues.map((l) => l.league_id));
     const topMatches = rows.filter((r) => topLeagueIds.has(r.league_id) && r.status === 'NS');
 
@@ -293,6 +297,7 @@ export async function fetchMatchesJob(): Promise<{ saved: number; leagues: numbe
           recommended_condition_reason: '',
           recommended_condition_reason_vi: '',
           recommended_condition_at: null,
+          auto_apply_recommended_condition: autoApplyRecommendedCondition,
           custom_conditions: '',
           priority: 0,
           status: 'active',

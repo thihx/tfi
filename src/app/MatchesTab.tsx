@@ -2,13 +2,15 @@ import React, { useState, useMemo, useCallback, useEffect, useRef } from 'react'
 import { DatePicker } from '@/components/ui/DatePicker';
 import { useAppState } from '@/hooks/useAppState';
 import { useToast } from '@/hooks/useToast';
+import { useUiLanguage } from '@/hooks/useUiLanguage';
 import { Pagination } from '@/components/ui/Pagination';
 import { StatusBadge } from '@/components/ui/StatusBadge';
 import { MatchCard } from '@/components/ui/MatchCard';
+import { WatchlistEditModal } from '@/components/ui/WatchlistEditModal';
 import { LIVE_STATUSES, PLACEHOLDER_HOME, PLACEHOLDER_AWAY } from '@/config/constants';
 import { convertSeoulToLocalDateTime, formatDateTimeDisplay, getLeagueDisplayName, debounce, parseKickoffForSave } from '@/lib/utils/helpers';
 import { normalizeToISO } from '@/lib/utils/helpers';
-import type { Match, SortState, League } from '@/types';
+import type { Match, SortState, League, WatchlistItem } from '@/types';
 import type { PipelineMatchResult } from '@/features/live-monitor/types';
 import { runPipelineForMatch } from '@/features/live-monitor/services/pipeline';
 import { MatchScoutModal } from '@/components/ui/MatchScoutModal';
@@ -35,9 +37,11 @@ function getDateGroupLabel(localDT: Date): string {
 const AUTO_REFRESH_SEC = 60;
 
 export function MatchesTab() {
-  const { state, addToWatchlist, loadAllData } = useAppState();
+  const { state, addToWatchlist, updateWatchlistItem, loadAllData } = useAppState();
   const { showToast } = useToast();
+  const uiLanguage = useUiLanguage();
   const { matches, watchlist, config, leagues } = state;
+  const [editItem, setEditItem] = useState<WatchlistItem | null>(null);
 
   // Filters
   const [search, setSearch] = useState('');
@@ -89,10 +93,32 @@ export function MatchesTab() {
     return () => clearTimeout(timer);
   }, [lastAddedResultId]);
 
-  // Auto-refresh countdown — counts down each second, refreshes and resets at 0
+  // Auto-refresh — immediate on mount/focus/visibility, then every AUTO_REFRESH_SEC seconds
   const [refreshCountdown, setRefreshCountdown] = useState(AUTO_REFRESH_SEC);
   const loadAllDataRef = useRef(loadAllData);
   useEffect(() => { loadAllDataRef.current = loadAllData; });
+
+  // Stable refresh action: load immediately and reset countdown
+  const refreshNow = useCallback(() => {
+    void loadAllDataRef.current(true);
+    setRefreshCountdown(AUTO_REFRESH_SEC);
+  }, []);
+
+  // On mount: refresh immediately
+  useEffect(() => { refreshNow(); }, [refreshNow]);
+
+  // On browser tab visible or window focused: refresh immediately + reset timer
+  useEffect(() => {
+    const onVisible = () => { if (document.visibilityState === 'visible') refreshNow(); };
+    document.addEventListener('visibilitychange', onVisible);
+    window.addEventListener('focus', refreshNow);
+    return () => {
+      document.removeEventListener('visibilitychange', onVisible);
+      window.removeEventListener('focus', refreshNow);
+    };
+  }, [refreshNow]);
+
+  // Countdown ticker — fires every second, auto-refreshes when reaches 0
   useEffect(() => {
     const tick = setInterval(() => {
       setRefreshCountdown((prev) => {
@@ -364,7 +390,7 @@ export function MatchesTab() {
         <div style={{ display: 'flex', alignItems: 'center', gap: '2px', padding: '0 12px', flexShrink: 0, borderLeft: '1px solid var(--gray-100)' }}>
           <span
             title="Auto-refreshes every 60s. Click to refresh now."
-            onClick={() => { void loadAllData(true); setRefreshCountdown(AUTO_REFRESH_SEC); }}
+            onClick={refreshNow}
             style={{ fontSize: '11px', color: 'var(--gray-400)', cursor: 'pointer', marginRight: '6px', userSelect: 'none', whiteSpace: 'nowrap' }}
           >
             ↻ {refreshCountdown}s
@@ -519,6 +545,7 @@ export function MatchesTab() {
                     onQuickAdd={() => quickAdd(m)}
                     onToggleSelect={() => toggleSelect(String(m.match_id), watchlistMap.has(String(m.match_id)))}
                     onAskAi={() => askAi(m)}
+                    onEdit={() => { const entry = watchlistMap.get(String(m.match_id)); if (entry) setEditItem(entry); }}
                     onDoubleClick={() => setScoutMatch(m)}
                   />
                 );
@@ -528,6 +555,20 @@ export function MatchesTab() {
           </tbody>
         </table>
       </div>}
+
+      <WatchlistEditModal
+        item={editItem}
+        defaultMode={config.defaultMode}
+        uiLanguage={uiLanguage}
+        onClose={() => setEditItem(null)}
+        onSave={async ({ mode, priority, status, custom_conditions }) => {
+          if (!editItem) return;
+          const ok = await updateWatchlistItem({ match_id: editItem.match_id, mode, priority, status, custom_conditions });
+          setEditItem(null);
+          if (ok) showToast('✅ Watchlist item updated', 'success');
+          else showToast('❌ Failed to update', 'error');
+        }}
+      />
 
       {scoutMatch && (
         <MatchScoutModal
@@ -558,10 +599,11 @@ interface MatchRowProps {
   onQuickAdd: () => void;
   onToggleSelect: () => void;
   onAskAi: () => void;
+  onEdit: () => void;
   onDoubleClick: () => void;
 }
 
-function MatchRow({ match, isWatched, isPending, isSelected, isAnalyzing, hasResult, leagues, onQuickAdd, onToggleSelect, onAskAi, onDoubleClick }: MatchRowProps) {
+function MatchRow({ match, isWatched, isPending, isSelected, isAnalyzing, hasResult, leagues, onQuickAdd, onToggleSelect, onAskAi, onEdit, onDoubleClick }: MatchRowProps) {
   const localDT = convertSeoulToLocalDateTime(match.date, match.kickoff || '00:00');
   const timeDisplay = formatDateTimeDisplay(localDT);
   const leagueDisplay = getLeagueDisplayName(match.league_id, match.league_name || '', leagues);
@@ -617,7 +659,12 @@ function MatchRow({ match, isWatched, isPending, isSelected, isAnalyzing, hasRes
       <td data-label="Action" style={{ textAlign: 'center' }}>
         <div className="cell-value flex-row-gap-4 flex-center flex-wrap">
           {isWatched ? (
-            <button className="btn btn-success btn-sm watch-btn" disabled><span className="btn-text">Watched</span></button>
+            <>
+              <button className="btn btn-success btn-sm watch-btn" disabled><span className="btn-text">Watched</span></button>
+              <button className="btn btn-secondary btn-sm action-icon-btn" onClick={onEdit} aria-label="Edit watchlist item" title="Edit watchlist item">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 20h9" /><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4 12.5-12.5z" /></svg>
+              </button>
+            </>
           ) : isPending ? (
             <button className="btn btn-primary btn-sm watch-btn" disabled>
               <span className="inline-spinner" style={{ width: '14px', height: '14px' }} />

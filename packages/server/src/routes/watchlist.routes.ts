@@ -4,6 +4,7 @@
 
 import type { FastifyInstance } from 'fastify';
 import * as repo from '../repos/watchlist.repo.js';
+import { getSettings } from '../repos/settings.repo.js';
 
 export async function watchlistRoutes(app: FastifyInstance) {
   app.get('/api/watchlist', async () => {
@@ -22,7 +23,17 @@ export async function watchlistRoutes(app: FastifyInstance) {
 
   app.post<{ Body: Partial<repo.WatchlistCreate> }>('/api/watchlist', async (req, reply) => {
     if (!req.body.match_id) return reply.code(400).send({ error: 'match_id is required' });
-    const entry = await repo.createWatchlistEntry(req.body);
+    let body = req.body;
+    if (body.auto_apply_recommended_condition == null) {
+      const settings = await getSettings().catch(() => ({}));
+      const autoApplyRecommendedCondition =
+        (settings as Record<string, unknown>).AUTO_APPLY_RECOMMENDED_CONDITION !== false;
+      body = {
+        ...body,
+        auto_apply_recommended_condition: autoApplyRecommendedCondition,
+      };
+    }
+    const entry = await repo.createWatchlistEntry(body);
     return reply.code(201).send(entry);
   });
 

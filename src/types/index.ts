@@ -147,6 +147,7 @@ export interface WatchlistItem {
   recommended_custom_condition?: string;
   recommended_condition_reason?: string;
   recommended_condition_reason_vi?: string;
+  auto_apply_recommended_condition?: boolean;
   strategic_context?: StrategicContext | null;
   strategic_context_at?: string | null;
 }

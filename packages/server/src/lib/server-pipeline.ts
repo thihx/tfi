@@ -12,7 +12,7 @@
 import { randomUUID } from 'node:crypto';
 import { config } from '../config.js';
 import { callGemini } from './gemini.js';
-import { sendTelegramMessage, sendTelegramPhoto } from './telegram.js';
+import { sendTelegramMessage, sendTelegramPhoto, sendTelegramAlbum } from './telegram.js';
 import { audit } from './audit.js';
 import {
   fetchFixturesByIds,
@@ -137,6 +137,7 @@ const defaultPipelineDeps = {
   getHistoricalPerformanceContext,
   sendTelegramMessage,
   sendTelegramPhoto,
+  sendTelegramAlbum,
   fetchLiveScoreBenchmarkTrace,
   createPromptShadowRun,
   getLeagueProfileByLeagueId,
@@ -1196,14 +1197,15 @@ function buildEventsTimelineUrl(
     ...relevant.map((e) => e.minute + (e.extra ?? 0)),
   );
   const toX = (e: EventCompact) => e.minute + (e.extra ?? 0);
-  const trim14 = (s: string) => (s.length > 14 ? s.substring(0, 13) + '…' : s);
-  const hLabel = trim14(homeName);
-  const aLabel = trim14(awayName);
+  const trim12 = (s: string) => (s.length > 12 ? s.substring(0, 11) + '…' : s);
+  const hLabel = trim12(homeName);
+  const aLabel = trim12(awayName);
   const isRed = (e: EventCompact) => {
     const d = e.detail.toLowerCase();
     return d.includes('red') || d.includes('second yellow');
   };
 
+  // Separate into 6 type+team groups
   const HG = relevant.filter((e) => e.team === homeName && e.type === 'goal');
   const HY = relevant.filter((e) => e.team === homeName && e.type === 'card' && !isRed(e));
   const HR = relevant.filter((e) => e.team === homeName && e.type === 'card' && isRed(e));
@@ -1211,6 +1213,21 @@ function buildEventsTimelineUrl(
   const AY = relevant.filter((e) => e.team === awayName && e.type === 'card' && !isRed(e));
   const AR = relevant.filter((e) => e.team === awayName && e.type === 'card' && isRed(e));
 
+  // X-jitter: shift events at the same minute within a lane by +2' each to avoid overlap
+  const jitter = (evts: EventCompact[]): number[] => {
+    const seen = new Map<number, number>();
+    return evts.map((e) => {
+      const x = toX(e);
+      const n = seen.get(x) ?? 0;
+      seen.set(x, n + 1);
+      return x + n * 2;
+    });
+  };
+
+  // Y-lanes: 6 separate rows, bar in the middle
+  // Home lanes (above bar): goals=1.85, yellows=1.55, reds=1.25
+  // Bar: 1.0
+  // Away lanes (below bar): reds=0.75, yellows=0.45, goals=0.15
   const scatterDs = (
     evts: EventCompact[],
     y: number,
@@ -1219,22 +1236,24 @@ function buildEventsTimelineUrl(
     label: string,
   ) => {
     if (evts.length === 0) return null;
+    const xs = jitter(evts);
     return {
       type: 'scatter',
       label,
-      data: evts.map((e) => ({ x: toX(e), y })),
+      // Store original minute in data point so datalabels formatter can read it directly
+      data: xs.map((x, i) => ({ x, y, minute: toX(evts[i]!) })),
       backgroundColor: color,
-      borderColor: color,
-      borderWidth: 0,
-      pointRadius: 9,
+      borderColor: '#fff',
+      borderWidth: 1,
+      pointRadius: 8,
       datalabels: {
         display: true,
-        formatter: 'function(v){return v.x+"\'";}',
+        formatter: 'function(v){return v.minute+"\'";}',
         align: above ? 'top' : 'bottom',
         anchor: above ? 'end' : 'start',
         color: '#1e293b',
-        font: { size: 9, weight: 'bold' },
-        offset: 1,
+        font: { size: 8, weight: 'bold' },
+        offset: 2,
       },
     };
   };
@@ -1246,18 +1265,18 @@ function buildEventsTimelineUrl(
       label: '',
       data: [{ x: 0, y: 1.0 }, { x: maxMin + 3, y: 1.0 }],
       borderColor: '#22c55e',
-      borderWidth: 8,
+      borderWidth: 7,
       backgroundColor: 'transparent',
       pointRadius: 0,
       fill: false,
       showLine: true,
       datalabels: { display: false },
     },
-    // HT marker
+    // HT marker spanning all lanes
     {
       type: 'line',
       label: '',
-      data: [{ x: 45, y: 0.5 }, { x: 45, y: 1.5 }],
+      data: [{ x: 45, y: 0.1 }, { x: 45, y: 1.95 }],
       borderColor: '#94a3b8',
       borderWidth: 1,
       backgroundColor: 'transparent',
@@ -1266,19 +1285,19 @@ function buildEventsTimelineUrl(
       showLine: true,
       datalabels: { display: false },
     },
-    scatterDs(HG, 1.55, '#16a34a', true,  `${hLabel} Goal`),
-    scatterDs(HY, 1.55, '#ca8a04', true,  `${hLabel} Yellow`),
-    scatterDs(HR, 1.55, '#dc2626', true,  `${hLabel} Red`),
-    scatterDs(AG, 0.45, '#16a34a', false, `${aLabel} Goal`),
-    scatterDs(AY, 0.45, '#ca8a04', false, `${aLabel} Yellow`),
-    scatterDs(AR, 0.45, '#dc2626', false, `${aLabel} Red`),
+    scatterDs(HG, 1.85, '#16a34a', true,  `${hLabel} ⚽`),
+    scatterDs(HY, 1.55, '#ca8a04', true,  `${hLabel} 🟨`),
+    scatterDs(HR, 1.25, '#dc2626', true,  `${hLabel} 🟥`),
+    scatterDs(AG, 0.15, '#16a34a', false, `${aLabel} ⚽`),
+    scatterDs(AY, 0.45, '#ca8a04', false, `${aLabel} 🟨`),
+    scatterDs(AR, 0.75, '#dc2626', false, `${aLabel} 🟥`),
   ].filter(Boolean);
 
   const cfg = {
     type: 'scatter',
     data: { datasets },
     options: {
-      layout: { padding: { left: 8, right: 12, top: 30, bottom: 30 } },
+      layout: { padding: { left: 8, right: 16, top: 20, bottom: 20 } },
       title: {
         display: true,
         text: `\u25b2 ${hLabel}  \u2500 Match Events \u2500  ${aLabel} \u25bc`,
@@ -1289,13 +1308,17 @@ function buildEventsTimelineUrl(
       legend: { display: false },
       plugins: { datalabels: { display: false } },
       scales: {
-        xAxes: [{ type: 'linear', ticks: { min: 0, max: maxMin + 8, stepSize: 15, fontSize: 9, fontColor: '#64748b' }, gridLines: { display: true, color: '#f1f5f9', lineWidth: 1 } }],
-        yAxes: [{ display: false, ticks: { min: 0.1, max: 1.9 } }],
+        xAxes: [{
+          type: 'linear',
+          ticks: { min: 0, max: maxMin + 8, stepSize: 15, fontSize: 9, fontColor: '#64748b' },
+          gridLines: { display: true, color: '#f1f5f9', lineWidth: 1 },
+        }],
+        yAxes: [{ display: false, ticks: { min: 0.0, max: 2.0 } }],
       },
     },
   };
 
-  return `https://quickchart.io/chart?c=${encodeURIComponent(JSON.stringify(cfg))}&w=600&h=180&bkg=white`;
+  return `https://quickchart.io/chart?c=${encodeURIComponent(JSON.stringify(cfg))}&w=600&h=220&bkg=white`;
 }
 
 // ==================== Stats Chart (QuickChart.io) ====================
@@ -2048,30 +2071,26 @@ async function processMatch(
         try {
           const mode = watchlistEntry.mode || 'B';
           const chartUrl = statsAvailable ? buildStatsChartUrl(statsCompact, homeName, awayName, minute) : '';
+          const timelineUrl = buildEventsTimelineUrl(eventsCompact, homeName, awayName, minute);
 
+          // Send as album (events first, stats second with caption) so both appear in one message bubble.
+          // Fall back to single photo or text if album fails.
           let photoSent = false;
           if (chartUrl) {
+            const caption = buildTelegramCaption(
+              matchDisplay, league, score, minute, status, parsed, model, mode,
+              settings.notificationLanguage, analysisMode,
+            );
             try {
-              const caption = buildTelegramCaption(
-                matchDisplay, league, score, minute, status, parsed, model, mode,
-                settings.notificationLanguage, analysisMode,
-              );
-              await deps.sendTelegramPhoto(settings.telegramChatId, chartUrl, caption);
+              if (timelineUrl) {
+                // Album: [events timeline, stats chart (caption here)]
+                await deps.sendTelegramAlbum(settings.telegramChatId, [timelineUrl, chartUrl], caption);
+              } else {
+                await deps.sendTelegramPhoto(settings.telegramChatId, chartUrl, caption);
+              }
               photoSent = true;
             } catch {
-              // QuickChart or Telegram photo failed — fall through to text
-            }
-          }
-
-          // Send events timeline as a separate image (non-critical)
-          if (photoSent && eventsCompact.some((e) => e.type === 'goal' || e.type === 'card')) {
-            try {
-              const timelineUrl = buildEventsTimelineUrl(eventsCompact, homeName, awayName, minute);
-              if (timelineUrl) {
-                await deps.sendTelegramPhoto(settings.telegramChatId, timelineUrl, `📍 Match Events — ${minute}'`);
-              }
-            } catch {
-              // Non-critical — ignore timeline send failure
+              // Album or photo failed — fall through to text
             }
           }
 

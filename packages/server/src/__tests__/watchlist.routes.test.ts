@@ -30,6 +30,12 @@ vi.mock('../repos/watchlist.repo.js', () => ({
   expireOldEntries: vi.fn().mockResolvedValue(5),
 }));
 
+vi.mock('../repos/settings.repo.js', () => ({
+  getSettings: vi.fn().mockResolvedValue({
+    AUTO_APPLY_RECOMMENDED_CONDITION: true,
+  }),
+}));
+
 let app: FastifyInstance;
 
 beforeAll(async () => {
@@ -81,6 +87,31 @@ describe('POST /api/watchlist', () => {
     });
     expect(res.statusCode).toBe(201);
     expect(res.json().match_id).toBe('200');
+  });
+
+  test('injects global auto-apply default when field is missing', async () => {
+    const res = await app.inject({
+      method: 'POST',
+      url: '/api/watchlist',
+      payload: { match_id: '201', home_team: 'Barca', away_team: 'Real' },
+    });
+    expect(res.statusCode).toBe(201);
+    expect(res.json().auto_apply_recommended_condition).toBe(true);
+  });
+
+  test('preserves explicit auto-apply override from caller', async () => {
+    const res = await app.inject({
+      method: 'POST',
+      url: '/api/watchlist',
+      payload: {
+        match_id: '202',
+        home_team: 'Barca',
+        away_team: 'Real',
+        auto_apply_recommended_condition: false,
+      },
+    });
+    expect(res.statusCode).toBe(201);
+    expect(res.json().auto_apply_recommended_condition).toBe(false);
   });
 
   test('returns 400 when match_id is missing', async () => {

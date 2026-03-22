@@ -20,6 +20,12 @@ vi.mock('../repos/matches.repo.js', () => ({
   ]),
 }));
 
+vi.mock('../repos/settings.repo.js', () => ({
+  getSettings: vi.fn().mockResolvedValue({
+    AUTO_APPLY_RECOMMENDED_CONDITION: true,
+  }),
+}));
+
 const sixHoursAgo = new Date(Date.now() - 7 * 60 * 60 * 1000).toISOString();
 const recentEnrich = new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString();
 
@@ -110,17 +116,20 @@ const mockWatchlist = [
   {
     match_id: '100', home_team: 'Arsenal', away_team: 'Chelsea',
     league: 'Premier League', date: '2026-03-17', status: 'active',
-    strategic_context_at: null, recommended_custom_condition: '',
+    strategic_context_at: null, recommended_custom_condition: '', custom_conditions: '',
+    auto_apply_recommended_condition: true,
   },
   {
     match_id: '200', home_team: 'Liverpool', away_team: 'Man City',
     league: 'Premier League', date: '2026-03-17', status: 'active',
-    strategic_context_at: null, recommended_custom_condition: '',
+    strategic_context_at: null, recommended_custom_condition: '', custom_conditions: '',
+    auto_apply_recommended_condition: true,
   },
   {
     match_id: '300', home_team: 'Barca', away_team: 'Real',
     league: 'La Liga', date: '2026-03-17', status: 'active',
-    strategic_context_at: recentEnrich, recommended_custom_condition: '',
+    strategic_context_at: recentEnrich, recommended_custom_condition: '', custom_conditions: '',
+    auto_apply_recommended_condition: true,
   },
 ];
 
@@ -271,16 +280,21 @@ describe('enrichWatchlistJob', () => {
         recommended_custom_condition: '(Minute >= 60) AND (NOT Home leading)',
         recommended_condition_reason: 'Title race team expected to dominate',
         recommended_condition_reason_vi: 'Doi dua vo dich du kien ap dao',
+        custom_conditions: '(Minute >= 60) AND (NOT Home leading)',
       }),
     );
   });
 
-  test('does not overwrite manually set conditions', async () => {
+  test('does not overwrite manually set trigger conditions', async () => {
     const watchlistRepo = await import('../repos/watchlist.repo.js');
     vi.mocked(watchlistRepo.getActiveWatchlist).mockResolvedValueOnce([
       {
         match_id: '500', home_team: 'X', away_team: 'Y', league: 'L', date: '2026-03-17',
-        status: 'active', strategic_context_at: null, recommended_custom_condition: '(Minute >= 45) AND (Total goals <= 0)',
+        status: 'active',
+        strategic_context_at: null,
+        recommended_custom_condition: '',
+        custom_conditions: '(Minute >= 45) AND (Home shots on target >= 4)',
+        auto_apply_recommended_condition: true,
       },
     ] as never);
     const matchRepo = await import('../repos/matches.repo.js');
@@ -291,7 +305,84 @@ describe('enrichWatchlistJob', () => {
     await enrichWatchlistJob();
     expect(watchlistRepo.updateWatchlistEntry).toHaveBeenCalledWith(
       '500',
-      expect.not.objectContaining({ recommended_custom_condition: expect.any(String) }),
+      expect.objectContaining({
+        recommended_custom_condition: '(Minute >= 60) AND (NOT Home leading)',
+      }),
+    );
+    expect(watchlistRepo.updateWatchlistEntry).not.toHaveBeenCalledWith(
+      '500',
+      expect.objectContaining({
+        custom_conditions: '(Minute >= 60) AND (NOT Home leading)',
+      }),
+    );
+  });
+
+  test('replaces trigger condition when it still matches the previous AI recommendation', async () => {
+    const watchlistRepo = await import('../repos/watchlist.repo.js');
+    vi.mocked(watchlistRepo.getActiveWatchlist).mockResolvedValueOnce([
+      {
+        match_id: '510',
+        home_team: 'X',
+        away_team: 'Y',
+        league: 'L',
+        date: '2026-03-17',
+        status: 'active',
+        strategic_context_at: null,
+        recommended_custom_condition: '(Minute >= 50) AND (NOT Home leading)',
+        custom_conditions: '(Minute >= 50) AND (NOT Home leading)',
+        auto_apply_recommended_condition: true,
+      },
+    ] as never);
+    const matchRepo = await import('../repos/matches.repo.js');
+    vi.mocked(matchRepo.getAllMatches).mockResolvedValueOnce([
+      { match_id: '510', status: 'NS' },
+    ] as never);
+
+    await enrichWatchlistJob();
+
+    expect(watchlistRepo.updateWatchlistEntry).toHaveBeenCalledWith(
+      '510',
+      expect.objectContaining({
+        recommended_custom_condition: '(Minute >= 60) AND (NOT Home leading)',
+        custom_conditions: '(Minute >= 60) AND (NOT Home leading)',
+      }),
+    );
+  });
+
+  test('does not auto-apply when per-match override is disabled', async () => {
+    const watchlistRepo = await import('../repos/watchlist.repo.js');
+    vi.mocked(watchlistRepo.getActiveWatchlist).mockResolvedValueOnce([
+      {
+        match_id: '520',
+        home_team: 'X',
+        away_team: 'Y',
+        league: 'L',
+        date: '2026-03-17',
+        status: 'active',
+        strategic_context_at: null,
+        recommended_custom_condition: '',
+        custom_conditions: '',
+        auto_apply_recommended_condition: false,
+      },
+    ] as never);
+    const matchRepo = await import('../repos/matches.repo.js');
+    vi.mocked(matchRepo.getAllMatches).mockResolvedValueOnce([
+      { match_id: '520', status: 'NS' },
+    ] as never);
+
+    await enrichWatchlistJob();
+
+    expect(watchlistRepo.updateWatchlistEntry).toHaveBeenCalledWith(
+      '520',
+      expect.objectContaining({
+        recommended_custom_condition: '(Minute >= 60) AND (NOT Home leading)',
+      }),
+    );
+    expect(watchlistRepo.updateWatchlistEntry).not.toHaveBeenCalledWith(
+      '520',
+      expect.objectContaining({
+        custom_conditions: '(Minute >= 60) AND (NOT Home leading)',
+      }),
     );
   });
 

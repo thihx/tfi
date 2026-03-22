@@ -48,6 +48,12 @@ vi.mock('../repos/matches-history.repo.js', () => ({
   getHistoricalMatchesBatch: vi.fn().mockResolvedValue(new Map()),
 }));
 
+vi.mock('../repos/settings.repo.js', () => ({
+  getSettings: vi.fn().mockResolvedValue({
+    AUTO_APPLY_RECOMMENDED_CONDITION: true,
+  }),
+}));
+
 const mkFixture = (id: number, leagueId: number, status: string, date: string, teamHome = 'Home', teamAway = 'Away') => ({
   fixture: { id, date, status: { short: status, elapsed: null }, venue: { name: 'Stadium' } },
   league: { id: leagueId, name: 'League' },
@@ -115,6 +121,7 @@ describe('fetchMatchesJob', () => {
     expect(watchlistRepo.createWatchlistEntry).toHaveBeenCalled();
     const calls = vi.mocked(watchlistRepo.createWatchlistEntry).mock.calls;
     expect(calls.some((c) => (c[0] as Record<string, unknown>).added_by === 'top-league-auto')).toBe(true);
+    expect(calls.every((c) => (c[0] as Record<string, unknown>).auto_apply_recommended_condition === true)).toBe(true);
   });
 
   test('skips creating watchlist entry if already exists', async () => {

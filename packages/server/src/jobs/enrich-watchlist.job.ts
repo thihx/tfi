@@ -14,6 +14,7 @@ import {
 import { config } from '../config.js';
 import * as matchRepo from '../repos/matches.repo.js';
 import * as watchlistRepo from '../repos/watchlist.repo.js';
+import { getSettings } from '../repos/settings.repo.js';
 import { reportJobProgress } from './job-progress.js';
 
 const PREMATCH_WINDOW_HOURS = 2;
@@ -78,6 +79,24 @@ function hasUsableContext(ctx: StoredStrategicContext | null): boolean {
   if (searchQuality === 'low') return false;
   if (!isPoorSummary(ctx.summary)) return true;
   return countQuantitativeCoverage(ctx) >= 4;
+}
+
+function normalizeCondition(value: string | null | undefined): string {
+  return String(value ?? '')
+    .trim()
+    .replace(/\s+/g, ' ')
+    .replace(/\(\s+/g, '(')
+    .replace(/\s+\)/g, ')');
+}
+
+function canAutoApplyCondition(
+  currentCustomCondition: string,
+  previousRecommendedCondition: string,
+): boolean {
+  const current = normalizeCondition(currentCustomCondition);
+  if (!current) return true;
+  const previous = normalizeCondition(previousRecommendedCondition);
+  return !!previous && current === previous;
 }
 
 function getRetryAfter(ctx: StoredStrategicContext | null): number | null {
@@ -237,6 +256,9 @@ export async function enrichWatchlistJob(): Promise<{ checked: number; enriched:
   }
 
   const watchlist = await watchlistRepo.getActiveWatchlist();
+  const settings = await getSettings().catch(() => ({}));
+  const autoApplyDefault =
+    (settings as Record<string, unknown>).AUTO_APPLY_RECOMMENDED_CONDITION !== false;
   if (watchlist.length === 0) {
     console.log('[enrichWatchlistJob] Watchlist empty, skip.');
     return { checked: 0, enriched: 0 };
@@ -319,14 +341,25 @@ export async function enrichWatchlistJob(): Promise<{ checked: number; enriched:
 
       const existingCond = (entry.recommended_custom_condition || '').trim();
       const isEvaluable = existingCond.startsWith('(');
-      if (force || !existingCond || !isEvaluable) {
+      const allowRecommendationRefresh = canAutoApplyCondition(
+        entry.custom_conditions || '',
+        entry.recommended_custom_condition || '',
+      );
+      if (force || !existingCond || !isEvaluable || allowRecommendationRefresh) {
         const aiCond = (context.ai_condition || '').trim();
         const aiCondIsEvaluable = aiCond.startsWith('(');
 
         if (aiCondIsEvaluable) {
+          const autoApplyEnabled = entry.auto_apply_recommended_condition ?? autoApplyDefault;
           (updateFields as Record<string, unknown>).recommended_custom_condition = aiCond;
           (updateFields as Record<string, unknown>).recommended_condition_reason = context.ai_condition_reason || '';
           (updateFields as Record<string, unknown>).recommended_condition_reason_vi = context.ai_condition_reason_vi || '';
+          if (
+            autoApplyEnabled
+            && canAutoApplyCondition(entry.custom_conditions || '', entry.recommended_custom_condition || '')
+          ) {
+            (updateFields as Record<string, unknown>).custom_conditions = aiCond;
+          }
           console.log(`[enrichWatchlistJob] AI condition: ${aiCond}`);
         } else {
           console.log(`[enrichWatchlistJob] AI did not generate evaluable condition for ${entry.home_team} vs ${entry.away_team}`);

@@ -69,6 +69,7 @@ vi.mock('../lib/gemini.js', () => ({
 vi.mock('../lib/telegram.js', () => ({
   sendTelegramMessage: vi.fn().mockResolvedValue(undefined),
   sendTelegramPhoto: vi.fn().mockRejectedValue(new Error('photo unavailable in test')),
+  sendTelegramAlbum: vi.fn().mockResolvedValue(undefined),
 }));
 
 const mockFixture = {
@@ -707,10 +708,10 @@ describe('runPipelineBatch', () => {
   test('sends Telegram notification for should_push=true', async () => {
     await runPipelineBatch(['100']);
 
-    const { sendTelegramMessage } = await import('../lib/telegram.js');
+    const { sendTelegramAlbum, sendTelegramMessage } = await import('../lib/telegram.js');
     const { markRecommendationNotified } = await import('../repos/recommendations.repo.js');
-    expect(sendTelegramMessage).toHaveBeenCalledTimes(1);
-    expect(sendTelegramMessage).toHaveBeenCalledWith('123456', expect.stringContaining('AI RECOMMENDATION'));
+    expect(sendTelegramAlbum).toHaveBeenCalledTimes(1);
+    expect(sendTelegramMessage).not.toHaveBeenCalled();
     expect(markRecommendationNotified).toHaveBeenCalledWith(999, 'telegram');
   });
 
@@ -1054,12 +1055,13 @@ describe('runPipelineBatch', () => {
 
     const { createRecommendation, markRecommendationNotified } = await import('../repos/recommendations.repo.js');
     const { createAiPerformanceRecord } = await import('../repos/ai-performance.repo.js');
-    const { sendTelegramMessage } = await import('../lib/telegram.js');
+    const { sendTelegramAlbum, sendTelegramMessage } = await import('../lib/telegram.js');
 
     expect(createRecommendation).toHaveBeenCalledTimes(1);
     expect(createAiPerformanceRecord).toHaveBeenCalledTimes(1);
     expect(markRecommendationNotified).toHaveBeenCalledTimes(1);
-    expect(sendTelegramMessage).toHaveBeenCalledTimes(1);
+    expect(sendTelegramAlbum).toHaveBeenCalledTimes(1);
+    expect(sendTelegramMessage).not.toHaveBeenCalled();
   });
 
   test('stores shadow failure separately without breaking active pipeline result', async () => {
@@ -1311,6 +1313,8 @@ describe('runPipelineBatch', () => {
   test('Telegram handles long messages by chunking', async () => {
     const longReasoning = 'A'.repeat(4000);
     const { callGemini } = await import('../lib/gemini.js');
+    const { sendTelegramAlbum } = await import('../lib/telegram.js');
+    vi.mocked(sendTelegramAlbum).mockRejectedValueOnce(new Error('album unavailable in test'));
     vi.mocked(callGemini).mockResolvedValueOnce(JSON.stringify({
       should_push: true,
       selection: 'Over 2.5 Goals @1.85',
