@@ -78,15 +78,21 @@ function AppContent() {
     return () => window.removeEventListener('tfi:navigate', handler);
   }, []);
 
-  // Handle ?match= URL param (e.g. from push notification click opening the app fresh)
+  // Handle ?match= URL param — runs on mount AND on window focus
+  // (SW navigates to /?match=... when app is in a background tab)
   useEffect(() => {
-    const params = new URLSearchParams(window.location.search);
-    const matchId = params.get('match');
-    const matchDisplay = params.get('matchDisplay') ?? '';
-    if (matchId) {
-      setPushModal({ id: matchId, display: decodeURIComponent(matchDisplay) });
-      window.history.replaceState(null, '', window.location.pathname);
-    }
+    const checkMatchParam = () => {
+      const params = new URLSearchParams(window.location.search);
+      const matchId = params.get('match');
+      const matchDisplay = params.get('matchDisplay') ?? '';
+      if (matchId) {
+        setPushModal({ id: matchId, display: decodeURIComponent(matchDisplay) });
+        window.history.replaceState(null, '', window.location.pathname);
+      }
+    };
+    checkMatchParam();
+    window.addEventListener('focus', checkMatchParam);
+    return () => window.removeEventListener('focus', checkMatchParam);
   }, []);
 
   // Handle postMessage from service worker (notification click when app already open)

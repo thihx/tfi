@@ -84,13 +84,19 @@ self.addEventListener('notificationclick', (event) => {
   event.waitUntil(
     self.clients
       .matchAll({ type: 'window', includeUncontrolled: true })
-      .then((clientList) => {
-        // If app is already open, focus it and send message to open modal
+      .then(async (clientList) => {
         for (const client of clientList) {
-          if (client.url.startsWith(self.location.origin) && 'focus' in client) {
-            client.postMessage(msg);
-            return client.focus();
+          if (!client.url.startsWith(self.location.origin) || !('focus' in client)) continue;
+          const wc = client as WindowClient;
+          if (wc.focused) {
+            // App is already in foreground — postMessage is reliable
+            wc.postMessage(msg);
+          } else {
+            // App is in a background tab or different window — navigate to URL
+            // so App.tsx can pick it up on the 'focus' event
+            await wc.navigate(targetUrl).catch(() => undefined);
           }
+          return wc.focus();
         }
         return self.clients.openWindow(targetUrl);
       }),
