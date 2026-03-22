@@ -78,11 +78,13 @@ function LeagueTeamsPanel({ teams, loading, favoriteIds, onToggleFavorite }: Lea
               <td style={{ padding: '5px 10px', color: 'var(--gray-400)', textAlign: 'center' }}>
                 {t.rank ?? '—'}
               </td>
-              <td style={{ padding: '5px 10px', display: 'flex', alignItems: 'center', gap: 8 }}>
-                {t.team.logo
-                  ? <img src={t.team.logo} alt="" style={{ width: 22, height: 22, objectFit: 'contain' }} loading="lazy" />
-                  : <span style={{ width: 22, height: 22, display: 'inline-block' }}>⚽</span>}
-                <span style={{ fontWeight: isFav ? 600 : 400, color: isFav ? 'var(--gray-900)' : 'var(--gray-700)' }}>{t.team.name}</span>
+              <td style={{ padding: '5px 10px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  {t.team.logo
+                    ? <img src={t.team.logo} alt="" style={{ width: 22, height: 22, objectFit: 'contain' }} loading="lazy" />
+                    : <span style={{ width: 22, height: 22, display: 'inline-block' }}>⚽</span>}
+                  <span style={{ fontWeight: isFav ? 600 : 400, color: isFav ? 'var(--gray-900)' : 'var(--gray-700)' }}>{t.team.name}</span>
+                </div>
               </td>
               <td style={{ padding: '5px 10px', textAlign: 'center' }}>
                 <button
