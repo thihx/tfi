@@ -616,6 +616,7 @@ SOURCE_DOMAINS: fbref.com,premierleague.com`,
 
   test('treats quantitative trusted context as usable even when narrative summary is poor', () => {
     const usable = hasUsableStrategicContext({
+      version: 2,
       summary: 'No data found',
       quantitative: {
         home_last5_points: 11,
@@ -646,5 +647,14 @@ SOURCE_DOMAINS: fbref.com,premierleague.com`,
     });
 
     expect(usable).toBe(true);
+  });
+
+  test('treats legacy context without version/source metadata as not usable', () => {
+    const usable = hasUsableStrategicContext({
+      summary: 'Legacy narrative only',
+      home_motivation: 'Must win',
+    });
+
+    expect(usable).toBe(false);
   });
 });

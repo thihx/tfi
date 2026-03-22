@@ -10,7 +10,13 @@ import { PLACEHOLDER_HOME, PLACEHOLDER_AWAY } from '@/config/constants';
 import { convertSeoulToLocalDateTime, formatDateTimeDisplay, formatLocalDateTime, getLeagueDisplayName, debounce } from '@/lib/utils/helpers';
 import { MatchScoutModal } from '@/components/ui/MatchScoutModal';
 import { normalizeToISO } from '@/lib/utils/helpers';
-import { getStrategicNarrative } from '@/lib/utils/strategicContext';
+import {
+  getStrategicNarrative,
+  getStrategicQuantitativeEntries,
+  getStrategicRefreshMeta,
+  getStrategicSourceMeta,
+  isStructuredStrategicContext,
+} from '@/lib/utils/strategicContext';
 import type { WatchlistItem, SortState } from '@/types';
 
 const PAGE_SIZE = 30;
@@ -387,6 +393,12 @@ export function WatchlistTab() {
               const fixtureCongestion = getStrategicNarrative(ctx, 'fixture_congestion', uiLanguage);
               const h2hNarrative = getStrategicNarrative(ctx, 'h2h_narrative', uiLanguage);
               const summary = getStrategicNarrative(ctx, 'summary', uiLanguage);
+              const sourceMeta = getStrategicSourceMeta(ctx);
+              const refreshMeta = getStrategicRefreshMeta(ctx);
+              const quantitativeEntries = getStrategicQuantitativeEntries(ctx);
+              const structuredContext = isStructuredStrategicContext(ctx);
+              const trustedDomains = Array.from(new Set((sourceMeta?.sources || []).map((source) => source.domain).filter(Boolean)));
+              const searchQueries = (sourceMeta?.web_search_queries || []).filter(Boolean);
               return (
                 <>
             <div className="form-group">
@@ -424,6 +436,47 @@ export function WatchlistTab() {
               <div className="form-group">
                 <div className="strategic-context-box">
                   <div className="strategic-context-header">🧠 Strategic Context</div>
+                  {(structuredContext || refreshMeta) && (
+                    <div
+                      style={{
+                        display: 'grid',
+                        gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))',
+                        gap: '8px',
+                        marginBottom: '12px',
+                      }}
+                    >
+                      {structuredContext && (
+                        <>
+                          <div className="strategic-context-item">
+                            <span className="strategic-context-label">🔎 Source Quality</span>
+                            <span className="strategic-context-text">{sourceMeta?.search_quality || 'unknown'}</span>
+                          </div>
+                          <div className="strategic-context-item">
+                            <span className="strategic-context-label">✅ Trusted Sources</span>
+                            <span className="strategic-context-text">{sourceMeta?.trusted_source_count ?? 0}</span>
+                          </div>
+                          {ctx?.competition_type && (
+                            <div className="strategic-context-item">
+                              <span className="strategic-context-label">🏆 Competition Type</span>
+                              <span className="strategic-context-text">{ctx.competition_type}</span>
+                            </div>
+                          )}
+                        </>
+                      )}
+                      {refreshMeta?.refresh_status && (
+                        <div className="strategic-context-item">
+                          <span className="strategic-context-label">🔁 Refresh Status</span>
+                          <span className="strategic-context-text">{refreshMeta.refresh_status}</span>
+                        </div>
+                      )}
+                      {refreshMeta?.retry_after && (
+                        <div className="strategic-context-item">
+                          <span className="strategic-context-label">⏳ Retry After</span>
+                          <span className="strategic-context-text">{formatLocalDateTime(refreshMeta.retry_after)}</span>
+                        </div>
+                      )}
+                    </div>
+                  )}
                   <div className="strategic-context-grid">
                     {homeMotivation && (
                       <div className="strategic-context-item">
@@ -471,6 +524,40 @@ export function WatchlistTab() {
                       <div className="strategic-context-item strategic-context-summary">
                         <span className="strategic-context-label">📝 Summary</span>
                         <span className="strategic-context-text">{summary}</span>
+                      </div>
+                    )}
+                    {structuredContext && quantitativeEntries.length > 0 && (
+                      <div className="strategic-context-item strategic-context-summary">
+                        <span className="strategic-context-label">📈 Quantitative Priors</span>
+                        <span className="strategic-context-text">
+                          {quantitativeEntries.map((entry) => `${entry.label}: ${entry.value}`).join(' | ')}
+                        </span>
+                      </div>
+                    )}
+                    {structuredContext && trustedDomains.length > 0 && (
+                      <div className="strategic-context-item strategic-context-summary">
+                        <span className="strategic-context-label">🔗 Trusted Domains</span>
+                        <span className="strategic-context-text">{trustedDomains.join(', ')}</span>
+                      </div>
+                    )}
+                    {structuredContext && searchQueries.length > 0 && (
+                      <div className="strategic-context-item strategic-context-summary">
+                        <span className="strategic-context-label">🔍 Search Queries</span>
+                        <span className="strategic-context-text">{searchQueries.join(' | ')}</span>
+                      </div>
+                    )}
+                    {!structuredContext && (
+                      <div className="strategic-context-item strategic-context-summary">
+                        <span className="strategic-context-label">⚠️ Trust Note</span>
+                        <span className="strategic-context-text">
+                          Legacy context detected. Trust metadata is missing, so this context may be stale and should be refreshed near kickoff.
+                        </span>
+                      </div>
+                    )}
+                    {refreshMeta?.last_error && (
+                      <div className="strategic-context-item strategic-context-summary">
+                        <span className="strategic-context-label">⚠️ Last Error</span>
+                        <span className="strategic-context-text">{refreshMeta.last_error}</span>
                       </div>
                     )}
                   </div>

@@ -19,7 +19,14 @@ import {
   type BetRecord,
 } from '@/lib/services/api';
 import type { Recommendation, WatchlistItem } from '@/types';
-import { getStrategicNarrative, hasStrategicNarrative } from '@/lib/utils/strategicContext';
+import {
+  getStrategicNarrative,
+  getStrategicQuantitativeEntries,
+  getStrategicRefreshMeta,
+  getStrategicSourceMeta,
+  hasStrategicNarrative,
+  isStructuredStrategicContext,
+} from '@/lib/utils/strategicContext';
 import { BET_RESULT_BADGES } from '@/config/constants';
 import {
   LineChart, Line, BarChart, Bar, ComposedChart,
@@ -171,6 +178,12 @@ function ContextView({ watchlist, recs }: { watchlist: WatchlistItem | null; rec
   const rotationRisk = getStrategicNarrative(ctx, 'rotation_risk', uiLanguage);
   const keyAbsences = getStrategicNarrative(ctx, 'key_absences', uiLanguage);
   const h2hNarrative = getStrategicNarrative(ctx, 'h2h_narrative', uiLanguage);
+  const sourceMeta = getStrategicSourceMeta(ctx);
+  const refreshMeta = getStrategicRefreshMeta(ctx);
+  const quantitativeEntries = getStrategicQuantitativeEntries(ctx);
+  const structuredContext = isStructuredStrategicContext(ctx);
+  const trustedDomains = Array.from(new Set((sourceMeta?.sources || []).map((source) => source.domain).filter(Boolean)));
+  const searchQueries = (sourceMeta?.web_search_queries || []).filter(Boolean);
 
   if (!watchlist && !latestRec) {
     return <EmptyState icon="🔍" message="No context data available for this match" />;
@@ -202,6 +215,20 @@ function ContextView({ watchlist, recs }: { watchlist: WatchlistItem | null; rec
       {/* Strategic Context */}
       {hasContext && ctx && (
         <Section title="🌐 Strategic Context">
+          {(structuredContext || refreshMeta) && (
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', marginBottom: '12px' }}>
+              {structuredContext && (
+                <>
+                  <InfoBlock label="Source Quality" value={sourceMeta?.search_quality || 'unknown'} />
+                  <InfoBlock label="Trusted Sources" value={String(sourceMeta?.trusted_source_count ?? 0)} />
+                  {ctx.competition_type && <InfoBlock label="Competition Type" value={ctx.competition_type} />}
+                </>
+              )}
+              {refreshMeta?.refresh_status && <InfoBlock label="Refresh Status" value={refreshMeta.refresh_status} />}
+              {refreshMeta?.retry_after && <InfoBlock label="Retry After" value={formatLocalDateTime(refreshMeta.retry_after)} />}
+              {refreshMeta?.last_error && <InfoBlock label="Last Error" value={refreshMeta.last_error} colSpan warn />}
+            </div>
+          )}
           {summary && (
             <div style={{
               padding: '12px 16px', background: 'var(--gray-50)', borderRadius: '8px',
@@ -221,6 +248,35 @@ function ContextView({ watchlist, recs }: { watchlist: WatchlistItem | null; rec
             {h2hNarrative && <InfoBlock label="H2H Narrative" value={h2hNarrative} colSpan />}
             {ctx.ai_condition && <InfoBlock label="AI Condition Signal" value={ctx.ai_condition} highlight />}
             {ctx.ai_condition_reason_vi && <InfoBlock label="Condition Reason (VI)" value={ctx.ai_condition_reason_vi} colSpan />}
+            {structuredContext && quantitativeEntries.length > 0 && (
+              <InfoBlock
+                label="Quantitative Priors"
+                value={quantitativeEntries.map((entry) => `${entry.label}: ${entry.value}`).join(' | ')}
+                colSpan
+              />
+            )}
+            {structuredContext && trustedDomains.length > 0 && (
+              <InfoBlock
+                label="Trusted Domains"
+                value={trustedDomains.join(', ')}
+                colSpan
+              />
+            )}
+            {structuredContext && searchQueries.length > 0 && (
+              <InfoBlock
+                label="Search Queries"
+                value={searchQueries.join(' | ')}
+                colSpan
+              />
+            )}
+            {!structuredContext && (
+              <InfoBlock
+                label="Trust Note"
+                value="Legacy context detected. Trust metadata is missing, so this context should be refreshed before relying on it."
+                colSpan
+                warn
+              />
+            )}
           </div>
           {ctx.searched_at && (
             <div style={{ fontSize: '11px', color: 'var(--gray-400)', marginTop: '8px' }}>

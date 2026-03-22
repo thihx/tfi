@@ -231,6 +231,7 @@ describe('buildLiveAnalysisPrompt', () => {
           home_last5_goals_for: 9,
           away_last5_goals_for: 4,
         },
+        version: 2,
         source_meta: {
           search_quality: 'high',
           web_search_queries: ['Premier League table', 'team injuries'],
@@ -238,6 +239,9 @@ describe('buildLiveAnalysisPrompt', () => {
             { domain: 'reuters.com', trust_tier: 'tier_1' },
             { domain: 'fbref.com', trust_tier: 'tier_2' },
           ],
+          trusted_source_count: 2,
+          rejected_source_count: 0,
+          rejected_domains: [],
         },
       } as unknown as Record<string, unknown>,
     }, settings);
@@ -249,7 +253,7 @@ describe('buildLiveAnalysisPrompt', () => {
     expect(prompt).toContain('High Over 2.5 / BTTS rates may support attacking markets only if current tempo and shots agree.');
   });
 
-  test('remains backward compatible with legacy flat strategic context', () => {
+  test('ignores legacy strategic context without trust metadata', () => {
     const prompt = buildLiveAnalysisPrompt({
       ...baseInput,
       strategicContext: {
@@ -264,8 +268,8 @@ describe('buildLiveAnalysisPrompt', () => {
       },
     }, settings);
 
-    expect(prompt).toContain('HOME_MOTIVATION: Home side still needs points.');
-    expect(prompt).toContain('SUMMARY: Legacy flat context still available.');
+    expect(prompt).not.toContain('STRATEGIC CONTEXT (FROM PRE-MATCH RESEARCH)');
+    expect(prompt).not.toContain('Legacy flat context still available.');
   });
 
   test('defines authoritative evidence hierarchy for degraded odds-events mode', () => {

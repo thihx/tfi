@@ -480,6 +480,7 @@ LEAGUE PROFILE RULES:
 function buildStrategicContextSection(strategicContext: Record<string, unknown> | null): string {
   if (!strategicContext || typeof strategicContext !== 'object') return '';
   const ctx = strategicContext;
+  if (ctx.version !== 2 || !ctx.source_meta || typeof ctx.source_meta !== 'object') return '';
   const narrativeEn = getStrategicNarrative(ctx, 'en');
   const quantitative = getStrategicQuantitative(ctx);
   const sourceMeta = getStrategicSourceMeta(ctx);
@@ -626,6 +627,7 @@ FORCE MODE
 function buildStrategicContextSectionCompact(strategicContext: Record<string, unknown> | null): string {
   if (!strategicContext || typeof strategicContext !== 'object') return '';
   const ctx = strategicContext;
+  if (ctx.version !== 2 || !ctx.source_meta || typeof ctx.source_meta !== 'object') return '';
   const narrativeEn = getStrategicNarrative(ctx, 'en');
   const quantitative = getStrategicQuantitative(ctx);
   const sourceMeta = getStrategicSourceMeta(ctx);

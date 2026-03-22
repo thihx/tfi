@@ -403,6 +403,33 @@ function countPrimaryPopulatedStatPairs(statsCompact: StatsCompact): number {
   return tracked.filter((value) => value.home != null && value.away != null).length;
 }
 
+function mergeStatPair(
+  primary: { home: string | null; away: string | null },
+  fallback: { home: string | null; away: string | null },
+): { home: string | null; away: string | null } {
+  return {
+    home: primary.home ?? fallback.home ?? null,
+    away: primary.away ?? fallback.away ?? null,
+  };
+}
+
+function mergeStatsCompact(primary: StatsCompact, fallback: StatsCompact): StatsCompact {
+  return {
+    possession: mergeStatPair(primary.possession, fallback.possession),
+    shots: mergeStatPair(primary.shots, fallback.shots),
+    shots_on_target: mergeStatPair(primary.shots_on_target, fallback.shots_on_target),
+    corners: mergeStatPair(primary.corners, fallback.corners),
+    fouls: mergeStatPair(primary.fouls, fallback.fouls),
+    offsides: mergeStatPair(primary.offsides, fallback.offsides),
+    yellow_cards: mergeStatPair(primary.yellow_cards, fallback.yellow_cards),
+    red_cards: mergeStatPair(primary.red_cards, fallback.red_cards),
+    goalkeeper_saves: mergeStatPair(primary.goalkeeper_saves, fallback.goalkeeper_saves),
+    blocked_shots: mergeStatPair(primary.blocked_shots, fallback.blocked_shots),
+    total_passes: mergeStatPair(primary.total_passes, fallback.total_passes),
+    passes_accurate: mergeStatPair(primary.passes_accurate, fallback.passes_accurate),
+  };
+}
+
 function deriveEvidenceMode(
   statsAvailable: boolean,
   oddsAvailable: boolean,
@@ -1151,6 +1178,126 @@ function extractOddsFromSelection(selection: string, betMarket: string, canonica
   return null;
 }
 
+// ==================== Events Timeline Chart (QuickChart.io) ====================
+
+function buildEventsTimelineUrl(
+  events: EventCompact[],
+  homeName: string,
+  awayName: string,
+  minute: number | string,
+): string {
+  const relevant = events.filter((e) => e.type === 'goal' || e.type === 'card');
+  if (relevant.length === 0) return '';
+
+  const currentMinute = Number.parseInt(String(minute), 10);
+  const maxMin = Math.max(
+    95,
+    Number.isFinite(currentMinute) ? currentMinute : 0,
+    ...relevant.map((e) => e.minute + (e.extra ?? 0)),
+  );
+  const toX = (e: EventCompact) => e.minute + (e.extra ?? 0);
+  const trim14 = (s: string) => (s.length > 14 ? s.substring(0, 13) + '…' : s);
+  const hLabel = trim14(homeName);
+  const aLabel = trim14(awayName);
+  const isRed = (e: EventCompact) => {
+    const d = e.detail.toLowerCase();
+    return d.includes('red') || d.includes('second yellow');
+  };
+
+  const HG = relevant.filter((e) => e.team === homeName && e.type === 'goal');
+  const HY = relevant.filter((e) => e.team === homeName && e.type === 'card' && !isRed(e));
+  const HR = relevant.filter((e) => e.team === homeName && e.type === 'card' && isRed(e));
+  const AG = relevant.filter((e) => e.team === awayName && e.type === 'goal');
+  const AY = relevant.filter((e) => e.team === awayName && e.type === 'card' && !isRed(e));
+  const AR = relevant.filter((e) => e.team === awayName && e.type === 'card' && isRed(e));
+
+  const scatterDs = (
+    evts: EventCompact[],
+    y: number,
+    color: string,
+    above: boolean,
+    label: string,
+  ) => {
+    if (evts.length === 0) return null;
+    return {
+      type: 'scatter',
+      label,
+      data: evts.map((e) => ({ x: toX(e), y })),
+      backgroundColor: color,
+      borderColor: color,
+      borderWidth: 0,
+      pointRadius: 9,
+      datalabels: {
+        display: true,
+        formatter: 'function(v){return v.x+"\'";}',
+        align: above ? 'top' : 'bottom',
+        anchor: above ? 'end' : 'start',
+        color: '#1e293b',
+        font: { size: 9, weight: 'bold' },
+        offset: 1,
+      },
+    };
+  };
+
+  const datasets = [
+    // Green timeline bar
+    {
+      type: 'line',
+      label: '',
+      data: [{ x: 0, y: 1.0 }, { x: maxMin + 3, y: 1.0 }],
+      borderColor: '#22c55e',
+      borderWidth: 8,
+      backgroundColor: 'transparent',
+      pointRadius: 0,
+      fill: false,
+      showLine: true,
+      datalabels: { display: false },
+    },
+    // HT marker
+    {
+      type: 'line',
+      label: '',
+      data: [{ x: 45, y: 0.5 }, { x: 45, y: 1.5 }],
+      borderColor: '#94a3b8',
+      borderWidth: 1,
+      backgroundColor: 'transparent',
+      pointRadius: 0,
+      fill: false,
+      showLine: true,
+      datalabels: { display: false },
+    },
+    scatterDs(HG, 1.55, '#16a34a', true,  `${hLabel} Goal`),
+    scatterDs(HY, 1.55, '#ca8a04', true,  `${hLabel} Yellow`),
+    scatterDs(HR, 1.55, '#dc2626', true,  `${hLabel} Red`),
+    scatterDs(AG, 0.45, '#16a34a', false, `${aLabel} Goal`),
+    scatterDs(AY, 0.45, '#ca8a04', false, `${aLabel} Yellow`),
+    scatterDs(AR, 0.45, '#dc2626', false, `${aLabel} Red`),
+  ].filter(Boolean);
+
+  const cfg = {
+    type: 'scatter',
+    data: { datasets },
+    options: {
+      layout: { padding: { left: 8, right: 12, top: 30, bottom: 30 } },
+      title: {
+        display: true,
+        text: `\u25b2 ${hLabel}  \u2500 Match Events \u2500  ${aLabel} \u25bc`,
+        fontSize: 11,
+        fontColor: '#334155',
+        fontStyle: 'normal',
+      },
+      legend: { display: false },
+      plugins: { datalabels: { display: false } },
+      scales: {
+        xAxes: [{ type: 'linear', ticks: { min: 0, max: maxMin + 8, stepSize: 15, fontSize: 9, fontColor: '#64748b' }, gridLines: { display: true, color: '#f1f5f9', lineWidth: 1 } }],
+        yAxes: [{ display: false, ticks: { min: 0.1, max: 1.9 } }],
+      },
+    },
+  };
+
+  return `https://quickchart.io/chart?c=${encodeURIComponent(JSON.stringify(cfg))}&w=600&h=180&bkg=white`;
+}
+
 // ==================== Stats Chart (QuickChart.io) ====================
 
 function truncateAtWord(text: string, max: number): string {
@@ -1239,10 +1386,10 @@ function buildStatsChartUrl(stats: StatsCompact, homeName: string, awayName: str
   return `https://quickchart.io/chart?c=${encodeURIComponent(JSON.stringify(cfg))}&w=500&h=240&bkg=white`;
 }
 
-/** Condensed caption for sendPhoto (max 1024 chars). Stats replaced by chart image. */
+/** Condensed caption for sendPhoto (max 1024 chars). Stats replaced by chart image; events by timeline image. */
 function buildTelegramCaption(
   matchDisplay: string, league: string, score: string, minute: number | string, status: string,
-  parsed: ParsedAiResponse, eventsCompact: EventCompact[], model: string, mode: string,
+  parsed: ParsedAiResponse, model: string, mode: string,
   lang: PipelineSettings['notificationLanguage'],
   trigger: PromptAnalysisMode,
 ): string {
@@ -1263,24 +1410,12 @@ function buildTelegramCaption(
     text += `\n<b>💰 ${safeHtml(parsed.selection)}</b>\n`;
     text += `Confidence: ${parsed.confidence}/10 | Stake: ${parsed.stake_percent}% | Risk: ${safeHtml(parsed.risk_level)} | Value: ${parsed.value_percent}%\n`;
     const reasoning = pickReasoning(parsed, lang);
-    if (reasoning) text += `\n${safeHtml(truncateAtWord(reasoning, 520))}\n`;
+    if (reasoning) text += `\n${safeHtml(truncateAtWord(reasoning, 680))}\n`;
   } else {
     const reasoning = pickReasoning(parsed, lang);
-    if (reasoning) text += `\n${safeHtml(truncateAtWord(reasoning, 380))}\n`;
+    if (reasoning) text += `\n${safeHtml(truncateAtWord(reasoning, 520))}\n`;
   }
-
-  // Key events — goals + cards only, case-insensitive, max 6
-  const keyEvents = [...eventsCompact]
-    .sort((a, b) => a.minute - b.minute)
-    .filter((e) => { const t = e.type.toLowerCase(); return t === 'goal' || t === 'card'; })
-    .slice(-6);
-  if (keyEvents.length > 0) {
-    text += '\n';
-    for (const evt of keyEvents) {
-      const icon = getEventIcon(evt.type, evt.detail);
-      text += `${evt.minute}' ${icon} ${safeHtml(evt.team)} (${safeHtml(evt.detail)})\n`;
-    }
-  }
+  // Events are shown as a separate timeline image — not repeated here
 
   // Warnings (concise, max 3)
   const displayWarnings = parsed.warnings.filter((w) => !INTERNAL.has(w)).slice(0, 3);
@@ -1555,19 +1690,42 @@ async function processMatch(
           },
           forceAnalyze,
         );
+        const mergedStatsCompact = mergeStatsCompact(apiStatsCompact, liveScoreStatsCompact);
+        const mergedEventsCompact = liveScoreEventsCompact.length > apiEventsCompact.length
+          ? liveScoreEventsCompact
+          : apiEventsCompact;
+        const mergedProceed = checkShouldProceedServer(
+          status,
+          minute,
+          mergedStatsCompact,
+          {
+            minMinute: settings.minMinute,
+            maxMinute: settings.maxMinute,
+            secondHalfStartMinute: settings.secondHalfStartMinute,
+          },
+          forceAnalyze,
+        );
         const apiPrimaryPairs = countPrimaryPopulatedStatPairs(apiStatsCompact);
         const liveScorePrimaryPairs = countPrimaryPopulatedStatPairs(liveScoreStatsCompact);
+        const mergedPrimaryPairs = countPrimaryPopulatedStatPairs(mergedStatsCompact);
+        const apiEventCount = apiEventsCompact.length;
+        const liveScoreEventCount = liveScoreEventsCompact.length;
+        const mergedImproved = mergedPrimaryPairs > apiPrimaryPairs || liveScoreEventCount > apiEventCount;
 
-        if (liveScoreProceed.statsAvailable && liveScorePrimaryPairs > apiPrimaryPairs) {
-          statsCompact = liveScoreStatsCompact;
-          eventsCompact = liveScoreEventsCompact;
+        if (mergedImproved) {
+          statsCompact = mergedStatsCompact;
+          eventsCompact = mergedEventsCompact;
           derivedInsights = deriveInsightsFromEvents(eventsCompact, minute, homeName, awayName);
-          proceed = liveScoreProceed;
+          proceed = mergedProceed;
           statsSource = 'live-score-api-fallback';
           statsFallbackUsed = true;
-          statsFallbackReason = `API-Sports stats unavailable (${apiProceed.statsMeta.statsQuality}); Live Score fallback accepted (${liveScoreProceed.statsMeta.statsQuality})`;
+          if (liveScoreProceed.statsAvailable && liveScorePrimaryPairs > apiPrimaryPairs) {
+            statsFallbackReason = `API-Sports stats unavailable (${apiProceed.statsMeta.statsQuality}); Live Score fallback accepted (${liveScoreProceed.statsMeta.statsQuality})`;
+          } else {
+            statsFallbackReason = `API-Sports live stats supplemented by Live Score fallback: api_pairs=${apiPrimaryPairs}, live_pairs=${liveScorePrimaryPairs}, merged_pairs=${mergedPrimaryPairs}, api_events=${apiEventCount}, live_events=${liveScoreEventCount}, merged_quality=${mergedProceed.statsMeta.statsQuality}`;
+          }
         } else {
-          statsFallbackReason = `Live Score fallback rejected: api_pairs=${apiPrimaryPairs}, live_pairs=${liveScorePrimaryPairs}, live_quality=${liveScoreProceed.statsMeta.statsQuality}`;
+          statsFallbackReason = `Live Score fallback rejected: api_pairs=${apiPrimaryPairs}, live_pairs=${liveScorePrimaryPairs}, merged_pairs=${mergedPrimaryPairs}, api_events=${apiEventCount}, live_events=${liveScoreEventCount}, live_quality=${liveScoreProceed.statsMeta.statsQuality}`;
         }
       }
     }
@@ -1895,13 +2053,25 @@ async function processMatch(
           if (chartUrl) {
             try {
               const caption = buildTelegramCaption(
-                matchDisplay, league, score, minute, status, parsed, eventsCompact, model, mode,
+                matchDisplay, league, score, minute, status, parsed, model, mode,
                 settings.notificationLanguage, analysisMode,
               );
               await deps.sendTelegramPhoto(settings.telegramChatId, chartUrl, caption);
               photoSent = true;
             } catch {
               // QuickChart or Telegram photo failed — fall through to text
+            }
+          }
+
+          // Send events timeline as a separate image (non-critical)
+          if (photoSent && eventsCompact.some((e) => e.type === 'goal' || e.type === 'card')) {
+            try {
+              const timelineUrl = buildEventsTimelineUrl(eventsCompact, homeName, awayName, minute);
+              if (timelineUrl) {
+                await deps.sendTelegramPhoto(settings.telegramChatId, timelineUrl, `📍 Match Events — ${minute}'`);
+              }
+            } catch {
+              // Non-critical — ignore timeline send failure
             }
           }
 

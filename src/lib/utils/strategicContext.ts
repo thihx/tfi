@@ -15,6 +15,34 @@ function normalizeText(value: unknown): string {
   return typeof value === 'string' ? value.trim() : '';
 }
 
+const QUANTITATIVE_LABELS: Record<string, string> = {
+  home_last5_points: 'Home last 5 points',
+  away_last5_points: 'Away last 5 points',
+  home_last5_goals_for: 'Home last 5 goals for',
+  away_last5_goals_for: 'Away last 5 goals for',
+  home_last5_goals_against: 'Home last 5 goals against',
+  away_last5_goals_against: 'Away last 5 goals against',
+  home_home_goals_avg: 'Home goals avg (home)',
+  away_away_goals_avg: 'Away goals avg (away)',
+  home_over_2_5_rate_last10: 'Home over 2.5 rate',
+  away_over_2_5_rate_last10: 'Away over 2.5 rate',
+  home_btts_rate_last10: 'Home BTTS rate',
+  away_btts_rate_last10: 'Away BTTS rate',
+  home_clean_sheet_rate_last10: 'Home clean sheet rate',
+  away_clean_sheet_rate_last10: 'Away clean sheet rate',
+  home_failed_to_score_rate_last10: 'Home failed-to-score rate',
+  away_failed_to_score_rate_last10: 'Away failed-to-score rate',
+};
+
+export function isStructuredStrategicContext(
+  context: StrategicContext | null | undefined,
+): boolean {
+  return !!context
+    && context.version === 2
+    && !!context.source_meta
+    && typeof context.source_meta === 'object';
+}
+
 export function getStrategicNarrative(
   context: StrategicContext | null | undefined,
   field: NarrativeField,
@@ -47,3 +75,27 @@ export function hasStrategicNarrative(
   ].some((field) => getStrategicNarrative(context, field as NarrativeField, language));
 }
 
+export function getStrategicSourceMeta(
+  context: StrategicContext | null | undefined,
+): StrategicContext['source_meta'] | null {
+  return context?.source_meta ?? null;
+}
+
+export function getStrategicRefreshMeta(
+  context: StrategicContext | null | undefined,
+): StrategicContext['_meta'] | null {
+  return context?._meta ?? null;
+}
+
+export function getStrategicQuantitativeEntries(
+  context: StrategicContext | null | undefined,
+): Array<{ key: string; label: string; value: number }> {
+  if (!context?.quantitative || typeof context.quantitative !== 'object') return [];
+  return Object.entries(context.quantitative)
+    .filter(([, value]) => typeof value === 'number')
+    .map(([key, value]) => ({
+      key,
+      label: QUANTITATIVE_LABELS[key] ?? key,
+      value: value as number,
+    }));
+}

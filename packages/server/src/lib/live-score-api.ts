@@ -10,6 +10,16 @@ const API_TIMEOUT_MS = 10_000;
 const MAX_RETRIES = 1;
 const LIVE_MATCHES_CACHE_TTL_MS = 20_000;
 const TEAM_SUFFIXES = /\b(fc|sc|cf|afc|ac|as|us|ss|cd|rcd|rc|ca|se|fk|bk|if|sk|gf|bfc)\b/gi;
+const TEAM_ALIAS_REPLACEMENTS: Array<[RegExp, string]> = [
+  [/\bsangju\s+sangmu\b/g, 'gimcheon sangmu'],
+  [/\bgimcheon\s+sangmu\b/g, 'gimcheon sangmu'],
+  [/\bkashima\s+antlers\b/g, 'kashima'],
+];
+const COUNTRY_ALIAS_REPLACEMENTS: Array<[RegExp, string]> = [
+  [/\brepublic\s+of\s+korea\b/g, 'south korea'],
+  [/\bsouth\s+korea\b/g, 'south korea'],
+  [/\bsouth-korea\b/g, 'south korea'],
+];
 
 type CachedValue<T> = {
   expiresAt: number;
@@ -157,13 +167,35 @@ function cacheSet<T>(cache: Map<string, CachedValue<T>>, key: string, value: T, 
 }
 
 function normalizeText(value: string): string {
-  return value
+  let normalized = value
     .normalize('NFD')
     .replace(/[\u0300-\u036f]/g, '')
     .toLowerCase()
     .replace(/\butd\b/g, 'united')
     .replace(/\bst\b/g, 'saint')
-    .replace(TEAM_SUFFIXES, ' ')
+    .replace(TEAM_SUFFIXES, ' ');
+
+  for (const [pattern, replacement] of TEAM_ALIAS_REPLACEMENTS) {
+    normalized = normalized.replace(pattern, replacement);
+  }
+
+  return normalized
+    .replace(/[^a-z0-9\s]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function normalizeCountryText(value: string): string {
+  let normalized = value
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase();
+
+  for (const [pattern, replacement] of COUNTRY_ALIAS_REPLACEMENTS) {
+    normalized = normalized.replace(pattern, replacement);
+  }
+
+  return normalized
     .replace(/[^a-z0-9\s]/g, ' ')
     .replace(/\s+/g, ' ')
     .trim();
@@ -230,6 +262,14 @@ function similarity(a: string, b: string): number {
   );
 }
 
+function countrySimilarity(a: string, b: string): number {
+  const normA = normalizeCountryText(a);
+  const normB = normalizeCountryText(b);
+  if (!normA || !normB) return 0;
+  if (normA === normB) return 1;
+  return Math.max(tokenOverlapRatio(normA, normB), levenshteinRatio(normA, normB));
+}
+
 function isActiveLiveTime(value: string | undefined): boolean {
   const normalized = String(value || '').toUpperCase().replace(/[^\w+]/g, '');
   if (!normalized) return false;
@@ -252,6 +292,22 @@ function parseMinute(value: string | undefined): { elapsed: number; extra: numbe
     elapsed: Number(match[1]),
     extra: match[2] ? Number(match[2]) : null,
   };
+}
+
+function parseScheduledMinutes(value: string | undefined): number | null {
+  const match = String(value || '').trim().match(/^(\d{1,2}):(\d{2})$/);
+  if (!match) return null;
+  const hours = Number(match[1]);
+  const minutes = Number(match[2]);
+  if (!Number.isFinite(hours) || !Number.isFinite(minutes)) return null;
+  return hours * 60 + minutes;
+}
+
+function extractFixtureUtcMinutes(fixture: ApiFixture): number | null {
+  const timestamp = fixture.fixture?.timestamp;
+  if (!Number.isFinite(timestamp)) return null;
+  const date = new Date(Number(timestamp) * 1000);
+  return date.getUTCHours() * 60 + date.getUTCMinutes();
 }
 
 function splitPair(value: string | null | undefined): CompactStatPair {
@@ -469,6 +525,8 @@ export function findMatchingLiveScoreMatch(
   const homeTeam = fixture.teams?.home?.name || '';
   const awayTeam = fixture.teams?.away?.name || '';
   const league = fixture.league?.name || '';
+  const country = fixture.league?.country || '';
+  const fixtureUtcMinutes = extractFixtureUtcMinutes(fixture);
   const currentScore = { home: fixture.goals?.home ?? null, away: fixture.goals?.away ?? null };
   let bestMatch: LiveScoreMatch | null = null;
   let bestScore = 0;
@@ -487,6 +545,18 @@ export function findMatchingLiveScoreMatch(
     const leagueScore = similarity(league, match.competition?.name || '');
     if (leagueScore >= 0.8) combined += 0.1;
     else if (leagueScore >= 0.6) combined += 0.05;
+
+    const matchCountry = match.country?.name || '';
+    const countryScore = countrySimilarity(country, matchCountry);
+    if (countryScore >= 0.9) combined += 0.06;
+    else if (countryScore >= 0.75) combined += 0.03;
+
+    const scheduledMinutes = parseScheduledMinutes(match.scheduled);
+    if (fixtureUtcMinutes != null && scheduledMinutes != null) {
+      const diffMinutes = Math.abs(fixtureUtcMinutes - scheduledMinutes);
+      if (diffMinutes <= 5) combined += 0.08;
+      else if (diffMinutes <= 30) combined += 0.04;
+    }
 
     const providerScore = parseScore(match.scores?.score);
     if (

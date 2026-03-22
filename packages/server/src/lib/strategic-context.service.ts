@@ -637,6 +637,8 @@ export function buildNoDataStrategicContext(searchedAt = new Date().toISOString(
 
 export function hasUsableStrategicContext(ctx: Partial<StrategicContext> | null | undefined): boolean {
   if (!ctx || typeof ctx !== 'object') return false;
+  if (ctx.version !== 2) return false;
+  if (!ctx.source_meta || typeof ctx.source_meta !== 'object') return false;
   const summary = cleanText(ctx.summary);
   const quality = cleanText(ctx.source_meta?.search_quality).toLowerCase();
   const quantitativeCoverage = countStrategicQuantitativeCoverage(ctx.quantitative);

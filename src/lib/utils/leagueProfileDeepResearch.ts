@@ -2,6 +2,10 @@ import type { League, LeagueProfile } from '@/types';
 
 export type LeagueProfileDraft = Omit<LeagueProfile, 'league_id' | 'created_at' | 'updated_at'>;
 
+export type ImportFieldStatus = 'set' | 'default';
+export type ImportFieldResult = { label: string; value: string; status: ImportFieldStatus };
+export type ParseImportResult = { draft: LeagueProfileDraft; repaired: boolean; summary: ImportFieldResult[] };
+
 const TIER5_VALUES = new Set<LeagueProfileDraft['tempo_tier']>(['very_low', 'low', 'balanced', 'high', 'very_high']);
 const TIER3_VALUES = new Set<LeagueProfileDraft['volatility_tier']>(['low', 'medium', 'high']);
 const HOME_ADV_VALUES = new Set<LeagueProfileDraft['home_advantage_tier']>(['low', 'normal', 'high']);
@@ -150,17 +154,57 @@ export function buildLeagueProfileDeepResearchPrompt(league: Pick<League, 'leagu
   ].join('\n');
 }
 
-export function parseImportedLeagueProfile(raw: string, league: Pick<League, 'league_name' | 'country'>): LeagueProfileDraft {
+/** Attempt to fix common JSON issues produced by AI (missing values, trailing commas, markdown fences). */
+export function repairJson(raw: string): string {
+  let s = raw.trim();
+  // Strip markdown code fences
+  s = s.replace(/^```(?:json)?\s*/i, '').replace(/\s*```\s*$/, '').trim();
+  // Fix "key":, → "key": null,
+  s = s.replace(/"([^"]+)"\s*:\s*,/g, '"$1": null,');
+  // Fix "key": } or "key": ] (value missing before closing bracket)
+  s = s.replace(/"([^"]+)"\s*:\s*([\}\]])/g, '"$1": null$2');
+  // Remove trailing commas before } or ]
+  s = s.replace(/,(\s*[\}\]])/g, '$1');
+  return s;
+}
+
+export function summarizeDraft(draft: LeagueProfileDraft): ImportFieldResult[] {
+  const def = DEFAULT_LEAGUE_PROFILE_DRAFT;
+  const fmt = (v: number | null) => (v == null ? '—' : String(v));
+  const st = (a: unknown, b: unknown): ImportFieldStatus => (a !== b ? 'set' : 'default');
+  return [
+    { label: 'Tempo',           value: draft.tempo_tier,              status: st(draft.tempo_tier, def.tempo_tier) },
+    { label: 'Goal Tendency',   value: draft.goal_tendency,           status: st(draft.goal_tendency, def.goal_tendency) },
+    { label: 'Home Advantage',  value: draft.home_advantage_tier,     status: st(draft.home_advantage_tier, def.home_advantage_tier) },
+    { label: 'Corners',         value: draft.corners_tendency,        status: st(draft.corners_tendency, def.corners_tendency) },
+    { label: 'Cards',           value: draft.cards_tendency,          status: st(draft.cards_tendency, def.cards_tendency) },
+    { label: 'Volatility',      value: draft.volatility_tier,         status: st(draft.volatility_tier, def.volatility_tier) },
+    { label: 'Data Reliability',value: draft.data_reliability_tier,   status: st(draft.data_reliability_tier, def.data_reliability_tier) },
+    { label: 'Avg Goals',       value: fmt(draft.avg_goals),          status: st(draft.avg_goals, def.avg_goals) },
+    { label: 'Over 2.5 Rate',   value: fmt(draft.over_2_5_rate),      status: st(draft.over_2_5_rate, def.over_2_5_rate) },
+    { label: 'BTTS Rate',       value: fmt(draft.btts_rate),          status: st(draft.btts_rate, def.btts_rate) },
+    { label: 'Late Goal 75+',   value: fmt(draft.late_goal_rate_75_plus), status: st(draft.late_goal_rate_75_plus, def.late_goal_rate_75_plus) },
+    { label: 'Avg Corners',     value: fmt(draft.avg_corners),        status: st(draft.avg_corners, def.avg_corners) },
+    { label: 'Avg Cards',       value: fmt(draft.avg_cards),          status: st(draft.avg_cards, def.avg_cards) },
+    { label: 'Notes EN',        value: draft.notes_en ? '✓ present' : '—', status: st(draft.notes_en, def.notes_en) },
+    { label: 'Notes VI',        value: draft.notes_vi ? '✓ present' : '—', status: st(draft.notes_vi, def.notes_vi) },
+  ];
+}
+
+export function parseImportedLeagueProfile(raw: string, league: Pick<League, 'league_name' | 'country'>): ParseImportResult {
   const trimmed = raw.trim();
   if (!trimmed) {
     throw new Error('Import content is empty.');
   }
 
+  const repaired = trimmed !== repairJson(trimmed);
+  const toparse = repairJson(trimmed);
+
   let parsed: unknown;
   try {
-    parsed = JSON.parse(trimmed);
+    parsed = JSON.parse(toparse);
   } catch {
-    throw new Error('Imported content is not valid JSON.');
+    throw new Error('Content is not valid JSON and could not be auto-repaired. Check for syntax errors.');
   }
 
   const root = extractImportRoot(parsed);
@@ -181,7 +225,7 @@ export function parseImportedLeagueProfile(raw: string, league: Pick<League, 'le
       ? root.quantitative
       : root;
 
-  return {
+  const draft: LeagueProfileDraft = {
     tempo_tier: readTier5(qualitative.tempo_tier, DEFAULT_LEAGUE_PROFILE_DRAFT.tempo_tier),
     goal_tendency: readTier5(qualitative.goal_tendency, DEFAULT_LEAGUE_PROFILE_DRAFT.goal_tendency),
     home_advantage_tier: readHomeAdvantage(qualitative.home_advantage_tier, DEFAULT_LEAGUE_PROFILE_DRAFT.home_advantage_tier),
@@ -198,4 +242,6 @@ export function parseImportedLeagueProfile(raw: string, league: Pick<League, 'le
     notes_en: readText(root.notes_en),
     notes_vi: readText(root.notes_vi),
   };
+
+  return { draft, repaired, summary: summarizeDraft(draft) };
 }

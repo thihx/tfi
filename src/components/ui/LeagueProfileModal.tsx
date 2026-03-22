@@ -5,7 +5,10 @@ import {
   buildLeagueProfileDeepResearchPrompt,
   DEFAULT_LEAGUE_PROFILE_DRAFT,
   parseImportedLeagueProfile,
+  summarizeDraft,
+  type ImportFieldResult,
   type LeagueProfileDraft,
+  type ParseImportResult,
 } from '@/lib/utils/leagueProfileDeepResearch';
 
 // ── Tier option definitions ──────────────────────────────────────────────────
@@ -180,6 +183,69 @@ function InnerTabBar({ active, onChange }: { active: InnerTab; onChange: (t: Inn
   );
 }
 
+// ── Wizard step indicator ────────────────────────────────────────────────────
+
+const WIZARD_STEPS = ['Copy Prompt', 'Paste JSON', 'Review & Apply'];
+
+function WizardSteps({ current }: { current: number }) {
+  return (
+    <div style={{ display: 'flex', alignItems: 'flex-start', marginBottom: 20 }}>
+      {WIZARD_STEPS.map((label, i) => {
+        const step = i + 1;
+        const done = step < current;
+        const active = step === current;
+        return (
+          <div key={step} style={{ display: 'flex', alignItems: 'flex-start', flex: i < WIZARD_STEPS.length - 1 ? 1 : 'none' }}>
+            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 5 }}>
+              <div style={{
+                width: 28, height: 28, borderRadius: '50%',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                fontSize: 12, fontWeight: 700,
+                background: done ? '#2563eb' : active ? '#eff6ff' : 'var(--gray-100)',
+                color: done ? 'white' : active ? '#2563eb' : 'var(--gray-400)',
+                border: `2px solid ${done ? '#2563eb' : active ? '#2563eb' : 'var(--gray-200)'}`,
+                flexShrink: 0,
+              }}>
+                {done ? '✓' : step}
+              </div>
+              <div style={{ fontSize: 10, fontWeight: active ? 700 : 400, color: active ? '#2563eb' : done ? '#2563eb' : 'var(--gray-400)', whiteSpace: 'nowrap' }}>
+                {label}
+              </div>
+            </div>
+            {i < WIZARD_STEPS.length - 1 && (
+              <div style={{ flex: 1, height: 2, background: done ? '#2563eb' : 'var(--gray-200)', marginTop: 13, marginLeft: 4, marginRight: 4 }} />
+            )}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+// ── Import summary table ─────────────────────────────────────────────────────
+
+function ImportSummaryGrid({ fields }: { fields: ImportFieldResult[] }) {
+  return (
+    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', gap: 6 }}>
+      {fields.map((f) => (
+        <div key={f.label} style={{
+          padding: '7px 10px', borderRadius: 6,
+          border: `1px solid ${f.status === 'set' ? '#bbf7d0' : 'var(--gray-200)'}`,
+          background: f.status === 'set' ? '#f0fdf4' : 'var(--gray-50)',
+          display: 'flex', flexDirection: 'column', gap: 2,
+        }}>
+          <div style={{ fontSize: 10, fontWeight: 600, color: f.status === 'set' ? '#166534' : 'var(--gray-400)', textTransform: 'uppercase', letterSpacing: '0.4px' }}>
+            {f.label}
+          </div>
+          <div style={{ fontSize: 12, fontWeight: 700, color: f.status === 'set' ? '#15803d' : 'var(--gray-300)' }}>
+            {f.value}
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 // ── Props ────────────────────────────────────────────────────────────────────
 
 interface LeagueProfileModalProps {
@@ -206,9 +272,13 @@ export function LeagueProfileModal({
   const [draft, setDraft] = useState<LeagueProfileDraft>(DEFAULT_LEAGUE_PROFILE_DRAFT);
   const [innerTab, setInnerTab] = useState<InnerTab>('profile');
   const [copyStatus, setCopyStatus] = useState('');
+  const [importSuccess, setImportSuccess] = useState('');
+
+  // Wizard state
+  const [wizardStep, setWizardStep] = useState(1);
   const [importText, setImportText] = useState('');
   const [importError, setImportError] = useState('');
-  const [importSuccess, setImportSuccess] = useState('');
+  const [parsedResult, setParsedResult] = useState<ParseImportResult | null>(null);
 
   useEffect(() => {
     if (!league) return;
@@ -223,6 +293,8 @@ export function LeagueProfileModal({
     setImportSuccess('');
     setCopyStatus('');
     setInnerTab('profile');
+    setWizardStep(1);
+    setParsedResult(null);
   }, [league, profile]);
 
   const promptTemplate = league ? buildLeagueProfileDeepResearchPrompt(league) : '';
@@ -231,25 +303,35 @@ export function LeagueProfileModal({
     if (!promptTemplate) return;
     try {
       await navigator.clipboard.writeText(promptTemplate);
-      setCopyStatus('Prompt copied!');
+      setCopyStatus('Copied!');
       setTimeout(() => setCopyStatus(''), 2500);
     } catch {
       setCopyStatus('Copy failed');
     }
   }
 
-  function handleApplyImport() {
+  function handleValidateJson() {
     if (!league) return;
     try {
-      const imported = parseImportedLeagueProfile(importText, league);
-      setDraft(imported);
+      const result = parseImportedLeagueProfile(importText, league);
+      setParsedResult(result);
       setImportError('');
-      setImportSuccess('Profile data applied — review the fields below, then save.');
-      setInnerTab('profile');
+      setWizardStep(3);
     } catch (err) {
-      setImportSuccess('');
-      setImportError(err instanceof Error ? err.message : 'Failed to import profile');
+      setImportError(err instanceof Error ? err.message : 'Failed to parse JSON');
+      setParsedResult(null);
     }
+  }
+
+  function handleApplyImport() {
+    if (!parsedResult) return;
+    setDraft(parsedResult.draft);
+    setImportSuccess(`Profile data applied from Deep Research — ${summarizeDraft(parsedResult.draft).filter((f) => f.status === 'set').length} fields populated.`);
+    setInnerTab('profile');
+    setWizardStep(1);
+    setImportText('');
+    setParsedResult(null);
+    setImportError('');
   }
 
   function set<K extends keyof LeagueProfileDraft>(key: K, value: LeagueProfileDraft[K]) {
@@ -311,7 +393,7 @@ export function LeagueProfileModal({
           </div>
 
           {/* Inner tabs */}
-          <InnerTabBar active={innerTab} onChange={setInnerTab} />
+          <InnerTabBar active={innerTab} onChange={(t) => { setInnerTab(t); setImportSuccess(''); }} />
 
           {/* ── Profile Data tab ── */}
           {innerTab === 'profile' && (
@@ -383,77 +465,144 @@ export function LeagueProfileModal({
             </div>
           )}
 
-          {/* ── Deep Research tab ── */}
+          {/* ── Deep Research tab (Wizard) ── */}
           {innerTab === 'research' && (
-            <div style={{ display: 'grid', gap: 20 }}>
+            <div style={{ display: 'grid', gap: 16 }}>
+              <WizardSteps current={wizardStep} />
 
-              {/* Prompt section */}
-              <div style={{ display: 'grid', gap: 10 }}>
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
-                  <SectionLabel>Prompt Template</SectionLabel>
-                  <button
-                    className="btn btn-primary btn-sm"
-                    type="button"
-                    onClick={handleCopyPrompt}
-                    style={{ flexShrink: 0 }}
-                  >
-                    {copyStatus || 'Copy Prompt'}
-                  </button>
-                </div>
-                <div style={{ fontSize: 12, color: 'var(--gray-500)', lineHeight: 1.5 }}>
-                  Copy this prompt and run it in <strong>Google AI Studio → Deep Research</strong> (or Gemini Deep Research).
-                  Then paste the JSON response in the Import section below.
-                </div>
-                <textarea
-                  readOnly
-                  rows={12}
-                  className="filter-input"
-                  value={promptTemplate}
-                  aria-label="Deep Research Prompt Template"
-                  style={{ fontSize: 11, fontFamily: 'monospace', resize: 'vertical', background: 'var(--gray-50)' }}
-                />
-              </div>
-
-              {/* Import section */}
-              <div style={{ display: 'grid', gap: 10 }}>
-                <SectionLabel>Import JSON Response</SectionLabel>
-                <div style={{ fontSize: 12, color: 'var(--gray-500)', lineHeight: 1.5 }}>
-                  Paste the strict JSON returned by Deep Research. The form fields will be populated automatically.
-                </div>
-                <textarea
-                  rows={8}
-                  className="filter-input"
-                  value={importText}
-                  onChange={(e) => {
-                    setImportText(e.target.value);
-                    if (importError) setImportError('');
-                    if (importSuccess) setImportSuccess('');
-                  }}
-                  placeholder='Paste the JSON response here…'
-                  aria-label="Import League Profile JSON"
-                  style={{ fontSize: 11, fontFamily: 'monospace', resize: 'vertical' }}
-                />
-                {importError && (
+              {/* Step 1: Copy Prompt */}
+              {wizardStep === 1 && (
+                <div style={{ display: 'grid', gap: 12 }}>
                   <div style={{
-                    padding: '8px 12px', borderRadius: 6,
-                    background: '#fef2f2', border: '1px solid #fecaca',
-                    fontSize: 12, color: '#b91c1c',
+                    padding: '10px 14px', borderRadius: 8,
+                    background: '#eff6ff', border: '1px solid #bfdbfe',
+                    fontSize: 12, color: '#1e40af', lineHeight: 1.6,
                   }}>
-                    ✗ {importError}
+                    <strong>How to use:</strong> Copy the prompt below and paste it into{' '}
+                    <strong>Google AI Studio → Deep Research</strong> (or Gemini / ChatGPT Deep Research).
+                    Let it research the league and return a JSON response, then continue to the next step.
                   </div>
-                )}
-                <div>
-                  <button
-                    className="btn btn-primary"
-                    type="button"
-                    onClick={handleApplyImport}
-                    disabled={!importText.trim()}
-                  >
-                    Apply Import
-                  </button>
+                  <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+                    <button
+                      className="btn btn-primary"
+                      type="button"
+                      onClick={handleCopyPrompt}
+                      style={{ minWidth: 130 }}
+                    >
+                      {copyStatus || '📋 Copy Prompt'}
+                    </button>
+                  </div>
+                  <textarea
+                    readOnly
+                    rows={14}
+                    className="filter-input"
+                    value={promptTemplate}
+                    aria-label="Deep Research Prompt Template"
+                    style={{ fontSize: 11, fontFamily: 'monospace', resize: 'vertical', background: 'var(--gray-50)' }}
+                  />
+                  <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+                    <button
+                      className="btn btn-primary"
+                      type="button"
+                      onClick={() => setWizardStep(2)}
+                    >
+                      I've got the JSON result →
+                    </button>
+                  </div>
                 </div>
-              </div>
+              )}
 
+              {/* Step 2: Paste JSON */}
+              {wizardStep === 2 && (
+                <div style={{ display: 'grid', gap: 12 }}>
+                  <div style={{
+                    padding: '10px 14px', borderRadius: 8,
+                    background: '#eff6ff', border: '1px solid #bfdbfe',
+                    fontSize: 12, color: '#1e40af', lineHeight: 1.6,
+                  }}>
+                    Paste the JSON returned by the Deep Research tool. We'll automatically repair minor formatting issues before parsing.
+                  </div>
+                  <textarea
+                    rows={14}
+                    className="filter-input"
+                    value={importText}
+                    onChange={(e) => {
+                      setImportText(e.target.value);
+                      if (importError) setImportError('');
+                    }}
+                    placeholder='Paste the JSON response here…'
+                    aria-label="Import League Profile JSON"
+                    style={{ fontSize: 11, fontFamily: 'monospace', resize: 'vertical' }}
+                  />
+                  {importError && (
+                    <div style={{
+                      padding: '8px 12px', borderRadius: 6,
+                      background: '#fef2f2', border: '1px solid #fecaca',
+                      fontSize: 12, color: '#b91c1c',
+                    }}>
+                      ✗ {importError}
+                    </div>
+                  )}
+                  <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                    <button
+                      className="btn btn-secondary"
+                      type="button"
+                      onClick={() => { setWizardStep(1); setImportError(''); }}
+                    >
+                      ← Back
+                    </button>
+                    <button
+                      className="btn btn-primary"
+                      type="button"
+                      onClick={handleValidateJson}
+                      disabled={!importText.trim()}
+                    >
+                      Validate & Continue →
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {/* Step 3: Review & Apply */}
+              {wizardStep === 3 && parsedResult && (
+                <div style={{ display: 'grid', gap: 14 }}>
+                  {parsedResult.repaired && (
+                    <div style={{
+                      padding: '8px 12px', borderRadius: 6,
+                      background: '#fffbeb', border: '1px solid #fde68a',
+                      fontSize: 12, color: '#92400e',
+                    }}>
+                      ⚡ Auto-repaired minor JSON issues (e.g. missing field values). Data below reflects the corrected result.
+                    </div>
+                  )}
+                  <div>
+                    <SectionLabel>Parsed Fields</SectionLabel>
+                    <div style={{ marginTop: 10, fontSize: 12, color: 'var(--gray-500)', marginBottom: 10 }}>
+                      <span style={{ display: 'inline-block', width: 10, height: 10, borderRadius: 2, background: '#bbf7d0', border: '1px solid #86efac', marginRight: 5 }} />
+                      Green = value set by AI &nbsp;&nbsp;
+                      <span style={{ display: 'inline-block', width: 10, height: 10, borderRadius: 2, background: 'var(--gray-100)', border: '1px solid var(--gray-200)', marginRight: 5 }} />
+                      Gray = using default
+                    </div>
+                    <ImportSummaryGrid fields={parsedResult.summary} />
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                    <button
+                      className="btn btn-secondary"
+                      type="button"
+                      onClick={() => { setWizardStep(2); setParsedResult(null); }}
+                    >
+                      ← Back
+                    </button>
+                    <button
+                      className="btn btn-primary"
+                      type="button"
+                      onClick={handleApplyImport}
+                    >
+                      ✓ Apply to Profile
+                    </button>
+                  </div>
+                </div>
+              )}
             </div>
           )}
         </div>

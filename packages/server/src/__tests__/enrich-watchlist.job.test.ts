@@ -363,6 +363,49 @@ describe('enrichWatchlistJob', () => {
     expect(watchlistRepo.updateWatchlistEntry).not.toHaveBeenCalled();
   });
 
+  test('re-enriches legacy context missing trust metadata even when summary text exists', async () => {
+    const watchlistRepo = await import('../repos/watchlist.repo.js');
+    vi.mocked(watchlistRepo.getActiveWatchlist).mockResolvedValueOnce([
+      {
+        match_id: '750',
+        home_team: 'A',
+        away_team: 'B',
+        league: 'L',
+        date: '2026-03-17',
+        status: 'active',
+        strategic_context: {
+          summary: 'Legacy context without source metadata.',
+          home_motivation: 'Legacy motivation',
+          _meta: { refresh_status: 'failed', failure_count: 1 },
+        },
+        strategic_context_at: sixHoursAgo,
+        recommended_custom_condition: '',
+      },
+    ] as never);
+    const matchRepo = await import('../repos/matches.repo.js');
+    vi.mocked(matchRepo.getAllMatches).mockResolvedValueOnce([
+      { match_id: '750', status: 'NS' },
+    ] as never);
+    const service = await import('../lib/strategic-context.service.js');
+    vi.mocked(service.fetchStrategicContext).mockResolvedValueOnce(defaultStrategicContext as never);
+
+    const result = await enrichWatchlistJob();
+
+    expect(result.checked).toBe(1);
+    expect(result.enriched).toBe(1);
+    expect(service.fetchStrategicContext).toHaveBeenCalledTimes(1);
+    expect(watchlistRepo.updateWatchlistEntry).toHaveBeenCalledWith(
+      '750',
+      expect.objectContaining({
+        strategic_context: expect.objectContaining({
+          version: 2,
+          source_meta: expect.any(Object),
+          _meta: expect.objectContaining({ refresh_status: 'good' }),
+        }),
+      }),
+    );
+  });
+
   test('accepts quantitative trusted context even when summary is still no-data', async () => {
     const watchlistRepo = await import('../repos/watchlist.repo.js');
     vi.mocked(watchlistRepo.getActiveWatchlist).mockResolvedValueOnce([

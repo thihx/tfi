@@ -56,6 +56,13 @@ function getSourceQuality(ctx: StoredStrategicContext | null): string {
   return String(ctx?.source_meta?.search_quality ?? 'unknown').trim().toLowerCase();
 }
 
+function hasStructuredStrategicContext(ctx: StoredStrategicContext | null): boolean {
+  return !!ctx
+    && ctx.version === 2
+    && !!ctx.source_meta
+    && typeof ctx.source_meta === 'object';
+}
+
 function countQuantitativeCoverage(ctx: StoredStrategicContext | null): number {
   const quantitative = ctx?.quantitative;
   if (!quantitative || typeof quantitative !== 'object') return 0;
@@ -64,6 +71,9 @@ function countQuantitativeCoverage(ctx: StoredStrategicContext | null): number {
 
 function hasUsableContext(ctx: StoredStrategicContext | null): boolean {
   if (!ctx) return false;
+  const refreshStatus = String(ctx._meta?.refresh_status ?? '').trim().toLowerCase();
+  if (refreshStatus === 'poor' || refreshStatus === 'failed') return false;
+  if (!hasStructuredStrategicContext(ctx)) return false;
   const searchQuality = getSourceQuality(ctx);
   if (searchQuality === 'low') return false;
   if (!isPoorSummary(ctx.summary)) return true;

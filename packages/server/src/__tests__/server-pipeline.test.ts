@@ -454,6 +454,69 @@ describe('runPipelineBatch', () => {
     expect(result.results[0]?.debug?.statsFallbackUsed).toBe(true);
   });
 
+  test('supplements degraded API-Sports stats with partial Live Score stats without upgrading evidence tier', async () => {
+    const footballApi = await import('../lib/football-api.js');
+    vi.mocked(footballApi.fetchFixtureStatistics).mockResolvedValueOnce([]);
+    vi.mocked(footballApi.fetchFixtureEvents).mockResolvedValueOnce([
+      { time: { elapsed: 46 }, team: { id: 1 }, type: 'subst', detail: 'Substitution 1', player: { name: 'Player A' } },
+    ] as never);
+
+    const liveScoreApi = await import('../lib/live-score-api.js');
+    vi.mocked(liveScoreApi.fetchLiveScoreBenchmarkTrace).mockResolvedValueOnce(buildLiveScoreTrace({
+      rawStats: {
+        possesion: null,
+        corners: '3:0',
+        attempts_on_goal: null,
+        shots_on_target: null,
+        fauls: null,
+        yellow_cards: '0:2',
+      },
+      normalizedStats: [
+        { team: { id: 1 }, statistics: [{ type: 'Corner Kicks', value: 3 }, { type: 'Yellow Cards', value: 0 }] },
+        { team: { id: 2 }, statistics: [{ type: 'Corner Kicks', value: 0 }, { type: 'Yellow Cards', value: 2 }] },
+      ],
+      normalizedEvents: [
+        { time: { elapsed: 46 }, team: { id: 1, name: 'Team A', logo: '' }, type: 'subst', detail: 'Substitution 1', player: { id: null, name: 'Player A' }, assist: { id: null, name: 'Bench' }, comments: null },
+      ],
+      statsCompact: {
+        possession: { home: null, away: null },
+        shots: { home: null, away: null },
+        shots_on_target: { home: null, away: null },
+        corners: { home: '3', away: '0' },
+        fouls: { home: null, away: null },
+        offsides: { home: null, away: null },
+        yellow_cards: { home: '0', away: '2' },
+        red_cards: { home: null, away: null },
+        goalkeeper_saves: { home: null, away: null },
+        blocked_shots: { home: null, away: null },
+        total_passes: { home: null, away: null },
+        passes_accurate: { home: null, away: null },
+      },
+      coverageFlags: {
+        matched: true,
+        has_possession: false,
+        has_shots: false,
+        has_shots_on_target: false,
+        has_corners: true,
+        event_count: 1,
+        populated_stat_pairs: 1,
+        total_stat_pairs: 12,
+      },
+    }));
+
+    const result = await runPipelineBatch(['100']);
+
+    const { callGemini } = await import('../lib/gemini.js');
+    const prompt = vi.mocked(callGemini).mock.calls[0][0];
+    expect(prompt).toContain('STATS_SOURCE: live-score-api-fallback');
+    expect(prompt).toContain('\"corners\":{\"home\":\"3\",\"away\":\"0\"}');
+    expect(prompt).toContain('EVIDENCE_MODE: odds_events_only_degraded');
+    expect(String(result.results[0]?.debug?.statsFallbackReason || '')).toContain('supplemented');
+    expect(result.results[0]?.debug?.statsSource).toBe('live-score-api-fallback');
+    expect(result.results[0]?.debug?.statsFallbackUsed).toBe(true);
+    expect(result.results[0]?.debug?.evidenceMode).toBe('odds_events_only_degraded');
+  });
+
   test('uses degraded odds+events mode when stats stay unavailable after fallback check', async () => {
     const footballApi = await import('../lib/football-api.js');
     vi.mocked(footballApi.fetchFixtureStatistics).mockResolvedValueOnce([]);
@@ -1144,12 +1207,17 @@ describe('runPipelineBatch', () => {
           home_over_2_5_rate_last10: 60,
           away_over_2_5_rate_last10: 40,
         },
+        version: 2,
         source_meta: {
           search_quality: 'high',
+          web_search_queries: ['table', 'injuries'],
           sources: [
             { domain: 'reuters.com', trust_tier: 'tier_1' },
             { domain: 'fbref.com', trust_tier: 'tier_2' },
           ],
+          trusted_source_count: 2,
+          rejected_source_count: 0,
+          rejected_domains: [],
         },
       },
     } as never);

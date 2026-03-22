@@ -1,6 +1,13 @@
 import { describe, expect, test } from 'vitest';
 import type { StrategicContext } from '@/types';
-import { getStrategicNarrative, hasStrategicNarrative } from '../strategicContext';
+import {
+  getStrategicNarrative,
+  getStrategicQuantitativeEntries,
+  getStrategicRefreshMeta,
+  getStrategicSourceMeta,
+  hasStrategicNarrative,
+  isStructuredStrategicContext,
+} from '../strategicContext';
 
 const context: StrategicContext = {
   home_motivation: 'Home EN legacy',
@@ -12,6 +19,7 @@ const context: StrategicContext = {
   h2h_narrative: 'Legacy H2H',
   summary: 'Legacy summary',
   searched_at: '2026-03-21T00:00:00.000Z',
+  version: 2,
   summary_vi: 'Tom tat legacy',
   qualitative: {
     en: {
@@ -35,6 +43,36 @@ const context: StrategicContext = {
       summary: 'Tom tat tieng Viet',
     },
   },
+  quantitative: {
+    home_last5_points: 10,
+    away_last5_points: 6,
+    home_last5_goals_for: null,
+    away_last5_goals_for: null,
+    home_last5_goals_against: null,
+    away_last5_goals_against: null,
+    home_home_goals_avg: null,
+    away_away_goals_avg: null,
+    home_over_2_5_rate_last10: null,
+    away_over_2_5_rate_last10: null,
+    home_btts_rate_last10: null,
+    away_btts_rate_last10: null,
+    home_clean_sheet_rate_last10: null,
+    away_clean_sheet_rate_last10: null,
+    home_failed_to_score_rate_last10: null,
+    away_failed_to_score_rate_last10: null,
+  },
+  source_meta: {
+    search_quality: 'medium',
+    web_search_queries: [],
+    sources: [],
+    trusted_source_count: 1,
+    rejected_source_count: 0,
+    rejected_domains: [],
+  },
+  _meta: {
+    refresh_status: 'good',
+    failure_count: 0,
+  },
 };
 
 describe('strategicContext utils', () => {
@@ -57,5 +95,18 @@ describe('strategicContext utils', () => {
   test('detects whether any strategic narrative exists for chosen language', () => {
     expect(hasStrategicNarrative(context, 'vi')).toBe(true);
     expect(hasStrategicNarrative(null, 'vi')).toBe(false);
+  });
+
+  test('returns source and refresh metadata for structured contexts', () => {
+    expect(isStructuredStrategicContext(context)).toBe(true);
+    expect(getStrategicSourceMeta(context)?.search_quality).toBe('medium');
+    expect(getStrategicRefreshMeta(context)?.refresh_status).toBe('good');
+  });
+
+  test('returns quantitative entries with labels', () => {
+    expect(getStrategicQuantitativeEntries(context)).toEqual([
+      { key: 'home_last5_points', label: 'Home last 5 points', value: 10 },
+      { key: 'away_last5_points', label: 'Away last 5 points', value: 6 },
+    ]);
   });
 });

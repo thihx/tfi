@@ -118,6 +118,13 @@ export interface StrategicContext {
     rejected_source_count: number;
     rejected_domains: string[];
   };
+  _meta?: {
+    refresh_status?: 'good' | 'poor' | 'failed';
+    failure_count?: number;
+    last_attempt_at?: string;
+    retry_after?: string | null;
+    last_error?: string;
+  };
 }
 
 export interface WatchlistItem {
