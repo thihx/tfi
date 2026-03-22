@@ -13,6 +13,8 @@ export const strategicSourcePolicyBase = {
     'ligue1.com',
     'efl.com',
     'mlssoccer.com',
+    'kleague.com',
+    'portal.kleague.com',
   ],
   majorNewsDomains: [
     'reuters.com',

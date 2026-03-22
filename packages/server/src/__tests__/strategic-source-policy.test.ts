@@ -63,6 +63,10 @@ describe('strategic-source-policy', () => {
       trustTier: 'tier_1',
       sourceType: 'major_news',
     });
+    expect(classifyStrategicSourceDomain('portal.kleague.com')).toEqual({
+      trustTier: 'tier_1',
+      sourceType: 'official',
+    });
     expect(classifyStrategicSourceDomain('www.fbref.com')).toEqual({
       trustTier: 'tier_2',
       sourceType: 'stats_reference',

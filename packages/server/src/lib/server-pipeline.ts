@@ -41,6 +41,7 @@ import {
   checkStalenessServer,
 } from './server-pipeline-gates.js';
 import { fetchLiveScoreBenchmarkTrace } from './live-score-api.js';
+import { fetchDeterministicWebLiveFallback } from './web-live-fallback.js';
 import {
   extractStatusCode,
   recordProviderStatsSampleSafe,
@@ -139,6 +140,7 @@ const defaultPipelineDeps = {
   sendTelegramPhoto,
   sendTelegramAlbum,
   fetchLiveScoreBenchmarkTrace,
+  fetchDeterministicWebLiveFallback,
   createPromptShadowRun,
   getLeagueProfileByLeagueId,
 };
@@ -250,7 +252,7 @@ interface DerivedInsights {
   intensity: 'low' | 'medium' | 'high';
 }
 
-type StatsSource = 'api-football' | 'live-score-api-fallback';
+type StatsSource = 'api-football' | 'live-score-api-fallback' | 'web-trusted-fallback';
 type EvidenceMode =
   | 'full_live_data'
   | 'stats_only'
@@ -810,6 +812,65 @@ function buildEventsCompact(
   return compact;
 }
 
+function toCompactPair(home: number | null, away: number | null): { home: string | null; away: string | null } {
+  return {
+    home: home != null ? String(home) : null,
+    away: away != null ? String(away) : null,
+  };
+}
+
+function buildStatsCompactFromWebFallback(stats: {
+  possession: { home: number | null; away: number | null };
+  shots: { home: number | null; away: number | null };
+  shots_on_target: { home: number | null; away: number | null };
+  corners: { home: number | null; away: number | null };
+  fouls: { home: number | null; away: number | null };
+  yellow_cards: { home: number | null; away: number | null };
+  red_cards: { home: number | null; away: number | null };
+}): StatsCompact {
+  return {
+    possession: toCompactPair(stats.possession.home, stats.possession.away),
+    shots: toCompactPair(stats.shots.home, stats.shots.away),
+    shots_on_target: toCompactPair(stats.shots_on_target.home, stats.shots_on_target.away),
+    corners: toCompactPair(stats.corners.home, stats.corners.away),
+    fouls: toCompactPair(stats.fouls.home, stats.fouls.away),
+    offsides: { home: null, away: null },
+    yellow_cards: toCompactPair(stats.yellow_cards.home, stats.yellow_cards.away),
+    red_cards: toCompactPair(stats.red_cards.home, stats.red_cards.away),
+    goalkeeper_saves: { home: null, away: null },
+    blocked_shots: { home: null, away: null },
+    total_passes: { home: null, away: null },
+    passes_accurate: { home: null, away: null },
+  };
+}
+
+function buildEventsCompactFromWebFallback(
+  events: Array<{ minute: number | null; team: 'home' | 'away' | 'unknown'; type: string; detail: string; player: string }>,
+  homeName: string,
+  awayName: string,
+): EventCompact[] {
+  return events
+    .map((event) => ({
+      minute: event.minute ?? 0,
+      extra: null,
+      team: event.team === 'home' ? homeName : event.team === 'away' ? awayName : '',
+      type: event.type === 'yellow_card' || event.type === 'red_card' ? 'card' : event.type,
+      detail: event.detail,
+      player: event.player,
+    }))
+    .filter((event) => event.minute > 0 && Boolean(event.team || event.player || event.detail));
+}
+
+function hasCriticalWebFallbackMismatch(reasons: string[]): boolean {
+  return reasons.some((reason) => [
+    'HOME_TEAM_MISMATCH',
+    'AWAY_TEAM_MISMATCH',
+    'SCORE_MISMATCH',
+    'STATUS_MISMATCH',
+    'MINUTE_TOO_FAR',
+  ].includes(reason));
+}
+
 // ==================== Build Odds Canonical ====================
 
 function buildOddsCanonical(oddsResponse: unknown[]): { canonical: OddsCanonical; available: boolean } {
@@ -1240,21 +1301,12 @@ function buildEventsTimelineUrl(
     return {
       type: 'scatter',
       label,
-      // Store original minute in data point so datalabels formatter can read it directly
-      data: xs.map((x, i) => ({ x, y, minute: toX(evts[i]!) })),
+      // Store original minute + above flag in each point so top-level datalabels can use them
+      data: xs.map((x, i) => ({ x, y, minute: toX(evts[i]!), above })),
       backgroundColor: color,
       borderColor: '#fff',
       borderWidth: 1,
       pointRadius: 8,
-      datalabels: {
-        display: true,
-        formatter: 'function(v){return v.minute+"\'";}',
-        align: above ? 'top' : 'bottom',
-        anchor: above ? 'end' : 'start',
-        color: '#1e293b',
-        font: { size: 8, weight: 'bold' },
-        offset: 2,
-      },
     };
   };
 
@@ -1306,7 +1358,17 @@ function buildEventsTimelineUrl(
         fontStyle: 'normal',
       },
       legend: { display: false },
-      plugins: { datalabels: { display: false } },
+      plugins: {
+        datalabels: {
+          display: "function(context){ return context.dataset.type==='scatter'; }",
+          formatter: "function(v){ return v.minute+\"'\"; }",
+          align: "function(context){ var d=context.dataset.data[context.dataIndex]; return d&&d.above?'top':'bottom'; }",
+          anchor: "function(context){ var d=context.dataset.data[context.dataIndex]; return d&&d.above?'end':'start'; }",
+          color: '#1e293b',
+          font: { size: 8, weight: 'bold' },
+          offset: 2,
+        },
+      },
       scales: {
         xAxes: [{
           type: 'linear',
@@ -1750,6 +1812,85 @@ async function processMatch(
         } else {
           statsFallbackReason = `Live Score fallback rejected: api_pairs=${apiPrimaryPairs}, live_pairs=${liveScorePrimaryPairs}, merged_pairs=${mergedPrimaryPairs}, api_events=${apiEventCount}, live_events=${liveScoreEventCount}, live_quality=${liveScoreProceed.statsMeta.statsQuality}`;
         }
+      }
+    }
+
+    if (config.webLiveStatsFallbackEnabled && !proceed.statsAvailable) {
+      const webFallback = await deps.fetchDeterministicWebLiveFallback({
+        homeTeam: homeName,
+        awayTeam: awayName,
+        league: fixture.league?.name || '',
+        matchDate: fixture.fixture?.date ? String(fixture.fixture.date).slice(0, 10) : null,
+        status,
+        minute,
+        score: { home: homeGoals, away: awayGoals },
+        requestedSlots: { stats: true, events: true },
+      });
+
+      if (sampleProviderData && webFallback.structured) {
+        void recordProviderStatsSampleSafe({
+          match_id: matchId,
+          match_minute: minute,
+          match_status: status,
+          provider: 'web-live-fallback',
+          consumer: shadowMode ? 'replay' : 'server-pipeline',
+          success: webFallback.validation.accepted,
+          latency_ms: 0,
+          status_code: null,
+          error: webFallback.error || webFallback.validation.reasons.join(','),
+          raw_payload: {
+            matched_url: webFallback.structured.matched_url,
+            source_meta: webFallback.sourceMeta,
+          },
+          normalized_payload: webFallback.structured.stats,
+          coverage_flags: {
+            primary_stat_pairs: countPrimaryPopulatedStatPairs(buildStatsCompactFromWebFallback(webFallback.structured.stats)),
+            event_count: webFallback.structured.events.length,
+            accepted: webFallback.validation.accepted,
+            reasons: webFallback.validation.reasons,
+          },
+        });
+      }
+
+      const criticalWebFallbackMismatch = hasCriticalWebFallbackMismatch(webFallback.validation.reasons);
+      if (webFallback.structured && webFallback.sourceMeta.trusted_source_count > 0 && !criticalWebFallbackMismatch) {
+        const webStatsCompact = buildStatsCompactFromWebFallback(webFallback.structured.stats);
+        const webEventsCompact = buildEventsCompactFromWebFallback(webFallback.structured.events, homeName, awayName);
+        const mergedStatsCompact = mergeStatsCompact(statsCompact, webStatsCompact);
+        const mergedEventsCompact = webEventsCompact.length > eventsCompact.length ? webEventsCompact : eventsCompact;
+        const mergedProceed = checkShouldProceedServer(
+          status,
+          minute,
+          mergedStatsCompact,
+          {
+            minMinute: settings.minMinute,
+            maxMinute: settings.maxMinute,
+            secondHalfStartMinute: settings.secondHalfStartMinute,
+          },
+          forceAnalyze,
+        );
+        const currentPrimaryPairs = countPrimaryPopulatedStatPairs(statsCompact);
+        const webPrimaryPairs = countPrimaryPopulatedStatPairs(webStatsCompact);
+        const mergedPrimaryPairs = countPrimaryPopulatedStatPairs(mergedStatsCompact);
+        const currentEventCount = eventsCompact.length;
+        const webEventCount = webEventsCompact.length;
+        const mergedImproved = mergedPrimaryPairs > currentPrimaryPairs || webEventCount > currentEventCount;
+
+        if (mergedImproved) {
+          statsCompact = mergedStatsCompact;
+          eventsCompact = mergedEventsCompact;
+          derivedInsights = deriveInsightsFromEvents(eventsCompact, minute, homeName, awayName);
+          proceed = mergedProceed;
+          statsSource = 'web-trusted-fallback';
+          statsFallbackUsed = true;
+          statsFallbackReason = `Trusted web fallback merged: source=${webFallback.structured.matched_url}, current_pairs=${currentPrimaryPairs}, web_pairs=${webPrimaryPairs}, merged_pairs=${mergedPrimaryPairs}, current_events=${currentEventCount}, web_events=${webEventCount}`;
+        } else if (!statsFallbackReason) {
+          statsFallbackReason = `Trusted web fallback rejected: current_pairs=${currentPrimaryPairs}, web_pairs=${webPrimaryPairs}, merged_pairs=${mergedPrimaryPairs}, current_events=${currentEventCount}, web_events=${webEventCount}`;
+        }
+      } else if (criticalWebFallbackMismatch) {
+        statsFallbackReason = `Trusted web fallback rejected on live-state mismatch: ${webFallback.validation.reasons.join(',')}`;
+      } else if (!statsFallbackReason && webFallback.error) {
+        statsFallbackReason = `Trusted web fallback unavailable: ${webFallback.error}`;
       }
     }
 

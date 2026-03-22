@@ -399,8 +399,8 @@ export function RecommendationsTab() {
                     <td data-label="Result" style={{ textAlign: 'center' }}>
                       <span className="cell-value">{rec.result ? <StatusBadge status={rec.result.toUpperCase()} /> : '-'}</span>
                     </td>
-                    <td data-label="P/L" style={{ textAlign: 'right' }}>
-                      <span className="cell-value" style={{ fontWeight: 600, color: pnlVal >= 0 ? '#15803d' : '#b91c1c' }}>
+                    <td data-label="P/L" style={{ textAlign: 'right', whiteSpace: 'nowrap' }}>
+                      <span className="cell-value" style={{ fontWeight: 600, color: pnlVal >= 0 ? '#15803d' : '#b91c1c', whiteSpace: 'nowrap' }}>
                         {pnl}
                       </span>
                     </td>

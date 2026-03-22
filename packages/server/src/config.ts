@@ -41,6 +41,7 @@ export const config = {
   liveScoreApiBaseUrl: process.env['LIVE_SCORE_API_BASE_URL'] || 'https://livescore-api.com/api-client',
   liveScoreBenchmarkEnabled: process.env['LIVE_SCORE_BENCHMARK_ENABLED'] === 'true',
   liveScoreStatsFallbackEnabled: process.env['LIVE_SCORE_STATS_FALLBACK_ENABLED'] === 'true',
+  webLiveStatsFallbackEnabled: process.env['WEB_LIVE_STATS_FALLBACK_ENABLED'] === 'true',
 
   // Redis
   redisUrl: process.env['REDIS_URL'] || '',

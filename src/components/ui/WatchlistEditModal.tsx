@@ -242,16 +242,17 @@ export function WatchlistEditModal({ item, defaultMode, uiLanguage, onClose, onS
                   </div>
                 )}
 
-                <div className="form-group">
-                  <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '12px', color: 'var(--gray-600)' }}>
-                    <input
-                      type="checkbox"
-                      checked={autoApplyRecommendedCondition}
-                      onChange={(e) => setAutoApplyRecommendedCondition(e.target.checked)}
-                    />
+                <label style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '8px 12px', borderRadius: '6px', background: 'var(--bg-secondary, #f8f8f8)', border: '1px solid var(--border-color, #e0e0e0)', cursor: 'pointer', userSelect: 'none' }}>
+                  <input
+                    type="checkbox"
+                    checked={autoApplyRecommendedCondition}
+                    onChange={(e) => setAutoApplyRecommendedCondition(e.target.checked)}
+                    style={{ margin: 0, flexShrink: 0 }}
+                  />
+                  <span style={{ fontSize: '13px', color: 'var(--text-secondary, #555)' }}>
                     Auto-apply recommended condition for this match
-                  </label>
-                </div>
+                  </span>
+                </label>
 
                 <ConditionBuilder initialValue={editConditions} onChange={setEditConditions} />
                 <button type="submit" className="btn btn-primary" style={{ width: '100%' }}>Save Changes</button>

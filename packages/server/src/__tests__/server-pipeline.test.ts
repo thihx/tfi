@@ -22,6 +22,7 @@ const { mockConfig } = vi.hoisted(() => ({
     pipelineStalenessOddsDelta: 0.1,
     liveScoreBenchmarkEnabled: true,
     liveScoreStatsFallbackEnabled: true,
+    webLiveStatsFallbackEnabled: false,
     liveAnalysisActivePromptVersion: '',
     liveAnalysisShadowPromptVersion: '',
     liveAnalysisShadowEnabled: false,
@@ -186,6 +187,29 @@ vi.mock('../lib/live-score-api.js', () => ({
     statusCode: 200,
     latencyMs: 120,
     error: null,
+  }),
+}));
+
+vi.mock('../lib/web-live-fallback.js', () => ({
+  fetchDeterministicWebLiveFallback: vi.fn().mockResolvedValue({
+    success: false,
+    request: null,
+    rawDraft: '',
+    structured: null,
+    sourceMeta: {
+      search_quality: 'unknown',
+      web_search_queries: [],
+      sources: [],
+      trusted_source_count: 0,
+      rejected_source_count: 0,
+      rejected_domains: [],
+    },
+    fetchedPages: [],
+    validation: {
+      accepted: false,
+      reasons: ['NO_DETERMINISTIC_MATCH'],
+    },
+    error: 'NO_DETERMINISTIC_MATCH',
   }),
 }));
 
@@ -366,6 +390,7 @@ const {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  mockConfig.webLiveStatsFallbackEnabled = false;
   mockConfig.liveAnalysisActivePromptVersion = '';
   mockConfig.liveAnalysisShadowPromptVersion = '';
   mockConfig.liveAnalysisShadowEnabled = false;
@@ -516,6 +541,196 @@ describe('runPipelineBatch', () => {
     expect(result.results[0]?.debug?.statsSource).toBe('live-score-api-fallback');
     expect(result.results[0]?.debug?.statsFallbackUsed).toBe(true);
     expect(result.results[0]?.debug?.evidenceMode).toBe('odds_events_only_degraded');
+  });
+
+  test('uses trusted web fallback when live state matches and deterministic stats improve coverage', async () => {
+    mockConfig.webLiveStatsFallbackEnabled = true;
+
+    const footballApi = await import('../lib/football-api.js');
+    vi.mocked(footballApi.fetchFixtureStatistics).mockResolvedValueOnce([]);
+    vi.mocked(footballApi.fetchFixtureEvents).mockResolvedValueOnce([] as never);
+
+    const liveScoreApi = await import('../lib/live-score-api.js');
+    vi.mocked(liveScoreApi.fetchLiveScoreBenchmarkTrace).mockResolvedValueOnce(buildLiveScoreTrace({
+      matched: false,
+      providerMatchId: null,
+      providerFixtureId: null,
+      matchedMatch: null,
+      rawLiveMatches: [],
+      rawStats: null,
+      rawEvents: [],
+      normalizedStats: [],
+      normalizedEvents: [],
+      coverageFlags: {
+        matched: false,
+        has_possession: false,
+        has_shots: false,
+        has_shots_on_target: false,
+        has_corners: false,
+        event_count: 0,
+        populated_stat_pairs: 0,
+        total_stat_pairs: 12,
+      },
+      error: 'NO_LIVE_SCORE_MATCH',
+    }));
+
+    const webFallback = await import('../lib/web-live-fallback.js');
+    vi.mocked(webFallback.fetchDeterministicWebLiveFallback).mockResolvedValueOnce({
+      success: true,
+      request: null,
+      rawDraft: '',
+      structured: {
+        matched: true,
+        matched_title: 'Team A vs Team B',
+        matched_url: 'https://portal.kleague.com/common/result/result0051popup.do',
+        home_team: 'Team A',
+        away_team: 'Team B',
+        competition: 'Test League',
+        status: '2H',
+        minute: 65,
+        score: { home: 1, away: 1 },
+        stats: {
+          possession: { home: 54, away: 46 },
+          shots: { home: 12, away: 8 },
+          shots_on_target: { home: 5, away: 3 },
+          corners: { home: 6, away: 4 },
+          fouls: { home: 10, away: 12 },
+          yellow_cards: { home: 1, away: 2 },
+          red_cards: { home: 0, away: 0 },
+        },
+        events: [
+          { minute: 23, team: 'home', type: 'goal', detail: 'Goal', player: 'Player A' },
+        ],
+        notes: 'Trusted deterministic fallback',
+      },
+      sourceMeta: {
+        search_quality: 'high',
+        web_search_queries: ['kleague_portal:Team A vs Team B'],
+        sources: [{
+          title: 'K League Portal',
+          url: 'https://portal.kleague.com/common/result/result0051popup.do',
+          domain: 'portal.kleague.com',
+          publisher: 'K League Portal',
+          language: 'ko',
+          source_type: 'official',
+          trust_tier: 'tier_1',
+        }],
+        trusted_source_count: 1,
+        rejected_source_count: 0,
+        rejected_domains: [],
+      },
+      fetchedPages: [],
+      validation: {
+        accepted: true,
+        reasons: [],
+      },
+      error: null,
+    } as never);
+
+    const result = await runPipelineBatch(['100']);
+
+    const { callGemini } = await import('../lib/gemini.js');
+    const prompt = vi.mocked(callGemini).mock.calls[0][0];
+    expect(prompt).toContain('STATS_SOURCE: web-trusted-fallback');
+    expect(prompt).toContain('EVIDENCE_MODE: full_live_data');
+    expect(result.results[0]?.debug?.statsSource).toBe('web-trusted-fallback');
+    expect(result.results[0]?.debug?.statsFallbackUsed).toBe(true);
+    expect(String(result.results[0]?.debug?.statsFallbackReason || '')).toContain('Trusted web fallback merged');
+  });
+
+  test('rejects trusted web fallback when live-state validation shows score mismatch', async () => {
+    mockConfig.webLiveStatsFallbackEnabled = true;
+
+    const footballApi = await import('../lib/football-api.js');
+    vi.mocked(footballApi.fetchFixtureStatistics).mockResolvedValueOnce([]);
+    vi.mocked(footballApi.fetchFixtureEvents).mockResolvedValueOnce([] as never);
+
+    const liveScoreApi = await import('../lib/live-score-api.js');
+    vi.mocked(liveScoreApi.fetchLiveScoreBenchmarkTrace).mockResolvedValueOnce(buildLiveScoreTrace({
+      matched: false,
+      providerMatchId: null,
+      providerFixtureId: null,
+      matchedMatch: null,
+      rawLiveMatches: [],
+      rawStats: null,
+      rawEvents: [],
+      normalizedStats: [],
+      normalizedEvents: [],
+      coverageFlags: {
+        matched: false,
+        has_possession: false,
+        has_shots: false,
+        has_shots_on_target: false,
+        has_corners: false,
+        event_count: 0,
+        populated_stat_pairs: 0,
+        total_stat_pairs: 12,
+      },
+      error: 'NO_LIVE_SCORE_MATCH',
+    }));
+
+    const webFallback = await import('../lib/web-live-fallback.js');
+    vi.mocked(webFallback.fetchDeterministicWebLiveFallback).mockResolvedValueOnce({
+      success: true,
+      request: null,
+      rawDraft: '',
+      structured: {
+        matched: true,
+        matched_title: 'Team A vs Team B',
+        matched_url: 'https://portal.kleague.com/common/result/result0051popup.do',
+        home_team: 'Team A',
+        away_team: 'Team B',
+        competition: 'Test League',
+        status: 'FT',
+        minute: 90,
+        score: { home: 3, away: 1 },
+        stats: {
+          possession: { home: 54, away: 46 },
+          shots: { home: 12, away: 8 },
+          shots_on_target: { home: 5, away: 3 },
+          corners: { home: 6, away: 4 },
+          fouls: { home: 10, away: 12 },
+          yellow_cards: { home: 1, away: 2 },
+          red_cards: { home: 0, away: 0 },
+        },
+        events: [
+          { minute: 90, team: 'home', type: 'goal', detail: 'Goal', player: 'Player A' },
+        ],
+        notes: 'Stale final-state fallback',
+      },
+      sourceMeta: {
+        search_quality: 'high',
+        web_search_queries: ['kleague_portal:Team A vs Team B'],
+        sources: [{
+          title: 'K League Portal',
+          url: 'https://portal.kleague.com/common/result/result0051popup.do',
+          domain: 'portal.kleague.com',
+          publisher: 'K League Portal',
+          language: 'ko',
+          source_type: 'official',
+          trust_tier: 'tier_1',
+        }],
+        trusted_source_count: 1,
+        rejected_source_count: 0,
+        rejected_domains: [],
+      },
+      fetchedPages: [],
+      validation: {
+        accepted: false,
+        reasons: ['SCORE_MISMATCH', 'STATUS_MISMATCH', 'MINUTE_TOO_FAR'],
+      },
+      error: null,
+    } as never);
+
+    const result = await runPipelineBatch(['100']);
+
+    const { callGemini } = await import('../lib/gemini.js');
+    const prompt = vi.mocked(callGemini).mock.calls[0][0];
+    expect(prompt).toContain('STATS_SOURCE: api-football');
+    expect(prompt).toContain('EVIDENCE_MODE: low_evidence');
+    expect(result.results[0]?.debug?.statsSource).toBe('api-football');
+    expect(result.results[0]?.debug?.statsFallbackUsed).toBe(false);
+    expect(String(result.results[0]?.debug?.statsFallbackReason || '')).toContain('live-state mismatch');
   });
 
   test('uses degraded odds+events mode when stats stay unavailable after fallback check', async () => {

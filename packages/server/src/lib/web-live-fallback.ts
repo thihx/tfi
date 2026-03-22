@@ -5,7 +5,23 @@ import {
   type StrategicSourceTrustTier,
   type StrategicSourceType,
 } from '../config/strategic-source-policy.js';
-import { fetchSofascoreMatchDataFromPageUrl } from './sofascore-extractor.js';
+import {
+  fetchEspnSoccerMatchData,
+  type EspnExtractedMatchData,
+} from './espn-soccer-extractor.js';
+import {
+  fetchKLeaguePortalMatchData,
+  type KLeaguePortalExtractedMatchData,
+} from './kleague-portal-extractor.js';
+import {
+  buildSofascoreMatchPageUrl,
+  fetchSofascoreMatchDataFromEventId,
+  fetchSofascoreMatchDataFromPageUrl,
+  fetchSofascoreTeamEvents,
+  searchSofascoreTeams,
+  type SofascoreSearchTeam,
+  type SofascoreTeamEventSummary,
+} from './sofascore-extractor.js';
 
 const GEMINI_BASE = 'https://generativelanguage.googleapis.com/v1beta/models';
 const SEARCH_TIMEOUT_MS = Math.min(Math.max(config.geminiTimeoutMs, 45_000), 90_000);
@@ -426,6 +442,7 @@ function normalizeText(value: string): string {
     .normalize('NFD')
     .replace(/[\u0300-\u036f]/g, '')
     .toLowerCase()
+    .replace(/\bhd\b/g, 'hyundai')
     .replace(/\butd\b/g, 'united')
     .replace(/\bst\b/g, 'saint')
     .replace(/[^a-z0-9\s]/g, ' ')
@@ -532,6 +549,154 @@ function similarity(a: string, b: string): number {
       ? 0.92
       : 0;
   return Math.max(containsScore, tokenOverlapRatio(normA, normB), levenshteinRatio(normA, normB));
+}
+
+interface ScoredSofascoreTeamCandidate {
+  team: SofascoreSearchTeam;
+  score: number;
+}
+
+interface ScoredSofascoreEventCandidate {
+  event: SofascoreTeamEventSummary;
+  score: number;
+}
+
+function normalizedMatchDateTimestamp(matchDate?: string | null): number | null {
+  const value = cleanText(matchDate || '');
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return null;
+  const ts = Date.parse(`${value}T00:00:00Z`);
+  return Number.isFinite(ts) ? ts : null;
+}
+
+function dayDistanceFromRequest(matchDate: string | null | undefined, startTimestamp: number | null): number | null {
+  if (!startTimestamp) return null;
+  const requestDay = normalizedMatchDateTimestamp(matchDate);
+  if (requestDay == null) return null;
+  const eventDate = new Date(startTimestamp * 1000);
+  const eventDay = Date.UTC(eventDate.getUTCFullYear(), eventDate.getUTCMonth(), eventDate.getUTCDate());
+  return Math.round(Math.abs(eventDay - requestDay) / 86_400_000);
+}
+
+function scoreSofascoreTeamCandidate(requestTeamName: string, candidate: SofascoreSearchTeam): number {
+  if (candidate.sport?.slug !== 'football') return 0;
+  let score = similarity(requestTeamName, candidate.name);
+  if (cleanText(candidate.gender).toUpperCase() === 'W' && /\bw(?:omen)?\b/i.test(requestTeamName)) {
+    score += 0.04;
+  }
+  if (candidate.national && /\b(w|women|u\d{2})\b/i.test(requestTeamName)) {
+    score += 0.03;
+  }
+  return Math.min(score, 1);
+}
+
+function buildSofascoreSpiderQueryLabel(request: WebFallbackRequest): string {
+  return `sofascore_spider:${request.homeTeam} vs ${request.awayTeam}`;
+}
+
+async function resolveSofascoreTeamCandidates(teamName: string): Promise<ScoredSofascoreTeamCandidate[]> {
+  const scored = new Map<number, ScoredSofascoreTeamCandidate>();
+  for (const query of buildTeamSearchVariants(teamName).slice(0, 3)) {
+    const teams = await searchSofascoreTeams(query);
+    for (const team of teams.slice(0, 6)) {
+      const score = scoreSofascoreTeamCandidate(teamName, team);
+      if (score < 0.55) continue;
+      const existing = scored.get(team.id);
+      if (!existing || score > existing.score) {
+        scored.set(team.id, { team, score });
+      }
+    }
+    const currentBest = Array.from(scored.values()).sort((a, b) => b.score - a.score)[0];
+    if (currentBest && currentBest.score >= 0.94) break;
+  }
+  return Array.from(scored.values())
+    .sort((a, b) => b.score - a.score)
+    .slice(0, 3);
+}
+
+function scoreSofascoreStatusCompatibility(request: WebFallbackRequest, event: SofascoreTeamEventSummary): number {
+  const requestStatus = normalizeStatus(request.status || '');
+  const eventStatus = cleanText(event.status.type).toUpperCase();
+  if (!requestStatus) return 0.5;
+  if (requestStatus === 'FT' || requestStatus === 'AET' || requestStatus === 'PEN') {
+    return eventStatus === 'FINISHED' ? 1 : 0;
+  }
+  if (requestStatus === 'NS') {
+    return eventStatus === 'NOTSTARTED' ? 1 : 0;
+  }
+  if (requestStatus === 'HT' || requestStatus === '1H' || requestStatus === '2H') {
+    if (eventStatus === 'INPROGRESS') return 1;
+    if (eventStatus === 'FINISHED') return 0.35;
+    return 0;
+  }
+  if (request.minute != null) {
+    if (eventStatus === 'INPROGRESS') return 1;
+    if (eventStatus === 'FINISHED') return 0.35;
+  }
+  return 0.5;
+}
+
+function scoreSofascoreEventCandidate(
+  request: WebFallbackRequest,
+  homeCandidate: ScoredSofascoreTeamCandidate,
+  awayCandidates: ScoredSofascoreTeamCandidate[],
+  event: SofascoreTeamEventSummary,
+): number {
+  const homeIsHome = event.homeTeam.id === homeCandidate.team.id;
+  const homeIsAway = event.awayTeam.id === homeCandidate.team.id;
+  if (!homeIsHome && !homeIsAway) return 0;
+
+  const opponent = homeIsHome ? event.awayTeam : event.homeTeam;
+  const opponentSimilarity = similarity(request.awayTeam, opponent.name);
+  if (opponentSimilarity < 0.72) return 0;
+
+  const awayIdMatch = awayCandidates.some((candidate) => candidate.team.id === opponent.id);
+  const competitionName = event.tournament.uniqueTournamentName || event.tournament.name;
+  const competitionSimilarity = request.league ? similarity(request.league, competitionName) : 0.65;
+  const dateDistance = dayDistanceFromRequest(request.matchDate, event.startTimestamp);
+  const dateScore = dateDistance == null
+    ? 0.5
+    : dateDistance === 0
+      ? 1
+      : dateDistance === 1
+        ? 0.75
+        : dateDistance === 2
+          ? 0.35
+          : 0;
+  if (dateDistance != null && dateDistance > 2) return 0;
+
+  let score = (homeCandidate.score * 0.22) + (opponentSimilarity * 0.38) + (competitionSimilarity * 0.16) + (dateScore * 0.16);
+  if (awayIdMatch) score += 0.18;
+
+  const statusScore = scoreSofascoreStatusCompatibility(request, event);
+  score += statusScore * 0.08;
+  if (request.score) {
+    const expectedHome = request.score.home;
+    const expectedAway = request.score.away;
+    const actualHome = homeIsHome ? event.homeScore.current : event.awayScore.current;
+    const actualAway = homeIsHome ? event.awayScore.current : event.homeScore.current;
+    if (expectedHome != null && expectedAway != null && actualHome != null && actualAway != null) {
+      if (expectedHome === actualHome && expectedAway === actualAway) {
+        score += 0.14;
+      } else {
+        score -= 0.18;
+      }
+    }
+  }
+  return score;
+}
+
+function buildDeterministicSofascoreSourceMeta(
+  request: WebFallbackRequest,
+  sourceMeta: WebFallbackSourceMeta,
+  event: SofascoreTeamEventSummary,
+): WebFallbackSourceMeta {
+  const pageUrl = buildSofascoreMatchPageUrl(event) || `https://www.sofascore.com/api/v1/event/${event.id}`;
+  const source = sourceFromResolvedUrl(pageUrl, 'Sofascore');
+  if (!source) return sourceMeta;
+  return mergeSourceMeta(
+    sourceMeta,
+    sourceMetaFromSources([source], [buildSofascoreSpiderQueryLabel(request)]),
+  );
 }
 
 export function countPrimaryStatPairs(stats: WebFallbackStats): number {
@@ -1227,12 +1392,129 @@ function toStructuredFromSofascore(extracted: Awaited<ReturnType<typeof fetchSof
   };
 }
 
-async function tryResolveSofascoreData(
+function toStructuredFromEspn(extracted: EspnExtractedMatchData): WebFallbackStructuredData {
+  return {
+    matched: true,
+    matched_title: `${extracted.match.homeTeam} vs ${extracted.match.awayTeam}`,
+    matched_url: extracted.urls.stats || extracted.urls.summary,
+    home_team: extracted.match.homeTeam,
+    away_team: extracted.match.awayTeam,
+    competition: extracted.match.competition,
+    status: extracted.match.status,
+    minute: extracted.match.minute,
+    score: extracted.match.score,
+    stats: {
+      possession: extracted.stats.possession,
+      shots: extracted.stats.shots,
+      shots_on_target: extracted.stats.shots_on_target,
+      corners: extracted.stats.corners,
+      fouls: extracted.stats.fouls,
+      yellow_cards: extracted.stats.yellow_cards,
+      red_cards: extracted.stats.red_cards,
+    },
+    events: extracted.events.map((event) => ({
+      minute: event.minute,
+      team: event.team,
+      type: event.type,
+      detail: event.detail,
+      player: event.player,
+    })),
+    notes: 'Deterministic extractor via ESPN site API and stats page.',
+  };
+}
+
+function toStructuredFromKLeaguePortal(extracted: KLeaguePortalExtractedMatchData): WebFallbackStructuredData {
+  return {
+    matched: true,
+    matched_title: `${extracted.match.homeTeam} vs ${extracted.match.awayTeam}`,
+    matched_url: extracted.urls.popup,
+    home_team: extracted.match.homeTeam,
+    away_team: extracted.match.awayTeam,
+    competition: extracted.match.competition,
+    status: extracted.match.status,
+    minute: extracted.match.minute,
+    score: extracted.match.score,
+    stats: {
+      possession: extracted.stats.possession,
+      shots: extracted.stats.shots,
+      shots_on_target: extracted.stats.shots_on_target,
+      corners: extracted.stats.corners,
+      fouls: extracted.stats.fouls,
+      yellow_cards: extracted.stats.yellow_cards,
+      red_cards: extracted.stats.red_cards,
+    },
+    events: extracted.events.map((event) => ({
+      minute: event.minute,
+      team: event.team,
+      type: event.type,
+      detail: event.detail,
+      player: event.player,
+    })),
+    notes: 'Deterministic extractor via official K League portal popup data.',
+  };
+}
+
+async function tryResolveSofascoreDataDeterministic(
   request: WebFallbackRequest,
   sourceMeta: WebFallbackSourceMeta,
 ): Promise<{ structured: WebFallbackStructuredData | null; sourceMeta: WebFallbackSourceMeta }> {
+  const homeCandidates = await resolveSofascoreTeamCandidates(request.homeTeam);
+  if (homeCandidates.length === 0) {
+    return { structured: null, sourceMeta };
+  }
+
+  const awayCandidates = await resolveSofascoreTeamCandidates(request.awayTeam);
+  const eventCandidates: ScoredSofascoreEventCandidate[] = [];
+
+  for (const homeCandidate of homeCandidates.slice(0, 2)) {
+    for (const bucket of ['last', 'next'] as const) {
+      let events: SofascoreTeamEventSummary[] = [];
+      try {
+        events = await fetchSofascoreTeamEvents(homeCandidate.team.id, bucket);
+      } catch {
+        continue;
+      }
+      for (const event of events) {
+        const score = scoreSofascoreEventCandidate(request, homeCandidate, awayCandidates, event);
+        if (score >= 0.9) {
+          eventCandidates.push({ event, score });
+        }
+      }
+    }
+  }
+
+  const bestCandidate = eventCandidates.sort((a, b) => b.score - a.score)[0];
+  if (!bestCandidate) {
+    return { structured: null, sourceMeta };
+  }
+
+  const pageUrl = buildSofascoreMatchPageUrl(bestCandidate.event);
+  try {
+    const extracted = await fetchSofascoreMatchDataFromEventId(bestCandidate.event.id, { pageUrl });
+    return {
+      structured: toStructuredFromSofascore(extracted),
+      sourceMeta: buildDeterministicSofascoreSourceMeta(request, sourceMeta, bestCandidate.event),
+    };
+  } catch {
+    return { structured: null, sourceMeta };
+  }
+}
+
+async function tryResolveSofascoreData(
+  request: WebFallbackRequest,
+  sourceMeta: WebFallbackSourceMeta,
+  options?: { skipDeterministic?: boolean },
+): Promise<{ structured: WebFallbackStructuredData | null; sourceMeta: WebFallbackSourceMeta }> {
   let mergedMeta = sourceMeta;
   let sofascoreSources = mergedMeta.sources.filter((source) => source.domain.includes('sofascore.com'));
+
+  if (!options?.skipDeterministic) {
+    const deterministic = await tryResolveSofascoreDataDeterministic(request, mergedMeta);
+    if (deterministic.structured) {
+      return deterministic;
+    }
+    mergedMeta = deterministic.sourceMeta;
+  }
 
   if (sofascoreSources.length === 0) {
     const targeted = await searchGroundedSourcesOnly(buildSofascoreResolverPrompt(request));
@@ -1281,6 +1563,86 @@ async function tryResolveSofascoreData(
   return { structured: null, sourceMeta: mergedMeta };
 }
 
+function buildEspnSpiderQueryLabel(request: WebFallbackRequest): string {
+  return `espn_site_api:${request.homeTeam} vs ${request.awayTeam}`;
+}
+
+function buildKLeaguePortalQueryLabel(request: WebFallbackRequest): string {
+  return `kleague_portal:${request.homeTeam} vs ${request.awayTeam}`;
+}
+
+async function tryResolveKLeaguePortalDataDeterministic(
+  request: WebFallbackRequest,
+  sourceMeta: WebFallbackSourceMeta,
+): Promise<{ structured: WebFallbackStructuredData | null; sourceMeta: WebFallbackSourceMeta }> {
+  try {
+    const extracted = await fetchKLeaguePortalMatchData({
+      homeTeam: request.homeTeam,
+      awayTeam: request.awayTeam,
+      league: request.league,
+      matchDate: request.matchDate,
+      status: request.status,
+      minute: request.minute,
+      score: request.score,
+      includeStats: Boolean(request.requestedSlots.stats),
+      includeEvents: Boolean(request.requestedSlots.events),
+    });
+    if (!extracted) {
+      return { structured: null, sourceMeta };
+    }
+
+    const sources = uniqueStrings([extracted.urls.calendar, extracted.urls.popup])
+      .map((url) => sourceFromResolvedUrl(url, 'K League Portal'))
+      .filter((source): source is WebFallbackSource => Boolean(source));
+    const mergedMeta = sources.length > 0
+      ? mergeSourceMeta(sourceMeta, sourceMetaFromSources(sources, [buildKLeaguePortalQueryLabel(request)]))
+      : sourceMeta;
+
+    return {
+      structured: toStructuredFromKLeaguePortal(extracted),
+      sourceMeta: mergedMeta,
+    };
+  } catch {
+    return { structured: null, sourceMeta };
+  }
+}
+
+async function tryResolveEspnDataDeterministic(
+  request: WebFallbackRequest,
+  sourceMeta: WebFallbackSourceMeta,
+): Promise<{ structured: WebFallbackStructuredData | null; sourceMeta: WebFallbackSourceMeta }> {
+  try {
+    const extracted = await fetchEspnSoccerMatchData({
+      homeTeam: request.homeTeam,
+      awayTeam: request.awayTeam,
+      league: request.league,
+      matchDate: request.matchDate,
+      status: request.status,
+      score: request.score,
+      includeStats: Boolean(request.requestedSlots.stats),
+      includeEvents: Boolean(request.requestedSlots.events),
+    });
+    if (!extracted) {
+      return { structured: null, sourceMeta };
+    }
+
+    const espnSources = uniqueStrings([extracted.urls.summary, extracted.urls.stats])
+      .map((url) => sourceFromResolvedUrl(url, 'ESPN'))
+      .filter((source): source is WebFallbackSource => Boolean(source));
+
+    const mergedMeta = espnSources.length > 0
+      ? mergeSourceMeta(sourceMeta, sourceMetaFromSources(espnSources, [buildEspnSpiderQueryLabel(request)]))
+      : sourceMeta;
+
+    return {
+      structured: toStructuredFromEspn(extracted),
+      sourceMeta: mergedMeta,
+    };
+  } catch {
+    return { structured: null, sourceMeta };
+  }
+}
+
 async function buildStructuredResult(
   request: WebFallbackRequest,
   draft: string,
@@ -1308,11 +1670,8 @@ async function buildStructuredResult(
   return normalizeStructuredPayload(JSON.parse(json));
 }
 
-export async function fetchWebLiveFallback(
-  request: WebFallbackRequest,
-): Promise<WebLiveFallbackResult> {
-  let rawDraft = '';
-  let sourceMeta: WebFallbackSourceMeta = {
+function emptySourceMeta(): WebFallbackSourceMeta {
+  return {
     search_quality: 'unknown',
     web_search_queries: [],
     sources: [],
@@ -1320,9 +1679,91 @@ export async function fetchWebLiveFallback(
     rejected_source_count: 0,
     rejected_domains: [],
   };
+}
+
+function compareStructuredCoverage(a: WebFallbackStructuredData | null, b: WebFallbackStructuredData | null): number {
+  const aScore = (a ? countPrimaryStatPairs(a.stats) : 0) * 10 + (a?.events.length || 0);
+  const bScore = (b ? countPrimaryStatPairs(b.stats) : 0) * 10 + (b?.events.length || 0);
+  return aScore - bScore;
+}
+
+export async function fetchDeterministicWebLiveFallback(
+  request: WebFallbackRequest,
+): Promise<WebLiveFallbackResult> {
+  let sourceMeta = emptySourceMeta();
+  let bestStructured: WebFallbackStructuredData | null = null;
+  let bestMeta = sourceMeta;
+
+  const deterministicResolvers = [
+    tryResolveKLeaguePortalDataDeterministic,
+    tryResolveSofascoreDataDeterministic,
+    tryResolveEspnDataDeterministic,
+  ] as const;
+
+  for (const resolver of deterministicResolvers) {
+    const resolved = await resolver(request, sourceMeta);
+    sourceMeta = resolved.sourceMeta;
+    if (!resolved.structured) continue;
+
+    const validation = validateWebLiveFallbackResult(request, resolved.structured, sourceMeta);
+    if (validation.accepted) {
+      return {
+        success: true,
+        request,
+        rawDraft: '',
+        structured: resolved.structured,
+        sourceMeta,
+        fetchedPages: [],
+        validation,
+      };
+    }
+
+    if (!bestStructured || compareStructuredCoverage(resolved.structured, bestStructured) > 0) {
+      bestStructured = resolved.structured;
+      bestMeta = sourceMeta;
+    }
+  }
+
+  if (bestStructured) {
+    return {
+      success: true,
+      request,
+      rawDraft: '',
+      structured: bestStructured,
+      sourceMeta: bestMeta,
+      fetchedPages: [],
+      validation: validateWebLiveFallbackResult(request, bestStructured, bestMeta),
+    };
+  }
+
+  return {
+    success: false,
+    request,
+    rawDraft: '',
+    structured: null,
+    sourceMeta,
+    fetchedPages: [],
+    validation: validateWebLiveFallbackResult(request, null, sourceMeta),
+    error: 'NO_DETERMINISTIC_MATCH',
+  };
+}
+
+export async function fetchWebLiveFallback(
+  request: WebFallbackRequest,
+): Promise<WebLiveFallbackResult> {
+  let rawDraft = '';
+  let sourceMeta: WebFallbackSourceMeta = emptySourceMeta();
   let fetchedPages: FetchedSourcePage[] = [];
 
   try {
+    const deterministic = await fetchDeterministicWebLiveFallback(request);
+    if (deterministic.validation.accepted) {
+      return deterministic;
+    }
+    if (deterministic.structured) {
+      sourceMeta = deterministic.sourceMeta;
+    }
+
     const grounded = await fetchGroundedDraft(request);
     rawDraft = grounded.draft;
     sourceMeta = mergeSourceMeta(
@@ -1345,7 +1786,7 @@ export async function fetchWebLiveFallback(
         };
       }
     }
-    const resolvedSofascore = await tryResolveSofascoreData(request, sourceMeta);
+    const resolvedSofascore = await tryResolveSofascoreData(request, sourceMeta, { skipDeterministic: true });
     sourceMeta = resolvedSofascore.sourceMeta;
     if (resolvedSofascore.structured) {
       const validation = validateWebLiveFallbackResult(request, resolvedSofascore.structured, sourceMeta);
