@@ -64,18 +64,27 @@ self.addEventListener('push', (event) => {
 self.addEventListener('notificationclick', (event) => {
   event.notification.close();
 
-  const rawUrl: string = (event.notification.data as { url?: string })?.url ?? '/';
-  // Append ?tab= hint so the app can navigate to the right tab on open/focus
-  const targetUrl = rawUrl.includes('?') ? rawUrl : `${rawUrl}?tab=recommendations`;
+  // Extract matchId from tag (format: "tfi-rec-{matchId}")
+  const tag: string = event.notification.tag ?? '';
+  const matchId = tag.startsWith('tfi-rec-') ? tag.slice('tfi-rec-'.length) : '';
+  // matchDisplay is the first line of the notification body
+  const matchDisplay = event.notification.body?.split('\n')[0] ?? '';
+
+  const msg = matchId
+    ? { type: 'tfi:openMatchDetail', matchId, matchDisplay }
+    : { type: 'tfi:navigate', tab: 'recommendations' };
+
+  // Open URL without ?tab= — we keep the user on their current page
+  const targetUrl = matchId ? `/?match=${matchId}&matchDisplay=${encodeURIComponent(matchDisplay)}` : '/';
 
   event.waitUntil(
     self.clients
       .matchAll({ type: 'window', includeUncontrolled: true })
       .then((clientList) => {
-        // If app is already open, focus it and post a navigate message
+        // If app is already open, focus it and send message to open modal
         for (const client of clientList) {
           if (client.url.startsWith(self.location.origin) && 'focus' in client) {
-            client.postMessage({ type: 'tfi:navigate', tab: 'recommendations' });
+            client.postMessage(msg);
             return client.focus();
           }
         }

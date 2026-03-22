@@ -8,6 +8,7 @@ import { Header } from '@/components/layout/Header';
 import { Navigation } from '@/components/layout/Navigation';
 import { Sidebar } from '@/components/layout/Sidebar';
 import { LoginScreen } from '@/app/LoginScreen';
+import { MatchDetailModal } from '@/components/ui/MatchDetailModal';
 import type { TabName } from '@/types';
 
 // bundle-dynamic-imports: lazy-load each tab so users only download code for tabs they visit
@@ -35,6 +36,7 @@ function AppContent() {
   const { state, loadAllData } = useAppState();
   const [activeTab, setActiveTab]         = useState<TabName>('dashboard');
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const [pushModal, setPushModal] = useState<{ id: string; display: string } | null>(null);
   const [isMobile, setIsMobile]           = useState(() =>
     typeof window !== 'undefined' ? window.innerWidth < 768 : false,
   );
@@ -76,20 +78,23 @@ function AppContent() {
     return () => window.removeEventListener('tfi:navigate', handler);
   }, []);
 
-  // Handle ?tab= URL param (e.g. from push notification click opening the app)
+  // Handle ?match= URL param (e.g. from push notification click opening the app fresh)
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
-    const tab = params.get('tab') as TabName | null;
-    if (tab) {
-      setActiveTab(tab);
+    const matchId = params.get('match');
+    const matchDisplay = params.get('matchDisplay') ?? '';
+    if (matchId) {
+      setPushModal({ id: matchId, display: decodeURIComponent(matchDisplay) });
       window.history.replaceState(null, '', window.location.pathname);
     }
   }, []);
 
-  // Handle postMessage from service worker (e.g. notification click when app already open)
+  // Handle postMessage from service worker (notification click when app already open)
   useEffect(() => {
     const handler = (e: MessageEvent) => {
-      if (e.data?.type === 'tfi:navigate' && e.data?.tab) {
+      if (e.data?.type === 'tfi:openMatchDetail' && e.data?.matchId) {
+        setPushModal({ id: e.data.matchId, display: e.data.matchDisplay ?? '' });
+      } else if (e.data?.type === 'tfi:navigate' && e.data?.tab) {
         setActiveTab(e.data.tab as TabName);
       }
     };
@@ -126,6 +131,16 @@ function AppContent() {
   return (
     <>
       <GlobalLoader loading={state.loading} progress={state.loadingProgress} message={state.loadingMessage} />
+
+      {pushModal && (
+        <MatchDetailModal
+          open
+          matchId={pushModal.id}
+          matchDisplay={pushModal.display}
+          initialTab="recs"
+          onClose={() => setPushModal(null)}
+        />
+      )}
 
       {isMobile ? (
         /* ── Mobile: original top-nav layout ── */

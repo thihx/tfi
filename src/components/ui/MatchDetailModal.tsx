@@ -38,13 +38,14 @@ interface MatchDetailModalProps {
   matchId: string;
   matchDisplay: string;
   onClose: () => void;
+  initialTab?: TabKey;
 }
 
 type TabKey = 'context' | 'timeline' | 'odds' | 'recs' | 'bets';
 
-export function MatchDetailModal({ open, matchId, matchDisplay, onClose }: MatchDetailModalProps) {
+export function MatchDetailModal({ open, matchId, matchDisplay, onClose, initialTab }: MatchDetailModalProps) {
   const { state } = useAppState();
-  const [tab, setTab] = useState<TabKey>('context');
+  const [tab, setTab] = useState<TabKey>(initialTab ?? 'context');
   const [snapshots, setSnapshots] = useState<MatchSnapshot[]>([]);
   const [odds, setOdds]           = useState<OddsMovement[]>([]);
   const [recs, setRecs]           = useState<Recommendation[]>([]);
