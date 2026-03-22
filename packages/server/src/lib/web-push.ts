@@ -55,7 +55,7 @@ export async function sendWebPushNotification(
         keys: subscription.keys,
       },
       JSON.stringify(payload),
-      { TTL: 60 * 60 }, // 1 hour TTL
+      { TTL: 60 * 60, urgency: 'high' }, // 1 hour TTL, high urgency = deliver immediately
     );
     console.log(`[web-push] Notification sent OK to ${subscription.endpoint.slice(0, 60)}...`);
     return { ok: true };
