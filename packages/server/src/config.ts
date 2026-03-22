@@ -99,6 +99,11 @@ export const config = {
   // Provider sampling / observability
   providerSamplingEnabled: process.env['PROVIDER_SAMPLING_ENABLED'] !== 'false',
 
+  // Web Push (VAPID)
+  vapidPublicKey: process.env['VAPID_PUBLIC_KEY'] || '',
+  vapidPrivateKey: process.env['VAPID_PRIVATE_KEY'] || '',
+  vapidContactEmail: process.env['VAPID_CONTACT_EMAIL'] || '',
+
   // Prompt shadow rollout
   liveAnalysisActivePromptVersion: process.env['LIVE_ANALYSIS_ACTIVE_PROMPT_VERSION'] || '',
   liveAnalysisShadowPromptVersion: process.env['LIVE_ANALYSIS_SHADOW_PROMPT_VERSION'] || '',

@@ -8,6 +8,14 @@ import { OpsMonitoringPanel } from '@/components/OpsMonitoringPanel';
 import { getToken } from '@/lib/services/auth';
 import { fetchMonitorConfig, persistMonitorConfig } from '@/features/live-monitor/config';
 import type { LiveMonitorConfig } from '@/features/live-monitor/types';
+import {
+  isPushSupported,
+  getNotificationPermission,
+  requestNotificationPermission,
+  getExistingSubscription,
+  subscribePush,
+  unsubscribePush,
+} from '@/lib/services/push';
 
 function authHeaders(): Record<string, string> {
   const t = getToken();
@@ -317,6 +325,9 @@ export function SettingsTab() {
   const [telegramEnabled, setTelegramEnabled] = useState(true);
   const [notificationLanguage, setNotificationLanguage] = useState<'vi' | 'en' | 'both'>('vi');
   const [autoApplyRecommendedCondition, setAutoApplyRecommendedCondition] = useState(true);
+  const [webPushEnabled, setWebPushEnabled] = useState(false);
+  const [webPushLoading, setWebPushLoading] = useState(false);
+  const [webPushPermission, setWebPushPermission] = useState<NotificationPermission>('default');
 
   useEffect(() => {
     let mounted = true;
@@ -329,6 +340,15 @@ export function SettingsTab() {
         setAutoApplyRecommendedCondition(config.AUTO_APPLY_RECOMMENDED_CONDITION !== false);
       })
       .catch(() => undefined);
+
+    // Sync web push state from browser
+    if (isPushSupported()) {
+      setWebPushPermission(getNotificationPermission());
+      getExistingSubscription()
+        .then((sub) => { if (mounted) setWebPushEnabled(sub != null); })
+        .catch(() => undefined);
+    }
+
     return () => { mounted = false; };
   }, []);
 
@@ -351,6 +371,37 @@ export function SettingsTab() {
     } catch {
       setTelegramEnabled(!enabled);
       showToast('Failed to save setting', 'error');
+    }
+  };
+
+  const handleWebPushToggle = async (enable: boolean) => {
+    if (!isPushSupported()) {
+      showToast('Web Push is not supported in this browser.', 'error');
+      return;
+    }
+    setWebPushLoading(true);
+    try {
+      if (enable) {
+        const permission = await requestNotificationPermission();
+        setWebPushPermission(permission);
+        if (permission !== 'granted') {
+          showToast('Notification permission denied. Enable it in browser settings.', 'error');
+          return;
+        }
+        await subscribePush();
+        setWebPushEnabled(true);
+        await persistMonitorConfig({ WEB_PUSH_ENABLED: true });
+        showToast('Web Push enabled', 'success');
+      } else {
+        await unsubscribePush();
+        setWebPushEnabled(false);
+        await persistMonitorConfig({ WEB_PUSH_ENABLED: false });
+        showToast('Web Push disabled', 'success');
+      }
+    } catch (e) {
+      showToast(`Web Push error: ${e instanceof Error ? e.message : String(e)}`, 'error');
+    } finally {
+      setWebPushLoading(false);
     }
   };
 
@@ -480,6 +531,47 @@ export function SettingsTab() {
                   </span>
                 </div>
               </div>
+
+              {/* Web Push row */}
+              {isPushSupported() && (
+                <div style={{
+                  display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                  padding: '12px 14px', borderRadius: '8px',
+                  border: `1px solid ${webPushEnabled ? '#d1fae5' : 'var(--gray-200)'}`,
+                  background: webPushEnabled ? '#f0fdf4' : 'var(--gray-50)',
+                  gap: '12px', flexWrap: 'wrap',
+                  opacity: webPushLoading ? 0.7 : 1,
+                }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '10px', minWidth: 0 }}>
+                    <span style={{ fontSize: '18px' }}>🔔</span>
+                    <div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                        <span style={{ fontSize: '13px', fontWeight: 600, color: 'var(--gray-900)' }}>Web Push</span>
+                        {webPushPermission === 'denied' && (
+                          <span style={{ fontSize: '10px', fontWeight: 700, padding: '1px 6px', borderRadius: '999px', background: '#fee2e2', color: '#991b1b' }}>
+                            Blocked
+                          </span>
+                        )}
+                      </div>
+                      <div style={{ fontSize: '11px', color: webPushPermission === 'denied' ? '#b91c1c' : 'var(--gray-500)', marginTop: '1px' }}>
+                        {webPushPermission === 'denied'
+                          ? 'Blocked by browser — allow in site settings to enable'
+                          : 'Receive AI recommendations as browser notifications on this device'}
+                      </div>
+                    </div>
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexShrink: 0 }}>
+                    <Toggle
+                      on={webPushEnabled}
+                      onChange={handleWebPushToggle}
+                      disabled={webPushLoading || webPushPermission === 'denied'}
+                    />
+                    <span style={{ fontSize: '11px', fontWeight: 600, color: webPushEnabled ? '#059669' : 'var(--gray-400)', minWidth: 26 }}>
+                      {webPushLoading ? '...' : webPushEnabled ? 'ON' : 'OFF'}
+                    </span>
+                  </div>
+                </div>
+              )}
 
               {/* Zalo row — coming soon */}
               <div style={{

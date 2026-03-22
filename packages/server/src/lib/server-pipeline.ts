@@ -58,6 +58,8 @@ import { hasUsableStrategicContext } from './strategic-context.service.js';
 import { createPromptShadowRun } from '../repos/prompt-shadow-runs.repo.js';
 import { getLeagueProfileByLeagueId } from '../repos/league-profiles.repo.js';
 import { getLeagueById } from '../repos/leagues.repo.js';
+import { isWebPushConfigured, sendWebPushNotification } from './web-push.js';
+import { getAllSubscriptions, deleteSubscription } from '../repos/push-subscriptions.repo.js';
 
 /** Resolved pipeline settings: DB values take priority, env vars as fallback */
 interface PipelineSettings {
@@ -77,6 +79,8 @@ interface PipelineSettings {
   notificationLanguage: 'vi' | 'en' | 'both';
   /** Master switch for Telegram notifications. Default: true. */
   telegramEnabled: boolean;
+  /** Master switch for Web Push notifications. Default: false. */
+  webPushEnabled: boolean;
 }
 
 /** Parse a numeric setting from DB, falling back to envDefault if absent or NaN. */
@@ -101,6 +105,7 @@ function buildConfigPipelineSettings(): PipelineSettings {
     endgameMinute: config.pipelineEndgameMinute,
     notificationLanguage: 'vi',
     telegramEnabled: true,
+    webPushEnabled: false,
   };
 }
 
@@ -124,6 +129,7 @@ async function loadPipelineSettings(): Promise<PipelineSettings> {
       ? (db['NOTIFICATION_LANGUAGE'] as 'vi' | 'en' | 'both')
       : fallback.notificationLanguage,
     telegramEnabled: db['TELEGRAM_ENABLED'] === false ? false : fallback.telegramEnabled,
+    webPushEnabled: db['WEB_PUSH_ENABLED'] === true,
   };
 }
 
@@ -1245,168 +1251,6 @@ function extractOddsFromSelection(selection: string, betMarket: string, canonica
   return null;
 }
 
-// ==================== Events Timeline Chart (QuickChart.io) ====================
-// Score Progression chart: step lines showing how the scoreline evolved minute by minute.
-// Much more useful than scatter lanes — bettors can immediately see comeback situations,
-// when red cards changed the game, and whether dominance was sustained or late.
-
-function buildEventsTimelineUrl(
-  events: EventCompact[],
-  homeName: string,
-  awayName: string,
-  minute: number | string,
-): string {
-  const relevant = events.filter((e) => e.type === 'goal' || e.type === 'card');
-  if (relevant.length === 0) return '';
-
-  const toX = (e: EventCompact) => e.minute + (e.extra ?? 0);
-  const currentMinute = Number.parseInt(String(minute), 10);
-  const maxMin = Math.max(
-    90,
-    Number.isFinite(currentMinute) ? currentMinute : 0,
-    ...relevant.map(toX),
-  );
-  const trim14 = (s: string) => (s.length > 14 ? s.substring(0, 13) + '\u2026' : s);
-  const hLabel = trim14(homeName);
-  const aLabel = trim14(awayName);
-  const isRed = (e: EventCompact) => {
-    const d = e.detail.toLowerCase();
-    return d.includes('red') || d.includes('second yellow');
-  };
-
-  // ── Build score progression step lines ──────────────────────────────
-  // Sort all goals chronologically so score labels are always accurate (e.g. "1-1" not "2-1")
-  const allGoals = relevant
-    .filter((e) => e.type === 'goal')
-    .sort((a, b) => toX(a) - toX(b));
-
-  let hScore = 0;
-  let aScore = 0;
-  const hLineData: { x: number; y: number }[] = [{ x: 0, y: 0 }];
-  const aLineData: { x: number; y: number }[] = [{ x: 0, y: 0 }];
-
-  for (const g of allGoals) {
-    const x = toX(g);
-    if (g.team === homeName) { hScore++; hLineData.push({ x, y: hScore }); }
-    else                     { aScore++; aLineData.push({ x, y: aScore }); }
-  }
-  hLineData.push({ x: maxMin + 3, y: hScore });
-  aLineData.push({ x: maxMin + 3, y: aScore });
-
-  const maxScore = Math.max(2, hScore, aScore);
-  // Dot at goal moments only (non-zero step positions); endpoints get no dot
-  const hRadii = hLineData.map((d, i) => (i > 0 && i < hLineData.length - 1 ? 5 : 0));
-  const aRadii = aLineData.map((d, i) => (i > 0 && i < aLineData.length - 1 ? 5 : 0));
-
-  // ── Cards: rectangles along the baseline ────────────────────────────
-  const cards = relevant.filter((e) => e.type === 'card');
-  const yellowCards = cards.filter((e) => !isRed(e));
-  const redCards    = cards.filter((e) => isRed(e));
-
-  const cardDs = (evts: EventCompact[], color: string, yPos: number) => {
-    if (evts.length === 0) return null;
-    return {
-      type: 'scatter',
-      label: '',
-      data: evts.map((e) => ({ x: toX(e), y: yPos })),
-      backgroundColor: color,
-      borderColor: '#fff',
-      borderWidth: 1,
-      pointRadius: 7,
-      pointStyle: 'rect',
-    };
-  };
-
-  // ── Datasets ─────────────────────────────────────────────────────────
-  const htDs = {
-    type: 'line', label: '',
-    data: [{ x: 45, y: 0 }, { x: 45, y: maxScore + 0.4 }],
-    borderColor: '#cbd5e1', borderWidth: 1, borderDash: [4, 3],
-    backgroundColor: 'transparent', pointRadius: 0, fill: false, showLine: true,
-    datalabels: { display: false },
-  };
-
-  const nowDs = Number.isFinite(currentMinute) && currentMinute > 0 ? {
-    type: 'line', label: '',
-    data: [{ x: currentMinute, y: 0 }, { x: currentMinute, y: maxScore + 0.4 }],
-    borderColor: '#3b82f6', borderWidth: 1, borderDash: [3, 3],
-    backgroundColor: 'transparent', pointRadius: 0, fill: false, showLine: true,
-    datalabels: { display: false },
-  } : null;
-
-  const hDs = {
-    type: 'line', label: hLabel,
-    data: hLineData,
-    borderColor: '#16a34a', backgroundColor: '#16a34a',
-    borderWidth: 2.5, pointRadius: hRadii, pointBackgroundColor: '#16a34a',
-    fill: false, showLine: true, steppedLine: 'before',
-  };
-
-  const aDs = {
-    type: 'line', label: aLabel,
-    data: aLineData,
-    borderColor: '#dc2626', backgroundColor: '#dc2626',
-    borderWidth: 2.5, pointRadius: aRadii, pointBackgroundColor: '#dc2626',
-    fill: false, showLine: true, steppedLine: 'before',
-  };
-
-  const datasets = [
-    htDs,
-    nowDs,
-    hDs,
-    aDs,
-    cardDs(yellowCards, '#ca8a04', 0),
-    cardDs(redCards,    '#dc2626', 0),
-  ].filter(Boolean);
-
-  // Build subtitle: goal minutes + card events per team — no datalabels needed
-  const fmtMins = (evts: EventCompact[]) => evts.map((e) => `${toX(e)}'`).join(', ');
-  const hGoals = allGoals.filter((g) => g.team === homeName);
-  const aGoals = allGoals.filter((g) => g.team === awayName);
-  const subtitleParts: string[] = [];
-  if (hGoals.length) subtitleParts.push(`\u25b2 ${fmtMins(hGoals)}`);
-  if (aGoals.length) subtitleParts.push(`\u25bc ${fmtMins(aGoals)}`);
-  if (yellowCards.length) subtitleParts.push(`\uD83D\uDFE8 ${fmtMins(yellowCards)}`);
-  if (redCards.length)    subtitleParts.push(`\uD83D\uDFE5 ${fmtMins(redCards)}`);
-
-  const titleLine1 = `${hLabel}  ${hScore} \u2013 ${aScore}  ${aLabel}`;
-  const titleLine2 = subtitleParts.join('  \u00b7  ');
-
-  const cfg = {
-    type: 'line',
-    data: { datasets },
-    options: {
-      layout: { padding: { left: 8, right: 20, top: 10, bottom: 8 } },
-      title: {
-        display: true,
-        text: titleLine2 ? [titleLine1, titleLine2] : titleLine1,
-        fontSize: 12, fontColor: '#1e293b', fontStyle: 'bold',
-      },
-      legend: { display: false },
-      plugins: { datalabels: { display: false } },
-      scales: {
-        xAxes: [{
-          type: 'linear',
-          ticks: { min: 0, max: maxMin + 5, stepSize: 15, fontSize: 9, fontColor: '#64748b' },
-          gridLines: { display: true, color: '#f1f5f9', lineWidth: 1 },
-        }],
-        yAxes: [{
-          ticks: {
-            min: -0.3,
-            max: maxScore + 0.5,
-            stepSize: 1,
-            fontSize: 9,
-            fontColor: '#64748b',
-          },
-          gridLines: { display: true, color: '#f1f5f9', lineWidth: 1 },
-        }],
-      },
-    },
-  };
-
-  return `https://quickchart.io/chart?c=${encodeURIComponent(JSON.stringify(cfg))}&w=600&h=220&bkg=white`;
-}
-
 // ==================== Stats Chart (QuickChart.io) ====================
 
 function truncateAtWord(text: string, max: number): string {
@@ -2388,6 +2232,36 @@ async function processMatch(
           notified = true;
         } catch (e) {
           console.error(`[pipeline] Telegram notification failed for ${matchId}:`, e instanceof Error ? e.message : String(e));
+        }
+      }
+
+      // 10. Send Web Push notification
+      if (parsed.should_push && settings.webPushEnabled && isWebPushConfigured()) {
+        try {
+          const subscriptions = await getAllSubscriptions();
+          if (subscriptions.length > 0) {
+            const pushTitle = parsed.ai_should_push ? '🎯 AI RECOMMENDATION' : '⚡ CONDITION TRIGGERED';
+            const pushBody = [
+              matchDisplay,
+              parsed.selection ? `${parsed.selection} | Odds: ${mappedOdd ?? 'N/A'} | Confidence: ${parsed.confidence}/10` : '',
+            ].filter(Boolean).join('\n');
+
+            await Promise.all(subscriptions.map(async (sub) => {
+              const result = await sendWebPushNotification(
+                { endpoint: sub.endpoint, keys: { p256dh: sub.p256dh, auth: sub.auth } },
+                { title: pushTitle, body: pushBody, tag: `tfi-rec-${matchId}`, url: '/' },
+              );
+              if (!result.ok && result.gone) {
+                // Subscription expired — clean it up
+                await deleteSubscription(sub.endpoint).catch(() => undefined);
+              }
+            }));
+            if (recId != null) {
+              await deps.markRecommendationNotified(recId, 'web_push').catch(() => undefined);
+            }
+          }
+        } catch (e) {
+          console.error(`[pipeline] Web Push notification failed for ${matchId}:`, e instanceof Error ? e.message : String(e));
         }
       }
     }

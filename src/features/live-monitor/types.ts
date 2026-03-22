@@ -30,6 +30,7 @@ export interface LiveMonitorConfig {
   UI_LANGUAGE?: 'en' | 'vi';
   TELEGRAM_ENABLED?: boolean;
   ZALO_ENABLED?: boolean;
+  WEB_PUSH_ENABLED?: boolean;
   AUTO_APPLY_RECOMMENDED_CONDITION?: boolean;
   MIN_MINUTE?: number;
   MAX_MINUTE?: number;

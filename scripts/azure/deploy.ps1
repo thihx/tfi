@@ -22,6 +22,11 @@ param(
 Set-StrictMode -Version Latest
 $ErrorActionPreference = "Continue"
 
+# Ensure we always run from the repo root (the directory that contains Dockerfile)
+$ScriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
+$RepoRoot  = Split-Path -Parent (Split-Path -Parent $ScriptDir)
+Set-Location $RepoRoot
+
 $repo = "tfi"
 $acrLoginServer = az acr show -n $AcrName --query loginServer -o tsv
 if ([string]::IsNullOrWhiteSpace($acrLoginServer)) {
@@ -40,7 +45,7 @@ if (-not $SkipBuild) {
   az acr build -g $ResourceGroup -r $AcrName -t "${repo}:${ReleaseTag}" -f Dockerfile . --no-wait 1>$null 2>$null
 
   Write-Host "[deploy][build] Waiting for ACR build to complete..."
-  $deadline = (Get-Date).AddMinutes(20)
+  $deadline = (Get-Date).AddMinutes(30)
   $ready = $false
   while (-not $ready) {
     if ((Get-Date) -gt $deadline) {

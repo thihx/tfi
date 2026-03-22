@@ -142,35 +142,62 @@ export async function fetchMatchesJob(): Promise<{ saved: number; leagues: numbe
   }
   const leagueIdSet = new Set(activeLeagues.map((l) => l.league_id));
 
-  // 2. Calculate today + tomorrow
+  // 2. Calculate fetch window
+  // Always fetch today + tomorrow (local timezone).
+  // Before 06:00 local time, also fetch yesterday: late-night matches (e.g. 23:xx kickoff)
+  // that started before midnight are still dated "yesterday" and would be lost on TRUNCATE
+  // without this extra fetch (cross-midnight coverage).
   const now = new Date();
+  const seoulHour = Number(
+    new Intl.DateTimeFormat('en', { timeZone: config.timezone, hour: 'numeric', hour12: false }).format(now),
+  );
+  const yesterday = new Date(now);
+  yesterday.setDate(yesterday.getDate() - 1);
   const tomorrow = new Date(now);
   tomorrow.setDate(tomorrow.getDate() + 1);
-  const dateFrom = toDateString(now, config.timezone);
-  const dateTo = toDateString(tomorrow, config.timezone);
+  const dateYesterday = seoulHour < 6 ? toDateString(yesterday, config.timezone) : null;
+  const dateFrom    = toDateString(now,      config.timezone);
+  const dateTo      = toDateString(tomorrow, config.timezone);
 
   // 3. Fetch from API-Football (allSettled so one day failing doesn't lose the other)
-  await reportJobProgress(JOB, 'api', `Fetching fixtures for ${dateFrom} and ${dateTo}...`, 15);
-  const results = await Promise.allSettled([
+  const fetchLabel = dateYesterday ? `${dateYesterday}, ${dateFrom}, ${dateTo}` : `${dateFrom}, ${dateTo}`;
+  await reportJobProgress(JOB, 'api', `Fetching fixtures for ${fetchLabel}...`, 15);
+
+  // Yesterday is best-effort (non-critical): a failure doesn't abort the job
+  let yesterdayFixtures: ApiFixture[] = [];
+  if (dateYesterday) {
+    try {
+      yesterdayFixtures = await fetchFixturesForDate(dateYesterday);
+      console.log(`[fetchMatchesJob] Cross-midnight fetch: ${yesterdayFixtures.length} fixtures for ${dateYesterday}`);
+    } catch (err) {
+      console.warn('[fetchMatchesJob] Yesterday fetch failed (non-critical):', err instanceof Error ? err.message : err);
+    }
+  }
+
+  const [resultToday, resultTomorrow] = await Promise.allSettled([
     fetchFixturesForDate(dateFrom),
     fetchFixturesForDate(dateTo),
   ]);
-  const todayOk = results[0].status === 'fulfilled';
-  const tomorrowOk = results[1].status === 'fulfilled';
-  const todayFixtures = results[0].status === 'fulfilled' ? results[0].value : [];
-  const tomorrowFixtures = results[1].status === 'fulfilled' ? results[1].value : [];
-  if (results[0].status === 'rejected') console.error('[fetchMatchesJob] Today fetch failed:', results[0].reason);
-  if (results[1].status === 'rejected') console.error('[fetchMatchesJob] Tomorrow fetch failed:', results[1].reason);
+  const todayOk    = resultToday.status    === 'fulfilled';
+  const tomorrowOk = resultTomorrow.status === 'fulfilled';
+  const todayFixtures    = todayOk    ? resultToday.value    : [];
+  const tomorrowFixtures = tomorrowOk ? resultTomorrow.value : [];
+  if (!todayOk)    console.error('[fetchMatchesJob] Today fetch failed:',    resultToday.reason);
+  if (!tomorrowOk) console.error('[fetchMatchesJob] Tomorrow fetch failed:', resultTomorrow.reason);
 
-  // Abort if BOTH days failed — nothing useful to save
+  // Abort if BOTH main days failed — nothing useful to save
   if (!todayOk && !tomorrowOk) {
     console.error('[fetchMatchesJob] Both API calls failed — aborting to preserve existing data');
     throw new Error('Both fixture API calls failed');
   }
 
-  const allFixtures = todayFixtures.concat(tomorrowFixtures);
+  const allFixtures = yesterdayFixtures.concat(todayFixtures).concat(tomorrowFixtures);
   const partialFailure = !todayOk || !tomorrowOk;
-  console.log(`[fetchMatchesJob] Raw: today=${todayFixtures.length} tomorrow=${tomorrowFixtures.length} total=${allFixtures.length}${partialFailure ? ' (PARTIAL — one day failed)' : ''}`);
+  console.log(
+    `[fetchMatchesJob] Raw: yesterday=${yesterdayFixtures.length} today=${todayFixtures.length}` +
+    ` tomorrow=${tomorrowFixtures.length} total=${allFixtures.length}` +
+    (partialFailure ? ' (PARTIAL — one day failed)' : ''),
+  );
 
   // 4. Filter by approved leagues
   await reportJobProgress(JOB, 'filter', `Filtering ${allFixtures.length} fixtures by ${leagueIdSet.size} leagues...`, 40);
@@ -239,12 +266,14 @@ export async function fetchMatchesJob(): Promise<{ saved: number; leagues: numbe
   }
 
   // 8. Full-refresh matches table
-  // If one day's API call failed, preserve existing rows for the failed date
-  // to avoid deleting live/valid matches we couldn't re-fetch.
+  // If one of the two main days (today/tomorrow) failed, preserve existing rows for that
+  // date so we don't delete valid matches we couldn't re-fetch.
+  // Note: cross-midnight matches (late kickoffs from yesterday) are covered by the
+  // dateYesterday fetch window above — no extra preservation needed here.
+  const newMatchIds = new Set(rows.map(r => r.match_id));
   let mergedRows = rows;
   if (partialFailure && allCurrentMatches.length > 0) {
     const failedDate = !todayOk ? dateFrom : dateTo;
-    const newMatchIds = new Set(rows.map(r => r.match_id));
     const preserved = allCurrentMatches.filter(m => m.date === failedDate && !newMatchIds.has(m.match_id));
     if (preserved.length > 0) {
       mergedRows = rows.concat(preserved);
