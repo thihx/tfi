@@ -218,6 +218,50 @@ export async function fetchAllLeagues(): Promise<ApiLeague[]> {
   return apiGet<ApiLeague>('/leagues');
 }
 
+// ==================== Teams ====================
+
+export interface ApiTeam {
+  team: { id: number; name: string; logo: string; country: string | null; founded: number | null };
+  venue: { id: number | null; name: string | null; city: string | null } | null;
+}
+
+/** Fetch teams for a league/season. Returns empty array if no data. */
+async function fetchTeamsForSeason(leagueId: number, season: number): Promise<ApiTeam[]> {
+  return apiGet<ApiTeam>('/teams', { league: String(leagueId), season: String(season) });
+}
+
+/**
+ * Fetch teams by league with automatic season fallback:
+ * tries current year first, then current year - 1.
+ * Also fetches standings to attach rank to each team.
+ */
+export async function fetchTeamsByLeague(leagueId: number): Promise<{ team: ApiTeam['team']; rank: number | null }[]> {
+  const currentYear = new Date().getFullYear();
+  let teams = await fetchTeamsForSeason(leagueId, currentYear);
+  let season = currentYear;
+  if (teams.length === 0) {
+    teams = await fetchTeamsForSeason(leagueId, currentYear - 1);
+    season = currentYear - 1;
+  }
+  if (teams.length === 0) return [];
+
+  // Fetch standings to get rank (best-effort, ignore errors)
+  let rankMap = new Map<number, number>();
+  try {
+    const standings = await fetchStandings(String(leagueId), String(season));
+    for (const s of standings) rankMap.set(s.team.id, s.rank);
+  } catch { /* no standings for cups/internationals */ }
+
+  return teams
+    .map(t => ({ team: t.team, rank: rankMap.get(t.team.id) ?? null }))
+    .sort((a, b) => {
+      if (a.rank !== null && b.rank !== null) return a.rank - b.rank;
+      if (a.rank !== null) return -1;
+      if (b.rank !== null) return 1;
+      return a.team.name.localeCompare(b.team.name);
+    });
+}
+
 // ==================== Predictions ====================
 
 export async function fetchPrediction(fixtureId: string): Promise<ApiPrediction | null> {

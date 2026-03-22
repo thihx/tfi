@@ -8,6 +8,8 @@ import {
   fetchApprovedLeagues, toggleLeagueActive, bulkSetLeagueActive, fetchLeaguesFromApi,
   toggleLeagueTopLeague, bulkSetTopLeague,
   fetchLeagueProfile, saveLeagueProfile, deleteLeagueProfile,
+  fetchLeagueTeams, fetchFavoriteTeams, addFavoriteTeam, removeFavoriteTeam,
+  type LeagueTeam,
 } from '@/lib/services/api';
 import type { League, LeagueProfile } from '@/types';
 
@@ -39,6 +41,75 @@ const TIER_COLORS: Record<string, string> = {
 
 // ── Sub-components ──
 
+interface LeagueTeamsPanelProps {
+  leagueId: number;
+  teams: LeagueTeam[];
+  loading: boolean;
+  favoriteIds: Set<string>;
+  onToggleFavorite: (team: LeagueTeam, isFav: boolean) => void;
+}
+
+function LeagueTeamsPanel({ teams, loading, favoriteIds, onToggleFavorite }: LeagueTeamsPanelProps) {
+  if (loading) {
+    return (
+      <div style={{ padding: '16px', textAlign: 'center', color: 'var(--gray-400)' }}>
+        <div className="loading-spinner" style={{ margin: '0 auto 8px', width: 20, height: 20 }} />
+        <div style={{ fontSize: 12 }}>Loading teams…</div>
+      </div>
+    );
+  }
+  if (teams.length === 0) {
+    return <div style={{ padding: '16px', fontSize: 12, color: 'var(--gray-400)', textAlign: 'center' }}>No teams found</div>;
+  }
+  return (
+    <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
+      <thead>
+        <tr style={{ borderBottom: '1px solid var(--gray-100)' }}>
+          <th style={{ padding: '6px 10px', textAlign: 'left', fontWeight: 600, color: 'var(--gray-400)', width: 36 }}>#</th>
+          <th style={{ padding: '6px 10px', textAlign: 'left', fontWeight: 600, color: 'var(--gray-400)' }}>Team</th>
+          <th style={{ padding: '6px 10px', textAlign: 'center', fontWeight: 600, color: 'var(--gray-400)', width: 90 }}>Favorite</th>
+          <th style={{ padding: '6px 10px', textAlign: 'center', fontWeight: 600, color: 'var(--gray-400)', width: 90, opacity: 0.4 }}>Push</th>
+        </tr>
+      </thead>
+      <tbody>
+        {teams.map((t) => {
+          const isFav = favoriteIds.has(String(t.team.id));
+          return (
+            <tr key={t.team.id} style={{ borderBottom: '1px solid var(--gray-50)' }}>
+              <td style={{ padding: '5px 10px', color: 'var(--gray-400)', textAlign: 'center' }}>
+                {t.rank ?? '—'}
+              </td>
+              <td style={{ padding: '5px 10px', display: 'flex', alignItems: 'center', gap: 8 }}>
+                {t.team.logo
+                  ? <img src={t.team.logo} alt="" style={{ width: 22, height: 22, objectFit: 'contain' }} loading="lazy" />
+                  : <span style={{ width: 22, height: 22, display: 'inline-block' }}>⚽</span>}
+                <span style={{ fontWeight: isFav ? 600 : 400, color: isFav ? 'var(--gray-900)' : 'var(--gray-700)' }}>{t.team.name}</span>
+              </td>
+              <td style={{ padding: '5px 10px', textAlign: 'center' }}>
+                <button
+                  onClick={() => onToggleFavorite(t, isFav)}
+                  title={isFav ? 'Remove from favorites' : 'Add to favorites'}
+                  style={{
+                    background: 'none', border: 'none', cursor: 'pointer',
+                    fontSize: 18, lineHeight: 1, padding: '2px 6px',
+                    color: isFav ? '#f59e0b' : 'var(--gray-300)',
+                    transition: 'color 0.15s',
+                  }}
+                >
+                  {isFav ? '⭐' : '☆'}
+                </button>
+              </td>
+              <td style={{ padding: '5px 10px', textAlign: 'center', opacity: 0.35 }} title="Coming soon">
+                <button style={{ background: 'none', border: 'none', cursor: 'not-allowed', fontSize: 16, color: 'var(--gray-300)' }} disabled>🔔</button>
+              </td>
+            </tr>
+          );
+        })}
+      </tbody>
+    </table>
+  );
+}
+
 interface LeagueRowProps {
   league: League;
   onToggle: (id: number, active: boolean) => void;
@@ -49,9 +120,11 @@ interface LeagueRowProps {
   onSelect: (id: number) => void;
   toggling: boolean;
   togglingTop: boolean;
+  teamsExpanded: boolean;
+  onToggleTeams: (id: number) => void;
 }
 
-const LeagueRow = memo(function LeagueRow({ league, onToggle, onToggleTop, onViewFixtures, onEditProfile, selected, onSelect, toggling, togglingTop }: LeagueRowProps) {
+const LeagueRow = memo(function LeagueRow({ league, onToggle, onToggleTop, onViewFixtures, onEditProfile, selected, onSelect, toggling, togglingTop, teamsExpanded, onToggleTeams }: LeagueRowProps) {
   return (
     <tr className={`league-row ${league.active ? '' : 'inactive'}`}>
       <td style={{ width: 36 }}>
@@ -113,6 +186,24 @@ const LeagueRow = memo(function LeagueRow({ league, onToggle, onToggleTop, onVie
           title={league.active ? 'Click to deactivate' : 'Click to activate'}
         >
           {toggling ? <span className="inline-spinner" style={{ width: 12, height: 12, display: 'inline-block' }} /> : <span className="league-toggle-dot" />}
+        </button>
+      </td>
+      <td style={{ width: 40, textAlign: 'center' }}>
+        <button
+          onClick={() => onToggleTeams(league.league_id)}
+          title={teamsExpanded ? 'Collapse teams' : 'Show teams'}
+          style={{
+            background: teamsExpanded ? 'var(--gray-100)' : 'none',
+            border: '1px solid var(--gray-200)',
+            borderRadius: 4,
+            cursor: 'pointer',
+            width: 26, height: 26,
+            display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+            fontSize: 14, color: teamsExpanded ? 'var(--gray-700)' : 'var(--gray-400)',
+            fontWeight: 600,
+          }}
+        >
+          {teamsExpanded ? '−' : '+'}
         </button>
       </td>
     </tr>
@@ -197,6 +288,12 @@ export function LeaguesTab() {
   const [profileSaving, setProfileSaving] = useState(false);
   const searchRef = useRef<HTMLInputElement>(null);
 
+  // Teams expansion
+  const [expandedLeagueId, setExpandedLeagueId] = useState<number | null>(null);
+  const [leagueTeamsCache, setLeagueTeamsCache] = useState<Record<number, LeagueTeam[]>>({});
+  const [teamsLoading, setTeamsLoading] = useState(false);
+  const [favoriteIds, setFavoriteIds] = useState<Set<string>>(new Set());
+
   // `/` key focuses search
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
@@ -224,6 +321,55 @@ export function LeaguesTab() {
   }, [config, dispatch, showToast]);
 
   useEffect(() => { loadLeagues(); }, [loadLeagues]);
+
+  // Load favorite teams on mount
+  useEffect(() => {
+    fetchFavoriteTeams(config)
+      .then((favs) => setFavoriteIds(new Set(favs.map((f) => f.team_id))))
+      .catch(() => {});
+  }, [config]);
+
+  const handleToggleTeams = useCallback(async (leagueId: number) => {
+    if (expandedLeagueId === leagueId) {
+      setExpandedLeagueId(null);
+      return;
+    }
+    setExpandedLeagueId(leagueId);
+    if (leagueTeamsCache[leagueId]) return; // already fetched
+    setTeamsLoading(true);
+    try {
+      const teams = await fetchLeagueTeams(config, leagueId);
+      setLeagueTeamsCache((prev) => ({ ...prev, [leagueId]: teams }));
+    } catch {
+      setLeagueTeamsCache((prev) => ({ ...prev, [leagueId]: [] }));
+    } finally {
+      setTeamsLoading(false);
+    }
+  }, [config, expandedLeagueId, leagueTeamsCache]);
+
+  const handleToggleFavorite = useCallback(async (team: LeagueTeam, isFav: boolean) => {
+    const teamId = String(team.team.id);
+    // Optimistic update
+    setFavoriteIds((prev) => {
+      const next = new Set(prev);
+      if (isFav) next.delete(teamId); else next.add(teamId);
+      return next;
+    });
+    try {
+      if (isFav) {
+        await removeFavoriteTeam(config, teamId);
+      } else {
+        await addFavoriteTeam(config, { team_id: teamId, team_name: team.team.name, team_logo: team.team.logo });
+      }
+    } catch {
+      // Revert on error
+      setFavoriteIds((prev) => {
+        const next = new Set(prev);
+        if (isFav) next.add(teamId); else next.delete(teamId);
+        return next;
+      });
+    }
+  }, [config]);
 
   // Filter options
   const countries = useMemo(() => {
@@ -577,26 +723,44 @@ export function LeaguesTab() {
               <th style={{ width: '1%', whiteSpace: 'nowrap', textAlign: 'center' }}>Top</th>
               <th style={{ width: '1%', whiteSpace: 'nowrap', textAlign: 'center' }}>Profile</th>
               <th style={{ width: '1%', whiteSpace: 'nowrap', textAlign: 'center' }}>Active</th>
+              <th style={{ width: 40 }} />
             </tr>
           </thead>
           <tbody>
             {paginated.map((league) => (
-              <LeagueRow
-                key={league.league_id}
-                league={league}
-                onToggleTop={handleToggleTop}
-                onToggle={handleToggle}
-                onViewFixtures={setFixtureLeague}
-                onEditProfile={handleEditProfile}
-                selected={selectedIds.has(league.league_id)}
-                onSelect={handleSelect}
-                toggling={togglingIds.has(league.league_id)}
-                togglingTop={togglingTopIds.has(league.league_id)}
-              />
+              <>
+                <LeagueRow
+                  key={league.league_id}
+                  league={league}
+                  onToggleTop={handleToggleTop}
+                  onToggle={handleToggle}
+                  onViewFixtures={setFixtureLeague}
+                  onEditProfile={handleEditProfile}
+                  selected={selectedIds.has(league.league_id)}
+                  onSelect={handleSelect}
+                  toggling={togglingIds.has(league.league_id)}
+                  togglingTop={togglingTopIds.has(league.league_id)}
+                  teamsExpanded={expandedLeagueId === league.league_id}
+                  onToggleTeams={handleToggleTeams}
+                />
+                {expandedLeagueId === league.league_id && (
+                  <tr key={`teams-${league.league_id}`}>
+                    <td colSpan={10} style={{ padding: 0, background: 'var(--gray-50)', borderBottom: '2px solid var(--gray-200)' }}>
+                      <LeagueTeamsPanel
+                        leagueId={league.league_id}
+                        teams={leagueTeamsCache[league.league_id] ?? []}
+                        loading={teamsLoading && !leagueTeamsCache[league.league_id]}
+                        favoriteIds={favoriteIds}
+                        onToggleFavorite={handleToggleFavorite}
+                      />
+                    </td>
+                  </tr>
+                )}
+              </>
             ))}
             {filtered.length === 0 && (
               <tr>
-                <td colSpan={9} style={{ textAlign: 'center', padding: 40, color: 'var(--gray-400)' }}>
+                <td colSpan={10} style={{ textAlign: 'center', padding: 40, color: 'var(--gray-400)' }}>
                   {search || filterTier !== 'all' || filterCountry !== 'all' || filterActive !== 'all' || filterTopLeague !== 'all'
                     ? 'No leagues match your filters'
                     : 'No leagues found. Click "Sync API" to fetch leagues.'}

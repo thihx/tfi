@@ -24,6 +24,7 @@ import { getRedisClient } from '../lib/redis.js';
 import { extractRegularTimeScoreFromFixture } from '../lib/settle-context.js';
 import { mergeApiFixtureStatistics } from '../lib/settlement-stat-cache.js';
 import { getSettings } from '../repos/settings.repo.js';
+import { getFavoriteTeamIds } from '../repos/favorite-teams.repo.js';
 
 const ALLOWED_STATUSES = ['NS', '1H', 'HT', '2H', 'ET', 'BT', 'P', 'LIVE', 'INT'];
 const LIVE_STATUSES   = new Set(['1H', 'HT', '2H', 'ET', 'BT', 'LIVE', 'INT']);
@@ -347,6 +348,62 @@ export async function fetchMatchesJob(): Promise<{ saved: number; leagues: numbe
 
     if (added > 0) {
       console.log(`[fetchMatchesJob] ⭐ Auto-added ${added} top-league matches to watchlist`);
+    }
+  }
+
+  // 10. Auto-add Favorite Team matches to Watchlist (NS status only)
+  const favoriteTeamIds = await getFavoriteTeamIds().catch(() => new Set<string>());
+  if (favoriteTeamIds.size > 0) {
+    const settings = await getSettings().catch(() => ({}));
+    const autoApplyRecommendedCondition =
+      (settings as Record<string, unknown>).AUTO_APPLY_RECOMMENDED_CONDITION !== false;
+    const favMatches = rows.filter((r) =>
+      r.status === 'NS' &&
+      ((r.home_team_id && favoriteTeamIds.has(String(r.home_team_id))) ||
+       (r.away_team_id && favoriteTeamIds.has(String(r.away_team_id)))),
+    );
+
+    const existingFavIds = await watchlistRepo.getExistingWatchlistMatchIds(favMatches.map((m) => m.match_id));
+
+    let favAdded = 0;
+    for (const m of favMatches) {
+      if (existingFavIds.has(m.match_id)) continue;
+      try {
+        await watchlistRepo.createWatchlistEntry({
+          match_id: m.match_id,
+          date: m.date,
+          league: m.league_name,
+          home_team: m.home_team,
+          away_team: m.away_team,
+          home_logo: m.home_logo,
+          away_logo: m.away_logo,
+          kickoff: m.kickoff,
+          mode: 'B',
+          prediction: null,
+          recommended_custom_condition: '',
+          recommended_condition_reason: '',
+          recommended_condition_reason_vi: '',
+          recommended_condition_at: null,
+          auto_apply_recommended_condition: autoApplyRecommendedCondition,
+          custom_conditions: '',
+          priority: 0,
+          status: 'active',
+          added_by: 'favorite-team-auto',
+          last_checked: null,
+          total_checks: 0,
+          recommendations_count: 0,
+          strategic_context: null,
+          strategic_context_at: null,
+        });
+        favAdded++;
+      } catch (err: unknown) {
+        const msg = err instanceof Error ? err.message : String(err);
+        if (!msg.includes('duplicate') && !msg.includes('unique')) throw err;
+      }
+    }
+
+    if (favAdded > 0) {
+      console.log(`[fetchMatchesJob] ⭐ Auto-added ${favAdded} favorite-team matches to watchlist`);
     }
   }
 

@@ -648,3 +648,33 @@ export async function fetchLeagueMarketReport(config: AppConfig, f: ReportPeriod
 export async function fetchAiInsights(config: AppConfig, f: ReportPeriodFilter): Promise<AiInsightsData> {
   return pgFetch<AiInsightsData>(config, `/api/reports/ai-insights${buildReportQs(f)}`);
 }
+
+// ==================== FAVORITE TEAMS ====================
+
+export interface LeagueTeam {
+  team: { id: number; name: string; logo: string; country: string | null };
+  rank: number | null;
+}
+
+export interface FavoriteTeam {
+  team_id: string;
+  team_name: string;
+  team_logo: string;
+  added_at: string;
+}
+
+export async function fetchLeagueTeams(config: AppConfig, leagueId: number): Promise<LeagueTeam[]> {
+  return pgFetch<LeagueTeam[]>(config, `/api/proxy/football/league-teams?leagueId=${leagueId}`);
+}
+
+export async function fetchFavoriteTeams(config: AppConfig): Promise<FavoriteTeam[]> {
+  return pgFetch<FavoriteTeam[]>(config, '/api/favorite-teams');
+}
+
+export async function addFavoriteTeam(config: AppConfig, team: { team_id: string; team_name: string; team_logo: string }): Promise<void> {
+  await pgPost(config, '/api/favorite-teams', team);
+}
+
+export async function removeFavoriteTeam(config: AppConfig, teamId: string): Promise<void> {
+  await pgDelete(config, `/api/favorite-teams/${encodeURIComponent(teamId)}`);
+}

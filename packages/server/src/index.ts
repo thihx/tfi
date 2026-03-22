@@ -30,6 +30,7 @@ import { settingsRoutes } from './routes/settings.routes.js';
 import { snapshotRoutes } from './routes/snapshots.routes.js';
 import { pushRoutes } from './routes/push.routes.js';
 import { watchlistRoutes } from './routes/watchlist.routes.js';
+import { favoriteTeamsRoutes } from './routes/favorite-teams.routes.js';
 import { jobRoutes } from './routes/jobs.routes.js';
 import { startScheduler, stopScheduler } from './jobs/scheduler.js';
 
@@ -154,6 +155,7 @@ await app.register(settingsRoutes);
 await app.register(auditLogRoutes);
 await app.register(integrationsRoutes);
 await app.register(pushRoutes);
+await app.register(favoriteTeamsRoutes);
 
 app.get('/api/health', async () => ({ status: 'ok', timestamp: new Date().toISOString() }));
 
