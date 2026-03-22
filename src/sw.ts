@@ -22,8 +22,10 @@ registerRoute(
 
 // ── Push notification handler ──────────────────────────────
 
+const DEFAULT_NOTIFICATION_DURATION_MS = 10_000; // 10 seconds
+
 self.addEventListener('push', (event) => {
-  let payload: { title?: string; body?: string; tag?: string; url?: string } = {};
+  let payload: { title?: string; body?: string; tag?: string; url?: string; duration?: number } = {};
   try {
     payload = event.data?.json() ?? {};
   } catch {
@@ -31,17 +33,30 @@ self.addEventListener('push', (event) => {
   }
 
   const title = payload.title ?? 'TFI';
-  const options: NotificationOptions & { renotify?: boolean; requireInteraction?: boolean } = {
+  const tag = payload.tag ?? 'tfi-notification';
+  const durationMs = payload.duration ?? DEFAULT_NOTIFICATION_DURATION_MS;
+
+  const options: NotificationOptions & { renotify?: boolean } = {
     body: payload.body ?? '',
     icon: '/pwa-192x192.png',
     badge: '/pwa-192x192.png',
-    tag: payload.tag ?? 'tfi-notification',
+    tag,
     renotify: true,
-    requireInteraction: true,
     data: { url: payload.url ?? '/' },
   };
 
-  event.waitUntil(self.registration.showNotification(title, options));
+  event.waitUntil(
+    self.registration.showNotification(title, options).then(
+      () =>
+        new Promise<void>((resolve) => {
+          setTimeout(async () => {
+            const notes = await self.registration.getNotifications({ tag });
+            notes.forEach((n) => n.close());
+            resolve();
+          }, durationMs);
+        }),
+    ),
+  );
 });
 
 // ── Notification click handler ─────────────────────────────
