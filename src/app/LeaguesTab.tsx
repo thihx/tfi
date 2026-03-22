@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useCallback, memo, useRef } from 'react';
+import { useState, useEffect, useMemo, useCallback, memo, useRef, Fragment } from 'react';
 import { Pagination } from '@/components/ui/Pagination';
 import { LeagueFixturesDialog } from '@/components/ui/LeagueFixturesDialog';
 import { LeagueProfileModal } from '@/components/ui/LeagueProfileModal';
@@ -42,7 +42,6 @@ const TIER_COLORS: Record<string, string> = {
 // ── Sub-components ──
 
 interface LeagueTeamsPanelProps {
-  leagueId: number;
   teams: LeagueTeam[];
   loading: boolean;
   favoriteIds: Set<string>;
@@ -728,9 +727,8 @@ export function LeaguesTab() {
           </thead>
           <tbody>
             {paginated.map((league) => (
-              <>
+              <Fragment key={league.league_id}>
                 <LeagueRow
-                  key={league.league_id}
                   league={league}
                   onToggleTop={handleToggleTop}
                   onToggle={handleToggle}
@@ -744,10 +742,9 @@ export function LeaguesTab() {
                   onToggleTeams={handleToggleTeams}
                 />
                 {expandedLeagueId === league.league_id && (
-                  <tr key={`teams-${league.league_id}`}>
+                  <tr>
                     <td colSpan={10} style={{ padding: 0, background: 'var(--gray-50)', borderBottom: '2px solid var(--gray-200)' }}>
                       <LeagueTeamsPanel
-                        leagueId={league.league_id}
                         teams={leagueTeamsCache[league.league_id] ?? []}
                         loading={teamsLoading && !leagueTeamsCache[league.league_id]}
                         favoriteIds={favoriteIds}
@@ -756,7 +753,7 @@ export function LeaguesTab() {
                     </td>
                   </tr>
                 )}
-              </>
+              </Fragment>
             ))}
             {filtered.length === 0 && (
               <tr>

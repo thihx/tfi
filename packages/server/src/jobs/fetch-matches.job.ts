@@ -296,11 +296,11 @@ export async function fetchMatchesJob(): Promise<{ saved: number; leagues: numbe
 
   // 9. Auto-add Top League matches to Watchlist (NS status only)
   await reportJobProgress(JOB, 'top-leagues', 'Auto-adding top league matches to watchlist...', 85);
+  const autoAddSettings = await getSettings().catch(() => ({}));
+  const autoApplyRecommendedCondition =
+    (autoAddSettings as Record<string, unknown>).AUTO_APPLY_RECOMMENDED_CONDITION !== false;
   const topLeagues = await leagueRepo.getTopLeagues();
   if (topLeagues.length > 0) {
-    const settings = await getSettings().catch(() => ({}));
-    const autoApplyRecommendedCondition =
-      (settings as Record<string, unknown>).AUTO_APPLY_RECOMMENDED_CONDITION !== false;
     const topLeagueIds = new Set(topLeagues.map((l) => l.league_id));
     const topMatches = rows.filter((r) => topLeagueIds.has(r.league_id) && r.status === 'NS');
 
@@ -354,9 +354,6 @@ export async function fetchMatchesJob(): Promise<{ saved: number; leagues: numbe
   // 10. Auto-add Favorite Team matches to Watchlist (NS status only)
   const favoriteTeamIds = await getFavoriteTeamIds().catch(() => new Set<string>());
   if (favoriteTeamIds.size > 0) {
-    const settings = await getSettings().catch(() => ({}));
-    const autoApplyRecommendedCondition =
-      (settings as Record<string, unknown>).AUTO_APPLY_RECOMMENDED_CONDITION !== false;
     const favMatches = rows.filter((r) =>
       r.status === 'NS' &&
       ((r.home_team_id && favoriteTeamIds.has(String(r.home_team_id))) ||
