@@ -12,7 +12,7 @@
 import { randomUUID } from 'node:crypto';
 import { config } from '../config.js';
 import { callGemini } from './gemini.js';
-import { sendTelegramMessage, sendTelegramPhoto, sendTelegramAlbum } from './telegram.js';
+import { sendTelegramMessage, sendTelegramPhoto } from './telegram.js';
 import { audit } from './audit.js';
 import {
   fetchFixturesByIds,
@@ -141,7 +141,6 @@ const defaultPipelineDeps = {
   getHistoricalPerformanceContext,
   sendTelegramMessage,
   sendTelegramPhoto,
-  sendTelegramAlbum,
   fetchLiveScoreBenchmarkTrace,
   fetchDeterministicWebLiveFallback,
   createPromptShadowRun,
@@ -1497,11 +1496,34 @@ function buildStatsChartUrl(stats: StatsCompact, homeName: string, awayName: str
 }
 
 /** Condensed caption for sendPhoto (max 1024 chars). Stats replaced by chart image; events by timeline image. */
+function buildEventsText(events: EventCompact[]): string {
+  const relevant = events.filter((e) => e.type === 'goal' || e.type === 'card');
+  if (relevant.length === 0) return '';
+  const isRed = (e: EventCompact) => {
+    const d = e.detail.toLowerCase();
+    return d.includes('red') || d.includes('second yellow');
+  };
+  const toX = (e: EventCompact) => e.minute + (e.extra ?? 0);
+  const lines = relevant
+    .sort((a, b) => toX(a) - toX(b))
+    .map((e) => {
+      const min = `${toX(e)}'`;
+      if (e.type === 'goal') {
+        const detail = e.detail.toLowerCase().includes('own') ? 'OG' : e.detail.toLowerCase().includes('penalty') ? 'P' : '';
+        return `⚽${detail ? ' ' + detail : ''} ${min} ${safeHtml(e.player || e.team)}`;
+      }
+      const icon = isRed(e) ? '🟥' : '🟨';
+      return `${icon} ${min} ${safeHtml(e.player || e.team)}`;
+    });
+  return lines.join('\n');
+}
+
 function buildTelegramCaption(
   matchDisplay: string, league: string, score: string, minute: number | string, status: string,
   parsed: ParsedAiResponse, model: string, mode: string,
   lang: PipelineSettings['notificationLanguage'],
   trigger: PromptAnalysisMode,
+  eventsCompact: EventCompact[],
 ): string {
   const isRec = parsed.should_push;
   const isCondition = parsed.custom_condition_matched;
@@ -1525,7 +1547,9 @@ function buildTelegramCaption(
     const reasoning = pickReasoning(parsed, lang);
     if (reasoning) text += `\n${safeHtml(truncateAtWord(reasoning, 520))}\n`;
   }
-  // Events are shown as a separate timeline image — not repeated here
+  // Events: compact text block (goals + cards), no separate image needed
+  const eventsText = buildEventsText(eventsCompact ?? []);
+  if (eventsText) text += `\n${eventsText}\n`;
 
   // Warnings (concise, max 3)
   const displayWarnings = parsed.warnings.filter((w) => !INTERNAL.has(w)).slice(0, 3);
@@ -2332,26 +2356,19 @@ async function processMatch(
         try {
           const mode = watchlistEntry.mode || 'B';
           const chartUrl = statsAvailable ? buildStatsChartUrl(statsCompact, homeName, awayName, minute) : '';
-          const timelineUrl = buildEventsTimelineUrl(eventsCompact, homeName, awayName, minute);
 
-          // Send as album (events first, stats second with caption) so both appear in one message bubble.
-          // Fall back to single photo or text if album fails.
+          // Single stats chart photo with events embedded in caption as text
           let photoSent = false;
           if (chartUrl) {
             const caption = buildTelegramCaption(
               matchDisplay, league, score, minute, status, parsed, model, mode,
-              settings.notificationLanguage, analysisMode,
+              settings.notificationLanguage, analysisMode, eventsCompact,
             );
             try {
-              if (timelineUrl) {
-                // Album: [events timeline, stats chart (caption here)]
-                await deps.sendTelegramAlbum(settings.telegramChatId, [timelineUrl, chartUrl], caption);
-              } else {
-                await deps.sendTelegramPhoto(settings.telegramChatId, chartUrl, caption);
-              }
+              await deps.sendTelegramPhoto(settings.telegramChatId, chartUrl, caption);
               photoSent = true;
             } catch {
-              // Album or photo failed — fall through to text
+              // Photo failed — fall through to text
             }
           }
 
