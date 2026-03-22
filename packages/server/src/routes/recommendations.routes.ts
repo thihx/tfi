@@ -9,6 +9,46 @@ import { reEvaluateAllResults } from '../jobs/re-evaluate.job.js';
 import { audit } from '../lib/audit.js';
 import { isFinalSettlementResult, settlementWasCorrect } from '../lib/settle-types.js';
 
+function normalizeText(value: unknown): string {
+  return typeof value === 'string' ? value.trim() : '';
+}
+
+function parsePositiveNumber(value: unknown): number | null {
+  const n = typeof value === 'number' ? value : Number(value);
+  return Number.isFinite(n) && n > 0 ? n : null;
+}
+
+function getRecommendationValidationError(rec: Partial<repo.RecommendationCreate>): string | null {
+  const selection = normalizeText(rec.selection);
+  if (!selection || /^(none|no\s*bet|-)$/i.test(selection)) {
+    return 'selection is empty or non-actionable';
+  }
+
+  const betMarket = normalizeText(rec.bet_market);
+  if (!betMarket) {
+    return 'bet_market is required for actionable recommendations';
+  }
+
+  const betType = normalizeText(rec.bet_type);
+  if (/^(none|no_bet)$/i.test(betType)) {
+    return 'bet_type cannot be none/NO_BET for actionable recommendations';
+  }
+
+  if (parsePositiveNumber(rec.odds) == null || Number(rec.odds) <= 1) {
+    return 'odds must be a valid price above 1.00';
+  }
+
+  if (parsePositiveNumber(rec.confidence) == null) {
+    return 'confidence must be greater than 0';
+  }
+
+  if (parsePositiveNumber(rec.stake_percent) == null) {
+    return 'stake_percent must be greater than 0';
+  }
+
+  return null;
+}
+
 export async function recommendationRoutes(app: FastifyInstance) {
   app.get<{ Querystring: {
     limit?: string; offset?: string;
@@ -63,10 +103,17 @@ export async function recommendationRoutes(app: FastifyInstance) {
     '/api/recommendations',
     async (req, reply) => {
       if (!req.body.match_id) return reply.code(400).send({ error: 'match_id is required' });
+      const validationError = getRecommendationValidationError(req.body);
+      if (validationError) return reply.code(400).send({ error: `Recommendation is not actionable: ${validationError}` });
+
+      const normalizedBody: Partial<repo.RecommendationCreate> = {
+        ...req.body,
+        bet_type: normalizeText(req.body.bet_type) || 'AI',
+      };
 
       let rec: repo.RecommendationRow;
       try {
-        rec = await repo.createRecommendation(req.body);
+        rec = await repo.createRecommendation(normalizedBody);
       } catch (err) {
         const errMsg = err instanceof Error ? err.message : String(err);
         req.log.error({ err, matchId: req.body.match_id, selection: req.body.selection }, 'Failed to save recommendation');
@@ -115,8 +162,14 @@ export async function recommendationRoutes(app: FastifyInstance) {
   app.post<{ Body: Partial<repo.RecommendationCreate>[] }>(
     '/api/recommendations/bulk',
     async (req) => {
-      const count = await repo.bulkCreateRecommendations(req.body);
-      return { inserted: count };
+      const actionable = req.body
+        .filter((rec) => !getRecommendationValidationError(rec))
+        .map((rec) => ({
+          ...rec,
+          bet_type: normalizeText(rec.bet_type) || 'AI',
+        }));
+      const count = actionable.length > 0 ? await repo.bulkCreateRecommendations(actionable) : 0;
+      return { inserted: count, skipped: req.body.length - actionable.length };
     },
   );
 

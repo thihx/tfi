@@ -132,4 +132,23 @@ describe('prepareRecommendationData', () => {
     );
     expect(data.unique_key).toBe('12345_1x2_draw');
   });
+
+  test('never emits legacy bet_type=none for non-actionable results', () => {
+    const data = prepareRecommendationData(
+      makeMatchData({ match_id: '12345' }),
+      makeParsed({
+        ai_selection: '',
+        selection: '',
+        bet_market: '',
+        usable_odd: null,
+        mapped_odd: null,
+        ai_confidence: 0,
+        confidence: 0,
+        stake_percent: 0,
+      }),
+      config,
+      'exec1',
+    );
+    expect(data.bet_type).toBe('NO_BET');
+  });
 });

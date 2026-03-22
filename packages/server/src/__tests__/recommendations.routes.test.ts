@@ -138,7 +138,16 @@ describe('POST /api/recommendations', () => {
     const res = await app.inject({
       method: 'POST',
       url: '/api/recommendations',
-      payload: { match_id: '200', selection: 'Over 2.5', confidence: 80, ai_model: 'gemini', bet_type: 'AI', bet_market: 'over_2.5' },
+      payload: {
+        match_id: '200',
+        selection: 'Over 2.5',
+        confidence: 80,
+        ai_model: 'gemini',
+        bet_type: 'AI',
+        bet_market: 'over_2.5',
+        odds: 1.95,
+        stake_percent: 3,
+      },
     });
     expect(res.statusCode).toBe(201);
     expect(res.json().match_id).toBe('200');
@@ -158,7 +167,14 @@ describe('POST /api/recommendations', () => {
     const res = await app.inject({
       method: 'POST',
       url: '/api/recommendations',
-      payload: { match_id: '201', selection: 'BTTS Yes' },
+      payload: {
+        match_id: '201',
+        selection: 'BTTS Yes',
+        bet_market: 'btts_yes',
+        odds: 1.88,
+        confidence: 7,
+        stake_percent: 2.5,
+      },
     });
     expect(res.statusCode).toBe(201);
   });
@@ -167,7 +183,16 @@ describe('POST /api/recommendations', () => {
     await app.inject({
       method: 'POST',
       url: '/api/recommendations',
-      payload: { match_id: '202', selection: 'Over 2.5', confidence: 80, ai_model: 'gemini', bet_type: 'AI', bet_market: 'over_2.5' },
+      payload: {
+        match_id: '202',
+        selection: 'Over 2.5',
+        confidence: 80,
+        ai_model: 'gemini',
+        bet_type: 'AI',
+        bet_market: 'over_2.5',
+        odds: 1.91,
+        stake_percent: 3,
+      },
     });
 
     const aiPerfRepo = await import('../repos/ai-performance.repo.js');
@@ -189,6 +214,8 @@ describe('POST /api/recommendations', () => {
         ai_model: 'gemini',
         bet_type: 'AI',
         bet_market: 'over_2.5',
+        odds: 1.93,
+        stake_percent: 3,
         prompt_version: 'v4-evidence-hardened',
       },
     });
@@ -199,20 +226,42 @@ describe('POST /api/recommendations', () => {
       prompt_version: 'v4-evidence-hardened',
     }));
   });
+
+  test('rejects non-actionable blank recommendations', async () => {
+    const aiPerfRepo = await import('../repos/ai-performance.repo.js');
+    const beforeCalls = vi.mocked(aiPerfRepo.createAiPerformanceRecord).mock.calls.length;
+    const res = await app.inject({
+      method: 'POST',
+      url: '/api/recommendations',
+      payload: {
+        match_id: '204',
+        selection: '',
+        bet_type: 'none',
+        bet_market: '',
+        odds: null,
+        confidence: 0,
+        stake_percent: 0,
+      },
+    });
+    expect(res.statusCode).toBe(400);
+    expect(res.json().error).toContain('not actionable');
+    expect(vi.mocked(aiPerfRepo.createAiPerformanceRecord).mock.calls.length).toBe(beforeCalls);
+  });
 });
 
 describe('POST /api/recommendations/bulk', () => {
-  test('bulk creates recommendations', async () => {
+  test('bulk creates recommendations and skips invalid rows', async () => {
     const res = await app.inject({
       method: 'POST',
       url: '/api/recommendations/bulk',
       payload: [
-        { match_id: '300', selection: 'A' },
-        { match_id: '301', selection: 'B' },
+        { match_id: '300', selection: 'A', bet_market: '1x2_home', odds: 2.0, confidence: 7, stake_percent: 3 },
+        { match_id: '301', selection: '', bet_market: '', odds: null, confidence: 0, stake_percent: 0 },
       ],
     });
     expect(res.statusCode).toBe(200);
-    expect(res.json().inserted).toBe(2);
+    expect(res.json().inserted).toBe(1);
+    expect(res.json().skipped).toBe(1);
   });
 });
 

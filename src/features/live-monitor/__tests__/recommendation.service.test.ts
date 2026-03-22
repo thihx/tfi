@@ -42,7 +42,7 @@ describe('prepareRecommendationData', () => {
 
     expect(result.selection).toBe('Over 2.5 @1.85');
     expect(result.bet_market).toBe('Over/Under');
-    expect(result.bet_type).toBe('Over/Under');
+    expect(result.bet_type).toBe('AI');
     expect(result.odds).toBe(1.85);
     expect(result.confidence).toBe(7);
     expect(result.value_percent).toBe(12);
@@ -137,5 +137,20 @@ describe('prepareRecommendationData', () => {
     const result = prepareRecommendationData(createMergedMatchData(), parsed, config, 'exec_001');
     expect(result.notification_channels).toContain('email');
     expect(result.notified).toBe('pending');
+  });
+
+  test('maps blank / none selections to NO_BET instead of legacy none bet_type', () => {
+    const parsed = createParsedAiResponse({
+      ai_selection: '',
+      selection: '',
+      bet_market: '',
+      usable_odd: null,
+      mapped_odd: null,
+      ai_confidence: 0,
+      confidence: 0,
+      stake_percent: 0,
+    });
+    const result = prepareRecommendationData(createMergedMatchData(), parsed, config, 'exec_001');
+    expect(result.bet_type).toBe('NO_BET');
   });
 });

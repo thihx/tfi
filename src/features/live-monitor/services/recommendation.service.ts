@@ -98,9 +98,20 @@ export function prepareRecommendationData(
 
   // Determine the odds value to display
   const odds = parsed.usable_odd ?? parsed.mapped_odd ?? null;
+  const selection = (parsed.ai_selection || parsed.selection || '').trim();
+  const storedBetMarket = (parsed.bet_market || '').trim();
+  const confidence = parsed.ai_confidence ?? parsed.confidence ?? 0;
+  const stakePercent = parsed.stake_percent ?? 0;
+  const hasActionableSelection = !!selection && !/^(none|no\s*bet|-)$/i.test(selection);
+  const hasActionableOdds = typeof odds === 'number' && Number.isFinite(odds) && odds > 1;
+  const isActionable = hasActionableSelection
+    && !!storedBetMarket
+    && confidence > 0
+    && stakePercent > 0
+    && hasActionableOdds;
 
-  // Bet type inference
-  const betType = parsed.bet_market || 'none';
+  // Bet type inference: never emit legacy "none" records again.
+  const betType = isActionable ? 'AI' : 'NO_BET';
 
   return {
     unique_key: uniqueKey,
@@ -114,13 +125,13 @@ export function prepareRecommendationData(
     score: match.score || matchData.score || '',
     status: match.status || matchData.status || '',
     bet_type: betType,
-    selection: parsed.ai_selection || parsed.selection || '',
-    bet_market: parsed.bet_market || '',
+    selection,
+    bet_market: storedBetMarket,
     odds: odds,
-    confidence: parsed.ai_confidence ?? parsed.confidence ?? 0,
+    confidence,
     value_percent: parsed.value_percent ?? 0,
     risk_level: parsed.risk_level || 'HIGH',
-    stake_percent: parsed.stake_percent ?? 0,
+    stake_percent: stakePercent,
     reasoning: reasoning,
     key_factors: keyFactors,
     warnings: warnings,
