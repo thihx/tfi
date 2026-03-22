@@ -84,7 +84,11 @@ function RecommendationCardBase({ rec, lang, onViewMatch }: Props) {
 
         <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexShrink: 0 }}>
           {isLive && (
-            <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+            <span
+              style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', cursor: rec.match_id && onViewMatch ? 'pointer' : undefined }}
+              onClick={() => rec.match_id && onViewMatch?.(rec.match_id, display)}
+              title="Click to view match details"
+            >
               <span className="badge badge-live" style={{ fontSize: '10px', padding: '2px 6px' }}>LIVE</span>
               {displayScore && <span style={{ fontWeight: 700, fontSize: '13px', color: 'var(--gray-900)' }}>{displayScore}</span>}
               <span style={{ fontSize: '11px', color: 'var(--gray-500)' }}>{rec.minute}&apos;</span>
