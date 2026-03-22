@@ -13,6 +13,13 @@ import type { PipelineMatchResult } from '@/features/live-monitor/types';
 import { runPipelineForMatch } from '@/features/live-monitor/services/pipeline';
 import { MatchScoutModal } from '@/components/ui/MatchScoutModal';
 
+// ── Module-level store — persists across tab navigation ──────────────────────
+type AiResultEntry = { matchId: string; matchDisplay: string; result: PipelineMatchResult };
+const _matchesTabStore = {
+  analyzingMatches: new Set<string>(),
+  aiResults: new Map<string, AiResultEntry>(),
+};
+
 const PAGE_SIZE = 30;
 
 function getDateGroupLabel(localDT: Date): string {
@@ -43,11 +50,44 @@ export function MatchesTab() {
   const [sort, setSort] = useState<SortState>({ column: 'time', order: 'asc' });
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [pendingAdds, setPendingAdds] = useState<Set<string>>(new Set());
-  const [analyzingMatches, setAnalyzingMatches] = useState<Set<string>>(new Set());
+  const [analyzingMatches, _setAnalyzingMatches] = useState<Set<string>>(() => new Set(_matchesTabStore.analyzingMatches));
+  const [aiResults, _setAiResults] = useState<Map<string, AiResultEntry>>(() => new Map(_matchesTabStore.aiResults));
   const [viewMode, setViewMode] = useState<'table' | 'cards'>('table');
-  const [aiResults, setAiResults] = useState<Map<string, { matchId: string; matchDisplay: string; result: PipelineMatchResult }>>(new Map());
   const [scoutMatch, setScoutMatch] = useState<Match | null>(null);
+  const [lastAddedResultId, setLastAddedResultId] = useState<string | null>(null);
   const aiResultsRef = useRef<HTMLDivElement>(null);
+
+  // Wrapped setters that sync state back to the module-level store
+  const setAnalyzingMatches = useCallback((fn: (prev: Set<string>) => Set<string>) => {
+    _setAnalyzingMatches((prev) => {
+      const next = fn(prev);
+      _matchesTabStore.analyzingMatches = next;
+      return next;
+    });
+  }, []);
+
+  const setAiResults = useCallback((fn: (prev: Map<string, AiResultEntry>) => Map<string, AiResultEntry>) => {
+    _setAiResults((prev) => {
+      const next = fn(prev);
+      _matchesTabStore.aiResults = next;
+      return next;
+    });
+  }, []);
+
+  // Auto-scroll to result panel after DOM has updated
+  useEffect(() => {
+    if (!lastAddedResultId) return;
+    const timer = setTimeout(() => {
+      const el = document.getElementById(`ai-result-${lastAddedResultId}`);
+      if (el) {
+        el.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+        el.style.outline = '2px solid var(--primary)';
+        setTimeout(() => { el.style.outline = ''; }, 1500);
+      }
+      setLastAddedResultId(null);
+    }, 80);
+    return () => clearTimeout(timer);
+  }, [lastAddedResultId]);
 
   // Auto-refresh countdown — counts down each second, refreshes and resets at 0
   const [refreshCountdown, setRefreshCountdown] = useState(AUTO_REFRESH_SEC);
@@ -228,6 +268,7 @@ export function MatchesTab() {
       const matchResult = ctx.results[0];
       if (matchResult) {
         setAiResults((prev) => new Map(prev).set(mid, { matchId: mid, matchDisplay: `${m.home_team} vs ${m.away_team}`, result: matchResult }));
+        setLastAddedResultId(mid);
         if (matchResult.parsedAi && matchResult.error) {
           // AI succeeded but save/other step failed — show warning with detail
           showToast(`⚠️ ${m.home_team} vs ${m.away_team} — AI done but: ${matchResult.error}`, 'error');
@@ -359,7 +400,7 @@ export function MatchesTab() {
         <div ref={aiResultsRef} style={{ margin: '12px 0', display: 'flex', flexDirection: 'column', gap: '8px' }}>
           {aiResults.size > 1 && (
             <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
-              <button className="btn btn-secondary btn-sm" onClick={() => setAiResults(new Map())}>Close All ({aiResults.size})</button>
+              <button className="btn btn-secondary btn-sm" onClick={() => setAiResults(() => new Map())}>Close All ({aiResults.size})</button>
             </div>
           )}
           {Array.from(aiResults.values()).map((entry) => (

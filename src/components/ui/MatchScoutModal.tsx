@@ -267,28 +267,25 @@ function LiveView({ data, homeTeam, awayTeam, homeLogo, awayLogo, leagueName, st
         <TeamBadge name={awayTeam} logo={awayLogo} align="right" dark={isLive} />
       </div>
 
-      {/* ── Events + Stats (2 cols) ── */}
-      <div style={{ display: 'grid', gridTemplateColumns: '2fr 3fr', gap: 16, alignItems: 'start' }}>
-        {/* Events Timeline */}
-        <Section title="Match Events">
-          {events.length > 0 ? (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 2, maxHeight: 340, overflowY: 'auto' }}>
-              {events.map((e, i) => <EventRow key={i} event={e} homeTeam={homeTeam} />)}
-            </div>
-          ) : <EmptyNote>No events recorded yet</EmptyNote>}
-        </Section>
+      {/* ── Events Timeline (full width) ── */}
+      <Section title="Match Events">
+        <EventTimeline
+          events={events}
+          homeTeam={homeTeam} awayTeam={awayTeam}
+          homeLogo={homeLogo} awayLogo={awayLogo}
+        />
+      </Section>
 
-        {/* Match Stats */}
-        <Section title="Match Statistics">
-          {statRows.length > 0 ? (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-              {statRows.map((r) => (
-                <StatBar key={r.label} label={r.label} home={r.home} away={r.away} suffix={r.suffix} isPercent={r.isPercent} />
-              ))}
-            </div>
-          ) : <EmptyNote>Statistics not yet available</EmptyNote>}
-        </Section>
-      </div>
+      {/* ── Match Stats (full width, 2-col grid) ── */}
+      <Section title="Match Statistics">
+        {statRows.length > 0 ? (
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px 24px' }}>
+            {statRows.map((r) => (
+              <StatBar key={r.label} label={r.label} home={r.home} away={r.away} suffix={r.suffix} isPercent={r.isPercent} />
+            ))}
+          </div>
+        ) : <EmptyNote>Statistics not yet available</EmptyNote>}
+      </Section>
 
       {/* ── Lineups ── */}
       {lineups.length === 2 && (
@@ -482,28 +479,182 @@ function StandingsSnippet({ standings, homeIdx, awayIdx, homeTeam, awayTeam }: {
   );
 }
 
-function EventRow({ event: e, homeTeam }: { event: MatchScoutData['events'][number]; homeTeam: string }) {
-  const isHome = e.team.name === homeTeam || homeTeam.includes(e.team.name) || e.team.name.includes(homeTeam);
-  const min = `${e.time.elapsed}${e.time.extra ? `+${e.time.extra}` : ''}' `;
+// ── Event Timeline (horizontal visual) ──────────────────────────────────────
 
-  let icon = '';
-  let color = 'var(--gray-600)';
-  if (e.type === 'Goal') { icon = '⚽'; color = '#15803d'; }
-  else if (e.type === 'Card') {
-    if (e.detail.includes('Yellow')) { icon = '🟨'; color = '#d97706'; }
-    else if (e.detail.includes('Red') || e.detail.includes('Second Yellow')) { icon = '🟥'; color = '#b91c1c'; }
-  } else if (e.type === 'subst') { icon = '🔄'; color = '#6366f1'; }
-  else if (e.type === 'Var') { icon = 'VAR'; color = 'var(--gray-500)'; }
+type MatchEvent = MatchScoutData['events'][number];
+
+function isHomeEvt(e: MatchEvent, homeTeam: string): boolean {
+  return e.team.name === homeTeam || homeTeam.includes(e.team.name) || e.team.name.includes(homeTeam);
+}
+
+function evtStyle(type: string, detail: string): { icon: string; color: string; bg: string } {
+  if (type === 'Goal') {
+    if (detail.toLowerCase().includes('own')) return { icon: '⚽', color: '#b91c1c', bg: '#fee2e2' };
+    return { icon: '⚽', color: '#166534', bg: '#dcfce7' };
+  }
+  if (type === 'Card') {
+    if (detail.includes('Red') || detail.includes('Second Yellow'))
+      return { icon: '🟥', color: '#b91c1c', bg: 'transparent' };
+    return { icon: '🟨', color: '#d97706', bg: 'transparent' };
+  }
+  if (type === 'subst') return { icon: '⇆', color: '#6366f1', bg: '#ede9fe' };
+  if (type === 'Var')   return { icon: 'V',  color: '#6b7280', bg: '#f3f4f6' };
+  return { icon: '·', color: '#9ca3af', bg: '#f3f4f6' };
+}
+
+function EventTimeline({ events, homeTeam, awayTeam, homeLogo, awayLogo }: {
+  events: MatchEvent[];
+  homeTeam: string; awayTeam: string;
+  homeLogo?: string; awayLogo?: string;
+}) {
+  if (events.length === 0) return <EmptyNote>No events recorded yet</EmptyNote>;
+
+  const homeEvts = events.filter((e) => isHomeEvt(e, homeTeam));
+  const awayEvts = events.filter((e) => !isHomeEvt(e, homeTeam));
+
+  const maxMin = Math.max(95, ...events.map((e) => e.time.elapsed + (e.time.extra ?? 0)));
+  const toPct = (elapsed: number, extra: number | null) =>
+    Math.min(97, Math.max(3, ((elapsed + (extra ?? 0)) / maxMin) * 100));
+  const htPct = toPct(45, null);
+
+  const ICON_H = 60;
+  const BAR_H  = 32;
+
+  const renderIcons = (evts: MatchEvent[], above: boolean) => (
+    <div style={{ height: ICON_H, position: 'relative' }}>
+      {evts.map((e, i) => {
+        const { icon, color, bg } = evtStyle(e.type, e.detail);
+        const left = toPct(e.time.elapsed, e.time.extra);
+        const minLabel = `${e.time.elapsed}${e.time.extra ? `+${e.time.extra}` : ''}'`;
+        const tip = [minLabel, e.player.name, e.detail,
+          e.type === 'subst' && e.assist.name ? `→ ${e.assist.name}` : null,
+        ].filter(Boolean).join(' ');
+
+        return (
+          <div
+            key={i}
+            title={tip}
+            style={{
+              position: 'absolute',
+              left: `${left}%`,
+              transform: 'translateX(-50%)',
+              display: 'flex',
+              flexDirection: above ? 'column-reverse' : 'column',
+              alignItems: 'center',
+              gap: 2,
+              bottom: above ? 0 : undefined,
+              top: above ? undefined : 0,
+              cursor: 'default',
+              zIndex: 1,
+            }}
+          >
+            {/* Icon */}
+            <div style={{
+              width: 22, height: 22,
+              borderRadius: bg === 'transparent' ? 3 : '50%',
+              background: bg === 'transparent' ? 'none' : bg,
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              fontSize: 13, lineHeight: 1, color,
+              border: bg !== 'transparent' ? `1px solid ${color}30` : 'none',
+              flexShrink: 0,
+            }}>
+              {icon}
+            </div>
+            {/* Minute label */}
+            <span style={{ fontSize: 9, fontWeight: 700, color: 'var(--gray-400)', whiteSpace: 'nowrap', lineHeight: 1 }}>
+              {minLabel}
+            </span>
+            {/* Connector to bar */}
+            <div style={{ width: 1, height: 6, background: 'var(--gray-200)', flexShrink: 0 }} />
+          </div>
+        );
+      })}
+    </div>
+  );
+
+  const TeamLabel = ({ name, logo, color }: { name: string; logo?: string; color: string }) => (
+    <div style={{ display: 'flex', alignItems: 'center', gap: 6, overflow: 'hidden' }}>
+      {logo && (
+        <img src={logo} alt="" style={{ width: 20, height: 20, objectFit: 'contain', flexShrink: 0 }}
+          onError={(ev) => { (ev.target as HTMLImageElement).style.display = 'none'; }} />
+      )}
+      <span style={{ fontSize: 11, fontWeight: 700, color, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+        {name}
+      </span>
+    </div>
+  );
+
+  const Marker = ({ label, bg, textColor, size = 22 }: { label: string; bg: string; textColor: string; size?: number }) => (
+    <div style={{
+      width: size, height: size, borderRadius: '50%',
+      background: bg, border: bg === '#fff' ? '2px solid #22c55e' : 'none',
+      display: 'flex', alignItems: 'center', justifyContent: 'center',
+      flexShrink: 0, zIndex: 3,
+    }}>
+      <span style={{ fontSize: 8, fontWeight: 900, color: textColor, lineHeight: 1 }}>{label}</span>
+    </div>
+  );
 
   return (
-    <div style={{ display: 'flex', alignItems: 'flex-start', gap: 6, padding: '4px 0', borderBottom: '1px solid var(--gray-50)', flexDirection: isHome ? 'row' : 'row-reverse' }}>
-      <span style={{ fontSize: 10, color: 'var(--gray-400)', fontWeight: 700, minWidth: 32, marginTop: 2, textAlign: isHome ? 'left' : 'right' }}>{min}</span>
-      <span style={{ fontSize: 14, lineHeight: 1 }}>{icon}</span>
-      <div style={{ flex: 1, textAlign: isHome ? 'left' : 'right' }}>
-        <div style={{ fontSize: 12, fontWeight: 600, color }}>{e.player.name ?? '—'}</div>
-        {e.assist.name && <div style={{ fontSize: 10, color: 'var(--gray-400)' }}>assist: {e.assist.name}</div>}
-        {e.type === 'subst' && e.assist.name && <div style={{ fontSize: 10, color: 'var(--gray-400)' }}>→ {e.assist.name}</div>}
-        <div style={{ fontSize: 10, color: 'var(--gray-400)', fontWeight: 500 }}>{e.team.name}</div>
+    <div style={{ padding: '4px 0' }}>
+      <div style={{ display: 'flex', gap: 10, alignItems: 'stretch' }}>
+
+        {/* Team labels column */}
+        <div style={{ width: 110, flexShrink: 0, display: 'flex', flexDirection: 'column' }}>
+          <div style={{ height: ICON_H, display: 'flex', alignItems: 'center' }}>
+            <TeamLabel name={homeTeam} logo={homeLogo} color="#3b82f6" />
+          </div>
+          <div style={{ height: BAR_H }} />
+          <div style={{ height: ICON_H, display: 'flex', alignItems: 'center' }}>
+            <TeamLabel name={awayTeam} logo={awayLogo} color="#f97316" />
+          </div>
+        </div>
+
+        {/* Timeline column */}
+        <div style={{ flex: 1, minWidth: 0 }}>
+
+          {/* Home events (above bar) */}
+          {renderIcons(homeEvts, true)}
+
+          {/* Bar */}
+          <div style={{ height: BAR_H, position: 'relative', display: 'flex', alignItems: 'center' }}>
+            {/* Green bar */}
+            <div style={{
+              position: 'absolute', left: 0, right: 0, height: 10,
+              background: 'linear-gradient(90deg, #15803d 0%, #22c55e 60%, #16a34a 100%)',
+              borderRadius: 999,
+            }} />
+
+            {/* Event ticks on bar */}
+            {events.map((e, i) => (
+              <div key={i} style={{
+                position: 'absolute',
+                left: `${toPct(e.time.elapsed, e.time.extra)}%`,
+                transform: 'translateX(-50%)',
+                width: 2, height: 16,
+                background: '#fff', borderRadius: 1, opacity: 0.65, zIndex: 1,
+              }} />
+            ))}
+
+            {/* I marker */}
+            <div style={{ position: 'absolute', left: -2, transform: 'translateX(-50%)', zIndex: 4 }}>
+              <Marker label="I" bg="#15803d" textColor="#fff" />
+            </div>
+
+            {/* HT marker */}
+            <div style={{ position: 'absolute', left: `${htPct}%`, transform: 'translateX(-50%)', zIndex: 4 }}>
+              <Marker label="HT" bg="#fff" textColor="#15803d" size={24} />
+            </div>
+
+            {/* F marker */}
+            <div style={{ position: 'absolute', right: -2, transform: 'translateX(50%)', zIndex: 4 }}>
+              <Marker label="F" bg="#15803d" textColor="#fff" />
+            </div>
+          </div>
+
+          {/* Away events (below bar) */}
+          {renderIcons(awayEvts, false)}
+        </div>
       </div>
     </div>
   );

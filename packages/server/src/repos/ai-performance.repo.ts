@@ -144,6 +144,7 @@ export async function getAccuracyStats(): Promise<{
   total: number;
   correct: number;
   incorrect: number;
+  neutral: number;
   pending: number;
   accuracy: number;
 }> {
@@ -153,12 +154,19 @@ export async function getAccuracyStats(): Promise<{
     total: string;
     correct: string;
     incorrect: string;
+    neutral: string;
     pending: string;
   }>(
     `SELECT
        COUNT(*)::text AS total,
        COUNT(*) FILTER (WHERE ap.settlement_trusted = TRUE AND ap.was_correct = TRUE)::text AS correct,
        COUNT(*) FILTER (WHERE ap.settlement_trusted = TRUE AND ap.was_correct = FALSE)::text AS incorrect,
+       COUNT(*) FILTER (
+         WHERE ap.settlement_trusted = TRUE
+           AND ap.settlement_status IN ('resolved', 'corrected')
+           AND ap.was_correct IS NULL
+           AND r.result IN (${FINAL_SETTLEMENT_RESULTS_SQL})
+       )::text AS neutral,
        COUNT(*) FILTER (
          WHERE ap.settlement_status IN ('pending', 'unresolved')
            OR ap.settlement_trusted = FALSE
@@ -177,6 +185,7 @@ export async function getAccuracyStats(): Promise<{
     total: Number(row.total),
     correct,
     incorrect: Number(row.incorrect),
+    neutral: Number(row.neutral),
     pending: Number(row.pending),
     accuracy: settled > 0 ? Math.round((correct / settled) * 10000) / 100 : 0,
   };

@@ -1,0 +1,127 @@
+{
+  "name": "01-qpr-no-corners-under-7.5",
+  "matchId": "9401",
+  "fixture": {
+    "fixture": {
+      "id": 9401,
+      "date": "2026-03-22T15:00:00Z",
+      "timestamp": 1774191600,
+      "status": { "short": "1H", "elapsed": 42 }
+    },
+    "teams": {
+      "home": { "id": 401, "name": "QPR", "logo": "", "winner": null },
+      "away": { "id": 402, "name": "Portsmouth", "logo": "", "winner": null }
+    },
+    "league": {
+      "id": 40,
+      "name": "Championship",
+      "country": "England",
+      "logo": "",
+      "flag": null,
+      "season": 2026,
+      "round": "Regular Season - 38"
+    },
+    "goals": { "home": 3, "away": 1 },
+    "score": {}
+  },
+  "pipelineOptions": {
+    "skipStalenessGate": true
+  },
+  "statistics": [
+    {
+      "team": { "id": 401, "name": "QPR", "logo": "" },
+      "statistics": [
+        { "type": "Ball Possession", "value": "48%" },
+        { "type": "Total Shots", "value": 9 },
+        { "type": "Shots on Goal", "value": 5 },
+        { "type": "Corner Kicks", "value": 3 },
+        { "type": "Fouls", "value": 7 }
+      ]
+    },
+    {
+      "team": { "id": 402, "name": "Portsmouth", "logo": "" },
+      "statistics": [
+        { "type": "Ball Possession", "value": "52%" },
+        { "type": "Total Shots", "value": 8 },
+        { "type": "Shots on Goal", "value": 4 },
+        { "type": "Corner Kicks", "value": 1 },
+        { "type": "Fouls", "value": 5 }
+      ]
+    }
+  ],
+  "events": [
+    {
+      "time": { "elapsed": 6, "extra": null },
+      "team": { "id": 401, "name": "QPR", "logo": "" },
+      "player": { "id": 4011, "name": "Home Midfielder" },
+      "assist": { "id": null, "name": null },
+      "type": "Goal",
+      "detail": "Normal Goal",
+      "comments": null
+    },
+    {
+      "time": { "elapsed": 19, "extra": null },
+      "team": { "id": 402, "name": "Portsmouth", "logo": "" },
+      "player": { "id": 4021, "name": "Away Forward" },
+      "assist": { "id": null, "name": null },
+      "type": "Goal",
+      "detail": "Normal Goal",
+      "comments": null
+    },
+    {
+      "time": { "elapsed": 31, "extra": null },
+      "team": { "id": 401, "name": "QPR", "logo": "" },
+      "player": { "id": 4012, "name": "Home Winger" },
+      "assist": { "id": null, "name": null },
+      "type": "Goal",
+      "detail": "Normal Goal",
+      "comments": null
+    },
+    {
+      "time": { "elapsed": 39, "extra": null },
+      "team": { "id": 401, "name": "QPR", "logo": "" },
+      "player": { "id": 4013, "name": "Home Forward" },
+      "assist": { "id": null, "name": null },
+      "type": "Goal",
+      "detail": "Normal Goal",
+      "comments": null
+    }
+  ],
+  "liveOddsResponse": [
+    {
+      "fixture": { "id": 9401 },
+      "odds": [
+        {
+          "id": 1,
+          "name": "Over/Under Corners",
+          "values": [
+            { "value": "Over", "odd": "1.80", "handicap": "7.5" },
+            { "value": "Under", "odd": "1.95", "handicap": "7.5" }
+          ]
+        }
+      ]
+    }
+  ],
+  "previousRecommendations": [
+    {
+      "minute": 35,
+      "odds": 1.82,
+      "bet_market": "corners_under_8.5",
+      "selection": "Corners Under 8.5 @1.82",
+      "score": "2-1",
+      "confidence": 7,
+      "stake_percent": 5,
+      "reasoning": "Corners still low despite open scoreline."
+    }
+  ],
+  "expected": {
+    "analysisMode": "auto",
+    "evidenceMode": "full_live_data",
+    "statsSource": "api-football",
+    "oddsSource": "live",
+    "shouldPush": false,
+    "saved": false,
+    "notified": false,
+    "disallowedBetMarketPrefixes": ["corners_under_"]
+  }
+}

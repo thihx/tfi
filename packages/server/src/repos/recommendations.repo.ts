@@ -8,6 +8,11 @@ import {
   FINAL_SETTLEMENT_RESULTS_SQL,
   type SettlementPersistenceMeta,
 } from '../lib/settle-types.js';
+import {
+  summarizeExposureClusters,
+  type AnalyticsRecommendationRow,
+  type ExposureSummary,
+} from '../lib/recommendation-quality-metrics.js';
 
 export { normalizeMarket, buildDedupKey };
 
@@ -476,6 +481,10 @@ interface RecStats {
   wins: number;
   losses: number;
   pushes: number;
+  half_wins: number;
+  half_losses: number;
+  voids: number;
+  neutral_settled: number;
   duplicates: number;
   unsettled: number;
   total_pnl: number;
@@ -488,6 +497,9 @@ export async function getStats(): Promise<RecStats> {
     wins: string;
     losses: string;
     pushes: string;
+    half_wins: string;
+    half_losses: string;
+    voids: string;
     duplicates: string;
     unsettled: string;
     total_pnl: string;
@@ -497,6 +509,9 @@ export async function getStats(): Promise<RecStats> {
        COUNT(*) FILTER (WHERE result = 'win')::text AS wins,
        COUNT(*) FILTER (WHERE result = 'loss')::text AS losses,
        COUNT(*) FILTER (WHERE result = 'push')::text AS pushes,
+       COUNT(*) FILTER (WHERE result = 'half_win')::text AS half_wins,
+       COUNT(*) FILTER (WHERE result = 'half_loss')::text AS half_losses,
+       COUNT(*) FILTER (WHERE result = 'void')::text AS voids,
        COUNT(*) FILTER (WHERE result = 'duplicate')::text AS duplicates,
        COUNT(*) FILTER (WHERE ${PENDING_RESULT_SQL})::text AS unsettled,
        COALESCE(SUM(pnl), 0)::text AS total_pnl
@@ -506,17 +521,26 @@ export async function getStats(): Promise<RecStats> {
   const row = r.rows[0]!;
   const total = Number(row.total);
   const wins = Number(row.wins);
-  const settled = wins + Number(row.losses) + Number(row.pushes);
+  const losses = Number(row.losses);
+  const pushes = Number(row.pushes);
+  const halfWins = Number(row.half_wins);
+  const halfLosses = Number(row.half_losses);
+  const voids = Number(row.voids);
+  const decisive = wins + losses;
 
   return {
     total,
     wins,
-    losses: Number(row.losses),
-    pushes: Number(row.pushes),
+    losses,
+    pushes,
+    half_wins: halfWins,
+    half_losses: halfLosses,
+    voids,
+    neutral_settled: pushes + halfWins + halfLosses + voids,
     duplicates: Number(row.duplicates),
     unsettled: Number(row.unsettled),
     total_pnl: Number(row.total_pnl),
-    win_rate: settled > 0 ? Math.round((wins / settled) * 100) : 0,
+    win_rate: decisive > 0 ? Math.round((wins / decisive) * 10000) / 100 : 0,
   };
 }
 
@@ -527,6 +551,11 @@ export interface DashboardSummary {
   wins: number;
   losses: number;
   pushes: number;
+  halfWins: number;
+  halfLosses: number;
+  voids: number;
+  decisiveSettled: number;
+  neutralSettled: number;
   pending: number;
   winRate: number;
   totalPnl: number;
@@ -536,21 +565,25 @@ export interface DashboardSummary {
   matchCount: number;
   watchlistCount: number;
   recCount: number;
+  openExposureConcentration: ExposureSummary;
   pnlTrend: Array<{ date: string; pnl: number; cumulative: number }>;
   recentRecs: RecommendationRow[];
 }
 
 export async function getDashboardSummary(): Promise<DashboardSummary> {
   // All aggregation done in SQL — no loading 5000 rows client-side
-  const [statsRes, pnlRes, recentRes, streakRes, countsRes] = await Promise.all([
+  const [statsRes, pnlRes, recentRes, streakRes, countsRes, openExposureRes] = await Promise.all([
     query<{
-      total: string; wins: string; losses: string; pushes: string; pending: string;
+      total: string; wins: string; losses: string; pushes: string; half_wins: string; half_losses: string; voids: string; pending: string;
       total_pnl: string; total_staked: string;
     }>(`SELECT
          COUNT(*) FILTER (WHERE ${FINAL_RESULT_SQL})::text AS total,
          COUNT(*) FILTER (WHERE result = 'win')::text AS wins,
          COUNT(*) FILTER (WHERE result = 'loss')::text AS losses,
          COUNT(*) FILTER (WHERE result = 'push')::text AS pushes,
+         COUNT(*) FILTER (WHERE result = 'half_win')::text AS half_wins,
+         COUNT(*) FILTER (WHERE result = 'half_loss')::text AS half_losses,
+         COUNT(*) FILTER (WHERE result = 'void')::text AS voids,
          COUNT(*) FILTER (WHERE ${PENDING_RESULT_SQL})::text AS pending,
          COALESCE(SUM(pnl) FILTER (WHERE ${FINAL_RESULT_SQL}), 0)::text AS total_pnl,
          COALESCE(SUM(COALESCE(stake_percent, 1)) FILTER (WHERE ${FINAL_RESULT_SQL}), 0)::text AS total_staked
@@ -587,13 +620,37 @@ export async function getDashboardSummary(): Promise<DashboardSummary> {
         (SELECT COUNT(*)::text FROM matches) AS match_count,
         (SELECT COUNT(*)::text FROM watchlist) AS watchlist_count,
         (SELECT COUNT(*)::text FROM recommendations WHERE ${ACTIONABLE_NOT_DUP}) AS rec_count`),
+
+    query<AnalyticsRecommendationRow>(`
+      SELECT
+        match_id,
+        home_team,
+        away_team,
+        minute,
+        score,
+        selection,
+        bet_market,
+        stake_percent,
+        result,
+        pnl,
+        odds,
+        confidence
+      FROM recommendations
+      WHERE ${ACTIONABLE_NOT_DUP}
+        AND ${PENDING_RESULT_SQL}
+    `),
   ]);
 
   const s = statsRes.rows[0]!;
   const total = Number(s.total);
   const wins = Number(s.wins);
   const losses = Number(s.losses);
+  const pushes = Number(s.pushes);
+  const halfWins = Number(s.half_wins);
+  const halfLosses = Number(s.half_losses);
+  const voids = Number(s.voids);
   const decisive = wins + losses;
+  const neutralSettled = pushes + halfWins + halfLosses + voids;
   const winRate = decisive > 0 ? Math.round((wins / decisive) * 10000) / 100 : 0;
   const totalStaked = Number(s.total_staked);
   const totalPnl = Number(s.total_pnl);
@@ -630,8 +687,13 @@ export async function getDashboardSummary(): Promise<DashboardSummary> {
   return {
     totalBets: total,
     wins,
-    losses: Number(s.losses),
-    pushes: Number(s.pushes),
+    losses,
+    pushes,
+    halfWins,
+    halfLosses,
+    voids,
+    decisiveSettled: decisive,
+    neutralSettled,
     pending: Number(s.pending),
     winRate,
     totalPnl,
@@ -641,6 +703,7 @@ export async function getDashboardSummary(): Promise<DashboardSummary> {
     matchCount: Number(c.match_count),
     watchlistCount: Number(c.watchlist_count),
     recCount: Number(c.rec_count),
+    openExposureConcentration: summarizeExposureClusters(openExposureRes.rows, { minCount: 2, limit: 5 }),
     pnlTrend,
     recentRecs: recentRes.rows,
   };

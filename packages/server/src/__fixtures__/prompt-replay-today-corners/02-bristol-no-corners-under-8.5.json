@@ -1,0 +1,110 @@
+{
+  "name": "02-bristol-no-corners-under-8.5",
+  "matchId": "9402",
+  "fixture": {
+    "fixture": {
+      "id": 9402,
+      "date": "2026-03-22T15:00:00Z",
+      "timestamp": 1774191600,
+      "status": { "short": "2H", "elapsed": 70 }
+    },
+    "teams": {
+      "home": { "id": 403, "name": "Bristol City", "logo": "", "winner": null },
+      "away": { "id": 404, "name": "West Brom", "logo": "", "winner": null }
+    },
+    "league": {
+      "id": 40,
+      "name": "Championship",
+      "country": "England",
+      "logo": "",
+      "flag": null,
+      "season": 2026,
+      "round": "Regular Season - 38"
+    },
+    "goals": { "home": 0, "away": 1 },
+    "score": {}
+  },
+  "pipelineOptions": {
+    "skipStalenessGate": true
+  },
+  "statistics": [
+    {
+      "team": { "id": 403, "name": "Bristol City", "logo": "" },
+      "statistics": [
+        { "type": "Ball Possession", "value": "58%" },
+        { "type": "Total Shots", "value": 13 },
+        { "type": "Shots on Goal", "value": 3 },
+        { "type": "Corner Kicks", "value": 3 },
+        { "type": "Fouls", "value": 8 }
+      ]
+    },
+    {
+      "team": { "id": 404, "name": "West Brom", "logo": "" },
+      "statistics": [
+        { "type": "Ball Possession", "value": "42%" },
+        { "type": "Total Shots", "value": 7 },
+        { "type": "Shots on Goal", "value": 2 },
+        { "type": "Corner Kicks", "value": 2 },
+        { "type": "Fouls", "value": 12 }
+      ]
+    }
+  ],
+  "events": [
+    {
+      "time": { "elapsed": 17, "extra": null },
+      "team": { "id": 404, "name": "West Brom", "logo": "" },
+      "player": { "id": 4041, "name": "Away Striker" },
+      "assist": { "id": null, "name": null },
+      "type": "Goal",
+      "detail": "Normal Goal",
+      "comments": null
+    }
+  ],
+  "liveOddsResponse": [
+    {
+      "fixture": { "id": 9402 },
+      "odds": [
+        {
+          "id": 1,
+          "name": "Over/Under Corners",
+          "values": [
+            { "value": "Over", "odd": "1.95", "handicap": "8.5" },
+            { "value": "Under", "odd": "1.85", "handicap": "8.5" }
+          ]
+        }
+      ]
+    }
+  ],
+  "previousRecommendations": [
+    {
+      "minute": 41,
+      "odds": 1.85,
+      "bet_market": "corners_under_8.5",
+      "selection": "Corners Under 8.5 @1.85",
+      "score": "0-1",
+      "confidence": 8,
+      "stake_percent": 5,
+      "reasoning": "Low corner count before the break."
+    },
+    {
+      "minute": 45,
+      "odds": 2.1,
+      "bet_market": "corners_under_8",
+      "selection": "Corners Under 8 @2.10",
+      "score": "0-1",
+      "confidence": 7,
+      "stake_percent": 4,
+      "reasoning": "Still a low-corner game at halftime."
+    }
+  ],
+  "expected": {
+    "analysisMode": "auto",
+    "evidenceMode": "full_live_data",
+    "statsSource": "api-football",
+    "oddsSource": "live",
+    "shouldPush": false,
+    "saved": false,
+    "notified": false,
+    "disallowedBetMarketPrefixes": ["corners_under_"]
+  }
+}

@@ -49,7 +49,7 @@ describe('ai-performance repository', () => {
 
   test('getAccuracyStats uses settlement trust instead of treating half outcomes as pending forever', async () => {
     vi.mocked(query).mockResolvedValueOnce({
-      rows: [{ total: '12', correct: '5', incorrect: '3', pending: '4' }],
+      rows: [{ total: '12', correct: '5', incorrect: '3', neutral: '2', pending: '4' }],
     } as never);
 
     const stats = await getAccuracyStats();
@@ -61,12 +61,16 @@ describe('ai-performance repository', () => {
       expect.stringContaining("NOT IN ('win','loss','push','half_win','half_loss','void')"),
     );
     expect(query).toHaveBeenCalledWith(
+      expect.stringContaining("ap.was_correct IS NULL"),
+    );
+    expect(query).toHaveBeenCalledWith(
       expect.stringContaining("r.bet_type IS DISTINCT FROM 'NO_BET'"),
     );
     expect(stats).toEqual({
       total: 12,
       correct: 5,
       incorrect: 3,
+      neutral: 2,
       pending: 4,
       accuracy: 62.5,
     });

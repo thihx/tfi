@@ -1,0 +1,96 @@
+{
+  "name": "01-atletico-early-2h-no-over-3.5",
+  "matchId": "9301",
+  "fixture": {
+    "fixture": {
+      "id": 9301,
+      "date": "2026-03-22T01:00:00Z",
+      "timestamp": 1774141200,
+      "status": { "short": "2H", "elapsed": 52 }
+    },
+    "teams": {
+      "home": { "id": 301, "name": "Atletico San Luis", "logo": "", "winner": null },
+      "away": { "id": 302, "name": "Leon", "logo": "", "winner": null }
+    },
+    "league": {
+      "id": 262,
+      "name": "Liga MX",
+      "country": "Mexico",
+      "logo": "",
+      "flag": null,
+      "season": 2026,
+      "round": "Clausura - 12"
+    },
+    "goals": { "home": 1, "away": 1 },
+    "score": {}
+  },
+  "pipelineOptions": {
+    "skipStalenessGate": true
+  },
+  "statistics": [
+    {
+      "team": { "id": 301, "name": "Atletico San Luis", "logo": "" },
+      "statistics": [
+        { "type": "Ball Possession", "value": "46%" },
+        { "type": "Total Shots", "value": 6 },
+        { "type": "Shots on Goal", "value": 3 },
+        { "type": "Corner Kicks", "value": 2 },
+        { "type": "Fouls", "value": 7 }
+      ]
+    },
+    {
+      "team": { "id": 302, "name": "Leon", "logo": "" },
+      "statistics": [
+        { "type": "Ball Possession", "value": "54%" },
+        { "type": "Total Shots", "value": 10 },
+        { "type": "Shots on Goal", "value": 4 },
+        { "type": "Corner Kicks", "value": 1 },
+        { "type": "Fouls", "value": 12 }
+      ]
+    }
+  ],
+  "events": [
+    {
+      "time": { "elapsed": 14, "extra": null },
+      "team": { "id": 301, "name": "Atletico San Luis", "logo": "" },
+      "player": { "id": 3011, "name": "Home Forward" },
+      "assist": { "id": null, "name": null },
+      "type": "Goal",
+      "detail": "Normal Goal",
+      "comments": null
+    },
+    {
+      "time": { "elapsed": 38, "extra": null },
+      "team": { "id": 302, "name": "Leon", "logo": "" },
+      "player": { "id": 3021, "name": "Away Forward" },
+      "assist": { "id": null, "name": null },
+      "type": "Goal",
+      "detail": "Normal Goal",
+      "comments": null
+    }
+  ],
+  "liveOddsResponse": [
+    {
+      "fixture": { "id": 9301 },
+      "odds": [
+        {
+          "id": 1,
+          "name": "Over/Under",
+          "values": [
+            { "value": "Over", "odd": "1.95", "handicap": "3.5" },
+            { "value": "Under", "odd": "1.75", "handicap": "3.5" }
+          ]
+        }
+      ]
+    }
+  ],
+  "expected": {
+    "analysisMode": "auto",
+    "evidenceMode": "full_live_data",
+    "statsSource": "api-football",
+    "oddsSource": "live",
+    "shouldPush": false,
+    "saved": false,
+    "notified": false
+  }
+}

@@ -107,6 +107,43 @@ interface PromptShadowOverview {
   versionBreakdown: PromptShadowVersionBreakdown[];
 }
 
+interface ExposureCluster {
+  matchId: string;
+  matchDisplay: string;
+  thesisKey: string;
+  label: string;
+  count: number;
+  settledCount: number;
+  totalStake: number;
+  totalPnl: number;
+  latestMinute: number | null;
+  canonicalMarkets: string[];
+}
+
+interface ExposureSummary {
+  stackedClusters: number;
+  stackedRecommendations: number;
+  stackedStake: number;
+  maxClusterStake: number;
+  topClusters: ExposureCluster[];
+}
+
+interface PromptQualityOverview {
+  windowHours: number;
+  shouldPushRate24h: number;
+  totalRecommendations: number;
+  sameThesisClusters: number;
+  sameThesisStackedRows: number;
+  sameThesisStackingRate: number;
+  sameThesisStackedStake: number;
+  cornersRows: number;
+  cornersUsageRate: number;
+  lateHighLineRows: number;
+  lateHighLineRate: number;
+  lateHighLineStake: number;
+  exposureConcentration: ExposureSummary;
+}
+
 interface OpsMonitoringSnapshot {
   generatedAt: string;
   checklist: ChecklistItem[];
@@ -116,6 +153,7 @@ interface OpsMonitoringSnapshot {
   settlement: SettlementOverview;
   notifications: NotificationOverview;
   promptShadow: PromptShadowOverview;
+  promptQuality: PromptQualityOverview;
 }
 
 function authHeaders(): Record<string, string> {
@@ -556,6 +594,57 @@ export function OpsMonitoringPanel() {
               )}
             </DataCard>
           </div>
+
+          <DataCard>
+            <SectionHeader title="Prompt Quality" subtitle={`Last ${snapshot.promptQuality.windowHours}h`} />
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: '8px', marginBottom: '12px' }}>
+              {[
+                { label: 'Should push', value: `${snapshot.promptQuality.shouldPushRate24h}%`, warn: snapshot.promptQuality.shouldPushRate24h > 60 },
+                { label: 'Stacking rate', value: `${snapshot.promptQuality.sameThesisStackingRate}%`, warn: snapshot.promptQuality.sameThesisStackingRate > 12 },
+                { label: 'Corners usage', value: `${snapshot.promptQuality.cornersUsageRate}%`, warn: snapshot.promptQuality.cornersUsageRate > 25 },
+                { label: 'Late high-line', value: `${snapshot.promptQuality.lateHighLineRate}%`, warn: snapshot.promptQuality.lateHighLineRate > 8 },
+              ].map((item) => (
+                <div key={item.label} style={{ padding: '8px 10px', borderRadius: '6px', background: item.warn ? '#fef2f2' : 'var(--gray-50)', border: `1px solid ${item.warn ? '#fecaca' : 'var(--gray-200)'}` }}>
+                  <div style={{ fontSize: '10px', color: 'var(--gray-500)', textTransform: 'uppercase', letterSpacing: '0.3px' }}>{item.label}</div>
+                  <div style={{ fontSize: '20px', fontWeight: 800, color: item.warn ? '#dc2626' : 'var(--gray-800)', lineHeight: 1.2, marginTop: '2px' }}>{item.value}</div>
+                </div>
+              ))}
+            </div>
+
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+              <div>
+                <div style={{ fontSize: '11px', fontWeight: 600, color: 'var(--gray-500)', textTransform: 'uppercase', letterSpacing: '0.3px', marginBottom: '5px' }}>Quality Counts</div>
+                {[
+                  ['Recommendations', snapshot.promptQuality.totalRecommendations],
+                  ['Same-thesis clusters', snapshot.promptQuality.sameThesisClusters],
+                  ['Stacked rows', snapshot.promptQuality.sameThesisStackedRows],
+                  ['Stacked stake', `${snapshot.promptQuality.sameThesisStackedStake}%`],
+                  ['Corners rows', snapshot.promptQuality.cornersRows],
+                  ['Late high-line rows', snapshot.promptQuality.lateHighLineRows],
+                  ['Late high-line stake', `${snapshot.promptQuality.lateHighLineStake}%`],
+                ].map(([label, value]) => (
+                  <div key={String(label)} style={{ display: 'flex', justifyContent: 'space-between', fontSize: '12px', padding: '2px 0', borderBottom: '1px solid var(--gray-100)' }}>
+                    <span style={{ color: 'var(--gray-600)' }}>{label}</span>
+                    <span style={{ fontWeight: 600 }}>{value}</span>
+                  </div>
+                ))}
+              </div>
+              <div>
+                <div style={{ fontSize: '11px', fontWeight: 600, color: 'var(--gray-500)', textTransform: 'uppercase', letterSpacing: '0.3px', marginBottom: '5px' }}>Top Exposure Clusters</div>
+                {snapshot.promptQuality.exposureConcentration.topClusters.length === 0
+                  ? <div style={{ fontSize: '12px', color: 'var(--gray-400)' }}>None</div>
+                  : snapshot.promptQuality.exposureConcentration.topClusters.map((cluster) => (
+                    <div key={`${cluster.matchId}_${cluster.thesisKey}`} style={{ padding: '4px 0', borderBottom: '1px solid var(--gray-100)' }}>
+                      <div style={{ fontSize: '12px', fontWeight: 600, color: 'var(--gray-700)' }}>{cluster.matchDisplay}</div>
+                      <div style={{ fontSize: '11px', color: 'var(--gray-500)' }}>
+                        {cluster.label} · {cluster.count} picks · {cluster.totalStake}% stake
+                      </div>
+                    </div>
+                  ))
+                }
+              </div>
+            </div>
+          </DataCard>
         </>
       )}
     </div>

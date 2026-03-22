@@ -386,4 +386,123 @@ describe('buildLiveAnalysisPrompt', () => {
     expect(candidate).toContain('If the odds feed contains any market that is logically already settled by the current score/state, treat the entire odds feed as suspect and default to no bet.');
     expect(candidate).toContain('Example of impossible feed state: BTTS Yes/No still quoted after both teams have already scored.');
   });
+
+  test('v6 betting-discipline-b adds ladder alerts and blocks same-thesis rung-by-rung re-entry', () => {
+    const candidate = buildLiveAnalysisPrompt({
+      ...baseInput,
+      previousRecommendations: [
+        {
+          minute: 45,
+          selection: 'Over 3.5 Goals @1.95',
+          bet_market: 'over_3.5',
+          confidence: 6,
+          odds: 1.95,
+          stake_percent: 4,
+        },
+        {
+          minute: 63,
+          selection: 'Over 3 Goals @2.15',
+          bet_market: 'over_3',
+          confidence: 6,
+          odds: 2.15,
+          stake_percent: 4,
+        },
+      ],
+    }, settings, 'v6-betting-discipline-b');
+
+    expect(candidate).toContain('Goals Over thesis: 2 prior pick(s), total prior stake 8%');
+    expect(candidate).toContain('[LADDER ALERT]');
+    expect(candidate).toContain('If the same thesis already has 2+ entries, do NOT add another rung. Default should_push=false.');
+    expect(candidate).toContain('Over 3.5 -> Over 3 -> Over 2.75 -> Over 2.5');
+    expect(candidate).toContain('the burden of proof for a second entry is extremely high. In most cases, return should_push=false.');
+    expect(candidate).toContain('Do not re-enter the same thesis just because the new line is closer to the current score or looks safer now.');
+  });
+
+  test('v6 betting-discipline-b warns against halftime projection and lines still needing two more goals', () => {
+    const candidate = buildLiveAnalysisPrompt({
+      ...baseInput,
+      minute: 45,
+      status: 'HT',
+      score: '1-1',
+      currentTotalGoals: 2,
+    }, settings, 'v6-betting-discipline-b');
+
+    expect(candidate).toContain('First-half volume is a prior, not an automatic second-half trigger.');
+    expect(candidate).toContain('At HT and in the first 10 minutes of 2H, do NOT project a wild first half straight into a new Over bet unless the early second-half flow confirms it with fresh pressure, shots, or transitions.');
+    expect(candidate).toContain('Avoid new bets that still need two or more additional goals/events to win unless the match is truly exceptional.');
+    expect(candidate).toContain('if the line still needs two more goals to cash, default should_push=false unless there is a major class mismatch, red-card distortion, or overwhelming full-live evidence.');
+    expect(candidate).toContain('At HT / early 2H, a fresh Over 3.5 from 1-1 is usually too demanding.');
+  });
+
+  test('v6 betting-discipline-c downgrades corners to a tertiary market and makes corners under exceptional-only', () => {
+    const candidate = buildLiveAnalysisPrompt({
+      ...baseInput,
+      minute: 66,
+      score: '0-1',
+      oddsCanonical: {
+        corners_ou: { line: 8.5, over: 1.95, under: 1.85 },
+      },
+    }, settings, 'v6-betting-discipline-c');
+
+    expect(candidate).toContain('Goals and AH are primary markets. Corners are tertiary and require cleaner evidence than goals/AH.');
+    expect(candidate).toContain('Corners are a tertiary market. They are not a primary read on team quality, true scoring edge, or match motivation.');
+    expect(candidate).toContain('Corners Under is exceptional-only. Default should_push=false unless the match is genuinely calm and corner-suppressing.');
+    expect(candidate).toContain('Do NOT recommend Corners Under when either team is trailing and likely to chase');
+    expect(candidate).toContain('Prefer Corners Over over Corners Under when pressure evidence is strong.');
+    expect(candidate).toContain('Corners markets should usually cap at confidence 6 and stake 3%. Corners Under should usually cap at confidence 5 and stake 2% unless the edge is exceptionally clean.');
+  });
+
+  test('v6 betting-discipline-c explicitly rejects corners-under laddering as fragile exposure', () => {
+    const candidate = buildLiveAnalysisPrompt({
+      ...baseInput,
+      previousRecommendations: [
+        {
+          minute: 41,
+          selection: 'Corners Under 8.5 @1.85',
+          bet_market: 'corners_under_8.5',
+          confidence: 8,
+          odds: 1.85,
+          stake_percent: 5,
+        },
+        {
+          minute: 45,
+          selection: 'Corners Under 8 @2.1',
+          bet_market: 'corners_under_8',
+          confidence: 7,
+          odds: 2.1,
+          stake_percent: 4,
+        },
+      ],
+      oddsCanonical: {
+        corners_ou: { line: 7.5, over: 2.0, under: 1.8 },
+      },
+    }, settings, 'v6-betting-discipline-c');
+
+    expect(candidate).toContain('Corners Under thesis: 2 prior pick(s), total prior stake 9%');
+    expect(candidate).toContain('[LADDER ALERT]');
+    expect(candidate).toContain('The same logic applies to corners ladders (example: Under 9.5 -> Under 8.5 -> Under 7.5).');
+    expect(candidate).toContain('Treat corners ladders as fragile exposure. Do not staircase Corners Under from 10.5 -> 9.5 -> 8.5 -> 7.5.');
+  });
+
+  test('v6 betting-discipline-c treats thin balanced totals as a default pass', () => {
+    const candidate = buildLiveAnalysisPrompt({
+      ...baseInput,
+      minute: 62,
+      score: '1-1',
+      statsCompact: {
+        ...baseInput.statsCompact,
+        possession: { home: '50%', away: '50%' },
+        shots: { home: '9', away: '8' },
+        shots_on_target: { home: '3', away: '3' },
+        corners: { home: '4', away: '4' },
+      },
+      oddsCanonical: {
+        ou: { line: 2.5, over: 1.92, under: 1.92 },
+      },
+    }, settings, 'v6-betting-discipline-c');
+
+    expect(candidate).toContain('Thin balanced totals need a pass unless live evidence is clearly asymmetric.');
+    expect(candidate).toContain('Balanced totals are not enough. In 1-1 or 0-0 states around minute 55-70, if possession, shots, and shots on target are broadly even and there is no clear pressure asymmetry, default should_push=false.');
+    expect(candidate).toContain('Symmetric prices around 1.90 on both sides usually mean the market sees a thin edge. Do not force an Over or Under just because one more goal would cash.');
+  });
 });

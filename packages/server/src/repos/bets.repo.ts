@@ -175,6 +175,9 @@ export async function markBetUnresolved(
 
 export interface BetStats {
   total: number;
+  won: number;
+  lost: number;
+  pending: number;
   wins: number;
   losses: number;
   pushes: number;
@@ -213,6 +216,9 @@ export async function getBetStats(): Promise<BetStats> {
 
   return {
     total,
+    won: wins,
+    lost: Number(row.losses),
+    pending: Number(row.unsettled),
     wins,
     losses: Number(row.losses),
     pushes: Number(row.pushes),
@@ -224,21 +230,39 @@ export async function getBetStats(): Promise<BetStats> {
 }
 
 export async function getBetStatsByMarket(): Promise<
-  Array<{ market: string; total: number; wins: number; pnl: number; win_rate: number }>
+  Array<{
+    market: string;
+    total: number;
+    wins: number;
+    losses: number;
+    pushes: number;
+    unsettled: number;
+    total_pnl: number;
+    win_rate: number;
+    roi: number;
+  }>
 > {
   const r = await query<{
     market: string;
     total: string;
     wins: string;
-    pnl: string;
+    losses: string;
+    pushes: string;
+    unsettled: string;
+    total_pnl: string;
     settled: string;
+    total_staked: string;
   }>(
     `SELECT
        bet_market AS market,
        COUNT(*)::text AS total,
        COUNT(*) FILTER (WHERE result = 'win')::text AS wins,
-       COALESCE(SUM(pnl), 0)::text AS pnl,
-       COUNT(*) FILTER (WHERE ${FINAL_RESULT_SQL})::text AS settled
+       COUNT(*) FILTER (WHERE result = 'loss')::text AS losses,
+       COUNT(*) FILTER (WHERE result = 'push')::text AS pushes,
+       COUNT(*) FILTER (WHERE ${PENDING_RESULT_SQL})::text AS unsettled,
+       COALESCE(SUM(pnl) FILTER (WHERE ${FINAL_RESULT_SQL}), 0)::text AS total_pnl,
+       COUNT(*) FILTER (WHERE ${FINAL_RESULT_SQL})::text AS settled,
+       COALESCE(SUM(stake_amount) FILTER (WHERE ${FINAL_RESULT_SQL}), 0)::text AS total_staked
      FROM bets
      GROUP BY bet_market
      ORDER BY COUNT(*) DESC`,
@@ -248,10 +272,17 @@ export async function getBetStatsByMarket(): Promise<
     market: row.market,
     total: Number(row.total),
     wins: Number(row.wins),
-    pnl: Number(row.pnl),
+    losses: Number(row.losses),
+    pushes: Number(row.pushes),
+    unsettled: Number(row.unsettled),
+    total_pnl: Number(row.total_pnl),
     win_rate:
       Number(row.settled) > 0
         ? Math.round((Number(row.wins) / Number(row.settled)) * 10000) / 100
+        : 0,
+    roi:
+      Number(row.total_staked) > 0
+        ? Math.round((Number(row.total_pnl) / Number(row.total_staked)) * 10000) / 100
         : 0,
   }));
 }

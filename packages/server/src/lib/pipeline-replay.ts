@@ -50,6 +50,7 @@ export interface ReplayScenario {
     score: string;
     result?: string;
     confidence?: number | null;
+    stake_percent?: number | null;
     reasoning?: string;
   }> | null;
   previousSnapshot?: {

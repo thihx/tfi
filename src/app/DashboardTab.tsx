@@ -4,8 +4,8 @@ import {
   AreaChart, Area, BarChart, Bar, XAxis, YAxis, CartesianGrid,
   Tooltip, ResponsiveContainer, Cell, PieChart, Pie,
 } from 'recharts';
-import { fetchAiStats, fetchAiStatsByModel, fetchBetStatsByMarket, fetchDashboardSummary } from '@/lib/services/api';
-import type { AiAccuracyStats, AiModelStats, BetStats, DashboardSummary } from '@/lib/services/api';
+import { fetchAiStats, fetchAiStatsByModel, fetchDashboardSummary, fetchMarketReport } from '@/lib/services/api';
+import type { AiAccuracyStats, AiModelStats, DashboardSummary, ExposureSummary, MarketReportRow } from '@/lib/services/api';
 import { StatusBadge } from '@/components/ui/StatusBadge';
 import { formatLocalDateTime } from '@/lib/utils/helpers';
 import { MARKET_COLORS } from '@/config/constants';
@@ -51,19 +51,19 @@ const PnlChart = memo(function PnlChart({ data }: { data: { date: string; pnl: n
 });
 
 
-const MarketBreakdownChart = memo(function MarketBreakdownChart({ data }: { data: Array<{ market: string } & BetStats> }) {
+const MarketBreakdownChart = memo(function MarketBreakdownChart({ data }: { data: MarketReportRow[] }) {
   if (!data.length) return null;
   const chartData = data.map((d) => ({
     name: d.market || 'Other',
-    won: d.won,
-    lost: d.lost,
-    roi: d.total > 0 ? parseFloat(((d.total_pnl / (d.total * 100)) * 100).toFixed(1)) : 0,
-    pnl: d.total_pnl,
+    won: d.wins,
+    lost: d.losses,
+    roi: d.roi,
+    pnl: d.pnl,
   }));
 
   return (
     <div className="card" style={{ marginBottom: '16px' }}>
-      <div className="card-header"><div className="card-title">Performance by Market</div></div>
+      <div className="card-header"><div className="card-title">Recommendation Performance by Market</div></div>
       <div style={{ padding: '16px 12px 8px 0' }}>
         <ResponsiveContainer width="100%" height={200}>
           <BarChart data={chartData} layout="vertical">
@@ -91,11 +91,63 @@ const MarketBreakdownChart = memo(function MarketBreakdownChart({ data }: { data
   );
 });
 
+const ExposureConcentrationPanel = memo(function ExposureConcentrationPanel({ data }: { data: ExposureSummary | null | undefined }) {
+  if (!data || data.stackedClusters === 0) return null;
+
+  return (
+    <div className="card" style={{ marginBottom: '16px' }}>
+      <div className="card-header"><div className="card-title">Open Exposure Clusters</div></div>
+      <div className="stats-grid" style={{ padding: '0 16px 12px' }}>
+        <StatCard label="Clusters" value={data.stackedClusters} sub={`${data.stackedRecommendations} recs involved`} />
+        <StatCard label="Cluster Stake" value={`${data.stackedStake}%`} sub={`Max cluster ${data.maxClusterStake}%`} />
+      </div>
+      <div className="table-container table-cards">
+        <table>
+          <thead>
+            <tr>
+              <th>Match</th>
+              <th>Thesis</th>
+              <th style={{ textAlign: 'center' }}>Picks</th>
+              <th style={{ textAlign: 'center' }}>Stake</th>
+              <th style={{ textAlign: 'center' }}>Latest</th>
+              <th>P/L</th>
+            </tr>
+          </thead>
+          <tbody>
+            {data.topClusters.map((cluster) => (
+              <tr key={`${cluster.matchId}_${cluster.thesisKey}`}>
+                <td data-label="Match"><span className="cell-value">{cluster.matchDisplay}</span></td>
+                <td data-label="Thesis">
+                  <span className="cell-value">
+                    <strong>{cluster.label}</strong>
+                    <span style={{ display: 'block', fontSize: '11px', color: 'var(--gray-500)' }}>
+                      {cluster.canonicalMarkets.join(', ')}
+                    </span>
+                  </span>
+                </td>
+                <td data-label="Picks" style={{ textAlign: 'center' }}><span className="cell-value">{cluster.count}</span></td>
+                <td data-label="Stake" style={{ textAlign: 'center' }}><span className="cell-value">{cluster.totalStake}%</span></td>
+                <td data-label="Latest" style={{ textAlign: 'center' }}><span className="cell-value">{cluster.latestMinute == null ? '-' : `${cluster.latestMinute}'`}</span></td>
+                <td data-label="P/L">
+                  <span className="cell-value" style={{ color: cluster.totalPnl >= 0 ? 'var(--success)' : 'var(--danger)', fontWeight: 600 }}>
+                    {cluster.totalPnl >= 0 ? '+' : ''}${cluster.totalPnl.toFixed(2)}
+                  </span>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+});
+
 const AiAccuracyPanel = memo(function AiAccuracyPanel({ stats, models }: { stats: AiAccuracyStats | null; models: AiModelStats[] }) {
   if (!stats) return null;
   const pieData = [
     { name: 'Correct', value: stats.correct, color: 'var(--success)' },
     { name: 'Incorrect', value: stats.incorrect, color: 'var(--danger)' },
+    { name: 'Neutral', value: stats.neutral, color: 'var(--warning)' },
     { name: 'Pending', value: stats.pending, color: 'var(--gray-300)' },
   ].filter((d) => d.value > 0);
 
@@ -120,11 +172,11 @@ const AiAccuracyPanel = memo(function AiAccuracyPanel({ stats, models }: { stats
             {stats.accuracy.toFixed(1)}%
           </div>
           <div className="text-base text-subtle">
-            {stats.correct} correct / {settled} settled
+            {stats.correct} correct / {settled} decisive settled
           </div>
-          {stats.pending > 0 && (
+          {(stats.pending > 0 || stats.neutral > 0) && (
             <div style={{ fontSize: '12px', color: 'var(--gray-400)', marginTop: '2px' }}>
-              {stats.pending} pending · {stats.total} total
+              {stats.neutral} neutral | {stats.pending} pending | {stats.total} total
             </div>
           )}
           {/* Legend */}
@@ -160,7 +212,7 @@ export function DashboardTab() {
   const [dashboard, setDashboard] = useState<DashboardSummary | null>(null);
   const [aiStats, setAiStats] = useState<AiAccuracyStats | null>(null);
   const [aiModels, setAiModels] = useState<AiModelStats[]>([]);
-  const [marketStats, setMarketStats] = useState<Array<{ market: string } & BetStats>>([]);
+  const [marketStats, setMarketStats] = useState<MarketReportRow[]>([]);
   const [loading, setLoading] = useState(true);
 
   const loadAll = useCallback(async () => {
@@ -170,7 +222,7 @@ export function DashboardTab() {
         fetchDashboardSummary(config),
         fetchAiStats(config).catch(() => null),
         fetchAiStatsByModel(config).catch(() => []),
-        fetchBetStatsByMarket(config).catch(() => []),
+        fetchMarketReport(config, { period: 'all' }).catch(() => []),
       ]);
       setDashboard(dash);
       setAiStats(ai);
@@ -205,21 +257,29 @@ export function DashboardTab() {
           <span><strong>{d?.matchCount ?? 0}</strong> matches</span>
           <span><strong>{d?.watchlistCount ?? 0}</strong> watchlist</span>
           <span><strong>{d?.recCount ?? 0}</strong> recommendations</span>
-          {aiStats && <span>AI accuracy: <strong>{aiStats.accuracy.toFixed(1)}%</strong></span>}
+          {aiStats && <span>AI hit rate: <strong>{aiStats.accuracy.toFixed(1)}%</strong></span>}
         </>}
       />
 
       {/* Summary Stats */}
       <div className="stats-grid">
-        <StatCard label="Total Bets" value={d?.totalBets ?? 0} sub={`${d?.pending ?? 0} pending`} />
-        <StatCard label="Win Rate" value={`${(d?.winRate ?? 0).toFixed(1)}%`} sub={d?.streak ?? ''} />
+        <StatCard
+          label="Settled Recommendations"
+          value={d?.totalBets ?? 0}
+          sub={`${d?.pending ?? 0} pending | ${d?.neutralSettled ?? 0} neutral`}
+        />
+        <StatCard
+          label="Hit Rate (W/L)"
+          value={`${(d?.winRate ?? 0).toFixed(1)}%`}
+          sub={`${d?.wins ?? 0}W | ${d?.losses ?? 0}L${d?.streak ? ` | ${d.streak}` : ''}`}
+        />
         <StatCard
           label="Total P/L"
           value={`${(d?.totalPnl ?? 0) >= 0 ? '+' : ''}$${(d?.totalPnl ?? 0).toFixed(2)}`}
           color={(d?.totalPnl ?? 0) >= 0 ? 'positive' : 'negative'}
         />
         <StatCard
-          label="ROI"
+          label="ROI on Stake"
           value={`${(d?.roi ?? 0) >= 0 ? '+' : ''}${(d?.roi ?? 0).toFixed(1)}%`}
           color={(d?.roi ?? 0) >= 0 ? 'positive' : 'negative'}
         />
@@ -233,6 +293,7 @@ export function DashboardTab() {
 
       {/* Market Breakdown */}
       <MarketBreakdownChart data={marketStats} />
+      <ExposureConcentrationPanel data={d?.openExposureConcentration} />
 
       {/* Recent Activity */}
       <div className="card">

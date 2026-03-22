@@ -1,4 +1,11 @@
 import { query } from '../db/pool.js';
+import {
+  summarizeExposureClusters,
+  summarizePromptQuality,
+  type AnalyticsRecommendationRow,
+  type ExposureSummary,
+  type PromptQualitySummary,
+} from '../lib/recommendation-quality-metrics.js';
 
 export type OpsChecklistStatus = 'pass' | 'warn' | 'fail';
 
@@ -103,6 +110,12 @@ export interface PromptShadowOverview {
   versionBreakdown: PromptShadowVersionBreakdown[];
 }
 
+export interface PromptQualityOverview extends PromptQualitySummary {
+  windowHours: number;
+  shouldPushRate24h: number;
+  exposureConcentration: ExposureSummary;
+}
+
 export interface OpsMonitoringSnapshot {
   generatedAt: string;
   checklist: OpsChecklistItem[];
@@ -112,6 +125,7 @@ export interface OpsMonitoringSnapshot {
   settlement: SettlementOverview;
   notifications: NotificationOverview;
   promptShadow: PromptShadowOverview;
+  promptQuality: PromptQualityOverview;
 }
 
 interface ChecklistInputs {
@@ -133,6 +147,7 @@ const PROVIDER_WINDOW_HOURS = 6;
 const SETTLEMENT_WINDOW_DAYS = 7;
 const NOTIFICATION_WINDOW_HOURS = 24;
 const PROMPT_SHADOW_WINDOW_HOURS = 24;
+const PROMPT_QUALITY_WINDOW_HOURS = 24;
 
 function round(value: number, decimals = 1): number {
   const factor = 10 ** decimals;
@@ -257,6 +272,7 @@ export async function getOpsMonitoringSnapshot(): Promise<OpsMonitoringSnapshot>
     promptShadowComparedRes,
     promptShadowDisagreementsRes,
     promptShadowVersionBreakdownRes,
+    promptQualityRowsRes,
   ] = await Promise.all([
     query<{
       activity_2h: string;
@@ -516,6 +532,25 @@ export async function getOpsMonitoringSnapshot(): Promise<OpsMonitoringSnapshot>
        GROUP BY execution_role, prompt_version
        ORDER BY execution_role, prompt_version`,
     ),
+    query<AnalyticsRecommendationRow>(`
+      SELECT
+        match_id,
+        home_team,
+        away_team,
+        minute,
+        score,
+        selection,
+        bet_market,
+        stake_percent,
+        result,
+        pnl,
+        odds,
+        confidence
+      FROM recommendations
+      WHERE result IS DISTINCT FROM 'duplicate'
+        AND bet_type IS DISTINCT FROM 'NO_BET'
+        AND timestamp >= NOW() - INTERVAL '${PROMPT_QUALITY_WINDOW_HOURS} hours'
+    `),
   ]);
 
   const pipelineSummary = pipelineSummaryRes.rows[0]!;
@@ -563,6 +598,8 @@ export async function getOpsMonitoringSnapshot(): Promise<OpsMonitoringSnapshot>
   );
   const promptShadowActiveLatencyMs24h = round(Number(promptShadowCompared.active_avg_latency_ms ?? 0), 0);
   const promptShadowLatencyMs24h = round(Number(promptShadowCompared.shadow_avg_latency_ms ?? 0), 0);
+  const promptQualitySummary = summarizePromptQuality(promptQualityRowsRes.rows);
+  const promptExposure = summarizeExposureClusters(promptQualityRowsRes.rows, { minCount: 2, limit: 5 });
 
   const providerStatsSuccessRate = pct(statsSuccesses, statsSamples);
   const providerOddsUsableRate = pct(oddsUsable, oddsSamples);
@@ -630,6 +667,16 @@ export async function getOpsMonitoringSnapshot(): Promise<OpsMonitoringSnapshot>
       detail: promptShadowComparedRuns24h > 0
         ? `${promptShadowComparedRuns24h} compared run(s)`
         : 'no prompt shadow samples',
+    },
+    {
+      label: 'Stacking Rate 24h',
+      value: `${promptQualitySummary.sameThesisStackingRate}%`,
+      tone: promptQualitySummary.sameThesisStackingRate <= 5
+        ? 'pass'
+        : promptQualitySummary.sameThesisStackingRate <= 12
+          ? 'warn'
+          : 'fail',
+      detail: `${promptQualitySummary.sameThesisStackedRows}/${promptQualitySummary.totalRecommendations} recs`,
     },
   ];
 
@@ -736,6 +783,12 @@ export async function getOpsMonitoringSnapshot(): Promise<OpsMonitoringSnapshot>
           avgPromptTokens: round(Number(row.avg_prompt_tokens ?? 0), 0),
         };
       }),
+    },
+    promptQuality: {
+      windowHours: PROMPT_QUALITY_WINDOW_HOURS,
+      shouldPushRate24h: pct(shouldPush24h, analyzed24h),
+      exposureConcentration: promptExposure,
+      ...promptQualitySummary,
     },
   };
 }

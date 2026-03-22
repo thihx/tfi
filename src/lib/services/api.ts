@@ -163,6 +163,11 @@ export interface DashboardSummary {
   wins: number;
   losses: number;
   pushes: number;
+  halfWins: number;
+  halfLosses: number;
+  voids: number;
+  decisiveSettled: number;
+  neutralSettled: number;
   pending: number;
   winRate: number;
   totalPnl: number;
@@ -172,6 +177,7 @@ export interface DashboardSummary {
   matchCount: number;
   watchlistCount: number;
   recCount: number;
+  openExposureConcentration: ExposureSummary;
   pnlTrend: Array<{ date: string; pnl: number; cumulative: number }>;
   recentRecs: Recommendation[];
 }
@@ -337,7 +343,24 @@ export interface BetStats {
   won: number;
   lost: number;
   pending: number;
+  wins: number;
+  losses: number;
+  pushes: number;
+  unsettled: number;
   total_pnl: number;
+  win_rate: number;
+  roi: number;
+}
+
+export interface BetMarketStats {
+  market: string;
+  total: number;
+  wins: number;
+  losses: number;
+  pushes: number;
+  unsettled: number;
+  total_pnl: number;
+  win_rate: number;
   roi: number;
 }
 
@@ -356,8 +379,8 @@ export async function fetchBetStats(config: AppConfig): Promise<BetStats> {
 
 export async function fetchBetStatsByMarket(
   config: AppConfig,
-): Promise<Array<{ market: string } & BetStats>> {
-  return pgFetch<Array<{ market: string } & BetStats>>(config, '/api/bets/stats/by-market');
+): Promise<BetMarketStats[]> {
+  return pgFetch<BetMarketStats[]>(config, '/api/bets/stats/by-market');
 }
 
 export async function createBet(
@@ -431,6 +454,7 @@ export interface AiAccuracyStats {
   total: number;
   correct: number;
   incorrect: number;
+  neutral: number;
   pending: number;
   accuracy: number;
 }
@@ -468,11 +492,60 @@ function buildReportQs(filter: ReportPeriodFilter): string {
 }
 
 export interface OverviewReport {
-  total: number; settled: number; wins: number; losses: number;
-  pushes: number; pending: number; winRate: number; totalPnl: number;
+  total: number; settled: number; decisiveSettled: number; neutralSettled: number;
+  wins: number; losses: number; pushes: number; halfWins: number; halfLosses: number; voids: number;
+  pending: number; winRate: number; totalPnl: number;
   avgOdds: number; avgConfidence: number; roi: number;
+  exposureConcentration: ExposureSummary;
   bestDay: { date: string; pnl: number } | null;
   worstDay: { date: string; pnl: number } | null;
+}
+
+export interface ExposureClusterRow {
+  matchId: string;
+  matchDisplay: string;
+  thesisKey: string;
+  label: string;
+  count: number;
+  settledCount: number;
+  totalStake: number;
+  totalPnl: number;
+  latestMinute: number | null;
+  canonicalMarkets: string[];
+}
+
+export interface ExposureSummary {
+  stackedClusters: number;
+  stackedRecommendations: number;
+  stackedStake: number;
+  maxClusterStake: number;
+  topClusters: ExposureClusterRow[];
+}
+
+export interface MarketFamilyPerformanceRow {
+  family: string;
+  total: number;
+  settled: number;
+  neutral: number;
+  wins: number;
+  losses: number;
+  winRate: number;
+  totalStake: number;
+  pnl: number;
+  roi: number;
+}
+
+export interface LateEntryPerformanceRow {
+  bucket: string;
+  total: number;
+  settled: number;
+  neutral: number;
+  wins: number;
+  losses: number;
+  winRate: number;
+  totalStake: number;
+  pnl: number;
+  roi: number;
 }
 
 export interface LeagueReportRow {
@@ -528,6 +601,9 @@ export interface AiInsightsData {
   bestTimeSlots: Array<{ band: string; winRate: number; pnl: number; total: number }>;
   worstTimeSlots: Array<{ band: string; winRate: number; pnl: number; total: number }>;
   overconfidentBands: Array<{ band: string; avgConfidence: number; actualWinRate: number; gap: number }>;
+  marketFamilies: MarketFamilyPerformanceRow[];
+  lateEntries: LateEntryPerformanceRow[];
+  sampleFloor: number;
   recentTrend: 'improving' | 'declining' | 'stable';
   recentWinRate: number;
   overallWinRate: number;

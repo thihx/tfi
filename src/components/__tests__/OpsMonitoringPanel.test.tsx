@@ -100,6 +100,40 @@ const mockSnapshot = {
       },
     ],
   },
+  promptQuality: {
+    windowHours: 24,
+    shouldPushRate24h: 40,
+    totalRecommendations: 12,
+    sameThesisClusters: 2,
+    sameThesisStackedRows: 5,
+    sameThesisStackingRate: 41.7,
+    sameThesisStackedStake: 16,
+    cornersRows: 3,
+    cornersUsageRate: 25,
+    lateHighLineRows: 2,
+    lateHighLineRate: 16.7,
+    lateHighLineStake: 7,
+    exposureConcentration: {
+      stackedClusters: 2,
+      stackedRecommendations: 5,
+      stackedStake: 16,
+      maxClusterStake: 9,
+      topClusters: [
+        {
+          matchId: 'm1',
+          matchDisplay: 'Atletico San Luis vs Leon',
+          thesisKey: 'goals_over',
+          label: 'Goals Over thesis',
+          count: 2,
+          settledCount: 1,
+          totalStake: 9,
+          totalPnl: 6.7,
+          latestMinute: 82,
+          canonicalMarkets: ['over_2.75', 'over_2.5'],
+        },
+      ],
+    },
+  },
 };
 
 vi.mock('@/hooks/useAppState', () => ({
@@ -131,16 +165,20 @@ describe('OpsMonitoringPanel', () => {
     render(<OpsMonitoringPanel />);
 
     await waitFor(() => {
-      expect(screen.getByText('Post-Release Checklist')).toBeInTheDocument();
+      expect(screen.getByText('Pipeline activity is present')).toBeInTheDocument();
     });
 
-    expect(screen.getByText('Pipeline activity is present')).toBeInTheDocument();
+    expect(screen.getByText('All systems operational')).toBeInTheDocument();
     expect(screen.getByText('Push Rate 24h')).toBeInTheDocument();
-    expect(screen.getByText('40%')).toBeInTheDocument();
-    expect(screen.getByText('Stats Providers (6h)')).toBeInTheDocument();
-    expect(screen.getByText('Settlement Method Mix (30d)')).toBeInTheDocument();
-    expect(screen.getByText('Notifications (24h)')).toBeInTheDocument();
-    expect(screen.getByText('Prompt Shadow (24h)')).toBeInTheDocument();
-    expect(screen.getByText('Prompt Shadow Versions')).toBeInTheDocument();
+    expect(screen.getAllByText('40%').length).toBeGreaterThan(0);
+    expect(screen.getByText('Stats Providers')).toBeInTheDocument();
+    expect(screen.getByText('Settlement')).toBeInTheDocument();
+    expect(screen.getByText('Notifications')).toBeInTheDocument();
+    expect(screen.getByText('Prompt Shadow')).toBeInTheDocument();
+    expect(screen.getByText('Prompt Quality')).toBeInTheDocument();
+    expect(screen.getByText('Stacking rate')).toBeInTheDocument();
+    expect(screen.getByText('Atletico San Luis vs Leon')).toBeInTheDocument();
+    expect(screen.getByText('v4-evidence-hardened')).toBeInTheDocument();
+    expect(screen.getByText('v5-compact-a')).toBeInTheDocument();
   });
 });

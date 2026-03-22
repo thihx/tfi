@@ -6,6 +6,15 @@ import { query } from '../db/pool.js';
 import {
   FINAL_SETTLEMENT_RESULTS_SQL,
 } from '../lib/settle-types.js';
+import {
+  summarizeExposureClusters,
+  summarizeLateEntryPerformance,
+  summarizeMarketFamilyPerformance,
+  type AnalyticsRecommendationRow,
+  type ExposureSummary,
+  type LateEntryPerformanceRow,
+  type MarketFamilyPerformanceRow,
+} from '../lib/recommendation-quality-metrics.js';
 
 const NOT_DUP = `result IS DISTINCT FROM 'duplicate' AND bet_type IS DISTINCT FROM 'NO_BET'`;
 const FINAL_RESULT_SQL = `result IN (${FINAL_SETTLEMENT_RESULTS_SQL})`;
@@ -71,9 +80,14 @@ function buildDateCondition(col: string, filter: PeriodFilter): { clause: string
 export interface OverviewReport {
   total: number;
   settled: number;
+  decisiveSettled: number;
+  neutralSettled: number;
   wins: number;
   losses: number;
   pushes: number;
+  halfWins: number;
+  halfLosses: number;
+  voids: number;
   pending: number;
   winRate: number;
   totalPnl: number;
@@ -82,45 +96,79 @@ export interface OverviewReport {
   roi: number;
   bestDay: { date: string; pnl: number } | null;
   worstDay: { date: string; pnl: number } | null;
+  exposureConcentration: ExposureSummary;
+}
+
+async function getAnalyticsRows(filter: PeriodFilter): Promise<AnalyticsRecommendationRow[]> {
+  const dc = buildDateCondition('r.timestamp', filter);
+  const res = await query<AnalyticsRecommendationRow>(`
+    SELECT
+      r.match_id,
+      r.home_team,
+      r.away_team,
+      r.minute,
+      r.score,
+      r.selection,
+      r.bet_market,
+      r.stake_percent,
+      r.result,
+      r.pnl,
+      r.odds,
+      r.confidence
+    FROM recommendations r
+    WHERE ${NOT_DUP} AND ${dc.clause}
+  `, dc.params);
+  return res.rows;
 }
 
 export async function getOverviewReport(filter: PeriodFilter): Promise<OverviewReport> {
   const dc = buildDateCondition('r.timestamp', filter);
 
-  const r = await query<{
-    total: string; settled: string; wins: string; losses: string;
-    pushes: string; pending: string; total_pnl: string;
-    avg_odds: string; avg_confidence: string; total_staked: string;
-  }>(`
-    SELECT
-      COUNT(*)::text AS total,
-      COUNT(*) FILTER (WHERE ${FINAL_RESULT_SQL})::text AS settled,
-      COUNT(*) FILTER (WHERE result = 'win')::text AS wins,
-      COUNT(*) FILTER (WHERE result = 'loss')::text AS losses,
-      COUNT(*) FILTER (WHERE result = 'push')::text AS pushes,
-      COUNT(*) FILTER (WHERE ${PENDING_RESULT_SQL})::text AS pending,
-      COALESCE(SUM(pnl) FILTER (WHERE ${FINAL_RESULT_SQL}), 0)::text AS total_pnl,
-      COALESCE(AVG(odds) FILTER (WHERE odds > 0), 0)::text AS avg_odds,
-      COALESCE(AVG(confidence) FILTER (WHERE confidence IS NOT NULL), 0)::text AS avg_confidence,
-      COALESCE(SUM(COALESCE(stake_percent, 1)) FILTER (WHERE ${FINAL_RESULT_SQL}), 0)::text AS total_staked
-    FROM recommendations r
-    WHERE ${NOT_DUP} AND ${dc.clause}
-  `, dc.params);
+  const [r, dayRes, analyticsRows] = await Promise.all([
+    query<{
+      total: string; settled: string; wins: string; losses: string;
+      pushes: string; half_wins: string; half_losses: string; voids: string; pending: string; total_pnl: string;
+      avg_odds: string; avg_confidence: string; total_staked: string;
+    }>(`
+      SELECT
+        COUNT(*)::text AS total,
+        COUNT(*) FILTER (WHERE ${FINAL_RESULT_SQL})::text AS settled,
+        COUNT(*) FILTER (WHERE result = 'win')::text AS wins,
+        COUNT(*) FILTER (WHERE result = 'loss')::text AS losses,
+        COUNT(*) FILTER (WHERE result = 'push')::text AS pushes,
+        COUNT(*) FILTER (WHERE result = 'half_win')::text AS half_wins,
+        COUNT(*) FILTER (WHERE result = 'half_loss')::text AS half_losses,
+        COUNT(*) FILTER (WHERE result = 'void')::text AS voids,
+        COUNT(*) FILTER (WHERE ${PENDING_RESULT_SQL})::text AS pending,
+        COALESCE(SUM(pnl) FILTER (WHERE ${FINAL_RESULT_SQL}), 0)::text AS total_pnl,
+        COALESCE(AVG(odds) FILTER (WHERE odds > 0), 0)::text AS avg_odds,
+        COALESCE(AVG(confidence) FILTER (WHERE confidence IS NOT NULL), 0)::text AS avg_confidence,
+        COALESCE(SUM(COALESCE(stake_percent, 1)) FILTER (WHERE ${FINAL_RESULT_SQL}), 0)::text AS total_staked
+      FROM recommendations r
+      WHERE ${NOT_DUP} AND ${dc.clause}
+    `, dc.params),
 
-  // Best/worst day
-  const dayRes = await query<{ date: string; daily_pnl: string }>(`
-    SELECT TO_CHAR(timestamp::date, 'YYYY-MM-DD') AS date,
-           SUM(pnl)::text AS daily_pnl
-    FROM recommendations r
-    WHERE ${FINAL_RESULT_SQL} AND ${NOT_DUP} AND ${dc.clause}
-    GROUP BY timestamp::date
-    ORDER BY SUM(pnl) DESC
-  `, dc.params);
+    query<{ date: string; daily_pnl: string }>(`
+      SELECT TO_CHAR(timestamp::date, 'YYYY-MM-DD') AS date,
+             SUM(pnl)::text AS daily_pnl
+      FROM recommendations r
+      WHERE ${FINAL_RESULT_SQL} AND ${NOT_DUP} AND ${dc.clause}
+      GROUP BY timestamp::date
+      ORDER BY SUM(pnl) DESC
+    `, dc.params),
+
+    getAnalyticsRows(filter),
+  ]);
 
   const s = r.rows[0]!;
   const wins = Number(s.wins);
   const losses = Number(s.losses);
+  const pushes = Number(s.pushes);
+  const halfWins = Number(s.half_wins);
+  const halfLosses = Number(s.half_losses);
+  const voids = Number(s.voids);
   const decisive = wins + losses;
+  const neutralSettled = pushes + halfWins + halfLosses + voids;
   const totalStaked = Number(s.total_staked);
   const totalPnl = Number(s.total_pnl);
 
@@ -129,9 +177,14 @@ export async function getOverviewReport(filter: PeriodFilter): Promise<OverviewR
   return {
     total: Number(s.total),
     settled: Number(s.settled),
+    decisiveSettled: decisive,
+    neutralSettled,
     wins,
     losses,
-    pushes: Number(s.pushes),
+    pushes,
+    halfWins,
+    halfLosses,
+    voids,
     pending: Number(s.pending),
     winRate: decisive > 0 ? Math.round((wins / decisive) * 10000) / 100 : 0,
     totalPnl: Math.round(totalPnl * 100) / 100,
@@ -140,6 +193,7 @@ export async function getOverviewReport(filter: PeriodFilter): Promise<OverviewR
     roi: totalStaked > 0 ? Math.round((totalPnl / totalStaked) * 10000) / 100 : 0,
     bestDay: days.length > 0 ? days[0]! : null,
     worstDay: days.length > 0 ? days[days.length - 1]! : null,
+    exposureConcentration: summarizeExposureClusters(analyticsRows, { minCount: 2, limit: 5 }),
   };
 }
 
@@ -693,6 +747,9 @@ export interface AiInsightsData {
   bestTimeSlots: Array<{ band: string; winRate: number; pnl: number; total: number }>;
   worstTimeSlots: Array<{ band: string; winRate: number; pnl: number; total: number }>;
   overconfidentBands: Array<{ band: string; avgConfidence: number; actualWinRate: number; gap: number }>;
+  marketFamilies: MarketFamilyPerformanceRow[];
+  lateEntries: LateEntryPerformanceRow[];
+  sampleFloor: number;
   recentTrend: 'improving' | 'declining' | 'stable';
   recentWinRate: number;
   overallWinRate: number;
@@ -703,8 +760,9 @@ export interface AiInsightsData {
 
 export async function getAiInsights(filter: PeriodFilter): Promise<AiInsightsData> {
   const dc = buildDateCondition('r.timestamp', filter);
+  const aiInsightSampleFloor = 5;
 
-  const [leagueRows, marketRows, minuteRows, confRows, trendRes, streakRes, valueRes, safeRes] = await Promise.all([
+  const [leagueRows, marketRows, minuteRows, confRows, recentTrendRes, overallTrendRes, streakRes, valueRes, safeRes, analyticsRows] = await Promise.all([
     // League performance
     query<{ league: string; wins: string; total: string; pnl: string }>(`
       SELECT COALESCE(NULLIF(league,''),'Unknown') AS league,
@@ -713,7 +771,7 @@ export async function getAiInsights(filter: PeriodFilter): Promise<AiInsightsDat
              COALESCE(SUM(pnl),0)::text AS pnl
       FROM recommendations r
       WHERE ${NOT_DUP} AND result IN ('win','loss') AND ${dc.clause}
-      GROUP BY COALESCE(NULLIF(league,''),'Unknown') HAVING COUNT(*) >= 3
+      GROUP BY COALESCE(NULLIF(league,''),'Unknown') HAVING COUNT(*) >= ${aiInsightSampleFloor}
       ORDER BY SUM(pnl) DESC
     `, dc.params),
 
@@ -725,7 +783,7 @@ export async function getAiInsights(filter: PeriodFilter): Promise<AiInsightsDat
              COALESCE(SUM(pnl),0)::text AS pnl
       FROM recommendations r
       WHERE ${NOT_DUP} AND result IN ('win','loss') AND ${dc.clause}
-      GROUP BY COALESCE(NULLIF(bet_market,''),bet_type) HAVING COUNT(*) >= 3
+      GROUP BY COALESCE(NULLIF(bet_market,''),bet_type) HAVING COUNT(*) >= ${aiInsightSampleFloor}
       ORDER BY SUM(pnl) DESC
     `, dc.params),
 
@@ -738,6 +796,7 @@ export async function getAiInsights(filter: PeriodFilter): Promise<AiInsightsDat
       FROM recommendations r
       WHERE ${NOT_DUP} AND result IN ('win','loss') AND minute IS NOT NULL AND ${dc.clause}
       GROUP BY CASE WHEN minute<30 THEN '0-29 (1H early)' WHEN minute<45 THEN '30-44 (Pre-HT)' WHEN minute<60 THEN '45-59 (Start 2H)' WHEN minute<75 THEN '60-74 (Mid 2H)' ELSE '75+ (Late)' END
+      HAVING COUNT(*) >= ${aiInsightSampleFloor}
       ORDER BY MIN(minute)
     `, dc.params),
 
@@ -750,27 +809,34 @@ export async function getAiInsights(filter: PeriodFilter): Promise<AiInsightsDat
       FROM recommendations r
       WHERE ${NOT_DUP} AND result IN ('win','loss') AND confidence IS NOT NULL AND ${dc.clause}
       GROUP BY CASE WHEN confidence>=8 THEN 'High (8-10)' WHEN confidence>=6 THEN 'Medium (6-7)' ELSE 'Low (1-5)' END
+      HAVING COUNT(*) >= ${aiInsightSampleFloor}
     `, dc.params),
 
-    // Recent trend: last 20 vs overall
-    query<{ recent_wr: string; overall_wr: string }>(`
+    // Recent trend: last 20 decisive outcomes inside the selected period
+    query<{ recent_wr: string }>(`
       WITH recent AS (
-        SELECT result FROM recommendations
-        WHERE ${NOT_DUP} AND result IN ('win','loss')
+        SELECT result FROM recommendations r
+        WHERE ${NOT_DUP} AND result IN ('win','loss') AND ${dc.clause}
         ORDER BY timestamp DESC LIMIT 20
       )
       SELECT
-        (SELECT ROUND(COUNT(*) FILTER (WHERE result='win')::numeric / GREATEST(COUNT(*),1) * 100, 1) FROM recent)::text AS recent_wr,
-        (SELECT ROUND(COUNT(*) FILTER (WHERE result='win')::numeric / GREATEST(COUNT(*) FILTER (WHERE result IN ('win','loss')),1) * 100, 1)
-         FROM recommendations WHERE ${NOT_DUP} AND result IN ('win','loss'))::text AS overall_wr
-    `, []),
+        ROUND(COUNT(*) FILTER (WHERE result='win')::numeric / GREATEST(COUNT(*),1) * 100, 1)::text AS recent_wr
+      FROM recent
+    `, dc.params),
+
+    query<{ overall_wr: string }>(`
+      SELECT
+        ROUND(COUNT(*) FILTER (WHERE result='win')::numeric / GREATEST(COUNT(*),1) * 100, 1)::text AS overall_wr
+      FROM recommendations r
+      WHERE ${NOT_DUP} AND result IN ('win','loss') AND ${dc.clause}
+    `, dc.params),
 
     // Streak
     query<{ result: string }>(`
       SELECT result FROM recommendations
-      WHERE ${NOT_DUP} AND result IN ('win','loss')
+      WHERE ${NOT_DUP} AND result IN ('win','loss') AND ${dc.clause}
       ORDER BY timestamp DESC LIMIT 30
-    `, []),
+    `, dc.params),
 
     // Value finds (odds >= 2.0)
     query<{ wins: string; total: string }>(`
@@ -787,6 +853,8 @@ export async function getAiInsights(filter: PeriodFilter): Promise<AiInsightsDat
       FROM recommendations r
       WHERE ${NOT_DUP} AND result IN ('win','loss') AND odds < 1.70 AND odds > 0 AND ${dc.clause}
     `, dc.params),
+
+    getAnalyticsRows(filter),
   ]);
 
   // Process leagues
@@ -828,8 +896,8 @@ export async function getAiInsights(filter: PeriodFilter): Promise<AiInsightsDat
     .filter((b) => b.gap > 10); // only report significant gaps
 
   // Trend
-  const recentWR = Number(trendRes.rows[0]?.recent_wr ?? 0);
-  const overallWR = Number(trendRes.rows[0]?.overall_wr ?? 0);
+  const recentWR = Number(recentTrendRes.rows[0]?.recent_wr ?? 0);
+  const overallWR = Number(overallTrendRes.rows[0]?.overall_wr ?? 0);
   const trend: 'improving' | 'declining' | 'stable' =
     recentWR > overallWR + 5 ? 'improving' : recentWR < overallWR - 5 ? 'declining' : 'stable';
 
@@ -848,6 +916,7 @@ export async function getAiInsights(filter: PeriodFilter): Promise<AiInsightsDat
   const valueWins = Number(valueRes.rows[0]?.wins ?? 0);
   const safeTotal = Number(safeRes.rows[0]?.total ?? 0);
   const safeWins = Number(safeRes.rows[0]?.wins ?? 0);
+  const settledAnalyticsRows = analyticsRows.filter((row) => row.result !== '' && row.result != null);
 
   return {
     strongLeagues: leagues.filter((l) => l.pnl > 0).slice(0, 5),
@@ -857,6 +926,9 @@ export async function getAiInsights(filter: PeriodFilter): Promise<AiInsightsDat
     bestTimeSlots: minutes.filter((m) => m.pnl > 0).slice(0, 3),
     worstTimeSlots: minutes.filter((m) => m.pnl < 0).slice(-3).reverse(),
     overconfidentBands,
+    marketFamilies: summarizeMarketFamilyPerformance(settledAnalyticsRows),
+    lateEntries: summarizeLateEntryPerformance(settledAnalyticsRows),
+    sampleFloor: aiInsightSampleFloor,
     recentTrend: trend,
     recentWinRate: recentWR,
     overallWinRate: overallWR,

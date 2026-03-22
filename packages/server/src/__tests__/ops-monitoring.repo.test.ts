@@ -152,6 +152,52 @@ describe('ops-monitoring.repo', () => {
             avg_prompt_tokens: '2000',
           },
         ],
+      })
+      .mockResolvedValueOnce({
+        rows: [
+          {
+            match_id: 'm1',
+            home_team: 'Atletico San Luis',
+            away_team: 'Leon',
+            minute: 82,
+            score: '1-0',
+            selection: 'Over 2.5 Goals @2.67',
+            bet_market: 'over_2.5',
+            stake_percent: 4,
+            result: 'win',
+            pnl: '6.7',
+            odds: '2.67',
+            confidence: '6',
+          },
+          {
+            match_id: 'm1',
+            home_team: 'Atletico San Luis',
+            away_team: 'Leon',
+            minute: 68,
+            score: '1-0',
+            selection: 'Over 2.75 Goals @1.92',
+            bet_market: 'over_2.75',
+            stake_percent: 5,
+            result: 'push',
+            pnl: '0',
+            odds: '1.92',
+            confidence: '7',
+          },
+          {
+            match_id: 'm2',
+            home_team: 'Sevilla',
+            away_team: 'Valencia',
+            minute: 61,
+            score: '0-1',
+            selection: 'Corners Under 10.5 @1.88',
+            bet_market: 'corners_under_10.5',
+            stake_percent: 3,
+            result: '',
+            pnl: '0',
+            odds: '1.88',
+            confidence: '5',
+          },
+        ],
       });
 
     const snapshot = await getOpsMonitoringSnapshot();
@@ -164,8 +210,12 @@ describe('ops-monitoring.repo', () => {
     expect(snapshot.notifications.failureRate24h).toBe(10);
     expect(snapshot.promptShadow.shouldPushAgreementRate24h).toBe(100);
     expect(snapshot.promptShadow.marketAgreementRate24h).toBe(75);
+    expect(snapshot.promptQuality.sameThesisClusters).toBe(1);
+    expect(snapshot.promptQuality.cornersRows).toBe(1);
+    expect(snapshot.promptQuality.lateHighLineRows).toBe(2);
     expect(snapshot.cards.find((card) => card.label === 'Push Rate 24h')?.value).toBe('40%');
     expect(snapshot.cards.find((card) => card.label === 'Prompt Agree 24h')?.value).toBe('100%');
+    expect(snapshot.cards.find((card) => card.label === 'Stacking Rate 24h')?.value).toBe('66.7%');
     expect(snapshot.checklist.some((item) => item.id === 'settlement-backlog')).toBe(true);
   });
 });

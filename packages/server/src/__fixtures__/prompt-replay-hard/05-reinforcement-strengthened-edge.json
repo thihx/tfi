@@ -142,14 +142,6 @@
             { "value": "Over", "odd": "1.94", "handicap": "2.5" },
             { "value": "Under", "odd": "1.92", "handicap": "2.5" }
           ]
-        },
-        {
-          "id": 2,
-          "name": "Both Teams To Score",
-          "values": [
-            { "value": "Yes", "odd": "1.08" },
-            { "value": "No", "odd": "6.20" }
-          ]
         }
       ]
     }
@@ -170,9 +162,7 @@
     "evidenceMode": "full_live_data",
     "statsSource": "api-football",
     "oddsSource": "live",
-    "shouldPush": true,
-    "betMarket": "over_2.5",
-    "selectionContains": "Over 2.5",
+    "shouldPush": false,
     "saved": false,
     "notified": false
   }

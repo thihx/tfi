@@ -9,10 +9,10 @@ export type PromptEvidenceMode =
   | 'events_only_degraded'
   | 'low_evidence';
 
-export const LIVE_ANALYSIS_PROMPT_VERSIONS = ['v4-evidence-hardened', 'v5-compact-a', 'v6-betting-discipline-a'] as const;
+export const LIVE_ANALYSIS_PROMPT_VERSIONS = ['v4-evidence-hardened', 'v5-compact-a', 'v6-betting-discipline-a', 'v6-betting-discipline-b', 'v6-betting-discipline-c'] as const;
 export type LiveAnalysisPromptVersion = (typeof LIVE_ANALYSIS_PROMPT_VERSIONS)[number];
 export const LIVE_ANALYSIS_PROMPT_VERSION = 'v4-evidence-hardened';
-export const LIVE_ANALYSIS_PROMPT_CANDIDATE_VERSION = 'v6-betting-discipline-a';
+export const LIVE_ANALYSIS_PROMPT_CANDIDATE_VERSION = 'v6-betting-discipline-c';
 
 export function isLiveAnalysisPromptVersion(value: string): value is LiveAnalysisPromptVersion {
   return (LIVE_ANALYSIS_PROMPT_VERSIONS as readonly string[]).includes(value);
@@ -741,14 +741,27 @@ ${lines.join('\n')}
 `;
 }
 
-function buildContinuityRulesSectionCompact(data: LiveAnalysisPromptInput): string {
+function buildContinuityRulesSectionCompact(
+  data: LiveAnalysisPromptInput,
+  promptVersion: LiveAnalysisPromptVersion,
+): string {
   const recs = Array.isArray(data.previousRecommendations) ? data.previousRecommendations : [];
   if (recs.length === 0) return '';
+  const advancedRules = (
+    promptVersion === 'v6-betting-discipline-b'
+    || promptVersion === 'v6-betting-discipline-c'
+  )
+    ? `- A same-thesis follow-up needs BOTH materially stronger live evidence AFTER the last bet AND a clearly better structural entry. Time passing alone is never enough.
+- Do not re-enter the same thesis just because the new line is closer to the current score or looks safer now. If you already hold that view, another entry usually means laddering the same position.
+- If the earlier bet already expressed the thesis, the burden of proof for a second entry is extremely high. In most cases, return should_push=false.
+`
+    : '';
   return `CONTINUITY RULES:
 - Reference the latest recommendation and explain continuity or change.
 - Do not repeat the same selection + bet_market unless odds improved by >= 0.10, OR match state changed materially, OR >= 5 minutes passed and evidence is materially stronger.
 - Never repeat only because time passed.
 - If the last pick is not materially stronger now, return should_push=false and say: "No significant strengthening since last recommendation at minute [X]."
+${advancedRules}
 
 `;
 }
@@ -763,11 +776,16 @@ interface CompactExposureSummary {
 }
 
 function isCompactPromptVersion(promptVersion: LiveAnalysisPromptVersion): boolean {
-  return promptVersion === 'v5-compact-a' || promptVersion === 'v6-betting-discipline-a';
+  return promptVersion === 'v5-compact-a'
+    || promptVersion === 'v6-betting-discipline-a'
+    || promptVersion === 'v6-betting-discipline-b'
+    || promptVersion === 'v6-betting-discipline-c';
 }
 
 function isBettingDisciplinePromptVersion(promptVersion: LiveAnalysisPromptVersion): boolean {
-  return promptVersion === 'v6-betting-discipline-a';
+  return promptVersion === 'v6-betting-discipline-a'
+    || promptVersion === 'v6-betting-discipline-b'
+    || promptVersion === 'v6-betting-discipline-c';
 }
 
 function getCorrelatedThesis(canonicalMarket: string): { thesisKey: string; label: string } | null {
@@ -823,14 +841,34 @@ function summarizeCorrelatedExposure(data: LiveAnalysisPromptInput): CompactExpo
     }));
 }
 
-function buildExistingExposureSectionCompact(data: LiveAnalysisPromptInput): string {
+function buildExistingExposureSectionCompact(
+  data: LiveAnalysisPromptInput,
+  promptVersion: LiveAnalysisPromptVersion,
+): string {
   const summaries = summarizeCorrelatedExposure(data);
   if (summaries.length === 0) return '';
 
   const lines = summaries.map((summary) => {
     const latestMinute = summary.latestMinute == null ? '?' : String(summary.latestMinute);
-    return `- ${summary.label}: ${summary.count} prior pick(s), total prior stake ${summary.totalStake}%, latest at minute ${latestMinute}, lines: ${summary.canonicalMarkets.join(', ')}`;
+    const ladderAlert = (
+      promptVersion === 'v6-betting-discipline-b'
+      || promptVersion === 'v6-betting-discipline-c'
+    ) && summary.count >= 2
+      ? ' [LADDER ALERT]'
+      : '';
+    return `- ${summary.label}: ${summary.count} prior pick(s), total prior stake ${summary.totalStake}%, latest at minute ${latestMinute}, lines: ${summary.canonicalMarkets.join(', ')}${ladderAlert}`;
   });
+
+  const advancedRules = (
+    promptVersion === 'v6-betting-discipline-b'
+    || promptVersion === 'v6-betting-discipline-c'
+  )
+    ? `- If the same thesis already has 2+ entries, do NOT add another rung. Default should_push=false.
+- A later safer line may be better in isolation, but adding it on top of earlier exposure still compounds bankroll risk instead of improving the old position.
+- Do not walk the line rung-by-rung (example: Over 3.5 -> Over 3 -> Over 2.75 -> Over 2.5). That is usually averaging into the same read, not a fresh edge.
+- The same logic applies to corners ladders (example: Under 9.5 -> Under 8.5 -> Under 7.5). That is still one fragile thesis, not diversification.
+`
+    : '';
 
   return `========================
 EXISTING MATCH EXPOSURE
@@ -844,6 +882,7 @@ BETTING DISCIPLINE:
 - If you already have exposure in the same thesis, default to should_push=false unless the new line is an exceptional upgrade in price/risk and you can explain why it is materially better than the earlier entries.
 - A looser or tighter line on the same unchanged thesis is NOT diversification. It is compounded bankroll exposure.
 - When same-thesis exposure already exists, be stricter on confidence and stake. Protect bankroll first.
+${advancedRules}
 
 `;
 }
@@ -969,7 +1008,40 @@ export function buildLiveAnalysisPrompt(
 
   if (isCompactPromptVersion(promptVersion)) {
     const bettingDisciplineSection = isBettingDisciplinePromptVersion(promptVersion)
-      ? buildExistingExposureSectionCompact(data)
+      ? buildExistingExposureSectionCompact(data, promptVersion)
+      : '';
+    const advancedBettingRules = (
+      promptVersion === 'v6-betting-discipline-b'
+      || promptVersion === 'v6-betting-discipline-c'
+    )
+      ? `- First-half volume is a prior, not an automatic second-half trigger.
+- At HT and in the first 10 minutes of 2H, do NOT project a wild first half straight into a new Over bet unless the early second-half flow confirms it with fresh pressure, shots, or transitions.
+- Avoid new bets that still need two or more additional goals/events to win unless the match is truly exceptional.
+- For Goals Over, if the line still needs two more goals to cash, default should_push=false unless there is a major class mismatch, red-card distortion, or overwhelming full-live evidence.
+- Prefer entries where one more goal materially helps the position (push / half-win / full win) over lines that still require two more goals.
+- Do not average into a same-thesis totals ladder just because the line moved from 3.5 -> 3 -> 2.75 -> 2.5. That is usually bankroll compounding, not a new edge.
+`
+      : '';
+    const advancedLineSpecificRule = (
+      promptVersion === 'v6-betting-discipline-b'
+      || promptVersion === 'v6-betting-discipline-c'
+    )
+      ? '- At HT / early 2H, a fresh Over 3.5 from 1-1 is usually too demanding. Wait for better confirmation or a friendlier line.\n'
+      : '';
+    const advancedCornersRules = promptVersion === 'v6-betting-discipline-c'
+      ? `- Corners are a tertiary market. They are not a primary read on team quality, true scoring edge, or match motivation.
+- Only choose corners when the corner-specific evidence is cleaner than any available Goals or AH thesis. If a goals/AH read is similarly strong, prefer goals/AH.
+- Corners Under is exceptional-only. Default should_push=false unless the match is genuinely calm and corner-suppressing.
+- Do NOT recommend Corners Under when either team is trailing and likely to chase, or when the game is stretched, transition-heavy, or producing obvious territorial pressure.
+- Do NOT recommend Corners Under when shots, shots on target, or one-sided pressure already suggest repeated final-third entries. Corners Under needs a dead or tightly controlled game, not just a low current corner count.
+- Treat corners ladders as fragile exposure. Do not staircase Corners Under from 10.5 -> 9.5 -> 8.5 -> 7.5.
+- Corners markets should usually cap at confidence 6 and stake 3%. Corners Under should usually cap at confidence 5 and stake 2% unless the edge is exceptionally clean.
+`
+      : '';
+    const advancedBalancedTotalsRule = promptVersion === 'v6-betting-discipline-c'
+      ? `- Balanced totals are not enough. In 1-1 or 0-0 states around minute 55-70, if possession, shots, and shots on target are broadly even and there is no clear pressure asymmetry, default should_push=false.
+- Symmetric prices around 1.90 on both sides usually mean the market sees a thin edge. Do not force an Over or Under just because one more goal would cash.
+`
       : '';
     return `
 You are a disciplined live football investment analyst. Analyze one live match and return either one realistic investment idea or no bet. Evaluate custom conditions separately.
@@ -1031,7 +1103,7 @@ RECENT EVENTS
 ${JSON.stringify(data.eventsCompact)}
 EVENT_COUNT: ${data.eventsCompact.length}
 
-${buildPreviousRecommendationsSectionCompact(data)}${bettingDisciplineSection}${buildContinuityRulesSectionCompact(data)}${buildMatchTimelineSection(data)}${buildHistoricalPerformanceSection(data)}========================
+${buildPreviousRecommendationsSectionCompact(data)}${bettingDisciplineSection}${buildContinuityRulesSectionCompact(data, promptVersion)}${buildMatchTimelineSection(data)}${buildHistoricalPerformanceSection(data)}========================
 CONFIG / EVIDENCE
 ========================
 - MIN_CONFIDENCE: ${MIN_CONFIDENCE}
@@ -1082,15 +1154,20 @@ MARKET DISCIPLINE:
 - Correlated exposure is risk concentration, not diversification.
 - If the odds feed contains any market that is logically already settled by the current score/state, treat the entire odds feed as suspect and default to no bet.
 - Example of impossible feed state: BTTS Yes/No still quoted after both teams have already scored.
-- 1X2 and BTTS No need full_live_data, confidence >= 7, and strong stat support
+${advancedBettingRules}- 1X2 and BTTS No need full_live_data, confidence >= 7, and strong stat support
 - BTTS Yes needs tier 1 evidence
 - Tier 3 may only use O/U or selective AH
+- Thin balanced totals need a pass unless live evidence is clearly asymmetric.
+- Goals and AH are primary markets. Corners are tertiary and require cleaner evidence than goals/AH.
 - Corners require tier 1 live stats + live corners data
+- Prefer Corners Over over Corners Under when pressure evidence is strong. Be very selective with Corners Under.
 - If corners line is far above current live corners late in the match (gap >= 3 after minute 75), assume stats desync/delay and skip ALL corners markets.
+${advancedCornersRules}
+${advancedBalancedTotalsRule}
 ${activeCornersSanityAlert}
 - Odds >= 2.50 => confidence cap 6, stake cap 3%
 - Over 3.5+ needs current goals >= line-1 or a clearly open match
-- Score 0-0 after minute 55: prefer goal unders, not corners under
+${advancedLineSpecificRule}- Score 0-0 after minute 55: prefer goal unders, not corners under
 - risk_level HIGH => should_push false
 
 RED CARD:

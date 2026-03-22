@@ -49,6 +49,17 @@ const PERIOD_OPTIONS: { value: ReportPeriodFilter['period']; label: string }[] =
 function pnlColor(v: number): string { return v >= 0 ? 'var(--success)' : 'var(--danger)'; }
 function pnlStr(v: number): string { return `${v >= 0 ? '+' : ''}$${v.toFixed(2)}`; }
 function wrStr(v: number): string { return `${v.toFixed(1)}%`; }
+function familyLabel(value: string): string {
+  const map: Record<string, string> = {
+    goals_totals: 'Goals Totals',
+    corners: 'Corners',
+    asian_handicap: 'Asian Handicap',
+    btts: 'BTTS',
+    '1x2': '1X2',
+    other: 'Other',
+  };
+  return map[value] ?? value;
+}
 
 const CHART_GREEN = '#22c55e';
 const CHART_RED = '#ef4444';
@@ -62,14 +73,15 @@ const OverviewSection = memo(function OverviewSection({ data }: { data: Overview
   return (
     <div>
       <div className="report-kpi-grid">
-        <KpiCard label="Total" value={data.total} sub={`${data.pending} pending`} />
-        <KpiCard label="Win Rate" value={wrStr(data.winRate)} color={data.winRate >= 50 ? 'positive' : 'negative'} />
+        <KpiCard label="Recommendations" value={data.total} sub={`${data.pending} pending`} />
+        <KpiCard label="Hit Rate (W/L)" value={wrStr(data.winRate)} color={data.winRate >= 50 ? 'positive' : 'negative'} />
         <KpiCard label="P/L" value={pnlStr(data.totalPnl)} color={data.totalPnl >= 0 ? 'positive' : 'negative'} />
-        <KpiCard label="ROI" value={`${data.roi >= 0 ? '+' : ''}${data.roi.toFixed(1)}%`} color={data.roi >= 0 ? 'positive' : 'negative'} />
+        <KpiCard label="ROI on Stake" value={`${data.roi >= 0 ? '+' : ''}${data.roi.toFixed(1)}%`} color={data.roi >= 0 ? 'positive' : 'negative'} />
         <KpiCard label="Avg Odds" value={data.avgOdds.toFixed(2)} />
         <KpiCard label="Avg Confidence" value={data.avgConfidence.toFixed(1)} />
-        <KpiCard label="Settled" value={data.settled} sub={`W${data.wins} L${data.losses} P${data.pushes}`} />
-        <KpiCard label="Record" value={`${data.wins}W - ${data.losses}L`} />
+        <KpiCard label="Settled" value={data.settled} sub={`Decisive ${data.decisiveSettled} | Neutral ${data.neutralSettled}`} />
+        <KpiCard label="Record" value={`${data.wins}W - ${data.losses}L`} sub={`Push ${data.pushes} | HW ${data.halfWins} | HL ${data.halfLosses} | Void ${data.voids}`} />
+        <KpiCard label="Exposure Clusters" value={data.exposureConcentration.stackedClusters} sub={`${data.exposureConcentration.stackedRecommendations} recs | ${data.exposureConcentration.stackedStake}% stake`} />
       </div>
       {(data.bestDay || data.worstDay) && (
         <div className="report-highlight-row">
@@ -85,6 +97,26 @@ const OverviewSection = memo(function OverviewSection({ data }: { data: Overview
               <span className="report-highlight-value">{data.worstDay.date}: {pnlStr(data.worstDay.pnl)}</span>
             </div>
           )}
+        </div>
+      )}
+      {data.exposureConcentration.stackedClusters > 0 && (
+        <div className="card" style={{ marginTop: 16 }}>
+          <div className="card-header"><div className="card-title">Exposure Concentration</div></div>
+          <div style={{ padding: '12px 20px', fontSize: 12, color: 'var(--gray-600)' }}>
+            Same match + same thesis clusters with at least 2 entries in the selected period.
+          </div>
+          <ReportTable
+            columns={['Match', 'Thesis', 'Picks', 'Settled', 'Stake', 'Latest', 'P/L']}
+            rows={data.exposureConcentration.topClusters.map((cluster) => [
+              cluster.matchDisplay,
+              cluster.label,
+              cluster.count,
+              cluster.settledCount,
+              `${cluster.totalStake}%`,
+              cluster.latestMinute == null ? '-' : `${cluster.latestMinute}'`,
+              { value: pnlStr(cluster.totalPnl), color: pnlColor(cluster.totalPnl) },
+            ])}
+          />
         </div>
       )}
     </div>
@@ -430,6 +462,9 @@ const AiInsightsSection = memo(function AiInsightsSection({ data }: { data: AiIn
       <div className="card report-insight-card" style={{ marginBottom: 16 }}>
         <div className="card-header"><div className="card-title">AI Performance Analysis</div></div>
         <div style={{ padding: '16px 20px' }}>
+          <div className="report-insight-row" style={{ color: 'var(--gray-500)', fontSize: 12 }}>
+            Insights use decisive settled sample only and require at least {data.sampleFloor} samples per bucket.
+          </div>
           <div className="report-insight-row">
             <span>{trendEmoji} <strong>Recent Trend:</strong></span>
             <span style={{ color: trendColor, fontWeight: 700, textTransform: 'capitalize' }}>{data.recentTrend}</span>
@@ -458,10 +493,10 @@ const AiInsightsSection = memo(function AiInsightsSection({ data }: { data: AiIn
       <div className="report-insights-grid">
         <InsightList title="✅ Strong Leagues" items={data.strongLeagues.map((l) => `${l.league}: ${wrStr(l.winRate)} (${pnlStr(l.pnl)}, ${l.total} bets)`)} color="var(--success)" />
         <InsightList title="⚠️ Weak Leagues" items={data.weakLeagues.map((l) => `${l.league}: ${wrStr(l.winRate)} (${pnlStr(l.pnl)}, ${l.total} bets)`)} color="var(--danger)" />
-        <InsightList title="✅ Strong Markets" items={data.strongMarkets.map((m) => `${m.market}: ${wrStr(m.winRate)} (${pnlStr(m.pnl)})`)} color="var(--success)" />
-        <InsightList title="⚠️ Weak Markets" items={data.weakMarkets.map((m) => `${m.market}: ${wrStr(m.winRate)} (${pnlStr(m.pnl)})`)} color="var(--danger)" />
-        <InsightList title="⏰ Best Time Slots" items={data.bestTimeSlots.map((t) => `${t.band}: ${wrStr(t.winRate)} (${pnlStr(t.pnl)})`)} color="var(--success)" />
-        <InsightList title="⏰ Worst Time Slots" items={data.worstTimeSlots.map((t) => `${t.band}: ${wrStr(t.winRate)} (${pnlStr(t.pnl)})`)} color="var(--danger)" />
+        <InsightList title="✅ Strong Markets" items={data.strongMarkets.map((m) => `${m.market}: ${wrStr(m.winRate)} (${pnlStr(m.pnl)}, ${m.total} bets)`)} color="var(--success)" />
+        <InsightList title="⚠️ Weak Markets" items={data.weakMarkets.map((m) => `${m.market}: ${wrStr(m.winRate)} (${pnlStr(m.pnl)}, ${m.total} bets)`)} color="var(--danger)" />
+        <InsightList title="⏰ Best Time Slots" items={data.bestTimeSlots.map((t) => `${t.band}: ${wrStr(t.winRate)} (${pnlStr(t.pnl)}, ${t.total} bets)`)} color="var(--success)" />
+        <InsightList title="⏰ Worst Time Slots" items={data.worstTimeSlots.map((t) => `${t.band}: ${wrStr(t.winRate)} (${pnlStr(t.pnl)}, ${t.total} bets)`)} color="var(--danger)" />
       </div>
 
       {/* Calibration Warnings */}
@@ -475,6 +510,47 @@ const AiInsightsSection = memo(function AiInsightsSection({ data }: { data: AiIn
               </div>
             ))}
           </div>
+        </div>
+      )}
+
+      {data.marketFamilies.length > 0 && (
+        <div className="card" style={{ marginTop: 16 }}>
+          <div className="card-header"><div className="card-title">Market Family ROI</div></div>
+          <ReportTable
+            columns={['Family', 'Settled', 'Neutral', 'W', 'L', 'Hit%', 'P/L', 'ROI']}
+            rows={data.marketFamilies.map((row) => [
+              familyLabel(row.family),
+              row.settled,
+              row.neutral,
+              row.wins,
+              row.losses,
+              wrStr(row.winRate),
+              { value: pnlStr(row.pnl), color: pnlColor(row.pnl) },
+              { value: `${row.roi >= 0 ? '+' : ''}${row.roi.toFixed(1)}%`, color: pnlColor(row.roi) },
+            ])}
+          />
+        </div>
+      )}
+
+      {data.lateEntries.length > 0 && (
+        <div className="card" style={{ marginTop: 16 }}>
+          <div className="card-header"><div className="card-title">Late-Entry ROI</div></div>
+          <div style={{ padding: '12px 20px', fontSize: 12, color: 'var(--gray-600)' }}>
+            Timing buckets show where prompt entries are actually strongest on stake-adjusted return.
+          </div>
+          <ReportTable
+            columns={['Bucket', 'Settled', 'Neutral', 'W', 'L', 'Hit%', 'P/L', 'ROI']}
+            rows={data.lateEntries.map((row) => [
+              row.bucket,
+              row.settled,
+              row.neutral,
+              row.wins,
+              row.losses,
+              wrStr(row.winRate),
+              { value: pnlStr(row.pnl), color: pnlColor(row.pnl) },
+              { value: `${row.roi >= 0 ? '+' : ''}${row.roi.toFixed(1)}%`, color: pnlColor(row.roi) },
+            ])}
+          />
         </div>
       )}
     </div>

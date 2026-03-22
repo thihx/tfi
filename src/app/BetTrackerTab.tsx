@@ -21,6 +21,7 @@ import {
   createBet,
   type BetRecord,
   type BetStats,
+  type BetMarketStats,
 } from '@/lib/services/api';
 import { formatLocalDateTime } from '@/lib/utils/helpers';
 import { MARKET_COLORS, BET_RESULT_BADGES } from '@/config/constants';
@@ -54,12 +55,12 @@ const KpiCard = memo(function KpiCard({
 
 const MarketChart = memo(function MarketChart({
   data,
-}: { data: Array<{ market: string } & BetStats> }) {
+}: { data: BetMarketStats[] }) {
   if (!data.length) return null;
   const chartData = data.map((d) => ({
     name: d.market || 'Other',
-    won:  d.won,
-    lost: d.lost,
+    won:  d.wins,
+    lost: d.losses,
     pnl:  parseFloat(d.total_pnl.toFixed(2)),
   }));
   return (
@@ -195,7 +196,7 @@ export function BetTrackerTab() {
 
   const [bets, setBets]   = useState<BetRecord[]>([]);
   const [stats, setStats] = useState<BetStats | null>(null);
-  const [markets, setMarkets] = useState<Array<{ market: string } & BetStats>>([]);
+  const [markets, setMarkets] = useState<BetMarketStats[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving]   = useState(false);
   const [showAdd, setShowAdd] = useState(false);
@@ -270,15 +271,15 @@ export function BetTrackerTab() {
     <div>
       {/* KPI Row */}
       <div className="stats-grid" style={{ marginBottom: '12px' }}>
-        <KpiCard label="Total Investments" value={String(stats?.total ?? '—')} sub={`${stats?.pending ?? 0} pending`} />
-        <KpiCard label="Win Rate"     value={stats ? `${((stats.won / Math.max(stats.won + stats.lost, 1)) * 100).toFixed(1)}%` : '—'}
-                 sub={stats ? `${stats.won}W · ${stats.lost}L` : undefined} />
-        <KpiCard label="Total P/L"    value={stats ? `${pnlPositive ? '+' : ''}$${stats.total_pnl.toFixed(2)}` : '—'}
+        <KpiCard label="Total Investments" value={String(stats?.total ?? '-')} sub={`${stats?.unsettled ?? stats?.pending ?? 0} unsettled`} />
+        <KpiCard label="Hit Rate (W/L)"     value={stats ? `${((stats.wins / Math.max(stats.wins + stats.losses, 1)) * 100).toFixed(1)}%` : '-'}
+                 sub={stats ? `${stats.wins}W | ${stats.losses}L | ${stats.pushes}P` : undefined} />
+        <KpiCard label="Total P/L"    value={stats ? `${pnlPositive ? '+' : ''}$${stats.total_pnl.toFixed(2)}` : '-'}
                  positive={stats ? pnlPositive : null} />
-        <KpiCard label="ROI"          value={stats ? `${roiPositive ? '+' : ''}${stats.roi.toFixed(1)}%` : '—'}
+        <KpiCard label="ROI on Stake"          value={stats ? `${roiPositive ? '+' : ''}${stats.roi.toFixed(1)}%` : '-'}
                  positive={stats ? roiPositive : null} />
-        <KpiCard label="Open (Pending)" value={stats ? String(stats.pending) : '—'}
-                 sub={stats ? `${stats.total - stats.pending} settled` : undefined} />
+        <KpiCard label="Open (Unsettled)" value={stats ? String(stats.unsettled ?? stats.pending) : '-'}
+                 sub={stats ? `${stats.total - (stats.unsettled ?? stats.pending)} settled` : undefined} />
       </div>
 
       {/* Market Chart */}
