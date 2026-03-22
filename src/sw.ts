@@ -84,19 +84,22 @@ self.addEventListener('notificationclick', (event) => {
   event.waitUntil(
     self.clients
       .matchAll({ type: 'window', includeUncontrolled: true })
-      .then(async (clientList) => {
+      .then((clientList) => {
         for (const client of clientList) {
           if (!client.url.startsWith(self.location.origin) || !('focus' in client)) continue;
           const wc = client as WindowClient;
           if (wc.focused) {
-            // App is already in foreground — postMessage is reliable
+            // App is in foreground — postMessage is reliable
             wc.postMessage(msg);
-          } else {
-            // App is in a background tab or different window — navigate to URL
-            // so App.tsx can pick it up on the 'focus' event
-            await wc.navigate(targetUrl).catch(() => undefined);
+            return wc.focus();
           }
-          return wc.focus();
+          // App is in background: call focus() synchronously within user gesture context
+          // (await would break the gesture chain and prevent OS window focus on Windows),
+          // then navigate so App.tsx reads ?match= params on the 'focus' event
+          return wc.focus().then((focused) => {
+            if (focused) focused.navigate(targetUrl).catch(() => undefined);
+            return focused;
+          });
         }
         return self.clients.openWindow(targetUrl);
       }),
