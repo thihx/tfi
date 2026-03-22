@@ -54,8 +54,10 @@ import {
   type LiveAnalysisPromptVersion,
   type PromptAnalysisMode,
 } from './live-analysis-prompt.js';
+import { hasUsableStrategicContext } from './strategic-context.service.js';
 import { createPromptShadowRun } from '../repos/prompt-shadow-runs.repo.js';
 import { getLeagueProfileByLeagueId } from '../repos/league-profiles.repo.js';
+import { getLeagueById } from '../repos/leagues.repo.js';
 
 /** Resolved pipeline settings: DB values take priority, env vars as fallback */
 interface PipelineSettings {
@@ -144,6 +146,7 @@ const defaultPipelineDeps = {
   fetchDeterministicWebLiveFallback,
   createPromptShadowRun,
   getLeagueProfileByLeagueId,
+  getLeagueById,
 };
 
 type PipelineDeps = typeof defaultPipelineDeps;
@@ -1244,6 +1247,9 @@ function extractOddsFromSelection(selection: string, betMarket: string, canonica
 }
 
 // ==================== Events Timeline Chart (QuickChart.io) ====================
+// Score Progression chart: step lines showing how the scoreline evolved minute by minute.
+// Much more useful than scatter lanes — bettors can immediately see comeback situations,
+// when red cards changed the game, and whether dominance was sustained or late.
 
 function buildEventsTimelineUrl(
   events: EventCompact[],
@@ -1254,131 +1260,149 @@ function buildEventsTimelineUrl(
   const relevant = events.filter((e) => e.type === 'goal' || e.type === 'card');
   if (relevant.length === 0) return '';
 
+  const toX = (e: EventCompact) => e.minute + (e.extra ?? 0);
   const currentMinute = Number.parseInt(String(minute), 10);
   const maxMin = Math.max(
-    95,
+    90,
     Number.isFinite(currentMinute) ? currentMinute : 0,
-    ...relevant.map((e) => e.minute + (e.extra ?? 0)),
+    ...relevant.map(toX),
   );
-  const toX = (e: EventCompact) => e.minute + (e.extra ?? 0);
-  const trim12 = (s: string) => (s.length > 12 ? s.substring(0, 11) + '…' : s);
-  const hLabel = trim12(homeName);
-  const aLabel = trim12(awayName);
+  const trim14 = (s: string) => (s.length > 14 ? s.substring(0, 13) + '\u2026' : s);
+  const hLabel = trim14(homeName);
+  const aLabel = trim14(awayName);
   const isRed = (e: EventCompact) => {
     const d = e.detail.toLowerCase();
     return d.includes('red') || d.includes('second yellow');
   };
 
-  // Separate into 6 type+team groups
-  const HG = relevant.filter((e) => e.team === homeName && e.type === 'goal');
-  const HY = relevant.filter((e) => e.team === homeName && e.type === 'card' && !isRed(e));
-  const HR = relevant.filter((e) => e.team === homeName && e.type === 'card' && isRed(e));
-  const AG = relevant.filter((e) => e.team === awayName && e.type === 'goal');
-  const AY = relevant.filter((e) => e.team === awayName && e.type === 'card' && !isRed(e));
-  const AR = relevant.filter((e) => e.team === awayName && e.type === 'card' && isRed(e));
+  // ── Build score progression step lines ──────────────────────────────
+  // Sort all goals chronologically so score labels are always accurate (e.g. "1-1" not "2-1")
+  const allGoals = relevant
+    .filter((e) => e.type === 'goal')
+    .sort((a, b) => toX(a) - toX(b));
 
-  // X-jitter: shift events at the same minute within a lane by +2' each to avoid overlap
-  const jitter = (evts: EventCompact[]): number[] => {
-    const seen = new Map<number, number>();
-    return evts.map((e) => {
-      const x = toX(e);
-      const n = seen.get(x) ?? 0;
-      seen.set(x, n + 1);
-      return x + n * 2;
-    });
-  };
+  let hScore = 0;
+  let aScore = 0;
+  const hLineData: Record<string, unknown>[] = [{ x: 0, y: 0 }];
+  const aLineData: Record<string, unknown>[] = [{ x: 0, y: 0 }];
 
-  // Y-lanes: 6 separate rows, bar in the middle
-  // Home lanes (above bar): goals=1.85, yellows=1.55, reds=1.25
-  // Bar: 1.0
-  // Away lanes (below bar): reds=0.75, yellows=0.45, goals=0.15
-  const scatterDs = (
-    evts: EventCompact[],
-    y: number,
-    color: string,
-    above: boolean,
-    label: string,
-  ) => {
+  for (const g of allGoals) {
+    const x = toX(g);
+    if (g.team === homeName) {
+      hScore++;
+      hLineData.push({ x, y: hScore, label: `${hScore}-${aScore}`, above: true });
+    } else {
+      aScore++;
+      aLineData.push({ x, y: aScore, label: `${hScore}-${aScore}`, above: false });
+    }
+  }
+  hLineData.push({ x: maxMin + 3, y: hScore });
+  aLineData.push({ x: maxMin + 3, y: aScore });
+
+  const maxScore = Math.max(2, hScore, aScore);
+  // Only show dot at goal moments — flat connecting segments have no dot
+  const hRadii = hLineData.map((d) => (d['label'] ? 6 : 0));
+  const aRadii = aLineData.map((d) => (d['label'] ? 6 : 0));
+
+  // ── Cards: rectangles along the baseline ────────────────────────────
+  const cards = relevant.filter((e) => e.type === 'card');
+  const yellowCards = cards.filter((e) => !isRed(e));
+  const redCards    = cards.filter((e) => isRed(e));
+
+  const cardDs = (evts: EventCompact[], color: string, yPos: number) => {
     if (evts.length === 0) return null;
-    const xs = jitter(evts);
     return {
       type: 'scatter',
-      label,
-      // Store original minute + above flag in each point so top-level datalabels can use them
-      data: xs.map((x, i) => ({ x, y, minute: toX(evts[i]!), above })),
+      label: '',
+      data: evts.map((e) => ({ x: toX(e), y: yPos, label: `${toX(e)}'`, above: false })),
       backgroundColor: color,
       borderColor: '#fff',
       borderWidth: 1,
-      pointRadius: 8,
+      pointRadius: 7,
+      pointStyle: 'rect',
     };
   };
 
+  // ── Datasets ─────────────────────────────────────────────────────────
+  const htDs = {
+    type: 'line', label: '',
+    data: [{ x: 45, y: 0 }, { x: 45, y: maxScore + 0.4 }],
+    borderColor: '#cbd5e1', borderWidth: 1, borderDash: [4, 3],
+    backgroundColor: 'transparent', pointRadius: 0, fill: false, showLine: true,
+    datalabels: { display: false },
+  };
+
+  const nowDs = Number.isFinite(currentMinute) && currentMinute > 0 ? {
+    type: 'line', label: '',
+    data: [{ x: currentMinute, y: 0 }, { x: currentMinute, y: maxScore + 0.4 }],
+    borderColor: '#3b82f6', borderWidth: 1, borderDash: [3, 3],
+    backgroundColor: 'transparent', pointRadius: 0, fill: false, showLine: true,
+    datalabels: { display: false },
+  } : null;
+
+  const hDs = {
+    type: 'line', label: hLabel,
+    data: hLineData,
+    borderColor: '#16a34a', backgroundColor: '#16a34a',
+    borderWidth: 2.5, pointRadius: hRadii, pointBackgroundColor: '#16a34a',
+    fill: false, showLine: true, steppedLine: 'before',
+  };
+
+  const aDs = {
+    type: 'line', label: aLabel,
+    data: aLineData,
+    borderColor: '#dc2626', backgroundColor: '#dc2626',
+    borderWidth: 2.5, pointRadius: aRadii, pointBackgroundColor: '#dc2626',
+    fill: false, showLine: true, steppedLine: 'before',
+  };
+
   const datasets = [
-    // Green timeline bar
-    {
-      type: 'line',
-      label: '',
-      data: [{ x: 0, y: 1.0 }, { x: maxMin + 3, y: 1.0 }],
-      borderColor: '#22c55e',
-      borderWidth: 7,
-      backgroundColor: 'transparent',
-      pointRadius: 0,
-      fill: false,
-      showLine: true,
-      datalabels: { display: false },
-    },
-    // HT marker spanning all lanes
-    {
-      type: 'line',
-      label: '',
-      data: [{ x: 45, y: 0.1 }, { x: 45, y: 1.95 }],
-      borderColor: '#94a3b8',
-      borderWidth: 1,
-      backgroundColor: 'transparent',
-      pointRadius: 0,
-      fill: false,
-      showLine: true,
-      datalabels: { display: false },
-    },
-    scatterDs(HG, 1.85, '#16a34a', true,  `${hLabel} ⚽`),
-    scatterDs(HY, 1.55, '#ca8a04', true,  `${hLabel} 🟨`),
-    scatterDs(HR, 1.25, '#dc2626', true,  `${hLabel} 🟥`),
-    scatterDs(AG, 0.15, '#16a34a', false, `${aLabel} ⚽`),
-    scatterDs(AY, 0.45, '#ca8a04', false, `${aLabel} 🟨`),
-    scatterDs(AR, 0.75, '#dc2626', false, `${aLabel} 🟥`),
+    htDs,
+    nowDs,
+    hDs,
+    aDs,
+    cardDs(yellowCards, '#ca8a04', 0),
+    cardDs(redCards,    '#dc2626', 0),
   ].filter(Boolean);
 
+  // Title shows current scoreline prominently
+  const titleText = `${hLabel}  ${hScore} \u2013 ${aScore}  ${aLabel}`;
+
   const cfg = {
-    type: 'scatter',
+    type: 'line',
     data: { datasets },
     options: {
-      layout: { padding: { left: 8, right: 16, top: 20, bottom: 20 } },
-      title: {
-        display: true,
-        text: `\u25b2 ${hLabel}  \u2500 Match Events \u2500  ${aLabel} \u25bc`,
-        fontSize: 11,
-        fontColor: '#334155',
-        fontStyle: 'normal',
-      },
+      layout: { padding: { left: 8, right: 20, top: 12, bottom: 8 } },
+      title: { display: true, text: titleText, fontSize: 12, fontColor: '#1e293b', fontStyle: 'bold' },
       legend: { display: false },
       plugins: {
         datalabels: {
-          display: "function(context){ return context.dataset.type==='scatter'; }",
-          formatter: "function(v){ return v.minute+\"'\"; }",
-          align: "function(context){ var d=context.dataset.data[context.dataIndex]; return d&&d.above?'top':'bottom'; }",
-          anchor: "function(context){ var d=context.dataset.data[context.dataIndex]; return d&&d.above?'end':'start'; }",
+          // Only render labels where we explicitly set a label string (goal scores + card minutes)
+          display: "function(ctx){ var d=ctx.dataset.data[ctx.dataIndex]; return !!(d&&d.label); }",
+          formatter: "function(v){ return v.label||''; }",
+          align: "function(ctx){ var d=ctx.dataset.data[ctx.dataIndex]; return d&&d.above?'top':'bottom'; }",
+          anchor: "function(ctx){ var d=ctx.dataset.data[ctx.dataIndex]; return d&&d.above?'end':'start'; }",
           color: '#1e293b',
-          font: { size: 8, weight: 'bold' },
-          offset: 2,
+          font: { size: 9, weight: 'bold' },
+          offset: 3,
         },
       },
       scales: {
         xAxes: [{
           type: 'linear',
-          ticks: { min: 0, max: maxMin + 8, stepSize: 15, fontSize: 9, fontColor: '#64748b' },
+          ticks: { min: 0, max: maxMin + 5, stepSize: 15, fontSize: 9, fontColor: '#64748b' },
           gridLines: { display: true, color: '#f1f5f9', lineWidth: 1 },
         }],
-        yAxes: [{ display: false, ticks: { min: 0.0, max: 2.0 } }],
+        yAxes: [{
+          ticks: {
+            min: -0.3,
+            max: maxScore + 0.5,
+            stepSize: 1,
+            fontSize: 9,
+            fontColor: '#64748b',
+          },
+          gridLines: { display: true, color: '#f1f5f9', lineWidth: 1 },
+        }],
       },
     },
   };
@@ -2051,10 +2075,13 @@ async function processMatch(
     }
 
     // 4. Load prompt-only context after the heavy providers already passed coarse gating.
-    const [historicalPerformance, leagueProfile] = await Promise.all([
+    const [historicalPerformance, leagueProfile, leagueMeta] = await Promise.all([
       loadHistoricalPromptContext(deps),
       fixture.league?.id
         ? deps.getLeagueProfileByLeagueId(fixture.league.id).catch(() => null)
+        : Promise.resolve(null),
+      fixture.league?.id
+        ? deps.getLeagueById(fixture.league.id).catch(() => null)
         : Promise.resolve(null),
     ]);
 
@@ -2165,7 +2192,17 @@ async function processMatch(
     const customConditions = (watchlistEntry.custom_conditions || '').trim();
     const recommendedCondition = (watchlistEntry.recommended_custom_condition || '').trim();
     const recommendedConditionReason = (watchlistEntry.recommended_condition_reason || '').trim();
-    const strategicContext = watchlistEntry.strategic_context as Record<string, unknown> | null;
+    const rawStrategicContext = watchlistEntry.strategic_context as Record<string, unknown> | null;
+    const strategicRefreshStatus = String((rawStrategicContext?._meta as Record<string, unknown> | undefined)?.refresh_status ?? '').trim().toLowerCase();
+    const strategicContext = (
+      rawStrategicContext
+      && strategicRefreshStatus === 'good'
+      && hasUsableStrategicContext(rawStrategicContext as unknown as Parameters<typeof hasUsableStrategicContext>[0], {
+        topLeague: leagueMeta?.top_league === true,
+      })
+    )
+      ? rawStrategicContext
+      : null;
     const prediction = watchlistEntry.prediction as Record<string, unknown> | null;
 
     const promptContext: PromptExecutionContext = {

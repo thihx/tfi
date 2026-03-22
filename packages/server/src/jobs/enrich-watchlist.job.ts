@@ -9,10 +9,13 @@
 
 import {
   fetchStrategicContext,
+  hasUsableStrategicContext,
   type StrategicContext,
 } from '../lib/strategic-context.service.js';
+import { mergeStrategicContextWithPredictionFallback } from '../lib/strategic-context-prediction-fallback.js';
 import { config } from '../config.js';
 import * as matchRepo from '../repos/matches.repo.js';
+import * as leaguesRepo from '../repos/leagues.repo.js';
 import * as watchlistRepo from '../repos/watchlist.repo.js';
 import { getSettings } from '../repos/settings.repo.js';
 import { reportJobProgress } from './job-progress.js';
@@ -20,12 +23,19 @@ import { reportJobProgress } from './job-progress.js';
 const PREMATCH_WINDOW_HOURS = 2;
 const PREMATCH_WINDOW_MINUTES = PREMATCH_WINDOW_HOURS * 60;
 const API_DELAY_MS = 2000;
-const FAILURE_BACKOFF_HOURS = [1, 3, 6, 12] as const;
-const POOR_BACKOFF_HOURS = [6, 12, 24] as const;
+const FAILURE_BACKOFF_MINUTES = [60, 180, 360, 720] as const;
+const POOR_BACKOFF_MINUTES = [360, 720, 1440] as const;
+const TOP_LEAGUE_FAILURE_BACKOFF_MINUTES = [15, 30, 60, 120] as const;
+const TOP_LEAGUE_POOR_BACKOFF_MINUTES = [30, 60, 120, 240] as const;
 
 let forceNext = false;
 
 type RefreshStatus = 'good' | 'poor' | 'failed';
+
+interface EnrichLeagueHints {
+  topLeague?: boolean;
+  leagueCountry?: string | null;
+}
 
 interface StrategicContextMeta {
   refresh_status?: RefreshStatus;
@@ -48,15 +58,6 @@ function sleep(ms: number) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-function isPoorSummary(summary: unknown): boolean {
-  const value = String(summary ?? '').trim();
-  return !value || /^no data/i.test(value);
-}
-
-function getSourceQuality(ctx: StoredStrategicContext | null): string {
-  return String(ctx?.source_meta?.search_quality ?? 'unknown').trim().toLowerCase();
-}
-
 function hasStructuredStrategicContext(ctx: StoredStrategicContext | null): boolean {
   return !!ctx
     && ctx.version === 2
@@ -64,21 +65,15 @@ function hasStructuredStrategicContext(ctx: StoredStrategicContext | null): bool
     && typeof ctx.source_meta === 'object';
 }
 
-function countQuantitativeCoverage(ctx: StoredStrategicContext | null): number {
-  const quantitative = ctx?.quantitative;
-  if (!quantitative || typeof quantitative !== 'object') return 0;
-  return Object.values(quantitative as unknown as Record<string, unknown>).filter((value) => typeof value === 'number').length;
-}
-
-function hasUsableContext(ctx: StoredStrategicContext | null): boolean {
+function hasUsableContext(
+  ctx: StoredStrategicContext | null,
+  options: EnrichLeagueHints = {},
+): boolean {
   if (!ctx) return false;
   const refreshStatus = String(ctx._meta?.refresh_status ?? '').trim().toLowerCase();
   if (refreshStatus === 'poor' || refreshStatus === 'failed') return false;
   if (!hasStructuredStrategicContext(ctx)) return false;
-  const searchQuality = getSourceQuality(ctx);
-  if (searchQuality === 'low') return false;
-  if (!isPoorSummary(ctx.summary)) return true;
-  return countQuantitativeCoverage(ctx) >= 4;
+  return hasUsableStrategicContext(ctx, { topLeague: options.topLeague });
 }
 
 function normalizeCondition(value: string | null | undefined): string {
@@ -106,8 +101,14 @@ function getRetryAfter(ctx: StoredStrategicContext | null): number | null {
   return Number.isFinite(ts) ? ts : null;
 }
 
-function pickBackoffHours(kind: 'poor' | 'failed', failureCount: number): number {
-  const table = kind === 'poor' ? POOR_BACKOFF_HOURS : FAILURE_BACKOFF_HOURS;
+function pickBackoffMinutes(
+  kind: 'poor' | 'failed',
+  failureCount: number,
+  options: EnrichLeagueHints = {},
+): number {
+  const table = options.topLeague
+    ? (kind === 'poor' ? TOP_LEAGUE_POOR_BACKOFF_MINUTES : TOP_LEAGUE_FAILURE_BACKOFF_MINUTES)
+    : (kind === 'poor' ? POOR_BACKOFF_MINUTES : FAILURE_BACKOFF_MINUTES);
   const index = Math.min(Math.max(failureCount - 1, 0), table.length - 1);
   return table[index]!;
 }
@@ -193,13 +194,14 @@ function buildRetryContext(
   attemptedAt: string,
   seedContext: StoredStrategicContext | null = null,
   errorMessage = '',
+  options: EnrichLeagueHints = {},
 ): StoredStrategicContext {
   const existing = current ?? null;
-  const usable = hasUsableContext(existing);
+  const usable = hasUsableContext(existing, options);
   const previousFailures = Math.max(0, Number(existing?._meta?.failure_count ?? 0));
   const failureCount = previousFailures + 1;
-  const retryHours = pickBackoffHours(kind, failureCount);
-  const retryAfter = new Date(Date.parse(attemptedAt) + retryHours * 60 * 60 * 1000).toISOString();
+  const retryMinutes = pickBackoffMinutes(kind, failureCount, options);
+  const retryAfter = new Date(Date.parse(attemptedAt) + retryMinutes * 60 * 1000).toISOString();
 
   return {
     ...(usable ? existing! : (seedContext ?? buildBasePoorContext(attemptedAt))),
@@ -231,14 +233,15 @@ async function persistRetryState(
   attemptedAt: string,
   seedContext: StoredStrategicContext | null = null,
   errorMessage = '',
+  options: EnrichLeagueHints = {},
 ): Promise<void> {
   const existingContext = (entry.strategic_context as StoredStrategicContext | null) ?? null;
-  const retryContext = buildRetryContext(existingContext, kind, attemptedAt, seedContext, errorMessage);
+  const retryContext = buildRetryContext(existingContext, kind, attemptedAt, seedContext, errorMessage, options);
   const updateFields: Partial<watchlistRepo.WatchlistRow> = {
     strategic_context: retryContext as unknown,
   };
 
-  if (!hasUsableContext(existingContext)) {
+  if (!hasUsableContext(existingContext, options)) {
     updateFields.strategic_context_at = attemptedAt;
   }
 
@@ -250,7 +253,10 @@ export async function enrichWatchlistJob(): Promise<{ checked: number; enriched:
 
   await reportJobProgress(JOB, 'load', 'Loading matches and watchlist...', 5);
   const allMatches = await matchRepo.getAllMatches();
+  const allLeagues = await leaguesRepo.getAllLeagues().catch(() => []);
   const statusMap = new Map<string, string>();
+  const matchMap = new Map(allMatches.map((match) => [match.match_id, match] as const));
+  const leagueMap = new Map(allLeagues.map((league) => [league.league_id, league] as const));
   for (const match of allMatches) {
     statusMap.set(match.match_id, match.status.toUpperCase());
   }
@@ -281,7 +287,13 @@ export async function enrichWatchlistJob(): Promise<{ checked: number; enriched:
     if (force) return true;
 
     const ctx = (entry.strategic_context as StoredStrategicContext | null) ?? null;
-    if (hasUsableContext(ctx)) return false;
+    const match = matchMap.get(entry.match_id);
+    const leagueMeta = match?.league_id != null ? leagueMap.get(match.league_id) : null;
+    const hints: EnrichLeagueHints = {
+      topLeague: leagueMeta?.top_league === true,
+      leagueCountry: leagueMeta?.country ?? null,
+    };
+    if (hasUsableContext(ctx, hints)) return false;
 
     const minsToKickoff = kickoffMinutesByMatchId.get(entry.match_id);
     if (minsToKickoff == null || minsToKickoff < 0 || minsToKickoff > PREMATCH_WINDOW_MINUTES) {
@@ -289,7 +301,7 @@ export async function enrichWatchlistJob(): Promise<{ checked: number; enriched:
     }
 
     const retryAfter = getRetryAfter(ctx);
-    if (retryAfter && retryAfter > now) return false;
+    if (retryAfter && retryAfter > now && !hints.topLeague) return false;
 
     return true;
   });
@@ -313,6 +325,12 @@ export async function enrichWatchlistJob(): Promise<{ checked: number; enriched:
     );
 
     const attemptedAt = new Date().toISOString();
+    const match = matchMap.get(entry.match_id);
+    const leagueMeta = match?.league_id != null ? leagueMap.get(match.league_id) : null;
+    const hints: EnrichLeagueHints = {
+      topLeague: leagueMeta?.top_league === true,
+      leagueCountry: leagueMeta?.country ?? null,
+    };
 
     try {
       const context = await fetchStrategicContext(
@@ -320,22 +338,31 @@ export async function enrichWatchlistJob(): Promise<{ checked: number; enriched:
         entry.away_team,
         entry.league,
         entry.date,
+        hints,
       );
 
       if (!context) {
-        await persistRetryState(entry, 'failed', attemptedAt, null, 'empty_response');
+        await persistRetryState(entry, 'failed', attemptedAt, null, 'empty_response', hints);
         await sleep(API_DELAY_MS);
         continue;
       }
 
-      if (!hasUsableContext(context)) {
-        await persistRetryState(entry, 'poor', attemptedAt, context);
+      const enrichedContext = hints.topLeague
+        ? mergeStrategicContextWithPredictionFallback(context, {
+            homeTeam: entry.home_team,
+            awayTeam: entry.away_team,
+            prediction: entry.prediction,
+          })
+        : context;
+
+      if (!hasUsableContext(enrichedContext, hints)) {
+        await persistRetryState(entry, 'poor', attemptedAt, enrichedContext, '', hints);
         await sleep(API_DELAY_MS);
         continue;
       }
 
       const updateFields: Partial<watchlistRepo.WatchlistRow> = {
-        strategic_context: buildSuccessfulContext(context, attemptedAt) as unknown,
+        strategic_context: buildSuccessfulContext(enrichedContext, attemptedAt) as unknown,
         strategic_context_at: attemptedAt,
       };
 
@@ -346,14 +373,14 @@ export async function enrichWatchlistJob(): Promise<{ checked: number; enriched:
         entry.recommended_custom_condition || '',
       );
       if (force || !existingCond || !isEvaluable || allowRecommendationRefresh) {
-        const aiCond = (context.ai_condition || '').trim();
+        const aiCond = (enrichedContext.ai_condition || '').trim();
         const aiCondIsEvaluable = aiCond.startsWith('(');
 
         if (aiCondIsEvaluable) {
           const autoApplyEnabled = entry.auto_apply_recommended_condition ?? autoApplyDefault;
           (updateFields as Record<string, unknown>).recommended_custom_condition = aiCond;
-          (updateFields as Record<string, unknown>).recommended_condition_reason = context.ai_condition_reason || '';
-          (updateFields as Record<string, unknown>).recommended_condition_reason_vi = context.ai_condition_reason_vi || '';
+          (updateFields as Record<string, unknown>).recommended_condition_reason = enrichedContext.ai_condition_reason || '';
+          (updateFields as Record<string, unknown>).recommended_condition_reason_vi = enrichedContext.ai_condition_reason_vi || '';
           if (
             autoApplyEnabled
             && canAutoApplyCondition(entry.custom_conditions || '', entry.recommended_custom_condition || '')
@@ -377,6 +404,7 @@ export async function enrichWatchlistJob(): Promise<{ checked: number; enriched:
         attemptedAt,
         null,
         err instanceof Error ? err.message : String(err),
+        hints,
       );
     }
 

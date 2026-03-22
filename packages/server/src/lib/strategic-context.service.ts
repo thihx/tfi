@@ -93,6 +93,7 @@ export interface StrategicContextSourceMeta {
   trusted_source_count: number;
   rejected_source_count: number;
   rejected_domains: string[];
+  prediction_fallback_used?: boolean;
 }
 
 export interface StrategicConditionBlueprint {
@@ -127,6 +128,15 @@ export interface StrategicContext extends StrategicContextNarrative {
   };
   quantitative: StrategicContextQuantitative;
   source_meta: StrategicContextSourceMeta;
+}
+
+export interface StrategicContextUsabilityOptions {
+  topLeague?: boolean;
+}
+
+export interface StrategicContextFetchOptions extends StrategicContextUsabilityOptions {
+  leagueCountry?: string | null;
+  rescueMode?: boolean;
 }
 
 const EMPTY_NARRATIVE: StrategicContextNarrative = {
@@ -436,6 +446,31 @@ export function countStrategicQuantitativeCoverage(quantitative: StrategicContex
   return Object.values(quantitative).filter((value) => value != null).length;
 }
 
+export function countStrategicNarrativeCoverage(ctx: Partial<StrategicContext> | null | undefined): number {
+  if (!ctx || typeof ctx !== 'object') return 0;
+  const narrativeRoot = typeof (ctx as Record<string, unknown>).qualitative === 'object' && (ctx as Record<string, unknown>).qualitative
+    ? ((ctx as Record<string, unknown>).qualitative as Record<string, unknown>).en as Record<string, unknown> | undefined
+    : undefined;
+  const pick = (key: keyof StrategicContextNarrative): unknown => {
+    const nested = narrativeRoot?.[key];
+    return nested ?? (ctx as Record<string, unknown>)[key];
+  };
+  const narrative = [
+    pick('home_motivation'),
+    pick('away_motivation'),
+    pick('league_positions'),
+    pick('fixture_congestion'),
+    pick('rotation_risk'),
+    pick('key_absences'),
+    pick('h2h_narrative'),
+    pick('summary'),
+  ];
+  return narrative.filter((value) => {
+    const text = cleanText(value);
+    return !!text && !isNoDataText(text);
+  }).length;
+}
+
 function extractDomain(url: string): string {
   try {
     return new URL(url).hostname.replace(/^www\./, '').toLowerCase();
@@ -635,15 +670,78 @@ export function buildNoDataStrategicContext(searchedAt = new Date().toISOString(
   };
 }
 
-export function hasUsableStrategicContext(ctx: Partial<StrategicContext> | null | undefined): boolean {
+function hasTopLeagueCoverage(ctx: Partial<StrategicContext>): boolean {
+  const summary = cleanText(ctx.summary);
+  if (!summary || isNoDataText(summary)) return false;
+
+  const searchQuality = cleanText(ctx.source_meta?.search_quality).toLowerCase();
+  const quantitativeCoverage = countStrategicQuantitativeCoverage(ctx.quantitative);
+  const qualitativeCoverage = countStrategicNarrativeCoverage(ctx);
+  const trustedSourceCount = Number(ctx.source_meta?.trusted_source_count ?? 0);
+  const predictionFallbackUsed = Boolean((ctx.source_meta as Record<string, unknown> | undefined)?.prediction_fallback_used);
+
+  if (trustedSourceCount >= 1 && qualitativeCoverage >= 5) {
+    return true;
+  }
+  if (predictionFallbackUsed && qualitativeCoverage >= 5 && quantitativeCoverage >= 2) {
+    return true;
+  }
+  if (searchQuality === 'high' || searchQuality === 'medium') {
+    return qualitativeCoverage >= 5 || (qualitativeCoverage >= 4 && quantitativeCoverage >= 2);
+  }
+  return trustedSourceCount >= 1 && qualitativeCoverage >= 4 && quantitativeCoverage >= 2;
+}
+
+function scoreStrategicContextCandidate(
+  ctx: StrategicContext | null,
+  options: StrategicContextUsabilityOptions,
+): number {
+  if (!ctx) return -1;
+  const searchQuality = cleanText(ctx.source_meta?.search_quality).toLowerCase();
+  const trustedSourceCount = Number(ctx.source_meta?.trusted_source_count ?? 0);
+  const qualitativeCoverage = countStrategicNarrativeCoverage(ctx);
+  const quantitativeCoverage = countStrategicQuantitativeCoverage(ctx.quantitative);
+  const summaryBonus = !isNoDataText(ctx.summary) ? 10 : 0;
+  const qualityBonus = searchQuality === 'high'
+    ? 12
+    : searchQuality === 'medium'
+      ? 8
+      : searchQuality === 'low'
+        ? 2
+        : 0;
+  const usableBonus = hasUsableStrategicContext(ctx, options)
+    ? (options.topLeague ? 20 : 10)
+    : 0;
+
+  return qualityBonus
+    + summaryBonus
+    + trustedSourceCount * 5
+    + qualitativeCoverage * 6
+    + quantitativeCoverage * 2
+    + usableBonus;
+}
+
+export function hasUsableStrategicContext(
+  ctx: Partial<StrategicContext> | null | undefined,
+  options: StrategicContextUsabilityOptions = {},
+): boolean {
   if (!ctx || typeof ctx !== 'object') return false;
   if (ctx.version !== 2) return false;
   if (!ctx.source_meta || typeof ctx.source_meta !== 'object') return false;
   const summary = cleanText(ctx.summary);
   const quality = cleanText(ctx.source_meta?.search_quality).toLowerCase();
   const quantitativeCoverage = countStrategicQuantitativeCoverage(ctx.quantitative);
+  const qualitativeCoverage = countStrategicNarrativeCoverage(ctx);
+  const trustedSourceCount = Number(ctx.source_meta?.trusted_source_count ?? 0);
 
-  if (quality === 'low') return false;
+  if (options.topLeague) {
+    return hasTopLeagueCoverage(ctx);
+  }
+
+  if (quality === 'unknown') return false;
+  if (quality === 'low') {
+    return trustedSourceCount >= 1 && qualitativeCoverage >= 5 && !!summary && !isNoDataText(summary);
+  }
   if (summary && !isNoDataText(summary)) return true;
   return quantitativeCoverage >= 4 && quality !== 'low';
 }
@@ -699,10 +797,10 @@ function normalizeContextPayload(payload: unknown, searchedAt: string, sourceMet
     source_meta: sourceMeta,
   };
 
-  if (sourceMeta.search_quality === 'low') {
-    const poor = buildNoDataStrategicContext(searchedAt);
+  if (countStrategicNarrativeCoverage(context) === 0 && countStrategicQuantitativeCoverage(context.quantitative) === 0) {
+    const empty = buildNoDataStrategicContext(searchedAt);
     return {
-      ...poor,
+      ...empty,
       competition_type: context.competition_type,
       source_meta: sourceMeta,
     };
@@ -868,8 +966,9 @@ async function fetchGroundedResearchDraft(
   awayTeam: string,
   league: string,
   dateStr: string,
+  options: StrategicContextFetchOptions = {},
 ): Promise<{ draftText: string; sourceMeta: StrategicContextSourceMeta; fallback: DraftFallbackPayload } | null> {
-  const prompt = buildGroundedResearchDraftPrompt(homeTeam, awayTeam, league, dateStr);
+  const prompt = buildGroundedResearchDraftPrompt(homeTeam, awayTeam, league, dateStr, options);
   const data = await generateGeminiContent(prompt, {
     model: config.geminiStrategicGroundedModel || config.geminiModel,
     withSearch: true,
@@ -894,6 +993,11 @@ async function buildStructuredStrategicContext(
   sourceMeta: StrategicContextSourceMeta,
   fallback: DraftFallbackPayload,
 ): Promise<StrategicContext | null> {
+  const draftOnlyContext = mergeStrategicContextWithDraftFallback(
+    buildNoDataStrategicContext(searchedAt),
+    fallback,
+    sourceMeta,
+  );
   const data = await generateGeminiContent(
     buildStructuredStrategicContextPrompt(draftText, sourceMeta),
     {
@@ -905,10 +1009,10 @@ async function buildStructuredStrategicContext(
       thinkingBudget: config.geminiStrategicStructuredThinkingBudget,
     },
   );
-  if (!data) return null;
+  if (!data) return draftOnlyContext;
 
   const text = extractCandidateText(data);
-  if (!text) return null;
+  if (!text) return draftOnlyContext;
 
   try {
     const parsed = parseStrategicResponse(text, searchedAt, sourceMeta);
@@ -926,19 +1030,53 @@ async function buildStructuredStrategicContext(
       },
     );
     const repairedText = repaired ? extractCandidateText(repaired) : '';
-    if (!repairedText) return null;
-    const repairedParsed = parseStrategicResponse(repairedText, searchedAt, sourceMeta);
-    return mergeStrategicContextWithDraftFallback(repairedParsed, fallback, sourceMeta);
+    if (!repairedText) return draftOnlyContext;
+    try {
+      const repairedParsed = parseStrategicResponse(repairedText, searchedAt, sourceMeta);
+      return mergeStrategicContextWithDraftFallback(repairedParsed, fallback, sourceMeta);
+    } catch {
+      return draftOnlyContext;
+    }
   }
 }
 
-function buildGroundedResearchDraftPrompt(homeTeam: string, awayTeam: string, league: string, dateStr: string): string {
+function buildGroundedResearchDraftPrompt(
+  homeTeam: string,
+  awayTeam: string,
+  league: string,
+  dateStr: string,
+  options: StrategicContextFetchOptions = {},
+): string {
+  const leagueCountry = cleanText(options.leagueCountry);
+  const topLeagueFocus = options.topLeague
+    ? `
+TOP-LEAGUE PRIORITY:
+- This competition is flagged internally as a major top league. Sparse or empty context is unacceptable unless trustworthy sources genuinely have nothing current.
+- You MUST actively try to populate: league_positions, key_absences, fixture_congestion or rotation_risk, and at least one concrete motivation signal for each team.
+- Prefer official league/club sources plus major stats/news sources before settling on "No data found".
+- If country context helps disambiguation, use it: ${leagueCountry || 'unknown country'}.
+`
+    : '';
+  const rescueFocus = options.rescueMode
+    ? `
+RESCUE PASS:
+- Earlier research was empty or too sparse.
+- Re-run the search with country-aware, source-aware discipline.
+- Explicitly try official league table/schedule pages, official club squad/news pages, and major stats/reference pages before concluding "No data found".
+- For top leagues, it is especially important to recover at least:
+  - league_positions
+  - key_absences
+  - fixture_congestion or rotation_risk
+  - a summary grounded in current season context
+`
+    : '';
   return `You are a football pre-match research analyst preparing grounded raw notes for a live betting decision engine.
 
 Match:
 - Home team: ${homeTeam}
 - Away team: ${awayTeam}
 - Competition label: ${league}
+- Competition country: ${leagueCountry || 'unknown'}
 - Match date: ${dateStr}
 
 SEARCH DISCIPLINE:
@@ -952,6 +1090,8 @@ SEARCH DISCIPLINE:
 - Do NOT invent exact numbers.
 - Do NOT infer team strength solely from brand size, reputation, or club-name recognition.
 - Return ENGLISH only in this step.
+${topLeagueFocus}
+${rescueFocus}
 
 TASKS:
 1. Produce concise qualitative notes:
@@ -1157,6 +1297,7 @@ export async function fetchStrategicContext(
   awayTeam: string,
   league: string,
   matchDate: string | null,
+  options: StrategicContextFetchOptions = {},
 ): Promise<StrategicContext | null> {
   if (!config.geminiApiKey) {
     console.warn('[strategic-context] GEMINI_API_KEY not configured, skipping');
@@ -1171,7 +1312,7 @@ export async function fetchStrategicContext(
     let groundedError: unknown = null;
     for (let attempt = 0; attempt < 2; attempt++) {
       try {
-        grounded = await fetchGroundedResearchDraft(homeTeam, awayTeam, league, dateStr);
+        grounded = await fetchGroundedResearchDraft(homeTeam, awayTeam, league, dateStr, options);
         if (grounded) break;
       } catch (err) {
         groundedError = err;
@@ -1188,7 +1329,7 @@ export async function fetchStrategicContext(
       return null;
     }
 
-    const structured = await buildStructuredStrategicContext(
+    let structured = await buildStructuredStrategicContext(
       grounded.draftText,
       searchedAt,
       grounded.sourceMeta,
@@ -1198,6 +1339,36 @@ export async function fetchStrategicContext(
       console.error('[strategic-context] Structured JSON synthesis failed');
       return null;
     }
+
+    if (options.topLeague && !hasUsableStrategicContext(structured, { topLeague: true })) {
+      try {
+        const rescueGrounded = await fetchGroundedResearchDraft(
+          homeTeam,
+          awayTeam,
+          league,
+          dateStr,
+          {
+            ...options,
+            topLeague: true,
+            rescueMode: true,
+          },
+        );
+        if (rescueGrounded) {
+          const rescueStructured = await buildStructuredStrategicContext(
+            rescueGrounded.draftText,
+            searchedAt,
+            rescueGrounded.sourceMeta,
+            rescueGrounded.fallback,
+          );
+          if (scoreStrategicContextCandidate(rescueStructured, { topLeague: true }) > scoreStrategicContextCandidate(structured, { topLeague: true })) {
+            structured = rescueStructured ?? structured;
+          }
+        }
+      } catch (err) {
+        console.warn('[strategic-context] Top-league rescue pass failed:', err instanceof Error ? err.message : String(err));
+      }
+    }
+
     return structured;
   } catch (err) {
     if (err instanceof Error && err.name === 'AbortError') {

@@ -514,6 +514,9 @@ function buildStrategicContextSection(strategicContext: Record<string, unknown> 
   lines.push('STRATEGIC CONTEXT (FROM PRE-MATCH RESEARCH)');
   lines.push('========================');
   lines.push(`SOURCE_QUALITY: ${searchQuality}`);
+  if (sourceMeta.prediction_fallback_used === true) {
+    lines.push('PREDICTION_FALLBACK_USED: YES');
+  }
   if (trustedDomains.length > 0) {
     lines.push(`TRUSTED_SOURCE_DOMAINS: ${Array.from(new Set(trustedDomains)).join(', ')}`);
   }
@@ -660,6 +663,9 @@ function buildStrategicContextSectionCompact(strategicContext: Record<string, un
   lines.push('STRATEGIC CONTEXT');
   lines.push('========================');
   lines.push(`SOURCE_QUALITY: ${searchQuality}`);
+  if (sourceMeta.prediction_fallback_used === true) {
+    lines.push('PREDICTION_FALLBACK_USED: YES');
+  }
   if (trustedDomains.length > 0) {
     lines.push(`TRUSTED_SOURCE_DOMAINS: ${Array.from(new Set(trustedDomains)).join(', ')}`);
   }

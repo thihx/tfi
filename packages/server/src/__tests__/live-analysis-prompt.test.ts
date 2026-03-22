@@ -234,6 +234,7 @@ describe('buildLiveAnalysisPrompt', () => {
         version: 2,
         source_meta: {
           search_quality: 'high',
+          prediction_fallback_used: true,
           web_search_queries: ['Premier League table', 'team injuries'],
           sources: [
             { domain: 'reuters.com', trust_tier: 'tier_1' },
@@ -247,6 +248,7 @@ describe('buildLiveAnalysisPrompt', () => {
     }, settings);
 
     expect(prompt).toContain('SOURCE_QUALITY: high');
+    expect(prompt).toContain('PREDICTION_FALLBACK_USED: YES');
     expect(prompt).toContain('TRUSTED_SOURCE_DOMAINS: reuters.com, fbref.com');
     expect(prompt).toContain('QUANTITATIVE_PREMATCH_PRIORS: {"home_last5_points":11,"away_last5_points":4,"home_last5_goals_for":9,"away_last5_goals_for":4}');
     expect(prompt).toContain('Treat strategic context as secondary pre-match prior.');

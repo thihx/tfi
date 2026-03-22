@@ -408,7 +408,7 @@ ALERT_RATIONALE:`,
     expect(secondBody.thinkingConfig).toBeUndefined();
   });
 
-  test('downgrades low-trust grounded search output to no-data context', async () => {
+  test('preserves populated low-trust grounded search output for operator review', async () => {
     fetchMock
       .mockResolvedValueOnce(makeGeminiResponse(
         `COMPETITION_TYPE: domestic_league
@@ -488,11 +488,67 @@ ALERT_RATIONALE: Weak evidence`,
     const context = await fetchStrategicContext('Team A', 'Team B', 'League', '2026-03-21');
 
     expect(context).not.toBeNull();
-    expect(context?.summary).toBe('No data found');
-    expect(context?.summary_vi).toBe('Khong tim thay du lieu');
-    expect(context?.ai_condition).toBe('');
+    expect(context?.summary).toBe('Narrative from weak sources.');
+    expect(context?.summary_vi).toBe('Narrative tu nguon yeu.');
+    expect(context?.ai_condition).toBe('(Minute >= 55) AND (Draw)');
     expect(context?.source_meta.search_quality).toBe('low');
     expect(context?.source_meta.rejected_source_count).toBe(1);
+  });
+
+  test('salvages grounded draft fields when structured synthesis and repair both fail', async () => {
+    fetchMock
+      .mockResolvedValueOnce(makeGeminiResponse(
+        `COMPETITION_TYPE: domestic_league
+HOME_MOTIVATION: Home side is pushing for Champions League qualification.
+AWAY_MOTIVATION: Away side needs points to avoid relegation trouble.
+LEAGUE_POSITIONS: Home 4th, Away 18th in the same domestic league.
+FIXTURE_CONGESTION: Home played in Europe midweek.
+ROTATION_RISK: Moderate rotation risk for the home side.
+KEY_ABSENCES: Away side missing two first-team defenders.
+H2H_NARRATIVE: Home won three of the last five meetings.
+SUMMARY: Strong motivational context with clear table pressure on both teams.
+HOME_LAST5_POINTS: 9
+AWAY_LAST5_POINTS: 4
+HOME_LAST5_GOALS_FOR: null
+AWAY_LAST5_GOALS_FOR: null
+HOME_LAST5_GOALS_AGAINST: null
+AWAY_LAST5_GOALS_AGAINST: null
+HOME_HOME_GOALS_AVG: null
+AWAY_AWAY_GOALS_AVG: null
+HOME_OVER_2_5_RATE_LAST10: null
+AWAY_OVER_2_5_RATE_LAST10: null
+HOME_BTTS_RATE_LAST10: null
+AWAY_BTTS_RATE_LAST10: null
+HOME_CLEAN_SHEET_RATE_LAST10: null
+AWAY_CLEAN_SHEET_RATE_LAST10: null
+HOME_FAILED_TO_SCORE_RATE_LAST10: null
+AWAY_FAILED_TO_SCORE_RATE_LAST10: null
+ALERT_WINDOW_START: 60
+ALERT_WINDOW_END: null
+PREFERRED_SCORE_STATE: not_home_leading
+PREFERRED_GOAL_STATE: any
+FAVOURED_SIDE: home
+ALERT_RATIONALE: Home urgency should matter if they are not ahead after the hour mark.`,
+        {
+          groundingChunks: [
+            { web: { uri: 'https://www.reuters.com/world/uk/example-story', title: 'Reuters squad update' } },
+            { web: { uri: 'https://fbref.com/en/matches/example', title: 'FBref match report' } },
+          ],
+        },
+      ))
+      .mockResolvedValueOnce(makeGeminiResponse('{ \"qualitative_en\": '))
+      .mockResolvedValueOnce(makeGeminiResponse('{ \"still_broken\": '));
+
+    const context = await fetchStrategicContext('Aston Villa', 'West Ham', 'Premier League', '2026-03-22', {
+      topLeague: true,
+      leagueCountry: 'England',
+    });
+
+    expect(context).not.toBeNull();
+    expect(context?.summary).toContain('Strong motivational context');
+    expect(context?.league_positions).toContain('Home 4th, Away 18th');
+    expect(context?.key_absences).toContain('Away side missing two first-team defenders');
+    expect(context?.source_meta.trusted_source_count).toBe(2);
   });
 
   test('classifies wrapped Google grounding redirect sources by the original source title domain', async () => {
@@ -647,6 +703,174 @@ SOURCE_DOMAINS: fbref.com,premierleague.com`,
     });
 
     expect(usable).toBe(true);
+  });
+
+  test('keeps populated low-quality top-league context instead of collapsing it to no-data', async () => {
+    fetchMock
+      .mockResolvedValueOnce(makeGeminiResponse(
+        `COMPETITION_TYPE: domestic_league
+HOME_MOTIVATION: Barcelona are pushing to protect top spot.
+AWAY_MOTIVATION: Rayo still need points for the top-half chase.
+LEAGUE_POSITIONS: Barcelona 1st, Rayo 9th.
+FIXTURE_CONGESTION: Barcelona played midweek in Europe.
+ROTATION_RISK: Some Barcelona rotation is possible after Europe.
+KEY_ABSENCES: Rayo are missing one starting midfielder.
+H2H_NARRATIVE: Barcelona won the last two league meetings.
+SUMMARY: Strong top-league context with current table and squad notes.
+HOME_LAST5_POINTS: 12
+AWAY_LAST5_POINTS: 7
+HOME_LAST5_GOALS_FOR: 10
+AWAY_LAST5_GOALS_FOR: 6
+HOME_LAST5_GOALS_AGAINST: 3
+AWAY_LAST5_GOALS_AGAINST: 5
+HOME_HOME_GOALS_AVG: 2.1
+AWAY_AWAY_GOALS_AVG: 1.0
+HOME_OVER_2_5_RATE_LAST10: 70
+AWAY_OVER_2_5_RATE_LAST10: 40
+HOME_BTTS_RATE_LAST10: 50
+AWAY_BTTS_RATE_LAST10: 45
+HOME_CLEAN_SHEET_RATE_LAST10: 40
+AWAY_CLEAN_SHEET_RATE_LAST10: 20
+HOME_FAILED_TO_SCORE_RATE_LAST10: 10
+AWAY_FAILED_TO_SCORE_RATE_LAST10: 20
+ALERT_WINDOW_START: 55
+ALERT_WINDOW_END: null
+PREFERRED_SCORE_STATE: not_home_leading
+PREFERRED_GOAL_STATE: goals_lte_2
+FAVOURED_SIDE: home
+ALERT_RATIONALE: Barcelona tend to press for a late goal if not ahead.`,
+        {
+          groundingChunks: [
+            { web: { uri: 'https://www.fotmob.com/match/123', title: 'FotMob Barcelona vs Rayo' } },
+            { web: { uri: 'https://www.sportsmole.co.uk/football/barcelona/preview', title: 'Sports Mole preview' } },
+            { web: { uri: 'https://www.flashscoreusa.com/match/abc', title: 'Flashscore match page' } },
+          ],
+        },
+      ))
+      .mockResolvedValueOnce(makeGeminiResponse(JSON.stringify({
+        qualitative_en: {
+          home_motivation: 'Barcelona are pushing to protect top spot.',
+          away_motivation: 'Rayo still need points for the top-half chase.',
+          league_positions: 'Barcelona 1st, Rayo 9th.',
+          fixture_congestion: 'Barcelona played midweek in Europe.',
+          rotation_risk: 'Some Barcelona rotation is possible after Europe.',
+          key_absences: 'Rayo are missing one starting midfielder.',
+          h2h_narrative: 'Barcelona won the last two league meetings.',
+          summary: 'Strong top-league context with current table and squad notes.',
+        },
+        qualitative_vi: {
+          home_motivation: 'Barcelona dang bao ve ngoi dau.',
+          away_motivation: 'Rayo can diem de dua top nua tren.',
+          league_positions: 'Barcelona dung 1, Rayo dung 9.',
+          fixture_congestion: 'Barcelona vua da cup chau Au giua tuan.',
+          rotation_risk: 'Barcelona co the xoay tua nhe.',
+          key_absences: 'Rayo mat mot tien ve da chinh.',
+          h2h_narrative: 'Barcelona thang 2 lan gap gan nhat.',
+          summary: 'Ngu canh top-league day du voi BXH va tin luc luong.',
+        },
+        quantitative: {
+          home_last5_points: 12,
+          away_last5_points: 7,
+          home_last5_goals_for: 10,
+          away_last5_goals_for: 6,
+          home_last5_goals_against: 3,
+          away_last5_goals_against: 5,
+          home_home_goals_avg: 2.1,
+          away_away_goals_avg: 1.0,
+          home_over_2_5_rate_last10: 70,
+          away_over_2_5_rate_last10: 40,
+          home_btts_rate_last10: 50,
+          away_btts_rate_last10: 45,
+          home_clean_sheet_rate_last10: 40,
+          away_clean_sheet_rate_last10: 20,
+          home_failed_to_score_rate_last10: 10,
+          away_failed_to_score_rate_last10: 20,
+        },
+        competition_type: 'domestic_league',
+        condition_blueprint: {
+          alert_window_start: 55,
+          alert_window_end: null,
+          preferred_score_state: 'not_home_leading',
+          preferred_goal_state: 'goals_lte_2',
+          favoured_side: 'home',
+          alert_rationale_en: 'Barcelona tend to press for a late goal if not ahead.',
+          alert_rationale_vi: 'Barcelona thuong day cao neu chua dan truoc.',
+        },
+      })));
+
+    const context = await fetchStrategicContext(
+      'Barcelona',
+      'Rayo Vallecano',
+      'La Liga',
+      '2026-03-22',
+      { topLeague: true, leagueCountry: 'Spain' },
+    );
+
+    expect(context?.summary).toContain('Strong top-league context');
+    expect(context?.source_meta.search_quality).toBe('low');
+    expect(hasUsableStrategicContext(context, { topLeague: true })).toBe(true);
+  });
+
+  test('requires broader coverage for top-league usability than for regular leagues', () => {
+    const sparseTopLeagueContext = {
+      version: 2 as const,
+      home_motivation: 'Home side is pushing for Europe.',
+      away_motivation: 'Away side is fighting relegation.',
+      league_positions: '5th vs 18th',
+      fixture_congestion: 'No data found',
+      rotation_risk: 'No data found',
+      key_absences: 'No data found',
+      h2h_narrative: 'No data found',
+      summary: 'Top league summary exists but supporting detail is sparse.',
+      quantitative: {
+        home_last5_points: null,
+        away_last5_points: null,
+        home_last5_goals_for: null,
+        away_last5_goals_for: null,
+        home_last5_goals_against: null,
+        away_last5_goals_against: null,
+        home_home_goals_avg: null,
+        away_away_goals_avg: null,
+        home_over_2_5_rate_last10: null,
+        away_over_2_5_rate_last10: null,
+        home_btts_rate_last10: null,
+        away_btts_rate_last10: null,
+        home_clean_sheet_rate_last10: null,
+        away_clean_sheet_rate_last10: null,
+        home_failed_to_score_rate_last10: null,
+        away_failed_to_score_rate_last10: null,
+      },
+      source_meta: {
+        search_quality: 'high' as const,
+        web_search_queries: ['premier league injuries'],
+        sources: [
+          {
+            title: 'Reuters',
+            url: 'https://reuters.com/example',
+            domain: 'reuters.com',
+            publisher: 'Reuters',
+            language: 'en' as const,
+            source_type: 'major_news' as const,
+            trust_tier: 'tier_1' as const,
+          },
+          {
+            title: 'FBref',
+            url: 'https://fbref.com/example',
+            domain: 'fbref.com',
+            publisher: 'FBref',
+            language: 'en' as const,
+            source_type: 'stats_reference' as const,
+            trust_tier: 'tier_2' as const,
+          },
+        ],
+        trusted_source_count: 2,
+        rejected_source_count: 0,
+        rejected_domains: [],
+      },
+    };
+
+    expect(hasUsableStrategicContext(sparseTopLeagueContext)).toBe(true);
+    expect(hasUsableStrategicContext(sparseTopLeagueContext, { topLeague: true })).toBe(false);
   });
 
   test('treats legacy context without version/source metadata as not usable', () => {

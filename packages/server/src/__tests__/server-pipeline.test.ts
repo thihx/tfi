@@ -383,6 +383,20 @@ vi.mock('../repos/league-profiles.repo.js', () => ({
   }),
 }));
 
+vi.mock('../repos/leagues.repo.js', () => ({
+  getLeagueById: vi.fn().mockResolvedValue({
+    league_id: 39,
+    league_name: 'Test League',
+    country: 'England',
+    tier: '1',
+    active: true,
+    top_league: true,
+    type: 'league',
+    logo: '',
+    last_updated: '',
+  }),
+}));
+
 const {
   runPipelineBatch,
   runPromptOnlyAnalysisForMatch,
@@ -1445,6 +1459,9 @@ describe('runPipelineBatch', () => {
       strategic_context: {
         summary: 'Structured strategic context summary.',
         competition_type: 'domestic_league',
+        _meta: {
+          refresh_status: 'good',
+        },
         qualitative: {
           en: {
             home_motivation: 'Home side is chasing Europe.',
@@ -1496,6 +1513,68 @@ describe('runPipelineBatch', () => {
     expect(prompt).toContain('TRUSTED_SOURCE_DOMAINS: reuters.com, fbref.com');
     expect(prompt).toContain('"home_last5_points":10');
     expect(prompt).toContain('SUMMARY: Structured strategic context summary.');
+  });
+
+  test('does not inject sparse top-league strategic context even if stored refresh_status is good', async () => {
+    const watchlistRepo = await import('../repos/watchlist.repo.js');
+    vi.mocked(watchlistRepo.getWatchlistByMatchId).mockResolvedValueOnce({
+      ...mockWatchlistEntry,
+      strategic_context: {
+        version: 2,
+        summary: 'Sparse top-league context.',
+        home_motivation: 'Home still chasing Europe.',
+        away_motivation: 'Away still fighting survival.',
+        league_positions: '5th vs 18th',
+        fixture_congestion: 'No data found',
+        rotation_risk: 'No data found',
+        key_absences: 'No data found',
+        h2h_narrative: 'No data found',
+        qualitative: {
+          en: {
+            home_motivation: 'Home still chasing Europe.',
+            away_motivation: 'Away still fighting survival.',
+            league_positions: '5th vs 18th',
+            fixture_congestion: 'No data found',
+            rotation_risk: 'No data found',
+            key_absences: 'No data found',
+            h2h_narrative: 'No data found',
+            summary: 'Sparse top-league context.',
+          },
+          vi: {
+            home_motivation: 'Chu nha van dua top chau Au.',
+            away_motivation: 'Doi khach van dua tru hang.',
+            league_positions: 'Thu 5 vs thu 18',
+            fixture_congestion: 'Khong tim thay du lieu',
+            rotation_risk: 'Khong tim thay du lieu',
+            key_absences: 'Khong tim thay du lieu',
+            h2h_narrative: 'Khong tim thay du lieu',
+            summary: 'Ngu canh top league qua mong.',
+          },
+        },
+        quantitative: {},
+        source_meta: {
+          search_quality: 'high',
+          web_search_queries: ['premier league injuries'],
+          sources: [
+            { domain: 'reuters.com', trust_tier: 'tier_1' },
+            { domain: 'fbref.com', trust_tier: 'tier_2' },
+          ],
+          trusted_source_count: 2,
+          rejected_source_count: 0,
+          rejected_domains: [],
+        },
+        _meta: {
+          refresh_status: 'good',
+        },
+      },
+    } as never);
+
+    await runPipelineBatch(['100']);
+
+    const { callGemini } = await import('../lib/gemini.js');
+    const prompt = vi.mocked(callGemini).mock.calls[0][0];
+    expect(prompt).not.toContain('Sparse top-league context.');
+    expect(prompt).not.toContain('TRUSTED_SOURCE_DOMAINS: reuters.com, fbref.com');
   });
 
   test('logs audit on successful analysis', async () => {

@@ -14,9 +14,16 @@ vi.mock('../jobs/job-progress.js', () => ({
 
 vi.mock('../repos/matches.repo.js', () => ({
   getAllMatches: vi.fn().mockResolvedValue([
-    { match_id: '100', status: 'NS' },
-    { match_id: '200', status: '1H' },
-    { match_id: '300', status: 'NS' },
+    { match_id: '100', status: 'NS', league_id: 39 },
+    { match_id: '200', status: '1H', league_id: 39 },
+    { match_id: '300', status: 'NS', league_id: 140 },
+  ]),
+}));
+
+vi.mock('../repos/leagues.repo.js', () => ({
+  getAllLeagues: vi.fn().mockResolvedValue([
+    { league_id: 39, league_name: 'Premier League', country: 'England', top_league: true, active: true, tier: '1', type: 'league', logo: '', last_updated: '' },
+    { league_id: 140, league_name: 'La Liga', country: 'Spain', top_league: true, active: true, tier: '1', type: 'league', logo: '', last_updated: '' },
   ]),
 }));
 
@@ -145,9 +152,13 @@ vi.mock('../repos/watchlist.repo.js', () => ({
   updateWatchlistEntry: vi.fn().mockResolvedValue({}),
 }));
 
-vi.mock('../lib/strategic-context.service.js', () => ({
-  fetchStrategicContext: vi.fn().mockResolvedValue(defaultStrategicContext),
-}));
+vi.mock('../lib/strategic-context.service.js', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../lib/strategic-context.service.js')>();
+  return {
+    ...actual,
+    fetchStrategicContext: vi.fn(),
+  };
+});
 
 const { enrichWatchlistJob } = await import('../jobs/enrich-watchlist.job.js');
 
@@ -167,9 +178,15 @@ beforeEach(async () => {
 
   const matchRepo = await import('../repos/matches.repo.js');
   vi.mocked(matchRepo.getAllMatches).mockResolvedValue([
-    { match_id: '100', status: 'NS' },
-    { match_id: '200', status: '1H' },
-    { match_id: '300', status: 'NS' },
+    { match_id: '100', status: 'NS', league_id: 39 },
+    { match_id: '200', status: '1H', league_id: 39 },
+    { match_id: '300', status: 'NS', league_id: 140 },
+  ] as never);
+
+  const leaguesRepo = await import('../repos/leagues.repo.js');
+  vi.mocked(leaguesRepo.getAllLeagues).mockResolvedValue([
+    { league_id: 39, league_name: 'Premier League', country: 'England', top_league: true, active: true, tier: '1', type: 'league', logo: '', last_updated: '' },
+    { league_id: 140, league_name: 'La Liga', country: 'Spain', top_league: true, active: true, tier: '1', type: 'league', logo: '', last_updated: '' },
   ] as never);
 
   const service = await import('../lib/strategic-context.service.js');
@@ -214,7 +231,7 @@ describe('enrichWatchlistJob', () => {
     ] as never);
     const matchRepo = await import('../repos/matches.repo.js');
     vi.mocked(matchRepo.getAllMatches).mockResolvedValueOnce([
-      { match_id: '400', status: 'NS' },
+      { match_id: '400', status: 'NS', league_id: 39 },
     ] as never);
 
     const result = await enrichWatchlistJob();
@@ -238,7 +255,7 @@ describe('enrichWatchlistJob', () => {
     ] as never);
     const matchRepo = await import('../repos/matches.repo.js');
     vi.mocked(matchRepo.getAllMatches).mockResolvedValueOnce([
-      { match_id: '450', status: 'NS' },
+      { match_id: '450', status: 'NS', league_id: 39 },
     ] as never);
 
     const result = await enrichWatchlistJob();
@@ -299,7 +316,7 @@ describe('enrichWatchlistJob', () => {
     ] as never);
     const matchRepo = await import('../repos/matches.repo.js');
     vi.mocked(matchRepo.getAllMatches).mockResolvedValueOnce([
-      { match_id: '500', status: 'NS' },
+      { match_id: '500', status: 'NS', league_id: 39 },
     ] as never);
 
     await enrichWatchlistJob();
@@ -335,7 +352,7 @@ describe('enrichWatchlistJob', () => {
     ] as never);
     const matchRepo = await import('../repos/matches.repo.js');
     vi.mocked(matchRepo.getAllMatches).mockResolvedValueOnce([
-      { match_id: '510', status: 'NS' },
+      { match_id: '510', status: 'NS', league_id: 39 },
     ] as never);
 
     await enrichWatchlistJob();
@@ -367,7 +384,7 @@ describe('enrichWatchlistJob', () => {
     ] as never);
     const matchRepo = await import('../repos/matches.repo.js');
     vi.mocked(matchRepo.getAllMatches).mockResolvedValueOnce([
-      { match_id: '520', status: 'NS' },
+      { match_id: '520', status: 'NS', league_id: 39 },
     ] as never);
 
     await enrichWatchlistJob();
@@ -410,7 +427,7 @@ describe('enrichWatchlistJob', () => {
     ] as never);
     const matchRepo = await import('../repos/matches.repo.js');
     vi.mocked(matchRepo.getAllMatches).mockResolvedValueOnce([
-      { match_id: '600', status: 'NS' },
+      { match_id: '600', status: 'NS', league_id: 999 },
     ] as never);
 
     const result = await enrichWatchlistJob();
@@ -443,7 +460,7 @@ describe('enrichWatchlistJob', () => {
     ] as never);
     const matchRepo = await import('../repos/matches.repo.js');
     vi.mocked(matchRepo.getAllMatches).mockResolvedValueOnce([
-      { match_id: '700', status: 'NS' },
+      { match_id: '700', status: 'NS', league_id: 39 },
     ] as never);
     const result = await enrichWatchlistJob();
     const service = await import('../lib/strategic-context.service.js');
@@ -475,7 +492,7 @@ describe('enrichWatchlistJob', () => {
     ] as never);
     const matchRepo = await import('../repos/matches.repo.js');
     vi.mocked(matchRepo.getAllMatches).mockResolvedValueOnce([
-      { match_id: '750', status: 'NS' },
+      { match_id: '750', status: 'NS', league_id: 39 },
     ] as never);
     const service = await import('../lib/strategic-context.service.js');
     vi.mocked(service.fetchStrategicContext).mockResolvedValueOnce(defaultStrategicContext as never);
@@ -513,7 +530,7 @@ describe('enrichWatchlistJob', () => {
     ] as never);
     const matchRepo = await import('../repos/matches.repo.js');
     vi.mocked(matchRepo.getAllMatches).mockResolvedValueOnce([
-      { match_id: '800', status: 'NS' },
+      { match_id: '800', status: 'NS', league_id: 999 },
     ] as never);
     const service = await import('../lib/strategic-context.service.js');
     vi.mocked(service.fetchStrategicContext).mockResolvedValueOnce({
@@ -578,7 +595,7 @@ describe('enrichWatchlistJob', () => {
     ] as never);
     const matchRepo = await import('../repos/matches.repo.js');
     vi.mocked(matchRepo.getAllMatches).mockResolvedValueOnce([
-      { match_id: '900', status: 'NS' },
+      { match_id: '900', status: 'NS', league_id: 39 },
     ] as never);
     const service = await import('../lib/strategic-context.service.js');
     vi.mocked(service.fetchStrategicContext).mockResolvedValueOnce({
@@ -603,6 +620,170 @@ describe('enrichWatchlistJob', () => {
         strategic_context: expect.objectContaining({
           _meta: expect.objectContaining({ refresh_status: 'poor' }),
           source_meta: expect.objectContaining({ search_quality: 'low' }),
+        }),
+      }),
+    );
+  });
+
+  test('retries top-league poor context even when legacy retry_after is still in the future', async () => {
+    const watchlistRepo = await import('../repos/watchlist.repo.js');
+    vi.mocked(watchlistRepo.getActiveWatchlist).mockResolvedValueOnce([
+      {
+        match_id: '950',
+        home_team: 'Barcelona',
+        away_team: 'Rayo Vallecano',
+        league: 'La Liga',
+        date: '2026-03-17',
+        status: 'active',
+        strategic_context: {
+          ...defaultStrategicContext,
+          summary: 'No data found',
+          summary_vi: 'Khong tim thay du lieu',
+          source_meta: {
+            ...defaultStrategicContext.source_meta,
+            search_quality: 'low',
+            trusted_source_count: 1,
+          },
+          _meta: {
+            refresh_status: 'poor',
+            retry_after: new Date(Date.now() + 8 * 60 * 60 * 1000).toISOString(),
+          },
+        },
+        strategic_context_at: sixHoursAgo,
+        recommended_custom_condition: '',
+        custom_conditions: '',
+      },
+    ] as never);
+    const matchRepo = await import('../repos/matches.repo.js');
+    vi.mocked(matchRepo.getAllMatches).mockResolvedValueOnce([
+      { match_id: '950', status: 'NS', league_id: 140 },
+    ] as never);
+    const service = await import('../lib/strategic-context.service.js');
+    vi.mocked(service.fetchStrategicContext).mockResolvedValueOnce(defaultStrategicContext as never);
+
+    const result = await enrichWatchlistJob();
+
+    expect(result.checked).toBe(1);
+    expect(result.enriched).toBe(1);
+    expect(service.fetchStrategicContext).toHaveBeenCalledWith(
+      'Barcelona',
+      'Rayo Vallecano',
+      'La Liga',
+      '2026-03-17',
+      expect.objectContaining({
+        topLeague: true,
+        leagueCountry: 'Spain',
+      }),
+    );
+  });
+
+  test('uses deterministic prediction fallback to rescue sparse top-league context', async () => {
+    const watchlistRepo = await import('../repos/watchlist.repo.js');
+    vi.mocked(watchlistRepo.getActiveWatchlist).mockResolvedValueOnce([
+      {
+        match_id: '980',
+        home_team: 'Barcelona',
+        away_team: 'Rayo Vallecano',
+        league: 'La Liga',
+        date: '2026-03-17',
+        status: 'active',
+        strategic_context_at: null,
+        recommended_custom_condition: '',
+        custom_conditions: '',
+        prediction: {
+          predictions: {
+            advice: 'Winner : Barcelona',
+            winner: { name: 'Barcelona' },
+          },
+          team_form: {
+            home: 'WWDWW',
+            away: 'WLDLD',
+          },
+          h2h_summary: {
+            total: 5,
+            home_wins: 3,
+            away_wins: 0,
+            draws: 2,
+          },
+        },
+      },
+    ] as never);
+    const matchRepo = await import('../repos/matches.repo.js');
+    vi.mocked(matchRepo.getAllMatches).mockResolvedValueOnce([
+      { match_id: '980', status: 'NS', league_id: 140 },
+    ] as never);
+    const service = await import('../lib/strategic-context.service.js');
+    vi.mocked(service.fetchStrategicContext).mockResolvedValueOnce({
+      ...defaultStrategicContext,
+      home_motivation: 'Barcelona have title pressure.',
+      away_motivation: 'Rayo still need points.',
+      league_positions: 'No data found',
+      fixture_congestion: 'No data found',
+      rotation_risk: 'No data found',
+      key_absences: 'No data found',
+      h2h_narrative: 'No data found',
+      summary: 'No data found',
+      home_motivation_vi: 'Barcelona co ap luc dua vo dich.',
+      away_motivation_vi: 'Rayo van can diem.',
+      league_positions_vi: 'Khong tim thay du lieu',
+      fixture_congestion_vi: 'Khong tim thay du lieu',
+      rotation_risk_vi: 'Khong tim thay du lieu',
+      key_absences_vi: 'Khong tim thay du lieu',
+      h2h_narrative_vi: 'Khong tim thay du lieu',
+      summary_vi: 'Khong tim thay du lieu',
+      qualitative: {
+        en: {
+          ...defaultStrategicContext.qualitative.en,
+          home_motivation: 'Barcelona have title pressure.',
+          away_motivation: 'Rayo still need points.',
+          league_positions: 'No data found',
+          fixture_congestion: 'No data found',
+          rotation_risk: 'No data found',
+          key_absences: 'No data found',
+          h2h_narrative: 'No data found',
+          summary: 'No data found',
+        },
+        vi: {
+          ...defaultStrategicContext.qualitative.vi,
+          home_motivation: 'Barcelona co ap luc dua vo dich.',
+          away_motivation: 'Rayo van can diem.',
+          league_positions: 'Khong tim thay du lieu',
+          fixture_congestion: 'Khong tim thay du lieu',
+          rotation_risk: 'Khong tim thay du lieu',
+          key_absences: 'Khong tim thay du lieu',
+          h2h_narrative: 'Khong tim thay du lieu',
+          summary: 'Khong tim thay du lieu',
+        },
+      },
+      quantitative: {
+        ...defaultStrategicContext.quantitative,
+        home_last5_points: null,
+        away_last5_points: null,
+      },
+      source_meta: {
+        ...defaultStrategicContext.source_meta,
+        search_quality: 'low',
+        trusted_source_count: 1,
+      },
+    } as never);
+
+    const result = await enrichWatchlistJob();
+
+    expect(result.checked).toBe(1);
+    expect(result.enriched).toBe(1);
+    expect(watchlistRepo.updateWatchlistEntry).toHaveBeenCalledWith(
+      '980',
+      expect.objectContaining({
+        strategic_context: expect.objectContaining({
+          summary: expect.stringContaining('Pre-match model leans Barcelona.'),
+          h2h_narrative: expect.stringContaining('Last 5 H2H'),
+          quantitative: expect.objectContaining({
+            home_last5_points: 13,
+            away_last5_points: 5,
+          }),
+          _meta: expect.objectContaining({
+            refresh_status: 'good',
+          }),
         }),
       }),
     );
