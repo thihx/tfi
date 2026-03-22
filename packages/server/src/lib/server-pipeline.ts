@@ -112,6 +112,8 @@ function buildConfigPipelineSettings(): PipelineSettings {
 async function loadPipelineSettings(): Promise<PipelineSettings> {
   const fallback = buildConfigPipelineSettings();
   const db = await getSettings().catch(() => ({} as Record<string, unknown>));
+  const webPushEnabled = db['WEB_PUSH_ENABLED'] === true || db['WEB_PUSH_ENABLED'] === 'true';
+  console.log(`[pipeline] Settings loaded: webPushEnabled=${webPushEnabled} (raw=${JSON.stringify(db['WEB_PUSH_ENABLED'])}), telegramEnabled=${db['TELEGRAM_ENABLED'] !== false}`);
   return {
     telegramChatId: String(db['TELEGRAM_CHAT_ID'] || '') || fallback.telegramChatId,
     aiModel: String(db['AI_MODEL'] || '') || fallback.aiModel,
@@ -129,7 +131,7 @@ async function loadPipelineSettings(): Promise<PipelineSettings> {
       ? (db['NOTIFICATION_LANGUAGE'] as 'vi' | 'en' | 'both')
       : fallback.notificationLanguage,
     telegramEnabled: db['TELEGRAM_ENABLED'] === false ? false : fallback.telegramEnabled,
-    webPushEnabled: db['WEB_PUSH_ENABLED'] === true,
+    webPushEnabled,
   };
 }
 
