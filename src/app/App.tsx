@@ -76,6 +76,27 @@ function AppContent() {
     return () => window.removeEventListener('tfi:navigate', handler);
   }, []);
 
+  // Handle ?tab= URL param (e.g. from push notification click opening the app)
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const tab = params.get('tab') as TabName | null;
+    if (tab) {
+      setActiveTab(tab);
+      window.history.replaceState(null, '', window.location.pathname);
+    }
+  }, []);
+
+  // Handle postMessage from service worker (e.g. notification click when app already open)
+  useEffect(() => {
+    const handler = (e: MessageEvent) => {
+      if (e.data?.type === 'tfi:navigate' && e.data?.tab) {
+        setActiveTab(e.data.tab as TabName);
+      }
+    };
+    navigator.serviceWorker?.addEventListener('message', handler);
+    return () => navigator.serviceWorker?.removeEventListener('message', handler);
+  }, []);
+
   // Responsive: switch between sidebar and top-nav layouts
   useEffect(() => {
     const mq = window.matchMedia('(max-width: 767px)');

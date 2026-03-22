@@ -49,15 +49,18 @@ self.addEventListener('push', (event) => {
 self.addEventListener('notificationclick', (event) => {
   event.notification.close();
 
-  const targetUrl: string = (event.notification.data as { url?: string })?.url ?? '/';
+  const rawUrl: string = (event.notification.data as { url?: string })?.url ?? '/';
+  // Append ?tab= hint so the app can navigate to the right tab on open/focus
+  const targetUrl = rawUrl.includes('?') ? rawUrl : `${rawUrl}?tab=recommendations`;
 
   event.waitUntil(
     self.clients
       .matchAll({ type: 'window', includeUncontrolled: true })
       .then((clientList) => {
-        // Focus any existing window belonging to this app origin
+        // If app is already open, focus it and post a navigate message
         for (const client of clientList) {
           if (client.url.startsWith(self.location.origin) && 'focus' in client) {
+            client.postMessage({ type: 'tfi:navigate', tab: 'recommendations' });
             return client.focus();
           }
         }
