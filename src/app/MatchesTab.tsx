@@ -11,12 +11,15 @@ import { LIVE_STATUSES, PLACEHOLDER_HOME, PLACEHOLDER_AWAY } from '@/config/cons
 import { convertSeoulToLocalDateTime, formatDateTimeDisplay, getLeagueDisplayName, debounce, parseKickoffForSave } from '@/lib/utils/helpers';
 import { normalizeToISO } from '@/lib/utils/helpers';
 import type { Match, SortState, League, WatchlistItem } from '@/types';
-import type { PipelineMatchResult } from '@/features/live-monitor/types';
-import { runPipelineForMatch } from '@/features/live-monitor/services/pipeline';
+import {
+  analyzeMatchWithServerPipeline,
+  getParsedAiResult,
+  type ServerMatchPipelineResult,
+} from '@/features/live-monitor/services/server-monitor.service';
 import { MatchScoutModal } from '@/components/ui/MatchScoutModal';
 
 // ── Module-level store — persists across tab navigation ──────────────────────
-type AiResultEntry = { matchId: string; matchDisplay: string; result: PipelineMatchResult };
+type AiResultEntry = { matchId: string; matchDisplay: string; result: ServerMatchPipelineResult };
 const _matchesTabStore = {
   analyzingMatches: new Set<string>(),
   aiResults: new Map<string, AiResultEntry>(),
@@ -106,6 +109,67 @@ export function MatchesTab() {
 
   // Ref to ALL loaded matches — used by interval to detect live activity across all pages/filters
   const allMatchesRef = useRef<Match[]>([]);
+
+  // ── Live flash ─────────────────────────────────────────────────────────────
+  // flashMap: key → generation counter; incrementing forces CSS animation restart via `key` prop
+  const [flashMap, setFlashMap] = useState<Map<string, number>>(new Map());
+  const prevMatchesRef = useRef<Map<string, Match>>(new Map());
+  const flashTidsRef = useRef<ReturnType<typeof setTimeout>[]>([]);
+
+  useEffect(() => {
+    const prevMap = prevMatchesRef.current;
+
+    if (prevMap.size > 0) {
+      const changes: string[] = [];
+
+      matches.forEach((m) => {
+        const prev = prevMap.get(m.match_id);
+        if (!prev || !LIVE_STATUSES.includes(m.status)) return;
+
+        // Score: only flash when a valid numeric score strictly increases
+        const toScore = (v: string | number | null | undefined): number | null => {
+          if (v == null || v === '') return null;
+          const n = Number(v);
+          return Number.isFinite(n) && n >= 0 ? n : null;
+        };
+        const pH = toScore(prev.home_score), nH = toScore(m.home_score);
+        const pA = toScore(prev.away_score), nA = toScore(m.away_score);
+        if ((pH !== null && nH !== null && nH > pH) || (pA !== null && nA !== null && nA > pA)) {
+          changes.push(`${m.match_id}:score`);
+        }
+
+        // Cards: flash when count increases (treat null as 0)
+        const cardUp = (p: number | null | undefined, n: number | null | undefined) =>
+          (n ?? 0) > (p ?? 0) && (n ?? 0) > 0;
+        if (cardUp(prev.home_yellows, m.home_yellows)) changes.push(`${m.match_id}:hy`);
+        if (cardUp(prev.away_yellows, m.away_yellows)) changes.push(`${m.match_id}:ay`);
+        if (cardUp(prev.home_reds,    m.home_reds))    changes.push(`${m.match_id}:hr`);
+        if (cardUp(prev.away_reds,    m.away_reds))    changes.push(`${m.match_id}:ar`);
+      });
+
+      if (changes.length > 0) {
+        setFlashMap((prev) => {
+          const next = new Map(prev);
+          changes.forEach((k) => next.set(k, (next.get(k) ?? 0) + 1));
+          return next;
+        });
+        // Clean up after animations finish (goal: 3.5s, cards: 2.5s → use 8s to be safe)
+        const tid = setTimeout(() => {
+          setFlashMap((prev) => {
+            const next = new Map(prev);
+            changes.forEach((k) => next.delete(k));
+            return next;
+          });
+        }, 8000);
+        flashTidsRef.current.push(tid);
+      }
+    }
+
+    prevMatchesRef.current = new Map(matches.map((m) => [m.match_id, m]));
+  }, [matches]);
+
+  // Clean up flash timeouts on unmount
+  useEffect(() => () => { flashTidsRef.current.forEach(clearTimeout); }, []);
 
   // Refresh on mount
   useEffect(() => { void loadAllDataRef.current(true); }, []);
@@ -287,15 +351,14 @@ export function MatchesTab() {
     showToast(`🤖 Analyzing ${m.home_team} vs ${m.away_team}...`, 'info');
 
     try {
-      const ctx = await runPipelineForMatch(config, mid);
-      const matchResult = ctx.results[0];
+      const matchResult = await analyzeMatchWithServerPipeline(config, mid);
       if (matchResult) {
+        const parsed = getParsedAiResult(matchResult);
         setAiResults((prev) => new Map(prev).set(mid, { matchId: mid, matchDisplay: `${m.home_team} vs ${m.away_team}`, result: matchResult }));
         setLastAddedResultId(mid);
-        if (matchResult.parsedAi && matchResult.error) {
-          // AI succeeded but save/other step failed — show warning with detail
+        if (parsed && matchResult.error) {
           showToast(`⚠️ ${m.home_team} vs ${m.away_team} — AI done but: ${matchResult.error}`, 'error');
-        } else if (matchResult.parsedAi) {
+        } else if (parsed) {
           showToast(`✅ ${m.home_team} vs ${m.away_team} — done`, 'success');
         } else if (matchResult.error) {
           showToast(`⚠️ ${m.home_team} vs ${m.away_team} error: ${matchResult.error}`, 'error');
@@ -460,21 +523,30 @@ export function MatchesTab() {
                 <h4 style={{ margin: 0, fontSize: '14px' }}>AI Analysis — {entry.matchDisplay}</h4>
                 <button className="btn btn-secondary btn-sm" onClick={() => setAiResults((prev) => { const m = new Map(prev); m.delete(entry.matchId); return m; })}>Close</button>
               </div>
-              {entry.result.parsedAi ? (() => {
-                const ai = entry.result.parsedAi!;
+              {getParsedAiResult(entry.result) ? (() => {
+                const ai = getParsedAiResult(entry.result)!;
                 return (
                   <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: '10px', fontSize: '13px' }}>
-                    <div><strong>Selection:</strong> {ai.selection}</div>
-                    <div><strong>Market:</strong> {ai.bet_market}</div>
-                    <div><strong>Confidence:</strong> {ai.confidence}%</div>
-                    <div><strong>Risk:</strong> <span style={{ color: ai.risk_level === 'LOW' ? 'var(--green)' : ai.risk_level === 'HIGH' ? 'var(--red)' : 'var(--orange)' }}>{ai.risk_level}</span></div>
-                    <div><strong>Stake:</strong> {ai.stake_percent}%</div>
-                    <div><strong>Odds:</strong> {ai.odds_for_display ?? '—'}</div>
-                    <div><strong>Value:</strong> {ai.value_percent}%</div>
-                    <div><strong>Should Bet:</strong> {ai.final_should_bet ? 'Yes' : 'No'}</div>
-                    <div style={{ gridColumn: '1 / -1' }}><strong>Reasoning:</strong> {ai.reasoning_vi || ai.reasoning_en}</div>
-                    {ai.warnings.length > 0 && (
-                      <div style={{ gridColumn: '1 / -1', color: 'var(--orange)' }}><strong>Warnings:</strong> {ai.warnings.join('; ')}</div>
+                    <div><strong>Selection:</strong> {ai.selection || entry.result.selection || '—'}</div>
+                    <div><strong>Decision:</strong> {entry.result.decisionKind === 'ai_push' ? 'AI Push' : entry.result.decisionKind === 'condition_only' ? 'Condition Only' : 'No Bet'}</div>
+                    <div><strong>Market:</strong> {ai.bet_market || '—'}</div>
+                    <div><strong>Confidence:</strong> {entry.result.confidence}/10</div>
+                    <div><strong>Risk:</strong> <span style={{ color: ai.risk_level === 'LOW' ? 'var(--green)' : ai.risk_level === 'HIGH' ? 'var(--red)' : 'var(--orange)' }}>{ai.risk_level || '—'}</span></div>
+                    <div><strong>Stake:</strong> {ai.stake_percent ?? 0}%</div>
+                    <div><strong>Value:</strong> {ai.value_percent ?? 0}%</div>
+                    <div><strong>Should Push:</strong> {entry.result.shouldPush ? 'Yes' : 'No'}</div>
+                    <div><strong>Condition Matched:</strong> {ai.custom_condition_matched ? 'Yes' : 'No'}</div>
+                    <div><strong>Condition Triggered:</strong> {ai.condition_triggered_should_push ? 'Yes' : 'No'}</div>
+                    <div><strong>Saved:</strong> {entry.result.saved ? 'Yes' : 'No'}</div>
+                    <div><strong>Notified:</strong> {entry.result.notified ? 'Yes' : 'No'}</div>
+                    <div style={{ gridColumn: '1 / -1' }}><strong>Reasoning:</strong> {ai.reasoning_vi || ai.reasoning_en || '—'}</div>
+                    {ai.condition_triggered_suggestion && (
+                      <div style={{ gridColumn: '1 / -1' }}>
+                        <strong>Condition Suggestion:</strong> {ai.condition_triggered_suggestion}
+                      </div>
+                    )}
+                    {(ai.warnings || []).length > 0 && (
+                      <div style={{ gridColumn: '1 / -1', color: 'var(--orange)' }}><strong>Warnings:</strong> {(ai.warnings || []).join('; ')}</div>
                     )}
                   </div>
                 );
@@ -567,6 +639,7 @@ export function MatchesTab() {
                     isAnalyzing={analyzingMatches.has(String(m.match_id))}
                     hasResult={aiResults.has(String(m.match_id))}
                     leagues={leagues}
+                    flashMap={flashMap}
                     onQuickAdd={() => quickAdd(m)}
                     onToggleSelect={() => toggleSelect(String(m.match_id), watchlistMap.has(String(m.match_id)))}
                     onAskAi={() => askAi(m)}
@@ -621,6 +694,7 @@ interface MatchRowProps {
   isAnalyzing: boolean;
   hasResult: boolean;
   leagues: League[];
+  flashMap: Map<string, number>;
   onQuickAdd: () => void;
   onToggleSelect: () => void;
   onAskAi: () => void;
@@ -628,12 +702,19 @@ interface MatchRowProps {
   onDoubleClick: () => void;
 }
 
-function MatchRow({ match, isWatched, isPending, isSelected, isAnalyzing, hasResult, leagues, onQuickAdd, onToggleSelect, onAskAi, onEdit, onDoubleClick }: MatchRowProps) {
+function MatchRow({ match, isWatched, isPending, isSelected, isAnalyzing, hasResult, leagues, flashMap, onQuickAdd, onToggleSelect, onAskAi, onEdit, onDoubleClick }: MatchRowProps) {
   const localDT = convertSeoulToLocalDateTime(match.date, match.kickoff || '00:00');
   const timeDisplay = formatDateTimeDisplay(localDT);
   const leagueDisplay = getLeagueDisplayName(match.league_id, match.league_name || '', leagues);
   const score = match.home_score != null && match.home_score !== '' ? `${match.home_score} - ${match.away_score}` : '';
   const currentMinute = match.status === 'HT' ? 'HT' : (match.current_minute ? `${match.current_minute}'` : '');
+
+  const id = match.match_id;
+  const scoreFlashGen   = flashMap.get(`${id}:score`) ?? 0;
+  const homeYellowGen   = flashMap.get(`${id}:hy`)    ?? 0;
+  const awayYellowGen   = flashMap.get(`${id}:ay`)    ?? 0;
+  const homeRedGen      = flashMap.get(`${id}:hr`)    ?? 0;
+  const awayRedGen      = flashMap.get(`${id}:ar`)    ?? 0;
 
   return (
     <tr onDoubleClick={onDoubleClick} style={{ cursor: 'pointer' }} title="Double-click to view match details">
@@ -652,13 +733,13 @@ function MatchRow({ match, isWatched, isPending, isSelected, isAnalyzing, hasRes
             <div className="team-info">
               <img src={match.home_logo} loading="lazy" decoding="async" alt={match.home_team} className="team-logo" onError={(e) => { (e.target as HTMLImageElement).src = PLACEHOLDER_HOME; }} />
               <span style={{ fontWeight: 400 }}>{match.home_team}</span>
-              {(match.home_yellows ?? 0) > 0 && <span title={`${match.home_yellows} yellow card(s)`} style={{ display: 'inline-flex', alignItems: 'center', gap: 2, fontSize: 10, fontWeight: 700, background: '#ca8a04', color: '#fff', borderRadius: 3, padding: '1px 5px', marginLeft: 4, letterSpacing: '0.3px' }}>▪ {match.home_yellows}</span>}
-              {(match.home_reds ?? 0) > 0 && <span title={`${match.home_reds} red card(s)`} style={{ display: 'inline-flex', alignItems: 'center', gap: 2, fontSize: 10, fontWeight: 700, background: '#dc2626', color: '#fff', borderRadius: 3, padding: '1px 5px', marginLeft: 4, letterSpacing: '0.3px' }}>■ {match.home_reds}</span>}
+              {(match.home_yellows ?? 0) > 0 && <span key={homeYellowGen} title={`${match.home_yellows} yellow card(s)`} className={homeYellowGen ? 'flash-yellow-card' : undefined} style={{ display: 'inline-flex', alignItems: 'center', gap: 2, fontSize: 10, fontWeight: 700, background: '#ca8a04', color: '#fff', borderRadius: 3, padding: '1px 5px', marginLeft: 4, letterSpacing: '0.3px' }}>▪ {match.home_yellows}</span>}
+              {(match.home_reds ?? 0) > 0 && <span key={homeRedGen} title={`${match.home_reds} red card(s)`} className={homeRedGen ? 'flash-red-card' : undefined} style={{ display: 'inline-flex', alignItems: 'center', gap: 2, fontSize: 10, fontWeight: 700, background: '#dc2626', color: '#fff', borderRadius: 3, padding: '1px 5px', marginLeft: 4, letterSpacing: '0.3px' }}>■ {match.home_reds}</span>}
             </div>
             <span className="match-vs">vs</span>
             <div className="team-info">
-              {(match.away_reds ?? 0) > 0 && <span title={`${match.away_reds} red card(s)`} style={{ display: 'inline-flex', alignItems: 'center', gap: 2, fontSize: 10, fontWeight: 700, background: '#dc2626', color: '#fff', borderRadius: 3, padding: '1px 5px', marginRight: 4, letterSpacing: '0.3px' }}>■ {match.away_reds}</span>}
-              {(match.away_yellows ?? 0) > 0 && <span title={`${match.away_yellows} yellow card(s)`} style={{ display: 'inline-flex', alignItems: 'center', gap: 2, fontSize: 10, fontWeight: 700, background: '#ca8a04', color: '#fff', borderRadius: 3, padding: '1px 5px', marginRight: 4, letterSpacing: '0.3px' }}>▪ {match.away_yellows}</span>}
+              {(match.away_reds ?? 0) > 0 && <span key={awayRedGen} title={`${match.away_reds} red card(s)`} className={awayRedGen ? 'flash-red-card' : undefined} style={{ display: 'inline-flex', alignItems: 'center', gap: 2, fontSize: 10, fontWeight: 700, background: '#dc2626', color: '#fff', borderRadius: 3, padding: '1px 5px', marginRight: 4, letterSpacing: '0.3px' }}>■ {match.away_reds}</span>}
+              {(match.away_yellows ?? 0) > 0 && <span key={awayYellowGen} title={`${match.away_yellows} yellow card(s)`} className={awayYellowGen ? 'flash-yellow-card' : undefined} style={{ display: 'inline-flex', alignItems: 'center', gap: 2, fontSize: 10, fontWeight: 700, background: '#ca8a04', color: '#fff', borderRadius: 3, padding: '1px 5px', marginRight: 4, letterSpacing: '0.3px' }}>▪ {match.away_yellows}</span>}
               <span style={{ fontWeight: 400 }}>{match.away_team}</span>
               <img src={match.away_logo} loading="lazy" decoding="async" alt={match.away_team} className="team-logo" onError={(e) => { (e.target as HTMLImageElement).src = PLACEHOLDER_AWAY; }} />
             </div>
@@ -673,7 +754,7 @@ function MatchRow({ match, isWatched, isPending, isSelected, isAnalyzing, hasRes
       <td data-label="Score" className={!score ? 'score-empty' : ''} style={{ textAlign: 'center' }}>
         <div className="cell-value">
           <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '3px' }}>
-            <div style={{ fontWeight: 700, fontSize: '12px', color: 'var(--gray-900)' }}>{score}</div>
+            <div key={scoreFlashGen} className={scoreFlashGen ? 'flash-goal' : undefined} style={{ fontWeight: 700, fontSize: '12px', color: 'var(--gray-900)' }}>{score}</div>
             {currentMinute && <div style={{ fontSize: '11px', color: 'var(--gray-600)', fontWeight: 500 }}>{currentMinute}</div>}
           </div>
         </div>

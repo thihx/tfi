@@ -3415,6 +3415,42 @@ tbody tr.date-group-row:hover {
     content: none !important;
 }
 
+/* ── Live event flash animations ─────────────────────────────────────────── */
+
+@keyframes flash-goal {
+    0%   { background-color: transparent; }
+    12%  { background-color: #bbf7d0; }
+    28%  { background-color: transparent; }
+    44%  { background-color: #bbf7d0; }
+    60%  { background-color: #dcfce7; }
+    100% { background-color: transparent; }
+}
+
+@keyframes flash-yellow-card {
+    0%   { box-shadow: 0 0 0 0 rgba(253,230,138,0); }
+    20%  { box-shadow: 0 0 0 4px #fde68a; }
+    45%  { box-shadow: 0 0 0 0 rgba(253,230,138,0); }
+    70%  { box-shadow: 0 0 0 3px #fef3c7; }
+    100% { box-shadow: 0 0 0 0 rgba(253,230,138,0); }
+}
+
+@keyframes flash-red-card {
+    0%   { box-shadow: 0 0 0 0 rgba(252,165,165,0); }
+    20%  { box-shadow: 0 0 0 4px #fca5a5; }
+    45%  { box-shadow: 0 0 0 0 rgba(252,165,165,0); }
+    70%  { box-shadow: 0 0 0 3px #fee2e2; }
+    100% { box-shadow: 0 0 0 0 rgba(252,165,165,0); }
+}
+
+.flash-goal {
+    animation: flash-goal 3.5s ease-out forwards;
+    border-radius: 4px;
+    padding: 2px 6px;
+}
+
+.flash-yellow-card { animation: flash-yellow-card 2.5s ease-out forwards; }
+.flash-red-card    { animation: flash-red-card    2.5s ease-out forwards; }
+
 /* ============================================================
    Job Scheduler
    ============================================================ */
