@@ -27,12 +27,7 @@ export function BottomNav({ activeTab, onTabChange }: BottomNavProps) {
   const [drawerOpen, setDrawerOpen] = useState(false);
   const isMoreActive = MORE_KEYS.has(activeTab);
 
-  const handlePrimary = (key: TabName) => {
-    setDrawerOpen(false);
-    onTabChange(key);
-  };
-
-  const handleMore = (key: TabName) => {
+  const handleTabChange = (key: TabName) => {
     setDrawerOpen(false);
     onTabChange(key);
   };
@@ -54,7 +49,7 @@ export function BottomNav({ activeTab, onTabChange }: BottomNavProps) {
             <button
               key={t.key}
               className={`bottom-nav-drawer-item${activeTab === t.key ? ' active' : ''}`}
-              onClick={() => handleMore(t.key)}
+              onClick={() => handleTabChange(t.key)}
             >
               <span className="bottom-nav-drawer-icon">{t.icon}</span>
               <span>{t.label}</span>
@@ -69,7 +64,7 @@ export function BottomNav({ activeTab, onTabChange }: BottomNavProps) {
           <button
             key={t.key}
             className={`bottom-nav-item${activeTab === t.key ? ' active' : ''}`}
-            onClick={() => handlePrimary(t.key)}
+            onClick={() => handleTabChange(t.key)}
           >
             <span className="bottom-nav-icon">{t.icon}</span>
             <span className="bottom-nav-label">{t.label}</span>
@@ -82,7 +77,7 @@ export function BottomNav({ activeTab, onTabChange }: BottomNavProps) {
           onClick={() => setDrawerOpen((o) => !o)}
         >
           <span className="bottom-nav-icon">☰</span>
-          <span className="bottom-nav-label">{isMoreActive ? MORE.find((t) => t.key === activeTab)?.label ?? 'More' : 'More'}</span>
+          <span className="bottom-nav-label">More</span>
         </button>
       </nav>
     </>

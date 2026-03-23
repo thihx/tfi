@@ -212,7 +212,8 @@ body {
     border-top: 1px solid var(--gray-200);
     display: flex;
     align-items: stretch;
-    height: 56px;
+    /* Use min-height + padding so safe-area adds on top of the 56px tap area */
+    min-height: 56px;
     padding-bottom: env(safe-area-inset-bottom);
     z-index: 200;
     box-shadow: 0 -2px 8px rgba(0, 0, 0, 0.08);
@@ -1620,6 +1621,11 @@ table td:last-child, table th:last-child {
     /* Push content above the fixed bottom nav */
     .main-content {
         padding-bottom: calc(56px + env(safe-area-inset-bottom) + 12px);
+    }
+
+    /* Raise toast above the bottom nav bar */
+    .toast.show {
+        bottom: calc(56px + env(safe-area-inset-bottom) + 12px);
     }
 
     .nav {
