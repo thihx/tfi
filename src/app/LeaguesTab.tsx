@@ -205,7 +205,22 @@ const LeagueRow = memo(function LeagueRow({ league, onToggle, onToggleTop, onVie
   );
 });
 
-const StatsBar = memo(function StatsBar({ leagues }: { leagues: League[] }) {
+interface StatsFilterBarProps {
+  leagues: League[];
+  filterActive: string;
+  filterTier: string;
+  filterTopLeague: string;
+  filterProfile: string;
+  onFilterActive: (v: string) => void;
+  onFilterTier: (v: string) => void;
+  onFilterTopLeague: (v: string) => void;
+  onFilterProfile: (v: string) => void;
+}
+
+const StatsBar = memo(function StatsBar({
+  leagues, filterActive, filterTier, filterTopLeague, filterProfile,
+  onFilterActive, onFilterTier, onFilterTopLeague, onFilterProfile,
+}: StatsFilterBarProps) {
   const total = leagues.length;
   const active = leagues.filter((l) => l.active).length;
   const topCount = leagues.filter((l) => l.top_league).length;
@@ -222,34 +237,87 @@ const StatsBar = memo(function StatsBar({ leagues }: { leagues: League[] }) {
       .sort(([a], [b]) => (TIER_ORDER[a] ?? 99) - (TIER_ORDER[b] ?? 99));
   }, [leagues]);
 
+  const isClean = filterActive === 'all' && filterTier === 'all'
+    && filterTopLeague === 'all' && filterProfile === 'all';
+
+  const handleTotal = () => {
+    onFilterActive('all');
+    onFilterTier('all');
+    onFilterTopLeague('all');
+    onFilterProfile('all');
+  };
+
   return (
     <div className="leagues-stats-bar">
-      <div className="leagues-stat">
+
+      {/* Total — resets all stat-bar filters */}
+      <button
+        className={`leagues-stat-btn${isClean ? ' stat-active stat-active--primary' : ''}`}
+        onClick={handleTotal}
+        title="Show all (reset filters)"
+      >
         <span className="leagues-stat-value">{total}</span>
         <span className="leagues-stat-label">Total</span>
-      </div>
-      <div className="leagues-stat active">
-        <span className="leagues-stat-value">{active}</span>
+      </button>
+
+      {/* Active */}
+      <button
+        className={`leagues-stat-btn${filterActive === 'active' ? ' stat-active stat-active--success' : ''}`}
+        onClick={() => onFilterActive(filterActive === 'active' ? 'all' : 'active')}
+        title="Filter: Active leagues only"
+      >
+        <span className="leagues-stat-value" style={{ color: 'var(--success)' }}>{active}</span>
         <span className="leagues-stat-label">Active</span>
-      </div>
-      <div className="leagues-stat">
+      </button>
+
+      {/* Inactive */}
+      <button
+        className={`leagues-stat-btn${filterActive === 'inactive' ? ' stat-active stat-active--gray' : ''}`}
+        onClick={() => onFilterActive(filterActive === 'inactive' ? 'all' : 'inactive')}
+        title="Filter: Inactive leagues only"
+      >
         <span className="leagues-stat-value">{total - active}</span>
         <span className="leagues-stat-label">Inactive</span>
-      </div>
-      <div className="leagues-stat top-league">
+      </button>
+
+      {/* Top Leagues */}
+      <button
+        className={`leagues-stat-btn${filterTopLeague === 'top' ? ' stat-active stat-active--amber' : ''}`}
+        onClick={() => onFilterTopLeague(filterTopLeague === 'top' ? 'all' : 'top')}
+        title="Filter: Top Leagues only"
+      >
         <span className="leagues-stat-value" style={{ color: '#f59e0b' }}>{topCount}</span>
         <span className="leagues-stat-label">Top Leagues</span>
-      </div>
-      <div className="leagues-stat">
+      </button>
+
+      {/* Profiles */}
+      <button
+        className={`leagues-stat-btn${filterProfile === 'has-profile' ? ' stat-active stat-active--teal' : ''}`}
+        onClick={() => onFilterProfile(filterProfile === 'has-profile' ? 'all' : 'has-profile')}
+        title="Filter: Leagues with profiles only"
+      >
         <span className="leagues-stat-value" style={{ color: '#0f766e' }}>{profileCount}</span>
         <span className="leagues-stat-label">Profiles</span>
-      </div>
+      </button>
+
       <div className="leagues-stats-divider" />
+
+      {/* Per-tier */}
       {byTier.map(([tier, counts]) => (
-        <div className="leagues-stat" key={tier}>
-          <span className="leagues-stat-value" style={{ color: TIER_COLORS[tier] }}>{counts.active}/{counts.total}</span>
+        <button
+          key={tier}
+          className={`leagues-stat-btn${filterTier === tier ? ' stat-active' : ''}`}
+          style={filterTier === tier
+            ? { '--stat-active-color': TIER_COLORS[tier] || '#64748b' } as React.CSSProperties
+            : undefined}
+          onClick={() => onFilterTier(filterTier === tier ? 'all' : tier)}
+          title={`Filter: ${TIER_LABELS[tier] || tier}`}
+        >
+          <span className="leagues-stat-value" style={{ color: TIER_COLORS[tier] }}>
+            {counts.active}/{counts.total}
+          </span>
           <span className="leagues-stat-label">{TIER_LABELS[tier] || tier}</span>
-        </div>
+        </button>
       ))}
     </div>
   );
@@ -270,6 +338,7 @@ export function LeaguesTab() {
   const [filterCountry, setFilterCountry] = useState<string>('all');
   const [filterType, setFilterType] = useState<string>('all');
   const [filterActive, setFilterActive] = useState<string>('active');
+  const [filterProfile, setFilterProfile] = useState<string>('all');
   const [page, setPage] = useState(1);
   const [filterTopLeague, setFilterTopLeague] = useState<string>('all');
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
@@ -397,6 +466,7 @@ export function LeaguesTab() {
     else if (filterActive === 'inactive') data = data.filter((l) => !l.active);
     if (filterTopLeague === 'top') data = data.filter((l) => l.top_league);
     else if (filterTopLeague === 'normal') data = data.filter((l) => !l.top_league);
+    if (filterProfile === 'has-profile') data = data.filter((l) => l.has_profile);
 
     return data.sort((a, b) => {
       // Top leagues first, then by tier, then by name
@@ -406,14 +476,14 @@ export function LeaguesTab() {
       if (ta !== tb) return ta - tb;
       return a.league_name.localeCompare(b.league_name);
     });
-  }, [allLeagues, search, filterTier, filterCountry, filterType, filterActive, filterTopLeague]);
+  }, [allLeagues, search, filterTier, filterCountry, filterType, filterActive, filterTopLeague, filterProfile]);
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
   const safePage = Math.min(page, totalPages);
   const paginated = filtered.slice((safePage - 1) * PAGE_SIZE, safePage * PAGE_SIZE);
 
   // Reset to page 1 whenever filters change
-  useEffect(() => { setPage(1); }, [search, filterTier, filterCountry, filterType, filterActive, filterTopLeague]);
+  useEffect(() => { setPage(1); }, [search, filterTier, filterCountry, filterType, filterActive, filterTopLeague, filterProfile]);
 
   // Toggle single league
   const handleToggle = useCallback(async (id: number, active: boolean) => {
@@ -606,8 +676,18 @@ export function LeaguesTab() {
   return (
     <>
     <div className="card leagues-tab">
-      {/* Stats bar */}
-      <StatsBar leagues={allLeagues} />
+      {/* Stats bar — doubles as quick-filter buttons */}
+      <StatsBar
+        leagues={allLeagues}
+        filterActive={filterActive}
+        filterTier={filterTier}
+        filterTopLeague={filterTopLeague}
+        filterProfile={filterProfile}
+        onFilterActive={setFilterActive}
+        onFilterTier={setFilterTier}
+        onFilterTopLeague={setFilterTopLeague}
+        onFilterProfile={setFilterProfile}
+      />
 
       {/* Toolbar */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '10px 16px', borderBottom: '1px solid var(--gray-100)', background: 'var(--white)' }}>

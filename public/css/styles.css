@@ -2804,6 +2804,58 @@ table td:last-child, table th:last-child {
     flex-shrink: 0;
 }
 
+/* Clickable stat filter pills */
+.leagues-stat-btn {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 1px;
+    min-width: 44px;
+    padding: 5px 10px;
+    background: none;
+    border: 1.5px solid transparent;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: background 0.13s, border-color 0.13s;
+    -webkit-tap-highlight-color: transparent;
+}
+
+.leagues-stat-btn:hover {
+    background: var(--gray-50);
+    border-color: var(--gray-200);
+}
+
+/* Active states — coloured border + tinted background */
+.leagues-stat-btn.stat-active {
+    border-color: var(--stat-active-color, var(--primary));
+    background: color-mix(in srgb, var(--stat-active-color, var(--primary)) 8%, transparent);
+}
+
+.leagues-stat-btn.stat-active--primary {
+    --stat-active-color: #3b82f6;
+}
+
+.leagues-stat-btn.stat-active--success {
+    --stat-active-color: #22c55e;
+}
+
+.leagues-stat-btn.stat-active--gray {
+    --stat-active-color: #64748b;
+}
+
+.leagues-stat-btn.stat-active--amber {
+    --stat-active-color: #f59e0b;
+}
+
+.leagues-stat-btn.stat-active--teal {
+    --stat-active-color: #0f766e;
+}
+
+/* Label gets coloured when active */
+.leagues-stat-btn.stat-active .leagues-stat-label {
+    color: var(--stat-active-color, var(--primary));
+}
+
 /* Toolbar */
 .leagues-toolbar {
     display: flex;
