@@ -1930,6 +1930,98 @@ table td:last-child, table th:last-child {
 /* ==================== PROFILE MODALS — STAT GRIDS ==================== */
 
 /* 3-column stat grid (Goals / Corners & Discipline sections) */
+/* ── Tier Slider ── */
+.tier-slider {
+    display: grid;
+    gap: 5px;
+}
+
+.tier-slider-header {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.tier-slider-label {
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--gray-500);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.tier-slider-badge {
+    font-size: 10px;
+    font-weight: 700;
+    padding: 1px 7px;
+    border-radius: 999px;
+}
+
+.tier-slider-track {
+    display: grid;
+    gap: 3px;
+}
+
+.tier-slider-track input[type=range] {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 100%;
+    height: 4px;
+    border-radius: 2px;
+    outline: none;
+    cursor: pointer;
+    /* Filled left portion via gradient */
+    background: linear-gradient(
+        to right,
+        var(--slider-color, #10b981) 0%,
+        var(--slider-color, #10b981) var(--slider-fill, 50%),
+        #e5e7eb var(--slider-fill, 50%),
+        #e5e7eb 100%
+    );
+}
+
+.tier-slider-track input[type=range]::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 18px;
+    height: 18px;
+    border-radius: 50%;
+    background: var(--slider-color, #10b981);
+    cursor: pointer;
+    border: 2px solid #fff;
+    box-shadow: 0 1px 4px rgba(0,0,0,0.2);
+    transition: transform 0.1s;
+}
+
+.tier-slider-track input[type=range]::-webkit-slider-thumb:hover {
+    transform: scale(1.15);
+}
+
+.tier-slider-track input[type=range]::-moz-range-thumb {
+    width: 18px;
+    height: 18px;
+    border-radius: 50%;
+    background: var(--slider-color, #10b981);
+    cursor: pointer;
+    border: 2px solid #fff;
+    box-shadow: 0 1px 4px rgba(0,0,0,0.2);
+}
+
+.tier-slider-track input[type=range]::-moz-range-track {
+    height: 4px;
+    border-radius: 2px;
+    background: transparent;
+}
+
+.tier-slider-labels {
+    display: flex;
+    justify-content: space-between;
+    font-size: 10px;
+    color: var(--gray-400);
+    user-select: none;
+}
+
+/* ── Profile grids ── */
 .profile-stat-grid {
     display: grid;
     grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -3260,6 +3352,11 @@ table td:last-child, table th:last-child {
     .leagues-table th:nth-child(8),
     .leagues-table td:nth-child(8) {
         display: none;
+    }
+
+    /* Expanded teams row must always be visible (overrides nth-child hide rules) */
+    .leagues-table .league-teams-row td {
+        display: table-cell !important;
     }
 
     .leagues-table table {

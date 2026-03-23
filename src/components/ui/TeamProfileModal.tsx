@@ -63,9 +63,11 @@ function toInputValue(v: number | null): string {
   return v == null ? '' : String(v);
 }
 
-// ── TierSegment ───────────────────────────────────────────────────────────────
+// ── Shared option type ────────────────────────────────────────────────────────
 
 type TierOption = { value: string; label: string; color: string };
+
+// ── TierSegment — buttons, used only for categorical (non-ordinal) fields ─────
 
 function TierSegment({ label, options, value, onChange }: {
   label: string; options: readonly TierOption[]; value: string; onChange: (v: string) => void;
@@ -103,6 +105,53 @@ function TierSegment({ label, options, value, onChange }: {
             </button>
           );
         })}
+      </div>
+    </div>
+  );
+}
+
+// ── TierSlider — range input, used for ordinal 3-level fields ─────────────────
+
+function TierSlider({ label, options, value, onChange }: {
+  label: string; options: readonly TierOption[]; value: string; onChange: (v: string) => void;
+}) {
+  const idx = options.findIndex((o) => o.value === value);
+  const safeIdx = idx >= 0 ? idx : 0;
+  const color = options[safeIdx]?.color ?? '#10b981';
+  const fillPct = options.length > 1 ? (safeIdx / (options.length - 1)) * 100 : 50;
+
+  return (
+    <div className="tier-slider">
+      <div className="tier-slider-header">
+        <span className="tier-slider-label">{label}</span>
+        <span
+          className="tier-slider-badge"
+          style={{ background: color + '20', color, border: `1px solid ${color}40` }}
+        >
+          {options[safeIdx]?.label}
+        </span>
+      </div>
+      <div className="tier-slider-track">
+        <input
+          type="range"
+          min={0}
+          max={options.length - 1}
+          step={1}
+          value={safeIdx}
+          onChange={(e) => onChange(options[parseInt(e.target.value)]!.value)}
+          style={{ '--slider-color': color, '--slider-fill': `${fillPct}%` } as React.CSSProperties}
+          aria-label={label}
+        />
+        <div className="tier-slider-labels">
+          {options.map((o) => (
+            <span
+              key={o.value}
+              style={{ color: o.value === value ? color : undefined, fontWeight: o.value === value ? 700 : 400 }}
+            >
+              {o.label}
+            </span>
+          ))}
+        </div>
       </div>
     </div>
   );
@@ -257,19 +306,19 @@ function ProfileForm({
       {/* Section 1: Tactical Identity */}
       <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
         <SectionLabel>Tactical Identity</SectionLabel>
-        <TierSegment label="Attack Style"     options={ATTACK_STYLE_OPTIONS}    value={p.attack_style}       onChange={(v) => setP({ attack_style: v as TeamProfileData['attack_style'] })} />
-        <TierSegment label="Defensive Line"   options={TIER3_OPTIONS}            value={p.defensive_line}     onChange={(v) => setP({ defensive_line: v as TeamProfileData['defensive_line'] })} />
-        <TierSegment label="Pressing Intensity" options={TIER3_OPTIONS}          value={p.pressing_intensity} onChange={(v) => setP({ pressing_intensity: v as TeamProfileData['pressing_intensity'] })} />
-        <TierSegment label="Set Piece Threat" options={TIER3_OPTIONS}            value={p.set_piece_threat}   onChange={(v) => setP({ set_piece_threat: v as TeamProfileData['set_piece_threat'] })} />
+        <TierSegment label="Attack Style"       options={ATTACK_STYLE_OPTIONS}    value={p.attack_style}       onChange={(v) => setP({ attack_style: v as TeamProfileData['attack_style'] })} />
+        <TierSlider  label="Defensive Line"     options={TIER3_OPTIONS}            value={p.defensive_line}     onChange={(v) => setP({ defensive_line: v as TeamProfileData['defensive_line'] })} />
+        <TierSlider  label="Pressing Intensity" options={TIER3_OPTIONS}            value={p.pressing_intensity} onChange={(v) => setP({ pressing_intensity: v as TeamProfileData['pressing_intensity'] })} />
+        <TierSlider  label="Set Piece Threat"   options={TIER3_OPTIONS}            value={p.set_piece_threat}   onChange={(v) => setP({ set_piece_threat: v as TeamProfileData['set_piece_threat'] })} />
       </div>
 
       {/* Section 2: Results Profile */}
       <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
         <SectionLabel>Results Profile</SectionLabel>
-        <TierSegment label="Home Strength"    options={HOME_STRENGTH_OPTIONS}    value={p.home_strength}      onChange={(v) => setP({ home_strength: v as TeamProfileData['home_strength'] })} />
-        <TierSegment label="Form Consistency" options={FORM_CONSISTENCY_OPTIONS} value={p.form_consistency}   onChange={(v) => setP({ form_consistency: v as TeamProfileData['form_consistency'] })} />
-        <TierSegment label="Squad Depth"      options={SQUAD_DEPTH_OPTIONS}      value={p.squad_depth}        onChange={(v) => setP({ squad_depth: v as TeamProfileData['squad_depth'] })} />
-        <TierSegment label="Data Reliability" options={RELIABILITY_OPTIONS}      value={p.data_reliability_tier} onChange={(v) => setP({ data_reliability_tier: v as TeamProfileData['data_reliability_tier'] })} />
+        <TierSlider  label="Home Strength"      options={HOME_STRENGTH_OPTIONS}    value={p.home_strength}      onChange={(v) => setP({ home_strength: v as TeamProfileData['home_strength'] })} />
+        <TierSlider  label="Form Consistency"   options={FORM_CONSISTENCY_OPTIONS} value={p.form_consistency}   onChange={(v) => setP({ form_consistency: v as TeamProfileData['form_consistency'] })} />
+        <TierSlider  label="Squad Depth"        options={SQUAD_DEPTH_OPTIONS}      value={p.squad_depth}        onChange={(v) => setP({ squad_depth: v as TeamProfileData['squad_depth'] })} />
+        <TierSlider  label="Data Reliability"   options={RELIABILITY_OPTIONS}      value={p.data_reliability_tier} onChange={(v) => setP({ data_reliability_tier: v as TeamProfileData['data_reliability_tier'] })} />
       </div>
 
       {/* Section 3: Goals */}

@@ -26,8 +26,8 @@ export async function getAllLeagues(): Promise<LeagueRow[]> {
        l.*,
        (lp.league_id IS NOT NULL) AS has_profile,
        lp.updated_at AS profile_updated_at,
-       lp.volatility_tier AS profile_volatility_tier,
-       lp.data_reliability_tier AS profile_data_reliability_tier
+       (lp.profile->>'volatility_tier') AS profile_volatility_tier,
+       (lp.profile->>'data_reliability_tier') AS profile_data_reliability_tier
      FROM leagues l
      LEFT JOIN league_profiles lp ON lp.league_id = l.league_id
      ORDER BY l.country, l.tier, l.league_name`,
@@ -41,8 +41,8 @@ export async function getActiveLeagues(): Promise<LeagueRow[]> {
        l.*,
        (lp.league_id IS NOT NULL) AS has_profile,
        lp.updated_at AS profile_updated_at,
-       lp.volatility_tier AS profile_volatility_tier,
-       lp.data_reliability_tier AS profile_data_reliability_tier
+       (lp.profile->>'volatility_tier') AS profile_volatility_tier,
+       (lp.profile->>'data_reliability_tier') AS profile_data_reliability_tier
      FROM leagues l
      LEFT JOIN league_profiles lp ON lp.league_id = l.league_id
      WHERE l.active = TRUE
@@ -57,8 +57,8 @@ export async function getLeagueById(leagueId: number): Promise<LeagueRow | null>
        l.*,
        (lp.league_id IS NOT NULL) AS has_profile,
        lp.updated_at AS profile_updated_at,
-       lp.volatility_tier AS profile_volatility_tier,
-       lp.data_reliability_tier AS profile_data_reliability_tier
+       (lp.profile->>'volatility_tier') AS profile_volatility_tier,
+       (lp.profile->>'data_reliability_tier') AS profile_data_reliability_tier
      FROM leagues l
      LEFT JOIN league_profiles lp ON lp.league_id = l.league_id
      WHERE l.league_id = $1`,
@@ -73,8 +73,8 @@ export async function getTopLeagues(): Promise<LeagueRow[]> {
        l.*,
        (lp.league_id IS NOT NULL) AS has_profile,
        lp.updated_at AS profile_updated_at,
-       lp.volatility_tier AS profile_volatility_tier,
-       lp.data_reliability_tier AS profile_data_reliability_tier
+       (lp.profile->>'volatility_tier') AS profile_volatility_tier,
+       (lp.profile->>'data_reliability_tier') AS profile_data_reliability_tier
      FROM leagues l
      LEFT JOIN league_profiles lp ON lp.league_id = l.league_id
      WHERE l.top_league = TRUE AND l.active = TRUE

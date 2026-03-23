@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Modal } from '@/components/ui/Modal';
-import type { League, LeagueProfile } from '@/types';
+import type { League, LeagueProfile, LeagueTier, LeagueProfileData } from '@/types';
 import {
   buildLeagueProfileDeepResearchPrompt,
   DEFAULT_LEAGUE_PROFILE_DRAFT,
@@ -11,29 +11,76 @@ import {
   type ParseImportResult,
 } from '@/lib/utils/leagueProfileDeepResearch';
 
-// ── Tier option definitions ──────────────────────────────────────────────────
+// ── Tier definitions ─────────────────────────────────────────────────────────
 
-const TIER5_OPTIONS = [
-  { value: 'very_low',  label: 'Very Low',  color: '#6b7280' },
-  { value: 'low',       label: 'Low',        color: '#3b82f6' },
-  { value: 'balanced',  label: 'Balanced',   color: '#10b981' },
-  { value: 'high',      label: 'High',       color: '#f59e0b' },
-  { value: 'very_high', label: 'Very High',  color: '#ef4444' },
-] as const;
+const TIERS: LeagueTier[] = ['low', 'balanced', 'high'];
+const TIER_COLORS: Record<LeagueTier, string> = {
+  low:      '#3b82f6',
+  balanced: '#10b981',
+  high:     '#f59e0b',
+};
+const TIER_LABELS: Record<LeagueTier, string> = {
+  low:      'Low',
+  balanced: 'Balanced',
+  high:     'High',
+};
 
-const TIER3_OPTIONS = [
-  { value: 'low',    label: 'Low',    color: '#3b82f6' },
-  { value: 'medium', label: 'Medium', color: '#f59e0b' },
-  { value: 'high',   label: 'High',   color: '#ef4444' },
-] as const;
+// ── TierSlider component ─────────────────────────────────────────────────────
 
-const HOME_ADV_OPTIONS = [
-  { value: 'low',    label: 'Low',    color: '#3b82f6' },
-  { value: 'normal', label: 'Normal', color: '#10b981' },
-  { value: 'high',   label: 'High',   color: '#ef4444' },
-] as const;
+function TierSlider({
+  label,
+  value,
+  onChange,
+}: {
+  label: string;
+  value: LeagueTier;
+  onChange: (v: LeagueTier) => void;
+}) {
+  const idx = TIERS.indexOf(value);
+  const color = TIER_COLORS[value];
+  const fillPct = (idx / (TIERS.length - 1)) * 100;
 
-// ── Helpers ──────────────────────────────────────────────────────────────────
+  return (
+    <div className="tier-slider">
+      <div className="tier-slider-header">
+        <span className="tier-slider-label">{label}</span>
+        <span
+          className="tier-slider-badge"
+          style={{ background: color + '20', color, border: `1px solid ${color}40` }}
+        >
+          {TIER_LABELS[value]}
+        </span>
+      </div>
+      <div className="tier-slider-track">
+        <input
+          type="range"
+          min={0}
+          max={2}
+          step={1}
+          value={idx}
+          onChange={(e) => onChange(TIERS[parseInt(e.target.value)]!)}
+          style={{
+            '--slider-color': color,
+            '--slider-fill': `${fillPct}%`,
+          } as React.CSSProperties}
+          aria-label={label}
+        />
+        <div className="tier-slider-labels">
+          {TIERS.map((t) => (
+            <span
+              key={t}
+              style={{ color: t === value ? color : undefined, fontWeight: t === value ? 700 : 400 }}
+            >
+              {TIER_LABELS[t]}
+            </span>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── StatInput component ──────────────────────────────────────────────────────
 
 function parseNullableNumber(value: string): number | null {
   const trimmed = value.trim();
@@ -45,65 +92,6 @@ function parseNullableNumber(value: string): number | null {
 function toInputValue(value: number | null): string {
   return value == null ? '' : String(value);
 }
-
-// ── TierSegment component ────────────────────────────────────────────────────
-
-type TierOption = { value: string; label: string; color: string };
-
-function TierSegment({
-  label,
-  options,
-  value,
-  onChange,
-}: {
-  label: string;
-  options: readonly TierOption[];
-  value: string;
-  onChange: (v: string) => void;
-}) {
-  const active = options.find((o) => o.value === value);
-  return (
-    <div style={{ display: 'grid', gap: 5 }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-        <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--gray-500)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
-          {label}
-        </span>
-        {active && (
-          <span style={{
-            fontSize: 10, fontWeight: 700, padding: '1px 6px', borderRadius: 999,
-            background: active.color + '20', color: active.color, border: `1px solid ${active.color}40`,
-          }}>
-            {active.label}
-          </span>
-        )}
-      </div>
-      <div style={{ display: 'flex', gap: 3 }}>
-        {options.map((opt) => {
-          const isActive = opt.value === value;
-          return (
-            <button
-              key={opt.value}
-              type="button"
-              onClick={() => onChange(opt.value)}
-              title={opt.label}
-              style={{
-                flex: 1, padding: '5px 0', fontSize: 10, fontWeight: isActive ? 700 : 400,
-                borderRadius: 5, border: `1px solid ${isActive ? opt.color : 'var(--gray-200)'}`,
-                background: isActive ? opt.color + '18' : 'var(--gray-50)',
-                color: isActive ? opt.color : 'var(--gray-400)',
-                cursor: 'pointer', transition: 'all 0.15s', whiteSpace: 'nowrap', overflow: 'hidden',
-              }}
-            >
-              {opt.label.replace('Very ', 'V.')}
-            </button>
-          );
-        })}
-      </div>
-    </div>
-  );
-}
-
-// ── StatInput component ──────────────────────────────────────────────────────
 
 function StatInput({
   label,
@@ -249,12 +237,12 @@ function ImportSummaryGrid({ fields }: { fields: ImportFieldResult[] }) {
 // ── Props ────────────────────────────────────────────────────────────────────
 
 interface LeagueProfileModalProps {
-  league: League | null;
-  profile: LeagueProfile | null;
-  loading: boolean;
-  saving: boolean;
-  onClose: () => void;
-  onSave: (draft: LeagueProfileDraft) => void;
+  league:   League | null;
+  profile:  LeagueProfile | null;
+  loading:  boolean;
+  saving:   boolean;
+  onClose:  () => void;
+  onSave:   (draft: LeagueProfileDraft) => void;
   onDelete: () => void;
 }
 
@@ -283,7 +271,7 @@ export function LeagueProfileModal({
   useEffect(() => {
     if (!league) return;
     if (profile) {
-      const { league_id: _leagueId, created_at: _createdAt, updated_at: _updatedAt, ...rest } = profile;
+      const { league_id: _id, created_at: _c, updated_at: _u, ...rest } = profile;
       setDraft(rest);
     } else {
       setDraft(DEFAULT_LEAGUE_PROFILE_DRAFT);
@@ -334,8 +322,8 @@ export function LeagueProfileModal({
     setImportError('');
   }
 
-  function set<K extends keyof LeagueProfileDraft>(key: K, value: LeagueProfileDraft[K]) {
-    setDraft((prev) => ({ ...prev, [key]: value }));
+  function setProfileField<K extends keyof LeagueProfileData>(key: K, value: LeagueProfileData[K]) {
+    setDraft((prev) => ({ ...prev, profile: { ...prev.profile, [key]: value } }));
   }
 
   const footer = (
@@ -410,17 +398,17 @@ export function LeagueProfileModal({
                 </div>
               )}
 
-              {/* Qualitative tiers */}
+              {/* Qualitative tiers — sliders */}
               <div style={{ display: 'grid', gap: 14 }}>
                 <SectionLabel>Qualitative</SectionLabel>
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 14 }}>
-                  <TierSegment label="Tempo"         options={TIER5_OPTIONS}   value={draft.tempo_tier}          onChange={(v) => set('tempo_tier', v as LeagueProfileDraft['tempo_tier'])} />
-                  <TierSegment label="Goal Tendency" options={TIER5_OPTIONS}   value={draft.goal_tendency}       onChange={(v) => set('goal_tendency', v as LeagueProfileDraft['goal_tendency'])} />
-                  <TierSegment label="Home Advantage" options={HOME_ADV_OPTIONS} value={draft.home_advantage_tier} onChange={(v) => set('home_advantage_tier', v as LeagueProfileDraft['home_advantage_tier'])} />
-                  <TierSegment label="Corners"       options={TIER5_OPTIONS}   value={draft.corners_tendency}    onChange={(v) => set('corners_tendency', v as LeagueProfileDraft['corners_tendency'])} />
-                  <TierSegment label="Cards"         options={TIER5_OPTIONS}   value={draft.cards_tendency}      onChange={(v) => set('cards_tendency', v as LeagueProfileDraft['cards_tendency'])} />
-                  <TierSegment label="Volatility"    options={TIER3_OPTIONS}   value={draft.volatility_tier}     onChange={(v) => set('volatility_tier', v as LeagueProfileDraft['volatility_tier'])} />
-                  <TierSegment label="Data Reliability" options={TIER3_OPTIONS} value={draft.data_reliability_tier} onChange={(v) => set('data_reliability_tier', v as LeagueProfileDraft['data_reliability_tier'])} />
+                <div className="profile-stat-grid">
+                  <TierSlider label="Tempo"            value={draft.profile.tempo_tier}            onChange={(v) => setProfileField('tempo_tier', v)} />
+                  <TierSlider label="Goal Tendency"    value={draft.profile.goal_tendency}         onChange={(v) => setProfileField('goal_tendency', v)} />
+                  <TierSlider label="Home Advantage"   value={draft.profile.home_advantage_tier}   onChange={(v) => setProfileField('home_advantage_tier', v)} />
+                  <TierSlider label="Corners"          value={draft.profile.corners_tendency}      onChange={(v) => setProfileField('corners_tendency', v)} />
+                  <TierSlider label="Cards"            value={draft.profile.cards_tendency}        onChange={(v) => setProfileField('cards_tendency', v)} />
+                  <TierSlider label="Volatility"       value={draft.profile.volatility_tier}       onChange={(v) => setProfileField('volatility_tier', v)} />
+                  <TierSlider label="Data Reliability" value={draft.profile.data_reliability_tier} onChange={(v) => setProfileField('data_reliability_tier', v)} />
                 </div>
               </div>
 
@@ -428,12 +416,12 @@ export function LeagueProfileModal({
               <div style={{ display: 'grid', gap: 14 }}>
                 <SectionLabel>Statistics</SectionLabel>
                 <div className="profile-stat-grid">
-                  <StatInput label="Avg Goals"      hint="per match"  value={draft.avg_goals}           onChange={(v) => set('avg_goals', v)} />
-                  <StatInput label="Over 2.5 Rate"  hint="%"          value={draft.over_2_5_rate}       onChange={(v) => set('over_2_5_rate', v)} />
-                  <StatInput label="BTTS Rate"       hint="%"          value={draft.btts_rate}           onChange={(v) => set('btts_rate', v)} />
-                  <StatInput label="Late Goal 75+"   hint="%"          value={draft.late_goal_rate_75_plus} onChange={(v) => set('late_goal_rate_75_plus', v)} />
-                  <StatInput label="Avg Corners"    hint="per match"  value={draft.avg_corners}         onChange={(v) => set('avg_corners', v)} />
-                  <StatInput label="Avg Cards"      hint="per match"  value={draft.avg_cards}           onChange={(v) => set('avg_cards', v)} />
+                  <StatInput label="Avg Goals"     hint="per match"  value={draft.profile.avg_goals}            onChange={(v) => setProfileField('avg_goals', v)} />
+                  <StatInput label="Over 2.5 Rate" hint="%"          value={draft.profile.over_2_5_rate}        onChange={(v) => setProfileField('over_2_5_rate', v)} />
+                  <StatInput label="BTTS Rate"     hint="%"          value={draft.profile.btts_rate}            onChange={(v) => setProfileField('btts_rate', v)} />
+                  <StatInput label="Late Goal 75+" hint="%"          value={draft.profile.late_goal_rate_75_plus} onChange={(v) => setProfileField('late_goal_rate_75_plus', v)} />
+                  <StatInput label="Avg Corners"   hint="per match"  value={draft.profile.avg_corners}          onChange={(v) => setProfileField('avg_corners', v)} />
+                  <StatInput label="Avg Cards"     hint="per match"  value={draft.profile.avg_cards}            onChange={(v) => setProfileField('avg_cards', v)} />
                 </div>
               </div>
 
@@ -447,7 +435,7 @@ export function LeagueProfileModal({
                       rows={4}
                       className="filter-input"
                       value={draft.notes_en}
-                      onChange={(e) => set('notes_en', e.target.value)}
+                      onChange={(e) => setDraft((prev) => ({ ...prev, notes_en: e.target.value }))}
                       style={{ resize: 'vertical', fontSize: 12 }}
                     />
                   </label>
@@ -457,7 +445,7 @@ export function LeagueProfileModal({
                       rows={4}
                       className="filter-input"
                       value={draft.notes_vi}
-                      onChange={(e) => set('notes_vi', e.target.value)}
+                      onChange={(e) => setDraft((prev) => ({ ...prev, notes_vi: e.target.value }))}
                       style={{ resize: 'vertical', fontSize: 12 }}
                     />
                   </label>

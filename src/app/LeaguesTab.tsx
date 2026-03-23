@@ -52,85 +52,115 @@ interface LeagueTeamsPanelProps {
   onOpenTeamProfile: (team: LeagueTeam) => void;
 }
 
+// LeagueTeamsPanel renders <tr> fragments directly into the parent <tbody>
+// so team columns align exactly with the league table's columns (9 cols):
+//   [0] indent  [1] logo  [2] name  [3] rank  [4] —  [5] —  [6] Favorite  [7] Profile  [8] —
 function LeagueTeamsPanel({ teams, loading, favoriteIds, profiledTeamIds, onToggleFavorite, onOpenTeamProfile }: LeagueTeamsPanelProps) {
+  const teamRowStyle: React.CSSProperties = {
+    background: 'var(--gray-50)',
+    borderBottom: '1px solid var(--gray-100)',
+  };
+  const indentCellStyle: React.CSSProperties = {
+    borderLeft: '3px solid var(--blue-200)',
+    padding: 0,
+    width: 36,
+  };
+
   if (loading) {
     return (
-      <div style={{ padding: '16px', textAlign: 'center', color: 'var(--gray-400)' }}>
-        <div className="loading-spinner" style={{ margin: '0 auto 8px', width: 20, height: 20 }} />
-        <div style={{ fontSize: 12 }}>Loading teams…</div>
-      </div>
+      <tr className="league-teams-row">
+        <td style={indentCellStyle} />
+        <td colSpan={8} style={{ padding: '14px 10px', background: 'var(--gray-50)' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, color: 'var(--gray-400)', fontSize: 12 }}>
+            <div className="loading-spinner" style={{ width: 16, height: 16, flexShrink: 0 }} />
+            Loading teams…
+          </div>
+        </td>
+      </tr>
     );
   }
   if (teams.length === 0) {
-    return <div style={{ padding: '16px', fontSize: 12, color: 'var(--gray-400)', textAlign: 'center' }}>No teams found</div>;
+    return (
+      <>
+        <tr className="league-teams-row" style={teamRowStyle}>
+          <td style={indentCellStyle} />
+          <td colSpan={8} style={{ padding: '12px 10px', fontSize: 12, color: 'var(--gray-400)' }}>No teams found</td>
+        </tr>
+        <tr className="league-teams-row">
+          <td colSpan={9} style={{ padding: 0, height: 2, background: 'var(--gray-200)' }} />
+        </tr>
+      </>
+    );
   }
   return (
-    <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
-      <thead>
-        <tr style={{ borderBottom: '1px solid var(--gray-100)' }}>
-          <th style={{ padding: '6px 10px', textAlign: 'left', fontWeight: 600, color: 'var(--gray-400)', width: 36 }}>#</th>
-          <th style={{ padding: '6px 10px', textAlign: 'left', fontWeight: 600, color: 'var(--gray-400)' }}>Team</th>
-          <th style={{ padding: '6px 10px', textAlign: 'center', fontWeight: 600, color: 'var(--gray-400)', width: 90 }}>Favorite</th>
-          <th style={{ padding: '6px 10px', textAlign: 'center', fontWeight: 600, color: 'var(--gray-400)', width: 80 }}>Profile</th>
-          <th style={{ padding: '6px 10px', textAlign: 'center', fontWeight: 600, color: 'var(--gray-400)', width: 90, opacity: 0.4 }}>Push</th>
-        </tr>
-      </thead>
-      <tbody>
-        {teams.map((t) => {
-          const isFav = favoriteIds.has(String(t.team.id));
-          return (
-            <tr key={t.team.id} style={{ borderBottom: '1px solid var(--gray-50)' }}>
-              <td style={{ padding: '5px 10px', color: 'var(--gray-400)', textAlign: 'center' }}>
-                {t.rank ?? '—'}
-              </td>
-              <td style={{ padding: '5px 10px' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                  {t.team.logo
-                    ? <img src={t.team.logo} alt="" style={{ width: 22, height: 22, objectFit: 'contain' }} loading="lazy" />
-                    : <span style={{ width: 22, height: 22, display: 'inline-block' }}>⚽</span>}
-                  <span style={{ fontWeight: isFav ? 600 : 400, color: isFav ? 'var(--gray-900)' : 'var(--gray-700)' }}>{t.team.name}</span>
-                </div>
-              </td>
-              <td style={{ padding: '5px 10px', textAlign: 'center' }}>
-                <button
-                  onClick={() => onToggleFavorite(t, isFav)}
-                  title={isFav ? 'Remove from favorites' : 'Add to favorites'}
-                  style={{
-                    background: 'none', border: 'none', cursor: 'pointer',
-                    fontSize: 18, lineHeight: 1, padding: '2px 6px',
-                    color: isFav ? '#f59e0b' : 'var(--gray-300)',
-                    transition: 'color 0.15s',
-                  }}
-                >
-                  {isFav ? '⭐' : '☆'}
-                </button>
-              </td>
-              <td style={{ padding: '5px 10px', textAlign: 'center' }}>
-                {isFav ? (
-                  <button
-                    onClick={() => onOpenTeamProfile(t)}
-                    title={profiledTeamIds.has(String(t.team.id)) ? 'Edit team profile' : 'Create team profile'}
-                    style={{
-                      background: 'none', border: 'none', cursor: 'pointer',
-                      fontSize: 14, lineHeight: 1, padding: '2px 6px',
-                      color: profiledTeamIds.has(String(t.team.id)) ? 'var(--blue-500, #3b82f6)' : 'var(--gray-300)',
-                      transition: 'color 0.15s',
-                    }}
-                  >
-                    {profiledTeamIds.has(String(t.team.id)) ? '📋' : '📄'}
-                  </button>
-                ) : (
-                  <span style={{ color: 'var(--gray-200)', fontSize: 14 }}>—</span>
-                )}
-              </td>
-              <td style={{ padding: '5px 10px', textAlign: 'center', opacity: 0.35 }} title="Coming soon">
-                <button style={{ background: 'none', border: 'none', cursor: 'not-allowed', fontSize: 16, color: 'var(--gray-300)' }} disabled>🔔</button>
-              </td>
-            </tr>
-          );
-        })}
-      </tbody>
-    </table>
+    <>
+      {teams.map((t) => {
+        const isFav = favoriteIds.has(String(t.team.id));
+        const hasProfile = profiledTeamIds.has(String(t.team.id));
+        return (
+          <tr key={t.team.id} className="league-teams-row" style={teamRowStyle}>
+            {/* [0] indent accent */}
+            <td style={indentCellStyle} />
+            {/* [1] team logo */}
+            <td style={{ padding: '4px 6px' }}>
+              {t.team.logo
+                ? <img src={t.team.logo} alt="" style={{ width: 22, height: 22, objectFit: 'contain', display: 'block' }} loading="lazy" />
+                : <span style={{ width: 22, height: 22, display: 'inline-block', fontSize: 13 }}>⚽</span>}
+            </td>
+            {/* [2] team name */}
+            <td style={{ padding: '4px 8px', fontSize: 13 }}>
+              <span style={{ fontWeight: isFav ? 600 : 400, color: isFav ? 'var(--gray-900)' : 'var(--gray-700)' }}>
+                {t.team.name}
+              </span>
+            </td>
+            {/* [3] rank (country col) */}
+            <td style={{ padding: '4px 8px', fontSize: 11, color: 'var(--gray-400)', textAlign: 'center', whiteSpace: 'nowrap' }}>
+              {t.rank != null ? `#${t.rank}` : '—'}
+            </td>
+            {/* [4] tier col — empty */}
+            <td />
+            {/* [5] type col — empty */}
+            <td />
+            {/* [6] Favorite — aligns with league Favorite column */}
+            <td style={{ textAlign: 'center', padding: '4px 8px' }}>
+              <button
+                onClick={() => onToggleFavorite(t, isFav)}
+                title={isFav ? 'Remove from favorites' : 'Add to favorites'}
+                style={{
+                  background: 'none', border: 'none', cursor: 'pointer',
+                  fontSize: 18, lineHeight: 1, padding: '2px 4px',
+                  color: isFav ? '#f59e0b' : 'var(--gray-300)',
+                  transition: 'color 0.15s',
+                }}
+              >
+                {isFav ? '⭐' : '☆'}
+              </button>
+            </td>
+            {/* [7] Profile — aligns with league Profile column */}
+            <td style={{ textAlign: 'center', padding: '4px 8px' }}>
+              <button
+                onClick={() => onOpenTeamProfile(t)}
+                title={hasProfile ? 'Edit team profile' : 'Create team profile'}
+                style={{
+                  background: 'none', border: 'none', cursor: 'pointer',
+                  fontSize: 14, lineHeight: 1, padding: '2px 4px',
+                  color: hasProfile ? 'var(--blue-500, #3b82f6)' : 'var(--gray-300)',
+                  transition: 'color 0.15s',
+                }}
+              >
+                {hasProfile ? '📋' : '📄'}
+              </button>
+            </td>
+            {/* [8] active col — empty */}
+            <td />
+          </tr>
+        );
+      })}
+      {/* Bottom border to close the expanded section */}
+      <tr className="league-teams-row">
+        <td colSpan={9} style={{ padding: 0, height: 2, background: 'var(--gray-200)' }} />
+      </tr>
+    </>
   );
 }
 
@@ -199,21 +229,25 @@ const LeagueRow = memo(function LeagueRow({ league, onToggle, onToggleTop, onVie
           className={`league-top-star ${league.top_league ? 'active' : ''}`}
           onClick={() => onToggleTop(league.league_id, !league.top_league)}
           disabled={togglingTop}
-          title={league.top_league ? 'Remove from Top Leagues' : 'Add to Top Leagues'}
+          title={league.top_league ? 'Remove from Favorites' : 'Add to Favorites'}
         >
           {togglingTop ? <span className="inline-spinner" style={{ width: 12, height: 12 }} /> : (league.top_league ? '⭐' : '☆')}
         </button>
       </td>
-      <td style={{ width: 118, textAlign: 'center' }}>
+      <td style={{ textAlign: 'center' }}>
         <button
-          className="btn btn-secondary"
           onClick={() => onEditProfile(league)}
-          style={{ fontSize: 11, padding: '4px 8px', whiteSpace: 'nowrap' }}
           title={league.has_profile
-            ? `Edit league profile${league.profile_updated_at ? ` · Updated ${new Date(league.profile_updated_at).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' })}` : ''}`
+            ? `Edit league profile${league.profile_updated_at ? ` · Updated ${new Date(league.profile_updated_at).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' })}` : ''}${league.profile_volatility_tier ? ` · Volatility: ${league.profile_volatility_tier}` : ''}`
             : 'Create league profile'}
+          style={{
+            background: 'none', border: 'none', cursor: 'pointer',
+            fontSize: 14, lineHeight: 1, padding: '2px 6px',
+            color: league.has_profile ? 'var(--blue-500, #3b82f6)' : 'var(--gray-300)',
+            transition: 'color 0.15s',
+          }}
         >
-          {league.has_profile ? `Profile${league.profile_volatility_tier ? ` (${league.profile_volatility_tier})` : ''}` : 'Add Profile'}
+          {league.has_profile ? '📋' : '📄'}
         </button>
       </td>
       <td>
@@ -309,10 +343,10 @@ const StatsBar = memo(function StatsBar({
       <button
         className={`leagues-stat-btn${filterTopLeague === 'top' ? ' stat-active stat-active--amber' : ''}`}
         onClick={() => onFilterTopLeague(filterTopLeague === 'top' ? 'all' : 'top')}
-        title="Filter: Top Leagues only"
+        title="Filter: Favorite Leagues only"
       >
         <span className="leagues-stat-value" style={{ color: '#f59e0b' }}>{topCount}</span>
-        <span className="leagues-stat-label">Top Leagues</span>
+        <span className="leagues-stat-label">Favorites</span>
       </button>
 
       {/* Profiles */}
@@ -640,11 +674,11 @@ export function LeaguesTab() {
         return prev;
       });
       setSelectedIds(new Set());
-      showToast(`${ids.length} leagues ${topLeague ? 'added to' : 'removed from'} Top Leagues`, 'success');
+      showToast(`${ids.length} leagues ${topLeague ? 'added to' : 'removed from'} Favorites`, 'success');
     } catch (err) {
       console.error('[LeaguesTab] bulkTopLeague failed:', err);
       loadLeagues();
-      showToast('Failed to update top leagues', 'error');
+      showToast('Failed to update favorites', 'error');
     }
   }, [config, dispatch, selectedIds, showToast, loadLeagues]);
 
@@ -690,8 +724,8 @@ export function LeaguesTab() {
               ...league,
               has_profile: true,
               profile_updated_at: saved.updated_at,
-              profile_volatility_tier: saved.volatility_tier,
-              profile_data_reliability_tier: saved.data_reliability_tier,
+              profile_volatility_tier: saved.profile.volatility_tier,
+              profile_data_reliability_tier: saved.profile.data_reliability_tier,
             }
           : league);
         dispatch({ type: 'SET_LEAGUES', payload: next });
@@ -826,8 +860,8 @@ export function LeaguesTab() {
 
         <select className="filter-input" value={filterTopLeague} onChange={(e) => setFilterTopLeague(e.target.value)} style={{ flex: '0 0 120px' }}>
           <option value="all">All Leagues</option>
-          <option value="top">Top Leagues</option>
-          <option value="normal">Normal</option>
+          <option value="top">Favorites</option>
+          <option value="normal">Non-Favorites</option>
         </select>
 
         <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 6, paddingLeft: 8, borderLeft: '1px solid var(--gray-100)' }}>
@@ -860,8 +894,8 @@ export function LeaguesTab() {
           <span style={{ fontWeight: 600, color: 'var(--gray-700)', marginRight: 4 }}>{selectedIds.size} selected</span>
           <button className="btn btn-sm btn-success" onClick={() => handleBulkToggle(true)}>Activate</button>
           <button className="btn btn-sm btn-danger" onClick={() => setConfirmDeactivate(true)}>Deactivate</button>
-          <button className="btn btn-sm btn-warning" onClick={() => handleBulkTopLeague(true)}>Set Top</button>
-          <button className="btn btn-sm btn-secondary" onClick={() => handleBulkTopLeague(false)}>Unset Top</button>
+          <button className="btn btn-sm btn-warning" onClick={() => handleBulkTopLeague(true)}>Add to Favorites</button>
+          <button className="btn btn-sm btn-secondary" onClick={() => handleBulkTopLeague(false)}>Remove from Favorites</button>
           <button className="btn btn-sm btn-secondary" onClick={() => { setSelectedIds(new Set()); setConfirmDeactivate(false); }} style={{ marginLeft: 'auto' }}>Clear</button>
         </div>
       )}
@@ -887,7 +921,7 @@ export function LeaguesTab() {
               <th style={{ width: '1%', whiteSpace: 'nowrap' }}>Country</th>
               <th style={{ width: '1%', whiteSpace: 'nowrap' }}>Tier</th>
               <th style={{ width: '1%', whiteSpace: 'nowrap' }}>Type</th>
-              <th style={{ width: '1%', whiteSpace: 'nowrap', textAlign: 'center' }}>Top</th>
+              <th style={{ width: '1%', whiteSpace: 'nowrap', textAlign: 'center' }}>Favorite</th>
               <th style={{ width: '1%', whiteSpace: 'nowrap', textAlign: 'center' }}>Profile</th>
               <th style={{ width: '1%', whiteSpace: 'nowrap', textAlign: 'center' }}>Active</th>
             </tr>
@@ -909,18 +943,14 @@ export function LeaguesTab() {
                   onToggleTeams={handleToggleTeams}
                 />
                 {expandedLeagueId === league.league_id && (
-                  <tr>
-                    <td colSpan={9} style={{ padding: 0, background: 'var(--gray-50)', borderBottom: '2px solid var(--gray-200)' }}>
-                      <LeagueTeamsPanel
-                        teams={leagueTeamsCache[league.league_id] ?? []}
-                        loading={teamsLoading && !leagueTeamsCache[league.league_id]}
-                        favoriteIds={favoriteIds}
-                        profiledTeamIds={profiledTeamIds}
-                        onToggleFavorite={handleToggleFavorite}
-                        onOpenTeamProfile={(team) => handleOpenTeamProfile(team, league.league_name)}
-                      />
-                    </td>
-                  </tr>
+                  <LeagueTeamsPanel
+                    teams={leagueTeamsCache[league.league_id] ?? []}
+                    loading={teamsLoading && !leagueTeamsCache[league.league_id]}
+                    favoriteIds={favoriteIds}
+                    profiledTeamIds={profiledTeamIds}
+                    onToggleFavorite={handleToggleFavorite}
+                    onOpenTeamProfile={(team) => handleOpenTeamProfile(team, league.league_name)}
+                  />
                 )}
               </Fragment>
             ))}

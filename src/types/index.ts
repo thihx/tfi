@@ -188,23 +188,29 @@ export interface Recommendation {
   created_at?: string;
 }
 
-export interface LeagueProfile {
-  league_id: number;
-  tempo_tier: 'very_low' | 'low' | 'balanced' | 'high' | 'very_high';
-  goal_tendency: 'very_low' | 'low' | 'balanced' | 'high' | 'very_high';
-  home_advantage_tier: 'low' | 'normal' | 'high';
-  corners_tendency: 'very_low' | 'low' | 'balanced' | 'high' | 'very_high';
-  cards_tendency: 'very_low' | 'low' | 'balanced' | 'high' | 'very_high';
-  volatility_tier: 'low' | 'medium' | 'high';
-  data_reliability_tier: 'low' | 'medium' | 'high';
-  avg_goals: number | null;
-  over_2_5_rate: number | null;
-  btts_rate: number | null;
+export type LeagueTier = 'low' | 'balanced' | 'high';
+
+export interface LeagueProfileData {
+  tempo_tier:           LeagueTier;
+  goal_tendency:        LeagueTier;
+  home_advantage_tier:  LeagueTier;
+  corners_tendency:     LeagueTier;
+  cards_tendency:       LeagueTier;
+  volatility_tier:      LeagueTier;
+  data_reliability_tier: LeagueTier;
+  avg_goals:            number | null;
+  over_2_5_rate:        number | null;
+  btts_rate:            number | null;
   late_goal_rate_75_plus: number | null;
-  avg_corners: number | null;
-  avg_cards: number | null;
-  notes_en: string;
-  notes_vi: string;
+  avg_corners:          number | null;
+  avg_cards:            number | null;
+}
+
+export interface LeagueProfile {
+  league_id:  number;
+  profile:    LeagueProfileData;
+  notes_en:   string;
+  notes_vi:   string;
   created_at: string;
   updated_at: string;
 }

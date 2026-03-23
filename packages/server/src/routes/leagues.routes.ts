@@ -94,9 +94,7 @@ async function invalidateActiveLeaguesCache(): Promise<void> {
   try { await getRedisClient().del(ACTIVE_CACHE_KEY); } catch { /* ignore */ }
 }
 
-const TIER5_VALUES = new Set(['very_low', 'low', 'balanced', 'high', 'very_high']);
-const TIER3_VALUES = new Set(['low', 'medium', 'high']);
-const HOME_ADVANTAGE_VALUES = new Set(['low', 'normal', 'high']);
+const TIER_VALUES = new Set<profileRepo.LeagueTier>(['low', 'balanced', 'high']);
 
 function parseNullableNumber(value: unknown): number | null {
   if (value == null || value === '') return null;
@@ -104,41 +102,38 @@ function parseNullableNumber(value: unknown): number | null {
   return Number.isFinite(num) ? num : null;
 }
 
-function normalizeProfilePayload(body: Record<string, unknown>): profileRepo.LeagueProfileInput | null {
-  const tempoTier = String(body.tempo_tier ?? '').trim();
-  const goalTendency = String(body.goal_tendency ?? '').trim();
-  const homeAdvantageTier = String(body.home_advantage_tier ?? '').trim();
-  const cornersTendency = String(body.corners_tendency ?? '').trim();
-  const cardsTendency = String(body.cards_tendency ?? '').trim();
-  const volatilityTier = String(body.volatility_tier ?? '').trim();
-  const dataReliabilityTier = String(body.data_reliability_tier ?? '').trim();
+function readTier(value: unknown): profileRepo.LeagueTier {
+  const s = String(value ?? '').trim() as profileRepo.LeagueTier;
+  return TIER_VALUES.has(s) ? s : 'balanced';
+}
 
-  if (
-    !TIER5_VALUES.has(tempoTier)
-    || !TIER5_VALUES.has(goalTendency)
-    || !HOME_ADVANTAGE_VALUES.has(homeAdvantageTier)
-    || !TIER5_VALUES.has(cornersTendency)
-    || !TIER5_VALUES.has(cardsTendency)
-    || !TIER3_VALUES.has(volatilityTier)
-    || !TIER3_VALUES.has(dataReliabilityTier)
-  ) {
-    return null;
-  }
+interface NormalizedProfilePayload {
+  profile: profileRepo.LeagueProfileData;
+  notes_en: string;
+  notes_vi: string;
+}
+
+function normalizeProfilePayload(body: Record<string, unknown>): NormalizedProfilePayload | null {
+  const p = (body.profile != null && typeof body.profile === 'object' && !Array.isArray(body.profile))
+    ? body.profile as Record<string, unknown>
+    : body;
 
   return {
-    tempo_tier: tempoTier as profileRepo.LeagueProfileTier5,
-    goal_tendency: goalTendency as profileRepo.LeagueProfileTier5,
-    home_advantage_tier: homeAdvantageTier as profileRepo.LeagueProfileHomeAdvantageTier,
-    corners_tendency: cornersTendency as profileRepo.LeagueProfileTier5,
-    cards_tendency: cardsTendency as profileRepo.LeagueProfileTier5,
-    volatility_tier: volatilityTier as profileRepo.LeagueProfileTier3,
-    data_reliability_tier: dataReliabilityTier as profileRepo.LeagueProfileTier3,
-    avg_goals: parseNullableNumber(body.avg_goals),
-    over_2_5_rate: parseNullableNumber(body.over_2_5_rate),
-    btts_rate: parseNullableNumber(body.btts_rate),
-    late_goal_rate_75_plus: parseNullableNumber(body.late_goal_rate_75_plus),
-    avg_corners: parseNullableNumber(body.avg_corners),
-    avg_cards: parseNullableNumber(body.avg_cards),
+    profile: {
+      tempo_tier:            readTier(p.tempo_tier),
+      goal_tendency:         readTier(p.goal_tendency),
+      home_advantage_tier:   readTier(p.home_advantage_tier),
+      corners_tendency:      readTier(p.corners_tendency),
+      cards_tendency:        readTier(p.cards_tendency),
+      volatility_tier:       readTier(p.volatility_tier),
+      data_reliability_tier: readTier(p.data_reliability_tier),
+      avg_goals:             parseNullableNumber(p.avg_goals),
+      over_2_5_rate:         parseNullableNumber(p.over_2_5_rate),
+      btts_rate:             parseNullableNumber(p.btts_rate),
+      late_goal_rate_75_plus: parseNullableNumber(p.late_goal_rate_75_plus),
+      avg_corners:           parseNullableNumber(p.avg_corners),
+      avg_cards:             parseNullableNumber(p.avg_cards),
+    },
     notes_en: String(body.notes_en ?? '').trim(),
     notes_vi: String(body.notes_vi ?? '').trim(),
   };
@@ -215,7 +210,7 @@ export async function leagueRoutes(app: FastifyInstance) {
         return reply.code(400).send({ error: 'Invalid league profile payload' });
       }
 
-      const saved = await profileRepo.upsertLeagueProfile(id, payload);
+      const saved = await profileRepo.upsertLeagueProfile(id, payload.profile, payload.notes_en, payload.notes_vi);
       void invalidateActiveLeaguesCache();
       return saved;
     },
