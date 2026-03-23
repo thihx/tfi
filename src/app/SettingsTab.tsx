@@ -479,7 +479,7 @@ export function SettingsTab() {
                 onChange={(e) => handleLanguageChange(e.target.value === 'en' ? 'en' : 'vi')}
                 style={{ minWidth: '160px' }}
               >
-                <option value="vi">Tiếng Việt</option>
+                <option value="vi">Vietnamese</option>
                 <option value="en">English</option>
               </select>
             </div>
@@ -508,7 +508,7 @@ export function SettingsTab() {
                   <div>
                     <div style={{ fontSize: '13px', fontWeight: 600, color: 'var(--gray-900)' }}>Telegram</div>
                     <div style={{ fontSize: '11px', color: 'var(--gray-500)', marginTop: '1px' }}>
-                      Gửi khuyến nghị AI qua Telegram Bot
+                      Send AI recommendations via Telegram Bot
                     </div>
                   </div>
                 </div>
@@ -519,9 +519,9 @@ export function SettingsTab() {
                     onChange={(e) => handleNotificationLanguage(e.target.value as 'vi' | 'en' | 'both')}
                     disabled={!telegramEnabled}
                     style={{ minWidth: '110px', opacity: telegramEnabled ? 1 : 0.45 }}
-                    title="Ngôn ngữ tin nhắn"
+                    title="Message language"
                   >
-                    <option value="vi">Tiếng Việt</option>
+                    <option value="vi">Vietnamese</option>
                     <option value="en">English</option>
                     <option value="both">EN + VI</option>
                   </select>
@@ -590,7 +590,7 @@ export function SettingsTab() {
                         Coming soon
                       </span>
                     </div>
-                    <div style={{ fontSize: '11px', color: 'var(--gray-500)', marginTop: '1px' }}>Gửi thông báo qua Zalo OA</div>
+                    <div style={{ fontSize: '11px', color: 'var(--gray-500)', marginTop: '1px' }}>Send notifications via Zalo OA</div>
                   </div>
                 </div>
                 <Toggle on={false} onChange={() => {}} disabled />
