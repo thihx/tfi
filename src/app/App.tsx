@@ -5,7 +5,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { ErrorBoundary, TabErrorBoundary } from '@/components/ui/ErrorBoundary';
 import { GlobalLoader } from '@/components/ui/GlobalLoader';
 import { Header } from '@/components/layout/Header';
-import { Navigation } from '@/components/layout/Navigation';
+import { BottomNav } from '@/components/layout/BottomNav';
 import { Sidebar } from '@/components/layout/Sidebar';
 import { LoginScreen } from '@/app/LoginScreen';
 import { MatchDetailModal } from '@/components/ui/MatchDetailModal';
@@ -149,13 +149,13 @@ function AppContent() {
       )}
 
       {isMobile ? (
-        /* ── Mobile: original top-nav layout ── */
+        /* ── Mobile: header + bottom-nav layout ── */
         <div id="appContainer">
           <Header activeTab={activeTab} onLogout={logout} user={user} />
-          <Navigation activeTab={activeTab} onTabChange={setActiveTab} />
           <div className="main-content">
             <Suspense fallback={<TabFallback />}>{renderTab()}</Suspense>
           </div>
+          <BottomNav activeTab={activeTab} onTabChange={setActiveTab} />
         </div>
       ) : (
         /* ── Desktop: sidebar layout ── */

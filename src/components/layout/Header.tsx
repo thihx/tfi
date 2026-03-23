@@ -24,13 +24,17 @@ export function Header({ activeTab, onLogout, user }: HeaderProps) {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
 
-  // Close dropdown when clicking outside
+  // Close dropdown when clicking/tapping outside
   useEffect(() => {
-    function handle(e: MouseEvent) {
+    function handle(e: MouseEvent | TouchEvent) {
       if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
     }
     document.addEventListener('mousedown', handle);
-    return () => document.removeEventListener('mousedown', handle);
+    document.addEventListener('touchstart', handle, { passive: true });
+    return () => {
+      document.removeEventListener('mousedown', handle);
+      document.removeEventListener('touchstart', handle);
+    };
   }, []);
 
   return (
@@ -50,8 +54,8 @@ export function Header({ activeTab, onLogout, user }: HeaderProps) {
                 padding: '4px', borderRadius: '24px',
                 transition: 'background 0.15s',
               }}
-              onMouseEnter={(e) => (e.currentTarget.style.background = 'rgba(0,0,0,0.06)')}
-              onMouseLeave={(e) => (e.currentTarget.style.background = 'none')}
+              onPointerEnter={(e) => { if (e.pointerType === 'mouse') e.currentTarget.style.background = 'rgba(0,0,0,0.06)'; }}
+              onPointerLeave={(e) => (e.currentTarget.style.background = 'none')}
             >
               <Avatar user={user} size={32} />
             </button>
@@ -89,8 +93,8 @@ export function Header({ activeTab, onLogout, user }: HeaderProps) {
                       fontSize: '13px', color: '#3c4043',
                       fontWeight: 500, transition: 'background 0.15s',
                     }}
-                    onMouseEnter={(e) => (e.currentTarget.style.background = '#f8f9fa')}
-                    onMouseLeave={(e) => (e.currentTarget.style.background = 'none')}
+                    onPointerEnter={(e) => { if (e.pointerType === 'mouse') e.currentTarget.style.background = '#f8f9fa'; }}
+                    onPointerLeave={(e) => (e.currentTarget.style.background = 'none')}
                   >
                     Sign out
                   </button>
