@@ -65,7 +65,8 @@ export function Header({ activeTab, onLogout, user }: HeaderProps) {
                 position: 'absolute', top: 'calc(100% + 8px)', right: 0,
                 background: '#fff', border: '1px solid #e0e0e0',
                 borderRadius: '12px', boxShadow: '0 4px 20px rgba(0,0,0,0.15)',
-                minWidth: '260px', zIndex: 1000, overflow: 'hidden',
+                minWidth: 'clamp(200px, 85vw, 260px)', maxWidth: '85vw',
+                zIndex: 1000, overflow: 'hidden',
               }}>
                 {/* User info header */}
                 <div style={{

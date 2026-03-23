@@ -374,13 +374,14 @@ export function LeagueProfileModal({
         <div>
           {/* League info strip */}
           <div style={{
-            display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', gap: 8,
+            display: 'grid', gridTemplateColumns: `repeat(${profile ? 4 : 3}, minmax(0, 1fr))`, gap: 8,
             marginBottom: 16,
           }}>
             {[
-              { label: 'League',     value: league.league_name },
-              { label: 'Country',    value: league.country || '—' },
+              { label: 'League',      value: league.league_name },
+              { label: 'Country',     value: league.country || '—' },
               { label: 'Tier / Type', value: `${league.tier} / ${league.type}` },
+              ...(profile ? [{ label: 'Last Updated', value: new Date(profile.updated_at).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' }) }] : []),
             ].map(({ label, value }) => (
               <div key={label} style={{
                 padding: '8px 12px', borderRadius: 8,
@@ -426,7 +427,7 @@ export function LeagueProfileModal({
               {/* Quantitative stats */}
               <div style={{ display: 'grid', gap: 14 }}>
                 <SectionLabel>Statistics</SectionLabel>
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', gap: 10 }}>
+                <div className="profile-stat-grid">
                   <StatInput label="Avg Goals"      hint="per match"  value={draft.avg_goals}           onChange={(v) => set('avg_goals', v)} />
                   <StatInput label="Over 2.5 Rate"  hint="%"          value={draft.over_2_5_rate}       onChange={(v) => set('over_2_5_rate', v)} />
                   <StatInput label="BTTS Rate"       hint="%"          value={draft.btts_rate}           onChange={(v) => set('btts_rate', v)} />
@@ -439,7 +440,7 @@ export function LeagueProfileModal({
               {/* Notes */}
               <div style={{ display: 'grid', gap: 14 }}>
                 <SectionLabel>Notes</SectionLabel>
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 10 }}>
+                <div className="profile-notes-grid">
                   <label style={{ display: 'grid', gap: 4 }}>
                     <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--gray-500)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>English</span>
                     <textarea

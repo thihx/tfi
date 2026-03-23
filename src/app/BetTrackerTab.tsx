@@ -326,7 +326,7 @@ export function BetTrackerTab() {
           ) : (
             <>
             <Pagination currentPage={safePage} totalPages={totalPages} onPageChange={setPage} />
-            <div style={{ overflowX: 'auto' }}>
+            <div style={{ overflowX: 'auto', WebkitOverflowScrolling: 'touch' }}>
             <table style={{ minWidth: '700px' }}>
               <thead>
                 <tr>

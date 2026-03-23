@@ -2,6 +2,7 @@ import { useState, useEffect, useMemo, useCallback, memo, useRef, Fragment } fro
 import { Pagination } from '@/components/ui/Pagination';
 import { LeagueFixturesDialog } from '@/components/ui/LeagueFixturesDialog';
 import { LeagueProfileModal } from '@/components/ui/LeagueProfileModal';
+import { TeamProfileModal } from '@/components/ui/TeamProfileModal';
 import { useAppState } from '@/hooks/useAppState';
 import { useToast } from '@/hooks/useToast';
 import {
@@ -9,9 +10,10 @@ import {
   toggleLeagueTopLeague, bulkSetTopLeague,
   fetchLeagueProfile, saveLeagueProfile, deleteLeagueProfile,
   fetchLeagueTeams, fetchFavoriteTeams, addFavoriteTeam, removeFavoriteTeam,
+  fetchAllTeamProfiles, fetchTeamProfile, saveTeamProfile, deleteTeamProfile,
   type LeagueTeam,
 } from '@/lib/services/api';
-import type { League, LeagueProfile } from '@/types';
+import type { League, LeagueProfile, TeamProfile } from '@/types';
 
 // ── Constants ──
 
@@ -45,10 +47,12 @@ interface LeagueTeamsPanelProps {
   teams: LeagueTeam[];
   loading: boolean;
   favoriteIds: Set<string>;
+  profiledTeamIds: Set<string>;
   onToggleFavorite: (team: LeagueTeam, isFav: boolean) => void;
+  onOpenTeamProfile: (team: LeagueTeam) => void;
 }
 
-function LeagueTeamsPanel({ teams, loading, favoriteIds, onToggleFavorite }: LeagueTeamsPanelProps) {
+function LeagueTeamsPanel({ teams, loading, favoriteIds, profiledTeamIds, onToggleFavorite, onOpenTeamProfile }: LeagueTeamsPanelProps) {
   if (loading) {
     return (
       <div style={{ padding: '16px', textAlign: 'center', color: 'var(--gray-400)' }}>
@@ -67,6 +71,7 @@ function LeagueTeamsPanel({ teams, loading, favoriteIds, onToggleFavorite }: Lea
           <th style={{ padding: '6px 10px', textAlign: 'left', fontWeight: 600, color: 'var(--gray-400)', width: 36 }}>#</th>
           <th style={{ padding: '6px 10px', textAlign: 'left', fontWeight: 600, color: 'var(--gray-400)' }}>Team</th>
           <th style={{ padding: '6px 10px', textAlign: 'center', fontWeight: 600, color: 'var(--gray-400)', width: 90 }}>Favorite</th>
+          <th style={{ padding: '6px 10px', textAlign: 'center', fontWeight: 600, color: 'var(--gray-400)', width: 80 }}>Profile</th>
           <th style={{ padding: '6px 10px', textAlign: 'center', fontWeight: 600, color: 'var(--gray-400)', width: 90, opacity: 0.4 }}>Push</th>
         </tr>
       </thead>
@@ -99,6 +104,24 @@ function LeagueTeamsPanel({ teams, loading, favoriteIds, onToggleFavorite }: Lea
                 >
                   {isFav ? '⭐' : '☆'}
                 </button>
+              </td>
+              <td style={{ padding: '5px 10px', textAlign: 'center' }}>
+                {isFav ? (
+                  <button
+                    onClick={() => onOpenTeamProfile(t)}
+                    title={profiledTeamIds.has(String(t.team.id)) ? 'Edit team profile' : 'Create team profile'}
+                    style={{
+                      background: 'none', border: 'none', cursor: 'pointer',
+                      fontSize: 14, lineHeight: 1, padding: '2px 6px',
+                      color: profiledTeamIds.has(String(t.team.id)) ? 'var(--blue-500, #3b82f6)' : 'var(--gray-300)',
+                      transition: 'color 0.15s',
+                    }}
+                  >
+                    {profiledTeamIds.has(String(t.team.id)) ? '📋' : '📄'}
+                  </button>
+                ) : (
+                  <span style={{ color: 'var(--gray-200)', fontSize: 14 }}>—</span>
+                )}
               </td>
               <td style={{ padding: '5px 10px', textAlign: 'center', opacity: 0.35 }} title="Coming soon">
                 <button style={{ background: 'none', border: 'none', cursor: 'not-allowed', fontSize: 16, color: 'var(--gray-300)' }} disabled>🔔</button>
@@ -186,7 +209,9 @@ const LeagueRow = memo(function LeagueRow({ league, onToggle, onToggleTop, onVie
           className="btn btn-secondary"
           onClick={() => onEditProfile(league)}
           style={{ fontSize: 11, padding: '4px 8px', whiteSpace: 'nowrap' }}
-          title={league.has_profile ? 'Edit league profile' : 'Create league profile'}
+          title={league.has_profile
+            ? `Edit league profile${league.profile_updated_at ? ` · Updated ${new Date(league.profile_updated_at).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' })}` : ''}`
+            : 'Create league profile'}
         >
           {league.has_profile ? `Profile${league.profile_volatility_tier ? ` (${league.profile_volatility_tier})` : ''}` : 'Add Profile'}
         </button>
@@ -358,6 +383,13 @@ export function LeaguesTab() {
   const [teamsLoading, setTeamsLoading] = useState(false);
   const [favoriteIds, setFavoriteIds] = useState<Set<string>>(new Set());
 
+  // Team profile modal state
+  const [teamProfileTarget, setTeamProfileTarget] = useState<{ teamId: string; teamName: string; leagueName: string } | null>(null);
+  const [teamProfile, setTeamProfile] = useState<TeamProfile | null>(null);
+  const [teamProfileLoading, setTeamProfileLoading] = useState(false);
+  const [teamProfileSaving, setTeamProfileSaving] = useState(false);
+  const [profiledTeamIds, setProfiledTeamIds] = useState<Set<string>>(new Set());
+
   // `/` key focuses search
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
@@ -390,6 +422,13 @@ export function LeaguesTab() {
   useEffect(() => {
     fetchFavoriteTeams(config)
       .then((favs) => setFavoriteIds(new Set(favs.map((f) => f.team_id))))
+      .catch(() => {});
+  }, [config]);
+
+  // Load set of team IDs that already have a profile (for badge display)
+  useEffect(() => {
+    fetchAllTeamProfiles(config)
+      .then((rows) => setProfiledTeamIds(new Set(rows.map((r) => r.team_id))))
       .catch(() => {});
   }, [config]);
 
@@ -434,6 +473,59 @@ export function LeaguesTab() {
       });
     }
   }, [config]);
+
+  const handleOpenTeamProfile = useCallback(async (team: LeagueTeam, leagueName: string) => {
+    const teamId = String(team.team.id);
+    setTeamProfileTarget({ teamId, teamName: team.team.name, leagueName });
+    setTeamProfileLoading(true);
+    try {
+      const profile = await fetchTeamProfile(config, teamId);
+      setTeamProfile(profile);
+    } catch (err) {
+      console.error('[LeaguesTab] load team profile failed:', err);
+      setTeamProfile(null);
+      showToast('Failed to load team profile', 'error');
+    } finally {
+      setTeamProfileLoading(false);
+    }
+  }, [config, showToast]);
+
+  const handleSaveTeamProfile = useCallback(async (_teamId: string, draft: { profile: TeamProfile['profile']; notes_en: string; notes_vi: string }) => {
+    if (!teamProfileTarget) return;
+    setTeamProfileSaving(true);
+    try {
+      const saved = await saveTeamProfile(config, teamProfileTarget.teamId, draft);
+      setTeamProfile(saved);
+      setProfiledTeamIds((prev) => new Set([...prev, teamProfileTarget.teamId]));
+      showToast('Team profile saved', 'success');
+    } catch (err) {
+      console.error('[LeaguesTab] save team profile failed:', err);
+      showToast('Failed to save team profile', 'error');
+    } finally {
+      setTeamProfileSaving(false);
+    }
+  }, [config, teamProfileTarget, showToast]);
+
+  const handleDeleteTeamProfile = useCallback(async (_teamId: string) => {
+    if (!teamProfileTarget) return;
+    setTeamProfileSaving(true);
+    try {
+      await deleteTeamProfile(config, teamProfileTarget.teamId);
+      setTeamProfile(null);
+      setProfiledTeamIds((prev) => {
+        const next = new Set(prev);
+        next.delete(teamProfileTarget.teamId);
+        return next;
+      });
+      showToast('Team profile deleted', 'success');
+      setTeamProfileTarget(null);
+    } catch (err) {
+      console.error('[LeaguesTab] delete team profile failed:', err);
+      showToast('Failed to delete team profile', 'error');
+    } finally {
+      setTeamProfileSaving(false);
+    }
+  }, [config, teamProfileTarget, showToast]);
 
   // Filter options
   const countries = useMemo(() => {
@@ -823,7 +915,9 @@ export function LeaguesTab() {
                         teams={leagueTeamsCache[league.league_id] ?? []}
                         loading={teamsLoading && !leagueTeamsCache[league.league_id]}
                         favoriteIds={favoriteIds}
+                        profiledTeamIds={profiledTeamIds}
                         onToggleFavorite={handleToggleFavorite}
+                        onOpenTeamProfile={(team) => handleOpenTeamProfile(team, league.league_name)}
                       />
                     </td>
                   </tr>
@@ -861,6 +955,20 @@ export function LeaguesTab() {
       }}
       onSave={handleSaveProfile}
       onDelete={handleDeleteProfile}
+    />
+    <TeamProfileModal
+      team={teamProfileTarget ? { id: teamProfileTarget.teamId, name: teamProfileTarget.teamName } : null}
+      leagueName={teamProfileTarget?.leagueName}
+      profile={teamProfile}
+      loading={teamProfileLoading}
+      saving={teamProfileSaving}
+      onClose={() => {
+        if (teamProfileSaving) return;
+        setTeamProfileTarget(null);
+        setTeamProfile(null);
+      }}
+      onSave={handleSaveTeamProfile}
+      onDelete={handleDeleteTeamProfile}
     />
     </>
   );

@@ -233,7 +233,7 @@ body {
     background: none;
     padding: 0 4px;
     color: var(--gray-400);
-    font-size: 10px;
+    font-size: 11px;
     font-weight: 500;
     letter-spacing: 0.2px;
     transition: color 0.15s;
@@ -1884,6 +1884,72 @@ table td:last-child, table th:last-child {
         width: auto !important;
         min-width: 130px !important;
     }
+
+    /* ── Modal mobile fixes ──────────────────────────────────────── */
+
+    /* Respect notch / home indicator inside the overlay */
+    .modal-overlay {
+        padding: max(12px, env(safe-area-inset-top))
+                 12px
+                 max(12px, env(safe-area-inset-bottom))
+                 12px;
+    }
+
+    /* Cap height so modal never runs under the bottom nav */
+    .modal {
+        max-height: calc(100dvh
+            - env(safe-area-inset-top)
+            - env(safe-area-inset-bottom)
+            - 56px   /* bottom nav */
+            - 24px); /* overlay gaps */
+        border-radius: 12px;
+    }
+
+    /* Smaller, wrappable title */
+    .modal-title {
+        font-size: 15px;
+        line-height: 1.3;
+    }
+
+    /* Tighter header & body padding */
+    .modal-header {
+        padding: 12px 16px 10px;
+    }
+
+    .modal-body {
+        padding: 14px 16px;
+    }
+
+    .modal-footer {
+        padding: 10px 16px 12px;
+        flex-wrap: wrap;
+        gap: 8px;
+    }
+}
+
+/* ==================== PROFILE MODALS — STAT GRIDS ==================== */
+
+/* 3-column stat grid (Goals / Corners & Discipline sections) */
+.profile-stat-grid {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 10px;
+}
+
+/* 2-column notes grid */
+.profile-notes-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px;
+}
+
+@media (max-width: 480px) {
+    .profile-stat-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+    .profile-notes-grid {
+        grid-template-columns: 1fr;
+    }
 }
 
 /* iPhone 14 Pro Max specific (430x932) */
@@ -1891,20 +1957,58 @@ table td:last-child, table th:last-child {
     .stats-grid {
         grid-template-columns: 1fr 1fr;
     }
-    
+
     .main-content {
         padding: 8px;
     }
-    
+
     .pagination {
         flex-wrap: wrap;
         justify-content: center;
         gap: 8px;
     }
-    
+
     .pagination button {
         padding: 6px 10px;
         font-size: 12px;
+    }
+
+    /* Keep filter inputs usable when they wrap on narrow screens */
+    .filter-input {
+        min-width: 80px;
+    }
+
+    /* Page subtitle items smaller on very narrow screens */
+    .page-header-subtitle {
+        font-size: 11px;
+        gap: 6px;
+    }
+
+    /* Card padding tighter on narrow devices */
+    .card-header {
+        padding: 12px;
+    }
+}
+
+/* ── Very narrow devices (iPhone SE, 320px) ──────────────────────── */
+@media (max-width: 380px) {
+    /* Narrower label column in card-style tables */
+    .table-container.table-cards td {
+        grid-template-columns: 80px minmax(0, 1fr);
+    }
+
+    /* Stack main-content cards edge-to-edge */
+    .main-content {
+        padding: 6px;
+    }
+
+    /* Compact modal headers */
+    .modal-header {
+        padding: 10px 12px 8px;
+    }
+
+    .modal-body {
+        padding: 12px;
     }
 }
 

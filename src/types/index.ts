@@ -209,6 +209,36 @@ export interface LeagueProfile {
   updated_at: string;
 }
 
+export interface TeamProfileData {
+  attack_style:          'counter' | 'direct' | 'possession' | 'mixed';
+  defensive_line:        'low' | 'medium' | 'high';
+  pressing_intensity:    'low' | 'medium' | 'high';
+  set_piece_threat:      'low' | 'medium' | 'high';
+  home_strength:         'weak' | 'normal' | 'strong';
+  form_consistency:      'volatile' | 'inconsistent' | 'consistent';
+  squad_depth:           'shallow' | 'medium' | 'deep';
+  avg_goals_scored:      number | null;
+  avg_goals_conceded:    number | null;
+  clean_sheet_rate:      number | null;
+  btts_rate:             number | null;
+  over_2_5_rate:         number | null;
+  avg_corners_for:       number | null;
+  avg_corners_against:   number | null;
+  avg_cards:             number | null;
+  first_goal_rate:       number | null;
+  late_goal_rate:        number | null;
+  data_reliability_tier: 'low' | 'medium' | 'high';
+}
+
+export interface TeamProfile {
+  team_id:    string;
+  profile:    TeamProfileData;
+  notes_en:   string;
+  notes_vi:   string;
+  created_at: string;
+  updated_at: string;
+}
+
 export interface League {
   league_id: number;
   league_name: string;

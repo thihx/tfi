@@ -200,7 +200,7 @@ export function RecommendationsTab() {
       {/* Filters + view/chart toggles */}
       <div className="card mb-16">
         <div style={{ display: 'flex', alignItems: 'stretch', borderBottom: '1px solid var(--gray-200)' }}>
-          <div style={{ flex: 1, display: 'flex', flexWrap: 'nowrap', alignItems: 'center', gap: '6px', padding: '8px 12px' }}>
+          <div style={{ flex: 1, display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '6px', padding: '8px 12px' }}>
             <input
               ref={searchRef}
               type="text"
@@ -300,7 +300,7 @@ export function RecommendationsTab() {
               <p>{loading ? 'Loading...' : 'No recommendations match filters'}</p>
             </div>
           ) : (
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(min(100%, 360px), 1fr))', gap: '12px' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(min(100%, 300px), 1fr))', gap: '10px' }}>
               {rows.map((rec, i) => (
                 <RecommendationCard
                   key={rec.id ?? i}

@@ -463,7 +463,7 @@ export function MatchesTab() {
               {entry.result.parsedAi ? (() => {
                 const ai = entry.result.parsedAi!;
                 return (
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', fontSize: '13px' }}>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: '10px', fontSize: '13px' }}>
                     <div><strong>Selection:</strong> {ai.selection}</div>
                     <div><strong>Market:</strong> {ai.bet_market}</div>
                     <div><strong>Confidence:</strong> {ai.confidence}%</div>

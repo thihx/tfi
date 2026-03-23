@@ -32,6 +32,7 @@ import { pushRoutes } from './routes/push.routes.js';
 import { watchlistRoutes } from './routes/watchlist.routes.js';
 import { favoriteTeamsRoutes } from './routes/favorite-teams.routes.js';
 import { jobRoutes } from './routes/jobs.routes.js';
+import { teamProfileRoutes } from './routes/team-profiles.routes.js';
 import { startScheduler, stopScheduler } from './jobs/scheduler.js';
 
 const app = Fastify({ logger: true });
@@ -156,6 +157,7 @@ await app.register(auditLogRoutes);
 await app.register(integrationsRoutes);
 await app.register(pushRoutes);
 await app.register(favoriteTeamsRoutes);
+await app.register(teamProfileRoutes);
 
 app.get('/api/health', async () => ({ status: 'ok', timestamp: new Date().toISOString() }));
 
