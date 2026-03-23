@@ -144,8 +144,7 @@ const LeagueRow = memo(function LeagueRow({ league, onToggle, onToggleTop, onVie
       </td>
       <td style={{ cursor: 'pointer' }} title="Click to view upcoming fixtures" onClick={() => onViewFixtures(league)}>
         <div className="league-name-cell" style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-          <span className="league-name" style={{ textDecoration: 'underline dotted', textUnderlineOffset: 3 }}>{league.league_name}</span>
-          <span className="league-id">#{league.league_id}</span>
+          <span className="league-name">{league.league_name}</span>
           <button
             onClick={(e) => { e.stopPropagation(); onToggleTeams(league.league_id); }}
             title={teamsExpanded ? 'Collapse teams' : 'Show teams'}
