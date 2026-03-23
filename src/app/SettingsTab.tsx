@@ -441,16 +441,19 @@ export function SettingsTab() {
               key={tab.id}
               onClick={() => setActiveTab(tab.id)}
               style={{
-                padding: '9px 18px',
-                fontSize: '13px',
-                fontWeight: active ? 600 : 400,
-                color: active ? '#2563eb' : 'var(--gray-500)',
-                background: 'none',
+                padding: '10px 20px',
+                fontSize: '11px',
+                fontWeight: active ? 700 : 500,
+                letterSpacing: '0.6px',
+                textTransform: 'uppercase',
+                color: active ? '#2563eb' : 'var(--gray-400)',
+                background: active ? 'rgba(37,99,235,0.06)' : 'none',
                 border: 'none',
                 borderBottom: active ? '2px solid #2563eb' : '2px solid transparent',
+                borderRadius: active ? '4px 4px 0 0' : '4px 4px 0 0',
                 cursor: 'pointer',
                 marginBottom: '-1px',
-                transition: 'color 0.15s',
+                transition: 'color 0.15s, background 0.15s',
                 whiteSpace: 'nowrap',
               }}
             >
