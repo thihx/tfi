@@ -41,7 +41,7 @@ describe('ops-monitoring.repo', () => {
         rows: [{
           activity_2h: '12',
           analyzed_24h: '20',
-          should_push_24h: '8',
+          notify_eligible_24h: '8',
           saved_24h: '10',
           notified_24h: '6',
           skipped_24h: '5',
@@ -198,12 +198,40 @@ describe('ops-monitoring.repo', () => {
             confidence: '5',
           },
         ],
+      })
+      .mockResolvedValueOnce({
+        rows: [{
+          total_rows: '12',
+          strong_rows: '4',
+          moderate_rows: '3',
+          weak_rows: '3',
+          none_rows: '2',
+          full_rows: '4',
+          partial_rows: '3',
+          minimal_rows: '3',
+          no_prematch_rows: '2',
+          high_noise_rows: '2',
+          avg_noise_penalty: '34.5',
+        }],
+      })
+      .mockResolvedValueOnce({
+        rows: [
+          {
+            match_id: 'm2',
+            match_display: 'West Ham vs Spurs',
+            noise_penalty: '64',
+            prematch_strength: 'weak',
+            prematch_availability: 'minimal',
+            prompt_data_level: 'basic-only',
+            analyzed_at: '2026-03-21T09:55:00.000Z',
+          },
+        ],
       });
 
     const snapshot = await getOpsMonitoringSnapshot();
 
     expect(snapshot.pipeline.analyzed24h).toBe(20);
-    expect(snapshot.pipeline.pushRate24h).toBe(40);
+    expect(snapshot.pipeline.notifyEligibleRate24h).toBe(40);
     expect(snapshot.providers.statsSuccessRate).toBe(80);
     expect(snapshot.providers.oddsUsableRate).toBe(75);
     expect(snapshot.settlement.recommendationPending).toBe(5);
@@ -213,7 +241,11 @@ describe('ops-monitoring.repo', () => {
     expect(snapshot.promptQuality.sameThesisClusters).toBe(1);
     expect(snapshot.promptQuality.cornersRows).toBe(1);
     expect(snapshot.promptQuality.lateHighLineRows).toBe(2);
-    expect(snapshot.cards.find((card) => card.label === 'Push Rate 24h')?.value).toBe('40%');
+    expect(snapshot.promptQuality.prematch.highNoiseRate).toBe(16.7);
+    expect(snapshot.promptQuality.prematch.avgNoisePenalty).toBe(34.5);
+    expect(snapshot.promptQuality.prematch.topHighNoiseMatches[0]?.matchDisplay).toBe('West Ham vs Spurs');
+    expect(snapshot.cards.find((card) => card.label === 'Notify-Eligible Rate 24h')?.value).toBe('40%');
+    expect(snapshot.cards.find((card) => card.label === 'Prematch High Noise 24h')?.value).toBe('16.7%');
     expect(snapshot.cards.find((card) => card.label === 'Prompt Agree 24h')?.value).toBe('100%');
     expect(snapshot.cards.find((card) => card.label === 'Stacking Rate 24h')?.value).toBe('66.7%');
     expect(snapshot.checklist.some((item) => item.id === 'settlement-backlog')).toBe(true);

@@ -218,11 +218,27 @@ export async function fetchAllLeagues(): Promise<ApiLeague[]> {
   return apiGet<ApiLeague>('/leagues');
 }
 
+export async function fetchLeagueById(leagueId: number): Promise<ApiLeague | null> {
+  const results = await apiGet<ApiLeague>('/leagues', { id: String(leagueId) });
+  return results[0] ?? null;
+}
+
 // ==================== Teams ====================
 
 export interface ApiTeam {
   team: { id: number; name: string; logo: string; country: string | null; founded: number | null };
   venue: { id: number | null; name: string | null; city: string | null } | null;
+}
+
+export interface LeagueTeamWithRank {
+  team: ApiTeam['team'];
+  venue: ApiTeam['venue'];
+  rank: number | null;
+}
+
+export interface LeagueTeamsByLeagueResult {
+  season: number;
+  teams: LeagueTeamWithRank[];
 }
 
 /** Fetch teams for a league/season. Returns empty array if no data. */
@@ -235,7 +251,7 @@ async function fetchTeamsForSeason(leagueId: number, season: number): Promise<Ap
  * tries current year first, then current year - 1.
  * Also fetches standings to attach rank to each team.
  */
-export async function fetchTeamsByLeague(leagueId: number): Promise<{ team: ApiTeam['team']; rank: number | null }[]> {
+export async function fetchTeamsByLeagueWithSeason(leagueId: number): Promise<LeagueTeamsByLeagueResult | null> {
   const currentYear = new Date().getFullYear();
   let teams = await fetchTeamsForSeason(leagueId, currentYear);
   let season = currentYear;
@@ -243,7 +259,7 @@ export async function fetchTeamsByLeague(leagueId: number): Promise<{ team: ApiT
     teams = await fetchTeamsForSeason(leagueId, currentYear - 1);
     season = currentYear - 1;
   }
-  if (teams.length === 0) return [];
+  if (teams.length === 0) return null;
 
   // Fetch standings to get rank (best-effort, ignore errors)
   let rankMap = new Map<number, number>();
@@ -252,8 +268,24 @@ export async function fetchTeamsByLeague(leagueId: number): Promise<{ team: ApiT
     for (const s of standings) rankMap.set(s.team.id, s.rank);
   } catch { /* no standings for cups/internationals */ }
 
-  return teams
-    .map(t => ({ team: t.team, rank: rankMap.get(t.team.id) ?? null }))
+  return {
+    season,
+    teams: teams
+      .map((t) => ({ team: t.team, venue: t.venue, rank: rankMap.get(t.team.id) ?? null }))
+      .sort((a, b) => {
+        if (a.rank !== null && b.rank !== null) return a.rank - b.rank;
+        if (a.rank !== null) return -1;
+        if (b.rank !== null) return 1;
+        return a.team.name.localeCompare(b.team.name);
+      }),
+  };
+}
+
+export async function fetchTeamsByLeague(leagueId: number): Promise<{ team: ApiTeam['team']; rank: number | null }[]> {
+  const result = await fetchTeamsByLeagueWithSeason(leagueId);
+  if (!result) return [];
+  return result.teams
+    .map(({ team, rank }) => ({ team, rank }))
     .sort((a, b) => {
       if (a.rank !== null && b.rank !== null) return a.rank - b.rank;
       if (a.rank !== null) return -1;

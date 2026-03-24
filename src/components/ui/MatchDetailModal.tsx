@@ -176,8 +176,12 @@ function ContextView({ watchlist, recs }: { watchlist: WatchlistItem | null; rec
   const awayMotivation = getStrategicNarrative(ctx, 'away_motivation', uiLanguage);
   const leaguePositions = getStrategicNarrative(ctx, 'league_positions', uiLanguage);
   const fixtureCongestion = getStrategicNarrative(ctx, 'fixture_congestion', uiLanguage);
+  const homeFixtureCongestion = getStrategicNarrative(ctx, 'home_fixture_congestion', uiLanguage);
+  const awayFixtureCongestion = getStrategicNarrative(ctx, 'away_fixture_congestion', uiLanguage);
   const rotationRisk = getStrategicNarrative(ctx, 'rotation_risk', uiLanguage);
   const keyAbsences = getStrategicNarrative(ctx, 'key_absences', uiLanguage);
+  const homeKeyAbsences = getStrategicNarrative(ctx, 'home_key_absences', uiLanguage);
+  const awayKeyAbsences = getStrategicNarrative(ctx, 'away_key_absences', uiLanguage);
   const h2hNarrative = getStrategicNarrative(ctx, 'h2h_narrative', uiLanguage);
   const sourceMeta = getStrategicSourceMeta(ctx);
   const refreshMeta = getStrategicRefreshMeta(ctx);
@@ -243,9 +247,13 @@ function ContextView({ watchlist, recs }: { watchlist: WatchlistItem | null; rec
             {homeMotivation && <InfoBlock label="Home Motivation" value={homeMotivation} />}
             {awayMotivation && <InfoBlock label="Away Motivation" value={awayMotivation} />}
             {leaguePositions && <InfoBlock label="League Positions" value={leaguePositions} />}
-            {fixtureCongestion && <InfoBlock label="Fixture Congestion" value={fixtureCongestion} />}
+            {homeFixtureCongestion && <InfoBlock label={`Home Congestion (${watchlist?.home_team || 'Home'})`} value={homeFixtureCongestion} />}
+            {awayFixtureCongestion && <InfoBlock label={`Away Congestion (${watchlist?.away_team || 'Away'})`} value={awayFixtureCongestion} />}
+            {fixtureCongestion && <InfoBlock label="Fixture Congestion Summary" value={fixtureCongestion} />}
             {rotationRisk && <InfoBlock label="Rotation Risk" value={rotationRisk} />}
-            {keyAbsences && <InfoBlock label="Key Absences" value={keyAbsences} />}
+            {homeKeyAbsences && <InfoBlock label={`Home Absences (${watchlist?.home_team || 'Home'})`} value={homeKeyAbsences} />}
+            {awayKeyAbsences && <InfoBlock label={`Away Absences (${watchlist?.away_team || 'Away'})`} value={awayKeyAbsences} />}
+            {keyAbsences && <InfoBlock label="Key Absences Summary" value={keyAbsences} />}
             {h2hNarrative && <InfoBlock label="H2H Narrative" value={h2hNarrative} colSpan />}
             {ctx.ai_condition && <InfoBlock label="AI Condition Signal" value={ctx.ai_condition} highlight />}
             {ctx.ai_condition_reason_vi && <InfoBlock label="Condition Reason (VI)" value={ctx.ai_condition_reason_vi} colSpan />}

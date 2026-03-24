@@ -50,6 +50,8 @@ export async function getAuditLogs(filters: {
   action?: string;
   outcome?: string;
   matchId?: string;
+  prematchStrength?: string;
+  prematchNoiseMin?: number;
   fromDate?: string;
   toDate?: string;
   limit?: number;
@@ -74,6 +76,18 @@ export async function getAuditLogs(filters: {
   if (filters.matchId) {
     conditions.push(`match_id = $${paramIdx++}`);
     params.push(filters.matchId);
+  }
+  if (filters.prematchStrength) {
+    conditions.push(`COALESCE(NULLIF(metadata->>'prematchStrength', ''), 'none') = $${paramIdx++}`);
+    params.push(filters.prematchStrength);
+  }
+  if (typeof filters.prematchNoiseMin === 'number' && Number.isFinite(filters.prematchNoiseMin)) {
+    conditions.push(`CASE
+      WHEN COALESCE(metadata->>'prematchNoisePenalty', '') ~ '^-?[0-9]+(\\.[0-9]+)?$'
+        THEN (metadata->>'prematchNoisePenalty')::numeric >= $${paramIdx++}
+      ELSE FALSE
+    END`);
+    params.push(filters.prematchNoiseMin);
   }
   if (filters.fromDate) {
     conditions.push(`timestamp >= $${paramIdx++}`);

@@ -124,7 +124,8 @@ export async function checkLiveTriggerJob(): Promise<{
         candidateCount: 0,
         batches: 0,
         totalProcessed: 0,
-        totalPushed: 0,
+        totalSavedRecommendations: 0,
+        totalPushedNotifications: 0,
         totalErrors: 0,
       },
     });
@@ -172,14 +173,26 @@ export async function checkLiveTriggerJob(): Promise<{
     }
   }
 
-  // Summary
+  // Summary:
+  // - totalSavedRecommendations = recommendation rows persisted to DB.
+  // - totalPushedNotifications = user-facing notifications actually emitted.
+  // This keeps operational reporting aligned with the split semantics in the
+  // core pipeline: save and notify are related, but not the same outcome.
   const totalProcessed = pipelineResults.reduce((sum, r) => sum + r.processed, 0);
   const totalErrors = pipelineResults.reduce((sum, r) => sum + r.errors, 0);
-  const totalPushed = pipelineResults.reduce(
-    (sum, r) => sum + r.results.filter((m) => m.shouldPush).length, 0,
+  const totalSavedRecommendations = pipelineResults.reduce(
+    (sum, r) => sum + r.results.filter((m) => m.saved).length, 0,
+  );
+  const totalPushedNotifications = pipelineResults.reduce(
+    (sum, r) => sum + r.results.filter((m) => m.notified).length, 0,
   );
 
-  await reportJobProgress(JOB, 'complete', `Done: ${totalProcessed} analyzed, ${totalPushed} recommended, ${totalErrors} errors`, 100);
+  await reportJobProgress(
+    JOB,
+    'complete',
+    `Done: ${totalProcessed} analyzed, ${totalSavedRecommendations} saved, ${totalPushedNotifications} notified, ${totalErrors} errors`,
+    100,
+  );
 
   audit({
     category: 'PIPELINE',
@@ -191,7 +204,8 @@ export async function checkLiveTriggerJob(): Promise<{
       candidateCount: candidateMatchIds.length,
       batches: batches.length,
       totalProcessed,
-      totalPushed,
+      totalSavedRecommendations,
+      totalPushedNotifications,
       totalErrors,
     },
   });

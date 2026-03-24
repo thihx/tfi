@@ -7,7 +7,7 @@ import { useState, useEffect } from 'react';
 import { Modal } from '@/components/ui/Modal';
 import { ConditionBuilder } from '@/components/ui/ConditionBuilder';
 import { formatLocalDateTime } from '@/lib/utils/helpers';
-import { loadMonitorConfig } from '@/features/live-monitor/config';
+import { fetchMonitorConfig } from '@/features/live-monitor/config';
 import {
   getStrategicNarrative,
   getStrategicQuantitativeEntries,
@@ -53,9 +53,23 @@ export function WatchlistEditModal({ item, defaultMode, uiLanguage, onClose, onS
     setEditPriority(String(item.priority || 2));
     setEditStatus(item.status || 'active');
     setEditConditions(item.custom_conditions || '');
-    setAutoApplyRecommendedCondition(
-      item.auto_apply_recommended_condition ?? loadMonitorConfig().AUTO_APPLY_RECOMMENDED_CONDITION !== false,
-    );
+    setAutoApplyRecommendedCondition(item.auto_apply_recommended_condition ?? true);
+
+    if (item.auto_apply_recommended_condition != null) {
+      return;
+    }
+
+    let cancelled = false;
+    void fetchMonitorConfig()
+      .then((monitorConfig) => {
+        if (cancelled) return;
+        setAutoApplyRecommendedCondition(monitorConfig.AUTO_APPLY_RECOMMENDED_CONDITION !== false);
+      })
+      .catch(() => undefined);
+
+    return () => {
+      cancelled = true;
+    };
   }, [item, defaultMode]);
 
   function handleSubmit(e: React.FormEvent) {
@@ -85,8 +99,12 @@ export function WatchlistEditModal({ item, defaultMode, uiLanguage, onClose, onS
             const awayMotivation = getStrategicNarrative(ctx, 'away_motivation', uiLanguage);
             const leaguePositions = getStrategicNarrative(ctx, 'league_positions', uiLanguage);
             const keyAbsences = getStrategicNarrative(ctx, 'key_absences', uiLanguage);
+            const homeKeyAbsences = getStrategicNarrative(ctx, 'home_key_absences', uiLanguage);
+            const awayKeyAbsences = getStrategicNarrative(ctx, 'away_key_absences', uiLanguage);
             const rotationRisk = getStrategicNarrative(ctx, 'rotation_risk', uiLanguage);
             const fixtureCongestion = getStrategicNarrative(ctx, 'fixture_congestion', uiLanguage);
+            const homeFixtureCongestion = getStrategicNarrative(ctx, 'home_fixture_congestion', uiLanguage);
+            const awayFixtureCongestion = getStrategicNarrative(ctx, 'away_fixture_congestion', uiLanguage);
             const h2hNarrative = getStrategicNarrative(ctx, 'h2h_narrative', uiLanguage);
             const summary = getStrategicNarrative(ctx, 'summary', uiLanguage);
             const sourceMeta = getStrategicSourceMeta(ctx);
@@ -170,9 +188,13 @@ export function WatchlistEditModal({ item, defaultMode, uiLanguage, onClose, onS
                         {homeMotivation && <div className="strategic-context-item"><span className="strategic-context-label">🏠 {item.home_team}</span><span className="strategic-context-text">{homeMotivation}</span></div>}
                         {awayMotivation && <div className="strategic-context-item"><span className="strategic-context-label">✈️ {item.away_team}</span><span className="strategic-context-text">{awayMotivation}</span></div>}
                         {leaguePositions && <div className="strategic-context-item"><span className="strategic-context-label">📊 Positions</span><span className="strategic-context-text">{leaguePositions}</span></div>}
-                        {keyAbsences && <div className="strategic-context-item"><span className="strategic-context-label">🚑 Absences</span><span className="strategic-context-text">{keyAbsences}</span></div>}
+                        {homeKeyAbsences && <div className="strategic-context-item"><span className="strategic-context-label">🚑 {item.home_team} Absences</span><span className="strategic-context-text">{homeKeyAbsences}</span></div>}
+                        {awayKeyAbsences && <div className="strategic-context-item"><span className="strategic-context-label">🚑 {item.away_team} Absences</span><span className="strategic-context-text">{awayKeyAbsences}</span></div>}
+                        {keyAbsences && <div className="strategic-context-item"><span className="strategic-context-label">🚑 Absence Summary</span><span className="strategic-context-text">{keyAbsences}</span></div>}
                         {rotationRisk && <div className="strategic-context-item"><span className="strategic-context-label">🔄 Rotation</span><span className="strategic-context-text">{rotationRisk}</span></div>}
-                        {fixtureCongestion && <div className="strategic-context-item"><span className="strategic-context-label">📅 Fixture Congestion</span><span className="strategic-context-text">{fixtureCongestion}</span></div>}
+                        {homeFixtureCongestion && <div className="strategic-context-item"><span className="strategic-context-label">📅 {item.home_team} Congestion</span><span className="strategic-context-text">{homeFixtureCongestion}</span></div>}
+                        {awayFixtureCongestion && <div className="strategic-context-item"><span className="strategic-context-label">📅 {item.away_team} Congestion</span><span className="strategic-context-text">{awayFixtureCongestion}</span></div>}
+                        {fixtureCongestion && <div className="strategic-context-item"><span className="strategic-context-label">📅 Congestion Summary</span><span className="strategic-context-text">{fixtureCongestion}</span></div>}
                         {h2hNarrative && <div className="strategic-context-item"><span className="strategic-context-label">⚔️ H2H</span><span className="strategic-context-text">{h2hNarrative}</span></div>}
                         {summary && <div className="strategic-context-item strategic-context-summary"><span className="strategic-context-label">📝 Summary</span><span className="strategic-context-text">{summary}</span></div>}
                         {structuredContext && quantitativeEntries.length > 0 && (

@@ -1,4 +1,8 @@
 import { normalizeMarket } from './normalize-market.js';
+import {
+  buildPrematchExpertFeaturesV1,
+  type PrematchExpertFeaturesV1,
+} from './prematch-expert-features.js';
 
 export type PromptStatsSource = 'api-football' | 'live-score-api-fallback' | string;
 export type PromptAnalysisMode = 'auto' | 'system_force' | 'manual_force';
@@ -30,6 +34,8 @@ interface TwoSideValue {
   home: string | number | null | undefined;
   away: string | number | null | undefined;
 }
+
+export type PromptStatsDetailLevel = 'basic-only' | 'advanced-upgraded';
 
 export interface LiveAnalysisPromptSettings {
   minConfidence: number;
@@ -93,6 +99,12 @@ export interface LiveAnalysisPromptInput {
     blocked_shots?: TwoSideValue;
     total_passes?: TwoSideValue;
     passes_accurate?: TwoSideValue;
+    shots_off_target?: TwoSideValue;
+    shots_inside_box?: TwoSideValue;
+    shots_outside_box?: TwoSideValue;
+    expected_goals?: TwoSideValue;
+    goals_prevented?: TwoSideValue;
+    passes_percent?: TwoSideValue;
   };
   statsAvailable: boolean;
   statsSource: PromptStatsSource;
@@ -118,6 +130,9 @@ export interface LiveAnalysisPromptInput {
   recommendedConditionReason: string;
   strategicContext: Record<string, unknown> | null;
   leagueProfile?: Record<string, unknown> | null;
+  homeTeamProfile?: Record<string, unknown> | null;
+  awayTeamProfile?: Record<string, unknown> | null;
+  prematchExpertFeatures?: PrematchExpertFeaturesV1 | null;
   analysisMode?: PromptAnalysisMode;
   forceAnalyze: boolean;
   isManualPush?: boolean;
@@ -131,6 +146,166 @@ export interface LiveAnalysisPromptInput {
   preMatchPredictionSummary: string;
   mode: string;
   statsFallbackReason: string;
+}
+
+function hasRenderableSideValue(value: unknown): boolean {
+  return value !== null && value !== undefined && String(value).trim() !== '';
+}
+
+function pruneEmptyStatsCompact(
+  statsCompact: Record<string, TwoSideValue>,
+): Record<string, TwoSideValue> {
+  return Object.fromEntries(
+    Object.entries(statsCompact).filter(([, value]) => {
+      if (!value || typeof value !== 'object') return false;
+      return hasRenderableSideValue((value as TwoSideValue).home)
+        || hasRenderableSideValue((value as TwoSideValue).away);
+    }),
+  ) as Record<string, TwoSideValue>;
+}
+
+const BASIC_STATS_KEYS = [
+  'possession',
+  'shots',
+  'shots_on_target',
+  'corners',
+  'fouls',
+  'offsides',
+  'yellow_cards',
+  'red_cards',
+  'goalkeeper_saves',
+  'blocked_shots',
+  'total_passes',
+  'passes_accurate',
+] as const;
+
+const ADVANCED_STATS_KEYS = [
+  'shots_off_target',
+  'shots_inside_box',
+  'shots_outside_box',
+  'expected_goals',
+  'goals_prevented',
+  'passes_percent',
+] as const;
+
+function pickStatsSubset(
+  statsCompact: LiveAnalysisPromptInput['statsCompact'],
+  keys: readonly string[],
+): Record<string, TwoSideValue> {
+  return Object.fromEntries(
+    Object.entries(statsCompact).filter(([key]) => keys.includes(key)),
+  ) as Record<string, TwoSideValue>;
+}
+
+function countRenderableStatPairs(statsCompact: Record<string, TwoSideValue>): number {
+  return Object.values(statsCompact).filter((value) => (
+    hasRenderableSideValue(value.home) || hasRenderableSideValue(value.away)
+  )).length;
+}
+
+function countComparableStatPairs(statsCompact: Record<string, TwoSideValue>): number {
+  return Object.values(statsCompact).filter((value) => (
+    hasRenderableSideValue(value.home) && hasRenderableSideValue(value.away)
+  )).length;
+}
+
+function hasSufficientAdvancedStats(statsCompact: Record<string, TwoSideValue>): boolean {
+  if (countRenderableStatPairs(statsCompact) < 2) return false;
+  return countComparableStatPairs(statsCompact) >= 2;
+}
+
+export function getPromptStatsDetailLevel<T extends object>(statsCompact: T): PromptStatsDetailLevel {
+  return hasSufficientAdvancedStats(statsCompact as Record<string, TwoSideValue>) ? 'advanced-upgraded' : 'basic-only';
+}
+
+function buildAdvancedStatsSection(compact: boolean, statsCompact: Record<string, TwoSideValue>): string {
+  if (getPromptStatsDetailLevel(statsCompact) !== 'advanced-upgraded') return '';
+
+  return compact
+    ? `========================
+ADVANCED QUANT STATS
+========================
+ADVANCED_STATS_POLICY: This optional block appears only because this match has sufficient advanced stat coverage. If absent in other matches, do not assume missing values are zero.
+${JSON.stringify(statsCompact)}
+`
+    : `========================
+ADVANCED QUANT STATS (OPTIONAL)
+========================
+ADVANCED_STATS_POLICY: This block is rendered only when the source provides sufficient advanced stat coverage for this specific match.
+Do NOT assume these fields exist for every competition. If the block is absent, treat advanced stats as unavailable rather than zero.
+${JSON.stringify(statsCompact)}
+
+`;
+}
+
+function hasNonEmptyObject(value: Record<string, unknown> | null | undefined): value is Record<string, unknown> {
+  return !!value && Object.keys(value).length > 0;
+}
+
+function hasCustomConditionContext(data: LiveAnalysisPromptInput): boolean {
+  return !!(
+    data.customConditions.trim()
+    || data.recommendedCondition.trim()
+    || data.recommendedConditionReason.trim()
+  );
+}
+
+function buildAiRecommendedConditionSection(data: LiveAnalysisPromptInput): string {
+  if (!hasCustomConditionContext(data)) {
+    return `========================
+AI-RECOMMENDED CONDITION
+========================
+AI-RECOMMENDED CONDITION: none for this run.
+
+`;
+  }
+
+  return `========================
+AI-RECOMMENDED CONDITION
+========================
+RECOMMENDED_CONDITION: ${data.recommendedCondition || '(none)'}
+RECOMMENDED_CONDITION_REASON: ${data.recommendedConditionReason || '(none)'}
+
+`;
+}
+
+function buildCustomConditionsInstructionSection(compact: boolean, data: LiveAnalysisPromptInput): string {
+  if (!hasCustomConditionContext(data)) {
+    return compact
+      ? `CUSTOM CONDITIONS:
+- No custom condition is active for this run.
+- Set custom_condition_matched=false, custom_condition_status="none", keep condition text fields empty, confidence/stake=0.
+`
+      : `============================================================
+CUSTOM CONDITIONS (INDEPENDENT EVALUATION)
+============================================================
+No custom condition is active for this run.
+- Set custom_condition_matched = false
+- Set custom_condition_status = "none"
+- Keep custom condition summary/reason/suggestion/reasoning fields empty
+- Set condition_triggered_confidence = 0 and condition_triggered_stake = 0
+
+`;
+  }
+
+  return compact
+    ? `CUSTOM CONDITIONS:
+- should_push and custom_condition_matched are separate decisions
+- If custom_condition_matched=true, provide suggestion, reasoning, confidence, and stake for the triggered condition path
+`
+    : `============================================================
+CUSTOM CONDITIONS (INDEPENDENT EVALUATION)
+============================================================
+should_push = your investment recommendation.
+custom_condition_matched = whether user's condition pattern is detected (factual check).
+These are TWO SEPARATE decisions.
+
+When custom_condition_matched = true, provide:
+- condition_triggered_suggestion (bet or "No bet - reason")
+- condition_triggered_reasoning_en/vi
+- condition_triggered_confidence, condition_triggered_stake
+
+`;
 }
 
 function resolveAnalysisMode(data: LiveAnalysisPromptInput): PromptAnalysisMode {
@@ -609,6 +784,46 @@ function buildPreMatchPredictionSection(prediction: Record<string, unknown> | nu
   return lines.join('\n');
 }
 
+function buildPrematchExpertFeaturesSection(
+  data: LiveAnalysisPromptInput,
+  compact: boolean,
+): string {
+  const features = data.prematchExpertFeatures ?? buildPrematchExpertFeaturesV1({
+    strategicContext: data.strategicContext,
+    leagueProfile: data.leagueProfile ?? null,
+    prediction: data.prediction,
+    homeTeamProfile: data.homeTeamProfile ?? null,
+    awayTeamProfile: data.awayTeamProfile ?? null,
+  });
+
+  if (!features) return '';
+
+  const rules = compact
+    ? [
+      'PREMATCH FEATURE RULES:',
+      '- Use PREMATCH_EXPERT_FEATURES_V1 as a secondary prior only.',
+      '- Never override live stats/events/odds with prematch features.',
+      '- If availability is minimal or prematch_noise_penalty is high, down-weight it heavily.',
+      '- Prefer derived scores and coverage/trust fields over any latent narrative reading.',
+    ]
+    : [
+      'PREMATCH FEATURE RULES:',
+      '- Use PREMATCH_EXPERT_FEATURES_V1 as a secondary prior only. Live stats/events/odds remain primary.',
+      '- Never override strong live evidence with prematch features.',
+      '- If meta.availability is minimal or trust_and_coverage.prematch_noise_penalty is high, treat the block as weak guidance only.',
+      '- Prefer the derived scores and coverage/trust fields over any latent narrative interpretation.',
+      '- Optional team profile features should only sharpen a thesis that is already compatible with live evidence.',
+    ];
+
+  return `========================
+PREMATCH EXPERT FEATURES V1
+========================
+${JSON.stringify(features)}
+${rules.join('\n')}
+
+`;
+}
+
 function buildForceAnalyzeContextCompact(
   data: LiveAnalysisPromptInput,
   analysisMode: PromptAnalysisMode,
@@ -927,6 +1142,14 @@ function buildPreMatchPredictionSectionCompact(prediction: Record<string, unknow
 `;
 }
 
+void [
+  buildLeagueProfileSection,
+  buildStrategicContextSection,
+  buildStrategicContextSectionCompact,
+  buildLeagueProfileSectionCompact,
+  buildPreMatchPredictionSectionCompact,
+];
+
 function buildExactMarketContractSectionCompact(data: LiveAnalysisPromptInput): string {
   const oc = data.oddsCanonical as Record<string, Record<string, unknown>>;
   const exactKeys: string[] = [];
@@ -990,6 +1213,12 @@ export function buildLiveAnalysisPrompt(
   promptVersion: LiveAnalysisPromptVersion = LIVE_ANALYSIS_PROMPT_VERSION,
 ): string {
   const analysisMode = resolveAnalysisMode(data);
+  const prunedBasicStatsCompact = pruneEmptyStatsCompact(pickStatsSubset(data.statsCompact, BASIC_STATS_KEYS));
+  const prunedAdvancedStatsCompact = pruneEmptyStatsCompact(pickStatsSubset(data.statsCompact, ADVANCED_STATS_KEYS));
+  const statsMeta = hasNonEmptyObject(data.statsMeta ?? null) ? data.statsMeta : null;
+  const oddsSanityWarnings = Array.isArray(data.oddsSanityWarnings)
+    ? data.oddsSanityWarnings.filter((warning) => String(warning || '').trim() !== '')
+    : [];
   const MIN_CONFIDENCE = settings.minConfidence;
   const MIN_ODDS = settings.minOdds;
   const LATE_PHASE_MINUTE = settings.latePhaseMinute;
@@ -1086,7 +1315,7 @@ PROMPT_VERSION: ${promptVersion}
 - Odds warning: ${oddsWarnings || 'none'}
 ${buildExactMarketContractSectionCompact(data)}
 
-${buildStrategicContextSectionCompact(data.strategicContext)}${buildLeagueProfileSectionCompact(data.leagueProfile ?? null)}========================
+${buildPrematchExpertFeaturesSection(data, true)}========================
 MATCH SNAPSHOT
 ========================
 - Match: ${data.homeName} vs ${data.awayName}
@@ -1105,11 +1334,11 @@ ${data.statsFallbackReason ? `- Stats Fallback Note: ${data.statsFallbackReason}
 ========================
 LIVE STATS JSON
 ========================
-${JSON.stringify(data.statsCompact)}
+${JSON.stringify(prunedBasicStatsCompact)}
 STATS_AVAILABLE: ${data.statsAvailable}
 STATS_SOURCE: ${data.statsSource}
-STATS_META: ${JSON.stringify(data.statsMeta || {})}
-${!data.statsAvailable && data.derivedInsights ? `DERIVED_INSIGHTS: ${JSON.stringify(data.derivedInsights)}
+${statsMeta ? `STATS_META: ${JSON.stringify(statsMeta)}
+` : ''}${buildAdvancedStatsSection(true, prunedAdvancedStatsCompact)}${!data.statsAvailable && data.derivedInsights ? `DERIVED_INSIGHTS: ${JSON.stringify(data.derivedInsights)}
 Derived event-only insights require lower confidence than full stats.
 
 ` : ''}========================
@@ -1121,11 +1350,12 @@ ODDS_SOURCE: ${data.oddsSource}
 ODDS_FETCHED_AT: ${data.oddsFetchedAt ?? 'unknown'} (match minute at fetch: ${data.minute})
 CURRENT_TOTAL_GOALS: ${data.currentTotalGoals}
 CURRENT_TOTAL_CORNERS: ${currentTotalCorners}
-${data.oddsSource === 'pre-match' ? 'PRE-MATCH ODDS ONLY: use as baseline reference, not as live odds.\n' : ''}${data.oddsSource === 'the-odds-api' ? 'THE_ODDS_API_FALLBACK: live exact-event fallback may lag slightly.\n' : ''}${!data.oddsAvailable ? 'Treat odds as unavailable and be conservative.\n' : ''}${data.oddsSuspicious ? `ODDS SANITY FAILED:\n${(data.oddsSanityWarnings || []).map((w) => '- ' + w).join('\n')}
+${data.oddsSource === 'pre-match' ? 'PRE-MATCH ODDS ONLY: use as baseline reference, not as live odds.\n' : ''}${data.oddsSource === 'the-odds-api' ? 'THE_ODDS_API_FALLBACK: live exact-event fallback may lag slightly.\n' : ''}${!data.oddsAvailable ? 'Treat odds as unavailable and be conservative.\n' : ''}${!data.oddsSuspicious && oddsSanityWarnings.length > 0 ? `ODDS SANITY NOTES:\n${oddsSanityWarnings.map((w) => '- ' + w).join('\n')}
+Use these notes as market-level restrictions, not a reason to discard the entire odds feed.\n` : ''}${data.oddsSuspicious ? `ODDS SANITY FAILED:\n${oddsSanityWarnings.map((w) => '- ' + w).join('\n')}
 Treat odds as unreliable and behave as if ODDS_AVAILABLE=false.
 ` : ''}ODDS RULE: canonical odds are already filtered; never infer missing markets and never invent prices.
 
-${buildPreMatchPredictionSectionCompact(data.prediction, data.preMatchPredictionSummary)}========================
+========================
 RECENT EVENTS
 ========================
 ${JSON.stringify(data.eventsCompact)}
@@ -1143,11 +1373,7 @@ CONFIG / EVIDENCE
 - Forbidden markets: ${evidenceTierRule.forbiddenMarkets}
 - Tier rule: ${evidenceTierRule.operationalRule}
 
-========================
-AI-RECOMMENDED CONDITION
-========================
-RECOMMENDED_CONDITION: ${data.recommendedCondition || '(none)'}
-RECOMMENDED_CONDITION_REASON: ${data.recommendedConditionReason || '(none)'}
+${buildAiRecommendedConditionSection(data)}
 
 ============================================================
 DECISION RULES
@@ -1217,9 +1443,7 @@ STAKE:
 - confidence 5 => 2-3%
 - confidence < 5 => should_push false, stake 0
 
-CUSTOM CONDITIONS:
-- should_push and custom_condition_matched are separate decisions
-- If custom_condition_matched=true, provide suggestion, reasoning, confidence, and stake for the triggered condition path
+${buildCustomConditionsInstructionSection(true, data)}
 
 ============================================================
 OUTPUT - STRICT JSON
@@ -1294,8 +1518,7 @@ ${oddsWarnings ? `- ${oddsWarnings}` : '- No restrictions - all available market
 - Do NOT recommend 1X2 markets before minute 35 (too early, game state can change completely).
 - Do NOT recommend any market with price < ${MIN_ODDS}.
 
-${buildStrategicContextSection(data.strategicContext)}
-${buildLeagueProfileSection(data.leagueProfile ?? null)}
+${buildPrematchExpertFeaturesSection(data, false)}
 ========================
 MATCH CONTEXT
 ========================
@@ -1315,11 +1538,13 @@ ${data.statsFallbackReason ? `- Stats Fallback Note: ${data.statsFallbackReason}
 ========================
 LIVE STATS (COMPACT JSON)
 ========================
-${JSON.stringify(data.statsCompact)}
+${JSON.stringify(prunedBasicStatsCompact)}
 
 STATS_AVAILABLE: ${data.statsAvailable}
 STATS_SOURCE: ${data.statsSource}
-STATS_META: ${JSON.stringify(data.statsMeta || {})}
+${statsMeta ? `STATS_META: ${JSON.stringify(statsMeta)}
+` : ''}
+${buildAdvancedStatsSection(false, prunedAdvancedStatsCompact)}
 ${!data.statsAvailable && data.derivedInsights ? `
 ========================
 DERIVED INSIGHTS (FROM EVENTS)
@@ -1337,14 +1562,13 @@ ODDS_SOURCE: ${data.oddsSource}
 ODDS_FETCHED_AT: ${data.oddsFetchedAt ?? 'unknown'} (match minute at fetch: ${data.minute})
 CURRENT_TOTAL_GOALS: ${data.currentTotalGoals}
 CURRENT_TOTAL_CORNERS: ${currentTotalCorners}
-${data.oddsSource === 'pre-match' ? '\nCAUTION: These are PRE-MATCH opening odds fetched before kickoff. Live odds are unavailable for this match.\nYou CAN still use them as a baseline for market direction and value, but adjust confidence based on the current game state.\n' : ''}${data.oddsSource === 'the-odds-api' ? '\nNOTE: These odds are from The Odds API exact-event fallback. They may have slight delay vs Football API live odds.\n' : ''}${!data.oddsAvailable ? '\nNO_USABLE_ODDS: Treat odds as unavailable and be conservative.\n' : ''}${data.oddsSuspicious ? `\nODDS SANITY CHECK FAILED:\n${(data.oddsSanityWarnings || []).map((w) => '- ' + w).join('\n')}\nTreat ALL odds as UNRELIABLE. Behave as if ODDS_AVAILABLE = false.\n` : ''}
+${data.oddsSource === 'pre-match' ? '\nCAUTION: These are PRE-MATCH opening odds fetched before kickoff. Live odds are unavailable for this match.\nYou CAN still use them as a baseline for market direction and value, but adjust confidence based on the current game state.\n' : ''}${data.oddsSource === 'the-odds-api' ? '\nNOTE: These odds are from The Odds API exact-event fallback. They may have slight delay vs Football API live odds.\n' : ''}${!data.oddsAvailable ? '\nNO_USABLE_ODDS: Treat odds as unavailable and be conservative.\n' : ''}${!data.oddsSuspicious && oddsSanityWarnings.length > 0 ? `\nODDS SANITY NOTES:\n${oddsSanityWarnings.map((w) => '- ' + w).join('\n')}\nTreat these as market-specific restrictions, not a reason to discard the entire odds feed.\n` : ''}${data.oddsSuspicious ? `\nODDS SANITY CHECK FAILED:\n${oddsSanityWarnings.map((w) => '- ' + w).join('\n')}\nTreat ALL odds as UNRELIABLE. Behave as if ODDS_AVAILABLE = false.\n` : ''}
 ODDS METHODOLOGY:
 - Odds are the BEST available across multiple bookmakers (highest price per outcome).
 - Markets with invalid implied-probability margins have been PRE-REMOVED by the system.
 - If a market is present in the canonical data, it has PASSED margin validation and is RELIABLE.
 - Focus your analysis on the markets that ARE present. Do not infer missing markets.
 
-${buildPreMatchPredictionSection(data.prediction, data.preMatchPredictionSummary)}
 ========================
 RECENT EVENTS (LAST 8)
 ========================
@@ -1365,11 +1589,7 @@ CONFIG / MODE
 - EVIDENCE_MODE: ${data.evidenceMode}
 - EVIDENCE_TIER: ${evidenceTierRule.tier} (${evidenceTierRule.label})
 
-========================
-AI-RECOMMENDED CONDITION
-========================
-RECOMMENDED_CONDITION: ${data.recommendedCondition || '(none)'}
-RECOMMENDED_CONDITION_REASON: ${data.recommendedConditionReason || '(none)'}
+${buildAiRecommendedConditionSection(data)}
 
 ============================================================
 PRE-MATCH PREDICTION RULES
@@ -1476,17 +1696,7 @@ STAKE GUIDELINES:
 - confidence 5: stake 2-3%
 - confidence < 5: should_push = false, stake = 0
 
-============================================================
-CUSTOM CONDITIONS (INDEPENDENT EVALUATION)
-============================================================
-should_push = your investment recommendation.
-custom_condition_matched = whether user's condition pattern is detected (factual check).
-These are TWO SEPARATE decisions.
-
-When custom_condition_matched = true, provide:
-- condition_triggered_suggestion (bet or "No bet - reason")
-- condition_triggered_reasoning_en/vi
-- condition_triggered_confidence, condition_triggered_stake
+${buildCustomConditionsInstructionSection(false, data)}
 
 ============================================================
 OUTPUT FORMAT - STRICT JSON

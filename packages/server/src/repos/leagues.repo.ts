@@ -14,6 +14,7 @@ export interface LeagueRow {
   type: string;
   logo: string;
   last_updated: string;
+  provider_synced_at?: string | null;
   has_profile?: boolean;
   profile_updated_at?: string | null;
   profile_volatility_tier?: string | null;
@@ -83,14 +84,17 @@ export async function getTopLeagues(): Promise<LeagueRow[]> {
   return result.rows;
 }
 
-export async function upsertLeagues(leagues: Partial<LeagueRow>[]): Promise<number> {
+export async function upsertLeagues(
+  leagues: Partial<LeagueRow>[],
+  options: { touchProviderSyncAt?: boolean } = {},
+): Promise<number> {
   return transaction(async (client) => {
     let count = 0;
     for (const l of leagues) {
       if (l.league_id == null) continue;
       await client.query(
-        `INSERT INTO leagues (league_id, league_name, country, tier, active, top_league, type, logo, last_updated)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, NOW())
+        `INSERT INTO leagues (league_id, league_name, country, tier, active, top_league, type, logo, last_updated, provider_synced_at)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, NOW(), CASE WHEN $9 THEN NOW() ELSE NULL END)
          ON CONFLICT (league_id) DO UPDATE SET
            league_name = COALESCE(NULLIF($2,''), leagues.league_name),
            country = COALESCE(NULLIF($3,''), leagues.country),
@@ -99,7 +103,8 @@ export async function upsertLeagues(leagues: Partial<LeagueRow>[]): Promise<numb
            top_league = COALESCE($6, leagues.top_league),
            type = COALESCE(NULLIF($7,''), leagues.type),
            logo = COALESCE(NULLIF($8,''), leagues.logo),
-           last_updated = NOW()`,
+           last_updated = NOW(),
+           provider_synced_at = CASE WHEN $9 THEN NOW() ELSE leagues.provider_synced_at END`,
         [
           l.league_id,
           l.league_name ?? '',
@@ -109,6 +114,7 @@ export async function upsertLeagues(leagues: Partial<LeagueRow>[]): Promise<numb
           l.top_league ?? null,
           l.type ?? '',
           l.logo ?? '',
+          options.touchProviderSyncAt === true,
         ],
       );
       count++;

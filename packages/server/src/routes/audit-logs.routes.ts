@@ -13,6 +13,8 @@ export async function auditLogRoutes(app: FastifyInstance) {
       action?: string;
       outcome?: string;
       matchId?: string;
+      prematchStrength?: string;
+      prematchNoiseMin?: string;
       fromDate?: string;
       toDate?: string;
       limit?: string;
@@ -24,6 +26,8 @@ export async function auditLogRoutes(app: FastifyInstance) {
       action: req.query.action,
       outcome: req.query.outcome,
       matchId: req.query.matchId,
+      prematchStrength: req.query.prematchStrength,
+      prematchNoiseMin: req.query.prematchNoiseMin ? Number(req.query.prematchNoiseMin) : undefined,
       fromDate: req.query.fromDate,
       toDate: req.query.toDate,
       limit: req.query.limit ? Number(req.query.limit) : undefined,

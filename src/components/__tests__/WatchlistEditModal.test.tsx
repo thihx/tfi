@@ -80,4 +80,48 @@ describe('WatchlistEditModal', () => {
       custom_conditions: '(Minute >= 60) AND (NOT Home leading)',
     }));
   });
+
+  test('renders directional strategic context fields when present', () => {
+    render(
+      <WatchlistEditModal
+        item={{
+          ...baseItem,
+          strategic_context_at: '2026-03-24T12:00:00.000Z',
+          strategic_context: {
+            home_motivation: 'Home chasing title',
+            away_motivation: 'Away needs points',
+            league_positions: '2nd vs 16th',
+            fixture_congestion: 'Shared congestion summary',
+            home_fixture_congestion: 'Home played cup midweek',
+            away_fixture_congestion: 'Away had full week rest',
+            rotation_risk: 'Moderate rotation risk',
+            key_absences: 'Shared absence summary',
+            home_key_absences: 'Home missing starting fullback',
+            away_key_absences: 'Away missing first-choice striker',
+            h2h_narrative: 'Home won last two meetings',
+            summary: 'Structured strategic context ready',
+            searched_at: '2026-03-24T11:30:00.000Z',
+            version: 2,
+            source_meta: {
+              search_quality: 'high',
+              web_search_queries: ['example query'],
+              sources: [],
+              trusted_source_count: 2,
+              rejected_source_count: 0,
+              rejected_domains: [],
+            },
+          },
+        }}
+        defaultMode="B"
+        uiLanguage="vi"
+        onClose={() => {}}
+        onSave={() => {}}
+      />,
+    );
+
+    expect(screen.getByText((text) => text.includes('Ulsan Hyundai') && text.includes('Congestion'))).toBeInTheDocument();
+    expect(screen.getByText('Away had full week rest')).toBeInTheDocument();
+    expect(screen.getByText((text) => text.includes('Ulsan Hyundai') && text.includes('Absences'))).toBeInTheDocument();
+    expect(screen.getByText('Away missing first-choice striker')).toBeInTheDocument();
+  });
 });

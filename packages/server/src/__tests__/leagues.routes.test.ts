@@ -68,9 +68,22 @@ vi.mock('../repos/league-profiles.repo.js', () => ({
   ),
 }));
 
-// Mock Football API (for fetch-from-api endpoint)
-vi.mock('../lib/football-api.js', () => ({
-  fetchAllLeagues: vi.fn().mockResolvedValue([]),
+vi.mock('../lib/league-catalog.service.js', () => ({
+  ensureLeagueCatalogEntry: vi.fn().mockImplementation((id: number) =>
+    Promise.resolve(MOCK_LEAGUES.find((league) => league.league_id === id) ?? null),
+  ),
+  refreshLeagueCatalog: vi.fn().mockImplementation(({ mode = 'full', leagueIds = [] }: { mode?: string; leagueIds?: number[] }) =>
+    Promise.resolve({
+      mode,
+      candidateLeagues: mode === 'ids' ? leagueIds.length : 3,
+      attemptedLeagues: mode === 'ids' ? leagueIds.length : 3,
+      refreshedLeagues: mode === 'ids' ? leagueIds.length : 3,
+      skippedFreshLeagues: 0,
+      failedLeagues: 0,
+      fetched: mode === 'ids' ? leagueIds.length : 3,
+      upserted: mode === 'ids' ? leagueIds.length : 3,
+    }),
+  ),
 }));
 
 let app: FastifyInstance;
@@ -331,5 +344,32 @@ describe('POST /api/leagues/sync', () => {
     });
     expect(res.statusCode).toBe(200);
     expect(res.json()).toHaveProperty('upserted');
+  });
+});
+
+describe('POST /api/leagues/fetch-from-api', () => {
+  test('runs full league catalog refresh by default', async () => {
+    const res = await app.inject({ method: 'POST', url: '/api/leagues/fetch-from-api' });
+    expect(res.statusCode).toBe(200);
+    expect(res.json()).toMatchObject({ mode: 'full', fetched: 3, upserted: 3 });
+  });
+
+  test('supports targeted league refresh mode', async () => {
+    const res = await app.inject({
+      method: 'POST',
+      url: '/api/leagues/fetch-from-api',
+      payload: { mode: 'ids', leagueIds: [39] },
+    });
+    expect(res.statusCode).toBe(200);
+    expect(res.json()).toMatchObject({ mode: 'ids', fetched: 1, upserted: 1 });
+  });
+});
+
+describe('POST /api/leagues/:id/refresh', () => {
+  test('refreshes a single league catalog entry', async () => {
+    const res = await app.inject({ method: 'POST', url: '/api/leagues/39/refresh' });
+    expect(res.statusCode).toBe(200);
+    expect(res.json()).toMatchObject({ mode: 'ids', fetched: 1, upserted: 1 });
+    expect(res.json().league.league_id).toBe(39);
   });
 });

@@ -6,8 +6,12 @@ type NarrativeField =
   | 'away_motivation'
   | 'league_positions'
   | 'fixture_congestion'
+  | 'home_fixture_congestion'
+  | 'away_fixture_congestion'
   | 'rotation_risk'
   | 'key_absences'
+  | 'home_key_absences'
+  | 'away_key_absences'
   | 'h2h_narrative'
   | 'summary';
 
@@ -69,8 +73,12 @@ export function hasStrategicNarrative(
     'away_motivation',
     'league_positions',
     'fixture_congestion',
+    'home_fixture_congestion',
+    'away_fixture_congestion',
     'rotation_risk',
     'key_absences',
+    'home_key_absences',
+    'away_key_absences',
     'h2h_narrative',
   ].some((field) => getStrategicNarrative(context, field as NarrativeField, language));
 }

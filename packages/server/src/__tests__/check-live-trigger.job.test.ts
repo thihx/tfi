@@ -30,8 +30,8 @@ const mockPipelineResult = {
   processed: 2,
   errors: 0,
   results: [
-    { matchId: '100', success: true, shouldPush: true, selection: 'Over 2.5 @1.85', confidence: 8, saved: true, notified: true },
-    { matchId: '300', success: true, shouldPush: false, selection: '', confidence: 3, saved: true, notified: false },
+    { matchId: '100', success: true, decisionKind: 'ai_push', shouldPush: true, selection: 'Over 2.5 @1.85', confidence: 8, saved: true, notified: true },
+    { matchId: '300', success: true, decisionKind: 'no_bet', shouldPush: false, selection: '', confidence: 3, saved: false, notified: false },
   ],
 };
 

@@ -27,6 +27,7 @@ interface LiveRunRecord {
   mode: LiveMode;
   shadowMode: boolean;
   success: boolean;
+  decisionKind: MatchPipelineResult['decisionKind'];
   shouldPush: boolean;
   selection: string;
   confidence: number;
@@ -76,8 +77,8 @@ interface ValidationReport {
     totalMatches: number;
     processed: number;
     errors: number;
-    shouldPushCount: number;
-    savedCount: number;
+    pushedNotifications: number;
+    savedRecommendations: number;
   } | null;
   saveAndNotify: {
     matchId: string | null;
@@ -127,6 +128,7 @@ function toLiveRecord(
     mode,
     shadowMode,
     success: result.success,
+    decisionKind: result.decisionKind,
     shouldPush: result.shouldPush,
     selection: result.selection,
     confidence: result.confidence,
@@ -172,16 +174,16 @@ function buildMarkdown(report: ValidationReport): string {
     '',
     '## Live Pipeline',
     '',
-    '| Match ID | Mode | Shadow | Status | Minute | Push | Selection | Saved | Notified | Odds Source | Stats Source | Evidence | Error |',
-    '| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |',
-    ...report.liveRuns.map((row) => `| ${row.matchId} | ${row.mode} | ${row.shadowMode ? 'yes' : 'no'} | ${row.status} | ${row.minute ?? ''} | ${row.shouldPush ? 'yes' : 'no'} | ${row.selection || ''} | ${row.saved ? 'yes' : 'no'} | ${row.notified ? 'yes' : 'no'} | ${row.oddsSource ?? ''} | ${row.statsSource ?? ''} | ${row.evidenceMode ?? ''} | ${row.error ?? ''} |`),
+    '| Match ID | Mode | Shadow | Status | Minute | Decision | Notify | Selection | Saved | Notified | Odds Source | Stats Source | Evidence | Error |',
+    '| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |',
+    ...report.liveRuns.map((row) => `| ${row.matchId} | ${row.mode} | ${row.shadowMode ? 'yes' : 'no'} | ${row.status} | ${row.minute ?? ''} | ${row.decisionKind} | ${row.shouldPush ? 'yes' : 'no'} | ${row.selection || ''} | ${row.saved ? 'yes' : 'no'} | ${row.notified ? 'yes' : 'no'} | ${row.oddsSource ?? ''} | ${row.statsSource ?? ''} | ${row.evidenceMode ?? ''} | ${row.error ?? ''} |`),
     '',
     '## Batch Run',
     '',
     ...(report.batchRun
       ? [
           `- matchIds: ${report.batchRun.matchIds.join(', ')}`,
-          `- totalMatches=${report.batchRun.totalMatches}, processed=${report.batchRun.processed}, errors=${report.batchRun.errors}, shouldPushCount=${report.batchRun.shouldPushCount}, savedCount=${report.batchRun.savedCount}`,
+          `- totalMatches=${report.batchRun.totalMatches}, processed=${report.batchRun.processed}, errors=${report.batchRun.errors}, pushedNotifications=${report.batchRun.pushedNotifications}, savedRecommendations=${report.batchRun.savedRecommendations}`,
         ]
       : ['- not run']),
     '',
@@ -380,8 +382,8 @@ async function main() {
         totalMatches: batchResult.totalMatches,
         processed: batchResult.processed,
         errors: batchResult.errors,
-        shouldPushCount: batchResult.results.filter((row) => row.shouldPush).length,
-        savedCount: batchResult.results.filter((row) => row.saved).length,
+        pushedNotifications: batchResult.results.filter((row) => row.notified).length,
+        savedRecommendations: batchResult.results.filter((row) => row.saved).length,
       };
       await settingsRepo.saveSettings(settingsBackup);
     }

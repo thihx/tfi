@@ -51,8 +51,12 @@ export interface StrategicContextNarrative {
   away_motivation: string;
   league_positions: string;
   fixture_congestion: string;
+  home_fixture_congestion?: string;
+  away_fixture_congestion?: string;
   rotation_risk: string;
   key_absences: string;
+  home_key_absences?: string;
+  away_key_absences?: string;
   h2h_narrative: string;
   summary: string;
 }
@@ -111,8 +115,12 @@ export interface StrategicContext extends StrategicContextNarrative {
   away_motivation_vi: string;
   league_positions_vi: string;
   fixture_congestion_vi: string;
+  home_fixture_congestion_vi?: string;
+  away_fixture_congestion_vi?: string;
   rotation_risk_vi: string;
   key_absences_vi: string;
+  home_key_absences_vi?: string;
+  away_key_absences_vi?: string;
   h2h_narrative_vi: string;
   summary_vi: string;
   searched_at: string;
@@ -144,8 +152,12 @@ const EMPTY_NARRATIVE: StrategicContextNarrative = {
   away_motivation: '',
   league_positions: '',
   fixture_congestion: '',
+  home_fixture_congestion: '',
+  away_fixture_congestion: '',
   rotation_risk: '',
   key_absences: '',
+  home_key_absences: '',
+  away_key_absences: '',
   h2h_narrative: '',
   summary: NO_DATA,
 };
@@ -349,8 +361,12 @@ function extractDraftFallbackPayload(draftText: string): DraftFallbackPayload {
       away_motivation: cleanNarrativeField(lines['AWAY_MOTIVATION']),
       league_positions: cleanNarrativeField(lines['LEAGUE_POSITIONS']),
       fixture_congestion: cleanNarrativeField(lines['FIXTURE_CONGESTION']),
+      home_fixture_congestion: cleanNarrativeField(lines['HOME_FIXTURE_CONGESTION']),
+      away_fixture_congestion: cleanNarrativeField(lines['AWAY_FIXTURE_CONGESTION']),
       rotation_risk: cleanNarrativeField(lines['ROTATION_RISK']),
       key_absences: cleanNarrativeField(lines['KEY_ABSENCES']),
+      home_key_absences: cleanNarrativeField(lines['HOME_KEY_ABSENCES']),
+      away_key_absences: cleanNarrativeField(lines['AWAY_KEY_ABSENCES']),
       h2h_narrative: cleanNarrativeField(lines['H2H_NARRATIVE']),
       summary: cleanNarrativeField(lines['SUMMARY']),
     },
@@ -412,8 +428,12 @@ function normalizeNarrative(raw: unknown, summaryFallback = NO_DATA): StrategicC
     away_motivation: cleanNarrativeField(obj.away_motivation),
     league_positions: cleanNarrativeField(obj.league_positions),
     fixture_congestion: cleanNarrativeField(obj.fixture_congestion),
+    home_fixture_congestion: cleanNarrativeField(obj.home_fixture_congestion),
+    away_fixture_congestion: cleanNarrativeField(obj.away_fixture_congestion),
     rotation_risk: cleanNarrativeField(obj.rotation_risk),
     key_absences: cleanNarrativeField(obj.key_absences),
+    home_key_absences: cleanNarrativeField(obj.home_key_absences),
+    away_key_absences: cleanNarrativeField(obj.away_key_absences),
     h2h_narrative: cleanNarrativeField(obj.h2h_narrative),
     summary: cleanNarrativeField(obj.summary ?? summaryFallback),
   };
@@ -460,8 +480,12 @@ export function countStrategicNarrativeCoverage(ctx: Partial<StrategicContext> |
     pick('away_motivation'),
     pick('league_positions'),
     pick('fixture_congestion'),
+    pick('home_fixture_congestion'),
+    pick('away_fixture_congestion'),
     pick('rotation_risk'),
     pick('key_absences'),
+    pick('home_key_absences'),
+    pick('away_key_absences'),
     pick('h2h_narrative'),
     pick('summary'),
   ];
@@ -634,8 +658,12 @@ export function buildNoDataStrategicContext(searchedAt = new Date().toISOString(
     away_motivation_vi: '',
     league_positions_vi: '',
     fixture_congestion_vi: '',
+    home_fixture_congestion_vi: '',
+    away_fixture_congestion_vi: '',
     rotation_risk_vi: '',
     key_absences_vi: '',
+    home_key_absences_vi: '',
+    away_key_absences_vi: '',
     h2h_narrative_vi: '',
     summary_vi: NO_DATA_VI,
     searched_at: searchedAt,
@@ -652,8 +680,12 @@ export function buildNoDataStrategicContext(searchedAt = new Date().toISOString(
         away_motivation: '',
         league_positions: '',
         fixture_congestion: '',
+        home_fixture_congestion: '',
+        away_fixture_congestion: '',
         rotation_risk: '',
         key_absences: '',
+        home_key_absences: '',
+        away_key_absences: '',
         h2h_narrative: '',
         summary: NO_DATA_VI,
       },
@@ -778,8 +810,12 @@ function normalizeContextPayload(payload: unknown, searchedAt: string, sourceMet
     away_motivation_vi: qualitativeVi.away_motivation || qualitativeEn.away_motivation,
     league_positions_vi: qualitativeVi.league_positions || qualitativeEn.league_positions,
     fixture_congestion_vi: qualitativeVi.fixture_congestion || qualitativeEn.fixture_congestion,
+    home_fixture_congestion_vi: qualitativeVi.home_fixture_congestion || qualitativeEn.home_fixture_congestion,
+    away_fixture_congestion_vi: qualitativeVi.away_fixture_congestion || qualitativeEn.away_fixture_congestion,
     rotation_risk_vi: qualitativeVi.rotation_risk || qualitativeEn.rotation_risk,
     key_absences_vi: qualitativeVi.key_absences || qualitativeEn.key_absences,
+    home_key_absences_vi: qualitativeVi.home_key_absences || qualitativeEn.home_key_absences,
+    away_key_absences_vi: qualitativeVi.away_key_absences || qualitativeEn.away_key_absences,
     h2h_narrative_vi: qualitativeVi.h2h_narrative || qualitativeEn.h2h_narrative,
     summary_vi: qualitativeVi.summary || qualitativeEn.summary,
     searched_at: searchedAt,
@@ -823,8 +859,12 @@ function mergeStrategicContextWithDraftFallback(
     away_motivation: isNoDataText(context.qualitative.en.away_motivation) ? (draftFallback.qualitativeEn.away_motivation || context.qualitative.en.away_motivation) : context.qualitative.en.away_motivation,
     league_positions: isNoDataText(context.qualitative.en.league_positions) ? (draftFallback.qualitativeEn.league_positions || context.qualitative.en.league_positions) : context.qualitative.en.league_positions,
     fixture_congestion: isNoDataText(context.qualitative.en.fixture_congestion) ? (draftFallback.qualitativeEn.fixture_congestion || context.qualitative.en.fixture_congestion) : context.qualitative.en.fixture_congestion,
+    home_fixture_congestion: isNoDataText(context.qualitative.en.home_fixture_congestion) ? (draftFallback.qualitativeEn.home_fixture_congestion || context.qualitative.en.home_fixture_congestion) : context.qualitative.en.home_fixture_congestion,
+    away_fixture_congestion: isNoDataText(context.qualitative.en.away_fixture_congestion) ? (draftFallback.qualitativeEn.away_fixture_congestion || context.qualitative.en.away_fixture_congestion) : context.qualitative.en.away_fixture_congestion,
     rotation_risk: isNoDataText(context.qualitative.en.rotation_risk) ? (draftFallback.qualitativeEn.rotation_risk || context.qualitative.en.rotation_risk) : context.qualitative.en.rotation_risk,
     key_absences: isNoDataText(context.qualitative.en.key_absences) ? (draftFallback.qualitativeEn.key_absences || context.qualitative.en.key_absences) : context.qualitative.en.key_absences,
+    home_key_absences: isNoDataText(context.qualitative.en.home_key_absences) ? (draftFallback.qualitativeEn.home_key_absences || context.qualitative.en.home_key_absences) : context.qualitative.en.home_key_absences,
+    away_key_absences: isNoDataText(context.qualitative.en.away_key_absences) ? (draftFallback.qualitativeEn.away_key_absences || context.qualitative.en.away_key_absences) : context.qualitative.en.away_key_absences,
     h2h_narrative: isNoDataText(context.qualitative.en.h2h_narrative) ? (draftFallback.qualitativeEn.h2h_narrative || context.qualitative.en.h2h_narrative) : context.qualitative.en.h2h_narrative,
     summary: isNoDataText(context.qualitative.en.summary) ? (draftFallback.qualitativeEn.summary || context.qualitative.en.summary) : context.qualitative.en.summary,
   };
@@ -858,8 +898,12 @@ function mergeStrategicContextWithDraftFallback(
     away_motivation_vi: context.away_motivation_vi || mergedQualitativeEn.away_motivation,
     league_positions_vi: context.league_positions_vi || mergedQualitativeEn.league_positions,
     fixture_congestion_vi: context.fixture_congestion_vi || mergedQualitativeEn.fixture_congestion,
+    home_fixture_congestion_vi: context.home_fixture_congestion_vi || mergedQualitativeEn.home_fixture_congestion,
+    away_fixture_congestion_vi: context.away_fixture_congestion_vi || mergedQualitativeEn.away_fixture_congestion,
     rotation_risk_vi: context.rotation_risk_vi || mergedQualitativeEn.rotation_risk,
     key_absences_vi: context.key_absences_vi || mergedQualitativeEn.key_absences,
+    home_key_absences_vi: context.home_key_absences_vi || mergedQualitativeEn.home_key_absences,
+    away_key_absences_vi: context.away_key_absences_vi || mergedQualitativeEn.away_key_absences,
     h2h_narrative_vi: context.h2h_narrative_vi || mergedQualitativeEn.h2h_narrative,
     summary_vi: context.summary_vi || mergedQualitativeEn.summary,
     competition_type: context.competition_type || draftFallback.competitionType,
@@ -874,8 +918,12 @@ function mergeStrategicContextWithDraftFallback(
         away_motivation: context.qualitative.vi.away_motivation || mergedQualitativeEn.away_motivation,
         league_positions: context.qualitative.vi.league_positions || mergedQualitativeEn.league_positions,
         fixture_congestion: context.qualitative.vi.fixture_congestion || mergedQualitativeEn.fixture_congestion,
+        home_fixture_congestion: context.qualitative.vi.home_fixture_congestion || mergedQualitativeEn.home_fixture_congestion,
+        away_fixture_congestion: context.qualitative.vi.away_fixture_congestion || mergedQualitativeEn.away_fixture_congestion,
         rotation_risk: context.qualitative.vi.rotation_risk || mergedQualitativeEn.rotation_risk,
         key_absences: context.qualitative.vi.key_absences || mergedQualitativeEn.key_absences,
+        home_key_absences: context.qualitative.vi.home_key_absences || mergedQualitativeEn.home_key_absences,
+        away_key_absences: context.qualitative.vi.away_key_absences || mergedQualitativeEn.away_key_absences,
         h2h_narrative: context.qualitative.vi.h2h_narrative || mergedQualitativeEn.h2h_narrative,
         summary: context.qualitative.vi.summary || mergedQualitativeEn.summary,
       },
@@ -1052,7 +1100,7 @@ function buildGroundedResearchDraftPrompt(
     ? `
 TOP-LEAGUE PRIORITY:
 - This competition is flagged internally as a major top league. Sparse or empty context is unacceptable unless trustworthy sources genuinely have nothing current.
-- You MUST actively try to populate: league_positions, key_absences, fixture_congestion or rotation_risk, and at least one concrete motivation signal for each team.
+- You MUST actively try to populate: league_positions, key_absences, home_key_absences, away_key_absences, fixture_congestion or rotation_risk, home_fixture_congestion, away_fixture_congestion, and at least one concrete motivation signal for each team.
 - Prefer official league/club sources plus major stats/news sources before settling on "No data found".
 - If country context helps disambiguation, use it: ${leagueCountry || 'unknown country'}.
 `
@@ -1066,7 +1114,11 @@ RESCUE PASS:
 - For top leagues, it is especially important to recover at least:
   - league_positions
   - key_absences
+  - home_key_absences
+  - away_key_absences
   - fixture_congestion or rotation_risk
+  - home_fixture_congestion
+  - away_fixture_congestion
   - a summary grounded in current season context
 `
     : '';
@@ -1099,8 +1151,12 @@ TASKS:
    - away_motivation
    - league_positions
    - fixture_congestion
+  - home_fixture_congestion
+  - away_fixture_congestion
    - rotation_risk
    - key_absences
+  - home_key_absences
+  - away_key_absences
    - h2h_narrative
    - summary
 2. Produce quantitative pre-match priors useful for live betting:
@@ -1143,8 +1199,12 @@ HOME_MOTIVATION:
 AWAY_MOTIVATION:
 LEAGUE_POSITIONS:
 FIXTURE_CONGESTION:
+HOME_FIXTURE_CONGESTION:
+AWAY_FIXTURE_CONGESTION:
 ROTATION_RISK:
 KEY_ABSENCES:
+HOME_KEY_ABSENCES:
+AWAY_KEY_ABSENCES:
 H2H_NARRATIVE:
 SUMMARY:
 HOME_LAST5_POINTS:
@@ -1214,8 +1274,12 @@ Return STRICT JSON only with this schema:
     "away_motivation": string,
     "league_positions": string,
     "fixture_congestion": string,
+    "home_fixture_congestion": string,
+    "away_fixture_congestion": string,
     "rotation_risk": string,
     "key_absences": string,
+    "home_key_absences": string,
+    "away_key_absences": string,
     "h2h_narrative": string,
     "summary": string
   },
@@ -1224,8 +1288,12 @@ Return STRICT JSON only with this schema:
     "away_motivation": string,
     "league_positions": string,
     "fixture_congestion": string,
+    "home_fixture_congestion": string,
+    "away_fixture_congestion": string,
     "rotation_risk": string,
     "key_absences": string,
+    "home_key_absences": string,
+    "away_key_absences": string,
     "h2h_narrative": string,
     "summary": string
   },

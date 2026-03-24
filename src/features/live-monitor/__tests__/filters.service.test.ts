@@ -169,13 +169,14 @@ describe('shouldPush', () => {
 
 describe('shouldSave', () => {
   test('returns true when ai_should_push is true', () => {
-    const parsed = createParsedAiResponse({ ai_should_push: true });
+    const parsed = createParsedAiResponse({ ai_should_push: true, final_should_bet: true });
     expect(shouldSave(parsed)).toBe(true);
   });
 
   test('returns false when ai_should_push is false and no conditions', () => {
     const parsed = createParsedAiResponse({
       ai_should_push: false,
+      final_should_bet: false,
       custom_condition_matched: false,
       condition_triggered_should_push: false,
     });
@@ -185,45 +186,43 @@ describe('shouldSave', () => {
   test('returns false when custom_condition_matched + evaluated but no triggered push (No Bet not saved)', () => {
     const parsed = createParsedAiResponse({
       ai_should_push: false,
+      final_should_bet: false,
       custom_condition_matched: true,
       custom_condition_status: 'evaluated',
     });
     expect(shouldSave(parsed)).toBe(false);
   });
 
-  test('returns true when condition_triggered_should_push (consistent with shouldPush)', () => {
+  test('returns false when condition_triggered_should_push but AI final bet is false', () => {
     const parsed = createParsedAiResponse({
       ai_should_push: false,
+      final_should_bet: false,
       condition_triggered_should_push: true,
     });
-    expect(shouldSave(parsed)).toBe(true);
+    expect(shouldSave(parsed)).toBe(false);
   });
 
   test('returns false when custom_condition_matched but status is none', () => {
     const parsed = createParsedAiResponse({
       ai_should_push: false,
+      final_should_bet: false,
       custom_condition_matched: true,
       custom_condition_status: 'none',
     });
     expect(shouldSave(parsed)).toBe(false);
   });
 
-  test('shouldSave matches shouldPush for all key scenarios', () => {
-    // Scenario: AI push only
-    const s1 = createParsedAiResponse({ ai_should_push: true, custom_condition_matched: false, condition_triggered_should_push: false });
-    expect(shouldSave(s1)).toBe(shouldPush(s1));
+  test('shouldSave is narrower than shouldPush for condition-only triggers', () => {
+    const aiPush = createParsedAiResponse({ ai_should_push: true, final_should_bet: true, condition_triggered_should_push: false });
+    expect(shouldSave(aiPush)).toBe(true);
+    expect(shouldPush(aiPush)).toBe(true);
 
-    // Scenario: condition matched + evaluated but no triggered push → both false (No Bet not saved)
-    const s2 = createParsedAiResponse({ ai_should_push: false, custom_condition_matched: true, custom_condition_status: 'evaluated', condition_triggered_should_push: false });
-    expect(shouldSave(s2)).toBe(shouldPush(s2));
-    expect(shouldSave(s2)).toBe(false);
+    const conditionOnly = createParsedAiResponse({ ai_should_push: false, final_should_bet: false, condition_triggered_should_push: true });
+    expect(shouldSave(conditionOnly)).toBe(false);
+    expect(shouldPush(conditionOnly)).toBe(true);
 
-    // Scenario: condition triggered only
-    const s3 = createParsedAiResponse({ ai_should_push: false, custom_condition_matched: false, condition_triggered_should_push: true });
-    expect(shouldSave(s3)).toBe(shouldPush(s3));
-
-    // Scenario: nothing triggers
-    const s4 = createParsedAiResponse({ ai_should_push: false, custom_condition_matched: false, condition_triggered_should_push: false });
-    expect(shouldSave(s4)).toBe(shouldPush(s4));
+    const noBet = createParsedAiResponse({ ai_should_push: false, final_should_bet: false, condition_triggered_should_push: false });
+    expect(shouldSave(noBet)).toBe(false);
+    expect(shouldPush(noBet)).toBe(false);
   });
 });

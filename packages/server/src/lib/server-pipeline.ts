@@ -49,17 +49,28 @@ import {
 } from './provider-sampling.js';
 import {
   buildLiveAnalysisPrompt,
+  getPromptStatsDetailLevel,
   isLiveAnalysisPromptVersion,
   LIVE_ANALYSIS_PROMPT_VERSION,
   type LiveAnalysisPromptVersion,
   type PromptAnalysisMode,
+  type PromptStatsDetailLevel,
 } from './live-analysis-prompt.js';
+import { normalizeMarket } from './normalize-market.js';
 import { hasUsableStrategicContext } from './strategic-context.service.js';
 import { createPromptShadowRun } from '../repos/prompt-shadow-runs.repo.js';
 import { getLeagueProfileByLeagueId } from '../repos/league-profiles.repo.js';
+import { getTeamProfileByTeamId } from '../repos/team-profiles.repo.js';
 import { getLeagueById } from '../repos/leagues.repo.js';
 import { isWebPushConfigured, sendWebPushNotification } from './web-push.js';
 import { getAllSubscriptions, deleteSubscription } from '../repos/push-subscriptions.repo.js';
+import {
+  buildPrematchExpertFeaturesV1,
+  getPrematchPriorStrength,
+  type PrematchExpertFeaturesV1,
+  type PrematchFeatureAvailability,
+  type PrematchPriorStrength,
+} from './prematch-expert-features.js';
 
 /** Resolved pipeline settings: DB values take priority, env vars as fallback */
 interface PipelineSettings {
@@ -153,6 +164,7 @@ const defaultPipelineDeps = {
   fetchDeterministicWebLiveFallback,
   createPromptShadowRun,
   getLeagueProfileByLeagueId,
+  getTeamProfileByTeamId,
   getLeagueById,
 };
 
@@ -229,6 +241,12 @@ interface StatsCompact {
   blocked_shots: { home: string | null; away: string | null };
   total_passes: { home: string | null; away: string | null };
   passes_accurate: { home: string | null; away: string | null };
+  shots_off_target?: { home: string | null; away: string | null };
+  shots_inside_box?: { home: string | null; away: string | null };
+  shots_outside_box?: { home: string | null; away: string | null };
+  expected_goals?: { home: string | null; away: string | null };
+  goals_prevented?: { home: string | null; away: string | null };
+  passes_percent?: { home: string | null; away: string | null };
 }
 
 interface EventCompact {
@@ -246,6 +264,13 @@ interface OddsCanonical {
   ah?: { line: number; home: number | null; away: number | null };
   btts?: { yes: number | null; no: number | null };
   corners_ou?: { line: number; over: number | null; under: number | null };
+}
+
+interface OddsSanitizationResult {
+  canonical: OddsCanonical;
+  available: boolean;
+  warnings: string[];
+  suspicious: boolean;
 }
 
 interface DerivedInsights {
@@ -274,8 +299,11 @@ type EvidenceMode =
   | 'low_evidence';
 
 interface ParsedAiResponse {
+  decision_kind: 'ai_push' | 'condition_only' | 'no_bet';
   should_push: boolean;
   ai_should_push: boolean;
+  system_should_bet: boolean;
+  final_should_bet: boolean;
   selection: string;
   bet_market: string;
   confidence: number;
@@ -287,6 +315,23 @@ interface ParsedAiResponse {
   stake_percent: number;
   condition_triggered_suggestion: string;
   custom_condition_matched: boolean;
+  custom_condition_status: 'none' | 'evaluated' | 'parse_error';
+  custom_condition_summary_en: string;
+  custom_condition_summary_vi: string;
+  custom_condition_reason_en: string;
+  custom_condition_reason_vi: string;
+  condition_triggered_reasoning_en: string;
+  condition_triggered_reasoning_vi: string;
+  condition_triggered_confidence: number;
+  condition_triggered_stake: number;
+  condition_triggered_should_push: boolean;
+  ai_selection: string;
+  ai_confidence: number;
+  ai_odd_raw: number | null;
+  ai_warnings: string[];
+  usable_odd: number | null;
+  mapped_odd: number | null;
+  odds_for_display: number | string | null;
 }
 
 function isMarketAllowedForEvidenceMode(betMarket: string, evidenceMode: EvidenceMode): boolean {
@@ -324,7 +369,15 @@ function sameLine(a: number | null | undefined, b: number | null | undefined): b
 
 export interface MatchPipelineResult {
   matchId: string;
+  matchDisplay?: string;
+  homeName?: string;
+  awayName?: string;
+  league?: string;
+  minute?: number | string;
+  score?: string;
+  status?: string;
   success: boolean;
+  decisionKind: 'ai_push' | 'condition_only' | 'no_bet';
   shouldPush: boolean;
   selection: string;
   confidence: number;
@@ -345,6 +398,10 @@ export interface MatchPipelineResult {
     statsFallbackUsed?: boolean;
     statsFallbackReason?: string;
     promptVersion?: string;
+    promptDataLevel?: PromptStatsDetailLevel;
+    prematchAvailability?: PrematchFeatureAvailability;
+    prematchNoisePenalty?: number | null;
+    prematchStrength?: PrematchPriorStrength;
     promptChars?: number;
     promptEstimatedTokens?: number;
     aiTextChars?: number;
@@ -392,13 +449,26 @@ function summarizeStatsCoverage(
   statsError: unknown,
   eventsError: unknown,
 ): Record<string, unknown> {
-  const fields = Object.entries(statsCompact);
-  const populated = fields.filter(([, value]) => value.home != null || value.away != null).length;
+  const tracked = [
+    statsCompact.possession,
+    statsCompact.shots,
+    statsCompact.shots_on_target,
+    statsCompact.corners,
+    statsCompact.fouls,
+    statsCompact.offsides,
+    statsCompact.yellow_cards,
+    statsCompact.red_cards,
+    statsCompact.goalkeeper_saves,
+    statsCompact.blocked_shots,
+    statsCompact.total_passes,
+    statsCompact.passes_accurate,
+  ];
+  const populated = tracked.filter((value) => value.home != null || value.away != null).length;
   return {
     team_count: statsRaw.length,
     event_count: eventsRaw.length,
     populated_stat_pairs: populated,
-    total_stat_pairs: fields.length,
+    total_stat_pairs: tracked.length,
     has_possession: statsCompact.possession.home != null || statsCompact.possession.away != null,
     has_shots: statsCompact.shots.home != null || statsCompact.shots.away != null,
     has_shots_on_target: statsCompact.shots_on_target.home != null || statsCompact.shots_on_target.away != null,
@@ -419,17 +489,15 @@ function countPrimaryPopulatedStatPairs(statsCompact: StatsCompact): number {
   return tracked.filter((value) => value.home != null && value.away != null).length;
 }
 
-function mergeStatPair(
-  primary: { home: string | null; away: string | null },
-  fallback: { home: string | null; away: string | null },
-): { home: string | null; away: string | null } {
-  return {
-    home: primary.home ?? fallback.home ?? null,
-    away: primary.away ?? fallback.away ?? null,
-  };
-}
-
 function mergeStatsCompact(primary: StatsCompact, fallback: StatsCompact): StatsCompact {
+  const mergeStatPair = (
+    first: { home: string | null; away: string | null } | undefined,
+    second: { home: string | null; away: string | null } | undefined,
+  ) => ({
+    home: first?.home ?? second?.home ?? null,
+    away: first?.away ?? second?.away ?? null,
+  });
+
   return {
     possession: mergeStatPair(primary.possession, fallback.possession),
     shots: mergeStatPair(primary.shots, fallback.shots),
@@ -443,6 +511,12 @@ function mergeStatsCompact(primary: StatsCompact, fallback: StatsCompact): Stats
     blocked_shots: mergeStatPair(primary.blocked_shots, fallback.blocked_shots),
     total_passes: mergeStatPair(primary.total_passes, fallback.total_passes),
     passes_accurate: mergeStatPair(primary.passes_accurate, fallback.passes_accurate),
+    shots_off_target: mergeStatPair(primary.shots_off_target, fallback.shots_off_target),
+    shots_inside_box: mergeStatPair(primary.shots_inside_box, fallback.shots_inside_box),
+    shots_outside_box: mergeStatPair(primary.shots_outside_box, fallback.shots_outside_box),
+    expected_goals: mergeStatPair(primary.expected_goals, fallback.expected_goals),
+    goals_prevented: mergeStatPair(primary.goals_prevented, fallback.goals_prevented),
+    passes_percent: mergeStatPair(primary.passes_percent, fallback.passes_percent),
   };
 }
 
@@ -493,12 +567,17 @@ interface PromptExecutionContext {
   oddsAvailable: boolean;
   oddsSource: string;
   oddsFetchedAt: string | null;
+  oddsSanityWarnings: string[];
+  oddsSuspicious: boolean;
   derivedInsights: DerivedInsights | null;
   customConditions: string;
   recommendedCondition: string;
   recommendedConditionReason: string;
   strategicContext: Record<string, unknown> | null;
   leagueProfile: Record<string, unknown> | null;
+  homeTeamProfile: Record<string, unknown> | null;
+  awayTeamProfile: Record<string, unknown> | null;
+  prematchExpertFeatures: PrematchExpertFeaturesV1 | null;
   analysisMode: PromptAnalysisMode;
   forceAnalyze: boolean;
   isManualPush: boolean;
@@ -787,6 +866,12 @@ function buildStatsCompact(
     blocked_shots: getStat('Blocked Shots'),
     total_passes: getStat('Total passes'),
     passes_accurate: getStat('Passes accurate'),
+    shots_off_target: getStat('Shots off Goal'),
+    shots_inside_box: getStat('Shots insidebox'),
+    shots_outside_box: getStat('Shots outsidebox'),
+    expected_goals: getStat('expected_goals'),
+    goals_prevented: getStat('goals_prevented'),
+    passes_percent: getStat('Passes %'),
   };
 }
 
@@ -854,6 +939,12 @@ function buildStatsCompactFromWebFallback(stats: {
     blocked_shots: { home: null, away: null },
     total_passes: { home: null, away: null },
     passes_accurate: { home: null, away: null },
+    shots_off_target: { home: null, away: null },
+    shots_inside_box: { home: null, away: null },
+    shots_outside_box: { home: null, away: null },
+    expected_goals: { home: null, away: null },
+    goals_prevented: { home: null, away: null },
+    passes_percent: { home: null, away: null },
   };
 }
 
@@ -1041,6 +1132,63 @@ function buildOddsCanonical(oddsResponse: unknown[]): { canonical: OddsCanonical
   return { canonical, available: hasAnyMarket };
 }
 
+function sanitizePromptOddsCanonical(args: {
+  canonical: OddsCanonical;
+  homeGoals: number;
+  awayGoals: number;
+  currentTotalGoals: number;
+  currentTotalCorners: number | null;
+}): OddsSanitizationResult {
+  const sanitized: OddsCanonical = { ...args.canonical };
+  const warnings: string[] = [];
+
+  const removeMarket = (market: keyof OddsCanonical, reason: string) => {
+    if (!sanitized[market]) return;
+    delete sanitized[market];
+    warnings.push(reason);
+  };
+
+  if (args.homeGoals > 0 && args.awayGoals > 0) {
+    removeMarket(
+      'btts',
+      `Removed BTTS market from prompt: both teams have already scored (${args.homeGoals}-${args.awayGoals}), so BTTS is already logically settled.`,
+    );
+  }
+
+  if (typeof sanitized.ou?.line === 'number' && args.currentTotalGoals > sanitized.ou.line) {
+    removeMarket(
+      'ou',
+      `Removed goals O/U market from prompt: current total goals ${args.currentTotalGoals} already exceeds line ${sanitized.ou.line}.`,
+    );
+  }
+
+  if (
+    args.currentTotalCorners !== null
+    && typeof sanitized.corners_ou?.line === 'number'
+    && args.currentTotalCorners > sanitized.corners_ou.line
+  ) {
+    removeMarket(
+      'corners_ou',
+      `Removed corners O/U market from prompt: current total corners ${args.currentTotalCorners} already exceeds line ${sanitized.corners_ou.line}.`,
+    );
+  }
+
+  const available = !!(
+    sanitized['1x2']
+    || sanitized['ou']
+    || sanitized['ah']
+    || sanitized['btts']
+    || sanitized['corners_ou']
+  );
+
+  return {
+    canonical: sanitized,
+    available,
+    warnings,
+    suspicious: false,
+  };
+}
+
 function buildMainOU(
   oddsMap: Record<string, number>,
   regexKey: RegExp,
@@ -1129,10 +1277,20 @@ function parseAiResponse(
   evidenceMode: EvidenceMode = 'full_live_data',
 ): ParsedAiResponse {
   const defaults: ParsedAiResponse = {
-    should_push: false, ai_should_push: false, selection: '', bet_market: '', confidence: 0,
+    decision_kind: 'no_bet',
+    should_push: false, ai_should_push: false, system_should_bet: false, final_should_bet: false,
+    selection: '', bet_market: '', confidence: 0,
     reasoning_en: 'AI response could not be parsed.', reasoning_vi: 'AI response could not be parsed.',
     warnings: ['PARSE_ERROR'], value_percent: 0, risk_level: 'HIGH', stake_percent: 0,
     condition_triggered_suggestion: '', custom_condition_matched: false,
+    custom_condition_status: 'parse_error',
+    custom_condition_summary_en: '', custom_condition_summary_vi: '',
+    custom_condition_reason_en: '', custom_condition_reason_vi: '',
+    condition_triggered_reasoning_en: '', condition_triggered_reasoning_vi: '',
+    condition_triggered_confidence: 0, condition_triggered_stake: 0,
+    condition_triggered_should_push: false,
+    ai_selection: '', ai_confidence: 0, ai_odd_raw: null, ai_warnings: [],
+    usable_odd: null, mapped_odd: null, odds_for_display: null,
   };
   if (!aiText) return defaults;
 
@@ -1157,6 +1315,19 @@ function parseAiResponse(
   const riskLevel = (['LOW', 'MEDIUM', 'HIGH'].includes(String(parsed.risk_level)) ? String(parsed.risk_level) : 'HIGH');
   const stakePercent = toNumber(parsed.stake_percent) ?? 0;
   const aiShouldPush = parsed.should_push === true;
+  const customConditionMatched = parsed.custom_condition_matched === true;
+  const customConditionStatus = (['none', 'evaluated', 'parse_error'].includes(String(parsed.custom_condition_status))
+    ? String(parsed.custom_condition_status)
+    : 'none') as 'none' | 'evaluated' | 'parse_error';
+  const customConditionSummaryEn = String(parsed.custom_condition_summary_en || '');
+  const customConditionSummaryVi = String(parsed.custom_condition_summary_vi || '');
+  const customConditionReasonEn = String(parsed.custom_condition_reason_en || '');
+  const customConditionReasonVi = String(parsed.custom_condition_reason_vi || '');
+  const conditionTriggeredSuggestion = String(parsed.condition_triggered_suggestion || '').trim();
+  const conditionTriggeredReasoningEn = String(parsed.condition_triggered_reasoning_en || '');
+  const conditionTriggeredReasoningVi = String(parsed.condition_triggered_reasoning_vi || '');
+  const conditionTriggeredConfidence = toNumber(parsed.condition_triggered_confidence) ?? 0;
+  const conditionTriggeredStake = toNumber(parsed.condition_triggered_stake) ?? 0;
 
   // Map odds from selection
   const mappedOdd = extractOddsFromSelection(aiSelection, betMarket, oddsCanonical);
@@ -1188,13 +1359,42 @@ function parseAiResponse(
     'MARKET_NOT_ALLOWED_FOR_EVIDENCE',
     '1X2_TOO_EARLY',
   ].includes(w));
+  // AI save path: only the AI recommendation itself can create a DB record.
+  // Condition-trigger metadata may still notify the user, but it must never be
+  // promoted into a saved recommendation unless the same run also produced an
+  // actionable AI bet with valid market/odds/confidence.
   const systemShouldBet = aiShouldPush && !hasBlocking;
   const usableOdd = mappedOdd !== null && mappedOdd >= MIN_ODDS ? mappedOdd : null;
-  const finalShouldPush = systemShouldBet && usableOdd !== null;
+  const aiFinalShouldBet = systemShouldBet && usableOdd !== null;
+  const oddsForDisplay = usableOdd ?? mappedOdd ?? (aiShouldPush ? 'N/A' : null);
+  const normalizedConditionMarket = conditionTriggeredSuggestion
+    ? normalizeMarket(conditionTriggeredSuggestion)
+    : 'unknown';
+  // Condition-trigger path: this is a notification-only branch. It represents
+  // "the watchlist condition is satisfied and the condition suggestion is
+  // actionable enough to alert the user". It does NOT imply DB persistence.
+  const conditionTriggeredShouldPush =
+    customConditionMatched
+    && customConditionStatus === 'evaluated'
+    && conditionTriggeredConfidence >= MIN_CONFIDENCE
+    && !!conditionTriggeredSuggestion
+    && !conditionTriggeredSuggestion.toLowerCase().startsWith('no bet')
+    && normalizedConditionMarket !== 'unknown';
+  // should_push = user-facing push/notify decision.
+  // final_should_bet = AI-only save decision.
+  const finalShouldPush = aiFinalShouldBet || conditionTriggeredShouldPush;
+  const decisionKind = aiFinalShouldBet
+    ? 'ai_push'
+    : conditionTriggeredShouldPush
+      ? 'condition_only'
+      : 'no_bet';
 
   return {
+    decision_kind: decisionKind,
     should_push: finalShouldPush,
     ai_should_push: aiShouldPush,
+    system_should_bet: systemShouldBet,
+    final_should_bet: aiFinalShouldBet,
     selection: aiSelection,
     bet_market: betMarket,
     confidence: aiConfidence,
@@ -1204,8 +1404,25 @@ function parseAiResponse(
     value_percent: valuePercent,
     risk_level: riskLevel,
     stake_percent: stakePercent,
-    condition_triggered_suggestion: String(parsed.condition_triggered_suggestion || ''),
-    custom_condition_matched: parsed.custom_condition_matched === true,
+    condition_triggered_suggestion: conditionTriggeredSuggestion,
+    custom_condition_matched: customConditionMatched,
+    custom_condition_status: customConditionStatus,
+    custom_condition_summary_en: customConditionSummaryEn,
+    custom_condition_summary_vi: customConditionSummaryVi,
+    custom_condition_reason_en: customConditionReasonEn,
+    custom_condition_reason_vi: customConditionReasonVi,
+    condition_triggered_reasoning_en: conditionTriggeredReasoningEn,
+    condition_triggered_reasoning_vi: conditionTriggeredReasoningVi,
+    condition_triggered_confidence: conditionTriggeredConfidence,
+    condition_triggered_stake: conditionTriggeredStake,
+    condition_triggered_should_push: conditionTriggeredShouldPush,
+    ai_selection: aiSelection,
+    ai_confidence: aiConfidence,
+    ai_odd_raw: mappedOdd,
+    ai_warnings: safetyWarnings,
+    usable_odd: usableOdd,
+    mapped_odd: mappedOdd,
+    odds_for_display: oddsForDisplay,
   };
 }
 
@@ -1267,12 +1484,48 @@ function safeTruncateCaption(text: string, limit = 1020): string {
   return text.substring(0, idx > 0 ? idx : limit);
 }
 
+function isAiRecommendation(parsed: ParsedAiResponse): boolean {
+  return parsed.final_should_bet;
+}
+
+function isConditionOnlyTrigger(parsed: ParsedAiResponse): boolean {
+  return parsed.condition_triggered_should_push && !parsed.final_should_bet;
+}
+
+function displaySelection(parsed: ParsedAiResponse): string {
+  if (parsed.final_should_bet && parsed.selection) return parsed.selection;
+  if (parsed.condition_triggered_should_push) return parsed.condition_triggered_suggestion;
+  return parsed.selection;
+}
+
+function displayConfidence(parsed: ParsedAiResponse): number {
+  if (parsed.final_should_bet) return parsed.confidence;
+  if (parsed.condition_triggered_should_push) return parsed.condition_triggered_confidence;
+  return parsed.confidence;
+}
+
+function displayStake(parsed: ParsedAiResponse): number {
+  if (parsed.final_should_bet) return parsed.stake_percent;
+  if (parsed.condition_triggered_should_push) return parsed.condition_triggered_stake;
+  return parsed.stake_percent;
+}
+
+function decisionKindFromParsed(parsed: ParsedAiResponse): MatchPipelineResult['decisionKind'] {
+  return parsed.decision_kind;
+}
+
 /** Pick reasoning text based on notification language setting. */
 function pickReasoning(parsed: ParsedAiResponse, lang: PipelineSettings['notificationLanguage']): string {
-  if (lang === 'en') return parsed.reasoning_en || parsed.reasoning_vi;
-  if (lang === 'both') return [parsed.reasoning_en, parsed.reasoning_vi].filter(Boolean).join('\n\n');
+  const reasoningEn = isConditionOnlyTrigger(parsed)
+    ? (parsed.condition_triggered_reasoning_en || parsed.reasoning_en)
+    : parsed.reasoning_en;
+  const reasoningVi = isConditionOnlyTrigger(parsed)
+    ? (parsed.condition_triggered_reasoning_vi || parsed.reasoning_vi)
+    : parsed.reasoning_vi;
+  if (lang === 'en') return reasoningEn || reasoningVi;
+  if (lang === 'both') return [reasoningEn, reasoningVi].filter(Boolean).join('\n\n');
   // default: 'vi'
-  return parsed.reasoning_vi || parsed.reasoning_en;
+  return reasoningVi || reasoningEn;
 }
 
 /** Map PromptAnalysisMode to a human-readable footer label. */
@@ -1371,10 +1624,13 @@ function buildTelegramCaption(
   trigger: PromptAnalysisMode,
   eventsCompact: EventCompact[],
 ): string {
-  const isRec = parsed.should_push;
-  const isCondition = parsed.custom_condition_matched;
+  const isRec = isAiRecommendation(parsed);
+  const isCondition = isConditionOnlyTrigger(parsed) || parsed.custom_condition_matched;
   const emoji = isRec ? '🎯' : isCondition ? '⚡' : '📊';
   const label = isRec ? 'AI RECOMMENDATION' : isCondition ? 'CONDITION TRIGGERED' : 'MATCH ANALYSIS';
+  const selection = displaySelection(parsed);
+  const confidence = displayConfidence(parsed);
+  const stake = displayStake(parsed);
 
   const INTERNAL = new Set(['FORCE_MODE', 'EARLY_GAME_RISK']);
 
@@ -1385,10 +1641,15 @@ function buildTelegramCaption(
   text += `🤖 ${safeHtml(model)} | Mode: ${safeHtml(mode)}\n`;
 
   if (isRec) {
-    text += `\n<b>💰 ${safeHtml(parsed.selection)}</b>\n`;
-    text += `Confidence: ${parsed.confidence}/10 | Stake: ${parsed.stake_percent}% | Risk: ${safeHtml(parsed.risk_level)} | Value: ${parsed.value_percent}%\n`;
+    text += `\n<b>💰 ${safeHtml(selection)}</b>\n`;
+    text += `Confidence: ${confidence}/10 | Stake: ${stake}% | Risk: ${safeHtml(parsed.risk_level)} | Value: ${parsed.value_percent}%\n`;
     const reasoning = pickReasoning(parsed, lang);
     if (reasoning) text += `\n${safeHtml(truncateAtWord(reasoning, 680))}\n`;
+  } else if (isCondition) {
+    if (selection) text += `\n<b>⚡ ${safeHtml(selection)}</b>\n`;
+    text += `Confidence: ${confidence}/10 | Stake: ${stake}%\n`;
+    const reasoning = pickReasoning(parsed, lang);
+    if (reasoning) text += `\n${safeHtml(truncateAtWord(reasoning, 520))}\n`;
   } else {
     const reasoning = pickReasoning(parsed, lang);
     if (reasoning) text += `\n${safeHtml(truncateAtWord(reasoning, 520))}\n`;
@@ -1450,9 +1711,12 @@ function buildTelegramMessage(
   lang: PipelineSettings['notificationLanguage'],
   trigger: PromptAnalysisMode,
 ): string {
-  const isRec = parsed.should_push;
-  const isCondition = parsed.custom_condition_matched;
+  const isRec = isAiRecommendation(parsed);
+  const isCondition = isConditionOnlyTrigger(parsed) || parsed.custom_condition_matched;
   const INTERNAL = new Set(['FORCE_MODE', 'EARLY_GAME_RISK']);
+  const selection = displaySelection(parsed);
+  const confidence = displayConfidence(parsed);
+  const stake = displayStake(parsed);
 
   const emoji = isRec ? '🎯' : isCondition ? '⚡' : '📊';
   const label = isRec ? 'AI RECOMMENDATION' : isCondition ? 'CONDITION TRIGGERED' : 'MATCH ANALYSIS';
@@ -1464,8 +1728,13 @@ function buildTelegramMessage(
   text += `🤖 ${safeHtml(model)} | Mode: ${safeHtml(mode)}\n`;
 
   if (isRec) {
-    text += `\n<b>💰 ${safeHtml(parsed.selection)}</b>\n`;
-    text += `Confidence: ${parsed.confidence}/10 | Stake: ${parsed.stake_percent}% | Risk: ${safeHtml(parsed.risk_level)} | Value: ${parsed.value_percent}%\n`;
+    text += `\n<b>💰 ${safeHtml(selection)}</b>\n`;
+    text += `Confidence: ${confidence}/10 | Stake: ${stake}% | Risk: ${safeHtml(parsed.risk_level)} | Value: ${parsed.value_percent}%\n`;
+    const reasoning = pickReasoning(parsed, lang);
+    if (reasoning) text += `\n${safeHtml(reasoning)}\n`;
+  } else if (isCondition) {
+    if (selection) text += `\n<b>⚡ ${safeHtml(selection)}</b>\n`;
+    text += `Confidence: ${confidence}/10 | Stake: ${stake}%\n`;
     const reasoning = pickReasoning(parsed, lang);
     if (reasoning) text += `\n${safeHtml(reasoning)}\n`;
   } else {
@@ -1525,6 +1794,14 @@ async function processMatch(
   options: PipelineExecutionOptions = {},
 ): Promise<MatchPipelineResult> {
   const matchDisplay = `${fixture.teams?.home?.name || watchlistEntry.home_team} vs ${fixture.teams?.away?.name || watchlistEntry.away_team}`;
+  const homeName = fixture.teams?.home?.name || watchlistEntry.home_team;
+  const awayName = fixture.teams?.away?.name || watchlistEntry.away_team;
+  const league = fixture.league?.name || watchlistEntry.league;
+  const status = fixture.fixture?.status?.short || 'UNKNOWN';
+  const minute = fixture.fixture?.status?.elapsed ?? 0;
+  const homeGoals = fixture.goals?.home ?? 0;
+  const awayGoals = fixture.goals?.away ?? 0;
+  const score = `${homeGoals}-${awayGoals}`;
   const deps: PipelineDeps = { ...defaultPipelineDeps, ...options.dependencies };
   const shadowMode = options.shadowMode === true;
   const sampleProviderData = options.sampleProviderData !== false;
@@ -1538,14 +1815,6 @@ async function processMatch(
   const analysisRunId = randomUUID();
 
   try {
-    const homeName = fixture.teams?.home?.name || watchlistEntry.home_team;
-    const awayName = fixture.teams?.away?.name || watchlistEntry.away_team;
-    const league = fixture.league?.name || watchlistEntry.league;
-    const status = fixture.fixture?.status?.short || 'UNKNOWN';
-    const minute = fixture.fixture?.status?.elapsed ?? 0;
-    const homeGoals = fixture.goals?.home ?? 0;
-    const awayGoals = fixture.goals?.away ?? 0;
-    const score = `${homeGoals}-${awayGoals}`;
     const homeTeamId = fixture.teams?.home?.id;
     const awayTeamId = fixture.teams?.away?.id;
     const isManualForce = options.forceAnalyze === true;
@@ -1614,6 +1883,7 @@ async function processMatch(
       return {
         matchId,
         success: true,
+        decisionKind: 'no_bet',
         shouldPush: false,
         selection: '',
         confidence: 0,
@@ -1894,6 +2164,7 @@ async function processMatch(
       return {
         matchId,
         success: true,
+        decisionKind: 'no_bet',
         shouldPush: false,
         selection: '',
         confidence: 0,
@@ -1937,19 +2208,41 @@ async function processMatch(
     oddsFetchedAt = resolvedOdds.oddsFetchedAt;
 
     const oddsResult = buildOddsCanonical(resolvedOdds.response);
+    let oddsSanityWarnings: string[] = [];
+    let oddsSuspicious = false;
     if (oddsResult.available) {
-      oddsCanonical = oddsResult.canonical;
-      oddsAvailable = true;
+      const cornersHome = Number.parseInt(String(statsCompact.corners.home ?? ''), 10);
+      const cornersAway = Number.parseInt(String(statsCompact.corners.away ?? ''), 10);
+      const currentTotalCorners = Number.isNaN(cornersHome) || Number.isNaN(cornersAway)
+        ? null
+        : cornersHome + cornersAway;
+      const sanitizedOdds = sanitizePromptOddsCanonical({
+        canonical: oddsResult.canonical,
+        homeGoals,
+        awayGoals,
+        currentTotalGoals: homeGoals + awayGoals,
+        currentTotalCorners,
+      });
+      oddsCanonical = sanitizedOdds.canonical;
+      oddsAvailable = sanitizedOdds.available;
+      oddsSanityWarnings = sanitizedOdds.warnings;
+      oddsSuspicious = sanitizedOdds.suspicious;
     }
 
     // 4. Load prompt-only context after the heavy providers already passed coarse gating.
-    const [historicalPerformance, leagueProfile, leagueMeta] = await Promise.all([
+    const [historicalPerformance, leagueProfile, leagueMeta, homeTeamProfile, awayTeamProfile] = await Promise.all([
       loadHistoricalPromptContext(deps),
       fixture.league?.id
         ? deps.getLeagueProfileByLeagueId(fixture.league.id).catch(() => null)
         : Promise.resolve(null),
       fixture.league?.id
         ? deps.getLeagueById(fixture.league.id).catch(() => null)
+        : Promise.resolve(null),
+      fixture.teams?.home?.id != null
+        ? deps.getTeamProfileByTeamId(String(fixture.teams.home.id)).catch(() => null)
+        : Promise.resolve(null),
+      fixture.teams?.away?.id != null
+        ? deps.getTeamProfileByTeamId(String(fixture.teams.away.id)).catch(() => null)
         : Promise.resolve(null),
     ]);
 
@@ -2020,6 +2313,7 @@ async function processMatch(
       return {
         matchId,
         success: true,
+        decisionKind: 'no_bet',
         shouldPush: false,
         selection: '',
         confidence: 0,
@@ -2043,6 +2337,7 @@ async function processMatch(
     }
 
     const evidenceMode = deriveEvidenceMode(statsAvailable, oddsAvailable, eventsCompact);
+    const promptDataLevel = getPromptStatsDetailLevel(statsCompact);
 
     // 5. Get previous recommendations for prompt context
     const prevRecsContext = prevRecs.slice(0, 5).map((r) => ({
@@ -2072,16 +2367,32 @@ async function processMatch(
       ? rawStrategicContext
       : null;
     const prediction = watchlistEntry.prediction as Record<string, unknown> | null;
+    const prematchExpertFeatures = buildPrematchExpertFeaturesV1({
+      strategicContext,
+      leagueProfile: leagueProfile as Record<string, unknown> | null,
+      prediction,
+      homeTeamProfile: homeTeamProfile as Record<string, unknown> | null,
+      awayTeamProfile: awayTeamProfile as Record<string, unknown> | null,
+      topLeague: leagueMeta?.top_league === true,
+    });
+    const prematchAvailability = prematchExpertFeatures?.meta.availability;
+    const prematchNoisePenalty = prematchExpertFeatures?.trust_and_coverage.prematch_noise_penalty ?? null;
+    const prematchStrength = getPrematchPriorStrength(prematchExpertFeatures);
 
     const promptContext: PromptExecutionContext = {
       homeName, awayName, league, minute, score, status,
       statsCompact, statsAvailable, statsSource, evidenceMode,
       eventsCompact: eventsCompact.slice(-8),
       oddsCanonical, oddsAvailable, oddsSource, oddsFetchedAt,
+      oddsSanityWarnings,
+      oddsSuspicious,
       derivedInsights: !statsAvailable ? derivedInsights : null,
       customConditions, recommendedCondition, recommendedConditionReason,
       strategicContext,
       leagueProfile: leagueProfile as Record<string, unknown> | null,
+      homeTeamProfile: homeTeamProfile as Record<string, unknown> | null,
+      awayTeamProfile: awayTeamProfile as Record<string, unknown> | null,
+      prematchExpertFeatures,
       analysisMode,
       forceAnalyze,
       isManualPush: isManualForce,
@@ -2131,9 +2442,20 @@ async function processMatch(
       });
     }
 
-    // 8. Save only actionable AI intents. Condition-only "no bet" traces should
-    // not pollute recommendations / settlement / performance ledgers.
-    const shouldSave = parsed.ai_should_push;
+    // 8. Split the two outcomes explicitly:
+    // - shouldSave: create recommendation + AI performance row only when the AI
+    //   itself produced an actionable bet.
+    // - shouldNotify: alert the user for either an actionable AI bet OR a
+    //   condition-only trigger that meets the notify threshold.
+    // This separation is intentional because condition triggers are part of the
+    // monitoring/alerting contract, not the persistence contract.
+    const shouldSave = parsed.final_should_bet;
+    const shouldNotify = parsed.should_push;
+    const notificationSelection = displaySelection(parsed);
+    const notificationConfidence = displayConfidence(parsed);
+    const notificationOdds = parsed.final_should_bet
+      ? extractOddsFromSelection(parsed.selection, parsed.bet_market, oddsCanonical)
+      : null;
     let saved = false;
     let recId: number | null = null;
     let notified = false;
@@ -2157,7 +2479,7 @@ async function processMatch(
         custom_condition_matched: parsed.custom_condition_matched,
         minute,
         score,
-        bet_type: parsed.ai_should_push ? 'AI' : 'NO_BET',
+        bet_type: shouldSave ? 'AI' : 'NO_BET',
         selection: parsed.selection,
         odds: mappedOdd,
         confidence: parsed.confidence,
@@ -2196,75 +2518,80 @@ async function processMatch(
           });
         } catch { /* non-critical — duplicate key or other */ }
       }
+    }
 
-      // 9. Send Telegram notification (only for actionable recommendations)
-      if (parsed.should_push && settings.telegramEnabled && settings.telegramChatId) {
-        try {
-          const mode = watchlistEntry.mode || 'B';
-          const chartUrl = statsAvailable ? buildStatsChartUrl(statsCompact, homeName, awayName, minute) : '';
+    // 9. Telegram notification:
+    // - AI path: notify with the AI selection and save linkage when available.
+    // - Condition-only path: still notify the user, but do not backfill a DB
+    //   recommendation or AI performance record.
+    if (shouldNotify && !shadowMode && settings.telegramEnabled && settings.telegramChatId) {
+      try {
+        const mode = watchlistEntry.mode || 'B';
+        const chartUrl = statsAvailable ? buildStatsChartUrl(statsCompact, homeName, awayName, minute) : '';
 
-          // Single stats chart photo with events embedded in caption as text
-          let photoSent = false;
-          if (chartUrl) {
-            const caption = buildTelegramCaption(
-              matchDisplay, league, score, minute, status, parsed, model, mode,
-              settings.notificationLanguage, analysisMode, eventsCompact,
-            );
-            try {
-              await deps.sendTelegramPhoto(settings.telegramChatId, chartUrl, caption);
-              photoSent = true;
-            } catch {
-              // Photo failed — fall through to text
-            }
+        // Single stats chart photo with events embedded in caption as text
+        let photoSent = false;
+        if (chartUrl) {
+          const caption = buildTelegramCaption(
+            matchDisplay, league, score, minute, status, parsed, model, mode,
+            settings.notificationLanguage, analysisMode, eventsCompact,
+          );
+          try {
+            await deps.sendTelegramPhoto(settings.telegramChatId, chartUrl, caption);
+            photoSent = true;
+          } catch {
+            // Photo failed — fall through to text
           }
-
-          if (!photoSent) {
-            const msg = buildTelegramMessage(
-              matchDisplay, league, score, minute, status, parsed,
-              statsCompact, statsAvailable, eventsCompact, model, mode,
-              settings.notificationLanguage, analysisMode,
-            );
-            for (const chunk of chunkMessage(msg)) {
-              await deps.sendTelegramMessage(settings.telegramChatId, chunk);
-            }
-          }
-          if (recId != null) {
-            await deps.markRecommendationNotified(recId, 'telegram').catch(() => undefined);
-          }
-          notified = true;
-        } catch (e) {
-          console.error(`[pipeline] Telegram notification failed for ${matchId}:`, e instanceof Error ? e.message : String(e));
         }
+
+        if (!photoSent) {
+          const msg = buildTelegramMessage(
+            matchDisplay, league, score, minute, status, parsed,
+            statsCompact, statsAvailable, eventsCompact, model, mode,
+            settings.notificationLanguage, analysisMode,
+          );
+          for (const chunk of chunkMessage(msg)) {
+            await deps.sendTelegramMessage(settings.telegramChatId, chunk);
+          }
+        }
+        if (recId != null) {
+          await deps.markRecommendationNotified(recId, 'telegram').catch(() => undefined);
+        }
+        notified = true;
+      } catch (e) {
+        console.error(`[pipeline] Telegram notification failed for ${matchId}:`, e instanceof Error ? e.message : String(e));
       }
+    }
 
-      // 10. Send Web Push notification
-      if (parsed.should_push && settings.webPushEnabled && isWebPushConfigured()) {
-        try {
-          const subscriptions = await getAllSubscriptions();
-          if (subscriptions.length > 0) {
-            const pushTitle = parsed.ai_should_push ? '🎯 AI RECOMMENDATION' : '⚡ CONDITION TRIGGERED';
-            const pushBody = [
-              matchDisplay,
-              parsed.selection ? `${parsed.selection} | Odds: ${mappedOdd ?? 'N/A'} | Confidence: ${parsed.confidence}/10` : '',
-            ].filter(Boolean).join('\n');
+    // 10. Web Push follows the same semantics as Telegram: notify for AI saves
+    // and condition-only triggers, but only mark a stored recommendation when
+    // there is an actual recommendation row.
+    if (shouldNotify && !shadowMode && settings.webPushEnabled && isWebPushConfigured()) {
+      try {
+        const subscriptions = await getAllSubscriptions();
+        if (subscriptions.length > 0) {
+          const pushTitle = parsed.final_should_bet ? '🎯 AI RECOMMENDATION' : '⚡ CONDITION TRIGGERED';
+          const pushBody = [
+            matchDisplay,
+            notificationSelection ? `${notificationSelection} | Odds: ${notificationOdds ?? 'N/A'} | Confidence: ${notificationConfidence}/10` : '',
+          ].filter(Boolean).join('\n');
 
-            await Promise.all(subscriptions.map(async (sub) => {
-              const result = await sendWebPushNotification(
-                { endpoint: sub.endpoint, keys: { p256dh: sub.p256dh, auth: sub.auth } },
-                { title: pushTitle, body: pushBody, tag: `tfi-rec-${matchId}`, url: '/' },
-              );
-              if (!result.ok && result.gone) {
-                // Subscription expired — clean it up
-                await deleteSubscription(sub.endpoint).catch(() => undefined);
-              }
-            }));
-            if (recId != null) {
-              await deps.markRecommendationNotified(recId, 'web_push').catch(() => undefined);
+          await Promise.all(subscriptions.map(async (sub) => {
+            const result = await sendWebPushNotification(
+              { endpoint: sub.endpoint, keys: { p256dh: sub.p256dh, auth: sub.auth } },
+              { title: pushTitle, body: pushBody, tag: `tfi-rec-${matchId}`, url: '/' },
+            );
+            if (!result.ok && result.gone) {
+              // Subscription expired — clean it up
+              await deleteSubscription(sub.endpoint).catch(() => undefined);
             }
+          }));
+          if (recId != null) {
+            await deps.markRecommendationNotified(recId, 'web_push').catch(() => undefined);
           }
-        } catch (e) {
-          console.error(`[pipeline] Web Push notification failed for ${matchId}:`, e instanceof Error ? e.message : String(e));
         }
+      } catch (e) {
+        console.error(`[pipeline] Web Push notification failed for ${matchId}:`, e instanceof Error ? e.message : String(e));
       }
     }
 
@@ -2275,16 +2602,31 @@ async function processMatch(
         outcome: parsed.should_push ? 'SUCCESS' : 'SKIPPED',
         actor: 'auto-pipeline',
         metadata: {
-          matchId, matchDisplay, selection: parsed.selection,
-          confidence: parsed.confidence, shouldPush: parsed.should_push,
+          matchId, matchDisplay, selection: notificationSelection,
+          confidence: notificationConfidence, shouldPush: parsed.should_push,
           saved, recId, notified,
+          promptVersion: activePromptVersion,
+          promptDataLevel,
+          prematchAvailability,
+          prematchNoisePenalty,
+          prematchStrength,
+          statsSource,
+          evidenceMode,
         },
       });
     }
 
     return {
-      matchId, success: true, shouldPush: parsed.should_push,
-      selection: parsed.selection, confidence: parsed.confidence,
+      matchId,
+      matchDisplay,
+      homeName,
+      awayName,
+      league,
+      minute,
+      score,
+      status,
+      success: true, decisionKind: decisionKindFromParsed(parsed), shouldPush: parsed.should_push,
+      selection: notificationSelection, confidence: notificationConfidence,
       saved, notified,
       debug: {
         analysisRunId,
@@ -2298,6 +2640,10 @@ async function processMatch(
         statsFallbackUsed,
         statsFallbackReason: statsFallbackReason || undefined,
         promptVersion: activePromptVersion,
+        promptDataLevel,
+        prematchAvailability,
+        prematchNoisePenalty,
+        prematchStrength,
         promptChars: activeAnalysis.promptChars,
         promptEstimatedTokens: activeAnalysis.promptEstimatedTokens,
         aiTextChars: activeAnalysis.aiTextChars,
@@ -2325,7 +2671,15 @@ async function processMatch(
     }
 
     return {
-      matchId, success: false, shouldPush: false,
+      matchId,
+      matchDisplay,
+      homeName,
+      awayName,
+      league,
+      minute,
+      score,
+      status,
+      success: false, decisionKind: 'no_bet', shouldPush: false,
       selection: '', confidence: 0,
       saved: false, notified: false, error: errMsg,
       debug: {
@@ -2388,6 +2742,34 @@ export async function runPromptOnlyAnalysisForMatch(
   return { text, prompt, result };
 }
 
+export async function runManualAnalysisForMatch(
+  matchId: string,
+  options: {
+    forceAnalyze?: boolean;
+    modelOverride?: string;
+    promptVersionOverride?: LiveAnalysisPromptVersion;
+  } = {},
+): Promise<MatchPipelineResult> {
+  const [fixture, watchlistEntry] = await Promise.all([
+    fetchFixturesByIds([matchId]).then((rows) => rows[0] ?? null),
+    watchlistRepo.getWatchlistByMatchId(matchId),
+  ]);
+
+  if (!fixture) {
+    throw new Error(`Fixture not found for match ${matchId}`);
+  }
+  if (!watchlistEntry) {
+    throw new Error(`Watchlist entry not found for match ${matchId}`);
+  }
+
+  return runPipelineForFixture(matchId, fixture, watchlistEntry, {
+    forceAnalyze: options.forceAnalyze ?? true,
+    skipStalenessGate: true,
+    modelOverride: options.modelOverride,
+    promptVersionOverride: options.promptVersionOverride,
+  });
+}
+
 /**
  * Run the AI analysis pipeline for a batch of live match IDs.
  * Called by check-live-trigger job when live matches are detected.
@@ -2421,7 +2803,7 @@ export async function runPipelineBatch(matchIds: string[]): Promise<PipelineResu
     const wl = watchlistMap.get(matchId);
     if (!fixture || !wl) {
       result.results.push({
-        matchId, success: false, shouldPush: false,
+        matchId, success: false, decisionKind: 'no_bet', shouldPush: false,
         selection: '', confidence: 0, saved: false, notified: false,
         error: !fixture ? 'Fixture not found' : 'Watchlist entry not found',
       });
@@ -2461,12 +2843,17 @@ function buildServerPrompt(data: {
   oddsAvailable: boolean;
   oddsSource: string;
   oddsFetchedAt: string | null;
+  oddsSanityWarnings: string[];
+  oddsSuspicious: boolean;
   derivedInsights: DerivedInsights | null;
   customConditions: string;
   recommendedCondition: string;
   recommendedConditionReason: string;
   strategicContext: Record<string, unknown> | null;
   leagueProfile: Record<string, unknown> | null;
+  homeTeamProfile: Record<string, unknown> | null;
+  awayTeamProfile: Record<string, unknown> | null;
+  prematchExpertFeatures: PrematchExpertFeaturesV1 | null;
   analysisMode: PromptAnalysisMode;
   forceAnalyze: boolean;
   isManualPush: boolean;
@@ -2496,14 +2883,17 @@ function buildServerPrompt(data: {
       oddsAvailable: data.oddsAvailable,
       oddsSource: data.oddsSource,
       oddsFetchedAt: data.oddsFetchedAt,
-      oddsSanityWarnings: [],
-      oddsSuspicious: false,
+      oddsSanityWarnings: data.oddsSanityWarnings,
+      oddsSuspicious: data.oddsSuspicious,
       derivedInsights: data.derivedInsights as Record<string, unknown> | null,
       customConditions: data.customConditions,
       recommendedCondition: data.recommendedCondition,
       recommendedConditionReason: data.recommendedConditionReason,
       strategicContext: data.strategicContext,
       leagueProfile: data.leagueProfile,
+      homeTeamProfile: data.homeTeamProfile,
+      awayTeamProfile: data.awayTeamProfile,
+      prematchExpertFeatures: data.prematchExpertFeatures,
       analysisMode: data.analysisMode,
       forceAnalyze: data.forceAnalyze,
       isManualPush: data.isManualPush,

@@ -170,12 +170,9 @@ export function shouldPush(data: ParsedAiResponse): boolean {
 
 /**
  * Should Save? - determines whether to save recommendation.
- * Must be consistent with shouldPush: if we notify, we must also save.
- * "No Bet" results are NOT saved.
+ * Save only when the AI itself produced a final actionable bet.
+ * Condition-only triggers may notify, but they must not create a recommendation row.
  */
 export function shouldSave(data: ParsedAiResponse): boolean {
-  return !!(
-    data.ai_should_push ||
-    data.condition_triggered_should_push
-  );
+  return data.final_should_bet === true;
 }

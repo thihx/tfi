@@ -25,6 +25,13 @@ interface AuditLogEntry {
   error: string | null;
 }
 
+function getMatchDisplay(log: AuditLogEntry): string {
+  const metadata = log.metadata && typeof log.metadata === 'object' ? log.metadata : null;
+  const matchDisplay = typeof metadata?.matchDisplay === 'string' ? metadata.matchDisplay.trim() : '';
+  if (matchDisplay) return matchDisplay;
+  return log.match_id ?? '—';
+}
+
 interface AuditStats {
   totalLogs: number;
   last24h: number;
@@ -83,6 +90,8 @@ export function AuditLogsPanel() {
   const [filterCategory, setFilterCategory] = useState('');
   const [filterOutcome, setFilterOutcome] = useState('');
   const [filterAction, setFilterAction] = useState('');
+  const [filterPrematchStrength, setFilterPrematchStrength] = useState('');
+  const [filterPrematchNoiseMin, setFilterPrematchNoiseMin] = useState('');
 
   // Expanded row
   const [expandedId, setExpandedId] = useState<number | null>(null);
@@ -108,6 +117,8 @@ export function AuditLogsPanel() {
       if (filterCategory) params.set('category', filterCategory);
       if (filterOutcome) params.set('outcome', filterOutcome);
       if (filterAction) params.set('action', filterAction);
+      if (filterPrematchStrength) params.set('prematchStrength', filterPrematchStrength);
+      if (filterPrematchNoiseMin) params.set('prematchNoiseMin', filterPrematchNoiseMin);
 
       const res = await fetch(`${apiUrl}/api/audit-logs?${params.toString()}`, {
         headers: authHeaders(),
@@ -120,7 +131,7 @@ export function AuditLogsPanel() {
       }
     } catch { /* ignore */ }
     setLoading(false);
-  }, [apiUrl, page, filterCategory, filterOutcome, filterAction]);
+  }, [apiUrl, page, filterCategory, filterOutcome, filterAction, filterPrematchStrength, filterPrematchNoiseMin]);
 
   useEffect(() => { fetchStats(); }, [fetchStats]);
   useEffect(() => { fetchLogs(); }, [fetchLogs]);
@@ -135,6 +146,8 @@ export function AuditLogsPanel() {
       if (filterCategory) params.set('category', filterCategory);
       if (filterOutcome) params.set('outcome', filterOutcome);
       if (filterAction) params.set('action', filterAction);
+      if (filterPrematchStrength) params.set('prematchStrength', filterPrematchStrength);
+      if (filterPrematchNoiseMin) params.set('prematchNoiseMin', filterPrematchNoiseMin);
 
       const res = await fetch(`${apiUrl}/api/audit-logs?${params.toString()}`, {
         headers: authHeaders(),
@@ -236,7 +249,29 @@ export function AuditLogsPanel() {
           onChange={(e) => { setFilterAction(e.target.value); setPage(1); }}
           style={{ padding: '6px 10px', borderRadius: '6px', border: '1px solid var(--gray-300)', fontSize: '13px', minWidth: '150px' }}
         />
-        <button className="btn btn-sm" onClick={() => { setFilterCategory(''); setFilterOutcome(''); setFilterAction(''); setPage(1); }}>
+        <select
+          className="job-interval-select"
+          value={filterPrematchStrength}
+          onChange={(e) => { setFilterPrematchStrength(e.target.value); setPage(1); }}
+          style={{ minWidth: '150px' }}
+        >
+          <option value="">All Prematch Strength</option>
+          {['strong', 'moderate', 'weak', 'none'].map((value) => (
+            <option key={value} value={value}>{value}</option>
+          ))}
+        </select>
+        <select
+          className="job-interval-select"
+          value={filterPrematchNoiseMin}
+          onChange={(e) => { setFilterPrematchNoiseMin(e.target.value); setPage(1); }}
+          style={{ minWidth: '150px' }}
+        >
+          <option value="">Any Prematch Noise</option>
+          <option value="25">Noise &gt;= 25</option>
+          <option value="50">Noise &gt;= 50</option>
+          <option value="75">Noise &gt;= 75</option>
+        </select>
+        <button className="btn btn-sm" onClick={() => { setFilterCategory(''); setFilterOutcome(''); setFilterAction(''); setFilterPrematchStrength(''); setFilterPrematchNoiseMin(''); setPage(1); }}>
           Clear
         </button>
         <div style={{ marginLeft: 'auto' }}>
@@ -290,7 +325,7 @@ export function AuditLogsPanel() {
                   {log.duration_ms != null ? `${log.duration_ms}ms` : '—'}
                 </td>
                 <td style={{ padding: '6px', fontSize: '12px', fontFamily: 'monospace' }}>
-                  {log.match_id ?? '—'}
+                  {getMatchDisplay(log)}
                 </td>
               </tr>
             ))}

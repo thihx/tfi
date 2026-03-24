@@ -26,12 +26,12 @@ export interface OpsMetricCard {
 export interface PipelineOverview {
   activityLast2h: number;
   analyzed24h: number;
-  shouldPush24h: number;
+  notifyEligible24h: number;
   saved24h: number;
   notified24h: number;
   skipped24h: number;
   errors24h: number;
-  pushRate24h: number;
+  notifyEligibleRate24h: number;
   saveRate24h: number;
   notifyRate24h: number;
   topSkipReasons: Array<{ reason: string; count: number }>;
@@ -112,8 +112,31 @@ export interface PromptShadowOverview {
 
 export interface PromptQualityOverview extends PromptQualitySummary {
   windowHours: number;
-  shouldPushRate24h: number;
+  notifyEligibleRate24h: number;
   exposureConcentration: ExposureSummary;
+  prematch: {
+    totalAnalyzedRows: number;
+    strongRows: number;
+    moderateRows: number;
+    weakRows: number;
+    noneRows: number;
+    fullAvailabilityRows: number;
+    partialAvailabilityRows: number;
+    minimalAvailabilityRows: number;
+    noPrematchRows: number;
+    highNoiseRows: number;
+    highNoiseRate: number;
+    avgNoisePenalty: number;
+    topHighNoiseMatches: Array<{
+      matchId: string;
+      matchDisplay: string;
+      noisePenalty: number;
+      prematchStrength: string;
+      prematchAvailability: string;
+      promptDataLevel: string;
+      analyzedAt: string;
+    }>;
+  };
 }
 
 export interface OpsMonitoringSnapshot {
@@ -273,11 +296,13 @@ export async function getOpsMonitoringSnapshot(): Promise<OpsMonitoringSnapshot>
     promptShadowDisagreementsRes,
     promptShadowVersionBreakdownRes,
     promptQualityRowsRes,
+    prematchAuditSummaryRes,
+    prematchHighNoiseRes,
   ] = await Promise.all([
     query<{
       activity_2h: string;
       analyzed_24h: string;
-      should_push_24h: string;
+      notify_eligible_24h: string;
       saved_24h: string;
       notified_24h: string;
       skipped_24h: string;
@@ -299,7 +324,7 @@ export async function getOpsMonitoringSnapshot(): Promise<OpsMonitoringSnapshot>
              AND action = 'PIPELINE_MATCH_ANALYZED'
              AND timestamp >= NOW() - INTERVAL '${PIPELINE_WINDOW_HOURS} hours'
              AND metadata->>'shouldPush' = 'true'
-         )::text AS should_push_24h,
+         )::text AS notify_eligible_24h,
          COUNT(*) FILTER (
            WHERE category = 'PIPELINE'
              AND action = 'PIPELINE_MATCH_ANALYZED'
@@ -551,6 +576,72 @@ export async function getOpsMonitoringSnapshot(): Promise<OpsMonitoringSnapshot>
         AND bet_type IS DISTINCT FROM 'NO_BET'
         AND timestamp >= NOW() - INTERVAL '${PROMPT_QUALITY_WINDOW_HOURS} hours'
     `),
+    query<{
+      total_rows: string;
+      strong_rows: string;
+      moderate_rows: string;
+      weak_rows: string;
+      none_rows: string;
+      full_rows: string;
+      partial_rows: string;
+      minimal_rows: string;
+      no_prematch_rows: string;
+      high_noise_rows: string;
+      avg_noise_penalty: string | null;
+    }>(`
+      SELECT
+        COUNT(*)::text AS total_rows,
+        COUNT(*) FILTER (WHERE COALESCE(NULLIF(metadata->>'prematchStrength', ''), 'none') = 'strong')::text AS strong_rows,
+        COUNT(*) FILTER (WHERE COALESCE(NULLIF(metadata->>'prematchStrength', ''), 'none') = 'moderate')::text AS moderate_rows,
+        COUNT(*) FILTER (WHERE COALESCE(NULLIF(metadata->>'prematchStrength', ''), 'none') = 'weak')::text AS weak_rows,
+        COUNT(*) FILTER (WHERE COALESCE(NULLIF(metadata->>'prematchStrength', ''), 'none') = 'none')::text AS none_rows,
+        COUNT(*) FILTER (WHERE COALESCE(NULLIF(metadata->>'prematchAvailability', ''), 'none') = 'full')::text AS full_rows,
+        COUNT(*) FILTER (WHERE COALESCE(NULLIF(metadata->>'prematchAvailability', ''), 'none') = 'partial')::text AS partial_rows,
+        COUNT(*) FILTER (WHERE COALESCE(NULLIF(metadata->>'prematchAvailability', ''), 'none') = 'minimal')::text AS minimal_rows,
+        COUNT(*) FILTER (WHERE COALESCE(NULLIF(metadata->>'prematchAvailability', ''), 'none') = 'none')::text AS no_prematch_rows,
+        COUNT(*) FILTER (
+          WHERE CASE
+            WHEN COALESCE(metadata->>'prematchNoisePenalty', '') ~ '^-?[0-9]+(\\.[0-9]+)?$'
+              THEN (metadata->>'prematchNoisePenalty')::numeric >= 50
+            ELSE FALSE
+          END
+        )::text AS high_noise_rows,
+        AVG(CASE
+          WHEN COALESCE(metadata->>'prematchNoisePenalty', '') ~ '^-?[0-9]+(\\.[0-9]+)?$'
+            THEN (metadata->>'prematchNoisePenalty')::numeric
+          ELSE NULL
+        END)::text AS avg_noise_penalty
+      FROM audit_logs
+      WHERE category = 'PIPELINE'
+        AND action = 'PIPELINE_MATCH_ANALYZED'
+        AND timestamp >= NOW() - INTERVAL '${PROMPT_QUALITY_WINDOW_HOURS} hours'
+    `),
+    query<{
+      match_id: string;
+      match_display: string;
+      noise_penalty: string;
+      prematch_strength: string;
+      prematch_availability: string;
+      prompt_data_level: string;
+      analyzed_at: string;
+    }>(`
+      SELECT
+        COALESCE(metadata->>'matchId', '') AS match_id,
+        COALESCE(NULLIF(metadata->>'matchDisplay', ''), metadata->>'matchId', 'unknown') AS match_display,
+        metadata->>'prematchNoisePenalty' AS noise_penalty,
+        COALESCE(NULLIF(metadata->>'prematchStrength', ''), 'none') AS prematch_strength,
+        COALESCE(NULLIF(metadata->>'prematchAvailability', ''), 'none') AS prematch_availability,
+        COALESCE(NULLIF(metadata->>'promptDataLevel', ''), 'unknown') AS prompt_data_level,
+        timestamp::text AS analyzed_at
+      FROM audit_logs
+      WHERE category = 'PIPELINE'
+        AND action = 'PIPELINE_MATCH_ANALYZED'
+        AND timestamp >= NOW() - INTERVAL '${PROMPT_QUALITY_WINDOW_HOURS} hours'
+        AND COALESCE(metadata->>'prematchNoisePenalty', '') ~ '^-?[0-9]+(\\.[0-9]+)?$'
+        AND (metadata->>'prematchNoisePenalty')::numeric >= 50
+      ORDER BY (metadata->>'prematchNoisePenalty')::numeric DESC, timestamp DESC
+      LIMIT 8
+    `),
   ]);
 
   const pipelineSummary = pipelineSummaryRes.rows[0]!;
@@ -563,7 +654,7 @@ export async function getOpsMonitoringSnapshot(): Promise<OpsMonitoringSnapshot>
   const promptShadowCompared = promptShadowComparedRes.rows[0]!;
 
   const analyzed24h = Number(pipelineSummary.analyzed_24h);
-  const shouldPush24h = Number(pipelineSummary.should_push_24h);
+  const notifyEligible24h = Number(pipelineSummary.notify_eligible_24h);
   const saved24h = Number(pipelineSummary.saved_24h);
   const notified24h = Number(pipelineSummary.notified_24h);
   const skipped24h = Number(pipelineSummary.skipped_24h);
@@ -600,6 +691,11 @@ export async function getOpsMonitoringSnapshot(): Promise<OpsMonitoringSnapshot>
   const promptShadowLatencyMs24h = round(Number(promptShadowCompared.shadow_avg_latency_ms ?? 0), 0);
   const promptQualitySummary = summarizePromptQuality(promptQualityRowsRes.rows);
   const promptExposure = summarizeExposureClusters(promptQualityRowsRes.rows, { minCount: 2, limit: 5 });
+  const prematchAuditSummary = prematchAuditSummaryRes.rows[0]!;
+  const prematchTotalRows = Number(prematchAuditSummary.total_rows);
+  const prematchHighNoiseRows = Number(prematchAuditSummary.high_noise_rows);
+  const prematchHighNoiseRate = pct(prematchHighNoiseRows, prematchTotalRows);
+  const prematchAvgNoisePenalty = round(Number(prematchAuditSummary.avg_noise_penalty ?? 0), 1);
 
   const providerStatsSuccessRate = pct(statsSuccesses, statsSamples);
   const providerOddsUsableRate = pct(oddsUsable, oddsSamples);
@@ -625,10 +721,10 @@ export async function getOpsMonitoringSnapshot(): Promise<OpsMonitoringSnapshot>
       detail: 'audit events',
     },
     {
-      label: 'Push Rate 24h',
-      value: `${pct(shouldPush24h, analyzed24h)}%`,
+      label: 'Notify-Eligible Rate 24h',
+      value: `${pct(notifyEligible24h, analyzed24h)}%`,
       tone: analyzed24h > 0 ? 'neutral' : 'warn',
-      detail: `${shouldPush24h}/${analyzed24h} analyzed`,
+      detail: `${notifyEligible24h}/${analyzed24h} analyzed`,
     },
     {
       label: 'Stats Coverage 6h',
@@ -678,6 +774,16 @@ export async function getOpsMonitoringSnapshot(): Promise<OpsMonitoringSnapshot>
           : 'fail',
       detail: `${promptQualitySummary.sameThesisStackedRows}/${promptQualitySummary.totalRecommendations} recs`,
     },
+    {
+      label: 'Prematch High Noise 24h',
+      value: `${prematchHighNoiseRate}%`,
+      tone: prematchHighNoiseRate <= 10
+        ? 'pass'
+        : prematchHighNoiseRate <= 25
+          ? 'warn'
+          : 'fail',
+      detail: `${prematchHighNoiseRows}/${prematchTotalRows} analyzed rows`,
+    },
   ];
 
   return {
@@ -687,14 +793,14 @@ export async function getOpsMonitoringSnapshot(): Promise<OpsMonitoringSnapshot>
     pipeline: {
       activityLast2h: Number(pipelineSummary.activity_2h),
       analyzed24h,
-      shouldPush24h,
+      notifyEligible24h,
       saved24h,
       notified24h,
       skipped24h,
       errors24h,
-      pushRate24h: pct(shouldPush24h, analyzed24h),
+      notifyEligibleRate24h: pct(notifyEligible24h, analyzed24h),
       saveRate24h: pct(saved24h, analyzed24h),
-      notifyRate24h: pct(notified24h, shouldPush24h),
+      notifyRate24h: pct(notified24h, notifyEligible24h),
       topSkipReasons: skipReasonsRes.rows.map((row) => ({
         reason: row.reason,
         count: Number(row.count),
@@ -786,8 +892,31 @@ export async function getOpsMonitoringSnapshot(): Promise<OpsMonitoringSnapshot>
     },
     promptQuality: {
       windowHours: PROMPT_QUALITY_WINDOW_HOURS,
-      shouldPushRate24h: pct(shouldPush24h, analyzed24h),
+      notifyEligibleRate24h: pct(notifyEligible24h, analyzed24h),
       exposureConcentration: promptExposure,
+      prematch: {
+        totalAnalyzedRows: prematchTotalRows,
+        strongRows: Number(prematchAuditSummary.strong_rows),
+        moderateRows: Number(prematchAuditSummary.moderate_rows),
+        weakRows: Number(prematchAuditSummary.weak_rows),
+        noneRows: Number(prematchAuditSummary.none_rows),
+        fullAvailabilityRows: Number(prematchAuditSummary.full_rows),
+        partialAvailabilityRows: Number(prematchAuditSummary.partial_rows),
+        minimalAvailabilityRows: Number(prematchAuditSummary.minimal_rows),
+        noPrematchRows: Number(prematchAuditSummary.no_prematch_rows),
+        highNoiseRows: prematchHighNoiseRows,
+        highNoiseRate: prematchHighNoiseRate,
+        avgNoisePenalty: prematchAvgNoisePenalty,
+        topHighNoiseMatches: prematchHighNoiseRes.rows.map((row) => ({
+          matchId: row.match_id,
+          matchDisplay: row.match_display,
+          noisePenalty: Number(row.noise_penalty),
+          prematchStrength: row.prematch_strength,
+          prematchAvailability: row.prematch_availability,
+          promptDataLevel: row.prompt_data_level,
+          analyzedAt: row.analyzed_at,
+        })),
+      },
       ...promptQualitySummary,
     },
   };

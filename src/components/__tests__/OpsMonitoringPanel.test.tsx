@@ -12,17 +12,18 @@ const mockSnapshot = {
     },
   ],
   cards: [
-    { label: 'Push Rate 24h', value: '40%', tone: 'neutral', detail: '8/20 analyzed' },
+    { label: 'Notify-Eligible Rate 24h', value: '40%', tone: 'neutral', detail: '8/20 analyzed' },
+    { label: 'Prematch High Noise 24h', value: '16.7%', tone: 'warn', detail: '2/12 analyzed rows' },
   ],
   pipeline: {
     activityLast2h: 12,
     analyzed24h: 20,
-    shouldPush24h: 8,
+    notifyEligible24h: 8,
     saved24h: 10,
     notified24h: 6,
     skipped24h: 5,
     errors24h: 1,
-    pushRate24h: 40,
+    notifyEligibleRate24h: 40,
     saveRate24h: 50,
     notifyRate24h: 75,
     topSkipReasons: [{ reason: 'stale_state', count: 3 }],
@@ -102,7 +103,7 @@ const mockSnapshot = {
   },
   promptQuality: {
     windowHours: 24,
-    shouldPushRate24h: 40,
+    notifyEligibleRate24h: 40,
     totalRecommendations: 12,
     sameThesisClusters: 2,
     sameThesisStackedRows: 5,
@@ -113,6 +114,31 @@ const mockSnapshot = {
     lateHighLineRows: 2,
     lateHighLineRate: 16.7,
     lateHighLineStake: 7,
+    prematch: {
+      totalAnalyzedRows: 12,
+      strongRows: 4,
+      moderateRows: 3,
+      weakRows: 3,
+      noneRows: 2,
+      fullAvailabilityRows: 4,
+      partialAvailabilityRows: 3,
+      minimalAvailabilityRows: 3,
+      noPrematchRows: 2,
+      highNoiseRows: 2,
+      highNoiseRate: 16.7,
+      avgNoisePenalty: 34.5,
+      topHighNoiseMatches: [
+        {
+          matchId: 'm2',
+          matchDisplay: 'West Ham vs Spurs',
+          noisePenalty: 64,
+          prematchStrength: 'weak',
+          prematchAvailability: 'minimal',
+          promptDataLevel: 'basic-only',
+          analyzedAt: '2026-03-21T09:55:00.000Z',
+        },
+      ],
+    },
     exposureConcentration: {
       stackedClusters: 2,
       stackedRecommendations: 5,
@@ -169,13 +195,16 @@ describe('OpsMonitoringPanel', () => {
     });
 
     expect(screen.getByText('All systems operational')).toBeInTheDocument();
-    expect(screen.getByText('Push Rate 24h')).toBeInTheDocument();
+    expect(screen.getByText('Notify-Eligible Rate 24h')).toBeInTheDocument();
     expect(screen.getAllByText('40%').length).toBeGreaterThan(0);
     expect(screen.getByText('Stats Providers')).toBeInTheDocument();
     expect(screen.getByText('Settlement')).toBeInTheDocument();
     expect(screen.getByText('Notifications')).toBeInTheDocument();
     expect(screen.getByText('Prompt Shadow')).toBeInTheDocument();
     expect(screen.getByText('Prompt Quality')).toBeInTheDocument();
+    expect(screen.getByText('High-noise prematch')).toBeInTheDocument();
+    expect(screen.getByText('Top High-Noise Matches')).toBeInTheDocument();
+    expect(screen.getByText('West Ham vs Spurs')).toBeInTheDocument();
     expect(screen.getByText('Stacking rate')).toBeInTheDocument();
     expect(screen.getByText('Atletico San Luis vs Leon')).toBeInTheDocument();
     expect(screen.getByText('v4-evidence-hardened')).toBeInTheDocument();

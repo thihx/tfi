@@ -11,7 +11,7 @@ import { fetchRecommendationsPaginated, fetchBetTypes, fetchDistinctLeagues } fr
 import { formatLocalDateTime } from '@/lib/utils/helpers';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { DatePicker } from '@/components/ui/DatePicker';
-import { loadMonitorConfig } from '@/features/live-monitor/config';
+import { fetchMonitorConfig } from '@/features/live-monitor/config';
 import type { Recommendation } from '@/types';
 
 type ViewMode = 'cards' | 'table';
@@ -33,7 +33,7 @@ const SORT_COL_MAP: Record<string, string> = {
 export function RecommendationsTab() {
   const { state } = useAppState();
   const { config, leagues: appLeagues, matches: appMatches } = state;
-  const notificationLang = useMemo(() => loadMonitorConfig().NOTIFICATION_LANGUAGE ?? 'vi', []);
+  const [notificationLang, setNotificationLang] = useState<'vi' | 'en' | 'both'>('vi');
   const [page, setPage] = useState(1);
 
   // Filters
@@ -61,6 +61,19 @@ export function RecommendationsTab() {
 
   // `/` key focuses search
   useEffect(() => {
+    let mounted = true;
+    const syncNotificationLanguage = () => {
+      void fetchMonitorConfig()
+        .then((monitorConfig) => {
+          if (!mounted) return;
+          setNotificationLang((monitorConfig.NOTIFICATION_LANGUAGE as 'vi' | 'en' | 'both') || 'vi');
+        })
+        .catch(() => undefined);
+    };
+
+    syncNotificationLanguage();
+    window.addEventListener('tfi:settings-updated', syncNotificationLanguage as EventListener);
+
     const handler = (e: KeyboardEvent) => {
       if (e.key === '/' && !(e.target instanceof HTMLInputElement) && !(e.target instanceof HTMLTextAreaElement)) {
         e.preventDefault();
@@ -68,7 +81,11 @@ export function RecommendationsTab() {
       }
     };
     window.addEventListener('keydown', handler);
-    return () => window.removeEventListener('keydown', handler);
+    return () => {
+      mounted = false;
+      window.removeEventListener('keydown', handler);
+      window.removeEventListener('tfi:settings-updated', syncNotificationLanguage as EventListener);
+    };
   }, []);
 
   // Sort leagues: top leagues first

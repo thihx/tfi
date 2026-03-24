@@ -252,8 +252,8 @@ export async function bulkSetLeagueActive(config: AppConfig, ids: number[], acti
   return pgPost<{ updated: number }>(config, '/api/leagues/bulk-active', { ids, active });
 }
 
-export async function fetchLeaguesFromApi(config: AppConfig): Promise<{ fetched: number; upserted: number }> {
-  return pgPost<{ fetched: number; upserted: number }>(config, '/api/leagues/fetch-from-api', {});
+export async function fetchLeaguesFromApi(config: AppConfig): Promise<{ fetched: number; upserted: number; mode: string }> {
+  return pgPost<{ fetched: number; upserted: number; mode: string }>(config, '/api/leagues/fetch-from-api', {});
 }
 
 export async function toggleLeagueTopLeague(config: AppConfig, leagueId: number, topLeague: boolean): Promise<unknown> {

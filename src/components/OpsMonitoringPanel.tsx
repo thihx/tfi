@@ -23,12 +23,12 @@ interface MetricCard {
 interface PipelineOverview {
   activityLast2h: number;
   analyzed24h: number;
-  shouldPush24h: number;
+  notifyEligible24h: number;
   saved24h: number;
   notified24h: number;
   skipped24h: number;
   errors24h: number;
-  pushRate24h: number;
+  notifyEligibleRate24h: number;
   saveRate24h: number;
   notifyRate24h: number;
   topSkipReasons: Array<{ reason: string; count: number }>;
@@ -130,7 +130,7 @@ interface ExposureSummary {
 
 interface PromptQualityOverview {
   windowHours: number;
-  shouldPushRate24h: number;
+  notifyEligibleRate24h: number;
   totalRecommendations: number;
   sameThesisClusters: number;
   sameThesisStackedRows: number;
@@ -142,6 +142,29 @@ interface PromptQualityOverview {
   lateHighLineRate: number;
   lateHighLineStake: number;
   exposureConcentration: ExposureSummary;
+  prematch: {
+    totalAnalyzedRows: number;
+    strongRows: number;
+    moderateRows: number;
+    weakRows: number;
+    noneRows: number;
+    fullAvailabilityRows: number;
+    partialAvailabilityRows: number;
+    minimalAvailabilityRows: number;
+    noPrematchRows: number;
+    highNoiseRows: number;
+    highNoiseRate: number;
+    avgNoisePenalty: number;
+    topHighNoiseMatches: Array<{
+      matchId: string;
+      matchDisplay: string;
+      noisePenalty: number;
+      prematchStrength: string;
+      prematchAvailability: string;
+      promptDataLevel: string;
+      analyzedAt: string;
+    }>;
+  };
 }
 
 interface OpsMonitoringSnapshot {
@@ -430,9 +453,9 @@ export function OpsMonitoringPanel() {
               <div>
                 <div style={{ marginBottom: '12px' }}>
                   <FunnelBar label="Analyzed" value={snapshot.pipeline.analyzed24h} max={snapshot.pipeline.analyzed24h + snapshot.pipeline.skipped24h} color="#6366f1" />
-                  <FunnelBar label="Should push" value={snapshot.pipeline.shouldPush24h} max={snapshot.pipeline.analyzed24h} color="#8b5cf6" />
+                  <FunnelBar label="Notify-Eligible" value={snapshot.pipeline.notifyEligible24h} max={snapshot.pipeline.analyzed24h} color="#8b5cf6" />
                   <FunnelBar label="Saved" value={snapshot.pipeline.saved24h} max={snapshot.pipeline.analyzed24h} color="#3b82f6" />
-                  <FunnelBar label="Notified" value={snapshot.pipeline.notified24h} max={snapshot.pipeline.shouldPush24h} color="#10b981" />
+                  <FunnelBar label="Notified" value={snapshot.pipeline.notified24h} max={snapshot.pipeline.notifyEligible24h} color="#10b981" />
                   <div style={{ marginTop: '8px', paddingTop: '8px', borderTop: '1px solid var(--gray-100)', display: 'flex', gap: '16px', fontSize: '12px' }}>
                     <span style={{ color: 'var(--gray-500)' }}>Skipped: <strong style={{ color: 'var(--gray-700)' }}>{snapshot.pipeline.skipped24h}</strong></span>
                     <span style={{ color: snapshot.pipeline.errors24h > 0 ? '#dc2626' : 'var(--gray-500)' }}>
@@ -599,10 +622,12 @@ export function OpsMonitoringPanel() {
             <SectionHeader title="Prompt Quality" subtitle={`Last ${snapshot.promptQuality.windowHours}h`} />
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: '8px', marginBottom: '12px' }}>
               {[
-                { label: 'Should push', value: `${snapshot.promptQuality.shouldPushRate24h}%`, warn: snapshot.promptQuality.shouldPushRate24h > 60 },
+                { label: 'Notify-eligible', value: `${snapshot.promptQuality.notifyEligibleRate24h}%`, warn: snapshot.promptQuality.notifyEligibleRate24h > 60 },
                 { label: 'Stacking rate', value: `${snapshot.promptQuality.sameThesisStackingRate}%`, warn: snapshot.promptQuality.sameThesisStackingRate > 12 },
                 { label: 'Corners usage', value: `${snapshot.promptQuality.cornersUsageRate}%`, warn: snapshot.promptQuality.cornersUsageRate > 25 },
                 { label: 'Late high-line', value: `${snapshot.promptQuality.lateHighLineRate}%`, warn: snapshot.promptQuality.lateHighLineRate > 8 },
+                { label: 'High-noise prematch', value: `${snapshot.promptQuality.prematch.highNoiseRate}%`, warn: snapshot.promptQuality.prematch.highNoiseRate > 25 },
+                { label: 'Avg prematch noise', value: `${snapshot.promptQuality.prematch.avgNoisePenalty}`, warn: snapshot.promptQuality.prematch.avgNoisePenalty >= 50 },
               ].map((item) => (
                 <div key={item.label} style={{ padding: '8px 10px', borderRadius: '6px', background: item.warn ? '#fef2f2' : 'var(--gray-50)', border: `1px solid ${item.warn ? '#fecaca' : 'var(--gray-200)'}` }}>
                   <div style={{ fontSize: '10px', color: 'var(--gray-500)', textTransform: 'uppercase', letterSpacing: '0.3px' }}>{item.label}</div>
@@ -622,6 +647,10 @@ export function OpsMonitoringPanel() {
                   ['Corners rows', snapshot.promptQuality.cornersRows],
                   ['Late high-line rows', snapshot.promptQuality.lateHighLineRows],
                   ['Late high-line stake', `${snapshot.promptQuality.lateHighLineStake}%`],
+                  ['Prematch strong rows', snapshot.promptQuality.prematch.strongRows],
+                  ['Prematch weak rows', snapshot.promptQuality.prematch.weakRows],
+                  ['High-noise rows', snapshot.promptQuality.prematch.highNoiseRows],
+                  ['Prematch minimal rows', snapshot.promptQuality.prematch.minimalAvailabilityRows],
                 ].map(([label, value]) => (
                   <div key={String(label)} style={{ display: 'flex', justifyContent: 'space-between', fontSize: '12px', padding: '2px 0', borderBottom: '1px solid var(--gray-100)' }}>
                     <span style={{ color: 'var(--gray-600)' }}>{label}</span>
@@ -630,7 +659,19 @@ export function OpsMonitoringPanel() {
                 ))}
               </div>
               <div>
-                <div style={{ fontSize: '11px', fontWeight: 600, color: 'var(--gray-500)', textTransform: 'uppercase', letterSpacing: '0.3px', marginBottom: '5px' }}>Top Exposure Clusters</div>
+                <div style={{ fontSize: '11px', fontWeight: 600, color: 'var(--gray-500)', textTransform: 'uppercase', letterSpacing: '0.3px', marginBottom: '5px' }}>Top High-Noise Matches</div>
+                {snapshot.promptQuality.prematch.topHighNoiseMatches.length === 0
+                  ? <div style={{ fontSize: '12px', color: 'var(--gray-400)' }}>None</div>
+                  : snapshot.promptQuality.prematch.topHighNoiseMatches.map((row) => (
+                    <div key={`${row.matchId}_${row.analyzedAt}`} style={{ padding: '4px 0', borderBottom: '1px solid var(--gray-100)' }}>
+                      <div style={{ fontSize: '12px', fontWeight: 600, color: 'var(--gray-700)' }}>{row.matchDisplay}</div>
+                      <div style={{ fontSize: '11px', color: 'var(--gray-500)' }}>
+                        noise {row.noisePenalty} · {row.prematchStrength} · {row.prematchAvailability} · {row.promptDataLevel}
+                      </div>
+                    </div>
+                  ))
+                }
+                <div style={{ fontSize: '11px', fontWeight: 600, color: 'var(--gray-500)', textTransform: 'uppercase', letterSpacing: '0.3px', margin: '10px 0 5px' }}>Top Exposure Clusters</div>
                 {snapshot.promptQuality.exposureConcentration.topClusters.length === 0
                   ? <div style={{ fontSize: '12px', color: 'var(--gray-400)' }}>None</div>
                   : snapshot.promptQuality.exposureConcentration.topClusters.map((cluster) => (

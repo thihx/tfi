@@ -5,71 +5,12 @@
 import type { FastifyInstance } from 'fastify';
 import * as repo from '../repos/leagues.repo.js';
 import * as profileRepo from '../repos/league-profiles.repo.js';
-import { fetchAllLeagues, type ApiLeague } from '../lib/football-api.js';
 import { getRedisClient } from '../lib/redis.js';
-
-// ── Tier classification (mirrors Apps Script logic) ──
-
-const INTERNATIONAL_IDS = new Set([
-  2, 3, 848, 1, 4, 5, 9, 531, 11, 12, 15, 13, 25, 960,
-]);
-
-const TOP_COUNTRIES: Record<string, { tier1: number[]; tier2: number[] }> = {
-  'England': { tier1: [39], tier2: [40] },
-  'Spain': { tier1: [140], tier2: [141] },
-  'Italy': { tier1: [135], tier2: [136] },
-  'Germany': { tier1: [78], tier2: [79] },
-  'France': { tier1: [61], tier2: [62] },
-  'Portugal': { tier1: [94], tier2: [95] },
-  'Netherlands': { tier1: [88], tier2: [89] },
-  'Belgium': { tier1: [144], tier2: [145] },
-  'Turkey': { tier1: [203], tier2: [204] },
-  'Scotland': { tier1: [179], tier2: [180] },
-  'Denmark': { tier1: [119], tier2: [120] },
-  'Switzerland': { tier1: [207], tier2: [208] },
-  'Austria': { tier1: [218], tier2: [219] },
-  'Greece': { tier1: [197], tier2: [198] },
-  'Norway': { tier1: [103], tier2: [104] },
-  'Sweden': { tier1: [113], tier2: [114] },
-  'Poland': { tier1: [106], tier2: [107] },
-  'Czech-Republic': { tier1: [345], tier2: [346] },
-  'Croatia': { tier1: [210], tier2: [211] },
-  'Serbia': { tier1: [286], tier2: [287] },
-  'Romania': { tier1: [283], tier2: [284] },
-  'Ukraine': { tier1: [333], tier2: [334] },
-  'Russia': { tier1: [235], tier2: [236] },
-  'Brazil': { tier1: [71], tier2: [72] },
-  'Argentina': { tier1: [128], tier2: [129] },
-  'Mexico': { tier1: [262], tier2: [263] },
-  'USA': { tier1: [253], tier2: [] },
-  'Chile': { tier1: [265], tier2: [] },
-  'Colombia': { tier1: [239], tier2: [] },
-  'Uruguay': { tier1: [274], tier2: [] },
-  'Japan': { tier1: [98], tier2: [99] },
-  'South-Korea': { tier1: [292], tier2: [] },
-  'Saudi-Arabia': { tier1: [307], tier2: [] },
-  'China': { tier1: [17], tier2: [] },
-  'Australia': { tier1: [188], tier2: [] },
-};
-
-function classifyLeague(item: ApiLeague): { tier: string; autoActive: boolean } {
-  const id = item.league.id;
-  const country = item.country.name;
-  const type = item.league.type;   // 'League' | 'Cup'
-
-  if (INTERNATIONAL_IDS.has(id)) return { tier: 'International', autoActive: true };
-
-  const countryData = TOP_COUNTRIES[country];
-  if (countryData) {
-    if (countryData.tier1.includes(id)) return { tier: '1', autoActive: true };
-    if (countryData.tier2.includes(id)) return { tier: '2', autoActive: false };
-    if (type === 'Cup') return { tier: 'Cup', autoActive: false };
-  }
-
-  if (type === 'League') return { tier: '3', autoActive: false };
-  if (type === 'Cup') return { tier: 'Cup', autoActive: false };
-  return { tier: 'Other', autoActive: false };
-}
+import {
+  ensureLeagueCatalogEntry,
+  refreshLeagueCatalog,
+  type LeagueCatalogRefreshMode,
+} from '../lib/league-catalog.service.js';
 
 const ACTIVE_CACHE_KEY = 'cache:leagues:active';
 const ACTIVE_CACHE_TTL_SEC = 5 * 60; // 5 minutes
@@ -95,6 +36,10 @@ async function invalidateActiveLeaguesCache(): Promise<void> {
 }
 
 const TIER_VALUES = new Set<profileRepo.LeagueTier>(['low', 'balanced', 'high']);
+const TIER_ALIASES: Record<string, profileRepo.LeagueTier> = {
+  medium: 'balanced',
+  normal: 'balanced',
+};
 
 function parseNullableNumber(value: unknown): number | null {
   if (value == null || value === '') return null;
@@ -102,9 +47,13 @@ function parseNullableNumber(value: unknown): number | null {
   return Number.isFinite(num) ? num : null;
 }
 
-function readTier(value: unknown): profileRepo.LeagueTier {
-  const s = String(value ?? '').trim() as profileRepo.LeagueTier;
-  return TIER_VALUES.has(s) ? s : 'balanced';
+function readTier(value: unknown): profileRepo.LeagueTier | null {
+  const raw = String(value ?? '').trim().toLowerCase();
+  if (!raw) return 'balanced';
+  if (raw in TIER_ALIASES) return TIER_ALIASES[raw] ?? null;
+  return TIER_VALUES.has(raw as profileRepo.LeagueTier)
+    ? raw as profileRepo.LeagueTier
+    : null;
 }
 
 interface NormalizedProfilePayload {
@@ -118,15 +67,35 @@ function normalizeProfilePayload(body: Record<string, unknown>): NormalizedProfi
     ? body.profile as Record<string, unknown>
     : body;
 
+  const tempoTier = readTier(p.tempo_tier);
+  const goalTendency = readTier(p.goal_tendency);
+  const homeAdvantageTier = readTier(p.home_advantage_tier);
+  const cornersTendency = readTier(p.corners_tendency);
+  const cardsTendency = readTier(p.cards_tendency);
+  const volatilityTier = readTier(p.volatility_tier);
+  const dataReliabilityTier = readTier(p.data_reliability_tier);
+
+  if (
+    tempoTier == null
+    || goalTendency == null
+    || homeAdvantageTier == null
+    || cornersTendency == null
+    || cardsTendency == null
+    || volatilityTier == null
+    || dataReliabilityTier == null
+  ) {
+    return null;
+  }
+
   return {
     profile: {
-      tempo_tier:            readTier(p.tempo_tier),
-      goal_tendency:         readTier(p.goal_tendency),
-      home_advantage_tier:   readTier(p.home_advantage_tier),
-      corners_tendency:      readTier(p.corners_tendency),
-      cards_tendency:        readTier(p.cards_tendency),
-      volatility_tier:       readTier(p.volatility_tier),
-      data_reliability_tier: readTier(p.data_reliability_tier),
+      tempo_tier:            tempoTier,
+      goal_tendency:         goalTendency,
+      home_advantage_tier:   homeAdvantageTier,
+      corners_tendency:      cornersTendency,
+      cards_tendency:        cardsTendency,
+      volatility_tier:       volatilityTier,
+      data_reliability_tier: dataReliabilityTier,
       avg_goals:             parseNullableNumber(p.avg_goals),
       over_2_5_rate:         parseNullableNumber(p.over_2_5_rate),
       btts_rate:             parseNullableNumber(p.btts_rate),
@@ -137,6 +106,12 @@ function normalizeProfilePayload(body: Record<string, unknown>): NormalizedProfi
     notes_en: String(body.notes_en ?? '').trim(),
     notes_vi: String(body.notes_vi ?? '').trim(),
   };
+}
+
+function readRefreshMode(value: unknown): LeagueCatalogRefreshMode {
+  return value === 'full' || value === 'ids' || value === 'active-top'
+    ? value
+    : 'full';
 }
 
 export async function leagueRoutes(app: FastifyInstance) {
@@ -151,7 +126,7 @@ export async function leagueRoutes(app: FastifyInstance) {
   app.get<{ Params: { id: string } }>('/api/leagues/:id', async (req, reply) => {
     const id = Number(req.params.id);
     if (Number.isNaN(id)) return reply.code(400).send({ error: 'Invalid league ID' });
-    const league = await repo.getLeagueById(id);
+    const league = await ensureLeagueCatalogEntry(id);
     if (!league) return reply.code(404).send({ error: 'League not found' });
     return league;
   });
@@ -253,38 +228,40 @@ export async function leagueRoutes(app: FastifyInstance) {
     return { upserted: count };
   });
 
-  // Fetch all leagues from Football API, classify tiers, upsert into DB
-  app.post('/api/leagues/fetch-from-api', async (_req, reply) => {
+  app.post<{
+    Body?: {
+      mode?: LeagueCatalogRefreshMode;
+      leagueIds?: number[];
+      force?: boolean;
+    };
+  }>('/api/leagues/fetch-from-api', async (req, reply) => {
     try {
-      const apiLeagues = await fetchAllLeagues();
-      if (apiLeagues.length === 0) {
+      const result = await refreshLeagueCatalog({
+        mode: readRefreshMode(req.body?.mode),
+        leagueIds: req.body?.leagueIds,
+        force: req.body?.force ?? true,
+      });
+      if (result.upserted > 0) void invalidateActiveLeaguesCache();
+      if (result.mode === 'full' && result.fetched === 0) {
         return reply.code(502).send({ error: 'No leagues returned from Football API' });
       }
+      return result;
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      return reply.code(502).send({ error: `Football API error: ${msg}` });
+    }
+  });
 
-      // Get existing leagues to preserve user's active settings
-      const existing = await repo.getAllLeagues();
-      const existingMap = new Map(existing.map((l) => [l.league_id, l]));
+  app.post<{ Params: { id: string } }>('/api/leagues/:id/refresh', async (req, reply) => {
+    const id = Number(req.params.id);
+    if (Number.isNaN(id)) return reply.code(400).send({ error: 'Invalid league ID' });
 
-      const toUpsert: Partial<repo.LeagueRow>[] = apiLeagues.map((item) => {
-        const { tier, autoActive } = classifyLeague(item);
-        const prev = existingMap.get(item.league.id);
-        return {
-          league_id: item.league.id,
-          league_name: item.league.name,
-          country: item.country.name,
-          tier,
-          // Keep user's active setting if league already exists, else use auto
-          active: prev ? prev.active : autoActive,
-          // Preserve user's top_league setting
-          top_league: prev ? prev.top_league : undefined,
-          type: item.league.type,
-          logo: item.league.logo,
-        };
-      });
-
-      const count = await repo.upsertLeagues(toUpsert);
-      void invalidateActiveLeaguesCache();
-      return { fetched: apiLeagues.length, upserted: count };
+    try {
+      const result = await refreshLeagueCatalog({ mode: 'ids', leagueIds: [id], force: true });
+      if (result.upserted > 0) void invalidateActiveLeaguesCache();
+      const league = await repo.getLeagueById(id);
+      if (!league) return reply.code(404).send({ error: 'League not found' });
+      return { ...result, league };
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
       return reply.code(502).send({ error: `Football API error: ${msg}` });

@@ -1,620 +1,384 @@
-// ============================================================
-// Live Monitor Tab — Real-time pipeline control & results
-// ============================================================
-
-import { useState, useCallback, useEffect } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useAppState } from '@/hooks/useAppState';
-import { useScheduler } from '@/features/live-monitor/useScheduler';
-import type { PipelineContext, PipelineMatchResult, LiveMonitorConfig } from '@/features/live-monitor/types';
-import { createDefaultConfig, fetchMonitorConfig, persistMonitorConfig } from '@/features/live-monitor/config';
+import { useToast } from '@/hooks/useToast';
 import { formatLocalDateTime } from '@/lib/utils/helpers';
+import {
+  fetchLiveMonitorStatus,
+  getParsedAiResult,
+  triggerCheckLiveRun,
+  type LiveMonitorStatusResponse,
+  type ServerMatchPipelineResult,
+} from '@/features/live-monitor/services/server-monitor.service';
 
-// ==================== Sub-components ====================
+function formatInterval(intervalMs: number): string {
+  if (intervalMs <= 0) return 'Disabled';
+  if (intervalMs % 3_600_000 === 0) return `Every ${intervalMs / 3_600_000}h`;
+  return `Every ${Math.round(intervalMs / 60_000)}m`;
+}
 
-function SchedulerControls({
-  status,
-  intervalMs,
-  runCount,
-  errorCount,
-  lastRun,
-  nextRunAt,
-  onStart,
-  onStop,
-  onPause,
-  onResume,
-  onRunOnce,
-  running,
-}: {
-  status: string;
-  intervalMs: number;
-  runCount: number;
-  errorCount: number;
-  lastRun: string | null;
-  nextRunAt: string | null;
-  onStart: (intervalMs: number) => void;
-  onStop: () => void;
-  onPause: () => void;
-  onResume: () => void;
-  onRunOnce: () => void;
-  running: boolean;
-}) {
-  const [interval, setInterval_] = useState(Math.round(intervalMs / 60_000));
+function SummaryStat({ label, value, color }: { label: string; value: string | number; color?: string }) {
+  return (
+    <div className="monitor-stat">
+      <span className="monitor-stat-label">{label}</span>
+      <span className="monitor-stat-value" style={color ? { color } : undefined}>{value}</span>
+    </div>
+  );
+}
 
-  const statusColor =
-    status === 'running' ? 'var(--success)' : status === 'paused' ? 'var(--warning)' : 'var(--gray-500)';
+function decisionKindLabel(kind: ServerMatchPipelineResult['decisionKind']): string {
+  switch (kind) {
+    case 'ai_push':
+      return 'AI Push';
+    case 'condition_only':
+      return 'Condition Only';
+    default:
+      return 'No Bet';
+  }
+}
 
-  const statusLabel = status === 'running' ? '🟢 Running' : status === 'paused' ? '🟡 Paused' : '⚪ Idle';
+function promptDataLevelLabel(level: 'basic-only' | 'advanced-upgraded' | undefined): string {
+  return level === 'advanced-upgraded' ? 'Advanced Prompt' : 'Basic Prompt';
+}
+
+function prematchStrengthLabel(
+  strength: 'strong' | 'moderate' | 'weak' | 'none' | undefined,
+): string {
+  switch (strength) {
+    case 'strong':
+      return 'Prematch Strong';
+    case 'moderate':
+      return 'Prematch Moderate';
+    case 'weak':
+      return 'Prematch Weak';
+    default:
+      return 'No Prematch';
+  }
+}
+
+function prematchStrengthBadgeClass(
+  strength: 'strong' | 'moderate' | 'weak' | 'none' | undefined,
+): string {
+  switch (strength) {
+    case 'strong':
+      return 'badge-active';
+    case 'moderate':
+      return 'badge-pending';
+    case 'weak':
+      return 'badge-lost';
+    default:
+      return 'badge-pending';
+  }
+}
+
+function ProgressCard({ status }: { status: LiveMonitorStatusResponse }) {
+  if (!status.progress) return null;
 
   return (
-    <div className="card">
+    <div className="card" style={{ marginBottom: '16px' }}>
       <div className="card-header">
-        <div className="card-title">Scheduler Control</div>
-        <span style={{ color: statusColor, fontWeight: 600 }}>{statusLabel}</span>
+        <div className="card-title">Engine Progress</div>
+        <small style={{ color: 'var(--gray-500)' }}>
+          {status.progress.startedAt ? formatLocalDateTime(status.progress.startedAt) : '—'}
+        </small>
       </div>
-      <div style={{ padding: '20px' }}>
-        <div className="monitor-controls">
-          <div className="control-group">
-            <label>Interval (minutes)</label>
-            <input
-              type="number"
-              min={1}
-              max={60}
-              value={interval}
-              onChange={(e) => setInterval_(Number(e.target.value))}
-              disabled={status === 'running'}
-              className="monitor-input"
-            />
-          </div>
-          <div className="control-buttons">
-            {status === 'idle' && (
-              <button className="btn btn-success btn-sm" onClick={() => onStart(interval * 60_000)}>
-                ▶ Start
-              </button>
+      <div style={{ padding: '16px 20px' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '10px', gap: '12px' }}>
+          <strong>{status.progress.step || 'running'}</strong>
+          <span style={{ color: 'var(--gray-500)', fontSize: '13px' }}>{status.progress.percent}%</span>
+        </div>
+        <div style={{ height: '10px', background: 'var(--gray-100)', borderRadius: '999px', overflow: 'hidden' }}>
+          <div
+            style={{
+              width: `${status.progress.percent}%`,
+              height: '100%',
+              background: status.progress.error ? 'var(--danger)' : 'var(--primary)',
+              transition: 'width 0.2s ease',
+            }}
+          />
+        </div>
+        <p style={{ margin: '10px 0 0', color: status.progress.error ? 'var(--danger)' : 'var(--gray-600)', fontSize: '13px' }}>
+          {status.progress.error || status.progress.message}
+        </p>
+      </div>
+    </div>
+  );
+}
+
+function ResultRow({ result }: { result: ServerMatchPipelineResult }) {
+  const parsed = getParsedAiResult(result);
+  const matchTitle = result.matchDisplay || [result.homeName, result.awayName].filter(Boolean).join(' vs ') || result.matchId;
+  const matchMeta = [result.league, result.minute != null ? `${result.minute}'` : null, result.score, result.status]
+    .filter(Boolean)
+    .join(' | ');
+  const reasoning = parsed?.reasoning_vi || parsed?.reasoning_en || result.error || '';
+  const warnings = Array.isArray(parsed?.warnings) ? parsed.warnings : [];
+  const conditionReasoning = parsed?.condition_triggered_reasoning_vi || parsed?.condition_triggered_reasoning_en || '';
+  const promptDataLevel = result.debug?.promptDataLevel;
+  const prematchStrength = result.debug?.prematchStrength;
+  const prematchAvailability = result.debug?.prematchAvailability;
+  const prematchNoisePenalty = result.debug?.prematchNoisePenalty;
+  const promptMeta = [
+    result.debug?.promptVersion,
+    promptDataLevel ? promptDataLevelLabel(promptDataLevel) : null,
+    result.debug?.statsSource,
+    result.debug?.evidenceMode,
+  ].filter(Boolean).join(' | ');
+  const prematchMeta = prematchAvailability
+    ? `${prematchStrengthLabel(prematchStrength)} | ${prematchAvailability} | noise ${prematchNoisePenalty ?? 'n/a'}`
+    : '';
+
+  return (
+    <div style={{ borderBottom: '1px solid var(--gray-100)', padding: '14px 16px' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', gap: '16px', alignItems: 'flex-start', marginBottom: '8px' }}>
+        <div style={{ minWidth: 0, flex: 1 }}>
+          <div style={{ display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap', marginBottom: '4px' }}>
+            <strong style={{ fontSize: '13px' }}>{matchTitle}</strong>
+            {result.shouldPush && <span className="badge badge-active">Push</span>}
+            <span className="badge badge-pending">{decisionKindLabel(result.decisionKind)}</span>
+            {parsed?.custom_condition_matched && <span className="badge badge-draw">Condition Matched</span>}
+            {parsed?.condition_triggered_should_push && <span className="badge badge-pending">Condition Triggered</span>}
+            {result.saved && <span className="badge badge-won">Saved</span>}
+            {result.notified && <span className="badge badge-active">Notified</span>}
+            {promptDataLevel && (
+              <span className={`badge ${promptDataLevel === 'advanced-upgraded' ? 'badge-active' : 'badge-pending'}`}>
+                {promptDataLevelLabel(promptDataLevel)}
+              </span>
             )}
-            {status === 'running' && (
-              <>
-                <button className="btn btn-warning btn-sm" onClick={onPause}>⏸ Pause</button>
-                <button className="btn btn-danger btn-sm" onClick={onStop}>⏹ Stop</button>
-              </>
+            {prematchStrength && prematchStrength !== 'none' && (
+              <span className={`badge ${prematchStrengthBadgeClass(prematchStrength)}`}>
+                {prematchStrengthLabel(prematchStrength)}
+              </span>
             )}
-            {status === 'paused' && (
-              <>
-                <button className="btn btn-success btn-sm" onClick={onResume}>▶ Resume</button>
-                <button className="btn btn-danger btn-sm" onClick={onStop}>⏹ Stop</button>
-              </>
-            )}
-            <button className="btn btn-primary btn-sm" onClick={onRunOnce} disabled={running}>
-              {running ? '⏳ Running...' : '🔄 Run Once'}
-            </button>
+            {!result.success && <span className="badge badge-lost">Error</span>}
           </div>
-        </div>
-        <div className="monitor-stats-row">
-          <div className="monitor-stat">
-            <span className="monitor-stat-label">Runs</span>
-            <span className="monitor-stat-value">{runCount}</span>
+          <div style={{ fontSize: '13px', color: 'var(--gray-700)' }}>
+            {result.selection || parsed?.selection || 'No actionable selection'}
           </div>
-          <div className="monitor-stat">
-            <span className="monitor-stat-label">Errors</span>
-            <span className="monitor-stat-value" style={{ color: errorCount > 0 ? 'var(--danger)' : undefined }}>
-              {errorCount}
-            </span>
-          </div>
-          <div className="monitor-stat">
-            <span className="monitor-stat-label">Last Run</span>
-            <span className="monitor-stat-value">
-              {formatLocalDateTime(lastRun)}
-            </span>
-          </div>
-          <div className="monitor-stat">
-            <span className="monitor-stat-label">Next Run</span>
-            <span className="monitor-stat-value">
-              {formatLocalDateTime(nextRunAt)}
-            </span>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function ConfigPanel() {
-  const [config, setConfig] = useState<LiveMonitorConfig>(() => createDefaultConfig());
-  const [saved, setSaved] = useState(false);
-  const [saveError, setSaveError] = useState('');
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    fetchMonitorConfig().then((c) => { setConfig(c); setLoading(false); });
-  }, []);
-
-  const update = (key: keyof LiveMonitorConfig, value: string | number) => {
-    setConfig((c) => ({ ...c, [key]: value }));
-    setSaved(false);
-    setSaveError('');
-  };
-
-  const handleSave = async () => {
-    try {
-      await persistMonitorConfig(config);
-      setSaved(true);
-      setSaveError('');
-      setTimeout(() => setSaved(false), 2000);
-    } catch (err) {
-      console.error('[ConfigPanel] Save failed:', err);
-      setSaveError(err instanceof Error ? err.message : 'Save failed');
-    }
-  };
-
-  return (
-    <div className="card">
-      <div className="card-header">
-        <div className="card-title">Monitor Config</div>
-        <button className="btn btn-primary btn-sm" onClick={handleSave} disabled={loading}>
-          {saved ? 'Saved!' : saveError ? '⚠ Error' : 'Save'}
-        </button>
-      </div>
-      {saveError && <div style={{ padding: '8px 20px', color: 'var(--danger)', fontSize: '13px' }}>{saveError}</div>}
-      <div style={{ padding: '20px' }}>
-        {loading ? (
-          <div style={{ textAlign: 'center', padding: '20px', color: 'var(--gray-500)' }}>Loading config…</div>
-        ) : (
-        <div className="config-grid">
-          <div className="config-field">
-            <label>AI Provider</label>
-            <select
-              className="monitor-input"
-              value={config.AI_PROVIDER}
-              onChange={(e) => update('AI_PROVIDER', e.target.value)}
-            >
-              <option value="gemini">Gemini</option>
-              <option value="claude">Claude</option>
-            </select>
-          </div>
-          <div className="config-field">
-            <label>AI Model</label>
-            <input
-              className="monitor-input"
-              value={config.AI_MODEL}
-              onChange={(e) => update('AI_MODEL', e.target.value)}
-            />
-          </div>
-          <div className="config-field">
-            <label>Min Confidence (0-10)</label>
-            <input
-              type="number"
-              className="monitor-input"
-              min={0}
-              max={10}
-              value={config.MIN_CONFIDENCE}
-              onChange={(e) => update('MIN_CONFIDENCE', Number(e.target.value))}
-            />
-          </div>
-          <div className="config-field">
-            <label>Min Odds</label>
-            <input
-              type="number"
-              className="monitor-input"
-              step={0.1}
-              min={1}
-              value={config.MIN_ODDS}
-              onChange={(e) => update('MIN_ODDS', Number(e.target.value))}
-            />
-          </div>
-          <div className="config-field">
-            <label>Min Minute</label>
-            <input
-              type="number"
-              className="monitor-input"
-              min={0}
-              max={90}
-              value={config.MIN_MINUTE}
-              onChange={(e) => update('MIN_MINUTE', Number(e.target.value))}
-            />
-          </div>
-          <div className="config-field">
-            <label>Max Minute</label>
-            <input
-              type="number"
-              className="monitor-input"
-              min={0}
-              max={95}
-              value={config.MAX_MINUTE}
-              onChange={(e) => update('MAX_MINUTE', Number(e.target.value))}
-            />
-          </div>
-          <div className="config-field">
-            <label>Late Phase (min)</label>
-            <input
-              type="number"
-              className="monitor-input"
-              value={config.LATE_PHASE_MINUTE}
-              onChange={(e) => update('LATE_PHASE_MINUTE', Number(e.target.value))}
-            />
-          </div>
-          <div className="config-field">
-            <label>Email To</label>
-            <input
-              className="monitor-input"
-              value={config.EMAIL_TO}
-              onChange={(e) => update('EMAIL_TO', e.target.value)}
-            />
-          </div>
-          <div className="config-field">
-            <label>Telegram Chat ID</label>
-            <input
-              className="monitor-input"
-              value={config.TELEGRAM_CHAT_ID}
-              onChange={(e) => update('TELEGRAM_CHAT_ID', e.target.value)}
-            />
-          </div>
-          <div className="config-field">
-            <label>Push Notification Language</label>
-            <select
-              className="monitor-input"
-              value={config.NOTIFICATION_LANGUAGE}
-              onChange={(e) => update('NOTIFICATION_LANGUAGE', e.target.value)}
-            >
-              <option value="en">English</option>
-              <option value="vi">Tiếng Việt</option>
-            </select>
-          </div>
-        </div>
-        )}
-      </div>
-    </div>
-  );
-}
-
-function PipelineStageIndicator({ stage }: { stage: PipelineContext['stage'] }) {
-  const stages: { key: PipelineContext['stage']; label: string; icon: string }[] = [
-    { key: 'loading-watchlist', label: 'Watchlist', icon: '📋' },
-    { key: 'fetching-live-data', label: 'Live Data', icon: '📡' },
-    { key: 'merging-data', label: 'Merge', icon: '🔀' },
-    { key: 'checking-staleness', label: 'Staleness', icon: '🔍' },
-    { key: 'fetching-context', label: 'Context', icon: '📚' },
-    { key: 'ai-analysis', label: 'AI Analysis', icon: '🤖' },
-    { key: 'notifying', label: 'Notify', icon: '📨' },
-    { key: 'complete', label: 'Done', icon: '✅' },
-  ];
-
-  const currentIdx = stages.findIndex((s) => s.key === stage);
-
-  return (
-    <div className="pipeline-stages">
-      {stages.map((s, i) => {
-        const isActive = s.key === stage;
-        const isDone = currentIdx > i || stage === 'complete';
-        const cls = isActive ? 'stage-active' : isDone ? 'stage-done' : 'stage-pending';
-        return (
-          <div key={s.key} className={`pipeline-stage ${cls}`}>
-            <span className="stage-icon">{isDone && !isActive ? '✓' : s.icon}</span>
-            <span className="stage-label">{s.label}</span>
-          </div>
-        );
-      })}
-    </div>
-  );
-}
-
-function ConfidenceBar({ value }: { value: number }) {
-  const pct = Math.min(100, Math.max(0, (value / 10) * 100));
-  const color = value >= 7 ? '#10b981' : value >= 5 ? '#f59e0b' : '#ef4444';
-  return (
-    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', minWidth: '100px' }}>
-      <div style={{
-        flex: 1, height: '6px', borderRadius: '3px',
-        background: 'var(--gray-100)',
-        overflow: 'hidden',
-      }}>
-        <div style={{ width: `${pct}%`, height: '100%', background: color, borderRadius: '3px', transition: 'width 0.3s' }} />
-      </div>
-      <span style={{ fontSize: '12px', fontWeight: 600, color, minWidth: '28px' }}>{value}/10</span>
-    </div>
-  );
-}
-
-function RiskChip({ level }: { level: string }) {
-  const map: Record<string, { bg: string; color: string }> = {
-    LOW:    { bg: '#d1fae5', color: '#065f46' },
-    MEDIUM: { bg: '#fef3c7', color: '#92400e' },
-    HIGH:   { bg: '#fee2e2', color: '#991b1b' },
-  };
-  const style = map[level?.toUpperCase()] ?? { bg: '#f3f4f6', color: '#6b7280' };
-  return (
-    <span style={{
-      padding: '2px 8px', borderRadius: '10px',
-      fontSize: '11px', fontWeight: 700, letterSpacing: '0.3px',
-      background: style.bg, color: style.color,
-    }}>
-      {level || 'N/A'}
-    </span>
-  );
-}
-
-function MatchResultRow({ result }: { result: PipelineMatchResult }) {
-  const [expanded, setExpanded] = useState(false);
-  const ai = result.parsedAi;
-
-  const hasPlay = !!(ai?.ai_selection);
-  const isError = result.stage === 'error';
-
-  const statusDot = isError ? '#ef4444'
-    : result.notified ? '#6366f1'
-    : hasPlay ? '#10b981'
-    : '#d1d5db';
-
-  return (
-    <div style={{
-      borderBottom: '1px solid var(--gray-100)',
-      opacity: (!hasPlay && !isError) ? 0.6 : 1,
-      transition: 'opacity 0.15s',
-    }}>
-      {/* Main row */}
-      <div
-        onClick={() => ai?.reasoning_vi && setExpanded((v) => !v)}
-        style={{
-          display: 'grid',
-          gridTemplateColumns: '8px 1fr 140px 80px 120px 80px 80px 28px',
-          alignItems: 'center',
-          gap: '12px',
-          padding: '12px 16px',
-          cursor: ai?.reasoning_vi ? 'pointer' : 'default',
-          background: expanded ? 'var(--gray-50)' : 'transparent',
-          transition: 'background 0.1s',
-        }}
-      >
-        {/* Status dot */}
-        <div style={{ width: '8px', height: '8px', borderRadius: '50%', background: statusDot, flexShrink: 0 }} />
-
-        {/* Match name + badges */}
-        <div style={{ minWidth: 0 }}>
-          <div style={{ fontWeight: 600, fontSize: '13px', color: 'var(--gray-800)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-            {result.matchDisplay}
-          </div>
-          <div style={{ display: 'flex', gap: '4px', marginTop: '3px', flexWrap: 'wrap' }}>
-            {result.notified && <span className="badge badge-active" style={{ fontSize: '10px', padding: '1px 6px' }}>Notified</span>}
-            {result.saved && <span className="badge badge-won" style={{ fontSize: '10px', padding: '1px 6px' }}>Saved</span>}
-            {result.skippedStale && <span className="badge badge-ht" style={{ fontSize: '10px', padding: '1px 6px' }}>Stale</span>}
-            {isError && <span className="badge badge-lost" style={{ fontSize: '10px', padding: '1px 6px' }}>Error</span>}
-          </div>
-        </div>
-
-        {/* Confidence bar */}
-        {ai ? <ConfidenceBar value={ai.ai_confidence ?? 0} /> : <span style={{ color: 'var(--gray-400)', fontSize: '12px' }}>—</span>}
-
-        {/* Risk */}
-        {ai ? <RiskChip level={ai.risk_level || 'HIGH'} /> : <span style={{ color: 'var(--gray-400)', fontSize: '12px' }}>—</span>}
-
-        {/* Selection + Market */}
-        <div style={{ minWidth: 0 }}>
-          {ai?.ai_selection ? (
-            <>
-              <div style={{ fontSize: '12px', fontWeight: 600, color: 'var(--gray-800)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{ai.ai_selection}</div>
-              <div style={{ fontSize: '11px', color: 'var(--gray-500)', marginTop: '1px' }}>{ai.bet_market || '—'}</div>
-            </>
-          ) : (
-            <span style={{ color: 'var(--gray-400)', fontSize: '12px' }}>No play</span>
+          {matchMeta && (
+            <div style={{ fontSize: '12px', color: 'var(--gray-500)', marginTop: '2px' }}>
+              {matchMeta}
+            </div>
           )}
-        </div>
-
-        {/* Odds */}
-        <span style={{ fontSize: '13px', fontWeight: 600, color: 'var(--gray-700)' }}>
-          {ai?.odds_for_display ?? '—'}
-        </span>
-
-        {/* Stake */}
-        <span style={{ fontSize: '13px', fontWeight: 600, color: 'var(--gray-700)' }}>
-          {ai?.stake_percent ? `${ai.stake_percent}%` : '—'}
-        </span>
-
-        {/* Expand chevron */}
-        {ai?.reasoning_vi ? (
-          <span style={{ color: 'var(--gray-400)', fontSize: '12px', transition: 'transform 0.2s', display: 'inline-block', transform: expanded ? 'rotate(180deg)' : 'none' }}>▼</span>
-        ) : <span />}
-      </div>
-
-      {/* Expanded analysis */}
-      {expanded && ai?.reasoning_vi && (
-        <div style={{ padding: '0 16px 14px 36px', borderTop: '1px solid var(--gray-100)' }}>
-          <p style={{ fontSize: '13px', color: 'var(--gray-600)', lineHeight: 1.65, margin: '12px 0 0' }}>
-            {ai.reasoning_vi}
-          </p>
-          {ai.warnings && ai.warnings.length > 0 && (
-            <div style={{ display: 'flex', gap: '6px', marginTop: '10px', flexWrap: 'wrap' }}>
-              {ai.warnings.map((w, i) => (
-                <span key={i} style={{
-                  padding: '2px 8px', borderRadius: '6px',
-                  fontSize: '11px', fontWeight: 600,
-                  background: '#fef3c7', color: '#92400e',
-                }}>⚠ {w}</span>
-              ))}
+          {parsed?.bet_market && (
+            <div style={{ fontSize: '12px', color: 'var(--gray-500)', marginTop: '2px' }}>
+              {parsed.bet_market}
+            </div>
+          )}
+          {promptMeta && (
+            <div style={{ fontSize: '12px', color: 'var(--gray-500)', marginTop: '4px' }}>
+              {promptMeta}
+            </div>
+          )}
+          {prematchMeta && (
+            <div style={{ fontSize: '12px', color: 'var(--gray-500)', marginTop: '2px' }}>
+              {prematchMeta}
             </div>
           )}
         </div>
+        <div style={{ textAlign: 'right', minWidth: '120px' }}>
+          <div style={{ fontSize: '12px', color: 'var(--gray-500)' }}>Confidence</div>
+          <div style={{ fontWeight: 700, color: result.shouldPush ? 'var(--success)' : 'var(--gray-700)' }}>
+            {result.confidence}/10
+          </div>
+        </div>
+      </div>
+
+      {reasoning && (
+        <p style={{ margin: 0, fontSize: '13px', lineHeight: 1.6, color: result.error ? 'var(--danger)' : 'var(--gray-600)' }}>
+          {reasoning}
+        </p>
       )}
 
-      {isError && result.error && (
-        <div style={{ padding: '6px 16px 10px 36px', color: 'var(--danger)', fontSize: '12px' }}>
-          ❌ {result.error}
+      {parsed?.condition_triggered_suggestion && (
+        <div style={{ marginTop: '8px', fontSize: '13px', color: 'var(--gray-700)' }}>
+          <strong>Condition Suggestion:</strong> {parsed.condition_triggered_suggestion}
+          {conditionReasoning ? <span style={{ color: 'var(--gray-500)' }}> {' '}| {conditionReasoning}</span> : null}
+        </div>
+      )}
+
+      {warnings.length > 0 && (
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', marginTop: '10px' }}>
+          {warnings.map((warning) => (
+            <span
+              key={warning}
+              style={{
+                padding: '2px 8px',
+                borderRadius: '999px',
+                background: '#fef3c7',
+                color: '#92400e',
+                fontSize: '11px',
+                fontWeight: 600,
+              }}
+            >
+              {warning}
+            </span>
+          ))}
         </div>
       )}
     </div>
   );
 }
-
-// ==================== Main Tab ====================
 
 export function LiveMonitorTab() {
   const { state } = useAppState();
-  const appConfig = state.config;
-  const scheduler = useScheduler(appConfig);
-  const [manualRunning, setManualRunning] = useState(false);
-  const [lastCtx, setLastCtx] = useState<PipelineContext | null>(null);
-  const [showConfig, setShowConfig] = useState(false);
+  const { showToast } = useToast();
+  const [status, setStatus] = useState<LiveMonitorStatusResponse | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [refreshError, setRefreshError] = useState('');
+  const [triggering, setTriggering] = useState(false);
 
-  const handleStart = useCallback(
-    (intervalMs: number) => {
-      scheduler.start({ intervalMs });
-    },
-    [scheduler],
-  );
-
-  const handleRunOnce = useCallback(async () => {
-    setManualRunning(true);
+  const loadStatus = useCallback(async () => {
+    setRefreshError('');
     try {
-      const ctx = await scheduler.runOnce();
-      setLastCtx(ctx);
+      const next = await fetchLiveMonitorStatus(state.config);
+      setStatus(next);
+    } catch (error) {
+      setRefreshError(error instanceof Error ? error.message : String(error));
     } finally {
-      setManualRunning(false);
+      setLoading(false);
     }
-  }, [scheduler]);
+  }, [state.config]);
 
-  // Use scheduler's lastResult or manual run result
-  const ctx = scheduler.lastResult ?? lastCtx;
+  useEffect(() => {
+    void loadStatus();
+  }, [loadStatus]);
+
+  useEffect(() => {
+    const intervalMs = status?.job.running ? 2_000 : 5_000;
+    const timer = window.setInterval(() => {
+      void loadStatus();
+    }, intervalMs);
+    return () => window.clearInterval(timer);
+  }, [loadStatus, status?.job.running]);
+
+  const handleRunNow = useCallback(async () => {
+    setTriggering(true);
+    try {
+      await triggerCheckLiveRun(state.config);
+      showToast('Live monitor job triggered', 'success');
+      await loadStatus();
+    } catch (error) {
+      showToast(error instanceof Error ? error.message : 'Failed to trigger live monitor job', 'error');
+    } finally {
+      setTriggering(false);
+    }
+  }, [loadStatus, showToast, state.config]);
+
+  const sortedResults = useMemo(() => {
+    return [...(status?.results || [])].sort((left, right) => {
+      const priority = { ai_push: 3, condition_only: 2, no_bet: 1 } as const;
+      const leftScore = priority[left.decisionKind] * 10 + Number(left.saved) * 2 + Number(left.notified);
+      const rightScore = priority[right.decisionKind] * 10 + Number(right.saved) * 2 + Number(right.notified);
+      return rightScore - leftScore;
+    });
+  }, [status?.results]);
+
+  const promptLevelSummary = useMemo(() => {
+    return sortedResults.reduce((acc, result) => {
+      if (result.debug?.promptDataLevel === 'advanced-upgraded') acc.advanced += 1;
+      if (result.debug?.promptDataLevel === 'basic-only') acc.basic += 1;
+      return acc;
+    }, { basic: 0, advanced: 0 });
+  }, [sortedResults]);
+
+  const prematchStrengthSummary = useMemo(() => {
+    return sortedResults.reduce((acc, result) => {
+      if (result.debug?.prematchStrength === 'strong') acc.strong += 1;
+      if (result.debug?.prematchStrength === 'moderate') acc.moderate += 1;
+      if (result.debug?.prematchStrength === 'weak') acc.weak += 1;
+      return acc;
+    }, { strong: 0, moderate: 0, weak: 0 });
+  }, [sortedResults]);
+
+  if (loading && !status) {
+    return (
+      <div className="card">
+        <div style={{ padding: '32px 20px', textAlign: 'center', color: 'var(--gray-500)' }}>
+          Loading live monitor dashboard...
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="live-monitor-tab">
-      <SchedulerControls
-        status={scheduler.status}
-        intervalMs={scheduler.intervalMs}
-        runCount={scheduler.runCount}
-        errorCount={scheduler.errorCount}
-        lastRun={scheduler.lastRun}
-        nextRunAt={scheduler.nextRunAt}
-        onStart={handleStart}
-        onStop={scheduler.stop}
-        onPause={scheduler.pause}
-        onResume={scheduler.resume}
-        onRunOnce={handleRunOnce}
-        running={manualRunning}
-      />
-
-      <div style={{ marginBottom: '16px', display: 'flex', gap: '8px' }}>
-        <button
-          className={`btn btn-sm ${showConfig ? 'btn-secondary' : 'btn-primary'}`}
-          onClick={() => setShowConfig((v) => !v)}
-        >
-          {showConfig ? '📊 Show Results' : '⚙️ Config'}
-        </button>
+      <div className="card" style={{ marginBottom: '16px' }}>
+        <div className="card-header">
+          <div className="card-title">Live Monitor Dashboard</div>
+          <div style={{ display: 'flex', gap: '8px' }}>
+            <button className="btn btn-secondary btn-sm" onClick={() => void loadStatus()} disabled={triggering}>
+              Refresh
+            </button>
+            <button className="btn btn-primary btn-sm" onClick={handleRunNow} disabled={triggering || status?.job.running}>
+              {triggering ? 'Triggering...' : status?.job.running ? 'Running...' : 'Run Check Live'}
+            </button>
+          </div>
+        </div>
+        <div style={{ padding: '20px' }}>
+          <div className="monitor-stats-row">
+            <SummaryStat label="Engine" value={status?.job.running ? 'Running' : status?.job.enabled ? 'Idle' : 'Disabled'} color={status?.job.running ? 'var(--success)' : undefined} />
+            <SummaryStat label="Interval" value={formatInterval(status?.job.intervalMs ?? 0)} />
+            <SummaryStat label="Runs" value={status?.job.runCount ?? 0} />
+            <SummaryStat label="Last Run" value={formatLocalDateTime(status?.job.lastRun ?? null)} />
+          </div>
+          <p style={{ margin: '14px 0 0', color: 'var(--gray-500)', fontSize: '13px' }}>
+            This screen is read-only for pipeline execution. Scheduling and thresholds remain owned by the server engine and are configured in Settings.
+          </p>
+          {refreshError && (
+            <p style={{ margin: '10px 0 0', color: 'var(--danger)', fontSize: '13px' }}>{refreshError}</p>
+          )}
+          {!refreshError && status?.job.lastError && (
+            <p style={{ margin: '10px 0 0', color: 'var(--danger)', fontSize: '13px' }}>{status.job.lastError}</p>
+          )}
+        </div>
       </div>
 
-      {showConfig ? (
-        <ConfigPanel />
-      ) : (
-        <>
-          {/* Pipeline Stage Progress */}
-          {ctx && ctx.stage !== 'idle' && (
-            <div className="card" style={{ marginBottom: '16px' }}>
-              <div className="card-header">
-                <div className="card-title">Pipeline Progress</div>
-                <small style={{ color: 'var(--gray-500)' }}>
-                  {ctx.triggeredBy === 'scheduled' ? 'Scheduled' : 'Manual'} —{' '}
-                  {ctx.startedAt ? formatLocalDateTime(ctx.startedAt) : ''}
-                </small>
-              </div>
-              <div style={{ padding: '16px 20px' }}>
-                <PipelineStageIndicator stage={ctx.stage} />
-              </div>
-            </div>
-          )}
+      {status && <ProgressCard status={status} />}
 
-          {/* Match Results */}
-          {ctx && ctx.results.length > 0 ? (
-            <div className="card" style={{ overflow: 'hidden' }}>
-              {/* Header */}
-              <div className="card-header">
-                <div className="card-title">
-                  🎯 Results ({ctx.results.length} match{ctx.results.length > 1 ? 'es' : ''})
-                </div>
-                <div style={{ display: 'flex', gap: '16px', fontSize: '12px' }}>
-                  {[
-                    { label: 'Analyzed', count: ctx.results.filter((r) => r.proceeded).length, color: '#10b981' },
-                    { label: 'Notified', count: ctx.results.filter((r) => r.notified).length, color: '#6366f1' },
-                    { label: 'Saved',    count: ctx.results.filter((r) => r.saved).length,    color: '#f59e0b' },
-                  ].map(({ label, count, color }) => (
-                    <div key={label} style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
-                      <div style={{ width: '8px', height: '8px', borderRadius: '50%', background: color }} />
-                      <span style={{ color: 'var(--gray-500)' }}>{count} {label}</span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-
-              {/* Scrollable table body */}
-              <div style={{ overflowX: 'auto' }}>
-                <div style={{ minWidth: '700px' }}>
-                  {/* Column headers */}
-                  <div style={{
-                    display: 'grid',
-                    gridTemplateColumns: '8px 1fr 140px 80px 120px 80px 80px 28px',
-                    gap: '12px',
-                    padding: '8px 16px',
-                    background: 'var(--gray-50)',
-                    borderBottom: '1px solid var(--gray-200)',
-                  }}>
-                    <span />
-                    <span style={{ fontSize: '11px', fontWeight: 600, color: 'var(--gray-400)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Match</span>
-                    <span style={{ fontSize: '11px', fontWeight: 600, color: 'var(--gray-400)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Confidence</span>
-                    <span style={{ fontSize: '11px', fontWeight: 600, color: 'var(--gray-400)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Risk</span>
-                    <span style={{ fontSize: '11px', fontWeight: 600, color: 'var(--gray-400)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Selection</span>
-                    <span style={{ fontSize: '11px', fontWeight: 600, color: 'var(--gray-400)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Odds</span>
-                    <span style={{ fontSize: '11px', fontWeight: 600, color: 'var(--gray-400)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Stake</span>
-                    <span />
-                  </div>
-
-                  {/* Rows — sorted: has play first */}
-                  {[...ctx.results]
-                    .sort((a, b) => {
-                      const aPlay = a.parsedAi?.ai_selection ? 1 : 0;
-                      const bPlay = b.parsedAi?.ai_selection ? 1 : 0;
-                      return bPlay - aPlay;
-                    })
-                    .map((r, i) => (
-                      <MatchResultRow key={r.matchId || i} result={r} />
-                    ))
-                  }
-                </div>
-              </div>
-            </div>
-          ) : ctx ? (
-            <div className="card">
-              <div style={{ padding: '32px 20px', textAlign: 'center' }}>
-                <div style={{ fontSize: '48px', marginBottom: '16px' }}>✅</div>
-                <p style={{ color: 'var(--gray-500)', fontSize: '16px' }}>
-                  Pipeline completed — no active matches to analyze.
-                </p>
-                <p style={{ color: 'var(--gray-400)', fontSize: '13px', marginTop: '8px' }}>
-                  Add matches to the Watchlist with status <strong>NS</strong> (Not Started) or wait for live matches (1H/2H).
-                  Last run: {ctx.startedAt ? formatLocalDateTime(ctx.startedAt) : '—'}
-                </p>
-              </div>
+      <div className="card" style={{ marginBottom: '16px' }}>
+        <div className="card-header">
+          <div className="card-title">Latest Run Summary</div>
+        </div>
+        <div style={{ padding: '20px' }}>
+          {status?.summary ? (
+            <div className="monitor-stats-row">
+              <SummaryStat label="Live" value={status.summary.liveCount} />
+              <SummaryStat label="Candidates" value={status.summary.candidateCount} />
+              <SummaryStat label="Processed" value={status.summary.processed} />
+              <SummaryStat label="Saved Recs" value={status.summary.savedRecommendations} color="var(--success)" />
+              <SummaryStat label="Notifications" value={status.summary.pushedNotifications} color="var(--primary)" />
+              <SummaryStat label="Basic Prompt" value={promptLevelSummary.basic} />
+              <SummaryStat label="Advanced Prompt" value={promptLevelSummary.advanced} color={promptLevelSummary.advanced > 0 ? 'var(--primary)' : undefined} />
+              <SummaryStat label="Prematch Strong" value={prematchStrengthSummary.strong} color={prematchStrengthSummary.strong > 0 ? 'var(--success)' : undefined} />
+              <SummaryStat label="Prematch Moderate" value={prematchStrengthSummary.moderate} />
+              <SummaryStat label="Prematch Weak" value={prematchStrengthSummary.weak} color={prematchStrengthSummary.weak > 0 ? 'var(--danger)' : undefined} />
+              <SummaryStat label="Errors" value={status.summary.errors} color={status.summary.errors > 0 ? 'var(--danger)' : undefined} />
             </div>
           ) : (
-              <div className="card">
-                <div style={{ padding: '32px 20px', textAlign: 'center' }}>
-                  <div style={{ fontSize: '48px', marginBottom: '16px' }}>📡</div>
-                  <p style={{ color: 'var(--gray-500)', fontSize: '16px' }}>
-                    No results yet. Press <strong>Run Once</strong> or <strong>Start</strong> the scheduler.
-                  </p>
-                  <p style={{ color: 'var(--gray-400)', fontSize: '13px', marginTop: '8px' }}>
-                    The pipeline will automatically scan the watchlist, fetch live data, run AI analysis, and send notifications.
-                  </p>
-                </div>
-              </div>
-            )
-          }
-
-          {/* Error display */}
-          {ctx?.error && (
-            <div className="card" style={{ borderLeft: '4px solid var(--danger)', marginTop: '16px' }}>
-              <div style={{ padding: '16px 20px' }}>
-                <strong style={{ color: 'var(--danger)' }}>❌ Pipeline Error</strong>
-                <p style={{ marginTop: '8px', color: 'var(--gray-600)' }}>{ctx.error}</p>
-              </div>
-            </div>
+            <p style={{ margin: 0, color: 'var(--gray-500)', fontSize: '13px' }}>
+              No completed live-monitor run has been recorded yet.
+            </p>
           )}
-        </>
-      )}
+        </div>
+      </div>
+
+      <div className="card" style={{ overflow: 'hidden' }}>
+        <div className="card-header">
+          <div className="card-title">Latest Match Results</div>
+          <small style={{ color: 'var(--gray-500)' }}>{sortedResults.length} result{sortedResults.length === 1 ? '' : 's'}</small>
+        </div>
+        {sortedResults.length > 0 ? (
+          <div>
+            {sortedResults.map((result) => (
+              <ResultRow key={`${result.matchId}-${result.selection}-${result.confidence}`} result={result} />
+            ))}
+          </div>
+        ) : (
+          <div style={{ padding: '28px 20px', textAlign: 'center', color: 'var(--gray-500)' }}>
+            No result payload has been published by the server pipeline yet.
+          </div>
+        )}
+      </div>
     </div>
   );
 }

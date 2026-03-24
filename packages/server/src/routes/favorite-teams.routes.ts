@@ -4,7 +4,7 @@
 
 import type { FastifyInstance } from 'fastify';
 import * as repo from '../repos/favorite-teams.repo.js';
-import { fetchTeamsByLeague } from '../lib/football-api.js';
+import { getLeagueTeamsDirectory } from '../lib/league-team-directory.service.js';
 
 export async function favoriteTeamsRoutes(app: FastifyInstance) {
   // GET /api/favorite-teams
@@ -38,8 +38,12 @@ export async function favoriteTeamsRoutes(app: FastifyInstance) {
     async (req, reply) => {
       const leagueId = Number(req.query.leagueId);
       if (!leagueId) return reply.code(400).send({ error: 'leagueId is required' });
-      const teams = await fetchTeamsByLeague(leagueId);
-      return teams;
+      try {
+        return await getLeagueTeamsDirectory(leagueId);
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        return reply.code(502).send({ error: `Failed to load league teams: ${message}` });
+      }
     },
   );
 }

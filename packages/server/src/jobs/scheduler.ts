@@ -18,6 +18,7 @@ import { enrichWatchlistJob } from './enrich-watchlist.job.js';
 import { purgeAuditJob } from './purge-audit.job.js';
 import { integrationHealthJob } from './integration-health.job.js';
 import { healthWatchdogJob } from './health-watchdog.job.js';
+import { syncReferenceDataJob } from './sync-reference-data.job.js';
 import {
   type JobProgress,
   clearJobProgress,
@@ -31,6 +32,11 @@ export type { JobProgress };
 
 export interface JobInfo {
   name: string;
+  label?: string;
+  description?: string;
+  group?: string;
+  entityScopes?: string[];
+  order?: number;
   intervalMs: number;
   lastRun: string | null;
   lastError: string | null;
@@ -50,6 +56,11 @@ export interface JobInfo {
 
 interface ManagedJob {
   name: string;
+  label?: string;
+  description?: string;
+  group?: string;
+  entityScopes?: string[];
+  order?: number;
   intervalMs: number;
   fn: () => Promise<unknown>;
   timer: ReturnType<typeof setInterval> | null;
@@ -68,6 +79,14 @@ interface ManagedJob {
   /** Pending (queued) run count — max = concurrency. */
   pendingRuns: number;
   skipKey?: string;
+}
+
+interface JobMetadata {
+  label: string;
+  description: string;
+  group: 'pipeline' | 'monitoring' | 'maintenance' | 'reference-data';
+  entityScopes?: string[];
+  order: number;
 }
 
 const jobs: ManagedJob[] = [];
@@ -91,9 +110,16 @@ function register(
   skipKey?: string,
   concurrency = 1,
   maxRunMs?: number,
+  metadata?: JobMetadata,
 ) {
   jobs.push({
-    name, intervalMs, fn,
+    name,
+    label: metadata?.label,
+    description: metadata?.description,
+    group: metadata?.group,
+    entityScopes: metadata?.entityScopes,
+    order: metadata?.order,
+    intervalMs, fn,
     timer: null, lastRun: null, lastError: null,
     running: false, enabled: intervalMs > 0, runCount: 0,
     lockTtlMs: lockTtlMs ?? Math.max(intervalMs * 3, 60_000),
@@ -251,15 +277,166 @@ export async function startScheduler() {
   // Register all jobs
   // Register in logical pipeline order:
   // 1. Ingest data → 2. Enrich → 3. Predict → 4. Live analysis → 5. Settle → 6. Cleanup
-  register('fetch-matches', config.jobFetchMatchesMs, fetchMatchesJob, undefined, ADAPTIVE_SKIP_KEY);
-  register('enrich-watchlist', config.jobEnrichWatchlistMs, enrichWatchlistJob, 45 * 60_000, undefined, 1, 30 * 60_000);
-  register('update-predictions', config.jobPredictionsMs, updatePredictionsJob, 10 * 60_000);
-  register('check-live-trigger', config.jobCheckLiveMs, checkLiveTriggerJob);
-  register('auto-settle', config.jobAutoSettleMs, autoSettleJob);
-  register('expire-watchlist', config.jobExpireWatchlistMs, expireWatchlistJob);
-  register('purge-audit', config.jobHousekeepingMs, purgeAuditJob);
-  register('integration-health', config.jobIntegrationHealthMs, integrationHealthJob);
-  register('health-watchdog', config.jobHealthWatchdogMs, healthWatchdogJob);
+  register(
+    'fetch-matches',
+    config.jobFetchMatchesMs,
+    fetchMatchesJob,
+    undefined,
+    ADAPTIVE_SKIP_KEY,
+    1,
+    undefined,
+    {
+      label: 'Fetch Matches',
+      description: 'Fetches fixtures from Football API for active leagues, refreshes the short-lived matches table, archives finished fixtures, and auto-adds eligible top-league or favorite-team matches into the monitoring pipeline.',
+      group: 'pipeline',
+      entityScopes: ['matches', 'watchlist-candidates', 'match-history-archive'],
+      order: 1,
+    },
+  );
+  register(
+    'sync-reference-data',
+    config.jobSyncReferenceDataMs,
+    syncReferenceDataJob,
+    30 * 60_000,
+    undefined,
+    1,
+    60 * 60_000,
+    {
+      label: 'Sync Reference Data',
+      description: 'Refreshes low-churn provider-backed reference entities owned by TFI so hot paths stay local-first. The current scope enriches the league catalog for top and active leagues, then refreshes league-team directory snapshots, and the job contract is intentionally generic so future reference entities can be added without renaming the scheduler surface.',
+      group: 'reference-data',
+      entityScopes: ['league-catalog', 'league-team-directory'],
+      order: 2,
+    },
+  );
+  register(
+    'enrich-watchlist',
+    config.jobEnrichWatchlistMs,
+    enrichWatchlistJob,
+    45 * 60_000,
+    undefined,
+    1,
+    30 * 60_000,
+    {
+      label: 'Enrich Watchlist',
+      description: 'Uses AI and grounded web research to enrich watchlist entries with strategic context, directional congestion or absence signals, and recommended conditions for later live analysis.',
+      group: 'pipeline',
+      entityScopes: ['watchlist', 'strategic-context', 'recommended-conditions'],
+      order: 3,
+    },
+  );
+  register(
+    'update-predictions',
+    config.jobPredictionsMs,
+    updatePredictionsJob,
+    10 * 60_000,
+    undefined,
+    1,
+    undefined,
+    {
+      label: 'Update Predictions',
+      description: 'Fetches pre-match prediction payloads for upcoming watchlist matches so the canonical pipeline can reuse stored prediction context instead of querying providers at analysis time.',
+      group: 'pipeline',
+      entityScopes: ['watchlist', 'predictions'],
+      order: 4,
+    },
+  );
+  register(
+    'check-live-trigger',
+    config.jobCheckLiveMs,
+    checkLiveTriggerJob,
+    undefined,
+    undefined,
+    1,
+    undefined,
+    {
+      label: 'Check Live Matches',
+      description: 'Detects live watchlist matches, runs the canonical server analysis pipeline, and emits save or notify outcomes for actionable AI or condition-trigger decisions.',
+      group: 'pipeline',
+      entityScopes: ['watchlist', 'live-pipeline', 'recommendations', 'notifications'],
+      order: 5,
+    },
+  );
+  register(
+    'auto-settle',
+    config.jobAutoSettleMs,
+    autoSettleJob,
+    undefined,
+    undefined,
+    1,
+    undefined,
+    {
+      label: 'Auto Settle',
+      description: 'Settles pending recommendations and bets from final match outcomes using local history plus provider fallback when required, then records settlement audit details.',
+      group: 'pipeline',
+      entityScopes: ['recommendations', 'bets', 'settlement-audit'],
+      order: 6,
+    },
+  );
+  register(
+    'expire-watchlist',
+    config.jobExpireWatchlistMs,
+    expireWatchlistJob,
+    undefined,
+    undefined,
+    1,
+    undefined,
+    {
+      label: 'Expire Watchlist',
+      description: 'Marks watchlist entries as expired once their operational monitoring window has ended, keeping active monitoring queues small and relevant.',
+      group: 'maintenance',
+      entityScopes: ['watchlist'],
+      order: 7,
+    },
+  );
+  register(
+    'purge-audit',
+    config.jobHousekeepingMs,
+    purgeAuditJob,
+    undefined,
+    undefined,
+    1,
+    undefined,
+    {
+      label: 'Purge Audit Logs',
+      description: 'Deletes old audit and housekeeping records according to retention policy so operational tables remain bounded as volume grows.',
+      group: 'maintenance',
+      entityScopes: ['audit-logs'],
+      order: 8,
+    },
+  );
+  register(
+    'integration-health',
+    config.jobIntegrationHealthMs,
+    integrationHealthJob,
+    undefined,
+    undefined,
+    1,
+    undefined,
+    {
+      label: 'Integration Health',
+      description: 'Probes core dependencies such as PostgreSQL, Redis, provider APIs, and Telegram delivery to detect external integration failures and recovery quickly.',
+      group: 'monitoring',
+      entityScopes: ['postgres', 'redis', 'provider-apis', 'telegram'],
+      order: 9,
+    },
+  );
+  register(
+    'health-watchdog',
+    config.jobHealthWatchdogMs,
+    healthWatchdogJob,
+    undefined,
+    undefined,
+    1,
+    undefined,
+    {
+      label: 'Health Watchdog',
+      description: 'Monitors critical business jobs for overdue or stuck execution and sends escalation alerts when the scheduler appears unhealthy.',
+      group: 'monitoring',
+      entityScopes: ['scheduler', 'critical-jobs'],
+      order: 10,
+    },
+  );
 
   schedulerStartedAt = Date.now();
 
@@ -332,7 +509,13 @@ export async function getJobsStatus(): Promise<JobInfo[]> {
     }
 
     result.push({
-      name: job.name, intervalMs: job.intervalMs, lastRun,
+      name: job.name,
+      label: job.label,
+      description: job.description,
+      group: job.group,
+      entityScopes: job.entityScopes,
+      order: job.order,
+      intervalMs: job.intervalMs, lastRun,
       lastError, running, enabled: job.enabled,
       runCount: job.runCount, progress, skipKey: job.skipKey,
       concurrency: job.concurrency,
@@ -391,6 +574,11 @@ export function updateJobInterval(name: string, intervalMs: number): JobInfo | n
 
   return {
     name: job.name,
+    label: job.label,
+    description: job.description,
+    group: job.group,
+    entityScopes: job.entityScopes,
+    order: job.order,
     intervalMs: job.intervalMs,
     lastRun: job.lastRun,
     lastError: job.lastError,

@@ -35,8 +35,12 @@ export interface StrategicContext {
   away_motivation: string;
   league_positions: string;
   fixture_congestion: string;
+  home_fixture_congestion?: string;
+  away_fixture_congestion?: string;
   rotation_risk: string;
   key_absences: string;
+  home_key_absences?: string;
+  away_key_absences?: string;
   h2h_narrative: string;
   summary: string;
   searched_at: string;
@@ -58,8 +62,12 @@ export interface StrategicContext {
   away_motivation_vi?: string;
   league_positions_vi?: string;
   fixture_congestion_vi?: string;
+  home_fixture_congestion_vi?: string;
+  away_fixture_congestion_vi?: string;
   rotation_risk_vi?: string;
   key_absences_vi?: string;
+  home_key_absences_vi?: string;
+  away_key_absences_vi?: string;
   h2h_narrative_vi?: string;
   summary_vi?: string;
   qualitative?: {
@@ -68,8 +76,12 @@ export interface StrategicContext {
       away_motivation: string;
       league_positions: string;
       fixture_congestion: string;
+      home_fixture_congestion?: string;
+      away_fixture_congestion?: string;
       rotation_risk: string;
       key_absences: string;
+      home_key_absences?: string;
+      away_key_absences?: string;
       h2h_narrative: string;
       summary: string;
     };
@@ -78,8 +90,12 @@ export interface StrategicContext {
       away_motivation: string;
       league_positions: string;
       fixture_congestion: string;
+      home_fixture_congestion?: string;
+      away_fixture_congestion?: string;
       rotation_risk: string;
       key_absences: string;
+      home_key_absences?: string;
+      away_key_absences?: string;
       h2h_narrative: string;
       summary: string;
     };

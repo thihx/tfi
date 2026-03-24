@@ -283,7 +283,7 @@ describe('notification edge cases', () => {
     expect(saveRecommendation).not.toHaveBeenCalled();
   });
 
-  test('condition_triggered_should_push — both saved AND notified', async () => {
+  test('condition_triggered_should_push — notified without saving', async () => {
     setupDefaults();
     const ko = koreaDateTime(-60 * 60_000);
 
@@ -308,8 +308,9 @@ describe('notification edge cases', () => {
 
     const r = ctx.results[0]!;
     expect(r.proceeded).toBe(true);
-    expect(r.saved).toBe(true);
-    expect(saveRecommendation).toHaveBeenCalledTimes(1);
+    expect(r.saved).toBe(false);
+    expect(r.notified).toBe(true);
+    expect(saveRecommendation).not.toHaveBeenCalled();
   });
 
   test('email fails but telegram succeeds — partial notification', async () => {

@@ -383,6 +383,10 @@ vi.mock('../repos/league-profiles.repo.js', () => ({
   }),
 }));
 
+vi.mock('../repos/team-profiles.repo.js', () => ({
+  getTeamProfileByTeamId: vi.fn().mockResolvedValue(null),
+}));
+
 vi.mock('../repos/leagues.repo.js', () => ({
   getLeagueById: vi.fn().mockResolvedValue({
     league_id: 39,
@@ -472,6 +476,10 @@ describe('runPipelineBatch', () => {
     expect(prompt).toContain('STATS_SOURCE: api-football');
     expect(prompt).toContain('EVIDENCE_MODE: full_live_data');
     expect(result.results[0]?.debug?.statsSource).toBe('api-football');
+    expect(result.results[0]?.debug?.promptDataLevel).toBe('advanced-upgraded');
+    expect(result.results[0]?.debug?.prematchAvailability).toBe('minimal');
+    expect(result.results[0]?.debug?.prematchNoisePenalty).toBe(60);
+    expect(result.results[0]?.debug?.prematchStrength).toBe('weak');
     expect(result.results[0]?.debug?.statsFallbackUsed).toBe(false);
   });
 
@@ -983,10 +991,10 @@ describe('runPipelineBatch', () => {
   test('sends Telegram notification for should_push=true', async () => {
     await runPipelineBatch(['100']);
 
-    const { sendTelegramAlbum, sendTelegramMessage } = await import('../lib/telegram.js');
+    const { sendTelegramPhoto, sendTelegramMessage } = await import('../lib/telegram.js');
     const { markRecommendationNotified } = await import('../repos/recommendations.repo.js');
-    expect(sendTelegramAlbum).toHaveBeenCalledTimes(1);
-    expect(sendTelegramMessage).not.toHaveBeenCalled();
+    expect(sendTelegramPhoto).toHaveBeenCalledTimes(1);
+    expect(vi.mocked(sendTelegramMessage).mock.calls.length).toBeGreaterThanOrEqual(1);
     expect(markRecommendationNotified).toHaveBeenCalledWith(999, 'telegram');
   });
 
@@ -1253,13 +1261,65 @@ describe('runPipelineBatch', () => {
     const result = await runPipelineBatch(['100']);
     const { createRecommendation } = await import('../repos/recommendations.repo.js');
     const { createAiPerformanceRecord } = await import('../repos/ai-performance.repo.js');
-    const { sendTelegramMessage } = await import('../lib/telegram.js');
+  const { sendTelegramMessage } = await import('../lib/telegram.js');
 
     expect(createRecommendation).not.toHaveBeenCalled();
     expect(createAiPerformanceRecord).not.toHaveBeenCalled();
     expect(sendTelegramMessage).not.toHaveBeenCalled();
     expect(result.results[0].saved).toBe(false);
     expect(result.results[0].shouldPush).toBe(false);
+  });
+
+  test('marks condition-only trigger in parsed debug but does NOT save when AI has no actionable bet', async () => {
+    const { callGemini } = await import('../lib/gemini.js');
+    vi.mocked(callGemini).mockResolvedValueOnce(JSON.stringify({
+      should_push: false,
+      selection: '',
+      bet_market: '',
+      confidence: 4,
+      reasoning_en: 'AI sees no direct edge, but the tracked condition is satisfied.',
+      reasoning_vi: 'AI khong thay edge truc tiep, nhung dieu kien theo doi da thoa.',
+      warnings: [],
+      value_percent: 0,
+      risk_level: 'MEDIUM',
+      stake_percent: 0,
+      custom_condition_matched: true,
+      custom_condition_status: 'evaluated',
+      custom_condition_summary_en: 'Late under condition matched',
+      custom_condition_summary_vi: 'Dieu kien under cuoi tran da thoa',
+      custom_condition_reason_en: 'Minute and goal state match the watchlist rule',
+      custom_condition_reason_vi: 'Phut va ty so phu hop voi rule watchlist',
+      condition_triggered_suggestion: 'Under 2.5 Goals @2.00',
+      condition_triggered_reasoning_en: 'Condition says the under thesis is live.',
+      condition_triggered_reasoning_vi: 'Dieu kien cho thay thesis under dang hop le.',
+      condition_triggered_confidence: 7,
+      condition_triggered_stake: 3,
+    }));
+
+    const result = await runPipelineBatch(['100']);
+    const { createRecommendation } = await import('../repos/recommendations.repo.js');
+    const { createAiPerformanceRecord } = await import('../repos/ai-performance.repo.js');
+    const { sendTelegramMessage } = await import('../lib/telegram.js');
+
+    expect(result.results[0]?.shouldPush).toBe(true);
+    expect(result.results[0]?.saved).toBe(false);
+    expect(result.results[0]?.notified).toBe(true);
+    expect(result.results[0]?.selection).toBe('Under 2.5 Goals @2.00');
+    expect(result.results[0]?.confidence).toBe(7);
+    expect(result.results[0]?.debug?.parsed).toEqual(expect.objectContaining({
+      custom_condition_matched: true,
+      custom_condition_status: 'evaluated',
+      condition_triggered_suggestion: 'Under 2.5 Goals @2.00',
+      condition_triggered_confidence: 7,
+      condition_triggered_stake: 3,
+      condition_triggered_should_push: true,
+      should_push: true,
+      final_should_bet: false,
+      ai_should_push: false,
+    }));
+    expect(createRecommendation).not.toHaveBeenCalled();
+    expect(createAiPerformanceRecord).not.toHaveBeenCalled();
+    expect(vi.mocked(sendTelegramMessage).mock.calls.length).toBeGreaterThanOrEqual(1);
   });
 
   test('force mode bypasses proceed and staleness gates', async () => {
@@ -1295,6 +1355,46 @@ describe('runPipelineBatch', () => {
     expect(result.prompt).toContain('- Is Manual Push: YES');
     expect(result.prompt).not.toContain('watchlist/system force mode, not by a direct manual Ask AI request');
     expect(result.result.debug?.analysisMode).toBe('manual_force');
+  });
+
+  test('prompt-only analysis removes logically settled BTTS odds before sending prompt to LLM', async () => {
+    const result = await runPromptOnlyAnalysisForMatch('100', { forceAnalyze: true });
+
+    expect(result.prompt).toContain('1-1');
+    expect(result.prompt).toContain('ODDS SANITY NOTES:');
+    expect(result.prompt).toContain('Removed BTTS market from prompt: both teams have already scored (1-1), so BTTS is already logically settled.');
+    expect(result.prompt).not.toContain('"btts":{"yes":1.6,"no":2.15}');
+  });
+
+  test('prompt-only analysis upgrades prompt with optional advanced stats only when API data is rich enough', async () => {
+    const footballApi = await import('../lib/football-api.js');
+    vi.mocked(footballApi.fetchFixtureStatistics).mockResolvedValueOnce([
+      { team: { id: 1 }, statistics: [
+        { type: 'Ball Possession', value: '55%' },
+        { type: 'Total Shots', value: 12 },
+        { type: 'Shots on Goal', value: 5 },
+        { type: 'Corner Kicks', value: 6 },
+        { type: 'Fouls', value: 10 },
+        { type: 'expected_goals', value: 1.42 },
+        { type: 'Shots insidebox', value: 7 },
+      ] },
+      { team: { id: 2 }, statistics: [
+        { type: 'Ball Possession', value: '45%' },
+        { type: 'Total Shots', value: 8 },
+        { type: 'Shots on Goal', value: 3 },
+        { type: 'Corner Kicks', value: 4 },
+        { type: 'Fouls', value: 12 },
+        { type: 'expected_goals', value: 0.88 },
+        { type: 'Shots insidebox', value: 4 },
+      ] },
+    ] as never);
+
+    const result = await runPromptOnlyAnalysisForMatch('100', { forceAnalyze: true });
+
+    expect(result.prompt).toContain('ADVANCED QUANT STATS');
+    expect(result.prompt).toContain('"expected_goals":{"home":"1.42","away":"0.88"}');
+    expect(result.prompt).toContain('"shots_inside_box":{"home":"7","away":"4"}');
+    expect(result.result.debug?.promptDataLevel).toBe('advanced-upgraded');
   });
 
   test('records active and shadow prompt outputs with shared analysisRunId when shadow is enabled', async () => {
@@ -1333,13 +1433,13 @@ describe('runPipelineBatch', () => {
 
     const { createRecommendation, markRecommendationNotified } = await import('../repos/recommendations.repo.js');
     const { createAiPerformanceRecord } = await import('../repos/ai-performance.repo.js');
-    const { sendTelegramAlbum, sendTelegramMessage } = await import('../lib/telegram.js');
+    const { sendTelegramPhoto, sendTelegramMessage } = await import('../lib/telegram.js');
 
     expect(createRecommendation).toHaveBeenCalledTimes(1);
     expect(createAiPerformanceRecord).toHaveBeenCalledTimes(1);
     expect(markRecommendationNotified).toHaveBeenCalledTimes(1);
-    expect(sendTelegramAlbum).toHaveBeenCalledTimes(1);
-    expect(sendTelegramMessage).not.toHaveBeenCalled();
+    expect(sendTelegramPhoto).toHaveBeenCalledTimes(1);
+    expect(vi.mocked(sendTelegramMessage).mock.calls.length).toBeGreaterThanOrEqual(1);
   });
 
   test('stores shadow failure separately without breaking active pipeline result', async () => {
@@ -1509,10 +1609,80 @@ describe('runPipelineBatch', () => {
 
     const { callGemini } = await import('../lib/gemini.js');
     const prompt = vi.mocked(callGemini).mock.calls[0][0];
-    expect(prompt).toContain('SOURCE_QUALITY: high');
-    expect(prompt).toContain('TRUSTED_SOURCE_DOMAINS: reuters.com, fbref.com');
-    expect(prompt).toContain('"home_last5_points":10');
-    expect(prompt).toContain('SUMMARY: Structured strategic context summary.');
+    expect(prompt).toContain('PREMATCH EXPERT FEATURES V1');
+    expect(prompt).toContain('"source_quality":"high"');
+    expect(prompt).toContain('"trusted_source_count":2');
+    expect(prompt).toContain('"strategic_quant_fields_present":4');
+    expect(prompt).toContain('"recent_points_delta":47');
+  });
+
+  test('injects team profile features into the server prompt when both teams have profiles', async () => {
+    const teamProfilesRepo = await import('../repos/team-profiles.repo.js');
+    vi.mocked(teamProfilesRepo.getTeamProfileByTeamId)
+      .mockResolvedValueOnce({
+        team_id: '1',
+        profile: {
+          attack_style: 'direct',
+          defensive_line: 'high',
+          pressing_intensity: 'high',
+          set_piece_threat: 'high',
+          home_strength: 'strong',
+          form_consistency: 'consistent',
+          squad_depth: 'deep',
+          avg_goals_scored: 1.9,
+          avg_goals_conceded: 1.1,
+          clean_sheet_rate: 0.35,
+          btts_rate: 0.58,
+          over_2_5_rate: 0.62,
+          avg_corners_for: 6.2,
+          avg_corners_against: 4.1,
+          avg_cards: 2.1,
+          first_goal_rate: 0.64,
+          late_goal_rate: 0.41,
+          data_reliability_tier: 'high',
+        },
+        notes_en: '',
+        notes_vi: '',
+        created_at: '',
+        updated_at: '',
+      } as never)
+      .mockResolvedValueOnce({
+        team_id: '2',
+        profile: {
+          attack_style: 'counter',
+          defensive_line: 'low',
+          pressing_intensity: 'medium',
+          set_piece_threat: 'medium',
+          home_strength: 'normal',
+          form_consistency: 'inconsistent',
+          squad_depth: 'medium',
+          avg_goals_scored: 1.1,
+          avg_goals_conceded: 1.6,
+          clean_sheet_rate: 0.18,
+          btts_rate: 0.61,
+          over_2_5_rate: 0.57,
+          avg_corners_for: 4.0,
+          avg_corners_against: 5.9,
+          avg_cards: 2.8,
+          first_goal_rate: 0.39,
+          late_goal_rate: 0.36,
+          data_reliability_tier: 'medium',
+        },
+        notes_en: '',
+        notes_vi: '',
+        created_at: '',
+        updated_at: '',
+      } as never);
+
+    await runPipelineBatch(['100']);
+
+    const { callGemini } = await import('../lib/gemini.js');
+    const prompt = vi.mocked(callGemini).mock.calls[0][0];
+    expect(prompt).toContain('PREMATCH EXPERT FEATURES V1');
+    expect(prompt).toContain('"team_profile_fields_present":36');
+    expect(prompt).toContain('"optional_team_profile":{');
+    expect(prompt).toContain('"first_goal_edge_score":25');
+    expect(prompt).toContain('"prematch_noise_penalty":0');
   });
 
   test('does not inject sparse top-league strategic context even if stored refresh_status is good', async () => {
@@ -1574,7 +1744,7 @@ describe('runPipelineBatch', () => {
     const { callGemini } = await import('../lib/gemini.js');
     const prompt = vi.mocked(callGemini).mock.calls[0][0];
     expect(prompt).not.toContain('Sparse top-league context.');
-    expect(prompt).not.toContain('TRUSTED_SOURCE_DOMAINS: reuters.com, fbref.com');
+    expect(prompt).not.toContain('"trusted_source_count":2');
   });
 
   test('logs audit on successful analysis', async () => {
@@ -1584,6 +1754,15 @@ describe('runPipelineBatch', () => {
     expect(audit).toHaveBeenCalledWith(expect.objectContaining({
       category: 'PIPELINE',
       action: 'PIPELINE_MATCH_ANALYZED',
+      metadata: expect.objectContaining({
+        promptDataLevel: 'advanced-upgraded',
+        prematchAvailability: 'minimal',
+        prematchNoisePenalty: 60,
+        prematchStrength: 'weak',
+        promptVersion: expect.any(String),
+        statsSource: 'api-football',
+        evidenceMode: 'full_live_data',
+      }),
     }));
   });
 
@@ -1618,11 +1797,14 @@ describe('runPipelineBatch', () => {
     }));
 
     const result = await runPipelineBatch(['100']);
+    const { createRecommendation } = await import('../repos/recommendations.repo.js');
+    const { createAiPerformanceRecord } = await import('../repos/ai-performance.repo.js');
     // parseAiResponse should block due to confidence < 5
     expect(result.results[0].shouldPush).toBe(false);
-    // But still SAVES because AI raw intent was should_push=true
-    expect(result.results[0].saved).toBe(true);
-    // No Telegram because system blocked it
+    expect(result.results[0].saved).toBe(false);
+    expect(result.results[0].notified).toBe(false);
+    expect(createRecommendation).not.toHaveBeenCalled();
+    expect(createAiPerformanceRecord).not.toHaveBeenCalled();
     const { sendTelegramMessage } = await import('../lib/telegram.js');
     expect(sendTelegramMessage).not.toHaveBeenCalled();
   });
@@ -1644,11 +1826,14 @@ describe('runPipelineBatch', () => {
     }));
 
     const result = await runPipelineBatch(['100']);
+    const { createRecommendation } = await import('../repos/recommendations.repo.js');
+    const { createAiPerformanceRecord } = await import('../repos/ai-performance.repo.js');
     // System blocks shouldPush (no selection)
     expect(result.results[0].shouldPush).toBe(false);
-    // But still SAVES because AI raw intent was should_push=true
-    expect(result.results[0].saved).toBe(true);
-    // No Telegram because system blocked it
+    expect(result.results[0].saved).toBe(false);
+    expect(result.results[0].notified).toBe(false);
+    expect(createRecommendation).not.toHaveBeenCalled();
+    expect(createAiPerformanceRecord).not.toHaveBeenCalled();
     const { sendTelegramMessage } = await import('../lib/telegram.js');
     expect(sendTelegramMessage).not.toHaveBeenCalled();
   });
@@ -1656,8 +1841,8 @@ describe('runPipelineBatch', () => {
   test('Telegram handles long messages by chunking', async () => {
     const longReasoning = 'A'.repeat(4000);
     const { callGemini } = await import('../lib/gemini.js');
-    const { sendTelegramAlbum } = await import('../lib/telegram.js');
-    vi.mocked(sendTelegramAlbum).mockRejectedValueOnce(new Error('album unavailable in test'));
+    const { sendTelegramPhoto } = await import('../lib/telegram.js');
+    vi.mocked(sendTelegramPhoto).mockRejectedValueOnce(new Error('photo unavailable in test'));
     vi.mocked(callGemini).mockResolvedValueOnce(JSON.stringify({
       should_push: true,
       selection: 'Over 2.5 Goals @1.85',

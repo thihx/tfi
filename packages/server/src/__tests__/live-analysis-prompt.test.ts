@@ -197,7 +197,7 @@ describe('buildLiveAnalysisPrompt', () => {
     expect(prompt).toContain('If DYNAMIC PERFORMANCE PRIORS are present and the chosen market is tagged as a caution prior');
   });
 
-  test('renders structured strategic context v2 with source quality and quantitative priors', () => {
+  test('renders prematch expert features block from structured prematch inputs', () => {
     const prompt = buildLiveAnalysisPrompt({
       ...baseInput,
       strategicContext: {
@@ -247,12 +247,13 @@ describe('buildLiveAnalysisPrompt', () => {
       } as unknown as Record<string, unknown>,
     }, settings);
 
-    expect(prompt).toContain('SOURCE_QUALITY: high');
-    expect(prompt).toContain('PREDICTION_FALLBACK_USED: YES');
-    expect(prompt).toContain('TRUSTED_SOURCE_DOMAINS: reuters.com, fbref.com');
-    expect(prompt).toContain('QUANTITATIVE_PREMATCH_PRIORS: {"home_last5_points":11,"away_last5_points":4,"home_last5_goals_for":9,"away_last5_goals_for":4}');
-    expect(prompt).toContain('Treat strategic context as secondary pre-match prior.');
-    expect(prompt).toContain('High Over 2.5 / BTTS rates may support attacking markets only if current tempo and shots agree.');
+    expect(prompt).toContain('PREMATCH EXPERT FEATURES V1');
+    expect(prompt).toContain('"source_quality":"high"');
+    expect(prompt).toContain('"prediction_fallback_used":true');
+    expect(prompt).toContain('"trusted_source_count":2');
+    expect(prompt).toContain('"strategic_quant_fields_present":4');
+    expect(prompt).toContain('"recent_points_delta":47');
+    expect(prompt).toContain('Use PREMATCH_EXPERT_FEATURES_V1 as a secondary prior only.');
   });
 
   test('ignores legacy strategic context without trust metadata', () => {
@@ -270,7 +271,7 @@ describe('buildLiveAnalysisPrompt', () => {
       },
     }, settings);
 
-    expect(prompt).not.toContain('STRATEGIC CONTEXT (FROM PRE-MATCH RESEARCH)');
+    expect(prompt).not.toContain('PREMATCH EXPERT FEATURES V1');
     expect(prompt).not.toContain('Legacy flat context still available.');
   });
 
@@ -319,6 +320,70 @@ describe('buildLiveAnalysisPrompt', () => {
     expect(candidate).toContain('"btts_yes"');
     expect(candidate).toContain('INVALID generic values: "ou", "over/under goals", "1X2", "btts", "asian_handicap", "corners".');
     expect(candidate).toContain('NEVER wrap the JSON in markdown fences like ```json.');
+  });
+
+  test('prunes null-only stats and collapses empty custom condition sections', () => {
+    const prompt = buildLiveAnalysisPrompt({
+      ...baseInput,
+      statsCompact: {
+        ...baseInput.statsCompact,
+        offsides: { home: null, away: null },
+        yellow_cards: { home: null, away: null },
+        red_cards: { home: null, away: null },
+      },
+      statsMeta: {},
+      customConditions: '',
+      recommendedCondition: '',
+      recommendedConditionReason: '',
+    }, settings);
+
+    expect(prompt).not.toContain('"offsides":{"home":null,"away":null}');
+    expect(prompt).not.toContain('"yellow_cards":{"home":null,"away":null}');
+    expect(prompt).not.toContain('"red_cards":{"home":null,"away":null}');
+    expect(prompt).not.toContain('STATS_META: {}');
+    expect(prompt).toContain('AI-RECOMMENDED CONDITION: none for this run.');
+    expect(prompt).toContain('No custom condition is active for this run.');
+  });
+
+  test('renders market-level odds sanity notes without discarding the whole feed', () => {
+    const prompt = buildLiveAnalysisPrompt({
+      ...baseInput,
+      oddsSanityWarnings: ['Removed BTTS market from prompt: both teams have already scored (1-1), so BTTS is already logically settled.'],
+      oddsSuspicious: false,
+    }, settings, LIVE_ANALYSIS_PROMPT_CANDIDATE_VERSION);
+
+    expect(prompt).toContain('ODDS SANITY NOTES:');
+    expect(prompt).toContain('Removed BTTS market from prompt: both teams have already scored (1-1), so BTTS is already logically settled.');
+    expect(prompt).not.toContain('ODDS SANITY CHECK FAILED:');
+  });
+
+  test('renders optional advanced quant block only when advanced coverage is sufficient', () => {
+    const prompt = buildLiveAnalysisPrompt({
+      ...baseInput,
+      statsCompact: {
+        ...baseInput.statsCompact,
+        expected_goals: { home: 1.42, away: 0.88 },
+        shots_inside_box: { home: 7, away: 4 },
+      },
+    }, settings, LIVE_ANALYSIS_PROMPT_CANDIDATE_VERSION);
+
+    expect(prompt).toContain('ADVANCED QUANT STATS');
+    expect(prompt).toContain('This optional block appears only because this match has sufficient advanced stat coverage.');
+    expect(prompt).toContain('"expected_goals":{"home":1.42,"away":0.88}');
+    expect(prompt).toContain('"shots_inside_box":{"home":7,"away":4}');
+  });
+
+  test('does not leak sparse advanced stats into prompt baseline', () => {
+    const prompt = buildLiveAnalysisPrompt({
+      ...baseInput,
+      statsCompact: {
+        ...baseInput.statsCompact,
+        expected_goals: { home: 1.42, away: null },
+      },
+    }, settings);
+
+    expect(prompt).not.toContain('ADVANCED QUANT STATS');
+    expect(prompt).not.toContain('"expected_goals"');
   });
 
   test('candidate prompt raises an active corners sanity alert for late desync-like lines', () => {

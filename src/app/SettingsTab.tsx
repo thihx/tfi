@@ -34,6 +34,11 @@ interface JobProgress {
 
 interface JobInfo {
   name: string;
+  label?: string;
+  description?: string;
+  group?: string;
+  entityScopes?: string[];
+  order?: number;
   intervalMs: number;
   lastRun: string | null;
   lastError: string | null;
@@ -71,40 +76,45 @@ const JOB_META: Record<string, { label: string; description: string; order: numb
     description: 'Probes all external services (DB, Redis, APIs, Telegram) and sends Telegram alert when a service goes down or recovers.',
     order: 8,
   },
+  'sync-reference-data': {
+    label: 'Sync Reference Data',
+    description: 'Refreshes low-churn provider-backed reference entities into TFI local storage. Current scope is league-team directory snapshots; later this can expand to more reference entities without changing the job name.',
+    order: 2,
+  },
   'enrich-watchlist': {
     label: 'Enrich Watchlist',
     description: 'Uses AI and web search to add strategic context and generate recommended conditions for watchlist entries.',
-    order: 2,
+    order: 3,
   },
   'update-predictions': {
     label: 'Update Predictions',
     description: 'Fetches prediction data from Football API for all upcoming (NS) watchlist matches.',
-    order: 3,
+    order: 4,
   },
   'check-live-trigger': {
     label: 'Check Live Matches',
     description: 'Detects currently live watchlist matches, triggers the AI analysis pipeline, and increments their check counters.',
-    order: 4,
+    order: 5,
   },
   'auto-settle': {
     label: 'Auto Settle',
     description: 'Settles pending recommendations and bets using final match scores from history or Football API.',
-    order: 5,
+    order: 6,
   },
   'expire-watchlist': {
     label: 'Expire Watchlist',
     description: 'Marks watchlist entries as expired when kickoff time + 120 minutes has passed.',
-    order: 6,
+    order: 7,
   },
   'purge-audit': {
     label: 'Purge Audit Logs',
     description: 'Deletes audit log entries older than the configured retention period (default: 30 days) to manage database growth.',
-    order: 7,
+    order: 8,
   },
   'health-watchdog': {
     label: 'Health Watchdog',
     description: 'Monitors all critical business jobs and sends Telegram alert when a job becomes overdue or recovers.',
-    order: 9,
+    order: 10,
   },
 };
 
@@ -183,10 +193,10 @@ function JobSchedulerPanel() {
 
   return (
     <div className="job-scheduler">
-      {[...jobs].sort((a, b) => (JOB_META[a.name]?.order ?? 99) - (JOB_META[b.name]?.order ?? 99)).map((job) => {
+      {[...jobs].sort((a, b) => (a.order ?? JOB_META[a.name]?.order ?? 99) - (b.order ?? JOB_META[b.name]?.order ?? 99)).map((job) => {
         const meta = JOB_META[job.name];
-        const label = meta?.label || job.name;
-        const description = meta?.description || '';
+        const label = job.label || meta?.label || job.name;
+        const description = job.description || meta?.description || '';
         const progress = job.progress;
         const isRunning = job.running;
         const isCompleted = progress?.completedAt && !isRunning;
@@ -353,12 +363,14 @@ export function SettingsTab() {
   }, []);
 
   const handleLanguageChange = async (next: 'en' | 'vi') => {
+    const previous = uiLanguage;
     setUiLanguage(next);
     try {
       await persistMonitorConfig({ UI_LANGUAGE: next });
       window.dispatchEvent(new CustomEvent('tfi:settings-updated'));
       showToast(`Display language -> ${next.toUpperCase()}`, 'success');
     } catch {
+      setUiLanguage(previous);
       showToast('Failed to save display language', 'error');
     }
   };
@@ -406,11 +418,13 @@ export function SettingsTab() {
   };
 
   const handleNotificationLanguage = async (lang: 'vi' | 'en' | 'both') => {
+    const previous = notificationLanguage;
     setNotificationLanguage(lang);
     try {
       await persistMonitorConfig({ NOTIFICATION_LANGUAGE: lang });
       showToast(`Notification language -> ${lang.toUpperCase()}`, 'success');
     } catch {
+      setNotificationLanguage(previous);
       showToast('Failed to save setting', 'error');
     }
   };

@@ -22,8 +22,8 @@ const MOCK_LEAGUE_TEAMS = [
   { team: { id: 40, name: 'Liverpool', logo: '', country: 'England' }, rank: 2 },
 ];
 
-vi.mock('../lib/football-api.js', () => ({
-  fetchTeamsByLeague: vi.fn().mockResolvedValue(MOCK_LEAGUE_TEAMS),
+vi.mock('../lib/league-team-directory.service.js', () => ({
+  getLeagueTeamsDirectory: vi.fn().mockResolvedValue(MOCK_LEAGUE_TEAMS),
 }));
 
 let app: FastifyInstance;
@@ -139,8 +139,8 @@ describe('GET /api/proxy/football/league-teams', () => {
     expect(body).toHaveLength(2);
     expect(body[0].rank).toBe(1);
 
-    const footballApi = await import('../lib/football-api.js');
-    expect(footballApi.fetchTeamsByLeague).toHaveBeenCalledWith(39);
+    const service = await import('../lib/league-team-directory.service.js');
+    expect(service.getLeagueTeamsDirectory).toHaveBeenCalledWith(39);
   });
 
   test('returns 400 when leagueId is missing', async () => {

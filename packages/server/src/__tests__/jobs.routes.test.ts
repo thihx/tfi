@@ -7,8 +7,8 @@ import { buildApp } from './helpers.js';
 import type { FastifyInstance } from 'fastify';
 
 const mockJobs = [
-  { name: 'fetch-matches', intervalMs: 60000, lastRun: null, lastError: null, running: false, enabled: true, runCount: 0, progress: null },
-  { name: 'expire-watchlist', intervalMs: 30000, lastRun: '2026-03-17T10:00:00Z', lastError: null, running: false, enabled: true, runCount: 5, progress: null },
+  { name: 'fetch-matches', label: 'Fetch Matches', description: 'Fixtures sync job', order: 1, intervalMs: 60000, lastRun: null, lastError: null, running: false, enabled: true, runCount: 0, progress: null },
+  { name: 'expire-watchlist', label: 'Expire Watchlist', description: 'Watchlist expiry job', order: 2, intervalMs: 30000, lastRun: '2026-03-17T10:00:00Z', lastError: null, running: false, enabled: true, runCount: 5, progress: null },
 ];
 
 vi.mock('../jobs/scheduler.js', () => ({
@@ -19,7 +19,7 @@ vi.mock('../jobs/scheduler.js', () => ({
     return null; // not found
   }),
   updateJobInterval: vi.fn().mockImplementation((name: string, intervalMs: number) => {
-    if (name === 'fetch-matches') return { name, intervalMs, running: false, enabled: intervalMs > 0, runCount: 0, progress: null };
+    if (name === 'fetch-matches') return { name, label: 'Fetch Matches', description: 'Fixtures sync job', order: 1, intervalMs, running: false, enabled: intervalMs > 0, runCount: 0, progress: null, concurrency: 1, activeRuns: 0, pendingRuns: 0 };
     return null; // not found
   }),
 }));
@@ -42,6 +42,7 @@ describe('GET /api/jobs', () => {
     const body = res.json();
     expect(body).toHaveLength(2);
     expect(body[0].name).toBe('fetch-matches');
+    expect(body[0].label).toBe('Fetch Matches');
   });
 });
 

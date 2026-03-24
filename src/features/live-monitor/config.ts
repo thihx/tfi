@@ -6,12 +6,29 @@
 import type { LiveMonitorConfig } from './types';
 import { getToken } from '@/lib/services/auth';
 
+const STORAGE_KEY = 'liveMonitorConfig';
+
 const API_BASE = import.meta.env.VITE_API_URL as string | undefined
   ?? (import.meta.env.MODE === 'production' ? '' : 'http://localhost:4000');
 
 function authHeaders(): Record<string, string> {
   const token = getToken();
   return token ? { Authorization: `Bearer ${token}` } : {};
+}
+
+function readMonitorConfigCache(): Partial<LiveMonitorConfig> {
+  try {
+    const stored = localStorage.getItem(STORAGE_KEY);
+    if (stored) return JSON.parse(stored) as Partial<LiveMonitorConfig>;
+  } catch {
+    // Corrupted storage — ignore
+  }
+  return {};
+}
+
+function writeMonitorConfigCache(config: LiveMonitorConfig): void {
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(config));
+  window.dispatchEvent(new CustomEvent('tfi:settings-updated'));
 }
 
 /**
@@ -54,13 +71,7 @@ export function createDefaultConfig(overrides?: Partial<LiveMonitorConfig>): Liv
  * The cache is kept in sync by fetchMonitorConfig / persistMonitorConfig.
  */
 export function loadMonitorConfig(overrides?: Partial<LiveMonitorConfig>): LiveMonitorConfig {
-  let storedOverrides: Partial<LiveMonitorConfig> = {};
-  try {
-    const stored = localStorage.getItem('liveMonitorConfig');
-    if (stored) storedOverrides = JSON.parse(stored) as Partial<LiveMonitorConfig>;
-  } catch {
-    // Corrupted storage — ignore
-  }
+  const storedOverrides = readMonitorConfigCache();
   return createDefaultConfig({ ...storedOverrides, ...overrides });
 }
 
@@ -70,7 +81,7 @@ export function loadMonitorConfig(overrides?: Partial<LiveMonitorConfig>): LiveM
 export function saveMonitorConfig(config: Partial<LiveMonitorConfig>): void {
   const current = loadMonitorConfig();
   const merged = { ...current, ...config };
-  localStorage.setItem('liveMonitorConfig', JSON.stringify(merged));
+  writeMonitorConfigCache(merged);
 }
 
 // ── API-backed persistence (DB) ──────────────────────────────
@@ -88,8 +99,7 @@ export async function fetchMonitorConfig(): Promise<LiveMonitorConfig> {
     if (res.ok) {
       const dbSettings = await res.json() as Partial<LiveMonitorConfig>;
       const config = createDefaultConfig(dbSettings);
-      // Sync localStorage cache
-      localStorage.setItem('liveMonitorConfig', JSON.stringify(config));
+      writeMonitorConfigCache(config);
       return config;
     }
   } catch {
@@ -102,8 +112,6 @@ export async function fetchMonitorConfig(): Promise<LiveMonitorConfig> {
  * Persist config to server DB and update localStorage cache.
  */
 export async function persistMonitorConfig(config: Partial<LiveMonitorConfig>): Promise<void> {
-  // Always update localStorage cache immediately
-  saveMonitorConfig(config);
   const res = await fetch(`${API_BASE}/api/settings`, {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json', ...authHeaders() },
@@ -111,4 +119,6 @@ export async function persistMonitorConfig(config: Partial<LiveMonitorConfig>): 
     credentials: 'include',
   });
   if (!res.ok) throw new Error(`Save failed: ${res.status}`);
+  const saved = createDefaultConfig(await res.json() as Partial<LiveMonitorConfig>);
+  writeMonitorConfigCache(saved);
 }

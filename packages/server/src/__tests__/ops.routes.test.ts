@@ -8,17 +8,17 @@ const mockSnapshot = {
     { id: 'pipeline-activity', label: 'Pipeline activity is present', status: 'pass', detail: 'ok' },
   ],
   cards: [
-    { label: 'Push Rate 24h', value: '40%', tone: 'neutral' },
+    { label: 'Notify-Eligible Rate 24h', value: '40%', tone: 'neutral' },
   ],
   pipeline: {
     activityLast2h: 10,
     analyzed24h: 20,
-    shouldPush24h: 8,
+    notifyEligible24h: 8,
     saved24h: 10,
     notified24h: 6,
     skipped24h: 5,
     errors24h: 1,
-    pushRate24h: 40,
+    notifyEligibleRate24h: 40,
     saveRate24h: 50,
     notifyRate24h: 75,
     topSkipReasons: [],
@@ -73,7 +73,7 @@ describe('GET /api/ops/overview', () => {
     expect(res.statusCode).toBe(200);
     const body = res.json();
     expect(body.generatedAt).toBe(mockSnapshot.generatedAt);
-    expect(body.pipeline.pushRate24h).toBe(40);
+    expect(body.pipeline.notifyEligibleRate24h).toBe(40);
     expect(body.providers.statsSuccessRate).toBe(80);
     expect(body.settlement.recommendationPending).toBe(5);
     expect(body.notifications.deliveredRecommendations24h).toBe(6);
