@@ -46,7 +46,7 @@ const mockWatchlist = [
 ];
 
 vi.mock('../repos/watchlist.repo.js', () => ({
-  getActiveWatchlist: vi.fn().mockResolvedValue(mockWatchlist),
+  getActiveOperationalWatchlist: vi.fn().mockResolvedValue(mockWatchlist),
   incrementChecksForMatches: vi.fn().mockResolvedValue(undefined),
 }));
 
@@ -95,7 +95,7 @@ describe('checkLiveTriggerJob', () => {
 
   test('returns 0 when watchlist is empty', async () => {
     const watchlistRepo = await import('../repos/watchlist.repo.js');
-    vi.mocked(watchlistRepo.getActiveWatchlist).mockResolvedValueOnce([]);
+    vi.mocked(watchlistRepo.getActiveOperationalWatchlist).mockResolvedValueOnce([]);
 
     const result = await checkLiveTriggerJob();
     expect(result).toEqual({ liveCount: 0 });

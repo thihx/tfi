@@ -261,7 +261,7 @@ async function persistRetryState(
     updateFields.strategic_context_at = attemptedAt;
   }
 
-  await watchlistRepo.updateWatchlistEntry(entry.match_id, updateFields);
+  await watchlistRepo.updateOperationalWatchlistEntry(entry.match_id, updateFields);
 }
 
 export async function enrichWatchlistJob(): Promise<{ checked: number; enriched: number }> {
@@ -277,7 +277,7 @@ export async function enrichWatchlistJob(): Promise<{ checked: number; enriched:
     statusMap.set(match.match_id, match.status.toUpperCase());
   }
 
-  const watchlist = await watchlistRepo.getActiveWatchlist();
+  const watchlist = await watchlistRepo.getActiveOperationalWatchlist();
   const settings = await getSettings().catch(() => ({}));
   const autoApplyDefault =
     (settings as Record<string, unknown>).AUTO_APPLY_RECOMMENDED_CONDITION !== false;
@@ -409,7 +409,7 @@ export async function enrichWatchlistJob(): Promise<{ checked: number; enriched:
         }
       }
 
-      await watchlistRepo.updateWatchlistEntry(entry.match_id, updateFields);
+      await watchlistRepo.updateOperationalWatchlistEntry(entry.match_id, updateFields);
       enriched++;
       console.log(`[enrichWatchlistJob] Enriched ${entry.home_team} vs ${entry.away_team}`);
     } catch (err) {

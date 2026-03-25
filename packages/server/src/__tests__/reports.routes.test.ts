@@ -6,6 +6,24 @@ import { describe, test, expect, vi, beforeAll, afterAll } from 'vitest';
 import { buildApp } from './helpers.js';
 import type { FastifyInstance } from 'fastify';
 
+const OWNER_USER = {
+  userId: 'owner-1',
+  email: 'owner@example.com',
+  role: 'owner' as const,
+  status: 'active' as const,
+  displayName: 'Owner',
+  avatarUrl: '',
+};
+
+const MEMBER_USER = {
+  userId: 'member-1',
+  email: 'member@example.com',
+  role: 'member' as const,
+  status: 'active' as const,
+  displayName: 'Member',
+  avatarUrl: '',
+};
+
 const mockOverview = { total: 100, wins: 60, losses: 30, winRate: 60, totalPnl: 25.5 };
 const mockLeagueRows = [{ league: 'Premier League', total: 50, wins: 30, pnl: 12 }];
 const mockMarketRows = [{ market: 'ou2.5', total: 40, wins: 25, pnl: 10 }];
@@ -35,14 +53,17 @@ vi.mock('../repos/reports.repo.js', () => ({
 }));
 
 let app: FastifyInstance;
+let memberApp: FastifyInstance;
 
 beforeAll(async () => {
   const { reportRoutes } = await import('../routes/reports.routes.js');
-  app = await buildApp(reportRoutes);
+  app = await buildApp([reportRoutes], { currentUser: OWNER_USER });
+  memberApp = await buildApp([reportRoutes], { currentUser: MEMBER_USER });
 });
 
 afterAll(async () => {
   await app.close();
+  await memberApp.close();
 });
 
 // ── Test all 12 report endpoints ──
@@ -73,6 +94,11 @@ function getNestedValue(obj: unknown, path: string): unknown {
 }
 
 describe('Reports endpoints', () => {
+  test('rejects member role', async () => {
+    const res = await memberApp.inject({ method: 'GET', url: '/api/reports/overview' });
+    expect(res.statusCode).toBe(403);
+  });
+
   for (const { path, key, expected } of cases) {
     test(`GET ${path} returns data`, async () => {
       const res = await app.inject({ method: 'GET', url: path });

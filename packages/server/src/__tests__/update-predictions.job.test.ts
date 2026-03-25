@@ -27,8 +27,8 @@ const mockWatchlist = [
 ];
 
 vi.mock('../repos/watchlist.repo.js', () => ({
-  getAllWatchlist: vi.fn().mockResolvedValue(mockWatchlist),
-  updateWatchlistEntry: vi.fn().mockResolvedValue({}),
+  getActiveOperationalWatchlist: vi.fn().mockResolvedValue(mockWatchlist),
+  updateOperationalWatchlistEntry: vi.fn().mockResolvedValue({}),
 }));
 
 vi.mock('../lib/football-api.js', () => ({
@@ -58,7 +58,7 @@ describe('updatePredictionsJob', () => {
     expect(result.updated).toBe(1); // only match 100 has prediction
 
     const watchlistRepo = await import('../repos/watchlist.repo.js');
-    expect(watchlistRepo.updateWatchlistEntry).toHaveBeenCalledWith(
+    expect(watchlistRepo.updateOperationalWatchlistEntry).toHaveBeenCalledWith(
       '100',
       expect.objectContaining({ prediction: { winner: 'Arsenal', advice: 'Home win' } }),
     );
@@ -67,7 +67,7 @@ describe('updatePredictionsJob', () => {
   test('clears prediction when API returns null', async () => {
     await updatePredictionsJob();
     const watchlistRepo = await import('../repos/watchlist.repo.js');
-    expect(watchlistRepo.updateWatchlistEntry).toHaveBeenCalledWith(
+    expect(watchlistRepo.updateOperationalWatchlistEntry).toHaveBeenCalledWith(
       '300',
       expect.objectContaining({ prediction: null }),
     );
@@ -75,7 +75,7 @@ describe('updatePredictionsJob', () => {
 
   test('returns 0 checked when watchlist is empty', async () => {
     const watchlistRepo = await import('../repos/watchlist.repo.js');
-    vi.mocked(watchlistRepo.getAllWatchlist).mockResolvedValueOnce([]);
+    vi.mocked(watchlistRepo.getActiveOperationalWatchlist).mockResolvedValueOnce([]);
 
     const result = await updatePredictionsJob();
     expect(result).toEqual({ checked: 0, updated: 0 });
@@ -104,7 +104,7 @@ describe('updatePredictionsJob', () => {
 
   test('skips NS entries that already have cached prediction data', async () => {
     const watchlistRepo = await import('../repos/watchlist.repo.js');
-    vi.mocked(watchlistRepo.getAllWatchlist).mockResolvedValueOnce([
+    vi.mocked(watchlistRepo.getActiveOperationalWatchlist).mockResolvedValueOnce([
       { match_id: '100', home_team: 'Arsenal', away_team: 'Chelsea', prediction: { predictions: { advice: 'Home win' } } },
       { match_id: '300', home_team: 'Barca', away_team: 'Real', prediction: null },
     ] as never);
@@ -119,7 +119,7 @@ describe('updatePredictionsJob', () => {
 
   test('force mode refreshes cached prediction rows', async () => {
     const watchlistRepo = await import('../repos/watchlist.repo.js');
-    vi.mocked(watchlistRepo.getAllWatchlist).mockResolvedValueOnce([
+    vi.mocked(watchlistRepo.getActiveOperationalWatchlist).mockResolvedValueOnce([
       { match_id: '100', home_team: 'Arsenal', away_team: 'Chelsea', prediction: { predictions: { advice: 'Home win' } } },
     ] as never);
 

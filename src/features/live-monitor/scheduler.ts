@@ -26,7 +26,7 @@ export type SchedulerCallback = (state: SchedulerState) => void;
 const DEFAULT_INTERVAL_MS = 5 * 60_000; // 5 minutes
 
 let timerId: ReturnType<typeof setTimeout> | null = null;
-let state: SchedulerState = {
+const state: SchedulerState = {
   status: 'idle',
   intervalMs: DEFAULT_INTERVAL_MS,
   lastRun: null,

@@ -10,6 +10,8 @@ import type { FastifyInstance } from 'fastify';
 import { randomBytes, timingSafeEqual } from 'node:crypto';
 import { config } from '../config.js';
 import { signToken, verifyToken } from '../lib/jwt.js';
+import { toAuthUserResponse } from '../lib/request-user.js';
+import { getUserById, resolveOrCreateUserFromIdentity } from '../repos/users.repo.js';
 
 const GOOGLE_AUTH_URL = 'https://accounts.google.com/o/oauth2/v2/auth';
 const GOOGLE_TOKEN_URL = 'https://oauth2.googleapis.com/token';
@@ -106,6 +108,7 @@ async function fetchJsonWithTimeout<T>(url: string, init: RequestInit, label: st
 
 export async function authRoutes(app: FastifyInstance) {
   const oauthReady = !!(config.jwtSecret && config.googleClientId && config.googleClientSecret);
+  const allowedEmails = new Set(config.allowedEmails.map((email) => email.toLowerCase()));
 
   function createState(): string {
     return randomBytes(32).toString('hex');
@@ -181,11 +184,12 @@ export async function authRoutes(app: FastifyInstance) {
         return reply.redirect(buildFrontendRedirect({ auth_error: 'token_exchange_failed' }));
       }
 
+      let providerSubject: string;
       let userEmail: string;
       let userName: string;
       let userPicture: string;
       try {
-        const user = await fetchJsonWithTimeout<{ email?: string; name?: string; picture?: string }>(
+        const user = await fetchJsonWithTimeout<{ id?: string; email?: string; name?: string; picture?: string }>(
           GOOGLE_USER_URL,
           {
             headers: { Authorization: `Bearer ${accessToken}` },
@@ -193,7 +197,8 @@ export async function authRoutes(app: FastifyInstance) {
           'Google profile fetch failed',
         );
         if (!user.email) throw new Error('No email in user profile');
-        userEmail = user.email;
+        providerSubject = user.id || user.email;
+        userEmail = user.email.toLowerCase();
         userName = user.name || user.email;
         userPicture = user.picture || '';
       } catch (err) {
@@ -201,13 +206,32 @@ export async function authRoutes(app: FastifyInstance) {
         return reply.redirect(buildFrontendRedirect({ auth_error: 'profile_fetch_failed' }));
       }
 
-      if (config.allowedEmails.length > 0 && !config.allowedEmails.includes(userEmail)) {
+      if (allowedEmails.size > 0 && !allowedEmails.has(userEmail)) {
         app.log.warn(`[auth] Blocked login attempt from: ${userEmail}`);
         return reply.redirect(buildFrontendRedirect({ auth_error: 'not_allowed' }));
       }
 
+      const user = await resolveOrCreateUserFromIdentity({
+        provider: 'google',
+        providerSubject,
+        email: userEmail,
+        displayName: userName,
+        avatarUrl: userPicture,
+      });
+
+      if (user.status !== 'active') {
+        app.log.warn(`[auth] Login blocked for disabled user: ${user.email}`);
+        return reply.redirect(buildFrontendRedirect({ auth_error: 'account_disabled' }));
+      }
+
       const jwt = signToken(
-        { sub: userEmail, name: userName, picture: userPicture },
+        {
+          sub: user.id,
+          email: user.email,
+          role: user.role,
+          name: user.display_name,
+          picture: user.avatar_url,
+        },
         config.jwtSecret,
         config.jwtExpiresInSeconds,
       );
@@ -228,7 +252,11 @@ export async function authRoutes(app: FastifyInstance) {
     const payload = verifyToken(token, config.jwtSecret);
     if (!payload) return reply.status(401).send({ error: 'Invalid or expired token' });
 
-    return reply.send({ email: payload.sub, name: payload.name, picture: payload.picture });
+    const user = await getUserById(payload.sub);
+    if (!user) return reply.status(401).send({ error: 'Invalid or expired token' });
+    if (user.status !== 'active') return reply.status(403).send({ error: 'Account disabled' });
+
+    return reply.send(toAuthUserResponse(user));
   });
 
   app.post('/api/auth/logout', async (_req, reply) => {

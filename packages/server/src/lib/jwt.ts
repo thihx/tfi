@@ -6,7 +6,9 @@
 import { createHmac } from 'node:crypto';
 
 export interface JwtPayload {
-  sub: string;    // email
+  sub: string;    // internal user id
+  email: string;
+  role: 'owner' | 'admin' | 'member';
   name: string;
   picture: string;
   iat: number;

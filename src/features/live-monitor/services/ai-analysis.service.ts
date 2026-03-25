@@ -112,6 +112,7 @@ export async function routeAndCallAi(
   matchData: MergedMatchData,
   _context?: AiPromptContext,
 ): Promise<string> {
+  void _context;
   const provider = monitorConfig.AI_PROVIDER;
   const model = monitorConfig.AI_MODEL;
   return runAiAnalysis(

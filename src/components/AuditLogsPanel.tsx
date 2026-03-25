@@ -133,8 +133,19 @@ export function AuditLogsPanel() {
     setLoading(false);
   }, [apiUrl, page, filterCategory, filterOutcome, filterAction, filterPrematchStrength, filterPrematchNoiseMin]);
 
-  useEffect(() => { fetchStats(); }, [fetchStats]);
-  useEffect(() => { fetchLogs(); }, [fetchLogs]);
+  useEffect(() => {
+    const timerId = window.setTimeout(() => {
+      void fetchStats();
+    }, 0);
+    return () => window.clearTimeout(timerId);
+  }, [fetchStats]);
+
+  useEffect(() => {
+    const timerId = window.setTimeout(() => {
+      void fetchLogs();
+    }, 0);
+    return () => window.clearTimeout(timerId);
+  }, [fetchLogs]);
 
   const totalPages = Math.ceil(total / PAGE_SIZE) || 1;
 

@@ -164,8 +164,8 @@ export function repairJson(raw: string): string {
   let s = raw.trim();
   s = s.replace(/^```(?:json)?\s*/i, '').replace(/\s*```\s*$/, '').trim();
   s = s.replace(/"([^"]+)"\s*:\s*,/g, '"$1": null,');
-  s = s.replace(/"([^"]+)"\s*:\s*([\}\]])/g, '"$1": null$2');
-  s = s.replace(/,(\s*[\}\]])/g, '$1');
+  s = s.replace(/"([^"]+)"\s*:\s*([}\]])/g, '"$1": null$2');
+  s = s.replace(/,(\s*[}\]])/g, '$1');
   return s;
 }
 

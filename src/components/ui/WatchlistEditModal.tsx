@@ -41,25 +41,20 @@ interface WatchlistEditModalProps {
 }
 
 export function WatchlistEditModal({ item, defaultMode, uiLanguage, onClose, onSave }: WatchlistEditModalProps) {
-  const [editMode, setEditMode] = useState('');
-  const [editPriority, setEditPriority] = useState('2');
-  const [editStatus, setEditStatus] = useState('active');
-  const [editConditions, setEditConditions] = useState('');
-  const [autoApplyRecommendedCondition, setAutoApplyRecommendedCondition] = useState(true);
+  const [editMode, setEditMode] = useState(() => item?.mode || defaultMode);
+  const [editPriority, setEditPriority] = useState(() => String(item?.priority || 2));
+  const [editStatus, setEditStatus] = useState(() => item?.status || 'active');
+  const [editConditions, setEditConditions] = useState(() => item?.custom_conditions || '');
+  const [autoApplyRecommendedCondition, setAutoApplyRecommendedCondition] = useState(() => item?.auto_apply_recommended_condition ?? true);
 
   useEffect(() => {
     if (!item) return;
-    setEditMode(item.mode || defaultMode);
-    setEditPriority(String(item.priority || 2));
-    setEditStatus(item.status || 'active');
-    setEditConditions(item.custom_conditions || '');
-    setAutoApplyRecommendedCondition(item.auto_apply_recommended_condition ?? true);
+    let cancelled = false;
 
     if (item.auto_apply_recommended_condition != null) {
       return;
     }
 
-    let cancelled = false;
     void fetchMonitorConfig()
       .then((monitorConfig) => {
         if (cancelled) return;
@@ -70,7 +65,7 @@ export function WatchlistEditModal({ item, defaultMode, uiLanguage, onClose, onS
     return () => {
       cancelled = true;
     };
-  }, [item, defaultMode]);
+  }, [item]);
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();

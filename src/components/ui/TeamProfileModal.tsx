@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { Modal } from '@/components/ui/Modal';
 import type { TeamProfile, TeamProfileData } from '@/types';
 import {
@@ -61,6 +61,15 @@ function parseNullableNumber(v: string): number | null {
 
 function toInputValue(v: number | null): string {
   return v == null ? '' : String(v);
+}
+
+function getInitialDraft(profile: TeamProfile | null): TeamProfileDraft {
+  if (!profile) return { ...DEFAULT_TEAM_PROFILE_DRAFT };
+  return {
+    profile: profile.profile,
+    notes_en: profile.notes_en,
+    notes_vi: profile.notes_vi,
+  };
 }
 
 // ── Shared option type ────────────────────────────────────────────────────────
@@ -390,28 +399,13 @@ export function TeamProfileModal({
   team, leagueName, profile, loading, saving, onClose, onSave, onDelete,
 }: TeamProfileModalProps) {
   const [innerTab, setInnerTab] = useState<InnerTab>('profile');
-  const [draft, setDraft]       = useState<TeamProfileDraft>(DEFAULT_TEAM_PROFILE_DRAFT);
+  const [draft, setDraft] = useState<TeamProfileDraft>(() => getInitialDraft(profile));
   const [wizardStep, setWizardStep]     = useState(1);
   const [jsonInput, setJsonInput]       = useState('');
   const [parseResult, setParseResult]   = useState<ParseImportResult | null>(null);
   const [parseError, setParseError]     = useState('');
   const [copied, setCopied]             = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
-
-  // Sync draft when profile changes
-  useEffect(() => {
-    if (profile) {
-      setDraft({ profile: profile.profile, notes_en: profile.notes_en, notes_vi: profile.notes_vi });
-    } else {
-      setDraft({ ...DEFAULT_TEAM_PROFILE_DRAFT });
-    }
-    setInnerTab('profile');
-    setWizardStep(1);
-    setJsonInput('');
-    setParseResult(null);
-    setParseError('');
-    setConfirmDelete(false);
-  }, [profile, team]);
 
   if (!team) return null;
 

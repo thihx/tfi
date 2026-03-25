@@ -29,7 +29,7 @@ export async function checkLiveTriggerJob(): Promise<{
 
   // 1. Get active watchlist match IDs
   await reportJobProgress(JOB, 'load', 'Loading active watchlist...', 15);
-  const activeWatchlist = await watchlistRepo.getActiveWatchlist();
+  const activeWatchlist = await watchlistRepo.getActiveOperationalWatchlist();
   if (activeWatchlist.length === 0) {
     return { liveCount: 0 };
   }

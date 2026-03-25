@@ -10,10 +10,16 @@ vi.mock('../jobs/scheduler.js', () => ({ getJobsStatus: vi.fn(), getSchedulerUpt
 vi.mock('../lib/telegram.js', () => ({ sendTelegramMessage: vi.fn() }));
 vi.mock('../lib/redis.js', () => ({ getRedisClient: vi.fn() }));
 vi.mock('../config.js', () => ({
-  config: { pipelineTelegramChatId: 'chat123', telegramBotToken: 'bot:TOKEN' },
+  config: { telegramBotToken: 'bot:TOKEN' },
 }));
 vi.mock('../lib/audit.js', () => ({ audit: vi.fn() }));
 vi.mock('../jobs/job-progress.js', () => ({ reportJobProgress: vi.fn() }));
+vi.mock('../lib/telegram-runtime.js', () => ({
+  loadOperationalTelegramSettings: vi.fn().mockResolvedValue({
+    chatId: 'chat123',
+    enabled: true,
+  }),
+}));
 
 import { getJobsStatus, getSchedulerUptime } from '../jobs/scheduler.js';
 import { sendTelegramMessage } from '../lib/telegram.js';

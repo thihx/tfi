@@ -8,7 +8,6 @@ import { Header } from '@/components/layout/Header';
 import { BottomNav } from '@/components/layout/BottomNav';
 import { Sidebar } from '@/components/layout/Sidebar';
 import { LoginScreen } from '@/app/LoginScreen';
-import { MatchDetailModal } from '@/components/ui/MatchDetailModal';
 import type { TabName } from '@/types';
 
 // bundle-dynamic-imports: lazy-load each tab so users only download code for tabs they visit
@@ -21,6 +20,7 @@ const LiveMonitorTab = lazy(() => import('@/app/LiveMonitorTab').then((m) => ({ 
 const ReportsTab = lazy(() => import('@/app/ReportsTab').then((m) => ({ default: m.ReportsTab })));
 const LeaguesTab = lazy(() => import('@/app/LeaguesTab').then((m) => ({ default: m.LeaguesTab })));
 const SettingsTab = lazy(() => import('@/app/SettingsTab').then((m) => ({ default: m.SettingsTab })));
+const MatchDetailModal = lazy(() => import('@/components/ui/MatchDetailModal').then((m) => ({ default: m.MatchDetailModal })));
 
 function TabFallback() {
   return (
@@ -51,9 +51,10 @@ function AppContent() {
   }, [authed]);
 
   // Track last user activity — refresh only when active (within 5 minutes)
-  const lastActivityRef = useRef(Date.now());
+    const lastActivityRef = useRef(0);
   useEffect(() => {
     const ACTIVE_EVENTS = ['mousemove', 'keydown', 'click', 'scroll', 'touchstart'] as const;
+      lastActivityRef.current = Date.now();
     const update = () => { lastActivityRef.current = Date.now(); };
     ACTIVE_EVENTS.forEach((e) => window.addEventListener(e, update, { passive: true }));
     return () => ACTIVE_EVENTS.forEach((e) => window.removeEventListener(e, update));
@@ -139,13 +140,15 @@ function AppContent() {
       <GlobalLoader loading={state.loading} progress={state.loadingProgress} message={state.loadingMessage} />
 
       {pushModal && (
-        <MatchDetailModal
-          open
-          matchId={pushModal.id}
-          matchDisplay={pushModal.display}
-          initialTab="recs"
-          onClose={() => setPushModal(null)}
-        />
+        <Suspense fallback={<TabFallback />}>
+          <MatchDetailModal
+            open
+            matchId={pushModal.id}
+            matchDisplay={pushModal.display}
+            initialTab="recs"
+            onClose={() => setPushModal(null)}
+          />
+        </Suspense>
       )}
 
       {isMobile ? (

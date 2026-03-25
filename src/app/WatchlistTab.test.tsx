@@ -16,6 +16,7 @@ const defaultConfig: AppConfig = {
 
 function makeItem(overrides: Partial<WatchlistItem> = {}): WatchlistItem {
   return {
+    id: 7,
     match_id: '100',
     date: '2026-03-18',
     league: 'Premier League',
@@ -32,11 +33,9 @@ function makeItem(overrides: Partial<WatchlistItem> = {}): WatchlistItem {
 
 const ACTIVE_1 = makeItem({ match_id: '100', home_team: 'Arsenal', away_team: 'Chelsea', status: 'active' });
 const ACTIVE_2 = makeItem({ match_id: '101', home_team: 'Liverpool', away_team: 'Man City', status: 'active' });
-const EXPIRED_1 = makeItem({ match_id: '200', home_team: 'Barca', away_team: 'Real Madrid', status: 'expired', date: '2026-03-16' });
-const EXPIRED_2 = makeItem({ match_id: '201', home_team: 'Bayern', away_team: 'Dortmund', status: 'expired', date: '2026-03-15' });
 const PENDING_1 = makeItem({ match_id: '300', home_team: 'PSG', away_team: 'Lyon', status: 'pending' });
 
-const ALL_ITEMS = [ACTIVE_1, ACTIVE_2, EXPIRED_1, EXPIRED_2, PENDING_1];
+const ALL_ITEMS = [ACTIVE_1, ACTIVE_2, PENDING_1];
 
 // ── Mock useAppState ──────────────────────────────────
 
@@ -98,24 +97,7 @@ describe('WatchlistTab — status filtering', () => {
     // Active: Arsenal, Chelsea, Liverpool, Man City
     expect(teams).toContain('Arsenal');
     expect(teams).toContain('Liverpool');
-    // Expired should NOT appear
-    expect(teams).not.toContain('Barca');
-    expect(teams).not.toContain('Bayern');
     // Pending should NOT appear
-    expect(teams).not.toContain('PSG');
-  });
-
-  it('shows expired entries when status filter changed to Expired', async () => {
-    const user = userEvent.setup();
-    render(<WatchlistTab />);
-
-    const statusSelect = screen.getByDisplayValue('Active');
-    await user.selectOptions(statusSelect, 'expired');
-
-    const teams = getVisibleTeams();
-    expect(teams).toContain('Barca');
-    expect(teams).toContain('Bayern');
-    expect(teams).not.toContain('Arsenal');
     expect(teams).not.toContain('PSG');
   });
 
@@ -128,8 +110,6 @@ describe('WatchlistTab — status filtering', () => {
 
     const teams = getVisibleTeams();
     expect(teams).toContain('Arsenal');
-    expect(teams).toContain('Barca');
-    expect(teams).toContain('Bayern');
     expect(teams).toContain('PSG');
   });
 
@@ -156,19 +136,6 @@ describe('WatchlistTab — status badge rendering', () => {
     expect(within(dataRows[0]!).getByText('Active')).toBeInTheDocument();
   });
 
-  it('renders Expired badge for expired entries', async () => {
-    const user = userEvent.setup();
-    mockWatchlist = [EXPIRED_1];
-    render(<WatchlistTab />);
-
-    const statusSelect = screen.getByDisplayValue('Active');
-    await user.selectOptions(statusSelect, 'expired');
-
-    const dataRows = screen.getAllByRole('row').filter((r) => within(r).queryByText('Expired'));
-    expect(dataRows.length).toBeGreaterThanOrEqual(1);
-    expect(within(dataRows[0]!).getByText('Expired')).toBeInTheDocument();
-  });
-
   it('renders Pending badge for pending entries', async () => {
     const user = userEvent.setup();
     mockWatchlist = [PENDING_1];
@@ -191,7 +158,7 @@ describe('WatchlistTab — clear filters', () => {
     // Change to show all
     const statusSelect = screen.getByDisplayValue('Active');
     await user.selectOptions(statusSelect, '');
-    expect(getVisibleTeams()).toContain('Barca');
+    expect(getVisibleTeams()).toContain('PSG');
 
     // Click Clear Filters
     await user.click(screen.getByText('Clear Filters'));
@@ -199,13 +166,13 @@ describe('WatchlistTab — clear filters', () => {
     // Should revert to active-only
     const teams = getVisibleTeams();
     expect(teams).toContain('Arsenal');
-    expect(teams).not.toContain('Barca');
+    expect(teams).not.toContain('PSG');
   });
 });
 
 describe('WatchlistTab — empty state', () => {
   it('shows empty state when no active entries exist', () => {
-    mockWatchlist = [EXPIRED_1, EXPIRED_2];
+    mockWatchlist = [PENDING_1];
     render(<WatchlistTab />);
 
     // No active entries → should show empty message
@@ -217,10 +184,26 @@ describe('WatchlistTab — empty state', () => {
     mockWatchlist = [ACTIVE_1];
     render(<WatchlistTab />);
 
-    // Switch to expired (no expired entries in list)
+    // Switch to pending (no pending entries in list)
     const statusSelect = screen.getByDisplayValue('Active');
-    await user.selectOptions(statusSelect, 'expired');
+    await user.selectOptions(statusSelect, 'pending');
 
     expect(screen.getByText('No matches found for your filters')).toBeInTheDocument();
+  });
+});
+
+describe('WatchlistTab — edit flow', () => {
+  it('passes the subscription id when saving an edited watchlist item', async () => {
+    const user = userEvent.setup();
+    mockWatchlist = [makeItem({ id: 11, match_id: '100', home_team: 'Arsenal', away_team: 'Chelsea', status: 'active' })];
+
+    render(<WatchlistTab />);
+
+    await user.click(screen.getByRole('button', { name: 'Edit' }));
+    await user.click(await screen.findByRole('button', { name: 'Save Changes' }));
+
+    expect(mockUpdateWatchlistItem).toHaveBeenCalledWith(
+      expect.objectContaining({ id: 11, match_id: '100' }),
+    );
   });
 });

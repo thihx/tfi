@@ -11,6 +11,7 @@
 
 import { randomUUID } from 'node:crypto';
 import { config } from '../config.js';
+import { query } from '../db/pool.js';
 import { callGemini } from './gemini.js';
 import { sendTelegramMessage, sendTelegramPhoto } from './telegram.js';
 import { audit } from './audit.js';
@@ -62,8 +63,16 @@ import { createPromptShadowRun } from '../repos/prompt-shadow-runs.repo.js';
 import { getLeagueProfileByLeagueId } from '../repos/league-profiles.repo.js';
 import { getTeamProfileByTeamId } from '../repos/team-profiles.repo.js';
 import { getLeagueById } from '../repos/leagues.repo.js';
+import { getNotificationChannelAddressesByUserIds } from '../repos/notification-channels.repo.js';
 import { isWebPushConfigured, sendWebPushNotification } from './web-push.js';
-import { getAllSubscriptions, deleteSubscription } from '../repos/push-subscriptions.repo.js';
+import { getAllSubscriptions, deleteSubscription, updateLastUsed } from '../repos/push-subscriptions.repo.js';
+import {
+  getEligibleTelegramDeliveryTargets,
+  getEligibleDeliveryUserIds,
+  markDeliveryRowsDelivered,
+  markRecommendationDeliveriesDelivered,
+  stageConditionOnlyDeliveries,
+} from '../repos/recommendation-deliveries.repo.js';
 import {
   buildPrematchExpertFeaturesV1,
   getPrematchPriorStrength,
@@ -102,7 +111,7 @@ function parseNumSetting(raw: unknown, envDefault: number): number {
 
 function buildConfigPipelineSettings(): PipelineSettings {
   return {
-    telegramChatId: config.pipelineTelegramChatId,
+    telegramChatId: '',
     aiModel: config.geminiModel,
     minConfidence: config.pipelineMinConfidence,
     minOdds: config.pipelineMinOdds,
@@ -115,18 +124,26 @@ function buildConfigPipelineSettings(): PipelineSettings {
     veryLatePhaseMinute: config.pipelineVeryLatePhaseMinute,
     endgameMinute: config.pipelineEndgameMinute,
     notificationLanguage: 'vi',
-    telegramEnabled: true,
+    telegramEnabled: false,
     webPushEnabled: false,
   };
+}
+
+function parseBoolSetting(raw: unknown, fallback: boolean): boolean {
+  if (raw === true || raw === 'true') return true;
+  if (raw === false || raw === 'false') return false;
+  return fallback;
 }
 
 async function loadPipelineSettings(): Promise<PipelineSettings> {
   const fallback = buildConfigPipelineSettings();
   const db = await getSettings().catch(() => ({} as Record<string, unknown>));
-  const webPushEnabled = db['WEB_PUSH_ENABLED'] === true || db['WEB_PUSH_ENABLED'] === 'true';
-  console.log(`[pipeline] Settings loaded: webPushEnabled=${webPushEnabled} (raw=${JSON.stringify(db['WEB_PUSH_ENABLED'])}), telegramEnabled=${db['TELEGRAM_ENABLED'] !== false}`);
+  const webPushEnabled = parseBoolSetting(db['WEB_PUSH_ENABLED'], fallback.webPushEnabled);
+  const telegramEnabled = parseBoolSetting(db['TELEGRAM_ENABLED'], fallback.telegramEnabled);
+  const telegramChatId = typeof db['TELEGRAM_CHAT_ID'] === 'string' ? db['TELEGRAM_CHAT_ID'].trim() : '';
+  console.log(`[pipeline] Settings loaded: webPushEnabled=${webPushEnabled} (raw=${JSON.stringify(db['WEB_PUSH_ENABLED'])}), telegramEnabled=${telegramEnabled}`);
   return {
-    telegramChatId: String(db['TELEGRAM_CHAT_ID'] || '') || fallback.telegramChatId,
+    telegramChatId,
     aiModel: String(db['AI_MODEL'] || '') || fallback.aiModel,
     minConfidence: parseNumSetting(db['MIN_CONFIDENCE'], fallback.minConfidence),
     minOdds: parseNumSetting(db['MIN_ODDS'], fallback.minOdds),
@@ -141,7 +158,7 @@ async function loadPipelineSettings(): Promise<PipelineSettings> {
     notificationLanguage: (['vi', 'en', 'both'] as const).includes(db['NOTIFICATION_LANGUAGE'] as 'vi' | 'en' | 'both')
       ? (db['NOTIFICATION_LANGUAGE'] as 'vi' | 'en' | 'both')
       : fallback.notificationLanguage,
-    telegramEnabled: db['TELEGRAM_ENABLED'] === false ? false : fallback.telegramEnabled,
+    telegramEnabled,
     webPushEnabled,
   };
 }
@@ -166,6 +183,12 @@ const defaultPipelineDeps = {
   getLeagueProfileByLeagueId,
   getTeamProfileByTeamId,
   getLeagueById,
+  getNotificationChannelAddressesByUserIds,
+  getEligibleTelegramDeliveryTargets,
+  getEligibleDeliveryUserIds,
+  markDeliveryRowsDelivered,
+  markRecommendationDeliveriesDelivered,
+  stageConditionOnlyDeliveries,
 };
 
 type PipelineDeps = typeof defaultPipelineDeps;
@@ -2459,6 +2482,45 @@ async function processMatch(
     let saved = false;
     let recId: number | null = null;
     let notified = false;
+    const conditionOnlyDeliveryMap = new Map<string, number[]>();
+    let conditionOnlyDeliveriesLoaded = false;
+
+    const ensureConditionOnlyDeliveries = async () => {
+      if (conditionOnlyDeliveriesLoaded || recId != null || shadowMode || !parsed.condition_triggered_should_push) return;
+      conditionOnlyDeliveriesLoaded = true;
+
+      const conditionOnlyBetMarket = normalizeMarket(parsed.condition_triggered_suggestion);
+      const staged = await deps.stageConditionOnlyDeliveries({
+        query,
+      }, {
+        match_id: matchId,
+        timestamp: new Date().toISOString(),
+        minute,
+        score,
+        stats_snapshot: statsCompact as unknown as Record<string, unknown>,
+        league,
+        home_team: homeName,
+        away_team: awayName,
+        selection: parsed.condition_triggered_suggestion,
+        bet_market: conditionOnlyBetMarket === 'unknown' ? null : conditionOnlyBetMarket,
+        confidence: parsed.condition_triggered_confidence,
+        risk_level: parsed.risk_level,
+        stake_percent: parsed.condition_triggered_stake,
+        reasoning: parsed.condition_triggered_reasoning_en,
+        reasoning_vi: parsed.condition_triggered_reasoning_vi,
+        warnings: parsed.warnings.join(', '),
+        condition_summary_en: parsed.custom_condition_summary_en,
+        condition_summary_vi: parsed.custom_condition_summary_vi,
+        condition_reason_en: parsed.custom_condition_reason_en,
+        condition_reason_vi: parsed.custom_condition_reason_vi,
+      }).catch(() => []);
+
+      for (const row of staged) {
+        const ids = conditionOnlyDeliveryMap.get(row.userId) ?? [];
+        ids.push(row.deliveryId);
+        conditionOnlyDeliveryMap.set(row.userId, ids);
+      }
+    };
 
     if (shouldSave && !shadowMode) {
       const mappedOdd = extractOddsFromSelection(parsed.selection, parsed.bet_market, oddsCanonical);
@@ -2524,40 +2586,97 @@ async function processMatch(
     // - AI path: notify with the AI selection and save linkage when available.
     // - Condition-only path: still notify the user, but do not backfill a DB
     //   recommendation or AI performance record.
-    if (shouldNotify && !shadowMode && settings.telegramEnabled && settings.telegramChatId) {
+    if (shouldNotify && !shadowMode && settings.telegramEnabled) {
       try {
         const mode = watchlistEntry.mode || 'B';
         const chartUrl = statsAvailable ? buildStatsChartUrl(statsCompact, homeName, awayName, minute) : '';
+        const recipientMap = new Map<string, Set<string>>();
 
-        // Single stats chart photo with events embedded in caption as text
-        let photoSent = false;
-        if (chartUrl) {
-          const caption = buildTelegramCaption(
-            matchDisplay, league, score, minute, status, parsed, model, mode,
-            settings.notificationLanguage, analysisMode, eventsCompact,
-          );
-          try {
-            await deps.sendTelegramPhoto(settings.telegramChatId, chartUrl, caption);
-            photoSent = true;
-          } catch {
-            // Photo failed — fall through to text
-          }
-        }
-
-        if (!photoSent) {
-          const msg = buildTelegramMessage(
-            matchDisplay, league, score, minute, status, parsed,
-            statsCompact, statsAvailable, eventsCompact, model, mode,
-            settings.notificationLanguage, analysisMode,
-          );
-          for (const chunk of chunkMessage(msg)) {
-            await deps.sendTelegramMessage(settings.telegramChatId, chunk);
-          }
-        }
         if (recId != null) {
+          const deliveryTargets = await deps.getEligibleTelegramDeliveryTargets(recId).catch(() => []);
+          for (const target of deliveryTargets) {
+            if (!recipientMap.has(target.chatId)) recipientMap.set(target.chatId, new Set<string>());
+            recipientMap.get(target.chatId)!.add(target.userId);
+          }
+        } else {
+          await ensureConditionOnlyDeliveries();
+          const userIds = [...conditionOnlyDeliveryMap.keys()];
+          const channelTargets = await deps.getNotificationChannelAddressesByUserIds(userIds, 'telegram').catch(() => []);
+          for (const target of channelTargets) {
+            if (!recipientMap.has(target.address)) recipientMap.set(target.address, new Set<string>());
+            recipientMap.get(target.address)!.add(target.userId);
+          }
+        }
+
+        if (recipientMap.size === 0 && settings.telegramChatId) {
+          recipientMap.set(settings.telegramChatId, new Set<string>());
+        }
+
+        if (recipientMap.size === 0) {
+          throw new Error('Telegram enabled but no global or user-level recipients are configured');
+        }
+
+        const deliveredUserIds = new Set<string>();
+        const deliveredConditionDeliveryIds = new Set<number>();
+
+        const sendTelegramToChat = async (chatId: string) => {
+          let photoSent = false;
+          if (chartUrl) {
+            const caption = buildTelegramCaption(
+              matchDisplay, league, score, minute, status, parsed, model, mode,
+              settings.notificationLanguage, analysisMode, eventsCompact,
+            );
+            try {
+              await deps.sendTelegramPhoto(chatId, chartUrl, caption);
+              photoSent = true;
+            } catch {
+              // Photo failed — fall through to text
+            }
+          }
+
+          if (!photoSent) {
+            const msg = buildTelegramMessage(
+              matchDisplay, league, score, minute, status, parsed,
+              statsCompact, statsAvailable, eventsCompact, model, mode,
+              settings.notificationLanguage, analysisMode,
+            );
+            for (const chunk of chunkMessage(msg)) {
+              await deps.sendTelegramMessage(chatId, chunk);
+            }
+          }
+        };
+
+        for (const [chatId, userIds] of recipientMap.entries()) {
+          try {
+            await sendTelegramToChat(chatId);
+            for (const userId of userIds) {
+              deliveredUserIds.add(userId);
+              for (const deliveryId of conditionOnlyDeliveryMap.get(userId) ?? []) {
+                deliveredConditionDeliveryIds.add(deliveryId);
+              }
+            }
+          } catch (chatError) {
+            console.error(
+              `[pipeline] Telegram delivery failed for recipient ${chatId} on ${matchId}:`,
+              chatError instanceof Error ? chatError.message : String(chatError),
+            );
+          }
+        }
+
+        if (recId != null && deliveredUserIds.size > 0) {
+          await deps.markRecommendationDeliveriesDelivered(
+            recId,
+            [...deliveredUserIds],
+            'telegram',
+          ).catch(() => undefined);
+        }
+        if (recId == null && deliveredConditionDeliveryIds.size > 0) {
+          await deps.markDeliveryRowsDelivered([...deliveredConditionDeliveryIds], 'telegram').catch(() => undefined);
+        }
+        if (recId != null && (deliveredUserIds.size > 0 || (settings.telegramChatId ? recipientMap.has(settings.telegramChatId) : false))) {
           await deps.markRecommendationNotified(recId, 'telegram').catch(() => undefined);
         }
-        notified = true;
+        if (deliveredUserIds.size > 0 || recipientMap.size > 0) notified = true;
       } catch (e) {
         console.error(`[pipeline] Telegram notification failed for ${matchId}:`, e instanceof Error ? e.message : String(e));
       }
@@ -2568,27 +2687,54 @@ async function processMatch(
     // there is an actual recommendation row.
     if (shouldNotify && !shadowMode && settings.webPushEnabled && isWebPushConfigured()) {
       try {
+        if (recId == null) {
+          await ensureConditionOnlyDeliveries();
+        }
         const subscriptions = await getAllSubscriptions();
-        if (subscriptions.length > 0) {
+        const eligibleUserIds = recId != null
+          ? await deps.getEligibleDeliveryUserIds(recId).catch(() => new Set<string>())
+          : new Set(conditionOnlyDeliveryMap.keys());
+        const targetSubscriptions = eligibleUserIds
+          ? subscriptions.filter((sub) => eligibleUserIds.has(sub.user_id))
+          : subscriptions;
+
+        if (targetSubscriptions.length > 0) {
           const pushTitle = parsed.final_should_bet ? '🎯 AI RECOMMENDATION' : '⚡ CONDITION TRIGGERED';
           const pushBody = [
             matchDisplay,
             notificationSelection ? `${notificationSelection} | Odds: ${notificationOdds ?? 'N/A'} | Confidence: ${notificationConfidence}/10` : '',
           ].filter(Boolean).join('\n');
 
-          await Promise.all(subscriptions.map(async (sub) => {
+          const deliveredUserIds = new Set<string>();
+
+          await Promise.all(targetSubscriptions.map(async (sub) => {
             const result = await sendWebPushNotification(
               { endpoint: sub.endpoint, keys: { p256dh: sub.p256dh, auth: sub.auth } },
               { title: pushTitle, body: pushBody, tag: `tfi-rec-${matchId}`, url: '/' },
             );
+            if (result.ok) {
+              deliveredUserIds.add(sub.user_id);
+              await updateLastUsed(sub.endpoint).catch(() => undefined);
+            }
             if (!result.ok && result.gone) {
               // Subscription expired — clean it up
               await deleteSubscription(sub.endpoint).catch(() => undefined);
             }
           }));
-          if (recId != null) {
+
+          if (recId != null && deliveredUserIds.size > 0) {
             await deps.markRecommendationNotified(recId, 'web_push').catch(() => undefined);
+            await deps.markRecommendationDeliveriesDelivered(
+              recId,
+              [...deliveredUserIds],
+              'web_push',
+            ).catch(() => undefined);
           }
+          if (recId == null && deliveredUserIds.size > 0) {
+            const deliveredConditionDeliveryIds = [...deliveredUserIds].flatMap((userId) => conditionOnlyDeliveryMap.get(userId) ?? []);
+            await deps.markDeliveryRowsDelivered(deliveredConditionDeliveryIds, 'web_push').catch(() => undefined);
+          }
+          if (deliveredUserIds.size > 0) notified = true;
         }
       } catch (e) {
         console.error(`[pipeline] Web Push notification failed for ${matchId}:`, e instanceof Error ? e.message : String(e));
@@ -2713,7 +2859,7 @@ export async function runPromptOnlyAnalysisForMatch(
 ): Promise<{ text: string; prompt: string; result: MatchPipelineResult }> {
   const [fixture, watchlistEntry] = await Promise.all([
     fetchFixturesByIds([matchId]).then((rows) => rows[0] ?? null),
-    watchlistRepo.getWatchlistByMatchId(matchId),
+    watchlistRepo.getOperationalWatchlistByMatchId(matchId),
   ]);
 
   if (!fixture) {
@@ -2752,7 +2898,7 @@ export async function runManualAnalysisForMatch(
 ): Promise<MatchPipelineResult> {
   const [fixture, watchlistEntry] = await Promise.all([
     fetchFixturesByIds([matchId]).then((rows) => rows[0] ?? null),
-    watchlistRepo.getWatchlistByMatchId(matchId),
+    watchlistRepo.getOperationalWatchlistByMatchId(matchId),
   ]);
 
   if (!fixture) {
@@ -2780,7 +2926,7 @@ export async function runPipelineBatch(matchIds: string[]): Promise<PipelineResu
 
   // Load settings from DB (user config saved via UI) with env fallback
   const settings = await loadPipelineSettings();
-  console.log(`[pipeline] Processing batch of ${matchIds.length} matches: ${matchIds.join(', ')} (telegram: ${settings.telegramChatId ? 'YES' : 'NO'}, model: ${settings.aiModel})`);
+  console.log(`[pipeline] Processing batch of ${matchIds.length} matches: ${matchIds.join(', ')} (telegram: ${settings.telegramEnabled ? 'ENABLED' : 'DISABLED'}, model: ${settings.aiModel})`);
 
   // Fetch all fixtures in one API call
   const fixtures = await fetchFixturesByIds(matchIds);
@@ -2788,7 +2934,7 @@ export async function runPipelineBatch(matchIds: string[]): Promise<PipelineResu
 
   // Get watchlist entries for metadata
   const watchlistEntries = await Promise.all(
-    matchIds.map((id) => watchlistRepo.getWatchlistByMatchId(id)),
+    matchIds.map((id) => watchlistRepo.getOperationalWatchlistByMatchId(id)),
   );
   const watchlistMap = new Map<string, watchlistRepo.WatchlistRow>();
   for (let i = 0; i < matchIds.length; i++) {

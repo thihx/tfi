@@ -141,7 +141,7 @@ const mockWatchlist = [
 ];
 
 vi.mock('../repos/watchlist.repo.js', () => ({
-  getActiveWatchlist: vi.fn().mockResolvedValue(mockWatchlist),
+  getActiveOperationalWatchlist: vi.fn().mockResolvedValue(mockWatchlist),
   getKickoffMinutesForMatchIds: vi.fn().mockImplementation((matchIds: string[]) => {
     const map = new Map<string, number | null>();
     for (const matchId of matchIds) {
@@ -149,7 +149,7 @@ vi.mock('../repos/watchlist.repo.js', () => ({
     }
     return Promise.resolve(map);
   }),
-  updateWatchlistEntry: vi.fn().mockResolvedValue({}),
+  updateOperationalWatchlistEntry: vi.fn().mockResolvedValue({}),
 }));
 
 vi.mock('../lib/strategic-context.service.js', async (importOriginal) => {
@@ -166,7 +166,7 @@ beforeEach(async () => {
   vi.clearAllMocks();
 
   const watchlistRepo = await import('../repos/watchlist.repo.js');
-  vi.mocked(watchlistRepo.getActiveWatchlist).mockResolvedValue(mockWatchlist as never);
+  vi.mocked(watchlistRepo.getActiveOperationalWatchlist).mockResolvedValue(mockWatchlist as never);
   vi.mocked(watchlistRepo.getKickoffMinutesForMatchIds).mockImplementation((matchIds: string[]) => {
     const map = new Map<string, number | null>();
     for (const matchId of matchIds) {
@@ -174,7 +174,7 @@ beforeEach(async () => {
     }
     return Promise.resolve(map);
   });
-  vi.mocked(watchlistRepo.updateWatchlistEntry).mockResolvedValue({} as never);
+  vi.mocked(watchlistRepo.updateOperationalWatchlistEntry).mockResolvedValue({} as never);
 
   const matchRepo = await import('../repos/matches.repo.js');
   vi.mocked(matchRepo.getAllMatches).mockResolvedValue([
@@ -204,7 +204,7 @@ describe('enrichWatchlistJob', () => {
   test('updates strategic context and generates conditions', async () => {
     await enrichWatchlistJob();
     const watchlistRepo = await import('../repos/watchlist.repo.js');
-    expect(watchlistRepo.updateWatchlistEntry).toHaveBeenCalledWith(
+    expect(watchlistRepo.updateOperationalWatchlistEntry).toHaveBeenCalledWith(
       '100',
       expect.objectContaining({
         strategic_context: expect.any(Object),
@@ -215,7 +215,7 @@ describe('enrichWatchlistJob', () => {
 
   test('returns 0 when watchlist is empty', async () => {
     const watchlistRepo = await import('../repos/watchlist.repo.js');
-    vi.mocked(watchlistRepo.getActiveWatchlist).mockResolvedValueOnce([]);
+    vi.mocked(watchlistRepo.getActiveOperationalWatchlist).mockResolvedValueOnce([]);
 
     const result = await enrichWatchlistJob();
     expect(result).toEqual({ checked: 0, enriched: 0 });
@@ -223,7 +223,7 @@ describe('enrichWatchlistJob', () => {
 
   test('enriches entries within kickoff window even when previous timestamp is old', async () => {
     const watchlistRepo = await import('../repos/watchlist.repo.js');
-    vi.mocked(watchlistRepo.getActiveWatchlist).mockResolvedValueOnce([
+    vi.mocked(watchlistRepo.getActiveOperationalWatchlist).mockResolvedValueOnce([
       {
         match_id: '400', home_team: 'A', away_team: 'B', league: 'L', date: '2026-03-17',
         status: 'active', strategic_context_at: sixHoursAgo, recommended_custom_condition: '',
@@ -240,7 +240,7 @@ describe('enrichWatchlistJob', () => {
 
   test('does not refresh usable context when kickoff is inside the window', async () => {
     const watchlistRepo = await import('../repos/watchlist.repo.js');
-    vi.mocked(watchlistRepo.getActiveWatchlist).mockResolvedValueOnce([
+    vi.mocked(watchlistRepo.getActiveOperationalWatchlist).mockResolvedValueOnce([
       {
         match_id: '450',
         home_team: 'A',
@@ -275,7 +275,7 @@ describe('enrichWatchlistJob', () => {
     expect(result.enriched).toBe(0);
 
     const watchlistRepo = await import('../repos/watchlist.repo.js');
-    expect(watchlistRepo.updateWatchlistEntry).toHaveBeenCalledWith(
+    expect(watchlistRepo.updateOperationalWatchlistEntry).toHaveBeenCalledWith(
       '100',
       expect.objectContaining({
         strategic_context: expect.objectContaining({
@@ -291,7 +291,7 @@ describe('enrichWatchlistJob', () => {
   test('uses AI-generated condition from strategic context', async () => {
     await enrichWatchlistJob();
     const watchlistRepo = await import('../repos/watchlist.repo.js');
-    expect(watchlistRepo.updateWatchlistEntry).toHaveBeenCalledWith(
+    expect(watchlistRepo.updateOperationalWatchlistEntry).toHaveBeenCalledWith(
       '100',
       expect.objectContaining({
         recommended_custom_condition: '(Minute >= 60) AND (NOT Home leading)',
@@ -304,7 +304,7 @@ describe('enrichWatchlistJob', () => {
 
   test('does not overwrite manually set trigger conditions', async () => {
     const watchlistRepo = await import('../repos/watchlist.repo.js');
-    vi.mocked(watchlistRepo.getActiveWatchlist).mockResolvedValueOnce([
+    vi.mocked(watchlistRepo.getActiveOperationalWatchlist).mockResolvedValueOnce([
       {
         match_id: '500', home_team: 'X', away_team: 'Y', league: 'L', date: '2026-03-17',
         status: 'active',
@@ -320,13 +320,13 @@ describe('enrichWatchlistJob', () => {
     ] as never);
 
     await enrichWatchlistJob();
-    expect(watchlistRepo.updateWatchlistEntry).toHaveBeenCalledWith(
+    expect(watchlistRepo.updateOperationalWatchlistEntry).toHaveBeenCalledWith(
       '500',
       expect.objectContaining({
         recommended_custom_condition: '(Minute >= 60) AND (NOT Home leading)',
       }),
     );
-    expect(watchlistRepo.updateWatchlistEntry).not.toHaveBeenCalledWith(
+    expect(watchlistRepo.updateOperationalWatchlistEntry).not.toHaveBeenCalledWith(
       '500',
       expect.objectContaining({
         custom_conditions: '(Minute >= 60) AND (NOT Home leading)',
@@ -336,7 +336,7 @@ describe('enrichWatchlistJob', () => {
 
   test('replaces trigger condition when it still matches the previous AI recommendation', async () => {
     const watchlistRepo = await import('../repos/watchlist.repo.js');
-    vi.mocked(watchlistRepo.getActiveWatchlist).mockResolvedValueOnce([
+    vi.mocked(watchlistRepo.getActiveOperationalWatchlist).mockResolvedValueOnce([
       {
         match_id: '510',
         home_team: 'X',
@@ -357,7 +357,7 @@ describe('enrichWatchlistJob', () => {
 
     await enrichWatchlistJob();
 
-    expect(watchlistRepo.updateWatchlistEntry).toHaveBeenCalledWith(
+    expect(watchlistRepo.updateOperationalWatchlistEntry).toHaveBeenCalledWith(
       '510',
       expect.objectContaining({
         recommended_custom_condition: '(Minute >= 60) AND (NOT Home leading)',
@@ -368,7 +368,7 @@ describe('enrichWatchlistJob', () => {
 
   test('does not auto-apply when per-match override is disabled', async () => {
     const watchlistRepo = await import('../repos/watchlist.repo.js');
-    vi.mocked(watchlistRepo.getActiveWatchlist).mockResolvedValueOnce([
+    vi.mocked(watchlistRepo.getActiveOperationalWatchlist).mockResolvedValueOnce([
       {
         match_id: '520',
         home_team: 'X',
@@ -389,13 +389,13 @@ describe('enrichWatchlistJob', () => {
 
     await enrichWatchlistJob();
 
-    expect(watchlistRepo.updateWatchlistEntry).toHaveBeenCalledWith(
+    expect(watchlistRepo.updateOperationalWatchlistEntry).toHaveBeenCalledWith(
       '520',
       expect.objectContaining({
         recommended_custom_condition: '(Minute >= 60) AND (NOT Home leading)',
       }),
     );
-    expect(watchlistRepo.updateWatchlistEntry).not.toHaveBeenCalledWith(
+    expect(watchlistRepo.updateOperationalWatchlistEntry).not.toHaveBeenCalledWith(
       '520',
       expect.objectContaining({
         custom_conditions: '(Minute >= 60) AND (NOT Home leading)',
@@ -405,7 +405,7 @@ describe('enrichWatchlistJob', () => {
 
   test('skips poor context entries until retry_after passes', async () => {
     const watchlistRepo = await import('../repos/watchlist.repo.js');
-    vi.mocked(watchlistRepo.getActiveWatchlist).mockResolvedValueOnce([
+    vi.mocked(watchlistRepo.getActiveOperationalWatchlist).mockResolvedValueOnce([
       {
         match_id: '600',
         home_team: 'A',
@@ -440,7 +440,7 @@ describe('enrichWatchlistJob', () => {
 
   test('skips refreshing when usable context already exists, even if it is old', async () => {
     const watchlistRepo = await import('../repos/watchlist.repo.js');
-    vi.mocked(watchlistRepo.getActiveWatchlist).mockResolvedValueOnce([
+    vi.mocked(watchlistRepo.getActiveOperationalWatchlist).mockResolvedValueOnce([
       {
         match_id: '700',
         home_team: 'A',
@@ -468,12 +468,12 @@ describe('enrichWatchlistJob', () => {
     expect(result.checked).toBe(0);
     expect(result.enriched).toBe(0);
     expect(service.fetchStrategicContext).not.toHaveBeenCalled();
-    expect(watchlistRepo.updateWatchlistEntry).not.toHaveBeenCalled();
+    expect(watchlistRepo.updateOperationalWatchlistEntry).not.toHaveBeenCalled();
   });
 
   test('re-enriches legacy context missing trust metadata even when summary text exists', async () => {
     const watchlistRepo = await import('../repos/watchlist.repo.js');
-    vi.mocked(watchlistRepo.getActiveWatchlist).mockResolvedValueOnce([
+    vi.mocked(watchlistRepo.getActiveOperationalWatchlist).mockResolvedValueOnce([
       {
         match_id: '750',
         home_team: 'A',
@@ -502,7 +502,7 @@ describe('enrichWatchlistJob', () => {
     expect(result.checked).toBe(1);
     expect(result.enriched).toBe(1);
     expect(service.fetchStrategicContext).toHaveBeenCalledTimes(1);
-    expect(watchlistRepo.updateWatchlistEntry).toHaveBeenCalledWith(
+    expect(watchlistRepo.updateOperationalWatchlistEntry).toHaveBeenCalledWith(
       '750',
       expect.objectContaining({
         strategic_context: expect.objectContaining({
@@ -516,7 +516,7 @@ describe('enrichWatchlistJob', () => {
 
   test('accepts quantitative trusted context even when summary is still no-data', async () => {
     const watchlistRepo = await import('../repos/watchlist.repo.js');
-    vi.mocked(watchlistRepo.getActiveWatchlist).mockResolvedValueOnce([
+    vi.mocked(watchlistRepo.getActiveOperationalWatchlist).mockResolvedValueOnce([
       {
         match_id: '800',
         home_team: 'A',
@@ -567,7 +567,7 @@ describe('enrichWatchlistJob', () => {
 
     expect(result.checked).toBe(1);
     expect(result.enriched).toBe(1);
-    expect(watchlistRepo.updateWatchlistEntry).toHaveBeenCalledWith(
+    expect(watchlistRepo.updateOperationalWatchlistEntry).toHaveBeenCalledWith(
       '800',
       expect.objectContaining({
         strategic_context: expect.objectContaining({
@@ -581,7 +581,7 @@ describe('enrichWatchlistJob', () => {
 
   test('treats low-trust strategic context as poor and schedules retry', async () => {
     const watchlistRepo = await import('../repos/watchlist.repo.js');
-    vi.mocked(watchlistRepo.getActiveWatchlist).mockResolvedValueOnce([
+    vi.mocked(watchlistRepo.getActiveOperationalWatchlist).mockResolvedValueOnce([
       {
         match_id: '900',
         home_team: 'A',
@@ -614,7 +614,7 @@ describe('enrichWatchlistJob', () => {
 
     expect(result.checked).toBe(1);
     expect(result.enriched).toBe(0);
-    expect(watchlistRepo.updateWatchlistEntry).toHaveBeenCalledWith(
+    expect(watchlistRepo.updateOperationalWatchlistEntry).toHaveBeenCalledWith(
       '900',
       expect.objectContaining({
         strategic_context: expect.objectContaining({
@@ -627,7 +627,7 @@ describe('enrichWatchlistJob', () => {
 
   test('retries top-league poor context even when legacy retry_after is still in the future', async () => {
     const watchlistRepo = await import('../repos/watchlist.repo.js');
-    vi.mocked(watchlistRepo.getActiveWatchlist).mockResolvedValueOnce([
+    vi.mocked(watchlistRepo.getActiveOperationalWatchlist).mockResolvedValueOnce([
       {
         match_id: '950',
         home_team: 'Barcelona',
@@ -679,7 +679,7 @@ describe('enrichWatchlistJob', () => {
 
   test('uses deterministic prediction fallback to rescue sparse top-league context', async () => {
     const watchlistRepo = await import('../repos/watchlist.repo.js');
-    vi.mocked(watchlistRepo.getActiveWatchlist).mockResolvedValueOnce([
+    vi.mocked(watchlistRepo.getActiveOperationalWatchlist).mockResolvedValueOnce([
       {
         match_id: '980',
         home_team: 'Barcelona',
@@ -771,7 +771,7 @@ describe('enrichWatchlistJob', () => {
 
     expect(result.checked).toBe(1);
     expect(result.enriched).toBe(1);
-    expect(watchlistRepo.updateWatchlistEntry).toHaveBeenCalledWith(
+    expect(watchlistRepo.updateOperationalWatchlistEntry).toHaveBeenCalledWith(
       '980',
       expect.objectContaining({
         strategic_context: expect.objectContaining({

@@ -383,7 +383,7 @@ export async function startScheduler() {
     undefined,
     {
       label: 'Expire Watchlist',
-      description: 'Marks watchlist entries as expired once their operational monitoring window has ended, keeping active monitoring queues small and relevant.',
+      description: 'Removes completed watchlist entries once their operational monitoring window has ended, keeping monitoring queues temporary and relevant.',
       group: 'maintenance',
       entityScopes: ['watchlist'],
       order: 7,

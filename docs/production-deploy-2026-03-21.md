@@ -42,7 +42,7 @@ Verified on the final healthy revision:
 
 - `GET /api/health` -> `200`
 - `GET /` -> `200`
-- authenticated `GET /api/watchlist/1492563` -> `200`
+- authenticated `GET /api/me/watch-subscriptions` -> `200`
 - authenticated `POST /api/proxy/ai/analyze` with real Gemini -> `200`
 - authenticated `POST /api/proxy/football/odds` -> `200`
 - authenticated `GET /api/settings` -> `200`

@@ -5,6 +5,12 @@
 
 import type { LiveMonitorConfig } from './types';
 import { getToken } from '@/lib/services/auth';
+import {
+  fetchNotificationSettings,
+  persistNotificationSettings,
+  type NotificationSettings,
+  type NotificationSettingsPatch,
+} from '@/lib/services/notification-settings';
 
 const STORAGE_KEY = 'liveMonitorConfig';
 
@@ -29,6 +35,47 @@ function readMonitorConfigCache(): Partial<LiveMonitorConfig> {
 function writeMonitorConfigCache(config: LiveMonitorConfig): void {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(config));
   window.dispatchEvent(new CustomEvent('tfi:settings-updated'));
+}
+
+function mapNotificationSettingsToConfig(
+  settings: NotificationSettings | null,
+): Partial<LiveMonitorConfig> {
+  if (!settings) return {};
+  return {
+    WEB_PUSH_ENABLED: settings.webPushEnabled,
+    TELEGRAM_ENABLED: settings.telegramEnabled,
+    NOTIFICATION_LANGUAGE: settings.notificationLanguage,
+  };
+}
+
+function splitNotificationSettingsPatch(config: Partial<LiveMonitorConfig>): {
+  settingsPatch: Partial<LiveMonitorConfig>;
+  notificationPatch: NotificationSettingsPatch;
+} {
+  const settingsPatch = { ...config };
+  const notificationPatch: NotificationSettingsPatch = {};
+
+  if ('WEB_PUSH_ENABLED' in settingsPatch) {
+    notificationPatch.webPushEnabled = settingsPatch.WEB_PUSH_ENABLED === true;
+    delete settingsPatch.WEB_PUSH_ENABLED;
+  }
+  if ('TELEGRAM_ENABLED' in settingsPatch) {
+    notificationPatch.telegramEnabled = settingsPatch.TELEGRAM_ENABLED !== false;
+    delete settingsPatch.TELEGRAM_ENABLED;
+  }
+  if ('NOTIFICATION_LANGUAGE' in settingsPatch) {
+    const language = settingsPatch.NOTIFICATION_LANGUAGE;
+    if (language === 'vi' || language === 'en' || language === 'both') {
+      notificationPatch.notificationLanguage = language;
+    }
+    delete settingsPatch.NOTIFICATION_LANGUAGE;
+  }
+
+  return { settingsPatch, notificationPatch };
+}
+
+function hasKeys(obj: Record<string, unknown>): boolean {
+  return Object.keys(obj).length > 0;
 }
 
 /**
@@ -59,7 +106,7 @@ export function createDefaultConfig(overrides?: Partial<LiveMonitorConfig>): Liv
     MANUAL_PUSH_MATCH_IDS: [],
     NOTIFICATION_LANGUAGE: 'vi',
     UI_LANGUAGE: 'vi',
-    TELEGRAM_ENABLED: true,
+    TELEGRAM_ENABLED: false,
     ZALO_ENABLED: false,
     AUTO_APPLY_RECOMMENDED_CONDITION: true,
     ...overrides,
@@ -92,13 +139,28 @@ export function saveMonitorConfig(config: Partial<LiveMonitorConfig>): void {
  */
 export async function fetchMonitorConfig(): Promise<LiveMonitorConfig> {
   try {
-    const res = await fetch(`${API_BASE}/api/settings`, {
-      headers: { Accept: 'application/json', ...authHeaders() },
-      credentials: 'include',
-    });
-    if (res.ok) {
-      const dbSettings = await res.json() as Partial<LiveMonitorConfig>;
-      const config = createDefaultConfig(dbSettings);
+    const [settingsResult, notificationResult] = await Promise.allSettled([
+      fetch(`${API_BASE}/api/me/settings`, {
+        headers: { Accept: 'application/json', ...authHeaders() },
+        credentials: 'include',
+      }),
+      fetchNotificationSettings(),
+    ]);
+
+    const dbSettings =
+      settingsResult.status === 'fulfilled' && settingsResult.value.ok
+        ? await settingsResult.value.json() as Partial<LiveMonitorConfig>
+        : null;
+    const notificationSettings =
+      notificationResult.status === 'fulfilled'
+        ? notificationResult.value
+        : null;
+
+    if (dbSettings || notificationSettings) {
+      const config = createDefaultConfig({
+        ...(dbSettings ?? {}),
+        ...mapNotificationSettingsToConfig(notificationSettings),
+      });
       writeMonitorConfigCache(config);
       return config;
     }
@@ -112,13 +174,24 @@ export async function fetchMonitorConfig(): Promise<LiveMonitorConfig> {
  * Persist config to server DB and update localStorage cache.
  */
 export async function persistMonitorConfig(config: Partial<LiveMonitorConfig>): Promise<void> {
-  const res = await fetch(`${API_BASE}/api/settings`, {
-    method: 'PUT',
-    headers: { 'Content-Type': 'application/json', ...authHeaders() },
-    body: JSON.stringify(config),
-    credentials: 'include',
-  });
-  if (!res.ok) throw new Error(`Save failed: ${res.status}`);
-  const saved = createDefaultConfig(await res.json() as Partial<LiveMonitorConfig>);
-  writeMonitorConfigCache(saved);
+  const { settingsPatch, notificationPatch } = splitNotificationSettingsPatch(config);
+  const merged = { ...loadMonitorConfig() };
+
+  if (hasKeys(settingsPatch as Record<string, unknown>)) {
+    const res = await fetch(`${API_BASE}/api/me/settings`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json', ...authHeaders() },
+      body: JSON.stringify(settingsPatch),
+      credentials: 'include',
+    });
+    if (!res.ok) throw new Error(`Save failed: ${res.status}`);
+    Object.assign(merged, await res.json() as Partial<LiveMonitorConfig>);
+  }
+
+  if (hasKeys(notificationPatch as Record<string, unknown>)) {
+    const savedNotificationSettings = await persistNotificationSettings(notificationPatch);
+    Object.assign(merged, mapNotificationSettingsToConfig(savedNotificationSettings));
+  }
+
+  writeMonitorConfigCache(createDefaultConfig(merged));
 }

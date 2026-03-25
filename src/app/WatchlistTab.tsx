@@ -141,8 +141,6 @@ export function WatchlistTab() {
   const safePage = Math.min(page, totalPages);
   const pageItems = filtered.slice((safePage - 1) * PAGE_SIZE, safePage * PAGE_SIZE);
 
-  useEffect(() => { setPage(1); }, [debouncedSearch, leagueFilter, statusFilter, dateFrom, dateTo]);
-
   const handleSort = (col: string) => {
     setSort((prev) => ({ column: col, order: prev.column === col && prev.order === 'asc' ? 'desc' : 'asc' }));
     setPage(1);
@@ -150,6 +148,33 @@ export function WatchlistTab() {
 
   const clearFilters = () => {
     setSearch(''); setDebouncedSearch(''); setLeagueFilter(''); setStatusFilter('active'); setDateFrom(''); setDateTo('');
+    setPage(1);
+  };
+
+  const handleSearchChange = (value: string) => {
+    setSearch(value);
+    debouncedSetSearch(value);
+    setPage(1);
+  };
+
+  const handleLeagueFilterChange = (value: string) => {
+    setLeagueFilter(value);
+    setPage(1);
+  };
+
+  const handleStatusFilterChange = (value: string) => {
+    setStatusFilter(value);
+    setPage(1);
+  };
+
+  const handleDateFromChange = (value: string) => {
+    setDateFrom(value);
+    setPage(1);
+  };
+
+  const handleDateToChange = (value: string) => {
+    setDateTo(value);
+    setPage(1);
   };
 
   const toggleSelect = (mid: string) => {
@@ -206,19 +231,18 @@ export function WatchlistTab() {
     <>
       <div className="card">
         <div className="filters">
-          <input ref={searchRef} type="text" className="filter-input" placeholder="Search teams… ( / )" value={search} onChange={(e) => { setSearch(e.target.value); debouncedSetSearch(e.target.value); }} />
-          <select className="filter-input" value={leagueFilter} onChange={(e) => setLeagueFilter(e.target.value)}>
+          <input ref={searchRef} type="text" className="filter-input" placeholder="Search teams… ( / )" value={search} onChange={(e) => handleSearchChange(e.target.value)} />
+          <select className="filter-input" value={leagueFilter} onChange={(e) => handleLeagueFilterChange(e.target.value)}>
             <option value="">All Leagues</option>
             {leagueOptions.map((l) => <option key={l.id} value={l.id}>{l.displayName} ({l.count})</option>)}
           </select>
-          <select className="filter-input" value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}>
+          <select className="filter-input" value={statusFilter} onChange={(e) => handleStatusFilterChange(e.target.value)}>
             <option value="">All Status</option>
             <option value="active">Active</option>
-            <option value="expired">Expired</option>
             <option value="pending">Pending</option>
           </select>
-          <DatePicker className="filter-input" value={dateFrom} onChange={setDateFrom} title="From date" placeholder="From date" />
-          <DatePicker className="filter-input" value={dateTo} onChange={setDateTo} title="To date" placeholder="To date" />
+          <DatePicker className="filter-input" value={dateFrom} onChange={handleDateFromChange} title="From date" placeholder="From date" />
+          <DatePicker className="filter-input" value={dateTo} onChange={handleDateToChange} title="To date" placeholder="To date" />
           <button className="btn btn-secondary" onClick={clearFilters}>Clear Filters</button>
         </div>
 
@@ -319,11 +343,9 @@ export function WatchlistTab() {
                     <td data-label="Condition" style={{ textAlign: 'center' }}><div className="cell-value"><small style={{ whiteSpace: 'normal' }}>{item.custom_conditions || '-'}</small></div></td>
                     <td data-label="Status" className="status-cell" style={{ textAlign: 'center' }}>
                       <div className="cell-value">
-                        {item.status === 'expired'
-                          ? <span className="badge" style={{ background: 'var(--gray-100)', color: 'var(--gray-600)', border: '1px solid var(--gray-200)' }}>Expired</span>
-                          : item.status === 'pending'
-                            ? <span className="badge" style={{ background: 'var(--gray-100)', color: '#b45309', border: '1px solid #fde68a' }}>Pending</span>
-                            : <span className="badge" style={{ background: 'var(--gray-100)', color: '#15803d', border: '1px solid #d1fae5' }}>Active</span>}
+                        {item.status === 'pending'
+                          ? <span className="badge" style={{ background: 'var(--gray-100)', color: '#b45309', border: '1px solid #fde68a' }}>Pending</span>
+                          : <span className="badge" style={{ background: 'var(--gray-100)', color: '#15803d', border: '1px solid #d1fae5' }}>Active</span>}
                       </div>
                     </td>
                     <td data-label="Actions" style={{ textAlign: 'center' }}>
@@ -350,13 +372,14 @@ export function WatchlistTab() {
 
       {/* Edit Modal */}
       <WatchlistEditModal
+        key={editItem ? String(editItem.match_id) : 'watchlist-edit-modal'}
         item={editItem}
         defaultMode={config.defaultMode}
         uiLanguage={uiLanguage}
         onClose={() => setEditItem(null)}
         onSave={async ({ mode, priority, status, custom_conditions }) => {
           if (!editItem) return;
-          const ok = await updateWatchlistItem({ match_id: editItem.match_id, mode, priority, status, custom_conditions });
+          const ok = await updateWatchlistItem({ id: editItem.id, match_id: editItem.match_id, mode, priority, status, custom_conditions });
           setEditItem(null);
           if (ok) showToast('✅ Watchlist item updated', 'success');
           else showToast('❌ Failed to update', 'error');

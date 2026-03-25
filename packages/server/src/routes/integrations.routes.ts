@@ -5,10 +5,13 @@
 // ============================================================
 
 import type { FastifyInstance } from 'fastify';
+import { requireAdminOrOwner } from '../lib/authz.js';
 import { checkAllIntegrations, checkSingleIntegration } from '../lib/integration-health.js';
 
 export async function integrationsRoutes(app: FastifyInstance) {
   app.get<{ Querystring: { service?: string } }>('/api/integrations/health', async (req, reply) => {
+    const user = requireAdminOrOwner(req, reply);
+    if (!user) return;
     try {
       const { service } = req.query;
       if (service) {

@@ -24,7 +24,7 @@ import { getRedisClient } from '../lib/redis.js';
 import { extractRegularTimeScoreFromFixture } from '../lib/settle-context.js';
 import { mergeApiFixtureStatistics } from '../lib/settlement-stat-cache.js';
 import { getSettings } from '../repos/settings.repo.js';
-import { getFavoriteTeamIds } from '../repos/favorite-teams.repo.js';
+import { getFavoriteTeamOwnersByTeamIds } from '../repos/favorite-teams.repo.js';
 
 const ALLOWED_STATUSES = ['NS', '1H', 'HT', '2H', 'ET', 'BT', 'P', 'LIVE', 'INT'];
 const LIVE_STATUSES   = new Set(['1H', 'HT', '2H', 'ET', 'BT', 'LIVE', 'INT']);
@@ -288,10 +288,15 @@ export async function fetchMatchesJob(): Promise<{ saved: number; leagues: numbe
 
   console.log(`[fetchMatchesJob] ✅ Saved ${saved} matches from ${uniqueLeagues} leagues`);
 
-  // 8b. Sync watchlist dates from refreshed matches (fixes stale date/kickoff)
+  const backfilled = await watchlistRepo.backfillOperationalWatchlistFromLegacy();
+  if (backfilled > 0) {
+    console.log(`[fetchMatchesJob] Backfilled ${backfilled} legacy watchlist rows into monitored matches`);
+  }
+
+  // 8b. Sync monitored watch metadata from refreshed matches (fixes stale date/kickoff)
   const synced = await watchlistRepo.syncWatchlistDates();
   if (synced > 0) {
-    console.log(`[fetchMatchesJob] Synced ${synced} watchlist date/kickoff entries`);
+    console.log(`[fetchMatchesJob] Synced ${synced} monitored watch date/kickoff entries`);
   }
 
   // 9. Auto-add Top League matches to Watchlist (NS status only)
@@ -312,7 +317,7 @@ export async function fetchMatchesJob(): Promise<{ saved: number; leagues: numbe
       if (existingIds.has(m.match_id)) continue;
 
       try {
-        await watchlistRepo.createWatchlistEntry({
+        await watchlistRepo.createOperationalWatchlistEntry({
           match_id: m.match_id,
           date: m.date,
           league: m.league_name,
@@ -352,50 +357,76 @@ export async function fetchMatchesJob(): Promise<{ saved: number; leagues: numbe
   }
 
   // 10. Auto-add Favorite Team matches to Watchlist (NS status only)
-  const favoriteTeamIds = await getFavoriteTeamIds().catch(() => new Set<string>());
-  if (favoriteTeamIds.size > 0) {
-    const favMatches = rows.filter((r) =>
-      r.status === 'NS' &&
-      ((r.home_team_id && favoriteTeamIds.has(String(r.home_team_id))) ||
-       (r.away_team_id && favoriteTeamIds.has(String(r.away_team_id)))),
-    );
+  const favoriteCandidateMatches = rows.filter((r) =>
+    r.status === 'NS' && (r.home_team_id != null || r.away_team_id != null),
+  );
+  const favoriteTeamOwners = await getFavoriteTeamOwnersByTeamIds(
+    Array.from(new Set(
+      favoriteCandidateMatches.flatMap((row) => [
+        row.home_team_id != null ? String(row.home_team_id) : null,
+        row.away_team_id != null ? String(row.away_team_id) : null,
+      ].filter((teamId): teamId is string => teamId != null)),
+    )),
+  ).catch(() => []);
 
-    const existingFavIds = await watchlistRepo.getExistingWatchlistMatchIds(favMatches.map((m) => m.match_id));
+  if (favoriteTeamOwners.length > 0) {
+    const favoriteOwnersByTeamId = new Map<string, Set<string>>();
+    for (const owner of favoriteTeamOwners) {
+      const current = favoriteOwnersByTeamId.get(owner.teamId) ?? new Set<string>();
+      current.add(owner.userId);
+      favoriteOwnersByTeamId.set(owner.teamId, current);
+    }
 
     let favAdded = 0;
-    for (const m of favMatches) {
-      if (existingFavIds.has(m.match_id)) continue;
-      try {
-        await watchlistRepo.createWatchlistEntry({
-          match_id: m.match_id,
-          date: m.date,
-          league: m.league_name,
-          home_team: m.home_team,
-          away_team: m.away_team,
-          home_logo: m.home_logo,
-          away_logo: m.away_logo,
-          kickoff: m.kickoff,
-          mode: 'B',
-          prediction: null,
-          recommended_custom_condition: '',
-          recommended_condition_reason: '',
-          recommended_condition_reason_vi: '',
-          recommended_condition_at: null,
-          auto_apply_recommended_condition: autoApplyRecommendedCondition,
-          custom_conditions: '',
-          priority: 0,
-          status: 'active',
-          added_by: 'favorite-team-auto',
-          last_checked: null,
-          total_checks: 0,
-          recommendations_count: 0,
-          strategic_context: null,
-          strategic_context_at: null,
-        });
-        favAdded++;
-      } catch (err: unknown) {
-        const msg = err instanceof Error ? err.message : String(err);
-        if (!msg.includes('duplicate') && !msg.includes('unique')) throw err;
+    for (const m of favoriteCandidateMatches) {
+      const matchingUserIds = new Set<string>();
+      if (m.home_team_id != null) {
+        for (const userId of favoriteOwnersByTeamId.get(String(m.home_team_id)) ?? []) {
+          matchingUserIds.add(userId);
+        }
+      }
+      if (m.away_team_id != null) {
+        for (const userId of favoriteOwnersByTeamId.get(String(m.away_team_id)) ?? []) {
+          matchingUserIds.add(userId);
+        }
+      }
+
+      for (const userId of matchingUserIds) {
+        const existing = await watchlistRepo.getWatchlistByMatchId(m.match_id, userId);
+        if (existing) continue;
+
+        try {
+          await watchlistRepo.createWatchlistEntry({
+            match_id: m.match_id,
+            date: m.date,
+            league: m.league_name,
+            home_team: m.home_team,
+            away_team: m.away_team,
+            home_logo: m.home_logo,
+            away_logo: m.away_logo,
+            kickoff: m.kickoff,
+            mode: 'B',
+            prediction: null,
+            recommended_custom_condition: '',
+            recommended_condition_reason: '',
+            recommended_condition_reason_vi: '',
+            recommended_condition_at: null,
+            auto_apply_recommended_condition: autoApplyRecommendedCondition,
+            custom_conditions: '',
+            priority: 0,
+            status: 'active',
+            added_by: 'favorite-team-auto',
+            last_checked: null,
+            total_checks: 0,
+            recommendations_count: 0,
+            strategic_context: null,
+            strategic_context_at: null,
+          }, userId);
+          favAdded++;
+        } catch (err: unknown) {
+          const msg = err instanceof Error ? err.message : String(err);
+          if (!msg.includes('duplicate') && !msg.includes('unique')) throw err;
+        }
       }
     }
 

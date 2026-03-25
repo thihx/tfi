@@ -93,6 +93,7 @@ vi.mock('../repos/matches.repo.js', () => ({
 }));
 
 vi.mock('../repos/watchlist.repo.js', () => ({
+  backfillOperationalWatchlistFromLegacy: vi.fn().mockResolvedValue(0),
   getExistingWatchlistMatchIds: vi.fn().mockResolvedValue(new Set()),
   syncWatchlistDates: vi.fn().mockResolvedValue(0),
 }));

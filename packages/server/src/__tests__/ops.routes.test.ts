@@ -2,6 +2,24 @@ import { afterAll, beforeAll, describe, expect, test, vi } from 'vitest';
 import type { FastifyInstance } from 'fastify';
 import { buildApp } from './helpers.js';
 
+const ADMIN_USER = {
+  userId: 'admin-1',
+  email: 'admin@example.com',
+  role: 'admin' as const,
+  status: 'active' as const,
+  displayName: 'Admin',
+  avatarUrl: '',
+};
+
+const MEMBER_USER = {
+  userId: 'member-1',
+  email: 'member@example.com',
+  role: 'member' as const,
+  status: 'active' as const,
+  displayName: 'Member',
+  avatarUrl: '',
+};
+
 const mockSnapshot = {
   generatedAt: '2026-03-21T10:00:00.000Z',
   checklist: [
@@ -57,17 +75,25 @@ vi.mock('../repos/ops-monitoring.repo.js', () => ({
 }));
 
 let app: FastifyInstance;
+let memberApp: FastifyInstance;
 
 beforeAll(async () => {
   const { opsRoutes } = await import('../routes/ops.routes.js');
-  app = await buildApp(opsRoutes);
+  app = await buildApp([opsRoutes], { currentUser: ADMIN_USER });
+  memberApp = await buildApp([opsRoutes], { currentUser: MEMBER_USER });
 });
 
 afterAll(async () => {
   await app.close();
+  await memberApp.close();
 });
 
 describe('GET /api/ops/overview', () => {
+  test('rejects member role', async () => {
+    const res = await memberApp.inject({ method: 'GET', url: '/api/ops/overview' });
+    expect(res.statusCode).toBe(403);
+  });
+
   test('returns monitoring snapshot', async () => {
     const res = await app.inject({ method: 'GET', url: '/api/ops/overview' });
     expect(res.statusCode).toBe(200);

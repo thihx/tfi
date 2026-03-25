@@ -8,6 +8,7 @@ import { OpsMonitoringPanel } from '@/components/OpsMonitoringPanel';
 import { getToken } from '@/lib/services/auth';
 import { fetchMonitorConfig, persistMonitorConfig } from '@/features/live-monitor/config';
 import type { LiveMonitorConfig } from '@/features/live-monitor/types';
+import { fetchNotificationChannels, persistNotificationChannel } from '@/lib/services/notification-channels';
 import {
   isPushSupported,
   getNotificationPermission,
@@ -16,6 +17,7 @@ import {
   subscribePush,
   unsubscribePush,
 } from '@/lib/services/push';
+import type { NotificationChannelConfig, NotificationChannelType } from '@/types';
 
 function authHeaders(): Record<string, string> {
   const t = getToken();
@@ -103,7 +105,7 @@ const JOB_META: Record<string, { label: string; description: string; order: numb
   },
   'expire-watchlist': {
     label: 'Expire Watchlist',
-    description: 'Marks watchlist entries as expired when kickoff time + 120 minutes has passed.',
+    description: 'Removes completed watchlist entries when kickoff time + 120 minutes has passed.',
     order: 7,
   },
   'purge-audit': {
@@ -291,11 +293,23 @@ function JobSchedulerPanel() {
 
 // ── Toggle Switch ────────────────────────────────────────────────────────────
 
-function Toggle({ on, onChange, disabled }: { on: boolean; onChange: (v: boolean) => void; disabled?: boolean }) {
+function Toggle({
+  on,
+  onChange,
+  disabled,
+  label,
+}: {
+  on: boolean;
+  onChange: (v: boolean) => void;
+  disabled?: boolean;
+  label?: string;
+}) {
   return (
     <button
       onClick={() => !disabled && onChange(!on)}
       disabled={disabled}
+      aria-label={label}
+      aria-pressed={on}
       style={{
         width: 40, height: 22, borderRadius: '999px', border: 'none',
         cursor: disabled ? 'not-allowed' : 'pointer',
@@ -332,12 +346,94 @@ export function SettingsTab() {
   const { showToast } = useToast();
   const [activeTab, setActiveTab] = useState<SettingsTab>('general');
   const [uiLanguage, setUiLanguage] = useState<'en' | 'vi'>('vi');
-  const [telegramEnabled, setTelegramEnabled] = useState(true);
+  const [telegramEnabled, setTelegramEnabled] = useState(false);
   const [notificationLanguage, setNotificationLanguage] = useState<'vi' | 'en' | 'both'>('vi');
   const [autoApplyRecommendedCondition, setAutoApplyRecommendedCondition] = useState(true);
   const [webPushEnabled, setWebPushEnabled] = useState(false);
+  const [hasWebPushSubscription, setHasWebPushSubscription] = useState(false);
   const [webPushLoading, setWebPushLoading] = useState(false);
   const [webPushPermission, setWebPushPermission] = useState<NotificationPermission>('default');
+  const [notificationChannels, setNotificationChannels] = useState<NotificationChannelConfig[]>([]);
+  const [channelAddresses, setChannelAddresses] = useState<Record<string, string>>({});
+  const [channelSaving, setChannelSaving] = useState<Record<string, boolean>>({});
+
+  const telegramChannel = notificationChannels.find((channel) => channel.channelType === 'telegram') ?? null;
+  const telegramAddress = (channelAddresses['telegram'] ?? telegramChannel?.address ?? '').trim();
+  const telegramChannelEnabled = telegramChannel?.enabled === true;
+  const telegramReady = telegramEnabled && telegramChannelEnabled && telegramAddress.length > 0;
+  const telegramStatusLabel = !telegramEnabled
+    ? 'Disabled'
+    : !telegramChannelEnabled || telegramAddress.length === 0
+      ? 'Setup required'
+      : telegramChannel?.status === 'verified'
+        ? 'Ready'
+        : telegramChannel?.status === 'pending'
+          ? 'Pending'
+          : 'Ready';
+  const telegramStatusColor = !telegramEnabled
+    ? 'var(--gray-400)'
+    : telegramReady
+      ? '#2563eb'
+      : '#b45309';
+  const telegramCardBorder = !telegramEnabled
+    ? 'var(--gray-200)'
+    : telegramReady
+      ? '#bfdbfe'
+      : '#fcd34d';
+  const telegramCardBackground = !telegramEnabled
+    ? 'var(--gray-50)'
+    : telegramReady
+      ? '#eff6ff'
+      : '#fffbeb';
+  const telegramHelperText = !telegramEnabled
+    ? 'Telegram delivery is turned off for this user.'
+    : telegramAddress.length === 0
+      ? 'Add a Telegram chat ID in Channel Registry before alerts can be delivered.'
+      : telegramChannel?.status === 'verified'
+        ? 'Telegram target is verified and ready to receive alerts.'
+        : 'Telegram target is saved and will be used for per-user delivery.';
+  const webPushChannel = notificationChannels.find((channel) => channel.channelType === 'web_push') ?? null;
+  const webPushChannelEnabled = webPushChannel?.enabled === true;
+  const webPushReady = webPushEnabled && hasWebPushSubscription && webPushPermission === 'granted' && webPushChannelEnabled;
+  const webPushStatusLabel = webPushPermission === 'denied'
+    ? 'Blocked'
+    : !webPushEnabled
+      ? 'Disabled'
+      : !hasWebPushSubscription
+        ? 'Setup required'
+        : !webPushChannelEnabled
+          ? 'Setup required'
+        : 'Ready';
+  const webPushStatusColor = webPushPermission === 'denied'
+    ? '#991b1b'
+    : webPushReady
+      ? '#047857'
+      : webPushEnabled
+        ? '#b45309'
+        : 'var(--gray-400)';
+  const webPushCardBorder = webPushPermission === 'denied'
+    ? '#fecaca'
+    : webPushReady
+      ? '#bbf7d0'
+      : webPushEnabled
+        ? '#fcd34d'
+        : 'var(--gray-200)';
+  const webPushCardBackground = webPushPermission === 'denied'
+    ? '#fef2f2'
+    : webPushReady
+      ? '#f0fdf4'
+      : webPushEnabled
+        ? '#fffbeb'
+        : 'var(--gray-50)';
+  const webPushHelperText = webPushPermission === 'denied'
+    ? 'Blocked by browser — allow notifications in site settings to enable delivery.'
+    : !webPushEnabled
+      ? 'Web Push delivery is turned off for this user.'
+      : !hasWebPushSubscription
+        ? 'Notifications are enabled, but this browser still needs an active push subscription.'
+        : webPushChannel?.enabled === false
+          ? 'Browser subscription exists, but the channel registry is disabled.'
+          : 'This browser is subscribed and ready to receive alerts.';
 
   useEffect(() => {
     let mounted = true;
@@ -345,7 +441,8 @@ export function SettingsTab() {
       .then((config: LiveMonitorConfig) => {
         if (!mounted) return;
         setUiLanguage(config.UI_LANGUAGE || 'vi');
-        setTelegramEnabled(config.TELEGRAM_ENABLED !== false);
+        setTelegramEnabled(config.TELEGRAM_ENABLED === true);
+        setWebPushEnabled(config.WEB_PUSH_ENABLED === true);
         setNotificationLanguage((config.NOTIFICATION_LANGUAGE as 'vi' | 'en' | 'both') || 'vi');
         setAutoApplyRecommendedCondition(config.AUTO_APPLY_RECOMMENDED_CONDITION !== false);
       })
@@ -355,19 +452,47 @@ export function SettingsTab() {
     if (isPushSupported()) {
       setWebPushPermission(getNotificationPermission());
       getExistingSubscription()
-        .then((sub) => { if (mounted) setWebPushEnabled(sub != null); })
+        .then((sub) => { if (mounted) setHasWebPushSubscription(sub != null); })
         .catch(() => undefined);
     }
 
+    fetchNotificationChannels()
+      .then((channels) => {
+        if (!mounted) return;
+        setNotificationChannels(channels);
+        setChannelAddresses(Object.fromEntries(channels.map((channel) => [channel.channelType, channel.address ?? ''])));
+      })
+      .catch(() => undefined);
+
     return () => { mounted = false; };
   }, []);
+
+  const syncChannel = useCallback((next: NotificationChannelConfig) => {
+    setNotificationChannels((prev) => prev.map((channel) => (channel.channelType === next.channelType ? next : channel)));
+    setChannelAddresses((prev) => ({ ...prev, [next.channelType]: next.address ?? '' }));
+  }, []);
+
+  const saveChannel = useCallback(async (
+    channelType: NotificationChannelType,
+    patch: { enabled?: boolean; address?: string | null; config?: Record<string, unknown>; metadata?: Record<string, unknown> },
+  ) => {
+    setChannelSaving((prev) => ({ ...prev, [channelType]: true }));
+    try {
+      const saved = await persistNotificationChannel(channelType, patch);
+      syncChannel(saved);
+      return saved;
+    } catch {
+      throw new Error('Failed to save notification channel');
+    } finally {
+      setChannelSaving((prev) => ({ ...prev, [channelType]: false }));
+    }
+  }, [syncChannel]);
 
   const handleLanguageChange = async (next: 'en' | 'vi') => {
     const previous = uiLanguage;
     setUiLanguage(next);
     try {
       await persistMonitorConfig({ UI_LANGUAGE: next });
-      window.dispatchEvent(new CustomEvent('tfi:settings-updated'));
       showToast(`Display language -> ${next.toUpperCase()}`, 'success');
     } catch {
       setUiLanguage(previous);
@@ -376,13 +501,20 @@ export function SettingsTab() {
   };
 
   const handleTelegramToggle = async (enabled: boolean) => {
+    const previous = telegramEnabled;
+    let settingsSaved = false;
     setTelegramEnabled(enabled);
     try {
       await persistMonitorConfig({ TELEGRAM_ENABLED: enabled });
+      settingsSaved = true;
+      await saveChannel('telegram', { enabled });
       showToast(`Telegram ${enabled ? 'enabled' : 'disabled'}`, 'success');
     } catch {
-      setTelegramEnabled(!enabled);
-      showToast('Failed to save setting', 'error');
+      setTelegramEnabled(previous);
+      if (settingsSaved) {
+        void persistMonitorConfig({ TELEGRAM_ENABLED: previous }).catch(() => undefined);
+      }
+      showToast('Failed to save Telegram setting', 'error');
     }
   };
 
@@ -391,6 +523,9 @@ export function SettingsTab() {
       showToast('Web Push is not supported in this browser.', 'error');
       return;
     }
+    const previous = webPushEnabled;
+    const previousHasSubscription = hasWebPushSubscription;
+    let settingsSaved = false;
     setWebPushLoading(true);
     try {
       if (enable) {
@@ -401,16 +536,29 @@ export function SettingsTab() {
           return;
         }
         await subscribePush();
+        setHasWebPushSubscription(true);
         setWebPushEnabled(true);
         await persistMonitorConfig({ WEB_PUSH_ENABLED: true });
+        settingsSaved = true;
+        await saveChannel('web_push', { enabled: true });
         showToast('Web Push enabled', 'success');
       } else {
         await unsubscribePush();
+        setHasWebPushSubscription(false);
         setWebPushEnabled(false);
         await persistMonitorConfig({ WEB_PUSH_ENABLED: false });
+        settingsSaved = true;
+        await saveChannel('web_push', { enabled: false });
         showToast('Web Push disabled', 'success');
       }
     } catch (e) {
+      setWebPushEnabled(previous);
+      if (settingsSaved) {
+        void persistMonitorConfig({ WEB_PUSH_ENABLED: previous }).catch(() => undefined);
+      }
+      void getExistingSubscription()
+        .then((sub) => setHasWebPushSubscription(sub != null))
+        .catch(() => setHasWebPushSubscription(previousHasSubscription));
       showToast(`Web Push error: ${e instanceof Error ? e.message : String(e)}`, 'error');
     } finally {
       setWebPushLoading(false);
@@ -438,6 +586,20 @@ export function SettingsTab() {
       setAutoApplyRecommendedCondition(!enabled);
       showToast('Failed to save setting', 'error');
     }
+  };
+
+  const getChannelStatusColor = (status: string) => {
+    if (status === 'verified') return '#047857';
+    if (status === 'pending') return '#92400e';
+    if (status === 'disabled') return 'var(--gray-400)';
+    return 'var(--gray-500)';
+  };
+
+  const getChannelDescription = (channel: NotificationChannelConfig) => {
+    if (channel.channelType === 'telegram') return 'Chat ID or delivery target for Telegram bot alerts.';
+    if (channel.channelType === 'email') return 'Reserved email delivery target for future notification sender.';
+    if (channel.channelType === 'zalo') return 'Reserved Zalo OA delivery target for future sender integration.';
+    return 'Browser-bound push delivery state for the current device.';
   };
 
   return (
@@ -516,16 +678,24 @@ export function SettingsTab() {
               <div style={{
                 display: 'flex', alignItems: 'center', justifyContent: 'space-between',
                 padding: '12px 14px', borderRadius: '8px',
-                border: `1px solid ${telegramEnabled ? '#bfdbfe' : 'var(--gray-200)'}`,
-                background: telegramEnabled ? '#eff6ff' : 'var(--gray-50)',
+                border: `1px solid ${telegramCardBorder}`,
+                background: telegramCardBackground,
                 gap: '12px', flexWrap: 'wrap',
               }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '10px', minWidth: 0 }}>
                   <span style={{ fontSize: '18px' }}>✈️</span>
                   <div>
-                    <div style={{ fontSize: '13px', fontWeight: 600, color: 'var(--gray-900)' }}>Telegram</div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                      <div style={{ fontSize: '13px', fontWeight: 600, color: 'var(--gray-900)' }}>Telegram</div>
+                      <span style={{ fontSize: '10px', fontWeight: 700, padding: '2px 6px', borderRadius: '999px', background: 'white', color: telegramStatusColor }}>
+                        {telegramStatusLabel}
+                      </span>
+                    </div>
                     <div style={{ fontSize: '11px', color: 'var(--gray-500)', marginTop: '1px' }}>
                       Send AI recommendations via Telegram Bot
+                    </div>
+                    <div style={{ fontSize: '11px', color: telegramReady ? '#1d4ed8' : '#92400e', marginTop: '4px' }}>
+                      {telegramHelperText}
                     </div>
                   </div>
                 </div>
@@ -542,8 +712,8 @@ export function SettingsTab() {
                     <option value="en">English</option>
                     <option value="both">EN + VI</option>
                   </select>
-                  <Toggle on={telegramEnabled} onChange={handleTelegramToggle} />
-                  <span style={{ fontSize: '11px', fontWeight: 600, color: telegramEnabled ? '#2563eb' : 'var(--gray-400)', minWidth: 26 }}>
+                  <Toggle on={telegramEnabled} onChange={handleTelegramToggle} label="Toggle Telegram notifications" />
+                  <span style={{ fontSize: '11px', fontWeight: 600, color: telegramStatusColor, minWidth: 26 }}>
                     {telegramEnabled ? 'ON' : 'OFF'}
                   </span>
                 </div>
@@ -554,26 +724,25 @@ export function SettingsTab() {
                 <div style={{
                   display: 'flex', alignItems: 'center', justifyContent: 'space-between',
                   padding: '12px 14px', borderRadius: '8px',
-                  border: `1px solid ${webPushEnabled ? '#d1fae5' : 'var(--gray-200)'}`,
-                  background: webPushEnabled ? '#f0fdf4' : 'var(--gray-50)',
+                  border: `1px solid ${webPushCardBorder}`,
+                  background: webPushCardBackground,
                   gap: '12px', flexWrap: 'wrap',
                   opacity: webPushLoading ? 0.7 : 1,
                 }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '10px', minWidth: 0 }}>
                     <span style={{ fontSize: '18px' }}>🔔</span>
                     <div>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
                         <span style={{ fontSize: '13px', fontWeight: 600, color: 'var(--gray-900)' }}>Web Push</span>
-                        {webPushPermission === 'denied' && (
-                          <span style={{ fontSize: '10px', fontWeight: 700, padding: '1px 6px', borderRadius: '999px', background: '#fee2e2', color: '#991b1b' }}>
-                            Blocked
-                          </span>
-                        )}
+                        <span style={{ fontSize: '10px', fontWeight: 700, padding: '1px 6px', borderRadius: '999px', background: 'white', color: webPushStatusColor }}>
+                          {webPushStatusLabel}
+                        </span>
                       </div>
-                      <div style={{ fontSize: '11px', color: webPushPermission === 'denied' ? '#b91c1c' : 'var(--gray-500)', marginTop: '1px' }}>
-                        {webPushPermission === 'denied'
-                          ? 'Blocked by browser — allow in site settings to enable'
-                          : 'Receive AI recommendations as browser notifications on this device'}
+                      <div style={{ fontSize: '11px', color: 'var(--gray-500)', marginTop: '1px' }}>
+                        Receive AI recommendations as browser notifications on this device
+                      </div>
+                      <div style={{ fontSize: '11px', color: webPushReady ? '#047857' : webPushPermission === 'denied' ? '#991b1b' : '#92400e', marginTop: '4px' }}>
+                        {webPushHelperText}
                       </div>
                     </div>
                   </div>
@@ -582,8 +751,9 @@ export function SettingsTab() {
                       on={webPushEnabled}
                       onChange={handleWebPushToggle}
                       disabled={webPushLoading || webPushPermission === 'denied'}
+                      label="Toggle Web Push notifications"
                     />
-                    <span style={{ fontSize: '11px', fontWeight: 600, color: webPushEnabled ? '#059669' : 'var(--gray-400)', minWidth: 26 }}>
+                    <span style={{ fontSize: '11px', fontWeight: 600, color: webPushStatusColor, minWidth: 26 }}>
                       {webPushLoading ? '...' : webPushEnabled ? 'ON' : 'OFF'}
                     </span>
                   </div>
@@ -610,9 +780,96 @@ export function SettingsTab() {
                     <div style={{ fontSize: '11px', color: 'var(--gray-500)', marginTop: '1px' }}>Send notifications via Zalo OA</div>
                   </div>
                 </div>
-                <Toggle on={false} onChange={() => {}} disabled />
+                <Toggle on={false} onChange={() => {}} disabled label="Toggle Zalo notifications" />
               </div>
 
+            </div>
+          </div>
+
+          <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
+            <div style={{ padding: '12px 16px', borderBottom: '1px solid var(--gray-100)', background: 'var(--gray-50)' }}>
+              <div style={{ fontSize: '13px', fontWeight: 600, color: 'var(--gray-700)' }}>Channel Registry</div>
+              <div style={{ fontSize: '11px', color: 'var(--gray-400)', marginTop: '2px' }}>
+                Per-user notification channel records backing delivery eligibility and future sender integrations.
+              </div>
+            </div>
+            <div style={{ padding: '12px 16px', display: 'flex', flexDirection: 'column', gap: '10px' }}>
+              {notificationChannels.map((channel) => {
+                const address = channelAddresses[channel.channelType] ?? '';
+                const isWebPushChannel = channel.channelType === 'web_push';
+                const saving = channelSaving[channel.channelType] === true;
+                const senderImplemented = channel.metadata.senderImplemented === true;
+                return (
+                  <div
+                    key={channel.channelType}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      gap: '12px',
+                      padding: '12px 14px',
+                      borderRadius: '8px',
+                      border: '1px solid var(--gray-200)',
+                      background: 'white',
+                      flexWrap: 'wrap',
+                    }}
+                  >
+                    <div style={{ minWidth: 0, flex: '1 1 280px' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                        <span style={{ fontSize: '13px', fontWeight: 600, color: 'var(--gray-900)', textTransform: 'capitalize' }}>
+                          {channel.channelType.replace('_', ' ')}
+                        </span>
+                        <span style={{ fontSize: '10px', fontWeight: 700, padding: '2px 6px', borderRadius: '999px', background: 'var(--gray-100)', color: getChannelStatusColor(channel.status) }}>
+                          {channel.status.toUpperCase()}
+                        </span>
+                        {!senderImplemented && (
+                          <span style={{ fontSize: '10px', fontWeight: 700, padding: '2px 6px', borderRadius: '999px', background: '#fef3c7', color: '#92400e' }}>
+                            Sender pending
+                          </span>
+                        )}
+                      </div>
+                      <div style={{ fontSize: '11px', color: 'var(--gray-500)', marginTop: '4px' }}>
+                        {getChannelDescription(channel)}
+                      </div>
+                    </div>
+
+                    {isWebPushChannel ? (
+                      <div style={{ fontSize: '11px', color: 'var(--gray-500)' }}>
+                        Browser permission: <strong>{webPushPermission}</strong>
+                      </div>
+                    ) : (
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flex: '1 1 300px', justifyContent: 'flex-end', flexWrap: 'wrap' }}>
+                        <input
+                          type="text"
+                          className="filter-input"
+                          value={address}
+                          placeholder={channel.channelType === 'telegram' ? 'Chat ID' : channel.channelType === 'email' ? 'Email address' : 'Zalo recipient'}
+                          onChange={(e) => setChannelAddresses((prev) => ({ ...prev, [channel.channelType]: e.target.value }))}
+                          style={{ minWidth: '200px', flex: '1 1 220px' }}
+                        />
+                        <button
+                          className="btn btn-secondary"
+                          disabled={saving}
+                          onClick={() => {
+                            void saveChannel(
+                              channel.channelType,
+                              { address: address.trim() || null, enabled: channel.enabled },
+                            )
+                              .then(() => {
+                                showToast(`${channel.channelType.replace('_', ' ')} address saved`, 'success');
+                              })
+                              .catch(() => {
+                                showToast('Failed to save notification channel', 'error');
+                              });
+                          }}
+                        >
+                          {saving ? 'Saving...' : 'Save'}
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
             </div>
           </div>
 

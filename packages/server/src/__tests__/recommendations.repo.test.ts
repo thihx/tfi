@@ -1,12 +1,19 @@
 import { beforeEach, describe, expect, test, vi } from 'vitest';
 
-const { clientQuery } = vi.hoisted(() => ({
+const { clientQuery, stageRecommendationDeliveries, evaluateRecommendationDeliveryConditions } = vi.hoisted(() => ({
   clientQuery: vi.fn(),
+  stageRecommendationDeliveries: vi.fn().mockResolvedValue(0),
+  evaluateRecommendationDeliveryConditions: vi.fn().mockResolvedValue(0),
 }));
 
 vi.mock('../db/pool.js', () => ({
   query: vi.fn(),
   transaction: vi.fn(async (cb: (client: { query: typeof clientQuery }) => Promise<unknown>) => cb({ query: clientQuery })),
+}));
+
+vi.mock('../repos/recommendation-deliveries.repo.js', () => ({
+  stageRecommendationDeliveries,
+  evaluateRecommendationDeliveryConditions,
 }));
 
 import { query } from '../db/pool.js';
@@ -27,7 +34,7 @@ beforeEach(() => {
 
 describe('recommendations repository prompt versioning', () => {
   test('createRecommendation inserts prompt_version', async () => {
-    vi.mocked(query).mockResolvedValueOnce({
+    clientQuery.mockResolvedValueOnce({
       rows: [{ id: 1, prompt_version: 'v4-evidence-hardened' }],
     } as never);
 
@@ -38,14 +45,22 @@ describe('recommendations repository prompt versioning', () => {
       prompt_version: 'v4-evidence-hardened',
     });
 
-    expect(query).toHaveBeenCalledWith(
+    expect(clientQuery).toHaveBeenCalledWith(
       expect.stringContaining('prompt_version'),
       expect.arrayContaining(['v4-evidence-hardened']),
+    );
+    expect(stageRecommendationDeliveries).toHaveBeenCalledWith(
+      { query: clientQuery },
+      expect.objectContaining({ id: 1 }),
+    );
+    expect(evaluateRecommendationDeliveryConditions).toHaveBeenCalledWith(
+      { query: clientQuery },
+      expect.objectContaining({ id: 1 }),
     );
   });
 
   test('bulkCreateRecommendations inserts prompt_version', async () => {
-    clientQuery.mockResolvedValueOnce({ rowCount: 1 } as never);
+    clientQuery.mockResolvedValueOnce({ rowCount: 1, rows: [{ id: 1, prompt_version: 'v4-evidence-hardened' }] } as never);
 
     await bulkCreateRecommendations([
       {
@@ -59,6 +74,14 @@ describe('recommendations repository prompt versioning', () => {
     expect(clientQuery).toHaveBeenCalledWith(
       expect.stringContaining('prompt_version'),
       expect.arrayContaining(['v4-evidence-hardened']),
+    );
+    expect(stageRecommendationDeliveries).toHaveBeenCalledWith(
+      { query: clientQuery },
+      expect.objectContaining({ id: 1 }),
+    );
+    expect(evaluateRecommendationDeliveryConditions).toHaveBeenCalledWith(
+      { query: clientQuery },
+      expect.objectContaining({ id: 1 }),
     );
   });
 

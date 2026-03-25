@@ -12,6 +12,7 @@ import { checkAllIntegrations, type IntegrationStatus, type IntegrationProbeResu
 import { sendTelegramMessage } from '../lib/telegram.js';
 import { getRedisClient } from '../lib/redis.js';
 import { config } from '../config.js';
+import { loadOperationalTelegramSettings } from '../lib/telegram-runtime.js';
 import { reportJobProgress } from './job-progress.js';
 
 const COOLDOWN_MS = 4 * 60 * 60 * 1000; // 4 hours between repeat alerts for same service
@@ -85,12 +86,12 @@ function buildTelegramMessage(probe: IntegrationProbeResult, previousStatus: Int
 
 /** Returns true if message was actually sent */
 async function notifyTelegram(probe: IntegrationProbeResult, previousStatus: IntegrationStatus | null): Promise<boolean> {
-  const chatId = config.pipelineTelegramChatId;
-  if (!chatId || !config.telegramBotToken) return false;
+  const telegram = await loadOperationalTelegramSettings();
+  if (!telegram.enabled || !telegram.chatId || !config.telegramBotToken) return false;
 
   const text = buildTelegramMessage(probe, previousStatus);
   try {
-    await sendTelegramMessage(chatId, text);
+    await sendTelegramMessage(telegram.chatId, text);
     console.log(`[integration-health] Telegram sent for ${probe.id}: ${probe.status}`);
     return true;
   } catch (err) {

@@ -2,8 +2,24 @@
 // Config Service Tests
 // ============================================================
 
-import { describe, test, expect, beforeEach } from 'vitest';
-import { createDefaultConfig, loadMonitorConfig, saveMonitorConfig } from '../config';
+import { beforeEach, describe, expect, test, vi } from 'vitest';
+
+vi.mock('@/lib/services/notification-settings', () => ({
+  fetchNotificationSettings: vi.fn(),
+  persistNotificationSettings: vi.fn(),
+}));
+
+import {
+  createDefaultConfig,
+  fetchMonitorConfig,
+  loadMonitorConfig,
+  persistMonitorConfig,
+  saveMonitorConfig,
+} from '../config';
+import {
+  fetchNotificationSettings,
+  persistNotificationSettings,
+} from '@/lib/services/notification-settings';
 
 describe('createDefaultConfig', () => {
   test('returns all required fields with defaults', () => {
@@ -38,6 +54,7 @@ describe('createDefaultConfig', () => {
 describe('loadMonitorConfig', () => {
   beforeEach(() => {
     localStorage.clear();
+    vi.restoreAllMocks();
   });
 
   test('returns default config when localStorage is empty', () => {
@@ -77,6 +94,7 @@ describe('loadMonitorConfig', () => {
 describe('saveMonitorConfig', () => {
   beforeEach(() => {
     localStorage.clear();
+    vi.restoreAllMocks();
   });
 
   test('saves config to localStorage', () => {
@@ -94,5 +112,105 @@ describe('saveMonitorConfig', () => {
 
     expect(loaded.MIN_CONFIDENCE).toBe(8);
     expect(loaded.AI_MODEL).toBe('test-model');
+  });
+
+  test('dispatches a settings updated event when cache changes', () => {
+    const onSettingsUpdated = vi.fn();
+    window.addEventListener('tfi:settings-updated', onSettingsUpdated as EventListener);
+
+    try {
+      saveMonitorConfig({ UI_LANGUAGE: 'en' });
+
+      expect(onSettingsUpdated).toHaveBeenCalledTimes(1);
+    } finally {
+      window.removeEventListener('tfi:settings-updated', onSettingsUpdated as EventListener);
+    }
+  });
+});
+
+describe('fetchMonitorConfig', () => {
+  beforeEach(() => {
+    localStorage.clear();
+    vi.restoreAllMocks();
+  });
+
+  test('merges notification settings into cached config', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
+      ok: true,
+      json: vi.fn().mockResolvedValue({ UI_LANGUAGE: 'en', AUTO_APPLY_RECOMMENDED_CONDITION: false }),
+    }));
+    vi.mocked(fetchNotificationSettings).mockResolvedValueOnce({
+      webPushEnabled: true,
+      telegramEnabled: false,
+      notificationLanguage: 'both',
+      minimumConfidence: null,
+      minimumOdds: null,
+      quietHours: {},
+      channelPolicy: {},
+    });
+
+    const config = await fetchMonitorConfig();
+
+    expect(config.UI_LANGUAGE).toBe('en');
+    expect(config.AUTO_APPLY_RECOMMENDED_CONDITION).toBe(false);
+    expect(config.WEB_PUSH_ENABLED).toBe(true);
+    expect(config.TELEGRAM_ENABLED).toBe(false);
+    expect(config.NOTIFICATION_LANGUAGE).toBe('both');
+  });
+});
+
+describe('persistMonitorConfig', () => {
+  beforeEach(() => {
+    localStorage.clear();
+    vi.restoreAllMocks();
+  });
+
+  test('splits notification keys into dedicated route persistence', async () => {
+    saveMonitorConfig(createDefaultConfig());
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
+      ok: true,
+      json: vi.fn().mockResolvedValue({ UI_LANGUAGE: 'en' }),
+    }));
+    vi.mocked(persistNotificationSettings).mockResolvedValueOnce({
+      webPushEnabled: false,
+      telegramEnabled: false,
+      notificationLanguage: 'en',
+      minimumConfidence: null,
+      minimumOdds: null,
+      quietHours: {},
+      channelPolicy: {},
+    });
+
+    await persistMonitorConfig({ UI_LANGUAGE: 'en', TELEGRAM_ENABLED: false, NOTIFICATION_LANGUAGE: 'en' });
+
+    expect(fetch).toHaveBeenCalledTimes(1);
+    expect(vi.mocked(fetch).mock.calls[0]?.[0]).toContain('/api/me/settings');
+    expect(persistNotificationSettings).toHaveBeenCalledWith({
+      telegramEnabled: false,
+      notificationLanguage: 'en',
+    });
+
+    const cached = loadMonitorConfig();
+    expect(cached.UI_LANGUAGE).toBe('en');
+    expect(cached.TELEGRAM_ENABLED).toBe(false);
+    expect(cached.NOTIFICATION_LANGUAGE).toBe('en');
+  });
+
+  test('dispatches a single settings updated event after persistence', async () => {
+    saveMonitorConfig(createDefaultConfig());
+    const onSettingsUpdated = vi.fn();
+    window.addEventListener('tfi:settings-updated', onSettingsUpdated as EventListener);
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
+      ok: true,
+      json: vi.fn().mockResolvedValue({ UI_LANGUAGE: 'en' }),
+    }));
+
+    try {
+      await persistMonitorConfig({ UI_LANGUAGE: 'en' });
+
+      expect(onSettingsUpdated).toHaveBeenCalledTimes(1);
+    } finally {
+      window.removeEventListener('tfi:settings-updated', onSettingsUpdated as EventListener);
+    }
   });
 });

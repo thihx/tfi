@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { Modal } from '@/components/ui/Modal';
 import type { League, LeagueProfile, LeagueTier, LeagueProfileData } from '@/types';
 import {
@@ -91,6 +91,18 @@ function parseNullableNumber(value: string): number | null {
 
 function toInputValue(value: number | null): string {
   return value == null ? '' : String(value);
+}
+
+function toLeagueProfileDraft(profile: LeagueProfile): LeagueProfileDraft {
+  const next = { ...profile } as LeagueProfileDraft & Partial<LeagueProfile>;
+  delete next.league_id;
+  delete next.created_at;
+  delete next.updated_at;
+  return next;
+}
+
+function getInitialDraft(profile: LeagueProfile | null): LeagueProfileDraft {
+  return profile ? toLeagueProfileDraft(profile) : DEFAULT_LEAGUE_PROFILE_DRAFT;
 }
 
 function StatInput({
@@ -257,7 +269,7 @@ export function LeagueProfileModal({
   onSave,
   onDelete,
 }: LeagueProfileModalProps) {
-  const [draft, setDraft] = useState<LeagueProfileDraft>(DEFAULT_LEAGUE_PROFILE_DRAFT);
+  const [draft, setDraft] = useState<LeagueProfileDraft>(() => getInitialDraft(profile));
   const [innerTab, setInnerTab] = useState<InnerTab>('profile');
   const [copyStatus, setCopyStatus] = useState('');
   const [importSuccess, setImportSuccess] = useState('');
@@ -267,23 +279,6 @@ export function LeagueProfileModal({
   const [importText, setImportText] = useState('');
   const [importError, setImportError] = useState('');
   const [parsedResult, setParsedResult] = useState<ParseImportResult | null>(null);
-
-  useEffect(() => {
-    if (!league) return;
-    if (profile) {
-      const { league_id: _id, created_at: _c, updated_at: _u, ...rest } = profile;
-      setDraft(rest);
-    } else {
-      setDraft(DEFAULT_LEAGUE_PROFILE_DRAFT);
-    }
-    setImportText('');
-    setImportError('');
-    setImportSuccess('');
-    setCopyStatus('');
-    setInnerTab('profile');
-    setWizardStep(1);
-    setParsedResult(null);
-  }, [league, profile]);
 
   const promptTemplate = league ? buildLeagueProfileDeepResearchPrompt(league) : '';
 

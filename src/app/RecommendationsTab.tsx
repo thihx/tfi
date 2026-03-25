@@ -7,14 +7,20 @@ import { RecommendationCard } from '@/components/ui/RecommendationCard';
 import {
   AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
 } from 'recharts';
-import { fetchRecommendationsPaginated, fetchBetTypes, fetchDistinctLeagues } from '@/lib/services/api';
+import {
+  fetchRecommendationsPaginated,
+  fetchRecommendationDeliveriesPaginated,
+  fetchBetTypes,
+  fetchDistinctLeagues,
+} from '@/lib/services/api';
 import { formatLocalDateTime } from '@/lib/utils/helpers';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { DatePicker } from '@/components/ui/DatePicker';
 import { fetchMonitorConfig } from '@/features/live-monitor/config';
-import type { Recommendation } from '@/types';
+import type { Recommendation, RecommendationDelivery } from '@/types';
 
 type ViewMode = 'cards' | 'table';
+type RecommendationFeedMode = 'shared' | 'deliveries';
 
 const PAGE_SIZE = 30;
 
@@ -29,11 +35,44 @@ const SORT_COL_MAP: Record<string, string> = {
   league: 'league',
 };
 
+function mapDeliveryToRecommendation(row: RecommendationDelivery): Recommendation {
+  const homeTeam = row.recommendation_home_team ?? '';
+  const awayTeam = row.recommendation_away_team ?? '';
+  return {
+    id: row.recommendation_id,
+    match_id: row.match_id,
+    match_display: homeTeam && awayTeam ? `${homeTeam} vs ${awayTeam}` : row.match_id,
+    home_team: homeTeam || undefined,
+    away_team: awayTeam || undefined,
+    league: row.recommendation_league ?? undefined,
+    timestamp: row.recommendation_timestamp ?? row.created_at,
+    minute: row.recommendation_minute ?? undefined,
+    score: row.recommendation_score ?? undefined,
+    actual_outcome: row.recommendation_actual_outcome ?? undefined,
+    bet_type: row.recommendation_bet_type ?? 'AI',
+    bet_market: row.recommendation_bet_market ?? undefined,
+    selection: row.recommendation_selection ?? '-',
+    odds: row.recommendation_odds ?? '-',
+    confidence: row.recommendation_confidence ?? '-',
+    value_percent: row.recommendation_value_percent ?? undefined,
+    risk_level: row.recommendation_risk_level ?? undefined,
+    stake_percent: row.recommendation_stake_percent ?? undefined,
+    stake_amount: 0,
+    reasoning: row.recommendation_reasoning ?? undefined,
+    reasoning_vi: row.recommendation_reasoning_vi ?? undefined,
+    key_factors: row.recommendation_key_factors ?? undefined,
+    warnings: row.recommendation_warnings ?? undefined,
+    result: row.recommendation_result ?? row.delivery_status,
+    pnl: row.recommendation_pnl ?? 0,
+    created_at: row.created_at,
+  };
+}
 
 export function RecommendationsTab() {
   const { state } = useAppState();
   const { config, leagues: appLeagues, matches: appMatches } = state;
   const [notificationLang, setNotificationLang] = useState<'vi' | 'en' | 'both'>('vi');
+  const [feedMode, setFeedMode] = useState<RecommendationFeedMode>('shared');
   const [page, setPage] = useState(1);
 
   // Filters
@@ -113,27 +152,45 @@ export function RecommendationsTab() {
   const fetchData = useCallback(async (p: number) => {
     setLoading(true);
     try {
-      const res = await fetchRecommendationsPaginated(config, {
-        limit: PAGE_SIZE,
-        offset: (p - 1) * PAGE_SIZE,
-        result: resultFilter !== 'all' ? resultFilter : undefined,
-        bet_type: betTypeFilter !== 'all' ? betTypeFilter : undefined,
-        league: leagueFilter !== 'all' ? leagueFilter : undefined,
-        risk_level: riskFilter !== 'all' ? riskFilter : undefined,
-        date_from: dateFrom || undefined,
-        date_to: dateTo || undefined,
-        search: search.trim() || undefined,
-        sort_by: sortCol ? SORT_COL_MAP[sortCol] : undefined,
-        sort_dir: sortCol ? sortDir : undefined,
-      });
-      setRows(res.rows);
-      setTotal(res.total);
+      if (feedMode === 'deliveries') {
+        const res = await fetchRecommendationDeliveriesPaginated(config, {
+          limit: PAGE_SIZE,
+          offset: (p - 1) * PAGE_SIZE,
+          result: resultFilter !== 'all' ? resultFilter : undefined,
+          bet_type: betTypeFilter !== 'all' ? betTypeFilter : undefined,
+          league: leagueFilter !== 'all' ? leagueFilter : undefined,
+          risk_level: riskFilter !== 'all' ? riskFilter : undefined,
+          date_from: dateFrom || undefined,
+          date_to: dateTo || undefined,
+          search: search.trim() || undefined,
+          sort_by: sortCol ? SORT_COL_MAP[sortCol] : undefined,
+          sort_dir: sortCol ? sortDir : undefined,
+        });
+        setRows(res.rows.map(mapDeliveryToRecommendation));
+        setTotal(res.total);
+      } else {
+        const res = await fetchRecommendationsPaginated(config, {
+          limit: PAGE_SIZE,
+          offset: (p - 1) * PAGE_SIZE,
+          result: resultFilter !== 'all' ? resultFilter : undefined,
+          bet_type: betTypeFilter !== 'all' ? betTypeFilter : undefined,
+          league: leagueFilter !== 'all' ? leagueFilter : undefined,
+          risk_level: riskFilter !== 'all' ? riskFilter : undefined,
+          date_from: dateFrom || undefined,
+          date_to: dateTo || undefined,
+          search: search.trim() || undefined,
+          sort_by: sortCol ? SORT_COL_MAP[sortCol] : undefined,
+          sort_dir: sortCol ? sortDir : undefined,
+        });
+        setRows(res.rows);
+        setTotal(res.total);
+      }
     } catch {
       // keep previous data
     } finally {
       setLoading(false);
     }
-  }, [config, resultFilter, betTypeFilter, leagueFilter, riskFilter, dateFrom, dateTo, search, sortCol, sortDir]);
+  }, [config, dateFrom, dateTo, feedMode, leagueFilter, resultFilter, betTypeFilter, riskFilter, search, sortCol, sortDir]);
 
   // Load filter options once
   useEffect(() => {
@@ -204,6 +261,7 @@ export function RecommendationsTab() {
     <div>
       <PageHeader
         subtitle={<>
+          <span style={{ color: 'var(--gray-500)' }}>{feedMode === 'shared' ? 'Shared feed' : 'My deliveries'}</span>
           <span>{summary.total} total</span>
           <span className="text-positive">{summary.won}W</span>
           <span className="text-negative">{summary.lost}L</span>
@@ -216,6 +274,41 @@ export function RecommendationsTab() {
 
       {/* Filters + view/chart toggles */}
       <div className="card mb-16">
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '10px 12px', borderBottom: '1px solid var(--gray-200)', background: 'var(--gray-50)', flexWrap: 'wrap' }}>
+          <div style={{ display: 'inline-flex', padding: '3px', borderRadius: '8px', background: 'white', border: '1px solid var(--gray-200)' }}>
+            <button
+              className="btn"
+              onClick={() => { setFeedMode('shared'); setPage(1); }}
+              style={{
+                padding: '6px 10px',
+                border: 'none',
+                borderRadius: '6px',
+                background: feedMode === 'shared' ? 'var(--gray-900)' : 'transparent',
+                color: feedMode === 'shared' ? '#fff' : 'var(--gray-600)',
+              }}
+            >
+              Shared Recommendations
+            </button>
+            <button
+              className="btn"
+              onClick={() => { setFeedMode('deliveries'); setPage(1); }}
+              style={{
+                padding: '6px 10px',
+                border: 'none',
+                borderRadius: '6px',
+                background: feedMode === 'deliveries' ? 'var(--gray-900)' : 'transparent',
+                color: feedMode === 'deliveries' ? '#fff' : 'var(--gray-600)',
+              }}
+            >
+              My Deliveries
+            </button>
+          </div>
+          <span style={{ fontSize: '12px', color: 'var(--gray-500)' }}>
+            {feedMode === 'shared'
+              ? 'Canonical recommendation history shared across users.'
+              : 'User-scoped delivery history staged from matching watch subscriptions.'}
+          </span>
+        </div>
         <div style={{ display: 'flex', alignItems: 'stretch', borderBottom: '1px solid var(--gray-200)' }}>
           <div style={{ flex: 1, display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '6px', padding: '8px 12px' }}>
             <input

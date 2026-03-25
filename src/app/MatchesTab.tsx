@@ -373,7 +373,7 @@ export function MatchesTab() {
     } finally {
       setAnalyzingMatches((prev) => { const s = new Set(prev); s.delete(mid); return s; });
     }
-  }, [analyzingMatches, aiResults, watchlistMap, config, showToast]);
+  }, [analyzingMatches, aiResults, watchlistMap, config, showToast, setAiResults, setAnalyzingMatches]);
 
   const toggleSelect = (mid: string, isWatched: boolean) => {
     if (isWatched) return;
@@ -655,13 +655,14 @@ export function MatchesTab() {
       </div>}
 
       <WatchlistEditModal
+        key={editItem ? String(editItem.match_id) : 'watchlist-edit-modal'}
         item={editItem}
         defaultMode={config.defaultMode}
         uiLanguage={uiLanguage}
         onClose={() => setEditItem(null)}
         onSave={async ({ mode, priority, status, custom_conditions }) => {
           if (!editItem) return;
-          const ok = await updateWatchlistItem({ match_id: editItem.match_id, mode, priority, status, custom_conditions });
+          const ok = await updateWatchlistItem({ id: editItem.id, match_id: editItem.match_id, mode, priority, status, custom_conditions });
           setEditItem(null);
           if (ok) showToast('✅ Watchlist item updated', 'success');
           else showToast('❌ Failed to update', 'error');

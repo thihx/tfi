@@ -5,7 +5,9 @@
 const TOKEN_KEY = 'tfi_auth_token';
 
 export interface AuthUser {
+  userId: string;
   email: string;
+  role: string;
   name: string;
   picture: string;
 }
@@ -51,7 +53,9 @@ export function getUser(token: string | null): AuthUser | null {
   const payload = parsePayload(token);
   if (!payload) return null;
   return {
-    email:   String(payload['sub']     || ''),
+    userId:  String(payload['sub']     || ''),
+    email:   String(payload['email']   || ''),
+    role:    String(payload['role']    || 'member'),
     name:    String(payload['name']    || ''),
     picture: String(payload['picture'] || ''),
   };

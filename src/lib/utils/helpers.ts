@@ -200,10 +200,10 @@ export function parseKickoffForSave(kickoff: string | undefined): string {
 /**
  * Debounce utility
  */
-export function debounce<T extends (...args: any[]) => void>(fn: T, ms = 250): T {
+export function debounce<TArgs extends unknown[]>(fn: (...args: TArgs) => void, ms = 250): (...args: TArgs) => void {
   let timer: ReturnType<typeof setTimeout>;
-  return ((...args: any[]) => {
+  return (...args: TArgs) => {
     clearTimeout(timer);
     timer = setTimeout(() => fn(...args), ms);
-  }) as unknown as T;
+  };
 }

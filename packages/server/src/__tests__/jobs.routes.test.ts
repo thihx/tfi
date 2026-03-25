@@ -6,6 +6,24 @@ import { describe, test, expect, vi, beforeAll, afterAll } from 'vitest';
 import { buildApp } from './helpers.js';
 import type { FastifyInstance } from 'fastify';
 
+const ADMIN_USER = {
+  userId: 'admin-1',
+  email: 'admin@example.com',
+  role: 'admin' as const,
+  status: 'active' as const,
+  displayName: 'Admin',
+  avatarUrl: '',
+};
+
+const MEMBER_USER = {
+  userId: 'member-1',
+  email: 'member@example.com',
+  role: 'member' as const,
+  status: 'active' as const,
+  displayName: 'Member',
+  avatarUrl: '',
+};
+
 const mockJobs = [
   { name: 'fetch-matches', label: 'Fetch Matches', description: 'Fixtures sync job', order: 1, intervalMs: 60000, lastRun: null, lastError: null, running: false, enabled: true, runCount: 0, progress: null },
   { name: 'expire-watchlist', label: 'Expire Watchlist', description: 'Watchlist expiry job', order: 2, intervalMs: 30000, lastRun: '2026-03-17T10:00:00Z', lastError: null, running: false, enabled: true, runCount: 5, progress: null },
@@ -25,17 +43,25 @@ vi.mock('../jobs/scheduler.js', () => ({
 }));
 
 let app: FastifyInstance;
+let memberApp: FastifyInstance;
 
 beforeAll(async () => {
   const { jobRoutes } = await import('../routes/jobs.routes.js');
-  app = await buildApp(jobRoutes);
+  app = await buildApp([jobRoutes], { currentUser: ADMIN_USER });
+  memberApp = await buildApp([jobRoutes], { currentUser: MEMBER_USER });
 });
 
 afterAll(async () => {
   await app.close();
+  await memberApp.close();
 });
 
 describe('GET /api/jobs', () => {
+  test('rejects member role', async () => {
+    const res = await memberApp.inject({ method: 'GET', url: '/api/jobs' });
+    expect(res.statusCode).toBe(403);
+  });
+
   test('returns all job statuses', async () => {
     const res = await app.inject({ method: 'GET', url: '/api/jobs' });
     expect(res.statusCode).toBe(200);

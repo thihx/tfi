@@ -6,6 +6,15 @@ import { describe, test, expect, vi, beforeAll, afterAll } from 'vitest';
 import { buildApp } from './helpers.js';
 import type { FastifyInstance } from 'fastify';
 
+const CURRENT_USER = {
+  userId: 'user-1',
+  email: 'user@example.com',
+  role: 'member' as const,
+  status: 'active' as const,
+  displayName: 'User',
+  avatarUrl: '',
+};
+
 const MOCK_TEAMS = [
   { team_id: '33', team_name: 'Manchester United', team_logo: 'https://logo/33.png', added_at: '2026-01-01T00:00:00Z' },
   { team_id: '40', team_name: 'Liverpool', team_logo: 'https://logo/40.png', added_at: '2026-01-02T00:00:00Z' },
@@ -30,7 +39,7 @@ let app: FastifyInstance;
 
 beforeAll(async () => {
   const { favoriteTeamsRoutes } = await import('../routes/favorite-teams.routes.js');
-  app = await buildApp(favoriteTeamsRoutes);
+  app = await buildApp([favoriteTeamsRoutes], { currentUser: CURRENT_USER });
 });
 
 afterAll(async () => {
@@ -44,6 +53,15 @@ afterAll(async () => {
 describe('GET /api/favorite-teams', () => {
   test('returns list of favorite teams', async () => {
     const res = await app.inject({ method: 'GET', url: '/api/favorite-teams' });
+    expect(res.statusCode).toBe(200);
+    const body = res.json();
+    expect(body).toHaveLength(2);
+    expect(body[0].team_id).toBe('33');
+    expect(body[1].team_name).toBe('Liverpool');
+  });
+
+  test('returns favorite teams through the design-aligned /api/me/favorite-teams alias', async () => {
+    const res = await app.inject({ method: 'GET', url: '/api/me/favorite-teams' });
     expect(res.statusCode).toBe(200);
     const body = res.json();
     expect(body).toHaveLength(2);
@@ -67,11 +85,14 @@ describe('POST /api/favorite-teams', () => {
     expect(res.json()).toEqual({ ok: true });
 
     const repo = await import('../repos/favorite-teams.repo.js');
-    expect(repo.addFavoriteTeam).toHaveBeenCalledWith({
-      team_id: '50',
-      team_name: 'Manchester City',
-      team_logo: 'https://logo/50.png',
-    });
+    expect(repo.addFavoriteTeam).toHaveBeenCalledWith(
+      'user-1',
+      {
+        team_id: '50',
+        team_name: 'Manchester City',
+        team_logo: 'https://logo/50.png',
+      },
+    );
   });
 
   test('defaults team_logo to empty string when not provided', async () => {
@@ -84,7 +105,24 @@ describe('POST /api/favorite-teams', () => {
 
     const repo = await import('../repos/favorite-teams.repo.js');
     expect(repo.addFavoriteTeam).toHaveBeenCalledWith(
+      'user-1',
       expect.objectContaining({ team_logo: '' }),
+    );
+  });
+
+  test('adds a favorite team through the design-aligned /api/me/favorite-teams alias', async () => {
+    const res = await app.inject({
+      method: 'POST',
+      url: '/api/me/favorite-teams',
+      payload: { team_id: '60', team_name: 'Tottenham Hotspur' },
+    });
+    expect(res.statusCode).toBe(200);
+    expect(res.json()).toEqual({ ok: true });
+
+    const repo = await import('../repos/favorite-teams.repo.js');
+    expect(repo.addFavoriteTeam).toHaveBeenCalledWith(
+      'user-1',
+      expect.objectContaining({ team_id: '60', team_name: 'Tottenham Hotspur', team_logo: '' }),
     );
   });
 
@@ -120,7 +158,16 @@ describe('DELETE /api/favorite-teams/:teamId', () => {
     expect(res.json()).toEqual({ ok: true });
 
     const repo = await import('../repos/favorite-teams.repo.js');
-    expect(repo.removeFavoriteTeam).toHaveBeenCalledWith('33');
+    expect(repo.removeFavoriteTeam).toHaveBeenCalledWith('user-1', '33');
+  });
+
+  test('removes the team through the design-aligned /api/me/favorite-teams/:teamId alias', async () => {
+    const res = await app.inject({ method: 'DELETE', url: '/api/me/favorite-teams/40' });
+    expect(res.statusCode).toBe(200);
+    expect(res.json()).toEqual({ ok: true });
+
+    const repo = await import('../repos/favorite-teams.repo.js');
+    expect(repo.removeFavoriteTeam).toHaveBeenCalledWith('user-1', '40');
   });
 });
 

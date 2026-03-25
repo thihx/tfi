@@ -37,9 +37,11 @@ vi.mock('../repos/matches.repo.js', () => ({
 }));
 
 vi.mock('../repos/watchlist.repo.js', () => ({
-  getWatchlistByMatchId: vi.fn().mockResolvedValue(null),
+  backfillOperationalWatchlistFromLegacy: vi.fn().mockResolvedValue(0),
   getExistingWatchlistMatchIds: vi.fn().mockResolvedValue(new Set()),
+  createOperationalWatchlistEntry: vi.fn().mockResolvedValue({}),
   createWatchlistEntry: vi.fn().mockResolvedValue({}),
+  getWatchlistByMatchId: vi.fn().mockResolvedValue(null),
   syncWatchlistDates: vi.fn().mockResolvedValue(0),
 }));
 
@@ -55,7 +57,7 @@ vi.mock('../repos/settings.repo.js', () => ({
 }));
 
 vi.mock('../repos/favorite-teams.repo.js', () => ({
-  getFavoriteTeamIds: vi.fn().mockResolvedValue(new Set<string>()),
+  getFavoriteTeamOwnersByTeamIds: vi.fn().mockResolvedValue([]),
 }));
 
 const mkFixture = (id: number, leagueId: number, status: string, date: string, teamHome = 'Home', teamAway = 'Away') => ({
@@ -99,17 +101,16 @@ beforeEach(() => {
 describe('fetchMatchesJob', () => {
   test('returns saved count and league count', async () => {
     const result = await fetchMatchesJob();
-    // job fetches 3 days (yesterday+today+tomorrow); mock alternates odd/even by fetchCallCount
-    // odd calls return [1001(39), 1002(140), 1003(999)], even returns [2001(39)]
-    // after league filter (39+140 active): 2+1+2 = 5 rows (deduplication happens in DB via replaceAllMatches)
-    expect(result.saved).toBe(5);
+    // Under the default test timezone/hour, the job fetches today + tomorrow.
+    // After active-league filtering, the mock produces 3 saved rows.
+    expect(result.saved).toBe(3);
     expect(result.leagues).toBeGreaterThanOrEqual(1);
   });
 
   test('filters out fixtures from non-active leagues', async () => {
     const result = await fetchMatchesJob();
-    // fixture 1003 (league 999) should be filtered out on each of the 3-day fetches
-    expect(result.saved).toBe(5);
+    // fixture 1003 (league 999) should be filtered out from the fetched window
+    expect(result.saved).toBe(3);
   });
 
   test('returns 0 when no active leagues', async () => {
@@ -125,8 +126,8 @@ describe('fetchMatchesJob', () => {
 
     const watchlistRepo = await import('../repos/watchlist.repo.js');
     // Should have attempted to add Arsenal vs Chelsea (league 39 = top, NS) and Liverpool vs Man City
-    expect(watchlistRepo.createWatchlistEntry).toHaveBeenCalled();
-    const calls = vi.mocked(watchlistRepo.createWatchlistEntry).mock.calls;
+    expect(watchlistRepo.createOperationalWatchlistEntry).toHaveBeenCalled();
+    const calls = vi.mocked(watchlistRepo.createOperationalWatchlistEntry).mock.calls;
     expect(calls.some((c) => (c[0] as Record<string, unknown>).added_by === 'top-league-auto')).toBe(true);
     expect(calls.every((c) => (c[0] as Record<string, unknown>).auto_apply_recommended_condition === true)).toBe(true);
   });
@@ -136,10 +137,21 @@ describe('fetchMatchesJob', () => {
     vi.mocked(watchlistRepo.getExistingWatchlistMatchIds).mockResolvedValue(new Set(['1001']));
 
     await fetchMatchesJob();
-    const createdMatchIds = vi.mocked(watchlistRepo.createWatchlistEntry).mock.calls.map(
+    const createdMatchIds = vi.mocked(watchlistRepo.createOperationalWatchlistEntry).mock.calls.map(
       (call) => String((call[0] as Record<string, unknown>).match_id),
     );
     expect(createdMatchIds).not.toContain('1001');
+  });
+
+  test('tracks monitored matches as existing entries for future auto-add checks', async () => {
+    const watchlistRepo = await import('../repos/watchlist.repo.js');
+    vi.mocked(watchlistRepo.getExistingWatchlistMatchIds).mockResolvedValue(new Set(['1002']));
+
+    await fetchMatchesJob();
+    const createdMatchIds = vi.mocked(watchlistRepo.createOperationalWatchlistEntry).mock.calls.map(
+      (call) => String((call[0] as Record<string, unknown>).match_id),
+    );
+    expect(createdMatchIds).not.toContain('1002');
   });
 
   test('archives finished matches before refresh', async () => {
@@ -262,6 +274,18 @@ describe('fetchMatchesJob', () => {
     await fetchMatchesJob();
     const watchlistRepo = await import('../repos/watchlist.repo.js');
     expect(watchlistRepo.syncWatchlistDates).toHaveBeenCalled();
+    expect(
+      vi.mocked(watchlistRepo.backfillOperationalWatchlistFromLegacy).mock.invocationCallOrder[0],
+    ).toBeLessThan(vi.mocked(watchlistRepo.syncWatchlistDates).mock.invocationCallOrder[0]);
+  });
+
+  test('backfills legacy watchlist rows into monitored matches after refresh', async () => {
+    const watchlistRepo = await import('../repos/watchlist.repo.js');
+    vi.mocked(watchlistRepo.backfillOperationalWatchlistFromLegacy).mockResolvedValueOnce(2);
+
+    await fetchMatchesJob();
+
+    expect(watchlistRepo.backfillOperationalWatchlistFromLegacy).toHaveBeenCalledTimes(1);
   });
 });
 
@@ -293,7 +317,7 @@ const mkFixtureWithIds = (
 describe('fetchMatchesJob — favorite team auto-add', () => {
   test('auto-adds NS matches where home team is a favorite', async () => {
     const favoriteRepo = await import('../repos/favorite-teams.repo.js');
-    vi.mocked(favoriteRepo.getFavoriteTeamIds).mockResolvedValueOnce(new Set(['33']));
+    vi.mocked(favoriteRepo.getFavoriteTeamOwnersByTeamIds).mockResolvedValueOnce([{ userId: 'user-1', teamId: '33' }]);
 
     vi.mocked(footballApi.fetchFixturesForDate)
       .mockResolvedValueOnce([
@@ -308,11 +332,12 @@ describe('fetchMatchesJob — favorite team auto-add', () => {
     expect(calls.some((c) => (c[0] as Record<string, unknown>).added_by === 'favorite-team-auto')).toBe(true);
     const favCall = calls.find((c) => (c[0] as Record<string, unknown>).added_by === 'favorite-team-auto');
     expect((favCall?.[0] as Record<string, unknown>).match_id).toBe('3001');
+    expect(favCall?.[1]).toBe('user-1');
   });
 
   test('auto-adds NS matches where away team is a favorite', async () => {
     const favoriteRepo = await import('../repos/favorite-teams.repo.js');
-    vi.mocked(favoriteRepo.getFavoriteTeamIds).mockResolvedValueOnce(new Set(['40']));
+    vi.mocked(favoriteRepo.getFavoriteTeamOwnersByTeamIds).mockResolvedValueOnce([{ userId: 'user-2', teamId: '40' }]);
 
     vi.mocked(footballApi.fetchFixturesForDate)
       .mockResolvedValueOnce([
@@ -327,11 +352,35 @@ describe('fetchMatchesJob — favorite team auto-add', () => {
     const favCall = calls.find((c) => (c[0] as Record<string, unknown>).added_by === 'favorite-team-auto');
     expect(favCall).toBeDefined();
     expect((favCall?.[0] as Record<string, unknown>).match_id).toBe('3002');
+    expect(favCall?.[1]).toBe('user-2');
+  });
+
+  test('creates separate subscriptions for each user whose favorite matches the fixture', async () => {
+    const favoriteRepo = await import('../repos/favorite-teams.repo.js');
+    vi.mocked(favoriteRepo.getFavoriteTeamOwnersByTeamIds).mockResolvedValueOnce([
+      { userId: 'user-1', teamId: '33' },
+      { userId: 'user-2', teamId: '40' },
+    ]);
+
+    vi.mocked(footballApi.fetchFixturesForDate)
+      .mockResolvedValueOnce([
+        mkFixtureWithIds(3008, 39, 'NS', '2026-03-23T15:00:00+00:00', 33, 40, 'Man Utd', 'Liverpool'),
+      ] as never)
+      .mockResolvedValueOnce([]);
+
+    await fetchMatchesJob();
+
+    const watchlistRepo = await import('../repos/watchlist.repo.js');
+    const favoriteCalls = vi.mocked(watchlistRepo.createWatchlistEntry).mock.calls.filter(
+      (call) => (call[0] as Record<string, unknown>).added_by === 'favorite-team-auto',
+    );
+    expect(favoriteCalls).toHaveLength(2);
+    expect(favoriteCalls.map((call) => call[1])).toEqual(['user-1', 'user-2']);
   });
 
   test('does not auto-add non-NS (live/finished) matches for favorite teams', async () => {
     const favoriteRepo = await import('../repos/favorite-teams.repo.js');
-    vi.mocked(favoriteRepo.getFavoriteTeamIds).mockResolvedValueOnce(new Set(['33']));
+    vi.mocked(favoriteRepo.getFavoriteTeamOwnersByTeamIds).mockResolvedValueOnce([{ userId: 'user-1', teamId: '33' }]);
 
     vi.mocked(footballApi.fetchFixturesForDate)
       .mockResolvedValueOnce([
@@ -349,10 +398,10 @@ describe('fetchMatchesJob — favorite team auto-add', () => {
 
   test('skips favorite team match already in watchlist', async () => {
     const favoriteRepo = await import('../repos/favorite-teams.repo.js');
-    vi.mocked(favoriteRepo.getFavoriteTeamIds).mockResolvedValueOnce(new Set(['33']));
+    vi.mocked(favoriteRepo.getFavoriteTeamOwnersByTeamIds).mockResolvedValueOnce([{ userId: 'user-1', teamId: '33' }]);
 
     const watchlistRepo = await import('../repos/watchlist.repo.js');
-    vi.mocked(watchlistRepo.getExistingWatchlistMatchIds).mockResolvedValue(new Set(['3005']));
+    vi.mocked(watchlistRepo.getWatchlistByMatchId).mockResolvedValueOnce({ match_id: '3005' } as never);
 
     vi.mocked(footballApi.fetchFixturesForDate)
       .mockResolvedValueOnce([
@@ -368,7 +417,7 @@ describe('fetchMatchesJob — favorite team auto-add', () => {
 
   test('does nothing when no favorite teams are configured', async () => {
     const favoriteRepo = await import('../repos/favorite-teams.repo.js');
-    vi.mocked(favoriteRepo.getFavoriteTeamIds).mockResolvedValueOnce(new Set());
+    vi.mocked(favoriteRepo.getFavoriteTeamOwnersByTeamIds).mockResolvedValueOnce([]);
 
     vi.mocked(footballApi.fetchFixturesForDate)
       .mockResolvedValueOnce([
@@ -388,7 +437,7 @@ describe('fetchMatchesJob — favorite team auto-add', () => {
     vi.mocked(settingsRepo.getSettings).mockResolvedValueOnce({ AUTO_APPLY_RECOMMENDED_CONDITION: false } as never);
 
     const favoriteRepo = await import('../repos/favorite-teams.repo.js');
-    vi.mocked(favoriteRepo.getFavoriteTeamIds).mockResolvedValueOnce(new Set(['33']));
+    vi.mocked(favoriteRepo.getFavoriteTeamOwnersByTeamIds).mockResolvedValueOnce([{ userId: 'user-1', teamId: '33' }]);
 
     vi.mocked(footballApi.fetchFixturesForDate)
       .mockResolvedValueOnce([

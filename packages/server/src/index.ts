@@ -13,6 +13,8 @@ import { config } from './config.js';
 import { closePool, query } from './db/pool.js';
 import { closeRedis, getRedisClient } from './lib/redis.js';
 import { verifyToken } from './lib/jwt.js';
+import { toRequestUser } from './lib/request-user.js';
+import { getUserById } from './repos/users.repo.js';
 import { aiPerformanceRoutes } from './routes/ai-performance.routes.js';
 import { auditLogRoutes } from './routes/audit-logs.routes.js';
 import { authRoutes } from './routes/auth.routes.js';
@@ -26,7 +28,10 @@ import { pipelineRoutes } from './routes/pipeline-runs.routes.js';
 import { liveMonitorRoutes } from './routes/live-monitor.routes.js';
 import { proxyRoutes } from './routes/proxy.routes.js';
 import { recommendationRoutes } from './routes/recommendations.routes.js';
+import { recommendationDeliveriesRoutes } from './routes/recommendation-deliveries.routes.js';
 import { reportRoutes } from './routes/reports.routes.js';
+import { notificationSettingsRoutes } from './routes/notification-settings.routes.js';
+import { notificationChannelsRoutes } from './routes/notification-channels.routes.js';
 import { settingsRoutes } from './routes/settings.routes.js';
 import { snapshotRoutes } from './routes/snapshots.routes.js';
 import { pushRoutes } from './routes/push.routes.js';
@@ -37,6 +42,8 @@ import { teamProfileRoutes } from './routes/team-profiles.routes.js';
 import { startScheduler, stopScheduler } from './jobs/scheduler.js';
 
 const app = Fastify({ logger: true });
+
+app.decorateRequest('currentUser', null);
 
 function isLocalFrontendUrl(urlString: string): boolean {
   try {
@@ -120,6 +127,7 @@ if (!localFrontend && (!hasJwtSecret || !googleAuthConfigured)) {
 
 if (hasJwtSecret) {
   app.addHook('preHandler', async (req, reply) => {
+    req.currentUser = null;
     const url = req.url.split('?')[0]!;
     if (!url.startsWith('/api/') || url.startsWith('/api/auth/') || url === '/api/health') return;
 
@@ -134,6 +142,16 @@ if (hasJwtSecret) {
     if (!payload) {
       return reply.status(401).send({ error: 'Unauthorized - invalid or expired token' });
     }
+
+    const user = await getUserById(payload.sub);
+    if (!user) {
+      return reply.status(401).send({ error: 'Unauthorized - unknown user' });
+    }
+    if (user.status !== 'active') {
+      return reply.status(403).send({ error: 'Forbidden - account disabled' });
+    }
+
+    req.currentUser = toRequestUser(user);
   });
   app.log.info('[auth] JWT guard ENABLED');
 } else {
@@ -144,6 +162,7 @@ await app.register(leagueRoutes);
 await app.register(matchRoutes);
 await app.register(watchlistRoutes);
 await app.register(recommendationRoutes);
+await app.register(recommendationDeliveriesRoutes);
 await app.register(pipelineRoutes);
 await app.register(liveMonitorRoutes);
 await app.register(jobRoutes);
@@ -155,6 +174,8 @@ await app.register(aiPerformanceRoutes);
 await app.register(reportRoutes);
 await app.register(opsRoutes);
 await app.register(settingsRoutes);
+await app.register(notificationSettingsRoutes);
+await app.register(notificationChannelsRoutes);
 await app.register(auditLogRoutes);
 await app.register(integrationsRoutes);
 await app.register(pushRoutes);

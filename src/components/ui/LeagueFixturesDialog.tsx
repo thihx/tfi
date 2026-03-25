@@ -34,14 +34,20 @@ export function LeagueFixturesDialog({ league, onClose }: Props) {
   useEffect(() => {
     if (!league) return;
     let cancelled = false;
-    setLoading(true);
-    setError('');
-    setFixtures([]);
-    fetchLeagueFixtures(config, league.league_id, season, 10)
-      .then((data) => { if (!cancelled) setFixtures(data); })
-      .catch((e) => { if (!cancelled) setError(e instanceof Error ? e.message : String(e)); })
-      .finally(() => { if (!cancelled) setLoading(false); });
-    return () => { cancelled = true; };
+    const timerId = window.setTimeout(() => {
+      if (cancelled) return;
+      setLoading(true);
+      setError('');
+      setFixtures([]);
+      fetchLeagueFixtures(config, league.league_id, season, 10)
+        .then((data) => { if (!cancelled) setFixtures(data); })
+        .catch((e) => { if (!cancelled) setError(e instanceof Error ? e.message : String(e)); })
+        .finally(() => { if (!cancelled) setLoading(false); });
+    }, 0);
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timerId);
+    };
   }, [league, season, config]);
 
   if (!league) return null;

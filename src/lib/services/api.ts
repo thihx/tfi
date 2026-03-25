@@ -1,4 +1,16 @@
-import type { AppConfig, Match, WatchlistItem, Recommendation, League, LeagueFixture, LeagueProfile, TeamProfile, TeamProfileData, ApiResponse } from '@/types';
+import type {
+  AppConfig,
+  Match,
+  WatchlistItem,
+  Recommendation,
+  RecommendationDelivery,
+  League,
+  LeagueFixture,
+  LeagueProfile,
+  TeamProfile,
+  TeamProfileData,
+  ApiResponse,
+} from '@/types';
 
 // ==================== TYPED API ERROR ====================
 
@@ -96,12 +108,13 @@ export async function fetchMatches(config: AppConfig): Promise<Match[]> {
 }
 
 export async function fetchWatchlist(config: AppConfig): Promise<WatchlistItem[]> {
-  return pgFetch<WatchlistItem[]>(config, '/api/watchlist');
+  return pgFetch<WatchlistItem[]>(config, '/api/me/watch-subscriptions');
 }
 
 export async function fetchWatchlistItem(config: AppConfig, matchId: string): Promise<WatchlistItem | null> {
   try {
-    return await pgFetch<WatchlistItem>(config, `/api/watchlist/${encodeURIComponent(matchId)}`);
+    const items = await fetchWatchlist(config);
+    return items.find((item) => item.match_id === matchId) ?? null;
   } catch {
     return null;
   }
@@ -139,6 +152,19 @@ export interface RecommendationQueryParams {
   sort_dir?: string;
 }
 
+export interface PaginatedRecommendationDeliveries {
+  rows: RecommendationDelivery[];
+  total: number;
+}
+
+export interface RecommendationDeliveryQueryParams extends RecommendationQueryParams {
+  matchId?: string;
+  eligibilityStatus?: string;
+  deliveryStatus?: string;
+  includeHidden?: boolean;
+  dismissed?: boolean;
+}
+
 export async function fetchRecommendationsPaginated(
   config: AppConfig,
   params: RecommendationQueryParams,
@@ -156,6 +182,38 @@ export async function fetchRecommendationsPaginated(
   if (params.sort_by) qs.set('sort_by', params.sort_by);
   if (params.sort_dir) qs.set('sort_dir', params.sort_dir);
   return pgFetch<PaginatedRecommendations>(config, `/api/recommendations?${qs.toString()}`);
+}
+
+export async function fetchRecommendationDeliveriesPaginated(
+  config: AppConfig,
+  params: RecommendationDeliveryQueryParams,
+): Promise<PaginatedRecommendationDeliveries> {
+  const qs = new URLSearchParams();
+  if (params.limit) qs.set('limit', String(params.limit));
+  if (params.offset) qs.set('offset', String(params.offset));
+  if (params.matchId) qs.set('matchId', params.matchId);
+  if (params.eligibilityStatus && params.eligibilityStatus !== 'all') qs.set('eligibilityStatus', params.eligibilityStatus);
+  if (params.deliveryStatus && params.deliveryStatus !== 'all') qs.set('deliveryStatus', params.deliveryStatus);
+  if (typeof params.includeHidden === 'boolean') qs.set('includeHidden', String(params.includeHidden));
+  if (typeof params.dismissed === 'boolean') qs.set('dismissed', String(params.dismissed));
+  if (params.result && params.result !== 'all') qs.set('result', params.result);
+  if (params.bet_type && params.bet_type !== 'all') qs.set('bet_type', params.bet_type);
+  if (params.search) qs.set('search', params.search);
+  if (params.league && params.league !== 'all') qs.set('league', params.league);
+  if (params.date_from) qs.set('date_from', params.date_from);
+  if (params.date_to) qs.set('date_to', params.date_to);
+  if (params.risk_level && params.risk_level !== 'all') qs.set('risk_level', params.risk_level);
+  if (params.sort_by) qs.set('sort_by', params.sort_by);
+  if (params.sort_dir) qs.set('sort_dir', params.sort_dir);
+  return pgFetch<PaginatedRecommendationDeliveries>(config, `/api/me/recommendation-deliveries?${qs.toString()}`);
+}
+
+export async function updateRecommendationDelivery(
+  config: AppConfig,
+  deliveryId: number,
+  patch: { hidden?: boolean; dismissed?: boolean },
+): Promise<{ updated: boolean }> {
+  return pgPatch<{ updated: boolean }>(config, `/api/me/recommendation-deliveries/${deliveryId}`, patch);
 }
 
 export interface DashboardSummary {
@@ -295,7 +353,7 @@ export async function fetchAllTeamProfiles(config: AppConfig): Promise<(TeamProf
 
 export async function fetchTeamProfile(config: AppConfig, teamId: string): Promise<TeamProfile | null> {
   try {
-    return await pgFetch<TeamProfile>(config, `/api/favorite-teams/${encodeURIComponent(teamId)}/profile`);
+    return await pgFetch<TeamProfile>(config, `/api/me/favorite-teams/${encodeURIComponent(teamId)}/profile`);
   } catch (err) {
     if (err instanceof ApiError && err.isNotFound) return null;
     throw err;
@@ -307,11 +365,11 @@ export async function saveTeamProfile(
   teamId: string,
   payload: { profile: TeamProfileData; notes_en: string; notes_vi: string },
 ): Promise<TeamProfile> {
-  return pgPut<TeamProfile>(config, `/api/favorite-teams/${encodeURIComponent(teamId)}/profile`, payload);
+  return pgPut<TeamProfile>(config, `/api/me/favorite-teams/${encodeURIComponent(teamId)}/profile`, payload);
 }
 
 export async function deleteTeamProfile(config: AppConfig, teamId: string): Promise<{ ok: boolean }> {
-  return pgDelete<{ ok: boolean }>(config, `/api/favorite-teams/${encodeURIComponent(teamId)}/profile`);
+  return pgDelete<{ ok: boolean }>(config, `/api/me/favorite-teams/${encodeURIComponent(teamId)}/profile`);
 }
 
 export async function createWatchlistItems(
@@ -320,7 +378,7 @@ export async function createWatchlistItems(
 ): Promise<ApiResponse<WatchlistItem>> {
   // async-parallel: run all creates concurrently instead of sequentially
   const results = await Promise.all(
-    items.map((item) => pgPost<WatchlistItem>(config, '/api/watchlist', item)),
+    items.map((item) => pgPost<WatchlistItem>(config, '/api/me/watch-subscriptions', item)),
   );
   return { resource: 'watchlist', action: 'create', items: results, insertedCount: results.length };
 }
@@ -329,21 +387,29 @@ export async function updateWatchlistItems(
   config: AppConfig,
   items: Partial<WatchlistItem>[],
 ): Promise<ApiResponse<WatchlistItem>> {
-  const validItems = items.filter((item): item is Partial<WatchlistItem> & { match_id: string } => !!item.match_id);
-  // async-parallel + PATCH for partial updates
+  const validItems = items.filter(
+    (item): item is Partial<WatchlistItem> & { id: number; match_id: string } =>
+      typeof item.id === 'number' && item.id > 0 && !!item.match_id,
+  );
+  // async-parallel + PATCH for canonical subscription-scoped partial updates
   const results = await Promise.all(
-    validItems.map((item) => pgPatch<WatchlistItem>(config, `/api/watchlist/${item.match_id}`, item)),
+    validItems.map((item) => pgPatch<WatchlistItem>(config, `/api/me/watch-subscriptions/${item.id}`, item)),
   );
   return { resource: 'watchlist', action: 'update', items: results, updatedCount: results.length };
 }
 
 export async function deleteWatchlistItems(
   config: AppConfig,
-  matchIds: string[],
+  items: Array<Pick<WatchlistItem, 'id' | 'match_id'>>,
 ): Promise<ApiResponse<WatchlistItem>> {
-  // async-parallel: run all deletes concurrently
-  await Promise.all(matchIds.map((id) => pgDelete<{ deleted: boolean }>(config, `/api/watchlist/${id}`)));
-  return { resource: 'watchlist', action: 'delete', items: [], deletedCount: matchIds.length };
+  const validItems = items.filter(
+    (item): item is { id: number; match_id: string } => typeof item.id === 'number' && item.id > 0 && !!item.match_id,
+  );
+  // async-parallel: run canonical subscription deletes concurrently
+  await Promise.all(
+    validItems.map((item) => pgDelete<{ deleted: boolean }>(config, `/api/me/watch-subscriptions/${item.id}`)),
+  );
+  return { resource: 'watchlist', action: 'delete', items: [], deletedCount: validItems.length };
 }
 
 // ==================== BETS ====================
@@ -693,13 +759,13 @@ export async function fetchLeagueTeams(config: AppConfig, leagueId: number): Pro
 }
 
 export async function fetchFavoriteTeams(config: AppConfig): Promise<FavoriteTeam[]> {
-  return pgFetch<FavoriteTeam[]>(config, '/api/favorite-teams');
+  return pgFetch<FavoriteTeam[]>(config, '/api/me/favorite-teams');
 }
 
 export async function addFavoriteTeam(config: AppConfig, team: { team_id: string; team_name: string; team_logo: string }): Promise<void> {
-  await pgPost(config, '/api/favorite-teams', team);
+  await pgPost(config, '/api/me/favorite-teams', team);
 }
 
 export async function removeFavoriteTeam(config: AppConfig, teamId: string): Promise<void> {
-  await pgDelete(config, `/api/favorite-teams/${encodeURIComponent(teamId)}`);
+  await pgDelete(config, `/api/me/favorite-teams/${encodeURIComponent(teamId)}`);
 }

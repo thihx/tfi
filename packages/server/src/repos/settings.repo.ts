@@ -10,12 +10,31 @@ export interface UserSettingsRow {
   updated_at: string;
 }
 
-export async function getSettings(userId = 'default'): Promise<Record<string, unknown>> {
-  const r = await query<UserSettingsRow>(
+interface GetSettingsOptions {
+  fallbackToDefault?: boolean;
+}
+
+export async function getSettings(
+  userId = 'default',
+  options: GetSettingsOptions = {},
+): Promise<Record<string, unknown>> {
+  const fallbackToDefault = options.fallbackToDefault ?? userId !== 'default';
+
+  const primary = await query<UserSettingsRow>(
     'SELECT settings FROM user_settings WHERE user_id = $1',
     [userId],
   );
-  return (r.rows[0]?.settings as Record<string, unknown>) ?? {};
+  if (primary.rows[0]?.settings) {
+    return primary.rows[0].settings as Record<string, unknown>;
+  }
+
+  if (!fallbackToDefault) return {};
+
+  const fallback = await query<UserSettingsRow>(
+    'SELECT settings FROM user_settings WHERE user_id = $1',
+    ['default'],
+  );
+  return (fallback.rows[0]?.settings as Record<string, unknown>) ?? {};
 }
 
 export async function saveSettings(

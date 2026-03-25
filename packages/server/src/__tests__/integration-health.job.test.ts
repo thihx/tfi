@@ -21,8 +21,14 @@ vi.mock('../jobs/job-progress.js', () => ({
 vi.mock('../config.js', () => ({
   config: {
     telegramBotToken:       'bot:TOKEN',
-    pipelineTelegramChatId: '987654321',
   },
+}));
+
+vi.mock('../lib/telegram-runtime.js', () => ({
+  loadOperationalTelegramSettings: vi.fn().mockResolvedValue({
+    chatId: '987654321',
+    enabled: true,
+  }),
 }));
 
 vi.mock('../lib/audit.js', () => ({ audit: vi.fn() }));

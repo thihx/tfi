@@ -3,17 +3,22 @@
 // ============================================================
 
 import type { FastifyInstance } from 'fastify';
+import { requireAdminOrOwner } from '../lib/authz.js';
 import { getJobsStatus, triggerJob, updateJobInterval } from '../jobs/scheduler.js';
 import { setForceEnrich } from '../jobs/enrich-watchlist.job.js';
 
 export async function jobRoutes(app: FastifyInstance) {
   // GET /api/jobs — list all jobs and their status
-  app.get('/api/jobs', async () => {
+  app.get('/api/jobs', async (req, reply) => {
+    const user = requireAdminOrOwner(req, reply);
+    if (!user) return;
     return getJobsStatus();
   });
 
   // POST /api/jobs/:name/trigger — manually run a job (non-blocking)
   app.post<{ Params: { name: string }; Body: { force?: boolean } }>('/api/jobs/:name/trigger', async (req, reply) => {
+    const user = requireAdminOrOwner(req, reply);
+    if (!user) return;
     if (req.params.name === 'enrich-watchlist' && req.body?.force) {
       setForceEnrich();
     }
@@ -29,6 +34,8 @@ export async function jobRoutes(app: FastifyInstance) {
 
   // PUT /api/jobs/:name — update job interval
   app.put<{ Params: { name: string }; Body: { intervalMs: number } }>('/api/jobs/:name', async (req, reply) => {
+    const user = requireAdminOrOwner(req, reply);
+    if (!user) return;
     const { intervalMs } = req.body;
     if (typeof intervalMs !== 'number' || intervalMs < 0) {
       return reply.status(400).send({ error: 'intervalMs must be a non-negative number' });

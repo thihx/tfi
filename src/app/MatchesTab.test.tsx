@@ -30,6 +30,7 @@ const matches: Match[] = [
 
 const watchlist: WatchlistItem[] = [
   {
+    id: 7,
     match_id: '100',
     date: '2026-03-24',
     league: 'Premier League',
@@ -158,5 +159,19 @@ describe('MatchesTab', () => {
 
     expect(mockAnalyzeMatchWithServerPipeline).toHaveBeenCalledTimes(1);
     expect(mockShowToast).toHaveBeenCalledWith('📋 Arsenal vs Chelsea — showing cached result', 'info');
+  });
+
+  it('passes the subscription id when saving a watched match edit', async () => {
+    const user = userEvent.setup();
+    render(<MatchesTab />);
+
+    await user.click(screen.getByRole('button', { name: 'Edit watchlist item' }));
+    await user.click(await screen.findByRole('button', { name: 'Save Changes' }));
+
+    await waitFor(() => {
+      expect(mockUpdateWatchlistItem).toHaveBeenCalledWith(
+        expect.objectContaining({ id: 7, match_id: '100' }),
+      );
+    });
   });
 });

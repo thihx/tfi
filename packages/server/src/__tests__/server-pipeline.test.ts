@@ -304,7 +304,7 @@ const mockWatchlistEntry = {
 };
 
 vi.mock('../repos/watchlist.repo.js', () => ({
-  getWatchlistByMatchId: vi.fn().mockResolvedValue(mockWatchlistEntry),
+  getOperationalWatchlistByMatchId: vi.fn().mockResolvedValue(mockWatchlistEntry),
 }));
 
 vi.mock('../repos/matches.repo.js', () => ({
@@ -315,6 +315,37 @@ vi.mock('../repos/recommendations.repo.js', () => ({
   createRecommendation: vi.fn().mockResolvedValue({ id: 999 }),
   getRecommendationsByMatchId: vi.fn().mockResolvedValue([]),
   markRecommendationNotified: vi.fn().mockResolvedValue({ id: 999, notified: 'yes', notification_channels: 'telegram' }),
+}));
+
+vi.mock('../repos/recommendation-deliveries.repo.js', () => ({
+  getEligibleTelegramDeliveryTargets: vi.fn().mockResolvedValue([]),
+  getEligibleDeliveryUserIds: vi.fn().mockResolvedValue(new Set(['user-1'])),
+  markDeliveryRowsDelivered: vi.fn().mockResolvedValue(0),
+  markRecommendationDeliveriesDelivered: vi.fn().mockResolvedValue(1),
+  stageConditionOnlyDeliveries: vi.fn().mockResolvedValue([]),
+}));
+
+vi.mock('../repos/notification-channels.repo.js', () => ({
+  getNotificationChannelAddressesByUserIds: vi.fn().mockResolvedValue([]),
+}));
+
+vi.mock('../repos/push-subscriptions.repo.js', () => ({
+  getAllSubscriptions: vi.fn().mockResolvedValue([
+    {
+      endpoint: 'https://push.example.com/sub-1',
+      p256dh: 'p256dh-1',
+      auth: 'auth-1',
+      user_id: 'user-1',
+    },
+    {
+      endpoint: 'https://push.example.com/sub-2',
+      p256dh: 'p256dh-2',
+      auth: 'auth-2',
+      user_id: 'user-2',
+    },
+  ]),
+  deleteSubscription: vi.fn().mockResolvedValue(undefined),
+  updateLastUsed: vi.fn().mockResolvedValue(undefined),
 }));
 
 vi.mock('../repos/ai-performance.repo.js', () => ({
@@ -344,6 +375,7 @@ vi.mock('../repos/ai-performance.repo.js', () => ({
 vi.mock('../repos/settings.repo.js', () => ({
   getSettings: vi.fn().mockResolvedValue({
     TELEGRAM_CHAT_ID: '123456',
+    TELEGRAM_ENABLED: true,
     AI_MODEL: 'gemini-test',
     MIN_CONFIDENCE: 5,
     MIN_ODDS: 1.5,
@@ -356,6 +388,11 @@ vi.mock('../repos/settings.repo.js', () => ({
 vi.mock('../repos/match-snapshots.repo.js', () => ({
   createSnapshot: vi.fn().mockResolvedValue({ id: 1 }),
   getLatestSnapshot: vi.fn().mockResolvedValue(null),
+}));
+
+vi.mock('../lib/web-push.js', () => ({
+  isWebPushConfigured: vi.fn().mockReturnValue(true),
+  sendWebPushNotification: vi.fn().mockResolvedValue({ ok: true, gone: false }),
 }));
 
 vi.mock('../repos/prompt-shadow-runs.repo.js', () => ({
@@ -998,6 +1035,117 @@ describe('runPipelineBatch', () => {
     expect(markRecommendationNotified).toHaveBeenCalledWith(999, 'telegram');
   });
 
+  test('prefers eligible user telegram channels and marks matching delivery rows delivered', async () => {
+    const settingsRepo = await import('../repos/settings.repo.js');
+    vi.mocked(settingsRepo.getSettings).mockResolvedValueOnce({
+      AI_MODEL: 'gemini-test',
+      MIN_CONFIDENCE: 5,
+      MIN_ODDS: 1.5,
+      LATE_PHASE_MINUTE: 75,
+      VERY_LATE_PHASE_MINUTE: 85,
+      ENDGAME_MINUTE: 88,
+      TELEGRAM_ENABLED: true,
+    });
+
+    const deliveryRepo = await import('../repos/recommendation-deliveries.repo.js');
+    vi.mocked(deliveryRepo.getEligibleTelegramDeliveryTargets).mockResolvedValueOnce([
+      { userId: 'user-1', chatId: 'telegram-chat-1' },
+      { userId: 'user-2', chatId: 'telegram-chat-2' },
+    ]);
+
+    await runPipelineBatch(['100']);
+
+    const { sendTelegramPhoto } = await import('../lib/telegram.js');
+    const { markRecommendationNotified } = await import('../repos/recommendations.repo.js');
+
+    expect(deliveryRepo.getEligibleTelegramDeliveryTargets).toHaveBeenCalledWith(999);
+    expect(sendTelegramPhoto).toHaveBeenCalledTimes(2);
+    expect(sendTelegramPhoto).toHaveBeenNthCalledWith(
+      1,
+      'telegram-chat-1',
+      expect.any(String),
+      expect.any(String),
+    );
+    expect(sendTelegramPhoto).toHaveBeenNthCalledWith(
+      2,
+      'telegram-chat-2',
+      expect.any(String),
+      expect.any(String),
+    );
+    expect(deliveryRepo.markRecommendationDeliveriesDelivered).toHaveBeenCalledWith(999, ['user-1', 'user-2'], 'telegram');
+    expect(markRecommendationNotified).toHaveBeenCalledWith(999, 'telegram');
+  });
+
+  test('does not fall back to env telegram chat id when DB setting is missing', async () => {
+    const settingsRepo = await import('../repos/settings.repo.js');
+    vi.mocked(settingsRepo.getSettings).mockResolvedValueOnce({
+      AI_MODEL: 'gemini-test',
+      MIN_CONFIDENCE: 5,
+      MIN_ODDS: 1.5,
+      LATE_PHASE_MINUTE: 75,
+      VERY_LATE_PHASE_MINUTE: 85,
+      ENDGAME_MINUTE: 88,
+      TELEGRAM_ENABLED: true,
+    });
+
+    await runPipelineBatch(['100']);
+
+    const { sendTelegramMessage, sendTelegramPhoto } = await import('../lib/telegram.js');
+    const { markRecommendationNotified } = await import('../repos/recommendations.repo.js');
+    expect(sendTelegramPhoto).not.toHaveBeenCalled();
+    expect(sendTelegramMessage).not.toHaveBeenCalled();
+    expect(markRecommendationNotified).not.toHaveBeenCalledWith(999, 'telegram');
+  });
+
+  test('keeps Telegram disabled by default when DB toggle is missing', async () => {
+    const settingsRepo = await import('../repos/settings.repo.js');
+    vi.mocked(settingsRepo.getSettings).mockResolvedValueOnce({
+      TELEGRAM_CHAT_ID: '123456',
+      AI_MODEL: 'gemini-test',
+      MIN_CONFIDENCE: 5,
+      MIN_ODDS: 1.5,
+      LATE_PHASE_MINUTE: 75,
+      VERY_LATE_PHASE_MINUTE: 85,
+      ENDGAME_MINUTE: 88,
+    });
+
+    await runPipelineBatch(['100']);
+
+    const { sendTelegramMessage, sendTelegramPhoto } = await import('../lib/telegram.js');
+    const { markRecommendationNotified } = await import('../repos/recommendations.repo.js');
+    expect(sendTelegramPhoto).not.toHaveBeenCalled();
+    expect(sendTelegramMessage).not.toHaveBeenCalled();
+    expect(markRecommendationNotified).not.toHaveBeenCalledWith(999, 'telegram');
+  });
+
+  test('marks delivery rows as delivered only for eligible successful web push users', async () => {
+    const settingsRepo = await import('../repos/settings.repo.js');
+    vi.mocked(settingsRepo.getSettings).mockResolvedValueOnce({
+      TELEGRAM_CHAT_ID: '123456',
+      AI_MODEL: 'gemini-test',
+      MIN_CONFIDENCE: 5,
+      MIN_ODDS: 1.5,
+      LATE_PHASE_MINUTE: 75,
+      VERY_LATE_PHASE_MINUTE: 85,
+      ENDGAME_MINUTE: 88,
+      WEB_PUSH_ENABLED: true,
+    });
+
+    await runPipelineBatch(['100']);
+
+    const pushRepo = await import('../repos/push-subscriptions.repo.js');
+    const deliveryRepo = await import('../repos/recommendation-deliveries.repo.js');
+    const webPush = await import('../lib/web-push.js');
+    const { markRecommendationNotified } = await import('../repos/recommendations.repo.js');
+
+    expect(pushRepo.getAllSubscriptions).toHaveBeenCalledTimes(1);
+    expect(deliveryRepo.getEligibleDeliveryUserIds).toHaveBeenCalledWith(999);
+    expect(webPush.sendWebPushNotification).toHaveBeenCalledTimes(1);
+    expect(pushRepo.updateLastUsed).toHaveBeenCalledWith('https://push.example.com/sub-1');
+    expect(deliveryRepo.markRecommendationDeliveriesDelivered).toHaveBeenCalledWith(999, ['user-1'], 'web_push');
+    expect(markRecommendationNotified).toHaveBeenCalledWith(999, 'web_push');
+  });
+
   test('does NOT save or notify when AI says should_push=false', async () => {
     const { callGemini } = await import('../lib/gemini.js');
     vi.mocked(callGemini).mockResolvedValueOnce(JSON.stringify({
@@ -1036,7 +1184,7 @@ describe('runPipelineBatch', () => {
 
   test('handles watchlist entry not found gracefully', async () => {
     const watchlistRepo = await import('../repos/watchlist.repo.js');
-    vi.mocked(watchlistRepo.getWatchlistByMatchId).mockResolvedValueOnce(null);
+    vi.mocked(watchlistRepo.getOperationalWatchlistByMatchId).mockResolvedValueOnce(null);
 
     const result = await runPipelineBatch(['100']);
     expect(result.errors).toBe(1);
@@ -1330,7 +1478,7 @@ describe('runPipelineBatch', () => {
     }] as never);
 
     const watchlistRepo = await import('../repos/watchlist.repo.js');
-    vi.mocked(watchlistRepo.getWatchlistByMatchId).mockResolvedValueOnce({
+    vi.mocked(watchlistRepo.getOperationalWatchlistByMatchId).mockResolvedValueOnce({
       ...mockWatchlistEntry,
       mode: 'F',
     } as never);
@@ -1509,7 +1657,7 @@ describe('runPipelineBatch', () => {
     vi.mocked(footballApi.fetchFixturesByIds).mockResolvedValueOnce([mockFixture, fixture200] as never);
 
     const watchlistRepo = await import('../repos/watchlist.repo.js');
-    vi.mocked(watchlistRepo.getWatchlistByMatchId)
+    vi.mocked(watchlistRepo.getOperationalWatchlistByMatchId)
       .mockResolvedValueOnce(mockWatchlistEntry as never)
       .mockResolvedValueOnce({
         ...mockWatchlistEntry,
@@ -1554,7 +1702,7 @@ describe('runPipelineBatch', () => {
 
   test('injects strategic context v2 into the server prompt', async () => {
     const watchlistRepo = await import('../repos/watchlist.repo.js');
-    vi.mocked(watchlistRepo.getWatchlistByMatchId).mockResolvedValueOnce({
+    vi.mocked(watchlistRepo.getOperationalWatchlistByMatchId).mockResolvedValueOnce({
       ...mockWatchlistEntry,
       strategic_context: {
         summary: 'Structured strategic context summary.',
@@ -1687,7 +1835,7 @@ describe('runPipelineBatch', () => {
 
   test('does not inject sparse top-league strategic context even if stored refresh_status is good', async () => {
     const watchlistRepo = await import('../repos/watchlist.repo.js');
-    vi.mocked(watchlistRepo.getWatchlistByMatchId).mockResolvedValueOnce({
+    vi.mocked(watchlistRepo.getOperationalWatchlistByMatchId).mockResolvedValueOnce({
       ...mockWatchlistEntry,
       strategic_context: {
         version: 2,

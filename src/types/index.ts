@@ -144,6 +144,7 @@ export interface StrategicContext {
 }
 
 export interface WatchlistItem {
+  id?: number;
   match_id: string;
   date: string;
   league: string;
@@ -202,6 +203,55 @@ export interface Recommendation {
   settle_prompt_version?: string;
   settlement_note?: string;
   created_at?: string;
+}
+
+export interface RecommendationDelivery {
+  id: number;
+  user_id: string;
+  recommendation_id: number;
+  match_id: string;
+  matched_condition: boolean;
+  eligibility_status: string;
+  delivery_status: string;
+  delivery_channels: unknown[];
+  delivered_at: string | null;
+  hidden: boolean;
+  dismissed: boolean;
+  metadata: Record<string, unknown>;
+  created_at: string;
+  recommendation_timestamp: string | null;
+  recommendation_minute: number | null;
+  recommendation_score: string | null;
+  recommendation_bet_type: string | null;
+  recommendation_selection: string | null;
+  recommendation_bet_market: string | null;
+  recommendation_odds: number | null;
+  recommendation_confidence: number | null;
+  recommendation_value_percent: number | null;
+  recommendation_risk_level: string | null;
+  recommendation_stake_percent: number | null;
+  recommendation_reasoning: string | null;
+  recommendation_reasoning_vi: string | null;
+  recommendation_key_factors: string | null;
+  recommendation_warnings: string | null;
+  recommendation_home_team: string | null;
+  recommendation_away_team: string | null;
+  recommendation_league: string | null;
+  recommendation_result: string | null;
+  recommendation_actual_outcome: string | null;
+  recommendation_pnl: number | null;
+}
+
+export type NotificationChannelType = 'telegram' | 'zalo' | 'web_push' | 'email';
+export type NotificationChannelStatus = 'draft' | 'pending' | 'verified' | 'disabled';
+
+export interface NotificationChannelConfig {
+  channelType: NotificationChannelType;
+  enabled: boolean;
+  status: NotificationChannelStatus;
+  address: string | null;
+  config: Record<string, unknown>;
+  metadata: Record<string, unknown>;
 }
 
 export type LeagueTier = 'low' | 'balanced' | 'high';

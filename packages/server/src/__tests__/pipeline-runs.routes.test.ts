@@ -6,6 +6,24 @@ import { describe, test, expect, vi, beforeAll, afterAll } from 'vitest';
 import { buildApp } from './helpers.js';
 import type { FastifyInstance } from 'fastify';
 
+const ADMIN_USER = {
+  userId: 'admin-1',
+  email: 'admin@example.com',
+  role: 'admin' as const,
+  status: 'active' as const,
+  displayName: 'Admin',
+  avatarUrl: '',
+};
+
+const MEMBER_USER = {
+  userId: 'member-1',
+  email: 'member@example.com',
+  role: 'member' as const,
+  status: 'active' as const,
+  displayName: 'Member',
+  avatarUrl: '',
+};
+
 vi.mock('../repos/pipeline-runs.repo.js', () => ({
   getRecentRuns: vi.fn().mockImplementation((limit: number) =>
     Promise.resolve(
@@ -26,17 +44,25 @@ vi.mock('../repos/pipeline-runs.repo.js', () => ({
 }));
 
 let app: FastifyInstance;
+let memberApp: FastifyInstance;
 
 beforeAll(async () => {
   const { pipelineRoutes } = await import('../routes/pipeline-runs.routes.js');
-  app = await buildApp(pipelineRoutes);
+  app = await buildApp([pipelineRoutes], { currentUser: ADMIN_USER });
+  memberApp = await buildApp([pipelineRoutes], { currentUser: MEMBER_USER });
 });
 
 afterAll(async () => {
   await app.close();
+  await memberApp.close();
 });
 
 describe('GET /api/pipeline-runs', () => {
+  test('rejects member role', async () => {
+    const res = await memberApp.inject({ method: 'GET', url: '/api/pipeline-runs' });
+    expect(res.statusCode).toBe(403);
+  });
+
   test('returns recent runs with default limit', async () => {
     const res = await app.inject({ method: 'GET', url: '/api/pipeline-runs' });
     expect(res.statusCode).toBe(200);

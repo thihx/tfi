@@ -23,6 +23,33 @@ interface MatchScoutModalProps {
   onClose: () => void;
 }
 
+function TeamLabel({ name, logo, color }: { name: string; logo?: string; color: string }) {
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', gap: 6, overflow: 'hidden' }}>
+      {logo && (
+        <img src={logo} alt="" style={{ width: 20, height: 20, objectFit: 'contain', flexShrink: 0 }}
+          onError={(ev) => { (ev.target as HTMLImageElement).style.display = 'none'; }} />
+      )}
+      <span style={{ fontSize: 11, fontWeight: 700, color, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+        {name}
+      </span>
+    </div>
+  );
+}
+
+function TimelineMarker({ label, bg, textColor, size = 22 }: { label: string; bg: string; textColor: string; size?: number }) {
+  return (
+    <div style={{
+      width: size, height: size, borderRadius: '50%',
+      background: bg, border: bg === '#fff' ? '2px solid #22c55e' : 'none',
+      display: 'flex', alignItems: 'center', justifyContent: 'center',
+      flexShrink: 0, zIndex: 3,
+    }}>
+      <span style={{ fontSize: 8, fontWeight: 900, color: textColor, lineHeight: 1 }}>{label}</span>
+    </div>
+  );
+}
+
 export function MatchScoutModal({
   open, matchId, homeTeam, awayTeam, homeLogo, awayLogo,
   leagueName, leagueId, status, onClose,
@@ -572,29 +599,6 @@ function EventTimeline({ events, homeTeam, awayTeam, homeLogo, awayLogo }: {
     </div>
   );
 
-  const TeamLabel = ({ name, logo, color }: { name: string; logo?: string; color: string }) => (
-    <div style={{ display: 'flex', alignItems: 'center', gap: 6, overflow: 'hidden' }}>
-      {logo && (
-        <img src={logo} alt="" style={{ width: 20, height: 20, objectFit: 'contain', flexShrink: 0 }}
-          onError={(ev) => { (ev.target as HTMLImageElement).style.display = 'none'; }} />
-      )}
-      <span style={{ fontSize: 11, fontWeight: 700, color, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-        {name}
-      </span>
-    </div>
-  );
-
-  const Marker = ({ label, bg, textColor, size = 22 }: { label: string; bg: string; textColor: string; size?: number }) => (
-    <div style={{
-      width: size, height: size, borderRadius: '50%',
-      background: bg, border: bg === '#fff' ? '2px solid #22c55e' : 'none',
-      display: 'flex', alignItems: 'center', justifyContent: 'center',
-      flexShrink: 0, zIndex: 3,
-    }}>
-      <span style={{ fontSize: 8, fontWeight: 900, color: textColor, lineHeight: 1 }}>{label}</span>
-    </div>
-  );
-
   return (
     <div style={{ padding: '4px 0' }}>
       <div style={{ display: 'flex', gap: 10, alignItems: 'stretch' }}>
@@ -638,17 +642,17 @@ function EventTimeline({ events, homeTeam, awayTeam, homeLogo, awayLogo }: {
 
             {/* I marker */}
             <div style={{ position: 'absolute', left: -2, transform: 'translateX(-50%)', zIndex: 4 }}>
-              <Marker label="I" bg="#15803d" textColor="#fff" />
+              <TimelineMarker label="I" bg="#15803d" textColor="#fff" />
             </div>
 
             {/* HT marker */}
             <div style={{ position: 'absolute', left: `${htPct}%`, transform: 'translateX(-50%)', zIndex: 4 }}>
-              <Marker label="HT" bg="#fff" textColor="#15803d" size={24} />
+              <TimelineMarker label="HT" bg="#fff" textColor="#15803d" size={24} />
             </div>
 
             {/* F marker */}
             <div style={{ position: 'absolute', right: -2, transform: 'translateX(50%)', zIndex: 4 }}>
-              <Marker label="F" bg="#15803d" textColor="#fff" />
+              <TimelineMarker label="F" bg="#15803d" textColor="#fff" />
             </div>
           </div>
 

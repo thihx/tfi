@@ -233,33 +233,37 @@ async function main() {
   let saveAndNotify: ValidationReport['saveAndNotify'] = { matchId: null, result: null, recommendationRow: null };
 
   const settingsBackup = await settingsRepo.getSettings();
-  const heldRows = await query<{ match_id: string }>(
-    `SELECT w.match_id
-     FROM watchlist w
-     JOIN matches m ON m.match_id::text = w.match_id
-     WHERE w.status = 'active'
-       AND m.status = 'NS'
-       AND NOT (w.match_id = ANY($1))`,
-    [upcomingIds],
+  const activeOperationalRows = await watchlistRepo.getActiveOperationalWatchlist();
+  const activeOperationalIds = activeOperationalRows.map((row) => row.match_id);
+  const activeOperationalMatches = activeOperationalIds.length > 0
+    ? await matchesRepo.getMatchesByIds(activeOperationalIds)
+    : [];
+  const activeOperationalStatusMap = new Map(
+    activeOperationalMatches.map((row) => [row.match_id, row.status] as const),
   );
-  const heldIds = heldRows.rows.map((row) => row.match_id);
+  const heldIds = activeOperationalRows
+    .map((row) => row.match_id)
+    .filter((matchId) => activeOperationalStatusMap.get(matchId) === 'NS' && !upcomingIds.includes(matchId));
 
   try {
     if (heldIds.length > 0) {
-      await query(`UPDATE watchlist SET status = 'temp_hold_real_validation' WHERE match_id = ANY($1)`, [heldIds]);
+      await Promise.all(
+        heldIds.map((matchId) =>
+          watchlistRepo.updateOperationalWatchlistEntry(matchId, { status: 'temp_hold_real_validation' } as never)),
+      );
     }
     if (upcomingIds.length > 0) {
-      await query(
-        `UPDATE watchlist
-         SET strategic_context = NULL,
-             strategic_context_at = NULL
-         WHERE match_id = ANY($1)`,
-        [upcomingIds],
+      await Promise.all(
+        upcomingIds.map((matchId) =>
+          watchlistRepo.updateOperationalWatchlistEntry(matchId, {
+            strategic_context: null as never,
+            strategic_context_at: null,
+          } as never)),
       );
     }
 
     const enrichmentJobResult = await enrichWatchlistJob();
-    const enrichedRows = await Promise.all(upcomingIds.map((matchId) => watchlistRepo.getWatchlistByMatchId(matchId)));
+    const enrichedRows = await Promise.all(upcomingIds.map((matchId) => watchlistRepo.getOperationalWatchlistByMatchId(matchId)));
     const enrichmentRecords: UpcomingEnrichmentRecord[] = enrichedRows.map((row, index) => {
       const strategicContext = (row?.strategic_context as Record<string, unknown> | null) ?? null;
       const sourceMeta = (strategicContext?.['source_meta'] as Record<string, unknown> | null) ?? null;
@@ -300,7 +304,7 @@ async function main() {
 
     for (const liveRow of liveMatches) {
       const fixture = fixtureMap.get(liveRow.match_id);
-      const watchlistEntry = await watchlistRepo.getWatchlistByMatchId(liveRow.match_id);
+      const watchlistEntry = await watchlistRepo.getOperationalWatchlistByMatchId(liveRow.match_id);
       if (!fixture || !watchlistEntry) continue;
       const matchDisplay = `${watchlistEntry.home_team} vs ${watchlistEntry.away_team}`;
 
@@ -311,8 +315,8 @@ async function main() {
       liveRuns.push(toLiveRecord(liveRow.match_id, matchDisplay, watchlistEntry.league, liveRow.status, liveRow.current_minute, 'auto', true, autoResult));
 
       const originalMode = watchlistEntry.mode;
-      await watchlistRepo.updateWatchlistEntry(liveRow.match_id, { mode: 'F' } as never);
-      const forcedEntry = await watchlistRepo.getWatchlistByMatchId(liveRow.match_id);
+      await watchlistRepo.updateOperationalWatchlistEntry(liveRow.match_id, { mode: 'F' } as never);
+      const forcedEntry = await watchlistRepo.getOperationalWatchlistByMatchId(liveRow.match_id);
       if (forcedEntry) {
         const systemForceResult = await runPipelineForFixture(liveRow.match_id, fixture, forcedEntry, {
           shadowMode: true,
@@ -320,7 +324,7 @@ async function main() {
         });
         liveRuns.push(toLiveRecord(liveRow.match_id, matchDisplay, forcedEntry.league, liveRow.status, liveRow.current_minute, 'system_force', true, systemForceResult));
       }
-      await watchlistRepo.updateWatchlistEntry(liveRow.match_id, { mode: originalMode } as never);
+      await watchlistRepo.updateOperationalWatchlistEntry(liveRow.match_id, { mode: originalMode } as never);
 
       const manualResult = await runPipelineForFixture(liveRow.match_id, fixture, watchlistEntry, {
         shadowMode: true,
@@ -335,14 +339,14 @@ async function main() {
     const nonShadowCandidate = liveRuns.find((row) => row.shadowMode && row.shouldPush);
     if (nonShadowCandidate) {
       const fixture = fixtureMap.get(nonShadowCandidate.matchId);
-      const originalEntry = await watchlistRepo.getWatchlistByMatchId(nonShadowCandidate.matchId);
+      const originalEntry = await watchlistRepo.getOperationalWatchlistByMatchId(nonShadowCandidate.matchId);
       if (fixture && originalEntry) {
         const originalMode = originalEntry.mode;
         const shouldForceViaMode = nonShadowCandidate.mode === 'system_force';
         if (shouldForceViaMode) {
-          await watchlistRepo.updateWatchlistEntry(nonShadowCandidate.matchId, { mode: 'F' } as never);
+          await watchlistRepo.updateOperationalWatchlistEntry(nonShadowCandidate.matchId, { mode: 'F' } as never);
         }
-        const targetEntry = await watchlistRepo.getWatchlistByMatchId(nonShadowCandidate.matchId);
+        const targetEntry = await watchlistRepo.getOperationalWatchlistByMatchId(nonShadowCandidate.matchId);
         if (targetEntry) {
           const nonShadowResult = await runPipelineForFixture(nonShadowCandidate.matchId, fixture, targetEntry, {
             shadowMode: false,
@@ -366,7 +370,7 @@ async function main() {
           saveAndNotify.recommendationRow = recRow.rows[0] ?? null;
         }
         if (shouldForceViaMode) {
-          await watchlistRepo.updateWatchlistEntry(nonShadowCandidate.matchId, { mode: originalMode } as never);
+          await watchlistRepo.updateOperationalWatchlistEntry(nonShadowCandidate.matchId, { mode: originalMode } as never);
         }
       }
     }
@@ -459,7 +463,10 @@ async function main() {
     console.log(JSON.stringify({ jsonPath, mdPath, liveRuns: liveRuns.length }, null, 2));
   } finally {
     if (heldIds.length > 0) {
-      await query(`UPDATE watchlist SET status = 'active' WHERE match_id = ANY($1)`, [heldIds]);
+      await Promise.all(
+        heldIds.map((matchId) =>
+          watchlistRepo.updateOperationalWatchlistEntry(matchId, { status: 'active' } as never)),
+      );
     }
     await settingsRepo.saveSettings(settingsBackup);
     await closePool().catch(() => undefined);

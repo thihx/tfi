@@ -77,7 +77,7 @@ export async function fetchLiveOdds(
 // ==================== Watchlist Proxy ====================
 
 export async function fetchWatchlistMatches(config: AppConfig): Promise<WatchlistMatch[]> {
-  const res = await fetch(apiUrl(config, '/api/watchlist'), {
+  const res = await fetch(apiUrl(config, '/api/me/watch-subscriptions'), {
     headers: { Accept: 'application/json', ...authHeaders() },
     credentials: 'include',
   });

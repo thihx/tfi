@@ -41,8 +41,8 @@ export async function updatePredictionsJob(): Promise<{ checked: number; updated
     statusMap.set(m.match_id, m.status.toUpperCase());
   }
 
-  // 2. Get all watchlist entries
-  const watchlist = await watchlistRepo.getAllWatchlist();
+  // 2. Get active operational watch entries
+  const watchlist = await watchlistRepo.getActiveOperationalWatchlist();
   if (watchlist.length === 0) {
     console.log('[updatePredictionsJob] Watchlist empty, skip.');
     return { checked: 0, updated: 0 };
@@ -76,11 +76,11 @@ export async function updatePredictionsJob(): Promise<{ checked: number; updated
 
       if (prediction) {
         const slim = buildSlimPrediction(prediction);
-        await watchlistRepo.updateWatchlistEntry(entry.match_id, { prediction: slim as unknown });
+        await watchlistRepo.updateOperationalWatchlistEntry(entry.match_id, { prediction: slim as unknown });
         updated++;
       } else {
         // No prediction available → clear it
-        await watchlistRepo.updateWatchlistEntry(entry.match_id, { prediction: null as unknown });
+        await watchlistRepo.updateOperationalWatchlistEntry(entry.match_id, { prediction: null as unknown });
       }
     } catch (err) {
       console.error(`[updatePredictionsJob] Error for match ${entry.match_id}:`, err);

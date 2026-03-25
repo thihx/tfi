@@ -13,6 +13,10 @@ import {
   type AnalyticsRecommendationRow,
   type ExposureSummary,
 } from '../lib/recommendation-quality-metrics.js';
+import {
+  evaluateRecommendationDeliveryConditions,
+  stageRecommendationDeliveries,
+} from './recommendation-deliveries.repo.js';
 
 export { normalizeMarket, buildDedupKey };
 
@@ -235,8 +239,9 @@ export async function createRecommendation(
     : normalizedBetMarket;
   const dedupKey = rec.unique_key
     ?? buildDedupKey(rec.match_id ?? '', rec.selection ?? '', storedBetMarket);
-  const r = await query<RecommendationRow>(
-    `INSERT INTO recommendations (
+  return transaction(async (client) => {
+    const r = await client.query<RecommendationRow>(
+      `INSERT INTO recommendations (
        unique_key, match_id, timestamp, league, home_team, away_team, status,
        condition_triggered_suggestion, custom_condition_raw, execution_id,
        odds_snapshot, stats_snapshot, pre_match_prediction_summary, prompt_version, custom_condition_matched,
@@ -268,53 +273,57 @@ export async function createRecommendation(
        prompt_version = EXCLUDED.prompt_version,
        timestamp = EXCLUDED.timestamp
      RETURNING *`,
-    [
-      dedupKey,
-      rec.match_id,
-      rec.timestamp,
-      rec.league ?? '',
-      rec.home_team ?? '',
-      rec.away_team ?? '',
-      rec.status ?? '',
-      rec.condition_triggered_suggestion ?? '',
-      rec.custom_condition_raw ?? '',
-      rec.execution_id ?? '',
-      toJsonb(rec.odds_snapshot),
-      toJsonb(rec.stats_snapshot),
-      rec.pre_match_prediction_summary ?? '',
-      rec.prompt_version ?? '',
-      rec.custom_condition_matched ?? false,
-      rec.minute ?? null,
-      rec.score ?? '',
-      rec.bet_type ?? '',
-      rec.selection ?? '',
-      rec.odds ?? null,
-      rec.confidence ?? null,
-      rec.value_percent ?? null,
-      rec.risk_level ?? 'HIGH',
-      rec.stake_percent ?? null,
-      rec.stake_amount ?? null,
-      rec.reasoning ?? '',
-      rec.reasoning_vi ?? '',
-      rec.key_factors ?? '',
-      rec.warnings ?? '',
-      rec.ai_model ?? '',
-      rec.mode ?? 'B',
-      storedBetMarket,
-      rec.notified ?? '',
-      rec.notification_channels ?? '',
-      rec.result ?? '',
-      rec.actual_outcome ?? '',
-      rec.pnl ?? 0,
-      rec.settled_at || null,
-      rec.settlement_status ?? 'pending',
-      rec.settlement_method ?? '',
-      rec.settle_prompt_version ?? '',
-      rec.settlement_note ?? '',
-      rec._was_overridden ?? false,
-    ],
-  );
-  return r.rows[0]!;
+      [
+        dedupKey,
+        rec.match_id,
+        rec.timestamp,
+        rec.league ?? '',
+        rec.home_team ?? '',
+        rec.away_team ?? '',
+        rec.status ?? '',
+        rec.condition_triggered_suggestion ?? '',
+        rec.custom_condition_raw ?? '',
+        rec.execution_id ?? '',
+        toJsonb(rec.odds_snapshot),
+        toJsonb(rec.stats_snapshot),
+        rec.pre_match_prediction_summary ?? '',
+        rec.prompt_version ?? '',
+        rec.custom_condition_matched ?? false,
+        rec.minute ?? null,
+        rec.score ?? '',
+        rec.bet_type ?? '',
+        rec.selection ?? '',
+        rec.odds ?? null,
+        rec.confidence ?? null,
+        rec.value_percent ?? null,
+        rec.risk_level ?? 'HIGH',
+        rec.stake_percent ?? null,
+        rec.stake_amount ?? null,
+        rec.reasoning ?? '',
+        rec.reasoning_vi ?? '',
+        rec.key_factors ?? '',
+        rec.warnings ?? '',
+        rec.ai_model ?? '',
+        rec.mode ?? 'B',
+        storedBetMarket,
+        rec.notified ?? '',
+        rec.notification_channels ?? '',
+        rec.result ?? '',
+        rec.actual_outcome ?? '',
+        rec.pnl ?? 0,
+        rec.settled_at || null,
+        rec.settlement_status ?? 'pending',
+        rec.settlement_method ?? '',
+        rec.settle_prompt_version ?? '',
+        rec.settlement_note ?? '',
+        rec._was_overridden ?? false,
+      ],
+    );
+    const created = r.rows[0]!;
+    await stageRecommendationDeliveries(client, created);
+    await evaluateRecommendationDeliveryConditions(client, created);
+    return created;
+  });
 }
 
 export async function bulkCreateRecommendations(
@@ -329,7 +338,7 @@ export async function bulkCreateRecommendations(
         : normalizedBetMarket;
       const dedupKey = rec.unique_key
         ?? buildDedupKey(rec.match_id ?? '', rec.selection ?? '', storedBetMarket);
-      const result = await client.query(
+      const result = await client.query<RecommendationRow>(
         `INSERT INTO recommendations (
            unique_key, match_id, timestamp, league, home_team, away_team, status,
            condition_triggered_suggestion, custom_condition_raw, execution_id,
@@ -360,7 +369,8 @@ export async function bulkCreateRecommendations(
            key_factors = EXCLUDED.key_factors,
            warnings = EXCLUDED.warnings,
            prompt_version = EXCLUDED.prompt_version,
-           timestamp = EXCLUDED.timestamp`,
+           timestamp = EXCLUDED.timestamp
+         RETURNING *`,
         [
           dedupKey,
           rec.match_id,
@@ -407,7 +417,11 @@ export async function bulkCreateRecommendations(
           rec._was_overridden ?? false,
         ],
       );
-      if ((result.rowCount ?? 0) > 0) upserted++;
+      if ((result.rowCount ?? 0) > 0 && result.rows[0]) {
+        upserted++;
+        await stageRecommendationDeliveries(client, result.rows[0]);
+        await evaluateRecommendationDeliveryConditions(client, result.rows[0]);
+      }
     }
     return upserted;
   });
@@ -631,7 +645,14 @@ export async function getDashboardSummary(): Promise<DashboardSummary> {
     query<{ match_count: string; watchlist_count: string; rec_count: string }>(`
       SELECT
         (SELECT COUNT(*)::text FROM matches) AS match_count,
-        (SELECT COUNT(*)::text FROM watchlist) AS watchlist_count,
+        (
+          SELECT COUNT(*)::text
+          FROM (
+            SELECT match_id FROM monitored_matches
+            UNION
+            SELECT match_id FROM watchlist
+          ) operational_watch_matches
+        ) AS watchlist_count,
         (SELECT COUNT(*)::text FROM recommendations WHERE ${ACTIONABLE_NOT_DUP}) AS rec_count`),
 
     query<AnalyticsRecommendationRow>(`

@@ -1,5 +1,7 @@
-import { createContext, useContext, useReducer, useCallback, useRef, type ReactNode } from 'react';
-import type { AppConfig, Match, WatchlistItem, Recommendation, League } from '@/types';
+/* eslint-disable react-refresh/only-export-components */
+
+import { createContext, useContext, useReducer, useCallback, useEffect, useRef, type ReactNode } from 'react';
+import type { AppConfig, Match, WatchlistItem, League } from '@/types';
 import { loadConfig, saveConfig as persistConfig } from '@/config/config';
 import * as api from '@/lib/services/api';
 import { useToast } from '@/hooks/useToast';
@@ -9,7 +11,6 @@ interface AppState {
   config: AppConfig;
   matches: Match[];
   watchlist: WatchlistItem[];
-  recommendations: Recommendation[];
   leagues: League[];
   loading: boolean;
   loadingProgress: number;
@@ -20,7 +21,6 @@ type Action =
   | { type: 'SET_CONFIG'; payload: AppConfig }
   | { type: 'SET_MATCHES'; payload: Match[] }
   | { type: 'SET_WATCHLIST'; payload: WatchlistItem[] }
-  | { type: 'SET_RECOMMENDATIONS'; payload: Recommendation[] }
   | { type: 'SET_LEAGUES'; payload: League[] }
   | { type: 'SET_LOADING'; payload: { loading: boolean; progress?: number; message?: string } }
   | { type: 'ADD_WATCHLIST_ITEMS'; payload: WatchlistItem[] }
@@ -31,7 +31,6 @@ const initialState: AppState = {
   config: loadConfig(),
   matches: [],
   watchlist: [],
-  recommendations: [],
   leagues: [],
   loading: false,
   loadingProgress: 0,
@@ -46,8 +45,6 @@ function reducer(state: AppState, action: Action): AppState {
       return { ...state, matches: action.payload };
     case 'SET_WATCHLIST':
       return { ...state, watchlist: action.payload };
-    case 'SET_RECOMMENDATIONS':
-      return { ...state, recommendations: action.payload };
     case 'SET_LEAGUES':
       return { ...state, leagues: action.payload };
     case 'SET_LOADING':
@@ -92,8 +89,24 @@ const AppContext = createContext<AppContextValue | null>(null);
 export function AppProvider({ children }: { children: ReactNode }) {
   const [state, dispatch] = useReducer(reducer, initialState);
   const stateRef = useRef(state);
-  stateRef.current = state;
   const { showToast } = useToast();
+
+  useEffect(() => {
+    stateRef.current = state;
+  }, [state]);
+
+  const resolveWatchSubscription = useCallback(async (config: AppConfig, matchId: string): Promise<WatchlistItem | null> => {
+    const localItem = stateRef.current.watchlist.find((watchItem) => watchItem.match_id === matchId);
+    if (localItem && typeof localItem.id === 'number' && localItem.id > 0) {
+      return localItem;
+    }
+
+    try {
+      return await api.fetchWatchlistItem(config, matchId);
+    } catch {
+      return null;
+    }
+  }, []);
 
   const loadAllData = useCallback(async (silent = false) => {
     const config = stateRef.current.config;
@@ -103,8 +116,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
     const errors: string[] = [];
 
-    // All 4 calls in parallel — no sequential dependency
-    const [leagues, matches, watchlist, recommendations] = await Promise.all([
+    // All 3 calls in parallel — no sequential dependency
+    const [leagues, matches, watchlist] = await Promise.all([
       api.fetchActiveLeagues(config).catch((err: unknown) => {
         errors.push('leagues');
         console.error('[AppState] fetchActiveLeagues failed:', err);
@@ -120,17 +133,11 @@ export function AppProvider({ children }: { children: ReactNode }) {
         console.error('[AppState] fetchWatchlist failed:', err);
         return [] as WatchlistItem[];
       }),
-      api.fetchRecommendations(config).catch((err: unknown) => {
-        errors.push('recommendations');
-        console.error('[AppState] fetchRecommendations failed:', err);
-        return [] as Recommendation[];
-      }),
     ]);
 
     dispatch({ type: 'SET_LEAGUES', payload: leagues });
     dispatch({ type: 'SET_MATCHES', payload: matches });
     dispatch({ type: 'SET_WATCHLIST', payload: watchlist });
-    dispatch({ type: 'SET_RECOMMENDATIONS', payload: recommendations });
 
     if (errors.length > 0 && !silent) {
       showToast(`Failed to load: ${errors.join(', ')}. Check network or API.`, 'error');
@@ -188,7 +195,14 @@ export function AppProvider({ children }: { children: ReactNode }) {
       dispatch({ type: 'UPDATE_WATCHLIST_ITEM', payload: item });
 
       try {
-        const result = await api.updateWatchlistItems(config, [item]);
+        const requestItem = previous ? { ...previous, ...item } : item;
+        const resolvedItem = typeof requestItem.id === 'number' && requestItem.id > 0
+          ? requestItem
+          : await resolveWatchSubscription(config, item.match_id);
+        const canonicalRequestItem = resolvedItem
+          ? { ...resolvedItem, ...requestItem, id: resolvedItem.id }
+          : requestItem;
+        const result = await api.updateWatchlistItems(config, [canonicalRequestItem]);
         if (result.updatedCount && result.updatedCount > 0) return true;
         if (previous) dispatch({ type: 'UPDATE_WATCHLIST_ITEM', payload: previous });
         return false;
@@ -197,7 +211,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         return false;
       }
     },
-    [],
+    [resolveWatchSubscription],
   );
 
   const removeFromWatchlist = useCallback(async (matchIds: string[]): Promise<boolean> => {
@@ -206,7 +220,42 @@ export function AppProvider({ children }: { children: ReactNode }) {
     dispatch({ type: 'REMOVE_WATCHLIST_ITEMS', payload: matchIds });
 
     try {
-      const result = await api.deleteWatchlistItems(config, matchIds);
+      const previousByMatchId = new Map(previous.map((item) => [item.match_id, item] as const));
+      const unresolvedMatchIds = matchIds.filter((matchId) => {
+        const watchItem = previousByMatchId.get(matchId);
+        return !(watchItem && typeof watchItem.id === 'number' && watchItem.id > 0);
+      });
+      const resolvedByMatchId = new Map<string, WatchlistItem>();
+
+      if (unresolvedMatchIds.length > 0) {
+        try {
+          const freshWatchlist = await api.fetchWatchlist(config);
+          freshWatchlist.forEach((watchItem) => {
+            if (unresolvedMatchIds.includes(watchItem.match_id)) {
+              resolvedByMatchId.set(watchItem.match_id, watchItem);
+            }
+          });
+        } catch {
+          // Keep compatibility delete fallback for unresolved items.
+        }
+      }
+
+      const deleteTargets = matchIds.map((matchId) => {
+        const watchItem = previousByMatchId.get(matchId) ?? resolvedByMatchId.get(matchId);
+        if (watchItem && typeof watchItem.id === 'number' && watchItem.id > 0) {
+          return { id: watchItem.id, match_id: watchItem.match_id };
+        }
+        return null;
+      });
+      if (deleteTargets.some((target) => target == null)) {
+        dispatch({ type: 'ADD_WATCHLIST_ITEMS', payload: previous });
+        return false;
+      }
+
+      const result = await api.deleteWatchlistItems(
+        config,
+        deleteTargets.filter((target): target is { id: number; match_id: string } => target != null),
+      );
       if (result.deletedCount !== undefined && result.deletedCount >= 0) return true;
       dispatch({ type: 'ADD_WATCHLIST_ITEMS', payload: previous });
       return false;

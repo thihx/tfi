@@ -1,4 +1,4 @@
-import type { FastifyInstance } from 'fastify';
+import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import {
   getAllTeamProfiles,
   getTeamProfileByTeamId,
@@ -56,21 +56,20 @@ function validateProfile(raw: unknown): TeamProfileData {
 // ── Route registration ───────────────────────────────────────────────────────
 
 export async function teamProfileRoutes(app: FastifyInstance) {
-  /** List all team profiles (with team metadata joined) */
-  app.get('/api/team-profiles', async () => {
-    return getAllTeamProfiles();
-  });
-
-  /** Get profile for a single team */
-  app.get('/api/favorite-teams/:teamId/profile', async (req, reply) => {
+  const getTeamProfile = async (
+    req: FastifyRequest<{ Params: { teamId: string } }>,
+    reply: FastifyReply,
+  ) => {
     const { teamId } = req.params as { teamId: string };
     const row = await getTeamProfileByTeamId(teamId);
     if (!row) return reply.status(404).send({ error: 'Profile not found' });
     return row;
-  });
+  };
 
-  /** Create or update profile for a team */
-  app.put('/api/favorite-teams/:teamId/profile', async (req, reply) => {
+  const putTeamProfile = async (
+    req: FastifyRequest<{ Params: { teamId: string }; Body: Record<string, unknown> }>,
+    reply: FastifyReply,
+  ) => {
     const { teamId } = req.params as { teamId: string };
     const body = req.body as Record<string, unknown>;
 
@@ -87,15 +86,33 @@ export async function teamProfileRoutes(app: FastifyInstance) {
       notes_vi: typeof body.notes_vi === 'string' ? body.notes_vi.trim() : '',
     };
 
-    const row = await upsertTeamProfile(teamId, input);
-    return row;
-  });
+    return upsertTeamProfile(teamId, input);
+  };
 
-  /** Delete a team profile */
-  app.delete('/api/favorite-teams/:teamId/profile', async (req, reply) => {
+  const removeTeamProfile = async (
+    req: FastifyRequest<{ Params: { teamId: string } }>,
+    reply: FastifyReply,
+  ) => {
     const { teamId } = req.params as { teamId: string };
     const deleted = await deleteTeamProfile(teamId);
     if (!deleted) return reply.status(404).send({ error: 'Profile not found' });
     return { ok: true };
+  };
+
+  /** List all team profiles (with team metadata joined) */
+  app.get('/api/team-profiles', async () => {
+    return getAllTeamProfiles();
   });
+
+  /** Get profile for a single team */
+  app.get('/api/favorite-teams/:teamId/profile', getTeamProfile);
+  app.get('/api/me/favorite-teams/:teamId/profile', getTeamProfile);
+
+  /** Create or update profile for a team */
+  app.put('/api/favorite-teams/:teamId/profile', putTeamProfile);
+  app.put('/api/me/favorite-teams/:teamId/profile', putTeamProfile);
+
+  /** Delete a team profile */
+  app.delete('/api/favorite-teams/:teamId/profile', removeTeamProfile);
+  app.delete('/api/me/favorite-teams/:teamId/profile', removeTeamProfile);
 }

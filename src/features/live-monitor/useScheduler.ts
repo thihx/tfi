@@ -19,7 +19,10 @@ import {
 export function useScheduler(appConfig: AppConfig) {
   const [state, setState] = useState<SchedulerState>(getSchedulerState);
   const appConfigRef = useRef(appConfig);
-  appConfigRef.current = appConfig;
+
+  useEffect(() => {
+    appConfigRef.current = appConfig;
+  }, [appConfig]);
 
   useEffect(() => {
     return onSchedulerChange(setState);

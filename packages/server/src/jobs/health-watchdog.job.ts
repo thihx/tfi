@@ -12,6 +12,7 @@ import { getRedisClient } from '../lib/redis.js';
 import { config } from '../config.js';
 import { audit } from '../lib/audit.js';
 import { reportJobProgress } from './job-progress.js';
+import { loadOperationalTelegramSettings } from '../lib/telegram-runtime.js';
 
 // Jobs considered critical for business operations.
 // The watchdog only alerts for these — does NOT alert for itself or utility jobs.
@@ -114,6 +115,7 @@ export async function healthWatchdogJob(): Promise<WatchdogResult> {
 
   const allJobs = await getJobsStatus();
   const now = Date.now();
+  const telegram = await loadOperationalTelegramSettings().catch(() => ({ chatId: '', enabled: false }));
 
   const overdueJobs: string[] = [];
   const recovered: string[] = [];
@@ -159,8 +161,7 @@ export async function healthWatchdogJob(): Promise<WatchdogResult> {
       const cooledDown = lastAlertedAt === 0 || (now - lastAlertedAt > ALERT_COOLDOWN_MS);
 
       if (cooledDown) {
-        const chatId = config.pipelineTelegramChatId;
-        if (chatId && config.telegramBotToken) {
+        if (telegram.enabled && telegram.chatId && config.telegramBotToken) {
           const timeAgo = lastRunTs > 0 ? formatDuration(timeSinceLastRun) : 'never run';
           const expectedInterval = formatDuration(job.intervalMs);
           const lastErr = job.lastError ? `\n<b>Last error:</b> ${escapeHtml(job.lastError.substring(0, 200))}` : '';
@@ -180,7 +181,7 @@ export async function healthWatchdogJob(): Promise<WatchdogResult> {
           ].filter(Boolean).join('\n');
 
           try {
-            await sendTelegramMessage(chatId, msg);
+            await sendTelegramMessage(telegram.chatId, msg);
             alerted++;
           } catch (err) {
             console.error(`[watchdog] Failed to send alert for ${job.name}:`, err);
@@ -216,8 +217,7 @@ export async function healthWatchdogJob(): Promise<WatchdogResult> {
       inMemoryCooldown.delete(job.name);
       await clearAlertState(job.name);
 
-      const chatId = config.pipelineTelegramChatId;
-      if (chatId && config.telegramBotToken) {
+      if (telegram.enabled && telegram.chatId && config.telegramBotToken) {
         const msg = [
           `✅ <b>[TFI] Job khôi phục: ${escapeHtml(job.name)}</b>`,
           ``,
@@ -226,7 +226,7 @@ export async function healthWatchdogJob(): Promise<WatchdogResult> {
         ].join('\n');
 
         try {
-          await sendTelegramMessage(chatId, msg);
+          await sendTelegramMessage(telegram.chatId, msg);
         } catch {
           // ignore
         }

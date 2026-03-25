@@ -74,7 +74,7 @@ export async function subscribePush(): Promise<PushSubscription> {
 
   // Send subscription to server
   const subJson = subscription.toJSON();
-  const res = await fetch(`${API_BASE}/api/push/subscribe`, {
+  const res = await fetch(`${API_BASE}/api/me/push/subscribe`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', ...authHeaders() },
     credentials: 'include',
@@ -100,7 +100,7 @@ export async function unsubscribePush(): Promise<void> {
   await subscription.unsubscribe();
 
   // Remove from server
-  await fetch(`${API_BASE}/api/push/subscribe`, {
+  await fetch(`${API_BASE}/api/me/push/subscribe`, {
     method: 'DELETE',
     headers: { 'Content-Type': 'application/json', ...authHeaders() },
     credentials: 'include',

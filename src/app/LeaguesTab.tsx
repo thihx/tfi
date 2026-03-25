@@ -540,7 +540,7 @@ export function LeaguesTab() {
     }
   }, [config, teamProfileTarget, showToast]);
 
-  const handleDeleteTeamProfile = useCallback(async (_teamId: string) => {
+  const handleDeleteTeamProfile = useCallback(async () => {
     if (!teamProfileTarget) return;
     setTeamProfileSaving(true);
     try {
@@ -974,6 +974,7 @@ export function LeaguesTab() {
       onClose={() => setFixtureLeague(null)}
     />
     <LeagueProfileModal
+      key={profileLeague ? `${profileLeague.league_id}:${profileDraft?.updated_at ?? 'draft'}` : 'league-profile-modal'}
       league={profileLeague}
       profile={profileDraft}
       loading={profileLoading}
@@ -987,6 +988,7 @@ export function LeaguesTab() {
       onDelete={handleDeleteProfile}
     />
     <TeamProfileModal
+      key={teamProfileTarget ? `${teamProfileTarget.teamId}:${teamProfile?.updated_at ?? 'draft'}` : 'team-profile-modal'}
       team={teamProfileTarget ? { id: teamProfileTarget.teamId, name: teamProfileTarget.teamName } : null}
       leagueName={teamProfileTarget?.leagueName}
       profile={teamProfile}

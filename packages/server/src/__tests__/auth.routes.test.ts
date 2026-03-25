@@ -20,7 +20,30 @@ vi.mock('../config.js', () => ({
 
 vi.mock('../lib/jwt.js', () => ({
   signToken: vi.fn().mockReturnValue('signed.jwt.token'),
-  verifyToken: vi.fn().mockReturnValue({ sub: 'user@example.com', name: 'User', picture: '' }),
+  verifyToken: vi.fn().mockReturnValue({ sub: 'user-1', email: 'user@example.com', role: 'member', name: 'User', picture: '' }),
+}));
+
+vi.mock('../repos/users.repo.js', () => ({
+  resolveOrCreateUserFromIdentity: vi.fn().mockResolvedValue({
+    id: 'user-1',
+    email: 'user@example.com',
+    display_name: 'Test User',
+    avatar_url: 'avatar.png',
+    role: 'member',
+    status: 'active',
+    created_at: '2026-03-24T00:00:00.000Z',
+    updated_at: '2026-03-24T00:00:00.000Z',
+  }),
+  getUserById: vi.fn().mockResolvedValue({
+    id: 'user-1',
+    email: 'user@example.com',
+    display_name: 'User',
+    avatar_url: '',
+    role: 'member',
+    status: 'active',
+    created_at: '2026-03-24T00:00:00.000Z',
+    updated_at: '2026-03-24T00:00:00.000Z',
+  }),
 }));
 
 let app: FastifyInstance;
@@ -100,5 +123,27 @@ describe('GET /api/auth/google/callback', () => {
     expect(setCookie).toContain('Max-Age=0');
     expect(setCookie).toContain('tfi_auth_token=');
     expect(setCookie).toContain('HttpOnly');
+  });
+});
+
+describe('GET /api/auth/me', () => {
+  test('returns the resolved internal principal payload', async () => {
+    const res = await app.inject({
+      method: 'GET',
+      url: '/api/auth/me',
+      headers: { authorization: 'Bearer signed.jwt.token' },
+    });
+
+    expect(res.statusCode).toBe(200);
+    expect(res.json()).toEqual({
+      userId: 'user-1',
+      email: 'user@example.com',
+      name: 'User',
+      displayName: 'User',
+      picture: '',
+      avatarUrl: '',
+      role: 'member',
+      status: 'active',
+    });
   });
 });

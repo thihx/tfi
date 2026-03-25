@@ -1,8 +1,11 @@
 import type { FastifyInstance, FastifyReply } from 'fastify';
+import { requireAdminOrOwner } from '../lib/authz.js';
 import { getOpsMonitoringSnapshot } from '../repos/ops-monitoring.repo.js';
 
 export async function opsRoutes(app: FastifyInstance) {
-  app.get('/api/ops/overview', async (_req, reply: FastifyReply) => {
+  app.get('/api/ops/overview', async (req, reply: FastifyReply) => {
+    const user = requireAdminOrOwner(req, reply);
+    if (!user) return;
     try {
       return getOpsMonitoringSnapshot();
     } catch (err) {

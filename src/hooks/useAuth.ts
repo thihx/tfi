@@ -7,10 +7,29 @@ import {
 
 const API_URL = (import.meta.env['VITE_API_URL'] as string | undefined) || '';
 
+function getAuthErrorMessage(authError: string | null): string {
+  if (!authError) return '';
+  const messages: Record<string, string> = {
+    auth_unavailable: 'Authentication is not configured on this environment.',
+    invalid_state: 'Google authentication session expired or was invalid. Please try again.',
+    not_allowed: 'Your Google account is not authorised to access this app.',
+    token_exchange_failed: 'Google authentication failed. Please try again.',
+    profile_fetch_failed: 'Could not retrieve your Google profile. Please try again.',
+    cancelled: 'Login was cancelled.',
+  };
+  return messages[authError] ?? `Login failed: ${authError}`;
+}
+
 export function useAuth() {
   const [authed, setAuthed] = useState(false);
   const [user, setUser] = useState<AuthUser | null>(null);
-  const [error, setError]       = useState('');
+  const [error, setError] = useState(() => {
+    const searchParams = new URLSearchParams(window.location.search);
+    const hashParams = new URLSearchParams(
+      window.location.hash.startsWith('#') ? window.location.hash.slice(1) : window.location.hash,
+    );
+    return getAuthErrorMessage(hashParams.get('auth_error') ?? searchParams.get('auth_error'));
+  });
 
   // On mount: check URL auth params, then validate session from HttpOnly cookie via /api/auth/me.
   useEffect(() => {
@@ -23,18 +42,6 @@ export function useAuth() {
 
     if (authSuccess || authError) {
       window.history.replaceState({}, '', window.location.pathname);
-    }
-
-    if (authError) {
-      const messages: Record<string, string> = {
-        auth_unavailable:      'Authentication is not configured on this environment.',
-        invalid_state:         'Google authentication session expired or was invalid. Please try again.',
-        not_allowed:           'Your Google account is not authorised to access this app.',
-        token_exchange_failed: 'Google authentication failed. Please try again.',
-        profile_fetch_failed:  'Could not retrieve your Google profile. Please try again.',
-        cancelled:             'Login was cancelled.',
-      };
-      setError(messages[authError] ?? `Login failed: ${authError}`);
     }
 
     const baseUrl = API_URL || window.location.origin;

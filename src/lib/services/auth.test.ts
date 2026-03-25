@@ -56,10 +56,12 @@ describe('auth service', () => {
 
   describe('getUser', () => {
     test('extracts user fields from token', () => {
-      const token = makeFakeJwt({ sub: 'test@gmail.com', name: 'Test User', picture: 'https://pic', exp: Date.now() });
+      const token = makeFakeJwt({ sub: 'user-123', email: 'test@gmail.com', role: 'member', name: 'Test User', picture: 'https://pic', exp: Date.now() });
       const user = getUser(token);
+      expect(user?.userId).toBe('user-123');
       expect(user?.email).toBe('test@gmail.com');
       expect(user?.name).toBe('Test User');
+      expect(user?.role).toBe('member');
     });
 
     test('returns null for null token', () => {

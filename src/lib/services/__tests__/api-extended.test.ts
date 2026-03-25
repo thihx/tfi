@@ -7,9 +7,11 @@ import { describe, test, expect, vi, beforeEach } from 'vitest';
 import {
   fetchMatches,
   fetchWatchlist,
+  fetchWatchlistItem,
   fetchRecommendations,
   fetchRecommendationsByMatch,
   fetchRecommendationsPaginated,
+  fetchRecommendationDeliveriesPaginated,
   fetchDashboardSummary,
   fetchBetTypes,
   fetchDistinctLeagues,
@@ -67,10 +69,37 @@ describe('matches API', () => {
 // ── Watchlist ──
 
 describe('watchlist API', () => {
-  test('fetchWatchlist calls GET /api/watchlist', async () => {
+  test('fetchWatchlist calls GET /api/me/watch-subscriptions', async () => {
     globalThis.fetch = mockFetch([{ match_id: '100' }]);
     const result = await fetchWatchlist(config);
     expect(result).toHaveLength(1);
+    expect(fetch).toHaveBeenCalledWith(
+      'http://localhost:4000/api/me/watch-subscriptions',
+      expect.objectContaining({ method: 'GET' }),
+    );
+  });
+
+  test('fetchWatchlistItem resolves from canonical watch-subscriptions list', async () => {
+    globalThis.fetch = mockFetch([
+      { id: 7, match_id: '100' },
+      { id: 8, match_id: '200' },
+    ]);
+
+    const result = await fetchWatchlistItem(config, '200');
+
+    expect(result).toEqual({ id: 8, match_id: '200' });
+    expect(fetch).toHaveBeenCalledWith(
+      'http://localhost:4000/api/me/watch-subscriptions',
+      expect.objectContaining({ method: 'GET' }),
+    );
+  });
+
+  test('fetchWatchlistItem returns null when canonical watch-subscriptions list has no match', async () => {
+    globalThis.fetch = mockFetch([{ id: 7, match_id: '100' }]);
+
+    const result = await fetchWatchlistItem(config, '404');
+
+    expect(result).toBeNull();
   });
 
   test('createWatchlistItems sends POST for each item', async () => {
@@ -81,18 +110,31 @@ describe('watchlist API', () => {
     ]);
     expect(result.insertedCount).toBe(2);
     expect(fetch).toHaveBeenCalledTimes(2);
+    expect(fetch).toHaveBeenCalledWith(
+      'http://localhost:4000/api/me/watch-subscriptions',
+      expect.objectContaining({ method: 'POST' }),
+    );
   });
 
-  test('updateWatchlistItems sends PATCH for each item', async () => {
+  test('updateWatchlistItems uses canonical ID path when subscription id is available', async () => {
+    globalThis.fetch = mockFetch({ id: 7, match_id: '100', priority: 3 });
+    const result = await updateWatchlistItems(config, [
+      { id: 7, match_id: '100', priority: 3 } as never,
+    ]);
+    expect(result.updatedCount).toBe(1);
+    expect(fetch).toHaveBeenCalledWith(
+      'http://localhost:4000/api/me/watch-subscriptions/7',
+      expect.objectContaining({ method: 'PATCH' }),
+    );
+  });
+
+  test('updateWatchlistItems skips items when subscription id is unavailable', async () => {
     globalThis.fetch = mockFetch({ match_id: '100', priority: 3 });
     const result = await updateWatchlistItems(config, [
       { match_id: '100', priority: 3 } as never,
     ]);
-    expect(result.updatedCount).toBe(1);
-    expect(fetch).toHaveBeenCalledWith(
-      'http://localhost:4000/api/watchlist/100',
-      expect.objectContaining({ method: 'PATCH' }),
-    );
+    expect(result.updatedCount).toBe(0);
+    expect(fetch).not.toHaveBeenCalled();
   });
 
   test('updateWatchlistItems skips items without match_id', async () => {
@@ -104,11 +146,33 @@ describe('watchlist API', () => {
     expect(fetch).not.toHaveBeenCalled();
   });
 
-  test('deleteWatchlistItems sends DELETE for each ID', async () => {
+  test('deleteWatchlistItems uses canonical ID path when subscription id is available', async () => {
     globalThis.fetch = mockFetch({ deleted: true });
-    const result = await deleteWatchlistItems(config, ['100', '200']);
+    const result = await deleteWatchlistItems(config, [
+      { id: 7, match_id: '100' },
+      { id: 8, match_id: '200' },
+    ]);
     expect(result.deletedCount).toBe(2);
     expect(fetch).toHaveBeenCalledTimes(2);
+    expect(fetch).toHaveBeenCalledWith(
+      'http://localhost:4000/api/me/watch-subscriptions/7',
+      expect.objectContaining({ method: 'DELETE' }),
+    );
+  });
+
+  test('deleteWatchlistItems skips items when subscription ids are unavailable', async () => {
+    globalThis.fetch = mockFetch({ deleted: true });
+    const result = await deleteWatchlistItems(config, [{ match_id: '100' } as never, { match_id: '200' } as never]);
+    expect(result.deletedCount).toBe(0);
+    expect(fetch).not.toHaveBeenCalled();
+  });
+
+  test('deleteWatchlistItems skips object targets with no subscription id', async () => {
+    globalThis.fetch = mockFetch({ deleted: true });
+    const result = await deleteWatchlistItems(config, [{ match_id: '100' }]);
+
+    expect(result.deletedCount).toBe(0);
+    expect(fetch).not.toHaveBeenCalled();
   });
 });
 
@@ -156,6 +220,26 @@ describe('recommendations API', () => {
     const url = (fetch as ReturnType<typeof vi.fn>).mock.calls[0]![0] as string;
     expect(url).not.toContain('result=');
     expect(url).not.toContain('bet_type=');
+  });
+
+  test('fetchRecommendationDeliveriesPaginated builds personal delivery query', async () => {
+    globalThis.fetch = mockFetch({ rows: [], total: 0 });
+    await fetchRecommendationDeliveriesPaginated(config, {
+      limit: 20,
+      offset: 40,
+      result: 'pending',
+      bet_type: 'ou2.5',
+      league: 'Premier League',
+      search: 'Arsenal',
+      risk_level: 'HIGH',
+      sort_by: 'confidence',
+      sort_dir: 'desc',
+    });
+    const url = (fetch as ReturnType<typeof vi.fn>).mock.calls[0]![0] as string;
+    expect(url).toContain('/api/me/recommendation-deliveries?');
+    expect(url).toContain('result=pending');
+    expect(url).toContain('bet_type=ou2.5');
+    expect(url).toContain('search=Arsenal');
   });
 
   test('fetchDashboardSummary returns summary object', async () => {
