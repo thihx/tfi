@@ -3,23 +3,24 @@ import { DatePicker } from '@/components/ui/DatePicker';
 import { useAppState } from '@/hooks/useAppState';
 import { useToast } from '@/hooks/useToast';
 import { useUiLanguage } from '@/hooks/useUiLanguage';
+import { useUserTimeZone } from '@/hooks/useUserTimeZone';
 import { Pagination } from '@/components/ui/Pagination';
 import { StatusBadge } from '@/components/ui/StatusBadge';
+import { AiAnalysisPanel, type AiAnalysisPanelEntry } from '@/components/ui/AiAnalysisPanel';
 import { MatchCard } from '@/components/ui/MatchCard';
 import { WatchlistEditModal } from '@/components/ui/WatchlistEditModal';
 import { LIVE_STATUSES, PLACEHOLDER_HOME, PLACEHOLDER_AWAY } from '@/config/constants';
-import { convertSeoulToLocalDateTime, formatDateTimeDisplay, getLeagueDisplayName, debounce, parseKickoffForSave } from '@/lib/utils/helpers';
-import { normalizeToISO } from '@/lib/utils/helpers';
+import { formatDateTimeDisplay, getKickoffDateKey, getKickoffDateTime, getLeagueDisplayName, debounce, parseKickoffForSave, shouldFastRefreshMatch, normalizeToISO } from '@/lib/utils/helpers';
+import { getDateGroupLabelInTimeZone, getDateKeyAtOffsetInTimeZone, getMatchDateKeyInTimeZone } from '@/lib/utils/timezone';
 import type { Match, SortState, League, WatchlistItem } from '@/types';
 import {
   analyzeMatchWithServerPipeline,
   getParsedAiResult,
-  type ServerMatchPipelineResult,
 } from '@/features/live-monitor/services/server-monitor.service';
 import { MatchScoutModal } from '@/components/ui/MatchScoutModal';
 
 // ── Module-level store — persists across tab navigation ──────────────────────
-type AiResultEntry = { matchId: string; matchDisplay: string; result: ServerMatchPipelineResult };
+type AiResultEntry = AiAnalysisPanelEntry;
 const _matchesTabStore = {
   analyzingMatches: new Set<string>(),
   aiResults: new Map<string, AiResultEntry>(),
@@ -27,23 +28,12 @@ const _matchesTabStore = {
 
 const PAGE_SIZE = 30;
 
-function getDateGroupLabel(localDT: Date): string {
-  const today = new Date();
-  const tomorrow = new Date(today);
-  tomorrow.setDate(today.getDate() + 1);
-  const same = (a: Date, b: Date) => a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate();
-  if (same(localDT, today)) return 'Today';
-  if (same(localDT, tomorrow)) return 'Tomorrow';
-  return localDT.toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' });
+function getMatchKickoffTime(match: Match): Date {
+  return getKickoffDateTime(match);
 }
 
-/** Return yyyy-mm-dd for Seoul (UTC+9) date offset by offsetDays from today */
-function seoulDateISO(offsetDays: number): string {
-  const d = new Date(Date.now() + (9 * 3600 + offsetDays * 86400) * 1000);
-  const yyyy = d.getUTCFullYear();
-  const mo = String(d.getUTCMonth() + 1).padStart(2, '0');
-  const dd = String(d.getUTCDate()).padStart(2, '0');
-  return `${yyyy}-${mo}-${dd}`;
+export function shouldAutoRefreshMatch(match: Match, now = Date.now()): boolean {
+  return shouldFastRefreshMatch(match, now);
 }
 
 
@@ -51,6 +41,7 @@ export function MatchesTab() {
   const { state, addToWatchlist, updateWatchlistItem, loadAllData } = useAppState();
   const { showToast } = useToast();
   const uiLanguage = useUiLanguage();
+  const { effectiveTimeZone } = useUserTimeZone();
   const { matches, watchlist, config, leagues } = state;
   const [editItem, setEditItem] = useState<WatchlistItem | null>(null);
 
@@ -80,7 +71,6 @@ export function MatchesTab() {
       return next;
     });
   }, []);
-
   const setAiResults = useCallback((fn: (prev: Map<string, AiResultEntry>) => Map<string, AiResultEntry>) => {
     _setAiResults((prev) => {
       const next = fn(prev);
@@ -178,15 +168,7 @@ export function MatchesTab() {
   useEffect(() => {
     const tick = setInterval(() => {
       const now = Date.now();
-      const hasLikelyLive = allMatchesRef.current.some((m) => {
-        if (LIVE_STATUSES.includes(m.status)) return true;
-        if (m.status === 'NS') {
-          const kickoff = convertSeoulToLocalDateTime(m.date, m.kickoff || '00:00');
-          const elapsedMin = (now - kickoff.getTime()) / 60_000;
-          return elapsedMin >= 0 && elapsedMin < 115;
-        }
-        return false;
-      });
+      const hasLikelyLive = allMatchesRef.current.some((m) => shouldAutoRefreshMatch(m, now));
       if (hasLikelyLive) void loadAllDataRef.current(true);
     }, 3000);
     return () => clearInterval(tick);
@@ -251,7 +233,7 @@ export function MatchesTab() {
         if (actionFilter === 'not-watched' && isWatched) return false;
       }
       if (dateFrom || dateTo) {
-        const iso = normalizeToISO(m.date);
+        const iso = getMatchDateKeyInTimeZone(m.date, m.kickoff || '00:00', effectiveTimeZone) ?? normalizeToISO(m.date);
         if (!iso) return false;
         if (dateFrom && iso < dateFrom) return false;
         if (dateTo && iso > dateTo) return false;
@@ -264,8 +246,8 @@ export function MatchesTab() {
         let valA: string | number | Date, valB: string | number | Date;
         switch (sort.column) {
           case 'time':
-            valA = convertSeoulToLocalDateTime(a.date, a.kickoff || '00:00');
-            valB = convertSeoulToLocalDateTime(b.date, b.kickoff || '00:00');
+            valA = getMatchKickoffTime(a);
+            valB = getMatchKickoffTime(b);
             break;
           case 'league':
             valA = (a.league_name || '').toLowerCase();
@@ -285,7 +267,7 @@ export function MatchesTab() {
       });
     }
     return items;
-  }, [matches, debouncedSearch, statusFilter, leagueFilter, actionFilter, dateFrom, dateTo, sort, watchlistMap]);
+  }, [matches, debouncedSearch, statusFilter, leagueFilter, actionFilter, dateFrom, dateTo, sort, watchlistMap, effectiveTimeZone]);
 
   // Pagination
   const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
@@ -414,14 +396,11 @@ export function MatchesTab() {
   const allPageSelected = enabledOnPage.length > 0 && enabledOnPage.every((m) => selected.has(String(m.match_id)));
 
   // Date tab shortcuts
-  const dateToday    = seoulDateISO(0);
-  const dateTomorrow = seoulDateISO(1);
-  const dateYesterday = seoulDateISO(-1);
+  const dateToday = getDateKeyAtOffsetInTimeZone(0, effectiveTimeZone);
+  const dateTomorrow = getDateKeyAtOffsetInTimeZone(1, effectiveTimeZone);
+  const dateYesterday = getDateKeyAtOffsetInTimeZone(-1, effectiveTimeZone);
   const hasYesterday = matches.some((m) => {
-    const s = String(m.date);
-    const iso = s.includes('T')
-      ? (() => { const d = new Date(new Date(s).getTime() + 9 * 3600_000); return `${d.getUTCFullYear()}-${String(d.getUTCMonth()+1).padStart(2,'0')}-${String(d.getUTCDate()).padStart(2,'0')}`; })()
-      : s.substring(0, 10);
+    const iso = getKickoffDateKey(m, effectiveTimeZone);
     return iso === dateYesterday;
   });
   const activeDateTab =
@@ -514,48 +493,20 @@ export function MatchesTab() {
         <div ref={aiResultsRef} style={{ margin: '12px 0', display: 'flex', flexDirection: 'column', gap: '8px' }}>
           {aiResults.size > 1 && (
             <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
-              <button className="btn btn-secondary btn-sm" onClick={() => setAiResults(() => new Map())}>Close All ({aiResults.size})</button>
+              <button
+                onClick={() => setAiResults(() => new Map())}
+                style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '12px', color: 'var(--gray-400)', padding: '2px 4px' }}
+              >
+                × Close all ({aiResults.size})
+              </button>
             </div>
           )}
           {Array.from(aiResults.values()).map((entry) => (
-            <div key={entry.matchId} id={`ai-result-${entry.matchId}`} className="ai-result-panel" style={{ padding: '16px', background: 'var(--gray-50)', border: '1px solid var(--gray-200)', borderRadius: '8px', transition: 'outline 0.3s' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
-                <h4 style={{ margin: 0, fontSize: '14px' }}>AI Analysis — {entry.matchDisplay}</h4>
-                <button className="btn btn-secondary btn-sm" onClick={() => setAiResults((prev) => { const m = new Map(prev); m.delete(entry.matchId); return m; })}>Close</button>
-              </div>
-              {getParsedAiResult(entry.result) ? (() => {
-                const ai = getParsedAiResult(entry.result)!;
-                return (
-                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: '10px', fontSize: '13px' }}>
-                    <div><strong>Selection:</strong> {ai.selection || entry.result.selection || '—'}</div>
-                    <div><strong>Decision:</strong> {entry.result.decisionKind === 'ai_push' ? 'AI Push' : entry.result.decisionKind === 'condition_only' ? 'Condition Only' : 'No Bet'}</div>
-                    <div><strong>Market:</strong> {ai.bet_market || '—'}</div>
-                    <div><strong>Confidence:</strong> {entry.result.confidence}/10</div>
-                    <div><strong>Risk:</strong> <span style={{ color: ai.risk_level === 'LOW' ? 'var(--green)' : ai.risk_level === 'HIGH' ? 'var(--red)' : 'var(--orange)' }}>{ai.risk_level || '—'}</span></div>
-                    <div><strong>Stake:</strong> {ai.stake_percent ?? 0}%</div>
-                    <div><strong>Value:</strong> {ai.value_percent ?? 0}%</div>
-                    <div><strong>Should Push:</strong> {entry.result.shouldPush ? 'Yes' : 'No'}</div>
-                    <div><strong>Condition Matched:</strong> {ai.custom_condition_matched ? 'Yes' : 'No'}</div>
-                    <div><strong>Condition Triggered:</strong> {ai.condition_triggered_should_push ? 'Yes' : 'No'}</div>
-                    <div><strong>Saved:</strong> {entry.result.saved ? 'Yes' : 'No'}</div>
-                    <div><strong>Notified:</strong> {entry.result.notified ? 'Yes' : 'No'}</div>
-                    <div style={{ gridColumn: '1 / -1' }}><strong>Reasoning:</strong> {ai.reasoning_vi || ai.reasoning_en || '—'}</div>
-                    {ai.condition_triggered_suggestion && (
-                      <div style={{ gridColumn: '1 / -1' }}>
-                        <strong>Condition Suggestion:</strong> {ai.condition_triggered_suggestion}
-                      </div>
-                    )}
-                    {(ai.warnings || []).length > 0 && (
-                      <div style={{ gridColumn: '1 / -1', color: 'var(--orange)' }}><strong>Warnings:</strong> {(ai.warnings || []).join('; ')}</div>
-                    )}
-                  </div>
-                );
-              })() : entry.result.error ? (
-                <div style={{ color: 'var(--red)', fontSize: '13px' }}>❌ {entry.result.error}</div>
-              ) : (
-                <div style={{ color: 'var(--gray-600)', fontSize: '13px' }}>Match was skipped by pipeline filters (not active or no data available).</div>
-              )}
-            </div>
+            <AiAnalysisPanel
+              key={entry.matchId}
+              entry={entry}
+              onClose={() => setAiResults((prev) => { const m = new Map(prev); m.delete(entry.matchId); return m; })}
+            />
           ))}
         </div>
       )}
@@ -624,7 +575,7 @@ export function MatchesTab() {
               const rows: React.ReactNode[] = [];
               let lastLabel = '';
               pageItems.forEach((m) => {
-                const label = getDateGroupLabel(convertSeoulToLocalDateTime(m.date, m.kickoff || '00:00'));
+                const label = getDateGroupLabelInTimeZone(getMatchKickoffTime(m), effectiveTimeZone);
                 if (label !== lastLabel) {
                   lastLabel = label;
                   rows.push(<tr key={`grp-${label}`} className="date-group-row"><td>{label}</td><td colSpan={6} /></tr>);
@@ -704,7 +655,7 @@ interface MatchRowProps {
 }
 
 function MatchRow({ match, isWatched, isPending, isSelected, isAnalyzing, hasResult, leagues, flashMap, onQuickAdd, onToggleSelect, onAskAi, onEdit, onDoubleClick }: MatchRowProps) {
-  const localDT = convertSeoulToLocalDateTime(match.date, match.kickoff || '00:00');
+  const localDT = getMatchKickoffTime(match);
   const timeDisplay = formatDateTimeDisplay(localDT);
   const leagueDisplay = getLeagueDisplayName(match.league_id, match.league_name || '', leagues);
   const score = match.home_score != null && match.home_score !== '' ? `${match.home_score} - ${match.away_score}` : '';

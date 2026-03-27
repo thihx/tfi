@@ -10,11 +10,12 @@ const mockLoadAllData = vi.fn().mockResolvedValue(undefined);
 const mockAddToWatchlist = vi.fn().mockResolvedValue(true);
 const mockUpdateWatchlistItem = vi.fn().mockResolvedValue(true);
 
-const matches: Match[] = [
+const baseMatches: Match[] = [
   {
     match_id: '100',
     date: '2026-03-24',
     kickoff: '19:00',
+    kickoff_at_utc: '2026-03-24T10:00:00.000Z',
     league_id: 39,
     league_name: 'Premier League',
     home_team: 'Arsenal',
@@ -48,14 +49,16 @@ const watchlist: WatchlistItem[] = [
 
 const leagues: League[] = [{ league_id: 39, league_name: 'Premier League', top_league: true } as League];
 
+const mockState = {
+  matches: baseMatches,
+  watchlist,
+  config: { apiUrl: 'http://localhost:4000', defaultMode: 'B' },
+  leagues,
+};
+
 vi.mock('@/hooks/useAppState', () => ({
   useAppState: () => ({
-    state: {
-      matches,
-      watchlist,
-      config: { apiUrl: 'http://localhost:4000', defaultMode: 'B' },
-      leagues,
-    },
+    state: mockState,
     addToWatchlist: mockAddToWatchlist,
     updateWatchlistItem: mockUpdateWatchlistItem,
     loadAllData: mockLoadAllData,
@@ -87,10 +90,16 @@ beforeAll(() => {
 });
 
 let MatchesTab: typeof import('./MatchesTab').MatchesTab;
+let shouldAutoRefreshMatch: typeof import('./MatchesTab').shouldAutoRefreshMatch;
 
 beforeEach(async () => {
   vi.clearAllMocks();
   vi.resetModules();
+  vi.useRealTimers();
+  mockState.matches = baseMatches.map((match) => ({ ...match }));
+  mockState.watchlist = watchlist;
+  mockState.config = { apiUrl: 'http://localhost:4000', defaultMode: 'B' };
+  mockState.leagues = leagues;
   mockAnalyzeMatchWithServerPipeline.mockResolvedValue({
     matchId: '100',
     success: true,
@@ -116,7 +125,7 @@ beforeEach(async () => {
     },
   });
   mockGetParsedAiResult.mockImplementation((result) => result.debug?.parsed ?? null);
-  ({ MatchesTab } = await import('./MatchesTab'));
+  ({ MatchesTab, shouldAutoRefreshMatch } = await import('./MatchesTab'));
 });
 
 describe('MatchesTab', () => {
@@ -173,5 +182,30 @@ describe('MatchesTab', () => {
         expect.objectContaining({ id: 7, match_id: '100' }),
       );
     });
+  });
+
+  it('keeps auto-refresh active for live-window matches using kickoff_at_utc after refactor', async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-03-24T10:12:00.000Z'));
+    mockState.matches = [
+      {
+        ...baseMatches[0],
+        status: 'NS',
+        date: '2026-03-25',
+        kickoff: '19:00',
+        kickoff_at_utc: '2026-03-24T10:00:00.000Z',
+      },
+    ];
+
+    render(<MatchesTab />);
+
+    expect(mockLoadAllData).toHaveBeenCalledTimes(1);
+    expect(shouldAutoRefreshMatch(mockState.matches[0]!, Date.now())).toBe(true);
+
+    await vi.advanceTimersByTimeAsync(3000);
+
+    expect(mockLoadAllData).toHaveBeenCalledTimes(2);
+    expect(mockLoadAllData).toHaveBeenNthCalledWith(1, true);
+    expect(mockLoadAllData).toHaveBeenNthCalledWith(2, true);
   });
 });

@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
+import { internalApiUrl, resolveInternalApiBaseUrl } from '@/lib/internal-api';
 import { getToken } from '@/lib/services/auth';
 
 // ── Types ─────────────────────────────────────────────────────
@@ -24,7 +25,7 @@ interface HealthSnapshot {
 
 // ── Helpers ───────────────────────────────────────────────────
 
-const API_URL = import.meta.env.VITE_API_URL ?? '';
+const API_URL = resolveInternalApiBaseUrl();
 
 function authHeaders(): Record<string, string> {
   const t = getToken();
@@ -78,7 +79,7 @@ export function IntegrationHealthPanel() {
     setLoading(true);
     setError(null);
     try {
-      const res = await fetch(`${API_URL}/api/integrations/health`, {
+      const res = await fetch(internalApiUrl('/api/integrations/health', API_URL), {
         headers: authHeaders(),
         credentials: 'include',
       });
@@ -94,7 +95,7 @@ export function IntegrationHealthPanel() {
   const refreshSingle = useCallback(async (id: string) => {
     setRefreshingId(id);
     try {
-      const res = await fetch(`${API_URL}/api/integrations/health?service=${id}`, {
+      const res = await fetch(`${internalApiUrl('/api/integrations/health', API_URL)}?service=${encodeURIComponent(id)}`, {
         headers: authHeaders(),
         credentials: 'include',
       });

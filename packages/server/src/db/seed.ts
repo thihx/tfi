@@ -6,7 +6,9 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { config } from '../config.js';
 import { transaction, closePool } from './pool.js';
+import { kickoffAtUtcFromLocalParts } from '../lib/kickoff-time.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -183,12 +185,12 @@ async function seedMatches(data: Record<string, unknown>[]): Promise<number> {
       if (!dateVal || !kickoffVal) continue;
 
       await client.query(
-        `INSERT INTO matches (match_id, date, kickoff, league_id, league_name, home_team, away_team,
+        `INSERT INTO matches (match_id, date, kickoff, kickoff_at_utc, league_id, league_name, home_team, away_team,
                               home_logo, away_logo, venue, status, home_score, away_score,
                               current_minute, last_updated)
-         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14, COALESCE($15, NOW()))
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15, COALESCE($16, NOW()))
          ON CONFLICT (match_id) DO UPDATE SET
-           date=EXCLUDED.date, kickoff=EXCLUDED.kickoff, league_id=EXCLUDED.league_id,
+           date=EXCLUDED.date, kickoff=EXCLUDED.kickoff, kickoff_at_utc=EXCLUDED.kickoff_at_utc, league_id=EXCLUDED.league_id,
            league_name=EXCLUDED.league_name, home_team=EXCLUDED.home_team, away_team=EXCLUDED.away_team,
            home_logo=EXCLUDED.home_logo, away_logo=EXCLUDED.away_logo, venue=EXCLUDED.venue,
            status=EXCLUDED.status, home_score=EXCLUDED.home_score, away_score=EXCLUDED.away_score,
@@ -197,6 +199,7 @@ async function seedMatches(data: Record<string, unknown>[]): Promise<number> {
           matchId,
           dateVal,
           kickoffVal,
+          kickoffAtUtcFromLocalParts(dateVal, kickoffVal, config.timezone),
           leagueId,
           toText(row['league_name']),
           toText(row['home_team']),

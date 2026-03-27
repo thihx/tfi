@@ -14,6 +14,11 @@ vi.mock('../lib/provider-sampling.js', () => ({
   recordProviderOddsSampleSafe: vi.fn().mockResolvedValue(undefined),
 }));
 
+vi.mock('../repos/provider-odds-cache.repo.js', () => ({
+  getProviderOddsCache: vi.fn().mockResolvedValue(null),
+  upsertProviderOddsCache: vi.fn().mockResolvedValue(null),
+}));
+
 const { normalizeApiSportsOddsResponse, resolveMatchOdds } = await import('../lib/odds-resolver.js');
 
 describe('normalizeApiSportsOddsResponse', () => {
@@ -74,6 +79,7 @@ describe('resolveMatchOdds', () => {
     const result = await resolveMatchOdds({ matchId: '100' });
 
     expect(result.oddsSource).toBe('live');
+    expect(result.cacheStatus).toBe('refreshed');
     expect(Array.isArray(result.response)).toBe(true);
     expect(vi.mocked(theOddsApi.fetchTheOddsLiveDetailed)).not.toHaveBeenCalled();
     expect(footballApi.fetchPreMatchOdds).not.toHaveBeenCalled();
@@ -117,7 +123,7 @@ describe('resolveMatchOdds', () => {
       status: '2H',
     });
 
-    expect(result.oddsSource).toBe('the-odds-api');
+    expect(result.oddsSource).toBe('fallback-live');
     expect(footballApi.fetchPreMatchOdds).not.toHaveBeenCalled();
   });
 
@@ -156,7 +162,7 @@ describe('resolveMatchOdds', () => {
       awayTeam: 'Team B',
     });
 
-    expect(result.oddsSource).toBe('pre-match');
+    expect(result.oddsSource).toBe('reference-prematch');
   });
 
   test('records final none state when all sources are unusable', async () => {
@@ -192,5 +198,37 @@ describe('resolveMatchOdds', () => {
       match_minute: 61,
       usable: false,
     }));
+  });
+
+  test('returns fresh cached odds without hitting providers', async () => {
+    const footballApi = await import('../lib/football-api.js');
+    const cacheRepo = await import('../repos/provider-odds-cache.repo.js');
+
+    vi.mocked(cacheRepo.getProviderOddsCache).mockResolvedValueOnce({
+      match_id: '100',
+      odds_source: 'live',
+      provider_source: 'api-football-live',
+      response: [{ bookmakers: [{ bets: [{ name: 'Match Winner', values: [] }] }] }],
+      coverage_flags: {},
+      provider_trace: {},
+      odds_fetched_at: '2026-03-25T12:00:00.000Z',
+      cached_at: new Date().toISOString(),
+      match_status: '2H',
+      match_minute: 61,
+      freshness: 'fresh',
+      degraded: false,
+      last_refresh_error: '',
+      has_1x2: true,
+      has_ou: false,
+      has_ah: false,
+      has_btts: false,
+    } as never);
+
+    const result = await resolveMatchOdds({ matchId: '100', status: '2H', matchMinute: 61 });
+
+    expect(result.oddsSource).toBe('live');
+    expect(result.cacheStatus).toBe('hit');
+    expect(result.freshness).toBe('fresh');
+    expect(footballApi.fetchLiveOdds).not.toHaveBeenCalled();
   });
 });

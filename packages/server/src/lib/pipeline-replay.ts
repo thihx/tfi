@@ -308,7 +308,13 @@ export async function runReplayScenario(
     dependencies.resolveMatchOdds = buildRecordedOddsResolver(scenario);
   } else if (oddsMode === 'mock') {
     dependencies.resolveMatchOdds = async () => (
-      scenario.mockResolvedOdds ?? { oddsSource: 'none', response: [], oddsFetchedAt: null }
+      scenario.mockResolvedOdds ?? {
+        oddsSource: 'none',
+        response: [],
+        oddsFetchedAt: null,
+        freshness: 'missing',
+        cacheStatus: 'miss',
+      }
     );
   }
 

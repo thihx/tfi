@@ -36,6 +36,7 @@ import {
   parseStoredSettlementStats,
   type SettlementStatRow,
 } from '../lib/settlement-stat-cache.js';
+import { kickoffAtUtcFromFixtureDate } from '../lib/kickoff-time.js';
 
 export interface ReEvalResult {
   total: number;
@@ -377,6 +378,7 @@ function buildArchiveRowFromFixture(fx: ApiFixture): MatchHistoryArchiveInput {
     match_id: String(fx.fixture.id),
     date: fx.fixture.date?.substring(0, 10) ?? '',
     kickoff: fx.fixture.date?.substring(11, 16) ?? '00:00',
+    kickoff_at_utc: kickoffAtUtcFromFixtureDate(fx.fixture.date),
     league_id: fx.league?.id ?? 0,
     league_name: fx.league?.name ?? '',
     home_team: fx.teams?.home?.name ?? '',

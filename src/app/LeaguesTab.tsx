@@ -5,6 +5,7 @@ import { LeagueProfileModal } from '@/components/ui/LeagueProfileModal';
 import { TeamProfileModal } from '@/components/ui/TeamProfileModal';
 import { useAppState } from '@/hooks/useAppState';
 import { useToast } from '@/hooks/useToast';
+import { formatLocalDate } from '@/lib/utils/helpers';
 import {
   fetchApprovedLeagues, toggleLeagueActive, bulkSetLeagueActive, fetchLeaguesFromApi,
   toggleLeagueTopLeague, bulkSetTopLeague,
@@ -238,7 +239,7 @@ const LeagueRow = memo(function LeagueRow({ league, onToggle, onToggleTop, onVie
         <button
           onClick={() => onEditProfile(league)}
           title={league.has_profile
-            ? `Edit league profile${league.profile_updated_at ? ` · Updated ${new Date(league.profile_updated_at).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' })}` : ''}${league.profile_volatility_tier ? ` · Volatility: ${league.profile_volatility_tier}` : ''}`
+            ? `Edit league profile${league.profile_updated_at ? ` · Updated ${formatLocalDate(league.profile_updated_at)}` : ''}${league.profile_volatility_tier ? ` · Volatility: ${league.profile_volatility_tier}` : ''}`
             : 'Create league profile'}
           style={{
             background: 'none', border: 'none', cursor: 'pointer',

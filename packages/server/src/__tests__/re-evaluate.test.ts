@@ -215,6 +215,7 @@ describe('reEvaluateAllResults', () => {
 
     expect(result.skippedNoScore).toBe(1);
     expect(result.corrected).toBe(0);
+    expect(matchHistoryRepo.archiveFinishedMatches).not.toHaveBeenCalled();
     expect(recommendationsRepo.settleRecommendation).not.toHaveBeenCalled();
   });
 

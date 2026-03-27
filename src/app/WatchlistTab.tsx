@@ -3,31 +3,23 @@ import { DatePicker } from '@/components/ui/DatePicker';
 import { useAppState } from '@/hooks/useAppState';
 import { useToast } from '@/hooks/useToast';
 import { useUiLanguage } from '@/hooks/useUiLanguage';
+import { useUserTimeZone } from '@/hooks/useUserTimeZone';
 import { Pagination } from '@/components/ui/Pagination';
 import { PLACEHOLDER_HOME, PLACEHOLDER_AWAY } from '@/config/constants';
 import { Modal } from '@/components/ui/Modal';
-import { convertSeoulToLocalDateTime, formatDateTimeDisplay, getLeagueDisplayName, debounce } from '@/lib/utils/helpers';
+import { formatDateTimeDisplay, getKickoffDateKey, getKickoffDateTime, getLeagueDisplayName, debounce } from '@/lib/utils/helpers';
 import { MatchScoutModal } from '@/components/ui/MatchScoutModal';
 import { WatchlistEditModal } from '@/components/ui/WatchlistEditModal';
-import { normalizeToISO } from '@/lib/utils/helpers';
+import { getDateGroupLabelInTimeZone } from '@/lib/utils/timezone';
 import type { WatchlistItem, SortState } from '@/types';
 
 const PAGE_SIZE = 30;
-
-function getDateGroupLabel(localDT: Date): string {
-  const today = new Date();
-  const tomorrow = new Date(today);
-  tomorrow.setDate(today.getDate() + 1);
-  const same = (a: Date, b: Date) => a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate();
-  if (same(localDT, today)) return 'Today';
-  if (same(localDT, tomorrow)) return 'Tomorrow';
-  return localDT.toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' });
-}
 
 export function WatchlistTab() {
   const { state, updateWatchlistItem, removeFromWatchlist } = useAppState();
   const { showToast } = useToast();
   const uiLanguage = useUiLanguage();
+  const { effectiveTimeZone } = useUserTimeZone();
   const { watchlist, matches, leagues, config } = state;
 
   const [search, setSearch] = useState('');
@@ -106,7 +98,7 @@ export function WatchlistTab() {
     }
     if (dateFrom || dateTo) {
       items = items.filter((i) => {
-        const iso = normalizeToISO(i.date);
+        const iso = getKickoffDateKey(i, effectiveTimeZone);
         if (!iso) return false;
         if (dateFrom && iso < dateFrom) return false;
         if (dateTo && iso > dateTo) return false;
@@ -119,8 +111,8 @@ export function WatchlistTab() {
         let valA: string | number | Date, valB: string | number | Date;
         switch (sort.column) {
           case 'kickoff':
-            valA = convertSeoulToLocalDateTime(a.date, a.kickoff || '00:00');
-            valB = convertSeoulToLocalDateTime(b.date, b.kickoff || '00:00');
+            valA = getKickoffDateTime(a);
+            valB = getKickoffDateTime(b);
             break;
           case 'league': valA = (a.league || '').toLowerCase(); valB = (b.league || '').toLowerCase(); break;
           case 'match': valA = `${a.home_team} vs ${a.away_team}`.toLowerCase(); valB = `${b.home_team} vs ${b.away_team}`.toLowerCase(); break;
@@ -135,7 +127,7 @@ export function WatchlistTab() {
       });
     }
     return items;
-  }, [watchlist, debouncedSearch, leagueFilter, statusFilter, dateFrom, dateTo, sort, matches]);
+  }, [watchlist, debouncedSearch, leagueFilter, statusFilter, dateFrom, dateTo, sort, matches, effectiveTimeZone]);
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
   const safePage = Math.min(page, totalPages);
@@ -294,9 +286,9 @@ export function WatchlistTab() {
                 let lastLabel = '';
                 pageItems.forEach((item) => {
                 const logos = getLogos(String(item.match_id), item);
-                const localDT = convertSeoulToLocalDateTime(item.date, item.kickoff || '00:00');
+                const localDT = getKickoffDateTime(item);
                 const timeDisplay = formatDateTimeDisplay(localDT);
-                const dateLabel = getDateGroupLabel(localDT);
+                const dateLabel = getDateGroupLabelInTimeZone(localDT, effectiveTimeZone);
                 if (dateLabel !== lastLabel) {
                   lastLabel = dateLabel;
                   rows.push(<tr key={`grp-${dateLabel}`} className="date-group-row"><td>{dateLabel}</td><td colSpan={9} /></tr>);

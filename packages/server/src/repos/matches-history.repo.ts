@@ -10,6 +10,7 @@ export interface MatchHistoryRow {
   match_id: string;
   date: string;
   kickoff: string;
+  kickoff_at_utc?: string | null;
   league_id: number;
   league_name: string;
   home_team: string;
@@ -31,6 +32,7 @@ export interface MatchHistoryArchiveInput {
   match_id: string;
   date: string;
   kickoff: string;
+  kickoff_at_utc?: string | null;
   league_id: number;
   league_name: string;
   home_team: string;
@@ -59,17 +61,17 @@ export async function archiveFinishedMatches(
   if (finished.length === 0) return 0;
 
   // Single multi-row INSERT per chunk (max 500 rows to stay well within pg's 65535 param limit)
-  const COLS = 16;
+  const COLS = 17;
   const CHUNK = 500;
   let totalArchived = 0;
 
   for (let offset = 0; offset < finished.length; offset += CHUNK) {
     const chunk = finished.slice(offset, offset + CHUNK);
     const placeholders = chunk.map((_, i) =>
-      `($${i*COLS+1},$${i*COLS+2},$${i*COLS+3},$${i*COLS+4},$${i*COLS+5},$${i*COLS+6},$${i*COLS+7},$${i*COLS+8},$${i*COLS+9},$${i*COLS+10},$${i*COLS+11},$${i*COLS+12},$${i*COLS+13},$${i*COLS+14},$${i*COLS+15},$${i*COLS+16})`,
+      `($${i*COLS+1},$${i*COLS+2},$${i*COLS+3},$${i*COLS+4},$${i*COLS+5},$${i*COLS+6},$${i*COLS+7},$${i*COLS+8},$${i*COLS+9},$${i*COLS+10},$${i*COLS+11},$${i*COLS+12},$${i*COLS+13},$${i*COLS+14},$${i*COLS+15},$${i*COLS+16},$${i*COLS+17})`,
     ).join(',');
     const params = chunk.flatMap((m) => [
-      m.match_id, m.date, m.kickoff, m.league_id, m.league_name ?? '',
+      m.match_id, m.date, m.kickoff, m.kickoff_at_utc ?? null, m.league_id, m.league_name ?? '',
       m.home_team ?? '', m.away_team ?? '', m.venue ?? 'TBD', m.final_status,
       m.home_score ?? 0, m.away_score ?? 0, m.regular_home_score ?? null,
       m.regular_away_score ?? null, m.result_provider ?? '', JSON.stringify(m.settlement_stats ?? []),
@@ -77,12 +79,13 @@ export async function archiveFinishedMatches(
     ]);
     const result = await query(
       `INSERT INTO matches_history (
-         match_id, date, kickoff, league_id, league_name, home_team, away_team, venue,
+         match_id, date, kickoff, kickoff_at_utc, league_id, league_name, home_team, away_team, venue,
          final_status, home_score, away_score, regular_home_score, regular_away_score,
          result_provider, settlement_stats, settlement_stats_provider
        )
        VALUES ${placeholders}
        ON CONFLICT (match_id) DO UPDATE SET
+         kickoff_at_utc = COALESCE(EXCLUDED.kickoff_at_utc, matches_history.kickoff_at_utc),
          final_status = EXCLUDED.final_status,
          home_score   = EXCLUDED.home_score,
          away_score   = EXCLUDED.away_score,
@@ -176,7 +179,7 @@ export async function getHistoricalMatchesByDate(
   to: string,
 ): Promise<MatchHistoryRow[]> {
   const r = await query<MatchHistoryRow>(
-    'SELECT * FROM matches_history WHERE date >= $1 AND date <= $2 ORDER BY date, kickoff',
+    'SELECT * FROM matches_history WHERE date >= $1 AND date <= $2 ORDER BY kickoff_at_utc NULLS LAST, date, kickoff',
     [from, to],
   );
   return r.rows;
@@ -223,6 +226,7 @@ function normalizeArchiveInput(
     match_id: match.match_id,
     date: match.date,
     kickoff: match.kickoff,
+    kickoff_at_utc: match.kickoff_at_utc ?? null,
     league_id: match.league_id,
     league_name: match.league_name ?? '',
     home_team: match.home_team ?? '',

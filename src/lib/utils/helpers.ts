@@ -1,43 +1,47 @@
-import type { League } from '@/types';
+import type { League, Match } from '@/types';
+import {
+  convertLocalDateTimeToInstant,
+  formatDateKeyInTimeZone,
+  formatDateForTimeZone,
+  readUserTimeZoneState,
+} from '@/lib/utils/timezone';
 
-/**
- * Convert Seoul datetime (UTC+9) to local browser time
- */
-export function convertSeoulToLocalDateTime(dateStr: string, kickoffStr: string): Date {
-  if (!dateStr) return new Date();
-
-  let year: number, month: number, day: number;
-
-  if (dateStr.includes('T')) {
-    // ISO timestamp (e.g. pg DATE serialised at midnight Seoul) — extract Seoul date
-    const d = new Date(dateStr);
-    if (isNaN(d.getTime())) return new Date();
-    const seoulMs = d.getTime() + 9 * 60 * 60 * 1000;
-    const sd = new Date(seoulMs);
-    year = sd.getUTCFullYear();
-    month = sd.getUTCMonth() + 1;
-    day = sd.getUTCDate();
-  } else {
-    const parts = dateStr.split('-').map(Number);
-    year = parts[0] ?? 0;
-    month = parts[1] ?? 0;
-    day = parts[2] ?? 0;
-    if (!year || !month || !day) return new Date();
-  }
-
-  let hours = 0;
-  let minutes = 0;
-  if (kickoffStr) {
-    const parts = kickoffStr.split(':').map(Number);
-    hours = parts[0] || 0;
-    minutes = parts[1] || 0;
-  }
-
-  const seoulDate = new Date(Date.UTC(year, month - 1, day, hours, minutes, 0));
-  return new Date(seoulDate.getTime() - 9 * 60 * 60 * 1000);
+interface KickoffLike {
+  date?: string | null;
+  kickoff?: string | null;
+  kickoff_at_utc?: string | null;
 }
 
-const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+export function getKickoffDateTime(value: KickoffLike): Date {
+  if (value.kickoff_at_utc) {
+    const kickoff = new Date(value.kickoff_at_utc);
+    if (!Number.isNaN(kickoff.getTime())) return kickoff;
+  }
+  return convertLocalDateTimeToInstant(value.date ?? '', value.kickoff ?? '00:00');
+}
+
+export function getKickoffDateKey(value: KickoffLike, timeZone: string): string | null {
+  const kickoff = getKickoffDateTime(value);
+  if (Number.isNaN(kickoff.getTime())) return null;
+  return formatDateKeyInTimeZone(kickoff, timeZone);
+}
+
+export function shouldFastRefreshMatch(
+  match: Pick<Match, 'status' | 'date' | 'kickoff' | 'kickoff_at_utc'>,
+  now = Date.now(),
+  preKickoffWindowMin = 10,
+  postKickoffWindowMin = 115,
+): boolean {
+  const status = String(match.status || '').trim().toUpperCase();
+  if (['1H', 'HT', '2H', 'ET', 'BT', 'P', 'LIVE', 'INT'].includes(status)) return true;
+  if (status !== 'NS') return false;
+
+  const kickoff = getKickoffDateTime(match);
+  if (Number.isNaN(kickoff.getTime())) return false;
+
+  const elapsedMin = (now - kickoff.getTime()) / 60_000;
+  return elapsedMin >= -preKickoffWindowMin && elapsedMin < postKickoffWindowMin;
+}
 
 // ── Format config from env (VITE_DATETIME_FORMAT, VITE_DATE_FORMAT, VITE_TIME_FORMAT) ──
 const ENV_DATETIME_FORMAT = import.meta.env['VITE_DATETIME_FORMAT'] as string | undefined;
@@ -49,21 +53,8 @@ const DATE_FORMAT = ENV_DATE_FORMAT || 'DD-MMM-YYYY';
 const TIME_FORMAT = ENV_TIME_FORMAT || 'HH:mm';
 
 function applyFormat(fmt: string, d: Date): string {
-  const dd = String(d.getDate()).padStart(2, '0');
-  const mmm = MONTHS[d.getMonth()]!;
-  const yyyy = String(d.getFullYear());
-  const yy = yyyy.slice(2);
-  const hh = String(d.getHours()).padStart(2, '0');
-  const mm = String(d.getMinutes()).padStart(2, '0');
-  const ss = String(d.getSeconds()).padStart(2, '0');
-  return fmt
-    .replace('DD', dd)
-    .replace('MMM', mmm)
-    .replace('YYYY', yyyy)
-    .replace('YY', yy)
-    .replace('HH', hh)
-    .replace('mm', mm)
-    .replace('ss', ss);
+  const { effectiveTimeZone } = readUserTimeZoneState();
+  return formatDateForTimeZone(d, fmt, effectiveTimeZone);
 }
 
 /**
@@ -112,7 +103,8 @@ export function formatLocalDateTimeFull(ts?: string | null): string {
   if (!ts) return '-';
   const d = new Date(ts);
   if (isNaN(d.getTime())) return '-';
-  const weekday = d.toLocaleDateString(undefined, { weekday: 'short' });
+  const { effectiveTimeZone } = readUserTimeZoneState();
+  const weekday = new Intl.DateTimeFormat(undefined, { weekday: 'short', timeZone: effectiveTimeZone }).format(d);
   return `${weekday} ${applyFormat(DATETIME_FORMAT, d)}`;
 }
 
@@ -128,16 +120,13 @@ export function formatLocalDateShortYear(ts?: string | null): string {
 }
 
 /**
- * Format an ISO timestamp string to "HH:mm:ss" in browser local timezone
+ * Format an ISO timestamp string to "HH:mm:ss" in the effective user timezone
  */
 export function formatLocalTimeFull(ts?: string | null): string {
   if (!ts) return '—';
   const d = new Date(ts);
   if (isNaN(d.getTime())) return '—';
-  const hh = String(d.getHours()).padStart(2, '0');
-  const min = String(d.getMinutes()).padStart(2, '0');
-  const ss = String(d.getSeconds()).padStart(2, '0');
-  return `${hh}:${min}:${ss}`;
+  return applyFormat('HH:mm:ss', d);
 }
 
 /**

@@ -13,6 +13,7 @@ import { sendTelegramMessage } from '../lib/telegram.js';
 import { getRedisClient } from '../lib/redis.js';
 import { config } from '../config.js';
 import { loadOperationalTelegramSettings } from '../lib/telegram-runtime.js';
+import { formatOperationalTimestamp } from '../lib/time.js';
 import { reportJobProgress } from './job-progress.js';
 
 const COOLDOWN_MS = 4 * 60 * 60 * 1000; // 4 hours between repeat alerts for same service
@@ -54,7 +55,7 @@ function escapeHtml(s: string): string {
 }
 
 function buildTelegramMessage(probe: IntegrationProbeResult, previousStatus: IntegrationStatus | null): string {
-  const now = new Date().toLocaleString('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh' });
+  const now = formatOperationalTimestamp();
   const safeMessage = probe.message ? escapeHtml(probe.message) : '';
 
   if (probe.status === 'HEALTHY') {

@@ -34,6 +34,22 @@ vi.mock('../lib/football-api.js', () => ({
   fetchFixturesByIds: vi.fn().mockRejectedValue(new Error('Football API timeout')),
   fetchLiveOdds: vi.fn().mockRejectedValue(new Error('Football API 500: Internal Server Error')),
   fetchPreMatchOdds: vi.fn().mockRejectedValue(new Error('Football API 500: Internal Server Error')),
+  fetchFixtureLineups: vi.fn().mockResolvedValue([]),
+  fetchPrediction: vi.fn().mockResolvedValue(null),
+  fetchStandings: vi.fn().mockResolvedValue([]),
+  fetchFixturesByLeague: vi.fn().mockResolvedValue([]),
+}));
+
+vi.mock('../lib/provider-insight-cache.js', () => ({
+  ensureFixturesForMatchIds: vi.fn().mockRejectedValue(new Error('Football API timeout')),
+  ensureScoutInsight: vi.fn().mockResolvedValue({
+    fixture: { payload: null, freshness: 'missing', cacheStatus: 'miss', cachedAt: null, fetchedAt: null, degraded: false },
+    statistics: { payload: [], freshness: 'missing', cacheStatus: 'miss', cachedAt: null, fetchedAt: null, degraded: false },
+    events: { payload: [], freshness: 'missing', cacheStatus: 'miss', cachedAt: null, fetchedAt: null, degraded: false },
+    lineups: { payload: [], freshness: 'missing', cacheStatus: 'miss', cachedAt: null, fetchedAt: null, degraded: false },
+    prediction: { payload: null, freshness: 'missing', cacheStatus: 'miss', cachedAt: null, fetchedAt: null, degraded: false },
+    standings: { payload: [], freshness: 'missing', cacheStatus: 'miss', cachedAt: null, fetchedAt: null, degraded: false },
+  }),
 }));
 
 vi.mock('../lib/server-pipeline.js', () => ({
@@ -42,6 +58,11 @@ vi.mock('../lib/server-pipeline.js', () => ({
     prompt: 'server prompt',
     result: { success: true },
   }),
+}));
+
+vi.mock('../repos/provider-odds-cache.repo.js', () => ({
+  getProviderOddsCache: vi.fn().mockResolvedValue(null),
+  upsertProviderOddsCache: vi.fn().mockResolvedValue(null),
 }));
 
 // Mock global fetch for Gemini and Telegram
@@ -80,7 +101,41 @@ describe('POST /api/proxy/football/odds — fallback behavior', () => {
       payload: { matchId: '100' },
     });
     expect(res.statusCode).toBe(200);
-    expect(res.json()).toEqual({ odds_source: 'pre-match', response: [] });
+    expect(res.json()).toEqual({ odds_source: 'none', odds_freshness: 'missing', cache_status: 'miss', response: [] });
+  });
+});
+
+describe('POST /api/proxy/football/scout', () => {
+  test('returns aggregated prematch scout data from insight layer', async () => {
+    const insight = await import('../lib/provider-insight-cache.js');
+    vi.mocked(insight.ensureFixturesForMatchIds).mockResolvedValueOnce([
+      {
+        fixture: { id: 100, referee: null, timezone: 'UTC', date: '2026-03-25T12:00:00Z', timestamp: 1, periods: { first: null, second: null }, venue: { id: null, name: 'Test', city: null }, status: { long: 'Not Started', short: 'NS', elapsed: null } },
+        league: { id: 39, name: 'Premier League', country: 'England', logo: '', flag: null, season: 2025, round: 'Round 1' },
+        teams: { home: { id: 1, name: 'Team A', logo: '', winner: null }, away: { id: 2, name: 'Team B', logo: '', winner: null } },
+        goals: { home: null, away: null },
+        score: {},
+      },
+    ] as never);
+    vi.mocked(insight.ensureScoutInsight).mockResolvedValueOnce({
+      fixture: { payload: null, freshness: 'fresh', cacheStatus: 'hit', cachedAt: null, fetchedAt: null, degraded: false },
+      statistics: { payload: [], freshness: 'missing', cacheStatus: 'miss', cachedAt: null, fetchedAt: null, degraded: false },
+      events: { payload: [], freshness: 'missing', cacheStatus: 'miss', cachedAt: null, fetchedAt: null, degraded: false },
+      lineups: { payload: [], freshness: 'missing', cacheStatus: 'miss', cachedAt: null, fetchedAt: null, degraded: false },
+      prediction: { payload: { predictions: { winner: { id: 1, name: 'Team A', comment: 'favored' }, win_or_draw: true, advice: 'Lean home', percent: null, under_over: null, goals: null }, comparison: { form: null, att: null, def: null, goals: null, total: null } }, freshness: 'fresh', cacheStatus: 'hit', cachedAt: null, fetchedAt: null, degraded: false },
+      standings: { payload: [{ rank: 1, team: { id: 1, name: 'Team A', logo: '' }, points: 10, goalsDiff: 5, form: 'WWWWW', description: null, all: { played: 4, win: 3, draw: 1, lose: 0, goals: { for: 8, against: 3 } } }], freshness: 'fresh', cacheStatus: 'hit', cachedAt: null, fetchedAt: null, degraded: false },
+    });
+
+    const res = await app.inject({
+      method: 'POST',
+      url: '/api/proxy/football/scout',
+      payload: { fixtureId: '100', leagueId: 39, season: 2025, status: 'NS' },
+    });
+
+    expect(res.statusCode).toBe(200);
+    expect(res.json().prediction?.predictions?.winner?.name).toBe('Team A');
+    expect(res.json().standings).toHaveLength(1);
+    expect(insight.ensureScoutInsight).toHaveBeenCalledWith('100', expect.objectContaining({ leagueId: 39, season: 2025, status: 'NS' }));
   });
 });
 
@@ -175,6 +230,31 @@ describe('POST /api/proxy/notify/telegram — error handling', () => {
     });
     expect(res.statusCode).toBe(200);
     expect(res.json().sent).toBe(true);
+  });
+
+  test('renders chart config into a Telegram photo URL on the backend', async () => {
+    mockFetch.mockClear();
+    mockFetch.mockResolvedValueOnce({
+      ok: true,
+      json: () => Promise.resolve({ ok: true }),
+    });
+
+    const res = await app.inject({
+      method: 'POST',
+      url: '/api/proxy/notify/telegram',
+      payload: {
+        chat_id: '12345',
+        text: 'hello',
+        chart_config: { type: 'horizontalBar', data: { labels: ['Shots'], datasets: [] } },
+      },
+    });
+
+    expect(res.statusCode).toBe(200);
+    expect(res.json().sent).toBe(true);
+    const lastCall = mockFetch.mock.calls.at(-1) ?? [];
+    const [, requestInit] = lastCall;
+    expect(String(lastCall[0] ?? '')).toContain('/sendPhoto');
+    expect(String(requestInit?.body ?? '')).toContain('https://quickchart.io/chart?c=');
   });
 });
 

@@ -144,6 +144,7 @@ describe('watchlist repository user-scoped isolation', () => {
     const sql = String(vi.mocked(query).mock.calls[0]?.[0]);
     expect(sql).toContain('INSERT INTO monitored_matches');
     expect(sql).toContain('FROM watchlist w');
+    expect(sql).toContain("'kickoff_at_utc'");
     expect(sql).toContain('LEFT JOIN monitored_matches mm ON mm.match_id = w.match_id');
     expect(sql).not.toContain("w.status = 'active'");
   });
@@ -184,6 +185,18 @@ describe('watchlist repository user-scoped isolation', () => {
 
     const sql = String(vi.mocked(query).mock.calls[1]?.[0]);
     expect(sql).toContain("WHERE ($1::boolean = false OR s.status = 'active')");
+  });
+
+  test('getAllOperationalWatchlist casts ranked created_at before coalescing with metadata text fallbacks', async () => {
+    vi.mocked(query)
+      .mockResolvedValueOnce({ rowCount: 0 } as never)
+      .mockResolvedValueOnce({ rows: [] } as never);
+
+    await getAllOperationalWatchlist();
+
+    const sql = String(vi.mocked(query).mock.calls[1]?.[0]);
+    expect(sql).toContain('COALESCE(ranked.created_at::text');
+    expect(sql).toContain("mm.last_interest_at::text");
   });
 
   test('getOperationalWatchlistByMatchId mirrors legacy rows into monitored matches before returning', async () => {
@@ -340,6 +353,8 @@ describe('watchlist repository user-scoped isolation', () => {
     expect(query).toHaveBeenCalledTimes(1);
     const sql = String(vi.mocked(query).mock.calls[0]?.[0]);
     expect(sql).toContain('LEFT JOIN monitored_matches mm ON mm.match_id = ids.match_id');
+    expect(sql).toContain('m.kickoff_at_utc');
+    expect(sql).toContain("mm.metadata->>'kickoff_at_utc'");
     expect(sql).not.toContain('LEFT JOIN watchlist');
   });
 
@@ -401,7 +416,31 @@ describe('watchlist repository user-scoped isolation', () => {
     expect(query).toHaveBeenCalledTimes(1);
     const sql = String(vi.mocked(query).mock.calls[0]?.[0]);
     expect(sql).toContain('UPDATE monitored_matches mm');
+    expect(sql).toContain("'{kickoff_at_utc}'");
     expect(sql).not.toContain('UPDATE watchlist w');
+  });
+
+  test('expireOldEntries does not protect NS matches — stale NS entries must be cleaned up', async () => {
+    vi.mocked(query)
+      .mockResolvedValueOnce({ rowCount: 0 } as never)
+      .mockResolvedValueOnce({ rows: [{ match_id: 'stale-ns-match' }] } as never)
+      .mockResolvedValueOnce({ rowCount: 1 } as never)
+      .mockResolvedValueOnce({ rowCount: 1 } as never);
+
+    await expireOldEntries(120);
+
+    // $3 param (status exclusion list) must NOT include 'NS' — otherwise a match stuck
+    // in NS status after its kickoff will never be cleaned up (regression from old soft-expire
+    // model that had a reactivation step; hard-delete model has no reactivation).
+    const deleteCalls = vi.mocked(query).mock.calls.filter((call) =>
+      String(call[0]).includes('DELETE FROM user_watch_subscriptions'),
+    );
+    expect(deleteCalls.length).toBe(1);
+    const statusList = deleteCalls[0]?.[1]?.[2] as string[];
+    expect(statusList).toBeDefined();
+    expect(statusList).not.toContain('NS');
+    expect(statusList).toContain('1H');
+    expect(statusList).toContain('2H');
   });
 
   test('expireOldEntries deletes completed subscriptions and prunes monitored matches without mutating legacy rows', async () => {
@@ -417,6 +456,7 @@ describe('watchlist repository user-scoped isolation', () => {
     expect(expired).toBe(2);
     const sqlTexts = vi.mocked(query).mock.calls.map((call) => String(call[0]));
     expect(sqlTexts.some((sql) => sql.includes('UPDATE watchlist SET status'))).toBe(false);
+    expect(sqlTexts.some((sql) => sql.includes('COALESCE(m.kickoff_at_utc'))).toBe(true);
     expect(sqlTexts.filter((sql) => sql.includes('DELETE FROM user_watch_subscriptions')).length).toBe(1);
     expect(sqlTexts.filter((sql) => sql.includes('DELETE FROM monitored_matches')).length).toBe(1);
     expect(sqlTexts.filter((sql) => sql.includes('INSERT INTO monitored_matches')).length).toBe(3);

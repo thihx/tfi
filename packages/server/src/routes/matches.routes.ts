@@ -6,7 +6,8 @@ import type { FastifyInstance } from 'fastify';
 import * as repo from '../repos/matches.repo.js';
 
 export async function matchRoutes(app: FastifyInstance) {
-  app.get('/api/matches', async () => {
+  app.get('/api/matches', async (_req, reply) => {
+    reply.header('Cache-Control', 'no-store');
     return repo.getAllMatches();
   });
 

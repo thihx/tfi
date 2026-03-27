@@ -9,6 +9,7 @@ export interface WatchlistRow {
   id: number;
   match_id: string;
   date: string | null;
+  kickoff_at_utc?: string | null;
   league: string;
   home_team: string;
   away_team: string;
@@ -53,6 +54,7 @@ interface SubscriptionWatchlistQueryRow {
   metadata: Record<string, unknown> | null;
   match_date: string | null;
   match_kickoff: string | null;
+  match_kickoff_at_utc: string | null;
   match_league: string | null;
   home_team: string | null;
   away_team: string | null;
@@ -74,6 +76,7 @@ interface AggregatedWatchlistQueryRow {
   metadata: Record<string, unknown> | null;
   match_date: string | null;
   match_kickoff: string | null;
+  match_kickoff_at_utc: string | null;
   match_league: string | null;
   home_team: string | null;
   away_team: string | null;
@@ -82,7 +85,7 @@ interface AggregatedWatchlistQueryRow {
   match_status: string | null;
 }
 
-const LIVE_MATCH_STATUSES = ['NS', '1H', '2H', 'HT', 'ET', 'BT', 'P', 'LIVE', 'INT'] as const;
+const LIVE_MATCH_STATUSES = ['1H', '2H', 'HT', 'ET', 'BT', 'P', 'LIVE', 'INT'] as const;
 
 function normalizeObject(value: unknown): Record<string, unknown> {
   return value && typeof value === 'object' && !Array.isArray(value)
@@ -115,6 +118,7 @@ function buildWatchlistRow(
     match_id: string;
     date: string | null;
     kickoff: string | null;
+    kickoff_at_utc?: string | null;
     league: string | null;
     home_team: string | null;
     away_team: string | null;
@@ -143,6 +147,7 @@ function buildWatchlistRow(
     id: subscription.id ?? 0,
     match_id: base.match_id,
     date: base.date ?? normalizeNullableString(sharedMetadata.date),
+    kickoff_at_utc: base.kickoff_at_utc ?? normalizeNullableString(sharedMetadata.kickoff_at_utc),
     league: base.league ?? normalizeNullableString(sharedMetadata.league) ?? '',
     home_team: base.home_team ?? normalizeNullableString(sharedMetadata.home_team) ?? '',
     away_team: base.away_team ?? normalizeNullableString(sharedMetadata.away_team) ?? '',
@@ -185,6 +190,7 @@ function extractSharedMetadata(fields: Partial<WatchlistRow>): Record<string, un
     'total_checks',
     'recommendations_count',
     'date',
+    'kickoff_at_utc',
     'league',
     'home_team',
     'away_team',
@@ -283,6 +289,7 @@ async function getUserWatchlistRows(
         mm.metadata,
         m.date::text AS match_date,
         to_char(m.kickoff, 'HH24:MI') AS match_kickoff,
+        m.kickoff_at_utc::text AS match_kickoff_at_utc,
         m.league_name AS match_league,
         m.home_team,
         m.away_team,
@@ -302,6 +309,7 @@ async function getUserWatchlistRows(
       match_id: row.match_id,
       date: row.match_date,
       kickoff: row.match_kickoff,
+      kickoff_at_utc: row.match_kickoff_at_utc,
       league: row.match_league,
       home_team: row.home_team,
       away_team: row.away_team,
@@ -359,11 +367,12 @@ async function getMonitoredOperationalWatchlist(
        COALESCE(ranked.auto_apply_recommended_condition, (mm.metadata->>'auto_apply_recommended_condition')::boolean, true) AS auto_apply_recommended_condition,
        COALESCE(ranked.status, NULLIF(mm.metadata->>'status', ''), 'active') AS status,
        COALESCE(ranked.source, NULLIF(mm.metadata->>'added_by', ''), 'system') AS source,
-       COALESCE(ranked.created_at, NULLIF(mm.metadata->>'added_at', ''), mm.last_interest_at::text) AS created_at,
+       COALESCE(ranked.created_at::text, NULLIF(mm.metadata->>'added_at', ''), mm.last_interest_at::text) AS created_at,
        COALESCE(mm.subscriber_count, 0) AS subscriber_count,
        mm.metadata,
        m.date::text AS match_date,
        to_char(m.kickoff, 'HH24:MI') AS match_kickoff,
+      m.kickoff_at_utc::text AS match_kickoff_at_utc,
        m.league_name AS match_league,
        m.home_team,
        m.away_team,
@@ -387,6 +396,7 @@ async function getMonitoredOperationalWatchlist(
         match_id: row.match_id,
         date: row.match_date,
         kickoff: row.match_kickoff,
+        kickoff_at_utc: row.match_kickoff_at_utc,
         league: row.match_league,
         home_team: row.home_team,
         away_team: row.away_team,
@@ -424,6 +434,11 @@ export async function backfillOperationalWatchlistFromLegacy(): Promise<number> 
        NOW(),
        jsonb_strip_nulls(jsonb_build_object(
          'date', w.date,
+         'kickoff_at_utc', CASE
+           WHEN w.date IS NOT NULL AND w.kickoff IS NOT NULL
+             THEN (((w.date + w.kickoff) AT TIME ZONE current_setting('TIMEZONE'))::text)
+           ELSE NULL
+         END,
          'league', NULLIF(w.league, ''),
          'home_team', NULLIF(w.home_team, ''),
          'away_team', NULLIF(w.away_team, ''),
@@ -518,13 +533,27 @@ export async function getKickoffMinutesForMatchIds(
   const r = await query<{ match_id: string; mins_to_kickoff: string | null }>(
     `SELECT ids.match_id,
             CASE
-              WHEN COALESCE(m.date, NULLIF(mm.metadata->>'date', '')::date) IS NULL
-                OR COALESCE(m.kickoff, NULLIF(mm.metadata->>'kickoff', '')::time) IS NULL THEN NULL
+              WHEN COALESCE(
+                m.kickoff_at_utc,
+                NULLIF(mm.metadata->>'kickoff_at_utc', '')::timestamptz,
+                CASE
+                  WHEN COALESCE(m.date, NULLIF(mm.metadata->>'date', '')::date) IS NULL
+                    OR COALESCE(m.kickoff, NULLIF(mm.metadata->>'kickoff', '')::time) IS NULL THEN NULL
+                  ELSE (
+                    COALESCE(m.date, NULLIF(mm.metadata->>'date', '')::date)
+                    + COALESCE(m.kickoff, NULLIF(mm.metadata->>'kickoff', '')::time)
+                  ) AT TIME ZONE $2
+                END
+              ) IS NULL THEN NULL
               ELSE EXTRACT(EPOCH FROM (
-                (
-                  COALESCE(m.date, NULLIF(mm.metadata->>'date', '')::date)
-                  + COALESCE(m.kickoff, NULLIF(mm.metadata->>'kickoff', '')::time)
-                ) AT TIME ZONE $2 - NOW()
+                COALESCE(
+                  m.kickoff_at_utc,
+                  NULLIF(mm.metadata->>'kickoff_at_utc', '')::timestamptz,
+                  (
+                    COALESCE(m.date, NULLIF(mm.metadata->>'date', '')::date)
+                    + COALESCE(m.kickoff, NULLIF(mm.metadata->>'kickoff', '')::time)
+                  ) AT TIME ZONE $2
+                ) - NOW()
               )) / 60
             END AS mins_to_kickoff
        FROM unnest($1::text[]) AS ids(match_id)
@@ -556,6 +585,7 @@ export async function getWatchlistByMatchId(matchId: string, userId: string): Pr
         mm.metadata,
         m.date::text AS match_date,
         to_char(m.kickoff, 'HH24:MI') AS match_kickoff,
+        m.kickoff_at_utc::text AS match_kickoff_at_utc,
         m.league_name AS match_league,
         m.home_team,
         m.away_team,
@@ -576,6 +606,7 @@ export async function getWatchlistByMatchId(matchId: string, userId: string): Pr
         match_id: row.match_id,
         date: row.match_date,
         kickoff: row.match_kickoff,
+        kickoff_at_utc: row.match_kickoff_at_utc,
         league: row.match_league,
         home_team: row.home_team,
         away_team: row.away_team,
@@ -618,6 +649,7 @@ export async function getWatchSubscriptionById(subscriptionId: number, userId: s
         mm.metadata,
         m.date::text AS match_date,
         to_char(m.kickoff, 'HH24:MI') AS match_kickoff,
+        m.kickoff_at_utc::text AS match_kickoff_at_utc,
         m.league_name AS match_league,
         m.home_team,
         m.away_team,
@@ -640,6 +672,7 @@ export async function getWatchSubscriptionById(subscriptionId: number, userId: s
       match_id: row.match_id,
       date: row.match_date,
       kickoff: row.match_kickoff,
+      kickoff_at_utc: row.match_kickoff_at_utc,
       league: row.match_league,
       home_team: row.home_team,
       away_team: row.away_team,
@@ -834,7 +867,7 @@ export async function expireOldEntries(cutoffMinutes: number = 120): Promise<num
       WHERE m.match_id::text = s.match_id
         AND m.date IS NOT NULL
         AND m.kickoff IS NOT NULL
-        AND ((m.date + m.kickoff) AT TIME ZONE $2 + $1 * INTERVAL '1 minute') < NOW()
+        AND (COALESCE(m.kickoff_at_utc, ((m.date + m.kickoff) AT TIME ZONE $2)) + $1 * INTERVAL '1 minute') < NOW()
         AND m.status <> ALL($3)
       RETURNING s.match_id`,
     [cutoffMinutes, config.timezone, LIVE_MATCH_STATUSES],
@@ -851,7 +884,7 @@ export async function expireOldEntries(cutoffMinutes: number = 120): Promise<num
       WHERE m.match_id::text = mm.match_id
         AND m.date IS NOT NULL
         AND m.kickoff IS NOT NULL
-        AND ((m.date + m.kickoff) AT TIME ZONE $2 + $1 * INTERVAL '1 minute') < NOW()
+        AND (COALESCE(m.kickoff_at_utc, ((m.date + m.kickoff) AT TIME ZONE $2)) + $1 * INTERVAL '1 minute') < NOW()
         AND m.status <> ALL($3)
         AND NOT EXISTS (
           SELECT 1
@@ -869,9 +902,19 @@ export async function syncWatchlistDates(): Promise<number> {
   const r = await query(
     `UPDATE monitored_matches mm
      SET metadata = jsonb_set(
-       jsonb_set(COALESCE(mm.metadata, '{}'::jsonb), '{date}', to_jsonb(m.date::text), true),
-       '{kickoff}',
-       to_jsonb(to_char(m.kickoff, 'HH24:MI')),
+       jsonb_set(
+         jsonb_set(
+           COALESCE(mm.metadata, '{}'::jsonb),
+           '{date}',
+           to_jsonb(m.date::text),
+           true
+         ),
+         '{kickoff}',
+         to_jsonb(to_char(m.kickoff, 'HH24:MI')),
+         true
+       ),
+       '{kickoff_at_utc}',
+       to_jsonb(m.kickoff_at_utc::text),
        true
      )
      FROM matches m
@@ -880,6 +923,7 @@ export async function syncWatchlistDates(): Promise<number> {
        AND (
          NULLIF(mm.metadata->>'date', '') IS DISTINCT FROM m.date::text
          OR NULLIF(mm.metadata->>'kickoff', '') IS DISTINCT FROM to_char(m.kickoff, 'HH24:MI')
+         OR NULLIF(mm.metadata->>'kickoff_at_utc', '') IS DISTINCT FROM m.kickoff_at_utc::text
        )`,
   );
   return r.rowCount ?? 0;

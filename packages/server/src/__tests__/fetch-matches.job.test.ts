@@ -105,6 +105,10 @@ describe('fetchMatchesJob', () => {
     // After active-league filtering, the mock produces 3 saved rows.
     expect(result.saved).toBe(3);
     expect(result.leagues).toBeGreaterThanOrEqual(1);
+
+    const matchRepo = await import('../repos/matches.repo.js');
+    const savedRows = vi.mocked(matchRepo.replaceAllMatches).mock.calls[0]?.[0] as Array<Record<string, unknown>>;
+    expect(savedRows.every((row) => typeof row.kickoff_at_utc === 'string')).toBe(true);
   });
 
   test('filters out fixtures from non-active leagues', async () => {
@@ -218,7 +222,12 @@ describe('fetchMatchesJob', () => {
     const historyRepo = await import('../repos/matches-history.repo.js');
     const archivedRows = vi.mocked(historyRepo.archiveFinishedMatches).mock.calls[0]?.[0] as Array<Record<string, unknown>>;
     const archived = archivedRows.find((row) => row.match_id === '1001');
-    expect(archived).toMatchObject({ final_status: 'FT', home_score: 2, away_score: 1 });
+    expect(archived).toMatchObject({
+      final_status: 'FT',
+      home_score: 2,
+      away_score: 1,
+      kickoff_at_utc: '2026-03-20T15:00:00.000Z',
+    });
   });
 
   test('does not refetch finished stats when history already has settlement cache', async () => {
@@ -432,12 +441,23 @@ describe('fetchMatchesJob — favorite team auto-add', () => {
     expect(calls.every((c) => (c[0] as Record<string, unknown>).added_by !== 'favorite-team-auto')).toBe(true);
   });
 
-  test('uses shared autoApplyRecommendedCondition from earlier settings fetch', async () => {
+  test('uses per-user autoApplyRecommendedCondition for favorite-team auto-add', async () => {
     const settingsRepo = await import('../repos/settings.repo.js');
-    vi.mocked(settingsRepo.getSettings).mockResolvedValueOnce({ AUTO_APPLY_RECOMMENDED_CONDITION: false } as never);
+    vi.mocked(settingsRepo.getSettings).mockImplementation((userId?: string) => {
+      if (userId === 'user-1') {
+        return Promise.resolve({ AUTO_APPLY_RECOMMENDED_CONDITION: false } as never);
+      }
+      if (userId === 'user-2') {
+        return Promise.resolve({ AUTO_APPLY_RECOMMENDED_CONDITION: true } as never);
+      }
+      return Promise.resolve({ AUTO_APPLY_RECOMMENDED_CONDITION: true } as never);
+    });
 
     const favoriteRepo = await import('../repos/favorite-teams.repo.js');
-    vi.mocked(favoriteRepo.getFavoriteTeamOwnersByTeamIds).mockResolvedValueOnce([{ userId: 'user-1', teamId: '33' }]);
+    vi.mocked(favoriteRepo.getFavoriteTeamOwnersByTeamIds).mockResolvedValueOnce([
+      { userId: 'user-1', teamId: '33' },
+      { userId: 'user-2', teamId: '33' },
+    ]);
 
     vi.mocked(footballApi.fetchFixturesForDate)
       .mockResolvedValueOnce([
@@ -448,11 +468,17 @@ describe('fetchMatchesJob — favorite team auto-add', () => {
     await fetchMatchesJob();
 
     const watchlistRepo = await import('../repos/watchlist.repo.js');
-    const calls = vi.mocked(watchlistRepo.createWatchlistEntry).mock.calls;
-    const favCall = calls.find((c) => (c[0] as Record<string, unknown>).added_by === 'favorite-team-auto');
-    expect((favCall?.[0] as Record<string, unknown>).auto_apply_recommended_condition).toBe(false);
+    const favoriteCalls = vi.mocked(watchlistRepo.createWatchlistEntry).mock.calls.filter(
+      (call) => (call[0] as Record<string, unknown>).added_by === 'favorite-team-auto',
+    );
 
-    // getSettings should only be called once (shared)
-    expect(settingsRepo.getSettings).toHaveBeenCalledTimes(1);
+    expect(favoriteCalls).toHaveLength(2);
+    const user1Call = favoriteCalls.find((call) => call[1] === 'user-1');
+    const user2Call = favoriteCalls.find((call) => call[1] === 'user-2');
+    expect((user1Call?.[0] as Record<string, unknown>).auto_apply_recommended_condition).toBe(false);
+    expect((user2Call?.[0] as Record<string, unknown>).auto_apply_recommended_condition).toBe(true);
+
+    expect(settingsRepo.getSettings).toHaveBeenCalledWith('user-1', { fallbackToDefault: false });
+    expect(settingsRepo.getSettings).toHaveBeenCalledWith('user-2', { fallbackToDefault: false });
   });
 });

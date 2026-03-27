@@ -15,24 +15,30 @@ import type {
 import { fetchWatchlistMatches } from './proxy.service';
 
 /**
- * Parse a local date/time string (YYYY-MM-DD, HH:MM) into a UTC Date
- * treating the components as-is (no timezone conversion).
+ * Parse a local date/time string (YYYY-MM-DD, HH:MM) into a "fake UTC" Date
+ * where the local components in `timezone` are stored as-is in UTC millis
+ * (same convention as getNowLocal).
  */
-function parseLocalDateTime(dateStr: string, timeStr: string): Date | null {
+function parseLocalDateTime(dateStr: string, timeStr: string, timezone: string): Date | null {
   if (!dateStr) return null;
 
   let year: number, month: number, day: number;
   const trimmed = dateStr.trim();
 
   if (trimmed.includes('T')) {
-    // ISO timestamp — extract Seoul date (UTC+9)
+    // ISO timestamp — extract local date components in the configured timezone
     const d = new Date(trimmed);
     if (isNaN(d.getTime())) return null;
-    const seoulMs = d.getTime() + 9 * 60 * 60 * 1000;
-    const sd = new Date(seoulMs);
-    year = sd.getUTCFullYear();
-    month = sd.getUTCMonth() + 1;
-    day = sd.getUTCDate();
+    const formatter = new Intl.DateTimeFormat('en-CA', {
+      timeZone: timezone,
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+    });
+    const parts = formatter.formatToParts(d);
+    year = Number(parts.find((p) => p.type === 'year')?.value ?? 0);
+    month = Number(parts.find((p) => p.type === 'month')?.value ?? 0);
+    day = Number(parts.find((p) => p.type === 'day')?.value ?? 0);
   } else {
     const dateParts = trimmed.split('-');
     if (dateParts.length !== 3) return null;
@@ -119,7 +125,7 @@ export function filterActiveMatches(
 
       const dateStr = String(item.date || '').trim();
       const kickoffStr = String(item.kickoff || '').trim();
-      const matchStart = parseLocalDateTime(dateStr, kickoffStr);
+      const matchStart = parseLocalDateTime(dateStr, kickoffStr, config.TIMEZONE);
       if (!matchStart) continue;
 
       const matchEnd = new Date(matchStart.getTime() + MATCH_DURATION_MINUTES * 60000);

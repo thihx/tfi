@@ -136,6 +136,47 @@ vi.mock('../lib/the-odds-api.js', () => ({
   }),
 }));
 
+vi.mock('../repos/provider-odds-cache.repo.js', () => ({
+  getProviderOddsCache: vi.fn().mockResolvedValue(null),
+  upsertProviderOddsCache: vi.fn().mockResolvedValue(null),
+}));
+
+vi.mock('../lib/provider-insight-cache.js', () => ({
+  ensureFixturesForMatchIds: vi.fn(async (matchIds: string[]) => {
+    const footballApi = await import('../lib/football-api.js');
+    return footballApi.fetchFixturesByIds(matchIds);
+  }),
+  ensureMatchInsight: vi.fn(async (matchId: string, options?: { fixture?: typeof mockFixture | null }) => {
+    const footballApi = await import('../lib/football-api.js');
+    const fixture = options?.fixture ?? (await footballApi.fetchFixturesByIds([matchId]))[0] ?? mockFixture;
+    const [statistics, events] = await Promise.all([
+      footballApi.fetchFixtureStatistics(matchId).catch(() => []),
+      footballApi.fetchFixtureEvents(matchId).catch(() => []),
+    ]);
+    const now = new Date().toISOString();
+
+    return {
+      fixture: { payload: fixture, freshness: 'fresh', cacheStatus: 'hit', cachedAt: now, fetchedAt: now, degraded: false },
+      statistics: {
+        payload: statistics,
+        freshness: statistics.length > 0 ? 'fresh' : 'missing',
+        cacheStatus: statistics.length > 0 ? 'hit' : 'miss',
+        cachedAt: statistics.length > 0 ? now : null,
+        fetchedAt: statistics.length > 0 ? now : null,
+        degraded: false,
+      },
+      events: {
+        payload: events,
+        freshness: events.length > 0 ? 'fresh' : 'missing',
+        cacheStatus: events.length > 0 ? 'hit' : 'miss',
+        cachedAt: events.length > 0 ? now : null,
+        fetchedAt: events.length > 0 ? now : null,
+        degraded: false,
+      },
+    };
+  }),
+}));
+
 vi.mock('../lib/live-score-api.js', () => ({
   fetchLiveScoreBenchmarkTrace: vi.fn().mockResolvedValue({
     matched: true,
@@ -1210,7 +1251,7 @@ describe('runPipelineBatch', () => {
 
     const { callGemini } = await import('../lib/gemini.js');
     const prompt = vi.mocked(callGemini).mock.calls[0][0];
-    expect(prompt).toContain('pre-match');
+    expect(prompt).toContain('reference-prematch');
   });
 
   test('normalizes live odds[] payloads before building canonical odds', async () => {
@@ -1286,7 +1327,7 @@ describe('runPipelineBatch', () => {
     const prompt = vi.mocked(callGemini).mock.calls[0][0];
     expect(theOddsApi.fetchTheOddsLiveDetailed).toHaveBeenCalled();
     expect(footballApi.fetchPreMatchOdds).not.toHaveBeenCalled();
-    expect(prompt).toContain('ODDS_SOURCE: the-odds-api');
+    expect(prompt).toContain('ODDS_SOURCE: fallback-live');
   });
 
   test('falls back to The Odds API when both live and pre-match unavailable', async () => {

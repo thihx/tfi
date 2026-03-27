@@ -306,7 +306,7 @@ Cards can proxy for foul intensity. Goal timeline reveals match tempo patterns.
 Reduce confidence by 1 compared to matches with full stats available.
 ` : ''}
 ========================
-${data.odds_source === 'pre-match' ? 'PRE-MATCH ODDS (REFERENCE ONLY — live odds unavailable)' : data.odds_source === 'the-odds-api' ? 'LIVE ODDS SNAPSHOT (via The Odds API fallback)' : 'LIVE ODDS SNAPSHOT (CANONICAL JSON)'}
+${data.odds_source === 'reference-prematch' ? 'PRE-MATCH ODDS (REFERENCE ONLY — live odds unavailable)' : data.odds_source === 'fallback-live' ? 'LIVE ODDS SNAPSHOT (via fallback live source)' : 'LIVE ODDS SNAPSHOT (CANONICAL JSON)'}
 ========================
 ${JSON.stringify(oddsCanonical)}
 
@@ -314,7 +314,7 @@ ODDS_AVAILABLE: ${oddsAvailable}
 ODDS_SOURCE: ${data.odds_source || 'live'}
 CURRENT_TOTAL_GOALS: ${currentTotalGoals}
 CURRENT_TOTAL_CORNERS: ${currentTotalCorners}
-${data.odds_source === 'pre-match' ? `\nℹ️ These are PRE-MATCH opening odds (set before kickoff). Live odds are not available for this league/match.\nUse these as REFERENCE for market direction and value assessment, but note they do NOT reflect the current game state.\nYou CAN still make recommendations using these odds as a baseline — adjust your confidence based on how the match has evolved.` : ''}${oddsSuspicious ? `\n⚠️ ODDS SANITY CHECK FAILED:\n${oddsSanityWarnings.map((w) => '• ' + w).join('\n')}\nTreat ALL odds as UNRELIABLE. Behave as if ODDS_AVAILABLE = false.` : ''}
+${data.odds_source === 'reference-prematch' ? `\nℹ️ These are PRE-MATCH opening odds (set before kickoff). Live odds are not available for this league/match.\nUse these as REFERENCE for market direction and value assessment, but note they do NOT reflect the current game state.\nYou CAN still make recommendations using these odds as a baseline — adjust your confidence based on how the match has evolved.` : ''}${data.odds_source === 'fallback-live' ? `\nℹ️ These odds come from a fallback live source and may lag slightly behind the primary live feed.` : ''}${oddsSuspicious ? `\n⚠️ ODDS SANITY CHECK FAILED:\n${oddsSanityWarnings.map((w) => '• ' + w).join('\n')}\nTreat ALL odds as UNRELIABLE. Behave as if ODDS_AVAILABLE = false.` : ''}
 
 ========================
 PRE-MATCH PREDICTION (OPTIONAL)

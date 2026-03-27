@@ -28,6 +28,8 @@ export interface LiveMonitorConfig {
   MANUAL_PUSH_MATCH_IDS: string[];
   NOTIFICATION_LANGUAGE: 'en' | 'vi' | 'both';
   UI_LANGUAGE?: 'en' | 'vi';
+  USER_TIMEZONE?: string | null;
+  USER_TIMEZONE_CONFIRMED?: boolean;
   TELEGRAM_ENABLED?: boolean;
   ZALO_ENABLED?: boolean;
   WEB_PUSH_ENABLED?: boolean;
@@ -160,7 +162,9 @@ export interface FootballApiPrediction {
 // ==================== Live Odds Types ====================
 
 export interface FootballApiOddsResponse {
-  odds_source?: 'live' | 'pre-match' | 'the-odds-api';
+  odds_source?: 'live' | 'fallback-live' | 'reference-prematch' | 'none';
+  odds_freshness?: 'fresh' | 'stale_ok' | 'stale_degraded' | 'missing';
+  cache_status?: 'hit' | 'refreshed' | 'stale_fallback' | 'miss';
   response: Array<{
     fixture: { id: number };
     update: string;
@@ -309,7 +313,7 @@ export interface MergedMatchData {
   odds_available: boolean;
   odds_sanity_warnings: string[];
   odds_suspicious: boolean;
-  odds_source?: 'live' | 'pre-match' | 'the-odds-api';
+  odds_source?: 'live' | 'fallback-live' | 'reference-prematch' | 'none';
   derived_insights?: DerivedMatchInsights | null;
   pre_match_prediction: PreMatchPrediction | null;
   pre_match_prediction_summary: string;
@@ -463,8 +467,8 @@ export interface TelegramPayload {
   chat_id: string;
   text: string;
   parse_mode: 'HTML';
-  /** When set, sends a sendPhoto with chart image; text becomes the caption */
-  photo_url?: string;
+  /** When set, backend renders a chart image and sends it as the Telegram photo. */
+  chart_config?: Record<string, unknown>;
 }
 
 // ==================== Pipeline ====================

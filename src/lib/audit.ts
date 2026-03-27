@@ -4,6 +4,7 @@
 
 import type { AppConfig } from '@/types';
 import { getToken } from '@/lib/services/auth';
+import { internalApiUrl } from '@/lib/internal-api';
 
 interface AuditEntry {
   category: string;
@@ -18,7 +19,7 @@ interface AuditEntry {
 
 /** Fire-and-forget: post an audit log to the server. Never throws. */
 export function auditLog(config: AppConfig, entry: AuditEntry): void {
-  const url = `${config.apiUrl}/api/audit-logs`;
+  const url = internalApiUrl('/api/audit-logs', config);
   const token = getToken();
   const headers: Record<string, string> = { 'Content-Type': 'application/json' };
   if (token) headers['Authorization'] = `Bearer ${token}`;

@@ -11,6 +11,7 @@ import type {
   TeamProfileData,
   ApiResponse,
 } from '@/types';
+import { internalApiUrl } from '@/lib/internal-api';
 
 // ==================== TYPED API ERROR ====================
 
@@ -43,17 +44,18 @@ function authHeader(): Record<string, string> {
 }
 
 async function pgFetch<T>(config: AppConfig, path: string): Promise<T> {
-  const response = await fetch(`${config.apiUrl}${path}`, {
+  const response = await fetch(internalApiUrl(path, config), {
     method: 'GET',
     headers: { Accept: 'application/json', ...authHeader() },
     credentials: 'include',
+    cache: 'no-store',
   });
   if (!response.ok) throw formatApiError(response.status, await response.text());
   return response.json();
 }
 
 async function pgPost<T>(config: AppConfig, path: string, body: unknown): Promise<T> {
-  const response = await fetch(`${config.apiUrl}${path}`, {
+  const response = await fetch(internalApiUrl(path, config), {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', Accept: 'application/json', ...authHeader() },
     body: JSON.stringify(body),
@@ -64,7 +66,7 @@ async function pgPost<T>(config: AppConfig, path: string, body: unknown): Promis
 }
 
 async function pgPatch<T>(config: AppConfig, path: string, body: unknown): Promise<T> {
-  const response = await fetch(`${config.apiUrl}${path}`, {
+  const response = await fetch(internalApiUrl(path, config), {
     method: 'PATCH',
     headers: { 'Content-Type': 'application/json', Accept: 'application/json', ...authHeader() },
     body: JSON.stringify(body),
@@ -75,7 +77,7 @@ async function pgPatch<T>(config: AppConfig, path: string, body: unknown): Promi
 }
 
 async function pgPut<T>(config: AppConfig, path: string, body: unknown): Promise<T> {
-  const response = await fetch(`${config.apiUrl}${path}`, {
+  const response = await fetch(internalApiUrl(path, config), {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json', Accept: 'application/json', ...authHeader() },
     body: JSON.stringify(body),
@@ -87,7 +89,7 @@ async function pgPut<T>(config: AppConfig, path: string, body: unknown): Promise
 
 async function pgDelete<T>(config: AppConfig, path: string, body?: unknown): Promise<T> {
   const hasBody = body !== undefined;
-  const response = await fetch(`${config.apiUrl}${path}`, {
+  const response = await fetch(internalApiUrl(path, config), {
     method: 'DELETE',
     headers: {
       Accept: 'application/json',

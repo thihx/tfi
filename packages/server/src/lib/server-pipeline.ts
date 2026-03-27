@@ -14,15 +14,16 @@ import { config } from '../config.js';
 import { query } from '../db/pool.js';
 import { callGemini } from './gemini.js';
 import { sendTelegramMessage, sendTelegramPhoto } from './telegram.js';
+import { formatOperationalTimestamp } from './time.js';
 import { audit } from './audit.js';
 import {
-  fetchFixturesByIds,
   fetchFixtureStatistics,
   fetchFixtureEvents,
   type ApiFixture,
   type ApiFixtureEvent,
   type ApiFixtureStat,
 } from './football-api.js';
+import { ensureFixturesForMatchIds, ensureMatchInsight } from './provider-insight-cache.js';
 import * as watchlistRepo from '../repos/watchlist.repo.js';
 import {
   createRecommendation,
@@ -1688,7 +1689,7 @@ function buildTelegramCaption(
   }
 
   // Footer last — safeTruncateCaption cuts at \n so this won't be mid-tag
-  const now = new Date().toLocaleString('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh' });
+  const now = formatOperationalTimestamp();
   text += `\n<i>🤖 ${safeHtml(triggerLabel(trigger))} | ${safeHtml(now)}</i>`;
 
   return safeTruncateCaption(text);
@@ -1798,7 +1799,7 @@ function buildTelegramMessage(
     text += `\n⚠️ ${safeHtml(displayWarnings.join(' | '))}\n`;
   }
 
-  const now = new Date().toLocaleString('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh' });
+  const now = formatOperationalTimestamp();
   text += `\n<i>🤖 ${safeHtml(triggerLabel(trigger))} | ${safeHtml(now)}</i>`;
   return text;
 }
@@ -1923,20 +1924,20 @@ async function processMatch(
       };
     }
 
-    // 1. Fetch stats + events in parallel
+    // 1. Read stats + events via the provider insight cache boundary
     const statsStartedAt = Date.now();
-    let statsError: unknown = null;
-    let eventsError: unknown = null;
-    const [apiStatsRaw, apiEventsRaw] = await Promise.all([
-      deps.fetchFixtureStatistics(matchId).catch((err) => {
-        statsError = err;
-        return [] as ApiFixtureStat[];
-      }),
-      deps.fetchFixtureEvents(matchId).catch((err) => {
-        eventsError = err;
-        return [] as ApiFixtureEvent[];
-      }),
-    ]);
+    const insight = await ensureMatchInsight(matchId, {
+      fixture,
+      status,
+      matchMinute: minute,
+      refreshOdds: false,
+      consumer: shadowMode ? 'replay' : 'server-pipeline',
+      sampleProviderData,
+    });
+    const apiStatsRaw = insight.statistics.payload;
+    const apiEventsRaw = insight.events.payload;
+    const statsError: unknown = null;
+    const eventsError: unknown = null;
 
     const homeStats = apiStatsRaw[0]?.statistics || [];
     const awayStats = apiStatsRaw[1]?.statistics || [];
@@ -2858,7 +2859,7 @@ export async function runPromptOnlyAnalysisForMatch(
   } = {},
 ): Promise<{ text: string; prompt: string; result: MatchPipelineResult }> {
   const [fixture, watchlistEntry] = await Promise.all([
-    fetchFixturesByIds([matchId]).then((rows) => rows[0] ?? null),
+    ensureFixturesForMatchIds([matchId]).then((rows) => rows[0] ?? null),
     watchlistRepo.getOperationalWatchlistByMatchId(matchId),
   ]);
 
@@ -2897,7 +2898,7 @@ export async function runManualAnalysisForMatch(
   } = {},
 ): Promise<MatchPipelineResult> {
   const [fixture, watchlistEntry] = await Promise.all([
-    fetchFixturesByIds([matchId]).then((rows) => rows[0] ?? null),
+    ensureFixturesForMatchIds([matchId]).then((rows) => rows[0] ?? null),
     watchlistRepo.getOperationalWatchlistByMatchId(matchId),
   ]);
 
@@ -2929,7 +2930,7 @@ export async function runPipelineBatch(matchIds: string[]): Promise<PipelineResu
   console.log(`[pipeline] Processing batch of ${matchIds.length} matches: ${matchIds.join(', ')} (telegram: ${settings.telegramEnabled ? 'ENABLED' : 'DISABLED'}, model: ${settings.aiModel})`);
 
   // Fetch all fixtures in one API call
-  const fixtures = await fetchFixturesByIds(matchIds);
+  const fixtures = await ensureFixturesForMatchIds(matchIds);
   const fixtureMap = new Map(fixtures.map((f) => [String(f.fixture?.id), f]));
 
   // Get watchlist entries for metadata

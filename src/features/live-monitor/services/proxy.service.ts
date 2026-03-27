@@ -5,6 +5,7 @@
 // ============================================================
 
 import type { AppConfig } from '@/types';
+import { internalApiUrl } from '@/lib/internal-api';
 import { getToken } from '@/lib/services/auth';
 import type {
   FootballApiFixture,
@@ -18,7 +19,7 @@ import type {
 } from '../types';
 
 function apiUrl(config: AppConfig, path: string): string {
-  return `${config.apiUrl}${path}`;
+  return internalApiUrl(path, config);
 }
 
 function authHeaders(): Record<string, string> {

@@ -1,4 +1,5 @@
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
+import { requireAdminOrOwner, requireCurrentUser } from '../lib/authz.js';
 import {
   getAllTeamProfiles,
   getTeamProfileByTeamId,
@@ -60,6 +61,8 @@ export async function teamProfileRoutes(app: FastifyInstance) {
     req: FastifyRequest<{ Params: { teamId: string } }>,
     reply: FastifyReply,
   ) => {
+    const user = requireCurrentUser(req, reply);
+    if (!user) return;
     const { teamId } = req.params as { teamId: string };
     const row = await getTeamProfileByTeamId(teamId);
     if (!row) return reply.status(404).send({ error: 'Profile not found' });
@@ -70,6 +73,8 @@ export async function teamProfileRoutes(app: FastifyInstance) {
     req: FastifyRequest<{ Params: { teamId: string }; Body: Record<string, unknown> }>,
     reply: FastifyReply,
   ) => {
+    const user = requireAdminOrOwner(req, reply);
+    if (!user) return;
     const { teamId } = req.params as { teamId: string };
     const body = req.body as Record<string, unknown>;
 
@@ -93,6 +98,8 @@ export async function teamProfileRoutes(app: FastifyInstance) {
     req: FastifyRequest<{ Params: { teamId: string } }>,
     reply: FastifyReply,
   ) => {
+    const user = requireAdminOrOwner(req, reply);
+    if (!user) return;
     const { teamId } = req.params as { teamId: string };
     const deleted = await deleteTeamProfile(teamId);
     if (!deleted) return reply.status(404).send({ error: 'Profile not found' });
@@ -100,7 +107,9 @@ export async function teamProfileRoutes(app: FastifyInstance) {
   };
 
   /** List all team profiles (with team metadata joined) */
-  app.get('/api/team-profiles', async () => {
+  app.get('/api/team-profiles', async (req, reply) => {
+    const user = requireCurrentUser(req, reply);
+    if (!user) return;
     return getAllTeamProfiles();
   });
 

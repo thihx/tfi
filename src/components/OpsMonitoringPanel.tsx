@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useAppState } from '@/hooks/useAppState';
 import { getToken } from '@/lib/services/auth';
+import { internalApiUrl } from '@/lib/internal-api';
 import { formatLocalDateTime } from '@/lib/utils/helpers';
 
 type ChecklistStatus = 'pass' | 'warn' | 'fail';
@@ -345,7 +346,7 @@ export function OpsMonitoringPanel() {
     setLoading(true);
     setError(null);
     try {
-      const res = await fetch(`${apiUrl}/api/ops/overview`, {
+      const res = await fetch(internalApiUrl('/api/ops/overview', apiUrl), {
         headers: authHeaders(),
         credentials: 'include',
       });

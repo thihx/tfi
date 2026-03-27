@@ -4,40 +4,27 @@
 
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import { requireAdminOrOwner, requireCurrentUser } from '../lib/authz.js';
+import * as notificationSettingsRepo from '../repos/notification-settings.repo.js';
 import * as settingsRepo from '../repos/settings.repo.js';
-
-const SELF_SERVICE_SETTINGS_DEFAULTS = {
-  UI_LANGUAGE: 'vi',
-  AUTO_APPLY_RECOMMENDED_CONDITION: true,
-} satisfies Record<string, unknown>;
-
-function normalizeSelfServiceSettings(settings: Record<string, unknown>): Record<string, unknown> {
-  return {
-    UI_LANGUAGE: settings['UI_LANGUAGE'] === 'en' ? 'en' : 'vi',
-    AUTO_APPLY_RECOMMENDED_CONDITION: settings['AUTO_APPLY_RECOMMENDED_CONDITION'] !== false,
-  };
-}
-
-function sanitizeSelfServicePatch(settings: Record<string, unknown>): Record<string, unknown> {
-  const patch: Record<string, unknown> = {};
-  if (settings['UI_LANGUAGE'] === 'vi' || settings['UI_LANGUAGE'] === 'en') {
-    patch['UI_LANGUAGE'] = settings['UI_LANGUAGE'];
-  }
-  if (typeof settings['AUTO_APPLY_RECOMMENDED_CONDITION'] === 'boolean') {
-    patch['AUTO_APPLY_RECOMMENDED_CONDITION'] = settings['AUTO_APPLY_RECOMMENDED_CONDITION'];
-  }
-  return patch;
-}
+import {
+  extractSelfServiceNotificationPatch,
+  mergeNotificationSettings,
+  normalizeSelfServiceSettings,
+  resolveNotificationSettings,
+  sanitizeSelfServicePatch,
+  SELF_SERVICE_SETTINGS_DEFAULTS,
+} from '../lib/user-personalization-settings.js';
 
 export async function settingsRoutes(app: FastifyInstance) {
   const loadCurrentUserSettings = async (req: FastifyRequest, reply: FastifyReply) => {
     const user = requireCurrentUser(req, reply);
     if (!user) return;
     const current = await settingsRepo.getSettings(user.userId, { fallbackToDefault: false });
+    const notificationSettings = await resolveNotificationSettings(user.userId);
     return normalizeSelfServiceSettings({
       ...SELF_SERVICE_SETTINGS_DEFAULTS,
       ...current,
-    });
+    }, notificationSettings);
   };
 
   const saveCurrentUserSettings = async (
@@ -47,15 +34,23 @@ export async function settingsRoutes(app: FastifyInstance) {
     const user = requireCurrentUser(req, reply);
     if (!user) return;
     const existing = await settingsRepo.getSettings(user.userId, { fallbackToDefault: false });
+    const existingNotificationSettings = await resolveNotificationSettings(user.userId);
     const merged = {
       ...existing,
       ...sanitizeSelfServicePatch(req.body ?? {}),
     };
+    const notificationPatch = extractSelfServiceNotificationPatch(req.body ?? {});
     await settingsRepo.saveSettings(merged, user.userId);
+    const savedNotificationSettings = Object.keys(notificationPatch).length > 0
+      ? await notificationSettingsRepo.saveNotificationSettings(
+        user.userId,
+        mergeNotificationSettings(existingNotificationSettings, notificationPatch),
+      )
+      : existingNotificationSettings;
     return normalizeSelfServiceSettings({
       ...SELF_SERVICE_SETTINGS_DEFAULTS,
       ...merged,
-    });
+    }, savedNotificationSettings);
   };
 
   // GET /api/settings — compatibility self-service path

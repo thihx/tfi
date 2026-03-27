@@ -229,12 +229,12 @@ export async function stageRecommendationDeliveries(
          'subscription_priority', s.priority,
          'custom_condition_text', s.custom_condition_text,
          'subscription_source', s.source,
-         'recommendation_timestamp', $3,
-         'selection', $4,
-         'bet_market', $5,
-         'odds', $6,
-         'confidence', $7,
-         'risk_level', $8
+         'recommendation_timestamp', $3::text,
+         'selection', $4::text,
+         'bet_market', $5::text,
+         'odds', $6::numeric,
+         'confidence', $7::numeric,
+         'risk_level', $8::text
        )),
        COALESCE($3::timestamptz, NOW())
      FROM user_watch_subscriptions s
@@ -304,8 +304,8 @@ export async function evaluateRecommendationDeliveryConditions(
               metadata = COALESCE(metadata, '{}'::jsonb) || jsonb_build_object(
                 'condition_evaluation_status', 'evaluated',
                 'condition_evaluation_supported', TRUE,
-                'condition_evaluation_matched', $3,
-                'condition_evaluation_summary', $6
+                'condition_evaluation_matched', $3::boolean,
+                'condition_evaluation_summary', $6::text
               )
         WHERE id = $1
           AND recommendation_id = $2`,
@@ -374,30 +374,30 @@ export async function stageConditionOnlyDeliveries(
           '[]'::jsonb,
           jsonb_strip_nulls(jsonb_build_object(
             'delivery_kind', 'condition_only',
-            'custom_condition_text', $3,
+            'custom_condition_text', $3::text,
             'condition_evaluation_status', 'evaluated',
             'condition_evaluation_supported', TRUE,
             'condition_evaluation_matched', TRUE,
-            'condition_evaluation_summary', $4,
-            'recommendation_timestamp', $5,
-            'recommendation_minute', $6,
-            'recommendation_score', $7,
+            'condition_evaluation_summary', $4::text,
+            'recommendation_timestamp', $5::text,
+            'recommendation_minute', $6::integer,
+            'recommendation_score', $7::text,
             'recommendation_bet_type', 'CONDITION_ONLY',
-            'recommendation_selection', $8,
-            'recommendation_bet_market', $9,
-            'recommendation_confidence', $10,
-            'recommendation_risk_level', $11,
-            'recommendation_stake_percent', $12,
-            'recommendation_reasoning', $13,
-            'recommendation_reasoning_vi', $14,
-            'recommendation_warnings', $15,
-            'recommendation_home_team', $16,
-            'recommendation_away_team', $17,
-            'recommendation_league', $18,
-            'custom_condition_summary_en', $19,
-            'custom_condition_summary_vi', $20,
-            'custom_condition_reason_en', $21,
-            'custom_condition_reason_vi', $22
+            'recommendation_selection', $8::text,
+            'recommendation_bet_market', $9::text,
+            'recommendation_confidence', $10::numeric,
+            'recommendation_risk_level', $11::text,
+            'recommendation_stake_percent', $12::numeric,
+            'recommendation_reasoning', $13::text,
+            'recommendation_reasoning_vi', $14::text,
+            'recommendation_warnings', $15::text,
+            'recommendation_home_team', $16::text,
+            'recommendation_away_team', $17::text,
+            'recommendation_league', $18::text,
+            'custom_condition_summary_en', $19::text,
+            'custom_condition_summary_vi', $20::text,
+            'custom_condition_reason_en', $21::text,
+            'custom_condition_reason_vi', $22::text
           )),
           COALESCE($5::timestamptz, NOW())
        )

@@ -293,6 +293,8 @@ describe('autoSettleJob', () => {
       expect.objectContaining({ status: 'resolved', method: 'rules' }),
     );
     expect(matchHistoryRepo.archiveFinishedMatches).toHaveBeenCalled();
+    const archivedRows = (matchHistoryRepo.archiveFinishedMatches as Mock).mock.calls[0]?.[0] as Array<Record<string, unknown>>;
+    expect(archivedRows[0]?.kickoff_at_utc).toBe('2026-03-16T20:00:00.000Z');
   });
 
   test('skips recommendation when match is still live', async () => {

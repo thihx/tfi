@@ -10,6 +10,7 @@ import { config } from '../config.js';
 import { getRedisClient } from '../lib/redis.js';
 import { audit } from '../lib/audit.js';
 import { fetchMatchesJob, ADAPTIVE_SKIP_KEY } from './fetch-matches.job.js';
+import { refreshLiveMatchesJob } from './refresh-live-matches.job.js';
 import { updatePredictionsJob } from './update-predictions.job.js';
 import { expireWatchlistJob } from './expire-watchlist.job.js';
 import { checkLiveTriggerJob } from './check-live-trigger.job.js';
@@ -19,6 +20,7 @@ import { purgeAuditJob } from './purge-audit.job.js';
 import { integrationHealthJob } from './integration-health.job.js';
 import { healthWatchdogJob } from './health-watchdog.job.js';
 import { syncReferenceDataJob } from './sync-reference-data.job.js';
+import { refreshProviderInsightsJob } from './refresh-provider-insights.job.js';
 import {
   type JobProgress,
   clearJobProgress,
@@ -287,10 +289,26 @@ export async function startScheduler() {
     undefined,
     {
       label: 'Fetch Matches',
-      description: 'Fetches fixtures from Football API for active leagues, refreshes the short-lived matches table, archives finished fixtures, and auto-adds eligible top-league or favorite-team matches into the monitoring pipeline.',
+      description: 'Looks for today\'s and tomorrow\'s matches in the leagues you track, updates the match list, saves finished games to history, and adds some new matches to the follow list when they fit the rules.',
       group: 'pipeline',
       entityScopes: ['matches', 'watchlist-candidates', 'match-history-archive'],
       order: 1,
+    },
+  );
+  register(
+    'refresh-live-matches',
+    config.jobRefreshLiveMatchesMs,
+    refreshLiveMatchesJob,
+    undefined,
+    undefined,
+    1,
+    undefined,
+    {
+      label: 'Refresh Live Matches',
+      description: 'Refreshes only the matches that are live or about to start, so scores and match state move faster without forcing a full match reload every few seconds.',
+      group: 'pipeline',
+      entityScopes: ['matches', 'live-scores', 'live-cards'],
+      order: 2,
     },
   );
   register(
@@ -303,10 +321,10 @@ export async function startScheduler() {
     60 * 60_000,
     {
       label: 'Sync Reference Data',
-      description: 'Refreshes low-churn provider-backed reference entities owned by TFI so hot paths stay local-first. The current scope enriches the league catalog for top and active leagues, then refreshes league-team directory snapshots, and the job contract is intentionally generic so future reference entities can be added without renaming the scheduler surface.',
+      description: 'Refreshes basic league and team information that changes slowly. This helps other parts of the app read from saved local data instead of asking for the same details again.',
       group: 'reference-data',
       entityScopes: ['league-catalog', 'league-team-directory'],
-      order: 2,
+      order: 3,
     },
   );
   register(
@@ -319,10 +337,10 @@ export async function startScheduler() {
     30 * 60_000,
     {
       label: 'Enrich Watchlist',
-      description: 'Uses AI and grounded web research to enrich watchlist entries with strategic context, directional congestion or absence signals, and recommended conditions for later live analysis.',
+      description: 'Adds more background to upcoming matches in the follow list, such as why the game may matter and whether there may be missing players or a busy schedule. It can also suggest a follow rule when there is enough context.',
       group: 'pipeline',
       entityScopes: ['watchlist', 'strategic-context', 'recommended-conditions'],
-      order: 3,
+      order: 4,
     },
   );
   register(
@@ -335,10 +353,10 @@ export async function startScheduler() {
     undefined,
     {
       label: 'Update Predictions',
-      description: 'Fetches pre-match prediction payloads for upcoming watchlist matches so the canonical pipeline can reuse stored prediction context instead of querying providers at analysis time.',
+      description: 'Gets pre-game outlooks for upcoming matches in the follow list and saves them for later use.',
       group: 'pipeline',
       entityScopes: ['watchlist', 'predictions'],
-      order: 4,
+      order: 5,
     },
   );
   register(
@@ -351,10 +369,26 @@ export async function startScheduler() {
     undefined,
     {
       label: 'Check Live Matches',
-      description: 'Detects live watchlist matches, runs the canonical server analysis pipeline, and emits save or notify outcomes for actionable AI or condition-trigger decisions.',
+      description: 'Looks for followed matches that are now live and decides which ones need a fresh review. For those matches, it runs the main review flow and may save a new result or send an alert.',
       group: 'pipeline',
       entityScopes: ['watchlist', 'live-pipeline', 'recommendations', 'notifications'],
-      order: 5,
+      order: 6,
+    },
+  );
+  register(
+    'refresh-provider-insights',
+    config.jobRefreshProviderInsightsMs,
+    refreshProviderInsightsJob,
+    undefined,
+    undefined,
+    1,
+    undefined,
+    {
+      label: 'Refresh Provider Insights',
+      description: 'Refreshes saved match details for live and followed games, such as match facts, event details, and price snapshots, so the app can read recent local copies instead of asking again each time.',
+      group: 'pipeline',
+      entityScopes: ['provider-fixture-cache', 'provider-stats-cache', 'provider-events-cache', 'provider-odds-cache'],
+      order: 7,
     },
   );
   register(
@@ -367,10 +401,10 @@ export async function startScheduler() {
     undefined,
     {
       label: 'Auto Settle',
-      description: 'Settles pending recommendations and bets from final match outcomes using local history plus provider fallback when required, then records settlement audit details.',
+      description: 'Checks finished matches and updates open picks and bets with their final outcome. It uses saved match history first and only asks for missing final details when needed.',
       group: 'pipeline',
       entityScopes: ['recommendations', 'bets', 'settlement-audit'],
-      order: 6,
+      order: 8,
     },
   );
   register(
@@ -383,10 +417,10 @@ export async function startScheduler() {
     undefined,
     {
       label: 'Expire Watchlist',
-      description: 'Removes completed watchlist entries once their operational monitoring window has ended, keeping monitoring queues temporary and relevant.',
+      description: 'Removes old follow-list entries after the match has been over long enough that the app no longer needs to keep watching them.',
       group: 'maintenance',
       entityScopes: ['watchlist'],
-      order: 7,
+      order: 9,
     },
   );
   register(
@@ -399,10 +433,10 @@ export async function startScheduler() {
     undefined,
     {
       label: 'Purge Audit Logs',
-      description: 'Deletes old audit and housekeeping records according to retention policy so operational tables remain bounded as volume grows.',
+      description: 'Deletes old records from logs and other fast-growing tables after their keep period has passed, so storage does not grow without limit.',
       group: 'maintenance',
       entityScopes: ['audit-logs'],
-      order: 8,
+      order: 10,
     },
   );
   register(
@@ -415,10 +449,10 @@ export async function startScheduler() {
     undefined,
     {
       label: 'Integration Health',
-      description: 'Probes core dependencies such as PostgreSQL, Redis, provider APIs, and Telegram delivery to detect external integration failures and recovery quickly.',
+      description: 'Checks whether the key services the app depends on are working well. If one goes down or recovers, it sends a message so people notice quickly.',
       group: 'monitoring',
       entityScopes: ['postgres', 'redis', 'provider-apis', 'telegram'],
-      order: 9,
+      order: 11,
     },
   );
   register(
@@ -431,10 +465,10 @@ export async function startScheduler() {
     undefined,
     {
       label: 'Health Watchdog',
-      description: 'Monitors critical business jobs for overdue or stuck execution and sends escalation alerts when the scheduler appears unhealthy.',
+      description: 'Watches the most important background jobs and looks for ones that stop running on time or appear stuck. If a problem starts or clears, it sends a message.',
       group: 'monitoring',
       entityScopes: ['scheduler', 'critical-jobs'],
-      order: 10,
+      order: 12,
     },
   );
 

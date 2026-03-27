@@ -10,8 +10,17 @@ import {
   extractStatusCode,
   recordProviderOddsSampleSafe,
 } from './provider-sampling.js';
+import {
+  getProviderOddsCache,
+  upsertProviderOddsCache,
+  type ProviderOddsCacheRow,
+  type UpsertProviderOddsCacheInput,
+} from '../repos/provider-odds-cache.repo.js';
 
-export type ResolvedOddsSource = 'live' | 'the-odds-api' | 'pre-match' | 'none';
+export type ResolvedOddsSource = 'live' | 'fallback-live' | 'reference-prematch' | 'none';
+type ProviderOddsSource = 'api-football-live' | 'the-odds-live' | 'api-football-prematch' | 'none';
+export type ResolveMatchOddsFreshness = 'fresh' | 'stale_ok' | 'stale_degraded' | 'missing';
+export type ResolveMatchOddsCacheStatus = 'hit' | 'refreshed' | 'stale_fallback' | 'miss';
 
 export interface ResolveMatchOddsInput {
   matchId: string;
@@ -30,6 +39,8 @@ export interface ResolveMatchOddsResult {
   oddsSource: ResolvedOddsSource;
   response: unknown[];
   oddsFetchedAt: string | null;
+  freshness: ResolveMatchOddsFreshness;
+  cacheStatus: ResolveMatchOddsCacheStatus;
 }
 
 export interface ResolveMatchOddsDeps {
@@ -46,6 +57,9 @@ export interface ResolveMatchOddsDeps {
       status?: string;
     },
   ) => Promise<TheOddsLiveTrace>;
+  getCachedOdds?: (matchId: string) => Promise<ProviderOddsCacheRow | null>;
+  upsertCachedOdds?: (input: UpsertProviderOddsCacheInput) => Promise<unknown>;
+  now?: () => Date;
 }
 
 type NormalizedBookmaker = {
@@ -67,7 +81,13 @@ const defaultResolveDeps: ResolveMatchOddsDeps = {
   fetchLiveOdds,
   fetchPreMatchOdds,
   fetchTheOddsLiveDetailed,
+  getCachedOdds: getProviderOddsCache,
+  upsertCachedOdds: upsertProviderOddsCache,
+  now: () => new Date(),
 };
+
+const LIVE_STATUSES = new Set(['1H', '2H', 'HT', 'ET', 'BT', 'P', 'LIVE', 'INT']);
+const FINISHED_STATUSES = new Set(['FT', 'AET', 'PEN']);
 
 export function normalizeApiSportsOddsResponse(response: unknown[]): unknown[] {
   if (!Array.isArray(response) || response.length === 0) return [];
@@ -144,6 +164,129 @@ function summarizeNormalizedOdds(response: unknown[]): Record<string, unknown> {
   return summary;
 }
 
+function mapProviderSourceToResolved(providerSource: ProviderOddsSource): ResolvedOddsSource {
+  switch (providerSource) {
+    case 'api-football-live':
+      return 'live';
+    case 'the-odds-live':
+      return 'fallback-live';
+    case 'api-football-prematch':
+      return 'reference-prematch';
+    default:
+      return 'none';
+  }
+}
+
+function classifyFreshness(ageMs: number | null, ttlMs: number): ResolveMatchOddsFreshness {
+  if (ageMs == null) return 'missing';
+  if (ageMs <= ttlMs) return 'fresh';
+  if (ageMs <= ttlMs * 3) return 'stale_ok';
+  return 'stale_degraded';
+}
+
+function getOddsCacheTtlMs(input: ResolveMatchOddsInput): number {
+  const minute = input.matchMinute ?? 0;
+  const status = String(input.status ?? '').toUpperCase();
+
+  if (FINISHED_STATUSES.has(status)) return 12 * 60 * 60 * 1000;
+  if (status === 'HT') return 30 * 1000;
+  if (LIVE_STATUSES.has(status)) {
+    if (minute >= 75) return 15 * 1000;
+    return 30 * 1000;
+  }
+  if (status === 'NS' || !status) return 2 * 60 * 1000;
+  return 60 * 1000;
+}
+
+function getCacheAgeMs(row: ProviderOddsCacheRow | null, now: Date): number | null {
+  if (!row?.cached_at) return null;
+  const parsed = Date.parse(row.cached_at);
+  if (Number.isNaN(parsed)) return null;
+  return now.getTime() - parsed;
+}
+
+function responseArrayOf(row: ProviderOddsCacheRow): unknown[] {
+  return Array.isArray(row.response) ? row.response : [];
+}
+
+function buildCacheResult(
+  row: ProviderOddsCacheRow,
+  freshness: ResolveMatchOddsFreshness,
+  cacheStatus: ResolveMatchOddsCacheStatus,
+): ResolveMatchOddsResult {
+  return {
+    oddsSource: (row.odds_source as ResolvedOddsSource) || mapProviderSourceToResolved((row.provider_source as ProviderOddsSource) || 'none'),
+    response: responseArrayOf(row),
+    oddsFetchedAt: row.odds_fetched_at,
+    freshness,
+    cacheStatus,
+  };
+}
+
+async function loadFreshCachedOdds(
+  input: ResolveMatchOddsInput,
+  deps: ResolveMatchOddsDeps,
+): Promise<ResolveMatchOddsResult | { staleRow: ProviderOddsCacheRow | null }> {
+  if (!deps.getCachedOdds) return { staleRow: null };
+
+  try {
+    const cached = await deps.getCachedOdds(input.matchId);
+    const now = deps.now!();
+    const freshness = classifyFreshness(getCacheAgeMs(cached, now), getOddsCacheTtlMs(input));
+    if (!cached) return { staleRow: null };
+    if (freshness === 'fresh') {
+      return buildCacheResult(cached, 'fresh', 'hit');
+    }
+    return { staleRow: cached };
+  } catch {
+    return { staleRow: null };
+  }
+}
+
+async function persistOddsCache(
+  input: ResolveMatchOddsInput,
+  deps: ResolveMatchOddsDeps,
+  result: ResolveMatchOddsResult,
+  providerSource: ProviderOddsSource,
+  lastRefreshError = '',
+  degraded = false,
+): Promise<void> {
+  if (!deps.upsertCachedOdds) return;
+
+  const summary = summarizeNormalizedOdds(result.response);
+  try {
+    await deps.upsertCachedOdds({
+      match_id: input.matchId,
+      odds_source: result.oddsSource,
+      provider_source: providerSource,
+      response: result.response,
+      coverage_flags: summary,
+      provider_trace: {
+        provider_source: providerSource,
+        consumer: consumerOf(input),
+      },
+      odds_fetched_at: result.oddsFetchedAt,
+      match_status: input.status ?? '',
+      match_minute: input.matchMinute ?? null,
+      freshness: result.freshness,
+      degraded,
+      last_refresh_error: lastRefreshError,
+      has_1x2: summary['has_1x2'] === true,
+      has_ou: summary['has_ou'] === true,
+      has_ah: summary['has_ah'] === true,
+      has_btts: summary['has_btts'] === true,
+    });
+  } catch {
+    // Cache write failures must not break runtime odds resolution.
+  }
+}
+
+interface ProviderResolution {
+  result: ResolveMatchOddsResult;
+  providerSource: ProviderOddsSource;
+  lastError: string;
+}
+
 function isSamplingEnabled(input: ResolveMatchOddsInput): boolean {
   return input.sampleProviderData !== false;
 }
@@ -165,8 +308,42 @@ export async function resolveMatchOdds(
   input: ResolveMatchOddsInput,
   deps?: ResolveMatchOddsDeps,
 ): Promise<ResolveMatchOddsResult> {
-  const nowIso = () => new Date().toISOString();
   const resolvedDeps = { ...defaultResolveDeps, ...deps };
+  const nowIso = () => resolvedDeps.now!().toISOString();
+
+  const cached = await loadFreshCachedOdds(input, resolvedDeps);
+  if ('oddsSource' in cached) {
+    return cached;
+  }
+
+  const providerResolved = await resolveMatchOddsFromProviders(input, resolvedDeps, nowIso);
+  await persistOddsCache(input, resolvedDeps, providerResolved.result, providerResolved.providerSource, providerResolved.lastError);
+
+  if (providerResolved.result.oddsSource !== 'none') {
+    return providerResolved.result;
+  }
+
+  if (cached.staleRow) {
+    const staleResult = buildCacheResult(cached.staleRow, 'stale_degraded', 'stale_fallback');
+    await persistOddsCache(
+      input,
+      resolvedDeps,
+      staleResult,
+      (cached.staleRow.provider_source as ProviderOddsSource) || 'none',
+      providerResolved.lastError || 'FRESH_REFRESH_RETURNED_NO_USABLE_ODDS',
+      true,
+    );
+    return staleResult;
+  }
+
+  return providerResolved.result;
+}
+
+async function resolveMatchOddsFromProviders(
+  input: ResolveMatchOddsInput,
+  resolvedDeps: ResolveMatchOddsDeps,
+  nowIso: () => string,
+): Promise<ProviderResolution> {
 
   const liveStartedAt = Date.now();
   let liveRaw: unknown[] = [];
@@ -197,11 +374,21 @@ export async function resolveMatchOdds(
   }
   if (liveUsable) {
     return {
-      oddsSource: 'live',
-      response: liveOdds,
-      oddsFetchedAt: nowIso(),
+      result: {
+        oddsSource: 'live',
+        response: liveOdds,
+        oddsFetchedAt: nowIso(),
+        freshness: 'fresh',
+        cacheStatus: 'refreshed',
+      },
+      providerSource: 'api-football-live',
+      lastError: '',
     };
   }
+
+  let lastError = liveError
+    ? (liveError instanceof Error ? liveError.message : String(liveError))
+    : liveUsable ? '' : 'NO_USABLE_LIVE_ODDS';
 
   if (input.homeTeam && input.awayTeam) {
     const theOddsStartedAt = Date.now();
@@ -252,11 +439,21 @@ export async function resolveMatchOdds(
 
     if (theOddsUsable) {
       return {
-        oddsSource: 'the-odds-api',
-        response: theOddsResponse,
-        oddsFetchedAt: nowIso(),
+        result: {
+          oddsSource: 'fallback-live',
+          response: theOddsResponse,
+          oddsFetchedAt: nowIso(),
+          freshness: 'fresh',
+          cacheStatus: 'refreshed',
+        },
+        providerSource: 'the-odds-live',
+        lastError: '',
       };
     }
+
+    lastError = theOddsError
+      ? (theOddsError instanceof Error ? theOddsError.message : String(theOddsError))
+      : theOddsTrace?.error || 'NO_USABLE_FALLBACK_LIVE_ODDS';
   }
 
   const preMatchStartedAt = Date.now();
@@ -288,11 +485,21 @@ export async function resolveMatchOdds(
   }
   if (preMatchUsable) {
     return {
-      oddsSource: 'pre-match',
-      response: preMatchOdds,
-      oddsFetchedAt: nowIso(),
+      result: {
+        oddsSource: 'reference-prematch',
+        response: preMatchOdds,
+        oddsFetchedAt: nowIso(),
+        freshness: 'fresh',
+        cacheStatus: 'refreshed',
+      },
+      providerSource: 'api-football-prematch',
+      lastError: '',
     };
   }
+
+  lastError = preMatchError
+    ? (preMatchError instanceof Error ? preMatchError.message : String(preMatchError))
+    : preMatchUsable ? '' : 'NO_USABLE_REFERENCE_PREMATCH_ODDS';
 
   if (isSamplingEnabled(input)) {
     void recordProviderOddsSampleSafe({
@@ -310,8 +517,14 @@ export async function resolveMatchOdds(
   }
 
   return {
-    oddsSource: 'none',
-    response: [],
-    oddsFetchedAt: null,
+    result: {
+      oddsSource: 'none',
+      response: [],
+      oddsFetchedAt: null,
+      freshness: 'missing',
+      cacheStatus: 'miss',
+    },
+    providerSource: 'none',
+    lastError,
   };
 }

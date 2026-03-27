@@ -4,10 +4,15 @@ import { ToastProvider } from '@/hooks/useToast';
 import { useAuth } from '@/hooks/useAuth';
 import { ErrorBoundary, TabErrorBoundary } from '@/components/ui/ErrorBoundary';
 import { GlobalLoader } from '@/components/ui/GlobalLoader';
+import { Modal } from '@/components/ui/Modal';
 import { Header } from '@/components/layout/Header';
 import { BottomNav } from '@/components/layout/BottomNav';
 import { Sidebar } from '@/components/layout/Sidebar';
 import { LoginScreen } from '@/app/LoginScreen';
+import { useUserTimeZone } from '@/hooks/useUserTimeZone';
+import { shouldFastRefreshMatch } from '@/lib/utils/helpers';
+import { buildTimeZoneOptions, DEFAULT_APP_TIMEZONE } from '@/lib/utils/timezone';
+import { fetchMonitorConfig, persistMonitorConfig } from '@/features/live-monitor/config';
 import type { TabName } from '@/types';
 
 // bundle-dynamic-imports: lazy-load each tab so users only download code for tabs they visit
@@ -34,9 +39,14 @@ function TabFallback() {
 function AppContent() {
   const { authed, user, error, login, logout } = useAuth();
   const { state, loadAllData } = useAppState();
+  const timeZone = useUserTimeZone();
   const [activeTab, setActiveTab]         = useState<TabName>('dashboard');
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [pushModal, setPushModal] = useState<{ id: string; display: string } | null>(null);
+  const [timezonePromptReady, setTimezonePromptReady] = useState(false);
+  const [timezonePromptDismissed, setTimezonePromptDismissed] = useState(false);
+  const [timezonePromptSaving, setTimezonePromptSaving] = useState(false);
+  const [timezoneDraft, setTimezoneDraft] = useState(DEFAULT_APP_TIMEZONE);
   const [isMobile, setIsMobile]           = useState(() =>
     typeof window !== 'undefined' ? window.innerWidth < 768 : false,
   );
@@ -50,6 +60,28 @@ function AppContent() {
     if (authed) loadAllDataRef.current();
   }, [authed]);
 
+  useEffect(() => {
+    if (!authed) {
+      setTimezonePromptReady(false);
+      setTimezonePromptDismissed(false);
+      return;
+    }
+
+    let active = true;
+    setTimezonePromptReady(false);
+    setTimezonePromptDismissed(false);
+    fetchMonitorConfig()
+      .catch(() => undefined)
+      .finally(() => {
+        if (active) setTimezonePromptReady(true);
+      });
+    return () => { active = false; };
+  }, [authed]);
+
+  useEffect(() => {
+    setTimezoneDraft(timeZone.userTimeZone ?? timeZone.detectedTimeZone ?? timeZone.effectiveTimeZone ?? DEFAULT_APP_TIMEZONE);
+  }, [timeZone.userTimeZone, timeZone.detectedTimeZone, timeZone.effectiveTimeZone]);
+
   // Track last user activity — refresh only when active (within 5 minutes)
     const lastActivityRef = useRef(0);
   useEffect(() => {
@@ -60,17 +92,19 @@ function AppContent() {
     return () => ACTIVE_EVENTS.forEach((e) => window.removeEventListener(e, update));
   }, []);
 
-  // Global silent refresh every 60s — skipped if user has been idle for 5+ minutes
+  // Global silent refresh speeds up automatically when there are live or about-to-start matches.
   useEffect(() => {
     if (!authed) return;
     const IDLE_THRESHOLD_MS = 5 * 60 * 1000;
+    const hasFastRefreshCandidate = state.matches.some((match) => shouldFastRefreshMatch(match));
+    const intervalMs = hasFastRefreshCandidate ? 15_000 : 60_000;
     const timer = setInterval(() => {
       if (Date.now() - lastActivityRef.current < IDLE_THRESHOLD_MS) {
         loadAllDataRef.current(true);
       }
-    }, 60000);
+    }, intervalMs);
     return () => clearInterval(timer);
-  }, [authed]);
+  }, [authed, state.matches]);
 
   // Global navigation event (used by child tabs to navigate without prop drilling)
   useEffect(() => {
@@ -121,6 +155,18 @@ function AppContent() {
     return <LoginScreen onLogin={login} error={error ?? ''} />;
   }
 
+  const timezoneOptions = buildTimeZoneOptions(timeZone.userTimeZone, timeZone.detectedTimeZone, timezoneDraft);
+  const showTimezonePrompt = timezonePromptReady && !timezonePromptDismissed && !timeZone.confirmed;
+
+  const confirmTimeZone = async () => {
+    setTimezonePromptSaving(true);
+    try {
+      await persistMonitorConfig({ USER_TIMEZONE: timezoneDraft, USER_TIMEZONE_CONFIRMED: true });
+    } finally {
+      setTimezonePromptSaving(false);
+    }
+  };
+
   const renderTab = () => {
     switch (activeTab) {
       case 'dashboard':      return <TabErrorBoundary key="dashboard"><DashboardTab /></TabErrorBoundary>;
@@ -150,6 +196,37 @@ function AppContent() {
           />
         </Suspense>
       )}
+
+      <Modal
+        open={showTimezonePrompt}
+        title="Confirm Your Timezone"
+        onClose={() => setTimezonePromptDismissed(true)}
+        footer={
+          <>
+            <button className="btn btn-secondary" onClick={() => setTimezonePromptDismissed(true)} disabled={timezonePromptSaving}>Later</button>
+            <button className="btn btn-primary" onClick={() => void confirmTimeZone()} disabled={timezonePromptSaving}>
+              {timezonePromptSaving ? 'Saving...' : 'Confirm Timezone'}
+            </button>
+          </>
+        }
+      >
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+          <p style={{ margin: 0, color: 'var(--gray-600)', fontSize: '13px', lineHeight: 1.5 }}>
+            TFI will use this timezone for match kickoff display and Today/Tomorrow grouping in the UI.
+          </p>
+          <label style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+            <span style={{ fontSize: '12px', fontWeight: 600, color: 'var(--gray-700)' }}>Timezone</span>
+            <select className="job-interval-select" value={timezoneDraft} onChange={(e) => setTimezoneDraft(e.target.value)}>
+              {timezoneOptions.map((option) => (
+                <option key={option} value={option}>{option}</option>
+              ))}
+            </select>
+          </label>
+          <div style={{ fontSize: '11px', color: 'var(--gray-500)' }}>
+            Browser detected: {timeZone.detectedTimeZone ?? 'Unavailable'}
+          </div>
+        </div>
+      </Modal>
 
       {isMobile ? (
         /* ── Mobile: header + bottom-nav layout ── */

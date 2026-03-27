@@ -29,6 +29,36 @@ vi.mock('../repos/settings.repo.js', () => ({
   }),
 }));
 
+vi.mock('../repos/notification-settings.repo.js', () => ({
+  DEFAULT_NOTIFICATION_SETTINGS: {
+    webPushEnabled: false,
+    telegramEnabled: false,
+    notificationLanguage: 'vi',
+    minimumConfidence: null,
+    minimumOdds: null,
+    quietHours: {},
+    channelPolicy: {},
+  },
+  getNotificationSettings: vi.fn().mockResolvedValue({
+    webPushEnabled: false,
+    telegramEnabled: false,
+    notificationLanguage: 'vi',
+    minimumConfidence: null,
+    minimumOdds: null,
+    quietHours: {},
+    channelPolicy: {},
+  }),
+  saveNotificationSettings: vi.fn().mockResolvedValue({
+    webPushEnabled: false,
+    telegramEnabled: false,
+    notificationLanguage: 'vi',
+    minimumConfidence: null,
+    minimumOdds: null,
+    quietHours: {},
+    channelPolicy: {},
+  }),
+}));
+
 let app: FastifyInstance;
 let adminApp: FastifyInstance;
 
@@ -53,12 +83,22 @@ describe('GET /api/settings', () => {
     vi.mocked(repo.getSettings).mockResolvedValueOnce({
       UI_LANGUAGE: 'en',
       AUTO_APPLY_RECOMMENDED_CONDITION: false,
+      USER_TIMEZONE: 'Europe/London',
+      USER_TIMEZONE_CONFIRMED: true,
       TELEGRAM_CHAT_ID: 'secret-chat-id',
     });
 
     const res = await app.inject({ method: 'GET', url: '/api/settings' });
     expect(res.statusCode).toBe(200);
-    expect(res.json()).toEqual({ UI_LANGUAGE: 'en', AUTO_APPLY_RECOMMENDED_CONDITION: false });
+    expect(res.json()).toEqual({
+      UI_LANGUAGE: 'en',
+      AUTO_APPLY_RECOMMENDED_CONDITION: false,
+      USER_TIMEZONE: 'Europe/London',
+      USER_TIMEZONE_CONFIRMED: true,
+      TELEGRAM_ENABLED: false,
+      WEB_PUSH_ENABLED: false,
+      NOTIFICATION_LANGUAGE: 'vi',
+    });
 
     expect(repo.getSettings).toHaveBeenCalledWith('user-1', { fallbackToDefault: false });
   });
@@ -69,7 +109,15 @@ describe('GET /api/settings', () => {
 
     const res = await app.inject({ method: 'GET', url: '/api/me/settings' });
     expect(res.statusCode).toBe(200);
-    expect(res.json()).toEqual({ UI_LANGUAGE: 'vi', AUTO_APPLY_RECOMMENDED_CONDITION: true });
+    expect(res.json()).toEqual({
+      UI_LANGUAGE: 'vi',
+      AUTO_APPLY_RECOMMENDED_CONDITION: true,
+      USER_TIMEZONE: null,
+      USER_TIMEZONE_CONFIRMED: false,
+      TELEGRAM_ENABLED: false,
+      WEB_PUSH_ENABLED: false,
+      NOTIFICATION_LANGUAGE: 'vi',
+    });
 
     expect(repo.getSettings).toHaveBeenCalledWith('user-1', { fallbackToDefault: false });
   });
@@ -82,20 +130,36 @@ describe('PUT /api/settings', () => {
       TELEGRAM_CHAT_ID: 'secret-chat-id',
       UI_LANGUAGE: 'vi',
       AUTO_APPLY_RECOMMENDED_CONDITION: true,
+      USER_TIMEZONE: 'Asia/Ho_Chi_Minh',
+      USER_TIMEZONE_CONFIRMED: false,
     });
 
     const res = await app.inject({
       method: 'PUT',
       url: '/api/settings',
-      payload: { AUTO_APPLY_RECOMMENDED_CONDITION: false, MIN_CONFIDENCE: 7 },
+      payload: { AUTO_APPLY_RECOMMENDED_CONDITION: false, USER_TIMEZONE_CONFIRMED: true, MIN_CONFIDENCE: 7 },
     });
 
     expect(res.statusCode).toBe(200);
-    expect(res.json()).toEqual({ UI_LANGUAGE: 'vi', AUTO_APPLY_RECOMMENDED_CONDITION: false });
+    expect(res.json()).toEqual({
+      UI_LANGUAGE: 'vi',
+      AUTO_APPLY_RECOMMENDED_CONDITION: false,
+      USER_TIMEZONE: 'Asia/Ho_Chi_Minh',
+      USER_TIMEZONE_CONFIRMED: true,
+      TELEGRAM_ENABLED: false,
+      WEB_PUSH_ENABLED: false,
+      NOTIFICATION_LANGUAGE: 'vi',
+    });
 
     expect(repo.getSettings).toHaveBeenCalledWith('user-1', { fallbackToDefault: false });
     expect(repo.saveSettings).toHaveBeenCalledWith(
-      { TELEGRAM_CHAT_ID: 'secret-chat-id', UI_LANGUAGE: 'vi', AUTO_APPLY_RECOMMENDED_CONDITION: false },
+      {
+        TELEGRAM_CHAT_ID: 'secret-chat-id',
+        UI_LANGUAGE: 'vi',
+        AUTO_APPLY_RECOMMENDED_CONDITION: false,
+        USER_TIMEZONE: 'Asia/Ho_Chi_Minh',
+        USER_TIMEZONE_CONFIRMED: true,
+      },
       'user-1',
     );
   });
@@ -111,12 +175,96 @@ describe('PUT /api/settings', () => {
     });
 
     expect(res.statusCode).toBe(200);
-    expect(res.json()).toEqual({ UI_LANGUAGE: 'vi', AUTO_APPLY_RECOMMENDED_CONDITION: true });
+    expect(res.json()).toEqual({
+      UI_LANGUAGE: 'vi',
+      AUTO_APPLY_RECOMMENDED_CONDITION: true,
+      USER_TIMEZONE: null,
+      USER_TIMEZONE_CONFIRMED: false,
+      TELEGRAM_ENABLED: false,
+      WEB_PUSH_ENABLED: false,
+      NOTIFICATION_LANGUAGE: 'vi',
+    });
 
     expect(repo.saveSettings).toHaveBeenCalledWith(
       { UI_LANGUAGE: 'vi' },
       'user-1',
     );
+  });
+
+  test('accepts and normalizes timezone settings for current user', async () => {
+    const repo = await import('../repos/settings.repo.js');
+    vi.mocked(repo.getSettings).mockResolvedValueOnce({ UI_LANGUAGE: 'vi' });
+
+    const res = await app.inject({
+      method: 'PUT',
+      url: '/api/me/settings',
+      payload: { USER_TIMEZONE: 'America/New_York', USER_TIMEZONE_CONFIRMED: true },
+    });
+
+    expect(res.statusCode).toBe(200);
+    expect(res.json()).toEqual({
+      UI_LANGUAGE: 'vi',
+      AUTO_APPLY_RECOMMENDED_CONDITION: true,
+      USER_TIMEZONE: 'America/New_York',
+      USER_TIMEZONE_CONFIRMED: true,
+      TELEGRAM_ENABLED: false,
+      WEB_PUSH_ENABLED: false,
+      NOTIFICATION_LANGUAGE: 'vi',
+    });
+    expect(repo.saveSettings).toHaveBeenCalledWith(
+      { UI_LANGUAGE: 'vi', USER_TIMEZONE: 'America/New_York', USER_TIMEZONE_CONFIRMED: true },
+      'user-1',
+    );
+  });
+
+  test('saves notification personalization through the unified /api/me/settings endpoint', async () => {
+    const repo = await import('../repos/settings.repo.js');
+    const notificationRepo = await import('../repos/notification-settings.repo.js');
+    vi.mocked(repo.getSettings).mockResolvedValueOnce({ UI_LANGUAGE: 'vi' });
+    vi.mocked(notificationRepo.getNotificationSettings).mockResolvedValueOnce({
+      webPushEnabled: false,
+      telegramEnabled: true,
+      notificationLanguage: 'vi',
+      minimumConfidence: null,
+      minimumOdds: null,
+      quietHours: {},
+      channelPolicy: {},
+    });
+    vi.mocked(notificationRepo.saveNotificationSettings).mockResolvedValueOnce({
+      webPushEnabled: true,
+      telegramEnabled: false,
+      notificationLanguage: 'both',
+      minimumConfidence: null,
+      minimumOdds: null,
+      quietHours: {},
+      channelPolicy: {},
+    });
+
+    const res = await app.inject({
+      method: 'PUT',
+      url: '/api/me/settings',
+      payload: { TELEGRAM_ENABLED: false, WEB_PUSH_ENABLED: true, NOTIFICATION_LANGUAGE: 'both' },
+    });
+
+    expect(res.statusCode).toBe(200);
+    expect(res.json()).toEqual({
+      UI_LANGUAGE: 'vi',
+      AUTO_APPLY_RECOMMENDED_CONDITION: true,
+      USER_TIMEZONE: null,
+      USER_TIMEZONE_CONFIRMED: false,
+      TELEGRAM_ENABLED: false,
+      WEB_PUSH_ENABLED: true,
+      NOTIFICATION_LANGUAGE: 'both',
+    });
+    expect(notificationRepo.saveNotificationSettings).toHaveBeenCalledWith('user-1', {
+      webPushEnabled: true,
+      telegramEnabled: false,
+      notificationLanguage: 'both',
+      minimumConfidence: null,
+      minimumOdds: null,
+      quietHours: {},
+      channelPolicy: {},
+    });
   });
 });
 

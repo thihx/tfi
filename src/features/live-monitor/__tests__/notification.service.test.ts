@@ -3,7 +3,12 @@
 // ============================================================
 
 import { describe, test, expect } from 'vitest';
-import { _buildEmailHtml, _buildTelegramMessages, _determineSection } from '../services/notification.service';
+import {
+  _buildEmailHtml,
+  _buildTelegramMessages,
+  _determineSection,
+  _buildStatsChartConfig,
+} from '../services/notification.service';
 import { createMergedMatchData, createParsedAiResponse, createConfig } from './fixtures';
 import type { RecommendationData } from '../types';
 
@@ -271,5 +276,35 @@ describe('_buildTelegramMessages', () => {
     const full = msgs.join('');
     expect(full).toContain('CONDITION TRIGGERED');
     expect(full).toContain('Corner check passed');
+  });
+});
+
+describe('_buildStatsChartConfig', () => {
+  test('returns chart config when live stats are present', () => {
+    const config = _buildStatsChartConfig({
+      possession: { home: '61%', away: '39%' },
+      shots: { home: '12', away: '7' },
+      shots_on_target: { home: '5', away: '2' },
+      corners: { home: '6', away: '3' },
+      fouls: { home: '8', away: '10' },
+    }, 'Arsenal', 'Chelsea', 65);
+
+    expect(config).not.toBeNull();
+    expect(config).toMatchObject({
+      type: 'horizontalBar',
+      options: { title: { text: "Live Stats — 65'" } },
+    });
+  });
+
+  test('returns null when all stats are empty', () => {
+    const config = _buildStatsChartConfig({
+      possession: { home: '', away: '' },
+      shots: { home: '', away: '' },
+      shots_on_target: { home: '', away: '' },
+      corners: { home: '', away: '' },
+      fouls: { home: '', away: '' },
+    }, 'Arsenal', 'Chelsea', 65);
+
+    expect(config).toBeNull();
   });
 });

@@ -1,8 +1,5 @@
 /// <reference lib="webworker" />
 import { precacheAndRoute } from 'workbox-precaching';
-import { registerRoute } from 'workbox-routing';
-import { NetworkFirst } from 'workbox-strategies';
-import { ExpirationPlugin } from 'workbox-expiration';
 
 declare let self: ServiceWorkerGlobalScope;
 
@@ -12,17 +9,6 @@ self.addEventListener('activate', (event) => event.waitUntil(self.clients.claim(
 
 // Precache all assets injected by VitePWA at build time
 precacheAndRoute(self.__WB_MANIFEST);
-
-// ── Runtime caching — GAS proxy ────────────────────────────
-registerRoute(
-  ({ url }) => url.hostname === 'script.google.com',
-  new NetworkFirst({
-    cacheName: 'gas-proxy-cache',
-    plugins: [
-      new ExpirationPlugin({ maxEntries: 50, maxAgeSeconds: 300 }),
-    ],
-  }),
-);
 
 // ── Push notification handler ──────────────────────────────
 

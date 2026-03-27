@@ -144,7 +144,7 @@ describe('SettingsTab', () => {
     render(<SettingsTab />);
 
     expect(await screen.findByText('Setup required')).toBeInTheDocument();
-    expect(screen.getByText('Add a Telegram chat ID in Channel Registry before alerts can be delivered.')).toBeInTheDocument();
+    expect(screen.getByText('Add a Telegram chat ID below before alerts can be delivered.')).toBeInTheDocument();
   });
 
   it('shows setup required when Web Push is enabled without an active browser subscription', async () => {

@@ -6,62 +6,37 @@ AI-Powered Investment Analysis Platform
 
 ```
 tfi/
-├── index.html                  # Root entry point
+├── index.html                  # Vite HTML entry point
 ├── README.md
 ├── uiweb.code-workspace
 │
-├── src/                        # Main source code
-│   ├── app/                    # App shell & page entry
-│   │   └── index.html          # Main app page (standalone version)
-│   ├── components/             # UI components & rendering
-│   │   ├── ui/                 # Reusable UI widgets (modals, toast, loader)
-│   │   │   └── ui.js
-│   │   ├── layout/             # Layout components (header, nav, tabs)
-│   │   └── render.js           # DOM rendering (tables, pagination, selection)
-│   ├── config/                 # Configuration & constants
-│   │   ├── config.js           # Runtime config & utility helpers
-│   │   └── constants.js        # Static data (leagues, tiers, statuses)
-│   ├── lib/                    # Libraries & utilities
-│   │   ├── services/           # API & business logic services
-│   │   │   ├── api.js          # Backend API communication
-│   │   │   └── auth.js         # Authentication service
-│   │   └── utils/              # Shared utility functions
-│   │       └── filters.js      # Data filtering & sorting
-│   ├── hooks/                  # Custom hooks (future use)
-│   └── types/                  # Type definitions (future use)
+├── src/                        # Frontend React/Vite application
+│   ├── app/                    # Top-level tabs, shells, screens
+│   ├── components/             # Shared UI and panels
+│   ├── features/               # Feature modules (live monitor, etc.)
+│   ├── hooks/                  # Frontend hooks
+│   ├── lib/                    # Frontend services and utilities
+│   └── types/                  # Frontend shared types
+│
+├── packages/
+│   └── server/                 # Fastify + PostgreSQL backend
 │
 ├── public/                     # Static assets
-│   ├── css/
-│   │   └── styles.css
 │   └── images/
 │
 ├── docs/                       # Documentation
-│   └── standards/
+├── scripts/                    # Utility scripts
+├── tests/                      # Test suites and fixtures
+├── e2e/                        # End-to-end coverage
 │
-├── scripts/                    # Build & utility scripts
-│
-├── tests/                      # Test files
-│   └── test-api.html
-│
-└── legacy/                     # Previous code backup
-    ├── apps/
+└── legacy/                     # Archived pre-React frontend source kept for reference
     ├── js/
     └── css/
 ```
 
-## Structure Mapping (aligned with Vocs pattern)
+## Notes
 
-| Vocs Directory      | TFI Directory          | Purpose                        |
-|---------------------|------------------------|--------------------------------|
-| `src/app/`          | `src/app/`             | App entry & routing            |
-| `src/components/ui/`| `src/components/ui/`   | Reusable UI widgets            |
-| `src/components/layout/` | `src/components/layout/` | Layout components         |
-| `src/config/`       | `src/config/`          | Configuration files            |
-| `src/lib/`          | `src/lib/`             | Libraries & utilities          |
-| `src/lib/services/` | `src/lib/services/`    | Backend service layer          |
-| `src/hooks/`        | `src/hooks/`           | Custom hooks                   |
-| `src/types/`        | `src/types/`           | Type definitions               |
-| `public/`           | `public/`              | Static assets                  |
-| `docs/`             | `docs/`                | Documentation                  |
-| `scripts/`          | `scripts/`             | Build/utility scripts          |
-| `tests/`            | `tests/`               | Test files                     |
+- The active frontend boot path is root `index.html` loading `/src/main.tsx`.
+- `src/app/index.html` is no longer part of the runtime and has been removed.
+- `legacy/` is intentionally excluded from normal test discovery and current app build paths.
+- Nested `legacy/apps/web` snapshots are not part of the active runtime.

@@ -249,6 +249,7 @@ function buildEmailHtml(ctx: NotificationContext): string {
 // ==================== Stats Chart (QuickChart.io) ====================
 
 interface StatPair { home: string | null | undefined; away: string | null | undefined }
+type StatsChartConfig = Record<string, unknown>;
 
 /** Truncate at last word boundary before max chars (never cuts mid-word). */
 /**
@@ -267,12 +268,12 @@ function safeTruncateCaption(text: string, limit = 1020): string {
  * Labels include raw counts so actual numbers are still visible.
  * Using share % fixes the scale-mixing issue (possession % vs counts on same axis).
  */
-function buildStatsChartUrl(
+function buildStatsChartConfig(
   statsCompact: Record<string, StatPair>,
   homeName: string,
   awayName: string,
   minute: string | number,
-): string {
+): StatsChartConfig | null {
   const n = (v: string | null | undefined): number => {
     if (v == null || v === '') return 0;
     const num = parseFloat(String(v).replace('%', ''));
@@ -295,7 +296,7 @@ function buildStatsChartUrl(
 
   // Require at least some real data
   const hasData = posH + posA + shoH + shoA + sotH + sotA + corH + corA + fouH + fouA > 0;
-  if (!hasData) return '';
+  if (!hasData) return null;
 
   const [posHS, posAS] = posH + posA > 0 ? [posH, posA] : [0, 0]; // possession already %
   const [shoHS, shoAS] = share(shoH, shoA);
@@ -305,7 +306,7 @@ function buildStatsChartUrl(
 
   const trim = (s: string, max = 14) => s.length > max ? s.substring(0, max - 1) + '…' : s;
 
-  const cfg = {
+  return {
     type: 'horizontalBar',
     data: {
       labels: [
@@ -329,8 +330,6 @@ function buildStatsChartUrl(
       },
     },
   };
-
-  return `https://quickchart.io/chart?c=${encodeURIComponent(JSON.stringify(cfg))}&w=500&h=240&bkg=white`;
 }
 
 // ==================== Format Telegram Message ====================
@@ -593,20 +592,20 @@ export async function notifyRecommendation(
 
     // Use sendPhoto with chart when live stats are available — 1 message instead of chunked text
     const hasStats = matchData.stats_available && matchData.stats_compact;
-    const chartUrl = hasStats
-      ? buildStatsChartUrl(
+    const chartConfig = hasStats
+      ? buildStatsChartConfig(
           matchData.stats_compact as Record<string, StatPair>,
           recommendation.home_team || '',
           recommendation.away_team || '',
           recommendation.minute ?? '',
         )
-      : '';
+      : null;
 
     let photoSent = false;
-    if (chartUrl) {
+    if (chartConfig) {
       try {
         const caption = buildTelegramCaption(ctx);
-        await sendTelegram(appConfig, { chat_id: chatId, text: caption, parse_mode: 'HTML', photo_url: chartUrl });
+        await sendTelegram(appConfig, { chat_id: chatId, text: caption, parse_mode: 'HTML', chart_config: chartConfig });
         result.telegramChunks = 1;
         photoSent = true;
         // Send full reasoning as a separate follow-up message (never truncated)
@@ -638,4 +637,9 @@ export async function notifyRecommendation(
 }
 
 // Export for testing
-export { buildEmailHtml as _buildEmailHtml, buildTelegramMessages as _buildTelegramMessages, determineSection as _determineSection };
+export {
+  buildEmailHtml as _buildEmailHtml,
+  buildTelegramMessages as _buildTelegramMessages,
+  determineSection as _determineSection,
+  buildStatsChartConfig as _buildStatsChartConfig,
+};

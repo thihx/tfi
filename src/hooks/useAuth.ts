@@ -4,8 +4,9 @@ import {
   logout as doLogout,
   type AuthUser,
 } from '@/lib/services/auth';
+import { internalApiUrl, resolveInternalApiBaseUrl } from '@/lib/internal-api';
 
-const API_URL = (import.meta.env['VITE_API_URL'] as string | undefined) || '';
+const API_URL = resolveInternalApiBaseUrl();
 
 function getAuthErrorMessage(authError: string | null): string {
   if (!authError) return '';
@@ -44,8 +45,7 @@ export function useAuth() {
       window.history.replaceState({}, '', window.location.pathname);
     }
 
-    const baseUrl = API_URL || window.location.origin;
-    fetch(`${baseUrl}/api/auth/me`, {
+    fetch(internalApiUrl('/api/auth/me', API_URL || window.location.origin), {
       headers: { Accept: 'application/json' },
       credentials: 'include',
     })
@@ -68,7 +68,7 @@ export function useAuth() {
   // Redirect to Google OAuth (full page redirect — backend handles the flow)
   const login = useCallback(() => {
     setError('');
-    window.location.href = `${API_URL}/api/auth/google`;
+    window.location.href = internalApiUrl('/api/auth/google', API_URL || window.location.origin);
   }, []);
 
   const logout = useCallback(() => {

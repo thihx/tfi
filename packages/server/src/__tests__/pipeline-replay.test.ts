@@ -47,6 +47,11 @@ vi.mock('../lib/audit.js', () => ({
   audit: vi.fn(),
 }));
 
+vi.mock('../repos/provider-odds-cache.repo.js', () => ({
+  getProviderOddsCache: vi.fn().mockResolvedValue(null),
+  upsertProviderOddsCache: vi.fn().mockResolvedValue(null),
+}));
+
 const { runReplayScenario } = await import('../lib/pipeline-replay.js');
 
 function makeFixture() {
@@ -222,13 +227,13 @@ describe('runReplayScenario', () => {
         }],
       },
       expected: {
-        oddsSource: 'the-odds-api',
+        oddsSource: 'fallback-live',
         saved: false,
         notified: false,
       },
     });
 
-    expect(output.result.debug?.oddsSource).toBe('the-odds-api');
+    expect(output.result.debug?.oddsSource).toBe('fallback-live');
     expect(output.allPassed).toBe(true);
   });
 

@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { Modal } from '@/components/ui/Modal';
+import { formatLocalDate } from '@/lib/utils/helpers';
 import type { League, LeagueProfile, LeagueTier, LeagueProfileData } from '@/types';
 import {
   buildLeagueProfileDeepResearchPrompt,
@@ -364,7 +365,7 @@ export function LeagueProfileModal({
               { label: 'League',      value: league.league_name },
               { label: 'Country',     value: league.country || '—' },
               { label: 'Tier / Type', value: `${league.tier} / ${league.type}` },
-              ...(profile ? [{ label: 'Last Updated', value: new Date(profile.updated_at).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' }) }] : []),
+              ...(profile ? [{ label: 'Last Updated', value: formatLocalDate(profile.updated_at) }] : []),
             ].map(({ label, value }) => (
               <div key={label} style={{
                 padding: '8px 12px', borderRadius: 8,

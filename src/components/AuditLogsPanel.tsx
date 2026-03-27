@@ -6,6 +6,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { useAppState } from '@/hooks/useAppState';
 import { formatLocalDateTime } from '@/lib/utils/helpers';
 import { getToken } from '@/lib/services/auth';
+import { internalApiUrl } from '@/lib/internal-api';
 
 function authHeaders(): Record<string, string> {
   const t = getToken();
@@ -99,7 +100,7 @@ export function AuditLogsPanel() {
   const fetchStats = useCallback(async () => {
     if (apiUrl == null) return;
     try {
-      const res = await fetch(`${apiUrl}/api/audit-logs/stats`, {
+      const res = await fetch(internalApiUrl('/api/audit-logs/stats', apiUrl), {
         headers: authHeaders(),
         credentials: 'include',
       });
@@ -120,7 +121,7 @@ export function AuditLogsPanel() {
       if (filterPrematchStrength) params.set('prematchStrength', filterPrematchStrength);
       if (filterPrematchNoiseMin) params.set('prematchNoiseMin', filterPrematchNoiseMin);
 
-      const res = await fetch(`${apiUrl}/api/audit-logs?${params.toString()}`, {
+      const res = await fetch(`${internalApiUrl('/api/audit-logs', apiUrl)}?${params.toString()}`, {
         headers: authHeaders(),
         credentials: 'include',
       });
@@ -160,7 +161,7 @@ export function AuditLogsPanel() {
       if (filterPrematchStrength) params.set('prematchStrength', filterPrematchStrength);
       if (filterPrematchNoiseMin) params.set('prematchNoiseMin', filterPrematchNoiseMin);
 
-      const res = await fetch(`${apiUrl}/api/audit-logs?${params.toString()}`, {
+      const res = await fetch(`${internalApiUrl('/api/audit-logs', apiUrl)}?${params.toString()}`, {
         headers: authHeaders(),
         credentials: 'include',
       });

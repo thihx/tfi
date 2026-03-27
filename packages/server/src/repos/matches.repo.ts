@@ -3,11 +3,14 @@
 // ============================================================
 
 import { query, transaction } from '../db/pool.js';
+import { config } from '../config.js';
+import { kickoffAtUtcFromLocalParts } from '../lib/kickoff-time.js';
 
 export interface MatchRow {
   match_id: string;
   date: string;
   kickoff: string;
+  kickoff_at_utc?: string | null;
   league_id: number;
   league_name: string;
   home_team: string;
@@ -35,14 +38,14 @@ export interface MatchRow {
 }
 
 export async function getAllMatches(): Promise<MatchRow[]> {
-  const result = await query<MatchRow>('SELECT * FROM matches ORDER BY date, kickoff');
+  const result = await query<MatchRow>('SELECT * FROM matches ORDER BY kickoff_at_utc NULLS LAST, date, kickoff');
   return result.rows;
 }
 
 export async function getMatchesByIds(ids: string[]): Promise<MatchRow[]> {
   if (ids.length === 0) return [];
   const result = await query<MatchRow>(
-    'SELECT * FROM matches WHERE match_id = ANY($1) ORDER BY date, kickoff',
+    'SELECT * FROM matches WHERE match_id = ANY($1) ORDER BY kickoff_at_utc NULLS LAST, date, kickoff',
     [ids],
   );
   return result.rows;
@@ -50,7 +53,7 @@ export async function getMatchesByIds(ids: string[]): Promise<MatchRow[]> {
 
 export async function getMatchesByStatus(statuses: string[]): Promise<MatchRow[]> {
   const result = await query<MatchRow>(
-    'SELECT * FROM matches WHERE status = ANY($1) ORDER BY date, kickoff',
+    'SELECT * FROM matches WHERE status = ANY($1) ORDER BY kickoff_at_utc NULLS LAST, date, kickoff',
     [statuses],
   );
   return result.rows;
@@ -66,16 +69,17 @@ export async function replaceAllMatches(matches: Partial<MatchRow>[]): Promise<n
       if (!m.match_id) continue;
       await client.query(
         `INSERT INTO matches (
-           match_id, date, kickoff, league_id, league_name, home_team, away_team,
+           match_id, date, kickoff, kickoff_at_utc, league_id, league_name, home_team, away_team,
            home_logo, away_logo, venue, status, home_score, away_score, current_minute,
            home_team_id, away_team_id, round, halftime_home, halftime_away, referee,
            home_reds, away_reds, home_yellows, away_yellows,
            last_updated
-         ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,NOW())`,
+         ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,NOW())`,
         [
           m.match_id,
           m.date,
           m.kickoff,
+          m.kickoff_at_utc ?? kickoffAtUtcFromLocalParts(m.date ?? null, m.kickoff ?? null, config.timezone),
           m.league_id,
           m.league_name ?? '',
           m.home_team ?? '',
@@ -112,13 +116,33 @@ export async function updateMatches(matches: Partial<MatchRow>[]): Promise<numbe
     if (!m.match_id) continue;
     const result = await query(
       `UPDATE matches SET
-         status = COALESCE($2, status),
-         home_score = COALESCE($3, home_score),
-         away_score = COALESCE($4, away_score),
-         current_minute = COALESCE($5, current_minute),
+         date = COALESCE($2, date),
+         kickoff = COALESCE($3, kickoff),
+         kickoff_at_utc = COALESCE($4, kickoff_at_utc),
+         status = COALESCE($5, status),
+         home_score = COALESCE($6, home_score),
+         away_score = COALESCE($7, away_score),
+         current_minute = COALESCE($8, current_minute),
+         home_reds = COALESCE($9, home_reds),
+         away_reds = COALESCE($10, away_reds),
+         home_yellows = COALESCE($11, home_yellows),
+         away_yellows = COALESCE($12, away_yellows),
          last_updated = NOW()
        WHERE match_id = $1`,
-      [m.match_id, m.status, m.home_score, m.away_score, m.current_minute],
+      [
+        m.match_id,
+        m.date ?? null,
+        m.kickoff ?? null,
+        m.kickoff_at_utc ?? null,
+        m.status ?? null,
+        m.home_score ?? null,
+        m.away_score ?? null,
+        m.current_minute ?? null,
+        m.home_reds ?? null,
+        m.away_reds ?? null,
+        m.home_yellows ?? null,
+        m.away_yellows ?? null,
+      ],
     );
     if ((result.rowCount ?? 0) > 0) count++;
   }
@@ -140,7 +164,7 @@ export interface MatchScheduleState {
 /**
  * Cheap single-query snapshot of how "active" the match slate is.
  * Used by fetch-matches to decide how long to wait before the next poll.
- * date+kickoff are stored in config.timezone (same assumption as watchlist expiry query).
+ * Prefers canonical kickoff_at_utc and falls back to legacy date+kickoff rows when needed.
  */
 export async function getMatchScheduleState(timezone: string): Promise<MatchScheduleState> {
   const r = await query<{ live_count: string; ns_count: string; mins_to_next: string | null }>(
@@ -149,7 +173,7 @@ export async function getMatchScheduleState(timezone: string): Promise<MatchSche
        COUNT(*) FILTER (WHERE status = 'NS')                                          AS ns_count,
        MIN(
          EXTRACT(EPOCH FROM (
-           (date || ' ' || kickoff || ':00')::timestamp AT TIME ZONE $1 - NOW()
+           COALESCE(kickoff_at_utc, ((date + kickoff) AT TIME ZONE $1)) - NOW()
          )) / 60
        ) FILTER (WHERE status = 'NS')                                                 AS mins_to_next
      FROM matches`,

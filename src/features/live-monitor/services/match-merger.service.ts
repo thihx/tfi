@@ -777,7 +777,7 @@ export function mergeOddsToMatch(
 
   // Sanity check — skip for pre-match odds since they don't reflect live game state
   const oddsSource = oddsResponse.odds_source;
-  const isPreMatch = oddsSource === 'pre-match';
+  const isPreMatch = oddsSource === 'reference-prematch';
   const minute = typeof matchData.match.minute === 'number' ? matchData.match.minute : 0;
   let oddsSanityWarnings: string[];
   let oddsSuspicious: boolean;

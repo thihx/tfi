@@ -2,10 +2,8 @@
 // Web Push Service — subscribe/unsubscribe/check
 // ============================================================
 
+import { internalApiUrl } from '@/lib/internal-api';
 import { getToken } from './auth';
-
-const API_BASE = (import.meta.env.VITE_API_URL as string | undefined)
-  ?? (import.meta.env.MODE === 'production' ? '' : 'http://localhost:4000');
 
 function authHeaders(): Record<string, string> {
   const token = getToken();
@@ -30,7 +28,7 @@ export async function requestNotificationPermission(): Promise<NotificationPermi
 /** Fetch the server VAPID public key. Returns null if not configured. */
 async function getVapidPublicKey(): Promise<string | null> {
   try {
-    const res = await fetch(`${API_BASE}/api/push/vapid-public-key`, {
+    const res = await fetch(internalApiUrl('/api/push/vapid-public-key'), {
       headers: { Accept: 'application/json', ...authHeaders() },
       credentials: 'include',
     });
@@ -74,7 +72,7 @@ export async function subscribePush(): Promise<PushSubscription> {
 
   // Send subscription to server
   const subJson = subscription.toJSON();
-  const res = await fetch(`${API_BASE}/api/me/push/subscribe`, {
+  const res = await fetch(internalApiUrl('/api/me/push/subscribe'), {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', ...authHeaders() },
     credentials: 'include',
@@ -100,7 +98,7 @@ export async function unsubscribePush(): Promise<void> {
   await subscription.unsubscribe();
 
   // Remove from server
-  await fetch(`${API_BASE}/api/me/push/subscribe`, {
+  await fetch(internalApiUrl('/api/me/push/subscribe'), {
     method: 'DELETE',
     headers: { 'Content-Type': 'application/json', ...authHeaders() },
     credentials: 'include',

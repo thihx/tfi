@@ -63,6 +63,7 @@ function parseProgressResult(progressResult: string | null): {
 
 export async function liveMonitorRoutes(app: FastifyInstance) {
   app.get('/api/live-monitor/status', async (_req, reply) => {
+    reply.header('Cache-Control', 'no-store');
     const jobs = await getJobsStatus();
     const job = jobs.find((entry) => entry.name === 'check-live-trigger');
 

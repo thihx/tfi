@@ -1,4 +1,5 @@
 import { memo } from 'react';
+import { formatLocalTime } from '@/lib/utils/helpers';
 import type { Match } from '@/types';
 
 const STATUS_LIVE = new Set(['1H', '2H', 'ET', 'BT', 'P', 'INT', 'LIVE']);
@@ -52,7 +53,7 @@ function MatchCardBase({ match, actions, highlighted, onClick }: Props) {
   const progressPct = isLive ? Math.min(100, (minuteNum / 90) * 100) : isFt ? 100 : 0;
 
   const leagueName = match.league_name || match.league || '';
-  const kickoffTime = match.kickoff ? match.kickoff.slice(0, 5) : '';
+  const kickoffTime = match.kickoff_at_utc ? formatLocalTime(match.kickoff_at_utc) : (match.kickoff ? match.kickoff.slice(0, 5) : '');
 
   return (
     <div

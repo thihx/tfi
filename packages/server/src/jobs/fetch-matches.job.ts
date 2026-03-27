@@ -25,6 +25,7 @@ import { extractRegularTimeScoreFromFixture } from '../lib/settle-context.js';
 import { mergeApiFixtureStatistics } from '../lib/settlement-stat-cache.js';
 import { getSettings } from '../repos/settings.repo.js';
 import { getFavoriteTeamOwnersByTeamIds } from '../repos/favorite-teams.repo.js';
+import { kickoffAtUtcFromFixtureDate } from '../lib/kickoff-time.js';
 
 const ALLOWED_STATUSES = ['NS', '1H', 'HT', '2H', 'ET', 'BT', 'P', 'LIVE', 'INT'];
 const LIVE_STATUSES   = new Set(['1H', 'HT', '2H', 'ET', 'BT', 'LIVE', 'INT']);
@@ -86,6 +87,7 @@ function fixtureToMatchRow(f: ApiFixture): matchRepo.MatchRow {
     match_id: String(f.fixture.id),
     date: datePart,
     kickoff,
+    kickoff_at_utc: kickoffAtUtcFromFixtureDate(String(f.fixture.date)),
     league_id: f.league.id,
     league_name: f.league.name,
     home_team: f.teams.home.name,
@@ -320,6 +322,7 @@ export async function fetchMatchesJob(): Promise<{ saved: number; leagues: numbe
         await watchlistRepo.createOperationalWatchlistEntry({
           match_id: m.match_id,
           date: m.date,
+          kickoff_at_utc: m.kickoff_at_utc ?? null,
           league: m.league_name,
           home_team: m.home_team,
           away_team: m.away_team,
@@ -371,6 +374,7 @@ export async function fetchMatchesJob(): Promise<{ saved: number; leagues: numbe
 
   if (favoriteTeamOwners.length > 0) {
     const favoriteOwnersByTeamId = new Map<string, Set<string>>();
+    const autoApplyByUserId = new Map<string, boolean>();
     for (const owner of favoriteTeamOwners) {
       const current = favoriteOwnersByTeamId.get(owner.teamId) ?? new Set<string>();
       current.add(owner.userId);
@@ -395,6 +399,14 @@ export async function fetchMatchesJob(): Promise<{ saved: number; leagues: numbe
         const existing = await watchlistRepo.getWatchlistByMatchId(m.match_id, userId);
         if (existing) continue;
 
+        let userAutoApplyRecommendedCondition = autoApplyByUserId.get(userId);
+        if (userAutoApplyRecommendedCondition == null) {
+          const userSettings = await getSettings(userId, { fallbackToDefault: false }).catch(() => ({}));
+          userAutoApplyRecommendedCondition =
+            (userSettings as Record<string, unknown>).AUTO_APPLY_RECOMMENDED_CONDITION !== false;
+          autoApplyByUserId.set(userId, userAutoApplyRecommendedCondition);
+        }
+
         try {
           await watchlistRepo.createWatchlistEntry({
             match_id: m.match_id,
@@ -411,7 +423,7 @@ export async function fetchMatchesJob(): Promise<{ saved: number; leagues: numbe
             recommended_condition_reason: '',
             recommended_condition_reason_vi: '',
             recommended_condition_at: null,
-            auto_apply_recommended_condition: autoApplyRecommendedCondition,
+            auto_apply_recommended_condition: userAutoApplyRecommendedCondition,
             custom_conditions: '',
             priority: 0,
             status: 'active',
@@ -490,6 +502,7 @@ function buildArchiveRowFromFixture(
     match_id: String(fixture.fixture.id),
     date: fixture.fixture.date.substring(0, 10),
     kickoff: fixture.fixture.date.substring(11, 16),
+    kickoff_at_utc: kickoffAtUtcFromFixtureDate(String(fixture.fixture.date)),
     league_id: fixture.league.id,
     league_name: fixture.league.name,
     home_team: fixture.teams.home.name,

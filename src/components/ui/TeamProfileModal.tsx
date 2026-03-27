@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { Modal } from '@/components/ui/Modal';
+import { formatLocalDate } from '@/lib/utils/helpers';
 import type { TeamProfile, TeamProfileData } from '@/types';
 import {
   buildTeamProfileDeepResearchPrompt,
@@ -496,7 +497,7 @@ export function TeamProfileModal({
             {[
               { label: 'Team', value: team.name },
               ...(leagueName ? [{ label: 'League', value: leagueName }] : []),
-              ...(profile ? [{ label: 'Last Updated', value: new Date(profile.updated_at).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' }) }] : []),
+              ...(profile ? [{ label: 'Last Updated', value: formatLocalDate(profile.updated_at) }] : []),
             ].map(({ label, value }) => (
               <div key={label} style={{
                 padding: '8px 12px', borderRadius: 8,

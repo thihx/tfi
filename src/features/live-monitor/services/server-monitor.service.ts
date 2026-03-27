@@ -1,4 +1,5 @@
 import type { AppConfig } from '@/types';
+import { internalApiUrl } from '@/lib/internal-api';
 import { getToken } from '@/lib/services/auth';
 
 export interface ServerParsedAiResult {
@@ -96,7 +97,7 @@ function authHeaders(): Record<string, string> {
 }
 
 function apiUrl(config: AppConfig, path: string): string {
-  return `${config.apiUrl}${path}`;
+  return internalApiUrl(path, config);
 }
 
 async function parseJsonResponse<T>(res: Response): Promise<T> {

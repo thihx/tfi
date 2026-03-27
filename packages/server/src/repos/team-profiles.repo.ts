@@ -53,10 +53,19 @@ export interface TeamProfileInput {
 
 export async function getAllTeamProfiles(): Promise<TeamProfileListRow[]> {
   const result = await query<TeamProfileListRow>(
-    `SELECT tp.*, ft.team_name, ft.team_logo
+    `SELECT tp.*,
+            COALESCE(t.team_name, fav.team_name, tp.team_id) AS team_name,
+            COALESCE(t.team_logo, fav.team_logo, '') AS team_logo
      FROM team_profiles tp
-     JOIN favorite_teams ft ON ft.team_id = tp.team_id
-     ORDER BY ft.team_name`,
+     LEFT JOIN teams t ON t.team_id::text = tp.team_id
+     LEFT JOIN LATERAL (
+       SELECT ft.team_name, ft.team_logo
+       FROM favorite_teams ft
+       WHERE ft.team_id = tp.team_id
+       ORDER BY ft.added_at DESC, ft.user_id
+       LIMIT 1
+     ) fav ON TRUE
+     ORDER BY COALESCE(t.team_name, fav.team_name, tp.team_id)`,
   );
   return result.rows;
 }

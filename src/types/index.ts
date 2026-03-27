@@ -4,6 +4,7 @@ export interface Match {
   match_id: string;
   date: string;
   kickoff: string;
+  kickoff_at_utc?: string | null;
   league_id: number;
   league_name: string;
   league?: string;
@@ -147,6 +148,7 @@ export interface WatchlistItem {
   id?: number;
   match_id: string;
   date: string;
+  kickoff_at_utc?: string | null;
   league: string;
   league_id?: number;
   league_name?: string;

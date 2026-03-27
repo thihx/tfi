@@ -2,6 +2,8 @@
 // Auth Service — JWT-based (Google OAuth via backend)
 // ============================================================
 
+import { internalApiUrl, resolveInternalApiBaseUrl } from '@/lib/internal-api';
+
 const TOKEN_KEY = 'tfi_auth_token';
 
 export interface AuthUser {
@@ -67,9 +69,8 @@ export function isAuthenticated(): boolean {
 
 export function logout(): void {
   clearToken();
-  const apiUrl = (import.meta as ImportMeta & { env?: { VITE_API_URL?: string } }).env?.VITE_API_URL || '';
-  const baseUrl = apiUrl || window.location.origin;
-  fetch(`${baseUrl}/api/auth/logout`, {
+  const apiUrl = resolveInternalApiBaseUrl() || window.location.origin;
+  fetch(internalApiUrl('/api/auth/logout', apiUrl), {
     method: 'POST',
     credentials: 'include',
   }).finally(() => {

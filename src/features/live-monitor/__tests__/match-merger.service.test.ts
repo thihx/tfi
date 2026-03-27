@@ -235,7 +235,7 @@ describe('mergeOddsToMatch — pre-match format', () => {
           })),
         }],
       }),
-      odds_source: 'pre-match' as const,
+      odds_source: 'reference-prematch' as const,
     };
   }
 
@@ -604,7 +604,7 @@ describe('mergeOddsToMatch — pre-match format', () => {
     const result = mergeOddsToMatch(matchData, odds);
     // Should NOT be suspicious
     expect(result.odds_suspicious).toBe(false);
-    expect(result.odds_source).toBe('pre-match');
+    expect(result.odds_source).toBe('reference-prematch');
     // Should have a PRE_MATCH_ODDS warning (informational, not suspicious)
     expect(result.odds_sanity_warnings).toHaveLength(1);
     expect(result.odds_sanity_warnings[0]).toContain('PRE_MATCH_ODDS');

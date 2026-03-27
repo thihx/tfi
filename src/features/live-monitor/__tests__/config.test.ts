@@ -4,11 +4,6 @@
 
 import { beforeEach, describe, expect, test, vi } from 'vitest';
 
-vi.mock('@/lib/services/notification-settings', () => ({
-  fetchNotificationSettings: vi.fn(),
-  persistNotificationSettings: vi.fn(),
-}));
-
 import {
   createDefaultConfig,
   fetchMonitorConfig,
@@ -16,10 +11,6 @@ import {
   persistMonitorConfig,
   saveMonitorConfig,
 } from '../config';
-import {
-  fetchNotificationSettings,
-  persistNotificationSettings,
-} from '@/lib/services/notification-settings';
 
 describe('createDefaultConfig', () => {
   test('returns all required fields with defaults', () => {
@@ -134,25 +125,26 @@ describe('fetchMonitorConfig', () => {
     vi.restoreAllMocks();
   });
 
-  test('merges notification settings into cached config', async () => {
+  test('loads unified personal settings into cached config', async () => {
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
       ok: true,
-      json: vi.fn().mockResolvedValue({ UI_LANGUAGE: 'en', AUTO_APPLY_RECOMMENDED_CONDITION: false }),
+      json: vi.fn().mockResolvedValue({
+        UI_LANGUAGE: 'en',
+        AUTO_APPLY_RECOMMENDED_CONDITION: false,
+        USER_TIMEZONE: 'Europe/London',
+        USER_TIMEZONE_CONFIRMED: true,
+        WEB_PUSH_ENABLED: true,
+        TELEGRAM_ENABLED: false,
+        NOTIFICATION_LANGUAGE: 'both',
+      }),
     }));
-    vi.mocked(fetchNotificationSettings).mockResolvedValueOnce({
-      webPushEnabled: true,
-      telegramEnabled: false,
-      notificationLanguage: 'both',
-      minimumConfidence: null,
-      minimumOdds: null,
-      quietHours: {},
-      channelPolicy: {},
-    });
 
     const config = await fetchMonitorConfig();
 
     expect(config.UI_LANGUAGE).toBe('en');
     expect(config.AUTO_APPLY_RECOMMENDED_CONDITION).toBe(false);
+    expect(config.USER_TIMEZONE).toBe('Europe/London');
+    expect(config.USER_TIMEZONE_CONFIRMED).toBe(true);
     expect(config.WEB_PUSH_ENABLED).toBe(true);
     expect(config.TELEGRAM_ENABLED).toBe(false);
     expect(config.NOTIFICATION_LANGUAGE).toBe('both');
@@ -165,33 +157,44 @@ describe('persistMonitorConfig', () => {
     vi.restoreAllMocks();
   });
 
-  test('splits notification keys into dedicated route persistence', async () => {
+  test('persists unified personal settings through a single route', async () => {
     saveMonitorConfig(createDefaultConfig());
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
       ok: true,
-      json: vi.fn().mockResolvedValue({ UI_LANGUAGE: 'en' }),
+      json: vi.fn().mockResolvedValue({
+        UI_LANGUAGE: 'en',
+        USER_TIMEZONE: 'America/New_York',
+        USER_TIMEZONE_CONFIRMED: true,
+        TELEGRAM_ENABLED: false,
+        NOTIFICATION_LANGUAGE: 'en',
+      }),
     }));
-    vi.mocked(persistNotificationSettings).mockResolvedValueOnce({
-      webPushEnabled: false,
-      telegramEnabled: false,
-      notificationLanguage: 'en',
-      minimumConfidence: null,
-      minimumOdds: null,
-      quietHours: {},
-      channelPolicy: {},
-    });
 
-    await persistMonitorConfig({ UI_LANGUAGE: 'en', TELEGRAM_ENABLED: false, NOTIFICATION_LANGUAGE: 'en' });
+    await persistMonitorConfig({
+      UI_LANGUAGE: 'en',
+      USER_TIMEZONE: 'America/New_York',
+      USER_TIMEZONE_CONFIRMED: true,
+      TELEGRAM_ENABLED: false,
+      NOTIFICATION_LANGUAGE: 'en',
+    });
 
     expect(fetch).toHaveBeenCalledTimes(1);
     expect(vi.mocked(fetch).mock.calls[0]?.[0]).toContain('/api/me/settings');
-    expect(persistNotificationSettings).toHaveBeenCalledWith({
-      telegramEnabled: false,
-      notificationLanguage: 'en',
+    expect(vi.mocked(fetch).mock.calls[0]?.[1]).toMatchObject({
+      method: 'PUT',
+      body: JSON.stringify({
+        UI_LANGUAGE: 'en',
+        USER_TIMEZONE: 'America/New_York',
+        USER_TIMEZONE_CONFIRMED: true,
+        TELEGRAM_ENABLED: false,
+        NOTIFICATION_LANGUAGE: 'en',
+      }),
     });
 
     const cached = loadMonitorConfig();
     expect(cached.UI_LANGUAGE).toBe('en');
+    expect(cached.USER_TIMEZONE).toBe('America/New_York');
+    expect(cached.USER_TIMEZONE_CONFIRMED).toBe(true);
     expect(cached.TELEGRAM_ENABLED).toBe(false);
     expect(cached.NOTIFICATION_LANGUAGE).toBe('en');
   });

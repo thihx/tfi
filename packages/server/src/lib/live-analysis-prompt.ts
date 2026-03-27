@@ -1350,7 +1350,7 @@ ODDS_SOURCE: ${data.oddsSource}
 ODDS_FETCHED_AT: ${data.oddsFetchedAt ?? 'unknown'} (match minute at fetch: ${data.minute})
 CURRENT_TOTAL_GOALS: ${data.currentTotalGoals}
 CURRENT_TOTAL_CORNERS: ${currentTotalCorners}
-${data.oddsSource === 'pre-match' ? 'PRE-MATCH ODDS ONLY: use as baseline reference, not as live odds.\n' : ''}${data.oddsSource === 'the-odds-api' ? 'THE_ODDS_API_FALLBACK: live exact-event fallback may lag slightly.\n' : ''}${!data.oddsAvailable ? 'Treat odds as unavailable and be conservative.\n' : ''}${!data.oddsSuspicious && oddsSanityWarnings.length > 0 ? `ODDS SANITY NOTES:\n${oddsSanityWarnings.map((w) => '- ' + w).join('\n')}
+${data.oddsSource === 'reference-prematch' ? 'REFERENCE_PREMATCH_ODDS: use as baseline reference, not as live odds.\n' : ''}${data.oddsSource === 'fallback-live' ? 'FALLBACK_LIVE_ODDS: fallback live snapshot may lag slightly.\n' : ''}${!data.oddsAvailable ? 'Treat odds as unavailable and be conservative.\n' : ''}${!data.oddsSuspicious && oddsSanityWarnings.length > 0 ? `ODDS SANITY NOTES:\n${oddsSanityWarnings.map((w) => '- ' + w).join('\n')}
 Use these notes as market-level restrictions, not a reason to discard the entire odds feed.\n` : ''}${data.oddsSuspicious ? `ODDS SANITY FAILED:\n${oddsSanityWarnings.map((w) => '- ' + w).join('\n')}
 Treat odds as unreliable and behave as if ODDS_AVAILABLE=false.
 ` : ''}ODDS RULE: canonical odds are already filtered; never infer missing markets and never invent prices.
@@ -1553,7 +1553,7 @@ ${JSON.stringify(data.derivedInsights)}
 These insights are DERIVED from match events. Reduce confidence by 1 compared to full stats.
 ` : ''}
 ========================
-${!data.oddsAvailable ? 'NO USABLE ODDS AVAILABLE' : data.oddsSource === 'pre-match' ? 'PRE-MATCH ODDS (REFERENCE ONLY)' : data.oddsSource === 'the-odds-api' ? 'LIVE ODDS (The Odds API fallback)' : 'LIVE ODDS SNAPSHOT (CANONICAL JSON)'}
+${!data.oddsAvailable ? 'NO USABLE ODDS AVAILABLE' : data.oddsSource === 'reference-prematch' ? 'PRE-MATCH ODDS (REFERENCE ONLY)' : data.oddsSource === 'fallback-live' ? 'LIVE ODDS (fallback live source)' : 'LIVE ODDS SNAPSHOT (CANONICAL JSON)'}
 ========================
 ${JSON.stringify(data.oddsCanonical)}
 
@@ -1562,7 +1562,7 @@ ODDS_SOURCE: ${data.oddsSource}
 ODDS_FETCHED_AT: ${data.oddsFetchedAt ?? 'unknown'} (match minute at fetch: ${data.minute})
 CURRENT_TOTAL_GOALS: ${data.currentTotalGoals}
 CURRENT_TOTAL_CORNERS: ${currentTotalCorners}
-${data.oddsSource === 'pre-match' ? '\nCAUTION: These are PRE-MATCH opening odds fetched before kickoff. Live odds are unavailable for this match.\nYou CAN still use them as a baseline for market direction and value, but adjust confidence based on the current game state.\n' : ''}${data.oddsSource === 'the-odds-api' ? '\nNOTE: These odds are from The Odds API exact-event fallback. They may have slight delay vs Football API live odds.\n' : ''}${!data.oddsAvailable ? '\nNO_USABLE_ODDS: Treat odds as unavailable and be conservative.\n' : ''}${!data.oddsSuspicious && oddsSanityWarnings.length > 0 ? `\nODDS SANITY NOTES:\n${oddsSanityWarnings.map((w) => '- ' + w).join('\n')}\nTreat these as market-specific restrictions, not a reason to discard the entire odds feed.\n` : ''}${data.oddsSuspicious ? `\nODDS SANITY CHECK FAILED:\n${oddsSanityWarnings.map((w) => '- ' + w).join('\n')}\nTreat ALL odds as UNRELIABLE. Behave as if ODDS_AVAILABLE = false.\n` : ''}
+${data.oddsSource === 'reference-prematch' ? '\nCAUTION: These are PRE-MATCH opening odds fetched before kickoff. Live odds are unavailable for this match.\nYou CAN still use them as a baseline for market direction and value, but adjust confidence based on the current game state.\n' : ''}${data.oddsSource === 'fallback-live' ? '\nNOTE: These odds are from a fallback live source. They may lag slightly versus the primary live feed.\n' : ''}${!data.oddsAvailable ? '\nNO_USABLE_ODDS: Treat odds as unavailable and be conservative.\n' : ''}${!data.oddsSuspicious && oddsSanityWarnings.length > 0 ? `\nODDS SANITY NOTES:\n${oddsSanityWarnings.map((w) => '- ' + w).join('\n')}\nTreat these as market-specific restrictions, not a reason to discard the entire odds feed.\n` : ''}${data.oddsSuspicious ? `\nODDS SANITY CHECK FAILED:\n${oddsSanityWarnings.map((w) => '- ' + w).join('\n')}\nTreat ALL odds as UNRELIABLE. Behave as if ODDS_AVAILABLE = false.\n` : ''}
 ODDS METHODOLOGY:
 - Odds are the BEST available across multiple bookmakers (highest price per outcome).
 - Markets with invalid implied-probability margins have been PRE-REMOVED by the system.
