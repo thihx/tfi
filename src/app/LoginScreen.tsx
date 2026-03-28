@@ -46,7 +46,7 @@ const FEATURES = [
       </svg>
     ),
     title: 'Bet at the Right Moment',
-    desc: 'Set triggers on goals, cards, or match time — AI places the bet automatically.',
+    desc: 'Set triggers on goals, cards, or match time — AI alerts you instantly so you never miss the window.',
   },
   {
     icon: (
