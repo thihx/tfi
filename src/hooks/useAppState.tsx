@@ -20,6 +20,7 @@ interface AppState {
 type Action =
   | { type: 'SET_CONFIG'; payload: AppConfig }
   | { type: 'SET_MATCHES'; payload: Match[] }
+  | { type: 'MERGE_MATCHES'; payload: Match[] }
   | { type: 'SET_WATCHLIST'; payload: WatchlistItem[] }
   | { type: 'SET_LEAGUES'; payload: League[] }
   | { type: 'SET_LOADING'; payload: { loading: boolean; progress?: number; message?: string } }
@@ -43,6 +44,25 @@ function reducer(state: AppState, action: Action): AppState {
       return { ...state, config: action.payload };
     case 'SET_MATCHES':
       return { ...state, matches: action.payload };
+    case 'MERGE_MATCHES': {
+      // Update existing matches in-place; append new ones; preserve order so rows don't jump.
+      const incoming = new Map(action.payload.map((m) => [String(m.match_id), m]));
+      let changed = false;
+      const merged = state.matches.map((existing) => {
+        const fresh = incoming.get(String(existing.match_id));
+        if (!fresh) return existing;
+        incoming.delete(String(existing.match_id)); // mark as handled
+        // Shallow-compare: only swap reference when something actually changed
+        const isDiff = (Object.keys(fresh) as (keyof Match)[]).some((k) => fresh[k] !== existing[k]);
+        if (!isDiff) return existing;
+        changed = true;
+        return fresh;
+      });
+      // Append genuinely new matches (match_id not previously in state)
+      const appended = [...merged, ...Array.from(incoming.values())];
+      if (!changed && appended.length === state.matches.length) return state; // nothing changed
+      return { ...state, matches: appended };
+    }
     case 'SET_WATCHLIST':
       return { ...state, watchlist: action.payload };
     case 'SET_LEAGUES':
@@ -78,6 +98,7 @@ interface AppContextValue {
   state: AppState;
   dispatch: React.Dispatch<Action>;
   loadAllData: (silent?: boolean) => Promise<void>;
+  refreshMatches: () => Promise<void>;
   saveConfig: (config: AppConfig) => void;
   addToWatchlist: (items: Partial<WatchlistItem>[]) => Promise<boolean>;
   updateWatchlistItem: (item: Partial<WatchlistItem> & { match_id: string }) => Promise<boolean>;
@@ -147,6 +168,17 @@ export function AppProvider({ children }: { children: ReactNode }) {
       dispatch({ type: 'SET_LOADING', payload: { loading: false, progress: 100, message: '' } });
     }
   }, [showToast]);
+
+  // Lightweight live-poll refresh: only fetch matches, merge into existing state.
+  // Avoids replacing the entire array reference (which re-renders all rows) and
+  // avoids unnecessary leagues/watchlist round-trips.
+  const refreshMatches = useCallback(async () => {
+    const config = stateRef.current.config;
+    try {
+      const matches = await api.fetchMatches(config);
+      dispatch({ type: 'MERGE_MATCHES', payload: matches });
+    } catch { /* silent — interval will retry */ }
+  }, []);
 
   const saveConfigFn = useCallback((config: AppConfig) => {
     persistConfig(config);
@@ -267,7 +299,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   return (
     <AppContext.Provider
-      value={{ state, dispatch, loadAllData, saveConfig: saveConfigFn, addToWatchlist, updateWatchlistItem, removeFromWatchlist }}
+      value={{ state, dispatch, loadAllData, refreshMatches, saveConfig: saveConfigFn, addToWatchlist, updateWatchlistItem, removeFromWatchlist }}
     >
       {children}
     </AppContext.Provider>

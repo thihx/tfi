@@ -38,7 +38,7 @@ export function shouldAutoRefreshMatch(match: Match, now = Date.now()): boolean 
 
 
 export function MatchesTab() {
-  const { state, addToWatchlist, updateWatchlistItem, loadAllData } = useAppState();
+  const { state, addToWatchlist, updateWatchlistItem, loadAllData, refreshMatches } = useAppState();
   const { showToast } = useToast();
   const uiLanguage = useUiLanguage();
   const { effectiveTimeZone } = useUserTimeZone();
@@ -96,6 +96,9 @@ export function MatchesTab() {
 
   const loadAllDataRef = useRef(loadAllData);
   useEffect(() => { loadAllDataRef.current = loadAllData; });
+
+  const refreshMatchesRef = useRef(refreshMatches);
+  useEffect(() => { refreshMatchesRef.current = refreshMatches; });
 
   // Ref to ALL loaded matches — used by interval to detect live activity across all pages/filters
   const allMatchesRef = useRef<Match[]>([]);
@@ -164,12 +167,12 @@ export function MatchesTab() {
   // Refresh on mount
   useEffect(() => { void loadAllDataRef.current(true); }, []);
 
-  // Every 3s: call API only if at least 1 match in the full list is (or is about to be) live
+  // Every 3s: merge-refresh only matches (not leagues/watchlist) to avoid full re-render
   useEffect(() => {
     const tick = setInterval(() => {
       const now = Date.now();
       const hasLikelyLive = allMatchesRef.current.some((m) => shouldAutoRefreshMatch(m, now));
-      if (hasLikelyLive) void loadAllDataRef.current(true);
+      if (hasLikelyLive) void refreshMatchesRef.current();
     }, 3000);
     return () => clearInterval(tick);
   }, []);
@@ -263,7 +266,8 @@ export function MatchesTab() {
         }
         if (valA < valB) return sort.order === 'asc' ? -1 : 1;
         if (valA > valB) return sort.order === 'asc' ? 1 : -1;
-        return 0;
+        // Stable tiebreaker: match_id prevents position swaps between polls
+        return String(a.match_id) < String(b.match_id) ? -1 : 1;
       });
     }
     return items;
