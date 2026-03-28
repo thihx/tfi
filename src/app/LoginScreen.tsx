@@ -5,33 +5,57 @@ interface LoginScreenProps {
   error: string;
 }
 
+const STATS = [
+  { label: '1,000+ Leagues & Matches' },
+  { label: 'Live AI in < 2s' },
+  { label: '24/7 Automated Monitoring' },
+];
+
 const FEATURES = [
-  {
-    icon: (
-      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-        <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/>
-      </svg>
-    ),
-    title: 'Live AI Analysis',
-    desc: 'Real-time match intelligence — odds, stats, and momentum in one view.',
-  },
-  {
-    icon: (
-      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-        <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/>
-      </svg>
-    ),
-    title: 'Smart Recommendations',
-    desc: 'AI-generated investment recommendations with confidence scoring.',
-  },
   {
     icon: (
       <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
         <line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/>
       </svg>
     ),
-    title: 'Performance Tracking',
-    desc: 'Track every investment and P&L across all markets with automated settlement.',
+    title: 'Data Over Emotion',
+    desc: 'Every bet backed by real-time stats, form analysis, and AI probability scoring — never by gut feeling.',
+  },
+  {
+    icon: (
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <polyline points="22 7 13.5 15.5 8.5 10.5 2 17"/><polyline points="16 7 22 7 22 13"/>
+      </svg>
+    ),
+    title: 'Bankroll That Compounds',
+    desc: 'Systematic capital management protects your stake and builds consistent returns over time.',
+  },
+  {
+    icon: (
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>
+      </svg>
+    ),
+    title: 'Zero Minutes on the Couch',
+    desc: 'TFI monitors every live match 24/7. Get the edge without sitting through 90 minutes.',
+  },
+  {
+    icon: (
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/>
+      </svg>
+    ),
+    title: 'Event-Triggered Precision',
+    desc: 'Set conditions on in-game events — goals, cards, minute marks — and bet at exactly the right moment.',
+  },
+  {
+    icon: (
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/>
+      </svg>
+    ),
+    title: 'Your Time, Reclaimed',
+    desc: 'Trade match-watching hours for the things that matter most. Your AI assistant never takes a day off.',
   },
 ];
 
@@ -113,30 +137,48 @@ export function LoginScreen({ onLogin, error }: LoginScreenProps) {
           </div>
 
           {/* Headline */}
-          <div style={{ position: 'relative', marginBottom: '44px' }}>
+          <div style={{ position: 'relative', marginBottom: '24px' }}>
             <h1 style={{
-              color: '#f9fafb', fontSize: '36px', fontWeight: 800,
-              lineHeight: 1.2, letterSpacing: '-0.8px', margin: '0 0 16px',
+              color: '#f9fafb', fontSize: '34px', fontWeight: 800,
+              lineHeight: 1.2, letterSpacing: '-0.8px', margin: '0 0 14px',
             }}>
-              Football Intelligence<br />
-              <span style={{ color: '#f59e0b' }}>Powered by AI</span>
+              Stop Watching Matches.<br />
+              <span style={{ color: '#f59e0b' }}>Start Profiting.</span>
             </h1>
-            <p style={{ color: 'rgba(255,255,255,0.45)', fontSize: '15px', lineHeight: 1.65, margin: 0, maxWidth: '400px' }}>
-              Monitor live matches, get AI-driven recommendations, and track your investment performance — all in one platform.
+            <p style={{ color: 'rgba(255,255,255,0.45)', fontSize: '14px', lineHeight: 1.65, margin: 0, maxWidth: '400px' }}>
+              Your AI betting expert monitors every match, crunches the numbers, and acts at the perfect moment — so you can live your life.
             </p>
           </div>
 
+          {/* Stat strip */}
+          <div style={{
+            position: 'relative', display: 'flex', gap: '8px', flexWrap: 'wrap', marginBottom: '20px',
+          }}>
+            {STATS.map((s) => (
+              <span key={s.label} style={{
+                display: 'inline-flex', alignItems: 'center', gap: '5px',
+                padding: '4px 10px', borderRadius: '20px',
+                background: 'rgba(255,255,255,0.04)',
+                border: '1px solid rgba(255,255,255,0.08)',
+                color: 'rgba(255,255,255,0.35)', fontSize: '11px', fontWeight: 500,
+              }}>
+                <span style={{ width: '4px', height: '4px', borderRadius: '50%', background: '#f59e0b', display: 'inline-block', flexShrink: 0 }} />
+                {s.label}
+              </span>
+            ))}
+          </div>
+
           {/* Feature list */}
-          <div style={{ position: 'relative', display: 'flex', flexDirection: 'column', gap: '12px' }}>
+          <div style={{ position: 'relative', display: 'flex', flexDirection: 'column', gap: '8px' }}>
             {FEATURES.map((f) => (
               <div key={f.title} style={{
-                display: 'flex', alignItems: 'flex-start', gap: '14px',
+                display: 'flex', alignItems: 'flex-start', gap: '12px',
                 background: 'rgba(255,255,255,0.03)',
                 border: '1px solid rgba(255,255,255,0.06)',
-                borderRadius: '10px', padding: '14px 18px',
+                borderRadius: '10px', padding: '11px 14px',
               }}>
                 <div style={{
-                  width: '34px', height: '34px', borderRadius: '8px', flexShrink: 0,
+                  width: '30px', height: '30px', borderRadius: '7px', flexShrink: 0,
                   background: 'rgba(245,158,11,0.1)',
                   border: '1px solid rgba(245,158,11,0.15)',
                   display: 'flex', alignItems: 'center', justifyContent: 'center',
@@ -145,11 +187,25 @@ export function LoginScreen({ onLogin, error }: LoginScreenProps) {
                   {f.icon}
                 </div>
                 <div>
-                  <div style={{ color: '#f9fafb', fontWeight: 600, fontSize: '13.5px', marginBottom: '3px' }}>{f.title}</div>
-                  <div style={{ color: 'rgba(255,255,255,0.4)', fontSize: '12.5px', lineHeight: 1.5 }}>{f.desc}</div>
+                  <div style={{ color: '#f9fafb', fontWeight: 600, fontSize: '13px', marginBottom: '2px' }}>{f.title}</div>
+                  <div style={{ color: 'rgba(255,255,255,0.38)', fontSize: '12px', lineHeight: 1.5 }}>{f.desc}</div>
                 </div>
               </div>
             ))}
+          </div>
+
+          {/* Closing tagline */}
+          <div style={{
+            position: 'relative', marginTop: '20px',
+            padding: '12px 16px',
+            borderRadius: '10px',
+            background: 'rgba(245,158,11,0.05)',
+            border: '1px solid rgba(245,158,11,0.12)',
+            textAlign: 'center',
+          }}>
+            <span style={{ color: '#f59e0b', fontSize: '12.5px', fontWeight: 600, letterSpacing: '0.02em' }}>
+              Your AI Betting Expert. Always On.
+            </span>
           </div>
         </div>
       )}
