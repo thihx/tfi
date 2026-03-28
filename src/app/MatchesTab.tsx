@@ -20,6 +20,27 @@ import {
 } from '@/features/live-monitor/services/server-monitor.service';
 import { MatchScoutModal } from '@/components/ui/MatchScoutModal';
 
+// ── Shared icon components ───────────────────────────────────────────────────
+function EyeIcon({ checked }: { checked?: boolean }) {
+  return (
+    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden style={{ display: 'block' }}>
+      <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
+      <circle cx="12" cy="12" r="3"/>
+      {checked && <path d="M9 12l2 2 4-4" strokeWidth="2.5"/>}
+    </svg>
+  );
+}
+
+function SparkleIcon() {
+  return (
+    <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor" aria-hidden style={{ display: 'block' }}>
+      <path d="M12 2l1.5 4.5L18 8l-4.5 1.5L12 14l-1.5-4.5L6 8l4.5-1.5L12 2z"/>
+      <path d="M19 14l.9 2.1 2.1.9-2.1.9-.9 2.1-.9-2.1-2.1-.9 2.1-.9.9-2.1z"/>
+      <path d="M5 17l.6 1.4L7 19l-1.4.6L5 21l-.6-1.4L3 19l1.4-.6L5 17z"/>
+    </svg>
+  );
+}
+
 // ── Module-level store — persists across tab navigation ──────────────────────
 type AiResultEntry = AiAnalysisPanelEntry;
 const _matchesTabStore = {
@@ -541,12 +562,14 @@ export function MatchesTab() {
                   highlighted={selected.has(String(m.match_id))}
                   actions={[
                     watchlistMap.has(String(m.match_id))
-                      ? { label: '✓ Watched', onClick: () => {}, variant: 'success', disabled: true }
+                      ? { label: '✓ Watched', icon: <EyeIcon checked />, title: 'Already watching', onClick: () => {}, variant: 'success', disabled: true }
                       : pendingAdds.has(String(m.match_id))
                         ? { label: 'Saving…', onClick: () => {}, disabled: true }
-                        : { label: '+ Watch', onClick: (match) => quickAdd(match), variant: 'primary' },
+                        : { label: '+ Watch', icon: <EyeIcon />, title: 'Watch this match', onClick: (match) => quickAdd(match), variant: 'primary' },
                     {
                       label: analyzingMatches.has(String(m.match_id)) ? 'Analyzing…' : aiResults.has(String(m.match_id)) ? '✅ View Result' : 'Ask AI',
+                      icon: aiResults.has(String(m.match_id)) ? <span style={{ fontSize: 13 }}>✅</span> : <SparkleIcon />,
+                      title: !watchlistMap.has(String(m.match_id)) ? 'Add to Watchlist to use Ask AI' : aiResults.has(String(m.match_id)) ? 'View AI result' : 'Ask AI for analysis',
                       onClick: (match) => askAi(match),
                       variant: aiResults.has(String(m.match_id)) ? 'success' as const : 'secondary' as const,
                       loading: analyzingMatches.has(String(m.match_id)),
@@ -730,7 +753,7 @@ function MatchRow({ match, isWatched, isPending, isSelected, isAnalyzing, hasRes
         <div className="cell-value flex-row-gap-4 flex-center flex-wrap">
           {isWatched ? (
             <>
-              <button className="btn btn-success btn-sm watch-btn" disabled><span className="btn-text">Watched</span></button>
+              <button className="btn btn-success btn-sm watch-btn" disabled title="Already watching" aria-label="Already watching"><EyeIcon checked /></button>
               <button className="btn btn-secondary btn-sm action-icon-btn" onClick={onEdit} aria-label="Edit watchlist item" title="Edit watchlist item">
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 20h9" /><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4 12.5-12.5z" /></svg>
               </button>
@@ -741,8 +764,8 @@ function MatchRow({ match, isWatched, isPending, isSelected, isAnalyzing, hasRes
               <span className="btn-text">Saving...</span>
             </button>
           ) : (
-            <button className="btn btn-primary btn-sm watch-btn" onClick={onQuickAdd}>
-              <span className="btn-text">+ Watch</span>
+            <button className="btn btn-primary btn-sm watch-btn" onClick={onQuickAdd} title="Watch this match" aria-label="Watch this match">
+              <EyeIcon />
             </button>
           )}
           <button className={`btn ${hasResult ? 'btn-success' : 'btn-secondary'} btn-sm`} onClick={onAskAi} disabled={isAnalyzing || !isWatched} title={!isWatched ? 'Add this match to Watchlist to use Ask AI' : hasResult ? 'View cached result' : 'Ask AI for analysis'} style={{ minWidth: 36 }}>
@@ -750,11 +773,7 @@ function MatchRow({ match, isWatched, isPending, isSelected, isAnalyzing, hasRes
               ? <span className="inline-spinner" style={{ width: '14px', height: '14px' }} />
               : hasResult
                 ? <span style={{ fontSize: 13 }}>✅</span>
-                : <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor" aria-hidden style={{ display: 'block' }}>
-                    <path d="M12 2l1.5 4.5L18 8l-4.5 1.5L12 14l-1.5-4.5L6 8l4.5-1.5L12 2z"/>
-                    <path d="M19 14l.9 2.1 2.1.9-2.1.9-.9 2.1-.9-2.1-2.1-.9 2.1-.9.9-2.1z"/>
-                    <path d="M5 17l.6 1.4L7 19l-1.4.6L5 21l-.6-1.4L3 19l1.4-.6L5 17z"/>
-                  </svg>
+                : <SparkleIcon />
             }
           </button>
         </div>

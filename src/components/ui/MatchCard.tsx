@@ -1,4 +1,4 @@
-import { memo } from 'react';
+import { memo, type ReactNode } from 'react';
 import { formatLocalTime } from '@/lib/utils/helpers';
 import type { Match } from '@/types';
 
@@ -30,6 +30,8 @@ function TeamLogo({ src, alt }: { src: string; alt: string }) {
 
 interface MatchCardAction {
   label: string;
+  icon?: ReactNode;
+  title?: string;
   onClick: (match: Match) => void;
   variant?: 'primary' | 'secondary' | 'success';
   disabled?: boolean;
@@ -152,8 +154,10 @@ function MatchCardBase({ match, actions, highlighted, onClick }: Props) {
                 onClick={() => !action.disabled && !action.loading && action.onClick(match)}
                 disabled={action.disabled || action.loading}
                 aria-busy={action.loading}
+                title={action.title}
+                aria-label={action.title ?? action.label}
               >
-                {action.loading ? '' : action.label}
+                {action.loading ? '' : (action.icon ?? action.label)}
               </button>
             ))}
           </div>
