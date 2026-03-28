@@ -933,19 +933,18 @@ table tbody#watchlist-table td:not(.select-col) {
 }
 
 .badge-ns {
-    background: #dbeafe;
-    color: #1e40af;
+    background: var(--gray-100);
+    color: var(--gray-500);
 }
 
 .badge-ft {
-    background: #d1fae5;
-    color: #065f46;
+    background: var(--gray-100);
+    color: var(--gray-500);
 }
 
 .badge-live {
-    background: #ef4444 !important;
-    color: white !important;
-    animation: pulse 2s ease-in-out infinite;
+    background: #fee2e2 !important;
+    color: #b91c1c !important;
 }
 
 @keyframes pulse {

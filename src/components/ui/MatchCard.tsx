@@ -69,10 +69,10 @@ function MatchCardBase({ match, actions, highlighted, onClick }: Props) {
     >
       {/* Progress bar (live only) */}
       {isLive && (
-        <div style={{ height: '3px', background: 'var(--gray-200)', overflow: 'hidden' }}>
+        <div style={{ height: '2px', background: 'var(--gray-100)', overflow: 'hidden' }}>
           <div style={{
             height: '100%', width: `${progressPct}%`,
-            background: 'linear-gradient(90deg, #ef4444 0%, #f97316 100%)',
+            background: 'var(--gray-400)',
             transition: 'width 0.5s ease',
           }} />
         </div>
@@ -87,7 +87,7 @@ function MatchCardBase({ match, actions, highlighted, onClick }: Props) {
           </span>
           <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexShrink: 0 }}>
             {isLive && minuteNum > 0 && (
-              <span style={{ fontSize: '12px', fontWeight: 700, color: '#ef4444' }}>{minuteNum}&apos;</span>
+              <span style={{ fontSize: '12px', fontWeight: 600, color: 'var(--gray-500)' }}>{minuteNum}&apos;</span>
             )}
             {!isLive && kickoffTime && match.status === 'NS' && (
               <span style={{ fontSize: '12px', color: 'var(--gray-500)' }}>{kickoffTime}</span>
@@ -112,7 +112,7 @@ function MatchCardBase({ match, actions, highlighted, onClick }: Props) {
           {/* Score or vs */}
           <div style={{ flexShrink: 0, textAlign: 'center', minWidth: '52px' }}>
             {hasScore ? (
-              <span style={{ fontWeight: 800, fontSize: '18px', color: isLive ? '#ef4444' : 'var(--gray-900)', letterSpacing: '1px' }}>
+              <span style={{ fontWeight: 700, fontSize: '16px', color: 'var(--gray-900)', letterSpacing: '0.5px' }}>
                 {match.home_score} – {match.away_score}
               </span>
             ) : (
@@ -131,20 +131,20 @@ function MatchCardBase({ match, actions, highlighted, onClick }: Props) {
 
         {/* Prediction badge */}
         {match.prediction && (
-          <div style={{ marginTop: '10px' }}>
+          <div style={{ marginTop: '8px', textAlign: 'center' }}>
             <span style={{
               display: 'inline-flex', alignItems: 'center', gap: '4px',
-              padding: '3px 10px', borderRadius: '10px', fontSize: '12px', fontWeight: 600,
-              background: '#eff6ff', color: 'var(--primary)', border: '1px solid #bfdbfe',
+              padding: '2px 8px', borderRadius: '8px', fontSize: '11px', fontWeight: 500,
+              background: 'var(--gray-100)', color: 'var(--gray-500)',
             }}>
-              🤖 {match.prediction}
+              {match.prediction}
             </span>
           </div>
         )}
 
         {/* Actions */}
         {actions && actions.length > 0 && (
-          <div style={{ marginTop: '12px', display: 'flex', gap: '8px', flexWrap: 'wrap' }} onClick={(e) => e.stopPropagation()}>
+          <div style={{ marginTop: '12px', display: 'flex', gap: '8px', flexWrap: 'wrap', justifyContent: 'center' }} onClick={(e) => e.stopPropagation()}>
             {actions.map((action) => (
               <button
                 key={action.label}
