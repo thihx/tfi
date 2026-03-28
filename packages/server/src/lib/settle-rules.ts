@@ -157,12 +157,7 @@ export function settleByRule(input: SettleInput): SettleOutput | null {
 
   if (market.startsWith('corners')) {
     const totalCorners = statValue(input.statistics, 'Corner Kicks');
-    if (totalCorners === null) {
-      return {
-        result: 'unresolved',
-        explanation: 'Missing official corner statistics',
-      };
-    }
+    if (totalCorners === null) return null; // no stats yet — let AI fallback handle it
 
     const marketMatch = market.match(/^corners_(over|under)_(\d+(?:\.\d+)?)$/);
     const line = marketMatch
@@ -179,15 +174,7 @@ export function settleByRule(input: SettleInput): SettleOutput | null {
   }
 
   if (looksLikeCardsMarket(market, input.selection)) {
-    const yellowCards = statValue(input.statistics, 'Yellow Cards');
-    const redCards = statValue(input.statistics, 'Red Cards');
-    if (yellowCards === null && redCards === null) {
-      return {
-        result: 'unresolved',
-        explanation: 'Missing official card statistics',
-      };
-    }
-    return null;
+    return null; // always AI — card markets need stats context
   }
 
   if (market.startsWith('asian_handicap')) {

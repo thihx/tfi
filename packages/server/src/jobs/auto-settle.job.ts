@@ -46,6 +46,7 @@ import {
   type SettlementStatRow,
 } from '../lib/settlement-stat-cache.js';
 import { kickoffAtUtcFromFixtureDate } from '../lib/kickoff-time.js';
+import { query as dbQuery } from '../db/pool.js';
 
 interface SettleResult {
   settled: number;
@@ -546,6 +547,50 @@ async function settleBets(
  */
 type StatRow = SettlementStatRow;
 
+const FINISHED_SAMPLE_STATUSES = ['FT', 'AET', 'PEN'];
+
+/**
+ * Convert a normalized_payload from provider_stats_samples into SettlementStatRow[].
+ * Only maps fields relevant to settlement (corners, cards).
+ */
+function normalizedPayloadToStatRows(payload: Record<string, { home: unknown; away: unknown }>): SettlementStatRow[] {
+  const MAP: Record<string, string> = {
+    corners: 'Corner Kicks',
+    yellow_cards: 'Yellow Cards',
+    red_cards: 'Red Cards',
+  };
+  const rows: SettlementStatRow[] = [];
+  for (const [key, label] of Object.entries(MAP)) {
+    const entry = payload[key];
+    if (!entry) continue;
+    const h = entry.home != null ? entry.home : null;
+    const a = entry.away != null ? entry.away : null;
+    if (h != null || a != null) {
+      rows.push({ type: label, home: h as string | number | null, away: a as string | number | null });
+    }
+  }
+  return rows;
+}
+
+/**
+ * Fetch the latest finished stats sample for a match from TFI's provider_stats_samples table.
+ * Only considers samples with match_status IN ('FT','AET','PEN') to avoid mid-match data.
+ */
+async function fetchStatsFromSamples(matchId: string): Promise<SettlementStatRow[]> {
+  const { rows } = await dbQuery<{ normalized_payload: Record<string, { home: unknown; away: unknown }> }>(
+    `SELECT normalized_payload
+     FROM provider_stats_samples
+     WHERE match_id = $1
+       AND match_status = ANY($2)
+       AND normalized_payload IS NOT NULL
+     ORDER BY captured_at DESC
+     LIMIT 1`,
+    [matchId, FINISHED_SAMPLE_STATUSES],
+  );
+  if (rows.length === 0) return [];
+  return normalizedPayloadToStatRows(rows[0]!.normalized_payload);
+}
+
 async function fetchMatchStatistics(
   matchIds: string[],
   historyMap: Map<string, MatchHistoryRow>,
@@ -567,6 +612,18 @@ async function fetchMatchStatistics(
   // Parallel fetches (concurrency 5) instead of sequential
   await batchRun(idsToFetch.map((matchId) => async () => {
     try {
+      // 1st priority: TFI's own live stats capture (provider_stats_samples)
+      const sampleStats = await fetchStatsFromSamples(matchId);
+      if (sampleStats.length > 0) {
+        statsMap.set(matchId, sampleStats);
+        await matchHistoryRepo.updateHistoricalMatchSettlementData(matchId, {
+          settlement_stats: sampleStats,
+          settlement_stats_provider: 'tfi-samples',
+        });
+        return;
+      }
+
+      // 2nd priority: external Football API — save to DB before using
       const statsRaw = await fetchFixtureStatistics(matchId);
       const merged = mergeApiFixtureStatistics(statsRaw);
       if (merged.length > 0) {
