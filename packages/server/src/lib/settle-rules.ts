@@ -94,6 +94,66 @@ function round(value: number): number {
 }
 
 /**
+ * Try to settle a bet EARLY (while the match is still in progress).
+ *
+ * Returns a result ONLY when the outcome is already mathematically locked
+ * regardless of how many more goals/events occur in the remaining match time.
+ * Returns null in all other cases — caller should wait for FT.
+ *
+ * Safe early-settle cases (goals can only increase, never decrease):
+ *   Over X  — early win when currentGoals > X (regular) or > X+0.25 (quarter line)
+ *             Both split parts are already "won" so adding goals can't change that.
+ *   Under X — early loss when currentGoals > X (regular) or > X+0.25 (quarter line)
+ *             Both split parts are already "lost" so adding goals can't help.
+ *   BTTS Yes — early win when both teams have already scored (irreversible).
+ *
+ * NOT handled here: half_win/half_loss (still possible to become win/loss at FT),
+ * push (could become win), corners, AH, cards, 1x2.
+ */
+export function earlySettleByRule(input: SettleInput): SettleOutput | null {
+  const market = normalizeMarket(input.selection, input.market);
+  const totalGoals = input.homeScore + input.awayScore;
+
+  if (looksLikeCardsMarket(input.market, input.selection)) return null;
+
+  // Over X: early win only when result is definitively 'win'
+  // (covers regular + quarter lines — quarter 'half_win' is excluded because
+  //  the upper split could still go from push → win, making the final better)
+  const overMatch = market.match(/^over_(\d+(?:\.\d+)?)$/);
+  if (overMatch) {
+    const line = parseFloat(overMatch[1]!);
+    const result = settleTotalMarket(totalGoals, line, 'over');
+    if (result === 'win') {
+      return { result, explanation: `Early settle: ${totalGoals} goals exceeds line ${line} → win` };
+    }
+    return null;
+  }
+
+  // Under X: early loss only when result is definitively 'loss'
+  // (quarter 'half_loss' excluded because upper split could still go push → loss at FT,
+  //  but we can't know the final split result mid-match)
+  const underMatch = market.match(/^under_(\d+(?:\.\d+)?)$/);
+  if (underMatch) {
+    const line = parseFloat(underMatch[1]!);
+    const result = settleTotalMarket(totalGoals, line, 'under');
+    if (result === 'loss') {
+      return { result, explanation: `Early settle: ${totalGoals} goals exceeded line ${line} → loss` };
+    }
+    return null;
+  }
+
+  // BTTS Yes: early win once both teams have scored (goals cannot be un-scored)
+  if (market === 'btts_yes' && input.homeScore > 0 && input.awayScore > 0) {
+    return {
+      result: 'win',
+      explanation: `Early settle: both teams scored (${input.homeScore}-${input.awayScore}), BTTS Yes confirmed`,
+    };
+  }
+
+  return null;
+}
+
+/**
  * Try to settle a bet deterministically.
  * Returns null if the market is unrecognized or stats are missing.
  */
@@ -208,4 +268,16 @@ export function settleByRule(input: SettleInput): SettleOutput | null {
 function looksLikeCardsMarket(market: string, selection: string): boolean {
   const combined = `${market} ${selection}`.toLowerCase();
   return /\bcard/.test(combined) || /\byellow\b/.test(combined) || /\bred\b/.test(combined);
+}
+
+/**
+ * Returns true if this market requires official match statistics (corners, cards)
+ * that must come from an external API.  When those stats are missing, the bet
+ * cannot be settled by rules OR by AI — it must be left unresolved until the
+ * statistics become available.
+ */
+export function requiresOfficialStats(market: string, selection: string): boolean {
+  if (looksLikeCardsMarket(market, selection)) return true;
+  const normalizedMarket = market.toLowerCase();
+  return normalizedMarket.startsWith('corners');
 }

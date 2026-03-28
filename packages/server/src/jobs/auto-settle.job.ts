@@ -18,7 +18,7 @@ import { config } from '../config.js';
 import type { RecommendationRow } from '../repos/recommendations.repo.js';
 import type { MatchHistoryArchiveInput, MatchHistoryRow } from '../repos/matches-history.repo.js';
 import { reportJobProgress } from './job-progress.js';
-import { settleByRule } from '../lib/settle-rules.js';
+import { settleByRule, earlySettleByRule, requiresOfficialStats } from '../lib/settle-rules.js';
 import {
   calcSettlementPnl,
   type FinalSettlementResult,
@@ -184,6 +184,18 @@ export async function settleMatch(
 
   // Phase 1: deterministic rules
   for (const bet of bets) {
+    // If the market requires official stats (corners, cards) and we have none,
+    // mark as unresolved immediately — AI cannot infer these stats either.
+    if (requiresOfficialStats(bet.market, bet.selection) && (!match.statistics || match.statistics.length === 0)) {
+      resultsMap.set(bet.id, {
+        id: bet.id,
+        result: 'unresolved',
+        explanation: `Missing official corner statistics or card statistics required to settle this market. Will retry when stats become available.`,
+        source: 'rules',
+      });
+      continue;
+    }
+
     const ruleResult = settleByRule({
       market: bet.market,
       selection: bet.selection,
@@ -254,6 +266,10 @@ function buildSettlementMeta(
 export async function autoSettleJob(): Promise<SettleResult> {
   const JOB = 'auto-settle';
   const stats: SettleResult = { settled: 0, skipped: 0, errors: 0 };
+
+  // ── 0. Early settle live O/U bets whose outcome is already determined ──
+  await reportJobProgress(JOB, 'early-settle', 'Early settling live O/U bets...', 2);
+  await earlySettleLive(stats);
 
   // ── 1. Settle unsettled recommendations ──
   await reportJobProgress(JOB, 'load-recs', 'Loading unsettled recommendations...', 5);
@@ -536,6 +552,88 @@ async function settleBets(
       console.error(`[autoSettleJob] Settle failed for match ${matchId}:`, err instanceof Error ? err.message : err);
       stats.errors += matchBets.length;
     }
+  }
+}
+
+// ==================== Early Settlement (live matches) ====================
+
+interface LiveRecForEarlySettle {
+  id: number;
+  match_id: string;
+  bet_market: string | null;
+  bet_type: string;
+  selection: string;
+  odds: number | null;
+  stake_percent: number | null;
+  home_score: number;
+  away_score: number;
+}
+
+const LIVE_STATUSES_FOR_EARLY_SETTLE = ['1H', '2H', 'HT', 'ET', 'BT', 'P', 'INT', 'LIVE'];
+
+/**
+ * Query unsettled recommendations that belong to currently live matches.
+ * Joins recommendations with the matches table to get the current live score.
+ */
+async function getUnsettledLiveRecs(): Promise<LiveRecForEarlySettle[]> {
+  const { rows } = await dbQuery<LiveRecForEarlySettle>(
+    `SELECT r.id, r.match_id, r.bet_market, r.bet_type, r.selection, r.odds, r.stake_percent,
+            m.home_score, m.away_score
+     FROM recommendations r
+     JOIN matches m ON r.match_id::text = m.match_id::text
+     WHERE (r.result IS NULL OR r.result = '')
+       AND r.settlement_status IS DISTINCT FROM 'unresolved'
+       AND m.status = ANY($1)
+       AND m.home_score IS NOT NULL
+       AND m.away_score IS NOT NULL`,
+    [LIVE_STATUSES_FOR_EARLY_SETTLE],
+  );
+  return rows;
+}
+
+/**
+ * Phase 0 of the auto-settle job: for each unsettled recommendation on a live
+ * match, check whether the O/U (or BTTS Yes) outcome is already mathematically
+ * determined by the current score.  If so, settle immediately — no need to wait
+ * for the final whistle.
+ */
+async function earlySettleLive(stats: SettleResult): Promise<void> {
+  let liveRecs: LiveRecForEarlySettle[];
+  try {
+    liveRecs = await getUnsettledLiveRecs();
+  } catch (err) {
+    console.warn('[earlySettle] Failed to fetch live recs:', err instanceof Error ? err.message : err);
+    return;
+  }
+
+  if (liveRecs.length === 0) return;
+
+  let count = 0;
+  for (const rec of liveRecs) {
+    const earlyResult = earlySettleByRule({
+      market: rec.bet_market || rec.bet_type,
+      selection: rec.selection,
+      homeScore: rec.home_score,
+      awayScore: rec.away_score,
+    });
+
+    if (!earlyResult) continue;
+
+    const pnl = calcPnl(earlyResult.result as FinalSettlementResult, rec.odds ?? 0, rec.stake_percent ?? 1);
+    const meta = buildSettlementMeta('rules', 'resolved', `[early] ${earlyResult.explanation}`);
+    try {
+      await recommendationsRepo.settleRecommendation(rec.id, earlyResult.result as FinalSettlementResult, pnl, earlyResult.explanation, meta);
+      await aiPerfRepo.settleAiPerformance(rec.id, earlyResult.result as FinalSettlementResult, pnl, settlementWasCorrect(earlyResult.result as FinalSettlementResult), meta);
+      count++;
+      stats.settled++;
+    } catch (err) {
+      console.warn(`[earlySettle] Failed to settle rec ${rec.id}:`, err instanceof Error ? err.message : err);
+      stats.errors++;
+    }
+  }
+
+  if (count > 0) {
+    console.log(`[earlySettle] Early settled ${count} live recommendation(s)`);
   }
 }
 
