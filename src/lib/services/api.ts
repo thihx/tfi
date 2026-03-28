@@ -293,6 +293,14 @@ export async function fetchActiveLeagues(config: AppConfig): Promise<League[]> {
   return pgFetch<League[]>(config, '/api/leagues/active');
 }
 
+export async function fetchLeaguesInitData(config: AppConfig): Promise<{
+  leagues: League[];
+  favoriteTeamIds: string[];
+  profiledTeamIds: string[];
+}> {
+  return pgFetch(config, '/api/leagues/init');
+}
+
 export async function fetchLeagueFixtures(
   config: AppConfig,
   leagueId: number,

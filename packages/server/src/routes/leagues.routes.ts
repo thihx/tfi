@@ -2,10 +2,13 @@
 // Leagues Routes
 // ============================================================
 
-import type { FastifyInstance } from 'fastify';
+import type { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 import * as repo from '../repos/leagues.repo.js';
 import * as profileRepo from '../repos/league-profiles.repo.js';
+import * as favoriteTeamsRepo from '../repos/favorite-teams.repo.js';
+import * as teamProfilesRepo from '../repos/team-profiles.repo.js';
 import { getRedisClient } from '../lib/redis.js';
+import { requireCurrentUser } from '../lib/authz.js';
 import {
   ensureLeagueCatalogEntry,
   refreshLeagueCatalog,
@@ -13,6 +16,7 @@ import {
 } from '../lib/league-catalog.service.js';
 
 const ACTIVE_CACHE_KEY = 'cache:leagues:active';
+const ALL_CACHE_KEY = 'cache:leagues:all';
 const ACTIVE_CACHE_TTL_SEC = 5 * 60; // 5 minutes
 
 async function getActiveLeaguesCached(): Promise<repo.LeagueRow[]> {
@@ -31,8 +35,24 @@ async function getActiveLeaguesCached(): Promise<repo.LeagueRow[]> {
   return leagues;
 }
 
+async function getAllLeaguesCached(): Promise<repo.LeagueRow[]> {
+  try {
+    const redis = getRedisClient();
+    const cached = await redis.get(ALL_CACHE_KEY);
+    if (cached) return JSON.parse(cached) as repo.LeagueRow[];
+  } catch { /* Redis down → proceed to DB */ }
+
+  const leagues = await repo.getAllLeagues();
+
+  try {
+    await getRedisClient().set(ALL_CACHE_KEY, JSON.stringify(leagues), 'EX', ACTIVE_CACHE_TTL_SEC);
+  } catch { /* non-critical */ }
+
+  return leagues;
+}
+
 async function invalidateActiveLeaguesCache(): Promise<void> {
-  try { await getRedisClient().del(ACTIVE_CACHE_KEY); } catch { /* ignore */ }
+  try { await getRedisClient().del(ACTIVE_CACHE_KEY, ALL_CACHE_KEY); } catch { /* ignore */ }
 }
 
 const TIER_VALUES = new Set<profileRepo.LeagueTier>(['low', 'balanced', 'high']);
@@ -116,7 +136,23 @@ function readRefreshMode(value: unknown): LeagueCatalogRefreshMode {
 
 export async function leagueRoutes(app: FastifyInstance) {
   app.get('/api/leagues', async () => {
-    return repo.getAllLeagues();
+    return getAllLeaguesCached();
+  });
+
+  /** Single request that loads all data needed for the Leagues tab on mount. */
+  app.get('/api/leagues/init', async (req: FastifyRequest, reply: FastifyReply) => {
+    const user = requireCurrentUser(req, reply);
+    if (!user) return;
+    const [leagues, favoriteTeams, teamProfiles] = await Promise.all([
+      getAllLeaguesCached(),
+      favoriteTeamsRepo.getFavoriteTeams(user.userId),
+      teamProfilesRepo.getAllTeamProfiles(),
+    ]);
+    return {
+      leagues,
+      favoriteTeamIds: favoriteTeams.map((f) => f.team_id),
+      profiledTeamIds: teamProfiles.map((p) => p.team_id),
+    };
   });
 
   app.get('/api/leagues/active', async () => {

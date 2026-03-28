@@ -7,11 +7,11 @@ import { useAppState } from '@/hooks/useAppState';
 import { useToast } from '@/hooks/useToast';
 import { formatLocalDate } from '@/lib/utils/helpers';
 import {
-  fetchApprovedLeagues, toggleLeagueActive, bulkSetLeagueActive, fetchLeaguesFromApi,
+  fetchLeaguesInitData, toggleLeagueActive, bulkSetLeagueActive, fetchLeaguesFromApi,
   toggleLeagueTopLeague, bulkSetTopLeague,
   fetchLeagueProfile, saveLeagueProfile, deleteLeagueProfile,
-  fetchLeagueTeams, fetchFavoriteTeams, addFavoriteTeam, removeFavoriteTeam,
-  fetchAllTeamProfiles, fetchTeamProfile, saveTeamProfile, deleteTeamProfile,
+  fetchLeagueTeams, addFavoriteTeam, removeFavoriteTeam,
+  fetchTeamProfile, saveTeamProfile, deleteTeamProfile,
   type LeagueTeam,
 } from '@/lib/services/api';
 import type { League, LeagueProfile, TeamProfile } from '@/types';
@@ -437,12 +437,14 @@ export function LeaguesTab() {
     return () => window.removeEventListener('keydown', handler);
   }, []);
 
-  // Load leagues
+  // Load all Leagues-tab data in a single request
   const loadLeagues = useCallback(async () => {
     try {
-      const data = await fetchApprovedLeagues(config);
-      setAllLeagues(data);
-      dispatch({ type: 'SET_LEAGUES', payload: data });
+      const { leagues, favoriteTeamIds, profiledTeamIds } = await fetchLeaguesInitData(config);
+      setAllLeagues(leagues);
+      dispatch({ type: 'SET_LEAGUES', payload: leagues });
+      setFavoriteIds(new Set(favoriteTeamIds));
+      setProfiledTeamIds(new Set(profiledTeamIds));
     } catch (err) {
       console.error('[LeaguesTab] loadLeagues failed:', err);
       showToast('Failed to load leagues', 'error');
@@ -452,20 +454,6 @@ export function LeaguesTab() {
   }, [config, dispatch, showToast]);
 
   useEffect(() => { loadLeagues(); }, [loadLeagues]);
-
-  // Load favorite teams on mount
-  useEffect(() => {
-    fetchFavoriteTeams(config)
-      .then((favs) => setFavoriteIds(new Set(favs.map((f) => f.team_id))))
-      .catch(() => {});
-  }, [config]);
-
-  // Load set of team IDs that already have a profile (for badge display)
-  useEffect(() => {
-    fetchAllTeamProfiles(config)
-      .then((rows) => setProfiledTeamIds(new Set(rows.map((r) => r.team_id))))
-      .catch(() => {});
-  }, [config]);
 
   const handleToggleTeams = useCallback(async (leagueId: number) => {
     if (expandedLeagueId === leagueId) {
