@@ -14,6 +14,7 @@
     "replay:strategic-context-suite": "tsx src/scripts/replay-strategic-context-suite.ts",
     "replay:web-live-fallback-suite": "tsx src/scripts/replay-web-live-fallback-suite.ts",
     "benchmark:live-score": "tsx src/scripts/benchmark-live-score.ts",
+    "sbobet:discover": "tsx src/scripts/sbobet-discover.ts",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:watch": "vitest"
@@ -32,6 +33,7 @@
     "@types/node": "^22.15.0",
     "@types/pg": "^8.12.0",
     "@types/web-push": "^3.6.4",
+    "playwright": "^1.52.0",
     "tsx": "^4.20.3",
     "typescript": "^5.9.3",
     "vitest": "^4.1.0"

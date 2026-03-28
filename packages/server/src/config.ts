@@ -99,6 +99,15 @@ export const config = {
   pipelineVeryLatePhaseMinute: Number(process.env['PIPELINE_VERY_LATE_PHASE_MINUTE'] || 85),
   pipelineEndgameMinute: Number(process.env['PIPELINE_ENDGAME_MINUTE'] || 88),
 
+  // SBOBET live odds (optional — set SBO_ENABLED=true to activate)
+  sbobetEnabled: process.env['SBO_ENABLED'] === 'true',
+  sbobetUsername: process.env['SBO_USERNAME'] || '',
+  sbobetPassword: process.env['SBO_PASSWORD'] || '',
+  sbobetBaseUrl: process.env['SBO_BASE_URL'] || '',
+  sbobetLoginPath: process.env['SBO_LOGIN_PATH'] || '/api/auth/login',
+  sbobetLiveFeedPath: process.env['SBO_LIVE_FEED_PATH'] || '/api/sports/live/soccer',
+  sbobetSessionTtlMs: Number(process.env['SBO_SESSION_TTL_MS'] || 25 * 60_000), // 25 min
+
   // Provider sampling / observability
   providerSamplingEnabled: process.env['PROVIDER_SAMPLING_ENABLED'] !== 'false',
 
