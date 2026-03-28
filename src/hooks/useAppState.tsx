@@ -52,8 +52,16 @@ function reducer(state: AppState, action: Action): AppState {
         const fresh = incoming.get(String(existing.match_id));
         if (!fresh) return existing;
         incoming.delete(String(existing.match_id)); // mark as handled
-        // Shallow-compare: only swap reference when something actually changed
-        const isDiff = (Object.keys(fresh) as (keyof Match)[]).some((k) => fresh[k] !== existing[k]);
+        // Bidirectional compare: union of both objects' keys to catch added AND dropped fields.
+        // Using String() coercion so DB number vs JS string (e.g. current_minute: 14 vs "14")
+        // doesn't create a false-equal that hides a real type mismatch from a prior poll.
+        const allKeys = new Set([
+          ...Object.keys(existing),
+          ...Object.keys(fresh),
+        ]) as Set<keyof Match>;
+        const isDiff = Array.from(allKeys).some(
+          (k) => String(existing[k] ?? '') !== String(fresh[k] ?? ''),
+        );
         if (!isDiff) return existing;
         changed = true;
         return fresh;
