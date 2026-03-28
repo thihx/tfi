@@ -861,14 +861,28 @@ export async function incrementChecksForMatches(matchIds: string[]): Promise<voi
 export async function expireOldEntries(cutoffMinutes: number = 120): Promise<number> {
   await backfillOperationalWatchlistFromLegacy();
 
+  // Resolve kickoff from matches table first, then fall back to monitored_matches.metadata.
+  // Many watchlist entries exist only in monitored_matches (not in the matches table), so
+  // a plain INNER JOIN on matches would silently skip them and they would never expire.
   const expiredSubscriptions = await query<{ match_id: string }>(
     `DELETE FROM user_watch_subscriptions s
-      USING matches m
-      WHERE m.match_id::text = s.match_id
-        AND m.date IS NOT NULL
-        AND m.kickoff IS NOT NULL
-        AND (COALESCE(m.kickoff_at_utc, ((m.date + m.kickoff) AT TIME ZONE $2)) + $1 * INTERVAL '1 minute') < NOW()
-        AND m.status <> ALL($3)
+      USING monitored_matches mm
+      LEFT JOIN matches m ON m.match_id::text = mm.match_id
+      WHERE mm.match_id = s.match_id
+        AND COALESCE(
+          m.kickoff_at_utc,
+          NULLIF(mm.metadata->>'kickoff_at_utc', '')::timestamptz,
+          CASE
+            WHEN COALESCE(m.date, NULLIF(mm.metadata->>'date', '')::date) IS NOT NULL
+             AND COALESCE(m.kickoff, NULLIF(mm.metadata->>'kickoff', '')::time) IS NOT NULL
+            THEN (
+              COALESCE(m.date, NULLIF(mm.metadata->>'date', '')::date)
+              + COALESCE(m.kickoff, NULLIF(mm.metadata->>'kickoff', '')::time)
+            ) AT TIME ZONE $2
+            ELSE NULL
+          END
+        ) + $1 * INTERVAL '1 minute' < NOW()
+        AND COALESCE(m.status, 'NS') <> ALL($3)
       RETURNING s.match_id`,
     [cutoffMinutes, config.timezone, LIVE_MATCH_STATUSES],
   );
@@ -878,14 +892,27 @@ export async function expireOldEntries(cutoffMinutes: number = 120): Promise<num
     await refreshSubscriberCount(matchId);
   }
 
+  // For monitored_matches: kickoff data is already in metadata (via backfill + syncWatchlistDates).
+  // Use a NOT EXISTS guard to keep any match the live-monitor still considers active.
   const monitoredResult = await query(
     `DELETE FROM monitored_matches mm
-      USING matches m
-      WHERE m.match_id::text = mm.match_id
-        AND m.date IS NOT NULL
-        AND m.kickoff IS NOT NULL
-        AND (COALESCE(m.kickoff_at_utc, ((m.date + m.kickoff) AT TIME ZONE $2)) + $1 * INTERVAL '1 minute') < NOW()
-        AND m.status <> ALL($3)
+      WHERE COALESCE(
+          NULLIF(mm.metadata->>'kickoff_at_utc', '')::timestamptz,
+          CASE
+            WHEN NULLIF(mm.metadata->>'date', '')::date IS NOT NULL
+             AND NULLIF(mm.metadata->>'kickoff', '')::time IS NOT NULL
+            THEN (
+              NULLIF(mm.metadata->>'date', '')::date
+              + NULLIF(mm.metadata->>'kickoff', '')::time
+            ) AT TIME ZONE $2
+            ELSE NULL
+          END
+        ) + $1 * INTERVAL '1 minute' < NOW()
+        AND NOT EXISTS (
+          SELECT 1 FROM matches m
+          WHERE m.match_id::text = mm.match_id
+            AND m.status = ANY($3)
+        )
         AND NOT EXISTS (
           SELECT 1
           FROM user_watch_subscriptions s
