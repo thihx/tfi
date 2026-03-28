@@ -1350,7 +1350,10 @@ ODDS_SOURCE: ${data.oddsSource}
 ODDS_FETCHED_AT: ${data.oddsFetchedAt ?? 'unknown'} (match minute at fetch: ${data.minute})
 CURRENT_TOTAL_GOALS: ${data.currentTotalGoals}
 CURRENT_TOTAL_CORNERS: ${currentTotalCorners}
-${data.oddsSource === 'reference-prematch' ? 'REFERENCE_PREMATCH_ODDS: use as baseline reference, not as live odds.\n' : ''}${data.oddsSource === 'fallback-live' ? 'FALLBACK_LIVE_ODDS: fallback live snapshot may lag slightly.\n' : ''}${!data.oddsAvailable ? 'Treat odds as unavailable and be conservative.\n' : ''}${!data.oddsSuspicious && oddsSanityWarnings.length > 0 ? `ODDS SANITY NOTES:\n${oddsSanityWarnings.map((w) => '- ' + w).join('\n')}
+${data.oddsSource === 'reference-prematch' ? `REFERENCE_PREMATCH_ODDS: These are static pre-match lines from European bookmakers (Pinnacle, Bet365, etc.), captured before or early in the match. They do NOT reflect the current live market.
+WARNING: For Asian live bookmakers (K88, SBO, Pinnacle Asia, IBC), the actual live O/U line at this moment is typically 0.5–1.5 goals LOWER than the pre-match line shown here, because they quote remaining-goals lines that account for goals already scored and time elapsed.
+ACTION: Do NOT recommend O/U or Asian Handicap bets based on these pre-match lines. If you must recommend, explicitly state the uncertainty and tell the user to verify the current live line at their bookmaker before placing.
+` : ''}${data.oddsSource === 'fallback-live' ? 'FALLBACK_LIVE_ODDS: fallback live snapshot may lag slightly.\n' : ''}${!data.oddsAvailable ? 'Treat odds as unavailable and be conservative.\n' : ''}${!data.oddsSuspicious && oddsSanityWarnings.length > 0 ? `ODDS SANITY NOTES:\n${oddsSanityWarnings.map((w) => '- ' + w).join('\n')}
 Use these notes as market-level restrictions, not a reason to discard the entire odds feed.\n` : ''}${data.oddsSuspicious ? `ODDS SANITY FAILED:\n${oddsSanityWarnings.map((w) => '- ' + w).join('\n')}
 Treat odds as unreliable and behave as if ODDS_AVAILABLE=false.
 ` : ''}ODDS RULE: canonical odds are already filtered; never infer missing markets and never invent prices.

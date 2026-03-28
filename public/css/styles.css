@@ -319,6 +319,9 @@ body {
     justify-content: space-between;
     align-items: center;
     flex-shrink: 0;
+    position: sticky;
+    top: 0;
+    z-index: 200;
 }
 
 .header::before { display: none; }
@@ -3511,9 +3514,8 @@ tbody tr.date-group-row:hover {
   font-size: 11px;
   color: var(--gray-500, #6c757d);
   margin-top: 1px;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  white-space: normal;
+  line-height: 1.5;
 }
 
 .job-run-count {

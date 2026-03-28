@@ -239,7 +239,7 @@ function AppContent() {
         </div>
       ) : (
         /* ── Desktop: sidebar layout ── */
-        <div style={{ display: 'flex', minHeight: '100vh', background: 'var(--gray-50)' }}>
+        <div style={{ display: 'flex', height: '100vh', overflow: 'hidden', background: 'var(--gray-50)' }}>
           <Sidebar
             activeTab={activeTab}
             onTabChange={setActiveTab}
@@ -247,9 +247,9 @@ function AppContent() {
             onToggle={() => setSidebarCollapsed((c) => !c)}
           />
 
-          <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column' }}>
+          <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', height: '100vh', overflow: 'hidden' }}>
             <Header activeTab={activeTab} onLogout={logout} user={user} />
-            <div style={{ flex: 1, padding: '20px', minWidth: 0, overflow: 'auto' }}>
+            <div style={{ flex: 1, padding: '20px', minWidth: 0, overflowY: 'auto' }}>
               <Suspense fallback={<TabFallback />}>{renderTab()}</Suspense>
             </div>
           </div>

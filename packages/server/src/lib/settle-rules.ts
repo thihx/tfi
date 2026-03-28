@@ -101,6 +101,12 @@ export function settleByRule(input: SettleInput): SettleOutput | null {
   const market = normalizeMarket(input.selection, input.market);
   const totalGoals = input.homeScore + input.awayScore;
 
+  // Card markets must be checked before over/under — the normalizer may strip
+  // "cards" from the market string, causing it to look like a goals total.
+  if (looksLikeCardsMarket(input.market, input.selection)) {
+    return null; // always AI — card markets need stats context
+  }
+
   const overMatch = market.match(/^over_(\d+(?:\.\d+)?)$/);
   if (overMatch) {
     const line = parseFloat(overMatch[1]!);
@@ -171,10 +177,6 @@ export function settleByRule(input: SettleInput): SettleOutput | null {
     const side = marketMatch?.[1] === 'under' || /under/i.test(input.selection) ? 'under' : 'over';
     const result = settleTotalMarket(totalCorners, line, side);
     return result ? { result, explanation: explainTotalResult(totalCorners, line, result) } : null;
-  }
-
-  if (looksLikeCardsMarket(market, input.selection)) {
-    return null; // always AI — card markets need stats context
   }
 
   if (market.startsWith('asian_handicap')) {

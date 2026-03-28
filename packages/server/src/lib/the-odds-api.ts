@@ -68,6 +68,12 @@ type CachedValue<T> = {
 const sportEventsCache = new Map<string, CachedValue<TheOddsEvent[]>>();
 const eventOddsCache = new Map<string, CachedValue<TheOddsEvent>>();
 
+// Rate limit: block all requests for 5 minutes after a 429
+let rateLimitedUntil = 0;
+
+// In-flight dedup: prevent parallel fetches for the same sport key
+const inFlightEvents = new Map<string, Promise<TheOddsEvent[]>>();
+
 // ==================== Types ====================
 
 export interface TheOddsEvent {
@@ -299,6 +305,8 @@ function cacheSet<T>(cache: Map<string, CachedValue<T>>, key: string, value: T, 
 export function clearTheOddsCaches(): void {
   sportEventsCache.clear();
   eventOddsCache.clear();
+  rateLimitedUntil = 0;
+  inFlightEvents.clear();
 }
 
 // ==================== Matching ====================
@@ -410,7 +418,10 @@ async function fetchJson<T>(url: URL): Promise<T> {
 
     if (!res.ok) {
       if (res.status === 401) throw new Error('THE_ODDS_API_KEY invalid');
-      if (res.status === 429) throw new Error('The Odds API rate limited');
+      if (res.status === 429) {
+        rateLimitedUntil = Date.now() + 5 * 60 * 1000; // block for 5 min
+        throw new Error('The Odds API rate limited');
+      }
       throw new Error(`The Odds API ${res.status}`);
     }
 
@@ -425,6 +436,12 @@ async function fetchEventsForSport(
   kickoffTimestamp?: number,
   status?: string,
 ): Promise<TheOddsEvent[]> {
+  if (Date.now() < rateLimitedUntil) throw new Error('The Odds API rate limited');
+
+  // Dedup: if a fetch for this sport key is already in-flight, wait for it
+  const existing = inFlightEvents.get(sportKey);
+  if (existing) return existing;
+
   const url = new URL(`${config.theOddsApiBaseUrl}/sports/${sportKey}/events`);
   url.searchParams.set('apiKey', config.theOddsApiKey);
   url.searchParams.set('dateFormat', 'iso');
@@ -433,7 +450,11 @@ async function fetchEventsForSport(
   if (from) url.searchParams.set('commenceTimeFrom', from);
   if (to) url.searchParams.set('commenceTimeTo', to);
 
-  return fetchJson<TheOddsEvent[]>(url);
+  const promise = fetchJson<TheOddsEvent[]>(url).finally(() => {
+    inFlightEvents.delete(sportKey);
+  });
+  inFlightEvents.set(sportKey, promise);
+  return promise;
 }
 
 async function fetchEventOddsForMatch(sportKey: string, eventId: string): Promise<TheOddsEvent | null> {

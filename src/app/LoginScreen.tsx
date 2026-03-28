@@ -6,9 +6,9 @@ interface LoginScreenProps {
 }
 
 const STATS = [
-  { label: '1,000+ Leagues & Matches' },
-  { label: 'Live AI in < 2s' },
-  { label: '24/7 Automated Monitoring' },
+  { label: '1,000+ Leagues' },
+  { label: 'AI in < 2s' },
+  { label: '24/7 Monitoring' },
 ];
 
 const FEATURES = [
@@ -18,8 +18,8 @@ const FEATURES = [
         <line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/>
       </svg>
     ),
-    title: 'Data Over Emotion',
-    desc: 'Every bet backed by real-time stats, form analysis, and AI probability scoring — never by gut feeling.',
+    title: 'Data, Not Guesswork',
+    desc: 'Every bet is backed by live stats and AI analysis — no gut feeling.',
   },
   {
     icon: (
@@ -27,8 +27,8 @@ const FEATURES = [
         <polyline points="22 7 13.5 15.5 8.5 10.5 2 17"/><polyline points="16 7 22 7 22 13"/>
       </svg>
     ),
-    title: 'Bankroll That Compounds',
-    desc: 'Systematic capital management protects your stake and builds consistent returns over time.',
+    title: 'Grow Your Bankroll',
+    desc: 'Smart stake sizing protects your money and builds steady returns.',
   },
   {
     icon: (
@@ -36,8 +36,8 @@ const FEATURES = [
         <circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>
       </svg>
     ),
-    title: 'Zero Minutes on the Couch',
-    desc: 'TFI monitors every live match 24/7. Get the edge without sitting through 90 minutes.',
+    title: 'No Match Watching',
+    desc: 'TFI watches every live match for you. No more sitting through 90 minutes.',
   },
   {
     icon: (
@@ -45,8 +45,8 @@ const FEATURES = [
         <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/>
       </svg>
     ),
-    title: 'Event-Triggered Precision',
-    desc: 'Set conditions on in-game events — goals, cards, minute marks — and bet at exactly the right moment.',
+    title: 'Bet at the Right Moment',
+    desc: 'Set triggers on goals, cards, or match time — AI places the bet automatically.',
   },
   {
     icon: (
@@ -54,8 +54,8 @@ const FEATURES = [
         <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/>
       </svg>
     ),
-    title: 'Your Time, Reclaimed',
-    desc: 'Trade match-watching hours for the things that matter most. Your AI assistant never takes a day off.',
+    title: 'Get Your Time Back',
+    desc: 'Stop watching matches. Do what you love — your AI never takes a break.',
   },
 ];
 
@@ -116,7 +116,7 @@ export function LoginScreen({ onLogin, error }: LoginScreenProps) {
           }} />
 
           {/* Logo */}
-          <div style={{ position: 'relative', marginBottom: '52px' }}>
+          <div style={{ position: 'relative', marginBottom: '32px' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
               <div style={{
                 width: '38px', height: '38px', borderRadius: '9px',
@@ -137,22 +137,22 @@ export function LoginScreen({ onLogin, error }: LoginScreenProps) {
           </div>
 
           {/* Headline */}
-          <div style={{ position: 'relative', marginBottom: '24px' }}>
+          <div style={{ position: 'relative', marginBottom: '16px' }}>
             <h1 style={{
               color: '#f9fafb', fontSize: '34px', fontWeight: 800,
-              lineHeight: 1.2, letterSpacing: '-0.8px', margin: '0 0 14px',
+              lineHeight: 1.2, letterSpacing: '-0.8px', margin: '0 0 12px',
             }}>
               Stop Watching Matches.<br />
               <span style={{ color: '#f59e0b' }}>Start Profiting.</span>
             </h1>
-            <p style={{ color: 'rgba(255,255,255,0.45)', fontSize: '14px', lineHeight: 1.65, margin: 0, maxWidth: '400px' }}>
-              Your AI betting expert monitors every match, crunches the numbers, and acts at the perfect moment — so you can live your life.
+            <p style={{ color: 'rgba(255,255,255,0.45)', fontSize: '13.5px', lineHeight: 1.6, margin: 0, maxWidth: '380px' }}>
+              AI monitors every live match and acts at the right moment — so you can focus on what matters.
             </p>
           </div>
 
           {/* Stat strip */}
           <div style={{
-            position: 'relative', display: 'flex', gap: '8px', flexWrap: 'wrap', marginBottom: '20px',
+            position: 'relative', display: 'flex', gap: '8px', flexWrap: 'wrap', marginBottom: '14px',
           }}>
             {STATS.map((s) => (
               <span key={s.label} style={{
@@ -194,19 +194,6 @@ export function LoginScreen({ onLogin, error }: LoginScreenProps) {
             ))}
           </div>
 
-          {/* Closing tagline */}
-          <div style={{
-            position: 'relative', marginTop: '20px',
-            padding: '12px 16px',
-            borderRadius: '10px',
-            background: 'rgba(245,158,11,0.05)',
-            border: '1px solid rgba(245,158,11,0.12)',
-            textAlign: 'center',
-          }}>
-            <span style={{ color: '#f59e0b', fontSize: '12.5px', fontWeight: 600, letterSpacing: '0.02em' }}>
-              Your AI Betting Expert. Always On.
-            </span>
-          </div>
         </div>
       )}
 
