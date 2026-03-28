@@ -107,7 +107,8 @@ export function MatchesTab() {
   // flashMap: key → generation counter; incrementing forces CSS animation restart via `key` prop
   const [flashMap, setFlashMap] = useState<Map<string, number>>(new Map());
   const prevMatchesRef = useRef<Map<string, Match>>(new Map());
-  const flashTidsRef = useRef<ReturnType<typeof setTimeout>[]>([]);
+  // Per-key cleanup timers: new event for same key cancels the previous timer.
+  const flashTidsRef = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
 
   useEffect(() => {
     const prevMap = prevMatchesRef.current;
@@ -146,15 +147,21 @@ export function MatchesTab() {
           changes.forEach((k) => next.set(k, (next.get(k) ?? 0) + 1));
           return next;
         });
-        // Clean up after animations finish (goal: 3.5s, cards: 2.5s → use 8s to be safe)
-        const tid = setTimeout(() => {
-          setFlashMap((prev) => {
-            const next = new Map(prev);
-            changes.forEach((k) => next.delete(k));
-            return next;
-          });
-        }, 8000);
-        flashTidsRef.current.push(tid);
+        // Per-key cleanup: if the same event fires again before the 8s window,
+        // cancel the previous timer and start a fresh 8s window for that key.
+        changes.forEach((k) => {
+          const existing = flashTidsRef.current.get(k);
+          if (existing !== undefined) clearTimeout(existing);
+          const tid = setTimeout(() => {
+            setFlashMap((prev) => {
+              const next = new Map(prev);
+              next.delete(k);
+              return next;
+            });
+            flashTidsRef.current.delete(k);
+          }, 8000);
+          flashTidsRef.current.set(k, tid);
+        });
       }
     }
 
@@ -162,7 +169,7 @@ export function MatchesTab() {
   }, [matches]);
 
   // Clean up flash timeouts on unmount
-  useEffect(() => () => { flashTidsRef.current.forEach(clearTimeout); }, []);
+  useEffect(() => () => { flashTidsRef.current.forEach(clearTimeout); flashTidsRef.current.clear(); }, []);
 
   // Refresh on mount
   useEffect(() => { void loadAllDataRef.current(true); }, []);
