@@ -4,6 +4,7 @@ import { useAppState } from '@/hooks/useAppState';
 import { useToast } from '@/hooks/useToast';
 import { useUiLanguage } from '@/hooks/useUiLanguage';
 import { useUserTimeZone } from '@/hooks/useUserTimeZone';
+import { useViewMode } from '@/hooks/useViewMode';
 import { Pagination } from '@/components/ui/Pagination';
 import { StatusBadge } from '@/components/ui/StatusBadge';
 import { AiAnalysisPanel, type AiAnalysisPanelEntry } from '@/components/ui/AiAnalysisPanel';
@@ -58,7 +59,7 @@ export function MatchesTab() {
   const [pendingAdds, setPendingAdds] = useState<Set<string>>(new Set());
   const [analyzingMatches, _setAnalyzingMatches] = useState<Set<string>>(() => new Set(_matchesTabStore.analyzingMatches));
   const [aiResults, _setAiResults] = useState<Map<string, AiResultEntry>>(() => new Map(_matchesTabStore.aiResults));
-  const [viewMode, setViewMode] = useState<'table' | 'cards'>('table');
+  const [viewMode, setViewMode] = useViewMode('viewMode:matches');
   const [scoutMatch, setScoutMatch] = useState<Match | null>(null);
   const [lastAddedResultId, setLastAddedResultId] = useState<string | null>(null);
   const aiResultsRef = useRef<HTMLDivElement>(null);
