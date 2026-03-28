@@ -7,11 +7,6 @@ import {
   type TheOddsLiveTrace,
 } from './the-odds-api.js';
 import {
-  fetchSbobetMatchOdds,
-  sbobetOddsToBookmakerEntry,
-  type SbobetOddsLine,
-} from './sbobet-extractor.js';
-import {
   extractStatusCode,
   recordProviderOddsSampleSafe,
 } from './provider-sampling.js';
@@ -22,8 +17,8 @@ import {
   type UpsertProviderOddsCacheInput,
 } from '../repos/provider-odds-cache.repo.js';
 
-export type ResolvedOddsSource = 'live' | 'sbobet-live' | 'fallback-live' | 'reference-prematch' | 'none';
-type ProviderOddsSource = 'sbobet-live' | 'api-football-live' | 'the-odds-live' | 'api-football-prematch' | 'none';
+export type ResolvedOddsSource = 'live' | 'fallback-live' | 'reference-prematch' | 'none';
+type ProviderOddsSource = 'api-football-live' | 'the-odds-live' | 'api-football-prematch' | 'none';
 export type ResolveMatchOddsFreshness = 'fresh' | 'stale_ok' | 'stale_degraded' | 'missing';
 export type ResolveMatchOddsCacheStatus = 'hit' | 'refreshed' | 'stale_fallback' | 'miss';
 
@@ -51,7 +46,6 @@ export interface ResolveMatchOddsResult {
 export interface ResolveMatchOddsDeps {
   fetchLiveOdds?: (fixtureId: string) => Promise<unknown[]>;
   fetchPreMatchOdds?: (fixtureId: string) => Promise<unknown[]>;
-  fetchSbobetOdds?: (homeTeam: string, awayTeam: string) => Promise<SbobetOddsLine | null>;
   fetchTheOddsLiveDetailed?: (
     homeTeam: string,
     awayTeam: string,
@@ -84,7 +78,6 @@ type NormalizedOddsEntry = {
 };
 
 const defaultResolveDeps: ResolveMatchOddsDeps = {
-  fetchSbobetOdds: fetchSbobetMatchOdds,
   fetchLiveOdds,
   fetchPreMatchOdds,
   fetchTheOddsLiveDetailed,
@@ -173,8 +166,6 @@ function summarizeNormalizedOdds(response: unknown[]): Record<string, unknown> {
 
 function mapProviderSourceToResolved(providerSource: ProviderOddsSource): ResolvedOddsSource {
   switch (providerSource) {
-    case 'sbobet-live':
-      return 'sbobet-live';
     case 'api-football-live':
       return 'live';
     case 'the-odds-live':
@@ -354,51 +345,6 @@ async function resolveMatchOddsFromProviders(
   nowIso: () => string,
 ): Promise<ProviderResolution> {
 
-  // ── Step 0: SBOBET live odds (Asian live lines, most accurate for in-play) ──
-  if (resolvedDeps.fetchSbobetOdds && input.homeTeam && input.awayTeam) {
-    const sboStartedAt = Date.now();
-    let sboLine: Awaited<ReturnType<typeof fetchSbobetMatchOdds>> = null;
-    let sboError: unknown = null;
-    try {
-      sboLine = await resolvedDeps.fetchSbobetOdds(input.homeTeam, input.awayTeam);
-    } catch (err) {
-      sboError = err;
-    }
-    const sboResponse = sboLine ? [sbobetOddsToBookmakerEntry(sboLine)] : [];
-    const sboUsable = hasUsableBookmakers(sboResponse);
-    if (isSamplingEnabled(input)) {
-      void recordProviderOddsSampleSafe({
-        ...sampleBase(input),
-        provider: 'sbobet',
-        source: 'sbobet-live',
-        success: !sboError && sboLine != null,
-        usable: sboUsable,
-        latency_ms: Date.now() - sboStartedAt,
-        status_code: sboError ? extractStatusCode(sboError) : null,
-        error: sboError
-          ? (sboError instanceof Error ? sboError.message : String(sboError))
-          : sboUsable ? '' : 'SBO_MATCH_NOT_FOUND',
-        raw_payload: sboLine ?? {},
-        normalized_payload: sboResponse,
-        coverage_flags: summarizeNormalizedOdds(sboResponse),
-      });
-    }
-    if (sboUsable) {
-      return {
-        result: {
-          oddsSource: 'sbobet-live',
-          response: sboResponse,
-          oddsFetchedAt: sboLine!.fetchedAt,
-          freshness: 'fresh',
-          cacheStatus: 'refreshed',
-        },
-        providerSource: 'sbobet-live',
-        lastError: '',
-      };
-    }
-  }
-
-  // ── Step 1: API-Football live odds ────────────────────────────────────────
   const liveStartedAt = Date.now();
   let liveRaw: unknown[] = [];
   let liveError: unknown = null;

@@ -1556,7 +1556,7 @@ ${JSON.stringify(data.derivedInsights)}
 These insights are DERIVED from match events. Reduce confidence by 1 compared to full stats.
 ` : ''}
 ========================
-${!data.oddsAvailable ? 'NO USABLE ODDS AVAILABLE' : data.oddsSource === 'reference-prematch' ? 'PRE-MATCH ODDS (REFERENCE ONLY)' : data.oddsSource === 'sbobet-live' ? 'LIVE ODDS — SBOBET (ASIAN REMAINING-GOALS LINE)' : data.oddsSource === 'fallback-live' ? 'LIVE ODDS (fallback live source)' : 'LIVE ODDS SNAPSHOT (CANONICAL JSON)'}
+${!data.oddsAvailable ? 'NO USABLE ODDS AVAILABLE' : data.oddsSource === 'reference-prematch' ? 'PRE-MATCH ODDS (REFERENCE ONLY)' : data.oddsSource === 'fallback-live' ? 'LIVE ODDS (fallback live source)' : 'LIVE ODDS SNAPSHOT (CANONICAL JSON)'}
 ========================
 ${JSON.stringify(data.oddsCanonical)}
 
@@ -1565,7 +1565,7 @@ ODDS_SOURCE: ${data.oddsSource}
 ODDS_FETCHED_AT: ${data.oddsFetchedAt ?? 'unknown'} (match minute at fetch: ${data.minute})
 CURRENT_TOTAL_GOALS: ${data.currentTotalGoals}
 CURRENT_TOTAL_CORNERS: ${currentTotalCorners}
-${data.oddsSource === 'sbobet-live' ? '\nSBOBET_LIVE_ODDS: These are real-time Asian live lines from SBOBET. The O/U line quoted is REMAINING GOALS for the rest of the match (not full-game total). Use them directly — no adjustment needed.\n' : ''}${data.oddsSource === 'reference-prematch' ? '\nCAUTION: These are PRE-MATCH opening odds fetched before kickoff. Live odds are unavailable for this match.\nYou CAN still use them as a baseline for market direction and value, but adjust confidence based on the current game state.\n' : ''}${data.oddsSource === 'fallback-live' ? '\nNOTE: These odds are from a fallback live source. They may lag slightly versus the primary live feed.\n' : ''}${!data.oddsAvailable ? '\nNO_USABLE_ODDS: Treat odds as unavailable and be conservative.\n' : ''}${!data.oddsSuspicious && oddsSanityWarnings.length > 0 ? `\nODDS SANITY NOTES:\n${oddsSanityWarnings.map((w) => '- ' + w).join('\n')}\nTreat these as market-specific restrictions, not a reason to discard the entire odds feed.\n` : ''}${data.oddsSuspicious ? `\nODDS SANITY CHECK FAILED:\n${oddsSanityWarnings.map((w) => '- ' + w).join('\n')}\nTreat ALL odds as UNRELIABLE. Behave as if ODDS_AVAILABLE = false.\n` : ''}
+${data.oddsSource === 'reference-prematch' ? '\nCAUTION: These are PRE-MATCH opening odds fetched before kickoff. Live odds are unavailable for this match.\nYou CAN still use them as a baseline for market direction and value, but adjust confidence based on the current game state.\n' : ''}${data.oddsSource === 'fallback-live' ? '\nNOTE: These odds are from a fallback live source. They may lag slightly versus the primary live feed.\n' : ''}${!data.oddsAvailable ? '\nNO_USABLE_ODDS: Treat odds as unavailable and be conservative.\n' : ''}${!data.oddsSuspicious && oddsSanityWarnings.length > 0 ? `\nODDS SANITY NOTES:\n${oddsSanityWarnings.map((w) => '- ' + w).join('\n')}\nTreat these as market-specific restrictions, not a reason to discard the entire odds feed.\n` : ''}${data.oddsSuspicious ? `\nODDS SANITY CHECK FAILED:\n${oddsSanityWarnings.map((w) => '- ' + w).join('\n')}\nTreat ALL odds as UNRELIABLE. Behave as if ODDS_AVAILABLE = false.\n` : ''}
 ODDS METHODOLOGY:
 - Odds are the BEST available across multiple bookmakers (highest price per outcome).
 - Markets with invalid implied-probability margins have been PRE-REMOVED by the system.
