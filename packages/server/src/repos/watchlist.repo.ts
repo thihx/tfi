@@ -817,6 +817,14 @@ export async function deleteWatchlistEntry(matchId: string, userId: string): Pro
   );
   if ((result.rowCount ?? 0) > 0) {
     await refreshSubscriberCount(matchId);
+    // Remove monitored_matches row when no subscribers remain — prevents orphaned
+    // entries from being picked up by the pipeline as if they were still active.
+    await query(
+      `DELETE FROM monitored_matches
+        WHERE match_id = $1
+          AND (SELECT COUNT(*) FROM user_watch_subscriptions WHERE match_id = $1) = 0`,
+      [matchId],
+    );
     return true;
   }
 
