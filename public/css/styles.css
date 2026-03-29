@@ -246,8 +246,17 @@ body {
 }
 
 .bottom-nav-icon {
-    font-size: 20px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 20px;
+    height: 20px;
     line-height: 1;
+}
+
+.bottom-nav-icon svg {
+    width: 20px;
+    height: 20px;
 }
 
 .bottom-nav-label {
@@ -302,10 +311,17 @@ body {
 }
 
 .bottom-nav-drawer-icon {
-    font-size: 20px;
-    line-height: 1;
-    width: 28px;
-    text-align: center;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 24px;
+    height: 24px;
+    flex-shrink: 0;
+}
+
+.bottom-nav-drawer-icon svg {
+    width: 20px;
+    height: 20px;
 }
 
 /* ==================== HEADER ==================== */
