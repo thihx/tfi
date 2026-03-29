@@ -287,15 +287,11 @@ export function AppProvider({ children }: { children: ReactNode }) {
         }
         return null;
       });
-      if (deleteTargets.some((target) => target == null)) {
-        dispatch({ type: 'ADD_WATCHLIST_ITEMS', payload: previous });
-        return false;
-      }
+      // Items that couldn't be resolved are already gone (expired/deleted server-side) — treat as success.
+      const resolvableTargets = deleteTargets.filter((target): target is { id: number; match_id: string } => target != null);
+      if (resolvableTargets.length === 0) return true;
 
-      const result = await api.deleteWatchlistItems(
-        config,
-        deleteTargets.filter((target): target is { id: number; match_id: string } => target != null),
-      );
+      const result = await api.deleteWatchlistItems(config, resolvableTargets);
       if (result.deletedCount !== undefined && result.deletedCount >= 0) return true;
       dispatch({ type: 'ADD_WATCHLIST_ITEMS', payload: previous });
       return false;

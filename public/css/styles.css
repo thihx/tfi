@@ -3361,6 +3361,14 @@ table td:last-child, table th:last-child {
     .leagues-table .league-teams-row td {
         display: table-cell !important;
     }
+    /* Keep col 1 (indent) hidden to align with league rows (checkbox also hidden) */
+    .leagues-table .league-teams-row td:nth-child(1) {
+        display: none !important;
+    }
+    /* Move indent accent border to logo cell (col 2) on mobile */
+    .leagues-table .league-teams-row td:nth-child(2) {
+        border-left: 3px solid var(--blue-200);
+    }
 
     .leagues-table table {
         max-width: none;
