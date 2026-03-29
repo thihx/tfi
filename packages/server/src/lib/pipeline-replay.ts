@@ -302,6 +302,11 @@ export async function runReplayScenario(
   const dependencies: NonNullable<Parameters<typeof runPipelineForFixture>[3]>['dependencies'] = {
     fetchFixtureStatistics: async () => scenario.statistics ?? [],
     fetchFixtureEvents: async () => scenario.events ?? [],
+    ensureMatchInsight: async () => ({
+      fixture: { payload: scenario.fixture, freshness: 'fresh', cacheStatus: 'hit', cachedAt: null, fetchedAt: null, degraded: false },
+      statistics: { payload: scenario.statistics ?? [], freshness: 'fresh', cacheStatus: 'hit', cachedAt: null, fetchedAt: null, degraded: false },
+      events: { payload: scenario.events ?? [], freshness: 'fresh', cacheStatus: 'hit', cachedAt: null, fetchedAt: null, degraded: false },
+    }),
   };
 
   if (oddsMode === 'recorded') {

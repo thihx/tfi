@@ -167,6 +167,7 @@ async function loadPipelineSettings(): Promise<PipelineSettings> {
 const defaultPipelineDeps = {
   fetchFixtureStatistics,
   fetchFixtureEvents,
+  ensureMatchInsight,
   resolveMatchOdds,
   getRecommendationsByMatchId,
   getLatestSnapshot,
@@ -1926,7 +1927,7 @@ async function processMatch(
 
     // 1. Read stats + events via the provider insight cache boundary
     const statsStartedAt = Date.now();
-    const insight = await ensureMatchInsight(matchId, {
+    const insight = await deps.ensureMatchInsight(matchId, {
       fixture,
       status,
       matchMinute: minute,

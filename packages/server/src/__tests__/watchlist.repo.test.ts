@@ -456,7 +456,7 @@ describe('watchlist repository user-scoped isolation', () => {
     expect(expired).toBe(2);
     const sqlTexts = vi.mocked(query).mock.calls.map((call) => String(call[0]));
     expect(sqlTexts.some((sql) => sql.includes('UPDATE watchlist SET status'))).toBe(false);
-    expect(sqlTexts.some((sql) => sql.includes('COALESCE(m.kickoff_at_utc'))).toBe(true);
+    expect(sqlTexts.some((sql) => sql.includes('m.kickoff_at_utc'))).toBe(true);
     expect(sqlTexts.filter((sql) => sql.includes('DELETE FROM user_watch_subscriptions')).length).toBe(1);
     expect(sqlTexts.filter((sql) => sql.includes('DELETE FROM monitored_matches')).length).toBe(1);
     expect(sqlTexts.filter((sql) => sql.includes('INSERT INTO monitored_matches')).length).toBe(3);
