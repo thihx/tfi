@@ -73,11 +73,16 @@ export const config = {
   jobHousekeepingMs: Number(process.env['JOB_HOUSEKEEPING_MS'] || process.env['JOB_AUDIT_PURGE_MS'] || 24 * 60 * 60_000), // 24h
   jobIntegrationHealthMs: Number(process.env['JOB_INTEGRATION_HEALTH_MS'] || 30 * 60_000), // 30 min
   jobHealthWatchdogMs: Number(process.env['JOB_HEALTH_WATCHDOG_MS'] || 2 * 60_000),      // 2 min — health watchdog
-  auditKeepDays: Number(process.env['AUDIT_KEEP_DAYS'] || 30),                          // 30 days
-  matchesHistoryKeepDays: Number(process.env['MATCHES_HISTORY_KEEP_DAYS'] || 120),
+  auditKeepDays: Number(process.env['AUDIT_KEEP_DAYS'] || 30),                                      // 30 days
+  matchesHistoryKeepDays: Number(process.env['MATCHES_HISTORY_KEEP_DAYS'] || 120),                   // soft limit (pending bets/recs protected)
+  matchesHistoryHardDeleteDays: Number(process.env['MATCHES_HISTORY_HARD_DELETE_DAYS'] || 180),      // unconditional hard deadline
   providerSamplesKeepDays: Number(process.env['PROVIDER_SAMPLES_KEEP_DAYS'] || 14),
   matchSnapshotsKeepDays: Number(process.env['MATCH_SNAPSHOTS_KEEP_DAYS'] || 14),
   oddsMovementsKeepDays: Number(process.env['ODDS_MOVEMENTS_KEEP_DAYS'] || 30),
+  pipelineRunsKeepDays: Number(process.env['PIPELINE_RUNS_KEEP_DAYS'] || 14),                        // pipeline_runs detail rows
+  deliveriesKeepDays: Number(process.env['DELIVERIES_KEEP_DAYS'] || 60),                             // user_recommendation_deliveries
+  recommendationsSlimDays: Number(process.env['RECOMMENDATIONS_SLIM_DAYS'] || 90),                   // strip heavy JSONB from recommendations
+  aiPerformanceKeepDays: Number(process.env['AI_PERFORMANCE_KEEP_DAYS'] || 90),                      // aggregate+purge ai_performance detail rows
 
   // Live match statuses
   liveStatuses: (process.env['LIVE_STATUSES'] || '1H,2H').split(',').map(s => s.trim()),

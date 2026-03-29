@@ -309,7 +309,8 @@ export function RecommendationsTab() {
               : 'User-scoped delivery history staged from matching watch subscriptions.'}
           </span>
         </div>
-        <div style={{ display: 'flex', alignItems: 'stretch', borderBottom: '1px solid var(--gray-200)' }}>
+        <div className="sticky-filter-bar">
+        <div style={{ display: 'flex', alignItems: 'stretch' }}>
           <div style={{ flex: 1, display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '6px', padding: '8px 12px' }}>
             <input
               ref={searchRef}
@@ -372,6 +373,7 @@ export function RecommendationsTab() {
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
             </button>
           </div>
+        </div>
         </div>
       </div>
 

@@ -104,9 +104,6 @@ function RecommendationCardBase({ rec, lang, onViewMatch }: Props) {
         <div>
           <div style={{ fontSize: '10px', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.5px', color: 'var(--gray-400)', marginBottom: '2px' }}>Selection</div>
           <div style={{ fontWeight: 600, color: 'var(--gray-900)', fontSize: '12px' }}>{rec.selection || '—'}</div>
-          {(rec.bet_market || rec.bet_type) && (
-            <div style={{ fontSize: '11px', color: 'var(--gray-500)', marginTop: '1px' }}>{rec.bet_market || rec.bet_type}</div>
-          )}
         </div>
 
         <div>
@@ -187,7 +184,10 @@ function RecommendationCardBase({ rec, lang, onViewMatch }: Props) {
             }}
             onClick={() => setWarningsExpanded((v) => !v)}
           >
-            <span style={{ fontSize: '11px', fontWeight: 600, color: '#92400e' }}>Warnings</span>
+            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: '11px', fontWeight: 600, color: '#92400e' }}>
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+              Warnings
+            </span>
             <span style={{ fontSize: '10px', color: 'var(--gray-400)' }}>{warningsExpanded ? '▲' : '▼'}</span>
           </button>
           {warningsExpanded && (
@@ -208,7 +208,7 @@ function RecommendationCardBase({ rec, lang, onViewMatch }: Props) {
             }}
             onClick={() => setReasoningExpanded((v) => !v)}
           >
-            <span style={{ fontSize: '11px', fontWeight: 600, color: 'var(--gray-500)' }}>AI Reasoning</span>
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="var(--gray-400)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" title="AI Reasoning"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
             <span style={{ fontSize: '10px', color: 'var(--gray-400)' }}>{reasoningExpanded ? '▲' : '▼'}</span>
           </button>
           {reasoningExpanded && (

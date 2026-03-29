@@ -828,3 +828,25 @@ export async function markLegacyDuplicates(): Promise<{
     markedDuplicates: result.rowCount ?? 0,
   };
 }
+
+/**
+ * Strip heavy JSONB text fields (reasoning, key_factors, warnings) from
+ * recommendations older than keepDays while preserving all core bet data.
+ * Sets is_slim=TRUE and slimmed_at=NOW() so the operation is idempotent.
+ */
+export async function slimOldRecommendations(keepDays: number): Promise<number> {
+  if (keepDays <= 0) return 0;
+  const result = await query(
+    `UPDATE recommendations
+        SET reasoning    = NULL,
+            reasoning_vi = NULL,
+            key_factors  = NULL,
+            warnings     = NULL,
+            is_slim      = TRUE,
+            slimmed_at   = NOW()
+      WHERE timestamp < NOW() - INTERVAL '1 day' * $1
+        AND is_slim = FALSE`,
+    [keepDays],
+  );
+  return result.rowCount ?? 0;
+}

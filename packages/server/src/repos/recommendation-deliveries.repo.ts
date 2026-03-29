@@ -690,3 +690,12 @@ export async function updateRecommendationDeliveryFlags(
 
   return (result.rowCount ?? 0) > 0;
 }
+
+export async function purgeOldDeliveries(keepDays: number): Promise<number> {
+  if (keepDays <= 0) return 0;
+  const result = await query(
+    `DELETE FROM user_recommendation_deliveries WHERE created_at < NOW() - INTERVAL '1 day' * $1`,
+    [keepDays],
+  );
+  return result.rowCount ?? 0;
+}

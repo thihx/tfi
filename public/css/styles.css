@@ -69,6 +69,7 @@
 }
 
 :root {
+    --header-height: 52px;
     --primary: #2563eb;
     --primary-dark: #1d4ed8;
     --success: #10b981;
@@ -329,8 +330,8 @@ body {
     background: #ffffff;
     border-bottom: 1px solid var(--gray-200);
     padding: 0 24px;
-    height: 52px;
-    min-height: 52px;
+    height: var(--header-height);
+    min-height: var(--header-height);
     display: flex;
     justify-content: space-between;
     align-items: center;
@@ -338,6 +339,14 @@ body {
     position: sticky;
     top: 0;
     z-index: 200;
+}
+
+.sticky-filter-bar {
+    position: sticky;
+    top: var(--header-height);
+    z-index: 100;
+    background: #fff;
+    border-bottom: 1px solid var(--gray-200);
 }
 
 .header::before { display: none; }

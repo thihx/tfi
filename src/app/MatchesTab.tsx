@@ -459,18 +459,20 @@ export function MatchesTab() {
 
   return (
     <div className="card">
-      {/* Date tab shortcuts */}
-      <div style={{ display: 'flex', gap: '6px', padding: '8px 12px', borderBottom: '1px solid var(--gray-200)', alignItems: 'center', flexWrap: 'wrap' }}>
-        <button style={tabBtn(activeDateTab === 'all')} onClick={() => { setDateFrom(''); setDateTo(''); }}>All</button>
-        {hasYesterday && (
-          <button style={tabBtn(activeDateTab === 'yesterday')} onClick={() => { setDateFrom(dateYesterday); setDateTo(dateYesterday); }}>Yesterday</button>
-        )}
-        <button style={tabBtn(activeDateTab === 'today')} onClick={() => { setDateFrom(dateToday); setDateTo(dateToday); }}>Today</button>
-        <button style={tabBtn(activeDateTab === 'tomorrow')} onClick={() => { setDateFrom(dateTomorrow); setDateTo(dateTomorrow); }}>Tomorrow</button>
-        <span style={{ marginLeft: 'auto', fontSize: '12px', color: 'var(--gray-400)' }}>{filtered.length} matches</span>
-      </div>
-      {/* Toolbar: filters + view toggle */}
-      <div style={{ display: 'flex', alignItems: 'stretch', borderBottom: '1px solid var(--gray-200)' }}>
+      {/* Sticky filter bar */}
+      <div className="sticky-filter-bar">
+        {/* Date tab shortcuts */}
+        <div style={{ display: 'flex', gap: '6px', padding: '8px 12px', borderBottom: '1px solid var(--gray-100)', alignItems: 'center', flexWrap: 'wrap' }}>
+          <button style={tabBtn(activeDateTab === 'all')} onClick={() => { setDateFrom(''); setDateTo(''); }}>All</button>
+          {hasYesterday && (
+            <button style={tabBtn(activeDateTab === 'yesterday')} onClick={() => { setDateFrom(dateYesterday); setDateTo(dateYesterday); }}>Yesterday</button>
+          )}
+          <button style={tabBtn(activeDateTab === 'today')} onClick={() => { setDateFrom(dateToday); setDateTo(dateToday); }}>Today</button>
+          <button style={tabBtn(activeDateTab === 'tomorrow')} onClick={() => { setDateFrom(dateTomorrow); setDateTo(dateTomorrow); }}>Tomorrow</button>
+          <span style={{ marginLeft: 'auto', fontSize: '12px', color: 'var(--gray-400)' }}>{filtered.length} matches</span>
+        </div>
+        {/* Toolbar: filters + view toggle */}
+        <div style={{ display: 'flex', alignItems: 'stretch' }}>
         <div className="filters" style={{ flex: 1, borderBottom: 'none' }}>
           <input ref={searchRef} type="text" className="filter-input" placeholder="Search teams… ( / )" value={search} onChange={(e) => handleSearchChange(e.target.value)} />
           <select className="filter-input" value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}>
@@ -509,6 +511,7 @@ export function MatchesTab() {
           >
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
           </button>
+        </div>
         </div>
       </div>
 
@@ -747,7 +750,10 @@ function MatchRow({ match, isWatched, isPending, isSelected, isAnalyzing, hasRes
         </div>
       </td>
       <td data-label="Status" className="status-cell" style={{ textAlign: 'center' }}>
-        <div className="cell-value"><StatusBadge status={match.status} /></div>
+        <div className="cell-value" style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+          <StatusBadge status={match.status} />
+          {currentMinute && <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--gray-500)' }}>{currentMinute}</span>}
+        </div>
       </td>
       <td data-label="Action" style={{ textAlign: 'center' }}>
         <div className="cell-value flex-row-gap-4 flex-center flex-wrap">

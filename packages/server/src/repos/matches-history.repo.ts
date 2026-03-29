@@ -189,9 +189,11 @@ export async function getHistoricalMatchesByDate(
   return r.rows;
 }
 
-export async function purgeHistoricalMatches(keepDays: number): Promise<number> {
+export async function purgeHistoricalMatches(keepDays: number, hardDeleteDays?: number): Promise<number> {
   if (keepDays <= 0) return 0;
-  const result = await query(
+
+  // Soft delete: respect pending recommendations and bets
+  const softResult = await query(
     `DELETE FROM matches_history mh
      WHERE mh.archived_at < NOW() - INTERVAL '1 day' * $1
        AND NOT EXISTS (
@@ -209,7 +211,18 @@ export async function purgeHistoricalMatches(keepDays: number): Promise<number> 
        )`,
     [keepDays],
   );
-  return result.rowCount ?? 0;
+  let deleted = softResult.rowCount ?? 0;
+
+  // Hard delete: unconditional cleanup beyond the absolute deadline
+  if (hardDeleteDays && hardDeleteDays > keepDays) {
+    const hardResult = await query(
+      `DELETE FROM matches_history WHERE archived_at < NOW() - INTERVAL '1 day' * $1`,
+      [hardDeleteDays],
+    );
+    deleted += hardResult.rowCount ?? 0;
+  }
+
+  return deleted;
 }
 
 function normalizeArchiveInput(

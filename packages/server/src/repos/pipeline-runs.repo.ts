@@ -56,3 +56,12 @@ export async function getRecentRuns(limit: number = 20): Promise<PipelineRunRow[
   );
   return r.rows;
 }
+
+export async function purgePipelineRuns(keepDays: number): Promise<number> {
+  if (keepDays <= 0) return 0;
+  const result = await query(
+    `DELETE FROM pipeline_runs WHERE started_at < NOW() - INTERVAL '1 day' * $1`,
+    [keepDays],
+  );
+  return result.rowCount ?? 0;
+}

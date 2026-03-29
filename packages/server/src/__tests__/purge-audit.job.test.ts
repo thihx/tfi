@@ -12,6 +12,11 @@ vi.mock('../jobs/job-progress.js', () => ({
   reportJobProgress: vi.fn(),
 }));
 
+vi.mock('../db/pool.js', () => ({
+  query: vi.fn().mockResolvedValue({ rows: [], rowCount: 0 }),
+  transaction: vi.fn(),
+}));
+
 vi.mock('../repos/audit-logs.repo.js', () => ({
   purgeAuditLogs: vi.fn().mockResolvedValue(42),
 }));
@@ -33,6 +38,18 @@ vi.mock('../repos/odds-movements.repo.js', () => ({
 vi.mock('../repos/prompt-shadow-runs.repo.js', () => ({
   purgePromptShadowRuns: vi.fn().mockResolvedValue(6),
 }));
+vi.mock('../repos/pipeline-runs.repo.js', () => ({
+  purgePipelineRuns: vi.fn().mockResolvedValue(3),
+}));
+vi.mock('../repos/recommendation-deliveries.repo.js', () => ({
+  purgeOldDeliveries: vi.fn().mockResolvedValue(15),
+}));
+vi.mock('../repos/recommendations.repo.js', () => ({
+  slimOldRecommendations: vi.fn().mockResolvedValue(20),
+}));
+vi.mock('../repos/ai-performance.repo.js', () => ({
+  aggregateAndPurgeOldAiPerformance: vi.fn().mockResolvedValue({ aggregated: 4, deleted: 8 }),
+}));
 
 const { purgeAuditJob } = await import('../jobs/purge-audit.job.js');
 
@@ -43,59 +60,79 @@ beforeEach(() => {
 describe('purgeAuditJob', () => {
   test('purges all high-growth tables using configured keepDays', async () => {
     const result = await purgeAuditJob();
-    expect(result).toEqual({
-      auditDeleted: 42,
-      matchesHistoryDeleted: 5,
-      providerStatsDeleted: 9,
-      providerOddsDeleted: 7,
-      matchSnapshotsDeleted: 11,
-      oddsMovementsDeleted: 13,
-      promptShadowDeleted: 6,
-      totalDeleted: 93,
-      keepDays: {
-        audit: 30,
-        matchesHistory: 120,
-        providerSamples: 14,
-        matchSnapshots: 14,
-        oddsMovements: 30,
-        promptShadow: 14,
-      },
+
+    expect(result.auditDeleted).toBe(42);
+    expect(result.matchesHistoryDeleted).toBe(5);
+    expect(result.providerStatsDeleted).toBe(9);
+    expect(result.providerOddsDeleted).toBe(7);
+    expect(result.matchSnapshotsDeleted).toBe(11);
+    expect(result.oddsMovementsDeleted).toBe(13);
+    expect(result.promptShadowDeleted).toBe(6);
+    expect(result.pipelineRunsDeleted).toBe(3);
+    expect(result.deliveriesDeleted).toBe(15);
+    expect(result.recommendationsSlimmed).toBe(20);
+    expect(result.aiPerfAggregated).toBe(4);
+    expect(result.aiPerfDeleted).toBe(8);
+    // totalDeleted excludes slimmed (UPDATE not DELETE) but includes aiPerfDeleted
+    expect(result.totalDeleted).toBe(42 + 5 + 9 + 7 + 11 + 13 + 6 + 3 + 15 + 8);
+
+    expect(result.keepDays).toMatchObject({
+      audit: 30,
+      matchesHistory: 120,
+      matchesHistoryHardDelete: 180,
+      providerSamples: 14,
+      matchSnapshots: 14,
+      oddsMovements: 30,
+      promptShadow: 14,
+      pipelineRuns: 14,
+      deliveries: 60,
+      recommendationsSlim: 90,
+      aiPerformance: 90,
     });
 
-    const repo = await import('../repos/audit-logs.repo.js');
-    expect(repo.purgeAuditLogs).toHaveBeenCalledWith(30);
     const historyRepo = await import('../repos/matches-history.repo.js');
-    const providerStatsRepo = await import('../repos/provider-stats-samples.repo.js');
-    const providerOddsRepo = await import('../repos/provider-odds-samples.repo.js');
-    const snapshotsRepo = await import('../repos/match-snapshots.repo.js');
-    const oddsRepo = await import('../repos/odds-movements.repo.js');
-    const promptShadowRepo = await import('../repos/prompt-shadow-runs.repo.js');
-    expect(historyRepo.purgeHistoricalMatches).toHaveBeenCalledWith(120);
-    expect(providerStatsRepo.purgeProviderStatsSamples).toHaveBeenCalledWith(14);
-    expect(providerOddsRepo.purgeProviderOddsSamples).toHaveBeenCalledWith(14);
-    expect(snapshotsRepo.purgeMatchSnapshots).toHaveBeenCalledWith(14);
-    expect(oddsRepo.purgeOddsMovements).toHaveBeenCalledWith(30);
-    expect(promptShadowRepo.purgePromptShadowRuns).toHaveBeenCalledWith(14);
+    expect(historyRepo.purgeHistoricalMatches).toHaveBeenCalledWith(120, 180);
+
+    const pipelineRepo = await import('../repos/pipeline-runs.repo.js');
+    expect(pipelineRepo.purgePipelineRuns).toHaveBeenCalledWith(14);
+
+    const deliveriesRepo = await import('../repos/recommendation-deliveries.repo.js');
+    expect(deliveriesRepo.purgeOldDeliveries).toHaveBeenCalledWith(60);
+
+    const recsRepo = await import('../repos/recommendations.repo.js');
+    expect(recsRepo.slimOldRecommendations).toHaveBeenCalledWith(90);
+
+    const aiRepo = await import('../repos/ai-performance.repo.js');
+    expect(aiRepo.aggregateAndPurgeOldAiPerformance).toHaveBeenCalledWith(90);
   });
 
   test('reports 0 when nothing to purge', async () => {
-    const repo = await import('../repos/audit-logs.repo.js');
+    const auditRepo = await import('../repos/audit-logs.repo.js');
     const historyRepo = await import('../repos/matches-history.repo.js');
     const providerStatsRepo = await import('../repos/provider-stats-samples.repo.js');
     const providerOddsRepo = await import('../repos/provider-odds-samples.repo.js');
     const snapshotsRepo = await import('../repos/match-snapshots.repo.js');
     const oddsRepo = await import('../repos/odds-movements.repo.js');
     const promptShadowRepo = await import('../repos/prompt-shadow-runs.repo.js');
-    vi.mocked(repo.purgeAuditLogs).mockResolvedValueOnce(0);
+    const pipelineRepo = await import('../repos/pipeline-runs.repo.js');
+    const deliveriesRepo = await import('../repos/recommendation-deliveries.repo.js');
+    const recsRepo = await import('../repos/recommendations.repo.js');
+    const aiRepo = await import('../repos/ai-performance.repo.js');
+    vi.mocked(auditRepo.purgeAuditLogs).mockResolvedValueOnce(0);
     vi.mocked(historyRepo.purgeHistoricalMatches).mockResolvedValueOnce(0);
     vi.mocked(providerStatsRepo.purgeProviderStatsSamples).mockResolvedValueOnce(0);
     vi.mocked(providerOddsRepo.purgeProviderOddsSamples).mockResolvedValueOnce(0);
     vi.mocked(snapshotsRepo.purgeMatchSnapshots).mockResolvedValueOnce(0);
     vi.mocked(oddsRepo.purgeOddsMovements).mockResolvedValueOnce(0);
     vi.mocked(promptShadowRepo.purgePromptShadowRuns).mockResolvedValueOnce(0);
+    vi.mocked(pipelineRepo.purgePipelineRuns).mockResolvedValueOnce(0);
+    vi.mocked(deliveriesRepo.purgeOldDeliveries).mockResolvedValueOnce(0);
+    vi.mocked(recsRepo.slimOldRecommendations).mockResolvedValueOnce(0);
+    vi.mocked(aiRepo.aggregateAndPurgeOldAiPerformance).mockResolvedValueOnce({ aggregated: 0, deleted: 0 });
 
     const result = await purgeAuditJob();
     expect(result.totalDeleted).toBe(0);
+    expect(result.recommendationsSlimmed).toBe(0);
   });
 
   test('reports progress', async () => {

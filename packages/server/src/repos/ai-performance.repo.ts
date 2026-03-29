@@ -337,6 +337,72 @@ export async function cleanAndResync(): Promise<{ deleted: number; backfilled: n
   return { deleted, backfilled };
 }
 
+/**
+ * Aggregate completed months of ai_performance rows into ai_performance_monthly,
+ * then delete the detail rows. Only processes months where the entire month is
+ * older than keepDays (i.e., month_end < NOW() - keepDays), ensuring idempotent
+ * ON CONFLICT updates don't double-count partial months.
+ */
+export async function aggregateAndPurgeOldAiPerformance(
+  keepDays: number,
+): Promise<{ aggregated: number; deleted: number }> {
+  if (keepDays <= 0) return { aggregated: 0, deleted: 0 };
+
+  const aggResult = await query<{ cnt: string }>(
+    `WITH to_agg AS (
+       SELECT *
+       FROM ai_performance
+       WHERE DATE_TRUNC('month', created_at) + INTERVAL '1 month' <= NOW() - INTERVAL '1 day' * $1
+     ),
+     monthly AS (
+       SELECT
+         DATE_TRUNC('month', created_at)::date                               AS month,
+         COALESCE(NULLIF(predicted_market, ''), 'unknown')                    AS bet_market,
+         COALESCE(NULLIF(league, ''), '')                                     AS league,
+         COUNT(*)::int                                                        AS total,
+         COUNT(*) FILTER (WHERE was_correct = TRUE)::int                     AS wins,
+         COUNT(*) FILTER (WHERE was_correct = FALSE)::int                    AS losses,
+         COUNT(*) FILTER (
+           WHERE settlement_status IN ('resolved','corrected') AND was_correct IS NULL
+         )::int                                                               AS pushes,
+         ROUND(AVG(ai_confidence)::numeric, 2)                               AS avg_confidence,
+         ROUND(AVG(predicted_odds)::numeric, 3)                              AS avg_odds,
+         ROUND(
+           CASE WHEN COUNT(*) > 0 THEN SUM(actual_pnl) / COUNT(*) * 100 ELSE 0 END::numeric, 4
+         )                                                                    AS roi_pct
+       FROM to_agg
+       GROUP BY 1, 2, 3
+     ),
+     inserted AS (
+       INSERT INTO ai_performance_monthly
+         (month, bet_market, league, total, wins, losses, pushes, avg_confidence, avg_odds, roi_pct)
+       SELECT month, bet_market, league, total, wins, losses, pushes, avg_confidence, avg_odds, roi_pct
+       FROM monthly
+       ON CONFLICT (month, bet_market, league) DO UPDATE SET
+         total          = EXCLUDED.total,
+         wins           = EXCLUDED.wins,
+         losses         = EXCLUDED.losses,
+         pushes         = EXCLUDED.pushes,
+         avg_confidence = EXCLUDED.avg_confidence,
+         avg_odds       = EXCLUDED.avg_odds,
+         roi_pct        = EXCLUDED.roi_pct
+       RETURNING 1
+     )
+     SELECT COUNT(*)::text AS cnt FROM inserted`,
+    [keepDays],
+  );
+  const aggregated = Number(aggResult.rows[0]?.cnt ?? 0);
+
+  const delResult = await query(
+    `DELETE FROM ai_performance
+     WHERE DATE_TRUNC('month', created_at) + INTERVAL '1 month' <= NOW() - INTERVAL '1 day' * $1`,
+    [keepDays],
+  );
+  const deleted = delResult.rowCount ?? 0;
+
+  return { aggregated, deleted };
+}
+
 // ============================================================
 // Historical Performance Context for AI Prompt (Feedback Loop)
 // ============================================================

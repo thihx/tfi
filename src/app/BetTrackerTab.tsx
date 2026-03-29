@@ -294,6 +294,7 @@ export function BetTrackerTab() {
         </div>
 
         {/* Filters */}
+        <div className="sticky-filter-bar">
         <div className="filters" style={{ padding: '12px 16px' }}>
           <select className="filter-input" value={resultFilter} onChange={(e) => setResultFilter(e.target.value)}>
             <option value="all">All Results</option>
@@ -311,6 +312,7 @@ export function BetTrackerTab() {
               Clear
             </button>
           )}
+        </div>
         </div>
 
         <div className="table-container">
