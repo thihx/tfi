@@ -365,7 +365,7 @@ async function getMonitoredOperationalWatchlist(
        COALESCE(ranked.priority, NULLIF(mm.metadata->>'priority', '')::int, 0) AS priority,
        COALESCE(ranked.custom_condition_text, NULLIF(mm.metadata->>'custom_conditions', '')) AS custom_condition_text,
        COALESCE(ranked.auto_apply_recommended_condition, (mm.metadata->>'auto_apply_recommended_condition')::boolean, true) AS auto_apply_recommended_condition,
-       COALESCE(ranked.status, NULLIF(mm.metadata->>'status', ''), 'active') AS status,
+       COALESCE(ranked.status, NULLIF(mm.metadata->>'status', '')) AS status,
        COALESCE(ranked.source, NULLIF(mm.metadata->>'added_by', ''), 'system') AS source,
        COALESCE(ranked.created_at::text, NULLIF(mm.metadata->>'added_at', ''), mm.last_interest_at::text) AS created_at,
        COALESCE(mm.subscriber_count, 0) AS subscriber_count,
@@ -382,7 +382,7 @@ async function getMonitoredOperationalWatchlist(
      FROM monitored_matches mm
      LEFT JOIN ranked ON ranked.match_id = mm.match_id AND ranked.row_rank = 1
      LEFT JOIN matches m ON m.match_id::text = mm.match_id
-     WHERE ($1::boolean = false OR COALESCE(ranked.status, NULLIF(mm.metadata->>'status', ''), 'active') = 'active')
+     WHERE ($1::boolean = false OR COALESCE(ranked.status, NULLIF(mm.metadata->>'status', '')) = 'active')
      ORDER BY COALESCE(ranked.priority, NULLIF(mm.metadata->>'priority', '')::int, 0) DESC,
               match_date NULLS LAST,
               match_kickoff NULLS LAST`,
