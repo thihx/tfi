@@ -410,16 +410,14 @@ export async function updateWatchlistItems(
 
 export async function deleteWatchlistItems(
   config: AppConfig,
-  items: Array<Pick<WatchlistItem, 'id' | 'match_id'>>,
+  matchIds: string[],
 ): Promise<ApiResponse<WatchlistItem>> {
-  const validItems = items.filter(
-    (item): item is { id: number; match_id: string } => typeof item.id === 'number' && item.id > 0 && !!item.match_id,
-  );
-  // async-parallel: run canonical subscription deletes concurrently
+  const validIds = matchIds.filter(Boolean);
+  // Delete by match_id — idempotent, no subscription ID lookup needed
   await Promise.all(
-    validItems.map((item) => pgDelete<{ deleted: boolean }>(config, `/api/me/watch-subscriptions/${item.id}`)),
+    validIds.map((matchId) => pgDelete<{ deleted: boolean }>(config, `/api/me/watch-subscriptions/by-match/${encodeURIComponent(matchId)}`)),
   );
-  return { resource: 'watchlist', action: 'delete', items: [], deletedCount: validItems.length };
+  return { resource: 'watchlist', action: 'delete', items: [], deletedCount: validIds.length };
 }
 
 // ==================== BETS ====================

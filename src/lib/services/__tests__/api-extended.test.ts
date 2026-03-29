@@ -146,31 +146,20 @@ describe('watchlist API', () => {
     expect(fetch).not.toHaveBeenCalled();
   });
 
-  test('deleteWatchlistItems uses canonical ID path when subscription id is available', async () => {
+  test('deleteWatchlistItems deletes by match_id via by-match route', async () => {
     globalThis.fetch = mockFetch({ deleted: true });
-    const result = await deleteWatchlistItems(config, [
-      { id: 7, match_id: '100' },
-      { id: 8, match_id: '200' },
-    ]);
+    const result = await deleteWatchlistItems(config, ['100', '200']);
     expect(result.deletedCount).toBe(2);
     expect(fetch).toHaveBeenCalledTimes(2);
     expect(fetch).toHaveBeenCalledWith(
-      'http://localhost:4000/api/me/watch-subscriptions/7',
+      'http://localhost:4000/api/me/watch-subscriptions/by-match/100',
       expect.objectContaining({ method: 'DELETE' }),
     );
   });
 
-  test('deleteWatchlistItems skips items when subscription ids are unavailable', async () => {
+  test('deleteWatchlistItems skips empty match_ids', async () => {
     globalThis.fetch = mockFetch({ deleted: true });
-    const result = await deleteWatchlistItems(config, [{ match_id: '100' } as never, { match_id: '200' } as never]);
-    expect(result.deletedCount).toBe(0);
-    expect(fetch).not.toHaveBeenCalled();
-  });
-
-  test('deleteWatchlistItems skips object targets with no subscription id', async () => {
-    globalThis.fetch = mockFetch({ deleted: true });
-    const result = await deleteWatchlistItems(config, [{ match_id: '100' }]);
-
+    const result = await deleteWatchlistItems(config, ['', '']);
     expect(result.deletedCount).toBe(0);
     expect(fetch).not.toHaveBeenCalled();
   });

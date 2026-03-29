@@ -44,6 +44,9 @@ vi.mock('../repos/watchlist.repo.js', () => ({
   deleteWatchSubscriptionById: vi.fn().mockImplementation((subscriptionId: number) =>
     subscriptionId === 7 ? Promise.resolve(true) : Promise.resolve(false),
   ),
+  deleteWatchlistEntry: vi.fn().mockImplementation((matchId: string) =>
+    matchId === '100' ? Promise.resolve(true) : Promise.resolve(false),
+  ),
   incrementChecks: vi.fn().mockResolvedValue(undefined),
   expireOldEntries: vi.fn().mockResolvedValue(5),
 }));
@@ -201,6 +204,20 @@ describe('DELETE /api/me/watch-subscriptions/:id', () => {
 
   test('returns 200 with deleted:false for unknown subscription ID (idempotent)', async () => {
     const res = await app.inject({ method: 'DELETE', url: '/api/me/watch-subscriptions/999' });
+    expect(res.statusCode).toBe(200);
+    expect(res.json().deleted).toBe(false);
+  });
+});
+
+describe('DELETE /api/me/watch-subscriptions/by-match/:matchId', () => {
+  test('deletes a subscription by match_id', async () => {
+    const res = await app.inject({ method: 'DELETE', url: '/api/me/watch-subscriptions/by-match/100' });
+    expect(res.statusCode).toBe(200);
+    expect(res.json().deleted).toBe(true);
+  });
+
+  test('returns 200 with deleted:false for unknown match_id (idempotent)', async () => {
+    const res = await app.inject({ method: 'DELETE', url: '/api/me/watch-subscriptions/by-match/999' });
     expect(res.statusCode).toBe(200);
     expect(res.json().deleted).toBe(false);
   });

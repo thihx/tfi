@@ -260,38 +260,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
     dispatch({ type: 'REMOVE_WATCHLIST_ITEMS', payload: matchIds });
 
     try {
-      const previousByMatchId = new Map(previous.map((item) => [item.match_id, item] as const));
-      const unresolvedMatchIds = matchIds.filter((matchId) => {
-        const watchItem = previousByMatchId.get(matchId);
-        return !(watchItem && typeof watchItem.id === 'number' && watchItem.id > 0);
-      });
-      const resolvedByMatchId = new Map<string, WatchlistItem>();
-
-      if (unresolvedMatchIds.length > 0) {
-        try {
-          const freshWatchlist = await api.fetchWatchlist(config);
-          freshWatchlist.forEach((watchItem) => {
-            if (unresolvedMatchIds.includes(watchItem.match_id)) {
-              resolvedByMatchId.set(watchItem.match_id, watchItem);
-            }
-          });
-        } catch {
-          // Keep compatibility delete fallback for unresolved items.
-        }
-      }
-
-      const deleteTargets = matchIds.map((matchId) => {
-        const watchItem = previousByMatchId.get(matchId) ?? resolvedByMatchId.get(matchId);
-        if (watchItem && typeof watchItem.id === 'number' && watchItem.id > 0) {
-          return { id: watchItem.id, match_id: watchItem.match_id };
-        }
-        return null;
-      });
-      // Items that couldn't be resolved are already gone (expired/deleted server-side) — treat as success.
-      const resolvableTargets = deleteTargets.filter((target): target is { id: number; match_id: string } => target != null);
-      if (resolvableTargets.length === 0) return true;
-
-      const result = await api.deleteWatchlistItems(config, resolvableTargets);
+      // Delete by match_id directly — no subscription ID lookup required
+      const result = await api.deleteWatchlistItems(config, matchIds);
       if (result.deletedCount !== undefined && result.deletedCount >= 0) return true;
       dispatch({ type: 'ADD_WATCHLIST_ITEMS', payload: previous });
       return false;
