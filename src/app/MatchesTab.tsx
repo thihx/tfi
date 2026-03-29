@@ -761,14 +761,13 @@ function MatchRow({ match, isWatched, isPending, isSelected, isAnalyzing, hasRes
           ) : isPending ? (
             <button className="btn btn-primary btn-sm watch-btn" disabled>
               <span className="inline-spinner" style={{ width: '14px', height: '14px' }} />
-              <span className="btn-text">Saving...</span>
             </button>
           ) : (
             <button className="btn btn-primary btn-sm watch-btn" onClick={onQuickAdd} title="Watch this match" aria-label="Watch this match">
               <EyeIcon />
             </button>
           )}
-          <button className={`btn ${hasResult ? 'btn-success' : 'btn-secondary'} btn-sm`} onClick={onAskAi} disabled={isAnalyzing || !isWatched} title={!isWatched ? 'Add this match to Watchlist to use Ask AI' : hasResult ? 'View cached result' : 'Ask AI for analysis'} style={{ minWidth: 36 }}>
+          <button className={`btn ${hasResult ? 'btn-success' : 'btn-secondary'} btn-sm action-icon-btn`} onClick={onAskAi} disabled={isAnalyzing || !isWatched} title={!isWatched ? 'Add this match to Watchlist to use Ask AI' : hasResult ? 'View cached result' : 'Ask AI for analysis'}>
             {isAnalyzing
               ? <span className="inline-spinner" style={{ width: '14px', height: '14px' }} />
               : hasResult
