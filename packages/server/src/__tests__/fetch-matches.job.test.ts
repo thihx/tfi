@@ -230,7 +230,58 @@ describe('fetchMatchesJob', () => {
     });
   });
 
-  test('does not refetch finished stats when history already has settlement cache', async () => {
+  test('does not refetch finished stats when settlement_stats_fetched_at is set (even if stats empty)', async () => {
+    vi.mocked(footballApi.fetchFixturesForDate)
+      .mockResolvedValueOnce([
+        {
+          fixture: {
+            id: 1001,
+            date: '2026-03-20T15:00:00+00:00',
+            status: { short: 'FT', elapsed: 90 },
+            venue: { name: 'Stadium' },
+            referee: null,
+          },
+          league: { id: 39, name: 'League', round: '' },
+          teams: {
+            home: { id: 1, name: 'Arsenal', logo: '' },
+            away: { id: 2, name: 'Chelsea', logo: '' },
+          },
+          goals: { home: 2, away: 1 },
+          score: { halftime: { home: 1, away: 1 } },
+        },
+      ] as never)
+      .mockResolvedValueOnce([]);
+
+    const historyRepo = await import('../repos/matches-history.repo.js');
+    // Key: settlement_stats_fetched_at is set but stats are empty — must NOT re-fetch
+    vi.mocked(historyRepo.getHistoricalMatchesBatch).mockResolvedValueOnce(
+      new Map([[
+        '1001',
+        {
+          match_id: '1001',
+          date: '2026-03-20',
+          kickoff: '15:00',
+          league_id: 39,
+          league_name: 'League',
+          home_team: 'Arsenal',
+          away_team: 'Chelsea',
+          venue: 'Stadium',
+          final_status: 'FT',
+          home_score: 2,
+          away_score: 1,
+          settlement_stats: [],
+          settlement_stats_fetched_at: '2026-03-20T16:00:00Z',
+          archived_at: '2026-03-20T17:00:00Z',
+        },
+      ]]),
+    );
+
+    await fetchMatchesJob();
+
+    expect(footballApi.fetchFixtureStatistics).not.toHaveBeenCalled();
+  });
+
+  test('does not refetch finished stats when history already has non-empty settlement cache', async () => {
     vi.mocked(footballApi.fetchFixturesForDate)
       .mockResolvedValueOnce([
         {
@@ -269,6 +320,7 @@ describe('fetchMatchesJob', () => {
           home_score: 2,
           away_score: 1,
           settlement_stats: [{ type: 'Corner Kicks', home: 6, away: 5 }],
+          settlement_stats_fetched_at: '2026-03-20T16:00:00Z',
           archived_at: '2026-03-20T17:00:00Z',
         },
       ]]),
@@ -277,6 +329,89 @@ describe('fetchMatchesJob', () => {
     await fetchMatchesJob();
 
     expect(footballApi.fetchFixtureStatistics).not.toHaveBeenCalled();
+  });
+
+  test('fetches stats for finished match when settlement_stats_fetched_at is null', async () => {
+    vi.mocked(footballApi.fetchFixturesForDate)
+      .mockResolvedValueOnce([
+        {
+          fixture: {
+            id: 1001,
+            date: '2026-03-20T15:00:00+00:00',
+            status: { short: 'FT', elapsed: 90 },
+            venue: { name: 'Stadium' },
+            referee: null,
+          },
+          league: { id: 39, name: 'League', round: '' },
+          teams: {
+            home: { id: 1, name: 'Arsenal', logo: '' },
+            away: { id: 2, name: 'Chelsea', logo: '' },
+          },
+          goals: { home: 2, away: 1 },
+          score: { halftime: { home: 1, away: 1 } },
+        },
+      ] as never)
+      .mockResolvedValueOnce([]);
+
+    const historyRepo = await import('../repos/matches-history.repo.js');
+    // settlement_stats_fetched_at is null → must fetch
+    vi.mocked(historyRepo.getHistoricalMatchesBatch).mockResolvedValueOnce(
+      new Map([[
+        '1001',
+        {
+          match_id: '1001',
+          date: '2026-03-20',
+          kickoff: '15:00',
+          league_id: 39,
+          league_name: 'League',
+          home_team: 'Arsenal',
+          away_team: 'Chelsea',
+          venue: 'Stadium',
+          final_status: 'FT',
+          home_score: 2,
+          away_score: 1,
+          settlement_stats: [],
+          settlement_stats_fetched_at: null,
+          archived_at: '2026-03-20T17:00:00Z',
+        },
+      ]]),
+    );
+
+    await fetchMatchesJob();
+
+    expect(footballApi.fetchFixtureStatistics).toHaveBeenCalledWith('1001');
+  });
+
+  test('fetches live and finished stats in a single batch', async () => {
+    vi.mocked(footballApi.fetchFixturesForDate)
+      .mockResolvedValueOnce([
+        {
+          fixture: { id: 2001, date: '2026-03-20T15:00:00+00:00', status: { short: '2H', elapsed: 65 }, venue: { name: 'Stadium' }, referee: null },
+          league: { id: 39, name: 'League', round: '' },
+          teams: { home: { id: 1, name: 'Arsenal', logo: '' }, away: { id: 2, name: 'Chelsea', logo: '' } },
+          goals: { home: 1, away: 0 },
+          score: { halftime: { home: 1, away: 0 } },
+        },
+        {
+          fixture: { id: 2002, date: '2026-03-20T13:00:00+00:00', status: { short: 'FT', elapsed: 90 }, venue: { name: 'Stadium' }, referee: null },
+          league: { id: 39, name: 'League', round: '' },
+          teams: { home: { id: 3, name: 'Liverpool', logo: '' }, away: { id: 4, name: 'Everton', logo: '' } },
+          goals: { home: 2, away: 1 },
+          score: { halftime: { home: 1, away: 0 } },
+        },
+      ] as never)
+      .mockResolvedValueOnce([]);
+
+    // No history for match 2002 → will be fetched
+    const historyRepo = await import('../repos/matches-history.repo.js');
+    vi.mocked(historyRepo.getHistoricalMatchesBatch).mockResolvedValueOnce(new Map());
+
+    await fetchMatchesJob();
+
+    // Both live (2001) and finished (2002) stats are fetched
+    expect(footballApi.fetchFixtureStatistics).toHaveBeenCalledWith('2001');
+    expect(footballApi.fetchFixtureStatistics).toHaveBeenCalledWith('2002');
+    expect(footballApi.fetchFixtureStatistics).toHaveBeenCalledTimes(2);
   });
 
   test('syncs watchlist dates after refresh', async () => {

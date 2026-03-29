@@ -82,8 +82,10 @@ export async function watchlistRoutes(app: FastifyInstance) {
       return reply.code(400).send({ error: 'Invalid watch subscription ID' });
     }
     const ok = await repo.deleteWatchSubscriptionById(subscriptionId, user.userId);
-    if (!ok) return reply.code(404).send({ error: 'Watch subscription not found' });
-    return { deleted: true };
+    // Idempotent: if already gone (expired or previously deleted), still report success.
+    // Returning 404 here caused "Failed to delete" when the expire job removed the
+    // subscription between the last frontend refresh and the user's delete action.
+    return { deleted: ok };
   });
 
   /** Increment check counter (used by pipeline) */

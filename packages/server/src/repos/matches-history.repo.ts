@@ -25,6 +25,7 @@ export interface MatchHistoryRow {
   settlement_stats?: SettlementStatRow[] | null;
   settlement_stats_provider?: string;
   settlement_stats_updated_at?: string | null;
+  settlement_stats_fetched_at?: string | null;
   archived_at: string;
 }
 
@@ -46,6 +47,8 @@ export interface MatchHistoryArchiveInput {
   result_provider?: string;
   settlement_stats?: SettlementStatRow[];
   settlement_stats_provider?: string;
+  /** Set to NOW() when stats were fetched (even if empty). Null = not attempted. */
+  settlement_stats_fetched_at?: string | null;
 }
 
 /**
@@ -61,27 +64,27 @@ export async function archiveFinishedMatches(
   if (finished.length === 0) return 0;
 
   // Single multi-row INSERT per chunk (max 500 rows to stay well within pg's 65535 param limit)
-  const COLS = 17;
+  const COLS = 18;
   const CHUNK = 500;
   let totalArchived = 0;
 
   for (let offset = 0; offset < finished.length; offset += CHUNK) {
     const chunk = finished.slice(offset, offset + CHUNK);
     const placeholders = chunk.map((_, i) =>
-      `($${i*COLS+1},$${i*COLS+2},$${i*COLS+3},$${i*COLS+4},$${i*COLS+5},$${i*COLS+6},$${i*COLS+7},$${i*COLS+8},$${i*COLS+9},$${i*COLS+10},$${i*COLS+11},$${i*COLS+12},$${i*COLS+13},$${i*COLS+14},$${i*COLS+15},$${i*COLS+16},$${i*COLS+17})`,
+      `($${i*COLS+1},$${i*COLS+2},$${i*COLS+3},$${i*COLS+4},$${i*COLS+5},$${i*COLS+6},$${i*COLS+7},$${i*COLS+8},$${i*COLS+9},$${i*COLS+10},$${i*COLS+11},$${i*COLS+12},$${i*COLS+13},$${i*COLS+14},$${i*COLS+15},$${i*COLS+16},$${i*COLS+17},$${i*COLS+18})`,
     ).join(',');
     const params = chunk.flatMap((m) => [
       m.match_id, m.date, m.kickoff, m.kickoff_at_utc ?? null, m.league_id, m.league_name ?? '',
       m.home_team ?? '', m.away_team ?? '', m.venue ?? 'TBD', m.final_status,
       m.home_score ?? 0, m.away_score ?? 0, m.regular_home_score ?? null,
       m.regular_away_score ?? null, m.result_provider ?? '', JSON.stringify(m.settlement_stats ?? []),
-      m.settlement_stats_provider ?? '',
+      m.settlement_stats_provider ?? '', m.settlement_stats_fetched_at ?? null,
     ]);
     const result = await query(
       `INSERT INTO matches_history (
          match_id, date, kickoff, kickoff_at_utc, league_id, league_name, home_team, away_team, venue,
          final_status, home_score, away_score, regular_home_score, regular_away_score,
-         result_provider, settlement_stats, settlement_stats_provider
+         result_provider, settlement_stats, settlement_stats_provider, settlement_stats_fetched_at
        )
        VALUES ${placeholders}
        ON CONFLICT (match_id) DO UPDATE SET
@@ -107,6 +110,7 @@ export async function archiveFinishedMatches(
            WHEN jsonb_array_length(EXCLUDED.settlement_stats) > 0 THEN NOW()
            ELSE matches_history.settlement_stats_updated_at
          END,
+         settlement_stats_fetched_at = COALESCE(EXCLUDED.settlement_stats_fetched_at, matches_history.settlement_stats_fetched_at),
          archived_at  = NOW()`,
       params,
     );

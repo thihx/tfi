@@ -199,9 +199,10 @@ describe('DELETE /api/me/watch-subscriptions/:id', () => {
     expect(res.json().deleted).toBe(true);
   });
 
-  test('returns 404 for unknown subscription ID', async () => {
+  test('returns 200 with deleted:false for unknown subscription ID (idempotent)', async () => {
     const res = await app.inject({ method: 'DELETE', url: '/api/me/watch-subscriptions/999' });
-    expect(res.statusCode).toBe(404);
+    expect(res.statusCode).toBe(200);
+    expect(res.json().deleted).toBe(false);
   });
 });
 

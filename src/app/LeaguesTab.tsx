@@ -110,7 +110,7 @@ function LeagueTeamsPanel({ teams, loading, favoriteIds, profiledTeamIds, onTogg
             </td>
             {/* [2] team name */}
             <td style={{ padding: '4px 8px', fontSize: 13 }}>
-              <span style={{ fontWeight: isFav ? 600 : 400, color: isFav ? 'var(--gray-900)' : 'var(--gray-700)' }}>
+              <span style={{ fontWeight: isFav ? 600 : 400, color: isFav ? 'var(--gray-900)' : 'var(--gray-700)', whiteSpace: 'nowrap' }}>
                 {t.team.name}
               </span>
             </td>

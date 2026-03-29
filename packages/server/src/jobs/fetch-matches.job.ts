@@ -17,7 +17,6 @@ import {
   archiveFinishedMatches,
   getHistoricalMatchesBatch,
   type MatchHistoryArchiveInput,
-  type MatchHistoryRow,
 } from '../repos/matches-history.repo.js';
 import { reportJobProgress } from './job-progress.js';
 import { getRedisClient } from '../lib/redis.js';
@@ -214,43 +213,79 @@ export async function fetchMatchesJob(): Promise<{ saved: number; leagues: numbe
   // 6. Transform to rows
   const rows = statusFiltered.map(fixtureToMatchRow);
 
-  // 6b. Enrich live matches with card stats from /fixtures/statistics
+  // 6b+7a. Single stats batch for live matches (card counts) + finished matches (settlement).
+  // Live and finished are disjoint sets, so one batchRun covers both.
+  // Finished matches are only fetched when settlement_stats_fetched_at IS NULL — once
+  // a match has been attempted (even if the API returned empty stats) we skip it to
+  // prevent the infinite re-fetch that caused API quota spikes.
   const liveRows = rows.filter(r => LIVE_STATUSES.has(r.status ?? ''));
-  if (liveRows.length > 0) {
-    await reportJobProgress(JOB, 'stats', `Fetching stats for ${liveRows.length} live matches...`, 55);
-    const statsMap = new Map<string, { home_reds: number; away_reds: number; home_yellows: number; away_yellows: number }>();
+  const freshFinishedFixtures = leagueFiltered
+    .filter((f) => ['FT', 'AET', 'PEN', 'AWD', 'WO'].includes(f.fixture.status.short));
+  const finishedHistoryMap = await getHistoricalMatchesBatch(
+    freshFinishedFixtures.map((f) => String(f.fixture.id)),
+  );
 
-    await batchRun(liveRows.map(r => async () => {
+  // Only fetch stats for finished matches that have never been attempted before
+  const playableFinished = freshFinishedFixtures.filter((f) =>
+    ['FT', 'AET', 'PEN'].includes(f.fixture.status.short) &&
+    !finishedHistoryMap.get(String(f.fixture.id))?.settlement_stats_fetched_at,
+  );
+
+  const allNeedingStats = [
+    ...liveRows.map(r => r.match_id),
+    ...playableFinished.map(f => String(f.fixture.id)),
+  ];
+
+  const rawStatsMap = new Map<string, ApiFixtureStat[]>();
+  if (allNeedingStats.length > 0) {
+    await reportJobProgress(
+      JOB, 'stats',
+      `Fetching stats for ${liveRows.length} live + ${playableFinished.length} finished matches...`, 55,
+    );
+    await batchRun(allNeedingStats.map(matchId => async () => {
       try {
-        const stats = await fetchFixtureStatistics(r.match_id);
-        statsMap.set(r.match_id, {
-          home_reds:    statCount(stats, 0, 'Red Cards'),
-          away_reds:    statCount(stats, 1, 'Red Cards'),
-          home_yellows: statCount(stats, 0, 'Yellow Cards'),
-          away_yellows: statCount(stats, 1, 'Yellow Cards'),
-        });
+        const stats = await fetchFixtureStatistics(matchId);
+        rawStatsMap.set(matchId, stats);
       } catch (err) {
-        // Non-critical — keep defaults (0)
-        console.warn(`[fetchMatchesJob] Stats fetch failed for ${r.match_id}:`, err instanceof Error ? err.message : err);
+        console.warn(`[fetchMatchesJob] Stats fetch failed for ${matchId}:`, err instanceof Error ? err.message : err);
       }
     }), 5);
+  }
 
+  // Apply card counts to live rows
+  if (liveRows.length > 0) {
+    let enrichedLive = 0;
     for (const row of rows) {
-      const s = statsMap.get(row.match_id);
-      if (s) Object.assign(row, s);
+      const stats = rawStatsMap.get(row.match_id);
+      if (stats) {
+        row.home_reds    = statCount(stats, 0, 'Red Cards');
+        row.away_reds    = statCount(stats, 1, 'Red Cards');
+        row.home_yellows = statCount(stats, 0, 'Yellow Cards');
+        row.away_yellows = statCount(stats, 1, 'Yellow Cards');
+        enrichedLive++;
+      }
     }
-    console.log(`[fetchMatchesJob] Enriched stats for ${statsMap.size}/${liveRows.length} live matches`);
+    console.log(`[fetchMatchesJob] Enriched card stats for ${enrichedLive}/${liveRows.length} live matches`);
+  }
+
+  // Build settlement stats for finished matches that were fetched this run
+  const finishedStatsMap = new Map<string, ReturnType<typeof mergeApiFixtureStatistics>>();
+  const statsFetchedAt = new Date().toISOString();
+  const fetchedMatchIds = new Set(playableFinished.map(f => String(f.fixture.id)));
+  for (const fixture of playableFinished) {
+    const matchId = String(fixture.fixture.id);
+    const merged = mergeApiFixtureStatistics(rawStatsMap.get(matchId) ?? []);
+    if (merged.length > 0) finishedStatsMap.set(matchId, merged);
+  }
+  if (playableFinished.length > 0) {
+    console.log(`[fetchMatchesJob] Fetched settlement stats for ${finishedStatsMap.size}/${playableFinished.length} finished matches`);
   }
 
   // 7. Archive finished matches before TRUNCATE
   // Archive from BOTH fresh API payload AND existing table to catch
   // matches that transitioned to FT between polls (F2 audit fix).
   await reportJobProgress(JOB, 'archive', 'Archiving finished matches...', 65);
-  const freshFinishedFixtures = leagueFiltered
-    .filter((f) => ['FT', 'AET', 'PEN', 'AWD', 'WO'].includes(f.fixture.status.short));
   const freshFinished = freshFinishedFixtures.map(fixtureToMatchRow);
-  const finishedHistoryMap = await getHistoricalMatchesBatch(freshFinishedFixtures.map((fixture) => String(fixture.fixture.id)));
-  const finishedStatsMap = await buildFinishedStatsMap(freshFinishedFixtures, finishedHistoryMap);
   const allCurrentMatches = await matchRepo.getAllMatches();
   const archiveByMatchId = new Map<string, MatchHistoryArchiveInput | matchRepo.MatchRow>();
   // Deduplicate by match_id (fresh rows take precedence — they have final score)
@@ -259,7 +294,11 @@ export async function fetchMatchesJob(): Promise<{ saved: number; leagues: numbe
     const matchId = String(fixture.fixture.id);
     archiveByMatchId.set(
       matchId,
-      buildArchiveRowFromFixture(fixture, finishedStatsMap.get(matchId) ?? []),
+      buildArchiveRowFromFixture(
+        fixture,
+        finishedStatsMap.get(matchId) ?? [],
+        fetchedMatchIds.has(matchId) ? statsFetchedAt : null,
+      ),
     );
   }
   const deduped = [...archiveByMatchId.values()];
@@ -466,36 +505,10 @@ export async function fetchMatchesJob(): Promise<{ saved: number; leagues: numbe
   return { saved, leagues: uniqueLeagues };
 }
 
-async function buildFinishedStatsMap(
-  fixtures: ApiFixture[],
-  historyMap: Map<string, MatchHistoryRow>,
-): Promise<Map<string, ReturnType<typeof mergeApiFixtureStatistics>>> {
-  const statsMap = new Map<string, ReturnType<typeof mergeApiFixtureStatistics>>();
-  const playableFinished = fixtures.filter((fixture) => {
-    if (!['FT', 'AET', 'PEN'].includes(fixture.fixture.status.short)) return false;
-    const storedStats = historyMap.get(String(fixture.fixture.id))?.settlement_stats;
-    return !Array.isArray(storedStats) || storedStats.length === 0;
-  });
-
-  await batchRun(playableFinished.map((fixture) => async () => {
-    try {
-      const statsRaw = await fetchFixtureStatistics(String(fixture.fixture.id));
-      const merged = mergeApiFixtureStatistics(statsRaw);
-      if (merged.length > 0) statsMap.set(String(fixture.fixture.id), merged);
-    } catch (err) {
-      console.warn(
-        `[fetchMatchesJob] Finished stats fetch failed for ${fixture.fixture.id}:`,
-        err instanceof Error ? err.message : err,
-      );
-    }
-  }), 5);
-
-  return statsMap;
-}
-
 function buildArchiveRowFromFixture(
   fixture: ApiFixture,
   settlementStats: ReturnType<typeof mergeApiFixtureStatistics>,
+  settlement_stats_fetched_at: string | null = null,
 ): MatchHistoryArchiveInput {
   const regularTimeScore = extractRegularTimeScoreFromFixture(fixture);
   return {
@@ -516,5 +529,6 @@ function buildArchiveRowFromFixture(
     result_provider: 'api-football',
     settlement_stats: settlementStats,
     settlement_stats_provider: settlementStats.length > 0 ? 'api-football' : '',
+    settlement_stats_fetched_at,
   };
 }

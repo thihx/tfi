@@ -1039,6 +1039,7 @@ table tbody#watchlist-table td:not(.select-col) {
     display: inline-flex;
     align-items: center;
     gap: 4px;
+    white-space: nowrap;
 }
 
 /* Home team: logo on left, name on right */
@@ -3372,8 +3373,7 @@ table td:last-child, table th:last-child {
     }
 
     .league-name {
-        white-space: normal;
-        word-break: break-word;
+        max-width: 160px;
     }
 }
 
