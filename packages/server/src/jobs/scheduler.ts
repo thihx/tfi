@@ -16,7 +16,7 @@ import { expireWatchlistJob } from './expire-watchlist.job.js';
 import { checkLiveTriggerJob } from './check-live-trigger.job.js';
 import { autoSettleJob } from './auto-settle.job.js';
 import { enrichWatchlistJob } from './enrich-watchlist.job.js';
-import { purgeAuditJob } from './purge-audit.job.js';
+import { housekeepingJob } from './purge-audit.job.js';
 import { integrationHealthJob } from './integration-health.job.js';
 import { healthWatchdogJob } from './health-watchdog.job.js';
 import { syncReferenceDataJob } from './sync-reference-data.job.js';
@@ -426,14 +426,14 @@ export async function startScheduler() {
   register(
     'purge-audit',
     config.jobHousekeepingMs,
-    purgeAuditJob,
+    housekeepingJob,
     undefined,
     undefined,
     1,
     undefined,
     {
-      label: 'Purge Audit Logs',
-      description: 'Deletes old records from logs and other fast-growing tables after their keep period has passed, so storage does not grow without limit.',
+      label: 'Housekeeping',
+      description: 'Daily cleanup across all high-growth tables: purges expired audit logs, provider samples, pipeline runs, and match history; slims old recommendation text fields to save storage while preserving core bet data for AI retraining.',
       group: 'maintenance',
       entityScopes: ['audit-logs'],
       order: 10,

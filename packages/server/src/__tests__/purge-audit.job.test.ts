@@ -1,5 +1,5 @@
 // ============================================================
-// Unit tests — Purge Audit Job
+// Unit tests — Housekeeping Job
 // ============================================================
 
 import { describe, test, expect, vi, beforeEach } from 'vitest';
@@ -41,9 +41,6 @@ vi.mock('../repos/prompt-shadow-runs.repo.js', () => ({
 vi.mock('../repos/pipeline-runs.repo.js', () => ({
   purgePipelineRuns: vi.fn().mockResolvedValue(3),
 }));
-vi.mock('../repos/recommendation-deliveries.repo.js', () => ({
-  purgeOldDeliveries: vi.fn().mockResolvedValue(15),
-}));
 vi.mock('../repos/recommendations.repo.js', () => ({
   slimOldRecommendations: vi.fn().mockResolvedValue(20),
 }));
@@ -51,15 +48,15 @@ vi.mock('../repos/ai-performance.repo.js', () => ({
   aggregateAndPurgeOldAiPerformance: vi.fn().mockResolvedValue({ aggregated: 4, deleted: 8 }),
 }));
 
-const { purgeAuditJob } = await import('../jobs/purge-audit.job.js');
+const { housekeepingJob, purgeAuditJob } = await import('../jobs/purge-audit.job.js');
 
 beforeEach(() => {
   vi.clearAllMocks();
 });
 
-describe('purgeAuditJob', () => {
+describe('housekeepingJob', () => {
   test('purges all high-growth tables using configured keepDays', async () => {
-    const result = await purgeAuditJob();
+    const result = await housekeepingJob();
 
     expect(result.auditDeleted).toBe(42);
     expect(result.matchesHistoryDeleted).toBe(5);
@@ -69,12 +66,11 @@ describe('purgeAuditJob', () => {
     expect(result.oddsMovementsDeleted).toBe(13);
     expect(result.promptShadowDeleted).toBe(6);
     expect(result.pipelineRunsDeleted).toBe(3);
-    expect(result.deliveriesDeleted).toBe(15);
     expect(result.recommendationsSlimmed).toBe(20);
     expect(result.aiPerfAggregated).toBe(4);
     expect(result.aiPerfDeleted).toBe(8);
     // totalDeleted excludes slimmed (UPDATE not DELETE) but includes aiPerfDeleted
-    expect(result.totalDeleted).toBe(42 + 5 + 9 + 7 + 11 + 13 + 6 + 3 + 15 + 8);
+    expect(result.totalDeleted).toBe(42 + 5 + 9 + 7 + 11 + 13 + 6 + 3 + 8);
 
     expect(result.keepDays).toMatchObject({
       audit: 30,
@@ -85,9 +81,8 @@ describe('purgeAuditJob', () => {
       oddsMovements: 30,
       promptShadow: 14,
       pipelineRuns: 14,
-      deliveries: 60,
-      recommendationsSlim: 90,
-      aiPerformance: 90,
+      recommendationsSlim: 365,
+      aiPerformance: 365,
     });
 
     const historyRepo = await import('../repos/matches-history.repo.js');
@@ -96,14 +91,11 @@ describe('purgeAuditJob', () => {
     const pipelineRepo = await import('../repos/pipeline-runs.repo.js');
     expect(pipelineRepo.purgePipelineRuns).toHaveBeenCalledWith(14);
 
-    const deliveriesRepo = await import('../repos/recommendation-deliveries.repo.js');
-    expect(deliveriesRepo.purgeOldDeliveries).toHaveBeenCalledWith(60);
-
     const recsRepo = await import('../repos/recommendations.repo.js');
-    expect(recsRepo.slimOldRecommendations).toHaveBeenCalledWith(90);
+    expect(recsRepo.slimOldRecommendations).toHaveBeenCalledWith(365);
 
     const aiRepo = await import('../repos/ai-performance.repo.js');
-    expect(aiRepo.aggregateAndPurgeOldAiPerformance).toHaveBeenCalledWith(90);
+    expect(aiRepo.aggregateAndPurgeOldAiPerformance).toHaveBeenCalledWith(365);
   });
 
   test('reports 0 when nothing to purge', async () => {
@@ -115,7 +107,6 @@ describe('purgeAuditJob', () => {
     const oddsRepo = await import('../repos/odds-movements.repo.js');
     const promptShadowRepo = await import('../repos/prompt-shadow-runs.repo.js');
     const pipelineRepo = await import('../repos/pipeline-runs.repo.js');
-    const deliveriesRepo = await import('../repos/recommendation-deliveries.repo.js');
     const recsRepo = await import('../repos/recommendations.repo.js');
     const aiRepo = await import('../repos/ai-performance.repo.js');
     vi.mocked(auditRepo.purgeAuditLogs).mockResolvedValueOnce(0);
@@ -126,18 +117,21 @@ describe('purgeAuditJob', () => {
     vi.mocked(oddsRepo.purgeOddsMovements).mockResolvedValueOnce(0);
     vi.mocked(promptShadowRepo.purgePromptShadowRuns).mockResolvedValueOnce(0);
     vi.mocked(pipelineRepo.purgePipelineRuns).mockResolvedValueOnce(0);
-    vi.mocked(deliveriesRepo.purgeOldDeliveries).mockResolvedValueOnce(0);
     vi.mocked(recsRepo.slimOldRecommendations).mockResolvedValueOnce(0);
     vi.mocked(aiRepo.aggregateAndPurgeOldAiPerformance).mockResolvedValueOnce({ aggregated: 0, deleted: 0 });
 
-    const result = await purgeAuditJob();
+    const result = await housekeepingJob();
     expect(result.totalDeleted).toBe(0);
     expect(result.recommendationsSlimmed).toBe(0);
   });
 
-  test('reports progress', async () => {
-    await purgeAuditJob();
+  test('reports progress via purge-audit Redis key for scheduler compat', async () => {
+    await housekeepingJob();
     const { reportJobProgress } = await import('../jobs/job-progress.js');
     expect(reportJobProgress).toHaveBeenCalledWith('purge-audit', 'purge', expect.any(String), 15);
+  });
+
+  test('purgeAuditJob is a deprecated alias for housekeepingJob', () => {
+    expect(purgeAuditJob).toBe(housekeepingJob);
   });
 });

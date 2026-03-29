@@ -80,9 +80,8 @@ export const config = {
   matchSnapshotsKeepDays: Number(process.env['MATCH_SNAPSHOTS_KEEP_DAYS'] || 14),
   oddsMovementsKeepDays: Number(process.env['ODDS_MOVEMENTS_KEEP_DAYS'] || 30),
   pipelineRunsKeepDays: Number(process.env['PIPELINE_RUNS_KEEP_DAYS'] || 14),                        // pipeline_runs detail rows
-  deliveriesKeepDays: Number(process.env['DELIVERIES_KEEP_DAYS'] || 60),                             // user_recommendation_deliveries
-  recommendationsSlimDays: Number(process.env['RECOMMENDATIONS_SLIM_DAYS'] || 90),                   // strip heavy JSONB from recommendations
-  aiPerformanceKeepDays: Number(process.env['AI_PERFORMANCE_KEEP_DAYS'] || 90),                      // aggregate+purge ai_performance detail rows
+  recommendationsSlimDays: Number(process.env['RECOMMENDATIONS_SLIM_DAYS'] || 365),                  // slim recommendations (keep full text 1yr for AI retraining)
+  aiPerformanceKeepDays: Number(process.env['AI_PERFORMANCE_KEEP_DAYS'] || 365),                     // aggregate+purge ai_performance detail (keep 1yr for AI retraining)
 
   // Live match statuses
   liveStatuses: (process.env['LIVE_STATUSES'] || '1H,2H').split(',').map(s => s.trim()),

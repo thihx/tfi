@@ -1,8 +1,7 @@
 // ============================================================
 // Job: Housekeeping
-// Legacy file / job name preserved as purge-audit for scheduler
-// compatibility, but the cleanup now covers multiple high-growth
-// tables with separate retention windows.
+// Covers all high-growth tables with separate retention windows.
+// File name kept as purge-audit for scheduler / Redis key compat.
 // ============================================================
 
 import { config } from '../config.js';
@@ -15,7 +14,6 @@ import * as snapshotsRepo from '../repos/match-snapshots.repo.js';
 import * as oddsMovementsRepo from '../repos/odds-movements.repo.js';
 import * as promptShadowRepo from '../repos/prompt-shadow-runs.repo.js';
 import * as pipelineRunsRepo from '../repos/pipeline-runs.repo.js';
-import * as deliveriesRepo from '../repos/recommendation-deliveries.repo.js';
 import * as recommendationsRepo from '../repos/recommendations.repo.js';
 import * as aiPerfRepo from '../repos/ai-performance.repo.js';
 import { reportJobProgress } from './job-progress.js';
@@ -29,7 +27,6 @@ export interface HousekeepingResult {
   oddsMovementsDeleted: number;
   promptShadowDeleted: number;
   pipelineRunsDeleted: number;
-  deliveriesDeleted: number;
   recommendationsSlimmed: number;
   aiPerfAggregated: number;
   aiPerfDeleted: number;
@@ -43,13 +40,21 @@ export interface HousekeepingResult {
     oddsMovements: number;
     promptShadow: number;
     pipelineRuns: number;
-    deliveries: number;
     recommendationsSlim: number;
     aiPerformance: number;
   };
 }
 
-export async function purgeAuditJob(): Promise<HousekeepingResult> {
+/**
+ * Daily housekeeping job.
+ *
+ * NOTE — user_recommendation_deliveries is intentionally NOT purged here.
+ * Each row is per-user financial history; blanket age-based deletion would
+ * treat all users identically which is wrong in a multi-user system.
+ * Delivery records should be cleaned up as part of account lifecycle
+ * management (account deletion / GDPR erasure), not a global time window.
+ */
+export async function housekeepingJob(): Promise<HousekeepingResult> {
   const keepDays = {
     audit: config.auditKeepDays,
     matchesHistory: config.matchesHistoryKeepDays,
@@ -59,7 +64,6 @@ export async function purgeAuditJob(): Promise<HousekeepingResult> {
     oddsMovements: config.oddsMovementsKeepDays,
     promptShadow: config.promptShadowKeepDays,
     pipelineRuns: config.pipelineRunsKeepDays,
-    deliveries: config.deliveriesKeepDays,
     recommendationsSlim: config.recommendationsSlimDays,
     aiPerformance: config.aiPerformanceKeepDays,
   };
@@ -75,7 +79,6 @@ export async function purgeAuditJob(): Promise<HousekeepingResult> {
     oddsMovementsDeleted,
     promptShadowDeleted,
     pipelineRunsDeleted,
-    deliveriesDeleted,
     recommendationsSlimmed,
     aiPerfResult,
   ] = await Promise.all([
@@ -87,7 +90,6 @@ export async function purgeAuditJob(): Promise<HousekeepingResult> {
     oddsMovementsRepo.purgeOddsMovements(keepDays.oddsMovements),
     promptShadowRepo.purgePromptShadowRuns(keepDays.promptShadow),
     pipelineRunsRepo.purgePipelineRuns(keepDays.pipelineRuns),
-    deliveriesRepo.purgeOldDeliveries(keepDays.deliveries),
     recommendationsRepo.slimOldRecommendations(keepDays.recommendationsSlim),
     aiPerfRepo.aggregateAndPurgeOldAiPerformance(keepDays.aiPerformance),
   ]);
@@ -104,21 +106,20 @@ export async function purgeAuditJob(): Promise<HousekeepingResult> {
     + oddsMovementsDeleted
     + promptShadowDeleted
     + pipelineRunsDeleted
-    + deliveriesDeleted
     + aiPerfDeleted;
 
   if (totalDeleted > 0 || recommendationsSlimmed > 0) {
     console.log(
-      `[purgeAuditJob] Housekeeping: deleted=${totalDeleted} slimmed=${recommendationsSlimmed} ` +
+      `[housekeepingJob] deleted=${totalDeleted} slimmed=${recommendationsSlimmed} ` +
       `(audit=${auditDeleted}, history=${matchesHistoryDeleted}, providerStats=${providerStatsDeleted}, ` +
       `providerOdds=${providerOddsDeleted}, snapshots=${matchSnapshotsDeleted}, oddsMovements=${oddsMovementsDeleted}, ` +
       `promptShadow=${promptShadowDeleted}, pipelineRuns=${pipelineRunsDeleted}, ` +
-      `deliveries=${deliveriesDeleted}, aiPerf=${aiPerfDeleted} aiPerfAgg=${aiPerfAggregated})`,
+      `aiPerf=${aiPerfDeleted} aiPerfAgg=${aiPerfAggregated})`,
     );
 
     // VACUUM ANALYZE high-churn tables after significant purges to reclaim bloat
     if (totalDeleted > 1000) {
-      await query('VACUUM ANALYZE audit_logs, matches_history, user_recommendation_deliveries, ai_performance, pipeline_runs');
+      await query('VACUUM ANALYZE audit_logs, matches_history, ai_performance, pipeline_runs');
     }
   }
 
@@ -131,7 +132,6 @@ export async function purgeAuditJob(): Promise<HousekeepingResult> {
     oddsMovementsDeleted,
     promptShadowDeleted,
     pipelineRunsDeleted,
-    deliveriesDeleted,
     recommendationsSlimmed,
     aiPerfAggregated,
     aiPerfDeleted,
@@ -140,4 +140,5 @@ export async function purgeAuditJob(): Promise<HousekeepingResult> {
   };
 }
 
-export const housekeepingJob = purgeAuditJob;
+/** @deprecated Use housekeepingJob */
+export const purgeAuditJob = housekeepingJob;
