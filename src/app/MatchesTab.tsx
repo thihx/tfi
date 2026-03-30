@@ -321,12 +321,12 @@ export function MatchesTab() {
   const clearFilters = () => {
     setSearch(''); setDebouncedSearch(''); setStatusFilter(''); setLeagueFilter('');
     setActionFilter(''); setDateFrom(''); setDateTo('');
-    showToast('🔄 Filters cleared', 'success');
+    showToast('Filters cleared', 'success');
   };
 
   const quickAdd = useCallback(async (m: Match) => {
     const mid = String(m.match_id);
-    if (watchlistMap.has(mid)) { showToast('✓ Already in watchlist', 'success'); return; }
+    if (watchlistMap.has(mid)) { showToast('Already in watchlist', 'success'); return; }
     if (pendingAdds.has(mid)) { showToast('Saving... (already in progress)', 'info'); return; }
 
     setPendingAdds((prev) => new Set(prev).add(mid));
@@ -338,7 +338,7 @@ export function MatchesTab() {
     }]);
 
     setPendingAdds((prev) => { const s = new Set(prev); s.delete(mid); return s; });
-    if (!ok) showToast('❌ Failed to add to watchlist', 'error');
+    if (!ok) showToast('Failed to add to watchlist', 'error');
   }, [watchlistMap, pendingAdds, addToWatchlist, showToast]);
 
   const askAi = useCallback(async (m: Match) => {
@@ -353,17 +353,17 @@ export function MatchesTab() {
         el.style.outline = '2px solid var(--primary)';
         setTimeout(() => { el.style.outline = ''; }, 1500);
       }
-      showToast(`📋 ${m.home_team} vs ${m.away_team} — showing cached result`, 'info');
+      showToast(`${m.home_team} vs ${m.away_team} — showing cached result`, 'info');
       return;
     }
 
     if (!watchlistMap.has(mid)) {
-      showToast('⚠️ Add this match to Watchlist before using Ask AI', 'info');
+      showToast('Add this match to Watchlist before using Ask AI', 'info');
       return;
     }
 
     setAnalyzingMatches((prev) => new Set(prev).add(mid));
-    showToast(`🤖 Analyzing ${m.home_team} vs ${m.away_team}...`, 'info');
+    showToast(`Analyzing ${m.home_team} vs ${m.away_team}...`, 'info');
 
     try {
       const matchResult = await analyzeMatchWithServerPipeline(config, mid);
@@ -372,19 +372,19 @@ export function MatchesTab() {
         setAiResults((prev) => new Map(prev).set(mid, { matchId: mid, matchDisplay: `${m.home_team} vs ${m.away_team}`, result: matchResult }));
         setLastAddedResultId(mid);
         if (parsed && matchResult.error) {
-          showToast(`⚠️ ${m.home_team} vs ${m.away_team} — AI done but: ${matchResult.error}`, 'error');
+          showToast(`${m.home_team} vs ${m.away_team} — AI done but: ${matchResult.error}`, 'error');
         } else if (parsed) {
-          showToast(`✅ ${m.home_team} vs ${m.away_team} — done`, 'success');
+          showToast(`${m.home_team} vs ${m.away_team} — done`, 'success');
         } else if (matchResult.error) {
-          showToast(`⚠️ ${m.home_team} vs ${m.away_team} error: ${matchResult.error}`, 'error');
+          showToast(`${m.home_team} vs ${m.away_team} error: ${matchResult.error}`, 'error');
         } else {
-          showToast(`⚠️ ${m.home_team} vs ${m.away_team} skipped by filters`, 'info');
+          showToast(`${m.home_team} vs ${m.away_team} skipped by filters`, 'info');
         }
       } else {
-        showToast(`⚠️ ${m.home_team} vs ${m.away_team} — no results`, 'info');
+        showToast(`${m.home_team} vs ${m.away_team} — no results`, 'info');
       }
     } catch (err) {
-      showToast(`❌ ${m.home_team} vs ${m.away_team} failed: ${err instanceof Error ? err.message : String(err)}`, 'error');
+      showToast(`${m.home_team} vs ${m.away_team} failed: ${err instanceof Error ? err.message : String(err)}`, 'error');
     } finally {
       setAnalyzingMatches((prev) => { const s = new Set(prev); s.delete(mid); return s; });
     }
@@ -419,8 +419,8 @@ export function MatchesTab() {
 
     if (items.length === 0) return;
     const ok = await addToWatchlist(items);
-    if (ok) { setSelected(new Set()); showToast(`✅ Added ${items.length} to watchlist`, 'success'); }
-    else showToast('❌ Failed to add selected', 'error');
+    if (ok) { setSelected(new Set()); showToast(`Added ${items.length} to watchlist`, 'success'); }
+    else showToast('Failed to add selected', 'error');
   };
 
   const sortIndicator = (col: string) => (sort.column === col ? (sort.order === 'asc' ? '▲' : '▼') : '');
@@ -565,13 +565,13 @@ export function MatchesTab() {
                   highlighted={selected.has(String(m.match_id))}
                   actions={[
                     watchlistMap.has(String(m.match_id))
-                      ? { label: '✓ Watched', icon: <EyeIcon checked />, title: 'Already watching', onClick: () => {}, variant: 'success', disabled: true }
+                      ? { label: 'Watched', icon: <EyeIcon checked />, title: 'Already watching', onClick: () => {}, variant: 'success', disabled: true }
                       : pendingAdds.has(String(m.match_id))
                         ? { label: 'Saving…', onClick: () => {}, disabled: true }
                         : { label: '+ Watch', icon: <EyeIcon />, title: 'Watch this match', onClick: (match) => quickAdd(match), variant: 'primary' },
                     {
-                      label: analyzingMatches.has(String(m.match_id)) ? 'Analyzing…' : aiResults.has(String(m.match_id)) ? '✅ View Result' : 'Ask AI',
-                      icon: aiResults.has(String(m.match_id)) ? <span style={{ fontSize: 13 }}>✅</span> : <SparkleIcon />,
+                      label: analyzingMatches.has(String(m.match_id)) ? 'Analyzing…' : aiResults.has(String(m.match_id)) ? 'View Result' : 'Ask AI',
+                      icon: aiResults.has(String(m.match_id)) ? <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg> : <SparkleIcon />,
                       title: !watchlistMap.has(String(m.match_id)) ? 'Add to Watchlist to use Ask AI' : aiResults.has(String(m.match_id)) ? 'View AI result' : 'Ask AI for analysis',
                       onClick: (match) => askAi(match),
                       variant: aiResults.has(String(m.match_id)) ? 'success' as const : 'secondary' as const,
@@ -653,8 +653,8 @@ export function MatchesTab() {
           if (!editItem) return;
           const ok = await updateWatchlistItem({ id: editItem.id, match_id: editItem.match_id, mode, priority, status, custom_conditions });
           setEditItem(null);
-          if (ok) showToast('✅ Watchlist item updated', 'success');
-          else showToast('❌ Failed to update', 'error');
+          if (ok) showToast('Watchlist item updated', 'success');
+          else showToast('Failed to update', 'error');
         }}
       />
 
@@ -750,9 +750,8 @@ function MatchRow({ match, isWatched, isPending, isSelected, isAnalyzing, hasRes
         </div>
       </td>
       <td data-label="Status" className="status-cell" style={{ textAlign: 'center' }}>
-        <div className="cell-value" style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+        <div className="cell-value">
           <StatusBadge status={match.status} />
-          {currentMinute && <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--gray-500)' }}>{currentMinute}</span>}
         </div>
       </td>
       <td data-label="Action" style={{ textAlign: 'center' }}>
@@ -777,7 +776,7 @@ function MatchRow({ match, isWatched, isPending, isSelected, isAnalyzing, hasRes
             {isAnalyzing
               ? <span className="inline-spinner" style={{ width: '14px', height: '14px' }} />
               : hasResult
-                ? <span style={{ fontSize: 13 }}>✅</span>
+                ? <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
                 : <SparkleIcon />
             }
           </button>

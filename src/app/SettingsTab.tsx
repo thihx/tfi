@@ -222,13 +222,13 @@ function JobSchedulerPanel() {
                 <div className="job-title-row">
                   <span className="job-label">{label}</span>
                   {isMulti ? (
-                    <span className="job-concurrency-badge" title={`Max ${job.concurrency} parallel runs`}>
-                      ⚡ ×{job.concurrency}
+                    <span className="job-concurrency-badge" title={`Max ${job.concurrency} parallel runs`} style={{ display: 'inline-flex', alignItems: 'center', gap: '3px' }}>
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg> ×{job.concurrency}
                       {job.activeRuns > 0 && <span style={{ color: 'var(--warning)' }}> {job.activeRuns}/{job.concurrency}</span>}
                       {job.pendingRuns > 0 && <span style={{ color: 'var(--gray-500)' }}> +{job.pendingRuns} queued</span>}
                     </span>
                   ) : (
-                    <span className="job-concurrency-badge job-single" title="Single-threaded">🔒</span>
+                    <span className="job-concurrency-badge job-single" title="Single-threaded"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg></span>
                   )}
                   <span className="job-meta">
                     {job.lastRun ? `Last run: ${formatLocalDateTime(job.lastRun)}` : 'Never run'}
@@ -260,12 +260,12 @@ function JobSchedulerPanel() {
                 {job.name === 'enrich-watchlist' && (
                   <button
                     className="btn btn-sm"
-                    style={{ marginLeft: 4, background: '#f59e0b', color: '#fff', border: 'none' }}
+                    style={{ marginLeft: 4, background: '#f59e0b', color: '#fff', border: 'none', display: 'inline-flex', alignItems: 'center', gap: '4px' }}
                     onClick={() => handleTrigger(job.name, true)}
                     disabled={isRunning || triggering.has(job.name)}
                     title="Force re-enrich all entries (ignore 6h cache)"
                   >
-                    ⚡ Force
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg> Force
                   </button>
                 )}
               </div>
@@ -750,7 +750,7 @@ export function SettingsTab() {
                 gap: '12px', flexWrap: 'wrap',
               }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '10px', minWidth: 0, flex: '1 1 320px' }}>
-                  <span style={{ fontSize: '18px' }}>✈️</span>
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
                   <div>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
                       <div style={{ fontSize: '13px', fontWeight: 600, color: 'var(--gray-900)' }}>Telegram</div>
@@ -820,7 +820,7 @@ export function SettingsTab() {
                   opacity: webPushLoading ? 0.7 : 1,
                 }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '10px', minWidth: 0 }}>
-                    <span style={{ fontSize: '18px' }}>🔔</span>
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
                     <div>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
                         <span style={{ fontSize: '13px', fontWeight: 600, color: 'var(--gray-900)' }}>Web Push</span>
@@ -859,7 +859,7 @@ export function SettingsTab() {
                   gap: '12px', flexWrap: 'wrap',
                 }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '10px', minWidth: 0, flex: '1 1 320px' }}>
-                    <span style={{ fontSize: '18px' }}>📧</span>
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>
                     <div>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
                         <span style={{ fontSize: '13px', fontWeight: 600, color: 'var(--gray-900)' }}>Email</span>
@@ -912,7 +912,7 @@ export function SettingsTab() {
                   gap: '12px', flexWrap: 'wrap', opacity: 0.75,
                 }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '10px', minWidth: 0, flex: '1 1 320px' }}>
-                  <span style={{ fontSize: '18px' }}>💬</span>
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
                   <div>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
                       <span style={{ fontSize: '13px', fontWeight: 600, color: 'var(--gray-900)' }}>Zalo</span>
@@ -974,7 +974,7 @@ export function SettingsTab() {
                 gap: '12px', flexWrap: 'wrap',
               }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '10px', minWidth: 0 }}>
-                  <span style={{ fontSize: '18px' }}>🎯</span>
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/></svg>
                   <div>
                     <div style={{ fontSize: '13px', fontWeight: 600, color: 'var(--gray-900)' }}>
                       Auto-apply AI suggested trigger condition

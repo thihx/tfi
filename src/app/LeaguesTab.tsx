@@ -134,7 +134,10 @@ function LeagueTeamsPanel({ teams, loading, favoriteIds, profiledTeamIds, onTogg
                   transition: 'color 0.15s',
                 }}
               >
-                {isFav ? '⭐' : '☆'}
+                {isFav
+                  ? <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
+                  : <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
+                }
               </button>
             </td>
             {/* [7] Profile — aligns with league Profile column */}
@@ -232,7 +235,10 @@ const LeagueRow = memo(function LeagueRow({ league, onToggle, onToggleTop, onVie
           disabled={togglingTop}
           title={league.top_league ? 'Remove from Favorites' : 'Add to Favorites'}
         >
-          {togglingTop ? <span className="inline-spinner" style={{ width: 12, height: 12 }} /> : (league.top_league ? '⭐' : '☆')}
+          {togglingTop ? <span className="inline-spinner" style={{ width: 12, height: 12 }} /> : (league.top_league
+            ? <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
+            : <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
+          )}
         </button>
       </td>
       <td style={{ textAlign: 'center' }}>

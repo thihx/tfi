@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, memo, useMemo } from 'react';
+import { useState, useEffect, useCallback, memo, useMemo, type ReactNode } from 'react';
 import { useAppState } from '@/hooks/useAppState';
 import {
   BarChart, Bar, LineChart, Line, AreaChart, Area,
@@ -21,17 +21,17 @@ import type {
 
 type ReportSection = 'overview' | 'league' | 'market' | 'time' | 'confidence' | 'odds' | 'minute' | 'day-of-week' | 'league-market' | 'ai-insights';
 
-const REPORT_SECTIONS: { key: ReportSection; icon: string; label: string }[] = [
-  { key: 'overview', icon: '📊', label: 'Overview' },
-  { key: 'league', icon: '🏆', label: 'By League' },
-  { key: 'market', icon: '🎯', label: 'By Market' },
-  { key: 'time', icon: '📅', label: 'Weekly/Monthly' },
-  { key: 'confidence', icon: '🎚️', label: 'Confidence' },
-  { key: 'odds', icon: '💹', label: 'Odds Range' },
-  { key: 'minute', icon: '⏱️', label: 'Match Minute' },
-  { key: 'day-of-week', icon: '📆', label: 'Day of Week' },
-  { key: 'league-market', icon: '🔀', label: 'League × Market' },
-  { key: 'ai-insights', icon: '🤖', label: 'AI Insights' },
+const REPORT_SECTIONS: { key: ReportSection; icon: ReactNode; label: string }[] = [
+  { key: 'overview', icon: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>, label: 'Overview' },
+  { key: 'league', icon: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/></svg>, label: 'By League' },
+  { key: 'market', icon: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/></svg>, label: 'By Market' },
+  { key: 'time', icon: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>, label: 'Weekly/Monthly' },
+  { key: 'confidence', icon: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>, label: 'Confidence' },
+  { key: 'odds', icon: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/><polyline points="17 6 23 6 23 12"/></svg>, label: 'Odds Range' },
+  { key: 'minute', icon: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>, label: 'Match Minute' },
+  { key: 'day-of-week', icon: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>, label: 'Day of Week' },
+  { key: 'league-market', icon: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="17 1 21 5 17 9"/><path d="M3 11V9a4 4 0 0 1 4-4h14"/><polyline points="7 23 3 19 7 15"/><path d="M21 13v2a4 4 0 0 1-4 4H3"/></svg>, label: 'League \u00d7 Market' },
+  { key: 'ai-insights', icon: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>, label: 'AI Insights' },
 ];
 
 const PERIOD_OPTIONS: { value: ReportPeriodFilter['period']; label: string }[] = [
@@ -87,13 +87,13 @@ const OverviewSection = memo(function OverviewSection({ data }: { data: Overview
         <div className="report-highlight-row">
           {data.bestDay && (
             <div className="report-highlight positive">
-              <span className="report-highlight-label">🏆 Best Day</span>
+              <span className="report-highlight-label">Best Day</span>
               <span className="report-highlight-value">{data.bestDay.date}: {pnlStr(data.bestDay.pnl)}</span>
             </div>
           )}
           {data.worstDay && (
             <div className="report-highlight negative">
-              <span className="report-highlight-label">📉 Worst Day</span>
+              <span className="report-highlight-label" style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="23 18 13.5 8.5 8.5 13.5 1 6"/><polyline points="17 18 23 18 23 12"/></svg> Worst Day</span>
               <span className="report-highlight-value">{data.worstDay.date}: {pnlStr(data.worstDay.pnl)}</span>
             </div>
           )}
@@ -453,7 +453,11 @@ const LeagueMarketSection = memo(function LeagueMarketSection({ data, topLeagueN
 });
 
 const AiInsightsSection = memo(function AiInsightsSection({ data }: { data: AiInsightsData }) {
-  const trendEmoji = data.recentTrend === 'improving' ? '📈' : data.recentTrend === 'declining' ? '📉' : '➡️';
+  const trendIcon = data.recentTrend === 'improving'
+    ? <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/><polyline points="17 6 23 6 23 12"/></svg>
+    : data.recentTrend === 'declining'
+      ? <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="23 18 13.5 8.5 8.5 13.5 1 6"/><polyline points="17 18 23 18 23 12"/></svg>
+      : <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>;
   const trendColor = data.recentTrend === 'improving' ? 'var(--success)' : data.recentTrend === 'declining' ? 'var(--danger)' : 'var(--gray-600)';
 
   return (
@@ -466,24 +470,24 @@ const AiInsightsSection = memo(function AiInsightsSection({ data }: { data: AiIn
             Insights use decisive settled sample only and require at least {data.sampleFloor} samples per bucket.
           </div>
           <div className="report-insight-row">
-            <span>{trendEmoji} <strong>Recent Trend:</strong></span>
+            <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}>{trendIcon} <strong>Recent Trend:</strong></span>
             <span style={{ color: trendColor, fontWeight: 700, textTransform: 'capitalize' }}>{data.recentTrend}</span>
             <span style={{ color: 'var(--gray-500)', fontSize: 12 }}>
               (Recent {data.recentWinRate.toFixed(1)}% vs Overall {data.overallWinRate.toFixed(1)}%)
             </span>
           </div>
           <div className="report-insight-row">
-            <span>🔥 <strong>Current Streak:</strong></span>
+            <span><strong>Current Streak:</strong></span>
             <span style={{ color: data.streakInfo.type === 'win' ? 'var(--success)' : 'var(--danger)', fontWeight: 700 }}>
               {data.streakInfo.count}{data.streakInfo.type === 'win' ? 'W' : 'L'}
             </span>
           </div>
           <div className="report-insight-row">
-            <span>💎 <strong>Value Investment Wins (odds ≥ 2.0):</strong></span>
+            <span><strong>Value Investment Wins (odds ≥ 2.0):</strong></span>
             <span style={{ fontWeight: 600 }}>{data.valueFinds}</span>
           </div>
           <div className="report-insight-row">
-            <span>🛡️ <strong>Safe Investment Accuracy (odds {'<'} 1.70):</strong></span>
+            <span><strong>Safe Investment Accuracy (odds {'<'} 1.70):</strong></span>
             <span style={{ fontWeight: 600 }}>{data.safeBetAccuracy.toFixed(1)}%</span>
           </div>
         </div>
@@ -491,12 +495,12 @@ const AiInsightsSection = memo(function AiInsightsSection({ data }: { data: AiIn
 
       {/* Strengths */}
       <div className="report-insights-grid">
-        <InsightList title="✅ Strong Leagues" items={data.strongLeagues.map((l) => `${l.league}: ${wrStr(l.winRate)} (${pnlStr(l.pnl)}, ${l.total} bets)`)} color="var(--success)" />
-        <InsightList title="⚠️ Weak Leagues" items={data.weakLeagues.map((l) => `${l.league}: ${wrStr(l.winRate)} (${pnlStr(l.pnl)}, ${l.total} bets)`)} color="var(--danger)" />
-        <InsightList title="✅ Strong Markets" items={data.strongMarkets.map((m) => `${m.market}: ${wrStr(m.winRate)} (${pnlStr(m.pnl)}, ${m.total} bets)`)} color="var(--success)" />
-        <InsightList title="⚠️ Weak Markets" items={data.weakMarkets.map((m) => `${m.market}: ${wrStr(m.winRate)} (${pnlStr(m.pnl)}, ${m.total} bets)`)} color="var(--danger)" />
-        <InsightList title="⏰ Best Time Slots" items={data.bestTimeSlots.map((t) => `${t.band}: ${wrStr(t.winRate)} (${pnlStr(t.pnl)}, ${t.total} bets)`)} color="var(--success)" />
-        <InsightList title="⏰ Worst Time Slots" items={data.worstTimeSlots.map((t) => `${t.band}: ${wrStr(t.winRate)} (${pnlStr(t.pnl)}, ${t.total} bets)`)} color="var(--danger)" />
+        <InsightList title="Strong Leagues" items={data.strongLeagues.map((l) => `${l.league}: ${wrStr(l.winRate)} (${pnlStr(l.pnl)}, ${l.total} bets)`)} color="var(--success)" />
+        <InsightList title="Weak Leagues" items={data.weakLeagues.map((l) => `${l.league}: ${wrStr(l.winRate)} (${pnlStr(l.pnl)}, ${l.total} bets)`)} color="var(--danger)" />
+        <InsightList title="Strong Markets" items={data.strongMarkets.map((m) => `${m.market}: ${wrStr(m.winRate)} (${pnlStr(m.pnl)}, ${m.total} bets)`)} color="var(--success)" />
+        <InsightList title="Weak Markets" items={data.weakMarkets.map((m) => `${m.market}: ${wrStr(m.winRate)} (${pnlStr(m.pnl)}, ${m.total} bets)`)} color="var(--danger)" />
+        <InsightList title="Best Time Slots" items={data.bestTimeSlots.map((t) => `${t.band}: ${wrStr(t.winRate)} (${pnlStr(t.pnl)}, ${t.total} bets)`)} color="var(--success)" />
+        <InsightList title="Worst Time Slots" items={data.worstTimeSlots.map((t) => `${t.band}: ${wrStr(t.winRate)} (${pnlStr(t.pnl)}, ${t.total} bets)`)} color="var(--danger)" />
       </div>
 
       {/* Calibration Warnings */}
@@ -572,7 +576,7 @@ function KpiCard({ label, value, sub, color }: { label: string; value: string | 
 function EmptyReport({ message }: { message: string }) {
   return (
     <div style={{ padding: '32px 20px', textAlign: 'center', color: 'var(--gray-400)' }}>
-      <div style={{ fontSize: 40, marginBottom: 12 }}>📭</div>
+      <div style={{ marginBottom: 12, display: 'flex', justifyContent: 'center' }}><svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M22 12h-6l-2 3h-4l-2-3H2"/><path d="M5.45 5.11L2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z"/></svg></div>
       {message}
     </div>
   );

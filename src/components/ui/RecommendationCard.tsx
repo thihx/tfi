@@ -91,7 +91,6 @@ function RecommendationCardBase({ rec, lang, onViewMatch }: Props) {
             >
               <span className="badge badge-live" style={{ fontSize: '10px', padding: '2px 6px' }}>LIVE</span>
               {displayScore && <span style={{ fontWeight: 700, fontSize: '13px', color: 'var(--gray-900)' }}>{displayScore}</span>}
-              <span style={{ fontSize: '11px', color: 'var(--gray-500)' }}>{rec.minute}&apos;</span>
             </span>
           )}
           {rec.result && <StatusBadge status={rec.result.toUpperCase()} />}
@@ -162,6 +161,13 @@ function RecommendationCardBase({ rec, lang, onViewMatch }: Props) {
             </div>
           </div>
         )}
+
+        {rec.minute != null && (
+          <div>
+            <div style={{ fontSize: '10px', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.5px', color: 'var(--gray-400)', marginBottom: '2px' }}>Minute</div>
+            <div style={{ fontWeight: 600, color: 'var(--gray-700)', fontSize: '12px' }}>{rec.minute}&apos;</div>
+          </div>
+        )}
       </div>
 
       {/* Key Factors */}
@@ -184,10 +190,7 @@ function RecommendationCardBase({ rec, lang, onViewMatch }: Props) {
             }}
             onClick={() => setWarningsExpanded((v) => !v)}
           >
-            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: '11px', fontWeight: 600, color: '#92400e' }}>
-              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
-              Warnings
-            </span>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#92400e" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" title="Warnings"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
             <span style={{ fontSize: '10px', color: 'var(--gray-400)' }}>{warningsExpanded ? '▲' : '▼'}</span>
           </button>
           {warningsExpanded && (
@@ -208,7 +211,7 @@ function RecommendationCardBase({ rec, lang, onViewMatch }: Props) {
             }}
             onClick={() => setReasoningExpanded((v) => !v)}
           >
-            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="var(--gray-400)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" title="AI Reasoning"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--gray-400)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" title="AI Reasoning"><line x1="12" y1="2" x2="12" y2="3"/><path d="M12 6a6 6 0 0 1 6 6c0 2.5-1.5 4.5-3.5 5.5V19a1 1 0 0 1-1 1h-3a1 1 0 0 1-1-1v-1.5C7.5 16.5 6 14.5 6 12a6 6 0 0 1 6-6z"/><line x1="9" y1="21" x2="15" y2="21"/></svg>
             <span style={{ fontSize: '10px', color: 'var(--gray-400)' }}>{reasoningExpanded ? '▲' : '▼'}</span>
           </button>
           {reasoningExpanded && (

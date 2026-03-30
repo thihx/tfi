@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import React, { useState } from 'react';
 import { formatLocalTime } from '@/lib/utils/helpers';
 import type { MatchSnapshot, OddsMovement } from '@/lib/services/api';
 import {
@@ -15,10 +15,10 @@ interface SnapEvent {
   player: string;
 }
 
-function EmptyState({ icon, message }: { icon: string; message: string }) {
+function EmptyState({ icon, message }: { icon: React.ReactNode; message: string }) {
   return (
     <div style={{ padding: '40px 20px', textAlign: 'center', color: 'var(--gray-400)' }}>
-      <div style={{ fontSize: '32px', marginBottom: '8px' }}>{icon}</div>
+      <div style={{ marginBottom: '8px', display: 'flex', justifyContent: 'center' }}>{icon}</div>
       <p>{message}</p>
     </div>
   );
@@ -189,7 +189,7 @@ function chartLegend(items: { value: string; color: string; type?: 'square' | 'l
 
 export function TimelineView({ snapshots, matchDisplay }: { snapshots: MatchSnapshot[]; matchDisplay: string }) {
   if (!snapshots.length) {
-    return <EmptyState icon="📋" message="No snapshots captured yet" />;
+    return <EmptyState icon={<svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><rect x="8" y="2" width="8" height="4" rx="1" ry="1"/></svg>} message="No snapshots captured yet" />;
   }
 
   const sorted = [...snapshots].sort((a, b) => a.minute - b.minute);
@@ -377,7 +377,11 @@ export function TimelineView({ snapshots, matchDisplay }: { snapshots: MatchSnap
               };
               const yellowCards = stat('yellow_cards');
               const redCards = stat('red_cards');
-              const cards = redCards !== '-' && redCards !== '0/0' ? `${yellowCards} 🟡 ${redCards} 🔴` : yellowCards !== '-' ? yellowCards : '-';
+              const yellowCardSvg = <svg width="12" height="14" viewBox="0 0 24 24" fill="#ca8a04" stroke="none"><rect x="4" y="3" width="10" height="14" rx="1"/></svg>;
+              const redCardSvg = <svg width="12" height="14" viewBox="0 0 24 24" fill="#dc2626" stroke="none"><rect x="4" y="3" width="10" height="14" rx="1"/></svg>;
+              const cards: React.ReactNode = redCards !== '-' && redCards !== '0/0'
+                ? <span style={{ display: 'inline-flex', alignItems: 'center', gap: '2px' }}>{yellowCards} {yellowCardSvg} {redCards} {redCardSvg}</span>
+                : yellowCards !== '-' ? <span style={{ display: 'inline-flex', alignItems: 'center', gap: '2px' }}>{yellowCards} {yellowCardSvg}</span> : '-';
               const accuratePasses = stats.passes_accurate;
               const totalPasses = stats.total_passes;
               let passAccuracy = '-';
@@ -417,7 +421,7 @@ export function OddsView({ odds }: { odds: OddsMovement[] }) {
   const [selectedMarket, setSelectedMarket] = useState(markets[0] || '');
 
   if (!odds.length) {
-    return <EmptyState icon="📈" message="No odds movements recorded" />;
+    return <EmptyState icon={<svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/><polyline points="17 6 23 6 23 12"/></svg>} message="No odds movements recorded" />;
   }
 
   const marketOdds = odds

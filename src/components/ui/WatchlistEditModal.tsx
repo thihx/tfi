@@ -134,8 +134,8 @@ export function WatchlistEditModal({ item, defaultMode, uiLanguage, onClose, onS
                   <div className="form-group">
                     <label>Status:</label>
                     <select value={editStatus} onChange={(e) => setEditStatus(e.target.value)}>
-                      <option value="pending">🟡 Pending</option>
-                      <option value="active">🟢 Active</option>
+                      <option value="pending">Pending</option>
+                      <option value="active">Active</option>
                     </select>
                   </div>
                 </div>
@@ -144,22 +144,22 @@ export function WatchlistEditModal({ item, defaultMode, uiLanguage, onClose, onS
                 {item.strategic_context && (
                   <div className="form-group">
                     <div className="strategic-context-box">
-                      <div className="strategic-context-header">🧠 Strategic Context</div>
+                      <div className="strategic-context-header">Strategic Context</div>
                       {(structuredContext || refreshMeta) && (
                         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: '8px', marginBottom: '12px' }}>
                           {structuredContext && (
                             <>
                               <div className="strategic-context-item">
-                                <span className="strategic-context-label">🔎 Source Quality</span>
+                                <span className="strategic-context-label">Source Quality</span>
                                 <span className="strategic-context-text">{sourceMeta?.search_quality || 'unknown'}</span>
                               </div>
                               <div className="strategic-context-item">
-                                <span className="strategic-context-label">✅ Trusted Sources</span>
+                                <span className="strategic-context-label">Trusted Sources</span>
                                 <span className="strategic-context-text">{sourceMeta?.trusted_source_count ?? 0}</span>
                               </div>
                               {ctx?.competition_type && (
                                 <div className="strategic-context-item">
-                                  <span className="strategic-context-label">🏆 Competition Type</span>
+                                  <span className="strategic-context-label">Competition Type</span>
                                   <span className="strategic-context-text">{ctx.competition_type}</span>
                                 </div>
                               )}
@@ -167,58 +167,58 @@ export function WatchlistEditModal({ item, defaultMode, uiLanguage, onClose, onS
                           )}
                           {refreshMeta?.refresh_status && (
                             <div className="strategic-context-item">
-                              <span className="strategic-context-label">🔁 Refresh Status</span>
+                              <span className="strategic-context-label">Refresh Status</span>
                               <span className="strategic-context-text">{refreshMeta.refresh_status}</span>
                             </div>
                           )}
                           {refreshMeta?.retry_after && (
                             <div className="strategic-context-item">
-                              <span className="strategic-context-label">⏳ Retry After</span>
+                              <span className="strategic-context-label">Retry After</span>
                               <span className="strategic-context-text">{formatLocalDateTime(refreshMeta.retry_after)}</span>
                             </div>
                           )}
                         </div>
                       )}
                       <div className="strategic-context-grid">
-                        {homeMotivation && <div className="strategic-context-item"><span className="strategic-context-label">🏠 {item.home_team}</span><span className="strategic-context-text">{homeMotivation}</span></div>}
-                        {awayMotivation && <div className="strategic-context-item"><span className="strategic-context-label">✈️ {item.away_team}</span><span className="strategic-context-text">{awayMotivation}</span></div>}
-                        {leaguePositions && <div className="strategic-context-item"><span className="strategic-context-label">📊 Positions</span><span className="strategic-context-text">{leaguePositions}</span></div>}
-                        {homeKeyAbsences && <div className="strategic-context-item"><span className="strategic-context-label">🚑 {item.home_team} Absences</span><span className="strategic-context-text">{homeKeyAbsences}</span></div>}
-                        {awayKeyAbsences && <div className="strategic-context-item"><span className="strategic-context-label">🚑 {item.away_team} Absences</span><span className="strategic-context-text">{awayKeyAbsences}</span></div>}
-                        {keyAbsences && <div className="strategic-context-item"><span className="strategic-context-label">🚑 Absence Summary</span><span className="strategic-context-text">{keyAbsences}</span></div>}
-                        {rotationRisk && <div className="strategic-context-item"><span className="strategic-context-label">🔄 Rotation</span><span className="strategic-context-text">{rotationRisk}</span></div>}
-                        {homeFixtureCongestion && <div className="strategic-context-item"><span className="strategic-context-label">📅 {item.home_team} Congestion</span><span className="strategic-context-text">{homeFixtureCongestion}</span></div>}
-                        {awayFixtureCongestion && <div className="strategic-context-item"><span className="strategic-context-label">📅 {item.away_team} Congestion</span><span className="strategic-context-text">{awayFixtureCongestion}</span></div>}
-                        {fixtureCongestion && <div className="strategic-context-item"><span className="strategic-context-label">📅 Congestion Summary</span><span className="strategic-context-text">{fixtureCongestion}</span></div>}
-                        {h2hNarrative && <div className="strategic-context-item"><span className="strategic-context-label">⚔️ H2H</span><span className="strategic-context-text">{h2hNarrative}</span></div>}
-                        {summary && <div className="strategic-context-item strategic-context-summary"><span className="strategic-context-label">📝 Summary</span><span className="strategic-context-text">{summary}</span></div>}
+                        {homeMotivation && <div className="strategic-context-item"><span className="strategic-context-label">{item.home_team}</span><span className="strategic-context-text">{homeMotivation}</span></div>}
+                        {awayMotivation && <div className="strategic-context-item"><span className="strategic-context-label">{item.away_team}</span><span className="strategic-context-text">{awayMotivation}</span></div>}
+                        {leaguePositions && <div className="strategic-context-item"><span className="strategic-context-label">Positions</span><span className="strategic-context-text">{leaguePositions}</span></div>}
+                        {homeKeyAbsences && <div className="strategic-context-item"><span className="strategic-context-label">{item.home_team} Absences</span><span className="strategic-context-text">{homeKeyAbsences}</span></div>}
+                        {awayKeyAbsences && <div className="strategic-context-item"><span className="strategic-context-label">{item.away_team} Absences</span><span className="strategic-context-text">{awayKeyAbsences}</span></div>}
+                        {keyAbsences && <div className="strategic-context-item"><span className="strategic-context-label">Absence Summary</span><span className="strategic-context-text">{keyAbsences}</span></div>}
+                        {rotationRisk && <div className="strategic-context-item"><span className="strategic-context-label">Rotation</span><span className="strategic-context-text">{rotationRisk}</span></div>}
+                        {homeFixtureCongestion && <div className="strategic-context-item"><span className="strategic-context-label">{item.home_team} Congestion</span><span className="strategic-context-text">{homeFixtureCongestion}</span></div>}
+                        {awayFixtureCongestion && <div className="strategic-context-item"><span className="strategic-context-label">{item.away_team} Congestion</span><span className="strategic-context-text">{awayFixtureCongestion}</span></div>}
+                        {fixtureCongestion && <div className="strategic-context-item"><span className="strategic-context-label">Congestion Summary</span><span className="strategic-context-text">{fixtureCongestion}</span></div>}
+                        {h2hNarrative && <div className="strategic-context-item"><span className="strategic-context-label">H2H</span><span className="strategic-context-text">{h2hNarrative}</span></div>}
+                        {summary && <div className="strategic-context-item strategic-context-summary"><span className="strategic-context-label">Summary</span><span className="strategic-context-text">{summary}</span></div>}
                         {structuredContext && quantitativeEntries.length > 0 && (
                           <div className="strategic-context-item strategic-context-summary">
-                            <span className="strategic-context-label">📈 Quantitative Priors</span>
+                            <span className="strategic-context-label">Quantitative Priors</span>
                             <span className="strategic-context-text">{quantitativeEntries.map((e) => `${e.label}: ${e.value}`).join(' | ')}</span>
                           </div>
                         )}
                         {structuredContext && trustedDomains.length > 0 && (
                           <div className="strategic-context-item strategic-context-summary">
-                            <span className="strategic-context-label">🔗 Trusted Domains</span>
+                            <span className="strategic-context-label">Trusted Domains</span>
                             <span className="strategic-context-text">{trustedDomains.join(', ')}</span>
                           </div>
                         )}
                         {structuredContext && searchQueries.length > 0 && (
                           <div className="strategic-context-item strategic-context-summary">
-                            <span className="strategic-context-label">🔍 Search Queries</span>
+                            <span className="strategic-context-label">Search Queries</span>
                             <span className="strategic-context-text">{searchQueries.join(' | ')}</span>
                           </div>
                         )}
                         {!structuredContext && (
                           <div className="strategic-context-item strategic-context-summary">
-                            <span className="strategic-context-label">⚠️ Trust Note</span>
+                            <span className="strategic-context-label">Trust Note</span>
                             <span className="strategic-context-text">Legacy context detected. Trust metadata is missing, so this context may be stale and should be refreshed near kickoff.</span>
                           </div>
                         )}
                         {refreshMeta?.last_error && (
                           <div className="strategic-context-item strategic-context-summary">
-                            <span className="strategic-context-label">⚠️ Last Error</span>
+                            <span className="strategic-context-label">Last Error</span>
                             <span className="strategic-context-text">{refreshMeta.last_error}</span>
                           </div>
                         )}
@@ -234,7 +234,7 @@ export function WatchlistEditModal({ item, defaultMode, uiLanguage, onClose, onS
                 {item.recommended_custom_condition && (
                   <div className="form-group">
                     <div className="ai-recommended-box">
-                      <div className="ai-recommended-header">🤖 AI Recommended Condition</div>
+                      <div className="ai-recommended-header">AI Recommended Condition</div>
                       <div className="ai-recommended-content">
                         <div className="ai-recommended-item">
                           <label>Condition:</label>
@@ -253,7 +253,7 @@ export function WatchlistEditModal({ item, defaultMode, uiLanguage, onClose, onS
                         const rec = item.recommended_custom_condition!;
                         setEditConditions(current ? `${current} OR (${rec})` : `(${rec})`);
                       }}>
-                        ✨ Apply Recommended Condition
+                        Apply Recommended Condition
                       </button>
                     </div>
                   </div>

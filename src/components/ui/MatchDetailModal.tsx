@@ -2,7 +2,7 @@
 // Match Scout Panel — Context · Timeline · Odds · AI Recs · Bets
 // ============================================================
 
-import { useState, useEffect, useCallback, lazy, Suspense } from 'react';
+import { useState, useEffect, useCallback, lazy, Suspense, type ReactNode } from 'react';
 import { Modal } from './Modal';
 import { RecommendationCard } from './RecommendationCard';
 import { formatLocalDateTime } from '@/lib/utils/helpers';
@@ -83,7 +83,7 @@ export function MatchDetailModal({ open, matchId, matchDisplay, onClose, initial
     : null;
 
   return (
-    <Modal open={open} title={`📊 ${matchDisplay}`} onClose={onClose} size="xl">
+    <Modal open={open} title={matchDisplay} onClose={onClose} size="xl">
       {loading ? (
         <div style={{ padding: '40px', textAlign: 'center', color: 'var(--gray-400)' }}>
           <div className="loading-spinner" style={{ margin: '0 auto 12px' }} />
@@ -110,31 +110,31 @@ export function MatchDetailModal({ open, matchId, matchDisplay, onClose, initial
           {/* Tab bar */}
           <div style={{ display: 'flex', gap: '6px', marginBottom: '16px', flexWrap: 'wrap' }}>
             <TabBtn active={tab === 'context'} onClick={() => setTab('context')}>
-              🔍 Context
+              Context
             </TabBtn>
             <TabBtn active={tab === 'timeline'} onClick={() => setTab('timeline')}>
-              📋 Timeline{snapshots.length > 0 ? ` (${snapshots.length})` : ''}
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><rect x="8" y="2" width="8" height="4" rx="1" ry="1"/></svg>{' '}Timeline{snapshots.length > 0 ? ` (${snapshots.length})` : ''}
             </TabBtn>
             <TabBtn active={tab === 'odds'} onClick={() => setTab('odds')}>
-              📈 Odds{odds.length > 0 ? ` (${odds.length})` : ''}
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}><polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/><polyline points="17 6 23 6 23 12"/></svg>{' '}Odds{odds.length > 0 ? ` (${odds.length})` : ''}
             </TabBtn>
             <TabBtn active={tab === 'recs'} onClick={() => setTab('recs')}>
-              🎯 AI Recs{recs.length > 0 ? ` (${recs.length})` : ''}
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/></svg>{' '}AI Recs{recs.length > 0 ? ` (${recs.length})` : ''}
             </TabBtn>
             <TabBtn active={tab === 'bets'} onClick={() => setTab('bets')}>
-              💰 Bets{bets.length > 0 ? ` (${bets.length})` : ''}
+              Bets{bets.length > 0 ? ` (${bets.length})` : ''}
             </TabBtn>
-            <button className="btn btn-sm btn-secondary" onClick={load} style={{ marginLeft: 'auto' }}>🔄</button>
+            <button className="btn btn-sm btn-secondary" onClick={load} style={{ marginLeft: 'auto', display: 'inline-flex', alignItems: 'center' }}><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg></button>
           </div>
 
           {tab === 'context' && <ContextView watchlist={watchlist} recs={recs} />}
           {tab === 'timeline' && (
-            <Suspense fallback={<EmptyState icon="📊" message="Loading charts…" />}>
+            <Suspense fallback={<EmptyState icon={<svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>} message="Loading charts…" />}>
               <TimelineView snapshots={snapshots} matchDisplay={matchDisplay} />
             </Suspense>
           )}
           {tab === 'odds' && (
-            <Suspense fallback={<EmptyState icon="📊" message="Loading charts…" />}>
+            <Suspense fallback={<EmptyState icon={<svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>} message="Loading charts…" />}>
               <OddsView odds={odds} />
             </Suspense>
           )}
@@ -160,6 +160,7 @@ function TabBtn({ active, onClick, children }: { active: boolean; onClick: () =>
     <button
       className={`btn btn-sm ${active ? 'btn-primary' : 'btn-secondary'}`}
       onClick={onClick}
+      style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}
     >
       {children}
     </button>
@@ -198,7 +199,7 @@ function ContextView({ watchlist, recs }: { watchlist: WatchlistItem | null; rec
   const searchQueries = (sourceMeta?.web_search_queries || []).filter(Boolean);
 
   if (!watchlist && !latestRec) {
-    return <EmptyState icon="🔍" message="No context data available for this match" />;
+    return <EmptyState icon={<svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>} message="No context data available for this match" />;
   }
 
   return (
@@ -206,7 +207,7 @@ function ContextView({ watchlist, recs }: { watchlist: WatchlistItem | null; rec
 
       {/* Conditions */}
       {hasConditions && (
-        <Section title="📌 Betting Conditions">
+        <Section title="Betting Conditions">
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
             {watchlist?.custom_conditions && (
               <InfoBlock label="Custom Condition" value={watchlist.custom_conditions} />
@@ -226,7 +227,7 @@ function ContextView({ watchlist, recs }: { watchlist: WatchlistItem | null; rec
 
       {/* Strategic Context */}
       {hasContext && ctx && (
-        <Section title="🌐 Strategic Context">
+        <Section title="Strategic Context">
           {(structuredContext || refreshMeta) && (
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', marginBottom: '12px' }}>
               {structuredContext && (
@@ -304,7 +305,7 @@ function ContextView({ watchlist, recs }: { watchlist: WatchlistItem | null; rec
 
       {/* Latest AI Reasoning */}
       {hasReasoning && latestRec && (
-        <Section title={`🤖 Latest AI Analysis${latestRec.minute != null ? ` @ ${latestRec.minute}'` : ''}`}>
+        <Section title={`Latest AI Analysis${latestRec.minute != null ? ` @ ${latestRec.minute}'` : ''}`}>
           {latestRec.reasoning && (
             <InfoBlock label="Reasoning" value={latestRec.reasoning} colSpan />
           )}
@@ -312,7 +313,7 @@ function ContextView({ watchlist, recs }: { watchlist: WatchlistItem | null; rec
             <InfoBlock label="Key Factors" value={latestRec.key_factors} colSpan />
           )}
           {latestRec.warnings && (
-            <InfoBlock label="⚠️ Warnings" value={latestRec.warnings} colSpan warn />
+            <InfoBlock label="Warnings" value={latestRec.warnings} colSpan warn />
           )}
           <div style={{ fontSize: '11px', color: 'var(--gray-400)', marginTop: '8px' }}>
             {latestRec.ai_model && <span>Model: {latestRec.ai_model} · </span>}
@@ -322,7 +323,7 @@ function ContextView({ watchlist, recs }: { watchlist: WatchlistItem | null; rec
       )}
 
       {!hasContext && !hasConditions && !hasReasoning && (
-        <EmptyState icon="🔍" message="No enriched context available yet — run Enrich Watchlist job to populate" />
+        <EmptyState icon={<svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>} message="No enriched context available yet — run Enrich Watchlist job to populate" />
       )}
     </div>
   );
@@ -365,7 +366,7 @@ function InfoBlock({ label, value, highlight, warn, colSpan }: {
 
 function RecsView({ recs }: { recs: Recommendation[] }) {
   if (!recs.length) {
-    return <EmptyState icon="🎯" message="No AI recommendations for this match yet" />;
+    return <EmptyState icon={<svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/></svg>} message="No AI recommendations for this match yet" />;
   }
   return (
     <div style={{ maxHeight: '500px', overflowY: 'auto', paddingRight: '4px' }}>
@@ -380,7 +381,7 @@ function RecsView({ recs }: { recs: Recommendation[] }) {
 
 function BetsView({ bets }: { bets: BetRecord[] }) {
   if (!bets.length) {
-    return <EmptyState icon="💰" message="No bets recorded for this match" />;
+    return <EmptyState icon={<svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>} message="No bets recorded for this match" />;
   }
 
   const totalPnl = bets
@@ -390,11 +391,11 @@ function BetsView({ bets }: { bets: BetRecord[] }) {
   return (
     <div>
       <div style={{ display: 'flex', gap: '20px', marginBottom: '12px', fontSize: '13px', flexWrap: 'wrap' }}>
-        <span style={{ color: 'var(--gray-500)' }}>💰 {bets.length} bet{bets.length !== 1 ? 's' : ''}</span>
-        <span style={{ color: 'var(--gray-500)' }}>
-          ✅ {bets.filter((b) => b.result === 'win').length}W ·{' '}
-          ❌ {bets.filter((b) => b.result === 'loss').length}L ·{' '}
-          ⏳ {bets.filter((b) => b.result === 'pending').length} open
+        <span style={{ color: 'var(--gray-500)' }}>{bets.length} bet{bets.length !== 1 ? 's' : ''}</span>
+        <span style={{ color: 'var(--gray-500)', display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg> {bets.filter((b) => b.result === 'win').length}W ·{' '}
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg> {bets.filter((b) => b.result === 'loss').length}L ·{' '}
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg> {bets.filter((b) => b.result === 'pending').length} open
         </span>
         {bets.some((b) => b.result !== 'pending') && (
           <span style={{ fontWeight: 700, color: totalPnl >= 0 ? 'var(--success)' : 'var(--danger)' }}>
@@ -445,10 +446,10 @@ function BetsView({ bets }: { bets: BetRecord[] }) {
 
 // ==================== Helpers ====================
 
-function EmptyState({ icon, message }: { icon: string; message: string }) {
+function EmptyState({ icon, message }: { icon: ReactNode; message: string }) {
   return (
     <div style={{ padding: '40px 20px', textAlign: 'center', color: 'var(--gray-400)' }}>
-      <div style={{ fontSize: '32px', marginBottom: '8px' }}>{icon}</div>
+      <div style={{ marginBottom: '8px', display: 'flex', justifyContent: 'center' }}>{icon}</div>
       <p>{message}</p>
     </div>
   );

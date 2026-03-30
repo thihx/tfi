@@ -202,10 +202,10 @@ export function WatchlistTab() {
     if (!deleteConfirm) return;
     const ok = await removeFromWatchlist(deleteConfirm);
     if (ok) {
-      showToast(`✅ Deleted ${deleteConfirm.length} item(s)`, 'success');
+      showToast(`Deleted ${deleteConfirm.length} item(s)`, 'success');
       setSelected((prev) => { const s = new Set(prev); deleteConfirm.forEach((id) => s.delete(id)); return s; });
     } else {
-      showToast('❌ Failed to delete', 'error');
+      showToast('Failed to delete', 'error');
     }
     setDeleteConfirm(null);
   };
@@ -278,7 +278,7 @@ export function WatchlistTab() {
             <Pagination currentPage={safePage} totalPages={totalPages} onPageChange={setPage} />
             {pageItems.length === 0 ? (
               <div style={{ padding: '24px', textAlign: 'center', color: 'var(--gray-400)' }}>
-                <div style={{ fontSize: '32px', marginBottom: '8px' }}>👁️</div>
+                <div style={{ marginBottom: '8px', display: 'flex', justifyContent: 'center' }}><svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg></div>
                 <p>{debouncedSearch || leagueFilter || (statusFilter && statusFilter !== 'active') || dateFrom || dateTo ? 'No matches found for your filters' : 'Your watchlist is empty'}</p>
                 {!debouncedSearch && !leagueFilter && statusFilter === 'active' && !dateFrom && !dateTo && (
                   <button className="btn btn-primary btn-sm" style={{ marginTop: 8 }} onClick={() => window.dispatchEvent(new CustomEvent('tfi:navigate', { detail: 'matches' }))}>Browse Matches</button>
@@ -336,7 +336,7 @@ export function WatchlistTab() {
             <tbody>
               {pageItems.length === 0 ? (
                 <tr><td colSpan={10} className="empty-state">
-                  <div className="empty-state-icon">👁️</div>
+                  <div className="empty-state-icon"><svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg></div>
                   <p>{debouncedSearch || leagueFilter || (statusFilter && statusFilter !== 'active') || dateFrom || dateTo ? 'No matches found for your filters' : 'Your watchlist is empty'}</p>
                   {!debouncedSearch && !leagueFilter && statusFilter === 'active' && !dateFrom && !dateTo && (
                     <button
@@ -440,8 +440,8 @@ export function WatchlistTab() {
           if (!editItem) return;
           const ok = await updateWatchlistItem({ id: editItem.id, match_id: editItem.match_id, mode, priority, status, custom_conditions });
           setEditItem(null);
-          if (ok) showToast('✅ Watchlist item updated', 'success');
-          else showToast('❌ Failed to update', 'error');
+          if (ok) showToast('Watchlist item updated', 'success');
+          else showToast('Failed to update', 'error');
         }}
       />
 
@@ -503,7 +503,7 @@ function PredictionCell({ prediction }: { prediction?: string }) {
         <summary>
           <div className="pred-box">
             <div className="pred-row">
-              <span className={`pred-winner ${winnerClass}`}>🏆 {winnerShort}</span>
+              <span className={`pred-winner ${winnerClass}`} style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="6 9 12 15 18 9"/></svg> {winnerShort}</span>
               {underOverBadge}
             </div>
             <div className="pred-bar">
@@ -516,7 +516,7 @@ function PredictionCell({ prediction }: { prediction?: string }) {
         </summary>
         <div className="pred-details">
           <div className="pred-detail-section">
-            <strong>🎯 Predictions:</strong>
+            <strong style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/></svg> Predictions:</strong>
             <div className="pred-detail-item"><span>Winner:</span> <span>{winnerName}</span></div>
             <div className="pred-detail-item"><span>Advice:</span> <span>{p.advice || 'No advice'}</span></div>
             <div className="pred-detail-item"><span>Win %:</span> <span>{homePercent}% | {drawPercent}% | {awayPercent}%</span></div>
