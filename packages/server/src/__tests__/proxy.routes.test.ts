@@ -37,7 +37,10 @@ vi.mock('../lib/football-api.js', () => ({
   fetchFixtureLineups: vi.fn().mockResolvedValue([]),
   fetchPrediction: vi.fn().mockResolvedValue(null),
   fetchStandings: vi.fn().mockResolvedValue([]),
-  fetchFixturesByLeague: vi.fn().mockResolvedValue([]),
+}));
+
+vi.mock('../lib/reference-data-provider.js', () => ({
+  fetchLeagueFixturesFromReferenceProvider: vi.fn().mockResolvedValue([]),
 }));
 
 vi.mock('../lib/provider-insight-cache.js', () => ({
@@ -135,7 +138,52 @@ describe('POST /api/proxy/football/scout', () => {
     expect(res.statusCode).toBe(200);
     expect(res.json().prediction?.predictions?.winner?.name).toBe('Team A');
     expect(res.json().standings).toHaveLength(1);
-    expect(insight.ensureScoutInsight).toHaveBeenCalledWith('100', expect.objectContaining({ leagueId: 39, season: 2025, status: 'NS' }));
+    expect(insight.ensureScoutInsight).toHaveBeenCalledWith('100', expect.objectContaining({ leagueId: 39, season: 2025, status: 'NS', freshnessMode: 'stale_safe' }));
+  });
+
+  test('uses real-required freshness mode for live scout requests', async () => {
+    const insight = await import('../lib/provider-insight-cache.js');
+    vi.mocked(insight.ensureFixturesForMatchIds).mockResolvedValueOnce([
+      {
+        fixture: { id: 100, referee: null, timezone: 'UTC', date: '2026-03-25T12:00:00Z', timestamp: 1, periods: { first: null, second: null }, venue: { id: null, name: 'Test', city: null }, status: { long: 'Second Half', short: '2H', elapsed: 67 } },
+        league: { id: 39, name: 'Premier League', country: 'England', logo: '', flag: null, season: 2025, round: 'Round 1' },
+        teams: { home: { id: 1, name: 'Team A', logo: '', winner: null }, away: { id: 2, name: 'Team B', logo: '', winner: null } },
+        goals: { home: 1, away: 0 },
+        score: {},
+      },
+    ] as never);
+
+    const res = await app.inject({
+      method: 'POST',
+      url: '/api/proxy/football/scout',
+      payload: { fixtureId: '100', leagueId: 39, season: 2025, status: '2H' },
+    });
+
+    expect(res.statusCode).toBe(200);
+    expect(insight.ensureFixturesForMatchIds).toHaveBeenCalledWith(['100'], { freshnessMode: 'real_required' });
+    expect(insight.ensureScoutInsight).toHaveBeenCalledWith('100', expect.objectContaining({
+      status: '2H',
+      consumer: 'proxy-scout-live',
+      freshnessMode: 'real_required',
+    }));
+  });
+});
+
+describe('GET /api/proxy/football/league-fixtures', () => {
+  test('loads fixtures through the centralized reference-data provider', async () => {
+    const referenceProvider = await import('../lib/reference-data-provider.js');
+    vi.mocked(referenceProvider.fetchLeagueFixturesFromReferenceProvider).mockResolvedValueOnce([
+      { fixture: { id: 100 }, league: { round: 'Round 1' }, teams: { home: { name: 'A', logo: '', winner: null }, away: { name: 'B', logo: '', winner: null } }, goals: { home: null, away: null } },
+    ] as never);
+
+    const res = await app.inject({
+      method: 'GET',
+      url: '/api/proxy/football/league-fixtures?leagueId=39&season=2025&next=10',
+    });
+
+    expect(res.statusCode).toBe(200);
+    expect(referenceProvider.fetchLeagueFixturesFromReferenceProvider).toHaveBeenCalledWith(39, 2025, 10);
+    expect(res.json()).toHaveLength(1);
   });
 });
 

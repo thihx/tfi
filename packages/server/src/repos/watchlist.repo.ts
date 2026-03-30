@@ -708,6 +708,18 @@ export async function getExistingWatchlistMatchIds(matchIds: string[]): Promise<
   return new Set(r.rows.map((row) => row.match_id));
 }
 
+export async function getExistingUserWatchlistMatchIds(userId: string, matchIds: string[]): Promise<Set<string>> {
+  if (matchIds.length === 0) return new Set();
+  const r = await query<{ match_id: string }>(
+    `SELECT match_id
+     FROM user_watch_subscriptions
+     WHERE user_id = $1
+       AND match_id = ANY($2)`,
+    [userId, matchIds],
+  );
+  return new Set(r.rows.map((row) => row.match_id));
+}
+
 export async function createWatchlistEntry(
   w: Partial<WatchlistCreate>,
   userId: string,
@@ -866,7 +878,12 @@ export async function incrementChecksForMatches(matchIds: string[]): Promise<voi
   );
 }
 
-export async function expireOldEntries(cutoffMinutes: number = 120): Promise<number> {
+export async function expireOldEntriesDetailed(cutoffMinutes: number = 120): Promise<{
+  expiredSubscriptions: number;
+  refreshedSubscriberCounts: number;
+  deletedMonitoredMatches: number;
+  totalChanged: number;
+}> {
   await backfillOperationalWatchlistFromLegacy();
 
   // Resolve kickoff from matches table first, then fall back to monitored_matches.metadata.
@@ -929,7 +946,17 @@ export async function expireOldEntries(cutoffMinutes: number = 120): Promise<num
     [cutoffMinutes, config.timezone, LIVE_MATCH_STATUSES],
   );
 
-  return Math.max(expiredMatchIds.length, monitoredResult.rowCount ?? 0);
+  return {
+    expiredSubscriptions: expiredSubscriptions.rowCount ?? 0,
+    refreshedSubscriberCounts: expiredMatchIds.length,
+    deletedMonitoredMatches: monitoredResult.rowCount ?? 0,
+    totalChanged: Math.max(expiredMatchIds.length, monitoredResult.rowCount ?? 0),
+  };
+}
+
+export async function expireOldEntries(cutoffMinutes: number = 120): Promise<number> {
+  const result = await expireOldEntriesDetailed(cutoffMinutes);
+  return result.totalChanged;
 }
 
 /** Sync watchlist date/kickoff from matches table (matches refresh may change them) */

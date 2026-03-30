@@ -16,6 +16,7 @@ import * as promptShadowRepo from '../repos/prompt-shadow-runs.repo.js';
 import * as pipelineRunsRepo from '../repos/pipeline-runs.repo.js';
 import * as recommendationsRepo from '../repos/recommendations.repo.js';
 import * as aiPerfRepo from '../repos/ai-performance.repo.js';
+import * as recommendationDeliveriesRepo from '../repos/recommendation-deliveries.repo.js';
 import { reportJobProgress } from './job-progress.js';
 
 export interface HousekeepingResult {
@@ -27,10 +28,12 @@ export interface HousekeepingResult {
   oddsMovementsDeleted: number;
   promptShadowDeleted: number;
   pipelineRunsDeleted: number;
+  recommendationDeliveriesDeleted: number;
   recommendationsSlimmed: number;
   aiPerfAggregated: number;
   aiPerfDeleted: number;
   totalDeleted: number;
+  failedPhases: string[];
   keepDays: {
     audit: number;
     matchesHistory: number;
@@ -40,6 +43,7 @@ export interface HousekeepingResult {
     oddsMovements: number;
     promptShadow: number;
     pipelineRuns: number;
+    recommendationDeliveries: number;
     recommendationsSlim: number;
     aiPerformance: number;
   };
@@ -48,11 +52,8 @@ export interface HousekeepingResult {
 /**
  * Daily housekeeping job.
  *
- * NOTE — user_recommendation_deliveries is intentionally NOT purged here.
- * Each row is per-user financial history; blanket age-based deletion would
- * treat all users identically which is wrong in a multi-user system.
- * Delivery records should be cleaned up as part of account lifecycle
- * management (account deletion / GDPR erasure), not a global time window.
+ * Delivery history retention is opt-in. Default keepDays=0 disables global
+ * purge unless the deployment explicitly accepts age-based retention.
  */
 export async function housekeepingJob(): Promise<HousekeepingResult> {
   const keepDays = {
@@ -64,11 +65,31 @@ export async function housekeepingJob(): Promise<HousekeepingResult> {
     oddsMovements: config.oddsMovementsKeepDays,
     promptShadow: config.promptShadowKeepDays,
     pipelineRuns: config.pipelineRunsKeepDays,
+    recommendationDeliveries: config.recommendationDeliveriesKeepDays,
     recommendationsSlim: config.recommendationsSlimDays,
     aiPerformance: config.aiPerformanceKeepDays,
   };
 
+  const failedPhases: string[] = [];
+  const failedPhaseSet = new Set<string>();
+  const recordFailure = (phase: string, error: unknown) => {
+    if (!failedPhaseSet.has(phase)) {
+      failedPhaseSet.add(phase);
+      failedPhases.push(phase);
+    }
+    console.error(`[housekeepingJob] phase "${phase}" failed:`, error);
+  };
+  const runStep = async <T>(phase: string, fn: () => Promise<T>, fallback: T): Promise<T> => {
+    try {
+      return await fn();
+    } catch (error) {
+      recordFailure(phase, error);
+      return fallback;
+    }
+  };
+
   await reportJobProgress('purge-audit', 'purge', 'Running housekeeping cleanup...', 15);
+  await reportJobProgress('purge-audit', 'retention', 'Purging logs, history, and provider samples...', 30);
 
   const [
     auditDeleted,
@@ -79,19 +100,33 @@ export async function housekeepingJob(): Promise<HousekeepingResult> {
     oddsMovementsDeleted,
     promptShadowDeleted,
     pipelineRunsDeleted,
-    recommendationsSlimmed,
-    aiPerfResult,
+    recommendationDeliveriesDeleted,
   ] = await Promise.all([
-    auditRepo.purgeAuditLogs(keepDays.audit),
-    historyRepo.purgeHistoricalMatches(keepDays.matchesHistory, keepDays.matchesHistoryHardDelete),
-    providerStatsRepo.purgeProviderStatsSamples(keepDays.providerSamples),
-    providerOddsRepo.purgeProviderOddsSamples(keepDays.providerSamples),
-    snapshotsRepo.purgeMatchSnapshots(keepDays.matchSnapshots),
-    oddsMovementsRepo.purgeOddsMovements(keepDays.oddsMovements),
-    promptShadowRepo.purgePromptShadowRuns(keepDays.promptShadow),
-    pipelineRunsRepo.purgePipelineRuns(keepDays.pipelineRuns),
-    recommendationsRepo.slimOldRecommendations(keepDays.recommendationsSlim),
-    aiPerfRepo.aggregateAndPurgeOldAiPerformance(keepDays.aiPerformance),
+    runStep('audit-logs', () => auditRepo.purgeAuditLogs(keepDays.audit), 0),
+    runStep('matches-history', () => historyRepo.purgeHistoricalMatches(keepDays.matchesHistory, keepDays.matchesHistoryHardDelete), 0),
+    runStep('provider-stats-samples', () => providerStatsRepo.purgeProviderStatsSamples(keepDays.providerSamples), 0),
+    runStep('provider-odds-samples', () => providerOddsRepo.purgeProviderOddsSamples(keepDays.providerSamples), 0),
+    runStep('match-snapshots', () => snapshotsRepo.purgeMatchSnapshots(keepDays.matchSnapshots), 0),
+    runStep('odds-movements', () => oddsMovementsRepo.purgeOddsMovements(keepDays.oddsMovements), 0),
+    runStep('prompt-shadow-runs', () => promptShadowRepo.purgePromptShadowRuns(keepDays.promptShadow), 0),
+    runStep('pipeline-runs', () => pipelineRunsRepo.purgePipelineRuns(keepDays.pipelineRuns), 0),
+    keepDays.recommendationDeliveries > 0
+      ? runStep(
+        'recommendation-deliveries',
+        () => recommendationDeliveriesRepo.purgeOldDeliveries(keepDays.recommendationDeliveries),
+        0,
+      )
+      : Promise.resolve(0),
+  ]);
+
+  await reportJobProgress('purge-audit', 'analytics', 'Slimming recommendations and aggregating AI performance...', 65);
+  const [recommendationsSlimmed, aiPerfResult] = await Promise.all([
+    runStep('recommendations-slimming', () => recommendationsRepo.slimOldRecommendations(keepDays.recommendationsSlim), 0),
+    runStep(
+      'ai-performance',
+      () => aiPerfRepo.aggregateAndPurgeOldAiPerformance(keepDays.aiPerformance),
+      { aggregated: 0, deleted: 0 },
+    ),
   ]);
 
   const aiPerfAggregated = aiPerfResult.aggregated;
@@ -106,6 +141,7 @@ export async function housekeepingJob(): Promise<HousekeepingResult> {
     + oddsMovementsDeleted
     + promptShadowDeleted
     + pipelineRunsDeleted
+    + recommendationDeliveriesDeleted
     + aiPerfDeleted;
 
   if (totalDeleted > 0 || recommendationsSlimmed > 0) {
@@ -113,13 +149,33 @@ export async function housekeepingJob(): Promise<HousekeepingResult> {
       `[housekeepingJob] deleted=${totalDeleted} slimmed=${recommendationsSlimmed} ` +
       `(audit=${auditDeleted}, history=${matchesHistoryDeleted}, providerStats=${providerStatsDeleted}, ` +
       `providerOdds=${providerOddsDeleted}, snapshots=${matchSnapshotsDeleted}, oddsMovements=${oddsMovementsDeleted}, ` +
-      `promptShadow=${promptShadowDeleted}, pipelineRuns=${pipelineRunsDeleted}, ` +
+      `promptShadow=${promptShadowDeleted}, pipelineRuns=${pipelineRunsDeleted}, deliveries=${recommendationDeliveriesDeleted}, ` +
       `aiPerf=${aiPerfDeleted} aiPerfAgg=${aiPerfAggregated})`,
     );
 
-    // VACUUM ANALYZE high-churn tables after significant purges to reclaim bloat
-    if (totalDeleted > 1000) {
-      await query('VACUUM ANALYZE audit_logs, matches_history, ai_performance, pipeline_runs');
+    await reportJobProgress('purge-audit', 'vacuum', 'Evaluating VACUUM ANALYZE thresholds...', 85);
+    const vacuumTargets = [
+      auditDeleted > 250 ? 'audit_logs' : null,
+      matchesHistoryDeleted > 250 ? 'matches_history' : null,
+      aiPerfDeleted > 250 ? 'ai_performance' : null,
+      pipelineRunsDeleted > 250 ? 'pipeline_runs' : null,
+      providerStatsDeleted > 250 ? 'provider_stats_samples' : null,
+      providerOddsDeleted > 250 ? 'provider_odds_samples' : null,
+      matchSnapshotsDeleted > 250 ? 'match_snapshots' : null,
+      oddsMovementsDeleted > 250 ? 'odds_movements' : null,
+      promptShadowDeleted > 250 ? 'prompt_shadow_runs' : null,
+      recommendationDeliveriesDeleted > 250 ? 'user_recommendation_deliveries' : null,
+    ].filter((table): table is string => table != null);
+
+    if (vacuumTargets.length > 0) {
+      await runStep(
+        'vacuum-analyze',
+        async () => {
+          await query(`VACUUM ANALYZE ${vacuumTargets.join(', ')}`);
+          return true;
+        },
+        false,
+      );
     }
   }
 
@@ -132,10 +188,12 @@ export async function housekeepingJob(): Promise<HousekeepingResult> {
     oddsMovementsDeleted,
     promptShadowDeleted,
     pipelineRunsDeleted,
+    recommendationDeliveriesDeleted,
     recommendationsSlimmed,
     aiPerfAggregated,
     aiPerfDeleted,
     totalDeleted,
+    failedPhases,
     keepDays,
   };
 }

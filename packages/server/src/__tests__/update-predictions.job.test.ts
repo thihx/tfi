@@ -5,7 +5,14 @@
 import { describe, test, expect, vi, beforeEach } from 'vitest';
 
 vi.mock('../lib/redis.js', () => ({
-  getRedisClient: () => ({ hget: vi.fn(), hset: vi.fn(), expire: vi.fn(), del: vi.fn() }),
+  getRedisClient: () => ({
+    hget: vi.fn(),
+    hset: vi.fn(),
+    expire: vi.fn(),
+    del: vi.fn(),
+    get: vi.fn().mockResolvedValue(null),
+    set: vi.fn().mockResolvedValue('OK'),
+  }),
 }));
 
 vi.mock('../jobs/job-progress.js', () => ({
@@ -31,12 +38,19 @@ vi.mock('../repos/watchlist.repo.js', () => ({
   updateOperationalWatchlistEntry: vi.fn().mockResolvedValue({}),
 }));
 
-vi.mock('../lib/football-api.js', () => ({
-  fetchPrediction: vi.fn().mockImplementation((matchId: string) => {
-    if (matchId === '100') return Promise.resolve({ predictions: { winner: { name: 'Arsenal' } } });
-    if (matchId === '300') return Promise.resolve(null); // no prediction available
-    return Promise.resolve(null);
+vi.mock('../lib/provider-insight-cache.js', () => ({
+  ensureFixturePrediction: vi.fn().mockImplementation((matchId: string) => {
+    if (matchId === '100') {
+      return Promise.resolve({ payload: { predictions: { winner: { name: 'Arsenal' } } } });
+    }
+    if (matchId === '300') {
+      return Promise.resolve({ payload: null });
+    }
+    return Promise.resolve({ payload: null });
   }),
+}));
+
+vi.mock('../lib/football-api.js', () => ({
   buildSlimPrediction: vi.fn().mockReturnValue({ winner: 'Arsenal', advice: 'Home win' }),
 }));
 
@@ -82,8 +96,8 @@ describe('updatePredictionsJob', () => {
   });
 
   test('handles API errors gracefully per match', async () => {
-    const footballApi = await import('../lib/football-api.js');
-    vi.mocked(footballApi.fetchPrediction).mockRejectedValue(new Error('API limit'));
+    const providerInsight = await import('../lib/provider-insight-cache.js');
+    vi.mocked(providerInsight.ensureFixturePrediction).mockRejectedValue(new Error('API limit'));
 
     const result = await updatePredictionsJob();
     expect(result.checked).toBe(2);
@@ -110,11 +124,13 @@ describe('updatePredictionsJob', () => {
     ] as never);
 
     const footballApi = await import('../lib/football-api.js');
+    const providerInsight = await import('../lib/provider-insight-cache.js');
     const result = await updatePredictionsJob();
 
     expect(result.checked).toBe(1);
-    expect(vi.mocked(footballApi.fetchPrediction)).not.toHaveBeenCalledWith('100');
-    expect(vi.mocked(footballApi.fetchPrediction)).toHaveBeenCalledWith('300');
+    expect(vi.mocked(providerInsight.ensureFixturePrediction)).not.toHaveBeenCalledWith('100', expect.anything());
+    expect(vi.mocked(providerInsight.ensureFixturePrediction)).toHaveBeenCalledWith('300', expect.objectContaining({ status: 'NS' }));
+    expect(footballApi.buildSlimPrediction).toHaveBeenCalledTimes(0);
   });
 
   test('force mode refreshes cached prediction rows', async () => {
@@ -123,11 +139,11 @@ describe('updatePredictionsJob', () => {
       { match_id: '100', home_team: 'Arsenal', away_team: 'Chelsea', prediction: { predictions: { advice: 'Home win' } } },
     ] as never);
 
-    const footballApi = await import('../lib/football-api.js');
+    const providerInsight = await import('../lib/provider-insight-cache.js');
     setForcePredictionRefresh();
     const result = await updatePredictionsJob();
 
     expect(result.checked).toBe(1);
-    expect(vi.mocked(footballApi.fetchPrediction)).toHaveBeenCalledWith('100');
+    expect(vi.mocked(providerInsight.ensureFixturePrediction)).toHaveBeenCalledWith('100', expect.objectContaining({ status: 'NS' }));
   });
 });

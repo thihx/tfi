@@ -24,6 +24,7 @@ test.describe('Integration Health Panel', () => {
 
     await page.goto('/');
     await page.getByRole('button', { name: 'Settings' }).click();
+    await page.getByRole('button', { name: 'System' }).click();
   });
 
   test('shows Integration Health section', async ({ page }) => {

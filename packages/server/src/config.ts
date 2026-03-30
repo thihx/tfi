@@ -62,10 +62,10 @@ export const config = {
 
   // Job intervals (ms) — 0 = disabled
   jobFetchMatchesMs: Number(process.env['JOB_FETCH_MATCHES_MS'] || 1 * 60_000),         // 1 min
-  jobRefreshLiveMatchesMs: Number(process.env['JOB_REFRESH_LIVE_MATCHES_MS'] || 15_000), // 15 sec
+  jobRefreshLiveMatchesMs: Number(process.env['JOB_REFRESH_LIVE_MATCHES_MS'] || 5_000), // 5 sec
   jobPredictionsMs: Number(process.env['JOB_PREDICTIONS_MS'] || 30 * 60_000),            // 30 min
   jobExpireWatchlistMs: Number(process.env['JOB_EXPIRE_WATCHLIST_MS'] || 5 * 60_000),    // 5 min
-  jobCheckLiveMs: Number(process.env['JOB_CHECK_LIVE_MS'] || 15_000),                    // 15 sec
+  jobCheckLiveMs: Number(process.env['JOB_CHECK_LIVE_MS'] || 5_000),                     // 5 sec
   jobRefreshProviderInsightsMs: Number(process.env['JOB_REFRESH_PROVIDER_INSIGHTS_MS'] || 60 * 1000), // 1 min
   jobAutoSettleMs: Number(process.env['JOB_AUTO_SETTLE_MS'] || 10 * 60_000),              // 10 min
   jobEnrichWatchlistMs: Number(process.env['JOB_ENRICH_WATCHLIST_MS'] || 60 * 60_000),   // 60 min
@@ -80,6 +80,7 @@ export const config = {
   matchSnapshotsKeepDays: Number(process.env['MATCH_SNAPSHOTS_KEEP_DAYS'] || 14),
   oddsMovementsKeepDays: Number(process.env['ODDS_MOVEMENTS_KEEP_DAYS'] || 30),
   pipelineRunsKeepDays: Number(process.env['PIPELINE_RUNS_KEEP_DAYS'] || 14),                        // pipeline_runs detail rows
+  recommendationDeliveriesKeepDays: Number(process.env['RECOMMENDATION_DELIVERIES_KEEP_DAYS'] || 0), // 0 = disabled unless explicitly opted in
   recommendationsSlimDays: Number(process.env['RECOMMENDATIONS_SLIM_DAYS'] || 365),                  // slim recommendations (keep full text 1yr for AI retraining)
   aiPerformanceKeepDays: Number(process.env['AI_PERFORMANCE_KEEP_DAYS'] || 365),                     // aggregate+purge ai_performance detail (keep 1yr for AI retraining)
 

@@ -13,20 +13,16 @@ import { settleMatch, type AISettleResult, batchRun } from './auto-settle.job.js
 import * as recommendationsRepo from '../repos/recommendations.repo.js';
 import * as matchHistoryRepo from '../repos/matches-history.repo.js';
 import * as aiPerfRepo from '../repos/ai-performance.repo.js';
-import type { MatchHistoryArchiveInput, MatchHistoryRow } from '../repos/matches-history.repo.js';
-import { fetchFixturesByIds, fetchFixtureStatistics, type ApiFixture } from '../lib/football-api.js';
+import type { MatchHistoryRow } from '../repos/matches-history.repo.js';
 import { normalizeMarket } from '../lib/normalize-market.js';
 import {
-  extractRegularTimeScoreFromFixture,
   isNonStandardFinalStatus,
-  requiresRegularTimeBreakdown,
   resolveSettlementScore,
 } from '../lib/settle-context.js';
 import {
   calcSettlementPnl,
   isFinalSettlementResult,
   settlementWasCorrect,
-  type RegulationScore,
   type SettlementPersistenceMeta,
 } from '../lib/settle-types.js';
 import { SETTLE_PROMPT_VERSION } from '../lib/settle-prompt.js';
@@ -36,7 +32,11 @@ import {
   parseStoredSettlementStats,
   type SettlementStatRow,
 } from '../lib/settlement-stat-cache.js';
-import { kickoffAtUtcFromFixtureDate } from '../lib/kickoff-time.js';
+import { ensureFixtureStatistics } from '../lib/provider-insight-cache.js';
+import {
+  fetchRegularTimeScoresForHistoryMatches,
+  hydrateMissingFinishedResults,
+} from '../lib/settlement-history-hydration.js';
 
 export interface ReEvalResult {
   total: number;
@@ -88,7 +88,7 @@ export async function reEvaluateAllResults(): Promise<ReEvalResult> {
 
   const matchIds = [...new Set(allRecs.rows.map((r) => r.match_id))];
   const historyMap = await matchHistoryRepo.getHistoricalMatchesBatch(matchIds);
-  const regularTimeScoreMap = await fetchRegularTimeScoresForHistoryMatches(historyMap);
+  const regularTimeScoreMap = await fetchRegularTimeScoresForHistoryMatches(historyMap, 're-evaluate');
 
   const missingIds = matchIds.filter((id) => !historyMap.has(id));
   if (missingIds.length > 0) {
@@ -96,34 +96,9 @@ export async function reEvaluateAllResults(): Promise<ReEvalResult> {
     for (let i = 0; i < missingIds.length; i += batchSize) {
       const batch = missingIds.slice(i, i + batchSize);
       try {
-        const fixtures = await fetchFixturesByIds(batch);
-        const finished = new Set(['FT', 'AET', 'PEN', 'AWD', 'WO']);
-        for (const fx of fixtures) {
-          const matchId = String(fx.fixture.id);
-          const status = fx.fixture.status?.short ?? '';
-          if (!finished.has(status)) continue;
-
-          const archiveRow = buildArchiveRowFromFixture(fx);
-          if (
-            typeof archiveRow.regular_home_score === 'number'
-            && typeof archiveRow.regular_away_score === 'number'
-          ) {
-            regularTimeScoreMap.set(matchId, {
-              home: archiveRow.regular_home_score,
-              away: archiveRow.regular_away_score,
-            });
-          }
-
-          try {
-            await matchHistoryRepo.archiveFinishedMatches([archiveRow]);
-          } catch {
-            // Keep in-memory fallback even if archive write fails.
-          }
-
-          historyMap.set(matchId, {
-            ...archiveRow,
-            archived_at: new Date().toISOString(),
-          });
+        const hydratedScores = await hydrateMissingFinishedResults(batch, historyMap, 're-evaluate');
+        for (const [matchId, score] of hydratedScores) {
+          regularTimeScoreMap.set(matchId, score);
         }
       } catch (err) {
         console.warn('[re-evaluate] Football API batch failed:', err instanceof Error ? err.message : err);
@@ -312,8 +287,13 @@ async function fetchMatchStatistics(
 
   await batchRun(idsNeedingStats.map((matchId) => async () => {
     try {
-      const statsRaw = await fetchFixtureStatistics(matchId);
-      const merged = mergeApiFixtureStatistics(statsRaw);
+      const hist = historyMap.get(matchId);
+      const statsState = await ensureFixtureStatistics(matchId, {
+        status: hist?.final_status ?? 'FT',
+        matchMinute: null,
+        acceptFinishedPayloadRegardlessOfTtl: true,
+      });
+      const merged = mergeApiFixtureStatistics(statsState.payload);
       if (merged.length === 0) return;
       statsMap.set(matchId, merged);
       await matchHistoryRepo.updateHistoricalMatchSettlementData(matchId, {
@@ -326,71 +306,4 @@ async function fetchMatchStatistics(
   }), 5);
 
   return statsMap;
-}
-
-async function fetchRegularTimeScoresForHistoryMatches(
-  historyMap: Map<string, MatchHistoryRow>,
-): Promise<Map<string, RegulationScore>> {
-  const scoreMap = new Map<string, RegulationScore>();
-  const idsNeedingLookup = Array.from(historyMap.values())
-    .filter((hist) => requiresRegularTimeBreakdown(hist.final_status))
-    .filter((hist) => {
-      if (typeof hist.regular_home_score === 'number' && typeof hist.regular_away_score === 'number') {
-        scoreMap.set(hist.match_id, {
-          home: hist.regular_home_score,
-          away: hist.regular_away_score,
-        });
-        return false;
-      }
-      return true;
-    })
-    .map((hist) => hist.match_id);
-
-  const uniqueIds = [...new Set(idsNeedingLookup.filter(Boolean))];
-  if (uniqueIds.length === 0) return scoreMap;
-
-  let fixtures: ApiFixture[] = [];
-  try {
-    fixtures = await fetchFixturesByIds(uniqueIds);
-  } catch (err) {
-    console.warn('[re-evaluate] Failed to fetch regular-time scores:', err instanceof Error ? err.message : err);
-    return scoreMap;
-  }
-
-  for (const fx of fixtures) {
-    const regularTimeScore = extractRegularTimeScoreFromFixture(fx);
-    if (!regularTimeScore) continue;
-    const matchId = String(fx.fixture.id);
-    scoreMap.set(matchId, regularTimeScore);
-    await matchHistoryRepo.updateHistoricalMatchSettlementData(matchId, {
-      regular_home_score: regularTimeScore.home,
-      regular_away_score: regularTimeScore.away,
-      result_provider: 'api-football',
-    });
-  }
-
-  return scoreMap;
-}
-
-function buildArchiveRowFromFixture(fx: ApiFixture): MatchHistoryArchiveInput {
-  const regularTimeScore = extractRegularTimeScoreFromFixture(fx);
-  return {
-    match_id: String(fx.fixture.id),
-    date: fx.fixture.date?.substring(0, 10) ?? '',
-    kickoff: fx.fixture.date?.substring(11, 16) ?? '00:00',
-    kickoff_at_utc: kickoffAtUtcFromFixtureDate(fx.fixture.date),
-    league_id: fx.league?.id ?? 0,
-    league_name: fx.league?.name ?? '',
-    home_team: fx.teams?.home?.name ?? '',
-    away_team: fx.teams?.away?.name ?? '',
-    venue: fx.fixture.venue?.name ?? 'TBD',
-    final_status: fx.fixture.status?.short ?? '',
-    home_score: fx.goals?.home ?? 0,
-    away_score: fx.goals?.away ?? 0,
-    regular_home_score: regularTimeScore?.home ?? null,
-    regular_away_score: regularTimeScore?.away ?? null,
-    result_provider: 'api-football',
-    settlement_stats: [],
-    settlement_stats_provider: '',
-  };
 }

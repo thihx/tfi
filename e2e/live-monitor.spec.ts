@@ -4,18 +4,19 @@ test.describe('Live Monitor', () => {
   test.beforeEach(async ({ page }) => {
     await page.goto('/');
     await page.getByRole('button', { name: 'Live Monitor' }).click();
-    await expect(page.getByText('Scheduler Control')).toBeVisible();
+    await expect(page.getByText('Live Monitor Dashboard')).toBeVisible();
   });
 
-  test('shows Start and Run Once buttons when idle', async ({ page }) => {
-    await expect(page.getByRole('button', { name: /start/i })).toBeVisible();
-    await expect(page.getByRole('button', { name: /run once/i })).toBeVisible();
+  test('shows Refresh and Run Check Live actions', async ({ page }) => {
+    await expect(page.getByRole('button', { name: /refresh/i })).toBeVisible();
+    await expect(page.getByRole('button', { name: /run check live/i })).toBeVisible();
   });
 
-  test('shows scheduler status fields', async ({ page }) => {
-    await expect(page.getByText('Runs')).toBeVisible();
-    await expect(page.getByText('Errors')).toBeVisible();
-    await expect(page.getByText('Last Run')).toBeVisible();
-    await expect(page.getByText('Next Run')).toBeVisible();
+  test('shows engine status fields', async ({ page }) => {
+    await expect(page.getByText('Engine', { exact: true })).toBeVisible();
+    await expect(page.getByText('Interval', { exact: true })).toBeVisible();
+    await expect(page.getByText('Runs', { exact: true })).toBeVisible();
+    await expect(page.getByText('Last Run', { exact: true })).toBeVisible();
+    await expect(page.getByText('Latest Run Summary')).toBeVisible();
   });
 });

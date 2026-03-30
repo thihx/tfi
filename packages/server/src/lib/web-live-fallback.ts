@@ -1,4 +1,5 @@
 import { config } from '../config.js';
+import { generateGeminiContent as requestGeminiContent } from './gemini.js';
 import {
   classifyStrategicSourceDomain,
   type StrategicSearchQuality,
@@ -23,7 +24,6 @@ import {
   type SofascoreTeamEventSummary,
 } from './sofascore-extractor.js';
 
-const GEMINI_BASE = 'https://generativelanguage.googleapis.com/v1beta/models';
 const SEARCH_TIMEOUT_MS = Math.min(Math.max(config.geminiTimeoutMs, 45_000), 90_000);
 const STRUCTURE_TIMEOUT_MS = Math.min(Math.max(config.geminiTimeoutMs, 30_000), 60_000);
 const DEFAULT_MODEL = config.geminiStrategicGroundedModel || config.geminiModel;
@@ -888,36 +888,14 @@ async function generateGeminiContent(
   prompt: string,
   options: GeminiGenerateOptions,
 ): Promise<Record<string, unknown> | null> {
-  if (!config.geminiApiKey) {
-    throw new Error('GEMINI_API_KEY not configured');
-  }
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), options.timeoutMs);
-  const model = options.model || DEFAULT_MODEL;
-  const requestUrl = `${GEMINI_BASE}/${model}:generateContent?key=${config.geminiApiKey}`;
-  try {
-    const response = await fetch(requestUrl, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        contents: [{ parts: [{ text: prompt }] }],
-        ...(options.withSearch ? { tools: [{ google_search: {} }] } : {}),
-        generationConfig: {
-          temperature: options.withSearch ? 0.1 : 0,
-          maxOutputTokens: options.maxOutputTokens,
-          responseMimeType: options.responseMimeType,
-        },
-      }),
-      signal: controller.signal,
-    });
-    if (!response.ok) {
-      const text = await response.text().catch(() => '');
-      throw new Error(`Gemini API ${response.status}: ${text.substring(0, 300)}`);
-    }
-    return await response.json() as Record<string, unknown>;
-  } finally {
-    clearTimeout(timer);
-  }
+  return requestGeminiContent(prompt, {
+    model: options.model || DEFAULT_MODEL,
+    withSearch: options.withSearch,
+    timeoutMs: options.timeoutMs,
+    maxOutputTokens: options.maxOutputTokens,
+    responseMimeType: options.responseMimeType,
+    temperature: options.withSearch ? 0.1 : 0,
+  });
 }
 
 function stripHtmlToText(html: string): string {

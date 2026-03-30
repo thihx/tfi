@@ -1,14 +1,17 @@
 // ============================================================
-// Job Scheduler — periodic jobs with Redis-based lock + state
+// Job Scheduler — self-rescheduling jobs with Redis-backed state
 //
-// - SETNX lock prevents concurrent runs of the same job
-// - Job state (lastRun, lastError, runCount) persisted in Redis
-// - Survives server restarts
+// - Self-rescheduling timers avoid interval drift assumptions.
+// - A single pending rerun is retained for single-concurrency jobs.
+// - Redis lock/state provide multi-instance coordination when available.
+// - Heartbeat-based running state prevents stale "running=true" flags.
 // ============================================================
 
+import crypto from 'node:crypto';
 import { config } from '../config.js';
 import { getRedisClient } from '../lib/redis.js';
 import { audit } from '../lib/audit.js';
+import { summarizeJobResultForAudit } from './job-result-serializer.js';
 import { fetchMatchesJob, ADAPTIVE_SKIP_KEY } from './fetch-matches.job.js';
 import { refreshLiveMatchesJob } from './refresh-live-matches.job.js';
 import { updatePredictionsJob } from './update-predictions.job.js';
@@ -24,13 +27,18 @@ import { refreshProviderInsightsJob } from './refresh-provider-insights.job.js';
 import {
   type JobProgress,
   clearJobProgress,
-  reportJobProgress,
   completeJobProgress,
   getJobProgress,
+  reportJobProgress,
 } from './job-progress.js';
-import crypto from 'node:crypto';
 
 export type { JobProgress };
+
+type LockPolicy = 'strict' | 'degraded-local';
+
+const RUN_STATE_TTL_SEC = 30 * 24 * 60 * 60;
+const RUN_HEARTBEAT_INTERVAL_MS = 5_000;
+const RUN_HEARTBEAT_STALE_MS = 30_000;
 
 export interface JobInfo {
   name: string;
@@ -41,19 +49,22 @@ export interface JobInfo {
   order?: number;
   intervalMs: number;
   lastRun: string | null;
+  lastStartedAt: string | null;
+  lastCompletedAt: string | null;
+  lastHeartbeatAt: string | null;
+  lastDurationMs: number | null;
+  lastLagMs: number | null;
   lastError: string | null;
   running: boolean;
   enabled: boolean;
   runCount: number;
   progress: JobProgress | null;
-  /** Max number of concurrent runs allowed. 1 = single-threaded (default). */
   concurrency: number;
-  /** Number of runs currently executing (for concurrency > 1 jobs). */
   activeRuns: number;
-  /** Number of runs waiting for a free slot in the queue. */
   pendingRuns: number;
-  /** Redis key used for intentional skip/defer (e.g. adaptive polling). Exposed so watchdog can distinguish intentional sleep from a real miss. */
   skipKey?: string;
+  lockPolicy: LockPolicy;
+  degradedLocking: boolean;
 }
 
 interface ManagedJob {
@@ -65,22 +76,28 @@ interface ManagedJob {
   order?: number;
   intervalMs: number;
   fn: () => Promise<unknown>;
-  timer: ReturnType<typeof setInterval> | null;
+  timer: ReturnType<typeof setTimeout> | null;
+  heartbeatTimer: ReturnType<typeof setInterval> | null;
+  nextDueAt: number | null;
   lastRun: string | null;
+  lastStartedAt: string | null;
+  lastCompletedAt: string | null;
+  lastHeartbeatAt: string | null;
+  lastDurationMs: number | null;
+  lastLagMs: number | null;
   lastError: string | null;
   running: boolean;
   enabled: boolean;
   runCount: number;
   lockTtlMs: number;
-  /** Hard timeout for a single run. If exceeded, the run is aborted with an error and running is reset. */
   maxRunMs?: number;
-  /** Max concurrent runs. 1 = single (default). Jobs with concurrency > 1 skip the Redis distributed lock. */
   concurrency: number;
-  /** Active run count for concurrent jobs. */
   activeRuns: number;
-  /** Pending (queued) run count — max = concurrency. */
   pendingRuns: number;
+  pendingScheduledAt: number | null;
   skipKey?: string;
+  lockPolicy: LockPolicy;
+  degradedLocking: boolean;
 }
 
 interface JobMetadata {
@@ -89,20 +106,45 @@ interface JobMetadata {
   group: 'pipeline' | 'monitoring' | 'maintenance' | 'reference-data';
   entityScopes?: string[];
   order: number;
+  lockPolicy?: LockPolicy;
+}
+
+interface PersistedJobState {
+  lastRun?: string;
+  lastStartedAt?: string;
+  lastCompletedAt?: string;
+  lastHeartbeatAt?: string;
+  lastDurationMs?: string;
+  lastLagMs?: string;
+  lastError?: string;
+  runCount?: string;
+  running?: string;
+  ownerInstanceId?: string;
+  degradedLocking?: string;
+}
+
+interface LockAcquireResult {
+  acquired: boolean;
+  degraded: boolean;
+  reason?: 'held-by-other-instance' | 'redis-unavailable-strict';
 }
 
 const jobs: ManagedJob[] = [];
 const instanceId = crypto.randomUUID();
 let schedulerStartedAt = 0;
 
-/** Returns how long the scheduler has been running (ms). */
 export function getSchedulerUptime(): number {
   return schedulerStartedAt > 0 ? Date.now() - schedulerStartedAt : 0;
 }
 
-// Redis key helpers (keyPrefix 'tfi:' is applied by ioredis)
 const lockKey = (name: string) => `job:lock:${name}`;
 const stateKey = (name: string) => `job:state:${name}`;
+
+function safeNumber(value: string | undefined): number | null {
+  if (value == null || value === '') return null;
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : null;
+}
 
 function register(
   name: string,
@@ -121,30 +163,66 @@ function register(
     group: metadata?.group,
     entityScopes: metadata?.entityScopes,
     order: metadata?.order,
-    intervalMs, fn,
-    timer: null, lastRun: null, lastError: null,
-    running: false, enabled: intervalMs > 0, runCount: 0,
+    intervalMs,
+    fn,
+    timer: null,
+    heartbeatTimer: null,
+    nextDueAt: null,
+    lastRun: null,
+    lastStartedAt: null,
+    lastCompletedAt: null,
+    lastHeartbeatAt: null,
+    lastDurationMs: null,
+    lastLagMs: null,
+    lastError: null,
+    running: false,
+    enabled: intervalMs > 0,
+    runCount: 0,
     lockTtlMs: lockTtlMs ?? Math.max(intervalMs * 3, 60_000),
     maxRunMs,
-    concurrency, activeRuns: 0, pendingRuns: 0,
+    concurrency,
+    activeRuns: 0,
+    pendingRuns: 0,
+    pendingScheduledAt: null,
     skipKey,
+    lockPolicy: metadata?.lockPolicy ?? 'strict',
+    degradedLocking: false,
   });
 }
 
-async function acquireLock(job: ManagedJob): Promise<boolean> {
+function clearTimer(job: ManagedJob): void {
+  if (job.timer) {
+    clearTimeout(job.timer);
+    job.timer = null;
+  }
+}
+
+function stopHeartbeat(job: ManagedJob): void {
+  if (job.heartbeatTimer) {
+    clearInterval(job.heartbeatTimer);
+    job.heartbeatTimer = null;
+  }
+}
+
+async function acquireLock(job: ManagedJob): Promise<LockAcquireResult> {
   try {
     const redis = getRedisClient();
     const ttlSec = Math.ceil(job.lockTtlMs / 1000);
     const result = await redis.set(lockKey(job.name), instanceId, 'EX', ttlSec, 'NX');
-    return result === 'OK';
+    if (result === 'OK') return { acquired: true, degraded: false };
+    return { acquired: false, degraded: false, reason: 'held-by-other-instance' };
   } catch (err) {
-    // Redis down → refuse to run to prevent concurrent execution
+    if (job.lockPolicy === 'degraded-local') {
+      console.warn(`[scheduler] Redis unavailable for "${job.name}", running in degraded local-lock mode:`, err);
+      return { acquired: true, degraded: true };
+    }
     console.error(`[scheduler] Redis unavailable for lock "${job.name}", skipping run:`, err);
-    return false;
+    return { acquired: false, degraded: false, reason: 'redis-unavailable-strict' };
   }
 }
 
 async function releaseLock(job: ManagedJob): Promise<void> {
+  if (job.degradedLocking) return;
   try {
     const redis = getRedisClient();
     const current = await redis.get(lockKey(job.name));
@@ -161,10 +239,18 @@ async function persistState(job: ManagedJob): Promise<void> {
     const redis = getRedisClient();
     await redis.hset(stateKey(job.name), {
       lastRun: job.lastRun || '',
+      lastStartedAt: job.lastStartedAt || '',
+      lastCompletedAt: job.lastCompletedAt || '',
+      lastHeartbeatAt: job.lastHeartbeatAt || '',
+      lastDurationMs: job.lastDurationMs == null ? '' : String(job.lastDurationMs),
+      lastLagMs: job.lastLagMs == null ? '' : String(job.lastLagMs),
       lastError: job.lastError || '',
       runCount: String(job.runCount),
       running: job.running ? '1' : '0',
+      ownerInstanceId: job.running ? instanceId : '',
+      degradedLocking: job.degradedLocking ? '1' : '0',
     });
+    await redis.expire(stateKey(job.name), RUN_STATE_TTL_SEC);
   } catch {
     // ignore
   }
@@ -173,10 +259,16 @@ async function persistState(job: ManagedJob): Promise<void> {
 async function restoreState(job: ManagedJob): Promise<void> {
   try {
     const redis = getRedisClient();
-    const state = await redis.hgetall(stateKey(job.name));
+    const state = await redis.hgetall(stateKey(job.name)) as PersistedJobState;
     if (state.lastRun) job.lastRun = state.lastRun;
+    if (state.lastStartedAt) job.lastStartedAt = state.lastStartedAt;
+    if (state.lastCompletedAt) job.lastCompletedAt = state.lastCompletedAt;
+    if (state.lastHeartbeatAt) job.lastHeartbeatAt = state.lastHeartbeatAt;
     if (state.lastError) job.lastError = state.lastError;
     if (state.runCount) job.runCount = Number(state.runCount);
+    job.lastDurationMs = safeNumber(state.lastDurationMs);
+    job.lastLagMs = safeNumber(state.lastLagMs);
+    job.degradedLocking = state.degradedLocking === '1';
   } catch {
     // ignore — start fresh
   }
@@ -188,97 +280,233 @@ function callWithTimeout(fn: () => Promise<unknown>, maxRunMs: number): Promise<
       reject(new Error(`Job timed out after ${Math.round(maxRunMs / 60_000)}m`));
     }, maxRunMs);
     fn().then(
-      (r) => { clearTimeout(timer); resolve(r); },
-      (e) => { clearTimeout(timer); reject(e); },
+      (value) => {
+        clearTimeout(timer);
+        resolve(value);
+      },
+      (error) => {
+        clearTimeout(timer);
+        reject(error);
+      },
     );
   });
 }
 
-async function runJob(job: ManagedJob) {
+function scheduleJob(job: ManagedJob, dueAt: number): void {
+  clearTimer(job);
+  job.nextDueAt = dueAt;
+  if (!job.enabled) return;
+
+  const delayMs = Math.max(0, dueAt - Date.now());
+  job.timer = setTimeout(() => {
+    job.timer = null;
+    if (!job.enabled) return;
+    scheduleJob(job, dueAt + job.intervalMs);
+    void requestRun(job, dueAt);
+  }, delayMs);
+}
+
+function startHeartbeat(job: ManagedJob): void {
+  stopHeartbeat(job);
+  const tick = () => {
+    job.lastHeartbeatAt = new Date().toISOString();
+    void persistState(job);
+  };
+  tick();
+  job.heartbeatTimer = setInterval(tick, RUN_HEARTBEAT_INTERVAL_MS);
+}
+
+function queuePendingSingleRun(job: ManagedJob, scheduledAt: number): void {
+  job.pendingRuns = 1;
+  job.pendingScheduledAt = job.pendingScheduledAt == null
+    ? scheduledAt
+    : Math.min(job.pendingScheduledAt, scheduledAt);
+}
+
+async function requestRun(job: ManagedJob, scheduledAt: number): Promise<void> {
   if (job.concurrency === 1) {
-    // ── Single-run path: existing behavior (Redis distributed lock) ──────────
-    if (job.running) return;
-
-    const locked = await acquireLock(job);
-    if (!locked) {
-      console.log(`[scheduler] Job "${job.name}" skipped — another instance holds the lock`);
+    if (job.running) {
+      queuePendingSingleRun(job, scheduledAt);
       return;
     }
+    await runSingleJob(job, scheduledAt);
+    return;
+  }
 
-    job.running = true;
-    await persistState(job);
-    await clearJobProgress(job.name);
-    await reportJobProgress(job.name, 'starting', 'Starting...', 0);
+  if (job.activeRuns >= job.concurrency) {
+    if (job.pendingRuns < job.concurrency) {
+      job.pendingRuns++;
+      job.pendingScheduledAt = job.pendingScheduledAt == null
+        ? scheduledAt
+        : Math.min(job.pendingScheduledAt, scheduledAt);
+      console.log(`[scheduler] Job "${job.name}" queued (${job.activeRuns}/${job.concurrency} active, ${job.pendingRuns} pending)`);
+    } else {
+      console.log(`[scheduler] Job "${job.name}" dropped — queue full (${job.concurrency}/${job.concurrency} active + ${job.pendingRuns} pending)`);
+    }
+    return;
+  }
 
-    const jobStart = Date.now();
-    try {
-      const result = await (job.maxRunMs ? callWithTimeout(job.fn, job.maxRunMs) : job.fn());
-      job.lastRun = new Date().toISOString();
-      job.lastError = null;
-      job.runCount++;
-      await completeJobProgress(job.name, result, null);
-      audit({ category: 'JOB', action: `JOB_${job.name.toUpperCase().replace(/-/g, '_')}`, outcome: 'SUCCESS', actor: 'scheduler', duration_ms: Date.now() - jobStart, metadata: result && typeof result === 'object' ? result as Record<string, unknown> : null });
-      console.log(`[scheduler] Job "${job.name}" completed (#${job.runCount})`, result);
-    } catch (err) {
-      job.lastError = err instanceof Error ? err.message : String(err);
-      await completeJobProgress(job.name, null, job.lastError);
-      audit({ category: 'JOB', action: `JOB_${job.name.toUpperCase().replace(/-/g, '_')}`, outcome: 'FAILURE', actor: 'scheduler', duration_ms: Date.now() - jobStart, error: job.lastError });
-      console.error(`[scheduler] Job "${job.name}" failed:`, err);
-    } finally {
-      job.running = false;
+  await runConcurrentJob(job, scheduledAt);
+}
+
+async function runSingleJob(job: ManagedJob, scheduledAt: number): Promise<void> {
+  const lock = await acquireLock(job);
+  if (!lock.acquired) {
+    if (lock.reason === 'redis-unavailable-strict') {
+      job.lastError = 'Redis unavailable for distributed lock';
       await persistState(job);
-      await releaseLock(job);
+    } else {
+      console.log(`[scheduler] Job "${job.name}" skipped — another instance holds the lock`);
     }
-  } else {
-    // ── Multi-run path: in-process concurrency with queue ───────────────────
-    // No Redis distributed lock — each instance manages its own concurrency.
-    if (job.activeRuns >= job.concurrency) {
-      // At capacity — queue if there's room (max queue = concurrency)
-      if (job.pendingRuns < job.concurrency) {
-        job.pendingRuns++;
-        console.log(`[scheduler] Job "${job.name}" queued (${job.activeRuns}/${job.concurrency} active, ${job.pendingRuns} pending)`);
-      } else {
-        console.log(`[scheduler] Job "${job.name}" dropped — queue full (${job.concurrency}/${job.concurrency} active + ${job.pendingRuns} pending)`);
-      }
-      return;
+    return;
+  }
+
+  const startTs = Date.now();
+  job.degradedLocking = lock.degraded;
+  job.running = true;
+  job.activeRuns = 1;
+  job.lastStartedAt = new Date(startTs).toISOString();
+  job.lastLagMs = Math.max(0, startTs - scheduledAt);
+  await persistState(job);
+  await clearJobProgress(job.name);
+  await reportJobProgress(job.name, 'starting', 'Starting...', 0);
+  startHeartbeat(job);
+
+  try {
+    const result = await (job.maxRunMs ? callWithTimeout(job.fn, job.maxRunMs) : job.fn());
+    const completedAt = new Date().toISOString();
+    job.lastRun = completedAt;
+    job.lastCompletedAt = completedAt;
+    job.lastError = null;
+    job.lastDurationMs = Date.now() - startTs;
+    job.runCount++;
+    await completeJobProgress(job.name, result, null);
+    audit({
+      category: 'JOB',
+      action: `JOB_${job.name.toUpperCase().replace(/-/g, '_')}`,
+      outcome: lock.degraded ? 'PARTIAL' : 'SUCCESS',
+      actor: 'scheduler',
+      duration_ms: job.lastDurationMs,
+      metadata: {
+        degradedLocking: lock.degraded,
+        lagMs: job.lastLagMs,
+        ...(summarizeJobResultForAudit(job.name, result) ?? {}),
+      },
+    });
+    console.log(`[scheduler] Job "${job.name}" completed (#${job.runCount})`, {
+      degradedLocking: lock.degraded,
+      lagMs: job.lastLagMs,
+      durationMs: job.lastDurationMs,
+    });
+  } catch (err) {
+    const completedAt = new Date().toISOString();
+    job.lastRun = completedAt;
+    job.lastCompletedAt = completedAt;
+    job.lastDurationMs = Date.now() - startTs;
+    job.lastError = err instanceof Error ? err.message : String(err);
+    await completeJobProgress(job.name, null, job.lastError);
+    audit({
+      category: 'JOB',
+      action: `JOB_${job.name.toUpperCase().replace(/-/g, '_')}`,
+      outcome: 'FAILURE',
+      actor: 'scheduler',
+      duration_ms: job.lastDurationMs,
+      error: job.lastError,
+      metadata: {
+        degradedLocking: lock.degraded,
+        lagMs: job.lastLagMs,
+      },
+    });
+    console.error(`[scheduler] Job "${job.name}" failed:`, err);
+  } finally {
+    stopHeartbeat(job);
+    job.running = false;
+    job.activeRuns = 0;
+    job.lastHeartbeatAt = null;
+    await persistState(job);
+    await releaseLock(job);
+
+    if (job.pendingRuns > 0) {
+      const pendingScheduledAt = job.pendingScheduledAt ?? Date.now();
+      job.pendingRuns = 0;
+      job.pendingScheduledAt = null;
+      queueMicrotask(() => {
+        void requestRun(job, pendingScheduledAt);
+      });
     }
+  }
+}
 
-    job.activeRuns++;
-    job.running = true;
-    await clearJobProgress(job.name);
-    await reportJobProgress(job.name, 'starting', 'Starting...', 0);
+async function runConcurrentJob(job: ManagedJob, scheduledAt: number): Promise<void> {
+  const startTs = Date.now();
+  job.activeRuns++;
+  job.running = true;
+  job.lastStartedAt = new Date(startTs).toISOString();
+  job.lastLagMs = Math.max(0, startTs - scheduledAt);
+  job.lastHeartbeatAt = job.lastStartedAt;
+  await clearJobProgress(job.name);
+  await reportJobProgress(job.name, 'starting', 'Starting...', 0);
 
-    const jobStart = Date.now();
-    try {
-      const result = await job.fn();
-      job.lastRun = new Date().toISOString();
-      job.lastError = null;
-      job.runCount++;
-      await completeJobProgress(job.name, result, null);
-      audit({ category: 'JOB', action: `JOB_${job.name.toUpperCase().replace(/-/g, '_')}`, outcome: 'SUCCESS', actor: 'scheduler', duration_ms: Date.now() - jobStart, metadata: result && typeof result === 'object' ? result as Record<string, unknown> : null });
-      console.log(`[scheduler] Job "${job.name}" completed (#${job.runCount})`, result);
-    } catch (err) {
-      job.lastError = err instanceof Error ? err.message : String(err);
-      await completeJobProgress(job.name, null, job.lastError);
-      audit({ category: 'JOB', action: `JOB_${job.name.toUpperCase().replace(/-/g, '_')}`, outcome: 'FAILURE', actor: 'scheduler', duration_ms: Date.now() - jobStart, error: job.lastError });
-      console.error(`[scheduler] Job "${job.name}" failed:`, err);
-    } finally {
-      job.activeRuns--;
-      job.running = job.activeRuns > 0;
-      // Dequeue next pending run
-      if (job.pendingRuns > 0) {
-        job.pendingRuns--;
-        console.log(`[scheduler] Job "${job.name}" dequeuing pending run (${job.pendingRuns} remaining)`);
-        runJob(job);
-      }
+  try {
+    const result = await job.fn();
+    const completedAt = new Date().toISOString();
+    job.lastRun = completedAt;
+    job.lastCompletedAt = completedAt;
+    job.lastError = null;
+    job.lastDurationMs = Date.now() - startTs;
+    job.runCount++;
+    await completeJobProgress(job.name, result, null);
+    audit({
+      category: 'JOB',
+      action: `JOB_${job.name.toUpperCase().replace(/-/g, '_')}`,
+      outcome: 'SUCCESS',
+      actor: 'scheduler',
+      duration_ms: job.lastDurationMs,
+      metadata: {
+        lagMs: job.lastLagMs,
+        ...(summarizeJobResultForAudit(job.name, result) ?? {}),
+      },
+    });
+    console.log(`[scheduler] Job "${job.name}" completed (#${job.runCount})`);
+  } catch (err) {
+    const completedAt = new Date().toISOString();
+    job.lastRun = completedAt;
+    job.lastCompletedAt = completedAt;
+    job.lastDurationMs = Date.now() - startTs;
+    job.lastError = err instanceof Error ? err.message : String(err);
+    await completeJobProgress(job.name, null, job.lastError);
+    audit({
+      category: 'JOB',
+      action: `JOB_${job.name.toUpperCase().replace(/-/g, '_')}`,
+      outcome: 'FAILURE',
+      actor: 'scheduler',
+      duration_ms: job.lastDurationMs,
+      error: job.lastError,
+      metadata: { lagMs: job.lastLagMs },
+    });
+    console.error(`[scheduler] Job "${job.name}" failed:`, err);
+  } finally {
+    job.activeRuns--;
+    job.running = job.activeRuns > 0;
+    job.lastHeartbeatAt = null;
+    if (job.pendingRuns > 0) {
+      job.pendingRuns--;
+      const pendingScheduledAt = job.pendingScheduledAt ?? Date.now();
+      job.pendingScheduledAt = null;
+      console.log(`[scheduler] Job "${job.name}" dequeuing pending run (${job.pendingRuns} remaining)`);
+      queueMicrotask(() => {
+        void requestRun(job, pendingScheduledAt);
+      });
     }
   }
 }
 
 export async function startScheduler() {
-  // Register all jobs
-  // Register in logical pipeline order:
-  // 1. Ingest data → 2. Enrich → 3. Predict → 4. Live analysis → 5. Settle → 6. Cleanup
+  if (jobs.length > 0) {
+    stopScheduler();
+    jobs.length = 0;
+  }
+
   register(
     'fetch-matches',
     config.jobFetchMatchesMs,
@@ -293,6 +521,7 @@ export async function startScheduler() {
       group: 'pipeline',
       entityScopes: ['matches', 'watchlist-candidates', 'match-history-archive'],
       order: 1,
+      lockPolicy: 'degraded-local',
     },
   );
   register(
@@ -309,6 +538,7 @@ export async function startScheduler() {
       group: 'pipeline',
       entityScopes: ['matches', 'live-scores', 'live-cards'],
       order: 2,
+      lockPolicy: 'degraded-local',
     },
   );
   register(
@@ -325,6 +555,7 @@ export async function startScheduler() {
       group: 'reference-data',
       entityScopes: ['league-catalog', 'league-team-directory'],
       order: 3,
+      lockPolicy: 'degraded-local',
     },
   );
   register(
@@ -341,6 +572,7 @@ export async function startScheduler() {
       group: 'pipeline',
       entityScopes: ['watchlist', 'strategic-context', 'recommended-conditions'],
       order: 4,
+      lockPolicy: 'degraded-local',
     },
   );
   register(
@@ -357,6 +589,7 @@ export async function startScheduler() {
       group: 'pipeline',
       entityScopes: ['watchlist', 'predictions'],
       order: 5,
+      lockPolicy: 'degraded-local',
     },
   );
   register(
@@ -373,6 +606,7 @@ export async function startScheduler() {
       group: 'pipeline',
       entityScopes: ['watchlist', 'live-pipeline', 'recommendations', 'notifications'],
       order: 6,
+      lockPolicy: 'strict',
     },
   );
   register(
@@ -385,10 +619,11 @@ export async function startScheduler() {
     undefined,
     {
       label: 'Refresh Provider Insights',
-      description: 'Refreshes saved match details for live and followed games, such as match facts, event details, and price snapshots, so the app can read recent local copies instead of asking again each time.',
+      description: 'Pre-warms saved match details for non-live followed games, such as match facts, event details, and provider snapshots, so the app can read recent local copies instead of asking again each time.',
       group: 'pipeline',
       entityScopes: ['provider-fixture-cache', 'provider-stats-cache', 'provider-events-cache', 'provider-odds-cache'],
       order: 7,
+      lockPolicy: 'degraded-local',
     },
   );
   register(
@@ -405,6 +640,7 @@ export async function startScheduler() {
       group: 'pipeline',
       entityScopes: ['recommendations', 'bets', 'settlement-audit'],
       order: 8,
+      lockPolicy: 'strict',
     },
   );
   register(
@@ -421,6 +657,7 @@ export async function startScheduler() {
       group: 'maintenance',
       entityScopes: ['watchlist'],
       order: 9,
+      lockPolicy: 'degraded-local',
     },
   );
   register(
@@ -437,6 +674,7 @@ export async function startScheduler() {
       group: 'maintenance',
       entityScopes: ['audit-logs'],
       order: 10,
+      lockPolicy: 'degraded-local',
     },
   );
   register(
@@ -453,6 +691,7 @@ export async function startScheduler() {
       group: 'monitoring',
       entityScopes: ['postgres', 'redis', 'provider-apis', 'telegram'],
       order: 11,
+      lockPolicy: 'strict',
     },
   );
   register(
@@ -469,22 +708,23 @@ export async function startScheduler() {
       group: 'monitoring',
       entityScopes: ['scheduler', 'critical-jobs'],
       order: 12,
+      lockPolicy: 'strict',
     },
   );
 
   schedulerStartedAt = Date.now();
 
-  // Restore state from Redis
   for (const job of jobs) {
     await restoreState(job);
   }
 
-  // Clear any stale adaptive skip keys so jobs run promptly after restart
   for (const job of jobs) {
     if (job.skipKey) {
       try {
         await getRedisClient().del(job.skipKey);
-      } catch { /* ignore */ }
+      } catch {
+        // ignore
+      }
     }
   }
 
@@ -493,28 +733,39 @@ export async function startScheduler() {
       console.log(`[scheduler] Job "${job.name}" disabled (interval=0)`);
       continue;
     }
-    job.timer = setInterval(() => runJob(job), job.intervalMs);
 
-    // If the job is overdue (lastRun + interval < now), run it immediately
-    // instead of waiting for the full interval to elapse.
-    const lastRunTs = job.lastRun ? new Date(job.lastRun).getTime() : 0;
-    const overdue = lastRunTs > 0 && (Date.now() - lastRunTs) > job.intervalMs;
+    const now = Date.now();
+    const lastCompletedTs = job.lastCompletedAt
+      ? new Date(job.lastCompletedAt).getTime()
+      : (job.lastRun ? new Date(job.lastRun).getTime() : 0);
+    const overdue = lastCompletedTs > 0 && (now - lastCompletedTs) > job.intervalMs;
+    const firstDueAt = overdue ? now : now + job.intervalMs;
+    scheduleJob(job, firstDueAt);
+
     if (overdue) {
-      console.log(`[scheduler] Job "${job.name}" is overdue (last ran ${job.lastRun}), running immediately`);
-      runJob(job);
+      console.log(`[scheduler] Job "${job.name}" is overdue (last completed ${job.lastCompletedAt ?? job.lastRun}), running immediately`);
     }
 
     console.log(`[scheduler] Job "${job.name}" every ${job.intervalMs / 1000}s (runs so far: ${job.runCount})`);
   }
 
-  console.log(`[scheduler] ✅ ${jobs.filter((j) => j.enabled).length} jobs started (instance: ${instanceId.slice(0, 8)})`);  audit({ category: 'SYSTEM', action: 'SCHEDULER_START', actor: 'system', metadata: { enabledJobs: jobs.filter((j) => j.enabled).map((j) => j.name), instanceId: instanceId.slice(0, 8) } });}
+  console.log(`[scheduler] ✅ ${jobs.filter((job) => job.enabled).length} jobs started (instance: ${instanceId.slice(0, 8)})`);
+  audit({
+    category: 'SYSTEM',
+    action: 'SCHEDULER_START',
+    actor: 'system',
+    metadata: {
+      enabledJobs: jobs.filter((job) => job.enabled).map((job) => job.name),
+      instanceId: instanceId.slice(0, 8),
+    },
+  });
+}
 
 export function stopScheduler() {
   for (const job of jobs) {
-    if (job.timer) {
-      clearInterval(job.timer);
-      job.timer = null;
-    }
+    clearTimer(job);
+    stopHeartbeat(job);
+    job.nextDueAt = null;
   }
   console.log('[scheduler] All jobs stopped');
 }
@@ -522,24 +773,55 @@ export function stopScheduler() {
 export async function getJobsStatus(): Promise<JobInfo[]> {
   const result: JobInfo[] = [];
   let redis: ReturnType<typeof getRedisClient> | null = null;
-  try { redis = getRedisClient(); } catch { /* unavailable */ }
+  try {
+    redis = getRedisClient();
+  } catch {
+    redis = null;
+  }
+
+  const now = Date.now();
 
   for (const job of jobs) {
     const progress = await getJobProgress(job.name);
 
-    // Merge with Redis state so multi-instance deployments (e.g. local + Azure)
-    // see the most recent run even if it was completed by another instance.
     let lastRun = job.lastRun;
+    let lastStartedAt = job.lastStartedAt;
+    let lastCompletedAt = job.lastCompletedAt;
+    let lastHeartbeatAt = job.lastHeartbeatAt;
+    let lastDurationMs = job.lastDurationMs;
+    let lastLagMs = job.lastLagMs;
     let lastError = job.lastError;
     let running = job.running;
+    let degradedLocking = job.degradedLocking;
+    let runCount = job.runCount;
+
     if (redis) {
       try {
-        const state = await redis.hgetall(stateKey(job.name));
+        const state = await redis.hgetall(stateKey(job.name)) as PersistedJobState;
+        const remoteLastCompleted = state.lastCompletedAt || state.lastRun || '';
+        const localLastCompleted = lastCompletedAt || lastRun || '';
         if (state.lastRun && state.lastRun > (lastRun ?? '')) lastRun = state.lastRun;
-        if (state.lastError && !lastError) lastError = state.lastError;
-        // A job marked running in Redis by another instance takes precedence
-        if (state.running === '1' && !running) running = true;
-      } catch { /* ignore — use in-memory fallback */ }
+        if (state.lastStartedAt && state.lastStartedAt > (lastStartedAt ?? '')) lastStartedAt = state.lastStartedAt;
+        if (state.lastCompletedAt && state.lastCompletedAt > (lastCompletedAt ?? '')) lastCompletedAt = state.lastCompletedAt;
+        if (state.lastHeartbeatAt && state.lastHeartbeatAt > (lastHeartbeatAt ?? '')) lastHeartbeatAt = state.lastHeartbeatAt;
+        if (remoteLastCompleted >= localLastCompleted) {
+          const remoteDuration = safeNumber(state.lastDurationMs);
+          const remoteLag = safeNumber(state.lastLagMs);
+          if (remoteDuration != null) lastDurationMs = remoteDuration;
+          if (remoteLag != null) lastLagMs = remoteLag;
+          if (state.lastError) lastError = state.lastError;
+        }
+        if (state.runCount) runCount = Math.max(runCount, Number(state.runCount));
+        degradedLocking = degradedLocking || state.degradedLocking === '1';
+
+        const heartbeatTs = state.lastHeartbeatAt ? Date.parse(state.lastHeartbeatAt) : NaN;
+        const remoteRunning = state.running === '1'
+          && Number.isFinite(heartbeatTs)
+          && (now - heartbeatTs) <= RUN_HEARTBEAT_STALE_MS;
+        if (remoteRunning && !running) running = true;
+      } catch {
+        // ignore — use in-memory fallback
+      }
     }
 
     result.push({
@@ -549,58 +831,66 @@ export async function getJobsStatus(): Promise<JobInfo[]> {
       group: job.group,
       entityScopes: job.entityScopes,
       order: job.order,
-      intervalMs: job.intervalMs, lastRun,
-      lastError, running, enabled: job.enabled,
-      runCount: job.runCount, progress, skipKey: job.skipKey,
+      intervalMs: job.intervalMs,
+      lastRun,
+      lastStartedAt,
+      lastCompletedAt,
+      lastHeartbeatAt,
+      lastDurationMs,
+      lastLagMs,
+      lastError,
+      running,
+      enabled: job.enabled,
+      runCount,
+      progress,
+      skipKey: job.skipKey,
       concurrency: job.concurrency,
       activeRuns: job.activeRuns,
       pendingRuns: job.pendingRuns,
+      lockPolicy: job.lockPolicy,
+      degradedLocking,
     });
   }
+
   return result;
 }
 
 export function triggerJob(name: string): { triggered: boolean; queued?: boolean } | null {
-  const job = jobs.find((j) => j.name === name);
+  const job = jobs.find((entry) => entry.name === name);
   if (!job) return null;
 
-  // For concurrent jobs: only reject when queue is full
   if (job.concurrency > 1) {
     if (job.activeRuns >= job.concurrency && job.pendingRuns >= job.concurrency) {
-      return { triggered: false }; // queue full
+      return { triggered: false };
     }
     audit({ category: 'JOB', action: 'JOB_MANUAL_TRIGGER', actor: 'user', metadata: { jobName: name } });
     const willQueue = job.activeRuns >= job.concurrency;
-    runJob(job);
+    void requestRun(job, Date.now());
     return { triggered: true, queued: willQueue };
   }
 
-  // Single-run: reject if already running
   if (job.running) return { triggered: false };
-  // Clear adaptive skip key so manual trigger always runs immediately
   if (job.skipKey) {
-    getRedisClient().del(job.skipKey).catch(() => { /* ignore */ });
+    getRedisClient().del(job.skipKey).catch(() => {
+      // ignore
+    });
   }
   audit({ category: 'JOB', action: 'JOB_MANUAL_TRIGGER', actor: 'user', metadata: { jobName: name } });
-  runJob(job);
+  void requestRun(job, Date.now());
   return { triggered: true };
 }
 
 export function updateJobInterval(name: string, intervalMs: number): JobInfo | null {
-  const job = jobs.find((j) => j.name === name);
+  const job = jobs.find((entry) => entry.name === name);
   if (!job) return null;
 
-  if (job.timer) {
-    clearInterval(job.timer);
-    job.timer = null;
-  }
-
+  clearTimer(job);
   job.intervalMs = intervalMs;
   job.enabled = intervalMs > 0;
   job.lockTtlMs = Math.max(intervalMs * 3, 60_000);
 
   if (job.enabled) {
-    job.timer = setInterval(() => runJob(job), job.intervalMs);
+    scheduleJob(job, Date.now() + job.intervalMs);
     console.log(`[scheduler] Job "${job.name}" rescheduled every ${job.intervalMs / 1000}s`);
   } else {
     console.log(`[scheduler] Job "${job.name}" disabled`);
@@ -615,6 +905,11 @@ export function updateJobInterval(name: string, intervalMs: number): JobInfo | n
     order: job.order,
     intervalMs: job.intervalMs,
     lastRun: job.lastRun,
+    lastStartedAt: job.lastStartedAt,
+    lastCompletedAt: job.lastCompletedAt,
+    lastHeartbeatAt: job.lastHeartbeatAt,
+    lastDurationMs: job.lastDurationMs,
+    lastLagMs: job.lastLagMs,
     lastError: job.lastError,
     running: job.running,
     enabled: job.enabled,
@@ -623,5 +918,8 @@ export function updateJobInterval(name: string, intervalMs: number): JobInfo | n
     concurrency: job.concurrency,
     activeRuns: job.activeRuns,
     pendingRuns: job.pendingRuns,
+    skipKey: job.skipKey,
+    lockPolicy: job.lockPolicy,
+    degradedLocking: job.degradedLocking,
   };
 }

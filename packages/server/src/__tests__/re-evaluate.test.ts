@@ -41,6 +41,11 @@ vi.mock('../lib/football-api.js', () => ({
   fetchFixtureStatistics: vi.fn().mockResolvedValue([]),
 }));
 
+vi.mock('../lib/provider-insight-cache.js', () => ({
+  ensureFixturesForMatchIds: vi.fn(),
+  ensureFixtureStatistics: vi.fn().mockResolvedValue({ payload: [], cacheStatus: 'refreshed' }),
+}));
+
 vi.mock('../lib/gemini.js', () => ({
   callGemini: vi.fn(),
 }));
@@ -76,8 +81,8 @@ import { query } from '../db/pool.js';
 import * as recommendationsRepo from '../repos/recommendations.repo.js';
 import * as matchHistoryRepo from '../repos/matches-history.repo.js';
 import * as aiPerfRepo from '../repos/ai-performance.repo.js';
-import { fetchFixtureStatistics, fetchFixturesByIds } from '../lib/football-api.js';
 import { callGemini } from '../lib/gemini.js';
+import { ensureFixtureStatistics, ensureFixturesForMatchIds } from '../lib/provider-insight-cache.js';
 
 // ==================== Helpers ====================
 
@@ -150,6 +155,8 @@ describe('reEvaluateAllResults', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     (matchHistoryRepo.getHistoricalMatchesBatch as Mock).mockResolvedValue(new Map());
+    (ensureFixturesForMatchIds as Mock).mockResolvedValue([]);
+    (ensureFixtureStatistics as Mock).mockResolvedValue({ payload: [], cacheStatus: 'refreshed' });
   });
 
   /** Helper to set AI settle response */
@@ -209,7 +216,7 @@ describe('reEvaluateAllResults', () => {
 
     (query as Mock).mockResolvedValueOnce({ rows: [rec] });
     (matchHistoryRepo.getHistoricalMatchesBatch as Mock).mockResolvedValueOnce(new Map());
-    (fetchFixturesByIds as Mock).mockResolvedValueOnce([]);
+    (ensureFixturesForMatchIds as Mock).mockResolvedValueOnce([]);
 
     const result = await reEvaluateAllResults();
 
@@ -258,7 +265,7 @@ describe('reEvaluateAllResults', () => {
 
     (query as Mock).mockResolvedValueOnce({ rows: [rec] });
     (matchHistoryRepo.getHistoricalMatchesBatch as Mock).mockResolvedValueOnce(new Map());
-    (fetchFixturesByIds as Mock).mockResolvedValueOnce([
+    (ensureFixturesForMatchIds as Mock).mockResolvedValueOnce([
       {
         fixture: {
           id: 55555,
@@ -411,7 +418,7 @@ describe('reEvaluateAllResults', () => {
         }),
       ]]),
     );
-    (fetchFixturesByIds as Mock).mockResolvedValueOnce([{
+    (ensureFixturesForMatchIds as Mock).mockResolvedValueOnce([{
       fixture: {
         id: 90909,
         date: '2026-03-16T20:00:00+00:00',
@@ -463,7 +470,7 @@ describe('reEvaluateAllResults', () => {
     const result = await reEvaluateAllResults();
 
     expect(result.corrected).toBe(1);
-    expect(fetchFixtureStatistics).not.toHaveBeenCalled();
+    expect(ensureFixtureStatistics).not.toHaveBeenCalled();
     expect(callGemini).not.toHaveBeenCalled();
     expect(recommendationsRepo.settleRecommendation).toHaveBeenCalledWith(
       10,
@@ -503,7 +510,7 @@ describe('reEvaluateAllResults', () => {
     const result = await reEvaluateAllResults();
 
     expect(result.corrected).toBe(1);
-    expect(fetchFixturesByIds).not.toHaveBeenCalled();
+    expect(ensureFixturesForMatchIds).not.toHaveBeenCalled();
     expect(callGemini).not.toHaveBeenCalled();
     expect(recommendationsRepo.settleRecommendation).toHaveBeenCalledWith(
       11,

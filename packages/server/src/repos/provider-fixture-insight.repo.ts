@@ -210,6 +210,16 @@ export async function getProviderFixtureStatsCache(matchId: string): Promise<Pro
   return result.rows[0] ?? null;
 }
 
+export async function getProviderFixtureStatsCaches(matchIds: string[]): Promise<ProviderFixtureStatsCacheRow[]> {
+  if (matchIds.length === 0) return [];
+  const result = await query<ProviderFixtureStatsCacheRow>(
+    `SELECT * FROM provider_fixture_stats_cache
+     WHERE match_id = ANY($1)`,
+    [matchIds],
+  );
+  return result.rows;
+}
+
 export async function upsertProviderFixtureStatsCache(input: UpsertProviderFixtureStatsCacheInput): Promise<ProviderFixtureStatsCacheRow> {
   const result = await query<ProviderFixtureStatsCacheRow>(
     `INSERT INTO provider_fixture_stats_cache (
@@ -370,10 +380,10 @@ export async function upsertProviderFixturePredictionCache(input: UpsertProvider
        freshness = EXCLUDED.freshness,
        degraded = EXCLUDED.degraded,
        last_refresh_error = EXCLUDED.last_refresh_error
-     RETURNING *`,
+    RETURNING *`,
     [
       input.match_id,
-      JSON.stringify(input.prediction_payload ?? {}),
+      JSON.stringify(input.prediction_payload ?? null),
       input.prediction_fetched_at ?? null,
       input.cached_at ?? null,
       input.match_status ?? '',

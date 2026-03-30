@@ -36,6 +36,11 @@ vi.mock('../lib/football-api.js', () => ({
   fetchFixtureStatistics: vi.fn().mockResolvedValue([]),
 }));
 
+vi.mock('../lib/provider-insight-cache.js', () => ({
+  ensureFixturesForMatchIds: vi.fn(),
+  ensureFixtureStatistics: vi.fn().mockResolvedValue({ payload: [], cacheStatus: 'refreshed' }),
+}));
+
 vi.mock('../lib/gemini.js', () => ({
   callGemini: vi.fn(),
 }));
@@ -60,8 +65,8 @@ import * as recommendationsRepo from '../repos/recommendations.repo.js';
 import * as betsRepo from '../repos/bets.repo.js';
 import * as matchHistoryRepo from '../repos/matches-history.repo.js';
 import * as aiPerfRepo from '../repos/ai-performance.repo.js';
-import { fetchFixtureStatistics, fetchFixturesByIds } from '../lib/football-api.js';
 import { callGemini } from '../lib/gemini.js';
+import { ensureFixtureStatistics, ensureFixturesForMatchIds } from '../lib/provider-insight-cache.js';
 
 function makeRec(overrides: Partial<RecommendationRow> = {}): RecommendationRow {
   return {
@@ -166,6 +171,8 @@ beforeEach(() => {
   vi.resetAllMocks();
   (betsRepo.getUnsettledBets as Mock).mockResolvedValue([]);
   (matchHistoryRepo.getHistoricalMatchesBatch as Mock).mockResolvedValue(new Map());
+  (ensureFixturesForMatchIds as Mock).mockResolvedValue([]);
+  (ensureFixtureStatistics as Mock).mockResolvedValue({ payload: [], cacheStatus: 'refreshed' });
 });
 
 function mockAISettle(results: Array<{ id: number; result: string; explanation: string }>) {
@@ -205,7 +212,7 @@ describe('autoSettleJob', () => {
       true,
       expect.objectContaining({ status: 'resolved', method: 'rules', trusted: true }),
     );
-    expect(fetchFixturesByIds).not.toHaveBeenCalled();
+    expect(ensureFixturesForMatchIds).not.toHaveBeenCalled();
   });
 
   test('uses cached settlement stats from matches_history before Football API stats fallback', async () => {
@@ -231,7 +238,7 @@ describe('autoSettleJob', () => {
     const stats = await autoSettleJob();
 
     expect(stats.settled).toBe(1);
-    expect(fetchFixtureStatistics).not.toHaveBeenCalled();
+    expect(ensureFixtureStatistics).not.toHaveBeenCalled();
     expect(callGemini).not.toHaveBeenCalled();
     expect(recommendationsRepo.settleRecommendation).toHaveBeenCalledWith(
       1,
@@ -278,12 +285,12 @@ describe('autoSettleJob', () => {
     });
     (recommendationsRepo.getAllRecommendations as Mock).mockResolvedValue({ rows: [rec] });
     (matchHistoryRepo.getHistoricalMatchesBatch as Mock).mockResolvedValue(new Map());
-    (fetchFixturesByIds as Mock).mockResolvedValue([makeApiFixture(99999, 3, 0)]);
+    (ensureFixturesForMatchIds as Mock).mockResolvedValue([makeApiFixture(99999, 3, 0)]);
     mockAISettle([{ id: 1, result: 'win', explanation: 'Tong ban thang la 3, vuot muc 2.5' }]);
 
     const stats = await autoSettleJob();
 
-    expect(fetchFixturesByIds).toHaveBeenCalledWith(['99999']);
+    expect(ensureFixturesForMatchIds).toHaveBeenCalledWith(['99999']);
     expect(stats.settled).toBe(1);
     expect(recommendationsRepo.settleRecommendation).toHaveBeenCalledWith(
       1,
@@ -301,7 +308,7 @@ describe('autoSettleJob', () => {
     const rec = makeRec({ match_id: '77777' });
     (recommendationsRepo.getAllRecommendations as Mock).mockResolvedValue({ rows: [rec] });
     (matchHistoryRepo.getHistoricalMatchesBatch as Mock).mockResolvedValue(new Map());
-    (fetchFixturesByIds as Mock).mockResolvedValue([makeApiFixture(77777, 1, 0, '2H')]);
+    (ensureFixturesForMatchIds as Mock).mockResolvedValue([makeApiFixture(77777, 1, 0, '2H')]);
 
     const stats = await autoSettleJob();
 
@@ -331,7 +338,7 @@ describe('autoSettleJob', () => {
     (matchHistoryRepo.getHistoricalMatchesBatch as Mock).mockResolvedValue(
       new Map([['100', makeHistory({ match_id: '100', home_score: 2, away_score: 1 })]]),
     );
-    (fetchFixturesByIds as Mock).mockResolvedValue([makeApiFixture(200, 1, 2)]);
+    (ensureFixturesForMatchIds as Mock).mockResolvedValue([makeApiFixture(200, 1, 2)]);
     (callGemini as Mock)
       .mockResolvedValueOnce(JSON.stringify([{ id: 1, result: 'win', explanation: 'Over 2.5 thang' }]))
       .mockResolvedValueOnce(JSON.stringify([{ id: 2, result: 'win', explanation: 'BTTS thang' }]));
@@ -339,14 +346,14 @@ describe('autoSettleJob', () => {
     const stats = await autoSettleJob();
 
     expect(stats.settled).toBe(2);
-    expect(fetchFixturesByIds).toHaveBeenCalledWith(['200']);
+    expect(ensureFixturesForMatchIds).toHaveBeenCalledWith(['200']);
   });
 
   test('Football API failure does not crash and missing matches are skipped', async () => {
     const rec = makeRec({ match_id: '55555' });
     (recommendationsRepo.getAllRecommendations as Mock).mockResolvedValue({ rows: [rec] });
     (matchHistoryRepo.getHistoricalMatchesBatch as Mock).mockResolvedValue(new Map());
-    (fetchFixturesByIds as Mock).mockRejectedValue(new Error('API key expired'));
+    (ensureFixturesForMatchIds as Mock).mockRejectedValue(new Error('API key expired'));
 
     const stats = await autoSettleJob();
 
@@ -362,7 +369,7 @@ describe('autoSettleJob', () => {
 
     expect(stats.settled).toBe(0);
     expect(stats.skipped).toBe(0);
-    expect(fetchFixturesByIds).not.toHaveBeenCalled();
+    expect(ensureFixturesForMatchIds).not.toHaveBeenCalled();
   });
 
   test('loss result is computed correctly via API fallback', async () => {
@@ -375,7 +382,7 @@ describe('autoSettleJob', () => {
     });
     (recommendationsRepo.getAllRecommendations as Mock).mockResolvedValue({ rows: [rec] });
     (matchHistoryRepo.getHistoricalMatchesBatch as Mock).mockResolvedValue(new Map());
-    (fetchFixturesByIds as Mock).mockResolvedValue([makeApiFixture(88888, 1, 0)]);
+    (ensureFixturesForMatchIds as Mock).mockResolvedValue([makeApiFixture(88888, 1, 0)]);
     mockAISettle([{ id: 1, result: 'loss', explanation: 'Tong ban thang la 1, khong vuot muc 2.5' }]);
 
     const stats = await autoSettleJob();
@@ -432,7 +439,7 @@ describe('autoSettleJob', () => {
     });
     (recommendationsRepo.getAllRecommendations as Mock).mockResolvedValue({ rows: [rec] });
     (matchHistoryRepo.getHistoricalMatchesBatch as Mock).mockResolvedValue(new Map());
-    (fetchFixturesByIds as Mock).mockResolvedValue([
+    (ensureFixturesForMatchIds as Mock).mockResolvedValue([
       makeApiFixture(66666, 2, 2, 'AET', { home: 1, away: 1 }),
     ]);
 
@@ -472,7 +479,7 @@ describe('autoSettleJob', () => {
     const stats = await autoSettleJob();
 
     expect(stats.settled).toBe(1);
-    expect(fetchFixturesByIds).not.toHaveBeenCalled();
+    expect(ensureFixturesForMatchIds).not.toHaveBeenCalled();
     expect(callGemini).not.toHaveBeenCalled();
     expect(recommendationsRepo.settleRecommendation).toHaveBeenCalledWith(
       1,
@@ -493,7 +500,7 @@ describe('autoSettleJob', () => {
     });
     (recommendationsRepo.getAllRecommendations as Mock).mockResolvedValue({ rows: [rec] });
     (matchHistoryRepo.getHistoricalMatchesBatch as Mock).mockResolvedValue(new Map());
-    (fetchFixturesByIds as Mock).mockResolvedValue([makeApiFixture(66667, 2, 2, 'AET')]);
+    (ensureFixturesForMatchIds as Mock).mockResolvedValue([makeApiFixture(66667, 2, 2, 'AET')]);
 
     const stats = await autoSettleJob();
 

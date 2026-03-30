@@ -1,5 +1,6 @@
-import { fetchTeamsByLeagueWithSeason, type LeagueTeamWithRank } from './football-api.js';
+import type { LeagueTeamWithRank } from './football-api.js';
 import { getRedisClient } from './redis.js';
+import { fetchLeagueTeamsBySeasonFromReferenceProvider } from './reference-data-provider.js';
 import {
   getLeagueTeamDirectory as getLeagueTeamDirectoryRows,
   replaceLeagueTeamsSnapshot,
@@ -12,7 +13,7 @@ const REFRESH_LOCK_TTL_SEC = 30;
 const REMOTE_REFRESH_WAIT_MS = 2_000;
 const REMOTE_REFRESH_POLL_MS = 200;
 
-const inFlightRefreshes = new Map<number, Promise<LeagueTeamResponse[]>>();
+const inFlightRefreshes = new Map<number, Promise<LeagueTeamDirectoryRefreshResult>>();
 
 export interface LeagueTeamResponse {
   team: {
@@ -22,6 +23,11 @@ export interface LeagueTeamResponse {
     country: string | null;
   };
   rank: number | null;
+}
+
+export interface LeagueTeamDirectoryRefreshResult {
+  rows: LeagueTeamResponse[];
+  source: 'fresh_cache' | 'provider_refreshed' | 'remote_refreshed' | 'stale_fallback' | 'empty_provider';
 }
 
 function cacheKey(leagueId: number): string {
@@ -113,7 +119,7 @@ function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-async function waitForRemoteRefresh(leagueId: number): Promise<LeagueTeamResponse[] | null> {
+async function waitForRemoteRefresh(leagueId: number): Promise<LeagueTeamDirectoryRefreshResult | null> {
   const deadline = Date.now() + REMOTE_REFRESH_WAIT_MS;
   while (Date.now() < deadline) {
     await sleep(REMOTE_REFRESH_POLL_MS);
@@ -121,17 +127,17 @@ async function waitForRemoteRefresh(leagueId: number): Promise<LeagueTeamRespons
     if (isFresh(rows)) {
       const response = toResponse(rows);
       await writeRedisCache(leagueId, response);
-      return response;
+      return { rows: response, source: 'remote_refreshed' };
     }
   }
   return null;
 }
 
-async function refreshFromProvider(leagueId: number): Promise<LeagueTeamResponse[]> {
-  const providerResult = await fetchTeamsByLeagueWithSeason(leagueId);
+async function refreshFromProvider(leagueId: number): Promise<LeagueTeamDirectoryRefreshResult> {
+  const providerResult = await fetchLeagueTeamsBySeasonFromReferenceProvider(leagueId, { force: true });
   if (!providerResult || providerResult.teams.length === 0) {
     await invalidateRedisCache(leagueId);
-    return [];
+    return { rows: [], source: 'empty_provider' };
   }
 
   const fetchedAt = new Date();
@@ -158,22 +164,25 @@ async function refreshFromProvider(leagueId: number): Promise<LeagueTeamResponse
     rank: row.rank,
   }));
   await writeRedisCache(leagueId, response);
-  return response;
+  return { rows: response, source: 'provider_refreshed' };
 }
 
-async function refreshLeagueTeamDirectory(leagueId: number, fallbackRows: LeagueTeamDirectoryRow[]): Promise<LeagueTeamResponse[]> {
+async function refreshLeagueTeamDirectory(
+  leagueId: number,
+  fallbackRows: LeagueTeamDirectoryRow[],
+): Promise<LeagueTeamDirectoryRefreshResult> {
   const hasLock = await acquireRefreshLock(leagueId);
   if (!hasLock) {
     const remoteResult = await waitForRemoteRefresh(leagueId);
     if (remoteResult) return remoteResult;
-    if (fallbackRows.length > 0) return toResponse(fallbackRows);
+    if (fallbackRows.length > 0) return { rows: toResponse(fallbackRows), source: 'stale_fallback' };
   }
 
   try {
     return await refreshFromProvider(leagueId);
   } catch (error) {
     if (fallbackRows.length > 0) {
-      return toResponse(fallbackRows);
+      return { rows: toResponse(fallbackRows), source: 'stale_fallback' };
     }
     throw error;
   } finally {
@@ -183,11 +192,16 @@ async function refreshLeagueTeamDirectory(leagueId: number, fallbackRows: League
   }
 }
 
-export async function refreshLeagueTeamsDirectoryNow(leagueId: number): Promise<LeagueTeamResponse[]> {
+export async function refreshLeagueTeamsDirectoryNow(leagueId: number): Promise<LeagueTeamDirectoryRefreshResult> {
   const existing = inFlightRefreshes.get(leagueId);
   if (existing) return existing;
 
   const rows = await getLeagueTeamDirectoryRows(leagueId);
+  if (isFresh(rows)) {
+    const response = toResponse(rows);
+    await writeRedisCache(leagueId, response);
+    return { rows: response, source: 'fresh_cache' };
+  }
   const refreshPromise = refreshLeagueTeamDirectory(leagueId, rows)
     .finally(() => {
       inFlightRefreshes.delete(leagueId);
@@ -208,12 +222,16 @@ export async function getLeagueTeamsDirectory(leagueId: number): Promise<LeagueT
   }
 
   const existing = inFlightRefreshes.get(leagueId);
-  if (existing) return existing;
+  if (existing) {
+    const result = await existing;
+    return result.rows;
+  }
 
   const refreshPromise = refreshLeagueTeamDirectory(leagueId, rows)
     .finally(() => {
       inFlightRefreshes.delete(leagueId);
     });
   inFlightRefreshes.set(leagueId, refreshPromise);
-  return refreshPromise;
+  const result = await refreshPromise;
+  return result.rows;
 }

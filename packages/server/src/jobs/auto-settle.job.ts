@@ -12,11 +12,10 @@ import * as recommendationsRepo from '../repos/recommendations.repo.js';
 import * as betsRepo from '../repos/bets.repo.js';
 import * as matchHistoryRepo from '../repos/matches-history.repo.js';
 import * as aiPerfRepo from '../repos/ai-performance.repo.js';
-import { fetchFixturesByIds, fetchFixtureStatistics, type ApiFixture } from '../lib/football-api.js';
 import { callGemini } from '../lib/gemini.js';
 import { config } from '../config.js';
 import type { RecommendationRow } from '../repos/recommendations.repo.js';
-import type { MatchHistoryArchiveInput, MatchHistoryRow } from '../repos/matches-history.repo.js';
+import type { MatchHistoryRow } from '../repos/matches-history.repo.js';
 import { reportJobProgress } from './job-progress.js';
 import { settleByRule, earlySettleByRule, requiresOfficialStats } from '../lib/settle-rules.js';
 import {
@@ -28,9 +27,7 @@ import {
   type SettlementPersistenceMeta,
 } from '../lib/settle-types.js';
 import {
-  extractRegularTimeScoreFromFixture,
   isNonStandardFinalStatus,
-  requiresRegularTimeBreakdown,
   resolveSettlementScore,
 } from '../lib/settle-context.js';
 import {
@@ -45,8 +42,12 @@ import {
   parseStoredSettlementStats,
   type SettlementStatRow,
 } from '../lib/settlement-stat-cache.js';
-import { kickoffAtUtcFromFixtureDate } from '../lib/kickoff-time.js';
 import { query as dbQuery } from '../db/pool.js';
+import { ensureFixtureStatistics } from '../lib/provider-insight-cache.js';
+import {
+  fetchRegularTimeScoresForHistoryMatches,
+  hydrateMissingFinishedResults,
+} from '../lib/settlement-history-hydration.js';
 
 interface SettleResult {
   settled: number;
@@ -304,12 +305,12 @@ async function settleRecommendations(recs: RecommendationRow[], stats: SettleRes
   const matchIds = [...new Set(recs.map((r) => r.match_id))];
   // Single batch query instead of N individual lookups
   const historyMap = await matchHistoryRepo.getHistoricalMatchesBatch(matchIds);
-  const regularTimeScoreMap = await fetchRegularTimeScoresForHistoryMatches(historyMap);
+  const regularTimeScoreMap = await fetchRegularTimeScoresForHistoryMatches(historyMap, 'autoSettleJob');
 
   // Fallback: fetch results from Football API for matches not in history
   const missingIds = matchIds.filter((id) => !historyMap.has(id));
   if (missingIds.length > 0) {
-    const fetchedRegularTimeScores = await fetchAndArchiveMissingResults(missingIds, historyMap);
+    const fetchedRegularTimeScores = await hydrateMissingFinishedResults(missingIds, historyMap, 'autoSettleJob');
     for (const [matchId, score] of fetchedRegularTimeScores) {
       regularTimeScoreMap.set(matchId, score);
     }
@@ -443,12 +444,12 @@ async function settleBets(
   const matchIds = [...new Set(bets.map((b) => b.match_id))];
   // Single batch query instead of N individual lookups
   const historyMap = await matchHistoryRepo.getHistoricalMatchesBatch(matchIds);
-  const regularTimeScoreMap = await fetchRegularTimeScoresForHistoryMatches(historyMap);
+  const regularTimeScoreMap = await fetchRegularTimeScoresForHistoryMatches(historyMap, 'autoSettleJob');
 
   // Fallback: fetch results from Football API for matches not in history
   const missingIds = matchIds.filter((id) => !historyMap.has(id));
   if (missingIds.length > 0) {
-    const fetchedRegularTimeScores = await fetchAndArchiveMissingResults(missingIds, historyMap);
+    const fetchedRegularTimeScores = await hydrateMissingFinishedResults(missingIds, historyMap, 'autoSettleJob');
     for (const [matchId, score] of fetchedRegularTimeScores) {
       regularTimeScoreMap.set(matchId, score);
     }
@@ -710,6 +711,7 @@ async function fetchMatchStatistics(
   // Parallel fetches (concurrency 5) instead of sequential
   await batchRun(idsToFetch.map((matchId) => async () => {
     try {
+      const hist = historyMap.get(matchId);
       // 1st priority: TFI's own live stats capture (provider_stats_samples)
       const sampleStats = await fetchStatsFromSamples(matchId);
       if (sampleStats.length > 0) {
@@ -721,9 +723,13 @@ async function fetchMatchStatistics(
         return;
       }
 
-      // 2nd priority: external Football API — save to DB before using
-      const statsRaw = await fetchFixtureStatistics(matchId);
-      const merged = mergeApiFixtureStatistics(statsRaw);
+      // 2nd priority: centralized provider stats cache/service
+      const statsState = await ensureFixtureStatistics(matchId, {
+        status: hist?.final_status ?? 'FT',
+        matchMinute: null,
+        acceptFinishedPayloadRegardlessOfTtl: true,
+      });
+      const merged = mergeApiFixtureStatistics(statsState.payload);
       if (merged.length > 0) {
         statsMap.set(matchId, merged);
         await matchHistoryRepo.updateHistoricalMatchSettlementData(matchId, {
@@ -751,59 +757,6 @@ export async function batchRun<T>(tasks: (() => Promise<T>)[], concurrency = 5):
 }
 
 // ==================== Football API Fallback ====================
-
-const FINISHED_STATUSES = new Set(['FT', 'AET', 'PEN', 'AWD', 'WO']);
-
-async function fetchRegularTimeScoresForHistoryMatches(
-  historyMap: Map<string, MatchHistoryRow>,
-): Promise<Map<string, RegulationScore>> {
-  const out = new Map<string, RegulationScore>();
-  const idsNeedingLookup = Array.from(historyMap.values())
-    .filter((hist) => requiresRegularTimeBreakdown(hist.final_status))
-    .filter((hist) => {
-      const home = hist.regular_home_score;
-      const away = hist.regular_away_score;
-      if (typeof home === 'number' && typeof away === 'number') {
-        out.set(hist.match_id, { home, away });
-        return false;
-      }
-      return true;
-    })
-    .map((hist) => hist.match_id);
-
-  const fetched = await fetchRegularTimeScoresForMatchIds(idsNeedingLookup);
-  for (const [matchId, score] of fetched) out.set(matchId, score);
-  return out;
-}
-
-async function fetchRegularTimeScoresForMatchIds(matchIds: string[]): Promise<Map<string, RegulationScore>> {
-  const uniqueIds = [...new Set(matchIds.filter(Boolean))];
-  if (uniqueIds.length === 0) return new Map();
-
-  let fixtures: ApiFixture[] = [];
-  try {
-    fixtures = await fetchFixturesByIds(uniqueIds);
-  } catch (err) {
-    console.warn(
-      '[autoSettleJob] Failed to fetch regular-time scores:',
-      err instanceof Error ? err.message : err,
-    );
-    return new Map();
-  }
-  const out = new Map<string, RegulationScore>();
-  for (const fx of fixtures) {
-    const score = extractRegularTimeScoreFromFixture(fx);
-    if (!score) continue;
-    const matchId = String(fx.fixture.id);
-    out.set(matchId, score);
-    await matchHistoryRepo.updateHistoricalMatchSettlementData(matchId, {
-      regular_home_score: score.home,
-      regular_away_score: score.away,
-      result_provider: 'api-football',
-    });
-  }
-  return out;
-}
 
 function buildMatchContextForSettlement(
   matchId: string,
@@ -838,74 +791,3 @@ function buildMatchContextForSettlement(
  * If a fixture has finished (FT/AET/PEN/AWD/WO), archive it to matches_history
  * and add it to the historyMap for immediate settlement.
  */
-async function fetchAndArchiveMissingResults(
-  missingIds: string[],
-  historyMap: Map<string, MatchHistoryRow>,
-): Promise<Map<string, RegulationScore>> {
-  const regularTimeScores = new Map<string, RegulationScore>();
-  let fixtures: ApiFixture[];
-  try {
-    fixtures = await fetchFixturesByIds(missingIds);
-  } catch (err) {
-    console.warn('[autoSettleJob] Football API fallback failed:', err instanceof Error ? err.message : err);
-    return regularTimeScores;
-  }
-
-  for (const fx of fixtures) {
-    const matchId = String(fx.fixture.id);
-    const status = fx.fixture.status?.short ?? '';
-
-    if (!FINISHED_STATUSES.has(status)) continue;
-
-    const regularTimeScore = extractRegularTimeScoreFromFixture(fx);
-    if (regularTimeScore) {
-      regularTimeScores.set(matchId, regularTimeScore);
-    }
-
-    const archiveRow = buildArchiveRowFromFixture(fx);
-
-    // Archive to matches_history for future lookups
-    try {
-      await matchHistoryRepo.archiveFinishedMatches([archiveRow]);
-    } catch (err) {
-      console.warn(`[autoSettleJob] Failed to archive match ${matchId}:`, err instanceof Error ? err.message : err);
-    }
-
-    // Add to historyMap for immediate use
-    historyMap.set(matchId, {
-      ...archiveRow,
-      archived_at: new Date().toISOString(),
-    });
-  }
-
-  if (fixtures.length > 0) {
-    const archived = fixtures.filter((fx) => FINISHED_STATUSES.has(fx.fixture.status?.short ?? '')).length;
-    if (archived > 0) {
-      console.log(`[autoSettleJob] Fetched ${fixtures.length} fixtures from API, archived ${archived} finished matches`);
-    }
-  }
-  return regularTimeScores;
-}
-
-function buildArchiveRowFromFixture(fx: ApiFixture): MatchHistoryArchiveInput {
-  const regularTimeScore = extractRegularTimeScoreFromFixture(fx);
-  return {
-    match_id: String(fx.fixture.id),
-    date: fx.fixture.date?.substring(0, 10) ?? '',
-    kickoff: fx.fixture.date?.substring(11, 16) ?? '00:00',
-    kickoff_at_utc: kickoffAtUtcFromFixtureDate(fx.fixture.date),
-    league_id: fx.league?.id ?? 0,
-    league_name: fx.league?.name ?? '',
-    home_team: fx.teams?.home?.name ?? '',
-    away_team: fx.teams?.away?.name ?? '',
-    venue: fx.fixture.venue?.name ?? 'TBD',
-    final_status: fx.fixture.status?.short ?? '',
-    home_score: fx.goals?.home ?? 0,
-    away_score: fx.goals?.away ?? 0,
-    regular_home_score: regularTimeScore?.home ?? null,
-    regular_away_score: regularTimeScore?.away ?? null,
-    result_provider: 'api-football',
-    settlement_stats: [],
-    settlement_stats_provider: '',
-  };
-}

@@ -21,15 +21,17 @@ test.describe('Navigation', () => {
   test('can navigate to Settings', async ({ page }) => {
     await page.goto('/');
     await page.getByRole('button', { name: 'Settings' }).click();
-    await expect(page.getByText('Job Scheduler')).toBeVisible();
-    await expect(page.getByText('Integration Health').first()).toBeVisible();
-    await expect(page.getByText('Audit Trail')).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Settings' })).toBeVisible();
+    await expect(page.getByRole('button', { name: 'General' })).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Scheduler' })).toBeVisible();
+    await expect(page.getByRole('button', { name: 'System' })).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Audit' })).toBeVisible();
   });
 
   test('can navigate to Live Monitor', async ({ page }) => {
     await page.goto('/');
     await page.getByRole('button', { name: 'Live Monitor' }).click();
-    await expect(page.getByText('Scheduler Control')).toBeVisible();
+    await expect(page.getByText('Live Monitor Dashboard')).toBeVisible();
   });
 
   test('can navigate to Recommendations', async ({ page }) => {

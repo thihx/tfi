@@ -47,6 +47,9 @@ vi.mock('../repos/recommendations.repo.js', () => ({
 vi.mock('../repos/ai-performance.repo.js', () => ({
   aggregateAndPurgeOldAiPerformance: vi.fn().mockResolvedValue({ aggregated: 4, deleted: 8 }),
 }));
+vi.mock('../repos/recommendation-deliveries.repo.js', () => ({
+  purgeOldDeliveries: vi.fn().mockResolvedValue(0),
+}));
 
 const { housekeepingJob, purgeAuditJob } = await import('../jobs/purge-audit.job.js');
 
@@ -66,6 +69,7 @@ describe('housekeepingJob', () => {
     expect(result.oddsMovementsDeleted).toBe(13);
     expect(result.promptShadowDeleted).toBe(6);
     expect(result.pipelineRunsDeleted).toBe(3);
+    expect(result.recommendationDeliveriesDeleted).toBe(0);
     expect(result.recommendationsSlimmed).toBe(20);
     expect(result.aiPerfAggregated).toBe(4);
     expect(result.aiPerfDeleted).toBe(8);
@@ -81,15 +85,20 @@ describe('housekeepingJob', () => {
       oddsMovements: 30,
       promptShadow: 14,
       pipelineRuns: 14,
+      recommendationDeliveries: 0,
       recommendationsSlim: 365,
       aiPerformance: 365,
     });
+    expect(result.failedPhases).toEqual([]);
 
     const historyRepo = await import('../repos/matches-history.repo.js');
     expect(historyRepo.purgeHistoricalMatches).toHaveBeenCalledWith(120, 180);
 
     const pipelineRepo = await import('../repos/pipeline-runs.repo.js');
     expect(pipelineRepo.purgePipelineRuns).toHaveBeenCalledWith(14);
+
+    const deliveriesRepo = await import('../repos/recommendation-deliveries.repo.js');
+    expect(deliveriesRepo.purgeOldDeliveries).not.toHaveBeenCalled();
 
     const recsRepo = await import('../repos/recommendations.repo.js');
     expect(recsRepo.slimOldRecommendations).toHaveBeenCalledWith(365);
@@ -109,6 +118,7 @@ describe('housekeepingJob', () => {
     const pipelineRepo = await import('../repos/pipeline-runs.repo.js');
     const recsRepo = await import('../repos/recommendations.repo.js');
     const aiRepo = await import('../repos/ai-performance.repo.js');
+    const deliveriesRepo = await import('../repos/recommendation-deliveries.repo.js');
     vi.mocked(auditRepo.purgeAuditLogs).mockResolvedValueOnce(0);
     vi.mocked(historyRepo.purgeHistoricalMatches).mockResolvedValueOnce(0);
     vi.mocked(providerStatsRepo.purgeProviderStatsSamples).mockResolvedValueOnce(0);
@@ -117,6 +127,7 @@ describe('housekeepingJob', () => {
     vi.mocked(oddsRepo.purgeOddsMovements).mockResolvedValueOnce(0);
     vi.mocked(promptShadowRepo.purgePromptShadowRuns).mockResolvedValueOnce(0);
     vi.mocked(pipelineRepo.purgePipelineRuns).mockResolvedValueOnce(0);
+    vi.mocked(deliveriesRepo.purgeOldDeliveries).mockResolvedValueOnce(0);
     vi.mocked(recsRepo.slimOldRecommendations).mockResolvedValueOnce(0);
     vi.mocked(aiRepo.aggregateAndPurgeOldAiPerformance).mockResolvedValueOnce({ aggregated: 0, deleted: 0 });
 

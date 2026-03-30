@@ -22,6 +22,9 @@ export async function syncReferenceDataJob(): Promise<{
   leagueTeamDirectory: {
     candidateLeagues: number;
     refreshedLeagues: number;
+    skippedFreshLeagues: number;
+    staleFallbackLeagues: number;
+    emptyLeagues: number;
     failedLeagues: number;
     topLeagueCount: number;
     activeLeagueCount: number;
@@ -40,6 +43,9 @@ export async function syncReferenceDataJob(): Promise<{
   ]);
 
   let refreshedLeagues = 0;
+  let skippedFreshLeagues = 0;
+  let staleFallbackLeagues = 0;
+  let emptyLeagues = 0;
   let failedLeagues = 0;
 
   if (orderedIds.length === 0) {
@@ -56,6 +62,9 @@ export async function syncReferenceDataJob(): Promise<{
       leagueTeamDirectory: {
         candidateLeagues: 0,
         refreshedLeagues: 0,
+        skippedFreshLeagues: 0,
+        staleFallbackLeagues: 0,
+        emptyLeagues: 0,
         failedLeagues: 0,
         topLeagueCount: topLeagues.length,
         activeLeagueCount: activeLeagues.length,
@@ -75,8 +84,25 @@ export async function syncReferenceDataJob(): Promise<{
     const batchResults = await Promise.allSettled(batch.map((leagueId) => refreshLeagueTeamsDirectoryNow(leagueId)));
 
     for (const result of batchResults) {
-      if (result.status === 'fulfilled') refreshedLeagues += 1;
-      else failedLeagues += 1;
+      if (result.status === 'fulfilled') {
+        switch (result.value.source) {
+          case 'provider_refreshed':
+          case 'remote_refreshed':
+            refreshedLeagues += 1;
+            break;
+          case 'fresh_cache':
+            skippedFreshLeagues += 1;
+            break;
+          case 'stale_fallback':
+            staleFallbackLeagues += 1;
+            break;
+          case 'empty_provider':
+            emptyLeagues += 1;
+            break;
+        }
+      } else {
+        failedLeagues += 1;
+      }
     }
 
     const completed = Math.min(start + BATCH_SIZE, orderedIds.length);
@@ -84,7 +110,7 @@ export async function syncReferenceDataJob(): Promise<{
     await reportJobProgress(
       JOB,
       'syncing',
-      `Synced league-team directory for ${completed}/${orderedIds.length} leagues. Refreshed=${refreshedLeagues}, failed=${failedLeagues}.`,
+      `Synced league-team directory for ${completed}/${orderedIds.length} leagues. Refreshed=${refreshedLeagues}, fresh=${skippedFreshLeagues}, fallback=${staleFallbackLeagues}, empty=${emptyLeagues}, failed=${failedLeagues}.`,
       percent,
     );
   }
@@ -92,7 +118,7 @@ export async function syncReferenceDataJob(): Promise<{
   await reportJobProgress(
     JOB,
     'complete',
-    `Reference-data sync complete. Refreshed ${refreshedLeagues}/${orderedIds.length} leagues; failures=${failedLeagues}.`,
+    `Reference-data sync complete. Refreshed=${refreshedLeagues}, fresh=${skippedFreshLeagues}, fallback=${staleFallbackLeagues}, empty=${emptyLeagues}, failed=${failedLeagues}.`,
     100,
   );
 
@@ -108,6 +134,9 @@ export async function syncReferenceDataJob(): Promise<{
     leagueTeamDirectory: {
       candidateLeagues: orderedIds.length,
       refreshedLeagues,
+      skippedFreshLeagues,
+      staleFallbackLeagues,
+      emptyLeagues,
       failedLeagues,
       topLeagueCount: topLeagues.length,
       activeLeagueCount: activeLeagues.length,

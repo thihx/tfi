@@ -14,6 +14,7 @@ import {
 } from '../lib/strategic-context.service.js';
 import { mergeStrategicContextWithPredictionFallback } from '../lib/strategic-context-prediction-fallback.js';
 import { config } from '../config.js';
+import { getRedisClient } from '../lib/redis.js';
 import * as matchRepo from '../repos/matches.repo.js';
 import * as leaguesRepo from '../repos/leagues.repo.js';
 import * as watchlistRepo from '../repos/watchlist.repo.js';
@@ -27,8 +28,9 @@ const FAILURE_BACKOFF_MINUTES = [60, 180, 360, 720] as const;
 const POOR_BACKOFF_MINUTES = [360, 720, 1440] as const;
 const TOP_LEAGUE_FAILURE_BACKOFF_MINUTES = [15, 30, 60, 120] as const;
 const TOP_LEAGUE_POOR_BACKOFF_MINUTES = [30, 60, 120, 240] as const;
+const FORCE_KEY = 'job:enrich-watchlist:force-next';
 
-let forceNext = false;
+let forceNextMemory = false;
 
 type RefreshStatus = 'good' | 'poor' | 'failed';
 
@@ -51,7 +53,28 @@ type StoredStrategicContext = Partial<StrategicContext> & {
 
 /** Force next run to skip the stale-check and re-enrich all active entries. */
 export function setForceEnrich(): void {
-  forceNext = true;
+  forceNextMemory = true;
+  try {
+    void getRedisClient().set(FORCE_KEY, '1', 'EX', 60 * 60);
+  } catch {
+    // ignore — in-memory fallback still works for the current process
+  }
+}
+
+async function consumeForceEnrich(): Promise<boolean> {
+  let forced = forceNextMemory;
+  forceNextMemory = false;
+  try {
+    const redis = getRedisClient();
+    const raw = await redis.get(FORCE_KEY);
+    if (raw) {
+      forced = true;
+      await redis.del(FORCE_KEY);
+    }
+  } catch {
+    // ignore — in-memory fallback already applied
+  }
+  return forced;
 }
 
 function sleep(ms: number) {
@@ -286,8 +309,7 @@ export async function enrichWatchlistJob(): Promise<{ checked: number; enriched:
     return { checked: 0, enriched: 0 };
   }
 
-  const force = forceNext;
-  forceNext = false;
+  const force = await consumeForceEnrich();
   if (force) console.log('[enrichWatchlistJob] Force mode - skipping stale check');
 
   const now = Date.now();
@@ -320,6 +342,17 @@ export async function enrichWatchlistJob(): Promise<{ checked: number; enriched:
     if (retryAfter && retryAfter > now && !hints.topLeague) return false;
 
     return true;
+  }).sort((left, right) => {
+    const leftMatch = matchMap.get(left.match_id);
+    const rightMatch = matchMap.get(right.match_id);
+    const leftLeague = leftMatch?.league_id != null ? leagueMap.get(leftMatch.league_id) : null;
+    const rightLeague = rightMatch?.league_id != null ? leagueMap.get(rightMatch.league_id) : null;
+    const leftTop = leftLeague?.top_league === true ? 1 : 0;
+    const rightTop = rightLeague?.top_league === true ? 1 : 0;
+    if (leftTop !== rightTop) return rightTop - leftTop;
+    const leftKickoff = kickoffMinutesByMatchId.get(left.match_id) ?? Number.POSITIVE_INFINITY;
+    const rightKickoff = kickoffMinutesByMatchId.get(right.match_id) ?? Number.POSITIVE_INFINITY;
+    return leftKickoff - rightKickoff;
   });
 
   let checked = 0;

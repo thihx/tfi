@@ -1934,6 +1934,7 @@ async function processMatch(
       refreshOdds: false,
       consumer: shadowMode ? 'replay' : 'server-pipeline',
       sampleProviderData,
+      freshnessMode: 'real_required',
     });
     const apiStatsRaw = insight.statistics.payload;
     const apiEventsRaw = insight.events.payload;
@@ -2227,6 +2228,7 @@ async function processMatch(
       matchMinute: minute,
       consumer: shadowMode ? 'replay' : 'server-pipeline',
       sampleProviderData,
+      freshnessMode: 'real_required',
     });
 
     oddsSource = resolvedOdds.oddsSource;
@@ -2860,7 +2862,7 @@ export async function runPromptOnlyAnalysisForMatch(
   } = {},
 ): Promise<{ text: string; prompt: string; result: MatchPipelineResult }> {
   const [fixture, watchlistEntry] = await Promise.all([
-    ensureFixturesForMatchIds([matchId]).then((rows) => rows[0] ?? null),
+    ensureFixturesForMatchIds([matchId], { freshnessMode: 'real_required' }).then((rows) => rows[0] ?? null),
     watchlistRepo.getOperationalWatchlistByMatchId(matchId),
   ]);
 
@@ -2899,7 +2901,7 @@ export async function runManualAnalysisForMatch(
   } = {},
 ): Promise<MatchPipelineResult> {
   const [fixture, watchlistEntry] = await Promise.all([
-    ensureFixturesForMatchIds([matchId]).then((rows) => rows[0] ?? null),
+    ensureFixturesForMatchIds([matchId], { freshnessMode: 'real_required' }).then((rows) => rows[0] ?? null),
     watchlistRepo.getOperationalWatchlistByMatchId(matchId),
   ]);
 
@@ -2931,7 +2933,7 @@ export async function runPipelineBatch(matchIds: string[]): Promise<PipelineResu
   console.log(`[pipeline] Processing batch of ${matchIds.length} matches: ${matchIds.join(', ')} (telegram: ${settings.telegramEnabled ? 'ENABLED' : 'DISABLED'}, model: ${settings.aiModel})`);
 
   // Fetch all fixtures in one API call
-  const fixtures = await ensureFixturesForMatchIds(matchIds);
+  const fixtures = await ensureFixturesForMatchIds(matchIds, { freshnessMode: 'real_required' });
   const fixtureMap = new Map(fixtures.map((f) => [String(f.fixture?.id), f]));
 
   // Get watchlist entries for metadata

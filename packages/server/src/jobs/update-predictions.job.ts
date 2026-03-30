@@ -8,13 +8,16 @@
 // 4. Update watchlist prediction field
 // ============================================================
 
-import { fetchPrediction, buildSlimPrediction } from '../lib/football-api.js';
+import { buildSlimPrediction } from '../lib/football-api.js';
+import { ensureFixturePrediction } from '../lib/provider-insight-cache.js';
+import { getRedisClient } from '../lib/redis.js';
 import * as matchRepo from '../repos/matches.repo.js';
 import * as watchlistRepo from '../repos/watchlist.repo.js';
 import { reportJobProgress } from './job-progress.js';
 
 const API_DELAY_MS = 200; // Rate-limit protection
-let forceNext = false;
+const FORCE_KEY = 'job:update-predictions:force-next';
+let forceNextMemory = false;
 
 function sleep(ms: number) {
   return new Promise((resolve) => setTimeout(resolve, ms));
@@ -27,7 +30,40 @@ function hasStoredPrediction(prediction: unknown): boolean {
 
 /** Force next run to refresh predictions even when watchlist rows already have cached data. */
 export function setForcePredictionRefresh(): void {
-  forceNext = true;
+  forceNextMemory = true;
+  try {
+    void getRedisClient().set(FORCE_KEY, '1', 'EX', 60 * 60);
+  } catch {
+    // ignore — in-memory fallback still works for the current process
+  }
+}
+
+async function consumeForcePredictionRefresh(): Promise<boolean> {
+  let forced = forceNextMemory;
+  forceNextMemory = false;
+  try {
+    const redis = getRedisClient();
+    const raw = await redis.get(FORCE_KEY);
+    if (raw) {
+      forced = true;
+      await redis.del(FORCE_KEY);
+    }
+  } catch {
+    // ignore — in-memory fallback already applied
+  }
+  return forced;
+}
+
+function kickoffSortValue(match: { kickoff_at_utc?: string | null; date?: string | null; kickoff?: string | null }): number {
+  if (match.kickoff_at_utc) {
+    const ts = Date.parse(match.kickoff_at_utc);
+    if (Number.isFinite(ts)) return ts;
+  }
+  if (match.date && match.kickoff) {
+    const ts = Date.parse(`${match.date}T${match.kickoff}:00`);
+    if (Number.isFinite(ts)) return ts;
+  }
+  return Number.POSITIVE_INFINITY;
 }
 
 export async function updatePredictionsJob(): Promise<{ checked: number; updated: number }> {
@@ -37,6 +73,7 @@ export async function updatePredictionsJob(): Promise<{ checked: number; updated
   await reportJobProgress(JOB, 'load', 'Loading matches and watchlist...', 5);
   const allMatches = await matchRepo.getAllMatches();
   const statusMap = new Map<string, string>();
+  const matchMap = new Map(allMatches.map((match) => [match.match_id, match] as const));
   for (const m of allMatches) {
     statusMap.set(m.match_id, m.status.toUpperCase());
   }
@@ -48,8 +85,7 @@ export async function updatePredictionsJob(): Promise<{ checked: number; updated
     return { checked: 0, updated: 0 };
   }
 
-  const force = forceNext;
-  forceNext = false;
+  const force = await consumeForcePredictionRefresh();
   if (force) console.log('[updatePredictionsJob] Force mode - refreshing cached predictions');
 
   // Collect NS entries to process
@@ -57,7 +93,9 @@ export async function updatePredictionsJob(): Promise<{ checked: number; updated
     const matchStatus = statusMap.get(entry.match_id)?.toUpperCase() ?? '';
     if (matchStatus !== 'NS') return false;
     return force || !hasStoredPrediction(entry.prediction);
-  });
+  }).sort((left, right) =>
+    kickoffSortValue(matchMap.get(left.match_id) ?? {}) - kickoffSortValue(matchMap.get(right.match_id) ?? {}),
+  );
 
   let checked = 0;
   let updated = 0;
@@ -72,7 +110,11 @@ export async function updatePredictionsJob(): Promise<{ checked: number; updated
     );
 
     try {
-      const prediction = await fetchPrediction(entry.match_id);
+      const predictionState = await ensureFixturePrediction(entry.match_id, {
+        status: 'NS',
+        cacheEmptyResult: true,
+      });
+      const prediction = predictionState.payload;
 
       if (prediction) {
         const slim = buildSlimPrediction(prediction);

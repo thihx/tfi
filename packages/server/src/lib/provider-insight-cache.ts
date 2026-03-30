@@ -37,6 +37,7 @@ import {
 
 export type InsightFreshness = 'fresh' | 'stale_ok' | 'stale_degraded' | 'missing';
 export type InsightCacheStatus = 'hit' | 'refreshed' | 'stale_fallback' | 'miss';
+export type ProviderFreshnessMode = 'real_required' | 'stale_safe' | 'prewarm_only';
 
 export interface InsightDomainState<T> {
   payload: T;
@@ -67,6 +68,24 @@ export interface EnsureMatchInsightOptions {
   refreshOdds?: boolean;
   consumer?: string;
   sampleProviderData?: boolean;
+  freshnessMode?: ProviderFreshnessMode;
+}
+
+export interface EnsureFixtureStatisticsOptions {
+  status?: string;
+  matchMinute?: number | null;
+  acceptFinishedPayloadRegardlessOfTtl?: boolean;
+  freshnessMode?: ProviderFreshnessMode;
+}
+
+export interface EnsureFixturePredictionOptions {
+  status?: string;
+  cacheEmptyResult?: boolean;
+  freshnessMode?: ProviderFreshnessMode;
+}
+
+export interface EnsureFixturesOptions {
+  freshnessMode?: ProviderFreshnessMode;
 }
 
 interface ProviderInsightDeps {
@@ -167,6 +186,14 @@ function hasStarted(status: string): boolean {
   return LIVE_STATUSES.has(normalized) || FINISHED_STATUSES.has(normalized);
 }
 
+function bypassStartedCache(mode: ProviderFreshnessMode, status: string): boolean {
+  return mode === 'real_required' && hasStarted(status);
+}
+
+function keepStalePayload(mode: ProviderFreshnessMode, status: string): boolean {
+  return !bypassStartedCache(mode, status);
+}
+
 function fixturePayloadOf(row: ProviderFixtureCacheRow | null): ApiFixture | null {
   if (!row || !row.fixture_payload || typeof row.fixture_payload !== 'object') return null;
   return row.fixture_payload as ApiFixture;
@@ -186,6 +213,7 @@ function lineupsPayloadOf(row: ProviderFixtureLineupsCacheRow | null): ApiFixtur
 
 function predictionPayloadOf(row: ProviderFixturePredictionCacheRow | null): ApiPrediction | null {
   if (!row || !row.prediction_payload || typeof row.prediction_payload !== 'object' || Array.isArray(row.prediction_payload)) return null;
+  if (Object.keys(row.prediction_payload as Record<string, unknown>).length === 0) return null;
   return row.prediction_payload as ApiPrediction;
 }
 
@@ -365,12 +393,112 @@ async function loadInsightRows(matchId: string, deps: ProviderInsightDeps) {
   return { fixtureRow, statsRow, eventsRow };
 }
 
+export async function ensureFixtureStatistics(
+  matchId: string,
+  options: EnsureFixtureStatisticsOptions = {},
+  depsOverride?: Partial<ProviderInsightDeps>,
+): Promise<InsightDomainState<ApiFixtureStat[]>> {
+  const deps = { ...defaultDeps, ...depsOverride };
+  const row = await deps.getProviderFixtureStatsCache(matchId);
+  const mode = options.freshnessMode ?? 'stale_safe';
+  const status = options.status ?? row?.match_status ?? '';
+  const matchMinute = options.matchMinute ?? row?.match_minute ?? null;
+  const freshness = classifyFreshness(ageMs(row?.cached_at, deps.now()), detailTtlMs(status, matchMinute));
+  const payload = statsPayloadOf(row);
+  const rowFinished = FINISHED_STATUSES.has(String(row?.match_status ?? '').toUpperCase());
+  const statusFinished = FINISHED_STATUSES.has(String(status ?? '').toUpperCase());
+
+  if (freshness === 'fresh' && !bypassStartedCache(mode, status)) {
+    return buildStatsDomain(row, 'fresh', 'hit');
+  }
+
+  if (
+    options.acceptFinishedPayloadRegardlessOfTtl === true
+    && rowFinished
+    && statusFinished
+    && payload.length > 0
+  ) {
+    return buildStatsDomain(row, 'stale_ok', 'stale_fallback');
+  }
+
+  try {
+    const statistics = await deps.fetchFixtureStatistics(matchId);
+    const upserted = await deps.upsertProviderFixtureStatsCache({
+      match_id: matchId,
+      statistics_payload: statistics,
+      coverage_flags: buildStatsCoverage(statistics),
+      stats_fetched_at: deps.now().toISOString(),
+      match_status: status,
+      match_minute: matchMinute,
+      freshness: 'fresh',
+      degraded: false,
+      last_refresh_error: '',
+    });
+    return buildStatsDomain(upserted, 'fresh', 'refreshed');
+  } catch {
+    if (row && keepStalePayload(mode, status)) {
+      return buildStatsDomain(row, freshness, 'stale_fallback');
+    }
+    return {
+      payload: [],
+      freshness: 'missing',
+      cacheStatus: 'miss',
+      cachedAt: null,
+      fetchedAt: null,
+      degraded: false,
+    };
+  }
+}
+
+export async function ensureFixturePrediction(
+  matchId: string,
+  options: EnsureFixturePredictionOptions = {},
+  depsOverride?: Partial<ProviderInsightDeps>,
+): Promise<InsightDomainState<ApiPrediction | null>> {
+  const deps = { ...defaultDeps, ...depsOverride };
+  const row = await deps.getProviderFixturePredictionCache(matchId);
+  const mode = options.freshnessMode ?? 'stale_safe';
+  const status = options.status ?? row?.match_status ?? '';
+  const freshness = classifyFreshness(ageMs(row?.cached_at, deps.now()), predictionTtlMs(status));
+
+  if (freshness === 'fresh' && !bypassStartedCache(mode, status)) {
+    return buildPredictionDomain(row, 'fresh', 'hit');
+  }
+
+  try {
+    const prediction = await deps.fetchPrediction(matchId);
+    const upserted = await deps.upsertProviderFixturePredictionCache({
+      match_id: matchId,
+      prediction_payload: prediction ?? (options.cacheEmptyResult === false ? undefined : null),
+      prediction_fetched_at: deps.now().toISOString(),
+      match_status: status,
+      freshness: 'fresh',
+      degraded: false,
+      last_refresh_error: '',
+    });
+    return buildPredictionDomain(upserted, 'fresh', 'refreshed');
+  } catch {
+    if (row && keepStalePayload(mode, status)) {
+      return buildPredictionDomain(row, freshness, 'stale_fallback');
+    }
+    return {
+      payload: null,
+      freshness: 'missing',
+      cacheStatus: 'miss',
+      cachedAt: null,
+      fetchedAt: null,
+      degraded: false,
+    };
+  }
+}
+
 export async function ensureMatchInsight(
   matchId: string,
   options: EnsureMatchInsightOptions = {},
   depsOverride?: Partial<ProviderInsightDeps>,
 ): Promise<MatchInsightResult> {
   const deps = { ...defaultDeps, ...depsOverride };
+  const mode = options.freshnessMode ?? 'stale_safe';
   const initial = await loadInsightRows(matchId, deps);
   const initialContext = fixtureContext(matchId, options, initial.fixtureRow);
   const now = deps.now();
@@ -380,7 +508,7 @@ export async function ensureMatchInsight(
   const initialEventsFreshness = classifyFreshness(ageMs(initial.eventsRow?.cached_at, now), detailTtlMs(initialContext.status, initialContext.matchMinute));
   const detailsReady = !initialContext.includeStartedDetails || (initialStatsFreshness === 'fresh' && initialEventsFreshness === 'fresh');
 
-  if (initialFixtureFreshness === 'fresh' && detailsReady) {
+  if (initialFixtureFreshness === 'fresh' && detailsReady && !bypassStartedCache(mode, initialContext.status)) {
     return {
       fixture: buildFixtureDomain(initial.fixtureRow, 'fresh', 'hit'),
       statistics: buildStatsDomain(initial.statsRow, initialContext.includeStartedDetails ? initialStatsFreshness : 'missing', initialContext.includeStartedDetails ? 'hit' : 'miss'),
@@ -448,6 +576,7 @@ export async function ensureMatchInsight(
       matchMinute: fixture.fixture.status.elapsed,
       consumer: options.consumer ?? 'provider-insight-cache',
       sampleProviderData: options.sampleProviderData,
+      freshnessMode: mode,
     }).catch(() => null);
   }
 
@@ -457,32 +586,40 @@ export async function ensureMatchInsight(
   const finalFixtureFreshness = classifyFreshness(ageMs(finalRows.fixtureRow?.cached_at, finalNow), fixtureTtlMs(finalContext.status, finalContext.matchMinute));
   const finalStatsFreshness = classifyFreshness(ageMs(finalRows.statsRow?.cached_at, finalNow), detailTtlMs(finalContext.status, finalContext.matchMinute));
   const finalEventsFreshness = classifyFreshness(ageMs(finalRows.eventsRow?.cached_at, finalNow), detailTtlMs(finalContext.status, finalContext.matchMinute));
+  const allowFixtureFallback = keepStalePayload(mode, finalContext.status);
+  const allowDetailFallback = keepStalePayload(mode, finalContext.status);
+  const fixtureRow = finalFixtureFreshness === 'fresh' || allowFixtureFallback ? finalRows.fixtureRow : null;
+  const statsRow = finalStatsFreshness === 'fresh' || allowDetailFallback ? finalRows.statsRow : null;
+  const eventsRow = finalEventsFreshness === 'fresh' || allowDetailFallback ? finalRows.eventsRow : null;
+  const fixtureFreshness = finalFixtureFreshness === 'fresh' || allowFixtureFallback ? finalFixtureFreshness : 'missing';
+  const statsFreshness = finalStatsFreshness === 'fresh' || allowDetailFallback ? finalStatsFreshness : 'missing';
+  const eventsFreshness = finalEventsFreshness === 'fresh' || allowDetailFallback ? finalEventsFreshness : 'missing';
 
   return {
     fixture: buildFixtureDomain(
-      finalRows.fixtureRow,
-      finalFixtureFreshness,
-      finalFixtureFreshness === 'fresh' ? 'refreshed' : finalRows.fixtureRow ? 'stale_fallback' : 'miss',
+      fixtureRow,
+      fixtureFreshness,
+      finalFixtureFreshness === 'fresh' ? 'refreshed' : fixtureRow ? 'stale_fallback' : 'miss',
     ),
     statistics: buildStatsDomain(
-      finalRows.statsRow,
-      finalContext.includeStartedDetails ? finalStatsFreshness : 'missing',
+      statsRow,
+      finalContext.includeStartedDetails ? statsFreshness : 'missing',
       !finalContext.includeStartedDetails
         ? 'miss'
         : finalStatsFreshness === 'fresh'
           ? 'refreshed'
-          : finalRows.statsRow
+          : statsRow
             ? 'stale_fallback'
             : 'miss',
     ),
     events: buildEventsDomain(
-      finalRows.eventsRow,
-      finalContext.includeStartedDetails ? finalEventsFreshness : 'missing',
+      eventsRow,
+      finalContext.includeStartedDetails ? eventsFreshness : 'missing',
       !finalContext.includeStartedDetails
         ? 'miss'
         : finalEventsFreshness === 'fresh'
           ? 'refreshed'
-          : finalRows.eventsRow
+          : eventsRow
             ? 'stale_fallback'
             : 'miss',
     ),
@@ -491,9 +628,11 @@ export async function ensureMatchInsight(
 
 export async function ensureFixturesForMatchIds(
   matchIds: string[],
+  options: EnsureFixturesOptions = {},
   depsOverride?: Partial<ProviderInsightDeps>,
 ): Promise<ApiFixture[]> {
   const deps = { ...defaultDeps, ...depsOverride };
+  const mode = options.freshnessMode ?? 'stale_safe';
   if (matchIds.length === 0) return [];
 
   const cachedRows = await deps.getProviderFixtureCaches(matchIds);
@@ -504,7 +643,9 @@ export async function ensureFixturesForMatchIds(
     const fixture = fixturePayloadOf(row);
     const status = fixture?.fixture?.status?.short ?? row?.match_status ?? '';
     const minute = fixture?.fixture?.status?.elapsed ?? row?.match_minute ?? null;
-    return classifyFreshness(ageMs(row?.cached_at, now), fixtureTtlMs(status, minute)) !== 'fresh';
+    const freshness = classifyFreshness(ageMs(row?.cached_at, now), fixtureTtlMs(status, minute));
+    if (freshness !== 'fresh') return true;
+    return bypassStartedCache(mode, status);
   });
 
   if (staleOrMissingIds.length > 0) {
@@ -526,7 +667,17 @@ export async function ensureFixturesForMatchIds(
   }
 
   return matchIds
-    .map((matchId) => fixturePayloadOf(cachedMap.get(matchId) ?? null))
+    .map((matchId) => {
+      const row = cachedMap.get(matchId) ?? null;
+      const fixture = fixturePayloadOf(row);
+      const status = fixture?.fixture?.status?.short ?? row?.match_status ?? '';
+      const minute = fixture?.fixture?.status?.elapsed ?? row?.match_minute ?? null;
+      const freshness = classifyFreshness(ageMs(row?.cached_at, deps.now()), fixtureTtlMs(status, minute));
+      if (freshness !== 'fresh' && !keepStalePayload(mode, status)) {
+        return null;
+      }
+      return fixture;
+    })
     .filter((fixture): fixture is ApiFixture => fixture != null);
 }
 
@@ -623,6 +774,7 @@ export async function refreshProviderInsightsForMatches(
       matchMinute: fixture.fixture.status.elapsed,
       consumer: 'provider-insight-refresh-job',
       sampleProviderData: false,
+      freshnessMode: 'prewarm_only',
     }).catch(() => null);
 
     return null;
@@ -691,15 +843,18 @@ export async function ensureScoutInsight(
     status?: string;
     consumer?: string;
     sampleProviderData?: boolean;
+    freshnessMode?: ProviderFreshnessMode;
   } = {},
   depsOverride?: Partial<ProviderInsightDeps>,
 ): Promise<ScoutInsightResult> {
   const deps = { ...defaultDeps, ...depsOverride };
+  const mode = options.freshnessMode ?? 'stale_safe';
   const matchInsight = await ensureMatchInsight(matchId, {
     fixture: options.fixture,
     status: options.status,
     consumer: options.consumer,
     sampleProviderData: options.sampleProviderData,
+    freshnessMode: mode,
   }, deps);
 
   const fixture = matchInsight.fixture.payload;
@@ -720,7 +875,7 @@ export async function ensureScoutInsight(
   const predictionFreshness = classifyFreshness(ageMs(predictionRow?.cached_at, now), predictionTtlMs(effectiveStatus));
   const standingsFreshness = classifyFreshness(ageMs(standingsRow?.cached_at, now), standingsTtlMs());
 
-  if (started && lineupsFreshness !== 'fresh') {
+  if (started && (lineupsFreshness !== 'fresh' || bypassStartedCache(mode, effectiveStatus))) {
     const lineups = await deps.fetchFixtureLineups(matchId).catch(() => null);
     if (lineups) {
       await deps.upsertProviderFixtureLineupsCache({
@@ -776,39 +931,46 @@ export async function ensureScoutInsight(
   const finalLineupsFreshness = classifyFreshness(ageMs(finalLineupsRow?.cached_at, finalNow), detailTtlMs(effectiveStatus, effectiveMinute));
   const finalPredictionFreshness = classifyFreshness(ageMs(finalPredictionRow?.cached_at, finalNow), predictionTtlMs(effectiveStatus));
   const finalStandingsFreshness = classifyFreshness(ageMs(finalStandingsRow?.cached_at, finalNow), standingsTtlMs());
+  const allowLiveFallback = keepStalePayload(mode, effectiveStatus);
+  const safeLineupsRow = finalLineupsFreshness === 'fresh' || allowLiveFallback ? finalLineupsRow : null;
+  const safePredictionRow = finalPredictionFreshness === 'fresh' || !started ? finalPredictionRow : null;
+  const safeStandingsRow = finalStandingsFreshness === 'fresh' || !started ? finalStandingsRow : null;
+  const safeLineupsFreshness = finalLineupsFreshness === 'fresh' || allowLiveFallback ? finalLineupsFreshness : 'missing';
+  const predictionFreshnessSafe = finalPredictionFreshness === 'fresh' || !started ? finalPredictionFreshness : 'missing';
+  const standingsFreshnessSafe = finalStandingsFreshness === 'fresh' || !started ? finalStandingsFreshness : 'missing';
 
   return {
     ...matchInsight,
     lineups: buildLineupsDomain(
-      finalLineupsRow,
-      started ? finalLineupsFreshness : 'missing',
+      safeLineupsRow,
+      started ? safeLineupsFreshness : 'missing',
       !started
         ? 'miss'
         : finalLineupsFreshness === 'fresh'
           ? 'refreshed'
-          : finalLineupsRow
+          : safeLineupsRow
             ? 'stale_fallback'
             : 'miss',
     ),
     prediction: buildPredictionDomain(
-      finalPredictionRow,
-      !started ? finalPredictionFreshness : 'missing',
+      safePredictionRow,
+      !started ? predictionFreshnessSafe : 'missing',
       started
         ? 'miss'
         : finalPredictionFreshness === 'fresh'
           ? 'refreshed'
-          : finalPredictionRow
+          : safePredictionRow
             ? 'stale_fallback'
             : 'miss',
     ),
     standings: buildStandingsDomain(
-      finalStandingsRow,
-      !started ? finalStandingsFreshness : 'missing',
+      safeStandingsRow,
+      !started ? standingsFreshnessSafe : 'missing',
       started || !leagueId
         ? 'miss'
         : finalStandingsFreshness === 'fresh'
           ? 'refreshed'
-          : finalStandingsRow
+          : safeStandingsRow
             ? 'stale_fallback'
             : 'miss',
     ),

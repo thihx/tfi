@@ -9,6 +9,7 @@
 // ============================================================
 
 import { config } from '../config.js';
+import { generateGeminiContent as requestGeminiContent } from './gemini.js';
 import {
   classifyStrategicSourceDomain,
   type StrategicSearchQuality,
@@ -16,7 +17,6 @@ import {
   type StrategicSourceType,
 } from '../config/strategic-source-policy.js';
 
-const GEMINI_BASE = 'https://generativelanguage.googleapis.com/v1beta/models';
 const REQUEST_TIMEOUT_MS = 90_000;
 const STRUCTURE_REQUEST_TIMEOUT_MS = 45_000;
 
@@ -942,71 +942,26 @@ function parseStrategicResponse(text: string, searchedAt: string, sourceMeta: St
   return normalizeContextPayload(parsed, searchedAt, sourceMeta);
 }
 
-interface GeminiGenerateOptions {
-  model?: string;
-  withSearch: boolean;
-  timeoutMs: number;
-  maxOutputTokens: number;
-  responseMimeType?: string;
-  thinkingBudget?: number | null;
-}
-
 async function generateGeminiContent(
   prompt: string,
-  options: GeminiGenerateOptions,
+  options: {
+    model?: string;
+    withSearch: boolean;
+    timeoutMs: number;
+    maxOutputTokens: number;
+    responseMimeType?: string;
+    thinkingBudget?: number | null;
+  },
 ): Promise<Record<string, unknown> | null> {
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), options.timeoutMs);
-  const model = options.model || config.geminiModel;
-  const thinkingBudget = typeof options.thinkingBudget === 'number' && Number.isFinite(options.thinkingBudget)
-    ? Math.max(0, Math.trunc(options.thinkingBudget))
-    : null;
-  const buildRequestBody = (includeThinkingConfig: boolean): string => JSON.stringify({
-    contents: [{ parts: [{ text: prompt }] }],
-    ...(options.withSearch ? { tools: [{ google_search: {} }] } : {}),
-    generationConfig: {
-      temperature: options.withSearch ? 0.2 : 0.1,
-      maxOutputTokens: options.maxOutputTokens,
-      ...(options.responseMimeType ? { responseMimeType: options.responseMimeType } : {}),
-    },
-    ...(includeThinkingConfig && thinkingBudget != null ? { thinkingConfig: { thinkingBudget } } : {}),
+  return requestGeminiContent(prompt, {
+    model: options.model || config.geminiModel,
+    withSearch: options.withSearch,
+    timeoutMs: options.timeoutMs,
+    maxOutputTokens: options.maxOutputTokens,
+    responseMimeType: options.responseMimeType,
+    thinkingBudget: options.thinkingBudget,
+    temperature: options.withSearch ? 0.2 : 0.1,
   });
-  const requestUrl = `${GEMINI_BASE}/${model}:generateContent?key=${config.geminiApiKey}`;
-
-  try {
-    let body = buildRequestBody(true);
-    let response = await fetch(requestUrl, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body,
-      signal: controller.signal,
-    });
-
-    if (!response.ok) {
-      let errText = await response.text().catch(() => '');
-      const shouldRetryWithoutThinking = thinkingBudget != null
-        && response.status === 400
-        && /Unknown name "thinkingConfig"|Cannot find field/i.test(errText);
-      if (shouldRetryWithoutThinking) {
-        body = buildRequestBody(false);
-        response = await fetch(requestUrl, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body,
-          signal: controller.signal,
-        });
-        if (response.ok) {
-          return await response.json() as Record<string, unknown>;
-        }
-        errText = await response.text().catch(() => errText);
-      }
-      throw new Error(`Gemini API error ${response.status}: ${errText.substring(0, 300)}`);
-    }
-
-    return await response.json() as Record<string, unknown>;
-  } finally {
-    clearTimeout(timer);
-  }
 }
 
 async function fetchGroundedResearchDraft(

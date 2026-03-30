@@ -9,10 +9,10 @@ test.describe('Dashboard', () => {
   });
 
   test('shows KPI stat cards', async ({ page }) => {
-    await expect(page.getByText('Total Bets')).toBeVisible();
-    await expect(page.getByText('Win Rate')).toBeVisible();
+    await expect(page.getByText('Settled Recommendations')).toBeVisible();
+    await expect(page.getByText('Hit Rate (W/L)')).toBeVisible();
     await expect(page.getByText('Total P/L')).toBeVisible();
-    await expect(page.getByText('ROI')).toBeVisible();
+    await expect(page.getByText('ROI on Stake')).toBeVisible();
   });
 
   test('shows chart sections', async ({ page }) => {

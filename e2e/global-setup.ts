@@ -7,11 +7,14 @@ const envPath = path.resolve(process.cwd(), '.env.e2e');
 if (fs.existsSync(envPath)) {
   for (const line of fs.readFileSync(envPath, 'utf8').split('\n')) {
     const match = line.match(/^\s*([A-Z0-9_]+)\s*=\s*(.+)\s*$/);
-    if (match) process.env[match[1]!] = match[2]!.trim();
+    if (match && !process.env[match[1]!]) process.env[match[1]!] = match[2]!.trim();
   }
 }
 
 const AUTH_FILE = path.resolve(process.cwd(), 'e2e/.auth.json');
+const FRONTEND_URL = 'http://localhost:3000';
+const API_URL = process.env['VITE_API_URL'] || 'http://localhost:3001';
+const AUTH_COOKIE = 'tfi_auth_token';
 
 export default async function globalSetup() {
   const token = process.env['E2E_TOKEN'];
@@ -47,14 +50,25 @@ export default async function globalSetup() {
   }
 
   const browser = await chromium.launch();
-  const page = await browser.newPage();
+  const context = await browser.newContext();
+  const page = await context.newPage();
 
-  await page.goto('http://localhost:3000');
+  await context.addCookies([
+    {
+      name: AUTH_COOKIE,
+      value: token,
+      url: API_URL,
+      httpOnly: true,
+      sameSite: 'Lax',
+    },
+  ]);
+
+  await page.goto(FRONTEND_URL);
   await page.evaluate((t: string) => {
     localStorage.setItem('tfi_auth_token', t);
   }, token);
 
-  await page.context().storageState({ path: AUTH_FILE });
+  await context.storageState({ path: AUTH_FILE });
   await browser.close();
 
   console.log('✓ Auth state saved →', AUTH_FILE);

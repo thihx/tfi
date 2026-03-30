@@ -1,4 +1,8 @@
-import { fetchAllLeagues, fetchLeagueById, type ApiLeague } from './football-api.js';
+import type { ApiLeague } from './football-api.js';
+import {
+  fetchAllLeaguesFromReferenceProvider,
+  fetchLeagueByIdFromReferenceProvider,
+} from './reference-data-provider.js';
 import * as leaguesRepo from '../repos/leagues.repo.js';
 
 const INTERNATIONAL_IDS = new Set([
@@ -101,7 +105,9 @@ async function fetchLeaguesByIds(leagueIds: number[]): Promise<{ leagues: ApiLea
 
   for (let start = 0; start < leagueIds.length; start += LEAGUE_FETCH_BATCH_SIZE) {
     const batch = leagueIds.slice(start, start + LEAGUE_FETCH_BATCH_SIZE);
-    const results = await Promise.allSettled(batch.map((leagueId) => fetchLeagueById(leagueId)));
+    const results = await Promise.allSettled(batch.map((leagueId) =>
+      fetchLeagueByIdFromReferenceProvider(leagueId, { force: true }),
+    ));
 
     results.forEach((result, index) => {
       const leagueId = batch[index] ?? 0;
@@ -159,7 +165,7 @@ export async function refreshLeagueCatalog(input: RefreshLeagueCatalogInput = {}
   const existingMap = new Map(existingLeagues.map((league) => [league.league_id, league]));
 
   if (mode === 'full') {
-    const apiLeagues = await fetchAllLeagues();
+    const apiLeagues = await fetchAllLeaguesFromReferenceProvider({ force: true });
     const upserted = await leaguesRepo.upsertLeagues(toUpsertRows(apiLeagues, existingMap), { touchProviderSyncAt: true });
     return {
       mode,

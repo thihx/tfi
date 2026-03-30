@@ -13,7 +13,12 @@ vi.mock('../jobs/job-progress.js', () => ({
 }));
 
 vi.mock('../repos/watchlist.repo.js', () => ({
-  expireOldEntries: vi.fn().mockResolvedValue(3),
+  expireOldEntriesDetailed: vi.fn().mockResolvedValue({
+    expiredSubscriptions: 3,
+    refreshedSubscriberCounts: 2,
+    deletedMonitoredMatches: 1,
+    totalChanged: 3,
+  }),
 }));
 
 const { expireWatchlistJob } = await import('../jobs/expire-watchlist.job.js');
@@ -25,18 +30,28 @@ beforeEach(() => {
 describe('expireWatchlistJob', () => {
   test('expires entries older than 120 minutes', async () => {
     const result = await expireWatchlistJob();
-    expect(result).toEqual({ expired: 3 });
+    expect(result).toEqual({
+      expiredSubscriptions: 3,
+      refreshedSubscriberCounts: 2,
+      deletedMonitoredMatches: 1,
+      totalChanged: 3,
+    });
 
     const repo = await import('../repos/watchlist.repo.js');
-    expect(repo.expireOldEntries).toHaveBeenCalledWith(120);
+    expect(repo.expireOldEntriesDetailed).toHaveBeenCalledWith(120);
   });
 
   test('reports 0 when nothing to expire', async () => {
     const repo = await import('../repos/watchlist.repo.js');
-    vi.mocked(repo.expireOldEntries).mockResolvedValueOnce(0);
+    vi.mocked(repo.expireOldEntriesDetailed).mockResolvedValueOnce({
+      expiredSubscriptions: 0,
+      refreshedSubscriberCounts: 0,
+      deletedMonitoredMatches: 0,
+      totalChanged: 0,
+    });
 
     const result = await expireWatchlistJob();
-    expect(result).toEqual({ expired: 0 });
+    expect(result.totalChanged).toBe(0);
   });
 
   test('reports progress', async () => {

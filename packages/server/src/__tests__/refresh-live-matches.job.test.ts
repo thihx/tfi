@@ -3,8 +3,8 @@ import { beforeEach, describe, expect, test, vi } from 'vitest';
 const mockReportJobProgress = vi.fn();
 const mockGetAllMatches = vi.fn();
 const mockUpdateMatches = vi.fn();
-const mockFetchFixturesByIds = vi.fn();
-const mockFetchFixtureStatistics = vi.fn();
+const mockEnsureFixturesForMatchIds = vi.fn();
+const mockEnsureFixtureStatistics = vi.fn();
 
 vi.mock('../jobs/job-progress.js', () => ({
   reportJobProgress: mockReportJobProgress,
@@ -15,9 +15,9 @@ vi.mock('../repos/matches.repo.js', () => ({
   updateMatches: mockUpdateMatches,
 }));
 
-vi.mock('../lib/football-api.js', () => ({
-  fetchFixturesByIds: mockFetchFixturesByIds,
-  fetchFixtureStatistics: mockFetchFixtureStatistics,
+vi.mock('../lib/provider-insight-cache.js', () => ({
+  ensureFixturesForMatchIds: mockEnsureFixturesForMatchIds,
+  ensureFixtureStatistics: mockEnsureFixtureStatistics,
 }));
 
 vi.mock('../config.js', () => ({
@@ -33,8 +33,8 @@ beforeEach(() => {
   vi.useRealTimers();
   mockGetAllMatches.mockResolvedValue([]);
   mockUpdateMatches.mockResolvedValue(0);
-  mockFetchFixturesByIds.mockResolvedValue([]);
-  mockFetchFixtureStatistics.mockResolvedValue([]);
+  mockEnsureFixturesForMatchIds.mockResolvedValue([]);
+  mockEnsureFixtureStatistics.mockResolvedValue({ payload: [], cacheStatus: 'miss' });
 });
 
 describe('refreshLiveMatchesJob', () => {
@@ -50,8 +50,8 @@ describe('refreshLiveMatchesJob', () => {
     ]);
 
     const result = await refreshLiveMatchesJob();
-    expect(result).toEqual({ tracked: 0, refreshed: 0, live: 0 });
-    expect(mockFetchFixturesByIds).not.toHaveBeenCalled();
+    expect(result).toEqual({ tracked: 0, refreshed: 0, live: 0, statsRefreshed: 0 });
+    expect(mockEnsureFixturesForMatchIds).not.toHaveBeenCalled();
   });
 
   test('refreshes live matches and updates scores plus cards', async () => {
@@ -72,7 +72,7 @@ describe('refreshLiveMatchesJob', () => {
         kickoff_at_utc: '2026-03-26T10:12:00.000Z',
       },
     ]);
-    mockFetchFixturesByIds.mockResolvedValue([
+    mockEnsureFixturesForMatchIds.mockResolvedValue([
       {
         fixture: {
           id: 100,
@@ -90,17 +90,25 @@ describe('refreshLiveMatchesJob', () => {
         goals: { home: null, away: null },
       },
     ]);
-    mockFetchFixtureStatistics.mockResolvedValue([
-      { statistics: [{ type: 'Red Cards', value: 0 }, { type: 'Yellow Cards', value: 2 }] },
-      { statistics: [{ type: 'Red Cards', value: 1 }, { type: 'Yellow Cards', value: 1 }] },
-    ]);
+    mockEnsureFixtureStatistics.mockResolvedValue({
+      payload: [
+        { statistics: [{ type: 'Red Cards', value: 0 }, { type: 'Yellow Cards', value: 2 }] },
+        { statistics: [{ type: 'Red Cards', value: 1 }, { type: 'Yellow Cards', value: 1 }] },
+      ],
+      cacheStatus: 'refreshed',
+    });
     mockUpdateMatches.mockResolvedValue(2);
 
     const result = await refreshLiveMatchesJob();
 
-    expect(result).toEqual({ tracked: 2, refreshed: 2, live: 1 });
-    expect(mockFetchFixturesByIds).toHaveBeenCalledWith(['100', '200']);
-    expect(mockFetchFixtureStatistics).toHaveBeenCalledTimes(1);
+    expect(result).toEqual({ tracked: 2, refreshed: 2, live: 1, statsRefreshed: 1 });
+    expect(mockEnsureFixturesForMatchIds).toHaveBeenCalledWith(['100', '200'], { freshnessMode: 'real_required' });
+    expect(mockEnsureFixtureStatistics).toHaveBeenCalledTimes(1);
+    expect(mockEnsureFixtureStatistics).toHaveBeenCalledWith('100', expect.objectContaining({
+      freshnessMode: 'real_required',
+      status: '1H',
+      matchMinute: 7,
+    }));
     expect(mockUpdateMatches).toHaveBeenCalledWith([
       expect.objectContaining({
         match_id: '100',
@@ -114,6 +122,91 @@ describe('refreshLiveMatchesJob', () => {
       expect.objectContaining({
         match_id: '200',
         status: 'NS',
+      }),
+    ]);
+  });
+
+  test('reuses fresh cached stats without calling Football API again', async () => {
+    vi.setSystemTime(new Date('2026-03-26T10:05:00.000Z'));
+    mockGetAllMatches.mockResolvedValue([
+      {
+        match_id: '100',
+        status: '1H',
+        date: '2026-03-26',
+        kickoff: '19:00',
+        kickoff_at_utc: '2026-03-26T10:00:00.000Z',
+      },
+    ]);
+    mockEnsureFixturesForMatchIds.mockResolvedValue([
+      {
+        fixture: {
+          id: 100,
+          date: '2026-03-26T10:00:00+00:00',
+          status: { short: '1H', elapsed: 7 },
+        },
+        goals: { home: 1, away: 0 },
+      },
+    ]);
+    mockEnsureFixtureStatistics.mockResolvedValue({
+      payload: [
+        { statistics: [{ type: 'Red Cards', value: 0 }, { type: 'Yellow Cards', value: 2 }] },
+        { statistics: [{ type: 'Red Cards', value: 1 }, { type: 'Yellow Cards', value: 1 }] },
+      ],
+      cacheStatus: 'hit',
+    });
+    mockUpdateMatches.mockResolvedValue(1);
+
+    const result = await refreshLiveMatchesJob();
+
+    expect(result).toEqual({ tracked: 1, refreshed: 1, live: 1, statsRefreshed: 0 });
+    expect(mockEnsureFixtureStatistics).toHaveBeenCalledTimes(1);
+    expect(mockEnsureFixtureStatistics).toHaveBeenCalledWith('100', expect.objectContaining({
+      freshnessMode: 'real_required',
+    }));
+    expect(mockUpdateMatches).toHaveBeenCalledWith([
+      expect.objectContaining({
+        match_id: '100',
+        home_yellows: 2,
+        away_reds: 1,
+      }),
+    ]);
+  });
+
+  test('keeps live score refresh when real-time card stats are unavailable', async () => {
+    vi.setSystemTime(new Date('2026-03-26T10:05:00.000Z'));
+    mockGetAllMatches.mockResolvedValue([
+      {
+        match_id: '100',
+        status: '1H',
+        date: '2026-03-26',
+        kickoff: '19:00',
+        kickoff_at_utc: '2026-03-26T10:00:00.000Z',
+      },
+    ]);
+    mockEnsureFixturesForMatchIds.mockResolvedValue([
+      {
+        fixture: {
+          id: 100,
+          date: '2026-03-26T10:00:00+00:00',
+          status: { short: '1H', elapsed: 8 },
+        },
+        goals: { home: 2, away: 1 },
+      },
+    ]);
+    mockEnsureFixtureStatistics.mockRejectedValueOnce(new Error('fresh live stats unavailable'));
+    mockUpdateMatches.mockResolvedValue(1);
+
+    const result = await refreshLiveMatchesJob();
+
+    expect(result).toEqual({ tracked: 1, refreshed: 1, live: 1, statsRefreshed: 0 });
+    expect(mockUpdateMatches).toHaveBeenCalledWith([
+      expect.objectContaining({
+        match_id: '100',
+        home_score: 2,
+        away_score: 1,
+        current_minute: 8,
+        home_yellows: undefined,
+        away_reds: undefined,
       }),
     ]);
   });

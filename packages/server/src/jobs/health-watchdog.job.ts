@@ -18,6 +18,7 @@ import { loadOperationalTelegramSettings } from '../lib/telegram-runtime.js';
 // The watchdog only alerts for these — does NOT alert for itself or utility jobs.
 const CRITICAL_JOBS = new Set([
   'fetch-matches',
+  'refresh-live-matches',
   'check-live-trigger',
   'auto-settle',
   'expire-watchlist',
@@ -128,11 +129,17 @@ export async function healthWatchdogJob(): Promise<WatchdogResult> {
 
     const overdueThresholdMs = job.intervalMs * OVERDUE_FACTOR;
     const stuckThresholdMs = job.intervalMs * STUCK_FACTOR;
-    const lastRunTs = job.lastRun ? new Date(job.lastRun).getTime() : 0;
-    const timeSinceLastRun = lastRunTs > 0 ? now - lastRunTs : Infinity;
+    const lastCompletedTs = job.lastCompletedAt
+      ? new Date(job.lastCompletedAt).getTime()
+      : (job.lastRun ? new Date(job.lastRun).getTime() : 0);
+    const lastStartedTs = job.lastStartedAt ? new Date(job.lastStartedAt).getTime() : 0;
+    const baselineTs = job.running
+      ? (lastStartedTs || lastCompletedTs)
+      : lastCompletedTs;
+    const timeSinceBaseline = baselineTs > 0 ? now - baselineTs : Infinity;
     // Only "overdue" if NOT currently running — a running job is just slow, not missed
-    let isOverdue = !job.running && timeSinceLastRun > overdueThresholdMs;
-    const isStuck = job.running && timeSinceLastRun > stuckThresholdMs;
+    let isOverdue = !job.running && timeSinceBaseline > overdueThresholdMs;
+    const isStuck = job.running && timeSinceBaseline > stuckThresholdMs;
 
     // If the job has an adaptive skip key, check whether it is intentionally sleeping.
     // A job sleeping due to adaptive polling is NOT overdue — it is working as designed.
@@ -162,7 +169,7 @@ export async function healthWatchdogJob(): Promise<WatchdogResult> {
 
       if (cooledDown) {
         if (telegram.enabled && telegram.chatId && config.telegramBotToken) {
-          const timeAgo = lastRunTs > 0 ? formatDuration(timeSinceLastRun) : 'never run';
+          const timeAgo = baselineTs > 0 ? formatDuration(timeSinceBaseline) : 'never run';
           const expectedInterval = formatDuration(job.intervalMs);
           const lastErr = job.lastError ? `\n<b>Last error:</b> ${escapeHtml(job.lastError.substring(0, 200))}` : '';
           const consecutive = (prevAlert?.consecutiveOverdue ?? 0) + 1;
@@ -202,8 +209,10 @@ export async function healthWatchdogJob(): Promise<WatchdogResult> {
             metadata: {
               jobName: job.name,
               intervalMs: job.intervalMs,
-              timeSinceLastRunMs: timeSinceLastRun === Infinity ? null : timeSinceLastRun,
+              timeSinceLastRunMs: timeSinceBaseline === Infinity ? null : timeSinceBaseline,
               lastRun: job.lastRun,
+              lastStartedAt: job.lastStartedAt,
+              lastCompletedAt: job.lastCompletedAt,
               lastError: job.lastError,
               running: job.running,
               consecutiveOverdue: (prevAlert?.consecutiveOverdue ?? 0) + 1,

@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, test, vi } from 'vitest';
 
 const mockGetLeagueTeamDirectory = vi.fn();
 const mockReplaceLeagueTeamsSnapshot = vi.fn();
-const mockFetchTeamsByLeagueWithSeason = vi.fn();
+const mockFetchLeagueTeamsBySeasonFromReferenceProvider = vi.fn();
 
 const redisState = new Map<string, string>();
 const mockRedis = {
@@ -23,8 +23,8 @@ vi.mock('../repos/team-directory.repo.js', () => ({
   replaceLeagueTeamsSnapshot: mockReplaceLeagueTeamsSnapshot,
 }));
 
-vi.mock('../lib/football-api.js', () => ({
-  fetchTeamsByLeagueWithSeason: mockFetchTeamsByLeagueWithSeason,
+vi.mock('../lib/reference-data-provider.js', () => ({
+  fetchLeagueTeamsBySeasonFromReferenceProvider: mockFetchLeagueTeamsBySeasonFromReferenceProvider,
 }));
 
 vi.mock('../lib/redis.js', () => ({
@@ -65,7 +65,7 @@ describe('league-team-directory.service', () => {
     expect(result).toEqual([
       { team: { id: 33, name: 'Manchester United', logo: 'https://logo/33.png', country: 'England' }, rank: 1 },
     ]);
-    expect(mockFetchTeamsByLeagueWithSeason).not.toHaveBeenCalled();
+    expect(mockFetchLeagueTeamsBySeasonFromReferenceProvider).not.toHaveBeenCalled();
   });
 
   test('refreshes stale snapshot from provider and persists normalized rows', async () => {
@@ -75,7 +75,7 @@ describe('league-team-directory.service', () => {
         expires_at: '2020-01-01T00:00:00.000Z',
       },
     ]);
-    mockFetchTeamsByLeagueWithSeason.mockResolvedValueOnce({
+    mockFetchLeagueTeamsBySeasonFromReferenceProvider.mockResolvedValueOnce({
       season: 2025,
       teams: [
         {
@@ -90,7 +90,7 @@ describe('league-team-directory.service', () => {
     const { getLeagueTeamsDirectory } = await import('../lib/league-team-directory.service.js');
     const result = await getLeagueTeamsDirectory(39);
 
-    expect(mockFetchTeamsByLeagueWithSeason).toHaveBeenCalledWith(39);
+    expect(mockFetchLeagueTeamsBySeasonFromReferenceProvider).toHaveBeenCalledWith(39, { force: true });
     expect(mockReplaceLeagueTeamsSnapshot).toHaveBeenCalledWith(
       expect.objectContaining({
         leagueId: 39,
@@ -115,7 +115,7 @@ describe('league-team-directory.service', () => {
         expires_at: '2020-01-01T00:00:00.000Z',
       },
     ]);
-    mockFetchTeamsByLeagueWithSeason.mockRejectedValueOnce(new Error('provider down'));
+    mockFetchLeagueTeamsBySeasonFromReferenceProvider.mockRejectedValueOnce(new Error('provider down'));
 
     const { getLeagueTeamsDirectory } = await import('../lib/league-team-directory.service.js');
     const result = await getLeagueTeamsDirectory(39);

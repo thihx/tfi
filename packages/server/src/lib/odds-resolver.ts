@@ -21,6 +21,7 @@ export type ResolvedOddsSource = 'live' | 'fallback-live' | 'reference-prematch'
 type ProviderOddsSource = 'api-football-live' | 'the-odds-live' | 'api-football-prematch' | 'none';
 export type ResolveMatchOddsFreshness = 'fresh' | 'stale_ok' | 'stale_degraded' | 'missing';
 export type ResolveMatchOddsCacheStatus = 'hit' | 'refreshed' | 'stale_fallback' | 'miss';
+export type OddsFreshnessMode = 'real_required' | 'stale_safe' | 'prewarm_only';
 
 export interface ResolveMatchOddsInput {
   matchId: string;
@@ -33,6 +34,7 @@ export interface ResolveMatchOddsInput {
   matchMinute?: number | null;
   consumer?: string;
   sampleProviderData?: boolean;
+  freshnessMode?: OddsFreshnessMode;
 }
 
 export interface ResolveMatchOddsResult {
@@ -88,6 +90,11 @@ const defaultResolveDeps: ResolveMatchOddsDeps = {
 
 const LIVE_STATUSES = new Set(['1H', '2H', 'HT', 'ET', 'BT', 'P', 'LIVE', 'INT']);
 const FINISHED_STATUSES = new Set(['FT', 'AET', 'PEN']);
+
+function bypassStartedCache(mode: OddsFreshnessMode, status?: string | null): boolean {
+  const normalized = String(status ?? '').toUpperCase();
+  return mode === 'real_required' && LIVE_STATUSES.has(normalized);
+}
 
 export function normalizeApiSportsOddsResponse(response: unknown[]): unknown[] {
   if (!Array.isArray(response) || response.length === 0) return [];
@@ -233,8 +240,9 @@ async function loadFreshCachedOdds(
     const cached = await deps.getCachedOdds(input.matchId);
     const now = deps.now!();
     const freshness = classifyFreshness(getCacheAgeMs(cached, now), getOddsCacheTtlMs(input));
+    const mode = input.freshnessMode ?? 'stale_safe';
     if (!cached) return { staleRow: null };
-    if (freshness === 'fresh') {
+    if (freshness === 'fresh' && !bypassStartedCache(mode, input.status ?? cached.match_status)) {
       return buildCacheResult(cached, 'fresh', 'hit');
     }
     return { staleRow: cached };
@@ -309,6 +317,7 @@ export async function resolveMatchOdds(
   deps?: ResolveMatchOddsDeps,
 ): Promise<ResolveMatchOddsResult> {
   const resolvedDeps = { ...defaultResolveDeps, ...deps };
+  const mode = input.freshnessMode ?? 'stale_safe';
   const nowIso = () => resolvedDeps.now!().toISOString();
 
   const cached = await loadFreshCachedOdds(input, resolvedDeps);
@@ -323,7 +332,7 @@ export async function resolveMatchOdds(
     return providerResolved.result;
   }
 
-  if (cached.staleRow) {
+  if (cached.staleRow && !bypassStartedCache(mode, input.status ?? cached.staleRow.match_status)) {
     const staleResult = buildCacheResult(cached.staleRow, 'stale_degraded', 'stale_fallback');
     await persistOddsCache(
       input,
@@ -344,6 +353,7 @@ async function resolveMatchOddsFromProviders(
   resolvedDeps: ResolveMatchOddsDeps,
   nowIso: () => string,
 ): Promise<ProviderResolution> {
+  const mode = input.freshnessMode ?? 'stale_safe';
 
   const liveStartedAt = Date.now();
   let liveRaw: unknown[] = [];
@@ -454,6 +464,35 @@ async function resolveMatchOddsFromProviders(
     lastError = theOddsError
       ? (theOddsError instanceof Error ? theOddsError.message : String(theOddsError))
       : theOddsTrace?.error || 'NO_USABLE_FALLBACK_LIVE_ODDS';
+  }
+
+  if (bypassStartedCache(mode, input.status)) {
+    if (isSamplingEnabled(input)) {
+      void recordProviderOddsSampleSafe({
+        ...sampleBase(input),
+        provider: 'resolver',
+        source: 'none',
+        success: true,
+        usable: false,
+        latency_ms: 0,
+        error: 'REAL_REQUIRED_LIVE_ODDS_UNAVAILABLE',
+        raw_payload: {},
+        normalized_payload: [],
+        coverage_flags: {},
+      });
+    }
+
+    return {
+      result: {
+        oddsSource: 'none',
+        response: [],
+        oddsFetchedAt: null,
+        freshness: 'missing',
+        cacheStatus: 'miss',
+      },
+      providerSource: 'none',
+      lastError,
+    };
   }
 
   const preMatchStartedAt = Date.now();

@@ -39,6 +39,7 @@ vi.mock('../repos/matches.repo.js', () => ({
 vi.mock('../repos/watchlist.repo.js', () => ({
   backfillOperationalWatchlistFromLegacy: vi.fn().mockResolvedValue(0),
   getExistingWatchlistMatchIds: vi.fn().mockResolvedValue(new Set()),
+  getExistingUserWatchlistMatchIds: vi.fn().mockImplementation(() => Promise.resolve(new Set())),
   createOperationalWatchlistEntry: vi.fn().mockResolvedValue({}),
   createWatchlistEntry: vi.fn().mockResolvedValue({}),
   getWatchlistByMatchId: vi.fn().mockResolvedValue(null),
@@ -68,6 +69,13 @@ const mkFixture = (id: number, leagueId: number, status: string, date: string, t
 });
 
 let fetchCallCount = 0;
+vi.mock('../lib/provider-insight-cache.js', () => ({
+  ensureFixtureStatistics: vi.fn().mockResolvedValue({
+    payload: [],
+    cacheStatus: 'refreshed',
+  }),
+}));
+
 vi.mock('../lib/football-api.js', () => ({
   fetchFixturesForDate: vi.fn().mockImplementation((date: string) => {
     fetchCallCount++;
@@ -83,7 +91,6 @@ vi.mock('../lib/football-api.js', () => ({
       mkFixture(2001, 39, 'NS', `${date}T14:00:00+00:00`, 'Liverpool', 'Man City'),
     ]);
   }),
-  fetchFixtureStatistics: vi.fn().mockResolvedValue([]),
 }));
 
 vi.mock('../config.js', () => ({
@@ -92,6 +99,7 @@ vi.mock('../config.js', () => ({
 
 const { fetchMatchesJob } = await import('../jobs/fetch-matches.job.js');
 const footballApi = await import('../lib/football-api.js');
+const providerInsight = await import('../lib/provider-insight-cache.js');
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -278,7 +286,7 @@ describe('fetchMatchesJob', () => {
 
     await fetchMatchesJob();
 
-    expect(footballApi.fetchFixtureStatistics).not.toHaveBeenCalled();
+    expect(providerInsight.ensureFixtureStatistics).not.toHaveBeenCalled();
   });
 
   test('does not refetch finished stats when history already has non-empty settlement cache', async () => {
@@ -328,7 +336,7 @@ describe('fetchMatchesJob', () => {
 
     await fetchMatchesJob();
 
-    expect(footballApi.fetchFixtureStatistics).not.toHaveBeenCalled();
+    expect(providerInsight.ensureFixtureStatistics).not.toHaveBeenCalled();
   });
 
   test('fetches stats for finished match when settlement_stats_fetched_at is null', async () => {
@@ -379,7 +387,10 @@ describe('fetchMatchesJob', () => {
 
     await fetchMatchesJob();
 
-    expect(footballApi.fetchFixtureStatistics).toHaveBeenCalledWith('1001');
+    expect(providerInsight.ensureFixtureStatistics).toHaveBeenCalledWith('1001', expect.objectContaining({
+      status: 'FT',
+      acceptFinishedPayloadRegardlessOfTtl: true,
+    }));
   });
 
   test('fetches live and finished stats in a single batch', async () => {
@@ -409,9 +420,15 @@ describe('fetchMatchesJob', () => {
     await fetchMatchesJob();
 
     // Both live (2001) and finished (2002) stats are fetched
-    expect(footballApi.fetchFixtureStatistics).toHaveBeenCalledWith('2001');
-    expect(footballApi.fetchFixtureStatistics).toHaveBeenCalledWith('2002');
-    expect(footballApi.fetchFixtureStatistics).toHaveBeenCalledTimes(2);
+    expect(providerInsight.ensureFixtureStatistics).toHaveBeenCalledWith('2001', expect.objectContaining({
+      status: '2H',
+      acceptFinishedPayloadRegardlessOfTtl: false,
+    }));
+    expect(providerInsight.ensureFixtureStatistics).toHaveBeenCalledWith('2002', expect.objectContaining({
+      status: 'FT',
+      acceptFinishedPayloadRegardlessOfTtl: true,
+    }));
+    expect(providerInsight.ensureFixtureStatistics).toHaveBeenCalledTimes(2);
   });
 
   test('syncs watchlist dates after refresh', async () => {
@@ -545,7 +562,7 @@ describe('fetchMatchesJob — favorite team auto-add', () => {
     vi.mocked(favoriteRepo.getFavoriteTeamOwnersByTeamIds).mockResolvedValueOnce([{ userId: 'user-1', teamId: '33' }]);
 
     const watchlistRepo = await import('../repos/watchlist.repo.js');
-    vi.mocked(watchlistRepo.getWatchlistByMatchId).mockResolvedValueOnce({ match_id: '3005' } as never);
+    vi.mocked(watchlistRepo.getExistingUserWatchlistMatchIds).mockResolvedValueOnce(new Set(['3005']));
 
     vi.mocked(footballApi.fetchFixturesForDate)
       .mockResolvedValueOnce([

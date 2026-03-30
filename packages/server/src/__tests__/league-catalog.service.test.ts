@@ -6,13 +6,13 @@ vi.mock('../repos/leagues.repo.js', () => ({
   upsertLeagues: vi.fn(),
 }));
 
-vi.mock('../lib/football-api.js', () => ({
-  fetchAllLeagues: vi.fn(),
-  fetchLeagueById: vi.fn(),
+vi.mock('../lib/reference-data-provider.js', () => ({
+  fetchAllLeaguesFromReferenceProvider: vi.fn(),
+  fetchLeagueByIdFromReferenceProvider: vi.fn(),
 }));
 
 import * as leaguesRepo from '../repos/leagues.repo.js';
-import * as footballApi from '../lib/football-api.js';
+import * as referenceProvider from '../lib/reference-data-provider.js';
 import { ensureLeagueCatalogEntry, refreshLeagueCatalog } from '../lib/league-catalog.service.js';
 
 describe('league-catalog.service', () => {
@@ -47,7 +47,7 @@ describe('league-catalog.service', () => {
         provider_synced_at: new Date().toISOString(),
       },
     ]);
-    vi.mocked(footballApi.fetchLeagueById).mockResolvedValue({
+    vi.mocked(referenceProvider.fetchLeagueByIdFromReferenceProvider).mockResolvedValue({
       league: { id: 39, name: 'Premier League', type: 'League', logo: '' },
       country: { name: 'England', code: 'GB', flag: null },
       seasons: [],
@@ -64,8 +64,8 @@ describe('league-catalog.service', () => {
       failedLeagues: 0,
       upserted: 1,
     });
-    expect(footballApi.fetchLeagueById).toHaveBeenCalledTimes(1);
-    expect(footballApi.fetchLeagueById).toHaveBeenCalledWith(39);
+    expect(referenceProvider.fetchLeagueByIdFromReferenceProvider).toHaveBeenCalledTimes(1);
+    expect(referenceProvider.fetchLeagueByIdFromReferenceProvider).toHaveBeenCalledWith(39, { force: true });
     expect(leaguesRepo.upsertLeagues).toHaveBeenCalledWith(
       expect.arrayContaining([
         expect.objectContaining({ league_id: 39, active: true, top_league: true }),
@@ -90,7 +90,7 @@ describe('league-catalog.service', () => {
         provider_synced_at: '2026-03-24T00:00:00Z',
       });
     vi.mocked(leaguesRepo.getAllLeagues).mockResolvedValue([]);
-    vi.mocked(footballApi.fetchLeagueById).mockResolvedValue({
+    vi.mocked(referenceProvider.fetchLeagueByIdFromReferenceProvider).mockResolvedValue({
       league: { id: 999, name: 'Test League', type: 'League', logo: '' },
       country: { name: 'Nowhere', code: null, flag: null },
       seasons: [],
@@ -100,6 +100,6 @@ describe('league-catalog.service', () => {
     const league = await ensureLeagueCatalogEntry(999);
 
     expect(league?.league_id).toBe(999);
-    expect(footballApi.fetchLeagueById).toHaveBeenCalledWith(999);
+    expect(referenceProvider.fetchLeagueByIdFromReferenceProvider).toHaveBeenCalledWith(999, { force: true });
   });
 });

@@ -9,7 +9,8 @@
 // ============================================================
 
 import { config } from '../config.js';
-import { fetchFixturesForDate, fetchFixtureStatistics, type ApiFixture, type ApiFixtureStat } from '../lib/football-api.js';
+import { fetchFixturesForDate, type ApiFixture, type ApiFixtureStat } from '../lib/football-api.js';
+import { ensureFixtureStatistics } from '../lib/provider-insight-cache.js';
 import * as leagueRepo from '../repos/leagues.repo.js';
 import * as matchRepo from '../repos/matches.repo.js';
 import * as watchlistRepo from '../repos/watchlist.repo.js';
@@ -235,6 +236,28 @@ export async function fetchMatchesJob(): Promise<{ saved: number; leagues: numbe
     ...liveRows.map(r => r.match_id),
     ...playableFinished.map(f => String(f.fixture.id)),
   ];
+  const statsContext = new Map<string, {
+    status: string;
+    matchMinute: number | null;
+    acceptFinishedPayloadRegardlessOfTtl: boolean;
+    freshnessMode?: 'real_required';
+  }>();
+  for (const row of liveRows) {
+    statsContext.set(row.match_id, {
+      status: row.status,
+      matchMinute: row.current_minute ?? null,
+      acceptFinishedPayloadRegardlessOfTtl: false,
+      freshnessMode: 'real_required',
+    });
+  }
+  for (const fixture of playableFinished) {
+    const matchId = String(fixture.fixture.id);
+    statsContext.set(matchId, {
+      status: fixture.fixture.status.short,
+      matchMinute: fixture.fixture.status.elapsed,
+      acceptFinishedPayloadRegardlessOfTtl: true,
+    });
+  }
 
   const rawStatsMap = new Map<string, ApiFixtureStat[]>();
   if (allNeedingStats.length > 0) {
@@ -244,8 +267,8 @@ export async function fetchMatchesJob(): Promise<{ saved: number; leagues: numbe
     );
     await batchRun(allNeedingStats.map(matchId => async () => {
       try {
-        const stats = await fetchFixtureStatistics(matchId);
-        rawStatsMap.set(matchId, stats);
+        const stats = await ensureFixtureStatistics(matchId, statsContext.get(matchId));
+        rawStatsMap.set(matchId, stats.payload);
       } catch (err) {
         console.warn(`[fetchMatchesJob] Stats fetch failed for ${matchId}:`, err instanceof Error ? err.message : err);
       }
@@ -326,32 +349,44 @@ export async function fetchMatchesJob(): Promise<{ saved: number; leagues: numbe
   await reportJobProgress(JOB, 'save', `Saving ${mergedRows.length} matches...`, 78);
   const saved = await matchRepo.replaceAllMatches(mergedRows);
   const uniqueLeagues = new Set(mergedRows.map((r) => r.league_id)).size;
+  const runSideEffect = async <T>(label: string, fn: () => Promise<T>, fallback: T): Promise<T> => {
+    try {
+      return await fn();
+    } catch (err) {
+      console.warn(`[fetchMatchesJob] Non-core stage "${label}" failed:`, err instanceof Error ? err.message : err);
+      return fallback;
+    }
+  };
 
   console.log(`[fetchMatchesJob] ✅ Saved ${saved} matches from ${uniqueLeagues} leagues`);
 
-  const backfilled = await watchlistRepo.backfillOperationalWatchlistFromLegacy();
+  const backfilled = await runSideEffect('watchlist-backfill', () => watchlistRepo.backfillOperationalWatchlistFromLegacy(), 0);
   if (backfilled > 0) {
     console.log(`[fetchMatchesJob] Backfilled ${backfilled} legacy watchlist rows into monitored matches`);
   }
 
   // 8b. Sync monitored watch metadata from refreshed matches (fixes stale date/kickoff)
-  const synced = await watchlistRepo.syncWatchlistDates();
+  const synced = await runSideEffect('watchlist-date-sync', () => watchlistRepo.syncWatchlistDates(), 0);
   if (synced > 0) {
     console.log(`[fetchMatchesJob] Synced ${synced} monitored watch date/kickoff entries`);
   }
 
   // 9. Auto-add Top League matches to Watchlist (NS status only)
   await reportJobProgress(JOB, 'top-leagues', 'Auto-adding top league matches to watchlist...', 85);
-  const autoAddSettings = await getSettings().catch(() => ({}));
+  const autoAddSettings = await runSideEffect('load-default-settings', () => getSettings().catch(() => ({})), {});
   const autoApplyRecommendedCondition =
     (autoAddSettings as Record<string, unknown>).AUTO_APPLY_RECOMMENDED_CONDITION !== false;
-  const topLeagues = await leagueRepo.getTopLeagues();
+  const topLeagues = await runSideEffect('top-leagues', () => leagueRepo.getTopLeagues(), []);
   if (topLeagues.length > 0) {
     const topLeagueIds = new Set(topLeagues.map((l) => l.league_id));
     const topMatches = rows.filter((r) => topLeagueIds.has(r.league_id) && r.status === 'NS');
 
     // Batch-check existing watchlist entries — one query instead of N sequential queries
-    const existingIds = await watchlistRepo.getExistingWatchlistMatchIds(topMatches.map((m) => m.match_id));
+    const existingIds = await runSideEffect(
+      'top-league-existing-watchlist',
+      () => watchlistRepo.getExistingWatchlistMatchIds(topMatches.map((m) => m.match_id)),
+      new Set<string>(),
+    );
 
     let added = 0;
     for (const m of topMatches) {
@@ -402,14 +437,18 @@ export async function fetchMatchesJob(): Promise<{ saved: number; leagues: numbe
   const favoriteCandidateMatches = rows.filter((r) =>
     r.status === 'NS' && (r.home_team_id != null || r.away_team_id != null),
   );
-  const favoriteTeamOwners = await getFavoriteTeamOwnersByTeamIds(
-    Array.from(new Set(
-      favoriteCandidateMatches.flatMap((row) => [
-        row.home_team_id != null ? String(row.home_team_id) : null,
-        row.away_team_id != null ? String(row.away_team_id) : null,
-      ].filter((teamId): teamId is string => teamId != null)),
-    )),
-  ).catch(() => []);
+  const favoriteTeamOwners = await runSideEffect(
+    'favorite-team-owners',
+    () => getFavoriteTeamOwnersByTeamIds(
+      Array.from(new Set(
+        favoriteCandidateMatches.flatMap((row) => [
+          row.home_team_id != null ? String(row.home_team_id) : null,
+          row.away_team_id != null ? String(row.away_team_id) : null,
+        ].filter((teamId): teamId is string => teamId != null)),
+      )),
+    ).catch(() => []),
+    [],
+  );
 
   if (favoriteTeamOwners.length > 0) {
     const favoriteOwnersByTeamId = new Map<string, Set<string>>();
@@ -418,6 +457,36 @@ export async function fetchMatchesJob(): Promise<{ saved: number; leagues: numbe
       const current = favoriteOwnersByTeamId.get(owner.teamId) ?? new Set<string>();
       current.add(owner.userId);
       favoriteOwnersByTeamId.set(owner.teamId, current);
+    }
+
+    const candidateMatchIdsByUserId = new Map<string, Set<string>>();
+    for (const m of favoriteCandidateMatches) {
+      const matchingUserIds = new Set<string>();
+      if (m.home_team_id != null) {
+        for (const userId of favoriteOwnersByTeamId.get(String(m.home_team_id)) ?? []) {
+          matchingUserIds.add(userId);
+        }
+      }
+      if (m.away_team_id != null) {
+        for (const userId of favoriteOwnersByTeamId.get(String(m.away_team_id)) ?? []) {
+          matchingUserIds.add(userId);
+        }
+      }
+      for (const userId of matchingUserIds) {
+        const matchIds = candidateMatchIdsByUserId.get(userId) ?? new Set<string>();
+        matchIds.add(m.match_id);
+        candidateMatchIdsByUserId.set(userId, matchIds);
+      }
+    }
+
+    const existingFavoriteIdsByUserId = new Map<string, Set<string>>();
+    for (const [userId, matchIds] of candidateMatchIdsByUserId) {
+      const existingIds = await runSideEffect(
+        `favorite-team-existing:${userId}`,
+        () => watchlistRepo.getExistingUserWatchlistMatchIds(userId, [...matchIds]),
+        new Set<string>(),
+      );
+      existingFavoriteIdsByUserId.set(userId, existingIds);
     }
 
     let favAdded = 0;
@@ -435,8 +504,7 @@ export async function fetchMatchesJob(): Promise<{ saved: number; leagues: numbe
       }
 
       for (const userId of matchingUserIds) {
-        const existing = await watchlistRepo.getWatchlistByMatchId(m.match_id, userId);
-        if (existing) continue;
+        if (existingFavoriteIdsByUserId.get(userId)?.has(m.match_id)) continue;
 
         let userAutoApplyRecommendedCondition = autoApplyByUserId.get(userId);
         if (userAutoApplyRecommendedCondition == null) {
@@ -473,6 +541,7 @@ export async function fetchMatchesJob(): Promise<{ saved: number; leagues: numbe
             strategic_context: null,
             strategic_context_at: null,
           }, userId);
+          existingFavoriteIdsByUserId.get(userId)?.add(m.match_id);
           favAdded++;
         } catch (err: unknown) {
           const msg = err instanceof Error ? err.message : String(err);

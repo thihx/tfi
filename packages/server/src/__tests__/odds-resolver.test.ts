@@ -231,4 +231,107 @@ describe('resolveMatchOdds', () => {
     expect(result.freshness).toBe('fresh');
     expect(footballApi.fetchLiveOdds).not.toHaveBeenCalled();
   });
+
+  test('does not reuse stale cached live odds when real-time freshness is required', async () => {
+    const footballApi = await import('../lib/football-api.js');
+    const theOddsApi = await import('../lib/the-odds-api.js');
+    const cacheRepo = await import('../repos/provider-odds-cache.repo.js');
+
+    vi.mocked(cacheRepo.getProviderOddsCache).mockResolvedValueOnce({
+      match_id: '100',
+      odds_source: 'live',
+      provider_source: 'api-football-live',
+      response: [{ bookmakers: [{ bets: [{ name: 'Match Winner', values: [] }] }] }],
+      coverage_flags: {},
+      provider_trace: {},
+      odds_fetched_at: '2026-03-25T12:00:00.000Z',
+      cached_at: '2026-03-25T12:00:00.000Z',
+      match_status: '2H',
+      match_minute: 61,
+      freshness: 'fresh',
+      degraded: false,
+      last_refresh_error: '',
+      has_1x2: true,
+      has_ou: false,
+      has_ah: false,
+      has_btts: false,
+    } as never);
+    vi.mocked(footballApi.fetchLiveOdds).mockResolvedValueOnce([] as never);
+    vi.mocked(theOddsApi.fetchTheOddsLiveDetailed).mockResolvedValueOnce({
+      result: null,
+      matchedEvent: null,
+      rawEventOdds: null,
+      sportKey: null,
+      scannedSportKeys: ['soccer_epl'],
+      error: 'NO_EXACT_EVENT_MATCH',
+    } as never);
+    vi.mocked(footballApi.fetchPreMatchOdds).mockResolvedValueOnce([] as never);
+
+    const result = await resolveMatchOdds({
+      matchId: '100',
+      status: '2H',
+      matchMinute: 61,
+      homeTeam: 'Team A',
+      awayTeam: 'Team B',
+      freshnessMode: 'real_required',
+    });
+
+    expect(footballApi.fetchLiveOdds).toHaveBeenCalledWith('100');
+    expect(result).toEqual({
+      oddsSource: 'none',
+      response: [],
+      oddsFetchedAt: null,
+      freshness: 'missing',
+      cacheStatus: 'miss',
+    });
+  });
+
+  test('still allows stale cached odds on live paths when explicitly stale-safe', async () => {
+    const footballApi = await import('../lib/football-api.js');
+    const theOddsApi = await import('../lib/the-odds-api.js');
+    const cacheRepo = await import('../repos/provider-odds-cache.repo.js');
+
+    vi.mocked(cacheRepo.getProviderOddsCache).mockResolvedValueOnce({
+      match_id: '100',
+      odds_source: 'live',
+      provider_source: 'api-football-live',
+      response: [{ bookmakers: [{ bets: [{ name: 'Match Winner', values: [] }] }] }],
+      coverage_flags: {},
+      provider_trace: {},
+      odds_fetched_at: '2026-03-25T12:00:00.000Z',
+      cached_at: '2026-03-25T12:00:00.000Z',
+      match_status: '2H',
+      match_minute: 61,
+      freshness: 'fresh',
+      degraded: false,
+      last_refresh_error: '',
+      has_1x2: true,
+      has_ou: false,
+      has_ah: false,
+      has_btts: false,
+    } as never);
+    vi.mocked(footballApi.fetchLiveOdds).mockResolvedValueOnce([] as never);
+    vi.mocked(theOddsApi.fetchTheOddsLiveDetailed).mockResolvedValueOnce({
+      result: null,
+      matchedEvent: null,
+      rawEventOdds: null,
+      sportKey: null,
+      scannedSportKeys: ['soccer_epl'],
+      error: 'NO_EXACT_EVENT_MATCH',
+    } as never);
+    vi.mocked(footballApi.fetchPreMatchOdds).mockResolvedValueOnce([] as never);
+
+    const result = await resolveMatchOdds({
+      matchId: '100',
+      status: '2H',
+      matchMinute: 61,
+      homeTeam: 'Team A',
+      awayTeam: 'Team B',
+      freshnessMode: 'stale_safe',
+    });
+
+    expect(result.oddsSource).toBe('live');
+    expect(result.cacheStatus).toBe('stale_fallback');
+    expect(result.freshness).toBe('stale_degraded');
+  });
 });

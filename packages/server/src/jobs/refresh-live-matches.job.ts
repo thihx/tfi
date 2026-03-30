@@ -1,5 +1,6 @@
-import { fetchFixtureStatistics, fetchFixturesByIds, type ApiFixtureStat } from '../lib/football-api.js';
+import type { ApiFixtureStat } from '../lib/football-api.js';
 import { kickoffAtUtcFromFixtureDate } from '../lib/kickoff-time.js';
+import { ensureFixtureStatistics, ensureFixturesForMatchIds } from '../lib/provider-insight-cache.js';
 import * as matchRepo from '../repos/matches.repo.js';
 import { reportJobProgress } from './job-progress.js';
 
@@ -7,7 +8,6 @@ const LIVE_STATUSES = new Set(['1H', 'HT', '2H', 'ET', 'BT', 'P', 'LIVE', 'INT']
 const TRACK_NS_BEFORE_KICKOFF_MIN = 10;
 const TRACK_NS_AFTER_KICKOFF_MIN = 10;
 const STAT_CONCURRENCY = 4;
-const FIXTURE_CHUNK_SIZE = 20;
 
 function shouldTrackMatch(row: matchRepo.MatchRow, now = Date.now()): boolean {
   const status = String(row.status || '').trim().toUpperCase();
@@ -40,49 +40,56 @@ async function batchRun<T>(tasks: Array<() => Promise<T>>, concurrency: number):
   return results;
 }
 
-function chunkIds(ids: string[], size: number): string[][] {
-  const chunks: string[][] = [];
-  for (let index = 0; index < ids.length; index += size) {
-    chunks.push(ids.slice(index, index + size));
-  }
-  return chunks;
-}
-
-export async function refreshLiveMatchesJob(): Promise<{ tracked: number; refreshed: number; live: number }> {
+export async function refreshLiveMatchesJob(): Promise<{
+  tracked: number;
+  refreshed: number;
+  live: number;
+  statsRefreshed: number;
+}> {
   const JOB = 'refresh-live-matches';
   await reportJobProgress(JOB, 'load', 'Loading live and near-live matches...', 10);
 
   const allMatches = await matchRepo.getAllMatches();
   const tracked = allMatches.filter((row) => shouldTrackMatch(row));
   if (tracked.length === 0) {
-    return { tracked: 0, refreshed: 0, live: 0 };
+    return { tracked: 0, refreshed: 0, live: 0, statsRefreshed: 0 };
   }
 
   const fixtureIds = tracked.map((row) => row.match_id);
   const liveCount = tracked.filter((row) => LIVE_STATUSES.has(String(row.status || '').trim().toUpperCase())).length;
 
   await reportJobProgress(JOB, 'fixtures', `Refreshing ${fixtureIds.length} tracked fixtures...`, 35);
-  const fixtureChunks = chunkIds(fixtureIds, FIXTURE_CHUNK_SIZE);
-  const fixtures = (await Promise.all(fixtureChunks.map((ids) => fetchFixturesByIds(ids)))).flat();
+  const fixtures = await ensureFixturesForMatchIds(fixtureIds, { freshnessMode: 'real_required' });
   if (fixtures.length === 0) {
-    return { tracked: tracked.length, refreshed: 0, live: liveCount };
+    return { tracked: tracked.length, refreshed: 0, live: liveCount, statsRefreshed: 0 };
   }
 
   const statsMap = new Map<string, { home_reds: number; away_reds: number; home_yellows: number; away_yellows: number }>();
   const liveFixtures = fixtures.filter((fixture) => LIVE_STATUSES.has(String(fixture.fixture.status.short || '').trim().toUpperCase()));
+  let statsRefreshed = 0;
   if (liveFixtures.length > 0) {
     await reportJobProgress(JOB, 'stats', `Refreshing live stats for ${liveFixtures.length} fixtures...`, 55);
     await batchRun(liveFixtures.map((fixture) => async () => {
+      const matchId = String(fixture.fixture.id);
       try {
-        const stats = await fetchFixtureStatistics(String(fixture.fixture.id));
-        statsMap.set(String(fixture.fixture.id), {
-          home_reds: statCount(stats, 0, 'Red Cards'),
-          away_reds: statCount(stats, 1, 'Red Cards'),
-          home_yellows: statCount(stats, 0, 'Yellow Cards'),
-          away_yellows: statCount(stats, 1, 'Yellow Cards'),
+        const stats = await ensureFixtureStatistics(matchId, {
+          status: fixture.fixture.status.short,
+          matchMinute: fixture.fixture.status.elapsed,
+          freshnessMode: 'real_required',
         });
+        if (stats.cacheStatus === 'refreshed') {
+          statsRefreshed += 1;
+        }
+        if (stats.payload.length > 0) {
+          statsMap.set(matchId, {
+            home_reds: statCount(stats.payload, 0, 'Red Cards'),
+            away_reds: statCount(stats.payload, 1, 'Red Cards'),
+            home_yellows: statCount(stats.payload, 0, 'Yellow Cards'),
+            away_yellows: statCount(stats.payload, 1, 'Yellow Cards'),
+          });
+        }
       } catch {
-        // Best-effort: keep last known stats if provider stats fail.
+        // Freshness-first path: if real-time cards are unavailable, keep score update and omit stale card data.
       }
     }), STAT_CONCURRENCY);
   }
@@ -109,5 +116,5 @@ export async function refreshLiveMatchesJob(): Promise<{ tracked: number; refres
   const refreshed = await matchRepo.updateMatches(updates);
 
   await reportJobProgress(JOB, 'done', `Refreshed ${refreshed} tracked live rows`, 100);
-  return { tracked: tracked.length, refreshed, live: liveFixtures.length };
+  return { tracked: tracked.length, refreshed, live: liveFixtures.length, statsRefreshed };
 }

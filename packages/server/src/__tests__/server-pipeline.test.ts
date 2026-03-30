@@ -534,6 +534,17 @@ describe('runPipelineBatch', () => {
     expect(footballApi.fetchLiveOdds).toHaveBeenCalledWith('100');
   });
 
+  test('uses real-required freshness mode for live provider inputs', async () => {
+    await runPipelineBatch(['100']);
+
+    const insight = await import('../lib/provider-insight-cache.js');
+    expect(insight.ensureFixturesForMatchIds).toHaveBeenCalledWith(['100'], { freshnessMode: 'real_required' });
+    expect(insight.ensureMatchInsight).toHaveBeenCalledWith('100', expect.objectContaining({
+      status: '2H',
+      freshnessMode: 'real_required',
+    }));
+  });
+
   test('records live-score benchmark samples without changing the main pipeline path', async () => {
     await runPipelineBatch(['100']);
 
@@ -1232,7 +1243,7 @@ describe('runPipelineBatch', () => {
     expect(result.results[0].error).toContain('Watchlist entry not found');
   });
 
-  test('falls back to pre-match odds when live odds unavailable', async () => {
+  test('does not reuse pre-match odds for live analysis when real-time odds are unavailable', async () => {
     const footballApi = await import('../lib/football-api.js');
     vi.mocked(footballApi.fetchLiveOdds).mockResolvedValueOnce([]);
     vi.mocked(footballApi.fetchPreMatchOdds).mockResolvedValueOnce([{
@@ -1251,7 +1262,8 @@ describe('runPipelineBatch', () => {
 
     const { callGemini } = await import('../lib/gemini.js');
     const prompt = vi.mocked(callGemini).mock.calls[0][0];
-    expect(prompt).toContain('reference-prematch');
+    expect(prompt).toContain('ODDS_SOURCE: none');
+    expect(footballApi.fetchPreMatchOdds).not.toHaveBeenCalled();
   });
 
   test('normalizes live odds[] payloads before building canonical odds', async () => {

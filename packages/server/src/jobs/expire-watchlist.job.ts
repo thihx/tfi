@@ -11,13 +11,20 @@ import { reportJobProgress } from './job-progress.js';
 
 const EXPIRE_CUTOFF_MINUTES = 120;
 
-export async function expireWatchlistJob(): Promise<{ expired: number }> {
+export async function expireWatchlistJob(): Promise<{
+  expiredSubscriptions: number;
+  refreshedSubscriberCounts: number;
+  deletedMonitoredMatches: number;
+  totalChanged: number;
+}> {
   await reportJobProgress('expire-watchlist', 'expire', 'Cleaning up completed watchlist entries...', 30);
-  const expired = await watchlistRepo.expireOldEntries(EXPIRE_CUTOFF_MINUTES);
+  const result = await watchlistRepo.expireOldEntriesDetailed(EXPIRE_CUTOFF_MINUTES);
 
-  if (expired > 0) {
-    console.log(`[expireWatchlistJob] ✅ Cleaned up ${expired} completed watchlist matches`);
+  if (result.totalChanged > 0) {
+    console.log(
+      `[expireWatchlistJob] cleaned subscriptions=${result.expiredSubscriptions} monitored=${result.deletedMonitoredMatches}`,
+    );
   }
 
-  return { expired };
+  return result;
 }

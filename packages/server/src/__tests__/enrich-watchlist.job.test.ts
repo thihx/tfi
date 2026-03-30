@@ -5,7 +5,14 @@
 import { beforeEach, describe, expect, test, vi } from 'vitest';
 
 vi.mock('../lib/redis.js', () => ({
-  getRedisClient: () => ({ hget: vi.fn(), hset: vi.fn(), expire: vi.fn(), del: vi.fn() }),
+  getRedisClient: () => ({
+    hget: vi.fn(),
+    hset: vi.fn(),
+    expire: vi.fn(),
+    del: vi.fn(),
+    get: vi.fn().mockResolvedValue(null),
+    set: vi.fn().mockResolvedValue('OK'),
+  }),
 }));
 
 vi.mock('../jobs/job-progress.js', () => ({

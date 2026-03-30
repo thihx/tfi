@@ -8,9 +8,9 @@ test.describe('Investment Tracker', () => {
 
   test('shows KPI cards', async ({ page }) => {
     await expect(page.getByText('Total Investments')).toBeVisible();
-    await expect(page.getByText('Win Rate')).toBeVisible();
+    await expect(page.getByText('Hit Rate (W/L)')).toBeVisible();
     await expect(page.getByText('Total P/L')).toBeVisible();
-    await expect(page.getByText('ROI')).toBeVisible();
+    await expect(page.getByText('ROI on Stake')).toBeVisible();
   });
 
   test('shows Log Investment button', async ({ page }) => {

@@ -26,6 +26,23 @@ vi.mock('../repos/ai-performance.repo.js', () => ({
 vi.mock('../lib/football-api.js', () => ({
   fetchFixturesByIds: vi.fn(),
   fetchFixtureStatistics: vi.fn(),
+  fetchFixtureEvents: vi.fn().mockResolvedValue([]),
+  fetchFixtureLineups: vi.fn().mockResolvedValue([]),
+  fetchPrediction: vi.fn().mockResolvedValue(null),
+  fetchStandings: vi.fn().mockResolvedValue([]),
+  fetchLiveOdds: vi.fn().mockResolvedValue([]),
+  fetchPreMatchOdds: vi.fn().mockResolvedValue([]),
+}));
+vi.mock('../lib/the-odds-api.js', () => ({
+  fetchTheOddsLiveDetailed: vi.fn().mockResolvedValue([]),
+}));
+vi.mock('../lib/provider-sampling.js', () => ({
+  extractStatusCode: vi.fn().mockReturnValue(null),
+  recordProviderOddsSampleSafe: vi.fn().mockResolvedValue(undefined),
+}));
+vi.mock('../repos/provider-odds-cache.repo.js', () => ({
+  getProviderOddsCache: vi.fn().mockResolvedValue(null),
+  upsertProviderOddsCache: vi.fn().mockResolvedValue(undefined),
 }));
 vi.mock('../jobs/job-progress.js', () => ({
   reportJobProgress: vi.fn(),

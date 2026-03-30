@@ -14,8 +14,8 @@ test.describe('Reports', () => {
   });
 
   test('shows Overview section with KPI cards', async ({ page }) => {
-    await expect(page.getByText('Win Rate')).toBeVisible();
-    await expect(page.getByText('ROI')).toBeVisible();
+    await expect(page.getByText('Hit Rate (W/L)')).toBeVisible();
+    await expect(page.getByText('ROI on Stake')).toBeVisible();
   });
 
   test('shows report section tabs', async ({ page }) => {

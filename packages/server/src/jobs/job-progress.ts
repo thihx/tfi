@@ -7,6 +7,7 @@
 // ============================================================
 
 import { getRedisClient } from '../lib/redis.js';
+import { compactJobResultForProgress, summarizeJobResultForAudit } from './job-result-serializer.js';
 
 export interface JobProgress {
   step: string;
@@ -51,10 +52,15 @@ export async function completeJobProgress(
 ): Promise<void> {
   try {
     const redis = getRedisClient();
+    const compactResult = compactJobResultForProgress(name, result);
+    const serializedResult = compactResult == null ? '' : JSON.stringify(compactResult);
+    const storedResult = serializedResult.length <= 64_000
+      ? serializedResult
+      : JSON.stringify(summarizeJobResultForAudit(name, result));
     await redis.hset(progressKey(name), {
       percent: '100',
       completedAt: new Date().toISOString(),
-      result: result ? JSON.stringify(result) : '',
+      result: storedResult,
       error: error || '',
       message: error ? `Failed: ${error}` : 'Completed',
       step: 'done',

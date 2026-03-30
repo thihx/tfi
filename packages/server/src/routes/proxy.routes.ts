@@ -6,12 +6,10 @@
 import type { FastifyInstance } from 'fastify';
 import { config } from '../config.js';
 import { audit } from '../lib/audit.js';
-import {
-  fetchFixturesByLeague,
-} from '../lib/football-api.js';
 import { callGemini } from '../lib/gemini.js';
 import { resolveMatchOdds } from '../lib/odds-resolver.js';
 import { ensureFixturesForMatchIds, ensureScoutInsight } from '../lib/provider-insight-cache.js';
+import { fetchLeagueFixturesFromReferenceProvider } from '../lib/reference-data-provider.js';
 import { sendTelegramMessage, sendTelegramPhoto } from '../lib/telegram.js';
 import { runPromptOnlyAnalysisForMatch } from '../lib/server-pipeline.js';
 
@@ -26,7 +24,7 @@ export async function proxyRoutes(app: FastifyInstance) {
   // POST /api/proxy/football/live-fixtures
   app.post<{ Body: { matchIds: string[] } }>('/api/proxy/football/live-fixtures', async (req, reply) => {
     try {
-      const fixtures = await ensureFixturesForMatchIds(req.body.matchIds);
+      const fixtures = await ensureFixturesForMatchIds(req.body.matchIds, { freshnessMode: 'real_required' });
       return fixtures;
     } catch (err) {
       app.log.error(err, 'proxy/football/live-fixtures failed');
@@ -49,6 +47,10 @@ export async function proxyRoutes(app: FastifyInstance) {
     };
   }>('/api/proxy/football/odds', async (req, reply) => {
     try {
+      const liveStatus = String(req.body.status ?? '').toUpperCase();
+      const freshnessMode = ['1H', '2H', 'HT', 'ET', 'BT', 'P', 'LIVE', 'INT'].includes(liveStatus)
+        ? 'real_required'
+        : 'stale_safe';
       const resolved = await resolveMatchOdds({
         matchId: req.body.matchId,
         homeTeam: req.body.homeTeam,
@@ -59,6 +61,7 @@ export async function proxyRoutes(app: FastifyInstance) {
         status: req.body.status,
         matchMinute: req.body.matchMinute,
         consumer: 'proxy-route',
+        freshnessMode,
       });
 
       return {
@@ -83,7 +86,8 @@ export async function proxyRoutes(app: FastifyInstance) {
     const hasStarted = status ? (LIVE.includes(status) || FINISHED.includes(status)) : false;
 
     try {
-      const fixtures = await ensureFixturesForMatchIds([fixtureId]);
+      const freshnessMode = hasStarted ? 'real_required' : 'stale_safe';
+      const fixtures = await ensureFixturesForMatchIds([fixtureId], { freshnessMode });
       const fixture = fixtures[0] ?? null;
 
       const seasonValue = season ?? (new Date().getMonth() < 6 ? new Date().getFullYear() - 1 : new Date().getFullYear());
@@ -94,6 +98,7 @@ export async function proxyRoutes(app: FastifyInstance) {
         status,
         consumer: hasStarted ? 'proxy-scout-live' : 'proxy-scout-prematch',
         sampleProviderData: false,
+        freshnessMode,
       });
 
       return {
@@ -119,7 +124,7 @@ export async function proxyRoutes(app: FastifyInstance) {
       const season = Number(req.query.season) || new Date().getFullYear() - (new Date().getMonth() < 7 ? 1 : 0);
       const next = Math.min(Number(req.query.next) || 10, 20);
       try {
-        const fixtures = await fetchFixturesByLeague(leagueId, season, next);
+        const fixtures = await fetchLeagueFixturesFromReferenceProvider(leagueId, season, next);
         return fixtures;
       } catch (err) {
         app.log.error(err, 'proxy/football/league-fixtures failed');
