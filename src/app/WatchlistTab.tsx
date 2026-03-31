@@ -12,7 +12,7 @@ import { formatDateTimeDisplay, getKickoffDateKey, getKickoffDateTime, getLeague
 import { MatchScoutModal } from '@/components/ui/MatchScoutModal';
 import { WatchlistEditModal } from '@/components/ui/WatchlistEditModal';
 import { WatchlistCard } from '@/components/ui/WatchlistCard';
-import { getDateGroupLabelInTimeZone } from '@/lib/utils/timezone';
+import { getDateGroupLabelInTimeZone, getDateKeyAtOffsetInTimeZone } from '@/lib/utils/timezone';
 import type { WatchlistItem, SortState } from '@/types';
 
 const PAGE_SIZE = 30;
@@ -213,6 +213,22 @@ export function WatchlistTab() {
   const sortIndicator = (col: string) => sort.column === col ? (sort.order === 'asc' ? '▲' : '▼') : '';
   const allPageSelected = pageItems.length > 0 && pageItems.every((i) => selected.has(String(i.match_id)));
 
+  // Date tab shortcuts
+  const dateToday = getDateKeyAtOffsetInTimeZone(0, effectiveTimeZone);
+  const dateTomorrow = getDateKeyAtOffsetInTimeZone(1, effectiveTimeZone);
+  const activeDateTab =
+    dateFrom === dateToday    && dateTo === dateToday    ? 'today'
+    : dateFrom === dateTomorrow && dateTo === dateTomorrow ? 'tomorrow'
+    : (!dateFrom && !dateTo) ? 'all'
+    : 'custom';
+  const tabBtn = (active: boolean) => ({
+    padding: '3px 10px', borderRadius: '12px', border: '1px solid',
+    cursor: 'pointer', fontSize: '12px', fontWeight: active ? 600 : 400,
+    background: active ? 'var(--gray-800)' : 'transparent',
+    borderColor: active ? 'var(--gray-800)' : 'var(--gray-300)',
+    color: active ? '#fff' : 'var(--gray-500)',
+  } as React.CSSProperties);
+
   // Get team logos: prefer logos stored on the watchlist item, fall back to live matches data
   const getLogos = (matchId: string, item?: { home_logo?: string; away_logo?: string }) => {
     const m = matches.find((x) => String(x.match_id) === matchId);
@@ -225,8 +241,16 @@ export function WatchlistTab() {
   return (
     <>
       <div className="card">
-        {/* Toolbar: filters + view toggle */}
+        {/* Sticky filter bar */}
         <div className="sticky-filter-bar">
+        {/* Date tab shortcuts */}
+        <div style={{ display: 'flex', gap: '6px', padding: '8px 12px', borderBottom: '1px solid var(--gray-100)', alignItems: 'center', flexWrap: 'wrap' }}>
+          <button style={tabBtn(activeDateTab === 'all')} onClick={() => { setDateFrom(''); setDateTo(''); setPage(1); }}>All</button>
+          <button style={tabBtn(activeDateTab === 'today')} onClick={() => { setDateFrom(dateToday); setDateTo(dateToday); setPage(1); }}>Today</button>
+          <button style={tabBtn(activeDateTab === 'tomorrow')} onClick={() => { setDateFrom(dateTomorrow); setDateTo(dateTomorrow); setPage(1); }}>Tomorrow</button>
+          <span style={{ marginLeft: 'auto', fontSize: '12px', color: 'var(--gray-400)' }}>{filtered.length} items</span>
+        </div>
+        {/* Toolbar: filters + view toggle */}
         <div style={{ display: 'flex', alignItems: 'stretch' }}>
           <div className="filters" style={{ flex: 1, borderBottom: 'none' }}>
             <input ref={searchRef} type="text" className="filter-input" placeholder="Search teams… ( / )" value={search} onChange={(e) => handleSearchChange(e.target.value)} />
