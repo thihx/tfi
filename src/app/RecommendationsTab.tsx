@@ -1,9 +1,11 @@
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { useAppState } from '@/hooks/useAppState';
+import { useToast } from '@/hooks/useToast';
 import { Pagination } from '@/components/ui/Pagination';
 import { StatusBadge } from '@/components/ui/StatusBadge';
 import { MatchDetailModal } from '@/components/ui/MatchDetailModal';
 import { RecommendationCard } from '@/components/ui/RecommendationCard';
+import { Modal } from '@/components/ui/Modal';
 import {
   AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
 } from 'recharts';
@@ -12,11 +14,13 @@ import {
   fetchRecommendationDeliveriesPaginated,
   fetchBetTypes,
   fetchDistinctLeagues,
+  settleRecommendationFinal,
 } from '@/lib/services/api';
 import { formatLocalDateTime } from '@/lib/utils/helpers';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { DatePicker } from '@/components/ui/DatePicker';
 import { fetchMonitorConfig } from '@/features/live-monitor/config';
+import { fetchCurrentUser, getToken, getUser } from '@/lib/services/auth';
 import type { Recommendation, RecommendationDelivery } from '@/types';
 
 type ViewMode = 'cards' | 'table';
@@ -34,6 +38,54 @@ const SORT_COL_MAP: Record<string, string> = {
   pnl: 'pnl',
   league: 'league',
 };
+
+const DIRECTIONAL_WIN_RESULTS = new Set(['win', 'half_win']);
+const DIRECTIONAL_LOSS_RESULTS = new Set(['loss', 'half_loss']);
+const FINAL_RESULTS = new Set(['win', 'loss', 'push', 'void', 'half_win', 'half_loss']);
+const MANUAL_SETTLE_OPTIONS = [
+  { value: 'win', label: 'Won' },
+  { value: 'loss', label: 'Lost' },
+  { value: 'half_win', label: 'Half Won' },
+  { value: 'half_loss', label: 'Half Lost' },
+  { value: 'push', label: 'Push' },
+  { value: 'void', label: 'Void' },
+] as const;
+
+type FinalResultValue = typeof MANUAL_SETTLE_OPTIONS[number]['value'];
+
+function isFinalResult(result: string | null | undefined): boolean {
+  return FINAL_RESULTS.has(String(result));
+}
+
+function needsReview(rec: Recommendation): boolean {
+  return rec.settlement_status === 'unresolved' && isFinalResult(rec.result ?? null);
+}
+
+function parseNumber(value: number | string | null | undefined): number | null {
+  const parsed = typeof value === 'number' ? value : Number(value);
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
+function round(value: number): number {
+  return Math.round(value * 100) / 100;
+}
+
+function calcSuggestedPnl(result: FinalResultValue, odds: number | null, stakePercent: number | null): number | null {
+  if (odds == null || stakePercent == null) return null;
+  switch (result) {
+    case 'win':
+      return round((odds - 1) * stakePercent);
+    case 'loss':
+      return round(-stakePercent);
+    case 'half_win':
+      return round(((odds - 1) * stakePercent) / 2);
+    case 'half_loss':
+      return round(-stakePercent / 2);
+    case 'push':
+    case 'void':
+      return 0;
+  }
+}
 
 function mapDeliveryToRecommendation(row: RecommendationDelivery): Recommendation {
   const homeTeam = row.recommendation_home_team ?? '';
@@ -64,6 +116,8 @@ function mapDeliveryToRecommendation(row: RecommendationDelivery): Recommendatio
     warnings: row.recommendation_warnings ?? undefined,
     result: row.recommendation_result ?? row.delivery_status,
     pnl: row.recommendation_pnl ?? 0,
+    settlement_status: row.recommendation_settlement_status ?? undefined,
+    settlement_note: row.recommendation_settlement_note ?? undefined,
     created_at: row.created_at,
   };
 }
@@ -71,6 +125,9 @@ function mapDeliveryToRecommendation(row: RecommendationDelivery): Recommendatio
 export function RecommendationsTab() {
   const { state } = useAppState();
   const { config, leagues: appLeagues, matches: appMatches } = state;
+  const { showToast } = useToast();
+  const [authUser, setAuthUser] = useState(() => getUser(getToken()));
+  const isAdmin = authUser?.role === 'admin';
   const [notificationLang, setNotificationLang] = useState<'vi' | 'en' | 'both'>('vi');
   const [feedMode, setFeedMode] = useState<RecommendationFeedMode>('shared');
   const [page, setPage] = useState(1);
@@ -88,6 +145,11 @@ export function RecommendationsTab() {
   const [showChart, setShowChart] = useState(false);
   const [viewMode, setViewMode] = useState<ViewMode>('cards');
   const [detailMatch, setDetailMatch] = useState<{ id: string; display: string } | null>(null);
+  const [settleTarget, setSettleTarget] = useState<Recommendation | null>(null);
+  const [settleResult, setSettleResult] = useState<FinalResultValue>('win');
+  const [settlePnl, setSettlePnl] = useState('');
+  const [settleNote, setSettleNote] = useState('');
+  const [settleSaving, setSettleSaving] = useState(false);
 
   // Server data
   const [rows, setRows] = useState<Recommendation[]>([]);
@@ -126,6 +188,17 @@ export function RecommendationsTab() {
       window.removeEventListener('tfi:settings-updated', syncNotificationLanguage as EventListener);
     };
   }, []);
+
+  useEffect(() => {
+    let mounted = true;
+    void fetchCurrentUser(config.apiUrl)
+      .then((user) => {
+        if (!mounted || !user) return;
+        setAuthUser(user);
+      })
+      .catch(() => undefined);
+    return () => { mounted = false; };
+  }, [config.apiUrl]);
 
   // Sort leagues: top leagues first
   const sortedLeagues = useMemo(() => {
@@ -209,17 +282,22 @@ export function RecommendationsTab() {
 
   // Summary computed from server total + current page
   const summary = (() => {
-    const settled = rows.filter((r) => r.result === 'win' || r.result === 'loss');
-    const won = settled.filter((r) => r.result === 'win').length;
+    const settled = rows.filter((r) => isFinalResult(r.result ?? null));
+    const won = settled.filter((r) => DIRECTIONAL_WIN_RESULTS.has(String(r.result))).length;
+    const lost = settled.filter((r) => DIRECTIONAL_LOSS_RESULTS.has(String(r.result))).length;
+    const push = settled.filter((r) => r.result === 'push').length;
+    const voided = settled.filter((r) => r.result === 'void').length;
+    const pending = rows.filter((r) => !isFinalResult(r.result ?? null)).length;
+    const review = rows.filter((r) => needsReview(r)).length;
     const pnl = settled.reduce((s, r) => s + parseFloat(String(r.pnl ?? 0)), 0);
-    return { total, won, lost: settled.length - won, pnl };
+    return { total, won, lost, push, voided, pending, review, pnl };
   })();
 
   // Cumulative P/L chart for current page data
   const chartData = (() => {
     if (!showChart) return [];
     const sorted = [...rows]
-      .filter((r) => (r.result === 'win' || r.result === 'loss') && (r.timestamp || r.created_at))
+      .filter((r) => isFinalResult(r.result ?? null) && (r.timestamp || r.created_at))
       .sort((a, b) => new Date(a.timestamp || a.created_at!).getTime() - new Date(b.timestamp || b.created_at!).getTime());
 
     let cum = 0;
@@ -257,14 +335,64 @@ export function RecommendationsTab() {
     setPage(1);
   };
 
+  const openSettleModal = useCallback((rec: Recommendation) => {
+    const defaultResult = isFinalResult(rec.result ?? '') ? rec.result : 'win';
+    const resultValue = (defaultResult as FinalResultValue);
+    const odds = parseNumber(rec.odds);
+    const stakePercent = parseNumber(rec.stake_percent);
+    const existingPnl = parseNumber(rec.pnl);
+    const suggestedPnl = calcSuggestedPnl(resultValue, odds, stakePercent);
+    setSettleTarget(rec);
+    setSettleResult(resultValue);
+    setSettlePnl(String(existingPnl ?? suggestedPnl ?? 0));
+    setSettleNote(rec.actual_outcome || '');
+  }, []);
+
+  useEffect(() => {
+    if (!settleTarget) return;
+    const suggested = calcSuggestedPnl(settleResult, parseNumber(settleTarget.odds), parseNumber(settleTarget.stake_percent));
+    if (suggested != null) {
+      setSettlePnl(String(suggested));
+    }
+  }, [settleResult, settleTarget]);
+
+  const handleFinalizeSettle = useCallback(async () => {
+    if (!settleTarget?.id) return;
+    const pnlValue = Number(settlePnl);
+    if (!Number.isFinite(pnlValue)) {
+      showToast('P/L must be a valid number.', 'error');
+      return;
+    }
+    setSettleSaving(true);
+    try {
+      await settleRecommendationFinal(config, settleTarget.id, {
+        result: settleResult,
+        pnl: pnlValue,
+        actual_outcome: settleNote.trim() || undefined,
+      });
+      showToast('Final settlement saved.', 'success');
+      setSettleTarget(null);
+      await fetchData(page);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Failed to save final settlement.';
+      showToast(message, 'error');
+    } finally {
+      setSettleSaving(false);
+    }
+  }, [config, fetchData, page, settleNote, settlePnl, settleResult, settleTarget, showToast]);
+
   return (
     <div>
       <PageHeader
         subtitle={<>
           <span style={{ color: 'var(--gray-500)' }}>{feedMode === 'shared' ? 'Shared feed' : 'My deliveries'}</span>
           <span>{summary.total} total</span>
-          <span className="text-positive">{summary.won}W</span>
-          <span className="text-negative">{summary.lost}L</span>
+          <span className="text-positive">{summary.won} Won</span>
+          <span className="text-negative">{summary.lost} Lost</span>
+          <span>{summary.push} Push</span>
+          <span>{summary.voided} Void</span>
+          <span>{summary.pending} Pending</span>
+          <span>{summary.review} Needs Review</span>
           <span className={summary.pnl >= 0 ? 'text-positive' : 'text-negative'} style={{ fontWeight: 600 }}>
             P/L: {summary.pnl >= 0 ? '+' : ''}${summary.pnl.toFixed(2)}
           </span>
@@ -323,10 +451,12 @@ export function RecommendationsTab() {
             />
             <select className="filter-input" value={resultFilter} onChange={(e) => { setResultFilter(e.target.value); setPage(1); }} style={{ flex: '1 1 100px', minWidth: 0 }}>
               <option value="all">All Status</option>
-              <option value="win">Won</option>
-              <option value="loss">Lost</option>
+              <option value="correct">Won</option>
+              <option value="incorrect">Lost</option>
               <option value="push">Push</option>
+              <option value="void">Void</option>
               <option value="pending">Pending</option>
+              <option value="review">Needs Review</option>
             </select>
             <select className="filter-input" value={leagueFilter} onChange={(e) => { setLeagueFilter(e.target.value); setPage(1); }} style={{ flex: '1 1 110px', minWidth: 0 }}>
               <option value="all">All Leagues</option>
@@ -418,6 +548,14 @@ export function RecommendationsTab() {
                   key={rec.id ?? i}
                   rec={rec}
                   lang={notificationLang}
+                  adminAction={isAdmin && feedMode === 'shared' && needsReview(rec) && rec.id ? (
+                    <button
+                      className="btn btn-secondary btn-sm"
+                      onClick={() => openSettleModal(rec)}
+                    >
+                      Final Settle
+                    </button>
+                  ) : null}
                   onViewMatch={(id, display) => {
                     const effectiveId = id || appMatches.find(
                       m => m.home_team === rec.home_team && m.away_team === rec.away_team,
@@ -489,7 +627,6 @@ export function RecommendationsTab() {
                     <td data-label="Selection">
                       <span className="cell-value">
                         <div><strong>{rec.selection || '-'}</strong></div>
-                        {rec.bet_type && <div style={{ fontSize: '11px', color: 'var(--gray-400)' }}>{rec.bet_type}</div>}
                       </span>
                     </td>
                     <td data-label="Odds" style={{ textAlign: 'center' }}><span className="cell-value"><strong>{rec.odds || '-'}</strong></span></td>
@@ -514,7 +651,20 @@ export function RecommendationsTab() {
                       </span>
                     </td>
                     <td data-label="Result" style={{ textAlign: 'center' }}>
-                      <span className="cell-value">{rec.result ? <StatusBadge status={rec.result.toUpperCase()} /> : '-'}</span>
+                      <span className="cell-value" style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap', justifyContent: 'center' }}>
+                        {rec.result ? <StatusBadge status={rec.result.toUpperCase()} /> : '-'}
+                        {needsReview(rec) && (
+                          <span className="badge badge-pending">Review</span>
+                        )}
+                        {isAdmin && feedMode === 'shared' && needsReview(rec) && rec.id && (
+                          <button
+                            className="btn btn-secondary btn-sm"
+                            onClick={() => openSettleModal(rec)}
+                          >
+                            Final Settle
+                          </button>
+                        )}
+                      </span>
                     </td>
                     <td data-label="P/L" style={{ textAlign: 'right', whiteSpace: 'nowrap' }}>
                       <span className="cell-value" style={{ fontWeight: 600, color: pnlVal >= 0 ? '#15803d' : '#b91c1c', whiteSpace: 'nowrap' }}>
@@ -537,6 +687,68 @@ export function RecommendationsTab() {
           onClose={() => setDetailMatch(null)}
         />
       )}
+
+      <Modal
+        open={settleTarget != null}
+        title={settleTarget ? `Final Settle: ${settleTarget.match_display}` : 'Final Settle'}
+        onClose={() => !settleSaving && setSettleTarget(null)}
+        footer={
+          <>
+            <button className="btn btn-secondary" onClick={() => setSettleTarget(null)} disabled={settleSaving}>Cancel</button>
+            <button className="btn btn-primary" onClick={() => void handleFinalizeSettle()} disabled={settleSaving}>
+              {settleSaving ? 'Saving...' : 'Save Final Settlement'}
+            </button>
+          </>
+        }
+      >
+        {settleTarget && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+            <div style={{ fontSize: '12px', color: 'var(--gray-500)' }}>
+              Only admin can finalize review items. This action will mark the settlement as trusted.
+            </div>
+            <div style={{ fontSize: '13px', color: 'var(--gray-700)' }}>
+              <strong>{settleTarget.selection}</strong>
+              <div style={{ marginTop: '4px', fontSize: '12px', color: 'var(--gray-500)' }}>
+                Current: {settleTarget.result || 'n/a'} | Odds {settleTarget.odds || '-'} | Stake {settleTarget.stake_percent || '-'}%
+              </div>
+              {settleTarget.settlement_note && (
+                <div style={{ marginTop: '4px', fontSize: '12px', color: '#92400e' }}>
+                  Review note: {settleTarget.settlement_note}
+                </div>
+              )}
+            </div>
+            <label style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+              <span style={{ fontSize: '12px', fontWeight: 600, color: 'var(--gray-700)' }}>Final Result</span>
+              <select className="filter-input" value={settleResult} onChange={(e) => setSettleResult(e.target.value as FinalResultValue)}>
+                {MANUAL_SETTLE_OPTIONS.map((option) => (
+                  <option key={option.value} value={option.value}>{option.label}</option>
+                ))}
+              </select>
+            </label>
+            <label style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+              <span style={{ fontSize: '12px', fontWeight: 600, color: 'var(--gray-700)' }}>P/L</span>
+              <input
+                className="filter-input"
+                type="number"
+                step="0.01"
+                value={settlePnl}
+                onChange={(e) => setSettlePnl(e.target.value)}
+              />
+            </label>
+            <label style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+              <span style={{ fontSize: '12px', fontWeight: 600, color: 'var(--gray-700)' }}>Final Note / Outcome</span>
+              <textarea
+                className="filter-input"
+                rows={4}
+                value={settleNote}
+                onChange={(e) => setSettleNote(e.target.value)}
+                placeholder="Optional final note or actual outcome"
+                style={{ resize: 'vertical' }}
+              />
+            </label>
+          </div>
+        )}
+      </Modal>
     </div>
   );
 }
