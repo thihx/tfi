@@ -2,6 +2,7 @@ import * as leaguesRepo from '../repos/leagues.repo.js';
 import { refreshLeagueCatalog } from '../lib/league-catalog.service.js';
 import { refreshLeagueTeamsDirectoryNow } from '../lib/league-team-directory.service.js';
 import { syncDerivedPrematchProfiles } from '../lib/prematch-profile-sync.js';
+import { classifyTacticalOverlayCompetition } from '../lib/tactical-overlay-eligibility.js';
 import { reportJobProgress } from './job-progress.js';
 
 const JOB = 'sync-reference-data';
@@ -9,6 +10,27 @@ const BATCH_SIZE = 4;
 
 function uniqueLeagueIds(ids: number[]): number[] {
   return [...new Set(ids.filter((id) => Number.isFinite(id) && id > 0))];
+}
+
+function getApprovedPrematchProfileLeagueIds(
+  topLeagues: Awaited<ReturnType<typeof leaguesRepo.getTopLeagues>>,
+  activeLeagues: Awaited<ReturnType<typeof leaguesRepo.getActiveLeagues>>,
+): number[] {
+  const approvedActiveLeagueIds = activeLeagues
+    .filter((league) =>
+      classifyTacticalOverlayCompetition({
+        leagueName: league.league_name,
+        country: league.country,
+        type: league.type,
+        topLeague: league.top_league,
+      }).eligible,
+    )
+    .map((league) => league.league_id);
+
+  return uniqueLeagueIds([
+    ...topLeagues.map((league) => league.league_id),
+    ...approvedActiveLeagueIds,
+  ]);
 }
 
 export async function syncReferenceDataJob(): Promise<{
@@ -134,7 +156,8 @@ export async function syncReferenceDataJob(): Promise<{
     );
   }
 
-  const prematchProfiles = await syncDerivedPrematchProfiles(topLeagues.map((league) => league.league_id));
+  const prematchProfileLeagueIds = getApprovedPrematchProfileLeagueIds(topLeagues, activeLeagues);
+  const prematchProfiles = await syncDerivedPrematchProfiles(prematchProfileLeagueIds);
 
   await reportJobProgress(
     JOB,

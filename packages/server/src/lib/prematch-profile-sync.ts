@@ -17,7 +17,7 @@ import {
   getPrematchProfileCandidateTeams,
   type PrematchProfileCandidateTeam,
 } from './prematch-profile-team-candidates.js';
-import { getLeagueTeamDirectory } from '../repos/team-directory.repo.js';
+import { getLeagueIdsForTeams, getLeagueTeamDirectory } from '../repos/team-directory.repo.js';
 import { fetchLeagueSeasonFixturesFromReferenceProvider } from './reference-data-provider.js';
 import {
   FINISHED_SETTLEMENT_STATUSES,
@@ -71,6 +71,13 @@ interface TeamMatchPerspective {
   cards: number | null;
   scoredFirst: boolean | null;
   hadGoalAfter75: boolean | null;
+}
+
+interface TeamCandidateAggregate {
+  teamId: string;
+  names: string[];
+  targetLeagueIds: number[];
+  topLeagueOnly: boolean;
 }
 
 export interface DerivedPrematchProfilesResult {
@@ -455,6 +462,127 @@ async function getHistoricalMatchesForLeagues(
   return result.rows;
 }
 
+async function getLeagueTopFlags(leagueIds: number[]): Promise<Map<number, boolean>> {
+  if (leagueIds.length === 0) return new Map();
+  const result = await query<{ league_id: number; top_league: boolean }>(
+    `SELECT league_id, top_league
+     FROM leagues
+     WHERE league_id = ANY($1)`,
+    [leagueIds],
+  );
+  return new Map(result.rows.map((row) => [row.league_id, row.top_league === true]));
+}
+
+async function getHistoricalMatchesForTeamNames(
+  normalizedNames: string[],
+  lookbackDays: number,
+): Promise<HistoricalMatchRow[]> {
+  const names = Array.from(new Set(normalizedNames.map((value) => normalizeNameKey(value)).filter(Boolean)));
+  if (names.length === 0) return [];
+
+  const result = await query<HistoricalMatchRow>(
+    `SELECT
+       match_id,
+       league_id,
+       league_name,
+       home_team,
+       away_team,
+       final_status,
+       home_score,
+       away_score,
+       settlement_stats,
+       settlement_event_summary,
+       date::text
+     FROM matches_history
+     WHERE final_status IN ('FT', 'AET', 'PEN')
+       AND date >= CURRENT_DATE - ($2 * INTERVAL '1 day')
+       AND (
+         lower(regexp_replace(trim(home_team), '\\s+', ' ', 'g')) = ANY($1)
+         OR lower(regexp_replace(trim(away_team), '\\s+', ' ', 'g')) = ANY($1)
+       )`,
+    [names, lookbackDays],
+  );
+
+  return result.rows;
+}
+
+function buildTeamCandidateAggregates(
+  entries: PrematchProfileCandidateTeam[],
+  leagueTopFlags: Map<number, boolean>,
+): TeamCandidateAggregate[] {
+  const aggregates = new Map<string, {
+    teamId: string;
+    names: Set<string>;
+    targetLeagueIds: Set<number>;
+    topLeagueOnly: boolean;
+  }>();
+
+  for (const entry of entries) {
+    const teamId = String(entry.team_id);
+    const current = aggregates.get(teamId) ?? {
+      teamId,
+      names: new Set<string>(),
+      targetLeagueIds: new Set<number>(),
+      topLeagueOnly: true,
+    };
+    current.names.add(normalizeName(entry.team_name));
+    current.targetLeagueIds.add(entry.league_id);
+    current.topLeagueOnly = current.topLeagueOnly && (leagueTopFlags.get(entry.league_id) === true);
+    aggregates.set(teamId, current);
+  }
+
+  return [...aggregates.values()]
+    .map((aggregate) => ({
+      teamId: aggregate.teamId,
+      names: [...aggregate.names].filter(Boolean).sort(),
+      targetLeagueIds: [...aggregate.targetLeagueIds].sort((left, right) => left - right),
+      topLeagueOnly: aggregate.topLeagueOnly,
+    }))
+    .sort((left, right) => left.teamId.localeCompare(right.teamId));
+}
+
+function mergeHistoricalRowsByMatchId(...collections: HistoricalMatchRow[][]): HistoricalMatchRow[] {
+  const merged = new Map<string, HistoricalMatchRow>();
+  for (const collection of collections) {
+    for (const row of collection) {
+      if (!merged.has(row.match_id)) merged.set(row.match_id, row);
+    }
+  }
+  return [...merged.values()];
+}
+
+function buildTeamPerspectiveSamplesByCandidate(
+  rows: HistoricalMatchRow[],
+  candidates: TeamCandidateAggregate[],
+): Map<string, TeamMatchPerspective[]> {
+  const teamSamples = new Map<string, TeamMatchPerspective[]>();
+  const nameToTeamIds = new Map<string, Set<string>>();
+
+  for (const candidate of candidates) {
+    teamSamples.set(candidate.teamId, []);
+    for (const name of candidate.names) {
+      const normalized = normalizeNameKey(name);
+      if (!normalized) continue;
+      const ids = nameToTeamIds.get(normalized) ?? new Set<string>();
+      ids.add(candidate.teamId);
+      nameToTeamIds.set(normalized, ids);
+    }
+  }
+
+  for (const row of rows) {
+    const homeIds = nameToTeamIds.get(normalizeNameKey(row.home_team)) ?? new Set<string>();
+    for (const teamId of homeIds) {
+      teamSamples.get(teamId)?.push(buildTeamPerspective(row, 'home'));
+    }
+    const awayIds = nameToTeamIds.get(normalizeNameKey(row.away_team)) ?? new Set<string>();
+    for (const teamId of awayIds) {
+      teamSamples.get(teamId)?.push(buildTeamPerspective(row, 'away'));
+    }
+  }
+
+  return teamSamples;
+}
+
 async function hydrateMissingEventSummaries(rows: HistoricalMatchRow[]): Promise<void> {
   const targets = rows
     .filter((row) => parseStoredSettlementEventSummary(row.settlement_event_summary) == null)
@@ -534,12 +662,27 @@ export async function syncDerivedPrematchProfiles(
     };
   }
 
-  await backfillHistoricalMatchesForLeagues(uniqueLeagueIds, LOOKBACK_DAYS);
-
-  const [historyRows, candidateTeamEntries] = await Promise.all([
-    getHistoricalMatchesForLeagues(uniqueLeagueIds, LOOKBACK_DAYS),
+  const [leagueTopFlags, candidateTeamEntries] = await Promise.all([
+    getLeagueTopFlags(uniqueLeagueIds),
     getPrematchProfileCandidateTeams(uniqueLeagueIds),
   ]);
+  const teamCandidates = buildTeamCandidateAggregates(candidateTeamEntries, leagueTopFlags);
+  const relatedHistoryLeagueIds = await getLeagueIdsForTeams(
+    teamCandidates.map((candidate) => candidate.teamId),
+    { activeOnly: true },
+  );
+  const historyLeagueIds = Array.from(new Set([...uniqueLeagueIds, ...relatedHistoryLeagueIds]));
+
+  await backfillHistoricalMatchesForLeagues(historyLeagueIds, LOOKBACK_DAYS);
+
+  const [leagueHistoryRows, teamHistoryRows] = await Promise.all([
+    getHistoricalMatchesForLeagues(uniqueLeagueIds, LOOKBACK_DAYS),
+    getHistoricalMatchesForTeamNames(
+      teamCandidates.flatMap((candidate) => candidate.names),
+      LOOKBACK_DAYS,
+    ),
+  ]);
+  const historyRows = mergeHistoricalRowsByMatchId(leagueHistoryRows, teamHistoryRows);
   await hydrateMissingEventSummaries(historyRows);
   const computedAt = new Date().toISOString();
 
@@ -571,7 +714,7 @@ export async function syncDerivedPrematchProfiles(
             3,
           )
           : null,
-        top_league_only: true,
+        top_league_only: leagueTopFlags.get(leagueId) === true,
         computed_at: computedAt,
       }),
       `Auto-derived from the last ${rows.length} settled matches over ${LOOKBACK_DAYS} days.`,
@@ -580,67 +723,33 @@ export async function syncDerivedPrematchProfiles(
     refreshedLeagueProfiles += 1;
   }
 
-  const teamEntriesByLeague = new Map<number, PrematchProfileCandidateTeam[]>();
-  for (const entry of candidateTeamEntries) {
-    const list = teamEntriesByLeague.get(entry.league_id) ?? [];
-    list.push(entry);
-    teamEntriesByLeague.set(entry.league_id, list);
-  }
-
   let refreshedTeamProfiles = 0;
   let skippedTeamProfiles = 0;
-  for (const leagueId of uniqueLeagueIds) {
-    const rows = leagueHistory.get(leagueId) ?? [];
-    if (rows.length === 0) {
-      skippedTeamProfiles += teamEntriesByLeague.get(leagueId)?.length ?? 0;
+  const teamRows = buildTeamPerspectiveSamplesByCandidate(historyRows, teamCandidates);
+  for (const candidate of teamCandidates) {
+    const samples = teamRows.get(candidate.teamId) ?? [];
+    const profile = deriveTeamProfileFromHistory(samples);
+    if (!profile) {
+      skippedTeamProfiles += 1;
       continue;
     }
-
-    const teamRows = new Map<string, TeamMatchPerspective[]>();
-    for (const team of teamEntriesByLeague.get(leagueId) ?? []) {
-      teamRows.set(String(team.team_id), []);
-    }
-
-    const nameToTeamId = new Map<string, string>();
-    for (const team of teamEntriesByLeague.get(leagueId) ?? []) {
-      nameToTeamId.set(normalizeName(team.team_name), String(team.team_id));
-    }
-
-    for (const row of rows) {
-      const homeId = nameToTeamId.get(normalizeName(row.home_team));
-      if (homeId) {
-        teamRows.get(homeId)?.push(buildTeamPerspective(row, 'home'));
-      }
-      const awayId = nameToTeamId.get(normalizeName(row.away_team));
-      if (awayId) {
-        teamRows.get(awayId)?.push(buildTeamPerspective(row, 'away'));
-      }
-    }
-
-    for (const [teamId, samples] of teamRows) {
-      const profile = deriveTeamProfileFromHistory(samples);
-      if (!profile) {
-        skippedTeamProfiles += 1;
-        continue;
-      }
-      const existingProfile = await getTeamProfileByTeamId(teamId).catch(() => null);
-      const eventSummaryMatches = samples.filter((sample) => sample.scoredFirst != null && sample.hadGoalAfter75 != null).length;
-      await upsertTeamProfile(teamId, {
-        profile: buildAutoDerivedTeamProfileData(profile, {
-          lookback_days: LOOKBACK_DAYS,
-          sample_matches: samples.length,
-          sample_home_matches: samples.filter((sample) => sample.isHome).length,
-          sample_away_matches: samples.filter((sample) => !sample.isHome).length,
-          event_summary_matches: eventSummaryMatches,
-          event_coverage: samples.length > 0 ? round(eventSummaryMatches / samples.length, 3) : null,
-          top_league_only: true,
-          computed_at: computedAt,
-        }, existingProfile?.profile ?? null),
-        notes_en: `Auto-derived from ${samples.length} settled matches in the last ${LOOKBACK_DAYS} days. Tactical fields remain neutral defaults until manually curated.`,
-        notes_vi: `Tu dong suy ra tu ${samples.length} tran da ket thuc trong ${LOOKBACK_DAYS} ngay gan nhat. Cac truong chien thuat van de gia tri trung tinh cho den khi duoc bien tap thu cong.`,
-      });
-      refreshedTeamProfiles += 1;
-    }
+    const existingProfile = await getTeamProfileByTeamId(candidate.teamId).catch(() => null);
+    const eventSummaryMatches = samples.filter((sample) => sample.scoredFirst != null && sample.hadGoalAfter75 != null).length;
+    await upsertTeamProfile(candidate.teamId, {
+      profile: buildAutoDerivedTeamProfileData(profile, {
+        lookback_days: LOOKBACK_DAYS,
+        sample_matches: samples.length,
+        sample_home_matches: samples.filter((sample) => sample.isHome).length,
+        sample_away_matches: samples.filter((sample) => !sample.isHome).length,
+        event_summary_matches: eventSummaryMatches,
+        event_coverage: samples.length > 0 ? round(eventSummaryMatches / samples.length, 3) : null,
+        top_league_only: candidate.topLeagueOnly,
+        computed_at: computedAt,
+      }, existingProfile?.profile ?? null),
+      notes_en: `Auto-derived from ${samples.length} settled matches in the last ${LOOKBACK_DAYS} days across approved competition contexts. Tactical fields remain neutral defaults until manually curated.`,
+      notes_vi: `Tu dong suy ra tu ${samples.length} tran da ket thuc trong ${LOOKBACK_DAYS} ngay gan nhat tren cac boi canh giai dau duoc phe duyet. Cac truong chien thuat van de gia tri trung tinh cho den khi duoc bien tap thu cong.`,
+    });
+    refreshedTeamProfiles += 1;
   }
 
   return {
@@ -648,7 +757,7 @@ export async function syncDerivedPrematchProfiles(
     candidateLeagues: uniqueLeagueIds.length,
     refreshedLeagueProfiles,
     skippedLeagueProfiles,
-    candidateTeams: candidateTeamEntries.length,
+    candidateTeams: teamCandidates.length,
     refreshedTeamProfiles,
     skippedTeamProfiles,
   };
@@ -657,4 +766,7 @@ export async function syncDerivedPrematchProfiles(
 export const __testables__ = {
   buildBackfillSeasons,
   buildHistoricalBackfillArchiveRows,
+  buildTeamCandidateAggregates,
+  buildTeamPerspectiveSamplesByCandidate,
+  mergeHistoricalRowsByMatchId,
 };

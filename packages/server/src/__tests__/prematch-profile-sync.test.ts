@@ -189,4 +189,108 @@ describe('prematch profile sync helpers', () => {
       final_status: 'FT',
     });
   });
+
+  test('aggregates team candidates across approved competitions into one team profile target', () => {
+    const candidates = __testables__.buildTeamCandidateAggregates(
+      [
+        { league_id: 2, team_id: 88, team_name: 'Rangers', source: 'directory' },
+        { league_id: 203, team_id: 88, team_name: 'Rangers', source: 'matches' },
+        { league_id: 203, team_id: 91, team_name: 'Braga', source: 'matches' },
+      ],
+      new Map([
+        [2, false],
+        [203, true],
+      ]),
+    );
+
+    expect(candidates).toEqual([
+      {
+        teamId: '88',
+        names: ['rangers'],
+        targetLeagueIds: [2, 203],
+        topLeagueOnly: false,
+      },
+      {
+        teamId: '91',
+        names: ['braga'],
+        targetLeagueIds: [203],
+        topLeagueOnly: true,
+      },
+    ]);
+  });
+
+  test('builds team history samples across competitions for the same club', () => {
+    const rows = [
+      {
+        match_id: '1',
+        league_id: 2,
+        league_name: 'UEFA Champions League',
+        home_team: 'Rangers',
+        away_team: 'Benfica',
+        final_status: 'FT',
+        home_score: 1,
+        away_score: 1,
+        settlement_stats: [],
+        settlement_event_summary: {
+          first_scoring_side: 'home',
+          has_goal_after_75: false,
+          goal_event_count: 2,
+          source: 'api-football-events',
+        },
+        date: '2026-02-01',
+      },
+      {
+        match_id: '2',
+        league_id: 179,
+        league_name: 'Scottish Premiership',
+        home_team: 'Rangers',
+        away_team: 'Hearts',
+        final_status: 'FT',
+        home_score: 2,
+        away_score: 0,
+        settlement_stats: [],
+        settlement_event_summary: {
+          first_scoring_side: 'home',
+          has_goal_after_75: true,
+          goal_event_count: 2,
+          source: 'api-football-events',
+        },
+        date: '2026-02-08',
+      },
+      {
+        match_id: '3',
+        league_id: 179,
+        league_name: 'Scottish Premiership',
+        home_team: 'Celtic',
+        away_team: 'Rangers',
+        final_status: 'FT',
+        home_score: 1,
+        away_score: 2,
+        settlement_stats: [],
+        settlement_event_summary: {
+          first_scoring_side: 'away',
+          has_goal_after_75: false,
+          goal_event_count: 3,
+          source: 'api-football-events',
+        },
+        date: '2026-02-15',
+      },
+    ];
+
+    const samples = __testables__.buildTeamPerspectiveSamplesByCandidate(
+      rows,
+      [
+        {
+          teamId: '88',
+          names: ['rangers'],
+          targetLeagueIds: [2],
+          topLeagueOnly: false,
+        },
+      ],
+    );
+
+    expect(samples.get('88')).toHaveLength(3);
+    expect(samples.get('88')?.filter((sample) => sample.isHome)).toHaveLength(2);
+    expect(samples.get('88')?.filter((sample) => !sample.isHome)).toHaveLength(1);
+  });
 });

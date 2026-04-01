@@ -117,3 +117,29 @@ export async function replaceLeagueTeamsSnapshot(input: ReplaceLeagueTeamsSnapsh
     return input.teams.length;
   });
 }
+
+export async function getLeagueIdsForTeams(
+  teamIds: Array<number | string>,
+  options: { activeOnly?: boolean } = {},
+): Promise<number[]> {
+  const normalizedIds = Array.from(
+    new Set(
+      teamIds
+        .map((teamId) => String(teamId).trim())
+        .filter(Boolean),
+    ),
+  );
+  if (normalizedIds.length === 0) return [];
+
+  const result = await query<{ league_id: number }>(
+    `SELECT DISTINCT ltd.league_id
+     FROM league_team_directory ltd
+     JOIN leagues l ON l.league_id = ltd.league_id
+     WHERE ltd.team_id::text = ANY($1)
+       AND ($2::boolean = FALSE OR l.active = TRUE)
+     ORDER BY ltd.league_id`,
+    [normalizedIds, options.activeOnly === true],
+  );
+
+  return result.rows.map((row) => row.league_id);
+}

@@ -32,8 +32,36 @@ const { syncReferenceDataJob } = await import('../jobs/sync-reference-data.job.j
 
 beforeEach(() => {
   vi.clearAllMocks();
-  mockGetTopLeagues.mockResolvedValue([{ league_id: 39 }]);
-  mockGetActiveLeagues.mockResolvedValue([{ league_id: 39 }, { league_id: 140 }]);
+  mockGetTopLeagues.mockResolvedValue([{
+    league_id: 39,
+    league_name: 'Premier League',
+    country: 'England',
+    type: 'League',
+    top_league: true,
+  }]);
+  mockGetActiveLeagues.mockResolvedValue([
+    {
+      league_id: 39,
+      league_name: 'Premier League',
+      country: 'England',
+      type: 'League',
+      top_league: true,
+    },
+    {
+      league_id: 140,
+      league_name: 'La Liga',
+      country: 'Spain',
+      type: 'League',
+      top_league: false,
+    },
+    {
+      league_id: 2,
+      league_name: 'UEFA Champions League',
+      country: 'World',
+      type: 'Cup',
+      top_league: false,
+    },
+  ]);
   mockRefreshLeagueCatalog.mockResolvedValue({
     candidateLeagues: 2,
     attemptedLeagues: 1,
@@ -56,19 +84,20 @@ describe('syncReferenceDataJob', () => {
   test('tracks fresh cache, refreshed, stale fallback, and empty provider outcomes separately', async () => {
     mockRefreshLeagueTeamsDirectoryNow
       .mockResolvedValueOnce({ rows: [], source: 'provider_refreshed' })
-      .mockResolvedValueOnce({ rows: [], source: 'stale_fallback' });
+      .mockResolvedValueOnce({ rows: [], source: 'stale_fallback' })
+      .mockResolvedValueOnce({ rows: [], source: 'fresh_cache' });
 
     const result = await syncReferenceDataJob();
 
     expect(result.leagueTeamDirectory).toEqual({
-      candidateLeagues: 2,
+      candidateLeagues: 3,
       refreshedLeagues: 1,
-      skippedFreshLeagues: 0,
+      skippedFreshLeagues: 1,
       staleFallbackLeagues: 1,
       emptyLeagues: 0,
       failedLeagues: 0,
       topLeagueCount: 1,
-      activeLeagueCount: 2,
+      activeLeagueCount: 3,
     });
     expect(result.prematchProfiles).toEqual({
       lookbackDays: 180,
@@ -79,8 +108,8 @@ describe('syncReferenceDataJob', () => {
       refreshedTeamProfiles: 4,
       skippedTeamProfiles: 2,
     });
-    expect(mockRefreshLeagueTeamsDirectoryNow).toHaveBeenCalledTimes(2);
-    expect(mockSyncDerivedPrematchProfiles).toHaveBeenCalledWith([39]);
+    expect(mockRefreshLeagueTeamsDirectoryNow).toHaveBeenCalledTimes(3);
+    expect(mockSyncDerivedPrematchProfiles).toHaveBeenCalledWith([39, 2]);
   });
 
   test('returns empty counts when no leagues are active', async () => {
