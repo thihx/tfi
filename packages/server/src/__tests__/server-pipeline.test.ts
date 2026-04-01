@@ -584,6 +584,13 @@ describe('runPipelineBatch', () => {
     expect(createRecommendation).toHaveBeenCalledWith(expect.objectContaining({
       bet_market: '1x2_away',
       selection: 'Away Win @3.50',
+      decision_context: expect.objectContaining({
+        evidenceMode: expect.any(String),
+        prematchStrength: expect.any(String),
+        profileCoverageBand: expect.any(String),
+        overlayCoverageBand: expect.any(String),
+        policyImpactBand: expect.any(String),
+      }),
     }));
   });
 

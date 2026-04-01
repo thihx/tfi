@@ -61,6 +61,23 @@ function familyLabel(value: string): string {
   return map[value] ?? value;
 }
 
+function cohortBucketLabel(value: string): string {
+  const map: Record<string, string> = {
+    strong: 'Strong',
+    moderate: 'Moderate',
+    weak: 'Weak',
+    none: 'None',
+    unknown: 'Unknown',
+    partial: 'Partial',
+    thin: 'Thin',
+    both: 'Both Teams Overlay',
+    one: 'One Team Overlay',
+    clean: 'Clean',
+    warned: 'Warned',
+  };
+  return map[value] ?? value;
+}
+
 const CHART_GREEN = '#22c55e';
 const CHART_RED = '#ef4444';
 const CHART_BLUE = '#3b82f6';
@@ -502,6 +519,34 @@ const AiInsightsSection = memo(function AiInsightsSection({ data }: { data: AiIn
         <InsightList title="Weak Markets" items={data.weakMarkets.map((m) => `${m.market}: ${wrStr(m.winRate)} (${pnlStr(m.pnl)}, ${m.total} bets)`)} color="var(--danger)" />
         <InsightList title="Best Time Slots" items={data.bestTimeSlots.map((t) => `${t.band}: ${wrStr(t.winRate)} (${pnlStr(t.pnl)}, ${t.total} bets)`)} color="var(--success)" />
         <InsightList title="Worst Time Slots" items={data.worstTimeSlots.map((t) => `${t.band}: ${wrStr(t.winRate)} (${pnlStr(t.pnl)}, ${t.total} bets)`)} color="var(--danger)" />
+      </div>
+
+      <div className="report-insights-grid" style={{ marginTop: 16 }}>
+        <InsightList
+          title="Prompt / Model Cohorts"
+          items={data.modelPromptCohorts.map((row) => `${row.cohort}: ${wrStr(row.winRate)} (${pnlStr(row.pnl)}, ROI ${row.roi >= 0 ? '+' : ''}${row.roi.toFixed(1)}%, ${row.total} bets)`)}
+          color="var(--gray-700)"
+        />
+        <InsightList
+          title="Prematch Strength Cohorts"
+          items={data.prematchStrengthCohorts.map((row) => `${cohortBucketLabel(row.bucket)}: ${wrStr(row.winRate)} (${pnlStr(row.pnl)}, ROI ${row.roi >= 0 ? '+' : ''}${row.roi.toFixed(1)}%, ${row.total} bets)`)}
+          color="var(--gray-700)"
+        />
+        <InsightList
+          title="Profile Coverage Cohorts"
+          items={data.profileCoverageCohorts.map((row) => `${cohortBucketLabel(row.bucket)}: ${wrStr(row.winRate)} (${pnlStr(row.pnl)}, ROI ${row.roi >= 0 ? '+' : ''}${row.roi.toFixed(1)}%, ${row.total} bets)`)}
+          color="var(--gray-700)"
+        />
+        <InsightList
+          title="Tactical Overlay Cohorts"
+          items={data.overlayCoverageCohorts.map((row) => `${cohortBucketLabel(row.bucket)}: ${wrStr(row.winRate)} (${pnlStr(row.pnl)}, ROI ${row.roi >= 0 ? '+' : ''}${row.roi.toFixed(1)}%, ${row.total} bets)`)}
+          color="var(--gray-700)"
+        />
+        <InsightList
+          title="Policy Impact Cohorts"
+          items={data.policyImpactCohorts.map((row) => `${cohortBucketLabel(row.bucket)}: ${wrStr(row.winRate)} (${pnlStr(row.pnl)}, ROI ${row.roi >= 0 ? '+' : ''}${row.roi.toFixed(1)}%, ${row.total} bets)`)}
+          color="var(--gray-700)"
+        />
       </div>
 
       {/* Calibration Warnings */}

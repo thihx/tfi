@@ -170,6 +170,9 @@ export async function proxyRoutes(app: FastifyInstance) {
   );
 
   // POST /api/proxy/ai/analyze
+  // `forceAnalyze` is a supported manual Ask AI control used to bypass
+  // staleness/proceed gates for an explicit user/admin analysis request.
+  // It is not a temporary test-only flag.
   app.post<{
     Body: {
       prompt?: string;

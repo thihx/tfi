@@ -41,7 +41,8 @@ export async function jobRoutes(app: FastifyInstance) {
     };
   });
 
-  // POST /api/jobs/:name/trigger — manually run a job (non-blocking)
+  // POST /api/jobs/:name/trigger — admin/ops endpoint for an on-demand job run.
+  // This is an operational control, not a test helper.
   app.post<{ Params: { name: string }; Body: { force?: boolean } }>('/api/jobs/:name/trigger', async (req, reply) => {
     const user = requireAdminOrOwner(req, reply);
     if (!user) return;

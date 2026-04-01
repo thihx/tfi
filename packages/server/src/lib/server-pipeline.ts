@@ -556,6 +556,92 @@ function readTeamOverlaySnapshot(value: unknown): {
   };
 }
 
+function classifyProfileCoverageBand(
+  leagueProfileWindow: { sampleMatches: number | null; eventCoverage: number | null },
+  homeTeamProfileWindow: { sampleMatches: number | null; eventCoverage: number | null },
+  awayTeamProfileWindow: { sampleMatches: number | null; eventCoverage: number | null },
+): 'strong' | 'partial' | 'thin' | 'unknown' {
+  const windows = [leagueProfileWindow, homeTeamProfileWindow, awayTeamProfileWindow];
+  const presentCount = windows.filter((window) => (window.sampleMatches ?? 0) > 0).length;
+  if (presentCount === 0) return 'unknown';
+  const strongCount = windows.filter((window) => {
+    const sampleMatches = window.sampleMatches ?? 0;
+    const eventCoverage = window.eventCoverage ?? 0;
+    return sampleMatches > 0 && eventCoverage >= 0.6;
+  }).length;
+  if (presentCount === 3 && strongCount === 3) return 'strong';
+  if (presentCount >= 2 || strongCount >= 1) return 'partial';
+  return 'thin';
+}
+
+function classifyOverlayCoverageBand(
+  homeOverlaySnapshot: { sourceMode: string; sourceConfidence: string | null },
+  awayOverlaySnapshot: { sourceMode: string; sourceConfidence: string | null },
+): 'both' | 'one' | 'none' {
+  const hasOverlay = (value: string) => value !== 'default_neutral' && value !== 'unknown';
+  const home = hasOverlay(homeOverlaySnapshot.sourceMode);
+  const away = hasOverlay(awayOverlaySnapshot.sourceMode);
+  if (home && away) return 'both';
+  if (home || away) return 'one';
+  return 'none';
+}
+
+function buildRecommendationDecisionContext(args: {
+  evidenceMode: EvidenceMode;
+  promptDataLevel: PromptStatsDetailLevel;
+  prematchAvailability?: PrematchFeatureAvailability;
+  prematchStrength?: PrematchPriorStrength;
+  prematchNoisePenalty: number | null;
+  structuredPrematchAskAi: boolean;
+  structuredPrematchAskAiReason: string;
+  statsSource: StatsSource;
+  oddsSource: string;
+  leagueProfileWindow: { sampleMatches: number | null; eventCoverage: number | null };
+  homeTeamProfileWindow: { sampleMatches: number | null; eventCoverage: number | null };
+  awayTeamProfileWindow: { sampleMatches: number | null; eventCoverage: number | null };
+  homeOverlaySnapshot: { sourceMode: string; sourceConfidence: string | null };
+  awayOverlaySnapshot: { sourceMode: string; sourceConfidence: string | null };
+  policyBlocked: boolean;
+  policyWarnings: string[];
+}): Record<string, unknown> {
+  const profileCoverageBand = classifyProfileCoverageBand(
+    args.leagueProfileWindow,
+    args.homeTeamProfileWindow,
+    args.awayTeamProfileWindow,
+  );
+  const overlayCoverageBand = classifyOverlayCoverageBand(
+    args.homeOverlaySnapshot,
+    args.awayOverlaySnapshot,
+  );
+  return {
+    evidenceMode: args.evidenceMode,
+    promptDataLevel: args.promptDataLevel,
+    prematchAvailability: args.prematchAvailability ?? 'none',
+    prematchStrength: args.prematchStrength ?? 'none',
+    prematchNoisePenalty: args.prematchNoisePenalty,
+    structuredPrematchAskAi: args.structuredPrematchAskAi,
+    structuredPrematchAskAiReason: args.structuredPrematchAskAiReason,
+    statsSource: args.statsSource,
+    oddsSource: args.oddsSource,
+    profileCoverageBand,
+    overlayCoverageBand,
+    leagueProfileSampleMatches: args.leagueProfileWindow.sampleMatches,
+    leagueProfileEventCoverage: args.leagueProfileWindow.eventCoverage,
+    homeTeamProfileSampleMatches: args.homeTeamProfileWindow.sampleMatches,
+    homeTeamProfileEventCoverage: args.homeTeamProfileWindow.eventCoverage,
+    awayTeamProfileSampleMatches: args.awayTeamProfileWindow.sampleMatches,
+    awayTeamProfileEventCoverage: args.awayTeamProfileWindow.eventCoverage,
+    homeTacticalOverlaySourceMode: args.homeOverlaySnapshot.sourceMode,
+    homeTacticalOverlaySourceConfidence: args.homeOverlaySnapshot.sourceConfidence,
+    awayTacticalOverlaySourceMode: args.awayOverlaySnapshot.sourceMode,
+    awayTacticalOverlaySourceConfidence: args.awayOverlaySnapshot.sourceConfidence,
+    policyBlocked: args.policyBlocked,
+    policyWarningCount: args.policyWarnings.length,
+    policyWarningKeys: args.policyWarnings,
+    policyImpactBand: args.policyWarnings.length > 0 ? 'warned' : 'clean',
+  };
+}
+
 function mergeStatsCompact(primary: StatsCompact, fallback: StatsCompact): StatsCompact {
   const mergeStatPair = (
     first: { home: string | null; away: string | null } | undefined,
@@ -2781,6 +2867,24 @@ async function processMatch(
 
     if (shouldSave && !shadowMode) {
       const mappedOdd = extractOddsFromSelection(parsed.selection, parsed.bet_market, oddsCanonical);
+      const decisionContext = buildRecommendationDecisionContext({
+        evidenceMode,
+        promptDataLevel,
+        prematchAvailability,
+        prematchStrength,
+        prematchNoisePenalty,
+        structuredPrematchAskAi,
+        structuredPrematchAskAiReason: structuredPrematchAskAiCheck.reason,
+        statsSource,
+        oddsSource,
+        leagueProfileWindow,
+        homeTeamProfileWindow,
+        awayTeamProfileWindow,
+        homeOverlaySnapshot,
+        awayOverlaySnapshot,
+        policyBlocked: activeAnalysis.policyBlocked,
+        policyWarnings: activeAnalysis.policyWarnings,
+      });
       const rec = await deps.createRecommendation({
         match_id: matchId,
         timestamp: new Date().toISOString(),
@@ -2793,6 +2897,7 @@ async function processMatch(
         execution_id: `auto-pipeline-${Date.now()}`,
         odds_snapshot: oddsCanonical as Record<string, unknown>,
         stats_snapshot: statsCompact as unknown as Record<string, unknown>,
+        decision_context: decisionContext,
         pre_match_prediction_summary: '',
         prompt_version: activePromptVersion,
         custom_condition_matched: parsed.custom_condition_matched,

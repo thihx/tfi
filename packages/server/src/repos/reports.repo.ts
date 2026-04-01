@@ -782,13 +782,18 @@ export interface AiInsightsData {
   streakInfo: { type: 'win' | 'loss'; count: number };
   valueFinds: number;      // wins where odds >= 2.0
   safeBetAccuracy: number; // win rate for odds < 1.70
+  modelPromptCohorts: Array<{ cohort: string; total: number; winRate: number; pnl: number; roi: number }>;
+  prematchStrengthCohorts: Array<{ bucket: string; total: number; winRate: number; pnl: number; roi: number }>;
+  profileCoverageCohorts: Array<{ bucket: string; total: number; winRate: number; pnl: number; roi: number }>;
+  overlayCoverageCohorts: Array<{ bucket: string; total: number; winRate: number; pnl: number; roi: number }>;
+  policyImpactCohorts: Array<{ bucket: string; total: number; winRate: number; pnl: number; roi: number }>;
 }
 
 export async function getAiInsights(filter: PeriodFilter): Promise<AiInsightsData> {
   const dc = buildDateCondition('r.timestamp', filter);
   const aiInsightSampleFloor = 5;
 
-  const [leagueRows, marketRows, minuteRows, confRows, recentTrendRes, overallTrendRes, streakRes, valueRes, safeRes, analyticsRows] = await Promise.all([
+  const [leagueRows, marketRows, minuteRows, confRows, recentTrendRes, overallTrendRes, streakRes, valueRes, safeRes, analyticsRows, modelPromptRows, prematchStrengthRows, profileCoverageRows, overlayCoverageRows, policyImpactRows] = await Promise.all([
     // League performance
     query<{ league: string; wins: string; total: string; pnl: string }>(`
       SELECT COALESCE(NULLIF(league,''),'Unknown') AS league,
@@ -889,6 +894,77 @@ export async function getAiInsights(filter: PeriodFilter): Promise<AiInsightsDat
     `, dc.params),
 
     getAnalyticsRows(filter),
+
+    query<{ cohort: string; wins: string; total: string; pnl: string; total_staked: string }>(`
+      SELECT
+        CONCAT(COALESCE(NULLIF(ai_model, ''), 'Unknown model'), ' | ', COALESCE(NULLIF(prompt_version, ''), 'Unknown prompt')) AS cohort,
+        COUNT(*) FILTER (WHERE ${DIRECTIONAL_WIN_RESULT_SQL})::text AS wins,
+        COUNT(*)::text AS total,
+        COALESCE(SUM(pnl), 0)::text AS pnl,
+        COALESCE(SUM(COALESCE(stake_percent, 1)), 0)::text AS total_staked
+      FROM recommendations r
+      WHERE ${NOT_DUP} AND ${DIRECTIONAL_RESULT_SQL} AND ${dc.clause}
+      GROUP BY CONCAT(COALESCE(NULLIF(ai_model, ''), 'Unknown model'), ' | ', COALESCE(NULLIF(prompt_version, ''), 'Unknown prompt'))
+      HAVING COUNT(*) >= ${aiInsightSampleFloor}
+      ORDER BY COUNT(*) DESC, SUM(pnl) DESC
+      LIMIT 8
+    `, dc.params),
+
+    query<{ bucket: string; wins: string; total: string; pnl: string; total_staked: string }>(`
+      SELECT
+        COALESCE(NULLIF(decision_context->>'prematchStrength', ''), 'unknown') AS bucket,
+        COUNT(*) FILTER (WHERE ${DIRECTIONAL_WIN_RESULT_SQL})::text AS wins,
+        COUNT(*)::text AS total,
+        COALESCE(SUM(pnl), 0)::text AS pnl,
+        COALESCE(SUM(COALESCE(stake_percent, 1)), 0)::text AS total_staked
+      FROM recommendations r
+      WHERE ${NOT_DUP} AND ${DIRECTIONAL_RESULT_SQL} AND ${dc.clause}
+      GROUP BY COALESCE(NULLIF(decision_context->>'prematchStrength', ''), 'unknown')
+      HAVING COUNT(*) >= ${aiInsightSampleFloor}
+      ORDER BY COUNT(*) DESC, SUM(pnl) DESC
+    `, dc.params),
+
+    query<{ bucket: string; wins: string; total: string; pnl: string; total_staked: string }>(`
+      SELECT
+        COALESCE(NULLIF(decision_context->>'profileCoverageBand', ''), 'unknown') AS bucket,
+        COUNT(*) FILTER (WHERE ${DIRECTIONAL_WIN_RESULT_SQL})::text AS wins,
+        COUNT(*)::text AS total,
+        COALESCE(SUM(pnl), 0)::text AS pnl,
+        COALESCE(SUM(COALESCE(stake_percent, 1)), 0)::text AS total_staked
+      FROM recommendations r
+      WHERE ${NOT_DUP} AND ${DIRECTIONAL_RESULT_SQL} AND ${dc.clause}
+      GROUP BY COALESCE(NULLIF(decision_context->>'profileCoverageBand', ''), 'unknown')
+      HAVING COUNT(*) >= ${aiInsightSampleFloor}
+      ORDER BY COUNT(*) DESC, SUM(pnl) DESC
+    `, dc.params),
+
+    query<{ bucket: string; wins: string; total: string; pnl: string; total_staked: string }>(`
+      SELECT
+        COALESCE(NULLIF(decision_context->>'overlayCoverageBand', ''), 'unknown') AS bucket,
+        COUNT(*) FILTER (WHERE ${DIRECTIONAL_WIN_RESULT_SQL})::text AS wins,
+        COUNT(*)::text AS total,
+        COALESCE(SUM(pnl), 0)::text AS pnl,
+        COALESCE(SUM(COALESCE(stake_percent, 1)), 0)::text AS total_staked
+      FROM recommendations r
+      WHERE ${NOT_DUP} AND ${DIRECTIONAL_RESULT_SQL} AND ${dc.clause}
+      GROUP BY COALESCE(NULLIF(decision_context->>'overlayCoverageBand', ''), 'unknown')
+      HAVING COUNT(*) >= ${aiInsightSampleFloor}
+      ORDER BY COUNT(*) DESC, SUM(pnl) DESC
+    `, dc.params),
+
+    query<{ bucket: string; wins: string; total: string; pnl: string; total_staked: string }>(`
+      SELECT
+        COALESCE(NULLIF(decision_context->>'policyImpactBand', ''), 'unknown') AS bucket,
+        COUNT(*) FILTER (WHERE ${DIRECTIONAL_WIN_RESULT_SQL})::text AS wins,
+        COUNT(*)::text AS total,
+        COALESCE(SUM(pnl), 0)::text AS pnl,
+        COALESCE(SUM(COALESCE(stake_percent, 1)), 0)::text AS total_staked
+      FROM recommendations r
+      WHERE ${NOT_DUP} AND ${DIRECTIONAL_RESULT_SQL} AND ${dc.clause}
+      GROUP BY COALESCE(NULLIF(decision_context->>'policyImpactBand', ''), 'unknown')
+      HAVING COUNT(*) >= ${aiInsightSampleFloor}
+      ORDER BY COUNT(*) DESC, SUM(pnl) DESC
+    `, dc.params),
   ]);
 
   // Process leagues
@@ -952,6 +1028,23 @@ export async function getAiInsights(filter: PeriodFilter): Promise<AiInsightsDat
   const safeWins = Number(safeRes.rows[0]?.wins ?? 0);
   const settledAnalyticsRows = analyticsRows.filter((row) => row.result !== '' && row.result != null);
 
+  const mapCohorts = (rows: Array<{ bucket?: string; cohort?: string; wins: string; total: string; pnl: string; total_staked: string }>) =>
+    rows.map((row) => {
+      const wins = Number(row.wins);
+      const total = Number(row.total);
+      const losses = Math.max(total - wins, 0);
+      const pnl = Math.round(Number(row.pnl) * 100) / 100;
+      const totalStaked = Number(row.total_staked);
+      return {
+        bucket: row.bucket,
+        cohort: row.cohort,
+        total,
+        winRate: directionalRate(wins, losses),
+        pnl,
+        roi: totalStaked > 0 ? Math.round((pnl / totalStaked) * 10000) / 100 : 0,
+      };
+    });
+
   return {
     strongLeagues: leagues.filter((l) => l.pnl > 0).slice(0, 5),
     weakLeagues: leagues.filter((l) => l.pnl < 0).slice(-5).reverse(),
@@ -969,5 +1062,40 @@ export async function getAiInsights(filter: PeriodFilter): Promise<AiInsightsDat
     streakInfo: { type: streakType, count: streakCount },
     valueFinds: valueWins,
     safeBetAccuracy: safeTotal > 0 ? Math.round((safeWins / safeTotal) * 10000) / 100 : 0,
+    modelPromptCohorts: mapCohorts(modelPromptRows.rows).map((row) => ({
+      cohort: row.cohort ?? 'Unknown',
+      total: row.total,
+      winRate: row.winRate,
+      pnl: row.pnl,
+      roi: row.roi,
+    })),
+    prematchStrengthCohorts: mapCohorts(prematchStrengthRows.rows).map((row) => ({
+      bucket: row.bucket ?? 'unknown',
+      total: row.total,
+      winRate: row.winRate,
+      pnl: row.pnl,
+      roi: row.roi,
+    })),
+    profileCoverageCohorts: mapCohorts(profileCoverageRows.rows).map((row) => ({
+      bucket: row.bucket ?? 'unknown',
+      total: row.total,
+      winRate: row.winRate,
+      pnl: row.pnl,
+      roi: row.roi,
+    })),
+    overlayCoverageCohorts: mapCohorts(overlayCoverageRows.rows).map((row) => ({
+      bucket: row.bucket ?? 'unknown',
+      total: row.total,
+      winRate: row.winRate,
+      pnl: row.pnl,
+      roi: row.roi,
+    })),
+    policyImpactCohorts: mapCohorts(policyImpactRows.rows).map((row) => ({
+      bucket: row.bucket ?? 'unknown',
+      total: row.total,
+      winRate: row.winRate,
+      pnl: row.pnl,
+      roi: row.roi,
+    })),
   };
 }

@@ -1,3 +1,5 @@
+// Manual validation utility for ops/developer use.
+// This script is intentionally outside the request-serving runtime path.
 import 'dotenv/config';
 import { mkdirSync, readdirSync, writeFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
