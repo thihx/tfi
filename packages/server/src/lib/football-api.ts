@@ -254,6 +254,24 @@ async function fetchTeamsForSeason(leagueId: number, season: number): Promise<Ap
   return apiGet<ApiTeam>('/teams', { league: String(leagueId), season: String(season) });
 }
 
+function buildFallbackLeagueSeasons(league: ApiLeague | null, attempted: number[]): number[] {
+  if (!league?.seasons?.length) return [];
+
+  const attemptedSet = new Set(attempted);
+  const currentSeasons = league.seasons
+    .filter((season) => season.current)
+    .map((season) => season.year);
+  const remainingYears = league.seasons
+    .map((season) => season.year)
+    .filter((year) => !attemptedSet.has(year))
+    .sort((left, right) => right - left);
+
+  return Array.from(new Set([
+    ...currentSeasons,
+    ...remainingYears,
+  ])).filter((season) => Number.isFinite(season) && !attemptedSet.has(season));
+}
+
 /**
  * Fetch teams by league with automatic season fallback:
  * tries current year first, then current year - 1.
@@ -261,12 +279,28 @@ async function fetchTeamsForSeason(leagueId: number, season: number): Promise<Ap
  */
 export async function fetchTeamsByLeagueWithSeason(leagueId: number): Promise<LeagueTeamsByLeagueResult | null> {
   const currentYear = new Date().getFullYear();
-  let teams = await fetchTeamsForSeason(leagueId, currentYear);
+  const attemptedSeasons: number[] = [];
+  let teams: ApiTeam[] = [];
   let season = currentYear;
-  if (teams.length === 0) {
-    teams = await fetchTeamsForSeason(leagueId, currentYear - 1);
-    season = currentYear - 1;
+
+  for (const candidateSeason of [currentYear, currentYear - 1]) {
+    attemptedSeasons.push(candidateSeason);
+    teams = await fetchTeamsForSeason(leagueId, candidateSeason);
+    season = candidateSeason;
+    if (teams.length > 0) break;
   }
+
+  if (teams.length === 0) {
+    const league = await fetchLeagueById(leagueId);
+    const fallbackSeasons = buildFallbackLeagueSeasons(league, attemptedSeasons);
+    for (const candidateSeason of fallbackSeasons) {
+      attemptedSeasons.push(candidateSeason);
+      teams = await fetchTeamsForSeason(leagueId, candidateSeason);
+      season = candidateSeason;
+      if (teams.length > 0) break;
+    }
+  }
+
   if (teams.length === 0) return null;
 
   // Fetch standings to get rank (best-effort, ignore errors)

@@ -79,6 +79,23 @@ function mkEmptyResponse() {
   };
 }
 
+function mkLeagueResponse(seasons: Array<{ year: number; current?: boolean }>) {
+  return {
+    ok: true,
+    json: () =>
+      Promise.resolve({
+        response: [{
+          league: { id: 999, name: 'League', type: 'Cup', logo: '' },
+          country: { name: 'World', code: null, flag: null },
+          seasons: seasons.map((season) => ({
+            year: season.year,
+            current: season.current === true,
+          })),
+        }],
+      }),
+  };
+}
+
 // ============================================================
 // Tests
 // ============================================================
@@ -140,13 +157,14 @@ describe('fetchTeamsByLeague', () => {
   test('returns empty array when both current and previous year have no teams', async () => {
     mockFetch
       .mockResolvedValueOnce(mkEmptyResponse())
-      .mockResolvedValueOnce(mkEmptyResponse());
+      .mockResolvedValueOnce(mkEmptyResponse())
+      .mockResolvedValueOnce(mkLeagueResponse([]));
 
     const result = await fetchTeamsByLeague(39);
 
     expect(result).toEqual([]);
     // standings should NOT be called
-    expect(mockFetch).toHaveBeenCalledTimes(2);
+    expect(mockFetch).toHaveBeenCalledTimes(3);
   });
 
   test('returns teams with null ranks when standings call fails (cups/internationals)', async () => {
@@ -176,5 +194,27 @@ describe('fetchTeamsByLeague', () => {
     const url: string = firstCall[0];
     expect(url).toContain('season=' + currentYear);
     expect(url).toContain('league=39');
+  });
+
+  test('falls back to latest league season from metadata for stale international competitions', async () => {
+    mockFetch
+      .mockResolvedValueOnce(mkEmptyResponse()) // teams current year
+      .mockResolvedValueOnce(mkEmptyResponse()) // teams previous year
+      .mockResolvedValueOnce(mkLeagueResponse([
+        { year: 2024, current: false },
+        { year: 2023, current: false },
+      ]))
+      .mockResolvedValueOnce(mkTeamsResponse([{ id: 77, name: 'National Team' }])) // teams season 2024
+      .mockResolvedValueOnce(mkStandingsResponse([{ id: 77, rank: 1 }])); // standings season 2024
+
+    const result = await fetchTeamsByLeague(960);
+
+    expect(result).toHaveLength(1);
+    expect(result[0].team.id).toBe(77);
+
+    const fourthCall = mockFetch.mock.calls[3];
+    const fourthUrl: string = fourthCall[0];
+    expect(fourthUrl).toContain('league=960');
+    expect(fourthUrl).toContain('season=2024');
   });
 });
