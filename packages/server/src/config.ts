@@ -62,6 +62,9 @@ export const config = {
 
   // Job intervals (ms) — 0 = disabled
   jobFetchMatchesMs: Number(process.env['JOB_FETCH_MATCHES_MS'] || 1 * 60_000),         // 1 min
+  jobSyncWatchlistMetadataMs: Number(process.env['JOB_SYNC_WATCHLIST_METADATA_MS'] || process.env['JOB_FETCH_MATCHES_MS'] || 1 * 60_000),
+  jobAutoAddTopLeagueWatchlistMs: Number(process.env['JOB_AUTO_ADD_TOP_LEAGUE_WATCHLIST_MS'] || process.env['JOB_FETCH_MATCHES_MS'] || 1 * 60_000),
+  jobAutoAddFavoriteTeamWatchlistMs: Number(process.env['JOB_AUTO_ADD_FAVORITE_TEAM_WATCHLIST_MS'] || process.env['JOB_FETCH_MATCHES_MS'] || 1 * 60_000),
   jobRefreshLiveMatchesMs: Number(process.env['JOB_REFRESH_LIVE_MATCHES_MS'] || 5_000), // 5 sec
   jobPredictionsMs: Number(process.env['JOB_PREDICTIONS_MS'] || 30 * 60_000),            // 30 min
   jobExpireWatchlistMs: Number(process.env['JOB_EXPIRE_WATCHLIST_MS'] || 5 * 60_000),    // 5 min
@@ -70,6 +73,7 @@ export const config = {
   jobAutoSettleMs: Number(process.env['JOB_AUTO_SETTLE_MS'] || 10 * 60_000),              // 10 min
   jobEnrichWatchlistMs: Number(process.env['JOB_ENRICH_WATCHLIST_MS'] || 60 * 60_000),   // 60 min
   jobSyncReferenceDataMs: Number(process.env['JOB_SYNC_REFERENCE_DATA_MS'] || 12 * 60 * 60_000), // 12h
+  jobRefreshTacticalOverlaysMs: Number(process.env['JOB_REFRESH_TACTICAL_OVERLAYS_MS'] || 12 * 60 * 60_000), // 12h
   jobHousekeepingMs: Number(process.env['JOB_HOUSEKEEPING_MS'] || process.env['JOB_AUDIT_PURGE_MS'] || 24 * 60 * 60_000), // 24h
   jobIntegrationHealthMs: Number(process.env['JOB_INTEGRATION_HEALTH_MS'] || 30 * 60_000), // 30 min
   jobHealthWatchdogMs: Number(process.env['JOB_HEALTH_WATCHDOG_MS'] || 2 * 60_000),      // 2 min — health watchdog
@@ -80,6 +84,7 @@ export const config = {
   matchSnapshotsKeepDays: Number(process.env['MATCH_SNAPSHOTS_KEEP_DAYS'] || 14),
   oddsMovementsKeepDays: Number(process.env['ODDS_MOVEMENTS_KEEP_DAYS'] || 30),
   pipelineRunsKeepDays: Number(process.env['PIPELINE_RUNS_KEEP_DAYS'] || 14),                        // pipeline_runs detail rows
+  jobRunHistoryKeepDays: Number(process.env['JOB_RUN_HISTORY_KEEP_DAYS'] || 30),
   recommendationDeliveriesKeepDays: Number(process.env['RECOMMENDATION_DELIVERIES_KEEP_DAYS'] || 0), // 0 = disabled unless explicitly opted in
   recommendationsSlimDays: Number(process.env['RECOMMENDATIONS_SLIM_DAYS'] || 365),                  // slim recommendations (keep full text 1yr for AI retraining)
   aiPerformanceKeepDays: Number(process.env['AI_PERFORMANCE_KEEP_DAYS'] || 365),                     // aggregate+purge ai_performance detail (keep 1yr for AI retraining)
@@ -118,4 +123,8 @@ export const config = {
   liveAnalysisShadowEnabled: process.env['LIVE_ANALYSIS_SHADOW_ENABLED'] === 'true',
   liveAnalysisShadowSampleRate: Number(process.env['LIVE_ANALYSIS_SHADOW_SAMPLE_RATE'] || 0),
   promptShadowKeepDays: Number(process.env['PROMPT_SHADOW_KEEP_DAYS'] || 14),
+
+  // Tactical overlay refresh
+  tacticalOverlayRefreshMaxPerRun: Number(process.env['TACTICAL_OVERLAY_REFRESH_MAX_PER_RUN'] || 6),
+  tacticalOverlayRefreshStaleDays: Number(process.env['TACTICAL_OVERLAY_REFRESH_STALE_DAYS'] || 30),
 } as const;

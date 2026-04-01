@@ -42,6 +42,8 @@ export interface RecommendationDeliveryRow {
   recommendation_away_team: string | null;
   recommendation_league: string | null;
   recommendation_result: string | null;
+  recommendation_settlement_status: string | null;
+  recommendation_settlement_note: string | null;
   recommendation_actual_outcome: string | null;
   recommendation_pnl: number | null;
 }
@@ -494,8 +496,16 @@ export async function getRecommendationDeliveriesByUserId(
     index++;
   }
   if (options.result) {
-    if (options.result === 'pending') {
+    if (options.result === 'correct') {
+      conditions.push(`r.result IN ('win', 'half_win')`);
+    } else if (options.result === 'incorrect') {
+      conditions.push(`r.result IN ('loss', 'half_loss')`);
+    } else if (options.result === 'neutral') {
+      conditions.push(`r.result IN ('push', 'void')`);
+    } else if (options.result === 'pending') {
       conditions.push(`(r.result IS NULL OR r.result = '' OR r.result NOT IN ('win', 'loss', 'push', 'void', 'half_win', 'half_loss'))`);
+    } else if (options.result === 'review') {
+      conditions.push(`COALESCE(r.settlement_status, NULLIF(d.metadata->>'recommendation_settlement_status', ''), 'pending') = 'unresolved' AND r.result IN ('win', 'loss', 'push', 'void', 'half_win', 'half_loss')`);
     } else {
       conditions.push(`r.result = $${index}`);
       params.push(options.result);
@@ -572,9 +582,11 @@ export async function getRecommendationDeliveriesByUserId(
          COALESCE(r.home_team, NULLIF(d.metadata->>'recommendation_home_team', '')) AS recommendation_home_team,
          COALESCE(r.away_team, NULLIF(d.metadata->>'recommendation_away_team', '')) AS recommendation_away_team,
          COALESCE(r.league, NULLIF(d.metadata->>'recommendation_league', '')) AS recommendation_league,
-          r.result AS recommendation_result,
-          r.actual_outcome AS recommendation_actual_outcome,
-          r.pnl AS recommendation_pnl
+         r.result AS recommendation_result,
+         r.settlement_status AS recommendation_settlement_status,
+         r.settlement_note AS recommendation_settlement_note,
+         r.actual_outcome AS recommendation_actual_outcome,
+         r.pnl AS recommendation_pnl
        FROM user_recommendation_deliveries d
        LEFT JOIN recommendations r ON r.id = d.recommendation_id
        ${whereSql}

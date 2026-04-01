@@ -8,6 +8,7 @@ import * as aiPerfRepo from '../repos/ai-performance.repo.js';
 import { reEvaluateAllResults } from '../jobs/re-evaluate.job.js';
 import { audit } from '../lib/audit.js';
 import { isFinalSettlementResult, settlementWasCorrect } from '../lib/settle-types.js';
+import { requireAnyRole } from '../lib/authz.js';
 
 function normalizeText(value: unknown): string {
   return typeof value === 'string' ? value.trim() : '';
@@ -177,6 +178,7 @@ export async function recommendationRoutes(app: FastifyInstance) {
     Params: { id: string };
     Body: { result: string; pnl: number; actual_outcome?: string };
   }>('/api/recommendations/:id/settle', async (req, reply) => {
+    if (!requireAnyRole(req, reply, ['admin'])) return;
     const id = Number(req.params.id);
     if (Number.isNaN(id)) return reply.code(400).send({ error: 'Invalid recommendation ID' });
     const rec = await repo.settleRecommendation(

@@ -4,6 +4,7 @@
 
 import type { FastifyInstance } from 'fastify';
 import { requireAdminOrOwner, requireCurrentUser } from '../lib/authz.js';
+import { assertWatchlistCapacityAvailable, resolveSubscriptionAccess, sendEntitlementError } from '../lib/subscription-access.js';
 import * as repo from '../repos/watchlist.repo.js';
 import { getSettings } from '../repos/settings.repo.js';
 
@@ -30,6 +31,18 @@ export async function watchlistRoutes(app: FastifyInstance) {
     const user = requireCurrentUser(req, reply);
     if (!user) return;
     if (!req.body.match_id) return reply.code(400).send({ error: 'match_id is required' });
+    if (user.role !== 'admin' && user.role !== 'owner') {
+      try {
+        const access = await resolveSubscriptionAccess(user.userId);
+        await assertWatchlistCapacityAvailable(access, user.userId);
+      } catch (error) {
+        const entitlement = sendEntitlementError(error);
+        if (entitlement) {
+          return reply.code(entitlement.statusCode).send(entitlement.payload);
+        }
+        throw error;
+      }
+    }
     let body = req.body;
     if (body.auto_apply_recommended_condition == null) {
       const settings = await getSettings(user.userId, { fallbackToDefault: false }).catch(() => ({}));

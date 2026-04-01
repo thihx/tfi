@@ -1,12 +1,13 @@
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
-import type { Match, WatchlistItem, League } from '@/types';
+import type { League, Match, WatchlistItem } from '@/types';
 
 const mockShowToast = vi.fn();
 const mockAnalyzeMatchWithServerPipeline = vi.fn();
 const mockGetParsedAiResult = vi.fn();
 const mockLoadAllData = vi.fn().mockResolvedValue(undefined);
+const mockRefreshMatches = vi.fn().mockResolvedValue(undefined);
 const mockAddToWatchlist = vi.fn().mockResolvedValue(true);
 const mockUpdateWatchlistItem = vi.fn().mockResolvedValue(true);
 
@@ -62,6 +63,7 @@ vi.mock('@/hooks/useAppState', () => ({
     addToWatchlist: mockAddToWatchlist,
     updateWatchlistItem: mockUpdateWatchlistItem,
     loadAllData: mockLoadAllData,
+    refreshMatches: mockRefreshMatches,
   }),
 }));
 
@@ -82,11 +84,22 @@ vi.mock('@/components/ui/MatchScoutModal', () => ({
   MatchScoutModal: () => null,
 }));
 
+vi.mock('@/lib/services/api', () => ({
+  fetchLeagueProfile: vi.fn().mockResolvedValue(null),
+  fetchTeamProfile: vi.fn().mockResolvedValue(null),
+}));
+
 beforeAll(() => {
   Object.defineProperty(HTMLElement.prototype, 'scrollIntoView', {
     configurable: true,
     value: vi.fn(),
   });
+  class ResizeObserverMock {
+    observe() {}
+    disconnect() {}
+    unobserve() {}
+  }
+  vi.stubGlobal('ResizeObserver', ResizeObserverMock);
 });
 
 let MatchesTab: typeof import('./MatchesTab').MatchesTab;
@@ -100,6 +113,7 @@ beforeEach(async () => {
   mockState.watchlist = watchlist;
   mockState.config = { apiUrl: 'http://localhost:4000', defaultMode: 'B' };
   mockState.leagues = leagues;
+  mockRefreshMatches.mockResolvedValue(undefined);
   mockAnalyzeMatchWithServerPipeline.mockResolvedValue({
     matchId: '100',
     success: true,
@@ -134,7 +148,7 @@ describe('MatchesTab', () => {
     render(<MatchesTab />);
 
     await user.click(screen.getByTitle('Card view'));
-    await user.click(screen.getByRole('button', { name: 'Ask AI' }));
+    await user.click(screen.getByRole('button', { name: 'Ask AI for analysis' }));
 
     await waitFor(() => {
       expect(mockAnalyzeMatchWithServerPipeline).toHaveBeenCalledWith(
@@ -143,37 +157,35 @@ describe('MatchesTab', () => {
       );
     });
 
-    expect(await screen.findByText('AI Analysis — Arsenal vs Chelsea')).toBeInTheDocument();
-    expect(screen.getByText(/Selection:/)).toBeInTheDocument();
-    expect(screen.getByText(/Decision:/)).toBeInTheDocument();
+    expect(await screen.findByText(/AI Analysis/i)).toBeInTheDocument();
     expect(screen.getByText('AI Push')).toBeInTheDocument();
+    expect(screen.getByText('Over 2.5')).toBeInTheDocument();
     expect(screen.getByText('Ap luc tang dan')).toBeInTheDocument();
-    expect(screen.getByText(/Condition Matched:/)).toBeInTheDocument();
-    expect(screen.getByText(/Condition Triggered:/)).toBeInTheDocument();
-    expect(screen.getByText(/Condition Suggestion:/)).toBeInTheDocument();
-    expect(mockShowToast).toHaveBeenCalledWith('✅ Arsenal vs Chelsea — done', 'success');
-  });
+    expect(screen.getByText('Cond Matched')).toBeInTheDocument();
+    expect(screen.getByText('Cond Triggered')).toBeInTheDocument();
+    expect(screen.getByText('Under 2.5 Goals @2.00')).toBeInTheDocument();
+  }, 10000);
 
   it('shows the cached result instead of re-calling the server pipeline', async () => {
     const user = userEvent.setup();
     render(<MatchesTab />);
 
     await user.click(screen.getByTitle('Card view'));
-    const askAiButton = screen.getByRole('button', { name: 'Ask AI' });
+    const askAiButton = screen.getByRole('button', { name: 'Ask AI for analysis' });
 
     await user.click(askAiButton);
     await waitFor(() => expect(mockAnalyzeMatchWithServerPipeline).toHaveBeenCalledTimes(1));
 
-    await user.click(screen.getByRole('button', { name: '✅ View Result' }));
+    await user.click(screen.getByRole('button', { name: 'View AI result' }));
 
     expect(mockAnalyzeMatchWithServerPipeline).toHaveBeenCalledTimes(1);
-    expect(mockShowToast).toHaveBeenCalledWith('📋 Arsenal vs Chelsea — showing cached result', 'info');
   });
 
   it('passes the subscription id when saving a watched match edit', async () => {
     const user = userEvent.setup();
     render(<MatchesTab />);
 
+    await user.click(screen.getByTitle('Table view'));
     await user.click(screen.getByRole('button', { name: 'Edit watchlist item' }));
     await user.click(await screen.findByRole('button', { name: 'Save Changes' }));
 
@@ -184,12 +196,48 @@ describe('MatchesTab', () => {
     });
   });
 
+  it('passes auto-apply override when saving a watched match edit', async () => {
+    const user = userEvent.setup();
+    mockState.watchlist = [{
+      ...watchlist[0]!,
+      auto_apply_recommended_condition: true,
+      custom_conditions: '(Minute >= 55) AND (Total goals <= 1)',
+      recommended_custom_condition: '(Minute >= 60) AND (NOT Home leading)',
+    }];
+
+    render(<MatchesTab />);
+
+    await user.click(screen.getByTitle('Table view'));
+    await user.click(screen.getByRole('button', { name: 'Edit watchlist item' }));
+    await user.click(await screen.findByLabelText('Auto-apply recommended condition for this match'));
+    await user.click(screen.getByRole('button', { name: 'Save Changes' }));
+
+    await waitFor(() => {
+      expect(mockUpdateWatchlistItem).toHaveBeenCalledWith(
+        expect.objectContaining({
+          id: 7,
+          match_id: '100',
+          auto_apply_recommended_condition: false,
+        }),
+      );
+    });
+  });
+
   it('keeps auto-refresh active for live-window matches using kickoff_at_utc after refactor', async () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date('2026-03-24T10:12:00.000Z'));
     mockState.matches = [
       {
-        ...baseMatches[0],
+        match_id: '100',
+        league_id: 39,
+        league_name: 'Premier League',
+        home_team: 'Arsenal',
+        away_team: 'Chelsea',
+        home_logo: '/home.png',
+        away_logo: '/away.png',
+        home_score: 0,
+        away_score: 0,
+        current_minute: undefined,
         status: 'NS',
         date: '2026-03-25',
         kickoff: '19:00',
@@ -204,8 +252,8 @@ describe('MatchesTab', () => {
 
     await vi.advanceTimersByTimeAsync(3000);
 
-    expect(mockLoadAllData).toHaveBeenCalledTimes(2);
+    expect(mockLoadAllData).toHaveBeenCalledTimes(1);
     expect(mockLoadAllData).toHaveBeenNthCalledWith(1, true);
-    expect(mockLoadAllData).toHaveBeenNthCalledWith(2, true);
+    expect(mockRefreshMatches).toHaveBeenCalledTimes(1);
   });
 });

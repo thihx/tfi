@@ -5,6 +5,9 @@
 import { query, transaction } from '../db/pool.js';
 import { normalizeMarket, buildDedupKey } from '../lib/normalize-market.js';
 import {
+  DIRECTIONAL_LOSS_SETTLEMENT_RESULTS_SQL,
+  DIRECTIONAL_SETTLEMENT_RESULTS_SQL,
+  DIRECTIONAL_WIN_SETTLEMENT_RESULTS_SQL,
   FINAL_SETTLEMENT_RESULTS_SQL,
   type SettlementPersistenceMeta,
 } from '../lib/settle-types.js';
@@ -26,6 +29,13 @@ const ACTIONABLE_REC_SQL = `bet_type IS DISTINCT FROM 'NO_BET'`;
 const ACTIONABLE_NOT_DUP = `${NOT_DUP} AND ${ACTIONABLE_REC_SQL}`;
 const FINAL_RESULT_SQL = `result IN (${FINAL_SETTLEMENT_RESULTS_SQL})`;
 const PENDING_RESULT_SQL = `(result IS NULL OR result = '' OR result NOT IN (${FINAL_SETTLEMENT_RESULTS_SQL}))`;
+const DIRECTIONAL_WIN_RESULT_SQL = `result IN (${DIRECTIONAL_WIN_SETTLEMENT_RESULTS_SQL})`;
+const DIRECTIONAL_LOSS_RESULT_SQL = `result IN (${DIRECTIONAL_LOSS_SETTLEMENT_RESULTS_SQL})`;
+const DIRECTIONAL_RESULT_SQL = `result IN (${DIRECTIONAL_SETTLEMENT_RESULTS_SQL})`;
+function directionalRate(wins: number, losses: number): number {
+  const total = wins + losses;
+  return total > 0 ? Math.round((wins / total) * 10000) / 100 : 0;
+}
 
 function toJsonb(val: unknown): string {
   if (!val || val === '') return '{}';
@@ -109,8 +119,16 @@ export async function getAllRecommendations(opts: PaginationOpts = {}): Promise<
 
   // Result filter
   if (opts.result) {
-    if (opts.result === 'pending') {
+    if (opts.result === 'correct') {
+      conditions.push(`r.result IN ('win', 'half_win')`);
+    } else if (opts.result === 'incorrect') {
+      conditions.push(`r.result IN ('loss', 'half_loss')`);
+    } else if (opts.result === 'neutral') {
+      conditions.push(`r.result IN ('push', 'void')`);
+    } else if (opts.result === 'pending') {
       conditions.push(`(r.result IS NULL OR r.result = '' OR r.result NOT IN (${FINAL_SETTLEMENT_RESULTS_SQL}))`);
+    } else if (opts.result === 'review') {
+      conditions.push(`COALESCE(r.settlement_status, 'pending') = 'unresolved' AND r.result IN (${FINAL_SETTLEMENT_RESULTS_SQL})`);
     } else if (opts.result === 'duplicate') {
       conditions.push(`r.result = 'duplicate'`);
     } else {
@@ -511,7 +529,7 @@ interface RecStats {
   half_wins: number;
   half_losses: number;
   voids: number;
-  neutral_settled: number;
+  push_void_settled: number;
   duplicates: number;
   unsettled: number;
   total_pnl: number;
@@ -533,8 +551,8 @@ export async function getStats(): Promise<RecStats> {
   }>(
     `SELECT
        COUNT(*)::text AS total,
-       COUNT(*) FILTER (WHERE result = 'win')::text AS wins,
-       COUNT(*) FILTER (WHERE result = 'loss')::text AS losses,
+       COUNT(*) FILTER (WHERE ${DIRECTIONAL_WIN_RESULT_SQL})::text AS wins,
+       COUNT(*) FILTER (WHERE ${DIRECTIONAL_LOSS_RESULT_SQL})::text AS losses,
        COUNT(*) FILTER (WHERE result = 'push')::text AS pushes,
        COUNT(*) FILTER (WHERE result = 'half_win')::text AS half_wins,
        COUNT(*) FILTER (WHERE result = 'half_loss')::text AS half_losses,
@@ -553,7 +571,6 @@ export async function getStats(): Promise<RecStats> {
   const halfWins = Number(row.half_wins);
   const halfLosses = Number(row.half_losses);
   const voids = Number(row.voids);
-  const decisive = wins + losses;
 
   return {
     total,
@@ -563,11 +580,11 @@ export async function getStats(): Promise<RecStats> {
     half_wins: halfWins,
     half_losses: halfLosses,
     voids,
-    neutral_settled: pushes + halfWins + halfLosses + voids,
+    push_void_settled: pushes + voids,
     duplicates: Number(row.duplicates),
     unsettled: Number(row.unsettled),
     total_pnl: Number(row.total_pnl),
-    win_rate: decisive > 0 ? Math.round((wins / decisive) * 10000) / 100 : 0,
+    win_rate: directionalRate(wins, losses),
   };
 }
 
@@ -581,8 +598,8 @@ export interface DashboardSummary {
   halfWins: number;
   halfLosses: number;
   voids: number;
-  decisiveSettled: number;
-  neutralSettled: number;
+  directionalSettled: number;
+  pushVoidSettled: number;
   pending: number;
   winRate: number;
   totalPnl: number;
@@ -605,8 +622,8 @@ export async function getDashboardSummary(): Promise<DashboardSummary> {
       total_pnl: string; total_staked: string;
     }>(`SELECT
          COUNT(*) FILTER (WHERE ${FINAL_RESULT_SQL})::text AS total,
-         COUNT(*) FILTER (WHERE result = 'win')::text AS wins,
-         COUNT(*) FILTER (WHERE result = 'loss')::text AS losses,
+         COUNT(*) FILTER (WHERE ${DIRECTIONAL_WIN_RESULT_SQL})::text AS wins,
+         COUNT(*) FILTER (WHERE ${DIRECTIONAL_LOSS_RESULT_SQL})::text AS losses,
          COUNT(*) FILTER (WHERE result = 'push')::text AS pushes,
          COUNT(*) FILTER (WHERE result = 'half_win')::text AS half_wins,
          COUNT(*) FILTER (WHERE result = 'half_loss')::text AS half_losses,
@@ -636,8 +653,12 @@ export async function getDashboardSummary(): Promise<DashboardSummary> {
 
     // Streak
     query<{ result: string }>(`
-      SELECT result FROM recommendations
-      WHERE result IN ('win', 'loss') AND ${ACTIONABLE_NOT_DUP}
+      SELECT CASE
+               WHEN ${DIRECTIONAL_WIN_RESULT_SQL} THEN 'win'
+               WHEN ${DIRECTIONAL_LOSS_RESULT_SQL} THEN 'loss'
+             END AS result
+      FROM recommendations
+      WHERE ${DIRECTIONAL_RESULT_SQL} AND ${ACTIONABLE_NOT_DUP}
       ORDER BY timestamp DESC
       LIMIT 50`),
 
@@ -683,9 +704,9 @@ export async function getDashboardSummary(): Promise<DashboardSummary> {
   const halfWins = Number(s.half_wins);
   const halfLosses = Number(s.half_losses);
   const voids = Number(s.voids);
-  const decisive = wins + losses;
-  const neutralSettled = pushes + halfWins + halfLosses + voids;
-  const winRate = decisive > 0 ? Math.round((wins / decisive) * 10000) / 100 : 0;
+  const directionalSettled = wins + losses;
+  const pushVoidSettled = pushes + voids;
+  const winRate = directionalRate(wins, losses);
   const totalStaked = Number(s.total_staked);
   const totalPnl = Number(s.total_pnl);
   const roi = totalStaked > 0 ? Math.round((totalPnl / totalStaked) * 10000) / 100 : 0;
@@ -726,8 +747,8 @@ export async function getDashboardSummary(): Promise<DashboardSummary> {
     halfWins,
     halfLosses,
     voids,
-    decisiveSettled: decisive,
-    neutralSettled,
+    directionalSettled,
+    pushVoidSettled,
     pending: Number(s.pending),
     winRate,
     totalPnl,

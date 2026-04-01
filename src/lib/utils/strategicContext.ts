@@ -15,8 +15,32 @@ type NarrativeField =
   | 'h2h_narrative'
   | 'summary';
 
+const STRATEGIC_TEXT_REPLACEMENTS: Array<[RegExp, string]> = [
+  [/khÃ´ng cÃ³ dá»¯ liá»‡u/gi, 'Không có dữ liệu'],
+  [/khÃ´ng Ä‘á»§ dá»¯ liá»‡u/gi, 'Không đủ dữ liệu'],
+  [/khong tim thay du lieu/gi, 'Không tìm thấy dữ liệu'],
+  [/khong co du lieu/gi, 'Không có dữ liệu'],
+  [/khong du du lieu/gi, 'Không đủ dữ liệu'],
+  [/khong co xoay tua lon/gi, 'Không có xoay tua lớn'],
+  [/khong co vang mat lon/gi, 'Không có vắng mặt lớn'],
+  [/khong ro/gi, 'Không rõ'],
+  [/mo hinh truoc tran nghieng ve/gi, 'Mô hình trước trận nghiêng về'],
+  [/diem form 5 tran gan nhat/gi, 'Điểm form 5 trận gần nhất'],
+  [/tran doi dau gan nhat/gi, 'trận đối đầu gần nhất'],
+];
+
+export function normalizeStrategicDisplayText(value: unknown): string {
+  if (typeof value !== 'string') return '';
+  let normalized = value.trim();
+  if (!normalized) return '';
+  for (const [pattern, replacement] of STRATEGIC_TEXT_REPLACEMENTS) {
+    normalized = normalized.replace(pattern, replacement);
+  }
+  return normalized;
+}
+
 function normalizeText(value: unknown): string {
-  return typeof value === 'string' ? value.trim() : '';
+  return normalizeStrategicDisplayText(value);
 }
 
 const QUANTITATIVE_LABELS: Record<string, string> = {

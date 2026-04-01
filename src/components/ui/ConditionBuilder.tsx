@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback, useEffect, useRef } from 'react';
 
 const MAX_CONDITIONS = 10;
 
@@ -40,16 +40,25 @@ export function ConditionBuilder({ initialValue, onChange }: ConditionBuilderPro
     return parsed.length > 0 ? parsed : [{ id: nextRowId++, text: '', operator: 'AND' }];
   });
 
-  // Re-initialize when initialValue changes (e.g., modal reopen)
+  // Track the last value we emitted so we don't re-parse our own changes.
+  // Without this, every keystroke: notify → onChange → parent setState → new initialValue
+  // → useEffect fires → setRows with NEW ids → React unmounts/remounts inputs → focus lost.
+  const lastEmittedRef = useRef<string>(buildConditionsString(rows));
+
+  // Re-initialize only when initialValue changes externally (modal reopen, apply recommended)
   useEffect(() => {
+    if (initialValue === lastEmittedRef.current) return;
+    lastEmittedRef.current = initialValue;
     const parsed = parseConditionsString(initialValue);
     setRows(parsed.length > 0 ? parsed : [{ id: nextRowId++, text: '', operator: 'AND' }]);
   }, [initialValue]);
 
   const notify = useCallback(
     (updated: ConditionRow[]) => {
+      const built = buildConditionsString(updated);
+      lastEmittedRef.current = built;
       setRows(updated);
-      onChange(buildConditionsString(updated));
+      onChange(built);
     },
     [onChange],
   );

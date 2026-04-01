@@ -23,6 +23,7 @@ export interface MatchHistoryRow {
   regular_away_score?: number | null;
   result_provider?: string;
   settlement_stats?: SettlementStatRow[] | null;
+  settlement_event_summary?: unknown;
   settlement_stats_provider?: string;
   settlement_stats_updated_at?: string | null;
   settlement_stats_fetched_at?: string | null;
@@ -46,6 +47,7 @@ export interface MatchHistoryArchiveInput {
   regular_away_score?: number | null;
   result_provider?: string;
   settlement_stats?: SettlementStatRow[];
+  settlement_event_summary?: unknown;
   settlement_stats_provider?: string;
   /** Set to NOW() when stats were fetched (even if empty). Null = not attempted. */
   settlement_stats_fetched_at?: string | null;
@@ -64,27 +66,27 @@ export async function archiveFinishedMatches(
   if (finished.length === 0) return 0;
 
   // Single multi-row INSERT per chunk (max 500 rows to stay well within pg's 65535 param limit)
-  const COLS = 18;
+  const COLS = 19;
   const CHUNK = 500;
   let totalArchived = 0;
 
   for (let offset = 0; offset < finished.length; offset += CHUNK) {
     const chunk = finished.slice(offset, offset + CHUNK);
     const placeholders = chunk.map((_, i) =>
-      `($${i*COLS+1},$${i*COLS+2},$${i*COLS+3},$${i*COLS+4},$${i*COLS+5},$${i*COLS+6},$${i*COLS+7},$${i*COLS+8},$${i*COLS+9},$${i*COLS+10},$${i*COLS+11},$${i*COLS+12},$${i*COLS+13},$${i*COLS+14},$${i*COLS+15},$${i*COLS+16},$${i*COLS+17},$${i*COLS+18})`,
+      `($${i*COLS+1},$${i*COLS+2},$${i*COLS+3},$${i*COLS+4},$${i*COLS+5},$${i*COLS+6},$${i*COLS+7},$${i*COLS+8},$${i*COLS+9},$${i*COLS+10},$${i*COLS+11},$${i*COLS+12},$${i*COLS+13},$${i*COLS+14},$${i*COLS+15},$${i*COLS+16},$${i*COLS+17},$${i*COLS+18},$${i*COLS+19})`,
     ).join(',');
     const params = chunk.flatMap((m) => [
       m.match_id, m.date, m.kickoff, m.kickoff_at_utc ?? null, m.league_id, m.league_name ?? '',
       m.home_team ?? '', m.away_team ?? '', m.venue ?? 'TBD', m.final_status,
       m.home_score ?? 0, m.away_score ?? 0, m.regular_home_score ?? null,
-      m.regular_away_score ?? null, m.result_provider ?? '', JSON.stringify(m.settlement_stats ?? []),
+      m.regular_away_score ?? null, m.result_provider ?? '', JSON.stringify(m.settlement_stats ?? []), m.settlement_event_summary == null ? null : JSON.stringify(m.settlement_event_summary),
       m.settlement_stats_provider ?? '', m.settlement_stats_fetched_at ?? null,
     ]);
     const result = await query(
       `INSERT INTO matches_history (
          match_id, date, kickoff, kickoff_at_utc, league_id, league_name, home_team, away_team, venue,
          final_status, home_score, away_score, regular_home_score, regular_away_score,
-         result_provider, settlement_stats, settlement_stats_provider, settlement_stats_fetched_at
+         result_provider, settlement_stats, settlement_event_summary, settlement_stats_provider, settlement_stats_fetched_at
        )
        VALUES ${placeholders}
        ON CONFLICT (match_id) DO UPDATE SET
@@ -102,6 +104,7 @@ export async function archiveFinishedMatches(
            WHEN jsonb_array_length(EXCLUDED.settlement_stats) > 0 THEN EXCLUDED.settlement_stats
            ELSE matches_history.settlement_stats
          END,
+         settlement_event_summary = COALESCE(EXCLUDED.settlement_event_summary, matches_history.settlement_event_summary),
          settlement_stats_provider = CASE
            WHEN EXCLUDED.settlement_stats_provider <> '' THEN EXCLUDED.settlement_stats_provider
            ELSE matches_history.settlement_stats_provider
@@ -126,6 +129,7 @@ export async function updateHistoricalMatchSettlementData(
     regular_away_score?: number | null;
     result_provider?: string;
     settlement_stats?: SettlementStatRow[];
+    settlement_event_summary?: unknown;
     settlement_stats_provider?: string;
   },
 ): Promise<void> {
@@ -140,7 +144,8 @@ export async function updateHistoricalMatchSettlementData(
          WHEN $5::jsonb IS NOT NULL AND jsonb_array_length($5::jsonb) > 0 THEN $5::jsonb
          ELSE settlement_stats
        END,
-       settlement_stats_provider = CASE WHEN $6 <> '' THEN $6 ELSE settlement_stats_provider END,
+       settlement_event_summary = COALESCE($6::jsonb, settlement_event_summary),
+       settlement_stats_provider = CASE WHEN $7 <> '' THEN $7 ELSE settlement_stats_provider END,
        settlement_stats_updated_at = CASE
          WHEN $5::jsonb IS NOT NULL AND jsonb_array_length($5::jsonb) > 0 THEN NOW()
          ELSE settlement_stats_updated_at
@@ -153,6 +158,7 @@ export async function updateHistoricalMatchSettlementData(
       patch.regular_away_score ?? null,
       patch.result_provider ?? '',
       hasStats ? JSON.stringify(patch.settlement_stats) : null,
+      patch.settlement_event_summary != null ? JSON.stringify(patch.settlement_event_summary) : null,
       patch.settlement_stats_provider ?? '',
     ],
   );
@@ -234,6 +240,7 @@ function normalizeArchiveInput(
       ...match,
       result_provider: match.result_provider ?? '',
       settlement_stats: match.settlement_stats ?? [],
+      settlement_event_summary: match.settlement_event_summary ?? null,
       settlement_stats_provider: match.settlement_stats_provider ?? '',
     };
   }
@@ -254,6 +261,7 @@ function normalizeArchiveInput(
     away_score: match.away_score ?? 0,
     result_provider: '',
     settlement_stats: [],
+    settlement_event_summary: null,
     settlement_stats_provider: '',
   };
 }

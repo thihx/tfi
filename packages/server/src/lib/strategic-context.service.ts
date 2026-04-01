@@ -21,7 +21,7 @@ const REQUEST_TIMEOUT_MS = 90_000;
 const STRUCTURE_REQUEST_TIMEOUT_MS = 45_000;
 
 const NO_DATA = 'No data found';
-const NO_DATA_VI = 'Khong tim thay du lieu';
+const NO_DATA_VI = 'Không tìm thấy dữ liệu';
 
 export type StrategicCompetitionType =
   | 'domestic_league'
@@ -715,7 +715,7 @@ function hasTopLeagueCoverage(ctx: Partial<StrategicContext>): boolean {
   if (trustedSourceCount >= 1 && qualitativeCoverage >= 5) {
     return true;
   }
-  if (predictionFallbackUsed && qualitativeCoverage >= 5 && quantitativeCoverage >= 2) {
+  if (predictionFallbackUsed && qualitativeCoverage >= 4 && quantitativeCoverage >= 2) {
     return true;
   }
   if (searchQuality === 'high' || searchQuality === 'medium') {
@@ -765,6 +765,7 @@ export function hasUsableStrategicContext(
   const quantitativeCoverage = countStrategicQuantitativeCoverage(ctx.quantitative);
   const qualitativeCoverage = countStrategicNarrativeCoverage(ctx);
   const trustedSourceCount = Number(ctx.source_meta?.trusted_source_count ?? 0);
+  const predictionFallbackUsed = Boolean((ctx.source_meta as unknown as Record<string, unknown> | undefined)?.prediction_fallback_used);
 
   if (options.topLeague) {
     return hasTopLeagueCoverage(ctx);
@@ -772,7 +773,10 @@ export function hasUsableStrategicContext(
 
   if (quality === 'unknown') return false;
   if (quality === 'low') {
-    return trustedSourceCount >= 1 && qualitativeCoverage >= 5 && !!summary && !isNoDataText(summary);
+    if (predictionFallbackUsed && qualitativeCoverage >= 4 && quantitativeCoverage >= 2 && !!summary && !isNoDataText(summary)) {
+      return true;
+    }
+    return trustedSourceCount >= 1 && qualitativeCoverage >= 4 && !!summary && !isNoDataText(summary);
   }
   if (summary && !isNoDataText(summary)) return true;
   return quantitativeCoverage >= 4 && quality !== 'low';
@@ -850,7 +854,14 @@ function mergeStrategicContextWithDraftFallback(
   draftFallback: DraftFallbackPayload,
   sourceMeta: StrategicContextSourceMeta,
 ): StrategicContext {
-  if (sourceMeta.search_quality === 'low') {
+  if (
+    sourceMeta.search_quality === 'unknown'
+    || (
+      sourceMeta.search_quality === 'low'
+      && sourceMeta.trusted_source_count <= 0
+      && sourceMeta.sources.length === 0
+    )
+  ) {
     return context;
   }
 
@@ -1212,7 +1223,7 @@ RULES:
 - Keep each narrative field concise: usually <= 18 words. Keep summary <= 28 words.
 - Do NOT add commentary outside JSON.
 - Do NOT add extra keys.
-- If SOURCE_QUALITY is low or trusted source count is 0, prefer conservative no-data fields.
+- If SOURCE_QUALITY is low or trusted source count is 0, stay conservative about uncertain claims, but preserve any grounded facts that are explicitly present in the notes.
 - competition_type must be one of: "domestic_league", "domestic_cup", "european", "international", "friendly", or "".
 - condition_blueprint must use only allowed enums:
   - preferred_score_state: "any" | "draw" | "home_leading" | "away_leading" | "not_home_leading" | "not_away_leading"

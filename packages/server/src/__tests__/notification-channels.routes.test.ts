@@ -57,6 +57,22 @@ vi.mock('../repos/notification-channels.repo.js', () => ({
   }),
 }));
 
+vi.mock('../lib/subscription-access.js', () => ({
+  resolveSubscriptionAccess: vi.fn().mockResolvedValue({
+    plan: { plan_code: 'free' },
+    entitlements: {
+      'notifications.channels.allowed_types': ['web_push'],
+      'notifications.channels.max_active': 1,
+    },
+  }),
+  assertNotificationChannelAllowed: vi.fn().mockResolvedValue(undefined),
+  sendEntitlementError: vi.fn().mockImplementation((error: unknown) => (
+    error instanceof Error && error.message === 'channel-limit'
+      ? { statusCode: 403, payload: { error: 'Notification channel is not available on your current plan.' } }
+      : null
+  )),
+}));
+
 let app: FastifyInstance;
 
 beforeAll(async () => {
@@ -154,5 +170,19 @@ describe('PUT /api/notification-channels/:channelType', () => {
 
     expect(res.statusCode).toBe(400);
     expect(res.json()).toEqual({ error: 'No notification channel updates provided' });
+  });
+
+  test('returns an entitlement error when the channel is not allowed on the current plan', async () => {
+    const access = await import('../lib/subscription-access.js');
+    vi.mocked(access.assertNotificationChannelAllowed).mockRejectedValueOnce(new Error('channel-limit'));
+
+    const res = await app.inject({
+      method: 'PUT',
+      url: '/api/notification-channels/telegram',
+      payload: { enabled: true, address: '123456' },
+    });
+
+    expect(res.statusCode).toBe(403);
+    expect(res.json()).toEqual({ error: 'Notification channel is not available on your current plan.' });
   });
 });

@@ -4,7 +4,11 @@
 
 import { query } from '../db/pool.js';
 import {
+  DIRECTIONAL_LOSS_SETTLEMENT_RESULTS_SQL,
+  DIRECTIONAL_SETTLEMENT_RESULTS_SQL,
+  DIRECTIONAL_WIN_SETTLEMENT_RESULTS_SQL,
   FINAL_SETTLEMENT_RESULTS_SQL,
+  PUSH_VOID_SETTLEMENT_RESULTS_SQL,
 } from '../lib/settle-types.js';
 import {
   summarizeExposureClusters,
@@ -19,6 +23,15 @@ import {
 const NOT_DUP = `result IS DISTINCT FROM 'duplicate' AND bet_type IS DISTINCT FROM 'NO_BET'`;
 const FINAL_RESULT_SQL = `result IN (${FINAL_SETTLEMENT_RESULTS_SQL})`;
 const PENDING_RESULT_SQL = `(result IS NULL OR result = '' OR result NOT IN (${FINAL_SETTLEMENT_RESULTS_SQL}))`;
+const DIRECTIONAL_WIN_RESULT_SQL = `result IN (${DIRECTIONAL_WIN_SETTLEMENT_RESULTS_SQL})`;
+const DIRECTIONAL_LOSS_RESULT_SQL = `result IN (${DIRECTIONAL_LOSS_SETTLEMENT_RESULTS_SQL})`;
+const DIRECTIONAL_RESULT_SQL = `result IN (${DIRECTIONAL_SETTLEMENT_RESULTS_SQL})`;
+const PUSH_VOID_RESULT_SQL = `result IN (${PUSH_VOID_SETTLEMENT_RESULTS_SQL})`;
+
+function directionalRate(wins: number, losses: number): number {
+  const total = wins + losses;
+  return total > 0 ? Math.round((wins / total) * 10000) / 100 : 0;
+}
 
 // ── Shared types ──────────────────────────────────────────
 
@@ -80,8 +93,8 @@ function buildDateCondition(col: string, filter: PeriodFilter): { clause: string
 export interface OverviewReport {
   total: number;
   settled: number;
-  decisiveSettled: number;
-  neutralSettled: number;
+  directionalSettled: number;
+  pushVoidSettled: number;
   wins: number;
   losses: number;
   pushes: number;
@@ -133,8 +146,8 @@ export async function getOverviewReport(filter: PeriodFilter): Promise<OverviewR
       SELECT
         COUNT(*)::text AS total,
         COUNT(*) FILTER (WHERE ${FINAL_RESULT_SQL})::text AS settled,
-        COUNT(*) FILTER (WHERE result = 'win')::text AS wins,
-        COUNT(*) FILTER (WHERE result = 'loss')::text AS losses,
+        COUNT(*) FILTER (WHERE ${DIRECTIONAL_WIN_RESULT_SQL})::text AS wins,
+        COUNT(*) FILTER (WHERE ${DIRECTIONAL_LOSS_RESULT_SQL})::text AS losses,
         COUNT(*) FILTER (WHERE result = 'push')::text AS pushes,
         COUNT(*) FILTER (WHERE result = 'half_win')::text AS half_wins,
         COUNT(*) FILTER (WHERE result = 'half_loss')::text AS half_losses,
@@ -167,8 +180,8 @@ export async function getOverviewReport(filter: PeriodFilter): Promise<OverviewR
   const halfWins = Number(s.half_wins);
   const halfLosses = Number(s.half_losses);
   const voids = Number(s.voids);
-  const decisive = wins + losses;
-  const neutralSettled = pushes + halfWins + halfLosses + voids;
+  const directionalSettled = wins + losses;
+  const pushVoidSettled = pushes + voids;
   const totalStaked = Number(s.total_staked);
   const totalPnl = Number(s.total_pnl);
 
@@ -177,8 +190,8 @@ export async function getOverviewReport(filter: PeriodFilter): Promise<OverviewR
   return {
     total: Number(s.total),
     settled: Number(s.settled),
-    decisiveSettled: decisive,
-    neutralSettled,
+    directionalSettled,
+    pushVoidSettled,
     wins,
     losses,
     pushes,
@@ -186,7 +199,7 @@ export async function getOverviewReport(filter: PeriodFilter): Promise<OverviewR
     halfLosses,
     voids,
     pending: Number(s.pending),
-    winRate: decisive > 0 ? Math.round((wins / decisive) * 10000) / 100 : 0,
+    winRate: directionalRate(wins, losses),
     totalPnl: Math.round(totalPnl * 100) / 100,
     avgOdds: Math.round(Number(s.avg_odds) * 100) / 100,
     avgConfidence: Math.round(Number(s.avg_confidence) * 10) / 10,
@@ -204,7 +217,7 @@ export interface LeagueRow {
   total: number;
   wins: number;
   losses: number;
-  pushes: number;
+  pushVoid: number;
   winRate: number;
   pnl: number;
   avgOdds: number;
@@ -217,15 +230,15 @@ export async function getLeagueReport(filter: PeriodFilter): Promise<LeagueRow[]
 
   const r = await query<{
     league: string; total: string; wins: string; losses: string;
-    pushes: string; pnl: string; avg_odds: string; avg_confidence: string;
+    push_void: string; pnl: string; avg_odds: string; avg_confidence: string;
     total_staked: string;
   }>(`
     SELECT
       COALESCE(NULLIF(league, ''), 'Unknown') AS league,
       COUNT(*)::text AS total,
-      COUNT(*) FILTER (WHERE result = 'win')::text AS wins,
-      COUNT(*) FILTER (WHERE result = 'loss')::text AS losses,
-      COUNT(*) FILTER (WHERE result = 'push')::text AS pushes,
+      COUNT(*) FILTER (WHERE ${DIRECTIONAL_WIN_RESULT_SQL})::text AS wins,
+      COUNT(*) FILTER (WHERE ${DIRECTIONAL_LOSS_RESULT_SQL})::text AS losses,
+      COUNT(*) FILTER (WHERE ${PUSH_VOID_RESULT_SQL})::text AS push_void,
       COALESCE(SUM(pnl) FILTER (WHERE ${FINAL_RESULT_SQL}), 0)::text AS pnl,
       COALESCE(AVG(odds) FILTER (WHERE odds > 0), 0)::text AS avg_odds,
       COALESCE(AVG(confidence) FILTER (WHERE confidence IS NOT NULL), 0)::text AS avg_confidence,
@@ -240,7 +253,6 @@ export async function getLeagueReport(filter: PeriodFilter): Promise<LeagueRow[]
   return r.rows.map((row) => {
     const wins = Number(row.wins);
     const losses = Number(row.losses);
-    const decisive = wins + losses;
     const totalStaked = Number(row.total_staked);
     const pnl = Number(row.pnl);
     return {
@@ -248,8 +260,8 @@ export async function getLeagueReport(filter: PeriodFilter): Promise<LeagueRow[]
       total: Number(row.total),
       wins,
       losses,
-      pushes: Number(row.pushes),
-      winRate: decisive > 0 ? Math.round((wins / decisive) * 10000) / 100 : 0,
+      pushVoid: Number(row.push_void),
+      winRate: directionalRate(wins, losses),
       pnl: Math.round(pnl * 100) / 100,
       avgOdds: Math.round(Number(row.avg_odds) * 100) / 100,
       avgConfidence: Math.round(Number(row.avg_confidence) * 10) / 10,
@@ -265,6 +277,7 @@ export interface MarketRow {
   total: number;
   wins: number;
   losses: number;
+  pushVoid: number;
   winRate: number;
   pnl: number;
   avgOdds: number;
@@ -275,14 +288,15 @@ export async function getMarketReport(filter: PeriodFilter): Promise<MarketRow[]
   const dc = buildDateCondition('r.timestamp', filter);
 
   const r = await query<{
-    market: string; total: string; wins: string; losses: string;
+    market: string; total: string; wins: string; losses: string; push_void: string;
     pnl: string; avg_odds: string; total_staked: string;
   }>(`
     SELECT
       COALESCE(NULLIF(bet_market, ''), bet_type) AS market,
       COUNT(*)::text AS total,
-      COUNT(*) FILTER (WHERE result = 'win')::text AS wins,
-      COUNT(*) FILTER (WHERE result = 'loss')::text AS losses,
+      COUNT(*) FILTER (WHERE ${DIRECTIONAL_WIN_RESULT_SQL})::text AS wins,
+      COUNT(*) FILTER (WHERE ${DIRECTIONAL_LOSS_RESULT_SQL})::text AS losses,
+      COUNT(*) FILTER (WHERE ${PUSH_VOID_RESULT_SQL})::text AS push_void,
       COALESCE(SUM(pnl) FILTER (WHERE ${FINAL_RESULT_SQL}), 0)::text AS pnl,
       COALESCE(AVG(odds) FILTER (WHERE odds > 0), 0)::text AS avg_odds,
       COALESCE(SUM(COALESCE(stake_percent, 1)) FILTER (WHERE ${FINAL_RESULT_SQL}), 0)::text AS total_staked
@@ -296,7 +310,6 @@ export async function getMarketReport(filter: PeriodFilter): Promise<MarketRow[]
   return r.rows.map((row) => {
     const wins = Number(row.wins);
     const losses = Number(row.losses);
-    const decisive = wins + losses;
     const totalStaked = Number(row.total_staked);
     const pnl = Number(row.pnl);
     return {
@@ -304,7 +317,8 @@ export async function getMarketReport(filter: PeriodFilter): Promise<MarketRow[]
       total: Number(row.total),
       wins,
       losses,
-      winRate: decisive > 0 ? Math.round((wins / decisive) * 10000) / 100 : 0,
+      pushVoid: Number(row.push_void),
+      winRate: directionalRate(wins, losses),
       pnl: Math.round(pnl * 100) / 100,
       avgOdds: Math.round(Number(row.avg_odds) * 100) / 100,
       roi: totalStaked > 0 ? Math.round((pnl / totalStaked) * 10000) / 100 : 0,
@@ -320,6 +334,7 @@ export interface TimeRow {
   total: number;
   wins: number;
   losses: number;
+  pushVoid: number;
   winRate: number;
   pnl: number;
   cumPnl: number;        // computed after query
@@ -332,15 +347,16 @@ export async function getWeeklyReport(filter: PeriodFilter): Promise<TimeRow[]> 
 
   const r = await query<{
     period: string; period_start: string;
-    total: string; wins: string; losses: string;
+    total: string; wins: string; losses: string; push_void: string;
     pnl: string; avg_odds: string; total_staked: string;
   }>(`
     SELECT
       'W' || EXTRACT(WEEK FROM timestamp::date)::int || '-' || EXTRACT(YEAR FROM timestamp::date)::int AS period,
       MIN(timestamp::date)::text AS period_start,
       COUNT(*)::text AS total,
-      COUNT(*) FILTER (WHERE result = 'win')::text AS wins,
-      COUNT(*) FILTER (WHERE result = 'loss')::text AS losses,
+      COUNT(*) FILTER (WHERE ${DIRECTIONAL_WIN_RESULT_SQL})::text AS wins,
+      COUNT(*) FILTER (WHERE ${DIRECTIONAL_LOSS_RESULT_SQL})::text AS losses,
+      COUNT(*) FILTER (WHERE ${PUSH_VOID_RESULT_SQL})::text AS push_void,
       COALESCE(SUM(pnl) FILTER (WHERE ${FINAL_RESULT_SQL}), 0)::text AS pnl,
       COALESCE(AVG(odds) FILTER (WHERE odds > 0), 0)::text AS avg_odds,
       COALESCE(SUM(COALESCE(stake_percent, 1)) FILTER (WHERE ${FINAL_RESULT_SQL}), 0)::text AS total_staked
@@ -354,7 +370,6 @@ export async function getWeeklyReport(filter: PeriodFilter): Promise<TimeRow[]> 
   return r.rows.map((row) => {
     const wins = Number(row.wins);
     const losses = Number(row.losses);
-    const decisive = wins + losses;
     const pnl = Number(row.pnl);
     const totalStaked = Number(row.total_staked);
     cumPnl += pnl;
@@ -364,7 +379,8 @@ export async function getWeeklyReport(filter: PeriodFilter): Promise<TimeRow[]> 
       total: Number(row.total),
       wins,
       losses,
-      winRate: decisive > 0 ? Math.round((wins / decisive) * 10000) / 100 : 0,
+      pushVoid: Number(row.push_void),
+      winRate: directionalRate(wins, losses),
       pnl: Math.round(pnl * 100) / 100,
       cumPnl: Math.round(cumPnl * 100) / 100,
       avgOdds: Math.round(Number(row.avg_odds) * 100) / 100,
@@ -378,15 +394,16 @@ export async function getMonthlyReport(filter: PeriodFilter): Promise<TimeRow[]>
 
   const r = await query<{
     period: string; period_start: string;
-    total: string; wins: string; losses: string;
+    total: string; wins: string; losses: string; push_void: string;
     pnl: string; avg_odds: string; total_staked: string;
   }>(`
     SELECT
       TO_CHAR(timestamp::date, 'Mon YYYY') AS period,
       MIN(timestamp::date)::text AS period_start,
       COUNT(*)::text AS total,
-      COUNT(*) FILTER (WHERE result = 'win')::text AS wins,
-      COUNT(*) FILTER (WHERE result = 'loss')::text AS losses,
+      COUNT(*) FILTER (WHERE ${DIRECTIONAL_WIN_RESULT_SQL})::text AS wins,
+      COUNT(*) FILTER (WHERE ${DIRECTIONAL_LOSS_RESULT_SQL})::text AS losses,
+      COUNT(*) FILTER (WHERE ${PUSH_VOID_RESULT_SQL})::text AS push_void,
       COALESCE(SUM(pnl) FILTER (WHERE ${FINAL_RESULT_SQL}), 0)::text AS pnl,
       COALESCE(AVG(odds) FILTER (WHERE odds > 0), 0)::text AS avg_odds,
       COALESCE(SUM(COALESCE(stake_percent, 1)) FILTER (WHERE ${FINAL_RESULT_SQL}), 0)::text AS total_staked
@@ -400,7 +417,6 @@ export async function getMonthlyReport(filter: PeriodFilter): Promise<TimeRow[]>
   return r.rows.map((row) => {
     const wins = Number(row.wins);
     const losses = Number(row.losses);
-    const decisive = wins + losses;
     const pnl = Number(row.pnl);
     const totalStaked = Number(row.total_staked);
     cumPnl += pnl;
@@ -410,7 +426,8 @@ export async function getMonthlyReport(filter: PeriodFilter): Promise<TimeRow[]>
       total: Number(row.total),
       wins,
       losses,
-      winRate: decisive > 0 ? Math.round((wins / decisive) * 10000) / 100 : 0,
+      pushVoid: Number(row.push_void),
+      winRate: directionalRate(wins, losses),
       pnl: Math.round(pnl * 100) / 100,
       cumPnl: Math.round(cumPnl * 100) / 100,
       avgOdds: Math.round(Number(row.avg_odds) * 100) / 100,
@@ -455,13 +472,13 @@ export async function getConfidenceReport(filter: PeriodFilter): Promise<Confide
         ELSE '1-3'
       END AS range,
       COUNT(*)::text AS total,
-      COUNT(*) FILTER (WHERE result = 'win')::text AS wins,
-      COUNT(*) FILTER (WHERE result = 'loss')::text AS losses,
+      COUNT(*) FILTER (WHERE ${DIRECTIONAL_WIN_RESULT_SQL})::text AS wins,
+      COUNT(*) FILTER (WHERE ${DIRECTIONAL_LOSS_RESULT_SQL})::text AS losses,
       COALESCE(SUM(pnl), 0)::text AS pnl,
       COALESCE(AVG(odds) FILTER (WHERE odds > 0), 0)::text AS avg_odds,
       COALESCE(AVG(confidence), 0)::text AS avg_conf
     FROM recommendations r
-    WHERE ${NOT_DUP} AND result IN ('win','loss') AND confidence IS NOT NULL AND ${dc.clause}
+    WHERE ${NOT_DUP} AND ${DIRECTIONAL_RESULT_SQL} AND confidence IS NOT NULL AND ${dc.clause}
     GROUP BY
       CASE WHEN confidence >= 8 THEN 'High (8-10)' WHEN confidence >= 6 THEN 'Medium (6-7)' WHEN confidence >= 4 THEN 'Low-Med (4-5)' ELSE 'Low (1-3)' END,
       CASE WHEN confidence >= 8 THEN '8-10' WHEN confidence >= 6 THEN '6-7' WHEN confidence >= 4 THEN '4-5' ELSE '1-3' END
@@ -472,14 +489,14 @@ export async function getConfidenceReport(filter: PeriodFilter): Promise<Confide
 
   return r.rows.map((row) => {
     const wins = Number(row.wins);
-    const decisive = wins + Number(row.losses);
+    const losses = Number(row.losses);
     return {
       band: row.band,
       range: row.range,
       total: Number(row.total),
       wins,
-      losses: Number(row.losses),
-      winRate: decisive > 0 ? Math.round((wins / decisive) * 10000) / 100 : 0,
+      losses,
+      winRate: directionalRate(wins, losses),
       expectedWinRate: expectedMap[row.range] ?? 50,
       pnl: Math.round(Number(row.pnl) * 100) / 100,
       avgOdds: Math.round(Number(row.avg_odds) * 100) / 100,
@@ -516,12 +533,12 @@ export async function getOddsRangeReport(filter: PeriodFilter): Promise<OddsRang
         ELSE '3.00+ (Longshot)'
       END AS range,
       COUNT(*)::text AS total,
-      COUNT(*) FILTER (WHERE result = 'win')::text AS wins,
-      COUNT(*) FILTER (WHERE result = 'loss')::text AS losses,
+      COUNT(*) FILTER (WHERE ${DIRECTIONAL_WIN_RESULT_SQL})::text AS wins,
+      COUNT(*) FILTER (WHERE ${DIRECTIONAL_LOSS_RESULT_SQL})::text AS losses,
       COALESCE(SUM(pnl), 0)::text AS pnl,
       COALESCE(AVG(confidence), 0)::text AS avg_conf
     FROM recommendations r
-    WHERE ${NOT_DUP} AND result IN ('win','loss') AND odds IS NOT NULL AND odds > 0 AND ${dc.clause}
+    WHERE ${NOT_DUP} AND ${DIRECTIONAL_RESULT_SQL} AND odds IS NOT NULL AND odds > 0 AND ${dc.clause}
     GROUP BY
       CASE WHEN odds < 1.50 THEN '< 1.50 (Heavy Fav)' WHEN odds < 1.70 THEN '1.50 - 1.69' WHEN odds < 2.00 THEN '1.70 - 1.99' WHEN odds < 2.50 THEN '2.00 - 2.49' WHEN odds < 3.00 THEN '2.50 - 2.99' ELSE '3.00+ (Longshot)' END
     ORDER BY MIN(odds)
@@ -529,13 +546,13 @@ export async function getOddsRangeReport(filter: PeriodFilter): Promise<OddsRang
 
   return r.rows.map((row) => {
     const wins = Number(row.wins);
-    const decisive = wins + Number(row.losses);
+    const losses = Number(row.losses);
     return {
       range: row.range,
       total: Number(row.total),
       wins,
-      losses: Number(row.losses),
-      winRate: decisive > 0 ? Math.round((wins / decisive) * 10000) / 100 : 0,
+      losses,
+      winRate: directionalRate(wins, losses),
       pnl: Math.round(Number(row.pnl) * 100) / 100,
       avgConfidence: Math.round(Number(row.avg_conf) * 10) / 10,
     };
@@ -572,12 +589,12 @@ export async function getMinuteReport(filter: PeriodFilter): Promise<MinuteBandR
         ELSE '80+ (Endgame)'
       END AS band,
       COUNT(*)::text AS total,
-      COUNT(*) FILTER (WHERE result = 'win')::text AS wins,
-      COUNT(*) FILTER (WHERE result = 'loss')::text AS losses,
+      COUNT(*) FILTER (WHERE ${DIRECTIONAL_WIN_RESULT_SQL})::text AS wins,
+      COUNT(*) FILTER (WHERE ${DIRECTIONAL_LOSS_RESULT_SQL})::text AS losses,
       COALESCE(SUM(pnl), 0)::text AS pnl,
       COALESCE(AVG(odds) FILTER (WHERE odds > 0), 0)::text AS avg_odds
     FROM recommendations r
-    WHERE ${NOT_DUP} AND result IN ('win','loss') AND minute IS NOT NULL AND ${dc.clause}
+    WHERE ${NOT_DUP} AND ${DIRECTIONAL_RESULT_SQL} AND minute IS NOT NULL AND ${dc.clause}
     GROUP BY
       CASE WHEN minute < 15 THEN '0-14 (Very Early)' WHEN minute < 30 THEN '15-29 (Early)' WHEN minute < 45 THEN '30-44 (Pre-HT)' WHEN minute < 55 THEN '45-54 (Start 2H)' WHEN minute < 70 THEN '55-69 (Mid 2H)' WHEN minute < 80 THEN '70-79 (Late)' ELSE '80+ (Endgame)' END
     ORDER BY MIN(minute)
@@ -585,13 +602,13 @@ export async function getMinuteReport(filter: PeriodFilter): Promise<MinuteBandR
 
   return r.rows.map((row) => {
     const wins = Number(row.wins);
-    const decisive = wins + Number(row.losses);
+    const losses = Number(row.losses);
     return {
       band: row.band,
       total: Number(row.total),
       wins,
-      losses: Number(row.losses),
-      winRate: decisive > 0 ? Math.round((wins / decisive) * 10000) / 100 : 0,
+      losses,
+      winRate: directionalRate(wins, losses),
       pnl: Math.round(Number(row.pnl) * 100) / 100,
       avgOdds: Math.round(Number(row.avg_odds) * 100) / 100,
     };
@@ -607,6 +624,7 @@ export interface DailyPnlRow {
   total: number;
   wins: number;
   losses: number;
+  pushVoid: number;
   pnl: number;
 }
 
@@ -615,15 +633,16 @@ export async function getDailyPnlReport(filter: PeriodFilter): Promise<DailyPnlR
 
   const r = await query<{
     date: string; dow: string; day_name: string;
-    total: string; wins: string; losses: string; pnl: string;
+    total: string; wins: string; losses: string; push_void: string; pnl: string;
   }>(`
     SELECT
       TO_CHAR(timestamp::date, 'YYYY-MM-DD') AS date,
       EXTRACT(DOW FROM timestamp::date)::text AS dow,
       TO_CHAR(timestamp::date, 'Dy') AS day_name,
       COUNT(*)::text AS total,
-      COUNT(*) FILTER (WHERE result = 'win')::text AS wins,
-      COUNT(*) FILTER (WHERE result = 'loss')::text AS losses,
+      COUNT(*) FILTER (WHERE ${DIRECTIONAL_WIN_RESULT_SQL})::text AS wins,
+      COUNT(*) FILTER (WHERE ${DIRECTIONAL_LOSS_RESULT_SQL})::text AS losses,
+      COUNT(*) FILTER (WHERE ${PUSH_VOID_RESULT_SQL})::text AS push_void,
       COALESCE(SUM(pnl), 0)::text AS pnl
     FROM recommendations r
     WHERE ${NOT_DUP} AND ${FINAL_RESULT_SQL} AND ${dc.clause}
@@ -638,6 +657,7 @@ export async function getDailyPnlReport(filter: PeriodFilter): Promise<DailyPnlR
     total: Number(row.total),
     wins: Number(row.wins),
     losses: Number(row.losses),
+    pushVoid: Number(row.push_void),
     pnl: Math.round(Number(row.pnl) * 100) / 100,
   }));
 }
@@ -650,6 +670,7 @@ export interface DayOfWeekRow {
   total: number;
   wins: number;
   losses: number;
+  pushVoid: number;
   winRate: number;
   pnl: number;
 }
@@ -659,31 +680,33 @@ export async function getDayOfWeekReport(filter: PeriodFilter): Promise<DayOfWee
 
   const r = await query<{
     dow: string; day_name: string;
-    total: string; wins: string; losses: string; pnl: string;
+    total: string; wins: string; losses: string; push_void: string; pnl: string;
   }>(`
     SELECT
       EXTRACT(DOW FROM timestamp::date)::text AS dow,
       TO_CHAR(timestamp::date, 'Dy') AS day_name,
       COUNT(*)::text AS total,
-      COUNT(*) FILTER (WHERE result = 'win')::text AS wins,
-      COUNT(*) FILTER (WHERE result = 'loss')::text AS losses,
+      COUNT(*) FILTER (WHERE ${DIRECTIONAL_WIN_RESULT_SQL})::text AS wins,
+      COUNT(*) FILTER (WHERE ${DIRECTIONAL_LOSS_RESULT_SQL})::text AS losses,
+      COUNT(*) FILTER (WHERE ${PUSH_VOID_RESULT_SQL})::text AS push_void,
       COALESCE(SUM(pnl), 0)::text AS pnl
     FROM recommendations r
-    WHERE ${NOT_DUP} AND result IN ('win','loss') AND ${dc.clause}
+    WHERE ${NOT_DUP} AND ${FINAL_RESULT_SQL} AND ${dc.clause}
     GROUP BY EXTRACT(DOW FROM timestamp::date), TO_CHAR(timestamp::date, 'Dy')
     ORDER BY EXTRACT(DOW FROM timestamp::date)
   `, dc.params);
 
   return r.rows.map((row) => {
     const wins = Number(row.wins);
-    const decisive = wins + Number(row.losses);
+    const losses = Number(row.losses);
     return {
       dayOfWeek: Number(row.dow),
       dayName: row.day_name,
       total: Number(row.total),
       wins,
-      losses: Number(row.losses),
-      winRate: decisive > 0 ? Math.round((wins / decisive) * 10000) / 100 : 0,
+      losses,
+      pushVoid: Number(row.push_void),
+      winRate: directionalRate(wins, losses),
       pnl: Math.round(Number(row.pnl) * 100) / 100,
     };
   });
@@ -697,6 +720,7 @@ export interface LeagueMarketRow {
   total: number;
   wins: number;
   losses: number;
+  pushVoid: number;
   winRate: number;
   pnl: number;
 }
@@ -706,17 +730,18 @@ export async function getLeagueMarketReport(filter: PeriodFilter): Promise<Leagu
 
   const r = await query<{
     league: string; market: string;
-    total: string; wins: string; losses: string; pnl: string;
+    total: string; wins: string; losses: string; push_void: string; pnl: string;
   }>(`
     SELECT
       COALESCE(NULLIF(league, ''), 'Unknown') AS league,
       COALESCE(NULLIF(bet_market, ''), bet_type) AS market,
       COUNT(*)::text AS total,
-      COUNT(*) FILTER (WHERE result = 'win')::text AS wins,
-      COUNT(*) FILTER (WHERE result = 'loss')::text AS losses,
+      COUNT(*) FILTER (WHERE ${DIRECTIONAL_WIN_RESULT_SQL})::text AS wins,
+      COUNT(*) FILTER (WHERE ${DIRECTIONAL_LOSS_RESULT_SQL})::text AS losses,
+      COUNT(*) FILTER (WHERE ${PUSH_VOID_RESULT_SQL})::text AS push_void,
       COALESCE(SUM(pnl), 0)::text AS pnl
     FROM recommendations r
-    WHERE ${NOT_DUP} AND result IN ('win','loss') AND ${dc.clause}
+    WHERE ${NOT_DUP} AND ${FINAL_RESULT_SQL} AND ${dc.clause}
     GROUP BY COALESCE(NULLIF(league, ''), 'Unknown'), COALESCE(NULLIF(bet_market, ''), bet_type)
     HAVING COUNT(*) >= 3
     ORDER BY COALESCE(NULLIF(league, ''), 'Unknown'), SUM(pnl) DESC
@@ -724,14 +749,15 @@ export async function getLeagueMarketReport(filter: PeriodFilter): Promise<Leagu
 
   return r.rows.map((row) => {
     const wins = Number(row.wins);
-    const decisive = wins + Number(row.losses);
+    const losses = Number(row.losses);
     return {
       league: row.league,
       market: row.market,
       total: Number(row.total),
       wins,
-      losses: Number(row.losses),
-      winRate: decisive > 0 ? Math.round((wins / decisive) * 10000) / 100 : 0,
+      losses,
+      pushVoid: Number(row.push_void),
+      winRate: directionalRate(wins, losses),
       pnl: Math.round(Number(row.pnl) * 100) / 100,
     };
   });
@@ -766,11 +792,11 @@ export async function getAiInsights(filter: PeriodFilter): Promise<AiInsightsDat
     // League performance
     query<{ league: string; wins: string; total: string; pnl: string }>(`
       SELECT COALESCE(NULLIF(league,''),'Unknown') AS league,
-             COUNT(*) FILTER (WHERE result='win')::text AS wins,
+             COUNT(*) FILTER (WHERE ${DIRECTIONAL_WIN_RESULT_SQL})::text AS wins,
              COUNT(*)::text AS total,
              COALESCE(SUM(pnl),0)::text AS pnl
       FROM recommendations r
-      WHERE ${NOT_DUP} AND result IN ('win','loss') AND ${dc.clause}
+      WHERE ${NOT_DUP} AND ${DIRECTIONAL_RESULT_SQL} AND ${dc.clause}
       GROUP BY COALESCE(NULLIF(league,''),'Unknown') HAVING COUNT(*) >= ${aiInsightSampleFloor}
       ORDER BY SUM(pnl) DESC
     `, dc.params),
@@ -778,11 +804,11 @@ export async function getAiInsights(filter: PeriodFilter): Promise<AiInsightsDat
     // Market performance
     query<{ market: string; wins: string; total: string; pnl: string }>(`
       SELECT COALESCE(NULLIF(bet_market,''),bet_type) AS market,
-             COUNT(*) FILTER (WHERE result='win')::text AS wins,
+             COUNT(*) FILTER (WHERE ${DIRECTIONAL_WIN_RESULT_SQL})::text AS wins,
              COUNT(*)::text AS total,
              COALESCE(SUM(pnl),0)::text AS pnl
       FROM recommendations r
-      WHERE ${NOT_DUP} AND result IN ('win','loss') AND ${dc.clause}
+      WHERE ${NOT_DUP} AND ${DIRECTIONAL_RESULT_SQL} AND ${dc.clause}
       GROUP BY COALESCE(NULLIF(bet_market,''),bet_type) HAVING COUNT(*) >= ${aiInsightSampleFloor}
       ORDER BY SUM(pnl) DESC
     `, dc.params),
@@ -790,11 +816,11 @@ export async function getAiInsights(filter: PeriodFilter): Promise<AiInsightsDat
     // Minute bands
     query<{ band: string; wins: string; total: string; pnl: string }>(`
       SELECT CASE WHEN minute<30 THEN '0-29 (1H early)' WHEN minute<45 THEN '30-44 (Pre-HT)' WHEN minute<60 THEN '45-59 (Start 2H)' WHEN minute<75 THEN '60-74 (Mid 2H)' ELSE '75+ (Late)' END AS band,
-             COUNT(*) FILTER (WHERE result='win')::text AS wins,
+             COUNT(*) FILTER (WHERE ${DIRECTIONAL_WIN_RESULT_SQL})::text AS wins,
              COUNT(*)::text AS total,
              COALESCE(SUM(pnl),0)::text AS pnl
       FROM recommendations r
-      WHERE ${NOT_DUP} AND result IN ('win','loss') AND minute IS NOT NULL AND ${dc.clause}
+      WHERE ${NOT_DUP} AND ${DIRECTIONAL_RESULT_SQL} AND minute IS NOT NULL AND ${dc.clause}
       GROUP BY CASE WHEN minute<30 THEN '0-29 (1H early)' WHEN minute<45 THEN '30-44 (Pre-HT)' WHEN minute<60 THEN '45-59 (Start 2H)' WHEN minute<75 THEN '60-74 (Mid 2H)' ELSE '75+ (Late)' END
       HAVING COUNT(*) >= ${aiInsightSampleFloor}
       ORDER BY MIN(minute)
@@ -804,54 +830,62 @@ export async function getAiInsights(filter: PeriodFilter): Promise<AiInsightsDat
     query<{ band: string; avg_conf: string; wins: string; total: string }>(`
       SELECT CASE WHEN confidence>=8 THEN 'High (8-10)' WHEN confidence>=6 THEN 'Medium (6-7)' ELSE 'Low (1-5)' END AS band,
              AVG(confidence)::text AS avg_conf,
-             COUNT(*) FILTER (WHERE result='win')::text AS wins,
+             COUNT(*) FILTER (WHERE ${DIRECTIONAL_WIN_RESULT_SQL})::text AS wins,
              COUNT(*)::text AS total
       FROM recommendations r
-      WHERE ${NOT_DUP} AND result IN ('win','loss') AND confidence IS NOT NULL AND ${dc.clause}
+      WHERE ${NOT_DUP} AND ${DIRECTIONAL_RESULT_SQL} AND confidence IS NOT NULL AND ${dc.clause}
       GROUP BY CASE WHEN confidence>=8 THEN 'High (8-10)' WHEN confidence>=6 THEN 'Medium (6-7)' ELSE 'Low (1-5)' END
       HAVING COUNT(*) >= ${aiInsightSampleFloor}
     `, dc.params),
 
-    // Recent trend: last 20 decisive outcomes inside the selected period
+    // Recent trend: last 20 directional outcomes inside the selected period
     query<{ recent_wr: string }>(`
       WITH recent AS (
-        SELECT result FROM recommendations r
-        WHERE ${NOT_DUP} AND result IN ('win','loss') AND ${dc.clause}
+        SELECT CASE
+                 WHEN ${DIRECTIONAL_WIN_RESULT_SQL} THEN 'win'
+                 WHEN ${DIRECTIONAL_LOSS_RESULT_SQL} THEN 'loss'
+               END AS direction
+        FROM recommendations r
+        WHERE ${NOT_DUP} AND ${DIRECTIONAL_RESULT_SQL} AND ${dc.clause}
         ORDER BY timestamp DESC LIMIT 20
       )
       SELECT
-        ROUND(COUNT(*) FILTER (WHERE result='win')::numeric / GREATEST(COUNT(*),1) * 100, 1)::text AS recent_wr
+        ROUND(COUNT(*) FILTER (WHERE direction='win')::numeric / GREATEST(COUNT(*),1) * 100, 1)::text AS recent_wr
       FROM recent
     `, dc.params),
 
     query<{ overall_wr: string }>(`
       SELECT
-        ROUND(COUNT(*) FILTER (WHERE result='win')::numeric / GREATEST(COUNT(*),1) * 100, 1)::text AS overall_wr
+        ROUND(COUNT(*) FILTER (WHERE ${DIRECTIONAL_WIN_RESULT_SQL})::numeric / GREATEST(COUNT(*),1) * 100, 1)::text AS overall_wr
       FROM recommendations r
-      WHERE ${NOT_DUP} AND result IN ('win','loss') AND ${dc.clause}
+      WHERE ${NOT_DUP} AND ${DIRECTIONAL_RESULT_SQL} AND ${dc.clause}
     `, dc.params),
 
     // Streak
     query<{ result: string }>(`
-      SELECT result FROM recommendations
-      WHERE ${NOT_DUP} AND result IN ('win','loss') AND ${dc.clause}
+      SELECT CASE
+               WHEN ${DIRECTIONAL_WIN_RESULT_SQL} THEN 'win'
+               WHEN ${DIRECTIONAL_LOSS_RESULT_SQL} THEN 'loss'
+             END AS result
+      FROM recommendations
+      WHERE ${NOT_DUP} AND ${DIRECTIONAL_RESULT_SQL} AND ${dc.clause}
       ORDER BY timestamp DESC LIMIT 30
     `, dc.params),
 
     // Value finds (odds >= 2.0)
     query<{ wins: string; total: string }>(`
-      SELECT COUNT(*) FILTER (WHERE result='win')::text AS wins,
+      SELECT COUNT(*) FILTER (WHERE ${DIRECTIONAL_WIN_RESULT_SQL})::text AS wins,
              COUNT(*)::text AS total
       FROM recommendations r
-      WHERE ${NOT_DUP} AND result IN ('win','loss') AND odds >= 2.0 AND ${dc.clause}
+      WHERE ${NOT_DUP} AND ${DIRECTIONAL_RESULT_SQL} AND odds >= 2.0 AND ${dc.clause}
     `, dc.params),
 
     // Safe bet accuracy (odds < 1.70)
     query<{ wins: string; total: string }>(`
-      SELECT COUNT(*) FILTER (WHERE result='win')::text AS wins,
+      SELECT COUNT(*) FILTER (WHERE ${DIRECTIONAL_WIN_RESULT_SQL})::text AS wins,
              COUNT(*)::text AS total
       FROM recommendations r
-      WHERE ${NOT_DUP} AND result IN ('win','loss') AND odds < 1.70 AND odds > 0 AND ${dc.clause}
+      WHERE ${NOT_DUP} AND ${DIRECTIONAL_RESULT_SQL} AND odds < 1.70 AND odds > 0 AND ${dc.clause}
     `, dc.params),
 
     getAnalyticsRows(filter),
@@ -860,7 +894,7 @@ export async function getAiInsights(filter: PeriodFilter): Promise<AiInsightsDat
   // Process leagues
   const leagues = leagueRows.rows.map((r) => ({
     league: r.league,
-    winRate: Math.round((Number(r.wins) / Number(r.total)) * 10000) / 100,
+    winRate: directionalRate(Number(r.wins), Number(r.total) - Number(r.wins)),
     pnl: Math.round(Number(r.pnl) * 100) / 100,
     total: Number(r.total),
   }));
@@ -868,7 +902,7 @@ export async function getAiInsights(filter: PeriodFilter): Promise<AiInsightsDat
   // Process markets
   const markets = marketRows.rows.map((r) => ({
     market: r.market,
-    winRate: Math.round((Number(r.wins) / Number(r.total)) * 10000) / 100,
+    winRate: directionalRate(Number(r.wins), Number(r.total) - Number(r.wins)),
     pnl: Math.round(Number(r.pnl) * 100) / 100,
     total: Number(r.total),
   }));
@@ -876,7 +910,7 @@ export async function getAiInsights(filter: PeriodFilter): Promise<AiInsightsDat
   // Process minute bands
   const minutes = minuteRows.rows.map((r) => ({
     band: r.band,
-    winRate: Math.round((Number(r.wins) / Number(r.total)) * 10000) / 100,
+    winRate: directionalRate(Number(r.wins), Number(r.total) - Number(r.wins)),
     pnl: Math.round(Number(r.pnl) * 100) / 100,
     total: Number(r.total),
   }));
@@ -885,7 +919,7 @@ export async function getAiInsights(filter: PeriodFilter): Promise<AiInsightsDat
   const overconfidentBands = confRows.rows
     .map((r) => {
       const avgConf = Number(r.avg_conf);
-      const actualWR = Math.round((Number(r.wins) / Number(r.total)) * 10000) / 100;
+      const actualWR = directionalRate(Number(r.wins), Number(r.total) - Number(r.wins));
       return {
         band: r.band,
         avgConfidence: Math.round(avgConf * 10) / 10,

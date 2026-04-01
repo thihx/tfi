@@ -6,15 +6,51 @@
 import type { FastifyInstance } from 'fastify';
 import { config } from '../config.js';
 import { audit } from '../lib/audit.js';
+import { requireCurrentUser } from '../lib/authz.js';
 import { callGemini } from '../lib/gemini.js';
 import { resolveMatchOdds } from '../lib/odds-resolver.js';
 import { ensureFixturesForMatchIds, ensureScoutInsight } from '../lib/provider-insight-cache.js';
 import { fetchLeagueFixturesFromReferenceProvider } from '../lib/reference-data-provider.js';
+import { consumeManualAiQuota, resolveSubscriptionAccess, sendEntitlementError } from '../lib/subscription-access.js';
 import { sendTelegramMessage, sendTelegramPhoto } from '../lib/telegram.js';
-import { runPromptOnlyAnalysisForMatch } from '../lib/server-pipeline.js';
+import { runPromptOnlyAnalysisForMatch, type MatchPipelineResult } from '../lib/server-pipeline.js';
 
 function buildQuickChartUrl(chartConfig: Record<string, unknown>): string {
   return `https://quickchart.io/chart?c=${encodeURIComponent(JSON.stringify(chartConfig))}&w=500&h=240&bkg=white`;
+}
+
+function toPromptOnlyAuditMetadata(
+  matchId: string,
+  provider: string,
+  model: string,
+  result: Awaited<ReturnType<typeof runPromptOnlyAnalysisForMatch>>['result'],
+) {
+  const debug: NonNullable<MatchPipelineResult['debug']> | null = result.debug ?? null;
+  return {
+    provider,
+    model,
+    matchId,
+    success: result.success,
+    shouldPush: result.shouldPush,
+    saved: result.saved,
+    notified: result.notified,
+    decisionKind: result.decisionKind,
+    selection: result.selection,
+    confidence: result.confidence,
+    error: result.error ?? null,
+    analysisMode: debug?.analysisMode ?? null,
+    evidenceMode: debug?.evidenceMode ?? null,
+    promptVersion: debug?.promptVersion ?? null,
+    promptDataLevel: debug?.promptDataLevel ?? null,
+    prematchAvailability: debug?.prematchAvailability ?? null,
+    prematchStrength: debug?.prematchStrength ?? null,
+    prematchNoisePenalty: debug?.prematchNoisePenalty ?? null,
+    structuredPrematchAskAi: debug?.structuredPrematchAskAi === true,
+    structuredPrematchAskAiReason: debug?.structuredPrematchAskAiReason ?? null,
+    skipReason: debug?.skipReason ?? null,
+    llmLatencyMs: debug?.llmLatencyMs ?? null,
+    totalLatencyMs: debug?.totalLatencyMs ?? null,
+  };
 }
 
 // ==================== Routes ====================
@@ -147,23 +183,50 @@ export async function proxyRoutes(app: FastifyInstance) {
     async (req, reply) => {
       const aiStart = Date.now();
       try {
+        const user = requireCurrentUser(req, reply);
+        if (!user) return;
         const { prompt, matchId, provider, model, forceAnalyze } = req.body;
 
         if (provider === 'gemini') {
+          if (!(typeof prompt === 'string' && prompt.trim()) && !(typeof matchId === 'string' && matchId.trim())) {
+            return reply.code(400).send({ error: 'prompt or matchId is required' });
+          }
           const resolvedModel = model || config.geminiModel;
+          if (user.role !== 'admin' && user.role !== 'owner') {
+            const access = await resolveSubscriptionAccess(user.userId);
+            await consumeManualAiQuota(access, user.userId, {
+              provider,
+              model: resolvedModel,
+              hasPrompt: typeof prompt === 'string' && prompt.trim().length > 0,
+              matchId: typeof matchId === 'string' ? matchId.trim() : null,
+              forceAnalyze: forceAnalyze === true,
+            });
+          }
+          const promptOnlyResult = typeof matchId === 'string' && matchId.trim() && !(typeof prompt === 'string' && prompt.trim())
+            ? await runPromptOnlyAnalysisForMatch(matchId.trim(), {
+              forceAnalyze: forceAnalyze === true,
+              modelOverride: resolvedModel,
+            })
+            : null;
           const text = typeof prompt === 'string' && prompt.trim()
             ? await callGemini(prompt, resolvedModel)
-            : typeof matchId === 'string' && matchId.trim()
-              ? (
-                  await runPromptOnlyAnalysisForMatch(matchId.trim(), {
-                    forceAnalyze: forceAnalyze === true,
-                    modelOverride: resolvedModel,
-                  })
-                ).text
-              : null;
-
+            : promptOnlyResult?.text ?? null;
           if (text == null) {
-            return reply.code(400).send({ error: 'prompt or matchId is required' });
+            return reply.code(502).send({ error: 'AI API returned an empty response' });
+          }
+
+          if (promptOnlyResult && typeof matchId === 'string' && matchId.trim()) {
+            audit({
+              category: 'PIPELINE',
+              action: 'PROMPT_ONLY_MATCH_ANALYZED',
+              outcome: promptOnlyResult.result.success
+                ? (promptOnlyResult.result.shouldPush ? 'SUCCESS' : 'SKIPPED')
+                : 'FAILURE',
+              actor: 'manual-ask-ai',
+              duration_ms: Date.now() - aiStart,
+              metadata: toPromptOnlyAuditMetadata(matchId.trim(), provider, resolvedModel, promptOnlyResult.result),
+              error: promptOnlyResult.result.error,
+            });
           }
 
           audit({
@@ -184,6 +247,10 @@ export async function proxyRoutes(app: FastifyInstance) {
 
         return reply.code(400).send({ error: `AI provider "${provider}" not yet supported on server` });
       } catch (err) {
+        const entitlement = sendEntitlementError(err);
+        if (entitlement) {
+          return reply.code(entitlement.statusCode).send(entitlement.payload);
+        }
         audit({
           category: 'AI',
           action: 'AI_CALL',

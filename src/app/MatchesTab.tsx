@@ -84,6 +84,21 @@ export function MatchesTab() {
   const [scoutMatch, setScoutMatch] = useState<Match | null>(null);
   const [lastAddedResultId, setLastAddedResultId] = useState<string | null>(null);
   const aiResultsRef = useRef<HTMLDivElement>(null);
+  const filterBarRef = useRef<HTMLDivElement>(null);
+  const [filterBarBottom, setFilterBarBottom] = useState(160);
+
+  useEffect(() => {
+    const el = filterBarRef.current;
+    if (!el) return;
+    const update = () => {
+      const b = el.getBoundingClientRect().bottom;
+      if (b > 0) setFilterBarBottom(b);
+    };
+    update();
+    const ro = new ResizeObserver(update);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
 
   // Wrapped setters that sync state back to the module-level store
   const setAnalyzingMatches = useCallback((fn: (prev: Set<string>) => Set<string>) => {
@@ -443,7 +458,7 @@ export function MatchesTab() {
     : (!dateFrom && !dateTo) ? 'all'
     : 'custom';
   const tabBtn = (active: boolean) => ({
-    padding: '3px 10px', borderRadius: '12px', border: '1px solid',
+    padding: '10px 10px', lineHeight: '1.6', minHeight: '32px', display: 'flex', alignItems: 'center', borderRadius: '12px', border: '1px solid',
     cursor: 'pointer', fontSize: '12px', fontWeight: active ? 600 : 400,
     background: active ? 'var(--gray-800)' : 'transparent',
     borderColor: active ? 'var(--gray-800)' : 'var(--gray-300)',
@@ -458,11 +473,11 @@ export function MatchesTab() {
   if (dateFrom || dateTo) badges.push(`Date: ${dateFrom || '—'} → ${dateTo || '—'}`);
 
   return (
-    <div className="card">
+    <div className="card" style={{ '--group-sticky-top': `${filterBarBottom}px` } as React.CSSProperties}>
       {/* Sticky filter bar */}
-      <div className="sticky-filter-bar">
+      <div className="sticky-filter-bar" ref={filterBarRef}>
         {/* Date tab shortcuts */}
-        <div style={{ display: 'flex', gap: '6px', padding: '8px 12px', borderBottom: '1px solid var(--gray-100)', alignItems: 'center', flexWrap: 'wrap' }}>
+        <div style={{ display: 'flex', gap: '6px', padding: '12px 12px', borderBottom: '1px solid var(--gray-100)', alignItems: 'center', flexWrap: 'wrap', overflow: 'visible', maxHeight: 'none' }}>
           <button style={tabBtn(activeDateTab === 'all')} onClick={() => { setDateFrom(''); setDateTo(''); }}>All</button>
           {hasYesterday && (
             <button style={tabBtn(activeDateTab === 'yesterday')} onClick={() => { setDateFrom(dateYesterday); setDateTo(dateYesterday); }}>Yesterday</button>
@@ -587,7 +602,7 @@ export function MatchesTab() {
       )}
 
       {/* Table view */}
-      {viewMode === 'table' && <div className="table-container table-cards">
+      {viewMode === 'table' && <div className="table-container table-cards" style={{ '--group-sticky-top': `${filterBarBottom}px` } as React.CSSProperties}>
         <Pagination currentPage={safePage} totalPages={totalPages} onPageChange={setPage} />
         <table>
           <thead>
@@ -646,12 +661,22 @@ export function MatchesTab() {
       <WatchlistEditModal
         key={editItem ? String(editItem.match_id) : 'watchlist-edit-modal'}
         item={editItem}
+        match={editItem ? matches.find((m) => String(m.match_id) === String(editItem.match_id)) ?? null : null}
+        config={config}
         defaultMode={config.defaultMode}
         uiLanguage={uiLanguage}
         onClose={() => setEditItem(null)}
-        onSave={async ({ mode, priority, status, custom_conditions }) => {
+        onSave={async ({ mode, priority, status, custom_conditions, auto_apply_recommended_condition }) => {
           if (!editItem) return;
-          const ok = await updateWatchlistItem({ id: editItem.id, match_id: editItem.match_id, mode, priority, status, custom_conditions });
+          const ok = await updateWatchlistItem({
+            id: editItem.id,
+            match_id: editItem.match_id,
+            mode,
+            priority,
+            status,
+            custom_conditions,
+            auto_apply_recommended_condition,
+          });
           setEditItem(null);
           if (ok) showToast('Watchlist item updated', 'success');
           else showToast('Failed to update', 'error');
@@ -707,7 +732,7 @@ function MatchRow({ match, isWatched, isPending, isSelected, isAnalyzing, hasRes
   const awayRedGen      = flashMap.get(`${id}:ar`)    ?? 0;
 
   return (
-    <tr onDoubleClick={onDoubleClick} style={{ cursor: 'pointer' }} title="Double-click to view match details">
+    <tr onDoubleClick={onDoubleClick} className={LIVE_STATUSES.includes(match.status) ? 'match-is-live' : undefined} style={{ cursor: 'pointer' }} title="Double-click to view match details">
       <td data-label="Time" style={{ whiteSpace: 'nowrap', textAlign: 'center' }}>
         <div className="cell-value">
           <div className="time-status">

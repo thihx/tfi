@@ -1,27 +1,20 @@
 import { render, screen, waitFor } from '@testing-library/react';
-import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-const mockShowToast = vi.fn();
 const mockFetchLiveMonitorStatus = vi.fn();
-const mockTriggerCheckLiveRun = vi.fn();
 const mockGetParsedAiResult = vi.fn();
 
 vi.mock('@/hooks/useAppState', () => ({
   useAppState: () => ({
     state: {
       config: { apiUrl: 'http://localhost:4000', defaultMode: 'B' },
+      watchlist: [{ match_id: '100' }],
     },
   }),
 }));
 
-vi.mock('@/hooks/useToast', () => ({
-  useToast: () => ({ showToast: mockShowToast }),
-}));
-
 vi.mock('@/features/live-monitor/services/server-monitor.service', () => ({
   fetchLiveMonitorStatus: mockFetchLiveMonitorStatus,
-  triggerCheckLiveRun: mockTriggerCheckLiveRun,
   getParsedAiResult: mockGetParsedAiResult,
 }));
 
@@ -43,6 +36,67 @@ beforeEach(() => {
       runCount: 3,
     },
     progress: null,
+    monitoring: {
+      activeWatchCount: 5,
+      liveWatchCount: 2,
+      candidateCount: 1,
+      targets: [
+        {
+          matchId: '099',
+          matchDisplay: 'Machida Zelvia vs FC Tokyo',
+          league: 'J1 League',
+          status: 'NS',
+          minute: null,
+          score: '0-0',
+          live: false,
+          mode: 'B',
+          priority: 95,
+          customConditions: '',
+          recommendedCondition: '(Home scores first)',
+          lastChecked: null,
+          totalChecks: 0,
+          candidate: false,
+          candidateReason: 'not_live',
+          baseline: 'none',
+        },
+        {
+          matchId: '100',
+          matchDisplay: 'Arsenal vs Chelsea',
+          league: 'Premier League',
+          status: '2H',
+          minute: 64,
+          score: '2-1',
+          live: true,
+          mode: 'B',
+          priority: 90,
+          customConditions: '(Minute >= 60)',
+          recommendedCondition: '',
+          lastChecked: '2026-03-24T11:59:00.000Z',
+          totalChecks: 8,
+          candidate: false,
+          candidateReason: 'no_significant_change',
+          baseline: 'recommendation',
+        },
+        {
+          matchId: '101',
+          matchDisplay: 'Liverpool vs Man City',
+          league: 'Premier League',
+          status: '2H',
+          minute: 72,
+          score: '1-1',
+          live: true,
+          mode: 'F',
+          priority: 70,
+          customConditions: '',
+          recommendedCondition: '(Home scores first)',
+          lastChecked: null,
+          totalChecks: 2,
+          candidate: true,
+          candidateReason: 'force_analyze',
+          baseline: 'none',
+        },
+      ],
+    },
     summary: {
       liveCount: 4,
       candidateCount: 2,
@@ -118,13 +172,24 @@ beforeEach(() => {
 });
 
 describe('LiveMonitorTab', () => {
-  it('renders server-owned dashboard data and latest results', async () => {
+  it('renders live monitoring scope and latest results without manual controls', async () => {
     render(<LiveMonitorTab />);
 
     expect(await screen.findByText('Live Monitor Dashboard')).toBeInTheDocument();
+    expect(await screen.findByText('Monitoring Scope')).toBeInTheDocument();
     expect(await screen.findByText('Latest Run Summary')).toBeInTheDocument();
-    expect(screen.getByText('Arsenal vs Chelsea')).toBeInTheDocument();
-    expect(screen.getByText('Premier League | 64\' | 2-1 | 2H')).toBeInTheDocument();
+    expect(screen.getByText('System Monitoring Pool')).toBeInTheDocument();
+    expect(screen.getAllByText('Arsenal vs Chelsea').length).toBeGreaterThanOrEqual(1);
+    expect(screen.getByText('Machida Zelvia vs FC Tokyo')).toBeInTheDocument();
+    expect(screen.getAllByText('Premier League | 64\' | 2-1 | 2H').length).toBeGreaterThanOrEqual(1);
+    expect(screen.getByText('Will go to AI on the next engine run.')).toBeInTheDocument();
+    expect(screen.getByText('Tracked live, but not sent to AI yet.')).toBeInTheDocument();
+    expect(screen.getByText('This match is in the system monitoring pool but is not live yet.')).toBeInTheDocument();
+    expect(screen.getByText('Waiting for Kickoff')).toBeInTheDocument();
+    expect(screen.getByText('Forced by monitor mode | Baseline None')).toBeInTheDocument();
+    expect(screen.getByText('No meaningful change since last baseline | Baseline Recommendation')).toBeInTheDocument();
+    expect(screen.getByText('Custom condition:', { exact: false })).toBeInTheDocument();
+    expect(screen.getAllByText('AI suggested condition:', { exact: false }).length).toBeGreaterThanOrEqual(1);
     expect(await screen.findByText('Over 2.5')).toBeInTheDocument();
     expect(screen.getByText('Du dieu kien')).toBeInTheDocument();
     expect(screen.getByText('Condition Matched')).toBeInTheDocument();
@@ -138,23 +203,20 @@ describe('LiveMonitorTab', () => {
     expect(screen.getByText('Prematch Strong | full | noise 12')).toBeInTheDocument();
     expect(screen.getByText('Prematch Weak | minimal | noise 60')).toBeInTheDocument();
     expect(screen.getByText(/Condition Suggestion:/)).toBeInTheDocument();
-    expect(screen.getByText('4')).toBeInTheDocument();
+    expect(screen.getByText('My Watchlist')).toBeInTheDocument();
+    expect(screen.getByText('System Pool')).toBeInTheDocument();
+    expect(screen.getByText(/your personal list/i)).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Run Check Live' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Refresh' })).not.toBeInTheDocument();
     expect(mockFetchLiveMonitorStatus).toHaveBeenCalled();
   });
 
-  it('triggers the canonical server job from the dashboard', async () => {
-    const user = userEvent.setup();
-    mockTriggerCheckLiveRun.mockResolvedValue(undefined);
-
+  it('keeps auto-refresh polling active for a live screen', async () => {
     render(<LiveMonitorTab />);
     await screen.findByText('Live Monitor Dashboard');
 
-    await user.click(screen.getByRole('button', { name: 'Run Check Live' }));
-
     await waitFor(() => {
-      expect(mockTriggerCheckLiveRun).toHaveBeenCalledTimes(1);
+      expect(window.setInterval).toHaveBeenCalled();
     });
-    expect(mockShowToast).toHaveBeenCalledWith('Live monitor job triggered', 'success');
-    expect(mockFetchLiveMonitorStatus.mock.calls.length).toBeGreaterThanOrEqual(2);
   });
 });

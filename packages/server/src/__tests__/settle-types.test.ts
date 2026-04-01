@@ -12,12 +12,12 @@ describe('settle types helpers', () => {
     expect(calcSettlementPnl('void', 1.85, 4)).toBe(0);
   });
 
-  test('maps only decisive outcomes to correctness', () => {
+  test('maps business scoring outcomes to correctness', () => {
     expect(settlementWasCorrect('win')).toBe(true);
     expect(settlementWasCorrect('loss')).toBe(false);
     expect(settlementWasCorrect('push')).toBeNull();
-    expect(settlementWasCorrect('half_win')).toBeNull();
-    expect(settlementWasCorrect('half_loss')).toBeNull();
+    expect(settlementWasCorrect('half_win')).toBe(true);
+    expect(settlementWasCorrect('half_loss')).toBe(false);
     expect(settlementWasCorrect('void')).toBeNull();
   });
 

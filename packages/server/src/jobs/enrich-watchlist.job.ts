@@ -21,8 +21,10 @@ import * as watchlistRepo from '../repos/watchlist.repo.js';
 import { getSettings } from '../repos/settings.repo.js';
 import { reportJobProgress } from './job-progress.js';
 
-const PREMATCH_WINDOW_HOURS = 2;
-const PREMATCH_WINDOW_MINUTES = PREMATCH_WINDOW_HOURS * 60;
+const BROAD_ENRICH_WINDOW_HOURS = 24;
+const BROAD_ENRICH_WINDOW_MINUTES = BROAD_ENRICH_WINDOW_HOURS * 60;
+const PREMATCH_REFRESH_WINDOW_MINUTES = 2 * 60;
+const FINAL_TOP_LEAGUE_REFRESH_WINDOW_MINUTES = 30;
 const API_DELAY_MS = 2000;
 const FAILURE_BACKOFF_MINUTES = [60, 180, 360, 720] as const;
 const POOR_BACKOFF_MINUTES = [360, 720, 1440] as const;
@@ -33,6 +35,7 @@ const FORCE_KEY = 'job:enrich-watchlist:force-next';
 let forceNextMemory = false;
 
 type RefreshStatus = 'good' | 'poor' | 'failed';
+type EnrichRefreshWindow = 'broad' | 'prematch' | 'final';
 
 interface EnrichLeagueHints {
   topLeague?: boolean;
@@ -45,6 +48,7 @@ interface StrategicContextMeta {
   last_attempt_at?: string;
   retry_after?: string | null;
   last_error?: string;
+  refresh_window?: EnrichRefreshWindow;
 }
 
 type StoredStrategicContext = Partial<StrategicContext> & {
@@ -124,6 +128,24 @@ function getRetryAfter(ctx: StoredStrategicContext | null): number | null {
   return Number.isFinite(ts) ? ts : null;
 }
 
+function getTargetRefreshWindow(
+  minsToKickoff: number | null | undefined,
+  options: EnrichLeagueHints = {},
+): EnrichRefreshWindow | null {
+  if (minsToKickoff == null || minsToKickoff < 0 || minsToKickoff > BROAD_ENRICH_WINDOW_MINUTES) {
+    return null;
+  }
+  if (options.topLeague && minsToKickoff <= FINAL_TOP_LEAGUE_REFRESH_WINDOW_MINUTES) return 'final';
+  if (minsToKickoff <= PREMATCH_REFRESH_WINDOW_MINUTES) return 'prematch';
+  return 'broad';
+}
+
+function getStoredRefreshWindow(ctx: StoredStrategicContext | null): EnrichRefreshWindow | null {
+  const raw = String(ctx?._meta?.refresh_window ?? '').trim().toLowerCase();
+  if (raw === 'broad' || raw === 'prematch' || raw === 'final') return raw;
+  return null;
+}
+
 function pickBackoffMinutes(
   kind: 'poor' | 'failed',
   failureCount: number,
@@ -161,7 +183,7 @@ function buildBasePoorContext(attemptedAt: string): StoredStrategicContext {
     home_key_absences_vi: '',
     away_key_absences_vi: '',
     h2h_narrative_vi: '',
-    summary_vi: 'Khong tim thay du lieu',
+    summary_vi: 'Không tìm thấy dữ liệu',
     searched_at: attemptedAt,
     version: 2,
     competition_type: '',
@@ -195,7 +217,7 @@ function buildBasePoorContext(attemptedAt: string): StoredStrategicContext {
         home_key_absences: '',
         away_key_absences: '',
         h2h_narrative: '',
-        summary: 'Khong tim thay du lieu',
+        summary: 'Không tìm thấy dữ liệu',
       },
     },
     quantitative: {
@@ -231,6 +253,7 @@ function buildRetryContext(
   current: StoredStrategicContext | null,
   kind: 'poor' | 'failed',
   attemptedAt: string,
+  refreshWindow: EnrichRefreshWindow,
   seedContext: StoredStrategicContext | null = null,
   errorMessage = '',
   options: EnrichLeagueHints = {},
@@ -250,11 +273,16 @@ function buildRetryContext(
       last_attempt_at: attemptedAt,
       retry_after: retryAfter,
       last_error: errorMessage || undefined,
+      refresh_window: refreshWindow,
     },
   };
 }
 
-function buildSuccessfulContext(context: StrategicContext, attemptedAt: string): StoredStrategicContext {
+function buildSuccessfulContext(
+  context: StrategicContext,
+  attemptedAt: string,
+  refreshWindow: EnrichRefreshWindow,
+): StoredStrategicContext {
   return {
     ...context,
     _meta: {
@@ -262,6 +290,7 @@ function buildSuccessfulContext(context: StrategicContext, attemptedAt: string):
       failure_count: 0,
       last_attempt_at: attemptedAt,
       retry_after: null,
+      refresh_window: refreshWindow,
     },
   };
 }
@@ -270,12 +299,13 @@ async function persistRetryState(
   entry: watchlistRepo.WatchlistRow,
   kind: 'poor' | 'failed',
   attemptedAt: string,
+  refreshWindow: EnrichRefreshWindow,
   seedContext: StoredStrategicContext | null = null,
   errorMessage = '',
   options: EnrichLeagueHints = {},
 ): Promise<void> {
   const existingContext = (entry.strategic_context as StoredStrategicContext | null) ?? null;
-  const retryContext = buildRetryContext(existingContext, kind, attemptedAt, seedContext, errorMessage, options);
+  const retryContext = buildRetryContext(existingContext, kind, attemptedAt, refreshWindow, seedContext, errorMessage, options);
   const updateFields: Partial<watchlistRepo.WatchlistRow> = {
     strategic_context: retryContext as unknown,
   };
@@ -331,15 +361,16 @@ export async function enrichWatchlistJob(): Promise<{ checked: number; enriched:
       topLeague: leagueMeta?.top_league === true,
       leagueCountry: leagueMeta?.country ?? null,
     };
-    if (hasUsableContext(ctx, hints)) return false;
-
     const minsToKickoff = kickoffMinutesByMatchId.get(entry.match_id);
-    if (minsToKickoff == null || minsToKickoff < 0 || minsToKickoff > PREMATCH_WINDOW_MINUTES) {
-      return false;
-    }
+    const targetWindow = getTargetRefreshWindow(minsToKickoff, hints);
+    if (!targetWindow) return false;
+
+    const hasUsable = hasUsableContext(ctx, hints);
+    const existingWindow = getStoredRefreshWindow(ctx);
+    if (hasUsable && existingWindow === targetWindow) return false;
 
     const retryAfter = getRetryAfter(ctx);
-    if (retryAfter && retryAfter > now && !hints.topLeague) return false;
+    if (retryAfter && retryAfter > now && existingWindow === targetWindow && !hints.topLeague) return false;
 
     return true;
   }).sort((left, right) => {
@@ -350,6 +381,23 @@ export async function enrichWatchlistJob(): Promise<{ checked: number; enriched:
     const leftTop = leftLeague?.top_league === true ? 1 : 0;
     const rightTop = rightLeague?.top_league === true ? 1 : 0;
     if (leftTop !== rightTop) return rightTop - leftTop;
+    const leftWindow = getTargetRefreshWindow(
+      kickoffMinutesByMatchId.get(left.match_id),
+      { topLeague: leftTop === 1, leagueCountry: leftLeague?.country ?? null },
+    );
+    const rightWindow = getTargetRefreshWindow(
+      kickoffMinutesByMatchId.get(right.match_id),
+      { topLeague: rightTop === 1, leagueCountry: rightLeague?.country ?? null },
+    );
+    const windowPriority = (value: EnrichRefreshWindow | null) => {
+      if (value === 'final') return 3;
+      if (value === 'prematch') return 2;
+      if (value === 'broad') return 1;
+      return 0;
+    };
+    if (windowPriority(leftWindow) !== windowPriority(rightWindow)) {
+      return windowPriority(rightWindow) - windowPriority(leftWindow);
+    }
     const leftKickoff = kickoffMinutesByMatchId.get(left.match_id) ?? Number.POSITIVE_INFINITY;
     const rightKickoff = kickoffMinutesByMatchId.get(right.match_id) ?? Number.POSITIVE_INFINITY;
     return leftKickoff - rightKickoff;
@@ -380,6 +428,13 @@ export async function enrichWatchlistJob(): Promise<{ checked: number; enriched:
       topLeague: leagueMeta?.top_league === true,
       leagueCountry: leagueMeta?.country ?? null,
     };
+    const minsToKickoff = force
+      ? kickoffMinutesByMatchId.get(entry.match_id) ?? null
+      : kickoffMinutesByMatchId.get(entry.match_id);
+    const refreshWindow = force
+      ? (hints.topLeague ? 'final' : 'prematch')
+      : getTargetRefreshWindow(minsToKickoff, hints);
+    if (!refreshWindow) continue;
 
     try {
       const context = await fetchStrategicContext(
@@ -391,27 +446,25 @@ export async function enrichWatchlistJob(): Promise<{ checked: number; enriched:
       );
 
       if (!context) {
-        await persistRetryState(entry, 'failed', attemptedAt, null, 'empty_response', hints);
+        await persistRetryState(entry, 'failed', attemptedAt, refreshWindow, null, 'empty_response', hints);
         await sleep(API_DELAY_MS);
         continue;
       }
 
-      const enrichedContext = hints.topLeague
-        ? mergeStrategicContextWithPredictionFallback(context, {
-            homeTeam: entry.home_team,
-            awayTeam: entry.away_team,
-            prediction: entry.prediction,
-          })
-        : context;
+      const enrichedContext = mergeStrategicContextWithPredictionFallback(context, {
+        homeTeam: entry.home_team,
+        awayTeam: entry.away_team,
+        prediction: entry.prediction,
+      });
 
       if (!hasUsableContext(enrichedContext, hints)) {
-        await persistRetryState(entry, 'poor', attemptedAt, enrichedContext, '', hints);
+        await persistRetryState(entry, 'poor', attemptedAt, refreshWindow, enrichedContext, '', hints);
         await sleep(API_DELAY_MS);
         continue;
       }
 
       const updateFields: Partial<watchlistRepo.WatchlistRow> = {
-        strategic_context: buildSuccessfulContext(enrichedContext, attemptedAt) as unknown,
+        strategic_context: buildSuccessfulContext(enrichedContext, attemptedAt, refreshWindow) as unknown,
         strategic_context_at: attemptedAt,
       };
 
@@ -451,6 +504,7 @@ export async function enrichWatchlistJob(): Promise<{ checked: number; enriched:
         entry,
         'failed',
         attemptedAt,
+        refreshWindow,
         null,
         err instanceof Error ? err.message : String(err),
         hints,

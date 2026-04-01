@@ -743,7 +743,6 @@ ALERT_RATIONALE: Barcelona tend to press for a late goal if not ahead.`,
           groundingChunks: [
             { web: { uri: 'https://www.fotmob.com/match/123', title: 'FotMob Barcelona vs Rayo' } },
             { web: { uri: 'https://www.sportsmole.co.uk/football/barcelona/preview', title: 'Sports Mole preview' } },
-            { web: { uri: 'https://www.flashscoreusa.com/match/abc', title: 'Flashscore match page' } },
           ],
         },
       ))
@@ -808,6 +807,110 @@ ALERT_RATIONALE: Barcelona tend to press for a late goal if not ahead.`,
 
     expect(context?.summary).toContain('Strong top-league context');
     expect(context?.source_meta.search_quality).toBe('low');
+    expect(hasUsableStrategicContext(context, { topLeague: true })).toBe(true);
+  });
+
+  test('merges grounded draft facts back into sparse low-quality structured output when trusted sources exist', async () => {
+    fetchMock
+      .mockResolvedValueOnce(makeGeminiResponse(
+        `COMPETITION_TYPE: domestic_league
+HOME_MOTIVATION: Home side is chasing Champions League qualification.
+AWAY_MOTIVATION: Away side still need points to avoid late relegation danger.
+LEAGUE_POSITIONS: Home 4th, Away 16th.
+FIXTURE_CONGESTION: Home had midweek cup duties.
+ROTATION_RISK: Mild home rotation is possible.
+KEY_ABSENCES: Away side are missing one starting defender.
+H2H_NARRATIVE: Home side won two of the last three meetings.
+SUMMARY: Strong domestic context with table pressure and current squad notes.
+HOME_LAST5_POINTS: 10
+AWAY_LAST5_POINTS: 4
+HOME_LAST5_GOALS_FOR: 8
+AWAY_LAST5_GOALS_FOR: 4
+HOME_LAST5_GOALS_AGAINST: 5
+AWAY_LAST5_GOALS_AGAINST: 8
+HOME_HOME_GOALS_AVG: 1.8
+AWAY_AWAY_GOALS_AVG: 0.9
+HOME_OVER_2_5_RATE_LAST10: 60
+AWAY_OVER_2_5_RATE_LAST10: 45
+HOME_BTTS_RATE_LAST10: 50
+AWAY_BTTS_RATE_LAST10: 40
+HOME_CLEAN_SHEET_RATE_LAST10: 30
+AWAY_CLEAN_SHEET_RATE_LAST10: 15
+HOME_FAILED_TO_SCORE_RATE_LAST10: 10
+AWAY_FAILED_TO_SCORE_RATE_LAST10: 30
+ALERT_WINDOW_START: 60
+ALERT_WINDOW_END: null
+PREFERRED_SCORE_STATE: not_home_leading
+PREFERRED_GOAL_STATE: goals_lte_2
+FAVOURED_SIDE: home
+ALERT_RATIONALE: Home urgency rises if they are not ahead after the hour mark.`,
+        {
+          groundingChunks: [
+            { web: { uri: 'https://www.fotmob.com/match/123', title: 'FotMob preview' } },
+            { web: { uri: 'https://www.sportsmole.co.uk/football/preview', title: 'Sports Mole preview' } },
+          ],
+        },
+      ))
+      .mockResolvedValueOnce(makeGeminiResponse(JSON.stringify({
+        qualitative_en: {
+          home_motivation: 'No data found',
+          away_motivation: 'No data found',
+          league_positions: 'No data found',
+          fixture_congestion: 'No data found',
+          rotation_risk: 'No data found',
+          key_absences: 'No data found',
+          h2h_narrative: 'No data found',
+          summary: 'No data found',
+        },
+        qualitative_vi: {
+          home_motivation: 'Khong tim thay du lieu',
+          away_motivation: 'Khong tim thay du lieu',
+          league_positions: 'Khong tim thay du lieu',
+          fixture_congestion: 'Khong tim thay du lieu',
+          rotation_risk: 'Khong tim thay du lieu',
+          key_absences: 'Khong tim thay du lieu',
+          h2h_narrative: 'Khong tim thay du lieu',
+          summary: 'Khong tim thay du lieu',
+        },
+        quantitative: {
+          home_last5_points: null,
+          away_last5_points: null,
+          home_last5_goals_for: null,
+          away_last5_goals_for: null,
+          home_last5_goals_against: null,
+          away_last5_goals_against: null,
+          home_home_goals_avg: null,
+          away_away_goals_avg: null,
+          home_over_2_5_rate_last10: null,
+          away_over_2_5_rate_last10: null,
+          home_btts_rate_last10: null,
+          away_btts_rate_last10: null,
+          home_clean_sheet_rate_last10: null,
+          away_clean_sheet_rate_last10: null,
+          home_failed_to_score_rate_last10: null,
+          away_failed_to_score_rate_last10: null,
+        },
+        competition_type: 'domestic_league',
+        condition_blueprint: {
+          alert_window_start: null,
+          alert_window_end: null,
+          preferred_score_state: 'any',
+          preferred_goal_state: 'any',
+          favoured_side: 'none',
+          alert_rationale_en: '',
+          alert_rationale_vi: '',
+        },
+      })));
+
+    const context = await fetchStrategicContext('Home', 'Away', 'League', '2026-03-22', {
+      topLeague: true,
+      leagueCountry: 'England',
+    });
+
+    expect(context?.source_meta.search_quality).toBe('low');
+    expect(context?.summary).toContain('Strong domestic context');
+    expect(context?.league_positions).toContain('Home 4th, Away 16th');
+    expect(context?.quantitative.home_last5_points).toBe(10);
     expect(hasUsableStrategicContext(context, { topLeague: true })).toBe(true);
   });
 

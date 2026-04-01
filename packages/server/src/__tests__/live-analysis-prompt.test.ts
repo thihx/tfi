@@ -275,6 +275,135 @@ describe('buildLiveAnalysisPrompt', () => {
     expect(prompt).not.toContain('Legacy flat context still available.');
   });
 
+  test('injects explicit profile metric semantics so raw profile keys are not left ambiguous', () => {
+    const prompt = buildLiveAnalysisPrompt({
+      ...baseInput,
+      leagueProfile: {
+        profile: {
+          version: 2,
+          source_mode: 'auto_derived',
+          window: {
+            lookback_days: 180,
+            sample_matches: 74,
+            event_summary_matches: 60,
+            event_coverage: 0.811,
+            top_league_only: true,
+            computed_at: '2026-04-01T00:00:00Z',
+            updated_at: '2026-04-01T00:00:00Z',
+          },
+          core: {
+            tempo_tier: 'high',
+            goal_tendency: 'balanced',
+            home_advantage_tier: 'balanced',
+            corners_tendency: 'balanced',
+            cards_tendency: 'balanced',
+            volatility_tier: 'high',
+            data_reliability_tier: 'high',
+          },
+          quantitative: {
+            avg_goals: 2.8,
+            over_2_5_rate: 0.57,
+            btts_rate: 0.52,
+            late_goal_rate_75_plus: 0.36,
+            avg_corners: 9.4,
+            avg_cards: 4.1,
+          },
+        },
+      } as unknown as Record<string, unknown>,
+      homeTeamProfile: {
+        profile: {
+          version: 2,
+          source_mode: 'hybrid',
+          window: {
+            lookback_days: 180,
+            sample_matches: 22,
+            sample_home_matches: 11,
+            sample_away_matches: 11,
+            event_summary_matches: 17,
+            event_coverage: 0.773,
+            top_league_only: true,
+            computed_at: '2026-04-01T00:00:00Z',
+            updated_at: '2026-04-01T00:00:00Z',
+          },
+          quantitative_core: {
+            set_piece_threat: 'medium',
+            home_strength: 'strong',
+            form_consistency: 'consistent',
+            avg_goals_scored: 1.64,
+            avg_goals_conceded: 0.91,
+            clean_sheet_rate: 0.36,
+            btts_rate: 0.45,
+            over_2_5_rate: 0.5,
+            avg_corners_for: 5.7,
+            avg_corners_against: 4.1,
+            avg_cards: 2,
+            first_goal_rate: 0.59,
+            late_goal_rate: 0.34,
+            data_reliability_tier: 'high',
+          },
+          tactical_overlay: {
+            attack_style: 'mixed',
+            defensive_line: 'medium',
+            pressing_intensity: 'medium',
+            squad_depth: 'medium',
+            source_mode: 'default_neutral',
+            source_confidence: null,
+            updated_at: null,
+          },
+        },
+      } as unknown as Record<string, unknown>,
+      awayTeamProfile: {
+        profile: {
+          version: 2,
+          source_mode: 'hybrid',
+          window: {
+            lookback_days: 180,
+            sample_matches: 22,
+            sample_home_matches: 11,
+            sample_away_matches: 11,
+            event_summary_matches: 17,
+            event_coverage: 0.773,
+            top_league_only: true,
+            computed_at: '2026-04-01T00:00:00Z',
+            updated_at: '2026-04-01T00:00:00Z',
+          },
+          quantitative_core: {
+            set_piece_threat: 'medium',
+            home_strength: 'normal',
+            form_consistency: 'volatile',
+            avg_goals_scored: 1.1,
+            avg_goals_conceded: 1.4,
+            clean_sheet_rate: 0.18,
+            btts_rate: 0.61,
+            over_2_5_rate: 0.62,
+            avg_corners_for: 4.8,
+            avg_corners_against: 5.9,
+            avg_cards: 2.5,
+            first_goal_rate: 0.31,
+            late_goal_rate: 0.48,
+            data_reliability_tier: 'medium',
+          },
+          tactical_overlay: {
+            attack_style: 'mixed',
+            defensive_line: 'medium',
+            pressing_intensity: 'medium',
+            squad_depth: 'medium',
+            source_mode: 'default_neutral',
+            source_confidence: null,
+            updated_at: null,
+          },
+        },
+      } as unknown as Record<string, unknown>,
+    }, settings);
+
+    expect(prompt).toContain('PROFILE METRIC SEMANTICS');
+    expect(prompt).toContain('"semantic_name": "team_match_btts_rate"');
+    expect(prompt).toContain('Share of this team\'s sampled matches in which both teams scored.');
+    expect(prompt).toContain('This is a match-environment metric, not a standalone attacking-strength metric.');
+    expect(prompt).toContain('Neutral default tactical overlay. Do not treat this as hard evidence.');
+    expect(prompt).toContain('"semantic_name": "league_match_btts_rate"');
+  });
+
   test('defines authoritative evidence hierarchy for degraded odds-events mode', () => {
     const prompt = buildLiveAnalysisPrompt({
       ...baseInput,

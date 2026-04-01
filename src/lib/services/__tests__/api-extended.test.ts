@@ -70,9 +70,10 @@ describe('matches API', () => {
 
 describe('watchlist API', () => {
   test('fetchWatchlist calls GET /api/me/watch-subscriptions', async () => {
-    globalThis.fetch = mockFetch([{ match_id: '100' }]);
+    globalThis.fetch = mockFetch([{ id: '7', match_id: '100' }]);
     const result = await fetchWatchlist(config);
     expect(result).toHaveLength(1);
+    expect(result[0]!.id).toBe(7);
     expect(fetch).toHaveBeenCalledWith(
       'http://localhost:4000/api/me/watch-subscriptions',
       expect.objectContaining({ method: 'GET' }),
@@ -120,6 +121,18 @@ describe('watchlist API', () => {
     globalThis.fetch = mockFetch({ id: 7, match_id: '100', priority: 3 });
     const result = await updateWatchlistItems(config, [
       { id: 7, match_id: '100', priority: 3 } as never,
+    ]);
+    expect(result.updatedCount).toBe(1);
+    expect(fetch).toHaveBeenCalledWith(
+      'http://localhost:4000/api/me/watch-subscriptions/7',
+      expect.objectContaining({ method: 'PATCH' }),
+    );
+  });
+
+  test('updateWatchlistItems accepts numeric string subscription ids from the API', async () => {
+    globalThis.fetch = mockFetch({ id: '7', match_id: '100', priority: 3 });
+    const result = await updateWatchlistItems(config, [
+      { id: '7', match_id: '100', priority: 3 } as never,
     ]);
     expect(result.updatedCount).toBe(1);
     expect(fetch).toHaveBeenCalledWith(

@@ -1,5 +1,5 @@
 import { memo } from 'react';
-import { PLACEHOLDER_HOME, PLACEHOLDER_AWAY } from '@/config/constants';
+import { PLACEHOLDER_HOME, PLACEHOLDER_AWAY, LIVE_STATUSES } from '@/config/constants';
 import { StatusBadge } from '@/components/ui/StatusBadge';
 import type { WatchlistItem, Match } from '@/types';
 
@@ -44,7 +44,7 @@ function WatchlistCardBase({ item, liveMatch, homeLogo, awayLogo, timeDisplay, l
 
   return (
     <div
-      className="card"
+      className={`card${liveStatus && LIVE_STATUSES.includes(liveStatus) ? ' match-is-live' : ''}`}
       style={{ padding: 0, overflow: 'hidden', cursor: 'pointer' }}
       onDoubleClick={onDoubleClick}
       title="Double-click to view match details"

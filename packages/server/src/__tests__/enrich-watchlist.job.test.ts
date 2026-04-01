@@ -152,7 +152,7 @@ vi.mock('../repos/watchlist.repo.js', () => ({
   getKickoffMinutesForMatchIds: vi.fn().mockImplementation((matchIds: string[]) => {
     const map = new Map<string, number | null>();
     for (const matchId of matchIds) {
-      map.set(matchId, matchId === '300' ? 240 : 60);
+      map.set(matchId, matchId === '300' ? 1500 : 60);
     }
     return Promise.resolve(map);
   }),
@@ -177,7 +177,7 @@ beforeEach(async () => {
   vi.mocked(watchlistRepo.getKickoffMinutesForMatchIds).mockImplementation((matchIds: string[]) => {
     const map = new Map<string, number | null>();
     for (const matchId of matchIds) {
-      map.set(matchId, matchId === '300' ? 240 : 60);
+      map.set(matchId, matchId === '300' ? 1500 : 60);
     }
     return Promise.resolve(map);
   });
@@ -202,7 +202,7 @@ beforeEach(async () => {
 });
 
 describe('enrichWatchlistJob', () => {
-  test('only enriches NS entries inside the 2-hour kickoff window', async () => {
+  test('enriches eligible NS entries in the active refresh window', async () => {
     const result = await enrichWatchlistJob();
     expect(result.checked).toBe(1);
     expect(result.enriched).toBe(1);
@@ -245,6 +245,54 @@ describe('enrichWatchlistJob', () => {
     expect(result.checked).toBe(1);
   });
 
+  test('broad pre-kickoff window enriches watchlist entries up to 24h before kickoff', async () => {
+    const watchlistRepo = await import('../repos/watchlist.repo.js');
+    vi.mocked(watchlistRepo.getKickoffMinutesForMatchIds).mockImplementationOnce((matchIds: string[]) => {
+      const map = new Map<string, number | null>();
+      for (const matchId of matchIds) {
+        map.set(matchId, matchId === '300' ? 240 : 60);
+      }
+      return Promise.resolve(map);
+    });
+
+    const result = await enrichWatchlistJob();
+
+    expect(result.checked).toBe(2);
+    expect(result.enriched).toBe(2);
+  });
+
+  test('refreshes usable broad context again when match enters prematch window', async () => {
+    const watchlistRepo = await import('../repos/watchlist.repo.js');
+    vi.mocked(watchlistRepo.getActiveOperationalWatchlist).mockResolvedValueOnce([
+      {
+        match_id: '460',
+        home_team: 'A',
+        away_team: 'B',
+        league: 'L',
+        date: '2026-03-17',
+        status: 'active',
+        strategic_context: {
+          ...defaultStrategicContext,
+          _meta: { refresh_status: 'good', refresh_window: 'broad' },
+        },
+        strategic_context_at: sixHoursAgo,
+        recommended_custom_condition: '',
+      },
+    ] as never);
+    vi.mocked(watchlistRepo.getKickoffMinutesForMatchIds).mockResolvedValueOnce(new Map([['460', 75]]) as never);
+    const matchRepo = await import('../repos/matches.repo.js');
+    vi.mocked(matchRepo.getAllMatches).mockResolvedValueOnce([
+      { match_id: '460', status: 'NS', league_id: 39 },
+    ] as never);
+
+    const result = await enrichWatchlistJob();
+    const service = await import('../lib/strategic-context.service.js');
+
+    expect(result.checked).toBe(1);
+    expect(result.enriched).toBe(1);
+    expect(service.fetchStrategicContext).toHaveBeenCalledTimes(1);
+  });
+
   test('does not refresh usable context when kickoff is inside the window', async () => {
     const watchlistRepo = await import('../repos/watchlist.repo.js');
     vi.mocked(watchlistRepo.getActiveOperationalWatchlist).mockResolvedValueOnce([
@@ -255,7 +303,10 @@ describe('enrichWatchlistJob', () => {
         league: 'L',
         date: '2026-03-17',
         status: 'active',
-        strategic_context: defaultStrategicContext,
+        strategic_context: {
+          ...defaultStrategicContext,
+          _meta: { refresh_status: 'good', refresh_window: 'prematch' },
+        },
         strategic_context_at: sixHoursAgo,
         recommended_custom_condition: '',
       },
@@ -425,6 +476,7 @@ describe('enrichWatchlistJob', () => {
           source_meta: { search_quality: 'low' },
           _meta: {
             refresh_status: 'poor',
+            refresh_window: 'broad',
             retry_after: new Date(Date.now() + 2 * 60 * 60 * 1000).toISOString(),
           },
         },
@@ -436,6 +488,7 @@ describe('enrichWatchlistJob', () => {
     vi.mocked(matchRepo.getAllMatches).mockResolvedValueOnce([
       { match_id: '600', status: 'NS', league_id: 999 },
     ] as never);
+    vi.mocked(watchlistRepo.getKickoffMinutesForMatchIds).mockResolvedValueOnce(new Map([['600', 240]]) as never);
 
     const result = await enrichWatchlistJob();
     const service = await import('../lib/strategic-context.service.js');
@@ -459,7 +512,7 @@ describe('enrichWatchlistJob', () => {
           ...defaultStrategicContext,
           summary: 'Useful context',
           home_motivation: 'Title race',
-          _meta: { refresh_status: 'good', failure_count: 0 },
+          _meta: { refresh_status: 'good', failure_count: 0, refresh_window: 'prematch' },
         },
         strategic_context_at: sixHoursAgo,
         recommended_custom_condition: '',
@@ -794,5 +847,54 @@ describe('enrichWatchlistJob', () => {
         }),
       }),
     );
+  });
+
+  test('prioritizes top leagues first, then nearer kickoff entries', async () => {
+    const watchlistRepo = await import('../repos/watchlist.repo.js');
+    vi.mocked(watchlistRepo.getActiveOperationalWatchlist).mockResolvedValueOnce([
+      {
+        match_id: '100', home_team: 'Arsenal', away_team: 'Chelsea', league: 'Premier League', date: '2026-03-17',
+        status: 'active', strategic_context_at: null, recommended_custom_condition: '', custom_conditions: '',
+        auto_apply_recommended_condition: true,
+      },
+      {
+        match_id: '300', home_team: 'Barca', away_team: 'Real', league: 'La Liga', date: '2026-03-17',
+        status: 'active', strategic_context_at: null, recommended_custom_condition: '', custom_conditions: '',
+        auto_apply_recommended_condition: true,
+      },
+      {
+        match_id: '600', home_team: 'Midtable A', away_team: 'Midtable B', league: 'Lower League', date: '2026-03-17',
+        status: 'active', strategic_context_at: null, recommended_custom_condition: '', custom_conditions: '',
+        auto_apply_recommended_condition: true,
+      },
+    ] as never);
+    vi.mocked(watchlistRepo.getKickoffMinutesForMatchIds).mockResolvedValueOnce(new Map([
+      ['100', 90],
+      ['300', 30],
+      ['600', 10],
+    ]));
+
+    const matchRepo = await import('../repos/matches.repo.js');
+    vi.mocked(matchRepo.getAllMatches).mockResolvedValueOnce([
+      { match_id: '100', status: 'NS', league_id: 39 },
+      { match_id: '300', status: 'NS', league_id: 140 },
+      { match_id: '600', status: 'NS', league_id: 999 },
+    ] as never);
+
+    const leaguesRepo = await import('../repos/leagues.repo.js');
+    vi.mocked(leaguesRepo.getAllLeagues).mockResolvedValueOnce([
+      { league_id: 39, league_name: 'Premier League', country: 'England', top_league: true, active: true, tier: '1', type: 'league', logo: '', last_updated: '' },
+      { league_id: 140, league_name: 'La Liga', country: 'Spain', top_league: true, active: true, tier: '1', type: 'league', logo: '', last_updated: '' },
+      { league_id: 999, league_name: 'Lower League', country: 'Nowhere', top_league: false, active: true, tier: '2', type: 'league', logo: '', last_updated: '' },
+    ] as never);
+
+    const service = await import('../lib/strategic-context.service.js');
+    await enrichWatchlistJob();
+
+    expect(vi.mocked(service.fetchStrategicContext).mock.calls.map((call) => String(call[0]))).toEqual([
+      'Barca',
+      'Arsenal',
+      'Midtable A',
+    ]);
   });
 });

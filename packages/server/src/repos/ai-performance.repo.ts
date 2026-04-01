@@ -11,6 +11,12 @@ import {
 const PENDING_RESULT_SQL = `(r.result IS NULL OR r.result = '' OR r.result NOT IN (${FINAL_SETTLEMENT_RESULTS_SQL}))`;
 const ACTIONABLE_REC_SQL = `r.bet_type IS DISTINCT FROM 'NO_BET'`;
 const ACTIONABLE_NOT_DUP_SQL = `r.result IS DISTINCT FROM 'duplicate' AND ${ACTIONABLE_REC_SQL}`;
+const LATEST_AI_PERFORMANCE_CTE = `WITH latest_ai_performance AS (
+  SELECT DISTINCT ON (ap.recommendation_id)
+    ap.*
+  FROM ai_performance ap
+  ORDER BY ap.recommendation_id, ap.created_at DESC, ap.id DESC
+)`;
 
 export interface AiPerformanceRow {
   id: number;
@@ -61,6 +67,19 @@ export async function createAiPerformanceRecord(rec: {
        predicted_market, predicted_selection, predicted_odds,
        match_minute, match_score, league
      ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)
+     ON CONFLICT (recommendation_id) DO UPDATE SET
+       bet_id = COALESCE(EXCLUDED.bet_id, ai_performance.bet_id),
+       match_id = EXCLUDED.match_id,
+       ai_model = EXCLUDED.ai_model,
+       prompt_version = EXCLUDED.prompt_version,
+       ai_confidence = EXCLUDED.ai_confidence,
+       ai_should_push = EXCLUDED.ai_should_push,
+       predicted_market = EXCLUDED.predicted_market,
+       predicted_selection = EXCLUDED.predicted_selection,
+       predicted_odds = EXCLUDED.predicted_odds,
+       match_minute = EXCLUDED.match_minute,
+       match_score = EXCLUDED.match_score,
+       league = EXCLUDED.league
      RETURNING *`,
     [
       rec.recommendation_id,
@@ -144,23 +163,40 @@ export async function getAccuracyStats(): Promise<{
   total: number;
   correct: number;
   incorrect: number;
+  push: number;
+  void: number;
   neutral: number;
   pending: number;
+  pendingResult: number;
+  reviewRequired: number;
   accuracy: number;
 }> {
-  // Use recommendations as single source of truth for pending status
-  // (ai_performance.was_correct can get out of sync with recommendations.result)
   const r = await query<{
     total: string;
     correct: string;
     incorrect: string;
+    push: string;
+    void: string;
     neutral: string;
     pending: string;
+    pending_result: string;
+    review_required: string;
   }>(
-    `SELECT
+    `${LATEST_AI_PERFORMANCE_CTE}
+     SELECT
        COUNT(*)::text AS total,
        COUNT(*) FILTER (WHERE ap.settlement_trusted = TRUE AND ap.was_correct = TRUE)::text AS correct,
        COUNT(*) FILTER (WHERE ap.settlement_trusted = TRUE AND ap.was_correct = FALSE)::text AS incorrect,
+       COUNT(*) FILTER (
+         WHERE ap.settlement_trusted = TRUE
+           AND ap.settlement_status IN ('resolved', 'corrected')
+           AND r.result = 'push'
+       )::text AS push,
+       COUNT(*) FILTER (
+         WHERE ap.settlement_trusted = TRUE
+           AND ap.settlement_status IN ('resolved', 'corrected')
+           AND r.result = 'void'
+       )::text AS void,
        COUNT(*) FILTER (
          WHERE ap.settlement_trusted = TRUE
            AND ap.settlement_status IN ('resolved', 'corrected')
@@ -168,11 +204,21 @@ export async function getAccuracyStats(): Promise<{
            AND r.result IN (${FINAL_SETTLEMENT_RESULTS_SQL})
        )::text AS neutral,
        COUNT(*) FILTER (
+         WHERE ${PENDING_RESULT_SQL}
+       )::text AS pending_result,
+       COUNT(*) FILTER (
+         WHERE (
+           ap.settlement_status IN ('pending', 'unresolved')
+           OR ap.settlement_trusted = FALSE
+         )
+           AND r.result IN (${FINAL_SETTLEMENT_RESULTS_SQL})
+       )::text AS review_required,
+       COUNT(*) FILTER (
          WHERE ap.settlement_status IN ('pending', 'unresolved')
            OR ap.settlement_trusted = FALSE
            OR ${PENDING_RESULT_SQL}
        )::text AS pending
-     FROM ai_performance ap
+     FROM latest_ai_performance ap
      JOIN recommendations r ON r.id = ap.recommendation_id
      WHERE ${ACTIONABLE_NOT_DUP_SQL}`,
   );
@@ -185,8 +231,12 @@ export async function getAccuracyStats(): Promise<{
     total: Number(row.total),
     correct,
     incorrect: Number(row.incorrect),
+    push: Number(row.push),
+    void: Number(row.void),
     neutral: Number(row.neutral),
     pending: Number(row.pending),
+    pendingResult: Number(row.pending_result),
+    reviewRequired: Number(row.review_required),
     accuracy: settled > 0 ? Math.round((correct / settled) * 10000) / 100 : 0,
   };
 }
@@ -214,8 +264,8 @@ export async function backfillFromRecommendations(): Promise<number> {
          r.pnl::numeric,
          CASE WHEN r.result IN (${FINAL_SETTLEMENT_RESULTS_SQL}) THEN
            CASE
-             WHEN r.result = 'win' THEN true
-             WHEN r.result = 'loss' THEN false
+             WHEN r.result IN ('win', 'half_win') THEN true
+             WHEN r.result IN ('loss', 'half_loss') THEN false
              ELSE NULL
            END
          ELSE NULL END,
@@ -246,12 +296,13 @@ export async function getAccuracyByModel(): Promise<
   Array<{ model: string; total: number; correct: number; accuracy: number }>
 > {
   const r = await query<{ model: string; total: string; correct: string; settled: string }>(
-    `SELECT
+    `${LATEST_AI_PERFORMANCE_CTE}
+     SELECT
        ai_model AS model,
        COUNT(*)::text AS total,
        COUNT(*) FILTER (WHERE was_correct = TRUE)::text AS correct,
        COUNT(*) FILTER (WHERE was_correct IS NOT NULL)::text AS settled
-     FROM ai_performance ap
+     FROM latest_ai_performance ap
      WHERE NOT EXISTS (
        SELECT 1 FROM recommendations r
        WHERE r.id = ap.recommendation_id
@@ -304,8 +355,8 @@ export async function cleanAndResync(): Promise<{ deleted: number; backfilled: n
        actual_result = CASE WHEN r.result IN (${FINAL_SETTLEMENT_RESULTS_SQL}) THEN r.result ELSE '' END,
        actual_pnl = r.pnl::numeric,
        was_correct = CASE
-         WHEN r.result = 'win' THEN true
-         WHEN r.result = 'loss' THEN false
+         WHEN r.result IN ('win', 'half_win') THEN true
+         WHEN r.result IN ('loss', 'half_loss') THEN false
          ELSE NULL
        END,
        settlement_status = CASE
@@ -429,10 +480,11 @@ export async function getHistoricalPerformanceContext(): Promise<HistoricalPerfo
     settled: string;
     correct: string;
   }>(
-    `WITH base AS (
+    `${LATEST_AI_PERFORMANCE_CTE},
+     base AS (
        SELECT ap.predicted_market, ap.ai_confidence, ap.match_minute, ap.predicted_odds,
               ap.was_correct, ap.league
-       FROM ai_performance ap
+       FROM latest_ai_performance ap
        JOIN recommendations r ON r.id = ap.recommendation_id
        WHERE ${ACTIONABLE_NOT_DUP_SQL}
          AND ap.settlement_trusted = TRUE

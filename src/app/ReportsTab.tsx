@@ -74,13 +74,13 @@ const OverviewSection = memo(function OverviewSection({ data }: { data: Overview
     <div>
       <div className="report-kpi-grid">
         <KpiCard label="Recommendations" value={data.total} sub={`${data.pending} pending`} />
-        <KpiCard label="Hit Rate (W/L)" value={wrStr(data.winRate)} color={data.winRate >= 50 ? 'positive' : 'negative'} />
+        <KpiCard label="Directional Hit Rate" value={wrStr(data.winRate)} color={data.winRate >= 50 ? 'positive' : 'negative'} />
         <KpiCard label="P/L" value={pnlStr(data.totalPnl)} color={data.totalPnl >= 0 ? 'positive' : 'negative'} />
         <KpiCard label="ROI on Stake" value={`${data.roi >= 0 ? '+' : ''}${data.roi.toFixed(1)}%`} color={data.roi >= 0 ? 'positive' : 'negative'} />
         <KpiCard label="Avg Odds" value={data.avgOdds.toFixed(2)} />
         <KpiCard label="Avg Confidence" value={data.avgConfidence.toFixed(1)} />
-        <KpiCard label="Settled" value={data.settled} sub={`Decisive ${data.decisiveSettled} | Neutral ${data.neutralSettled}`} />
-        <KpiCard label="Record" value={`${data.wins}W - ${data.losses}L`} sub={`Push ${data.pushes} | HW ${data.halfWins} | HL ${data.halfLosses} | Void ${data.voids}`} />
+        <KpiCard label="Settled" value={data.settled} sub={`Directional ${data.directionalSettled} | Push/Void ${data.pushVoidSettled}`} />
+        <KpiCard label="Directional Record" value={`${data.wins}W - ${data.losses}L`} sub={`Full W ${data.wins - data.halfWins} | Full L ${data.losses - data.halfLosses} | Half W ${data.halfWins} | Half L ${data.halfLosses} | Push ${data.pushes} | Void ${data.voids}`} />
         <KpiCard label="Exposure Clusters" value={data.exposureConcentration.stackedClusters} sub={`${data.exposureConcentration.stackedRecommendations} recs | ${data.exposureConcentration.stackedStake}% stake`} />
       </div>
       {(data.bestDay || data.worstDay) && (
@@ -155,9 +155,9 @@ const LeagueSection = memo(function LeagueSection({ data, topLeagueNames }: { da
         </div>
       </div>
       <ReportTable
-        columns={['League', 'Total', 'W', 'L', 'Win%', 'P/L', 'Avg Odds', 'Avg Conf', 'ROI']}
+        columns={['League', 'Total', 'Dir W', 'Dir L', 'Push/Void', 'Hit%', 'P/L', 'Avg Odds', 'Avg Conf', 'ROI']}
         rows={sorted.map((d) => [
-          d.league, d.total, d.wins, d.losses, wrStr(d.winRate),
+          d.league, d.total, d.wins, d.losses, d.pushVoid, wrStr(d.winRate),
           { value: pnlStr(d.pnl), color: pnlColor(d.pnl) },
           d.avgOdds.toFixed(2), d.avgConfidence.toFixed(1),
           { value: `${d.roi >= 0 ? '+' : ''}${d.roi.toFixed(1)}%`, color: pnlColor(d.roi) },
@@ -178,7 +178,7 @@ const MarketSection = memo(function MarketSection({ data }: { data: MarketReport
   return (
     <div>
       <div className="card" style={{ marginBottom: 16 }}>
-        <div className="card-header"><div className="card-title">W/L by Market</div></div>
+        <div className="card-header"><div className="card-title">Directional W/L by Market</div></div>
         <div style={{ padding: '16px 0 8px 0' }}>
           <ResponsiveContainer width="100%" height={Math.max(180, data.length * 32)}>
             <BarChart data={chartData} layout="vertical">
@@ -194,9 +194,9 @@ const MarketSection = memo(function MarketSection({ data }: { data: MarketReport
         </div>
       </div>
       <ReportTable
-        columns={['Market', 'Total', 'W', 'L', 'Win%', 'P/L', 'Avg Odds', 'ROI']}
+        columns={['Market', 'Total', 'Dir W', 'Dir L', 'Push/Void', 'Hit%', 'P/L', 'Avg Odds', 'ROI']}
         rows={data.map((d) => [
-          d.market, d.total, d.wins, d.losses, wrStr(d.winRate),
+          d.market, d.total, d.wins, d.losses, d.pushVoid, wrStr(d.winRate),
           { value: pnlStr(d.pnl), color: pnlColor(d.pnl) },
           d.avgOdds.toFixed(2),
           { value: `${d.roi >= 0 ? '+' : ''}${d.roi.toFixed(1)}%`, color: pnlColor(d.roi) },
@@ -240,23 +240,23 @@ const TimeSection = memo(function TimeSection({ weekly, monthly }: { weekly: Tim
         </div>
       </div>
       <div className="card" style={{ marginBottom: 16 }}>
-        <div className="card-header"><div className="card-title">Win Rate Trend</div></div>
+        <div className="card-header"><div className="card-title">Directional Hit Rate Trend</div></div>
         <div style={{ padding: '16px 0 8px 0' }}>
           <ResponsiveContainer width="100%" height={200}>
             <LineChart data={data}>
               <CartesianGrid strokeDasharray="3 3" stroke="var(--gray-200)" />
               <XAxis dataKey="period" tick={{ fontSize: 10 }} />
               <YAxis tick={{ fontSize: 11 }} domain={[0, 100]} tickFormatter={(v) => `${v}%`} />
-              <Tooltip formatter={(v) => [`${Number(v).toFixed(1)}%`, 'Win Rate']} />
-              <Line type="monotone" dataKey="winRate" name="Win Rate" stroke={CHART_PURPLE} strokeWidth={2} dot={{ r: 3 }} />
+              <Tooltip formatter={(v) => [`${Number(v).toFixed(1)}%`, 'Directional Hit Rate']} />
+              <Line type="monotone" dataKey="winRate" name="Directional Hit Rate" stroke={CHART_PURPLE} strokeWidth={2} dot={{ r: 3 }} />
             </LineChart>
           </ResponsiveContainer>
         </div>
       </div>
       <ReportTable
-        columns={['Period', 'Total', 'W', 'L', 'Win%', 'P/L', 'Cumul.', 'Avg Odds', 'ROI']}
+        columns={['Period', 'Total', 'Dir W', 'Dir L', 'Push/Void', 'Hit%', 'P/L', 'Cumul.', 'Avg Odds', 'ROI']}
         rows={data.map((d) => [
-          d.period, d.total, d.wins, d.losses, wrStr(d.winRate),
+          d.period, d.total, d.wins, d.losses, d.pushVoid, wrStr(d.winRate),
           { value: pnlStr(d.pnl), color: pnlColor(d.pnl) },
           { value: pnlStr(d.cumPnl), color: pnlColor(d.cumPnl) },
           d.avgOdds.toFixed(2),
@@ -271,8 +271,8 @@ const ConfidenceSection = memo(function ConfidenceSection({ data }: { data: Conf
   if (!data.length) return <EmptyReport message="No confidence data" />;
   const radarData = data.map((d) => ({
     band: d.band,
-    'Actual Win%': d.winRate,
-    'Expected Win%': d.expectedWinRate,
+    'Actual Hit%': d.winRate,
+    'Expected Hit%': d.expectedWinRate,
   }));
   return (
     <div>
@@ -284,8 +284,8 @@ const ConfidenceSection = memo(function ConfidenceSection({ data }: { data: Conf
               <PolarGrid stroke="var(--gray-200)" />
               <PolarAngleAxis dataKey="band" tick={{ fontSize: 11 }} />
               <PolarRadiusAxis angle={30} tick={{ fontSize: 10 }} domain={[0, 100]} />
-              <Radar name="Actual Win%" dataKey="Actual Win%" stroke={CHART_BLUE} fill={CHART_BLUE} fillOpacity={0.3} />
-              <Radar name="Expected Win%" dataKey="Expected Win%" stroke={CHART_AMBER} fill={CHART_AMBER} fillOpacity={0.15} />
+              <Radar name="Actual Hit%" dataKey="Actual Hit%" stroke={CHART_BLUE} fill={CHART_BLUE} fillOpacity={0.3} />
+              <Radar name="Expected Hit%" dataKey="Expected Hit%" stroke={CHART_AMBER} fill={CHART_AMBER} fillOpacity={0.15} />
               <Legend wrapperStyle={{ fontSize: 11 }} />
               <Tooltip formatter={(v) => [`${Number(v).toFixed(1)}%`]} />
             </RadarChart>
@@ -293,7 +293,7 @@ const ConfidenceSection = memo(function ConfidenceSection({ data }: { data: Conf
         </div>
       </div>
       <ReportTable
-        columns={['Band', 'Total', 'W', 'L', 'Actual Win%', 'Expected Win%', 'Gap', 'P/L', 'Avg Odds']}
+        columns={['Band', 'Total', 'Dir W', 'Dir L', 'Actual Hit%', 'Expected Hit%', 'Gap', 'P/L', 'Avg Odds']}
         rows={data.map((d) => {
           const gap = d.winRate - d.expectedWinRate;
           return [
@@ -314,15 +314,15 @@ const OddsSection = memo(function OddsSection({ data }: { data: OddsRangeRow[] }
   return (
     <div>
       <div className="card" style={{ marginBottom: 16 }}>
-        <div className="card-header"><div className="card-title">Win Rate by Odds Range</div></div>
+        <div className="card-header"><div className="card-title">Directional Hit Rate by Odds Range</div></div>
         <div style={{ padding: '16px 0 8px 0' }}>
           <ResponsiveContainer width="100%" height={220}>
             <BarChart data={chartData}>
               <CartesianGrid strokeDasharray="3 3" stroke="var(--gray-200)" />
               <XAxis dataKey="name" tick={{ fontSize: 10 }} />
               <YAxis tick={{ fontSize: 11 }} domain={[0, 100]} tickFormatter={(v) => `${v}%`} />
-              <Tooltip formatter={(v) => [`${Number(v).toFixed(1)}%`, 'Win Rate']} />
-              <Bar dataKey="winRate" name="Win Rate">
+              <Tooltip formatter={(v) => [`${Number(v).toFixed(1)}%`, 'Directional Hit Rate']} />
+              <Bar dataKey="winRate" name="Directional Hit Rate">
                 {chartData.map((d, i) => <Cell key={i} fill={d.winRate >= 50 ? CHART_GREEN : CHART_RED} />)}
               </Bar>
             </BarChart>
@@ -330,7 +330,7 @@ const OddsSection = memo(function OddsSection({ data }: { data: OddsRangeRow[] }
         </div>
       </div>
       <ReportTable
-        columns={['Odds Range', 'Total', 'W', 'L', 'Win%', 'P/L', 'Avg Confidence']}
+        columns={['Odds Range', 'Total', 'Dir W', 'Dir L', 'Hit%', 'P/L', 'Avg Confidence']}
         rows={data.map((d) => [
           d.range, d.total, d.wins, d.losses, wrStr(d.winRate),
           { value: pnlStr(d.pnl), color: pnlColor(d.pnl) },
@@ -362,7 +362,7 @@ const MinuteSection = memo(function MinuteSection({ data }: { data: MinuteBandRo
         </div>
       </div>
       <ReportTable
-        columns={['Minute Band', 'Total', 'W', 'L', 'Win%', 'P/L', 'Avg Odds']}
+        columns={['Minute Band', 'Total', 'Dir W', 'Dir L', 'Hit%', 'P/L', 'Avg Odds']}
         rows={data.map((d) => [
           d.band, d.total, d.wins, d.losses, wrStr(d.winRate),
           { value: pnlStr(d.pnl), color: pnlColor(d.pnl) },
@@ -395,9 +395,9 @@ const DayOfWeekSection = memo(function DayOfWeekSection({ data }: { data: DayOfW
         </div>
       </div>
       <ReportTable
-        columns={['Day', 'Bets', 'W', 'L', 'Win%', 'P/L']}
+        columns={['Day', 'Bets', 'Dir W', 'Dir L', 'Push/Void', 'Hit%', 'P/L']}
         rows={data.map((d) => [
-          d.dayName, d.total, d.wins, d.losses, wrStr(d.winRate),
+          d.dayName, d.total, d.wins, d.losses, d.pushVoid, wrStr(d.winRate),
           { value: pnlStr(d.pnl), color: pnlColor(d.pnl) },
         ])}
       />
@@ -429,7 +429,7 @@ const LeagueMarketSection = memo(function LeagueMarketSection({ data, topLeagueN
             <table>
               <thead>
                 <tr>
-                  <th>Market</th><th>Total</th><th>W</th><th>L</th><th>Win%</th><th>P/L</th>
+                  <th>Market</th><th>Total</th><th>Dir W</th><th>Dir L</th><th>Push/Void</th><th>Hit%</th><th>P/L</th>
                 </tr>
               </thead>
               <tbody>
@@ -439,6 +439,7 @@ const LeagueMarketSection = memo(function LeagueMarketSection({ data, topLeagueN
                     <td><span className="cell-value">{r.total}</span></td>
                     <td><span className="cell-value">{r.wins}</span></td>
                     <td><span className="cell-value">{r.losses}</span></td>
+                    <td><span className="cell-value">{r.pushVoid}</span></td>
                     <td><span className="cell-value">{wrStr(r.winRate)}</span></td>
                     <td><span className="cell-value" style={{ color: pnlColor(r.pnl), fontWeight: 600 }}>{pnlStr(r.pnl)}</span></td>
                   </tr>
@@ -467,7 +468,7 @@ const AiInsightsSection = memo(function AiInsightsSection({ data }: { data: AiIn
         <div className="card-header"><div className="card-title">AI Performance Analysis</div></div>
         <div style={{ padding: '16px 20px' }}>
           <div className="report-insight-row" style={{ color: 'var(--gray-500)', fontSize: 12 }}>
-            Insights use decisive settled sample only and require at least {data.sampleFloor} samples per bucket.
+            Insights use directional settled sample only and require at least {data.sampleFloor} samples per bucket.
           </div>
           <div className="report-insight-row">
             <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}>{trendIcon} <strong>Recent Trend:</strong></span>
@@ -483,11 +484,11 @@ const AiInsightsSection = memo(function AiInsightsSection({ data }: { data: AiIn
             </span>
           </div>
           <div className="report-insight-row">
-            <span><strong>Value Investment Wins (odds ≥ 2.0):</strong></span>
+            <span><strong>Value Investment Hits (odds {'>='} 2.0):</strong></span>
             <span style={{ fontWeight: 600 }}>{data.valueFinds}</span>
           </div>
           <div className="report-insight-row">
-            <span><strong>Safe Investment Accuracy (odds {'<'} 1.70):</strong></span>
+            <span><strong>Safe Investment Directional Hit Rate (odds {'<'} 1.70):</strong></span>
             <span style={{ fontWeight: 600 }}>{data.safeBetAccuracy.toFixed(1)}%</span>
           </div>
         </div>
@@ -521,11 +522,11 @@ const AiInsightsSection = memo(function AiInsightsSection({ data }: { data: AiIn
         <div className="card" style={{ marginTop: 16 }}>
           <div className="card-header"><div className="card-title">Market Family ROI</div></div>
           <ReportTable
-            columns={['Family', 'Settled', 'Neutral', 'W', 'L', 'Hit%', 'P/L', 'ROI']}
+            columns={['Family', 'Settled', 'Push/Void', 'Dir W', 'Dir L', 'Hit%', 'P/L', 'ROI']}
             rows={data.marketFamilies.map((row) => [
               familyLabel(row.family),
               row.settled,
-              row.neutral,
+              row.pushVoid,
               row.wins,
               row.losses,
               wrStr(row.winRate),
@@ -543,11 +544,11 @@ const AiInsightsSection = memo(function AiInsightsSection({ data }: { data: AiIn
             Timing buckets show where prompt entries are actually strongest on stake-adjusted return.
           </div>
           <ReportTable
-            columns={['Bucket', 'Settled', 'Neutral', 'W', 'L', 'Hit%', 'P/L', 'ROI']}
+            columns={['Bucket', 'Settled', 'Push/Void', 'Dir W', 'Dir L', 'Hit%', 'P/L', 'ROI']}
             rows={data.lateEntries.map((row) => [
               row.bucket,
               row.settled,
-              row.neutral,
+              row.pushVoid,
               row.wins,
               row.losses,
               wrStr(row.winRate),

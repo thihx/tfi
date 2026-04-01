@@ -6,6 +6,138 @@ import {
 } from '../lib/prematch-expert-features.js';
 
 describe('buildPrematchExpertFeaturesV1', () => {
+  test('accepts profile v2 storage shape and still derives the same prematch signals', () => {
+    const features = buildPrematchExpertFeaturesV1({
+      leagueProfile: {
+        league_id: 39,
+        profile: {
+          version: 2,
+          source_mode: 'auto_derived',
+          window: {
+            lookback_days: 180,
+            sample_matches: 74,
+            event_summary_matches: 74,
+            event_coverage: 1,
+            top_league_only: true,
+            computed_at: '2026-04-01T00:00:00.000Z',
+            updated_at: '2026-04-01T00:00:00.000Z',
+          },
+          core: {
+            tempo_tier: 'high',
+            goal_tendency: 'high',
+            home_advantage_tier: 'high',
+            corners_tendency: 'high',
+            cards_tendency: 'balanced',
+            volatility_tier: 'medium',
+            data_reliability_tier: 'high',
+          },
+          quantitative: {
+            avg_goals: 3.05,
+            over_2_5_rate: 0.63,
+            btts_rate: 0.58,
+            late_goal_rate_75_plus: 0.31,
+            avg_corners: 10.3,
+            avg_cards: 3.9,
+          },
+        },
+      },
+      homeTeamProfile: {
+        team_id: '1',
+        profile: {
+          version: 2,
+          source_mode: 'hybrid',
+          window: {
+            lookback_days: 180,
+            sample_matches: 22,
+            sample_home_matches: 11,
+            sample_away_matches: 11,
+            event_summary_matches: 22,
+            event_coverage: 1,
+            top_league_only: true,
+            computed_at: '2026-04-01T00:00:00.000Z',
+            updated_at: '2026-04-01T00:00:00.000Z',
+          },
+          quantitative_core: {
+            set_piece_threat: 'high',
+            home_strength: 'strong',
+            form_consistency: 'consistent',
+            avg_goals_scored: 2.0,
+            avg_goals_conceded: 0.9,
+            clean_sheet_rate: 0.42,
+            btts_rate: 0.52,
+            over_2_5_rate: 0.61,
+            avg_corners_for: 6.4,
+            avg_corners_against: 4.2,
+            avg_cards: 2.0,
+            first_goal_rate: 0.67,
+            late_goal_rate: 0.38,
+            data_reliability_tier: 'high',
+          },
+          tactical_overlay: {
+            attack_style: 'direct',
+            defensive_line: 'high',
+            pressing_intensity: 'high',
+            squad_depth: 'deep',
+            source_mode: 'curated',
+            source_confidence: 'medium',
+            updated_at: '2026-04-01T00:00:00.000Z',
+          },
+        },
+      },
+      awayTeamProfile: {
+        team_id: '2',
+        profile: {
+          version: 2,
+          source_mode: 'hybrid',
+          window: {
+            lookback_days: 180,
+            sample_matches: 22,
+            sample_home_matches: 11,
+            sample_away_matches: 11,
+            event_summary_matches: 22,
+            event_coverage: 1,
+            top_league_only: true,
+            computed_at: '2026-04-01T00:00:00.000Z',
+            updated_at: '2026-04-01T00:00:00.000Z',
+          },
+          quantitative_core: {
+            set_piece_threat: 'medium',
+            home_strength: 'normal',
+            form_consistency: 'inconsistent',
+            avg_goals_scored: 1.0,
+            avg_goals_conceded: 1.7,
+            clean_sheet_rate: 0.16,
+            btts_rate: 0.62,
+            over_2_5_rate: 0.55,
+            avg_corners_for: 4.1,
+            avg_corners_against: 6.0,
+            avg_cards: 2.9,
+            first_goal_rate: 0.34,
+            late_goal_rate: 0.33,
+            data_reliability_tier: 'medium',
+          },
+          tactical_overlay: {
+            attack_style: 'counter',
+            defensive_line: 'low',
+            pressing_intensity: 'medium',
+            squad_depth: 'medium',
+            source_mode: 'default_neutral',
+            source_confidence: null,
+            updated_at: null,
+          },
+        },
+      },
+      topLeague: true,
+    });
+
+    expect(features).not.toBeNull();
+    expect(features?.meta.availability).toBe('full');
+    expect(features?.market_priors.one_x2_bias_score).not.toBeNull();
+    expect(features?.goal_environment.projected_goal_environment_score).not.toBeNull();
+    expect(features?.optional_team_profile?.first_goal_edge_score).not.toBeNull();
+    expect(features?.trust_and_coverage.team_profile_fields_present).toBe(36);
+  });
+
   test('derives quantitative prematch signals from league and team profiles without relying on narrative text', () => {
     const features = buildPrematchExpertFeaturesV1({
       leagueProfile: {

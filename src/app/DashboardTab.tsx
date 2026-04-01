@@ -9,7 +9,6 @@ import type { AiAccuracyStats, AiModelStats, DashboardSummary, ExposureSummary, 
 import { StatusBadge } from '@/components/ui/StatusBadge';
 import { formatLocalDateTime } from '@/lib/utils/helpers';
 import { MARKET_COLORS } from '@/config/constants';
-import { PageHeader } from '@/components/ui/PageHeader';
 
 // ==================== Sub-components ====================
 
@@ -160,14 +159,20 @@ const ExposureConcentrationPanel = memo(function ExposureConcentrationPanel({ da
 
 const AiAccuracyPanel = memo(function AiAccuracyPanel({ stats, models }: { stats: AiAccuracyStats | null; models: AiModelStats[] }) {
   if (!stats) return null;
+  const resultPending = stats.pendingResult ?? stats.pending;
+  const reviewRequired = stats.reviewRequired ?? 0;
+  const pushCount = stats.push ?? stats.neutral ?? 0;
+  const voidCount = stats.void ?? 0;
   const pieData = [
-    { name: 'Correct', value: stats.correct, color: 'var(--success)' },
-    { name: 'Incorrect', value: stats.incorrect, color: 'var(--danger)' },
-    { name: 'Neutral', value: stats.neutral, color: 'var(--warning)' },
-    { name: 'Pending', value: stats.pending, color: 'var(--gray-300)' },
+    { name: 'Won', value: stats.correct, color: 'var(--success)' },
+    { name: 'Lost', value: stats.incorrect, color: 'var(--danger)' },
+    { name: 'Push', value: pushCount, color: 'var(--warning)' },
+    { name: 'Void', value: voidCount, color: 'var(--gray-400)' },
+    { name: 'Pending', value: resultPending, color: 'var(--gray-300)' },
+    { name: 'Needs Review', value: reviewRequired, color: 'var(--gray-500)' },
   ].filter((d) => d.value > 0);
 
-  const settled = stats.correct + stats.incorrect;
+  const graded = stats.correct + stats.incorrect;
 
   return (
     <div className="card" style={{ marginBottom: '16px' }}>
@@ -188,11 +193,11 @@ const AiAccuracyPanel = memo(function AiAccuracyPanel({ stats, models }: { stats
             {stats.accuracy.toFixed(1)}%
           </div>
           <div className="text-base text-subtle">
-            {stats.correct} correct / {settled} decisive settled
+            {stats.correct} won | {stats.incorrect} lost | {graded} won/lost picks
           </div>
-          {(stats.pending > 0 || stats.neutral > 0) && (
+          {(resultPending > 0 || reviewRequired > 0 || pushCount > 0 || voidCount > 0) && (
             <div style={{ fontSize: '12px', color: 'var(--gray-400)', marginTop: '2px' }}>
-              {stats.neutral} neutral | {stats.pending} pending | {stats.total} total
+              {pushCount} push | {voidCount} void | {resultPending} pending | {reviewRequired} needs review | {stats.total} total
             </div>
           )}
           {/* Legend */}
@@ -268,26 +273,17 @@ export function DashboardTab() {
 
   return (
     <div className="dashboard">
-      <PageHeader
-        subtitle={<>
-          <span><strong>{d?.matchCount ?? 0}</strong> matches</span>
-          <span><strong>{d?.watchlistCount ?? 0}</strong> watchlist</span>
-          <span><strong>{d?.recCount ?? 0}</strong> recommendations</span>
-          {aiStats && <span>AI hit rate: <strong>{aiStats.accuracy.toFixed(1)}%</strong></span>}
-        </>}
-      />
-
       {/* Summary Stats */}
       <div className="stats-grid">
         <StatCard
           label="Settled Recommendations"
           value={d?.totalBets ?? 0}
-          sub={`${d?.pending ?? 0} pending | ${d?.neutralSettled ?? 0} neutral`}
+          sub={`${d?.pending ?? 0} pending | ${d?.pushes ?? 0} push | ${d?.voids ?? 0} void`}
         />
         <StatCard
-          label="Hit Rate (W/L)"
+          label="Won Rate"
           value={`${(d?.winRate ?? 0).toFixed(1)}%`}
-          sub={`${d?.wins ?? 0}W | ${d?.losses ?? 0}L${d?.streak ? ` | ${d.streak}` : ''}`}
+          sub={`Won ${d?.wins ?? 0} | Lost ${d?.losses ?? 0} | Half Won ${d?.halfWins ?? 0} | Half Lost ${d?.halfLosses ?? 0} | Push ${d?.pushes ?? 0} | Void ${d?.voids ?? 0}${d?.streak ? ` | ${d.streak}` : ''}`}
         />
         <StatCard
           label="Total P/L"

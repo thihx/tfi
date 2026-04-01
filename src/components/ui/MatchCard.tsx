@@ -59,7 +59,7 @@ function MatchCardBase({ match, actions, highlighted, onClick }: Props) {
 
   return (
     <div
-      className="card"
+      className={`card${isLive ? ' match-is-live' : ''}`}
       style={{
         padding: '0',
         overflow: 'hidden',

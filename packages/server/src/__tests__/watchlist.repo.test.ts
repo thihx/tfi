@@ -160,7 +160,7 @@ describe('watchlist repository user-scoped isolation', () => {
     expect(query).toHaveBeenCalledTimes(2);
     expect(String(vi.mocked(query).mock.calls[0]?.[0])).toContain('INSERT INTO monitored_matches');
     expect(String(vi.mocked(query).mock.calls[1]?.[0])).toContain('FROM monitored_matches mm');
-    expect(String(vi.mocked(query).mock.calls[1]?.[0])).not.toContain('FROM watchlist w');
+    expect(String(vi.mocked(query).mock.calls[1]?.[0])).toContain('$1::boolean = false');
   });
 
   test('getActiveOperationalWatchlist backfills active legacy rows before reading monitored data only', async () => {
@@ -185,6 +185,19 @@ describe('watchlist repository user-scoped isolation', () => {
 
     const sql = String(vi.mocked(query).mock.calls[1]?.[0]);
     expect(sql).toContain("WHERE ($1::boolean = false OR s.status = 'active')");
+  });
+
+  test('getActiveOperationalWatchlist excludes orphan monitored rows with zero subscribers unless legacy watchlist is still active', async () => {
+    vi.mocked(query)
+      .mockResolvedValueOnce({ rowCount: 0 } as never)
+      .mockResolvedValueOnce({ rows: [] } as never);
+
+    await getActiveOperationalWatchlist();
+
+    const sql = String(vi.mocked(query).mock.calls[1]?.[0]);
+    expect(sql).toContain('COALESCE(mm.subscriber_count, 0) > 0');
+    expect(sql).toContain('EXISTS (');
+    expect(sql).toContain('FROM watchlist w');
   });
 
   test('getAllOperationalWatchlist casts ranked created_at before coalescing with metadata text fallbacks', async () => {

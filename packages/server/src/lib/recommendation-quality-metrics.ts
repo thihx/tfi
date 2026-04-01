@@ -1,4 +1,9 @@
 import { normalizeMarket } from './normalize-market.js';
+import {
+  isDirectionalLossSettlementResult,
+  isDirectionalWinSettlementResult,
+  isPushVoidSettlementResult,
+} from './settle-types.js';
 
 export interface AnalyticsRecommendationRow {
   id?: number;
@@ -41,7 +46,7 @@ export interface MarketFamilyPerformanceRow {
   family: string;
   total: number;
   settled: number;
-  neutral: number;
+  pushVoid: number;
   wins: number;
   losses: number;
   winRate: number;
@@ -54,7 +59,7 @@ export interface LateEntryPerformanceRow {
   bucket: string;
   total: number;
   settled: number;
-  neutral: number;
+  pushVoid: number;
   wins: number;
   losses: number;
   winRate: number;
@@ -87,7 +92,7 @@ function pct(numerator: number, denominator: number): number {
 }
 
 function isNeutralResult(result: string): boolean {
-  return result === 'push' || result === 'half_win' || result === 'half_loss' || result === 'void';
+  return isPushVoidSettlementResult(result);
 }
 
 function isSettledResult(result: string): boolean {
@@ -239,7 +244,7 @@ export function summarizeMarketFamilyPerformance(rows: AnalyticsRecommendationRo
   const groups = new Map<string, {
     total: number;
     settled: number;
-    neutral: number;
+    pushVoid: number;
     wins: number;
     losses: number;
     totalStake: number;
@@ -251,7 +256,7 @@ export function summarizeMarketFamilyPerformance(rows: AnalyticsRecommendationRo
     const group = groups.get(row.marketFamily) ?? {
       total: 0,
       settled: 0,
-      neutral: 0,
+      pushVoid: 0,
       wins: 0,
       losses: 0,
       totalStake: 0,
@@ -259,9 +264,9 @@ export function summarizeMarketFamilyPerformance(rows: AnalyticsRecommendationRo
     };
     group.total += 1;
     group.settled += 1;
-    if (row.result === 'win') group.wins += 1;
-    else if (row.result === 'loss') group.losses += 1;
-    else if (isNeutralResult(row.result)) group.neutral += 1;
+    if (isDirectionalWinSettlementResult(row.result)) group.wins += 1;
+    else if (isDirectionalLossSettlementResult(row.result)) group.losses += 1;
+    else if (isNeutralResult(row.result)) group.pushVoid += 1;
     group.totalStake += Number(row.stake_percent ?? 0) || 0;
     group.pnl += Number(row.pnl ?? 0) || 0;
     groups.set(row.marketFamily, group);
@@ -274,7 +279,7 @@ export function summarizeMarketFamilyPerformance(rows: AnalyticsRecommendationRo
         family,
         total: group.total,
         settled: group.settled,
-        neutral: group.neutral,
+        pushVoid: group.pushVoid,
         wins: group.wins,
         losses: group.losses,
         winRate: decisive > 0 ? round((group.wins / decisive) * 100, 2) : 0,
@@ -291,7 +296,7 @@ export function summarizeLateEntryPerformance(rows: AnalyticsRecommendationRow[]
   const groups = new Map<string, {
     total: number;
     settled: number;
-    neutral: number;
+    pushVoid: number;
     wins: number;
     losses: number;
     totalStake: number;
@@ -303,7 +308,7 @@ export function summarizeLateEntryPerformance(rows: AnalyticsRecommendationRow[]
     const group = groups.get(bucket) ?? {
       total: 0,
       settled: 0,
-      neutral: 0,
+      pushVoid: 0,
       wins: 0,
       losses: 0,
       totalStake: 0,
@@ -311,9 +316,9 @@ export function summarizeLateEntryPerformance(rows: AnalyticsRecommendationRow[]
     };
     group.total += 1;
     group.settled += 1;
-    if (row.result === 'win') group.wins += 1;
-    else if (row.result === 'loss') group.losses += 1;
-    else if (isNeutralResult(row.result)) group.neutral += 1;
+    if (isDirectionalWinSettlementResult(row.result)) group.wins += 1;
+    else if (isDirectionalLossSettlementResult(row.result)) group.losses += 1;
+    else if (isNeutralResult(row.result)) group.pushVoid += 1;
     group.totalStake += Number(row.stake_percent ?? 0) || 0;
     group.pnl += Number(row.pnl ?? 0) || 0;
     groups.set(bucket, group);
@@ -329,7 +334,7 @@ export function summarizeLateEntryPerformance(rows: AnalyticsRecommendationRow[]
         bucket,
         total: group.total,
         settled: group.settled,
-        neutral: group.neutral,
+        pushVoid: group.pushVoid,
         wins: group.wins,
         losses: group.losses,
         winRate: decisive > 0 ? round((group.wins / decisive) * 100, 2) : 0,

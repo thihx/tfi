@@ -1,51 +1,58 @@
 import type { TeamProfile, TeamProfileData } from '@/types';
+import { filterTrustedTacticalOverlaySourceUrls } from './tacticalOverlaySourcePolicy';
+
+export interface TeamProfileOverlayMetadata {
+  source_mode: 'default_neutral' | 'curated' | 'llm_assisted' | 'manual_override';
+  source_confidence: 'low' | 'medium' | 'high' | null;
+  source_urls: string[];
+  source_season: string | null;
+}
 
 export type TeamProfileDraft = Omit<TeamProfile, 'team_id' | 'created_at' | 'updated_at'> & {
   profile: TeamProfileData;
+  overlay_metadata?: TeamProfileOverlayMetadata;
 };
 
 export type ImportFieldStatus = 'set' | 'default';
 export type ImportFieldResult = { label: string; value: string; status: ImportFieldStatus };
-export type ParseImportResult = { draft: TeamProfileDraft; repaired: boolean; summary: ImportFieldResult[] };
-
-// ── Defaults ─────────────────────────────────────────────────────────────────
+export type ParseImportResult = { draft: TeamProfileDraft; repaired: boolean; summary: ImportFieldResult[]; warnings: string[] };
 
 export const DEFAULT_TEAM_PROFILE_DATA: TeamProfileData = {
-  attack_style:          'mixed',
-  defensive_line:        'medium',
-  pressing_intensity:    'medium',
-  set_piece_threat:      'medium',
-  home_strength:         'normal',
-  form_consistency:      'inconsistent',
-  squad_depth:           'medium',
-  avg_goals_scored:      null,
-  avg_goals_conceded:    null,
-  clean_sheet_rate:      null,
-  btts_rate:             null,
-  over_2_5_rate:         null,
-  avg_corners_for:       null,
-  avg_corners_against:   null,
-  avg_cards:             null,
-  first_goal_rate:       null,
-  late_goal_rate:        null,
+  attack_style: 'mixed',
+  defensive_line: 'medium',
+  pressing_intensity: 'medium',
+  set_piece_threat: 'medium',
+  home_strength: 'normal',
+  form_consistency: 'inconsistent',
+  squad_depth: 'medium',
+  avg_goals_scored: null,
+  avg_goals_conceded: null,
+  clean_sheet_rate: null,
+  btts_rate: null,
+  over_2_5_rate: null,
+  avg_corners_for: null,
+  avg_corners_against: null,
+  avg_cards: null,
+  first_goal_rate: null,
+  late_goal_rate: null,
   data_reliability_tier: 'medium',
 };
 
 export const DEFAULT_TEAM_PROFILE_DRAFT: TeamProfileDraft = {
-  profile:  { ...DEFAULT_TEAM_PROFILE_DATA },
+  profile: { ...DEFAULT_TEAM_PROFILE_DATA },
   notes_en: '',
   notes_vi: '',
+  overlay_metadata: {
+    source_mode: 'default_neutral',
+    source_confidence: null,
+    source_urls: [],
+    source_season: null,
+  },
 };
 
-// ── Enum sets ─────────────────────────────────────────────────────────────────
-
-const ATTACK_STYLES  = new Set(['counter', 'direct', 'possession', 'mixed']);
-const TIER3          = new Set(['low', 'medium', 'high']);
-const HOME_STRENGTH  = new Set(['weak', 'normal', 'strong']);
-const FORM_CONSIST   = new Set(['volatile', 'inconsistent', 'consistent']);
-const SQUAD_DEPTH    = new Set(['shallow', 'medium', 'deep']);
-
-// ── Helpers ──────────────────────────────────────────────────────────────────
+const ATTACK_STYLES = new Set(['counter', 'direct', 'possession', 'mixed']);
+const TIER3 = new Set(['low', 'medium', 'high']);
+const SQUAD_DEPTH = new Set(['shallow', 'medium', 'deep']);
 
 function isRecord(v: unknown): v is Record<string, unknown> {
   return v != null && typeof v === 'object' && !Array.isArray(v);
@@ -55,94 +62,70 @@ function readText(v: unknown): string {
   return typeof v === 'string' ? v.trim() : '';
 }
 
-function readNullableNum(v: unknown): number | null {
-  if (v == null || v === '') return null;
-  const n = Number(v);
-  return Number.isFinite(n) && n >= 0 ? n : null;
-}
-
 function readEnum<T extends string>(v: unknown, allowed: Set<string>, fallback: T): T {
   return allowed.has(v as string) ? (v as T) : fallback;
 }
 
 function repairJson(raw: string): string {
   let s = raw.trim();
-  // Strip markdown fences
   s = s.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/, '');
-  // Find first { ... } block
   const start = s.indexOf('{');
-  const end   = s.lastIndexOf('}');
+  const end = s.lastIndexOf('}');
   if (start !== -1 && end !== -1 && end > start) s = s.slice(start, end + 1);
-  // Remove trailing commas before } or ]
   s = s.replace(/,\s*([}\]])/g, '$1');
   return s;
 }
-
-// ── Deep Research prompt ──────────────────────────────────────────────────────
 
 export function buildTeamProfileDeepResearchPrompt(
   teamName: string,
   leagueName?: string,
 ): string {
-  const context = leagueName ? ` (playing in ${leagueName})` : '';
+  const context = leagueName ? ` (currently associated with ${leagueName})` : '';
   return `
-You are a football data analyst and betting expert. Research the team "${teamName}"${context} and return a JSON profile following the exact schema below.
+You are a football tactical analyst. Research the team "${teamName}"${context} and return a structured tactical overlay for betting analysis.
 
-Use the most recent FULL season data available. If data is unavailable for a specific field, use null.
-
-Return ONLY valid JSON — no markdown, no explanation, no extra text.
+Important constraints:
+- This workflow is for TACTICAL OVERLAY ONLY.
+- Do NOT estimate or return quantitative metrics such as goals per match, BTTS rate, corners, cards, or reliability tiers.
+- Use trusted football sources only. Prefer exact HTTPS URLs from official club or league sites, FBref, Transfermarkt, Soccerway, FotMob, Sofascore, Flashscore, or WhoScored.
+- data_sources must contain real source URLs, not source labels.
+- Return ONLY valid JSON. No markdown, no prose outside JSON.
+- The same schema may be reused later for club teams or national teams. If the team is a national side, reflect that in entity_type and competition_context.
 
 Required JSON schema:
 {
+  "schema_version": 1,
+  "target": "team_tactical_overlay",
+  "entity_type": "club|national_team|unknown",
   "team_name": "${teamName}",
+  "competition_context": "${leagueName ? `${leagueName} season context` : 'Optional competition or tournament context'}",
   "season": "YYYY/YY or YYYY",
-  "data_sources": ["list of sources used"],
+  "data_sources": ["exact source URLs or short source labels"],
   "sample_confidence": "low|medium|high",
-
   "profile": {
     "attack_style": "counter|direct|possession|mixed",
     "defensive_line": "low|medium|high",
     "pressing_intensity": "low|medium|high",
-    "set_piece_threat": "low|medium|high",
-    "home_strength": "weak|normal|strong",
-    "form_consistency": "volatile|inconsistent|consistent",
-    "squad_depth": "shallow|medium|deep",
-    "avg_goals_scored": <number or null>,
-    "avg_goals_conceded": <number or null>,
-    "clean_sheet_rate": <0-100 percentage or null>,
-    "btts_rate": <0-100 percentage or null>,
-    "over_2_5_rate": <0-100 percentage or null>,
-    "avg_corners_for": <number or null>,
-    "avg_corners_against": <number or null>,
-    "avg_cards": <yellow cards per match or null>,
-    "first_goal_rate": <0-100 percentage or null>,
-    "late_goal_rate": <0-100 percentage — goals scored OR conceded ≥76' or null>,
-    "data_reliability_tier": "low|medium|high"
+    "squad_depth": "shallow|medium|deep"
   },
-
-  "notes_en": "Brief analyst note: key betting considerations for this team (home/away splits, cup vs league performance, injury patterns, set-piece danger, etc.)",
-  "notes_vi": "Ghi chú tương tự bằng tiếng Việt"
+  "notes_en": "Short tactical betting note in English.",
+  "notes_vi": "Short tactical betting note in Vietnamese."
 }
 
-Field definitions for accuracy:
-- attack_style: counter = absorb & transition; direct = long balls/crosses; possession = build-up play; mixed = no clear tendency
-- defensive_line: low = deep block; medium = mid-block; high = high press/offside trap
-- pressing_intensity: how aggressively the team presses out of possession
-- set_piece_threat: danger from corners, free kicks (both attacking and defensive vulnerability)
-- home_strength: how much stronger at home vs away (affects Asian Handicap calibration)
-- form_consistency: volatile = results unpredictable; inconsistent = occasional streaks; consistent = reliable
-- squad_depth: shallow = small rotation, fatigue risk; deep = strong bench
-- first_goal_rate: percentage of matches where THIS team scores first (key for AH 0/-0.5)
-- late_goal_rate: percentage of matches with a goal in 76th minute or later (either team)
-- data_reliability_tier: low = few matches/obscure league; medium = sufficient sample; high = top league, rich data
+Field definitions:
+- attack_style: counter = absorb and transition; direct = long balls, crosses, quick vertical play; possession = controlled build-up; mixed = no clear dominant pattern
+- defensive_line: low = deep block; medium = mid-block; high = aggressive line and press
+- pressing_intensity: how aggressively the team presses without the ball
+- squad_depth: shallow = limited rotation and bench depth; deep = strong bench and rotation resilience
+- sample_confidence: confidence in this tactical overlay only, not a quantitative coverage score
+- competition_context: optional text like "Premier League 2025/26" or "FIFA World Cup 2026 preparation"
 `.trim();
 }
-
-// ── JSON parser ───────────────────────────────────────────────────────────────
 
 export function parseImportedTeamProfile(
   raw: string,
   teamName: string,
+  currentDraft: TeamProfileDraft = DEFAULT_TEAM_PROFILE_DRAFT,
 ): ParseImportResult {
   let repaired = false;
   let parsed: unknown;
@@ -151,72 +134,75 @@ export function parseImportedTeamProfile(
     parsed = JSON.parse(raw);
   } catch {
     try {
-      const fixed = repairJson(raw);
-      parsed = JSON.parse(fixed);
+      parsed = JSON.parse(repairJson(raw));
       repaired = true;
     } catch {
-      throw new Error('Invalid JSON — could not parse even after repair attempt.');
+      throw new Error('Invalid JSON - could not parse even after repair attempt.');
     }
   }
 
   if (!isRecord(parsed)) throw new Error('Parsed JSON is not an object.');
+  if (parsed.target != null && parsed.target !== 'team_tactical_overlay') {
+    throw new Error('Imported JSON target is not team_tactical_overlay.');
+  }
+  if (parsed.schema_version != null && parsed.schema_version !== 1) {
+    throw new Error('Unsupported tactical overlay schema_version.');
+  }
 
-  // Extract profile block
   const profileBlock = isRecord(parsed.profile) ? parsed.profile : parsed;
+  const currentProfile = currentDraft.profile ?? DEFAULT_TEAM_PROFILE_DATA;
+  const currentOverlayMetadata = currentDraft.overlay_metadata ?? DEFAULT_TEAM_PROFILE_DRAFT.overlay_metadata!;
+  const notesEn = readText(parsed.notes_en || profileBlock.notes_en) || currentDraft.notes_en;
+  const notesVi = readText(parsed.notes_vi || profileBlock.notes_vi) || currentDraft.notes_vi;
+  const sourceConfidence =
+    parsed.sample_confidence === 'low'
+    || parsed.sample_confidence === 'medium'
+    || parsed.sample_confidence === 'high'
+      ? parsed.sample_confidence
+      : currentOverlayMetadata.source_confidence;
+  const { trusted: sourceUrls, dropped: droppedSourceUrls } = filterTrustedTacticalOverlaySourceUrls(parsed.data_sources);
+  const sourceSeason = readText(parsed.season) || currentOverlayMetadata.source_season || null;
+  if (sourceUrls.length === 0) {
+    throw new Error('No trusted tactical overlay source URLs found. Use exact HTTPS URLs from trusted football sources.');
+  }
+  const warnings = droppedSourceUrls.length > 0
+    ? [`Dropped ${droppedSourceUrls.length} untrusted or invalid source entr${droppedSourceUrls.length === 1 ? 'y' : 'ies'}.`]
+    : [];
 
-  const defaults = DEFAULT_TEAM_PROFILE_DATA;
-  const data: TeamProfileData = {
-    attack_style:          readEnum(profileBlock.attack_style,       ATTACK_STYLES, defaults.attack_style),
-    defensive_line:        readEnum(profileBlock.defensive_line,     TIER3, defaults.defensive_line),
-    pressing_intensity:    readEnum(profileBlock.pressing_intensity, TIER3, defaults.pressing_intensity),
-    set_piece_threat:      readEnum(profileBlock.set_piece_threat,   TIER3, defaults.set_piece_threat),
-    home_strength:         readEnum(profileBlock.home_strength,      HOME_STRENGTH, defaults.home_strength),
-    form_consistency:      readEnum(profileBlock.form_consistency,   FORM_CONSIST, defaults.form_consistency),
-    squad_depth:           readEnum(profileBlock.squad_depth,        SQUAD_DEPTH, defaults.squad_depth),
-    avg_goals_scored:      readNullableNum(profileBlock.avg_goals_scored),
-    avg_goals_conceded:    readNullableNum(profileBlock.avg_goals_conceded),
-    clean_sheet_rate:      readNullableNum(profileBlock.clean_sheet_rate),
-    btts_rate:             readNullableNum(profileBlock.btts_rate),
-    over_2_5_rate:         readNullableNum(profileBlock.over_2_5_rate),
-    avg_corners_for:       readNullableNum(profileBlock.avg_corners_for),
-    avg_corners_against:   readNullableNum(profileBlock.avg_corners_against),
-    avg_cards:             readNullableNum(profileBlock.avg_cards),
-    first_goal_rate:       readNullableNum(profileBlock.first_goal_rate),
-    late_goal_rate:        readNullableNum(profileBlock.late_goal_rate),
-    data_reliability_tier: readEnum(profileBlock.data_reliability_tier, TIER3, defaults.data_reliability_tier),
+  const profile: TeamProfileData = {
+    ...currentProfile,
+    attack_style: readEnum(profileBlock.attack_style, ATTACK_STYLES, currentProfile.attack_style),
+    defensive_line: readEnum(profileBlock.defensive_line, TIER3, currentProfile.defensive_line),
+    pressing_intensity: readEnum(profileBlock.pressing_intensity, TIER3, currentProfile.pressing_intensity),
+    squad_depth: readEnum(profileBlock.squad_depth, SQUAD_DEPTH, currentProfile.squad_depth),
   };
 
-  const notes_en = readText(parsed.notes_en || profileBlock.notes_en);
-  const notes_vi = readText(parsed.notes_vi || profileBlock.notes_vi);
+  const draft: TeamProfileDraft = {
+    profile,
+    notes_en: notesEn,
+    notes_vi: notesVi,
+    overlay_metadata: {
+      source_mode: 'llm_assisted',
+      source_confidence: sourceConfidence,
+      source_urls: sourceUrls,
+      source_season: sourceSeason,
+    },
+  };
 
-  const draft: TeamProfileDraft = { profile: data, notes_en, notes_vi };
-
-  // Build summary for review step
   const summary: ImportFieldResult[] = [
-    { label: 'Attack Style',       value: data.attack_style,          status: data.attack_style          !== defaults.attack_style          ? 'set' : 'default' },
-    { label: 'Defensive Line',     value: data.defensive_line,        status: data.defensive_line        !== defaults.defensive_line        ? 'set' : 'default' },
-    { label: 'Pressing',           value: data.pressing_intensity,    status: data.pressing_intensity    !== defaults.pressing_intensity    ? 'set' : 'default' },
-    { label: 'Set Pieces',         value: data.set_piece_threat,      status: data.set_piece_threat      !== defaults.set_piece_threat      ? 'set' : 'default' },
-    { label: 'Home Strength',      value: data.home_strength,         status: data.home_strength         !== defaults.home_strength         ? 'set' : 'default' },
-    { label: 'Form Consistency',   value: data.form_consistency,      status: data.form_consistency      !== defaults.form_consistency      ? 'set' : 'default' },
-    { label: 'Squad Depth',        value: data.squad_depth,           status: data.squad_depth           !== defaults.squad_depth           ? 'set' : 'default' },
-    { label: 'Goals Scored/90',    value: data.avg_goals_scored    != null ? String(data.avg_goals_scored)    : '—', status: data.avg_goals_scored    != null ? 'set' : 'default' },
-    { label: 'Goals Conceded/90',  value: data.avg_goals_conceded  != null ? String(data.avg_goals_conceded)  : '—', status: data.avg_goals_conceded  != null ? 'set' : 'default' },
-    { label: 'Clean Sheet %',      value: data.clean_sheet_rate    != null ? `${data.clean_sheet_rate}%`    : '—', status: data.clean_sheet_rate    != null ? 'set' : 'default' },
-    { label: 'BTTS %',             value: data.btts_rate           != null ? `${data.btts_rate}%`           : '—', status: data.btts_rate           != null ? 'set' : 'default' },
-    { label: 'Over 2.5 %',         value: data.over_2_5_rate       != null ? `${data.over_2_5_rate}%`       : '—', status: data.over_2_5_rate       != null ? 'set' : 'default' },
-    { label: 'Corners For/90',     value: data.avg_corners_for     != null ? String(data.avg_corners_for)     : '—', status: data.avg_corners_for     != null ? 'set' : 'default' },
-    { label: 'Corners Against/90', value: data.avg_corners_against != null ? String(data.avg_corners_against) : '—', status: data.avg_corners_against != null ? 'set' : 'default' },
-    { label: 'Cards/90',           value: data.avg_cards           != null ? String(data.avg_cards)           : '—', status: data.avg_cards           != null ? 'set' : 'default' },
-    { label: 'First Goal %',       value: data.first_goal_rate     != null ? `${data.first_goal_rate}%`     : '—', status: data.first_goal_rate     != null ? 'set' : 'default' },
-    { label: 'Late Goal %',        value: data.late_goal_rate      != null ? `${data.late_goal_rate}%`      : '—', status: data.late_goal_rate      != null ? 'set' : 'default' },
-    { label: 'Data Reliability',   value: data.data_reliability_tier, status: data.data_reliability_tier !== defaults.data_reliability_tier ? 'set' : 'default' },
-    { label: 'Notes (EN)',         value: notes_en ? notes_en.slice(0, 60) + (notes_en.length > 60 ? '…' : '') : '—', status: notes_en ? 'set' : 'default' },
-    { label: 'Notes (VI)',         value: notes_vi ? notes_vi.slice(0, 60) + (notes_vi.length > 60 ? '…' : '') : '—', status: notes_vi ? 'set' : 'default' },
+    { label: 'Attack Style', value: profile.attack_style, status: profile.attack_style !== currentProfile.attack_style ? 'set' : 'default' },
+    { label: 'Defensive Line', value: profile.defensive_line, status: profile.defensive_line !== currentProfile.defensive_line ? 'set' : 'default' },
+    { label: 'Pressing', value: profile.pressing_intensity, status: profile.pressing_intensity !== currentProfile.pressing_intensity ? 'set' : 'default' },
+    { label: 'Squad Depth', value: profile.squad_depth, status: profile.squad_depth !== currentProfile.squad_depth ? 'set' : 'default' },
+    { label: 'Source Confidence', value: sourceConfidence ?? '-', status: sourceConfidence ? 'set' : 'default' },
+    { label: 'Source Count', value: sourceUrls.length ? String(sourceUrls.length) : '-', status: sourceUrls.length > 0 ? 'set' : 'default' },
+    { label: 'Season', value: sourceSeason ?? '-', status: sourceSeason ? 'set' : 'default' },
+    { label: 'Notes (EN)', value: notesEn ? notesEn.slice(0, 60) + (notesEn.length > 60 ? '...' : '') : '-', status: notesEn ? 'set' : 'default' },
+    { label: 'Notes (VI)', value: notesVi ? notesVi.slice(0, 60) + (notesVi.length > 60 ? '...' : '') : '-', status: notesVi ? 'set' : 'default' },
   ];
 
-  void teamName; // used by caller context only
-  return { draft, repaired, summary };
+  void teamName;
+  return { draft, repaired, summary, warnings };
 }
 
 export function summarizeDraft(draft: TeamProfileDraft): { set: number; total: number } {
@@ -233,9 +219,21 @@ export function summarizeDraft(draft: TeamProfileDraft): { set: number; total: n
     p.data_reliability_tier !== d.data_reliability_tier,
   ].filter(Boolean).length;
   const quantSet = [
-    p.avg_goals_scored, p.avg_goals_conceded, p.clean_sheet_rate,
-    p.btts_rate, p.over_2_5_rate, p.avg_corners_for, p.avg_corners_against,
-    p.avg_cards, p.first_goal_rate, p.late_goal_rate,
+    p.avg_goals_scored,
+    p.avg_goals_conceded,
+    p.clean_sheet_rate,
+    p.btts_rate,
+    p.over_2_5_rate,
+    p.avg_corners_for,
+    p.avg_corners_against,
+    p.avg_cards,
+    p.first_goal_rate,
+    p.late_goal_rate,
   ].filter((v) => v != null).length;
-  return { set: qualSet + quantSet, total: 18 };
+  const overlaySet = [
+    draft.overlay_metadata?.source_confidence,
+    draft.overlay_metadata?.source_urls?.length ? 'sources' : null,
+    draft.overlay_metadata?.source_season,
+  ].filter(Boolean).length;
+  return { set: qualSet + quantSet + overlaySet, total: 21 };
 }

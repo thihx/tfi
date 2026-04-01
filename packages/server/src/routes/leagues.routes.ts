@@ -14,6 +14,7 @@ import {
   refreshLeagueCatalog,
   type LeagueCatalogRefreshMode,
 } from '../lib/league-catalog.service.js';
+import { getTopLeagueProfileCoverage } from '../lib/profile-coverage.js';
 
 const ACTIVE_CACHE_KEY = 'cache:leagues:active';
 const ALL_CACHE_KEY = 'cache:leagues:all';
@@ -143,15 +144,17 @@ export async function leagueRoutes(app: FastifyInstance) {
   app.get('/api/leagues/init', async (req: FastifyRequest, reply: FastifyReply) => {
     const user = requireCurrentUser(req, reply);
     if (!user) return;
-    const [leagues, favoriteTeams, teamProfiles] = await Promise.all([
+    const [leagues, favoriteTeams, teamProfiles, profileCoverage] = await Promise.all([
       getAllLeaguesCached(),
       favoriteTeamsRepo.getFavoriteTeams(user.userId),
       teamProfilesRepo.getAllTeamProfiles(),
+      getTopLeagueProfileCoverage(),
     ]);
     return {
       leagues,
       favoriteTeamIds: favoriteTeams.map((f) => f.team_id),
       profiledTeamIds: teamProfiles.map((p) => p.team_id),
+      profileCoverage,
     };
   });
 
@@ -195,7 +198,8 @@ export async function leagueRoutes(app: FastifyInstance) {
   });
 
   app.get('/api/league-profiles', async () => {
-    return profileRepo.getAllLeagueProfiles();
+    const rows = await profileRepo.getAllLeagueProfiles();
+    return rows.map(profileRepo.flattenLeagueProfileRow);
   });
 
   app.get<{ Params: { id: string } }>('/api/leagues/:id/profile', async (req, reply) => {
@@ -205,7 +209,7 @@ export async function leagueRoutes(app: FastifyInstance) {
     if (!league) return reply.code(404).send({ error: 'League not found' });
     const profile = await profileRepo.getLeagueProfileByLeagueId(id);
     if (!profile) return reply.code(404).send({ error: 'League profile not found' });
-    return profile;
+    return profileRepo.flattenLeagueProfileRow(profile);
   });
 
   app.put<{ Params: { id: string }; Body: Record<string, unknown> }>(
@@ -223,7 +227,7 @@ export async function leagueRoutes(app: FastifyInstance) {
 
       const saved = await profileRepo.upsertLeagueProfile(id, payload.profile, payload.notes_en, payload.notes_vi);
       void invalidateActiveLeaguesCache();
-      return saved;
+      return profileRepo.flattenLeagueProfileRow(saved);
     },
   );
 

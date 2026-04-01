@@ -4,7 +4,6 @@ import {
   analyzeMatchWithServerPipeline,
   fetchLiveMonitorStatus,
   getParsedAiResult,
-  triggerCheckLiveRun,
 } from './server-monitor.service';
 
 const appConfig = { apiUrl: 'http://localhost:4000' } as AppConfig;
@@ -28,6 +27,12 @@ describe('server-monitor.service', () => {
           runCount: 0,
         },
         progress: null,
+        monitoring: {
+          activeWatchCount: 0,
+          liveWatchCount: 0,
+          candidateCount: 0,
+          targets: [],
+        },
         summary: null,
         results: [],
       }),
@@ -37,16 +42,6 @@ describe('server-monitor.service', () => {
 
     expect(result.job.name).toBe('check-live-trigger');
     expect(result.results).toEqual([]);
-  });
-
-  test('triggerCheckLiveRun throws server error details', async () => {
-    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
-      ok: false,
-      text: async () => 'Job is already running',
-      status: 409,
-    }));
-
-    await expect(triggerCheckLiveRun(appConfig)).rejects.toThrow('Job is already running');
   });
 
   test('analyzeMatchWithServerPipeline returns the structured server result', async () => {

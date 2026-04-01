@@ -127,6 +127,14 @@ const mockSnapshot = {
       highNoiseRows: 2,
       highNoiseRate: 16.7,
       avgNoisePenalty: 34.5,
+      structuredAskAiEligibleRows: 5,
+      structuredAskAiEligibleRate: 62.5,
+      structuredAskAiBlockedRows: 3,
+      structuredAskAiReasonBreakdown: [
+        { reason: 'eligible', count: 5 },
+        { reason: 'prediction_or_profile_coverage_too_thin', count: 2 },
+        { reason: 'prematch_features_missing', count: 1 },
+      ],
       topHighNoiseMatches: [
         {
           matchId: 'm2',
@@ -159,6 +167,20 @@ const mockSnapshot = {
         },
       ],
     },
+  },
+  promptOnly: {
+    windowHours: 24,
+    totalRows: 6,
+    successRows: 2,
+    skippedRows: 3,
+    failedRows: 1,
+    structuredEligibleRows: 4,
+    structuredEligibleRate: 66.7,
+    reasonBreakdown: [
+      { reason: 'eligible', count: 4 },
+      { reason: 'low_evidence_without_watch_condition', count: 1 },
+      { reason: 'prompt_only_failed', count: 1 },
+    ],
   },
 };
 
@@ -201,10 +223,16 @@ describe('OpsMonitoringPanel', () => {
     expect(screen.getByText('Settlement')).toBeInTheDocument();
     expect(screen.getByText('Notifications')).toBeInTheDocument();
     expect(screen.getByText('Prompt Shadow')).toBeInTheDocument();
+    expect(screen.getByText('Manual Ask AI')).toBeInTheDocument();
+    expect(screen.getByText('Manual Ask AI Outcomes')).toBeInTheDocument();
+    expect(screen.getByText('Low evidence and no custom watch condition')).toBeInTheDocument();
     expect(screen.getByText('Prompt Quality')).toBeInTheDocument();
     expect(screen.getByText('High-noise prematch')).toBeInTheDocument();
+    expect(screen.getByText('Prematch Override Eligible')).toBeInTheDocument();
     expect(screen.getByText('Top High-Noise Matches')).toBeInTheDocument();
     expect(screen.getByText('West Ham vs Spurs')).toBeInTheDocument();
+    expect(screen.getByText('Prematch Gate Reasons')).toBeInTheDocument();
+    expect(screen.getByText('Prediction or profile coverage too thin')).toBeInTheDocument();
     expect(screen.getByText('Stacking rate')).toBeInTheDocument();
     expect(screen.getByText('Atletico San Luis vs Leon')).toBeInTheDocument();
     expect(screen.getByText('v4-evidence-hardened')).toBeInTheDocument();

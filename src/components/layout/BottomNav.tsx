@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import type { ReactElement } from 'react';
 import type { TabName } from '@/types';
 
 interface BottomNavProps {
@@ -81,7 +82,7 @@ const IconSettings = () => (
   </svg>
 );
 
-const PRIMARY: { key: TabName; label: string; icon: JSX.Element }[] = [
+const PRIMARY: { key: TabName; label: string; icon: ReactElement }[] = [
   { key: 'dashboard',       label: 'Home',    icon: <IconHome /> },
   { key: 'matches',         label: 'Matches', icon: <IconMatches /> },
   { key: 'watchlist',       label: 'Watch',   icon: <IconWatch /> },
@@ -89,7 +90,7 @@ const PRIMARY: { key: TabName; label: string; icon: JSX.Element }[] = [
   { key: 'live-monitor',    label: 'Live',    icon: <IconLive /> },
 ];
 
-const MORE: { key: TabName; label: string; icon: JSX.Element }[] = [
+const MORE: { key: TabName; label: string; icon: ReactElement }[] = [
   { key: 'bet-tracker', label: 'Investment Tracker', icon: <IconTracker /> },
   { key: 'leagues',     label: 'Leagues',            icon: <IconLeagues /> },
   { key: 'reports',     label: 'Reports',            icon: <IconReports /> },

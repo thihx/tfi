@@ -92,6 +92,37 @@ function unwrapProfileRecord(value: unknown): Record<string, unknown> | null {
   const record = asRecord(value);
   if (!record) return null;
   const nested = asRecord(record.profile);
+  const payload = nested ?? record;
+
+  const core = asRecord(payload.core);
+  const quantitative = asRecord(payload.quantitative);
+  const quantitativeCore = asRecord(payload.quantitative_core);
+  const tacticalOverlay = asRecord(payload.tactical_overlay);
+  const window = asRecord(payload.window);
+
+  if (payload.version === 2 && (core || quantitative || quantitativeCore || tacticalOverlay)) {
+    return {
+      ...(core ?? {}),
+      ...(quantitative ?? {}),
+      ...(quantitativeCore ?? {}),
+      ...(tacticalOverlay ?? {}),
+      notes_en: record.notes_en ?? payload.notes_en,
+      notes_vi: record.notes_vi ?? payload.notes_vi,
+      profile_version: payload.version,
+      profile_source_mode: payload.source_mode,
+      profile_window: window ?? null,
+      sample_matches: window?.sample_matches ?? null,
+      event_coverage: window?.event_coverage ?? null,
+      data_reliability_tier:
+        quantitativeCore?.data_reliability_tier
+        ?? core?.data_reliability_tier
+        ?? payload.data_reliability_tier
+        ?? record.data_reliability_tier,
+      volatility_tier: core?.volatility_tier ?? payload.volatility_tier ?? record.volatility_tier,
+      home_advantage_tier: core?.home_advantage_tier ?? payload.home_advantage_tier ?? record.home_advantage_tier,
+    };
+  }
+
   if (!nested) return record;
   return {
     ...nested,
@@ -336,8 +367,28 @@ export function buildPrematchExpertFeaturesV1(
     'volatility_tier',
     'data_reliability_tier',
   ]);
+  const teamProfileKeys = [
+    'attack_style',
+    'defensive_line',
+    'pressing_intensity',
+    'set_piece_threat',
+    'home_strength',
+    'form_consistency',
+    'squad_depth',
+    'avg_goals_scored',
+    'avg_goals_conceded',
+    'clean_sheet_rate',
+    'btts_rate',
+    'over_2_5_rate',
+    'avg_corners_for',
+    'avg_corners_against',
+    'avg_cards',
+    'first_goal_rate',
+    'late_goal_rate',
+    'data_reliability_tier',
+  ];
   const predictionFieldsPresent = countPresent(prediction, ['predictions', 'comparison', 'h2h_summary', 'team_form']);
-  const teamProfileFieldsPresent = countPresent(homeTeamProfile) + countPresent(awayTeamProfile);
+  const teamProfileFieldsPresent = countPresent(homeTeamProfile, teamProfileKeys) + countPresent(awayTeamProfile, teamProfileKeys);
   const totalFieldsPresent = strategicQuantFieldsPresent + leagueProfileFieldsPresent + predictionFieldsPresent + teamProfileFieldsPresent;
   const availability = computeAvailability(totalFieldsPresent);
   if (availability === 'none') return null;

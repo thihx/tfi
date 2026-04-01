@@ -156,6 +156,13 @@ interface PromptQualityOverview {
     highNoiseRows: number;
     highNoiseRate: number;
     avgNoisePenalty: number;
+    structuredAskAiEligibleRows: number;
+    structuredAskAiEligibleRate: number;
+    structuredAskAiBlockedRows: number;
+    structuredAskAiReasonBreakdown: Array<{
+      reason: string;
+      count: number;
+    }>;
     topHighNoiseMatches: Array<{
       matchId: string;
       matchDisplay: string;
@@ -168,6 +175,17 @@ interface PromptQualityOverview {
   };
 }
 
+interface PromptOnlyOverview {
+  windowHours: number;
+  totalRows: number;
+  successRows: number;
+  skippedRows: number;
+  failedRows: number;
+  structuredEligibleRows: number;
+  structuredEligibleRate: number;
+  reasonBreakdown: Array<{ reason: string; count: number }>;
+}
+
 interface OpsMonitoringSnapshot {
   generatedAt: string;
   checklist: ChecklistItem[];
@@ -178,6 +196,7 @@ interface OpsMonitoringSnapshot {
   notifications: NotificationOverview;
   promptShadow: PromptShadowOverview;
   promptQuality: PromptQualityOverview;
+  promptOnly: PromptOnlyOverview;
 }
 
 function authHeaders(): Record<string, string> {
@@ -315,6 +334,21 @@ function DataCard({ children }: { children: React.ReactNode }) {
 
 function formatJobAction(action: string): string {
   return action.replace(/^JOB_/, '').toLowerCase().replace(/_/g, '-');
+}
+
+function humanizeReasonCode(reason: string): string {
+  const map: Record<string, string> = {
+    eligible: 'Eligible for structured prematch Ask AI',
+    low_evidence_without_watch_condition: 'Low evidence and no custom watch condition',
+    prompt_only_failed: 'Prompt-only analysis failed',
+    prediction_or_profile_coverage_too_thin: 'Prediction or profile coverage too thin',
+    prematch_features_missing: 'Prematch features missing',
+    top_league_required: 'Top-league structured path required',
+    manual_force_required: 'Manual force path required',
+    unknown: 'Unknown',
+  };
+  if (reason in map) return map[reason]!;
+  return reason.replace(/_/g, ' ');
 }
 
 function FunnelBar({ label, value, max, color }: { label: string; value: number; max: number; color: string }) {
@@ -620,6 +654,37 @@ export function OpsMonitoringPanel() {
           </div>
 
           <DataCard>
+            <SectionHeader title="Manual Ask AI" subtitle={`Prompt-only match analysis over the last ${snapshot.promptOnly.windowHours}h`} />
+            <div style={{ fontSize: '12px', color: 'var(--gray-500)', marginBottom: '12px', lineHeight: 1.5 }}>
+              This tracks manual match analysis requests. A request can reach the LLM, skip before the LLM, or fail early.
+            </div>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: '8px', marginBottom: '12px' }}>
+              {[
+                { label: 'Requests', value: snapshot.promptOnly.totalRows, warn: snapshot.promptOnly.totalRows === 0 },
+                { label: 'Reached LLM', value: snapshot.promptOnly.successRows, warn: false },
+                { label: 'Skipped Before LLM', value: snapshot.promptOnly.skippedRows, warn: snapshot.promptOnly.skippedRows > snapshot.promptOnly.successRows },
+                { label: 'Failed', value: snapshot.promptOnly.failedRows, warn: snapshot.promptOnly.failedRows > 0 },
+                { label: 'Prematch Override Eligible', value: `${snapshot.promptOnly.structuredEligibleRate}%`, warn: snapshot.promptOnly.totalRows > 0 && snapshot.promptOnly.structuredEligibleRate < 50 },
+              ].map((item) => (
+                <div key={item.label} style={{ padding: '8px 10px', borderRadius: '6px', background: item.warn ? '#fef2f2' : 'var(--gray-50)', border: `1px solid ${item.warn ? '#fecaca' : 'var(--gray-200)'}` }}>
+                  <div style={{ fontSize: '10px', color: 'var(--gray-500)', textTransform: 'uppercase', letterSpacing: '0.3px' }}>{item.label}</div>
+                  <div style={{ fontSize: '20px', fontWeight: 800, color: item.warn ? '#dc2626' : 'var(--gray-800)', lineHeight: 1.2, marginTop: '2px' }}>{item.value}</div>
+                </div>
+              ))}
+            </div>
+            <div style={{ fontSize: '11px', fontWeight: 600, color: 'var(--gray-500)', textTransform: 'uppercase', letterSpacing: '0.3px', marginBottom: '5px' }}>Manual Ask AI Outcomes</div>
+            {snapshot.promptOnly.reasonBreakdown.length === 0
+              ? <div style={{ fontSize: '12px', color: 'var(--gray-400)' }}>No prompt-only rows yet.</div>
+              : snapshot.promptOnly.reasonBreakdown.map((row) => (
+                <div key={row.reason} style={{ display: 'flex', justifyContent: 'space-between', fontSize: '12px', padding: '3px 0', borderBottom: '1px solid var(--gray-100)' }}>
+                  <span style={{ color: 'var(--gray-600)' }}>{humanizeReasonCode(row.reason)}</span>
+                  <span style={{ fontWeight: 600 }}>{row.count}</span>
+                </div>
+              ))
+            }
+          </DataCard>
+
+          <DataCard>
             <SectionHeader title="Prompt Quality" subtitle={`Last ${snapshot.promptQuality.windowHours}h`} />
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: '8px', marginBottom: '12px' }}>
               {[
@@ -628,6 +693,7 @@ export function OpsMonitoringPanel() {
                 { label: 'Corners usage', value: `${snapshot.promptQuality.cornersUsageRate}%`, warn: snapshot.promptQuality.cornersUsageRate > 25 },
                 { label: 'Late high-line', value: `${snapshot.promptQuality.lateHighLineRate}%`, warn: snapshot.promptQuality.lateHighLineRate > 8 },
                 { label: 'High-noise prematch', value: `${snapshot.promptQuality.prematch.highNoiseRate}%`, warn: snapshot.promptQuality.prematch.highNoiseRate > 25 },
+                { label: 'Structured eligible', value: `${snapshot.promptQuality.prematch.structuredAskAiEligibleRate}%`, warn: snapshot.promptQuality.prematch.structuredAskAiEligibleRate < 50 },
                 { label: 'Avg prematch noise', value: `${snapshot.promptQuality.prematch.avgNoisePenalty}`, warn: snapshot.promptQuality.prematch.avgNoisePenalty >= 50 },
               ].map((item) => (
                 <div key={item.label} style={{ padding: '8px 10px', borderRadius: '6px', background: item.warn ? '#fef2f2' : 'var(--gray-50)', border: `1px solid ${item.warn ? '#fecaca' : 'var(--gray-200)'}` }}>
@@ -652,6 +718,8 @@ export function OpsMonitoringPanel() {
                   ['Prematch weak rows', snapshot.promptQuality.prematch.weakRows],
                   ['High-noise rows', snapshot.promptQuality.prematch.highNoiseRows],
                   ['Prematch minimal rows', snapshot.promptQuality.prematch.minimalAvailabilityRows],
+                  ['Structured eligible rows', snapshot.promptQuality.prematch.structuredAskAiEligibleRows],
+                  ['Structured blocked rows', snapshot.promptQuality.prematch.structuredAskAiBlockedRows],
                 ].map(([label, value]) => (
                   <div key={String(label)} style={{ display: 'flex', justifyContent: 'space-between', fontSize: '12px', padding: '2px 0', borderBottom: '1px solid var(--gray-100)' }}>
                     <span style={{ color: 'var(--gray-600)' }}>{label}</span>
@@ -669,6 +737,16 @@ export function OpsMonitoringPanel() {
                       <div style={{ fontSize: '11px', color: 'var(--gray-500)' }}>
                         noise {row.noisePenalty} · {row.prematchStrength} · {row.prematchAvailability} · {row.promptDataLevel}
                       </div>
+                    </div>
+                  ))
+                }
+                <div style={{ fontSize: '11px', fontWeight: 600, color: 'var(--gray-500)', textTransform: 'uppercase', letterSpacing: '0.3px', margin: '10px 0 5px' }}>Prematch Gate Reasons</div>
+                {snapshot.promptQuality.prematch.structuredAskAiReasonBreakdown.length === 0
+                  ? <div style={{ fontSize: '12px', color: 'var(--gray-400)' }}>None</div>
+                  : snapshot.promptQuality.prematch.structuredAskAiReasonBreakdown.map((row) => (
+                    <div key={row.reason} style={{ display: 'flex', justifyContent: 'space-between', fontSize: '12px', padding: '2px 0', borderBottom: '1px solid var(--gray-100)' }}>
+                      <span style={{ color: 'var(--gray-600)' }}>{humanizeReasonCode(row.reason)}</span>
+                      <span style={{ fontWeight: 600 }}>{row.count}</span>
                     </div>
                   ))
                 }

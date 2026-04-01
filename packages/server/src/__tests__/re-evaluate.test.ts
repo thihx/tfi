@@ -251,6 +251,46 @@ describe('reEvaluateAllResults', () => {
     expect(recommendationsRepo.settleRecommendation).not.toHaveBeenCalled();
   });
 
+  test('auto-resolves unresolved rows when later evidence confirms the same result', async () => {
+    const rec = makeRec({
+      id: 12,
+      selection: 'Home Win',
+      bet_market: '1x2_home',
+      odds: 2.0,
+      stake_percent: 3,
+      result: 'win',
+      pnl: 3,
+      settlement_status: 'unresolved',
+      settlement_note: 'No historical result available for settlement.',
+    });
+
+    (query as Mock).mockResolvedValueOnce({ rows: [rec] });
+    (matchHistoryRepo.getHistoricalMatchesBatch as Mock).mockResolvedValueOnce(
+      new Map([['12345', makeHistory({ home_score: 2, away_score: 0 })]]),
+    );
+    (recommendationsRepo.settleRecommendation as Mock).mockResolvedValueOnce(null);
+    (aiPerfRepo.settleAiPerformance as Mock).mockResolvedValueOnce(null);
+
+    const result = await reEvaluateAllResults();
+
+    expect(result.corrected).toBe(0);
+    expect(result.newlySettled).toBe(1);
+    expect(recommendationsRepo.settleRecommendation).toHaveBeenCalledWith(
+      12,
+      'win',
+      3,
+      expect.any(String),
+      expect.objectContaining({ status: 'resolved', method: 'rules' }),
+    );
+    expect(aiPerfRepo.settleAiPerformance).toHaveBeenCalledWith(
+      12,
+      'win',
+      3,
+      true,
+      expect.objectContaining({ status: 'resolved', method: 'rules', trusted: true }),
+    );
+  });
+
   test('uses Football API fallback when history not available', async () => {
     const rec = makeRec({
       id: 1,

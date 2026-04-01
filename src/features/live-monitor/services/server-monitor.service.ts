@@ -62,6 +62,25 @@ export interface ServerMatchPipelineResult {
   };
 }
 
+export interface LiveMonitorTarget {
+  matchId: string;
+  matchDisplay: string;
+  league: string;
+  status: string | null;
+  minute: number | null;
+  score: string;
+  live: boolean;
+  mode: string;
+  priority: number;
+  customConditions: string;
+  recommendedCondition: string;
+  lastChecked: string | null;
+  totalChecks: number;
+  candidate: boolean;
+  candidateReason: string;
+  baseline: 'none' | 'recommendation' | 'snapshot';
+}
+
 export interface LiveMonitorStatusResponse {
   job: {
     name: 'check-live-trigger';
@@ -80,6 +99,12 @@ export interface LiveMonitorStatusResponse {
     completedAt: string | null;
     error: string | null;
   } | null;
+  monitoring: {
+    activeWatchCount: number;
+    liveWatchCount: number;
+    candidateCount: number;
+    targets: LiveMonitorTarget[];
+  };
   summary: {
     liveCount: number;
     candidateCount: number;
@@ -114,16 +139,6 @@ export async function fetchLiveMonitorStatus(config: AppConfig): Promise<LiveMon
     credentials: 'include',
   });
   return parseJsonResponse<LiveMonitorStatusResponse>(res);
-}
-
-export async function triggerCheckLiveRun(config: AppConfig): Promise<void> {
-  const res = await fetch(apiUrl(config, '/api/live-monitor/check-live/trigger'), {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', ...authHeaders() },
-    credentials: 'include',
-    body: '{}',
-  });
-  await parseJsonResponse<{ triggered: boolean }>(res);
 }
 
 export async function analyzeMatchWithServerPipeline(

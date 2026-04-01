@@ -127,6 +127,13 @@ export interface PromptQualityOverview extends PromptQualitySummary {
     highNoiseRows: number;
     highNoiseRate: number;
     avgNoisePenalty: number;
+    structuredAskAiEligibleRows: number;
+    structuredAskAiEligibleRate: number;
+    structuredAskAiBlockedRows: number;
+    structuredAskAiReasonBreakdown: Array<{
+      reason: string;
+      count: number;
+    }>;
     topHighNoiseMatches: Array<{
       matchId: string;
       matchDisplay: string;
@@ -139,6 +146,20 @@ export interface PromptQualityOverview extends PromptQualitySummary {
   };
 }
 
+export interface PromptOnlyOverview {
+  windowHours: number;
+  totalRows: number;
+  successRows: number;
+  skippedRows: number;
+  failedRows: number;
+  structuredEligibleRows: number;
+  structuredEligibleRate: number;
+  reasonBreakdown: Array<{
+    reason: string;
+    count: number;
+  }>;
+}
+
 export interface OpsMonitoringSnapshot {
   generatedAt: string;
   checklist: OpsChecklistItem[];
@@ -149,6 +170,7 @@ export interface OpsMonitoringSnapshot {
   notifications: NotificationOverview;
   promptShadow: PromptShadowOverview;
   promptQuality: PromptQualityOverview;
+  promptOnly: PromptOnlyOverview;
 }
 
 interface ChecklistInputs {
@@ -298,6 +320,10 @@ export async function getOpsMonitoringSnapshot(): Promise<OpsMonitoringSnapshot>
     promptQualityRowsRes,
     prematchAuditSummaryRes,
     prematchHighNoiseRes,
+    prematchStructuredSummaryRes,
+    prematchStructuredReasonBreakdownRes,
+    promptOnlySummaryRes,
+    promptOnlyReasonBreakdownRes,
   ] = await Promise.all([
     query<{
       activity_2h: string;
@@ -588,6 +614,7 @@ export async function getOpsMonitoringSnapshot(): Promise<OpsMonitoringSnapshot>
       no_prematch_rows: string;
       high_noise_rows: string;
       avg_noise_penalty: string | null;
+      structured_eligible_rows: string;
     }>(`
       SELECT
         COUNT(*)::text AS total_rows,
@@ -610,7 +637,10 @@ export async function getOpsMonitoringSnapshot(): Promise<OpsMonitoringSnapshot>
           WHEN COALESCE(metadata->>'prematchNoisePenalty', '') ~ '^-?[0-9]+(\\.[0-9]+)?$'
             THEN (metadata->>'prematchNoisePenalty')::numeric
           ELSE NULL
-        END)::text AS avg_noise_penalty
+        END)::text AS avg_noise_penalty,
+        COUNT(*) FILTER (
+          WHERE COALESCE(metadata->>'structuredPrematchAskAi', 'false') = 'true'
+        )::text AS structured_eligible_rows
       FROM audit_logs
       WHERE category = 'PIPELINE'
         AND action = 'PIPELINE_MATCH_ANALYZED'
@@ -641,6 +671,79 @@ export async function getOpsMonitoringSnapshot(): Promise<OpsMonitoringSnapshot>
         AND (metadata->>'prematchNoisePenalty')::numeric >= 50
       ORDER BY (metadata->>'prematchNoisePenalty')::numeric DESC, timestamp DESC
       LIMIT 8
+    `),
+    query<{
+      total_rows: string;
+      blocked_rows: string;
+    }>(`
+      SELECT
+        COUNT(*)::text AS total_rows,
+        COUNT(*) FILTER (
+          WHERE action = 'PIPELINE_MATCH_SKIPPED'
+            AND COALESCE(NULLIF(metadata->>'reason', ''), 'unknown') = 'low_evidence_without_watch_condition'
+        )::text AS blocked_rows
+      FROM audit_logs
+      WHERE category = 'PIPELINE'
+        AND timestamp >= NOW() - INTERVAL '${PROMPT_QUALITY_WINDOW_HOURS} hours'
+        AND COALESCE(NULLIF(metadata->>'analysisMode', ''), 'unknown') = 'manual_force'
+        AND COALESCE(NULLIF(metadata->>'evidenceMode', ''), 'unknown') = 'low_evidence'
+    `),
+    query<{
+      reason: string;
+      count: string;
+    }>(`
+      SELECT
+        COALESCE(NULLIF(metadata->>'structuredPrematchAskAiReason', ''), 'unknown') AS reason,
+        COUNT(*)::text AS count
+      FROM audit_logs
+      WHERE category = 'PIPELINE'
+        AND timestamp >= NOW() - INTERVAL '${PROMPT_QUALITY_WINDOW_HOURS} hours'
+        AND COALESCE(NULLIF(metadata->>'analysisMode', ''), 'unknown') = 'manual_force'
+        AND COALESCE(NULLIF(metadata->>'evidenceMode', ''), 'unknown') = 'low_evidence'
+      GROUP BY COALESCE(NULLIF(metadata->>'structuredPrematchAskAiReason', ''), 'unknown')
+      ORDER BY COUNT(*) DESC, reason
+    `),
+    query<{
+      total_rows: string;
+      success_rows: string;
+      skipped_rows: string;
+      failed_rows: string;
+      structured_eligible_rows: string;
+    }>(`
+      SELECT
+        COUNT(*)::text AS total_rows,
+        COUNT(*) FILTER (WHERE outcome = 'SUCCESS')::text AS success_rows,
+        COUNT(*) FILTER (WHERE outcome = 'SKIPPED')::text AS skipped_rows,
+        COUNT(*) FILTER (WHERE outcome = 'FAILURE')::text AS failed_rows,
+        COUNT(*) FILTER (
+          WHERE COALESCE(metadata->>'structuredPrematchAskAi', 'false') = 'true'
+        )::text AS structured_eligible_rows
+      FROM audit_logs
+      WHERE category = 'PIPELINE'
+        AND action = 'PROMPT_ONLY_MATCH_ANALYZED'
+        AND timestamp >= NOW() - INTERVAL '${PROMPT_QUALITY_WINDOW_HOURS} hours'
+    `),
+    query<{
+      reason: string;
+      count: string;
+    }>(`
+      SELECT
+        COALESCE(
+          NULLIF(metadata->>'structuredPrematchAskAiReason', ''),
+          NULLIF(metadata->>'skipReason', ''),
+          'unknown'
+        ) AS reason,
+        COUNT(*)::text AS count
+      FROM audit_logs
+      WHERE category = 'PIPELINE'
+        AND action = 'PROMPT_ONLY_MATCH_ANALYZED'
+        AND timestamp >= NOW() - INTERVAL '${PROMPT_QUALITY_WINDOW_HOURS} hours'
+      GROUP BY COALESCE(
+        NULLIF(metadata->>'structuredPrematchAskAiReason', ''),
+        NULLIF(metadata->>'skipReason', ''),
+        'unknown'
+      )
+      ORDER BY COUNT(*) DESC, reason
     `),
   ]);
 
@@ -692,10 +795,19 @@ export async function getOpsMonitoringSnapshot(): Promise<OpsMonitoringSnapshot>
   const promptQualitySummary = summarizePromptQuality(promptQualityRowsRes.rows);
   const promptExposure = summarizeExposureClusters(promptQualityRowsRes.rows, { minCount: 2, limit: 5 });
   const prematchAuditSummary = prematchAuditSummaryRes.rows[0]!;
+  const prematchStructuredSummary = prematchStructuredSummaryRes.rows[0]!;
+  const promptOnlySummary = promptOnlySummaryRes.rows[0]!;
   const prematchTotalRows = Number(prematchAuditSummary.total_rows);
   const prematchHighNoiseRows = Number(prematchAuditSummary.high_noise_rows);
   const prematchHighNoiseRate = pct(prematchHighNoiseRows, prematchTotalRows);
   const prematchAvgNoisePenalty = round(Number(prematchAuditSummary.avg_noise_penalty ?? 0), 1);
+  const prematchStructuredEligibleRows = Number(prematchAuditSummary.structured_eligible_rows);
+  const prematchStructuredTotalRows = Number(prematchStructuredSummary.total_rows);
+  const prematchStructuredBlockedRows = Number(prematchStructuredSummary.blocked_rows);
+  const prematchStructuredEligibleRate = pct(prematchStructuredEligibleRows, prematchStructuredTotalRows);
+  const promptOnlyTotalRows = Number(promptOnlySummary.total_rows);
+  const promptOnlyStructuredEligibleRows = Number(promptOnlySummary.structured_eligible_rows);
+  const promptOnlyStructuredEligibleRate = pct(promptOnlyStructuredEligibleRows, promptOnlyTotalRows);
 
   const providerStatsSuccessRate = pct(statsSuccesses, statsSamples);
   const providerOddsUsableRate = pct(oddsUsable, oddsSamples);
@@ -781,8 +893,22 @@ export async function getOpsMonitoringSnapshot(): Promise<OpsMonitoringSnapshot>
         ? 'pass'
         : prematchHighNoiseRate <= 25
           ? 'warn'
-          : 'fail',
+        : 'fail',
       detail: `${prematchHighNoiseRows}/${prematchTotalRows} analyzed rows`,
+    },
+    {
+      label: 'Prematch Structured Eligible',
+      value: prematchStructuredTotalRows > 0 ? `${prematchStructuredEligibleRate}%` : 'n/a',
+      tone: prematchStructuredTotalRows === 0
+        ? 'neutral'
+        : prematchStructuredEligibleRate >= 80
+          ? 'pass'
+          : prematchStructuredEligibleRate >= 50
+            ? 'warn'
+            : 'fail',
+      detail: prematchStructuredTotalRows > 0
+        ? `${prematchStructuredEligibleRows}/${prematchStructuredTotalRows} low-evidence manual rows`
+        : 'no low-evidence manual prematch rows',
     },
   ];
 
@@ -907,6 +1033,13 @@ export async function getOpsMonitoringSnapshot(): Promise<OpsMonitoringSnapshot>
         highNoiseRows: prematchHighNoiseRows,
         highNoiseRate: prematchHighNoiseRate,
         avgNoisePenalty: prematchAvgNoisePenalty,
+        structuredAskAiEligibleRows: prematchStructuredEligibleRows,
+        structuredAskAiEligibleRate: prematchStructuredEligibleRate,
+        structuredAskAiBlockedRows: prematchStructuredBlockedRows,
+        structuredAskAiReasonBreakdown: prematchStructuredReasonBreakdownRes.rows.map((row) => ({
+          reason: row.reason,
+          count: Number(row.count),
+        })),
         topHighNoiseMatches: prematchHighNoiseRes.rows.map((row) => ({
           matchId: row.match_id,
           matchDisplay: row.match_display,
@@ -918,6 +1051,19 @@ export async function getOpsMonitoringSnapshot(): Promise<OpsMonitoringSnapshot>
         })),
       },
       ...promptQualitySummary,
+    },
+    promptOnly: {
+      windowHours: PROMPT_QUALITY_WINDOW_HOURS,
+      totalRows: promptOnlyTotalRows,
+      successRows: Number(promptOnlySummary.success_rows),
+      skippedRows: Number(promptOnlySummary.skipped_rows),
+      failedRows: Number(promptOnlySummary.failed_rows),
+      structuredEligibleRows: promptOnlyStructuredEligibleRows,
+      structuredEligibleRate: promptOnlyStructuredEligibleRate,
+      reasonBreakdown: promptOnlyReasonBreakdownRes.rows.map((row) => ({
+        reason: row.reason,
+        count: Number(row.count),
+      })),
     },
   };
 }

@@ -11,8 +11,16 @@ import crypto from 'node:crypto';
 import { config } from '../config.js';
 import { getRedisClient } from '../lib/redis.js';
 import { audit } from '../lib/audit.js';
+import {
+  getJobRunOverview,
+  recordJobRun,
+  type JobRunOverviewRow,
+} from '../repos/job-runs.repo.js';
 import { summarizeJobResultForAudit } from './job-result-serializer.js';
 import { fetchMatchesJob, ADAPTIVE_SKIP_KEY } from './fetch-matches.job.js';
+import { syncWatchlistMetadataJob } from './sync-watchlist-metadata.job.js';
+import { autoAddTopLeagueWatchlistJob } from './auto-add-top-league-watchlist.job.js';
+import { autoAddFavoriteTeamWatchlistJob } from './auto-add-favorite-team-watchlist.job.js';
 import { refreshLiveMatchesJob } from './refresh-live-matches.job.js';
 import { updatePredictionsJob } from './update-predictions.job.js';
 import { expireWatchlistJob } from './expire-watchlist.job.js';
@@ -24,6 +32,7 @@ import { integrationHealthJob } from './integration-health.job.js';
 import { healthWatchdogJob } from './health-watchdog.job.js';
 import { syncReferenceDataJob } from './sync-reference-data.job.js';
 import { refreshProviderInsightsJob } from './refresh-provider-insights.job.js';
+import { refreshTacticalOverlaysJob } from './refresh-tactical-overlays.job.js';
 import {
   type JobProgress,
   clearJobProgress,
@@ -65,6 +74,7 @@ export interface JobInfo {
   skipKey?: string;
   lockPolicy: LockPolicy;
   degradedLocking: boolean;
+  history24h: JobRunOverviewRow | null;
 }
 
 interface ManagedJob {
@@ -144,6 +154,18 @@ function safeNumber(value: string | undefined): number | null {
   if (value == null || value === '') return null;
   const parsed = Number(value);
   return Number.isFinite(parsed) ? parsed : null;
+}
+
+function normalizeHistorySummary(summary: Record<string, unknown> | null | undefined): Record<string, unknown> {
+  return summary && typeof summary === 'object' && !Array.isArray(summary) ? summary : {};
+}
+
+async function recordJobRunBestEffort(input: Parameters<typeof recordJobRun>[0]): Promise<void> {
+  try {
+    await recordJobRun(input);
+  } catch (err) {
+    console.error('[scheduler] Failed to persist job run history:', err);
+  }
 }
 
 function register(
@@ -355,6 +377,20 @@ async function runSingleJob(job: ManagedJob, scheduledAt: number): Promise<void>
     if (lock.reason === 'redis-unavailable-strict') {
       job.lastError = 'Redis unavailable for distributed lock';
       await persistState(job);
+      await recordJobRunBestEffort({
+        jobName: job.name,
+        scheduledAt: new Date(scheduledAt).toISOString(),
+        startedAt: new Date().toISOString(),
+        completedAt: new Date().toISOString(),
+        status: 'skipped',
+        skipReason: lock.reason,
+        lockPolicy: job.lockPolicy,
+        degradedLocking: false,
+        instanceId,
+        lagMs: Math.max(0, Date.now() - scheduledAt),
+        durationMs: 0,
+        error: job.lastError,
+      });
     } else {
       console.log(`[scheduler] Job "${job.name}" skipped — another instance holds the lock`);
     }
@@ -374,6 +410,7 @@ async function runSingleJob(job: ManagedJob, scheduledAt: number): Promise<void>
 
   try {
     const result = await (job.maxRunMs ? callWithTimeout(job.fn, job.maxRunMs) : job.fn());
+    const summary = normalizeHistorySummary(summarizeJobResultForAudit(job.name, result));
     const completedAt = new Date().toISOString();
     job.lastRun = completedAt;
     job.lastCompletedAt = completedAt;
@@ -381,6 +418,19 @@ async function runSingleJob(job: ManagedJob, scheduledAt: number): Promise<void>
     job.lastDurationMs = Date.now() - startTs;
     job.runCount++;
     await completeJobProgress(job.name, result, null);
+    await recordJobRunBestEffort({
+      jobName: job.name,
+      scheduledAt: new Date(scheduledAt).toISOString(),
+      startedAt: job.lastStartedAt ?? new Date(startTs).toISOString(),
+      completedAt,
+      status: 'success',
+      lockPolicy: job.lockPolicy,
+      degradedLocking: lock.degraded,
+      instanceId,
+      lagMs: job.lastLagMs,
+      durationMs: job.lastDurationMs,
+      summary,
+    });
     audit({
       category: 'JOB',
       action: `JOB_${job.name.toUpperCase().replace(/-/g, '_')}`,
@@ -390,7 +440,7 @@ async function runSingleJob(job: ManagedJob, scheduledAt: number): Promise<void>
       metadata: {
         degradedLocking: lock.degraded,
         lagMs: job.lastLagMs,
-        ...(summarizeJobResultForAudit(job.name, result) ?? {}),
+        ...summary,
       },
     });
     console.log(`[scheduler] Job "${job.name}" completed (#${job.runCount})`, {
@@ -405,6 +455,19 @@ async function runSingleJob(job: ManagedJob, scheduledAt: number): Promise<void>
     job.lastDurationMs = Date.now() - startTs;
     job.lastError = err instanceof Error ? err.message : String(err);
     await completeJobProgress(job.name, null, job.lastError);
+    await recordJobRunBestEffort({
+      jobName: job.name,
+      scheduledAt: new Date(scheduledAt).toISOString(),
+      startedAt: job.lastStartedAt ?? new Date(startTs).toISOString(),
+      completedAt,
+      status: 'failure',
+      lockPolicy: job.lockPolicy,
+      degradedLocking: lock.degraded,
+      instanceId,
+      lagMs: job.lastLagMs,
+      durationMs: job.lastDurationMs,
+      error: job.lastError,
+    });
     audit({
       category: 'JOB',
       action: `JOB_${job.name.toUpperCase().replace(/-/g, '_')}`,
@@ -449,6 +512,7 @@ async function runConcurrentJob(job: ManagedJob, scheduledAt: number): Promise<v
 
   try {
     const result = await job.fn();
+    const summary = normalizeHistorySummary(summarizeJobResultForAudit(job.name, result));
     const completedAt = new Date().toISOString();
     job.lastRun = completedAt;
     job.lastCompletedAt = completedAt;
@@ -456,6 +520,19 @@ async function runConcurrentJob(job: ManagedJob, scheduledAt: number): Promise<v
     job.lastDurationMs = Date.now() - startTs;
     job.runCount++;
     await completeJobProgress(job.name, result, null);
+    await recordJobRunBestEffort({
+      jobName: job.name,
+      scheduledAt: new Date(scheduledAt).toISOString(),
+      startedAt: job.lastStartedAt ?? new Date(startTs).toISOString(),
+      completedAt,
+      status: 'success',
+      lockPolicy: job.lockPolicy,
+      degradedLocking: false,
+      instanceId,
+      lagMs: job.lastLagMs,
+      durationMs: job.lastDurationMs,
+      summary,
+    });
     audit({
       category: 'JOB',
       action: `JOB_${job.name.toUpperCase().replace(/-/g, '_')}`,
@@ -464,7 +541,7 @@ async function runConcurrentJob(job: ManagedJob, scheduledAt: number): Promise<v
       duration_ms: job.lastDurationMs,
       metadata: {
         lagMs: job.lastLagMs,
-        ...(summarizeJobResultForAudit(job.name, result) ?? {}),
+        ...summary,
       },
     });
     console.log(`[scheduler] Job "${job.name}" completed (#${job.runCount})`);
@@ -475,6 +552,19 @@ async function runConcurrentJob(job: ManagedJob, scheduledAt: number): Promise<v
     job.lastDurationMs = Date.now() - startTs;
     job.lastError = err instanceof Error ? err.message : String(err);
     await completeJobProgress(job.name, null, job.lastError);
+    await recordJobRunBestEffort({
+      jobName: job.name,
+      scheduledAt: new Date(scheduledAt).toISOString(),
+      startedAt: job.lastStartedAt ?? new Date(startTs).toISOString(),
+      completedAt,
+      status: 'failure',
+      lockPolicy: job.lockPolicy,
+      degradedLocking: false,
+      instanceId,
+      lagMs: job.lastLagMs,
+      durationMs: job.lastDurationMs,
+      error: job.lastError,
+    });
     audit({
       category: 'JOB',
       action: `JOB_${job.name.toUpperCase().replace(/-/g, '_')}`,
@@ -517,10 +607,61 @@ export async function startScheduler() {
     undefined,
     {
       label: 'Fetch Matches',
-      description: 'Looks for today\'s and tomorrow\'s matches in the leagues you track, updates the match list, saves finished games to history, and adds some new matches to the follow list when they fit the rules.',
+      description: 'Looks for today\'s and tomorrow\'s matches in the leagues you track, updates the match list, and saves finished games to history.',
       group: 'pipeline',
-      entityScopes: ['matches', 'watchlist-candidates', 'match-history-archive'],
+      entityScopes: ['matches', 'match-history-archive'],
       order: 1,
+      lockPolicy: 'degraded-local',
+    },
+  );
+  register(
+    'sync-watchlist-metadata',
+    config.jobSyncWatchlistMetadataMs,
+    syncWatchlistMetadataJob,
+    undefined,
+    undefined,
+    1,
+    undefined,
+    {
+      label: 'Sync Watchlist Metadata',
+      description: 'Keeps monitored watchlist rows aligned with the latest match table metadata, including kickoff and date values, and backfills any legacy operational entries.',
+      group: 'pipeline',
+      entityScopes: ['watchlist', 'monitored-matches'],
+      order: 2,
+      lockPolicy: 'degraded-local',
+    },
+  );
+  register(
+    'auto-add-top-league-watchlist',
+    config.jobAutoAddTopLeagueWatchlistMs,
+    autoAddTopLeagueWatchlistJob,
+    undefined,
+    undefined,
+    1,
+    undefined,
+    {
+      label: 'Auto Add Top League Watchlist',
+      description: 'Scans not-started matches from top leagues and adds them to the operational watchlist when they are not already tracked.',
+      group: 'pipeline',
+      entityScopes: ['watchlist', 'matches', 'league-settings'],
+      order: 6,
+      lockPolicy: 'degraded-local',
+    },
+  );
+  register(
+    'auto-add-favorite-team-watchlist',
+    config.jobAutoAddFavoriteTeamWatchlistMs,
+    autoAddFavoriteTeamWatchlistJob,
+    undefined,
+    undefined,
+    1,
+    undefined,
+    {
+      label: 'Auto Add Favorite Team Watchlist',
+      description: 'Adds upcoming matches for users\' favorite teams into their personal watchlists when those matches are not already followed.',
+      group: 'pipeline',
+      entityScopes: ['watchlist', 'matches', 'favorite-teams'],
+      order: 7,
       lockPolicy: 'degraded-local',
     },
   );
@@ -537,7 +678,7 @@ export async function startScheduler() {
       description: 'Refreshes only the matches that are live or about to start, so scores and match state move faster without forcing a full match reload every few seconds.',
       group: 'pipeline',
       entityScopes: ['matches', 'live-scores', 'live-cards'],
-      order: 2,
+      order: 8,
       lockPolicy: 'degraded-local',
     },
   );
@@ -555,6 +696,23 @@ export async function startScheduler() {
       group: 'reference-data',
       entityScopes: ['league-catalog', 'league-team-directory'],
       order: 3,
+      lockPolicy: 'degraded-local',
+    },
+  );
+  register(
+    'refresh-tactical-overlays',
+    config.jobRefreshTacticalOverlaysMs,
+    refreshTacticalOverlaysJob,
+    60 * 60_000,
+    undefined,
+    1,
+    6 * 60 * 60_000,
+    {
+      label: 'Refresh Tactical Overlays',
+      description: 'Refreshes tactical overlay fields for top-league team profiles using trusted source research without changing the quantitative core.',
+      group: 'reference-data',
+      entityScopes: ['team-profiles', 'tactical-overlay', 'top-leagues'],
+      order: 4,
       lockPolicy: 'degraded-local',
     },
   );
@@ -605,7 +763,7 @@ export async function startScheduler() {
       description: 'Looks for followed matches that are now live and decides which ones need a fresh review. For those matches, it runs the main review flow and may save a new result or send an alert.',
       group: 'pipeline',
       entityScopes: ['watchlist', 'live-pipeline', 'recommendations', 'notifications'],
-      order: 6,
+      order: 9,
       lockPolicy: 'strict',
     },
   );
@@ -622,7 +780,7 @@ export async function startScheduler() {
       description: 'Pre-warms saved match details for non-live followed games, such as match facts, event details, and provider snapshots, so the app can read recent local copies instead of asking again each time.',
       group: 'pipeline',
       entityScopes: ['provider-fixture-cache', 'provider-stats-cache', 'provider-events-cache', 'provider-odds-cache'],
-      order: 7,
+      order: 10,
       lockPolicy: 'degraded-local',
     },
   );
@@ -639,7 +797,7 @@ export async function startScheduler() {
       description: 'Checks finished matches and updates open picks and bets with their final outcome. It uses saved match history first and only asks for missing final details when needed.',
       group: 'pipeline',
       entityScopes: ['recommendations', 'bets', 'settlement-audit'],
-      order: 8,
+      order: 11,
       lockPolicy: 'strict',
     },
   );
@@ -656,7 +814,7 @@ export async function startScheduler() {
       description: 'Removes old follow-list entries after the match has been over long enough that the app no longer needs to keep watching them.',
       group: 'maintenance',
       entityScopes: ['watchlist'],
-      order: 9,
+      order: 12,
       lockPolicy: 'degraded-local',
     },
   );
@@ -673,7 +831,7 @@ export async function startScheduler() {
       description: 'Daily cleanup across all high-growth tables: purges expired audit logs, provider samples, pipeline runs, and match history; slims old recommendation text fields to save storage while preserving core bet data for AI retraining.',
       group: 'maintenance',
       entityScopes: ['audit-logs'],
-      order: 10,
+      order: 13,
       lockPolicy: 'degraded-local',
     },
   );
@@ -690,7 +848,7 @@ export async function startScheduler() {
       description: 'Checks whether the key services the app depends on are working well. If one goes down or recovers, it sends a message so people notice quickly.',
       group: 'monitoring',
       entityScopes: ['postgres', 'redis', 'provider-apis', 'telegram'],
-      order: 11,
+      order: 14,
       lockPolicy: 'strict',
     },
   );
@@ -707,7 +865,7 @@ export async function startScheduler() {
       description: 'Watches the most important background jobs and looks for ones that stop running on time or appear stuck. If a problem starts or clears, it sends a message.',
       group: 'monitoring',
       entityScopes: ['scheduler', 'critical-jobs'],
-      order: 12,
+      order: 15,
       lockPolicy: 'strict',
     },
   );
@@ -773,10 +931,16 @@ export function stopScheduler() {
 export async function getJobsStatus(): Promise<JobInfo[]> {
   const result: JobInfo[] = [];
   let redis: ReturnType<typeof getRedisClient> | null = null;
+  let historyByJobName = new Map<string, JobRunOverviewRow>();
   try {
     redis = getRedisClient();
   } catch {
     redis = null;
+  }
+  try {
+    historyByJobName = new Map((await getJobRunOverview(24)).map((row) => [row.jobName, row] as const));
+  } catch {
+    historyByJobName = new Map();
   }
 
   const now = Date.now();
@@ -849,6 +1013,7 @@ export async function getJobsStatus(): Promise<JobInfo[]> {
       pendingRuns: job.pendingRuns,
       lockPolicy: job.lockPolicy,
       degradedLocking,
+      history24h: historyByJobName.get(job.name) ?? null,
     });
   }
 
@@ -921,5 +1086,6 @@ export function updateJobInterval(name: string, intervalMs: number): JobInfo | n
     skipKey: job.skipKey,
     lockPolicy: job.lockPolicy,
     degradedLocking: job.degradedLocking,
+    history24h: null,
   };
 }

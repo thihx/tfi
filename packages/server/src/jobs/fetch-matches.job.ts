@@ -1,113 +1,106 @@
 // ============================================================
 // Job: Fetch Matches
-// Mirrors: Apps Script fetchMatchesJob()
 //
 // 1. Read active approved leagues from DB
 // 2. Call API-Football for today + tomorrow fixtures
 // 3. Filter by league + status
 // 4. Full-refresh matches table
+// 5. Archive finished rows before replacing the table
 // ============================================================
 
 import { config } from '../config.js';
 import { fetchFixturesForDate, type ApiFixture, type ApiFixtureStat } from '../lib/football-api.js';
+import { kickoffAtUtcFromFixtureDate } from '../lib/kickoff-time.js';
 import { ensureFixtureStatistics } from '../lib/provider-insight-cache.js';
+import { getRedisClient } from '../lib/redis.js';
+import { extractRegularTimeScoreFromFixture } from '../lib/settle-context.js';
+import { mergeApiFixtureStatistics } from '../lib/settlement-stat-cache.js';
+import { reportJobProgress } from './job-progress.js';
 import * as leagueRepo from '../repos/leagues.repo.js';
-import * as matchRepo from '../repos/matches.repo.js';
-import * as watchlistRepo from '../repos/watchlist.repo.js';
 import {
   archiveFinishedMatches,
   getHistoricalMatchesBatch,
   type MatchHistoryArchiveInput,
 } from '../repos/matches-history.repo.js';
-import { reportJobProgress } from './job-progress.js';
-import { getRedisClient } from '../lib/redis.js';
-import { extractRegularTimeScoreFromFixture } from '../lib/settle-context.js';
-import { mergeApiFixtureStatistics } from '../lib/settlement-stat-cache.js';
-import { getSettings } from '../repos/settings.repo.js';
-import { getFavoriteTeamOwnersByTeamIds } from '../repos/favorite-teams.repo.js';
-import { kickoffAtUtcFromFixtureDate } from '../lib/kickoff-time.js';
+import * as matchRepo from '../repos/matches.repo.js';
 
 const ALLOWED_STATUSES = ['NS', '1H', 'HT', '2H', 'ET', 'BT', 'P', 'LIVE', 'INT'];
-const LIVE_STATUSES   = new Set(['1H', 'HT', '2H', 'ET', 'BT', 'LIVE', 'INT']);
+const LIVE_STATUSES = new Set(['1H', 'HT', '2H', 'ET', 'BT', 'LIVE', 'INT']);
 
-/** Run tasks with max N in parallel */
-async function batchRun<T>(tasks: (() => Promise<T>)[], concurrency = 5): Promise<T[]> {
+async function batchRun<T>(tasks: Array<() => Promise<T>>, concurrency = 5): Promise<T[]> {
   const results: T[] = [];
   for (let i = 0; i < tasks.length; i += concurrency) {
     const chunk = tasks.slice(i, i + concurrency);
-    results.push(...await Promise.all(chunk.map(t => t())));
+    results.push(...await Promise.all(chunk.map((task) => task())));
   }
   return results;
 }
 
-/** Extract integer stat from team stats array */
 function statCount(stats: ApiFixtureStat[], teamIdx: 0 | 1, name: string): number {
-  const v = stats[teamIdx]?.statistics.find(s => s.type === name)?.value;
-  if (v == null) return 0;
-  const n = typeof v === 'number' ? v : parseInt(String(v), 10);
-  return isNaN(n) ? 0 : n;
+  const value = stats[teamIdx]?.statistics.find((stat) => stat.type === name)?.value;
+  if (value == null) return 0;
+  const parsed = typeof value === 'number' ? value : parseInt(String(value), 10);
+  return Number.isNaN(parsed) ? 0 : parsed;
 }
 
-/** Redis key storing the earliest timestamp (ms) at which the next real fetch is allowed. */
 export const ADAPTIVE_SKIP_KEY = 'job:fetch-matches:next-run-at';
 
-/**
- * Compute how many ms to wait before the next fetch, based on current match state.
- * Pure function — easy to unit test.
- */
 export function computeNextPollDelayMs(
   state: matchRepo.MatchScheduleState,
   baseIntervalMs: number,
 ): number {
-  const MIN = 60_000;
+  const minute = 60_000;
 
-  if (state.liveCount > 0) return baseIntervalMs;           // live → base rate (1 min)
-  if (state.minsToNextKickoff === null) return 30 * MIN;    // no matches at all → 30 min
+  if (state.liveCount > 0) return baseIntervalMs;
+  if (state.minsToNextKickoff === null) return 30 * minute;
 
-  const m = state.minsToNextKickoff;
-  if (m <= 5)   return baseIntervalMs;                      // kicking off very soon → 1 min
-  if (m <= 120) return 2 * MIN;                             // within 2 hours → 2 min
-  if (m <= 360) return 5 * MIN;                             // within 6 hours → 5 min
-  return 30 * MIN;                                          // > 6 hours away → 30 min
+  const minsToNextKickoff = state.minsToNextKickoff;
+  if (minsToNextKickoff <= 5) return baseIntervalMs;
+  if (minsToNextKickoff <= 120) return 2 * minute;
+  if (minsToNextKickoff <= 360) return 5 * minute;
+  return 30 * minute;
 }
 
-function toDateString(d: Date, tz: string): string {
-  const parts = new Intl.DateTimeFormat('en-CA', { timeZone: tz, year: 'numeric', month: '2-digit', day: '2-digit' }).formatToParts(d);
-  const p = (t: string) => parts.find((x) => x.type === t)!.value;
-  return `${p('year')}-${p('month')}-${p('day')}`;
+function toDateString(date: Date, timezone: string): string {
+  const parts = new Intl.DateTimeFormat('en-CA', {
+    timeZone: timezone,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).formatToParts(date);
+  const part = (type: string) => parts.find((entry) => entry.type === type)!.value;
+  return `${part('year')}-${part('month')}-${part('day')}`;
 }
 
-function fixtureToMatchRow(f: ApiFixture): matchRepo.MatchRow {
-  const parts = String(f.fixture.date).split('T');
+function fixtureToMatchRow(fixture: ApiFixture): matchRepo.MatchRow {
+  const parts = String(fixture.fixture.date).split('T');
   const datePart = parts[0] || '';
   const kickoff = (parts[1] || '').substring(0, 5);
-  const ht = f.score?.halftime;
+  const halftime = fixture.score?.halftime;
 
   return {
-    match_id: String(f.fixture.id),
+    match_id: String(fixture.fixture.id),
     date: datePart,
     kickoff,
-    kickoff_at_utc: kickoffAtUtcFromFixtureDate(String(f.fixture.date)),
-    league_id: f.league.id,
-    league_name: f.league.name,
-    home_team: f.teams.home.name,
-    away_team: f.teams.away.name,
-    home_logo: f.teams.home.logo,
-    away_logo: f.teams.away.logo,
-    venue: f.fixture.venue?.name || 'TBD',
-    status: f.fixture.status.short,
-    home_score: f.goals.home,
-    away_score: f.goals.away,
-    current_minute: f.fixture.status.elapsed,
+    kickoff_at_utc: kickoffAtUtcFromFixtureDate(String(fixture.fixture.date)),
+    league_id: fixture.league.id,
+    league_name: fixture.league.name,
+    home_team: fixture.teams.home.name,
+    away_team: fixture.teams.away.name,
+    home_logo: fixture.teams.home.logo,
+    away_logo: fixture.teams.away.logo,
+    venue: fixture.fixture.venue?.name || 'TBD',
+    status: fixture.fixture.status.short,
+    home_score: fixture.goals.home,
+    away_score: fixture.goals.away,
+    current_minute: fixture.fixture.status.elapsed,
     last_updated: new Date().toISOString(),
-    // Enriched from fixture (free)
-    home_team_id: f.teams.home.id,
-    away_team_id: f.teams.away.id,
-    round: f.league.round ?? '',
-    halftime_home: ht?.home ?? null,
-    halftime_away: ht?.away ?? null,
-    referee: f.fixture.referee ?? null,
-    // Stats defaults — overwritten for live matches
+    home_team_id: fixture.teams.home.id,
+    away_team_id: fixture.teams.away.id,
+    round: fixture.league.round ?? '',
+    halftime_home: halftime?.home ?? null,
+    halftime_away: halftime?.away ?? null,
+    referee: fixture.fixture.referee ?? null,
     home_reds: 0,
     away_reds: 0,
     home_yellows: 0,
@@ -116,57 +109,53 @@ function fixtureToMatchRow(f: ApiFixture): matchRepo.MatchRow {
 }
 
 export async function fetchMatchesJob(): Promise<{ saved: number; leagues: number }> {
-  const JOB = 'fetch-matches';
+  const jobName = 'fetch-matches';
 
-  // ── Adaptive skip: check if we should defer this run ──────────────────────
   try {
     const redis = getRedisClient();
     const nextRunAt = await redis.get(ADAPTIVE_SKIP_KEY);
     if (nextRunAt && Date.now() < Number(nextRunAt)) {
       const remainSec = Math.round((Number(nextRunAt) - Date.now()) / 1000);
-      console.log(`[fetchMatchesJob] Skipping — next allowed run in ${remainSec}s`);
+      console.log(`[fetchMatchesJob] Skipping - next allowed run in ${remainSec}s`);
       return { saved: 0, leagues: 0 };
     }
   } catch {
-    // Redis unavailable → proceed with fetch (safe fallback)
+    // Redis unavailable -> proceed with fetch.
   }
 
-  // 1. Get active league IDs
-  await reportJobProgress(JOB, 'leagues', 'Loading active leagues...', 5);
+  await reportJobProgress(jobName, 'leagues', 'Loading active leagues...', 5);
   const activeLeagues = await leagueRepo.getActiveLeagues();
   if (activeLeagues.length === 0) {
     console.log('[fetchMatchesJob] No active leagues, skip.');
-    // No active leagues — no point polling frequently
     try {
       const redis = getRedisClient();
       await redis.set(ADAPTIVE_SKIP_KEY, String(Date.now() + 30 * 60_000), 'PX', 30 * 60_000 + 5_000);
-    } catch { /* non-critical */ }
+    } catch {
+      // ignore
+    }
     return { saved: 0, leagues: 0 };
   }
-  const leagueIdSet = new Set(activeLeagues.map((l) => l.league_id));
+  const leagueIdSet = new Set(activeLeagues.map((league) => league.league_id));
 
-  // 2. Calculate fetch window
-  // Always fetch today + tomorrow (local timezone).
-  // Before 06:00 local time, also fetch yesterday: late-night matches (e.g. 23:xx kickoff)
-  // that started before midnight are still dated "yesterday" and would be lost on TRUNCATE
-  // without this extra fetch (cross-midnight coverage).
   const now = new Date();
-  const seoulHour = Number(
-    new Intl.DateTimeFormat('en', { timeZone: config.timezone, hour: 'numeric', hour12: false }).format(now),
+  const localHour = Number(
+    new Intl.DateTimeFormat('en', {
+      timeZone: config.timezone,
+      hour: 'numeric',
+      hour12: false,
+    }).format(now),
   );
   const yesterday = new Date(now);
   yesterday.setDate(yesterday.getDate() - 1);
   const tomorrow = new Date(now);
   tomorrow.setDate(tomorrow.getDate() + 1);
-  const dateYesterday = seoulHour < 6 ? toDateString(yesterday, config.timezone) : null;
-  const dateFrom    = toDateString(now,      config.timezone);
-  const dateTo      = toDateString(tomorrow, config.timezone);
+  const dateYesterday = localHour < 6 ? toDateString(yesterday, config.timezone) : null;
+  const dateFrom = toDateString(now, config.timezone);
+  const dateTo = toDateString(tomorrow, config.timezone);
 
-  // 3. Fetch from API-Football (allSettled so one day failing doesn't lose the other)
   const fetchLabel = dateYesterday ? `${dateYesterday}, ${dateFrom}, ${dateTo}` : `${dateFrom}, ${dateTo}`;
-  await reportJobProgress(JOB, 'api', `Fetching fixtures for ${fetchLabel}...`, 15);
+  await reportJobProgress(jobName, 'api', `Fetching fixtures for ${fetchLabel}...`, 15);
 
-  // Yesterday is best-effort (non-critical): a failure doesn't abort the job
   let yesterdayFixtures: ApiFixture[] = [];
   if (dateYesterday) {
     try {
@@ -181,16 +170,16 @@ export async function fetchMatchesJob(): Promise<{ saved: number; leagues: numbe
     fetchFixturesForDate(dateFrom),
     fetchFixturesForDate(dateTo),
   ]);
-  const todayOk    = resultToday.status    === 'fulfilled';
+  const todayOk = resultToday.status === 'fulfilled';
   const tomorrowOk = resultTomorrow.status === 'fulfilled';
-  const todayFixtures    = todayOk    ? resultToday.value    : [];
+  const todayFixtures = todayOk ? resultToday.value : [];
   const tomorrowFixtures = tomorrowOk ? resultTomorrow.value : [];
-  if (!todayOk)    console.error('[fetchMatchesJob] Today fetch failed:',    resultToday.reason);
+
+  if (!todayOk) console.error('[fetchMatchesJob] Today fetch failed:', resultToday.reason);
   if (!tomorrowOk) console.error('[fetchMatchesJob] Tomorrow fetch failed:', resultTomorrow.reason);
 
-  // Abort if BOTH main days failed — nothing useful to save
   if (!todayOk && !tomorrowOk) {
-    console.error('[fetchMatchesJob] Both API calls failed — aborting to preserve existing data');
+    console.error('[fetchMatchesJob] Both API calls failed - aborting to preserve existing data');
     throw new Error('Both fixture API calls failed');
   }
 
@@ -199,42 +188,39 @@ export async function fetchMatchesJob(): Promise<{ saved: number; leagues: numbe
   console.log(
     `[fetchMatchesJob] Raw: yesterday=${yesterdayFixtures.length} today=${todayFixtures.length}` +
     ` tomorrow=${tomorrowFixtures.length} total=${allFixtures.length}` +
-    (partialFailure ? ' (PARTIAL — one day failed)' : ''),
+    (partialFailure ? ' (partial - one day failed)' : ''),
   );
 
-  // 4. Filter by approved leagues
-  await reportJobProgress(JOB, 'filter', `Filtering ${allFixtures.length} fixtures by ${leagueIdSet.size} leagues...`, 40);
-  const leagueFiltered = allFixtures.filter((f) => leagueIdSet.has(f.league.id));
+  await reportJobProgress(
+    jobName,
+    'filter',
+    `Filtering ${allFixtures.length} fixtures by ${leagueIdSet.size} leagues...`,
+    40,
+  );
+  const leagueFiltered = allFixtures.filter((fixture) => leagueIdSet.has(fixture.league.id));
+  const statusFiltered = leagueFiltered.filter((fixture) => ALLOWED_STATUSES.includes(fixture.fixture.status.short));
 
-  // 5. Filter by status
-  const statusFiltered = leagueFiltered.filter((f) => ALLOWED_STATUSES.includes(f.fixture.status.short));
+  console.log(
+    `[fetchMatchesJob] After league filter: ${leagueFiltered.length}, after status filter: ${statusFiltered.length}`,
+  );
 
-  console.log(`[fetchMatchesJob] After league filter: ${leagueFiltered.length}, after status filter: ${statusFiltered.length}`);
-
-  // 6. Transform to rows
   const rows = statusFiltered.map(fixtureToMatchRow);
-
-  // 6b+7a. Single stats batch for live matches (card counts) + finished matches (settlement).
-  // Live and finished are disjoint sets, so one batchRun covers both.
-  // Finished matches are only fetched when settlement_stats_fetched_at IS NULL — once
-  // a match has been attempted (even if the API returned empty stats) we skip it to
-  // prevent the infinite re-fetch that caused API quota spikes.
-  const liveRows = rows.filter(r => LIVE_STATUSES.has(r.status ?? ''));
-  const freshFinishedFixtures = leagueFiltered
-    .filter((f) => ['FT', 'AET', 'PEN', 'AWD', 'WO'].includes(f.fixture.status.short));
+  const liveRows = rows.filter((row) => LIVE_STATUSES.has(row.status ?? ''));
+  const freshFinishedFixtures = leagueFiltered.filter((fixture) =>
+    ['FT', 'AET', 'PEN', 'AWD', 'WO'].includes(fixture.fixture.status.short),
+  );
   const finishedHistoryMap = await getHistoricalMatchesBatch(
-    freshFinishedFixtures.map((f) => String(f.fixture.id)),
+    freshFinishedFixtures.map((fixture) => String(fixture.fixture.id)),
   );
 
-  // Only fetch stats for finished matches that have never been attempted before
-  const playableFinished = freshFinishedFixtures.filter((f) =>
-    ['FT', 'AET', 'PEN'].includes(f.fixture.status.short) &&
-    !finishedHistoryMap.get(String(f.fixture.id))?.settlement_stats_fetched_at,
+  const playableFinished = freshFinishedFixtures.filter((fixture) =>
+    ['FT', 'AET', 'PEN'].includes(fixture.fixture.status.short) &&
+    !finishedHistoryMap.get(String(fixture.fixture.id))?.settlement_stats_fetched_at,
   );
 
   const allNeedingStats = [
-    ...liveRows.map(r => r.match_id),
-    ...playableFinished.map(f => String(f.fixture.id)),
+    ...liveRows.map((row) => row.match_id),
+    ...playableFinished.map((fixture) => String(fixture.fixture.id)),
   ];
   const statsContext = new Map<string, {
     status: string;
@@ -262,56 +248,56 @@ export async function fetchMatchesJob(): Promise<{ saved: number; leagues: numbe
   const rawStatsMap = new Map<string, ApiFixtureStat[]>();
   if (allNeedingStats.length > 0) {
     await reportJobProgress(
-      JOB, 'stats',
-      `Fetching stats for ${liveRows.length} live + ${playableFinished.length} finished matches...`, 55,
+      jobName,
+      'stats',
+      `Fetching stats for ${liveRows.length} live + ${playableFinished.length} finished matches...`,
+      55,
     );
-    await batchRun(allNeedingStats.map(matchId => async () => {
-      try {
-        const stats = await ensureFixtureStatistics(matchId, statsContext.get(matchId));
-        rawStatsMap.set(matchId, stats.payload);
-      } catch (err) {
-        console.warn(`[fetchMatchesJob] Stats fetch failed for ${matchId}:`, err instanceof Error ? err.message : err);
-      }
-    }), 5);
+    await batchRun(
+      allNeedingStats.map((matchId) => async () => {
+        try {
+          const stats = await ensureFixtureStatistics(matchId, statsContext.get(matchId));
+          rawStatsMap.set(matchId, stats.payload);
+        } catch (err) {
+          console.warn(`[fetchMatchesJob] Stats fetch failed for ${matchId}:`, err instanceof Error ? err.message : err);
+        }
+      }),
+      5,
+    );
   }
 
-  // Apply card counts to live rows
   if (liveRows.length > 0) {
     let enrichedLive = 0;
     for (const row of rows) {
       const stats = rawStatsMap.get(row.match_id);
-      if (stats) {
-        row.home_reds    = statCount(stats, 0, 'Red Cards');
-        row.away_reds    = statCount(stats, 1, 'Red Cards');
-        row.home_yellows = statCount(stats, 0, 'Yellow Cards');
-        row.away_yellows = statCount(stats, 1, 'Yellow Cards');
-        enrichedLive++;
-      }
+      if (!stats) continue;
+      row.home_reds = statCount(stats, 0, 'Red Cards');
+      row.away_reds = statCount(stats, 1, 'Red Cards');
+      row.home_yellows = statCount(stats, 0, 'Yellow Cards');
+      row.away_yellows = statCount(stats, 1, 'Yellow Cards');
+      enrichedLive++;
     }
     console.log(`[fetchMatchesJob] Enriched card stats for ${enrichedLive}/${liveRows.length} live matches`);
   }
 
-  // Build settlement stats for finished matches that were fetched this run
   const finishedStatsMap = new Map<string, ReturnType<typeof mergeApiFixtureStatistics>>();
   const statsFetchedAt = new Date().toISOString();
-  const fetchedMatchIds = new Set(playableFinished.map(f => String(f.fixture.id)));
+  const fetchedMatchIds = new Set(playableFinished.map((fixture) => String(fixture.fixture.id)));
   for (const fixture of playableFinished) {
     const matchId = String(fixture.fixture.id);
     const merged = mergeApiFixtureStatistics(rawStatsMap.get(matchId) ?? []);
     if (merged.length > 0) finishedStatsMap.set(matchId, merged);
   }
   if (playableFinished.length > 0) {
-    console.log(`[fetchMatchesJob] Fetched settlement stats for ${finishedStatsMap.size}/${playableFinished.length} finished matches`);
+    console.log(
+      `[fetchMatchesJob] Fetched settlement stats for ${finishedStatsMap.size}/${playableFinished.length} finished matches`,
+    );
   }
 
-  // 7. Archive finished matches before TRUNCATE
-  // Archive from BOTH fresh API payload AND existing table to catch
-  // matches that transitioned to FT between polls (F2 audit fix).
-  await reportJobProgress(JOB, 'archive', 'Archiving finished matches...', 65);
+  await reportJobProgress(jobName, 'archive', 'Archiving finished matches...', 65);
   const freshFinished = freshFinishedFixtures.map(fixtureToMatchRow);
   const allCurrentMatches = await matchRepo.getAllMatches();
   const archiveByMatchId = new Map<string, MatchHistoryArchiveInput | matchRepo.MatchRow>();
-  // Deduplicate by match_id (fresh rows take precedence — they have final score)
   for (const row of allCurrentMatches) archiveByMatchId.set(row.match_id, row);
   for (const fixture of freshFinishedFixtures) {
     const matchId = String(fixture.fixture.id);
@@ -324,238 +310,29 @@ export async function fetchMatchesJob(): Promise<{ saved: number; leagues: numbe
       ),
     );
   }
-  const deduped = [...archiveByMatchId.values()];
-  const archivedCount = await archiveFinishedMatches(deduped);
+  const archivedCount = await archiveFinishedMatches([...archiveByMatchId.values()]);
   if (archivedCount > 0) {
-    console.log(`[fetchMatchesJob] Archived ${archivedCount} FT matches to history (${freshFinished.length} from fresh payload)`);
+    console.log(
+      `[fetchMatchesJob] Archived ${archivedCount} FT matches to history (${freshFinished.length} from fresh payload)`,
+    );
   }
 
-  // 8. Full-refresh matches table
-  // If one of the two main days (today/tomorrow) failed, preserve existing rows for that
-  // date so we don't delete valid matches we couldn't re-fetch.
-  // Note: cross-midnight matches (late kickoffs from yesterday) are covered by the
-  // dateYesterday fetch window above — no extra preservation needed here.
-  const newMatchIds = new Set(rows.map(r => r.match_id));
+  const newMatchIds = new Set(rows.map((row) => row.match_id));
   let mergedRows = rows;
   if (partialFailure && allCurrentMatches.length > 0) {
     const failedDate = !todayOk ? dateFrom : dateTo;
-    const preserved = allCurrentMatches.filter(m => m.date === failedDate && !newMatchIds.has(m.match_id));
+    const preserved = allCurrentMatches.filter((match) => match.date === failedDate && !newMatchIds.has(match.match_id));
     if (preserved.length > 0) {
       mergedRows = rows.concat(preserved);
-      console.log(`[fetchMatchesJob] Partial failure — preserved ${preserved.length} existing rows for ${failedDate}`);
+      console.log(`[fetchMatchesJob] Partial failure - preserved ${preserved.length} existing rows for ${failedDate}`);
     }
   }
 
-  await reportJobProgress(JOB, 'save', `Saving ${mergedRows.length} matches...`, 78);
+  await reportJobProgress(jobName, 'save', `Saving ${mergedRows.length} matches...`, 78);
   const saved = await matchRepo.replaceAllMatches(mergedRows);
-  const uniqueLeagues = new Set(mergedRows.map((r) => r.league_id)).size;
-  const runSideEffect = async <T>(label: string, fn: () => Promise<T>, fallback: T): Promise<T> => {
-    try {
-      return await fn();
-    } catch (err) {
-      console.warn(`[fetchMatchesJob] Non-core stage "${label}" failed:`, err instanceof Error ? err.message : err);
-      return fallback;
-    }
-  };
+  const uniqueLeagues = new Set(mergedRows.map((row) => row.league_id)).size;
+  console.log(`[fetchMatchesJob] Saved ${saved} matches from ${uniqueLeagues} leagues`);
 
-  console.log(`[fetchMatchesJob] ✅ Saved ${saved} matches from ${uniqueLeagues} leagues`);
-
-  const backfilled = await runSideEffect('watchlist-backfill', () => watchlistRepo.backfillOperationalWatchlistFromLegacy(), 0);
-  if (backfilled > 0) {
-    console.log(`[fetchMatchesJob] Backfilled ${backfilled} legacy watchlist rows into monitored matches`);
-  }
-
-  // 8b. Sync monitored watch metadata from refreshed matches (fixes stale date/kickoff)
-  const synced = await runSideEffect('watchlist-date-sync', () => watchlistRepo.syncWatchlistDates(), 0);
-  if (synced > 0) {
-    console.log(`[fetchMatchesJob] Synced ${synced} monitored watch date/kickoff entries`);
-  }
-
-  // 9. Auto-add Top League matches to Watchlist (NS status only)
-  await reportJobProgress(JOB, 'top-leagues', 'Auto-adding top league matches to watchlist...', 85);
-  const autoAddSettings = await runSideEffect('load-default-settings', () => getSettings().catch(() => ({})), {});
-  const autoApplyRecommendedCondition =
-    (autoAddSettings as Record<string, unknown>).AUTO_APPLY_RECOMMENDED_CONDITION !== false;
-  const topLeagues = await runSideEffect('top-leagues', () => leagueRepo.getTopLeagues(), []);
-  if (topLeagues.length > 0) {
-    const topLeagueIds = new Set(topLeagues.map((l) => l.league_id));
-    const topMatches = rows.filter((r) => topLeagueIds.has(r.league_id) && r.status === 'NS');
-
-    // Batch-check existing watchlist entries — one query instead of N sequential queries
-    const existingIds = await runSideEffect(
-      'top-league-existing-watchlist',
-      () => watchlistRepo.getExistingWatchlistMatchIds(topMatches.map((m) => m.match_id)),
-      new Set<string>(),
-    );
-
-    let added = 0;
-    for (const m of topMatches) {
-      if (existingIds.has(m.match_id)) continue;
-
-      try {
-        await watchlistRepo.createOperationalWatchlistEntry({
-          match_id: m.match_id,
-          date: m.date,
-          kickoff_at_utc: m.kickoff_at_utc ?? null,
-          league: m.league_name,
-          home_team: m.home_team,
-          away_team: m.away_team,
-          home_logo: m.home_logo,
-          away_logo: m.away_logo,
-          kickoff: m.kickoff,
-          mode: 'B',
-          prediction: null,
-          recommended_custom_condition: '',
-          recommended_condition_reason: '',
-          recommended_condition_reason_vi: '',
-          recommended_condition_at: null,
-          auto_apply_recommended_condition: autoApplyRecommendedCondition,
-          custom_conditions: '',
-          priority: 0,
-          status: 'active',
-          added_by: 'top-league-auto',
-          last_checked: null,
-          total_checks: 0,
-          recommendations_count: 0,
-          strategic_context: null,
-          strategic_context_at: null,
-        });
-        added++;
-      } catch (err: unknown) {
-        // Unique constraint violation from concurrent insert — safe to ignore
-        const msg = err instanceof Error ? err.message : String(err);
-        if (!msg.includes('duplicate') && !msg.includes('unique')) throw err;
-      }
-    }
-
-    if (added > 0) {
-      console.log(`[fetchMatchesJob] ⭐ Auto-added ${added} top-league matches to watchlist`);
-    }
-  }
-
-  // 10. Auto-add Favorite Team matches to Watchlist (NS status only)
-  const favoriteCandidateMatches = rows.filter((r) =>
-    r.status === 'NS' && (r.home_team_id != null || r.away_team_id != null),
-  );
-  const favoriteTeamOwners = await runSideEffect(
-    'favorite-team-owners',
-    () => getFavoriteTeamOwnersByTeamIds(
-      Array.from(new Set(
-        favoriteCandidateMatches.flatMap((row) => [
-          row.home_team_id != null ? String(row.home_team_id) : null,
-          row.away_team_id != null ? String(row.away_team_id) : null,
-        ].filter((teamId): teamId is string => teamId != null)),
-      )),
-    ).catch(() => []),
-    [],
-  );
-
-  if (favoriteTeamOwners.length > 0) {
-    const favoriteOwnersByTeamId = new Map<string, Set<string>>();
-    const autoApplyByUserId = new Map<string, boolean>();
-    for (const owner of favoriteTeamOwners) {
-      const current = favoriteOwnersByTeamId.get(owner.teamId) ?? new Set<string>();
-      current.add(owner.userId);
-      favoriteOwnersByTeamId.set(owner.teamId, current);
-    }
-
-    const candidateMatchIdsByUserId = new Map<string, Set<string>>();
-    for (const m of favoriteCandidateMatches) {
-      const matchingUserIds = new Set<string>();
-      if (m.home_team_id != null) {
-        for (const userId of favoriteOwnersByTeamId.get(String(m.home_team_id)) ?? []) {
-          matchingUserIds.add(userId);
-        }
-      }
-      if (m.away_team_id != null) {
-        for (const userId of favoriteOwnersByTeamId.get(String(m.away_team_id)) ?? []) {
-          matchingUserIds.add(userId);
-        }
-      }
-      for (const userId of matchingUserIds) {
-        const matchIds = candidateMatchIdsByUserId.get(userId) ?? new Set<string>();
-        matchIds.add(m.match_id);
-        candidateMatchIdsByUserId.set(userId, matchIds);
-      }
-    }
-
-    const existingFavoriteIdsByUserId = new Map<string, Set<string>>();
-    for (const [userId, matchIds] of candidateMatchIdsByUserId) {
-      const existingIds = await runSideEffect(
-        `favorite-team-existing:${userId}`,
-        () => watchlistRepo.getExistingUserWatchlistMatchIds(userId, [...matchIds]),
-        new Set<string>(),
-      );
-      existingFavoriteIdsByUserId.set(userId, existingIds);
-    }
-
-    let favAdded = 0;
-    for (const m of favoriteCandidateMatches) {
-      const matchingUserIds = new Set<string>();
-      if (m.home_team_id != null) {
-        for (const userId of favoriteOwnersByTeamId.get(String(m.home_team_id)) ?? []) {
-          matchingUserIds.add(userId);
-        }
-      }
-      if (m.away_team_id != null) {
-        for (const userId of favoriteOwnersByTeamId.get(String(m.away_team_id)) ?? []) {
-          matchingUserIds.add(userId);
-        }
-      }
-
-      for (const userId of matchingUserIds) {
-        if (existingFavoriteIdsByUserId.get(userId)?.has(m.match_id)) continue;
-
-        let userAutoApplyRecommendedCondition = autoApplyByUserId.get(userId);
-        if (userAutoApplyRecommendedCondition == null) {
-          const userSettings = await getSettings(userId, { fallbackToDefault: false }).catch(() => ({}));
-          userAutoApplyRecommendedCondition =
-            (userSettings as Record<string, unknown>).AUTO_APPLY_RECOMMENDED_CONDITION !== false;
-          autoApplyByUserId.set(userId, userAutoApplyRecommendedCondition);
-        }
-
-        try {
-          await watchlistRepo.createWatchlistEntry({
-            match_id: m.match_id,
-            date: m.date,
-            league: m.league_name,
-            home_team: m.home_team,
-            away_team: m.away_team,
-            home_logo: m.home_logo,
-            away_logo: m.away_logo,
-            kickoff: m.kickoff,
-            mode: 'B',
-            prediction: null,
-            recommended_custom_condition: '',
-            recommended_condition_reason: '',
-            recommended_condition_reason_vi: '',
-            recommended_condition_at: null,
-            auto_apply_recommended_condition: userAutoApplyRecommendedCondition,
-            custom_conditions: '',
-            priority: 0,
-            status: 'active',
-            added_by: 'favorite-team-auto',
-            last_checked: null,
-            total_checks: 0,
-            recommendations_count: 0,
-            strategic_context: null,
-            strategic_context_at: null,
-          }, userId);
-          existingFavoriteIdsByUserId.get(userId)?.add(m.match_id);
-          favAdded++;
-        } catch (err: unknown) {
-          const msg = err instanceof Error ? err.message : String(err);
-          if (!msg.includes('duplicate') && !msg.includes('unique')) throw err;
-        }
-      }
-    }
-
-    if (favAdded > 0) {
-      console.log(`[fetchMatchesJob] ⭐ Auto-added ${favAdded} favorite-team matches to watchlist`);
-    }
-  }
-
-  // ── Adaptive polling: set next allowed run time based on match state ──────
   try {
     const scheduleState = await matchRepo.getMatchScheduleState(config.timezone);
     const delayMs = computeNextPollDelayMs(scheduleState, config.jobFetchMatchesMs);
@@ -568,7 +345,7 @@ export async function fetchMatchesJob(): Promise<{ saved: number; leagues: numbe
       );
     }
   } catch {
-    // Non-critical — if this fails, job just runs at base interval
+    // Non-critical.
   }
 
   return { saved, leagues: uniqueLeagues };
@@ -577,7 +354,7 @@ export async function fetchMatchesJob(): Promise<{ saved: number; leagues: numbe
 function buildArchiveRowFromFixture(
   fixture: ApiFixture,
   settlementStats: ReturnType<typeof mergeApiFixtureStatistics>,
-  settlement_stats_fetched_at: string | null = null,
+  settlementStatsFetchedAt: string | null = null,
 ): MatchHistoryArchiveInput {
   const regularTimeScore = extractRegularTimeScoreFromFixture(fixture);
   return {
@@ -598,6 +375,6 @@ function buildArchiveRowFromFixture(
     result_provider: 'api-football',
     settlement_stats: settlementStats,
     settlement_stats_provider: settlementStats.length > 0 ? 'api-football' : '',
-    settlement_stats_fetched_at,
+    settlement_stats_fetched_at: settlementStatsFetchedAt,
   };
 }

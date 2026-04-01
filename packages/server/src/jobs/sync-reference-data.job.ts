@@ -1,6 +1,7 @@
 import * as leaguesRepo from '../repos/leagues.repo.js';
 import { refreshLeagueCatalog } from '../lib/league-catalog.service.js';
 import { refreshLeagueTeamsDirectoryNow } from '../lib/league-team-directory.service.js';
+import { syncDerivedPrematchProfiles } from '../lib/prematch-profile-sync.js';
 import { reportJobProgress } from './job-progress.js';
 
 const JOB = 'sync-reference-data';
@@ -29,6 +30,15 @@ export async function syncReferenceDataJob(): Promise<{
     topLeagueCount: number;
     activeLeagueCount: number;
   };
+  prematchProfiles: {
+    lookbackDays: number;
+    candidateLeagues: number;
+    refreshedLeagueProfiles: number;
+    skippedLeagueProfiles: number;
+    candidateTeams: number;
+    refreshedTeamProfiles: number;
+    skippedTeamProfiles: number;
+  };
 }> {
   const [topLeagues, activeLeagues] = await Promise.all([
     leaguesRepo.getTopLeagues(),
@@ -51,7 +61,7 @@ export async function syncReferenceDataJob(): Promise<{
   if (orderedIds.length === 0) {
     await reportJobProgress(JOB, 'complete', 'No active leagues available for reference-data sync.', 100);
     return {
-      entityGroups: ['league-catalog', 'league-team-directory'],
+      entityGroups: ['league-catalog', 'league-team-directory', 'prematch-profiles'],
       leagueCatalog: {
         candidateLeagues: leagueCatalog.candidateLeagues,
         attemptedLeagues: leagueCatalog.attemptedLeagues,
@@ -68,6 +78,15 @@ export async function syncReferenceDataJob(): Promise<{
         failedLeagues: 0,
         topLeagueCount: topLeagues.length,
         activeLeagueCount: activeLeagues.length,
+      },
+      prematchProfiles: {
+        lookbackDays: 180,
+        candidateLeagues: 0,
+        refreshedLeagueProfiles: 0,
+        skippedLeagueProfiles: 0,
+        candidateTeams: 0,
+        refreshedTeamProfiles: 0,
+        skippedTeamProfiles: 0,
       },
     };
   }
@@ -115,15 +134,24 @@ export async function syncReferenceDataJob(): Promise<{
     );
   }
 
+  const prematchProfiles = await syncDerivedPrematchProfiles(topLeagues.map((league) => league.league_id));
+
+  await reportJobProgress(
+    JOB,
+    'profiles',
+    `Derived prematch profiles. Leagues refreshed=${prematchProfiles.refreshedLeagueProfiles}, skipped=${prematchProfiles.skippedLeagueProfiles}; teams refreshed=${prematchProfiles.refreshedTeamProfiles}, skipped=${prematchProfiles.skippedTeamProfiles}.`,
+    98,
+  );
+
   await reportJobProgress(
     JOB,
     'complete',
-    `Reference-data sync complete. Refreshed=${refreshedLeagues}, fresh=${skippedFreshLeagues}, fallback=${staleFallbackLeagues}, empty=${emptyLeagues}, failed=${failedLeagues}.`,
+    `Reference-data sync complete. Refreshed=${refreshedLeagues}, fresh=${skippedFreshLeagues}, fallback=${staleFallbackLeagues}, empty=${emptyLeagues}, failed=${failedLeagues}. Prematch profiles refreshed=${prematchProfiles.refreshedLeagueProfiles}/${prematchProfiles.refreshedTeamProfiles}.`,
     100,
   );
 
   return {
-    entityGroups: ['league-catalog', 'league-team-directory'],
+    entityGroups: ['league-catalog', 'league-team-directory', 'prematch-profiles'],
     leagueCatalog: {
       candidateLeagues: leagueCatalog.candidateLeagues,
       attemptedLeagues: leagueCatalog.attemptedLeagues,
@@ -141,5 +169,6 @@ export async function syncReferenceDataJob(): Promise<{
       topLeagueCount: topLeagues.length,
       activeLeagueCount: activeLeagues.length,
     },
+    prematchProfiles,
   };
 }

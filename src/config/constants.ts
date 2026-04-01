@@ -62,7 +62,10 @@ export const STATUS_BADGES: Record<string, StatusBadgeInfo> = {
   // Recommendation result statuses
   WIN: { label: 'Won', class: 'badge-won' },
   LOSS: { label: 'Lost', class: 'badge-lost' },
+  HALF_WIN: { label: 'Half Won', class: 'badge-won' },
+  HALF_LOSS: { label: 'Half Lost', class: 'badge-lost' },
   PUSH: { label: 'Push', class: 'badge-pending' },
+  VOID: { label: 'Void', class: 'badge-pending' },
 };
 
 export const LIVE_STATUSES = ['1H', '2H', 'HT', 'ET', 'BT', 'P', 'LIVE', 'INT'];

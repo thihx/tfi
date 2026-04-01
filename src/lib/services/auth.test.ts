@@ -1,5 +1,5 @@
 import { describe, test, expect, beforeEach, vi } from 'vitest';
-import { isAuthenticated, getToken, setToken, clearToken, isTokenValid, getUser, logout } from './auth';
+import { isAuthenticated, getToken, setToken, clearToken, isTokenValid, getUser, logout, fetchCurrentUser } from './auth';
 
 // Build a minimal valid JWT for testing (HS256 signature not verified client-side)
 function makeFakeJwt(payload: Record<string, unknown>): string {
@@ -84,6 +84,44 @@ describe('auth service', () => {
       expect(getToken()).toBeNull();
       expect(globalThis.fetch).toHaveBeenCalled();
       expect(reloadMock).toHaveBeenCalled();
+    });
+  });
+
+  describe('fetchCurrentUser', () => {
+    test('returns current user when /api/auth/me succeeds', async () => {
+      setToken(makeFakeJwt({ sub: 'user-1', email: 'admin@example.com', role: 'member' }));
+      globalThis.fetch = vi.fn().mockResolvedValue({
+        ok: true,
+        json: () => Promise.resolve({
+          userId: 'user-1',
+          email: 'admin@example.com',
+          role: 'admin',
+          name: 'Admin',
+          picture: '',
+        }),
+      }) as unknown as typeof fetch;
+
+      const user = await fetchCurrentUser('http://localhost:4000');
+
+      expect(user).toEqual({
+        userId: 'user-1',
+        email: 'admin@example.com',
+        role: 'admin',
+        name: 'Admin',
+        picture: '',
+      });
+      expect(globalThis.fetch).toHaveBeenCalledWith(
+        'http://localhost:4000/api/auth/me',
+        expect.objectContaining({
+          method: 'GET',
+          credentials: 'include',
+          cache: 'no-store',
+          headers: expect.objectContaining({
+            Accept: 'application/json',
+            Authorization: expect.stringContaining('Bearer '),
+          }),
+        }),
+      );
     });
   });
 });

@@ -1,10 +1,15 @@
-import { afterAll, beforeAll, describe, expect, test, vi } from 'vitest';
+import { afterAll, beforeAll, beforeEach, describe, expect, test, vi } from 'vitest';
 import type { FastifyInstance } from 'fastify';
 import { buildApp } from './helpers.js';
 
 const mockGetJobsStatus = vi.fn();
 const mockTriggerJob = vi.fn();
 const mockRunManualAnalysisForMatch = vi.fn();
+const mockGetActiveOperationalWatchlist = vi.fn();
+const mockGetMatchesByIds = vi.fn();
+const mockGetLatestSnapshotsForMatches = vi.fn();
+const mockGetLatestRecommendationsForMatches = vi.fn();
+const mockGetSettings = vi.fn();
 
 vi.mock('../jobs/scheduler.js', () => ({
   getJobsStatus: mockGetJobsStatus,
@@ -15,11 +20,40 @@ vi.mock('../lib/server-pipeline.js', () => ({
   runManualAnalysisForMatch: mockRunManualAnalysisForMatch,
 }));
 
+vi.mock('../repos/watchlist.repo.js', () => ({
+  getActiveOperationalWatchlist: mockGetActiveOperationalWatchlist,
+}));
+
+vi.mock('../repos/matches.repo.js', () => ({
+  getMatchesByIds: mockGetMatchesByIds,
+}));
+
+vi.mock('../repos/match-snapshots.repo.js', () => ({
+  getLatestSnapshotsForMatches: mockGetLatestSnapshotsForMatches,
+}));
+
+vi.mock('../repos/recommendations.repo.js', () => ({
+  getLatestRecommendationsForMatches: mockGetLatestRecommendationsForMatches,
+}));
+
+vi.mock('../repos/settings.repo.js', () => ({
+  getSettings: mockGetSettings,
+}));
+
 let app: FastifyInstance;
 
 beforeAll(async () => {
   const { liveMonitorRoutes } = await import('../routes/live-monitor.routes.js');
   app = await buildApp(liveMonitorRoutes);
+});
+
+beforeEach(() => {
+  vi.clearAllMocks();
+  mockGetActiveOperationalWatchlist.mockResolvedValue([]);
+  mockGetMatchesByIds.mockResolvedValue([]);
+  mockGetLatestSnapshotsForMatches.mockResolvedValue(new Map());
+  mockGetLatestRecommendationsForMatches.mockResolvedValue(new Map());
+  mockGetSettings.mockResolvedValue({});
 });
 
 afterAll(async () => {
@@ -126,6 +160,12 @@ describe('GET /api/live-monitor/status', () => {
         savedRecommendations: 1,
         pushedNotifications: 1,
         errors: 0,
+      },
+      monitoring: {
+        activeWatchCount: 0,
+        liveWatchCount: 0,
+        candidateCount: 0,
+        targets: [],
       },
       results: [
         {
@@ -237,6 +277,139 @@ describe('GET /api/live-monitor/status', () => {
       errors: 1,
     });
     expect(res.json().results).toHaveLength(2);
+  });
+
+  test('returns monitoring scope for watched live matches and exposes candidate reasons', async () => {
+    mockGetJobsStatus.mockResolvedValueOnce([
+      {
+        name: 'check-live-trigger',
+        intervalMs: 60_000,
+        lastRun: '2026-03-24T10:00:00.000Z',
+        lastError: null,
+        running: false,
+        enabled: true,
+        runCount: 7,
+        progress: null,
+        concurrency: 1,
+        activeRuns: 0,
+        pendingRuns: 0,
+      },
+    ]);
+    mockGetActiveOperationalWatchlist.mockResolvedValueOnce([
+      {
+        match_id: '100',
+        league: 'Premier League',
+        mode: 'B',
+        priority: 90,
+        custom_conditions: '(Minute >= 70)',
+        recommended_custom_condition: '',
+        last_checked: '2026-03-24T09:58:00.000Z',
+        total_checks: 4,
+        status: 'active',
+      },
+      {
+        match_id: '101',
+        league: 'Premier League',
+        mode: 'F',
+        priority: 70,
+        custom_conditions: '',
+        recommended_custom_condition: '(Home scores first)',
+        last_checked: null,
+        total_checks: 1,
+        status: 'active',
+      },
+    ]);
+    mockGetMatchesByIds.mockResolvedValueOnce([
+      {
+        match_id: '100',
+        league_name: 'Premier League',
+        home_team: 'Arsenal',
+        away_team: 'Chelsea',
+        status: '2H',
+        current_minute: 72,
+        home_score: 2,
+        away_score: 1,
+      },
+      {
+        match_id: '101',
+        league_name: 'Premier League',
+        home_team: 'Liverpool',
+        away_team: 'Everton',
+        status: '2H',
+        current_minute: 66,
+        home_score: 1,
+        away_score: 1,
+      },
+    ]);
+    mockGetLatestRecommendationsForMatches.mockResolvedValueOnce(new Map([
+      ['100', {
+        match_id: '100',
+        minute: 70,
+        odds: 1.9,
+        bet_market: 'over_2.5',
+        selection: 'Over 2.5',
+        score: '2-1',
+        status: '2H',
+      }],
+    ]));
+    mockGetLatestSnapshotsForMatches.mockResolvedValueOnce(new Map([
+      ['101', {
+        match_id: '101',
+        minute: 60,
+        home_score: 1,
+        away_score: 1,
+        status: '2H',
+        odds: {},
+      }],
+    ]));
+    mockGetSettings.mockResolvedValueOnce({ REANALYZE_MIN_MINUTES: 10 });
+
+    const res = await app.inject({ method: 'GET', url: '/api/live-monitor/status' });
+
+    expect(res.statusCode).toBe(200);
+    expect(res.json().monitoring).toEqual({
+      activeWatchCount: 2,
+      liveWatchCount: 2,
+      candidateCount: 2,
+      targets: [
+        {
+          matchId: '100',
+          matchDisplay: 'Arsenal vs Chelsea',
+          league: 'Premier League',
+          status: '2H',
+          minute: 72,
+          score: '2-1',
+          live: true,
+          mode: 'B',
+          priority: 90,
+          customConditions: '(Minute >= 70)',
+          recommendedCondition: '',
+          lastChecked: '2026-03-24T09:58:00.000Z',
+          totalChecks: 4,
+          candidate: true,
+          candidateReason: 'time_elapsed',
+          baseline: 'recommendation',
+        },
+        {
+          matchId: '101',
+          matchDisplay: 'Liverpool vs Everton',
+          league: 'Premier League',
+          status: '2H',
+          minute: 66,
+          score: '1-1',
+          live: true,
+          mode: 'F',
+          priority: 70,
+          customConditions: '',
+          recommendedCondition: '(Home scores first)',
+          lastChecked: null,
+          totalChecks: 1,
+          candidate: true,
+          candidateReason: 'force_analyze',
+          baseline: 'none',
+        },
+      ],
+    });
   });
 
   test('returns 404 when check-live-trigger is not registered', async () => {

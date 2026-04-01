@@ -15,6 +15,15 @@ export interface UserRow {
   updated_at: string;
 }
 
+export interface AdminUserUpdateInput {
+  role?: Extract<UserRole, 'admin' | 'member'>;
+  status?: Extract<UserStatus, 'active' | 'disabled'>;
+}
+
+export interface SelfUserProfileUpdateInput {
+  displayName?: string;
+}
+
 export interface ResolveUserFromIdentityInput {
   provider: string;
   providerSubject: string;
@@ -34,6 +43,81 @@ function normalizeDisplayName(displayName: string, email: string): string {
 
 export async function getUserById(userId: string): Promise<UserRow | null> {
   const result = await query<UserRow>('SELECT * FROM users WHERE id = $1 LIMIT 1', [userId]);
+  return result.rows[0] ?? null;
+}
+
+export async function listUsers(): Promise<UserRow[]> {
+  const result = await query<UserRow>(
+    `SELECT *
+       FROM users
+      ORDER BY
+        CASE role
+          WHEN 'owner' THEN 0
+          WHEN 'admin' THEN 1
+          ELSE 2
+        END,
+        LOWER(email),
+        created_at ASC`,
+  );
+  return result.rows;
+}
+
+export async function updateUserAdminProfile(
+  userId: string,
+  input: AdminUserUpdateInput,
+): Promise<UserRow | null> {
+  const sets: string[] = [];
+  const values: Array<string> = [userId];
+
+  if (input.role) {
+    values.push(input.role);
+    sets.push(`role = $${values.length}`);
+  }
+
+  if (input.status) {
+    values.push(input.status);
+    sets.push(`status = $${values.length}`);
+  }
+
+  if (sets.length === 0) {
+    return getUserById(userId);
+  }
+
+  const result = await query<UserRow>(
+    `UPDATE users
+        SET ${sets.join(', ')},
+            updated_at = NOW()
+      WHERE id = $1
+      RETURNING *`,
+    values,
+  );
+  return result.rows[0] ?? null;
+}
+
+export async function updateUserSelfProfile(
+  userId: string,
+  input: SelfUserProfileUpdateInput,
+): Promise<UserRow | null> {
+  const sets: string[] = [];
+  const values: Array<string> = [userId];
+
+  if (input.displayName !== undefined) {
+    values.push(input.displayName.trim());
+    sets.push(`display_name = $${values.length}`);
+  }
+
+  if (sets.length === 0) {
+    return getUserById(userId);
+  }
+
+  const result = await query<UserRow>(
+    `UPDATE users
+        SET ${sets.join(', ')},
+            updated_at = NOW()
+      WHERE id = $1
+      RETURNING *`,
+    values,
+  );
   return result.rows[0] ?? null;
 }
 
@@ -61,6 +145,7 @@ export async function resolveOrCreateUserFromIdentity(input: ResolveUserFromIden
 
     const userByIdentity = existingByIdentity.rows[0] ?? null;
     if (userByIdentity) {
+      const nextDisplayName = userByIdentity.display_name.trim() || displayName;
       const refreshed = await client.query<UserRow>(
         `UPDATE users
             SET email = $2,
@@ -69,7 +154,7 @@ export async function resolveOrCreateUserFromIdentity(input: ResolveUserFromIden
                 updated_at = NOW()
           WHERE id = $1
         RETURNING *`,
-        [userByIdentity.id, email, displayName, avatarUrl],
+        [userByIdentity.id, email, nextDisplayName, avatarUrl],
       );
 
       await client.query(
@@ -101,6 +186,7 @@ export async function resolveOrCreateUserFromIdentity(input: ResolveUserFromIden
       );
       user = created.rows[0] ?? null;
     } else {
+      const nextDisplayName = user.display_name.trim() || displayName;
       const refreshed = await client.query<UserRow>(
         `UPDATE users
             SET email = $2,
@@ -109,7 +195,7 @@ export async function resolveOrCreateUserFromIdentity(input: ResolveUserFromIden
                 updated_at = NOW()
           WHERE id = $1
         RETURNING *`,
-        [user.id, email, displayName, avatarUrl],
+        [user.id, email, nextDisplayName, avatarUrl],
       );
       user = refreshed.rows[0] ?? user;
     }

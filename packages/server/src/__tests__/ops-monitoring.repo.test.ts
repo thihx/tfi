@@ -212,6 +212,7 @@ describe('ops-monitoring.repo', () => {
           no_prematch_rows: '2',
           high_noise_rows: '2',
           avg_noise_penalty: '34.5',
+          structured_eligible_rows: '5',
         }],
       })
       .mockResolvedValueOnce({
@@ -225,6 +226,35 @@ describe('ops-monitoring.repo', () => {
             prompt_data_level: 'basic-only',
             analyzed_at: '2026-03-21T09:55:00.000Z',
           },
+        ],
+      })
+      .mockResolvedValueOnce({
+        rows: [{
+          total_rows: '8',
+          blocked_rows: '3',
+        }],
+      })
+      .mockResolvedValueOnce({
+        rows: [
+          { reason: 'eligible', count: '5' },
+          { reason: 'prediction_or_profile_coverage_too_thin', count: '2' },
+          { reason: 'prematch_features_missing', count: '1' },
+        ],
+      })
+      .mockResolvedValueOnce({
+        rows: [{
+          total_rows: '6',
+          success_rows: '2',
+          skipped_rows: '3',
+          failed_rows: '1',
+          structured_eligible_rows: '4',
+        }],
+      })
+      .mockResolvedValueOnce({
+        rows: [
+          { reason: 'eligible', count: '4' },
+          { reason: 'low_evidence_without_watch_condition', count: '1' },
+          { reason: 'prompt_only_failed', count: '1' },
         ],
       });
 
@@ -243,9 +273,17 @@ describe('ops-monitoring.repo', () => {
     expect(snapshot.promptQuality.lateHighLineRows).toBe(2);
     expect(snapshot.promptQuality.prematch.highNoiseRate).toBe(16.7);
     expect(snapshot.promptQuality.prematch.avgNoisePenalty).toBe(34.5);
+    expect(snapshot.promptQuality.prematch.structuredAskAiEligibleRows).toBe(5);
+    expect(snapshot.promptQuality.prematch.structuredAskAiEligibleRate).toBe(62.5);
+    expect(snapshot.promptQuality.prematch.structuredAskAiBlockedRows).toBe(3);
+    expect(snapshot.promptQuality.prematch.structuredAskAiReasonBreakdown[0]?.reason).toBe('eligible');
     expect(snapshot.promptQuality.prematch.topHighNoiseMatches[0]?.matchDisplay).toBe('West Ham vs Spurs');
+    expect(snapshot.promptOnly.totalRows).toBe(6);
+    expect(snapshot.promptOnly.structuredEligibleRate).toBe(66.7);
+    expect(snapshot.promptOnly.reasonBreakdown[1]?.reason).toBe('low_evidence_without_watch_condition');
     expect(snapshot.cards.find((card) => card.label === 'Notify-Eligible Rate 24h')?.value).toBe('40%');
     expect(snapshot.cards.find((card) => card.label === 'Prematch High Noise 24h')?.value).toBe('16.7%');
+    expect(snapshot.cards.find((card) => card.label === 'Prematch Structured Eligible')?.value).toBe('62.5%');
     expect(snapshot.cards.find((card) => card.label === 'Prompt Agree 24h')?.value).toBe('100%');
     expect(snapshot.cards.find((card) => card.label === 'Stacking Rate 24h')?.value).toBe('66.7%');
     expect(snapshot.checklist.some((item) => item.id === 'settlement-backlog')).toBe(true);

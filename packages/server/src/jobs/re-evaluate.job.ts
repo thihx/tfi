@@ -211,13 +211,14 @@ export async function reEvaluateAllResults(): Promise<ReEvalResult> {
       const oldResult = rec.result || '';
       const oldPnl = rec.pnl ?? 0;
       const market = rec.bet_market || normalizeMarket(rec.selection, rec.bet_market);
+      const needsTrustUpgrade = rec.settlement_status === 'unresolved';
 
       result.evaluated++;
 
       const isUnsettled = !oldResult || oldResult === '';
       const isDiscrepancy = !isUnsettled && (oldResult !== newResult || Math.abs(oldPnl - newPnl) > 0.01);
 
-      if (!isUnsettled && !isDiscrepancy) continue;
+      if (!isUnsettled && !isDiscrepancy && !needsTrustUpgrade) continue;
 
       const settlementMeta = buildSettlementMeta(
         aiResult.source,

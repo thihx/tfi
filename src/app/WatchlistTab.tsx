@@ -6,7 +6,7 @@ import { useUiLanguage } from '@/hooks/useUiLanguage';
 import { useUserTimeZone } from '@/hooks/useUserTimeZone';
 import { useViewMode } from '@/hooks/useViewMode';
 import { Pagination } from '@/components/ui/Pagination';
-import { PLACEHOLDER_HOME, PLACEHOLDER_AWAY } from '@/config/constants';
+import { PLACEHOLDER_HOME, PLACEHOLDER_AWAY, LIVE_STATUSES } from '@/config/constants';
 import { Modal } from '@/components/ui/Modal';
 import { formatDateTimeDisplay, getKickoffDateKey, getKickoffDateTime, getLeagueDisplayName, debounce } from '@/lib/utils/helpers';
 import { MatchScoutModal } from '@/components/ui/MatchScoutModal';
@@ -35,6 +35,8 @@ export function WatchlistTab() {
   const [viewMode, setViewMode] = useViewMode('viewMode:watchlist');
 
   const searchRef = useRef<HTMLInputElement>(null);
+  const filterBarRef = useRef<HTMLDivElement>(null);
+  const [filterBarBottom, setFilterBarBottom] = useState(160);
 
   // `/` key focuses search
   useEffect(() => {
@@ -46,6 +48,21 @@ export function WatchlistTab() {
     };
     window.addEventListener('keydown', handler);
     return () => window.removeEventListener('keydown', handler);
+  }, []);
+
+  useEffect(() => {
+    const el = filterBarRef.current;
+    if (!el) return;
+    // getBoundingClientRect().bottom gives exact filter bar bottom from viewport,
+    // accounting for header + any spacing. Safe for sticky top calculation.
+    const update = () => {
+      const b = el.getBoundingClientRect().bottom;
+      if (b > 0) setFilterBarBottom(b);
+    };
+    update();
+    const ro = new ResizeObserver(update);
+    ro.observe(el);
+    return () => ro.disconnect();
   }, []);
 
   // Edit modal state
@@ -222,7 +239,7 @@ export function WatchlistTab() {
     : (!dateFrom && !dateTo) ? 'all'
     : 'custom';
   const tabBtn = (active: boolean) => ({
-    padding: '3px 10px', borderRadius: '12px', border: '1px solid',
+    padding: '10px 10px', lineHeight: '1.6', minHeight: '32px', display: 'flex', alignItems: 'center', borderRadius: '12px', border: '1px solid',
     cursor: 'pointer', fontSize: '12px', fontWeight: active ? 600 : 400,
     background: active ? 'var(--gray-800)' : 'transparent',
     borderColor: active ? 'var(--gray-800)' : 'var(--gray-300)',
@@ -240,11 +257,11 @@ export function WatchlistTab() {
 
   return (
     <>
-      <div className="card">
+      <div className="card" style={{ '--group-sticky-top': `${filterBarBottom}px` } as React.CSSProperties}>
         {/* Sticky filter bar */}
-        <div className="sticky-filter-bar">
+        <div className="sticky-filter-bar" ref={filterBarRef}>
         {/* Date tab shortcuts */}
-        <div style={{ display: 'flex', gap: '6px', padding: '8px 12px', borderBottom: '1px solid var(--gray-100)', alignItems: 'center', flexWrap: 'wrap' }}>
+        <div style={{ display: 'flex', gap: '6px', padding: '12px 12px', borderBottom: '1px solid var(--gray-100)', alignItems: 'center', flexWrap: 'wrap', overflow: 'visible', maxHeight: 'none' }}>
           <button style={tabBtn(activeDateTab === 'all')} onClick={() => { setDateFrom(''); setDateTo(''); setPage(1); }}>All</button>
           <button style={tabBtn(activeDateTab === 'today')} onClick={() => { setDateFrom(dateToday); setDateTo(dateToday); setPage(1); }}>Today</button>
           <button style={tabBtn(activeDateTab === 'tomorrow')} onClick={() => { setDateFrom(dateTomorrow); setDateTo(dateTomorrow); setPage(1); }}>Tomorrow</button>
@@ -338,7 +355,7 @@ export function WatchlistTab() {
           </div>
         )}
 
-        {viewMode === 'table' && <div className="table-container table-cards">
+        {viewMode === 'table' && <div className="table-container table-cards" style={{ '--group-sticky-top': `${filterBarBottom}px` } as React.CSSProperties}>
           <Pagination currentPage={safePage} totalPages={totalPages} onPageChange={setPage} />
           <table>
             <thead>
@@ -385,15 +402,17 @@ export function WatchlistTab() {
                   rows.push(<tr key={`grp-${dateLabel}`} className="date-group-row"><td>{dateLabel}</td><td colSpan={9} /></tr>);
                 }
                 let leagueId = item.league_id;
-                if (!leagueId && item.match_id) { const m = matches.find((x) => String(x.match_id) === String(item.match_id)); if (m) leagueId = m.league_id; }
+                const liveMatchRow = matches.find((x) => String(x.match_id) === String(item.match_id));
+                if (!leagueId && liveMatchRow) leagueId = liveMatchRow.league_id;
                 const leagueDisplay = getLeagueDisplayName(leagueId || '', item.league_name || item.league || '', leagues);
+                const isLiveRow = liveMatchRow ? LIVE_STATUSES.includes(liveMatchRow.status) : false;
 
                 const modeColors: Record<string, { bg: string; color: string }> = { A: { bg: 'var(--gray-100)', color: 'var(--gray-700)' }, B: { bg: 'var(--gray-100)', color: 'var(--gray-700)' }, C: { bg: 'var(--gray-100)', color: 'var(--gray-700)' } };
                 const mc = modeColors[item.mode] || modeColors.B!;
                 const p = Math.max(1, Math.min(3, parseInt(String(item.priority)) || 2));
 
                 rows.push(
-                  <tr key={item.match_id} onDoubleClick={() => setScoutItem(item)} style={{ cursor: 'pointer' }} title="Double-click to view match details">
+                  <tr key={item.match_id} onDoubleClick={() => setScoutItem(item)} className={isLiveRow ? 'match-is-live' : undefined} style={{ cursor: 'pointer' }} title="Double-click to view match details">
                     <td data-label="Time" style={{ whiteSpace: 'nowrap', textAlign: 'center' }}>
                       <div className="cell-value">
                         <span style={{ background: 'var(--gray-200)', padding: '4px 8px', borderRadius: '4px', fontWeight: 600, color: 'var(--gray-900)', fontSize: '13px' }}>{timeDisplay}</span>
@@ -457,12 +476,22 @@ export function WatchlistTab() {
       <WatchlistEditModal
         key={editItem ? String(editItem.match_id) : 'watchlist-edit-modal'}
         item={editItem}
+        match={editItem ? matches.find((m) => String(m.match_id) === String(editItem.match_id)) ?? null : null}
+        config={config}
         defaultMode={config.defaultMode}
         uiLanguage={uiLanguage}
         onClose={() => setEditItem(null)}
-        onSave={async ({ mode, priority, status, custom_conditions }) => {
+        onSave={async ({ mode, priority, status, custom_conditions, auto_apply_recommended_condition }) => {
           if (!editItem) return;
-          const ok = await updateWatchlistItem({ id: editItem.id, match_id: editItem.match_id, mode, priority, status, custom_conditions });
+          const ok = await updateWatchlistItem({
+            id: editItem.id,
+            match_id: editItem.match_id,
+            mode,
+            priority,
+            status,
+            custom_conditions,
+            auto_apply_recommended_condition,
+          });
           setEditItem(null);
           if (ok) showToast('Watchlist item updated', 'success');
           else showToast('Failed to update', 'error');

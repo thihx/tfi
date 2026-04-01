@@ -57,6 +57,19 @@ vi.mock('../repos/settings.repo.js', () => ({
   }),
 }));
 
+vi.mock('../lib/subscription-access.js', () => ({
+  resolveSubscriptionAccess: vi.fn().mockResolvedValue({
+    plan: { plan_code: 'free' },
+    entitlements: { 'watchlist.active_matches.limit': 5 },
+  }),
+  assertWatchlistCapacityAvailable: vi.fn().mockResolvedValue(undefined),
+  sendEntitlementError: vi.fn().mockImplementation((error: unknown) => (
+    error instanceof Error && error.message === 'watchlist-limit'
+      ? { statusCode: 403, payload: { error: 'Active watchlist limit reached' } }
+      : null
+  )),
+}));
+
 let app: FastifyInstance;
 let adminApp: FastifyInstance;
 
@@ -129,6 +142,37 @@ describe('POST /api/me/watch-subscriptions', () => {
     });
     expect(res.statusCode).toBe(201);
     expect(res.json().match_id).toBe('300');
+  });
+
+  test('returns an entitlement error when active watchlist capacity is exhausted', async () => {
+    const access = await import('../lib/subscription-access.js');
+    vi.mocked(access.assertWatchlistCapacityAvailable).mockRejectedValueOnce(new Error('watchlist-limit'));
+
+    const res = await app.inject({
+      method: 'POST',
+      url: '/api/me/watch-subscriptions',
+      payload: { match_id: '301', home_team: 'PSG', away_team: 'Marseille' },
+    });
+
+    expect(res.statusCode).toBe(403);
+    expect(res.json()).toEqual({ error: 'Active watchlist limit reached' });
+  });
+
+  test('bypasses commercial watchlist cap for admin users', async () => {
+    const access = await import('../lib/subscription-access.js');
+    vi.mocked(access.resolveSubscriptionAccess).mockClear();
+    vi.mocked(access.assertWatchlistCapacityAvailable).mockClear();
+    vi.mocked(access.assertWatchlistCapacityAvailable).mockRejectedValueOnce(new Error('watchlist-limit'));
+
+    const res = await adminApp.inject({
+      method: 'POST',
+      url: '/api/me/watch-subscriptions',
+      payload: { match_id: '305', home_team: 'Jeonbuk', away_team: 'Pohang' },
+    });
+
+    expect(res.statusCode).toBe(201);
+    expect(access.resolveSubscriptionAccess).not.toHaveBeenCalled();
+    expect(access.assertWatchlistCapacityAvailable).not.toHaveBeenCalled();
   });
 });
 

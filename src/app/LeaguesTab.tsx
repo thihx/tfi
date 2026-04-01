@@ -6,6 +6,8 @@ import { TeamProfileModal } from '@/components/ui/TeamProfileModal';
 import { useAppState } from '@/hooks/useAppState';
 import { useToast } from '@/hooks/useToast';
 import { formatLocalDate } from '@/lib/utils/helpers';
+import type { TeamProfileDraft } from '@/lib/utils/teamProfileDeepResearch';
+import { isOverlayEligibleLeague } from '@/lib/utils/tacticalOverlayEligibility';
 import {
   fetchLeaguesInitData, toggleLeagueActive, bulkSetLeagueActive, fetchLeaguesFromApi,
   toggleLeagueTopLeague, bulkSetTopLeague,
@@ -14,7 +16,7 @@ import {
   fetchTeamProfile, saveTeamProfile, deleteTeamProfile,
   type LeagueTeam,
 } from '@/lib/services/api';
-import type { League, LeagueProfile, TeamProfile } from '@/types';
+import type { League, LeagueProfile, TeamProfile, TopLeagueProfileCoverage } from '@/types';
 
 // ── Constants ──
 
@@ -273,6 +275,7 @@ const LeagueRow = memo(function LeagueRow({ league, onToggle, onToggleTop, onVie
 
 interface StatsFilterBarProps {
   leagues: League[];
+  profileCoverage: TopLeagueProfileCoverage | null;
   filterActive: string;
   filterTier: string;
   filterTopLeague: string;
@@ -284,7 +287,7 @@ interface StatsFilterBarProps {
 }
 
 const StatsBar = memo(function StatsBar({
-  leagues, filterActive, filterTier, filterTopLeague, filterProfile,
+  leagues, profileCoverage, filterActive, filterTier, filterTopLeague, filterProfile,
   onFilterActive, onFilterTier, onFilterTopLeague, onFilterProfile,
 }: StatsFilterBarProps) {
   const total = leagues.length;
@@ -314,6 +317,7 @@ const StatsBar = memo(function StatsBar({
   };
 
   return (
+    <>
     <div className="leagues-stats-bar">
 
       {/* Total — resets all stat-bar filters */}
@@ -386,6 +390,48 @@ const StatsBar = memo(function StatsBar({
         </button>
       ))}
     </div>
+    {profileCoverage && (
+      <div className="leagues-coverage-bar">
+        <div className="leagues-coverage-chip">
+          <span className="leagues-coverage-label">Top League Profiles</span>
+          <strong>{profileCoverage.summary.topLeagueProfiles}/{profileCoverage.summary.topLeagues}</strong>
+        </div>
+        <div className="leagues-coverage-chip">
+          <span className="leagues-coverage-label">Top Team Profiles</span>
+          <strong>{profileCoverage.summary.topLeagueTeamsWithProfile}/{profileCoverage.summary.topLeagueTeams}</strong>
+        </div>
+        <div className="leagues-coverage-chip">
+          <span className="leagues-coverage-label">Coverage</span>
+          <strong>
+            {profileCoverage.summary.teamProfileCoverage != null
+              ? `${Math.round(profileCoverage.summary.teamProfileCoverage * 100)}%`
+              : 'N/A'}
+          </strong>
+        </div>
+        <div className="leagues-coverage-chip">
+          <span className="leagues-coverage-label">Fully Covered</span>
+          <strong>{profileCoverage.summary.fullCoverageLeagues}</strong>
+        </div>
+        <div className="leagues-coverage-chip">
+          <span className="leagues-coverage-label">Coverage Gaps</span>
+          <strong>{profileCoverage.summary.partialCoverageLeagues + profileCoverage.summary.missingCoverageLeagues}</strong>
+        </div>
+        {profileCoverage.leagues.length > 0 && (
+          <div className="leagues-coverage-note">
+            {(() => {
+              const gaps = profileCoverage.leagues
+                .filter((league) => league.missingTeamProfiles > 0 || !league.hasLeagueProfile)
+                .slice(0, 3)
+                .map((league) => `${league.leagueName} (${league.profiledTeams}/${league.candidateTeams})`);
+              return gaps.length > 0
+                ? `Gaps: ${gaps.join(' · ')}`
+                : 'Top leagues currently have full profile coverage.';
+            })()}
+          </div>
+        )}
+      </div>
+    )}
+    </>
   );
 });
 
@@ -423,6 +469,7 @@ export function LeaguesTab() {
   const [leagueTeamsCache, setLeagueTeamsCache] = useState<Record<number, LeagueTeam[]>>({});
   const [teamsLoading, setTeamsLoading] = useState(false);
   const [favoriteIds, setFavoriteIds] = useState<Set<string>>(new Set());
+  const [profileCoverage, setProfileCoverage] = useState<TopLeagueProfileCoverage | null>(null);
 
   // Team profile modal state
   const [teamProfileTarget, setTeamProfileTarget] = useState<{ teamId: string; teamName: string; leagueName: string } | null>(null);
@@ -446,11 +493,12 @@ export function LeaguesTab() {
   // Load all Leagues-tab data in a single request
   const loadLeagues = useCallback(async () => {
     try {
-      const { leagues, favoriteTeamIds, profiledTeamIds } = await fetchLeaguesInitData(config);
+      const { leagues, favoriteTeamIds, profiledTeamIds, profileCoverage } = await fetchLeaguesInitData(config);
       setAllLeagues(leagues);
       dispatch({ type: 'SET_LEAGUES', payload: leagues });
       setFavoriteIds(new Set(favoriteTeamIds));
       setProfiledTeamIds(new Set(profiledTeamIds));
+      setProfileCoverage(profileCoverage);
     } catch (err) {
       console.error('[LeaguesTab] loadLeagues failed:', err);
       showToast('Failed to load leagues', 'error');
@@ -519,13 +567,14 @@ export function LeaguesTab() {
     }
   }, [config, showToast]);
 
-  const handleSaveTeamProfile = useCallback(async (_teamId: string, draft: { profile: TeamProfile['profile']; notes_en: string; notes_vi: string }) => {
+  const handleSaveTeamProfile = useCallback(async (_teamId: string, draft: TeamProfileDraft) => {
     if (!teamProfileTarget) return;
     setTeamProfileSaving(true);
     try {
       const saved = await saveTeamProfile(config, teamProfileTarget.teamId, draft);
       setTeamProfile(saved);
       setProfiledTeamIds((prev) => new Set([...prev, teamProfileTarget.teamId]));
+      void loadLeagues();
       showToast('Team profile saved', 'success');
     } catch (err) {
       console.error('[LeaguesTab] save team profile failed:', err);
@@ -533,7 +582,7 @@ export function LeaguesTab() {
     } finally {
       setTeamProfileSaving(false);
     }
-  }, [config, teamProfileTarget, showToast]);
+  }, [config, loadLeagues, teamProfileTarget, showToast]);
 
   const handleDeleteTeamProfile = useCallback(async () => {
     if (!teamProfileTarget) return;
@@ -546,6 +595,7 @@ export function LeaguesTab() {
         next.delete(teamProfileTarget.teamId);
         return next;
       });
+      void loadLeagues();
       showToast('Team profile deleted', 'success');
       setTeamProfileTarget(null);
     } catch (err) {
@@ -554,7 +604,7 @@ export function LeaguesTab() {
     } finally {
       setTeamProfileSaving(false);
     }
-  }, [config, teamProfileTarget, showToast]);
+  }, [config, loadLeagues, teamProfileTarget, showToast]);
 
   // Filter options
   const countries = useMemo(() => {
@@ -726,6 +776,7 @@ export function LeaguesTab() {
         dispatch({ type: 'SET_LEAGUES', payload: next });
         return next;
       });
+      void loadLeagues();
       showToast('League profile saved', 'success');
     } catch (err) {
       console.error('[LeaguesTab] save profile failed:', err);
@@ -733,7 +784,7 @@ export function LeaguesTab() {
     } finally {
       setProfileSaving(false);
     }
-  }, [config, dispatch, profileLeague, showToast]);
+  }, [config, dispatch, loadLeagues, profileLeague, showToast]);
 
   const handleDeleteProfile = useCallback(async () => {
     if (!profileLeague) return;
@@ -754,6 +805,7 @@ export function LeaguesTab() {
         dispatch({ type: 'SET_LEAGUES', payload: next });
         return next;
       });
+      void loadLeagues();
       showToast('League profile deleted', 'success');
       setProfileLeague(null);
     } catch (err) {
@@ -762,7 +814,7 @@ export function LeaguesTab() {
     } finally {
       setProfileSaving(false);
     }
-  }, [config, dispatch, profileLeague, showToast]);
+  }, [config, dispatch, loadLeagues, profileLeague, showToast]);
 
   // Select helpers
   const handleSelect = useCallback((id: number) => {
@@ -800,6 +852,7 @@ export function LeaguesTab() {
       {/* Stats bar — doubles as quick-filter buttons */}
       <StatsBar
         leagues={allLeagues}
+        profileCoverage={profileCoverage}
         filterActive={filterActive}
         filterTier={filterTier}
         filterTopLeague={filterTopLeague}
@@ -986,6 +1039,7 @@ export function LeaguesTab() {
       key={teamProfileTarget ? `${teamProfileTarget.teamId}:${teamProfile?.updated_at ?? 'draft'}` : 'team-profile-modal'}
       team={teamProfileTarget ? { id: teamProfileTarget.teamId, name: teamProfileTarget.teamName } : null}
       leagueName={teamProfileTarget?.leagueName}
+      overlayEligible={isOverlayEligibleLeague(allLeagues.find((league) => league.league_name === teamProfileTarget?.leagueName))}
       profile={teamProfile}
       loading={teamProfileLoading}
       saving={teamProfileSaving}

@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect } from 'react';
 import type { TabName } from '@/types';
 import type { AuthUser } from '@/lib/services/auth';
+import { ProfileEditModal } from '@/components/profile/ProfileEditModal';
 
 const TAB_LABELS: Record<TabName, string> = {
   dashboard:       'Dashboard',
@@ -18,10 +19,20 @@ interface HeaderProps {
   activeTab: TabName;
   onLogout: () => void;
   user?: AuthUser | null;
+  onUserChange?: (user: AuthUser) => void;
 }
 
-export function Header({ activeTab, onLogout, user }: HeaderProps) {
+function getDisplayName(user: AuthUser): string {
+  return user.displayName?.trim() || user.name || user.email;
+}
+
+function getAvatarUrl(user: AuthUser): string {
+  return user.avatarUrl?.trim() || user.picture || '';
+}
+
+export function Header({ activeTab, onLogout, user, onUserChange }: HeaderProps) {
   const [open, setOpen] = useState(false);
+  const [profileOpen, setProfileOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
 
   // Close dropdown when clicking/tapping outside
@@ -47,7 +58,7 @@ export function Header({ activeTab, onLogout, user }: HeaderProps) {
           <div ref={ref} style={{ position: 'relative' }}>
             <button
               onClick={() => setOpen((o) => !o)}
-              title={user.name || user.email}
+              title={getDisplayName(user) || user.email}
               style={{
                 display: 'flex', alignItems: 'center', gap: '8px',
                 background: 'none', border: 'none', cursor: 'pointer',
@@ -75,16 +86,32 @@ export function Header({ activeTab, onLogout, user }: HeaderProps) {
                   gap: '8px',
                 }}>
                   <Avatar user={user} size={56} />
-                  {user.name && (
+                  {getDisplayName(user) && (
                     <span style={{ fontWeight: 600, fontSize: '15px', color: '#202124' }}>
-                      {user.name}
+                      {getDisplayName(user)}
                     </span>
                   )}
                   <span style={{ fontSize: '13px', color: '#5f6368' }}>{user.email}</span>
                 </div>
 
-                {/* Logout */}
                 <div style={{ padding: '8px' }}>
+                  <button
+                    onClick={() => { setOpen(false); setProfileOpen(true); }}
+                    style={{
+                      width: '100%',
+                      padding: '10px 16px',
+                      background: '#f8fafc',
+                      border: '1px solid #dadce0',
+                      borderRadius: '8px',
+                      cursor: 'pointer',
+                      fontSize: '13px',
+                      color: '#3c4043',
+                      fontWeight: 500,
+                      marginBottom: '8px',
+                    }}
+                  >
+                    Edit profile
+                  </button>
                   <button
                     onClick={() => { setOpen(false); onLogout(); }}
                     style={{
@@ -110,6 +137,15 @@ export function Header({ activeTab, onLogout, user }: HeaderProps) {
           </button>
         )}
       </div>
+
+      {user && (
+        <ProfileEditModal
+          open={profileOpen}
+          onClose={() => setProfileOpen(false)}
+          user={user}
+          onUserChange={onUserChange}
+        />
+      )}
     </div>
   );
 }
@@ -118,14 +154,14 @@ export function Header({ activeTab, onLogout, user }: HeaderProps) {
 
 function Avatar({ user, size }: { user: AuthUser; size: number }) {
   const [imgError, setImgError] = useState(false);
-  const initials = (user.name || user.email)
+  const initials = (getDisplayName(user) || user.email)
     .split(' ').map((w) => w[0]).slice(0, 2).join('').toUpperCase();
 
-  if (user.picture && !imgError) {
+  if (getAvatarUrl(user) && !imgError) {
     return (
       <img
-        src={user.picture}
-        alt={user.name || user.email}
+        src={getAvatarUrl(user)}
+        alt={getDisplayName(user) || user.email}
         onError={() => setImgError(true)}
         style={{
           width: size, height: size, borderRadius: '50%',

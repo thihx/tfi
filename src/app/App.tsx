@@ -37,7 +37,7 @@ function TabFallback() {
 }
 
 function AppContent() {
-  const { authed, user, error, login, logout } = useAuth();
+  const { authed, user, error, login, logout, setCurrentUser } = useAuth();
   const { state, loadAllData } = useAppState();
   const timeZone = useUserTimeZone();
   const [activeTab, setActiveTab]         = useState<TabName>('dashboard');
@@ -231,7 +231,7 @@ function AppContent() {
       {isMobile ? (
         /* ── Mobile: header + bottom-nav layout ── */
         <div id="appContainer">
-          <Header activeTab={activeTab} onLogout={logout} user={user} />
+          <Header activeTab={activeTab} onLogout={logout} user={user} onUserChange={setCurrentUser} />
           <div className="main-content">
             <Suspense fallback={<TabFallback />}>{renderTab()}</Suspense>
           </div>
@@ -248,7 +248,7 @@ function AppContent() {
           />
 
           <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', height: '100vh', overflow: 'hidden' }}>
-            <Header activeTab={activeTab} onLogout={logout} user={user} />
+            <Header activeTab={activeTab} onLogout={logout} user={user} onUserChange={setCurrentUser} />
             <div style={{ flex: 1, padding: '20px', minWidth: 0, overflowY: 'auto' }}>
               <Suspense fallback={<TabFallback />}>{renderTab()}</Suspense>
             </div>

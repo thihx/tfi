@@ -3,6 +3,8 @@ import {
   buildPrematchExpertFeaturesV1,
   type PrematchExpertFeaturesV1,
 } from './prematch-expert-features.js';
+import { flattenLeagueProfileData } from '../repos/league-profiles.repo.js';
+import { buildProfileMetricSemanticsSection } from './profile-metric-semantics.js';
 
 export type PromptStatsSource = 'api-football' | 'live-score-api-fallback' | string;
 export type PromptAnalysisMode = 'auto' | 'system_force' | 'manual_force';
@@ -133,6 +135,7 @@ export interface LiveAnalysisPromptInput {
   homeTeamProfile?: Record<string, unknown> | null;
   awayTeamProfile?: Record<string, unknown> | null;
   prematchExpertFeatures?: PrematchExpertFeaturesV1 | null;
+  structuredPrematchAskAi?: boolean;
   analysisMode?: PromptAnalysisMode;
   forceAnalyze: boolean;
   isManualPush?: boolean;
@@ -304,6 +307,68 @@ When custom_condition_matched = true, provide:
 - condition_triggered_suggestion (bet or "No bet - reason")
 - condition_triggered_reasoning_en/vi
 - condition_triggered_confidence, condition_triggered_stake
+
+`;
+}
+
+function buildLowEvidenceConditionGuardSection(compact: boolean, data: LiveAnalysisPromptInput): string {
+  const hasCustomCondition = !!data.customConditions.trim();
+  if (data.evidenceMode !== 'low_evidence' || !hasCustomCondition) return '';
+
+  return compact
+    ? `LOW EVIDENCE CONDITION GUARD:
+- This match is in EVIDENCE_MODE=low_evidence.
+- Do NOT produce an actionable AI bet for this run.
+- Keep should_push=false, selection="", bet_market="", confidence=0, stake_percent=0 for the AI recommendation path.
+- Use the available scoreboard/event facts only to evaluate CUSTOM_CONDITIONS.
+- If a watch condition is satisfied, fill the custom_condition_* and condition_triggered_* fields naturally for alerting.
+`
+    : `============================================================
+LOW EVIDENCE CONDITION GUARD
+============================================================
+This match is in EVIDENCE_MODE = low_evidence.
+- Do NOT produce an actionable AI recommendation for this run.
+- Set should_push = false for the AI recommendation path.
+- Keep selection = "" and bet_market = "" for the AI recommendation path.
+- Use only the available scoreboard/event facts in this prompt to evaluate:
+  - CUSTOM_CONDITIONS
+- If a watch condition is satisfied, populate the custom_condition_* and condition_triggered_* fields naturally for alerting.
+- If the available facts are not enough to evaluate the watch condition, set custom_condition_status = "parse_error" and explain what is missing.
+
+`;
+}
+
+function isStructuredPrematchAskAi(data: LiveAnalysisPromptInput): boolean {
+  return data.structuredPrematchAskAi === true;
+}
+
+function buildStructuredPrematchAskAiSection(compact: boolean, data: LiveAnalysisPromptInput): string {
+  if (!isStructuredPrematchAskAi(data)) return '';
+
+  return compact
+    ? `STRUCTURED PREMATCH ASK AI OVERRIDE:
+- This is a MANUAL Ask AI request for a NOT STARTED top-league match.
+- Live telemetry is sparse, but structured prematch context is available from profile priors, strategic context, and provider prediction when available.
+- You MAY provide one cautious prematch thesis if the structured pre-match evidence is coherent.
+- Do NOT invent live pressure, momentum, or line-movement facts that are not present.
+- Keep confidence and stake conservative versus normal full-live analysis.
+- If the structured prematch evidence is still too thin, return should_push=false with a clear no-bet explanation.
+`
+    : `============================================================
+STRUCTURED PREMATCH ASK AI OVERRIDE
+============================================================
+This is a MANUAL Ask AI request for a NOT STARTED top-league match.
+Live telemetry is sparse, but structured prematch context is available from:
+- league/team profile priors
+- strategic context
+- provider prediction when available
+
+You MAY provide one cautious prematch thesis if the structured pre-match evidence is coherent.
+Rules:
+- Do NOT invent live pressure, momentum, transitions, or line movement that are not present in the structured inputs.
+- Treat this as a prematch-only read, not a live-trading read.
+- Keep confidence and stake conservative relative to normal full-live analysis.
+- If the structured pre-match evidence is still too thin or conflicting, return should_push=false and explain the limitation clearly.
 
 `;
 }
@@ -516,7 +581,18 @@ function buildHistoricalPerformanceSection(data: LiveAnalysisPromptInput): strin
   return lines.join('\n');
 }
 
-function getEvidenceTierRule(evidenceMode: PromptEvidenceMode): EvidenceTierRule {
+function getEvidenceTierRule(data: LiveAnalysisPromptInput): EvidenceTierRule {
+  if (isStructuredPrematchAskAi(data)) {
+    return {
+      tier: 'tier_2',
+      label: 'Structured prematch context for manual Ask AI',
+      allowedMarkets: 'Selective prematch O/U, AH, or 1X2 only when supported by provider prediction and profile priors',
+      forbiddenMarkets: 'Corners, BTTS No without strong supporting priors, and any market that depends on invented live telemetry',
+      operationalRule: 'Manual prematch override. Use structured prematch evidence only and keep confidence/stake conservative.',
+    };
+  }
+
+  const evidenceMode = data.evidenceMode;
   switch (evidenceMode) {
     case 'full_live_data':
       return {
@@ -600,6 +676,7 @@ function getStrategicQuantitative(strategicContext: Record<string, unknown>): Re
 }
 
 function getLeagueProfileQuantitative(leagueProfile: Record<string, unknown>): Record<string, number> {
+  const normalized = normalizeLeagueProfileRecord(leagueProfile);
   return Object.fromEntries(
     [
       'avg_goals',
@@ -609,14 +686,34 @@ function getLeagueProfileQuantitative(leagueProfile: Record<string, unknown>): R
       'avg_corners',
       'avg_cards',
     ]
-      .map((key) => [key, leagueProfile[key]] as const)
+      .map((key) => [key, normalized[key]] as const)
       .filter(([, value]) => typeof value === 'number'),
   ) as Record<string, number>;
 }
 
+function normalizeLeagueProfileRecord(leagueProfile: Record<string, unknown>): Record<string, unknown> {
+  const payload = leagueProfile.profile && typeof leagueProfile.profile === 'object'
+    ? leagueProfile.profile as Record<string, unknown>
+    : leagueProfile;
+  return {
+    ...flattenLeagueProfileData(payload),
+    notes_en: typeof leagueProfile.notes_en === 'string'
+      ? leagueProfile.notes_en
+      : typeof payload.notes_en === 'string'
+        ? payload.notes_en
+        : '',
+    notes_vi: typeof leagueProfile.notes_vi === 'string'
+      ? leagueProfile.notes_vi
+      : typeof payload.notes_vi === 'string'
+        ? payload.notes_vi
+        : '',
+  };
+}
+
 function buildLeagueProfileSection(leagueProfile: Record<string, unknown> | null): string {
   if (!leagueProfile || typeof leagueProfile !== 'object') return '';
-  const quantitative = getLeagueProfileQuantitative(leagueProfile);
+  const normalizedProfile = normalizeLeagueProfileRecord(leagueProfile);
+  const quantitative = getLeagueProfileQuantitative(normalizedProfile);
   const lines: string[] = [];
 
   const push = (label: string, value: unknown) => {
@@ -624,13 +721,13 @@ function buildLeagueProfileSection(leagueProfile: Record<string, unknown> | null
     if (text) lines.push(`${label}: ${text}`);
   };
 
-  push('TEMPO_TIER', leagueProfile.tempo_tier);
-  push('GOAL_TENDENCY', leagueProfile.goal_tendency);
-  push('HOME_ADVANTAGE_TIER', leagueProfile.home_advantage_tier);
-  push('CORNERS_TENDENCY', leagueProfile.corners_tendency);
-  push('CARDS_TENDENCY', leagueProfile.cards_tendency);
-  push('VOLATILITY_TIER', leagueProfile.volatility_tier);
-  push('DATA_RELIABILITY_TIER', leagueProfile.data_reliability_tier);
+  push('TEMPO_TIER', normalizedProfile.tempo_tier);
+  push('GOAL_TENDENCY', normalizedProfile.goal_tendency);
+  push('HOME_ADVANTAGE_TIER', normalizedProfile.home_advantage_tier);
+  push('CORNERS_TENDENCY', normalizedProfile.corners_tendency);
+  push('CARDS_TENDENCY', normalizedProfile.cards_tendency);
+  push('VOLATILITY_TIER', normalizedProfile.volatility_tier);
+  push('DATA_RELIABILITY_TIER', normalizedProfile.data_reliability_tier);
 
   // Inject quantitative baselines as labeled lines — all figures are league-wide
   // per-match averages with BOTH teams combined, not per-team.
@@ -644,7 +741,7 @@ function buildLeagueProfileSection(leagueProfile: Record<string, unknown> | null
     if (quantitative['avg_cards']             != null) lines.push(`  avg_cards:             ${quantitative['avg_cards']} yellow cards/match`);
   }
 
-  const notes = readStrategicText(leagueProfile.notes_en);
+  const notes = readStrategicText(normalizedProfile.notes_en);
   if (notes) lines.push(`LEAGUE_PROFILE_NOTES: ${notes}`);
   if (lines.length === 0) return '';
 
@@ -927,7 +1024,8 @@ function buildStrategicContextSectionCompact(strategicContext: Record<string, un
 
 function buildLeagueProfileSectionCompact(leagueProfile: Record<string, unknown> | null): string {
   if (!leagueProfile || typeof leagueProfile !== 'object') return '';
-  const quantitative = getLeagueProfileQuantitative(leagueProfile);
+  const normalizedProfile = normalizeLeagueProfileRecord(leagueProfile);
+  const quantitative = getLeagueProfileQuantitative(normalizedProfile);
   const lines: string[] = [];
 
   const push = (label: string, value: unknown) => {
@@ -935,13 +1033,13 @@ function buildLeagueProfileSectionCompact(leagueProfile: Record<string, unknown>
     if (text) lines.push(`${label}: ${text}`);
   };
 
-  push('TEMPO_TIER', leagueProfile.tempo_tier);
-  push('GOAL_TENDENCY', leagueProfile.goal_tendency);
-  push('HOME_ADVANTAGE_TIER', leagueProfile.home_advantage_tier);
-  push('CORNERS_TENDENCY', leagueProfile.corners_tendency);
-  push('CARDS_TENDENCY', leagueProfile.cards_tendency);
-  push('VOLATILITY_TIER', leagueProfile.volatility_tier);
-  push('DATA_RELIABILITY_TIER', leagueProfile.data_reliability_tier);
+  push('TEMPO_TIER', normalizedProfile.tempo_tier);
+  push('GOAL_TENDENCY', normalizedProfile.goal_tendency);
+  push('HOME_ADVANTAGE_TIER', normalizedProfile.home_advantage_tier);
+  push('CORNERS_TENDENCY', normalizedProfile.corners_tendency);
+  push('CARDS_TENDENCY', normalizedProfile.cards_tendency);
+  push('VOLATILITY_TIER', normalizedProfile.volatility_tier);
+  push('DATA_RELIABILITY_TIER', normalizedProfile.data_reliability_tier);
   if (Object.keys(quantitative).length > 0) {
     const parts: string[] = [];
     if (quantitative['avg_goals']             != null) parts.push(`avg_goals=${quantitative['avg_goals']}g/match`);
@@ -952,7 +1050,7 @@ function buildLeagueProfileSectionCompact(leagueProfile: Record<string, unknown>
     if (quantitative['avg_cards']             != null) parts.push(`avg_cards=${quantitative['avg_cards']}/match`);
     if (parts.length > 0) lines.push(`LEAGUE_BASELINES (both teams/match): ${parts.join(' | ')}`);
   }
-  const notes = readStrategicText(leagueProfile.notes_en);
+  const notes = readStrategicText(normalizedProfile.notes_en);
   if (notes) lines.push(`NOTES: ${notes}`);
   if (lines.length === 0) return '';
 
@@ -1213,6 +1311,8 @@ export function buildLiveAnalysisPrompt(
   promptVersion: LiveAnalysisPromptVersion = LIVE_ANALYSIS_PROMPT_VERSION,
 ): string {
   const analysisMode = resolveAnalysisMode(data);
+  const lowEvidenceConditionGuard = buildLowEvidenceConditionGuardSection(isCompactPromptVersion(promptVersion), data);
+  const structuredPrematchAskAiSection = buildStructuredPrematchAskAiSection(isCompactPromptVersion(promptVersion), data);
   const prunedBasicStatsCompact = pruneEmptyStatsCompact(pickStatsSubset(data.statsCompact, BASIC_STATS_KEYS));
   const prunedAdvancedStatsCompact = pruneEmptyStatsCompact(pickStatsSubset(data.statsCompact, ADVANCED_STATS_KEYS));
   const statsMeta = hasNonEmptyObject(data.statsMeta ?? null) ? data.statsMeta : null;
@@ -1261,7 +1361,7 @@ export function buildLiveAnalysisPrompt(
   const oddsWarnings = incompleteMarkets.length > 0
     ? `WARNING: Incomplete odds data for markets: ${incompleteMarkets.join(', ')}. Do NOT recommend these markets.`
     : '';
-  const evidenceTierRule = getEvidenceTierRule(data.evidenceMode);
+  const evidenceTierRule = getEvidenceTierRule(data);
 
   if (isCompactPromptVersion(promptVersion)) {
     const bettingDisciplineSection = isBettingDisciplinePromptVersion(promptVersion)
@@ -1315,7 +1415,7 @@ PROMPT_VERSION: ${promptVersion}
 - Odds warning: ${oddsWarnings || 'none'}
 ${buildExactMarketContractSectionCompact(data)}
 
-${buildPrematchExpertFeaturesSection(data, true)}========================
+${lowEvidenceConditionGuard}${structuredPrematchAskAiSection}${buildPrematchExpertFeaturesSection(data, true)}${buildProfileMetricSemanticsSection(data.leagueProfile ?? null, data.homeTeamProfile ?? null, data.awayTeamProfile ?? null, true)}========================
 MATCH SNAPSHOT
 ========================
 - Match: ${data.homeName} vs ${data.awayName}
@@ -1485,6 +1585,7 @@ NEVER wrap the JSON in markdown fences like \`\`\`json.
 You are a professional live football investment insight analyst (not a gambler).
 Your task is to analyze ONE live match and determine whether there is exactly ONE realistic, high-quality investment idea, or no idea at all. You must also evaluate a user-defined custom condition objectively.
 ${buildForceAnalyzeContext(data, analysisMode)}
+${lowEvidenceConditionGuard}${structuredPrematchAskAiSection}
 ============================================================
 DEFINITIONS & THRESHOLDS (READ FIRST)
 ============================================================
@@ -1521,7 +1622,7 @@ ${oddsWarnings ? `- ${oddsWarnings}` : '- No restrictions - all available market
 - Do NOT recommend 1X2 markets before minute 35 (too early, game state can change completely).
 - Do NOT recommend any market with price < ${MIN_ODDS}.
 
-${buildPrematchExpertFeaturesSection(data, false)}
+${buildPrematchExpertFeaturesSection(data, false)}${buildProfileMetricSemanticsSection(data.leagueProfile ?? null, data.homeTeamProfile ?? null, data.awayTeamProfile ?? null, false)}
 ========================
 MATCH CONTEXT
 ========================

@@ -12,14 +12,14 @@ beforeEach(() => {
 });
 
 describe('reports repository', () => {
-  test('getOverviewReport exposes decisive and neutral settled counts', async () => {
+  test('getOverviewReport exposes directional and push/void settled counts', async () => {
     vi.mocked(query)
       .mockResolvedValueOnce({
         rows: [{
           total: '20',
           settled: '14',
-          wins: '6',
-          losses: '4',
+          wins: '7',
+          losses: '5',
           pushes: '2',
           half_wins: '1',
           half_losses: '1',
@@ -72,16 +72,16 @@ describe('reports repository', () => {
     expect(report).toMatchObject({
       total: 20,
       settled: 14,
-      decisiveSettled: 10,
-      neutralSettled: 4,
-      wins: 6,
-      losses: 4,
+      directionalSettled: 12,
+      pushVoidSettled: 2,
+      wins: 7,
+      losses: 5,
       pushes: 2,
       halfWins: 1,
       halfLosses: 1,
       voids: 0,
       pending: 6,
-      winRate: 60,
+      winRate: 58.33,
       totalPnl: 8.5,
       roi: 21.25,
     });

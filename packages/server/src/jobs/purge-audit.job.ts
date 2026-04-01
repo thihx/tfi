@@ -14,6 +14,7 @@ import * as snapshotsRepo from '../repos/match-snapshots.repo.js';
 import * as oddsMovementsRepo from '../repos/odds-movements.repo.js';
 import * as promptShadowRepo from '../repos/prompt-shadow-runs.repo.js';
 import * as pipelineRunsRepo from '../repos/pipeline-runs.repo.js';
+import * as jobRunsRepo from '../repos/job-runs.repo.js';
 import * as recommendationsRepo from '../repos/recommendations.repo.js';
 import * as aiPerfRepo from '../repos/ai-performance.repo.js';
 import * as recommendationDeliveriesRepo from '../repos/recommendation-deliveries.repo.js';
@@ -28,6 +29,7 @@ export interface HousekeepingResult {
   oddsMovementsDeleted: number;
   promptShadowDeleted: number;
   pipelineRunsDeleted: number;
+  jobRunHistoryDeleted: number;
   recommendationDeliveriesDeleted: number;
   recommendationsSlimmed: number;
   aiPerfAggregated: number;
@@ -43,6 +45,7 @@ export interface HousekeepingResult {
     oddsMovements: number;
     promptShadow: number;
     pipelineRuns: number;
+    jobRunHistory: number;
     recommendationDeliveries: number;
     recommendationsSlim: number;
     aiPerformance: number;
@@ -65,6 +68,7 @@ export async function housekeepingJob(): Promise<HousekeepingResult> {
     oddsMovements: config.oddsMovementsKeepDays,
     promptShadow: config.promptShadowKeepDays,
     pipelineRuns: config.pipelineRunsKeepDays,
+    jobRunHistory: config.jobRunHistoryKeepDays,
     recommendationDeliveries: config.recommendationDeliveriesKeepDays,
     recommendationsSlim: config.recommendationsSlimDays,
     aiPerformance: config.aiPerformanceKeepDays,
@@ -100,6 +104,7 @@ export async function housekeepingJob(): Promise<HousekeepingResult> {
     oddsMovementsDeleted,
     promptShadowDeleted,
     pipelineRunsDeleted,
+    jobRunHistoryDeleted,
     recommendationDeliveriesDeleted,
   ] = await Promise.all([
     runStep('audit-logs', () => auditRepo.purgeAuditLogs(keepDays.audit), 0),
@@ -110,6 +115,7 @@ export async function housekeepingJob(): Promise<HousekeepingResult> {
     runStep('odds-movements', () => oddsMovementsRepo.purgeOddsMovements(keepDays.oddsMovements), 0),
     runStep('prompt-shadow-runs', () => promptShadowRepo.purgePromptShadowRuns(keepDays.promptShadow), 0),
     runStep('pipeline-runs', () => pipelineRunsRepo.purgePipelineRuns(keepDays.pipelineRuns), 0),
+    runStep('job-run-history', () => jobRunsRepo.purgeJobRuns(keepDays.jobRunHistory), 0),
     keepDays.recommendationDeliveries > 0
       ? runStep(
         'recommendation-deliveries',
@@ -141,6 +147,7 @@ export async function housekeepingJob(): Promise<HousekeepingResult> {
     + oddsMovementsDeleted
     + promptShadowDeleted
     + pipelineRunsDeleted
+    + jobRunHistoryDeleted
     + recommendationDeliveriesDeleted
     + aiPerfDeleted;
 
@@ -149,7 +156,7 @@ export async function housekeepingJob(): Promise<HousekeepingResult> {
       `[housekeepingJob] deleted=${totalDeleted} slimmed=${recommendationsSlimmed} ` +
       `(audit=${auditDeleted}, history=${matchesHistoryDeleted}, providerStats=${providerStatsDeleted}, ` +
       `providerOdds=${providerOddsDeleted}, snapshots=${matchSnapshotsDeleted}, oddsMovements=${oddsMovementsDeleted}, ` +
-      `promptShadow=${promptShadowDeleted}, pipelineRuns=${pipelineRunsDeleted}, deliveries=${recommendationDeliveriesDeleted}, ` +
+      `promptShadow=${promptShadowDeleted}, pipelineRuns=${pipelineRunsDeleted}, jobRuns=${jobRunHistoryDeleted}, deliveries=${recommendationDeliveriesDeleted}, ` +
       `aiPerf=${aiPerfDeleted} aiPerfAgg=${aiPerfAggregated})`,
     );
 
@@ -164,6 +171,7 @@ export async function housekeepingJob(): Promise<HousekeepingResult> {
       matchSnapshotsDeleted > 250 ? 'match_snapshots' : null,
       oddsMovementsDeleted > 250 ? 'odds_movements' : null,
       promptShadowDeleted > 250 ? 'prompt_shadow_runs' : null,
+      jobRunHistoryDeleted > 250 ? 'job_run_history' : null,
       recommendationDeliveriesDeleted > 250 ? 'user_recommendation_deliveries' : null,
     ].filter((table): table is string => table != null);
 
@@ -188,6 +196,7 @@ export async function housekeepingJob(): Promise<HousekeepingResult> {
     oddsMovementsDeleted,
     promptShadowDeleted,
     pipelineRunsDeleted,
+    jobRunHistoryDeleted,
     recommendationDeliveriesDeleted,
     recommendationsSlimmed,
     aiPerfAggregated,

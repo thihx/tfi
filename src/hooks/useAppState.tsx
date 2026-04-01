@@ -85,7 +85,7 @@ function reducer(state: AppState, action: Action): AppState {
     case 'ADD_WATCHLIST_ITEMS':
       return { ...state, watchlist: [...state.watchlist, ...action.payload] };
     case 'UPDATE_WATCHLIST_ITEM': {
-      const idx = state.watchlist.findIndex((w) => w.match_id === action.payload.match_id);
+      const idx = state.watchlist.findIndex((w) => String(w.match_id) === String(action.payload.match_id));
       if (idx === -1) return state;
       const updated = [...state.watchlist];
       updated[idx] = { ...updated[idx]!, ...action.payload };
@@ -243,7 +243,15 @@ export function AppProvider({ children }: { children: ReactNode }) {
           ? { ...resolvedItem, ...requestItem, id: resolvedItem.id }
           : requestItem;
         const result = await api.updateWatchlistItems(config, [canonicalRequestItem]);
-        if (result.updatedCount && result.updatedCount > 0) return true;
+        if (result.updatedCount && result.updatedCount > 0) {
+          try {
+            const fresh = await api.fetchWatchlist(config);
+            dispatch({ type: 'SET_WATCHLIST', payload: fresh });
+          } catch {
+            // Keep the optimistic state if the canonical refetch fails.
+          }
+          return true;
+        }
         if (previous) dispatch({ type: 'UPDATE_WATCHLIST_ITEM', payload: previous });
         return false;
       } catch {

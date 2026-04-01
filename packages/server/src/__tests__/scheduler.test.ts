@@ -9,8 +9,12 @@ async function loadScheduler(options: SchedulerLoadOptions = {}) {
   vi.resetModules();
 
   const fetchMatchesJob = vi.fn().mockResolvedValue({ saved: 1, leagues: 1 });
+  const syncWatchlistMetadataJob = vi.fn().mockResolvedValue({ backfilled: 0, synced: 0 });
+  const autoAddTopLeagueWatchlistJob = vi.fn().mockResolvedValue({ candidates: 0, added: 0, skippedExisting: 0 });
+  const autoAddFavoriteTeamWatchlistJob = vi.fn().mockResolvedValue({ candidateMatches: 0, targetUsers: 0, added: 0, skippedExisting: 0 });
   const refreshLiveMatchesJob = vi.fn().mockResolvedValue({ tracked: 0, refreshed: 0, live: 0, statsRefreshed: 0 });
   const syncReferenceDataJob = vi.fn().mockResolvedValue({});
+  const refreshTacticalOverlaysJob = vi.fn().mockResolvedValue({});
   const enrichWatchlistJob = vi.fn().mockResolvedValue({});
   const updatePredictionsJob = vi.fn().mockResolvedValue({});
   const checkLiveTriggerJob = vi.fn().mockResolvedValue({ liveCount: 0 });
@@ -33,8 +37,12 @@ async function loadScheduler(options: SchedulerLoadOptions = {}) {
   vi.doMock('../config.js', () => ({
     config: {
       jobFetchMatchesMs: 0,
+      jobSyncWatchlistMetadataMs: 0,
+      jobAutoAddTopLeagueWatchlistMs: 0,
+      jobAutoAddFavoriteTeamWatchlistMs: 0,
       jobRefreshLiveMatchesMs: 0,
       jobSyncReferenceDataMs: 0,
+      jobRefreshTacticalOverlaysMs: 0,
       jobEnrichWatchlistMs: 0,
       jobPredictionsMs: 0,
       jobCheckLiveMs: 0,
@@ -53,6 +61,12 @@ async function loadScheduler(options: SchedulerLoadOptions = {}) {
     ),
   }));
   vi.doMock('../lib/audit.js', () => ({ audit: vi.fn() }));
+  vi.doMock('../repos/job-runs.repo.js', () => ({
+    recordJobRun: vi.fn().mockResolvedValue(undefined),
+    getJobRunOverview: vi.fn().mockResolvedValue([]),
+    getRecentJobRuns: vi.fn().mockResolvedValue([]),
+    purgeJobRuns: vi.fn().mockResolvedValue(0),
+  }));
   vi.doMock('../jobs/job-progress.js', () => ({
     clearJobProgress: vi.fn().mockResolvedValue(undefined),
     completeJobProgress: vi.fn().mockResolvedValue(undefined),
@@ -63,8 +77,12 @@ async function loadScheduler(options: SchedulerLoadOptions = {}) {
     fetchMatchesJob,
     ADAPTIVE_SKIP_KEY: 'job:fetch-matches:next-run-at',
   }));
+  vi.doMock('../jobs/sync-watchlist-metadata.job.js', () => ({ syncWatchlistMetadataJob }));
+  vi.doMock('../jobs/auto-add-top-league-watchlist.job.js', () => ({ autoAddTopLeagueWatchlistJob }));
+  vi.doMock('../jobs/auto-add-favorite-team-watchlist.job.js', () => ({ autoAddFavoriteTeamWatchlistJob }));
   vi.doMock('../jobs/refresh-live-matches.job.js', () => ({ refreshLiveMatchesJob }));
   vi.doMock('../jobs/sync-reference-data.job.js', () => ({ syncReferenceDataJob }));
+  vi.doMock('../jobs/refresh-tactical-overlays.job.js', () => ({ refreshTacticalOverlaysJob }));
   vi.doMock('../jobs/enrich-watchlist.job.js', () => ({ enrichWatchlistJob }));
   vi.doMock('../jobs/update-predictions.job.js', () => ({ updatePredictionsJob }));
   vi.doMock('../jobs/check-live-trigger.job.js', () => ({ checkLiveTriggerJob }));
@@ -76,12 +94,14 @@ async function loadScheduler(options: SchedulerLoadOptions = {}) {
   vi.doMock('../jobs/health-watchdog.job.js', () => ({ healthWatchdogJob }));
 
   const scheduler = await import('../jobs/scheduler.js');
+  const jobRunsRepo = await import('../repos/job-runs.repo.js');
   return {
     scheduler,
     fetchMatchesJob,
     checkLiveTriggerJob,
     refreshLiveMatchesJob,
     redisDefault,
+    jobRunsRepo,
   };
 }
 
@@ -152,6 +172,56 @@ describe('scheduler remote state hygiene', () => {
 
     expect(fetchJob).toBeTruthy();
     expect(fetchJob?.running).toBe(false);
+    scheduler.stopScheduler();
+  });
+});
+
+describe('scheduler cadence resilience', () => {
+  test('queues one pending rerun when a single-concurrency job overruns its interval', async () => {
+    let resolveFirstRun: (() => void) | null = null;
+    let resolveSecondRun: (() => void) | null = null;
+    const { scheduler, fetchMatchesJob } = await loadScheduler({
+      configOverrides: { jobFetchMatchesMs: 10 },
+    });
+    vi.mocked(fetchMatchesJob)
+      .mockImplementationOnce(() => new Promise((resolve) => {
+        resolveFirstRun = () => resolve({ saved: 1, leagues: 1 });
+      }))
+      .mockImplementationOnce(() => new Promise((resolve) => {
+        resolveSecondRun = () => resolve({ saved: 1, leagues: 1 });
+      }));
+
+    await scheduler.startScheduler();
+    await vi.advanceTimersByTimeAsync(15);
+    expect(fetchMatchesJob).toHaveBeenCalledTimes(1);
+
+    await vi.advanceTimersByTimeAsync(20);
+    expect(fetchMatchesJob).toHaveBeenCalledTimes(1);
+
+    resolveFirstRun?.();
+    await vi.advanceTimersByTimeAsync(1);
+
+    expect(fetchMatchesJob).toHaveBeenCalledTimes(2);
+    scheduler.stopScheduler();
+    resolveSecondRun?.();
+  });
+
+  test('persists skipped strict-lock attempts into job run history', async () => {
+    const { scheduler, jobRunsRepo } = await loadScheduler({
+      configOverrides: { jobCheckLiveMs: 10 },
+      redisFactory: () => {
+        throw new Error('redis down');
+      },
+    });
+
+    await scheduler.startScheduler();
+    await vi.advanceTimersByTimeAsync(15);
+
+    expect(jobRunsRepo.recordJobRun).toHaveBeenCalledWith(expect.objectContaining({
+      jobName: 'check-live-trigger',
+      status: 'skipped',
+      skipReason: 'redis-unavailable-strict',
+    }));
     scheduler.stopScheduler();
   });
 });

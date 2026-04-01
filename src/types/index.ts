@@ -240,6 +240,8 @@ export interface RecommendationDelivery {
   recommendation_away_team: string | null;
   recommendation_league: string | null;
   recommendation_result: string | null;
+  recommendation_settlement_status: string | null;
+  recommendation_settlement_note: string | null;
   recommendation_actual_outcome: string | null;
   recommendation_pnl: number | null;
 }
@@ -309,6 +311,11 @@ export interface TeamProfile {
   profile:    TeamProfileData;
   notes_en:   string;
   notes_vi:   string;
+  tactical_overlay_source_mode?: 'default_neutral' | 'curated' | 'llm_assisted' | 'manual_override';
+  tactical_overlay_source_confidence?: 'low' | 'medium' | 'high' | null;
+  tactical_overlay_source_urls?: string[];
+  tactical_overlay_source_season?: string | null;
+  tactical_overlay_updated_at?: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -327,6 +334,34 @@ export interface League {
   profile_updated_at?: string | null;
   profile_volatility_tier?: string | null;
   profile_data_reliability_tier?: string | null;
+}
+
+export interface TopLeagueProfileCoverageSummary {
+  topLeagues: number;
+  topLeagueProfiles: number;
+  topLeagueTeams: number;
+  topLeagueTeamsWithProfile: number;
+  teamProfileCoverage: number | null;
+  fullCoverageLeagues: number;
+  partialCoverageLeagues: number;
+  missingCoverageLeagues: number;
+}
+
+export interface TopLeagueProfileCoverageRow {
+  leagueId: number;
+  leagueName: string;
+  country: string;
+  hasLeagueProfile: boolean;
+  candidateTeams: number;
+  profiledTeams: number;
+  missingTeamProfiles: number;
+  teamProfileCoverage: number | null;
+  missingTeamNames: string[];
+}
+
+export interface TopLeagueProfileCoverage {
+  summary: TopLeagueProfileCoverageSummary;
+  leagues: TopLeagueProfileCoverageRow[];
 }
 
 /** @deprecated Use League instead */

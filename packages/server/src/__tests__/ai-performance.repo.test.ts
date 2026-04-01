@@ -6,6 +6,7 @@ vi.mock('../db/pool.js', () => ({
 
 import { query } from '../db/pool.js';
 import {
+  createAiPerformanceRecord,
   backfillFromRecommendations,
   getAccuracyStats,
   getHistoricalPerformanceContext,
@@ -49,11 +50,24 @@ describe('ai-performance repository', () => {
 
   test('getAccuracyStats uses settlement trust instead of treating half outcomes as pending forever', async () => {
     vi.mocked(query).mockResolvedValueOnce({
-      rows: [{ total: '12', correct: '5', incorrect: '3', neutral: '2', pending: '4' }],
+      rows: [{
+        total: '12',
+        correct: '5',
+        incorrect: '3',
+        push: '1',
+        void: '1',
+        neutral: '2',
+        pending: '4',
+        pending_result: '1',
+        review_required: '3',
+      }],
     } as never);
 
     const stats = await getAccuracyStats();
 
+    expect(query).toHaveBeenCalledWith(
+      expect.stringContaining('latest_ai_performance'),
+    );
     expect(query).toHaveBeenCalledWith(
       expect.stringContaining('ap.settlement_trusted = TRUE'),
     );
@@ -70,10 +84,40 @@ describe('ai-performance repository', () => {
       total: 12,
       correct: 5,
       incorrect: 3,
+      push: 1,
+      void: 1,
       neutral: 2,
       pending: 4,
+      pendingResult: 1,
+      reviewRequired: 3,
       accuracy: 62.5,
     });
+  });
+
+  test('createAiPerformanceRecord upserts by recommendation_id instead of inserting duplicates', async () => {
+    vi.mocked(query).mockResolvedValueOnce({
+      rows: [{ id: 9, recommendation_id: 11 }],
+    } as never);
+
+    await createAiPerformanceRecord({
+      recommendation_id: 11,
+      match_id: '100',
+      ai_model: 'gemini-3-pro-preview',
+      prompt_version: 'v4',
+      ai_confidence: 8,
+      ai_should_push: true,
+      predicted_market: 'over_2.5',
+      predicted_selection: 'Over 2.5',
+      predicted_odds: 1.91,
+      match_minute: 65,
+      match_score: '1-0',
+      league: 'Premier League',
+    });
+
+    expect(query).toHaveBeenCalledWith(
+      expect.stringContaining('ON CONFLICT (recommendation_id) DO UPDATE SET'),
+      expect.any(Array),
+    );
   });
 
   test('backfillFromRecommendations skips legacy NO_BET rows', async () => {
@@ -87,6 +131,21 @@ describe('ai-performance repository', () => {
       expect.stringContaining("r.bet_type IS DISTINCT FROM 'NO_BET'"),
     );
     expect(inserted).toBe(7);
+  });
+
+  test('backfillFromRecommendations maps half outcomes to directional correctness', async () => {
+    vi.mocked(query).mockResolvedValueOnce({
+      rows: [{ cnt: '2' }],
+    } as never);
+
+    await backfillFromRecommendations();
+
+    expect(query).toHaveBeenCalledWith(
+      expect.stringContaining("WHEN r.result IN ('win', 'half_win') THEN true"),
+    );
+    expect(query).toHaveBeenCalledWith(
+      expect.stringContaining("WHEN r.result IN ('loss', 'half_loss') THEN false"),
+    );
   });
 
   test('settleAiPerformance persists settlement provenance metadata', async () => {

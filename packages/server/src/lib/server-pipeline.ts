@@ -81,6 +81,10 @@ import {
   type PrematchFeatureAvailability,
   type PrematchPriorStrength,
 } from './prematch-expert-features.js';
+import {
+  applyRecommendationPolicy,
+  type RecommendationPolicyPreviousRow,
+} from './recommendation-policy.js';
 
 /** Resolved pipeline settings: DB values take priority, env vars as fallback */
 interface PipelineSettings {
@@ -427,6 +431,8 @@ export interface MatchPipelineResult {
     prematchAvailability?: PrematchFeatureAvailability;
     prematchNoisePenalty?: number | null;
     prematchStrength?: PrematchPriorStrength;
+    structuredPrematchAskAi?: boolean;
+    structuredPrematchAskAiReason?: string;
     promptChars?: number;
     promptEstimatedTokens?: number;
     aiTextChars?: number;
@@ -514,6 +520,42 @@ function countPrimaryPopulatedStatPairs(statsCompact: StatsCompact): number {
   return tracked.filter((value) => value.home != null && value.away != null).length;
 }
 
+function asObjectRecord(value: unknown): Record<string, unknown> | null {
+  return value && typeof value === 'object' && !Array.isArray(value)
+    ? value as Record<string, unknown>
+    : null;
+}
+
+function readProfileWindowSnapshot(value: unknown): {
+  sampleMatches: number | null;
+  eventCoverage: number | null;
+} {
+  const record = asObjectRecord(value);
+  const payload = asObjectRecord(record?.profile) ?? record;
+  const window = asObjectRecord(payload?.window);
+  const sampleMatches = Number(window?.sample_matches);
+  const eventCoverage = Number(window?.event_coverage);
+  return {
+    sampleMatches: Number.isFinite(sampleMatches) ? sampleMatches : null,
+    eventCoverage: Number.isFinite(eventCoverage) ? eventCoverage : null,
+  };
+}
+
+function readTeamOverlaySnapshot(value: unknown): {
+  sourceMode: string;
+  sourceConfidence: string | null;
+} {
+  const record = asObjectRecord(value);
+  const payload = asObjectRecord(record?.profile) ?? record;
+  const overlay = asObjectRecord(payload?.tactical_overlay);
+  return {
+    sourceMode: String(overlay?.source_mode ?? 'unknown').trim() || 'unknown',
+    sourceConfidence: typeof overlay?.source_confidence === 'string'
+      ? overlay.source_confidence
+      : null,
+  };
+}
+
 function mergeStatsCompact(primary: StatsCompact, fallback: StatsCompact): StatsCompact {
   const mergeStatPair = (
     first: { home: string | null; away: string | null } | undefined,
@@ -557,6 +599,60 @@ function deriveEvidenceMode(
   return 'low_evidence';
 }
 
+function canRunStructuredPrematchAskAi(args: {
+  analysisMode: PromptAnalysisMode;
+  status: string;
+  prediction: Record<string, unknown> | null;
+  prematchExpertFeatures: PrematchExpertFeaturesV1 | null;
+}): {
+  eligible: boolean;
+  reason:
+    | 'manual_force_required'
+    | 'not_started_only'
+    | 'prematch_features_missing'
+    | 'top_league_required'
+    | 'prematch_availability_too_thin'
+    | 'prediction_or_profile_coverage_too_thin'
+    | 'eligible';
+} {
+  if (args.analysisMode !== 'manual_force') {
+    return { eligible: false, reason: 'manual_force_required' };
+  }
+  if (String(args.status || '').trim().toUpperCase() !== 'NS') {
+    return { eligible: false, reason: 'not_started_only' };
+  }
+
+  const features = args.prematchExpertFeatures;
+  if (!features) {
+    return { eligible: false, reason: 'prematch_features_missing' };
+  }
+  if (features.meta.top_league !== true) {
+    return { eligible: false, reason: 'top_league_required' };
+  }
+  if (features.meta.availability !== 'full' && features.meta.availability !== 'partial') {
+    return { eligible: false, reason: 'prematch_availability_too_thin' };
+  }
+
+  const strategicCoverage = features.trust_and_coverage.strategic_quant_fields_present;
+  const leagueCoverage = features.trust_and_coverage.league_profile_fields_present;
+  const teamCoverage = features.trust_and_coverage.team_profile_fields_present;
+  const predictionCoverage = features.trust_and_coverage.prediction_fields_present;
+  const sourceQuality = features.meta.source_quality;
+  const hasProviderPredictionSupport = !!args.prediction && predictionCoverage >= 2;
+  const hasStrongProfileCoverage = teamCoverage >= 16 && leagueCoverage >= 6;
+  const hasBalancedStructuredCoverage = (
+    teamCoverage >= 8
+    || leagueCoverage >= 8
+    || (leagueCoverage >= 3 && strategicCoverage >= 2 && (sourceQuality === 'high' || sourceQuality === 'medium'))
+  );
+
+  if (!(hasProviderPredictionSupport || hasStrongProfileCoverage || hasBalancedStructuredCoverage)) {
+    return { eligible: false, reason: 'prediction_or_profile_coverage_too_thin' };
+  }
+
+  return { eligible: true, reason: 'eligible' };
+}
+
 function estimateTokenCount(text: string): number {
   const trimmed = text.trim();
   if (!trimmed) return 0;
@@ -574,6 +670,12 @@ interface PromptExecutionArtifacts {
   llmLatencyMs: number;
   totalLatencyMs: number;
   parsed: ParsedAiResponse;
+  policyBlocked: boolean;
+  policyWarnings: string[];
+}
+
+interface PromptPolicyContext {
+  previousRecommendations: RecommendationPolicyPreviousRow[];
 }
 
 interface PromptExecutionContext {
@@ -603,6 +705,7 @@ interface PromptExecutionContext {
   homeTeamProfile: Record<string, unknown> | null;
   awayTeamProfile: Record<string, unknown> | null;
   prematchExpertFeatures: PrematchExpertFeaturesV1 | null;
+  structuredPrematchAskAi: boolean;
   analysisMode: PromptAnalysisMode;
   forceAnalyze: boolean;
   isManualPush: boolean;
@@ -669,6 +772,7 @@ async function executePromptAnalysis(
   settings: PipelineSettings,
   promptContext: PromptExecutionContext,
   promptVersion: LiveAnalysisPromptVersion,
+  policyContext: PromptPolicyContext,
 ): Promise<PromptExecutionArtifacts> {
   const startedAt = Date.now();
   const prompt = buildServerPrompt(promptContext, settings, promptVersion);
@@ -680,13 +784,59 @@ async function executePromptAnalysis(
   const llmLatencyMs = Date.now() - llmStartedAt;
   const aiTextChars = aiText.length;
   const aiTextEstimatedTokens = estimateTokenCount(aiText);
-  const parsed = parseAiResponse(
+  const parsedRaw = parseAiResponse(
     aiText,
     promptContext.oddsCanonical,
     promptContext.minute,
     settings,
     promptContext.evidenceMode,
   );
+  const policyResult = applyRecommendationPolicy({
+    selection: parsedRaw.selection,
+    betMarket: parsedRaw.bet_market,
+    minute: promptContext.minute,
+    score: promptContext.score,
+    odds: parsedRaw.mapped_odd,
+    confidence: parsedRaw.confidence,
+    valuePercent: parsedRaw.value_percent,
+    stakePercent: parsedRaw.stake_percent,
+    previousRecommendations: policyContext.previousRecommendations,
+    statsCompact: promptContext.statsCompact,
+  });
+  const hasCustomCondition = !!String(promptContext.customConditions || '').trim();
+  const lowEvidenceConditionOnly = promptContext.evidenceMode === 'low_evidence' && hasCustomCondition;
+  const finalShouldBet = lowEvidenceConditionOnly
+    ? false
+    : parsedRaw.final_should_bet && !policyResult.blocked;
+  const conditionTriggeredShouldPush = parsedRaw.condition_triggered_should_push;
+  const shouldPush = finalShouldBet || conditionTriggeredShouldPush;
+  const decisionKind = finalShouldBet
+    ? 'ai_push'
+    : conditionTriggeredShouldPush
+      ? 'condition_only'
+      : 'no_bet';
+  const parsed: ParsedAiResponse = {
+    ...parsedRaw,
+    should_push: shouldPush,
+    ai_should_push: lowEvidenceConditionOnly ? false : parsedRaw.ai_should_push,
+    system_should_bet: lowEvidenceConditionOnly ? false : parsedRaw.system_should_bet && !policyResult.blocked,
+    final_should_bet: finalShouldBet,
+    decision_kind: decisionKind,
+    confidence: policyResult.confidence,
+    stake_percent: policyResult.stakePercent,
+    ai_confidence: policyResult.confidence,
+    condition_triggered_should_push: conditionTriggeredShouldPush,
+    warnings: [
+      ...parsedRaw.warnings,
+      ...policyResult.warnings,
+      ...(lowEvidenceConditionOnly ? ['LOW_EVIDENCE_CONDITION_ONLY'] : []),
+    ],
+    ai_warnings: [
+      ...parsedRaw.ai_warnings,
+      ...policyResult.warnings,
+      ...(lowEvidenceConditionOnly ? ['LOW_EVIDENCE_CONDITION_ONLY'] : []),
+    ],
+  };
 
   return {
     promptVersion,
@@ -699,6 +849,8 @@ async function executePromptAnalysis(
     llmLatencyMs,
     totalLatencyMs: Date.now() - startedAt,
     parsed,
+    policyBlocked: policyResult.blocked,
+    policyWarnings: [...policyResult.warnings],
   };
 }
 
@@ -727,6 +879,7 @@ async function runPromptShadowComparison(args: {
   oddsSource: string;
   statsSource: StatsSource;
   promptContext: PromptExecutionContext;
+  policyContext: PromptPolicyContext;
   activeAnalysis: PromptExecutionArtifacts;
   model: string;
   settings: PipelineSettings;
@@ -761,6 +914,7 @@ async function runPromptShadowComparison(args: {
       args.settings,
       args.promptContext,
       args.shadowPromptVersion,
+      args.policyContext,
     );
 
     await recordPromptShadowRunSafe(args.deps, {
@@ -1392,19 +1546,13 @@ function parseAiResponse(
   const usableOdd = mappedOdd !== null && mappedOdd >= MIN_ODDS ? mappedOdd : null;
   const aiFinalShouldBet = systemShouldBet && usableOdd !== null;
   const oddsForDisplay = usableOdd ?? mappedOdd ?? (aiShouldPush ? 'N/A' : null);
-  const normalizedConditionMarket = conditionTriggeredSuggestion
-    ? normalizeMarket(conditionTriggeredSuggestion)
-    : 'unknown';
   // Condition-trigger path: this is a notification-only branch. It represents
-  // "the watchlist condition is satisfied and the condition suggestion is
-  // actionable enough to alert the user". It does NOT imply DB persistence.
+  // "the watchlist condition is satisfied and should alert the user".
+  // Any attached condition-triggered suggestion is optional enrichment only.
+  // It does NOT imply DB persistence.
   const conditionTriggeredShouldPush =
     customConditionMatched
-    && customConditionStatus === 'evaluated'
-    && conditionTriggeredConfidence >= MIN_CONFIDENCE
-    && !!conditionTriggeredSuggestion
-    && !conditionTriggeredSuggestion.toLowerCase().startsWith('no bet')
-    && normalizedConditionMarket !== 'unknown';
+    && customConditionStatus === 'evaluated';
   // should_push = user-facing push/notify decision.
   // final_should_bet = AI-only save decision.
   const finalShouldPush = aiFinalShouldBet || conditionTriggeredShouldPush;
@@ -1672,7 +1820,9 @@ function buildTelegramCaption(
     if (reasoning) text += `\n${safeHtml(truncateAtWord(reasoning, 680))}\n`;
   } else if (isCondition) {
     if (selection) text += `\n<b>⚡ ${safeHtml(selection)}</b>\n`;
-    text += `Confidence: ${confidence}/10 | Stake: ${stake}%\n`;
+    if (selection || confidence > 0 || stake > 0) {
+      text += `Confidence: ${confidence}/10 | Stake: ${stake}%\n`;
+    }
     const reasoning = pickReasoning(parsed, lang);
     if (reasoning) text += `\n${safeHtml(truncateAtWord(reasoning, 520))}\n`;
   } else {
@@ -1759,7 +1909,9 @@ function buildTelegramMessage(
     if (reasoning) text += `\n${safeHtml(reasoning)}\n`;
   } else if (isCondition) {
     if (selection) text += `\n<b>⚡ ${safeHtml(selection)}</b>\n`;
-    text += `Confidence: ${confidence}/10 | Stake: ${stake}%\n`;
+    if (selection || confidence > 0 || stake > 0) {
+      text += `Confidence: ${confidence}/10 | Stake: ${stake}%\n`;
+    }
     const reasoning = pickReasoning(parsed, lang);
     if (reasoning) text += `\n${safeHtml(reasoning)}\n`;
   } else {
@@ -2365,6 +2517,10 @@ async function processMatch(
 
     const evidenceMode = deriveEvidenceMode(statsAvailable, oddsAvailable, eventsCompact);
     const promptDataLevel = getPromptStatsDetailLevel(statsCompact);
+    const customConditions = (watchlistEntry.custom_conditions || '').trim();
+    const recommendedCondition = (watchlistEntry.recommended_custom_condition || '').trim();
+    const recommendedConditionReason = (watchlistEntry.recommended_condition_reason || '').trim();
+    const hasCustomCondition = !!customConditions;
 
     // 5. Get previous recommendations for prompt context
     const prevRecsContext = prevRecs.slice(0, 5).map((r) => ({
@@ -2379,9 +2535,6 @@ async function processMatch(
     }));
 
     // 5. Build the central server-side prompt
-    const customConditions = (watchlistEntry.custom_conditions || '').trim();
-    const recommendedCondition = (watchlistEntry.recommended_custom_condition || '').trim();
-    const recommendedConditionReason = (watchlistEntry.recommended_condition_reason || '').trim();
     const rawStrategicContext = watchlistEntry.strategic_context as Record<string, unknown> | null;
     const strategicRefreshStatus = String((rawStrategicContext?._meta as Record<string, unknown> | undefined)?.refresh_status ?? '').trim().toLowerCase();
     const strategicContext = (
@@ -2405,6 +2558,87 @@ async function processMatch(
     const prematchAvailability = prematchExpertFeatures?.meta.availability;
     const prematchNoisePenalty = prematchExpertFeatures?.trust_and_coverage.prematch_noise_penalty ?? null;
     const prematchStrength = getPrematchPriorStrength(prematchExpertFeatures);
+    const leagueProfileWindow = readProfileWindowSnapshot(leagueProfile);
+    const homeTeamProfileWindow = readProfileWindowSnapshot(homeTeamProfile);
+    const awayTeamProfileWindow = readProfileWindowSnapshot(awayTeamProfile);
+    const homeOverlaySnapshot = readTeamOverlaySnapshot(homeTeamProfile);
+    const awayOverlaySnapshot = readTeamOverlaySnapshot(awayTeamProfile);
+    const structuredPrematchAskAiCheck = canRunStructuredPrematchAskAi({
+      analysisMode,
+      status,
+      prediction,
+      prematchExpertFeatures,
+    });
+    const structuredPrematchAskAi = structuredPrematchAskAiCheck.eligible;
+
+    if (evidenceMode === 'low_evidence' && !hasCustomCondition && !structuredPrematchAskAi) {
+      if (!shadowMode) {
+        audit({
+          category: 'PIPELINE',
+          action: 'PIPELINE_MATCH_SKIPPED',
+          outcome: 'SKIPPED',
+          actor: 'auto-pipeline',
+          metadata: {
+            matchId,
+            matchDisplay,
+            reason: 'low_evidence_without_watch_condition',
+            analysisMode,
+            evidenceMode,
+            structuredPrematchAskAiReason: structuredPrematchAskAiCheck.reason,
+            prematchAvailability,
+            prematchStrength,
+            leagueProfileSampleMatches: leagueProfileWindow.sampleMatches,
+            leagueProfileEventCoverage: leagueProfileWindow.eventCoverage,
+            homeTeamProfileSampleMatches: homeTeamProfileWindow.sampleMatches,
+            homeTeamProfileEventCoverage: homeTeamProfileWindow.eventCoverage,
+            awayTeamProfileSampleMatches: awayTeamProfileWindow.sampleMatches,
+            awayTeamProfileEventCoverage: awayTeamProfileWindow.eventCoverage,
+            homeTacticalOverlaySourceMode: homeOverlaySnapshot.sourceMode,
+            homeTacticalOverlaySourceConfidence: homeOverlaySnapshot.sourceConfidence,
+            awayTacticalOverlaySourceMode: awayOverlaySnapshot.sourceMode,
+            awayTacticalOverlaySourceConfidence: awayOverlaySnapshot.sourceConfidence,
+          },
+        });
+      }
+
+      return {
+        matchId,
+        matchDisplay,
+        homeName,
+        awayName,
+        league,
+        minute,
+        score,
+        status,
+        success: true,
+        decisionKind: 'no_bet',
+        shouldPush: false,
+        selection: '',
+        confidence: 0,
+        saved: false,
+        notified: false,
+        debug: {
+          analysisRunId,
+          shadowMode,
+          skippedAt: 'proceed',
+          skipReason: 'Skipped AI analysis because this match is in low-evidence mode and no custom watch condition is configured.',
+          analysisMode,
+          oddsSource,
+          oddsAvailable,
+          statsAvailable,
+          statsSource,
+          evidenceMode,
+          prematchAvailability,
+          prematchNoisePenalty,
+          prematchStrength,
+          structuredPrematchAskAi,
+          structuredPrematchAskAiReason: structuredPrematchAskAiCheck.reason,
+          statsFallbackUsed,
+          statsFallbackReason: statsFallbackReason || undefined,
+          totalLatencyMs: Date.now() - startedAt,
+        },
+      };
+    }
 
     const promptContext: PromptExecutionContext = {
       homeName, awayName, league, minute, score, status,
@@ -2420,6 +2654,7 @@ async function processMatch(
       homeTeamProfile: homeTeamProfile as Record<string, unknown> | null,
       awayTeamProfile: awayTeamProfile as Record<string, unknown> | null,
       prematchExpertFeatures,
+      structuredPrematchAskAi,
       analysisMode,
       forceAnalyze,
       isManualPush: isManualForce,
@@ -2440,6 +2675,15 @@ async function processMatch(
       settings,
       promptContext,
       activePromptVersion,
+      {
+        previousRecommendations: prevRecs.map((r) => ({
+          minute: r.minute ?? null,
+          selection: r.selection ?? '',
+          bet_market: r.bet_market ?? '',
+          stake_percent: r.stake_percent ?? null,
+          result: r.result ?? null,
+        })),
+      },
     );
     const parsed = activeAnalysis.parsed;
     const promptShadowRequested = shouldRunPromptShadow({
@@ -2463,6 +2707,15 @@ async function processMatch(
         oddsSource,
         statsSource,
         promptContext,
+        policyContext: {
+          previousRecommendations: prevRecs.map((r) => ({
+            minute: r.minute ?? null,
+            selection: r.selection ?? '',
+            bet_market: r.bet_market ?? '',
+            stake_percent: r.stake_percent ?? null,
+            result: r.result ?? null,
+          })),
+        },
         activeAnalysis,
         model,
         settings,
@@ -2760,8 +3013,22 @@ async function processMatch(
           prematchAvailability,
           prematchNoisePenalty,
           prematchStrength,
+          structuredPrematchAskAi,
+          structuredPrematchAskAiReason: structuredPrematchAskAiCheck.reason,
           statsSource,
           evidenceMode,
+          policyBlocked: activeAnalysis.policyBlocked,
+          policyWarnings: activeAnalysis.policyWarnings,
+          leagueProfileSampleMatches: leagueProfileWindow.sampleMatches,
+          leagueProfileEventCoverage: leagueProfileWindow.eventCoverage,
+          homeTeamProfileSampleMatches: homeTeamProfileWindow.sampleMatches,
+          homeTeamProfileEventCoverage: homeTeamProfileWindow.eventCoverage,
+          awayTeamProfileSampleMatches: awayTeamProfileWindow.sampleMatches,
+          awayTeamProfileEventCoverage: awayTeamProfileWindow.eventCoverage,
+          homeTacticalOverlaySourceMode: homeOverlaySnapshot.sourceMode,
+          homeTacticalOverlaySourceConfidence: homeOverlaySnapshot.sourceConfidence,
+          awayTacticalOverlaySourceMode: awayOverlaySnapshot.sourceMode,
+          awayTacticalOverlaySourceConfidence: awayOverlaySnapshot.sourceConfidence,
         },
       });
     }
@@ -2794,6 +3061,8 @@ async function processMatch(
         prematchAvailability,
         prematchNoisePenalty,
         prematchStrength,
+        structuredPrematchAskAi,
+        structuredPrematchAskAiReason: structuredPrematchAskAiCheck.reason,
         promptChars: activeAnalysis.promptChars,
         promptEstimatedTokens: activeAnalysis.promptEstimatedTokens,
         aiTextChars: activeAnalysis.aiTextChars,
@@ -2886,6 +3155,13 @@ export async function runPromptOnlyAnalysisForMatch(
   const prompt = result.debug?.prompt;
   const text = result.debug?.aiText;
   if (!prompt || !text) {
+    if (result.debug?.skipReason) {
+      return {
+        prompt: prompt ?? '[LLM skipped]',
+        text: `Analysis skipped: ${result.debug.skipReason}`,
+        result,
+      };
+    }
     throw new Error(`Prompt-only analysis did not produce AI output for match ${matchId}`);
   }
 
@@ -3004,6 +3280,7 @@ function buildServerPrompt(data: {
   homeTeamProfile: Record<string, unknown> | null;
   awayTeamProfile: Record<string, unknown> | null;
   prematchExpertFeatures: PrematchExpertFeaturesV1 | null;
+  structuredPrematchAskAi: boolean;
   analysisMode: PromptAnalysisMode;
   forceAnalyze: boolean;
   isManualPush: boolean;
@@ -3044,6 +3321,7 @@ function buildServerPrompt(data: {
       homeTeamProfile: data.homeTeamProfile,
       awayTeamProfile: data.awayTeamProfile,
       prematchExpertFeatures: data.prematchExpertFeatures,
+      structuredPrematchAskAi: data.structuredPrematchAskAi,
       analysisMode: data.analysisMode,
       forceAnalyze: data.forceAnalyze,
       isManualPush: data.isManualPush,

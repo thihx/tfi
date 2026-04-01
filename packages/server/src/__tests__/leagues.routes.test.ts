@@ -14,23 +14,51 @@ const MOCK_LEAGUES = [
 
 const MOCK_PROFILE = {
   league_id: 39,
-  tempo_tier: 'high',
-  goal_tendency: 'high',
-  home_advantage_tier: 'normal',
-  corners_tendency: 'balanced',
-  cards_tendency: 'low',
-  volatility_tier: 'medium',
-  data_reliability_tier: 'high',
-  avg_goals: 2.95,
-  over_2_5_rate: 61,
-  btts_rate: 57,
-  late_goal_rate_75_plus: 31,
-  avg_corners: 9.8,
-  avg_cards: 3.7,
+  profile: {
+    tempo_tier: 'high',
+    goal_tendency: 'high',
+    home_advantage_tier: 'normal',
+    corners_tendency: 'balanced',
+    cards_tendency: 'low',
+    volatility_tier: 'medium',
+    data_reliability_tier: 'high',
+    avg_goals: 2.95,
+    over_2_5_rate: 61,
+    btts_rate: 57,
+    late_goal_rate_75_plus: 31,
+    avg_corners: 9.8,
+    avg_cards: 3.7,
+  },
   notes_en: 'Fast, transition-heavy league.',
   notes_vi: 'Giai dau co toc do cao.',
   created_at: '2026-03-22T00:00:00Z',
   updated_at: '2026-03-22T00:00:00Z',
+};
+
+const MOCK_PROFILE_COVERAGE = {
+  summary: {
+    topLeagues: 2,
+    topLeagueProfiles: 1,
+    topLeagueTeams: 6,
+    topLeagueTeamsWithProfile: 4,
+    teamProfileCoverage: 0.667,
+    fullCoverageLeagues: 1,
+    partialCoverageLeagues: 1,
+    missingCoverageLeagues: 0,
+  },
+  leagues: [
+    {
+      leagueId: 140,
+      leagueName: 'La Liga',
+      country: 'Spain',
+      hasLeagueProfile: false,
+      candidateTeams: 4,
+      profiledTeams: 2,
+      missingTeamProfiles: 2,
+      teamProfileCoverage: 0.5,
+      missingTeamNames: ['Atletico Madrid', 'Valencia'],
+    },
+  ],
 };
 
 vi.mock('../repos/leagues.repo.js', () => ({
@@ -60,12 +88,13 @@ vi.mock('../repos/league-profiles.repo.js', () => ({
   getLeagueProfileByLeagueId: vi.fn().mockImplementation((id: number) =>
     Promise.resolve(id === 39 ? MOCK_PROFILE : null),
   ),
-  upsertLeagueProfile: vi.fn().mockImplementation((id: number, payload: Record<string, unknown>) =>
-    Promise.resolve({ ...MOCK_PROFILE, ...payload, league_id: id }),
+  upsertLeagueProfile: vi.fn().mockImplementation((id: number, payload: Record<string, unknown>, notes_en: string, notes_vi: string) =>
+    Promise.resolve({ ...MOCK_PROFILE, profile: payload, notes_en, notes_vi, league_id: id }),
   ),
   deleteLeagueProfile: vi.fn().mockImplementation((id: number) =>
     Promise.resolve(id === 39),
   ),
+  flattenLeagueProfileRow: vi.fn().mockImplementation((row: Record<string, unknown>) => row),
 }));
 
 vi.mock('../lib/league-catalog.service.js', () => ({
@@ -84,6 +113,26 @@ vi.mock('../lib/league-catalog.service.js', () => ({
       upserted: mode === 'ids' ? leagueIds.length : 3,
     }),
   ),
+}));
+
+vi.mock('../repos/favorite-teams.repo.js', () => ({
+  getFavoriteTeams: vi.fn().mockResolvedValue([{ team_id: '1' }, { team_id: '2' }]),
+}));
+
+vi.mock('../repos/team-profiles.repo.js', () => ({
+  getAllTeamProfiles: vi.fn().mockResolvedValue([{ team_id: '1' }, { team_id: '3' }]),
+}));
+
+vi.mock('../lib/profile-coverage.js', () => ({
+  getTopLeagueProfileCoverage: vi.fn().mockResolvedValue(MOCK_PROFILE_COVERAGE),
+}));
+
+vi.mock('../lib/redis.js', () => ({
+  getRedisClient: vi.fn().mockReturnValue({
+    get: vi.fn().mockResolvedValue(null),
+    set: vi.fn().mockResolvedValue('OK'),
+    del: vi.fn().mockResolvedValue(1),
+  }),
 }));
 
 let app: FastifyInstance;
@@ -114,6 +163,40 @@ describe('GET /api/leagues/active', () => {
     const res = await app.inject({ method: 'GET', url: '/api/leagues/active' });
     expect(res.statusCode).toBe(200);
     expect(res.json().length).toBeGreaterThan(0);
+  });
+});
+
+describe('GET /api/leagues/init', () => {
+  test('returns league init payload with profile coverage for the current user', async () => {
+    const res = await app.inject({
+      method: 'GET',
+      url: '/api/leagues/init',
+    });
+    expect(res.statusCode).toBe(401);
+
+    const authedApp = await buildApp([await import('../routes/leagues.routes.js').then((m) => m.leagueRoutes)], {
+      currentUser: {
+        userId: 'admin-1',
+        email: 'admin@example.com',
+        role: 'admin',
+        status: 'active',
+        displayName: 'Admin',
+        avatarUrl: '',
+      },
+    });
+
+    try {
+      const authedRes = await authedApp.inject({ method: 'GET', url: '/api/leagues/init' });
+      expect(authedRes.statusCode).toBe(200);
+      expect(authedRes.json()).toMatchObject({
+        leagues: MOCK_LEAGUES,
+        favoriteTeamIds: ['1', '2'],
+        profiledTeamIds: ['1', '3'],
+        profileCoverage: MOCK_PROFILE_COVERAGE,
+      });
+    } finally {
+      await authedApp.close();
+    }
   });
 });
 
@@ -156,7 +239,7 @@ describe('League profile routes', () => {
   test('gets league profile by league id', async () => {
     const res = await app.inject({ method: 'GET', url: '/api/leagues/39/profile' });
     expect(res.statusCode).toBe(200);
-    expect(res.json().tempo_tier).toBe('high');
+    expect(res.json().profile.tempo_tier).toBe('high');
   });
 
   test('returns 404 when league profile is missing', async () => {
@@ -189,7 +272,7 @@ describe('League profile routes', () => {
     });
     expect(res.statusCode).toBe(200);
     expect(res.json().league_id).toBe(140);
-    expect(res.json().tempo_tier).toBe('balanced');
+    expect(res.json().profile.tempo_tier).toBe('balanced');
   });
 
   test('rejects invalid league profile payload', async () => {

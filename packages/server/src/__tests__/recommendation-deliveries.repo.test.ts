@@ -101,6 +101,38 @@ describe('recommendation deliveries repository', () => {
     );
   });
 
+  test('getRecommendationDeliveriesByUserId supports review filter through recommendation settlement state', async () => {
+    vi.mocked(query)
+      .mockResolvedValueOnce({ rows: [] } as never)
+      .mockResolvedValueOnce({ rows: [{ count: '0' }] } as never);
+
+    await getRecommendationDeliveriesByUserId('user-1', {
+      result: 'review',
+    });
+
+    expect(query).toHaveBeenNthCalledWith(
+      1,
+      expect.stringContaining("COALESCE(r.settlement_status, NULLIF(d.metadata->>'recommendation_settlement_status', ''), 'pending') = 'unresolved' AND r.result IN ('win', 'loss', 'push', 'void', 'half_win', 'half_loss')"),
+      ['user-1', 50, 0],
+    );
+  });
+
+  test('getRecommendationDeliveriesByUserId supports correct filter through grouped results', async () => {
+    vi.mocked(query)
+      .mockResolvedValueOnce({ rows: [] } as never)
+      .mockResolvedValueOnce({ rows: [{ count: '0' }] } as never);
+
+    await getRecommendationDeliveriesByUserId('user-1', {
+      result: 'correct',
+    });
+
+    expect(query).toHaveBeenNthCalledWith(
+      1,
+      expect.stringContaining("r.result IN ('win', 'half_win')"),
+      ['user-1', 50, 0],
+    );
+  });
+
   test('getEligibleDeliveryUserIds returns eligible user ids only', async () => {
     vi.mocked(query).mockResolvedValueOnce({
       rows: [{ user_id: 'user-1' }, { user_id: 'user-2' }],

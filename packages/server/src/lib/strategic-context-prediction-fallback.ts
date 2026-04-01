@@ -1,6 +1,6 @@
 import { buildNoDataStrategicContext, type StrategicContext } from './strategic-context.service.js';
 
-const NO_DATA_RE = /^(?:no data found|khong tim thay du lieu)$/i;
+const NO_DATA_RE = /^(?:no data found|khong tim thay du lieu|không tìm thấy dữ liệu)$/i;
 
 interface PredictionLike {
   predictions?: {

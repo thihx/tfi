@@ -7,6 +7,7 @@ import type {
   League,
   LeagueFixture,
   LeagueProfile,
+  TopLeagueProfileCoverage,
   TeamProfile,
   TeamProfileData,
   ApiResponse,
@@ -43,7 +44,7 @@ function authHeader(): Record<string, string> {
   return token ? { Authorization: `Bearer ${token}` } : {};
 }
 
-async function pgFetch<T>(config: AppConfig, path: string): Promise<T> {
+async function pgFetch<T>(config: AppConfig | string, path: string): Promise<T> {
   const response = await fetch(internalApiUrl(path, config), {
     method: 'GET',
     headers: { Accept: 'application/json', ...authHeader() },
@@ -54,7 +55,7 @@ async function pgFetch<T>(config: AppConfig, path: string): Promise<T> {
   return response.json();
 }
 
-async function pgPost<T>(config: AppConfig, path: string, body: unknown): Promise<T> {
+async function pgPost<T>(config: AppConfig | string, path: string, body: unknown): Promise<T> {
   const response = await fetch(internalApiUrl(path, config), {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', Accept: 'application/json', ...authHeader() },
@@ -65,7 +66,7 @@ async function pgPost<T>(config: AppConfig, path: string, body: unknown): Promis
   return response.json();
 }
 
-async function pgPatch<T>(config: AppConfig, path: string, body: unknown): Promise<T> {
+async function pgPatch<T>(config: AppConfig | string, path: string, body: unknown): Promise<T> {
   const response = await fetch(internalApiUrl(path, config), {
     method: 'PATCH',
     headers: { 'Content-Type': 'application/json', Accept: 'application/json', ...authHeader() },
@@ -76,7 +77,7 @@ async function pgPatch<T>(config: AppConfig, path: string, body: unknown): Promi
   return response.json();
 }
 
-async function pgPut<T>(config: AppConfig, path: string, body: unknown): Promise<T> {
+async function pgPut<T>(config: AppConfig | string, path: string, body: unknown): Promise<T> {
   const response = await fetch(internalApiUrl(path, config), {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json', Accept: 'application/json', ...authHeader() },
@@ -87,7 +88,7 @@ async function pgPut<T>(config: AppConfig, path: string, body: unknown): Promise
   return response.json();
 }
 
-async function pgDelete<T>(config: AppConfig, path: string, body?: unknown): Promise<T> {
+async function pgDelete<T>(config: AppConfig | string, path: string, body?: unknown): Promise<T> {
   const hasBody = body !== undefined;
   const response = await fetch(internalApiUrl(path, config), {
     method: 'DELETE',
@@ -103,6 +104,20 @@ async function pgDelete<T>(config: AppConfig, path: string, body?: unknown): Pro
   return response.json();
 }
 
+function normalizePositiveInteger(value: unknown): number | undefined {
+  if (typeof value === 'number' && Number.isInteger(value) && value > 0) return value;
+  if (typeof value === 'string' && value.trim() !== '') {
+    const parsed = Number(value);
+    if (Number.isInteger(parsed) && parsed > 0) return parsed;
+  }
+  return undefined;
+}
+
+function normalizeWatchlistItem(item: WatchlistItem): WatchlistItem {
+  const normalizedId = normalizePositiveInteger((item as WatchlistItem & { id?: unknown }).id);
+  return normalizedId ? { ...item, id: normalizedId } : item;
+}
+
 // ==================== PUBLIC API ====================
 
 export async function fetchMatches(config: AppConfig): Promise<Match[]> {
@@ -110,7 +125,8 @@ export async function fetchMatches(config: AppConfig): Promise<Match[]> {
 }
 
 export async function fetchWatchlist(config: AppConfig): Promise<WatchlistItem[]> {
-  return pgFetch<WatchlistItem[]>(config, '/api/me/watch-subscriptions');
+  const items = await pgFetch<WatchlistItem[]>(config, '/api/me/watch-subscriptions');
+  return items.map(normalizeWatchlistItem);
 }
 
 export async function fetchWatchlistItem(config: AppConfig, matchId: string): Promise<WatchlistItem | null> {
@@ -133,6 +149,124 @@ export async function fetchRecommendations(config: AppConfig): Promise<Recommend
   // Initial load: fetch first page only; RecommendationsTab handles full pagination
   const data = await pgFetch<{ rows: Recommendation[]; total: number }>(config, '/api/recommendations?limit=30');
   return data.rows;
+}
+
+export interface ManualRecommendationSettlePayload {
+  result: 'win' | 'loss' | 'push' | 'void' | 'half_win' | 'half_loss';
+  pnl: number;
+  actual_outcome?: string;
+}
+
+export type AdminUserRole = 'owner' | 'admin' | 'member';
+export type AdminUserStatus = 'active' | 'disabled' | 'invited';
+
+export interface AdminUserRecord {
+  id: string;
+  email: string;
+  display_name: string;
+  avatar_url: string;
+  role: AdminUserRole;
+  status: AdminUserStatus;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface AdminUserUpdatePayload {
+  role?: Extract<AdminUserRole, 'admin' | 'member'>;
+  status?: Extract<AdminUserStatus, 'active' | 'disabled'>;
+}
+
+export type SubscriptionBillingInterval = 'manual' | 'month' | 'year';
+export type SubscriptionStatus = 'trialing' | 'active' | 'past_due' | 'canceled' | 'expired' | 'paused';
+
+export interface EntitlementCatalogEntry {
+  key: string;
+  label: string;
+  description: string;
+  category: 'ai' | 'watchlist' | 'notifications' | 'recommendations' | 'reports' | 'history';
+  valueType: 'boolean' | 'number' | 'string_array';
+  defaultValue: boolean | number | string[];
+  enforced: boolean;
+}
+
+export interface SubscriptionPlanRecord {
+  plan_code: string;
+  display_name: string;
+  description: string;
+  billing_interval: SubscriptionBillingInterval;
+  price_amount: string;
+  currency: string;
+  active: boolean;
+  public: boolean;
+  display_order: number;
+  entitlements: Record<string, unknown>;
+  metadata: Record<string, unknown>;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface UserSubscriptionRecord {
+  id: number;
+  user_id: string;
+  plan_code: string;
+  status: SubscriptionStatus;
+  provider: string;
+  provider_customer_id: string | null;
+  provider_subscription_id: string | null;
+  started_at: string;
+  current_period_start: string | null;
+  current_period_end: string | null;
+  trial_ends_at: string | null;
+  cancel_at_period_end: boolean;
+  metadata: Record<string, unknown>;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface AdminSubscriptionUserRecord extends AdminUserRecord {
+  subscription_plan_code: string | null;
+  subscription_status: SubscriptionStatus | null;
+  subscription_provider: string | null;
+  subscription_current_period_end: string | null;
+  subscription_cancel_at_period_end: boolean | null;
+  subscription_updated_at: string | null;
+}
+
+export interface AdminSubscriptionPlanUpdatePayload {
+  display_name?: string;
+  description?: string;
+  billing_interval?: SubscriptionBillingInterval;
+  price_amount?: number;
+  currency?: string;
+  active?: boolean;
+  public?: boolean;
+  display_order?: number;
+  entitlements?: Record<string, unknown>;
+  metadata?: Record<string, unknown>;
+}
+
+export interface AdminUserSubscriptionUpdatePayload {
+  planCode: string;
+  status: SubscriptionStatus;
+  currentPeriodEnd?: string | null;
+  cancelAtPeriodEnd?: boolean;
+  metadata?: Record<string, unknown>;
+}
+
+export interface MeSubscriptionSnapshot {
+  plan: SubscriptionPlanRecord;
+  subscription: UserSubscriptionRecord | null;
+  effectiveStatus: SubscriptionStatus | 'free_fallback';
+  entitlements: Record<string, unknown>;
+  usage: {
+    manualAiDaily: {
+      entitlementKey: string;
+      periodKey: string;
+      limit: number;
+      used: number;
+    };
+  };
+  catalog: EntitlementCatalogEntry[];
 }
 
 export interface PaginatedRecommendations {
@@ -210,6 +344,58 @@ export async function fetchRecommendationDeliveriesPaginated(
   return pgFetch<PaginatedRecommendationDeliveries>(config, `/api/me/recommendation-deliveries?${qs.toString()}`);
 }
 
+export async function settleRecommendationFinal(
+  config: AppConfig,
+  recommendationId: number,
+  payload: ManualRecommendationSettlePayload,
+): Promise<Recommendation> {
+  return pgPut<Recommendation>(config, `/api/recommendations/${recommendationId}/settle`, payload);
+}
+
+export async function fetchAdminUsers(config: AppConfig | string): Promise<AdminUserRecord[]> {
+  return pgFetch<AdminUserRecord[]>(config, '/api/settings/users');
+}
+
+export async function updateAdminUser(
+  config: AppConfig | string,
+  userId: string,
+  payload: AdminUserUpdatePayload,
+): Promise<AdminUserRecord> {
+  return pgPatch<AdminUserRecord>(config, `/api/settings/users/${encodeURIComponent(userId)}`, payload);
+}
+
+export async function fetchEntitlementCatalog(config: AppConfig | string): Promise<{ catalog: EntitlementCatalogEntry[] }> {
+  return pgFetch<{ catalog: EntitlementCatalogEntry[] }>(config, '/api/settings/subscription/catalog');
+}
+
+export async function fetchSubscriptionPlans(config: AppConfig | string): Promise<SubscriptionPlanRecord[]> {
+  return pgFetch<SubscriptionPlanRecord[]>(config, '/api/settings/subscription/plans');
+}
+
+export async function updateSubscriptionPlan(
+  config: AppConfig | string,
+  planCode: string,
+  payload: AdminSubscriptionPlanUpdatePayload,
+): Promise<SubscriptionPlanRecord> {
+  return pgPatch<SubscriptionPlanRecord>(config, `/api/settings/subscription/plans/${encodeURIComponent(planCode)}`, payload);
+}
+
+export async function fetchAdminUserSubscriptions(config: AppConfig | string): Promise<AdminSubscriptionUserRecord[]> {
+  return pgFetch<AdminSubscriptionUserRecord[]>(config, '/api/settings/subscription/users');
+}
+
+export async function updateAdminUserSubscription(
+  config: AppConfig | string,
+  userId: string,
+  payload: AdminUserSubscriptionUpdatePayload,
+): Promise<UserSubscriptionRecord> {
+  return pgPut<UserSubscriptionRecord>(config, `/api/settings/subscription/users/${encodeURIComponent(userId)}`, payload);
+}
+
+export async function fetchCurrentSubscription(config: AppConfig | string): Promise<MeSubscriptionSnapshot> {
+  return pgFetch<MeSubscriptionSnapshot>(config, '/api/me/subscription');
+}
+
 export async function updateRecommendationDelivery(
   config: AppConfig,
   deliveryId: number,
@@ -226,8 +412,8 @@ export interface DashboardSummary {
   halfWins: number;
   halfLosses: number;
   voids: number;
-  decisiveSettled: number;
-  neutralSettled: number;
+  directionalSettled: number;
+  pushVoidSettled: number;
   pending: number;
   winRate: number;
   totalPnl: number;
@@ -297,6 +483,7 @@ export async function fetchLeaguesInitData(config: AppConfig): Promise<{
   leagues: League[];
   favoriteTeamIds: string[];
   profiledTeamIds: string[];
+  profileCoverage: TopLeagueProfileCoverage;
 }> {
   return pgFetch(config, '/api/leagues/init');
 }
@@ -373,7 +560,17 @@ export async function fetchTeamProfile(config: AppConfig, teamId: string): Promi
 export async function saveTeamProfile(
   config: AppConfig,
   teamId: string,
-  payload: { profile: TeamProfileData; notes_en: string; notes_vi: string },
+  payload: {
+    profile: TeamProfileData;
+    notes_en: string;
+    notes_vi: string;
+    overlay_metadata?: {
+      source_mode?: 'default_neutral' | 'curated' | 'llm_assisted' | 'manual_override';
+      source_confidence?: 'low' | 'medium' | 'high' | null;
+      source_urls?: string[];
+      source_season?: string | null;
+    };
+  },
 ): Promise<TeamProfile> {
   return pgPut<TeamProfile>(config, `/api/me/favorite-teams/${encodeURIComponent(teamId)}/profile`, payload);
 }
@@ -390,7 +587,7 @@ export async function createWatchlistItems(
   const results = await Promise.all(
     items.map((item) => pgPost<WatchlistItem>(config, '/api/me/watch-subscriptions', item)),
   );
-  return { resource: 'watchlist', action: 'create', items: results, insertedCount: results.length };
+  return { resource: 'watchlist', action: 'create', items: results.map(normalizeWatchlistItem), insertedCount: results.length };
 }
 
 export async function updateWatchlistItems(
@@ -398,14 +595,20 @@ export async function updateWatchlistItems(
   items: Partial<WatchlistItem>[],
 ): Promise<ApiResponse<WatchlistItem>> {
   const validItems = items.filter(
-    (item): item is Partial<WatchlistItem> & { id: number; match_id: string } =>
-      typeof item.id === 'number' && item.id > 0 && !!item.match_id,
+    (item): item is Partial<WatchlistItem> & { id: number | string; match_id: string } =>
+      normalizePositiveInteger(item.id) !== undefined && !!item.match_id,
   );
   // async-parallel + PATCH for canonical subscription-scoped partial updates
   const results = await Promise.all(
-    validItems.map((item) => pgPatch<WatchlistItem>(config, `/api/me/watch-subscriptions/${item.id}`, item)),
+    validItems.map((item) => {
+      const normalizedId = normalizePositiveInteger(item.id)!;
+      return pgPatch<WatchlistItem>(config, `/api/me/watch-subscriptions/${normalizedId}`, {
+        ...item,
+        id: normalizedId,
+      });
+    }),
   );
-  return { resource: 'watchlist', action: 'update', items: results, updatedCount: results.length };
+  return { resource: 'watchlist', action: 'update', items: results.map(normalizeWatchlistItem), updatedCount: results.length };
 }
 
 export async function deleteWatchlistItems(
@@ -553,8 +756,12 @@ export interface AiAccuracyStats {
   total: number;
   correct: number;
   incorrect: number;
+  push: number;
+  void: number;
   neutral: number;
   pending: number;
+  pendingResult: number;
+  reviewRequired: number;
   accuracy: number;
 }
 
@@ -591,7 +798,7 @@ function buildReportQs(filter: ReportPeriodFilter): string {
 }
 
 export interface OverviewReport {
-  total: number; settled: number; decisiveSettled: number; neutralSettled: number;
+  total: number; settled: number; directionalSettled: number; pushVoidSettled: number;
   wins: number; losses: number; pushes: number; halfWins: number; halfLosses: number; voids: number;
   pending: number; winRate: number; totalPnl: number;
   avgOdds: number; avgConfidence: number; roi: number;
@@ -625,7 +832,7 @@ export interface MarketFamilyPerformanceRow {
   family: string;
   total: number;
   settled: number;
-  neutral: number;
+  pushVoid: number;
   wins: number;
   losses: number;
   winRate: number;
@@ -638,7 +845,7 @@ export interface LateEntryPerformanceRow {
   bucket: string;
   total: number;
   settled: number;
-  neutral: number;
+  pushVoid: number;
   wins: number;
   losses: number;
   winRate: number;
@@ -648,17 +855,17 @@ export interface LateEntryPerformanceRow {
 }
 
 export interface LeagueReportRow {
-  league: string; total: number; wins: number; losses: number; pushes: number;
+  league: string; total: number; wins: number; losses: number; pushVoid: number;
   winRate: number; pnl: number; avgOdds: number; avgConfidence: number; roi: number;
 }
 
 export interface MarketReportRow {
-  market: string; total: number; wins: number; losses: number;
+  market: string; total: number; wins: number; losses: number; pushVoid: number;
   winRate: number; pnl: number; avgOdds: number; roi: number;
 }
 
 export interface TimeReportRow {
-  period: string; periodStart: string; total: number; wins: number; losses: number;
+  period: string; periodStart: string; total: number; wins: number; losses: number; pushVoid: number;
   winRate: number; pnl: number; cumPnl: number; avgOdds: number; roi: number;
 }
 
@@ -679,16 +886,16 @@ export interface MinuteBandRow {
 
 export interface DailyPnlRow {
   date: string; dayOfWeek: number; dayName: string;
-  total: number; wins: number; losses: number; pnl: number;
+  total: number; wins: number; losses: number; pushVoid: number; pnl: number;
 }
 
 export interface DayOfWeekRow {
-  dayOfWeek: number; dayName: string; total: number; wins: number; losses: number;
+  dayOfWeek: number; dayName: string; total: number; wins: number; losses: number; pushVoid: number;
   winRate: number; pnl: number;
 }
 
 export interface LeagueMarketRow {
-  league: string; market: string; total: number; wins: number; losses: number;
+  league: string; market: string; total: number; wins: number; losses: number; pushVoid: number;
   winRate: number; pnl: number;
 }
 

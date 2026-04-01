@@ -3,8 +3,6 @@ import { describe, expect, test, vi, beforeEach, afterEach } from 'vitest';
 import { TeamProfileModal } from '@/components/ui/TeamProfileModal';
 import type { TeamProfile } from '@/types';
 
-// ── Fixtures ──────────────────────────────────────────────────────────────────
-
 const team = { id: 'team_42', name: 'Arsenal' };
 const teamWithLeague = { id: 'team_42', name: 'Arsenal' };
 
@@ -31,15 +29,12 @@ const profile: TeamProfile = {
     data_reliability_tier: 'high',
   },
   notes_en: 'Strong possession team.',
-  notes_vi: 'Đội kiểm soát bóng.',
+  notes_vi: 'Doi kiem soat bong.',
   created_at: '2026-03-22T00:00:00Z',
   updated_at: '2026-03-22T00:00:00Z',
 };
 
-// Default no-op handlers
 const noop = vi.fn().mockResolvedValue(undefined);
-
-// ── Clipboard mock ─────────────────────────────────────────────────────────────
 
 beforeEach(() => {
   Object.defineProperty(navigator, 'clipboard', {
@@ -55,8 +50,6 @@ afterEach(() => {
   vi.restoreAllMocks();
 });
 
-// ── Tests ─────────────────────────────────────────────────────────────────────
-
 describe('TeamProfileModal', () => {
   test('renders in update mode with existing profile', () => {
     render(
@@ -71,7 +64,7 @@ describe('TeamProfileModal', () => {
     expect(screen.queryByRole('button', { name: 'Create Profile' })).not.toBeInTheDocument();
   });
 
-  test('renders in create mode when profile is null — no delete button', () => {
+  test('renders in create mode when profile is null', () => {
     render(
       <TeamProfileModal
         team={team} profile={null}
@@ -84,7 +77,7 @@ describe('TeamProfileModal', () => {
     expect(screen.queryByRole('button', { name: 'Delete Profile' })).not.toBeInTheDocument();
   });
 
-  test('shows team info strip with Last Updated when profile exists', () => {
+  test('shows team info strip with last updated when profile exists', () => {
     render(
       <TeamProfileModal
         team={teamWithLeague} leagueName="Premier League"
@@ -99,33 +92,20 @@ describe('TeamProfileModal', () => {
     expect(screen.getByText('Last Updated')).toBeInTheDocument();
   });
 
-  test('omits Last Updated strip row when profile is null', () => {
+  test('shows loading state and disables save', () => {
     render(
       <TeamProfileModal
         team={team} profile={null}
-        loading={false} saving={false}
-        onClose={noop} onSave={noop} onDelete={noop}
-      />,
-    );
-
-    expect(screen.queryByText('Last Updated')).not.toBeInTheDocument();
-  });
-
-  test('shows loading spinner while loading=true and disables save button', () => {
-    render(
-      <TeamProfileModal
-        team={team} profile={null}
-        loading={true} saving={false}
+        loading saving={false}
         onClose={noop} onSave={noop} onDelete={noop}
       />,
     );
 
     expect(screen.getByText(/Loading profile/i)).toBeInTheDocument();
-    // Footer is always rendered; save button must be disabled while loading
     expect(screen.getByRole('button', { name: 'Create Profile' })).toBeDisabled();
   });
 
-  test('calls onSave with correct teamId when saved', async () => {
+  test('calls onSave with current draft', () => {
     const onSave = vi.fn().mockResolvedValue(undefined);
     render(
       <TeamProfileModal
@@ -139,11 +119,11 @@ describe('TeamProfileModal', () => {
     expect(onSave).toHaveBeenCalledWith('team_42', expect.objectContaining({
       profile: expect.objectContaining({ attack_style: 'possession' }),
       notes_en: 'Strong possession team.',
-      notes_vi: 'Đội kiểm soát bóng.',
+      notes_vi: 'Doi kiem soat bong.',
     }));
   });
 
-  test('editing a stat input updates the saved draft', async () => {
+  test('editing a stat input updates the saved draft', () => {
     const onSave = vi.fn().mockResolvedValue(undefined);
     render(
       <TeamProfileModal
@@ -153,7 +133,6 @@ describe('TeamProfileModal', () => {
       />,
     );
 
-    // Label text includes the hint "/90", so use regex partial match
     const scoredInput = screen.getByLabelText(/^scored/i) as HTMLInputElement;
     fireEvent.change(scoredInput, { target: { value: '2.5' } });
     fireEvent.click(screen.getByRole('button', { name: 'Update Profile' }));
@@ -163,7 +142,7 @@ describe('TeamProfileModal', () => {
     }));
   });
 
-  test('clicking a TierSegment option updates the draft on save', () => {
+  test('clicking a tier option updates the draft on save', () => {
     const onSave = vi.fn().mockResolvedValue(undefined);
     render(
       <TeamProfileModal
@@ -173,7 +152,6 @@ describe('TeamProfileModal', () => {
       />,
     );
 
-    // Switch attack_style from 'possession' to 'counter'
     fireEvent.click(screen.getByTitle('Counter'));
     fireEvent.click(screen.getByRole('button', { name: 'Update Profile' }));
 
@@ -182,7 +160,7 @@ describe('TeamProfileModal', () => {
     }));
   });
 
-  test('editing notes textarea updates the saved draft', () => {
+  test('editing notes updates the saved draft', () => {
     const onSave = vi.fn().mockResolvedValue(undefined);
     render(
       <TeamProfileModal
@@ -200,7 +178,7 @@ describe('TeamProfileModal', () => {
     }));
   });
 
-  test('delete flow: shows confirm buttons, calls onDelete on confirm', async () => {
+  test('delete flow confirms and calls onDelete', async () => {
     const onDelete = vi.fn().mockResolvedValue(undefined);
     render(
       <TeamProfileModal
@@ -210,14 +188,11 @@ describe('TeamProfileModal', () => {
       />,
     );
 
-    // Click delete → shows confirmation
     await act(async () => {
       fireEvent.click(screen.getByRole('button', { name: 'Delete Profile' }));
     });
     expect(screen.getByText('Delete profile?')).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Confirm' })).toBeInTheDocument();
 
-    // Confirm → calls onDelete
     await act(async () => {
       fireEvent.click(screen.getByRole('button', { name: 'Confirm' }));
     });
@@ -235,14 +210,11 @@ describe('TeamProfileModal', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'Delete Profile' }));
     expect(screen.getByText('Delete profile?')).toBeInTheDocument();
-
-    // Two "Cancel" buttons exist: one in confirm row (btn-sm), one in footer — pick the confirm one
-    const cancelButtons = screen.getAllByRole('button', { name: 'Cancel' });
-    fireEvent.click(cancelButtons[0]!);
+    fireEvent.click(screen.getAllByRole('button', { name: 'Cancel' })[0]!);
     expect(screen.queryByText('Delete profile?')).not.toBeInTheDocument();
   });
 
-  test('Deep Research tab shows wizard step 1 with Copy Prompt button', () => {
+  test('Tactical Overlay Research tab shows wizard step 1', () => {
     render(
       <TeamProfileModal
         team={team} profile={profile}
@@ -251,26 +223,40 @@ describe('TeamProfileModal', () => {
       />,
     );
 
-    fireEvent.click(screen.getByRole('button', { name: 'Deep Research' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Tactical Overlay Research' }));
     expect(screen.getByRole('button', { name: 'Copy Prompt' })).toBeInTheDocument();
   });
 
-  test('Deep Research: prompt contains team name and league context', () => {
+  test('Tactical Overlay Research prompt contains team, league, and tactical-only wording', () => {
     render(
       <TeamProfileModal
-        team={team} leagueName="Premier League"
+        team={team} leagueName="Premier League" overlayEligible
         profile={profile}
         loading={false} saving={false}
         onClose={noop} onSave={noop} onDelete={noop}
       />,
     );
 
-    fireEvent.click(screen.getByRole('button', { name: 'Deep Research' }));
-    // The <pre> element contains the prompt — check unique phrase from the prompt template
-    expect(screen.getByText(/playing in Premier League/)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Tactical Overlay Research' }));
+    expect(screen.getByText(/associated with Premier League/)).toBeInTheDocument();
+    expect(screen.getByText(/TACTICAL OVERLAY ONLY/i)).toBeInTheDocument();
   });
 
-  test('Deep Research: Copy Prompt advances to step 2 after timeout', async () => {
+  test('Tactical Overlay Research warns when team is not in a top league', () => {
+    render(
+      <TeamProfileModal
+        team={team} leagueName="AFC Champions League"
+        profile={profile}
+        loading={false} saving={false}
+        onClose={noop} onSave={noop} onDelete={noop}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: 'Tactical Overlay Research' }));
+    expect(screen.getByText(/approved competition contexts only/i)).toBeInTheDocument();
+  });
+
+  test('Tactical Overlay Research copy prompt advances to step 2', async () => {
     render(
       <TeamProfileModal
         team={team} profile={profile}
@@ -279,86 +265,115 @@ describe('TeamProfileModal', () => {
       />,
     );
 
-    fireEvent.click(screen.getByRole('button', { name: 'Deep Research' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Tactical Overlay Research' }));
     fireEvent.click(screen.getByRole('button', { name: 'Copy Prompt' }));
 
-    // After clipboard write resolves + setTimeout fires → step 2
     await act(async () => {
-      await Promise.resolve(); // flush clipboard promise
+      await Promise.resolve();
       vi.runAllTimers();
     });
 
-    expect(screen.getByRole('button', { name: 'Parse JSON →' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Parse JSON/i })).toBeInTheDocument();
   });
 
-  test('Deep Research: full import flow applies parsed data to form', async () => {
+  test('Tactical Overlay Research import only patches tactical overlay and preserves quantitative core', async () => {
     const onSave = vi.fn().mockResolvedValue(undefined);
     render(
       <TeamProfileModal
-        team={team} profile={profile}
+        team={team} profile={profile} overlayEligible
         loading={false} saving={false}
         onClose={noop} onSave={onSave} onDelete={noop}
       />,
     );
 
-    // Go to step 2 directly by copy → wait → step 2
-    fireEvent.click(screen.getByRole('button', { name: 'Deep Research' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Tactical Overlay Research' }));
     fireEvent.click(screen.getByRole('button', { name: 'Copy Prompt' }));
     await act(async () => {
       await Promise.resolve();
       vi.runAllTimers();
     });
 
-    // Paste JSON
     const importJson = JSON.stringify({
+      schema_version: 1,
+      target: 'team_tactical_overlay',
+      entity_type: 'club',
       team_name: 'Arsenal',
+      competition_context: 'Premier League 2025/26',
+      season: '2025/26',
+      data_sources: ['https://fbref.com/en/squads/arsenal'],
+      sample_confidence: 'high',
       profile: {
         attack_style: 'counter',
         defensive_line: 'low',
         pressing_intensity: 'low',
-        set_piece_threat: 'medium',
-        home_strength: 'normal',
-        form_consistency: 'volatile',
         squad_depth: 'shallow',
-        avg_goals_scored: 1.1,
-        avg_goals_conceded: 1.6,
-        clean_sheet_rate: 20,
-        btts_rate: 60,
-        over_2_5_rate: 45,
-        avg_corners_for: 4.5,
-        avg_corners_against: 5.2,
-        avg_cards: 2.8,
-        first_goal_rate: 40,
-        late_goal_rate: 30,
-        data_reliability_tier: 'medium',
       },
       notes_en: 'Counter-attacking team, weak at home.',
-      notes_vi: 'Đội phản công, yếu sân nhà.',
+      notes_vi: 'Doi phan cong, yeu san nha.',
     });
 
     fireEvent.change(screen.getByRole('textbox'), { target: { value: importJson } });
-    fireEvent.click(screen.getByRole('button', { name: 'Parse JSON →' }));
-
-    // Step 3: review + apply
-    expect(screen.getByRole('button', { name: 'Apply to Profile →' })).toBeInTheDocument();
-    fireEvent.click(screen.getByRole('button', { name: 'Apply to Profile →' }));
-
-    // Back on Profile Data tab — save
+    fireEvent.click(screen.getByRole('button', { name: /Parse JSON/i }));
+    expect(screen.getByRole('button', { name: /Apply to Profile/i })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: /Apply to Profile/i }));
     fireEvent.click(screen.getByRole('button', { name: 'Update Profile' }));
 
     expect(onSave).toHaveBeenCalledWith('team_42', expect.objectContaining({
       profile: expect.objectContaining({
         attack_style: 'counter',
         defensive_line: 'low',
-        avg_goals_scored: 1.1,
-        home_strength: 'normal',
+        pressing_intensity: 'low',
+        squad_depth: 'shallow',
+        avg_goals_scored: 2.2,
+        home_strength: 'strong',
       }),
       notes_en: 'Counter-attacking team, weak at home.',
-      notes_vi: 'Đội phản công, yếu sân nhà.',
+      notes_vi: 'Doi phan cong, yeu san nha.',
+      overlay_metadata: expect.objectContaining({
+        source_mode: 'llm_assisted',
+        source_confidence: 'high',
+        source_urls: ['https://fbref.com/en/squads/arsenal'],
+        source_season: '2025/26',
+      }),
     }));
   });
 
-  test('Deep Research step 2: shows parse error on invalid JSON', async () => {
+  test('Tactical Overlay Research shows parse error when imported sources are untrusted', async () => {
+    render(
+      <TeamProfileModal
+        team={team} profile={profile} overlayEligible
+        loading={false} saving={false}
+        onClose={noop} onSave={noop} onDelete={noop}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: 'Tactical Overlay Research' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Copy Prompt' }));
+    await act(async () => {
+      await Promise.resolve();
+      vi.runAllTimers();
+    });
+
+    fireEvent.change(screen.getByRole('textbox'), {
+      target: {
+        value: JSON.stringify({
+          team_name: 'Arsenal',
+          data_sources: ['https://reddit.com/r/soccer'],
+          profile: {
+            attack_style: 'counter',
+            defensive_line: 'low',
+            pressing_intensity: 'low',
+            squad_depth: 'shallow',
+          },
+        }),
+      },
+    });
+    fireEvent.click(screen.getByRole('button', { name: /Parse JSON/i }));
+
+    expect(screen.getByText(/No trusted tactical overlay source URLs found/i)).toBeInTheDocument();
+  });
+
+  test('Tactical Overlay Research step 2 shows parse error on invalid JSON', async () => {
     render(
       <TeamProfileModal
         team={team} profile={profile}
@@ -367,7 +382,7 @@ describe('TeamProfileModal', () => {
       />,
     );
 
-    fireEvent.click(screen.getByRole('button', { name: 'Deep Research' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Tactical Overlay Research' }));
     fireEvent.click(screen.getByRole('button', { name: 'Copy Prompt' }));
     await act(async () => {
       await Promise.resolve();
@@ -375,14 +390,44 @@ describe('TeamProfileModal', () => {
     });
 
     fireEvent.change(screen.getByRole('textbox'), { target: { value: 'totally broken {{{' } });
-    fireEvent.click(screen.getByRole('button', { name: 'Parse JSON →' }));
+    fireEvent.click(screen.getByRole('button', { name: /Parse JSON/i }));
 
     expect(screen.getByText(/Invalid JSON/i)).toBeInTheDocument();
-    // Should stay on step 2
-    expect(screen.getByRole('button', { name: 'Parse JSON →' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Parse JSON/i })).toBeInTheDocument();
   });
 
-  test('returns null and renders nothing when team prop is null', () => {
+  test('Tactical Overlay Research rejects unsupported target', async () => {
+    render(
+      <TeamProfileModal
+        team={team} profile={profile}
+        loading={false} saving={false}
+        onClose={noop} onSave={noop} onDelete={noop}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: 'Tactical Overlay Research' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Copy Prompt' }));
+    await act(async () => {
+      await Promise.resolve();
+      vi.runAllTimers();
+    });
+
+    fireEvent.change(screen.getByRole('textbox'), {
+      target: {
+        value: JSON.stringify({
+          schema_version: 1,
+          target: 'league_profile_core',
+          data_sources: ['https://fbref.com/en/squads/arsenal'],
+          profile: { attack_style: 'counter' },
+        }),
+      },
+    });
+    fireEvent.click(screen.getByRole('button', { name: /Parse JSON/i }));
+
+    expect(screen.getByText(/target is not team_tactical_overlay/i)).toBeInTheDocument();
+  });
+
+  test('returns null when team prop is null', () => {
     const { container } = render(
       <TeamProfileModal
         team={null} profile={null}

@@ -47,6 +47,10 @@ function matchesDomain(domain: string, candidate: string): boolean {
   return domain === candidate || domain.endsWith(`.${candidate}`);
 }
 
+function matchesBrand(domain: string, brands: readonly string[]): boolean {
+  return brands.some((brand) => domain.includes(brand));
+}
+
 export const strategicSourcePolicy: StrategicSourcePolicy = {
   officialDomains: mergeUnique(basePolicy.officialDomains, parseCsvEnv(process.env[STRATEGIC_SOURCE_POLICY_ENV_KEYS.officialDomains])),
   majorNewsDomains: mergeUnique(basePolicy.majorNewsDomains, parseCsvEnv(process.env[STRATEGIC_SOURCE_POLICY_ENV_KEYS.majorNewsDomains])),
@@ -69,6 +73,9 @@ export function classifyStrategicSourceDomain(domain: string): StrategicSourceCl
     return { trustTier: 'tier_1', sourceType: 'major_news' };
   }
   if (strategicSourcePolicy.statsReferenceDomains.some((candidate) => matchesDomain(normalizedDomain, candidate))) {
+    return { trustTier: 'tier_2', sourceType: 'stats_reference' };
+  }
+  if (matchesBrand(normalizedDomain, ['fotmob', 'flashscore', 'sofascore', 'transfermarkt', 'soccerway', 'whoscored', 'worldfootball'])) {
     return { trustTier: 'tier_2', sourceType: 'stats_reference' };
   }
   if (strategicSourcePolicy.aggregatorPatterns.some((pattern) => normalizedDomain.includes(pattern))) {

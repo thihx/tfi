@@ -6,6 +6,15 @@ import { describe, test, expect, vi, beforeAll, afterAll } from 'vitest';
 import { buildApp } from './helpers.js';
 import type { FastifyInstance } from 'fastify';
 
+const CURRENT_USER = {
+  userId: 'user-1',
+  email: 'user@example.com',
+  role: 'member' as const,
+  status: 'active' as const,
+  displayName: 'User',
+  avatarUrl: '',
+};
+
 // Mock config
 vi.mock('../config.js', () => ({
   config: {
@@ -68,6 +77,19 @@ vi.mock('../repos/provider-odds-cache.repo.js', () => ({
   upsertProviderOddsCache: vi.fn().mockResolvedValue(null),
 }));
 
+vi.mock('../lib/subscription-access.js', () => ({
+  resolveSubscriptionAccess: vi.fn().mockResolvedValue({
+    plan: { plan_code: 'free' },
+    entitlements: { 'ai.manual.ask.enabled': true, 'ai.manual.ask.daily_limit': 3 },
+  }),
+  consumeManualAiQuota: vi.fn().mockResolvedValue({ periodKey: '2026-03-31', limit: 3, used: 1 }),
+  sendEntitlementError: vi.fn().mockImplementation((error: unknown) => (
+    error instanceof Error && error.message === 'manual-ai-limit'
+      ? { statusCode: 429, payload: { error: 'Manual AI daily limit reached' } }
+      : null
+  )),
+}));
+
 // Mock global fetch for Gemini and Telegram
 const mockFetch = vi.fn();
 vi.stubGlobal('fetch', mockFetch);
@@ -76,7 +98,7 @@ let app: FastifyInstance;
 
 beforeAll(async () => {
   const { proxyRoutes } = await import('../routes/proxy.routes.js');
-  app = await buildApp(proxyRoutes);
+  app = await buildApp([proxyRoutes], { currentUser: CURRENT_USER });
 });
 
 afterAll(async () => {
@@ -188,6 +210,20 @@ describe('GET /api/proxy/football/league-fixtures', () => {
 });
 
 describe('POST /api/proxy/ai/analyze — error handling', () => {
+  test('returns an entitlement error when manual AI quota is exhausted', async () => {
+    const access = await import('../lib/subscription-access.js');
+    vi.mocked(access.consumeManualAiQuota).mockRejectedValueOnce(new Error('manual-ai-limit'));
+
+    const res = await app.inject({
+      method: 'POST',
+      url: '/api/proxy/ai/analyze',
+      payload: { prompt: 'test', provider: 'gemini', model: 'gemini-pro' },
+    });
+
+    expect(res.statusCode).toBe(429);
+    expect(res.json()).toEqual({ error: 'Manual AI daily limit reached' });
+  });
+
   test('returns 502 on Gemini API failure', async () => {
     mockFetch.mockResolvedValueOnce({
       ok: false,
@@ -229,6 +265,13 @@ describe('POST /api/proxy/ai/analyze — error handling', () => {
     });
     expect(res.statusCode).toBe(200);
     expect(res.json().text).toBe('AI response here');
+
+    const access = await import('../lib/subscription-access.js');
+    expect(access.consumeManualAiQuota).toHaveBeenCalledWith(
+      expect.objectContaining({ plan: { plan_code: 'free' } }),
+      'user-1',
+      expect.objectContaining({ provider: 'gemini', model: 'gemini-pro' }),
+    );
   });
 
   test('builds prompt on server when only matchId is provided', async () => {
@@ -245,6 +288,44 @@ describe('POST /api/proxy/ai/analyze — error handling', () => {
       forceAnalyze: true,
       modelOverride: 'gemini-pro',
     });
+
+    const auditLib = await import('../lib/audit.js');
+    expect(auditLib.audit).toHaveBeenCalledWith(expect.objectContaining({
+      category: 'PIPELINE',
+      action: 'PROMPT_ONLY_MATCH_ANALYZED',
+      actor: 'manual-ask-ai',
+      metadata: expect.objectContaining({
+        matchId: '12345',
+        provider: 'gemini',
+        model: 'gemini-pro',
+      }),
+    }));
+  });
+
+  test('bypasses Manual Ask AI quota for admin users', async () => {
+    const { proxyRoutes } = await import('../routes/proxy.routes.js');
+    const access = await import('../lib/subscription-access.js');
+    const adminApp = await buildApp([proxyRoutes], {
+      currentUser: {
+        ...CURRENT_USER,
+        userId: 'admin-1',
+        role: 'admin',
+      },
+    });
+
+    try {
+      vi.clearAllMocks();
+      const res = await adminApp.inject({
+        method: 'POST',
+        url: '/api/proxy/ai/analyze',
+        payload: { matchId: '12345', provider: 'gemini', model: 'gemini-pro', forceAnalyze: true },
+      });
+
+      expect(res.statusCode).toBe(200);
+      expect(access.consumeManualAiQuota).not.toHaveBeenCalled();
+    } finally {
+      await adminApp.close();
+    }
   });
 });
 

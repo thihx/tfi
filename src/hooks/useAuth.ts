@@ -1,6 +1,7 @@
 import { useState, useCallback, useEffect } from 'react';
 import {
   clearToken,
+  fetchCurrentUser,
   logout as doLogout,
   type AuthUser,
 } from '@/lib/services/auth';
@@ -32,6 +33,22 @@ export function useAuth() {
     return getAuthErrorMessage(hashParams.get('auth_error') ?? searchParams.get('auth_error'));
   });
 
+  const refreshUser = useCallback(async () => {
+    try {
+      const me = await fetchCurrentUser(API_URL || window.location.origin);
+      if (!me) {
+        setAuthed(false);
+        setUser(null);
+        return;
+      }
+      setAuthed(true);
+      setUser(me);
+    } catch {
+      setAuthed(false);
+      setUser(null);
+    }
+  }, []);
+
   // On mount: check URL auth params, then validate session from HttpOnly cookie via /api/auth/me.
   useEffect(() => {
     const searchParams = new URLSearchParams(window.location.search);
@@ -44,26 +61,8 @@ export function useAuth() {
     if (authSuccess || authError) {
       window.history.replaceState({}, '', window.location.pathname);
     }
-
-    fetch(internalApiUrl('/api/auth/me', API_URL || window.location.origin), {
-      headers: { Accept: 'application/json' },
-      credentials: 'include',
-    })
-      .then(async (res) => {
-        if (!res.ok) {
-          setAuthed(false);
-          setUser(null);
-          return;
-        }
-        const me = await res.json() as AuthUser;
-        setAuthed(true);
-        setUser(me);
-      })
-      .catch(() => {
-        setAuthed(false);
-        setUser(null);
-      });
-  }, []);
+    void refreshUser();
+  }, [refreshUser]);
 
   // Redirect to Google OAuth (full page redirect — backend handles the flow)
   const login = useCallback(() => {
@@ -78,5 +77,10 @@ export function useAuth() {
     setUser(null);
   }, []);
 
-  return { authed, user, error, login, logout };
+  const setCurrentUser = useCallback((nextUser: AuthUser | null) => {
+    setUser(nextUser);
+    setAuthed(nextUser != null);
+  }, []);
+
+  return { authed, user, error, login, logout, refreshUser, setCurrentUser };
 }

@@ -70,6 +70,12 @@ function getInitialDraft(profile: TeamProfile | null): TeamProfileDraft {
     profile: profile.profile,
     notes_en: profile.notes_en,
     notes_vi: profile.notes_vi,
+    overlay_metadata: {
+      source_mode: profile.tactical_overlay_source_mode ?? 'default_neutral',
+      source_confidence: profile.tactical_overlay_source_confidence ?? null,
+      source_urls: profile.tactical_overlay_source_urls ?? [],
+      source_season: profile.tactical_overlay_source_season ?? null,
+    },
   };
 }
 
@@ -209,7 +215,7 @@ type InnerTab = 'profile' | 'research';
 function InnerTabBar({ active, onChange }: { active: InnerTab; onChange: (t: InnerTab) => void }) {
   const tabs: { id: InnerTab; label: string }[] = [
     { id: 'profile',  label: 'Profile Data' },
-    { id: 'research', label: 'Deep Research' },
+    { id: 'research', label: 'Tactical Overlay Research' },
   ];
   return (
     <div style={{ display: 'flex', borderBottom: '1px solid var(--gray-200)', marginBottom: 16 }}>
@@ -388,6 +394,7 @@ function ProfileForm({
 interface TeamProfileModalProps {
   team: { id: string; name: string; logo?: string } | null;
   leagueName?: string;
+  overlayEligible?: boolean;
   profile: TeamProfile | null;
   loading: boolean;
   saving: boolean;
@@ -397,7 +404,7 @@ interface TeamProfileModalProps {
 }
 
 export function TeamProfileModal({
-  team, leagueName, profile, loading, saving, onClose, onSave, onDelete,
+  team, leagueName, overlayEligible = false, profile, loading, saving, onClose, onSave, onDelete,
 }: TeamProfileModalProps) {
   const [innerTab, setInnerTab] = useState<InnerTab>('profile');
   const [draft, setDraft] = useState<TeamProfileDraft>(() => getInitialDraft(profile));
@@ -424,7 +431,7 @@ export function TeamProfileModal({
   const handleParseJson = () => {
     setParseError('');
     try {
-      const result = parseImportedTeamProfile(jsonInput, team.name);
+      const result = parseImportedTeamProfile(jsonInput, team.name, draft);
       setParseResult(result);
       setWizardStep(3);
     } catch (err) {
@@ -491,13 +498,30 @@ export function TeamProfileModal({
           {/* Team info strip */}
           <div style={{
             display: 'grid',
-            gridTemplateColumns: `repeat(${leagueName && profile ? 3 : leagueName || profile ? 2 : 1}, minmax(0, 1fr))`,
+            gridTemplateColumns: `repeat(${
+              [
+                true,
+                !!leagueName,
+                !!profile,
+                !!(profile && profile.tactical_overlay_source_mode && profile.tactical_overlay_source_mode !== 'default_neutral'),
+              ].filter(Boolean).length
+            }, minmax(0, 1fr))`,
             gap: 8, marginBottom: 16,
           }}>
             {[
               { label: 'Team', value: team.name },
               ...(leagueName ? [{ label: 'League', value: leagueName }] : []),
               ...(profile ? [{ label: 'Last Updated', value: formatLocalDate(profile.updated_at) }] : []),
+              ...(profile && profile.tactical_overlay_source_mode && profile.tactical_overlay_source_mode !== 'default_neutral'
+                ? [{
+                    label: 'Overlay Source',
+                    value: [
+                      profile.tactical_overlay_source_mode.replace(/_/g, ' '),
+                      profile.tactical_overlay_source_confidence ? `(${profile.tactical_overlay_source_confidence})` : '',
+                      profile.tactical_overlay_source_season ? `- ${profile.tactical_overlay_source_season}` : '',
+                    ].filter(Boolean).join(' '),
+                  }]
+                : []),
             ].map(({ label, value }) => (
               <div key={label} style={{
                 padding: '8px 12px', borderRadius: 8,
@@ -521,8 +545,13 @@ export function TeamProfileModal({
 
               {wizardStep === 1 && (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                  {!overlayEligible && (
+                    <div style={{ padding: '8px 10px', background: '#fffbeb', border: '1px solid #fde68a', borderRadius: 6, fontSize: 12, color: '#92400e' }}>
+                      Tactical overlay refresh is intended for approved competition contexts only: top domestic leagues, continental club competitions, and major international tournaments or qualifiers. You can still review the prompt, but backend save validation may reject this context.
+                    </div>
+                  )}
                   <p style={{ fontSize: 13, color: 'var(--gray-600)' }}>
-                    Copy this prompt and paste it into an AI Deep Research tool (ChatGPT Deep Research, Gemini, Perplexity, etc.) to generate a data-backed team profile.
+                    Copy this prompt and paste it into an AI research tool (ChatGPT Deep Research, Gemini, Perplexity, etc.) to generate a tactical overlay with source audit. Quantitative core metrics stay unchanged.
                   </p>
                   <pre style={{
                     background: 'var(--gray-50)', border: '1px solid var(--gray-200)',
@@ -541,7 +570,7 @@ export function TeamProfileModal({
               {wizardStep === 2 && (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
                   <p style={{ fontSize: 13, color: 'var(--gray-600)' }}>
-                    Paste the JSON response from the AI tool below.
+                    Paste the JSON response from the AI tool below. The expected contract is versioned and target-specific so it stays aligned with the tactical overlay schema.
                   </p>
                   <textarea
                     value={jsonInput}
@@ -566,6 +595,11 @@ export function TeamProfileModal({
 
               {wizardStep === 3 && parseResult && (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+                  {parseResult.warnings.length > 0 && (
+                    <div style={{ padding: '8px 10px', background: '#fffbeb', border: '1px solid #fde68a', borderRadius: 6, fontSize: 12, color: '#92400e' }}>
+                      {parseResult.warnings.join(' ')}
+                    </div>
+                  )}
                   <ImportReview summary={parseResult.summary} repaired={parseResult.repaired} />
                   <div style={{ display: 'flex', gap: 8 }}>
                     <button className="btn btn-secondary" onClick={() => setWizardStep(2)}>← Back</button>

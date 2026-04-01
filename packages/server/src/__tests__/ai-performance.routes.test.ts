@@ -11,7 +11,12 @@ vi.mock('../repos/ai-performance.repo.js', () => ({
     total: 50,
     correct: 30,
     incorrect: 15,
+    push: 2,
+    void: 1,
+    neutral: 3,
     pending: 5,
+    pendingResult: 2,
+    reviewRequired: 3,
     accuracy: 0.667,
   }),
   getAccuracyByModel: vi.fn().mockResolvedValue([

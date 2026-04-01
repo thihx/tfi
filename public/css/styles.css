@@ -721,6 +721,12 @@ body {
     overflow-x: auto;
 }
 
+/* Card-layout variant must not create an overflow scroll context —
+   position:sticky on date-group rows requires a visible overflow ancestor */
+.table-container.table-cards {
+    overflow: visible !important;
+}
+
 .table-container.virtualized {
     max-height: 70vh;
     overflow-y: auto;
@@ -974,6 +980,18 @@ table tbody#watchlist-table td:not(.select-col) {
     background: #fee2e2 !important;
     color: #b91c1c !important;
 }
+
+/* ── Live match row/card indicator ───────────────────────────────────────── */
+@keyframes live-card-pulse {
+    0%, 100% { background-color: #ffffff; border-left-color: #ef4444; }
+    50%       { background-color: #fff5f5; border-left-color: rgba(239, 68, 68, 0.35); }
+}
+
+.match-is-live {
+    border-left: 3px solid #ef4444 !important;
+    animation: live-card-pulse 1.8s ease-in-out infinite;
+}
+/* ─────────────────────────────────────────────────────────────────────────── */
 
 @keyframes pulse {
     0%, 100% { opacity: 1; }
@@ -1734,6 +1752,10 @@ table td:last-child, table th:last-child {
         color: var(--gray-500);
         font-weight: 600;
     }
+
+.table-container.table-cards {
+    overflow: visible !important;
+}
 
 .table-container.table-cards table {
         border-collapse: separate;
@@ -2981,6 +3003,42 @@ table td:last-child, table th:last-child {
     flex-wrap: wrap;
 }
 
+.leagues-coverage-bar {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+    padding: 8px 16px;
+    background: linear-gradient(180deg, #fafbff 0%, #ffffff 100%);
+    border-bottom: 1px solid var(--gray-200);
+}
+
+.leagues-coverage-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 10px;
+    border: 1px solid var(--gray-200);
+    border-radius: 999px;
+    background: #fff;
+    font-size: 12px;
+    color: var(--gray-700);
+}
+
+.leagues-coverage-label {
+    color: var(--gray-500);
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.25px;
+}
+
+.leagues-coverage-note {
+    font-size: 12px;
+    color: var(--gray-500);
+    min-width: 220px;
+}
+
 .leagues-stat {
     display: flex;
     flex-direction: column;
@@ -3342,6 +3400,10 @@ table td:last-child, table th:last-child {
         padding: 7px 12px;
     }
 
+    .leagues-coverage-bar {
+        padding: 7px 12px;
+    }
+
     .leagues-stat-value {
         font-size: 13px;
     }
@@ -3403,6 +3465,9 @@ table td:last-child, table th:last-child {
    ============================================================ */
 
 tr.date-group-row td {
+    position: sticky !important;
+    top: var(--group-sticky-top, 160px) !important;
+    z-index: 50 !important;
     background: var(--gray-100) !important;
     padding: 4px 14px !important;
     font-size: 10px !important;
@@ -3616,6 +3681,64 @@ tbody tr.date-group-row:hover {
   margin-top: 3px;
 }
 
+.job-health-strip {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 8px;
+}
+
+.job-status-pill,
+.job-health-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 8px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1.3;
+}
+
+.job-status-pill {
+  background: var(--gray-200, #e5e7eb);
+  color: var(--gray-700, #374151);
+}
+
+.job-status-pill.status-success {
+  background: rgba(16, 185, 129, 0.12);
+  color: #047857;
+}
+
+.job-status-pill.status-failure {
+  background: rgba(239, 68, 68, 0.12);
+  color: #b91c1c;
+}
+
+.job-status-pill.status-skipped {
+  background: rgba(245, 158, 11, 0.15);
+  color: #92400e;
+}
+
+.job-health-chip {
+  background: var(--gray-100, #f3f4f6);
+  color: var(--gray-600, #4b5563);
+}
+
+.job-health-chip.warning {
+  background: rgba(245, 158, 11, 0.12);
+  color: #92400e;
+}
+
+.job-timestamps {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px 14px;
+  margin-top: 7px;
+  font-size: 11px;
+  color: var(--gray-500, #6b7280);
+}
+
 /* ==================== PAGE HEADER ==================== */
 .page-header {
     padding: 0 0 20px 0;
@@ -3721,6 +3844,89 @@ tbody tr.date-group-row:hover {
   font-weight: 500;
 }
 
+.job-history-panel {
+  margin-top: 10px;
+  border: 1px solid var(--gray-200, #e5e7eb);
+  border-radius: 8px;
+  background: #fff;
+  overflow: hidden;
+}
+
+.job-history-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 12px;
+  background: linear-gradient(180deg, #fafbfc 0%, #ffffff 100%);
+  border-bottom: 1px solid var(--gray-200, #e5e7eb);
+}
+
+.job-history-title {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--gray-800, #1f2937);
+}
+
+.job-history-subtitle {
+  margin-top: 2px;
+  font-size: 11px;
+  color: var(--gray-500, #6b7280);
+}
+
+.job-history-list {
+  display: flex;
+  flex-direction: column;
+}
+
+.job-history-row {
+  padding: 10px 12px;
+  border-top: 1px solid var(--gray-100, #f3f4f6);
+}
+
+.job-history-row:first-child {
+  border-top: none;
+}
+
+.job-history-row-main,
+.job-history-row-detail {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 12px;
+  align-items: center;
+}
+
+.job-history-row-detail {
+  margin-top: 6px;
+  font-size: 11px;
+  color: var(--gray-500, #6b7280);
+}
+
+.job-history-time {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--gray-800, #1f2937);
+}
+
+.job-history-meta {
+  font-size: 11px;
+  color: var(--gray-500, #6b7280);
+}
+
+.job-history-error {
+  color: var(--danger, #dc3545);
+}
+
+.job-history-empty {
+  padding: 14px 12px;
+  font-size: 12px;
+  color: var(--gray-500, #6b7280);
+}
+
+.job-history-empty.error {
+  color: var(--danger, #dc3545);
+}
+
 @media (max-width: 540px) {
   .job-header {
     flex-wrap: wrap;
@@ -3739,9 +3945,15 @@ tbody tr.date-group-row:hover {
   .job-actions {
     width: 100%;
     justify-content: flex-end;
+    flex-wrap: wrap;
   }
 
   .job-interval-select {
     flex: 1;
+  }
+
+  .job-history-toolbar {
+    flex-direction: column;
+    align-items: stretch;
   }
 }

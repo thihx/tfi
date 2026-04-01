@@ -102,6 +102,45 @@ describe('recommendations repository prompt versioning', () => {
     );
   });
 
+  test('review filter targets unresolved settlement rows instead of result pending rows', async () => {
+    vi.mocked(query)
+      .mockResolvedValueOnce({ rows: [] } as never)
+      .mockResolvedValueOnce({ rows: [{ count: '0' }] } as never);
+
+    await getAllRecommendations({ result: 'review' });
+
+    expect(query).toHaveBeenCalledWith(
+      expect.stringContaining("COALESCE(r.settlement_status, 'pending') = 'unresolved' AND r.result IN ('win','loss','push','half_win','half_loss','void')"),
+      expect.any(Array),
+    );
+  });
+
+  test('correct filter groups win and half_win together for dashboard parity', async () => {
+    vi.mocked(query)
+      .mockResolvedValueOnce({ rows: [] } as never)
+      .mockResolvedValueOnce({ rows: [{ count: '0' }] } as never);
+
+    await getAllRecommendations({ result: 'correct' });
+
+    expect(query).toHaveBeenCalledWith(
+      expect.stringContaining("r.result IN ('win', 'half_win')"),
+      expect.any(Array),
+    );
+  });
+
+  test('incorrect filter groups loss and half_loss together for dashboard parity', async () => {
+    vi.mocked(query)
+      .mockResolvedValueOnce({ rows: [] } as never)
+      .mockResolvedValueOnce({ rows: [{ count: '0' }] } as never);
+
+    await getAllRecommendations({ result: 'incorrect' });
+
+    expect(query).toHaveBeenCalledWith(
+      expect.stringContaining("r.result IN ('loss', 'half_loss')"),
+      expect.any(Array),
+    );
+  });
+
   test('allows explicit NO_BET filter without injecting default actionable exclusion', async () => {
     vi.mocked(query)
       .mockResolvedValueOnce({ rows: [] } as never)
@@ -127,7 +166,7 @@ describe('recommendations repository prompt versioning', () => {
 
   test('getStats excludes NO_BET rows from aggregate statistics', async () => {
     vi.mocked(query).mockResolvedValueOnce({
-      rows: [{ total: '10', wins: '4', losses: '3', pushes: '1', half_wins: '1', half_losses: '0', voids: '0', duplicates: '2', unsettled: '2', total_pnl: '5.5' }],
+      rows: [{ total: '10', wins: '5', losses: '3', pushes: '1', half_wins: '1', half_losses: '0', voids: '0', duplicates: '2', unsettled: '2', total_pnl: '5.5' }],
     } as never);
 
     const stats = await getStats();
@@ -136,16 +175,17 @@ describe('recommendations repository prompt versioning', () => {
       expect.stringContaining("bet_type IS DISTINCT FROM 'NO_BET'"),
     );
     expect(stats.total).toBe(10);
-    expect(stats.neutral_settled).toBe(2);
+    expect(stats.push_void_settled).toBe(1);
+    expect(stats.win_rate).toBe(62.5);
   });
 
-  test('getDashboardSummary surfaces neutral settled counts for dashboard display', async () => {
+  test('getDashboardSummary surfaces directional and push/void settled counts for dashboard display', async () => {
     vi.mocked(query)
       .mockResolvedValueOnce({
         rows: [{
           total: '14',
-          wins: '6',
-          losses: '4',
+          wins: '7',
+          losses: '5',
           pushes: '2',
           half_wins: '1',
           half_losses: '1',
@@ -195,11 +235,11 @@ describe('recommendations repository prompt versioning', () => {
     const summary = await getDashboardSummary();
 
     expect(summary.totalBets).toBe(14);
-    expect(summary.decisiveSettled).toBe(10);
-    expect(summary.neutralSettled).toBe(4);
+    expect(summary.directionalSettled).toBe(12);
+    expect(summary.pushVoidSettled).toBe(2);
     expect(summary.halfWins).toBe(1);
     expect(summary.halfLosses).toBe(1);
-    expect(summary.winRate).toBe(60);
+    expect(summary.winRate).toBeCloseTo(58.33, 2);
     expect(summary.roi).toBe(23.5);
     expect(summary.openExposureConcentration.stackedClusters).toBe(1);
     expect(summary.openExposureConcentration.stackedStake).toBe(9);

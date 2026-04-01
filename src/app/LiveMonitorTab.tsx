@@ -1,12 +1,11 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useAppState } from '@/hooks/useAppState';
-import { useToast } from '@/hooks/useToast';
 import { formatLocalDateTime } from '@/lib/utils/helpers';
 import {
   fetchLiveMonitorStatus,
   getParsedAiResult,
-  triggerCheckLiveRun,
   type LiveMonitorStatusResponse,
+  type LiveMonitorTarget,
   type ServerMatchPipelineResult,
 } from '@/features/live-monitor/services/server-monitor.service';
 
@@ -68,6 +67,96 @@ function prematchStrengthBadgeClass(
     default:
       return 'badge-pending';
   }
+}
+
+function candidateReasonLabel(reason: string): string {
+  switch (reason) {
+    case 'not_live':
+      return 'Not live yet';
+    case 'force_analyze':
+      return 'Forced by monitor mode';
+    case 'minute_unknown':
+      return 'Minute unavailable, analyze once';
+    case 'first_analysis':
+      return 'No prior baseline, first analysis';
+    case 'phase_changed':
+      return 'Match phase changed';
+    case 'score_changed':
+      return 'Score changed';
+    case 'time_elapsed':
+      return 'Cooldown elapsed, re-check now';
+    case 'no_significant_change':
+      return 'No meaningful change since last baseline';
+    default:
+      return reason.replace(/_/g, ' ');
+  }
+}
+
+function baselineLabel(baseline: LiveMonitorTarget['baseline']): string {
+  switch (baseline) {
+    case 'recommendation':
+      return 'Recommendation';
+    case 'snapshot':
+      return 'Snapshot';
+    default:
+      return 'None';
+  }
+}
+
+function ScopeRow({ target }: { target: LiveMonitorTarget }) {
+  return (
+    <div style={{ borderBottom: '1px solid var(--gray-100)', padding: '14px 16px' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', gap: '16px', alignItems: 'flex-start' }}>
+        <div style={{ minWidth: 0, flex: 1 }}>
+          <div style={{ display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap', marginBottom: '4px' }}>
+            <strong style={{ fontSize: '13px' }}>{target.matchDisplay}</strong>
+            <span className={`badge ${target.candidate ? 'badge-active' : target.live ? 'badge-pending' : 'badge-draw'}`}>
+              {target.candidate ? 'AI Candidate' : target.live ? 'Watching Live' : 'Waiting for Kickoff'}
+            </span>
+            <span className="badge badge-pending">Mode {target.mode}</span>
+            {target.customConditions ? <span className="badge badge-draw">Custom Condition</span> : null}
+            {target.recommendedCondition ? <span className="badge badge-pending">AI Suggested Condition</span> : null}
+          </div>
+          <div style={{ fontSize: '13px', color: 'var(--gray-700)' }}>
+            {[target.league, target.minute != null ? `${target.minute}'` : null, target.score, target.status]
+              .filter(Boolean)
+              .join(' | ')}
+          </div>
+          <div style={{ fontSize: '12px', color: 'var(--gray-500)', marginTop: '4px' }}>
+            {target.candidate
+              ? 'Will go to AI on the next engine run.'
+              : target.live
+                ? 'Tracked live, but not sent to AI yet.'
+                : 'This match is in the system monitoring pool but is not live yet.'}
+          </div>
+          {target.customConditions && (
+            <div style={{ fontSize: '12px', color: 'var(--gray-600)', marginTop: '6px' }}>
+              <strong>Custom condition:</strong> {target.customConditions}
+            </div>
+          )}
+          {!target.customConditions && target.recommendedCondition && (
+            <div style={{ fontSize: '12px', color: 'var(--gray-600)', marginTop: '6px' }}>
+              <strong>AI suggested condition:</strong> {target.recommendedCondition}
+            </div>
+          )}
+          <div style={{ fontSize: '12px', color: 'var(--gray-500)', marginTop: '6px' }}>
+            {candidateReasonLabel(target.candidateReason)} | Baseline {baselineLabel(target.baseline)}
+          </div>
+        </div>
+        <div style={{ textAlign: 'right', minWidth: '120px' }}>
+          <div style={{ fontSize: '12px', color: 'var(--gray-500)' }}>Priority</div>
+          <div style={{ fontWeight: 700, color: 'var(--gray-700)' }}>{target.priority}</div>
+          <div style={{ fontSize: '12px', color: 'var(--gray-500)', marginTop: '8px' }}>Checks</div>
+          <div style={{ fontWeight: 700, color: 'var(--gray-700)' }}>{target.totalChecks}</div>
+          {target.lastChecked && (
+            <div style={{ fontSize: '11px', color: 'var(--gray-500)', marginTop: '4px' }}>
+              Last checked {formatLocalDateTime(target.lastChecked)}
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
 }
 
 function ProgressCard({ status }: { status: LiveMonitorStatusResponse }) {
@@ -221,11 +310,9 @@ function ResultRow({ result }: { result: ServerMatchPipelineResult }) {
 
 export function LiveMonitorTab() {
   const { state } = useAppState();
-  const { showToast } = useToast();
   const [status, setStatus] = useState<LiveMonitorStatusResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [refreshError, setRefreshError] = useState('');
-  const [triggering, setTriggering] = useState(false);
 
   const loadStatus = useCallback(async () => {
     setRefreshError('');
@@ -250,19 +337,6 @@ export function LiveMonitorTab() {
     }, intervalMs);
     return () => window.clearInterval(timer);
   }, [loadStatus, status?.job.running]);
-
-  const handleRunNow = useCallback(async () => {
-    setTriggering(true);
-    try {
-      await triggerCheckLiveRun(state.config);
-      showToast('Live monitor job triggered', 'success');
-      await loadStatus();
-    } catch (error) {
-      showToast(error instanceof Error ? error.message : 'Failed to trigger live monitor job', 'error');
-    } finally {
-      setTriggering(false);
-    }
-  }, [loadStatus, showToast, state.config]);
 
   const sortedResults = useMemo(() => {
     return [...(status?.results || [])].sort((left, right) => {
@@ -305,14 +379,6 @@ export function LiveMonitorTab() {
       <div className="card" style={{ marginBottom: '16px' }}>
         <div className="card-header">
           <div className="card-title">Live Monitor Dashboard</div>
-          <div style={{ display: 'flex', gap: '8px' }}>
-            <button className="btn btn-secondary btn-sm" onClick={() => void loadStatus()} disabled={triggering}>
-              Refresh
-            </button>
-            <button className="btn btn-primary btn-sm" onClick={handleRunNow} disabled={triggering || status?.job.running}>
-              {triggering ? 'Triggering...' : status?.job.running ? 'Running...' : 'Run Check Live'}
-            </button>
-          </div>
         </div>
         <div style={{ padding: '20px' }}>
           <div className="monitor-stats-row">
@@ -322,7 +388,7 @@ export function LiveMonitorTab() {
             <SummaryStat label="Last Run" value={formatLocalDateTime(status?.job.lastRun ?? null)} />
           </div>
           <p style={{ margin: '14px 0 0', color: 'var(--gray-500)', fontSize: '13px' }}>
-            This screen is read-only for pipeline execution. Scheduling and thresholds remain owned by the server engine and are configured in Settings.
+            The server engine monitors watched live matches automatically. This screen refreshes itself and shows what is currently being watched, what is ready for AI, and why a live match is still waiting.
           </p>
           {refreshError && (
             <p style={{ margin: '10px 0 0', color: 'var(--danger)', fontSize: '13px' }}>{refreshError}</p>
@@ -336,6 +402,51 @@ export function LiveMonitorTab() {
       {status && <ProgressCard status={status} />}
 
       <div className="card" style={{ marginBottom: '16px' }}>
+        <div className="card-header">
+          <div className="card-title">Monitoring Scope</div>
+        </div>
+        <div style={{ padding: '20px' }}>
+          {status ? (
+            <div className="monitor-stats-row">
+              <SummaryStat label="My Watchlist" value={state.watchlist.length} />
+              <SummaryStat label="System Pool" value={status.monitoring.activeWatchCount} />
+              <SummaryStat label="Live Now" value={status.monitoring.liveWatchCount} />
+              <SummaryStat label="AI Candidates" value={status.monitoring.candidateCount} color={status.monitoring.candidateCount > 0 ? 'var(--success)' : undefined} />
+            </div>
+          ) : (
+            <p style={{ margin: 0, color: 'var(--gray-500)', fontSize: '13px' }}>
+              No monitoring scope is available yet.
+            </p>
+          )}
+          {status && (
+            <p style={{ margin: '12px 0 0', color: 'var(--gray-500)', fontSize: '13px' }}>
+              `My Watchlist` is your personal list. `System Pool` is the shared operational watchlist the live engine monitors across the system.
+            </p>
+          )}
+        </div>
+      </div>
+
+      <div className="card" style={{ overflow: 'hidden', marginBottom: '16px' }}>
+        <div className="card-header">
+          <div className="card-title">System Monitoring Pool</div>
+          <small style={{ color: 'var(--gray-500)' }}>
+            {status?.monitoring.targets.length ?? 0} match{status?.monitoring.targets.length === 1 ? '' : 'es'}
+          </small>
+        </div>
+        {status && status.monitoring.targets.length > 0 ? (
+          <div>
+            {status.monitoring.targets.map((target) => (
+              <ScopeRow key={`${target.matchId}-${target.mode}-${target.lastChecked ?? 'never'}`} target={target} />
+            ))}
+          </div>
+        ) : (
+          <div style={{ padding: '28px 20px', textAlign: 'center', color: 'var(--gray-500)' }}>
+            No active matches are currently in the system monitoring pool.
+          </div>
+        )}
+      </div>
+
+      <div className="card" style={{ overflow: 'hidden' }}>
         <div className="card-header">
           <div className="card-title">Latest Run Summary</div>
         </div>
@@ -362,7 +473,7 @@ export function LiveMonitorTab() {
         </div>
       </div>
 
-      <div className="card" style={{ overflow: 'hidden' }}>
+      <div className="card" style={{ overflow: 'hidden', marginTop: '16px' }}>
         <div className="card-header">
           <div className="card-title">Latest Match Results</div>
           <small style={{ color: 'var(--gray-500)' }}>{sortedResults.length} result{sortedResults.length === 1 ? '' : 's'}</small>

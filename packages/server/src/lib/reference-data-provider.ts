@@ -1,6 +1,7 @@
 import {
   fetchAllLeagues,
   fetchFixturesByLeague,
+  fetchFixturesForLeagueSeason,
   fetchLeagueById,
   fetchTeamsByLeagueWithSeason,
   type ApiFixture,
@@ -11,6 +12,7 @@ import { getRedisClient } from './redis.js';
 
 const LEAGUE_CATALOG_TTL_SEC = 12 * 60 * 60;
 const LEAGUE_FIXTURES_TTL_SEC = 2 * 60;
+const LEAGUE_SEASON_FIXTURES_TTL_SEC = 12 * 60 * 60;
 const LEAGUE_TEAM_DIRECTORY_PROVIDER_TTL_SEC = 6 * 60 * 60;
 
 const inFlight = new Map<string, Promise<unknown>>();
@@ -41,6 +43,10 @@ function leagueTeamsKey(leagueId: number): string {
 
 function leagueFixturesKey(leagueId: number, season: number, next: number): string {
   return `cache:reference-data:league-fixtures:${leagueId}:${season}:${next}`;
+}
+
+function leagueSeasonFixturesKey(leagueId: number, season: number): string {
+  return `cache:reference-data:league-season-fixtures:${leagueId}:${season}`;
 }
 
 async function readCache<T>(key: string): Promise<T | null> {
@@ -123,6 +129,19 @@ export async function fetchLeagueFixturesFromReferenceProvider(
     leagueFixturesKey(leagueId, season, next),
     LEAGUE_FIXTURES_TTL_SEC,
     () => fetchFixturesByLeague(leagueId, season, next),
+    options,
+  );
+}
+
+export async function fetchLeagueSeasonFixturesFromReferenceProvider(
+  leagueId: number,
+  season: number,
+  options: { force?: boolean } = {},
+): Promise<ApiFixture[]> {
+  return cachedFetch(
+    leagueSeasonFixturesKey(leagueId, season),
+    LEAGUE_SEASON_FIXTURES_TTL_SEC,
+    () => fetchFixturesForLeagueSeason(leagueId, season),
     options,
   );
 }

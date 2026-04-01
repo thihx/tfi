@@ -146,4 +146,23 @@ describe('updatePredictionsJob', () => {
     expect(result.checked).toBe(1);
     expect(vi.mocked(providerInsight.ensureFixturePrediction)).toHaveBeenCalledWith('100', expect.objectContaining({ status: 'NS' }));
   });
+
+  test('prioritizes earlier kickoff matches first when backlog exists', async () => {
+    const matchRepo = await import('../repos/matches.repo.js');
+    vi.mocked(matchRepo.getAllMatches).mockResolvedValueOnce([
+      { match_id: '300', status: 'NS', kickoff_at_utc: '2026-03-31T21:00:00.000Z' },
+      { match_id: '100', status: 'NS', kickoff_at_utc: '2026-03-31T18:00:00.000Z' },
+    ] as never);
+
+    const watchlistRepo = await import('../repos/watchlist.repo.js');
+    vi.mocked(watchlistRepo.getActiveOperationalWatchlist).mockResolvedValueOnce([
+      { match_id: '300', home_team: 'Barca', away_team: 'Real', prediction: null },
+      { match_id: '100', home_team: 'Arsenal', away_team: 'Chelsea', prediction: null },
+    ] as never);
+
+    const providerInsight = await import('../lib/provider-insight-cache.js');
+    await updatePredictionsJob();
+
+    expect(vi.mocked(providerInsight.ensureFixturePrediction).mock.calls.map((call) => call[0])).toEqual(['100', '300']);
+  });
 });

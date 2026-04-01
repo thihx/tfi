@@ -22,22 +22,22 @@ const league: League = {
 const profile: LeagueProfile = {
   league_id: 39,
   profile: {
-    tempo_tier:            'high',
-    goal_tendency:         'high',
-    home_advantage_tier:   'balanced',
-    corners_tendency:      'balanced',
-    cards_tendency:        'low',
-    volatility_tier:       'low',
+    tempo_tier: 'high',
+    goal_tendency: 'high',
+    home_advantage_tier: 'balanced',
+    corners_tendency: 'balanced',
+    cards_tendency: 'low',
+    volatility_tier: 'low',
     data_reliability_tier: 'high',
-    avg_goals:             2.95,
-    over_2_5_rate:         61,
-    btts_rate:             57,
+    avg_goals: 2.95,
+    over_2_5_rate: 61,
+    btts_rate: 57,
     late_goal_rate_75_plus: 31,
-    avg_corners:           9.8,
-    avg_cards:             3.7,
+    avg_corners: 9.8,
+    avg_cards: 3.7,
   },
   notes_en: 'Fast and open league.',
-  notes_vi: 'Giai dau co toc do cao.',
+  notes_vi: 'Giải đấu có tốc độ cao.',
   created_at: '2026-03-22T00:00:00Z',
   updated_at: '2026-03-22T00:00:00Z',
 };
@@ -108,34 +108,9 @@ describe('LeagueProfileModal', () => {
       />,
     );
 
-    // Tempo slider: 'high' = index 2
-    const tempoSlider = screen.getByRole('slider', { name: 'Tempo' }) as HTMLInputElement;
-    expect(tempoSlider.value).toBe('2');
-
-    // Cards slider: 'low' = index 0
-    const cardsSlider = screen.getByRole('slider', { name: 'Cards' }) as HTMLInputElement;
-    expect(cardsSlider.value).toBe('0');
-
-    // Data Reliability slider: 'high' = index 2
-    const reliabilitySlider = screen.getByRole('slider', { name: 'Data Reliability' }) as HTMLInputElement;
-    expect(reliabilitySlider.value).toBe('2');
-  });
-
-  test('renders stat inputs with correct initial numeric values', () => {
-    render(
-      <LeagueProfileModal
-        league={league}
-        profile={profile}
-        loading={false}
-        saving={false}
-        onClose={() => {}}
-        onSave={() => {}}
-        onDelete={() => {}}
-      />,
-    );
-
-    const avgGoalsInput = screen.getByLabelText(/^avg goals/i) as HTMLInputElement;
-    expect(avgGoalsInput.value).toBe('2.95');
+    expect((screen.getByRole('slider', { name: 'Tempo' }) as HTMLInputElement).value).toBe('2');
+    expect((screen.getByRole('slider', { name: 'Cards' }) as HTMLInputElement).value).toBe('0');
+    expect((screen.getByRole('slider', { name: 'Data Reliability' }) as HTMLInputElement).value).toBe('2');
   });
 
   test('calls onSave with updated stat value', () => {
@@ -152,8 +127,7 @@ describe('LeagueProfileModal', () => {
       />,
     );
 
-    const avgGoalsInput = screen.getByLabelText(/^avg goals/i);
-    fireEvent.change(avgGoalsInput, { target: { value: '3.10' } });
+    fireEvent.change(screen.getByLabelText(/^avg goals/i), { target: { value: '3.10' } });
     fireEvent.click(screen.getByRole('button', { name: 'Update Profile' }));
 
     expect(onSave).toHaveBeenCalledWith(expect.objectContaining({
@@ -176,11 +150,9 @@ describe('LeagueProfileModal', () => {
       />,
     );
 
-    // Move Tempo slider from index 2 (high) to index 1 (balanced)
-    const tempoSlider = screen.getByRole('slider', { name: 'Tempo' });
-    fireEvent.change(tempoSlider, { target: { value: '1' } });
-
+    fireEvent.change(screen.getByRole('slider', { name: 'Tempo' }), { target: { value: '1' } });
     fireEvent.click(screen.getByRole('button', { name: 'Update Profile' }));
+
     expect(onSave).toHaveBeenCalledWith(expect.objectContaining({
       profile: expect.objectContaining({ tempo_tier: 'balanced' }),
     }));
@@ -252,14 +224,12 @@ describe('LeagueProfileModal', () => {
       />,
     );
 
-    // All sliders default to 'balanced' = index 1
-    const sliders = screen.getAllByRole('slider');
-    sliders.forEach((slider) => {
+    screen.getAllByRole('slider').forEach((slider) => {
       expect((slider as HTMLInputElement).value).toBe('1');
     });
   });
 
-  test('Deep Research tab shows prompt template', () => {
+  test('shows auto-derived core message and no Deep Research tab', () => {
     render(
       <LeagueProfileModal
         league={league}
@@ -272,128 +242,7 @@ describe('LeagueProfileModal', () => {
       />,
     );
 
-    fireEvent.click(screen.getByRole('button', { name: 'Deep Research' }));
-
-    const promptArea = screen.getByLabelText('Deep Research Prompt Template') as HTMLTextAreaElement;
-    expect(promptArea.value).toContain('Create exactly one betting-oriented league profile');
-    expect(promptArea.value).toContain('- league_name: Premier League');
-    expect(promptArea.value).toContain('"low|balanced|high"');
-  });
-
-  test('Deep Research wizard: parses JSON and applies to profile', async () => {
-    const onSave = vi.fn();
-    render(
-      <LeagueProfileModal
-        league={league}
-        profile={profile}
-        loading={false}
-        saving={false}
-        onClose={() => {}}
-        onSave={onSave}
-        onDelete={() => {}}
-      />,
-    );
-
-    // Switch to Deep Research tab
-    fireEvent.click(screen.getByRole('button', { name: 'Deep Research' }));
-
-    // Step 1 → Step 2
-    fireEvent.click(screen.getByRole('button', { name: /I've got the JSON result/i }));
-
-    // Paste JSON
-    const importedJson = {
-      league_id: 39,
-      league_name: 'Premier League',
-      country: 'England',
-      sample_confidence: 'high',
-      qualitative_profile: {
-        tempo_tier: 'high',
-        goal_tendency: 'high',
-        home_advantage_tier: 'balanced',
-        corners_tendency: 'high',
-        cards_tendency: 'low',
-        volatility_tier: 'low',
-        data_reliability_tier: 'high',
-      },
-      quantitative_verified: {
-        avg_goals: 3.12,
-        over_2_5_rate: 0.635,
-        btts_rate: 0.582,
-        late_goal_rate_75_plus: 0.301,
-        avg_corners: 10.2,
-        avg_cards: 3.9,
-      },
-      notes_en: 'Fast and open with strong late-game tempo.',
-      notes_vi: 'Toc do cao va cuoi tran thuong mo.',
-    };
-
-    fireEvent.change(screen.getByLabelText('Import League Profile JSON'), {
-      target: { value: JSON.stringify(importedJson) },
-    });
-
-    // Validate & proceed to step 3
-    fireEvent.click(screen.getByRole('button', { name: /validate & continue/i }));
-
-    // Apply import
-    fireEvent.click(screen.getByRole('button', { name: /apply to profile/i }));
-
-    // Now save
-    fireEvent.click(screen.getByRole('button', { name: 'Update Profile' }));
-
-    expect(onSave).toHaveBeenCalledWith(expect.objectContaining({
-      profile: expect.objectContaining({
-        tempo_tier: 'high',
-        avg_goals: 3.12,
-      }),
-      notes_en: 'Fast and open with strong late-game tempo.',
-    }));
-  });
-
-  test('Deep Research wizard: shows error for invalid JSON', () => {
-    render(
-      <LeagueProfileModal
-        league={league}
-        profile={profile}
-        loading={false}
-        saving={false}
-        onClose={() => {}}
-        onSave={() => {}}
-        onDelete={() => {}}
-      />,
-    );
-
-    fireEvent.click(screen.getByRole('button', { name: 'Deep Research' }));
-    fireEvent.click(screen.getByRole('button', { name: /I've got the JSON result/i }));
-
-    fireEvent.change(screen.getByLabelText('Import League Profile JSON'), {
-      target: { value: 'not valid json {{{' },
-    });
-    fireEvent.click(screen.getByRole('button', { name: /validate & continue/i }));
-
-    expect(screen.getByText(/could not be auto-repaired/i)).toBeInTheDocument();
-  });
-
-  test('Deep Research wizard: rejects JSON for wrong league', () => {
-    render(
-      <LeagueProfileModal
-        league={league}
-        profile={profile}
-        loading={false}
-        saving={false}
-        onClose={() => {}}
-        onSave={() => {}}
-        onDelete={() => {}}
-      />,
-    );
-
-    fireEvent.click(screen.getByRole('button', { name: 'Deep Research' }));
-    fireEvent.click(screen.getByRole('button', { name: /I've got the JSON result/i }));
-
-    fireEvent.change(screen.getByLabelText('Import League Profile JSON'), {
-      target: { value: JSON.stringify({ league_name: 'Bundesliga', country: 'Germany' }) },
-    });
-    fireEvent.click(screen.getByRole('button', { name: /validate & continue/i }));
-
-    expect(screen.getByText(/Imported profile is for/i)).toBeInTheDocument();
+    expect(screen.getByText(/auto-derived from structured historical data/i)).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Deep Research' })).not.toBeInTheDocument();
   });
 });

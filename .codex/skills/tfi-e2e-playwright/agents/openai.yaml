@@ -1,0 +1,4 @@
+interface:
+  display_name: "TFI E2E"
+  short_description: "Run and debug TFI Playwright E2E safely."
+  default_prompt: "Use $tfi-e2e-playwright to run or debug the TFI Playwright suite with the right auth bootstrap and current UI labels."

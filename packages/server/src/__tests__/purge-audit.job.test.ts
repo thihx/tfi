@@ -41,6 +41,9 @@ vi.mock('../repos/prompt-shadow-runs.repo.js', () => ({
 vi.mock('../repos/pipeline-runs.repo.js', () => ({
   purgePipelineRuns: vi.fn().mockResolvedValue(3),
 }));
+vi.mock('../repos/job-runs.repo.js', () => ({
+  purgeJobRuns: vi.fn().mockResolvedValue(4),
+}));
 vi.mock('../repos/recommendations.repo.js', () => ({
   slimOldRecommendations: vi.fn().mockResolvedValue(20),
 }));
@@ -69,12 +72,13 @@ describe('housekeepingJob', () => {
     expect(result.oddsMovementsDeleted).toBe(13);
     expect(result.promptShadowDeleted).toBe(6);
     expect(result.pipelineRunsDeleted).toBe(3);
+    expect(result.jobRunHistoryDeleted).toBe(4);
     expect(result.recommendationDeliveriesDeleted).toBe(0);
     expect(result.recommendationsSlimmed).toBe(20);
     expect(result.aiPerfAggregated).toBe(4);
     expect(result.aiPerfDeleted).toBe(8);
     // totalDeleted excludes slimmed (UPDATE not DELETE) but includes aiPerfDeleted
-    expect(result.totalDeleted).toBe(42 + 5 + 9 + 7 + 11 + 13 + 6 + 3 + 8);
+    expect(result.totalDeleted).toBe(42 + 5 + 9 + 7 + 11 + 13 + 6 + 3 + 4 + 8);
 
     expect(result.keepDays).toMatchObject({
       audit: 30,
@@ -85,6 +89,7 @@ describe('housekeepingJob', () => {
       oddsMovements: 30,
       promptShadow: 14,
       pipelineRuns: 14,
+      jobRunHistory: 30,
       recommendationDeliveries: 0,
       recommendationsSlim: 365,
       aiPerformance: 365,
@@ -96,6 +101,8 @@ describe('housekeepingJob', () => {
 
     const pipelineRepo = await import('../repos/pipeline-runs.repo.js');
     expect(pipelineRepo.purgePipelineRuns).toHaveBeenCalledWith(14);
+    const jobRunsRepo = await import('../repos/job-runs.repo.js');
+    expect(jobRunsRepo.purgeJobRuns).toHaveBeenCalledWith(30);
 
     const deliveriesRepo = await import('../repos/recommendation-deliveries.repo.js');
     expect(deliveriesRepo.purgeOldDeliveries).not.toHaveBeenCalled();
@@ -116,6 +123,7 @@ describe('housekeepingJob', () => {
     const oddsRepo = await import('../repos/odds-movements.repo.js');
     const promptShadowRepo = await import('../repos/prompt-shadow-runs.repo.js');
     const pipelineRepo = await import('../repos/pipeline-runs.repo.js');
+    const jobRunsRepo = await import('../repos/job-runs.repo.js');
     const recsRepo = await import('../repos/recommendations.repo.js');
     const aiRepo = await import('../repos/ai-performance.repo.js');
     const deliveriesRepo = await import('../repos/recommendation-deliveries.repo.js');
@@ -127,6 +135,7 @@ describe('housekeepingJob', () => {
     vi.mocked(oddsRepo.purgeOddsMovements).mockResolvedValueOnce(0);
     vi.mocked(promptShadowRepo.purgePromptShadowRuns).mockResolvedValueOnce(0);
     vi.mocked(pipelineRepo.purgePipelineRuns).mockResolvedValueOnce(0);
+    vi.mocked(jobRunsRepo.purgeJobRuns).mockResolvedValueOnce(0);
     vi.mocked(deliveriesRepo.purgeOldDeliveries).mockResolvedValueOnce(0);
     vi.mocked(recsRepo.slimOldRecommendations).mockResolvedValueOnce(0);
     vi.mocked(aiRepo.aggregateAndPurgeOldAiPerformance).mockResolvedValueOnce({ aggregated: 0, deleted: 0 });

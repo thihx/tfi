@@ -64,6 +64,11 @@ vi.mock('@/hooks/useToast', () => ({
   useToast: () => ({ showToast: mockShowToast }),
 }));
 
+vi.mock('@/lib/services/api', () => ({
+  fetchLeagueProfile: vi.fn().mockResolvedValue(null),
+  fetchTeamProfile: vi.fn().mockResolvedValue(null),
+}));
+
 // ── Helpers ───────────────────────────────────────────
 
 /** Get visible team name texts from the table body */
@@ -88,6 +93,15 @@ const { WatchlistTab } = await import('./WatchlistTab');
 beforeEach(() => {
   vi.clearAllMocks();
   mockWatchlist = ALL_ITEMS;
+});
+
+beforeAll(() => {
+  class ResizeObserverMock {
+    observe() {}
+    disconnect() {}
+    unobserve() {}
+  }
+  vi.stubGlobal('ResizeObserver', ResizeObserverMock);
 });
 
 describe('WatchlistTab — status filtering', () => {
@@ -204,6 +218,34 @@ describe('WatchlistTab — edit flow', () => {
 
     expect(mockUpdateWatchlistItem).toHaveBeenCalledWith(
       expect.objectContaining({ id: 11, match_id: '100' }),
+    );
+  });
+
+  it('passes auto-apply override when saving an edited watchlist item', async () => {
+    const user = userEvent.setup();
+    mockWatchlist = [makeItem({
+      id: 11,
+      match_id: '100',
+      home_team: 'Arsenal',
+      away_team: 'Chelsea',
+      status: 'active',
+      custom_conditions: '(Minute >= 55) AND (Total goals <= 1)',
+      auto_apply_recommended_condition: true,
+      recommended_custom_condition: '(Minute >= 60) AND (NOT Home leading)',
+    })];
+
+    render(<WatchlistTab />);
+
+    await user.click(screen.getByRole('button', { name: 'Edit' }));
+    await user.click(await screen.findByLabelText('Auto-apply recommended condition for this match'));
+    await user.click(screen.getByRole('button', { name: 'Save Changes' }));
+
+    expect(mockUpdateWatchlistItem).toHaveBeenCalledWith(
+      expect.objectContaining({
+        id: 11,
+        match_id: '100',
+        auto_apply_recommended_condition: false,
+      }),
     );
   });
 });

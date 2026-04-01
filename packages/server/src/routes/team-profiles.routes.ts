@@ -5,9 +5,13 @@ import {
   getTeamProfileByTeamId,
   upsertTeamProfile,
   deleteTeamProfile,
+  flattenTeamProfileRow,
+  getTacticalOverlayEligibilityForTeam,
   type TeamProfileData,
+  type TeamProfileOverlayMetadataInput,
   type TeamProfileInput,
 } from '../repos/team-profiles.repo.js';
+import { classifyStrategicSourceDomain } from '../config/strategic-source-policy.js';
 
 // ── Validation helpers ───────────────────────────────────────────────────────
 
@@ -25,6 +29,86 @@ function readNullableNum(v: unknown): number | null {
   if (v == null || v === '') return null;
   const n = Number(v);
   return Number.isFinite(n) && n >= 0 ? n : null;
+}
+
+function normalizeTrustedOverlaySourceUrls(rawUrls: string[] | undefined): string[] {
+  if (!rawUrls) return [];
+  const trusted = new Set<string>();
+  for (const entry of rawUrls) {
+    if (typeof entry !== 'string') continue;
+    const trimmed = entry.trim();
+    if (!trimmed) continue;
+    try {
+      const url = new URL(trimmed);
+      const protocol = url.protocol.toLowerCase();
+      if (protocol !== 'https:' && protocol !== 'http:') continue;
+      const classification = classifyStrategicSourceDomain(url.hostname.toLowerCase());
+      if (classification.trustTier === 'tier_1' || classification.trustTier === 'tier_2') {
+        trusted.add(url.toString());
+      }
+    } catch {
+      continue;
+    }
+  }
+  return [...trusted].slice(0, 12);
+}
+
+function validateOverlayMetadata(raw: unknown): TeamProfileOverlayMetadataInput | undefined {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return undefined;
+  const value = raw as Record<string, unknown>;
+  const sourceMode =
+    value.source_mode === 'default_neutral'
+    || value.source_mode === 'curated'
+    || value.source_mode === 'llm_assisted'
+    || value.source_mode === 'manual_override'
+      ? value.source_mode
+      : undefined;
+  const sourceConfidence =
+    value.source_confidence === 'low'
+    || value.source_confidence === 'medium'
+    || value.source_confidence === 'high'
+      ? value.source_confidence
+      : undefined;
+  const sourceUrls = Array.isArray(value.source_urls)
+    ? normalizeTrustedOverlaySourceUrls(value.source_urls as string[])
+    : undefined;
+  const sourceSeason = typeof value.source_season === 'string'
+    ? value.source_season.trim() || null
+    : value.source_season === null
+      ? null
+      : undefined;
+
+  if (!sourceMode && !sourceConfidence && !sourceUrls && sourceSeason === undefined) {
+    return undefined;
+  }
+
+  return {
+    ...(sourceMode ? { source_mode: sourceMode } : {}),
+    ...(sourceConfidence ? { source_confidence: sourceConfidence } : {}),
+    ...(sourceUrls ? { source_urls: sourceUrls } : {}),
+    ...(sourceSeason !== undefined ? { source_season: sourceSeason } : {}),
+  };
+}
+
+function validateOverlayWorkflowRules(
+  overlayMetadata: TeamProfileOverlayMetadataInput | undefined,
+  options: { overlayEligible: boolean },
+): string | null {
+  if (!overlayMetadata) return null;
+  const sourceMode = overlayMetadata.source_mode ?? 'default_neutral';
+  if (sourceMode === 'default_neutral') return null;
+  if (!options.overlayEligible) {
+    return 'Tactical overlay refresh is limited to approved competition contexts: top domestic leagues, continental club competitions, and major international tournaments or qualifiers.';
+  }
+  if (overlayMetadata.source_confidence !== 'low'
+    && overlayMetadata.source_confidence !== 'medium'
+    && overlayMetadata.source_confidence !== 'high') {
+    return 'Tactical overlay requires source confidence.';
+  }
+  if (!overlayMetadata.source_urls || overlayMetadata.source_urls.length === 0) {
+    return 'Tactical overlay requires at least one trusted source URL.';
+  }
+  return null;
 }
 
 function validateProfile(raw: unknown): TeamProfileData {
@@ -66,7 +150,7 @@ export async function teamProfileRoutes(app: FastifyInstance) {
     const { teamId } = req.params as { teamId: string };
     const row = await getTeamProfileByTeamId(teamId);
     if (!row) return reply.status(404).send({ error: 'Profile not found' });
-    return row;
+    return flattenTeamProfileRow(row);
   };
 
   const putTeamProfile = async (
@@ -77,6 +161,14 @@ export async function teamProfileRoutes(app: FastifyInstance) {
     if (!user) return;
     const { teamId } = req.params as { teamId: string };
     const body = req.body as Record<string, unknown>;
+    const overlayMetadata = validateOverlayMetadata(body.overlay_metadata);
+    const overlayEligibility = await getTacticalOverlayEligibilityForTeam(teamId);
+    const overlayRuleViolation = validateOverlayWorkflowRules(overlayMetadata, {
+      overlayEligible: overlayEligibility.eligible,
+    });
+    if (overlayRuleViolation) {
+      return reply.status(400).send({ error: overlayRuleViolation });
+    }
 
     let profileData: TeamProfileData;
     try {
@@ -89,9 +181,11 @@ export async function teamProfileRoutes(app: FastifyInstance) {
       profile:  profileData,
       notes_en: typeof body.notes_en === 'string' ? body.notes_en.trim() : '',
       notes_vi: typeof body.notes_vi === 'string' ? body.notes_vi.trim() : '',
+      overlay_metadata: overlayMetadata,
     };
 
-    return upsertTeamProfile(teamId, input);
+    const saved = await upsertTeamProfile(teamId, input);
+    return flattenTeamProfileRow(saved);
   };
 
   const removeTeamProfile = async (
@@ -110,7 +204,8 @@ export async function teamProfileRoutes(app: FastifyInstance) {
   app.get('/api/team-profiles', async (req, reply) => {
     const user = requireCurrentUser(req, reply);
     if (!user) return;
-    return getAllTeamProfiles();
+    const rows = await getAllTeamProfiles();
+    return rows.map(flattenTeamProfileRow);
   });
 
   /** Get profile for a single team */

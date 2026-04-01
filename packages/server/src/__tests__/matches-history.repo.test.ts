@@ -94,8 +94,8 @@ describe('matches history repository', () => {
     }]);
 
     const params = vi.mocked(query).mock.calls[0]?.[1] as unknown[];
-    // 18th param (index 17) for the single row is settlement_stats_fetched_at
-    expect(params[17]).toBeNull();
+    // 19th param (index 18) for the single row is settlement_stats_fetched_at
+    expect(params[18]).toBeNull();
   });
 
   test('orders historical date queries by canonical kickoff instant first', async () => {

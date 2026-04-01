@@ -6,6 +6,7 @@ import type { FastifyInstance } from 'fastify';
 import { requireAdminOrOwner } from '../lib/authz.js';
 import { getJobsStatus, triggerJob, updateJobInterval } from '../jobs/scheduler.js';
 import { setForceEnrich } from '../jobs/enrich-watchlist.job.js';
+import { getJobRunOverview, getRecentJobRuns } from '../repos/job-runs.repo.js';
 
 export async function jobRoutes(app: FastifyInstance) {
   // GET /api/jobs — list all jobs and their status
@@ -13,6 +14,31 @@ export async function jobRoutes(app: FastifyInstance) {
     const user = requireAdminOrOwner(req, reply);
     if (!user) return;
     return getJobsStatus();
+  });
+
+  app.get<{ Querystring: { limit?: string; jobName?: string; hours?: string } }>('/api/jobs/runs', async (req, reply) => {
+    const user = requireAdminOrOwner(req, reply);
+    if (!user) return;
+
+    const limit = Number(req.query.limit || 50);
+    const hours = Number(req.query.hours || 24);
+    const safeLimit = Number.isFinite(limit) ? Math.min(Math.max(limit, 1), 200) : 50;
+    const safeHours = Number.isFinite(hours) ? Math.max(hours, 1) : 24;
+    const jobName = typeof req.query.jobName === 'string' && req.query.jobName.trim() !== ''
+      ? req.query.jobName.trim()
+      : undefined;
+
+    const [runs, overview] = await Promise.all([
+      getRecentJobRuns(safeLimit, jobName),
+      getJobRunOverview(safeHours),
+    ]);
+
+    return {
+      jobName: jobName ?? null,
+      windowHours: safeHours,
+      runs,
+      overview,
+    };
   });
 
   // POST /api/jobs/:name/trigger — manually run a job (non-blocking)

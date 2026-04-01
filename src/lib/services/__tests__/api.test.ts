@@ -14,6 +14,16 @@ import {
   fetchOddsHistory,
   fetchAiStats,
   fetchAiStatsByModel,
+  settleRecommendationFinal,
+  fetchAdminUsers,
+  updateAdminUser,
+  fetchEntitlementCatalog,
+  fetchSubscriptionPlans,
+  updateSubscriptionPlan,
+  fetchAdminUserSubscriptions,
+  updateAdminUserSubscription,
+  fetchCurrentSubscription,
+  fetchLeaguesInitData,
 } from '@/lib/services/api';
 
 const config = { apiUrl: 'http://localhost:4000' } as Parameters<typeof fetchBets>[0];
@@ -134,7 +144,18 @@ describe('odds history API', () => {
 
 describe('AI performance API', () => {
   test('fetchAiStats returns accuracy stats', async () => {
-    const stats = { total: 20, correct: 12, incorrect: 5, pending: 3, accuracy: 70.59 };
+    const stats = {
+      total: 20,
+      correct: 12,
+      incorrect: 5,
+      push: 1,
+      void: 1,
+      neutral: 2,
+      pending: 3,
+      pendingResult: 1,
+      reviewRequired: 2,
+      accuracy: 70.59,
+    };
     globalThis.fetch = mockFetch(stats);
 
     const result = await fetchAiStats(config);
@@ -147,6 +168,143 @@ describe('AI performance API', () => {
 
     const result = await fetchAiStatsByModel(config);
     expect(result).toEqual(data);
+  });
+
+  test('settleRecommendationFinal calls PUT /api/recommendations/:id/settle', async () => {
+    const body = { id: 11015, result: 'win', pnl: 1.55 };
+    globalThis.fetch = mockFetch(body);
+
+    const result = await settleRecommendationFinal(config, 11015, { result: 'win', pnl: 1.55 });
+    expect(result).toEqual(body);
+    expect(fetch).toHaveBeenCalledWith(
+      'http://localhost:4000/api/recommendations/11015/settle',
+      expect.objectContaining({ method: 'PUT' }),
+    );
+  });
+
+  test('fetchAdminUsers calls GET /api/settings/users', async () => {
+    const body = [{ id: 'user-1', email: 'user@example.com', role: 'member', status: 'active' }];
+    globalThis.fetch = mockFetch(body);
+
+    const result = await fetchAdminUsers(config);
+    expect(result).toEqual(body);
+    expect(fetch).toHaveBeenCalledWith(
+      'http://localhost:4000/api/settings/users',
+      expect.objectContaining({ method: 'GET' }),
+    );
+  });
+
+  test('updateAdminUser calls PATCH /api/settings/users/:id', async () => {
+    const body = { id: 'user-1', email: 'user@example.com', role: 'admin', status: 'disabled' };
+    globalThis.fetch = mockFetch(body);
+
+    const result = await updateAdminUser(config, 'user-1', { role: 'admin', status: 'disabled' });
+    expect(result).toEqual(body);
+    expect(fetch).toHaveBeenCalledWith(
+      'http://localhost:4000/api/settings/users/user-1',
+      expect.objectContaining({ method: 'PATCH' }),
+    );
+  });
+
+  test('fetchEntitlementCatalog calls GET /api/settings/subscription/catalog', async () => {
+    const body = { catalog: [{ key: 'ai.manual.ask.daily_limit' }] };
+    globalThis.fetch = mockFetch(body);
+
+    const result = await fetchEntitlementCatalog(config);
+    expect(result).toEqual(body);
+    expect(fetch).toHaveBeenCalledWith(
+      'http://localhost:4000/api/settings/subscription/catalog',
+      expect.objectContaining({ method: 'GET' }),
+    );
+  });
+
+  test('fetchSubscriptionPlans calls GET /api/settings/subscription/plans', async () => {
+    const body = [{ plan_code: 'free', display_name: 'Free' }];
+    globalThis.fetch = mockFetch(body);
+
+    const result = await fetchSubscriptionPlans(config);
+    expect(result).toEqual(body);
+    expect(fetch).toHaveBeenCalledWith(
+      'http://localhost:4000/api/settings/subscription/plans',
+      expect.objectContaining({ method: 'GET' }),
+    );
+  });
+
+  test('updateSubscriptionPlan calls PATCH /api/settings/subscription/plans/:code', async () => {
+    const body = { plan_code: 'free', display_name: 'Free', entitlements: {} };
+    globalThis.fetch = mockFetch(body);
+
+    const result = await updateSubscriptionPlan(config, 'free', { entitlements: {} });
+    expect(result).toEqual(body);
+    expect(fetch).toHaveBeenCalledWith(
+      'http://localhost:4000/api/settings/subscription/plans/free',
+      expect.objectContaining({ method: 'PATCH' }),
+    );
+  });
+
+  test('fetchAdminUserSubscriptions calls GET /api/settings/subscription/users', async () => {
+    const body = [{ id: 'user-1', subscription_plan_code: 'free' }];
+    globalThis.fetch = mockFetch(body);
+
+    const result = await fetchAdminUserSubscriptions(config);
+    expect(result).toEqual(body);
+    expect(fetch).toHaveBeenCalledWith(
+      'http://localhost:4000/api/settings/subscription/users',
+      expect.objectContaining({ method: 'GET' }),
+    );
+  });
+
+  test('updateAdminUserSubscription calls PUT /api/settings/subscription/users/:id', async () => {
+    const body = { id: 1, user_id: 'user-1', plan_code: 'pro', status: 'active' };
+    globalThis.fetch = mockFetch(body);
+
+    const result = await updateAdminUserSubscription(config, 'user-1', { planCode: 'pro', status: 'active' });
+    expect(result).toEqual(body);
+    expect(fetch).toHaveBeenCalledWith(
+      'http://localhost:4000/api/settings/subscription/users/user-1',
+      expect.objectContaining({ method: 'PUT' }),
+    );
+  });
+
+  test('fetchCurrentSubscription calls GET /api/me/subscription', async () => {
+    const body = { plan: { plan_code: 'free' }, entitlements: {}, usage: { manualAiDaily: { used: 1, limit: 3 } } };
+    globalThis.fetch = mockFetch(body);
+
+    const result = await fetchCurrentSubscription(config);
+    expect(result).toEqual(body);
+    expect(fetch).toHaveBeenCalledWith(
+      'http://localhost:4000/api/me/subscription',
+      expect.objectContaining({ method: 'GET' }),
+    );
+  });
+
+  test('fetchLeaguesInitData returns profile coverage summary', async () => {
+    const body = {
+      leagues: [{ league_id: 39, league_name: 'Premier League' }],
+      favoriteTeamIds: ['1'],
+      profiledTeamIds: ['1', '2'],
+      profileCoverage: {
+        summary: {
+          topLeagues: 2,
+          topLeagueProfiles: 1,
+          topLeagueTeams: 6,
+          topLeagueTeamsWithProfile: 4,
+          teamProfileCoverage: 0.667,
+          fullCoverageLeagues: 1,
+          partialCoverageLeagues: 1,
+          missingCoverageLeagues: 0,
+        },
+        leagues: [],
+      },
+    };
+    globalThis.fetch = mockFetch(body);
+
+    const result = await fetchLeaguesInitData(config);
+    expect(result).toEqual(body);
+    expect(fetch).toHaveBeenCalledWith(
+      'http://localhost:4000/api/leagues/init',
+      expect.objectContaining({ method: 'GET' }),
+    );
   });
 });
 

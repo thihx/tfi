@@ -14,6 +14,17 @@ export interface GeminiGenerateOptions {
   thinkingBudget?: number | null;
 }
 
+const GEMINI_MODEL_ALIASES: Record<string, string> = {
+  'gemini-3.0-flash': 'gemini-3-flash-preview',
+  'gemini-3.0-pro-preview': 'gemini-3-pro-preview',
+};
+
+export function normalizeGeminiModelName(model: string): string {
+  const trimmed = String(model || '').trim().replace(/^models\//i, '');
+  if (!trimmed) return trimmed;
+  return GEMINI_MODEL_ALIASES[trimmed] ?? trimmed;
+}
+
 function buildGenerateRequestBody(
   prompt: string,
   options: GeminiGenerateOptions,
@@ -40,7 +51,7 @@ export async function generateGeminiContent(
 ): Promise<Record<string, unknown>> {
   if (!config.geminiApiKey) throw new Error('GEMINI_API_KEY not configured');
 
-  const model = options.model || config.geminiModel;
+  const model = normalizeGeminiModelName(options.model || config.geminiModel);
   const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${config.geminiApiKey}`;
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), options.timeoutMs ?? config.geminiTimeoutMs);

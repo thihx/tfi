@@ -34,6 +34,7 @@ import { notificationSettingsRoutes } from './routes/notification-settings.route
 import { notificationChannelsRoutes } from './routes/notification-channels.routes.js';
 import { settingsRoutes } from './routes/settings.routes.js';
 import { snapshotRoutes } from './routes/snapshots.routes.js';
+import { subscriptionsRoutes } from './routes/subscriptions.routes.js';
 import { pushRoutes } from './routes/push.routes.js';
 import { watchlistRoutes } from './routes/watchlist.routes.js';
 import { favoriteTeamsRoutes } from './routes/favorite-teams.routes.js';
@@ -174,6 +175,7 @@ await app.register(aiPerformanceRoutes);
 await app.register(reportRoutes);
 await app.register(opsRoutes);
 await app.register(settingsRoutes);
+await app.register(subscriptionsRoutes);
 await app.register(notificationSettingsRoutes);
 await app.register(notificationChannelsRoutes);
 await app.register(auditLogRoutes);

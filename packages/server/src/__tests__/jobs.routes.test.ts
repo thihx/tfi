@@ -28,6 +28,12 @@ const mockJobs = [
   { name: 'fetch-matches', label: 'Fetch Matches', description: 'Fixtures sync job', order: 1, intervalMs: 60000, lastRun: null, lastError: null, running: false, enabled: true, runCount: 0, progress: null },
   { name: 'expire-watchlist', label: 'Expire Watchlist', description: 'Watchlist expiry job', order: 2, intervalMs: 30000, lastRun: '2026-03-17T10:00:00Z', lastError: null, running: false, enabled: true, runCount: 5, progress: null },
 ];
+const mockRuns = [
+  { id: 1, job_name: 'fetch-matches', status: 'success', started_at: '2026-03-31T01:00:00Z', completed_at: '2026-03-31T01:00:02Z' },
+];
+const mockOverview = [
+  { jobName: 'fetch-matches', totalRuns: 12, successRuns: 11, failureRuns: 1, skippedRuns: 0, degradedRuns: 2, avgLagMs: 120, avgDurationMs: 1400, lastStartedAt: '2026-03-31T01:00:00Z', lastCompletedAt: '2026-03-31T01:00:02Z', lastStatus: 'success' },
+];
 
 vi.mock('../jobs/scheduler.js', () => ({
   getJobsStatus: vi.fn().mockResolvedValue(mockJobs),
@@ -40,6 +46,10 @@ vi.mock('../jobs/scheduler.js', () => ({
     if (name === 'fetch-matches') return { name, label: 'Fetch Matches', description: 'Fixtures sync job', order: 1, intervalMs, running: false, enabled: intervalMs > 0, runCount: 0, progress: null, concurrency: 1, activeRuns: 0, pendingRuns: 0 };
     return null; // not found
   }),
+}));
+vi.mock('../repos/job-runs.repo.js', () => ({
+  getRecentJobRuns: vi.fn().mockResolvedValue(mockRuns),
+  getJobRunOverview: vi.fn().mockResolvedValue(mockOverview),
 }));
 
 let app: FastifyInstance;
@@ -69,6 +79,23 @@ describe('GET /api/jobs', () => {
     expect(body).toHaveLength(2);
     expect(body[0].name).toBe('fetch-matches');
     expect(body[0].label).toBe('Fetch Matches');
+  });
+});
+
+describe('GET /api/jobs/runs', () => {
+  test('returns recent job runs and overview for admins', async () => {
+    const res = await app.inject({ method: 'GET', url: '/api/jobs/runs?limit=10&hours=12&jobName=fetch-matches' });
+    expect(res.statusCode).toBe(200);
+    const body = res.json();
+    expect(body.jobName).toBe('fetch-matches');
+    expect(body.windowHours).toBe(12);
+    expect(body.runs).toEqual(mockRuns);
+    expect(body.overview).toEqual(mockOverview);
+  });
+
+  test('rejects members for run history', async () => {
+    const res = await memberApp.inject({ method: 'GET', url: '/api/jobs/runs' });
+    expect(res.statusCode).toBe(403);
   });
 });
 

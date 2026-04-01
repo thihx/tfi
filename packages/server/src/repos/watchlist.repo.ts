@@ -382,7 +382,21 @@ async function getMonitoredOperationalWatchlist(
      FROM monitored_matches mm
      LEFT JOIN ranked ON ranked.match_id = mm.match_id AND ranked.row_rank = 1
      LEFT JOIN matches m ON m.match_id::text = mm.match_id
-     WHERE ($1::boolean = false OR COALESCE(ranked.status, NULLIF(mm.metadata->>'status', '')) = 'active')
+     WHERE (
+       $1::boolean = false
+       OR (
+         COALESCE(ranked.status, NULLIF(mm.metadata->>'status', '')) = 'active'
+         AND (
+           COALESCE(mm.subscriber_count, 0) > 0
+           OR EXISTS (
+             SELECT 1
+             FROM watchlist w
+             WHERE w.match_id = mm.match_id
+               AND COALESCE(w.status, 'active') = 'active'
+           )
+         )
+       )
+     )
      ORDER BY COALESCE(ranked.priority, NULLIF(mm.metadata->>'priority', '')::int, 0) DESC,
               match_date NULLS LAST,
               match_kickoff NULLS LAST`,
@@ -718,6 +732,17 @@ export async function getExistingUserWatchlistMatchIds(userId: string, matchIds:
     [userId, matchIds],
   );
   return new Set(r.rows.map((row) => row.match_id));
+}
+
+export async function countActiveWatchSubscriptionsByUser(userId: string): Promise<number> {
+  const result = await query<{ count: string }>(
+    `SELECT COUNT(*)::text AS count
+       FROM user_watch_subscriptions
+      WHERE user_id = $1
+        AND status = 'active'`,
+    [userId],
+  );
+  return Number(result.rows[0]?.count ?? '0');
 }
 
 export async function createWatchlistEntry(

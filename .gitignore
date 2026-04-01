@@ -35,6 +35,14 @@ Thumbs.db
 # Logs
 *.log
 npm-debug.log*
+server-dev.out
+server-dev.err
+acr-build.log
+
+# Local agent / browser artifacts
+.playwright-cli/
+output/
+.claude/settings.local.json
 
 # TypeScript
 *.tsbuildinfo

@@ -140,6 +140,14 @@ export async function fetchFixturesByLeague(leagueId: number, season: number, ne
   return apiGet<ApiFixture>('/fixtures', { league: String(leagueId), season: String(season), next: String(next) });
 }
 
+export async function fetchFixturesForLeagueSeason(leagueId: number, season: number): Promise<ApiFixture[]> {
+  return apiGet<ApiFixture>('/fixtures', {
+    league: String(leagueId),
+    season: String(season),
+    timezone: config.timezone,
+  });
+}
+
 export async function fetchLiveOdds(fixtureId: string): Promise<unknown[]> {
   return apiGet<unknown>('/odds/live', { fixture: fixtureId });
 }

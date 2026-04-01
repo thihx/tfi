@@ -1,5 +1,6 @@
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import { requireCurrentUser } from '../lib/authz.js';
+import { assertNotificationChannelAllowed, resolveSubscriptionAccess, sendEntitlementError } from '../lib/subscription-access.js';
 import {
   getNotificationChannelConfigs,
   saveNotificationChannelConfig,
@@ -54,12 +55,25 @@ export async function notificationChannelsRoutes(app: FastifyInstance) {
       return reply.status(400).send({ error: 'No notification channel updates provided' });
     }
 
-    return saveNotificationChannelConfig(user.userId, req.params.channelType, {
-      enabled: body.enabled,
-      address: body.address,
-      config: isObjectRecord(body.config) ? body.config : undefined,
-      metadata: isObjectRecord(body.metadata) ? body.metadata : undefined,
-    });
+    try {
+      if (body.enabled === true) {
+        const access = await resolveSubscriptionAccess(user.userId);
+        await assertNotificationChannelAllowed(access, user.userId, req.params.channelType, true);
+      }
+
+      return saveNotificationChannelConfig(user.userId, req.params.channelType, {
+        enabled: body.enabled,
+        address: body.address,
+        config: isObjectRecord(body.config) ? body.config : undefined,
+        metadata: isObjectRecord(body.metadata) ? body.metadata : undefined,
+      });
+    } catch (error) {
+      const entitlement = sendEntitlementError(error);
+      if (entitlement) {
+        return reply.status(entitlement.statusCode).send(entitlement.payload);
+      }
+      throw error;
+    }
   };
 
   app.get('/api/notification-channels', getCurrentUserNotificationChannels);

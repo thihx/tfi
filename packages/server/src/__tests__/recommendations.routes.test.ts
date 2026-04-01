@@ -54,14 +54,36 @@ vi.mock('../jobs/re-evaluate.job.js', () => ({
 }));
 
 let app: FastifyInstance;
+let adminApp: FastifyInstance;
+let memberApp: FastifyInstance;
 
 beforeAll(async () => {
   const { recommendationRoutes } = await import('../routes/recommendations.routes.js');
   app = await buildApp(recommendationRoutes);
+  adminApp = await buildApp([recommendationRoutes], {
+    currentUser: {
+      userId: 'admin-1',
+      email: 'admin@example.com',
+      role: 'admin',
+      name: 'Admin',
+      picture: '',
+    },
+  });
+  memberApp = await buildApp([recommendationRoutes], {
+    currentUser: {
+      userId: 'member-1',
+      email: 'member@example.com',
+      role: 'member',
+      name: 'Member',
+      picture: '',
+    },
+  });
 });
 
 afterAll(async () => {
   await app.close();
+  await adminApp.close();
+  await memberApp.close();
 });
 
 // ── GET endpoints ──
@@ -268,8 +290,26 @@ describe('POST /api/recommendations/bulk', () => {
 // ── PUT endpoints ──
 
 describe('PUT /api/recommendations/:id/settle', () => {
-  test('settles an existing recommendation', async () => {
+  test('rejects unauthenticated requests', async () => {
     const res = await app.inject({
+      method: 'PUT',
+      url: '/api/recommendations/1/settle',
+      payload: { result: 'win', pnl: 0.85 },
+    });
+    expect(res.statusCode).toBe(401);
+  });
+
+  test('rejects non-admin users', async () => {
+    const res = await memberApp.inject({
+      method: 'PUT',
+      url: '/api/recommendations/1/settle',
+      payload: { result: 'win', pnl: 0.85 },
+    });
+    expect(res.statusCode).toBe(403);
+  });
+
+  test('settles an existing recommendation', async () => {
+    const res = await adminApp.inject({
       method: 'PUT',
       url: '/api/recommendations/1/settle',
       payload: { result: 'win', pnl: 0.85 },
@@ -287,7 +327,7 @@ describe('PUT /api/recommendations/:id/settle', () => {
   });
 
   test('returns 404 for non-existent recommendation', async () => {
-    const res = await app.inject({
+    const res = await adminApp.inject({
       method: 'PUT',
       url: '/api/recommendations/999/settle',
       payload: { result: 'loss', pnl: -1 },
@@ -296,7 +336,7 @@ describe('PUT /api/recommendations/:id/settle', () => {
   });
 
   test('returns 400 for invalid ID', async () => {
-    const res = await app.inject({
+    const res = await adminApp.inject({
       method: 'PUT',
       url: '/api/recommendations/abc/settle',
       payload: { result: 'win', pnl: 1 },

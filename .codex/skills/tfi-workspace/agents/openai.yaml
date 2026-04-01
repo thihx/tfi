@@ -1,0 +1,4 @@
+interface:
+  display_name: "TFI Workspace"
+  short_description: "TFI repo architecture and runtime guide."
+  default_prompt: "Use $tfi-workspace to rebuild project context for this TFI task before changing code."

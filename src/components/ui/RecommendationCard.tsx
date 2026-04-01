@@ -1,4 +1,4 @@
-import { memo, useState } from 'react';
+import { memo, useState, type ReactNode } from 'react';
 import type { Recommendation } from '@/types';
 import { StatusBadge } from './StatusBadge';
 import { formatLocalDateTime } from '@/lib/utils/helpers';
@@ -13,6 +13,13 @@ interface Props {
   rec: Recommendation;
   lang?: 'en' | 'vi' | 'both';
   onViewMatch?: (matchId: string, display: string) => void;
+  adminAction?: ReactNode;
+}
+
+const FINAL_RESULTS = new Set(['win', 'loss', 'push', 'void', 'half_win', 'half_loss']);
+
+function hasFinalResult(result: string | null | undefined): boolean {
+  return FINAL_RESULTS.has(String(result));
 }
 
 function pickReasoning(rec: Recommendation, lang?: 'en' | 'vi' | 'both'): string {
@@ -27,7 +34,7 @@ function pickReasoning(rec: Recommendation, lang?: 'en' | 'vi' | 'both'): string
   return vi || en;
 }
 
-function RecommendationCardBase({ rec, lang, onViewMatch }: Props) {
+function RecommendationCardBase({ rec, lang, onViewMatch, adminAction }: Props) {
   const [reasoningExpanded, setReasoningExpanded] = useState(false);
   const [warningsExpanded, setWarningsExpanded] = useState(false);
 
@@ -42,6 +49,8 @@ function RecommendationCardBase({ rec, lang, onViewMatch }: Props) {
   const isLive = rec.minute != null && (!rec.result || rec.result === 'pending');
   const displayScore = rec.score && /^\d{1,3}-\d{1,3}$/.test(rec.score.trim()) ? rec.score : '';
   const reasoning = pickReasoning(rec, lang);
+  const showReviewBadge = rec.settlement_status === 'unresolved' && hasFinalResult(rec.result ?? null);
+  const showPendingNote = rec.settlement_status === 'unresolved' && !hasFinalResult(rec.result ?? null);
 
   return (
     <div className="card" style={{ padding: '0', marginBottom: '8px', overflow: 'hidden' }}>
@@ -94,6 +103,10 @@ function RecommendationCardBase({ rec, lang, onViewMatch }: Props) {
             </span>
           )}
           {rec.result && <StatusBadge status={rec.result.toUpperCase()} />}
+          {showReviewBadge && (
+            <span className="badge badge-pending">Review</span>
+          )}
+          {adminAction}
         </div>
       </div>
 
@@ -190,7 +203,7 @@ function RecommendationCardBase({ rec, lang, onViewMatch }: Props) {
             }}
             onClick={() => setWarningsExpanded((v) => !v)}
           >
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#92400e" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" title="Warnings"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#92400e" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><title>Warnings</title><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
             <span style={{ fontSize: '10px', color: 'var(--gray-400)' }}>{warningsExpanded ? '▲' : '▼'}</span>
           </button>
           {warningsExpanded && (
@@ -211,7 +224,7 @@ function RecommendationCardBase({ rec, lang, onViewMatch }: Props) {
             }}
             onClick={() => setReasoningExpanded((v) => !v)}
           >
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--gray-400)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" title="AI Reasoning"><line x1="12" y1="2" x2="12" y2="3"/><path d="M12 6a6 6 0 0 1 6 6c0 2.5-1.5 4.5-3.5 5.5V19a1 1 0 0 1-1 1h-3a1 1 0 0 1-1-1v-1.5C7.5 16.5 6 14.5 6 12a6 6 0 0 1 6-6z"/><line x1="9" y1="21" x2="15" y2="21"/></svg>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--gray-400)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><title>AI Reasoning</title><line x1="12" y1="2" x2="12" y2="3"/><path d="M12 6a6 6 0 0 1 6 6c0 2.5-1.5 4.5-3.5 5.5V19a1 1 0 0 1-1 1h-3a1 1 0 0 1-1-1v-1.5C7.5 16.5 6 14.5 6 12a6 6 0 0 1 6-6z"/><line x1="9" y1="21" x2="15" y2="21"/></svg>
             <span style={{ fontSize: '10px', color: 'var(--gray-400)' }}>{reasoningExpanded ? '▲' : '▼'}</span>
           </button>
           {reasoningExpanded && (
@@ -223,7 +236,7 @@ function RecommendationCardBase({ rec, lang, onViewMatch }: Props) {
       )}
 
       {/* Outcome / FT score footer */}
-      {(rec.ft_score || rec.actual_outcome) && (
+      {(rec.ft_score || rec.actual_outcome || ((showReviewBadge || showPendingNote) && rec.settlement_note)) && (
         <div style={{
           padding: '7px 14px', borderTop: '1px solid var(--gray-200)',
           background: 'linear-gradient(180deg, #ffffff 0%, #fafbfc 100%)',
@@ -237,6 +250,16 @@ function RecommendationCardBase({ rec, lang, onViewMatch }: Props) {
           {rec.actual_outcome && (
             <span style={{ fontSize: '11px', color: 'var(--gray-500)', flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={rec.actual_outcome}>
               {rec.actual_outcome}
+            </span>
+          )}
+          {showReviewBadge && rec.settlement_note && (
+            <span style={{ fontSize: '11px', color: '#92400e', flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={rec.settlement_note}>
+              Review: {rec.settlement_note}
+            </span>
+          )}
+          {showPendingNote && rec.settlement_note && (
+            <span style={{ fontSize: '11px', color: 'var(--gray-500)', flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={rec.settlement_note}>
+              Pending: {rec.settlement_note}
             </span>
           )}
         </div>

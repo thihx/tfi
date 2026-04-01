@@ -4,6 +4,7 @@ const mockGetTopLeagues = vi.fn();
 const mockGetActiveLeagues = vi.fn();
 const mockRefreshLeagueCatalog = vi.fn();
 const mockRefreshLeagueTeamsDirectoryNow = vi.fn();
+const mockSyncDerivedPrematchProfiles = vi.fn();
 const mockReportJobProgress = vi.fn();
 
 vi.mock('../repos/leagues.repo.js', () => ({
@@ -17,6 +18,10 @@ vi.mock('../lib/league-catalog.service.js', () => ({
 
 vi.mock('../lib/league-team-directory.service.js', () => ({
   refreshLeagueTeamsDirectoryNow: mockRefreshLeagueTeamsDirectoryNow,
+}));
+
+vi.mock('../lib/prematch-profile-sync.js', () => ({
+  syncDerivedPrematchProfiles: mockSyncDerivedPrematchProfiles,
 }));
 
 vi.mock('../jobs/job-progress.js', () => ({
@@ -35,6 +40,15 @@ beforeEach(() => {
     refreshedLeagues: 1,
     skippedFreshLeagues: 1,
     failedLeagues: 0,
+  });
+  mockSyncDerivedPrematchProfiles.mockResolvedValue({
+    lookbackDays: 180,
+    candidateLeagues: 1,
+    refreshedLeagueProfiles: 1,
+    skippedLeagueProfiles: 1,
+    candidateTeams: 6,
+    refreshedTeamProfiles: 4,
+    skippedTeamProfiles: 2,
   });
 });
 
@@ -56,7 +70,17 @@ describe('syncReferenceDataJob', () => {
       topLeagueCount: 1,
       activeLeagueCount: 2,
     });
+    expect(result.prematchProfiles).toEqual({
+      lookbackDays: 180,
+      candidateLeagues: 1,
+      refreshedLeagueProfiles: 1,
+      skippedLeagueProfiles: 1,
+      candidateTeams: 6,
+      refreshedTeamProfiles: 4,
+      skippedTeamProfiles: 2,
+    });
     expect(mockRefreshLeagueTeamsDirectoryNow).toHaveBeenCalledTimes(2);
+    expect(mockSyncDerivedPrematchProfiles).toHaveBeenCalledWith([39]);
   });
 
   test('returns empty counts when no leagues are active', async () => {
@@ -75,5 +99,15 @@ describe('syncReferenceDataJob', () => {
       topLeagueCount: 0,
       activeLeagueCount: 0,
     });
+    expect(result.prematchProfiles).toEqual({
+      lookbackDays: 180,
+      candidateLeagues: 0,
+      refreshedLeagueProfiles: 0,
+      skippedLeagueProfiles: 0,
+      candidateTeams: 0,
+      refreshedTeamProfiles: 0,
+      skippedTeamProfiles: 0,
+    });
+    expect(mockSyncDerivedPrematchProfiles).not.toHaveBeenCalled();
   });
 });
