@@ -433,7 +433,8 @@ describe('buildLiveAnalysisPrompt', () => {
     const candidate = buildLiveAnalysisPrompt(baseInput, settings, LIVE_ANALYSIS_PROMPT_CANDIDATE_VERSION);
 
     expect(candidate).toContain(`PROMPT_VERSION: ${LIVE_ANALYSIS_PROMPT_CANDIDATE_VERSION}`);
-    expect(candidate.length).toBeLessThan(baseline.length);
+    expect(candidate).toContain('EXACT OUTPUT ENUMS:');
+    expect(candidate).toContain('PROMPT_VERSION: v7-profile-overlay-discipline-a');
     expect(baseline).toContain(`PROMPT_VERSION: ${LIVE_ANALYSIS_PROMPT_VERSION}`);
   });
 
@@ -704,5 +705,60 @@ describe('buildLiveAnalysisPrompt', () => {
     expect(candidate).toContain('Thin balanced totals need a pass unless live evidence is clearly asymmetric.');
     expect(candidate).toContain('Balanced totals are not enough. In 1-1 or 0-0 states around minute 55-70, if possession, shots, and shots on target are broadly even and there is no clear pressure asymmetry, default should_push=false.');
     expect(candidate).toContain('Symmetric prices around 1.90 on both sides usually mean the market sees a thin edge. Do not force an Over or Under just because one more goal would cash.');
+  });
+
+  test('v7 candidate adds explicit profile and tactical overlay provenance discipline', () => {
+    const candidate = buildLiveAnalysisPrompt({
+      ...baseInput,
+      prematchExpertFeatures: {
+        version: 1,
+        availability: 'partial',
+        prior_strength: 'weak',
+        profile_coverage: 'partial',
+        strategic_quality: 'medium',
+      } as unknown as NonNullable<LiveAnalysisPromptInput['prematchExpertFeatures']>,
+      leagueProfile: {
+        profile: {
+          version: 2,
+          window: {
+            sample_matches: 74,
+            event_coverage: 0.81,
+          },
+        },
+      } as unknown as Record<string, unknown>,
+      homeTeamProfile: {
+        profile: {
+          version: 2,
+          window: {
+            sample_matches: 22,
+            event_coverage: 0.77,
+          },
+          tactical_overlay: {
+            source_mode: 'default_neutral',
+            source_confidence: null,
+          },
+        },
+      } as unknown as Record<string, unknown>,
+      awayTeamProfile: {
+        profile: {
+          version: 2,
+          window: {
+            sample_matches: 20,
+            event_coverage: 0.74,
+          },
+          tactical_overlay: {
+            source_mode: 'llm_assisted',
+            source_confidence: 'medium',
+          },
+        },
+      } as unknown as Record<string, unknown>,
+    }, settings, 'v7-profile-overlay-discipline-a');
+
+    expect(candidate).toContain('PROFILE / OVERLAY DISCIPLINE');
+    expect(candidate).toContain('HOME_TACTICAL_OVERLAY: source_mode=default_neutral, source_confidence=none');
+    expect(candidate).toContain('AWAY_TACTICAL_OVERLAY: source_mode=llm_assisted, source_confidence=medium');
+    expect(candidate).toContain('source_mode=default_neutral or unknown => treat tactical labels as unavailable, not as evidence.');
+    expect(candidate).toContain('source_mode=llm_assisted with low/medium confidence => tiebreaker only, never a primary reason to bet.');
+    expect(candidate).toContain('If PREMATCH_EXPERT_FEATURES_V1 implies weak/none prior strength, default should_push=false unless live evidence is clearly one-sided and actionable.');
   });
 });

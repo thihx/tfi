@@ -15,10 +15,10 @@ export type PromptEvidenceMode =
   | 'events_only_degraded'
   | 'low_evidence';
 
-export const LIVE_ANALYSIS_PROMPT_VERSIONS = ['v4-evidence-hardened', 'v5-compact-a', 'v6-betting-discipline-a', 'v6-betting-discipline-b', 'v6-betting-discipline-c'] as const;
+export const LIVE_ANALYSIS_PROMPT_VERSIONS = ['v4-evidence-hardened', 'v5-compact-a', 'v6-betting-discipline-a', 'v6-betting-discipline-b', 'v6-betting-discipline-c', 'v7-profile-overlay-discipline-a'] as const;
 export type LiveAnalysisPromptVersion = (typeof LIVE_ANALYSIS_PROMPT_VERSIONS)[number];
 export const LIVE_ANALYSIS_PROMPT_VERSION = 'v4-evidence-hardened';
-export const LIVE_ANALYSIS_PROMPT_CANDIDATE_VERSION = 'v6-betting-discipline-c';
+export const LIVE_ANALYSIS_PROMPT_CANDIDATE_VERSION = 'v7-profile-overlay-discipline-a';
 
 export function isLiveAnalysisPromptVersion(value: string): value is LiveAnalysisPromptVersion {
   return (LIVE_ANALYSIS_PROMPT_VERSIONS as readonly string[]).includes(value);
@@ -1091,6 +1091,7 @@ function buildContinuityRulesSectionCompact(
   const advancedRules = (
     promptVersion === 'v6-betting-discipline-b'
     || promptVersion === 'v6-betting-discipline-c'
+    || promptVersion === 'v7-profile-overlay-discipline-a'
   )
     ? `- A same-thesis follow-up needs BOTH materially stronger live evidence AFTER the last bet AND a clearly better structural entry. Time passing alone is never enough.
 - Do not re-enter the same thesis just because the new line is closer to the current score or looks safer now. If you already hold that view, another entry usually means laddering the same position.
@@ -1120,13 +1121,93 @@ function isCompactPromptVersion(promptVersion: LiveAnalysisPromptVersion): boole
   return promptVersion === 'v5-compact-a'
     || promptVersion === 'v6-betting-discipline-a'
     || promptVersion === 'v6-betting-discipline-b'
-    || promptVersion === 'v6-betting-discipline-c';
+    || promptVersion === 'v6-betting-discipline-c'
+    || promptVersion === 'v7-profile-overlay-discipline-a';
 }
 
 function isBettingDisciplinePromptVersion(promptVersion: LiveAnalysisPromptVersion): boolean {
   return promptVersion === 'v6-betting-discipline-a'
     || promptVersion === 'v6-betting-discipline-b'
-    || promptVersion === 'v6-betting-discipline-c';
+    || promptVersion === 'v6-betting-discipline-c'
+    || promptVersion === 'v7-profile-overlay-discipline-a';
+}
+
+function readProfileRecord(profile: Record<string, unknown> | null | undefined): Record<string, unknown> | null {
+  if (!profile || typeof profile !== 'object' || Array.isArray(profile)) return null;
+  const nested = profile['profile'];
+  if (nested && typeof nested === 'object' && !Array.isArray(nested)) return nested as Record<string, unknown>;
+  return profile;
+}
+
+function readWindowSnapshot(profile: Record<string, unknown> | null | undefined): {
+  sampleMatches: number | null;
+  eventCoverage: number | null;
+} {
+  const record = readProfileRecord(profile);
+  const window = record?.['window'];
+  if (!window || typeof window !== 'object' || Array.isArray(window)) {
+    return { sampleMatches: null, eventCoverage: null };
+  }
+  const sampleMatches = Number((window as Record<string, unknown>)['sample_matches']);
+  const eventCoverage = Number((window as Record<string, unknown>)['event_coverage']);
+  return {
+    sampleMatches: Number.isFinite(sampleMatches) ? sampleMatches : null,
+    eventCoverage: Number.isFinite(eventCoverage) ? eventCoverage : null,
+  };
+}
+
+function readTeamOverlaySnapshot(profile: Record<string, unknown> | null | undefined): {
+  sourceMode: string;
+  sourceConfidence: string | null;
+} {
+  const record = readProfileRecord(profile);
+  const overlay = record?.['tactical_overlay'];
+  if (!overlay || typeof overlay !== 'object' || Array.isArray(overlay)) {
+    return { sourceMode: 'unknown', sourceConfidence: null };
+  }
+  const sourceMode = String((overlay as Record<string, unknown>)['source_mode'] ?? 'unknown').trim() || 'unknown';
+  const sourceConfidenceRaw = (overlay as Record<string, unknown>)['source_confidence'];
+  return {
+    sourceMode,
+    sourceConfidence: typeof sourceConfidenceRaw === 'string' && sourceConfidenceRaw.trim() !== ''
+      ? sourceConfidenceRaw
+      : null,
+  };
+}
+
+function buildProfileAndOverlayDisciplineSectionCompact(data: LiveAnalysisPromptInput, promptVersion: LiveAnalysisPromptVersion): string {
+  if (promptVersion !== 'v7-profile-overlay-discipline-a') return '';
+
+  const leagueWindow = readWindowSnapshot(data.leagueProfile ?? null);
+  const homeWindow = readWindowSnapshot(data.homeTeamProfile ?? null);
+  const awayWindow = readWindowSnapshot(data.awayTeamProfile ?? null);
+  const homeOverlay = readTeamOverlaySnapshot(data.homeTeamProfile ?? null);
+  const awayOverlay = readTeamOverlaySnapshot(data.awayTeamProfile ?? null);
+  const bothNeutral = ['default_neutral', 'unknown', 'none'].includes(homeOverlay.sourceMode)
+    && ['default_neutral', 'unknown', 'none'].includes(awayOverlay.sourceMode);
+
+  return `========================
+PROFILE / OVERLAY DISCIPLINE
+========================
+- LEAGUE_PROFILE_WINDOW: sample_matches=${leagueWindow.sampleMatches ?? 'unknown'}, event_coverage=${leagueWindow.eventCoverage ?? 'unknown'}
+- HOME_TEAM_PROFILE_WINDOW: sample_matches=${homeWindow.sampleMatches ?? 'unknown'}, event_coverage=${homeWindow.eventCoverage ?? 'unknown'}
+- AWAY_TEAM_PROFILE_WINDOW: sample_matches=${awayWindow.sampleMatches ?? 'unknown'}, event_coverage=${awayWindow.eventCoverage ?? 'unknown'}
+- HOME_TACTICAL_OVERLAY: source_mode=${homeOverlay.sourceMode}, source_confidence=${homeOverlay.sourceConfidence ?? 'none'}
+- AWAY_TACTICAL_OVERLAY: source_mode=${awayOverlay.sourceMode}, source_confidence=${awayOverlay.sourceConfidence ?? 'none'}
+
+V7 DISCIPLINE RULES:
+- Quantitative profile priors are supporting evidence only. They are stronger when sample size and event coverage are respectable; they are weak when coverage is thin or unknown.
+- If PREMATCH_EXPERT_FEATURES_V1 implies weak/none prior strength, default should_push=false unless live evidence is clearly one-sided and actionable.
+- A single narrative item such as motivation, H2H, or one absence note must NOT override weak profile coverage.
+- Tactical overlay is provenance-sensitive:
+  - source_mode=default_neutral or unknown => treat tactical labels as unavailable, not as evidence.
+  - source_mode=llm_assisted with low/medium confidence => tiebreaker only, never a primary reason to bet.
+  - source_mode=curated or manual_override with high confidence => supporting prior only, still secondary to live evidence.
+- If both team overlays are neutral/unknown (${bothNeutral ? 'currently true' : 'currently false'}), assume tactical context is effectively unavailable for this run.
+- If provider prediction is absent and profile coverage is thin, do not manufacture conviction from narrative enrichment. Return no bet.
+- In structured prematch Ask AI mode, prefer patience: if the priors do not align cleanly, return should_push=false and explain what confirmation is still missing.
+
+`;
 }
 
 function getCorrelatedThesis(canonicalMarket: string): { thesisKey: string; label: string } | null {
@@ -1194,6 +1275,7 @@ function buildExistingExposureSectionCompact(
     const ladderAlert = (
       promptVersion === 'v6-betting-discipline-b'
       || promptVersion === 'v6-betting-discipline-c'
+      || promptVersion === 'v7-profile-overlay-discipline-a'
     ) && summary.count >= 2
       ? ' [LADDER ALERT]'
       : '';
@@ -1203,6 +1285,7 @@ function buildExistingExposureSectionCompact(
   const advancedRules = (
     promptVersion === 'v6-betting-discipline-b'
     || promptVersion === 'v6-betting-discipline-c'
+    || promptVersion === 'v7-profile-overlay-discipline-a'
   )
     ? `- If the same thesis already has 2+ entries, do NOT add another rung. Default should_push=false.
 - A later safer line may be better in isolation, but adding it on top of earlier exposure still compounds bankroll risk instead of improving the old position.
@@ -1370,6 +1453,7 @@ export function buildLiveAnalysisPrompt(
     const advancedBettingRules = (
       promptVersion === 'v6-betting-discipline-b'
       || promptVersion === 'v6-betting-discipline-c'
+      || promptVersion === 'v7-profile-overlay-discipline-a'
     )
       ? `- First-half volume is a prior, not an automatic second-half trigger.
 - At HT and in the first 10 minutes of 2H, do NOT project a wild first half straight into a new Over bet unless the early second-half flow confirms it with fresh pressure, shots, or transitions.
@@ -1382,10 +1466,14 @@ export function buildLiveAnalysisPrompt(
     const advancedLineSpecificRule = (
       promptVersion === 'v6-betting-discipline-b'
       || promptVersion === 'v6-betting-discipline-c'
+      || promptVersion === 'v7-profile-overlay-discipline-a'
     )
       ? '- At HT / early 2H, a fresh Over 3.5 from 1-1 is usually too demanding. Wait for better confirmation or a friendlier line.\n'
       : '';
-    const advancedCornersRules = promptVersion === 'v6-betting-discipline-c'
+    const advancedCornersRules = (
+      promptVersion === 'v6-betting-discipline-c'
+      || promptVersion === 'v7-profile-overlay-discipline-a'
+    )
       ? `- Corners are a tertiary market. They are not a primary read on team quality, true scoring edge, or match motivation.
 - Only choose corners when the corner-specific evidence is cleaner than any available Goals or AH thesis. If a goals/AH read is similarly strong, prefer goals/AH.
 - Corners Under is exceptional-only. Default should_push=false unless the match is genuinely calm and corner-suppressing.
@@ -1395,11 +1483,15 @@ export function buildLiveAnalysisPrompt(
 - Corners markets should usually cap at confidence 6 and stake 3%. Corners Under should usually cap at confidence 5 and stake 2% unless the edge is exceptionally clean.
 `
       : '';
-    const advancedBalancedTotalsRule = promptVersion === 'v6-betting-discipline-c'
+    const advancedBalancedTotalsRule = (
+      promptVersion === 'v6-betting-discipline-c'
+      || promptVersion === 'v7-profile-overlay-discipline-a'
+    )
       ? `- Balanced totals are not enough. In 1-1 or 0-0 states around minute 55-70, if possession, shots, and shots on target are broadly even and there is no clear pressure asymmetry, default should_push=false.
 - Symmetric prices around 1.90 on both sides usually mean the market sees a thin edge. Do not force an Over or Under just because one more goal would cash.
 `
       : '';
+    const profileOverlayDisciplineSection = buildProfileAndOverlayDisciplineSectionCompact(data, promptVersion);
     return `
 You are a disciplined live football investment analyst. Analyze one live match and return either one realistic investment idea or no bet. Evaluate custom conditions separately.
 ${buildForceAnalyzeContextCompact(data, analysisMode)}========================
@@ -1521,6 +1613,7 @@ ${advancedBettingRules}- 1X2 and BTTS No need full_live_data, confidence >= 7, a
 - If corners line is far above current live corners late in the match (gap >= 3 after minute 75), assume stats desync/delay and skip ALL corners markets.
 ${advancedCornersRules}
 ${advancedBalancedTotalsRule}
+${profileOverlayDisciplineSection}
 ${activeCornersSanityAlert}
 - Odds >= 2.50 => confidence cap 6, stake cap 3%
 - Over 3.5+ needs current goals >= line-1 or a clearly open match
