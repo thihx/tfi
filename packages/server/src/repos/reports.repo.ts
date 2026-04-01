@@ -785,6 +785,7 @@ export interface AiInsightsData {
   modelPromptCohorts: Array<{ cohort: string; total: number; winRate: number; pnl: number; roi: number }>;
   prematchStrengthCohorts: Array<{ bucket: string; total: number; winRate: number; pnl: number; roi: number }>;
   profileCoverageCohorts: Array<{ bucket: string; total: number; winRate: number; pnl: number; roi: number }>;
+  profileScopeCohorts: Array<{ bucket: string; total: number; winRate: number; pnl: number; roi: number }>;
   overlayCoverageCohorts: Array<{ bucket: string; total: number; winRate: number; pnl: number; roi: number }>;
   policyImpactCohorts: Array<{ bucket: string; total: number; winRate: number; pnl: number; roi: number }>;
 }
@@ -793,7 +794,7 @@ export async function getAiInsights(filter: PeriodFilter): Promise<AiInsightsDat
   const dc = buildDateCondition('r.timestamp', filter);
   const aiInsightSampleFloor = 5;
 
-  const [leagueRows, marketRows, minuteRows, confRows, recentTrendRes, overallTrendRes, streakRes, valueRes, safeRes, analyticsRows, modelPromptRows, prematchStrengthRows, profileCoverageRows, overlayCoverageRows, policyImpactRows] = await Promise.all([
+  const [leagueRows, marketRows, minuteRows, confRows, recentTrendRes, overallTrendRes, streakRes, valueRes, safeRes, analyticsRows, modelPromptRows, prematchStrengthRows, profileCoverageRows, profileScopeRows, overlayCoverageRows, policyImpactRows] = await Promise.all([
     // League performance
     query<{ league: string; wins: string; total: string; pnl: string }>(`
       SELECT COALESCE(NULLIF(league,''),'Unknown') AS league,
@@ -940,6 +941,20 @@ export async function getAiInsights(filter: PeriodFilter): Promise<AiInsightsDat
 
     query<{ bucket: string; wins: string; total: string; pnl: string; total_staked: string }>(`
       SELECT
+        COALESCE(NULLIF(decision_context->>'profileScopeBand', ''), 'unknown') AS bucket,
+        COUNT(*) FILTER (WHERE ${DIRECTIONAL_WIN_RESULT_SQL})::text AS wins,
+        COUNT(*)::text AS total,
+        COALESCE(SUM(pnl), 0)::text AS pnl,
+        COALESCE(SUM(COALESCE(stake_percent, 1)), 0)::text AS total_staked
+      FROM recommendations r
+      WHERE ${NOT_DUP} AND ${DIRECTIONAL_RESULT_SQL} AND ${dc.clause}
+      GROUP BY COALESCE(NULLIF(decision_context->>'profileScopeBand', ''), 'unknown')
+      HAVING COUNT(*) >= ${aiInsightSampleFloor}
+      ORDER BY COUNT(*) DESC, SUM(pnl) DESC
+    `, dc.params),
+
+    query<{ bucket: string; wins: string; total: string; pnl: string; total_staked: string }>(`
+      SELECT
         COALESCE(NULLIF(decision_context->>'overlayCoverageBand', ''), 'unknown') AS bucket,
         COUNT(*) FILTER (WHERE ${DIRECTIONAL_WIN_RESULT_SQL})::text AS wins,
         COUNT(*)::text AS total,
@@ -1077,6 +1092,13 @@ export async function getAiInsights(filter: PeriodFilter): Promise<AiInsightsDat
       roi: row.roi,
     })),
     profileCoverageCohorts: mapCohorts(profileCoverageRows.rows).map((row) => ({
+      bucket: row.bucket ?? 'unknown',
+      total: row.total,
+      winRate: row.winRate,
+      pnl: row.pnl,
+      roi: row.roi,
+    })),
+    profileScopeCohorts: mapCohorts(profileScopeRows.rows).map((row) => ({
       bucket: row.bucket ?? 'unknown',
       total: row.total,
       winRate: row.winRate,

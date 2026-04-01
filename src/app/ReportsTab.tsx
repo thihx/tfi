@@ -62,17 +62,19 @@ function familyLabel(value: string): string {
 }
 
 function cohortBucketLabel(value: string): string {
-  const map: Record<string, string> = {
-    strong: 'Strong',
-    moderate: 'Moderate',
-    weak: 'Weak',
-    none: 'None',
-    unknown: 'Unknown',
-    partial: 'Partial',
-    thin: 'Thin',
-    both: 'Both Teams Overlay',
-    one: 'One Team Overlay',
-    clean: 'Clean',
+    const map: Record<string, string> = {
+      strong: 'Strong',
+      moderate: 'Moderate',
+      weak: 'Weak',
+      none: 'None',
+      unknown: 'Unknown',
+      partial: 'Partial',
+      thin: 'Thin',
+      top_league_only: 'Top-Domestic Only',
+      cross_competition: 'Cross-Competition',
+      both: 'Both Teams Overlay',
+      one: 'One Team Overlay',
+      clean: 'Clean',
     warned: 'Warned',
   };
   return map[value] ?? value;
@@ -532,15 +534,20 @@ const AiInsightsSection = memo(function AiInsightsSection({ data }: { data: AiIn
           items={data.prematchStrengthCohorts.map((row) => `${cohortBucketLabel(row.bucket)}: ${wrStr(row.winRate)} (${pnlStr(row.pnl)}, ROI ${row.roi >= 0 ? '+' : ''}${row.roi.toFixed(1)}%, ${row.total} bets)`)}
           color="var(--gray-700)"
         />
-        <InsightList
-          title="Profile Coverage Cohorts"
-          items={data.profileCoverageCohorts.map((row) => `${cohortBucketLabel(row.bucket)}: ${wrStr(row.winRate)} (${pnlStr(row.pnl)}, ROI ${row.roi >= 0 ? '+' : ''}${row.roi.toFixed(1)}%, ${row.total} bets)`)}
-          color="var(--gray-700)"
-        />
-        <InsightList
-          title="Tactical Overlay Cohorts"
-          items={data.overlayCoverageCohorts.map((row) => `${cohortBucketLabel(row.bucket)}: ${wrStr(row.winRate)} (${pnlStr(row.pnl)}, ROI ${row.roi >= 0 ? '+' : ''}${row.roi.toFixed(1)}%, ${row.total} bets)`)}
-          color="var(--gray-700)"
+          <InsightList
+            title="Profile Coverage Cohorts"
+            items={data.profileCoverageCohorts.map((row) => `${cohortBucketLabel(row.bucket)}: ${wrStr(row.winRate)} (${pnlStr(row.pnl)}, ROI ${row.roi >= 0 ? '+' : ''}${row.roi.toFixed(1)}%, ${row.total} bets)`)}
+            color="var(--gray-700)"
+          />
+          <InsightList
+            title="Profile Scope Cohorts"
+            items={data.profileScopeCohorts.map((row) => `${cohortBucketLabel(row.bucket)}: ${wrStr(row.winRate)} (${pnlStr(row.pnl)}, ROI ${row.roi >= 0 ? '+' : ''}${row.roi.toFixed(1)}%, ${row.total} bets)`)}
+            color="var(--gray-700)"
+          />
+          <InsightList
+            title="Tactical Overlay Cohorts"
+            items={data.overlayCoverageCohorts.map((row) => `${cohortBucketLabel(row.bucket)}: ${wrStr(row.winRate)} (${pnlStr(row.pnl)}, ROI ${row.roi >= 0 ? '+' : ''}${row.roi.toFixed(1)}%, ${row.total} bets)`)}
+            color="var(--gray-700)"
         />
         <InsightList
           title="Policy Impact Cohorts"

@@ -33,8 +33,10 @@ const EVENT_SUMMARY_COVERAGE_FLOOR = 0.6;
 // Phase 1 rollout acceleration: top-league backfill should fill historical goal-timeline
 // coverage quickly enough for derived profile metrics to become usable after a small number of runs.
 const EVENT_SUMMARY_BACKFILL_LIMIT = 500;
-const EVENT_SUMMARY_BACKFILL_CONCURRENCY = 10;
-const HISTORY_FIXTURE_BACKFILL_CONCURRENCY = 2;
+const EVENT_SUMMARY_BACKFILL_CONCURRENCY = 4;
+const EVENT_SUMMARY_BACKFILL_BATCH_DELAY_MS = 300;
+const HISTORY_FIXTURE_BACKFILL_CONCURRENCY = 1;
+const HISTORY_FIXTURE_BACKFILL_BATCH_DELAY_MS = 500;
 const HISTORY_FIXTURE_BACKFILL_SEASON_DEPTH = 2;
 
 type LeagueTier = LeagueProfileData['tempo_tier'];
@@ -52,7 +54,9 @@ interface HistoricalMatchRow {
   match_id: string;
   league_id: number;
   league_name: string;
+  home_team_id: number | null;
   home_team: string;
+  away_team_id: number | null;
   away_team: string;
   final_status: string;
   home_score: number;
@@ -92,6 +96,11 @@ export interface DerivedPrematchProfilesResult {
 
 function normalizeName(value: string): string {
   return value.trim().toLowerCase().replace(/\s+/g, ' ');
+}
+
+function sleep(ms: number): Promise<void> {
+  if (ms <= 0) return Promise.resolve();
+  return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
 function average(values: Array<number | null | undefined>): number | null {
@@ -440,12 +449,14 @@ async function getHistoricalMatchesForLeagues(
   lookbackDays: number,
 ): Promise<HistoricalMatchRow[]> {
   if (leagueIds.length === 0) return [];
-  const result = await query<HistoricalMatchRow>(
+    const result = await query<HistoricalMatchRow>(
     `SELECT
        match_id,
        league_id,
        league_name,
+       home_team_id,
        home_team,
+       away_team_id,
        away_team,
        final_status,
        home_score,
@@ -480,12 +491,14 @@ async function getHistoricalMatchesForTeamNames(
   const names = Array.from(new Set(normalizedNames.map((value) => normalizeNameKey(value)).filter(Boolean)));
   if (names.length === 0) return [];
 
-  const result = await query<HistoricalMatchRow>(
+    const result = await query<HistoricalMatchRow>(
     `SELECT
        match_id,
        league_id,
        league_name,
+       home_team_id,
        home_team,
+       away_team_id,
        away_team,
        final_status,
        home_score,
@@ -557,9 +570,11 @@ function buildTeamPerspectiveSamplesByCandidate(
 ): Map<string, TeamMatchPerspective[]> {
   const teamSamples = new Map<string, TeamMatchPerspective[]>();
   const nameToTeamIds = new Map<string, Set<string>>();
+  const directIds = new Set<string>();
 
   for (const candidate of candidates) {
     teamSamples.set(candidate.teamId, []);
+    directIds.add(candidate.teamId);
     for (const name of candidate.names) {
       const normalized = normalizeNameKey(name);
       if (!normalized) continue;
@@ -570,11 +585,15 @@ function buildTeamPerspectiveSamplesByCandidate(
   }
 
   for (const row of rows) {
-    const homeIds = nameToTeamIds.get(normalizeNameKey(row.home_team)) ?? new Set<string>();
+    const homeIds = row.home_team_id != null && directIds.has(String(row.home_team_id))
+      ? new Set([String(row.home_team_id)])
+      : nameToTeamIds.get(normalizeNameKey(row.home_team)) ?? new Set<string>();
     for (const teamId of homeIds) {
       teamSamples.get(teamId)?.push(buildTeamPerspective(row, 'home'));
     }
-    const awayIds = nameToTeamIds.get(normalizeNameKey(row.away_team)) ?? new Set<string>();
+    const awayIds = row.away_team_id != null && directIds.has(String(row.away_team_id))
+      ? new Set([String(row.away_team_id)])
+      : nameToTeamIds.get(normalizeNameKey(row.away_team)) ?? new Set<string>();
     for (const teamId of awayIds) {
       teamSamples.get(teamId)?.push(buildTeamPerspective(row, 'away'));
     }
@@ -611,6 +630,9 @@ async function hydrateMissingEventSummaries(rows: HistoricalMatchRow[]): Promise
         // Best-effort only. Missing event summaries should not fail the profile sync.
       }
     }));
+    if (start + EVENT_SUMMARY_BACKFILL_CONCURRENCY < targets.length) {
+      await sleep(EVENT_SUMMARY_BACKFILL_BATCH_DELAY_MS);
+    }
   }
 }
 
@@ -643,6 +665,9 @@ async function backfillHistoricalMatchesForLeagues(
       if (archiveRows.length === 0) return;
       await matchHistoryRepo.archiveFinishedMatches(archiveRows);
     }));
+    if (start + HISTORY_FIXTURE_BACKFILL_CONCURRENCY < seasonTargets.length) {
+      await sleep(HISTORY_FIXTURE_BACKFILL_BATCH_DELAY_MS);
+    }
   }
 }
 

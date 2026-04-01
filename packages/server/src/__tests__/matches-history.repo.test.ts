@@ -22,7 +22,9 @@ describe('matches history repository', () => {
       kickoff_at_utc: '2026-03-25T06:00:00.000Z',
       league_id: 39,
       league_name: 'Premier League',
+      home_team_id: 42,
       home_team: 'Arsenal',
+      away_team_id: 49,
       away_team: 'Chelsea',
       venue: 'Emirates',
       final_status: 'FT',
@@ -40,7 +42,11 @@ describe('matches history repository', () => {
     const params = vi.mocked(query).mock.calls[0]?.[1] as unknown[];
     expect(sql).toContain('kickoff_at_utc');
     expect(sql).toContain('COALESCE(EXCLUDED.kickoff_at_utc, matches_history.kickoff_at_utc)');
+    expect(sql).toContain('home_team_id');
+    expect(sql).toContain('away_team_id');
     expect(params).toContain('2026-03-25T06:00:00.000Z');
+    expect(params).toContain(42);
+    expect(params).toContain(49);
   });
 
   test('includes settlement_stats_fetched_at in upsert and uses COALESCE to preserve existing value', async () => {
@@ -94,8 +100,8 @@ describe('matches history repository', () => {
     }]);
 
     const params = vi.mocked(query).mock.calls[0]?.[1] as unknown[];
-    // 19th param (index 18) for the single row is settlement_stats_fetched_at
-    expect(params[18]).toBeNull();
+    // 21st param (index 20) for the single row is settlement_stats_fetched_at
+    expect(params[20]).toBeNull();
   });
 
   test('orders historical date queries by canonical kickoff instant first', async () => {

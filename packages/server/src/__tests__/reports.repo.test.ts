@@ -142,6 +142,9 @@ describe('reports repository', () => {
         rows: [{ bucket: 'partial', wins: '2', total: '5', pnl: '-0.4', total_staked: '10' }],
       } as never)
       .mockResolvedValueOnce({
+        rows: [{ bucket: 'cross_competition', wins: '3', total: '5', pnl: '1.4', total_staked: '10' }],
+      } as never)
+      .mockResolvedValueOnce({
         rows: [{ bucket: 'both', wins: '4', total: '5', pnl: '3.2', total_staked: '10' }],
       } as never)
       .mockResolvedValueOnce({
@@ -162,6 +165,7 @@ describe('reports repository', () => {
     });
     expect(result.prematchStrengthCohorts[0]?.bucket).toBe('strong');
     expect(result.profileCoverageCohorts[0]?.bucket).toBe('partial');
+    expect(result.profileScopeCohorts[0]?.bucket).toBe('cross_competition');
     expect(result.overlayCoverageCohorts[0]?.bucket).toBe('both');
     expect(result.policyImpactCohorts[0]?.bucket).toBe('warned');
     expect(query).toHaveBeenCalledWith(

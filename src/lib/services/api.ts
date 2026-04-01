@@ -919,9 +919,10 @@ export interface AiInsightsData {
   modelPromptCohorts: Array<{ cohort: string; total: number; winRate: number; pnl: number; roi: number }>;
   prematchStrengthCohorts: Array<{ bucket: string; total: number; winRate: number; pnl: number; roi: number }>;
   profileCoverageCohorts: Array<{ bucket: string; total: number; winRate: number; pnl: number; roi: number }>;
+  profileScopeCohorts: Array<{ bucket: string; total: number; winRate: number; pnl: number; roi: number }>;
   overlayCoverageCohorts: Array<{ bucket: string; total: number; winRate: number; pnl: number; roi: number }>;
   policyImpactCohorts: Array<{ bucket: string; total: number; winRate: number; pnl: number; roi: number }>;
-}
+  }
 
 export async function fetchOverviewReport(config: AppConfig, f: ReportPeriodFilter): Promise<OverviewReport> {
   return pgFetch<OverviewReport>(config, `/api/reports/overview${buildReportQs(f)}`);

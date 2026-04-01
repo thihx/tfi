@@ -5,7 +5,7 @@ export interface PrematchProfileCandidateTeam {
   league_id: number;
   team_id: number;
   team_name: string;
-  source: 'directory' | 'matches';
+  source: 'directory' | 'matches' | 'history';
 }
 
 function normalizeName(value: string): string {
@@ -15,8 +15,22 @@ function normalizeName(value: string): string {
 function mergePrematchProfileCandidateTeams(
   directoryEntries: PrematchProfileCandidateTeam[],
   matchEntries: PrematchProfileCandidateTeam[],
+  historyEntries: PrematchProfileCandidateTeam[] = [],
 ): PrematchProfileCandidateTeam[] {
   const merged = new Map<string, PrematchProfileCandidateTeam>();
+
+  const sourceRank = (source: PrematchProfileCandidateTeam['source']): number => {
+    switch (source) {
+      case 'directory':
+        return 3;
+      case 'matches':
+        return 2;
+      case 'history':
+        return 1;
+      default:
+        return 0;
+    }
+  };
 
   const add = (entry: PrematchProfileCandidateTeam) => {
     const key = `${entry.league_id}:${entry.team_id}`;
@@ -28,7 +42,7 @@ function mergePrematchProfileCandidateTeams(
       });
       return;
     }
-    const preferred = existing.source === 'directory' ? existing : entry.source === 'directory' ? entry : existing;
+    const preferred = sourceRank(entry.source) > sourceRank(existing.source) ? entry : existing;
     merged.set(key, {
       ...preferred,
       team_name: normalizeName(preferred.team_name || existing.team_name || entry.team_name),
@@ -37,12 +51,48 @@ function mergePrematchProfileCandidateTeams(
 
   directoryEntries.forEach(add);
   matchEntries.forEach(add);
+  historyEntries.forEach(add);
 
   return [...merged.values()].sort((left, right) =>
     left.league_id - right.league_id
     || left.team_name.localeCompare(right.team_name)
     || left.team_id - right.team_id,
   );
+}
+
+async function getHistoricalMatchCandidateTeams(leagueIds: number[]): Promise<PrematchProfileCandidateTeam[]> {
+  if (leagueIds.length === 0) return [];
+
+  const result = await query<{
+    league_id: number;
+    team_id: number;
+    team_name: string;
+  }>(
+    `SELECT DISTINCT league_id, team_id, team_name
+     FROM (
+       SELECT league_id, home_team_id AS team_id, home_team AS team_name
+       FROM matches_history
+       WHERE league_id = ANY($1)
+         AND date >= CURRENT_DATE - INTERVAL '365 days'
+         AND home_team_id IS NOT NULL
+       UNION ALL
+       SELECT league_id, away_team_id AS team_id, away_team AS team_name
+       FROM matches_history
+       WHERE league_id = ANY($1)
+         AND date >= CURRENT_DATE - INTERVAL '365 days'
+         AND away_team_id IS NOT NULL
+     ) teams
+     WHERE team_id IS NOT NULL
+     ORDER BY league_id, team_name, team_id`,
+    [leagueIds],
+  );
+
+  return result.rows.map((row) => ({
+    league_id: row.league_id,
+    team_id: row.team_id,
+    team_name: row.team_name,
+    source: 'history' as const,
+  }));
 }
 
 async function getDirectoryCandidateTeams(leagueIds: number[]): Promise<PrematchProfileCandidateTeam[]> {
@@ -102,8 +152,9 @@ export async function getPrematchProfileCandidateTeams(
     getDirectoryCandidateTeams(uniqueLeagueIds),
     getCurrentMatchCandidateTeams(uniqueLeagueIds),
   ]);
+  const historyEntries = await getHistoricalMatchCandidateTeams(uniqueLeagueIds);
 
-  return mergePrematchProfileCandidateTeams(directoryEntries, matchEntries);
+  return mergePrematchProfileCandidateTeams(directoryEntries, matchEntries, historyEntries);
 }
 
 export const __testables__ = {

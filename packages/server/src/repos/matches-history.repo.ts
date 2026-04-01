@@ -13,7 +13,9 @@ export interface MatchHistoryRow {
   kickoff_at_utc?: string | null;
   league_id: number;
   league_name: string;
+  home_team_id?: number | null;
   home_team: string;
+  away_team_id?: number | null;
   away_team: string;
   venue: string;
   final_status: string;
@@ -37,7 +39,9 @@ export interface MatchHistoryArchiveInput {
   kickoff_at_utc?: string | null;
   league_id: number;
   league_name: string;
+  home_team_id?: number | null;
   home_team: string;
+  away_team_id?: number | null;
   away_team: string;
   venue: string;
   final_status: string;
@@ -66,31 +70,33 @@ export async function archiveFinishedMatches(
   if (finished.length === 0) return 0;
 
   // Single multi-row INSERT per chunk (max 500 rows to stay well within pg's 65535 param limit)
-  const COLS = 19;
+  const COLS = 21;
   const CHUNK = 500;
   let totalArchived = 0;
 
   for (let offset = 0; offset < finished.length; offset += CHUNK) {
     const chunk = finished.slice(offset, offset + CHUNK);
     const placeholders = chunk.map((_, i) =>
-      `($${i*COLS+1},$${i*COLS+2},$${i*COLS+3},$${i*COLS+4},$${i*COLS+5},$${i*COLS+6},$${i*COLS+7},$${i*COLS+8},$${i*COLS+9},$${i*COLS+10},$${i*COLS+11},$${i*COLS+12},$${i*COLS+13},$${i*COLS+14},$${i*COLS+15},$${i*COLS+16},$${i*COLS+17},$${i*COLS+18},$${i*COLS+19})`,
+      `($${i*COLS+1},$${i*COLS+2},$${i*COLS+3},$${i*COLS+4},$${i*COLS+5},$${i*COLS+6},$${i*COLS+7},$${i*COLS+8},$${i*COLS+9},$${i*COLS+10},$${i*COLS+11},$${i*COLS+12},$${i*COLS+13},$${i*COLS+14},$${i*COLS+15},$${i*COLS+16},$${i*COLS+17},$${i*COLS+18},$${i*COLS+19},$${i*COLS+20},$${i*COLS+21})`,
     ).join(',');
     const params = chunk.flatMap((m) => [
       m.match_id, m.date, m.kickoff, m.kickoff_at_utc ?? null, m.league_id, m.league_name ?? '',
-      m.home_team ?? '', m.away_team ?? '', m.venue ?? 'TBD', m.final_status,
+      m.home_team_id ?? null, m.home_team ?? '', m.away_team_id ?? null, m.away_team ?? '', m.venue ?? 'TBD', m.final_status,
       m.home_score ?? 0, m.away_score ?? 0, m.regular_home_score ?? null,
       m.regular_away_score ?? null, m.result_provider ?? '', JSON.stringify(m.settlement_stats ?? []), m.settlement_event_summary == null ? null : JSON.stringify(m.settlement_event_summary),
       m.settlement_stats_provider ?? '', m.settlement_stats_fetched_at ?? null,
     ]);
     const result = await query(
       `INSERT INTO matches_history (
-         match_id, date, kickoff, kickoff_at_utc, league_id, league_name, home_team, away_team, venue,
+         match_id, date, kickoff, kickoff_at_utc, league_id, league_name, home_team_id, home_team, away_team_id, away_team, venue,
          final_status, home_score, away_score, regular_home_score, regular_away_score,
          result_provider, settlement_stats, settlement_event_summary, settlement_stats_provider, settlement_stats_fetched_at
        )
        VALUES ${placeholders}
        ON CONFLICT (match_id) DO UPDATE SET
          kickoff_at_utc = COALESCE(EXCLUDED.kickoff_at_utc, matches_history.kickoff_at_utc),
+         home_team_id = COALESCE(EXCLUDED.home_team_id, matches_history.home_team_id),
+         away_team_id = COALESCE(EXCLUDED.away_team_id, matches_history.away_team_id),
          final_status = EXCLUDED.final_status,
          home_score   = EXCLUDED.home_score,
          away_score   = EXCLUDED.away_score,
@@ -253,7 +259,9 @@ function normalizeArchiveInput(
     kickoff_at_utc: match.kickoff_at_utc ?? null,
     league_id: match.league_id,
     league_name: match.league_name ?? '',
+    home_team_id: match.home_team_id ?? null,
     home_team: match.home_team ?? '',
+    away_team_id: match.away_team_id ?? null,
     away_team: match.away_team ?? '',
     venue: match.venue ?? 'TBD',
     final_status: match.status,

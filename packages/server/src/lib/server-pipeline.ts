@@ -529,6 +529,7 @@ function asObjectRecord(value: unknown): Record<string, unknown> | null {
 function readProfileWindowSnapshot(value: unknown): {
   sampleMatches: number | null;
   eventCoverage: number | null;
+  topLeagueOnly: boolean | null;
 } {
   const record = asObjectRecord(value);
   const payload = asObjectRecord(record?.profile) ?? record;
@@ -538,6 +539,7 @@ function readProfileWindowSnapshot(value: unknown): {
   return {
     sampleMatches: Number.isFinite(sampleMatches) ? sampleMatches : null,
     eventCoverage: Number.isFinite(eventCoverage) ? eventCoverage : null,
+    topLeagueOnly: typeof window?.top_league_only === 'boolean' ? window.top_league_only : null,
   };
 }
 
@@ -586,6 +588,19 @@ function classifyOverlayCoverageBand(
   return 'none';
 }
 
+function classifyProfileScopeBand(
+  leagueProfileWindow: { sampleMatches: number | null; eventCoverage: number | null; topLeagueOnly: boolean | null },
+  homeTeamProfileWindow: { sampleMatches: number | null; eventCoverage: number | null; topLeagueOnly: boolean | null },
+  awayTeamProfileWindow: { sampleMatches: number | null; eventCoverage: number | null; topLeagueOnly: boolean | null },
+): 'top_league_only' | 'cross_competition' | 'unknown' {
+  const windows = [leagueProfileWindow, homeTeamProfileWindow, awayTeamProfileWindow]
+    .filter((window) => (window.sampleMatches ?? 0) > 0);
+  if (windows.length === 0) return 'unknown';
+  if (windows.some((window) => window.topLeagueOnly === false)) return 'cross_competition';
+  if (windows.every((window) => window.topLeagueOnly === true)) return 'top_league_only';
+  return 'unknown';
+}
+
 function buildRecommendationDecisionContext(args: {
   evidenceMode: EvidenceMode;
   promptDataLevel: PromptStatsDetailLevel;
@@ -596,15 +611,20 @@ function buildRecommendationDecisionContext(args: {
   structuredPrematchAskAiReason: string;
   statsSource: StatsSource;
   oddsSource: string;
-  leagueProfileWindow: { sampleMatches: number | null; eventCoverage: number | null };
-  homeTeamProfileWindow: { sampleMatches: number | null; eventCoverage: number | null };
-  awayTeamProfileWindow: { sampleMatches: number | null; eventCoverage: number | null };
+  leagueProfileWindow: { sampleMatches: number | null; eventCoverage: number | null; topLeagueOnly: boolean | null };
+  homeTeamProfileWindow: { sampleMatches: number | null; eventCoverage: number | null; topLeagueOnly: boolean | null };
+  awayTeamProfileWindow: { sampleMatches: number | null; eventCoverage: number | null; topLeagueOnly: boolean | null };
   homeOverlaySnapshot: { sourceMode: string; sourceConfidence: string | null };
   awayOverlaySnapshot: { sourceMode: string; sourceConfidence: string | null };
   policyBlocked: boolean;
   policyWarnings: string[];
 }): Record<string, unknown> {
   const profileCoverageBand = classifyProfileCoverageBand(
+    args.leagueProfileWindow,
+    args.homeTeamProfileWindow,
+    args.awayTeamProfileWindow,
+  );
+  const profileScopeBand = classifyProfileScopeBand(
     args.leagueProfileWindow,
     args.homeTeamProfileWindow,
     args.awayTeamProfileWindow,
@@ -624,13 +644,17 @@ function buildRecommendationDecisionContext(args: {
     statsSource: args.statsSource,
     oddsSource: args.oddsSource,
     profileCoverageBand,
+    profileScopeBand,
     overlayCoverageBand,
     leagueProfileSampleMatches: args.leagueProfileWindow.sampleMatches,
     leagueProfileEventCoverage: args.leagueProfileWindow.eventCoverage,
+    leagueProfileTopLeagueOnly: args.leagueProfileWindow.topLeagueOnly,
     homeTeamProfileSampleMatches: args.homeTeamProfileWindow.sampleMatches,
     homeTeamProfileEventCoverage: args.homeTeamProfileWindow.eventCoverage,
+    homeTeamProfileTopLeagueOnly: args.homeTeamProfileWindow.topLeagueOnly,
     awayTeamProfileSampleMatches: args.awayTeamProfileWindow.sampleMatches,
     awayTeamProfileEventCoverage: args.awayTeamProfileWindow.eventCoverage,
+    awayTeamProfileTopLeagueOnly: args.awayTeamProfileWindow.topLeagueOnly,
     homeTacticalOverlaySourceMode: args.homeOverlaySnapshot.sourceMode,
     homeTacticalOverlaySourceConfidence: args.homeOverlaySnapshot.sourceConfidence,
     awayTacticalOverlaySourceMode: args.awayOverlaySnapshot.sourceMode,

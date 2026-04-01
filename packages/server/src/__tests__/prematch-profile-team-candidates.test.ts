@@ -13,12 +13,17 @@ describe('prematch profile team candidates', () => {
         { league_id: 98, team_id: 303, team_name: 'Machida   Zelvia', source: 'matches' },
         { league_id: 98, team_id: 292, team_name: 'FC Tokyo', source: 'matches' },
       ],
+      [
+        { league_id: 98, team_id: 292, team_name: 'FC   Tokyo', source: 'history' },
+        { league_id: 98, team_id: 400, team_name: 'Yokohama FC', source: 'history' },
+      ],
     );
 
     expect(merged).toEqual([
       { league_id: 98, team_id: 292, team_name: 'FC Tokyo', source: 'matches' },
       { league_id: 98, team_id: 111, team_name: 'Kawasaki Frontale', source: 'directory' },
       { league_id: 98, team_id: 303, team_name: 'Machida Zelvia', source: 'directory' },
+      { league_id: 98, team_id: 400, team_name: 'Yokohama FC', source: 'history' },
     ]);
   });
 });
