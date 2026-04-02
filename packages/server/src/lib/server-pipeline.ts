@@ -1678,6 +1678,7 @@ function sanitizePromptOddsCanonical(args: {
   awayGoals: number;
   currentTotalGoals: number;
   currentTotalCorners: number | null;
+  matchMinute: number;
 }): OddsSanitizationResult {
   const sanitized: OddsCanonical = { ...args.canonical };
   const warnings: string[] = [];
@@ -1711,6 +1712,33 @@ function sanitizePromptOddsCanonical(args: {
       'corners_ou',
       `Removed corners O/U market from prompt: current total corners ${args.currentTotalCorners} already exceeds line ${sanitized.corners_ou.line}.`,
     );
+  }
+
+  if (
+    args.currentTotalCorners !== null
+    && typeof sanitized.corners_ou?.line === 'number'
+  ) {
+    const line = sanitized.corners_ou.line;
+    const over = sanitized.corners_ou.over;
+    const cornersNeededForOver = line - args.currentTotalCorners;
+    const remainingMinutes = Math.max(1, 90 - args.matchMinute);
+    const observedCornerTempo = args.currentTotalCorners / Math.max(args.matchMinute, 1);
+    const requiredCornerTempo = Math.max(cornersNeededForOver, 0) / remainingMinutes;
+    const looksLikeStaleEasyCornersLine =
+      args.matchMinute >= 45
+      && args.matchMinute < 70
+      && args.currentTotalCorners >= 8
+      && cornersNeededForOver <= 1
+      && typeof over === 'number'
+      && over >= 1.75
+      && requiredCornerTempo <= observedCornerTempo * 0.3;
+
+    if (looksLikeStaleEasyCornersLine) {
+      removeMarket(
+        'corners_ou',
+        `Removed corners O/U market from prompt: live total corners ${args.currentTotalCorners} is already too close to line ${line} at minute ${args.matchMinute} for an over price of ${over}, which suggests a stale or non-main live corners line.`,
+      );
+    }
   }
 
   const available = !!(
@@ -2787,6 +2815,7 @@ async function processMatch(
         awayGoals,
         currentTotalGoals: homeGoals + awayGoals,
         currentTotalCorners,
+        matchMinute: minute,
       });
       oddsCanonical = sanitizedOdds.canonical;
       oddsAvailable = sanitizedOdds.available;

@@ -528,6 +528,84 @@ describe('runPipelineBatch', () => {
     expect(match.notified).toBe(true);
   });
 
+  test('blocks corners recommendations when the live corners line looks stale versus the current state', async () => {
+    const footballApi = await import('../lib/football-api.js');
+    const { callGemini } = await import('../lib/gemini.js');
+    const { createRecommendation } = await import('../repos/recommendations.repo.js');
+
+    vi.mocked(footballApi.fetchFixturesByIds).mockResolvedValueOnce([{
+      fixture: { id: 100, status: { short: '2H', elapsed: 58 }, timestamp: 1700000000 },
+      teams: { home: { id: 1, name: 'Team A' }, away: { id: 2, name: 'Team B' } },
+      league: { id: 39, name: 'Test League' },
+      goals: { home: 0, away: 1 },
+    }] as never);
+    vi.mocked(footballApi.fetchFixtureStatistics).mockResolvedValueOnce([
+      { team: { id: 1 }, statistics: [
+        { type: 'Ball Possession', value: '56%' },
+        { type: 'Total Shots', value: 11 },
+        { type: 'Shots on Goal', value: 4 },
+        { type: 'Corner Kicks', value: 6 },
+        { type: 'Fouls', value: 9 },
+      ] },
+      { team: { id: 2 }, statistics: [
+        { type: 'Ball Possession', value: '44%' },
+        { type: 'Total Shots', value: 7 },
+        { type: 'Shots on Goal', value: 2 },
+        { type: 'Corner Kicks', value: 3 },
+        { type: 'Fouls', value: 11 },
+      ] },
+    ] as never);
+    vi.mocked(footballApi.fetchLiveOdds).mockResolvedValueOnce([{
+      bookmakers: [{
+        name: 'TestBook',
+        bets: [
+          { name: 'Over/Under', values: [
+            { value: 'Over', odd: '1.88', handicap: '2.5' },
+            { value: 'Under', odd: '1.96', handicap: '2.5' },
+          ] },
+          { name: 'Corners Over Under', values: [
+            { value: 'Over', odd: '2.10', handicap: '10' },
+            { value: 'Under', odd: '1.70', handicap: '10' },
+          ] },
+        ],
+      }],
+    }] as never);
+
+    vi.mocked(callGemini).mockResolvedValueOnce(JSON.stringify({
+      should_push: true,
+      selection: 'Corners Over 10 @2.10',
+      bet_market: 'corners_over_10',
+      confidence: 6,
+      reasoning_en: 'The match should keep producing corners.',
+      reasoning_vi: 'Tran dau se tiep tuc co phat goc.',
+      warnings: [],
+      value_percent: 12,
+      risk_level: 'MEDIUM',
+      stake_percent: 3,
+      custom_condition_matched: false,
+      custom_condition_status: 'none',
+      custom_condition_summary_en: '',
+      custom_condition_summary_vi: '',
+      custom_condition_reason_en: '',
+      custom_condition_reason_vi: '',
+      condition_triggered_suggestion: '',
+      condition_triggered_reasoning_en: '',
+      condition_triggered_reasoning_vi: '',
+      condition_triggered_confidence: 0,
+      condition_triggered_stake: 0,
+    }));
+
+    const result = await runPipelineBatch(['100']);
+
+    expect(result.results[0].shouldPush).toBe(false);
+    expect(result.results[0].saved).toBe(false);
+    expect(result.results[0].debug?.parsed).toEqual(expect.objectContaining({
+      warnings: expect.arrayContaining(['ODDS_INVALID']),
+      final_should_bet: false,
+    }));
+    expect(createRecommendation).not.toHaveBeenCalled();
+  });
+
   test('blocks 1x2_home before minute 75 even when the AI wants to push it', async () => {
     const { callGemini } = await import('../lib/gemini.js');
     const { createRecommendation } = await import('../repos/recommendations.repo.js');
@@ -2580,6 +2658,102 @@ describe('runPipelineBatch', () => {
     expect(result.prompt).toContain('ODDS SANITY NOTES:');
     expect(result.prompt).toContain('Removed BTTS market from prompt: both teams have already scored (1-1), so BTTS is already logically settled.');
     expect(result.prompt).not.toContain('"btts":{"yes":1.6,"no":2.15}');
+  });
+
+  test('prompt-only analysis removes suspiciously easy live corners lines before sending prompt to LLM', async () => {
+    const footballApi = await import('../lib/football-api.js');
+
+    vi.mocked(footballApi.fetchFixturesByIds).mockResolvedValueOnce([{
+      fixture: { id: 100, status: { short: '2H', elapsed: 58 }, timestamp: 1700000000 },
+      teams: { home: { id: 1, name: 'Team A' }, away: { id: 2, name: 'Team B' } },
+      league: { id: 39, name: 'Test League' },
+      goals: { home: 0, away: 1 },
+    }] as never);
+    vi.mocked(footballApi.fetchFixtureStatistics).mockResolvedValueOnce([
+      { team: { id: 1 }, statistics: [
+        { type: 'Ball Possession', value: '56%' },
+        { type: 'Total Shots', value: 11 },
+        { type: 'Shots on Goal', value: 4 },
+        { type: 'Corner Kicks', value: 6 },
+        { type: 'Fouls', value: 9 },
+      ] },
+      { team: { id: 2 }, statistics: [
+        { type: 'Ball Possession', value: '44%' },
+        { type: 'Total Shots', value: 7 },
+        { type: 'Shots on Goal', value: 2 },
+        { type: 'Corner Kicks', value: 3 },
+        { type: 'Fouls', value: 11 },
+      ] },
+    ] as never);
+    vi.mocked(footballApi.fetchLiveOdds).mockResolvedValueOnce([{
+      bookmakers: [{
+        name: 'TestBook',
+        bets: [
+          { name: 'Over/Under', values: [
+            { value: 'Over', odd: '1.88', handicap: '2.5' },
+            { value: 'Under', odd: '1.96', handicap: '2.5' },
+          ] },
+          { name: 'Corners Over Under', values: [
+            { value: 'Over', odd: '2.10', handicap: '10' },
+            { value: 'Under', odd: '1.70', handicap: '10' },
+          ] },
+        ],
+      }],
+    }] as never);
+
+    const result = await runPromptOnlyAnalysisForMatch('100', { forceAnalyze: true });
+
+    expect(result.prompt).toContain('CURRENT_TOTAL_CORNERS: 9');
+    expect(result.prompt).toContain('ODDS SANITY NOTES:');
+    expect(result.prompt).toContain('Removed corners O/U market from prompt: live total corners 9 is already too close to line 10 at minute 58 for an over price of 2.1, which suggests a stale or non-main live corners line.');
+    expect(result.prompt).not.toContain('"corners_ou":{"line":10,"over":2.1,"under":1.7}');
+  });
+
+  test('prompt-only analysis keeps a plausible live corners line available to the LLM', async () => {
+    const footballApi = await import('../lib/football-api.js');
+
+    vi.mocked(footballApi.fetchFixturesByIds).mockResolvedValueOnce([{
+      fixture: { id: 100, status: { short: '2H', elapsed: 58 }, timestamp: 1700000000 },
+      teams: { home: { id: 1, name: 'Team A' }, away: { id: 2, name: 'Team B' } },
+      league: { id: 39, name: 'Test League' },
+      goals: { home: 0, away: 1 },
+    }] as never);
+    vi.mocked(footballApi.fetchFixtureStatistics).mockResolvedValueOnce([
+      { team: { id: 1 }, statistics: [
+        { type: 'Ball Possession', value: '56%' },
+        { type: 'Total Shots', value: 11 },
+        { type: 'Shots on Goal', value: 4 },
+        { type: 'Corner Kicks', value: 6 },
+        { type: 'Fouls', value: 9 },
+      ] },
+      { team: { id: 2 }, statistics: [
+        { type: 'Ball Possession', value: '44%' },
+        { type: 'Total Shots', value: 7 },
+        { type: 'Shots on Goal', value: 2 },
+        { type: 'Corner Kicks', value: 3 },
+        { type: 'Fouls', value: 11 },
+      ] },
+    ] as never);
+    vi.mocked(footballApi.fetchLiveOdds).mockResolvedValueOnce([{
+      bookmakers: [{
+        name: 'TestBook',
+        bets: [
+          { name: 'Over/Under', values: [
+            { value: 'Over', odd: '1.88', handicap: '2.5' },
+            { value: 'Under', odd: '1.96', handicap: '2.5' },
+          ] },
+          { name: 'Corners Over Under', values: [
+            { value: 'Over', odd: '1.93', handicap: '12.5' },
+            { value: 'Under', odd: '1.85', handicap: '12.5' },
+          ] },
+        ],
+      }],
+    }] as never);
+
+    const result = await runPromptOnlyAnalysisForMatch('100', { forceAnalyze: true });
+
+    expect(result.prompt).not.toContain('Removed corners O/U market from prompt: live total corners 9 is already too close');
+    expect(result.prompt).toContain('"corners_ou":{"line":12.5,"over":1.93,"under":1.85}');
   });
 
   test('prompt-only analysis upgrades prompt with optional advanced stats only when API data is rich enough', async () => {

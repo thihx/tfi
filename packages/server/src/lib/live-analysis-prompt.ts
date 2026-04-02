@@ -1618,6 +1618,7 @@ ${advancedBettingRules}- 1X2 and BTTS No need full_live_data, confidence >= 7, a
 - Thin balanced totals need a pass unless live evidence is clearly asymmetric.
 - Goals and AH are primary markets. Corners are tertiary and require cleaner evidence than goals/AH.
 - Corners require tier 1 live stats + live corners data
+- If ODDS SANITY NOTES removed a corners market, do NOT recommend any corners market and do NOT infer a replacement corners line from stats.
 - Prefer Corners Over over Corners Under when pressure evidence is strong. Be very selective with Corners Under.
 - If corners line is far above current live corners late in the match (gap >= 3 after minute 75), assume stats desync/delay and skip ALL corners markets.
 ${advancedCornersRules}
@@ -1862,6 +1863,7 @@ MARKET SELECTION:
 - AH and O/U are the only market families allowed in degraded Tier 3.
 - Corners markets require Tier 1 live stats and live corners data. No corners recommendation in Tier 2-4.
 - If not met, evaluate Over/Under instead.
+- If ODDS SANITY NOTES removed a corners market, do NOT recommend any corners market and do NOT infer a replacement corners line from stats.
 - If DYNAMIC PERFORMANCE PRIORS are present and the chosen market is tagged as a caution prior, require a stronger live edge or skip the bet.
 - Odds >= 2.50: confidence cap 6, stake cap 3%.
 - Before minute 30: early game caution, 1X2 should_push=false before minute 35.

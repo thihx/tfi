@@ -487,6 +487,12 @@ describe('buildLiveAnalysisPrompt', () => {
     expect(prompt).not.toContain('ODDS SANITY CHECK FAILED:');
   });
 
+  test('explicitly forbids inferring replacement corners lines after odds sanity removes the market', () => {
+    const prompt = buildLiveAnalysisPrompt(baseInput, settings, LIVE_ANALYSIS_PROMPT_CANDIDATE_VERSION);
+
+    expect(prompt).toContain('If ODDS SANITY NOTES removed a corners market, do NOT recommend any corners market and do NOT infer a replacement corners line from stats.');
+  });
+
   test('renders optional advanced quant block only when advanced coverage is sufficient', () => {
     const prompt = buildLiveAnalysisPrompt({
       ...baseInput,
