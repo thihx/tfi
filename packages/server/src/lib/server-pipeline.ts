@@ -2375,6 +2375,11 @@ function safeHtml(s: string): string {
   return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 }
 
+void buildStatsChartUrl;
+void buildTelegramCaption;
+void chunkMessage;
+void buildTelegramMessage;
+
 // ==================== Process Single Match ====================
 
 async function processMatch(
@@ -3189,6 +3194,7 @@ async function processMatch(
         timestamp: new Date().toISOString(),
         minute,
         score,
+        status,
         stats_snapshot: statsCompact as unknown as Record<string, unknown>,
         league,
         home_team: homeName,
@@ -3205,6 +3211,8 @@ async function processMatch(
         condition_summary_vi: parsed.custom_condition_summary_vi,
         condition_reason_en: parsed.custom_condition_reason_en,
         condition_reason_vi: parsed.custom_condition_reason_vi,
+        ai_model: model,
+        mode: watchlistEntry.mode || 'B',
       }).catch(() => []);
 
       for (const row of staged) {
@@ -3308,106 +3316,20 @@ async function processMatch(
       }
     }
 
-    // 9. Telegram notification:
-    // - AI path: notify with the AI selection and save linkage when available.
-    // - Condition-triggered path: still notifies on every matched condition.
-    //   Persistence is allowed only for the first actionable thesis (or a very
-    //   narrow same-line special override) so repeated alerts do not distort
-    //   recommendation statistics.
+    // 9. Telegram delivery is intentionally asynchronous.
+    // Recommendations stage delivery rows inside createRecommendation() and
+    // condition-only alerts stage rows via ensureConditionOnlyDeliveries().
+    // A dedicated delivery job flushes Telegram messages so the live pipeline
+    // does not block on network sends.
+    if (shouldNotify && !shadowMode && settings.telegramEnabled && recId == null) {
+      await ensureConditionOnlyDeliveries();
+    }
     if (shouldNotify && !shadowMode && settings.telegramEnabled) {
-      try {
-        const mode = watchlistEntry.mode || 'B';
-        const chartUrl = statsAvailable ? buildStatsChartUrl(statsCompact, homeName, awayName, minute) : '';
-        const recipientMap = new Map<string, Set<string>>();
-
-        if (recId != null) {
-          const deliveryTargets = await deps.getEligibleTelegramDeliveryTargets(recId).catch(() => []);
-          for (const target of deliveryTargets) {
-            if (!recipientMap.has(target.chatId)) recipientMap.set(target.chatId, new Set<string>());
-            recipientMap.get(target.chatId)!.add(target.userId);
-          }
-        } else {
-          await ensureConditionOnlyDeliveries();
-          const userIds = [...conditionOnlyDeliveryMap.keys()];
-          const channelTargets = await deps.getNotificationChannelAddressesByUserIds(userIds, 'telegram').catch(() => []);
-          for (const target of channelTargets) {
-            if (!recipientMap.has(target.address)) recipientMap.set(target.address, new Set<string>());
-            recipientMap.get(target.address)!.add(target.userId);
-          }
-        }
-
-        if (recipientMap.size === 0 && settings.telegramChatId) {
-          recipientMap.set(settings.telegramChatId, new Set<string>());
-        }
-
-        if (recipientMap.size === 0) {
-          throw new Error('Telegram enabled but no global or user-level recipients are configured');
-        }
-
-        const deliveredUserIds = new Set<string>();
-        const deliveredConditionDeliveryIds = new Set<number>();
-
-        const sendTelegramToChat = async (chatId: string) => {
-          let photoSent = false;
-          if (chartUrl) {
-            const caption = buildTelegramCaption(
-              matchDisplay, league, score, minute, status, parsed, model, mode,
-              settings.notificationLanguage, analysisMode, customConditions, eventsCompact,
-            );
-            try {
-              await deps.sendTelegramPhoto(chatId, chartUrl, caption);
-              photoSent = true;
-            } catch {
-              // Photo failed — fall through to text
-            }
-          }
-
-          if (!photoSent) {
-            const msg = buildTelegramMessage(
-              matchDisplay, league, score, minute, status, parsed,
-              statsCompact, statsAvailable, eventsCompact, model, mode,
-              settings.notificationLanguage, analysisMode, customConditions,
-            );
-            for (const chunk of chunkMessage(msg)) {
-              await deps.sendTelegramMessage(chatId, chunk);
-            }
-          }
-        };
-
-        for (const [chatId, userIds] of recipientMap.entries()) {
-          try {
-            await sendTelegramToChat(chatId);
-            for (const userId of userIds) {
-              deliveredUserIds.add(userId);
-              for (const deliveryId of conditionOnlyDeliveryMap.get(userId) ?? []) {
-                deliveredConditionDeliveryIds.add(deliveryId);
-              }
-            }
-          } catch (chatError) {
-            console.error(
-              `[pipeline] Telegram delivery failed for recipient ${chatId} on ${matchId}:`,
-              chatError instanceof Error ? chatError.message : String(chatError),
-            );
-          }
-        }
-
-        if (recId != null && deliveredUserIds.size > 0) {
-          await deps.markRecommendationDeliveriesDelivered(
-            recId,
-            [...deliveredUserIds],
-            'telegram',
-          ).catch(() => undefined);
-        }
-        if (recId == null && deliveredConditionDeliveryIds.size > 0) {
-          await deps.markDeliveryRowsDelivered([...deliveredConditionDeliveryIds], 'telegram').catch(() => undefined);
-        }
-        if (recId != null && (deliveredUserIds.size > 0 || (settings.telegramChatId ? recipientMap.has(settings.telegramChatId) : false))) {
-          await deps.markRecommendationNotified(recId, 'telegram').catch(() => undefined);
-        }
-        if (deliveredUserIds.size > 0 || recipientMap.size > 0) notified = true;
-      } catch (e) {
-        console.error(`[pipeline] Telegram notification failed for ${matchId}:`, e instanceof Error ? e.message : String(e));
-      }
+      // Async Telegram delivery is queued via delivery rows. We keep the
+      // high-level notified flag truthy once the alert is staged so pipeline
+      // reporting still reflects user-visible alert intent without blocking on
+      // the Telegram network round-trip.
+      notified = true;
     }
 
     // 10. Web Push follows the same semantics as Telegram: notify for AI saves

@@ -22,6 +22,7 @@ import { syncWatchlistMetadataJob } from './sync-watchlist-metadata.job.js';
 import { autoAddTopLeagueWatchlistJob } from './auto-add-top-league-watchlist.job.js';
 import { autoAddFavoriteTeamWatchlistJob } from './auto-add-favorite-team-watchlist.job.js';
 import { refreshLiveMatchesJob } from './refresh-live-matches.job.js';
+import { deliverTelegramNotificationsJob } from './deliver-telegram-notifications.job.js';
 import { updatePredictionsJob } from './update-predictions.job.js';
 import { expireWatchlistJob } from './expire-watchlist.job.js';
 import { checkLiveTriggerJob } from './check-live-trigger.job.js';
@@ -672,7 +673,7 @@ export async function startScheduler() {
     undefined,
     undefined,
     1,
-    undefined,
+    config.jobRefreshLiveMatchesMaxRunMs,
     {
       label: 'Refresh Live Matches',
       description: 'Refreshes only the matches that are live or about to start, so scores and match state move faster without forcing a full match reload every few seconds.',
@@ -680,6 +681,23 @@ export async function startScheduler() {
       entityScopes: ['matches', 'live-scores', 'live-cards'],
       order: 8,
       lockPolicy: 'degraded-local',
+    },
+  );
+  register(
+    'deliver-telegram-notifications',
+    config.jobDeliverTelegramNotificationsMs,
+    deliverTelegramNotificationsJob,
+    undefined,
+    undefined,
+    1,
+    config.jobDeliverTelegramNotificationsMaxRunMs,
+    {
+      label: 'Deliver Telegram Notifications',
+      description: 'Flushes pending Telegram alerts from the delivery queue so live analysis does not wait on network sends.',
+      group: 'pipeline',
+      entityScopes: ['notifications', 'telegram', 'delivery-queue'],
+      order: 9,
+      lockPolicy: 'strict',
     },
   );
   register(
@@ -757,13 +775,13 @@ export async function startScheduler() {
     undefined,
     undefined,
     1,
-    undefined,
+    config.jobCheckLiveMaxRunMs,
     {
       label: 'Check Live Matches',
       description: 'Looks for followed matches that are now live and decides which ones need a fresh review. For those matches, it runs the main review flow and may save a new result or send an alert.',
       group: 'pipeline',
       entityScopes: ['watchlist', 'live-pipeline', 'recommendations', 'notifications'],
-      order: 9,
+      order: 10,
       lockPolicy: 'strict',
     },
   );

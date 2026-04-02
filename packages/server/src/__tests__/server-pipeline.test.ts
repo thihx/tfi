@@ -1586,17 +1586,17 @@ describe('runPipelineBatch', () => {
     }));
   });
 
-  test('sends Telegram notification for should_push=true', async () => {
+  test('queues Telegram delivery asynchronously for should_push=true', async () => {
     await runPipelineBatch(['100']);
 
     const { sendTelegramPhoto, sendTelegramMessage } = await import('../lib/telegram.js');
     const { markRecommendationNotified } = await import('../repos/recommendations.repo.js');
-    expect(sendTelegramPhoto).toHaveBeenCalledTimes(1);
-    expect(vi.mocked(sendTelegramMessage).mock.calls.length).toBeGreaterThanOrEqual(1);
-    expect(markRecommendationNotified).toHaveBeenCalledWith(999, 'telegram');
+    expect(sendTelegramPhoto).not.toHaveBeenCalled();
+    expect(sendTelegramMessage).not.toHaveBeenCalled();
+    expect(markRecommendationNotified).not.toHaveBeenCalledWith(999, 'telegram');
   });
 
-  test('prefers eligible user telegram channels and marks matching delivery rows delivered', async () => {
+  test('does not send Telegram inline even when eligible user channels exist', async () => {
     const settingsRepo = await import('../repos/settings.repo.js');
     vi.mocked(settingsRepo.getSettings).mockResolvedValueOnce({
       AI_MODEL: 'gemini-test',
@@ -1616,25 +1616,14 @@ describe('runPipelineBatch', () => {
 
     await runPipelineBatch(['100']);
 
-    const { sendTelegramPhoto } = await import('../lib/telegram.js');
+    const { sendTelegramPhoto, sendTelegramMessage } = await import('../lib/telegram.js');
     const { markRecommendationNotified } = await import('../repos/recommendations.repo.js');
 
-    expect(deliveryRepo.getEligibleTelegramDeliveryTargets).toHaveBeenCalledWith(999);
-    expect(sendTelegramPhoto).toHaveBeenCalledTimes(2);
-    expect(sendTelegramPhoto).toHaveBeenNthCalledWith(
-      1,
-      'telegram-chat-1',
-      expect.any(String),
-      expect.any(String),
-    );
-    expect(sendTelegramPhoto).toHaveBeenNthCalledWith(
-      2,
-      'telegram-chat-2',
-      expect.any(String),
-      expect.any(String),
-    );
-    expect(deliveryRepo.markRecommendationDeliveriesDelivered).toHaveBeenCalledWith(999, ['user-1', 'user-2'], 'telegram');
-    expect(markRecommendationNotified).toHaveBeenCalledWith(999, 'telegram');
+    expect(deliveryRepo.getEligibleTelegramDeliveryTargets).not.toHaveBeenCalled();
+    expect(sendTelegramPhoto).not.toHaveBeenCalled();
+    expect(sendTelegramMessage).not.toHaveBeenCalled();
+    expect(deliveryRepo.markRecommendationDeliveriesDelivered).not.toHaveBeenCalledWith(999, ['user-1', 'user-2'], 'telegram');
+    expect(markRecommendationNotified).not.toHaveBeenCalledWith(999, 'telegram');
   });
 
   test('does not fall back to env telegram chat id when DB setting is missing', async () => {
@@ -2010,6 +1999,7 @@ describe('runPipelineBatch', () => {
     const { createRecommendation } = await import('../repos/recommendations.repo.js');
     const { createAiPerformanceRecord } = await import('../repos/ai-performance.repo.js');
     const { sendTelegramMessage } = await import('../lib/telegram.js');
+    const deliveryRepo = await import('../repos/recommendation-deliveries.repo.js');
 
     expect(result.results[0]?.shouldPush).toBe(true);
     expect(result.results[0]?.saved).toBe(true);
@@ -2036,7 +2026,8 @@ describe('runPipelineBatch', () => {
       custom_condition_matched: true,
     }));
     expect(createAiPerformanceRecord).toHaveBeenCalledTimes(1);
-    expect(vi.mocked(sendTelegramMessage).mock.calls.length).toBeGreaterThanOrEqual(1);
+    expect(sendTelegramMessage).not.toHaveBeenCalled();
+    expect(deliveryRepo.stageConditionOnlyDeliveries).not.toHaveBeenCalled();
   });
 
   test('pushes a condition-only alert when the condition is evaluated and matched even without a betting suggestion', async () => {
@@ -2069,6 +2060,7 @@ describe('runPipelineBatch', () => {
     const { createRecommendation } = await import('../repos/recommendations.repo.js');
     const { createAiPerformanceRecord } = await import('../repos/ai-performance.repo.js');
     const { sendTelegramMessage } = await import('../lib/telegram.js');
+    const deliveryRepo = await import('../repos/recommendation-deliveries.repo.js');
 
     expect(result.results[0]?.shouldPush).toBe(true);
     expect(result.results[0]?.decisionKind).toBe('condition_only');
@@ -2089,10 +2081,11 @@ describe('runPipelineBatch', () => {
     }));
     expect(createRecommendation).not.toHaveBeenCalled();
     expect(createAiPerformanceRecord).not.toHaveBeenCalled();
-    expect(vi.mocked(sendTelegramMessage).mock.calls.length).toBeGreaterThanOrEqual(1);
+    expect(sendTelegramMessage).not.toHaveBeenCalled();
+    expect(deliveryRepo.stageConditionOnlyDeliveries).toHaveBeenCalled();
   });
 
-  test('includes the concrete custom condition in Telegram text for condition-triggered alerts', async () => {
+  test('stages the concrete custom condition into condition-only delivery metadata', async () => {
     const watchlistRepo = await import('../repos/watchlist.repo.js');
     vi.mocked(watchlistRepo.getOperationalWatchlistByMatchId).mockResolvedValueOnce({
       ...mockWatchlistEntry,
@@ -2126,10 +2119,17 @@ describe('runPipelineBatch', () => {
 
     await runPipelineBatch(['100']);
 
-    const { sendTelegramMessage } = await import('../lib/telegram.js');
-    const firstMessage = vi.mocked(sendTelegramMessage).mock.calls[0]?.[1] ?? '';
-    expect(firstMessage).toContain('Condition:</b> (Minute &gt;= 60) AND (Total goals = 0)');
-    expect(firstMessage).toContain('Matched:');
+    const deliveryRepo = await import('../repos/recommendation-deliveries.repo.js');
+    expect(deliveryRepo.stageConditionOnlyDeliveries).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({
+        match_id: '100',
+        status: '2H',
+        ai_model: 'gemini-test',
+        mode: 'B',
+        condition_summary_vi: 'Dieu kien theo doi da thoa.',
+      }),
+    );
   });
 
   test('keeps repeated same-thesis condition-triggered bets as alert-only when an actionable thesis already exists', async () => {
@@ -2827,9 +2827,9 @@ describe('runPipelineBatch', () => {
 
     expect(createRecommendation).toHaveBeenCalledTimes(1);
     expect(createAiPerformanceRecord).toHaveBeenCalledTimes(1);
-    expect(markRecommendationNotified).toHaveBeenCalledTimes(1);
-    expect(sendTelegramPhoto).toHaveBeenCalledTimes(1);
-    expect(vi.mocked(sendTelegramMessage).mock.calls.length).toBeGreaterThanOrEqual(1);
+    expect(markRecommendationNotified).not.toHaveBeenCalled();
+    expect(sendTelegramPhoto).not.toHaveBeenCalled();
+    expect(sendTelegramMessage).not.toHaveBeenCalled();
   });
 
   test('stores shadow failure separately without breaking active pipeline result', async () => {
@@ -3232,11 +3232,9 @@ describe('runPipelineBatch', () => {
     expect(sendTelegramMessage).not.toHaveBeenCalled();
   });
 
-  test('Telegram handles long messages by chunking', async () => {
+  test('does not send long Telegram messages inline anymore', async () => {
     const longReasoning = 'A'.repeat(4000);
     const { callGemini } = await import('../lib/gemini.js');
-    const { sendTelegramPhoto } = await import('../lib/telegram.js');
-    vi.mocked(sendTelegramPhoto).mockRejectedValueOnce(new Error('photo unavailable in test'));
     vi.mocked(callGemini).mockResolvedValueOnce(JSON.stringify({
       should_push: true,
       selection: 'Over 2.5 Goals @1.85',
@@ -3254,7 +3252,6 @@ describe('runPipelineBatch', () => {
     await runPipelineBatch(['100']);
 
     const { sendTelegramMessage } = await import('../lib/telegram.js');
-    // Multiple chunks for the long message
-    expect(vi.mocked(sendTelegramMessage).mock.calls.length).toBeGreaterThanOrEqual(2);
+    expect(sendTelegramMessage).not.toHaveBeenCalled();
   });
 });

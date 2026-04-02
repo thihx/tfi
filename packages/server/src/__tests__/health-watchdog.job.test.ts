@@ -117,6 +117,24 @@ describe('healthy job', () => {
     expect(result.checked).toBe(0);
     expect(mockSendTelegram).not.toHaveBeenCalled();
   });
+
+  test('does not alert a 5-second job just because it ran longer than 50 seconds', async () => {
+    const job = {
+      ...makeJob({
+        name: 'check-live-trigger',
+        intervalMs: 5_000,
+        running: true,
+      }),
+      lastStartedAt: new Date(NOW - 55_000).toISOString(),
+      lastCompletedAt: new Date(NOW - 60_000).toISOString(),
+      lastHeartbeatAt: new Date(NOW - 5_000).toISOString(),
+    };
+    mockGetJobsStatus.mockResolvedValue([job]);
+
+    const result = await healthWatchdogJob();
+    expect(result.alerted).toBe(0);
+    expect(mockSendTelegram).not.toHaveBeenCalled();
+  });
 });
 
 // ── Overdue job — alert sent ──────────────────────────────────
@@ -331,5 +349,23 @@ describe('stuck job', () => {
     const result = await healthWatchdogJob();
     expect(result.alerted).toBe(1);
     expect(mockSendTelegram.mock.calls[0][1]).toContain('stuck');
+  });
+
+  test('alerts a 5-second job only after the absolute stuck floor is crossed', async () => {
+    const intervalMs = 5_000;
+    const job = {
+      ...makeJob({
+        name: 'check-live-trigger',
+        running: true,
+        intervalMs,
+      }),
+      lastStartedAt: new Date(NOW - 3 * 60_000).toISOString(),
+      lastCompletedAt: new Date(NOW - 4 * 60_000).toISOString(),
+      lastHeartbeatAt: new Date(NOW - 5_000).toISOString(),
+    };
+    mockGetJobsStatus.mockResolvedValue([job]);
+
+    const result = await healthWatchdogJob();
+    expect(result.alerted).toBe(1);
   });
 });

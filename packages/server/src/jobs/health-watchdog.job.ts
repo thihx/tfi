@@ -19,6 +19,7 @@ import { loadOperationalTelegramSettings } from '../lib/telegram-runtime.js';
 const CRITICAL_JOBS = new Set([
   'fetch-matches',
   'refresh-live-matches',
+  'deliver-telegram-notifications',
   'check-live-trigger',
   'auto-settle',
   'expire-watchlist',
@@ -29,9 +30,11 @@ const CRITICAL_JOBS = new Set([
 // How many multiples of a job's interval must elapse before it's "overdue"
 // (only applies when the job is NOT currently running)
 const OVERDUE_FACTOR = 2.5;
+const OVERDUE_MIN_MS = 60_000;
 
 // How many multiples of a job's interval before a RUNNING job is considered stuck
 const STUCK_FACTOR = 10;
+const STUCK_MIN_MS = 2 * 60_000;
 
 // Don't start alerting until scheduler has been up for at least this long (ms).
 // This prevents false alarms right after a container restart.
@@ -127,8 +130,8 @@ export async function healthWatchdogJob(): Promise<WatchdogResult> {
     if (!CRITICAL_JOBS.has(job.name) || !job.enabled) continue;
     checked++;
 
-    const overdueThresholdMs = job.intervalMs * OVERDUE_FACTOR;
-    const stuckThresholdMs = job.intervalMs * STUCK_FACTOR;
+    const overdueThresholdMs = Math.max(job.intervalMs * OVERDUE_FACTOR, OVERDUE_MIN_MS);
+    const stuckThresholdMs = Math.max(job.intervalMs * STUCK_FACTOR, STUCK_MIN_MS);
     const lastCompletedTs = job.lastCompletedAt
       ? new Date(job.lastCompletedAt).getTime()
       : (job.lastRun ? new Date(job.lastRun).getTime() : 0);

@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, test, vi } from 'vitest';
 
 const mockReportJobProgress = vi.fn();
-const mockGetAllMatches = vi.fn();
+const mockGetLiveRefreshCandidates = vi.fn();
 const mockUpdateMatches = vi.fn();
 const mockEnsureFixturesForMatchIds = vi.fn();
 const mockEnsureFixtureStatistics = vi.fn();
@@ -11,7 +11,7 @@ vi.mock('../jobs/job-progress.js', () => ({
 }));
 
 vi.mock('../repos/matches.repo.js', () => ({
-  getAllMatches: mockGetAllMatches,
+  getLiveRefreshCandidates: mockGetLiveRefreshCandidates,
   updateMatches: mockUpdateMatches,
 }));
 
@@ -31,7 +31,7 @@ const { refreshLiveMatchesJob } = await import('../jobs/refresh-live-matches.job
 beforeEach(() => {
   vi.clearAllMocks();
   vi.useRealTimers();
-  mockGetAllMatches.mockResolvedValue([]);
+  mockGetLiveRefreshCandidates.mockResolvedValue([]);
   mockUpdateMatches.mockResolvedValue(0);
   mockEnsureFixturesForMatchIds.mockResolvedValue([]);
   mockEnsureFixtureStatistics.mockResolvedValue({ payload: [], cacheStatus: 'miss' });
@@ -39,7 +39,7 @@ beforeEach(() => {
 
 describe('refreshLiveMatchesJob', () => {
   test('returns early when no live or near-live matches are tracked', async () => {
-    mockGetAllMatches.mockResolvedValue([
+    mockGetLiveRefreshCandidates.mockResolvedValue([
       {
         match_id: '100',
         status: 'NS',
@@ -56,7 +56,7 @@ describe('refreshLiveMatchesJob', () => {
 
   test('refreshes live matches and updates scores plus cards', async () => {
     vi.setSystemTime(new Date('2026-03-26T10:05:00.000Z'));
-    mockGetAllMatches.mockResolvedValue([
+    mockGetLiveRefreshCandidates.mockResolvedValue([
       {
         match_id: '100',
         status: '1H',
@@ -102,10 +102,10 @@ describe('refreshLiveMatchesJob', () => {
     const result = await refreshLiveMatchesJob();
 
     expect(result).toEqual({ tracked: 2, refreshed: 2, live: 1, statsRefreshed: 1 });
-    expect(mockEnsureFixturesForMatchIds).toHaveBeenCalledWith(['100', '200'], { freshnessMode: 'real_required' });
+    expect(mockEnsureFixturesForMatchIds).toHaveBeenCalledWith(['100', '200'], { freshnessMode: 'stale_safe' });
     expect(mockEnsureFixtureStatistics).toHaveBeenCalledTimes(1);
     expect(mockEnsureFixtureStatistics).toHaveBeenCalledWith('100', expect.objectContaining({
-      freshnessMode: 'real_required',
+      freshnessMode: 'stale_safe',
       status: '1H',
       matchMinute: 7,
     }));
@@ -128,7 +128,7 @@ describe('refreshLiveMatchesJob', () => {
 
   test('reuses fresh cached stats without calling Football API again', async () => {
     vi.setSystemTime(new Date('2026-03-26T10:05:00.000Z'));
-    mockGetAllMatches.mockResolvedValue([
+    mockGetLiveRefreshCandidates.mockResolvedValue([
       {
         match_id: '100',
         status: '1H',
@@ -161,7 +161,7 @@ describe('refreshLiveMatchesJob', () => {
     expect(result).toEqual({ tracked: 1, refreshed: 1, live: 1, statsRefreshed: 0 });
     expect(mockEnsureFixtureStatistics).toHaveBeenCalledTimes(1);
     expect(mockEnsureFixtureStatistics).toHaveBeenCalledWith('100', expect.objectContaining({
-      freshnessMode: 'real_required',
+      freshnessMode: 'stale_safe',
     }));
     expect(mockUpdateMatches).toHaveBeenCalledWith([
       expect.objectContaining({
@@ -174,7 +174,7 @@ describe('refreshLiveMatchesJob', () => {
 
   test('keeps live score refresh when real-time card stats are unavailable', async () => {
     vi.setSystemTime(new Date('2026-03-26T10:05:00.000Z'));
-    mockGetAllMatches.mockResolvedValue([
+    mockGetLiveRefreshCandidates.mockResolvedValue([
       {
         match_id: '100',
         status: '1H',
@@ -209,5 +209,15 @@ describe('refreshLiveMatchesJob', () => {
         away_reds: undefined,
       }),
     ]);
+  });
+
+  test('loads only narrowed live-refresh candidates instead of scanning the full matches table', async () => {
+    vi.setSystemTime(new Date('2026-03-26T10:05:00.000Z'));
+    mockGetLiveRefreshCandidates.mockResolvedValue([]);
+
+    await refreshLiveMatchesJob();
+
+    expect(mockGetLiveRefreshCandidates).toHaveBeenCalledOnce();
+    expect(mockGetLiveRefreshCandidates.mock.calls[0]?.[0]).toContain('1H');
   });
 });

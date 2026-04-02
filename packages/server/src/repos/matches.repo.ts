@@ -59,6 +59,27 @@ export async function getMatchesByStatus(statuses: string[]): Promise<MatchRow[]
   return result.rows;
 }
 
+export async function getLiveRefreshCandidates(
+  liveStatuses: string[],
+  kickoffWindowStartIso: string,
+  kickoffWindowEndIso: string,
+): Promise<MatchRow[]> {
+  const result = await query<MatchRow>(
+    `SELECT *
+       FROM matches
+      WHERE status = ANY($1)
+         OR (
+           status = 'NS'
+           AND kickoff_at_utc IS NOT NULL
+           AND kickoff_at_utc >= $2::timestamptz
+           AND kickoff_at_utc < $3::timestamptz
+         )
+      ORDER BY kickoff_at_utc NULLS LAST, date, kickoff`,
+    [liveStatuses, kickoffWindowStartIso, kickoffWindowEndIso],
+  );
+  return result.rows;
+}
+
 /** Full-refresh: truncate + insert all */
 export async function replaceAllMatches(matches: Partial<MatchRow>[]): Promise<number> {
   return transaction(async (client) => {

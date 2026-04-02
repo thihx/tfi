@@ -13,6 +13,7 @@ async function loadScheduler(options: SchedulerLoadOptions = {}) {
   const autoAddTopLeagueWatchlistJob = vi.fn().mockResolvedValue({ candidates: 0, added: 0, skippedExisting: 0 });
   const autoAddFavoriteTeamWatchlistJob = vi.fn().mockResolvedValue({ candidateMatches: 0, targetUsers: 0, added: 0, skippedExisting: 0 });
   const refreshLiveMatchesJob = vi.fn().mockResolvedValue({ tracked: 0, refreshed: 0, live: 0, statsRefreshed: 0 });
+  const deliverTelegramNotificationsJob = vi.fn().mockResolvedValue({ pending: 0, delivered: 0, failed: 0 });
   const syncReferenceDataJob = vi.fn().mockResolvedValue({});
   const refreshTacticalOverlaysJob = vi.fn().mockResolvedValue({});
   const enrichWatchlistJob = vi.fn().mockResolvedValue({});
@@ -41,6 +42,7 @@ async function loadScheduler(options: SchedulerLoadOptions = {}) {
       jobAutoAddTopLeagueWatchlistMs: 0,
       jobAutoAddFavoriteTeamWatchlistMs: 0,
       jobRefreshLiveMatchesMs: 0,
+      jobDeliverTelegramNotificationsMs: 0,
       jobSyncReferenceDataMs: 0,
       jobRefreshTacticalOverlaysMs: 0,
       jobEnrichWatchlistMs: 0,
@@ -52,6 +54,9 @@ async function loadScheduler(options: SchedulerLoadOptions = {}) {
       jobHousekeepingMs: 0,
       jobIntegrationHealthMs: 0,
       jobHealthWatchdogMs: 0,
+      jobRefreshLiveMatchesMaxRunMs: 90_000,
+      jobCheckLiveMaxRunMs: 120_000,
+      jobDeliverTelegramNotificationsMaxRunMs: 60_000,
       ...options.configOverrides,
     },
   }));
@@ -81,6 +86,7 @@ async function loadScheduler(options: SchedulerLoadOptions = {}) {
   vi.doMock('../jobs/auto-add-top-league-watchlist.job.js', () => ({ autoAddTopLeagueWatchlistJob }));
   vi.doMock('../jobs/auto-add-favorite-team-watchlist.job.js', () => ({ autoAddFavoriteTeamWatchlistJob }));
   vi.doMock('../jobs/refresh-live-matches.job.js', () => ({ refreshLiveMatchesJob }));
+  vi.doMock('../jobs/deliver-telegram-notifications.job.js', () => ({ deliverTelegramNotificationsJob }));
   vi.doMock('../jobs/sync-reference-data.job.js', () => ({ syncReferenceDataJob }));
   vi.doMock('../jobs/refresh-tactical-overlays.job.js', () => ({ refreshTacticalOverlaysJob }));
   vi.doMock('../jobs/enrich-watchlist.job.js', () => ({ enrichWatchlistJob }));
@@ -100,6 +106,7 @@ async function loadScheduler(options: SchedulerLoadOptions = {}) {
     fetchMatchesJob,
     checkLiveTriggerJob,
     refreshLiveMatchesJob,
+    deliverTelegramNotificationsJob,
     redisDefault,
     jobRunsRepo,
   };
@@ -223,5 +230,30 @@ describe('scheduler cadence resilience', () => {
       skipReason: 'redis-unavailable-strict',
     }));
     scheduler.stopScheduler();
+  });
+
+  test('fails a live job once maxRunMs is exceeded instead of leaving it hung indefinitely', async () => {
+    let releaseRun: (() => void) | null = null;
+    const { scheduler, refreshLiveMatchesJob, jobRunsRepo } = await loadScheduler({
+      configOverrides: {
+        jobRefreshLiveMatchesMs: 10,
+        jobRefreshLiveMatchesMaxRunMs: 25,
+      },
+    });
+    vi.mocked(refreshLiveMatchesJob).mockImplementationOnce(() => new Promise((resolve) => {
+      releaseRun = () => resolve({ tracked: 1, refreshed: 1, live: 1, statsRefreshed: 1 });
+    }));
+
+    await scheduler.startScheduler();
+    await vi.advanceTimersByTimeAsync(50);
+
+    expect(jobRunsRepo.recordJobRun).toHaveBeenCalledWith(expect.objectContaining({
+      jobName: 'refresh-live-matches',
+      status: 'failure',
+      error: expect.stringContaining('timed out'),
+    }));
+
+    scheduler.stopScheduler();
+    releaseRun?.();
   });
 });

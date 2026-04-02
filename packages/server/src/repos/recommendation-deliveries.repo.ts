@@ -64,6 +64,7 @@ export interface ConditionOnlyDeliveryStageInput {
   timestamp?: string | null;
   minute?: number | null;
   score?: string | null;
+  status?: string | null;
   stats_snapshot?: Record<string, unknown> | string | null;
   league?: string | null;
   home_team?: string | null;
@@ -80,6 +81,8 @@ export interface ConditionOnlyDeliveryStageInput {
   condition_summary_vi?: string | null;
   condition_reason_en?: string | null;
   condition_reason_vi?: string | null;
+  ai_model?: string | null;
+  mode?: string | null;
 }
 
 interface RecommendationDeliveryListOptions {
@@ -129,6 +132,66 @@ interface ConditionOnlyDeliveryTargetRow {
 export interface ConditionOnlyDeliveryTarget {
   deliveryId: number;
   userId: string;
+}
+
+export interface PendingTelegramDeliveryRow {
+  deliveryId: number;
+  userId: string;
+  chatId: string;
+  recommendationId: number | null;
+  matchId: string;
+  metadata: Record<string, unknown>;
+  createdAt: string;
+  recommendationTimestamp: string | null;
+  recommendationMinute: number | null;
+  recommendationScore: string | null;
+  recommendationBetType: string | null;
+  recommendationSelection: string | null;
+  recommendationBetMarket: string | null;
+  recommendationOdds: number | null;
+  recommendationConfidence: number | null;
+  recommendationValuePercent: number | null;
+  recommendationRiskLevel: string | null;
+  recommendationStakePercent: number | null;
+  recommendationReasoning: string | null;
+  recommendationReasoningVi: string | null;
+  recommendationWarnings: string | null;
+  recommendationHomeTeam: string | null;
+  recommendationAwayTeam: string | null;
+  recommendationLeague: string | null;
+  recommendationStatus: string | null;
+  recommendationAiModel: string | null;
+  recommendationMode: string | null;
+}
+
+interface PendingTelegramDeliveryQueryRow {
+  delivery_id: number;
+  user_id: string;
+  chat_id: string;
+  recommendation_id: number | null;
+  match_id: string;
+  metadata: Record<string, unknown> | null;
+  created_at: string;
+  recommendation_timestamp: string | null;
+  recommendation_minute: number | null;
+  recommendation_score: string | null;
+  recommendation_bet_type: string | null;
+  recommendation_selection: string | null;
+  recommendation_bet_market: string | null;
+  recommendation_odds: number | null;
+  recommendation_confidence: number | null;
+  recommendation_value_percent: number | null;
+  recommendation_risk_level: string | null;
+  recommendation_stake_percent: number | null;
+  recommendation_reasoning: string | null;
+  recommendation_reasoning_vi: string | null;
+  recommendation_warnings: string | null;
+  recommendation_home_team: string | null;
+  recommendation_away_team: string | null;
+  recommendation_league: string | null;
+  recommendation_status: string | null;
+  recommendation_ai_model: string | null;
+  recommendation_mode: string | null;
 }
 
 export interface RecommendationDeliveryConditionEvaluationInput {
@@ -384,22 +447,25 @@ export async function stageConditionOnlyDeliveries(
             'recommendation_timestamp', $5::text,
             'recommendation_minute', $6::integer,
             'recommendation_score', $7::text,
+            'recommendation_status', $8::text,
             'recommendation_bet_type', 'CONDITION_ONLY',
-            'recommendation_selection', $8::text,
-            'recommendation_bet_market', $9::text,
-            'recommendation_confidence', $10::numeric,
-            'recommendation_risk_level', $11::text,
-            'recommendation_stake_percent', $12::numeric,
-            'recommendation_reasoning', $13::text,
-            'recommendation_reasoning_vi', $14::text,
-            'recommendation_warnings', $15::text,
-            'recommendation_home_team', $16::text,
-            'recommendation_away_team', $17::text,
-            'recommendation_league', $18::text,
-            'custom_condition_summary_en', $19::text,
-            'custom_condition_summary_vi', $20::text,
-            'custom_condition_reason_en', $21::text,
-            'custom_condition_reason_vi', $22::text
+            'recommendation_selection', $9::text,
+            'recommendation_bet_market', $10::text,
+            'recommendation_confidence', $11::numeric,
+            'recommendation_risk_level', $12::text,
+            'recommendation_stake_percent', $13::numeric,
+            'recommendation_reasoning', $14::text,
+            'recommendation_reasoning_vi', $15::text,
+            'recommendation_warnings', $16::text,
+            'recommendation_home_team', $17::text,
+            'recommendation_away_team', $18::text,
+            'recommendation_league', $19::text,
+            'custom_condition_summary_en', $20::text,
+            'custom_condition_summary_vi', $21::text,
+            'custom_condition_reason_en', $22::text,
+            'custom_condition_reason_vi', $23::text,
+            'recommendation_ai_model', $24::text,
+            'recommendation_mode', $25::text
           )),
           COALESCE($5::timestamptz, NOW())
        )
@@ -412,6 +478,7 @@ export async function stageConditionOnlyDeliveries(
         input.timestamp ?? null,
         input.minute ?? null,
         input.score ?? null,
+        input.status ?? null,
         input.selection ?? null,
         input.bet_market ?? null,
         input.confidence ?? null,
@@ -427,6 +494,8 @@ export async function stageConditionOnlyDeliveries(
         input.condition_summary_vi ?? null,
         input.condition_reason_en ?? null,
         input.condition_reason_vi ?? null,
+        input.ai_model ?? null,
+        input.mode ?? null,
       ],
     );
 
@@ -710,4 +779,83 @@ export async function purgeOldDeliveries(keepDays: number): Promise<number> {
     [keepDays],
   );
   return result.rowCount ?? 0;
+}
+
+export async function getPendingTelegramDeliveries(limit = 20): Promise<PendingTelegramDeliveryRow[]> {
+  const safeLimit = Math.max(1, Math.min(limit, 100));
+  const result = await query<PendingTelegramDeliveryQueryRow>(
+    `SELECT
+        d.id AS delivery_id,
+        d.user_id,
+        BTRIM(c.address) AS chat_id,
+        d.recommendation_id,
+        d.match_id,
+        d.metadata,
+        d.created_at::text,
+        COALESCE(r.timestamp::text, NULLIF(d.metadata->>'recommendation_timestamp', '')) AS recommendation_timestamp,
+        COALESCE(r.minute, NULLIF(d.metadata->>'recommendation_minute', '')::integer) AS recommendation_minute,
+        COALESCE(r.score, NULLIF(d.metadata->>'recommendation_score', '')) AS recommendation_score,
+        COALESCE(r.bet_type, NULLIF(d.metadata->>'recommendation_bet_type', '')) AS recommendation_bet_type,
+        COALESCE(r.selection, NULLIF(d.metadata->>'recommendation_selection', '')) AS recommendation_selection,
+        COALESCE(r.bet_market, NULLIF(d.metadata->>'recommendation_bet_market', '')) AS recommendation_bet_market,
+        COALESCE(r.odds, NULLIF(d.metadata->>'recommendation_odds', '')::numeric) AS recommendation_odds,
+        COALESCE(r.confidence, NULLIF(d.metadata->>'recommendation_confidence', '')::numeric) AS recommendation_confidence,
+        COALESCE(r.value_percent, NULLIF(d.metadata->>'recommendation_value_percent', '')::numeric) AS recommendation_value_percent,
+        COALESCE(r.risk_level, NULLIF(d.metadata->>'recommendation_risk_level', '')) AS recommendation_risk_level,
+        COALESCE(r.stake_percent, NULLIF(d.metadata->>'recommendation_stake_percent', '')::numeric) AS recommendation_stake_percent,
+        COALESCE(r.reasoning, NULLIF(d.metadata->>'recommendation_reasoning', '')) AS recommendation_reasoning,
+        COALESCE(r.reasoning_vi, NULLIF(d.metadata->>'recommendation_reasoning_vi', '')) AS recommendation_reasoning_vi,
+        COALESCE(r.warnings, NULLIF(d.metadata->>'recommendation_warnings', '')) AS recommendation_warnings,
+        COALESCE(r.home_team, NULLIF(d.metadata->>'recommendation_home_team', '')) AS recommendation_home_team,
+        COALESCE(r.away_team, NULLIF(d.metadata->>'recommendation_away_team', '')) AS recommendation_away_team,
+        COALESCE(r.league, NULLIF(d.metadata->>'recommendation_league', '')) AS recommendation_league,
+        r.status AS recommendation_status,
+        r.ai_model AS recommendation_ai_model,
+        r.mode AS recommendation_mode
+      FROM user_recommendation_deliveries d
+      JOIN user_notification_channel_configs c
+        ON c.user_id = d.user_id
+       AND c.channel_type = 'telegram'
+       AND c.enabled = TRUE
+       AND c.status <> 'disabled'
+       AND c.address IS NOT NULL
+       AND BTRIM(c.address) <> ''
+      LEFT JOIN recommendations r
+        ON r.id = d.recommendation_id
+      WHERE d.eligibility_status = 'eligible'
+        AND d.delivery_status = 'pending'
+      ORDER BY d.created_at ASC, d.id ASC
+      LIMIT $1`,
+    [safeLimit],
+  );
+
+  return result.rows.map((row) => ({
+    deliveryId: row.delivery_id,
+    userId: row.user_id,
+    chatId: row.chat_id,
+    recommendationId: row.recommendation_id,
+    matchId: row.match_id,
+    metadata: normalizeMetadata(row.metadata),
+    createdAt: row.created_at,
+    recommendationTimestamp: row.recommendation_timestamp,
+    recommendationMinute: row.recommendation_minute,
+    recommendationScore: row.recommendation_score,
+    recommendationBetType: row.recommendation_bet_type,
+    recommendationSelection: row.recommendation_selection,
+    recommendationBetMarket: row.recommendation_bet_market,
+    recommendationOdds: row.recommendation_odds,
+    recommendationConfidence: row.recommendation_confidence,
+    recommendationValuePercent: row.recommendation_value_percent,
+    recommendationRiskLevel: row.recommendation_risk_level,
+    recommendationStakePercent: row.recommendation_stake_percent,
+    recommendationReasoning: row.recommendation_reasoning,
+    recommendationReasoningVi: row.recommendation_reasoning_vi,
+    recommendationWarnings: row.recommendation_warnings,
+    recommendationHomeTeam: row.recommendation_home_team,
+    recommendationAwayTeam: row.recommendation_away_team,
+    recommendationLeague: row.recommendation_league,
+    recommendationStatus: row.recommendation_status,
+    recommendationAiModel: row.recommendation_ai_model,
+    recommendationMode: row.recommendation_mode,
+  }));
 }

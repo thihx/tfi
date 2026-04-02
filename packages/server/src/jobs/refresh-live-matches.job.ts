@@ -49,8 +49,15 @@ export async function refreshLiveMatchesJob(): Promise<{
   const JOB = 'refresh-live-matches';
   await reportJobProgress(JOB, 'load', 'Loading live and near-live matches...', 10);
 
-  const allMatches = await matchRepo.getAllMatches();
-  const tracked = allMatches.filter((row) => shouldTrackMatch(row));
+  const now = Date.now();
+  const kickoffWindowStart = new Date(now - (TRACK_NS_AFTER_KICKOFF_MIN * 60_000)).toISOString();
+  const kickoffWindowEnd = new Date(now + (TRACK_NS_BEFORE_KICKOFF_MIN * 60_000)).toISOString();
+  const candidateMatches = await matchRepo.getLiveRefreshCandidates(
+    [...LIVE_STATUSES],
+    kickoffWindowStart,
+    kickoffWindowEnd,
+  );
+  const tracked = candidateMatches.filter((row) => shouldTrackMatch(row, now));
   if (tracked.length === 0) {
     return { tracked: 0, refreshed: 0, live: 0, statsRefreshed: 0 };
   }
@@ -59,7 +66,10 @@ export async function refreshLiveMatchesJob(): Promise<{
   const liveCount = tracked.filter((row) => LIVE_STATUSES.has(String(row.status || '').trim().toUpperCase())).length;
 
   await reportJobProgress(JOB, 'fixtures', `Refreshing ${fixtureIds.length} tracked fixtures...`, 35);
-  const fixtures = await ensureFixturesForMatchIds(fixtureIds, { freshnessMode: 'real_required' });
+  // This job exists to keep the live scoreboard fresh enough for UI and coarse
+  // candidate detection. Using stale_safe here reuses the provider cache TTL
+  // instead of forcing an upstream refresh every scheduler tick.
+  const fixtures = await ensureFixturesForMatchIds(fixtureIds, { freshnessMode: 'stale_safe' });
   if (fixtures.length === 0) {
     return { tracked: tracked.length, refreshed: 0, live: liveCount, statsRefreshed: 0 };
   }
@@ -75,7 +85,7 @@ export async function refreshLiveMatchesJob(): Promise<{
         const stats = await ensureFixtureStatistics(matchId, {
           status: fixture.fixture.status.short,
           matchMinute: fixture.fixture.status.elapsed,
-          freshnessMode: 'real_required',
+          freshnessMode: 'stale_safe',
         });
         if (stats.cacheStatus === 'refreshed') {
           statsRefreshed += 1;

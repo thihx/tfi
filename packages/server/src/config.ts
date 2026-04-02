@@ -66,6 +66,7 @@ export const config = {
   jobAutoAddTopLeagueWatchlistMs: Number(process.env['JOB_AUTO_ADD_TOP_LEAGUE_WATCHLIST_MS'] || process.env['JOB_FETCH_MATCHES_MS'] || 1 * 60_000),
   jobAutoAddFavoriteTeamWatchlistMs: Number(process.env['JOB_AUTO_ADD_FAVORITE_TEAM_WATCHLIST_MS'] || process.env['JOB_FETCH_MATCHES_MS'] || 1 * 60_000),
   jobRefreshLiveMatchesMs: Number(process.env['JOB_REFRESH_LIVE_MATCHES_MS'] || 5_000), // 5 sec
+  jobDeliverTelegramNotificationsMs: Number(process.env['JOB_DELIVER_TELEGRAM_NOTIFICATIONS_MS'] || 5_000), // 5 sec
   jobPredictionsMs: Number(process.env['JOB_PREDICTIONS_MS'] || 30 * 60_000),            // 30 min
   jobExpireWatchlistMs: Number(process.env['JOB_EXPIRE_WATCHLIST_MS'] || 5 * 60_000),    // 5 min
   jobCheckLiveMs: Number(process.env['JOB_CHECK_LIVE_MS'] || 5_000),                     // 5 sec
@@ -77,6 +78,9 @@ export const config = {
   jobHousekeepingMs: Number(process.env['JOB_HOUSEKEEPING_MS'] || process.env['JOB_AUDIT_PURGE_MS'] || 24 * 60 * 60_000), // 24h
   jobIntegrationHealthMs: Number(process.env['JOB_INTEGRATION_HEALTH_MS'] || 30 * 60_000), // 30 min
   jobHealthWatchdogMs: Number(process.env['JOB_HEALTH_WATCHDOG_MS'] || 2 * 60_000),      // 2 min — health watchdog
+  jobRefreshLiveMatchesMaxRunMs: Number(process.env['JOB_REFRESH_LIVE_MATCHES_MAX_RUN_MS'] || 90_000), // 90 sec
+  jobCheckLiveMaxRunMs: Number(process.env['JOB_CHECK_LIVE_MAX_RUN_MS'] || 120_000), // 120 sec
+  jobDeliverTelegramNotificationsMaxRunMs: Number(process.env['JOB_DELIVER_TELEGRAM_NOTIFICATIONS_MAX_RUN_MS'] || 60_000), // 60 sec
   auditKeepDays: Number(process.env['AUDIT_KEEP_DAYS'] || 30),                                      // 30 days
   matchesHistoryKeepDays: Number(process.env['MATCHES_HISTORY_KEEP_DAYS'] || 120),                   // soft limit (pending bets/recs protected)
   matchesHistoryHardDeleteDays: Number(process.env['MATCHES_HISTORY_HARD_DELETE_DAYS'] || 180),      // unconditional hard deadline
