@@ -1,5 +1,6 @@
 import { query } from '../db/pool.js';
 import { ensureMatchInsight } from './provider-insight-cache.js';
+import { classifyTacticalOverlayCompetition } from './tactical-overlay-eligibility.js';
 import * as matchHistoryRepo from '../repos/matches-history.repo.js';
 import {
   upsertLeagueProfile,
@@ -24,11 +25,8 @@ import {
   buildHistoricalArchiveRowFromFixture,
 } from './settlement-history-hydration.js';
 
-const LOOKBACK_DAYS = 180;
-const LEAGUE_MIN_MATCHES = 20;
-const TEAM_MIN_MATCHES = 8;
-const LEAGUE_EVENT_SUMMARY_MIN_COUNT = 12;
-const TEAM_EVENT_SUMMARY_MIN_COUNT = 5;
+const DEFAULT_LOOKBACK_DAYS = 180;
+const INTERNATIONAL_LOOKBACK_DAYS = 365;
 const EVENT_SUMMARY_COVERAGE_FLOOR = 0.6;
 // Phase 1 rollout acceleration: top-league backfill should fill historical goal-timeline
 // coverage quickly enough for derived profile metrics to become usable after a small number of runs.
@@ -66,10 +64,18 @@ interface HistoricalMatchRow {
   date: string;
 }
 
+interface ExistingHistoryCoverageRow {
+  league_id: number;
+  recent_rows: number;
+  recent_rows_with_team_ids: number;
+  latest_date: string | null;
+}
+
 interface TeamMatchPerspective {
   goalsFor: number;
   goalsAgainst: number;
   isHome: boolean;
+  matchDate: string;
   cornersFor: number | null;
   cornersAgainst: number | null;
   cards: number | null;
@@ -82,6 +88,8 @@ interface TeamCandidateAggregate {
   names: string[];
   targetLeagueIds: number[];
   topLeagueOnly: boolean;
+  profilePolicy: ProfileDerivationPolicy;
+  expandRelatedHistory: boolean;
 }
 
 export interface DerivedPrematchProfilesResult {
@@ -93,6 +101,33 @@ export interface DerivedPrematchProfilesResult {
   refreshedTeamProfiles: number;
   skippedTeamProfiles: number;
 }
+
+interface ProfileDerivationPolicy {
+  lookbackDays: number;
+  leagueMinMatches: number;
+  teamMinMatches: number;
+  leagueEventSummaryMinCount: number;
+  teamEventSummaryMinCount: number;
+  label: 'domestic' | 'international';
+}
+
+const DOMESTIC_PROFILE_POLICY: ProfileDerivationPolicy = {
+  lookbackDays: DEFAULT_LOOKBACK_DAYS,
+  leagueMinMatches: 20,
+  teamMinMatches: 8,
+  leagueEventSummaryMinCount: 12,
+  teamEventSummaryMinCount: 5,
+  label: 'domestic',
+};
+
+const INTERNATIONAL_PROFILE_POLICY: ProfileDerivationPolicy = {
+  lookbackDays: INTERNATIONAL_LOOKBACK_DAYS,
+  leagueMinMatches: 4,
+  teamMinMatches: 4,
+  leagueEventSummaryMinCount: 2,
+  teamEventSummaryMinCount: 3,
+  label: 'international',
+};
 
 function normalizeName(value: string): string {
   return value.trim().toLowerCase().replace(/\s+/g, ' ');
@@ -173,6 +208,7 @@ function buildTeamPerspective(
       goalsFor: match.home_score,
       goalsAgainst: match.away_score,
       isHome: true,
+      matchDate: match.date,
       cornersFor: corners?.home ?? null,
       cornersAgainst: corners?.away ?? null,
       cards: cards?.home ?? null,
@@ -184,6 +220,7 @@ function buildTeamPerspective(
     goalsFor: match.away_score,
     goalsAgainst: match.home_score,
     isHome: false,
+    matchDate: match.date,
     cornersFor: corners?.away ?? null,
     cornersAgainst: corners?.home ?? null,
     cards: cards?.away ?? null,
@@ -214,6 +251,18 @@ function buildBackfillSeasons(currentSeason: number | null): number[] {
     .filter((season) => season > 0);
 }
 
+function shouldSkipInternationalSeasonBackfill(
+  currentSeason: number | null,
+  cutoffDate: string,
+  policy: ProfileDerivationPolicy,
+): boolean {
+  if (policy.label !== 'international') return false;
+  if (!currentSeason || !Number.isFinite(currentSeason) || currentSeason <= 0) return true;
+  const cutoffYear = Number(cutoffDate.slice(0, 4));
+  if (!Number.isFinite(cutoffYear)) return false;
+  return currentSeason < cutoffYear;
+}
+
 function buildHistoricalBackfillArchiveRows(
   fixtures: Array<{
     fixture: { date: string; status: { short: string } };
@@ -224,6 +273,68 @@ function buildHistoricalBackfillArchiveRows(
     .filter((fixture) => FINISHED_SETTLEMENT_STATUSES.has(fixture.fixture.status?.short ?? ''))
     .filter((fixture) => (fixture.fixture.date?.slice(0, 10) ?? '') >= cutoffDate)
     .map((fixture) => buildHistoricalArchiveRowFromFixture(fixture as never));
+}
+
+async function getExistingHistoryCoverage(
+  leagueIds: number[],
+  lookbackDays: number,
+): Promise<Map<number, ExistingHistoryCoverageRow>> {
+  if (leagueIds.length === 0) return new Map();
+  const result = await query<ExistingHistoryCoverageRow>(
+    `SELECT
+       league_id,
+       COUNT(*)::int AS recent_rows,
+       COUNT(*) FILTER (WHERE home_team_id IS NOT NULL AND away_team_id IS NOT NULL)::int AS recent_rows_with_team_ids,
+       MAX(date)::text AS latest_date
+     FROM matches_history
+     WHERE league_id = ANY($1)
+       AND final_status IN ('FT', 'AET', 'PEN')
+       AND date >= CURRENT_DATE - ($2 * INTERVAL '1 day')
+     GROUP BY league_id`,
+    [leagueIds, lookbackDays],
+  );
+
+  return new Map(result.rows.map((row) => [row.league_id, row]));
+}
+
+async function getExistingTeamProfileIds(teamIds: string[]): Promise<Set<string>> {
+  const normalizedIds = Array.from(new Set(teamIds.map((id) => String(id).trim()).filter(Boolean)));
+  if (normalizedIds.length === 0) return new Set();
+  const result = await query<{ team_id: string }>(
+    `SELECT team_id::text AS team_id
+     FROM team_profiles
+     WHERE team_id::text = ANY($1)`,
+    [normalizedIds],
+  );
+  return new Set(result.rows.map((row) => row.team_id));
+}
+
+async function getLeagueDirectorySeasonMap(leagueIds: number[]): Promise<Map<number, number | null>> {
+  if (leagueIds.length === 0) return new Map();
+  const result = await query<{ league_id: number; season: number | null }>(
+    `SELECT league_id, MAX(season)::int AS season
+     FROM league_team_directory
+     WHERE league_id = ANY($1)
+     GROUP BY league_id`,
+    [leagueIds],
+  );
+  return new Map(result.rows.map((row) => [row.league_id, row.season ?? null]));
+}
+
+function hasFreshEnoughHistoryCoverage(
+  coverage: ExistingHistoryCoverageRow | undefined,
+  policy: ProfileDerivationPolicy,
+): boolean {
+  if (!coverage) return false;
+  const enoughRows = policy.label === 'international'
+    ? coverage.recent_rows >= policy.leagueMinMatches
+    : coverage.recent_rows_with_team_ids >= policy.leagueMinMatches;
+  if (!enoughRows) return false;
+  if (!coverage.latest_date) return false;
+  const latestTs = Date.parse(coverage.latest_date);
+  if (!Number.isFinite(latestTs)) return false;
+  const ageMs = Date.now() - latestTs;
+  return ageMs <= 45 * 24 * 60 * 60 * 1000;
 }
 
 function parseEventMinute(raw: unknown): number | null {
@@ -326,9 +437,10 @@ export function buildSettlementEventSummaryFromEvents(
 
 export function deriveLeagueProfileFromHistory(
   rows: HistoricalMatchRow[],
+  policy: ProfileDerivationPolicy = DOMESTIC_PROFILE_POLICY,
 ): LeagueProfileData | null {
   const matches = rows.length;
-  if (matches < LEAGUE_MIN_MATCHES) return null;
+  if (matches < policy.leagueMinMatches) return null;
 
   const totalGoals = rows.map((row) => row.home_score + row.away_score);
   const avgGoals = average(totalGoals);
@@ -352,7 +464,7 @@ export function deriveLeagueProfileFromHistory(
   const eventSummaries = rows
     .map((row) => parseStoredSettlementEventSummary(row.settlement_event_summary))
     .filter((summary): summary is SettlementEventSummary => summary != null);
-  const lateGoalRate = hasSufficientCoverage(eventSummaries.length, matches, LEAGUE_EVENT_SUMMARY_MIN_COUNT)
+  const lateGoalRate = hasSufficientCoverage(eventSummaries.length, matches, policy.leagueEventSummaryMinCount)
     ? rate(eventSummaries.filter((summary) => summary.has_goal_after_75).length, eventSummaries.length)
     : null;
 
@@ -375,9 +487,10 @@ export function deriveLeagueProfileFromHistory(
 
 export function deriveTeamProfileFromHistory(
   rows: TeamMatchPerspective[],
+  policy: ProfileDerivationPolicy = DOMESTIC_PROFILE_POLICY,
 ): TeamProfileData | null {
   const matches = rows.length;
-  if (matches < TEAM_MIN_MATCHES) return null;
+  if (matches < policy.teamMinMatches) return null;
 
   const avgGoalsScored = average(rows.map((row) => row.goalsFor));
   const avgGoalsConceded = average(rows.map((row) => row.goalsAgainst));
@@ -415,10 +528,10 @@ export function deriveTeamProfileFromHistory(
   let setPieceThreat: TeamProfileData['set_piece_threat'] = 'medium';
   if ((avgCornersFor ?? 0) >= 6) setPieceThreat = 'high';
   else if ((avgCornersFor ?? 0) > 0 && (avgCornersFor ?? 0) <= 4) setPieceThreat = 'low';
-  const firstGoalRate = hasSufficientCoverage(firstGoalSamples.length, matches, TEAM_EVENT_SUMMARY_MIN_COUNT)
+  const firstGoalRate = hasSufficientCoverage(firstGoalSamples.length, matches, policy.teamEventSummaryMinCount)
     ? rate(firstGoalSamples.filter((row) => row.scoredFirst === true).length, firstGoalSamples.length)
     : null;
-  const lateGoalRate = hasSufficientCoverage(lateGoalSamples.length, matches, TEAM_EVENT_SUMMARY_MIN_COUNT)
+  const lateGoalRate = hasSufficientCoverage(lateGoalSamples.length, matches, policy.teamEventSummaryMinCount)
     ? rate(lateGoalSamples.filter((row) => row.hadGoalAfter75 === true).length, lateGoalSamples.length)
     : null;
 
@@ -522,25 +635,34 @@ async function getHistoricalMatchesForTeamNames(
 function buildTeamCandidateAggregates(
   entries: PrematchProfileCandidateTeam[],
   leagueTopFlags: Map<number, boolean>,
+  leagueProfilePolicies: Map<number, ProfileDerivationPolicy>,
 ): TeamCandidateAggregate[] {
   const aggregates = new Map<string, {
     teamId: string;
-    names: Set<string>;
-    targetLeagueIds: Set<number>;
-    topLeagueOnly: boolean;
+      names: Set<string>;
+      targetLeagueIds: Set<number>;
+      topLeagueOnly: boolean;
+      profilePolicy: ProfileDerivationPolicy;
+      expandRelatedHistory: boolean;
   }>();
 
   for (const entry of entries) {
     const teamId = String(entry.team_id);
+    const entryPolicy = leagueProfilePolicies.get(entry.league_id) ?? DOMESTIC_PROFILE_POLICY;
     const current = aggregates.get(teamId) ?? {
       teamId,
       names: new Set<string>(),
       targetLeagueIds: new Set<number>(),
       topLeagueOnly: true,
+      profilePolicy: entryPolicy,
+      expandRelatedHistory: entryPolicy.label === 'domestic',
     };
     current.names.add(normalizeName(entry.team_name));
     current.targetLeagueIds.add(entry.league_id);
     current.topLeagueOnly = current.topLeagueOnly && (leagueTopFlags.get(entry.league_id) === true);
+    if (entryPolicy.lookbackDays > current.profilePolicy.lookbackDays) {
+      current.profilePolicy = entryPolicy;
+    }
     aggregates.set(teamId, current);
   }
 
@@ -550,8 +672,56 @@ function buildTeamCandidateAggregates(
       names: [...aggregate.names].filter(Boolean).sort(),
       targetLeagueIds: [...aggregate.targetLeagueIds].sort((left, right) => left - right),
       topLeagueOnly: aggregate.topLeagueOnly,
+      profilePolicy: aggregate.profilePolicy,
+      expandRelatedHistory: aggregate.expandRelatedHistory,
     }))
     .sort((left, right) => left.teamId.localeCompare(right.teamId));
+}
+
+function resolveLeagueProfilePolicy(
+  leagueMeta: { leagueName: string; country: string; type: string; topLeague: boolean },
+): ProfileDerivationPolicy {
+  const classification = classifyTacticalOverlayCompetition({
+    leagueName: leagueMeta.leagueName,
+    country: leagueMeta.country,
+    type: leagueMeta.type,
+    topLeague: leagueMeta.topLeague,
+  });
+  return classification.competitionKind === 'international_tournament'
+    || classification.competitionKind === 'international_qualifier'
+    ? INTERNATIONAL_PROFILE_POLICY
+    : DOMESTIC_PROFILE_POLICY;
+}
+
+async function getLeagueProfilePolicies(leagueIds: number[]): Promise<Map<number, ProfileDerivationPolicy>> {
+  if (leagueIds.length === 0) return new Map();
+  const result = await query<{ league_id: number; league_name: string; country: string; type: string; top_league: boolean }>(
+    `SELECT league_id, league_name, country, type, top_league
+     FROM leagues
+     WHERE league_id = ANY($1)`,
+    [leagueIds],
+  );
+
+  return new Map(result.rows.map((row) => [
+    row.league_id,
+    resolveLeagueProfilePolicy({
+      leagueName: row.league_name,
+      country: row.country,
+      type: row.type,
+      topLeague: row.top_league === true,
+    }),
+  ]));
+}
+
+function filterHistoryRowsByLookback<T extends { date?: string; matchDate?: string }>(
+  rows: T[],
+  lookbackDays: number,
+): T[] {
+  const cutoffDate = isoDateDaysAgo(lookbackDays);
+  return rows.filter((row) => {
+    const date = (row.date ?? row.matchDate ?? '').slice(0, 10);
+    return date >= cutoffDate;
+  });
 }
 
 function mergeHistoricalRowsByMatchId(...collections: HistoricalMatchRow[][]): HistoricalMatchRow[] {
@@ -639,11 +809,26 @@ async function hydrateMissingEventSummaries(rows: HistoricalMatchRow[]): Promise
 async function backfillHistoricalMatchesForLeagues(
   leagueIds: number[],
   lookbackDays: number,
+  leaguePolicies: Map<number, ProfileDerivationPolicy>,
 ): Promise<void> {
   const cutoffDate = isoDateDaysAgo(lookbackDays);
+  const existingCoverage = await getExistingHistoryCoverage(leagueIds, lookbackDays);
   const seasonPlans = await Promise.all(leagueIds.map(async (leagueId) => {
+    const policy = leaguePolicies.get(leagueId) ?? DOMESTIC_PROFILE_POLICY;
+    if (hasFreshEnoughHistoryCoverage(existingCoverage.get(leagueId), policy)) {
+      return {
+        leagueId,
+        seasons: [] as number[],
+      };
+    }
     const directoryRows = await getLeagueTeamDirectory(leagueId).catch(() => []);
     const currentSeason = directoryRows[0]?.season ?? new Date().getUTCFullYear();
+    if (shouldSkipInternationalSeasonBackfill(currentSeason, cutoffDate, policy)) {
+      return {
+        leagueId,
+        seasons: [] as number[],
+      };
+    }
     return {
       leagueId,
       seasons: buildBackfillSeasons(currentSeason),
@@ -677,7 +862,7 @@ export async function syncDerivedPrematchProfiles(
   const uniqueLeagueIds = Array.from(new Set(leagueIds.filter((id) => Number.isFinite(id) && id > 0)));
   if (uniqueLeagueIds.length === 0) {
     return {
-      lookbackDays: LOOKBACK_DAYS,
+      lookbackDays: DEFAULT_LOOKBACK_DAYS,
       candidateLeagues: 0,
       refreshedLeagueProfiles: 0,
       skippedLeagueProfiles: 0,
@@ -687,24 +872,59 @@ export async function syncDerivedPrematchProfiles(
     };
   }
 
-  const [leagueTopFlags, candidateTeamEntries] = await Promise.all([
+  const [leagueTopFlags, leagueProfilePolicies, candidateTeamEntries] = await Promise.all([
     getLeagueTopFlags(uniqueLeagueIds),
+    getLeagueProfilePolicies(uniqueLeagueIds),
     getPrematchProfileCandidateTeams(uniqueLeagueIds),
   ]);
-  const teamCandidates = buildTeamCandidateAggregates(candidateTeamEntries, leagueTopFlags);
+  const teamCandidates = buildTeamCandidateAggregates(candidateTeamEntries, leagueTopFlags, leagueProfilePolicies);
+  const historyLookbackDays = Math.max(
+    ...[
+      ...uniqueLeagueIds.map((leagueId) => leagueProfilePolicies.get(leagueId)?.lookbackDays ?? DEFAULT_LOOKBACK_DAYS),
+      ...teamCandidates.map((candidate) => candidate.profilePolicy.lookbackDays),
+    ],
+  );
+  const [existingHistoryCoverage, existingTeamProfileIds, directorySeasonMap] = await Promise.all([
+    getExistingHistoryCoverage(uniqueLeagueIds, historyLookbackDays),
+    getExistingTeamProfileIds(teamCandidates.map((candidate) => candidate.teamId)),
+    getLeagueDirectorySeasonMap(uniqueLeagueIds),
+  ]);
+  const cutoffDate = isoDateDaysAgo(historyLookbackDays);
+  const skippedLeagueIds = new Set(
+    uniqueLeagueIds.filter((leagueId) => {
+      const policy = leagueProfilePolicies.get(leagueId) ?? DOMESTIC_PROFILE_POLICY;
+      const currentSeason = directorySeasonMap.get(leagueId) ?? null;
+      const isStaleInternational = shouldSkipInternationalSeasonBackfill(currentSeason, cutoffDate, policy);
+      if (!isStaleInternational) return false;
+      const coverage = existingHistoryCoverage.get(leagueId);
+      if ((coverage?.recent_rows ?? 0) > 0) return false;
+      const leagueCandidateIds = teamCandidates
+        .filter((candidate) => candidate.targetLeagueIds.includes(leagueId))
+        .map((candidate) => candidate.teamId);
+      return leagueCandidateIds.length > 0
+        && leagueCandidateIds.every((teamId) => existingTeamProfileIds.has(teamId));
+    }),
+  );
+  const activeLeagueIds = uniqueLeagueIds.filter((leagueId) => !skippedLeagueIds.has(leagueId));
+  const activeTeamCandidates = teamCandidates.filter((candidate) =>
+    candidate.targetLeagueIds.some((leagueId) => !skippedLeagueIds.has(leagueId)),
+  );
   const relatedHistoryLeagueIds = await getLeagueIdsForTeams(
-    teamCandidates.map((candidate) => candidate.teamId),
+    activeTeamCandidates
+      .filter((candidate) => candidate.expandRelatedHistory)
+      .map((candidate) => candidate.teamId),
     { activeOnly: true },
   );
-  const historyLeagueIds = Array.from(new Set([...uniqueLeagueIds, ...relatedHistoryLeagueIds]));
+  const historyLeagueIds = Array.from(new Set([...activeLeagueIds, ...relatedHistoryLeagueIds]));
 
-  await backfillHistoricalMatchesForLeagues(historyLeagueIds, LOOKBACK_DAYS);
+  const historyLeaguePolicies = await getLeagueProfilePolicies(historyLeagueIds);
+  await backfillHistoricalMatchesForLeagues(historyLeagueIds, historyLookbackDays, historyLeaguePolicies);
 
   const [leagueHistoryRows, teamHistoryRows] = await Promise.all([
-    getHistoricalMatchesForLeagues(uniqueLeagueIds, LOOKBACK_DAYS),
+    getHistoricalMatchesForLeagues(activeLeagueIds, historyLookbackDays),
     getHistoricalMatchesForTeamNames(
-      teamCandidates.flatMap((candidate) => candidate.names),
-      LOOKBACK_DAYS,
+      activeTeamCandidates.flatMap((candidate) => candidate.names),
+      historyLookbackDays,
     ),
   ]);
   const historyRows = mergeHistoricalRowsByMatchId(leagueHistoryRows, teamHistoryRows);
@@ -719,10 +939,11 @@ export async function syncDerivedPrematchProfiles(
   }
 
   let refreshedLeagueProfiles = 0;
-  let skippedLeagueProfiles = 0;
-  for (const leagueId of uniqueLeagueIds) {
-    const rows = leagueHistory.get(leagueId) ?? [];
-    const profile = deriveLeagueProfileFromHistory(rows);
+  let skippedLeagueProfiles = skippedLeagueIds.size;
+  for (const leagueId of activeLeagueIds) {
+    const policy = leagueProfilePolicies.get(leagueId) ?? DOMESTIC_PROFILE_POLICY;
+    const rows = filterHistoryRowsByLookback(leagueHistory.get(leagueId) ?? [], policy.lookbackDays);
+    const profile = deriveLeagueProfileFromHistory(rows, policy);
     if (!profile) {
       skippedLeagueProfiles += 1;
       continue;
@@ -730,7 +951,7 @@ export async function syncDerivedPrematchProfiles(
     await upsertLeagueProfile(
       leagueId,
       buildAutoDerivedLeagueProfileData(profile, {
-        lookback_days: LOOKBACK_DAYS,
+        lookback_days: policy.lookbackDays,
         sample_matches: rows.length,
         event_summary_matches: rows.filter((row) => parseStoredSettlementEventSummary(row.settlement_event_summary) != null).length,
         event_coverage: rows.length > 0
@@ -742,18 +963,18 @@ export async function syncDerivedPrematchProfiles(
         top_league_only: leagueTopFlags.get(leagueId) === true,
         computed_at: computedAt,
       }),
-      `Auto-derived from the last ${rows.length} settled matches over ${LOOKBACK_DAYS} days.`,
-      `Tu dong suy ra tu ${rows.length} tran da ket thuc trong ${LOOKBACK_DAYS} ngay gan nhat.`,
+      `Auto-derived from the last ${rows.length} settled matches over ${policy.lookbackDays} days.`,
+      `Tu dong suy ra tu ${rows.length} tran da ket thuc trong ${policy.lookbackDays} ngay gan nhat.`,
     );
     refreshedLeagueProfiles += 1;
   }
 
   let refreshedTeamProfiles = 0;
-  let skippedTeamProfiles = 0;
-  const teamRows = buildTeamPerspectiveSamplesByCandidate(historyRows, teamCandidates);
-  for (const candidate of teamCandidates) {
-    const samples = teamRows.get(candidate.teamId) ?? [];
-    const profile = deriveTeamProfileFromHistory(samples);
+  let skippedTeamProfiles = teamCandidates.length - activeTeamCandidates.length;
+  const teamRows = buildTeamPerspectiveSamplesByCandidate(historyRows, activeTeamCandidates);
+  for (const candidate of activeTeamCandidates) {
+    const samples = filterHistoryRowsByLookback(teamRows.get(candidate.teamId) ?? [], candidate.profilePolicy.lookbackDays);
+    const profile = deriveTeamProfileFromHistory(samples, candidate.profilePolicy);
     if (!profile) {
       skippedTeamProfiles += 1;
       continue;
@@ -762,7 +983,7 @@ export async function syncDerivedPrematchProfiles(
     const eventSummaryMatches = samples.filter((sample) => sample.scoredFirst != null && sample.hadGoalAfter75 != null).length;
     await upsertTeamProfile(candidate.teamId, {
       profile: buildAutoDerivedTeamProfileData(profile, {
-        lookback_days: LOOKBACK_DAYS,
+        lookback_days: candidate.profilePolicy.lookbackDays,
         sample_matches: samples.length,
         sample_home_matches: samples.filter((sample) => sample.isHome).length,
         sample_away_matches: samples.filter((sample) => !sample.isHome).length,
@@ -771,14 +992,14 @@ export async function syncDerivedPrematchProfiles(
         top_league_only: candidate.topLeagueOnly,
         computed_at: computedAt,
       }, existingProfile?.profile ?? null),
-      notes_en: `Auto-derived from ${samples.length} settled matches in the last ${LOOKBACK_DAYS} days across approved competition contexts. Tactical fields remain neutral defaults until manually curated.`,
-      notes_vi: `Tu dong suy ra tu ${samples.length} tran da ket thuc trong ${LOOKBACK_DAYS} ngay gan nhat tren cac boi canh giai dau duoc phe duyet. Cac truong chien thuat van de gia tri trung tinh cho den khi duoc bien tap thu cong.`,
+      notes_en: `Auto-derived from ${samples.length} settled matches in the last ${candidate.profilePolicy.lookbackDays} days across approved competition contexts. Tactical fields remain neutral defaults until manually curated.`,
+      notes_vi: `Tu dong suy ra tu ${samples.length} tran da ket thuc trong ${candidate.profilePolicy.lookbackDays} ngay gan nhat tren cac boi canh giai dau duoc phe duyet. Cac truong chien thuat van de gia tri trung tinh cho den khi duoc bien tap thu cong.`,
     });
     refreshedTeamProfiles += 1;
   }
 
   return {
-    lookbackDays: LOOKBACK_DAYS,
+    lookbackDays: historyLookbackDays,
     candidateLeagues: uniqueLeagueIds.length,
     refreshedLeagueProfiles,
     skippedLeagueProfiles,
@@ -789,9 +1010,16 @@ export async function syncDerivedPrematchProfiles(
 }
 
 export const __testables__ = {
+  DEFAULT_LOOKBACK_DAYS,
+  DOMESTIC_PROFILE_POLICY,
+  INTERNATIONAL_PROFILE_POLICY,
   buildBackfillSeasons,
   buildHistoricalBackfillArchiveRows,
   buildTeamCandidateAggregates,
   buildTeamPerspectiveSamplesByCandidate,
+  filterHistoryRowsByLookback,
+  hasFreshEnoughHistoryCoverage,
   mergeHistoricalRowsByMatchId,
+  resolveLeagueProfilePolicy,
+  shouldSkipInternationalSeasonBackfill,
 };

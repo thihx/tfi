@@ -54,6 +54,20 @@ describe('classifyTacticalOverlayCompetition', () => {
     expect(result.reason).toBe('international_qualifier');
   });
 
+  test('does not let topLeague override international qualification semantics', () => {
+    const result = classifyTacticalOverlayCompetition({
+      leagueName: 'Euro Championship - Qualification',
+      country: 'World',
+      type: 'Cup',
+      topLeague: true,
+    });
+
+    expect(result.eligible).toBe(true);
+    expect(result.entityType).toBe('national_team');
+    expect(result.policy).toBe('eligible_extended');
+    expect(result.reason).toBe('international_qualifier');
+  });
+
   test('rejects friendly contexts', () => {
     const result = classifyTacticalOverlayCompetition({
       leagueName: 'International Friendlies',
@@ -66,4 +80,3 @@ describe('classifyTacticalOverlayCompetition', () => {
     expect(result.reason).toBe('friendly_context');
   });
 });
-

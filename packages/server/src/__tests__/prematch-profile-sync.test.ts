@@ -44,18 +44,18 @@ describe('prematch profile sync helpers', () => {
 
   test('derives team profile from team-centric match history with neutral tactical defaults', () => {
     const rows = [
-      { goalsFor: 2, goalsAgainst: 0, isHome: true, cornersFor: 7, cornersAgainst: 3, cards: 2, scoredFirst: true, hadGoalAfter75: false },
-      { goalsFor: 1, goalsAgainst: 0, isHome: true, cornersFor: 6, cornersAgainst: 2, cards: 1, scoredFirst: true, hadGoalAfter75: false },
-      { goalsFor: 2, goalsAgainst: 1, isHome: true, cornersFor: 5, cornersAgainst: 4, cards: 2, scoredFirst: true, hadGoalAfter75: true },
-      { goalsFor: 1, goalsAgainst: 1, isHome: true, cornersFor: 6, cornersAgainst: 3, cards: 2, scoredFirst: true, hadGoalAfter75: false },
-      { goalsFor: 0, goalsAgainst: 1, isHome: false, cornersFor: 4, cornersAgainst: 6, cards: 3, scoredFirst: false, hadGoalAfter75: false },
-      { goalsFor: 2, goalsAgainst: 1, isHome: false, cornersFor: 5, cornersAgainst: 5, cards: 2, scoredFirst: true, hadGoalAfter75: true },
-      { goalsFor: 3, goalsAgainst: 1, isHome: false, cornersFor: 6, cornersAgainst: 4, cards: 2, scoredFirst: true, hadGoalAfter75: true },
-      { goalsFor: 1, goalsAgainst: 0, isHome: false, cornersFor: 5, cornersAgainst: 4, cards: 1, scoredFirst: true, hadGoalAfter75: false },
-      { goalsFor: 2, goalsAgainst: 2, isHome: false, cornersFor: 5, cornersAgainst: 5, cards: 2, scoredFirst: false, hadGoalAfter75: true },
-      { goalsFor: 1, goalsAgainst: 0, isHome: false, cornersFor: 4, cornersAgainst: 5, cards: 1, scoredFirst: true, hadGoalAfter75: false },
-      { goalsFor: 2, goalsAgainst: 1, isHome: true, cornersFor: 7, cornersAgainst: 3, cards: 2, scoredFirst: true, hadGoalAfter75: true },
-      { goalsFor: 3, goalsAgainst: 1, isHome: true, cornersFor: 8, cornersAgainst: 4, cards: 2, scoredFirst: true, hadGoalAfter75: false },
+      { goalsFor: 2, goalsAgainst: 0, isHome: true, matchDate: '2026-03-01', cornersFor: 7, cornersAgainst: 3, cards: 2, scoredFirst: true, hadGoalAfter75: false },
+      { goalsFor: 1, goalsAgainst: 0, isHome: true, matchDate: '2026-03-02', cornersFor: 6, cornersAgainst: 2, cards: 1, scoredFirst: true, hadGoalAfter75: false },
+      { goalsFor: 2, goalsAgainst: 1, isHome: true, matchDate: '2026-03-03', cornersFor: 5, cornersAgainst: 4, cards: 2, scoredFirst: true, hadGoalAfter75: true },
+      { goalsFor: 1, goalsAgainst: 1, isHome: true, matchDate: '2026-03-04', cornersFor: 6, cornersAgainst: 3, cards: 2, scoredFirst: true, hadGoalAfter75: false },
+      { goalsFor: 0, goalsAgainst: 1, isHome: false, matchDate: '2026-03-05', cornersFor: 4, cornersAgainst: 6, cards: 3, scoredFirst: false, hadGoalAfter75: false },
+      { goalsFor: 2, goalsAgainst: 1, isHome: false, matchDate: '2026-03-06', cornersFor: 5, cornersAgainst: 5, cards: 2, scoredFirst: true, hadGoalAfter75: true },
+      { goalsFor: 3, goalsAgainst: 1, isHome: false, matchDate: '2026-03-07', cornersFor: 6, cornersAgainst: 4, cards: 2, scoredFirst: true, hadGoalAfter75: true },
+      { goalsFor: 1, goalsAgainst: 0, isHome: false, matchDate: '2026-03-08', cornersFor: 5, cornersAgainst: 4, cards: 1, scoredFirst: true, hadGoalAfter75: false },
+      { goalsFor: 2, goalsAgainst: 2, isHome: false, matchDate: '2026-03-09', cornersFor: 5, cornersAgainst: 5, cards: 2, scoredFirst: false, hadGoalAfter75: true },
+      { goalsFor: 1, goalsAgainst: 0, isHome: false, matchDate: '2026-03-10', cornersFor: 4, cornersAgainst: 5, cards: 1, scoredFirst: true, hadGoalAfter75: false },
+      { goalsFor: 2, goalsAgainst: 1, isHome: true, matchDate: '2026-03-11', cornersFor: 7, cornersAgainst: 3, cards: 2, scoredFirst: true, hadGoalAfter75: true },
+      { goalsFor: 3, goalsAgainst: 1, isHome: true, matchDate: '2026-03-12', cornersFor: 8, cornersAgainst: 4, cards: 2, scoredFirst: true, hadGoalAfter75: false },
     ];
 
     const profile = deriveTeamProfileFromHistory(rows);
@@ -73,14 +73,14 @@ describe('prematch profile sync helpers', () => {
 
   test('keeps event-derived rates null when timeline coverage is too sparse', () => {
     const rows = [
-      { goalsFor: 2, goalsAgainst: 0, isHome: true, cornersFor: 7, cornersAgainst: 3, cards: 2, scoredFirst: true, hadGoalAfter75: false },
-      { goalsFor: 1, goalsAgainst: 0, isHome: true, cornersFor: 6, cornersAgainst: 2, cards: 1, scoredFirst: true, hadGoalAfter75: false },
-      { goalsFor: 2, goalsAgainst: 1, isHome: true, cornersFor: 5, cornersAgainst: 4, cards: 2, scoredFirst: true, hadGoalAfter75: true },
-      { goalsFor: 1, goalsAgainst: 1, isHome: true, cornersFor: 6, cornersAgainst: 3, cards: 2, scoredFirst: null, hadGoalAfter75: null },
-      { goalsFor: 0, goalsAgainst: 1, isHome: false, cornersFor: 4, cornersAgainst: 6, cards: 3, scoredFirst: null, hadGoalAfter75: null },
-      { goalsFor: 2, goalsAgainst: 1, isHome: false, cornersFor: 5, cornersAgainst: 5, cards: 2, scoredFirst: null, hadGoalAfter75: null },
-      { goalsFor: 3, goalsAgainst: 1, isHome: false, cornersFor: 6, cornersAgainst: 4, cards: 2, scoredFirst: null, hadGoalAfter75: null },
-      { goalsFor: 1, goalsAgainst: 0, isHome: false, cornersFor: 5, cornersAgainst: 4, cards: 1, scoredFirst: null, hadGoalAfter75: null },
+      { goalsFor: 2, goalsAgainst: 0, isHome: true, matchDate: '2026-03-01', cornersFor: 7, cornersAgainst: 3, cards: 2, scoredFirst: true, hadGoalAfter75: false },
+      { goalsFor: 1, goalsAgainst: 0, isHome: true, matchDate: '2026-03-02', cornersFor: 6, cornersAgainst: 2, cards: 1, scoredFirst: true, hadGoalAfter75: false },
+      { goalsFor: 2, goalsAgainst: 1, isHome: true, matchDate: '2026-03-03', cornersFor: 5, cornersAgainst: 4, cards: 2, scoredFirst: true, hadGoalAfter75: true },
+      { goalsFor: 1, goalsAgainst: 1, isHome: true, matchDate: '2026-03-04', cornersFor: 6, cornersAgainst: 3, cards: 2, scoredFirst: null, hadGoalAfter75: null },
+      { goalsFor: 0, goalsAgainst: 1, isHome: false, matchDate: '2026-03-05', cornersFor: 4, cornersAgainst: 6, cards: 3, scoredFirst: null, hadGoalAfter75: null },
+      { goalsFor: 2, goalsAgainst: 1, isHome: false, matchDate: '2026-03-06', cornersFor: 5, cornersAgainst: 5, cards: 2, scoredFirst: null, hadGoalAfter75: null },
+      { goalsFor: 3, goalsAgainst: 1, isHome: false, matchDate: '2026-03-07', cornersFor: 6, cornersAgainst: 4, cards: 2, scoredFirst: null, hadGoalAfter75: null },
+      { goalsFor: 1, goalsAgainst: 0, isHome: false, matchDate: '2026-03-08', cornersFor: 5, cornersAgainst: 4, cards: 1, scoredFirst: null, hadGoalAfter75: null },
     ];
 
     const profile = deriveTeamProfileFromHistory(rows);
@@ -201,6 +201,10 @@ describe('prematch profile sync helpers', () => {
         [2, false],
         [203, true],
       ]),
+      new Map([
+        [2, __testables__.INTERNATIONAL_PROFILE_POLICY],
+        [203, __testables__.DOMESTIC_PROFILE_POLICY],
+      ]),
     );
 
     expect(candidates).toEqual([
@@ -209,12 +213,16 @@ describe('prematch profile sync helpers', () => {
         names: ['rangers'],
         targetLeagueIds: [2, 203],
         topLeagueOnly: false,
+        profilePolicy: __testables__.INTERNATIONAL_PROFILE_POLICY,
+        expandRelatedHistory: false,
       },
       {
         teamId: '91',
         names: ['braga'],
         targetLeagueIds: [203],
         topLeagueOnly: true,
+        profilePolicy: __testables__.DOMESTIC_PROFILE_POLICY,
+        expandRelatedHistory: true,
       },
     ]);
   });
@@ -291,6 +299,8 @@ describe('prematch profile sync helpers', () => {
           names: ['rangers'],
           targetLeagueIds: [2],
           topLeagueOnly: false,
+          profilePolicy: __testables__.INTERNATIONAL_PROFILE_POLICY,
+          expandRelatedHistory: false,
         },
       ],
     );
@@ -298,5 +308,108 @@ describe('prematch profile sync helpers', () => {
     expect(samples.get('88')).toHaveLength(3);
     expect(samples.get('88')?.filter((sample) => sample.isHome)).toHaveLength(2);
     expect(samples.get('88')?.filter((sample) => !sample.isHome)).toHaveLength(1);
+  });
+
+  test('allows international team profile derivation with lower match floor and longer lookback', () => {
+    const rows = [
+      { goalsFor: 2, goalsAgainst: 0, isHome: true, matchDate: '2025-11-01', cornersFor: 7, cornersAgainst: 3, cards: 2, scoredFirst: true, hadGoalAfter75: false },
+      { goalsFor: 1, goalsAgainst: 1, isHome: false, matchDate: '2025-11-15', cornersFor: 5, cornersAgainst: 4, cards: 1, scoredFirst: false, hadGoalAfter75: false },
+      { goalsFor: 3, goalsAgainst: 1, isHome: true, matchDate: '2026-03-20', cornersFor: 6, cornersAgainst: 4, cards: 1, scoredFirst: true, hadGoalAfter75: true },
+      { goalsFor: 1, goalsAgainst: 0, isHome: false, matchDate: '2026-03-28', cornersFor: 4, cornersAgainst: 5, cards: 2, scoredFirst: true, hadGoalAfter75: false },
+    ];
+
+    expect(deriveTeamProfileFromHistory(rows)).toBeNull();
+
+    const profile = deriveTeamProfileFromHistory(rows, __testables__.INTERNATIONAL_PROFILE_POLICY);
+    expect(profile).not.toBeNull();
+    expect(profile?.data_reliability_tier).toBe('low');
+  });
+
+  test('resolves international competitions to the wider profile policy', () => {
+    expect(__testables__.resolveLeagueProfilePolicy({
+      leagueName: 'World Cup - Qualification Europe',
+      country: 'World',
+      type: 'Cup',
+      topLeague: false,
+    })).toEqual(__testables__.INTERNATIONAL_PROFILE_POLICY);
+
+    expect(__testables__.resolveLeagueProfilePolicy({
+      leagueName: 'Premier League',
+      country: 'England',
+      type: 'League',
+      topLeague: true,
+    })).toEqual(__testables__.DOMESTIC_PROFILE_POLICY);
+  });
+
+  test('allows international league profile derivation with smaller sample floor', () => {
+    const rows = Array.from({ length: 4 }, (_, index) => ({
+      match_id: String(index + 1),
+      league_id: 5,
+      league_name: 'UEFA Nations League',
+      home_team_id: 100 + index,
+      home_team: `Home ${index}`,
+      away_team_id: 200 + index,
+      away_team: `Away ${index}`,
+      final_status: 'FT',
+      home_score: index % 2 === 0 ? 2 : 1,
+      away_score: 1,
+      settlement_stats: [
+        { type: 'Corner Kicks', home: 5, away: 4 },
+        { type: 'Yellow Cards', home: 2, away: 2 },
+      ],
+      settlement_event_summary: {
+        first_scoring_side: index % 2 === 0 ? 'home' : 'away',
+        has_goal_after_75: index % 2 === 0,
+        goal_event_count: 2,
+        source: 'api-football-events',
+      },
+      date: '2026-03-28',
+    }));
+
+    expect(deriveLeagueProfileFromHistory(rows)).toBeNull();
+    expect(deriveLeagueProfileFromHistory(rows, __testables__.INTERNATIONAL_PROFILE_POLICY)).not.toBeNull();
+  });
+
+  test('skips heavy history backfill when recent rows with team ids are already present', () => {
+    expect(__testables__.hasFreshEnoughHistoryCoverage({
+      league_id: 32,
+      recent_rows: 108,
+      recent_rows_with_team_ids: 108,
+      latest_date: new Date().toISOString().slice(0, 10),
+    }, __testables__.INTERNATIONAL_PROFILE_POLICY)).toBe(true);
+
+    expect(__testables__.hasFreshEnoughHistoryCoverage({
+      league_id: 32,
+      recent_rows: 108,
+      recent_rows_with_team_ids: 3,
+      latest_date: new Date().toISOString().slice(0, 10),
+    }, __testables__.INTERNATIONAL_PROFILE_POLICY)).toBe(true);
+
+    expect(__testables__.hasFreshEnoughHistoryCoverage({
+      league_id: 5,
+      recent_rows: 4,
+      recent_rows_with_team_ids: 0,
+      latest_date: new Date().toISOString().slice(0, 10),
+    }, __testables__.INTERNATIONAL_PROFILE_POLICY)).toBe(true);
+  });
+
+  test('skips stale international season backfill outside the lookback window', () => {
+    expect(__testables__.shouldSkipInternationalSeasonBackfill(
+      2023,
+      '2025-04-02',
+      __testables__.INTERNATIONAL_PROFILE_POLICY,
+    )).toBe(true);
+
+    expect(__testables__.shouldSkipInternationalSeasonBackfill(
+      2026,
+      '2025-04-02',
+      __testables__.INTERNATIONAL_PROFILE_POLICY,
+    )).toBe(false);
+
+    expect(__testables__.shouldSkipInternationalSeasonBackfill(
+      2023,
+      '2025-04-02',
+      __testables__.DOMESTIC_PROFILE_POLICY,
+    )).toBe(false);
   });
 });

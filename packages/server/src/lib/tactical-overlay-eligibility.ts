@@ -78,17 +78,6 @@ export function classifyTacticalOverlayCompetition(
   const type = normalize(input.type);
   const combined = `${leagueName} ${country} ${type}`.trim();
 
-  if (input.topLeague) {
-    return {
-      eligible: true,
-      policy: 'eligible_core',
-      entityType: 'club',
-      competitionKind: 'domestic_league',
-      reason: 'top_domestic_league',
-      sortRank: 400,
-    };
-  }
-
   if (matchesAny(combined, FRIENDLY_PATTERNS)) {
     return {
       eligible: false,
@@ -143,6 +132,17 @@ export function classifyTacticalOverlayCompetition(
     };
   }
 
+  if (input.topLeague) {
+    return {
+      eligible: true,
+      policy: 'eligible_core',
+      entityType: 'club',
+      competitionKind: 'domestic_league',
+      reason: 'top_domestic_league',
+      sortRank: 400,
+    };
+  }
+
   return {
     eligible: false,
     policy: 'ineligible',
@@ -152,4 +152,3 @@ export function classifyTacticalOverlayCompetition(
     sortRank: 0,
   };
 }
-
