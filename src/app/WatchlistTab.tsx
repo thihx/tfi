@@ -53,11 +53,17 @@ export function WatchlistTab() {
   useEffect(() => {
     const el = filterBarRef.current;
     if (!el) return;
-    // getBoundingClientRect().bottom gives exact filter bar bottom from viewport,
-    // accounting for header + any spacing. Safe for sticky top calculation.
     const update = () => {
-      const b = el.getBoundingClientRect().bottom;
-      if (b > 0) setFilterBarBottom(b);
+      const scrollParent = el.closest('[style*="overflow"]') as HTMLElement | null;
+      if (scrollParent) {
+        const containerRect = scrollParent.getBoundingClientRect();
+        const elRect = el.getBoundingClientRect();
+        const b = elRect.bottom - containerRect.top;
+        if (b > 0) setFilterBarBottom(b);
+      } else {
+        const b = el.getBoundingClientRect().bottom;
+        if (b > 0) setFilterBarBottom(b);
+      }
     };
     update();
     const ro = new ResizeObserver(update);
@@ -239,8 +245,7 @@ export function WatchlistTab() {
     : (!dateFrom && !dateTo) ? 'all'
     : 'custom';
   const tabBtn = (active: boolean) => ({
-    padding: '10px 10px', lineHeight: '1.6', minHeight: '32px', display: 'flex', alignItems: 'center', borderRadius: '12px', border: '1px solid',
-    cursor: 'pointer', fontSize: '12px', fontWeight: active ? 600 : 400,
+    fontWeight: active ? 600 : 400,
     background: active ? 'var(--gray-800)' : 'transparent',
     borderColor: active ? 'var(--gray-800)' : 'var(--gray-300)',
     color: active ? '#fff' : 'var(--gray-500)',
@@ -257,11 +262,11 @@ export function WatchlistTab() {
 
   return (
     <>
-      <div className="card" style={{ '--group-sticky-top': `${filterBarBottom}px` } as React.CSSProperties}>
+      <div className="card" style={{ '--group-sticky-top': `${filterBarBottom}px`, '--filter-bar-bottom': `${filterBarBottom}px` } as React.CSSProperties}>
         {/* Sticky filter bar */}
         <div className="sticky-filter-bar" ref={filterBarRef}>
         {/* Date tab shortcuts */}
-        <div style={{ display: 'flex', gap: '6px', padding: '12px 12px', borderBottom: '1px solid var(--gray-100)', alignItems: 'center', flexWrap: 'wrap', overflow: 'visible', maxHeight: 'none' }}>
+        <div className="date-tab-bar">
           <button style={tabBtn(activeDateTab === 'all')} onClick={() => { setDateFrom(''); setDateTo(''); setPage(1); }}>All</button>
           <button style={tabBtn(activeDateTab === 'today')} onClick={() => { setDateFrom(dateToday); setDateTo(dateToday); setPage(1); }}>Today</button>
           <button style={tabBtn(activeDateTab === 'tomorrow')} onClick={() => { setDateFrom(dateTomorrow); setDateTo(dateTomorrow); setPage(1); }}>Tomorrow</button>
@@ -302,21 +307,24 @@ export function WatchlistTab() {
             </button>
           </div>
         </div>
-        </div>
-
-        {/* Contextual delete strip — only when items are checked (table mode) */}
+        {totalPages > 1 && (
+          <div style={{ borderTop: '1px solid var(--gray-100)' }}>
+            <Pagination currentPage={safePage} totalPages={totalPages} onPageChange={setPage} />
+          </div>
+        )}
+        {/* Contextual delete strip — docked inside sticky bar */}
         {viewMode === 'table' && selected.size > 0 && (
-          <div style={{ padding: '7px 16px', background: '#fff1f2', borderBottom: '1px solid #fca5a5', display: 'flex', alignItems: 'center', gap: '10px' }}>
+          <div style={{ padding: '7px 16px', background: '#fff1f2', borderTop: '1px solid #fca5a5', display: 'flex', alignItems: 'center', gap: '10px' }}>
             <span style={{ fontSize: '12px', fontWeight: 500, color: 'var(--gray-600)' }}>{selected.size} selected</span>
             <button className="btn btn-danger btn-sm" onClick={handleDeleteSelected}>Delete Selected</button>
             <button className="btn btn-secondary btn-sm" style={{ marginLeft: 'auto' }} onClick={() => setSelected(new Set())}>Clear</button>
           </div>
         )}
+        </div>
 
         {/* Card view */}
         {viewMode === 'cards' && (
           <div style={{ padding: '16px' }}>
-            <Pagination currentPage={safePage} totalPages={totalPages} onPageChange={setPage} />
             {pageItems.length === 0 ? (
               <div style={{ padding: '24px', textAlign: 'center', color: 'var(--gray-400)' }}>
                 <div style={{ marginBottom: '8px', display: 'flex', justifyContent: 'center' }}><svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg></div>
@@ -356,7 +364,6 @@ export function WatchlistTab() {
         )}
 
         {viewMode === 'table' && <div className="table-container table-cards" style={{ '--group-sticky-top': `${filterBarBottom}px` } as React.CSSProperties}>
-          <Pagination currentPage={safePage} totalPages={totalPages} onPageChange={setPage} />
           <table>
             <thead>
               <tr>

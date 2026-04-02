@@ -29,6 +29,32 @@ vi.mock('../repos/recommendations.repo.js', () => ({
   bulkCreateRecommendations: vi.fn().mockImplementation((recs: unknown[]) =>
     Promise.resolve(recs.length),
   ),
+  deleteRecommendation: vi.fn().mockImplementation((id: number) =>
+    id === 1
+      ? Promise.resolve({
+        deletedRecommendationIds: [1],
+        recommendationsDeleted: 1,
+        aiPerformanceDeleted: 1,
+        deliveriesDeleted: 2,
+        betsDeleted: 0,
+      })
+      : Promise.resolve({
+        deletedRecommendationIds: [],
+        recommendationsDeleted: 0,
+        aiPerformanceDeleted: 0,
+        deliveriesDeleted: 0,
+        betsDeleted: 0,
+      }),
+  ),
+  deleteRecommendations: vi.fn().mockImplementation((ids: number[]) =>
+    Promise.resolve({
+      deletedRecommendationIds: ids,
+      recommendationsDeleted: ids.length,
+      aiPerformanceDeleted: ids.length,
+      deliveriesDeleted: ids.length * 2,
+      betsDeleted: 0,
+    }),
+  ),
   settleRecommendation: vi.fn().mockImplementation((id: number) =>
     id === 1 ? Promise.resolve({ id: 1, result: 'win', pnl: 0.85 }) : Promise.resolve(null),
   ),
@@ -346,6 +372,69 @@ describe('PUT /api/recommendations/:id/settle', () => {
 });
 
 // ── Special actions ──
+
+describe('DELETE /api/recommendations/:id', () => {
+  test('rejects unauthenticated requests', async () => {
+    const res = await app.inject({ method: 'DELETE', url: '/api/recommendations/1' });
+    expect(res.statusCode).toBe(401);
+  });
+
+  test('rejects non-admin users', async () => {
+    const res = await memberApp.inject({ method: 'DELETE', url: '/api/recommendations/1' });
+    expect(res.statusCode).toBe(403);
+  });
+
+  test('deletes an existing recommendation', async () => {
+    const res = await adminApp.inject({ method: 'DELETE', url: '/api/recommendations/1' });
+    expect(res.statusCode).toBe(200);
+    expect(res.json()).toEqual(expect.objectContaining({
+      deletedRecommendationIds: [1],
+      recommendationsDeleted: 1,
+      aiPerformanceDeleted: 1,
+      deliveriesDeleted: 2,
+    }));
+  });
+
+  test('returns 404 for unknown recommendation', async () => {
+    const res = await adminApp.inject({ method: 'DELETE', url: '/api/recommendations/999' });
+    expect(res.statusCode).toBe(404);
+  });
+});
+
+describe('DELETE /api/recommendations/bulk', () => {
+  test('rejects non-admin users', async () => {
+    const res = await memberApp.inject({
+      method: 'DELETE',
+      url: '/api/recommendations/bulk',
+      payload: { ids: [1, 2] },
+    });
+    expect(res.statusCode).toBe(403);
+  });
+
+  test('rejects empty ids payload', async () => {
+    const res = await adminApp.inject({
+      method: 'DELETE',
+      url: '/api/recommendations/bulk',
+      payload: { ids: [] },
+    });
+    expect(res.statusCode).toBe(400);
+  });
+
+  test('deletes recommendations in bulk', async () => {
+    const res = await adminApp.inject({
+      method: 'DELETE',
+      url: '/api/recommendations/bulk',
+      payload: { ids: [1, 2, 2] },
+    });
+    expect(res.statusCode).toBe(200);
+    expect(res.json()).toEqual(expect.objectContaining({
+      deletedRecommendationIds: [1, 2, 2],
+      recommendationsDeleted: 3,
+    }));
+    const repo = await import('../repos/recommendations.repo.js');
+    expect(repo.deleteRecommendations).toHaveBeenCalledWith([1, 2, 2]);
+  });
+});
 
 describe('POST /api/recommendations/mark-duplicates', () => {
   test('marks legacy duplicates', async () => {

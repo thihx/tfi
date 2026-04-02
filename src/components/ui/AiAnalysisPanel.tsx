@@ -130,7 +130,8 @@ export function AiAnalysisPanel({ entry, onClose }: Props) {
       id={`ai-result-${entry.matchId}`}
       className="ai-result-panel"
       style={{
-        padding: '14px 16px',
+        position: 'relative',
+        padding: '14px 40px 14px 16px',
         background: 'var(--gray-50)',
         border: '1px solid var(--gray-200)',
         borderRadius: '8px',
@@ -140,43 +141,44 @@ export function AiAnalysisPanel({ entry, onClose }: Props) {
         transition: 'outline 0.3s',
       }}
     >
+      {/* ── Close button — always top-right ── */}
+      <button
+        onClick={onClose}
+        title="Close"
+        style={{
+          position: 'absolute', top: '10px', right: '10px',
+          background: 'none', border: 'none', cursor: 'pointer',
+          width: '24px', height: '24px', borderRadius: '50%', display: 'flex',
+          alignItems: 'center', justifyContent: 'center',
+          fontSize: '18px', lineHeight: 1, color: 'var(--gray-400)',
+          transition: 'background 0.15s, color 0.15s',
+        }}
+        onMouseEnter={(e) => { e.currentTarget.style.background = 'var(--gray-200)'; e.currentTarget.style.color = 'var(--gray-700)'; }}
+        onMouseLeave={(e) => { e.currentTarget.style.background = 'none'; e.currentTarget.style.color = 'var(--gray-400)'; }}
+      >
+        ×
+      </button>
+
       {/* ── Header ── */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap', minWidth: 0 }}>
-          <h4 style={{ margin: 0, fontSize: '13px', fontWeight: 700, color: 'var(--gray-800)', whiteSpace: 'nowrap' }}>
-            AI Analysis
-          </h4>
-          <span style={{ fontSize: '13px', color: 'var(--gray-600)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-            {entry.matchDisplay}
+      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap', minWidth: 0 }}>
+        <h4 style={{ margin: 0, fontSize: '13px', fontWeight: 700, color: 'var(--gray-800)', whiteSpace: 'nowrap' }}>
+          AI Analysis
+        </h4>
+        <span style={{ fontSize: '13px', color: 'var(--gray-600)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+          {entry.matchDisplay}
+        </span>
+        {result.score && (
+          <span style={{
+            padding: '1px 8px', borderRadius: '8px', fontSize: '12px',
+            fontWeight: 700, background: 'var(--gray-200)', color: 'var(--gray-700)',
+            whiteSpace: 'nowrap', letterSpacing: '1px',
+          }}>
+            {result.score}
           </span>
-          {result.score && (
-            <span style={{
-              padding: '1px 8px', borderRadius: '8px', fontSize: '12px',
-              fontWeight: 700, background: 'var(--gray-200)', color: 'var(--gray-700)',
-              whiteSpace: 'nowrap', letterSpacing: '1px',
-            }}>
-              {result.score}
-            </span>
-          )}
-          {result.minute != null && (
-            <MinuteBadge minute={result.minute} status={result.status} />
-          )}
-        </div>
-        <button
-          onClick={onClose}
-          title="Close"
-          style={{
-            flexShrink: 0, background: 'none', border: 'none', cursor: 'pointer',
-            width: '22px', height: '22px', borderRadius: '50%', display: 'flex',
-            alignItems: 'center', justifyContent: 'center',
-            fontSize: '16px', lineHeight: 1, color: 'var(--gray-400)',
-            transition: 'background 0.15s, color 0.15s',
-          }}
-          onMouseEnter={(e) => { e.currentTarget.style.background = 'var(--gray-200)'; e.currentTarget.style.color = 'var(--gray-700)'; }}
-          onMouseLeave={(e) => { e.currentTarget.style.background = 'none'; e.currentTarget.style.color = 'var(--gray-400)'; }}
-        >
-          ×
-        </button>
+        )}
+        {result.minute != null && (
+          <MinuteBadge minute={result.minute} status={result.status} />
+        )}
       </div>
 
       {ai ? (

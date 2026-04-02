@@ -380,12 +380,11 @@ describe('SettingsTab', () => {
     const user = userEvent.setup();
     render(<SettingsTab />);
 
-    await user.click(await screen.findByRole('button', { name: 'User & Subscription Management' }));
     await user.click(await screen.findByRole('button', { name: 'Subscription Management' }));
 
     expect(await screen.findByText('Subscription Plans')).toBeInTheDocument();
     expect(await screen.findByText('User Subscriptions')).toBeInTheDocument();
-    expect((await screen.findAllByText('Manual AI daily limit')).length).toBeGreaterThan(0);
+    expect(screen.getByText(/Plans are commercial access tiers, separate from internal roles\./)).toBeInTheDocument();
   });
 
   it.skip('shows blocked when browser permission denies Web Push', async () => {
@@ -503,7 +502,7 @@ describe('SettingsTab', () => {
     const user = userEvent.setup();
     render(<SettingsTab />);
 
-    await user.click(screen.getByRole('button', { name: 'User & Subscription Management' }));
+    await user.click(screen.getByRole('button', { name: 'User Management' }));
 
     expect(await screen.findByText('User Management')).toBeInTheDocument();
     expect(await screen.findByText('Member User')).toBeInTheDocument();

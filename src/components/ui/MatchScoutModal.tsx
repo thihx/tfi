@@ -89,7 +89,7 @@ export function MatchScoutModal({
         {loading && (
           <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', padding: 60, gap: 12, color: 'var(--gray-400)' }}>
             <div className="loading-spinner" />
-            <span style={{ fontSize: 13 }}>Loading match data from Football API…</span>
+            <span style={{ fontSize: 13 }}>Loading match data…</span>
           </div>
         )}
         {error && !loading && (

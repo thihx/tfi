@@ -482,6 +482,87 @@ export async function settleRecommendation(
   return r.rows[0] ?? null;
 }
 
+export interface RecommendationDeleteSummary {
+  deletedRecommendationIds: number[];
+  recommendationsDeleted: number;
+  aiPerformanceDeleted: number;
+  deliveriesDeleted: number;
+  betsDeleted: number;
+}
+
+function uniquePositiveIds(ids: number[]): number[] {
+  return Array.from(new Set(ids.filter((id) => Number.isInteger(id) && id > 0)));
+}
+
+export async function deleteRecommendations(ids: number[]): Promise<RecommendationDeleteSummary> {
+  const normalizedIds = uniquePositiveIds(ids);
+  if (normalizedIds.length === 0) {
+    return {
+      deletedRecommendationIds: [],
+      recommendationsDeleted: 0,
+      aiPerformanceDeleted: 0,
+      deliveriesDeleted: 0,
+      betsDeleted: 0,
+    };
+  }
+
+  return transaction(async (client) => {
+    const existing = await client.query<{ id: number }>(
+      `SELECT id
+         FROM recommendations
+        WHERE id = ANY($1::int[])`,
+      [normalizedIds],
+    );
+    const existingIds = existing.rows.map((row) => row.id);
+    if (existingIds.length === 0) {
+      return {
+        deletedRecommendationIds: [],
+        recommendationsDeleted: 0,
+        aiPerformanceDeleted: 0,
+        deliveriesDeleted: 0,
+        betsDeleted: 0,
+      };
+    }
+
+    const aiPerfDelete = await client.query(
+      `DELETE FROM ai_performance
+        WHERE recommendation_id = ANY($1::int[])`,
+      [existingIds],
+    );
+
+    const deliveriesDelete = await client.query(
+      `DELETE FROM user_recommendation_deliveries
+        WHERE recommendation_id = ANY($1::int[])`,
+      [existingIds],
+    );
+
+    const betsDelete = await client.query(
+      `DELETE FROM bets
+        WHERE recommendation_id = ANY($1::int[])`,
+      [existingIds],
+    );
+
+    const recDelete = await client.query<{ id: number }>(
+      `DELETE FROM recommendations
+        WHERE id = ANY($1::int[])
+      RETURNING id`,
+      [existingIds],
+    );
+
+    return {
+      deletedRecommendationIds: recDelete.rows.map((row) => row.id),
+      recommendationsDeleted: recDelete.rowCount ?? 0,
+      aiPerformanceDeleted: aiPerfDelete.rowCount ?? 0,
+      deliveriesDeleted: deliveriesDelete.rowCount ?? 0,
+      betsDeleted: betsDelete.rowCount ?? 0,
+    };
+  });
+}
+
+export async function deleteRecommendation(id: number): Promise<RecommendationDeleteSummary> {
+  return deleteRecommendations([id]);
+}
+
 export async function markRecommendationUnresolved(
   id: number,
   meta: SettlementPersistenceMeta = {},

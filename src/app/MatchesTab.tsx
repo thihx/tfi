@@ -91,8 +91,19 @@ export function MatchesTab() {
     const el = filterBarRef.current;
     if (!el) return;
     const update = () => {
-      const b = el.getBoundingClientRect().bottom;
-      if (b > 0) setFilterBarBottom(b);
+      // offsetTop = distance from filter bar top to scroll container top
+      // offsetHeight = height of filter bar
+      // Together they give the exact sticky top for children (date-group rows)
+      const scrollParent = el.closest('[style*="overflow"]') as HTMLElement | null;
+      if (scrollParent) {
+        const containerRect = scrollParent.getBoundingClientRect();
+        const elRect = el.getBoundingClientRect();
+        const b = elRect.bottom - containerRect.top;
+        if (b > 0) setFilterBarBottom(b);
+      } else {
+        const b = el.getBoundingClientRect().bottom;
+        if (b > 0) setFilterBarBottom(b);
+      }
     };
     update();
     const ro = new ResizeObserver(update);
@@ -458,8 +469,7 @@ export function MatchesTab() {
     : (!dateFrom && !dateTo) ? 'all'
     : 'custom';
   const tabBtn = (active: boolean) => ({
-    padding: '10px 10px', lineHeight: '1.6', minHeight: '32px', display: 'flex', alignItems: 'center', borderRadius: '12px', border: '1px solid',
-    cursor: 'pointer', fontSize: '12px', fontWeight: active ? 600 : 400,
+    fontWeight: active ? 600 : 400,
     background: active ? 'var(--gray-800)' : 'transparent',
     borderColor: active ? 'var(--gray-800)' : 'var(--gray-300)',
     color: active ? '#fff' : 'var(--gray-500)',
@@ -473,11 +483,11 @@ export function MatchesTab() {
   if (dateFrom || dateTo) badges.push(`Date: ${dateFrom || '—'} → ${dateTo || '—'}`);
 
   return (
-    <div className="card" style={{ '--group-sticky-top': `${filterBarBottom}px` } as React.CSSProperties}>
+    <div className="card" style={{ '--group-sticky-top': `${filterBarBottom}px`, '--filter-bar-bottom': `${filterBarBottom}px` } as React.CSSProperties}>
       {/* Sticky filter bar */}
       <div className="sticky-filter-bar" ref={filterBarRef}>
         {/* Date tab shortcuts */}
-        <div style={{ display: 'flex', gap: '6px', padding: '12px 12px', borderBottom: '1px solid var(--gray-100)', alignItems: 'center', flexWrap: 'wrap', overflow: 'visible', maxHeight: 'none' }}>
+        <div className="date-tab-bar">
           <button style={tabBtn(activeDateTab === 'all')} onClick={() => { setDateFrom(''); setDateTo(''); }}>All</button>
           {hasYesterday && (
             <button style={tabBtn(activeDateTab === 'yesterday')} onClick={() => { setDateFrom(dateYesterday); setDateTo(dateYesterday); }}>Yesterday</button>
@@ -528,16 +538,20 @@ export function MatchesTab() {
           </button>
         </div>
         </div>
+        {totalPages > 1 && (
+          <div style={{ borderTop: '1px solid var(--gray-100)' }}>
+            <Pagination currentPage={safePage} totalPages={totalPages} onPageChange={setPage} />
+          </div>
+        )}
+        {/* Contextual selection bar — docked inside sticky bar */}
+        {viewMode === 'table' && selected.size > 0 && (
+          <div style={{ padding: '7px 16px', background: '#f0f9ff', borderTop: '1px solid #bae6fd', display: 'flex', alignItems: 'center', gap: '10px' }}>
+            <span style={{ fontSize: '12px', fontWeight: 500, color: 'var(--gray-600)' }}>{selected.size} selected</span>
+            <button className="btn btn-primary btn-sm" onClick={addSelectedToWatchlist}>+ Add to Watchlist</button>
+            <button className="btn btn-secondary btn-sm" style={{ marginLeft: 'auto' }} onClick={() => setSelected(new Set())}>Clear</button>
+          </div>
+        )}
       </div>
-
-      {/* Contextual selection bar — only shown when items are checked */}
-      {viewMode === 'table' && selected.size > 0 && (
-        <div style={{ padding: '7px 16px', background: '#f0f9ff', borderBottom: '1px solid #bae6fd', display: 'flex', alignItems: 'center', gap: '10px' }}>
-          <span style={{ fontSize: '12px', fontWeight: 500, color: 'var(--gray-600)' }}>{selected.size} selected</span>
-          <button className="btn btn-primary btn-sm" onClick={addSelectedToWatchlist}>+ Add to Watchlist</button>
-          <button className="btn btn-secondary btn-sm" style={{ marginLeft: 'auto' }} onClick={() => setSelected(new Set())}>Clear</button>
-        </div>
-      )}
 
       {/* AI Result Panels */}
       {aiResults.size > 0 && (
@@ -565,7 +579,6 @@ export function MatchesTab() {
       {/* Card view */}
       {viewMode === 'cards' && (
         <div style={{ padding: '16px' }}>
-          <Pagination currentPage={safePage} totalPages={totalPages} onPageChange={setPage} />
           {pageItems.length === 0 ? (
             <div style={{ padding: '24px', textAlign: 'center', color: 'var(--gray-400)' }}>
               <p>No matches found</p>
@@ -580,7 +593,7 @@ export function MatchesTab() {
                   highlighted={selected.has(String(m.match_id))}
                   actions={[
                     watchlistMap.has(String(m.match_id))
-                      ? { label: 'Watched', icon: <EyeIcon checked />, title: 'Already watching', onClick: () => {}, variant: 'success', disabled: true }
+                      ? { label: 'Edit', icon: <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>, title: 'Edit watchlist entry', onClick: (match) => { const entry = watchlistMap.get(String(match.match_id)); if (entry) setEditItem(entry); }, variant: 'secondary' }
                       : pendingAdds.has(String(m.match_id))
                         ? { label: 'Saving…', onClick: () => {}, disabled: true }
                         : { label: '+ Watch', icon: <EyeIcon />, title: 'Watch this match', onClick: (match) => quickAdd(match), variant: 'primary' },
@@ -603,7 +616,6 @@ export function MatchesTab() {
 
       {/* Table view */}
       {viewMode === 'table' && <div className="table-container table-cards" style={{ '--group-sticky-top': `${filterBarBottom}px` } as React.CSSProperties}>
-        <Pagination currentPage={safePage} totalPages={totalPages} onPageChange={setPage} />
         <table>
           <thead>
             <tr>

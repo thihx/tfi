@@ -15,6 +15,8 @@ import {
   fetchBetTypes,
   fetchDistinctLeagues,
   settleRecommendationFinal,
+  deleteRecommendation,
+  deleteRecommendationsBulk,
 } from '@/lib/services/api';
 import { formatLocalDateTime } from '@/lib/utils/helpers';
 import { PageHeader } from '@/components/ui/PageHeader';
@@ -127,7 +129,7 @@ export function RecommendationsTab() {
   const { config, leagues: appLeagues, matches: appMatches } = state;
   const { showToast } = useToast();
   const [authUser, setAuthUser] = useState(() => getUser(getToken()));
-  const isAdmin = authUser?.role === 'admin';
+  const isAdmin = authUser?.role === 'admin' || authUser?.role === 'owner';
   const [notificationLang, setNotificationLang] = useState<'vi' | 'en' | 'both'>('vi');
   const [feedMode, setFeedMode] = useState<RecommendationFeedMode>('shared');
   const [page, setPage] = useState(1);
@@ -150,6 +152,9 @@ export function RecommendationsTab() {
   const [settlePnl, setSettlePnl] = useState('');
   const [settleNote, setSettleNote] = useState('');
   const [settleSaving, setSettleSaving] = useState(false);
+  const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
+  const [deleteConfirmIds, setDeleteConfirmIds] = useState<number[] | null>(null);
+  const [deleteSaving, setDeleteSaving] = useState(false);
 
   // Server data
   const [rows, setRows] = useState<Recommendation[]>([]);
@@ -159,6 +164,7 @@ export function RecommendationsTab() {
   const [loading, setLoading] = useState(false);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const searchRef = useRef<HTMLInputElement>(null);
+  const adminCanDelete = isAdmin && feedMode === 'shared';
 
   // `/` key focuses search
   useEffect(() => {
@@ -280,6 +286,15 @@ export function RecommendationsTab() {
     return () => { if (debounceRef.current) clearTimeout(debounceRef.current); };
   }, [fetchData, page]);
 
+  useEffect(() => {
+    setSelectedIds((prev) => {
+      if (prev.size === 0) return prev;
+      const validIds = new Set(rows.map((row) => row.id).filter((id): id is number => typeof id === 'number'));
+      const next = new Set(Array.from(prev).filter((id) => validIds.has(id)));
+      return next.size === prev.size ? prev : next;
+    });
+  }, [rows]);
+
   // Summary computed from server total + current page
   const summary = (() => {
     const settled = rows.filter((r) => isFinalResult(r.result ?? null));
@@ -334,6 +349,64 @@ export function RecommendationsTab() {
     setSearch('');
     setPage(1);
   };
+
+  const toggleSelect = useCallback((id: number) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }, []);
+
+  const toggleSelectAll = useCallback(() => {
+    const pageIds = rows
+      .map((row) => row.id)
+      .filter((id): id is number => typeof id === 'number');
+    const allSelected = pageIds.length > 0 && pageIds.every((id) => selectedIds.has(id));
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (allSelected) pageIds.forEach((id) => next.delete(id));
+      else pageIds.forEach((id) => next.add(id));
+      return next;
+    });
+  }, [rows, selectedIds]);
+
+  const handleDeleteSingle = useCallback((recommendationId: number) => {
+    setDeleteConfirmIds([recommendationId]);
+  }, []);
+
+  const handleDeleteSelected = useCallback(() => {
+    const ids = Array.from(selectedIds);
+    if (ids.length === 0) {
+      showToast('No recommendations selected', 'info');
+      return;
+    }
+    setDeleteConfirmIds(ids);
+  }, [selectedIds, showToast]);
+
+  const confirmDelete = useCallback(async () => {
+    if (!deleteConfirmIds || deleteConfirmIds.length === 0) return;
+    setDeleteSaving(true);
+    try {
+      const result = deleteConfirmIds.length === 1
+        ? await deleteRecommendation(config, deleteConfirmIds[0]!)
+        : await deleteRecommendationsBulk(config, deleteConfirmIds);
+      setSelectedIds((prev) => {
+        const next = new Set(prev);
+        result.deletedRecommendationIds.forEach((id) => next.delete(id));
+        return next;
+      });
+      setDeleteConfirmIds(null);
+      showToast(`Deleted ${result.recommendationsDeleted} recommendation(s)`, 'success');
+      await fetchData(page);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Failed to delete recommendation(s).';
+      showToast(message, 'error');
+    } finally {
+      setDeleteSaving(false);
+    }
+  }, [config, deleteConfirmIds, fetchData, page, showToast]);
 
   const openSettleModal = useCallback((rec: Recommendation) => {
     const defaultResult = isFinalResult(rec.result ?? '') ? rec.result : 'win';
@@ -548,13 +621,23 @@ export function RecommendationsTab() {
                   key={rec.id ?? i}
                   rec={rec}
                   lang={notificationLang}
-                  adminAction={isAdmin && feedMode === 'shared' && needsReview(rec) && rec.id ? (
-                    <button
-                      className="btn btn-secondary btn-sm"
-                      onClick={() => openSettleModal(rec)}
-                    >
-                      Final Settle
-                    </button>
+                  adminAction={adminCanDelete && rec.id ? (
+                    <div style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
+                      {needsReview(rec) && (
+                        <button
+                          className="btn btn-secondary btn-sm"
+                          onClick={() => openSettleModal(rec)}
+                        >
+                          Final Settle
+                        </button>
+                      )}
+                      <button
+                        className="btn btn-danger btn-sm"
+                        onClick={() => handleDeleteSingle(rec.id!)}
+                      >
+                        Delete
+                      </button>
+                    </div>
                   ) : null}
                   onViewMatch={(id, display) => {
                     const effectiveId = id || appMatches.find(
@@ -573,9 +656,26 @@ export function RecommendationsTab() {
       {viewMode === 'table' && <div className="card">
         <div className="table-container table-cards">
           <Pagination currentPage={page} totalPages={totalPages} onPageChange={setPage} />
+          {adminCanDelete && selectedIds.size > 0 && (
+            <div style={{ padding: '7px 16px', background: '#fff1f2', borderTop: '1px solid #fca5a5', display: 'flex', alignItems: 'center', gap: '10px' }}>
+              <span style={{ fontSize: '12px', fontWeight: 500, color: 'var(--gray-600)' }}>{selectedIds.size} selected</span>
+              <button className="btn btn-danger btn-sm" onClick={handleDeleteSelected}>Delete Selected</button>
+              <button className="btn btn-secondary btn-sm" style={{ marginLeft: 'auto' }} onClick={() => setSelectedIds(new Set())}>Clear</button>
+            </div>
+          )}
           <table>
             <thead>
               <tr>
+                {adminCanDelete && (
+                  <th style={{ width: '40px', textAlign: 'center' }}>
+                    <input
+                      type="checkbox"
+                      aria-label="Select all recommendations on page"
+                      checked={rows.length > 0 && rows.every((rec) => rec.id != null && selectedIds.has(rec.id))}
+                      onChange={toggleSelectAll}
+                    />
+                  </th>
+                )}
                 <th onClick={() => handleSort('time')} style={{ cursor: 'pointer', width: '100px' }}>Date{sortIcon('time')}</th>
                 <th onClick={() => handleSort('league')} style={{ cursor: 'pointer' }}>League{sortIcon('league')}</th>
                 <th>Match</th>
@@ -586,11 +686,12 @@ export function RecommendationsTab() {
                 <th>Outcome</th>
                 <th style={{ textAlign: 'center' }}>Result</th>
                 <th onClick={() => handleSort('pnl')} style={{ cursor: 'pointer', textAlign: 'right' }}>P/L{sortIcon('pnl')}</th>
+                {adminCanDelete && <th style={{ textAlign: 'center', width: '150px' }}>Actions</th>}
               </tr>
             </thead>
             <tbody>
               {rows.length === 0 ? (
-                <tr><td colSpan={10} className="empty-state">
+                <tr><td colSpan={adminCanDelete ? 12 : 10} className="empty-state">
                   <p>{loading ? 'Loading...' : 'No recommendations match filters'}</p>
                 </td></tr>
               ) : rows.map((rec, i) => {
@@ -607,6 +708,20 @@ export function RecommendationsTab() {
                 const outcomeShort = outcome.length > 40 ? outcome.slice(0, 38) + '…' : outcome;
                 return (
                   <tr key={rec.id ?? i}>
+                    {adminCanDelete && (
+                      <td data-label="Select" style={{ textAlign: 'center' }}>
+                        <span className="cell-value">
+                          {rec.id ? (
+                            <input
+                              type="checkbox"
+                              aria-label={`Select recommendation ${rec.id}`}
+                              checked={selectedIds.has(rec.id)}
+                              onChange={() => toggleSelect(rec.id!)}
+                            />
+                          ) : null}
+                        </span>
+                      </td>
+                    )}
                     <td data-label="Date">
                       <span className="cell-value"><span style={{ background: 'var(--gray-100)', padding: '3px 7px', borderRadius: '4px', fontWeight: 600, color: 'var(--gray-700)', fontSize: '12px', whiteSpace: 'nowrap' }}>{formatLocalDateTime(ts)}</span></span>
                     </td>
@@ -656,14 +771,6 @@ export function RecommendationsTab() {
                         {needsReview(rec) && (
                           <span className="badge badge-pending">Review</span>
                         )}
-                        {isAdmin && feedMode === 'shared' && needsReview(rec) && rec.id && (
-                          <button
-                            className="btn btn-secondary btn-sm"
-                            onClick={() => openSettleModal(rec)}
-                          >
-                            Final Settle
-                          </button>
-                        )}
                       </span>
                     </td>
                     <td data-label="P/L" style={{ textAlign: 'right', whiteSpace: 'nowrap' }}>
@@ -671,6 +778,28 @@ export function RecommendationsTab() {
                         {pnl}
                       </span>
                     </td>
+                    {adminCanDelete && (
+                      <td data-label="Actions" style={{ textAlign: 'center' }}>
+                        <span className="cell-value" style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap', justifyContent: 'center' }}>
+                          {needsReview(rec) && rec.id && (
+                            <button
+                              className="btn btn-secondary btn-sm"
+                              onClick={() => openSettleModal(rec)}
+                            >
+                              Final Settle
+                            </button>
+                          )}
+                          {rec.id && (
+                            <button
+                              className="btn btn-danger btn-sm"
+                              onClick={() => handleDeleteSingle(rec.id!)}
+                            >
+                              Delete
+                            </button>
+                          )}
+                        </span>
+                      </td>
+                    )}
                   </tr>
                 );
               })}
@@ -748,6 +877,22 @@ export function RecommendationsTab() {
             </label>
           </div>
         )}
+      </Modal>
+
+      <Modal
+        open={deleteConfirmIds != null}
+        title="Confirm Delete"
+        onClose={() => !deleteSaving && setDeleteConfirmIds(null)}
+        footer={
+          <>
+            <button className="btn btn-secondary" onClick={() => setDeleteConfirmIds(null)} disabled={deleteSaving}>Cancel</button>
+            <button className="btn btn-danger" onClick={() => void confirmDelete()} disabled={deleteSaving}>
+              {deleteSaving ? 'Deleting...' : 'Delete'}
+            </button>
+          </>
+        }
+      >
+        <p>Are you sure you want to delete {deleteConfirmIds?.length || 0} recommendation(s)?</p>
       </Modal>
     </div>
   );

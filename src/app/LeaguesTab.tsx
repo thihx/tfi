@@ -727,16 +727,16 @@ export function LeaguesTab() {
     }
   }, [config, dispatch, selectedIds, showToast, loadLeagues]);
 
-  // Sync from Football API
+  // Sync leagues from remote
   const handleSync = useCallback(async () => {
     setSyncing(true);
     try {
       const result = await fetchLeaguesFromApi(config);
-      showToast(`Synced ${result.fetched} leagues from Football API (${result.upserted} updated)`, 'success');
+      showToast(`Synced ${result.fetched} leagues (${result.upserted} updated)`, 'success');
       await loadLeagues();
     } catch (err) {
       console.error('[LeaguesTab] sync failed:', err);
-      showToast('Failed to sync from Football API', 'error');
+      showToast('Failed to sync leagues', 'error');
     } finally {
       setSyncing(false);
     }

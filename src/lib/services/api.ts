@@ -352,6 +352,28 @@ export async function settleRecommendationFinal(
   return pgPut<Recommendation>(config, `/api/recommendations/${recommendationId}/settle`, payload);
 }
 
+export interface RecommendationDeleteResponse {
+  deletedRecommendationIds: number[];
+  recommendationsDeleted: number;
+  aiPerformanceDeleted: number;
+  deliveriesDeleted: number;
+  betsDeleted: number;
+}
+
+export async function deleteRecommendation(
+  config: AppConfig,
+  recommendationId: number,
+): Promise<RecommendationDeleteResponse> {
+  return pgDelete<RecommendationDeleteResponse>(config, `/api/recommendations/${recommendationId}`);
+}
+
+export async function deleteRecommendationsBulk(
+  config: AppConfig,
+  ids: number[],
+): Promise<RecommendationDeleteResponse> {
+  return pgDelete<RecommendationDeleteResponse>(config, '/api/recommendations/bulk', { ids });
+}
+
 export async function fetchAdminUsers(config: AppConfig | string): Promise<AdminUserRecord[]> {
   return pgFetch<AdminUserRecord[]>(config, '/api/settings/users');
 }

@@ -20,6 +20,8 @@ import { query } from '../db/pool.js';
 import {
   bulkCreateRecommendations,
   createRecommendation,
+  deleteRecommendation,
+  deleteRecommendations,
   getAllRecommendations,
   getRecommendationsByMatchId,
   getDashboardSummary,
@@ -260,6 +262,63 @@ describe('recommendations repository prompt versioning', () => {
       expect.stringContaining('settlement_status'),
       expect.arrayContaining(['corrected', 'rules', 'Split line settled']),
     );
+  });
+
+  test('deleteRecommendation removes linked rows before deleting the recommendation', async () => {
+    clientQuery
+      .mockResolvedValueOnce({ rows: [{ id: 11 }] } as never)
+      .mockResolvedValueOnce({ rowCount: 1 } as never)
+      .mockResolvedValueOnce({ rowCount: 2 } as never)
+      .mockResolvedValueOnce({ rowCount: 1 } as never)
+      .mockResolvedValueOnce({ rowCount: 1, rows: [{ id: 11 }] } as never);
+
+    const result = await deleteRecommendation(11);
+
+    expect(clientQuery).toHaveBeenNthCalledWith(
+      1,
+      expect.stringContaining('SELECT id'),
+      [[11]],
+    );
+    expect(clientQuery).toHaveBeenNthCalledWith(
+      2,
+      expect.stringContaining('DELETE FROM ai_performance'),
+      [[11]],
+    );
+    expect(clientQuery).toHaveBeenNthCalledWith(
+      3,
+      expect.stringContaining('DELETE FROM user_recommendation_deliveries'),
+      [[11]],
+    );
+    expect(clientQuery).toHaveBeenNthCalledWith(
+      4,
+      expect.stringContaining('DELETE FROM bets'),
+      [[11]],
+    );
+    expect(clientQuery).toHaveBeenNthCalledWith(
+      5,
+      expect.stringContaining('DELETE FROM recommendations'),
+      [[11]],
+    );
+    expect(result).toEqual({
+      deletedRecommendationIds: [11],
+      recommendationsDeleted: 1,
+      aiPerformanceDeleted: 1,
+      deliveriesDeleted: 2,
+      betsDeleted: 1,
+    });
+  });
+
+  test('deleteRecommendations short-circuits when ids are empty', async () => {
+    const result = await deleteRecommendations([]);
+
+    expect(clientQuery).not.toHaveBeenCalled();
+    expect(result).toEqual({
+      deletedRecommendationIds: [],
+      recommendationsDeleted: 0,
+      aiPerformanceDeleted: 0,
+      deliveriesDeleted: 0,
+      betsDeleted: 0,
+    });
   });
 
   test('markRecommendationNotified persists telegram notification metadata', async () => {

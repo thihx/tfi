@@ -8,7 +8,7 @@ import * as aiPerfRepo from '../repos/ai-performance.repo.js';
 import { reEvaluateAllResults } from '../jobs/re-evaluate.job.js';
 import { audit } from '../lib/audit.js';
 import { isFinalSettlementResult, settlementWasCorrect } from '../lib/settle-types.js';
-import { requireAnyRole } from '../lib/authz.js';
+import { requireAdminOrOwner, requireAnyRole } from '../lib/authz.js';
 
 function normalizeText(value: unknown): string {
   return typeof value === 'string' ? value.trim() : '';
@@ -210,6 +210,42 @@ export async function recommendationRoutes(app: FastifyInstance) {
     ).catch(() => null);
     return rec;
   });
+
+  app.delete<{ Params: { id: string } }>(
+    '/api/recommendations/:id',
+    async (req, reply) => {
+      if (!requireAdminOrOwner(req, reply)) return;
+      const id = Number(req.params.id);
+      if (!Number.isInteger(id) || id <= 0) {
+        return reply.code(400).send({ error: 'Invalid recommendation ID' });
+      }
+
+      const result = await repo.deleteRecommendation(id);
+      if (result.recommendationsDeleted === 0) {
+        return reply.code(404).send({ error: 'Recommendation not found' });
+      }
+      return reply.send(result);
+    },
+  );
+
+  app.delete<{ Body: { ids?: unknown } }>(
+    '/api/recommendations/bulk',
+    async (req, reply) => {
+      if (!requireAdminOrOwner(req, reply)) return;
+
+      const rawIds = Array.isArray(req.body?.ids) ? req.body.ids : [];
+      const ids = rawIds
+        .map((value) => Number(value))
+        .filter((value) => Number.isInteger(value) && value > 0);
+
+      if (ids.length === 0) {
+        return reply.code(400).send({ error: 'ids must contain at least one valid recommendation ID' });
+      }
+
+      const result = await repo.deleteRecommendations(ids);
+      return reply.send(result);
+    },
+  );
 
   // Mark legacy duplicates
   app.post('/api/recommendations/mark-duplicates', async () => {

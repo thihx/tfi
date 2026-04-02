@@ -157,7 +157,7 @@ function MatchCardBase({ match, actions, highlighted, onClick }: Props) {
                 title={action.title}
                 aria-label={action.title ?? action.label}
               >
-                {action.loading ? '' : (action.icon ?? action.label)}
+                {action.loading ? action.label : (action.icon ?? action.label)}
               </button>
             ))}
           </div>

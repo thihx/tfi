@@ -347,6 +347,32 @@ body {
     z-index: 100;
     background: #fff;
     border-bottom: 1px solid var(--gray-200);
+    overflow: visible;
+}
+
+.date-tab-bar {
+    display: flex;
+    gap: 6px;
+    padding: 10px 12px;
+    border-bottom: 1px solid var(--gray-100);
+    align-items: center;
+    flex-wrap: wrap;
+    overflow: visible;
+    min-height: 48px;
+}
+
+.date-tab-bar button {
+    padding: 8px 12px;
+    border-radius: 12px;
+    border: 1px solid;
+    cursor: pointer;
+    font-size: 12px;
+    line-height: 1.4;
+    min-height: 32px;
+    display: inline-flex;
+    align-items: center;
+    white-space: nowrap;
+    box-sizing: border-box;
 }
 
 .header::before { display: none; }
@@ -583,17 +609,20 @@ body {
 .filter-input {
     padding: 6px 10px;
     border: 1px solid var(--gray-300);
-    border-radius: 5px;
+    border-radius: 8px;
     font-size: 13px;
     width: 100%;
     min-width: 0;
     box-sizing: border-box;
     color: var(--gray-800);
+    background: #fff;
+    transition: border-color 0.15s;
 }
 
 .filter-input:focus {
     outline: none;
     border-color: var(--primary);
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--primary) 12%, transparent);
 }
 
 /* Mobile optimization - Balanced layout for real devices */
@@ -601,14 +630,17 @@ body {
     .filters {
         display: grid;
         grid-template-columns: 1fr 1fr;
-        gap: 10px;
-        padding: 14px;
+        gap: 8px;
+        padding: 10px 12px;
     }
-    
+
     .filter-input {
         font-size: 16px; /* Prevent iOS zoom on focus */
-        padding: 14px 12px;
-        min-height: 48px; /* Touch-friendly height */
+        padding: 9px 10px;
+        min-height: 40px;
+        border-color: var(--gray-200);
+        border-radius: 10px;
+        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
     }
     
     /* Row 1: Search input spans full width */
@@ -683,14 +715,14 @@ body {
 @media (max-width: 390px) {
     .filters {
         grid-template-columns: 1fr;
-        gap: 10px;
-        padding: 12px;
+        gap: 8px;
+        padding: 10px 12px;
     }
-    
+
     .filter-input {
-        padding: 14px 12px;
+        padding: 9px 10px;
         font-size: 16px;
-        min-height: 48px;
+        min-height: 40px;
     }
     
     /* All inputs full width on very small screens */
@@ -822,8 +854,6 @@ td strong {
 }
 
 tbody tr {
-    content-visibility: auto;
-    contain-intrinsic-size: 60px 500px;
     transition: background 0.1s ease;
     cursor: default;
 }
@@ -1757,7 +1787,8 @@ table td:last-child, table th:last-child {
     overflow: visible !important;
 }
 
-.table-container.table-cards table {
+@media (max-width: 768px) {
+    .table-container.table-cards table {
         border-collapse: separate;
         border-spacing: 0 16px;
     }
@@ -1922,6 +1953,7 @@ table td:last-child, table th:last-child {
         min-width: 36px !important;
         height: 36px !important;
     }
+}
 
     /* ── Modal mobile fixes ──────────────────────────────────────── */
 
@@ -3165,6 +3197,16 @@ table td:last-child, table th:last-child {
 
 .leagues-search-input:focus {
     border-color: var(--primary);
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--primary) 12%, transparent);
+}
+
+@media (max-width: 768px) {
+    .leagues-search-input {
+        font-size: 16px;
+        padding: 9px 32px;
+        border-radius: 10px;
+        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
+    }
 }
 
 .leagues-search-clear {
