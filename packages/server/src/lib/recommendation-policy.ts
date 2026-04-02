@@ -4,6 +4,7 @@ export interface RecommendationPolicyPreviousRow {
   minute: number | null;
   selection: string;
   bet_market: string;
+  odds?: number | null;
   stake_percent?: number | null;
   result?: string | null;
 }
@@ -46,7 +47,7 @@ function parseStatInt(value: string | null | undefined): number | null {
   return Number.isFinite(num) ? num : null;
 }
 
-function getCorrelatedThesis(canonicalMarket: string): string | null {
+export function getCorrelatedThesis(canonicalMarket: string): string | null {
   if (!canonicalMarket || canonicalMarket === 'unknown') return null;
   if (canonicalMarket.startsWith('over_')) return 'goals_over';
   if (canonicalMarket.startsWith('under_')) return 'goals_under';

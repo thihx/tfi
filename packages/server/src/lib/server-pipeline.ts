@@ -83,7 +83,9 @@ import {
 } from './prematch-expert-features.js';
 import {
   applyRecommendationPolicy,
+  getCorrelatedThesis,
   type RecommendationPolicyPreviousRow,
+  type RecommendationPolicyStatsCompact,
 } from './recommendation-policy.js';
 
 /** Resolved pipeline settings: DB values take priority, env vars as fallback */
@@ -353,6 +355,9 @@ interface ParsedAiResponse {
   condition_triggered_reasoning_vi: string;
   condition_triggered_confidence: number;
   condition_triggered_stake: number;
+  condition_triggered_special_override: boolean;
+  condition_triggered_special_override_reason_en: string;
+  condition_triggered_special_override_reason_vi: string;
   condition_triggered_should_push: boolean;
   ai_selection: string;
   ai_confidence: number;
@@ -361,6 +366,252 @@ interface ParsedAiResponse {
   usable_odd: number | null;
   mapped_odd: number | null;
   odds_for_display: number | string | null;
+}
+
+interface ConditionTriggeredSaveDecision {
+  shouldSave: boolean;
+  selection: string;
+  betMarket: string;
+  odds: number | null;
+  confidence: number;
+  stakePercent: number;
+  reasoningEn: string;
+  reasoningVi: string;
+  warnings: string[];
+}
+
+function isNoBetConditionSuggestion(value: string): boolean {
+  return /^no bet\b/i.test(String(value || '').trim());
+}
+
+function hasNonDuplicateResult(result: string | null | undefined): boolean {
+  return String(result ?? '').trim().toLowerCase() !== 'duplicate';
+}
+
+function findSameThesisRecommendations(
+  previousRecommendations: RecommendationPolicyPreviousRow[],
+  selection: string,
+  betMarket: string,
+): RecommendationPolicyPreviousRow[] {
+  const thesis = getCorrelatedThesis(normalizeMarket(selection, betMarket));
+  if (!thesis) return [];
+  return previousRecommendations
+    .filter((row) => hasNonDuplicateResult(row.result))
+    .filter((row) => getCorrelatedThesis(normalizeMarket(row.selection ?? '', row.bet_market ?? '')) === thesis);
+}
+
+function evaluateConditionTriggeredSaveDecision(args: {
+  parsed: ParsedAiResponse;
+  previousRecommendations: RecommendationPolicyPreviousRow[];
+  oddsCanonical: OddsCanonical;
+  minute: number;
+  score: string;
+  minOdds: number;
+  minConfidence: number;
+  statsCompact: RecommendationPolicyStatsCompact | null;
+}): ConditionTriggeredSaveDecision {
+  const warnings: string[] = [];
+  const selection = String(args.parsed.condition_triggered_suggestion || '').trim();
+  const betMarket = normalizeMarket(selection);
+
+  if (!args.parsed.condition_triggered_should_push) {
+    return {
+      shouldSave: false,
+      selection,
+      betMarket,
+      odds: null,
+      confidence: args.parsed.condition_triggered_confidence,
+      stakePercent: args.parsed.condition_triggered_stake,
+      reasoningEn: args.parsed.condition_triggered_reasoning_en,
+      reasoningVi: args.parsed.condition_triggered_reasoning_vi,
+      warnings,
+    };
+  }
+
+  if (!selection || isNoBetConditionSuggestion(selection)) {
+    return {
+      shouldSave: false,
+      selection,
+      betMarket,
+      odds: null,
+      confidence: args.parsed.condition_triggered_confidence,
+      stakePercent: args.parsed.condition_triggered_stake,
+      reasoningEn: args.parsed.condition_triggered_reasoning_en,
+      reasoningVi: args.parsed.condition_triggered_reasoning_vi,
+      warnings,
+    };
+  }
+
+  if (!betMarket || betMarket === 'unknown') {
+    warnings.push('Condition-triggered bet not saved because the suggested market could not be normalized.');
+    return {
+      shouldSave: false,
+      selection,
+      betMarket,
+      odds: null,
+      confidence: args.parsed.condition_triggered_confidence,
+      stakePercent: args.parsed.condition_triggered_stake,
+      reasoningEn: args.parsed.condition_triggered_reasoning_en,
+      reasoningVi: args.parsed.condition_triggered_reasoning_vi,
+      warnings,
+    };
+  }
+
+  const odds = extractOddsFromSelection(selection, betMarket, args.oddsCanonical);
+  if (odds == null || odds < args.minOdds) {
+    warnings.push('Condition-triggered bet not saved because live odds are unavailable or below the minimum threshold.');
+    return {
+      shouldSave: false,
+      selection,
+      betMarket,
+      odds,
+      confidence: args.parsed.condition_triggered_confidence,
+      stakePercent: args.parsed.condition_triggered_stake,
+      reasoningEn: args.parsed.condition_triggered_reasoning_en,
+      reasoningVi: args.parsed.condition_triggered_reasoning_vi,
+      warnings,
+    };
+  }
+
+  if (args.parsed.condition_triggered_confidence < args.minConfidence) {
+    warnings.push('Condition-triggered bet not saved because confidence is below the minimum threshold.');
+    return {
+      shouldSave: false,
+      selection,
+      betMarket,
+      odds,
+      confidence: args.parsed.condition_triggered_confidence,
+      stakePercent: args.parsed.condition_triggered_stake,
+      reasoningEn: args.parsed.condition_triggered_reasoning_en,
+      reasoningVi: args.parsed.condition_triggered_reasoning_vi,
+      warnings,
+    };
+  }
+
+  const policyResult = applyRecommendationPolicy({
+    selection,
+    betMarket,
+    minute: args.minute,
+    score: args.score,
+    odds,
+    confidence: args.parsed.condition_triggered_confidence,
+    valuePercent: args.parsed.value_percent,
+    stakePercent: args.parsed.condition_triggered_stake,
+    previousRecommendations: args.previousRecommendations,
+    statsCompact: args.statsCompact ?? undefined,
+  });
+
+  if (policyResult.blocked) {
+    warnings.push(...policyResult.warnings);
+    warnings.push('Condition-triggered bet kept as alert only because policy blocked persistence.');
+    return {
+      shouldSave: false,
+      selection,
+      betMarket,
+      odds,
+      confidence: policyResult.confidence,
+      stakePercent: policyResult.stakePercent,
+      reasoningEn: args.parsed.condition_triggered_reasoning_en,
+      reasoningVi: args.parsed.condition_triggered_reasoning_vi,
+      warnings,
+    };
+  }
+
+  const sameThesisRows = findSameThesisRecommendations(args.previousRecommendations, selection, betMarket);
+  if (sameThesisRows.length === 0) {
+    return {
+      shouldSave: true,
+      selection,
+      betMarket,
+      odds,
+      confidence: policyResult.confidence,
+      stakePercent: policyResult.stakePercent,
+      reasoningEn: args.parsed.condition_triggered_reasoning_en,
+      reasoningVi: args.parsed.condition_triggered_reasoning_vi,
+      warnings,
+    };
+  }
+
+  if (!args.parsed.condition_triggered_special_override) {
+    warnings.push('Existing saved exposure already covers this thesis. Condition alert sent without saving another bet.');
+    return {
+      shouldSave: false,
+      selection,
+      betMarket,
+      odds,
+      confidence: policyResult.confidence,
+      stakePercent: policyResult.stakePercent,
+      reasoningEn: args.parsed.condition_triggered_reasoning_en,
+      reasoningVi: args.parsed.condition_triggered_reasoning_vi,
+      warnings,
+    };
+  }
+
+  const latestSameThesis = sameThesisRows[0] ?? null;
+  const latestCanonicalMarket = latestSameThesis
+    ? normalizeMarket(latestSameThesis.selection ?? '', latestSameThesis.bet_market ?? '')
+    : null;
+  const overrideReasonEn = String(args.parsed.condition_triggered_special_override_reason_en || '').trim();
+  const overrideReasonVi = String(args.parsed.condition_triggered_special_override_reason_vi || '').trim();
+
+  if (!overrideReasonEn && !overrideReasonVi) {
+    warnings.push('Special override requested, but no override reason was provided. Alert sent without saving another bet.');
+    return {
+      shouldSave: false,
+      selection,
+      betMarket,
+      odds,
+      confidence: policyResult.confidence,
+      stakePercent: policyResult.stakePercent,
+      reasoningEn: args.parsed.condition_triggered_reasoning_en,
+      reasoningVi: args.parsed.condition_triggered_reasoning_vi,
+      warnings,
+    };
+  }
+
+  if (!latestCanonicalMarket || latestCanonicalMarket !== betMarket) {
+    warnings.push('Special override can only update the same saved line. A different line on the same thesis stays alert-only.');
+    return {
+      shouldSave: false,
+      selection,
+      betMarket,
+      odds,
+      confidence: policyResult.confidence,
+      stakePercent: policyResult.stakePercent,
+      reasoningEn: args.parsed.condition_triggered_reasoning_en,
+      reasoningVi: args.parsed.condition_triggered_reasoning_vi,
+      warnings,
+    };
+  }
+
+  const previousOdds = Number(latestSameThesis?.odds ?? null);
+  if (!Number.isFinite(previousOdds) || odds < previousOdds + 0.1) {
+    warnings.push('Special override requires a materially better live price on the same line. Alert sent without saving another bet.');
+    return {
+      shouldSave: false,
+      selection,
+      betMarket,
+      odds,
+      confidence: policyResult.confidence,
+      stakePercent: policyResult.stakePercent,
+      reasoningEn: args.parsed.condition_triggered_reasoning_en,
+      reasoningVi: args.parsed.condition_triggered_reasoning_vi,
+      warnings,
+    };
+  }
+
+  warnings.push('Special override accepted: updating the existing saved line with a materially better price.');
+  return {
+    shouldSave: true,
+    selection,
+    betMarket,
+    odds,
+    confidence: policyResult.confidence,
+    stakePercent: policyResult.stakePercent,
+    reasoningEn: args.parsed.condition_triggered_reasoning_en,
+    reasoningVi: args.parsed.condition_triggered_reasoning_vi,
+    warnings,
+  };
 }
 
 function isMarketAllowedForEvidenceMode(betMarket: string, evidenceMode: EvidenceMode): boolean {
@@ -1577,6 +1828,9 @@ function parseAiResponse(
     custom_condition_reason_en: '', custom_condition_reason_vi: '',
     condition_triggered_reasoning_en: '', condition_triggered_reasoning_vi: '',
     condition_triggered_confidence: 0, condition_triggered_stake: 0,
+    condition_triggered_special_override: false,
+    condition_triggered_special_override_reason_en: '',
+    condition_triggered_special_override_reason_vi: '',
     condition_triggered_should_push: false,
     ai_selection: '', ai_confidence: 0, ai_odd_raw: null, ai_warnings: [],
     usable_odd: null, mapped_odd: null, odds_for_display: null,
@@ -1617,6 +1871,9 @@ function parseAiResponse(
   const conditionTriggeredReasoningVi = String(parsed.condition_triggered_reasoning_vi || '');
   const conditionTriggeredConfidence = toNumber(parsed.condition_triggered_confidence) ?? 0;
   const conditionTriggeredStake = toNumber(parsed.condition_triggered_stake) ?? 0;
+  const conditionTriggeredSpecialOverride = parsed.condition_triggered_special_override === true;
+  const conditionTriggeredSpecialOverrideReasonEn = String(parsed.condition_triggered_special_override_reason_en || '');
+  const conditionTriggeredSpecialOverrideReasonVi = String(parsed.condition_triggered_special_override_reason_vi || '');
 
   // Map odds from selection
   const mappedOdd = extractOddsFromSelection(aiSelection, betMarket, oddsCanonical);
@@ -1656,10 +1913,10 @@ function parseAiResponse(
   const usableOdd = mappedOdd !== null && mappedOdd >= MIN_ODDS ? mappedOdd : null;
   const aiFinalShouldBet = systemShouldBet && usableOdd !== null;
   const oddsForDisplay = usableOdd ?? mappedOdd ?? (aiShouldPush ? 'N/A' : null);
-  // Condition-trigger path: this is a notification-only branch. It represents
-  // "the watchlist condition is satisfied and should alert the user".
-  // Any attached condition-triggered suggestion is optional enrichment only.
-  // It does NOT imply DB persistence.
+  // Condition-trigger path: this always drives alerting when the watch condition
+  // was successfully evaluated and matched. Persistence is decided later by a
+  // separate hard guard so the system can save the first actionable
+  // condition-triggered thesis without laddering duplicate rows.
   const conditionTriggeredShouldPush =
     customConditionMatched
     && customConditionStatus === 'evaluated';
@@ -1698,6 +1955,9 @@ function parseAiResponse(
     condition_triggered_reasoning_vi: conditionTriggeredReasoningVi,
     condition_triggered_confidence: conditionTriggeredConfidence,
     condition_triggered_stake: conditionTriggeredStake,
+    condition_triggered_special_override: conditionTriggeredSpecialOverride,
+    condition_triggered_special_override_reason_en: conditionTriggeredSpecialOverrideReasonEn,
+    condition_triggered_special_override_reason_vi: conditionTriggeredSpecialOverrideReasonVi,
     condition_triggered_should_push: conditionTriggeredShouldPush,
     ai_selection: aiSelection,
     ai_confidence: aiConfidence,
@@ -1905,6 +2165,7 @@ function buildTelegramCaption(
   parsed: ParsedAiResponse, model: string, mode: string,
   lang: PipelineSettings['notificationLanguage'],
   trigger: PromptAnalysisMode,
+  conditionText: string,
   eventsCompact: EventCompact[],
 ): string {
   const isRec = isAiRecommendation(parsed);
@@ -1922,6 +2183,9 @@ function buildTelegramCaption(
   text += `${safeHtml(league)}\n`;
   text += `⏱ ${safeHtml(String(minute))}' | 📋 ${safeHtml(score)} | ${safeHtml(status)}\n`;
   text += `🤖 ${safeHtml(model)} | Mode: ${safeHtml(mode)}\n`;
+  if (isCondition && conditionText.trim()) {
+    text += `\n<b>Condition:</b> ${safeHtml(conditionText.trim())}\n`;
+  }
 
   if (isRec) {
     text += `\n<b>💰 ${safeHtml(selection)}</b>\n`;
@@ -1930,9 +2194,13 @@ function buildTelegramCaption(
     if (reasoning) text += `\n${safeHtml(truncateAtWord(reasoning, 680))}\n`;
   } else if (isCondition) {
     if (selection) text += `\n<b>⚡ ${safeHtml(selection)}</b>\n`;
-    if (selection || confidence > 0 || stake > 0) {
+    if ((selection && !isNoBetConditionSuggestion(selection)) || confidence > 0 || stake > 0) {
       text += `Confidence: ${confidence}/10 | Stake: ${stake}%\n`;
     }
+    const conditionSummary = lang === 'en'
+      ? (parsed.custom_condition_summary_en || parsed.custom_condition_reason_en)
+      : (parsed.custom_condition_summary_vi || parsed.custom_condition_reason_vi || parsed.custom_condition_summary_en || parsed.custom_condition_reason_en);
+    if (conditionSummary) text += `Matched: ${safeHtml(conditionSummary)}\n`;
     const reasoning = pickReasoning(parsed, lang);
     if (reasoning) text += `\n${safeHtml(truncateAtWord(reasoning, 520))}\n`;
   } else {
@@ -1995,6 +2263,7 @@ function buildTelegramMessage(
   mode: string,
   lang: PipelineSettings['notificationLanguage'],
   trigger: PromptAnalysisMode,
+  conditionText: string,
 ): string {
   const isRec = isAiRecommendation(parsed);
   const isCondition = isConditionOnlyTrigger(parsed) || parsed.custom_condition_matched;
@@ -2011,6 +2280,9 @@ function buildTelegramMessage(
   text += `${safeHtml(league)}\n`;
   text += `⏱ ${safeHtml(String(minute))}' | 📋 ${safeHtml(score)} | ${safeHtml(status)}\n`;
   text += `🤖 ${safeHtml(model)} | Mode: ${safeHtml(mode)}\n`;
+  if (isCondition && conditionText.trim()) {
+    text += `\n<b>Condition:</b> ${safeHtml(conditionText.trim())}\n`;
+  }
 
   if (isRec) {
     text += `\n<b>💰 ${safeHtml(selection)}</b>\n`;
@@ -2019,9 +2291,13 @@ function buildTelegramMessage(
     if (reasoning) text += `\n${safeHtml(reasoning)}\n`;
   } else if (isCondition) {
     if (selection) text += `\n<b>⚡ ${safeHtml(selection)}</b>\n`;
-    if (selection || confidence > 0 || stake > 0) {
+    if ((selection && !isNoBetConditionSuggestion(selection)) || confidence > 0 || stake > 0) {
       text += `Confidence: ${confidence}/10 | Stake: ${stake}%\n`;
     }
+    const conditionSummary = lang === 'en'
+      ? (parsed.custom_condition_summary_en || parsed.custom_condition_reason_en)
+      : (parsed.custom_condition_summary_vi || parsed.custom_condition_reason_vi || parsed.custom_condition_summary_en || parsed.custom_condition_reason_en);
+    if (conditionSummary) text += `Matched: ${safeHtml(conditionSummary)}\n`;
     const reasoning = pickReasoning(parsed, lang);
     if (reasoning) text += `\n${safeHtml(reasoning)}\n`;
   } else {
@@ -2832,20 +3108,40 @@ async function processMatch(
       });
     }
 
+    const conditionTriggeredSaveDecision = evaluateConditionTriggeredSaveDecision({
+      parsed,
+      previousRecommendations: prevRecs.map((r) => ({
+        minute: r.minute ?? null,
+        selection: r.selection ?? '',
+        bet_market: r.bet_market ?? '',
+        stake_percent: r.stake_percent ?? null,
+        result: r.result ?? null,
+        odds: r.odds ?? null,
+      })),
+      oddsCanonical,
+      minute,
+      score,
+      minOdds: settings.minOdds,
+      minConfidence: settings.minConfidence,
+      statsCompact,
+    });
+    if (conditionTriggeredSaveDecision.warnings.length > 0) {
+      parsed.warnings = [...parsed.warnings, ...conditionTriggeredSaveDecision.warnings];
+    }
+
     // 8. Split the two outcomes explicitly:
-    // - shouldSave: create recommendation + AI performance row only when the AI
-    //   itself produced an actionable bet.
+    // - shouldSave: create recommendation + AI performance row when either the AI
+    //   produced an actionable bet, or the condition-triggered branch produced the
+    //   first actionable thesis (or an approved same-line override).
     // - shouldNotify: alert the user for either an actionable AI bet OR a
     //   condition-only trigger that meets the notify threshold.
-    // This separation is intentional because condition triggers are part of the
-    // monitoring/alerting contract, not the persistence contract.
-    const shouldSave = parsed.final_should_bet;
+    const shouldSave = parsed.final_should_bet || conditionTriggeredSaveDecision.shouldSave;
     const shouldNotify = parsed.should_push;
     const notificationSelection = displaySelection(parsed);
     const notificationConfidence = displayConfidence(parsed);
     const notificationOdds = parsed.final_should_bet
       ? extractOddsFromSelection(parsed.selection, parsed.bet_market, oddsCanonical)
-      : null;
+      : conditionTriggeredSaveDecision.odds;
     let saved = false;
     let recId: number | null = null;
     let notified = false;
@@ -2890,7 +3186,12 @@ async function processMatch(
     };
 
     if (shouldSave && !shadowMode) {
-      const mappedOdd = extractOddsFromSelection(parsed.selection, parsed.bet_market, oddsCanonical);
+      const saveFromConditionTrigger = !parsed.final_should_bet && conditionTriggeredSaveDecision.shouldSave;
+      const savedSelection = saveFromConditionTrigger ? conditionTriggeredSaveDecision.selection : parsed.selection;
+      const savedBetMarket = saveFromConditionTrigger ? conditionTriggeredSaveDecision.betMarket : parsed.bet_market;
+      const mappedOdd = saveFromConditionTrigger
+        ? conditionTriggeredSaveDecision.odds
+        : extractOddsFromSelection(parsed.selection, parsed.bet_market, oddsCanonical);
       const decisionContext = buildRecommendationDecisionContext({
         evidenceMode,
         promptDataLevel,
@@ -2909,6 +3210,16 @@ async function processMatch(
         policyBlocked: activeAnalysis.policyBlocked,
         policyWarnings: activeAnalysis.policyWarnings,
       });
+      decisionContext['recommendationSource'] = saveFromConditionTrigger ? 'condition_triggered' : 'ai_primary';
+      decisionContext['conditionTriggeredSpecialOverride'] = saveFromConditionTrigger
+        ? parsed.condition_triggered_special_override
+        : false;
+      decisionContext['conditionTriggeredSpecialOverrideReasonEn'] = saveFromConditionTrigger
+        ? parsed.condition_triggered_special_override_reason_en
+        : '';
+      decisionContext['conditionTriggeredSpecialOverrideReasonVi'] = saveFromConditionTrigger
+        ? parsed.condition_triggered_special_override_reason_vi
+        : '';
       const rec = await deps.createRecommendation({
         match_id: matchId,
         timestamp: new Date().toISOString(),
@@ -2927,20 +3238,20 @@ async function processMatch(
         custom_condition_matched: parsed.custom_condition_matched,
         minute,
         score,
-        bet_type: shouldSave ? 'AI' : 'NO_BET',
-        selection: parsed.selection,
+        bet_type: 'AI',
+        selection: savedSelection,
         odds: mappedOdd,
-        confidence: parsed.confidence,
+        confidence: saveFromConditionTrigger ? conditionTriggeredSaveDecision.confidence : parsed.confidence,
         value_percent: parsed.value_percent,
         risk_level: parsed.risk_level,
-        stake_percent: parsed.stake_percent,
-        reasoning: parsed.reasoning_en,
-        reasoning_vi: parsed.reasoning_vi,
+        stake_percent: saveFromConditionTrigger ? conditionTriggeredSaveDecision.stakePercent : parsed.stake_percent,
+        reasoning: saveFromConditionTrigger ? conditionTriggeredSaveDecision.reasoningEn : parsed.reasoning_en,
+        reasoning_vi: saveFromConditionTrigger ? conditionTriggeredSaveDecision.reasoningVi : parsed.reasoning_vi,
         key_factors: '',
         warnings: parsed.warnings.join(', '),
         ai_model: model,
         mode: watchlistEntry.mode || 'B',
-        bet_market: parsed.bet_market,
+        bet_market: savedBetMarket,
         notified: '',
         notification_channels: '',
       });
@@ -2955,10 +3266,10 @@ async function processMatch(
             match_id: matchId,
             ai_model: model,
             prompt_version: activePromptVersion,
-            ai_confidence: parsed.confidence,
-            ai_should_push: parsed.ai_should_push,
-            predicted_market: parsed.bet_market || '',
-            predicted_selection: parsed.selection,
+            ai_confidence: saveFromConditionTrigger ? conditionTriggeredSaveDecision.confidence : parsed.confidence,
+            ai_should_push: parsed.ai_should_push || saveFromConditionTrigger,
+            predicted_market: savedBetMarket || '',
+            predicted_selection: savedSelection,
             predicted_odds: mappedOdd ? Number(mappedOdd) : null,
             match_minute: minute,
             match_score: score,
@@ -2970,8 +3281,10 @@ async function processMatch(
 
     // 9. Telegram notification:
     // - AI path: notify with the AI selection and save linkage when available.
-    // - Condition-only path: still notify the user, but do not backfill a DB
-    //   recommendation or AI performance record.
+    // - Condition-triggered path: still notifies on every matched condition.
+    //   Persistence is allowed only for the first actionable thesis (or a very
+    //   narrow same-line special override) so repeated alerts do not distort
+    //   recommendation statistics.
     if (shouldNotify && !shadowMode && settings.telegramEnabled) {
       try {
         const mode = watchlistEntry.mode || 'B';
@@ -3010,7 +3323,7 @@ async function processMatch(
           if (chartUrl) {
             const caption = buildTelegramCaption(
               matchDisplay, league, score, minute, status, parsed, model, mode,
-              settings.notificationLanguage, analysisMode, eventsCompact,
+              settings.notificationLanguage, analysisMode, customConditions, eventsCompact,
             );
             try {
               await deps.sendTelegramPhoto(chatId, chartUrl, caption);
@@ -3024,7 +3337,7 @@ async function processMatch(
             const msg = buildTelegramMessage(
               matchDisplay, league, score, minute, status, parsed,
               statsCompact, statsAvailable, eventsCompact, model, mode,
-              settings.notificationLanguage, analysisMode,
+              settings.notificationLanguage, analysisMode, customConditions,
             );
             for (const chunk of chunkMessage(msg)) {
               await deps.sendTelegramMessage(chatId, chunk);

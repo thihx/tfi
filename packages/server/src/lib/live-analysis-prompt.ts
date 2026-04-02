@@ -295,6 +295,7 @@ No custom condition is active for this run.
     ? `CUSTOM CONDITIONS:
 - should_push and custom_condition_matched are separate decisions
 - If custom_condition_matched=true, provide suggestion, reasoning, confidence, and stake for the triggered condition path
+- If the triggered suggestion repeats an existing same-thesis position, default to alert-only. Only set condition_triggered_special_override=true when the SAME canonical line now has materially better price and you can explain why.
 `
     : `============================================================
 CUSTOM CONDITIONS (INDEPENDENT EVALUATION)
@@ -307,6 +308,13 @@ When custom_condition_matched = true, provide:
 - condition_triggered_suggestion (bet or "No bet - reason")
 - condition_triggered_reasoning_en/vi
 - condition_triggered_confidence, condition_triggered_stake
+- condition_triggered_special_override = true ONLY when a repeated same-thesis condition alert deserves a saved update on the SAME canonical line with materially better price/risk
+- condition_triggered_special_override_reason_en/vi explaining that exceptional override
+
+Default behavior when same-thesis exposure already exists:
+- keep alerting if the watched condition is still true
+- do NOT create another saved bet just because the line is later or looks safer now
+- if you cannot justify a true exceptional override, set condition_triggered_special_override = false
 
 `;
 }
@@ -1104,6 +1112,7 @@ function buildContinuityRulesSectionCompact(
 - Never repeat only because time passed.
 - If the last pick is not materially stronger now, return should_push=false and say: "No significant strengthening since last recommendation at minute [X]."
 ${advancedRules}
+- The same discipline applies to the condition-triggered suggestion path. Repeated condition alerts are allowed, but a repeated same-thesis saved bet needs exceptional justification on the SAME canonical line. Otherwise keep it alert-only.
 
 `;
 }
@@ -1666,7 +1675,10 @@ OUTPUT - STRICT JSON
   "condition_triggered_reasoning_en": string,
   "condition_triggered_reasoning_vi": string,
   "condition_triggered_confidence": number,
-  "condition_triggered_stake": number
+  "condition_triggered_stake": number,
+  "condition_triggered_special_override": boolean,
+  "condition_triggered_special_override_reason_en": string,
+  "condition_triggered_special_override_reason_vi": string
 }
 All fields must exist. selection="" and bet_market="" when should_push=false.
 Return raw JSON only: first char "{" and last char "}".
@@ -1920,7 +1932,10 @@ OUTPUT FORMAT - STRICT JSON
   "condition_triggered_reasoning_en": string,
   "condition_triggered_reasoning_vi": string,
   "condition_triggered_confidence": number,
-  "condition_triggered_stake": number
+  "condition_triggered_stake": number,
+  "condition_triggered_special_override": boolean,
+  "condition_triggered_special_override_reason_en": string,
+  "condition_triggered_special_override_reason_vi": string
 }
 
 ALL fields must exist. selection="" when should_push=false. bet_market="" when should_push=false.
