@@ -193,6 +193,19 @@ describe('team tactical overlay service', () => {
     expect(parsed.sourceConfidence).toBe('medium');
   });
 
+  test('builds prompt with competition-aware preferred source domains', () => {
+    const prompt = service.__testables__.buildPrompt(buildCandidate({
+      league_name: 'Premier League',
+      league_country: 'England',
+      league_type: 'League',
+      top_league: true,
+    }));
+
+    expect(prompt).toContain('Competition policy: domestic_league (top_domestic_league).');
+    expect(prompt).toContain('Prefer these domains first when available: premierleague.com, bbc.com, skysports.com');
+    expect(prompt).toContain('Prioritize research around: pressing shape, rest defence, rotation risk');
+  });
+
   test('repairs literal newlines inside JSON strings from grounded model output', () => {
     const parsed = service.__testables__.parseOverlayResponse({
       candidates: [{

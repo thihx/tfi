@@ -10,6 +10,7 @@ import {
   upsertTeamProfile,
 } from '../repos/team-profiles.repo.js';
 import { classifyTacticalOverlayCompetition } from './tactical-overlay-eligibility.js';
+import { getTacticalOverlaySourceCatalog } from './tactical-overlay-source-catalog.js';
 
 export interface TacticalOverlayRefreshOptions {
   maxPerRun?: number;
@@ -176,6 +177,14 @@ function capConfidenceBySourceCount(confidence: Confidence | null, trustedSource
 
 function buildPrompt(candidate: TacticalOverlayRefreshCandidateRow): string {
   const season = candidate.league_season ? String(candidate.league_season) : 'current';
+  const sourceCatalog = getTacticalOverlaySourceCatalog({
+    leagueName: candidate.league_name,
+    country: candidate.league_country,
+    type: candidate.league_type,
+    topLeague: candidate.top_league ?? false,
+  });
+  const preferredDomains = sourceCatalog.preferredDomains.join(', ');
+  const researchFocus = sourceCatalog.researchFocus.join(', ');
   return `
 You are a football tactical analyst updating a structured tactical overlay for an approved football competition context.
 
@@ -188,6 +197,9 @@ Team:
 Rules:
 - Research only tactical/style information from trusted football sources.
 - Use Google Search grounding sources and prefer official football sites, FBref, Transfermarkt, Soccerway, FotMob, Sofascore, Flashscore, or WhoScored.
+- Competition policy: ${sourceCatalog.classification.competitionKind} (${sourceCatalog.classification.reason}).
+- Prefer these domains first when available: ${preferredDomains}.
+- Prioritize research around: ${researchFocus}.
 - Do NOT return quantitative metrics such as goals per match, BTTS, corners, cards, or win rates.
 - If evidence is mixed or thin, choose the more conservative neutral bucket rather than over-claiming.
 - SOURCE_URLS must contain exact HTTPS URLs that support the tactical overlay.

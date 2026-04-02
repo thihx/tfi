@@ -18,6 +18,8 @@ describe('buildTeamProfileDeepResearchPrompt', () => {
   test('includes league context when provided', () => {
     const prompt = buildTeamProfileDeepResearchPrompt('Arsenal', 'Premier League');
     expect(prompt).toContain('associated with Premier League');
+    expect(prompt).toContain('Prefer these domains first when available: premierleague.com, bbc.com, skysports.com');
+    expect(prompt).toContain('Prioritize research around: pressing shape, rest defence, rotation risk');
   });
 
   test('contains versioned overlay schema fields and source audit fields', () => {

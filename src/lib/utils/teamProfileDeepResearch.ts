@@ -1,5 +1,6 @@
 import type { TeamProfile, TeamProfileData } from '@/types';
 import { filterTrustedTacticalOverlaySourceUrls } from './tacticalOverlaySourcePolicy';
+import { getTacticalOverlaySourceCatalog } from './tacticalOverlaySourceCatalog';
 
 export interface TeamProfileOverlayMetadata {
   source_mode: 'default_neutral' | 'curated' | 'llm_assisted' | 'manual_override';
@@ -81,6 +82,7 @@ export function buildTeamProfileDeepResearchPrompt(
   leagueName?: string,
 ): string {
   const context = leagueName ? ` (currently associated with ${leagueName})` : '';
+  const sourceCatalog = getTacticalOverlaySourceCatalog(leagueName);
   return `
 You are a football tactical analyst. Research the team "${teamName}"${context} and return a structured tactical overlay for betting analysis.
 
@@ -88,6 +90,8 @@ Important constraints:
 - This workflow is for TACTICAL OVERLAY ONLY.
 - Do NOT estimate or return quantitative metrics such as goals per match, BTTS rate, corners, cards, or reliability tiers.
 - Use trusted football sources only. Prefer exact HTTPS URLs from official club or league sites, FBref, Transfermarkt, Soccerway, FotMob, Sofascore, Flashscore, or WhoScored.
+- Prefer these domains first when available: ${sourceCatalog.preferredDomains.join(', ')}.
+- Prioritize research around: ${sourceCatalog.researchFocus.join(', ')}.
 - data_sources must contain real source URLs, not source labels.
 - Return ONLY valid JSON. No markdown, no prose outside JSON.
 - The same schema may be reused later for club teams or national teams. If the team is a national side, reflect that in entity_type and competition_context.
