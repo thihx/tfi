@@ -149,6 +149,21 @@ describe('reports repository', () => {
       } as never)
       .mockResolvedValueOnce({
         rows: [{ bucket: 'warned', wins: '2', total: '5', pnl: '0.6', total_staked: '10' }],
+      } as never)
+      .mockResolvedValueOnce({
+        rows: [{ total: '12', under_count: '8' }],
+      } as never)
+      .mockResolvedValueOnce({
+        rows: [{ bucket: '45-59 (Start 2H)', total: '6', under_count: '5' }],
+      } as never)
+      .mockResolvedValueOnce({
+        rows: [{ bucket: '0-0', total: '7', under_count: '6' }],
+      } as never)
+      .mockResolvedValueOnce({
+        rows: [{ bucket: 'low_evidence', total: '8', under_count: '6' }],
+      } as never)
+      .mockResolvedValueOnce({
+        rows: [{ bucket: 'strong', total: '5', under_count: '4' }],
       } as never);
 
     const result = await getAiInsights({ period: 'today' });
@@ -168,6 +183,21 @@ describe('reports repository', () => {
     expect(result.profileScopeCohorts[0]?.bucket).toBe('cross_competition');
     expect(result.overlayCoverageCohorts[0]?.bucket).toBe('both');
     expect(result.policyImpactCohorts[0]?.bucket).toBe('warned');
+    expect(result.underBiasSummary).toEqual({
+      total: 12,
+      underCount: 8,
+      nonUnderCount: 4,
+      underShare: 66.67,
+    });
+    expect(result.underBiasMinuteBands[0]).toEqual({
+      bucket: '45-59 (Start 2H)',
+      total: 6,
+      underCount: 5,
+      underShare: 83.33,
+    });
+    expect(result.underBiasScoreStates[0]?.bucket).toBe('0-0');
+    expect(result.underBiasEvidenceModes[0]?.bucket).toBe('low_evidence');
+    expect(result.underBiasPrematchStrengths[0]?.bucket).toBe('strong');
     expect(query).toHaveBeenCalledWith(
       expect.stringContaining("CURRENT_DATE"),
       [],

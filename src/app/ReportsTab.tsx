@@ -80,6 +80,17 @@ function cohortBucketLabel(value: string): string {
   return map[value] ?? value;
 }
 
+function underBiasLabel(value: string): string {
+  const map: Record<string, string> = {
+    unknown: 'Unknown',
+    low_evidence: 'Low evidence',
+    standard: 'Standard',
+    manual_force: 'Manual force',
+    auto: 'Auto',
+  };
+  return map[value] ?? value;
+}
+
 const CHART_GREEN = '#22c55e';
 const CHART_RED = '#ef4444';
 const CHART_BLUE = '#3b82f6';
@@ -552,6 +563,45 @@ const AiInsightsSection = memo(function AiInsightsSection({ data }: { data: AiIn
         <InsightList
           title="Policy Impact Cohorts"
           items={data.policyImpactCohorts.map((row) => `${cohortBucketLabel(row.bucket)}: ${wrStr(row.winRate)} (${pnlStr(row.pnl)}, ROI ${row.roi >= 0 ? '+' : ''}${row.roi.toFixed(1)}%, ${row.total} bets)`)}
+          color="var(--gray-700)"
+        />
+      </div>
+
+      <div className="card report-insight-card" style={{ marginTop: 16 }}>
+        <div className="card-header"><div className="card-title">Goals Under Bias</div></div>
+        <div style={{ padding: '16px 20px' }}>
+          <div className="report-insight-row">
+            <span><strong>Share of Goals Under Picks:</strong></span>
+            <span style={{ fontWeight: 700 }}>{wrStr(data.underBiasSummary.underShare)}</span>
+            <span style={{ color: 'var(--gray-500)', fontSize: 12 }}>
+              ({data.underBiasSummary.underCount}/{data.underBiasSummary.total} picks, {data.underBiasSummary.nonUnderCount} non-under)
+            </span>
+          </div>
+          <div className="report-insight-row" style={{ color: 'var(--gray-500)', fontSize: 12 }}>
+            This view tracks selection bias, not whether under picks won or lost.
+          </div>
+        </div>
+      </div>
+
+      <div className="report-insights-grid" style={{ marginTop: 16 }}>
+        <InsightList
+          title="Under Bias by Minute"
+          items={data.underBiasMinuteBands.map((row) => `${underBiasLabel(row.bucket)}: ${wrStr(row.underShare)} (${row.underCount}/${row.total} picks)`)}
+          color="var(--gray-700)"
+        />
+        <InsightList
+          title="Under Bias by Score State"
+          items={data.underBiasScoreStates.map((row) => `${underBiasLabel(row.bucket)}: ${wrStr(row.underShare)} (${row.underCount}/${row.total} picks)`)}
+          color="var(--gray-700)"
+        />
+        <InsightList
+          title="Under Bias by Evidence Mode"
+          items={data.underBiasEvidenceModes.map((row) => `${underBiasLabel(row.bucket)}: ${wrStr(row.underShare)} (${row.underCount}/${row.total} picks)`)}
+          color="var(--gray-700)"
+        />
+        <InsightList
+          title="Under Bias by Prematch Strength"
+          items={data.underBiasPrematchStrengths.map((row) => `${cohortBucketLabel(row.bucket)}: ${wrStr(row.underShare)} (${row.underCount}/${row.total} picks)`)}
           color="var(--gray-700)"
         />
       </div>

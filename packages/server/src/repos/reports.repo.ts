@@ -788,13 +788,19 @@ export interface AiInsightsData {
   profileScopeCohorts: Array<{ bucket: string; total: number; winRate: number; pnl: number; roi: number }>;
   overlayCoverageCohorts: Array<{ bucket: string; total: number; winRate: number; pnl: number; roi: number }>;
   policyImpactCohorts: Array<{ bucket: string; total: number; winRate: number; pnl: number; roi: number }>;
+  underBiasSummary: { total: number; underCount: number; nonUnderCount: number; underShare: number };
+  underBiasMinuteBands: Array<{ bucket: string; total: number; underCount: number; underShare: number }>;
+  underBiasScoreStates: Array<{ bucket: string; total: number; underCount: number; underShare: number }>;
+  underBiasEvidenceModes: Array<{ bucket: string; total: number; underCount: number; underShare: number }>;
+  underBiasPrematchStrengths: Array<{ bucket: string; total: number; underCount: number; underShare: number }>;
 }
 
 export async function getAiInsights(filter: PeriodFilter): Promise<AiInsightsData> {
   const dc = buildDateCondition('r.timestamp', filter);
   const aiInsightSampleFloor = 5;
+  const underGoalsCondition = `COALESCE(NULLIF(r.bet_market, ''), '') LIKE 'under_%'`;
 
-  const [leagueRows, marketRows, minuteRows, confRows, recentTrendRes, overallTrendRes, streakRes, valueRes, safeRes, analyticsRows, modelPromptRows, prematchStrengthRows, profileCoverageRows, profileScopeRows, overlayCoverageRows, policyImpactRows] = await Promise.all([
+  const [leagueRows, marketRows, minuteRows, confRows, recentTrendRes, overallTrendRes, streakRes, valueRes, safeRes, analyticsRows, modelPromptRows, prematchStrengthRows, profileCoverageRows, profileScopeRows, overlayCoverageRows, policyImpactRows, underBiasSummaryRow, underBiasMinuteRows, underBiasScoreRows, underBiasEvidenceRows, underBiasPrematchRows] = await Promise.all([
     // League performance
     query<{ league: string; wins: string; total: string; pnl: string }>(`
       SELECT COALESCE(NULLIF(league,''),'Unknown') AS league,
@@ -873,7 +879,7 @@ export async function getAiInsights(filter: PeriodFilter): Promise<AiInsightsDat
                WHEN ${DIRECTIONAL_WIN_RESULT_SQL} THEN 'win'
                WHEN ${DIRECTIONAL_LOSS_RESULT_SQL} THEN 'loss'
              END AS result
-      FROM recommendations
+      FROM recommendations r
       WHERE ${NOT_DUP} AND ${DIRECTIONAL_RESULT_SQL} AND ${dc.clause}
       ORDER BY timestamp DESC LIMIT 30
     `, dc.params),
@@ -980,6 +986,96 @@ export async function getAiInsights(filter: PeriodFilter): Promise<AiInsightsDat
       HAVING COUNT(*) >= ${aiInsightSampleFloor}
       ORDER BY COUNT(*) DESC, SUM(pnl) DESC
     `, dc.params),
+
+    query<{ total: string; under_count: string }>(`
+      SELECT
+        COUNT(*)::text AS total,
+        COUNT(*) FILTER (WHERE ${underGoalsCondition})::text AS under_count
+      FROM recommendations r
+      WHERE ${NOT_DUP} AND ${dc.clause}
+    `, dc.params),
+
+    query<{ bucket: string; total: string; under_count: string }>(`
+      SELECT
+        CASE
+          WHEN minute IS NULL THEN 'unknown'
+          WHEN minute < 30 THEN '0-29 (1H early)'
+          WHEN minute < 45 THEN '30-44 (Pre-HT)'
+          WHEN minute < 60 THEN '45-59 (Start 2H)'
+          WHEN minute < 75 THEN '60-74 (Mid 2H)'
+          ELSE '75+ (Late)'
+        END AS bucket,
+        COUNT(*)::text AS total,
+        COUNT(*) FILTER (WHERE ${underGoalsCondition})::text AS under_count
+      FROM recommendations r
+      WHERE ${NOT_DUP} AND ${dc.clause}
+      GROUP BY 1
+      HAVING COUNT(*) >= ${aiInsightSampleFloor}
+      ORDER BY COUNT(*) FILTER (WHERE ${underGoalsCondition}) DESC, COUNT(*) DESC
+    `, dc.params),
+
+    query<{ bucket: string; total: string; under_count: string }>(`
+      WITH base AS (
+        SELECT
+          r.*,
+          regexp_replace(COALESCE(r.score, ''), '\\s', '', 'g') AS normalized_score
+        FROM recommendations r
+        WHERE ${NOT_DUP} AND ${dc.clause}
+      ),
+      scored AS (
+        SELECT
+          *,
+          CASE
+            WHEN normalized_score ~ '^\\d+[-:]\\d+$'
+              THEN split_part(replace(normalized_score, ':', '-'), '-', 1)::int
+            ELSE NULL
+          END AS home_goals,
+          CASE
+            WHEN normalized_score ~ '^\\d+[-:]\\d+$'
+              THEN split_part(replace(normalized_score, ':', '-'), '-', 2)::int
+            ELSE NULL
+          END AS away_goals
+        FROM base
+      )
+      SELECT
+        CASE
+          WHEN home_goals IS NULL OR away_goals IS NULL THEN 'unknown'
+          WHEN home_goals = 0 AND away_goals = 0 THEN '0-0'
+          WHEN home_goals = away_goals THEN 'level (scored draw)'
+          WHEN ABS(home_goals - away_goals) = 1 THEN 'one-goal margin'
+          ELSE 'multi-goal margin'
+        END AS bucket,
+        COUNT(*)::text AS total,
+        COUNT(*) FILTER (WHERE COALESCE(NULLIF(bet_market, ''), '') LIKE 'under_%')::text AS under_count
+      FROM scored
+      GROUP BY 1
+      HAVING COUNT(*) >= ${aiInsightSampleFloor}
+      ORDER BY COUNT(*) FILTER (WHERE COALESCE(NULLIF(bet_market, ''), '') LIKE 'under_%') DESC, COUNT(*) DESC
+    `, dc.params),
+
+    query<{ bucket: string; total: string; under_count: string }>(`
+      SELECT
+        COALESCE(NULLIF(decision_context->>'evidenceMode', ''), 'unknown') AS bucket,
+        COUNT(*)::text AS total,
+        COUNT(*) FILTER (WHERE ${underGoalsCondition})::text AS under_count
+      FROM recommendations r
+      WHERE ${NOT_DUP} AND ${dc.clause}
+      GROUP BY COALESCE(NULLIF(decision_context->>'evidenceMode', ''), 'unknown')
+      HAVING COUNT(*) >= ${aiInsightSampleFloor}
+      ORDER BY COUNT(*) FILTER (WHERE ${underGoalsCondition}) DESC, COUNT(*) DESC
+    `, dc.params),
+
+    query<{ bucket: string; total: string; under_count: string }>(`
+      SELECT
+        COALESCE(NULLIF(decision_context->>'prematchStrength', ''), 'unknown') AS bucket,
+        COUNT(*)::text AS total,
+        COUNT(*) FILTER (WHERE ${underGoalsCondition})::text AS under_count
+      FROM recommendations r
+      WHERE ${NOT_DUP} AND ${dc.clause}
+      GROUP BY COALESCE(NULLIF(decision_context->>'prematchStrength', ''), 'unknown')
+      HAVING COUNT(*) >= ${aiInsightSampleFloor}
+      ORDER BY COUNT(*) FILTER (WHERE ${underGoalsCondition}) DESC, COUNT(*) DESC
+    `, dc.params),
   ]);
 
   // Process leagues
@@ -1060,6 +1156,21 @@ export async function getAiInsights(filter: PeriodFilter): Promise<AiInsightsDat
       };
     });
 
+  const mapUnderBiasRows = (rows: Array<{ bucket: string; total: string; under_count: string }>) =>
+    rows.map((row) => {
+      const total = Number(row.total);
+      const underCount = Number(row.under_count);
+      return {
+        bucket: row.bucket,
+        total,
+        underCount,
+        underShare: total > 0 ? Math.round((underCount / total) * 10000) / 100 : 0,
+      };
+    });
+
+  const underTotal = Number(underBiasSummaryRow.rows[0]?.total ?? 0);
+  const underCount = Number(underBiasSummaryRow.rows[0]?.under_count ?? 0);
+
   return {
     strongLeagues: leagues.filter((l) => l.pnl > 0).slice(0, 5),
     weakLeagues: leagues.filter((l) => l.pnl < 0).slice(-5).reverse(),
@@ -1119,5 +1230,15 @@ export async function getAiInsights(filter: PeriodFilter): Promise<AiInsightsDat
       pnl: row.pnl,
       roi: row.roi,
     })),
+    underBiasSummary: {
+      total: underTotal,
+      underCount,
+      nonUnderCount: Math.max(underTotal - underCount, 0),
+      underShare: underTotal > 0 ? Math.round((underCount / underTotal) * 10000) / 100 : 0,
+    },
+    underBiasMinuteBands: mapUnderBiasRows(underBiasMinuteRows.rows),
+    underBiasScoreStates: mapUnderBiasRows(underBiasScoreRows.rows),
+    underBiasEvidenceModes: mapUnderBiasRows(underBiasEvidenceRows.rows),
+    underBiasPrematchStrengths: mapUnderBiasRows(underBiasPrematchRows.rows),
   };
 }

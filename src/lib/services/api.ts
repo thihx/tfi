@@ -944,7 +944,12 @@ export interface AiInsightsData {
   profileScopeCohorts: Array<{ bucket: string; total: number; winRate: number; pnl: number; roi: number }>;
   overlayCoverageCohorts: Array<{ bucket: string; total: number; winRate: number; pnl: number; roi: number }>;
   policyImpactCohorts: Array<{ bucket: string; total: number; winRate: number; pnl: number; roi: number }>;
-  }
+  underBiasSummary: { total: number; underCount: number; nonUnderCount: number; underShare: number };
+  underBiasMinuteBands: Array<{ bucket: string; total: number; underCount: number; underShare: number }>;
+  underBiasScoreStates: Array<{ bucket: string; total: number; underCount: number; underShare: number }>;
+  underBiasEvidenceModes: Array<{ bucket: string; total: number; underCount: number; underShare: number }>;
+  underBiasPrematchStrengths: Array<{ bucket: string; total: number; underCount: number; underShare: number }>;
+}
 
 export async function fetchOverviewReport(config: AppConfig, f: ReportPeriodFilter): Promise<OverviewReport> {
   return pgFetch<OverviewReport>(config, `/api/reports/overview${buildReportQs(f)}`);

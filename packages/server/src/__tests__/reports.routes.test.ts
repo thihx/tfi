@@ -35,7 +35,16 @@ const mockMinute = [{ band: '45-60', total: 12, wins: 8, pnl: 3 }];
 const mockDailyPnl = [{ date: '2026-03-15', pnl: 2.5 }];
 const mockDayOfWeek = [{ dayOfWeek: 6, dayName: 'Saturday', total: 20, pnl: 8 }];
 const mockLeagueMarket = [{ league: 'PL', market: 'ou2.5', total: 10, wins: 7, pnl: 3 }];
-const mockAiInsights = { recentTrend: 'improving', recentWinRate: 65, overallWinRate: 60 };
+const mockAiInsights = {
+  recentTrend: 'improving',
+  recentWinRate: 65,
+  overallWinRate: 60,
+  underBiasSummary: { total: 10, underCount: 6, nonUnderCount: 4, underShare: 60 },
+  underBiasMinuteBands: [{ bucket: '45-59 (Start 2H)', total: 4, underCount: 3, underShare: 75 }],
+  underBiasScoreStates: [{ bucket: '0-0', total: 5, underCount: 4, underShare: 80 }],
+  underBiasEvidenceModes: [{ bucket: 'low_evidence', total: 5, underCount: 4, underShare: 80 }],
+  underBiasPrematchStrengths: [{ bucket: 'strong', total: 5, underCount: 4, underShare: 80 }],
+};
 
 vi.mock('../repos/reports.repo.js', () => ({
   getOverviewReport: vi.fn().mockResolvedValue(mockOverview),
