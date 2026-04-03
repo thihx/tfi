@@ -6,6 +6,7 @@ import type { FastifyInstance } from 'fastify';
 import { requireAdminOrOwner } from '../lib/authz.js';
 import { getJobsStatus, triggerJob, updateJobInterval } from '../jobs/scheduler.js';
 import { setForceEnrich } from '../jobs/enrich-watchlist.job.js';
+import { previewHousekeepingImpact } from '../jobs/purge-audit.job.js';
 import { getJobRunOverview, getRecentJobRuns } from '../repos/job-runs.repo.js';
 
 export async function jobRoutes(app: FastifyInstance) {
@@ -39,6 +40,12 @@ export async function jobRoutes(app: FastifyInstance) {
       runs,
       overview,
     };
+  });
+
+  app.get('/api/jobs/purge-audit/preview', async (req, reply) => {
+    const user = requireAdminOrOwner(req, reply);
+    if (!user) return;
+    return previewHousekeepingImpact();
   });
 
   // POST /api/jobs/:name/trigger — admin/ops endpoint for an on-demand job run.

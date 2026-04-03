@@ -20,6 +20,10 @@ import * as jobRunsRepo from '../repos/job-runs.repo.js';
 import * as recommendationsRepo from '../repos/recommendations.repo.js';
 import * as aiPerfRepo from '../repos/ai-performance.repo.js';
 import * as recommendationDeliveriesRepo from '../repos/recommendation-deliveries.repo.js';
+import {
+  resolveHousekeepingRetentionPolicy,
+  type HousekeepingRetentionPolicy,
+} from '../lib/retention-policy.js';
 import { reportJobProgress } from './job-progress.js';
 
 export interface HousekeepingResult {
@@ -39,6 +43,11 @@ export interface HousekeepingResult {
   aiPerfDeleted: number;
   totalDeleted: number;
   failedPhases: string[];
+  policyWarnings: string[];
+  safetyChecks: {
+    protectedTablesVerified: boolean;
+    protectedTableCounts: Record<string, number>;
+  };
   keepDays: {
     audit: number;
     matchesHistory: number;
@@ -56,6 +65,110 @@ export interface HousekeepingResult {
   };
 }
 
+export interface HousekeepingPreviewRow {
+  label: string;
+  tableName: string;
+  retentionClass: string;
+  strategy: string;
+  keepDays: number;
+  candidateCount: number;
+  oldestCandidateAt: string | null;
+  newestCandidateAt: string | null;
+}
+
+export interface HousekeepingPreviewResult {
+  keepDays: HousekeepingResult['keepDays'];
+  policyWarnings: string[];
+  protectedTables: string[];
+  rows: HousekeepingPreviewRow[];
+}
+
+async function getProtectedTableCounts(tableNames: readonly string[]): Promise<Record<string, number>> {
+  const entries = await Promise.all(
+    tableNames.map(async (tableName) => {
+      const result = await query<{ count: string }>(`SELECT COUNT(*)::text AS count FROM ${tableName}`);
+      return [tableName, Number(result.rows[0]?.count ?? 0)] as const;
+    }),
+  );
+  return Object.fromEntries(entries);
+}
+
+function isProtectedTableCountsEqual(
+  before: Record<string, number>,
+  after: Record<string, number>,
+): boolean {
+  const keys = new Set([...Object.keys(before), ...Object.keys(after)]);
+  for (const key of keys) {
+    if ((before[key] ?? 0) !== (after[key] ?? 0)) return false;
+  }
+  return true;
+}
+
+async function buildHousekeepingPreview(policy: HousekeepingRetentionPolicy): Promise<HousekeepingPreviewRow[]> {
+  const previewSpecs = [
+    { label: 'Audit Logs', tableName: 'audit_logs', timestampColumn: 'timestamp', key: 'audit' as const, retentionClass: 'operational_log', strategy: 'delete' },
+    { label: 'Job Run History', tableName: 'job_run_history', timestampColumn: 'started_at', key: 'jobRunHistory' as const, retentionClass: 'operational_log', strategy: 'delete' },
+    { label: 'Pipeline Runs', tableName: 'pipeline_runs', timestampColumn: 'started_at', key: 'pipelineRuns' as const, retentionClass: 'operational_log', strategy: 'delete' },
+    { label: 'Prompt Shadow Runs', tableName: 'prompt_shadow_runs', timestampColumn: 'captured_at', key: 'promptShadow' as const, retentionClass: 'operational_log', strategy: 'delete' },
+    { label: 'Match Snapshots', tableName: 'match_snapshots', timestampColumn: 'captured_at', key: 'matchSnapshots' as const, retentionClass: 'operational_log', strategy: 'delete' },
+    { label: 'Odds Movements', tableName: 'odds_movements', timestampColumn: 'captured_at', key: 'oddsMovements' as const, retentionClass: 'operational_log', strategy: 'delete' },
+    { label: 'Provider Stats Samples', tableName: 'provider_stats_samples', timestampColumn: 'captured_at', key: 'providerSamples' as const, retentionClass: 'support_sample', strategy: 'delete' },
+    { label: 'Provider Odds Samples', tableName: 'provider_odds_samples', timestampColumn: 'captured_at', key: 'providerSamples' as const, retentionClass: 'support_sample', strategy: 'delete' },
+    { label: 'Provider Odds Cache', tableName: 'provider_odds_cache', timestampColumn: 'cached_at', key: 'providerCache' as const, retentionClass: 'support_cache', strategy: 'delete' },
+    { label: 'Provider Fixture Cache', tableName: 'provider_fixture_cache', timestampColumn: 'cached_at', key: 'providerCache' as const, retentionClass: 'support_cache', strategy: 'delete' },
+    { label: 'Provider Fixture Stats Cache', tableName: 'provider_fixture_stats_cache', timestampColumn: 'cached_at', key: 'providerCache' as const, retentionClass: 'support_cache', strategy: 'delete' },
+    { label: 'Provider Fixture Events Cache', tableName: 'provider_fixture_events_cache', timestampColumn: 'cached_at', key: 'providerCache' as const, retentionClass: 'support_cache', strategy: 'delete' },
+    { label: 'Provider Fixture Lineups Cache', tableName: 'provider_fixture_lineups_cache', timestampColumn: 'cached_at', key: 'providerCache' as const, retentionClass: 'support_cache', strategy: 'delete' },
+    { label: 'Provider Fixture Prediction Cache', tableName: 'provider_fixture_prediction_cache', timestampColumn: 'cached_at', key: 'providerCache' as const, retentionClass: 'support_cache', strategy: 'delete' },
+    { label: 'Provider League Standings Cache', tableName: 'provider_league_standings_cache', timestampColumn: 'cached_at', key: 'providerCache' as const, retentionClass: 'support_cache', strategy: 'delete' },
+    { label: 'Recommendation Deliveries', tableName: 'user_recommendation_deliveries', timestampColumn: 'created_at', key: 'recommendationDeliveries' as const, retentionClass: 'delivery_trace', strategy: 'delete' },
+  ] as const;
+
+  const rows = await Promise.all(
+    previewSpecs
+      .filter((spec) => policy.keepDays[spec.key] > 0)
+      .map(async (spec) => {
+        const keepDays = policy.keepDays[spec.key];
+        const result = await query<{
+          candidate_count: string;
+          oldest_candidate_at: string | null;
+          newest_candidate_at: string | null;
+        }>(
+          `SELECT
+             COUNT(*)::text AS candidate_count,
+             MIN(${spec.timestampColumn})::text AS oldest_candidate_at,
+             MAX(${spec.timestampColumn})::text AS newest_candidate_at
+           FROM ${spec.tableName}
+           WHERE ${spec.timestampColumn} < NOW() - INTERVAL '1 day' * $1`,
+          [keepDays],
+        );
+        const row = result.rows[0];
+        return {
+          label: spec.label,
+          tableName: spec.tableName,
+          retentionClass: spec.retentionClass,
+          strategy: spec.strategy,
+          keepDays,
+          candidateCount: Number(row?.candidate_count ?? 0),
+          oldestCandidateAt: row?.oldest_candidate_at ?? null,
+          newestCandidateAt: row?.newest_candidate_at ?? null,
+        } satisfies HousekeepingPreviewRow;
+      }),
+  );
+
+  return rows;
+}
+
+export async function previewHousekeepingImpact(): Promise<HousekeepingPreviewResult> {
+  const policy = resolveHousekeepingRetentionPolicy(config);
+  return {
+    keepDays: policy.keepDays,
+    policyWarnings: policy.warnings,
+    protectedTables: policy.protectedTables,
+    rows: await buildHousekeepingPreview(policy),
+  };
+}
+
 /**
  * Daily housekeeping job.
  *
@@ -63,21 +176,8 @@ export interface HousekeepingResult {
  * purge unless the deployment explicitly accepts age-based retention.
  */
 export async function housekeepingJob(): Promise<HousekeepingResult> {
-  const keepDays = {
-    audit: config.auditKeepDays,
-    matchesHistory: config.matchesHistoryKeepDays,
-    matchesHistoryHardDelete: config.matchesHistoryHardDeleteDays,
-    providerSamples: config.providerSamplesKeepDays,
-    providerCache: config.providerCacheKeepDays,
-    matchSnapshots: config.matchSnapshotsKeepDays,
-    oddsMovements: config.oddsMovementsKeepDays,
-    promptShadow: config.promptShadowKeepDays,
-    pipelineRuns: config.pipelineRunsKeepDays,
-    jobRunHistory: config.jobRunHistoryKeepDays,
-    recommendationDeliveries: config.recommendationDeliveriesKeepDays,
-    recommendationsSlim: config.recommendationsSlimDays,
-    aiPerformance: config.aiPerformanceKeepDays,
-  };
+  const policy = resolveHousekeepingRetentionPolicy(config);
+  const { keepDays } = policy;
 
   const failedPhases: string[] = [];
   const failedPhaseSet = new Set<string>();
@@ -96,6 +196,12 @@ export async function housekeepingJob(): Promise<HousekeepingResult> {
       return fallback;
     }
   };
+
+  for (const warning of policy.warnings) {
+    console.warn(`[housekeepingJob] retention warning: ${warning}`);
+  }
+
+  const protectedTableCountsBefore = await getProtectedTableCounts(policy.protectedTables);
 
   await reportJobProgress('purge-audit', 'purge', 'Running housekeeping cleanup...', 15);
   await reportJobProgress('purge-audit', 'retention', 'Purging logs, history, and provider samples...', 30);
@@ -206,6 +312,15 @@ export async function housekeepingJob(): Promise<HousekeepingResult> {
     }
   }
 
+  const protectedTableCountsAfter = await getProtectedTableCounts(policy.protectedTables);
+  const protectedTablesVerified = isProtectedTableCountsEqual(protectedTableCountsBefore, protectedTableCountsAfter);
+  if (!protectedTablesVerified) {
+    recordFailure('protected-table-invariants', {
+      before: protectedTableCountsBefore,
+      after: protectedTableCountsAfter,
+    });
+  }
+
   return {
     auditDeleted,
     matchesHistoryDeleted,
@@ -223,6 +338,11 @@ export async function housekeepingJob(): Promise<HousekeepingResult> {
     aiPerfDeleted,
     totalDeleted,
     failedPhases,
+    policyWarnings: policy.warnings,
+    safetyChecks: {
+      protectedTablesVerified,
+      protectedTableCounts: protectedTableCountsAfter,
+    },
     keepDays,
   };
 }

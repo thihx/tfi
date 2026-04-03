@@ -34,6 +34,23 @@ const mockRuns = [
 const mockOverview = [
   { jobName: 'fetch-matches', totalRuns: 12, successRuns: 11, failureRuns: 1, skippedRuns: 0, degradedRuns: 2, avgLagMs: 120, avgDurationMs: 1400, lastStartedAt: '2026-03-31T01:00:00Z', lastCompletedAt: '2026-03-31T01:00:02Z', lastStatus: 'success' },
 ];
+const mockHousekeepingPreview = {
+  keepDays: { audit: 7, providerSamples: 3, providerCache: 7 },
+  policyWarnings: [],
+  protectedTables: ['league_profiles'],
+  rows: [
+    {
+      label: 'Audit Logs',
+      tableName: 'audit_logs',
+      retentionClass: 'operational_log',
+      strategy: 'delete',
+      keepDays: 7,
+      candidateCount: 12,
+      oldestCandidateAt: '2026-03-20T00:00:00Z',
+      newestCandidateAt: '2026-03-26T00:00:00Z',
+    },
+  ],
+};
 
 vi.mock('../jobs/scheduler.js', () => ({
   getJobsStatus: vi.fn().mockResolvedValue(mockJobs),
@@ -50,6 +67,9 @@ vi.mock('../jobs/scheduler.js', () => ({
 vi.mock('../repos/job-runs.repo.js', () => ({
   getRecentJobRuns: vi.fn().mockResolvedValue(mockRuns),
   getJobRunOverview: vi.fn().mockResolvedValue(mockOverview),
+}));
+vi.mock('../jobs/purge-audit.job.js', () => ({
+  previewHousekeepingImpact: vi.fn().mockResolvedValue(mockHousekeepingPreview),
 }));
 
 let app: FastifyInstance;
@@ -95,6 +115,19 @@ describe('GET /api/jobs/runs', () => {
 
   test('rejects members for run history', async () => {
     const res = await memberApp.inject({ method: 'GET', url: '/api/jobs/runs' });
+    expect(res.statusCode).toBe(403);
+  });
+});
+
+describe('GET /api/jobs/purge-audit/preview', () => {
+  test('returns housekeeping preview for admins', async () => {
+    const res = await app.inject({ method: 'GET', url: '/api/jobs/purge-audit/preview' });
+    expect(res.statusCode).toBe(200);
+    expect(res.json()).toEqual(mockHousekeepingPreview);
+  });
+
+  test('rejects members for housekeeping preview', async () => {
+    const res = await memberApp.inject({ method: 'GET', url: '/api/jobs/purge-audit/preview' });
     expect(res.statusCode).toBe(403);
   });
 });
