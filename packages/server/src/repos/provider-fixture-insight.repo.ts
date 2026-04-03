@@ -436,3 +436,66 @@ export async function upsertProviderLeagueStandingsCache(input: UpsertProviderLe
   );
   return result.rows[0]!;
 }
+
+export interface PurgeProviderFixtureCachesResult {
+  fixtureDeleted: number;
+  statsDeleted: number;
+  eventsDeleted: number;
+  lineupsDeleted: number;
+  predictionDeleted: number;
+  standingsDeleted: number;
+  totalDeleted: number;
+}
+
+export async function purgeProviderFixtureCaches(keepDays: number): Promise<PurgeProviderFixtureCachesResult> {
+  if (keepDays <= 0) {
+    return {
+      fixtureDeleted: 0,
+      statsDeleted: 0,
+      eventsDeleted: 0,
+      lineupsDeleted: 0,
+      predictionDeleted: 0,
+      standingsDeleted: 0,
+      totalDeleted: 0,
+    };
+  }
+
+  const [
+    fixtureResult,
+    statsResult,
+    eventsResult,
+    lineupsResult,
+    predictionResult,
+    standingsResult,
+  ] = await Promise.all([
+    query(`DELETE FROM provider_fixture_cache WHERE cached_at < NOW() - INTERVAL '1 day' * $1`, [keepDays]),
+    query(`DELETE FROM provider_fixture_stats_cache WHERE cached_at < NOW() - INTERVAL '1 day' * $1`, [keepDays]),
+    query(`DELETE FROM provider_fixture_events_cache WHERE cached_at < NOW() - INTERVAL '1 day' * $1`, [keepDays]),
+    query(`DELETE FROM provider_fixture_lineups_cache WHERE cached_at < NOW() - INTERVAL '1 day' * $1`, [keepDays]),
+    query(`DELETE FROM provider_fixture_prediction_cache WHERE cached_at < NOW() - INTERVAL '1 day' * $1`, [keepDays]),
+    query(`DELETE FROM provider_league_standings_cache WHERE cached_at < NOW() - INTERVAL '1 day' * $1`, [keepDays]),
+  ]);
+
+  const fixtureDeleted = fixtureResult.rowCount ?? 0;
+  const statsDeleted = statsResult.rowCount ?? 0;
+  const eventsDeleted = eventsResult.rowCount ?? 0;
+  const lineupsDeleted = lineupsResult.rowCount ?? 0;
+  const predictionDeleted = predictionResult.rowCount ?? 0;
+  const standingsDeleted = standingsResult.rowCount ?? 0;
+
+  return {
+    fixtureDeleted,
+    statsDeleted,
+    eventsDeleted,
+    lineupsDeleted,
+    predictionDeleted,
+    standingsDeleted,
+    totalDeleted:
+      fixtureDeleted
+      + statsDeleted
+      + eventsDeleted
+      + lineupsDeleted
+      + predictionDeleted
+      + standingsDeleted,
+  };
+}

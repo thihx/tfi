@@ -102,3 +102,13 @@ export async function upsertProviderOddsCache(input: UpsertProviderOddsCacheInpu
   );
   return result.rows[0]!;
 }
+
+export async function purgeProviderOddsCache(keepDays: number): Promise<number> {
+  if (keepDays <= 0) return 0;
+  const result = await query(
+    `DELETE FROM provider_odds_cache
+     WHERE cached_at < NOW() - INTERVAL '1 day' * $1`,
+    [keepDays],
+  );
+  return result.rowCount ?? 0;
+}

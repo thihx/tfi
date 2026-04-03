@@ -29,6 +29,20 @@ vi.mock('../repos/provider-stats-samples.repo.js', () => ({
 vi.mock('../repos/provider-odds-samples.repo.js', () => ({
   purgeProviderOddsSamples: vi.fn().mockResolvedValue(7),
 }));
+vi.mock('../repos/provider-odds-cache.repo.js', () => ({
+  purgeProviderOddsCache: vi.fn().mockResolvedValue(12),
+}));
+vi.mock('../repos/provider-fixture-insight.repo.js', () => ({
+  purgeProviderFixtureCaches: vi.fn().mockResolvedValue({
+    fixtureDeleted: 10,
+    statsDeleted: 8,
+    eventsDeleted: 6,
+    lineupsDeleted: 4,
+    predictionDeleted: 2,
+    standingsDeleted: 1,
+    totalDeleted: 31,
+  }),
+}));
 vi.mock('../repos/match-snapshots.repo.js', () => ({
   purgeMatchSnapshots: vi.fn().mockResolvedValue(11),
 }));
@@ -68,6 +82,7 @@ describe('housekeepingJob', () => {
     expect(result.matchesHistoryDeleted).toBe(5);
     expect(result.providerStatsDeleted).toBe(9);
     expect(result.providerOddsDeleted).toBe(7);
+    expect(result.providerCacheDeleted).toBe(43);
     expect(result.matchSnapshotsDeleted).toBe(11);
     expect(result.oddsMovementsDeleted).toBe(13);
     expect(result.promptShadowDeleted).toBe(6);
@@ -78,13 +93,14 @@ describe('housekeepingJob', () => {
     expect(result.aiPerfAggregated).toBe(4);
     expect(result.aiPerfDeleted).toBe(8);
     // totalDeleted excludes slimmed (UPDATE not DELETE) but includes aiPerfDeleted
-    expect(result.totalDeleted).toBe(42 + 5 + 9 + 7 + 11 + 13 + 6 + 3 + 4 + 8);
+    expect(result.totalDeleted).toBe(42 + 5 + 9 + 7 + 43 + 11 + 13 + 6 + 3 + 4 + 8);
 
     expect(result.keepDays).toMatchObject({
       audit: 30,
       matchesHistory: 120,
       matchesHistoryHardDelete: 180,
       providerSamples: 14,
+      providerCache: 7,
       matchSnapshots: 14,
       oddsMovements: 30,
       promptShadow: 14,
@@ -98,6 +114,10 @@ describe('housekeepingJob', () => {
 
     const historyRepo = await import('../repos/matches-history.repo.js');
     expect(historyRepo.purgeHistoricalMatches).toHaveBeenCalledWith(120, 180);
+    const providerOddsCacheRepo = await import('../repos/provider-odds-cache.repo.js');
+    expect(providerOddsCacheRepo.purgeProviderOddsCache).toHaveBeenCalledWith(7);
+    const providerFixtureInsightRepo = await import('../repos/provider-fixture-insight.repo.js');
+    expect(providerFixtureInsightRepo.purgeProviderFixtureCaches).toHaveBeenCalledWith(7);
 
     const pipelineRepo = await import('../repos/pipeline-runs.repo.js');
     expect(pipelineRepo.purgePipelineRuns).toHaveBeenCalledWith(14);
@@ -119,6 +139,8 @@ describe('housekeepingJob', () => {
     const historyRepo = await import('../repos/matches-history.repo.js');
     const providerStatsRepo = await import('../repos/provider-stats-samples.repo.js');
     const providerOddsRepo = await import('../repos/provider-odds-samples.repo.js');
+    const providerOddsCacheRepo = await import('../repos/provider-odds-cache.repo.js');
+    const providerFixtureInsightRepo = await import('../repos/provider-fixture-insight.repo.js');
     const snapshotsRepo = await import('../repos/match-snapshots.repo.js');
     const oddsRepo = await import('../repos/odds-movements.repo.js');
     const promptShadowRepo = await import('../repos/prompt-shadow-runs.repo.js');
@@ -131,6 +153,16 @@ describe('housekeepingJob', () => {
     vi.mocked(historyRepo.purgeHistoricalMatches).mockResolvedValueOnce(0);
     vi.mocked(providerStatsRepo.purgeProviderStatsSamples).mockResolvedValueOnce(0);
     vi.mocked(providerOddsRepo.purgeProviderOddsSamples).mockResolvedValueOnce(0);
+    vi.mocked(providerOddsCacheRepo.purgeProviderOddsCache).mockResolvedValueOnce(0);
+    vi.mocked(providerFixtureInsightRepo.purgeProviderFixtureCaches).mockResolvedValueOnce({
+      fixtureDeleted: 0,
+      statsDeleted: 0,
+      eventsDeleted: 0,
+      lineupsDeleted: 0,
+      predictionDeleted: 0,
+      standingsDeleted: 0,
+      totalDeleted: 0,
+    });
     vi.mocked(snapshotsRepo.purgeMatchSnapshots).mockResolvedValueOnce(0);
     vi.mocked(oddsRepo.purgeOddsMovements).mockResolvedValueOnce(0);
     vi.mocked(promptShadowRepo.purgePromptShadowRuns).mockResolvedValueOnce(0);

@@ -10,6 +10,8 @@ import * as auditRepo from '../repos/audit-logs.repo.js';
 import * as historyRepo from '../repos/matches-history.repo.js';
 import * as providerStatsRepo from '../repos/provider-stats-samples.repo.js';
 import * as providerOddsRepo from '../repos/provider-odds-samples.repo.js';
+import * as providerOddsCacheRepo from '../repos/provider-odds-cache.repo.js';
+import * as providerFixtureInsightRepo from '../repos/provider-fixture-insight.repo.js';
 import * as snapshotsRepo from '../repos/match-snapshots.repo.js';
 import * as oddsMovementsRepo from '../repos/odds-movements.repo.js';
 import * as promptShadowRepo from '../repos/prompt-shadow-runs.repo.js';
@@ -25,6 +27,7 @@ export interface HousekeepingResult {
   matchesHistoryDeleted: number;
   providerStatsDeleted: number;
   providerOddsDeleted: number;
+  providerCacheDeleted: number;
   matchSnapshotsDeleted: number;
   oddsMovementsDeleted: number;
   promptShadowDeleted: number;
@@ -41,6 +44,7 @@ export interface HousekeepingResult {
     matchesHistory: number;
     matchesHistoryHardDelete: number;
     providerSamples: number;
+    providerCache: number;
     matchSnapshots: number;
     oddsMovements: number;
     promptShadow: number;
@@ -64,6 +68,7 @@ export async function housekeepingJob(): Promise<HousekeepingResult> {
     matchesHistory: config.matchesHistoryKeepDays,
     matchesHistoryHardDelete: config.matchesHistoryHardDeleteDays,
     providerSamples: config.providerSamplesKeepDays,
+    providerCache: config.providerCacheKeepDays,
     matchSnapshots: config.matchSnapshotsKeepDays,
     oddsMovements: config.oddsMovementsKeepDays,
     promptShadow: config.promptShadowKeepDays,
@@ -100,6 +105,7 @@ export async function housekeepingJob(): Promise<HousekeepingResult> {
     matchesHistoryDeleted,
     providerStatsDeleted,
     providerOddsDeleted,
+    providerCacheDeleted,
     matchSnapshotsDeleted,
     oddsMovementsDeleted,
     promptShadowDeleted,
@@ -111,6 +117,17 @@ export async function housekeepingJob(): Promise<HousekeepingResult> {
     runStep('matches-history', () => historyRepo.purgeHistoricalMatches(keepDays.matchesHistory, keepDays.matchesHistoryHardDelete), 0),
     runStep('provider-stats-samples', () => providerStatsRepo.purgeProviderStatsSamples(keepDays.providerSamples), 0),
     runStep('provider-odds-samples', () => providerOddsRepo.purgeProviderOddsSamples(keepDays.providerSamples), 0),
+    runStep(
+      'provider-cache',
+      async () => {
+        const [providerOddsCacheDeleted, providerFixtureCaches] = await Promise.all([
+          providerOddsCacheRepo.purgeProviderOddsCache(keepDays.providerCache),
+          providerFixtureInsightRepo.purgeProviderFixtureCaches(keepDays.providerCache),
+        ]);
+        return providerOddsCacheDeleted + providerFixtureCaches.totalDeleted;
+      },
+      0,
+    ),
     runStep('match-snapshots', () => snapshotsRepo.purgeMatchSnapshots(keepDays.matchSnapshots), 0),
     runStep('odds-movements', () => oddsMovementsRepo.purgeOddsMovements(keepDays.oddsMovements), 0),
     runStep('prompt-shadow-runs', () => promptShadowRepo.purgePromptShadowRuns(keepDays.promptShadow), 0),
@@ -143,6 +160,7 @@ export async function housekeepingJob(): Promise<HousekeepingResult> {
     + matchesHistoryDeleted
     + providerStatsDeleted
     + providerOddsDeleted
+    + providerCacheDeleted
     + matchSnapshotsDeleted
     + oddsMovementsDeleted
     + promptShadowDeleted
@@ -155,7 +173,7 @@ export async function housekeepingJob(): Promise<HousekeepingResult> {
     console.log(
       `[housekeepingJob] deleted=${totalDeleted} slimmed=${recommendationsSlimmed} ` +
       `(audit=${auditDeleted}, history=${matchesHistoryDeleted}, providerStats=${providerStatsDeleted}, ` +
-      `providerOdds=${providerOddsDeleted}, snapshots=${matchSnapshotsDeleted}, oddsMovements=${oddsMovementsDeleted}, ` +
+      `providerOdds=${providerOddsDeleted}, providerCache=${providerCacheDeleted}, snapshots=${matchSnapshotsDeleted}, oddsMovements=${oddsMovementsDeleted}, ` +
       `promptShadow=${promptShadowDeleted}, pipelineRuns=${pipelineRunsDeleted}, jobRuns=${jobRunHistoryDeleted}, deliveries=${recommendationDeliveriesDeleted}, ` +
       `aiPerf=${aiPerfDeleted} aiPerfAgg=${aiPerfAggregated})`,
     );
@@ -168,6 +186,7 @@ export async function housekeepingJob(): Promise<HousekeepingResult> {
       pipelineRunsDeleted > 250 ? 'pipeline_runs' : null,
       providerStatsDeleted > 250 ? 'provider_stats_samples' : null,
       providerOddsDeleted > 250 ? 'provider_odds_samples' : null,
+      providerCacheDeleted > 250 ? 'provider_odds_cache, provider_fixture_cache, provider_fixture_stats_cache, provider_fixture_events_cache, provider_fixture_lineups_cache, provider_fixture_prediction_cache, provider_league_standings_cache' : null,
       matchSnapshotsDeleted > 250 ? 'match_snapshots' : null,
       oddsMovementsDeleted > 250 ? 'odds_movements' : null,
       promptShadowDeleted > 250 ? 'prompt_shadow_runs' : null,
@@ -192,6 +211,7 @@ export async function housekeepingJob(): Promise<HousekeepingResult> {
     matchesHistoryDeleted,
     providerStatsDeleted,
     providerOddsDeleted,
+    providerCacheDeleted,
     matchSnapshotsDeleted,
     oddsMovementsDeleted,
     promptShadowDeleted,

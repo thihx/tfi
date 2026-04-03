@@ -85,6 +85,7 @@ export const config = {
   matchesHistoryKeepDays: Number(process.env['MATCHES_HISTORY_KEEP_DAYS'] || 120),                   // soft limit (pending bets/recs protected)
   matchesHistoryHardDeleteDays: Number(process.env['MATCHES_HISTORY_HARD_DELETE_DAYS'] || 180),      // unconditional hard deadline
   providerSamplesKeepDays: Number(process.env['PROVIDER_SAMPLES_KEEP_DAYS'] || 14),
+  providerCacheKeepDays: Number(process.env['PROVIDER_CACHE_KEEP_DAYS'] || process.env['PROVIDER_SAMPLES_KEEP_DAYS'] || 7),
   matchSnapshotsKeepDays: Number(process.env['MATCH_SNAPSHOTS_KEEP_DAYS'] || 14),
   oddsMovementsKeepDays: Number(process.env['ODDS_MOVEMENTS_KEEP_DAYS'] || 30),
   pipelineRunsKeepDays: Number(process.env['PIPELINE_RUNS_KEEP_DAYS'] || 14),                        // pipeline_runs detail rows
