@@ -15,6 +15,15 @@ import { reportJobProgress } from './job-progress.js';
 import { runPipelineBatch, type PipelineResult } from '../lib/server-pipeline.js';
 import { audit } from '../lib/audit.js';
 
+const pipelineAuditCounters = new Map<string, number>();
+
+function shouldSamplePipelineAudit(key: string, sampleEvery: number): boolean {
+  const next = (pipelineAuditCounters.get(key) ?? 0) + 1;
+  pipelineAuditCounters.set(key, next);
+  if (sampleEvery <= 1) return true;
+  return next % sampleEvery === 0;
+}
+
 function parseNumSetting(raw: unknown, fallback: number): number {
   const n = Number(raw);
   return Number.isFinite(n) && raw !== '' && raw !== null && raw !== undefined ? n : fallback;
@@ -114,21 +123,23 @@ export async function checkLiveTriggerJob(): Promise<{
 
   if (candidateMatchIds.length === 0) {
     await reportJobProgress(JOB, 'complete', 'Done: no candidate matches needed re-analysis', 100);
-    audit({
-      category: 'PIPELINE',
-      action: 'PIPELINE_COMPLETE',
-      outcome: 'SUCCESS',
-      actor: 'auto-pipeline',
-      metadata: {
-        liveCount: liveMatchIds.length,
-        candidateCount: 0,
-        batches: 0,
-        totalProcessed: 0,
-        totalSavedRecommendations: 0,
-        totalPushedNotifications: 0,
-        totalErrors: 0,
-      },
-    });
+    if (shouldSamplePipelineAudit('PIPELINE_COMPLETE:success:no-candidates', 20)) {
+      audit({
+        category: 'PIPELINE',
+        action: 'PIPELINE_COMPLETE',
+        outcome: 'SUCCESS',
+        actor: 'auto-pipeline',
+        metadata: {
+          liveCount: liveMatchIds.length,
+          candidateCount: 0,
+          batches: 0,
+          totalProcessed: 0,
+          totalSavedRecommendations: 0,
+          totalPushedNotifications: 0,
+          totalErrors: 0,
+        },
+      });
+    }
     return { liveCount: liveMatchIds.length, candidateCount: 0, pipelineResults: [] };
   }
 
@@ -194,21 +205,24 @@ export async function checkLiveTriggerJob(): Promise<{
     100,
   );
 
-  audit({
-    category: 'PIPELINE',
-    action: 'PIPELINE_COMPLETE',
-    outcome: totalErrors > 0 ? 'PARTIAL' : 'SUCCESS',
-    actor: 'auto-pipeline',
-    metadata: {
-      liveCount: liveMatchIds.length,
-      candidateCount: candidateMatchIds.length,
-      batches: batches.length,
-      totalProcessed,
-      totalSavedRecommendations,
-      totalPushedNotifications,
-      totalErrors,
-    },
-  });
+  const pipelineOutcome = totalErrors > 0 ? 'PARTIAL' : 'SUCCESS';
+  if (pipelineOutcome !== 'SUCCESS' || shouldSamplePipelineAudit('PIPELINE_COMPLETE:success', 20)) {
+    audit({
+      category: 'PIPELINE',
+      action: 'PIPELINE_COMPLETE',
+      outcome: pipelineOutcome,
+      actor: 'auto-pipeline',
+      metadata: {
+        liveCount: liveMatchIds.length,
+        candidateCount: candidateMatchIds.length,
+        batches: batches.length,
+        totalProcessed,
+        totalSavedRecommendations,
+        totalPushedNotifications,
+        totalErrors,
+      },
+    });
+  }
 
   return { liveCount: liveMatchIds.length, candidateCount: candidateMatchIds.length, pipelineResults };
 }

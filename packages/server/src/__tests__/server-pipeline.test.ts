@@ -3160,6 +3160,32 @@ describe('runPipelineBatch', () => {
     }));
   });
 
+  test('samples routine skip audits instead of logging every skipped match', async () => {
+    const { getLatestSnapshot } = await import('../repos/match-snapshots.repo.js');
+    vi.mocked(getLatestSnapshot).mockResolvedValueOnce({
+      id: 1,
+      match_id: '100',
+      captured_at: new Date().toISOString(),
+      source: 'server-pipeline',
+      minute: 64,
+      status: '2H',
+      home_score: 0,
+      away_score: 0,
+      stats: {},
+      events: [],
+      odds: {},
+    } as never);
+
+    await runPipelineBatch(['100']);
+
+    const { audit } = await import('../lib/audit.js');
+    expect(audit).not.toHaveBeenCalledWith(expect.objectContaining({
+      category: 'PIPELINE',
+      action: 'PIPELINE_MATCH_SKIPPED',
+      outcome: 'SKIPPED',
+    }));
+  });
+
   test('logs audit on match processing error', async () => {
     const { callGemini } = await import('../lib/gemini.js');
     vi.mocked(callGemini).mockRejectedValueOnce(new Error('API crash'));

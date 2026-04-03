@@ -88,6 +88,16 @@ import {
   type RecommendationPolicyStatsCompact,
 } from './recommendation-policy.js';
 
+const pipelineSkipAuditCounters = new Map<string, number>();
+
+function shouldSamplePipelineSkipAudit(reason: string, stage: string, sampleEvery: number): boolean {
+  const key = `${stage}:${reason || 'unknown'}`;
+  const next = (pipelineSkipAuditCounters.get(key) ?? 0) + 1;
+  pipelineSkipAuditCounters.set(key, next);
+  if (sampleEvery <= 1) return true;
+  return next % sampleEvery === 0;
+}
+
 /** Resolved pipeline settings: DB values take priority, env vars as fallback */
 interface PipelineSettings {
   telegramChatId: string;
@@ -2460,7 +2470,7 @@ async function processMatch(
       forceAnalyze,
     });
     if (coarseStaleness.isStale && !forceAnalyze && options.skipStalenessGate !== true) {
-      if (!shadowMode) {
+      if (!shadowMode && shouldSamplePipelineSkipAudit(coarseStaleness.reason, 'coarse-staleness', 20)) {
         audit({
           category: 'PIPELINE',
           action: 'PIPELINE_MATCH_SKIPPED',
@@ -2744,7 +2754,7 @@ async function processMatch(
     // 2. Check should proceed before fetching odds / AI
     const statsAvailable = proceed.statsAvailable;
     if (!proceed.shouldProceed && !forceAnalyze && options.skipProceedGate !== true) {
-      if (!shadowMode) {
+      if (!shadowMode && shouldSamplePipelineSkipAudit(proceed.reason, 'proceed', 20)) {
         audit({
           category: 'PIPELINE',
           action: 'PIPELINE_MATCH_SKIPPED',
@@ -2894,7 +2904,7 @@ async function processMatch(
       forceAnalyze,
     });
     if (staleness.isStale && !forceAnalyze && options.skipStalenessGate !== true) {
-      if (!shadowMode) {
+      if (!shadowMode && shouldSamplePipelineSkipAudit(staleness.reason, 'staleness', 20)) {
         audit({
           category: 'PIPELINE',
           action: 'PIPELINE_MATCH_SKIPPED',
@@ -2992,7 +3002,7 @@ async function processMatch(
     const structuredPrematchAskAi = structuredPrematchAskAiCheck.eligible;
 
     if (evidenceMode === 'low_evidence' && !hasCustomCondition && !structuredPrematchAskAi) {
-      if (!shadowMode) {
+      if (!shadowMode && shouldSamplePipelineSkipAudit('low_evidence_without_watch_condition', 'low-evidence', 20)) {
         audit({
           category: 'PIPELINE',
           action: 'PIPELINE_MATCH_SKIPPED',

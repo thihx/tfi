@@ -226,6 +226,12 @@ describe('checkLiveTriggerJob', () => {
     expect(result.liveCount).toBe(2);
     expect(result.candidateCount).toBe(0);
     expect(result.pipelineResults).toEqual([]);
+
+    const { audit } = await import('../lib/audit.js');
+    expect(audit).not.toHaveBeenCalledWith(expect.objectContaining({
+      action: 'PIPELINE_COMPLETE',
+      outcome: 'SUCCESS',
+    }));
   });
 
   test('treats score changes as candidates even inside cooldown', async () => {
