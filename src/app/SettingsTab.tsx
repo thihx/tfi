@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { useAppState } from '@/hooks/useAppState';
 import { useToast } from '@/hooks/useToast';
 import { formatLocalDateTime } from '@/lib/utils/helpers';
@@ -256,6 +256,24 @@ interface UserSubscriptionDraft {
   cancelAtPeriodEnd: boolean;
 }
 
+function toDateTimeLocalValue(value: string | null | undefined): string {
+  if (!value) return '';
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return '';
+  const local = new Date(date.getTime() - date.getTimezoneOffset() * 60_000);
+  return local.toISOString().slice(0, 16);
+}
+
+function fromDateTimeLocalValue(value: string): string | null {
+  const trimmed = value.trim();
+  if (!trimmed) return null;
+  const date = new Date(trimmed);
+  if (Number.isNaN(date.getTime())) {
+    throw new Error('Invalid period end date/time');
+  }
+  return date.toISOString();
+}
+
 function JobSchedulerPanel() {
   const { state } = useAppState();
   const { showToast } = useToast();
@@ -399,22 +417,9 @@ function JobSchedulerPanel() {
               <div className="job-info">
                 <div className="job-title-row">
                   <span className="job-label">{label}</span>
-                  {isMulti ? (
-                    <span className="job-concurrency-badge" title={`Max ${job.concurrency} parallel runs`} style={{ display: 'inline-flex', alignItems: 'center', gap: '3px' }}>
-                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg> ×{job.concurrency}
-                      {job.activeRuns > 0 && <span style={{ color: 'var(--warning)' }}> {job.activeRuns}/{job.concurrency}</span>}
-                      {job.pendingRuns > 0 && <span style={{ color: 'var(--gray-500)' }}> +{job.pendingRuns} queued</span>}
-                    </span>
-                  ) : (
-                    <span className="job-concurrency-badge job-single" title="Single-threaded"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg></span>
+                  {job.lastError && !isRunning && (
+                    <span className="job-error-text">{job.lastError}</span>
                   )}
-                  <span className="job-meta">
-                    {job.lastRun ? `Last run: ${formatLocalDateTime(job.lastRun)}` : 'Never run'}
-                    {job.runCount > 0 && <span className="job-run-count"> (#{job.runCount})</span>}
-                    {job.lastError && !isRunning && (
-                      <span className="job-error-text"> · {job.lastError}</span>
-                    )}
-                  </span>
                 </div>
                 <div className="job-description" title={description}>{description}</div>
               </div>
@@ -435,13 +440,6 @@ function JobSchedulerPanel() {
                 >
                   {runBtnLabel}
                 </button>
-                <button
-                  className="btn btn-secondary btn-sm"
-                  onClick={() => handleHistoryToggle(job.name)}
-                  aria-expanded={isHistoryExpanded}
-                >
-                  {historyButtonLabel}
-                </button>
                 {job.name === 'enrich-watchlist' && (
                   <button
                     className="btn btn-sm"
@@ -453,6 +451,13 @@ function JobSchedulerPanel() {
                     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg> Force
                   </button>
                 )}
+                <button
+                  className="btn btn-secondary btn-sm"
+                  onClick={() => handleHistoryToggle(job.name)}
+                  aria-expanded={isHistoryExpanded}
+                >
+                  {historyButtonLabel}
+                </button>
               </div>
             </div>
 
@@ -830,6 +835,12 @@ function SubscriptionManagementPanel() {
   const [planDrafts, setPlanDrafts] = useState<Record<string, SubscriptionPlanDraft>>({});
   const [subscriptionDrafts, setSubscriptionDrafts] = useState<Record<string, UserSubscriptionDraft>>({});
   const [expandedPlanCodes, setExpandedPlanCodes] = useState<Set<string>>(new Set());
+  const [userQuery, setUserQuery] = useState('');
+  const [userPlanFilter, setUserPlanFilter] = useState<'all' | string>('all');
+  const [userStatusFilter, setUserStatusFilter] = useState<'all' | SubscriptionStatus>('all');
+  const [userPage, setUserPage] = useState(1);
+  const USER_PAGE_SIZE = 12;
+  const viewerTimeZone = Intl.DateTimeFormat().resolvedOptions().timeZone || 'Local time';
 
   const loadAll = useCallback(async () => {
     if (apiUrl == null) return;
@@ -864,7 +875,7 @@ function SubscriptionManagementPanel() {
         {
           planCode: row.subscription_plan_code ?? 'free',
           status: row.subscription_status ?? 'active',
-          currentPeriodEnd: row.subscription_current_period_end ?? '',
+          currentPeriodEnd: toDateTimeLocalValue(row.subscription_current_period_end),
           cancelAtPeriodEnd: row.subscription_cancel_at_period_end ?? false,
         },
       ])));
@@ -878,6 +889,10 @@ function SubscriptionManagementPanel() {
   useEffect(() => {
     void loadAll();
   }, [loadAll]);
+
+  useEffect(() => {
+    setUserPage(1);
+  }, [userQuery, userPlanFilter, userStatusFilter]);
 
   const handlePlanDraftChange = useCallback((
     planCode: string,
@@ -980,12 +995,19 @@ function SubscriptionManagementPanel() {
     if (apiUrl == null) return;
     const draft = subscriptionDrafts[row.id];
     if (!draft) return;
+    let currentPeriodEndUtc: string | null;
+    try {
+      currentPeriodEndUtc = fromDateTimeLocalValue(draft.currentPeriodEnd);
+    } catch (err) {
+      showToast(err instanceof Error ? err.message : 'Invalid period end date/time.', 'error');
+      return;
+    }
     setUserSavingId(row.id);
     try {
       const updated = await updateAdminUserSubscription(apiUrl, row.id, {
         planCode: draft.planCode,
         status: draft.status,
-        currentPeriodEnd: draft.currentPeriodEnd.trim() || null,
+        currentPeriodEnd: currentPeriodEndUtc,
         cancelAtPeriodEnd: draft.cancelAtPeriodEnd,
       });
       setUsers((prev) => prev.map((item) => (
@@ -1006,7 +1028,7 @@ function SubscriptionManagementPanel() {
         [row.id]: {
           planCode: updated.plan_code,
           status: updated.status,
-          currentPeriodEnd: updated.current_period_end ?? '',
+          currentPeriodEnd: toDateTimeLocalValue(updated.current_period_end),
           cancelAtPeriodEnd: updated.cancel_at_period_end,
         },
       }));
@@ -1017,6 +1039,31 @@ function SubscriptionManagementPanel() {
       setUserSavingId(null);
     }
   }, [apiUrl, showToast, subscriptionDrafts]);
+
+  const filteredUsers = useMemo(() => {
+    const query = userQuery.trim().toLowerCase();
+    return users.filter((row) => {
+      const draft = subscriptionDrafts[row.id] ?? {
+        planCode: row.subscription_plan_code ?? 'free',
+        status: row.subscription_status ?? 'active',
+        currentPeriodEnd: toDateTimeLocalValue(row.subscription_current_period_end),
+        cancelAtPeriodEnd: row.subscription_cancel_at_period_end ?? false,
+      };
+      const matchesQuery = !query
+        || (row.display_name ?? '').toLowerCase().includes(query)
+        || row.email.toLowerCase().includes(query);
+      const matchesPlan = userPlanFilter === 'all' || draft.planCode === userPlanFilter;
+      const matchesStatus = userStatusFilter === 'all' || draft.status === userStatusFilter;
+      return matchesQuery && matchesPlan && matchesStatus;
+    });
+  }, [subscriptionDrafts, userPlanFilter, userQuery, userStatusFilter, users]);
+
+  const totalUserPages = Math.max(1, Math.ceil(filteredUsers.length / USER_PAGE_SIZE));
+  const currentUserPage = Math.min(userPage, totalUserPages);
+  const pagedUsers = useMemo(() => {
+    const start = (currentUserPage - 1) * USER_PAGE_SIZE;
+    return filteredUsers.slice(start, start + USER_PAGE_SIZE);
+  }, [currentUserPage, filteredUsers]);
 
   const togglePlanExpanded = useCallback((planCode: string) => {
     setExpandedPlanCodes((prev) => {
@@ -1060,7 +1107,6 @@ function SubscriptionManagementPanel() {
                   <div style={{ padding: '12px 16px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '12px', background: 'var(--gray-50)', flexWrap: 'wrap' }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
                       <span style={{ fontWeight: 700, fontSize: '14px', color: 'var(--gray-900)' }}>{plan.display_name}</span>
-                      <span style={{ fontSize: '10px', padding: '1px 7px', borderRadius: '4px', background: 'var(--gray-200)', color: 'var(--gray-600)', fontFamily: 'monospace', fontWeight: 600 }}>{plan.plan_code}</span>
                       <span style={{ fontSize: '11px', padding: '2px 8px', borderRadius: '999px', background: '#f0fdf4', color: '#166534', fontWeight: 600 }}>{formatPlanPrice(plan.price_amount, plan.currency, plan.billing_interval)}</span>
                       {draft.active
                         ? <span style={{ fontSize: '10px', padding: '1px 6px', borderRadius: '999px', background: '#dcfce7', color: '#166534', fontWeight: 600 }}>Active</span>
@@ -1152,16 +1198,44 @@ function SubscriptionManagementPanel() {
 
           {/* User subscriptions */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', paddingTop: '4px', borderTop: '1px solid var(--gray-200)' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', paddingTop: '12px' }}>
-              <div style={{ fontSize: '12px', fontWeight: 600, color: 'var(--gray-600)', letterSpacing: '0.3px' }}>User Subscriptions</div>
-              <div style={{ fontSize: '11px', color: 'var(--gray-400)' }}>Users without a row fall back to the free plan automatically.</div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', paddingTop: '12px', gap: '12px', flexWrap: 'wrap' }}>
+              <div>
+                <div style={{ fontSize: '12px', fontWeight: 600, color: 'var(--gray-600)', letterSpacing: '0.3px' }}>User Subscriptions</div>
+                <div style={{ fontSize: '11px', color: 'var(--gray-400)', marginTop: '2px' }}>Users without a row fall back to the Free plan automatically.</div>
+              </div>
+              <div style={{ fontSize: '11px', color: 'var(--gray-500)' }}>
+                {filteredUsers.length} user{filteredUsers.length === 1 ? '' : 's'} found
+              </div>
+            </div>
+            <div style={{ display: 'grid', gridTemplateColumns: 'minmax(220px, 1fr) 180px 180px', gap: '10px' }}>
+              <input
+                className="filter-input"
+                placeholder="Search by name or email"
+                value={userQuery}
+                onChange={(e) => setUserQuery(e.target.value)}
+              />
+              <select className="job-interval-select" value={userPlanFilter} onChange={(e) => setUserPlanFilter(e.target.value)}>
+                <option value="all">All plans</option>
+                {plans.map((plan) => (
+                  <option key={plan.plan_code} value={plan.plan_code}>{plan.display_name}</option>
+                ))}
+              </select>
+              <select className="job-interval-select" value={userStatusFilter} onChange={(e) => setUserStatusFilter(e.target.value as 'all' | SubscriptionStatus)}>
+                <option value="all">All statuses</option>
+                <option value="trialing">trialing</option>
+                <option value="active">active</option>
+                <option value="past_due">past_due</option>
+                <option value="paused">paused</option>
+                <option value="canceled">canceled</option>
+                <option value="expired">expired</option>
+              </select>
             </div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-              {users.map((row) => {
+              {pagedUsers.map((row) => {
                 const draft = subscriptionDrafts[row.id] ?? {
                   planCode: row.subscription_plan_code ?? 'free',
                   status: row.subscription_status ?? 'active',
-                  currentPeriodEnd: row.subscription_current_period_end ?? '',
+                  currentPeriodEnd: toDateTimeLocalValue(row.subscription_current_period_end),
                   cancelAtPeriodEnd: row.subscription_cancel_at_period_end ?? false,
                 };
                 const statusStyle = SUB_STATUS_BADGE[draft.status] ?? DEFAULT_SUB_STATUS_BADGE;
@@ -1176,9 +1250,9 @@ function SubscriptionManagementPanel() {
                       gap: '12px',
                       alignItems: 'center',
                       padding: '12px 14px',
-                      border: `1px solid ${noSubscriptionRow ? '#fde68a' : 'var(--gray-200)'}`,
+                      border: '1px solid var(--gray-200)',
                       borderRadius: '10px',
-                      background: noSubscriptionRow ? '#fffbeb' : '#fff',
+                      background: '#fff',
                     }}
                   >
                     <div style={{ display: 'flex', gap: '10px', alignItems: 'center', minWidth: 0 }}>
@@ -1195,8 +1269,8 @@ function SubscriptionManagementPanel() {
                         <div style={{ display: 'flex', gap: '6px', alignItems: 'center', marginTop: '2px', flexWrap: 'wrap' }}>
                           <span style={{ fontSize: '11px', color: 'var(--gray-500)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{row.email}</span>
                           <span style={{ fontSize: '10px', padding: '1px 6px', borderRadius: '999px', background: roleStyle.bg, color: roleStyle.color, fontWeight: 600, flexShrink: 0 }}>{row.role}</span>
+                          {noSubscriptionRow && <span style={{ fontSize: '10px', padding: '1px 6px', borderRadius: '999px', background: '#fef3c7', color: '#92400e', fontWeight: 600, flexShrink: 0 }}>Defaulting to Free</span>}
                         </div>
-                        {noSubscriptionRow && <div style={{ fontSize: '10px', color: '#92400e', marginTop: '2px' }}>No subscription row — runtime defaults to Free</div>}
                         {row.subscription_updated_at && <div style={{ fontSize: '10px', color: 'var(--gray-400)', marginTop: '2px' }}>Updated {formatLocalDateTime(row.subscription_updated_at)}</div>}
                       </div>
                     </div>
@@ -1225,14 +1299,18 @@ function SubscriptionManagementPanel() {
                       </div>
                     </div>
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '5px' }}>
-                      <div style={{ fontSize: '10px', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.5px', color: 'var(--gray-400)' }}>Period End</div>
+                      <div style={{ fontSize: '10px', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.5px', color: 'var(--gray-400)' }}>
+                        Period End ({viewerTimeZone})
+                      </div>
                       <input
+                        type="datetime-local"
                         className="filter-input"
+                        aria-label={`Period End for ${row.email}`}
                         value={draft.currentPeriodEnd}
                         onChange={(e) => handleSubscriptionDraftChange(row.id, 'currentPeriodEnd', e.target.value)}
-                        placeholder="2026-04-30T00:00:00Z"
                         style={{ fontSize: '12px' }}
                       />
+                      <div style={{ fontSize: '10px', color: 'var(--gray-400)' }}>Saved internally as UTC.</div>
                       <label style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '11px', color: 'var(--gray-500)' }}>
                         <input type="checkbox" checked={draft.cancelAtPeriodEnd} onChange={(e) => handleSubscriptionDraftChange(row.id, 'cancelAtPeriodEnd', e.target.checked)} />
                         Cancel at period end
@@ -1250,7 +1328,27 @@ function SubscriptionManagementPanel() {
                   </div>
                 );
               })}
+              {pagedUsers.length === 0 && (
+                <div style={{ padding: '18px 14px', border: '1px dashed var(--gray-200)', borderRadius: '10px', color: 'var(--gray-500)', fontSize: '12px', textAlign: 'center' }}>
+                  No users match the current filters.
+                </div>
+              )}
             </div>
+            {filteredUsers.length > USER_PAGE_SIZE && (
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
+                <div style={{ fontSize: '11px', color: 'var(--gray-500)' }}>
+                  Page {currentUserPage} of {totalUserPages}
+                </div>
+                <div style={{ display: 'flex', gap: '8px' }}>
+                  <button className="btn btn-secondary btn-sm" onClick={() => setUserPage((prev) => Math.max(1, prev - 1))} disabled={currentUserPage <= 1}>
+                    Previous
+                  </button>
+                  <button className="btn btn-secondary btn-sm" onClick={() => setUserPage((prev) => Math.min(totalUserPages, prev + 1))} disabled={currentUserPage >= totalUserPages}>
+                    Next
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
         </>
       )}

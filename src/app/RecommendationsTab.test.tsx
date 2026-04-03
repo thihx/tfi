@@ -11,6 +11,9 @@ const defaultConfig: AppConfig = {
 const mockShowToast = vi.fn();
 const mockDeleteRecommendation = vi.fn();
 const mockDeleteRecommendationsBulk = vi.fn();
+const mockFetchCurrentUser = vi.fn();
+const mockGetUser = vi.fn();
+const mockFetchRecommendationDeliveriesPaginated = vi.fn();
 
 const recommendationRows: Recommendation[] = [
   {
@@ -73,13 +76,13 @@ vi.mock('@/features/live-monitor/config', () => ({
 
 vi.mock('@/lib/services/auth', () => ({
   getToken: vi.fn(() => 'token'),
-  getUser: vi.fn(() => ({ id: 'admin-1', role: 'admin', email: 'admin@example.com' })),
-  fetchCurrentUser: vi.fn().mockResolvedValue({ id: 'admin-1', role: 'admin', email: 'admin@example.com' }),
+  getUser: mockGetUser,
+  fetchCurrentUser: mockFetchCurrentUser,
 }));
 
 vi.mock('@/lib/services/api', () => ({
   fetchRecommendationsPaginated: vi.fn().mockResolvedValue({ rows: recommendationRows, total: 2 }),
-  fetchRecommendationDeliveriesPaginated: vi.fn().mockResolvedValue({ rows: [], total: 0 }),
+  fetchRecommendationDeliveriesPaginated: mockFetchRecommendationDeliveriesPaginated,
   fetchBetTypes: vi.fn().mockResolvedValue(['AI']),
   fetchDistinctLeagues: vi.fn().mockResolvedValue(['Premier League']),
   settleRecommendationFinal: vi.fn(),
@@ -99,6 +102,42 @@ function getDeleteModal() {
 describe('RecommendationsTab delete actions', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mockGetUser.mockReturnValue({ id: 'admin-1', role: 'admin', email: 'admin@example.com' });
+    mockFetchCurrentUser.mockResolvedValue({ id: 'admin-1', role: 'admin', email: 'admin@example.com' });
+    mockFetchRecommendationDeliveriesPaginated.mockResolvedValue({
+      rows: [
+        {
+          recommendation_id: 1,
+          match_id: '100',
+          created_at: '2026-04-03T10:05:00.000Z',
+          delivery_status: 'sent',
+          recommendation_home_team: 'Arsenal',
+          recommendation_away_team: 'Chelsea',
+          recommendation_league: 'Premier League',
+          recommendation_timestamp: '2026-04-03T10:00:00.000Z',
+          recommendation_minute: 55,
+          recommendation_score: '1-0',
+          recommendation_actual_outcome: null,
+          recommendation_bet_type: 'AI',
+          recommendation_bet_market: 'over_2.5',
+          recommendation_selection: 'Over 2.5 Goals @1.90',
+          recommendation_odds: 1.9,
+          recommendation_confidence: 7,
+          recommendation_value_percent: null,
+          recommendation_risk_level: null,
+          recommendation_stake_percent: 3,
+          recommendation_reasoning: 'Test reasoning',
+          recommendation_reasoning_vi: 'Test reasoning',
+          recommendation_key_factors: null,
+          recommendation_warnings: null,
+          recommendation_result: 'pending',
+          recommendation_pnl: 0,
+          recommendation_settlement_status: null,
+          recommendation_settlement_note: null,
+        },
+      ],
+      total: 1,
+    });
     mockDeleteRecommendation.mockResolvedValue({
       deletedRecommendationIds: [1],
       recommendationsDeleted: 1,
@@ -155,5 +194,38 @@ describe('RecommendationsTab delete actions', () => {
       expect(mockDeleteRecommendationsBulk).toHaveBeenCalledWith(defaultConfig, [1, 2]);
     });
     expect(mockShowToast).toHaveBeenCalledWith('Deleted 2 recommendation(s)', 'success');
+  }, 10000);
+
+  it('allows admin to delete from My Deliveries when the row is linked to a canonical recommendation', async () => {
+    const user = await renderTab();
+
+    await user.click(screen.getByRole('button', { name: 'My Deliveries' }));
+    expect(await screen.findByText('Arsenal vs Chelsea')).toBeInTheDocument();
+
+    const arsenalCard = screen.getByText('Arsenal vs Chelsea').closest('.card') as HTMLElement | null;
+    expect(arsenalCard).not.toBeNull();
+    await user.click(within(arsenalCard!).getByRole('button', { name: 'Delete' }));
+
+    const deleteModal = getDeleteModal();
+    await user.click(within(deleteModal).getByRole('button', { name: 'Delete' }));
+
+    await waitFor(() => {
+      expect(mockDeleteRecommendation).toHaveBeenCalledWith(defaultConfig, 1);
+    });
+  }, 10000);
+
+  it('does not expose delete actions to non-admin users in either feed', async () => {
+    mockGetUser.mockReturnValue({ id: 'user-1', role: 'user', email: 'user@example.com' });
+    mockFetchCurrentUser.mockResolvedValue({ id: 'user-1', role: 'user', email: 'user@example.com' });
+
+    const user = await renderTab();
+
+    expect(screen.queryByRole('button', { name: 'Delete' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Delete Selected' })).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: 'My Deliveries' }));
+    expect(await screen.findByText('Arsenal vs Chelsea')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Delete' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Delete Selected' })).not.toBeInTheDocument();
   }, 10000);
 });

@@ -1790,7 +1790,7 @@ table td:last-child, table th:last-child {
 @media (max-width: 768px) {
     .table-container.table-cards table {
         border-collapse: separate;
-        border-spacing: 0 16px;
+        border-spacing: 0 10px;
     }
 
     .table-container.table-cards thead {
@@ -1811,8 +1811,9 @@ table td:last-child, table th:last-child {
         background: white;
         border: 1px solid var(--gray-200);
         border-radius: 12px;
-        padding: 16px;
+        padding: 12px 42px 12px 14px;
         box-shadow: 0 1px 2px rgba(0,0,0,0.06);
+        position: relative;
     }
 
     .table-container.table-cards td {
@@ -1820,7 +1821,7 @@ table td:last-child, table th:last-child {
         grid-template-columns: 110px minmax(0, 1fr);
         gap: 10px;
         align-items: center;
-        padding: 10px 0;
+        padding: 7px 0;
         border: 0;
         text-align: left;
         order: 10;
@@ -1828,8 +1829,8 @@ table td:last-child, table th:last-child {
 
     .table-container.table-cards td + td {
         border-top: 1px solid var(--gray-100);
-        padding-top: 10px;
-        margin-top: 4px;
+        padding-top: 7px;
+        margin-top: 2px;
     }
 
     .table-container.table-cards td::before {
@@ -1888,11 +1889,16 @@ table td:last-child, table th:last-child {
     .table-container.table-cards td[data-label="Condition"] { order: 8; }
     .table-container.table-cards td[data-label="Action"],
     .table-container.table-cards td[data-label="Actions"] { order: 9; }
-    .table-container.table-cards td[data-label="Select"] { order: 11; }
-
     .table-container.table-cards td[data-label="Select"] {
+        position: absolute;
+        top: 12px;
+        right: 12px;
+        width: auto;
+        border: none !important;
+        padding: 0;
+        margin: 0;
         grid-template-columns: 1fr;
-        padding-top: 6px;
+        order: 0;
     }
 
     .table-container.table-cards td[data-label="Condition"] {

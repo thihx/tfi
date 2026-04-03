@@ -406,7 +406,7 @@ export function WatchlistTab() {
                 const dateLabel = getDateGroupLabelInTimeZone(localDT, effectiveTimeZone);
                 if (dateLabel !== lastLabel) {
                   lastLabel = dateLabel;
-                  rows.push(<tr key={`grp-${dateLabel}`} className="date-group-row"><td>{dateLabel}</td><td colSpan={9} /></tr>);
+                  rows.push(<tr key={`grp-${dateLabel}`} className="date-group-row"><td colSpan={10}>{dateLabel}</td></tr>);
                 }
                 let leagueId = item.league_id;
                 const liveMatchRow = matches.find((x) => String(x.match_id) === String(item.match_id));

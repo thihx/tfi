@@ -164,7 +164,7 @@ export function RecommendationsTab() {
   const [loading, setLoading] = useState(false);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const searchRef = useRef<HTMLInputElement>(null);
-  const adminCanDelete = isAdmin && feedMode === 'shared';
+  const adminCanDelete = isAdmin;
 
   // `/` key focuses search
   useEffect(() => {
@@ -632,10 +632,21 @@ export function RecommendationsTab() {
                         </button>
                       )}
                       <button
-                        className="btn btn-danger btn-sm"
                         onClick={() => handleDeleteSingle(rec.id!)}
+                        title="Delete recommendation"
+                        style={{
+                          background: 'none', border: 'none', cursor: 'pointer',
+                          width: '20px', height: '20px', borderRadius: '50%',
+                          display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+                          color: 'var(--gray-400)', padding: 0, lineHeight: 1,
+                          transition: 'background 0.15s, color 0.15s',
+                        }}
+                        onMouseEnter={(e) => { e.currentTarget.style.background = '#fee2e2'; e.currentTarget.style.color = 'var(--red)'; }}
+                        onMouseLeave={(e) => { e.currentTarget.style.background = 'none'; e.currentTarget.style.color = 'var(--gray-400)'; }}
                       >
-                        Delete
+                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                          <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+                        </svg>
                       </button>
                     </div>
                   ) : null}
@@ -660,7 +671,7 @@ export function RecommendationsTab() {
             <div style={{ padding: '7px 16px', background: '#fff1f2', borderTop: '1px solid #fca5a5', display: 'flex', alignItems: 'center', gap: '10px' }}>
               <span style={{ fontSize: '12px', fontWeight: 500, color: 'var(--gray-600)' }}>{selectedIds.size} selected</span>
               <button className="btn btn-danger btn-sm" onClick={handleDeleteSelected}>Delete Selected</button>
-              <button className="btn btn-secondary btn-sm" style={{ marginLeft: 'auto' }} onClick={() => setSelectedIds(new Set())}>Clear</button>
+              <button className="btn btn-secondary btn-sm" onClick={() => setSelectedIds(new Set())}>Clear</button>
             </div>
           )}
           <table>

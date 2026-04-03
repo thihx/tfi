@@ -124,6 +124,8 @@ beforeEach(async () => {
     saved: true,
     notified: false,
     debug: {
+      prematchStrength: 'strong',
+      promptDataLevel: 'advanced-upgraded',
       parsed: {
         selection: 'Over 2.5',
         bet_market: 'over_2.5',
@@ -161,8 +163,8 @@ describe('MatchesTab', () => {
     expect(screen.getByText('AI Push')).toBeInTheDocument();
     expect(screen.getByText('Over 2.5')).toBeInTheDocument();
     expect(screen.getByText('Ap luc tang dan')).toBeInTheDocument();
-    expect(screen.getByText('Cond Matched')).toBeInTheDocument();
-    expect(screen.getByText('Cond Triggered')).toBeInTheDocument();
+    expect(screen.getByText('Strong prematch context')).toBeInTheDocument();
+    expect(screen.getByText('Expanded analysis')).toBeInTheDocument();
     expect(screen.getByText('Under 2.5 Goals @2.00')).toBeInTheDocument();
   }, 10000);
 
@@ -257,3 +259,4 @@ describe('MatchesTab', () => {
     expect(mockRefreshMatches).toHaveBeenCalledTimes(1);
   });
 });
+

@@ -384,7 +384,37 @@ describe('SettingsTab', () => {
 
     expect(await screen.findByText('Subscription Plans')).toBeInTheDocument();
     expect(await screen.findByText('User Subscriptions')).toBeInTheDocument();
+    expect(screen.getByPlaceholderText('Search by name or email')).toBeInTheDocument();
+    expect(screen.getByRole('option', { name: 'All plans' })).toBeInTheDocument();
+    expect(screen.getByRole('option', { name: 'All statuses' })).toBeInTheDocument();
     expect(screen.getByText(/Plans are commercial access tiers, separate from internal roles\./)).toBeInTheDocument();
+  });
+
+  it('saves subscription period end from local datetime input as UTC', async () => {
+    const user = userEvent.setup();
+    render(<SettingsTab />);
+
+    await user.click(await screen.findByRole('button', { name: 'Subscription Management' }));
+
+    const periodInput = await screen.findByLabelText('Period End for admin@example.com');
+    await user.type(periodInput, '2026-04-30T09:00');
+    await user.click(screen.getByRole('button', { name: 'Save' }));
+
+    await waitFor(() => {
+      expect(mockFetch).toHaveBeenCalledWith(
+        expect.stringContaining('/api/settings/subscription/users/admin-1'),
+        expect.objectContaining({
+          method: 'PUT',
+          credentials: 'include',
+          body: JSON.stringify({
+            planCode: 'free',
+            status: 'active',
+            currentPeriodEnd: new Date('2026-04-30T09:00').toISOString(),
+            cancelAtPeriodEnd: false,
+          }),
+        }),
+      );
+    });
   });
 
   it.skip('shows blocked when browser permission denies Web Push', async () => {

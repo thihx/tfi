@@ -1,10 +1,10 @@
-// ============================================================
-// Unit tests — health-watchdog.job.ts
+﻿// ============================================================
+// Unit tests â€” health-watchdog.job.ts
 // ============================================================
 
 import { describe, test, expect, vi, beforeEach } from 'vitest';
 
-// ── Mocks ─────────────────────────────────────────────────────
+// â”€â”€ Mocks â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 vi.mock('../jobs/scheduler.js', () => ({ getJobsStatus: vi.fn(), getSchedulerUptime: vi.fn() }));
 vi.mock('../lib/telegram.js', () => ({ sendTelegramMessage: vi.fn() }));
@@ -20,6 +20,9 @@ vi.mock('../lib/telegram-runtime.js', () => ({
     enabled: true,
   }),
 }));
+vi.mock('../lib/time.js', () => ({
+  formatOperationalDateTime: vi.fn(() => '03/04/2026, 11:14:00 (Asia/Seoul)'),
+}));
 
 import { getJobsStatus, getSchedulerUptime } from '../jobs/scheduler.js';
 import { sendTelegramMessage } from '../lib/telegram.js';
@@ -31,7 +34,7 @@ const mockGetSchedulerUptime = vi.mocked(getSchedulerUptime);
 const mockSendTelegram = vi.mocked(sendTelegramMessage);
 const mockGetRedis = vi.mocked(getRedisClient);
 
-// ── Helpers ───────────────────────────────────────────────────
+// â”€â”€ Helpers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 const NOW = Date.now();
 
@@ -80,7 +83,7 @@ beforeEach(() => {
   mockGetRedis.mockReturnValue(makeRedisMock());
 });
 
-// ── Startup grace ─────────────────────────────────────────────
+// â”€â”€ Startup grace â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 describe('startup grace period', () => {
   test('returns empty result within first 3 minutes', async () => {
@@ -91,7 +94,7 @@ describe('startup grace period', () => {
   });
 });
 
-// ── Healthy job — no alert ────────────────────────────────────
+// â”€â”€ Healthy job â€” no alert â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 describe('healthy job', () => {
   test('no alert when job ran recently (within 2.5x interval)', async () => {
@@ -137,7 +140,7 @@ describe('healthy job', () => {
   });
 });
 
-// ── Overdue job — alert sent ──────────────────────────────────
+// â”€â”€ Overdue job â€” alert sent â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 describe('overdue job', () => {
   test('sends alert when job last ran > 2.5x interval ago', async () => {
@@ -171,29 +174,29 @@ describe('overdue job', () => {
   });
 });
 
-// ── In-memory cooldown (Redis unavailable) ────────────────────
+// â”€â”€ In-memory cooldown (Redis unavailable) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 describe('in-memory cooldown when Redis is unavailable', () => {
   test('sends alert only once per cooldown period even when Redis is down', async () => {
     const job = makeJob({ lastRun: new Date(NOW - 3 * 60_000).toISOString() });
     mockGetJobsStatus.mockResolvedValue([job]);
-    // Redis unavailable — all calls throw
+    // Redis unavailable â€” all calls throw
     mockGetRedis.mockImplementation(() => { throw new Error('ECONNREFUSED'); });
 
-    // First watchdog run → should alert
+    // First watchdog run â†’ should alert
     await healthWatchdogJob();
     expect(mockSendTelegram).toHaveBeenCalledOnce();
     vi.clearAllMocks();
     mockGetJobsStatus.mockResolvedValue([job]);
     mockGetRedis.mockImplementation(() => { throw new Error('ECONNREFUSED'); });
 
-    // Second watchdog run (within cooldown, Redis still down) → should NOT alert again
+    // Second watchdog run (within cooldown, Redis still down) â†’ should NOT alert again
     await healthWatchdogJob();
     expect(mockSendTelegram).not.toHaveBeenCalled();
   });
 });
 
-// ── Adaptive skip key awareness ───────────────────────────────
+// â”€â”€ Adaptive skip key awareness â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 describe('adaptive skip key suppresses alert', () => {
   test('no alert when skip key shows job is intentionally sleeping', async () => {
@@ -218,7 +221,7 @@ describe('adaptive skip key suppresses alert', () => {
   test('alerts when skip key is expired (past nextRunAt)', async () => {
     const skipKey = 'job:fetch-matches:next-run-at';
     const job = makeJob({
-      lastRun: new Date(NOW - 10 * 60_000).toISOString(), // 10 min ago — truly overdue
+      lastRun: new Date(NOW - 10 * 60_000).toISOString(), // 10 min ago â€” truly overdue
       skipKey,
     });
     mockGetJobsStatus.mockResolvedValue([job]);
@@ -250,7 +253,7 @@ describe('adaptive skip key suppresses alert', () => {
       skipKey,
     });
     mockGetJobsStatus.mockResolvedValue([job]);
-    // Redis throws on get — cannot confirm skip status
+    // Redis throws on get â€” cannot confirm skip status
     mockGetRedis.mockReturnValue({
       get: vi.fn().mockRejectedValue(new Error('ECONNREFUSED')),
       set: vi.fn(),
@@ -258,12 +261,12 @@ describe('adaptive skip key suppresses alert', () => {
     } as never);
 
     const result = await healthWatchdogJob();
-    // Cannot confirm skip → treat as potentially overdue → alert
+    // Cannot confirm skip â†’ treat as potentially overdue â†’ alert
     expect(result.alerted).toBe(1);
   });
 });
 
-// ── Redis cooldown still works when available ─────────────────
+// â”€â”€ Redis cooldown still works when available â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 describe('Redis-backed cooldown', () => {
   test('no alert when within 30-min cooldown', async () => {
@@ -308,11 +311,11 @@ describe('Redis-backed cooldown', () => {
   });
 });
 
-// ── Recovery alert ────────────────────────────────────────────
+// â”€â”€ Recovery alert â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 describe('recovery', () => {
   test('sends recovery message when job recovers from overdue', async () => {
-    const job = makeJob({ lastRun: new Date(NOW - 30_000).toISOString() }); // recently ran — healthy
+    const job = makeJob({ lastRun: new Date(NOW - 30_000).toISOString() }); // recently ran â€” healthy
     mockGetJobsStatus.mockResolvedValue([job]);
     // Prior alert state exists
     mockGetRedis.mockReturnValue(makeRedisMock({
@@ -331,11 +334,13 @@ describe('recovery', () => {
     expect(result.recovered).toContain('fetch-matches');
     expect(result.alerted).toBe(0);
     expect(mockSendTelegram).toHaveBeenCalledOnce();
-    expect(mockSendTelegram.mock.calls[0][1]).toContain('khôi phục');
+    expect(mockSendTelegram.mock.calls[0][1]).toContain('khÃ´i phá»¥c');
+    expect(mockSendTelegram.mock.calls[0][1]).toContain('03/04/2026, 11:14:00 (Asia/Seoul)');
+    expect(mockSendTelegram.mock.calls[0][1]).not.toContain(job.lastRun ?? '');
   });
 });
 
-// ── Stuck job ─────────────────────────────────────────────────
+// â”€â”€ Stuck job â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 describe('stuck job', () => {
   test('alerts when job has been running for > 10x interval', async () => {
@@ -343,7 +348,7 @@ describe('stuck job', () => {
     const job = makeJob({
       running: true,
       intervalMs,
-      lastRun: new Date(NOW - 11 * intervalMs).toISOString(), // started 11 min ago — stuck
+      lastRun: new Date(NOW - 11 * intervalMs).toISOString(), // started 11 min ago â€” stuck
     });
     mockGetJobsStatus.mockResolvedValue([job]);
     const result = await healthWatchdogJob();

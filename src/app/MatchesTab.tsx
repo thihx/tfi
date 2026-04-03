@@ -643,7 +643,7 @@ export function MatchesTab() {
                 const label = getDateGroupLabelInTimeZone(getMatchKickoffTime(m), effectiveTimeZone);
                 if (label !== lastLabel) {
                   lastLabel = label;
-                  rows.push(<tr key={`grp-${label}`} className="date-group-row"><td>{label}</td><td colSpan={6} /></tr>);
+                  rows.push(<tr key={`grp-${label}`} className="date-group-row"><td colSpan={7}>{label}</td></tr>);
                 }
                 rows.push(
                   <MatchRow

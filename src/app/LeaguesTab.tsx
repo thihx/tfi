@@ -9,7 +9,7 @@ import { formatLocalDate } from '@/lib/utils/helpers';
 import type { TeamProfileDraft } from '@/lib/utils/teamProfileDeepResearch';
 import { isOverlayEligibleLeague } from '@/lib/utils/tacticalOverlayEligibility';
 import {
-  fetchLeaguesInitData, toggleLeagueActive, bulkSetLeagueActive, fetchLeaguesFromApi,
+  fetchLeaguesInitData, toggleLeagueActive, bulkSetLeagueActive,
   toggleLeagueTopLeague, bulkSetTopLeague,
   fetchLeagueProfile, saveLeagueProfile, deleteLeagueProfile,
   fetchLeagueTeams, addFavoriteTeam, removeFavoriteTeam,
@@ -444,7 +444,6 @@ export function LeaguesTab() {
 
   const [allLeagues, setAllLeagues] = useState<League[]>([]);
   const [loading, setLoading] = useState(true);
-  const [syncing, setSyncing] = useState(false);
   const [search, setSearch] = useState('');
   const [filterTier, setFilterTier] = useState<string>('all');
   const [filterCountry, setFilterCountry] = useState<string>('all');
@@ -727,21 +726,6 @@ export function LeaguesTab() {
     }
   }, [config, dispatch, selectedIds, showToast, loadLeagues]);
 
-  // Sync leagues from remote
-  const handleSync = useCallback(async () => {
-    setSyncing(true);
-    try {
-      const result = await fetchLeaguesFromApi(config);
-      showToast(`Synced ${result.fetched} leagues (${result.upserted} updated)`, 'success');
-      await loadLeagues();
-    } catch (err) {
-      console.error('[LeaguesTab] sync failed:', err);
-      showToast('Failed to sync leagues', 'error');
-    } finally {
-      setSyncing(false);
-    }
-  }, [config, showToast, loadLeagues]);
-
   const handleEditProfile = useCallback(async (league: League) => {
     setProfileLeague(league);
     setProfileLoading(true);
@@ -911,19 +895,10 @@ export function LeaguesTab() {
           <option value="top">Favorites</option>
           <option value="normal">Non-Favorites</option>
         </select>
-
         <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 6, paddingLeft: 8, borderLeft: '1px solid var(--gray-100)' }}>
           <span style={{ fontSize: 12, color: 'var(--gray-400)', whiteSpace: 'nowrap' }}>
             {filtered.length} / {allLeagues.length}
           </span>
-          <button
-            className="btn btn-secondary"
-            onClick={handleSync}
-            disabled={syncing}
-            style={{ fontSize: 12, padding: '5px 10px', whiteSpace: 'nowrap' }}
-          >
-            {syncing ? 'Syncing…' : 'Sync API'}
-          </button>
         </div>
       </div>
 
@@ -1007,7 +982,7 @@ export function LeaguesTab() {
                 <td colSpan={9} style={{ textAlign: 'center', padding: 40, color: 'var(--gray-400)' }}>
                   {search || filterTier !== 'all' || filterCountry !== 'all' || filterActive !== 'all' || filterTopLeague !== 'all'
                     ? 'No leagues match your filters'
-                    : 'No leagues found. Click "Sync API" to fetch leagues.'}
+                    : 'No leagues available yet. Use Sync Reference Data in Settings if a refresh is needed.'}
                 </td>
               </tr>
             )}
@@ -1054,3 +1029,4 @@ export function LeaguesTab() {
     </>
   );
 }
+

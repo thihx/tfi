@@ -60,6 +60,7 @@ describe('deliverTelegramNotificationsJob', () => {
         deliveryId: 11,
         userId: 'user-1',
         chatId: 'chat-1',
+        notificationLanguage: 'en',
         recommendationId: 42,
         matchId: '100',
         metadata: {},
@@ -102,6 +103,7 @@ describe('deliverTelegramNotificationsJob', () => {
         deliveryId: 99,
         userId: 'user-1',
         chatId: 'chat-1',
+        notificationLanguage: 'vi',
         recommendationId: null,
         matchId: '200',
         metadata: {
@@ -139,9 +141,9 @@ describe('deliverTelegramNotificationsJob', () => {
     const result = await deliverTelegramNotificationsJob();
 
     expect(result).toEqual({ pending: 1, delivered: 1, failed: 0 });
-    expect(mockSendTelegramMessage.mock.calls[0]?.[1]).toContain('CONDITION TRIGGERED');
-    expect(mockSendTelegramMessage.mock.calls[0]?.[1]).toContain('Condition:');
-    expect(mockSendTelegramMessage.mock.calls[0]?.[1]).toContain('Matched:');
+    expect(mockSendTelegramMessage.mock.calls[0]?.[1]).toContain('ĐIỀU KIỆN ĐÃ THỎA');
+    expect(mockSendTelegramMessage.mock.calls[0]?.[1]).toContain('Điều kiện:');
+    expect(mockSendTelegramMessage.mock.calls[0]?.[1]).toContain('Điều kiện đạt:');
     expect(mockMarkDeliveryRowsDelivered).toHaveBeenCalledWith([99], 'telegram');
     expect(mockMarkRecommendationNotified).not.toHaveBeenCalled();
   });
@@ -152,6 +154,7 @@ describe('deliverTelegramNotificationsJob', () => {
         deliveryId: 77,
         userId: 'user-1',
         chatId: 'chat-1',
+        notificationLanguage: 'both',
         recommendationId: null,
         matchId: '300',
         metadata: {

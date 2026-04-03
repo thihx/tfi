@@ -23,11 +23,46 @@ const StatCard = memo(function StatCard({ label, value, sub, color }: { label: s
   );
 });
 
+function formatShortChartDate(value: string): string {
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) return value;
+  return parsed.toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit' });
+}
+
+function formatFullChartDate(value: string): string {
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) return value;
+  return parsed.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
+}
+
+function formatMarketLabel(market: string): string {
+  return market
+    .split('_')
+    .filter(Boolean)
+    .map((segment) => {
+      if (/^\d+(\.\d+)?$/.test(segment)) return segment;
+      if (segment === 'btts') return 'BTTS';
+      if (segment === 'ou') return 'O/U';
+      if (segment === '1x2') return '1X2';
+      return segment.charAt(0).toUpperCase() + segment.slice(1);
+    })
+    .join(' ');
+}
+
 const PnlChart = memo(function PnlChart({ data }: { data: { date: string; pnl: number; cumulative: number }[] }) {
   if (!data.length) return null;
+  const firstDate = data[0]?.date ?? '';
+  const lastDate = data[data.length - 1]?.date ?? '';
   return (
     <div className="card" style={{ marginBottom: '16px' }}>
-      <div className="card-header"><div className="card-title">Cumulative P/L</div></div>
+      <div className="card-header">
+        <div>
+          <div className="card-title">Cumulative P/L</div>
+          <div style={{ fontSize: '12px', color: 'var(--gray-500)', marginTop: '4px' }}>
+            Daily cumulative P/L {firstDate && lastDate ? `· ${formatFullChartDate(firstDate)} to ${formatFullChartDate(lastDate)}` : ''}
+          </div>
+        </div>
+      </div>
       <div style={{ padding: '16px 12px 8px 0' }}>
         <ResponsiveContainer width="100%" height={240}>
           <AreaChart data={data}>
@@ -38,9 +73,12 @@ const PnlChart = memo(function PnlChart({ data }: { data: { date: string; pnl: n
               </linearGradient>
             </defs>
             <CartesianGrid strokeDasharray="3 3" stroke="var(--gray-200)" />
-            <XAxis dataKey="date" tick={{ fontSize: 11 }} stroke="var(--gray-400)" />
+            <XAxis dataKey="date" tickFormatter={formatShortChartDate} tick={{ fontSize: 11 }} stroke="var(--gray-400)" />
             <YAxis tick={{ fontSize: 11 }} stroke="var(--gray-400)" tickFormatter={(v) => `$${v}`} />
-            <Tooltip formatter={(v) => [`$${Number(v).toFixed(2)}`, 'Cumulative P/L']} />
+            <Tooltip
+              labelFormatter={(value) => formatFullChartDate(String(value))}
+              formatter={(v) => [`$${Number(v).toFixed(2)}`, 'Cumulative P/L']}
+            />
             <Area type="monotone" dataKey="cumulative" stroke="var(--primary)" fill="url(#pnlGrad)" strokeWidth={2} />
           </AreaChart>
         </ResponsiveContainer>
@@ -53,54 +91,113 @@ const PnlChart = memo(function PnlChart({ data }: { data: { date: string; pnl: n
 const MarketBreakdownChart = memo(function MarketBreakdownChart({ data }: { data: MarketReportRow[] }) {
   if (!data.length) return null;
   const sorted = [...data].sort((a, b) => b.pnl - a.pnl);
+  const topMarkets = sorted.slice(0, 6);
+  const remainingMarkets = sorted.slice(6);
+  const totalTrackedBets = sorted.reduce((sum, row) => sum + row.wins + row.losses, 0);
+  const positiveMarkets = sorted.filter((row) => row.pnl > 0).length;
+  const [showAllMarkets, setShowAllMarkets] = useState(false);
+  const visibleMarkets = showAllMarkets ? sorted : topMarkets;
 
   return (
     <div className="card" style={{ marginBottom: '16px' }}>
-      <div className="card-header"><div className="card-title">Recommendation Performance by Market</div></div>
-      <div className="table-container" style={{ marginTop: 0 }}>
-        <table>
-          <thead>
-            <tr>
-              <th>Market</th>
-              <th style={{ textAlign: 'center', width: 40 }}>W</th>
-              <th style={{ textAlign: 'center', width: 40 }}>L</th>
-              <th style={{ width: 120 }}>Win %</th>
-              <th style={{ textAlign: 'right', width: 90 }}>P/L</th>
-              <th style={{ textAlign: 'right', width: 80 }}>ROI</th>
-            </tr>
-          </thead>
-          <tbody>
-            {sorted.map((d) => {
-              const total = d.wins + d.losses;
-              const winPct = total > 0 ? Math.round((d.wins / total) * 100) : 0;
-              const accent = MARKET_COLORS[d.market || ''] || 'var(--gray-400)';
-              return (
-                <tr key={d.market}>
-                  <td>
-                    <span style={{ fontWeight: 600, fontSize: '12px', color: accent }}>{d.market || 'Other'}</span>
-                    <span style={{ fontSize: '11px', color: 'var(--gray-400)', marginLeft: 6 }}>{total} bets</span>
-                  </td>
-                  <td style={{ textAlign: 'center', fontWeight: 700, color: 'var(--success)', fontSize: '13px' }}>{d.wins}</td>
-                  <td style={{ textAlign: 'center', fontWeight: 700, color: 'var(--danger)', fontSize: '13px' }}>{d.losses}</td>
-                  <td>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                      <div style={{ flex: 1, height: 5, background: 'var(--gray-200)', borderRadius: 3, overflow: 'hidden' }}>
-                        <div style={{ width: `${winPct}%`, height: '100%', background: winPct >= 50 ? 'var(--success)' : 'var(--danger)', borderRadius: 3 }} />
-                      </div>
-                      <span style={{ fontSize: '11px', color: 'var(--gray-600)', minWidth: 28, textAlign: 'right' }}>{winPct}%</span>
+      <div className="card-header">
+        <div>
+          <div className="card-title">Recommendation Performance by Market</div>
+          <div style={{ fontSize: '12px', color: 'var(--gray-500)', marginTop: '4px' }}>
+            Top markets by realized P/L. Focus on the strongest market groups first.
+          </div>
+        </div>
+      </div>
+      <div style={{ padding: '12px 16px 16px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
+        <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+          <span style={{ fontSize: '11px', padding: '4px 8px', borderRadius: '999px', background: 'var(--gray-100)', color: 'var(--gray-600)', fontWeight: 600 }}>
+            {sorted.length} markets tracked
+          </span>
+          <span style={{ fontSize: '11px', padding: '4px 8px', borderRadius: '999px', background: '#ecfdf5', color: '#047857', fontWeight: 600 }}>
+            {positiveMarkets} positive P/L
+          </span>
+          <span style={{ fontSize: '11px', padding: '4px 8px', borderRadius: '999px', background: '#eff6ff', color: '#1d4ed8', fontWeight: 600 }}>
+            {totalTrackedBets} graded picks
+          </span>
+        </div>
+
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '12px' }}>
+          {visibleMarkets.map((d) => {
+            const total = d.wins + d.losses;
+            const winPct = total > 0 ? Math.round((d.wins / total) * 100) : 0;
+            const accent = MARKET_COLORS[d.market || ''] || 'var(--gray-400)';
+            return (
+              <div
+                key={d.market}
+                style={{
+                  border: '1px solid var(--gray-200)',
+                  borderRadius: '12px',
+                  padding: '12px 14px',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: '10px',
+                  background: 'white',
+                }}
+              >
+                <div style={{ display: 'flex', justifyContent: 'space-between', gap: '10px', alignItems: 'flex-start' }}>
+                  <div>
+                    <div style={{ fontWeight: 700, fontSize: '13px', color: accent }}>
+                      {formatMarketLabel(d.market || 'other')}
                     </div>
-                  </td>
-                  <td style={{ textAlign: 'right', fontWeight: 700, whiteSpace: 'nowrap', color: d.pnl >= 0 ? 'var(--success)' : 'var(--danger)' }}>
-                    {d.pnl >= 0 ? '+' : ''}${d.pnl.toFixed(2)}
-                  </td>
-                  <td style={{ textAlign: 'right', whiteSpace: 'nowrap', color: d.roi >= 0 ? 'var(--success)' : 'var(--danger)' }}>
-                    {d.roi >= 0 ? '+' : ''}{d.roi}%
-                  </td>
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
+                    <div style={{ fontSize: '11px', color: 'var(--gray-500)', marginTop: '2px' }}>
+                      {total} graded picks
+                    </div>
+                  </div>
+                  <div style={{ textAlign: 'right' }}>
+                    <div style={{ fontSize: '13px', fontWeight: 700, color: d.pnl >= 0 ? 'var(--success)' : 'var(--danger)', whiteSpace: 'nowrap' }}>
+                      {d.pnl >= 0 ? '+' : ''}${d.pnl.toFixed(2)}
+                    </div>
+                    <div style={{ fontSize: '11px', color: d.roi >= 0 ? 'var(--success)' : 'var(--danger)', marginTop: '2px' }}>
+                      {d.roi >= 0 ? '+' : ''}{d.roi}%
+                    </div>
+                  </div>
+                </div>
+
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', gap: '8px' }}>
+                  <div>
+                    <div style={{ fontSize: '10px', color: 'var(--gray-400)', textTransform: 'uppercase', letterSpacing: '0.4px' }}>W-L</div>
+                    <div style={{ fontSize: '12px', fontWeight: 600, color: 'var(--gray-700)' }}>{d.wins}-{d.losses}</div>
+                  </div>
+                  <div>
+                    <div style={{ fontSize: '10px', color: 'var(--gray-400)', textTransform: 'uppercase', letterSpacing: '0.4px' }}>Win Rate</div>
+                    <div style={{ fontSize: '12px', fontWeight: 600, color: 'var(--gray-700)' }}>{winPct}%</div>
+                  </div>
+                  <div>
+                    <div style={{ fontSize: '10px', color: 'var(--gray-400)', textTransform: 'uppercase', letterSpacing: '0.4px' }}>Rank</div>
+                    <div style={{ fontSize: '12px', fontWeight: 600, color: 'var(--gray-700)' }}>#{sorted.findIndex((row) => row.market === d.market) + 1}</div>
+                  </div>
+                </div>
+
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <div style={{ flex: 1, height: 6, background: 'var(--gray-200)', borderRadius: 999, overflow: 'hidden' }}>
+                    <div
+                      style={{
+                        width: `${winPct}%`,
+                        height: '100%',
+                        background: winPct >= 50 ? 'var(--success)' : 'var(--danger)',
+                        borderRadius: 999,
+                      }}
+                    />
+                  </div>
+                  <span style={{ fontSize: '11px', color: 'var(--gray-500)', minWidth: 32, textAlign: 'right' }}>{winPct}%</span>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+
+        {remainingMarkets.length > 0 && (
+          <div style={{ display: 'flex', justifyContent: 'center' }}>
+            <button className="btn btn-secondary btn-sm" onClick={() => setShowAllMarkets((prev) => !prev)}>
+              {showAllMarkets ? 'Show Top Markets Only' : `Show ${remainingMarkets.length} More Markets`}
+            </button>
+          </div>
+        )}
       </div>
     </div>
   );
@@ -172,8 +269,6 @@ const AiAccuracyPanel = memo(function AiAccuracyPanel({ stats, models }: { stats
     { name: 'Needs Review', value: reviewRequired, color: 'var(--gray-500)' },
   ].filter((d) => d.value > 0);
 
-  const graded = stats.correct + stats.incorrect;
-
   return (
     <div className="card" style={{ marginBottom: '16px' }}>
       <div className="card-header"><div className="card-title">AI Performance</div></div>
@@ -192,14 +287,6 @@ const AiAccuracyPanel = memo(function AiAccuracyPanel({ stats, models }: { stats
           <div className="stat-value-lg text-primary-color">
             {stats.accuracy.toFixed(1)}%
           </div>
-          <div className="text-base text-subtle">
-            {stats.correct} won | {stats.incorrect} lost | {graded} won/lost picks
-          </div>
-          {(resultPending > 0 || reviewRequired > 0 || pushCount > 0 || voidCount > 0) && (
-            <div style={{ fontSize: '12px', color: 'var(--gray-400)', marginTop: '2px' }}>
-              {pushCount} push | {voidCount} void | {resultPending} pending | {reviewRequired} needs review | {stats.total} total
-            </div>
-          )}
           {/* Legend */}
           <div className="flex-row-gap-12 flex-wrap mt-8">
             {pieData.map((d) => (
@@ -283,7 +370,7 @@ export function DashboardTab() {
         <StatCard
           label="Won Rate"
           value={`${(d?.winRate ?? 0).toFixed(1)}%`}
-          sub={`Won ${d?.wins ?? 0} | Lost ${d?.losses ?? 0} | Half Won ${d?.halfWins ?? 0} | Half Lost ${d?.halfLosses ?? 0} | Push ${d?.pushes ?? 0} | Void ${d?.voids ?? 0}${d?.streak ? ` | ${d.streak}` : ''}`}
+          sub={`Won ${d?.wins ?? 0} | Lost ${d?.losses ?? 0} | Half Won ${d?.halfWins ?? 0} | Half Lost ${d?.halfLosses ?? 0}${d?.streak ? ` | ${d.streak}` : ''}`}
         />
         <StatCard
           label="Total P/L"

@@ -1,7 +1,8 @@
-import { config } from '../config.js';
+﻿import { config } from '../config.js';
 import { reportJobProgress } from './job-progress.js';
 import { sendTelegramMessage } from '../lib/telegram.js';
 import { formatOperationalTimestamp } from '../lib/time.js';
+import { buildTelegramRecommendationMessage, type TelegramNotificationLanguage } from '../lib/telegram-recommendation-message.js';
 import { markRecommendationNotified } from '../repos/recommendations.repo.js';
 import {
   getPendingTelegramDeliveries,
@@ -12,10 +13,6 @@ import {
 
 const DEFAULT_BATCH_LIMIT = 20;
 const DELIVERY_CONCURRENCY = 3;
-
-function safeHtml(value: string): string {
-  return value.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-}
 
 function chunkMessage(text: string, maxLen = 3500): string[] {
   if (text.length <= maxLen) return [text];
@@ -43,13 +40,15 @@ function toStringValue(value: unknown): string {
   return typeof value === 'string' ? value.trim() : '';
 }
 
+function normalizeNotificationLanguage(value: unknown): TelegramNotificationLanguage {
+  return value === 'en' || value === 'both' || value === 'vi' ? value : 'vi';
+}
+
 function buildTelegramDeliveryMessage(row: PendingTelegramDeliveryRow): string {
   const metadata = row.metadata;
   const selection = row.recommendationSelection ?? '';
   const isCondition = row.recommendationBetType === 'CONDITION_ONLY'
     || toStringValue(metadata.delivery_kind) === 'condition_only';
-  const label = isCondition ? 'CONDITION TRIGGERED' : 'AI RECOMMENDATION';
-  const prefix = isCondition ? 'ALERT' : 'PICK';
   const matchDisplay = `${row.recommendationHomeTeam ?? 'Unknown'} vs ${row.recommendationAwayTeam ?? 'Unknown'}`;
   const minute = row.recommendationMinute ?? toNumber(metadata.recommendation_minute) ?? '?';
   const score = row.recommendationScore ?? (toStringValue(metadata.recommendation_score) || '?-?');
@@ -67,54 +66,42 @@ function buildTelegramDeliveryMessage(row: PendingTelegramDeliveryRow): string {
   const odds = row.recommendationOdds ?? toNumber(metadata.recommendation_odds);
   const valuePercent = row.recommendationValuePercent ?? toNumber(metadata.recommendation_value_percent);
   const riskLevel = row.recommendationRiskLevel ?? toStringValue(metadata.recommendation_risk_level);
-  const reasoning = row.recommendationReasoningVi
-    || row.recommendationReasoning
-    || toStringValue(metadata.recommendation_reasoning_vi)
-    || toStringValue(metadata.recommendation_reasoning);
   const warningsRaw = row.recommendationWarnings ?? toStringValue(metadata.recommendation_warnings);
   const warnings = warningsRaw
     .split(',')
     .map((item) => item.trim())
     .filter(Boolean)
     .slice(0, 3);
-
-  let text = `<b>${prefix} ${label}</b>\n`;
-  text += `<b>${safeHtml(matchDisplay)}</b>\n`;
-  if (row.recommendationLeague) text += `${safeHtml(row.recommendationLeague)}\n`;
-  text += `Minute ${safeHtml(String(minute))}' | Score ${safeHtml(score)} | ${safeHtml(status)}\n`;
-  if (model || mode) {
-    text += `AI ${safeHtml(model || 'AI')} | Mode: ${safeHtml(mode || 'B')}\n`;
-  }
-  if (isCondition && conditionText) {
-    text += `\n<b>Condition:</b> ${safeHtml(conditionText)}\n`;
-  }
-  if (selection) {
-    const selectionWithOdds = odds != null && !selection.includes('@')
-      ? `${selection} @${odds}`
-      : selection;
-    text += `\n<b>${safeHtml(selectionWithOdds)}</b>\n`;
-  }
-  if (selection && !/^no bet\b/i.test(selection)) {
-    const tail = [
-      `Confidence: ${confidence}/10`,
-      `Stake: ${stake}%`,
-      !isCondition && riskLevel ? `Risk: ${safeHtml(riskLevel)}` : null,
-      !isCondition && valuePercent != null ? `Value: ${valuePercent}%` : null,
-    ].filter(Boolean).join(' | ');
-    if (tail) text += `${tail}\n`;
-  }
-  if (isCondition && matchedSummary) {
-    text += `Matched: ${safeHtml(matchedSummary)}\n`;
-  }
-  if (reasoning) {
-    text += `\n${safeHtml(reasoning)}\n`;
-  }
-  if (warnings.length > 0) {
-    text += `\nWarnings: ${safeHtml(warnings.join(' | '))}\n`;
-  }
+  const language = normalizeNotificationLanguage(
+    row.notificationLanguage
+    ?? metadata.notification_language
+    ?? metadata.notificationLanguage,
+  );
   const now = formatOperationalTimestamp();
-  text += `\n<i>Async Delivery | ${safeHtml(now)}</i>`;
-  return text;
+  return buildTelegramRecommendationMessage({
+    kind: isCondition ? 'condition' : 'recommendation',
+    matchDisplay,
+    league: row.recommendationLeague,
+    minute,
+    score,
+    status,
+    model: model || 'AI',
+    mode: mode || 'B',
+    selection,
+    odds,
+    confidence,
+    stakePercent: stake,
+    riskLevel,
+    valuePercent,
+    reasoningEn: row.recommendationReasoning || toStringValue(metadata.recommendation_reasoning),
+    reasoningVi: row.recommendationReasoningVi || toStringValue(metadata.recommendation_reasoning_vi),
+    warnings: warnings.join(', '),
+    conditionText,
+    conditionSummaryEn: toStringValue(metadata.custom_condition_summary_en) || toStringValue(metadata.custom_condition_reason_en) || matchedSummary,
+    conditionSummaryVi: toStringValue(metadata.custom_condition_summary_vi) || toStringValue(metadata.custom_condition_reason_vi) || matchedSummary,
+    timestampLabel: now,
+    language,
+  });
 }
 
 async function runWithConcurrency<T>(
@@ -186,3 +173,5 @@ export async function deliverTelegramNotificationsJob(): Promise<{
     failed,
   };
 }
+
+

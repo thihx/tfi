@@ -22,10 +22,6 @@ const STRENGTH_COLOR: Record<string, string> = {
   none:     'var(--gray-400)',
 };
 
-const DATA_LEVEL_LABEL: Record<string, string> = {
-  'advanced-upgraded': 'Advanced',
-  'basic-only':        'Basic',
-};
 
 // ── Sub-components ────────────────────────────────────────────────────────────
 
@@ -51,21 +47,6 @@ function MetricItem({ label, children }: { label: string; children: React.ReactN
   );
 }
 
-function FlagChip({ label, value }: { label: string; value: boolean }) {
-  return (
-    <span style={{
-      display: 'inline-flex', alignItems: 'center', gap: '4px',
-      padding: '2px 8px', borderRadius: '10px', fontSize: '11px',
-      whiteSpace: 'nowrap',
-      background: value ? 'color-mix(in srgb, var(--green) 12%, transparent)' : 'var(--gray-100)',
-      color:      value ? 'var(--green)' : 'var(--gray-500)',
-      border: `1px solid ${value ? 'color-mix(in srgb, var(--green) 25%, transparent)' : 'var(--gray-200)'}`,
-    }}>
-      <span style={{ fontSize: '10px' }}>{value ? '✓' : '✗'}</span>
-      {label}
-    </span>
-  );
-}
 
 function DataTag({ label, color }: { label: string; color?: string }) {
   return (
@@ -78,6 +59,47 @@ function DataTag({ label, color }: { label: string; color?: string }) {
       {label}
     </span>
   );
+}
+
+function buildContextTags(dbg: ServerMatchPipelineResult['debug'] | undefined): { label: string; color?: string }[] {
+  if (!dbg) return [];
+
+  const tags: { label: string; color?: string }[] = [];
+
+  if (dbg.prematchStrength) {
+    const strengthLabel: Record<string, string> = {
+      strong: 'Strong prematch context',
+      moderate: 'Moderate prematch context',
+      weak: 'Limited prematch context',
+      none: 'No prematch context',
+    };
+    tags.push({
+      label: strengthLabel[dbg.prematchStrength] ?? dbg.prematchStrength,
+      color: STRENGTH_COLOR[dbg.prematchStrength],
+    });
+  }
+
+  if (dbg.promptDataLevel) {
+    const analysisLabel: Record<string, string> = {
+      'advanced-upgraded': 'Expanded analysis',
+      'basic-only': 'Compact analysis',
+    };
+    tags.push({ label: analysisLabel[dbg.promptDataLevel] ?? dbg.promptDataLevel });
+  }
+
+  if (dbg.evidenceMode) {
+    const evidenceLabel: Record<string, string> = {
+      full_live_data: 'Complete live context',
+      full_data: 'Complete context',
+      stats_only: 'Stats-led context',
+      low_evidence: 'Limited live context',
+      odds_events_only_degraded: 'Partial market context',
+      events_only_degraded: 'Event-led context',
+    };
+    tags.push({ label: evidenceLabel[dbg.evidenceMode] ?? dbg.evidenceMode.replace(/_/g, ' ') });
+  }
+
+  return tags;
 }
 
 function MinuteBadge({ minute, status }: { minute: number | string; status?: string }) {
@@ -121,6 +143,7 @@ export function AiAnalysisPanel({ entry, onClose }: Props) {
   const { result } = entry;
   const ai: ServerParsedAiResult | null = getParsedAiResult(result);
   const dbg = result.debug;
+  const contextTags = buildContextTags(dbg);
 
   const selection = ai?.selection || result.selection || '—';
   const market    = ai?.bet_market || '—';
@@ -225,24 +248,11 @@ export function AiAnalysisPanel({ entry, onClose }: Props) {
             </MetricItem>
           </div>
 
-          {/* ── Flag chips ── */}
-          <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
-            <FlagChip label="Should Push"     value={result.shouldPush} />
-            <FlagChip label="Cond Matched"    value={!!ai.custom_condition_matched} />
-            <FlagChip label="Cond Triggered"  value={!!ai.condition_triggered_should_push} />
-            <FlagChip label="Saved"           value={result.saved} />
-            <FlagChip label="Notified"        value={result.notified} />
-          </div>
-
-          {/* ── Data quality row ── */}
-          {dbg && (dbg.statsSource || dbg.prematchStrength || dbg.promptDataLevel || dbg.totalLatencyMs != null) && (
+          {contextTags.length > 0 && (
             <div style={{ display: 'flex', gap: '5px', flexWrap: 'wrap', alignItems: 'center' }}>
-              <span style={{ fontSize: '10px', color: 'var(--gray-400)', marginRight: '2px' }}>Data:</span>
-              {dbg.statsSource        && <DataTag label={dbg.statsSource} />}
-              {dbg.prematchStrength   && <DataTag label={`prematch: ${dbg.prematchStrength}`} color={STRENGTH_COLOR[dbg.prematchStrength]} />}
-              {dbg.promptDataLevel    && <DataTag label={DATA_LEVEL_LABEL[dbg.promptDataLevel] ?? dbg.promptDataLevel} />}
-              {dbg.evidenceMode       && <DataTag label={dbg.evidenceMode} />}
-              {dbg.totalLatencyMs != null && <DataTag label={`${dbg.totalLatencyMs}ms`} />}
+              {contextTags.map((tag) => (
+                <DataTag key={tag.label} label={tag.label} color={tag.color} />
+              ))}
             </div>
           )}
 

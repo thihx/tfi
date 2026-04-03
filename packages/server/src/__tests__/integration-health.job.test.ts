@@ -32,6 +32,9 @@ vi.mock('../lib/telegram-runtime.js', () => ({
 }));
 
 vi.mock('../lib/audit.js', () => ({ audit: vi.fn() }));
+vi.mock('../lib/time.js', () => ({
+  formatOperationalDateTime: vi.fn(() => '03/04/2026, 11:14:00 (Asia/Seoul)'),
+}));
 
 const mockSendTelegram = vi.fn();
 vi.mock('../lib/telegram.js', () => ({
@@ -107,6 +110,7 @@ describe('integrationHealthJob — first run (no previous state)', () => {
     expect(chatId).toBe('987654321');
     expect(text).toContain('DOWN');
     expect(text).toContain('Service gemini');
+    expect(text).toContain('03/04/2026, 11:14:00 (Asia/Seoul)');
   });
 
   test('DEGRADED on first run → alert sent', async () => {

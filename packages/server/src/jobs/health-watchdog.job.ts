@@ -1,4 +1,4 @@
-// ============================================================
+﻿// ============================================================
 // Job: Health Watchdog
 //
 // Runs every 2 min. Monitors critical business jobs to ensure
@@ -13,9 +13,10 @@ import { config } from '../config.js';
 import { audit } from '../lib/audit.js';
 import { reportJobProgress } from './job-progress.js';
 import { loadOperationalTelegramSettings } from '../lib/telegram-runtime.js';
+import { formatOperationalDateTime } from '../lib/time.js';
 
 // Jobs considered critical for business operations.
-// The watchdog only alerts for these — does NOT alert for itself or utility jobs.
+// The watchdog only alerts for these â€” does NOT alert for itself or utility jobs.
 const CRITICAL_JOBS = new Set([
   'fetch-matches',
   'refresh-live-matches',
@@ -47,13 +48,13 @@ const ALERT_COOLDOWN_MS = 30 * 60_000; // 30 minutes
 const alertStateKey = (jobName: string) => `watchdog:alert:${jobName}`;
 
 /**
- * In-memory cooldown fallback — prevents alert spam when Redis is unavailable
+ * In-memory cooldown fallback â€” prevents alert spam when Redis is unavailable
  * and the Redis-backed AlertState cannot be read/written.
  * Keyed by job name, value is the timestamp of the last alert sent.
  */
 const inMemoryCooldown = new Map<string, number>();
 
-/** Exported for testing only — resets in-memory state between test runs. */
+/** Exported for testing only â€” resets in-memory state between test runs. */
 export function _resetCooldownForTesting(): void {
   inMemoryCooldown.clear();
 }
@@ -140,21 +141,21 @@ export async function healthWatchdogJob(): Promise<WatchdogResult> {
       ? (lastStartedTs || lastCompletedTs)
       : lastCompletedTs;
     const timeSinceBaseline = baselineTs > 0 ? now - baselineTs : Infinity;
-    // Only "overdue" if NOT currently running — a running job is just slow, not missed
+    // Only "overdue" if NOT currently running â€” a running job is just slow, not missed
     let isOverdue = !job.running && timeSinceBaseline > overdueThresholdMs;
     const isStuck = job.running && timeSinceBaseline > stuckThresholdMs;
 
     // If the job has an adaptive skip key, check whether it is intentionally sleeping.
-    // A job sleeping due to adaptive polling is NOT overdue — it is working as designed.
+    // A job sleeping due to adaptive polling is NOT overdue â€” it is working as designed.
     if (isOverdue && job.skipKey) {
       try {
         const redis = getRedisClient();
         const nextRunAt = await redis.get(job.skipKey);
         if (nextRunAt && now < Number(nextRunAt)) {
-          isOverdue = false; // intentional sleep — suppress alert
+          isOverdue = false; // intentional sleep â€” suppress alert
         }
       } catch {
-        // Redis unavailable — cannot confirm skip, leave isOverdue as-is
+        // Redis unavailable â€” cannot confirm skip, leave isOverdue as-is
       }
     }
 
@@ -177,7 +178,7 @@ export async function healthWatchdogJob(): Promise<WatchdogResult> {
           const lastErr = job.lastError ? `\n<b>Last error:</b> ${escapeHtml(job.lastError.substring(0, 200))}` : '';
           const consecutive = (prevAlert?.consecutiveOverdue ?? 0) + 1;
           const statusLabel = isStuck ? 'Job stuck (running too long)' : 'Job overdue';
-          const statusEmoji = isStuck ? '🔄' : '⚠️';
+          const statusEmoji = isStuck ? 'ðŸ”„' : 'âš ï¸';
 
           const msg = [
             `${statusEmoji} <b>[TFI] ${escapeHtml(statusLabel)}: ${escapeHtml(job.name)}</b>`,
@@ -187,7 +188,7 @@ export async function healthWatchdogJob(): Promise<WatchdogResult> {
             isStuck ? `<b>Status:</b> Currently running (possible hang)` : `<b>Consecutive overdue:</b> ${consecutive}x`,
             lastErr,
             ``,
-            `→ Check <b>Settings → Jobs</b> for details.`,
+            `â†’ Check <b>Settings â†’ Jobs</b> for details.`,
           ].filter(Boolean).join('\n');
 
           try {
@@ -224,17 +225,18 @@ export async function healthWatchdogJob(): Promise<WatchdogResult> {
         }
       }
     } else if (prevAlert || inMemoryCooldown.has(job.name)) {
-      // Job recovered — was overdue before, now running normally
+      // Job recovered â€” was overdue before, now running normally
       recovered.push(job.name);
       inMemoryCooldown.delete(job.name);
       await clearAlertState(job.name);
 
       if (telegram.enabled && telegram.chatId && config.telegramBotToken) {
+        const lastRunLabel = formatOperationalDateTime(job.lastRun ?? job.lastCompletedAt ?? job.lastStartedAt ?? null);
         const msg = [
-          `✅ <b>[TFI] Job khôi phục: ${escapeHtml(job.name)}</b>`,
+          `âœ… <b>[TFI] Job khÃ´i phá»¥c: ${escapeHtml(job.name)}</b>`,
           ``,
-          `Job đã hoạt động trở lại bình thường.`,
-          `<b>Lần chạy cuối:</b> ${job.lastRun}`,
+          `Job Ä‘Ã£ hoáº¡t Ä‘á»™ng trá»Ÿ láº¡i bÃ¬nh thÆ°á»ng.`,
+          '<b>Láº§n cháº¡y cuá»‘i:</b> ' + escapeHtml(lastRunLabel),
         ].join('\n');
 
         try {
@@ -257,7 +259,7 @@ export async function healthWatchdogJob(): Promise<WatchdogResult> {
   await reportJobProgress(JOB, 'done', `Checked ${checked} jobs, ${overdueJobs.length} overdue`, 100);
 
   if (overdueJobs.length > 0) {
-    console.warn(`[watchdog] ⚠️ Overdue jobs: ${overdueJobs.join(', ')}`);
+    console.warn(`[watchdog] âš ï¸ Overdue jobs: ${overdueJobs.join(', ')}`);
   }
 
   return { checked, overdueJobs, alerted, recovered };

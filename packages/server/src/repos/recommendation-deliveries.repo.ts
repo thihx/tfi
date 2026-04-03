@@ -138,6 +138,7 @@ export interface PendingTelegramDeliveryRow {
   deliveryId: number;
   userId: string;
   chatId: string;
+  notificationLanguage: 'vi' | 'en' | 'both';
   recommendationId: number | null;
   matchId: string;
   metadata: Record<string, unknown>;
@@ -168,6 +169,7 @@ interface PendingTelegramDeliveryQueryRow {
   delivery_id: number;
   user_id: string;
   chat_id: string;
+  notification_language: string | null;
   recommendation_id: number | null;
   match_id: string;
   metadata: Record<string, unknown> | null;
@@ -788,6 +790,7 @@ export async function getPendingTelegramDeliveries(limit = 20): Promise<PendingT
         d.id AS delivery_id,
         d.user_id,
         BTRIM(c.address) AS chat_id,
+        ns.notification_language,
         d.recommendation_id,
         d.match_id,
         d.metadata,
@@ -820,6 +823,8 @@ export async function getPendingTelegramDeliveries(limit = 20): Promise<PendingT
        AND c.status <> 'disabled'
        AND c.address IS NOT NULL
        AND BTRIM(c.address) <> ''
+      LEFT JOIN user_notification_settings ns
+        ON ns.user_id = d.user_id
       LEFT JOIN recommendations r
         ON r.id = d.recommendation_id
       WHERE d.eligibility_status = 'eligible'
@@ -833,6 +838,9 @@ export async function getPendingTelegramDeliveries(limit = 20): Promise<PendingT
     deliveryId: row.delivery_id,
     userId: row.user_id,
     chatId: row.chat_id,
+    notificationLanguage: row.notification_language === 'en' || row.notification_language === 'both' || row.notification_language === 'vi'
+      ? row.notification_language
+      : 'vi',
     recommendationId: row.recommendation_id,
     matchId: row.match_id,
     metadata: normalizeMetadata(row.metadata),

@@ -160,19 +160,19 @@ function ScopeRow({ target }: { target: LiveMonitorTarget }) {
 }
 
 function ProgressCard({ status }: { status: LiveMonitorStatusResponse }) {
-  if (!status.progress) return null;
+  if (!status.progress || (!status.job.running && !status.progress.error)) return null;
 
   return (
     <div className="card" style={{ marginBottom: '16px' }}>
       <div className="card-header">
-        <div className="card-title">Engine Progress</div>
+        <div className="card-title">Live Engine Is Working</div>
         <small style={{ color: 'var(--gray-500)' }}>
           {status.progress.startedAt ? formatLocalDateTime(status.progress.startedAt) : '—'}
         </small>
       </div>
       <div style={{ padding: '16px 20px' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '10px', gap: '12px' }}>
-          <strong>{status.progress.step || 'running'}</strong>
+          <strong>{status.progress.message || status.progress.step || 'Checking watched matches'}</strong>
           <span style={{ color: 'var(--gray-500)', fontSize: '13px' }}>{status.progress.percent}%</span>
         </div>
         <div style={{ height: '10px', background: 'var(--gray-100)', borderRadius: '999px', overflow: 'hidden' }}>
@@ -186,7 +186,7 @@ function ProgressCard({ status }: { status: LiveMonitorStatusResponse }) {
           />
         </div>
         <p style={{ margin: '10px 0 0', color: status.progress.error ? 'var(--danger)' : 'var(--gray-600)', fontSize: '13px' }}>
-          {status.progress.error || status.progress.message}
+          {status.progress.error || 'The live engine is actively checking matches right now.'}
         </p>
       </div>
     </div>
@@ -347,22 +347,17 @@ export function LiveMonitorTab() {
     });
   }, [status?.results]);
 
-  const promptLevelSummary = useMemo(() => {
-    return sortedResults.reduce((acc, result) => {
-      if (result.debug?.promptDataLevel === 'advanced-upgraded') acc.advanced += 1;
-      if (result.debug?.promptDataLevel === 'basic-only') acc.basic += 1;
-      return acc;
-    }, { basic: 0, advanced: 0 });
-  }, [sortedResults]);
+  const liveTargets = useMemo(() => {
+    return [...(status?.monitoring.targets || [])]
+      .filter((target) => target.live)
+      .sort((left, right) => Number(right.candidate) - Number(left.candidate) || right.priority - left.priority);
+  }, [status?.monitoring.targets]);
 
-  const prematchStrengthSummary = useMemo(() => {
-    return sortedResults.reduce((acc, result) => {
-      if (result.debug?.prematchStrength === 'strong') acc.strong += 1;
-      if (result.debug?.prematchStrength === 'moderate') acc.moderate += 1;
-      if (result.debug?.prematchStrength === 'weak') acc.weak += 1;
-      return acc;
-    }, { strong: 0, moderate: 0, weak: 0 });
-  }, [sortedResults]);
+  const waitingTargets = useMemo(() => {
+    return [...(status?.monitoring.targets || [])]
+      .filter((target) => !target.live)
+      .sort((left, right) => right.priority - left.priority);
+  }, [status?.monitoring.targets]);
 
   if (loading && !status) {
     return (
@@ -377,19 +372,22 @@ export function LiveMonitorTab() {
   return (
     <div className="live-monitor-tab">
       <div className="card" style={{ marginBottom: '16px' }}>
-        <div className="card-header">
-          <div className="card-title">Live Monitor Dashboard</div>
-        </div>
         <div style={{ padding: '20px' }}>
           <div className="monitor-stats-row">
-            <SummaryStat label="Engine" value={status?.job.running ? 'Running' : status?.job.enabled ? 'Idle' : 'Disabled'} color={status?.job.running ? 'var(--success)' : undefined} />
-            <SummaryStat label="Interval" value={formatInterval(status?.job.intervalMs ?? 0)} />
-            <SummaryStat label="Runs" value={status?.job.runCount ?? 0} />
-            <SummaryStat label="Last Run" value={formatLocalDateTime(status?.job.lastRun ?? null)} />
+            <SummaryStat label="Live Now" value={status?.monitoring.liveWatchCount ?? 0} color={(status?.monitoring.liveWatchCount ?? 0) > 0 ? 'var(--success)' : undefined} />
+            <SummaryStat label="Ready For AI" value={status?.monitoring.candidateCount ?? 0} color={(status?.monitoring.candidateCount ?? 0) > 0 ? 'var(--primary)' : undefined} />
+            <SummaryStat label="My Watchlist" value={state.watchlist.length} />
+            <SummaryStat label="System Pool" value={status?.monitoring.activeWatchCount ?? 0} />
           </div>
           <p style={{ margin: '14px 0 0', color: 'var(--gray-500)', fontSize: '13px' }}>
-            The server engine monitors watched live matches automatically. This screen refreshes itself and shows what is currently being watched, what is ready for AI, and why a live match is still waiting.
+            This screen refreshes automatically and focuses on what is live now, what is ready for AI, and what is still waiting.
           </p>
+          <div style={{ display: 'flex', gap: '18px', flexWrap: 'wrap', marginTop: '12px', fontSize: '12px', color: 'var(--gray-500)' }}>
+            <span><strong style={{ color: 'var(--gray-700)' }}>Engine:</strong> {status?.job.running ? 'Checking now' : status?.job.enabled ? 'Waiting for next cycle' : 'Disabled'}</span>
+            <span><strong style={{ color: 'var(--gray-700)' }}>Checks so far:</strong> {status?.job.runCount ?? 0}</span>
+            <span><strong style={{ color: 'var(--gray-700)' }}>Last refresh:</strong> {formatLocalDateTime(status?.job.lastRun ?? null)}</span>
+            <span><strong style={{ color: 'var(--gray-700)' }}>Refresh cadence:</strong> {formatInterval(status?.job.intervalMs ?? 0)}</span>
+          </div>
           {refreshError && (
             <p style={{ margin: '10px 0 0', color: 'var(--danger)', fontSize: '13px' }}>{refreshError}</p>
           )}
@@ -401,47 +399,48 @@ export function LiveMonitorTab() {
 
       {status && <ProgressCard status={status} />}
 
-      <div className="card" style={{ marginBottom: '16px' }}>
-        <div className="card-header">
-          <div className="card-title">Monitoring Scope</div>
-        </div>
-        <div style={{ padding: '20px' }}>
-          {status ? (
-            <div className="monitor-stats-row">
-              <SummaryStat label="My Watchlist" value={state.watchlist.length} />
-              <SummaryStat label="System Pool" value={status.monitoring.activeWatchCount} />
-              <SummaryStat label="Live Now" value={status.monitoring.liveWatchCount} />
-              <SummaryStat label="AI Candidates" value={status.monitoring.candidateCount} color={status.monitoring.candidateCount > 0 ? 'var(--success)' : undefined} />
-            </div>
-          ) : (
-            <p style={{ margin: 0, color: 'var(--gray-500)', fontSize: '13px' }}>
-              No monitoring scope is available yet.
-            </p>
-          )}
-          {status && (
-            <p style={{ margin: '12px 0 0', color: 'var(--gray-500)', fontSize: '13px' }}>
-              `My Watchlist` is your personal list. `System Pool` is the shared operational watchlist the live engine monitors across the system.
-            </p>
-          )}
-        </div>
-      </div>
-
       <div className="card" style={{ overflow: 'hidden', marginBottom: '16px' }}>
         <div className="card-header">
-          <div className="card-title">System Monitoring Pool</div>
+          <div className="card-title">Live Right Now</div>
           <small style={{ color: 'var(--gray-500)' }}>
-            {status?.monitoring.targets.length ?? 0} match{status?.monitoring.targets.length === 1 ? '' : 'es'}
+            {liveTargets.length} match{liveTargets.length === 1 ? '' : 'es'}
           </small>
         </div>
-        {status && status.monitoring.targets.length > 0 ? (
+        <div style={{ padding: '0 20px 14px', color: 'var(--gray-500)', fontSize: '13px' }}>
+          These are the matches the live engine is actively following at this moment.
+        </div>
+        {status && liveTargets.length > 0 ? (
           <div>
-            {status.monitoring.targets.map((target) => (
+            {liveTargets.map((target) => (
               <ScopeRow key={`${target.matchId}-${target.mode}-${target.lastChecked ?? 'never'}`} target={target} />
             ))}
           </div>
         ) : (
           <div style={{ padding: '28px 20px', textAlign: 'center', color: 'var(--gray-500)' }}>
-            No active matches are currently in the system monitoring pool.
+            No watched matches are live right now.
+          </div>
+        )}
+      </div>
+
+      <div className="card" style={{ overflow: 'hidden', marginBottom: '16px' }}>
+        <div className="card-header">
+          <div className="card-title">Waiting Or Upcoming</div>
+          <small style={{ color: 'var(--gray-500)' }}>
+            {waitingTargets.length} match{waitingTargets.length === 1 ? '' : 'es'}
+          </small>
+        </div>
+        <div style={{ padding: '0 20px 14px', color: 'var(--gray-500)', fontSize: '13px' }}>
+          These matches are still in the pool, but they are waiting for kickoff or the next meaningful change.
+        </div>
+        {status && waitingTargets.length > 0 ? (
+          <div>
+            {waitingTargets.map((target) => (
+              <ScopeRow key={`${target.matchId}-${target.mode}-${target.lastChecked ?? 'never'}`} target={target} />
+            ))}
+          </div>
+        ) : (
+          <div style={{ padding: '28px 20px', textAlign: 'center', color: 'var(--gray-500)' }}>
+            No upcoming or waiting matches are in the monitoring pool.
           </div>
         )}
       </div>
@@ -453,16 +452,11 @@ export function LiveMonitorTab() {
         <div style={{ padding: '20px' }}>
           {status?.summary ? (
             <div className="monitor-stats-row">
-              <SummaryStat label="Live" value={status.summary.liveCount} />
-              <SummaryStat label="Candidates" value={status.summary.candidateCount} />
-              <SummaryStat label="Processed" value={status.summary.processed} />
-              <SummaryStat label="Saved Recs" value={status.summary.savedRecommendations} color="var(--success)" />
+              <SummaryStat label="Live Matches" value={status.summary.liveCount} />
+              <SummaryStat label="Ready For AI" value={status.summary.candidateCount} />
+              <SummaryStat label="Checked This Run" value={status.summary.processed} />
+              <SummaryStat label="Recommendations Saved" value={status.summary.savedRecommendations} color="var(--success)" />
               <SummaryStat label="Notifications" value={status.summary.pushedNotifications} color="var(--primary)" />
-              <SummaryStat label="Basic Prompt" value={promptLevelSummary.basic} />
-              <SummaryStat label="Advanced Prompt" value={promptLevelSummary.advanced} color={promptLevelSummary.advanced > 0 ? 'var(--primary)' : undefined} />
-              <SummaryStat label="Prematch Strong" value={prematchStrengthSummary.strong} color={prematchStrengthSummary.strong > 0 ? 'var(--success)' : undefined} />
-              <SummaryStat label="Prematch Moderate" value={prematchStrengthSummary.moderate} />
-              <SummaryStat label="Prematch Weak" value={prematchStrengthSummary.weak} color={prematchStrengthSummary.weak > 0 ? 'var(--danger)' : undefined} />
               <SummaryStat label="Errors" value={status.summary.errors} color={status.summary.errors > 0 ? 'var(--danger)' : undefined} />
             </div>
           ) : (

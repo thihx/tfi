@@ -175,10 +175,10 @@ describe('LiveMonitorTab', () => {
   it('renders live monitoring scope and latest results without manual controls', async () => {
     render(<LiveMonitorTab />);
 
-    expect(await screen.findByText('Live Monitor Dashboard')).toBeInTheDocument();
-    expect(await screen.findByText('Monitoring Scope')).toBeInTheDocument();
+    await waitFor(() => expect(mockFetchLiveMonitorStatus).toHaveBeenCalled());
+    expect(screen.getByText('Live Right Now')).toBeInTheDocument();
+    expect(screen.getByText('Waiting Or Upcoming')).toBeInTheDocument();
     expect(await screen.findByText('Latest Run Summary')).toBeInTheDocument();
-    expect(screen.getByText('System Monitoring Pool')).toBeInTheDocument();
     expect(screen.getAllByText('Arsenal vs Chelsea').length).toBeGreaterThanOrEqual(1);
     expect(screen.getByText('Machida Zelvia vs FC Tokyo')).toBeInTheDocument();
     expect(screen.getAllByText('Premier League | 64\' | 2-1 | 2H').length).toBeGreaterThanOrEqual(1);
@@ -195,17 +195,20 @@ describe('LiveMonitorTab', () => {
     expect(screen.getByText('Condition Matched')).toBeInTheDocument();
     expect(screen.getByText('Condition Triggered')).toBeInTheDocument();
     expect(screen.getByText('AI Push')).toBeInTheDocument();
-    expect(screen.getAllByText('Advanced Prompt')).toHaveLength(2);
-    expect(screen.getAllByText('Basic Prompt')).toHaveLength(2);
-    expect(screen.getAllByText('Prematch Strong')).toHaveLength(2);
-    expect(screen.getAllByText('Prematch Weak')).toHaveLength(2);
+    expect(screen.getByText('Advanced Prompt')).toBeInTheDocument();
+    expect(screen.getByText('Basic Prompt')).toBeInTheDocument();
+    expect(screen.getByText('Prematch Strong')).toBeInTheDocument();
+    expect(screen.getByText('Prematch Weak')).toBeInTheDocument();
     expect(screen.getByText('v4-evidence-hardened | Advanced Prompt | api-football | full_live_data')).toBeInTheDocument();
     expect(screen.getByText('Prematch Strong | full | noise 12')).toBeInTheDocument();
     expect(screen.getByText('Prematch Weak | minimal | noise 60')).toBeInTheDocument();
     expect(screen.getByText(/Condition Suggestion:/)).toBeInTheDocument();
     expect(screen.getByText('My Watchlist')).toBeInTheDocument();
     expect(screen.getByText('System Pool')).toBeInTheDocument();
-    expect(screen.getByText(/your personal list/i)).toBeInTheDocument();
+    expect(screen.getByText('Live Now')).toBeInTheDocument();
+    expect(screen.getAllByText('Ready For AI').length).toBeGreaterThanOrEqual(1);
+    expect(screen.queryByText('Engine Progress')).not.toBeInTheDocument();
+    expect(screen.queryByText('Live Engine Is Working')).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Run Check Live' })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Refresh' })).not.toBeInTheDocument();
     expect(mockFetchLiveMonitorStatus).toHaveBeenCalled();
@@ -213,7 +216,7 @@ describe('LiveMonitorTab', () => {
 
   it('keeps auto-refresh polling active for a live screen', async () => {
     render(<LiveMonitorTab />);
-    await screen.findByText('Live Monitor Dashboard');
+    await waitFor(() => expect(mockFetchLiveMonitorStatus).toHaveBeenCalled());
 
     await waitFor(() => {
       expect(window.setInterval).toHaveBeenCalled();
