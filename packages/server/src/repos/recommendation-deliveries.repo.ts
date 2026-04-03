@@ -254,6 +254,200 @@ function normalizeNullableString(value: unknown): string | null {
   return trimmed ? trimmed : null;
 }
 
+const rootQueryExecutor: QueryExecutor = { query };
+
+async function recomputeParentDeliveryState(
+  db: QueryExecutor,
+  deliveryIds: number[],
+): Promise<void> {
+  if (deliveryIds.length === 0) return;
+
+  await db.query(
+    `WITH channel_summary AS (
+          SELECT
+            d.id AS delivery_id,
+            COUNT(c.delivery_id)::int AS channel_count,
+            COUNT(*) FILTER (WHERE c.status = 'delivered')::int AS delivered_count,
+            COUNT(*) FILTER (WHERE c.status = 'pending')::int AS pending_count,
+            COUNT(*) FILTER (WHERE c.status = 'failed')::int AS failed_count,
+            COUNT(*) FILTER (WHERE c.status = 'suppressed')::int AS suppressed_count,
+            COALESCE(
+              jsonb_agg(c.channel_type ORDER BY c.channel_type) FILTER (WHERE c.status = 'delivered'),
+              '[]'::jsonb
+            ) AS delivered_channels,
+            MAX(c.delivered_at) FILTER (WHERE c.status = 'delivered') AS last_delivered_at
+          FROM user_recommendation_deliveries d
+          LEFT JOIN user_recommendation_delivery_channels c
+            ON c.delivery_id = d.id
+         WHERE d.id = ANY($1::bigint[])
+         GROUP BY d.id
+       )
+       UPDATE user_recommendation_deliveries d
+          SET delivery_status = CASE
+                WHEN s.channel_count = 0 THEN d.delivery_status
+                WHEN s.delivered_count > 0 THEN 'delivered'
+                WHEN s.pending_count > 0 THEN 'pending'
+                WHEN s.failed_count > 0 THEN 'failed'
+                WHEN s.suppressed_count = s.channel_count THEN 'suppressed'
+                ELSE d.delivery_status
+              END,
+              delivery_channels = s.delivered_channels,
+              delivered_at = CASE
+                WHEN s.delivered_count > 0 THEN COALESCE(d.delivered_at, s.last_delivered_at, NOW())
+                ELSE NULL
+              END
+         FROM channel_summary s
+        WHERE d.id = s.delivery_id`,
+    [deliveryIds],
+  );
+}
+
+async function syncDeliveryChannelStates(
+  db: QueryExecutor,
+  deliveryIds: number[],
+): Promise<void> {
+  if (deliveryIds.length === 0) return;
+
+  await db.query(
+    `WITH target_deliveries AS (
+          SELECT d.id, d.user_id, d.eligibility_status, d.delivery_status
+            FROM user_recommendation_deliveries d
+           WHERE d.id = ANY($1::bigint[])
+       ),
+       desired_channels AS (
+          SELECT
+            td.id AS delivery_id,
+            'telegram'::text AS channel_type,
+            CASE
+              WHEN td.eligibility_status <> 'eligible' OR td.delivery_status = 'suppressed' THEN 'suppressed'
+              ELSE 'pending'
+            END AS status
+          FROM target_deliveries td
+          JOIN user_notification_channel_configs c
+            ON c.user_id = td.user_id
+           AND c.channel_type = 'telegram'
+           AND c.enabled = TRUE
+           AND c.status <> 'disabled'
+           AND c.address IS NOT NULL
+           AND BTRIM(c.address) <> ''
+          UNION ALL
+          SELECT
+            td.id AS delivery_id,
+            'web_push'::text AS channel_type,
+            CASE
+              WHEN td.eligibility_status <> 'eligible' OR td.delivery_status = 'suppressed' THEN 'suppressed'
+              ELSE 'pending'
+            END AS status
+          FROM target_deliveries td
+          JOIN LATERAL (
+            SELECT 1
+              FROM push_subscriptions ps
+             WHERE ps.user_id = td.user_id::text
+             LIMIT 1
+          ) active_push ON TRUE
+       )
+       INSERT INTO user_recommendation_delivery_channels (
+         delivery_id,
+         channel_type,
+         status,
+         metadata,
+         created_at,
+         updated_at
+       )
+       SELECT
+         dc.delivery_id,
+         dc.channel_type,
+         dc.status,
+         '{}'::jsonb,
+         NOW(),
+         NOW()
+       FROM desired_channels dc
+       ON CONFLICT (delivery_id, channel_type) DO UPDATE
+         SET status = CASE
+               WHEN user_recommendation_delivery_channels.status = 'delivered' AND EXCLUDED.status = 'pending'
+                 THEN user_recommendation_delivery_channels.status
+               ELSE EXCLUDED.status
+             END,
+             updated_at = NOW(),
+             last_error = CASE
+               WHEN EXCLUDED.status = 'pending' THEN NULL
+               ELSE user_recommendation_delivery_channels.last_error
+             END`,
+    [deliveryIds],
+  );
+
+  await db.query(
+    `UPDATE user_recommendation_delivery_channels c
+          SET status = 'suppressed',
+              updated_at = NOW()
+         FROM user_recommendation_deliveries d
+        WHERE d.id = c.delivery_id
+          AND d.id = ANY($1::bigint[])
+          AND c.status <> 'delivered'
+          AND (d.eligibility_status <> 'eligible' OR d.delivery_status = 'suppressed')`,
+    [deliveryIds],
+  );
+
+  await recomputeParentDeliveryState(db, deliveryIds);
+}
+
+async function markDeliveryChannelRowsDelivered(
+  db: QueryExecutor,
+  deliveryIds: number[],
+  channel: string,
+): Promise<number> {
+  if (deliveryIds.length === 0) return 0;
+
+  const result = await db.query<{ delivery_id: number }>(
+    `UPDATE user_recommendation_delivery_channels
+          SET status = 'delivered',
+              delivered_at = COALESCE(delivered_at, NOW()),
+              last_attempt_at = NOW(),
+              attempt_count = attempt_count + 1,
+              last_error = NULL,
+              metadata = COALESCE(metadata, '{}'::jsonb) || jsonb_build_object('last_delivery_channel', $2, 'last_delivery_at', NOW()),
+              updated_at = NOW()
+        WHERE delivery_id = ANY($1::bigint[])
+          AND channel_type = $2
+          AND status <> 'delivered'
+      RETURNING delivery_id`,
+    [deliveryIds, channel],
+  );
+
+  const updatedDeliveryIds = Array.from(new Set(result.rows.map((row) => Number(row.delivery_id))));
+  if (updatedDeliveryIds.length === 0) return 0;
+
+  await db.query(
+    `UPDATE user_recommendation_deliveries
+          SET metadata = COALESCE(metadata, '{}'::jsonb) || jsonb_build_object('last_delivery_channel', $2, 'last_delivery_at', NOW())
+        WHERE id = ANY($1::bigint[])`,
+    [updatedDeliveryIds, channel],
+  );
+
+  await recomputeParentDeliveryState(db, updatedDeliveryIds);
+
+  // #region agent log
+  fetch('http://127.0.0.1:7269/ingest/6dfe8d16-35df-4400-a424-8cd498d50c14', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'X-Debug-Session-Id': '524a3d' },
+    body: JSON.stringify({
+      sessionId: '524a3d',
+      runId: 'post-fix',
+      hypothesisId: 'H4',
+      location: 'recommendation-deliveries.repo.ts:markDeliveryChannelRowsDelivered',
+      message: 'Marked delivery channel delivered',
+      data: {
+        channel,
+        deliveryIds: updatedDeliveryIds.length,
+      },
+      timestamp: Date.now(),
+    }),
+  }).catch(() => {});
+  // #endregion
+
+  return updatedDeliveryIds.length;
+}
+
 export async function stageRecommendationDeliveries(
   db: QueryExecutor,
   recommendation: RecommendationDeliveryStageInput,
@@ -324,6 +518,33 @@ export async function stageRecommendationDeliveries(
     ],
   );
 
+  const stagedRows = await db.query<{ id: number }>(
+    'SELECT id FROM user_recommendation_deliveries WHERE recommendation_id = $1',
+    [recommendation.id],
+  );
+  const stagedDeliveryIds = Array.isArray(stagedRows.rows) ? stagedRows.rows.map((row) => Number(row.id)) : [];
+  await syncDeliveryChannelStates(db, stagedDeliveryIds);
+
+  // #region agent log
+  fetch('http://127.0.0.1:7269/ingest/6dfe8d16-35df-4400-a424-8cd498d50c14', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'X-Debug-Session-Id': '524a3d' },
+    body: JSON.stringify({
+      sessionId: '524a3d',
+      runId: 'pre-fix',
+      hypothesisId: 'H2',
+      location: 'recommendation-deliveries.repo.ts:257',
+      message: 'Staged recommendation deliveries',
+      data: {
+        recommendationId: recommendation.id,
+        matchId: recommendation.match_id,
+        rowCount: result.rowCount ?? 0,
+      },
+      timestamp: Date.now(),
+    }),
+  }).catch(() => {});
+  // #endregion
+
   return result.rowCount ?? 0;
 }
 
@@ -344,6 +565,7 @@ export async function evaluateRecommendationDeliveryConditions(
   );
 
   let updated = 0;
+  const updatedDeliveryIds: number[] = [];
 
   for (const row of pendingRows.rows) {
     const metadata = normalizeMetadata(row.metadata);
@@ -379,7 +601,12 @@ export async function evaluateRecommendationDeliveryConditions(
       [row.id, recommendation.id, evaluation.matched, nextEligibility, nextDeliveryStatus, evaluation.summary],
     );
     updated += result.rowCount ?? 0;
+    if ((result.rowCount ?? 0) > 0) {
+      updatedDeliveryIds.push(Number(row.id));
+    }
   }
+
+  await syncDeliveryChannelStates(db, updatedDeliveryIds);
 
   return updated;
 }
@@ -507,6 +734,8 @@ export async function stageConditionOnlyDeliveries(
     }
   }
 
+  await syncDeliveryChannelStates(db, created.map((row) => row.deliveryId));
+
   return created;
 }
 
@@ -514,23 +743,7 @@ export async function markDeliveryRowsDelivered(
   deliveryIds: number[],
   channel: string,
 ): Promise<number> {
-  if (deliveryIds.length === 0) return 0;
-
-  const result = await query(
-    `UPDATE user_recommendation_deliveries
-        SET delivery_status = 'delivered',
-            delivered_at = COALESCE(delivered_at, NOW()),
-            delivery_channels = CASE
-              WHEN COALESCE(delivery_channels, '[]'::jsonb) @> jsonb_build_array($2::text) THEN COALESCE(delivery_channels, '[]'::jsonb)
-              ELSE COALESCE(delivery_channels, '[]'::jsonb) || jsonb_build_array($2::text)
-            END,
-            metadata = COALESCE(metadata, '{}'::jsonb) || jsonb_build_object('last_delivery_channel', $2, 'last_delivery_at', NOW())
-      WHERE id = ANY($1::bigint[])
-        AND eligibility_status = 'eligible'`,
-    [deliveryIds, channel],
-  );
-
-  return result.rowCount ?? 0;
+  return markDeliveryChannelRowsDelivered(rootQueryExecutor, deliveryIds, channel);
 }
 
 export async function getRecommendationDeliveriesByUserId(
@@ -682,11 +895,14 @@ export async function getRecommendationDeliveriesByUserId(
 
 export async function getEligibleDeliveryUserIds(recommendationId: number): Promise<Set<string>> {
   const result = await query<{ user_id: string }>(
-    `SELECT user_id
-       FROM user_recommendation_deliveries
-      WHERE recommendation_id = $1
-        AND eligibility_status = 'eligible'
-        AND delivery_status = 'pending'`,
+    `SELECT DISTINCT d.user_id
+       FROM user_recommendation_deliveries d
+       JOIN user_recommendation_delivery_channels c
+         ON c.delivery_id = d.id
+        AND c.channel_type = 'web_push'
+      WHERE d.recommendation_id = $1
+        AND d.eligibility_status = 'eligible'
+        AND c.status = 'pending'`,
     [recommendationId],
   );
   return new Set(result.rows.map((row) => row.user_id));
@@ -694,19 +910,22 @@ export async function getEligibleDeliveryUserIds(recommendationId: number): Prom
 
 export async function getEligibleTelegramDeliveryTargets(recommendationId: number): Promise<EligibleTelegramDeliveryTarget[]> {
   const result = await query<EligibleTelegramDeliveryTargetRow>(
-    `SELECT d.user_id,
-            BTRIM(c.address) AS chat_id
-       FROM user_recommendation_deliveries d
-       JOIN user_notification_channel_configs c
-         ON c.user_id = d.user_id
-        AND c.channel_type = 'telegram'
-      WHERE d.recommendation_id = $1
-        AND d.eligibility_status = 'eligible'
-        AND d.delivery_status = 'pending'
-        AND c.enabled = TRUE
-        AND c.status <> 'disabled'
-        AND c.address IS NOT NULL
-        AND BTRIM(c.address) <> ''`,
+    `SELECT DISTINCT d.user_id,
+              BTRIM(cfg.address) AS chat_id
+         FROM user_recommendation_deliveries d
+         JOIN user_recommendation_delivery_channels c
+           ON c.delivery_id = d.id
+          AND c.channel_type = 'telegram'
+          AND c.status = 'pending'
+         JOIN user_notification_channel_configs cfg
+           ON cfg.user_id = d.user_id
+          AND cfg.channel_type = 'telegram'
+        WHERE d.recommendation_id = $1
+          AND d.eligibility_status = 'eligible'
+          AND cfg.enabled = TRUE
+          AND cfg.status <> 'disabled'
+          AND cfg.address IS NOT NULL
+          AND BTRIM(cfg.address) <> ''`,
     [recommendationId],
   );
 
@@ -723,23 +942,24 @@ export async function markRecommendationDeliveriesDelivered(
 ): Promise<number> {
   if (userIds.length === 0) return 0;
 
-  const result = await query(
-    `UPDATE user_recommendation_deliveries
-        SET delivery_status = 'delivered',
-            delivered_at = COALESCE(delivered_at, NOW()),
-            delivery_channels = CASE
-              WHEN COALESCE(delivery_channels, '[]'::jsonb) @> jsonb_build_array($3::text) THEN COALESCE(delivery_channels, '[]'::jsonb)
-              ELSE COALESCE(delivery_channels, '[]'::jsonb) || jsonb_build_array($3::text)
-            END,
-            metadata = COALESCE(metadata, '{}'::jsonb) || jsonb_build_object('last_delivery_channel', $3, 'last_delivery_at', NOW())
-      WHERE recommendation_id = $1
-        AND user_id = ANY($2::uuid[])
-        AND eligibility_status = 'eligible'
-        AND delivery_status = 'pending'`,
+  const result = await query<{ id: number }>(
+    `SELECT d.id
+       FROM user_recommendation_deliveries d
+       JOIN user_recommendation_delivery_channels c
+         ON c.delivery_id = d.id
+        AND c.channel_type = $3
+        AND c.status = 'pending'
+      WHERE d.recommendation_id = $1
+        AND d.user_id = ANY($2::uuid[])
+        AND d.eligibility_status = 'eligible'`,
     [recommendationId, userIds, channel],
   );
 
-  return result.rowCount ?? 0;
+  return markDeliveryChannelRowsDelivered(
+    rootQueryExecutor,
+    Array.isArray(result.rows) ? result.rows.map((row) => Number(row.id)) : [],
+    channel,
+  );
 }
 
 export async function updateRecommendationDeliveryFlags(
@@ -789,7 +1009,7 @@ export async function getPendingTelegramDeliveries(limit = 20): Promise<PendingT
     `SELECT
         d.id AS delivery_id,
         d.user_id,
-        BTRIM(c.address) AS chat_id,
+        BTRIM(cfg.address) AS chat_id,
         ns.notification_language,
         d.recommendation_id,
         d.match_id,
@@ -816,23 +1036,47 @@ export async function getPendingTelegramDeliveries(limit = 20): Promise<PendingT
         r.ai_model AS recommendation_ai_model,
         r.mode AS recommendation_mode
       FROM user_recommendation_deliveries d
-      JOIN user_notification_channel_configs c
-        ON c.user_id = d.user_id
+      JOIN user_recommendation_delivery_channels c
+        ON c.delivery_id = d.id
        AND c.channel_type = 'telegram'
-       AND c.enabled = TRUE
-       AND c.status <> 'disabled'
-       AND c.address IS NOT NULL
-       AND BTRIM(c.address) <> ''
+       AND c.status = 'pending'
+      JOIN user_notification_channel_configs cfg
+        ON cfg.user_id = d.user_id
+       AND cfg.channel_type = 'telegram'
+       AND cfg.enabled = TRUE
+       AND cfg.status <> 'disabled'
+       AND cfg.address IS NOT NULL
+       AND BTRIM(cfg.address) <> ''
       LEFT JOIN user_notification_settings ns
         ON ns.user_id = d.user_id::text
       LEFT JOIN recommendations r
         ON r.id = d.recommendation_id
       WHERE d.eligibility_status = 'eligible'
-        AND d.delivery_status = 'pending'
       ORDER BY d.created_at ASC, d.id ASC
       LIMIT $1`,
     [safeLimit],
   );
+
+  // #region agent log
+  fetch('http://127.0.0.1:7269/ingest/6dfe8d16-35df-4400-a424-8cd498d50c14', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'X-Debug-Session-Id': '524a3d' },
+    body: JSON.stringify({
+      sessionId: '524a3d',
+      runId: 'pre-fix',
+      hypothesisId: 'H4',
+      location: 'recommendation-deliveries.repo.ts:786',
+      message: 'Loaded pending Telegram deliveries',
+      data: {
+        limit: safeLimit,
+        rowCount: result.rows.length,
+        sampleRecommendationId: result.rows[0]?.recommendation_id ?? null,
+        sampleUserId: result.rows[0]?.user_id ?? null,
+      },
+      timestamp: Date.now(),
+    }),
+  }).catch(() => {});
+  // #endregion
 
   return result.rows.map((row) => ({
     deliveryId: row.delivery_id,

@@ -23,7 +23,12 @@ beforeEach(() => {
 describe('recommendation deliveries repository', () => {
   test('stageRecommendationDeliveries stages active watch subscribers for a recommendation', async () => {
     const db = {
-      query: vi.fn().mockResolvedValue({ rowCount: 2 }),
+      query: vi.fn()
+        .mockResolvedValueOnce({ rowCount: 2 })
+        .mockResolvedValueOnce({ rows: [{ id: 101 }, { id: 102 }] })
+        .mockResolvedValueOnce({ rowCount: 2 })
+        .mockResolvedValueOnce({ rowCount: 0 })
+        .mockResolvedValueOnce({ rowCount: 2 }),
     };
 
     const count = await stageRecommendationDeliveries(db, {
@@ -38,10 +43,12 @@ describe('recommendation deliveries repository', () => {
     });
 
     expect(count).toBe(2);
-    expect(db.query).toHaveBeenCalledWith(
+    expect(db.query).toHaveBeenNthCalledWith(
+      1,
       expect.stringContaining('INSERT INTO user_recommendation_deliveries'),
       [11, 'match-1', '2026-03-24T12:30:00.000Z', 'Over 2.5 Goals', 'over_2.5', 1.91, 7, 'MEDIUM'],
     );
+    expect(String(db.query.mock.calls[2]?.[0])).toContain('ps.user_id = td.user_id::text');
   });
 
   test('getRecommendationDeliveriesByUserId normalizes rows and respects filters', async () => {
@@ -143,9 +150,10 @@ describe('recommendation deliveries repository', () => {
 
     expect([...result]).toEqual(['user-1', 'user-2']);
     expect(query).toHaveBeenCalledWith(
-      expect.stringContaining("delivery_status = 'pending'"),
+      expect.stringContaining("c.channel_type = 'web_push'"),
       [99],
     );
+    expect(String(vi.mocked(query).mock.calls[0]?.[0])).toContain("c.status = 'pending'");
   });
 
   test('getEligibleTelegramDeliveryTargets returns enabled pending telegram recipients only', async () => {
@@ -163,9 +171,10 @@ describe('recommendation deliveries repository', () => {
       { userId: 'user-2', chatId: '1002' },
     ]);
     expect(query).toHaveBeenCalledWith(
-      expect.stringContaining("d.delivery_status = 'pending'"),
+      expect.stringContaining("c.channel_type = 'telegram'"),
       [99],
     );
+    expect(String(vi.mocked(query).mock.calls[0]?.[0])).toContain("c.status = 'pending'");
   });
 
   test('getPendingTelegramDeliveries joins notification settings using text-compatible user id', async () => {
@@ -271,17 +280,23 @@ describe('recommendation deliveries repository', () => {
     expect(query).toHaveBeenCalledTimes(1);
   });
 
-  test('markRecommendationDeliveriesDelivered appends channel and updates only pending eligible rows', async () => {
-    vi.mocked(query).mockResolvedValueOnce({ rowCount: 2 } as never);
+  test('markRecommendationDeliveriesDelivered updates pending channel rows and recomputes parent delivery state', async () => {
+    vi.mocked(query)
+      .mockResolvedValueOnce({ rows: [{ id: 41 }, { id: 42 }] } as never)
+      .mockResolvedValueOnce({ rows: [{ delivery_id: 41 }, { delivery_id: 42 }] } as never)
+      .mockResolvedValueOnce({ rowCount: 2 } as never)
+      .mockResolvedValueOnce({ rowCount: 2 } as never);
 
     const updated = await markRecommendationDeliveriesDelivered(99, ['user-1', 'user-2'], 'web_push');
 
     expect(updated).toBe(2);
-    expect(query).toHaveBeenCalledWith(
-      expect.stringContaining("delivery_status = 'delivered'"),
+    expect(query).toHaveBeenNthCalledWith(
+      1,
+      expect.stringContaining("c.channel_type = $3"),
       [99, ['user-1', 'user-2'], 'web_push'],
     );
-    expect(String(vi.mocked(query).mock.calls[0]?.[0])).toContain("AND delivery_status = 'pending'");
+    expect(String(vi.mocked(query).mock.calls[1]?.[0])).toContain("UPDATE user_recommendation_delivery_channels");
+    expect(String(vi.mocked(query).mock.calls[1]?.[0])).toContain("status = 'delivered'");
   });
 
   test('updateRecommendationDeliveryFlags returns false when nothing is requested', async () => {

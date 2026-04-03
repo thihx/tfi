@@ -16,7 +16,8 @@
     "benchmark:live-score": "tsx src/scripts/benchmark-live-score.ts",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "verify:delivery-runtime": "tsx src/scripts/verify-delivery-runtime.ts"
   },
   "dependencies": {
     "@fastify/cors": "^11.0.1",

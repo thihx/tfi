@@ -590,19 +590,45 @@ export async function markRecommendationNotified(
   channels: string | string[],
 ): Promise<RecommendationRow | null> {
   const normalizedChannels = Array.isArray(channels)
-    ? Array.from(new Set(channels.map((value) => String(value).trim()).filter(Boolean))).join(',')
-    : String(channels).trim();
+    ? Array.from(new Set(channels.map((value) => String(value).trim()).filter(Boolean)))
+    : Array.from(new Set(String(channels).split(',').map((value) => value.trim()).filter(Boolean)));
+  const nextChannelsCsv = normalizedChannels.join(',');
   const r = await query<RecommendationRow>(
-    `UPDATE recommendations
-     SET notified = $2,
-         notification_channels = $3
-     WHERE id = $1
-     RETURNING *`,
-    [
-      id,
-      normalizedChannels ? 'yes' : '',
-      normalizedChannels,
-    ],
+    `WITH current_channels AS (
+          SELECT COALESCE(notification_channels, '') AS notification_channels
+            FROM recommendations
+           WHERE id = $1
+           FOR UPDATE
+       )
+       UPDATE recommendations
+          SET notified = CASE
+                WHEN ARRAY_LENGTH(merged.channels, 1) IS NULL THEN ''
+                ELSE 'yes'
+              END,
+              notification_channels = COALESCE(array_to_string(merged.channels, ','), '')
+         FROM (
+           SELECT ARRAY(
+             SELECT DISTINCT channel
+               FROM unnest(
+                 array_remove(
+                   string_to_array(
+                     CASE
+                       WHEN current_channels.notification_channels = '' THEN $2
+                       WHEN $2 = '' THEN current_channels.notification_channels
+                       ELSE current_channels.notification_channels || ',' || $2
+                     END,
+                     ','
+                   ),
+                   ''
+                 )
+               ) AS channel
+              ORDER BY channel
+           ) AS channels
+             FROM current_channels
+         ) AS merged
+        WHERE id = $1
+        RETURNING recommendations.*`,
+    [id, nextChannelsCsv],
   );
   return r.rows[0] ?? null;
 }
