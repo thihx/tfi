@@ -5,57 +5,42 @@ interface LoginScreenProps {
   error: string;
 }
 
-const STATS = [
-  { label: '1,000+ Leagues' },
-  { label: 'AI in < 2s' },
-  { label: '24/7 Monitoring' },
-];
-
-const FEATURES = [
+const PILLARS = [
   {
     icon: (
-      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
         <line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/>
       </svg>
     ),
-    title: 'Data, Not Guesswork',
-    desc: 'Every bet is backed by live stats and AI analysis — no gut feeling.',
+    label: 'Data-Driven',
+    stat: 'No gut feeling',
   },
   {
     icon: (
-      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-        <polyline points="22 7 13.5 15.5 8.5 10.5 2 17"/><polyline points="16 7 22 7 22 13"/>
-      </svg>
-    ),
-    title: 'Grow Your Bankroll',
-    desc: 'Smart stake sizing protects your money and builds steady returns.',
-  },
-  {
-    icon: (
-      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-        <circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>
-      </svg>
-    ),
-    title: 'No Match Watching',
-    desc: 'TFI watches every live match for you. No more sitting through 90 minutes.',
-  },
-  {
-    icon: (
-      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
         <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/>
       </svg>
     ),
-    title: 'Bet at the Right Moment',
-    desc: 'Set triggers on goals, cards, or match time — AI alerts you instantly so you never miss the window.',
+    label: 'AI in < 2s',
+    stat: 'Real-time analysis',
   },
   {
     icon: (
-      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-        <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/>
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>
       </svg>
     ),
-    title: 'Get Your Time Back',
-    desc: 'Stop watching matches. Do what you love — your AI never takes a break.',
+    label: '24/7 Monitoring',
+    stat: 'Never miss a moment',
+  },
+  {
+    icon: (
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <polyline points="22 7 13.5 15.5 8.5 10.5 2 17"/><polyline points="16 7 22 7 22 13"/>
+      </svg>
+    ),
+    label: '1,000+ Leagues',
+    stat: 'Full coverage',
   },
 ];
 
@@ -137,7 +122,7 @@ export function LoginScreen({ onLogin, error }: LoginScreenProps) {
           </div>
 
           {/* Headline */}
-          <div style={{ position: 'relative', marginBottom: '16px' }}>
+          <div style={{ position: 'relative', marginBottom: '40px' }}>
             <h1 style={{
               color: '#f9fafb', fontSize: '34px', fontWeight: 800,
               lineHeight: 1.2, letterSpacing: '-0.8px', margin: '0 0 12px',
@@ -150,45 +135,33 @@ export function LoginScreen({ onLogin, error }: LoginScreenProps) {
             </p>
           </div>
 
-          {/* Stat strip */}
+          {/* Pillar grid */}
           <div style={{
-            position: 'relative', display: 'flex', gap: '8px', flexWrap: 'wrap', marginBottom: '14px',
+            position: 'relative',
+            display: 'grid',
+            gridTemplateColumns: '1fr 1fr',
+            gap: '12px',
           }}>
-            {STATS.map((s) => (
-              <span key={s.label} style={{
-                display: 'inline-flex', alignItems: 'center', gap: '5px',
-                padding: '4px 10px', borderRadius: '20px',
-                background: 'rgba(255,255,255,0.04)',
-                border: '1px solid rgba(255,255,255,0.08)',
-                color: 'rgba(255,255,255,0.35)', fontSize: '11px', fontWeight: 500,
-              }}>
-                <span style={{ width: '4px', height: '4px', borderRadius: '50%', background: '#f59e0b', display: 'inline-block', flexShrink: 0 }} />
-                {s.label}
-              </span>
-            ))}
-          </div>
-
-          {/* Feature list */}
-          <div style={{ position: 'relative', display: 'flex', flexDirection: 'column', gap: '8px' }}>
-            {FEATURES.map((f) => (
-              <div key={f.title} style={{
-                display: 'flex', alignItems: 'flex-start', gap: '12px',
+            {PILLARS.map((p) => (
+              <div key={p.label} style={{
+                display: 'flex', flexDirection: 'column', alignItems: 'center',
+                gap: '10px', textAlign: 'center',
                 background: 'rgba(255,255,255,0.03)',
                 border: '1px solid rgba(255,255,255,0.06)',
-                borderRadius: '10px', padding: '11px 14px',
+                borderRadius: '14px', padding: '20px 16px',
               }}>
                 <div style={{
-                  width: '30px', height: '30px', borderRadius: '7px', flexShrink: 0,
+                  width: '44px', height: '44px', borderRadius: '12px',
                   background: 'rgba(245,158,11,0.1)',
                   border: '1px solid rgba(245,158,11,0.15)',
                   display: 'flex', alignItems: 'center', justifyContent: 'center',
                   color: '#f59e0b',
                 }}>
-                  {f.icon}
+                  {p.icon}
                 </div>
                 <div>
-                  <div style={{ color: '#f9fafb', fontWeight: 600, fontSize: '13px', marginBottom: '2px' }}>{f.title}</div>
-                  <div style={{ color: 'rgba(255,255,255,0.38)', fontSize: '12px', lineHeight: 1.5 }}>{f.desc}</div>
+                  <div style={{ color: '#f9fafb', fontWeight: 700, fontSize: '13px', marginBottom: '3px' }}>{p.label}</div>
+                  <div style={{ color: 'rgba(255,255,255,0.3)', fontSize: '11px' }}>{p.stat}</div>
                 </div>
               </div>
             ))}
