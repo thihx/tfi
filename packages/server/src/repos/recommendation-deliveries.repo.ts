@@ -824,7 +824,7 @@ export async function getPendingTelegramDeliveries(limit = 20): Promise<PendingT
        AND c.address IS NOT NULL
        AND BTRIM(c.address) <> ''
       LEFT JOIN user_notification_settings ns
-        ON ns.user_id = d.user_id
+        ON ns.user_id = d.user_id::text
       LEFT JOIN recommendations r
         ON r.id = d.recommendation_id
       WHERE d.eligibility_status = 'eligible'

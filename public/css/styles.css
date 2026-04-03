@@ -3551,6 +3551,26 @@ tbody tr.date-group-row:hover {
     content: none !important;
 }
 
+@media (max-width: 768px) {
+    .date-tab-bar {
+        padding: 6px 12px;
+        min-height: 0;
+    }
+
+    .date-tab-bar button {
+        min-height: 30px;
+        padding: 7px 12px;
+    }
+
+    tr.date-group-row td,
+    .table-container.table-cards tr.date-group-row td {
+        position: static !important;
+        top: auto !important;
+        z-index: auto !important;
+        padding: 3px 14px 6px !important;
+    }
+}
+
 /* ── Live event flash animations ─────────────────────────────────────────── */
 
 @keyframes flash-goal {

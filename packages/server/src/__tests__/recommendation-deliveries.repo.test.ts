@@ -9,6 +9,7 @@ import {
   evaluateRecommendationDeliveryConditions,
   getEligibleTelegramDeliveryTargets,
   getEligibleDeliveryUserIds,
+  getPendingTelegramDeliveries,
   getRecommendationDeliveriesByUserId,
   markRecommendationDeliveriesDelivered,
   stageRecommendationDeliveries,
@@ -164,6 +165,49 @@ describe('recommendation deliveries repository', () => {
     expect(query).toHaveBeenCalledWith(
       expect.stringContaining("d.delivery_status = 'pending'"),
       [99],
+    );
+  });
+
+  test('getPendingTelegramDeliveries joins notification settings using text-compatible user id', async () => {
+    vi.mocked(query).mockResolvedValueOnce({
+      rows: [{
+        delivery_id: 10,
+        user_id: 'user-1',
+        chat_id: '1001',
+        notification_language: 'vi',
+        recommendation_id: 3,
+        match_id: 'match-1',
+        metadata: {},
+        created_at: '2026-03-24T12:30:00.000Z',
+        recommendation_timestamp: '2026-03-24T12:30:00.000Z',
+        recommendation_minute: 59,
+        recommendation_score: '0-0',
+        recommendation_bet_type: 'totals',
+        recommendation_selection: 'Under 2.5 Goals',
+        recommendation_bet_market: 'under_2.5',
+        recommendation_odds: 1.91,
+        recommendation_confidence: 7,
+        recommendation_value_percent: 12,
+        recommendation_risk_level: 'MEDIUM',
+        recommendation_stake_percent: 3,
+        recommendation_reasoning: 'test',
+        recommendation_reasoning_vi: 'kiem tra',
+        recommendation_warnings: null,
+        recommendation_home_team: 'A',
+        recommendation_away_team: 'B',
+        recommendation_league: 'League',
+        recommendation_status: 'pending',
+        recommendation_ai_model: 'gemini',
+        recommendation_mode: 'B',
+      }],
+    } as never);
+
+    const rows = await getPendingTelegramDeliveries(5);
+
+    expect(rows).toHaveLength(1);
+    expect(query).toHaveBeenCalledWith(
+      expect.stringContaining('ON ns.user_id = d.user_id::text'),
+      [5],
     );
   });
 
