@@ -101,6 +101,7 @@ async function loadScheduler(options: SchedulerLoadOptions = {}) {
 
   const scheduler = await import('../jobs/scheduler.js');
   const jobRunsRepo = await import('../repos/job-runs.repo.js');
+  const auditLib = await import('../lib/audit.js');
   return {
     scheduler,
     fetchMatchesJob,
@@ -109,6 +110,7 @@ async function loadScheduler(options: SchedulerLoadOptions = {}) {
     deliverTelegramNotificationsJob,
     redisDefault,
     jobRunsRepo,
+    auditLib,
   };
 }
 
@@ -255,5 +257,26 @@ describe('scheduler cadence resilience', () => {
 
     scheduler.stopScheduler();
     releaseRun?.();
+  });
+
+  test('samples high-frequency live job success history instead of recording every run', async () => {
+    const { scheduler, refreshLiveMatchesJob, jobRunsRepo, auditLib } = await loadScheduler({
+      configOverrides: { jobRefreshLiveMatchesMs: 10 },
+    });
+
+    await scheduler.startScheduler();
+    await vi.advanceTimersByTimeAsync(15);
+
+    expect(refreshLiveMatchesJob).toHaveBeenCalledTimes(1);
+    expect(jobRunsRepo.recordJobRun).not.toHaveBeenCalledWith(expect.objectContaining({
+      jobName: 'refresh-live-matches',
+      status: 'success',
+    }));
+    expect(auditLib.audit).not.toHaveBeenCalledWith(expect.objectContaining({
+      action: 'JOB_REFRESH_LIVE_MATCHES',
+      outcome: 'SUCCESS',
+    }));
+
+    scheduler.stopScheduler();
   });
 });

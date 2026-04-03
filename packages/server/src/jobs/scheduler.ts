@@ -157,6 +157,14 @@ function safeNumber(value: string | undefined): number | null {
   return Number.isFinite(parsed) ? parsed : null;
 }
 
+const SUCCESS_LOG_SAMPLE_EVERY: Partial<Record<string, number>> = {
+  'refresh-live-matches': 20,
+  'check-live-trigger': 20,
+  'deliver-telegram-notifications': 20,
+  'health-watchdog': 20,
+  'integration-health': 20,
+};
+
 function normalizeHistorySummary(summary: Record<string, unknown> | null | undefined): Record<string, unknown> {
   return summary && typeof summary === 'object' && !Array.isArray(summary) ? summary : {};
 }
@@ -167,6 +175,16 @@ async function recordJobRunBestEffort(input: Parameters<typeof recordJobRun>[0])
   } catch (err) {
     console.error('[scheduler] Failed to persist job run history:', err);
   }
+}
+
+function shouldSampleSuccessLog(job: ManagedJob): boolean {
+  const sampleEvery = SUCCESS_LOG_SAMPLE_EVERY[job.name];
+  if (!sampleEvery || sampleEvery <= 1) return true;
+  return (job.runCount % sampleEvery) === 0;
+}
+
+function buildJobAuditAction(job: ManagedJob): string {
+  return `JOB_${job.name.toUpperCase().replace(/-/g, '_')}`;
 }
 
 function register(
@@ -419,31 +437,37 @@ async function runSingleJob(job: ManagedJob, scheduledAt: number): Promise<void>
     job.lastDurationMs = Date.now() - startTs;
     job.runCount++;
     await completeJobProgress(job.name, result, null);
-    await recordJobRunBestEffort({
-      jobName: job.name,
-      scheduledAt: new Date(scheduledAt).toISOString(),
-      startedAt: job.lastStartedAt ?? new Date(startTs).toISOString(),
-      completedAt,
-      status: 'success',
-      lockPolicy: job.lockPolicy,
-      degradedLocking: lock.degraded,
-      instanceId,
-      lagMs: job.lastLagMs,
-      durationMs: job.lastDurationMs,
-      summary,
-    });
-    audit({
-      category: 'JOB',
-      action: `JOB_${job.name.toUpperCase().replace(/-/g, '_')}`,
-      outcome: lock.degraded ? 'PARTIAL' : 'SUCCESS',
-      actor: 'scheduler',
-      duration_ms: job.lastDurationMs,
-      metadata: {
+    const shouldLogSuccess = shouldSampleSuccessLog(job);
+    if (shouldLogSuccess || lock.degraded) {
+      await recordJobRunBestEffort({
+        jobName: job.name,
+        scheduledAt: new Date(scheduledAt).toISOString(),
+        startedAt: job.lastStartedAt ?? new Date(startTs).toISOString(),
+        completedAt,
+        status: 'success',
+        lockPolicy: job.lockPolicy,
         degradedLocking: lock.degraded,
+        instanceId,
         lagMs: job.lastLagMs,
-        ...summary,
-      },
-    });
+        durationMs: job.lastDurationMs,
+        summary,
+      });
+    }
+    if (shouldLogSuccess || lock.degraded) {
+      audit({
+        category: 'JOB',
+        action: buildJobAuditAction(job),
+        outcome: lock.degraded ? 'PARTIAL' : 'SUCCESS',
+        actor: 'scheduler',
+        duration_ms: job.lastDurationMs,
+        metadata: {
+          degradedLocking: lock.degraded,
+          lagMs: job.lastLagMs,
+          sampled: !lock.degraded && !shouldLogSuccess ? true : undefined,
+          ...summary,
+        },
+      });
+    }
     console.log(`[scheduler] Job "${job.name}" completed (#${job.runCount})`, {
       degradedLocking: lock.degraded,
       lagMs: job.lastLagMs,
@@ -521,30 +545,33 @@ async function runConcurrentJob(job: ManagedJob, scheduledAt: number): Promise<v
     job.lastDurationMs = Date.now() - startTs;
     job.runCount++;
     await completeJobProgress(job.name, result, null);
-    await recordJobRunBestEffort({
-      jobName: job.name,
-      scheduledAt: new Date(scheduledAt).toISOString(),
-      startedAt: job.lastStartedAt ?? new Date(startTs).toISOString(),
-      completedAt,
-      status: 'success',
-      lockPolicy: job.lockPolicy,
-      degradedLocking: false,
-      instanceId,
-      lagMs: job.lastLagMs,
-      durationMs: job.lastDurationMs,
-      summary,
-    });
-    audit({
-      category: 'JOB',
-      action: `JOB_${job.name.toUpperCase().replace(/-/g, '_')}`,
-      outcome: 'SUCCESS',
-      actor: 'scheduler',
-      duration_ms: job.lastDurationMs,
-      metadata: {
+    const shouldLogSuccess = shouldSampleSuccessLog(job);
+    if (shouldLogSuccess) {
+      await recordJobRunBestEffort({
+        jobName: job.name,
+        scheduledAt: new Date(scheduledAt).toISOString(),
+        startedAt: job.lastStartedAt ?? new Date(startTs).toISOString(),
+        completedAt,
+        status: 'success',
+        lockPolicy: job.lockPolicy,
+        degradedLocking: false,
+        instanceId,
         lagMs: job.lastLagMs,
-        ...summary,
-      },
-    });
+        durationMs: job.lastDurationMs,
+        summary,
+      });
+      audit({
+        category: 'JOB',
+        action: buildJobAuditAction(job),
+        outcome: 'SUCCESS',
+        actor: 'scheduler',
+        duration_ms: job.lastDurationMs,
+        metadata: {
+          lagMs: job.lastLagMs,
+          ...summary,
+        },
+      });
+    }
     console.log(`[scheduler] Job "${job.name}" completed (#${job.runCount})`);
   } catch (err) {
     const completedAt = new Date().toISOString();
