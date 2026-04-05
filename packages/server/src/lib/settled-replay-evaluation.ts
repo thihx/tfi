@@ -13,6 +13,7 @@ export interface EvaluatedReplayCase {
   minuteBand: string;
   prematchStrength: string;
   evidenceMode: string;
+  marketAvailabilityBucket: string;
   shouldPush: boolean;
   actionable: boolean;
   canonicalMarket: string;
@@ -21,6 +22,10 @@ export interface EvaluatedReplayCase {
   settlementResult: FinalSettlementResult | 'unresolved' | null;
   directionalWin: boolean | null;
   replaySelection: string;
+  replayOdds: number | null;
+  replayStakePercent: number;
+  breakEvenRate: number | null;
+  replayPnl: number | null;
   originalBetMarket: string;
   originalResult: string;
 }
@@ -37,6 +42,11 @@ export interface ReplayCohortSummary {
   winCount: number;
   lossCount: number;
   accuracy: number;
+  avgOdds: number;
+  avgBreakEvenRate: number;
+  totalStaked: number;
+  totalPnl: number;
+  roi: number;
 }
 
 export interface SettledReplayVariantSummary {
@@ -53,15 +63,26 @@ export interface SettledReplayVariantSummary {
   winCount: number;
   lossCount: number;
   accuracy: number;
+  avgOdds: number;
+  avgBreakEvenRate: number;
+  totalStaked: number;
+  totalPnl: number;
+  roi: number;
   byMinuteBand: ReplayCohortSummary[];
   byScoreState: ReplayCohortSummary[];
   byPrematchStrength: ReplayCohortSummary[];
+  byEvidenceMode: ReplayCohortSummary[];
+  byMarketAvailability: ReplayCohortSummary[];
   marketCounts: Array<{ market: string; count: number }>;
 }
 
 function ratio(numerator: number, denominator: number): number {
   if (denominator <= 0) return 0;
   return Math.round((numerator / denominator) * 10000) / 10000;
+}
+
+function roundMetric(value: number): number {
+  return Math.round(value * 10000) / 10000;
 }
 
 export function getReplayMinuteBand(minute: number | null): string {
@@ -99,10 +120,20 @@ export function buildEvaluatedReplayCase(
   scenario: SettledReplayScenario,
   output: ReplayRunOutput,
   settlementResult: FinalSettlementResult | 'unresolved' | null,
+  replayOdds?: number | null,
+  replayStakePercent?: number | null,
+  replayPnl?: number | null,
+  marketAvailabilityBucket = 'unknown',
 ): EvaluatedReplayCase {
   const parsed = (output.result.debug?.parsed ?? {}) as Record<string, unknown>;
   const canonicalMarket = normalizeMarket(output.result.selection || '', String(parsed.bet_market || ''));
   const actionable = isActionableReplay(output, canonicalMarket);
+  const normalizedOdds = actionable && Number.isFinite(Number(replayOdds)) && Number(replayOdds) > 0
+    ? Number(replayOdds)
+    : null;
+  const normalizedStakePercent = actionable && Number.isFinite(Number(replayStakePercent)) && Number(replayStakePercent) > 0
+    ? Number(replayStakePercent)
+    : 0;
   const directionalWin = settlementResult === 'win' || settlementResult === 'half_win'
     ? true
     : settlementResult === 'loss' || settlementResult === 'half_loss'
@@ -119,6 +150,7 @@ export function buildEvaluatedReplayCase(
     minuteBand: getReplayMinuteBand(scenario.metadata.minute),
     prematchStrength: scenario.metadata.prematchStrength || 'unknown',
     evidenceMode: scenario.metadata.evidenceMode || 'unknown',
+    marketAvailabilityBucket,
     shouldPush: output.result.shouldPush,
     actionable,
     canonicalMarket,
@@ -127,6 +159,10 @@ export function buildEvaluatedReplayCase(
     settlementResult,
     directionalWin,
     replaySelection: output.result.selection || '',
+    replayOdds: normalizedOdds,
+    replayStakePercent: normalizedStakePercent,
+    breakEvenRate: normalizedOdds ? roundMetric(1 / normalizedOdds) : null,
+    replayPnl: actionable && replayPnl != null ? roundMetric(replayPnl) : null,
     originalBetMarket: scenario.metadata.originalBetMarket || '',
     originalResult: scenario.metadata.originalResult || '',
   };
@@ -140,6 +176,12 @@ function summarizeBucket(bucket: string, rows: EvaluatedReplayCase[]): ReplayCoh
   const settledDirectional = rows.filter((row) => row.actionable && row.directionalWin != null);
   const winCount = settledDirectional.filter((row) => row.directionalWin === true).length;
   const lossCount = settledDirectional.filter((row) => row.directionalWin === false).length;
+  const actionableRows = rows.filter((row) => row.actionable);
+  const actionableWithOdds = actionableRows.filter((row) => row.replayOdds != null);
+  const actionableWithBreakEven = actionableRows.filter((row) => row.breakEvenRate != null);
+  const actionableWithPnl = actionableRows.filter((row) => row.replayPnl != null);
+  const totalStaked = actionableRows.reduce((sum, row) => sum + (row.replayStakePercent || 0), 0);
+  const totalPnl = actionableWithPnl.reduce((sum, row) => sum + (row.replayPnl || 0), 0);
 
   return {
     bucket,
@@ -153,6 +195,17 @@ function summarizeBucket(bucket: string, rows: EvaluatedReplayCase[]): ReplayCoh
     winCount,
     lossCount,
     accuracy: ratio(winCount, winCount + lossCount),
+    avgOdds: ratio(
+      actionableWithOdds.reduce((sum, row) => sum + (row.replayOdds || 0), 0),
+      actionableWithOdds.length,
+    ),
+    avgBreakEvenRate: ratio(
+      actionableWithBreakEven.reduce((sum, row) => sum + (row.breakEvenRate || 0), 0),
+      actionableWithBreakEven.length,
+    ),
+    totalStaked: roundMetric(totalStaked),
+    totalPnl: roundMetric(totalPnl),
+    roi: ratio(totalPnl, totalStaked),
   };
 }
 
@@ -183,6 +236,11 @@ export function summarizeSettledReplayVariant(
   const settledDirectional = actionable.filter((row) => row.directionalWin != null);
   const winCount = settledDirectional.filter((row) => row.directionalWin === true).length;
   const lossCount = settledDirectional.filter((row) => row.directionalWin === false).length;
+  const actionableWithOdds = actionable.filter((row) => row.replayOdds != null);
+  const actionableWithBreakEven = actionable.filter((row) => row.breakEvenRate != null);
+  const actionableWithPnl = actionable.filter((row) => row.replayPnl != null);
+  const totalStaked = actionable.reduce((sum, row) => sum + (row.replayStakePercent || 0), 0);
+  const totalPnl = actionableWithPnl.reduce((sum, row) => sum + (row.replayPnl || 0), 0);
 
   const marketCounts = new Map<string, number>();
   for (const row of actionable) {
@@ -204,9 +262,22 @@ export function summarizeSettledReplayVariant(
     winCount,
     lossCount,
     accuracy: ratio(winCount, winCount + lossCount),
+    avgOdds: ratio(
+      actionableWithOdds.reduce((sum, row) => sum + (row.replayOdds || 0), 0),
+      actionableWithOdds.length,
+    ),
+    avgBreakEvenRate: ratio(
+      actionableWithBreakEven.reduce((sum, row) => sum + (row.breakEvenRate || 0), 0),
+      actionableWithBreakEven.length,
+    ),
+    totalStaked: roundMetric(totalStaked),
+    totalPnl: roundMetric(totalPnl),
+    roi: ratio(totalPnl, totalStaked),
     byMinuteBand: groupAndSummarize(rows, (row) => row.minuteBand),
     byScoreState: groupAndSummarize(rows, (row) => row.scoreState),
     byPrematchStrength: groupAndSummarize(rows, (row) => row.prematchStrength || 'unknown'),
+    byEvidenceMode: groupAndSummarize(rows, (row) => row.evidenceMode || 'unknown'),
+    byMarketAvailability: groupAndSummarize(rows, (row) => row.marketAvailabilityBucket || 'unknown'),
     marketCounts: [...marketCounts.entries()]
       .map(([market, count]) => ({ market, count }))
       .sort((a, b) => b.count - a.count || a.market.localeCompare(b.market)),

@@ -10,6 +10,8 @@ import { formatHalftimeParen, shouldShowHalftimeUnderScore } from '@/lib/utils/m
 import { DisciplineCardIcons } from '@/components/ui/MatchDisciplineCardIcons';
 import { StatusBadge } from '@/components/ui/StatusBadge';
 import { AiAnalysisPanel, type AiAnalysisPanelEntry } from '@/components/ui/AiAnalysisPanel';
+import { AskAiMatchDialog } from '@/components/ui/AskAiMatchDialog';
+import { AskAiMatchSplitControl } from '@/components/ui/AskAiMatchSplitControl';
 import { MatchCard } from '@/components/ui/MatchCard';
 import { WatchlistEditModal } from '@/components/ui/WatchlistEditModal';
 import { LIVE_STATUSES, PLACEHOLDER_HOME, PLACEHOLDER_AWAY } from '@/config/constants';
@@ -44,16 +46,6 @@ function EyeOffIcon() {
       <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94"/>
       <path d="M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19"/>
       <line x1="1" y1="1" x2="23" y2="23"/>
-    </svg>
-  );
-}
-
-function SparkleIcon() {
-  return (
-    <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor" aria-hidden style={{ display: 'block' }}>
-      <path d="M12 2l1.5 4.5L18 8l-4.5 1.5L12 14l-1.5-4.5L6 8l4.5-1.5L12 2z"/>
-      <path d="M19 14l.9 2.1 2.1.9-2.1.9-.9 2.1-.9-2.1-2.1-.9 2.1-.9.9-2.1z"/>
-      <path d="M5 17l.6 1.4L7 19l-1.4.6L5 21l-.6-1.4L3 19l1.4-.6L5 17z"/>
     </svg>
   );
 }
@@ -148,6 +140,7 @@ export function MatchesTab() {
   });
   const [viewMode, setViewMode] = useViewMode('viewMode:matches');
   const [scoutMatch, setScoutMatch] = useState<Match | null>(null);
+  const [askAiDialogMatch, setAskAiDialogMatch] = useState<Match | null>(null);
   const [lastAddedResultId, setLastAddedResultId] = useState<string | null>(null);
   const [favoriteLeagueIds, setFavoriteLeagueIds] = useState<number[]>([]);
   const [favoritePickerOpen, setFavoritePickerOpen] = useState(false);
@@ -393,6 +386,11 @@ export function MatchesTab() {
       map.get(key)!.count++;
     });
     return Array.from(map.values()).sort((a, b) => {
+      const la = leagues.find((l) => String(l.league_id) === a.id);
+      const lb = leagues.find((l) => String(l.league_id) === b.id);
+      const oa = la?.sort_order ?? 0;
+      const ob = lb?.sort_order ?? 0;
+      if (oa !== ob) return oa - ob;
       if (a.isTop !== b.isTop) return a.isTop ? -1 : 1;
       return b.count - a.count;
     });
@@ -404,8 +402,12 @@ export function MatchesTab() {
         id: league.league_id,
         displayName: getLeagueDisplayName(league.league_id, league.league_name || '', leagues),
         logo: league.logo,
+        sort_order: league.sort_order ?? 0,
       }))
-      .sort((a, b) => a.displayName.localeCompare(b.displayName))
+      .sort((a, b) => {
+        if (a.sort_order !== b.sort_order) return a.sort_order - b.sort_order;
+        return a.displayName.localeCompare(b.displayName);
+      })
   ), [favoriteLeagueOptions, leagues]);
 
   useEffect(() => {
@@ -697,32 +699,16 @@ export function MatchesTab() {
     });
   }, [watchlistMap, pendingRemoves, removeFromWatchlist, addToWatchlist, showToast]);
 
-  const askAi = useCallback(async (m: Match) => {
+  const executeAskAiPipeline = useCallback(async (m: Match, opts?: { question?: string }) => {
     const mid = String(m.match_id);
-    if (analyzingMatches.has(mid)) return; // Already analyzing this match
-
-    // If result already exists, scroll to it instead of re-calling AI
-    if (aiResults.has(mid)) {
-      const el = document.getElementById(`ai-result-${mid}`);
-      if (el) {
-        el.scrollIntoView({ behavior: 'smooth', block: 'start', inline: 'nearest' });
-        el.style.outline = '2px solid var(--primary)';
-        setTimeout(() => { el.style.outline = ''; }, 1500);
-      }
-      showToast(`${m.home_team} vs ${m.away_team} — showing cached result`, 'info');
-      return;
-    }
-
-    if (!watchlistMap.has(mid)) {
-      showToast('Add this match to Watchlist before using Ask AI', 'info');
-      return;
-    }
-
     setAnalyzingMatches((prev) => new Set(prev).add(mid));
     showToast(`Analyzing ${m.home_team} vs ${m.away_team}...`, 'info');
 
     try {
-      const matchResult = await analyzeMatchWithServerPipeline(config, mid);
+      const matchResult = await analyzeMatchWithServerPipeline(config, mid, {
+        question: opts?.question?.trim() || undefined,
+        history: [],
+      });
       if (matchResult) {
         const parsed = getParsedAiResult(matchResult);
         setAiResults((prev) => new Map(prev).set(mid, {
@@ -749,7 +735,52 @@ export function MatchesTab() {
     } finally {
       setAnalyzingMatches((prev) => { const s = new Set(prev); s.delete(mid); return s; });
     }
-  }, [analyzingMatches, aiResults, watchlistMap, config, showToast, setAiResults, setAnalyzingMatches]);
+  }, [config, showToast, setAiResults, setAnalyzingMatches]);
+
+  /** Primary: run analysis immediately, or scroll to cached result. */
+  const askAiQuick = useCallback((m: Match) => {
+    const mid = String(m.match_id);
+    if (analyzingMatches.has(mid)) return;
+
+    if (aiResults.has(mid)) {
+      const el = document.getElementById(`ai-result-${mid}`);
+      if (el) {
+        el.scrollIntoView({ behavior: 'smooth', block: 'start', inline: 'nearest' });
+        el.style.outline = '2px solid var(--primary)';
+        setTimeout(() => { el.style.outline = ''; }, 1500);
+      }
+      showToast(`${m.home_team} vs ${m.away_team} — showing cached result`, 'info');
+      return;
+    }
+
+    if (!watchlistMap.has(mid)) {
+      showToast('Add this match to Watchlist before using Ask AI', 'info');
+      return;
+    }
+
+    void executeAskAiPipeline(m);
+  }, [analyzingMatches, aiResults, watchlistMap, showToast, executeAskAiPipeline]);
+
+  /** Menu: open dialog to optionally steer the first run with a question. */
+  const askAiOpenQuestionDialog = useCallback((m: Match) => {
+    const mid = String(m.match_id);
+    if (analyzingMatches.has(mid)) return;
+    if (!watchlistMap.has(mid)) {
+      showToast('Add this match to Watchlist before using Ask AI', 'info');
+      return;
+    }
+    setAskAiDialogMatch(m);
+  }, [analyzingMatches, watchlistMap, showToast]);
+
+  const handleAskAiDialogSubmit = useCallback(async (question: string) => {
+    if (!askAiDialogMatch) return;
+    const m = askAiDialogMatch;
+    try {
+      await executeAskAiPipeline(m, { question });
+    } finally {
+      setAskAiDialogMatch(null);
+    }
+  }, [askAiDialogMatch, executeAskAiPipeline]);
 
   const askAiFollowUp = useCallback(async (
     entry: AiAnalysisPanelEntry,
@@ -1075,13 +1106,17 @@ export function MatchesTab() {
                               : { label: '+ Watch', icon: <EyeIcon />, title: 'Watch this match', onClick: (match: Match) => quickAdd(match), variant: 'primary' as const },
                         ]),
                     {
-                      label: analyzingMatches.has(String(m.match_id)) ? 'Analyzing…' : aiResults.has(String(m.match_id)) ? 'View Result' : 'Ask AI',
-                      icon: aiResults.has(String(m.match_id)) ? <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg> : <SparkleIcon />,
-                      title: !watchlistMap.has(String(m.match_id)) ? 'Add to Watchlist to use Ask AI' : aiResults.has(String(m.match_id)) ? 'View AI result' : 'Ask AI for analysis',
-                      onClick: (match: Match) => askAi(match),
-                      variant: aiResults.has(String(m.match_id)) ? 'success' as const : 'secondary' as const,
-                      loading: analyzingMatches.has(String(m.match_id)),
-                      disabled: analyzingMatches.has(String(m.match_id)) || !watchlistMap.has(String(m.match_id)),
+                      label: 'Ask AI',
+                      render: () => (
+                        <AskAiMatchSplitControl
+                          variant="card"
+                          hasResult={aiResults.has(String(m.match_id))}
+                          isAnalyzing={analyzingMatches.has(String(m.match_id))}
+                          isWatched={watchlistMap.has(String(m.match_id))}
+                          onQuick={() => askAiQuick(m)}
+                          onOpenQuestion={() => askAiOpenQuestionDialog(m)}
+                        />
+                      ),
                     },
                   ]}
                 />
@@ -1145,7 +1180,8 @@ export function MatchesTab() {
                     onQuickAdd={() => quickAdd(m)}
                     onQuickRemove={() => quickRemove(m)}
                     onToggleSelect={() => toggleSelect(String(m.match_id), watchlistMap.has(String(m.match_id)))}
-                    onAskAi={() => askAi(m)}
+                    onAskAiQuick={() => askAiQuick(m)}
+                    onAskAiOpenQuestion={() => askAiOpenQuestionDialog(m)}
                     onEdit={() => { const entry = watchlistMap.get(String(m.match_id)); if (entry) setEditItem(entry); }}
                     onDoubleClick={() => setScoutMatch(m)}
                   />
@@ -1164,6 +1200,14 @@ export function MatchesTab() {
           style={{ height: 1, width: '100%', overflow: 'hidden', pointerEvents: 'none' }}
         />
       )}
+
+      <AskAiMatchDialog
+        open={askAiDialogMatch != null}
+        match={askAiDialogMatch}
+        isRunning={askAiDialogMatch != null && analyzingMatches.has(String(askAiDialogMatch.match_id))}
+        onClose={() => setAskAiDialogMatch(null)}
+        onSubmit={(q) => { void handleAskAiDialogSubmit(q); }}
+      />
 
       <WatchlistEditModal
         key={editItem ? String(editItem.match_id) : 'watchlist-edit-modal'}
@@ -1324,12 +1368,13 @@ interface MatchRowProps {
   onQuickAdd: () => void;
   onQuickRemove: () => void;
   onToggleSelect: () => void;
-  onAskAi: () => void;
+  onAskAiQuick: () => void;
+  onAskAiOpenQuestion: () => void;
   onEdit: () => void;
   onDoubleClick: () => void;
 }
 
-function MatchRow({ match, isWatched, isPending, isPendingRemove, isSelected, isAnalyzing, hasResult, leagues, flashMap, onQuickAdd, onQuickRemove, onToggleSelect, onAskAi, onEdit, onDoubleClick }: MatchRowProps) {
+function MatchRow({ match, isWatched, isPending, isPendingRemove, isSelected, isAnalyzing, hasResult, leagues, flashMap, onQuickAdd, onQuickRemove, onToggleSelect, onAskAiQuick, onAskAiOpenQuestion, onEdit, onDoubleClick }: MatchRowProps) {
   const [watchHovered, setWatchHovered] = React.useState(false);
   const isPlaying = PLAYING_STATUSES.has(match.status);
   const isFinished = FINISHED_STATUSES.has(match.status);
@@ -1451,14 +1496,14 @@ function MatchRow({ match, isWatched, isPending, isPendingRemove, isSelected, is
               <EyeIcon />
             </button>
           )}
-          <button className={`btn ${hasResult ? 'btn-success' : 'btn-secondary'} btn-sm action-icon-btn`} onClick={onAskAi} disabled={isAnalyzing || !isWatched} title={!isWatched ? 'Add this match to Watchlist to use Ask AI' : hasResult ? 'View cached result' : 'Ask AI for analysis'}>
-            {isAnalyzing
-              ? <span className="inline-spinner" style={{ width: '14px', height: '14px' }} />
-              : hasResult
-                ? <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
-                : <SparkleIcon />
-            }
-          </button>
+          <AskAiMatchSplitControl
+            variant="table"
+            hasResult={hasResult}
+            isAnalyzing={isAnalyzing}
+            isWatched={isWatched}
+            onQuick={onAskAiQuick}
+            onOpenQuestion={onAskAiOpenQuestion}
+          />
         </div>
       </td>
     </tr>

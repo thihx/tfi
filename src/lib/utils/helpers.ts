@@ -151,8 +151,14 @@ export function normalizeToISO(dateStr: string | undefined | null): string | nul
   return null;
 }
 
+/** Resolved label: admin override or provider name. */
+export function getLeagueEffectiveName(league: Pick<League, 'league_name' | 'display_name'>): string {
+  const o = league.display_name?.trim();
+  return o || league.league_name || '';
+}
+
 /**
- * Get league display name with country prefix
+ * Get league display name with country prefix (uses `display_name` when set).
  */
 export function getLeagueDisplayName(
   leagueId: number | string | undefined,
@@ -164,10 +170,11 @@ export function getLeagueDisplayName(
   if (isNaN(searchId)) return leagueName || '';
 
   const league = leagues.find((l) => parseInt(String(l.league_id)) === searchId);
+  const namePart = league ? getLeagueEffectiveName(league) : (leagueName || '');
   if (league?.country) {
-    return `${league.country.toUpperCase()} - ${leagueName || league.league_name || ''}`;
+    return `${league.country.toUpperCase()} - ${namePart}`;
   }
-  return leagueName || '';
+  return namePart;
 }
 
 /**

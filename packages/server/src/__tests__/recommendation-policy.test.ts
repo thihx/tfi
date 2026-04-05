@@ -217,4 +217,55 @@ describe('applyRecommendationPolicy', () => {
     expect(result.blocked).toBe(false);
     expect(result.warnings).not.toContain('POLICY_BLOCK_1X2_HOME_PRE55_V8B');
   });
+
+  test('v8d allows 1x2_home from minute 35 onward', () => {
+    const result = applyRecommendationPolicy({
+      selection: 'Home Win @2.05',
+      betMarket: '1x2_home',
+      minute: 36,
+      score: '0-0',
+      odds: 2.05,
+      confidence: 7,
+      valuePercent: 8,
+      stakePercent: 3,
+      promptVersion: 'v8-market-balance-followup-d',
+    });
+
+    expect(result.blocked).toBe(false);
+    expect(result.warnings).not.toContain('POLICY_BLOCK_1X2_HOME_PRE35_V8D');
+  });
+
+  test('v8d still blocks 1x2_home before minute 35', () => {
+    const result = applyRecommendationPolicy({
+      selection: 'Home Win @2.05',
+      betMarket: '1x2_home',
+      minute: 34,
+      score: '0-0',
+      odds: 2.05,
+      confidence: 7,
+      valuePercent: 8,
+      stakePercent: 3,
+      promptVersion: 'v8-market-balance-followup-d',
+    });
+
+    expect(result.blocked).toBe(true);
+    expect(result.warnings).toContain('POLICY_BLOCK_1X2_HOME_PRE35_V8D');
+  });
+
+  test('v8d blocks goals under in 45-59 two-plus-margin states', () => {
+    const result = applyRecommendationPolicy({
+      selection: 'Under 4.25 Goals @1.88',
+      betMarket: 'under_4.25',
+      minute: 52,
+      score: '3-1',
+      odds: 1.88,
+      confidence: 6,
+      valuePercent: 7,
+      stakePercent: 3,
+      promptVersion: 'v8-market-balance-followup-d',
+    });
+
+    expect(result.blocked).toBe(true);
+    expect(result.warnings).toContain('POLICY_BLOCK_GOALS_UNDER_45_59_TWO_PLUS_MARGIN_V8D');
+  });
 });

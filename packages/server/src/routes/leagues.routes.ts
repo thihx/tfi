@@ -144,18 +144,42 @@ export async function leagueRoutes(app: FastifyInstance) {
   app.get('/api/leagues/init', async (req: FastifyRequest, reply: FastifyReply) => {
     const user = requireCurrentUser(req, reply);
     if (!user) return;
-    const [leagues, favoriteTeams, teamProfiles, profileCoverage] = await Promise.all([
+    const [leagues, favoriteTeams, profiledIdSet] = await Promise.all([
       getAllLeaguesCached(),
       favoriteTeamsRepo.getFavoriteTeams(user.userId),
-      teamProfilesRepo.getAllTeamProfiles(),
-      getTopLeagueProfileCoverage(),
+      teamProfilesRepo.getTeamIdsWithProfile(),
     ]);
     return {
       leagues,
       favoriteTeamIds: favoriteTeams.map((f) => f.team_id),
-      profiledTeamIds: teamProfiles.map((p) => p.team_id),
-      profileCoverage,
+      profiledTeamIds: Array.from(profiledIdSet),
     };
+  });
+
+  /** Static path must be registered before `/api/leagues/:id` so it is not captured as an ID. */
+  app.get('/api/leagues/profile-coverage', async (req: FastifyRequest, reply: FastifyReply) => {
+    const user = requireCurrentUser(req, reply);
+    if (!user) return;
+    return getTopLeagueProfileCoverage();
+  });
+
+  /** Register before any `/api/leagues/:id` route so `reorder` is never treated as an `:id`. */
+  app.put<{ Body: { ordered_ids: number[] } }>('/api/leagues/reorder', async (req, reply) => {
+    const raw = req.body?.ordered_ids;
+    if (!Array.isArray(raw) || raw.length === 0) {
+      return reply.code(400).send({ error: 'ordered_ids must be a non-empty array of integers' });
+    }
+    const ids: number[] = [];
+    for (const x of raw) {
+      const n = typeof x === 'number' ? x : Number(String(x));
+      if (!Number.isInteger(n)) {
+        return reply.code(400).send({ error: 'ordered_ids must be a non-empty array of integers' });
+      }
+      ids.push(n);
+    }
+    const updated = await repo.reorderLeagues(ids);
+    void invalidateActiveLeaguesCache();
+    return { updated };
   });
 
   app.get('/api/leagues/active', async () => {
@@ -260,6 +284,24 @@ export async function leagueRoutes(app: FastifyInstance) {
       const count = await repo.bulkSetTopLeague(req.body.ids, req.body.top_league);
       void invalidateActiveLeaguesCache();
       return { updated: count };
+    },
+  );
+
+  app.put<{ Params: { id: string }; Body: { display_name?: string | null } }>(
+    '/api/leagues/:id/display-name',
+    async (req, reply) => {
+      const id = Number(req.params.id);
+      if (Number.isNaN(id)) return reply.code(400).send({ error: 'Invalid league ID' });
+      const body = req.body as { display_name?: unknown } | undefined;
+      if (body == null || !('display_name' in body)) {
+        return reply.code(400).send({ error: 'Body must include display_name (string or null to clear)' });
+      }
+      const raw = body.display_name;
+      const displayName = raw === null || raw === '' ? null : String(raw).trim() || null;
+      const ok = await repo.updateLeagueDisplayName(id, displayName);
+      if (!ok) return reply.code(404).send({ error: 'League not found' });
+      void invalidateActiveLeaguesCache();
+      return { league_id: id, display_name: displayName };
     },
   );
 

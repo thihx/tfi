@@ -112,17 +112,16 @@ describe('RecommendationCard', () => {
     // no error
   });
 
-  it('shows LIVE badge and score when minute is set', () => {
+  it('shows score and minute when live (minute is set)', () => {
     const rec: Recommendation = { ...BASE, minute: 43, score: '1-0' };
     render(<RecommendationCard rec={rec} />);
-    expect(screen.getByText('LIVE')).toBeInTheDocument();
     expect(screen.getByText('1-0')).toBeInTheDocument();
     expect(screen.getByText("43'")).toBeInTheDocument();
   });
 
-  it('does not show LIVE badge when minute is null', () => {
+  it('does not show score row when minute is null', () => {
     render(<RecommendationCard rec={{ ...BASE, minute: null }} />);
-    expect(screen.queryByText('LIVE')).not.toBeInTheDocument();
+    expect(screen.queryByText('1-0')).not.toBeInTheDocument();
   });
 
   it('shows ft_score and actual_outcome in footer', () => {

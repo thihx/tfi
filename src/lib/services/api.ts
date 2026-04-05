@@ -540,9 +540,12 @@ export async function fetchLeaguesInitData(config: AppConfig): Promise<{
   leagues: League[];
   favoriteTeamIds: string[];
   profiledTeamIds: string[];
-  profileCoverage: TopLeagueProfileCoverage;
 }> {
   return pgFetch(config, '/api/leagues/init');
+}
+
+export async function fetchLeaguesProfileCoverage(config: AppConfig): Promise<TopLeagueProfileCoverage> {
+  return pgFetch(config, '/api/leagues/profile-coverage');
 }
 
 export async function fetchLeagueFixtures(
@@ -574,6 +577,18 @@ export async function toggleLeagueTopLeague(config: AppConfig, leagueId: number,
 
 export async function bulkSetTopLeague(config: AppConfig, ids: number[], topLeague: boolean): Promise<{ updated: number }> {
   return pgPost<{ updated: number }>(config, '/api/leagues/bulk-top-league', { ids, top_league: topLeague });
+}
+
+export async function updateLeagueDisplayName(
+  config: AppConfig,
+  leagueId: number,
+  displayName: string | null,
+): Promise<{ league_id: number; display_name: string | null }> {
+  return pgPut(config, `/api/leagues/${leagueId}/display-name`, { display_name: displayName });
+}
+
+export async function reorderLeaguesCatalog(config: AppConfig, orderedIds: number[]): Promise<{ updated: number }> {
+  return pgPut(config, '/api/leagues/reorder', { ordered_ids: orderedIds });
 }
 
 export async function fetchLeagueProfiles(config: AppConfig): Promise<LeagueProfile[]> {

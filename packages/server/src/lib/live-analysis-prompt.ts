@@ -15,10 +15,10 @@ export type PromptEvidenceMode =
   | 'events_only_degraded'
   | 'low_evidence';
 
-export const LIVE_ANALYSIS_PROMPT_VERSIONS = ['v4-evidence-hardened', 'v5-compact-a', 'v6-betting-discipline-a', 'v6-betting-discipline-b', 'v6-betting-discipline-c', 'v7-profile-overlay-discipline-a', 'v8-market-balance-followup-a', 'v8-market-balance-followup-b'] as const;
+export const LIVE_ANALYSIS_PROMPT_VERSIONS = ['v4-evidence-hardened', 'v5-compact-a', 'v6-betting-discipline-a', 'v6-betting-discipline-b', 'v6-betting-discipline-c', 'v7-profile-overlay-discipline-a', 'v8-market-balance-followup-a', 'v8-market-balance-followup-b', 'v8-market-balance-followup-c', 'v8-market-balance-followup-d'] as const;
 export type LiveAnalysisPromptVersion = (typeof LIVE_ANALYSIS_PROMPT_VERSIONS)[number];
 export const LIVE_ANALYSIS_PROMPT_VERSION = 'v4-evidence-hardened';
-export const LIVE_ANALYSIS_PROMPT_CANDIDATE_VERSION = 'v8-market-balance-followup-b';
+export const LIVE_ANALYSIS_PROMPT_CANDIDATE_VERSION = 'v8-market-balance-followup-d';
 
 export function isLiveAnalysisPromptVersion(value: string): value is LiveAnalysisPromptVersion {
   return (LIVE_ANALYSIS_PROMPT_VERSIONS as readonly string[]).includes(value);
@@ -1152,7 +1152,10 @@ function isBettingDisciplinePromptVersion(promptVersion: LiveAnalysisPromptVersi
 }
 
 function isV8PromptVersion(promptVersion: LiveAnalysisPromptVersion): boolean {
-  return promptVersion === 'v8-market-balance-followup-a' || promptVersion === 'v8-market-balance-followup-b';
+  return promptVersion === 'v8-market-balance-followup-a'
+    || promptVersion === 'v8-market-balance-followup-b'
+    || promptVersion === 'v8-market-balance-followup-c'
+    || promptVersion === 'v8-market-balance-followup-d';
 }
 
 function readProfileRecord(profile: Record<string, unknown> | null | undefined): Record<string, unknown> | null {
@@ -1282,7 +1285,10 @@ ${historyLines.length > 0 ? `FOLLOW_UP_HISTORY:\n${historyLines.join('\n')}\n` :
 }
 
 function buildV8MarketBalanceSectionCompact(promptVersion: LiveAnalysisPromptVersion): string {
-  const v8bExtraRules = promptVersion === 'v8-market-balance-followup-b'
+  const isV8b = promptVersion === 'v8-market-balance-followup-b';
+  const isV8c = promptVersion === 'v8-market-balance-followup-c';
+  const isV8d = promptVersion === 'v8-market-balance-followup-d';
+  const v8bExtraRules = (isV8b || isV8c)
     ? `- Minute 30-59 is an anti-mechanical-under zone. In this band, do NOT back goals_under unless live suppression is genuinely strong, the trailing/chasing risk is limited, and priors are aligned or at least neutral.
 - From minute 30-59, a goals_under push is exceptional-only. A generic trio of slow tempo + low shots + low xG is NOT enough by itself.
 - If your goals_under reasoning could be copied into many unrelated matches without changing the wording much, return no bet instead.
@@ -1292,6 +1298,32 @@ function buildV8MarketBalanceSectionCompact(promptVersion: LiveAnalysisPromptVer
 - In 45-59, if home-favourite control is live and 1X2_home is available at a playable price (usually >= 1.55) or asian_handicap_home is available, actively prefer that thesis over generic goals_under.
 `
     : '';
+  const v8cExtraRules = isV8c
+    ? `- V8C PRIOR USE RULE: in minute 30-59, a totals bet must explicitly cite at least one concrete league/team prior metric or expert feature as confirming, neutral, or contradictory. If you cannot name one, default should_push=false unless live evidence is overwhelming.
+- V8C PRIOR CONTRADICTION RULE: if league/team priors lean high-event or comeback-prone and your thesis is goals_under, treat that as contradictory unless live suppression is truly dominant.
+- V8C TWO-PLUS-MARGIN RULE: in 45-59 with a two-plus goal margin, do NOT back goals_under just because the remaining line still looks high. You need a real game-kill script plus weak trailing threat; otherwise choose no bet.
+- V8C LEVEL/ONE-GOAL RULE: in 45-59, if the score is level or a one-goal game and 1X2/AH is unavailable or not playable, that is still NOT enough to justify goals_under. Missing better markets does not create edge.
+- V8C OVER CHECK RULE: if priors are high-event and live dominance is one-sided, consider whether a modest goals_over line is better than forcing a defensive read.
+`
+    : '';
+
+  if (isV8d) {
+    return `V8 MARKET-BALANCE DISCIPLINE:
+- Goals Under is NOT the default fallback just because tempo is slow, shots are low, or xG is modest.
+- Before minute 60, generic low-event evidence alone is insufficient for a goals_under push.
+- For goals_under, explicitly decide whether priors are aligned, neutral, or contradictory. If contradictory and live suppression is not overwhelming, return no bet.
+- If live evidence suggests favourite control, territory, or class edge and priors agree, actively consider 1X2_home or asian_handicap_home before falling back to goals_under.
+- If no market has a clean edge, return no bet. Do NOT use goals_under as a generic escape hatch.
+- V8D OPEN-1X2 WINDOW RULE: from minute 35 onward, 1X2_home becomes eligible again when the home-side control thesis is live, the price is actually playable, and the edge is better explained by team/class control than by generic suppression.
+- V8D OPEN-AH WINDOW RULE: in minute 30-44, if asian_handicap_home is available at a playable price and the game-state favours controlled home superiority, prefer AH over a mechanical goals_under read.
+- V8D 30-44 REBALANCE RULE: in minute 30-44, only use goals_under when the match-specific suppressive script is stronger than any playable 1X2_home/AH thesis. If 1X2_home/AH is playable and matches the live pattern, do not default back to Under.
+- V8D 45-59 SHUT-OFF RULE: in minute 45-59, goals_under is exceptional-only. If the score is level or a one-goal game, missing 1X2/AH value is NOT a reason to force Under.
+- V8D TWO-PLUS-MARGIN BLOCK: in 45-59 with a two-plus goal margin, treat goals_under as presumptively unsafe. Do not recommend it unless the trailing side is nearly dead, the leader is clearly game-killing, and you can state why a comeback script is highly unlikely.
+- V8D MARKET REALISM RULE: if 1X2_home exists only at a clearly cheap or distorted price, do not force it. In that case prefer no bet rather than rotating back into goals_under.
+- V8D PRIOR USE RULE: priors are confirm-or-contradict only. They must help you decide whether a live thesis is structurally supported, but they must never replace live evidence.
+
+`;
+  }
 
   return `V8 MARKET-BALANCE DISCIPLINE:
 - Goals Under is NOT the default fallback just because tempo is slow, shots are low, or xG is modest.
@@ -1299,7 +1331,7 @@ function buildV8MarketBalanceSectionCompact(promptVersion: LiveAnalysisPromptVer
 - For goals_under, explicitly decide whether priors are aligned, neutral, or contradictory. If contradictory and live suppression is not overwhelming, return no bet.
 - If live evidence suggests favourite control, territory, or class edge and priors agree, actively consider 1X2_home or asian_handicap_home before falling back to goals_under.
 - If no market has a clean edge, return no bet. Do NOT use goals_under as a generic escape hatch.
-${v8bExtraRules}
+${v8bExtraRules}${v8cExtraRules}
 
 `;
 }
@@ -1592,7 +1624,7 @@ export function buildLiveAnalysisPrompt(
     )
       ? `- Balanced totals are not enough. In 1-1 or 0-0 states around minute 55-70, if possession, shots, and shots on target are broadly even and there is no clear pressure asymmetry, default should_push=false.
 - Symmetric prices around 1.90 on both sides usually mean the market sees a thin edge. Do not force an Over or Under just because one more goal would cash.
-${promptVersion === 'v8-market-balance-followup-b' ? '- In minute 30-59, treat level or one-goal states as a danger zone for generic totals picks. If the edge is not clearly asymmetrical, default should_push=false rather than forcing an Under.\n' : ''}
+${promptVersion === 'v8-market-balance-followup-b' || promptVersion === 'v8-market-balance-followup-c' || promptVersion === 'v8-market-balance-followup-d' ? '- In minute 30-59, treat level or one-goal states as a danger zone for generic totals picks. If the edge is not clearly asymmetrical, default should_push=false rather than forcing an Under.\n' : ''}${promptVersion === 'v8-market-balance-followup-c' ? '- In minute 30-59, if a totals thesis cannot name a concrete confirming prior, treat that as missing confirmation rather than as neutral support.\n' : ''}
 `
       : '';
     const profileOverlayDisciplineSection = buildProfileAndOverlayDisciplineSectionCompact(data, promptVersion);

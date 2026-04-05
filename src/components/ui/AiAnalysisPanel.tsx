@@ -1,4 +1,13 @@
-import { useMemo, useState, type ReactNode } from 'react';
+import {
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+  type CSSProperties,
+  type KeyboardEvent,
+  type ReactNode,
+} from 'react';
 
 import type {
   AskAiFollowUpMessage,
@@ -6,6 +15,9 @@ import type {
   ServerParsedAiResult,
 } from '@/features/live-monitor/services/server-monitor.service';
 import { getParsedAiResult } from '@/features/live-monitor/services/server-monitor.service';
+import { useAuth } from '@/hooks/useAuth';
+import type { AuthUser } from '@/lib/services/auth';
+import { UserAvatar } from '@/components/ui/UserAvatar';
 
 const DECISION_META = {
   ai_push: { label: 'AI Push', color: '#fff', bg: 'var(--green)' },
@@ -148,32 +160,122 @@ function MinuteBadge({ minute, status }: { minute: number | string; status?: str
   );
 }
 
-function FollowUpBubble({ message }: { message: AskAiFollowUpMessage }) {
-  const isUser = message.role === 'user';
+/** Same sparkle marks as the Ask AI control on Matches (SparkleIcon). */
+function AskAiSparkleIcon({ size = 15 }: { size?: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="currentColor" aria-hidden style={{ display: 'block' }}>
+      <path d="M12 2l1.5 4.5L18 8l-4.5 1.5L12 14l-1.5-4.5L6 8l4.5-1.5L12 2z" />
+      <path d="M19 14l.9 2.1 2.1.9-2.1.9-.9 2.1-.9-2.1-2.1-.9 2.1-.9.9-2.1z" />
+      <path d="M5 17l.6 1.4L7 19l-1.4.6L5 21l-.6-1.4L3 19l1.4-.6L5 17z" />
+    </svg>
+  );
+}
+
+/** Paper-plane style send icon (idle submit). */
+function FollowUpSendIcon({ size = 18 }: { size?: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+      <line x1="22" y1="2" x2="11" y2="13" />
+      <path d="M22 2L15 22l-4-9-9-4L22 2z" />
+    </svg>
+  );
+}
+
+function FollowUpThinkingBubble() {
   return (
     <div
+      className="ai-followup-bubble"
+      role="status"
+      aria-live="polite"
+      aria-label="AI is thinking"
       style={{
-        alignSelf: isUser ? 'flex-end' : 'flex-start',
+        alignSelf: 'flex-start',
         maxWidth: '100%',
-        padding: '10px 12px',
-        borderRadius: '12px',
-        background: isUser ? 'rgba(59,130,246,0.08)' : '#fff',
-        border: `1px solid ${isUser ? 'rgba(59,130,246,0.2)' : 'var(--gray-200)'}`,
+        padding: '11px 14px',
+        borderRadius: '10px',
+        background: '#fff',
+        border: '1px dashed var(--gray-300)',
       }}
     >
+      <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
+        <span className="ai-followup-thinking-icon" style={{ flexShrink: 0, display: 'flex', color: 'var(--gray-600)' }}>
+          <AskAiSparkleIcon size={15} />
+        </span>
+        <span style={{ fontSize: '11px', color: 'var(--gray-500)', fontStyle: 'italic' }}>Thinking…</span>
+      </div>
+    </div>
+  );
+}
+
+function FollowUpBubble({ message, user }: { message: AskAiFollowUpMessage; user: AuthUser | null }) {
+  const isUser = message.role === 'user';
+  if (isUser) {
+    return (
       <div
+        className="ai-followup-bubble"
         style={{
-          fontSize: '10px',
-          fontWeight: 700,
-          color: 'var(--gray-400)',
-          textTransform: 'uppercase',
-          marginBottom: '4px',
+          alignSelf: 'flex-end',
+          width: 'fit-content',
+          maxWidth: 'min(100%, 22rem)',
+          padding: '11px 14px',
+          borderRadius: '10px',
+          background: 'rgba(59,130,246,0.08)',
+          border: '1px solid rgba(59,130,246,0.2)',
         }}
       >
-        {isUser ? 'You' : 'AI Follow-up'}
+        <div style={{ display: 'flex', gap: '10px', alignItems: 'flex-start', flexDirection: 'row' }}>
+          <UserAvatar user={user} size={22} />
+          <div
+            style={{
+              fontSize: '11px',
+              lineHeight: 1.55,
+              color: 'var(--gray-700)',
+              whiteSpace: 'pre-wrap',
+              wordBreak: 'break-word',
+              flex: 1,
+              minWidth: 0,
+              textAlign: 'left',
+            }}
+          >
+            {message.text}
+          </div>
+        </div>
       </div>
-      <div style={{ fontSize: '12px', lineHeight: 1.55, color: 'var(--gray-700)', whiteSpace: 'pre-wrap' }}>
-        {message.text}
+    );
+  }
+  return (
+    <div
+      className="ai-followup-bubble"
+      style={{
+        alignSelf: 'flex-start',
+        maxWidth: '100%',
+        padding: '11px 14px',
+        borderRadius: '10px',
+        background: '#fff',
+        border: '1px solid var(--gray-200)',
+      }}
+    >
+      <div style={{ display: 'flex', gap: '10px', alignItems: 'flex-start' }}>
+        <span
+          style={{ flexShrink: 0, display: 'flex', color: 'var(--gray-600)', marginTop: '2px' }}
+          title="AI"
+          aria-label="AI"
+        >
+          <AskAiSparkleIcon size={15} />
+        </span>
+        <div
+          style={{
+            fontSize: '11px',
+            lineHeight: 1.55,
+            color: 'var(--gray-700)',
+            whiteSpace: 'pre-wrap',
+            wordBreak: 'break-word',
+            flex: 1,
+            minWidth: 0,
+          }}
+        >
+          {message.text}
+        </div>
       </div>
     </div>
   );
@@ -192,7 +294,26 @@ interface Props {
   onFollowUp?: (question: string, history: AskAiFollowUpMessage[]) => Promise<void>;
 }
 
+/** Max length for match follow-up chat input (UI + client-side cap). */
+const FOLLOW_UP_MAX_CHARS = 100;
+
+const PANEL_ICON_BTN: CSSProperties = {
+  background: 'none',
+  border: 'none',
+  cursor: 'pointer',
+  width: '24px',
+  height: '24px',
+  borderRadius: '50%',
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+  fontSize: '18px',
+  lineHeight: 1,
+  color: 'var(--gray-400)',
+};
+
 export function AiAnalysisPanel({ entry, onClose, onFollowUp }: Props) {
+  const { user } = useAuth();
   const { result } = entry;
   const ai: ServerParsedAiResult | null = getParsedAiResult(result);
   const dbg = result.debug;
@@ -202,19 +323,68 @@ export function AiAnalysisPanel({ entry, onClose, onFollowUp }: Props) {
   const followUps = useMemo(() => entry.followUpMessages ?? [], [entry.followUpMessages]);
   const [followUpInput, setFollowUpInput] = useState('');
   const [sendingFollowUp, setSendingFollowUp] = useState(false);
+  const [optimisticUserText, setOptimisticUserText] = useState<string | null>(null);
+  const [expanded, setExpanded] = useState(true);
+  const followUpScrollRef = useRef<HTMLDivElement>(null);
 
   const canFollowUp = !!ai && result.success && typeof onFollowUp === 'function';
 
+  /** True when server history already contains this optimistic user + assistant pair. */
+  const hasMergedOptimistic = useMemo(() => {
+    if (!optimisticUserText) return true;
+    const n = followUps.length;
+    if (n < 2) return false;
+    const u = followUps[n - 2];
+    const a = followUps[n - 1];
+    return u?.role === 'user' && u.text === optimisticUserText && a?.role === 'assistant';
+  }, [followUps, optimisticUserText]);
+
+  const showPendingFollowUp = optimisticUserText != null && !hasMergedOptimistic;
+  const followUpInputLocked = sendingFollowUp || showPendingFollowUp;
+
+  useEffect(() => {
+    if (hasMergedOptimistic && optimisticUserText) {
+      setOptimisticUserText(null);
+    }
+  }, [hasMergedOptimistic, optimisticUserText]);
+
+  useEffect(() => {
+    setOptimisticUserText(null);
+    setFollowUpInput('');
+  }, [entry.matchId]);
+
+  useLayoutEffect(() => {
+    const el = followUpScrollRef.current;
+    if (!el) return;
+    const top = el.scrollHeight;
+    if (typeof el.scrollTo === 'function') {
+      el.scrollTo({ top, behavior: 'smooth' });
+    } else {
+      el.scrollTop = top;
+    }
+  }, [followUps.length, showPendingFollowUp]);
+
   const submitFollowUp = async () => {
     const question = followUpInput.trim();
-    if (!question || !onFollowUp) return;
+    if (!question || !onFollowUp || followUpInputLocked) return;
     setSendingFollowUp(true);
+    setOptimisticUserText(question);
+    setFollowUpInput('');
     try {
       await onFollowUp(question, followUps);
-      setFollowUpInput('');
+    } catch {
+      setFollowUpInput(question);
+      setOptimisticUserText(null);
     } finally {
       setSendingFollowUp(false);
     }
+  };
+
+  const onFollowUpKeyDown = (event: KeyboardEvent<HTMLInputElement>) => {
+    if (event.key !== 'Enter' || event.shiftKey) return;
+    if (event.nativeEvent.isComposing) return;
+    event.preventDefault();
+    void submitFollowUp();
   };
 
   return (
@@ -223,74 +393,78 @@ export function AiAnalysisPanel({ entry, onClose, onFollowUp }: Props) {
       className="ai-result-panel"
       style={{
         position: 'relative',
-        padding: '14px 40px 14px 16px',
         background: 'var(--gray-50)',
         border: '1px solid var(--gray-200)',
         borderRadius: '8px',
         display: 'flex',
         flexDirection: 'column',
-        gap: '10px',
+        gap: '12px',
       }}
     >
-      <button
-        onClick={onClose}
-        title="Close"
+      <div
         style={{
           position: 'absolute',
           top: '10px',
           right: '10px',
-          background: 'none',
-          border: 'none',
-          cursor: 'pointer',
-          width: '24px',
-          height: '24px',
-          borderRadius: '50%',
           display: 'flex',
           alignItems: 'center',
-          justifyContent: 'center',
-          fontSize: '18px',
-          lineHeight: 1,
-          color: 'var(--gray-400)',
+          gap: '4px',
         }}
       >
-        x
-      </button>
-
-      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap', minWidth: 0 }}>
-        <h4 style={{ margin: 0, fontSize: '13px', fontWeight: 700, color: 'var(--gray-800)', whiteSpace: 'nowrap' }}>
-          AI Analysis
-        </h4>
-        <span
-          style={{
-            fontSize: '13px',
-            color: 'var(--gray-600)',
-            overflow: 'hidden',
-            textOverflow: 'ellipsis',
-            whiteSpace: 'nowrap',
-          }}
+        <button
+          type="button"
+          onClick={() => setExpanded((v) => !v)}
+          title={expanded ? 'Collapse' : 'Expand'}
+          aria-expanded={expanded}
+          aria-label={expanded ? 'Collapse panel' : 'Expand panel'}
+          style={PANEL_ICON_BTN}
         >
-          {entry.matchDisplay}
-        </span>
-        {result.score ? (
-          <span
-            style={{
-              padding: '1px 8px',
-              borderRadius: '8px',
-              fontSize: '12px',
-              fontWeight: 700,
-              background: 'var(--gray-200)',
-              color: 'var(--gray-700)',
-              whiteSpace: 'nowrap',
-              letterSpacing: '1px',
-            }}
-          >
-            {result.score}
-          </span>
-        ) : null}
-        {result.minute != null ? <MinuteBadge minute={result.minute} status={result.status} /> : null}
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+            {expanded ? <path d="M6 15l6-6 6 6" /> : <path d="M6 9l6 6 6-6" />}
+          </svg>
+        </button>
+        <button type="button" onClick={onClose} title="Close" aria-label="Close panel" style={PANEL_ICON_BTN}>
+          x
+        </button>
       </div>
 
-      {ai ? (
+      <div className="ai-result-panel__inner">
+        <div className="ai-result-panel__header" style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap', minWidth: 0 }}>
+          <h4 style={{ margin: 0, fontSize: '13px', fontWeight: 700, color: 'var(--gray-800)', whiteSpace: 'nowrap' }}>
+            AI Analysis
+          </h4>
+          <span
+            style={{
+              fontSize: '13px',
+              color: 'var(--gray-600)',
+              overflow: 'hidden',
+              textOverflow: 'ellipsis',
+              whiteSpace: 'nowrap',
+            }}
+          >
+            {entry.matchDisplay}
+          </span>
+          {result.score ? (
+            <span
+              style={{
+                padding: '1px 8px',
+                borderRadius: '8px',
+                fontSize: '12px',
+                fontWeight: 700,
+                background: 'var(--gray-200)',
+                color: 'var(--gray-700)',
+                whiteSpace: 'nowrap',
+                letterSpacing: '1px',
+              }}
+            >
+              {result.score}
+            </span>
+          ) : null}
+          {result.minute != null ? <MinuteBadge minute={result.minute} status={result.status} /> : null}
+        </div>
+
+        {expanded ? (
+      ai ? (
         <>
           <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
             <DecisionBadge kind={result.decisionKind} />
@@ -335,132 +509,175 @@ export function AiAnalysisPanel({ entry, onClose, onFollowUp }: Props) {
             </div>
           ) : null}
 
-          {(ai.reasoning_vi || ai.reasoning_en) ? (
-            <p style={{ margin: 0, fontSize: '12px', color: 'var(--gray-700)', lineHeight: 1.5 }}>
-              <strong style={{ color: 'var(--gray-500)', marginRight: '4px' }}>Reasoning:</strong>
-              {ai.reasoning_vi || ai.reasoning_en}
-            </p>
+          {(ai.reasoning_vi || ai.reasoning_en || ai.condition_triggered_suggestion || (ai.warnings?.length ?? 0) > 0) ? (
+            <div className="ai-result-panel__prose-block">
+              {(ai.reasoning_vi || ai.reasoning_en) ? (
+                <p style={{ margin: 0, fontSize: '12px', color: 'var(--gray-700)' }}>
+                  <strong style={{ color: 'var(--gray-500)', marginRight: '4px' }}>Reasoning:</strong>
+                  {ai.reasoning_vi || ai.reasoning_en}
+                </p>
+              ) : null}
+
+              {ai.condition_triggered_suggestion ? (
+                <p style={{ margin: 0, fontSize: '12px', color: 'var(--gray-700)' }}>
+                  <strong style={{ color: 'var(--gray-500)', marginRight: '4px' }}>Suggestion:</strong>
+                  {ai.condition_triggered_suggestion}
+                </p>
+              ) : null}
+
+              {(ai.warnings?.length ?? 0) > 0 ? (
+                <p
+                style={{
+                  margin: 0,
+                  fontSize: '11px',
+                  color: 'var(--orange)',
+                  display: 'flex',
+                  alignItems: 'flex-start',
+                  gap: '8px',
+                }}
+                >
+                  <svg
+                    width="14"
+                    height="14"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    style={{ flexShrink: 0, marginTop: '1px' }}
+                  >
+                    <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" />
+                    <line x1="12" y1="9" x2="12" y2="13" />
+                    <line x1="12" y1="17" x2="12.01" y2="17" />
+                  </svg>
+                  <span style={{ lineHeight: 1.65 }}>{(ai.warnings ?? []).join(' | ')}</span>
+                </p>
+              ) : null}
+            </div>
           ) : null}
 
-          {ai.condition_triggered_suggestion ? (
-            <p style={{ margin: 0, fontSize: '12px', color: 'var(--gray-700)', lineHeight: 1.5 }}>
-              <strong style={{ color: 'var(--gray-500)', marginRight: '4px' }}>Suggestion:</strong>
-              {ai.condition_triggered_suggestion}
-            </p>
-          ) : null}
-
-          {(ai.warnings?.length ?? 0) > 0 ? (
-            <p
-              style={{
-                margin: 0,
-                fontSize: '11px',
-                color: 'var(--orange)',
-                lineHeight: 1.5,
-                display: 'flex',
-                alignItems: 'flex-start',
-                gap: '4px',
-              }}
-            >
-              <svg
-                width="14"
-                height="14"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                style={{ flexShrink: 0, marginTop: '1px' }}
-              >
-                <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" />
-                <line x1="12" y1="9" x2="12" y2="13" />
-                <line x1="12" y1="17" x2="12.01" y2="17" />
-              </svg>
-              {(ai.warnings ?? []).join(' | ')}
-            </p>
-          ) : null}
-
-          {followUps.length > 0 ? (
-            <div
-              style={{
-                display: 'flex',
-                flexDirection: 'column',
-                gap: '8px',
-                paddingTop: '8px',
-                borderTop: '1px solid var(--gray-200)',
-              }}
-            >
+          {(followUps.length > 0 || showPendingFollowUp) ? (
+            <div className="ai-result-panel__followup-sep">
               <div style={{ fontSize: '11px', fontWeight: 700, color: 'var(--gray-500)', textTransform: 'uppercase', letterSpacing: '0.4px' }}>
                 Match Follow-up
               </div>
-              {followUps.map((message, index) => (
-                <FollowUpBubble key={`${message.role}-${index}-${message.text.slice(0, 24)}`} message={message} />
-              ))}
+              <div className="ai-result-panel__chat-thread">
+                <div
+                  ref={followUpScrollRef}
+                  aria-busy={followUpInputLocked}
+                  style={{
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: '6px',
+                    maxHeight: 'min(200px, 35vh)',
+                    overflowY: 'auto',
+                    overflowX: 'hidden',
+                    paddingRight: '8px',
+                    paddingBottom: '6px',
+                    paddingLeft: '8px',
+                    boxSizing: 'border-box',
+                  }}
+                >
+                  {followUps.map((message, index) => (
+                    <FollowUpBubble key={`${message.role}-${index}-${message.text.slice(0, 24)}`} message={message} user={user} />
+                  ))}
+                  {showPendingFollowUp ? (
+                    <>
+                      <FollowUpBubble message={{ role: 'user', text: optimisticUserText! }} user={user} />
+                      <FollowUpThinkingBubble />
+                    </>
+                  ) : null}
+                </div>
+              </div>
             </div>
           ) : null}
 
           {canFollowUp ? (
             <div
+              className={['ai-result-panel__chat-compose', (followUps.length > 0 || showPendingFollowUp) ? null : 'ai-result-panel__followup-sep'].filter(Boolean).join(' ')}
               style={{
                 display: 'flex',
                 flexDirection: 'column',
                 gap: '8px',
-                paddingTop: '8px',
-                borderTop: '1px solid var(--gray-200)',
+                minWidth: 0,
               }}
             >
-              <div style={{ fontSize: '11px', fontWeight: 700, color: 'var(--gray-500)', textTransform: 'uppercase', letterSpacing: '0.4px' }}>
-                Ask follow-up about this match
-              </div>
-              <textarea
-                aria-label="Ask follow-up about this match"
-                value={followUpInput}
-                onChange={(event) => setFollowUpInput(event.target.value)}
-                rows={3}
-                placeholder="Ask about a market in this match, for example: Is Home -0.25 better than Under here?"
-                style={{
-                  width: '100%',
-                  resize: 'vertical',
-                  minHeight: '84px',
-                  borderRadius: '10px',
-                  border: '1px solid var(--gray-200)',
-                  padding: '10px 12px',
-                  fontSize: '12px',
-                  lineHeight: 1.5,
-                  fontFamily: 'inherit',
-                  background: '#fff',
-                }}
-                disabled={sendingFollowUp}
-              />
-              <div style={{ display: 'flex', justifyContent: 'space-between', gap: '10px', alignItems: 'center' }}>
-                <span style={{ fontSize: '11px', color: 'var(--gray-400)' }}>
-                  Follow-up stays grounded in the current match snapshot and does not save a new recommendation.
-                </span>
+              <div style={{ display: 'flex', gap: '10px', alignItems: 'stretch' }}>
+                <input
+                  type="text"
+                  aria-label="Follow-up question for this match"
+                  value={followUpInput}
+                  maxLength={FOLLOW_UP_MAX_CHARS}
+                  onChange={(event) => setFollowUpInput(event.target.value)}
+                  onKeyDown={onFollowUpKeyDown}
+                  placeholder="Question… Enter to send"
+                  autoComplete="off"
+                  style={{
+                    flex: 1,
+                    minWidth: 0,
+                    height: '36px',
+                    borderRadius: '8px',
+                    border: '1px solid var(--gray-200)',
+                    padding: '0 12px',
+                    fontSize: '12px',
+                    lineHeight: 1.4,
+                    fontFamily: 'inherit',
+                    background: followUpInputLocked ? 'var(--gray-100)' : '#fff',
+                    boxSizing: 'border-box',
+                    opacity: followUpInputLocked ? 0.85 : 1,
+                  }}
+                  disabled={followUpInputLocked}
+                />
                 <button
+                  type="button"
                   className="btn btn-secondary btn-sm"
+                  title={followUpInputLocked ? 'Waiting for AI…' : 'Send (Enter)'}
+                  aria-label={followUpInputLocked ? 'AI is replying' : 'Send follow-up'}
+                  aria-busy={followUpInputLocked}
                   onClick={() => void submitFollowUp()}
-                  disabled={sendingFollowUp || followUpInput.trim().length === 0}
+                  disabled={followUpInputLocked || followUpInput.trim().length === 0}
+                  style={{
+                    flexShrink: 0,
+                    alignSelf: 'stretch',
+                    minWidth: '40px',
+                    paddingLeft: '10px',
+                    paddingRight: '10px',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                  }}
                 >
-                  {sendingFollowUp ? 'Asking...' : 'Ask Follow-up'}
+                  {followUpInputLocked ? (
+                    <span className="ai-followup-thinking-icon" style={{ display: 'inline-flex', color: 'var(--gray-600)' }}>
+                      <AskAiSparkleIcon size={16} />
+                    </span>
+                  ) : (
+                    <span style={{ display: 'inline-flex', color: 'var(--gray-600)' }}>
+                      <FollowUpSendIcon size={18} />
+                    </span>
+                  )}
                 </button>
               </div>
             </div>
           ) : null}
         </>
       ) : result.error ? (
-        <p style={{ margin: 0, color: 'var(--red)', fontSize: '13px', display: 'flex', alignItems: 'center', gap: '4px' }}>
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-            <circle cx="12" cy="12" r="10" />
-            <line x1="15" y1="9" x2="9" y2="15" />
-            <line x1="9" y1="9" x2="15" y2="15" />
-          </svg>
-          {result.error}
-        </p>
+          <p style={{ margin: 0, color: 'var(--red)', fontSize: '13px', display: 'flex', alignItems: 'center', gap: '4px' }}>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <circle cx="12" cy="12" r="10" />
+              <line x1="15" y1="9" x2="9" y2="15" />
+              <line x1="9" y1="9" x2="15" y2="15" />
+            </svg>
+            {result.error}
+          </p>
       ) : (
-        <p style={{ margin: 0, color: 'var(--gray-500)', fontSize: '13px' }}>
-          Match was skipped by pipeline filters.
-        </p>
-      )}
+          <p style={{ margin: 0, color: 'var(--gray-500)', fontSize: '13px' }}>
+            Match was skipped by pipeline filters.
+          </p>
+      )
+        ) : null}
+      </div>
     </div>
   );
 }

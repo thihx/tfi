@@ -24,6 +24,7 @@ import {
   updateAdminUserSubscription,
   fetchCurrentSubscription,
   fetchLeaguesInitData,
+  fetchLeaguesProfileCoverage,
 } from '@/lib/services/api';
 
 const config = { apiUrl: 'http://localhost:4000' } as Parameters<typeof fetchBets>[0];
@@ -278,24 +279,11 @@ describe('AI performance API', () => {
     );
   });
 
-  test('fetchLeaguesInitData returns profile coverage summary', async () => {
+  test('fetchLeaguesInitData returns leagues and team id lists (no coverage)', async () => {
     const body = {
       leagues: [{ league_id: 39, league_name: 'Premier League' }],
       favoriteTeamIds: ['1'],
       profiledTeamIds: ['1', '2'],
-      profileCoverage: {
-        summary: {
-          topLeagues: 2,
-          topLeagueProfiles: 1,
-          topLeagueTeams: 6,
-          topLeagueTeamsWithProfile: 4,
-          teamProfileCoverage: 0.667,
-          fullCoverageLeagues: 1,
-          partialCoverageLeagues: 1,
-          missingCoverageLeagues: 0,
-        },
-        leagues: [],
-      },
     };
     globalThis.fetch = mockFetch(body);
 
@@ -303,6 +291,30 @@ describe('AI performance API', () => {
     expect(result).toEqual(body);
     expect(fetch).toHaveBeenCalledWith(
       'http://localhost:4000/api/leagues/init',
+      expect.objectContaining({ method: 'GET' }),
+    );
+  });
+
+  test('fetchLeaguesProfileCoverage calls GET /api/leagues/profile-coverage', async () => {
+    const body = {
+      summary: {
+        topLeagues: 2,
+        topLeagueProfiles: 1,
+        topLeagueTeams: 6,
+        topLeagueTeamsWithProfile: 4,
+        teamProfileCoverage: 0.667,
+        fullCoverageLeagues: 1,
+        partialCoverageLeagues: 1,
+        missingCoverageLeagues: 0,
+      },
+      leagues: [],
+    };
+    globalThis.fetch = mockFetch(body);
+
+    const result = await fetchLeaguesProfileCoverage(config);
+    expect(result).toEqual(body);
+    expect(fetch).toHaveBeenCalledWith(
+      'http://localhost:4000/api/leagues/profile-coverage',
       expect.objectContaining({ method: 'GET' }),
     );
   });

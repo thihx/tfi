@@ -7,5 +7,6 @@ interface StatusBadgeProps {
 
 export function StatusBadge({ status }: StatusBadgeProps) {
   const info: StatusBadgeInfo = STATUS_BADGES[status] || { label: status, class: '' };
+  if (info.hidden) return null;
   return <span className={`badge ${info.class}`}>{info.label}</span>;
 }

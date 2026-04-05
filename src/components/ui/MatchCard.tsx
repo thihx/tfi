@@ -1,25 +1,9 @@
 import { memo, useState, type ReactNode } from 'react';
+import { formatHalftimeParen, shouldShowHalftimeUnderScore } from '@/lib/utils/matchScoreDisplay';
 import { formatLocalTime } from '@/lib/utils/helpers';
 import type { Match } from '@/types';
 
-function CardBadge({ count, type, flashGen }: { count: number; type: 'yellow' | 'red'; flashGen: number }) {
-  if (count <= 0) return null;
-  const isYellow = type === 'yellow';
-  return (
-    <span
-      key={flashGen}
-      className={flashGen ? (isYellow ? 'flash-yellow-card' : 'flash-red-card') : undefined}
-      style={{
-        display: 'inline-flex', alignItems: 'center', fontSize: 10, fontWeight: 700,
-        background: isYellow ? '#f5c518' : '#e53935',
-        color: isYellow ? '#1a1a1a' : '#fff',
-        borderRadius: 3, padding: '1px 5px', flexShrink: 0,
-      }}
-    >
-      {count}
-    </span>
-  );
-}
+import { DisciplineCardIcons } from '@/components/ui/MatchDisciplineCardIcons';
 
 const STATUS_LIVE = new Set(['1H', '2H', 'ET', 'BT', 'P', 'INT', 'LIVE']);
 const STATUS_FT   = new Set(['FT', 'AET', 'PEN']);
@@ -47,15 +31,20 @@ function TeamLogo({ src, alt }: { src: string; alt: string }) {
   );
 }
 
-interface MatchCardAction {
-  label: string;
-  icon?: ReactNode;
-  title?: string;
-  onClick: (match: Match) => void;
-  variant?: 'primary' | 'secondary' | 'success' | 'danger';
-  disabled?: boolean;
-  loading?: boolean;
-}
+type MatchCardAction =
+  | {
+      label: string;
+      icon?: ReactNode;
+      title?: string;
+      onClick: (match: Match) => void;
+      variant?: 'primary' | 'secondary' | 'success' | 'danger';
+      disabled?: boolean;
+      loading?: boolean;
+    }
+  | {
+      label: string;
+      render: (match: Match) => ReactNode;
+    };
 
 interface WatchedAction {
   onRemove: () => void;
@@ -92,6 +81,7 @@ function MatchCardBase({ match, actions, highlighted, watchedAction, flashMap, o
 
   const leagueName = match.league_name || match.league || '';
   const kickoffTime = match.kickoff_at_utc ? formatLocalTime(match.kickoff_at_utc) : (match.kickoff ? match.kickoff.slice(0, 5) : '');
+  const showHalftimeUnder = shouldShowHalftimeUnderScore(match);
 
   return (
     <div
@@ -119,9 +109,11 @@ function MatchCardBase({ match, actions, highlighted, watchedAction, flashMap, o
             {!isLive && kickoffTime && match.status === 'NS' && (
               <span style={{ fontSize: '12px', color: 'var(--gray-500)' }}>{kickoffTime}</span>
             )}
-            <span className={`badge ${getStatusClass(match.status)}`} style={{ fontSize: '11px', padding: '2px 8px' }}>
-              {match.status}
-            </span>
+            {match.status !== 'HT' ? (
+              <span className={`badge ${getStatusClass(match.status)}`} style={{ fontSize: '11px', padding: '2px 8px' }}>
+                {match.status}
+              </span>
+            ) : null}
           </div>
         </div>
 
@@ -137,11 +129,30 @@ function MatchCardBase({ match, actions, highlighted, watchedAction, flashMap, o
           </div>
 
           {/* Score or vs */}
-          <div style={{ flexShrink: 0, textAlign: 'center', minWidth: '48px' }}>
+          <div style={{ flexShrink: 0, textAlign: 'center', minWidth: '52px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '2px' }}>
             {hasScore ? (
-              <span key={scoreFlashGen} className={scoreFlashGen ? 'flash-goal' : undefined} style={{ fontWeight: 700, fontSize: '15px', color: 'var(--gray-900)', letterSpacing: '0.5px' }}>
-                {match.home_score} – {match.away_score}
-              </span>
+              <div style={{ display: 'inline-flex', flexDirection: 'row', alignItems: 'center', justifyContent: 'center', flexWrap: 'wrap', gap: 0 }}>
+                <span key={scoreFlashGen} className={scoreFlashGen ? 'flash-goal' : undefined} style={{ fontWeight: 700, fontSize: '15px', color: 'var(--gray-900)', letterSpacing: '0.06em' }}>
+                  {match.home_score} – {match.away_score}
+                </span>
+                {showHalftimeUnder ? (
+                  <span
+                    style={{
+                      fontSize: '11px',
+                      color: 'var(--gray-400)',
+                      fontWeight: 500,
+                      opacity: 0.9,
+                      marginLeft: 8,
+                      paddingLeft: 8,
+                      borderLeft: '1px solid var(--gray-200)',
+                      whiteSpace: 'nowrap',
+                    }}
+                    aria-label={`First half ${match.halftime_home}-${match.halftime_away}`}
+                  >
+                    {formatHalftimeParen(match)}
+                  </span>
+                ) : null}
+              </div>
             ) : (
               <span style={{ fontSize: '12px', color: 'var(--gray-400)', fontWeight: 400 }}>vs</span>
             )}
@@ -160,12 +171,12 @@ function MatchCardBase({ match, actions, highlighted, watchedAction, flashMap, o
         {((match.home_yellows ?? 0) > 0 || (match.home_reds ?? 0) > 0 || (match.away_yellows ?? 0) > 0 || (match.away_reds ?? 0) > 0) && (
           <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '6px', padding: '0 2px' }}>
             <div style={{ display: 'flex', gap: '3px' }}>
-              <CardBadge count={match.home_yellows ?? 0} type="yellow" flashGen={homeYellowGen} />
-              <CardBadge count={match.home_reds ?? 0} type="red" flashGen={homeRedGen} />
+              {(match.home_yellows ?? 0) > 0 ? <DisciplineCardIcons key={`hy-${homeYellowGen}`} variant="yellow" count={match.home_yellows ?? 0} flashGen={homeYellowGen} /> : null}
+              {(match.home_reds ?? 0) > 0 ? <DisciplineCardIcons key={`hr-${homeRedGen}`} variant="red" count={match.home_reds ?? 0} flashGen={homeRedGen} /> : null}
             </div>
             <div style={{ display: 'flex', gap: '3px' }}>
-              <CardBadge count={match.away_reds ?? 0} type="red" flashGen={awayRedGen} />
-              <CardBadge count={match.away_yellows ?? 0} type="yellow" flashGen={awayYellowGen} />
+              {(match.away_reds ?? 0) > 0 ? <DisciplineCardIcons key={`ar-${awayRedGen}`} variant="red" count={match.away_reds ?? 0} flashGen={awayRedGen} /> : null}
+              {(match.away_yellows ?? 0) > 0 ? <DisciplineCardIcons key={`ay-${awayYellowGen}`} variant="yellow" count={match.away_yellows ?? 0} flashGen={awayYellowGen} /> : null}
             </div>
           </div>
         )}
@@ -210,19 +221,28 @@ function MatchCardBase({ match, actions, highlighted, watchedAction, flashMap, o
                 }
               </button>
             )}
-            {actions && actions.map((action) => (
-              <button
-                key={action.label}
-                className={`btn btn-sm btn-${action.variant ?? 'secondary'} ${action.loading ? 'btn-loading' : ''}`}
-                onClick={() => !action.disabled && !action.loading && action.onClick(match)}
-                disabled={action.disabled || action.loading}
-                aria-busy={action.loading}
-                title={action.title}
-                aria-label={action.title ?? action.label}
-              >
-                {action.loading ? action.label : (action.icon ?? action.label)}
-              </button>
-            ))}
+            {actions && actions.map((action, actionIdx) => {
+              if ('render' in action) {
+                return (
+                  <div key={action.label || `custom-${actionIdx}`} onClick={(e) => e.stopPropagation()}>
+                    {action.render(match)}
+                  </div>
+                );
+              }
+              return (
+                <button
+                  key={action.label}
+                  className={`btn btn-sm btn-${action.variant ?? 'secondary'} ${action.loading ? 'btn-loading' : ''}`}
+                  onClick={() => !action.disabled && !action.loading && action.onClick(match)}
+                  disabled={action.disabled || action.loading}
+                  aria-busy={action.loading}
+                  title={action.title}
+                  aria-label={action.title ?? action.label}
+                >
+                  {action.loading ? action.label : (action.icon ?? action.label)}
+                </button>
+              );
+            })}
           </div>
         )}
       </div>

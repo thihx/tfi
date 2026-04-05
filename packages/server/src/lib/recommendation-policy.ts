@@ -48,6 +48,17 @@ function parseStatInt(value: string | null | undefined): number | null {
   return Number.isFinite(num) ? num : null;
 }
 
+function getScoreState(score: string): 'unknown' | 'level' | 'one-goal-margin' | 'two-plus-margin' {
+  const match = String(score || '').trim().match(/^(\d+)\s*[-:]\s*(\d+)$/);
+  if (!match) return 'unknown';
+  const home = Number(match[1] ?? 0);
+  const away = Number(match[2] ?? 0);
+  const diff = Math.abs(home - away);
+  if (diff === 0) return 'level';
+  if (diff === 1) return 'one-goal-margin';
+  return 'two-plus-margin';
+}
+
 export function getCorrelatedThesis(canonicalMarket: string): string | null {
   if (!canonicalMarket || canonicalMarket === 'unknown') return null;
   if (canonicalMarket.startsWith('over_')) return 'goals_over';
@@ -77,6 +88,8 @@ export function applyRecommendationPolicy(input: RecommendationPolicyInput): Rec
   const promptVersion = String(input.promptVersion ?? '').trim();
   const isV8 = promptVersion === 'v8-market-balance-followup-a' || promptVersion === 'v8-market-balance-followup-b';
   const isV8b = promptVersion === 'v8-market-balance-followup-b';
+  const isV8d = promptVersion === 'v8-market-balance-followup-d';
+  const scoreState = getScoreState(input.score);
 
   const block = (warning: string) => {
     blocked = true;
@@ -87,8 +100,16 @@ export function applyRecommendationPolicy(input: RecommendationPolicyInput): Rec
     block('POLICY_BLOCK_1X2_DRAW');
   }
 
-  if (canonicalMarket === '1x2_home' && input.minute < (isV8b ? 55 : isV8 ? 60 : 75)) {
-    block(isV8b ? 'POLICY_BLOCK_1X2_HOME_PRE55_V8B' : isV8 ? 'POLICY_BLOCK_1X2_HOME_PRE60_V8' : 'POLICY_BLOCK_1X2_HOME_PRE75');
+  if (canonicalMarket === '1x2_home' && input.minute < (isV8d ? 35 : isV8b ? 55 : isV8 ? 60 : 75)) {
+    block(
+      isV8d
+        ? 'POLICY_BLOCK_1X2_HOME_PRE35_V8D'
+        : isV8b
+          ? 'POLICY_BLOCK_1X2_HOME_PRE55_V8B'
+          : isV8
+            ? 'POLICY_BLOCK_1X2_HOME_PRE60_V8'
+            : 'POLICY_BLOCK_1X2_HOME_PRE75',
+    );
   }
 
   if (canonicalMarket === 'over_0.5' && input.minute >= 75) {
@@ -97,6 +118,17 @@ export function applyRecommendationPolicy(input: RecommendationPolicyInput): Rec
 
   if (canonicalMarket === 'under_2.5' && input.minute < 75) {
     block('POLICY_BLOCK_UNDER_2_5_PRE75');
+  }
+
+  if (
+    isV8d
+    && canonicalMarket.startsWith('under_')
+    && !canonicalMarket.startsWith('under_0.5')
+    && input.minute >= 45
+    && input.minute <= 59
+    && scoreState === 'two-plus-margin'
+  ) {
+    block('POLICY_BLOCK_GOALS_UNDER_45_59_TWO_PLUS_MARGIN_V8D');
   }
 
   if (canonicalMarket === 'btts_no') {

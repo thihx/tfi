@@ -4,6 +4,10 @@ import { config } from '../config.js';
 import { runReplayScenario } from '../lib/pipeline-replay.js';
 import type { SettledReplayScenario } from '../lib/db-replay-scenarios.js';
 import {
+  buildReplayMarketOpportunity,
+  classifyReplayMarketAvailability,
+} from '../lib/replay-market-opportunities.js';
+import {
   buildEvaluatedReplayCase,
   summarizeSettledReplayVariant,
   type EvaluatedReplayCase,
@@ -138,7 +142,36 @@ async function evaluateScenarioAgainstSettlement(
     settlementResult = settled.get(1)?.result ?? 'unresolved';
   }
 
-  return buildEvaluatedReplayCase(promptVersion, scenario, output, settlementResult);
+  const replayPnl = settlementResult && settlementResult !== 'unresolved'
+    ? (() => {
+        switch (settlementResult) {
+          case 'win':
+            return (replayOdds - 1) * replayStake;
+          case 'loss':
+            return -replayStake;
+          case 'half_win':
+            return ((replayOdds - 1) * replayStake) / 2;
+          case 'half_loss':
+            return -replayStake / 2;
+          case 'push':
+          case 'void':
+            return 0;
+          default:
+            return null;
+        }
+      })()
+    : null;
+
+  return buildEvaluatedReplayCase(
+    promptVersion,
+    scenario,
+    output,
+    settlementResult,
+    replayOdds,
+    replayStake,
+    replayPnl,
+    classifyReplayMarketAvailability(buildReplayMarketOpportunity(scenario)),
+  );
 }
 
 function buildMarkdownReport(summary: {
@@ -163,11 +196,32 @@ function buildMarkdownReport(summary: {
     lines.push(`- No-bet rate: ${(variant.noBetRate * 100).toFixed(2)}%`);
     lines.push(`- Goals Under share: ${(variant.goalsUnderShare * 100).toFixed(2)}%`);
     lines.push(`- Directional accuracy: ${(variant.accuracy * 100).toFixed(2)}% (${variant.winCount}/${variant.winCount + variant.lossCount})`);
+    lines.push(`- Avg odds: ${variant.avgOdds.toFixed(2)}`);
+    lines.push(`- Avg break-even required: ${(variant.avgBreakEvenRate * 100).toFixed(2)}%`);
+    lines.push(`- Total staked: ${variant.totalStaked.toFixed(2)} units`);
+    lines.push(`- Replay P/L: ${variant.totalPnl.toFixed(2)} units`);
+    lines.push(`- Replay ROI: ${(variant.roi * 100).toFixed(2)}%`);
     lines.push('');
-    lines.push('| Cohort | Total | Push | No Bet | Under | Over | Under Share | Accuracy |');
-    lines.push('| --- | --- | --- | --- | --- | --- | --- | --- |');
+    lines.push('| Cohort | Total | Push | No Bet | Under | Over | Under Share | Accuracy | Avg Odds | Break-even | P/L | ROI |');
+    lines.push('| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |');
     for (const row of variant.byMinuteBand) {
-      lines.push(`| Minute ${row.bucket} | ${row.total} | ${row.pushCount} | ${row.noBetCount} | ${row.goalsUnderCount} | ${row.goalsOverCount} | ${(row.underShare * 100).toFixed(2)}% | ${(row.accuracy * 100).toFixed(2)}% |`);
+      lines.push(`| Minute ${row.bucket} | ${row.total} | ${row.pushCount} | ${row.noBetCount} | ${row.goalsUnderCount} | ${row.goalsOverCount} | ${(row.underShare * 100).toFixed(2)}% | ${(row.accuracy * 100).toFixed(2)}% | ${row.avgOdds.toFixed(2)} | ${(row.avgBreakEvenRate * 100).toFixed(2)}% | ${row.totalPnl.toFixed(2)} | ${(row.roi * 100).toFixed(2)}% |`);
+    }
+    lines.push('');
+    lines.push('### By Evidence Mode');
+    lines.push('');
+    lines.push('| Evidence Mode | Total | Push | No Bet | Under | Over | Under Share | Accuracy | Avg Odds | Break-even | P/L | ROI |');
+    lines.push('| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |');
+    for (const row of variant.byEvidenceMode) {
+      lines.push(`| ${row.bucket} | ${row.total} | ${row.pushCount} | ${row.noBetCount} | ${row.goalsUnderCount} | ${row.goalsOverCount} | ${(row.underShare * 100).toFixed(2)}% | ${(row.accuracy * 100).toFixed(2)}% | ${row.avgOdds.toFixed(2)} | ${(row.avgBreakEvenRate * 100).toFixed(2)}% | ${row.totalPnl.toFixed(2)} | ${(row.roi * 100).toFixed(2)}% |`);
+    }
+    lines.push('');
+    lines.push('### By Market Availability');
+    lines.push('');
+    lines.push('| Availability | Total | Push | No Bet | Under | Over | Under Share | Accuracy | Avg Odds | Break-even | P/L | ROI |');
+    lines.push('| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |');
+    for (const row of variant.byMarketAvailability) {
+      lines.push(`| ${row.bucket} | ${row.total} | ${row.pushCount} | ${row.noBetCount} | ${row.goalsUnderCount} | ${row.goalsOverCount} | ${(row.underShare * 100).toFixed(2)}% | ${(row.accuracy * 100).toFixed(2)}% | ${row.avgOdds.toFixed(2)} | ${(row.avgBreakEvenRate * 100).toFixed(2)}% | ${row.totalPnl.toFixed(2)} | ${(row.roi * 100).toFixed(2)}% |`);
     }
     lines.push('');
   }

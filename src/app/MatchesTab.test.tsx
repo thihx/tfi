@@ -123,6 +123,11 @@ vi.mock('@/hooks/useAppState', () => ({
   }),
 }));
 
+vi.mock('@/lib/matchesAiResultsStorage', () => ({
+  loadMatchesAiResultsFromStorage: () => null,
+  saveMatchesAiResultsToStorage: vi.fn(),
+}));
+
 vi.mock('@/hooks/useToast', () => ({
   useToast: () => ({ showToast: mockShowToast }),
 }));
@@ -172,6 +177,7 @@ let MatchesTab: typeof import('./MatchesTab').MatchesTab;
 let shouldAutoRefreshMatch: typeof import('./MatchesTab').shouldAutoRefreshMatch;
 
 beforeEach(async () => {
+  localStorage.clear();
   vi.clearAllMocks();
   vi.resetModules();
   vi.useRealTimers();
@@ -245,12 +251,13 @@ describe('MatchesTab', () => {
     render(<MatchesTab />);
 
     await user.click(screen.getByTitle('Card view'));
-    await user.click(screen.getByRole('button', { name: 'Ask AI for analysis' }));
+    await user.click(screen.getByRole('button', { name: 'Run AI analysis' }));
 
     await waitFor(() => {
       expect(mockAnalyzeMatchWithServerPipeline).toHaveBeenCalledWith(
         expect.objectContaining({ apiUrl: 'http://localhost:4000' }),
         '100',
+        expect.objectContaining({ history: [] }),
       );
     });
 
@@ -268,7 +275,7 @@ describe('MatchesTab', () => {
     render(<MatchesTab />);
 
     await user.click(screen.getByTitle('Card view'));
-    const askAiButton = screen.getByRole('button', { name: 'Ask AI for analysis' });
+    const askAiButton = screen.getByRole('button', { name: 'Run AI analysis' });
 
     await user.click(askAiButton);
     await waitFor(() => expect(mockAnalyzeMatchWithServerPipeline).toHaveBeenCalledTimes(1));
@@ -336,7 +343,7 @@ describe('MatchesTab', () => {
     render(<MatchesTab />);
 
     await user.click(screen.getByTitle('Card view'));
-    await user.click(screen.getByRole('button', { name: 'Ask AI for analysis' }));
+    await user.click(screen.getByRole('button', { name: 'Run AI analysis' }));
     expect(await screen.findByText(/AI Analysis/i)).toBeInTheDocument();
 
     await user.type(screen.getByLabelText('Follow-up question for this match'), 'What about Home -0.25 here?');

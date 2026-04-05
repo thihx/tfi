@@ -2,6 +2,7 @@ import { useState, useRef, useEffect } from 'react';
 import type { TabName } from '@/types';
 import type { AuthUser } from '@/lib/services/auth';
 import { ProfileEditModal } from '@/components/profile/ProfileEditModal';
+import { UserAvatar, getUserDisplayName } from '@/components/ui/UserAvatar';
 
 const TAB_LABELS: Record<TabName, string> = {
   dashboard:       'Dashboard',
@@ -20,14 +21,6 @@ interface HeaderProps {
   onLogout: () => void;
   user?: AuthUser | null;
   onUserChange?: (user: AuthUser) => void;
-}
-
-function getDisplayName(user: AuthUser): string {
-  return user.displayName?.trim() || user.name || user.email;
-}
-
-function getAvatarUrl(user: AuthUser): string {
-  return user.avatarUrl?.trim() || user.picture || '';
 }
 
 export function Header({ activeTab, onLogout, user, onUserChange }: HeaderProps) {
@@ -58,7 +51,7 @@ export function Header({ activeTab, onLogout, user, onUserChange }: HeaderProps)
           <div ref={ref} style={{ position: 'relative' }}>
             <button
               onClick={() => setOpen((o) => !o)}
-              title={getDisplayName(user) || user.email}
+              title={getUserDisplayName(user) || user.email}
               style={{
                 display: 'flex', alignItems: 'center', gap: '8px',
                 background: 'none', border: 'none', cursor: 'pointer',
@@ -68,7 +61,7 @@ export function Header({ activeTab, onLogout, user, onUserChange }: HeaderProps)
               onPointerEnter={(e) => { if (e.pointerType === 'mouse') e.currentTarget.style.background = 'rgba(0,0,0,0.06)'; }}
               onPointerLeave={(e) => (e.currentTarget.style.background = 'none')}
             >
-              <Avatar user={user} size={32} />
+              <UserAvatar user={user} size={32} />
             </button>
 
             {open && (
@@ -85,10 +78,10 @@ export function Header({ activeTab, onLogout, user, onUserChange }: HeaderProps)
                   padding: '20px 16px 16px', borderBottom: '1px solid #e0e0e0',
                   gap: '8px',
                 }}>
-                  <Avatar user={user} size={56} />
-                  {getDisplayName(user) && (
+                  <UserAvatar user={user} size={56} />
+                  {getUserDisplayName(user) && (
                     <span style={{ fontWeight: 600, fontSize: '15px', color: '#202124' }}>
-                      {getDisplayName(user)}
+                      {getUserDisplayName(user)}
                     </span>
                   )}
                   <span style={{ fontSize: '13px', color: '#5f6368' }}>{user.email}</span>
@@ -146,45 +139,6 @@ export function Header({ activeTab, onLogout, user, onUserChange }: HeaderProps)
           onUserChange={onUserChange}
         />
       )}
-    </div>
-  );
-}
-
-// ── Avatar: photo if available, else initials ──────────────────
-
-function Avatar({ user, size }: { user: AuthUser; size: number }) {
-  const [imgError, setImgError] = useState(false);
-  const initials = (getDisplayName(user) || user.email)
-    .split(' ').map((w) => w[0]).slice(0, 2).join('').toUpperCase();
-
-  if (getAvatarUrl(user) && !imgError) {
-    return (
-      <img
-        src={getAvatarUrl(user)}
-        alt={getDisplayName(user) || user.email}
-        onError={() => setImgError(true)}
-        style={{
-          width: size, height: size, borderRadius: '50%',
-          objectFit: 'cover', display: 'block',
-          border: size > 40 ? '2px solid #e0e0e0' : 'none',
-        }}
-        referrerPolicy="no-referrer"
-      />
-    );
-  }
-
-  // Fallback: coloured circle with initials
-  const colors = ['#4285f4', '#ea4335', '#34a853', '#fbbc04', '#9c27b0'];
-  const bg = colors[(user.email.charCodeAt(0) || 0) % colors.length];
-  return (
-    <div style={{
-      width: size, height: size, borderRadius: '50%',
-      background: bg, color: '#fff',
-      display: 'flex', alignItems: 'center', justifyContent: 'center',
-      fontSize: size * 0.38, fontWeight: 600, flexShrink: 0,
-      border: size > 40 ? '2px solid #e0e0e0' : 'none',
-    }}>
-      {initials}
     </div>
   );
 }

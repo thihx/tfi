@@ -7,6 +7,8 @@ import { query, transaction } from '../db/pool.js';
 export interface LeagueRow {
   league_id: number;
   league_name: string;
+  /** Optional UI override; provider name stays in `league_name`. */
+  display_name: string | null;
   country: string;
   tier: string;
   active: boolean;
@@ -14,6 +16,8 @@ export interface LeagueRow {
   type: string;
   logo: string;
   last_updated: string;
+  /** Lower sorts first; set via reorder API. */
+  sort_order: number;
   provider_synced_at?: string | null;
   has_profile?: boolean;
   profile_updated_at?: string | null;
@@ -31,7 +35,7 @@ export async function getAllLeagues(): Promise<LeagueRow[]> {
        (lp.profile->>'data_reliability_tier') AS profile_data_reliability_tier
      FROM leagues l
      LEFT JOIN league_profiles lp ON lp.league_id = l.league_id
-     ORDER BY l.country, l.tier, l.league_name`,
+     ORDER BY l.sort_order ASC, l.league_name ASC`,
   );
   return result.rows;
 }
@@ -47,7 +51,7 @@ export async function getActiveLeagues(): Promise<LeagueRow[]> {
      FROM leagues l
      LEFT JOIN league_profiles lp ON lp.league_id = l.league_id
      WHERE l.active = TRUE
-     ORDER BY l.country, l.tier, l.league_name`,
+     ORDER BY l.sort_order ASC, l.league_name ASC`,
   );
   return result.rows;
 }
@@ -79,7 +83,7 @@ export async function getTopLeagues(): Promise<LeagueRow[]> {
      FROM leagues l
      LEFT JOIN league_profiles lp ON lp.league_id = l.league_id
      WHERE l.top_league = TRUE AND l.active = TRUE
-     ORDER BY l.country, l.tier, l.league_name`,
+     ORDER BY l.sort_order ASC, l.league_name ASC`,
   );
   return result.rows;
 }
@@ -153,6 +157,30 @@ export async function bulkSetTopLeague(leagueIds: number[], topLeague: boolean):
   const result = await query(
     'UPDATE leagues SET top_league = $1, last_updated = NOW() WHERE league_id = ANY($2)',
     [topLeague, leagueIds],
+  );
+  return result.rowCount ?? 0;
+}
+
+/** Set optional display label; `null` or empty clears override (use provider `league_name`). */
+export async function updateLeagueDisplayName(leagueId: number, displayName: string | null): Promise<boolean> {
+  const normalized = displayName?.trim() ? displayName.trim() : null;
+  const result = await query(
+    'UPDATE leagues SET display_name = $1, last_updated = NOW() WHERE league_id = $2',
+    [normalized, leagueId],
+  );
+  return (result.rowCount ?? 0) > 0;
+}
+
+/** Full ordered list of league IDs — assigns sort_order = (index+1)*10. Single statement (scales to ~1500+ rows). */
+export async function reorderLeagues(orderedIds: number[]): Promise<number> {
+  if (orderedIds.length === 0) return 0;
+  const sortOrders = orderedIds.map((_, i) => (i + 1) * 10);
+  const result = await query(
+    `UPDATE leagues AS l
+     SET sort_order = m.sort_ord, last_updated = NOW()
+     FROM unnest($1::integer[], $2::integer[]) AS m(league_id, sort_ord)
+     WHERE l.league_id = m.league_id`,
+    [orderedIds, sortOrders],
   );
   return result.rowCount ?? 0;
 }

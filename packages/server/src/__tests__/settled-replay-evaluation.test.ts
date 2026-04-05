@@ -80,6 +80,10 @@ describe('settled replay evaluation', () => {
           },
         },
         'win',
+        1.9,
+        3,
+        2.7,
+        'totals_only',
       ),
       buildEvaluatedReplayCase(
         'v6-betting-discipline-c',
@@ -140,6 +144,10 @@ describe('settled replay evaluation', () => {
           },
         },
         null,
+        null,
+        null,
+        null,
+        'limited_odds',
       ),
     ];
 
@@ -152,13 +160,25 @@ describe('settled replay evaluation', () => {
     expect(summary.goalsOverCount).toBe(0);
     expect(summary.goalsUnderShare).toBe(1);
     expect(summary.accuracy).toBe(1);
+    expect(summary.avgOdds).toBe(1.9);
+    expect(summary.avgBreakEvenRate).toBe(0.5263);
+    expect(summary.totalStaked).toBe(3);
+    expect(summary.totalPnl).toBe(2.7);
+    expect(summary.roi).toBe(0.9);
     expect(summary.byMinuteBand).toEqual(expect.arrayContaining([
-      expect.objectContaining({ bucket: '30-44', goalsUnderCount: 1 }),
-      expect.objectContaining({ bucket: '60-74', noBetCount: 1 }),
+      expect.objectContaining({ bucket: '30-44', goalsUnderCount: 1, avgOdds: 1.9, totalPnl: 2.7 }),
+      expect.objectContaining({ bucket: '60-74', noBetCount: 1, totalStaked: 0, totalPnl: 0 }),
     ]));
     expect(summary.byScoreState).toEqual(expect.arrayContaining([
       expect.objectContaining({ bucket: '0-0', goalsUnderCount: 1 }),
       expect.objectContaining({ bucket: 'one-goal-margin', noBetCount: 1 }),
+    ]));
+    expect(summary.byEvidenceMode).toEqual(expect.arrayContaining([
+      expect.objectContaining({ bucket: 'full_live_data', goalsUnderCount: 1 }),
+    ]));
+    expect(summary.byMarketAvailability).toEqual(expect.arrayContaining([
+      expect.objectContaining({ bucket: 'totals_only', goalsUnderCount: 1 }),
+      expect.objectContaining({ bucket: 'limited_odds', noBetCount: 1 }),
     ]));
   });
 });

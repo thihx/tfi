@@ -9,8 +9,9 @@ import { formatLocalDate } from '@/lib/utils/helpers';
 import type { TeamProfileDraft } from '@/lib/utils/teamProfileDeepResearch';
 import { isOverlayEligibleLeague } from '@/lib/utils/tacticalOverlayEligibility';
 import {
-  fetchLeaguesInitData, toggleLeagueActive, bulkSetLeagueActive,
+  fetchLeaguesInitData, fetchLeaguesProfileCoverage, fetchApprovedLeagues, toggleLeagueActive, bulkSetLeagueActive,
   toggleLeagueTopLeague, bulkSetTopLeague,
+  updateLeagueDisplayName, reorderLeaguesCatalog,
   fetchLeagueProfile, saveLeagueProfile, deleteLeagueProfile,
   fetchLeagueTeams, addFavoriteTeam, removeFavoriteTeam,
   fetchTeamProfile, saveTeamProfile, deleteTeamProfile,
@@ -34,6 +35,12 @@ const TIER_LABELS: Record<string, string> = {
 };
 
 const PAGE_SIZE = 50;
+
+/** API/cache may return league_id as string; keep sort/move logic stable. */
+function leagueIdNum(id: unknown): number {
+  const n = typeof id === 'number' ? id : Number(id);
+  return Number.isFinite(n) ? n : NaN;
+}
 
 const TIER_COLORS: Record<string, string> = {
   International: '#8b5cf6',
@@ -182,9 +189,34 @@ interface LeagueRowProps {
   togglingTop: boolean;
   teamsExpanded: boolean;
   onToggleTeams: (id: number) => void;
+  canMoveUp: boolean;
+  canMoveDown: boolean;
+  onMoveOrder: (id: number, dir: -1 | 1) => void;
+  onSaveDisplayName: (league: League, draft: string) => void | Promise<void>;
 }
 
-const LeagueRow = memo(function LeagueRow({ league, onToggle, onToggleTop, onViewFixtures, onEditProfile, selected, onSelect, toggling, togglingTop, teamsExpanded, onToggleTeams }: LeagueRowProps) {
+const LeagueRow = memo(function LeagueRow({
+  league,
+  onToggle,
+  onToggleTop,
+  onViewFixtures,
+  onEditProfile,
+  selected,
+  onSelect,
+  toggling,
+  togglingTop,
+  teamsExpanded,
+  onToggleTeams,
+  canMoveUp,
+  canMoveDown,
+  onMoveOrder,
+  onSaveDisplayName,
+}: LeagueRowProps) {
+  const [nameDraft, setNameDraft] = useState(() => league.display_name ?? '');
+  useEffect(() => {
+    setNameDraft(league.display_name ?? '');
+  }, [league.league_id, league.display_name]);
+
   return (
     <tr className={`league-row ${league.active ? '' : 'inactive'}`}>
       <td style={{ width: 36 }}>
@@ -201,26 +233,73 @@ const LeagueRow = memo(function LeagueRow({ league, onToggle, onToggleTop, onVie
           <span className="league-logo-placeholder">🏟️</span>
         )}
       </td>
-      <td style={{ cursor: 'pointer' }} title="Click to view upcoming fixtures" onClick={() => onViewFixtures(league)}>
-        <div className="league-name-cell" style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-          <span className="league-name">{league.league_name}</span>
+      <td style={{ width: 44, textAlign: 'center', verticalAlign: 'middle' }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 2, alignItems: 'center' }}>
           <button
-            onClick={(e) => { e.stopPropagation(); onToggleTeams(league.league_id); }}
-            title={teamsExpanded ? 'Collapse teams' : 'Show teams'}
-            style={{
-              background: teamsExpanded ? 'var(--gray-200)' : 'none',
-              border: '1px solid var(--gray-200)',
-              borderRadius: 4,
-              cursor: 'pointer',
-              width: 20, height: 20,
-              display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
-              fontSize: 12, color: teamsExpanded ? 'var(--gray-700)' : 'var(--gray-400)',
-              fontWeight: 700,
-              flexShrink: 0,
+            type="button"
+            className="btn btn-secondary btn-sm"
+            disabled={!canMoveUp}
+            title="Move up in list"
+            aria-label="Move league up"
+            style={{ padding: '1px 6px', minWidth: 28, lineHeight: 1.1 }}
+            onClick={(e) => {
+              e.stopPropagation();
+              onMoveOrder(leagueIdNum(league.league_id), -1);
             }}
           >
-            {teamsExpanded ? '−' : '+'}
+            ↑
           </button>
+          <button
+            type="button"
+            className="btn btn-secondary btn-sm"
+            disabled={!canMoveDown}
+            title="Move down in list"
+            aria-label="Move league down"
+            style={{ padding: '1px 6px', minWidth: 28, lineHeight: 1.1 }}
+            onClick={(e) => {
+              e.stopPropagation();
+              onMoveOrder(leagueIdNum(league.league_id), 1);
+            }}
+          >
+            ↓
+          </button>
+        </div>
+      </td>
+      <td style={{ cursor: 'pointer' }} title="Click to view upcoming fixtures" onClick={() => onViewFixtures(league)}>
+        <div className="league-name-cell" style={{ display: 'flex', flexDirection: 'column', gap: 6, alignItems: 'stretch' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+            <input
+              type="text"
+              className="filter-input"
+              placeholder={league.league_name}
+              value={nameDraft}
+              onClick={(e) => e.stopPropagation()}
+              onChange={(e) => setNameDraft(e.target.value)}
+              onBlur={() => { void onSaveDisplayName(league, nameDraft); }}
+              title="Display name (optional). Provider name is shown below."
+              style={{ fontSize: 13, fontWeight: 600, maxWidth: 280, flex: '1 1 160px', minWidth: 120 }}
+            />
+            <button
+              onClick={(e) => { e.stopPropagation(); onToggleTeams(league.league_id); }}
+              title={teamsExpanded ? 'Collapse teams' : 'Show teams'}
+              style={{
+                background: teamsExpanded ? 'var(--gray-200)' : 'none',
+                border: '1px solid var(--gray-200)',
+                borderRadius: 4,
+                cursor: 'pointer',
+                width: 20, height: 20,
+                display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+                fontSize: 12, color: teamsExpanded ? 'var(--gray-700)' : 'var(--gray-400)',
+                fontWeight: 700,
+                flexShrink: 0,
+              }}
+            >
+              {teamsExpanded ? '−' : '+'}
+            </button>
+          </div>
+          <div style={{ fontSize: 10, color: 'var(--gray-400)', lineHeight: 1.3 }}>
+            Provider: {league.league_name}
+          </div>
         </div>
       </td>
       <td style={{ whiteSpace: 'nowrap', width: '1%' }}>{league.country || '-'}</td>
@@ -441,8 +520,14 @@ export function LeaguesTab() {
   const { state, dispatch } = useAppState();
   const { showToast } = useToast();
   const config = state.config;
+  /** Avoid unstable `config` identity retriggering effects / useCallback churn. */
+  const configRef = useRef(config);
+  configRef.current = config;
+  const apiUrl = config.apiUrl;
 
   const [allLeagues, setAllLeagues] = useState<League[]>([]);
+  const allLeaguesRef = useRef<League[]>([]);
+  allLeaguesRef.current = allLeagues;
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [filterTier, setFilterTier] = useState<string>('all');
@@ -489,24 +574,61 @@ export function LeaguesTab() {
     return () => window.removeEventListener('keydown', handler);
   }, []);
 
-  // Load all Leagues-tab data in a single request
+  // Load all Leagues-tab data (init is light; coverage loads after)
   const loadLeagues = useCallback(async () => {
+    const cfg = configRef.current;
+    setLoading(true);
     try {
-      const { leagues, favoriteTeamIds, profiledTeamIds, profileCoverage } = await fetchLeaguesInitData(config);
+      const { leagues, favoriteTeamIds, profiledTeamIds } = await fetchLeaguesInitData(cfg);
       setAllLeagues(leagues);
       dispatch({ type: 'SET_LEAGUES', payload: leagues });
       setFavoriteIds(new Set(favoriteTeamIds));
       setProfiledTeamIds(new Set(profiledTeamIds));
-      setProfileCoverage(profileCoverage);
+      void fetchLeaguesProfileCoverage(cfg)
+        .then(setProfileCoverage)
+        .catch(() => {
+          setProfileCoverage(null);
+        });
     } catch (err) {
       console.error('[LeaguesTab] loadLeagues failed:', err);
       showToast('Failed to load leagues', 'error');
     } finally {
       setLoading(false);
     }
-  }, [config, dispatch, showToast]);
+  }, [dispatch, showToast]);
 
-  useEffect(() => { loadLeagues(); }, [loadLeagues]);
+  useEffect(() => {
+    let cancelled = false;
+    const cfg = configRef.current;
+    (async () => {
+      setLoading(true);
+      try {
+        const { leagues, favoriteTeamIds, profiledTeamIds } = await fetchLeaguesInitData(cfg);
+        if (cancelled) return;
+        setAllLeagues(leagues);
+        dispatch({ type: 'SET_LEAGUES', payload: leagues });
+        setFavoriteIds(new Set(favoriteTeamIds));
+        setProfiledTeamIds(new Set(profiledTeamIds));
+        void fetchLeaguesProfileCoverage(cfg)
+          .then((cov) => {
+            if (!cancelled) setProfileCoverage(cov);
+          })
+          .catch(() => {
+            if (!cancelled) setProfileCoverage(null);
+          });
+      } catch (err) {
+        if (!cancelled) {
+          console.error('[LeaguesTab] loadLeagues failed:', err);
+          showToast('Failed to load leagues', 'error');
+        }
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [apiUrl, dispatch, showToast]);
 
   const handleToggleTeams = useCallback(async (leagueId: number) => {
     if (expandedLeagueId === leagueId) {
@@ -618,6 +740,16 @@ export function LeaguesTab() {
     return Array.from(set).sort((a, b) => (TIER_ORDER[a] ?? 99) - (TIER_ORDER[b] ?? 99));
   }, [allLeagues]);
 
+  /** Global list order (for ↑↓ — not affected by filters). */
+  const globalSortedLeagueIds = useMemo(
+    () =>
+      [...allLeagues]
+        .sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0) || a.league_name.localeCompare(b.league_name))
+        .map((l) => leagueIdNum(l.league_id))
+        .filter((id) => !Number.isNaN(id)),
+    [allLeagues],
+  );
+
   // Filtered leagues
   const filtered = useMemo(() => {
     let data = allLeagues;
@@ -625,6 +757,7 @@ export function LeaguesTab() {
       const q = search.toLowerCase();
       data = data.filter((l) =>
         l.league_name.toLowerCase().includes(q) ||
+        (l.display_name?.toLowerCase().includes(q) ?? false) ||
         l.country.toLowerCase().includes(q) ||
         String(l.league_id).includes(q),
       );
@@ -639,12 +772,12 @@ export function LeaguesTab() {
     if (filterProfile === 'has-profile') data = data.filter((l) => l.has_profile);
 
     return data.sort((a, b) => {
-      // Top leagues first, then by tier, then by name
-      if (a.top_league !== b.top_league) return a.top_league ? -1 : 1;
-      const ta = TIER_ORDER[a.tier] ?? 99;
-      const tb = TIER_ORDER[b.tier] ?? 99;
-      if (ta !== tb) return ta - tb;
-      return a.league_name.localeCompare(b.league_name);
+      const sa = a.sort_order ?? 0;
+      const sb = b.sort_order ?? 0;
+      if (sa !== sb) return sa - sb;
+      const na = a.display_name?.trim() || a.league_name;
+      const nb = b.display_name?.trim() || b.league_name;
+      return na.localeCompare(nb);
     });
   }, [allLeagues, search, filterTier, filterCountry, filterType, filterActive, filterTopLeague, filterProfile]);
 
@@ -725,6 +858,62 @@ export function LeaguesTab() {
       showToast('Failed to update favorites', 'error');
     }
   }, [config, dispatch, selectedIds, showToast, loadLeagues]);
+
+  const handleMoveLeagueOrder = useCallback(
+    async (leagueId: number, dir: -1 | 1) => {
+      const id = leagueIdNum(leagueId);
+      if (Number.isNaN(id)) return;
+      const ids = [...globalSortedLeagueIds];
+      const i = ids.indexOf(id);
+      const j = i + dir;
+      if (i < 0 || j < 0 || j >= ids.length) return;
+      const next = [...ids];
+      [next[i], next[j]] = [next[j]!, next[i]!];
+      const sortById = new Map(next.map((lid, idx) => [lid, (idx + 1) * 10]));
+      const cfg = configRef.current;
+      const previous = allLeaguesRef.current;
+      // Optimistic UI immediately (API may touch ~1500 rows but is now one fast UPDATE)
+      setAllLeagues((prev) => {
+        const merged = prev.map((l) => {
+          const lid = leagueIdNum(l.league_id);
+          const so = sortById.get(lid);
+          return so != null ? { ...l, sort_order: so } : l;
+        });
+        dispatch({ type: 'SET_LEAGUES', payload: merged });
+        return merged;
+      });
+      try {
+        await reorderLeaguesCatalog(cfg, next);
+        void fetchApprovedLeagues(cfg)
+          .then((fresh) => {
+            setAllLeagues(fresh);
+            dispatch({ type: 'SET_LEAGUES', payload: fresh });
+          })
+          .catch(() => { /* keep optimistic state */ });
+      } catch {
+        showToast('Failed to reorder leagues', 'error');
+        setAllLeagues(previous);
+        dispatch({ type: 'SET_LEAGUES', payload: previous });
+      }
+    },
+    [globalSortedLeagueIds, showToast, dispatch],
+  );
+
+  const handleSaveLeagueDisplayName = useCallback(
+    async (league: League, draft: string) => {
+      const trimmed = draft.trim();
+      const normalized = !trimmed || trimmed === league.league_name ? null : trimmed;
+      const cur = league.display_name?.trim() || null;
+      if (normalized === cur) return;
+      try {
+        await updateLeagueDisplayName(config, league.league_id, normalized);
+        await loadLeagues();
+      } catch {
+        showToast('Failed to update display name', 'error');
+      }
+    },
+    [config, loadLeagues, showToast],
+  );
 
   const handleEditProfile = useCallback(async (league: League) => {
     setProfileLeague(league);
@@ -935,6 +1124,7 @@ export function LeaguesTab() {
                 />
               </th>
               <th style={{ width: '1%', whiteSpace: 'nowrap' }}>Logo</th>
+              <th style={{ width: '1%', whiteSpace: 'nowrap', textAlign: 'center' }} title="Change order in the full catalog">Order</th>
               <th>League</th>
               <th style={{ width: '1%', whiteSpace: 'nowrap' }}>Country</th>
               <th style={{ width: '1%', whiteSpace: 'nowrap' }}>Tier</th>
@@ -945,7 +1135,9 @@ export function LeaguesTab() {
             </tr>
           </thead>
           <tbody>
-            {paginated.map((league) => (
+            {paginated.map((league) => {
+              const gIdx = globalSortedLeagueIds.indexOf(leagueIdNum(league.league_id));
+              return (
               <Fragment key={league.league_id}>
                 <LeagueRow
                   league={league}
@@ -959,6 +1151,10 @@ export function LeaguesTab() {
                   togglingTop={togglingTopIds.has(league.league_id)}
                   teamsExpanded={expandedLeagueId === league.league_id}
                   onToggleTeams={handleToggleTeams}
+                  canMoveUp={gIdx > 0}
+                  canMoveDown={gIdx >= 0 && gIdx < globalSortedLeagueIds.length - 1}
+                  onMoveOrder={handleMoveLeagueOrder}
+                  onSaveDisplayName={handleSaveLeagueDisplayName}
                 />
                 {expandedLeagueId === league.league_id && (
                   <LeagueTeamsPanel
@@ -971,10 +1167,11 @@ export function LeaguesTab() {
                   />
                 )}
               </Fragment>
-            ))}
+              );
+            })}
             {filtered.length === 0 && (
               <tr>
-                <td colSpan={9} style={{ textAlign: 'center', padding: 40, color: 'var(--gray-400)' }}>
+                <td colSpan={10} style={{ textAlign: 'center', padding: 40, color: 'var(--gray-400)' }}>
                   {search || filterTier !== 'all' || filterCountry !== 'all' || filterActive !== 'all' || filterTopLeague !== 'all'
                     ? 'No leagues match your filters'
                     : 'No leagues available yet. Use Sync Reference Data in Settings if a refresh is needed.'}

@@ -7,9 +7,9 @@ import { buildApp } from './helpers.js';
 import type { FastifyInstance } from 'fastify';
 
 const MOCK_LEAGUES = [
-  { league_id: 39, league_name: 'Premier League', country: 'England', tier: '1', active: true, top_league: false, type: 'League', logo: '', last_updated: '', has_profile: true, profile_updated_at: '2026-03-22T00:00:00Z', profile_volatility_tier: 'medium', profile_data_reliability_tier: 'high' },
-  { league_id: 140, league_name: 'La Liga', country: 'Spain', tier: '1', active: true, top_league: true, type: 'League', logo: '', last_updated: '', has_profile: false, profile_updated_at: null, profile_volatility_tier: null, profile_data_reliability_tier: null },
-  { league_id: 2, league_name: 'UEFA Champions League', country: 'World', tier: 'International', active: true, top_league: true, type: 'Cup', logo: '', last_updated: '', has_profile: false, profile_updated_at: null, profile_volatility_tier: null, profile_data_reliability_tier: null },
+  { league_id: 39, league_name: 'Premier League', display_name: null, sort_order: 10, country: 'England', tier: '1', active: true, top_league: false, type: 'League', logo: '', last_updated: '', has_profile: true, profile_updated_at: '2026-03-22T00:00:00Z', profile_volatility_tier: 'medium', profile_data_reliability_tier: 'high' },
+  { league_id: 140, league_name: 'La Liga', display_name: null, sort_order: 20, country: 'Spain', tier: '1', active: true, top_league: true, type: 'League', logo: '', last_updated: '', has_profile: false, profile_updated_at: null, profile_volatility_tier: null, profile_data_reliability_tier: null },
+  { league_id: 2, league_name: 'UEFA Champions League', display_name: null, sort_order: 30, country: 'World', tier: 'International', active: true, top_league: true, type: 'Cup', logo: '', last_updated: '', has_profile: false, profile_updated_at: null, profile_volatility_tier: null, profile_data_reliability_tier: null },
 ];
 
 const MOCK_PROFILE = {
@@ -81,6 +81,8 @@ vi.mock('../repos/leagues.repo.js', () => ({
     Promise.resolve(ids.length),
   ),
   upsertLeagues: vi.fn().mockResolvedValue(0),
+  updateLeagueDisplayName: vi.fn().mockResolvedValue(true),
+  reorderLeagues: vi.fn().mockResolvedValue(3),
 }));
 
 vi.mock('../repos/league-profiles.repo.js', () => ({
@@ -121,6 +123,7 @@ vi.mock('../repos/favorite-teams.repo.js', () => ({
 
 vi.mock('../repos/team-profiles.repo.js', () => ({
   getAllTeamProfiles: vi.fn().mockResolvedValue([{ team_id: '1' }, { team_id: '3' }]),
+  getTeamIdsWithProfile: vi.fn().mockResolvedValue(new Set(['1', '3'])),
 }));
 
 vi.mock('../lib/profile-coverage.js', () => ({
@@ -167,7 +170,7 @@ describe('GET /api/leagues/active', () => {
 });
 
 describe('GET /api/leagues/init', () => {
-  test('returns league init payload with profile coverage for the current user', async () => {
+  test('returns league init payload for the current user (light — no profile coverage)', async () => {
     const res = await app.inject({
       method: 'GET',
       url: '/api/leagues/init',
@@ -192,8 +195,56 @@ describe('GET /api/leagues/init', () => {
         leagues: MOCK_LEAGUES,
         favoriteTeamIds: ['1', '2'],
         profiledTeamIds: ['1', '3'],
-        profileCoverage: MOCK_PROFILE_COVERAGE,
       });
+    } finally {
+      await authedApp.close();
+    }
+  });
+});
+
+describe('GET /api/leagues/profile-coverage', () => {
+  test('returns coverage when authenticated', async () => {
+    const authedApp = await buildApp([await import('../routes/leagues.routes.js').then((m) => m.leagueRoutes)], {
+      currentUser: {
+        userId: 'admin-1',
+        email: 'admin@example.com',
+        role: 'admin',
+        status: 'active',
+        displayName: 'Admin',
+        avatarUrl: '',
+      },
+    });
+    try {
+      const res = await authedApp.inject({ method: 'GET', url: '/api/leagues/profile-coverage' });
+      expect(res.statusCode).toBe(200);
+      expect(res.json()).toEqual(MOCK_PROFILE_COVERAGE);
+    } finally {
+      await authedApp.close();
+    }
+  });
+});
+
+describe('PUT /api/leagues/reorder', () => {
+  test('reorders leagues when authenticated', async () => {
+    const authedApp = await buildApp([await import('../routes/leagues.routes.js').then((m) => m.leagueRoutes)], {
+      currentUser: {
+        userId: 'admin-1',
+        email: 'admin@example.com',
+        role: 'admin',
+        status: 'active',
+        displayName: 'Admin',
+        avatarUrl: '',
+      },
+    });
+    try {
+      const res = await authedApp.inject({
+        method: 'PUT',
+        url: '/api/leagues/reorder',
+        headers: { 'content-type': 'application/json' },
+        payload: { ordered_ids: [140, 39, 2] },
+      });
+      expect(res.statusCode).toBe(200);
+      expect(res.json()).toEqual({ updated: 3 });
     } finally {
       await authedApp.close();
     }

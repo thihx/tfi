@@ -47,6 +47,7 @@ export function escapeHtml(str: string): string {
 
 export function getStatusBadge(status: string): { label: string; className: string } {
   const info = STATUS_BADGES[status] || { label: status, class: '' };
+  if (info.hidden) return { label: '', className: '' };
   return { label: info.label, className: info.class };
 }
 

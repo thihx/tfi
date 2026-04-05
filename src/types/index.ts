@@ -323,6 +323,8 @@ export interface TeamProfile {
 export interface League {
   league_id: number;
   league_name: string;
+  /** Optional label in UI; sync from provider keeps `league_name`. */
+  display_name?: string | null;
   country: string;
   tier: string;
   active: boolean;
@@ -330,6 +332,8 @@ export interface League {
   type: string;
   logo: string;
   last_updated: string;
+  /** Lower value sorts first; set on Leagues screen. */
+  sort_order?: number;
   has_profile?: boolean;
   profile_updated_at?: string | null;
   profile_volatility_tier?: string | null;
@@ -393,6 +397,8 @@ export interface LeagueInfo {
 export interface StatusBadgeInfo {
   label: string;
   class: string;
+  /** When true, StatusBadge renders nothing (use for in-play except HT). */
+  hidden?: boolean;
 }
 
 export interface SortState {

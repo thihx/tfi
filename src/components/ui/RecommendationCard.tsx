@@ -98,7 +98,6 @@ function RecommendationCardBase({ rec, lang, onViewMatch, adminAction }: Props) 
               onClick={() => onViewMatch?.(rec.match_id ?? '', display)}
               title="Click to view match details"
             >
-              <span className="badge badge-live" style={{ fontSize: '10px', padding: '2px 6px' }}>LIVE</span>
               {displayScore && <span style={{ fontWeight: 700, fontSize: '13px', color: 'var(--gray-900)' }}>{displayScore}</span>}
             </span>
           )}

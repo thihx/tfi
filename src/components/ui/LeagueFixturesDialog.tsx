@@ -13,7 +13,7 @@ interface Props {
 function statusLabel(short: string, elapsed: number | null): string {
   if (short === 'NS') return 'Not Started';
   if (short === 'FT') return 'Full Time';
-  if (short === 'HT') return 'Half Time';
+  if (short === 'HT') return 'HT';
   if (['1H', '2H'].includes(short)) return `${elapsed ?? '?'}'`;
   if (short === 'PST') return 'Postponed';
   if (short === 'CANC') return 'Cancelled';
