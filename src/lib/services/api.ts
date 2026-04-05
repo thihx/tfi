@@ -269,6 +269,30 @@ export interface MeSubscriptionSnapshot {
   catalog: EntitlementCatalogEntry[];
 }
 
+export interface FavoriteLeagueSelectionSnapshot {
+  availableLeagues: League[];
+  selectedLeagueIds: number[];
+  favoriteLeaguesEnabled: boolean;
+  favoriteLeagueLimit: number | null;
+  watchlistActiveLimit: number | null;
+  watchlistActiveCount: number;
+}
+
+export interface FavoriteLeagueApplyResult {
+  error: string | null;
+  limitExceeded: boolean;
+  savedLeagueIds: number[];
+  candidateMatches: number;
+  alreadyWatched: number;
+  newMatches: number;
+  added: number;
+  localDate: string;
+  userTimeZone: string;
+  currentWatchlistCount: number;
+  watchlistActiveLimit: number | null;
+  favoriteLeagueLimit: number | null;
+}
+
 export interface PaginatedRecommendations {
   rows: Recommendation[];
   total: number;
@@ -416,6 +440,17 @@ export async function updateAdminUserSubscription(
 
 export async function fetchCurrentSubscription(config: AppConfig | string): Promise<MeSubscriptionSnapshot> {
   return pgFetch<MeSubscriptionSnapshot>(config, '/api/me/subscription');
+}
+
+export async function fetchFavoriteLeagueSelection(config: AppConfig | string): Promise<FavoriteLeagueSelectionSnapshot> {
+  return pgFetch<FavoriteLeagueSelectionSnapshot>(config, '/api/me/watch-subscriptions/favorite-leagues');
+}
+
+export async function applyFavoriteLeaguesToWatchlist(
+  config: AppConfig | string,
+  leagueIds: number[],
+): Promise<FavoriteLeagueApplyResult> {
+  return pgPut<FavoriteLeagueApplyResult>(config, '/api/me/watch-subscriptions/favorite-leagues', { leagueIds });
 }
 
 export async function updateRecommendationDelivery(

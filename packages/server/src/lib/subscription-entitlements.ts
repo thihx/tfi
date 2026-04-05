@@ -59,8 +59,8 @@ export const ENTITLEMENT_CATALOG: EntitlementCatalogEntry[] = [
   },
   {
     key: 'watchlist.suggested_top_leagues.enabled',
-    label: 'Suggested top leagues enabled',
-    description: 'Allows the user to personalize which system top leagues are highlighted in Matches.',
+    label: 'Favorite leagues automation enabled',
+    description: 'Allows the user to choose from system-managed favorite leagues and auto-add today’s matches into Watchlist.',
     category: 'watchlist',
     valueType: 'boolean',
     defaultValue: true,
@@ -68,8 +68,8 @@ export const ENTITLEMENT_CATALOG: EntitlementCatalogEntry[] = [
   },
   {
     key: 'watchlist.suggested_top_leagues.limit',
-    label: 'Suggested top leagues limit',
-    description: 'Maximum number of top leagues the user may keep in their personalized suggested list.',
+    label: 'Favorite leagues limit',
+    description: 'Maximum number of system favorite leagues the user may select for Watchlist auto-add.',
     category: 'watchlist',
     valueType: 'number',
     defaultValue: 5,

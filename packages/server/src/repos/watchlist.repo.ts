@@ -3,6 +3,7 @@
 // ============================================================
 
 import { query } from '../db/pool.js';
+import { transaction } from '../db/pool.js';
 import { config } from '../config.js';
 
 export interface WatchlistRow {
@@ -232,8 +233,16 @@ function hasOwnKeys(obj: Record<string, unknown>): boolean {
   return Object.keys(obj).length > 0;
 }
 
-async function upsertMonitoredMatch(matchId: string, metadata: Record<string, unknown>): Promise<void> {
-  await query(
+type QueryExecutor = {
+  query: (text: string, params?: unknown[]) => Promise<unknown>;
+};
+
+async function upsertMonitoredMatchWithClient(
+  executor: QueryExecutor,
+  matchId: string,
+  metadata: Record<string, unknown>,
+): Promise<void> {
+  await executor.query(
     `INSERT INTO monitored_matches (match_id, subscriber_count, runtime_status, last_interest_at, metadata)
      VALUES ($1, 0, 'idle', NOW(), $2::jsonb)
      ON CONFLICT (match_id) DO UPDATE
@@ -241,6 +250,10 @@ async function upsertMonitoredMatch(matchId: string, metadata: Record<string, un
            metadata = monitored_matches.metadata || EXCLUDED.metadata`,
     [matchId, JSON.stringify(metadata)],
   );
+}
+
+async function upsertMonitoredMatch(matchId: string, metadata: Record<string, unknown>): Promise<void> {
+  await upsertMonitoredMatchWithClient({ query }, matchId, metadata);
 }
 
 async function updateMonitoredMetadata(matchId: string, metadata: Record<string, unknown>): Promise<void> {
@@ -254,8 +267,8 @@ async function updateMonitoredMetadata(matchId: string, metadata: Record<string,
   );
 }
 
-async function refreshSubscriberCount(matchId: string): Promise<void> {
-  await query(
+async function refreshSubscriberCountWithClient(executor: QueryExecutor, matchId: string): Promise<void> {
+  await executor.query(
     `INSERT INTO monitored_matches (match_id, subscriber_count, runtime_status, last_interest_at, metadata)
      VALUES ($1, 0, 'idle', NOW(), '{}'::jsonb)
      ON CONFLICT (match_id) DO UPDATE
@@ -267,6 +280,10 @@ async function refreshSubscriberCount(matchId: string): Promise<void> {
            last_interest_at = NOW()`,
     [matchId],
   );
+}
+
+async function refreshSubscriberCount(matchId: string): Promise<void> {
+  await refreshSubscriberCountWithClient({ query }, matchId);
 }
 
 async function getUserWatchlistRows(
@@ -780,6 +797,57 @@ export async function createWatchlistEntry(
 
   await refreshSubscriberCount(w.match_id!);
   return (await getWatchlistByMatchId(w.match_id!, userId))!;
+}
+
+export async function createWatchlistEntriesBatch(
+  entries: Partial<WatchlistCreate>[],
+  userId: string,
+): Promise<WatchlistRow[]> {
+  const normalizedEntries = entries.filter((entry): entry is Partial<WatchlistCreate> & { match_id: string } => (
+    typeof entry.match_id === 'string' && entry.match_id.trim().length > 0
+  ));
+  if (normalizedEntries.length === 0) return [];
+
+  const uniqueEntries = Array.from(
+    new Map(normalizedEntries.map((entry) => [entry.match_id, entry])).values(),
+  );
+
+  await transaction(async (client) => {
+    for (const entry of uniqueEntries) {
+      const metadata = extractSharedMetadata(entry as Partial<WatchlistRow>);
+      await upsertMonitoredMatchWithClient(client, entry.match_id, metadata);
+      await client.query(
+        `INSERT INTO user_watch_subscriptions (
+            user_id, match_id, mode, priority, custom_condition_text,
+            auto_apply_recommended_condition, notify_enabled, status, source, updated_at
+         )
+         VALUES ($1, $2, $3, $4, $5, $6, TRUE, $7, $8, NOW())
+         ON CONFLICT (user_id, match_id) DO UPDATE
+           SET mode = EXCLUDED.mode,
+               priority = EXCLUDED.priority,
+               custom_condition_text = EXCLUDED.custom_condition_text,
+               auto_apply_recommended_condition = EXCLUDED.auto_apply_recommended_condition,
+               status = EXCLUDED.status,
+               source = EXCLUDED.source,
+               updated_at = NOW()`,
+        [
+          userId,
+          entry.match_id,
+          entry.mode ?? 'B',
+          entry.priority ?? 0,
+          entry.custom_conditions ?? '',
+          entry.auto_apply_recommended_condition ?? true,
+          entry.status ?? 'active',
+          entry.added_by ?? 'manual',
+        ],
+      );
+      await refreshSubscriberCountWithClient(client, entry.match_id);
+    }
+  });
+
+  return Promise.all(uniqueEntries.map((entry) => getWatchlistByMatchId(entry.match_id, userId))).then((rows) => (
+    rows.filter((row): row is WatchlistRow => row != null)
+  ));
 }
 
 export async function updateWatchlistEntry(

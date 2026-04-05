@@ -15,10 +15,10 @@ export type PromptEvidenceMode =
   | 'events_only_degraded'
   | 'low_evidence';
 
-export const LIVE_ANALYSIS_PROMPT_VERSIONS = ['v4-evidence-hardened', 'v5-compact-a', 'v6-betting-discipline-a', 'v6-betting-discipline-b', 'v6-betting-discipline-c', 'v7-profile-overlay-discipline-a'] as const;
+export const LIVE_ANALYSIS_PROMPT_VERSIONS = ['v4-evidence-hardened', 'v5-compact-a', 'v6-betting-discipline-a', 'v6-betting-discipline-b', 'v6-betting-discipline-c', 'v7-profile-overlay-discipline-a', 'v8-market-balance-followup-a'] as const;
 export type LiveAnalysisPromptVersion = (typeof LIVE_ANALYSIS_PROMPT_VERSIONS)[number];
 export const LIVE_ANALYSIS_PROMPT_VERSION = 'v4-evidence-hardened';
-export const LIVE_ANALYSIS_PROMPT_CANDIDATE_VERSION = 'v7-profile-overlay-discipline-a';
+export const LIVE_ANALYSIS_PROMPT_CANDIDATE_VERSION = 'v8-market-balance-followup-a';
 
 export function isLiveAnalysisPromptVersion(value: string): value is LiveAnalysisPromptVersion {
   return (LIVE_ANALYSIS_PROMPT_VERSIONS as readonly string[]).includes(value);
@@ -79,6 +79,11 @@ export interface LiveAnalysisHistoricalPerformance {
   byMinuteBand: Array<{ band: string; settled: number; correct: number; accuracy: number }>;
   byOddsRange: Array<{ range: string; settled: number; correct: number; accuracy: number }>;
   byLeague: Array<{ league: string; settled: number; correct: number; accuracy: number }>;
+}
+
+export interface LiveAnalysisPromptFollowUpMessage {
+  role: 'user' | 'assistant';
+  text: string;
 }
 
 export interface LiveAnalysisPromptInput {
@@ -149,6 +154,8 @@ export interface LiveAnalysisPromptInput {
   preMatchPredictionSummary: string;
   mode: string;
   statsFallbackReason: string;
+  userQuestion?: string;
+  followUpHistory?: LiveAnalysisPromptFollowUpMessage[];
 }
 
 function hasRenderableSideValue(value: unknown): boolean {
@@ -1100,6 +1107,7 @@ function buildContinuityRulesSectionCompact(
     promptVersion === 'v6-betting-discipline-b'
     || promptVersion === 'v6-betting-discipline-c'
     || promptVersion === 'v7-profile-overlay-discipline-a'
+    || promptVersion === 'v8-market-balance-followup-a'
   )
     ? `- A same-thesis follow-up needs BOTH materially stronger live evidence AFTER the last bet AND a clearly better structural entry. Time passing alone is never enough.
 - Do not re-enter the same thesis just because the new line is closer to the current score or looks safer now. If you already hold that view, another entry usually means laddering the same position.
@@ -1131,14 +1139,20 @@ function isCompactPromptVersion(promptVersion: LiveAnalysisPromptVersion): boole
     || promptVersion === 'v6-betting-discipline-a'
     || promptVersion === 'v6-betting-discipline-b'
     || promptVersion === 'v6-betting-discipline-c'
-    || promptVersion === 'v7-profile-overlay-discipline-a';
+    || promptVersion === 'v7-profile-overlay-discipline-a'
+    || promptVersion === 'v8-market-balance-followup-a';
 }
 
 function isBettingDisciplinePromptVersion(promptVersion: LiveAnalysisPromptVersion): boolean {
   return promptVersion === 'v6-betting-discipline-a'
     || promptVersion === 'v6-betting-discipline-b'
     || promptVersion === 'v6-betting-discipline-c'
-    || promptVersion === 'v7-profile-overlay-discipline-a';
+    || promptVersion === 'v7-profile-overlay-discipline-a'
+    || promptVersion === 'v8-market-balance-followup-a';
+}
+
+function isV8PromptVersion(promptVersion: LiveAnalysisPromptVersion): boolean {
+  return promptVersion === 'v8-market-balance-followup-a';
 }
 
 function readProfileRecord(profile: Record<string, unknown> | null | undefined): Record<string, unknown> | null {
@@ -1185,7 +1199,7 @@ function readTeamOverlaySnapshot(profile: Record<string, unknown> | null | undef
 }
 
 function buildProfileAndOverlayDisciplineSectionCompact(data: LiveAnalysisPromptInput, promptVersion: LiveAnalysisPromptVersion): string {
-  if (promptVersion !== 'v7-profile-overlay-discipline-a') return '';
+  if (promptVersion !== 'v7-profile-overlay-discipline-a' && !isV8PromptVersion(promptVersion)) return '';
 
   const leagueWindow = readWindowSnapshot(data.leagueProfile ?? null);
   const homeWindow = readWindowSnapshot(data.homeTeamProfile ?? null);
@@ -1215,6 +1229,65 @@ V7 DISCIPLINE RULES:
 - If both team overlays are neutral/unknown (${bothNeutral ? 'currently true' : 'currently false'}), assume tactical context is effectively unavailable for this run.
 - If provider prediction is absent and profile coverage is thin, do not manufacture conviction from narrative enrichment. Return no bet.
 - In structured prematch Ask AI mode, prefer patience: if the priors do not align cleanly, return should_push=false and explain what confirmation is still missing.
+${isV8PromptVersion(promptVersion) ? `- V8 PRIOR ALIGNMENT RULE: before backing generic goals_under, explicitly classify the league/team priors as aligned, neutral, or contradictory. If they are contradictory and the live evidence is not overwhelming, return no bet.
+- V8 PRIOR ALIGNMENT RULE: priors may confirm or contradict a live thesis, but they must never replace live evidence.
+- V8 MARKET BALANCE RULE: when a favourite/control thesis is live and priors align, consider 1X2_home or asian_handicap before defaulting to generic goals_under.
+` : ''}
+
+`;
+}
+
+function buildFollowUpContextSection(data: LiveAnalysisPromptInput, compact: boolean): string {
+  const question = String(data.userQuestion ?? '').trim();
+  if (!question) {
+    return compact
+      ? 'FOLLOW_UP_MODE: none\n\n'
+      : `========================
+FOLLOW-UP CONTEXT
+========================
+FOLLOW_UP_MODE: none
+
+`;
+  }
+
+  const historyLines = Array.isArray(data.followUpHistory)
+    ? data.followUpHistory
+        .slice(-4)
+        .map((entry, index) => `- ${index + 1}. ${entry.role.toUpperCase()}: ${String(entry.text ?? '').trim()}`)
+        .filter((line) => !line.endsWith(':'))
+    : [];
+
+  return compact
+    ? `FOLLOW_UP_MODE: advisory_match_scoped
+FOLLOW_UP_USER_QUESTION: ${question}
+${historyLines.length > 0 ? `FOLLOW_UP_HISTORY:\n${historyLines.join('\n')}\n` : ''}FOLLOW_UP_RULES:
+- Answer the user question directly, but stay grounded in THIS match snapshot only.
+- Advisory only: do not assume this run will save or notify anything.
+- If the user asks about a specific market, evaluate that market first, explain why it is acceptable or weak, then mention any better alternative only if clearly stronger.
+- If the requested market is unavailable, logically impossible, or policy-unsafe, say so explicitly in follow_up_answer_en/vi.
+
+`
+    : `========================
+FOLLOW-UP CONTEXT
+========================
+FOLLOW_UP_MODE: advisory_match_scoped
+FOLLOW_UP_USER_QUESTION: ${question}
+${historyLines.length > 0 ? `FOLLOW_UP_HISTORY:\n${historyLines.join('\n')}\n` : ''}FOLLOW_UP_RULES:
+- Answer the user question directly, but stay grounded in THIS match snapshot only.
+- Advisory only: do not assume this run will save or notify anything.
+- If the user asks about a specific market, evaluate that market first, explain why it is acceptable or weak, then mention any better alternative only if clearly stronger.
+- If the requested market is unavailable, logically impossible, or policy-unsafe, say so explicitly in follow_up_answer_en/vi.
+
+`;
+}
+
+function buildV8MarketBalanceSectionCompact(): string {
+  return `V8 MARKET-BALANCE DISCIPLINE:
+- Goals Under is NOT the default fallback just because tempo is slow, shots are low, or xG is modest.
+- Before minute 60, generic low-event evidence alone is insufficient for a goals_under push.
+- For goals_under, explicitly decide whether priors are aligned, neutral, or contradictory. If contradictory and live suppression is not overwhelming, return no bet.
+- If live evidence suggests favourite control, territory, or class edge and priors agree, actively consider 1X2_home or asian_handicap_home before falling back to goals_under.
+- If no market has a clean edge, return no bet. Do NOT use goals_under as a generic escape hatch.
 
 `;
 }
@@ -1285,6 +1358,7 @@ function buildExistingExposureSectionCompact(
       promptVersion === 'v6-betting-discipline-b'
       || promptVersion === 'v6-betting-discipline-c'
       || promptVersion === 'v7-profile-overlay-discipline-a'
+      || promptVersion === 'v8-market-balance-followup-a'
     ) && summary.count >= 2
       ? ' [LADDER ALERT]'
       : '';
@@ -1295,6 +1369,7 @@ function buildExistingExposureSectionCompact(
     promptVersion === 'v6-betting-discipline-b'
     || promptVersion === 'v6-betting-discipline-c'
     || promptVersion === 'v7-profile-overlay-discipline-a'
+    || promptVersion === 'v8-market-balance-followup-a'
   )
     ? `- If the same thesis already has 2+ entries, do NOT add another rung. Default should_push=false.
 - A later safer line may be better in isolation, but adding it on top of earlier exposure still compounds bankroll risk instead of improving the old position.
@@ -1454,6 +1529,14 @@ export function buildLiveAnalysisPrompt(
     ? `WARNING: Incomplete odds data for markets: ${incompleteMarkets.join(', ')}. Do NOT recommend these markets.`
     : '';
   const evidenceTierRule = getEvidenceTierRule(data);
+  const fullV8MarketBalanceRules = isV8PromptVersion(promptVersion)
+    ? `- Goals Under is NOT the default fallback just because tempo is slow, shots are low, or xG is modest.
+- Before minute 60, generic low-event evidence alone is insufficient for a goals_under push.
+- For goals_under, explicitly decide whether priors are aligned, neutral, or contradictory. If contradictory and live suppression is not overwhelming, return no bet.
+- If live evidence suggests favourite control, territory, or class edge and priors agree, actively consider 1X2_home or asian_handicap_home before falling back to goals_under.
+- If no market has a clean edge, return no bet. Do NOT use goals_under as a generic escape hatch.
+`
+    : '';
 
   if (isCompactPromptVersion(promptVersion)) {
     const bettingDisciplineSection = isBettingDisciplinePromptVersion(promptVersion)
@@ -1463,6 +1546,7 @@ export function buildLiveAnalysisPrompt(
       promptVersion === 'v6-betting-discipline-b'
       || promptVersion === 'v6-betting-discipline-c'
       || promptVersion === 'v7-profile-overlay-discipline-a'
+      || promptVersion === 'v8-market-balance-followup-a'
     )
       ? `- First-half volume is a prior, not an automatic second-half trigger.
 - At HT and in the first 10 minutes of 2H, do NOT project a wild first half straight into a new Over bet unless the early second-half flow confirms it with fresh pressure, shots, or transitions.
@@ -1476,12 +1560,14 @@ export function buildLiveAnalysisPrompt(
       promptVersion === 'v6-betting-discipline-b'
       || promptVersion === 'v6-betting-discipline-c'
       || promptVersion === 'v7-profile-overlay-discipline-a'
+      || promptVersion === 'v8-market-balance-followup-a'
     )
       ? '- At HT / early 2H, a fresh Over 3.5 from 1-1 is usually too demanding. Wait for better confirmation or a friendlier line.\n'
       : '';
     const advancedCornersRules = (
       promptVersion === 'v6-betting-discipline-c'
       || promptVersion === 'v7-profile-overlay-discipline-a'
+      || promptVersion === 'v8-market-balance-followup-a'
     )
       ? `- Corners are a tertiary market. They are not a primary read on team quality, true scoring edge, or match motivation.
 - Only choose corners when the corner-specific evidence is cleaner than any available Goals or AH thesis. If a goals/AH read is similarly strong, prefer goals/AH.
@@ -1495,12 +1581,17 @@ export function buildLiveAnalysisPrompt(
     const advancedBalancedTotalsRule = (
       promptVersion === 'v6-betting-discipline-c'
       || promptVersion === 'v7-profile-overlay-discipline-a'
+      || promptVersion === 'v8-market-balance-followup-a'
     )
       ? `- Balanced totals are not enough. In 1-1 or 0-0 states around minute 55-70, if possession, shots, and shots on target are broadly even and there is no clear pressure asymmetry, default should_push=false.
 - Symmetric prices around 1.90 on both sides usually mean the market sees a thin edge. Do not force an Over or Under just because one more goal would cash.
 `
       : '';
     const profileOverlayDisciplineSection = buildProfileAndOverlayDisciplineSectionCompact(data, promptVersion);
+    const followUpContextSection = buildFollowUpContextSection(data, true);
+    const v8MarketBalanceSection = isV8PromptVersion(promptVersion)
+      ? buildV8MarketBalanceSectionCompact()
+      : '';
     return `
 You are a disciplined live football investment analyst. Analyze one live match and return either one realistic investment idea or no bet. Evaluate custom conditions separately.
 ${buildForceAnalyzeContextCompact(data, analysisMode)}========================
@@ -1578,6 +1669,7 @@ CONFIG / EVIDENCE
 - Tier rule: ${evidenceTierRule.operationalRule}
 
 ${buildAiRecommendedConditionSection(data)}
+${followUpContextSection}
 
 ============================================================
 DECISION RULES
@@ -1624,6 +1716,7 @@ ${advancedBettingRules}- 1X2 and BTTS No need full_live_data, confidence >= 7, a
 ${advancedCornersRules}
 ${advancedBalancedTotalsRule}
 ${profileOverlayDisciplineSection}
+${v8MarketBalanceSection}
 ${activeCornersSanityAlert}
 - Odds >= 2.50 => confidence cap 6, stake cap 3%
 - Over 3.5+ needs current goals >= line-1 or a clearly open match
@@ -1679,7 +1772,9 @@ OUTPUT - STRICT JSON
   "condition_triggered_stake": number,
   "condition_triggered_special_override": boolean,
   "condition_triggered_special_override_reason_en": string,
-  "condition_triggered_special_override_reason_vi": string
+  "condition_triggered_special_override_reason_vi": string,
+  "follow_up_answer_en": string,
+  "follow_up_answer_vi": string
 }
 All fields must exist. selection="" and bet_market="" when should_push=false.
 Return raw JSON only: first char "{" and last char "}".
@@ -1790,6 +1885,7 @@ ${buildPreviousRecommendationsSection(data)}
 ${buildMatchTimelineSection(data)}
 ${buildContinuityRulesSection(data)}
 ${buildHistoricalPerformanceSection(data)}
+${buildFollowUpContextSection(data, false)}
 ========================
 CONFIG / MODE
 ========================
@@ -1873,6 +1969,7 @@ MARKET SELECTION:
   - If cornersNeeded >= 3 AND minutesRemaining <= 20 -> should_push = false.
   - After minute 75: Corners Over requires cornersNeeded <= 1.
   - After minute 80: should_push = false for any Corners Over.
+${fullV8MarketBalanceRules}
 - Score 0-0 after minute 55: prefer GOALS Under markets (under_2.5, under_1.5). NOT corners_under.
 - risk_level = HIGH -> should_push = false.
 
@@ -1937,7 +2034,9 @@ OUTPUT FORMAT - STRICT JSON
   "condition_triggered_stake": number,
   "condition_triggered_special_override": boolean,
   "condition_triggered_special_override_reason_en": string,
-  "condition_triggered_special_override_reason_vi": string
+  "condition_triggered_special_override_reason_vi": string,
+  "follow_up_answer_en": string,
+  "follow_up_answer_vi": string
 }
 
 ALL fields must exist. selection="" when should_push=false. bet_market="" when should_push=false.

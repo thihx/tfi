@@ -10,9 +10,28 @@ const mockLoadAllData = vi.fn().mockResolvedValue(undefined);
 const mockRefreshMatches = vi.fn().mockResolvedValue(undefined);
 const mockAddToWatchlist = vi.fn().mockResolvedValue(true);
 const mockUpdateWatchlistItem = vi.fn().mockResolvedValue(true);
-const mockFetchMonitorConfig = vi.fn();
-const mockPersistMonitorConfig = vi.fn().mockResolvedValue(undefined);
-const mockFetchCurrentSubscription = vi.fn();
+const mockFetchFavoriteLeagueSelection = vi.fn();
+const mockApplyFavoriteLeaguesToWatchlist = vi.fn().mockResolvedValue({
+  error: null,
+  limitExceeded: false,
+  savedLeagueIds: [39],
+  candidateMatches: 1,
+  alreadyWatched: 0,
+  newMatches: 1,
+  added: 1,
+  localDate: '2026-03-24',
+  userTimeZone: 'Asia/Seoul',
+  currentWatchlistCount: 1,
+  watchlistActiveLimit: 5,
+  favoriteLeagueLimit: 1,
+});
+const mockFetchCurrentUser = vi.fn().mockResolvedValue({
+  userId: 'member-1',
+  email: 'member@example.com',
+  role: 'member',
+  name: 'Member',
+  picture: '',
+});
 
 const baseMatches: Match[] = [
   {
@@ -117,11 +136,6 @@ vi.mock('@/features/live-monitor/services/server-monitor.service', () => ({
   getParsedAiResult: mockGetParsedAiResult,
 }));
 
-vi.mock('@/features/live-monitor/config', () => ({
-  fetchMonitorConfig: mockFetchMonitorConfig,
-  persistMonitorConfig: mockPersistMonitorConfig,
-}));
-
 vi.mock('@/components/ui/MatchScoutModal', () => ({
   MatchScoutModal: () => null,
 }));
@@ -129,8 +143,17 @@ vi.mock('@/components/ui/MatchScoutModal', () => ({
 vi.mock('@/lib/services/api', () => ({
   fetchLeagueProfile: vi.fn().mockResolvedValue(null),
   fetchTeamProfile: vi.fn().mockResolvedValue(null),
-  fetchCurrentSubscription: mockFetchCurrentSubscription,
+  fetchFavoriteLeagueSelection: mockFetchFavoriteLeagueSelection,
+  applyFavoriteLeaguesToWatchlist: mockApplyFavoriteLeaguesToWatchlist,
 }));
+
+vi.mock('@/lib/services/auth', async () => {
+  const actual = await vi.importActual<typeof import('@/lib/services/auth')>('@/lib/services/auth');
+  return {
+    ...actual,
+    fetchCurrentUser: mockFetchCurrentUser,
+  };
+});
 
 beforeAll(() => {
   Object.defineProperty(HTMLElement.prototype, 'scrollIntoView', {
@@ -157,23 +180,34 @@ beforeEach(async () => {
   mockState.config = { apiUrl: 'http://localhost:4000', defaultMode: 'B' };
   mockState.leagues = leagues;
   mockRefreshMatches.mockResolvedValue(undefined);
-  mockFetchMonitorConfig.mockResolvedValue({
-    UI_LANGUAGE: 'vi',
-    NOTIFICATION_LANGUAGE: 'vi',
-    SUGGESTED_TOP_LEAGUE_IDS: [39],
+  mockFetchFavoriteLeagueSelection.mockResolvedValue({
+    availableLeagues: leagues.filter((league) => league.top_league),
+    selectedLeagueIds: [39],
+    favoriteLeaguesEnabled: true,
+    favoriteLeagueLimit: 1,
+    watchlistActiveLimit: 5,
+    watchlistActiveCount: 1,
   });
-  mockPersistMonitorConfig.mockResolvedValue(undefined);
-  mockFetchCurrentSubscription.mockResolvedValue({
-    plan: { plan_code: 'free', display_name: 'Free' },
-    subscription: null,
-    effectiveStatus: 'free_fallback',
-    entitlements: {
-      'watchlist.active_matches.limit': 5,
-      'watchlist.suggested_top_leagues.enabled': true,
-      'watchlist.suggested_top_leagues.limit': 1,
-    },
-    usage: { manualAiDaily: { entitlementKey: 'ai.manual.ask.daily_limit', periodKey: '2026-03-24', limit: 3, used: 0 } },
-    catalog: [],
+  mockApplyFavoriteLeaguesToWatchlist.mockResolvedValue({
+    error: null,
+    limitExceeded: false,
+    savedLeagueIds: [39],
+    candidateMatches: 1,
+    alreadyWatched: 0,
+    newMatches: 1,
+    added: 1,
+    localDate: '2026-03-24',
+    userTimeZone: 'Asia/Seoul',
+    currentWatchlistCount: 1,
+    watchlistActiveLimit: 5,
+    favoriteLeagueLimit: 1,
+  });
+  mockFetchCurrentUser.mockResolvedValue({
+    userId: 'member-1',
+    email: 'member@example.com',
+    role: 'member',
+    name: 'Member',
+    picture: '',
   });
   mockAnalyzeMatchWithServerPipeline.mockResolvedValue({
     matchId: '100',
@@ -242,6 +276,89 @@ describe('MatchesTab', () => {
     await user.click(screen.getByRole('button', { name: 'View AI result' }));
 
     expect(mockAnalyzeMatchWithServerPipeline).toHaveBeenCalledTimes(1);
+  });
+
+  it('sends a match-scoped follow-up question and renders the grounded reply', async () => {
+    const user = userEvent.setup();
+    mockAnalyzeMatchWithServerPipeline
+      .mockResolvedValueOnce({
+        matchId: '100',
+        success: true,
+        decisionKind: 'ai_push',
+        shouldPush: true,
+        selection: 'Over 2.5',
+        confidence: 8,
+        saved: true,
+        notified: false,
+        debug: {
+          prematchStrength: 'strong',
+          promptDataLevel: 'advanced-upgraded',
+          parsed: {
+            selection: 'Over 2.5',
+            bet_market: 'over_2.5',
+            risk_level: 'MEDIUM',
+            stake_percent: 4,
+            value_percent: 9,
+            reasoning_vi: 'Ap luc tang dan',
+            warnings: ['EDGE_OK'],
+            custom_condition_matched: false,
+          },
+        },
+      })
+      .mockResolvedValueOnce({
+        matchId: '100',
+        success: true,
+        decisionKind: 'no_bet',
+        shouldPush: false,
+        selection: '',
+        confidence: 0,
+        saved: false,
+        notified: false,
+        debug: {
+          advisoryOnly: true,
+          prematchStrength: 'strong',
+          promptDataLevel: 'advanced-upgraded',
+          parsed: {
+            selection: '',
+            bet_market: '',
+            risk_level: 'LOW',
+            stake_percent: 0,
+            value_percent: 0,
+            reasoning_vi: 'Theo doi them.',
+            warnings: ['ADVISORY_ONLY'],
+            custom_condition_matched: false,
+            follow_up_answer_vi: 'Keo Home -0.25 van co the can nhac, nhung chua tot hon over hien tai.',
+            follow_up_answer_en: 'Home -0.25 is still only a secondary lean here.',
+          },
+        },
+      });
+
+    render(<MatchesTab />);
+
+    await user.click(screen.getByTitle('Card view'));
+    await user.click(screen.getByRole('button', { name: 'Ask AI for analysis' }));
+    expect(await screen.findByText(/AI Analysis/i)).toBeInTheDocument();
+
+    await user.type(screen.getByLabelText('Ask follow-up about this match'), 'What about Home -0.25 here?');
+    await user.click(screen.getByRole('button', { name: 'Ask Follow-up' }));
+
+    await waitFor(() => {
+      expect(mockAnalyzeMatchWithServerPipeline).toHaveBeenNthCalledWith(
+        2,
+        expect.objectContaining({ apiUrl: 'http://localhost:4000' }),
+        '100',
+        {
+          question: 'What about Home -0.25 here?',
+          history: [],
+        },
+      );
+    });
+
+    expect(await screen.findByText('You')).toBeInTheDocument();
+    expect(screen.getByText('What about Home -0.25 here?')).toBeInTheDocument();
+    expect(screen.getByText('AI Follow-up')).toBeInTheDocument();
+    expect(screen.getByText('Keo Home -0.25 van co the can nhac, nhung chua tot hon over hien tai.')).toBeInTheDocument();
+    expect(screen.getByText('Advisory follow-up')).toBeInTheDocument();
   });
 
   it('passes the subscription id when saving a watched match edit', async () => {
@@ -320,38 +437,55 @@ describe('MatchesTab', () => {
     expect(mockRefreshMatches).toHaveBeenCalledTimes(1);
   });
 
-  it('loads suggested top leagues from DB-backed user settings and filters to them on demand', async () => {
-    const user = userEvent.setup();
+  it('loads favorite leagues from the backend snapshot', async () => {
     render(<MatchesTab />);
 
-    expect(await screen.findByText('Suggested Top Leagues')).toBeInTheDocument();
-    expect(screen.getAllByText('Premier League (1)').length).toBeGreaterThan(0);
-
-    await user.click(screen.getByRole('button', { name: 'Show Suggested' }));
-
-    expect(screen.getByText('Arsenal')).toBeInTheDocument();
-    expect(screen.queryByText('Barcelona')).not.toBeInTheDocument();
-    expect(screen.queryByText('Team A')).not.toBeInTheDocument();
+    expect(await screen.findByText('Favorite Leagues')).toBeInTheDocument();
+    expect(screen.getAllByText('Premier League').length).toBeGreaterThan(0);
   });
 
-  it('persists customized suggested top leagues and respects the plan cap', async () => {
+  it('saves favorite leagues and applies today matches into watchlist', async () => {
     const user = userEvent.setup();
     render(<MatchesTab />);
 
-    await user.click(await screen.findByRole('button', { name: 'Customize' }));
+    await user.click(await screen.findByRole('button', { name: 'Choose Favorite Leagues' }));
     expect(screen.getByText(/allows up to 1/i)).toBeInTheDocument();
 
     await user.click(screen.getByLabelText('La Liga'));
-    expect(mockShowToast).toHaveBeenCalledWith(expect.stringContaining('allows up to 1 suggested top leagues'), 'info');
+    expect(mockShowToast).toHaveBeenCalledWith(expect.stringContaining('allows up to 1 favorite leagues'), 'info');
     await user.click(screen.getByLabelText('Premier League'));
-    await user.click(screen.getByLabelText('La Liga'));
-
-    await user.click(screen.getByRole('button', { name: 'Save' }));
+    await user.click(screen.getByRole('button', { name: "Save & Add Today's Matches" }));
 
     await waitFor(() => {
-      expect(mockPersistMonitorConfig).toHaveBeenCalledWith({ SUGGESTED_TOP_LEAGUE_IDS: [] });
+      expect(mockApplyFavoriteLeaguesToWatchlist).toHaveBeenCalledWith(
+        expect.objectContaining({ apiUrl: 'http://localhost:4000' }),
+        [],
+      );
     });
-    expect(screen.getAllByText('La Liga (1)').length).toBeGreaterThan(0);
+    expect(mockLoadAllData).toHaveBeenCalledTimes(2);
+  });
+
+  it('allows admin users to choose beyond the member favorite league cap in the UI', async () => {
+    const user = userEvent.setup();
+    mockFetchCurrentUser.mockResolvedValueOnce({
+      userId: 'admin-1',
+      email: 'admin@example.com',
+      role: 'admin',
+      name: 'Admin',
+      picture: '',
+    });
+    render(<MatchesTab />);
+
+    await user.click(await screen.findByRole('button', { name: 'Choose Favorite Leagues' }));
+    await user.click(screen.getByLabelText('La Liga'));
+    await user.click(screen.getByRole('button', { name: "Save & Add Today's Matches" }));
+
+    await waitFor(() => {
+      expect(mockApplyFavoriteLeaguesToWatchlist).toHaveBeenCalledWith(
+        expect.objectContaining({ apiUrl: 'http://localhost:4000' }),
+        [39, 140],
+      );
+    });
   });
 });
 

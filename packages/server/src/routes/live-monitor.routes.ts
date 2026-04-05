@@ -245,16 +245,28 @@ export async function liveMonitorRoutes(app: FastifyInstance) {
     return { triggered: true };
   });
 
-  app.post<{ Params: { matchId: string } }>(
+  app.post<{
+    Params: { matchId: string };
+    Body: { question?: string; history?: Array<{ role: 'user' | 'assistant'; text: string }> };
+  }>(
     '/api/live-monitor/matches/:matchId/analyze',
     async (req, reply) => {
       const matchId = String(req.params.matchId || '').trim();
       if (!matchId) {
         return reply.status(400).send({ error: 'matchId is required' });
       }
+      const question = typeof req.body?.question === 'string' ? req.body.question.trim() : '';
+      const advisoryOnly = question.length > 0;
+      const history = Array.isArray(req.body?.history)
+        ? req.body.history.filter((entry) => entry && (entry.role === 'user' || entry.role === 'assistant') && typeof entry.text === 'string')
+        : undefined;
 
       try {
-        const result = await runManualAnalysisForMatch(matchId);
+        const result = await runManualAnalysisForMatch(matchId, {
+          userQuestion: advisoryOnly ? question : undefined,
+          followUpHistory: history,
+          advisoryOnly,
+        });
         return { result };
       } catch (error) {
         const message = error instanceof Error ? error.message : String(error);

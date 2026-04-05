@@ -22,6 +22,7 @@ export interface RecommendationPolicyInput {
   confidence: number;
   valuePercent: number;
   stakePercent: number;
+  promptVersion?: string | null;
   previousRecommendations?: RecommendationPolicyPreviousRow[];
   statsCompact?: RecommendationPolicyStatsCompact | null;
 }
@@ -73,6 +74,7 @@ export function applyRecommendationPolicy(input: RecommendationPolicyInput): Rec
   let blocked = false;
   let confidence = input.confidence;
   let stakePercent = input.stakePercent;
+  const isV8 = String(input.promptVersion ?? '').trim() === 'v8-market-balance-followup-a';
 
   const block = (warning: string) => {
     blocked = true;
@@ -83,8 +85,8 @@ export function applyRecommendationPolicy(input: RecommendationPolicyInput): Rec
     block('POLICY_BLOCK_1X2_DRAW');
   }
 
-  if (canonicalMarket === '1x2_home' && input.minute < 75) {
-    block('POLICY_BLOCK_1X2_HOME_PRE75');
+  if (canonicalMarket === '1x2_home' && input.minute < (isV8 ? 60 : 75)) {
+    block(isV8 ? 'POLICY_BLOCK_1X2_HOME_PRE60_V8' : 'POLICY_BLOCK_1X2_HOME_PRE75');
   }
 
   if (canonicalMarket === 'over_0.5' && input.minute >= 75) {

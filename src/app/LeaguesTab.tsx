@@ -895,11 +895,6 @@ export function LeaguesTab() {
           <option value="top">Favorites</option>
           <option value="normal">Non-Favorites</option>
         </select>
-        <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 6, paddingLeft: 8, borderLeft: '1px solid var(--gray-100)' }}>
-          <span style={{ fontSize: 12, color: 'var(--gray-400)', whiteSpace: 'nowrap' }}>
-            {filtered.length} / {allLeagues.length}
-          </span>
-        </div>
       </div>
 
       {/* Contextual bulk actions */}

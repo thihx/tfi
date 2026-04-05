@@ -177,6 +177,8 @@ export async function proxyRoutes(app: FastifyInstance) {
     Body: {
       prompt?: string;
       matchId?: string;
+      question?: string;
+      history?: Array<{ role: 'user' | 'assistant'; text: string }>;
       provider: string;
       model?: string;
       forceAnalyze?: boolean;
@@ -188,7 +190,8 @@ export async function proxyRoutes(app: FastifyInstance) {
       try {
         const user = requireCurrentUser(req, reply);
         if (!user) return;
-        const { prompt, matchId, provider, model, forceAnalyze } = req.body;
+        const { prompt, matchId, question, history, provider, model, forceAnalyze } = req.body;
+        const advisoryOnly = typeof question === 'string' && question.trim().length > 0;
 
         if (provider === 'gemini') {
           if (!(typeof prompt === 'string' && prompt.trim()) && !(typeof matchId === 'string' && matchId.trim())) {
@@ -209,6 +212,9 @@ export async function proxyRoutes(app: FastifyInstance) {
             ? await runPromptOnlyAnalysisForMatch(matchId.trim(), {
               forceAnalyze: forceAnalyze === true,
               modelOverride: resolvedModel,
+              userQuestion: advisoryOnly ? question?.trim() : undefined,
+              followUpHistory: Array.isArray(history) ? history.filter((entry) => entry && (entry.role === 'user' || entry.role === 'assistant') && typeof entry.text === 'string') : undefined,
+              advisoryOnly,
             })
             : null;
           const text = typeof prompt === 'string' && prompt.trim()
@@ -218,7 +224,7 @@ export async function proxyRoutes(app: FastifyInstance) {
             return reply.code(502).send({ error: 'AI API returned an empty response' });
           }
 
-          if (promptOnlyResult && typeof matchId === 'string' && matchId.trim()) {
+          if (promptOnlyResult && typeof matchId === 'string' && matchId.trim() && !advisoryOnly) {
             audit({
               category: 'PIPELINE',
               action: 'PROMPT_ONLY_MATCH_ANALYZED',
@@ -242,6 +248,8 @@ export async function proxyRoutes(app: FastifyInstance) {
               model: resolvedModel,
               promptLength: typeof prompt === 'string' ? prompt.length : null,
               matchId: typeof matchId === 'string' ? matchId : null,
+              questionLength: advisoryOnly ? question?.trim().length ?? 0 : null,
+              advisoryOnly,
               responseLength: text.length,
             },
           });

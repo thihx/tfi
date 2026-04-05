@@ -137,10 +137,20 @@ export async function consumeManualAiQuota(snapshot: SubscriptionAccessSnapshot,
 }
 
 export async function assertWatchlistCapacityAvailable(snapshot: SubscriptionAccessSnapshot, userId: string) {
+  return assertWatchlistCapacityForAdditional(snapshot, userId, 1);
+}
+
+export async function assertWatchlistCapacityForAdditional(
+  snapshot: SubscriptionAccessSnapshot,
+  userId: string,
+  additionalCount: number,
+) {
   const planName = formatPlanName(snapshot.plan);
+  const requested = Math.max(0, Math.floor(additionalCount));
+  if (requested <= 0) return;
   const limit = getNumberEntitlement(snapshot.entitlements, 'watchlist.active_matches.limit');
   const activeCount = await countActiveWatchSubscriptionsByUser(userId);
-  if (activeCount >= limit) {
+  if (activeCount + requested > limit) {
     throw new EntitlementError(`You have reached the active watchlist limit on the ${planName} plan (${activeCount}/${limit} used). Remove a watched match or upgrade your subscription.`, {
       code: 'WATCHLIST_ACTIVE_LIMIT_REACHED',
       details: {
@@ -149,6 +159,7 @@ export async function assertWatchlistCapacityAvailable(snapshot: SubscriptionAcc
         planName,
         limit,
         used: activeCount,
+        requested,
       },
     });
   }

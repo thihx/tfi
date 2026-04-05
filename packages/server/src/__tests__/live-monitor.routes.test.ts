@@ -470,7 +470,46 @@ describe('POST /api/live-monitor/matches/:matchId/analyze', () => {
         notified: true,
       },
     });
-    expect(mockRunManualAnalysisForMatch).toHaveBeenCalledWith('123');
+    expect(mockRunManualAnalysisForMatch).toHaveBeenCalledWith('123', {
+      advisoryOnly: false,
+      followUpHistory: undefined,
+      userQuestion: undefined,
+    });
+  });
+
+  test('passes follow-up advisory question and history to manual analysis', async () => {
+    mockRunManualAnalysisForMatch.mockResolvedValueOnce({
+      matchId: '123',
+      success: true,
+      decisionKind: 'no_bet',
+      shouldPush: false,
+      selection: '',
+      confidence: 0,
+      saved: false,
+      notified: false,
+    });
+
+    const res = await app.inject({
+      method: 'POST',
+      url: '/api/live-monitor/matches/123/analyze',
+      payload: {
+        question: 'Would Home -0.25 be better here?',
+        history: [
+          { role: 'user', text: 'Why not under?' },
+          { role: 'assistant', text: 'The home side still controls the match.' },
+        ],
+      },
+    });
+
+    expect(res.statusCode).toBe(200);
+    expect(mockRunManualAnalysisForMatch).toHaveBeenCalledWith('123', {
+      advisoryOnly: true,
+      followUpHistory: [
+        { role: 'user', text: 'Why not under?' },
+        { role: 'assistant', text: 'The home side still controls the match.' },
+      ],
+      userQuestion: 'Would Home -0.25 be better here?',
+    });
   });
 
   test('returns 404 when the match is missing', async () => {

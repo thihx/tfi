@@ -2756,6 +2756,49 @@ describe('runPipelineBatch', () => {
     expect(result.prompt).toContain('"corners_ou":{"line":12.5,"over":1.93,"under":1.85}');
   });
 
+  test('prompt-only analysis does not misclassify corners totals as goals totals when only corners O/U is present', async () => {
+    const footballApi = await import('../lib/football-api.js');
+
+    vi.mocked(footballApi.fetchFixturesByIds).mockResolvedValueOnce([{
+      fixture: { id: 100, status: { short: 'HT', elapsed: 45 }, timestamp: 1700000000 },
+      teams: { home: { id: 1, name: 'Team A' }, away: { id: 2, name: 'Team B' } },
+      league: { id: 39, name: 'Test League' },
+      goals: { home: 2, away: 3 },
+    }] as never);
+    vi.mocked(footballApi.fetchFixtureStatistics).mockResolvedValueOnce([
+      { team: { id: 1 }, statistics: [
+        { type: 'Ball Possession', value: '61%' },
+        { type: 'Total Shots', value: 10 },
+        { type: 'Shots on Goal', value: 4 },
+        { type: 'Corner Kicks', value: 3 },
+        { type: 'Fouls', value: 7 },
+      ] },
+      { team: { id: 2 }, statistics: [
+        { type: 'Ball Possession', value: '39%' },
+        { type: 'Total Shots', value: 8 },
+        { type: 'Shots on Goal', value: 5 },
+        { type: 'Corner Kicks', value: 1 },
+        { type: 'Fouls', value: 6 },
+      ] },
+    ] as never);
+    vi.mocked(footballApi.fetchLiveOdds).mockResolvedValueOnce([{
+      bookmakers: [{
+        name: 'TestBook',
+        bets: [
+          { name: 'Corners Over/Under', values: [
+            { value: 'Over', odd: '2.10', handicap: '10' },
+            { value: 'Under', odd: '2.20', handicap: '10' },
+          ] },
+        ],
+      }],
+    }] as never);
+
+    const result = await runPromptOnlyAnalysisForMatch('100', { forceAnalyze: true });
+
+    expect(result.prompt).not.toContain('"ou":{"line":10');
+    expect(result.prompt).toContain('"corners_ou":{"line":10,"over":2.1,"under":2.2}');
+  });
+
   test('prompt-only analysis upgrades prompt with optional advanced stats only when API data is rich enough', async () => {
     const footballApi = await import('../lib/football-api.js');
     vi.mocked(footballApi.fetchFixtureStatistics).mockResolvedValueOnce([
@@ -3279,5 +3322,62 @@ describe('runPipelineBatch', () => {
 
     const { sendTelegramMessage } = await import('../lib/telegram.js');
     expect(sendTelegramMessage).not.toHaveBeenCalled();
+  });
+
+  test('advisory follow-up stays grounded but does not save or notify', async () => {
+    const { callGemini } = await import('../lib/gemini.js');
+    const { createRecommendation } = await import('../repos/recommendations.repo.js');
+    vi.mocked(callGemini).mockResolvedValueOnce(JSON.stringify({
+      should_push: true,
+      selection: 'Home -0.25 @1.94',
+      bet_market: 'asian_handicap_home_-0.25',
+      market_chosen_reason: 'Home control still looks stronger than the market line implies',
+      confidence: 7,
+      reasoning_en: 'Live edge still leans home, but treat this as advisory only.',
+      reasoning_vi: 'The tran van nghieng ve chu nha, nhung day chi la tu van.',
+      warnings: ['ADVISORY_ONLY'],
+      value_percent: 8,
+      risk_level: 'MEDIUM',
+      stake_percent: 4,
+      custom_condition_matched: false,
+      custom_condition_status: 'none',
+      custom_condition_summary_en: '',
+      custom_condition_summary_vi: '',
+      custom_condition_reason_en: '',
+      custom_condition_reason_vi: '',
+      condition_triggered_suggestion: '',
+      condition_triggered_reasoning_en: '',
+      condition_triggered_reasoning_vi: '',
+      condition_triggered_confidence: 0,
+      condition_triggered_stake: 0,
+      condition_triggered_special_override: false,
+      condition_triggered_special_override_reason_en: '',
+      condition_triggered_special_override_reason_vi: '',
+      follow_up_answer_en: 'Home -0.25 is playable only if the control persists, but I would still keep risk moderate.',
+      follow_up_answer_vi: 'Keo chu nha -0.25 chi nen can nhac neu the tran kiem soat van duoc duy tri.',
+    }));
+
+    const result = await runPromptOnlyAnalysisForMatch('100', {
+      forceAnalyze: true,
+      advisoryOnly: true,
+      userQuestion: 'Would Home -0.25 be better here?',
+      followUpHistory: [
+        { role: 'user', text: 'Why not under?' },
+        { role: 'assistant', text: 'The home side is still controlling the match.' },
+      ],
+    });
+
+    const prompt = vi.mocked(callGemini).mock.calls[0]?.[0] ?? '';
+    expect(prompt).toContain('FOLLOW_UP_MODE: advisory');
+    expect(prompt).toContain('USER_QUESTION: Would Home -0.25 be better here?');
+    expect(result.result.success).toBe(true);
+    expect(result.result.saved).toBe(false);
+    expect(result.result.notified).toBe(false);
+    expect(result.result.debug?.advisoryOnly).toBe(true);
+    expect(result.result.debug?.parsed).toEqual(expect.objectContaining({
+      follow_up_answer_en: 'Home -0.25 is playable only if the control persists, but I would still keep risk moderate.',
+      follow_up_answer_vi: 'Keo chu nha -0.25 chi nen can nhac neu the tran kiem soat van duoc duy tri.',
+    }));
+    expect(createRecommendation).not.toHaveBeenCalled();
   });
 });

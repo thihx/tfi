@@ -249,7 +249,7 @@ function AppContent() {
 
           <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', height: '100vh', overflow: 'hidden' }}>
             <Header activeTab={activeTab} onLogout={logout} user={user} onUserChange={setCurrentUser} />
-            <div style={{ flex: 1, padding: '20px', minWidth: 0, overflowY: 'auto' }}>
+            <div style={{ flex: 1, padding: '20px', minWidth: 0, overflowY: 'auto', '--header-height': '0px' } as React.CSSProperties}>
               <Suspense fallback={<TabFallback />}>{renderTab()}</Suspense>
             </div>
           </div>

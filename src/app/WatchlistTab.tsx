@@ -36,7 +36,7 @@ export function WatchlistTab() {
 
   const searchRef = useRef<HTMLInputElement>(null);
   const filterBarRef = useRef<HTMLDivElement>(null);
-  const [filterBarBottom, setFilterBarBottom] = useState(160);
+  const [filterBarBottom, setFilterBarBottom] = useState(240);
 
   // `/` key focuses search
   useEffect(() => {
@@ -53,7 +53,7 @@ export function WatchlistTab() {
   useEffect(() => {
     const el = filterBarRef.current;
     if (!el) return;
-    const update = () => {
+    const measure = () => {
       const scrollParent = el.closest('[style*="overflow"]') as HTMLElement | null;
       if (scrollParent) {
         const containerRect = scrollParent.getBoundingClientRect();
@@ -65,10 +65,11 @@ export function WatchlistTab() {
         if (b > 0) setFilterBarBottom(b);
       }
     };
-    update();
-    const ro = new ResizeObserver(update);
+    // Wait for DOM layout to settle before first measurement
+    const raf = requestAnimationFrame(measure);
+    const ro = new ResizeObserver(measure);
     ro.observe(el);
-    return () => ro.disconnect();
+    return () => { cancelAnimationFrame(raf); ro.disconnect(); };
   }, []);
 
   // Edit modal state

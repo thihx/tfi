@@ -434,8 +434,26 @@ describe('buildLiveAnalysisPrompt', () => {
 
     expect(candidate).toContain(`PROMPT_VERSION: ${LIVE_ANALYSIS_PROMPT_CANDIDATE_VERSION}`);
     expect(candidate).toContain('EXACT OUTPUT ENUMS:');
-    expect(candidate).toContain('PROMPT_VERSION: v7-profile-overlay-discipline-a');
+    expect(candidate).toContain('V8 MARKET-BALANCE DISCIPLINE:');
     expect(baseline).toContain(`PROMPT_VERSION: ${LIVE_ANALYSIS_PROMPT_VERSION}`);
+  });
+
+  test('candidate prompt includes follow-up contract and v8 prior-alignment rules', () => {
+    const candidate = buildLiveAnalysisPrompt({
+      ...baseInput,
+      userQuestion: 'What about Home -0.25 here?',
+      followUpHistory: [
+        { role: 'user', text: 'Why not under?' },
+        { role: 'assistant', text: 'Because the home side is still controlling the match.' },
+      ],
+    }, settings, LIVE_ANALYSIS_PROMPT_CANDIDATE_VERSION);
+
+    expect(candidate).toContain('FOLLOW_UP_MODE: advisory');
+    expect(candidate).toContain('USER_QUESTION: What about Home -0.25 here?');
+    expect(candidate).toContain('FOLLOW_UP_HISTORY:');
+    expect(candidate).toContain('V8 PRIOR ALIGNMENT RULE');
+    expect(candidate).toContain('"follow_up_answer_en": string');
+    expect(candidate).toContain('"follow_up_answer_vi": string');
   });
 
   test('candidate prompt enumerates exact canonical market keys and rejects generic aliases', () => {

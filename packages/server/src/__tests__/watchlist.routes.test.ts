@@ -32,11 +32,16 @@ const mockEntry = {
 
 vi.mock('../repos/watchlist.repo.js', () => ({
   getAllWatchlist: vi.fn().mockResolvedValue([mockEntry]),
+  countActiveWatchSubscriptionsByUser: vi.fn().mockResolvedValue(1),
+  getExistingUserWatchlistMatchIds: vi.fn().mockResolvedValue(new Set()),
   getWatchSubscriptionById: vi.fn().mockImplementation((subscriptionId: number) =>
     subscriptionId === 7 ? Promise.resolve(mockEntry) : Promise.resolve(null),
   ),
   createWatchlistEntry: vi.fn().mockImplementation((body: Record<string, unknown>) =>
     Promise.resolve({ ...mockEntry, ...body }),
+  ),
+  createWatchlistEntriesBatch: vi.fn().mockImplementation((rows: Array<Record<string, unknown>>) =>
+    Promise.resolve(rows.map((row, index) => ({ ...mockEntry, ...row, id: 100 + index }))),
   ),
   updateWatchSubscriptionById: vi.fn().mockImplementation((subscriptionId: number, body: Record<string, unknown>) =>
     subscriptionId === 7 ? Promise.resolve({ ...mockEntry, ...body }) : Promise.resolve(null),
@@ -54,7 +59,43 @@ vi.mock('../repos/watchlist.repo.js', () => ({
 vi.mock('../repos/settings.repo.js', () => ({
   getSettings: vi.fn().mockResolvedValue({
     AUTO_APPLY_RECOMMENDED_CONDITION: true,
+    USER_TIMEZONE: 'Asia/Seoul',
   }),
+  saveSettings: vi.fn().mockResolvedValue({
+    user_id: 'member-1',
+    settings: {},
+    updated_at: '2026-03-24T00:00:00.000Z',
+  }),
+}));
+
+vi.mock('../repos/leagues.repo.js', () => ({
+  getTopLeagues: vi.fn().mockResolvedValue([
+    { league_id: 39, league_name: 'Premier League', top_league: true, active: true, country: 'England', tier: '1', type: 'League', logo: '', last_updated: '' },
+    { league_id: 140, league_name: 'La Liga', top_league: true, active: true, country: 'Spain', tier: '1', type: 'League', logo: '', last_updated: '' },
+  ]),
+}));
+
+vi.mock('../repos/matches.repo.js', () => ({
+  getMatchesForLeaguesOnLocalDate: vi.fn().mockResolvedValue([
+    {
+      match_id: '300',
+      date: '2026-03-24',
+      kickoff: '19:00',
+      kickoff_at_utc: '2026-03-24T10:00:00.000Z',
+      league_id: 39,
+      league_name: 'Premier League',
+      home_team: 'Arsenal',
+      away_team: 'Chelsea',
+      home_logo: '',
+      away_logo: '',
+      venue: '',
+      status: 'NS',
+      home_score: null,
+      away_score: null,
+      current_minute: null,
+      last_updated: '2026-03-24T00:00:00.000Z',
+    },
+  ]),
 }));
 
 vi.mock('../lib/subscription-access.js', () => ({
@@ -63,11 +104,23 @@ vi.mock('../lib/subscription-access.js', () => ({
     entitlements: { 'watchlist.active_matches.limit': 5 },
   }),
   assertWatchlistCapacityAvailable: vi.fn().mockResolvedValue(undefined),
+  assertWatchlistCapacityForAdditional: vi.fn().mockResolvedValue(undefined),
   sendEntitlementError: vi.fn().mockImplementation((error: unknown) => (
     error instanceof Error && error.message === 'watchlist-limit'
       ? { statusCode: 403, payload: { error: 'Active watchlist limit reached' } }
       : null
   )),
+  EntitlementError: class EntitlementError extends Error {
+    statusCode: number;
+    code: string;
+    details: Record<string, unknown>;
+    constructor(message: string, options: { statusCode?: number; code: string; details?: Record<string, unknown> }) {
+      super(message);
+      this.statusCode = options.statusCode ?? 403;
+      this.code = options.code;
+      this.details = options.details ?? {};
+    }
+  },
 }));
 
 let app: FastifyInstance;
@@ -173,6 +226,111 @@ describe('POST /api/me/watch-subscriptions', () => {
     expect(res.statusCode).toBe(201);
     expect(access.resolveSubscriptionAccess).not.toHaveBeenCalled();
     expect(access.assertWatchlistCapacityAvailable).not.toHaveBeenCalled();
+  });
+});
+
+describe('favorite leagues watchlist automation', () => {
+  test('loads system favorite leagues and current user selection', async () => {
+    const settingsRepo = await import('../repos/settings.repo.js');
+    vi.mocked(settingsRepo.getSettings).mockResolvedValueOnce({
+      FAVORITE_LEAGUE_IDS: [39],
+      USER_TIMEZONE: 'Asia/Seoul',
+    });
+
+    const res = await app.inject({ method: 'GET', url: '/api/me/watch-subscriptions/favorite-leagues' });
+
+    expect(res.statusCode).toBe(200);
+    expect(res.json()).toEqual(expect.objectContaining({
+      selectedLeagueIds: [39],
+      favoriteLeaguesEnabled: true,
+      watchlistActiveCount: 1,
+    }));
+  });
+
+  test('saves selection and adds today matches into watchlist', async () => {
+    const watchlistRepo = await import('../repos/watchlist.repo.js');
+    const settingsRepo = await import('../repos/settings.repo.js');
+
+    const res = await app.inject({
+      method: 'PUT',
+      url: '/api/me/watch-subscriptions/favorite-leagues',
+      payload: { leagueIds: [39, 140] },
+    });
+
+    expect(res.statusCode).toBe(200);
+    expect(res.json()).toEqual(expect.objectContaining({
+      savedLeagueIds: [39, 140],
+      candidateMatches: 1,
+      alreadyWatched: 0,
+      newMatches: 1,
+      added: 1,
+      limitExceeded: false,
+    }));
+    expect(settingsRepo.saveSettings).toHaveBeenCalledWith(
+      expect.objectContaining({ FAVORITE_LEAGUE_IDS: [39, 140] }),
+      'member-1',
+    );
+    expect(watchlistRepo.createWatchlistEntriesBatch).toHaveBeenCalledWith(
+      expect.arrayContaining([
+        expect.objectContaining({ match_id: '300', added_by: 'favorite-league-auto' }),
+      ]),
+      'member-1',
+    );
+  });
+
+  test('rejects non-system leagues', async () => {
+    const res = await app.inject({
+      method: 'PUT',
+      url: '/api/me/watch-subscriptions/favorite-leagues',
+      payload: { leagueIds: [999] },
+    });
+
+    expect(res.statusCode).toBe(400);
+    expect(res.json()).toEqual({ error: 'One or more selected leagues are not eligible favorite leagues.' });
+  });
+
+  test('saves selection but does not add matches when watchlist capacity would be exceeded', async () => {
+    const access = await import('../lib/subscription-access.js');
+    const watchlistRepo = await import('../repos/watchlist.repo.js');
+    vi.mocked(watchlistRepo.createWatchlistEntriesBatch).mockClear();
+    vi.mocked(access.assertWatchlistCapacityAvailable).mockResolvedValue(undefined);
+    vi.mocked(access.assertWatchlistCapacityForAdditional).mockRejectedValueOnce(new Error('watchlist-limit'));
+
+    const res = await app.inject({
+      method: 'PUT',
+      url: '/api/me/watch-subscriptions/favorite-leagues',
+      payload: { leagueIds: [39] },
+    });
+
+    expect(res.statusCode).toBe(200);
+    expect(res.json()).toEqual(expect.objectContaining({
+      limitExceeded: true,
+      added: 0,
+      savedLeagueIds: [39],
+    }));
+    expect(watchlistRepo.createWatchlistEntriesBatch).not.toHaveBeenCalled();
+  });
+
+  test('admin bypasses favorite league and watchlist caps', async () => {
+    const access = await import('../lib/subscription-access.js');
+    const watchlistRepo = await import('../repos/watchlist.repo.js');
+    vi.mocked(watchlistRepo.createWatchlistEntriesBatch).mockClear();
+    vi.mocked(access.resolveSubscriptionAccess).mockClear();
+    vi.mocked(access.assertWatchlistCapacityForAdditional).mockClear();
+
+    const res = await adminApp.inject({
+      method: 'PUT',
+      url: '/api/me/watch-subscriptions/favorite-leagues',
+      payload: { leagueIds: [39, 140] },
+    });
+
+    expect(res.statusCode).toBe(200);
+    expect(res.json()).toEqual(expect.objectContaining({
+      savedLeagueIds: [39, 140],
+      limitExceeded: false,
+    }));
+    expect(access.resolveSubscriptionAccess).not.toHaveBeenCalled();
+    expect(access.assertWatchlistCapacityForAdditional).not.toHaveBeenCalled();
   });
 });
 

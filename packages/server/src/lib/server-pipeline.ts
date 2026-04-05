@@ -87,6 +87,7 @@ import {
   type RecommendationPolicyPreviousRow,
   type RecommendationPolicyStatsCompact,
 } from './recommendation-policy.js';
+import { detectGoalsCornersLineContamination } from './odds-integrity.js';
 
 const pipelineSkipAuditCounters = new Map<string, number>();
 
@@ -245,6 +246,9 @@ export interface PipelineExecutionOptions {
   skipStalenessGate?: boolean;
   modelOverride?: string;
   promptVersionOverride?: LiveAnalysisPromptVersion;
+  userQuestion?: string;
+  followUpHistory?: Array<{ role: 'user' | 'assistant'; text: string }>;
+  advisoryOnly?: boolean;
   dependencies?: Partial<PipelineDeps>;
   previousRecommendations?: Array<{
     minute: number | null;
@@ -369,6 +373,8 @@ interface ParsedAiResponse {
   condition_triggered_special_override_reason_en: string;
   condition_triggered_special_override_reason_vi: string;
   condition_triggered_should_push: boolean;
+  follow_up_answer_en: string;
+  follow_up_answer_vi: string;
   ai_selection: string;
   ai_confidence: number;
   ai_odd_raw: number | null;
@@ -418,6 +424,7 @@ function evaluateConditionTriggeredSaveDecision(args: {
   score: string;
   minOdds: number;
   minConfidence: number;
+  promptVersion: LiveAnalysisPromptVersion;
   statsCompact: RecommendationPolicyStatsCompact | null;
 }): ConditionTriggeredSaveDecision {
   const warnings: string[] = [];
@@ -507,6 +514,7 @@ function evaluateConditionTriggeredSaveDecision(args: {
     confidence: args.parsed.condition_triggered_confidence,
     valuePercent: args.parsed.value_percent,
     stakePercent: args.parsed.condition_triggered_stake,
+    promptVersion: args.promptVersion,
     previousRecommendations: args.previousRecommendations,
     statsCompact: args.statsCompact ?? undefined,
   });
@@ -677,6 +685,7 @@ export interface MatchPipelineResult {
   debug?: {
     analysisRunId?: string;
     shadowMode: boolean;
+    advisoryOnly?: boolean;
     skippedAt?: 'proceed' | 'staleness';
     skipReason?: string;
     analysisMode?: PromptAnalysisMode;
@@ -1087,7 +1096,11 @@ interface PromptExecutionContext {
   preMatchPredictionSummary: string;
   mode: string;
   statsFallbackReason: string;
+  userQuestion?: string;
+  followUpHistory?: Array<{ role: 'user' | 'assistant'; text: string }>;
 }
+
+type FollowUpHistoryEntry = { role: 'user' | 'assistant'; text: string };
 
 function resolveConfiguredPromptVersion(
   configuredVersion: string | undefined,
@@ -1171,6 +1184,7 @@ async function executePromptAnalysis(
     confidence: parsedRaw.confidence,
     valuePercent: parsedRaw.value_percent,
     stakePercent: parsedRaw.stake_percent,
+    promptVersion,
     previousRecommendations: policyContext.previousRecommendations,
     statsCompact: promptContext.statsCompact,
   });
@@ -1527,7 +1541,7 @@ function hasCriticalWebFallbackMismatch(reasons: string[]): boolean {
 
 // ==================== Build Odds Canonical ====================
 
-function buildOddsCanonical(oddsResponse: unknown[]): { canonical: OddsCanonical; available: boolean } {
+export function buildOddsCanonical(oddsResponse: unknown[]): { canonical: OddsCanonical; available: boolean } {
   if (!oddsResponse || !Array.isArray(oddsResponse) || oddsResponse.length === 0) {
     return { canonical: {}, available: false };
   }
@@ -1545,6 +1559,7 @@ function buildOddsCanonical(oddsResponse: unknown[]): { canonical: OddsCanonical
       const betName = String(bet.name || '').toLowerCase();
       const values = bet.values || [];
       const isHalf = /1st half|2nd half|first half|second half|\bht\b|\b1h\b|\b2h\b|half.?time/i.test(betName);
+      const isCornerBet = betName.includes('corner');
       if (isHalf) continue;
 
       // 1X2
@@ -1560,7 +1575,7 @@ function buildOddsCanonical(oddsResponse: unknown[]): { canonical: OddsCanonical
       }
 
       // Over/Under
-      if (betName.includes('over/under') || betName.includes('over / under') || betName.includes('total goals') || betName.includes('match goals')) {
+      if (!isCornerBet && (betName.includes('over/under') || betName.includes('over / under') || betName.includes('total goals') || betName.includes('match goals'))) {
         for (const v of values) {
           const raw = String(v.value || '').toLowerCase().trim();
           const hc = v.handicap ? String(v.handicap).trim() : '';
@@ -1590,7 +1605,7 @@ function buildOddsCanonical(oddsResponse: unknown[]): { canonical: OddsCanonical
       }
 
       // Asian Handicap
-      if (betName.includes('handicap')) {
+      if (!isCornerBet && betName.includes('handicap')) {
         for (const v of values) {
           let raw = String(v.value || '').toLowerCase().trim();
           const hc = v.handicap ? String(v.handicap).trim() : '';
@@ -1711,6 +1726,11 @@ function sanitizePromptOddsCanonical(args: {
       'ou',
       `Removed goals O/U market from prompt: current total goals ${args.currentTotalGoals} already exceeds line ${sanitized.ou.line}.`,
     );
+  }
+
+  const contaminationCheck = detectGoalsCornersLineContamination(sanitized, args.currentTotalGoals);
+  if (contaminationCheck.contaminated) {
+    removeMarket('ou', contaminationCheck.reason);
   }
 
   if (
@@ -1870,6 +1890,8 @@ function parseAiResponse(
     condition_triggered_special_override_reason_en: '',
     condition_triggered_special_override_reason_vi: '',
     condition_triggered_should_push: false,
+    follow_up_answer_en: '',
+    follow_up_answer_vi: '',
     ai_selection: '', ai_confidence: 0, ai_odd_raw: null, ai_warnings: [],
     usable_odd: null, mapped_odd: null, odds_for_display: null,
   };
@@ -1912,6 +1934,8 @@ function parseAiResponse(
   const conditionTriggeredSpecialOverride = parsed.condition_triggered_special_override === true;
   const conditionTriggeredSpecialOverrideReasonEn = String(parsed.condition_triggered_special_override_reason_en || '');
   const conditionTriggeredSpecialOverrideReasonVi = String(parsed.condition_triggered_special_override_reason_vi || '');
+  const followUpAnswerEn = String(parsed.follow_up_answer_en || '');
+  const followUpAnswerVi = String(parsed.follow_up_answer_vi || '');
 
   // Map odds from selection
   const mappedOdd = extractOddsFromSelection(aiSelection, betMarket, oddsCanonical);
@@ -1997,6 +2021,8 @@ function parseAiResponse(
     condition_triggered_special_override_reason_en: conditionTriggeredSpecialOverrideReasonEn,
     condition_triggered_special_override_reason_vi: conditionTriggeredSpecialOverrideReasonVi,
     condition_triggered_should_push: conditionTriggeredShouldPush,
+    follow_up_answer_en: followUpAnswerEn,
+    follow_up_answer_vi: followUpAnswerVi,
     ai_selection: aiSelection,
     ai_confidence: aiConfidence,
     ai_odd_raw: mappedOdd,
@@ -2419,6 +2445,7 @@ async function processMatch(
     activePromptVersion,
   );
   const analysisRunId = randomUUID();
+  const advisoryOnly = options.advisoryOnly === true;
 
   try {
     const homeTeamId = fixture.teams?.home?.id;
@@ -3095,6 +3122,8 @@ async function processMatch(
       preMatchPredictionSummary: '',
       mode: watchlistEntry.mode || 'B',
       statsFallbackReason,
+      userQuestion: options.userQuestion,
+      followUpHistory: options.followUpHistory,
     };
 
     // 6. Call Gemini
@@ -3123,7 +3152,7 @@ async function processMatch(
       shadowPromptVersion,
       shadowMode,
       promptVersionOverride: options.promptVersionOverride,
-    });
+    }) && !advisoryOnly;
 
     if (promptShadowRequested) {
       void runPromptShadowComparison({
@@ -3167,6 +3196,7 @@ async function processMatch(
       score,
       minOdds: settings.minOdds,
       minConfidence: settings.minConfidence,
+      promptVersion: activePromptVersion,
       statsCompact,
     });
     if (conditionTriggeredSaveDecision.warnings.length > 0) {
@@ -3179,8 +3209,8 @@ async function processMatch(
     //   first actionable thesis (or an approved same-line override).
     // - shouldNotify: alert the user for either an actionable AI bet OR a
     //   condition-only trigger that meets the notify threshold.
-    const shouldSave = parsed.final_should_bet || conditionTriggeredSaveDecision.shouldSave;
-    const shouldNotify = parsed.should_push;
+    const shouldSave = advisoryOnly ? false : (parsed.final_should_bet || conditionTriggeredSaveDecision.shouldSave);
+    const shouldNotify = advisoryOnly ? false : parsed.should_push;
     const notificationSelection = displaySelection(parsed);
     const notificationConfidence = displayConfidence(parsed);
     const notificationOdds = parsed.final_should_bet
@@ -3401,7 +3431,7 @@ async function processMatch(
       }
     }
 
-    if (!shadowMode) {
+    if (!shadowMode && !advisoryOnly) {
       audit({
         category: 'PIPELINE',
         action: 'PIPELINE_MATCH_ANALYZED',
@@ -3452,6 +3482,7 @@ async function processMatch(
         analysisRunId,
         shadowMode,
         analysisMode,
+        advisoryOnly,
         oddsSource,
         oddsAvailable,
         statsAvailable,
@@ -3507,6 +3538,7 @@ async function processMatch(
       debug: {
         analysisRunId,
         shadowMode,
+        advisoryOnly,
         totalLatencyMs: Date.now() - startedAt,
       },
     };
@@ -3531,6 +3563,9 @@ export async function runPromptOnlyAnalysisForMatch(
     forceAnalyze?: boolean;
     modelOverride?: string;
     promptVersionOverride?: LiveAnalysisPromptVersion;
+    userQuestion?: string;
+    followUpHistory?: FollowUpHistoryEntry[];
+    advisoryOnly?: boolean;
   } = {},
 ): Promise<{ text: string; prompt: string; result: MatchPipelineResult }> {
   const [fixture, watchlistEntry] = await Promise.all([
@@ -3553,6 +3588,9 @@ export async function runPromptOnlyAnalysisForMatch(
     skipStalenessGate: true,
     modelOverride: options.modelOverride,
     promptVersionOverride: options.promptVersionOverride,
+    userQuestion: options.userQuestion,
+    followUpHistory: options.followUpHistory,
+    advisoryOnly: options.advisoryOnly,
   });
 
   const prompt = result.debug?.prompt;
@@ -3577,6 +3615,9 @@ export async function runManualAnalysisForMatch(
     forceAnalyze?: boolean;
     modelOverride?: string;
     promptVersionOverride?: LiveAnalysisPromptVersion;
+    userQuestion?: string;
+    followUpHistory?: FollowUpHistoryEntry[];
+    advisoryOnly?: boolean;
   } = {},
 ): Promise<MatchPipelineResult> {
   const [fixture, watchlistEntry] = await Promise.all([
@@ -3596,6 +3637,9 @@ export async function runManualAnalysisForMatch(
     skipStalenessGate: true,
     modelOverride: options.modelOverride,
     promptVersionOverride: options.promptVersionOverride,
+    userQuestion: options.userQuestion,
+    followUpHistory: options.followUpHistory,
+    advisoryOnly: options.advisoryOnly,
   });
 }
 
@@ -3694,6 +3738,8 @@ function buildServerPrompt(data: {
   preMatchPredictionSummary: string;
   mode: string;
   statsFallbackReason: string;
+  userQuestion?: string;
+  followUpHistory?: FollowUpHistoryEntry[];
 }, settings: PipelineSettings, promptVersion: LiveAnalysisPromptVersion = LIVE_ANALYSIS_PROMPT_VERSION): string {
   return buildLiveAnalysisPrompt(
     {
@@ -3738,6 +3784,8 @@ function buildServerPrompt(data: {
       preMatchPredictionSummary: data.preMatchPredictionSummary,
       mode: data.mode,
       statsFallbackReason: data.statsFallbackReason,
+      userQuestion: data.userQuestion,
+      followUpHistory: data.followUpHistory,
     },
     {
       minConfidence: settings.minConfidence,

@@ -285,8 +285,11 @@ describe('POST /api/proxy/ai/analyze — error handling', () => {
 
     const pipeline = await import('../lib/server-pipeline.js');
     expect(pipeline.runPromptOnlyAnalysisForMatch).toHaveBeenCalledWith('12345', {
+      advisoryOnly: false,
       forceAnalyze: true,
+      followUpHistory: undefined,
       modelOverride: 'gemini-pro',
+      userQuestion: undefined,
     });
 
     const auditLib = await import('../lib/audit.js');
@@ -326,6 +329,51 @@ describe('POST /api/proxy/ai/analyze — error handling', () => {
     } finally {
       await adminApp.close();
     }
+  });
+
+  test('passes advisory follow-up question and history without prompt-only persistence audit', async () => {
+    const auditLib = await import('../lib/audit.js');
+    const auditCallCountBefore = vi.mocked(auditLib.audit).mock.calls.length;
+
+    const res = await app.inject({
+      method: 'POST',
+      url: '/api/proxy/ai/analyze',
+      payload: {
+        matchId: '12345',
+        provider: 'gemini',
+        model: 'gemini-pro',
+        question: 'What about Home -0.25 here?',
+        history: [
+          { role: 'user', text: 'Why not under?' },
+          { role: 'assistant', text: 'Because the home side is still controlling the game.' },
+        ],
+      },
+    });
+
+    expect(res.statusCode).toBe(200);
+
+    const pipeline = await import('../lib/server-pipeline.js');
+    expect(pipeline.runPromptOnlyAnalysisForMatch).toHaveBeenCalledWith('12345', {
+      advisoryOnly: true,
+      forceAnalyze: false,
+      followUpHistory: [
+        { role: 'user', text: 'Why not under?' },
+        { role: 'assistant', text: 'Because the home side is still controlling the game.' },
+      ],
+      modelOverride: 'gemini-pro',
+      userQuestion: 'What about Home -0.25 here?',
+    });
+
+    const newAuditCalls = vi.mocked(auditLib.audit).mock.calls.slice(auditCallCountBefore);
+    expect(newAuditCalls.some(([entry]) => entry?.action === 'PROMPT_ONLY_MATCH_ANALYZED')).toBe(false);
+    expect(auditLib.audit).toHaveBeenCalledWith(expect.objectContaining({
+      category: 'AI',
+      action: 'AI_CALL',
+      metadata: expect.objectContaining({
+        advisoryOnly: true,
+        questionLength: 'What about Home -0.25 here?'.length,
+      }),
+    }));
   });
 });
 

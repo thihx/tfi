@@ -16,12 +16,13 @@ import { getDateGroupLabelInTimeZone, getDateKeyAtOffsetInTimeZone, getMatchDate
 import type { Match, SortState, League, WatchlistItem } from '@/types';
 import {
   analyzeMatchWithServerPipeline,
+  type AskAiFollowUpMessage,
   getParsedAiResult,
 } from '@/features/live-monitor/services/server-monitor.service';
 import { MatchScoutModal } from '@/components/ui/MatchScoutModal';
 import { Modal } from '@/components/ui/Modal';
-import { fetchMonitorConfig, persistMonitorConfig } from '@/features/live-monitor/config';
-import { fetchCurrentSubscription } from '@/lib/services/api';
+import { applyFavoriteLeaguesToWatchlist, fetchFavoriteLeagueSelection } from '@/lib/services/api';
+import { fetchCurrentUser } from '@/lib/services/auth';
 
 // ── Shared icon components ───────────────────────────────────────────────────
 function EyeIcon({ checked }: { checked?: boolean }) {
@@ -30,6 +31,16 @@ function EyeIcon({ checked }: { checked?: boolean }) {
       <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
       <circle cx="12" cy="12" r="3"/>
       {checked && <path d="M9 12l2 2 4-4" strokeWidth="2.5"/>}
+    </svg>
+  );
+}
+
+function EyeOffIcon() {
+  return (
+    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden style={{ display: 'block' }}>
+      <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94"/>
+      <path d="M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19"/>
+      <line x1="1" y1="1" x2="23" y2="23"/>
     </svg>
   );
 }
@@ -44,6 +55,12 @@ function SparkleIcon() {
   );
 }
 
+// Statuses where the ball is actually in play (excludes HT, BT, INT breaks)
+const PLAYING_STATUSES = new Set(['1H', '2H', 'ET', 'P', 'LIVE']);
+
+// Statuses where the match is definitively over — block adding to watchlist
+const FINISHED_STATUSES = new Set(['FT', 'AET', 'PEN', 'CANC', 'ABD', 'AWD']);
+
 // ── Module-level store — persists across tab navigation ──────────────────────
 type AiResultEntry = AiAnalysisPanelEntry;
 const _matchesTabStore = {
@@ -53,7 +70,7 @@ const _matchesTabStore = {
 
 const PAGE_SIZE = 30;
 
-function normalizeSuggestedLeagueIds(value: unknown): number[] {
+function normalizeFavoriteLeagueIds(value: unknown): number[] {
   if (!Array.isArray(value)) return [];
   const ids = value
     .map((entry) => (typeof entry === 'number' ? entry : Number(entry)))
@@ -67,6 +84,17 @@ function normalizePositiveLimit(value: unknown): number | null {
   return parsed;
 }
 
+function getFollowUpAnswerText(result: ReturnType<typeof getParsedAiResult>): string {
+  if (!result) return 'The advisory follow-up returned no grounded answer for this match.';
+  return (
+    result.follow_up_answer_vi
+    || result.follow_up_answer_en
+    || result.reasoning_vi
+    || result.reasoning_en
+    || 'The advisory follow-up returned no grounded answer for this match.'
+  );
+}
+
 function getMatchKickoffTime(match: Match): Date {
   return getKickoffDateTime(match);
 }
@@ -77,7 +105,7 @@ export function shouldAutoRefreshMatch(match: Match, now = Date.now()): boolean 
 
 
 export function MatchesTab() {
-  const { state, addToWatchlist, updateWatchlistItem, loadAllData, refreshMatches } = useAppState();
+  const { state, addToWatchlist, updateWatchlistItem, removeFromWatchlist, loadAllData, refreshMatches } = useAppState();
   const { showToast } = useToast();
   const uiLanguage = useUiLanguage();
   const { effectiveTimeZone } = useUserTimeZone();
@@ -95,19 +123,20 @@ export function MatchesTab() {
   const [sort, setSort] = useState<SortState>({ column: 'time', order: 'asc' });
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [pendingAdds, setPendingAdds] = useState<Set<string>>(new Set());
+  const [pendingRemoves, setPendingRemoves] = useState<Set<string>>(new Set());
   const [analyzingMatches, _setAnalyzingMatches] = useState<Set<string>>(() => new Set(_matchesTabStore.analyzingMatches));
   const [aiResults, _setAiResults] = useState<Map<string, AiResultEntry>>(() => new Map(_matchesTabStore.aiResults));
   const [viewMode, setViewMode] = useViewMode('viewMode:matches');
   const [scoutMatch, setScoutMatch] = useState<Match | null>(null);
   const [lastAddedResultId, setLastAddedResultId] = useState<string | null>(null);
-  const [suggestedOnly, setSuggestedOnly] = useState(false);
-  const [suggestedLeagueIds, setSuggestedLeagueIds] = useState<number[]>([]);
-  const [suggestedPickerOpen, setSuggestedPickerOpen] = useState(false);
-  const [suggestedDraftIds, setSuggestedDraftIds] = useState<number[]>([]);
-  const [savingSuggestedLeagues, setSavingSuggestedLeagues] = useState(false);
-  const [suggestedTopLeaguesEnabled, setSuggestedTopLeaguesEnabled] = useState(true);
-  const [suggestedTopLeaguesLimit, setSuggestedTopLeaguesLimit] = useState<number | null>(null);
-  const [watchlistCapacityLimit, setWatchlistCapacityLimit] = useState<number | null>(null);
+  const [favoriteLeagueIds, setFavoriteLeagueIds] = useState<number[]>([]);
+  const [favoritePickerOpen, setFavoritePickerOpen] = useState(false);
+  const [favoriteDraftIds, setFavoriteDraftIds] = useState<number[]>([]);
+  const [savingFavoriteLeagues, setSavingFavoriteLeagues] = useState(false);
+  const [favoriteLeaguesEnabled, setFavoriteLeaguesEnabled] = useState(true);
+  const [favoriteLeaguesLimit, setFavoriteLeaguesLimit] = useState<number | null>(null);
+  const [favoriteLeagueOptions, setFavoriteLeagueOptions] = useState<League[]>([]);
+  const [currentUserRole, setCurrentUserRole] = useState<string>('member');
   const aiResultsRef = useRef<HTMLDivElement>(null);
   const filterBarRef = useRef<HTMLDivElement>(null);
   const [filterBarBottom, setFilterBarBottom] = useState(240);
@@ -296,70 +325,49 @@ export function MatchesTab() {
     });
   }, [matches, leagues]);
 
-  const topLeagueOptions = useMemo(() => (
-    leagues
-      .filter((league) => league.top_league)
+  const favoriteLeagueChoices = useMemo(() => (
+    (favoriteLeagueOptions.length > 0 ? favoriteLeagueOptions : leagues.filter((league) => league.top_league))
       .map((league) => ({
         id: league.league_id,
         displayName: getLeagueDisplayName(league.league_id, league.league_name || '', leagues),
+        logo: league.logo,
       }))
       .sort((a, b) => a.displayName.localeCompare(b.displayName))
-  ), [leagues]);
+  ), [favoriteLeagueOptions, leagues]);
 
   useEffect(() => {
     let active = true;
     void Promise.allSettled([
-      fetchMonitorConfig(),
-      fetchCurrentSubscription(config.apiUrl),
-    ]).then(([monitorConfigResult, subscriptionResult]) => {
+      fetchFavoriteLeagueSelection(config.apiUrl),
+      fetchCurrentUser(config.apiUrl),
+    ]).then(([favoriteSelectionResult, currentUserResult]) => {
       if (!active) return;
-      if (monitorConfigResult.status === 'fulfilled') {
-        setSuggestedLeagueIds(normalizeSuggestedLeagueIds(monitorConfigResult.value.SUGGESTED_TOP_LEAGUE_IDS));
+      if (favoriteSelectionResult.status === 'fulfilled') {
+        setFavoriteLeagueIds(normalizeFavoriteLeagueIds(favoriteSelectionResult.value.selectedLeagueIds));
+        setFavoriteLeaguesEnabled(favoriteSelectionResult.value.favoriteLeaguesEnabled !== false);
+        setFavoriteLeaguesLimit(normalizePositiveLimit(favoriteSelectionResult.value.favoriteLeagueLimit));
+        setFavoriteLeagueOptions(favoriteSelectionResult.value.availableLeagues ?? []);
       }
-      if (subscriptionResult.status === 'fulfilled') {
-        const entitlements = subscriptionResult.value.entitlements ?? {};
-        const enabled = entitlements['watchlist.suggested_top_leagues.enabled'] !== false;
-        const suggestedLimit = normalizePositiveLimit(entitlements['watchlist.suggested_top_leagues.limit']);
-        const watchlistLimit = normalizePositiveLimit(entitlements['watchlist.active_matches.limit']);
-        setSuggestedTopLeaguesEnabled(enabled && suggestedLimit !== 0);
-        setSuggestedTopLeaguesLimit(suggestedLimit);
-        setWatchlistCapacityLimit(watchlistLimit);
+      if (currentUserResult.status === 'fulfilled' && currentUserResult.value?.role) {
+        setCurrentUserRole(currentUserResult.value.role);
       }
     }).catch(() => undefined);
     return () => { active = false; };
   }, [config.apiUrl]);
 
-  const effectiveSuggestedLeagueIds = useMemo(() => {
-    const topIds = topLeagueOptions.map((league) => league.id);
+  const userBypassesFavoriteLeagueLimits = currentUserRole === 'admin' || currentUserRole === 'owner';
+
+  const effectiveFavoriteLeagueIds = useMemo(() => {
+    const topIds = favoriteLeagueChoices.map((league) => league.id);
     if (topIds.length === 0) return [] as number[];
     const topIdSet = new Set(topIds);
-    const filteredIds = suggestedLeagueIds.filter((id) => topIdSet.has(id));
-    const cappedIds = suggestedTopLeaguesLimit == null ? filteredIds : filteredIds.slice(0, suggestedTopLeaguesLimit);
-    const fallbackIds = suggestedTopLeaguesLimit == null ? topIds : topIds.slice(0, suggestedTopLeaguesLimit);
-    return cappedIds.length > 0 ? cappedIds : fallbackIds;
-  }, [suggestedLeagueIds, suggestedTopLeaguesLimit, topLeagueOptions]);
+    const filteredIds = favoriteLeagueIds.filter((id) => topIdSet.has(id));
+    return userBypassesFavoriteLeagueLimits || favoriteLeaguesLimit == null
+      ? filteredIds
+      : filteredIds.slice(0, favoriteLeaguesLimit);
+  }, [favoriteLeagueIds, favoriteLeaguesLimit, favoriteLeagueChoices, userBypassesFavoriteLeagueLimits]);
 
-  const effectiveSuggestedLeagueIdSet = useMemo(
-    () => new Set(effectiveSuggestedLeagueIds),
-    [effectiveSuggestedLeagueIds],
-  );
-
-  const suggestedLeagueSummaries = useMemo(() => (
-    effectiveSuggestedLeagueIds
-      .map((leagueId) => {
-        const option = topLeagueOptions.find((entry) => entry.id === leagueId);
-        const matchCount = matches.filter((match) => match.league_id === leagueId).length;
-        return option ? { ...option, matchCount } : null;
-      })
-      .filter((entry): entry is { id: number; displayName: string; matchCount: number } => entry != null)
-  ), [effectiveSuggestedLeagueIds, topLeagueOptions, matches]);
-  const suggestedFeatureVisible = suggestedTopLeaguesEnabled && topLeagueOptions.length > 0 && effectiveSuggestedLeagueIds.length > 0;
-
-  useEffect(() => {
-    if (!suggestedFeatureVisible && suggestedOnly) {
-      setSuggestedOnly(false);
-    }
-  }, [suggestedFeatureVisible, suggestedOnly]);
+  const favoriteFeatureVisible = favoriteLeaguesEnabled && favoriteLeagueChoices.length > 0;
 
   // Filtered & sorted
   const filtered = useMemo(() => {
@@ -384,7 +392,6 @@ export function MatchesTab() {
         if (dateFrom && iso < dateFrom) return false;
         if (dateTo && iso > dateTo) return false;
       }
-      if (suggestedOnly && effectiveSuggestedLeagueIdSet.size > 0 && !effectiveSuggestedLeagueIdSet.has(m.league_id)) return false;
       return true;
     });
 
@@ -415,7 +422,7 @@ export function MatchesTab() {
       });
     }
     return items;
-  }, [matches, debouncedSearch, statusFilter, leagueFilter, actionFilter, dateFrom, dateTo, sort, watchlistMap, effectiveTimeZone, suggestedOnly, effectiveSuggestedLeagueIdSet]);
+  }, [matches, debouncedSearch, statusFilter, leagueFilter, actionFilter, dateFrom, dateTo, sort, watchlistMap, effectiveTimeZone]);
 
   // Pagination
   const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
@@ -436,12 +443,12 @@ export function MatchesTab() {
   const clearFilters = () => {
     setSearch(''); setDebouncedSearch(''); setStatusFilter(''); setLeagueFilter('');
     setActionFilter(''); setDateFrom(''); setDateTo('');
-    setSuggestedOnly(false);
     showToast('Filters cleared', 'success');
   };
 
   const quickAdd = useCallback(async (m: Match) => {
     const mid = String(m.match_id);
+    if (FINISHED_STATUSES.has(m.status)) { showToast('Cannot watch a finished match', 'error'); return; }
     if (watchlistMap.has(mid)) { showToast('Already in watchlist', 'success'); return; }
     if (pendingAdds.has(mid)) { showToast('Saving... (already in progress)', 'info'); return; }
 
@@ -456,6 +463,28 @@ export function MatchesTab() {
     setPendingAdds((prev) => { const s = new Set(prev); s.delete(mid); return s; });
     if (!ok) showToast('Failed to add to watchlist', 'error');
   }, [watchlistMap, pendingAdds, addToWatchlist, showToast]);
+
+  const quickRemove = useCallback(async (m: Match) => {
+    const mid = String(m.match_id);
+    if (pendingRemoves.has(mid)) return;
+    const snapshot = watchlistMap.get(mid);
+    if (!snapshot) return;
+
+    setPendingRemoves((prev) => new Set(prev).add(mid));
+
+    // Optimistic: remove from state immediately, offer undo
+    await removeFromWatchlist([mid]);
+    setPendingRemoves((prev) => { const s = new Set(prev); s.delete(mid); return s; });
+
+    showToast('Removed from watchlist', 'info', {
+      label: 'Undo',
+      onClick: () => addToWatchlist([{
+        match_id: snapshot.match_id, date: snapshot.date,
+        league: snapshot.league, home_team: snapshot.home_team,
+        away_team: snapshot.away_team, kickoff: snapshot.kickoff,
+      }]),
+    });
+  }, [watchlistMap, pendingRemoves, removeFromWatchlist, addToWatchlist, showToast]);
 
   const askAi = useCallback(async (m: Match) => {
     const mid = String(m.match_id);
@@ -485,7 +514,12 @@ export function MatchesTab() {
       const matchResult = await analyzeMatchWithServerPipeline(config, mid);
       if (matchResult) {
         const parsed = getParsedAiResult(matchResult);
-        setAiResults((prev) => new Map(prev).set(mid, { matchId: mid, matchDisplay: `${m.home_team} vs ${m.away_team}`, result: matchResult }));
+        setAiResults((prev) => new Map(prev).set(mid, {
+          matchId: mid,
+          matchDisplay: `${m.home_team} vs ${m.away_team}`,
+          result: matchResult,
+          followUpMessages: prev.get(mid)?.followUpMessages ?? [],
+        }));
         setLastAddedResultId(mid);
         if (parsed && matchResult.error) {
           showToast(`${m.home_team} vs ${m.away_team} — AI done but: ${matchResult.error}`, 'error');
@@ -505,6 +539,49 @@ export function MatchesTab() {
       setAnalyzingMatches((prev) => { const s = new Set(prev); s.delete(mid); return s; });
     }
   }, [analyzingMatches, aiResults, watchlistMap, config, showToast, setAiResults, setAnalyzingMatches]);
+
+  const askAiFollowUp = useCallback(async (
+    entry: AiAnalysisPanelEntry,
+    question: string,
+    history: AskAiFollowUpMessage[],
+  ) => {
+    const mid = entry.matchId;
+    const match = matches.find((candidate) => String(candidate.match_id) === mid);
+    if (!match) {
+      showToast('Match context is no longer available for this follow-up', 'error');
+      return;
+    }
+    if (analyzingMatches.has(mid)) return;
+
+    setAnalyzingMatches((prev) => new Set(prev).add(mid));
+    try {
+      const matchResult = await analyzeMatchWithServerPipeline(config, mid, {
+        question,
+        history,
+      });
+      const parsed = getParsedAiResult(matchResult);
+      const assistantText = getFollowUpAnswerText(parsed);
+      setAiResults((prev) => {
+        const next = new Map(prev);
+        const previous = next.get(mid) ?? entry;
+        next.set(mid, {
+          ...previous,
+          result: matchResult,
+          followUpMessages: [
+            ...(previous.followUpMessages ?? []),
+            { role: 'user', text: question },
+            { role: 'assistant', text: assistantText },
+          ],
+        });
+        return next;
+      });
+      showToast(`${match.home_team} vs ${match.away_team} — follow-up ready`, 'success');
+    } catch (err) {
+      showToast(`${match.home_team} vs ${match.away_team} follow-up failed: ${err instanceof Error ? err.message : String(err)}`, 'error');
+    } finally {
+      setAnalyzingMatches((prev) => { const s = new Set(prev); s.delete(mid); return s; });
+    }
+  }, [analyzingMatches, config, matches, setAiResults, setAnalyzingMatches, showToast]);
 
   const toggleSelect = (mid: string, isWatched: boolean) => {
     if (isWatched) return;
@@ -572,22 +649,20 @@ export function MatchesTab() {
   if (leagueFilter) { const op = leagueOptions.find((l) => l.id === leagueFilter); badges.push(`League: ${op?.displayName || leagueFilter}`); }
   if (dateFrom || dateTo) badges.push(`Date: ${dateFrom || '—'} → ${dateTo || '—'}`);
 
-  if (suggestedOnly) badges.push('Suggested top leagues only');
-
-  const handleOpenSuggestedPicker = () => {
-    setSuggestedDraftIds(effectiveSuggestedLeagueIds);
-    setSuggestedPickerOpen(true);
+  const handleOpenFavoritePicker = () => {
+    setFavoriteDraftIds(effectiveFavoriteLeagueIds);
+    setFavoritePickerOpen(true);
   };
 
-  const toggleSuggestedDraftLeague = (leagueId: number) => {
-    setSuggestedDraftIds((prev: number[]) => {
+  const toggleFavoriteDraftLeague = (leagueId: number) => {
+    setFavoriteDraftIds((prev: number[]) => {
       const next = new Set(prev);
       if (next.has(leagueId)) {
         next.delete(leagueId);
         return Array.from(next);
       }
-      if (suggestedTopLeaguesLimit != null && next.size >= suggestedTopLeaguesLimit) {
-        showToast(`Your plan allows up to ${suggestedTopLeaguesLimit} suggested top leagues.`, 'info');
+      if (!userBypassesFavoriteLeagueLimits && favoriteLeaguesLimit != null && next.size >= favoriteLeaguesLimit) {
+        showToast(`Your plan allows up to ${favoriteLeaguesLimit} favorite leagues.`, 'info');
         return prev;
       }
       next.add(leagueId);
@@ -595,26 +670,32 @@ export function MatchesTab() {
     });
   };
 
-  const saveSuggestedLeagues = async () => {
-    setSavingSuggestedLeagues(true);
-    const topIds = topLeagueOptions.map((league) => league.id);
-    const normalizedDraft = normalizeSuggestedLeagueIds(suggestedDraftIds)
-      .filter((id) => topIds.includes(id))
-      .slice(0, suggestedTopLeaguesLimit == null ? topIds.length : suggestedTopLeaguesLimit);
-    const fallbackIds = suggestedTopLeaguesLimit == null ? topIds : topIds.slice(0, suggestedTopLeaguesLimit);
-    const matchesFallback = normalizedDraft.length === fallbackIds.length
-      && normalizedDraft.every((id, index) => id === fallbackIds[index]);
-    const payload = normalizedDraft.length === 0 || matchesFallback ? [] : normalizedDraft;
+  const saveFavoriteLeagues = async () => {
+    setSavingFavoriteLeagues(true);
+    const availableIds = favoriteLeagueChoices.map((league) => league.id);
+    const normalizedDraft = normalizeFavoriteLeagueIds(favoriteDraftIds)
+      .filter((id) => availableIds.includes(id))
+      .slice(0, userBypassesFavoriteLeagueLimits || favoriteLeaguesLimit == null ? availableIds.length : favoriteLeaguesLimit);
     try {
-      await persistMonitorConfig({ SUGGESTED_TOP_LEAGUE_IDS: payload });
-      setSuggestedLeagueIds(payload);
-      setSuggestedPickerOpen(false);
-      setSuggestedOnly(true);
-      showToast('Suggested top leagues updated', 'success');
+      const result = await applyFavoriteLeaguesToWatchlist(config, normalizedDraft);
+      setFavoriteLeagueIds(result.savedLeagueIds);
+      setFavoritePickerOpen(false);
+      await loadAllDataRef.current(true);
+      if (result.limitExceeded) {
+        showToast(
+          result.error || 'Favorite leagues saved, but today\'s matches would exceed your watchlist limit. No matches were added.',
+          'info',
+        );
+      } else {
+        showToast(
+          `Favorite leagues saved. Added ${result.added} match${result.added === 1 ? '' : 'es'} for ${result.localDate}${result.alreadyWatched > 0 ? ` (${result.alreadyWatched} already in watchlist)` : ''}.`,
+          'success',
+        );
+      }
     } catch (error) {
-      showToast(error instanceof Error ? error.message : 'Failed to save suggested top leagues', 'error');
+      showToast(error instanceof Error ? error.message : 'Failed to save favorite leagues', 'error');
     } finally {
-      setSavingSuggestedLeagues(false);
+      setSavingFavoriteLeagues(false);
     }
   };
 
@@ -630,37 +711,23 @@ export function MatchesTab() {
           )}
           <button style={tabBtn(activeDateTab === 'today')} onClick={() => { setDateFrom(dateToday); setDateTo(dateToday); }}>Today</button>
           <button style={tabBtn(activeDateTab === 'tomorrow')} onClick={() => { setDateFrom(dateTomorrow); setDateTo(dateTomorrow); }}>Tomorrow</button>
-          <span style={{ marginLeft: 'auto', fontSize: '12px', color: 'var(--gray-400)' }}>{filtered.length} matches</span>
+          {favoriteFeatureVisible && (
+            <button
+              onClick={handleOpenFavoritePicker}
+              title="Bulk-add today's matches from favorite leagues to Watchlist"
+              style={{
+                marginLeft: 'auto',
+                display: 'inline-flex', alignItems: 'center', gap: '5px',
+                padding: '4px 10px', borderRadius: '20px', border: '1px solid var(--gray-200)',
+                background: effectiveFavoriteLeagueIds.length > 0 ? 'rgba(37,99,235,0.06)' : 'transparent',
+                color: effectiveFavoriteLeagueIds.length > 0 ? 'var(--primary)' : 'var(--gray-500)',
+                fontSize: '12px', fontWeight: 500, cursor: 'pointer', lineHeight: 1,
+              }}
+            >
+              + Watchlist by Leagues
+            </button>
+          )}
         </div>
-        {suggestedFeatureVisible && (
-          <div style={{ padding: '12px 16px', borderTop: '1px solid var(--gray-100)', borderBottom: '1px solid var(--gray-100)', display: 'flex', flexWrap: 'wrap', gap: '8px', alignItems: 'center' }}>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '2px', minWidth: '180px' }}>
-              <span style={{ fontSize: '12px', fontWeight: 600, color: 'var(--gray-700)' }}>Suggested Top Leagues</span>
-              <span style={{ fontSize: '11px', color: 'var(--gray-500)' }}>
-                System top leagues, personalized for this account. Adding matches still respects your watchlist plan limit
-                {watchlistCapacityLimit != null ? ` (${watchlist.length}/${watchlistCapacityLimit} used)` : ''}.
-              </span>
-            </div>
-            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', flex: 1 }}>
-              {suggestedLeagueSummaries.slice(0, 5).map((league) => (
-                <span key={league.id} style={{ padding: '4px 8px', borderRadius: '999px', background: 'var(--gray-50)', border: '1px solid var(--gray-200)', fontSize: '11px', color: 'var(--gray-600)' }}>
-                  {league.displayName}{league.matchCount > 0 ? ` (${league.matchCount})` : ''}
-                </span>
-              ))}
-              {suggestedLeagueSummaries.length > 5 && (
-                <span style={{ padding: '4px 8px', borderRadius: '999px', background: 'var(--gray-50)', border: '1px solid var(--gray-200)', fontSize: '11px', color: 'var(--gray-600)' }}>
-                  +{suggestedLeagueSummaries.length - 5} more
-                </span>
-              )}
-            </div>
-            <div style={{ display: 'flex', gap: '8px', marginLeft: 'auto' }}>
-              <button className={`btn btn-sm ${suggestedOnly ? 'btn-primary' : 'btn-secondary'}`} onClick={() => setSuggestedOnly((prev) => !prev)}>
-                {suggestedOnly ? 'Showing Suggested' : 'Show Suggested'}
-              </button>
-              <button className="btn btn-secondary btn-sm" onClick={handleOpenSuggestedPicker}>Customize</button>
-            </div>
-          </div>
-        )}
         {/* Toolbar: filters + view toggle */}
         <div style={{ display: 'flex', alignItems: 'stretch' }}>
         <div className="filters" style={{ flex: 1, borderBottom: 'none' }}>
@@ -736,6 +803,7 @@ export function MatchesTab() {
               key={entry.matchId}
               entry={entry}
               onClose={() => setAiResults((prev) => { const m = new Map(prev); m.delete(entry.matchId); return m; })}
+              onFollowUp={(question, history) => askAiFollowUp(entry, question, history)}
             />
           ))}
         </div>
@@ -756,17 +824,29 @@ export function MatchesTab() {
                   key={m.match_id}
                   match={m}
                   highlighted={selected.has(String(m.match_id))}
+                  flashMap={flashMap}
+                  watchedAction={watchlistMap.has(String(m.match_id)) ? {
+                    onRemove: () => quickRemove(m),
+                    isPendingRemove: pendingRemoves.has(String(m.match_id)),
+                    isPlaying: PLAYING_STATUSES.has(m.status),
+                  } : undefined}
                   actions={[
-                    watchlistMap.has(String(m.match_id))
-                      ? { label: 'Edit', icon: <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>, title: 'Edit watchlist entry', onClick: (match) => { const entry = watchlistMap.get(String(match.match_id)); if (entry) setEditItem(entry); }, variant: 'secondary' }
-                      : pendingAdds.has(String(m.match_id))
-                        ? { label: 'Saving…', onClick: () => {}, disabled: true }
-                        : { label: '+ Watch', icon: <EyeIcon />, title: 'Watch this match', onClick: (match) => quickAdd(match), variant: 'primary' },
+                    ...(watchlistMap.has(String(m.match_id))
+                      ? [
+                          { label: 'Edit', icon: <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>, title: 'Edit watchlist entry', onClick: (match: Match) => { const entry = watchlistMap.get(String(match.match_id)); if (entry) setEditItem(entry); }, variant: 'secondary' as const },
+                        ]
+                      : [
+                          FINISHED_STATUSES.has(m.status)
+                            ? { label: 'Finished', icon: <EyeIcon />, title: 'Match is finished', onClick: () => {}, disabled: true }
+                            : pendingAdds.has(String(m.match_id))
+                              ? { label: 'Saving…', onClick: () => {}, disabled: true }
+                              : { label: '+ Watch', icon: <EyeIcon />, title: 'Watch this match', onClick: (match: Match) => quickAdd(match), variant: 'primary' as const },
+                        ]),
                     {
                       label: analyzingMatches.has(String(m.match_id)) ? 'Analyzing…' : aiResults.has(String(m.match_id)) ? 'View Result' : 'Ask AI',
                       icon: aiResults.has(String(m.match_id)) ? <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg> : <SparkleIcon />,
                       title: !watchlistMap.has(String(m.match_id)) ? 'Add to Watchlist to use Ask AI' : aiResults.has(String(m.match_id)) ? 'View AI result' : 'Ask AI for analysis',
-                      onClick: (match) => askAi(match),
+                      onClick: (match: Match) => askAi(match),
                       variant: aiResults.has(String(m.match_id)) ? 'success' as const : 'secondary' as const,
                       loading: analyzingMatches.has(String(m.match_id)),
                       disabled: analyzingMatches.has(String(m.match_id)) || !watchlistMap.has(String(m.match_id)),
@@ -816,12 +896,14 @@ export function MatchesTab() {
                     match={m}
                     isWatched={watchlistMap.has(String(m.match_id))}
                     isPending={pendingAdds.has(String(m.match_id))}
+                    isPendingRemove={pendingRemoves.has(String(m.match_id))}
                     isSelected={selected.has(String(m.match_id))}
                     isAnalyzing={analyzingMatches.has(String(m.match_id))}
                     hasResult={aiResults.has(String(m.match_id))}
                     leagues={leagues}
                     flashMap={flashMap}
                     onQuickAdd={() => quickAdd(m)}
+                    onQuickRemove={() => quickRemove(m)}
                     onToggleSelect={() => toggleSelect(String(m.match_id), watchlistMap.has(String(m.match_id)))}
                     onAskAi={() => askAi(m)}
                     onEdit={() => { const entry = watchlistMap.get(String(m.match_id)); if (entry) setEditItem(entry); }}
@@ -876,38 +958,95 @@ export function MatchesTab() {
       )}
 
       <Modal
-        open={suggestedPickerOpen}
-        title="Suggested Top Leagues"
+        open={favoritePickerOpen}
+        title="Watchlist by Leagues"
         size="lg"
-        onClose={() => setSuggestedPickerOpen(false)}
+        onClose={() => setFavoritePickerOpen(false)}
         footer={(
           <>
-            <button className="btn btn-secondary" onClick={() => setSuggestedPickerOpen(false)} disabled={savingSuggestedLeagues}>Cancel</button>
-            <button
-              className="btn btn-secondary"
-              onClick={() => setSuggestedDraftIds(topLeagueOptions
-                .map((league) => league.id)
-                .slice(0, suggestedTopLeaguesLimit == null ? topLeagueOptions.length : suggestedTopLeaguesLimit))}
-              disabled={savingSuggestedLeagues}
-            >
-              Use All Allowed
+            <button className="btn btn-secondary" onClick={() => setFavoritePickerOpen(false)} disabled={savingFavoriteLeagues}>Cancel</button>
+            <button className="btn btn-primary" onClick={saveFavoriteLeagues} disabled={savingFavoriteLeagues}>
+              {savingFavoriteLeagues ? 'Saving…' : 'Save'}
             </button>
-            <button className="btn btn-primary" onClick={saveSuggestedLeagues} disabled={savingSuggestedLeagues}>Save</button>
           </>
         )}
       >
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-          <div style={{ fontSize: '12px', color: 'var(--gray-500)' }}>
-            Top leagues stay managed by the system. You are only choosing which of those leagues should be suggested to this account on Matches.
-            {suggestedTopLeaguesLimit != null ? ` Your current plan allows up to ${suggestedTopLeaguesLimit}.` : ''}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+          {/* Description */}
+          <p style={{ margin: 0, fontSize: '13px', color: 'var(--gray-500)', lineHeight: 1.5 }}>
+            Choose leagues to auto-add today&apos;s matches into your watchlist.
+            {!userBypassesFavoriteLeagueLimits && favoriteLeaguesLimit != null && (
+              <span style={{ color: 'var(--gray-400)' }}> Up to {favoriteLeaguesLimit} allowed.</span>
+            )}
+          </p>
+
+          {/* Toolbar: count + select/deselect toggle */}
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+            <span style={{
+              fontSize: '12px', fontWeight: 600,
+              color: favoriteDraftIds.length > 0 ? 'var(--primary)' : 'var(--gray-400)',
+              background: favoriteDraftIds.length > 0 ? 'rgba(37,99,235,0.08)' : 'var(--gray-100)',
+              padding: '3px 10px', borderRadius: '20px',
+            }}>
+              {favoriteDraftIds.length} / {favoriteLeagueChoices.length} selected
+            </span>
+            <button
+              onClick={() => {
+                const allIds = favoriteLeagueChoices
+                  .map((l) => l.id)
+                  .slice(0, userBypassesFavoriteLeagueLimits || favoriteLeaguesLimit == null ? favoriteLeagueChoices.length : favoriteLeaguesLimit);
+                const allSelected = allIds.every((id) => favoriteDraftIds.includes(id));
+                setFavoriteDraftIds(allSelected ? [] : allIds);
+              }}
+              disabled={savingFavoriteLeagues}
+              style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '12px', color: 'var(--primary)', fontWeight: 500, padding: '3px 0' }}
+            >
+              {favoriteLeagueChoices
+                .map((l) => l.id)
+                .slice(0, userBypassesFavoriteLeagueLimits || favoriteLeaguesLimit == null ? favoriteLeagueChoices.length : favoriteLeaguesLimit)
+                .every((id) => favoriteDraftIds.includes(id))
+                ? 'Deselect All' : 'Select All'}
+            </button>
           </div>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '8px' }}>
-            {topLeagueOptions.map((league) => {
-              const checked = suggestedDraftIds.includes(league.id);
+
+          {/* League grid */}
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: '8px' }}>
+            {favoriteLeagueChoices.map((league) => {
+              const checked = favoriteDraftIds.includes(league.id);
               return (
-                <label key={league.id} style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '10px 12px', border: checked ? '1px solid var(--primary)' : '1px solid var(--gray-200)', borderRadius: '10px', cursor: 'pointer', background: checked ? 'rgba(59,130,246,0.06)' : '#fff' }}>
-                  <input type="checkbox" checked={checked} onChange={() => toggleSuggestedDraftLeague(league.id)} />
-                  <span style={{ fontSize: '13px', color: 'var(--gray-700)' }}>{league.displayName}</span>
+                <label key={league.id} style={{
+                  display: 'flex', alignItems: 'center', gap: '10px',
+                  padding: '10px 14px', borderRadius: '10px', cursor: 'pointer',
+                  border: `1px solid ${checked ? 'var(--primary)' : 'var(--gray-200)'}`,
+                  background: checked ? 'rgba(37,99,235,0.05)' : '#fff',
+                  transition: 'border-color 0.15s, background 0.15s',
+                }}>
+                  <span style={{
+                    width: '16px', height: '16px', borderRadius: '4px', flexShrink: 0,
+                    border: `2px solid ${checked ? 'var(--primary)' : 'var(--gray-300)'}`,
+                    background: checked ? 'var(--primary)' : '#fff',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    transition: 'all 0.15s',
+                  }}>
+                    {checked && (
+                      <svg width="10" height="10" viewBox="0 0 12 12" fill="none" stroke="#fff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <polyline points="2 6 5 9 10 3"/>
+                      </svg>
+                    )}
+                  </span>
+                  <input type="checkbox" checked={checked} onChange={() => toggleFavoriteDraftLeague(league.id)} style={{ display: 'none' }} />
+                  {league.logo && (
+                    <img
+                      src={league.logo}
+                      alt=""
+                      width="18" height="18"
+                      style={{ objectFit: 'contain', flexShrink: 0, opacity: checked ? 1 : 0.6 }}
+                      onError={(e) => { e.currentTarget.style.display = 'none'; }}
+                    />
+                  )}
+                  <span style={{ fontSize: '13px', color: checked ? 'var(--gray-800)' : 'var(--gray-600)', fontWeight: checked ? 500 : 400 }}>
+                    {league.displayName}
+                  </span>
                 </label>
               );
             })}
@@ -922,19 +1061,24 @@ interface MatchRowProps {
   match: Match;
   isWatched: boolean;
   isPending: boolean;
+  isPendingRemove: boolean;
   isSelected: boolean;
   isAnalyzing: boolean;
   hasResult: boolean;
   leagues: League[];
   flashMap: Map<string, number>;
   onQuickAdd: () => void;
+  onQuickRemove: () => void;
   onToggleSelect: () => void;
   onAskAi: () => void;
   onEdit: () => void;
   onDoubleClick: () => void;
 }
 
-function MatchRow({ match, isWatched, isPending, isSelected, isAnalyzing, hasResult, leagues, flashMap, onQuickAdd, onToggleSelect, onAskAi, onEdit, onDoubleClick }: MatchRowProps) {
+function MatchRow({ match, isWatched, isPending, isPendingRemove, isSelected, isAnalyzing, hasResult, leagues, flashMap, onQuickAdd, onQuickRemove, onToggleSelect, onAskAi, onEdit, onDoubleClick }: MatchRowProps) {
+  const [watchHovered, setWatchHovered] = React.useState(false);
+  const isPlaying = PLAYING_STATUSES.has(match.status);
+  const isFinished = FINISHED_STATUSES.has(match.status);
   const localDT = getMatchKickoffTime(match);
   const timeDisplay = formatDateTimeDisplay(localDT);
   const leagueDisplay = getLeagueDisplayName(match.league_id, match.league_name || '', leagues);
@@ -965,13 +1109,13 @@ function MatchRow({ match, isWatched, isPending, isSelected, isAnalyzing, hasRes
             <div className="team-info">
               <img src={match.home_logo} loading="lazy" decoding="async" alt={match.home_team} className="team-logo" onError={(e) => { (e.target as HTMLImageElement).src = PLACEHOLDER_HOME; }} />
               <span style={{ fontWeight: 400 }}>{match.home_team}</span>
-              {(match.home_yellows ?? 0) > 0 && <span key={homeYellowGen} title={`${match.home_yellows} yellow card(s)`} className={homeYellowGen ? 'flash-yellow-card' : undefined} style={{ display: 'inline-flex', alignItems: 'center', gap: 2, fontSize: 10, fontWeight: 700, background: '#ca8a04', color: '#fff', borderRadius: 3, padding: '1px 5px', marginLeft: 4, letterSpacing: '0.3px' }}>▪ {match.home_yellows}</span>}
-              {(match.home_reds ?? 0) > 0 && <span key={homeRedGen} title={`${match.home_reds} red card(s)`} className={homeRedGen ? 'flash-red-card' : undefined} style={{ display: 'inline-flex', alignItems: 'center', gap: 2, fontSize: 10, fontWeight: 700, background: '#dc2626', color: '#fff', borderRadius: 3, padding: '1px 5px', marginLeft: 4, letterSpacing: '0.3px' }}>■ {match.home_reds}</span>}
+              {(match.home_yellows ?? 0) > 0 && <span key={homeYellowGen} title={`${match.home_yellows} yellow card(s)`} className={homeYellowGen ? 'flash-yellow-card' : undefined} style={{ display: 'inline-flex', alignItems: 'center', fontSize: 10, fontWeight: 700, background: '#f5c518', color: '#1a1a1a', borderRadius: 3, padding: '1px 5px', marginLeft: 4 }}>{match.home_yellows}</span>}
+              {(match.home_reds ?? 0) > 0 && <span key={homeRedGen} title={`${match.home_reds} red card(s)`} className={homeRedGen ? 'flash-red-card' : undefined} style={{ display: 'inline-flex', alignItems: 'center', fontSize: 10, fontWeight: 700, background: '#e53935', color: '#fff', borderRadius: 3, padding: '1px 5px', marginLeft: 4 }}>{match.home_reds}</span>}
             </div>
             <span className="match-vs">vs</span>
             <div className="team-info">
-              {(match.away_reds ?? 0) > 0 && <span key={awayRedGen} title={`${match.away_reds} red card(s)`} className={awayRedGen ? 'flash-red-card' : undefined} style={{ display: 'inline-flex', alignItems: 'center', gap: 2, fontSize: 10, fontWeight: 700, background: '#dc2626', color: '#fff', borderRadius: 3, padding: '1px 5px', marginRight: 4, letterSpacing: '0.3px' }}>■ {match.away_reds}</span>}
-              {(match.away_yellows ?? 0) > 0 && <span key={awayYellowGen} title={`${match.away_yellows} yellow card(s)`} className={awayYellowGen ? 'flash-yellow-card' : undefined} style={{ display: 'inline-flex', alignItems: 'center', gap: 2, fontSize: 10, fontWeight: 700, background: '#ca8a04', color: '#fff', borderRadius: 3, padding: '1px 5px', marginRight: 4, letterSpacing: '0.3px' }}>▪ {match.away_yellows}</span>}
+              {(match.away_reds ?? 0) > 0 && <span key={awayRedGen} title={`${match.away_reds} red card(s)`} className={awayRedGen ? 'flash-red-card' : undefined} style={{ display: 'inline-flex', alignItems: 'center', fontSize: 10, fontWeight: 700, background: '#e53935', color: '#fff', borderRadius: 3, padding: '1px 5px', marginRight: 4 }}>{match.away_reds}</span>}
+              {(match.away_yellows ?? 0) > 0 && <span key={awayYellowGen} title={`${match.away_yellows} yellow card(s)`} className={awayYellowGen ? 'flash-yellow-card' : undefined} style={{ display: 'inline-flex', alignItems: 'center', fontSize: 10, fontWeight: 700, background: '#f5c518', color: '#1a1a1a', borderRadius: 3, padding: '1px 5px', marginRight: 4 }}>{match.away_yellows}</span>}
               <span style={{ fontWeight: 400 }}>{match.away_team}</span>
               <img src={match.away_logo} loading="lazy" decoding="async" alt={match.away_team} className="team-logo" onError={(e) => { (e.target as HTMLImageElement).src = PLACEHOLDER_AWAY; }} />
             </div>
@@ -1000,7 +1144,25 @@ function MatchRow({ match, isWatched, isPending, isSelected, isAnalyzing, hasRes
         <div className="cell-value flex-row-gap-4 flex-center flex-wrap">
           {isWatched ? (
             <>
-              <button className="btn btn-success btn-sm watch-btn" disabled title="Already watching" aria-label="Already watching"><EyeIcon checked /></button>
+              <button
+                className={`btn btn-sm watch-btn${isPlaying && !watchHovered && !isPendingRemove ? ' eye-live-pulse' : ''}`}
+                onClick={isPendingRemove ? undefined : onQuickRemove}
+                onMouseEnter={() => setWatchHovered(true)}
+                onMouseLeave={() => setWatchHovered(false)}
+                disabled={isPendingRemove}
+                title={isPendingRemove ? 'Removing…' : isPlaying ? 'AI is watching — click to unwatch' : 'Click to unwatch'}
+                aria-label={isPendingRemove ? 'Removing…' : 'Unwatch this match'}
+                style={{
+                  background: watchHovered ? 'rgba(239,68,68,0.12)' : 'rgba(16,185,129,0.12)',
+                  border: `1px solid ${watchHovered ? 'rgba(239,68,68,0.35)' : 'rgba(16,185,129,0.35)'}`,
+                  color: watchHovered ? '#ef4444' : '#10b981',
+                  transition: 'background 0.15s, border-color 0.15s, color 0.15s',
+                }}
+              >
+                {isPendingRemove
+                  ? <span className="inline-spinner" style={{ width: '14px', height: '14px' }} />
+                  : watchHovered ? <EyeOffIcon /> : <EyeIcon checked />}
+              </button>
               <button className="btn btn-secondary btn-sm action-icon-btn" onClick={onEdit} aria-label="Edit watchlist item" title="Edit watchlist item">
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 20h9" /><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4 12.5-12.5z" /></svg>
               </button>
@@ -1008,6 +1170,10 @@ function MatchRow({ match, isWatched, isPending, isSelected, isAnalyzing, hasRes
           ) : isPending ? (
             <button className="btn btn-primary btn-sm watch-btn" disabled>
               <span className="inline-spinner" style={{ width: '14px', height: '14px' }} />
+            </button>
+          ) : isFinished ? (
+            <button className="btn btn-secondary btn-sm watch-btn" disabled title="Match is finished" aria-label="Match is finished">
+              <EyeIcon />
             </button>
           ) : (
             <button className="btn btn-primary btn-sm watch-btn" onClick={onQuickAdd} title="Watch this match" aria-label="Watch this match">

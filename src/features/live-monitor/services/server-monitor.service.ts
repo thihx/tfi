@@ -29,6 +29,8 @@ export interface ServerParsedAiResult {
   condition_triggered_confidence?: number;
   condition_triggered_stake?: number;
   condition_triggered_should_push?: boolean;
+  follow_up_answer_en?: string;
+  follow_up_answer_vi?: string;
 }
 
 export interface ServerMatchPipelineResult {
@@ -58,8 +60,14 @@ export interface ServerMatchPipelineResult {
     statsSource?: string;
     evidenceMode?: string;
     totalLatencyMs?: number;
+    advisoryOnly?: boolean;
     parsed?: ServerParsedAiResult;
   };
+}
+
+export interface AskAiFollowUpMessage {
+  role: 'user' | 'assistant';
+  text: string;
 }
 
 export interface LiveMonitorTarget {
@@ -144,12 +152,16 @@ export async function fetchLiveMonitorStatus(config: AppConfig): Promise<LiveMon
 export async function analyzeMatchWithServerPipeline(
   config: AppConfig,
   matchId: string,
+  options: { question?: string; history?: AskAiFollowUpMessage[] } = {},
 ): Promise<ServerMatchPipelineResult> {
   const res = await fetch(apiUrl(config, `/api/live-monitor/matches/${encodeURIComponent(matchId)}/analyze`), {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', ...authHeaders() },
     credentials: 'include',
-    body: '{}',
+    body: JSON.stringify({
+      question: typeof options.question === 'string' && options.question.trim() ? options.question.trim() : undefined,
+      history: Array.isArray(options.history) ? options.history : undefined,
+    }),
   });
   const payload = await parseJsonResponse<{ result: ServerMatchPipelineResult }>(res);
   return payload.result;

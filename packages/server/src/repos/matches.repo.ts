@@ -59,6 +59,32 @@ export async function getMatchesByStatus(statuses: string[]): Promise<MatchRow[]
   return result.rows;
 }
 
+export async function getMatchesForLeaguesOnLocalDate(
+  leagueIds: number[],
+  localDate: string,
+  userTimeZone: string,
+): Promise<MatchRow[]> {
+  if (leagueIds.length === 0) return [];
+  const result = await query<MatchRow>(
+    `SELECT *
+       FROM matches
+      WHERE league_id = ANY($1)
+        AND status <> ALL($4)
+        AND (
+          (kickoff_at_utc IS NOT NULL AND (kickoff_at_utc AT TIME ZONE $3)::date = $2::date)
+          OR (kickoff_at_utc IS NULL AND date = $2::date)
+        )
+      ORDER BY kickoff_at_utc NULLS LAST, date, kickoff`,
+    [
+      leagueIds,
+      localDate,
+      userTimeZone,
+      ['FT', 'AET', 'PEN', 'CANC', 'ABD', 'AWD', 'PST'],
+    ],
+  );
+  return result.rows;
+}
+
 export async function getLiveRefreshCandidates(
   liveStatuses: string[],
   kickoffWindowStartIso: string,

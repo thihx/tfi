@@ -350,6 +350,14 @@ body {
     overflow: visible;
 }
 
+/* Desktop: scroll container is a div BELOW the header (not window),
+   so sticky top should be 0, not header-height */
+@media (min-width: 769px) {
+    .sticky-filter-bar {
+        top: 0;
+    }
+}
+
 .date-tab-bar {
     display: flex;
     gap: 6px;
@@ -1012,14 +1020,35 @@ table tbody#watchlist-table td:not(.select-col) {
 }
 
 /* ── Live match row/card indicator ───────────────────────────────────────── */
-@keyframes live-card-pulse {
-    0%, 100% { background-color: #ffffff; border-left-color: #ef4444; }
-    50%       { background-color: #fff5f5; border-left-color: rgba(239, 68, 68, 0.35); }
+
+/* Eye button pulse — only for live + watched matches */
+@keyframes eye-live-pulse {
+    0%, 100% { box-shadow: 0 0 0 0 rgba(16, 185, 129, 0); }
+    50%       { box-shadow: 0 0 0 5px rgba(16, 185, 129, 0.3); }
 }
 
-.match-is-live {
-    border-left: 3px solid #ef4444 !important;
-    animation: live-card-pulse 1.8s ease-in-out infinite;
+.eye-live-pulse {
+    animation: eye-live-pulse 1.8s ease-in-out infinite;
+}
+
+/* "AI watching" chip pulse in card view */
+@keyframes ai-watch-chip-pulse {
+    0%, 100% { opacity: 0.7; box-shadow: 0 0 0 0 rgba(16, 185, 129, 0); }
+    50%       { opacity: 1;   box-shadow: 0 0 5px rgba(16, 185, 129, 0.35); }
+}
+
+.ai-watch-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 2px 7px;
+    border-radius: 10px;
+    background: rgba(16, 185, 129, 0.1);
+    border: 1px solid rgba(16, 185, 129, 0.3);
+    color: #10b981;
+    font-size: 11px;
+    font-weight: 600;
+    animation: ai-watch-chip-pulse 1.8s ease-in-out infinite;
 }
 /* ─────────────────────────────────────────────────────────────────────────── */
 
@@ -3523,6 +3552,7 @@ tr.date-group-row td {
     color: var(--gray-500) !important;
     text-transform: uppercase !important;
     letter-spacing: 0.7px !important;
+    text-align: left !important;
     border-bottom: 1px solid var(--gray-200) !important;
     border-top: 2px solid var(--gray-200) !important;
     cursor: default !important;
@@ -3545,6 +3575,7 @@ tbody tr.date-group-row:hover {
 .table-container.table-cards tr.date-group-row td {
     display: block !important;
     padding: 4px 14px !important;
+    text-align: left !important;
 }
 
 .table-container.table-cards tr.date-group-row td::before {

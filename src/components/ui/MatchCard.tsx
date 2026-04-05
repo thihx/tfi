@@ -1,6 +1,25 @@
-import { memo, type ReactNode } from 'react';
+import { memo, useState, type ReactNode } from 'react';
 import { formatLocalTime } from '@/lib/utils/helpers';
 import type { Match } from '@/types';
+
+function CardBadge({ count, type, flashGen }: { count: number; type: 'yellow' | 'red'; flashGen: number }) {
+  if (count <= 0) return null;
+  const isYellow = type === 'yellow';
+  return (
+    <span
+      key={flashGen}
+      className={flashGen ? (isYellow ? 'flash-yellow-card' : 'flash-red-card') : undefined}
+      style={{
+        display: 'inline-flex', alignItems: 'center', fontSize: 10, fontWeight: 700,
+        background: isYellow ? '#f5c518' : '#e53935',
+        color: isYellow ? '#1a1a1a' : '#fff',
+        borderRadius: 3, padding: '1px 5px', flexShrink: 0,
+      }}
+    >
+      {count}
+    </span>
+  );
+}
 
 const STATUS_LIVE = new Set(['1H', '2H', 'ET', 'BT', 'P', 'INT', 'LIVE']);
 const STATUS_FT   = new Set(['FT', 'AET', 'PEN']);
@@ -33,9 +52,15 @@ interface MatchCardAction {
   icon?: ReactNode;
   title?: string;
   onClick: (match: Match) => void;
-  variant?: 'primary' | 'secondary' | 'success';
+  variant?: 'primary' | 'secondary' | 'success' | 'danger';
   disabled?: boolean;
   loading?: boolean;
+}
+
+interface WatchedAction {
+  onRemove: () => void;
+  isPendingRemove: boolean;
+  isPlaying: boolean;
 }
 
 interface Props {
@@ -43,16 +68,27 @@ interface Props {
   actions?: MatchCardAction[];
   /** Highlight the card (e.g. selected in watchlist) */
   highlighted?: boolean;
+  /** Interactive eye button for watched matches (handles unwatch with hover state) */
+  watchedAction?: WatchedAction;
+  /** Flash generation counters for live events */
+  flashMap?: Map<string, number>;
   onClick?: (match: Match) => void;
 }
 
-function MatchCardBase({ match, actions, highlighted, onClick }: Props) {
+function MatchCardBase({ match, actions, highlighted, watchedAction, flashMap, onClick }: Props) {
+  const [eyeHovered, setEyeHovered] = useState(false);
   const isLive = STATUS_LIVE.has(match.status);
-  const isFt   = STATUS_FT.has(match.status);
   const hasScore = match.home_score != null && match.away_score != null;
 
   const minuteNum = match.current_minute ? parseInt(String(match.current_minute), 10) : 0;
-  const progressPct = isLive ? Math.min(100, (minuteNum / 90) * 100) : isFt ? 100 : 0;
+  const minuteDisplay = match.status === 'HT' ? 'HT' : (minuteNum > 0 ? `${minuteNum}'` : '');
+
+  const id = match.match_id;
+  const scoreFlashGen  = flashMap?.get(`${id}:score`) ?? 0;
+  const homeYellowGen  = flashMap?.get(`${id}:hy`) ?? 0;
+  const awayYellowGen  = flashMap?.get(`${id}:ay`) ?? 0;
+  const homeRedGen     = flashMap?.get(`${id}:hr`) ?? 0;
+  const awayRedGen     = flashMap?.get(`${id}:ar`) ?? 0;
 
   const leagueName = match.league_name || match.league || '';
   const kickoffTime = match.kickoff_at_utc ? formatLocalTime(match.kickoff_at_utc) : (match.kickoff ? match.kickoff.slice(0, 5) : '');
@@ -69,17 +105,6 @@ function MatchCardBase({ match, actions, highlighted, onClick }: Props) {
       }}
       onClick={() => onClick?.(match)}
     >
-      {/* Progress bar (live only) */}
-      {isLive && (
-        <div style={{ height: '2px', background: 'var(--gray-100)', overflow: 'hidden' }}>
-          <div style={{
-            height: '100%', width: `${progressPct}%`,
-            background: 'var(--gray-400)',
-            transition: 'width 0.5s ease',
-          }} />
-        </div>
-      )}
-
       <div style={{ padding: '14px 16px' }}>
 
         {/* League + Status row */}
@@ -88,8 +113,8 @@ function MatchCardBase({ match, actions, highlighted, onClick }: Props) {
             {leagueName}
           </span>
           <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexShrink: 0 }}>
-            {isLive && minuteNum > 0 && (
-              <span style={{ fontSize: '12px', fontWeight: 600, color: 'var(--gray-500)' }}>{minuteNum}&apos;</span>
+            {isLive && minuteDisplay && (
+              <span style={{ fontSize: '12px', fontWeight: 600, color: 'var(--gray-500)' }}>{minuteDisplay}</span>
             )}
             {!isLive && kickoffTime && match.status === 'NS' && (
               <span style={{ fontSize: '12px', color: 'var(--gray-500)' }}>{kickoffTime}</span>
@@ -104,32 +129,46 @@ function MatchCardBase({ match, actions, highlighted, onClick }: Props) {
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
 
           {/* Home team */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: '7px', flex: 1, minWidth: 0 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flex: 1, minWidth: 0 }}>
             {match.home_logo && <TeamLogo src={match.home_logo} alt={match.home_team} />}
-            <span style={{ fontWeight: 600, fontSize: '14px', color: 'var(--gray-900)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+            <span style={{ fontWeight: 500, fontSize: '13px', color: 'var(--gray-900)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
               {match.home_team}
             </span>
           </div>
 
           {/* Score or vs */}
-          <div style={{ flexShrink: 0, textAlign: 'center', minWidth: '52px' }}>
+          <div style={{ flexShrink: 0, textAlign: 'center', minWidth: '48px' }}>
             {hasScore ? (
-              <span style={{ fontWeight: 700, fontSize: '16px', color: 'var(--gray-900)', letterSpacing: '0.5px' }}>
+              <span key={scoreFlashGen} className={scoreFlashGen ? 'flash-goal' : undefined} style={{ fontWeight: 700, fontSize: '15px', color: 'var(--gray-900)', letterSpacing: '0.5px' }}>
                 {match.home_score} – {match.away_score}
               </span>
             ) : (
-              <span style={{ fontSize: '13px', color: 'var(--gray-400)', fontWeight: 500 }}>vs</span>
+              <span style={{ fontSize: '12px', color: 'var(--gray-400)', fontWeight: 400 }}>vs</span>
             )}
           </div>
 
           {/* Away team */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: '7px', flex: 1, minWidth: 0, justifyContent: 'flex-end' }}>
-            <span style={{ fontWeight: 600, fontSize: '14px', color: 'var(--gray-900)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', textAlign: 'right' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flex: 1, minWidth: 0, justifyContent: 'flex-end' }}>
+            <span style={{ fontWeight: 500, fontSize: '13px', color: 'var(--gray-900)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', textAlign: 'right' }}>
               {match.away_team}
             </span>
             {match.away_logo && <TeamLogo src={match.away_logo} alt={match.away_team} />}
           </div>
         </div>
+
+        {/* Cards row — only shown when any cards exist */}
+        {((match.home_yellows ?? 0) > 0 || (match.home_reds ?? 0) > 0 || (match.away_yellows ?? 0) > 0 || (match.away_reds ?? 0) > 0) && (
+          <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '6px', padding: '0 2px' }}>
+            <div style={{ display: 'flex', gap: '3px' }}>
+              <CardBadge count={match.home_yellows ?? 0} type="yellow" flashGen={homeYellowGen} />
+              <CardBadge count={match.home_reds ?? 0} type="red" flashGen={homeRedGen} />
+            </div>
+            <div style={{ display: 'flex', gap: '3px' }}>
+              <CardBadge count={match.away_reds ?? 0} type="red" flashGen={awayRedGen} />
+              <CardBadge count={match.away_yellows ?? 0} type="yellow" flashGen={awayYellowGen} />
+            </div>
+          </div>
+        )}
 
         {/* Prediction badge */}
         {match.prediction && (
@@ -145,9 +184,33 @@ function MatchCardBase({ match, actions, highlighted, onClick }: Props) {
         )}
 
         {/* Actions */}
-        {actions && actions.length > 0 && (
+        {(watchedAction || (actions && actions.length > 0)) && (
           <div style={{ marginTop: '12px', display: 'flex', gap: '8px', flexWrap: 'wrap', justifyContent: 'center' }} onClick={(e) => e.stopPropagation()}>
-            {actions.map((action) => (
+            {watchedAction && (
+              <button
+                className={`btn btn-sm watch-btn${watchedAction.isPlaying && !eyeHovered && !watchedAction.isPendingRemove ? ' eye-live-pulse' : ''}`}
+                onClick={watchedAction.isPendingRemove ? undefined : watchedAction.onRemove}
+                onMouseEnter={() => setEyeHovered(true)}
+                onMouseLeave={() => setEyeHovered(false)}
+                disabled={watchedAction.isPendingRemove}
+                title={watchedAction.isPendingRemove ? 'Removing…' : watchedAction.isPlaying ? 'AI is watching — click to unwatch' : 'Click to unwatch'}
+                aria-label={watchedAction.isPendingRemove ? 'Removing…' : 'Unwatch this match'}
+                style={{
+                  background: eyeHovered ? 'rgba(239,68,68,0.12)' : 'rgba(16,185,129,0.12)',
+                  border: `1px solid ${eyeHovered ? 'rgba(239,68,68,0.35)' : 'rgba(16,185,129,0.35)'}`,
+                  color: eyeHovered ? '#ef4444' : '#10b981',
+                  transition: 'background 0.15s, border-color 0.15s, color 0.15s',
+                }}
+              >
+                {watchedAction.isPendingRemove
+                  ? <span className="inline-spinner" style={{ width: '14px', height: '14px' }} />
+                  : eyeHovered
+                    ? <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden style={{ display: 'block' }}><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94"/><path d="M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19"/><line x1="1" y1="1" x2="23" y2="23"/></svg>
+                    : <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden style={{ display: 'block' }}><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/><path d="M9 12l2 2 4-4" strokeWidth="2.5"/></svg>
+                }
+              </button>
+            )}
+            {actions && actions.map((action) => (
               <button
                 key={action.label}
                 className={`btn btn-sm btn-${action.variant ?? 'secondary'} ${action.loading ? 'btn-loading' : ''}`}
