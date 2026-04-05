@@ -19,6 +19,9 @@ import {
   getParsedAiResult,
 } from '@/features/live-monitor/services/server-monitor.service';
 import { MatchScoutModal } from '@/components/ui/MatchScoutModal';
+import { Modal } from '@/components/ui/Modal';
+import { fetchMonitorConfig, persistMonitorConfig } from '@/features/live-monitor/config';
+import { fetchCurrentSubscription } from '@/lib/services/api';
 
 // ── Shared icon components ───────────────────────────────────────────────────
 function EyeIcon({ checked }: { checked?: boolean }) {
@@ -49,6 +52,20 @@ const _matchesTabStore = {
 };
 
 const PAGE_SIZE = 30;
+
+function normalizeSuggestedLeagueIds(value: unknown): number[] {
+  if (!Array.isArray(value)) return [];
+  const ids = value
+    .map((entry) => (typeof entry === 'number' ? entry : Number(entry)))
+    .filter((entry) => Number.isInteger(entry) && entry > 0) as number[];
+  return Array.from(new Set(ids));
+}
+
+function normalizePositiveLimit(value: unknown): number | null {
+  const parsed = typeof value === 'number' ? value : Number(value);
+  if (!Number.isInteger(parsed) || parsed < 0) return null;
+  return parsed;
+}
 
 function getMatchKickoffTime(match: Match): Date {
   return getKickoffDateTime(match);
@@ -83,17 +100,22 @@ export function MatchesTab() {
   const [viewMode, setViewMode] = useViewMode('viewMode:matches');
   const [scoutMatch, setScoutMatch] = useState<Match | null>(null);
   const [lastAddedResultId, setLastAddedResultId] = useState<string | null>(null);
+  const [suggestedOnly, setSuggestedOnly] = useState(false);
+  const [suggestedLeagueIds, setSuggestedLeagueIds] = useState<number[]>([]);
+  const [suggestedPickerOpen, setSuggestedPickerOpen] = useState(false);
+  const [suggestedDraftIds, setSuggestedDraftIds] = useState<number[]>([]);
+  const [savingSuggestedLeagues, setSavingSuggestedLeagues] = useState(false);
+  const [suggestedTopLeaguesEnabled, setSuggestedTopLeaguesEnabled] = useState(true);
+  const [suggestedTopLeaguesLimit, setSuggestedTopLeaguesLimit] = useState<number | null>(null);
+  const [watchlistCapacityLimit, setWatchlistCapacityLimit] = useState<number | null>(null);
   const aiResultsRef = useRef<HTMLDivElement>(null);
   const filterBarRef = useRef<HTMLDivElement>(null);
-  const [filterBarBottom, setFilterBarBottom] = useState(160);
+  const [filterBarBottom, setFilterBarBottom] = useState(240);
 
   useEffect(() => {
     const el = filterBarRef.current;
     if (!el) return;
-    const update = () => {
-      // offsetTop = distance from filter bar top to scroll container top
-      // offsetHeight = height of filter bar
-      // Together they give the exact sticky top for children (date-group rows)
+    const measure = () => {
       const scrollParent = el.closest('[style*="overflow"]') as HTMLElement | null;
       if (scrollParent) {
         const containerRect = scrollParent.getBoundingClientRect();
@@ -105,10 +127,11 @@ export function MatchesTab() {
         if (b > 0) setFilterBarBottom(b);
       }
     };
-    update();
-    const ro = new ResizeObserver(update);
+    // Wait for DOM layout to settle before first measurement
+    const raf = requestAnimationFrame(measure);
+    const ro = new ResizeObserver(measure);
     ro.observe(el);
-    return () => ro.disconnect();
+    return () => { cancelAnimationFrame(raf); ro.disconnect(); };
   }, []);
 
   // Wrapped setters that sync state back to the module-level store
@@ -273,6 +296,71 @@ export function MatchesTab() {
     });
   }, [matches, leagues]);
 
+  const topLeagueOptions = useMemo(() => (
+    leagues
+      .filter((league) => league.top_league)
+      .map((league) => ({
+        id: league.league_id,
+        displayName: getLeagueDisplayName(league.league_id, league.league_name || '', leagues),
+      }))
+      .sort((a, b) => a.displayName.localeCompare(b.displayName))
+  ), [leagues]);
+
+  useEffect(() => {
+    let active = true;
+    void Promise.allSettled([
+      fetchMonitorConfig(),
+      fetchCurrentSubscription(config.apiUrl),
+    ]).then(([monitorConfigResult, subscriptionResult]) => {
+      if (!active) return;
+      if (monitorConfigResult.status === 'fulfilled') {
+        setSuggestedLeagueIds(normalizeSuggestedLeagueIds(monitorConfigResult.value.SUGGESTED_TOP_LEAGUE_IDS));
+      }
+      if (subscriptionResult.status === 'fulfilled') {
+        const entitlements = subscriptionResult.value.entitlements ?? {};
+        const enabled = entitlements['watchlist.suggested_top_leagues.enabled'] !== false;
+        const suggestedLimit = normalizePositiveLimit(entitlements['watchlist.suggested_top_leagues.limit']);
+        const watchlistLimit = normalizePositiveLimit(entitlements['watchlist.active_matches.limit']);
+        setSuggestedTopLeaguesEnabled(enabled && suggestedLimit !== 0);
+        setSuggestedTopLeaguesLimit(suggestedLimit);
+        setWatchlistCapacityLimit(watchlistLimit);
+      }
+    }).catch(() => undefined);
+    return () => { active = false; };
+  }, [config.apiUrl]);
+
+  const effectiveSuggestedLeagueIds = useMemo(() => {
+    const topIds = topLeagueOptions.map((league) => league.id);
+    if (topIds.length === 0) return [] as number[];
+    const topIdSet = new Set(topIds);
+    const filteredIds = suggestedLeagueIds.filter((id) => topIdSet.has(id));
+    const cappedIds = suggestedTopLeaguesLimit == null ? filteredIds : filteredIds.slice(0, suggestedTopLeaguesLimit);
+    const fallbackIds = suggestedTopLeaguesLimit == null ? topIds : topIds.slice(0, suggestedTopLeaguesLimit);
+    return cappedIds.length > 0 ? cappedIds : fallbackIds;
+  }, [suggestedLeagueIds, suggestedTopLeaguesLimit, topLeagueOptions]);
+
+  const effectiveSuggestedLeagueIdSet = useMemo(
+    () => new Set(effectiveSuggestedLeagueIds),
+    [effectiveSuggestedLeagueIds],
+  );
+
+  const suggestedLeagueSummaries = useMemo(() => (
+    effectiveSuggestedLeagueIds
+      .map((leagueId) => {
+        const option = topLeagueOptions.find((entry) => entry.id === leagueId);
+        const matchCount = matches.filter((match) => match.league_id === leagueId).length;
+        return option ? { ...option, matchCount } : null;
+      })
+      .filter((entry): entry is { id: number; displayName: string; matchCount: number } => entry != null)
+  ), [effectiveSuggestedLeagueIds, topLeagueOptions, matches]);
+  const suggestedFeatureVisible = suggestedTopLeaguesEnabled && topLeagueOptions.length > 0 && effectiveSuggestedLeagueIds.length > 0;
+
+  useEffect(() => {
+    if (!suggestedFeatureVisible && suggestedOnly) {
+      setSuggestedOnly(false);
+    }
+  }, [suggestedFeatureVisible, suggestedOnly]);
+
   // Filtered & sorted
   const filtered = useMemo(() => {
     let items = matches.filter((m) => {
@@ -296,6 +384,7 @@ export function MatchesTab() {
         if (dateFrom && iso < dateFrom) return false;
         if (dateTo && iso > dateTo) return false;
       }
+      if (suggestedOnly && effectiveSuggestedLeagueIdSet.size > 0 && !effectiveSuggestedLeagueIdSet.has(m.league_id)) return false;
       return true;
     });
 
@@ -326,7 +415,7 @@ export function MatchesTab() {
       });
     }
     return items;
-  }, [matches, debouncedSearch, statusFilter, leagueFilter, actionFilter, dateFrom, dateTo, sort, watchlistMap, effectiveTimeZone]);
+  }, [matches, debouncedSearch, statusFilter, leagueFilter, actionFilter, dateFrom, dateTo, sort, watchlistMap, effectiveTimeZone, suggestedOnly, effectiveSuggestedLeagueIdSet]);
 
   // Pagination
   const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
@@ -347,6 +436,7 @@ export function MatchesTab() {
   const clearFilters = () => {
     setSearch(''); setDebouncedSearch(''); setStatusFilter(''); setLeagueFilter('');
     setActionFilter(''); setDateFrom(''); setDateTo('');
+    setSuggestedOnly(false);
     showToast('Filters cleared', 'success');
   };
 
@@ -482,6 +572,52 @@ export function MatchesTab() {
   if (leagueFilter) { const op = leagueOptions.find((l) => l.id === leagueFilter); badges.push(`League: ${op?.displayName || leagueFilter}`); }
   if (dateFrom || dateTo) badges.push(`Date: ${dateFrom || '—'} → ${dateTo || '—'}`);
 
+  if (suggestedOnly) badges.push('Suggested top leagues only');
+
+  const handleOpenSuggestedPicker = () => {
+    setSuggestedDraftIds(effectiveSuggestedLeagueIds);
+    setSuggestedPickerOpen(true);
+  };
+
+  const toggleSuggestedDraftLeague = (leagueId: number) => {
+    setSuggestedDraftIds((prev: number[]) => {
+      const next = new Set(prev);
+      if (next.has(leagueId)) {
+        next.delete(leagueId);
+        return Array.from(next);
+      }
+      if (suggestedTopLeaguesLimit != null && next.size >= suggestedTopLeaguesLimit) {
+        showToast(`Your plan allows up to ${suggestedTopLeaguesLimit} suggested top leagues.`, 'info');
+        return prev;
+      }
+      next.add(leagueId);
+      return Array.from(next);
+    });
+  };
+
+  const saveSuggestedLeagues = async () => {
+    setSavingSuggestedLeagues(true);
+    const topIds = topLeagueOptions.map((league) => league.id);
+    const normalizedDraft = normalizeSuggestedLeagueIds(suggestedDraftIds)
+      .filter((id) => topIds.includes(id))
+      .slice(0, suggestedTopLeaguesLimit == null ? topIds.length : suggestedTopLeaguesLimit);
+    const fallbackIds = suggestedTopLeaguesLimit == null ? topIds : topIds.slice(0, suggestedTopLeaguesLimit);
+    const matchesFallback = normalizedDraft.length === fallbackIds.length
+      && normalizedDraft.every((id, index) => id === fallbackIds[index]);
+    const payload = normalizedDraft.length === 0 || matchesFallback ? [] : normalizedDraft;
+    try {
+      await persistMonitorConfig({ SUGGESTED_TOP_LEAGUE_IDS: payload });
+      setSuggestedLeagueIds(payload);
+      setSuggestedPickerOpen(false);
+      setSuggestedOnly(true);
+      showToast('Suggested top leagues updated', 'success');
+    } catch (error) {
+      showToast(error instanceof Error ? error.message : 'Failed to save suggested top leagues', 'error');
+    } finally {
+      setSavingSuggestedLeagues(false);
+    }
+  };
+
   return (
     <div className="card" style={{ '--group-sticky-top': `${filterBarBottom}px`, '--filter-bar-bottom': `${filterBarBottom}px` } as React.CSSProperties}>
       {/* Sticky filter bar */}
@@ -496,6 +632,35 @@ export function MatchesTab() {
           <button style={tabBtn(activeDateTab === 'tomorrow')} onClick={() => { setDateFrom(dateTomorrow); setDateTo(dateTomorrow); }}>Tomorrow</button>
           <span style={{ marginLeft: 'auto', fontSize: '12px', color: 'var(--gray-400)' }}>{filtered.length} matches</span>
         </div>
+        {suggestedFeatureVisible && (
+          <div style={{ padding: '12px 16px', borderTop: '1px solid var(--gray-100)', borderBottom: '1px solid var(--gray-100)', display: 'flex', flexWrap: 'wrap', gap: '8px', alignItems: 'center' }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '2px', minWidth: '180px' }}>
+              <span style={{ fontSize: '12px', fontWeight: 600, color: 'var(--gray-700)' }}>Suggested Top Leagues</span>
+              <span style={{ fontSize: '11px', color: 'var(--gray-500)' }}>
+                System top leagues, personalized for this account. Adding matches still respects your watchlist plan limit
+                {watchlistCapacityLimit != null ? ` (${watchlist.length}/${watchlistCapacityLimit} used)` : ''}.
+              </span>
+            </div>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', flex: 1 }}>
+              {suggestedLeagueSummaries.slice(0, 5).map((league) => (
+                <span key={league.id} style={{ padding: '4px 8px', borderRadius: '999px', background: 'var(--gray-50)', border: '1px solid var(--gray-200)', fontSize: '11px', color: 'var(--gray-600)' }}>
+                  {league.displayName}{league.matchCount > 0 ? ` (${league.matchCount})` : ''}
+                </span>
+              ))}
+              {suggestedLeagueSummaries.length > 5 && (
+                <span style={{ padding: '4px 8px', borderRadius: '999px', background: 'var(--gray-50)', border: '1px solid var(--gray-200)', fontSize: '11px', color: 'var(--gray-600)' }}>
+                  +{suggestedLeagueSummaries.length - 5} more
+                </span>
+              )}
+            </div>
+            <div style={{ display: 'flex', gap: '8px', marginLeft: 'auto' }}>
+              <button className={`btn btn-sm ${suggestedOnly ? 'btn-primary' : 'btn-secondary'}`} onClick={() => setSuggestedOnly((prev) => !prev)}>
+                {suggestedOnly ? 'Showing Suggested' : 'Show Suggested'}
+              </button>
+              <button className="btn btn-secondary btn-sm" onClick={handleOpenSuggestedPicker}>Customize</button>
+            </div>
+          </div>
+        )}
         {/* Toolbar: filters + view toggle */}
         <div style={{ display: 'flex', alignItems: 'stretch' }}>
         <div className="filters" style={{ flex: 1, borderBottom: 'none' }}>
@@ -709,6 +874,46 @@ export function MatchesTab() {
           onClose={() => setScoutMatch(null)}
         />
       )}
+
+      <Modal
+        open={suggestedPickerOpen}
+        title="Suggested Top Leagues"
+        size="lg"
+        onClose={() => setSuggestedPickerOpen(false)}
+        footer={(
+          <>
+            <button className="btn btn-secondary" onClick={() => setSuggestedPickerOpen(false)} disabled={savingSuggestedLeagues}>Cancel</button>
+            <button
+              className="btn btn-secondary"
+              onClick={() => setSuggestedDraftIds(topLeagueOptions
+                .map((league) => league.id)
+                .slice(0, suggestedTopLeaguesLimit == null ? topLeagueOptions.length : suggestedTopLeaguesLimit))}
+              disabled={savingSuggestedLeagues}
+            >
+              Use All Allowed
+            </button>
+            <button className="btn btn-primary" onClick={saveSuggestedLeagues} disabled={savingSuggestedLeagues}>Save</button>
+          </>
+        )}
+      >
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+          <div style={{ fontSize: '12px', color: 'var(--gray-500)' }}>
+            Top leagues stay managed by the system. You are only choosing which of those leagues should be suggested to this account on Matches.
+            {suggestedTopLeaguesLimit != null ? ` Your current plan allows up to ${suggestedTopLeaguesLimit}.` : ''}
+          </div>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '8px' }}>
+            {topLeagueOptions.map((league) => {
+              const checked = suggestedDraftIds.includes(league.id);
+              return (
+                <label key={league.id} style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '10px 12px', border: checked ? '1px solid var(--primary)' : '1px solid var(--gray-200)', borderRadius: '10px', cursor: 'pointer', background: checked ? 'rgba(59,130,246,0.06)' : '#fff' }}>
+                  <input type="checkbox" checked={checked} onChange={() => toggleSuggestedDraftLeague(league.id)} />
+                  <span style={{ fontSize: '13px', color: 'var(--gray-700)' }}>{league.displayName}</span>
+                </label>
+              );
+            })}
+          </div>
+        </div>
+      </Modal>
     </div>
   );
 }

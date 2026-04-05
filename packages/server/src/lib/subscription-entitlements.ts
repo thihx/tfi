@@ -16,6 +16,8 @@ export interface NormalizedEntitlementSummary {
   aiManualAskEnabled: boolean;
   aiManualAskDailyLimit: number;
   watchlistActiveMatchesLimit: number;
+  watchlistSuggestedTopLeaguesEnabled: boolean;
+  watchlistSuggestedTopLeaguesLimit: number;
   notificationsAllowedChannelTypes: string[];
   notificationsMaxActiveChannels: number;
   proactiveFeedEnabled: boolean;
@@ -54,6 +56,24 @@ export const ENTITLEMENT_CATALOG: EntitlementCatalogEntry[] = [
     valueType: 'number',
     defaultValue: 5,
     enforced: true,
+  },
+  {
+    key: 'watchlist.suggested_top_leagues.enabled',
+    label: 'Suggested top leagues enabled',
+    description: 'Allows the user to personalize which system top leagues are highlighted in Matches.',
+    category: 'watchlist',
+    valueType: 'boolean',
+    defaultValue: true,
+    enforced: false,
+  },
+  {
+    key: 'watchlist.suggested_top_leagues.limit',
+    label: 'Suggested top leagues limit',
+    description: 'Maximum number of top leagues the user may keep in their personalized suggested list.',
+    category: 'watchlist',
+    valueType: 'number',
+    defaultValue: 5,
+    enforced: false,
   },
   {
     key: 'notifications.channels.allowed_types',
@@ -218,6 +238,8 @@ export function summarizeEntitlements(entitlements: EntitlementMap): NormalizedE
     aiManualAskEnabled: getBooleanEntitlement(entitlements, 'ai.manual.ask.enabled'),
     aiManualAskDailyLimit: getNumberEntitlement(entitlements, 'ai.manual.ask.daily_limit'),
     watchlistActiveMatchesLimit: getNumberEntitlement(entitlements, 'watchlist.active_matches.limit'),
+    watchlistSuggestedTopLeaguesEnabled: getBooleanEntitlement(entitlements, 'watchlist.suggested_top_leagues.enabled'),
+    watchlistSuggestedTopLeaguesLimit: getNumberEntitlement(entitlements, 'watchlist.suggested_top_leagues.limit'),
     notificationsAllowedChannelTypes: getStringArrayEntitlement(entitlements, 'notifications.channels.allowed_types'),
     notificationsMaxActiveChannels: getNumberEntitlement(entitlements, 'notifications.channels.max_active'),
     proactiveFeedEnabled: getBooleanEntitlement(entitlements, 'recommendations.proactive.feed.enabled'),

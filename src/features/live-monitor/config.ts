@@ -63,6 +63,7 @@ export function createDefaultConfig(overrides?: Partial<LiveMonitorConfig>): Liv
     TELEGRAM_ENABLED: false,
     ZALO_ENABLED: false,
     AUTO_APPLY_RECOMMENDED_CONDITION: true,
+    SUGGESTED_TOP_LEAGUE_IDS: [],
     ...overrides,
   };
 }

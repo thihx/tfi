@@ -126,6 +126,7 @@ describe('GET /api/settings', () => {
       TELEGRAM_ENABLED: false,
       WEB_PUSH_ENABLED: false,
       NOTIFICATION_LANGUAGE: 'vi',
+      SUGGESTED_TOP_LEAGUE_IDS: [],
     });
 
     expect(repo.getSettings).toHaveBeenCalledWith('user-1', { fallbackToDefault: false });
@@ -145,6 +146,7 @@ describe('GET /api/settings', () => {
       TELEGRAM_ENABLED: false,
       WEB_PUSH_ENABLED: false,
       NOTIFICATION_LANGUAGE: 'vi',
+      SUGGESTED_TOP_LEAGUE_IDS: [],
     });
 
     expect(repo.getSettings).toHaveBeenCalledWith('user-1', { fallbackToDefault: false });
@@ -246,6 +248,7 @@ describe('PUT /api/settings', () => {
       TELEGRAM_ENABLED: false,
       WEB_PUSH_ENABLED: false,
       NOTIFICATION_LANGUAGE: 'vi',
+      SUGGESTED_TOP_LEAGUE_IDS: [],
     });
 
     expect(repo.getSettings).toHaveBeenCalledWith('user-1', { fallbackToDefault: false });
@@ -280,6 +283,7 @@ describe('PUT /api/settings', () => {
       TELEGRAM_ENABLED: false,
       WEB_PUSH_ENABLED: false,
       NOTIFICATION_LANGUAGE: 'vi',
+      SUGGESTED_TOP_LEAGUE_IDS: [],
     });
 
     expect(repo.saveSettings).toHaveBeenCalledWith(
@@ -307,6 +311,7 @@ describe('PUT /api/settings', () => {
       TELEGRAM_ENABLED: false,
       WEB_PUSH_ENABLED: false,
       NOTIFICATION_LANGUAGE: 'vi',
+      SUGGESTED_TOP_LEAGUE_IDS: [],
     });
     expect(repo.saveSettings).toHaveBeenCalledWith(
       { UI_LANGUAGE: 'vi', USER_TIMEZONE: 'America/New_York', USER_TIMEZONE_CONFIRMED: true },
@@ -352,6 +357,7 @@ describe('PUT /api/settings', () => {
       TELEGRAM_ENABLED: false,
       WEB_PUSH_ENABLED: true,
       NOTIFICATION_LANGUAGE: 'both',
+      SUGGESTED_TOP_LEAGUE_IDS: [],
     });
     expect(notificationRepo.saveNotificationSettings).toHaveBeenCalledWith('user-1', {
       webPushEnabled: true,
@@ -362,6 +368,33 @@ describe('PUT /api/settings', () => {
       quietHours: {},
       channelPolicy: {},
     });
+  });
+
+  test('saves suggested top league ids through the unified /api/me/settings endpoint', async () => {
+    const repo = await import('../repos/settings.repo.js');
+    vi.mocked(repo.getSettings).mockResolvedValueOnce({});
+
+    const res = await app.inject({
+      method: 'PUT',
+      url: '/api/me/settings',
+      payload: { SUGGESTED_TOP_LEAGUE_IDS: [39, '140', 39, 'bad', -1] },
+    });
+
+    expect(res.statusCode).toBe(200);
+    expect(res.json()).toEqual({
+      UI_LANGUAGE: 'vi',
+      AUTO_APPLY_RECOMMENDED_CONDITION: true,
+      USER_TIMEZONE: null,
+      USER_TIMEZONE_CONFIRMED: false,
+      TELEGRAM_ENABLED: false,
+      WEB_PUSH_ENABLED: false,
+      NOTIFICATION_LANGUAGE: 'vi',
+      SUGGESTED_TOP_LEAGUE_IDS: [39, 140],
+    });
+    expect(repo.saveSettings).toHaveBeenCalledWith(
+      { SUGGESTED_TOP_LEAGUE_IDS: [39, 140] },
+      'user-1',
+    );
   });
 });
 

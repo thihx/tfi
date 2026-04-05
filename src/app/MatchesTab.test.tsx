@@ -10,6 +10,9 @@ const mockLoadAllData = vi.fn().mockResolvedValue(undefined);
 const mockRefreshMatches = vi.fn().mockResolvedValue(undefined);
 const mockAddToWatchlist = vi.fn().mockResolvedValue(true);
 const mockUpdateWatchlistItem = vi.fn().mockResolvedValue(true);
+const mockFetchMonitorConfig = vi.fn();
+const mockPersistMonitorConfig = vi.fn().mockResolvedValue(undefined);
+const mockFetchCurrentSubscription = vi.fn();
 
 const baseMatches: Match[] = [
   {
@@ -27,6 +30,36 @@ const baseMatches: Match[] = [
     away_score: 0,
     status: '1H',
     current_minute: '41',
+  },
+  {
+    match_id: '200',
+    date: '2026-03-24',
+    kickoff: '21:00',
+    kickoff_at_utc: '2026-03-24T12:00:00.000Z',
+    league_id: 140,
+    league_name: 'La Liga',
+    home_team: 'Barcelona',
+    away_team: 'Sevilla',
+    home_logo: '/barca.png',
+    away_logo: '/sevilla.png',
+    home_score: 0,
+    away_score: 0,
+    status: 'NS',
+  },
+  {
+    match_id: '300',
+    date: '2026-03-24',
+    kickoff: '23:00',
+    kickoff_at_utc: '2026-03-24T14:00:00.000Z',
+    league_id: 9,
+    league_name: 'Friendly League',
+    home_team: 'Team A',
+    away_team: 'Team B',
+    home_logo: '/a.png',
+    away_logo: '/b.png',
+    home_score: 0,
+    away_score: 0,
+    status: 'NS',
   },
 ];
 
@@ -48,7 +81,11 @@ const watchlist: WatchlistItem[] = [
   },
 ];
 
-const leagues: League[] = [{ league_id: 39, league_name: 'Premier League', top_league: true } as League];
+const leagues: League[] = [
+  { league_id: 39, league_name: 'Premier League', top_league: true } as League,
+  { league_id: 140, league_name: 'La Liga', top_league: true } as League,
+  { league_id: 9, league_name: 'Friendly League', top_league: false } as League,
+];
 
 const mockState = {
   matches: baseMatches,
@@ -80,6 +117,11 @@ vi.mock('@/features/live-monitor/services/server-monitor.service', () => ({
   getParsedAiResult: mockGetParsedAiResult,
 }));
 
+vi.mock('@/features/live-monitor/config', () => ({
+  fetchMonitorConfig: mockFetchMonitorConfig,
+  persistMonitorConfig: mockPersistMonitorConfig,
+}));
+
 vi.mock('@/components/ui/MatchScoutModal', () => ({
   MatchScoutModal: () => null,
 }));
@@ -87,6 +129,7 @@ vi.mock('@/components/ui/MatchScoutModal', () => ({
 vi.mock('@/lib/services/api', () => ({
   fetchLeagueProfile: vi.fn().mockResolvedValue(null),
   fetchTeamProfile: vi.fn().mockResolvedValue(null),
+  fetchCurrentSubscription: mockFetchCurrentSubscription,
 }));
 
 beforeAll(() => {
@@ -114,6 +157,24 @@ beforeEach(async () => {
   mockState.config = { apiUrl: 'http://localhost:4000', defaultMode: 'B' };
   mockState.leagues = leagues;
   mockRefreshMatches.mockResolvedValue(undefined);
+  mockFetchMonitorConfig.mockResolvedValue({
+    UI_LANGUAGE: 'vi',
+    NOTIFICATION_LANGUAGE: 'vi',
+    SUGGESTED_TOP_LEAGUE_IDS: [39],
+  });
+  mockPersistMonitorConfig.mockResolvedValue(undefined);
+  mockFetchCurrentSubscription.mockResolvedValue({
+    plan: { plan_code: 'free', display_name: 'Free' },
+    subscription: null,
+    effectiveStatus: 'free_fallback',
+    entitlements: {
+      'watchlist.active_matches.limit': 5,
+      'watchlist.suggested_top_leagues.enabled': true,
+      'watchlist.suggested_top_leagues.limit': 1,
+    },
+    usage: { manualAiDaily: { entitlementKey: 'ai.manual.ask.daily_limit', periodKey: '2026-03-24', limit: 3, used: 0 } },
+    catalog: [],
+  });
   mockAnalyzeMatchWithServerPipeline.mockResolvedValue({
     matchId: '100',
     success: true,
@@ -257,6 +318,40 @@ describe('MatchesTab', () => {
     expect(mockLoadAllData).toHaveBeenCalledTimes(1);
     expect(mockLoadAllData).toHaveBeenNthCalledWith(1, true);
     expect(mockRefreshMatches).toHaveBeenCalledTimes(1);
+  });
+
+  it('loads suggested top leagues from DB-backed user settings and filters to them on demand', async () => {
+    const user = userEvent.setup();
+    render(<MatchesTab />);
+
+    expect(await screen.findByText('Suggested Top Leagues')).toBeInTheDocument();
+    expect(screen.getAllByText('Premier League (1)').length).toBeGreaterThan(0);
+
+    await user.click(screen.getByRole('button', { name: 'Show Suggested' }));
+
+    expect(screen.getByText('Arsenal')).toBeInTheDocument();
+    expect(screen.queryByText('Barcelona')).not.toBeInTheDocument();
+    expect(screen.queryByText('Team A')).not.toBeInTheDocument();
+  });
+
+  it('persists customized suggested top leagues and respects the plan cap', async () => {
+    const user = userEvent.setup();
+    render(<MatchesTab />);
+
+    await user.click(await screen.findByRole('button', { name: 'Customize' }));
+    expect(screen.getByText(/allows up to 1/i)).toBeInTheDocument();
+
+    await user.click(screen.getByLabelText('La Liga'));
+    expect(mockShowToast).toHaveBeenCalledWith(expect.stringContaining('allows up to 1 suggested top leagues'), 'info');
+    await user.click(screen.getByLabelText('Premier League'));
+    await user.click(screen.getByLabelText('La Liga'));
+
+    await user.click(screen.getByRole('button', { name: 'Save' }));
+
+    await waitFor(() => {
+      expect(mockPersistMonitorConfig).toHaveBeenCalledWith({ SUGGESTED_TOP_LEAGUE_IDS: [] });
+    });
+    expect(screen.getAllByText('La Liga (1)').length).toBeGreaterThan(0);
   });
 });
 

@@ -19,6 +19,7 @@ export const SELF_SERVICE_SETTINGS_DEFAULTS = {
   TELEGRAM_ENABLED: false,
   WEB_PUSH_ENABLED: false,
   NOTIFICATION_LANGUAGE: 'vi',
+  SUGGESTED_TOP_LEAGUE_IDS: [],
 } satisfies Record<string, unknown>;
 
 function isObjectRecord(value: unknown): value is Record<string, unknown> {
@@ -35,6 +36,14 @@ function parseLegacyNumber(value: unknown): number | null {
   if (value === null || value === undefined || value === '') return null;
   const parsed = Number(value);
   return Number.isFinite(parsed) ? parsed : null;
+}
+
+function parseSuggestedTopLeagueIds(value: unknown): number[] {
+  if (!Array.isArray(value)) return [];
+  const ids = value
+    .map((entry) => (typeof entry === 'number' ? entry : Number(entry)))
+    .filter((entry) => Number.isInteger(entry) && entry > 0) as number[];
+  return Array.from(new Set(ids));
 }
 
 export function isValidTimeZone(value: unknown): value is string {
@@ -105,6 +114,7 @@ export function normalizeSelfServiceSettings(
     TELEGRAM_ENABLED: notificationSettings?.telegramEnabled === true,
     WEB_PUSH_ENABLED: notificationSettings?.webPushEnabled === true,
     NOTIFICATION_LANGUAGE: notificationSettings?.notificationLanguage ?? 'vi',
+    SUGGESTED_TOP_LEAGUE_IDS: parseSuggestedTopLeagueIds(settings['SUGGESTED_TOP_LEAGUE_IDS']),
   };
 }
 
@@ -124,6 +134,9 @@ export function sanitizeSelfServicePatch(settings: Record<string, unknown>): Rec
   }
   if (typeof settings['USER_TIMEZONE_CONFIRMED'] === 'boolean') {
     patch['USER_TIMEZONE_CONFIRMED'] = settings['USER_TIMEZONE_CONFIRMED'];
+  }
+  if (settings['SUGGESTED_TOP_LEAGUE_IDS'] !== undefined) {
+    patch['SUGGESTED_TOP_LEAGUE_IDS'] = parseSuggestedTopLeagueIds(settings['SUGGESTED_TOP_LEAGUE_IDS']);
   }
   return patch;
 }

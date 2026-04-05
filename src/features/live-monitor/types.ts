@@ -34,6 +34,7 @@ export interface LiveMonitorConfig {
   ZALO_ENABLED?: boolean;
   WEB_PUSH_ENABLED?: boolean;
   AUTO_APPLY_RECOMMENDED_CONDITION?: boolean;
+  SUGGESTED_TOP_LEAGUE_IDS?: number[];
   MIN_MINUTE?: number;
   MAX_MINUTE?: number;
   SECOND_HALF_START_MINUTE?: number;
