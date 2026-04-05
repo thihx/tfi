@@ -74,7 +74,9 @@ export function applyRecommendationPolicy(input: RecommendationPolicyInput): Rec
   let blocked = false;
   let confidence = input.confidence;
   let stakePercent = input.stakePercent;
-  const isV8 = String(input.promptVersion ?? '').trim() === 'v8-market-balance-followup-a';
+  const promptVersion = String(input.promptVersion ?? '').trim();
+  const isV8 = promptVersion === 'v8-market-balance-followup-a' || promptVersion === 'v8-market-balance-followup-b';
+  const isV8b = promptVersion === 'v8-market-balance-followup-b';
 
   const block = (warning: string) => {
     blocked = true;
@@ -85,8 +87,8 @@ export function applyRecommendationPolicy(input: RecommendationPolicyInput): Rec
     block('POLICY_BLOCK_1X2_DRAW');
   }
 
-  if (canonicalMarket === '1x2_home' && input.minute < (isV8 ? 60 : 75)) {
-    block(isV8 ? 'POLICY_BLOCK_1X2_HOME_PRE60_V8' : 'POLICY_BLOCK_1X2_HOME_PRE75');
+  if (canonicalMarket === '1x2_home' && input.minute < (isV8b ? 55 : isV8 ? 60 : 75)) {
+    block(isV8b ? 'POLICY_BLOCK_1X2_HOME_PRE55_V8B' : isV8 ? 'POLICY_BLOCK_1X2_HOME_PRE60_V8' : 'POLICY_BLOCK_1X2_HOME_PRE75');
   }
 
   if (canonicalMarket === 'over_0.5' && input.minute >= 75) {

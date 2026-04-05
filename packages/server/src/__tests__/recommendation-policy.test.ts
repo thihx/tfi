@@ -183,4 +183,38 @@ describe('applyRecommendationPolicy', () => {
     expect(result.blocked).toBe(true);
     expect(result.warnings).toContain('POLICY_BLOCK_SAME_THESIS_STAKE_CAP');
   });
+
+  test('v8b blocks 1x2_home before minute 55', () => {
+    const result = applyRecommendationPolicy({
+      selection: 'Home Win @1.82',
+      betMarket: '1x2_home',
+      minute: 54,
+      score: '1-1',
+      odds: 1.82,
+      confidence: 7,
+      valuePercent: 8,
+      stakePercent: 3,
+      promptVersion: 'v8-market-balance-followup-b',
+    });
+
+    expect(result.blocked).toBe(true);
+    expect(result.warnings).toContain('POLICY_BLOCK_1X2_HOME_PRE55_V8B');
+  });
+
+  test('v8b allows 1x2_home from minute 55 onward', () => {
+    const result = applyRecommendationPolicy({
+      selection: 'Home Win @1.82',
+      betMarket: '1x2_home',
+      minute: 55,
+      score: '1-1',
+      odds: 1.82,
+      confidence: 7,
+      valuePercent: 8,
+      stakePercent: 3,
+      promptVersion: 'v8-market-balance-followup-b',
+    });
+
+    expect(result.blocked).toBe(false);
+    expect(result.warnings).not.toContain('POLICY_BLOCK_1X2_HOME_PRE55_V8B');
+  });
 });

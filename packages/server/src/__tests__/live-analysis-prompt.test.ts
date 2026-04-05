@@ -452,6 +452,7 @@ describe('buildLiveAnalysisPrompt', () => {
     expect(candidate).toContain('USER_QUESTION: What about Home -0.25 here?');
     expect(candidate).toContain('FOLLOW_UP_HISTORY:');
     expect(candidate).toContain('V8 PRIOR ALIGNMENT RULE');
+    expect(candidate).toContain('Minute 30-59 is an anti-mechanical-under zone.');
     expect(candidate).toContain('"follow_up_answer_en": string');
     expect(candidate).toContain('"follow_up_answer_vi": string');
   });

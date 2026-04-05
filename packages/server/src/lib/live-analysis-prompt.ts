@@ -15,10 +15,10 @@ export type PromptEvidenceMode =
   | 'events_only_degraded'
   | 'low_evidence';
 
-export const LIVE_ANALYSIS_PROMPT_VERSIONS = ['v4-evidence-hardened', 'v5-compact-a', 'v6-betting-discipline-a', 'v6-betting-discipline-b', 'v6-betting-discipline-c', 'v7-profile-overlay-discipline-a', 'v8-market-balance-followup-a'] as const;
+export const LIVE_ANALYSIS_PROMPT_VERSIONS = ['v4-evidence-hardened', 'v5-compact-a', 'v6-betting-discipline-a', 'v6-betting-discipline-b', 'v6-betting-discipline-c', 'v7-profile-overlay-discipline-a', 'v8-market-balance-followup-a', 'v8-market-balance-followup-b'] as const;
 export type LiveAnalysisPromptVersion = (typeof LIVE_ANALYSIS_PROMPT_VERSIONS)[number];
 export const LIVE_ANALYSIS_PROMPT_VERSION = 'v4-evidence-hardened';
-export const LIVE_ANALYSIS_PROMPT_CANDIDATE_VERSION = 'v8-market-balance-followup-a';
+export const LIVE_ANALYSIS_PROMPT_CANDIDATE_VERSION = 'v8-market-balance-followup-b';
 
 export function isLiveAnalysisPromptVersion(value: string): value is LiveAnalysisPromptVersion {
   return (LIVE_ANALYSIS_PROMPT_VERSIONS as readonly string[]).includes(value);
@@ -1107,7 +1107,7 @@ function buildContinuityRulesSectionCompact(
     promptVersion === 'v6-betting-discipline-b'
     || promptVersion === 'v6-betting-discipline-c'
     || promptVersion === 'v7-profile-overlay-discipline-a'
-    || promptVersion === 'v8-market-balance-followup-a'
+    || isV8PromptVersion(promptVersion)
   )
     ? `- A same-thesis follow-up needs BOTH materially stronger live evidence AFTER the last bet AND a clearly better structural entry. Time passing alone is never enough.
 - Do not re-enter the same thesis just because the new line is closer to the current score or looks safer now. If you already hold that view, another entry usually means laddering the same position.
@@ -1140,7 +1140,7 @@ function isCompactPromptVersion(promptVersion: LiveAnalysisPromptVersion): boole
     || promptVersion === 'v6-betting-discipline-b'
     || promptVersion === 'v6-betting-discipline-c'
     || promptVersion === 'v7-profile-overlay-discipline-a'
-    || promptVersion === 'v8-market-balance-followup-a';
+    || isV8PromptVersion(promptVersion);
 }
 
 function isBettingDisciplinePromptVersion(promptVersion: LiveAnalysisPromptVersion): boolean {
@@ -1148,11 +1148,11 @@ function isBettingDisciplinePromptVersion(promptVersion: LiveAnalysisPromptVersi
     || promptVersion === 'v6-betting-discipline-b'
     || promptVersion === 'v6-betting-discipline-c'
     || promptVersion === 'v7-profile-overlay-discipline-a'
-    || promptVersion === 'v8-market-balance-followup-a';
+    || isV8PromptVersion(promptVersion);
 }
 
 function isV8PromptVersion(promptVersion: LiveAnalysisPromptVersion): boolean {
-  return promptVersion === 'v8-market-balance-followup-a';
+  return promptVersion === 'v8-market-balance-followup-a' || promptVersion === 'v8-market-balance-followup-b';
 }
 
 function readProfileRecord(profile: Record<string, unknown> | null | undefined): Record<string, unknown> | null {
@@ -1281,13 +1281,25 @@ ${historyLines.length > 0 ? `FOLLOW_UP_HISTORY:\n${historyLines.join('\n')}\n` :
 `;
 }
 
-function buildV8MarketBalanceSectionCompact(): string {
+function buildV8MarketBalanceSectionCompact(promptVersion: LiveAnalysisPromptVersion): string {
+  const v8bExtraRules = promptVersion === 'v8-market-balance-followup-b'
+    ? `- Minute 30-59 is an anti-mechanical-under zone. In this band, do NOT back goals_under unless live suppression is genuinely strong, the trailing/chasing risk is limited, and priors are aligned or at least neutral.
+- From minute 30-59, a goals_under push is exceptional-only. A generic trio of slow tempo + low shots + low xG is NOT enough by itself.
+- If your goals_under reasoning could be copied into many unrelated matches without changing the wording much, return no bet instead.
+- In minute 30-59, every goals_under push must include at least one match-specific differentiator such as game-kill script, class-control, red-card distortion, trailing-side impotence, or clearly aligned priors.
+- If 1X2_home or asian_handicap_home is unavailable or too cheap to be actionable, that does NOT make goals_under acceptable by default. Prefer no bet over a generic under fallback.
+- In 45-59, when the score is level or a one-goal game, a generic \"slow tempo\" read is not enough. You need either a clear suppression signal or a clean favourite-control thesis with a playable line.
+- In 45-59, if home-favourite control is live and 1X2_home is available at a playable price (usually >= 1.55) or asian_handicap_home is available, actively prefer that thesis over generic goals_under.
+`
+    : '';
+
   return `V8 MARKET-BALANCE DISCIPLINE:
 - Goals Under is NOT the default fallback just because tempo is slow, shots are low, or xG is modest.
 - Before minute 60, generic low-event evidence alone is insufficient for a goals_under push.
 - For goals_under, explicitly decide whether priors are aligned, neutral, or contradictory. If contradictory and live suppression is not overwhelming, return no bet.
 - If live evidence suggests favourite control, territory, or class edge and priors agree, actively consider 1X2_home or asian_handicap_home before falling back to goals_under.
 - If no market has a clean edge, return no bet. Do NOT use goals_under as a generic escape hatch.
+${v8bExtraRules}
 
 `;
 }
@@ -1358,7 +1370,7 @@ function buildExistingExposureSectionCompact(
       promptVersion === 'v6-betting-discipline-b'
       || promptVersion === 'v6-betting-discipline-c'
       || promptVersion === 'v7-profile-overlay-discipline-a'
-      || promptVersion === 'v8-market-balance-followup-a'
+      || isV8PromptVersion(promptVersion)
     ) && summary.count >= 2
       ? ' [LADDER ALERT]'
       : '';
@@ -1369,7 +1381,7 @@ function buildExistingExposureSectionCompact(
     promptVersion === 'v6-betting-discipline-b'
     || promptVersion === 'v6-betting-discipline-c'
     || promptVersion === 'v7-profile-overlay-discipline-a'
-    || promptVersion === 'v8-market-balance-followup-a'
+    || isV8PromptVersion(promptVersion)
   )
     ? `- If the same thesis already has 2+ entries, do NOT add another rung. Default should_push=false.
 - A later safer line may be better in isolation, but adding it on top of earlier exposure still compounds bankroll risk instead of improving the old position.
@@ -1530,12 +1542,7 @@ export function buildLiveAnalysisPrompt(
     : '';
   const evidenceTierRule = getEvidenceTierRule(data);
   const fullV8MarketBalanceRules = isV8PromptVersion(promptVersion)
-    ? `- Goals Under is NOT the default fallback just because tempo is slow, shots are low, or xG is modest.
-- Before minute 60, generic low-event evidence alone is insufficient for a goals_under push.
-- For goals_under, explicitly decide whether priors are aligned, neutral, or contradictory. If contradictory and live suppression is not overwhelming, return no bet.
-- If live evidence suggests favourite control, territory, or class edge and priors agree, actively consider 1X2_home or asian_handicap_home before falling back to goals_under.
-- If no market has a clean edge, return no bet. Do NOT use goals_under as a generic escape hatch.
-`
+    ? buildV8MarketBalanceSectionCompact(promptVersion).replace('V8 MARKET-BALANCE DISCIPLINE:\n', '')
     : '';
 
   if (isCompactPromptVersion(promptVersion)) {
@@ -1546,7 +1553,7 @@ export function buildLiveAnalysisPrompt(
       promptVersion === 'v6-betting-discipline-b'
       || promptVersion === 'v6-betting-discipline-c'
       || promptVersion === 'v7-profile-overlay-discipline-a'
-      || promptVersion === 'v8-market-balance-followup-a'
+      || isV8PromptVersion(promptVersion)
     )
       ? `- First-half volume is a prior, not an automatic second-half trigger.
 - At HT and in the first 10 minutes of 2H, do NOT project a wild first half straight into a new Over bet unless the early second-half flow confirms it with fresh pressure, shots, or transitions.
@@ -1560,14 +1567,14 @@ export function buildLiveAnalysisPrompt(
       promptVersion === 'v6-betting-discipline-b'
       || promptVersion === 'v6-betting-discipline-c'
       || promptVersion === 'v7-profile-overlay-discipline-a'
-      || promptVersion === 'v8-market-balance-followup-a'
+      || isV8PromptVersion(promptVersion)
     )
       ? '- At HT / early 2H, a fresh Over 3.5 from 1-1 is usually too demanding. Wait for better confirmation or a friendlier line.\n'
       : '';
     const advancedCornersRules = (
       promptVersion === 'v6-betting-discipline-c'
       || promptVersion === 'v7-profile-overlay-discipline-a'
-      || promptVersion === 'v8-market-balance-followup-a'
+      || isV8PromptVersion(promptVersion)
     )
       ? `- Corners are a tertiary market. They are not a primary read on team quality, true scoring edge, or match motivation.
 - Only choose corners when the corner-specific evidence is cleaner than any available Goals or AH thesis. If a goals/AH read is similarly strong, prefer goals/AH.
@@ -1581,16 +1588,17 @@ export function buildLiveAnalysisPrompt(
     const advancedBalancedTotalsRule = (
       promptVersion === 'v6-betting-discipline-c'
       || promptVersion === 'v7-profile-overlay-discipline-a'
-      || promptVersion === 'v8-market-balance-followup-a'
+      || isV8PromptVersion(promptVersion)
     )
       ? `- Balanced totals are not enough. In 1-1 or 0-0 states around minute 55-70, if possession, shots, and shots on target are broadly even and there is no clear pressure asymmetry, default should_push=false.
 - Symmetric prices around 1.90 on both sides usually mean the market sees a thin edge. Do not force an Over or Under just because one more goal would cash.
+${promptVersion === 'v8-market-balance-followup-b' ? '- In minute 30-59, treat level or one-goal states as a danger zone for generic totals picks. If the edge is not clearly asymmetrical, default should_push=false rather than forcing an Under.\n' : ''}
 `
       : '';
     const profileOverlayDisciplineSection = buildProfileAndOverlayDisciplineSectionCompact(data, promptVersion);
     const followUpContextSection = buildFollowUpContextSection(data, true);
     const v8MarketBalanceSection = isV8PromptVersion(promptVersion)
-      ? buildV8MarketBalanceSectionCompact()
+      ? buildV8MarketBalanceSectionCompact(promptVersion)
       : '';
     return `
 You are a disciplined live football investment analyst. Analyze one live match and return either one realistic investment idea or no bet. Evaluate custom conditions separately.
@@ -1958,7 +1966,7 @@ MARKET SELECTION:
 - BTTS Yes requires at least Tier 1 evidence. Do NOT recommend BTTS from Tier 3 or Tier 4.
 - AH and O/U are the only market families allowed in degraded Tier 3.
 - Corners markets require Tier 1 live stats and live corners data. No corners recommendation in Tier 2-4.
-- If not met, evaluate Over/Under instead.
+- If 1X2 or AH is not justified, do NOT automatically fall back to Over/Under. Over/Under must still earn its own edge.
 - If ODDS SANITY NOTES removed a corners market, do NOT recommend any corners market and do NOT infer a replacement corners line from stats.
 - If DYNAMIC PERFORMANCE PRIORS are present and the chosen market is tagged as a caution prior, require a stronger live edge or skip the bet.
 - Odds >= 2.50: confidence cap 6, stake cap 3%.
