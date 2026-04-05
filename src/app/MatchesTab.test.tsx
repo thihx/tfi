@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from '@testing-library/react';
+import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { League, Match, WatchlistItem } from '@/types';
@@ -339,8 +339,8 @@ describe('MatchesTab', () => {
     await user.click(screen.getByRole('button', { name: 'Ask AI for analysis' }));
     expect(await screen.findByText(/AI Analysis/i)).toBeInTheDocument();
 
-    await user.type(screen.getByLabelText('Ask follow-up about this match'), 'What about Home -0.25 here?');
-    await user.click(screen.getByRole('button', { name: 'Ask Follow-up' }));
+    await user.type(screen.getByLabelText('Follow-up question for this match'), 'What about Home -0.25 here?');
+    await user.keyboard('{Enter}');
 
     await waitFor(() => {
       expect(mockAnalyzeMatchWithServerPipeline).toHaveBeenNthCalledWith(
@@ -354,9 +354,8 @@ describe('MatchesTab', () => {
       );
     });
 
-    expect(await screen.findByText('You')).toBeInTheDocument();
     expect(screen.getByText('What about Home -0.25 here?')).toBeInTheDocument();
-    expect(screen.getByText('AI Follow-up')).toBeInTheDocument();
+    expect(screen.getByLabelText('AI')).toBeInTheDocument();
     expect(screen.getByText('Keo Home -0.25 van co the can nhac, nhung chua tot hon over hien tai.')).toBeInTheDocument();
     expect(screen.getByText('Advisory follow-up')).toBeInTheDocument();
   });
@@ -440,21 +439,23 @@ describe('MatchesTab', () => {
   it('loads favorite leagues from the backend snapshot', async () => {
     render(<MatchesTab />);
 
-    expect(await screen.findByText('Favorite Leagues')).toBeInTheDocument();
+    expect(await screen.findByRole('option', { name: 'Favorite Leagues' })).toBeInTheDocument();
     expect(screen.getAllByText('Premier League').length).toBeGreaterThan(0);
   });
 
   it('saves favorite leagues and applies today matches into watchlist', async () => {
     const user = userEvent.setup();
-    render(<MatchesTab />);
+    const { container } = render(<MatchesTab />);
 
-    await user.click(await screen.findByRole('button', { name: 'Choose Favorite Leagues' }));
-    expect(screen.getByText(/allows up to 1/i)).toBeInTheDocument();
+    await user.click(await screen.findByRole('button', { name: /Watchlist by Favorite Leagues/i }));
+    expect(screen.getByText(/Up to 1 allowed/i)).toBeInTheDocument();
 
     await user.click(screen.getByLabelText('La Liga'));
     expect(mockShowToast).toHaveBeenCalledWith(expect.stringContaining('allows up to 1 favorite leagues'), 'info');
     await user.click(screen.getByLabelText('Premier League'));
-    await user.click(screen.getByRole('button', { name: "Save & Add Today's Matches" }));
+    const modal = await waitFor(() => container.querySelector('.modal-overlay .modal'));
+    expect(modal).toBeTruthy();
+    await user.click(within(modal as HTMLElement).getByRole('button', { name: 'Save' }));
 
     await waitFor(() => {
       expect(mockApplyFavoriteLeaguesToWatchlist).toHaveBeenCalledWith(
@@ -474,11 +475,13 @@ describe('MatchesTab', () => {
       name: 'Admin',
       picture: '',
     });
-    render(<MatchesTab />);
+    const { container } = render(<MatchesTab />);
 
-    await user.click(await screen.findByRole('button', { name: 'Choose Favorite Leagues' }));
+    await user.click(await screen.findByRole('button', { name: /Watchlist by Favorite Leagues/i }));
     await user.click(screen.getByLabelText('La Liga'));
-    await user.click(screen.getByRole('button', { name: "Save & Add Today's Matches" }));
+    const modal = await waitFor(() => container.querySelector('.modal-overlay .modal'));
+    expect(modal).toBeTruthy();
+    await user.click(within(modal as HTMLElement).getByRole('button', { name: 'Save' }));
 
     await waitFor(() => {
       expect(mockApplyFavoriteLeaguesToWatchlist).toHaveBeenCalledWith(

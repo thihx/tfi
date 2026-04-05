@@ -36,6 +36,103 @@
     animation: spin 0.9s linear infinite;
 }
 @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+
+/* AI follow-up chat: “thinking” sparkle pulse */
+@keyframes tfi-ai-followup-thinking {
+    0%, 100% { opacity: 0.45; }
+    50% { opacity: 1; }
+}
+.ai-followup-thinking-icon {
+    animation: tfi-ai-followup-thinking 1.2s ease-in-out infinite;
+}
+
+/* Ask AI analysis panel: scroll-into-view clears sticky filter bar (Matches tab) */
+.ai-result-panel {
+    scroll-margin-top: calc(var(--filter-bar-bottom, 200px) + 12px);
+    scroll-margin-bottom: 12px;
+    box-sizing: border-box;
+    padding: 18px 52px 20px 22px;
+}
+
+/* Title row: keep text clear of absolute collapse/close buttons */
+.ai-result-panel__header {
+    padding-right: 72px;
+    box-sizing: border-box;
+    width: 100%;
+    min-width: 0;
+}
+
+/* Title + metrics + prose + chat share one centered column (header is no longer full-width vs body) */
+.ai-result-panel__inner {
+    max-width: min(100%, 42rem);
+    width: 100%;
+    margin-left: auto;
+    margin-right: auto;
+    box-sizing: border-box;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    min-width: 0;
+}
+
+.ai-result-panel__prose-block p {
+    line-height: 1.65;
+    overflow-wrap: anywhere;
+    word-break: break-word;
+}
+
+.ai-result-panel__followup-sep {
+    padding-top: 12px;
+    border-top: 1px solid var(--gray-200);
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    min-width: 0;
+}
+
+.ai-result-panel__prose-block {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+    min-width: 0;
+}
+
+.ai-followup-bubble {
+    box-sizing: border-box;
+}
+
+/*
+ * Follow-up column slightly narrower than the main prose column — enough margin to scan,
+ * but wide enough to stay balanced with Reasoning above (not a tall skinny strip).
+ */
+.ai-result-panel__chat-thread {
+    max-width: min(100%, 32rem);
+    width: 100%;
+    margin-left: auto;
+    margin-right: auto;
+    box-sizing: border-box;
+    min-width: 0;
+}
+
+.ai-result-panel__chat-compose {
+    max-width: min(100%, 32rem);
+    width: 100%;
+    margin-left: auto;
+    margin-right: auto;
+    box-sizing: border-box;
+    min-width: 0;
+}
+
+@media (max-width: 480px) {
+    .ai-result-panel {
+        padding: 16px 44px 18px 14px;
+    }
+
+    .ai-result-panel__header {
+        padding-right: 52px;
+    }
+}
+
 .global-loader .loader-progress-bar {
     width: 100%;
     height: 10px;
@@ -472,6 +569,220 @@ body {
     padding: 28px 24px;
     background: var(--gray-50);
     min-height: calc(100vh - 180px);
+    box-sizing: border-box;
+}
+
+/* Settings tab strip + root (mobile-friendly horizontal scroll) */
+.settings-tab-root {
+    max-width: 100%;
+    width: 100%;
+    box-sizing: border-box;
+}
+
+.settings-tab-bar {
+    display: flex;
+    gap: 2px;
+    border-bottom: 1px solid var(--gray-200);
+    margin-bottom: 20px;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+    scroll-padding-inline: 8px;
+    width: 100%;
+    min-width: 0;
+}
+
+.settings-tab-bar::-webkit-scrollbar {
+    height: 0;
+    display: none;
+}
+
+.settings-tab-button {
+    flex-shrink: 0;
+    padding: 10px 16px;
+    font-size: 11px;
+    font-weight: 500;
+    letter-spacing: 0.5px;
+    text-transform: uppercase;
+    color: var(--gray-400);
+    background: none;
+    border: none;
+    border-bottom: 2px solid transparent;
+    border-radius: 4px 4px 0 0;
+    cursor: pointer;
+    margin-bottom: -1px;
+    transition: color 0.15s, background 0.15s;
+    white-space: nowrap;
+}
+
+.settings-tab-button--active {
+    font-weight: 700;
+    color: #2563eb;
+    background: rgba(37, 99, 235, 0.06);
+    border-bottom-color: #2563eb;
+}
+
+@media (max-width: 640px) {
+    .settings-tab-button {
+        padding: 8px 12px;
+        font-size: 10px;
+        letter-spacing: 0.35px;
+    }
+}
+
+/* Settings admin panels — padding + toolbars */
+.settings-panel-padding {
+    padding: 12px 16px;
+    box-sizing: border-box;
+    min-width: 0;
+}
+
+@media (max-width: 640px) {
+    .settings-panel-padding {
+        padding: 10px 12px;
+    }
+}
+
+.settings-toolbar-row {
+    display: flex;
+    justify-content: space-between;
+    gap: 12px;
+    align-items: flex-start;
+    flex-wrap: wrap;
+    min-width: 0;
+}
+
+@media (max-width: 640px) {
+    .settings-toolbar-row {
+        flex-direction: column;
+        align-items: stretch;
+    }
+
+    .settings-toolbar-row > .btn {
+        align-self: flex-start;
+    }
+}
+
+/* User management — row was fixed 4 columns; on narrow screens first column collapsed */
+.settings-user-row {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 160px 160px auto;
+    gap: 12px;
+    align-items: center;
+    padding: 12px 14px;
+    border-radius: 10px;
+    min-width: 0;
+    box-sizing: border-box;
+}
+
+.settings-user-row__save {
+    display: flex;
+    justify-content: flex-end;
+}
+
+.settings-user-identity {
+    min-width: 0;
+}
+
+.settings-user-name {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+@media (max-width: 640px) {
+    .settings-user-row {
+        grid-template-columns: 1fr;
+        align-items: stretch;
+        gap: 10px;
+        padding: 12px;
+    }
+
+    .settings-user-row__save {
+        justify-content: flex-start;
+    }
+
+    .settings-user-name {
+        white-space: normal;
+        word-break: break-word;
+    }
+
+    .settings-user-row select.job-interval-select {
+        width: 100%;
+        max-width: 100%;
+        box-sizing: border-box;
+    }
+}
+
+/* Subscription — filter row + user rows */
+.settings-subscription-filters {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 180px 180px;
+    gap: 10px;
+    min-width: 0;
+}
+
+@media (max-width: 640px) {
+    .settings-subscription-filters {
+        grid-template-columns: 1fr;
+    }
+}
+
+.settings-subscription-user-row {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 150px 200px 200px auto;
+    gap: 12px;
+    align-items: center;
+    padding: 12px 14px;
+    border-radius: 10px;
+    min-width: 0;
+    box-sizing: border-box;
+}
+
+.settings-sub-name {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+@media (max-width: 640px) {
+    .settings-subscription-user-row {
+        grid-template-columns: 1fr;
+        align-items: stretch;
+        gap: 10px;
+        padding: 12px;
+    }
+
+    .settings-sub-name {
+        white-space: normal;
+        word-break: break-word;
+    }
+
+    .settings-subscription-user-row select.job-interval-select,
+    .settings-subscription-user-row input.filter-input[type='datetime-local'] {
+        width: 100%;
+        max-width: 100%;
+        box-sizing: border-box;
+    }
+
+    .settings-subscription-user-row .settings-sub-status-inner {
+        flex-wrap: wrap;
+    }
+}
+
+/* Plan editor — entitlements + catalog side-by-side */
+.settings-plan-json-grid {
+    display: grid;
+    grid-template-columns: minmax(280px, 1fr) minmax(220px, 320px);
+    gap: 12px;
+    min-width: 0;
+}
+
+@media (max-width: 768px) {
+    .settings-plan-json-grid {
+        grid-template-columns: 1fr;
+    }
 }
 
 .tab-content {
@@ -1169,6 +1480,111 @@ table tbody#watchlist-table td:not(.select-col) {
     flex-shrink: 0;
 }
 
+/* Score + minute + status grouped under team names (Matches table) */
+.match-meta-row {
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    justify-content: center;
+    flex-wrap: wrap;
+    gap: 10px 14px;
+    margin-top: 8px;
+    padding-top: 8px;
+    border-top: 1px solid var(--gray-100);
+}
+
+/* Matches tab (desktop table): tighter rows — more matches visible */
+.matches-table td,
+.matches-table th {
+    padding: 5px 10px;
+}
+
+.matches-table th {
+    padding-top: 6px;
+    padding-bottom: 6px;
+    font-size: 10px;
+}
+
+.matches-table .match-teams {
+    gap: 3px;
+}
+
+.matches-table .team-info {
+    gap: 3px;
+}
+
+.matches-table .team-logo {
+    width: 20px;
+    height: 20px;
+}
+
+.matches-table .cell-value.match-cell {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 2px;
+}
+
+.matches-table .match-meta-row {
+    margin-top: 1px;
+    padding-top: 1px;
+    gap: 6px 10px;
+}
+
+.matches-table .match-meta-row__score {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0;
+    min-width: 3rem;
+}
+
+/* Current score + H1 on one row — clear gap + divider so it never reads as "2-0(0-0)" */
+.matches-table .match-score-line {
+    display: inline-flex;
+    flex-direction: row;
+    align-items: center;
+    justify-content: center;
+    flex-wrap: wrap;
+    gap: 0;
+    row-gap: 4px;
+    column-gap: 0;
+}
+
+.matches-table .match-score-line__main {
+    letter-spacing: 0.04em;
+}
+
+.matches-table .match-score-line__ht {
+    font-size: 10px;
+    font-weight: 500;
+    color: var(--gray-400);
+    opacity: 0.9;
+    line-height: 1.2;
+    margin-left: 8px;
+    padding-left: 8px;
+    border-left: 1px solid var(--gray-200);
+    white-space: nowrap;
+}
+
+.matches-table .match-meta-row__min {
+    font-size: 10px;
+    color: var(--gray-500);
+    font-weight: 500;
+    line-height: 1.2;
+    margin-top: 3px;
+}
+
+.matches-table .match-meta-row {
+    border-top-color: #eef1f5;
+}
+
+/* Not started: only "Not Started" badge, centered — no em dash */
+.matches-table .match-meta-row--pre {
+    justify-content: center;
+    width: 100%;
+}
+
 /* ==================== MODALS ==================== */
 .modal-overlay {
     position: fixed;
@@ -1248,6 +1664,36 @@ table tbody#watchlist-table td:not(.select-col) {
     padding: 12px 24px 16px;
     flex-shrink: 0;
     border-top: 1px solid var(--gray-200);
+}
+
+/* Matches: Watchlist by Favorite Leagues picker — compact title & chrome (scoped via :has) */
+.modal:has(.watchlist-favorite-leagues-picker) .modal-title {
+    font-size: 17px;
+    font-weight: 600;
+    letter-spacing: -0.02em;
+    line-height: 1.25;
+}
+
+.modal:has(.watchlist-favorite-leagues-picker) .modal-header {
+    padding: 14px 18px 11px;
+}
+
+.modal:has(.watchlist-favorite-leagues-picker) .modal-body {
+    padding: 12px 18px 14px;
+}
+
+@media (max-width: 768px) {
+    .modal:has(.watchlist-favorite-leagues-picker) .modal-title {
+        font-size: 15px;
+    }
+
+    .modal:has(.watchlist-favorite-leagues-picker) .modal-header {
+        padding: 12px 14px 10px;
+    }
+
+    .modal:has(.watchlist-favorite-leagues-picker) .modal-body {
+        padding: 10px 14px 12px;
+    }
 }
 
 /* ==================== FORMS ==================== */
@@ -1715,6 +2161,8 @@ table td:last-child, table th:last-child {
     /* Push content above the fixed bottom nav */
     .main-content {
         padding-bottom: calc(56px + env(safe-area-inset-bottom) + 12px);
+        min-width: 0;
+        max-width: 100%;
     }
 
     /* Raise toast above the bottom nav bar */
@@ -1908,10 +2356,8 @@ table td:last-child, table th:last-child {
     }
 
     .table-container.table-cards td[data-label="Match"] { order: 1; }
-    .table-container.table-cards td[data-label="Status"] { order: 2; }
-    .table-container.table-cards td[data-label="Time"] { order: 3; }
-    .table-container.table-cards td[data-label="League"] { order: 4; }
-    .table-container.table-cards td[data-label="Score"] { order: 5; }
+    .table-container.table-cards td[data-label="Time"] { order: 2; }
+    .table-container.table-cards td[data-label="League"] { order: 3; }
     .table-container.table-cards td[data-label="Mode"] { order: 5; }
     .table-container.table-cards td[data-label="Priority"] { order: 6; }
     .table-container.table-cards td[data-label="Prediction"] { order: 7; }
@@ -1944,14 +2390,6 @@ table td:last-child, table th:last-child {
 
     .table-container.table-cards td[data-label="Select"]::before {
         content: "";
-    }
-
-    .table-container.table-cards td.score-empty::before {
-        content: "";
-    }
-
-    .table-container.table-cards td.status-cell {
-        display: none;
     }
 
     .table-container.table-cards td.select-disabled {

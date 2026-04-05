@@ -380,7 +380,7 @@ describe('SettingsTab', () => {
     const user = userEvent.setup();
     render(<SettingsTab />);
 
-    await user.click(await screen.findByRole('button', { name: 'Subscription Management' }));
+    await user.click(await screen.findByRole('tab', { name: /^Subscription$/i }));
 
     expect(await screen.findByText('Subscription Plans')).toBeInTheDocument();
     expect(await screen.findByText('User Subscriptions')).toBeInTheDocument();
@@ -394,7 +394,7 @@ describe('SettingsTab', () => {
     const user = userEvent.setup();
     render(<SettingsTab />);
 
-    await user.click(await screen.findByRole('button', { name: 'Subscription Management' }));
+    await user.click(await screen.findByRole('tab', { name: /^Subscription$/i }));
 
     const periodInput = await screen.findByLabelText('Period End for admin@example.com');
     await user.type(periodInput, '2026-04-30T09:00');
@@ -511,7 +511,7 @@ describe('SettingsTab', () => {
     const user = userEvent.setup();
     render(<SettingsTab />);
 
-    await user.click(screen.getByRole('button', { name: 'Scheduler' }));
+    await user.click(screen.getByRole('tab', { name: 'Scheduler' }));
 
     expect(await screen.findByText('Refresh Live Matches')).toBeInTheDocument();
     expect(screen.getByText('24h 118 ok / 1 fail / 1 skipped')).toBeInTheDocument();
@@ -532,9 +532,9 @@ describe('SettingsTab', () => {
     const user = userEvent.setup();
     render(<SettingsTab />);
 
-    await user.click(screen.getByRole('button', { name: 'User Management' }));
+    await user.click(screen.getByRole('tab', { name: /^User$/i }));
 
-    expect(await screen.findByText('User Management')).toBeInTheDocument();
+    expect(await screen.findByText(/Manage user role and login access/)).toBeInTheDocument();
     expect(await screen.findByText('Member User')).toBeInTheDocument();
     expect(screen.getByText(/Manage user role and login access\./)).toBeInTheDocument();
     expect(await screen.findByLabelText('Status for member@example.com')).toBeInTheDocument();

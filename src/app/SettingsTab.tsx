@@ -678,7 +678,7 @@ function UserManagementPanel({
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', gap: '12px', alignItems: 'flex-start', flexWrap: 'wrap' }}>
+      <div className="settings-toolbar-row">
         <div style={{ fontSize: '11px', color: 'var(--gray-500)' }}>
           Manage user role and login access. Owner accounts are locked here — you cannot change your own role or status.
         </div>
@@ -711,21 +711,16 @@ function UserManagementPanel({
             return (
               <div
                 key={row.id}
+                className="settings-user-row"
                 style={{
-                  display: 'grid',
-                  gridTemplateColumns: 'minmax(0, 1fr) 160px 160px auto',
-                  gap: '12px',
-                  alignItems: 'center',
-                  padding: '12px 14px',
                   border: `1px solid ${hasChanges && !locked ? '#93c5fd' : 'var(--gray-200)'}`,
-                  borderRadius: '10px',
                   background: hasChanges && !locked ? '#f0f7ff' : locked ? 'var(--gray-50)' : '#fff',
                   opacity: draft.status === 'disabled' ? 0.72 : 1,
                   transition: 'border-color 0.15s, background 0.15s',
                 }}
               >
                 {/* User identity */}
-                <div style={{ display: 'flex', gap: '10px', alignItems: 'center', minWidth: 0 }}>
+                <div className="settings-user-identity" style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
                   <div style={{
                     width: 36, height: 36, borderRadius: '50%', flexShrink: 0,
                     background: roleStyle.bg, color: roleStyle.color,
@@ -736,7 +731,7 @@ function UserManagementPanel({
                   </div>
                   <div style={{ minWidth: 0 }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
-                      <span style={{ fontSize: '13px', fontWeight: 600, color: 'var(--gray-900)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                      <span className="settings-user-name" style={{ fontSize: '13px', fontWeight: 600, color: 'var(--gray-900)' }}>
                         {row.display_name || row.email}
                       </span>
                       {isSelf && (
@@ -800,7 +795,7 @@ function UserManagementPanel({
                 </div>
 
                 {/* Save */}
-                <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+                <div className="settings-user-row__save">
                   {!locked && (
                     <button
                       className="btn btn-primary btn-sm"
@@ -1079,7 +1074,7 @@ function SubscriptionManagementPanel() {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', gap: '12px', alignItems: 'center', flexWrap: 'wrap' }}>
+      <div className="settings-toolbar-row">
         <div style={{ fontSize: '11px', color: 'var(--gray-500)' }}>
           Plans are commercial access tiers, separate from internal roles. Enforced on Ask AI, watchlist capacity, and notification channels.
         </div>
@@ -1167,7 +1162,7 @@ function SubscriptionManagementPanel() {
                         Description
                         <textarea className="filter-input" rows={2} value={draft.description} onChange={(e) => handlePlanDraftChange(plan.plan_code, 'description', e.target.value)} />
                       </label>
-                      <div style={{ display: 'grid', gridTemplateColumns: 'minmax(280px, 1fr) minmax(220px, 320px)', gap: '12px' }}>
+                      <div className="settings-plan-json-grid">
                         <label style={{ display: 'flex', flexDirection: 'column', gap: '6px', fontSize: '11px', color: 'var(--gray-500)' }}>
                           Entitlements JSON
                           <textarea className="filter-input" rows={10} value={draft.entitlementsJson} onChange={(e) => handlePlanDraftChange(plan.plan_code, 'entitlementsJson', e.target.value)} />
@@ -1207,7 +1202,7 @@ function SubscriptionManagementPanel() {
                 {filteredUsers.length} user{filteredUsers.length === 1 ? '' : 's'} found
               </div>
             </div>
-            <div style={{ display: 'grid', gridTemplateColumns: 'minmax(220px, 1fr) 180px 180px', gap: '10px' }}>
+            <div className="settings-subscription-filters">
               <input
                 className="filter-input"
                 placeholder="Search by name or email"
@@ -1244,14 +1239,9 @@ function SubscriptionManagementPanel() {
                 return (
                   <div
                     key={row.id}
+                    className="settings-subscription-user-row"
                     style={{
-                      display: 'grid',
-                      gridTemplateColumns: 'minmax(0, 1fr) 150px 200px 200px auto',
-                      gap: '12px',
-                      alignItems: 'center',
-                      padding: '12px 14px',
                       border: '1px solid var(--gray-200)',
-                      borderRadius: '10px',
                       background: '#fff',
                     }}
                   >
@@ -1265,7 +1255,7 @@ function SubscriptionManagementPanel() {
                         {getUserInitials(row.display_name, row.email)}
                       </div>
                       <div style={{ minWidth: 0 }}>
-                        <div style={{ fontSize: '13px', fontWeight: 600, color: 'var(--gray-900)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{row.display_name || row.email}</div>
+                        <div className="settings-sub-name" style={{ fontSize: '13px', fontWeight: 600, color: 'var(--gray-900)' }}>{row.display_name || row.email}</div>
                         <div style={{ display: 'flex', gap: '6px', alignItems: 'center', marginTop: '2px', flexWrap: 'wrap' }}>
                           <span style={{ fontSize: '11px', color: 'var(--gray-500)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{row.email}</span>
                           <span style={{ fontSize: '10px', padding: '1px 6px', borderRadius: '999px', background: roleStyle.bg, color: roleStyle.color, fontWeight: 600, flexShrink: 0 }}>{row.role}</span>
@@ -1284,7 +1274,7 @@ function SubscriptionManagementPanel() {
                     </div>
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '5px' }}>
                       <div style={{ fontSize: '10px', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.5px', color: 'var(--gray-400)' }}>Status</div>
-                      <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
+                      <div className="settings-sub-status-inner" style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
                         <select className="job-interval-select" value={draft.status} onChange={(e) => handleSubscriptionDraftChange(row.id, 'status', e.target.value as SubscriptionStatus)} style={{ fontSize: '12px' }}>
                           <option value="trialing">trialing</option>
                           <option value="active">active</option>
@@ -1361,8 +1351,8 @@ function SubscriptionManagementPanel() {
 type SettingsTab = 'user-mgmt' | 'subscription-mgmt' | 'scheduler' | 'system' | 'audit';
 
 const ALL_TABS: { id: SettingsTab; label: string; adminOnly?: boolean }[] = [
-  { id: 'user-mgmt',         label: 'User Management',         adminOnly: true },
-  { id: 'subscription-mgmt', label: 'Subscription Management', adminOnly: true },
+  { id: 'user-mgmt',         label: 'User',         adminOnly: true },
+  { id: 'subscription-mgmt', label: 'Subscription', adminOnly: true },
   { id: 'scheduler',         label: 'Scheduler' },
   { id: 'system',            label: 'System' },
   { id: 'audit',             label: 'Audit' },
@@ -1387,37 +1377,20 @@ export function SettingsTab() {
   }, []);
 
   return (
-    <div style={{ maxWidth: 860 }}>
-      {/* Tab bar */}
-      <div style={{
-        display: 'flex', gap: '2px',
-        borderBottom: '1px solid var(--gray-200)',
-        marginBottom: '20px',
-        overflowX: 'auto',
-        WebkitOverflowScrolling: 'touch' as React.CSSProperties['WebkitOverflowScrolling'],
-      }}>
+    <div className="settings-tab-root">
+      {/* Tab bar — horizontal scroll on narrow screens */}
+      <div className="settings-tab-bar" role="tablist" aria-label="Settings sections">
         {ALL_TABS.filter((tab) => !tab.adminOnly || isAdminOrOwner).map((tab) => {
           const active = activeTab === tab.id;
           return (
             <button
               key={tab.id}
+              type="button"
+              role="tab"
+              aria-selected={active}
+              id={`settings-tab-${tab.id}`}
+              className={`settings-tab-button${active ? ' settings-tab-button--active' : ''}`}
               onClick={() => setActiveTab(tab.id)}
-              style={{
-                padding: '10px 20px',
-                fontSize: '11px',
-                fontWeight: active ? 700 : 500,
-                letterSpacing: '0.6px',
-                textTransform: 'uppercase',
-                color: active ? '#2563eb' : 'var(--gray-400)',
-                background: active ? 'rgba(37,99,235,0.06)' : 'none',
-                border: 'none',
-                borderBottom: active ? '2px solid #2563eb' : '2px solid transparent',
-                borderRadius: active ? '4px 4px 0 0' : '4px 4px 0 0',
-                cursor: 'pointer',
-                marginBottom: '-1px',
-                transition: 'color 0.15s, background 0.15s',
-                whiteSpace: 'nowrap',
-              }}
             >
               {tab.label}
             </button>
@@ -1455,19 +1428,19 @@ export function SettingsTab() {
         </div>
       )}
 
-      {/* Tab: User Management (admin/owner only) */}
+      {/* Tab: User (admin/owner only) */}
       {activeTab === 'user-mgmt' && isAdminOrOwner && (
         <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
-          <div style={{ padding: '12px 16px' }}>
+          <div className="settings-panel-padding">
             <UserManagementPanel currentUserId={authUser?.userId ?? null} currentUserRole={authUser?.role ?? null} />
           </div>
         </div>
       )}
 
-      {/* Tab: Subscription Management (admin/owner only) */}
+      {/* Tab: Subscription (admin/owner only) */}
       {activeTab === 'subscription-mgmt' && isAdminOrOwner && (
         <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
-          <div style={{ padding: '12px 16px' }}>
+          <div className="settings-panel-padding">
             <SubscriptionManagementPanel />
           </div>
         </div>
@@ -1476,10 +1449,10 @@ export function SettingsTab() {
       {/* Tab: Audit */}
       {activeTab === 'audit' && (
         <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
-          <div style={{ padding: '12px 16px', borderBottom: '1px solid var(--gray-100)', background: 'var(--gray-50)' }}>
+          <div className="settings-panel-padding" style={{ borderBottom: '1px solid var(--gray-100)', background: 'var(--gray-50)' }}>
             <div style={{ fontSize: '13px', fontWeight: 600, color: 'var(--gray-700)' }}>Audit Trail</div>
           </div>
-          <div style={{ padding: '12px 16px' }}>
+          <div className="settings-panel-padding">
             <AuditLogsPanel />
           </div>
         </div>
