@@ -13,6 +13,7 @@
 The production Container App now has the new runtime env keys required by the recent hardening work:
 
 - `GEMINI_TIMEOUT_MS`
+- `GEMINI_SETTLE_MODEL` (auto-settle AI fallback; default Flash in app config)
 - `GEMINI_STRATEGIC_GROUNDED_MODEL`
 - `GEMINI_STRATEGIC_STRUCTURED_MODEL`
 - `GEMINI_STRATEGIC_GROUNDED_MAX_OUTPUT_TOKENS`
