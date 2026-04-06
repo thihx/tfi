@@ -412,6 +412,7 @@ describe('MatchesTab', () => {
   it('keeps auto-refresh active for live-window matches using kickoff_at_utc after refactor', async () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date('2026-03-24T10:12:00.000Z'));
+    const now = new Date('2026-03-24T10:12:00.000Z').getTime();
     mockState.matches = [
       {
         match_id: '100',
@@ -434,7 +435,7 @@ describe('MatchesTab', () => {
     render(<MatchesTab />);
 
     expect(mockLoadAllData).toHaveBeenCalledTimes(1);
-    expect(shouldAutoRefreshMatch(mockState.matches[0]!, Date.now())).toBe(true);
+    expect(shouldAutoRefreshMatch(mockState.matches[0]!, now)).toBe(true);
 
     await vi.advanceTimersByTimeAsync(3000);
 

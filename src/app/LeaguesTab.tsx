@@ -38,8 +38,48 @@ const PAGE_SIZE = 50;
 
 /** API/cache may return league_id as string; keep sort/move logic stable. */
 function leagueIdNum(id: unknown): number {
-  const n = typeof id === 'number' ? id : Number(id);
+  if (typeof id === 'bigint') {
+    const n = Number(id);
+    return Number.isFinite(n) ? n : NaN;
+  }
+  const n = typeof id === 'number' ? id : Number(String(id).trim());
   return Number.isFinite(n) ? n : NaN;
+}
+
+function sortOrderNum(v: unknown): number {
+  if (v == null || v === '') return 0;
+  const n = typeof v === 'number' ? v : Number(String(v).trim());
+  return Number.isFinite(n) ? n : 0;
+}
+
+/** Full-catalog order (matches DB ordering intent). */
+function sortedLeagueIds(leagues: League[]): number[] {
+  return [...leagues]
+    .sort(
+      (a, b) =>
+        sortOrderNum(a.sort_order) - sortOrderNum(b.sort_order)
+        || String(a.league_name ?? '').localeCompare(String(b.league_name ?? '')),
+    )
+    .map((l) => leagueIdNum(l.league_id))
+    .filter((id) => !Number.isNaN(id));
+}
+
+/**
+ * From a global index, find the next index in `dir` whose league is in `visible`.
+ * Used so ↑/↓ swaps leagues that are still shown under the current filters (e.g. Active-only).
+ */
+function findNeighborVisibleIndex(
+  globalIds: number[],
+  fromIdx: number,
+  dir: -1 | 1,
+  visible: Set<number>,
+): number {
+  let j = fromIdx + dir;
+  while (j >= 0 && j < globalIds.length) {
+    if (visible.has(globalIds[j]!)) return j;
+    j += dir;
+  }
+  return -1;
 }
 
 const TIER_COLORS: Record<string, string> = {
@@ -528,6 +568,8 @@ export function LeaguesTab() {
   const [allLeagues, setAllLeagues] = useState<League[]>([]);
   const allLeaguesRef = useRef<League[]>([]);
   allLeaguesRef.current = allLeagues;
+  /** Latest filtered list for reorder — must match what the table shows (excluding pagination). */
+  const filteredRef = useRef<League[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [filterTier, setFilterTier] = useState<string>('all');
@@ -740,16 +782,6 @@ export function LeaguesTab() {
     return Array.from(set).sort((a, b) => (TIER_ORDER[a] ?? 99) - (TIER_ORDER[b] ?? 99));
   }, [allLeagues]);
 
-  /** Global list order (for ↑↓ — not affected by filters). */
-  const globalSortedLeagueIds = useMemo(
-    () =>
-      [...allLeagues]
-        .sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0) || a.league_name.localeCompare(b.league_name))
-        .map((l) => leagueIdNum(l.league_id))
-        .filter((id) => !Number.isNaN(id)),
-    [allLeagues],
-  );
-
   // Filtered leagues
   const filtered = useMemo(() => {
     let data = allLeagues;
@@ -772,14 +804,24 @@ export function LeaguesTab() {
     if (filterProfile === 'has-profile') data = data.filter((l) => l.has_profile);
 
     return data.sort((a, b) => {
-      const sa = a.sort_order ?? 0;
-      const sb = b.sort_order ?? 0;
+      const sa = sortOrderNum(a.sort_order);
+      const sb = sortOrderNum(b.sort_order);
       if (sa !== sb) return sa - sb;
       const na = a.display_name?.trim() || a.league_name;
       const nb = b.display_name?.trim() || b.league_name;
       return na.localeCompare(nb);
     });
   }, [allLeagues, search, filterTier, filterCountry, filterType, filterActive, filterTopLeague, filterProfile]);
+
+  filteredRef.current = filtered;
+
+  /** Global list order for ↑↓ (swap with next visible neighbor when filters hide leagues in between). */
+  const globalSortedLeagueIds = useMemo(() => sortedLeagueIds(allLeagues), [allLeagues]);
+
+  const visibleLeagueIdSet = useMemo(
+    () => new Set(filtered.map((l) => leagueIdNum(l.league_id)).filter((id) => !Number.isNaN(id))),
+    [filtered],
+  );
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
   const safePage = Math.min(page, totalPages);
@@ -863,10 +905,14 @@ export function LeaguesTab() {
     async (leagueId: number, dir: -1 | 1) => {
       const id = leagueIdNum(leagueId);
       if (Number.isNaN(id)) return;
-      const ids = [...globalSortedLeagueIds];
+      const ids = sortedLeagueIds(allLeaguesRef.current);
+      const visible = new Set(
+        filteredRef.current.map((l) => leagueIdNum(l.league_id)).filter((x) => !Number.isNaN(x)),
+      );
       const i = ids.indexOf(id);
-      const j = i + dir;
-      if (i < 0 || j < 0 || j >= ids.length) return;
+      if (i < 0) return;
+      const j = findNeighborVisibleIndex(ids, i, dir, visible);
+      if (j < 0) return;
       const next = [...ids];
       [next[i], next[j]] = [next[j]!, next[i]!];
       const sortById = new Map(next.map((lid, idx) => [lid, (idx + 1) * 10]));
@@ -896,7 +942,7 @@ export function LeaguesTab() {
         dispatch({ type: 'SET_LEAGUES', payload: previous });
       }
     },
-    [globalSortedLeagueIds, showToast, dispatch],
+    [showToast, dispatch],
   );
 
   const handleSaveLeagueDisplayName = useCallback(
@@ -1137,6 +1183,8 @@ export function LeaguesTab() {
           <tbody>
             {paginated.map((league) => {
               const gIdx = globalSortedLeagueIds.indexOf(leagueIdNum(league.league_id));
+              const canMoveUp = gIdx >= 0 && findNeighborVisibleIndex(globalSortedLeagueIds, gIdx, -1, visibleLeagueIdSet) >= 0;
+              const canMoveDown = gIdx >= 0 && findNeighborVisibleIndex(globalSortedLeagueIds, gIdx, 1, visibleLeagueIdSet) >= 0;
               return (
               <Fragment key={league.league_id}>
                 <LeagueRow
@@ -1151,8 +1199,8 @@ export function LeaguesTab() {
                   togglingTop={togglingTopIds.has(league.league_id)}
                   teamsExpanded={expandedLeagueId === league.league_id}
                   onToggleTeams={handleToggleTeams}
-                  canMoveUp={gIdx > 0}
-                  canMoveDown={gIdx >= 0 && gIdx < globalSortedLeagueIds.length - 1}
+                  canMoveUp={canMoveUp}
+                  canMoveDown={canMoveDown}
                   onMoveOrder={handleMoveLeagueOrder}
                   onSaveDisplayName={handleSaveLeagueDisplayName}
                 />

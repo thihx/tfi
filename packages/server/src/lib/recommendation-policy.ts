@@ -88,7 +88,7 @@ export function applyRecommendationPolicy(input: RecommendationPolicyInput): Rec
   const promptVersion = String(input.promptVersion ?? '').trim();
   const isV8 = promptVersion === 'v8-market-balance-followup-a' || promptVersion === 'v8-market-balance-followup-b';
   const isV8b = promptVersion === 'v8-market-balance-followup-b';
-  const isV8d = promptVersion === 'v8-market-balance-followup-d';
+  const isV8d = promptVersion === 'v8-market-balance-followup-d' || promptVersion === 'v8-market-balance-followup-e';
   const scoreState = getScoreState(input.score);
 
   const block = (warning: string) => {

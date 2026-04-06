@@ -64,9 +64,9 @@ function RecommendationCardBase({ rec, lang, onViewMatch, adminAction }: Props) 
         justifyContent: 'space-between',
         alignItems: 'flex-start',
         gap: '10px',
-        flexWrap: 'wrap',
+        flexWrap: 'nowrap',
       }}>
-        <div style={{ flex: 1, minWidth: 0 }}>
+        <div style={{ flex: '1 1 0%', minWidth: 0, maxWidth: '100%' }}>
           <div
             style={{
               fontSize: '13px',
@@ -84,14 +84,24 @@ function RecommendationCardBase({ rec, lang, onViewMatch, adminAction }: Props) 
           >
             {display}
           </div>
-          <div style={{ fontSize: '11px', color: 'var(--gray-500)', display: 'flex', gap: '6px', alignItems: 'center', flexWrap: 'wrap' }}>
-            {rec.league && <span>{rec.league}</span>}
-            {rec.league && ts && <span style={{ color: 'var(--gray-300)' }}>·</span>}
-            {ts && <span>{formatLocalDateTime(ts)}</span>}
-          </div>
+          {(rec.league || ts) && (
+            <div
+              style={{
+                fontSize: '11px',
+                color: 'var(--gray-500)',
+                whiteSpace: 'nowrap',
+                overflow: 'hidden',
+                textOverflow: 'ellipsis',
+                maxWidth: '100%',
+              }}
+              title={[rec.league, ts ? formatLocalDateTime(ts) : ''].filter(Boolean).join(' · ')}
+            >
+              {[rec.league, ts ? formatLocalDateTime(ts) : ''].filter(Boolean).join(' · ')}
+            </div>
+          )}
         </div>
 
-        <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexShrink: 0 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexShrink: 0, flexWrap: 'nowrap' }}>
           {isLive && (
             <span
               style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', cursor: onViewMatch ? 'pointer' : undefined }}

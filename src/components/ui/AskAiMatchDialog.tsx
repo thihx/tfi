@@ -1,8 +1,8 @@
-import { useEffect, useId, useState, type KeyboardEvent } from 'react';
+import { useEffect, useId, useRef, useState, type KeyboardEvent } from 'react';
 import { Modal } from '@/components/ui/Modal';
 import type { Match } from '@/types';
 
-const MAX_QUESTION_CHARS = 2000;
+const MAX_QUESTION_CHARS = 200;
 
 interface AskAiMatchDialogProps {
   open: boolean;
@@ -15,10 +15,19 @@ interface AskAiMatchDialogProps {
 export function AskAiMatchDialog({ open, match, isRunning, onClose, onSubmit }: AskAiMatchDialogProps) {
   const [draft, setDraft] = useState('');
   const descId = useId();
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   useEffect(() => {
     if (open) setDraft('');
   }, [open, match?.match_id]);
+
+  useEffect(() => {
+    if (!open || !match || isRunning) return;
+    const t = window.setTimeout(() => {
+      textareaRef.current?.focus();
+    }, 0);
+    return () => window.clearTimeout(t);
+  }, [open, match?.match_id, isRunning]);
 
   const title = match ? `Ask AI — ${match.home_team} vs ${match.away_team}` : 'Ask AI';
 
@@ -55,6 +64,7 @@ export function AskAiMatchDialog({ open, match, isRunning, onClose, onSubmit }: 
         Optional question for the first run (e.g. focus on a market). Leave empty for the same standard analysis as a quick run.
       </p>
       <textarea
+        ref={textareaRef}
         id="ask-ai-match-question"
         aria-labelledby={descId}
         aria-label="Your question (optional)"
@@ -78,9 +88,6 @@ export function AskAiMatchDialog({ open, match, isRunning, onClose, onSubmit }: 
           background: isRunning ? 'var(--gray-100)' : '#fff',
         }}
       />
-      <div style={{ marginTop: '6px', fontSize: '11px', color: 'var(--gray-400)', textAlign: 'right' }}>
-        {draft.length}/{MAX_QUESTION_CHARS}
-      </div>
       <div style={{ marginTop: '8px', fontSize: '11px', color: 'var(--gray-400)' }}>
         Shift+Enter for new line · Enter to run
       </div>

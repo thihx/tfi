@@ -19,6 +19,7 @@ function CheckGlyph() {
 }
 
 export interface AskAiMatchSplitControlProps {
+  /** Reserved for layout tweaks; both modes use the same 36px icon-button sizing as Watch/Edit. */
   variant: 'table' | 'card';
   hasResult: boolean;
   isAnalyzing: boolean;
@@ -27,9 +28,9 @@ export interface AskAiMatchSplitControlProps {
   onOpenQuestion: () => void;
 }
 
-/**
- * Primary = quick analysis or view cached result; chevron opens optional “ask with a question” dialog.
- */
+/** Same classes as table action icons so Card view matches Watch (36×36) and Edit buttons. */
+const SPLIT_BTN_CLASS = 'btn btn-sm action-icon-btn';
+
 export function AskAiMatchSplitControl({
   variant,
   hasResult,
@@ -40,15 +41,13 @@ export function AskAiMatchSplitControl({
 }: AskAiMatchSplitControlProps): ReactNode {
   const detailsRef = useRef<HTMLDetailsElement>(null);
   const disabled = !isWatched || isAnalyzing;
-  const isTable = variant === 'table';
-
-  const btnClass = isTable ? 'btn btn-sm action-icon-btn' : 'btn btn-sm';
   const primaryVariant = hasResult ? 'btn-success' : 'btn-secondary';
+
   const groupStyle: CSSProperties = {
     display: 'inline-flex',
     alignItems: 'stretch',
-    borderRadius: '6px',
-    overflow: 'visible',
+    borderRadius: '8px',
+    overflow: 'hidden',
     opacity: disabled ? 0.55 : 1,
     pointerEvents: disabled ? 'none' : 'auto',
     verticalAlign: 'middle',
@@ -67,17 +66,18 @@ export function AskAiMatchSplitControl({
   return (
     <div
       className="ask-ai-split"
+      data-variant={variant}
       style={groupStyle}
       onClick={(e) => e.stopPropagation()}
     >
       <button
         type="button"
-        className={`${btnClass} ${primaryVariant}`}
+        className={`${SPLIT_BTN_CLASS} ${primaryVariant}`}
         style={{
           borderTopRightRadius: 0,
           borderBottomRightRadius: 0,
           margin: 0,
-          minWidth: isTable ? undefined : '40px',
+          borderRight: 'none',
         }}
         onClick={onQuick}
         disabled={disabled}
@@ -101,7 +101,7 @@ export function AskAiMatchSplitControl({
         ) : hasResult ? (
           <CheckGlyph />
         ) : (
-          <SparkleIcon size={isTable ? 14 : 15} />
+          <SparkleIcon size={14} />
         )}
       </button>
 
@@ -109,13 +109,9 @@ export function AskAiMatchSplitControl({
         ref={detailsRef}
         className="ask-ai-split__details"
         style={{ position: 'relative', margin: 0 }}
-        onToggle={(e) => {
-          const d = e.currentTarget;
-          if (!d.open || disabled) return;
-        }}
       >
         <summary
-          className={`ask-ai-split__summary ${btnClass} ${primaryVariant}`}
+          className={`ask-ai-split__summary ${SPLIT_BTN_CLASS} ${primaryVariant}`}
           style={{
             listStyle: 'none',
             borderTopLeftRadius: 0,
@@ -123,8 +119,6 @@ export function AskAiMatchSplitControl({
             borderLeft: '1px solid rgba(0,0,0,0.08)',
             margin: 0,
             cursor: disabled ? 'not-allowed' : 'pointer',
-            paddingLeft: isTable ? '6px' : '8px',
-            paddingRight: isTable ? '6px' : '8px',
           }}
           onClick={(e) => {
             if (disabled) {
@@ -136,7 +130,9 @@ export function AskAiMatchSplitControl({
           aria-label="Ask AI with a custom question"
           title="Ask with a custom question…"
         >
-          <span style={{ fontSize: '10px', lineHeight: 1, opacity: 0.85 }} aria-hidden>▾</span>
+          <span style={{ fontSize: '11px', lineHeight: 1, opacity: 0.85 }} aria-hidden>
+            ▾
+          </span>
         </summary>
         <div
           role="menu"

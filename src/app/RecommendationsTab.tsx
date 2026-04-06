@@ -622,13 +622,16 @@ export function RecommendationsTab() {
                   rec={rec}
                   lang={notificationLang}
                   adminAction={adminCanDelete && rec.id ? (
-                    <div style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
+                    <div style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', flexWrap: 'nowrap', flexShrink: 0 }}>
                       {needsReview(rec) && (
                         <button
+                          type="button"
                           className="btn btn-secondary btn-sm"
+                          style={{ whiteSpace: 'nowrap', flexShrink: 0 }}
                           onClick={() => openSettleModal(rec)}
+                          title="Final Settle"
                         >
-                          Final Settle
+                          Settle
                         </button>
                       )}
                       <button

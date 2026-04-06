@@ -38,7 +38,7 @@ function TabFallback() {
 
 function AppContent() {
   const { authed, user, error, login, logout, setCurrentUser } = useAuth();
-  const { state, loadAllData } = useAppState();
+  const { state, loadAllData, refreshMatches, refreshLeaguesAndWatchlist } = useAppState();
   const timeZone = useUserTimeZone();
   const [activeTab, setActiveTab]         = useState<TabName>('dashboard');
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
@@ -51,9 +51,15 @@ function AppContent() {
     typeof window !== 'undefined' ? window.innerWidth < 768 : false,
   );
 
-  // Keep a stable ref to loadAllData so effects don't re-fire on reference changes
+  // Keep stable refs so effects don't re-fire on reference changes
   const loadAllDataRef = useRef(loadAllData);
-  useEffect(() => { loadAllDataRef.current = loadAllData; });
+  const refreshMatchesRef = useRef(refreshMatches);
+  const refreshLeaguesAndWatchlistRef = useRef(refreshLeaguesAndWatchlist);
+  useEffect(() => {
+    loadAllDataRef.current = loadAllData;
+    refreshMatchesRef.current = refreshMatches;
+    refreshLeaguesAndWatchlistRef.current = refreshLeaguesAndWatchlist;
+  });
 
   // Initial load — depends only on authed, never re-fires due to loadAllData reference changes
   useEffect(() => {
@@ -92,19 +98,24 @@ function AppContent() {
     return () => ACTIVE_EVENTS.forEach((e) => window.removeEventListener(e, update));
   }, []);
 
-  // Global silent refresh speeds up automatically when there are live or about-to-start matches.
+  // Leagues + watchlist every 15s/60s (replaces the old loadAllData tick — no duplicate fetchMatches with MatchesTab 3s when both would poll matches).
+  // Merge-refresh matches on the same tick when MatchesTab is not doing fast 3s polling (other tabs, or Matches with no live-window game).
   useEffect(() => {
     if (!authed) return;
     const IDLE_THRESHOLD_MS = 5 * 60 * 1000;
     const hasFastRefreshCandidate = state.matches.some((match) => shouldFastRefreshMatch(match));
     const intervalMs = hasFastRefreshCandidate ? 15_000 : 60_000;
     const timer = setInterval(() => {
-      if (Date.now() - lastActivityRef.current < IDLE_THRESHOLD_MS) {
-        loadAllDataRef.current(true);
+      if (Date.now() - lastActivityRef.current >= IDLE_THRESHOLD_MS) return;
+      void refreshLeaguesAndWatchlistRef.current(true);
+      const matchesTabDoesFastPoll =
+        activeTab === 'matches' && hasFastRefreshCandidate;
+      if (!matchesTabDoesFastPoll) {
+        void refreshMatchesRef.current();
       }
     }, intervalMs);
     return () => clearInterval(timer);
-  }, [authed, state.matches]);
+  }, [authed, state.matches, activeTab]);
 
   // Global navigation event (used by child tabs to navigate without prop drilling)
   useEffect(() => {

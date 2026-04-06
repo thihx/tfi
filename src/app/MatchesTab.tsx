@@ -266,7 +266,6 @@ export function MatchesTab() {
   const refreshMatchesRef = useRef(refreshMatches);
   useEffect(() => { refreshMatchesRef.current = refreshMatches; });
 
-  // Ref to ALL loaded matches — used by interval to detect live activity across all pages/filters
   const allMatchesRef = useRef<Match[]>([]);
 
   // ── Live flash ─────────────────────────────────────────────────────────────
@@ -337,10 +336,23 @@ export function MatchesTab() {
   // Clean up flash timeouts on unmount
   useEffect(() => () => { flashTidsRef.current.forEach(clearTimeout); flashTidsRef.current.clear(); }, []);
 
-  // Refresh on mount
-  useEffect(() => { void loadAllDataRef.current(true); }, []);
+  // Full sync when entering this tab (component mounts each time user opens Matches — avoids showing only global/polling state from other screens).
+  useEffect(() => {
+    void loadAllDataRef.current(true);
+  }, []);
 
-  // Every 3s: merge-refresh only matches (not leagues/watchlist) to avoid full re-render
+  // When the browser tab / PWA comes back to the foreground while this screen is open, timers may have been throttled — merge-refresh once.
+  useEffect(() => {
+    const onVisibility = () => {
+      if (document.visibilityState === 'visible') {
+        void refreshMatchesRef.current();
+      }
+    };
+    document.addEventListener('visibilitychange', onVisibility);
+    return () => document.removeEventListener('visibilitychange', onVisibility);
+  }, []);
+
+  // Fast merge-refresh for live-window matches only (global timer skips fetchMatches while this runs to avoid duplicate polls).
   useEffect(() => {
     const tick = setInterval(() => {
       const now = Date.now();
@@ -529,7 +541,7 @@ export function MatchesTab() {
   const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
   const safePage = Math.min(page, totalPages);
   const pageItems = filtered.slice((safePage - 1) * PAGE_SIZE, safePage * PAGE_SIZE);
-  allMatchesRef.current = matches; // keep ref in sync so interval checks across all pages/filters
+  allMatchesRef.current = matches;
 
   // Keep refs in sync so scroll handler always reads latest values
   safePageRef.current = safePage;

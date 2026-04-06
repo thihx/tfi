@@ -107,6 +107,8 @@ interface AppContextValue {
   dispatch: React.Dispatch<Action>;
   loadAllData: (silent?: boolean) => Promise<void>;
   refreshMatches: () => Promise<void>;
+  /** Leagues + watchlist only — no matches fetch (for periodic sync without duplicating match polls). */
+  refreshLeaguesAndWatchlist: (silent?: boolean) => Promise<void>;
   saveConfig: (config: AppConfig) => void;
   addToWatchlist: (items: Partial<WatchlistItem>[]) => Promise<boolean>;
   updateWatchlistItem: (item: Partial<WatchlistItem> & { match_id: string }) => Promise<boolean>;
@@ -118,6 +120,7 @@ const AppContext = createContext<AppContextValue | null>(null);
 export function AppProvider({ children }: { children: ReactNode }) {
   const [state, dispatch] = useReducer(reducer, initialState);
   const stateRef = useRef(state);
+  const refreshMatchesInFlightRef = useRef(false);
   const { showToast } = useToast();
 
   useEffect(() => {
@@ -181,12 +184,39 @@ export function AppProvider({ children }: { children: ReactNode }) {
   // Avoids replacing the entire array reference (which re-renders all rows) and
   // avoids unnecessary leagues/watchlist round-trips.
   const refreshMatches = useCallback(async () => {
+    if (refreshMatchesInFlightRef.current) return;
+    refreshMatchesInFlightRef.current = true;
     const config = stateRef.current.config;
     try {
       const matches = await api.fetchMatches(config);
       dispatch({ type: 'MERGE_MATCHES', payload: matches });
     } catch { /* silent — interval will retry */ }
+    finally {
+      refreshMatchesInFlightRef.current = false;
+    }
   }, []);
+
+  const refreshLeaguesAndWatchlist = useCallback(async (silent = true) => {
+    const config = stateRef.current.config;
+    const errors: string[] = [];
+    const [leagues, watchlist] = await Promise.all([
+      api.fetchActiveLeagues(config).catch((err: unknown) => {
+        errors.push('leagues');
+        console.error('[AppState] fetchActiveLeagues failed:', err);
+        return [] as League[];
+      }),
+      api.fetchWatchlist(config).catch((err: unknown) => {
+        errors.push('watchlist');
+        console.error('[AppState] fetchWatchlist failed:', err);
+        return [] as WatchlistItem[];
+      }),
+    ]);
+    dispatch({ type: 'SET_LEAGUES', payload: leagues });
+    dispatch({ type: 'SET_WATCHLIST', payload: watchlist });
+    if (errors.length > 0 && !silent) {
+      showToast(`Failed to load: ${errors.join(', ')}. Check network or API.`, 'error');
+    }
+  }, [showToast]);
 
   const saveConfigFn = useCallback((config: AppConfig) => {
     persistConfig(config);
@@ -281,7 +311,17 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   return (
     <AppContext.Provider
-      value={{ state, dispatch, loadAllData, refreshMatches, saveConfig: saveConfigFn, addToWatchlist, updateWatchlistItem, removeFromWatchlist }}
+      value={{
+        state,
+        dispatch,
+        loadAllData,
+        refreshMatches,
+        refreshLeaguesAndWatchlist,
+        saveConfig: saveConfigFn,
+        addToWatchlist,
+        updateWatchlistItem,
+        removeFromWatchlist,
+      }}
     >
       {children}
     </AppContext.Provider>
