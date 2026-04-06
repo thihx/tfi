@@ -64,6 +64,7 @@ export function createDefaultConfig(overrides?: Partial<LiveMonitorConfig>): Liv
     ZALO_ENABLED: false,
     AUTO_APPLY_RECOMMENDED_CONDITION: true,
     SUGGESTED_TOP_LEAGUE_IDS: [],
+    ASK_AI_QUICK_PROMPTS_BY_LOCALE: { en: [], vi: [] },
     ...overrides,
   };
 }

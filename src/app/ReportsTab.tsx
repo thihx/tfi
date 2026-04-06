@@ -31,7 +31,7 @@ const REPORT_SECTIONS: { key: ReportSection; icon: ReactNode; label: string }[] 
   { key: 'minute', icon: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>, label: 'Match Minute' },
   { key: 'day-of-week', icon: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>, label: 'Day of Week' },
   { key: 'league-market', icon: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="17 1 21 5 17 9"/><path d="M3 11V9a4 4 0 0 1 4-4h14"/><polyline points="7 23 3 19 7 15"/><path d="M21 13v2a4 4 0 0 1-4 4H3"/></svg>, label: 'League \u00d7 Market' },
-  { key: 'ai-insights', icon: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>, label: 'AI Insights' },
+  { key: 'ai-insights', icon: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>, label: 'Insights' },
 ];
 
 const PERIOD_OPTIONS: { value: ReportPeriodFilter['period']; label: string }[] = [
@@ -495,7 +495,7 @@ const AiInsightsSection = memo(function AiInsightsSection({ data }: { data: AiIn
     <div className="report-insights">
       {/* Trend Summary */}
       <div className="card report-insight-card" style={{ marginBottom: 16 }}>
-        <div className="card-header"><div className="card-title">AI Performance Analysis</div></div>
+        <div className="card-header"><div className="card-title">Analysis performance</div></div>
         <div style={{ padding: '16px 20px' }}>
           <div className="report-insight-row" style={{ color: 'var(--gray-500)', fontSize: 12 }}>
             Insights use directional settled sample only and require at least {data.sampleFloor} samples per bucket.
@@ -613,7 +613,7 @@ const AiInsightsSection = memo(function AiInsightsSection({ data }: { data: AiIn
           <div style={{ padding: '12px 20px' }}>
             {data.overconfidentBands.map((b) => (
               <div key={b.band} className="report-insight-row" style={{ color: 'var(--danger)' }}>
-                <strong>{b.band}</strong>: AI confidence avg {b.avgConfidence.toFixed(0)}% but actual win rate only {b.actualWinRate.toFixed(1)}% (gap: {b.gap.toFixed(1)}pp)
+                <strong>{b.band}</strong>: Model confidence avg {b.avgConfidence.toFixed(0)}% but actual win rate only {b.actualWinRate.toFixed(1)}% (gap: {b.gap.toFixed(1)}pp)
               </div>
             ))}
           </div>
@@ -847,7 +847,7 @@ export function ReportsTab() {
       case 'minute': return <MinuteSection data={data.minutes} />;
       case 'day-of-week': return <DayOfWeekSection data={data.dayOfWeek} />;
       case 'league-market': return <LeagueMarketSection data={data.leagueMarket} topLeagueNames={topLeagueNames} />;
-      case 'ai-insights': return data.aiInsights ? <AiInsightsSection data={data.aiInsights} /> : <EmptyReport message="No AI insights data" />;
+      case 'ai-insights': return data.aiInsights ? <AiInsightsSection data={data.aiInsights} /> : <EmptyReport message="No insights data" />;
     }
   };
 

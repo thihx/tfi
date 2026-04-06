@@ -31,6 +31,7 @@ export interface SnapshotBaseline {
   away_score: number;
   status?: string | null;
   odds?: Record<string, unknown> | null;
+  stats?: Record<string, unknown> | null;
 }
 
 export interface PipelineProceedSettings {
@@ -77,6 +78,48 @@ function hasMissingSide(value: { home: string | null; away: string | null } | un
   const away = String(value.away ?? '').trim();
   const missing = (s: string) => !s || s === '-' || s.toUpperCase() === 'NA';
   return missing(home) || missing(away);
+}
+
+function normalizeStatSide(value: unknown): string {
+  const raw = String(value ?? '').trim();
+  if (!raw || raw === '-' || raw.toUpperCase() === 'NA') return '';
+  return raw;
+}
+
+function normalizeStatPair(value: unknown): { home: string; away: string } {
+  if (!value || typeof value !== 'object') {
+    return { home: '', away: '' };
+  }
+  const pair = value as { home?: unknown; away?: unknown };
+  return {
+    home: normalizeStatSide(pair.home),
+    away: normalizeStatSide(pair.away),
+  };
+}
+
+function hasMeaningfulStatsDelta(
+  current: MinimalStatsCompact,
+  previous: Record<string, unknown> | null | undefined,
+): boolean {
+  if (!previous || typeof previous !== 'object') return true;
+  const prev = previous as Record<string, unknown>;
+  const keys: Array<keyof MinimalStatsCompact> = [
+    'shots',
+    'shots_on_target',
+    'corners',
+    'fouls',
+    'possession',
+  ];
+
+  for (const key of keys) {
+    const currentPair = normalizeStatPair(current[key]);
+    const previousPair = normalizeStatPair(prev[key] as unknown);
+    if (currentPair.home !== previousPair.home || currentPair.away !== previousPair.away) {
+      return true;
+    }
+  }
+
+  return false;
 }
 
 export function checkShouldProceedServer(
@@ -411,6 +454,7 @@ export function checkStalenessServer(input: {
   minute: number;
   status?: string | null;
   score: string;
+  statsCompact?: MinimalStatsCompact;
   eventsCompact: MinimalEventCompact[];
   oddsCanonical: Record<string, unknown> | null | undefined;
   previousRecommendation?: RecommendationBaseline | null;
@@ -489,6 +533,13 @@ export function checkStalenessServer(input: {
     currentMinute,
     input.settings.reanalyzeMinMinutes,
   );
+  if (
+    baselineSnapshot?.stats
+    && input.statsCompact
+    && !hasMeaningfulStatsDelta(input.statsCompact, baselineSnapshot.stats)
+  ) {
+    return { isStale: true, reason: 'snapshot_stats_unchanged', baseline };
+  }
   if (minuteDelta < effectiveCooldown) {
     return { isStale: true, reason: 'no_significant_change', baseline };
   }

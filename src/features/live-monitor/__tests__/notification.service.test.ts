@@ -122,7 +122,7 @@ describe('_buildEmailHtml', () => {
     const html = _buildEmailHtml(ctx);
     expect(html).toContain('Arsenal vs Chelsea');
     expect(html).toContain('Premier League');
-    expect(html).toContain('AI RECOMMENDATION');
+    expect(html).toContain('RECOMMENDATION');
   });
 
   test('includes investment details for ai_recommendation section', () => {
@@ -224,7 +224,7 @@ describe('_buildTelegramMessages', () => {
     expect(msgs.length).toBeGreaterThanOrEqual(1);
     const full = msgs.join('');
     expect(full).toContain('Arsenal vs Chelsea');
-    expect(full).toContain('AI RECOMMENDATION');
+    expect(full).toContain('RECOMMENDATION');
   });
 
   test('chunks messages at 3500 chars', () => {

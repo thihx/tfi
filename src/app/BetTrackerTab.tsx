@@ -174,7 +174,7 @@ function AddBetModal({ open, onClose, onSave, saving }: AddBetModalProps) {
         </div>
         <div style={{ gridColumn: '1 / -1' }}>
           <label style={labelStyle}>Bookmaker</label>
-          <input className="filter-input" style={inputStyle} placeholder="e.g. Bet365" value={form.bookmaker} onChange={set('bookmaker')} />
+          <input className="filter-input" style={inputStyle} placeholder="e.g. sportsbook name" value={form.bookmaker} onChange={set('bookmaker')} />
         </div>
       </div>
     </Modal>
@@ -218,7 +218,7 @@ export function BetTrackerTab() {
       setStats(s);
       setMarkets(m);
     } catch {
-      showToast('Failed to load bets', 'error');
+      showToast('Failed to load investments', 'error');
     } finally {
       setLoading(false);
     }

@@ -374,7 +374,7 @@ export function WatchlistEditModal({ item, match, config, defaultMode, uiLanguag
                   <div className="strategic-context-box">
                     <div className="strategic-context-header">Profile Priors</div>
                     <div style={{ fontSize: '12px', color: 'var(--text-secondary, #666)', marginBottom: '12px', lineHeight: 1.55 }}>
-                      These priors come from the real league profile and team profiles used by AI analysis. They are slower-moving priors, separate from match-specific enrichment.
+                      These priors come from the real league profile and team profiles used in match analysis. They are slower-moving priors, separate from match-specific enrichment.
                     </div>
                     {profileLoading ? (
                       <div className="strategic-context-item strategic-context-summary">
@@ -405,7 +405,7 @@ export function WatchlistEditModal({ item, match, config, defaultMode, uiLanguag
                     <div className="strategic-context-box">
                       <div className="strategic-context-header">Match Context</div>
                       <div style={{ fontSize: '12px', color: 'var(--text-secondary, #666)', marginBottom: '12px', lineHeight: 1.55 }}>
-                        This section shows match-specific enrichment for this watch item. League profile, team profile, and tactical overlay priors are used by AI analysis, but they are not edited here.
+                        This section shows match-specific enrichment for this watch item. League profile, team profile, and tactical overlay priors are used in analysis, but they are not edited here.
                       </div>
                       {(structuredContext || refreshMeta) && (
                         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: '8px', marginBottom: '14px' }}>
@@ -541,11 +541,11 @@ export function WatchlistEditModal({ item, match, config, defaultMode, uiLanguag
                   </div>
                 )}
 
-                {/* AI Recommended Condition */}
+                {/* Suggested condition */}
                 {item.recommended_custom_condition && (
                   <div className="form-group">
                     <div className="ai-recommended-box">
-                      <div className="ai-recommended-header">AI Recommended Condition</div>
+                      <div className="ai-recommended-header">Suggested condition</div>
                       <div className="ai-recommended-content">
                         <div className="ai-recommended-item">
                           <label>Condition:</label>

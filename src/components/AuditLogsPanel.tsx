@@ -55,6 +55,12 @@ const CATEGORY_COLORS: Record<string, { bg: string; text: string }> = {
   RECOMMENDATION:  { bg: '#fdf2f8', text: '#9d174d' },
 };
 
+/** UI label for stored audit category (API still uses `AI`). */
+function auditCategoryDisplay(category: string): string {
+  if (category === 'AI') return 'Analysis';
+  return category;
+}
+
 function Badge({ label, colors }: { label: string; colors?: { bg: string; text: string } }) {
   const c = colors ?? { bg: '#f3f4f6', text: '#374151' };
   return (
@@ -224,7 +230,7 @@ export function AuditLogsPanel() {
           {Object.entries(stats.byCategory).map(([cat, count]) => (
             <div key={cat} className="stat-card" style={{ padding: '12px', background: 'var(--gray-50)', borderRadius: '8px', textAlign: 'center' }}>
               <div style={{ fontSize: '22px', fontWeight: 700 }}>{count}</div>
-              <div style={{ fontSize: '12px', color: 'var(--gray-500)' }}>{cat}</div>
+              <div style={{ fontSize: '12px', color: 'var(--gray-500)' }}>{auditCategoryDisplay(cat)}</div>
             </div>
           ))}
         </div>
@@ -240,7 +246,7 @@ export function AuditLogsPanel() {
         >
           <option value="">All Categories</option>
           {['PIPELINE', 'SCHEDULER', 'AI', 'JOB', 'NOTIFICATION', 'RECOMMENDATION'].map((c) => (
-            <option key={c} value={c}>{c}</option>
+            <option key={c} value={c}>{auditCategoryDisplay(c)}</option>
           ))}
         </select>
         <select
@@ -326,7 +332,7 @@ export function AuditLogsPanel() {
                   {formatLocalDateTime(log.timestamp)}
                 </td>
                 <td style={{ padding: '6px' }}>
-                  <Badge label={log.category} colors={CATEGORY_COLORS[log.category]} />
+                  <Badge label={auditCategoryDisplay(log.category)} colors={CATEGORY_COLORS[log.category]} />
                 </td>
                 <td style={{ padding: '6px', fontFamily: 'monospace', fontSize: '12px' }}>{log.action}</td>
                 <td style={{ padding: '6px' }}>

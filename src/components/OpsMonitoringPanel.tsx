@@ -338,7 +338,7 @@ function formatJobAction(action: string): string {
 
 function humanizeReasonCode(reason: string): string {
   const map: Record<string, string> = {
-    eligible: 'Eligible for structured prematch Ask AI',
+    eligible: 'Eligible for structured prematch analysis',
     low_evidence_without_watch_condition: 'Low evidence and no custom watch condition',
     prompt_only_failed: 'Prompt-only analysis failed',
     prediction_or_profile_coverage_too_thin: 'Prediction or profile coverage too thin',
@@ -567,8 +567,8 @@ export function OpsMonitoringPanel() {
                 {[
                   { label: 'Rec. Pending', value: snapshot.settlement.recommendationPending, warn: snapshot.settlement.recommendationPending > 20 },
                   { label: 'Rec. Unresolved', value: snapshot.settlement.recommendationUnresolved, warn: snapshot.settlement.recommendationUnresolved > 5 },
-                  { label: 'Bet Pending', value: snapshot.settlement.betPending, warn: snapshot.settlement.betPending > 20 },
-                  { label: 'Bet Unresolved', value: snapshot.settlement.betUnresolved, warn: snapshot.settlement.betUnresolved > 5 },
+                  { label: 'Pick pending', value: snapshot.settlement.betPending, warn: snapshot.settlement.betPending > 20 },
+                  { label: 'Unresolved picks', value: snapshot.settlement.betUnresolved, warn: snapshot.settlement.betUnresolved > 5 },
                 ].map((item) => (
                   <div key={item.label} style={{ padding: '8px 10px', borderRadius: '6px', background: item.warn ? '#fef2f2' : 'var(--gray-50)', border: `1px solid ${item.warn ? '#fecaca' : 'var(--gray-200)'}` }}>
                     <div style={{ fontSize: '10px', color: 'var(--gray-500)', textTransform: 'uppercase', letterSpacing: '0.3px' }}>{item.label}</div>
@@ -654,7 +654,7 @@ export function OpsMonitoringPanel() {
           </div>
 
           <DataCard>
-            <SectionHeader title="Manual Ask AI" subtitle={`Prompt-only match analysis over the last ${snapshot.promptOnly.windowHours}h`} />
+            <SectionHeader title="Manual analysis" subtitle={`Prompt-only match analysis over the last ${snapshot.promptOnly.windowHours}h`} />
             <div style={{ fontSize: '12px', color: 'var(--gray-500)', marginBottom: '12px', lineHeight: 1.5 }}>
               This tracks manual match analysis requests. A request can reach the LLM, skip before the LLM, or fail early.
             </div>
@@ -672,7 +672,7 @@ export function OpsMonitoringPanel() {
                 </div>
               ))}
             </div>
-            <div style={{ fontSize: '11px', fontWeight: 600, color: 'var(--gray-500)', textTransform: 'uppercase', letterSpacing: '0.3px', marginBottom: '5px' }}>Manual Ask AI Outcomes</div>
+            <div style={{ fontSize: '11px', fontWeight: 600, color: 'var(--gray-500)', textTransform: 'uppercase', letterSpacing: '0.3px', marginBottom: '5px' }}>Manual analysis outcomes</div>
             {snapshot.promptOnly.reasonBreakdown.length === 0
               ? <div style={{ fontSize: '12px', color: 'var(--gray-400)' }}>No prompt-only rows yet.</div>
               : snapshot.promptOnly.reasonBreakdown.map((row) => (

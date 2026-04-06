@@ -266,6 +266,47 @@ describe('runReplayScenario', () => {
     expect(output.allPassed).toBe(true);
   });
 
+  test('reuses captured ai text without relying on a fresh llm call', async () => {
+    const output = await runReplayScenario({
+      name: 'captured-ai-text',
+      matchId: '100',
+      fixture: makeFixture(),
+      statistics: makeStats(),
+      events: makeEvents(),
+      liveOddsResponse: [{
+        fixture: { id: 100 },
+        odds: [{
+          id: 1,
+          name: 'Over/Under',
+          values: [
+            { value: 'Over', odd: '1.95', handicap: '2.5' },
+            { value: 'Under', odd: '1.90', handicap: '2.5' },
+          ],
+        }],
+      }],
+    }, {
+      llmMode: 'real',
+      capturedAiText: JSON.stringify({
+        should_push: true,
+        ai_should_push: true,
+        selection: 'Under 2.5 Goals @1.90',
+        bet_market: 'under_2.5',
+        confidence: 6,
+        reasoning_en: 'Cached replay output.',
+        reasoning_vi: 'Cached replay output.',
+        warnings: [],
+        value_percent: 6,
+        risk_level: 'MEDIUM',
+        stake_percent: 3,
+        condition_triggered_suggestion: '',
+        custom_condition_matched: false,
+      }),
+    });
+
+    expect(output.result.selection).toContain('Under 2.5 Goals');
+    expect(output.result.debug?.aiText).toContain('Cached replay output');
+  });
+
   test('supports prompt version override for candidate replay', async () => {
     const output = await runReplayScenario({
       name: 'candidate-prompt-replay',

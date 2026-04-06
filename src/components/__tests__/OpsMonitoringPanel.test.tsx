@@ -223,8 +223,8 @@ describe('OpsMonitoringPanel', () => {
     expect(screen.getByText('Settlement')).toBeInTheDocument();
     expect(screen.getByText('Notifications')).toBeInTheDocument();
     expect(screen.getByText('Prompt Shadow')).toBeInTheDocument();
-    expect(screen.getByText('Manual Ask AI')).toBeInTheDocument();
-    expect(screen.getByText('Manual Ask AI Outcomes')).toBeInTheDocument();
+    expect(screen.getByText('Manual analysis')).toBeInTheDocument();
+    expect(screen.getByText('Manual analysis outcomes')).toBeInTheDocument();
     expect(screen.getByText('Low evidence and no custom watch condition')).toBeInTheDocument();
     expect(screen.getByText('Prompt Quality')).toBeInTheDocument();
     expect(screen.getByText('High-noise prematch')).toBeInTheDocument();

@@ -34,15 +34,16 @@ describe('RecommendationCard', () => {
     expect(screen.getByText('Arsenal vs Chelsea')).toBeInTheDocument();
   });
 
-  it('renders league name', () => {
+  it('renders league and timestamp together', () => {
     render(<RecommendationCard rec={BASE} />);
-    expect(screen.getByText('Premier League')).toBeInTheDocument();
+    expect(screen.getByText(/Premier League/)).toBeInTheDocument();
+    expect(screen.getByText(/15-Jan-2026 23:00/)).toBeInTheDocument();
   });
 
-  it('renders selection and bet market', () => {
+  it('renders selection without a separate market badge', () => {
     render(<RecommendationCard rec={BASE} />);
     expect(screen.getByText('Over 2.5')).toBeInTheDocument();
-    expect(screen.getByText('O/U')).toBeInTheDocument();
+    expect(screen.queryByText('O/U')).not.toBeInTheDocument();
   });
 
   it('renders odds prominently', () => {
@@ -78,25 +79,24 @@ describe('RecommendationCard', () => {
 
   it('renders warnings section', () => {
     render(<RecommendationCard rec={BASE} />);
-    expect(screen.getByText('Warnings')).toBeInTheDocument();
-    fireEvent.click(screen.getByText('Warnings'));
+    fireEvent.click(screen.getByTitle('Warnings'));
     expect(screen.getByText('Slight rain forecast')).toBeInTheDocument();
   });
 
-  it('collapses AI reasoning by default', () => {
+  it('collapses reasoning by default', () => {
     render(<RecommendationCard rec={BASE} />);
     expect(screen.queryByText('Both teams have scored in first 30 mins, expect more goals.')).not.toBeInTheDocument();
   });
 
-  it('expands AI reasoning on toggle', () => {
+  it('expands reasoning on toggle', () => {
     render(<RecommendationCard rec={BASE} />);
-    fireEvent.click(screen.getByText('AI Reasoning'));
+    fireEvent.click(screen.getByText('Reasoning'));
     expect(screen.getByText('Both teams have scored in first 30 mins, expect more goals.')).toBeInTheDocument();
   });
 
-  it('shows AI Reasoning header', () => {
+  it('shows Reasoning header', () => {
     render(<RecommendationCard rec={BASE} />);
-    expect(screen.getByText('AI Reasoning')).toBeInTheDocument();
+    expect(screen.getByText('Reasoning')).toBeInTheDocument();
   });
 
   it('calls onViewMatch when match display is clicked', () => {
@@ -109,7 +109,6 @@ describe('RecommendationCard', () => {
   it('does not throw when onViewMatch is not provided', () => {
     render(<RecommendationCard rec={BASE} />);
     fireEvent.click(screen.getByText('Arsenal vs Chelsea'));
-    // no error
   });
 
   it('shows score and minute when live (minute is set)', () => {

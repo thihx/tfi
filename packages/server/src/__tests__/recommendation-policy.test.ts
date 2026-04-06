@@ -218,7 +218,7 @@ describe('applyRecommendationPolicy', () => {
     expect(result.warnings).not.toContain('POLICY_BLOCK_1X2_HOME_PRE55_V8B');
   });
 
-  test('v8e keeps 1x2_home open from minute 35 onward', () => {
+  test('v8f keeps 1x2_home open from minute 35 onward', () => {
     const result = applyRecommendationPolicy({
       selection: 'Home Win @2.05',
       betMarket: '1x2_home',
@@ -228,14 +228,14 @@ describe('applyRecommendationPolicy', () => {
       confidence: 7,
       valuePercent: 8,
       stakePercent: 3,
-      promptVersion: 'v8-market-balance-followup-e',
+      promptVersion: 'v8-market-balance-followup-f',
     });
 
     expect(result.blocked).toBe(false);
     expect(result.warnings).not.toContain('POLICY_BLOCK_1X2_HOME_PRE35_V8D');
   });
 
-  test('v8e still blocks 1x2_home before minute 35', () => {
+  test('v8f still blocks 1x2_home before minute 35', () => {
     const result = applyRecommendationPolicy({
       selection: 'Home Win @2.05',
       betMarket: '1x2_home',
@@ -245,14 +245,14 @@ describe('applyRecommendationPolicy', () => {
       confidence: 7,
       valuePercent: 8,
       stakePercent: 3,
-      promptVersion: 'v8-market-balance-followup-e',
+      promptVersion: 'v8-market-balance-followup-f',
     });
 
     expect(result.blocked).toBe(true);
     expect(result.warnings).toContain('POLICY_BLOCK_1X2_HOME_PRE35_V8D');
   });
 
-  test('v8e still blocks goals under in 45-59 two-plus-margin states', () => {
+  test('v8f still blocks goals under in 45-59 two-plus-margin states', () => {
     const result = applyRecommendationPolicy({
       selection: 'Under 4.25 Goals @1.88',
       betMarket: 'under_4.25',
@@ -262,10 +262,178 @@ describe('applyRecommendationPolicy', () => {
       confidence: 6,
       valuePercent: 7,
       stakePercent: 3,
-      promptVersion: 'v8-market-balance-followup-e',
+      promptVersion: 'v8-market-balance-followup-f',
     });
 
     expect(result.blocked).toBe(true);
     expect(result.warnings).toContain('POLICY_BLOCK_GOALS_UNDER_45_59_TWO_PLUS_MARGIN_V8D');
+  });
+
+  test('v8f blocks 30-44 0-0 goals under lines above 1.5', () => {
+    const result = applyRecommendationPolicy({
+      selection: 'Under 2.25 Goals @1.90',
+      betMarket: 'under_2.25',
+      minute: 39,
+      score: '0-0',
+      odds: 1.9,
+      confidence: 6,
+      valuePercent: 6,
+      stakePercent: 3,
+      promptVersion: 'v8-market-balance-followup-f',
+    });
+
+    expect(result.blocked).toBe(true);
+    expect(result.warnings).toContain('POLICY_BLOCK_GOALS_UNDER_30_44_0_0_OVER_1_5_V8F');
+  });
+
+  test('v8f allows 30-44 0-0 under 1.25 to remain eligible', () => {
+    const result = applyRecommendationPolicy({
+      selection: 'Under 1.25 Goals @1.92',
+      betMarket: 'under_1.25',
+      minute: 38,
+      score: '0-0',
+      odds: 1.92,
+      confidence: 6,
+      valuePercent: 6,
+      stakePercent: 3,
+      promptVersion: 'v8-market-balance-followup-f',
+    });
+
+    expect(result.blocked).toBe(false);
+    expect(result.warnings).not.toContain('POLICY_BLOCK_GOALS_UNDER_30_44_0_0_OVER_1_5_V8F');
+  });
+
+  test('v8f blocks very high goals-under lines in 30-44 level states after 2+ goals', () => {
+    const result = applyRecommendationPolicy({
+      selection: 'Under 5.25 Goals @2.00',
+      betMarket: 'under_5.25',
+      minute: 31,
+      score: '1-1',
+      odds: 2,
+      confidence: 6,
+      valuePercent: 7,
+      stakePercent: 4,
+      promptVersion: 'v8-market-balance-followup-f',
+    });
+
+    expect(result.blocked).toBe(true);
+    expect(result.warnings).toContain('POLICY_BLOCK_GOALS_UNDER_30_44_LEVEL_HIGH_LINE_V8F');
+  });
+
+  test('v8f blocks corners over 12.5+ before minute 60', () => {
+    const result = applyRecommendationPolicy({
+      selection: 'Corners Over 12.5 @1.90',
+      betMarket: 'corners_over_12.5',
+      minute: 42,
+      score: '0-0',
+      odds: 1.9,
+      confidence: 6,
+      valuePercent: 7,
+      stakePercent: 3,
+      promptVersion: 'v8-market-balance-followup-f',
+    });
+
+    expect(result.blocked).toBe(true);
+    expect(result.warnings).toContain('POLICY_BLOCK_CORNERS_OVER_HIGH_LINE_PRE60_V8F');
+  });
+
+  test('v8g blocks early one-goal-margin high-line goals under', () => {
+    const result = applyRecommendationPolicy({
+      selection: 'Under 3 Goals @2.00',
+      betMarket: 'under_3',
+      minute: 24,
+      score: '1-0',
+      odds: 2,
+      confidence: 6,
+      valuePercent: 7,
+      stakePercent: 3,
+      promptVersion: 'v8-market-balance-followup-g',
+    });
+
+    expect(result.blocked).toBe(true);
+    expect(result.warnings).toContain('POLICY_BLOCK_GOALS_UNDER_EARLY_ONE_GOAL_HIGH_LINE_V8G');
+  });
+
+  test('v8g still allows early one-goal-margin lower goals-under lines', () => {
+    const result = applyRecommendationPolicy({
+      selection: 'Under 2.25 Goals @1.90',
+      betMarket: 'under_2.25',
+      minute: 24,
+      score: '1-0',
+      odds: 1.9,
+      confidence: 6,
+      valuePercent: 7,
+      stakePercent: 3,
+      promptVersion: 'v8-market-balance-followup-g',
+    });
+
+    expect(result.blocked).toBe(false);
+  });
+
+  test('v8h blocks 45-59 zero-zero low-line goals under', () => {
+    const result = applyRecommendationPolicy({
+      selection: 'Under 1.75 Goals @1.85',
+      betMarket: 'under_1.75',
+      minute: 45,
+      score: '0-0',
+      odds: 1.85,
+      confidence: 6,
+      valuePercent: 7,
+      stakePercent: 3,
+      promptVersion: 'v8-market-balance-followup-h',
+    });
+
+    expect(result.blocked).toBe(true);
+    expect(result.warnings).toContain('POLICY_BLOCK_GOALS_UNDER_45_59_0_0_LOW_LINE_V8H');
+  });
+
+  test('v8h blocks 45-59 zero-zero low-line goals over', () => {
+    const result = applyRecommendationPolicy({
+      selection: 'Over 1 Goals @1.78',
+      betMarket: 'over_1',
+      minute: 55,
+      score: '0-0',
+      odds: 1.78,
+      confidence: 6,
+      valuePercent: 7,
+      stakePercent: 3,
+      promptVersion: 'v8-market-balance-followup-h',
+    });
+
+    expect(result.blocked).toBe(true);
+    expect(result.warnings).toContain('POLICY_BLOCK_GOALS_OVER_45_59_0_0_LOW_LINE_V8H');
+  });
+
+  test('v8h blocks 45-59 one-goal high-line corners over', () => {
+    const result = applyRecommendationPolicy({
+      selection: 'Corners Over 10 @2.10',
+      betMarket: 'corners_over_10',
+      minute: 45,
+      score: '1-0',
+      odds: 2.1,
+      confidence: 6,
+      valuePercent: 9,
+      stakePercent: 3,
+      promptVersion: 'v8-market-balance-followup-h',
+    });
+
+    expect(result.blocked).toBe(true);
+    expect(result.warnings).toContain('POLICY_BLOCK_CORNERS_OVER_45_59_ONE_GOAL_HIGH_LINE_V8H');
+  });
+
+  test('v8h still allows 45-59 zero-zero higher-line goals over', () => {
+    const result = applyRecommendationPolicy({
+      selection: 'Over 1.25 Goals @1.90',
+      betMarket: 'over_1.25',
+      minute: 55,
+      score: '0-0',
+      odds: 1.9,
+      confidence: 6,
+      valuePercent: 8,
+      stakePercent: 3,
+      promptVersion: 'v8-market-balance-followup-h',
+    });
+
+    expect(result.blocked).toBe(false);
   });
 });

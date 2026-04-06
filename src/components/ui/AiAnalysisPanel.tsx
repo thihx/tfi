@@ -15,7 +15,14 @@ import type {
   ServerParsedAiResult,
 } from '@/features/live-monitor/services/server-monitor.service';
 import { getParsedAiResult } from '@/features/live-monitor/services/server-monitor.service';
+import { AskAiQuickPromptChips } from '@/components/ui/AskAiQuickPromptChips';
+import { useAskAiQuickPromptList } from '@/hooks/useAskAiQuickPromptList';
 import { useAuth } from '@/hooks/useAuth';
+import { useUiLanguage } from '@/hooks/useUiLanguage';
+import {
+  getAskAiQuickPromptsSectionLabel,
+  uiLanguageToAskAiPromptLocale,
+} from '@/lib/askAiQuickPrompts';
 import type { AuthUser } from '@/lib/services/auth';
 import { UserAvatar } from '@/components/ui/UserAvatar';
 
@@ -314,6 +321,11 @@ const PANEL_ICON_BTN: CSSProperties = {
 
 export function AiAnalysisPanel({ entry, onClose, onFollowUp }: Props) {
   const { user } = useAuth();
+  const uiLanguage = useUiLanguage();
+  const promptLocale = uiLanguageToAskAiPromptLocale(uiLanguage);
+  const quickPrompts = useAskAiQuickPromptList(promptLocale);
+  const quickPromptsLabel = getAskAiQuickPromptsSectionLabel(promptLocale);
+
   const { result } = entry;
   const ai: ServerParsedAiResult | null = getParsedAiResult(result);
   const dbg = result.debug;
@@ -608,6 +620,12 @@ export function AiAnalysisPanel({ entry, onClose, onFollowUp }: Props) {
                 minWidth: 0,
               }}
             >
+              <AskAiQuickPromptChips
+                label={quickPromptsLabel}
+                prompts={quickPrompts}
+                disabled={followUpInputLocked}
+                onPick={(text) => setFollowUpInput(text.slice(0, FOLLOW_UP_MAX_CHARS))}
+              />
               <div style={{ display: 'flex', gap: '10px', alignItems: 'stretch' }}>
                 <input
                   type="text"

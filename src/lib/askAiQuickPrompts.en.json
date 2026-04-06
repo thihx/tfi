@@ -1,0 +1,26 @@
+[
+  {
+    "id": "ou_now",
+    "text": "Is the over/under still fair at the current score?"
+  },
+  {
+    "id": "ah_vs_ou",
+    "text": "Should I prefer Asian handicap or over/under right now?"
+  },
+  {
+    "id": "late_goal",
+    "text": "Late-goal risk: should I avoid under / lean over?"
+  },
+  {
+    "id": "line_move",
+    "text": "How did the line move — which side looks mispriced?"
+  },
+  {
+    "id": "wait",
+    "text": "Enter now or wait for a better number?"
+  },
+  {
+    "id": "sides",
+    "text": "Home vs away: which side still offers value?"
+  }
+]

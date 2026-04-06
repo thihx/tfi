@@ -142,8 +142,8 @@ beforeEach(() => {
         catalog: [
           {
             key: 'ai.manual.ask.daily_limit',
-            label: 'Manual AI daily limit',
-            description: 'How many manual Ask AI requests the user may run per day.',
+            label: 'Manual analysis daily limit',
+            description: 'How many manual analysis requests the user may run per day.',
             category: 'ai',
             valueType: 'number',
             defaultValue: 3,

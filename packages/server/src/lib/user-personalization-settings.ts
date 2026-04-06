@@ -1,3 +1,4 @@
+import { normalizeAskAiQuickPromptsByLocale } from './ask-ai-quick-prompts-settings.js';
 import * as notificationSettingsRepo from '../repos/notification-settings.repo.js';
 import * as settingsRepo from '../repos/settings.repo.js';
 
@@ -20,6 +21,7 @@ export const SELF_SERVICE_SETTINGS_DEFAULTS = {
   WEB_PUSH_ENABLED: false,
   NOTIFICATION_LANGUAGE: 'vi',
   SUGGESTED_TOP_LEAGUE_IDS: [],
+  ASK_AI_QUICK_PROMPTS_BY_LOCALE: { en: [], vi: [] },
 } satisfies Record<string, unknown>;
 
 function isObjectRecord(value: unknown): value is Record<string, unknown> {
@@ -101,6 +103,14 @@ export function mergeNotificationSettings(
   };
 }
 
+function normalizeAskAiQuickPromptsForResponse(value: unknown): { en: { id: string; text: string }[]; vi: { id: string; text: string }[] } {
+  const n = normalizeAskAiQuickPromptsByLocale(value);
+  return {
+    en: n?.en ?? [],
+    vi: n?.vi ?? [],
+  };
+}
+
 export function normalizeSelfServiceSettings(
   settings: Record<string, unknown>,
   notificationSettings?: notificationSettingsRepo.UserNotificationSettings | null,
@@ -115,6 +125,7 @@ export function normalizeSelfServiceSettings(
     WEB_PUSH_ENABLED: notificationSettings?.webPushEnabled === true,
     NOTIFICATION_LANGUAGE: notificationSettings?.notificationLanguage ?? 'vi',
     SUGGESTED_TOP_LEAGUE_IDS: parseSuggestedTopLeagueIds(settings['SUGGESTED_TOP_LEAGUE_IDS']),
+    ASK_AI_QUICK_PROMPTS_BY_LOCALE: normalizeAskAiQuickPromptsForResponse(settings['ASK_AI_QUICK_PROMPTS_BY_LOCALE']),
   };
 }
 

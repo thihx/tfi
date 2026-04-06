@@ -15,7 +15,7 @@ export const config = {
 
   // AI (Gemini)
   geminiApiKey: process.env['GEMINI_API_KEY'] || '',
-  geminiModel: process.env['GEMINI_MODEL'] || 'gemini-3-pro-preview',
+  geminiModel: process.env['GEMINI_MODEL'] || 'gemini-2.5-flash',
   /** Model for auto-settle AI fallback (rule-based settle unchanged). Default Flash to reduce cost vs live pipeline Pro. */
   geminiSettleModel: process.env['GEMINI_SETTLE_MODEL'] || 'gemini-2.5-flash',
   geminiTimeoutMs: Number(process.env['GEMINI_TIMEOUT_MS'] || 90000),

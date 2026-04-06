@@ -1,5 +1,12 @@
 import { useEffect, useId, useRef, useState, type KeyboardEvent } from 'react';
 import { Modal } from '@/components/ui/Modal';
+import { AskAiQuickPromptChips } from '@/components/ui/AskAiQuickPromptChips';
+import { useAskAiQuickPromptList } from '@/hooks/useAskAiQuickPromptList';
+import { useUiLanguage } from '@/hooks/useUiLanguage';
+import {
+  getAskAiQuickPromptsSectionLabel,
+  uiLanguageToAskAiPromptLocale,
+} from '@/lib/askAiQuickPrompts';
 import type { Match } from '@/types';
 
 const MAX_QUESTION_CHARS = 200;
@@ -13,6 +20,11 @@ interface AskAiMatchDialogProps {
 }
 
 export function AskAiMatchDialog({ open, match, isRunning, onClose, onSubmit }: AskAiMatchDialogProps) {
+  const uiLanguage = useUiLanguage();
+  const promptLocale = uiLanguageToAskAiPromptLocale(uiLanguage);
+  const quickPrompts = useAskAiQuickPromptList(promptLocale);
+  const quickPromptsLabel = getAskAiQuickPromptsSectionLabel(promptLocale);
+
   const [draft, setDraft] = useState('');
   const descId = useId();
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -29,7 +41,7 @@ export function AskAiMatchDialog({ open, match, isRunning, onClose, onSubmit }: 
     return () => window.clearTimeout(t);
   }, [open, match?.match_id, isRunning]);
 
-  const title = match ? `Ask AI — ${match.home_team} vs ${match.away_team}` : 'Ask AI';
+  const title = match ? `Ask a question — ${match.home_team} vs ${match.away_team}` : 'Ask a question';
 
   const handleKeyDown = (e: KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key !== 'Enter' || e.shiftKey) return;
@@ -63,6 +75,12 @@ export function AskAiMatchDialog({ open, match, isRunning, onClose, onSubmit }: 
       <p id={descId} style={{ margin: '0 0 10px', fontSize: '13px', color: 'var(--gray-600)', lineHeight: 1.5 }}>
         Optional question for the first run (e.g. focus on a market). Leave empty for the same standard analysis as a quick run.
       </p>
+      <AskAiQuickPromptChips
+        label={quickPromptsLabel}
+        prompts={quickPrompts}
+        disabled={isRunning}
+        onPick={(text) => setDraft(text.slice(0, MAX_QUESTION_CHARS))}
+      />
       <textarea
         ref={textareaRef}
         id="ask-ai-match-question"

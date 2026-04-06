@@ -438,7 +438,7 @@ describe('buildLiveAnalysisPrompt', () => {
     expect(baseline).toContain(`PROMPT_VERSION: ${LIVE_ANALYSIS_PROMPT_VERSION}`);
   });
 
-  test('candidate prompt includes follow-up contract and v8e market-balance rules', () => {
+  test('candidate prompt includes follow-up contract and v8i market-balance rules', () => {
     const candidate = buildLiveAnalysisPrompt({
       ...baseInput,
       userQuestion: 'What about Home -0.25 here?',
@@ -454,8 +454,11 @@ describe('buildLiveAnalysisPrompt', () => {
     expect(candidate).toContain('Goals Under is NOT the default fallback');
     expect(candidate).toContain('V8D OPEN-1X2 WINDOW RULE');
     expect(candidate).toContain('V8D TWO-PLUS-MARGIN BLOCK');
-    expect(candidate).toContain('V8E 30-44 0-0 LOW-LINE RULE');
-    expect(candidate).toContain('V8E HIGH-LINE CORNERS RULE');
+    expect(candidate).toContain('V8F 30-44 0-0 RULE');
+    expect(candidate).toContain('V8F HIGH-LINE CORNERS RULE');
+    expect(candidate).toContain('V8G EARLY ONE-GOAL RULE');
+    expect(candidate).toContain('V8H 45-59 ZERO-ZERO LOW-LINE RULE');
+    expect(candidate).toContain('V8I EARLY LEVEL HIGH-LINE RULE');
     expect(candidate).toContain('from minute 35 onward, 1X2_home becomes eligible again');
     expect(candidate).toContain('"follow_up_answer_en": string');
     expect(candidate).toContain('"follow_up_answer_vi": string');

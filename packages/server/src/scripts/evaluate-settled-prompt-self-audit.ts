@@ -1,5 +1,6 @@
 import { mkdirSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, extname, resolve } from 'node:path';
+import { config } from '../config.js';
 import { callGemini } from '../lib/gemini.js';
 import { runReplayScenario } from '../lib/pipeline-replay.js';
 import type { SettledReplayScenario } from '../lib/db-replay-scenarios.js';
@@ -10,10 +11,17 @@ import {
   summarizeReplaySelfAudit,
 } from '../lib/settled-replay-self-audit.js';
 import { getReplayMinuteBand, getReplayScoreState } from '../lib/settled-replay-evaluation.js';
+import {
+  buildReplayLlmCachePath,
+  loadReplayLlmCache,
+  saveReplayLlmCache,
+} from '../lib/replay-llm-cache.js';
 
 interface EvaluateArgs {
   dirPath: string;
   promptVersion: string;
+  llmModel: string;
+  allowRealLlm: boolean;
   oddsMode: 'recorded' | 'live' | 'mock';
   delayMs: number;
   maxScenarios?: number;
@@ -23,11 +31,14 @@ interface EvaluateArgs {
   scenarioNameContains?: string;
   reportJsonPath?: string;
   reportMdPath?: string;
+  llmCacheDir?: string;
 }
 
 function parseArgs(argv: string[]): EvaluateArgs {
   let dirPath = '';
   let promptVersion = '';
+  let llmModel = config.geminiModel;
+  let allowRealLlm = process.env['ALLOW_REAL_LLM_REPLAY'] === 'true';
   let oddsMode: EvaluateArgs['oddsMode'] = 'mock';
   let delayMs = 750;
   let maxScenarios: number | undefined;
@@ -37,6 +48,7 @@ function parseArgs(argv: string[]): EvaluateArgs {
   let scenarioNameContains: string | undefined;
   let reportJsonPath: string | undefined;
   let reportMdPath: string | undefined;
+  let llmCacheDir: string | undefined;
 
   for (let i = 0; i < argv.length; i++) {
     const arg = argv[i];
@@ -49,6 +61,15 @@ function parseArgs(argv: string[]): EvaluateArgs {
     if (arg === '--prompt-version' && next) {
       promptVersion = next;
       i++;
+      continue;
+    }
+    if (arg === '--model' && next) {
+      llmModel = next;
+      i++;
+      continue;
+    }
+    if (arg === '--allow-real-llm') {
+      allowRealLlm = true;
       continue;
     }
     if (arg === '--odds' && next && (next === 'recorded' || next === 'live' || next === 'mock')) {
@@ -96,15 +117,22 @@ function parseArgs(argv: string[]): EvaluateArgs {
       i++;
       continue;
     }
+    if (arg === '--llm-cache-dir' && next) {
+      llmCacheDir = resolve(process.cwd(), next);
+      i++;
+      continue;
+    }
   }
 
   if (!dirPath || !promptVersion) {
-    throw new Error('Usage: tsx src/scripts/evaluate-settled-prompt-self-audit.ts --dir <folder> --prompt-version <version> [--odds recorded|live|mock] [--delay-ms N] [--max-scenarios N] [--minute-band 45-59] [--score-state 0-0] [--original-market-family 1x2|asian_handicap|goals_under|goals_over|corners|btts] [--scenario-name-contains text] [--report-json <file>] [--report-md <file>]');
+    throw new Error('Usage: tsx src/scripts/evaluate-settled-prompt-self-audit.ts --dir <folder> --prompt-version <version> [--model <gemini-model>] [--allow-real-llm] [--odds recorded|live|mock] [--delay-ms N] [--max-scenarios N] [--minute-band 45-59] [--score-state 0-0] [--original-market-family 1x2|asian_handicap|goals_under|goals_over|corners|btts] [--scenario-name-contains text] [--llm-cache-dir <dir>] [--report-json <file>] [--report-md <file>]');
   }
 
   return {
     dirPath,
     promptVersion,
+    llmModel,
+    allowRealLlm,
     oddsMode,
     delayMs,
     maxScenarios,
@@ -114,6 +142,7 @@ function parseArgs(argv: string[]): EvaluateArgs {
     scenarioNameContains,
     reportJsonPath,
     reportMdPath,
+    llmCacheDir,
   };
 }
 
@@ -168,9 +197,9 @@ function scenarioMatchesArgs(
   return true;
 }
 
-async function callSelfAudit(prompt: string): Promise<string> {
+async function callSelfAudit(prompt: string, model: string): Promise<string> {
   try {
-    return await callGemini(prompt, 'gemini-3-pro-preview');
+    return await callGemini(prompt, model);
   } catch (error) {
     const reason = error instanceof Error ? error.message : String(error);
     throw new Error(`Self-audit LLM call failed: ${reason}`);
@@ -231,6 +260,9 @@ function buildMarkdownReport(summary: {
 
 async function main(): Promise<void> {
   const args = parseArgs(process.argv.slice(2));
+  if (!args.allowRealLlm) {
+    throw new Error('Refusing to run real-LLM self-audit without explicit opt-in. Re-run with --allow-real-llm or set ALLOW_REAL_LLM_REPLAY=true.');
+  }
   const files = readdirSync(args.dirPath)
     .filter((name) => extname(name).toLowerCase() === '.json' && !name.startsWith('_'))
     .sort((a, b) => a.localeCompare(b));
@@ -255,14 +287,32 @@ async function main(): Promise<void> {
   const rows: ReplaySelfAuditCase[] = [];
   for (let index = 0; index < scenarios.length; index++) {
     const scenario = scenarios[index]!;
+    const cachePath = args.llmCacheDir
+      ? buildReplayLlmCachePath(args.llmCacheDir, scenario, args.promptVersion, args.oddsMode)
+      : null;
+    const cached = cachePath ? loadReplayLlmCache(cachePath) : null;
     const replay = await runReplayScenario(scenario, {
       llmMode: 'real',
       oddsMode: args.oddsMode,
-      shadowMode: false,
+      shadowMode: true,
+      advisoryOnly: true,
       promptVersionOverride: args.promptVersion as never,
+      capturedAiText: cached?.aiText,
     });
+    if (cachePath && !cached && replay.result.debug?.aiText) {
+      saveReplayLlmCache(cachePath, {
+        generatedAt: new Date().toISOString(),
+        recommendationId: scenario.metadata.recommendationId,
+        scenarioName: scenario.name,
+        promptVersion: args.promptVersion,
+        oddsMode: args.oddsMode,
+        aiText: replay.result.debug.aiText,
+        prompt: replay.result.debug.prompt ?? null,
+        selection: replay.result.selection || null,
+      });
+    }
     const auditPrompt = buildReplaySelfAuditPrompt(scenario, replay);
-    const auditText = await callSelfAudit(auditPrompt);
+    const auditText = await callSelfAudit(auditPrompt, args.llmModel);
     rows.push(parseReplaySelfAuditResponse(auditText, scenario, replay));
     if (args.delayMs > 0 && index < scenarios.length - 1) {
       await sleep(args.delayMs);

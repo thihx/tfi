@@ -59,6 +59,22 @@ function getScoreState(score: string): 'unknown' | 'level' | 'one-goal-margin' |
   return 'two-plus-margin';
 }
 
+function getTotalGoals(score: string): number | null {
+  const match = String(score || '').trim().match(/^(\d+)\s*[-:]\s*(\d+)$/);
+  if (!match) return null;
+  const home = Number(match[1] ?? 0);
+  const away = Number(match[2] ?? 0);
+  if (!Number.isFinite(home) || !Number.isFinite(away)) return null;
+  return home + away;
+}
+
+function getMarketLine(canonicalMarket: string): number | null {
+  const match = String(canonicalMarket || '').trim().match(/_(\d+(?:\.\d+)?)$/);
+  if (!match) return null;
+  const line = Number(match[1]);
+  return Number.isFinite(line) ? line : null;
+}
+
 export function getCorrelatedThesis(canonicalMarket: string): string | null {
   if (!canonicalMarket || canonicalMarket === 'unknown') return null;
   if (canonicalMarket.startsWith('over_')) return 'goals_over';
@@ -89,7 +105,14 @@ export function applyRecommendationPolicy(input: RecommendationPolicyInput): Rec
   const isV8 = promptVersion === 'v8-market-balance-followup-a' || promptVersion === 'v8-market-balance-followup-b';
   const isV8b = promptVersion === 'v8-market-balance-followup-b';
   const isV8d = promptVersion === 'v8-market-balance-followup-d' || promptVersion === 'v8-market-balance-followup-e';
+  const isV8f = promptVersion === 'v8-market-balance-followup-f';
+  const isV8g = promptVersion === 'v8-market-balance-followup-g';
+  const isV8h = promptVersion === 'v8-market-balance-followup-h';
+  const isV8i = promptVersion === 'v8-market-balance-followup-i';
+  const isV8dFamily = isV8d || isV8f || isV8g || isV8h || isV8i;
   const scoreState = getScoreState(input.score);
+  const totalGoals = getTotalGoals(input.score);
+  const marketLine = getMarketLine(canonicalMarket);
 
   const block = (warning: string) => {
     blocked = true;
@@ -100,9 +123,9 @@ export function applyRecommendationPolicy(input: RecommendationPolicyInput): Rec
     block('POLICY_BLOCK_1X2_DRAW');
   }
 
-  if (canonicalMarket === '1x2_home' && input.minute < (isV8d ? 35 : isV8b ? 55 : isV8 ? 60 : 75)) {
+  if (canonicalMarket === '1x2_home' && input.minute < (isV8dFamily ? 35 : isV8b ? 55 : isV8 ? 60 : 75)) {
     block(
-      isV8d
+      isV8dFamily
         ? 'POLICY_BLOCK_1X2_HOME_PRE35_V8D'
         : isV8b
           ? 'POLICY_BLOCK_1X2_HOME_PRE55_V8B'
@@ -121,7 +144,7 @@ export function applyRecommendationPolicy(input: RecommendationPolicyInput): Rec
   }
 
   if (
-    isV8d
+    isV8dFamily
     && canonicalMarket.startsWith('under_')
     && !canonicalMarket.startsWith('under_0.5')
     && input.minute >= 45
@@ -129,6 +152,92 @@ export function applyRecommendationPolicy(input: RecommendationPolicyInput): Rec
     && scoreState === 'two-plus-margin'
   ) {
     block('POLICY_BLOCK_GOALS_UNDER_45_59_TWO_PLUS_MARGIN_V8D');
+  }
+
+  if (
+    (isV8f || isV8g || isV8h || isV8i)
+    && canonicalMarket.startsWith('under_')
+    && !canonicalMarket.startsWith('under_0.5')
+    && input.minute >= 30
+    && input.minute <= 44
+    && totalGoals === 0
+    && marketLine != null
+    && marketLine > 1.5
+  ) {
+    block('POLICY_BLOCK_GOALS_UNDER_30_44_0_0_OVER_1_5_V8F');
+  }
+
+  if (
+    (isV8f || isV8g || isV8h || isV8i)
+    && canonicalMarket.startsWith('under_')
+    && !canonicalMarket.startsWith('under_0.5')
+    && input.minute >= 30
+    && input.minute <= 44
+    && scoreState === 'level'
+    && (totalGoals ?? 0) >= 2
+    && marketLine != null
+    && marketLine > 4
+  ) {
+    block('POLICY_BLOCK_GOALS_UNDER_30_44_LEVEL_HIGH_LINE_V8F');
+  }
+
+  if (
+    (isV8f || isV8g || isV8h || isV8i)
+    && canonicalMarket.startsWith('corners_over_')
+    && input.minute < 60
+    && marketLine != null
+    && marketLine >= 12.5
+  ) {
+    block('POLICY_BLOCK_CORNERS_OVER_HIGH_LINE_PRE60_V8F');
+  }
+
+  if (
+    (isV8g || isV8h || isV8i)
+    && canonicalMarket.startsWith('under_')
+    && !canonicalMarket.startsWith('under_0.5')
+    && input.minute <= 44
+    && scoreState === 'one-goal-margin'
+    && marketLine != null
+    && marketLine >= 2.75
+  ) {
+    block('POLICY_BLOCK_GOALS_UNDER_EARLY_ONE_GOAL_HIGH_LINE_V8G');
+  }
+
+  if (
+    (isV8h || isV8i)
+    && canonicalMarket.startsWith('under_')
+    && !canonicalMarket.startsWith('under_0.5')
+    && input.minute >= 45
+    && input.minute <= 59
+    && totalGoals === 0
+    && marketLine != null
+    && marketLine <= 1.75
+  ) {
+    block('POLICY_BLOCK_GOALS_UNDER_45_59_0_0_LOW_LINE_V8H');
+  }
+
+  if (
+    (isV8h || isV8i)
+    && canonicalMarket.startsWith('over_')
+    && input.minute >= 45
+    && input.minute <= 59
+    && totalGoals === 0
+    && marketLine != null
+    && marketLine <= 1
+  ) {
+    block('POLICY_BLOCK_GOALS_OVER_45_59_0_0_LOW_LINE_V8H');
+  }
+
+  if (
+    (isV8h || isV8i)
+    && canonicalMarket.startsWith('corners_over_')
+    && input.minute >= 45
+    && input.minute <= 59
+    && scoreState === 'one-goal-margin'
+    && marketLine != null
+    && marketLine >= 10
+  ) {
+    block('POLICY_BLOCK_CORNERS_OVER_45_59_ONE_GOAL_HIGH_LINE_V8H');
   }
 
   if (canonicalMarket === 'btts_no') {

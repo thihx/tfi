@@ -27,11 +27,11 @@ function SummaryStat({ label, value, color }: { label: string; value: string | n
 function decisionKindLabel(kind: ServerMatchPipelineResult['decisionKind']): string {
   switch (kind) {
     case 'ai_push':
-      return 'AI Push';
+      return 'Signal';
     case 'condition_only':
       return 'Condition Only';
     default:
-      return 'No Bet';
+      return 'No pick';
   }
 }
 
@@ -111,11 +111,11 @@ function ScopeRow({ target }: { target: LiveMonitorTarget }) {
           <div style={{ display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap', marginBottom: '4px' }}>
             <strong style={{ fontSize: '13px' }}>{target.matchDisplay}</strong>
             <span className={`badge ${target.candidate ? 'badge-active' : target.live ? 'badge-pending' : 'badge-draw'}`}>
-              {target.candidate ? 'AI Candidate' : target.live ? 'Watching Live' : 'Waiting for Kickoff'}
+              {target.candidate ? 'Analysis candidate' : target.live ? 'Watching Live' : 'Waiting for Kickoff'}
             </span>
             <span className="badge badge-pending">Mode {target.mode}</span>
             {target.customConditions ? <span className="badge badge-draw">Custom Condition</span> : null}
-            {target.recommendedCondition ? <span className="badge badge-pending">AI Suggested Condition</span> : null}
+            {target.recommendedCondition ? <span className="badge badge-pending">Suggested condition</span> : null}
           </div>
           <div style={{ fontSize: '13px', color: 'var(--gray-700)' }}>
             {[target.league, target.minute != null ? `${target.minute}'` : null, target.score, target.status]
@@ -124,9 +124,9 @@ function ScopeRow({ target }: { target: LiveMonitorTarget }) {
           </div>
           <div style={{ fontSize: '12px', color: 'var(--gray-500)', marginTop: '4px' }}>
             {target.candidate
-              ? 'Will go to AI on the next engine run.'
+              ? 'Will go to analysis on the next engine run.'
               : target.live
-                ? 'Tracked live, but not sent to AI yet.'
+                ? 'Tracked live, but not sent to analysis yet.'
                 : 'This match is in the system monitoring pool but is not live yet.'}
           </div>
           {target.customConditions && (
@@ -136,7 +136,7 @@ function ScopeRow({ target }: { target: LiveMonitorTarget }) {
           )}
           {!target.customConditions && target.recommendedCondition && (
             <div style={{ fontSize: '12px', color: 'var(--gray-600)', marginTop: '6px' }}>
-              <strong>AI suggested condition:</strong> {target.recommendedCondition}
+              <strong>Suggested condition:</strong> {target.recommendedCondition}
             </div>
           )}
           <div style={{ fontSize: '12px', color: 'var(--gray-500)', marginTop: '6px' }}>
@@ -375,12 +375,12 @@ export function LiveMonitorTab() {
         <div style={{ padding: '20px' }}>
           <div className="monitor-stats-row">
             <SummaryStat label="Live Now" value={status?.monitoring.liveWatchCount ?? 0} color={(status?.monitoring.liveWatchCount ?? 0) > 0 ? 'var(--success)' : undefined} />
-            <SummaryStat label="Ready For AI" value={status?.monitoring.candidateCount ?? 0} color={(status?.monitoring.candidateCount ?? 0) > 0 ? 'var(--primary)' : undefined} />
+            <SummaryStat label="Ready for analysis" value={status?.monitoring.candidateCount ?? 0} color={(status?.monitoring.candidateCount ?? 0) > 0 ? 'var(--primary)' : undefined} />
             <SummaryStat label="My Watchlist" value={state.watchlist.length} />
             <SummaryStat label="System Pool" value={status?.monitoring.activeWatchCount ?? 0} />
           </div>
           <p style={{ margin: '14px 0 0', color: 'var(--gray-500)', fontSize: '13px' }}>
-            This screen refreshes automatically and focuses on what is live now, what is ready for AI, and what is still waiting.
+            This screen refreshes automatically and focuses on what is live now, what is ready for analysis, and what is still waiting.
           </p>
           <div style={{ display: 'flex', gap: '18px', flexWrap: 'wrap', marginTop: '12px', fontSize: '12px', color: 'var(--gray-500)' }}>
             <span><strong style={{ color: 'var(--gray-700)' }}>Engine:</strong> {status?.job.running ? 'Checking now' : status?.job.enabled ? 'Waiting for next cycle' : 'Disabled'}</span>
@@ -453,7 +453,7 @@ export function LiveMonitorTab() {
           {status?.summary ? (
             <div className="monitor-stats-row">
               <SummaryStat label="Live Matches" value={status.summary.liveCount} />
-              <SummaryStat label="Ready For AI" value={status.summary.candidateCount} />
+              <SummaryStat label="Ready for analysis" value={status.summary.candidateCount} />
               <SummaryStat label="Checked This Run" value={status.summary.processed} />
               <SummaryStat label="Recommendations Saved" value={status.summary.savedRecommendations} color="var(--success)" />
               <SummaryStat label="Notifications" value={status.summary.pushedNotifications} color="var(--primary)" />

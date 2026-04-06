@@ -268,6 +268,7 @@ export interface PipelineExecutionOptions {
     away_score: number;
     status?: string | null;
     odds: Record<string, unknown>;
+    stats?: Record<string, unknown>;
   } | null;
 }
 
@@ -2489,6 +2490,7 @@ async function processMatch(
             away_score: latestSnapshot.away_score,
             status: latestSnapshot.status,
             odds: latestSnapshot.odds,
+            stats: latestSnapshot.stats,
           }
         : null,
       settings: {
@@ -2904,6 +2906,7 @@ async function processMatch(
       status,
       score,
       eventsCompact,
+      statsCompact,
       oddsCanonical: oddsCanonical as unknown as Record<string, unknown>,
       previousRecommendation: prevRecs[0]
         ? {
@@ -2922,6 +2925,7 @@ async function processMatch(
             away_score: latestSnapshot.away_score,
             status: latestSnapshot.status,
             odds: latestSnapshot.odds,
+            stats: latestSnapshot.stats,
           }
         : null,
       settings: {

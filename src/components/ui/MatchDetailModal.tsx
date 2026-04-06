@@ -1,5 +1,5 @@
 // ============================================================
-// Match Scout Panel — Context · Timeline · Odds · AI Recs · Bets
+// Match Scout Panel — Context · Timeline · Odds · Picks
 // ============================================================
 
 import { useState, useEffect, useCallback, lazy, Suspense, type ReactNode } from 'react';
@@ -102,7 +102,7 @@ export function MatchDetailModal({ open, matchId, matchDisplay, onClose, initial
               <KpiChip label="Minute" value={`${latest.minute}'`} />
               <KpiChip label="Status" value={latest.status} />
               {snapshots.length > 0 && <KpiChip label="Snapshots" value={String(snapshots.length)} />}
-              {recs.length > 0 && <KpiChip label="AI Recs" value={String(recs.length)} />}
+              {recs.length > 0 && <KpiChip label="Picks" value={String(recs.length)} />}
               {bets.length > 0 && <KpiChip label="Bets" value={String(bets.length)} />}
             </div>
           )}
@@ -119,7 +119,7 @@ export function MatchDetailModal({ open, matchId, matchDisplay, onClose, initial
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}><polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/><polyline points="17 6 23 6 23 12"/></svg>{' '}Odds{odds.length > 0 ? ` (${odds.length})` : ''}
             </TabBtn>
             <TabBtn active={tab === 'recs'} onClick={() => setTab('recs')}>
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/></svg>{' '}AI Recs{recs.length > 0 ? ` (${recs.length})` : ''}
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/></svg>{' '}Picks{recs.length > 0 ? ` (${recs.length})` : ''}
             </TabBtn>
             <TabBtn active={tab === 'bets'} onClick={() => setTab('bets')}>
               Bets{bets.length > 0 ? ` (${bets.length})` : ''}
@@ -213,7 +213,7 @@ function ContextView({ watchlist, recs }: { watchlist: WatchlistItem | null; rec
               <InfoBlock label="Custom Condition" value={watchlist.custom_conditions} />
             )}
             {watchlist?.recommended_custom_condition && (
-              <InfoBlock label="AI Recommended Condition" value={watchlist.recommended_custom_condition} highlight />
+              <InfoBlock label="Suggested condition" value={watchlist.recommended_custom_condition} highlight />
             )}
             {watchlist?.recommended_condition_reason_vi && (
               <InfoBlock label="Reason (VI)" value={watchlist.recommended_condition_reason_vi} colSpan />
@@ -263,7 +263,7 @@ function ContextView({ watchlist, recs }: { watchlist: WatchlistItem | null; rec
             {awayKeyAbsences && <InfoBlock label={`Away Absences (${watchlist?.away_team || 'Away'})`} value={awayKeyAbsences} />}
             {keyAbsences && <InfoBlock label="Key Absences Summary" value={keyAbsences} />}
             {h2hNarrative && <InfoBlock label="H2H Narrative" value={h2hNarrative} colSpan />}
-            {ctx.ai_condition && <InfoBlock label="AI Condition Signal" value={ctx.ai_condition} highlight />}
+            {ctx.ai_condition && <InfoBlock label="Condition signal" value={ctx.ai_condition} highlight />}
             {ctx.ai_condition_reason_vi && <InfoBlock label="Condition Reason (VI)" value={ctx.ai_condition_reason_vi} colSpan />}
             {structuredContext && quantitativeEntries.length > 0 && (
               <InfoBlock
@@ -303,9 +303,9 @@ function ContextView({ watchlist, recs }: { watchlist: WatchlistItem | null; rec
         </Section>
       )}
 
-      {/* Latest AI Reasoning */}
+      {/* Latest analysis reasoning */}
       {hasReasoning && latestRec && (
-        <Section title={`Latest AI Analysis${latestRec.minute != null ? ` @ ${latestRec.minute}'` : ''}`}>
+        <Section title={`Latest analysis${latestRec.minute != null ? ` @ ${latestRec.minute}'` : ''}`}>
           {latestRec.reasoning && (
             <InfoBlock label="Reasoning" value={latestRec.reasoning} colSpan />
           )}
@@ -362,11 +362,11 @@ function InfoBlock({ label, value, highlight, warn, colSpan }: {
   );
 }
 
-// ==================== AI Recs View ====================
+// ==================== Picks / recs view ====================
 
 function RecsView({ recs }: { recs: Recommendation[] }) {
   if (!recs.length) {
-    return <EmptyState icon={<svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/></svg>} message="No AI recommendations for this match yet" />;
+    return <EmptyState icon={<svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/></svg>} message="No recommendations for this match yet" />;
   }
   return (
     <div style={{ maxHeight: '500px', overflowY: 'auto', paddingRight: '4px' }}>

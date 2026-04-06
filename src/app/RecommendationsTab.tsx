@@ -30,6 +30,12 @@ type RecommendationFeedMode = 'shared' | 'deliveries';
 
 const PAGE_SIZE = 30;
 
+/** Display label for API `bet_type` values (keeps stored values unchanged). */
+function betTypeLabel(value: string): string {
+  if (value === 'AI') return 'Model';
+  return value;
+}
+
 type SortCol = 'time' | 'odds' | 'confidence' | 'pnl' | 'league' | '';
 type SortDir = 'asc' | 'desc';
 
@@ -537,7 +543,9 @@ export function RecommendationsTab() {
             </select>
             <select className="filter-input" value={betTypeFilter} onChange={(e) => { setBetTypeFilter(e.target.value); setPage(1); }} style={{ flex: '1 1 100px', minWidth: 0 }}>
               <option value="all">All Markets</option>
-              {betTypes.map((t) => <option key={t} value={t}>{t}</option>)}
+              {betTypes.map((t) => (
+                <option key={t} value={t}>{betTypeLabel(t)}</option>
+              ))}
             </select>
             <select className="filter-input" value={riskFilter} onChange={(e) => { setRiskFilter(e.target.value); setPage(1); }} style={{ flex: '1 1 90px', minWidth: 0 }}>
               <option value="all">All Risk</option>

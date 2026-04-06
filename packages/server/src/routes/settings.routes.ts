@@ -15,6 +15,7 @@ import {
   type UserStatus,
 } from '../repos/users.repo.js';
 import { toAuthUserResponse } from '../lib/request-user.js';
+import { mergeAskAiQuickPromptsByLocale } from '../lib/ask-ai-quick-prompts-settings.js';
 import {
   extractSelfServiceNotificationPatch,
   mergeNotificationSettings,
@@ -47,9 +48,17 @@ export async function settingsRoutes(app: FastifyInstance) {
     if (!user) return;
     const existing = await settingsRepo.getSettings(user.userId, { fallbackToDefault: false });
     const existingNotificationSettings = await resolveNotificationSettings(user.userId);
+    const body = req.body ?? {};
+    const patch = sanitizeSelfServicePatch(body);
+    if (body['ASK_AI_QUICK_PROMPTS_BY_LOCALE'] !== undefined) {
+      patch['ASK_AI_QUICK_PROMPTS_BY_LOCALE'] = mergeAskAiQuickPromptsByLocale(
+        existing['ASK_AI_QUICK_PROMPTS_BY_LOCALE'],
+        body['ASK_AI_QUICK_PROMPTS_BY_LOCALE'],
+      );
+    }
     const merged = {
       ...existing,
-      ...sanitizeSelfServicePatch(req.body ?? {}),
+      ...patch,
     };
     const notificationPatch = extractSelfServiceNotificationPatch(req.body ?? {});
     await settingsRepo.saveSettings(merged, user.userId);

@@ -13,25 +13,38 @@ import {
   type EvaluatedReplayCase,
 } from '../lib/settled-replay-evaluation.js';
 import { settleMatch } from '../jobs/auto-settle.job.js';
+import {
+  buildReplayLlmCachePath,
+  loadReplayLlmCache,
+  saveReplayLlmCache,
+} from '../lib/replay-llm-cache.js';
 
 interface EvaluateArgs {
   dirPath: string;
   promptVersions: string[];
   llmMode: 'real' | 'mock';
+  llmModel: string;
+  allowRealLlm: boolean;
   oddsMode: 'recorded' | 'live' | 'mock';
   delayMs: number;
   reportJsonPath?: string;
   reportMdPath?: string;
+  reportCasesJsonPath?: string;
+  llmCacheDir?: string;
 }
 
 function parseArgs(argv: string[]): EvaluateArgs {
   const promptVersions: string[] = [];
   let dirPath = '';
   let llmMode: EvaluateArgs['llmMode'] = 'real';
+  let llmModel = config.geminiModel;
+  let allowRealLlm = process.env['ALLOW_REAL_LLM_REPLAY'] === 'true';
   let oddsMode: EvaluateArgs['oddsMode'] = 'mock';
   let delayMs = 750;
   let reportJsonPath: string | undefined;
   let reportMdPath: string | undefined;
+  let reportCasesJsonPath: string | undefined;
+  let llmCacheDir: string | undefined;
 
   for (let i = 0; i < argv.length; i++) {
     const arg = argv[i];
@@ -49,6 +62,15 @@ function parseArgs(argv: string[]): EvaluateArgs {
     if (arg === '--llm' && next && (next === 'real' || next === 'mock')) {
       llmMode = next;
       i++;
+      continue;
+    }
+    if (arg === '--model' && next) {
+      llmModel = next;
+      i++;
+      continue;
+    }
+    if (arg === '--allow-real-llm') {
+      allowRealLlm = true;
       continue;
     }
     if (arg === '--odds' && next && (next === 'recorded' || next === 'live' || next === 'mock')) {
@@ -71,10 +93,20 @@ function parseArgs(argv: string[]): EvaluateArgs {
       i++;
       continue;
     }
+    if (arg === '--report-cases-json' && next) {
+      reportCasesJsonPath = resolve(process.cwd(), next);
+      i++;
+      continue;
+    }
+    if (arg === '--llm-cache-dir' && next) {
+      llmCacheDir = resolve(process.cwd(), next);
+      i++;
+      continue;
+    }
   }
 
   if (!dirPath) {
-    throw new Error('Usage: tsx src/scripts/evaluate-settled-prompt-variants.ts --dir <folder> [--prompt-version <version>]... [--llm real|mock] [--odds recorded|live|mock] [--delay-ms N] [--report-json <file>] [--report-md <file>]');
+    throw new Error('Usage: tsx src/scripts/evaluate-settled-prompt-variants.ts --dir <folder> [--prompt-version <version>]... [--llm real|mock] [--model <gemini-model>] [--allow-real-llm] [--odds recorded|live|mock] [--delay-ms N] [--llm-cache-dir <dir>] [--report-json <file>] [--report-md <file>] [--report-cases-json <file>]');
   }
 
   const fallbackPromptVersions = [
@@ -86,10 +118,14 @@ function parseArgs(argv: string[]): EvaluateArgs {
     dirPath,
     promptVersions: promptVersions.length > 0 ? promptVersions : [...new Set(fallbackPromptVersions)],
     llmMode,
+    llmModel,
+    allowRealLlm,
     oddsMode,
     delayMs,
     reportJsonPath,
     reportMdPath,
+    reportCasesJsonPath,
+    llmCacheDir,
   };
 }
 
@@ -105,14 +141,41 @@ async function evaluateScenarioAgainstSettlement(
   scenario: SettledReplayScenario,
   promptVersion: string,
   llmMode: EvaluateArgs['llmMode'],
+  llmModel: string,
   oddsMode: EvaluateArgs['oddsMode'],
+  llmCacheDir?: string,
 ): Promise<EvaluatedReplayCase> {
-  const output = await runReplayScenario(scenario, {
+  const cachePath = llmMode === 'real' && llmCacheDir
+    ? buildReplayLlmCachePath(llmCacheDir, scenario, promptVersion, oddsMode)
+    : null;
+  const cached = cachePath ? loadReplayLlmCache(cachePath) : null;
+  const output = await runReplayScenario({
+    ...scenario,
+    pipelineOptions: {
+      ...(scenario.pipelineOptions ?? {}),
+      modelOverride: llmMode === 'real' ? llmModel : scenario.pipelineOptions?.modelOverride,
+    },
+  }, {
     llmMode,
     oddsMode,
-    shadowMode: false,
+    shadowMode: true,
+    advisoryOnly: true,
     promptVersionOverride: promptVersion as never,
+    capturedAiText: cached?.aiText,
   });
+
+  if (cachePath && !cached && output.result.debug?.aiText) {
+    saveReplayLlmCache(cachePath, {
+      generatedAt: new Date().toISOString(),
+      recommendationId: scenario.metadata.recommendationId,
+      scenarioName: scenario.name,
+      promptVersion,
+      oddsMode,
+      aiText: output.result.debug.aiText,
+      prompt: output.result.debug.prompt ?? null,
+      selection: output.result.selection || null,
+    });
+  }
 
   const parsed = (output.result.debug?.parsed ?? {}) as Record<string, unknown>;
   const replayOdds = Number(parsed.mapped_odd ?? 0) || 2;
@@ -231,6 +294,9 @@ function buildMarkdownReport(summary: {
 
 async function main(): Promise<void> {
   const args = parseArgs(process.argv.slice(2));
+  if (args.llmMode === 'real' && !args.allowRealLlm) {
+    throw new Error('Refusing to run real-LLM replay without explicit opt-in. Re-run with --allow-real-llm or set ALLOW_REAL_LLM_REPLAY=true.');
+  }
   const files = readdirSync(args.dirPath)
     .filter((name) => extname(name).toLowerCase() === '.json' && !name.startsWith('_'))
     .sort((a, b) => a.localeCompare(b));
@@ -253,7 +319,9 @@ async function main(): Promise<void> {
         scenario,
         promptVersion,
         args.llmMode,
+        args.llmModel,
         args.oddsMode,
+        args.llmCacheDir,
       ));
       if (args.delayMs > 0 && index < scenarios.length - 1) {
         await sleep(args.delayMs);
@@ -271,6 +339,16 @@ async function main(): Promise<void> {
       variantEvaluations.get(promptVersion) ?? [],
     )),
   };
+  const casesPayload = {
+    generatedAt: summary.generatedAt,
+    totalScenarios: scenarios.length,
+    promptVersions: args.promptVersions,
+    variants: args.promptVersions.map((promptVersion) => ({
+      promptVersion,
+      summary: summarizeSettledReplayVariant(promptVersion, variantEvaluations.get(promptVersion) ?? []),
+      cases: variantEvaluations.get(promptVersion) ?? [],
+    })),
+  };
 
   if (args.reportJsonPath) {
     mkdirSync(dirname(args.reportJsonPath), { recursive: true });
@@ -279,6 +357,10 @@ async function main(): Promise<void> {
   if (args.reportMdPath) {
     mkdirSync(dirname(args.reportMdPath), { recursive: true });
     writeFileSync(args.reportMdPath, buildMarkdownReport(summary));
+  }
+  if (args.reportCasesJsonPath) {
+    mkdirSync(dirname(args.reportCasesJsonPath), { recursive: true });
+    writeFileSync(args.reportCasesJsonPath, JSON.stringify(casesPayload, null, 2));
   }
 
   console.log(JSON.stringify(summary, null, 2));

@@ -119,7 +119,7 @@ function RecommendationCardBase({ rec, lang, onViewMatch, adminAction }: Props) 
         </div>
       </div>
 
-      {/* Core Bet Info */}
+      {/* Core pick info */}
       <div style={{ padding: '10px 14px', display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(90px, 1fr))', gap: '8px' }}>
 
         <div>
@@ -223,7 +223,7 @@ function RecommendationCardBase({ rec, lang, onViewMatch, adminAction }: Props) 
         </div>
       )}
 
-      {/* AI Reasoning */}
+      {/* Reasoning */}
       {reasoning && (
         <div style={{ borderTop: '1px solid var(--gray-100)' }}>
           <button
@@ -233,7 +233,10 @@ function RecommendationCardBase({ rec, lang, onViewMatch, adminAction }: Props) 
             }}
             onClick={() => setReasoningExpanded((v) => !v)}
           >
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--gray-400)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><title>AI Reasoning</title><line x1="12" y1="2" x2="12" y2="3"/><path d="M12 6a6 6 0 0 1 6 6c0 2.5-1.5 4.5-3.5 5.5V19a1 1 0 0 1-1 1h-3a1 1 0 0 1-1-1v-1.5C7.5 16.5 6 14.5 6 12a6 6 0 0 1 6-6z"/><line x1="9" y1="21" x2="15" y2="21"/></svg>
+            <span style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--gray-400)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden><line x1="12" y1="2" x2="12" y2="3"/><path d="M12 6a6 6 0 0 1 6 6c0 2.5-1.5 4.5-3.5 5.5V19a1 1 0 0 1-1 1h-3a1 1 0 0 1-1-1v-1.5C7.5 16.5 6 14.5 6 12a6 6 0 0 1 6-6z"/><line x1="9" y1="21" x2="15" y2="21"/></svg>
+              <span style={{ fontSize: '11px', fontWeight: 600, color: 'var(--gray-600)' }}>Reasoning</span>
+            </span>
             <span style={{ fontSize: '10px', color: 'var(--gray-400)' }}>{reasoningExpanded ? '▲' : '▼'}</span>
           </button>
           {reasoningExpanded && (

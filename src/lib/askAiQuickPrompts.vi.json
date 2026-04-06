@@ -1,0 +1,26 @@
+[
+  {
+    "id": "ou_now",
+    "text": "Tài xỉu với tỷ số hiện tại còn hợp lý không?"
+  },
+  {
+    "id": "ah_vs_ou",
+    "text": "Nên ưu tiên kèo châu Á hay tài xỉu lúc này?"
+  },
+  {
+    "id": "late_goal",
+    "text": "Rủi ro bàn muộn: có nên tránh kèo xỉu / nghiêng tài?"
+  },
+  {
+    "id": "line_move",
+    "text": "Biến động kèo thế nào — bên nào có vẻ sai giá?"
+  },
+  {
+    "id": "wait",
+    "text": "Phút này nên vào luôn hay chờ số đẹp hơn?"
+  },
+  {
+    "id": "sides",
+    "text": "Chủ/khách: bên nào vẫn còn cửa hợp lý?"
+  }
+]

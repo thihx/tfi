@@ -79,12 +79,12 @@ describe('MatchCard', () => {
   it('renders prediction badge when present', () => {
     const m: Match = { ...BASE_MATCH, prediction: 'Over 2.5' };
     render(<MatchCard match={m} />);
-    expect(screen.getByText('🤖 Over 2.5')).toBeInTheDocument();
+    expect(screen.getByText('Over 2.5')).toBeInTheDocument();
   });
 
   it('does not render prediction section when absent', () => {
     render(<MatchCard match={BASE_MATCH} />);
-    expect(screen.queryByText(/🤖/)).not.toBeInTheDocument();
+    expect(screen.queryByText('Over 2.5')).not.toBeInTheDocument();
   });
 
   it('renders team logo images', () => {
@@ -111,7 +111,6 @@ describe('MatchCard', () => {
   it('does not crash when onClick is not provided', () => {
     render(<MatchCard match={BASE_MATCH} />);
     fireEvent.click(screen.getByText('Arsenal'));
-    // no error
   });
 
   it('renders action buttons', () => {
@@ -120,19 +119,19 @@ describe('MatchCard', () => {
       <MatchCard
         match={BASE_MATCH}
         actions={[
-          { label: 'Ask AI', onClick: onAction, variant: 'primary' },
+          { label: 'Analysis', onClick: onAction, variant: 'primary' },
           { label: 'Watch', onClick: vi.fn(), variant: 'secondary' },
         ]}
       />,
     );
-    expect(screen.getByText('Ask AI')).toBeInTheDocument();
+    expect(screen.getByText('Analysis')).toBeInTheDocument();
     expect(screen.getByText('Watch')).toBeInTheDocument();
   });
 
   it('fires action callback with match data', () => {
     const onAction = vi.fn();
-    render(<MatchCard match={BASE_MATCH} actions={[{ label: 'Ask AI', onClick: onAction }]} />);
-    fireEvent.click(screen.getByText('Ask AI'));
+    render(<MatchCard match={BASE_MATCH} actions={[{ label: 'Analysis', onClick: onAction }]} />);
+    fireEvent.click(screen.getByText('Analysis'));
     expect(onAction).toHaveBeenCalledWith(BASE_MATCH);
   });
 
@@ -143,17 +142,17 @@ describe('MatchCard', () => {
       <MatchCard
         match={BASE_MATCH}
         onClick={cardClick}
-        actions={[{ label: 'Ask AI', onClick: actionClick }]}
+        actions={[{ label: 'Analysis', onClick: actionClick }]}
       />,
     );
-    fireEvent.click(screen.getByText('Ask AI'));
+    fireEvent.click(screen.getByText('Analysis'));
     expect(actionClick).toHaveBeenCalled();
     expect(cardClick).not.toHaveBeenCalled();
   });
 
   it('disables action button when disabled=true', () => {
-    render(<MatchCard match={BASE_MATCH} actions={[{ label: 'Ask AI', onClick: vi.fn(), disabled: true }]} />);
-    expect(screen.getByText('Ask AI')).toBeDisabled();
+    render(<MatchCard match={BASE_MATCH} actions={[{ label: 'Analysis', onClick: vi.fn(), disabled: true }]} />);
+    expect(screen.getByText('Analysis')).toBeDisabled();
   });
 
   it('applies highlighted outline style', () => {
@@ -162,13 +161,10 @@ describe('MatchCard', () => {
     expect(card.style.outline).toBe('2px solid var(--primary)');
   });
 
-  it('shows progress bar only for live matches', () => {
+  it('marks only live matches with the live class', () => {
     const { container: liveContainer } = render(<MatchCard match={LIVE_MATCH} />);
     const { container: nsContainer } = render(<MatchCard match={BASE_MATCH} />);
-    // Live match has a progress bar div (height 3px)
-    const liveProgressDivs = liveContainer.querySelectorAll('[style*="height: 3px"]');
-    const nsProgressDivs = nsContainer.querySelectorAll('[style*="height: 3px"]');
-    expect(liveProgressDivs.length).toBeGreaterThan(0);
-    expect(nsProgressDivs.length).toBe(0);
+    expect(liveContainer.querySelector('.match-is-live')).toBeTruthy();
+    expect(nsContainer.querySelector('.match-is-live')).toBeNull();
   });
 });

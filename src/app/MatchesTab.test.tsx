@@ -246,12 +246,12 @@ beforeEach(async () => {
 });
 
 describe('MatchesTab', () => {
-  it('uses the server pipeline for Ask AI and renders the returned analysis', async () => {
+  it('uses the server pipeline for match analysis and renders the returned analysis', async () => {
     const user = userEvent.setup();
     render(<MatchesTab />);
 
     await user.click(screen.getByTitle('Card view'));
-    await user.click(screen.getByRole('button', { name: 'Run AI analysis' }));
+    await user.click(screen.getByRole('button', { name: 'Run match analysis' }));
 
     await waitFor(() => {
       expect(mockAnalyzeMatchWithServerPipeline).toHaveBeenCalledWith(
@@ -261,8 +261,8 @@ describe('MatchesTab', () => {
       );
     });
 
-    expect(await screen.findByText(/AI Analysis/i)).toBeInTheDocument();
-    expect(screen.getByText('AI Push')).toBeInTheDocument();
+    expect(await screen.findByText(/Match analysis/i)).toBeInTheDocument();
+    expect(screen.getByText('Signal')).toBeInTheDocument();
     expect(screen.getByText('Over 2.5')).toBeInTheDocument();
     expect(screen.getByText('Ap luc tang dan')).toBeInTheDocument();
     expect(screen.getByText('Strong prematch context')).toBeInTheDocument();
@@ -275,12 +275,12 @@ describe('MatchesTab', () => {
     render(<MatchesTab />);
 
     await user.click(screen.getByTitle('Card view'));
-    const askAiButton = screen.getByRole('button', { name: 'Run AI analysis' });
+    const askAiButton = screen.getByRole('button', { name: 'Run match analysis' });
 
     await user.click(askAiButton);
     await waitFor(() => expect(mockAnalyzeMatchWithServerPipeline).toHaveBeenCalledTimes(1));
 
-    await user.click(screen.getByRole('button', { name: 'View AI result' }));
+    await user.click(screen.getByRole('button', { name: 'View analysis result' }));
 
     expect(mockAnalyzeMatchWithServerPipeline).toHaveBeenCalledTimes(1);
   });
@@ -343,8 +343,8 @@ describe('MatchesTab', () => {
     render(<MatchesTab />);
 
     await user.click(screen.getByTitle('Card view'));
-    await user.click(screen.getByRole('button', { name: 'Run AI analysis' }));
-    expect(await screen.findByText(/AI Analysis/i)).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Run match analysis' }));
+    expect(await screen.findByText(/Match analysis/i)).toBeInTheDocument();
 
     await user.type(screen.getByLabelText('Follow-up question for this match'), 'What about Home -0.25 here?');
     await user.keyboard('{Enter}');
@@ -362,7 +362,7 @@ describe('MatchesTab', () => {
     });
 
     expect(screen.getByText('What about Home -0.25 here?')).toBeInTheDocument();
-    expect(screen.getByLabelText('AI')).toBeInTheDocument();
+    expect(screen.getByLabelText('Assistant reply')).toBeInTheDocument();
     expect(screen.getByText('Keo Home -0.25 van co the can nhac, nhung chua tot hon over hien tai.')).toBeInTheDocument();
     expect(screen.getByText('Advisory follow-up')).toBeInTheDocument();
   });

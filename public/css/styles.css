@@ -4495,10 +4495,3 @@ tbody tr.date-group-row:hover {
   }
 }
 
-/* Ask AI split: hide default disclosure triangle on <summary> */
-.ask-ai-split__summary::-webkit-details-marker {
-  display: none;
-}
-.ask-ai-split__summary {
-  list-style: none;
-}

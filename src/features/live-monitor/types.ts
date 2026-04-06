@@ -35,6 +35,11 @@ export interface LiveMonitorConfig {
   WEB_PUSH_ENABLED?: boolean;
   AUTO_APPLY_RECOMMENDED_CONDITION?: boolean;
   SUGGESTED_TOP_LEAGUE_IDS?: number[];
+  /** Per-user Ask AI chip prompts; empty list falls back to built-in defaults. */
+  ASK_AI_QUICK_PROMPTS_BY_LOCALE?: {
+    en?: { id: string; text: string }[];
+    vi?: { id: string; text: string }[];
+  };
   MIN_MINUTE?: number;
   MAX_MINUTE?: number;
   SECOND_HALF_START_MINUTE?: number;

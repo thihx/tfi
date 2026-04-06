@@ -14,6 +14,11 @@ import {
   unsubscribePush,
 } from '@/lib/services/push';
 import { fetchMonitorConfig, persistMonitorConfig } from '@/features/live-monitor/config';
+import {
+  askAiQuickPromptItemsToLines,
+  linesToAskAiQuickPromptItems,
+  type AskAiQuickPromptItem,
+} from '@/lib/askAiQuickPrompts';
 import { buildTimeZoneOptions, DEFAULT_APP_TIMEZONE, detectBrowserTimeZone } from '@/lib/utils/timezone';
 import type { NotificationChannelConfig, NotificationChannelType } from '@/types';
 
@@ -135,6 +140,9 @@ export function ProfileEditModal({ open, onClose, user, onUserChange }: ProfileE
   const [notificationChannels, setNotificationChannels] = useState<NotificationChannelConfig[]>([]);
   const [channelAddresses, setChannelAddresses] = useState<Record<string, string>>({});
   const [channelSaving, setChannelSaving] = useState<Record<string, boolean>>({});
+  const [enQuickLines, setEnQuickLines] = useState('');
+  const [viQuickLines, setViQuickLines] = useState('');
+  const [savingQuickPrompts, setSavingQuickPrompts] = useState(false);
 
   const telegramChannel = notificationChannels.find((channel) => channel.channelType === 'telegram') ?? null;
   const emailChannel = notificationChannels.find((channel) => channel.channelType === 'email') ?? null;
@@ -170,6 +178,17 @@ export function ProfileEditModal({ open, onClose, user, onUserChange }: ProfileE
           setNotificationLanguage((config.NOTIFICATION_LANGUAGE as 'vi' | 'en' | 'both') || 'vi');
           setAutoApplyRecommendedCondition(config.AUTO_APPLY_RECOMMENDED_CONDITION !== false);
           setWebPushEnabled(config.WEB_PUSH_ENABLED === true);
+          const by = config.ASK_AI_QUICK_PROMPTS_BY_LOCALE;
+          if (by?.en?.length) {
+            setEnQuickLines(askAiQuickPromptItemsToLines(by.en as AskAiQuickPromptItem[]));
+          } else {
+            setEnQuickLines('');
+          }
+          if (by?.vi?.length) {
+            setViQuickLines(askAiQuickPromptItemsToLines(by.vi as AskAiQuickPromptItem[]));
+          } else {
+            setViQuickLines('');
+          }
         }
         setNotificationChannels(channels);
         setChannelAddresses(
@@ -224,6 +243,23 @@ export function ProfileEditModal({ open, onClose, user, onUserChange }: ProfileE
     } catch {
       setUiLanguage(previous);
       showToast('Failed to save UI language', 'error');
+    }
+  };
+
+  const handleSaveAskAiQuickPrompts = async () => {
+    setSavingQuickPrompts(true);
+    try {
+      await persistMonitorConfig({
+        ASK_AI_QUICK_PROMPTS_BY_LOCALE: {
+          en: linesToAskAiQuickPromptItems(enQuickLines),
+          vi: linesToAskAiQuickPromptItems(viQuickLines),
+        },
+      });
+      showToast('Ask AI quick prompts saved', 'success');
+    } catch (err) {
+      showToast(err instanceof Error ? err.message : 'Failed to save quick prompts', 'error');
+    } finally {
+      setSavingQuickPrompts(false);
     }
   };
 
@@ -284,7 +320,7 @@ export function ProfileEditModal({ open, onClose, user, onUserChange }: ProfileE
     setAutoApplyRecommendedCondition(enabled);
     try {
       await persistMonitorConfig({ AUTO_APPLY_RECOMMENDED_CONDITION: enabled });
-      showToast(enabled ? 'AI trigger auto-apply enabled' : 'AI trigger auto-apply disabled', 'success');
+      showToast(enabled ? 'Suggested trigger auto-apply enabled' : 'Suggested trigger auto-apply disabled', 'success');
     } catch {
       setAutoApplyRecommendedCondition(previous);
       showToast('Failed to save watchlist preference', 'error');
@@ -474,7 +510,7 @@ export function ProfileEditModal({ open, onClose, user, onUserChange }: ProfileE
           <div style={{ padding: '0 16px' }}>
             <PrefRow
               label="UI Language"
-              hint="Controls which language AI reasoning text is displayed in."
+              hint="Controls which language reasoning text is displayed in."
             >
               <select
                 className="job-interval-select"
@@ -502,6 +538,44 @@ export function ProfileEditModal({ open, onClose, user, onUserChange }: ProfileE
               </select>
             </PrefRow>
           </div>
+          <div style={{ padding: '12px 16px 16px', borderTop: '1px solid var(--gray-100)' }}>
+            <div style={{ fontSize: '12px', fontWeight: 600, color: 'var(--gray-700)', marginBottom: '4px' }}>
+              Ask AI — quick prompts
+            </div>
+            <div style={{ fontSize: '11px', color: 'var(--gray-500)', marginBottom: '10px', lineHeight: 1.45 }}>
+              One line per chip (max 12 lines, 100 characters each). Leave empty to use the built-in defaults for that language.
+            </div>
+            <div style={{ marginBottom: '10px' }}>
+              <div style={{ fontSize: '11px', fontWeight: 600, color: 'var(--gray-600)', marginBottom: '4px' }}>English</div>
+              <textarea
+                className="filter-input"
+                value={enQuickLines}
+                onChange={(e) => setEnQuickLines(e.target.value)}
+                placeholder="e.g. Is the over/under still fair?"
+                rows={4}
+                style={{ width: '100%', fontSize: '12px', lineHeight: 1.4, resize: 'vertical', boxSizing: 'border-box' }}
+              />
+            </div>
+            <div style={{ marginBottom: '10px' }}>
+              <div style={{ fontSize: '11px', fontWeight: 600, color: 'var(--gray-600)', marginBottom: '4px' }}>Vietnamese</div>
+              <textarea
+                className="filter-input"
+                value={viQuickLines}
+                onChange={(e) => setViQuickLines(e.target.value)}
+                placeholder="Ví dụ: Tài xỉu với tỷ số hiện tại còn hợp lý không?"
+                rows={4}
+                style={{ width: '100%', fontSize: '12px', lineHeight: 1.4, resize: 'vertical', boxSizing: 'border-box' }}
+              />
+            </div>
+            <button
+              type="button"
+              className="btn btn-secondary btn-sm"
+              disabled={savingQuickPrompts}
+              onClick={() => void handleSaveAskAiQuickPrompts()}
+            >
+              {savingQuickPrompts ? 'Saving…' : 'Save quick prompts'}
+            </button>
+          </div>
         </div>
       )}
 
@@ -528,7 +602,7 @@ export function ProfileEditModal({ open, onClose, user, onUserChange }: ProfileE
                   </span>
                 </div>
                 <div style={{ fontSize: '11px', color: 'var(--gray-500)', marginTop: '3px' }}>
-                  {telegramReady ? 'Ready to receive AI recommendations via Telegram.' : telegramEnabled ? 'Add a chat ID below to complete setup.' : 'Telegram delivery is off for this account.'}
+                  {telegramReady ? 'Ready to receive recommendations via Telegram.' : telegramEnabled ? 'Add a chat ID below to complete setup.' : 'Telegram delivery is off for this account.'}
                 </div>
               </div>
               <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
@@ -664,13 +738,13 @@ export function ProfileEditModal({ open, onClose, user, onUserChange }: ProfileE
           </div>
           <div style={{ padding: '0 16px' }}>
             <PrefRow
-              label="Auto-apply AI suggested trigger condition"
-              hint="For new or safely updatable watchlist entries, copy the AI recommendation into Trigger Condition by default."
+              label="Auto-apply suggested trigger condition"
+              hint="For new or safely updatable watchlist entries, copy the suggested recommendation into Trigger Condition by default."
             >
               <Toggle
                 on={autoApplyRecommendedCondition}
                 onChange={(value) => void handleAutoApplyRecommendedCondition(value)}
-                label="Toggle AI trigger auto-apply"
+                label="Toggle suggested trigger auto-apply"
               />
             </PrefRow>
           </div>

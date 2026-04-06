@@ -287,7 +287,7 @@ function ImportReview({ summary, repaired }: { summary: ImportFieldResult[]; rep
         </div>
       )}
       <div style={{ fontSize: 12, color: 'var(--gray-500)', marginBottom: 10 }}>
-        <strong style={{ color: '#10b981' }}>{setCount}</strong> of {summary.length} fields set by AI
+        <strong style={{ color: '#10b981' }}>{setCount}</strong> of {summary.length} fields set automatically
         {' · '}<span style={{ color: 'var(--gray-400)' }}>{summary.length - setCount} using defaults</span>
       </div>
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '4px 12px' }}>
@@ -551,7 +551,7 @@ export function TeamProfileModal({
                     </div>
                   )}
                   <p style={{ fontSize: 13, color: 'var(--gray-600)' }}>
-                    Copy this prompt and paste it into an AI research tool (ChatGPT Deep Research, Gemini, Perplexity, etc.) to generate a tactical overlay with source audit. Quantitative core metrics stay unchanged.
+                    Copy this prompt and paste it into a research assistant (ChatGPT Deep Research, Gemini, Perplexity, etc.) to generate a tactical overlay with source audit. Quantitative core metrics stay unchanged.
                   </p>
                   <pre style={{
                     background: 'var(--gray-50)', border: '1px solid var(--gray-200)',
@@ -570,7 +570,7 @@ export function TeamProfileModal({
               {wizardStep === 2 && (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
                   <p style={{ fontSize: 13, color: 'var(--gray-600)' }}>
-                    Paste the JSON response from the AI tool below. The expected contract is versioned and target-specific so it stays aligned with the tactical overlay schema.
+                    Paste the JSON response from the research tool below. The expected contract is versioned and target-specific so it stays aligned with the tactical overlay schema.
                   </p>
                   <textarea
                     value={jsonInput}

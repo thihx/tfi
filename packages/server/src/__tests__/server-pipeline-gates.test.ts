@@ -89,6 +89,13 @@ describe('checkStalenessServer', () => {
       minute: 65,
       status: '2H',
       score: '1-1',
+      statsCompact: {
+        possession: { home: '50', away: '50' },
+        shots: { home: '8', away: '8' },
+        shots_on_target: { home: '2', away: '2' },
+        corners: { home: '4', away: '4' },
+        fouls: { home: '10', away: '10' },
+      },
       eventsCompact: [],
       oddsCanonical: {
         ou: { line: 2.5, over: 1.85, under: 2.0 },
@@ -100,13 +107,58 @@ describe('checkStalenessServer', () => {
         odds: {
           ou: { line: 2.5, over: 1.85, under: 2.0 },
         },
+        stats: {
+          possession: { home: '50', away: '50' },
+          shots: { home: '8', away: '8' },
+          shots_on_target: { home: '2', away: '2' },
+          corners: { home: '4', away: '4' },
+          fouls: { home: '10', away: '10' },
+        },
       },
       settings: stalenessSettings,
     });
 
     expect(result.isStale).toBe(true);
-    expect(result.reason).toBe('no_significant_change');
+    expect(result.reason).toBe('snapshot_stats_unchanged');
     expect(result.baseline).toBe('snapshot');
+  });
+
+  test('re-analyzes when snapshot stats changed even if score and odds did not', () => {
+    const result = checkStalenessServer({
+      minute: 65,
+      status: '2H',
+      score: '1-1',
+      statsCompact: {
+        possession: { home: '50', away: '50' },
+        shots: { home: '9', away: '8' },
+        shots_on_target: { home: '2', away: '2' },
+        corners: { home: '4', away: '4' },
+        fouls: { home: '10', away: '10' },
+      },
+      eventsCompact: [],
+      oddsCanonical: {
+        ou: { line: 2.5, over: 1.85, under: 2.0 },
+      },
+      previousSnapshot: {
+        minute: 63,
+        home_score: 1,
+        away_score: 1,
+        odds: {
+          ou: { line: 2.5, over: 1.85, under: 2.0 },
+        },
+        stats: {
+          possession: { home: '50', away: '50' },
+          shots: { home: '8', away: '8' },
+          shots_on_target: { home: '2', away: '2' },
+          corners: { home: '4', away: '4' },
+          fouls: { home: '10', away: '10' },
+        },
+      },
+      settings: stalenessSettings,
+    });
+
+    expect(result.isStale).toBe(false);
+    expect(result.reason).toBe('time_elapsed');
   });
 
   test('re-analyzes when a goal happened after the baseline minute', () => {

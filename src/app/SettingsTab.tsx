@@ -1076,7 +1076,7 @@ function SubscriptionManagementPanel() {
     <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
       <div className="settings-toolbar-row">
         <div style={{ fontSize: '11px', color: 'var(--gray-500)' }}>
-          Plans are commercial access tiers, separate from internal roles. Enforced on Ask AI, watchlist capacity, and notification channels.
+          Plans are commercial access tiers, separate from internal roles. Enforced on match analysis, watchlist capacity, and notification channels.
         </div>
         <button className="btn btn-secondary btn-sm" onClick={() => { void loadAll(); }} disabled={loading || planSavingCode != null || userSavingId != null} style={{ flexShrink: 0 }}>
           {loading ? 'Refreshing...' : 'Refresh'}

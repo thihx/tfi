@@ -18,7 +18,7 @@ const FEATURES = [
       </svg>
     ),
     title: 'Data, Not Guesswork',
-    desc: 'Every bet is backed by live stats and AI analysis — no gut feeling.',
+    desc: 'Every pick is backed by live stats and structured analysis — no gut feeling.',
   },
   {
     icon: (
@@ -44,8 +44,8 @@ const FEATURES = [
         <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/>
       </svg>
     ),
-    title: 'Bet at the Right Moment',
-    desc: 'Set triggers on goals, cards, or match time — AI alerts you instantly so you never miss the window.',
+    title: 'Act at the Right Moment',
+    desc: 'Set triggers on goals, cards, or match time — instant alerts so you never miss the window.',
   },
   {
     icon: (
@@ -54,7 +54,7 @@ const FEATURES = [
       </svg>
     ),
     title: 'Get Your Time Back',
-    desc: 'Stop watching matches. Do what you love — your AI never takes a break.',
+    desc: 'Stop watching matches. Do what you love — monitoring runs 24/7.',
   },
 ];
 
@@ -124,7 +124,7 @@ export function LoginScreen({ onLogin, error }: LoginScreenProps) {
               <span style={{ color: '#f59e0b' }}>Start Profiting.</span>
             </h1>
             <p style={{ color: 'rgba(255,255,255,0.45)', fontSize: '13.5px', lineHeight: 1.6, margin: 0, whiteSpace: 'nowrap' }}>
-              AI monitors every match and acts at the right moment — focus on what matters.
+              The system monitors every match and acts at the right moment — focus on what matters.
             </p>
           </div>
 

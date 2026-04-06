@@ -118,7 +118,7 @@ function buildEmailHtml(ctx: NotificationContext): string {
 
   const headerColor = section === 'ai_recommendation' ? '#2e7d32' :
     section === 'condition_triggered' ? '#e65100' : '#616161';
-  const headerText = section === 'ai_recommendation' ? '🎯 AI RECOMMENDATION' :
+  const headerText = section === 'ai_recommendation' ? '🎯 RECOMMENDATION' :
     section === 'condition_triggered' ? '⚡ CONDITION TRIGGERED' : '📊 MATCH ANALYSIS (No Actionable)';
 
   let html = `
@@ -134,7 +134,7 @@ function buildEmailHtml(ctx: NotificationContext): string {
     <table style="width:100%;border-collapse:collapse;font-size:13px;">
       <tr><td style="padding:4px 8px;color:#666;">Score</td><td style="padding:4px 8px;font-weight:bold;">${esc(rec.score)} (${esc(String(rec.minute))}' - ${esc(rec.status)})</td></tr>
       <tr><td style="padding:4px 8px;color:#666;">Mode</td><td style="padding:4px 8px;">${esc(rec.mode)}</td></tr>
-      <tr><td style="padding:4px 8px;color:#666;">AI Model</td><td style="padding:4px 8px;">${esc(rec.ai_model)}</td></tr>
+      <tr><td style="padding:4px 8px;color:#666;">Model</td><td style="padding:4px 8px;">${esc(rec.ai_model)}</td></tr>
     </table>`;
 
   // Section-specific content
@@ -345,13 +345,13 @@ function buildTelegramCaption(ctx: NotificationContext): string {
   const events = sortEvents(matchData.events_compact || []);
 
   const emoji = section === 'ai_recommendation' ? '🎯' : section === 'condition_triggered' ? '⚡' : '📊';
-  const label = section === 'ai_recommendation' ? 'AI RECOMMENDATION' : section === 'condition_triggered' ? 'CONDITION TRIGGERED' : 'MATCH ANALYSIS';
+  const label = section === 'ai_recommendation' ? 'RECOMMENDATION' : section === 'condition_triggered' ? 'CONDITION TRIGGERED' : 'MATCH ANALYSIS';
 
   let text = `<b>${emoji} ${label}</b>\n`;
   text += `<b>${safeHtml(rec.match_display)}</b>\n`;
   text += `${safeHtml(rec.league)}\n`;
   text += `⏱ ${safeHtml(String(rec.minute))}' | 📋 ${safeHtml(rec.score)} | ${safeHtml(rec.status)}\n`;
-  text += `🤖 ${safeHtml(rec.ai_model)} | Mode: ${safeHtml(rec.mode)}\n`;
+  text += `Mode: ${safeHtml(rec.mode)}\n`;
 
   if (section === 'ai_recommendation') {
     text += `\n<b>💰 ${safeHtml(rec.selection)}</b>\n`;
@@ -380,7 +380,7 @@ function buildTelegramCaption(ctx: NotificationContext): string {
     text += `\n⚠️ ${safeHtml(allWarnings.slice(0, 3).join(' | '))}\n`;
   }
 
-  text += `\n<i>👆 Ask AI | ${safeHtml(formatLocalDateTime(new Date().toISOString()))}</i>`;
+  text += `\n<i>👆 Match analysis | ${safeHtml(formatLocalDateTime(new Date().toISOString()))}</i>`;
 
   return safeTruncateCaption(text);
 }
@@ -430,7 +430,7 @@ function buildTelegramMessages(ctx: NotificationContext): string[] {
 
   const headerEmoji = section === 'ai_recommendation' ? '🎯' :
     section === 'condition_triggered' ? '⚡' : '📊';
-  const headerLabel = section === 'ai_recommendation' ? 'AI RECOMMENDATION' :
+  const headerLabel = section === 'ai_recommendation' ? 'RECOMMENDATION' :
     section === 'condition_triggered' ? 'CONDITION TRIGGERED' : 'MATCH ANALYSIS';
 
   let text = '';
@@ -438,7 +438,7 @@ function buildTelegramMessages(ctx: NotificationContext): string[] {
   text += `<b>${safeHtml(rec.match_display)}</b>\n`;
   text += `${safeHtml(rec.league)}\n`;
   text += `⏱ ${safeHtml(String(rec.minute))}' | 📋 ${safeHtml(rec.score)} | ${safeHtml(rec.status)}\n`;
-  text += `🤖 ${safeHtml(rec.ai_model)} | Mode: ${safeHtml(rec.mode)}\n`;
+  text += `Mode: ${safeHtml(rec.mode)}\n`;
   text += '\n';
 
   if (section === 'ai_recommendation') {
@@ -499,7 +499,7 @@ function buildTelegramMessages(ctx: NotificationContext): string[] {
     text += `\n⚠️ <b>Warnings:</b> ${safeHtml(allWarnings.join(', '))}\n`;
   }
 
-  text += `\n<i>👆 Ask AI | ${safeHtml(formatLocalDateTime(new Date().toISOString()))}</i>`;
+  text += `\n<i>👆 Match analysis | ${safeHtml(formatLocalDateTime(new Date().toISOString()))}</i>`;
 
   return chunkMessage(text);
 }

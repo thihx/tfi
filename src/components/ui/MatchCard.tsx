@@ -204,7 +204,7 @@ function MatchCardBase({ match, actions, highlighted, watchedAction, flashMap, o
                 onMouseEnter={() => setEyeHovered(true)}
                 onMouseLeave={() => setEyeHovered(false)}
                 disabled={watchedAction.isPendingRemove}
-                title={watchedAction.isPendingRemove ? 'Removing…' : watchedAction.isPlaying ? 'AI is watching — click to unwatch' : 'Click to unwatch'}
+                title={watchedAction.isPendingRemove ? 'Removing…' : watchedAction.isPlaying ? 'Analysis active — click to unwatch' : 'Click to unwatch'}
                 aria-label={watchedAction.isPendingRemove ? 'Removing…' : 'Unwatch this match'}
                 style={{
                   background: eyeHovered ? 'rgba(239,68,68,0.12)' : 'rgba(16,185,129,0.12)',

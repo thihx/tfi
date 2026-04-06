@@ -57,7 +57,9 @@ export interface ReplayScenario {
     minute: number;
     home_score: number;
     away_score: number;
+    status?: string | null;
     odds: Record<string, unknown>;
+    stats?: Record<string, unknown>;
   } | null;
   expected?: {
     shouldPush?: boolean;
@@ -82,6 +84,8 @@ export interface ReplayRunOptions {
   shadowMode?: boolean;
   sampleProviderData?: boolean;
   promptVersionOverride?: LiveAnalysisPromptVersion;
+  capturedAiText?: string;
+  advisoryOnly?: boolean;
 }
 
 export interface ReplayAssertionResult {
@@ -323,7 +327,9 @@ export async function runReplayScenario(
     );
   }
 
-  if (llmMode === 'mock') {
+  if (typeof options.capturedAiText === 'string') {
+    dependencies.callGemini = async () => options.capturedAiText as string;
+  } else if (llmMode === 'mock') {
     dependencies.callGemini = async () => scenario.mockAiText ?? DEFAULT_MOCK_AI_TEXT;
   }
 
@@ -335,6 +341,7 @@ export async function runReplayScenario(
       shadowMode,
       sampleProviderData,
       skipSettingsLoad: true,
+      advisoryOnly: options.advisoryOnly,
       forceAnalyze: scenario.pipelineOptions?.forceAnalyze,
       skipProceedGate: scenario.pipelineOptions?.skipProceedGate,
       skipStalenessGate: scenario.pipelineOptions?.skipStalenessGate,

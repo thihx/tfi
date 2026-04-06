@@ -1,5 +1,6 @@
 import { mkdirSync, readdirSync, writeFileSync } from 'node:fs';
 import { dirname, extname, join, resolve } from 'node:path';
+import { config } from '../config.js';
 import {
   loadReplayScenarioFromFile,
   runReplayScenario,
@@ -10,6 +11,8 @@ import {
 interface SuiteArgs {
   dirPath: string;
   options: ReplayRunOptions;
+  llmModel?: string;
+  allowRealLlm: boolean;
   delayMs: number;
   retries: number;
   reportJsonPath?: string;
@@ -21,6 +24,8 @@ function parseArgs(argv: string[]): SuiteArgs {
   let delayMs = 750;
   let retries = 0;
   const options: ReplayRunOptions = {};
+  let llmModel: string | undefined;
+  let allowRealLlm = process.env['ALLOW_REAL_LLM_REPLAY'] === 'true';
   let reportJsonPath: string | undefined;
   let reportMdPath: string | undefined;
 
@@ -35,6 +40,15 @@ function parseArgs(argv: string[]): SuiteArgs {
     if (arg === '--llm' && next && (next === 'real' || next === 'mock')) {
       options.llmMode = next;
       i++;
+      continue;
+    }
+    if (arg === '--model' && next) {
+      llmModel = next;
+      i++;
+      continue;
+    }
+    if (arg === '--allow-real-llm') {
+      allowRealLlm = true;
       continue;
     }
     if (arg === '--odds' && next && (next === 'recorded' || next === 'live' || next === 'mock')) {
@@ -78,12 +92,14 @@ function parseArgs(argv: string[]): SuiteArgs {
   }
 
   if (!dirPath) {
-    throw new Error('Usage: tsx src/scripts/replay-pipeline-suite.ts --dir <folder> [--llm real|mock] [--odds recorded|live|mock] [--delay-ms N] [--retries N] [--report-json <file>] [--report-md <file>] [--prompt-version <version>] [--no-shadow] [--sample-provider-data]');
+    throw new Error('Usage: tsx src/scripts/replay-pipeline-suite.ts --dir <folder> [--llm real|mock] [--model <gemini-model>] [--allow-real-llm] [--odds recorded|live|mock] [--delay-ms N] [--retries N] [--report-json <file>] [--report-md <file>] [--prompt-version <version>] [--no-shadow] [--sample-provider-data]');
   }
 
   return {
     dirPath: resolve(process.cwd(), dirPath),
     options,
+    llmModel,
+    allowRealLlm,
     delayMs,
     retries,
     reportJsonPath: reportJsonPath ? resolve(process.cwd(), reportJsonPath) : undefined,
@@ -236,6 +252,9 @@ function buildMarkdownReport(outputs: ReplayRunOutput[]): string {
 
 async function main(): Promise<void> {
   const args = parseArgs(process.argv.slice(2));
+  if (args.options.llmMode === 'real' && !args.allowRealLlm) {
+    throw new Error('Refusing to run real-LLM replay suite without explicit opt-in. Re-run with --allow-real-llm or set ALLOW_REAL_LLM_REPLAY=true.');
+  }
   const files = readdirSync(args.dirPath)
     .filter((name) => extname(name).toLowerCase() === '.json')
     .sort((a, b) => a.localeCompare(b));
@@ -248,7 +267,16 @@ async function main(): Promise<void> {
   for (let i = 0; i < files.length; i++) {
     const file = files[i]!;
     const scenario = loadReplayScenarioFromFile(join(args.dirPath, file));
-    let output = await runReplayScenario(scenario, args.options);
+    const replayScenario = {
+      ...scenario,
+      pipelineOptions: {
+        ...(scenario.pipelineOptions ?? {}),
+        modelOverride: args.options.llmMode === 'real'
+          ? (args.llmModel ?? scenario.pipelineOptions?.modelOverride ?? config.geminiModel)
+          : scenario.pipelineOptions?.modelOverride,
+      },
+    };
+    let output = await runReplayScenario(replayScenario, args.options);
     let attempts = 0;
     while (
       !output.result.success
@@ -259,7 +287,7 @@ async function main(): Promise<void> {
       if (args.delayMs > 0) {
         await sleep(args.delayMs);
       }
-      output = await runReplayScenario(scenario, args.options);
+      output = await runReplayScenario(replayScenario, args.options);
     }
     outputs.push(output);
     if (args.delayMs > 0 && i < files.length - 1) {
