@@ -20,9 +20,9 @@ import type { AuthUser } from '@/lib/services/auth';
 import { UserAvatar } from '@/components/ui/UserAvatar';
 
 const DECISION_META = {
-  ai_push: { label: 'AI Push', color: '#fff', bg: 'var(--green)' },
+  ai_push: { label: 'Signal', color: '#fff', bg: 'var(--green)' },
   condition_only: { label: 'Cond Only', color: '#fff', bg: 'var(--primary)' },
-  no_bet: { label: 'No Bet', color: 'var(--gray-500)', bg: 'var(--gray-100)' },
+  no_bet: { label: 'No pick', color: 'var(--gray-500)', bg: 'var(--gray-100)' },
 } satisfies Record<string, { label: string; color: string; bg: string }>;
 
 const RISK_COLOR: Record<string, string> = {
@@ -160,7 +160,7 @@ function MinuteBadge({ minute, status }: { minute: number | string; status?: str
   );
 }
 
-/** Same sparkle marks as the Ask AI control on Matches (SparkleIcon). */
+/** Same sparkle marks as the analysis control on Matches (SparkleIcon). */
 function AskAiSparkleIcon({ size = 15 }: { size?: number }) {
   return (
     <svg width={size} height={size} viewBox="0 0 24 24" fill="currentColor" aria-hidden style={{ display: 'block' }}>
@@ -187,7 +187,7 @@ function FollowUpThinkingBubble() {
       className="ai-followup-bubble"
       role="status"
       aria-live="polite"
-      aria-label="AI is thinking"
+      aria-label="Analysis in progress"
       style={{
         alignSelf: 'flex-start',
         maxWidth: '100%',
@@ -258,8 +258,8 @@ function FollowUpBubble({ message, user }: { message: AskAiFollowUpMessage; user
       <div style={{ display: 'flex', gap: '10px', alignItems: 'flex-start' }}>
         <span
           style={{ flexShrink: 0, display: 'flex', color: 'var(--gray-600)', marginTop: '2px' }}
-          title="AI"
-          aria-label="AI"
+          title="Assistant"
+          aria-label="Assistant reply"
         >
           <AskAiSparkleIcon size={15} />
         </span>
@@ -431,7 +431,7 @@ export function AiAnalysisPanel({ entry, onClose, onFollowUp }: Props) {
       <div className="ai-result-panel__inner">
         <div className="ai-result-panel__header" style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap', minWidth: 0 }}>
           <h4 style={{ margin: 0, fontSize: '13px', fontWeight: 700, color: 'var(--gray-800)', whiteSpace: 'nowrap' }}>
-            AI Analysis
+            Match analysis
           </h4>
           <span
             style={{
@@ -562,6 +562,11 @@ export function AiAnalysisPanel({ entry, onClose, onFollowUp }: Props) {
               <div style={{ fontSize: '11px', fontWeight: 700, color: 'var(--gray-500)', textTransform: 'uppercase', letterSpacing: '0.4px' }}>
                 Match Follow-up
               </div>
+              {followUps.length === 1 && followUps[0]?.role === 'user' ? (
+                <p style={{ margin: '0 0 6px', fontSize: '10px', color: 'var(--gray-500)', lineHeight: 1.45 }}>
+                  Main analysis is above. Your prompt is shown here so you can tell it shaped this run; continue chatting below if needed.
+                </p>
+              ) : null}
               <div className="ai-result-panel__chat-thread">
                 <div
                   ref={followUpScrollRef}
@@ -632,8 +637,8 @@ export function AiAnalysisPanel({ entry, onClose, onFollowUp }: Props) {
                 <button
                   type="button"
                   className="btn btn-secondary btn-sm"
-                  title={followUpInputLocked ? 'Waiting for AI…' : 'Send (Enter)'}
-                  aria-label={followUpInputLocked ? 'AI is replying' : 'Send follow-up'}
+                  title={followUpInputLocked ? 'Waiting for reply…' : 'Send (Enter)'}
+                  aria-label={followUpInputLocked ? 'Assistant is replying' : 'Send follow-up'}
                   aria-busy={followUpInputLocked}
                   onClick={() => void submitFollowUp()}
                   disabled={followUpInputLocked || followUpInput.trim().length === 0}

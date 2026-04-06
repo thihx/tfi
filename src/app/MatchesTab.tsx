@@ -21,6 +21,7 @@ import type { Match, SortState, League, WatchlistItem } from '@/types';
 import {
   analyzeMatchWithServerPipeline,
   type AskAiFollowUpMessage,
+  type ServerMatchPipelineResult,
   getParsedAiResult,
 } from '@/features/live-monitor/services/server-monitor.service';
 import { MatchScoutModal } from '@/components/ui/MatchScoutModal';
@@ -98,6 +99,20 @@ function getFollowUpAnswerText(result: ReturnType<typeof getParsedAiResult>): st
     || result.reasoning_en
     || 'The advisory follow-up returned no grounded answer for this match.'
   );
+}
+
+/** First run with a steered question: show user line in chat + optional short advisory reply (not full reasoning). */
+function buildInitialFollowUpMessages(
+  question: string,
+  matchResult: ServerMatchPipelineResult,
+): AskAiFollowUpMessage[] {
+  const parsed = getParsedAiResult(matchResult);
+  const messages: AskAiFollowUpMessage[] = [{ role: 'user', text: question }];
+  const reply = (parsed?.follow_up_answer_vi || parsed?.follow_up_answer_en || '').trim();
+  if (reply) {
+    messages.push({ role: 'assistant', text: reply });
+  }
+  return messages;
 }
 
 function getMatchKickoffTime(match: Match): Date {
@@ -730,11 +745,14 @@ export function MatchesTab() {
       });
       if (matchResult) {
         const parsed = getParsedAiResult(matchResult);
+        const steeredQuestion = opts?.question?.trim() ?? '';
         setAiResults((prev) => new Map(prev).set(mid, {
           matchId: mid,
           matchDisplay: `${m.home_team} vs ${m.away_team}`,
           result: matchResult,
-          followUpMessages: prev.get(mid)?.followUpMessages ?? [],
+          followUpMessages: steeredQuestion
+            ? buildInitialFollowUpMessages(steeredQuestion, matchResult)
+            : (prev.get(mid)?.followUpMessages ?? []),
         }));
         setLastAddedResultId(mid);
         if (parsed && matchResult.error) {
