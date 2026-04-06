@@ -51,7 +51,7 @@ vi.mock('../lib/gemini.js', () => ({
   callGemini: vi.fn(),
 }));
 vi.mock('../config.js', () => ({
-  config: { geminiApiKey: 'test-key', geminiModel: 'test-model' },
+  config: { geminiApiKey: 'test-key', geminiModel: 'test-model', geminiSettleModel: 'test-settle-model' },
 }));
 vi.mock('../lib/audit.js', () => ({
   audit: vi.fn(),

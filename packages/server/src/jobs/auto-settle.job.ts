@@ -235,7 +235,7 @@ export async function settleWithAI(
   bets: BetToSettle[],
 ): Promise<AISettleResult[]> {
   const prompt = buildStrictSettlePrompt(match, bets);
-  const model = config.geminiModel;
+  const model = config.geminiSettleModel;
   const aiText = await callGemini(prompt, model);
   return parseStrictSettleResponse(aiText, bets).map((row) => ({
     ...row,
