@@ -791,14 +791,12 @@ export function MatchesTab() {
     setAskAiDialogMatch(m);
   }, [analyzingMatches, watchlistMap, showToast]);
 
-  const handleAskAiDialogSubmit = useCallback(async (question: string) => {
+  /** Close the dialog immediately; pipeline runs in the background (same as quick run). */
+  const handleAskAiDialogSubmit = useCallback((question: string) => {
     if (!askAiDialogMatch) return;
     const m = askAiDialogMatch;
-    try {
-      await executeAskAiPipeline(m, { question });
-    } finally {
-      setAskAiDialogMatch(null);
-    }
+    setAskAiDialogMatch(null);
+    void executeAskAiPipeline(m, { question });
   }, [askAiDialogMatch, executeAskAiPipeline]);
 
   const askAiFollowUp = useCallback(async (
