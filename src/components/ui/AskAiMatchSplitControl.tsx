@@ -1,4 +1,4 @@
-import { useRef, type CSSProperties, type ReactNode } from 'react';
+import { type CSSProperties, type ReactNode } from 'react';
 
 function SparkleIcon({ size = 14 }: { size?: number }) {
   return (
@@ -18,6 +18,52 @@ function CheckGlyph() {
   );
 }
 
+/** Two people + overlapping speech bubbles (inline SVG — not emoji / icon font). */
+function TwoPeopleChatIcon({ size = 14 }: { size?: number }) {
+  return (
+    <svg
+      width={size}
+      height={size}
+      viewBox="0 0 24 24"
+      fill="none"
+      xmlns="http://www.w3.org/2000/svg"
+      aria-hidden
+      style={{ display: 'block' }}
+    >
+      {/* Left & right busts — clearly separated so it reads as two people */}
+      <circle cx="6.25" cy="7.75" r="2.5" fill="currentColor" />
+      <path
+        d="M2.75 19.25c0-2.1 1.7-3.8 3.8-3.8h.15"
+        stroke="currentColor"
+        strokeWidth="1.7"
+        strokeLinecap="round"
+      />
+      <circle cx="17.75" cy="7.75" r="2.5" fill="currentColor" />
+      <path
+        d="M21.25 19.25c0-2.1-1.7-3.8-3.8-3.8h-.15"
+        stroke="currentColor"
+        strokeWidth="1.7"
+        strokeLinecap="round"
+      />
+      {/* Overlapping speech bubbles between them */}
+      <path
+        d="M9.25 9.75h3.25a.85.85 0 01.85.85v1.35h-1.15l-1.1 1v-1H9.4a.85.85 0 01-.85-.85v-.5a.85.85 0 01.85-.85z"
+        stroke="currentColor"
+        strokeWidth="1.25"
+        strokeLinejoin="round"
+        fill="none"
+      />
+      <path
+        d="M11.5 12.35h3.25a.85.85 0 01.85.85v.95h-1.1l-1.1 1v-1h-1.9a.85.85 0 01-.85-.85v-.25a.85.85 0 01.85-.85z"
+        stroke="currentColor"
+        strokeWidth="1.25"
+        strokeLinejoin="round"
+        fill="none"
+      />
+    </svg>
+  );
+}
+
 export interface AskAiMatchSplitControlProps {
   /** Reserved for layout tweaks; both modes use the same 36px icon-button sizing as Watch/Edit. */
   variant: 'table' | 'card';
@@ -28,8 +74,7 @@ export interface AskAiMatchSplitControlProps {
   onOpenQuestion: () => void;
 }
 
-/** Same classes as table action icons so Card view matches Watch (36×36) and Edit buttons. */
-const SPLIT_BTN_CLASS = 'btn btn-sm action-icon-btn';
+const BTN_CLASS = 'btn btn-sm action-icon-btn';
 
 export function AskAiMatchSplitControl({
   variant,
@@ -39,29 +84,25 @@ export function AskAiMatchSplitControl({
   onQuick,
   onOpenQuestion,
 }: AskAiMatchSplitControlProps): ReactNode {
-  const detailsRef = useRef<HTMLDetailsElement>(null);
   const disabled = !isWatched || isAnalyzing;
   const primaryVariant = hasResult ? 'btn-success' : 'btn-secondary';
 
   const groupStyle: CSSProperties = {
     display: 'inline-flex',
     alignItems: 'stretch',
-    borderRadius: '8px',
-    overflow: 'hidden',
+    gap: '6px',
+    verticalAlign: 'middle',
     opacity: disabled ? 0.55 : 1,
     pointerEvents: disabled ? 'none' : 'auto',
-    verticalAlign: 'middle',
   };
 
-  const closeMenu = () => {
-    const el = detailsRef.current;
-    if (el) el.open = false;
-  };
+  const analysisTitle = !isWatched
+    ? 'Add this match to Watchlist to run analysis'
+    : hasResult
+      ? 'View cached analysis'
+      : 'Run match analysis';
 
-  const handleMenuPick = () => {
-    closeMenu();
-    onOpenQuestion();
-  };
+  const chatTooltip = hasResult ? 'Jump to match chat' : 'Ask with a custom question…';
 
   return (
     <div
@@ -72,28 +113,17 @@ export function AskAiMatchSplitControl({
     >
       <button
         type="button"
-        className={`${SPLIT_BTN_CLASS} ${primaryVariant}`}
-        style={{
-          borderTopRightRadius: 0,
-          borderBottomRightRadius: 0,
-          margin: 0,
-          borderRight: 'none',
-        }}
+        className={`${BTN_CLASS} ${primaryVariant}`}
+        style={{ margin: 0, borderRadius: '8px' }}
         onClick={onQuick}
         disabled={disabled}
-        title={
-          !isWatched
-            ? 'Add this match to Watchlist to use Ask AI'
-            : hasResult
-              ? 'View cached result'
-              : 'Run AI analysis'
-        }
+        title={analysisTitle}
         aria-label={
           !isWatched
-            ? 'Add this match to Watchlist to use Ask AI'
+            ? 'Add this match to Watchlist to run analysis'
             : hasResult
-              ? 'View AI result'
-              : 'Run AI analysis'
+              ? 'View analysis result'
+              : 'Run match analysis'
         }
       >
         {isAnalyzing ? (
@@ -105,75 +135,17 @@ export function AskAiMatchSplitControl({
         )}
       </button>
 
-      <details
-        ref={detailsRef}
-        className="ask-ai-split__details"
-        style={{ position: 'relative', margin: 0 }}
+      <button
+        type="button"
+        className={`${BTN_CLASS} btn-secondary`}
+        style={{ margin: 0, borderRadius: '8px' }}
+        onClick={() => onOpenQuestion()}
+        disabled={disabled}
+        title={chatTooltip}
+        aria-label={hasResult ? 'Jump to match chat' : 'Ask with a custom question'}
       >
-        <summary
-          className={`ask-ai-split__summary ${SPLIT_BTN_CLASS} ${primaryVariant}`}
-          style={{
-            listStyle: 'none',
-            borderTopLeftRadius: 0,
-            borderBottomLeftRadius: 0,
-            borderLeft: '1px solid rgba(0,0,0,0.08)',
-            margin: 0,
-            cursor: disabled ? 'not-allowed' : 'pointer',
-          }}
-          onClick={(e) => {
-            if (disabled) {
-              e.preventDefault();
-              return;
-            }
-            e.stopPropagation();
-          }}
-          aria-label="Ask AI with a custom question"
-          title="Ask with a custom question…"
-        >
-          <span style={{ fontSize: '11px', lineHeight: 1, opacity: 0.85 }} aria-hidden>
-            ▾
-          </span>
-        </summary>
-        <div
-          role="menu"
-          className="ask-ai-split__menu"
-          style={{
-            position: 'absolute',
-            right: 0,
-            top: 'calc(100% + 4px)',
-            zIndex: 50,
-            minWidth: '200px',
-            padding: '6px 0',
-            background: 'var(--gray-0, #fff)',
-            border: '1px solid var(--gray-200)',
-            borderRadius: '8px',
-            boxShadow: '0 8px 24px rgba(0,0,0,0.12)',
-          }}
-        >
-          <button
-            type="button"
-            role="menuitem"
-            className="btn"
-            style={{
-              width: '100%',
-              justifyContent: 'flex-start',
-              border: 'none',
-              borderRadius: 0,
-              background: 'transparent',
-              fontSize: '13px',
-              padding: '8px 12px',
-              fontWeight: 400,
-              textAlign: 'left',
-            }}
-            onClick={(e) => {
-              e.stopPropagation();
-              handleMenuPick();
-            }}
-          >
-            Ask with a custom question…
-          </button>
-        </div>
-      </details>
+        <TwoPeopleChatIcon size={14} />
+      </button>
     </div>
   );
 }

@@ -798,7 +798,7 @@ export function MatchesTab() {
     void executeAskAiPipeline(m);
   }, [analyzingMatches, aiResults, watchlistMap, showToast, executeAskAiPipeline]);
 
-  /** Menu: open dialog to optionally steer the first run with a question. */
+  /** Chat: first run opens optional-question dialog; if analysis already exists, jump to the panel chat instead. */
   const askAiOpenQuestionDialog = useCallback((m: Match) => {
     const mid = String(m.match_id);
     if (analyzingMatches.has(mid)) return;
@@ -806,8 +806,16 @@ export function MatchesTab() {
       showToast('Add this match to Watchlist before running analysis', 'info');
       return;
     }
+    if (aiResults.has(mid)) {
+      const el = document.getElementById(`ai-result-${mid}`);
+      el?.scrollIntoView({ behavior: 'smooth', block: 'start', inline: 'nearest' });
+      window.setTimeout(() => {
+        document.getElementById(`ai-followup-input-${mid}`)?.focus({ preventScroll: true });
+      }, 400);
+      return;
+    }
     setAskAiDialogMatch(m);
-  }, [analyzingMatches, watchlistMap, showToast]);
+  }, [analyzingMatches, watchlistMap, showToast, aiResults]);
 
   /** Close the dialog immediately; pipeline runs in the background (same as quick run). */
   const handleAskAiDialogSubmit = useCallback((question: string) => {

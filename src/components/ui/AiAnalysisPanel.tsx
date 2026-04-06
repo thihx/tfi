@@ -611,6 +611,7 @@ export function AiAnalysisPanel({ entry, onClose, onFollowUp }: Props) {
               <div style={{ display: 'flex', gap: '10px', alignItems: 'stretch' }}>
                 <input
                   type="text"
+                  id={`ai-followup-input-${entry.matchId}`}
                   aria-label="Follow-up question for this match"
                   value={followUpInput}
                   maxLength={FOLLOW_UP_MAX_CHARS}
