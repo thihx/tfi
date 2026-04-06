@@ -3,6 +3,7 @@
 import { createContext, useContext, useReducer, useCallback, useEffect, useRef, type ReactNode } from 'react';
 import type { AppConfig, Match, WatchlistItem, League } from '@/types';
 import { loadConfig, saveConfig as persistConfig } from '@/config/config';
+import { mergeMatchesFromSnapshot } from '@/lib/mergeMatchesSnapshot';
 import * as api from '@/lib/services/api';
 import { useToast } from '@/hooks/useToast';
 
@@ -45,31 +46,9 @@ function reducer(state: AppState, action: Action): AppState {
     case 'SET_MATCHES':
       return { ...state, matches: action.payload };
     case 'MERGE_MATCHES': {
-      // Update existing matches in-place; append new ones; preserve order so rows don't jump.
-      const incoming = new Map(action.payload.map((m) => [String(m.match_id), m]));
-      let changed = false;
-      const merged = state.matches.map((existing) => {
-        const fresh = incoming.get(String(existing.match_id));
-        if (!fresh) return existing;
-        incoming.delete(String(existing.match_id)); // mark as handled
-        // Bidirectional compare: union of both objects' keys to catch added AND dropped fields.
-        // Using String() coercion so DB number vs JS string (e.g. current_minute: 14 vs "14")
-        // doesn't create a false-equal that hides a real type mismatch from a prior poll.
-        const allKeys = new Set([
-          ...Object.keys(existing),
-          ...Object.keys(fresh),
-        ]) as Set<keyof Match>;
-        const isDiff = Array.from(allKeys).some(
-          (k) => String(existing[k] ?? '') !== String(fresh[k] ?? ''),
-        );
-        if (!isDiff) return existing;
-        changed = true;
-        return fresh;
-      });
-      // Append genuinely new matches (match_id not previously in state)
-      const appended = [...merged, ...Array.from(incoming.values())];
-      if (!changed && appended.length === state.matches.length) return state; // nothing changed
-      return { ...state, matches: appended };
+      const { next, noop } = mergeMatchesFromSnapshot(state.matches, action.payload);
+      if (noop) return state;
+      return { ...state, matches: next };
     }
     case 'SET_WATCHLIST':
       return { ...state, watchlist: action.payload };

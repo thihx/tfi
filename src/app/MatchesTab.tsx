@@ -352,14 +352,21 @@ export function MatchesTab() {
     return () => document.removeEventListener('visibilitychange', onVisibility);
   }, []);
 
-  // Fast merge-refresh for live-window matches only (global timer skips fetchMatches while this runs to avoid duplicate polls).
+  // Merge-refresh from GET /api/matches while this tab is mounted: live scores (3s) + list hygiene (10s) so removals/status FT stay in sync without full reload.
   useEffect(() => {
-    const tick = setInterval(() => {
+    const fast = window.setInterval(() => {
       const now = Date.now();
-      const hasLikelyLive = allMatchesRef.current.some((m) => shouldAutoRefreshMatch(m, now));
-      if (hasLikelyLive) void refreshMatchesRef.current();
+      if (allMatchesRef.current.some((m) => shouldAutoRefreshMatch(m, now))) {
+        void refreshMatchesRef.current();
+      }
     }, 3000);
-    return () => clearInterval(tick);
+    const steady = window.setInterval(() => {
+      void refreshMatchesRef.current();
+    }, 10_000);
+    return () => {
+      window.clearInterval(fast);
+      window.clearInterval(steady);
+    };
   }, []);
 
   // Debounced search
@@ -731,7 +738,7 @@ export function MatchesTab() {
         }));
         setLastAddedResultId(mid);
         if (parsed && matchResult.error) {
-          showToast(`${m.home_team} vs ${m.away_team} — AI done but: ${matchResult.error}`, 'error');
+          showToast(`${m.home_team} vs ${m.away_team} — Analysis finished with an issue: ${matchResult.error}`, 'error');
         } else if (parsed) {
           showToast(`${m.home_team} vs ${m.away_team} — done`, 'success');
         } else if (matchResult.error) {
@@ -766,7 +773,7 @@ export function MatchesTab() {
     }
 
     if (!watchlistMap.has(mid)) {
-      showToast('Add this match to Watchlist before using Ask AI', 'info');
+      showToast('Add this match to Watchlist before running analysis', 'info');
       return;
     }
 
@@ -778,7 +785,7 @@ export function MatchesTab() {
     const mid = String(m.match_id);
     if (analyzingMatches.has(mid)) return;
     if (!watchlistMap.has(mid)) {
-      showToast('Add this match to Watchlist before using Ask AI', 'info');
+      showToast('Add this match to Watchlist before running analysis', 'info');
       return;
     }
     setAskAiDialogMatch(m);
@@ -806,7 +813,7 @@ export function MatchesTab() {
       throw new Error('MATCH_NOT_FOUND');
     }
     if (analyzingMatches.has(mid)) {
-      showToast('Please wait for the current Ask AI run to finish for this match.', 'info');
+      showToast('Please wait for the current analysis run to finish for this match.', 'info');
       throw new Error('BUSY');
     }
 
@@ -1118,7 +1125,7 @@ export function MatchesTab() {
                               : { label: '+ Watch', icon: <EyeIcon />, title: 'Watch this match', onClick: (match: Match) => quickAdd(match), variant: 'primary' as const },
                         ]),
                     {
-                      label: 'Ask AI',
+                      label: 'Analysis',
                       render: () => (
                         <AskAiMatchSplitControl
                           variant="card"
@@ -1478,7 +1485,7 @@ function MatchRow({ match, isWatched, isPending, isPendingRemove, isSelected, is
                 onMouseEnter={() => setWatchHovered(true)}
                 onMouseLeave={() => setWatchHovered(false)}
                 disabled={isPendingRemove}
-                title={isPendingRemove ? 'Removing…' : isPlaying ? 'AI is watching — click to unwatch' : 'Click to unwatch'}
+                title={isPendingRemove ? 'Removing…' : isPlaying ? 'Analysis active — click to unwatch' : 'Click to unwatch'}
                 aria-label={isPendingRemove ? 'Removing…' : 'Unwatch this match'}
                 style={{
                   background: watchHovered ? 'rgba(239,68,68,0.12)' : 'rgba(16,185,129,0.12)',

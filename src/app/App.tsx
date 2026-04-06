@@ -98,8 +98,7 @@ function AppContent() {
     return () => ACTIVE_EVENTS.forEach((e) => window.removeEventListener(e, update));
   }, []);
 
-  // Leagues + watchlist every 15s/60s (replaces the old loadAllData tick — no duplicate fetchMatches with MatchesTab 3s when both would poll matches).
-  // Merge-refresh matches on the same tick when MatchesTab is not doing fast 3s polling (other tabs, or Matches with no live-window game).
+  // Leagues + watchlist every 15s/60s. Matches list merge-refresh: MatchesTab runs its own timers while open; skip global fetchMatches here to avoid duplicate calls.
   useEffect(() => {
     if (!authed) return;
     const IDLE_THRESHOLD_MS = 5 * 60 * 1000;
@@ -108,9 +107,8 @@ function AppContent() {
     const timer = setInterval(() => {
       if (Date.now() - lastActivityRef.current >= IDLE_THRESHOLD_MS) return;
       void refreshLeaguesAndWatchlistRef.current(true);
-      const matchesTabDoesFastPoll =
-        activeTab === 'matches' && hasFastRefreshCandidate;
-      if (!matchesTabDoesFastPoll) {
+      const matchesTabOpen = activeTab === 'matches';
+      if (!matchesTabOpen) {
         void refreshMatchesRef.current();
       }
     }, intervalMs);
