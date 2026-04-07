@@ -1,17 +1,32 @@
 import {
   buildEvaluatedReplayCase,
+  classifyReplayMarketFamily,
+  getReplayFineTimeWindow,
   getReplayMinuteBand,
   getReplayScoreState,
   summarizeSettledReplayVariant,
 } from '../lib/settled-replay-evaluation.js';
 
 describe('settled replay evaluation', () => {
+  test('classifies market families for replay stats', () => {
+    expect(classifyReplayMarketFamily('under_2.5')).toBe('goals_under');
+    expect(classifyReplayMarketFamily('over_3.5')).toBe('goals_over');
+    expect(classifyReplayMarketFamily('corners_over_10.5')).toBe('corners');
+    expect(classifyReplayMarketFamily('btts_yes')).toBe('btts');
+    expect(classifyReplayMarketFamily('1x2_home')).toBe('1x2');
+    expect(classifyReplayMarketFamily('asian_handicap_home_-0.25')).toBe('asian_handicap');
+  });
+
   test('classifies replay minute bands and score states', () => {
     expect(getReplayMinuteBand(12)).toBe('00-29');
     expect(getReplayMinuteBand(37)).toBe('30-44');
     expect(getReplayMinuteBand(55)).toBe('45-59');
     expect(getReplayMinuteBand(66)).toBe('60-74');
     expect(getReplayMinuteBand(82)).toBe('75+');
+
+    expect(getReplayFineTimeWindow(10)).toBe('00-14');
+    expect(getReplayFineTimeWindow(35)).toBe('30-36');
+    expect(getReplayFineTimeWindow(40)).toBe('37-44');
 
     expect(getReplayScoreState('0-0')).toBe('0-0');
     expect(getReplayScoreState('1-1')).toBe('level');
@@ -180,5 +195,18 @@ describe('settled replay evaluation', () => {
       expect.objectContaining({ bucket: 'totals_only', goalsUnderCount: 1 }),
       expect.objectContaining({ bucket: 'limited_odds', noBetCount: 1 }),
     ]));
+    expect(summary.byMarketFamily).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          family: 'goals_under',
+          pushCount: 1,
+          shareOfActionable: 1,
+          pushRateOfCohort: 0.5,
+        }),
+      ]),
+    );
+    expect(summary.byCanonicalMarketTop.some((m) => m.canonicalMarket === 'under_2.5')).toBe(true);
+    expect(summary.byFineTimeWindow.length).toBeGreaterThan(0);
+    expect(summary.byMinuteBandMarketFamily.some((c) => c.family === 'goals_under')).toBe(true);
   });
 });

@@ -1,0 +1,432 @@
+{
+  "name": "11808-1378173-65m-over-0-75",
+  "matchId": "1378173",
+  "fixture": {
+    "fixture": {
+      "id": 1378173,
+      "referee": null,
+      "timezone": "UTC",
+      "date": "2026-04-04T16:00:00.000Z",
+      "timestamp": 1775318400,
+      "periods": {
+        "first": null,
+        "second": null
+      },
+      "venue": {
+        "id": null,
+        "name": "Stadio Marcantonio Bentegodi",
+        "city": null
+      },
+      "status": {
+        "long": "2H",
+        "short": "2H",
+        "elapsed": 65
+      }
+    },
+    "league": {
+      "id": 135,
+      "name": "Serie A",
+      "country": "",
+      "logo": "",
+      "flag": null,
+      "season": 0,
+      "round": ""
+    },
+    "teams": {
+      "home": {
+        "id": 0,
+        "name": "Hellas Verona",
+        "logo": "",
+        "winner": null
+      },
+      "away": {
+        "id": 0,
+        "name": "Fiorentina",
+        "logo": "",
+        "winner": null
+      }
+    },
+    "goals": {
+      "home": 0,
+      "away": 0
+    },
+    "score": {
+      "halftime": {
+        "home": null,
+        "away": null
+      },
+      "fulltime": {
+        "home": 0,
+        "away": 0
+      }
+    }
+  },
+  "watchlistEntry": {
+    "match_id": "1378173",
+    "league": "Serie A",
+    "home_team": "Hellas Verona",
+    "away_team": "Fiorentina",
+    "mode": "B",
+    "status": "active",
+    "custom_conditions": "",
+    "date": "2026-04-05",
+    "kickoff": "01:00:00",
+    "strategic_context": null
+  },
+  "pipelineOptions": {
+    "forceAnalyze": true,
+    "skipProceedGate": true,
+    "skipStalenessGate": true
+  },
+  "statistics": [
+    {
+      "team": {
+        "id": 0,
+        "name": "Hellas Verona",
+        "logo": ""
+      },
+      "statistics": [
+        {
+          "type": "Ball Possession",
+          "value": "47%"
+        },
+        {
+          "type": "Total Shots",
+          "value": "15"
+        },
+        {
+          "type": "Shots on Goal",
+          "value": "7"
+        },
+        {
+          "type": "Corner Kicks",
+          "value": "6"
+        },
+        {
+          "type": "Fouls",
+          "value": "9"
+        },
+        {
+          "type": "Offsides",
+          "value": "1"
+        },
+        {
+          "type": "Yellow Cards",
+          "value": "1"
+        },
+        {
+          "type": "Red Cards",
+          "value": null
+        },
+        {
+          "type": "Goalkeeper Saves",
+          "value": "0"
+        },
+        {
+          "type": "Blocked Shots",
+          "value": "1"
+        },
+        {
+          "type": "Total passes",
+          "value": "297"
+        },
+        {
+          "type": "Passes accurate",
+          "value": "248"
+        },
+        {
+          "type": "Shots off Goal",
+          "value": "7"
+        },
+        {
+          "type": "Shots insidebox",
+          "value": "7"
+        },
+        {
+          "type": "Shots outsidebox",
+          "value": "8"
+        },
+        {
+          "type": "expected_goals",
+          "value": "1.17"
+        },
+        {
+          "type": "goals_prevented",
+          "value": "1"
+        },
+        {
+          "type": "Passes %",
+          "value": "84%"
+        }
+      ]
+    },
+    {
+      "team": {
+        "id": 0,
+        "name": "Fiorentina",
+        "logo": ""
+      },
+      "statistics": [
+        {
+          "type": "Ball Possession",
+          "value": "53%"
+        },
+        {
+          "type": "Total Shots",
+          "value": "4"
+        },
+        {
+          "type": "Shots on Goal",
+          "value": "0"
+        },
+        {
+          "type": "Corner Kicks",
+          "value": "1"
+        },
+        {
+          "type": "Fouls",
+          "value": "6"
+        },
+        {
+          "type": "Offsides",
+          "value": "0"
+        },
+        {
+          "type": "Yellow Cards",
+          "value": "0"
+        },
+        {
+          "type": "Red Cards",
+          "value": null
+        },
+        {
+          "type": "Goalkeeper Saves",
+          "value": "7"
+        },
+        {
+          "type": "Blocked Shots",
+          "value": "2"
+        },
+        {
+          "type": "Total passes",
+          "value": "348"
+        },
+        {
+          "type": "Passes accurate",
+          "value": "295"
+        },
+        {
+          "type": "Shots off Goal",
+          "value": "2"
+        },
+        {
+          "type": "Shots insidebox",
+          "value": "1"
+        },
+        {
+          "type": "Shots outsidebox",
+          "value": "3"
+        },
+        {
+          "type": "expected_goals",
+          "value": "0.21"
+        },
+        {
+          "type": "goals_prevented",
+          "value": "1"
+        },
+        {
+          "type": "Passes %",
+          "value": "85%"
+        }
+      ]
+    }
+  ],
+  "mockResolvedOdds": {
+    "oddsSource": "live",
+    "response": [
+      {
+        "bookmakers": [
+          {
+            "id": 0,
+            "name": "Replay Mock",
+            "bets": [
+              {
+                "id": 1,
+                "name": "Over/Under",
+                "values": [
+                  {
+                    "value": "Over",
+                    "odd": "2.05",
+                    "handicap": "0.75"
+                  },
+                  {
+                    "value": "Under",
+                    "odd": "1.8",
+                    "handicap": "0.75"
+                  }
+                ]
+              },
+              {
+                "id": 2,
+                "name": "Corners Over/Under",
+                "values": [
+                  {
+                    "value": "Over",
+                    "odd": "1.666",
+                    "handicap": "10.5"
+                  },
+                  {
+                    "value": "Under",
+                    "odd": "2.1",
+                    "handicap": "10.5"
+                  }
+                ]
+              },
+              {
+                "id": 3,
+                "name": "Both Teams Score",
+                "values": [
+                  {
+                    "value": "Yes",
+                    "odd": "7"
+                  },
+                  {
+                    "value": "No",
+                    "odd": "1.1"
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    ],
+    "oddsFetchedAt": null,
+    "freshness": "fresh",
+    "cacheStatus": "hit"
+  },
+  "previousRecommendations": [],
+  "metadata": {
+    "recommendationId": 11808,
+    "originalPromptVersion": "v8-market-balance-followup-f",
+    "originalAiModel": "gemini-3-pro-preview",
+    "originalBetMarket": "over_0.75",
+    "originalSelection": "Over 0.75 Goals @2.05",
+    "originalResult": "half_win",
+    "originalPnl": 2.1,
+    "minute": 65,
+    "score": "0-0",
+    "status": "2H",
+    "league": "Serie A",
+    "homeTeam": "Hellas Verona",
+    "awayTeam": "Fiorentina",
+    "evidenceMode": "full_live_data",
+    "prematchStrength": "weak",
+    "profileCoverageBand": "partial",
+    "overlayCoverageBand": "none",
+    "policyImpactBand": "clean"
+  },
+  "settlementContext": {
+    "matchId": "1378173",
+    "homeTeam": "Hellas Verona",
+    "awayTeam": "Fiorentina",
+    "finalStatus": "FT",
+    "homeScore": 0,
+    "awayScore": 1,
+    "regularHomeScore": 0,
+    "regularAwayScore": 1,
+    "settlementStats": [
+      {
+        "away": 1,
+        "home": 7,
+        "type": "Shots on Goal"
+      },
+      {
+        "away": 2,
+        "home": 10,
+        "type": "Shots off Goal"
+      },
+      {
+        "away": 5,
+        "home": 20,
+        "type": "Total Shots"
+      },
+      {
+        "away": 2,
+        "home": 3,
+        "type": "Blocked Shots"
+      },
+      {
+        "away": 2,
+        "home": 8,
+        "type": "Shots insidebox"
+      },
+      {
+        "away": 3,
+        "home": 12,
+        "type": "Shots outsidebox"
+      },
+      {
+        "away": 7,
+        "home": 15,
+        "type": "Fouls"
+      },
+      {
+        "away": 1,
+        "home": 8,
+        "type": "Corner Kicks"
+      },
+      {
+        "away": 0,
+        "home": 1,
+        "type": "Offsides"
+      },
+      {
+        "away": "51%",
+        "home": "49%",
+        "type": "Ball Possession"
+      },
+      {
+        "away": 1,
+        "home": 3,
+        "type": "Yellow Cards"
+      },
+      {
+        "away": 1,
+        "home": 1,
+        "type": "Red Cards"
+      },
+      {
+        "away": 7,
+        "home": 0,
+        "type": "Goalkeeper Saves"
+      },
+      {
+        "away": 421,
+        "home": 380,
+        "type": "Total passes"
+      },
+      {
+        "away": 349,
+        "home": 308,
+        "type": "Passes accurate"
+      },
+      {
+        "away": "83%",
+        "home": "81%",
+        "type": "Passes %"
+      },
+      {
+        "away": "0.36",
+        "home": "1.29",
+        "type": "expected_goals"
+      },
+      {
+        "away": 1,
+        "home": 1,
+        "type": "goals_prevented"
+      }
+    ]
+  }
+}

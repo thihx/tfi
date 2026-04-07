@@ -1,0 +1,463 @@
+{
+  "name": "11904-1494585-69m-under-1-75",
+  "matchId": "1494585",
+  "fixture": {
+    "fixture": {
+      "id": 1494585,
+      "referee": null,
+      "timezone": "UTC",
+      "date": "2026-04-04T16:00:00.000Z",
+      "timestamp": 1775318400,
+      "periods": {
+        "first": null,
+        "second": null
+      },
+      "venue": {
+        "id": null,
+        "name": "Stadio di Cornaredo",
+        "city": null
+      },
+      "status": {
+        "long": "2H",
+        "short": "2H",
+        "elapsed": 69
+      }
+    },
+    "league": {
+      "id": 207,
+      "name": "Super League",
+      "country": "",
+      "logo": "",
+      "flag": null,
+      "season": 0,
+      "round": ""
+    },
+    "teams": {
+      "home": {
+        "id": 606,
+        "name": "FC Lugano",
+        "logo": "",
+        "winner": null
+      },
+      "away": {
+        "id": 1012,
+        "name": "FC Thun",
+        "logo": "",
+        "winner": null
+      }
+    },
+    "goals": {
+      "home": 1,
+      "away": 0
+    },
+    "score": {
+      "halftime": {
+        "home": null,
+        "away": null
+      },
+      "fulltime": {
+        "home": 1,
+        "away": 0
+      }
+    }
+  },
+  "watchlistEntry": {
+    "match_id": "1494585",
+    "league": "Super League",
+    "home_team": "FC Lugano",
+    "away_team": "FC Thun",
+    "mode": "B",
+    "status": "active",
+    "custom_conditions": "",
+    "date": "2026-04-04",
+    "kickoff": "16:00:00",
+    "strategic_context": null
+  },
+  "pipelineOptions": {
+    "forceAnalyze": true,
+    "skipProceedGate": true,
+    "skipStalenessGate": true
+  },
+  "statistics": [
+    {
+      "team": {
+        "id": 0,
+        "name": "FC Lugano",
+        "logo": ""
+      },
+      "statistics": [
+        {
+          "type": "Ball Possession",
+          "value": "59%"
+        },
+        {
+          "type": "Total Shots",
+          "value": "14"
+        },
+        {
+          "type": "Shots on Goal",
+          "value": "4"
+        },
+        {
+          "type": "Corner Kicks",
+          "value": "2"
+        },
+        {
+          "type": "Fouls",
+          "value": "8"
+        },
+        {
+          "type": "Offsides",
+          "value": "1"
+        },
+        {
+          "type": "Yellow Cards",
+          "value": "2"
+        },
+        {
+          "type": "Red Cards",
+          "value": null
+        },
+        {
+          "type": "Goalkeeper Saves",
+          "value": "1"
+        },
+        {
+          "type": "Blocked Shots",
+          "value": "5"
+        },
+        {
+          "type": "Total passes",
+          "value": "342"
+        },
+        {
+          "type": "Passes accurate",
+          "value": "271"
+        },
+        {
+          "type": "Shots off Goal",
+          "value": "5"
+        },
+        {
+          "type": "Shots insidebox",
+          "value": "8"
+        },
+        {
+          "type": "Shots outsidebox",
+          "value": "6"
+        },
+        {
+          "type": "expected_goals",
+          "value": "0.90"
+        },
+        {
+          "type": "goals_prevented",
+          "value": "0"
+        },
+        {
+          "type": "Passes %",
+          "value": "79%"
+        }
+      ]
+    },
+    {
+      "team": {
+        "id": 0,
+        "name": "FC Thun",
+        "logo": ""
+      },
+      "statistics": [
+        {
+          "type": "Ball Possession",
+          "value": "41%"
+        },
+        {
+          "type": "Total Shots",
+          "value": "6"
+        },
+        {
+          "type": "Shots on Goal",
+          "value": "1"
+        },
+        {
+          "type": "Corner Kicks",
+          "value": "2"
+        },
+        {
+          "type": "Fouls",
+          "value": "13"
+        },
+        {
+          "type": "Offsides",
+          "value": "0"
+        },
+        {
+          "type": "Yellow Cards",
+          "value": "2"
+        },
+        {
+          "type": "Red Cards",
+          "value": null
+        },
+        {
+          "type": "Goalkeeper Saves",
+          "value": "3"
+        },
+        {
+          "type": "Blocked Shots",
+          "value": "0"
+        },
+        {
+          "type": "Total passes",
+          "value": "224"
+        },
+        {
+          "type": "Passes accurate",
+          "value": "159"
+        },
+        {
+          "type": "Shots off Goal",
+          "value": "5"
+        },
+        {
+          "type": "Shots insidebox",
+          "value": "4"
+        },
+        {
+          "type": "Shots outsidebox",
+          "value": "2"
+        },
+        {
+          "type": "expected_goals",
+          "value": "0.73"
+        },
+        {
+          "type": "goals_prevented",
+          "value": "0"
+        },
+        {
+          "type": "Passes %",
+          "value": "71%"
+        }
+      ]
+    }
+  ],
+  "mockResolvedOdds": {
+    "oddsSource": "live",
+    "response": [
+      {
+        "bookmakers": [
+          {
+            "id": 0,
+            "name": "Replay Mock",
+            "bets": [
+              {
+                "id": 1,
+                "name": "Match Winner",
+                "values": [
+                  {
+                    "value": "Home",
+                    "odd": "1.363"
+                  },
+                  {
+                    "value": "Draw",
+                    "odd": "5"
+                  },
+                  {
+                    "value": "Away",
+                    "odd": "41"
+                  }
+                ]
+              },
+              {
+                "id": 2,
+                "name": "Over/Under",
+                "values": [
+                  {
+                    "value": "Over",
+                    "odd": "1.8",
+                    "handicap": "1.75"
+                  },
+                  {
+                    "value": "Under",
+                    "odd": "2",
+                    "handicap": "1.75"
+                  }
+                ]
+              },
+              {
+                "id": 3,
+                "name": "Corners Over/Under",
+                "values": [
+                  {
+                    "value": "Over",
+                    "odd": "2",
+                    "handicap": "6.5"
+                  },
+                  {
+                    "value": "Under",
+                    "odd": "1.8",
+                    "handicap": "6.5"
+                  }
+                ]
+              },
+              {
+                "id": 4,
+                "name": "Both Teams Score",
+                "values": [
+                  {
+                    "value": "Yes",
+                    "odd": "2.25"
+                  },
+                  {
+                    "value": "No",
+                    "odd": "1.571"
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    ],
+    "oddsFetchedAt": null,
+    "freshness": "fresh",
+    "cacheStatus": "hit"
+  },
+  "previousRecommendations": [
+    {
+      "minute": 69,
+      "odds": "1.800",
+      "bet_market": "over_1.75",
+      "selection": "Over 1.75 Goals @1.8",
+      "score": "1-0",
+      "status": "2H",
+      "result": "loss",
+      "confidence": 6,
+      "stake_percent": "4.00",
+      "reasoning": "With Lugano leading 1-0 at the 69th minute, Thun has just made a triple substitution to chase the game. The match has seen 20 total shots and a combined xG of 1.63, indicating decent attacking intent. As Thun pushes for an equalizer, spaces will open up for Lugano on the counter. The Over 1.75 line is attractive because just one more goal secures a half-win, while two goals provide a full win. Break-even is about 55.5%. My fair range is around 62-65%. Edge looks about 7%."
+    }
+  ],
+  "metadata": {
+    "recommendationId": 11904,
+    "originalPromptVersion": "v8-market-balance-followup-c",
+    "originalAiModel": "gemini-3-pro-preview",
+    "originalBetMarket": "under_1.75",
+    "originalSelection": "Under 1.75 Goals @2",
+    "originalResult": "win",
+    "originalPnl": 3,
+    "minute": 69,
+    "score": "1-0",
+    "status": "2H",
+    "league": "Super League",
+    "homeTeam": "FC Lugano",
+    "awayTeam": "FC Thun",
+    "evidenceMode": "full_live_data",
+    "prematchStrength": "strong",
+    "profileCoverageBand": "partial",
+    "overlayCoverageBand": "none",
+    "policyImpactBand": "clean"
+  },
+  "settlementContext": {
+    "matchId": "1494585",
+    "homeTeam": "FC Lugano",
+    "awayTeam": "FC Thun",
+    "finalStatus": "FT",
+    "homeScore": 1,
+    "awayScore": 0,
+    "regularHomeScore": 1,
+    "regularAwayScore": 0,
+    "settlementStats": [
+      {
+        "away": 4,
+        "home": 4,
+        "type": "Shots on Goal"
+      },
+      {
+        "away": 6,
+        "home": 5,
+        "type": "Shots off Goal"
+      },
+      {
+        "away": 11,
+        "home": 14,
+        "type": "Total Shots"
+      },
+      {
+        "away": 1,
+        "home": 5,
+        "type": "Blocked Shots"
+      },
+      {
+        "away": 8,
+        "home": 8,
+        "type": "Shots insidebox"
+      },
+      {
+        "away": 3,
+        "home": 6,
+        "type": "Shots outsidebox"
+      },
+      {
+        "away": 15,
+        "home": 9,
+        "type": "Fouls"
+      },
+      {
+        "away": 3,
+        "home": 2,
+        "type": "Corner Kicks"
+      },
+      {
+        "away": 0,
+        "home": 2,
+        "type": "Offsides"
+      },
+      {
+        "away": "42%",
+        "home": "58%",
+        "type": "Ball Possession"
+      },
+      {
+        "away": 2,
+        "home": 2,
+        "type": "Yellow Cards"
+      },
+      {
+        "away": null,
+        "home": null,
+        "type": "Red Cards"
+      },
+      {
+        "away": 3,
+        "home": 4,
+        "type": "Goalkeeper Saves"
+      },
+      {
+        "away": 295,
+        "home": 429,
+        "type": "Total passes"
+      },
+      {
+        "away": 214,
+        "home": 342,
+        "type": "Passes accurate"
+      },
+      {
+        "away": "73%",
+        "home": "80%",
+        "type": "Passes %"
+      },
+      {
+        "away": "1.37",
+        "home": "1.00",
+        "type": "expected_goals"
+      },
+      {
+        "away": 0,
+        "home": 0,
+        "type": "goals_prevented"
+      }
+    ]
+  }
+}

@@ -1,0 +1,432 @@
+{
+  "name": "12481-1387035-31m-corners-under-9",
+  "matchId": "1387035",
+  "fixture": {
+    "fixture": {
+      "id": 1387035,
+      "referee": null,
+      "timezone": "UTC",
+      "date": "2026-04-06T19:00:00.000Z",
+      "timestamp": 1775502000,
+      "periods": {
+        "first": null,
+        "second": null
+      },
+      "venue": {
+        "id": null,
+        "name": "MKM Stadium",
+        "city": null
+      },
+      "status": {
+        "long": "1H",
+        "short": "1H",
+        "elapsed": 31
+      }
+    },
+    "league": {
+      "id": 40,
+      "name": "Championship",
+      "country": "",
+      "logo": "",
+      "flag": null,
+      "season": 0,
+      "round": ""
+    },
+    "teams": {
+      "home": {
+        "id": 0,
+        "name": "Hull City",
+        "logo": "",
+        "winner": null
+      },
+      "away": {
+        "id": 0,
+        "name": "Coventry",
+        "logo": "",
+        "winner": null
+      }
+    },
+    "goals": {
+      "home": 0,
+      "away": 0
+    },
+    "score": {
+      "halftime": {
+        "home": null,
+        "away": null
+      },
+      "fulltime": {
+        "home": 0,
+        "away": 0
+      }
+    }
+  },
+  "watchlistEntry": {
+    "match_id": "1387035",
+    "league": "Championship",
+    "home_team": "Hull City",
+    "away_team": "Coventry",
+    "mode": "B",
+    "status": "active",
+    "custom_conditions": "",
+    "date": "2026-04-07",
+    "kickoff": "04:00:00",
+    "strategic_context": null
+  },
+  "pipelineOptions": {
+    "forceAnalyze": true,
+    "skipProceedGate": true,
+    "skipStalenessGate": true
+  },
+  "statistics": [
+    {
+      "team": {
+        "id": 0,
+        "name": "Hull City",
+        "logo": ""
+      },
+      "statistics": [
+        {
+          "type": "Ball Possession",
+          "value": "43%"
+        },
+        {
+          "type": "Total Shots",
+          "value": "6"
+        },
+        {
+          "type": "Shots on Goal",
+          "value": "1"
+        },
+        {
+          "type": "Corner Kicks",
+          "value": "1"
+        },
+        {
+          "type": "Fouls",
+          "value": "4"
+        },
+        {
+          "type": "Offsides",
+          "value": null
+        },
+        {
+          "type": "Yellow Cards",
+          "value": null
+        },
+        {
+          "type": "Red Cards",
+          "value": null
+        },
+        {
+          "type": "Goalkeeper Saves",
+          "value": null
+        },
+        {
+          "type": "Blocked Shots",
+          "value": "2"
+        },
+        {
+          "type": "Total passes",
+          "value": "103"
+        },
+        {
+          "type": "Passes accurate",
+          "value": "76"
+        },
+        {
+          "type": "Shots off Goal",
+          "value": "3"
+        },
+        {
+          "type": "Shots insidebox",
+          "value": "2"
+        },
+        {
+          "type": "Shots outsidebox",
+          "value": "4"
+        },
+        {
+          "type": "expected_goals",
+          "value": "0.26"
+        },
+        {
+          "type": "goals_prevented",
+          "value": null
+        },
+        {
+          "type": "Passes %",
+          "value": "74%"
+        }
+      ]
+    },
+    {
+      "team": {
+        "id": 0,
+        "name": "Coventry",
+        "logo": ""
+      },
+      "statistics": [
+        {
+          "type": "Ball Possession",
+          "value": "57%"
+        },
+        {
+          "type": "Total Shots",
+          "value": "1"
+        },
+        {
+          "type": "Shots on Goal",
+          "value": "0"
+        },
+        {
+          "type": "Corner Kicks",
+          "value": "1"
+        },
+        {
+          "type": "Fouls",
+          "value": "4"
+        },
+        {
+          "type": "Offsides",
+          "value": null
+        },
+        {
+          "type": "Yellow Cards",
+          "value": null
+        },
+        {
+          "type": "Red Cards",
+          "value": null
+        },
+        {
+          "type": "Goalkeeper Saves",
+          "value": null
+        },
+        {
+          "type": "Blocked Shots",
+          "value": "0"
+        },
+        {
+          "type": "Total passes",
+          "value": "139"
+        },
+        {
+          "type": "Passes accurate",
+          "value": "114"
+        },
+        {
+          "type": "Shots off Goal",
+          "value": "1"
+        },
+        {
+          "type": "Shots insidebox",
+          "value": "1"
+        },
+        {
+          "type": "Shots outsidebox",
+          "value": "0"
+        },
+        {
+          "type": "expected_goals",
+          "value": "0.03"
+        },
+        {
+          "type": "goals_prevented",
+          "value": null
+        },
+        {
+          "type": "Passes %",
+          "value": "82%"
+        }
+      ]
+    }
+  ],
+  "mockResolvedOdds": {
+    "oddsSource": "live",
+    "response": [
+      {
+        "bookmakers": [
+          {
+            "id": 0,
+            "name": "Replay Mock",
+            "bets": [
+              {
+                "id": 1,
+                "name": "Over/Under",
+                "values": [
+                  {
+                    "value": "Over",
+                    "odd": "1.9",
+                    "handicap": "2"
+                  },
+                  {
+                    "value": "Under",
+                    "odd": "1.95",
+                    "handicap": "2"
+                  }
+                ]
+              },
+              {
+                "id": 2,
+                "name": "Corners Over/Under",
+                "values": [
+                  {
+                    "value": "Over",
+                    "odd": "2.25",
+                    "handicap": "9"
+                  },
+                  {
+                    "value": "Under",
+                    "odd": "2",
+                    "handicap": "9"
+                  }
+                ]
+              },
+              {
+                "id": 3,
+                "name": "Both Teams Score",
+                "values": [
+                  {
+                    "value": "Yes",
+                    "odd": "2.05"
+                  },
+                  {
+                    "value": "No",
+                    "odd": "1.7"
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    ],
+    "oddsFetchedAt": null,
+    "freshness": "fresh",
+    "cacheStatus": "hit"
+  },
+  "previousRecommendations": [],
+  "metadata": {
+    "recommendationId": 12481,
+    "originalPromptVersion": "v4-evidence-hardened",
+    "originalAiModel": "gemini-3-pro-preview",
+    "originalBetMarket": "corners_under_9",
+    "originalSelection": "Corners Under 9 @2",
+    "originalResult": "win",
+    "originalPnl": 4,
+    "minute": 31,
+    "score": "0-0",
+    "status": "1H",
+    "league": "Championship",
+    "homeTeam": "Hull City",
+    "awayTeam": "Coventry",
+    "evidenceMode": "full_live_data",
+    "prematchStrength": "strong",
+    "profileCoverageBand": "strong",
+    "overlayCoverageBand": "one",
+    "policyImpactBand": "clean"
+  },
+  "settlementContext": {
+    "matchId": "1387035",
+    "homeTeam": "Hull City",
+    "awayTeam": "Coventry",
+    "finalStatus": "FT",
+    "homeScore": 0,
+    "awayScore": 0,
+    "regularHomeScore": 0,
+    "regularAwayScore": 0,
+    "settlementStats": [
+      {
+        "away": 1,
+        "home": 5,
+        "type": "Shots on Goal"
+      },
+      {
+        "away": 4,
+        "home": 4,
+        "type": "Shots off Goal"
+      },
+      {
+        "away": 6,
+        "home": 12,
+        "type": "Total Shots"
+      },
+      {
+        "away": 1,
+        "home": 3,
+        "type": "Blocked Shots"
+      },
+      {
+        "away": 4,
+        "home": 6,
+        "type": "Shots insidebox"
+      },
+      {
+        "away": 2,
+        "home": 6,
+        "type": "Shots outsidebox"
+      },
+      {
+        "away": 11,
+        "home": 10,
+        "type": "Fouls"
+      },
+      {
+        "away": 4,
+        "home": 2,
+        "type": "Corner Kicks"
+      },
+      {
+        "away": 1,
+        "home": 3,
+        "type": "Offsides"
+      },
+      {
+        "away": "55%",
+        "home": "45%",
+        "type": "Ball Possession"
+      },
+      {
+        "away": 1,
+        "home": 1,
+        "type": "Yellow Cards"
+      },
+      {
+        "away": null,
+        "home": null,
+        "type": "Red Cards"
+      },
+      {
+        "away": 4,
+        "home": 1,
+        "type": "Goalkeeper Saves"
+      },
+      {
+        "away": 437,
+        "home": 362,
+        "type": "Total passes"
+      },
+      {
+        "away": 363,
+        "home": 283,
+        "type": "Passes accurate"
+      },
+      {
+        "away": "83%",
+        "home": "78%",
+        "type": "Passes %"
+      },
+      {
+        "away": "0.47",
+        "home": "0.70",
+        "type": "expected_goals"
+      },
+      {
+        "away": 1,
+        "home": 1,
+        "type": "goals_prevented"
+      }
+    ]
+  }
+}

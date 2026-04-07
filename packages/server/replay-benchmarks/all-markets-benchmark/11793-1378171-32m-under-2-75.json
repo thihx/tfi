@@ -1,0 +1,448 @@
+{
+  "name": "11793-1378171-32m-under-2-75",
+  "matchId": "1378171",
+  "fixture": {
+    "fixture": {
+      "id": 1378171,
+      "referee": null,
+      "timezone": "UTC",
+      "date": "2026-04-04T13:00:00.000Z",
+      "timestamp": 1775307600,
+      "periods": {
+        "first": null,
+        "second": null
+      },
+      "venue": {
+        "id": null,
+        "name": "MAPEI Stadium - Città del Tricolore",
+        "city": null
+      },
+      "status": {
+        "long": "1H",
+        "short": "1H",
+        "elapsed": 32
+      }
+    },
+    "league": {
+      "id": 135,
+      "name": "Serie A",
+      "country": "",
+      "logo": "",
+      "flag": null,
+      "season": 0,
+      "round": ""
+    },
+    "teams": {
+      "home": {
+        "id": 488,
+        "name": "Sassuolo",
+        "logo": "",
+        "winner": null
+      },
+      "away": {
+        "id": 490,
+        "name": "Cagliari",
+        "logo": "",
+        "winner": null
+      }
+    },
+    "goals": {
+      "home": 0,
+      "away": 1
+    },
+    "score": {
+      "halftime": {
+        "home": null,
+        "away": null
+      },
+      "fulltime": {
+        "home": 0,
+        "away": 1
+      }
+    }
+  },
+  "watchlistEntry": {
+    "match_id": "1378171",
+    "league": "Serie A",
+    "home_team": "Sassuolo",
+    "away_team": "Cagliari",
+    "mode": "B",
+    "status": "active",
+    "custom_conditions": "",
+    "date": "2026-04-04",
+    "kickoff": "13:00:00",
+    "strategic_context": null
+  },
+  "pipelineOptions": {
+    "forceAnalyze": true,
+    "skipProceedGate": true,
+    "skipStalenessGate": true
+  },
+  "statistics": [
+    {
+      "team": {
+        "id": 0,
+        "name": "Sassuolo",
+        "logo": ""
+      },
+      "statistics": [
+        {
+          "type": "Ball Possession",
+          "value": "43%"
+        },
+        {
+          "type": "Total Shots",
+          "value": "1"
+        },
+        {
+          "type": "Shots on Goal",
+          "value": "0"
+        },
+        {
+          "type": "Corner Kicks",
+          "value": "0"
+        },
+        {
+          "type": "Fouls",
+          "value": "4"
+        },
+        {
+          "type": "Offsides",
+          "value": null
+        },
+        {
+          "type": "Yellow Cards",
+          "value": null
+        },
+        {
+          "type": "Red Cards",
+          "value": null
+        },
+        {
+          "type": "Goalkeeper Saves",
+          "value": "1"
+        },
+        {
+          "type": "Blocked Shots",
+          "value": "0"
+        },
+        {
+          "type": "Total passes",
+          "value": "120"
+        },
+        {
+          "type": "Passes accurate",
+          "value": "95"
+        },
+        {
+          "type": "Shots off Goal",
+          "value": "1"
+        },
+        {
+          "type": "Shots insidebox",
+          "value": "1"
+        },
+        {
+          "type": "Shots outsidebox",
+          "value": "0"
+        },
+        {
+          "type": "expected_goals",
+          "value": "0.04"
+        },
+        {
+          "type": "goals_prevented",
+          "value": "0"
+        },
+        {
+          "type": "Passes %",
+          "value": "79%"
+        }
+      ]
+    },
+    {
+      "team": {
+        "id": 0,
+        "name": "Cagliari",
+        "logo": ""
+      },
+      "statistics": [
+        {
+          "type": "Ball Possession",
+          "value": "57%"
+        },
+        {
+          "type": "Total Shots",
+          "value": "5"
+        },
+        {
+          "type": "Shots on Goal",
+          "value": "1"
+        },
+        {
+          "type": "Corner Kicks",
+          "value": "1"
+        },
+        {
+          "type": "Fouls",
+          "value": "2"
+        },
+        {
+          "type": "Offsides",
+          "value": null
+        },
+        {
+          "type": "Yellow Cards",
+          "value": null
+        },
+        {
+          "type": "Red Cards",
+          "value": null
+        },
+        {
+          "type": "Goalkeeper Saves",
+          "value": "0"
+        },
+        {
+          "type": "Blocked Shots",
+          "value": "3"
+        },
+        {
+          "type": "Total passes",
+          "value": "162"
+        },
+        {
+          "type": "Passes accurate",
+          "value": "137"
+        },
+        {
+          "type": "Shots off Goal",
+          "value": "1"
+        },
+        {
+          "type": "Shots insidebox",
+          "value": "4"
+        },
+        {
+          "type": "Shots outsidebox",
+          "value": "1"
+        },
+        {
+          "type": "expected_goals",
+          "value": "0.50"
+        },
+        {
+          "type": "goals_prevented",
+          "value": "0"
+        },
+        {
+          "type": "Passes %",
+          "value": "85%"
+        }
+      ]
+    }
+  ],
+  "mockResolvedOdds": {
+    "oddsSource": "live",
+    "response": [
+      {
+        "bookmakers": [
+          {
+            "id": 0,
+            "name": "Replay Mock",
+            "bets": [
+              {
+                "id": 1,
+                "name": "Over/Under",
+                "values": [
+                  {
+                    "value": "Over",
+                    "odd": "1.8",
+                    "handicap": "2.75"
+                  },
+                  {
+                    "value": "Under",
+                    "odd": "2.05",
+                    "handicap": "2.75"
+                  }
+                ]
+              },
+              {
+                "id": 2,
+                "name": "Corners Over/Under",
+                "values": [
+                  {
+                    "value": "Over",
+                    "odd": "1.975",
+                    "handicap": "7.5"
+                  },
+                  {
+                    "value": "Under",
+                    "odd": "1.825",
+                    "handicap": "7.5"
+                  }
+                ]
+              },
+              {
+                "id": 3,
+                "name": "Both Teams Score",
+                "values": [
+                  {
+                    "value": "Yes",
+                    "odd": "1.363"
+                  },
+                  {
+                    "value": "No",
+                    "odd": "3"
+                  }
+                ]
+              },
+              {
+                "id": 4,
+                "name": "Asian Handicap",
+                "values": [
+                  {
+                    "value": "Home",
+                    "odd": "2",
+                    "handicap": "1"
+                  },
+                  {
+                    "value": "Away",
+                    "odd": "2.2",
+                    "handicap": "1"
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    ],
+    "oddsFetchedAt": null,
+    "freshness": "fresh",
+    "cacheStatus": "hit"
+  },
+  "previousRecommendations": [],
+  "metadata": {
+    "recommendationId": 11793,
+    "originalPromptVersion": "v8-market-balance-followup-f",
+    "originalAiModel": "gemini-3-pro-preview",
+    "originalBetMarket": "under_2.75",
+    "originalSelection": "Under 2.75 Goals @2.05",
+    "originalResult": "half_loss",
+    "originalPnl": -1.5,
+    "minute": 32,
+    "score": "0-1",
+    "status": "1H",
+    "league": "Serie A",
+    "homeTeam": "Sassuolo",
+    "awayTeam": "Cagliari",
+    "evidenceMode": "full_live_data",
+    "prematchStrength": "strong",
+    "profileCoverageBand": "strong",
+    "overlayCoverageBand": "none",
+    "policyImpactBand": "clean"
+  },
+  "settlementContext": {
+    "matchId": "1378171",
+    "homeTeam": "Sassuolo",
+    "awayTeam": "Cagliari",
+    "finalStatus": "FT",
+    "homeScore": 2,
+    "awayScore": 1,
+    "regularHomeScore": 2,
+    "regularAwayScore": 1,
+    "settlementStats": [
+      {
+        "away": 3,
+        "home": 2,
+        "type": "Shots on Goal"
+      },
+      {
+        "away": 5,
+        "home": 5,
+        "type": "Shots off Goal"
+      },
+      {
+        "away": 11,
+        "home": 9,
+        "type": "Total Shots"
+      },
+      {
+        "away": 3,
+        "home": 2,
+        "type": "Blocked Shots"
+      },
+      {
+        "away": 8,
+        "home": 5,
+        "type": "Shots insidebox"
+      },
+      {
+        "away": 3,
+        "home": 4,
+        "type": "Shots outsidebox"
+      },
+      {
+        "away": 10,
+        "home": 14,
+        "type": "Fouls"
+      },
+      {
+        "away": 2,
+        "home": 2,
+        "type": "Corner Kicks"
+      },
+      {
+        "away": 1,
+        "home": 2,
+        "type": "Offsides"
+      },
+      {
+        "away": "50%",
+        "home": "50%",
+        "type": "Ball Possession"
+      },
+      {
+        "away": 0,
+        "home": 1,
+        "type": "Yellow Cards"
+      },
+      {
+        "away": null,
+        "home": null,
+        "type": "Red Cards"
+      },
+      {
+        "away": 0,
+        "home": 2,
+        "type": "Goalkeeper Saves"
+      },
+      {
+        "away": 431,
+        "home": 423,
+        "type": "Total passes"
+      },
+      {
+        "away": 358,
+        "home": 356,
+        "type": "Passes accurate"
+      },
+      {
+        "away": "83%",
+        "home": "84%",
+        "type": "Passes %"
+      },
+      {
+        "away": "1.63",
+        "home": "0.46",
+        "type": "expected_goals"
+      },
+      {
+        "away": 0,
+        "home": 0,
+        "type": "goals_prevented"
+      }
+    ]
+  }
+}

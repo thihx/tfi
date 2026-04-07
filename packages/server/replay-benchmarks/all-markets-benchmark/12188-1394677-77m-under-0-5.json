@@ -1,0 +1,441 @@
+{
+  "name": "12188-1394677-77m-under-0-5",
+  "matchId": "1394677",
+  "fixture": {
+    "fixture": {
+      "id": 1394677,
+      "referee": null,
+      "timezone": "UTC",
+      "date": "2026-04-05T17:00:00.000Z",
+      "timestamp": 1775408400,
+      "periods": {
+        "first": null,
+        "second": null
+      },
+      "venue": {
+        "id": null,
+        "name": "Chobani Stadium Fenerbahce Sukru Saracoglu",
+        "city": null
+      },
+      "status": {
+        "long": "2H",
+        "short": "2H",
+        "elapsed": 77
+      }
+    },
+    "league": {
+      "id": 203,
+      "name": "Süper Lig",
+      "country": "",
+      "logo": "",
+      "flag": null,
+      "season": 0,
+      "round": ""
+    },
+    "teams": {
+      "home": {
+        "id": 0,
+        "name": "Fenerbahçe",
+        "logo": "",
+        "winner": null
+      },
+      "away": {
+        "id": 0,
+        "name": "Beşiktaş",
+        "logo": "",
+        "winner": null
+      }
+    },
+    "goals": {
+      "home": 0,
+      "away": 0
+    },
+    "score": {
+      "halftime": {
+        "home": null,
+        "away": null
+      },
+      "fulltime": {
+        "home": 0,
+        "away": 0
+      }
+    }
+  },
+  "watchlistEntry": {
+    "match_id": "1394677",
+    "league": "Süper Lig",
+    "home_team": "Fenerbahçe",
+    "away_team": "Beşiktaş",
+    "mode": "B",
+    "status": "active",
+    "custom_conditions": "",
+    "date": "2026-04-06",
+    "kickoff": "02:00:00",
+    "strategic_context": null
+  },
+  "pipelineOptions": {
+    "forceAnalyze": true,
+    "skipProceedGate": true,
+    "skipStalenessGate": true
+  },
+  "statistics": [
+    {
+      "team": {
+        "id": 0,
+        "name": "Fenerbahçe",
+        "logo": ""
+      },
+      "statistics": [
+        {
+          "type": "Ball Possession",
+          "value": "55%"
+        },
+        {
+          "type": "Total Shots",
+          "value": "8"
+        },
+        {
+          "type": "Shots on Goal",
+          "value": "3"
+        },
+        {
+          "type": "Corner Kicks",
+          "value": "7"
+        },
+        {
+          "type": "Fouls",
+          "value": "7"
+        },
+        {
+          "type": "Offsides",
+          "value": "2"
+        },
+        {
+          "type": "Yellow Cards",
+          "value": "1"
+        },
+        {
+          "type": "Red Cards",
+          "value": null
+        },
+        {
+          "type": "Goalkeeper Saves",
+          "value": "2"
+        },
+        {
+          "type": "Blocked Shots",
+          "value": "3"
+        },
+        {
+          "type": "Total passes",
+          "value": "351"
+        },
+        {
+          "type": "Passes accurate",
+          "value": "293"
+        },
+        {
+          "type": "Shots off Goal",
+          "value": "2"
+        },
+        {
+          "type": "Shots insidebox",
+          "value": "2"
+        },
+        {
+          "type": "Shots outsidebox",
+          "value": "6"
+        },
+        {
+          "type": "expected_goals",
+          "value": "1.08"
+        },
+        {
+          "type": "goals_prevented",
+          "value": "0"
+        },
+        {
+          "type": "Passes %",
+          "value": "83%"
+        }
+      ]
+    },
+    {
+      "team": {
+        "id": 0,
+        "name": "Beşiktaş",
+        "logo": ""
+      },
+      "statistics": [
+        {
+          "type": "Ball Possession",
+          "value": "45%"
+        },
+        {
+          "type": "Total Shots",
+          "value": "13"
+        },
+        {
+          "type": "Shots on Goal",
+          "value": "2"
+        },
+        {
+          "type": "Corner Kicks",
+          "value": "5"
+        },
+        {
+          "type": "Fouls",
+          "value": "16"
+        },
+        {
+          "type": "Offsides",
+          "value": "0"
+        },
+        {
+          "type": "Yellow Cards",
+          "value": "2"
+        },
+        {
+          "type": "Red Cards",
+          "value": null
+        },
+        {
+          "type": "Goalkeeper Saves",
+          "value": "4"
+        },
+        {
+          "type": "Blocked Shots",
+          "value": "10"
+        },
+        {
+          "type": "Total passes",
+          "value": "292"
+        },
+        {
+          "type": "Passes accurate",
+          "value": "224"
+        },
+        {
+          "type": "Shots off Goal",
+          "value": "1"
+        },
+        {
+          "type": "Shots insidebox",
+          "value": "5"
+        },
+        {
+          "type": "Shots outsidebox",
+          "value": "8"
+        },
+        {
+          "type": "expected_goals",
+          "value": "1.02"
+        },
+        {
+          "type": "goals_prevented",
+          "value": "0"
+        },
+        {
+          "type": "Passes %",
+          "value": "77%"
+        }
+      ]
+    }
+  ],
+  "mockResolvedOdds": {
+    "oddsSource": "live",
+    "response": [
+      {
+        "bookmakers": [
+          {
+            "id": 0,
+            "name": "Replay Mock",
+            "bets": [
+              {
+                "id": 1,
+                "name": "Over/Under",
+                "values": [
+                  {
+                    "value": "Over",
+                    "odd": "1.775",
+                    "handicap": "0.5"
+                  },
+                  {
+                    "value": "Under",
+                    "odd": "2.025",
+                    "handicap": "0.5"
+                  }
+                ]
+              },
+              {
+                "id": 2,
+                "name": "Both Teams Score",
+                "values": [
+                  {
+                    "value": "Yes",
+                    "odd": "10"
+                  },
+                  {
+                    "value": "No",
+                    "odd": "1.062"
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    ],
+    "oddsFetchedAt": null,
+    "freshness": "fresh",
+    "cacheStatus": "hit"
+  },
+  "previousRecommendations": [
+    {
+      "minute": 56,
+      "odds": "1.800",
+      "bet_market": "under_2.25",
+      "selection": "Under 2.25 Goals @1.8",
+      "score": "0-0",
+      "status": "2H",
+      "result": "win",
+      "confidence": 7,
+      "stake_percent": "4.00",
+      "reasoning": "At minute 54, I recommended Corners Over 13.5. Now at minute 56, the corners line has shifted to 14, reducing the edge. However, the match state strongly supports a low-scoring outcome. Although pre-match profiles suggested a high-scoring environment, the live evidence clearly contradicts this: an incredible 11 out of 15 total shots have been blocked by compact defending, leaving only 3 shots on target. The combined xG is 1.43, but the score remains 0-0. Break-even for Under 2.25 is about 55.5%. My fair range is around 68-70%. Edge looks about 13%. I am pivoting to the goals market as the defensive solidity offers excellent value here."
+    },
+    {
+      "minute": 54,
+      "odds": "1.825",
+      "bet_market": "corners_over_13.5",
+      "selection": "Corners Over 13.5 @1.825",
+      "score": "0-0",
+      "status": "2H",
+      "result": "win",
+      "confidence": 6,
+      "stake_percent": "3.00",
+      "reasoning": "Break-even about 54.8%. My fair range is around 60-62%. Edge looks about 6%. The match is tied 0-0 at minute 54 with high attacking intent from both sides (15 total shots, 1.46 combined xG). Notably, there have been 11 blocked shots already, indicating tight penalty-box defending that frequently deflects the ball out of play. With 9 corners already recorded (a rate of one every 6 minutes), we need 5 more in the remaining ~40 minutes to clear the 13.5 line. Given the balanced scoreline, neither team will sit back, keeping the pressure and corner frequency high."
+    }
+  ],
+  "metadata": {
+    "recommendationId": 12188,
+    "originalPromptVersion": "v4-evidence-hardened",
+    "originalAiModel": "gemini-3-pro-preview",
+    "originalBetMarket": "under_0.5",
+    "originalSelection": "Under 0.5 Goals @2.025",
+    "originalResult": "loss",
+    "originalPnl": -3,
+    "minute": 77,
+    "score": "0-0",
+    "status": "2H",
+    "league": "Süper Lig",
+    "homeTeam": "Fenerbahçe",
+    "awayTeam": "Beşiktaş",
+    "evidenceMode": "full_live_data",
+    "prematchStrength": "strong",
+    "profileCoverageBand": "strong",
+    "overlayCoverageBand": "none",
+    "policyImpactBand": "clean"
+  },
+  "settlementContext": {
+    "matchId": "1394677",
+    "homeTeam": "Fenerbahçe",
+    "awayTeam": "Beşiktaş",
+    "finalStatus": "FT",
+    "homeScore": 1,
+    "awayScore": 0,
+    "regularHomeScore": 1,
+    "regularAwayScore": 0,
+    "settlementStats": [
+      {
+        "away": 2,
+        "home": 6,
+        "type": "Shots on Goal"
+      },
+      {
+        "away": 1,
+        "home": 4,
+        "type": "Shots off Goal"
+      },
+      {
+        "away": 13,
+        "home": 13,
+        "type": "Total Shots"
+      },
+      {
+        "away": 10,
+        "home": 3,
+        "type": "Blocked Shots"
+      },
+      {
+        "away": 5,
+        "home": 6,
+        "type": "Shots insidebox"
+      },
+      {
+        "away": 8,
+        "home": 7,
+        "type": "Shots outsidebox"
+      },
+      {
+        "away": 19,
+        "home": 13,
+        "type": "Fouls"
+      },
+      {
+        "away": 5,
+        "home": 10,
+        "type": "Corner Kicks"
+      },
+      {
+        "away": 0,
+        "home": 2,
+        "type": "Offsides"
+      },
+      {
+        "away": "44%",
+        "home": "56%",
+        "type": "Ball Possession"
+      },
+      {
+        "away": 5,
+        "home": 2,
+        "type": "Yellow Cards"
+      },
+      {
+        "away": null,
+        "home": null,
+        "type": "Red Cards"
+      },
+      {
+        "away": 5,
+        "home": 2,
+        "type": "Goalkeeper Saves"
+      },
+      {
+        "away": 365,
+        "home": 456,
+        "type": "Total passes"
+      },
+      {
+        "away": 283,
+        "home": 382,
+        "type": "Passes accurate"
+      },
+      {
+        "away": "78%",
+        "home": "84%",
+        "type": "Passes %"
+      },
+      {
+        "away": "1.02",
+        "home": "2.93",
+        "type": "expected_goals"
+      },
+      {
+        "away": 2,
+        "home": 2,
+        "type": "goals_prevented"
+      }
+    ]
+  }
+}

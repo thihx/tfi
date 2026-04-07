@@ -21,8 +21,6 @@ vi.mock('../config.js', () => ({
   config: {
     databaseUrl: 'postgresql://test:test@localhost:5432/test',
     timezone: 'Asia/Seoul',
-    theOddsApiKey: 'test-the-odds-key',
-    theOddsApiBaseUrl: 'https://the-odds-api.example.com/v4',
     geminiApiKey: 'test-key',
     geminiModel: 'gemini-test',
     telegramBotToken: 'test-bot',
@@ -176,11 +174,21 @@ describe('runReplayScenario', () => {
 
   test('uses production resolver order for recorded odds fixtures', async () => {
     const output = await runReplayScenario({
-      name: 'recorded-the-odds-fallback',
+      name: 'recorded-live-empty-prematch',
       matchId: '100',
-      fixture: makeFixture(),
+      fixture: {
+        ...makeFixture(),
+        fixture: {
+          ...makeFixture().fixture,
+          status: { short: 'NS', elapsed: null as unknown as number },
+        },
+      },
       statistics: makeStats(),
       events: makeEvents(),
+      pipelineOptions: {
+        skipProceedGate: true,
+        forceAnalyze: true,
+      },
       liveOddsResponse: [],
       preMatchOddsResponse: [{
         fixture: { id: 100 },
@@ -197,43 +205,14 @@ describe('runReplayScenario', () => {
           }],
         }],
       }],
-      theOddsEventsResponse: [{
-        id: 'event-1',
-        sport_key: 'soccer_epl',
-        sport_title: 'EPL',
-        commence_time: '2026-03-20T12:00:00Z',
-        home_team: 'Arsenal',
-        away_team: 'Chelsea',
-      }],
-      theOddsEventOddsResponse: {
-        id: 'event-1',
-        sport_key: 'soccer_epl',
-        sport_title: 'EPL',
-        commence_time: '2026-03-20T12:00:00Z',
-        home_team: 'Arsenal',
-        away_team: 'Chelsea',
-        bookmakers: [{
-          key: 'fallback',
-          title: 'FallbackBook',
-          last_update: '2026-03-20T12:45:00Z',
-          markets: [{
-            key: 'totals',
-            last_update: '2026-03-20T12:45:00Z',
-            outcomes: [
-              { name: 'Over', price: 1.8, point: 2.5 },
-              { name: 'Under', price: 2.05, point: 2.5 },
-            ],
-          }],
-        }],
-      },
       expected: {
-        oddsSource: 'fallback-live',
+        oddsSource: 'reference-prematch',
         saved: false,
         notified: false,
       },
     });
 
-    expect(output.result.debug?.oddsSource).toBe('fallback-live');
+    expect(output.result.debug?.oddsSource).toBe('reference-prematch');
     expect(output.allPassed).toBe(true);
   });
 

@@ -93,8 +93,10 @@ describe('buildLiveAnalysisPrompt', () => {
       originalWouldProceed: false,
     }, settings);
 
-    expect(prompt).toContain('ANALYSIS_MODE: system_force');
-    expect(prompt).toContain('This analysis was triggered by watchlist/system force mode, not by a direct manual Ask AI request.');
+    expect(prompt).toContain('FORCE MODE');
+    expect(prompt).toContain('- ANALYSIS_MODE: system_force');
+    expect(prompt).toContain('- TRIGGER: system/watchlist force mode');
+    expect(prompt).toContain('BYPASSED_FILTERS: Minute 3 below minimum (BYPASSED)');
     expect(prompt).toContain('- Analysis Mode: system_force');
     expect(prompt).toContain('- Trigger Provenance: watchlist/system force mode');
     expect(prompt).toContain('- Is Manual Push: NO');
@@ -109,8 +111,9 @@ describe('buildLiveAnalysisPrompt', () => {
       isManualPush: true,
     }, settings);
 
-    expect(prompt).toContain('ANALYSIS_MODE: manual_force');
-    expect(prompt).toContain('This analysis was explicitly requested by a user from the Ask AI flow.');
+    expect(prompt).toContain('FORCE MODE');
+    expect(prompt).toContain('- ANALYSIS_MODE: manual_force');
+    expect(prompt).toContain('- TRIGGER: manual Ask AI request');
     expect(prompt).toContain('- Analysis Mode: manual_force');
     expect(prompt).toContain('- Trigger Provenance: manual Ask AI request');
     expect(prompt).toContain('- Is Manual Push: YES');
@@ -131,13 +134,11 @@ describe('buildLiveAnalysisPrompt', () => {
       ],
     }, settings);
 
-    expect(prompt).toContain('Use these records as context. The authoritative reinforcement / duplicate policy is defined in ANALYSIS CONTINUITY RULES below.');
-    expect(prompt).toContain('REINFORCEMENT VS DUPLICATE');
-    expect(prompt).toContain('There is a material match-state change (goal, red card, clear momentum shift, meaningful stat swing)');
-    expect(prompt).toContain('Match minute advanced >= 5 AND the evidence is materially stronger than before');
-    expect(prompt).toContain('Never repeat the same pick solely because time passed.');
+    expect(prompt).toContain('PREVIOUS RECOMMENDATIONS (1)');
+    expect(prompt).toContain('CONTINUITY RULES:');
+    expect(prompt).toContain('Do not repeat the same selection + bet_market unless odds improved by >= 0.10');
+    expect(prompt).toContain('Never repeat only because time passed.');
     expect(prompt).toContain('No significant strengthening since last recommendation at minute [X].');
-    expect(prompt).not.toContain('Do NOT repeat the exact same selection + bet_market unless odds have improved by >= 0.10.');
   });
 
   test('renders dynamic priors only when sample size is sufficient', () => {
@@ -397,11 +398,11 @@ describe('buildLiveAnalysisPrompt', () => {
     }, settings);
 
     expect(prompt).toContain('PROFILE METRIC SEMANTICS');
-    expect(prompt).toContain('"semantic_name": "team_match_btts_rate"');
+    expect(prompt).toMatch(/"semantic_name"\s*:\s*"team_match_btts_rate"/);
     expect(prompt).toContain('Share of this team\'s sampled matches in which both teams scored.');
     expect(prompt).toContain('This is a match-environment metric, not a standalone attacking-strength metric.');
     expect(prompt).toContain('Neutral default tactical overlay. Do not treat this as hard evidence.');
-    expect(prompt).toContain('"semantic_name": "league_match_btts_rate"');
+    expect(prompt).toMatch(/"semantic_name"\s*:\s*"league_match_btts_rate"/);
   });
 
   test('defines authoritative evidence hierarchy for degraded odds-events mode', () => {
@@ -413,18 +414,18 @@ describe('buildLiveAnalysisPrompt', () => {
     }, settings);
 
     expect(prompt).toContain('- EVIDENCE_TIER: tier_3 (Usable odds + event timeline, but no usable live stats)');
-    expect(prompt).toContain('CURRENT TIER FOR THIS MATCH: tier_3');
-    expect(prompt).toContain('Allowed markets in this tier: O/U and selective AH only');
-    expect(prompt).toContain('Forbidden markets in this tier: 1X2, BTTS, Corners, Double Chance');
-    expect(prompt).toContain('BTTS Yes requires at least Tier 1 evidence. Do NOT recommend BTTS from Tier 3 or Tier 4.');
-    expect(prompt).toContain('Corners markets require Tier 1 live stats and live corners data. No corners recommendation in Tier 2-4.');
+    expect(prompt).toContain('- Allowed markets: O/U and selective AH only');
+    expect(prompt).toContain('- Forbidden markets: 1X2, BTTS, Corners, Double Chance');
+    expect(prompt).toContain('- Never choose a market outside the current allowed tier');
+    expect(prompt).toContain('- BTTS Yes needs tier 1 evidence');
+    expect(prompt).toContain('- Corners require tier 1 live stats + live corners data');
   });
 
   test('uses rounded break-even wording instead of fake exact-probability wording', () => {
     const prompt = buildLiveAnalysisPrompt(baseInput, settings);
 
-    expect(prompt).toContain('Report valuation using exact break-even from odds plus a rounded fair-value estimate or range.');
-    expect(prompt).toContain('Preferred wording style in reasoning_en: "Break-even about X%. My fair range is around Y-Z%. Edge looks about W%."');
+    expect(prompt).toContain('Explain valuation using exact break-even plus a rounded fair-value range');
+    expect(prompt).toContain('Preferred reasoning_en wording: "Break-even about X%. My fair range is around Y-Z%. Edge looks about W%."');
     expect(prompt).not.toContain('MUST include EXACT text in reasoning_en: "Break-even: X%, My estimate: Y%, Edge: Z%"');
   });
 
@@ -434,11 +435,11 @@ describe('buildLiveAnalysisPrompt', () => {
 
     expect(candidate).toContain(`PROMPT_VERSION: ${LIVE_ANALYSIS_PROMPT_CANDIDATE_VERSION}`);
     expect(candidate).toContain('EXACT OUTPUT ENUMS:');
-    expect(candidate).toContain('V8 MARKET-BALANCE DISCIPLINE:');
+    expect(candidate).toContain('LEGACY-LEAN MARKET SELECTION:');
     expect(baseline).toContain(`PROMPT_VERSION: ${LIVE_ANALYSIS_PROMPT_VERSION}`);
   });
 
-  test('candidate prompt includes follow-up contract and v8i market-balance rules', () => {
+  test('candidate prompt includes follow-up contract and legacy-lean market selection rules', () => {
     const candidate = buildLiveAnalysisPrompt({
       ...baseInput,
       userQuestion: 'What about Home -0.25 here?',
@@ -451,17 +452,137 @@ describe('buildLiveAnalysisPrompt', () => {
     expect(candidate).toContain('FOLLOW_UP_MODE: advisory');
     expect(candidate).toContain('USER_QUESTION: What about Home -0.25 here?');
     expect(candidate).toContain('FOLLOW_UP_HISTORY:');
-    expect(candidate).toContain('Goals Under is NOT the default fallback');
-    expect(candidate).toContain('V8D OPEN-1X2 WINDOW RULE');
-    expect(candidate).toContain('V8D TWO-PLUS-MARGIN BLOCK');
-    expect(candidate).toContain('V8F 30-44 0-0 RULE');
-    expect(candidate).toContain('V8F HIGH-LINE CORNERS RULE');
-    expect(candidate).toContain('V8G EARLY ONE-GOAL RULE');
-    expect(candidate).toContain('V8H 45-59 ZERO-ZERO LOW-LINE RULE');
-    expect(candidate).toContain('V8I EARLY LEVEL HIGH-LINE RULE');
-    expect(candidate).toContain('from minute 35 onward, 1X2_home becomes eligible again');
+    expect(candidate).toContain('LEGACY-LEAN MARKET SELECTION:');
+    expect(candidate).toContain('If 1X2 or BTTS No does not clear the higher bar, evaluate goals O/U instead.');
+    expect(candidate).toContain('Minute 5-65: only consider Over X.5 when attacking patterns are clearly open and sustained.');
+    expect(candidate).toContain('Minute 65+: only consider Under X.5 when the match is still low-scoring and both teams genuinely look conservative or defensive.');
+    expect(candidate).toContain('Do NOT treat Goals Under as a default before minute 65.');
+    expect(candidate).not.toContain('V8 MARKET-BALANCE DISCIPLINE:');
+    expect(candidate).not.toContain('Score 0-0 after minute 55: prefer goal unders, not corners under');
+    expect(candidate).not.toContain('1X2 and BTTS No need full_live_data, confidence >= 7, and strong stat support');
     expect(candidate).toContain('"follow_up_answer_en": string');
     expect(candidate).toContain('"follow_up_answer_vi": string');
+  });
+
+  test('candidate prompt keeps essential safety rules while removing under-funnel rules', () => {
+    const candidate = buildLiveAnalysisPrompt(baseInput, settings, LIVE_ANALYSIS_PROMPT_CANDIDATE_VERSION);
+
+    expect(candidate).toContain('No market below 1.5');
+    expect(candidate).toContain('ODDS RULE: canonical odds are already filtered; never infer missing markets and never invent prices.');
+    expect(candidate).toContain('RED CARD:');
+    expect(candidate).toContain('- MIN_ODDS: 1.5');
+    expect(candidate).not.toContain('1X2 and BTTS No are Tier-1-only markets.');
+    expect(candidate).not.toContain('BTTS Yes requires at least Tier 1 evidence.');
+    expect(candidate).not.toContain('If 1X2 or AH is not justified, do NOT automatically fall back to Over/Under.');
+    expect(candidate).not.toContain('Score 0-0 after minute 55: prefer GOALS Under markets');
+  });
+
+  test('v10 hybrid prompt keeps v8h restrictions but replaces automatic under timing', () => {
+    const prompt = buildLiveAnalysisPrompt(baseInput, settings, 'v10-hybrid-legacy-a');
+
+    expect(prompt).toContain('LEGACY-HYBRID O/U TIMING:');
+    expect(prompt).toContain('1X2 and BTTS No need full_live_data, confidence >= 7, and strong stat support');
+    expect(prompt).toContain('BTTS Yes needs tier 1 evidence');
+    expect(prompt).toContain('If 1X2 or BTTS No does not clear that bar, goals O/U may be considered as an alternative only when O/U earns its own edge.');
+    expect(prompt).toContain('Minute 5-65: only consider goals O/U when the attacking pattern is clearly open and sustained.');
+    expect(prompt).toContain('Minute 65+: goals_under becomes eligible only when the match is still low-scoring and both teams genuinely look conservative or defensive.');
+    expect(prompt).toContain('Do NOT treat 0-0 after minute 55 as automatic under.');
+    expect(prompt).toContain('V8H 45-59 ZERO-ZERO LOW-LINE RULE');
+    expect(prompt).toContain('V8H RESIDUAL-SCORING RULE');
+    expect(prompt).toContain('V8H OVER-REJECTION RULE');
+    expect(prompt).toContain('V8H SYMMETRIC-ODDS TIE-BREAK');
+    expect(prompt).toContain('V8H EDGE-PUSH RULE');
+    expect(prompt).not.toContain('Score 0-0 after minute 55: prefer GOALS Under markets');
+  });
+
+  test('v10b minimal hybrid only swaps the automatic-under timing while keeping v8h discipline', () => {
+    const prompt = buildLiveAnalysisPrompt(baseInput, settings, 'v10-hybrid-legacy-b');
+
+    expect(prompt).toContain('MINIMAL LEGACY TIMING ADJUSTMENT:');
+    expect(prompt).toContain('1X2 and BTTS No need full_live_data, confidence >= 7, and strong stat support');
+    expect(prompt).toContain('BTTS Yes needs tier 1 evidence');
+    expect(prompt).toContain('If no market has a clean edge, return no bet. Do NOT use goals_under as a generic escape hatch.');
+    expect(prompt).toContain('Do NOT treat 0-0 after minute 55 as automatic goals_under.');
+    expect(prompt).toContain('Before minute 65, quiet or balanced states usually mean no bet rather than a generic Under.');
+    expect(prompt).toContain('V8H 45-59 ZERO-ZERO LOW-LINE RULE');
+    expect(prompt).toContain('V8H RESIDUAL-SCORING RULE');
+    expect(prompt).toContain('V8H OVER-REJECTION RULE');
+    expect(prompt).toContain('V8H SYMMETRIC-ODDS TIE-BREAK');
+    expect(prompt).toContain('V8H EDGE-PUSH RULE');
+    expect(prompt).not.toContain('Score 0-0 after minute 55: prefer GOALS Under markets');
+  });
+
+  test('v8h market-balance section includes residual-scoring and over-rejection tightening', () => {
+    const prompt = buildLiveAnalysisPrompt(baseInput, settings, 'v8-market-balance-followup-h');
+    expect(prompt).toContain('V8H RESIDUAL-SCORING RULE');
+    expect(prompt).toContain('V8H OVER-REJECTION RULE');
+    expect(prompt).toContain('V8H SYMMETRIC-ODDS TIE-BREAK');
+    expect(prompt).toContain('V8H EDGE-PUSH RULE');
+    expect(prompt).toContain('>=3% vs fair/break-even');
+  });
+
+  test('settled replay trace mode injects calibration block', () => {
+    const prompt = buildLiveAnalysisPrompt(
+      { ...baseInput, settledReplayApprovedTrace: true },
+      settings,
+      'v8-market-balance-followup-j',
+    );
+    expect(prompt).toContain('SETTLED_REPLAY_TRACE_MODE');
+    expect(prompt).toContain('TRACE_MARKET_MIX');
+    expect(prompt).toContain('V8J PROPS HOT-ZONE');
+  });
+
+  test('settled replay trace includes anchor when original bet market set', () => {
+    const prompt = buildLiveAnalysisPrompt(
+      {
+        ...baseInput,
+        settledReplayApprovedTrace: true,
+        settledReplayOriginalBetMarket: 'over_2.5',
+        settledReplayOriginalSelection: 'Over 2.5 Goals @1.90',
+      },
+      settings,
+      'v8-market-balance-followup-j',
+    );
+    expect(prompt).toContain('STORED_TRACE_ANCHOR');
+    expect(prompt).toContain('over_2.5');
+  });
+
+  test('settled replay under history uses weak anchor wording', () => {
+    const prompt = buildLiveAnalysisPrompt(
+      {
+        ...baseInput,
+        settledReplayApprovedTrace: true,
+        settledReplayOriginalBetMarket: 'under_2.5',
+        settledReplayOriginalSelection: 'Under 2.5 Goals @1.90',
+      },
+      settings,
+      'v8-market-balance-followup-j',
+    );
+    expect(prompt).toContain('TRACE_UNDER_HISTORY');
+    expect(prompt).not.toContain('STORED_TRACE_ANCHOR');
+  });
+
+  test('v8j adds over-first totals, dual-signal under, and decisive edge push', () => {
+    const prompt = buildLiveAnalysisPrompt(baseInput, settings, 'v8-market-balance-followup-j');
+    expect(prompt).toContain('V8J OVER-FIRST TOTALS');
+    expect(prompt).toContain('V8J UNDER LAST-RESORT (GOALS)');
+    expect(prompt).toContain('V8J LINE-VS-FAIR');
+    expect(prompt).toContain('V8J IMPLIED-PROB SYMMETRY');
+    expect(prompt).toContain('V8J DUAL-SIGNAL UNDER');
+    expect(prompt).toContain('line >= 1.75');
+    expect(prompt).toContain('V8J UNDER-vs-OVER MARGIN');
+    expect(prompt).toContain('V8J DECISIVE EDGE PUSH');
+    expect(prompt).toContain('MUST set should_push=true');
+    expect(prompt).toContain('V8J OPERATIONAL PUSH LADDER');
+    expect(prompt).toContain('>=1.2% edge');
+    expect(prompt).toContain('>=0.5%');
+    expect(prompt).toContain('V8J BEFORE NO_BET');
+    expect(prompt).toContain('V8J PORTFOLIO BREADTH');
+    expect(prompt).toContain('V8J NON-GOALS FIRST PASS');
+    expect(prompt).toContain('V8J PROPS HOT-ZONE');
+    expect(prompt).toContain('V8J BTTS_NO QUALITY BAR');
+    expect(prompt).toContain('V8I EARLY LEVEL HIGH-LINE RULE');
+    expect(prompt).toContain('>=3% value edge');
   });
 
   test('candidate prompt enumerates exact canonical market keys and rejects generic aliases', () => {
@@ -563,7 +684,7 @@ describe('buildLiveAnalysisPrompt', () => {
     }, settings, LIVE_ANALYSIS_PROMPT_CANDIDATE_VERSION);
 
     expect(candidate).toContain('ACTIVE CORNERS SANITY ALERT: live corners show 7 vs bookmaker line 10.5 at minute 83.');
-    expect(candidate).toContain('assume stats desync/delay and skip ALL corners markets.');
+    expect(candidate).toContain('Treat this as likely stats desync/delay and set should_push=false for ALL corners markets.');
   });
 
   test('betting-discipline candidate treats correlated same-family picks as one position', () => {

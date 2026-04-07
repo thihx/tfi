@@ -1,0 +1,450 @@
+{
+  "name": "11799-1382855-24m-under-3",
+  "matchId": "1382855",
+  "fixture": {
+    "fixture": {
+      "id": 1382855,
+      "referee": null,
+      "timezone": "UTC",
+      "date": "2026-04-04T14:00:00.000Z",
+      "timestamp": 1775311200,
+      "periods": {
+        "first": null,
+        "second": null
+      },
+      "venue": {
+        "id": null,
+        "name": "Fir Park",
+        "city": null
+      },
+      "status": {
+        "long": "1H",
+        "short": "1H",
+        "elapsed": 24
+      }
+    },
+    "league": {
+      "id": 179,
+      "name": "Premiership",
+      "country": "",
+      "logo": "",
+      "flag": null,
+      "season": 0,
+      "round": ""
+    },
+    "teams": {
+      "home": {
+        "id": 256,
+        "name": "Motherwell",
+        "logo": "",
+        "winner": null
+      },
+      "away": {
+        "id": 1389,
+        "name": "Falkirk",
+        "logo": "",
+        "winner": null
+      }
+    },
+    "goals": {
+      "home": 0,
+      "away": 1
+    },
+    "score": {
+      "halftime": {
+        "home": null,
+        "away": null
+      },
+      "fulltime": {
+        "home": 0,
+        "away": 1
+      }
+    }
+  },
+  "watchlistEntry": {
+    "match_id": "1382855",
+    "league": "Premiership",
+    "home_team": "Motherwell",
+    "away_team": "Falkirk",
+    "mode": "B",
+    "status": "active",
+    "custom_conditions": "",
+    "date": "2026-04-04",
+    "kickoff": "14:00:00",
+    "strategic_context": null
+  },
+  "pipelineOptions": {
+    "forceAnalyze": true,
+    "skipProceedGate": true,
+    "skipStalenessGate": true
+  },
+  "statistics": [
+    {
+      "team": {
+        "id": 0,
+        "name": "Motherwell",
+        "logo": ""
+      },
+      "statistics": [
+        {
+          "type": "Ball Possession",
+          "value": "57%"
+        },
+        {
+          "type": "Total Shots",
+          "value": "2"
+        },
+        {
+          "type": "Shots on Goal",
+          "value": "1"
+        },
+        {
+          "type": "Corner Kicks",
+          "value": "1"
+        },
+        {
+          "type": "Fouls",
+          "value": "3"
+        },
+        {
+          "type": "Offsides",
+          "value": "0"
+        },
+        {
+          "type": "Yellow Cards",
+          "value": null
+        },
+        {
+          "type": "Red Cards",
+          "value": null
+        },
+        {
+          "type": "Goalkeeper Saves",
+          "value": "0"
+        },
+        {
+          "type": "Blocked Shots",
+          "value": "0"
+        },
+        {
+          "type": "Total passes",
+          "value": "113"
+        },
+        {
+          "type": "Passes accurate",
+          "value": "94"
+        },
+        {
+          "type": "Shots off Goal",
+          "value": "1"
+        },
+        {
+          "type": "Shots insidebox",
+          "value": "0"
+        },
+        {
+          "type": "Shots outsidebox",
+          "value": "2"
+        },
+        {
+          "type": "expected_goals",
+          "value": "0.04"
+        },
+        {
+          "type": "goals_prevented",
+          "value": "0"
+        },
+        {
+          "type": "Passes %",
+          "value": "83%"
+        }
+      ]
+    },
+    {
+      "team": {
+        "id": 0,
+        "name": "Falkirk",
+        "logo": ""
+      },
+      "statistics": [
+        {
+          "type": "Ball Possession",
+          "value": "43%"
+        },
+        {
+          "type": "Total Shots",
+          "value": "2"
+        },
+        {
+          "type": "Shots on Goal",
+          "value": "1"
+        },
+        {
+          "type": "Corner Kicks",
+          "value": "0"
+        },
+        {
+          "type": "Fouls",
+          "value": "3"
+        },
+        {
+          "type": "Offsides",
+          "value": "1"
+        },
+        {
+          "type": "Yellow Cards",
+          "value": null
+        },
+        {
+          "type": "Red Cards",
+          "value": null
+        },
+        {
+          "type": "Goalkeeper Saves",
+          "value": "1"
+        },
+        {
+          "type": "Blocked Shots",
+          "value": "0"
+        },
+        {
+          "type": "Total passes",
+          "value": "85"
+        },
+        {
+          "type": "Passes accurate",
+          "value": "67"
+        },
+        {
+          "type": "Shots off Goal",
+          "value": "1"
+        },
+        {
+          "type": "Shots insidebox",
+          "value": "2"
+        },
+        {
+          "type": "Shots outsidebox",
+          "value": "0"
+        },
+        {
+          "type": "expected_goals",
+          "value": "0.15"
+        },
+        {
+          "type": "goals_prevented",
+          "value": "0"
+        },
+        {
+          "type": "Passes %",
+          "value": "79%"
+        }
+      ]
+    }
+  ],
+  "mockResolvedOdds": {
+    "oddsSource": "live",
+    "response": [
+      {
+        "bookmakers": [
+          {
+            "id": 0,
+            "name": "Replay Mock",
+            "bets": [
+              {
+                "id": 1,
+                "name": "Match Winner",
+                "values": [
+                  {
+                    "value": "Home",
+                    "odd": "3.75"
+                  },
+                  {
+                    "value": "Draw",
+                    "odd": "3.5"
+                  },
+                  {
+                    "value": "Away",
+                    "odd": "1.952"
+                  }
+                ]
+              },
+              {
+                "id": 2,
+                "name": "Over/Under",
+                "values": [
+                  {
+                    "value": "Over",
+                    "odd": "1.825",
+                    "handicap": "3"
+                  },
+                  {
+                    "value": "Under",
+                    "odd": "2.025",
+                    "handicap": "3"
+                  }
+                ]
+              },
+              {
+                "id": 3,
+                "name": "Corners Over/Under",
+                "values": [
+                  {
+                    "value": "Over",
+                    "odd": "1.825",
+                    "handicap": "8.5"
+                  },
+                  {
+                    "value": "Under",
+                    "odd": "1.975",
+                    "handicap": "8.5"
+                  }
+                ]
+              },
+              {
+                "id": 4,
+                "name": "Both Teams Score",
+                "values": [
+                  {
+                    "value": "Yes",
+                    "odd": "1.25"
+                  },
+                  {
+                    "value": "No",
+                    "odd": "3.75"
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    ],
+    "oddsFetchedAt": null,
+    "freshness": "fresh",
+    "cacheStatus": "hit"
+  },
+  "previousRecommendations": [],
+  "metadata": {
+    "recommendationId": 11799,
+    "originalPromptVersion": "v8-market-balance-followup-e",
+    "originalAiModel": "gemini-3-pro-preview",
+    "originalBetMarket": "under_3",
+    "originalSelection": "Under 3 Goals @2.025",
+    "originalResult": "loss",
+    "originalPnl": -3,
+    "minute": 24,
+    "score": "0-1",
+    "status": "1H",
+    "league": "Premiership",
+    "homeTeam": "Motherwell",
+    "awayTeam": "Falkirk",
+    "evidenceMode": "full_live_data",
+    "prematchStrength": "none",
+    "profileCoverageBand": "unknown",
+    "overlayCoverageBand": "none",
+    "policyImpactBand": "clean"
+  },
+  "settlementContext": {
+    "matchId": "1382855",
+    "homeTeam": "Motherwell",
+    "awayTeam": "Falkirk",
+    "finalStatus": "FT",
+    "homeScore": 2,
+    "awayScore": 3,
+    "regularHomeScore": 2,
+    "regularAwayScore": 3,
+    "settlementStats": [
+      {
+        "away": 3,
+        "home": 3,
+        "type": "Shots on Goal"
+      },
+      {
+        "away": 1,
+        "home": 1,
+        "type": "Shots off Goal"
+      },
+      {
+        "away": 5,
+        "home": 5,
+        "type": "Total Shots"
+      },
+      {
+        "away": 1,
+        "home": 1,
+        "type": "Blocked Shots"
+      },
+      {
+        "away": 3,
+        "home": 0,
+        "type": "Shots insidebox"
+      },
+      {
+        "away": 2,
+        "home": 5,
+        "type": "Shots outsidebox"
+      },
+      {
+        "away": 6,
+        "home": 9,
+        "type": "Fouls"
+      },
+      {
+        "away": 0,
+        "home": 2,
+        "type": "Corner Kicks"
+      },
+      {
+        "away": 1,
+        "home": 0,
+        "type": "Offsides"
+      },
+      {
+        "away": "41%",
+        "home": "59%",
+        "type": "Ball Possession"
+      },
+      {
+        "away": 1,
+        "home": 1,
+        "type": "Yellow Cards"
+      },
+      {
+        "away": null,
+        "home": null,
+        "type": "Red Cards"
+      },
+      {
+        "away": 2,
+        "home": 1,
+        "type": "Goalkeeper Saves"
+      },
+      {
+        "away": 164,
+        "home": 238,
+        "type": "Total passes"
+      },
+      {
+        "away": 121,
+        "home": 198,
+        "type": "Passes accurate"
+      },
+      {
+        "away": "74%",
+        "home": "83%",
+        "type": "Passes %"
+      },
+      {
+        "away": "0.23",
+        "home": "0.13",
+        "type": "expected_goals"
+      },
+      {
+        "away": 0,
+        "home": 0,
+        "type": "goals_prevented"
+      }
+    ]
+  }
+}

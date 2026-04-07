@@ -23,7 +23,7 @@ export function AskAiMatchDialog({ open, match, isRunning, onClose, onSubmit }: 
   const uiLanguage = useUiLanguage();
   const promptLocale = uiLanguageToAskAiPromptLocale(uiLanguage);
   const quickPrompts = useAskAiQuickPromptList(promptLocale);
-  const quickPromptsLabel = getAskAiQuickPromptsSectionLabel(promptLocale);
+  const quickPromptsLabel = getAskAiQuickPromptsSectionLabel('en');
 
   const [draft, setDraft] = useState('');
   const descId = useId();

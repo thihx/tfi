@@ -1,0 +1,450 @@
+{
+  "name": "11801-1382856-27m-under-2-25",
+  "matchId": "1382856",
+  "fixture": {
+    "fixture": {
+      "id": 1382856,
+      "referee": null,
+      "timezone": "UTC",
+      "date": "2026-04-04T14:00:00.000Z",
+      "timestamp": 1775311200,
+      "periods": {
+        "first": null,
+        "second": null
+      },
+      "venue": {
+        "id": null,
+        "name": "Ibrox Stadium",
+        "city": null
+      },
+      "status": {
+        "long": "1H",
+        "short": "1H",
+        "elapsed": 27
+      }
+    },
+    "league": {
+      "id": 179,
+      "name": "Premiership",
+      "country": "",
+      "logo": "",
+      "flag": null,
+      "season": 0,
+      "round": ""
+    },
+    "teams": {
+      "home": {
+        "id": 257,
+        "name": "Rangers",
+        "logo": "",
+        "winner": null
+      },
+      "away": {
+        "id": 1386,
+        "name": "Dundee Utd",
+        "logo": "",
+        "winner": null
+      }
+    },
+    "goals": {
+      "home": 0,
+      "away": 0
+    },
+    "score": {
+      "halftime": {
+        "home": null,
+        "away": null
+      },
+      "fulltime": {
+        "home": 0,
+        "away": 0
+      }
+    }
+  },
+  "watchlistEntry": {
+    "match_id": "1382856",
+    "league": "Premiership",
+    "home_team": "Rangers",
+    "away_team": "Dundee Utd",
+    "mode": "B",
+    "status": "active",
+    "custom_conditions": "",
+    "date": "2026-04-04",
+    "kickoff": "14:00:00",
+    "strategic_context": null
+  },
+  "pipelineOptions": {
+    "forceAnalyze": true,
+    "skipProceedGate": true,
+    "skipStalenessGate": true
+  },
+  "statistics": [
+    {
+      "team": {
+        "id": 0,
+        "name": "Rangers",
+        "logo": ""
+      },
+      "statistics": [
+        {
+          "type": "Ball Possession",
+          "value": "68%"
+        },
+        {
+          "type": "Total Shots",
+          "value": "2"
+        },
+        {
+          "type": "Shots on Goal",
+          "value": "1"
+        },
+        {
+          "type": "Corner Kicks",
+          "value": "1"
+        },
+        {
+          "type": "Fouls",
+          "value": "3"
+        },
+        {
+          "type": "Offsides",
+          "value": null
+        },
+        {
+          "type": "Yellow Cards",
+          "value": "1"
+        },
+        {
+          "type": "Red Cards",
+          "value": null
+        },
+        {
+          "type": "Goalkeeper Saves",
+          "value": "0"
+        },
+        {
+          "type": "Blocked Shots",
+          "value": "0"
+        },
+        {
+          "type": "Total passes",
+          "value": "135"
+        },
+        {
+          "type": "Passes accurate",
+          "value": "115"
+        },
+        {
+          "type": "Shots off Goal",
+          "value": "1"
+        },
+        {
+          "type": "Shots insidebox",
+          "value": "1"
+        },
+        {
+          "type": "Shots outsidebox",
+          "value": "1"
+        },
+        {
+          "type": "expected_goals",
+          "value": "0.46"
+        },
+        {
+          "type": "goals_prevented",
+          "value": "0"
+        },
+        {
+          "type": "Passes %",
+          "value": "85%"
+        }
+      ]
+    },
+    {
+      "team": {
+        "id": 0,
+        "name": "Dundee Utd",
+        "logo": ""
+      },
+      "statistics": [
+        {
+          "type": "Ball Possession",
+          "value": "32%"
+        },
+        {
+          "type": "Total Shots",
+          "value": "1"
+        },
+        {
+          "type": "Shots on Goal",
+          "value": "0"
+        },
+        {
+          "type": "Corner Kicks",
+          "value": "0"
+        },
+        {
+          "type": "Fouls",
+          "value": "3"
+        },
+        {
+          "type": "Offsides",
+          "value": null
+        },
+        {
+          "type": "Yellow Cards",
+          "value": "0"
+        },
+        {
+          "type": "Red Cards",
+          "value": null
+        },
+        {
+          "type": "Goalkeeper Saves",
+          "value": "1"
+        },
+        {
+          "type": "Blocked Shots",
+          "value": "0"
+        },
+        {
+          "type": "Total passes",
+          "value": "64"
+        },
+        {
+          "type": "Passes accurate",
+          "value": "44"
+        },
+        {
+          "type": "Shots off Goal",
+          "value": "1"
+        },
+        {
+          "type": "Shots insidebox",
+          "value": "1"
+        },
+        {
+          "type": "Shots outsidebox",
+          "value": "0"
+        },
+        {
+          "type": "expected_goals",
+          "value": "0.02"
+        },
+        {
+          "type": "goals_prevented",
+          "value": "0"
+        },
+        {
+          "type": "Passes %",
+          "value": "69%"
+        }
+      ]
+    }
+  ],
+  "mockResolvedOdds": {
+    "oddsSource": "live",
+    "response": [
+      {
+        "bookmakers": [
+          {
+            "id": 0,
+            "name": "Replay Mock",
+            "bets": [
+              {
+                "id": 1,
+                "name": "Match Winner",
+                "values": [
+                  {
+                    "value": "Home",
+                    "odd": "1.5"
+                  },
+                  {
+                    "value": "Draw",
+                    "odd": "4"
+                  },
+                  {
+                    "value": "Away",
+                    "odd": "7.5"
+                  }
+                ]
+              },
+              {
+                "id": 2,
+                "name": "Over/Under",
+                "values": [
+                  {
+                    "value": "Over",
+                    "odd": "1.95",
+                    "handicap": "2.25"
+                  },
+                  {
+                    "value": "Under",
+                    "odd": "1.9",
+                    "handicap": "2.25"
+                  }
+                ]
+              },
+              {
+                "id": 3,
+                "name": "Corners Over/Under",
+                "values": [
+                  {
+                    "value": "Over",
+                    "odd": "2",
+                    "handicap": "9.5"
+                  },
+                  {
+                    "value": "Under",
+                    "odd": "1.8",
+                    "handicap": "9.5"
+                  }
+                ]
+              },
+              {
+                "id": 4,
+                "name": "Both Teams Score",
+                "values": [
+                  {
+                    "value": "Yes",
+                    "odd": "2.25"
+                  },
+                  {
+                    "value": "No",
+                    "odd": "1.571"
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    ],
+    "oddsFetchedAt": null,
+    "freshness": "fresh",
+    "cacheStatus": "hit"
+  },
+  "previousRecommendations": [],
+  "metadata": {
+    "recommendationId": 11801,
+    "originalPromptVersion": "v8-market-balance-followup-d",
+    "originalAiModel": "gemini-3-pro-preview",
+    "originalBetMarket": "under_2.25",
+    "originalSelection": "Under 2.25 Goals @1.9",
+    "originalResult": "loss",
+    "originalPnl": -3,
+    "minute": 27,
+    "score": "0-0",
+    "status": "1H",
+    "league": "Premiership",
+    "homeTeam": "Rangers",
+    "awayTeam": "Dundee Utd",
+    "evidenceMode": "full_live_data",
+    "prematchStrength": "strong",
+    "profileCoverageBand": "partial",
+    "overlayCoverageBand": "none",
+    "policyImpactBand": "clean"
+  },
+  "settlementContext": {
+    "matchId": "1382856",
+    "homeTeam": "Rangers",
+    "awayTeam": "Dundee Utd",
+    "finalStatus": "FT",
+    "homeScore": 4,
+    "awayScore": 2,
+    "regularHomeScore": 4,
+    "regularAwayScore": 2,
+    "settlementStats": [
+      {
+        "away": 1,
+        "home": 4,
+        "type": "Shots on Goal"
+      },
+      {
+        "away": 1,
+        "home": 2,
+        "type": "Shots off Goal"
+      },
+      {
+        "away": 4,
+        "home": 7,
+        "type": "Total Shots"
+      },
+      {
+        "away": 2,
+        "home": 1,
+        "type": "Blocked Shots"
+      },
+      {
+        "away": 3,
+        "home": 5,
+        "type": "Shots insidebox"
+      },
+      {
+        "away": 1,
+        "home": 2,
+        "type": "Shots outsidebox"
+      },
+      {
+        "away": 5,
+        "home": 4,
+        "type": "Fouls"
+      },
+      {
+        "away": 1,
+        "home": 5,
+        "type": "Corner Kicks"
+      },
+      {
+        "away": null,
+        "home": null,
+        "type": "Offsides"
+      },
+      {
+        "away": "30%",
+        "home": "70%",
+        "type": "Ball Possession"
+      },
+      {
+        "away": 0,
+        "home": 1,
+        "type": "Yellow Cards"
+      },
+      {
+        "away": null,
+        "home": null,
+        "type": "Red Cards"
+      },
+      {
+        "away": 2,
+        "home": 0,
+        "type": "Goalkeeper Saves"
+      },
+      {
+        "away": 125,
+        "home": 286,
+        "type": "Total passes"
+      },
+      {
+        "away": 87,
+        "home": 249,
+        "type": "Passes accurate"
+      },
+      {
+        "away": "70%",
+        "home": "87%",
+        "type": "Passes %"
+      },
+      {
+        "away": "0.21",
+        "home": "1.64",
+        "type": "expected_goals"
+      },
+      {
+        "away": 0,
+        "home": 0,
+        "type": "goals_prevented"
+      }
+    ]
+  }
+}

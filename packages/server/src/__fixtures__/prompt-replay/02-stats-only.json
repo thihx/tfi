@@ -49,8 +49,6 @@
   "events": [],
   "liveOddsResponse": [],
   "preMatchOddsResponse": [],
-  "theOddsEventsResponse": [],
-  "theOddsEventOddsResponse": null,
   "expected": {
     "analysisMode": "auto",
     "evidenceMode": "stats_only",

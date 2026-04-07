@@ -1,0 +1,432 @@
+{
+  "name": "11802-1536966-35m-under-2-75",
+  "matchId": "1536966",
+  "fixture": {
+    "fixture": {
+      "id": 1536966,
+      "referee": null,
+      "timezone": "UTC",
+      "date": "2026-04-04T14:00:00.000Z",
+      "timestamp": 1775311200,
+      "periods": {
+        "first": null,
+        "second": null
+      },
+      "venue": {
+        "id": null,
+        "name": "Elindus Arena",
+        "city": null
+      },
+      "status": {
+        "long": "1H",
+        "short": "1H",
+        "elapsed": 35
+      }
+    },
+    "league": {
+      "id": 144,
+      "name": "Jupiler Pro League",
+      "country": "",
+      "logo": "",
+      "flag": null,
+      "season": 0,
+      "round": ""
+    },
+    "teams": {
+      "home": {
+        "id": 600,
+        "name": "Zulte Waregem",
+        "logo": "",
+        "winner": null
+      },
+      "away": {
+        "id": 741,
+        "name": "Cercle Brugge",
+        "logo": "",
+        "winner": null
+      }
+    },
+    "goals": {
+      "home": 0,
+      "away": 1
+    },
+    "score": {
+      "halftime": {
+        "home": null,
+        "away": null
+      },
+      "fulltime": {
+        "home": 0,
+        "away": 1
+      }
+    }
+  },
+  "watchlistEntry": {
+    "match_id": "1536966",
+    "league": "Jupiler Pro League",
+    "home_team": "Zulte Waregem",
+    "away_team": "Cercle Brugge",
+    "mode": "B",
+    "status": "active",
+    "custom_conditions": "",
+    "date": "2026-04-04",
+    "kickoff": "14:00:00",
+    "strategic_context": null
+  },
+  "pipelineOptions": {
+    "forceAnalyze": true,
+    "skipProceedGate": true,
+    "skipStalenessGate": true
+  },
+  "statistics": [
+    {
+      "team": {
+        "id": 0,
+        "name": "Zulte Waregem",
+        "logo": ""
+      },
+      "statistics": [
+        {
+          "type": "Ball Possession",
+          "value": "41%"
+        },
+        {
+          "type": "Total Shots",
+          "value": "0"
+        },
+        {
+          "type": "Shots on Goal",
+          "value": "0"
+        },
+        {
+          "type": "Corner Kicks",
+          "value": "0"
+        },
+        {
+          "type": "Fouls",
+          "value": "5"
+        },
+        {
+          "type": "Offsides",
+          "value": "1"
+        },
+        {
+          "type": "Yellow Cards",
+          "value": "2"
+        },
+        {
+          "type": "Red Cards",
+          "value": null
+        },
+        {
+          "type": "Goalkeeper Saves",
+          "value": null
+        },
+        {
+          "type": "Blocked Shots",
+          "value": "0"
+        },
+        {
+          "type": "Total passes",
+          "value": "122"
+        },
+        {
+          "type": "Passes accurate",
+          "value": "91"
+        },
+        {
+          "type": "Shots off Goal",
+          "value": "0"
+        },
+        {
+          "type": "Shots insidebox",
+          "value": "0"
+        },
+        {
+          "type": "Shots outsidebox",
+          "value": "0"
+        },
+        {
+          "type": "expected_goals",
+          "value": "0.00"
+        },
+        {
+          "type": "goals_prevented",
+          "value": "0"
+        },
+        {
+          "type": "Passes %",
+          "value": "75%"
+        }
+      ]
+    },
+    {
+      "team": {
+        "id": 0,
+        "name": "Cercle Brugge",
+        "logo": ""
+      },
+      "statistics": [
+        {
+          "type": "Ball Possession",
+          "value": "59%"
+        },
+        {
+          "type": "Total Shots",
+          "value": "5"
+        },
+        {
+          "type": "Shots on Goal",
+          "value": "1"
+        },
+        {
+          "type": "Corner Kicks",
+          "value": "2"
+        },
+        {
+          "type": "Fouls",
+          "value": "1"
+        },
+        {
+          "type": "Offsides",
+          "value": "2"
+        },
+        {
+          "type": "Yellow Cards",
+          "value": "0"
+        },
+        {
+          "type": "Red Cards",
+          "value": null
+        },
+        {
+          "type": "Goalkeeper Saves",
+          "value": null
+        },
+        {
+          "type": "Blocked Shots",
+          "value": "3"
+        },
+        {
+          "type": "Total passes",
+          "value": "167"
+        },
+        {
+          "type": "Passes accurate",
+          "value": "131"
+        },
+        {
+          "type": "Shots off Goal",
+          "value": "1"
+        },
+        {
+          "type": "Shots insidebox",
+          "value": "3"
+        },
+        {
+          "type": "Shots outsidebox",
+          "value": "2"
+        },
+        {
+          "type": "expected_goals",
+          "value": "0.51"
+        },
+        {
+          "type": "goals_prevented",
+          "value": "0"
+        },
+        {
+          "type": "Passes %",
+          "value": "78%"
+        }
+      ]
+    }
+  ],
+  "mockResolvedOdds": {
+    "oddsSource": "live",
+    "response": [
+      {
+        "bookmakers": [
+          {
+            "id": 0,
+            "name": "Replay Mock",
+            "bets": [
+              {
+                "id": 1,
+                "name": "Over/Under",
+                "values": [
+                  {
+                    "value": "Over",
+                    "odd": "1.975",
+                    "handicap": "2.75"
+                  },
+                  {
+                    "value": "Under",
+                    "odd": "1.825",
+                    "handicap": "2.75"
+                  }
+                ]
+              },
+              {
+                "id": 2,
+                "name": "Corners Over/Under",
+                "values": [
+                  {
+                    "value": "Over",
+                    "odd": "2",
+                    "handicap": "8"
+                  },
+                  {
+                    "value": "Under",
+                    "odd": "2.25",
+                    "handicap": "8"
+                  }
+                ]
+              },
+              {
+                "id": 3,
+                "name": "Both Teams Score",
+                "values": [
+                  {
+                    "value": "Yes",
+                    "odd": "1.571"
+                  },
+                  {
+                    "value": "No",
+                    "odd": "2.25"
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    ],
+    "oddsFetchedAt": null,
+    "freshness": "fresh",
+    "cacheStatus": "hit"
+  },
+  "previousRecommendations": [],
+  "metadata": {
+    "recommendationId": 11802,
+    "originalPromptVersion": "v8-market-balance-followup-f",
+    "originalAiModel": "gemini-3-pro-preview",
+    "originalBetMarket": "under_2.75",
+    "originalSelection": "Under 2.75 Goals @1.825",
+    "originalResult": "loss",
+    "originalPnl": -4,
+    "minute": 35,
+    "score": "0-1",
+    "status": "1H",
+    "league": "Jupiler Pro League",
+    "homeTeam": "Zulte Waregem",
+    "awayTeam": "Cercle Brugge",
+    "evidenceMode": "full_live_data",
+    "prematchStrength": "strong",
+    "profileCoverageBand": "strong",
+    "overlayCoverageBand": "none",
+    "policyImpactBand": "clean"
+  },
+  "settlementContext": {
+    "matchId": "1536966",
+    "homeTeam": "Zulte Waregem",
+    "awayTeam": "Cercle Brugge",
+    "finalStatus": "FT",
+    "homeScore": 2,
+    "awayScore": 2,
+    "regularHomeScore": 2,
+    "regularAwayScore": 2,
+    "settlementStats": [
+      {
+        "away": 2,
+        "home": 0,
+        "type": "Shots on Goal"
+      },
+      {
+        "away": 1,
+        "home": 0,
+        "type": "Shots off Goal"
+      },
+      {
+        "away": 7,
+        "home": 1,
+        "type": "Total Shots"
+      },
+      {
+        "away": 4,
+        "home": 1,
+        "type": "Blocked Shots"
+      },
+      {
+        "away": 4,
+        "home": 1,
+        "type": "Shots insidebox"
+      },
+      {
+        "away": 3,
+        "home": 0,
+        "type": "Shots outsidebox"
+      },
+      {
+        "away": 3,
+        "home": 5,
+        "type": "Fouls"
+      },
+      {
+        "away": 2,
+        "home": 3,
+        "type": "Corner Kicks"
+      },
+      {
+        "away": 2,
+        "home": 1,
+        "type": "Offsides"
+      },
+      {
+        "away": "52%",
+        "home": "48%",
+        "type": "Ball Possession"
+      },
+      {
+        "away": 0,
+        "home": 2,
+        "type": "Yellow Cards"
+      },
+      {
+        "away": null,
+        "home": null,
+        "type": "Red Cards"
+      },
+      {
+        "away": 0,
+        "home": 1,
+        "type": "Goalkeeper Saves"
+      },
+      {
+        "away": 188,
+        "home": 177,
+        "type": "Total passes"
+      },
+      {
+        "away": 145,
+        "home": 137,
+        "type": "Passes accurate"
+      },
+      {
+        "away": "77%",
+        "home": "77%",
+        "type": "Passes %"
+      },
+      {
+        "away": "0.85",
+        "home": "0.24",
+        "type": "expected_goals"
+      },
+      {
+        "away": 0,
+        "home": 0,
+        "type": "goals_prevented"
+      }
+    ]
+  }
+}

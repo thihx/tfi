@@ -5,10 +5,6 @@ vi.mock('../lib/football-api.js', () => ({
   fetchPreMatchOdds: vi.fn(),
 }));
 
-vi.mock('../lib/the-odds-api.js', () => ({
-  fetchTheOddsLiveDetailed: vi.fn(),
-}));
-
 vi.mock('../lib/provider-sampling.js', () => ({
   extractStatusCode: vi.fn(() => null),
   recordProviderOddsSampleSafe: vi.fn().mockResolvedValue(undefined),
@@ -60,9 +56,8 @@ describe('resolveMatchOdds', () => {
     vi.clearAllMocks();
   });
 
-  test('uses normalized live odds before any fallback', async () => {
+  test('uses normalized live odds before pre-match', async () => {
     const footballApi = await import('../lib/football-api.js');
-    const theOddsApi = await import('../lib/the-odds-api.js');
 
     vi.mocked(footballApi.fetchLiveOdds).mockResolvedValueOnce([{
       fixture: { id: 100 },
@@ -81,65 +76,13 @@ describe('resolveMatchOdds', () => {
     expect(result.oddsSource).toBe('live');
     expect(result.cacheStatus).toBe('refreshed');
     expect(Array.isArray(result.response)).toBe(true);
-    expect(vi.mocked(theOddsApi.fetchTheOddsLiveDetailed)).not.toHaveBeenCalled();
     expect(footballApi.fetchPreMatchOdds).not.toHaveBeenCalled();
   });
 
-  test('prefers The Odds exact-event fallback before pre-match', async () => {
+  test('falls back to pre-match when live is empty', async () => {
     const footballApi = await import('../lib/football-api.js');
-    const theOddsApi = await import('../lib/the-odds-api.js');
 
     vi.mocked(footballApi.fetchLiveOdds).mockResolvedValueOnce([] as never);
-    vi.mocked(theOddsApi.fetchTheOddsLiveDetailed).mockResolvedValueOnce({
-      result: {
-        fixture: { id: 100 },
-        bookmakers: [{
-          id: 100,
-          name: 'FallbackBook',
-          bets: [{
-            id: 2,
-            name: 'Over/Under',
-            values: [
-              { value: 'Over', odd: '1.88', handicap: '2.5' },
-              { value: 'Under', odd: '1.98', handicap: '2.5' },
-            ],
-          }],
-        }],
-      },
-      matchedEvent: null,
-      rawEventOdds: null,
-      sportKey: 'soccer_epl',
-      scannedSportKeys: ['soccer_epl'],
-      error: null,
-    } as never);
-
-    const result = await resolveMatchOdds({
-      matchId: '100',
-      homeTeam: 'Team A',
-      awayTeam: 'Team B',
-      kickoffTimestamp: 1700000000,
-      leagueName: 'Premier League',
-      leagueCountry: 'England',
-      status: '2H',
-    });
-
-    expect(result.oddsSource).toBe('fallback-live');
-    expect(footballApi.fetchPreMatchOdds).not.toHaveBeenCalled();
-  });
-
-  test('falls back to pre-match when live and The Odds are unavailable', async () => {
-    const footballApi = await import('../lib/football-api.js');
-    const theOddsApi = await import('../lib/the-odds-api.js');
-
-    vi.mocked(footballApi.fetchLiveOdds).mockResolvedValueOnce([] as never);
-    vi.mocked(theOddsApi.fetchTheOddsLiveDetailed).mockResolvedValueOnce({
-      result: null,
-      matchedEvent: null,
-      rawEventOdds: null,
-      sportKey: null,
-      scannedSportKeys: ['soccer_epl'],
-      error: 'NO_EXACT_EVENT_MATCH',
-    } as never);
     vi.mocked(footballApi.fetchPreMatchOdds).mockResolvedValueOnce([{
       fixture: { id: 100 },
       bookmakers: [{
@@ -167,18 +110,9 @@ describe('resolveMatchOdds', () => {
 
   test('records final none state when all sources are unusable', async () => {
     const footballApi = await import('../lib/football-api.js');
-    const theOddsApi = await import('../lib/the-odds-api.js');
     const sampling = await import('../lib/provider-sampling.js');
 
     vi.mocked(footballApi.fetchLiveOdds).mockResolvedValueOnce([] as never);
-    vi.mocked(theOddsApi.fetchTheOddsLiveDetailed).mockResolvedValueOnce({
-      result: null,
-      matchedEvent: null,
-      rawEventOdds: null,
-      sportKey: null,
-      scannedSportKeys: ['soccer_epl'],
-      error: 'NO_EXACT_EVENT_MATCH',
-    } as never);
     vi.mocked(footballApi.fetchPreMatchOdds).mockResolvedValueOnce([] as never);
 
     const result = await resolveMatchOdds({
@@ -190,7 +124,7 @@ describe('resolveMatchOdds', () => {
     });
 
     expect(result.oddsSource).toBe('none');
-    expect(vi.mocked(sampling.recordProviderOddsSampleSafe)).toHaveBeenCalledTimes(4);
+    expect(vi.mocked(sampling.recordProviderOddsSampleSafe)).toHaveBeenCalledTimes(3);
     expect(vi.mocked(sampling.recordProviderOddsSampleSafe)).toHaveBeenLastCalledWith(expect.objectContaining({
       provider: 'resolver',
       source: 'none',
@@ -234,7 +168,6 @@ describe('resolveMatchOdds', () => {
 
   test('does not reuse stale cached live odds when real-time freshness is required', async () => {
     const footballApi = await import('../lib/football-api.js');
-    const theOddsApi = await import('../lib/the-odds-api.js');
     const cacheRepo = await import('../repos/provider-odds-cache.repo.js');
 
     vi.mocked(cacheRepo.getProviderOddsCache).mockResolvedValueOnce({
@@ -257,14 +190,6 @@ describe('resolveMatchOdds', () => {
       has_btts: false,
     } as never);
     vi.mocked(footballApi.fetchLiveOdds).mockResolvedValueOnce([] as never);
-    vi.mocked(theOddsApi.fetchTheOddsLiveDetailed).mockResolvedValueOnce({
-      result: null,
-      matchedEvent: null,
-      rawEventOdds: null,
-      sportKey: null,
-      scannedSportKeys: ['soccer_epl'],
-      error: 'NO_EXACT_EVENT_MATCH',
-    } as never);
     vi.mocked(footballApi.fetchPreMatchOdds).mockResolvedValueOnce([] as never);
 
     const result = await resolveMatchOdds({
@@ -288,7 +213,6 @@ describe('resolveMatchOdds', () => {
 
   test('still allows stale cached odds on live paths when explicitly stale-safe', async () => {
     const footballApi = await import('../lib/football-api.js');
-    const theOddsApi = await import('../lib/the-odds-api.js');
     const cacheRepo = await import('../repos/provider-odds-cache.repo.js');
 
     vi.mocked(cacheRepo.getProviderOddsCache).mockResolvedValueOnce({
@@ -311,14 +235,6 @@ describe('resolveMatchOdds', () => {
       has_btts: false,
     } as never);
     vi.mocked(footballApi.fetchLiveOdds).mockResolvedValueOnce([] as never);
-    vi.mocked(theOddsApi.fetchTheOddsLiveDetailed).mockResolvedValueOnce({
-      result: null,
-      matchedEvent: null,
-      rawEventOdds: null,
-      sportKey: null,
-      scannedSportKeys: ['soccer_epl'],
-      error: 'NO_EXACT_EVENT_MATCH',
-    } as never);
     vi.mocked(footballApi.fetchPreMatchOdds).mockResolvedValueOnce([] as never);
 
     const result = await resolveMatchOdds({

@@ -1,0 +1,445 @@
+{
+  "name": "12479-1378169-33m-corners-under-7",
+  "matchId": "1378169",
+  "fixture": {
+    "fixture": {
+      "id": 1378169,
+      "referee": null,
+      "timezone": "UTC",
+      "date": "2026-04-06T18:45:00.000Z",
+      "timestamp": 1775501100,
+      "periods": {
+        "first": null,
+        "second": null
+      },
+      "venue": {
+        "id": null,
+        "name": "Stadio Diego Armando Maradona",
+        "city": null
+      },
+      "status": {
+        "long": "1H",
+        "short": "1H",
+        "elapsed": 33
+      }
+    },
+    "league": {
+      "id": 135,
+      "name": "Serie A",
+      "country": "",
+      "logo": "",
+      "flag": null,
+      "season": 0,
+      "round": ""
+    },
+    "teams": {
+      "home": {
+        "id": 0,
+        "name": "Napoli",
+        "logo": "",
+        "winner": null
+      },
+      "away": {
+        "id": 0,
+        "name": "AC Milan",
+        "logo": "",
+        "winner": null
+      }
+    },
+    "goals": {
+      "home": 0,
+      "away": 0
+    },
+    "score": {
+      "halftime": {
+        "home": null,
+        "away": null
+      },
+      "fulltime": {
+        "home": 0,
+        "away": 0
+      }
+    }
+  },
+  "watchlistEntry": {
+    "match_id": "1378169",
+    "league": "Serie A",
+    "home_team": "Napoli",
+    "away_team": "AC Milan",
+    "mode": "B",
+    "status": "active",
+    "custom_conditions": "",
+    "date": "2026-04-07",
+    "kickoff": "03:45:00",
+    "strategic_context": null
+  },
+  "pipelineOptions": {
+    "forceAnalyze": true,
+    "skipProceedGate": true,
+    "skipStalenessGate": true
+  },
+  "statistics": [
+    {
+      "team": {
+        "id": 0,
+        "name": "Napoli",
+        "logo": ""
+      },
+      "statistics": [
+        {
+          "type": "Ball Possession",
+          "value": "71%"
+        },
+        {
+          "type": "Total Shots",
+          "value": "1"
+        },
+        {
+          "type": "Shots on Goal",
+          "value": "0"
+        },
+        {
+          "type": "Corner Kicks",
+          "value": "1"
+        },
+        {
+          "type": "Fouls",
+          "value": "3"
+        },
+        {
+          "type": "Offsides",
+          "value": "1"
+        },
+        {
+          "type": "Yellow Cards",
+          "value": "1"
+        },
+        {
+          "type": "Red Cards",
+          "value": null
+        },
+        {
+          "type": "Goalkeeper Saves",
+          "value": "1"
+        },
+        {
+          "type": "Blocked Shots",
+          "value": "0"
+        },
+        {
+          "type": "Total passes",
+          "value": "250"
+        },
+        {
+          "type": "Passes accurate",
+          "value": "225"
+        },
+        {
+          "type": "Shots off Goal",
+          "value": "1"
+        },
+        {
+          "type": "Shots insidebox",
+          "value": "1"
+        },
+        {
+          "type": "Shots outsidebox",
+          "value": "0"
+        },
+        {
+          "type": "expected_goals",
+          "value": "0.10"
+        },
+        {
+          "type": "goals_prevented",
+          "value": "0"
+        },
+        {
+          "type": "Passes %",
+          "value": "90%"
+        }
+      ]
+    },
+    {
+      "team": {
+        "id": 0,
+        "name": "AC Milan",
+        "logo": ""
+      },
+      "statistics": [
+        {
+          "type": "Ball Possession",
+          "value": "29%"
+        },
+        {
+          "type": "Total Shots",
+          "value": "2"
+        },
+        {
+          "type": "Shots on Goal",
+          "value": "1"
+        },
+        {
+          "type": "Corner Kicks",
+          "value": "0"
+        },
+        {
+          "type": "Fouls",
+          "value": "2"
+        },
+        {
+          "type": "Offsides",
+          "value": "0"
+        },
+        {
+          "type": "Yellow Cards",
+          "value": "0"
+        },
+        {
+          "type": "Red Cards",
+          "value": null
+        },
+        {
+          "type": "Goalkeeper Saves",
+          "value": "0"
+        },
+        {
+          "type": "Blocked Shots",
+          "value": "0"
+        },
+        {
+          "type": "Total passes",
+          "value": "100"
+        },
+        {
+          "type": "Passes accurate",
+          "value": "76"
+        },
+        {
+          "type": "Shots off Goal",
+          "value": "1"
+        },
+        {
+          "type": "Shots insidebox",
+          "value": "1"
+        },
+        {
+          "type": "Shots outsidebox",
+          "value": "1"
+        },
+        {
+          "type": "expected_goals",
+          "value": "0.22"
+        },
+        {
+          "type": "goals_prevented",
+          "value": "0"
+        },
+        {
+          "type": "Passes %",
+          "value": "76%"
+        }
+      ]
+    }
+  ],
+  "mockResolvedOdds": {
+    "oddsSource": "live",
+    "response": [
+      {
+        "bookmakers": [
+          {
+            "id": 0,
+            "name": "Replay Mock",
+            "bets": [
+              {
+                "id": 1,
+                "name": "Over/Under",
+                "values": [
+                  {
+                    "value": "Over",
+                    "odd": "2",
+                    "handicap": "1.5"
+                  },
+                  {
+                    "value": "Under",
+                    "odd": "1.85",
+                    "handicap": "1.5"
+                  }
+                ]
+              },
+              {
+                "id": 2,
+                "name": "Corners Over/Under",
+                "values": [
+                  {
+                    "value": "Over",
+                    "odd": "2.1",
+                    "handicap": "7"
+                  },
+                  {
+                    "value": "Under",
+                    "odd": "2.25",
+                    "handicap": "7"
+                  }
+                ]
+              },
+              {
+                "id": 3,
+                "name": "Both Teams Score",
+                "values": [
+                  {
+                    "value": "Yes",
+                    "odd": "2.75"
+                  },
+                  {
+                    "value": "No",
+                    "odd": "1.4"
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    ],
+    "oddsFetchedAt": null,
+    "freshness": "fresh",
+    "cacheStatus": "hit"
+  },
+  "previousRecommendations": [
+    {
+      "minute": 25,
+      "odds": "2.100",
+      "bet_market": "corners_under_8",
+      "selection": "Corners Under 8 @2.1",
+      "score": "0-0",
+      "status": "1H",
+      "result": "win",
+      "confidence": 6,
+      "stake_percent": "3.00",
+      "reasoning": "Break-even about 47.6%. My fair range is around 60-65%. Edge looks about 15%. The match has started with extreme caution. Through 25 minutes, we have seen only 2 total shots and 1 corner. Napoli controls 64% possession but has 0 shots, indicating sterile possession against a deep Milan block. Corner tempo so far is just 0.04 per minute. To reach 8 corners, the match would need 7 more (0.10 per minute), which is more than double the current rate. The league average is 7.63 corners per match, and the live tactical setup strongly supports a total well below that average. Early game caution applies, hence the moderate stake."
+    }
+  ],
+  "metadata": {
+    "recommendationId": 12479,
+    "originalPromptVersion": "v4-evidence-hardened",
+    "originalAiModel": "gemini-3-pro-preview",
+    "originalBetMarket": "corners_under_7",
+    "originalSelection": "Corners Under 7 @2.25",
+    "originalResult": "win",
+    "originalPnl": 4.38,
+    "minute": 33,
+    "score": "0-0",
+    "status": "1H",
+    "league": "Serie A",
+    "homeTeam": "Napoli",
+    "awayTeam": "AC Milan",
+    "evidenceMode": "full_live_data",
+    "prematchStrength": "strong",
+    "profileCoverageBand": "strong",
+    "overlayCoverageBand": "none",
+    "policyImpactBand": "clean"
+  },
+  "settlementContext": {
+    "matchId": "1378169",
+    "homeTeam": "Napoli",
+    "awayTeam": "AC Milan",
+    "finalStatus": "FT",
+    "homeScore": 1,
+    "awayScore": 0,
+    "regularHomeScore": 1,
+    "regularAwayScore": 0,
+    "settlementStats": [
+      {
+        "away": 1,
+        "home": 3,
+        "type": "Shots on Goal"
+      },
+      {
+        "away": 6,
+        "home": 6,
+        "type": "Shots off Goal"
+      },
+      {
+        "away": 7,
+        "home": 10,
+        "type": "Total Shots"
+      },
+      {
+        "away": 0,
+        "home": 1,
+        "type": "Blocked Shots"
+      },
+      {
+        "away": 5,
+        "home": 7,
+        "type": "Shots insidebox"
+      },
+      {
+        "away": 2,
+        "home": 3,
+        "type": "Shots outsidebox"
+      },
+      {
+        "away": 6,
+        "home": 7,
+        "type": "Fouls"
+      },
+      {
+        "away": 1,
+        "home": 4,
+        "type": "Corner Kicks"
+      },
+      {
+        "away": 2,
+        "home": 5,
+        "type": "Offsides"
+      },
+      {
+        "away": "46%",
+        "home": "54%",
+        "type": "Ball Possession"
+      },
+      {
+        "away": 0,
+        "home": 2,
+        "type": "Yellow Cards"
+      },
+      {
+        "away": null,
+        "home": null,
+        "type": "Red Cards"
+      },
+      {
+        "away": 2,
+        "home": 1,
+        "type": "Goalkeeper Saves"
+      },
+      {
+        "away": 450,
+        "home": 522,
+        "type": "Total passes"
+      },
+      {
+        "away": 384,
+        "home": 470,
+        "type": "Passes accurate"
+      },
+      {
+        "away": "85%",
+        "home": "90%",
+        "type": "Passes %"
+      },
+      {
+        "away": "0.47",
+        "home": "0.75",
+        "type": "expected_goals"
+      },
+      {
+        "away": 0,
+        "home": 0,
+        "type": "goals_prevented"
+      }
+    ]
+  }
+}

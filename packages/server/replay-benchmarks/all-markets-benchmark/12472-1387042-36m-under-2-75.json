@@ -1,0 +1,432 @@
+{
+  "name": "12472-1387042-36m-under-2-75",
+  "matchId": "1387042",
+  "fixture": {
+    "fixture": {
+      "id": 1387042,
+      "referee": null,
+      "timezone": "UTC",
+      "date": "2026-04-06T14:00:00.000Z",
+      "timestamp": 1775484000,
+      "periods": {
+        "first": null,
+        "second": null
+      },
+      "venue": {
+        "id": null,
+        "name": "Ashton Gate Stadium",
+        "city": null
+      },
+      "status": {
+        "long": "1H",
+        "short": "1H",
+        "elapsed": 36
+      }
+    },
+    "league": {
+      "id": 40,
+      "name": "Championship",
+      "country": "",
+      "logo": "",
+      "flag": null,
+      "season": 0,
+      "round": ""
+    },
+    "teams": {
+      "home": {
+        "id": 56,
+        "name": "Bristol City",
+        "logo": "",
+        "winner": null
+      },
+      "away": {
+        "id": 62,
+        "name": "Sheffield Utd",
+        "logo": "",
+        "winner": null
+      }
+    },
+    "goals": {
+      "home": 1,
+      "away": 0
+    },
+    "score": {
+      "halftime": {
+        "home": null,
+        "away": null
+      },
+      "fulltime": {
+        "home": 1,
+        "away": 0
+      }
+    }
+  },
+  "watchlistEntry": {
+    "match_id": "1387042",
+    "league": "Championship",
+    "home_team": "Bristol City",
+    "away_team": "Sheffield Utd",
+    "mode": "B",
+    "status": "active",
+    "custom_conditions": "",
+    "date": "2026-04-06",
+    "kickoff": "14:00:00",
+    "strategic_context": null
+  },
+  "pipelineOptions": {
+    "forceAnalyze": true,
+    "skipProceedGate": true,
+    "skipStalenessGate": true
+  },
+  "statistics": [
+    {
+      "team": {
+        "id": 0,
+        "name": "Bristol City",
+        "logo": ""
+      },
+      "statistics": [
+        {
+          "type": "Ball Possession",
+          "value": "61%"
+        },
+        {
+          "type": "Total Shots",
+          "value": "2"
+        },
+        {
+          "type": "Shots on Goal",
+          "value": "1"
+        },
+        {
+          "type": "Corner Kicks",
+          "value": null
+        },
+        {
+          "type": "Fouls",
+          "value": "6"
+        },
+        {
+          "type": "Offsides",
+          "value": "0"
+        },
+        {
+          "type": "Yellow Cards",
+          "value": "1"
+        },
+        {
+          "type": "Red Cards",
+          "value": null
+        },
+        {
+          "type": "Goalkeeper Saves",
+          "value": "1"
+        },
+        {
+          "type": "Blocked Shots",
+          "value": "0"
+        },
+        {
+          "type": "Total passes",
+          "value": "228"
+        },
+        {
+          "type": "Passes accurate",
+          "value": "203"
+        },
+        {
+          "type": "Shots off Goal",
+          "value": "1"
+        },
+        {
+          "type": "Shots insidebox",
+          "value": "1"
+        },
+        {
+          "type": "Shots outsidebox",
+          "value": "1"
+        },
+        {
+          "type": "expected_goals",
+          "value": "0.21"
+        },
+        {
+          "type": "goals_prevented",
+          "value": "0"
+        },
+        {
+          "type": "Passes %",
+          "value": "89%"
+        }
+      ]
+    },
+    {
+      "team": {
+        "id": 0,
+        "name": "Sheffield Utd",
+        "logo": ""
+      },
+      "statistics": [
+        {
+          "type": "Ball Possession",
+          "value": "39%"
+        },
+        {
+          "type": "Total Shots",
+          "value": "2"
+        },
+        {
+          "type": "Shots on Goal",
+          "value": "1"
+        },
+        {
+          "type": "Corner Kicks",
+          "value": null
+        },
+        {
+          "type": "Fouls",
+          "value": "2"
+        },
+        {
+          "type": "Offsides",
+          "value": "1"
+        },
+        {
+          "type": "Yellow Cards",
+          "value": "1"
+        },
+        {
+          "type": "Red Cards",
+          "value": null
+        },
+        {
+          "type": "Goalkeeper Saves",
+          "value": "0"
+        },
+        {
+          "type": "Blocked Shots",
+          "value": "1"
+        },
+        {
+          "type": "Total passes",
+          "value": "148"
+        },
+        {
+          "type": "Passes accurate",
+          "value": "127"
+        },
+        {
+          "type": "Shots off Goal",
+          "value": "0"
+        },
+        {
+          "type": "Shots insidebox",
+          "value": "2"
+        },
+        {
+          "type": "Shots outsidebox",
+          "value": "0"
+        },
+        {
+          "type": "expected_goals",
+          "value": "0.15"
+        },
+        {
+          "type": "goals_prevented",
+          "value": "0"
+        },
+        {
+          "type": "Passes %",
+          "value": "86%"
+        }
+      ]
+    }
+  ],
+  "mockResolvedOdds": {
+    "oddsSource": "live",
+    "response": [
+      {
+        "bookmakers": [
+          {
+            "id": 0,
+            "name": "Replay Mock",
+            "bets": [
+              {
+                "id": 1,
+                "name": "Over/Under",
+                "values": [
+                  {
+                    "value": "Over",
+                    "odd": "2",
+                    "handicap": "2.75"
+                  },
+                  {
+                    "value": "Under",
+                    "odd": "1.85",
+                    "handicap": "2.75"
+                  }
+                ]
+              },
+              {
+                "id": 2,
+                "name": "Corners Over/Under",
+                "values": [
+                  {
+                    "value": "Over",
+                    "odd": "1.75",
+                    "handicap": "5.5"
+                  },
+                  {
+                    "value": "Under",
+                    "odd": "2.05",
+                    "handicap": "5.5"
+                  }
+                ]
+              },
+              {
+                "id": 3,
+                "name": "Both Teams Score",
+                "values": [
+                  {
+                    "value": "Yes",
+                    "odd": "1.5"
+                  },
+                  {
+                    "value": "No",
+                    "odd": "2.5"
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    ],
+    "oddsFetchedAt": null,
+    "freshness": "fresh",
+    "cacheStatus": "hit"
+  },
+  "previousRecommendations": [],
+  "metadata": {
+    "recommendationId": 12472,
+    "originalPromptVersion": "v6-betting-discipline-c",
+    "originalAiModel": "gemini-3-pro-preview",
+    "originalBetMarket": "under_2.75",
+    "originalSelection": "Under 2.75 Goals @1.85",
+    "originalResult": "win",
+    "originalPnl": 3.4,
+    "minute": 36,
+    "score": "1-0",
+    "status": "1H",
+    "league": "Championship",
+    "homeTeam": "Bristol City",
+    "awayTeam": "Sheffield Utd",
+    "evidenceMode": "full_live_data",
+    "prematchStrength": "strong",
+    "profileCoverageBand": "strong",
+    "overlayCoverageBand": "one",
+    "policyImpactBand": "clean"
+  },
+  "settlementContext": {
+    "matchId": "1387042",
+    "homeTeam": "Bristol City",
+    "awayTeam": "Sheffield Utd",
+    "finalStatus": "FT",
+    "homeScore": 1,
+    "awayScore": 0,
+    "regularHomeScore": 1,
+    "regularAwayScore": 0,
+    "settlementStats": [
+      {
+        "away": 7,
+        "home": 1,
+        "type": "Shots on Goal"
+      },
+      {
+        "away": 8,
+        "home": 2,
+        "type": "Shots off Goal"
+      },
+      {
+        "away": 21,
+        "home": 5,
+        "type": "Total Shots"
+      },
+      {
+        "away": 6,
+        "home": 2,
+        "type": "Blocked Shots"
+      },
+      {
+        "away": 14,
+        "home": 3,
+        "type": "Shots insidebox"
+      },
+      {
+        "away": 7,
+        "home": 2,
+        "type": "Shots outsidebox"
+      },
+      {
+        "away": 9,
+        "home": 6,
+        "type": "Fouls"
+      },
+      {
+        "away": 5,
+        "home": 0,
+        "type": "Corner Kicks"
+      },
+      {
+        "away": 2,
+        "home": 0,
+        "type": "Offsides"
+      },
+      {
+        "away": "53%",
+        "home": "47%",
+        "type": "Ball Possession"
+      },
+      {
+        "away": 3,
+        "home": 1,
+        "type": "Yellow Cards"
+      },
+      {
+        "away": null,
+        "home": null,
+        "type": "Red Cards"
+      },
+      {
+        "away": 0,
+        "home": 7,
+        "type": "Goalkeeper Saves"
+      },
+      {
+        "away": 541,
+        "home": 489,
+        "type": "Total passes"
+      },
+      {
+        "away": 468,
+        "home": 392,
+        "type": "Passes accurate"
+      },
+      {
+        "away": "87%",
+        "home": "80%",
+        "type": "Passes %"
+      },
+      {
+        "away": "1.32",
+        "home": "0.36",
+        "type": "expected_goals"
+      },
+      {
+        "away": 0,
+        "home": 0,
+        "type": "goals_prevented"
+      }
+    ]
+  }
+}

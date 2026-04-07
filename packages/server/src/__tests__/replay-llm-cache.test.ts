@@ -37,6 +37,19 @@ describe('replay llm cache', () => {
       expect(loaded?.promptVersion).toBe('v8-market-balance-followup-f');
       expect(loaded?.aiText).toContain('should_push');
       expect(path).toContain('88__1504751-machida-zelvia-vs-fc-tokyo');
+
+      const pathTrace = buildReplayLlmCachePath(
+        dir,
+        {
+          name: '1504751 Machida Zelvia vs FC Tokyo',
+          metadata: { recommendationId: 88 } as never,
+        },
+        'v8-market-balance-followup-f',
+        'mock',
+        'settled-trace',
+      );
+      expect(pathTrace).toContain('settled-trace');
+      expect(pathTrace).not.toBe(path);
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }

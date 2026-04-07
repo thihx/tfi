@@ -1,0 +1,1212 @@
+{
+  "exportedAt": "2026-04-07T15:08:25.685Z",
+  "count": 120,
+  "filters": {
+    "lookbackDays": 14,
+    "limit": 120,
+    "promptVersion": null,
+    "marketFamily": "all"
+  },
+  "scenarios": [
+    {
+      "name": "12493-1528154-72m-under-5",
+      "recommendationId": 12493,
+      "matchId": "1528154",
+      "minute": 72,
+      "score": "3-1",
+      "originalBetMarket": "under_5",
+      "originalResult": "push",
+      "promptVersion": "v4-evidence-hardened"
+    },
+    {
+      "name": "12492-1528154-67m-under-5-25",
+      "recommendationId": 12492,
+      "matchId": "1528154",
+      "minute": 67,
+      "score": "3-0",
+      "originalBetMarket": "under_5.25",
+      "originalResult": "half_win",
+      "promptVersion": "v4-evidence-hardened"
+    },
+    {
+      "name": "12491-1469654-76m-corners-under-7-5",
+      "recommendationId": 12491,
+      "matchId": "1469654",
+      "minute": 76,
+      "score": "2-0",
+      "originalBetMarket": "corners_under_7.5",
+      "originalResult": "loss",
+      "promptVersion": "v4-evidence-hardened"
+    },
+    {
+      "name": "12490-1469654-70m-corners-under-6-5",
+      "recommendationId": 12490,
+      "matchId": "1469654",
+      "minute": 70,
+      "score": "2-0",
+      "originalBetMarket": "corners_under_6.5",
+      "originalResult": "loss",
+      "promptVersion": "v4-evidence-hardened"
+    },
+    {
+      "name": "12489-1469654-57m-under-2-25",
+      "recommendationId": 12489,
+      "matchId": "1469654",
+      "minute": 57,
+      "score": "1-0",
+      "originalBetMarket": "under_2.25",
+      "originalResult": "loss",
+      "promptVersion": "v4-evidence-hardened"
+    },
+    {
+      "name": "12488-1469654-23m-under-3-5",
+      "recommendationId": 12488,
+      "matchId": "1469654",
+      "minute": 23,
+      "score": "1-0",
+      "originalBetMarket": "under_3.5",
+      "originalResult": "win",
+      "promptVersion": "v4-evidence-hardened"
+    },
+    {
+      "name": "12487-1396481-44m-under-1-75",
+      "recommendationId": 12487,
+      "matchId": "1396481",
+      "minute": 44,
+      "score": "0-0",
+      "originalBetMarket": "under_1.75",
+      "originalResult": "half_loss",
+      "promptVersion": "v4-evidence-hardened"
+    },
+    {
+      "name": "12486-1396481-28m-under-2-25",
+      "recommendationId": 12486,
+      "matchId": "1396481",
+      "minute": 28,
+      "score": "0-0",
+      "originalBetMarket": "under_2.25",
+      "originalResult": "half_win",
+      "promptVersion": "v4-evidence-hardened"
+    },
+    {
+      "name": "12485-1378169-68m-under-0-5",
+      "recommendationId": 12485,
+      "matchId": "1378169",
+      "minute": 68,
+      "score": "0-0",
+      "originalBetMarket": "under_0.5",
+      "originalResult": "loss",
+      "promptVersion": "v4-evidence-hardened"
+    },
+    {
+      "name": "12484-1387035-50m-under-1-25",
+      "recommendationId": 12484,
+      "matchId": "1387035",
+      "minute": 50,
+      "score": "0-0",
+      "originalBetMarket": "under_1.25",
+      "originalResult": "win",
+      "promptVersion": "v4-evidence-hardened"
+    },
+    {
+      "name": "12483-1387035-41m-under-1-75",
+      "recommendationId": 12483,
+      "matchId": "1387035",
+      "minute": 41,
+      "score": "0-0",
+      "originalBetMarket": "under_1.75",
+      "originalResult": "win",
+      "promptVersion": "v4-evidence-hardened"
+    },
+    {
+      "name": "12482-1391113-35m-under-1-75",
+      "recommendationId": 12482,
+      "matchId": "1391113",
+      "minute": 35,
+      "score": "0-0",
+      "originalBetMarket": "under_1.75",
+      "originalResult": "win",
+      "promptVersion": "v4-evidence-hardened"
+    },
+    {
+      "name": "12481-1387035-31m-corners-under-9",
+      "recommendationId": 12481,
+      "matchId": "1387035",
+      "minute": 31,
+      "score": "0-0",
+      "originalBetMarket": "corners_under_9",
+      "originalResult": "win",
+      "promptVersion": "v4-evidence-hardened"
+    },
+    {
+      "name": "12480-1391113-29m-under-2",
+      "recommendationId": 12480,
+      "matchId": "1391113",
+      "minute": 29,
+      "score": "0-0",
+      "originalBetMarket": "under_2",
+      "originalResult": "win",
+      "promptVersion": "v8-market-balance-followup-h"
+    },
+    {
+      "name": "12479-1378169-33m-corners-under-7",
+      "recommendationId": 12479,
+      "matchId": "1378169",
+      "minute": 33,
+      "score": "0-0",
+      "originalBetMarket": "corners_under_7",
+      "originalResult": "win",
+      "promptVersion": "v4-evidence-hardened"
+    },
+    {
+      "name": "12478-1378169-25m-corners-under-8",
+      "recommendationId": 12478,
+      "matchId": "1378169",
+      "minute": 25,
+      "score": "0-0",
+      "originalBetMarket": "corners_under_8",
+      "originalResult": "win",
+      "promptVersion": "v4-evidence-hardened"
+    },
+    {
+      "name": "12477-1494617-79m-under-2-5",
+      "recommendationId": 12477,
+      "matchId": "1494617",
+      "minute": 79,
+      "score": "2-0",
+      "originalBetMarket": "under_2.5",
+      "originalResult": "win",
+      "promptVersion": "v4-evidence-hardened"
+    },
+    {
+      "name": "12476-1494617-60m-under-3",
+      "recommendationId": 12476,
+      "matchId": "1494617",
+      "minute": 60,
+      "score": "2-0",
+      "originalBetMarket": "under_3",
+      "originalResult": "win",
+      "promptVersion": "v8-market-balance-followup-h"
+    },
+    {
+      "name": "12475-1387041-64m-under-4",
+      "recommendationId": 12475,
+      "matchId": "1387041",
+      "minute": 64,
+      "score": "2-1",
+      "originalBetMarket": "under_4",
+      "originalResult": "push",
+      "promptVersion": "v8-market-balance-followup-h"
+    },
+    {
+      "name": "12474-1378166-18m-under-4-5",
+      "recommendationId": 12474,
+      "matchId": "1378166",
+      "minute": 18,
+      "score": "2-0",
+      "originalBetMarket": "under_4.5",
+      "originalResult": "win",
+      "promptVersion": "v8-market-balance-followup-h"
+    },
+    {
+      "name": "12473-1387032-62m-under-4",
+      "recommendationId": 12473,
+      "matchId": "1387032",
+      "minute": 62,
+      "score": "2-1",
+      "originalBetMarket": "under_4",
+      "originalResult": "win",
+      "promptVersion": "v4-evidence-hardened"
+    },
+    {
+      "name": "12472-1387042-36m-under-2-75",
+      "recommendationId": 12472,
+      "matchId": "1387042",
+      "minute": 36,
+      "score": "1-0",
+      "originalBetMarket": "under_2.75",
+      "originalResult": "win",
+      "promptVersion": "v6-betting-discipline-c"
+    },
+    {
+      "name": "12471-1536967-31m-under-1-5",
+      "recommendationId": 12471,
+      "matchId": "1536967",
+      "minute": 31,
+      "score": "0-0",
+      "originalBetMarket": "under_1.5",
+      "originalResult": "win",
+      "promptVersion": "v4-evidence-hardened"
+    },
+    {
+      "name": "12470-1387039-30m-corners-under-9",
+      "recommendationId": 12470,
+      "matchId": "1387039",
+      "minute": 30,
+      "score": "0-0",
+      "originalBetMarket": "corners_under_9",
+      "originalResult": "win",
+      "promptVersion": "v4-evidence-hardened"
+    },
+    {
+      "name": "12469-1387032-29m-under-1-75",
+      "recommendationId": 12469,
+      "matchId": "1387032",
+      "minute": 29,
+      "score": "0-0",
+      "originalBetMarket": "under_1.75",
+      "originalResult": "loss",
+      "promptVersion": "v6-betting-discipline-c"
+    },
+    {
+      "name": "12468-1378168-68m-corners-under-6-5",
+      "recommendationId": 12468,
+      "matchId": "1378168",
+      "minute": 68,
+      "score": "0-2",
+      "originalBetMarket": "corners_under_6.5",
+      "originalResult": "loss",
+      "promptVersion": "v4-evidence-hardened"
+    },
+    {
+      "name": "12467-1387032-20m-corners-under-9",
+      "recommendationId": 12467,
+      "matchId": "1387032",
+      "minute": 20,
+      "score": "0-0",
+      "originalBetMarket": "corners_under_9",
+      "originalResult": "loss",
+      "promptVersion": "v4-evidence-hardened"
+    },
+    {
+      "name": "12466-1387034-20m-under-2-25",
+      "recommendationId": 12466,
+      "matchId": "1387034",
+      "minute": 20,
+      "score": "0-0",
+      "originalBetMarket": "under_2.25",
+      "originalResult": "half_win",
+      "promptVersion": "v6-betting-discipline-c"
+    },
+    {
+      "name": "12465-1387031-18m-under-3-25",
+      "recommendationId": 12465,
+      "matchId": "1387031",
+      "minute": 18,
+      "score": "1-0",
+      "originalBetMarket": "under_3.25",
+      "originalResult": "win",
+      "promptVersion": "v4-evidence-hardened"
+    },
+    {
+      "name": "12464-1387031-13m-under-3-5",
+      "recommendationId": 12464,
+      "matchId": "1387031",
+      "minute": 13,
+      "score": "1-0",
+      "originalBetMarket": "under_3.5",
+      "originalResult": "win",
+      "promptVersion": "v4-evidence-hardened"
+    },
+    {
+      "name": "12460-1494612-75m-over-1-75",
+      "recommendationId": 12460,
+      "matchId": "1494612",
+      "minute": 75,
+      "score": "0-1",
+      "originalBetMarket": "over_1.75",
+      "originalResult": "loss",
+      "promptVersion": "v4-evidence-hardened"
+    },
+    {
+      "name": "12462-1378168-45m-under-2-25",
+      "recommendationId": 12462,
+      "matchId": "1378168",
+      "minute": 45,
+      "score": "0-1",
+      "originalBetMarket": "under_2.25",
+      "originalResult": "loss",
+      "promptVersion": "v4-evidence-hardened"
+    },
+    {
+      "name": "12459-1378168-33m-under-2-75",
+      "recommendationId": 12459,
+      "matchId": "1378168",
+      "minute": 33,
+      "score": "0-1",
+      "originalBetMarket": "under_2.75",
+      "originalResult": "half_loss",
+      "promptVersion": "v6-betting-discipline-c"
+    },
+    {
+      "name": "12458-1387038-56m-under-2",
+      "recommendationId": 12458,
+      "matchId": "1387038",
+      "minute": 56,
+      "score": "0-0",
+      "originalBetMarket": "under_2",
+      "originalResult": "loss",
+      "promptVersion": "v6-betting-discipline-c"
+    },
+    {
+      "name": "12457-1536979-41m-btts-no",
+      "recommendationId": 12457,
+      "matchId": "1536979",
+      "minute": 41,
+      "score": "3-0",
+      "originalBetMarket": "btts_no",
+      "originalResult": "loss",
+      "promptVersion": "v6-betting-discipline-c"
+    },
+    {
+      "name": "12456-1387040-41m-under-2-25",
+      "recommendationId": 12456,
+      "matchId": "1387040",
+      "minute": 41,
+      "score": "1-0",
+      "originalBetMarket": "under_2.25",
+      "originalResult": "loss",
+      "promptVersion": "v6-betting-discipline-c"
+    },
+    {
+      "name": "12455-1536979-15m-corners-over-13",
+      "recommendationId": 12455,
+      "matchId": "1536979",
+      "minute": 15,
+      "score": "0-0",
+      "originalBetMarket": "corners_over_13",
+      "originalResult": "loss",
+      "promptVersion": "v6-betting-discipline-c"
+    },
+    {
+      "name": "12454-1378172-41m-under-1-5",
+      "recommendationId": 12454,
+      "matchId": "1378172",
+      "minute": 41,
+      "score": "0-0",
+      "originalBetMarket": "under_1.5",
+      "originalResult": "win",
+      "promptVersion": "v6-betting-discipline-c"
+    },
+    {
+      "name": "12453-1380626-38m-under-3",
+      "recommendationId": 12453,
+      "matchId": "1380626",
+      "minute": 38,
+      "score": "1-0",
+      "originalBetMarket": "under_3",
+      "originalResult": "loss",
+      "promptVersion": "v4-evidence-hardened"
+    },
+    {
+      "name": "11834-1504738-24m-under-4-25",
+      "recommendationId": 11834,
+      "matchId": "1504738",
+      "minute": 24,
+      "score": "1-1",
+      "originalBetMarket": "under_4.25",
+      "originalResult": "loss",
+      "promptVersion": "v8-market-balance-followup-f"
+    },
+    {
+      "name": "11831-1504737-38m-under-1-25",
+      "recommendationId": 11831,
+      "matchId": "1504737",
+      "minute": 38,
+      "score": "0-0",
+      "originalBetMarket": "under_1.25",
+      "originalResult": "win",
+      "promptVersion": "v8-market-balance-followup-f"
+    },
+    {
+      "name": "11830-1492576-21m-under-3-25",
+      "recommendationId": 11830,
+      "matchId": "1492576",
+      "minute": 21,
+      "score": "0-1",
+      "originalBetMarket": "under_3.25",
+      "originalResult": "half_win",
+      "promptVersion": "v8-market-balance-followup-f"
+    },
+    {
+      "name": "11828-1490183-11m-under-5",
+      "recommendationId": 11828,
+      "matchId": "1490183",
+      "minute": 11,
+      "score": "1-1",
+      "originalBetMarket": "under_5",
+      "originalResult": "win",
+      "promptVersion": "v8-market-balance-followup-f"
+    },
+    {
+      "name": "11827-1490185-25m-under-4-5",
+      "recommendationId": 11827,
+      "matchId": "1490185",
+      "minute": 25,
+      "score": "1-1",
+      "originalBetMarket": "under_4.5",
+      "originalResult": "loss",
+      "promptVersion": "v8-market-balance-followup-f"
+    },
+    {
+      "name": "11826-1492578-24m-under-2-25",
+      "recommendationId": 11826,
+      "matchId": "1492578",
+      "minute": 24,
+      "score": "0-0",
+      "originalBetMarket": "under_2.25",
+      "originalResult": "win",
+      "promptVersion": "v8-market-balance-followup-f"
+    },
+    {
+      "name": "11825-1492574-20m-under-3-5",
+      "recommendationId": 11825,
+      "matchId": "1492574",
+      "minute": 20,
+      "score": "0-0",
+      "originalBetMarket": "under_3.5",
+      "originalResult": "win",
+      "promptVersion": "v8-market-balance-followup-f"
+    },
+    {
+      "name": "11823-1396482-36m-under-2-75",
+      "recommendationId": 11823,
+      "matchId": "1396482",
+      "minute": 36,
+      "score": "1-0",
+      "originalBetMarket": "under_2.75",
+      "originalResult": "loss",
+      "promptVersion": "v8-market-balance-followup-f"
+    },
+    {
+      "name": "11822-1391110-42m-under-4",
+      "recommendationId": 11822,
+      "matchId": "1391110",
+      "minute": 42,
+      "score": "1-1",
+      "originalBetMarket": "under_4",
+      "originalResult": "win",
+      "promptVersion": "v8-market-balance-followup-f"
+    },
+    {
+      "name": "11819-1436153-72m-over-3-75",
+      "recommendationId": 11819,
+      "matchId": "1436153",
+      "minute": 72,
+      "score": "1-2",
+      "originalBetMarket": "over_3.75",
+      "originalResult": "half_win",
+      "promptVersion": "v8-market-balance-followup-f"
+    },
+    {
+      "name": "11815-1391111-55m-over-1",
+      "recommendationId": 11815,
+      "matchId": "1391111",
+      "minute": 55,
+      "score": "0-0",
+      "originalBetMarket": "over_1",
+      "originalResult": "loss",
+      "promptVersion": "v8-market-balance-followup-f"
+    },
+    {
+      "name": "11813-1394684-31m-under-3",
+      "recommendationId": 11813,
+      "matchId": "1394684",
+      "minute": 31,
+      "score": "1-0",
+      "originalBetMarket": "under_3",
+      "originalResult": "push",
+      "promptVersion": "v8-market-balance-followup-f"
+    },
+    {
+      "name": "11812-1388557-45m-under-1-75",
+      "recommendationId": 11812,
+      "matchId": "1388557",
+      "minute": 45,
+      "score": "0-0",
+      "originalBetMarket": "under_1.75",
+      "originalResult": "half_loss",
+      "promptVersion": "v8-market-balance-followup-f"
+    },
+    {
+      "name": "11810-1381127-38m-under-3",
+      "recommendationId": 11810,
+      "matchId": "1381127",
+      "minute": 38,
+      "score": "0-1",
+      "originalBetMarket": "under_3",
+      "originalResult": "win",
+      "promptVersion": "v8-market-balance-followup-f"
+    },
+    {
+      "name": "11808-1378173-65m-over-0-75",
+      "recommendationId": 11808,
+      "matchId": "1378173",
+      "minute": 65,
+      "score": "0-0",
+      "originalBetMarket": "over_0.75",
+      "originalResult": "half_win",
+      "promptVersion": "v8-market-balance-followup-f"
+    },
+    {
+      "name": "11802-1536966-35m-under-2-75",
+      "recommendationId": 11802,
+      "matchId": "1536966",
+      "minute": 35,
+      "score": "0-1",
+      "originalBetMarket": "under_2.75",
+      "originalResult": "loss",
+      "promptVersion": "v8-market-balance-followup-f"
+    },
+    {
+      "name": "11800-1388551-45m-corners-over-10",
+      "recommendationId": 11800,
+      "matchId": "1388551",
+      "minute": 45,
+      "score": "2-3",
+      "originalBetMarket": "corners_over_10",
+      "originalResult": "loss",
+      "promptVersion": "v8-market-balance-followup-f"
+    },
+    {
+      "name": "11798-1394678-21m-under-2",
+      "recommendationId": 11798,
+      "matchId": "1394678",
+      "minute": 21,
+      "score": "0-0",
+      "originalBetMarket": "under_2",
+      "originalResult": "push",
+      "promptVersion": "v8-market-balance-followup-f"
+    },
+    {
+      "name": "12434-1380626-20m-under-3-25",
+      "recommendationId": 12434,
+      "matchId": "1380626",
+      "minute": 20,
+      "score": "1-0",
+      "originalBetMarket": "under_3.25",
+      "originalResult": "loss",
+      "promptVersion": "v4-evidence-hardened"
+    },
+    {
+      "name": "11795-1388559-30m-under-3-25",
+      "recommendationId": 11795,
+      "matchId": "1388559",
+      "minute": 30,
+      "score": "0-1",
+      "originalBetMarket": "under_3.25",
+      "originalResult": "half_win",
+      "promptVersion": "v8-market-balance-followup-f"
+    },
+    {
+      "name": "11776-1391116-27m-under-2-25",
+      "recommendationId": 11776,
+      "matchId": "1391116",
+      "minute": 27,
+      "score": "0-0",
+      "originalBetMarket": "under_2.25",
+      "originalResult": "half_win",
+      "promptVersion": "v8-market-balance-followup-f"
+    },
+    {
+      "name": "11966-1388857-73m-over-2-5",
+      "recommendationId": 11966,
+      "matchId": "1388857",
+      "minute": 73,
+      "score": "1-1",
+      "originalBetMarket": "over_2.5",
+      "originalResult": "win",
+      "promptVersion": "v8-market-balance-followup-f"
+    },
+    {
+      "name": "12014-1388862-54m-over-1-25",
+      "recommendationId": 12014,
+      "matchId": "1388862",
+      "minute": 54,
+      "score": "0-0",
+      "originalBetMarket": "over_1.25",
+      "originalResult": "win",
+      "promptVersion": "v8-market-balance-followup-f"
+    },
+    {
+      "name": "11767-1394679-41m-under-2-25",
+      "recommendationId": 11767,
+      "matchId": "1394679",
+      "minute": 41,
+      "score": "0-1",
+      "originalBetMarket": "under_2.25",
+      "originalResult": "half_win",
+      "promptVersion": "v8-market-balance-followup-f"
+    },
+    {
+      "name": "11763-1394681-31m-under-2-75",
+      "recommendationId": 11763,
+      "matchId": "1394681",
+      "minute": 31,
+      "score": "1-0",
+      "originalBetMarket": "under_2.75",
+      "originalResult": "win",
+      "promptVersion": "v8-market-balance-followup-f"
+    },
+    {
+      "name": "11759-1388862-28m-btts-no",
+      "recommendationId": 11759,
+      "matchId": "1388862",
+      "minute": 28,
+      "score": "0-0",
+      "originalBetMarket": "btts_no",
+      "originalResult": "win",
+      "promptVersion": "v8-market-balance-followup-f"
+    },
+    {
+      "name": "11758-1388857-25m-under-3-5",
+      "recommendationId": 11758,
+      "matchId": "1388857",
+      "minute": 25,
+      "score": "0-1",
+      "originalBetMarket": "under_3.5",
+      "originalResult": "win",
+      "promptVersion": "v8-market-balance-followup-f"
+    },
+    {
+      "name": "12425-1403794-56m-under-1",
+      "recommendationId": 12425,
+      "matchId": "1403794",
+      "minute": 56,
+      "score": "0-0",
+      "originalBetMarket": "under_1",
+      "originalResult": "win",
+      "promptVersion": "v6-betting-discipline-c"
+    },
+    {
+      "name": "11973-1388552-26m-corners-under-7-5",
+      "recommendationId": 11973,
+      "matchId": "1388552",
+      "minute": 26,
+      "score": "1-1",
+      "originalBetMarket": "corners_under_7.5",
+      "originalResult": "win",
+      "promptVersion": "v8-market-balance-followup-f"
+    },
+    {
+      "name": "11793-1378171-32m-under-2-75",
+      "recommendationId": 11793,
+      "matchId": "1378171",
+      "minute": 32,
+      "score": "0-1",
+      "originalBetMarket": "under_2.75",
+      "originalResult": "half_loss",
+      "promptVersion": "v8-market-balance-followup-f"
+    },
+    {
+      "name": "11789-1531571-63m-btts-yes",
+      "recommendationId": 11789,
+      "matchId": "1531571",
+      "minute": 63,
+      "score": "4-0",
+      "originalBetMarket": "btts_yes",
+      "originalResult": "loss",
+      "promptVersion": "v8-market-balance-followup-f"
+    },
+    {
+      "name": "11780-1523086-83m-over-3-5",
+      "recommendationId": 11780,
+      "matchId": "1523086",
+      "minute": 83,
+      "score": "1-2",
+      "originalBetMarket": "over_3.5",
+      "originalResult": "loss",
+      "promptVersion": "v8-market-balance-followup-f"
+    },
+    {
+      "name": "11772-1523086-71m-btts-yes",
+      "recommendationId": 11772,
+      "matchId": "1523086",
+      "minute": 71,
+      "score": "0-2",
+      "originalBetMarket": "btts_yes",
+      "originalResult": "win",
+      "promptVersion": "v8-market-balance-followup-f"
+    },
+    {
+      "name": "11768-1523087-62m-under-3-25",
+      "recommendationId": 11768,
+      "matchId": "1523087",
+      "minute": 62,
+      "score": "1-1",
+      "originalBetMarket": "under_3.25",
+      "originalResult": "half_win",
+      "promptVersion": "v8-market-balance-followup-f"
+    },
+    {
+      "name": "11816-1396484-44m-under-2-25",
+      "recommendationId": 11816,
+      "matchId": "1396484",
+      "minute": 44,
+      "score": "0-1",
+      "originalBetMarket": "under_2.25",
+      "originalResult": "win",
+      "promptVersion": "v8-market-balance-followup-e"
+    },
+    {
+      "name": "11807-1381126-16m-corners-over-13",
+      "recommendationId": 11807,
+      "matchId": "1381126",
+      "minute": 16,
+      "score": "0-2",
+      "originalBetMarket": "corners_over_13",
+      "originalResult": "loss",
+      "promptVersion": "v8-market-balance-followup-e"
+    },
+    {
+      "name": "11801-1382856-27m-under-2-25",
+      "recommendationId": 11801,
+      "matchId": "1382856",
+      "minute": 27,
+      "score": "0-0",
+      "originalBetMarket": "under_2.25",
+      "originalResult": "loss",
+      "promptVersion": "v8-market-balance-followup-d"
+    },
+    {
+      "name": "12393-1388552-26m-asian-handicap-away-1",
+      "recommendationId": 12393,
+      "matchId": "1388552",
+      "minute": 26,
+      "score": "1-1",
+      "originalBetMarket": "asian_handicap_away_+1",
+      "originalResult": "win",
+      "promptVersion": "v8-market-balance-followup-e"
+    },
+    {
+      "name": "12385-1523086-71m-over-2-75",
+      "recommendationId": 12385,
+      "matchId": "1523086",
+      "minute": 71,
+      "score": "0-2",
+      "originalBetMarket": "over_2.75",
+      "originalResult": "half_win",
+      "promptVersion": "v8-market-balance-followup-e"
+    },
+    {
+      "name": "11838-1506931-72m-under-3-5",
+      "recommendationId": 11838,
+      "matchId": "1506931",
+      "minute": 72,
+      "score": "2-1",
+      "originalBetMarket": "under_3.5",
+      "originalResult": "win",
+      "promptVersion": "v8-market-balance-followup-e"
+    },
+    {
+      "name": "11821-1531572-36m-corners-over-14",
+      "recommendationId": 11821,
+      "matchId": "1531572",
+      "minute": 36,
+      "score": "1-0",
+      "originalBetMarket": "corners_over_14",
+      "originalResult": "loss",
+      "promptVersion": "v8-market-balance-followup-e"
+    },
+    {
+      "name": "11806-1388556-57m-under-3-5",
+      "recommendationId": 11806,
+      "matchId": "1388556",
+      "minute": 57,
+      "score": "1-1",
+      "originalBetMarket": "under_3.5",
+      "originalResult": "win",
+      "promptVersion": "v8-market-balance-followup-e"
+    },
+    {
+      "name": "11805-1382857-43m-under-2-25",
+      "recommendationId": 11805,
+      "matchId": "1382857",
+      "minute": 43,
+      "score": "1-0",
+      "originalBetMarket": "under_2.25",
+      "originalResult": "half_win",
+      "promptVersion": "v8-market-balance-followup-e"
+    },
+    {
+      "name": "11803-1382853-33m-under-3-75",
+      "recommendationId": 11803,
+      "matchId": "1382853",
+      "minute": 33,
+      "score": "2-0",
+      "originalBetMarket": "under_3.75",
+      "originalResult": "win",
+      "promptVersion": "v8-market-balance-followup-e"
+    },
+    {
+      "name": "11799-1382855-24m-under-3",
+      "recommendationId": 11799,
+      "matchId": "1382855",
+      "minute": 24,
+      "score": "0-1",
+      "originalBetMarket": "under_3",
+      "originalResult": "loss",
+      "promptVersion": "v8-market-balance-followup-e"
+    },
+    {
+      "name": "11794-1388552-26m-under-4-25",
+      "recommendationId": 11794,
+      "matchId": "1388552",
+      "minute": 26,
+      "score": "1-1",
+      "originalBetMarket": "under_4.25",
+      "originalResult": "half_win",
+      "promptVersion": "v8-market-balance-followup-e"
+    },
+    {
+      "name": "11877-1388862-54m-corners-over-9-5",
+      "recommendationId": 11877,
+      "matchId": "1388862",
+      "minute": 54,
+      "score": "0-0",
+      "originalBetMarket": "corners_over_9.5",
+      "originalResult": "win",
+      "promptVersion": "v8-market-balance-followup-e"
+    },
+    {
+      "name": "12334-1492579-58m-corners-under-10-5",
+      "recommendationId": 12334,
+      "matchId": "1492579",
+      "minute": 58,
+      "score": "0-2",
+      "originalBetMarket": "corners_under_10.5",
+      "originalResult": "win",
+      "promptVersion": "v4-evidence-hardened"
+    },
+    {
+      "name": "11818-1436153-42m-corners-over-12-5",
+      "recommendationId": 11818,
+      "matchId": "1436153",
+      "minute": 42,
+      "score": "0-0",
+      "originalBetMarket": "corners_over_12.5",
+      "originalResult": "loss",
+      "promptVersion": "v8-market-balance-followup-d"
+    },
+    {
+      "name": "11797-1388554-39m-under-2-25",
+      "recommendationId": 11797,
+      "matchId": "1388554",
+      "minute": 39,
+      "score": "0-0",
+      "originalBetMarket": "under_2.25",
+      "originalResult": "loss",
+      "promptVersion": "v8-market-balance-followup-d"
+    },
+    {
+      "name": "11796-1388551-31m-under-5-25",
+      "recommendationId": 11796,
+      "matchId": "1388551",
+      "minute": 31,
+      "score": "1-1",
+      "originalBetMarket": "under_5.25",
+      "originalResult": "loss",
+      "promptVersion": "v8-market-balance-followup-d"
+    },
+    {
+      "name": "11820-1381119-34m-under-4-25",
+      "recommendationId": 11820,
+      "matchId": "1381119",
+      "minute": 34,
+      "score": "1-1",
+      "originalBetMarket": "under_4.25",
+      "originalResult": "win",
+      "promptVersion": "v8-market-balance-followup-d"
+    },
+    {
+      "name": "12288-1492579-37m-corners-under-8-5",
+      "recommendationId": 12288,
+      "matchId": "1492579",
+      "minute": 37,
+      "score": "0-1",
+      "originalBetMarket": "corners_under_8.5",
+      "originalResult": "win",
+      "promptVersion": "v4-evidence-hardened"
+    },
+    {
+      "name": "12287-1492579-30m-under-3-25",
+      "recommendationId": 12287,
+      "matchId": "1492579",
+      "minute": 30,
+      "score": "0-1",
+      "originalBetMarket": "under_3.25",
+      "originalResult": "loss",
+      "promptVersion": "v4-evidence-hardened"
+    },
+    {
+      "name": "12286-1492579-26m-under-3-5",
+      "recommendationId": 12286,
+      "matchId": "1492579",
+      "minute": 26,
+      "score": "0-1",
+      "originalBetMarket": "under_3.5",
+      "originalResult": "loss",
+      "promptVersion": "v4-evidence-hardened"
+    },
+    {
+      "name": "11817-1381120-63m-under-4",
+      "recommendationId": 11817,
+      "matchId": "1381120",
+      "minute": 63,
+      "score": "2-1",
+      "originalBetMarket": "under_4",
+      "originalResult": "win",
+      "promptVersion": "v8-market-balance-followup-d"
+    },
+    {
+      "name": "12269-1388557-45m-corners-over-10-5",
+      "recommendationId": 12269,
+      "matchId": "1388557",
+      "minute": 45,
+      "score": "0-0",
+      "originalBetMarket": "corners_over_10.5",
+      "originalResult": "loss",
+      "promptVersion": "v8-market-balance-followup-d"
+    },
+    {
+      "name": "12257-1387947-78m-over-2-5",
+      "recommendationId": 12257,
+      "matchId": "1387947",
+      "minute": 78,
+      "score": "2-0",
+      "originalBetMarket": "over_2.5",
+      "originalResult": "win",
+      "promptVersion": "v4-evidence-hardened"
+    },
+    {
+      "name": "12246-1387947-69m-btts-yes",
+      "recommendationId": 12246,
+      "matchId": "1387947",
+      "minute": 69,
+      "score": "1-0",
+      "originalBetMarket": "btts_yes",
+      "originalResult": "win",
+      "promptVersion": "v4-evidence-hardened"
+    },
+    {
+      "name": "12245-1391109-44m-under-3-25",
+      "recommendationId": 12245,
+      "matchId": "1391109",
+      "minute": 44,
+      "score": "1-1",
+      "originalBetMarket": "under_3.25",
+      "originalResult": "loss",
+      "promptVersion": "v4-evidence-hardened"
+    },
+    {
+      "name": "12244-1392133-45m-under-3-25",
+      "recommendationId": 12244,
+      "matchId": "1392133",
+      "minute": 45,
+      "score": "1-1",
+      "originalBetMarket": "under_3.25",
+      "originalResult": "half_win",
+      "promptVersion": "v4-evidence-hardened"
+    },
+    {
+      "name": "12231-1392133-31m-under-2-75",
+      "recommendationId": 12231,
+      "matchId": "1392133",
+      "minute": 31,
+      "score": "1-0",
+      "originalBetMarket": "under_2.75",
+      "originalResult": "half_loss",
+      "promptVersion": "v4-evidence-hardened"
+    },
+    {
+      "name": "12227-1391109-21m-under-3",
+      "recommendationId": 12227,
+      "matchId": "1391109",
+      "minute": 21,
+      "score": "0-1",
+      "originalBetMarket": "under_3",
+      "originalResult": "loss",
+      "promptVersion": "v4-evidence-hardened"
+    },
+    {
+      "name": "12225-1387947-36m-corners-under-9",
+      "recommendationId": 12225,
+      "matchId": "1387947",
+      "minute": 36,
+      "score": "0-0",
+      "originalBetMarket": "corners_under_9",
+      "originalResult": "win",
+      "promptVersion": "v4-evidence-hardened"
+    },
+    {
+      "name": "12213-1387947-29m-corners-under-8-5",
+      "recommendationId": 12213,
+      "matchId": "1387947",
+      "minute": 29,
+      "score": "0-0",
+      "originalBetMarket": "corners_under_8.5",
+      "originalResult": "win",
+      "promptVersion": "v4-evidence-hardened"
+    },
+    {
+      "name": "12197-1388862-81m-under-2-5",
+      "recommendationId": 12197,
+      "matchId": "1388862",
+      "minute": 81,
+      "score": "2-0",
+      "originalBetMarket": "under_2.5",
+      "originalResult": "loss",
+      "promptVersion": "v8-market-balance-followup-d"
+    },
+    {
+      "name": "11874-1388857-50m-corners-over-11-5",
+      "recommendationId": 11874,
+      "matchId": "1388857",
+      "minute": 50,
+      "score": "1-1",
+      "originalBetMarket": "corners_over_11.5",
+      "originalResult": "loss",
+      "promptVersion": "v8-market-balance-followup-d"
+    },
+    {
+      "name": "12188-1394677-77m-under-0-5",
+      "recommendationId": 12188,
+      "matchId": "1394677",
+      "minute": 77,
+      "score": "0-0",
+      "originalBetMarket": "under_0.5",
+      "originalResult": "loss",
+      "promptVersion": "v4-evidence-hardened"
+    },
+    {
+      "name": "12177-1394677-56m-under-2-25",
+      "recommendationId": 12177,
+      "matchId": "1394677",
+      "minute": 56,
+      "score": "0-0",
+      "originalBetMarket": "under_2.25",
+      "originalResult": "win",
+      "promptVersion": "v4-evidence-hardened"
+    },
+    {
+      "name": "12175-1394677-54m-corners-over-13-5",
+      "recommendationId": 12175,
+      "matchId": "1394677",
+      "minute": 54,
+      "score": "0-0",
+      "originalBetMarket": "corners_over_13.5",
+      "originalResult": "win",
+      "promptVersion": "v6-betting-discipline-c"
+    },
+    {
+      "name": "12174-1536938-85m-corners-under-9-5",
+      "recommendationId": 12174,
+      "matchId": "1536938",
+      "minute": 85,
+      "score": "2-0",
+      "originalBetMarket": "corners_under_9.5",
+      "originalResult": "loss",
+      "promptVersion": "v4-evidence-hardened"
+    },
+    {
+      "name": "11809-1531570-50m-under-4-75",
+      "recommendationId": 11809,
+      "matchId": "1531570",
+      "minute": 50,
+      "score": "3-0",
+      "originalBetMarket": "under_4.75",
+      "originalResult": "loss",
+      "promptVersion": "v8-market-balance-followup-b"
+    },
+    {
+      "name": "12172-1391117-81m-corners-under-15-5",
+      "recommendationId": 12172,
+      "matchId": "1391117",
+      "minute": 81,
+      "score": "1-0",
+      "originalBetMarket": "corners_under_15.5",
+      "originalResult": "win",
+      "promptVersion": "v4-evidence-hardened"
+    },
+    {
+      "name": "11757-1388863-51m-under-3-5",
+      "recommendationId": 11757,
+      "matchId": "1388863",
+      "minute": 51,
+      "score": "2-0",
+      "originalBetMarket": "under_3.5",
+      "originalResult": "loss",
+      "promptVersion": "v8-market-balance-followup-b"
+    },
+    {
+      "name": "12152-1388556-57m-over-3-5",
+      "recommendationId": 12152,
+      "matchId": "1388556",
+      "minute": 57,
+      "score": "1-1",
+      "originalBetMarket": "over_3.5",
+      "originalResult": "loss",
+      "promptVersion": "v8-market-balance-followup-c"
+    },
+    {
+      "name": "11852-1506931-72m-over-3-5",
+      "recommendationId": 11852,
+      "matchId": "1506931",
+      "minute": 72,
+      "score": "2-1",
+      "originalBetMarket": "over_3.5",
+      "originalResult": "loss",
+      "promptVersion": "v8-market-balance-followup-c"
+    },
+    {
+      "name": "12138-1388553-79m-over-3-5",
+      "recommendationId": 12138,
+      "matchId": "1388553",
+      "minute": 79,
+      "score": "2-1",
+      "originalBetMarket": "over_3.5",
+      "originalResult": "win",
+      "promptVersion": "v4-evidence-hardened"
+    },
+    {
+      "name": "11904-1494585-69m-under-1-75",
+      "recommendationId": 11904,
+      "matchId": "1494585",
+      "minute": 69,
+      "score": "1-0",
+      "originalBetMarket": "under_1.75",
+      "originalResult": "win",
+      "promptVersion": "v8-market-balance-followup-c"
+    },
+    {
+      "name": "12118-1382852-72m-1x2-away",
+      "recommendationId": 12118,
+      "matchId": "1382852",
+      "minute": 72,
+      "score": "1-1",
+      "originalBetMarket": "1x2_away",
+      "originalResult": "win",
+      "promptVersion": "v4-evidence-hardened"
+    },
+    {
+      "name": "12122-1388553-65m-under-1",
+      "recommendationId": 12122,
+      "matchId": "1388553",
+      "minute": 65,
+      "score": "0-0",
+      "originalBetMarket": "under_1",
+      "originalResult": "loss",
+      "promptVersion": "v4-evidence-hardened"
+    },
+    {
+      "name": "12113-1531573-45m-over-2-25",
+      "recommendationId": 12113,
+      "matchId": "1531573",
+      "minute": 45,
+      "score": "0-1",
+      "originalBetMarket": "over_2.25",
+      "originalResult": "win",
+      "promptVersion": "v4-evidence-hardened"
+    }
+  ]
+}

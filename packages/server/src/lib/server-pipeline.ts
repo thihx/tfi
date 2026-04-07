@@ -43,8 +43,6 @@ import {
   checkCoarseStalenessServer,
   checkStalenessServer,
 } from './server-pipeline-gates.js';
-import { fetchLiveScoreBenchmarkTrace } from './live-score-api.js';
-import { fetchDeterministicWebLiveFallback } from './web-live-fallback.js';
 import {
   extractStatusCode,
   recordProviderStatsSampleSafe,
@@ -88,6 +86,7 @@ import {
   type RecommendationPolicyStatsCompact,
 } from './recommendation-policy.js';
 import { detectGoalsCornersLineContamination } from './odds-integrity.js';
+import { parseBetMarketLineSuffix as parseLineSuffix, sameOddsLine as sameLine } from './odds-line-utils.js';
 
 const pipelineSkipAuditCounters = new Map<string, number>();
 
@@ -196,8 +195,6 @@ const defaultPipelineDeps = {
   getHistoricalPerformanceContext,
   sendTelegramMessage,
   sendTelegramPhoto,
-  fetchLiveScoreBenchmarkTrace,
-  fetchDeterministicWebLiveFallback,
   createPromptShadowRun,
   getLeagueProfileByLeagueId,
   getTeamProfileByTeamId,
@@ -270,6 +267,12 @@ export interface PipelineExecutionOptions {
     odds: Record<string, unknown>;
     stats?: Record<string, unknown>;
   } | null;
+  /** Settled replay: prompt + policy treat row as an approved historical pick trace. */
+  settledReplayApprovedTrace?: boolean;
+  settledReplayTraceOriginalBetMarket?: string;
+  settledReplayTraceOriginalSelection?: string;
+  /** When true with settledReplayApprovedTrace, still run recommendation-policy (production parity). Default skips policy when trace is on. */
+  applySettledReplayPolicy?: boolean;
 }
 
 // ==================== Types ====================
@@ -307,7 +310,11 @@ interface EventCompact {
 interface OddsCanonical {
   '1x2'?: { home: number | null; draw: number | null; away: number | null };
   ou?: { line: number; over: number | null; under: number | null };
+  /** Second goals O/U line nearest to main (tighter ladder); optional context for LLM. */
+  ou_adjacent?: { line: number; over: number | null; under: number | null };
   ah?: { line: number; home: number | null; away: number | null };
+  /** Second Asian handicap line nearest to main; optional context for LLM. */
+  ah_adjacent?: { line: number; home: number | null; away: number | null };
   btts?: { yes: number | null; no: number | null };
   corners_ou?: { line: number; over: number | null; under: number | null };
 }
@@ -336,7 +343,7 @@ interface DerivedInsights {
   intensity: 'low' | 'medium' | 'high';
 }
 
-type StatsSource = 'api-football' | 'live-score-api-fallback' | 'web-trusted-fallback';
+type StatsSource = 'api-football';
 type EvidenceMode =
   | 'full_live_data'
   | 'stats_only'
@@ -653,19 +660,6 @@ function isMarketAllowedForEvidenceMode(betMarket: string, evidenceMode: Evidenc
   }
 }
 
-function parseLineSuffix(prefix: string, betMarket: string): number | null {
-  if (!betMarket.startsWith(prefix)) return null;
-  const raw = betMarket.slice(prefix.length);
-  if (!raw) return null;
-  const line = Number(raw);
-  return Number.isFinite(line) ? line : null;
-}
-
-function sameLine(a: number | null | undefined, b: number | null | undefined): boolean {
-  if (a == null || b == null) return false;
-  return Math.abs(a - b) < 0.001;
-}
-
 export interface MatchPipelineResult {
   matchId: string;
   matchDisplay?: string;
@@ -778,17 +772,6 @@ function summarizeStatsCoverage(
     stats_fetch_ok: !statsError,
     events_fetch_ok: !eventsError,
   };
-}
-
-function countPrimaryPopulatedStatPairs(statsCompact: StatsCompact): number {
-  const tracked = [
-    statsCompact.possession,
-    statsCompact.shots,
-    statsCompact.shots_on_target,
-    statsCompact.corners,
-    statsCompact.fouls,
-  ];
-  return tracked.filter((value) => value.home != null && value.away != null).length;
 }
 
 function asObjectRecord(value: unknown): Record<string, unknown> | null {
@@ -937,37 +920,6 @@ function buildRecommendationDecisionContext(args: {
   };
 }
 
-function mergeStatsCompact(primary: StatsCompact, fallback: StatsCompact): StatsCompact {
-  const mergeStatPair = (
-    first: { home: string | null; away: string | null } | undefined,
-    second: { home: string | null; away: string | null } | undefined,
-  ) => ({
-    home: first?.home ?? second?.home ?? null,
-    away: first?.away ?? second?.away ?? null,
-  });
-
-  return {
-    possession: mergeStatPair(primary.possession, fallback.possession),
-    shots: mergeStatPair(primary.shots, fallback.shots),
-    shots_on_target: mergeStatPair(primary.shots_on_target, fallback.shots_on_target),
-    corners: mergeStatPair(primary.corners, fallback.corners),
-    fouls: mergeStatPair(primary.fouls, fallback.fouls),
-    offsides: mergeStatPair(primary.offsides, fallback.offsides),
-    yellow_cards: mergeStatPair(primary.yellow_cards, fallback.yellow_cards),
-    red_cards: mergeStatPair(primary.red_cards, fallback.red_cards),
-    goalkeeper_saves: mergeStatPair(primary.goalkeeper_saves, fallback.goalkeeper_saves),
-    blocked_shots: mergeStatPair(primary.blocked_shots, fallback.blocked_shots),
-    total_passes: mergeStatPair(primary.total_passes, fallback.total_passes),
-    passes_accurate: mergeStatPair(primary.passes_accurate, fallback.passes_accurate),
-    shots_off_target: mergeStatPair(primary.shots_off_target, fallback.shots_off_target),
-    shots_inside_box: mergeStatPair(primary.shots_inside_box, fallback.shots_inside_box),
-    shots_outside_box: mergeStatPair(primary.shots_outside_box, fallback.shots_outside_box),
-    expected_goals: mergeStatPair(primary.expected_goals, fallback.expected_goals),
-    goals_prevented: mergeStatPair(primary.goals_prevented, fallback.goals_prevented),
-    passes_percent: mergeStatPair(primary.passes_percent, fallback.passes_percent),
-  };
-}
-
 function deriveEvidenceMode(
   statsAvailable: boolean,
   oddsAvailable: boolean,
@@ -1099,6 +1051,10 @@ interface PromptExecutionContext {
   statsFallbackReason: string;
   userQuestion?: string;
   followUpHistory?: Array<{ role: 'user' | 'assistant'; text: string }>;
+  settledReplayApprovedTrace?: boolean;
+  settledReplayOriginalBetMarket?: string;
+  settledReplayOriginalSelection?: string;
+  skipRecommendationPolicy?: boolean;
 }
 
 type FollowUpHistoryEntry = { role: 'user' | 'assistant'; text: string };
@@ -1189,11 +1145,12 @@ async function executePromptAnalysis(
     previousRecommendations: policyContext.previousRecommendations,
     statsCompact: promptContext.statsCompact,
   });
+  const policyBlockedEffective = policyResult.blocked && !promptContext.skipRecommendationPolicy;
   const hasCustomCondition = !!String(promptContext.customConditions || '').trim();
   const lowEvidenceConditionOnly = promptContext.evidenceMode === 'low_evidence' && hasCustomCondition;
   const finalShouldBet = lowEvidenceConditionOnly
     ? false
-    : parsedRaw.final_should_bet && !policyResult.blocked;
+    : parsedRaw.final_should_bet && !policyBlockedEffective;
   const conditionTriggeredShouldPush = parsedRaw.condition_triggered_should_push;
   const shouldPush = finalShouldBet || conditionTriggeredShouldPush;
   const decisionKind = finalShouldBet
@@ -1205,7 +1162,7 @@ async function executePromptAnalysis(
     ...parsedRaw,
     should_push: shouldPush,
     ai_should_push: lowEvidenceConditionOnly ? false : parsedRaw.ai_should_push,
-    system_should_bet: lowEvidenceConditionOnly ? false : parsedRaw.system_should_bet && !policyResult.blocked,
+    system_should_bet: lowEvidenceConditionOnly ? false : parsedRaw.system_should_bet && !policyBlockedEffective,
     final_should_bet: finalShouldBet,
     decision_kind: decisionKind,
     confidence: policyResult.confidence,
@@ -1475,71 +1432,6 @@ function buildEventsCompact(
   return compact;
 }
 
-function toCompactPair(home: number | null, away: number | null): { home: string | null; away: string | null } {
-  return {
-    home: home != null ? String(home) : null,
-    away: away != null ? String(away) : null,
-  };
-}
-
-function buildStatsCompactFromWebFallback(stats: {
-  possession: { home: number | null; away: number | null };
-  shots: { home: number | null; away: number | null };
-  shots_on_target: { home: number | null; away: number | null };
-  corners: { home: number | null; away: number | null };
-  fouls: { home: number | null; away: number | null };
-  yellow_cards: { home: number | null; away: number | null };
-  red_cards: { home: number | null; away: number | null };
-}): StatsCompact {
-  return {
-    possession: toCompactPair(stats.possession.home, stats.possession.away),
-    shots: toCompactPair(stats.shots.home, stats.shots.away),
-    shots_on_target: toCompactPair(stats.shots_on_target.home, stats.shots_on_target.away),
-    corners: toCompactPair(stats.corners.home, stats.corners.away),
-    fouls: toCompactPair(stats.fouls.home, stats.fouls.away),
-    offsides: { home: null, away: null },
-    yellow_cards: toCompactPair(stats.yellow_cards.home, stats.yellow_cards.away),
-    red_cards: toCompactPair(stats.red_cards.home, stats.red_cards.away),
-    goalkeeper_saves: { home: null, away: null },
-    blocked_shots: { home: null, away: null },
-    total_passes: { home: null, away: null },
-    passes_accurate: { home: null, away: null },
-    shots_off_target: { home: null, away: null },
-    shots_inside_box: { home: null, away: null },
-    shots_outside_box: { home: null, away: null },
-    expected_goals: { home: null, away: null },
-    goals_prevented: { home: null, away: null },
-    passes_percent: { home: null, away: null },
-  };
-}
-
-function buildEventsCompactFromWebFallback(
-  events: Array<{ minute: number | null; team: 'home' | 'away' | 'unknown'; type: string; detail: string; player: string }>,
-  homeName: string,
-  awayName: string,
-): EventCompact[] {
-  return events
-    .map((event) => ({
-      minute: event.minute ?? 0,
-      extra: null,
-      team: event.team === 'home' ? homeName : event.team === 'away' ? awayName : '',
-      type: event.type === 'yellow_card' || event.type === 'red_card' ? 'card' : event.type,
-      detail: event.detail,
-      player: event.player,
-    }))
-    .filter((event) => event.minute > 0 && Boolean(event.team || event.player || event.detail));
-}
-
-function hasCriticalWebFallbackMismatch(reasons: string[]): boolean {
-  return reasons.some((reason) => [
-    'HOME_TEAM_MISMATCH',
-    'AWAY_TEAM_MISMATCH',
-    'SCORE_MISMATCH',
-    'STATUS_MISMATCH',
-    'MINUTE_TOO_FAR',
-  ].includes(reason));
-}
-
 // ==================== Build Odds Canonical ====================
 
 export function buildOddsCanonical(oddsResponse: unknown[]): { canonical: OddsCanonical; available: boolean } {
@@ -1659,12 +1551,28 @@ export function buildOddsCanonical(oddsResponse: unknown[]): { canonical: OddsCa
     };
   }
 
-  // Build main OU line
-  canonical['ou'] = buildMainOU(oddsMap, /^(over|under)\s+[0-9]+(\.[0-9]+)?$/, /^(over|under)\s+([0-9]+(\.[0-9]+)?)/);
-  // Corners OU
-  canonical['corners_ou'] = buildMainOU(oddsMap, /^corners\s+(over|under)\s+[0-9]+(\.[0-9]+)?$/, /^corners\s+(over|under)\s+([0-9]+(\.[0-9]+)?)/);
-  // AH
-  canonical['ah'] = buildMainAH(oddsMap);
+  const goalsOuPair = buildMainOUWithAdjacent(
+    oddsMap,
+    /^(over|under)\s+[0-9]+(\.[0-9]+)?$/,
+    /^(over|under)\s+([0-9]+(\.[0-9]+)?)/,
+  );
+  if (goalsOuPair) {
+    canonical['ou'] = goalsOuPair.main;
+    if (goalsOuPair.adjacent) canonical['ou_adjacent'] = goalsOuPair.adjacent;
+  }
+  const cornersOuPair = buildMainOUWithAdjacent(
+    oddsMap,
+    /^corners\s+(over|under)\s+[0-9]+(\.[0-9]+)?$/,
+    /^corners\s+(over|under)\s+([0-9]+(\.[0-9]+)?)/,
+  );
+  if (cornersOuPair) {
+    canonical['corners_ou'] = cornersOuPair.main;
+  }
+  const ahPair = buildMainAHWithAdjacent(oddsMap);
+  if (ahPair) {
+    canonical['ah'] = ahPair.main;
+    if (ahPair.adjacent) canonical['ah_adjacent'] = ahPair.adjacent;
+  }
   // BTTS
   if (bestBTTS.yes > 0 || bestBTTS.no > 0) {
     canonical['btts'] = { yes: bestBTTS.yes || null, no: bestBTTS.no || null };
@@ -1681,9 +1589,25 @@ export function buildOddsCanonical(oddsResponse: unknown[]): { canonical: OddsCa
     const t = ip(canonical['ou'].over) + ip(canonical['ou'].under);
     if (t > 0 && (t < 0.85 || t > 1.15)) delete canonical['ou'];
   }
+  if (
+    canonical['ou_adjacent']
+    && canonical['ou_adjacent'].over !== null
+    && canonical['ou_adjacent'].under !== null
+  ) {
+    const t = ip(canonical['ou_adjacent'].over) + ip(canonical['ou_adjacent'].under);
+    if (t > 0 && (t < 0.85 || t > 1.15)) delete canonical['ou_adjacent'];
+  }
   if (canonical['ah'] && canonical['ah'].home !== null && canonical['ah'].away !== null) {
     const t = ip(canonical['ah'].home) + ip(canonical['ah'].away);
     if (t > 0 && (t < 0.85 || t > 1.15)) delete canonical['ah'];
+  }
+  if (
+    canonical['ah_adjacent']
+    && canonical['ah_adjacent'].home !== null
+    && canonical['ah_adjacent'].away !== null
+  ) {
+    const t = ip(canonical['ah_adjacent'].home) + ip(canonical['ah_adjacent'].away);
+    if (t > 0 && (t < 0.85 || t > 1.15)) delete canonical['ah_adjacent'];
   }
   if (canonical['btts'] && canonical['btts'].yes !== null && canonical['btts'].no !== null) {
     const t = ip(canonical['btts'].yes) + ip(canonical['btts'].no);
@@ -1728,10 +1652,20 @@ function sanitizePromptOddsCanonical(args: {
       `Removed goals O/U market from prompt: current total goals ${args.currentTotalGoals} already exceeds line ${sanitized.ou.line}.`,
     );
   }
+  if (typeof sanitized.ou_adjacent?.line === 'number' && args.currentTotalGoals > sanitized.ou_adjacent.line) {
+    removeMarket(
+      'ou_adjacent',
+      `Removed adjacent goals O/U line from prompt: current total goals ${args.currentTotalGoals} already exceeds line ${sanitized.ou_adjacent.line}.`,
+    );
+  }
 
   const contaminationCheck = detectGoalsCornersLineContamination(sanitized, args.currentTotalGoals);
   if (contaminationCheck.contaminated) {
     removeMarket('ou', contaminationCheck.reason);
+    removeMarket(
+      'ou_adjacent',
+      `${contaminationCheck.reason} (cleared adjacent goals O/U ladder with contaminated main line).`,
+    );
   }
 
   if (
@@ -1788,11 +1722,14 @@ function sanitizePromptOddsCanonical(args: {
   };
 }
 
-function buildMainOU(
+function buildMainOUWithAdjacent(
   oddsMap: Record<string, number>,
   regexKey: RegExp,
   regexParse: RegExp,
-): { line: number; over: number | null; under: number | null } | undefined {
+): {
+  main: { line: number; over: number | null; under: number | null };
+  adjacent?: { line: number; over: number | null; under: number | null };
+} | undefined {
   const entries = Object.entries(oddsMap).filter(([k]) => regexKey.test(k));
   if (!entries.length) return undefined;
 
@@ -1824,19 +1761,59 @@ function buildMainOU(
     bestLine = String(sorted[0]);
   }
   const bestData = lineMap.get(bestLine) || {};
-  return { line: Number(bestLine), over: bestData['over'] ?? null, under: bestData['under'] ?? null };
+  const main = { line: Number(bestLine), over: bestData['over'] ?? null, under: bestData['under'] ?? null };
+
+  const candidates: string[] = [];
+  for (const [lineStr, data] of lineMap) {
+    if (lineStr === bestLine) continue;
+    const o = data['over'];
+    const u = data['under'];
+    if (o && u) candidates.push(lineStr);
+  }
+  if (candidates.length === 0) return { main };
+
+  const mainNum = Number(bestLine);
+  let adjacentLine: string | null = null;
+  let bestDist = Infinity;
+  let bestAdjSpread = Infinity;
+  for (const lineStr of candidates) {
+    const dist = Math.abs(Number(lineStr) - mainNum);
+    const data = lineMap.get(lineStr) || {};
+    const spread = Math.abs((data['over'] || 0) - (data['under'] || 0));
+    if (dist < bestDist || (dist === bestDist && spread < bestAdjSpread)) {
+      bestDist = dist;
+      bestAdjSpread = spread;
+      adjacentLine = lineStr;
+    }
+  }
+  if (!adjacentLine) return { main };
+  const adjData = lineMap.get(adjacentLine) || {};
+  return {
+    main,
+    adjacent: {
+      line: Number(adjacentLine),
+      over: adjData['over'] ?? null,
+      under: adjData['under'] ?? null,
+    },
+  };
 }
 
-function buildMainAH(oddsMap: Record<string, number>): { line: number; home: number | null; away: number | null } | undefined {
+function buildMainAHWithAdjacent(oddsMap: Record<string, number>): {
+  main: { line: number; home: number | null; away: number | null };
+  adjacent?: { line: number; home: number | null; away: number | null };
+} | undefined {
   const entries = Object.entries(oddsMap).filter(([k]) => /^(home|away)\s+[-+]?[0-9]+(\.[0-9]+)?$/.test(k));
   if (!entries.length) return undefined;
 
+  /** Home-centric line: `home -0.75` & `away +0.75` merge to line `-0.75`. */
   const lineMap = new Map<string, Record<string, number>>();
   for (const [k, odd] of entries) {
     const m = k.match(/^(home|away)\s+([-+]?[0-9]+(\.[0-9]+)?)/);
     if (!m?.[1] || !m[2]) continue;
-    const lineStr = m[2];
-    if (!Number.isFinite(Number(lineStr))) continue;
+    const hc = Number(m[2]);
+    if (!Number.isFinite(hc)) continue;
+    const canonicalLine = m[1] === 'home' ? hc : -hc;
+    const lineStr = String(canonicalLine);
     if (!lineMap.has(lineStr)) lineMap.set(lineStr, {});
     lineMap.get(lineStr)![m[1]] = Math.max(lineMap.get(lineStr)![m[1]] || 0, odd);
   }
@@ -1851,7 +1828,39 @@ function buildMainAH(oddsMap: Record<string, number>): { line: number; home: num
   }
   if (!bestLine) return undefined;
   const best = lineMap.get(bestLine) || {};
-  return { line: Number(bestLine), home: best['home'] ?? null, away: best['away'] ?? null };
+  const main = { line: Number(bestLine), home: best['home'] ?? null, away: best['away'] ?? null };
+
+  const candidates: string[] = [];
+  for (const [lineStr, data] of lineMap) {
+    if (lineStr === bestLine) continue;
+    if (data['home'] && data['away']) candidates.push(lineStr);
+  }
+  if (candidates.length === 0) return { main };
+
+  const mainNum = Number(bestLine);
+  let adjacentLine: string | null = null;
+  let bestDist = Infinity;
+  let bestAdjSpread = Infinity;
+  for (const lineStr of candidates) {
+    const dist = Math.abs(Number(lineStr) - mainNum);
+    const data = lineMap.get(lineStr) || {};
+    const spread = Math.abs((data['home'] || 0) - (data['away'] || 0));
+    if (dist < bestDist || (dist === bestDist && spread < bestAdjSpread)) {
+      bestDist = dist;
+      bestAdjSpread = spread;
+      adjacentLine = lineStr;
+    }
+  }
+  if (!adjacentLine) return { main };
+  const adj = lineMap.get(adjacentLine) || {};
+  return {
+    main,
+    adjacent: {
+      line: Number(adjacentLine),
+      home: adj['home'] ?? null,
+      away: adj['away'] ?? null,
+    },
+  };
 }
 
 // ==================== Parse AI Response ====================
@@ -2047,22 +2056,34 @@ function extractOddsFromSelection(selection: string, betMarket: string, canonica
 
   const goalOverLine = parseLineSuffix('over_', market);
   if (goalOverLine !== null) {
-    return sameLine(goalOverLine, oc.ou?.line) ? (oc.ou?.over ?? null) : null;
+    if (sameLine(goalOverLine, oc.ou?.line)) return oc.ou?.over ?? null;
+    if (sameLine(goalOverLine, oc.ou_adjacent?.line)) return oc.ou_adjacent?.over ?? null;
+    return null;
   }
 
   const goalUnderLine = parseLineSuffix('under_', market);
   if (goalUnderLine !== null) {
-    return sameLine(goalUnderLine, oc.ou?.line) ? (oc.ou?.under ?? null) : null;
+    if (sameLine(goalUnderLine, oc.ou?.line)) return oc.ou?.under ?? null;
+    if (sameLine(goalUnderLine, oc.ou_adjacent?.line)) return oc.ou_adjacent?.under ?? null;
+    return null;
   }
 
   const ahHomeLine = parseLineSuffix('asian_handicap_home_', market);
   if (ahHomeLine !== null) {
-    return sameLine(ahHomeLine, oc.ah?.line) ? (oc.ah?.home ?? null) : null;
+    if (sameLine(ahHomeLine, oc.ah?.line)) return oc.ah?.home ?? null;
+    if (sameLine(ahHomeLine, oc.ah_adjacent?.line)) return oc.ah_adjacent?.home ?? null;
+    return null;
   }
 
   const ahAwayLine = parseLineSuffix('asian_handicap_away_', market);
   if (ahAwayLine !== null) {
-    return sameLine(ahAwayLine, oc.ah?.line) ? (oc.ah?.away ?? null) : null;
+    const matchMain =
+      sameLine(ahAwayLine, oc.ah?.line) || sameLine(-ahAwayLine, oc.ah?.line);
+    if (matchMain) return oc.ah?.away ?? null;
+    const matchAdj =
+      sameLine(ahAwayLine, oc.ah_adjacent?.line) || sameLine(-ahAwayLine, oc.ah_adjacent?.line);
+    if (matchAdj) return oc.ah_adjacent?.away ?? null;
+    return null;
   }
 
   const cornersOverLine = parseLineSuffix('corners_over_', market);
@@ -2591,194 +2612,13 @@ async function processMatch(
       });
     }
 
-    let liveScoreTrace: Awaited<ReturnType<typeof fetchLiveScoreBenchmarkTrace>> | null = null;
-    if (config.liveScoreBenchmarkEnabled || config.liveScoreStatsFallbackEnabled) {
-      liveScoreTrace = await deps.fetchLiveScoreBenchmarkTrace(fixture);
-    }
-
-    if (sampleProviderData && liveScoreTrace) {
-      void recordProviderStatsSampleSafe({
-        match_id: matchId,
-        match_minute: minute,
-        match_status: status,
-        provider: 'live-score-api',
-        consumer: shadowMode ? 'replay' : 'server-pipeline',
-        success: liveScoreTrace.error == null && liveScoreTrace.matched,
-        latency_ms: liveScoreTrace.latencyMs,
-        status_code: liveScoreTrace.statusCode,
-        error: liveScoreTrace.error ?? '',
-        raw_payload: {
-          matched_match: liveScoreTrace.matchedMatch,
-          stats: liveScoreTrace.rawStats,
-          events: liveScoreTrace.rawEvents,
-          candidate_count: liveScoreTrace.rawLiveMatches.length,
-        },
-        normalized_payload: liveScoreTrace.statsCompact,
-        coverage_flags: liveScoreTrace.coverageFlags,
-      });
-    }
-
-    let statsCompact = apiStatsCompact;
-    let eventsCompact = apiEventsCompact;
+    const statsCompact = apiStatsCompact;
+    const eventsCompact = apiEventsCompact;
     let derivedInsights = deriveInsightsFromEvents(eventsCompact, minute, homeName, awayName);
-    let proceed = apiProceed;
-    let statsSource: StatsSource = 'api-football';
-    let statsFallbackUsed = false;
-    let statsFallbackReason = '';
-
-    if (config.liveScoreStatsFallbackEnabled && !apiProceed.statsAvailable) {
-      if (!liveScoreTrace || liveScoreTrace.error || !liveScoreTrace.matched) {
-        statsFallbackReason = `Live Score fallback unavailable: ${liveScoreTrace?.error || 'NO_LIVE_SCORE_MATCH'}`;
-      } else {
-        const liveScoreStatsCompact = liveScoreTrace.statsCompact as unknown as StatsCompact;
-        const liveScoreEventsCompact = buildEventsCompact(
-          liveScoreTrace.normalizedEvents,
-          homeTeamId,
-          awayTeamId,
-          homeName,
-          awayName,
-        );
-        const liveScoreProceed = checkShouldProceedServer(
-          status,
-          minute,
-          liveScoreStatsCompact,
-          {
-            minMinute: settings.minMinute,
-            maxMinute: settings.maxMinute,
-            secondHalfStartMinute: settings.secondHalfStartMinute,
-          },
-          forceAnalyze,
-        );
-        const mergedStatsCompact = mergeStatsCompact(apiStatsCompact, liveScoreStatsCompact);
-        const mergedEventsCompact = liveScoreEventsCompact.length > apiEventsCompact.length
-          ? liveScoreEventsCompact
-          : apiEventsCompact;
-        const mergedProceed = checkShouldProceedServer(
-          status,
-          minute,
-          mergedStatsCompact,
-          {
-            minMinute: settings.minMinute,
-            maxMinute: settings.maxMinute,
-            secondHalfStartMinute: settings.secondHalfStartMinute,
-          },
-          forceAnalyze,
-        );
-        const apiPrimaryPairs = countPrimaryPopulatedStatPairs(apiStatsCompact);
-        const liveScorePrimaryPairs = countPrimaryPopulatedStatPairs(liveScoreStatsCompact);
-        const mergedPrimaryPairs = countPrimaryPopulatedStatPairs(mergedStatsCompact);
-        const apiEventCount = apiEventsCompact.length;
-        const liveScoreEventCount = liveScoreEventsCompact.length;
-        const mergedImproved = mergedPrimaryPairs > apiPrimaryPairs || liveScoreEventCount > apiEventCount;
-
-        if (mergedImproved) {
-          statsCompact = mergedStatsCompact;
-          eventsCompact = mergedEventsCompact;
-          derivedInsights = deriveInsightsFromEvents(eventsCompact, minute, homeName, awayName);
-          proceed = mergedProceed;
-          statsSource = 'live-score-api-fallback';
-          statsFallbackUsed = true;
-          if (liveScoreProceed.statsAvailable && liveScorePrimaryPairs > apiPrimaryPairs) {
-            statsFallbackReason = `API-Sports stats unavailable (${apiProceed.statsMeta.statsQuality}); Live Score fallback accepted (${liveScoreProceed.statsMeta.statsQuality})`;
-          } else {
-            statsFallbackReason = `API-Sports live stats supplemented by Live Score fallback: api_pairs=${apiPrimaryPairs}, live_pairs=${liveScorePrimaryPairs}, merged_pairs=${mergedPrimaryPairs}, api_events=${apiEventCount}, live_events=${liveScoreEventCount}, merged_quality=${mergedProceed.statsMeta.statsQuality}`;
-          }
-        } else {
-          statsFallbackReason = `Live Score fallback rejected: api_pairs=${apiPrimaryPairs}, live_pairs=${liveScorePrimaryPairs}, merged_pairs=${mergedPrimaryPairs}, api_events=${apiEventCount}, live_events=${liveScoreEventCount}, live_quality=${liveScoreProceed.statsMeta.statsQuality}`;
-        }
-      }
-    }
-
-    if (config.webLiveStatsFallbackEnabled && !proceed.statsAvailable) {
-      let webFallback: Awaited<ReturnType<typeof deps.fetchDeterministicWebLiveFallback>> | null = null;
-      try {
-        webFallback = await deps.fetchDeterministicWebLiveFallback({
-          homeTeam: homeName,
-          awayTeam: awayName,
-          league: fixture.league?.name || '',
-          matchDate: fixture.fixture?.date ? String(fixture.fixture.date).slice(0, 10) : null,
-          status,
-          minute,
-          score: { home: homeGoals, away: awayGoals },
-          requestedSlots: { stats: true, events: true },
-        });
-      } catch (err) {
-        const message = err instanceof Error ? err.message : String(err);
-        const detail = `Trusted web fallback unavailable: ${message}`;
-        statsFallbackReason = statsFallbackReason ? `${statsFallbackReason}; ${detail}` : detail;
-      }
-
-      if (webFallback && sampleProviderData && webFallback.structured) {
-        void recordProviderStatsSampleSafe({
-          match_id: matchId,
-          match_minute: minute,
-          match_status: status,
-          provider: 'web-live-fallback',
-          consumer: shadowMode ? 'replay' : 'server-pipeline',
-          success: webFallback.validation.accepted,
-          latency_ms: 0,
-          status_code: null,
-          error: webFallback.error || webFallback.validation.reasons.join(','),
-          raw_payload: {
-            matched_url: webFallback.structured.matched_url,
-            source_meta: webFallback.sourceMeta,
-          },
-          normalized_payload: webFallback.structured.stats,
-          coverage_flags: {
-            primary_stat_pairs: countPrimaryPopulatedStatPairs(buildStatsCompactFromWebFallback(webFallback.structured.stats)),
-            event_count: webFallback.structured.events.length,
-            accepted: webFallback.validation.accepted,
-            reasons: webFallback.validation.reasons,
-          },
-        });
-      }
-
-      const criticalWebFallbackMismatch = webFallback
-        ? hasCriticalWebFallbackMismatch(webFallback.validation.reasons)
-        : false;
-      if (webFallback?.structured && webFallback.sourceMeta.trusted_source_count > 0 && !criticalWebFallbackMismatch) {
-        const webStatsCompact = buildStatsCompactFromWebFallback(webFallback.structured.stats);
-        const webEventsCompact = buildEventsCompactFromWebFallback(webFallback.structured.events, homeName, awayName);
-        const mergedStatsCompact = mergeStatsCompact(statsCompact, webStatsCompact);
-        const mergedEventsCompact = webEventsCompact.length > eventsCompact.length ? webEventsCompact : eventsCompact;
-        const mergedProceed = checkShouldProceedServer(
-          status,
-          minute,
-          mergedStatsCompact,
-          {
-            minMinute: settings.minMinute,
-            maxMinute: settings.maxMinute,
-            secondHalfStartMinute: settings.secondHalfStartMinute,
-          },
-          forceAnalyze,
-        );
-        const currentPrimaryPairs = countPrimaryPopulatedStatPairs(statsCompact);
-        const webPrimaryPairs = countPrimaryPopulatedStatPairs(webStatsCompact);
-        const mergedPrimaryPairs = countPrimaryPopulatedStatPairs(mergedStatsCompact);
-        const currentEventCount = eventsCompact.length;
-        const webEventCount = webEventsCompact.length;
-        const mergedImproved = mergedPrimaryPairs > currentPrimaryPairs || webEventCount > currentEventCount;
-
-        if (mergedImproved) {
-          statsCompact = mergedStatsCompact;
-          eventsCompact = mergedEventsCompact;
-          derivedInsights = deriveInsightsFromEvents(eventsCompact, minute, homeName, awayName);
-          proceed = mergedProceed;
-          statsSource = 'web-trusted-fallback';
-          statsFallbackUsed = true;
-          statsFallbackReason = `Trusted web fallback merged: source=${webFallback.structured.matched_url}, current_pairs=${currentPrimaryPairs}, web_pairs=${webPrimaryPairs}, merged_pairs=${mergedPrimaryPairs}, current_events=${currentEventCount}, web_events=${webEventCount}`;
-        } else if (!statsFallbackReason) {
-          statsFallbackReason = `Trusted web fallback rejected: current_pairs=${currentPrimaryPairs}, web_pairs=${webPrimaryPairs}, merged_pairs=${mergedPrimaryPairs}, current_events=${currentEventCount}, web_events=${webEventCount}`;
-        }
-      } else if (criticalWebFallbackMismatch) {
-        const detail = `Trusted web fallback rejected on live-state mismatch: ${webFallback?.validation.reasons.join(',') || 'UNKNOWN'}`;
-        statsFallbackReason = statsFallbackReason ? `${statsFallbackReason}; ${detail}` : detail;
-      } else if (!statsFallbackReason && webFallback?.error) {
-        statsFallbackReason = `Trusted web fallback unavailable: ${webFallback.error}`;
-      } else if (webFallback?.error) {
-        statsFallbackReason = `${statsFallbackReason}; Trusted web fallback unavailable: ${webFallback.error}`;
-      }
-    }
+    const proceed = apiProceed;
+    const statsSource: StatsSource = 'api-football';
+    const statsFallbackUsed = false;
+    const statsFallbackReason = '';
 
     // 2. Check should proceed before fetching odds / AI
     const statsAvailable = proceed.statsAvailable;
@@ -2821,7 +2661,7 @@ async function processMatch(
       };
     }
 
-    // 3. Fetch odds (live first, The Odds exact-event fallback, then pre-match)
+    // 3. Fetch odds (API-Football live, then pre-match when not bypassed by real_required in-play)
     let oddsCanonical: OddsCanonical = {};
     let oddsAvailable = false;
     let oddsSource: string = 'none';
@@ -2895,7 +2735,7 @@ async function processMatch(
         stats: statsCompact as unknown as Record<string, unknown>,
         events: eventsCompact as unknown[],
         odds: oddsCanonical as unknown as Record<string, unknown>,
-        source: statsFallbackUsed ? 'server-pipeline:live-score-fallback' : 'server-pipeline',
+        source: 'server-pipeline',
       }).catch((err) => {
         console.warn(`[pipeline] Snapshot save failed for ${matchId}:`, err instanceof Error ? err.message : String(err));
       });
@@ -3128,6 +2968,11 @@ async function processMatch(
       statsFallbackReason,
       userQuestion: options.userQuestion,
       followUpHistory: options.followUpHistory,
+      settledReplayApprovedTrace: options.settledReplayApprovedTrace === true,
+      settledReplayOriginalBetMarket: options.settledReplayTraceOriginalBetMarket,
+      settledReplayOriginalSelection: options.settledReplayTraceOriginalSelection,
+      skipRecommendationPolicy:
+        options.settledReplayApprovedTrace === true && options.applySettledReplayPolicy !== true,
     };
 
     // 6. Call Gemini
@@ -3744,6 +3589,9 @@ function buildServerPrompt(data: {
   statsFallbackReason: string;
   userQuestion?: string;
   followUpHistory?: FollowUpHistoryEntry[];
+  settledReplayApprovedTrace?: boolean;
+  settledReplayOriginalBetMarket?: string;
+  settledReplayOriginalSelection?: string;
 }, settings: PipelineSettings, promptVersion: LiveAnalysisPromptVersion = LIVE_ANALYSIS_PROMPT_VERSION): string {
   return buildLiveAnalysisPrompt(
     {
@@ -3790,6 +3638,9 @@ function buildServerPrompt(data: {
       statsFallbackReason: data.statsFallbackReason,
       userQuestion: data.userQuestion,
       followUpHistory: data.followUpHistory,
+      settledReplayApprovedTrace: data.settledReplayApprovedTrace === true,
+      settledReplayOriginalBetMarket: data.settledReplayOriginalBetMarket,
+      settledReplayOriginalSelection: data.settledReplayOriginalSelection,
     },
     {
       minConfidence: settings.minConfidence,

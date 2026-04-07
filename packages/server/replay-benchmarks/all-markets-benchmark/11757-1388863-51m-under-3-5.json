@@ -1,0 +1,475 @@
+{
+  "name": "11757-1388863-51m-under-3-5",
+  "matchId": "1388863",
+  "fixture": {
+    "fixture": {
+      "id": 1388863,
+      "referee": null,
+      "timezone": "UTC",
+      "date": "2026-04-04T11:00:00.000Z",
+      "timestamp": 1775300400,
+      "periods": {
+        "first": null,
+        "second": null
+      },
+      "venue": {
+        "id": null,
+        "name": "Avnet Arena",
+        "city": null
+      },
+      "status": {
+        "long": "1H",
+        "short": "1H",
+        "elapsed": 51
+      }
+    },
+    "league": {
+      "id": 79,
+      "name": "2. Bundesliga",
+      "country": "",
+      "logo": "",
+      "flag": null,
+      "season": 0,
+      "round": ""
+    },
+    "teams": {
+      "home": {
+        "id": 0,
+        "name": "1. FC Magdeburg",
+        "logo": "",
+        "winner": null
+      },
+      "away": {
+        "id": 0,
+        "name": "VfL Bochum",
+        "logo": "",
+        "winner": null
+      }
+    },
+    "goals": {
+      "home": 2,
+      "away": 0
+    },
+    "score": {
+      "halftime": {
+        "home": null,
+        "away": null
+      },
+      "fulltime": {
+        "home": 2,
+        "away": 0
+      }
+    }
+  },
+  "watchlistEntry": {
+    "match_id": "1388863",
+    "league": "2. Bundesliga",
+    "home_team": "1. FC Magdeburg",
+    "away_team": "VfL Bochum",
+    "mode": "B",
+    "status": "active",
+    "custom_conditions": "",
+    "date": "2026-04-04",
+    "kickoff": "20:00:00",
+    "strategic_context": null
+  },
+  "pipelineOptions": {
+    "forceAnalyze": true,
+    "skipProceedGate": true,
+    "skipStalenessGate": true
+  },
+  "statistics": [
+    {
+      "team": {
+        "id": 0,
+        "name": "1. FC Magdeburg",
+        "logo": ""
+      },
+      "statistics": [
+        {
+          "type": "Ball Possession",
+          "value": "68%"
+        },
+        {
+          "type": "Total Shots",
+          "value": "6"
+        },
+        {
+          "type": "Shots on Goal",
+          "value": "3"
+        },
+        {
+          "type": "Corner Kicks",
+          "value": "3"
+        },
+        {
+          "type": "Fouls",
+          "value": "6"
+        },
+        {
+          "type": "Offsides",
+          "value": null
+        },
+        {
+          "type": "Yellow Cards",
+          "value": null
+        },
+        {
+          "type": "Red Cards",
+          "value": null
+        },
+        {
+          "type": "Goalkeeper Saves",
+          "value": "2"
+        },
+        {
+          "type": "Blocked Shots",
+          "value": "0"
+        },
+        {
+          "type": "Total passes",
+          "value": "337"
+        },
+        {
+          "type": "Passes accurate",
+          "value": "305"
+        },
+        {
+          "type": "Shots off Goal",
+          "value": "3"
+        },
+        {
+          "type": "Shots insidebox",
+          "value": "4"
+        },
+        {
+          "type": "Shots outsidebox",
+          "value": "2"
+        },
+        {
+          "type": "expected_goals",
+          "value": "0.99"
+        },
+        {
+          "type": "goals_prevented",
+          "value": "0"
+        },
+        {
+          "type": "Passes %",
+          "value": "91%"
+        }
+      ]
+    },
+    {
+      "team": {
+        "id": 0,
+        "name": "VfL Bochum",
+        "logo": ""
+      },
+      "statistics": [
+        {
+          "type": "Ball Possession",
+          "value": "32%"
+        },
+        {
+          "type": "Total Shots",
+          "value": "5"
+        },
+        {
+          "type": "Shots on Goal",
+          "value": "2"
+        },
+        {
+          "type": "Corner Kicks",
+          "value": "1"
+        },
+        {
+          "type": "Fouls",
+          "value": "5"
+        },
+        {
+          "type": "Offsides",
+          "value": null
+        },
+        {
+          "type": "Yellow Cards",
+          "value": null
+        },
+        {
+          "type": "Red Cards",
+          "value": null
+        },
+        {
+          "type": "Goalkeeper Saves",
+          "value": "1"
+        },
+        {
+          "type": "Blocked Shots",
+          "value": "0"
+        },
+        {
+          "type": "Total passes",
+          "value": "156"
+        },
+        {
+          "type": "Passes accurate",
+          "value": "119"
+        },
+        {
+          "type": "Shots off Goal",
+          "value": "3"
+        },
+        {
+          "type": "Shots insidebox",
+          "value": "3"
+        },
+        {
+          "type": "Shots outsidebox",
+          "value": "2"
+        },
+        {
+          "type": "expected_goals",
+          "value": "0.29"
+        },
+        {
+          "type": "goals_prevented",
+          "value": "0"
+        },
+        {
+          "type": "Passes %",
+          "value": "76%"
+        }
+      ]
+    }
+  ],
+  "mockResolvedOdds": {
+    "oddsSource": "live",
+    "response": [
+      {
+        "bookmakers": [
+          {
+            "id": 0,
+            "name": "Replay Mock",
+            "bets": [
+              {
+                "id": 1,
+                "name": "Match Winner",
+                "values": [
+                  {
+                    "value": "Home",
+                    "odd": "1.055"
+                  },
+                  {
+                    "value": "Draw",
+                    "odd": "41"
+                  },
+                  {
+                    "value": "Away",
+                    "odd": "351"
+                  }
+                ]
+              },
+              {
+                "id": 2,
+                "name": "Over/Under",
+                "values": [
+                  {
+                    "value": "Over",
+                    "odd": "2",
+                    "handicap": "3.5"
+                  },
+                  {
+                    "value": "Under",
+                    "odd": "1.8",
+                    "handicap": "3.5"
+                  }
+                ]
+              },
+              {
+                "id": 3,
+                "name": "Corners Over/Under",
+                "values": [
+                  {
+                    "value": "Over",
+                    "odd": "1.95",
+                    "handicap": "8.5"
+                  },
+                  {
+                    "value": "Under",
+                    "odd": "1.85",
+                    "handicap": "8.5"
+                  }
+                ]
+              },
+              {
+                "id": 4,
+                "name": "Both Teams Score",
+                "values": [
+                  {
+                    "value": "Yes",
+                    "odd": "1.8"
+                  },
+                  {
+                    "value": "No",
+                    "odd": "1.909"
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    ],
+    "oddsFetchedAt": null,
+    "freshness": "fresh",
+    "cacheStatus": "hit"
+  },
+  "previousRecommendations": [
+    {
+      "minute": 56,
+      "odds": "1.925",
+      "bet_market": "under_4.25",
+      "selection": "Under 4.25 Goals @1.925",
+      "score": "2-0",
+      "status": "2H",
+      "result": "loss",
+      "confidence": 7,
+      "stake_percent": "3.00",
+      "reasoning": "Break-even about 51.9%. My fair range is around 62-65%. Edge looks about 11%. League priors indicate a high-goal environment (contradictory to an Under), but the live evidence of suppression is overwhelming. Magdeburg is leading 2-0 and completely suffocating the game through elite possession control (66% possession, 90% pass accuracy, 370 passes). The match pace is very slow with only 14 combined shots and 1.92 total xG. While we already hold an Under 3.5 position, this Under 4.25 line offers an exceptional 0.75-goal structural upgrade at better odds, justifying a secondary entry as Bochum is starved of the ball."
+    },
+    {
+      "minute": 56,
+      "odds": "2.200",
+      "bet_market": "under_8",
+      "selection": "Under 8 Goals @2.2",
+      "score": "2-0",
+      "status": "2H",
+      "result": "win",
+      "confidence": 9,
+      "stake_percent": "7.00",
+      "reasoning": "Break-even about 45.5%. My fair range is around 95-99%. Edge looks about 50%. We already hold an Under 3.5 position from minute 51, but this Under 8 line at 2.20 represents an exceptional structural upgrade. It provides 4.5 goals of additional safety margin at significantly better odds. With the score at 2-0 in the 56th minute, Magdeburg is controlling possession (66%) and dictating a measured tempo (370 passes, 90% accuracy). Bochum has generated minimal xG (0.48). The probability of seeing 6+ more goals to threaten this line is near zero, making this an extraordinary value that justifies adding to the existing Under thesis."
+    }
+  ],
+  "metadata": {
+    "recommendationId": 11757,
+    "originalPromptVersion": "v8-market-balance-followup-b",
+    "originalAiModel": "gemini-3-pro-preview",
+    "originalBetMarket": "under_3.5",
+    "originalSelection": "Under 3.5 Goals @1.825",
+    "originalResult": "loss",
+    "originalPnl": -3,
+    "minute": 51,
+    "score": "2-0",
+    "status": "1H",
+    "league": "2. Bundesliga",
+    "homeTeam": "1. FC Magdeburg",
+    "awayTeam": "VfL Bochum",
+    "evidenceMode": "full_live_data",
+    "prematchStrength": "weak",
+    "profileCoverageBand": "partial",
+    "overlayCoverageBand": "none",
+    "policyImpactBand": "clean"
+  },
+  "settlementContext": {
+    "matchId": "1388863",
+    "homeTeam": "1. FC Magdeburg",
+    "awayTeam": "VfL Bochum",
+    "finalStatus": "FT",
+    "homeScore": 4,
+    "awayScore": 1,
+    "regularHomeScore": 4,
+    "regularAwayScore": 1,
+    "settlementStats": [
+      {
+        "away": 6,
+        "home": 6,
+        "type": "Shots on Goal"
+      },
+      {
+        "away": 7,
+        "home": 5,
+        "type": "Shots off Goal"
+      },
+      {
+        "away": 18,
+        "home": 11,
+        "type": "Total Shots"
+      },
+      {
+        "away": 5,
+        "home": 0,
+        "type": "Blocked Shots"
+      },
+      {
+        "away": 14,
+        "home": 9,
+        "type": "Shots insidebox"
+      },
+      {
+        "away": 4,
+        "home": 2,
+        "type": "Shots outsidebox"
+      },
+      {
+        "away": 11,
+        "home": 8,
+        "type": "Fouls"
+      },
+      {
+        "away": 3,
+        "home": 4,
+        "type": "Corner Kicks"
+      },
+      {
+        "away": 0,
+        "home": 1,
+        "type": "Offsides"
+      },
+      {
+        "away": "46%",
+        "home": "54%",
+        "type": "Ball Possession"
+      },
+      {
+        "away": 3,
+        "home": 1,
+        "type": "Yellow Cards"
+      },
+      {
+        "away": null,
+        "home": null,
+        "type": "Red Cards"
+      },
+      {
+        "away": 2,
+        "home": 4,
+        "type": "Goalkeeper Saves"
+      },
+      {
+        "away": 387,
+        "home": 462,
+        "type": "Total passes"
+      },
+      {
+        "away": 316,
+        "home": 403,
+        "type": "Passes accurate"
+      },
+      {
+        "away": "82%",
+        "home": "87%",
+        "type": "Passes %"
+      },
+      {
+        "away": "1.20",
+        "home": "1.99",
+        "type": "expected_goals"
+      },
+      {
+        "away": -1,
+        "home": -1,
+        "type": "goals_prevented"
+      }
+    ]
+  }
+}

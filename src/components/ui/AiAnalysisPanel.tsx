@@ -324,7 +324,7 @@ export function AiAnalysisPanel({ entry, onClose, onFollowUp }: Props) {
   const uiLanguage = useUiLanguage();
   const promptLocale = uiLanguageToAskAiPromptLocale(uiLanguage);
   const quickPrompts = useAskAiQuickPromptList(promptLocale);
-  const quickPromptsLabel = getAskAiQuickPromptsSectionLabel(promptLocale);
+  const quickPromptsLabel = getAskAiQuickPromptsSectionLabel('en');
 
   const { result } = entry;
   const ai: ServerParsedAiResult | null = getParsedAiResult(result);

@@ -3,10 +3,6 @@ import {
   fetchPreMatchOdds,
 } from './football-api.js';
 import {
-  fetchTheOddsLiveDetailed,
-  type TheOddsLiveTrace,
-} from './the-odds-api.js';
-import {
   extractStatusCode,
   recordProviderOddsSampleSafe,
 } from './provider-sampling.js';
@@ -18,6 +14,7 @@ import {
 } from '../repos/provider-odds-cache.repo.js';
 
 export type ResolvedOddsSource = 'live' | 'fallback-live' | 'reference-prematch' | 'none';
+/** Includes legacy `the-odds-live` for reading cached rows; new resolutions never write it. */
 type ProviderOddsSource = 'api-football-live' | 'the-odds-live' | 'api-football-prematch' | 'none';
 export type ResolveMatchOddsFreshness = 'fresh' | 'stale_ok' | 'stale_degraded' | 'missing';
 export type ResolveMatchOddsCacheStatus = 'hit' | 'refreshed' | 'stale_fallback' | 'miss';
@@ -48,17 +45,6 @@ export interface ResolveMatchOddsResult {
 export interface ResolveMatchOddsDeps {
   fetchLiveOdds?: (fixtureId: string) => Promise<unknown[]>;
   fetchPreMatchOdds?: (fixtureId: string) => Promise<unknown[]>;
-  fetchTheOddsLiveDetailed?: (
-    homeTeam: string,
-    awayTeam: string,
-    fixtureId: number,
-    kickoffTimestamp?: number,
-    options?: {
-      leagueName?: string;
-      leagueCountry?: string;
-      status?: string;
-    },
-  ) => Promise<TheOddsLiveTrace>;
   getCachedOdds?: (matchId: string) => Promise<ProviderOddsCacheRow | null>;
   upsertCachedOdds?: (input: UpsertProviderOddsCacheInput) => Promise<unknown>;
   now?: () => Date;
@@ -82,7 +68,6 @@ type NormalizedOddsEntry = {
 const defaultResolveDeps: ResolveMatchOddsDeps = {
   fetchLiveOdds,
   fetchPreMatchOdds,
-  fetchTheOddsLiveDetailed,
   getCachedOdds: getProviderOddsCache,
   upsertCachedOdds: upsertProviderOddsCache,
   now: () => new Date(),
@@ -399,72 +384,6 @@ async function resolveMatchOddsFromProviders(
   let lastError = liveError
     ? (liveError instanceof Error ? liveError.message : String(liveError))
     : liveUsable ? '' : 'NO_USABLE_LIVE_ODDS';
-
-  if (input.homeTeam && input.awayTeam) {
-    const theOddsStartedAt = Date.now();
-    let theOddsTrace: TheOddsLiveTrace | null = null;
-    let theOddsError: unknown = null;
-    try {
-      theOddsTrace = await resolvedDeps.fetchTheOddsLiveDetailed!(
-        input.homeTeam,
-        input.awayTeam,
-        Number(input.matchId),
-        input.kickoffTimestamp,
-        {
-          leagueName: input.leagueName,
-          leagueCountry: input.leagueCountry,
-          status: input.status,
-        },
-      );
-    } catch (err) {
-      theOddsError = err;
-    }
-
-    const theOddsResult = theOddsTrace?.result ?? null;
-    const theOddsResponse = theOddsResult ? [theOddsResult] : [];
-    const theOddsUsable = hasUsableBookmakers(theOddsResponse);
-
-    if (isSamplingEnabled(input)) {
-      void recordProviderOddsSampleSafe({
-        ...sampleBase(input),
-        provider: 'the-odds-api',
-        source: 'the-odds-api',
-        success: !theOddsError,
-        usable: theOddsUsable,
-        latency_ms: Date.now() - theOddsStartedAt,
-        status_code: theOddsError ? extractStatusCode(theOddsError) : null,
-        error: theOddsError
-          ? (theOddsError instanceof Error ? theOddsError.message : String(theOddsError))
-          : theOddsTrace?.error ?? (theOddsUsable ? '' : 'NO_USABLE_ODDS'),
-        raw_payload: {
-          matched_event: theOddsTrace?.matchedEvent ?? null,
-          event_odds: theOddsTrace?.rawEventOdds ?? null,
-          sport_key: theOddsTrace?.sportKey ?? null,
-          scanned_sport_keys: theOddsTrace?.scannedSportKeys ?? [],
-        },
-        normalized_payload: theOddsResponse,
-        coverage_flags: summarizeNormalizedOdds(theOddsResponse),
-      });
-    }
-
-    if (theOddsUsable) {
-      return {
-        result: {
-          oddsSource: 'fallback-live',
-          response: theOddsResponse,
-          oddsFetchedAt: nowIso(),
-          freshness: 'fresh',
-          cacheStatus: 'refreshed',
-        },
-        providerSource: 'the-odds-live',
-        lastError: '',
-      };
-    }
-
-    lastError = theOddsError
-      ? (theOddsError instanceof Error ? theOddsError.message : String(theOddsError))
-      : theOddsTrace?.error || 'NO_USABLE_FALLBACK_LIVE_ODDS';
-  }
 
   if (bypassStartedCache(mode, input.status)) {
     if (isSamplingEnabled(input)) {

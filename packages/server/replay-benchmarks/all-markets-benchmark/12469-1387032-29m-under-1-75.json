@@ -1,0 +1,445 @@
+{
+  "name": "12469-1387032-29m-under-1-75",
+  "matchId": "1387032",
+  "fixture": {
+    "fixture": {
+      "id": 1387032,
+      "referee": null,
+      "timezone": "UTC",
+      "date": "2026-04-06T14:00:00.000Z",
+      "timestamp": 1775484000,
+      "periods": {
+        "first": null,
+        "second": null
+      },
+      "venue": {
+        "id": null,
+        "name": "Portman Road",
+        "city": null
+      },
+      "status": {
+        "long": "1H",
+        "short": "1H",
+        "elapsed": 29
+      }
+    },
+    "league": {
+      "id": 40,
+      "name": "Championship",
+      "country": "",
+      "logo": "",
+      "flag": null,
+      "season": 0,
+      "round": ""
+    },
+    "teams": {
+      "home": {
+        "id": 57,
+        "name": "Ipswich",
+        "logo": "",
+        "winner": null
+      },
+      "away": {
+        "id": 54,
+        "name": "Birmingham",
+        "logo": "",
+        "winner": null
+      }
+    },
+    "goals": {
+      "home": 0,
+      "away": 0
+    },
+    "score": {
+      "halftime": {
+        "home": null,
+        "away": null
+      },
+      "fulltime": {
+        "home": 0,
+        "away": 0
+      }
+    }
+  },
+  "watchlistEntry": {
+    "match_id": "1387032",
+    "league": "Championship",
+    "home_team": "Ipswich",
+    "away_team": "Birmingham",
+    "mode": "B",
+    "status": "active",
+    "custom_conditions": "",
+    "date": "2026-04-06",
+    "kickoff": "14:00:00",
+    "strategic_context": null
+  },
+  "pipelineOptions": {
+    "forceAnalyze": true,
+    "skipProceedGate": true,
+    "skipStalenessGate": true
+  },
+  "statistics": [
+    {
+      "team": {
+        "id": 0,
+        "name": "Ipswich",
+        "logo": ""
+      },
+      "statistics": [
+        {
+          "type": "Ball Possession",
+          "value": "63%"
+        },
+        {
+          "type": "Total Shots",
+          "value": "2"
+        },
+        {
+          "type": "Shots on Goal",
+          "value": "0"
+        },
+        {
+          "type": "Corner Kicks",
+          "value": "1"
+        },
+        {
+          "type": "Fouls",
+          "value": "4"
+        },
+        {
+          "type": "Offsides",
+          "value": "1"
+        },
+        {
+          "type": "Yellow Cards",
+          "value": null
+        },
+        {
+          "type": "Red Cards",
+          "value": null
+        },
+        {
+          "type": "Goalkeeper Saves",
+          "value": null
+        },
+        {
+          "type": "Blocked Shots",
+          "value": "0"
+        },
+        {
+          "type": "Total passes",
+          "value": "124"
+        },
+        {
+          "type": "Passes accurate",
+          "value": "92"
+        },
+        {
+          "type": "Shots off Goal",
+          "value": "2"
+        },
+        {
+          "type": "Shots insidebox",
+          "value": "1"
+        },
+        {
+          "type": "Shots outsidebox",
+          "value": "1"
+        },
+        {
+          "type": "expected_goals",
+          "value": "0.11"
+        },
+        {
+          "type": "goals_prevented",
+          "value": null
+        },
+        {
+          "type": "Passes %",
+          "value": "74%"
+        }
+      ]
+    },
+    {
+      "team": {
+        "id": 0,
+        "name": "Birmingham",
+        "logo": ""
+      },
+      "statistics": [
+        {
+          "type": "Ball Possession",
+          "value": "37%"
+        },
+        {
+          "type": "Total Shots",
+          "value": "0"
+        },
+        {
+          "type": "Shots on Goal",
+          "value": "0"
+        },
+        {
+          "type": "Corner Kicks",
+          "value": "1"
+        },
+        {
+          "type": "Fouls",
+          "value": "3"
+        },
+        {
+          "type": "Offsides",
+          "value": "0"
+        },
+        {
+          "type": "Yellow Cards",
+          "value": null
+        },
+        {
+          "type": "Red Cards",
+          "value": null
+        },
+        {
+          "type": "Goalkeeper Saves",
+          "value": null
+        },
+        {
+          "type": "Blocked Shots",
+          "value": "0"
+        },
+        {
+          "type": "Total passes",
+          "value": "71"
+        },
+        {
+          "type": "Passes accurate",
+          "value": "44"
+        },
+        {
+          "type": "Shots off Goal",
+          "value": "0"
+        },
+        {
+          "type": "Shots insidebox",
+          "value": "0"
+        },
+        {
+          "type": "Shots outsidebox",
+          "value": "0"
+        },
+        {
+          "type": "expected_goals",
+          "value": "0.00"
+        },
+        {
+          "type": "goals_prevented",
+          "value": null
+        },
+        {
+          "type": "Passes %",
+          "value": "62%"
+        }
+      ]
+    }
+  ],
+  "mockResolvedOdds": {
+    "oddsSource": "live",
+    "response": [
+      {
+        "bookmakers": [
+          {
+            "id": 0,
+            "name": "Replay Mock",
+            "bets": [
+              {
+                "id": 1,
+                "name": "Over/Under",
+                "values": [
+                  {
+                    "value": "Over",
+                    "odd": "1.8",
+                    "handicap": "1.75"
+                  },
+                  {
+                    "value": "Under",
+                    "odd": "2.05",
+                    "handicap": "1.75"
+                  }
+                ]
+              },
+              {
+                "id": 2,
+                "name": "Corners Over/Under",
+                "values": [
+                  {
+                    "value": "Over",
+                    "odd": "2",
+                    "handicap": "11.5"
+                  },
+                  {
+                    "value": "Under",
+                    "odd": "1.8",
+                    "handicap": "11.5"
+                  }
+                ]
+              },
+              {
+                "id": 3,
+                "name": "Both Teams Score",
+                "values": [
+                  {
+                    "value": "Yes",
+                    "odd": "2.625"
+                  },
+                  {
+                    "value": "No",
+                    "odd": "1.444"
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    ],
+    "oddsFetchedAt": null,
+    "freshness": "fresh",
+    "cacheStatus": "hit"
+  },
+  "previousRecommendations": [
+    {
+      "minute": 20,
+      "odds": "2.100",
+      "bet_market": "corners_under_9",
+      "selection": "Corners Under 9 @2.1",
+      "score": "0-0",
+      "status": "1H",
+      "result": "loss",
+      "confidence": 6,
+      "stake_percent": "3.00",
+      "reasoning": "Break-even about 47.6%. My fair range is around 60-65%. Edge looks about 15%. The match has started with an extremely slow tempo. In 20 minutes, there has been only 1 total shot (0 on target), 0.03 combined xG, and just 1 corner. Total passes are very low (146 combined), indicating a lack of fluidity and attacking pressure. Corner tempo so far is 0.05 per minute. To hit Over 9, they would need 8 more corners in 70 minutes (0.11 per minute), which is more than double the current pace. Given the stagnant attacking play and lack of box penetrations, the Under offers solid value despite the early stage of the game."
+    }
+  ],
+  "metadata": {
+    "recommendationId": 12469,
+    "originalPromptVersion": "v6-betting-discipline-c",
+    "originalAiModel": "gemini-3-pro-preview",
+    "originalBetMarket": "under_1.75",
+    "originalSelection": "Under 1.75 Goals @2.05",
+    "originalResult": "loss",
+    "originalPnl": -2,
+    "minute": 29,
+    "score": "0-0",
+    "status": "1H",
+    "league": "Championship",
+    "homeTeam": "Ipswich",
+    "awayTeam": "Birmingham",
+    "evidenceMode": "full_live_data",
+    "prematchStrength": "strong",
+    "profileCoverageBand": "strong",
+    "overlayCoverageBand": "none",
+    "policyImpactBand": "clean"
+  },
+  "settlementContext": {
+    "matchId": "1387032",
+    "homeTeam": "Ipswich",
+    "awayTeam": "Birmingham",
+    "finalStatus": "FT",
+    "homeScore": 2,
+    "awayScore": 1,
+    "regularHomeScore": 2,
+    "regularAwayScore": 1,
+    "settlementStats": [
+      {
+        "away": 4,
+        "home": 5,
+        "type": "Shots on Goal"
+      },
+      {
+        "away": 1,
+        "home": 4,
+        "type": "Shots off Goal"
+      },
+      {
+        "away": 9,
+        "home": 11,
+        "type": "Total Shots"
+      },
+      {
+        "away": 4,
+        "home": 2,
+        "type": "Blocked Shots"
+      },
+      {
+        "away": 7,
+        "home": 9,
+        "type": "Shots insidebox"
+      },
+      {
+        "away": 2,
+        "home": 2,
+        "type": "Shots outsidebox"
+      },
+      {
+        "away": 18,
+        "home": 11,
+        "type": "Fouls"
+      },
+      {
+        "away": 4,
+        "home": 6,
+        "type": "Corner Kicks"
+      },
+      {
+        "away": 1,
+        "home": 2,
+        "type": "Offsides"
+      },
+      {
+        "away": "46%",
+        "home": "54%",
+        "type": "Ball Possession"
+      },
+      {
+        "away": 1,
+        "home": 1,
+        "type": "Yellow Cards"
+      },
+      {
+        "away": null,
+        "home": null,
+        "type": "Red Cards"
+      },
+      {
+        "away": 3,
+        "home": 3,
+        "type": "Goalkeeper Saves"
+      },
+      {
+        "away": 326,
+        "home": 400,
+        "type": "Total passes"
+      },
+      {
+        "away": 218,
+        "home": 291,
+        "type": "Passes accurate"
+      },
+      {
+        "away": "67%",
+        "home": "73%",
+        "type": "Passes %"
+      },
+      {
+        "away": "0.41",
+        "home": "1.78",
+        "type": "expected_goals"
+      },
+      {
+        "away": 0,
+        "home": 0,
+        "type": "goals_prevented"
+      }
+    ]
+  }
+}

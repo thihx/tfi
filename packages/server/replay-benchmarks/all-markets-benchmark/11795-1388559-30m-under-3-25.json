@@ -1,0 +1,445 @@
+{
+  "name": "11795-1388559-30m-under-3-25",
+  "matchId": "1388559",
+  "fixture": {
+    "fixture": {
+      "id": 1388559,
+      "referee": null,
+      "timezone": "UTC",
+      "date": "2026-04-04T13:30:00.000Z",
+      "timestamp": 1775309400,
+      "periods": {
+        "first": null,
+        "second": null
+      },
+      "venue": {
+        "id": null,
+        "name": "Weserstadion",
+        "city": null
+      },
+      "status": {
+        "long": "1H",
+        "short": "1H",
+        "elapsed": 30
+      }
+    },
+    "league": {
+      "id": 78,
+      "name": "Bundesliga",
+      "country": "",
+      "logo": "",
+      "flag": null,
+      "season": 0,
+      "round": ""
+    },
+    "teams": {
+      "home": {
+        "id": 162,
+        "name": "Werder Bremen",
+        "logo": "",
+        "winner": null
+      },
+      "away": {
+        "id": 173,
+        "name": "RB Leipzig",
+        "logo": "",
+        "winner": null
+      }
+    },
+    "goals": {
+      "home": 0,
+      "away": 1
+    },
+    "score": {
+      "halftime": {
+        "home": null,
+        "away": null
+      },
+      "fulltime": {
+        "home": 0,
+        "away": 1
+      }
+    }
+  },
+  "watchlistEntry": {
+    "match_id": "1388559",
+    "league": "Bundesliga",
+    "home_team": "Werder Bremen",
+    "away_team": "RB Leipzig",
+    "mode": "B",
+    "status": "active",
+    "custom_conditions": "",
+    "date": "2026-04-04",
+    "kickoff": "13:30:00",
+    "strategic_context": null
+  },
+  "pipelineOptions": {
+    "forceAnalyze": true,
+    "skipProceedGate": true,
+    "skipStalenessGate": true
+  },
+  "statistics": [
+    {
+      "team": {
+        "id": 0,
+        "name": "Werder Bremen",
+        "logo": ""
+      },
+      "statistics": [
+        {
+          "type": "Ball Possession",
+          "value": "49%"
+        },
+        {
+          "type": "Total Shots",
+          "value": "2"
+        },
+        {
+          "type": "Shots on Goal",
+          "value": "1"
+        },
+        {
+          "type": "Corner Kicks",
+          "value": null
+        },
+        {
+          "type": "Fouls",
+          "value": "2"
+        },
+        {
+          "type": "Offsides",
+          "value": "2"
+        },
+        {
+          "type": "Yellow Cards",
+          "value": null
+        },
+        {
+          "type": "Red Cards",
+          "value": null
+        },
+        {
+          "type": "Goalkeeper Saves",
+          "value": "0"
+        },
+        {
+          "type": "Blocked Shots",
+          "value": "0"
+        },
+        {
+          "type": "Total passes",
+          "value": "133"
+        },
+        {
+          "type": "Passes accurate",
+          "value": "111"
+        },
+        {
+          "type": "Shots off Goal",
+          "value": "1"
+        },
+        {
+          "type": "Shots insidebox",
+          "value": "2"
+        },
+        {
+          "type": "Shots outsidebox",
+          "value": "0"
+        },
+        {
+          "type": "expected_goals",
+          "value": "0.26"
+        },
+        {
+          "type": "goals_prevented",
+          "value": "0"
+        },
+        {
+          "type": "Passes %",
+          "value": "83%"
+        }
+      ]
+    },
+    {
+      "team": {
+        "id": 0,
+        "name": "RB Leipzig",
+        "logo": ""
+      },
+      "statistics": [
+        {
+          "type": "Ball Possession",
+          "value": "51%"
+        },
+        {
+          "type": "Total Shots",
+          "value": "3"
+        },
+        {
+          "type": "Shots on Goal",
+          "value": "1"
+        },
+        {
+          "type": "Corner Kicks",
+          "value": null
+        },
+        {
+          "type": "Fouls",
+          "value": "3"
+        },
+        {
+          "type": "Offsides",
+          "value": "0"
+        },
+        {
+          "type": "Yellow Cards",
+          "value": null
+        },
+        {
+          "type": "Red Cards",
+          "value": null
+        },
+        {
+          "type": "Goalkeeper Saves",
+          "value": "1"
+        },
+        {
+          "type": "Blocked Shots",
+          "value": "1"
+        },
+        {
+          "type": "Total passes",
+          "value": "141"
+        },
+        {
+          "type": "Passes accurate",
+          "value": "119"
+        },
+        {
+          "type": "Shots off Goal",
+          "value": "1"
+        },
+        {
+          "type": "Shots insidebox",
+          "value": "1"
+        },
+        {
+          "type": "Shots outsidebox",
+          "value": "2"
+        },
+        {
+          "type": "expected_goals",
+          "value": "0.16"
+        },
+        {
+          "type": "goals_prevented",
+          "value": "0"
+        },
+        {
+          "type": "Passes %",
+          "value": "84%"
+        }
+      ]
+    }
+  ],
+  "mockResolvedOdds": {
+    "oddsSource": "live",
+    "response": [
+      {
+        "bookmakers": [
+          {
+            "id": 0,
+            "name": "Replay Mock",
+            "bets": [
+              {
+                "id": 1,
+                "name": "Over/Under",
+                "values": [
+                  {
+                    "value": "Over",
+                    "odd": "1.9",
+                    "handicap": "3.25"
+                  },
+                  {
+                    "value": "Under",
+                    "odd": "1.95",
+                    "handicap": "3.25"
+                  }
+                ]
+              },
+              {
+                "id": 2,
+                "name": "Corners Over/Under",
+                "values": [
+                  {
+                    "value": "Over",
+                    "odd": "1.833",
+                    "handicap": "6.5"
+                  },
+                  {
+                    "value": "Under",
+                    "odd": "1.833",
+                    "handicap": "6.5"
+                  }
+                ]
+              },
+              {
+                "id": 3,
+                "name": "Both Teams Score",
+                "values": [
+                  {
+                    "value": "Yes",
+                    "odd": "1.444"
+                  },
+                  {
+                    "value": "No",
+                    "odd": "2.625"
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    ],
+    "oddsFetchedAt": null,
+    "freshness": "fresh",
+    "cacheStatus": "hit"
+  },
+  "previousRecommendations": [
+    {
+      "minute": 30,
+      "odds": "1.833",
+      "bet_market": "under_6.5",
+      "selection": "Under 6.5 Goals @1.833",
+      "score": "0-1",
+      "status": "1H",
+      "result": "win",
+      "confidence": 8,
+      "stake_percent": "5.00",
+      "reasoning": "At minute 30, the score is 0-1. While league priors indicate a high-scoring environment (contradictory to a generic under), the live evidence is overwhelmingly slow-paced with only 5 total shots and 0.42 combined xG. The total goals line is set at an unusually high 6.5. Break-even is about 54.5%. Given the lack of attacking intensity, my fair range is around 90-95%. Edge looks about 40%. Backing Under 6.5 Goals is a strong value play despite the high-scoring league profile."
+    }
+  ],
+  "metadata": {
+    "recommendationId": 11795,
+    "originalPromptVersion": "v8-market-balance-followup-f",
+    "originalAiModel": "gemini-3-pro-preview",
+    "originalBetMarket": "under_3.25",
+    "originalSelection": "Under 3.25 Goals @1.95",
+    "originalResult": "half_win",
+    "originalPnl": 1.42,
+    "minute": 30,
+    "score": "0-1",
+    "status": "1H",
+    "league": "Bundesliga",
+    "homeTeam": "Werder Bremen",
+    "awayTeam": "RB Leipzig",
+    "evidenceMode": "full_live_data",
+    "prematchStrength": "strong",
+    "profileCoverageBand": "strong",
+    "overlayCoverageBand": "none",
+    "policyImpactBand": "clean"
+  },
+  "settlementContext": {
+    "matchId": "1388559",
+    "homeTeam": "Werder Bremen",
+    "awayTeam": "RB Leipzig",
+    "finalStatus": "FT",
+    "homeScore": 1,
+    "awayScore": 2,
+    "regularHomeScore": 1,
+    "regularAwayScore": 2,
+    "settlementStats": [
+      {
+        "away": 2,
+        "home": 3,
+        "type": "Shots on Goal"
+      },
+      {
+        "away": 1,
+        "home": 3,
+        "type": "Shots off Goal"
+      },
+      {
+        "away": 4,
+        "home": 8,
+        "type": "Total Shots"
+      },
+      {
+        "away": 1,
+        "home": 2,
+        "type": "Blocked Shots"
+      },
+      {
+        "away": 2,
+        "home": 6,
+        "type": "Shots insidebox"
+      },
+      {
+        "away": 2,
+        "home": 2,
+        "type": "Shots outsidebox"
+      },
+      {
+        "away": 10,
+        "home": 8,
+        "type": "Fouls"
+      },
+      {
+        "away": 0,
+        "home": 1,
+        "type": "Corner Kicks"
+      },
+      {
+        "away": 0,
+        "home": 3,
+        "type": "Offsides"
+      },
+      {
+        "away": "46%",
+        "home": "54%",
+        "type": "Ball Possession"
+      },
+      {
+        "away": null,
+        "home": null,
+        "type": "Yellow Cards"
+      },
+      {
+        "away": null,
+        "home": null,
+        "type": "Red Cards"
+      },
+      {
+        "away": 3,
+        "home": 0,
+        "type": "Goalkeeper Saves"
+      },
+      {
+        "away": 315,
+        "home": 363,
+        "type": "Total passes"
+      },
+      {
+        "away": 253,
+        "home": 312,
+        "type": "Passes accurate"
+      },
+      {
+        "away": "80%",
+        "home": "86%",
+        "type": "Passes %"
+      },
+      {
+        "away": "0.70",
+        "home": "0.65",
+        "type": "expected_goals"
+      },
+      {
+        "away": 0,
+        "home": 0,
+        "type": "goals_prevented"
+      }
+    ]
+  }
+}

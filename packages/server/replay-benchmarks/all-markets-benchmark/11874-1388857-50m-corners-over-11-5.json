@@ -1,0 +1,461 @@
+{
+  "name": "11874-1388857-50m-corners-over-11-5",
+  "matchId": "1388857",
+  "fixture": {
+    "fixture": {
+      "id": 1388857,
+      "referee": null,
+      "timezone": "UTC",
+      "date": "2026-04-04T11:00:00.000Z",
+      "timestamp": 1775300400,
+      "periods": {
+        "first": null,
+        "second": null
+      },
+      "venue": {
+        "id": null,
+        "name": "SchücoArena",
+        "city": null
+      },
+      "status": {
+        "long": "2H",
+        "short": "2H",
+        "elapsed": 50
+      }
+    },
+    "league": {
+      "id": 79,
+      "name": "2. Bundesliga",
+      "country": "",
+      "logo": "",
+      "flag": null,
+      "season": 0,
+      "round": ""
+    },
+    "teams": {
+      "home": {
+        "id": 0,
+        "name": "Arminia Bielefeld",
+        "logo": "",
+        "winner": null
+      },
+      "away": {
+        "id": 0,
+        "name": "SV Darmstadt 98",
+        "logo": "",
+        "winner": null
+      }
+    },
+    "goals": {
+      "home": 1,
+      "away": 1
+    },
+    "score": {
+      "halftime": {
+        "home": null,
+        "away": null
+      },
+      "fulltime": {
+        "home": 1,
+        "away": 1
+      }
+    }
+  },
+  "watchlistEntry": {
+    "match_id": "1388857",
+    "league": "2. Bundesliga",
+    "home_team": "Arminia Bielefeld",
+    "away_team": "SV Darmstadt 98",
+    "mode": "B",
+    "status": "active",
+    "custom_conditions": "",
+    "date": "2026-04-04",
+    "kickoff": "20:00:00",
+    "strategic_context": null
+  },
+  "pipelineOptions": {
+    "forceAnalyze": true,
+    "skipProceedGate": true,
+    "skipStalenessGate": true
+  },
+  "statistics": [
+    {
+      "team": {
+        "id": 0,
+        "name": "Arminia Bielefeld",
+        "logo": ""
+      },
+      "statistics": [
+        {
+          "type": "Ball Possession",
+          "value": "60%"
+        },
+        {
+          "type": "Total Shots",
+          "value": "16"
+        },
+        {
+          "type": "Shots on Goal",
+          "value": "4"
+        },
+        {
+          "type": "Corner Kicks",
+          "value": "5"
+        },
+        {
+          "type": "Fouls",
+          "value": "3"
+        },
+        {
+          "type": "Offsides",
+          "value": null
+        },
+        {
+          "type": "Yellow Cards",
+          "value": "1"
+        },
+        {
+          "type": "Red Cards",
+          "value": null
+        },
+        {
+          "type": "Goalkeeper Saves",
+          "value": "1"
+        },
+        {
+          "type": "Blocked Shots",
+          "value": "3"
+        },
+        {
+          "type": "Total passes",
+          "value": "179"
+        },
+        {
+          "type": "Passes accurate",
+          "value": "145"
+        },
+        {
+          "type": "Shots off Goal",
+          "value": "9"
+        },
+        {
+          "type": "Shots insidebox",
+          "value": "12"
+        },
+        {
+          "type": "Shots outsidebox",
+          "value": "4"
+        },
+        {
+          "type": "expected_goals",
+          "value": "1.40"
+        },
+        {
+          "type": "goals_prevented",
+          "value": "0"
+        },
+        {
+          "type": "Passes %",
+          "value": "81%"
+        }
+      ]
+    },
+    {
+      "team": {
+        "id": 0,
+        "name": "SV Darmstadt 98",
+        "logo": ""
+      },
+      "statistics": [
+        {
+          "type": "Ball Possession",
+          "value": "40%"
+        },
+        {
+          "type": "Total Shots",
+          "value": "5"
+        },
+        {
+          "type": "Shots on Goal",
+          "value": "2"
+        },
+        {
+          "type": "Corner Kicks",
+          "value": "1"
+        },
+        {
+          "type": "Fouls",
+          "value": "6"
+        },
+        {
+          "type": "Offsides",
+          "value": null
+        },
+        {
+          "type": "Yellow Cards",
+          "value": "3"
+        },
+        {
+          "type": "Red Cards",
+          "value": null
+        },
+        {
+          "type": "Goalkeeper Saves",
+          "value": "4"
+        },
+        {
+          "type": "Blocked Shots",
+          "value": "0"
+        },
+        {
+          "type": "Total passes",
+          "value": "131"
+        },
+        {
+          "type": "Passes accurate",
+          "value": "90"
+        },
+        {
+          "type": "Shots off Goal",
+          "value": "3"
+        },
+        {
+          "type": "Shots insidebox",
+          "value": "0"
+        },
+        {
+          "type": "Shots outsidebox",
+          "value": "5"
+        },
+        {
+          "type": "expected_goals",
+          "value": "0.14"
+        },
+        {
+          "type": "goals_prevented",
+          "value": "0"
+        },
+        {
+          "type": "Passes %",
+          "value": "69%"
+        }
+      ]
+    }
+  ],
+  "mockResolvedOdds": {
+    "oddsSource": "live",
+    "response": [
+      {
+        "bookmakers": [
+          {
+            "id": 0,
+            "name": "Replay Mock",
+            "bets": [
+              {
+                "id": 1,
+                "name": "Match Winner",
+                "values": [
+                  {
+                    "value": "Home",
+                    "odd": "1.333"
+                  },
+                  {
+                    "value": "Draw",
+                    "odd": "4.5"
+                  },
+                  {
+                    "value": "Away",
+                    "odd": "10"
+                  }
+                ]
+              },
+              {
+                "id": 2,
+                "name": "Over/Under",
+                "values": [
+                  {
+                    "value": "Over",
+                    "odd": "2.025",
+                    "handicap": "4.5"
+                  },
+                  {
+                    "value": "Under",
+                    "odd": "1.775",
+                    "handicap": "4.5"
+                  }
+                ]
+              },
+              {
+                "id": 3,
+                "name": "Corners Over/Under",
+                "values": [
+                  {
+                    "value": "Over",
+                    "odd": "1.727",
+                    "handicap": "11.5"
+                  },
+                  {
+                    "value": "Under",
+                    "odd": "2",
+                    "handicap": "11.5"
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    ],
+    "oddsFetchedAt": null,
+    "freshness": "fresh",
+    "cacheStatus": "hit"
+  },
+  "previousRecommendations": [
+    {
+      "minute": 73,
+      "odds": "1.925",
+      "bet_market": "corners_under_12.5",
+      "selection": "Corners Under 12.5 @1.825",
+      "score": "1-1",
+      "status": "2H",
+      "result": "win",
+      "confidence": 7,
+      "stake_percent": "4.00",
+      "reasoning": "At minute 64, I recommended Corners Under 12.5 at 1.825. I am reinforcing this position as the odds have improved to 1.925 at minute 73, and the mathematical edge has grown significantly with the passage of time. The match has seen 9 corners so far, equating to a tempo of 0.12 corners per minute. To breach the 12.5 line, we would need 4 more corners in the remaining 17 minutes, which requires a rate of 0.24 corners per minute—double the established match pace. While Bielefeld is pushing for a winner (19 shots, 1.88 xG), the time decay heavily favors the Under. Break-even is about 51.9%. My fair range is around 65-70%. Edge looks about 15%."
+    },
+    {
+      "minute": 50,
+      "odds": "1.775",
+      "bet_market": "under_4.5",
+      "selection": "Under 4.5 Goals @1.775",
+      "score": "1-1",
+      "status": "2H",
+      "result": "win",
+      "confidence": 7,
+      "stake_percent": "4.00",
+      "reasoning": "Previously, I recommended Under 3.5 Goals at minute 25 based on low xG and fragmented play. Bielefeld's equalizer at minute 47 has shifted the line to 4.5, but the core thesis remains intact. Darmstadt's offensive output is virtually non-existent (0.14 xG, 0 shots inside the box), meaning Bielefeld would likely need to score 3 more goals themselves to break the Under 4.5 line. While Bielefeld dominates possession (60%) and shot volume (16 shots), their chance quality is mediocre (1.40 xG, only 4 on target). Break-even is about 56.3%. My fair range is around 68-72%. Edge looks about 12-15%."
+    }
+  ],
+  "metadata": {
+    "recommendationId": 11874,
+    "originalPromptVersion": "v8-market-balance-followup-d",
+    "originalAiModel": "gemini-3-pro-preview",
+    "originalBetMarket": "corners_over_11.5",
+    "originalSelection": "Corners Over 11.5 @1.727",
+    "originalResult": "loss",
+    "originalPnl": -3,
+    "minute": 50,
+    "score": "1-1",
+    "status": "2H",
+    "league": "2. Bundesliga",
+    "homeTeam": "Arminia Bielefeld",
+    "awayTeam": "SV Darmstadt 98",
+    "evidenceMode": "full_live_data",
+    "prematchStrength": "weak",
+    "profileCoverageBand": "partial",
+    "overlayCoverageBand": "none",
+    "policyImpactBand": "clean"
+  },
+  "settlementContext": {
+    "matchId": "1388857",
+    "homeTeam": "Arminia Bielefeld",
+    "awayTeam": "SV Darmstadt 98",
+    "finalStatus": "FT",
+    "homeScore": 2,
+    "awayScore": 1,
+    "regularHomeScore": 2,
+    "regularAwayScore": 1,
+    "settlementStats": [
+      {
+        "away": 2,
+        "home": 7,
+        "type": "Shots on Goal"
+      },
+      {
+        "away": 5,
+        "home": 15,
+        "type": "Shots off Goal"
+      },
+      {
+        "away": 7,
+        "home": 25,
+        "type": "Total Shots"
+      },
+      {
+        "away": 0,
+        "home": 3,
+        "type": "Blocked Shots"
+      },
+      {
+        "away": 2,
+        "home": 16,
+        "type": "Shots insidebox"
+      },
+      {
+        "away": 5,
+        "home": 9,
+        "type": "Shots outsidebox"
+      },
+      {
+        "away": 14,
+        "home": 10,
+        "type": "Fouls"
+      },
+      {
+        "away": 3,
+        "home": 8,
+        "type": "Corner Kicks"
+      },
+      {
+        "away": 1,
+        "home": 2,
+        "type": "Offsides"
+      },
+      {
+        "away": "48%",
+        "home": "52%",
+        "type": "Ball Possession"
+      },
+      {
+        "away": 5,
+        "home": 2,
+        "type": "Yellow Cards"
+      },
+      {
+        "away": null,
+        "home": null,
+        "type": "Red Cards"
+      },
+      {
+        "away": 5,
+        "home": 1,
+        "type": "Goalkeeper Saves"
+      },
+      {
+        "away": 319,
+        "home": 323,
+        "type": "Total passes"
+      },
+      {
+        "away": 232,
+        "home": 239,
+        "type": "Passes accurate"
+      },
+      {
+        "away": "73%",
+        "home": "74%",
+        "type": "Passes %"
+      },
+      {
+        "away": "0.27",
+        "home": "2.20",
+        "type": "expected_goals"
+      },
+      {
+        "away": 0,
+        "home": 0,
+        "type": "goals_prevented"
+      }
+    ]
+  }
+}

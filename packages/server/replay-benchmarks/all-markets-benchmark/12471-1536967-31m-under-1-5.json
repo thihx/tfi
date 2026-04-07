@@ -1,0 +1,432 @@
+{
+  "name": "12471-1536967-31m-under-1-5",
+  "matchId": "1536967",
+  "fixture": {
+    "fixture": {
+      "id": 1536967,
+      "referee": null,
+      "timezone": "UTC",
+      "date": "2026-04-06T14:00:00.000Z",
+      "timestamp": 1775484000,
+      "periods": {
+        "first": null,
+        "second": null
+      },
+      "venue": {
+        "id": null,
+        "name": "Stade Communal du Tivoli",
+        "city": null
+      },
+      "status": {
+        "long": "1H",
+        "short": "1H",
+        "elapsed": 31
+      }
+    },
+    "league": {
+      "id": 144,
+      "name": "Jupiler Pro League",
+      "country": "",
+      "logo": "",
+      "flag": null,
+      "season": 0,
+      "round": ""
+    },
+    "teams": {
+      "home": {
+        "id": 5902,
+        "name": "RAAL La Louvière",
+        "logo": "",
+        "winner": null
+      },
+      "away": {
+        "id": 6215,
+        "name": "Dender",
+        "logo": "",
+        "winner": null
+      }
+    },
+    "goals": {
+      "home": 0,
+      "away": 0
+    },
+    "score": {
+      "halftime": {
+        "home": null,
+        "away": null
+      },
+      "fulltime": {
+        "home": 0,
+        "away": 0
+      }
+    }
+  },
+  "watchlistEntry": {
+    "match_id": "1536967",
+    "league": "Jupiler Pro League",
+    "home_team": "RAAL La Louvière",
+    "away_team": "Dender",
+    "mode": "B",
+    "status": "active",
+    "custom_conditions": "",
+    "date": "2026-04-06",
+    "kickoff": "14:00:00",
+    "strategic_context": null
+  },
+  "pipelineOptions": {
+    "forceAnalyze": true,
+    "skipProceedGate": true,
+    "skipStalenessGate": true
+  },
+  "statistics": [
+    {
+      "team": {
+        "id": 0,
+        "name": "RAAL La Louvière",
+        "logo": ""
+      },
+      "statistics": [
+        {
+          "type": "Ball Possession",
+          "value": "33%"
+        },
+        {
+          "type": "Total Shots",
+          "value": "2"
+        },
+        {
+          "type": "Shots on Goal",
+          "value": "0"
+        },
+        {
+          "type": "Corner Kicks",
+          "value": "0"
+        },
+        {
+          "type": "Fouls",
+          "value": "4"
+        },
+        {
+          "type": "Offsides",
+          "value": "0"
+        },
+        {
+          "type": "Yellow Cards",
+          "value": "1"
+        },
+        {
+          "type": "Red Cards",
+          "value": null
+        },
+        {
+          "type": "Goalkeeper Saves",
+          "value": "1"
+        },
+        {
+          "type": "Blocked Shots",
+          "value": "0"
+        },
+        {
+          "type": "Total passes",
+          "value": "68"
+        },
+        {
+          "type": "Passes accurate",
+          "value": "50"
+        },
+        {
+          "type": "Shots off Goal",
+          "value": "2"
+        },
+        {
+          "type": "Shots insidebox",
+          "value": "2"
+        },
+        {
+          "type": "Shots outsidebox",
+          "value": "0"
+        },
+        {
+          "type": "expected_goals",
+          "value": "0.36"
+        },
+        {
+          "type": "goals_prevented",
+          "value": "0"
+        },
+        {
+          "type": "Passes %",
+          "value": "74%"
+        }
+      ]
+    },
+    {
+      "team": {
+        "id": 0,
+        "name": "Dender",
+        "logo": ""
+      },
+      "statistics": [
+        {
+          "type": "Ball Possession",
+          "value": "67%"
+        },
+        {
+          "type": "Total Shots",
+          "value": "2"
+        },
+        {
+          "type": "Shots on Goal",
+          "value": "1"
+        },
+        {
+          "type": "Corner Kicks",
+          "value": "1"
+        },
+        {
+          "type": "Fouls",
+          "value": "1"
+        },
+        {
+          "type": "Offsides",
+          "value": "1"
+        },
+        {
+          "type": "Yellow Cards",
+          "value": "1"
+        },
+        {
+          "type": "Red Cards",
+          "value": null
+        },
+        {
+          "type": "Goalkeeper Saves",
+          "value": "0"
+        },
+        {
+          "type": "Blocked Shots",
+          "value": "0"
+        },
+        {
+          "type": "Total passes",
+          "value": "139"
+        },
+        {
+          "type": "Passes accurate",
+          "value": "116"
+        },
+        {
+          "type": "Shots off Goal",
+          "value": "1"
+        },
+        {
+          "type": "Shots insidebox",
+          "value": "1"
+        },
+        {
+          "type": "Shots outsidebox",
+          "value": "1"
+        },
+        {
+          "type": "expected_goals",
+          "value": "0.04"
+        },
+        {
+          "type": "goals_prevented",
+          "value": "0"
+        },
+        {
+          "type": "Passes %",
+          "value": "83%"
+        }
+      ]
+    }
+  ],
+  "mockResolvedOdds": {
+    "oddsSource": "live",
+    "response": [
+      {
+        "bookmakers": [
+          {
+            "id": 0,
+            "name": "Replay Mock",
+            "bets": [
+              {
+                "id": 1,
+                "name": "Over/Under",
+                "values": [
+                  {
+                    "value": "Over",
+                    "odd": "1.85",
+                    "handicap": "1.5"
+                  },
+                  {
+                    "value": "Under",
+                    "odd": "1.95",
+                    "handicap": "1.5"
+                  }
+                ]
+              },
+              {
+                "id": 2,
+                "name": "Corners Over/Under",
+                "values": [
+                  {
+                    "value": "Over",
+                    "odd": "2.1",
+                    "handicap": "7"
+                  },
+                  {
+                    "value": "Under",
+                    "odd": "2.25",
+                    "handicap": "7"
+                  }
+                ]
+              },
+              {
+                "id": 3,
+                "name": "Both Teams Score",
+                "values": [
+                  {
+                    "value": "Yes",
+                    "odd": "2.75"
+                  },
+                  {
+                    "value": "No",
+                    "odd": "1.4"
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    ],
+    "oddsFetchedAt": null,
+    "freshness": "fresh",
+    "cacheStatus": "hit"
+  },
+  "previousRecommendations": [],
+  "metadata": {
+    "recommendationId": 12471,
+    "originalPromptVersion": "v4-evidence-hardened",
+    "originalAiModel": "gemini-3-pro-preview",
+    "originalBetMarket": "under_1.5",
+    "originalSelection": "Under 1.5 Goals @1.95",
+    "originalResult": "win",
+    "originalPnl": 2.85,
+    "minute": 31,
+    "score": "0-0",
+    "status": "1H",
+    "league": "Jupiler Pro League",
+    "homeTeam": "RAAL La Louvière",
+    "awayTeam": "Dender",
+    "evidenceMode": "full_live_data",
+    "prematchStrength": "moderate",
+    "profileCoverageBand": "strong",
+    "overlayCoverageBand": "none",
+    "policyImpactBand": "clean"
+  },
+  "settlementContext": {
+    "matchId": "1536967",
+    "homeTeam": "RAAL La Louvière",
+    "awayTeam": "Dender",
+    "finalStatus": "FT",
+    "homeScore": 0,
+    "awayScore": 1,
+    "regularHomeScore": 0,
+    "regularAwayScore": 1,
+    "settlementStats": [
+      {
+        "away": 3,
+        "home": 3,
+        "type": "Shots on Goal"
+      },
+      {
+        "away": 2,
+        "home": 10,
+        "type": "Shots off Goal"
+      },
+      {
+        "away": 7,
+        "home": 19,
+        "type": "Total Shots"
+      },
+      {
+        "away": 2,
+        "home": 6,
+        "type": "Blocked Shots"
+      },
+      {
+        "away": 5,
+        "home": 16,
+        "type": "Shots insidebox"
+      },
+      {
+        "away": 2,
+        "home": 3,
+        "type": "Shots outsidebox"
+      },
+      {
+        "away": 8,
+        "home": 8,
+        "type": "Fouls"
+      },
+      {
+        "away": 3,
+        "home": 4,
+        "type": "Corner Kicks"
+      },
+      {
+        "away": 4,
+        "home": 2,
+        "type": "Offsides"
+      },
+      {
+        "away": "47%",
+        "home": "53%",
+        "type": "Ball Possession"
+      },
+      {
+        "away": 4,
+        "home": 3,
+        "type": "Yellow Cards"
+      },
+      {
+        "away": null,
+        "home": null,
+        "type": "Red Cards"
+      },
+      {
+        "away": 3,
+        "home": 2,
+        "type": "Goalkeeper Saves"
+      },
+      {
+        "away": 333,
+        "home": 369,
+        "type": "Total passes"
+      },
+      {
+        "away": 253,
+        "home": 295,
+        "type": "Passes accurate"
+      },
+      {
+        "away": "76%",
+        "home": "80%",
+        "type": "Passes %"
+      },
+      {
+        "away": "1.16",
+        "home": "1.79",
+        "type": "expected_goals"
+      },
+      {
+        "away": 0,
+        "home": 0,
+        "type": "goals_prevented"
+      }
+    ]
+  }
+}

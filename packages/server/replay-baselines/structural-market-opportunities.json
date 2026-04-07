@@ -1,0 +1,121 @@
+{
+  "generatedAt": "2026-04-06T22:36:21.527Z",
+  "minOdds": 1.5,
+  "minuteBand": null,
+  "scoreState": null,
+  "rows": [
+    {
+      "scenarioName": "struct-11-52-over",
+      "recommendationId": 910002,
+      "minuteBand": "45-59",
+      "scoreState": "level",
+      "has1x2Home": false,
+      "playable1x2Home": false,
+      "oneX2HomeOdds": null,
+      "hasAsianHandicapHome": false,
+      "playableAsianHandicapHome": false,
+      "asianHandicapHomeOdds": null,
+      "asianHandicapLine": null,
+      "hasGoalsOu": true,
+      "hasCornersOu": true
+    },
+    {
+      "scenarioName": "struct-11-62-over-late",
+      "recommendationId": 910003,
+      "minuteBand": "60-74",
+      "scoreState": "level",
+      "has1x2Home": false,
+      "playable1x2Home": false,
+      "oneX2HomeOdds": null,
+      "hasAsianHandicapHome": false,
+      "playableAsianHandicapHome": false,
+      "asianHandicapHomeOdds": null,
+      "asianHandicapLine": null,
+      "hasGoalsOu": true,
+      "hasCornersOu": true
+    },
+    {
+      "scenarioName": "struct-52-11-under-35",
+      "recommendationId": 910001,
+      "minuteBand": "45-59",
+      "scoreState": "level",
+      "has1x2Home": false,
+      "playable1x2Home": false,
+      "oneX2HomeOdds": null,
+      "hasAsianHandicapHome": false,
+      "playableAsianHandicapHome": false,
+      "asianHandicapHomeOdds": null,
+      "asianHandicapLine": null,
+      "hasGoalsOu": true,
+      "hasCornersOu": true
+    },
+    {
+      "scenarioName": "struct-nobet-40",
+      "recommendationId": 910004,
+      "minuteBand": "30-44",
+      "scoreState": "0-0",
+      "has1x2Home": false,
+      "playable1x2Home": false,
+      "oneX2HomeOdds": null,
+      "hasAsianHandicapHome": false,
+      "playableAsianHandicapHome": false,
+      "asianHandicapHomeOdds": null,
+      "asianHandicapLine": null,
+      "hasGoalsOu": true,
+      "hasCornersOu": true
+    }
+  ],
+  "summary": {
+    "total": 4,
+    "has1x2Home": 0,
+    "playable1x2Home": 0,
+    "hasAsianHandicapHome": 0,
+    "playableAsianHandicapHome": 0,
+    "hasGoalsOu": 4,
+    "hasCornersOu": 4,
+    "byMinuteBand": [
+      {
+        "bucket": "30-44",
+        "total": 1,
+        "has1x2Home": 0,
+        "playable1x2Home": 0,
+        "hasAsianHandicapHome": 0,
+        "playableAsianHandicapHome": 0
+      },
+      {
+        "bucket": "45-59",
+        "total": 2,
+        "has1x2Home": 0,
+        "playable1x2Home": 0,
+        "hasAsianHandicapHome": 0,
+        "playableAsianHandicapHome": 0
+      },
+      {
+        "bucket": "60-74",
+        "total": 1,
+        "has1x2Home": 0,
+        "playable1x2Home": 0,
+        "hasAsianHandicapHome": 0,
+        "playableAsianHandicapHome": 0
+      }
+    ],
+    "byScoreState": [
+      {
+        "bucket": "0-0",
+        "total": 1,
+        "has1x2Home": 0,
+        "playable1x2Home": 0,
+        "hasAsianHandicapHome": 0,
+        "playableAsianHandicapHome": 0
+      },
+      {
+        "bucket": "level",
+        "total": 3,
+        "has1x2Home": 0,
+        "playable1x2Home": 0,
+        "hasAsianHandicapHome": 0,
+        "playableAsianHandicapHome": 0
+      }
+    ]
+  }
+}

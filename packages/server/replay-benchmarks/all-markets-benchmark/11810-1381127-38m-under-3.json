@@ -1,0 +1,445 @@
+{
+  "name": "11810-1381127-38m-under-3",
+  "matchId": "1381127",
+  "fixture": {
+    "fixture": {
+      "id": 1381127,
+      "referee": null,
+      "timezone": "UTC",
+      "date": "2026-04-04T16:45:00.000Z",
+      "timestamp": 1775321100,
+      "periods": {
+        "first": null,
+        "second": null
+      },
+      "venue": {
+        "id": null,
+        "name": "BUKO Stadion",
+        "city": null
+      },
+      "status": {
+        "long": "1H",
+        "short": "1H",
+        "elapsed": 38
+      }
+    },
+    "league": {
+      "id": 88,
+      "name": "Eredivisie",
+      "country": "",
+      "logo": "",
+      "flag": null,
+      "season": 0,
+      "round": ""
+    },
+    "teams": {
+      "home": {
+        "id": 0,
+        "name": "Telstar",
+        "logo": "",
+        "winner": null
+      },
+      "away": {
+        "id": 0,
+        "name": "Groningen",
+        "logo": "",
+        "winner": null
+      }
+    },
+    "goals": {
+      "home": 0,
+      "away": 1
+    },
+    "score": {
+      "halftime": {
+        "home": null,
+        "away": null
+      },
+      "fulltime": {
+        "home": 0,
+        "away": 1
+      }
+    }
+  },
+  "watchlistEntry": {
+    "match_id": "1381127",
+    "league": "Eredivisie",
+    "home_team": "Telstar",
+    "away_team": "Groningen",
+    "mode": "B",
+    "status": "active",
+    "custom_conditions": "",
+    "date": "2026-04-05",
+    "kickoff": "01:45:00",
+    "strategic_context": null
+  },
+  "pipelineOptions": {
+    "forceAnalyze": true,
+    "skipProceedGate": true,
+    "skipStalenessGate": true
+  },
+  "statistics": [
+    {
+      "team": {
+        "id": 0,
+        "name": "Telstar",
+        "logo": ""
+      },
+      "statistics": [
+        {
+          "type": "Ball Possession",
+          "value": "42%"
+        },
+        {
+          "type": "Total Shots",
+          "value": "5"
+        },
+        {
+          "type": "Shots on Goal",
+          "value": "0"
+        },
+        {
+          "type": "Corner Kicks",
+          "value": "2"
+        },
+        {
+          "type": "Fouls",
+          "value": "4"
+        },
+        {
+          "type": "Offsides",
+          "value": "1"
+        },
+        {
+          "type": "Yellow Cards",
+          "value": "0"
+        },
+        {
+          "type": "Red Cards",
+          "value": null
+        },
+        {
+          "type": "Goalkeeper Saves",
+          "value": "1"
+        },
+        {
+          "type": "Blocked Shots",
+          "value": "1"
+        },
+        {
+          "type": "Total passes",
+          "value": "136"
+        },
+        {
+          "type": "Passes accurate",
+          "value": "108"
+        },
+        {
+          "type": "Shots off Goal",
+          "value": "4"
+        },
+        {
+          "type": "Shots insidebox",
+          "value": "4"
+        },
+        {
+          "type": "Shots outsidebox",
+          "value": "1"
+        },
+        {
+          "type": "expected_goals",
+          "value": "0.26"
+        },
+        {
+          "type": "goals_prevented",
+          "value": "0"
+        },
+        {
+          "type": "Passes %",
+          "value": "79%"
+        }
+      ]
+    },
+    {
+      "team": {
+        "id": 0,
+        "name": "Groningen",
+        "logo": ""
+      },
+      "statistics": [
+        {
+          "type": "Ball Possession",
+          "value": "58%"
+        },
+        {
+          "type": "Total Shots",
+          "value": "6"
+        },
+        {
+          "type": "Shots on Goal",
+          "value": "2"
+        },
+        {
+          "type": "Corner Kicks",
+          "value": "5"
+        },
+        {
+          "type": "Fouls",
+          "value": "2"
+        },
+        {
+          "type": "Offsides",
+          "value": "0"
+        },
+        {
+          "type": "Yellow Cards",
+          "value": "1"
+        },
+        {
+          "type": "Red Cards",
+          "value": null
+        },
+        {
+          "type": "Goalkeeper Saves",
+          "value": "0"
+        },
+        {
+          "type": "Blocked Shots",
+          "value": "4"
+        },
+        {
+          "type": "Total passes",
+          "value": "187"
+        },
+        {
+          "type": "Passes accurate",
+          "value": "160"
+        },
+        {
+          "type": "Shots off Goal",
+          "value": "0"
+        },
+        {
+          "type": "Shots insidebox",
+          "value": "4"
+        },
+        {
+          "type": "Shots outsidebox",
+          "value": "2"
+        },
+        {
+          "type": "expected_goals",
+          "value": "0.56"
+        },
+        {
+          "type": "goals_prevented",
+          "value": "0"
+        },
+        {
+          "type": "Passes %",
+          "value": "86%"
+        }
+      ]
+    }
+  ],
+  "mockResolvedOdds": {
+    "oddsSource": "live",
+    "response": [
+      {
+        "bookmakers": [
+          {
+            "id": 0,
+            "name": "Replay Mock",
+            "bets": [
+              {
+                "id": 1,
+                "name": "Over/Under",
+                "values": [
+                  {
+                    "value": "Over",
+                    "odd": "1.95",
+                    "handicap": "3"
+                  },
+                  {
+                    "value": "Under",
+                    "odd": "1.85",
+                    "handicap": "3"
+                  }
+                ]
+              },
+              {
+                "id": 2,
+                "name": "Corners Over/Under",
+                "values": [
+                  {
+                    "value": "Over",
+                    "odd": "1.9",
+                    "handicap": "16.5"
+                  },
+                  {
+                    "value": "Under",
+                    "odd": "1.9",
+                    "handicap": "16.5"
+                  }
+                ]
+              },
+              {
+                "id": 3,
+                "name": "Both Teams Score",
+                "values": [
+                  {
+                    "value": "Yes",
+                    "odd": "1.444"
+                  },
+                  {
+                    "value": "No",
+                    "odd": "2.625"
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    ],
+    "oddsFetchedAt": null,
+    "freshness": "fresh",
+    "cacheStatus": "hit"
+  },
+  "previousRecommendations": [
+    {
+      "minute": 38,
+      "odds": "1.900",
+      "bet_market": "under_16.5",
+      "selection": "Under 16.5 Goals @1.9",
+      "score": "0-1",
+      "status": "1H",
+      "result": "win",
+      "confidence": 10,
+      "stake_percent": "8.00",
+      "reasoning": "The odds feed presents an extreme outlier line of 16.5 goals at 1.90. With the score at 0-1 in minute 38, the match would need 16 more goals to beat this line. Break-even is about 52.6%. My fair range is around 99-100%. Edge looks about 47%. This is a clear mathematical anomaly that must be taken."
+    }
+  ],
+  "metadata": {
+    "recommendationId": 11810,
+    "originalPromptVersion": "v8-market-balance-followup-f",
+    "originalAiModel": "gemini-3-pro-preview",
+    "originalBetMarket": "under_3",
+    "originalSelection": "Under 3 Goals @ 1.85",
+    "originalResult": "win",
+    "originalPnl": 2.55,
+    "minute": 38,
+    "score": "0-1",
+    "status": "1H",
+    "league": "Eredivisie",
+    "homeTeam": "Telstar",
+    "awayTeam": "Groningen",
+    "evidenceMode": "full_live_data",
+    "prematchStrength": "weak",
+    "profileCoverageBand": "partial",
+    "overlayCoverageBand": "none",
+    "policyImpactBand": "clean"
+  },
+  "settlementContext": {
+    "matchId": "1381127",
+    "homeTeam": "Telstar",
+    "awayTeam": "Groningen",
+    "finalStatus": "FT",
+    "homeScore": 0,
+    "awayScore": 2,
+    "regularHomeScore": 0,
+    "regularAwayScore": 2,
+    "settlementStats": [
+      {
+        "away": 10,
+        "home": 3,
+        "type": "Shots on Goal"
+      },
+      {
+        "away": 8,
+        "home": 8,
+        "type": "Shots off Goal"
+      },
+      {
+        "away": 23,
+        "home": 14,
+        "type": "Total Shots"
+      },
+      {
+        "away": 5,
+        "home": 3,
+        "type": "Blocked Shots"
+      },
+      {
+        "away": 12,
+        "home": 8,
+        "type": "Shots insidebox"
+      },
+      {
+        "away": 11,
+        "home": 6,
+        "type": "Shots outsidebox"
+      },
+      {
+        "away": 10,
+        "home": 12,
+        "type": "Fouls"
+      },
+      {
+        "away": 12,
+        "home": 5,
+        "type": "Corner Kicks"
+      },
+      {
+        "away": 1,
+        "home": 2,
+        "type": "Offsides"
+      },
+      {
+        "away": "50%",
+        "home": "50%",
+        "type": "Ball Possession"
+      },
+      {
+        "away": 2,
+        "home": 0,
+        "type": "Yellow Cards"
+      },
+      {
+        "away": null,
+        "home": null,
+        "type": "Red Cards"
+      },
+      {
+        "away": 3,
+        "home": 8,
+        "type": "Goalkeeper Saves"
+      },
+      {
+        "away": 400,
+        "home": 416,
+        "type": "Total passes"
+      },
+      {
+        "away": 315,
+        "home": 315,
+        "type": "Passes accurate"
+      },
+      {
+        "away": "79%",
+        "home": "76%",
+        "type": "Passes %"
+      },
+      {
+        "away": "1.90",
+        "home": "1.28",
+        "type": "expected_goals"
+      },
+      {
+        "away": 0,
+        "home": 0,
+        "type": "goals_prevented"
+      }
+    ]
+  }
+}

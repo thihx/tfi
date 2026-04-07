@@ -1,0 +1,432 @@
+{
+  "name": "12434-1380626-20m-under-3-25",
+  "matchId": "1380626",
+  "fixture": {
+    "fixture": {
+      "id": 1380626,
+      "referee": null,
+      "timezone": "UTC",
+      "date": "2026-04-06T10:15:00.000Z",
+      "timestamp": 1775470500,
+      "periods": {
+        "first": null,
+        "second": null
+      },
+      "venue": {
+        "id": null,
+        "name": "Termalica Bruk-Bet Nieciecza",
+        "city": null
+      },
+      "status": {
+        "long": "1H",
+        "short": "1H",
+        "elapsed": 20
+      }
+    },
+    "league": {
+      "id": 106,
+      "name": "Ekstraklasa",
+      "country": "",
+      "logo": "",
+      "flag": null,
+      "season": 0,
+      "round": ""
+    },
+    "teams": {
+      "home": {
+        "id": 0,
+        "name": "Nieciecza",
+        "logo": "",
+        "winner": null
+      },
+      "away": {
+        "id": 0,
+        "name": "Piast Gliwice",
+        "logo": "",
+        "winner": null
+      }
+    },
+    "goals": {
+      "home": 1,
+      "away": 0
+    },
+    "score": {
+      "halftime": {
+        "home": null,
+        "away": null
+      },
+      "fulltime": {
+        "home": 1,
+        "away": 0
+      }
+    }
+  },
+  "watchlistEntry": {
+    "match_id": "1380626",
+    "league": "Ekstraklasa",
+    "home_team": "Nieciecza",
+    "away_team": "Piast Gliwice",
+    "mode": "B",
+    "status": "active",
+    "custom_conditions": "",
+    "date": "2026-04-06",
+    "kickoff": "19:15:00",
+    "strategic_context": null
+  },
+  "pipelineOptions": {
+    "forceAnalyze": true,
+    "skipProceedGate": true,
+    "skipStalenessGate": true
+  },
+  "statistics": [
+    {
+      "team": {
+        "id": 0,
+        "name": "Nieciecza",
+        "logo": ""
+      },
+      "statistics": [
+        {
+          "type": "Ball Possession",
+          "value": "38%"
+        },
+        {
+          "type": "Total Shots",
+          "value": "1"
+        },
+        {
+          "type": "Shots on Goal",
+          "value": "1"
+        },
+        {
+          "type": "Corner Kicks",
+          "value": null
+        },
+        {
+          "type": "Fouls",
+          "value": "1"
+        },
+        {
+          "type": "Offsides",
+          "value": "0"
+        },
+        {
+          "type": "Yellow Cards",
+          "value": "0"
+        },
+        {
+          "type": "Red Cards",
+          "value": null
+        },
+        {
+          "type": "Goalkeeper Saves",
+          "value": null
+        },
+        {
+          "type": "Blocked Shots",
+          "value": "0"
+        },
+        {
+          "type": "Total passes",
+          "value": "41"
+        },
+        {
+          "type": "Passes accurate",
+          "value": "22"
+        },
+        {
+          "type": "Shots off Goal",
+          "value": "0"
+        },
+        {
+          "type": "Shots insidebox",
+          "value": "1"
+        },
+        {
+          "type": "Shots outsidebox",
+          "value": "0"
+        },
+        {
+          "type": "expected_goals",
+          "value": "0.79"
+        },
+        {
+          "type": "goals_prevented",
+          "value": "0"
+        },
+        {
+          "type": "Passes %",
+          "value": "54%"
+        }
+      ]
+    },
+    {
+      "team": {
+        "id": 0,
+        "name": "Piast Gliwice",
+        "logo": ""
+      },
+      "statistics": [
+        {
+          "type": "Ball Possession",
+          "value": "62%"
+        },
+        {
+          "type": "Total Shots",
+          "value": "2"
+        },
+        {
+          "type": "Shots on Goal",
+          "value": "0"
+        },
+        {
+          "type": "Corner Kicks",
+          "value": null
+        },
+        {
+          "type": "Fouls",
+          "value": "1"
+        },
+        {
+          "type": "Offsides",
+          "value": "1"
+        },
+        {
+          "type": "Yellow Cards",
+          "value": "1"
+        },
+        {
+          "type": "Red Cards",
+          "value": null
+        },
+        {
+          "type": "Goalkeeper Saves",
+          "value": null
+        },
+        {
+          "type": "Blocked Shots",
+          "value": "1"
+        },
+        {
+          "type": "Total passes",
+          "value": "70"
+        },
+        {
+          "type": "Passes accurate",
+          "value": "50"
+        },
+        {
+          "type": "Shots off Goal",
+          "value": "1"
+        },
+        {
+          "type": "Shots insidebox",
+          "value": "2"
+        },
+        {
+          "type": "Shots outsidebox",
+          "value": "0"
+        },
+        {
+          "type": "expected_goals",
+          "value": "0.19"
+        },
+        {
+          "type": "goals_prevented",
+          "value": "0"
+        },
+        {
+          "type": "Passes %",
+          "value": "71%"
+        }
+      ]
+    }
+  ],
+  "mockResolvedOdds": {
+    "oddsSource": "live",
+    "response": [
+      {
+        "bookmakers": [
+          {
+            "id": 0,
+            "name": "Replay Mock",
+            "bets": [
+              {
+                "id": 1,
+                "name": "Over/Under",
+                "values": [
+                  {
+                    "value": "Over",
+                    "odd": "1.8",
+                    "handicap": "3.25"
+                  },
+                  {
+                    "value": "Under",
+                    "odd": "2",
+                    "handicap": "3.25"
+                  }
+                ]
+              },
+              {
+                "id": 2,
+                "name": "Corners Over/Under",
+                "values": [
+                  {
+                    "value": "Over",
+                    "odd": "2.1",
+                    "handicap": "8"
+                  },
+                  {
+                    "value": "Under",
+                    "odd": "2.2",
+                    "handicap": "8"
+                  }
+                ]
+              },
+              {
+                "id": 3,
+                "name": "Both Teams Score",
+                "values": [
+                  {
+                    "value": "Yes",
+                    "odd": "1.222"
+                  },
+                  {
+                    "value": "No",
+                    "odd": "4"
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    ],
+    "oddsFetchedAt": null,
+    "freshness": "fresh",
+    "cacheStatus": "hit"
+  },
+  "previousRecommendations": [],
+  "metadata": {
+    "recommendationId": 12434,
+    "originalPromptVersion": "v4-evidence-hardened",
+    "originalAiModel": "gemini-3-pro-preview",
+    "originalBetMarket": "under_3.25",
+    "originalSelection": "Under 3.25 Goals @2",
+    "originalResult": "loss",
+    "originalPnl": -3,
+    "minute": 20,
+    "score": "1-0",
+    "status": "1H",
+    "league": "Ekstraklasa",
+    "homeTeam": "Nieciecza",
+    "awayTeam": "Piast Gliwice",
+    "evidenceMode": "full_live_data",
+    "prematchStrength": "none",
+    "profileCoverageBand": "unknown",
+    "overlayCoverageBand": "none",
+    "policyImpactBand": "clean"
+  },
+  "settlementContext": {
+    "matchId": "1380626",
+    "homeTeam": "Nieciecza",
+    "awayTeam": "Piast Gliwice",
+    "finalStatus": "FT",
+    "homeScore": 3,
+    "awayScore": 2,
+    "regularHomeScore": 3,
+    "regularAwayScore": 2,
+    "settlementStats": [
+      {
+        "away": 7,
+        "home": 5,
+        "type": "Shots on Goal"
+      },
+      {
+        "away": 6,
+        "home": 1,
+        "type": "Shots off Goal"
+      },
+      {
+        "away": 18,
+        "home": 6,
+        "type": "Total Shots"
+      },
+      {
+        "away": 5,
+        "home": 0,
+        "type": "Blocked Shots"
+      },
+      {
+        "away": 10,
+        "home": 4,
+        "type": "Shots insidebox"
+      },
+      {
+        "away": 8,
+        "home": 2,
+        "type": "Shots outsidebox"
+      },
+      {
+        "away": 7,
+        "home": 9,
+        "type": "Fouls"
+      },
+      {
+        "away": 9,
+        "home": 3,
+        "type": "Corner Kicks"
+      },
+      {
+        "away": 4,
+        "home": 1,
+        "type": "Offsides"
+      },
+      {
+        "away": "62%",
+        "home": "38%",
+        "type": "Ball Possession"
+      },
+      {
+        "away": 1,
+        "home": 3,
+        "type": "Yellow Cards"
+      },
+      {
+        "away": null,
+        "home": null,
+        "type": "Red Cards"
+      },
+      {
+        "away": 2,
+        "home": 5,
+        "type": "Goalkeeper Saves"
+      },
+      {
+        "away": 459,
+        "home": 286,
+        "type": "Total passes"
+      },
+      {
+        "away": 355,
+        "home": 183,
+        "type": "Passes accurate"
+      },
+      {
+        "away": "77%",
+        "home": "64%",
+        "type": "Passes %"
+      },
+      {
+        "away": "1.39",
+        "home": "1.22",
+        "type": "expected_goals"
+      },
+      {
+        "away": 0,
+        "home": 0,
+        "type": "goals_prevented"
+      }
+    ]
+  }
+}

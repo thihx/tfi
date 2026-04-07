@@ -1,0 +1,450 @@
+{
+  "name": "11816-1396484-44m-under-2-25",
+  "matchId": "1396484",
+  "fixture": {
+    "fixture": {
+      "id": 1396484,
+      "referee": null,
+      "timezone": "UTC",
+      "date": "2026-04-04T17:00:00.000Z",
+      "timestamp": 1775322000,
+      "periods": {
+        "first": null,
+        "second": null
+      },
+      "venue": {
+        "id": null,
+        "name": "Parque Joaquim de Almeida Freitas",
+        "city": null
+      },
+      "status": {
+        "long": "1H",
+        "short": "1H",
+        "elapsed": 44
+      }
+    },
+    "league": {
+      "id": 94,
+      "name": "Primeira Liga",
+      "country": "",
+      "logo": "",
+      "flag": null,
+      "season": 0,
+      "round": ""
+    },
+    "teams": {
+      "home": {
+        "id": 0,
+        "name": "Moreirense",
+        "logo": "",
+        "winner": null
+      },
+      "away": {
+        "id": 0,
+        "name": "SC Braga",
+        "logo": "",
+        "winner": null
+      }
+    },
+    "goals": {
+      "home": 0,
+      "away": 1
+    },
+    "score": {
+      "halftime": {
+        "home": null,
+        "away": null
+      },
+      "fulltime": {
+        "home": 0,
+        "away": 1
+      }
+    }
+  },
+  "watchlistEntry": {
+    "match_id": "1396484",
+    "league": "Primeira Liga",
+    "home_team": "Moreirense",
+    "away_team": "SC Braga",
+    "mode": "B",
+    "status": "active",
+    "custom_conditions": "",
+    "date": "2026-04-05",
+    "kickoff": "02:00:00",
+    "strategic_context": null
+  },
+  "pipelineOptions": {
+    "forceAnalyze": true,
+    "skipProceedGate": true,
+    "skipStalenessGate": true
+  },
+  "statistics": [
+    {
+      "team": {
+        "id": 0,
+        "name": "Moreirense",
+        "logo": ""
+      },
+      "statistics": [
+        {
+          "type": "Ball Possession",
+          "value": "32%"
+        },
+        {
+          "type": "Total Shots",
+          "value": "1"
+        },
+        {
+          "type": "Shots on Goal",
+          "value": "0"
+        },
+        {
+          "type": "Corner Kicks",
+          "value": "1"
+        },
+        {
+          "type": "Fouls",
+          "value": "6"
+        },
+        {
+          "type": "Offsides",
+          "value": null
+        },
+        {
+          "type": "Yellow Cards",
+          "value": "0"
+        },
+        {
+          "type": "Red Cards",
+          "value": null
+        },
+        {
+          "type": "Goalkeeper Saves",
+          "value": "2"
+        },
+        {
+          "type": "Blocked Shots",
+          "value": "0"
+        },
+        {
+          "type": "Total passes",
+          "value": "130"
+        },
+        {
+          "type": "Passes accurate",
+          "value": "101"
+        },
+        {
+          "type": "Shots off Goal",
+          "value": "1"
+        },
+        {
+          "type": "Shots insidebox",
+          "value": "1"
+        },
+        {
+          "type": "Shots outsidebox",
+          "value": "1"
+        },
+        {
+          "type": "expected_goals",
+          "value": "0.04"
+        },
+        {
+          "type": "goals_prevented",
+          "value": "0"
+        },
+        {
+          "type": "Passes %",
+          "value": "78%"
+        }
+      ]
+    },
+    {
+      "team": {
+        "id": 0,
+        "name": "SC Braga",
+        "logo": ""
+      },
+      "statistics": [
+        {
+          "type": "Ball Possession",
+          "value": "68%"
+        },
+        {
+          "type": "Total Shots",
+          "value": "4"
+        },
+        {
+          "type": "Shots on Goal",
+          "value": "3"
+        },
+        {
+          "type": "Corner Kicks",
+          "value": "4"
+        },
+        {
+          "type": "Fouls",
+          "value": "8"
+        },
+        {
+          "type": "Offsides",
+          "value": null
+        },
+        {
+          "type": "Yellow Cards",
+          "value": "1"
+        },
+        {
+          "type": "Red Cards",
+          "value": null
+        },
+        {
+          "type": "Goalkeeper Saves",
+          "value": "0"
+        },
+        {
+          "type": "Blocked Shots",
+          "value": "0"
+        },
+        {
+          "type": "Total passes",
+          "value": "279"
+        },
+        {
+          "type": "Passes accurate",
+          "value": "241"
+        },
+        {
+          "type": "Shots off Goal",
+          "value": "1"
+        },
+        {
+          "type": "Shots insidebox",
+          "value": "4"
+        },
+        {
+          "type": "Shots outsidebox",
+          "value": "0"
+        },
+        {
+          "type": "expected_goals",
+          "value": "0.93"
+        },
+        {
+          "type": "goals_prevented",
+          "value": "0"
+        },
+        {
+          "type": "Passes %",
+          "value": "86%"
+        }
+      ]
+    }
+  ],
+  "mockResolvedOdds": {
+    "oddsSource": "live",
+    "response": [
+      {
+        "bookmakers": [
+          {
+            "id": 0,
+            "name": "Replay Mock",
+            "bets": [
+              {
+                "id": 1,
+                "name": "Match Winner",
+                "values": [
+                  {
+                    "value": "Home",
+                    "odd": "151"
+                  },
+                  {
+                    "value": "Draw",
+                    "odd": "11"
+                  },
+                  {
+                    "value": "Away",
+                    "odd": "1.2"
+                  }
+                ]
+              },
+              {
+                "id": 2,
+                "name": "Over/Under",
+                "values": [
+                  {
+                    "value": "Over",
+                    "odd": "1.875",
+                    "handicap": "2.25"
+                  },
+                  {
+                    "value": "Under",
+                    "odd": "1.975",
+                    "handicap": "2.25"
+                  }
+                ]
+              },
+              {
+                "id": 3,
+                "name": "Corners Over/Under",
+                "values": [
+                  {
+                    "value": "Over",
+                    "odd": "1.9",
+                    "handicap": "10.5"
+                  },
+                  {
+                    "value": "Under",
+                    "odd": "1.9",
+                    "handicap": "10.5"
+                  }
+                ]
+              },
+              {
+                "id": 4,
+                "name": "Both Teams Score",
+                "values": [
+                  {
+                    "value": "Yes",
+                    "odd": "2.5"
+                  },
+                  {
+                    "value": "No",
+                    "odd": "1.5"
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    ],
+    "oddsFetchedAt": null,
+    "freshness": "fresh",
+    "cacheStatus": "hit"
+  },
+  "previousRecommendations": [],
+  "metadata": {
+    "recommendationId": 11816,
+    "originalPromptVersion": "v8-market-balance-followup-e",
+    "originalAiModel": "gemini-3-pro-preview",
+    "originalBetMarket": "under_2.25",
+    "originalSelection": "Under 2.25 Goals @1.975",
+    "originalResult": "win",
+    "originalPnl": 2.93,
+    "minute": 44,
+    "score": "0-1",
+    "status": "1H",
+    "league": "Primeira Liga",
+    "homeTeam": "Moreirense",
+    "awayTeam": "SC Braga",
+    "evidenceMode": "full_live_data",
+    "prematchStrength": "weak",
+    "profileCoverageBand": "partial",
+    "overlayCoverageBand": "none",
+    "policyImpactBand": "clean"
+  },
+  "settlementContext": {
+    "matchId": "1396484",
+    "homeTeam": "Moreirense",
+    "awayTeam": "SC Braga",
+    "finalStatus": "FT",
+    "homeScore": 0,
+    "awayScore": 1,
+    "regularHomeScore": 0,
+    "regularAwayScore": 1,
+    "settlementStats": [
+      {
+        "away": 6,
+        "home": 2,
+        "type": "Shots on Goal"
+      },
+      {
+        "away": 1,
+        "home": 3,
+        "type": "Shots off Goal"
+      },
+      {
+        "away": 9,
+        "home": 9,
+        "type": "Total Shots"
+      },
+      {
+        "away": 2,
+        "home": 4,
+        "type": "Blocked Shots"
+      },
+      {
+        "away": 7,
+        "home": 4,
+        "type": "Shots insidebox"
+      },
+      {
+        "away": 2,
+        "home": 5,
+        "type": "Shots outsidebox"
+      },
+      {
+        "away": 13,
+        "home": 9,
+        "type": "Fouls"
+      },
+      {
+        "away": 9,
+        "home": 4,
+        "type": "Corner Kicks"
+      },
+      {
+        "away": 2,
+        "home": 0,
+        "type": "Offsides"
+      },
+      {
+        "away": "60%",
+        "home": "40%",
+        "type": "Ball Possession"
+      },
+      {
+        "away": 3,
+        "home": 0,
+        "type": "Yellow Cards"
+      },
+      {
+        "away": null,
+        "home": null,
+        "type": "Red Cards"
+      },
+      {
+        "away": 2,
+        "home": 5,
+        "type": "Goalkeeper Saves"
+      },
+      {
+        "away": 614,
+        "home": 406,
+        "type": "Total passes"
+      },
+      {
+        "away": 536,
+        "home": 337,
+        "type": "Passes accurate"
+      },
+      {
+        "away": "87%",
+        "home": "83%",
+        "type": "Passes %"
+      },
+      {
+        "away": "1.29",
+        "home": "0.27",
+        "type": "expected_goals"
+      },
+      {
+        "away": 0,
+        "home": 0,
+        "type": "goals_prevented"
+      }
+    ]
+  }
+}

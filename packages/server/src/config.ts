@@ -2,7 +2,26 @@
 // Server configuration — loaded from environment
 // ============================================================
 
-import 'dotenv/config';
+import dotenv from 'dotenv';
+import { existsSync } from 'node:fs';
+import { dirname, resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
+
+const configDir = dirname(fileURLToPath(import.meta.url));
+const serverPackageRoot = resolve(configDir, '..');
+const repoRoot = resolve(serverPackageRoot, '..');
+
+function loadEnvFile(path: string, override: boolean): void {
+  if (existsSync(path)) dotenv.config({ path, override });
+}
+
+// Repo root first (monorepo defaults), Azure deploy profile, then packages/server (overrides). Finally cwd `.env` fills gaps.
+loadEnvFile(resolve(repoRoot, '.env'), false);
+loadEnvFile(resolve(repoRoot, '.env.local'), false);
+loadEnvFile(resolve(repoRoot, '.env.azure'), false);
+loadEnvFile(resolve(serverPackageRoot, '.env'), true);
+loadEnvFile(resolve(serverPackageRoot, '.env.local'), true);
+dotenv.config();
 
 export const config = {
   databaseUrl: process.env['DATABASE_URL'] || 'postgresql://tfi:tfi_password@localhost:5432/tfi',
@@ -32,18 +51,6 @@ export const config = {
 
   // Telegram
   telegramBotToken: process.env['TELEGRAM_BOT_TOKEN'] || '',
-
-  // The Odds API (fallback odds)
-  theOddsApiKey: process.env['THE_ODDS_API_KEY'] || '',
-  theOddsApiBaseUrl: process.env['THE_ODDS_API_BASE_URL'] || 'https://api.the-odds-api.com/v4',
-
-  // Live Score API (benchmark-only stats provider)
-  liveScoreApiKey: process.env['LIVE_SCORE_API_KEY'] || '',
-  liveScoreApiSecret: process.env['LIVE_SCORE_API_SECRET'] || '',
-  liveScoreApiBaseUrl: process.env['LIVE_SCORE_API_BASE_URL'] || 'https://livescore-api.com/api-client',
-  liveScoreBenchmarkEnabled: process.env['LIVE_SCORE_BENCHMARK_ENABLED'] === 'true',
-  liveScoreStatsFallbackEnabled: process.env['LIVE_SCORE_STATS_FALLBACK_ENABLED'] === 'true',
-  webLiveStatsFallbackEnabled: process.env['WEB_LIVE_STATS_FALLBACK_ENABLED'] === 'true',
 
   // Redis
   redisUrl: process.env['REDIS_URL'] || '',

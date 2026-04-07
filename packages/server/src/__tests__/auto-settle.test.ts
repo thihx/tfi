@@ -33,9 +33,6 @@ vi.mock('../lib/football-api.js', () => ({
   fetchLiveOdds: vi.fn().mockResolvedValue([]),
   fetchPreMatchOdds: vi.fn().mockResolvedValue([]),
 }));
-vi.mock('../lib/the-odds-api.js', () => ({
-  fetchTheOddsLiveDetailed: vi.fn().mockResolvedValue([]),
-}));
 vi.mock('../lib/provider-sampling.js', () => ({
   extractStatusCode: vi.fn().mockReturnValue(null),
   recordProviderOddsSampleSafe: vi.fn().mockResolvedValue(undefined),

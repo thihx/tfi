@@ -1,0 +1,432 @@
+{
+  "name": "11807-1381126-16m-corners-over-13",
+  "matchId": "1381126",
+  "fixture": {
+    "fixture": {
+      "id": 1381126,
+      "referee": null,
+      "timezone": "UTC",
+      "date": "2026-04-04T14:30:00.000Z",
+      "timestamp": 1775313000,
+      "periods": {
+        "first": null,
+        "second": null
+      },
+      "venue": {
+        "id": null,
+        "name": "Philips Stadion",
+        "city": null
+      },
+      "status": {
+        "long": "1H",
+        "short": "1H",
+        "elapsed": 16
+      }
+    },
+    "league": {
+      "id": 88,
+      "name": "Eredivisie",
+      "country": "",
+      "logo": "",
+      "flag": null,
+      "season": 0,
+      "round": ""
+    },
+    "teams": {
+      "home": {
+        "id": 197,
+        "name": "PSV Eindhoven",
+        "logo": "",
+        "winner": null
+      },
+      "away": {
+        "id": 207,
+        "name": "Utrecht",
+        "logo": "",
+        "winner": null
+      }
+    },
+    "goals": {
+      "home": 0,
+      "away": 2
+    },
+    "score": {
+      "halftime": {
+        "home": null,
+        "away": null
+      },
+      "fulltime": {
+        "home": 0,
+        "away": 2
+      }
+    }
+  },
+  "watchlistEntry": {
+    "match_id": "1381126",
+    "league": "Eredivisie",
+    "home_team": "PSV Eindhoven",
+    "away_team": "Utrecht",
+    "mode": "B",
+    "status": "active",
+    "custom_conditions": "",
+    "date": "2026-04-04",
+    "kickoff": "14:30:00",
+    "strategic_context": null
+  },
+  "pipelineOptions": {
+    "forceAnalyze": true,
+    "skipProceedGate": true,
+    "skipStalenessGate": true
+  },
+  "statistics": [
+    {
+      "team": {
+        "id": 0,
+        "name": "PSV Eindhoven",
+        "logo": ""
+      },
+      "statistics": [
+        {
+          "type": "Ball Possession",
+          "value": "75%"
+        },
+        {
+          "type": "Total Shots",
+          "value": "1"
+        },
+        {
+          "type": "Shots on Goal",
+          "value": "1"
+        },
+        {
+          "type": "Corner Kicks",
+          "value": "3"
+        },
+        {
+          "type": "Fouls",
+          "value": "0"
+        },
+        {
+          "type": "Offsides",
+          "value": null
+        },
+        {
+          "type": "Yellow Cards",
+          "value": null
+        },
+        {
+          "type": "Red Cards",
+          "value": null
+        },
+        {
+          "type": "Goalkeeper Saves",
+          "value": "0"
+        },
+        {
+          "type": "Blocked Shots",
+          "value": "0"
+        },
+        {
+          "type": "Total passes",
+          "value": "90"
+        },
+        {
+          "type": "Passes accurate",
+          "value": "82"
+        },
+        {
+          "type": "Shots off Goal",
+          "value": "0"
+        },
+        {
+          "type": "Shots insidebox",
+          "value": "1"
+        },
+        {
+          "type": "Shots outsidebox",
+          "value": "0"
+        },
+        {
+          "type": "expected_goals",
+          "value": "0.04"
+        },
+        {
+          "type": "goals_prevented",
+          "value": "0"
+        },
+        {
+          "type": "Passes %",
+          "value": "91%"
+        }
+      ]
+    },
+    {
+      "team": {
+        "id": 0,
+        "name": "Utrecht",
+        "logo": ""
+      },
+      "statistics": [
+        {
+          "type": "Ball Possession",
+          "value": "25%"
+        },
+        {
+          "type": "Total Shots",
+          "value": "2"
+        },
+        {
+          "type": "Shots on Goal",
+          "value": "2"
+        },
+        {
+          "type": "Corner Kicks",
+          "value": "0"
+        },
+        {
+          "type": "Fouls",
+          "value": "1"
+        },
+        {
+          "type": "Offsides",
+          "value": null
+        },
+        {
+          "type": "Yellow Cards",
+          "value": null
+        },
+        {
+          "type": "Red Cards",
+          "value": null
+        },
+        {
+          "type": "Goalkeeper Saves",
+          "value": "1"
+        },
+        {
+          "type": "Blocked Shots",
+          "value": "0"
+        },
+        {
+          "type": "Total passes",
+          "value": "29"
+        },
+        {
+          "type": "Passes accurate",
+          "value": "19"
+        },
+        {
+          "type": "Shots off Goal",
+          "value": "0"
+        },
+        {
+          "type": "Shots insidebox",
+          "value": "2"
+        },
+        {
+          "type": "Shots outsidebox",
+          "value": "0"
+        },
+        {
+          "type": "expected_goals",
+          "value": "0.14"
+        },
+        {
+          "type": "goals_prevented",
+          "value": "0"
+        },
+        {
+          "type": "Passes %",
+          "value": "66%"
+        }
+      ]
+    }
+  ],
+  "mockResolvedOdds": {
+    "oddsSource": "live",
+    "response": [
+      {
+        "bookmakers": [
+          {
+            "id": 0,
+            "name": "Replay Mock",
+            "bets": [
+              {
+                "id": 1,
+                "name": "Over/Under",
+                "values": [
+                  {
+                    "value": "Over",
+                    "odd": "1.85",
+                    "handicap": "5.25"
+                  },
+                  {
+                    "value": "Under",
+                    "odd": "1.95",
+                    "handicap": "5.25"
+                  }
+                ]
+              },
+              {
+                "id": 2,
+                "name": "Corners Over/Under",
+                "values": [
+                  {
+                    "value": "Over",
+                    "odd": "2",
+                    "handicap": "13"
+                  },
+                  {
+                    "value": "Under",
+                    "odd": "2.2",
+                    "handicap": "13"
+                  }
+                ]
+              },
+              {
+                "id": 3,
+                "name": "Both Teams Score",
+                "values": [
+                  {
+                    "value": "Yes",
+                    "odd": "1.062"
+                  },
+                  {
+                    "value": "No",
+                    "odd": "10"
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    ],
+    "oddsFetchedAt": null,
+    "freshness": "fresh",
+    "cacheStatus": "hit"
+  },
+  "previousRecommendations": [],
+  "metadata": {
+    "recommendationId": 11807,
+    "originalPromptVersion": "v8-market-balance-followup-e",
+    "originalAiModel": "gemini-3-pro-preview",
+    "originalBetMarket": "corners_over_13",
+    "originalSelection": "Corners Over 13 @2.00",
+    "originalResult": "loss",
+    "originalPnl": -3,
+    "minute": 16,
+    "score": "0-2",
+    "status": "1H",
+    "league": "Eredivisie",
+    "homeTeam": "PSV Eindhoven",
+    "awayTeam": "Utrecht",
+    "evidenceMode": "full_live_data",
+    "prematchStrength": "strong",
+    "profileCoverageBand": "strong",
+    "overlayCoverageBand": "none",
+    "policyImpactBand": "clean"
+  },
+  "settlementContext": {
+    "matchId": "1381126",
+    "homeTeam": "PSV Eindhoven",
+    "awayTeam": "Utrecht",
+    "finalStatus": "FT",
+    "homeScore": 4,
+    "awayScore": 3,
+    "regularHomeScore": 4,
+    "regularAwayScore": 3,
+    "settlementStats": [
+      {
+        "away": 7,
+        "home": 8,
+        "type": "Shots on Goal"
+      },
+      {
+        "away": 1,
+        "home": 5,
+        "type": "Shots off Goal"
+      },
+      {
+        "away": 11,
+        "home": 18,
+        "type": "Total Shots"
+      },
+      {
+        "away": 3,
+        "home": 5,
+        "type": "Blocked Shots"
+      },
+      {
+        "away": 8,
+        "home": 11,
+        "type": "Shots insidebox"
+      },
+      {
+        "away": 3,
+        "home": 7,
+        "type": "Shots outsidebox"
+      },
+      {
+        "away": 10,
+        "home": 6,
+        "type": "Fouls"
+      },
+      {
+        "away": 3,
+        "home": 8,
+        "type": "Corner Kicks"
+      },
+      {
+        "away": 0,
+        "home": 1,
+        "type": "Offsides"
+      },
+      {
+        "away": "36%",
+        "home": "64%",
+        "type": "Ball Possession"
+      },
+      {
+        "away": 1,
+        "home": 0,
+        "type": "Yellow Cards"
+      },
+      {
+        "away": null,
+        "home": null,
+        "type": "Red Cards"
+      },
+      {
+        "away": 4,
+        "home": 4,
+        "type": "Goalkeeper Saves"
+      },
+      {
+        "away": 290,
+        "home": 530,
+        "type": "Total passes"
+      },
+      {
+        "away": 210,
+        "home": 463,
+        "type": "Passes accurate"
+      },
+      {
+        "away": "72%",
+        "home": "87%",
+        "type": "Passes %"
+      },
+      {
+        "away": "1.32",
+        "home": "2.94",
+        "type": "expected_goals"
+      },
+      {
+        "away": -1,
+        "home": -1,
+        "type": "goals_prevented"
+      }
+    ]
+  }
+}

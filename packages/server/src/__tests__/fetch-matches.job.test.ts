@@ -80,16 +80,23 @@ let fetchCallCount = 0;
 vi.mock('../lib/football-api.js', () => ({
   fetchFixturesForDate: vi.fn().mockImplementation((date: string) => {
     fetchCallCount++;
-    if (fetchCallCount % 2 === 1) {
+    // Job order: 1=yesterday, 2=today, 3=tomorrow (Promise.all settles today before tomorrow in practice).
+    if (fetchCallCount === 1) {
+      return Promise.resolve([]);
+    }
+    if (fetchCallCount === 2) {
       return Promise.resolve([
         mkFixture(1001, 39, 'NS', `${date}T15:00:00+00:00`, 'Arsenal', 'Chelsea'),
         mkFixture(1002, 140, 'NS', `${date}T20:00:00+00:00`, 'Barca', 'Real'),
         mkFixture(1003, 999, 'NS', `${date}T18:00:00+00:00`, 'Unknown', 'Team'),
       ]);
     }
-    return Promise.resolve([
-      mkFixture(2001, 39, 'NS', `${date}T14:00:00+00:00`, 'Liverpool', 'Man City'),
-    ]);
+    if (fetchCallCount === 3) {
+      return Promise.resolve([
+        mkFixture(2001, 39, 'NS', `${date}T14:00:00+00:00`, 'Liverpool', 'Man City'),
+      ]);
+    }
+    return Promise.resolve([]);
   }),
 }));
 
@@ -176,6 +183,7 @@ describe('fetchMatchesJob', () => {
     ] as never);
 
     vi.mocked(footballApi.fetchFixturesForDate)
+      .mockResolvedValueOnce([])
       .mockResolvedValueOnce([
         {
           fixture: {
@@ -211,6 +219,7 @@ describe('fetchMatchesJob', () => {
 
   test('does not refetch finished stats when settlement_stats_fetched_at is set', async () => {
     vi.mocked(footballApi.fetchFixturesForDate)
+      .mockResolvedValueOnce([])
       .mockResolvedValueOnce([
         {
           fixture: {
@@ -249,6 +258,7 @@ describe('fetchMatchesJob', () => {
 
   test('fetches finished stats when settlement_stats_fetched_at is null', async () => {
     vi.mocked(footballApi.fetchFixturesForDate)
+      .mockResolvedValueOnce([])
       .mockResolvedValueOnce([
         {
           fixture: {
@@ -289,6 +299,7 @@ describe('fetchMatchesJob', () => {
 
   test('fetches live and finished stats in one combined pass', async () => {
     vi.mocked(footballApi.fetchFixturesForDate)
+      .mockResolvedValueOnce([] as never)
       .mockResolvedValueOnce([
         {
           fixture: { id: 2001, date: '2026-03-20T12:00:00+00:00', status: { short: '2H', elapsed: 78 }, venue: { name: 'Stadium' }, referee: null },

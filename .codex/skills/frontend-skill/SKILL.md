@@ -1,6 +1,6 @@
 ---
 name: frontend-skill
-description: Use when the task asks for a visually strong landing page, website, app, prototype, demo, or game UI. This skill enforces restrained composition, image-led hierarchy, cohesive content structure, and tasteful motion while avoiding generic cards, weak branding, and UI clutter.
+description: Use when the task asks for a visually strong landing page, website, app, prototype, demo, or game UI. This skill enforces restrained composition, image-led hierarchy, cohesive content structure, and tasteful motion while avoiding generic cards, weak branding, and UI clutter. For TFI in-app surfaces (tabs, modals, tables) that must work on mobile and desktop, combine with tfi-responsive-ui.
 ---
 
 # Frontend Skill
@@ -182,3 +182,7 @@ Motion rules:
 - Are cards actually necessary?
 - Does motion improve hierarchy or atmosphere?
 - Would the design still feel premium if all decorative shadows were removed?
+
+## TFI product UI (dashboard / tabs / modals)
+
+When editing the TFI app under `src/` (not standalone marketing pages), **also apply `tfi-responsive-ui`**: responsive layout, touch-friendly controls, safe modal/table behavior on small viewports, and shared styles in `public/css/styles.css` where appropriate.

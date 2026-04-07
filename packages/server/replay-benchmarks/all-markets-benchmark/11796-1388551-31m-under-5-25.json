@@ -1,0 +1,443 @@
+{
+  "name": "11796-1388551-31m-under-5-25",
+  "matchId": "1388551",
+  "fixture": {
+    "fixture": {
+      "id": 1388551,
+      "referee": null,
+      "timezone": "UTC",
+      "date": "2026-04-04T13:30:00.000Z",
+      "timestamp": 1775309400,
+      "periods": {
+        "first": null,
+        "second": null
+      },
+      "venue": {
+        "id": null,
+        "name": "BayArena",
+        "city": null
+      },
+      "status": {
+        "long": "1H",
+        "short": "1H",
+        "elapsed": 31
+      }
+    },
+    "league": {
+      "id": 78,
+      "name": "Bundesliga",
+      "country": "",
+      "logo": "",
+      "flag": null,
+      "season": 0,
+      "round": ""
+    },
+    "teams": {
+      "home": {
+        "id": 168,
+        "name": "Bayer Leverkusen",
+        "logo": "",
+        "winner": null
+      },
+      "away": {
+        "id": 161,
+        "name": "VfL Wolfsburg",
+        "logo": "",
+        "winner": null
+      }
+    },
+    "goals": {
+      "home": 1,
+      "away": 1
+    },
+    "score": {
+      "halftime": {
+        "home": null,
+        "away": null
+      },
+      "fulltime": {
+        "home": 1,
+        "away": 1
+      }
+    }
+  },
+  "watchlistEntry": {
+    "match_id": "1388551",
+    "league": "Bundesliga",
+    "home_team": "Bayer Leverkusen",
+    "away_team": "VfL Wolfsburg",
+    "mode": "B",
+    "status": "active",
+    "custom_conditions": "",
+    "date": "2026-04-04",
+    "kickoff": "13:30:00",
+    "strategic_context": null
+  },
+  "pipelineOptions": {
+    "forceAnalyze": true,
+    "skipProceedGate": true,
+    "skipStalenessGate": true
+  },
+  "statistics": [
+    {
+      "team": {
+        "id": 0,
+        "name": "Bayer Leverkusen",
+        "logo": ""
+      },
+      "statistics": [
+        {
+          "type": "Ball Possession",
+          "value": "71%"
+        },
+        {
+          "type": "Total Shots",
+          "value": "6"
+        },
+        {
+          "type": "Shots on Goal",
+          "value": "1"
+        },
+        {
+          "type": "Corner Kicks",
+          "value": "3"
+        },
+        {
+          "type": "Fouls",
+          "value": "3"
+        },
+        {
+          "type": "Offsides",
+          "value": "1"
+        },
+        {
+          "type": "Yellow Cards",
+          "value": "0"
+        },
+        {
+          "type": "Red Cards",
+          "value": null
+        },
+        {
+          "type": "Goalkeeper Saves",
+          "value": "0"
+        },
+        {
+          "type": "Blocked Shots",
+          "value": "1"
+        },
+        {
+          "type": "Total passes",
+          "value": "198"
+        },
+        {
+          "type": "Passes accurate",
+          "value": "176"
+        },
+        {
+          "type": "Shots off Goal",
+          "value": "4"
+        },
+        {
+          "type": "Shots insidebox",
+          "value": "3"
+        },
+        {
+          "type": "Shots outsidebox",
+          "value": "3"
+        },
+        {
+          "type": "expected_goals",
+          "value": "0.40"
+        },
+        {
+          "type": "goals_prevented",
+          "value": "0"
+        },
+        {
+          "type": "Passes %",
+          "value": "89%"
+        }
+      ]
+    },
+    {
+      "team": {
+        "id": 0,
+        "name": "VfL Wolfsburg",
+        "logo": ""
+      },
+      "statistics": [
+        {
+          "type": "Ball Possession",
+          "value": "29%"
+        },
+        {
+          "type": "Total Shots",
+          "value": "4"
+        },
+        {
+          "type": "Shots on Goal",
+          "value": "1"
+        },
+        {
+          "type": "Corner Kicks",
+          "value": "1"
+        },
+        {
+          "type": "Fouls",
+          "value": "5"
+        },
+        {
+          "type": "Offsides",
+          "value": "0"
+        },
+        {
+          "type": "Yellow Cards",
+          "value": "1"
+        },
+        {
+          "type": "Red Cards",
+          "value": null
+        },
+        {
+          "type": "Goalkeeper Saves",
+          "value": "1"
+        },
+        {
+          "type": "Blocked Shots",
+          "value": "0"
+        },
+        {
+          "type": "Total passes",
+          "value": "81"
+        },
+        {
+          "type": "Passes accurate",
+          "value": "63"
+        },
+        {
+          "type": "Shots off Goal",
+          "value": "3"
+        },
+        {
+          "type": "Shots insidebox",
+          "value": "3"
+        },
+        {
+          "type": "Shots outsidebox",
+          "value": "1"
+        },
+        {
+          "type": "expected_goals",
+          "value": "0.49"
+        },
+        {
+          "type": "goals_prevented",
+          "value": "0"
+        },
+        {
+          "type": "Passes %",
+          "value": "78%"
+        }
+      ]
+    }
+  ],
+  "mockResolvedOdds": {
+    "oddsSource": "live",
+    "response": [
+      {
+        "bookmakers": [
+          {
+            "id": 0,
+            "name": "Replay Mock",
+            "bets": [
+              {
+                "id": 1,
+                "name": "Over/Under",
+                "values": [
+                  {
+                    "value": "Over",
+                    "odd": "1.85",
+                    "handicap": "5.25"
+                  },
+                  {
+                    "value": "Under",
+                    "odd": "2",
+                    "handicap": "5.25"
+                  }
+                ]
+              },
+              {
+                "id": 2,
+                "name": "Corners Over/Under",
+                "values": [
+                  {
+                    "value": "Over",
+                    "odd": "2.1",
+                    "handicap": "12"
+                  },
+                  {
+                    "value": "Under",
+                    "odd": "2.2",
+                    "handicap": "12"
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    ],
+    "oddsFetchedAt": null,
+    "freshness": "fresh",
+    "cacheStatus": "hit"
+  },
+  "previousRecommendations": [
+    {
+      "minute": 45,
+      "odds": "2.200",
+      "bet_market": "under_10",
+      "selection": "Under 10 Goals @2.2",
+      "score": "2-3",
+      "status": "HT",
+      "result": "win",
+      "confidence": 7,
+      "stake_percent": "4.00",
+      "reasoning": "Break-even about 45.5%. My fair range is around 85-90%. Edge looks about 40%. We previously entered Under 5.25 at minute 31. The match exploded to 2-3 by HT, putting that initial position in severe jeopardy. However, the new line of Under 10 Goals at 2.20 is an exceptional structural upgrade, offering a massive 4.75-goal cushion over the previous entry. While the first half was chaotic, the combined xG of 2.78 does not support a 10-goal true pace. It is highly improbable to see 6 more goals in the second half. This justifies a second entry on the Under thesis."
+    },
+    {
+      "minute": 31,
+      "odds": "2.200",
+      "bet_market": "under_12",
+      "selection": "Under 12 Goals @2.2",
+      "score": "1-1",
+      "status": "1H",
+      "result": "win",
+      "confidence": 10,
+      "stake_percent": "8.00",
+      "reasoning": "Break-even about 45.5%. My fair range is around 98-99%. Edge looks about 53%. With the score at 1-1 in minute 31, the match would need 10 more goals to exceed the 12-goal line. Given the moderate xG (0.40 vs 0.49) and standard match tempo, reaching 13 goals is practically impossible. This presents an overwhelming mathematical edge for the Under."
+    }
+  ],
+  "metadata": {
+    "recommendationId": 11796,
+    "originalPromptVersion": "v8-market-balance-followup-d",
+    "originalAiModel": "gemini-3-pro-preview",
+    "originalBetMarket": "under_5.25",
+    "originalSelection": "Under 5.25 Goals @2.00",
+    "originalResult": "loss",
+    "originalPnl": -4,
+    "minute": 31,
+    "score": "1-1",
+    "status": "1H",
+    "league": "Bundesliga",
+    "homeTeam": "Bayer Leverkusen",
+    "awayTeam": "VfL Wolfsburg",
+    "evidenceMode": "full_live_data",
+    "prematchStrength": "strong",
+    "profileCoverageBand": "strong",
+    "overlayCoverageBand": "none",
+    "policyImpactBand": "clean"
+  },
+  "settlementContext": {
+    "matchId": "1388551",
+    "homeTeam": "Bayer Leverkusen",
+    "awayTeam": "VfL Wolfsburg",
+    "finalStatus": "FT",
+    "homeScore": 6,
+    "awayScore": 3,
+    "regularHomeScore": 6,
+    "regularAwayScore": 3,
+    "settlementStats": [
+      {
+        "away": 4,
+        "home": 5,
+        "type": "Shots on Goal"
+      },
+      {
+        "away": 4,
+        "home": 6,
+        "type": "Shots off Goal"
+      },
+      {
+        "away": 9,
+        "home": 14,
+        "type": "Total Shots"
+      },
+      {
+        "away": 1,
+        "home": 3,
+        "type": "Blocked Shots"
+      },
+      {
+        "away": 5,
+        "home": 10,
+        "type": "Shots insidebox"
+      },
+      {
+        "away": 4,
+        "home": 4,
+        "type": "Shots outsidebox"
+      },
+      {
+        "away": 8,
+        "home": 7,
+        "type": "Fouls"
+      },
+      {
+        "away": 1,
+        "home": 7,
+        "type": "Corner Kicks"
+      },
+      {
+        "away": 1,
+        "home": 1,
+        "type": "Offsides"
+      },
+      {
+        "away": "31%",
+        "home": "69%",
+        "type": "Ball Possession"
+      },
+      {
+        "away": 2,
+        "home": 1,
+        "type": "Yellow Cards"
+      },
+      {
+        "away": null,
+        "home": null,
+        "type": "Red Cards"
+      },
+      {
+        "away": 2,
+        "home": 1,
+        "type": "Goalkeeper Saves"
+      },
+      {
+        "away": 203,
+        "home": 442,
+        "type": "Total passes"
+      },
+      {
+        "away": 156,
+        "home": 382,
+        "type": "Passes accurate"
+      },
+      {
+        "away": "77%",
+        "home": "86%",
+        "type": "Passes %"
+      },
+      {
+        "away": "1.48",
+        "home": "2.54",
+        "type": "expected_goals"
+      },
+      {
+        "away": 0,
+        "home": 0,
+        "type": "goals_prevented"
+      }
+    ]
+  }
+}

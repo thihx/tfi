@@ -1,0 +1,359 @@
+{
+  "name": "12425-1403794-56m-under-1",
+  "matchId": "1403794",
+  "fixture": {
+    "fixture": {
+      "id": 1403794,
+      "referee": null,
+      "timezone": "UTC",
+      "date": "2026-04-06T08:30:00.000Z",
+      "timestamp": 1775464200,
+      "periods": {
+        "first": null,
+        "second": null
+      },
+      "venue": {
+        "id": null,
+        "name": "Brawijaya Stadium",
+        "city": null
+      },
+      "status": {
+        "long": "2H",
+        "short": "2H",
+        "elapsed": 56
+      }
+    },
+    "league": {
+      "id": 274,
+      "name": "Liga 1",
+      "country": "",
+      "logo": "",
+      "flag": null,
+      "season": 0,
+      "round": ""
+    },
+    "teams": {
+      "home": {
+        "id": 0,
+        "name": "Persik Kediri",
+        "logo": "",
+        "winner": null
+      },
+      "away": {
+        "id": 0,
+        "name": "Persijap",
+        "logo": "",
+        "winner": null
+      }
+    },
+    "goals": {
+      "home": 0,
+      "away": 0
+    },
+    "score": {
+      "halftime": {
+        "home": null,
+        "away": null
+      },
+      "fulltime": {
+        "home": 0,
+        "away": 0
+      }
+    }
+  },
+  "watchlistEntry": {
+    "match_id": "1403794",
+    "league": "Liga 1",
+    "home_team": "Persik Kediri",
+    "away_team": "Persijap",
+    "mode": "B",
+    "status": "active",
+    "custom_conditions": "",
+    "date": "2026-04-06",
+    "kickoff": "17:30:00",
+    "strategic_context": null
+  },
+  "pipelineOptions": {
+    "forceAnalyze": true,
+    "skipProceedGate": true,
+    "skipStalenessGate": true
+  },
+  "statistics": [
+    {
+      "team": {
+        "id": 0,
+        "name": "Persik Kediri",
+        "logo": ""
+      },
+      "statistics": [
+        {
+          "type": "Ball Possession",
+          "value": null
+        },
+        {
+          "type": "Total Shots",
+          "value": null
+        },
+        {
+          "type": "Shots on Goal",
+          "value": null
+        },
+        {
+          "type": "Corner Kicks",
+          "value": null
+        },
+        {
+          "type": "Fouls",
+          "value": null
+        },
+        {
+          "type": "Offsides",
+          "value": null
+        },
+        {
+          "type": "Yellow Cards",
+          "value": null
+        },
+        {
+          "type": "Red Cards",
+          "value": null
+        },
+        {
+          "type": "Goalkeeper Saves",
+          "value": null
+        },
+        {
+          "type": "Blocked Shots",
+          "value": null
+        },
+        {
+          "type": "Total passes",
+          "value": null
+        },
+        {
+          "type": "Passes accurate",
+          "value": null
+        },
+        {
+          "type": "Shots off Goal",
+          "value": null
+        },
+        {
+          "type": "Shots insidebox",
+          "value": null
+        },
+        {
+          "type": "Shots outsidebox",
+          "value": null
+        },
+        {
+          "type": "expected_goals",
+          "value": null
+        },
+        {
+          "type": "goals_prevented",
+          "value": null
+        },
+        {
+          "type": "Passes %",
+          "value": null
+        }
+      ]
+    },
+    {
+      "team": {
+        "id": 0,
+        "name": "Persijap",
+        "logo": ""
+      },
+      "statistics": [
+        {
+          "type": "Ball Possession",
+          "value": null
+        },
+        {
+          "type": "Total Shots",
+          "value": null
+        },
+        {
+          "type": "Shots on Goal",
+          "value": null
+        },
+        {
+          "type": "Corner Kicks",
+          "value": null
+        },
+        {
+          "type": "Fouls",
+          "value": null
+        },
+        {
+          "type": "Offsides",
+          "value": null
+        },
+        {
+          "type": "Yellow Cards",
+          "value": null
+        },
+        {
+          "type": "Red Cards",
+          "value": null
+        },
+        {
+          "type": "Goalkeeper Saves",
+          "value": null
+        },
+        {
+          "type": "Blocked Shots",
+          "value": null
+        },
+        {
+          "type": "Total passes",
+          "value": null
+        },
+        {
+          "type": "Passes accurate",
+          "value": null
+        },
+        {
+          "type": "Shots off Goal",
+          "value": null
+        },
+        {
+          "type": "Shots insidebox",
+          "value": null
+        },
+        {
+          "type": "Shots outsidebox",
+          "value": null
+        },
+        {
+          "type": "expected_goals",
+          "value": null
+        },
+        {
+          "type": "goals_prevented",
+          "value": null
+        },
+        {
+          "type": "Passes %",
+          "value": null
+        }
+      ]
+    }
+  ],
+  "mockResolvedOdds": {
+    "oddsSource": "live",
+    "response": [
+      {
+        "bookmakers": [
+          {
+            "id": 0,
+            "name": "Replay Mock",
+            "bets": [
+              {
+                "id": 1,
+                "name": "Match Winner",
+                "values": [
+                  {
+                    "value": "Home",
+                    "odd": "2.6"
+                  },
+                  {
+                    "value": "Draw",
+                    "odd": "2.1"
+                  },
+                  {
+                    "value": "Away",
+                    "odd": "4.333"
+                  }
+                ]
+              },
+              {
+                "id": 2,
+                "name": "Over/Under",
+                "values": [
+                  {
+                    "value": "Over",
+                    "odd": "2.025",
+                    "handicap": "1"
+                  },
+                  {
+                    "value": "Under",
+                    "odd": "1.775",
+                    "handicap": "1"
+                  }
+                ]
+              },
+              {
+                "id": 3,
+                "name": "Corners Over/Under",
+                "values": [
+                  {
+                    "value": "Over",
+                    "odd": "1.85",
+                    "handicap": "6.5"
+                  },
+                  {
+                    "value": "Under",
+                    "odd": "1.95",
+                    "handicap": "6.5"
+                  }
+                ]
+              },
+              {
+                "id": 4,
+                "name": "Both Teams Score",
+                "values": [
+                  {
+                    "value": "Yes",
+                    "odd": "5"
+                  },
+                  {
+                    "value": "No",
+                    "odd": "1.142"
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    ],
+    "oddsFetchedAt": null,
+    "freshness": "fresh",
+    "cacheStatus": "hit"
+  },
+  "previousRecommendations": [],
+  "metadata": {
+    "recommendationId": 12425,
+    "originalPromptVersion": "v6-betting-discipline-c",
+    "originalAiModel": "gemini-3-pro-preview",
+    "originalBetMarket": "under_1",
+    "originalSelection": "Under 1 Goals @1.775",
+    "originalResult": "win",
+    "originalPnl": 2.32,
+    "minute": 56,
+    "score": "0-0",
+    "status": "2H",
+    "league": "Liga 1",
+    "homeTeam": "Persik Kediri",
+    "awayTeam": "Persijap",
+    "evidenceMode": "odds_events_only_degraded",
+    "prematchStrength": "moderate",
+    "profileCoverageBand": "strong",
+    "overlayCoverageBand": "none",
+    "policyImpactBand": "clean"
+  },
+  "settlementContext": {
+    "matchId": "1403794",
+    "homeTeam": "Persik Kediri",
+    "awayTeam": "Persijap",
+    "finalStatus": "FT",
+    "homeScore": 0,
+    "awayScore": 0,
+    "regularHomeScore": 0,
+    "regularAwayScore": 0,
+    "settlementStats": []
+  }
+}

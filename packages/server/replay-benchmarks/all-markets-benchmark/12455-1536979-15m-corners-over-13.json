@@ -1,0 +1,466 @@
+{
+  "name": "12455-1536979-15m-corners-over-13",
+  "matchId": "1536979",
+  "fixture": {
+    "fixture": {
+      "id": 1536979,
+      "referee": null,
+      "timezone": "UTC",
+      "date": "2026-04-06T11:30:00.000Z",
+      "timestamp": 1775475000,
+      "periods": {
+        "first": null,
+        "second": null
+      },
+      "venue": {
+        "id": null,
+        "name": "Jan Breydel Stadium",
+        "city": null
+      },
+      "status": {
+        "long": "1H",
+        "short": "1H",
+        "elapsed": 15
+      }
+    },
+    "league": {
+      "id": 144,
+      "name": "Jupiler Pro League",
+      "country": "",
+      "logo": "",
+      "flag": null,
+      "season": 0,
+      "round": ""
+    },
+    "teams": {
+      "home": {
+        "id": 569,
+        "name": "Club Brugge KV",
+        "logo": "",
+        "winner": null
+      },
+      "away": {
+        "id": 554,
+        "name": "Anderlecht",
+        "logo": "",
+        "winner": null
+      }
+    },
+    "goals": {
+      "home": 0,
+      "away": 0
+    },
+    "score": {
+      "halftime": {
+        "home": null,
+        "away": null
+      },
+      "fulltime": {
+        "home": 0,
+        "away": 0
+      }
+    }
+  },
+  "watchlistEntry": {
+    "match_id": "1536979",
+    "league": "Jupiler Pro League",
+    "home_team": "Club Brugge KV",
+    "away_team": "Anderlecht",
+    "mode": "B",
+    "status": "active",
+    "custom_conditions": "",
+    "date": "2026-04-06",
+    "kickoff": "11:30:00",
+    "strategic_context": null
+  },
+  "pipelineOptions": {
+    "forceAnalyze": true,
+    "skipProceedGate": true,
+    "skipStalenessGate": true
+  },
+  "statistics": [
+    {
+      "team": {
+        "id": 0,
+        "name": "Club Brugge KV",
+        "logo": ""
+      },
+      "statistics": [
+        {
+          "type": "Ball Possession",
+          "value": "82%"
+        },
+        {
+          "type": "Total Shots",
+          "value": "10"
+        },
+        {
+          "type": "Shots on Goal",
+          "value": "3"
+        },
+        {
+          "type": "Corner Kicks",
+          "value": "4"
+        },
+        {
+          "type": "Fouls",
+          "value": "0"
+        },
+        {
+          "type": "Offsides",
+          "value": null
+        },
+        {
+          "type": "Yellow Cards",
+          "value": null
+        },
+        {
+          "type": "Red Cards",
+          "value": null
+        },
+        {
+          "type": "Goalkeeper Saves",
+          "value": "0"
+        },
+        {
+          "type": "Blocked Shots",
+          "value": "6"
+        },
+        {
+          "type": "Total passes",
+          "value": "98"
+        },
+        {
+          "type": "Passes accurate",
+          "value": "91"
+        },
+        {
+          "type": "Shots off Goal",
+          "value": "1"
+        },
+        {
+          "type": "Shots insidebox",
+          "value": "10"
+        },
+        {
+          "type": "Shots outsidebox",
+          "value": "0"
+        },
+        {
+          "type": "expected_goals",
+          "value": "0.74"
+        },
+        {
+          "type": "goals_prevented",
+          "value": "0"
+        },
+        {
+          "type": "Passes %",
+          "value": "93%"
+        }
+      ]
+    },
+    {
+      "team": {
+        "id": 0,
+        "name": "Anderlecht",
+        "logo": ""
+      },
+      "statistics": [
+        {
+          "type": "Ball Possession",
+          "value": "18%"
+        },
+        {
+          "type": "Total Shots",
+          "value": "2"
+        },
+        {
+          "type": "Shots on Goal",
+          "value": "0"
+        },
+        {
+          "type": "Corner Kicks",
+          "value": "0"
+        },
+        {
+          "type": "Fouls",
+          "value": "1"
+        },
+        {
+          "type": "Offsides",
+          "value": null
+        },
+        {
+          "type": "Yellow Cards",
+          "value": null
+        },
+        {
+          "type": "Red Cards",
+          "value": null
+        },
+        {
+          "type": "Goalkeeper Saves",
+          "value": "1"
+        },
+        {
+          "type": "Blocked Shots",
+          "value": "1"
+        },
+        {
+          "type": "Total passes",
+          "value": "22"
+        },
+        {
+          "type": "Passes accurate",
+          "value": "14"
+        },
+        {
+          "type": "Shots off Goal",
+          "value": "1"
+        },
+        {
+          "type": "Shots insidebox",
+          "value": "1"
+        },
+        {
+          "type": "Shots outsidebox",
+          "value": "1"
+        },
+        {
+          "type": "expected_goals",
+          "value": "0.06"
+        },
+        {
+          "type": "goals_prevented",
+          "value": "0"
+        },
+        {
+          "type": "Passes %",
+          "value": "64%"
+        }
+      ]
+    }
+  ],
+  "mockResolvedOdds": {
+    "oddsSource": "live",
+    "response": [
+      {
+        "bookmakers": [
+          {
+            "id": 0,
+            "name": "Replay Mock",
+            "bets": [
+              {
+                "id": 1,
+                "name": "Match Winner",
+                "values": [
+                  {
+                    "value": "Home",
+                    "odd": "1.111"
+                  },
+                  {
+                    "value": "Draw",
+                    "odd": "8.5"
+                  },
+                  {
+                    "value": "Away",
+                    "odd": "21"
+                  }
+                ]
+              },
+              {
+                "id": 2,
+                "name": "Over/Under",
+                "values": [
+                  {
+                    "value": "Over",
+                    "odd": "1.975",
+                    "handicap": "4"
+                  },
+                  {
+                    "value": "Under",
+                    "odd": "1.825",
+                    "handicap": "4"
+                  }
+                ]
+              },
+              {
+                "id": 3,
+                "name": "Corners Over/Under",
+                "values": [
+                  {
+                    "value": "Over",
+                    "odd": "2.2",
+                    "handicap": "13"
+                  },
+                  {
+                    "value": "Under",
+                    "odd": "2",
+                    "handicap": "13"
+                  }
+                ]
+              },
+              {
+                "id": 4,
+                "name": "Both Teams Score",
+                "values": [
+                  {
+                    "value": "Yes",
+                    "odd": "1.615"
+                  },
+                  {
+                    "value": "No",
+                    "odd": "2.2"
+                  }
+                ]
+              },
+              {
+                "id": 5,
+                "name": "Asian Handicap",
+                "values": [
+                  {
+                    "value": "Home",
+                    "odd": "1.015",
+                    "handicap": "1"
+                  },
+                  {
+                    "value": "Away",
+                    "odd": "6.5",
+                    "handicap": "1"
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    ],
+    "oddsFetchedAt": null,
+    "freshness": "fresh",
+    "cacheStatus": "hit"
+  },
+  "previousRecommendations": [],
+  "metadata": {
+    "recommendationId": 12455,
+    "originalPromptVersion": "v6-betting-discipline-c",
+    "originalAiModel": "gemini-3-pro-preview",
+    "originalBetMarket": "corners_over_13",
+    "originalSelection": "Corners Over 13 @2.2",
+    "originalResult": "loss",
+    "originalPnl": -3,
+    "minute": 15,
+    "score": "0-0",
+    "status": "1H",
+    "league": "Jupiler Pro League",
+    "homeTeam": "Club Brugge KV",
+    "awayTeam": "Anderlecht",
+    "evidenceMode": "full_live_data",
+    "prematchStrength": "moderate",
+    "profileCoverageBand": "strong",
+    "overlayCoverageBand": "none",
+    "policyImpactBand": "clean"
+  },
+  "settlementContext": {
+    "matchId": "1536979",
+    "homeTeam": "Club Brugge KV",
+    "awayTeam": "Anderlecht",
+    "finalStatus": "FT",
+    "homeScore": 4,
+    "awayScore": 2,
+    "regularHomeScore": 4,
+    "regularAwayScore": 2,
+    "settlementStats": [
+      {
+        "away": 6,
+        "home": 8,
+        "type": "Shots on Goal"
+      },
+      {
+        "away": 4,
+        "home": 8,
+        "type": "Shots off Goal"
+      },
+      {
+        "away": 13,
+        "home": 28,
+        "type": "Total Shots"
+      },
+      {
+        "away": 3,
+        "home": 12,
+        "type": "Blocked Shots"
+      },
+      {
+        "away": 10,
+        "home": 23,
+        "type": "Shots insidebox"
+      },
+      {
+        "away": 3,
+        "home": 5,
+        "type": "Shots outsidebox"
+      },
+      {
+        "away": 14,
+        "home": 11,
+        "type": "Fouls"
+      },
+      {
+        "away": 2,
+        "home": 8,
+        "type": "Corner Kicks"
+      },
+      {
+        "away": 1,
+        "home": 0,
+        "type": "Offsides"
+      },
+      {
+        "away": "41%",
+        "home": "59%",
+        "type": "Ball Possession"
+      },
+      {
+        "away": 1,
+        "home": 2,
+        "type": "Yellow Cards"
+      },
+      {
+        "away": null,
+        "home": null,
+        "type": "Red Cards"
+      },
+      {
+        "away": 3,
+        "home": 4,
+        "type": "Goalkeeper Saves"
+      },
+      {
+        "away": 368,
+        "home": 517,
+        "type": "Total passes"
+      },
+      {
+        "away": 288,
+        "home": 445,
+        "type": "Passes accurate"
+      },
+      {
+        "away": "78%",
+        "home": "86%",
+        "type": "Passes %"
+      },
+      {
+        "away": "1.60",
+        "home": "2.21",
+        "type": "expected_goals"
+      },
+      {
+        "away": 0,
+        "home": 0,
+        "type": "goals_prevented"
+      }
+    ]
+  }
+}

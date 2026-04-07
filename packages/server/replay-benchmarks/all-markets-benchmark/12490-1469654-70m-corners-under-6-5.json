@@ -1,0 +1,457 @@
+{
+  "name": "12490-1469654-70m-corners-under-6-5",
+  "matchId": "1469654",
+  "fixture": {
+    "fixture": {
+      "id": 1469654,
+      "referee": null,
+      "timezone": "UTC",
+      "date": "2026-04-07T09:00:00.000Z",
+      "timestamp": 1775552400,
+      "periods": {
+        "first": null,
+        "second": null
+      },
+      "venue": {
+        "id": null,
+        "name": "AAMI Park",
+        "city": null
+      },
+      "status": {
+        "long": "2H",
+        "short": "2H",
+        "elapsed": 70
+      }
+    },
+    "league": {
+      "id": 188,
+      "name": "A-League",
+      "country": "",
+      "logo": "",
+      "flag": null,
+      "season": 0,
+      "round": ""
+    },
+    "teams": {
+      "home": {
+        "id": 0,
+        "name": "Melbourne City",
+        "logo": "",
+        "winner": null
+      },
+      "away": {
+        "id": 0,
+        "name": "Central Coast Mariners",
+        "logo": "",
+        "winner": null
+      }
+    },
+    "goals": {
+      "home": 2,
+      "away": 0
+    },
+    "score": {
+      "halftime": {
+        "home": null,
+        "away": null
+      },
+      "fulltime": {
+        "home": 2,
+        "away": 0
+      }
+    }
+  },
+  "watchlistEntry": {
+    "match_id": "1469654",
+    "league": "A-League",
+    "home_team": "Melbourne City",
+    "away_team": "Central Coast Mariners",
+    "mode": "B",
+    "status": "active",
+    "custom_conditions": "",
+    "date": "2026-04-07",
+    "kickoff": "18:00:00",
+    "strategic_context": null
+  },
+  "pipelineOptions": {
+    "forceAnalyze": true,
+    "skipProceedGate": true,
+    "skipStalenessGate": true
+  },
+  "statistics": [
+    {
+      "team": {
+        "id": 0,
+        "name": "Melbourne City",
+        "logo": ""
+      },
+      "statistics": [
+        {
+          "type": "Ball Possession",
+          "value": "60%"
+        },
+        {
+          "type": "Total Shots",
+          "value": "13"
+        },
+        {
+          "type": "Shots on Goal",
+          "value": "6"
+        },
+        {
+          "type": "Corner Kicks",
+          "value": "1"
+        },
+        {
+          "type": "Fouls",
+          "value": "11"
+        },
+        {
+          "type": "Offsides",
+          "value": "1"
+        },
+        {
+          "type": "Yellow Cards",
+          "value": "1"
+        },
+        {
+          "type": "Red Cards",
+          "value": null
+        },
+        {
+          "type": "Goalkeeper Saves",
+          "value": "1"
+        },
+        {
+          "type": "Blocked Shots",
+          "value": "5"
+        },
+        {
+          "type": "Total passes",
+          "value": "411"
+        },
+        {
+          "type": "Passes accurate",
+          "value": "326"
+        },
+        {
+          "type": "Shots off Goal",
+          "value": "2"
+        },
+        {
+          "type": "Shots insidebox",
+          "value": "9"
+        },
+        {
+          "type": "Shots outsidebox",
+          "value": "4"
+        },
+        {
+          "type": "expected_goals",
+          "value": null
+        },
+        {
+          "type": "goals_prevented",
+          "value": null
+        },
+        {
+          "type": "Passes %",
+          "value": "79%"
+        }
+      ]
+    },
+    {
+      "team": {
+        "id": 0,
+        "name": "Central Coast Mariners",
+        "logo": ""
+      },
+      "statistics": [
+        {
+          "type": "Ball Possession",
+          "value": "40%"
+        },
+        {
+          "type": "Total Shots",
+          "value": "9"
+        },
+        {
+          "type": "Shots on Goal",
+          "value": "1"
+        },
+        {
+          "type": "Corner Kicks",
+          "value": "3"
+        },
+        {
+          "type": "Fouls",
+          "value": "2"
+        },
+        {
+          "type": "Offsides",
+          "value": "0"
+        },
+        {
+          "type": "Yellow Cards",
+          "value": "1"
+        },
+        {
+          "type": "Red Cards",
+          "value": null
+        },
+        {
+          "type": "Goalkeeper Saves",
+          "value": "4"
+        },
+        {
+          "type": "Blocked Shots",
+          "value": "6"
+        },
+        {
+          "type": "Total passes",
+          "value": "269"
+        },
+        {
+          "type": "Passes accurate",
+          "value": "187"
+        },
+        {
+          "type": "Shots off Goal",
+          "value": "2"
+        },
+        {
+          "type": "Shots insidebox",
+          "value": "4"
+        },
+        {
+          "type": "Shots outsidebox",
+          "value": "5"
+        },
+        {
+          "type": "expected_goals",
+          "value": null
+        },
+        {
+          "type": "goals_prevented",
+          "value": null
+        },
+        {
+          "type": "Passes %",
+          "value": "70%"
+        }
+      ]
+    }
+  ],
+  "mockResolvedOdds": {
+    "oddsSource": "live",
+    "response": [
+      {
+        "bookmakers": [
+          {
+            "id": 0,
+            "name": "Replay Mock",
+            "bets": [
+              {
+                "id": 1,
+                "name": "Over/Under",
+                "values": [
+                  {
+                    "value": "Over",
+                    "odd": "1.8",
+                    "handicap": "2.75"
+                  },
+                  {
+                    "value": "Under",
+                    "odd": "2",
+                    "handicap": "2.75"
+                  }
+                ]
+              },
+              {
+                "id": 2,
+                "name": "Corners Over/Under",
+                "values": [
+                  {
+                    "value": "Over",
+                    "odd": "1.95",
+                    "handicap": "6.5"
+                  },
+                  {
+                    "value": "Under",
+                    "odd": "1.85",
+                    "handicap": "6.5"
+                  }
+                ]
+              },
+              {
+                "id": 3,
+                "name": "Both Teams Score",
+                "values": [
+                  {
+                    "value": "Yes",
+                    "odd": "3.5"
+                  },
+                  {
+                    "value": "No",
+                    "odd": "1.285"
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    ],
+    "oddsFetchedAt": null,
+    "freshness": "fresh",
+    "cacheStatus": "hit"
+  },
+  "previousRecommendations": [
+    {
+      "minute": 57,
+      "odds": "2.050",
+      "bet_market": "under_2.25",
+      "selection": "Under 2.25 Goals @2.05",
+      "score": "1-0",
+      "status": "2H",
+      "result": "loss",
+      "confidence": 7,
+      "stake_percent": "4.00",
+      "reasoning": "Following up on the previous Under 3.5 recommendation at minute 23, the match has continued to follow a low-event trajectory. By minute 57, the score remains 1-0 with only 4 combined shots on target (3 for Melbourne City, 1 for Central Coast Mariners). While the visitors made a triple substitution at minute 54 to chase the game, Melbourne City is effectively controlling the tempo with 60% possession and high passing accuracy. Under 2.25 Goals is highly attractive here: it yields a full win if no more goals are scored, and a half-win if exactly one more goal is scored. We only face a full loss if two or more goals arrive in the final 33 minutes, which contradicts the sluggish attacking metrics observed so far. Break-even is about 48.8%. My fair range is around 55-60%. Edge looks about 8%."
+    },
+    {
+      "minute": 23,
+      "odds": "1.909",
+      "bet_market": "under_3.5",
+      "selection": "Under 3.5 Goals @1.909",
+      "score": "1-0",
+      "status": "1H",
+      "result": "win",
+      "confidence": 6,
+      "stake_percent": "3.00",
+      "reasoning": "The match saw an early goal at minute 22, which has pushed the total goals line to 3.5. However, the underlying live stats reveal a very scrappy and low-rhythm game. There have been only 5 total shots combined in 23 minutes, and both teams are struggling with pass accuracy (Home 73%, Away 63%). This lack of sustained build-up play suggests the goal was an isolated event rather than the start of a highly open, attacking match. The market has overreacted to the early strike. At odds of 1.909, the break-even is about 52.4%. My fair range is around 62-65%. Edge looks about 10-12% for Under 3.5 goals."
+    }
+  ],
+  "metadata": {
+    "recommendationId": 12490,
+    "originalPromptVersion": "v4-evidence-hardened",
+    "originalAiModel": "gemini-3-pro-preview",
+    "originalBetMarket": "corners_under_6.5",
+    "originalSelection": "Corners Under 6.5 @1.85",
+    "originalResult": "loss",
+    "originalPnl": -4,
+    "minute": 70,
+    "score": "2-0",
+    "status": "2H",
+    "league": "A-League",
+    "homeTeam": "Melbourne City",
+    "awayTeam": "Central Coast Mariners",
+    "evidenceMode": "full_live_data",
+    "prematchStrength": "strong",
+    "profileCoverageBand": "strong",
+    "overlayCoverageBand": "none",
+    "policyImpactBand": "clean"
+  },
+  "settlementContext": {
+    "matchId": "1469654",
+    "homeTeam": "Melbourne City",
+    "awayTeam": "Central Coast Mariners",
+    "finalStatus": "FT",
+    "homeScore": 2,
+    "awayScore": 1,
+    "regularHomeScore": 2,
+    "regularAwayScore": 1,
+    "settlementStats": [
+      {
+        "away": 1,
+        "home": 7,
+        "type": "Shots on Goal"
+      },
+      {
+        "away": 2,
+        "home": 6,
+        "type": "Shots off Goal"
+      },
+      {
+        "away": 10,
+        "home": 19,
+        "type": "Total Shots"
+      },
+      {
+        "away": 7,
+        "home": 6,
+        "type": "Blocked Shots"
+      },
+      {
+        "away": 5,
+        "home": 12,
+        "type": "Shots insidebox"
+      },
+      {
+        "away": 5,
+        "home": 7,
+        "type": "Shots outsidebox"
+      },
+      {
+        "away": 7,
+        "home": 11,
+        "type": "Fouls"
+      },
+      {
+        "away": 4,
+        "home": 5,
+        "type": "Corner Kicks"
+      },
+      {
+        "away": 1,
+        "home": 1,
+        "type": "Offsides"
+      },
+      {
+        "away": "40%",
+        "home": "60%",
+        "type": "Ball Possession"
+      },
+      {
+        "away": 1,
+        "home": 1,
+        "type": "Yellow Cards"
+      },
+      {
+        "away": null,
+        "home": null,
+        "type": "Red Cards"
+      },
+      {
+        "away": 5,
+        "home": 1,
+        "type": "Goalkeeper Saves"
+      },
+      {
+        "away": 368,
+        "home": 555,
+        "type": "Total passes"
+      },
+      {
+        "away": 258,
+        "home": 443,
+        "type": "Passes accurate"
+      },
+      {
+        "away": "70%",
+        "home": "80%",
+        "type": "Passes %"
+      },
+      {
+        "away": null,
+        "home": null,
+        "type": "expected_goals"
+      },
+      {
+        "away": null,
+        "home": null,
+        "type": "goals_prevented"
+      }
+    ]
+  }
+}

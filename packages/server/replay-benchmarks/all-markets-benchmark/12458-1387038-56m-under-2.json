@@ -1,0 +1,432 @@
+{
+  "name": "12458-1387038-56m-under-2",
+  "matchId": "1387038",
+  "fixture": {
+    "fixture": {
+      "id": 1387038,
+      "referee": null,
+      "timezone": "UTC",
+      "date": "2026-04-06T12:00:00.000Z",
+      "timestamp": 1775476800,
+      "periods": {
+        "first": null,
+        "second": null
+      },
+      "venue": {
+        "id": null,
+        "name": "The Den",
+        "city": null
+      },
+      "status": {
+        "long": "2H",
+        "short": "2H",
+        "elapsed": 56
+      }
+    },
+    "league": {
+      "id": 40,
+      "name": "Championship",
+      "country": "",
+      "logo": "",
+      "flag": null,
+      "season": 0,
+      "round": ""
+    },
+    "teams": {
+      "home": {
+        "id": 0,
+        "name": "Millwall",
+        "logo": "",
+        "winner": null
+      },
+      "away": {
+        "id": 0,
+        "name": "Norwich",
+        "logo": "",
+        "winner": null
+      }
+    },
+    "goals": {
+      "home": 0,
+      "away": 0
+    },
+    "score": {
+      "halftime": {
+        "home": null,
+        "away": null
+      },
+      "fulltime": {
+        "home": 0,
+        "away": 0
+      }
+    }
+  },
+  "watchlistEntry": {
+    "match_id": "1387038",
+    "league": "Championship",
+    "home_team": "Millwall",
+    "away_team": "Norwich",
+    "mode": "B",
+    "status": "active",
+    "custom_conditions": "",
+    "date": "2026-04-06",
+    "kickoff": "21:00:00",
+    "strategic_context": null
+  },
+  "pipelineOptions": {
+    "forceAnalyze": true,
+    "skipProceedGate": true,
+    "skipStalenessGate": true
+  },
+  "statistics": [
+    {
+      "team": {
+        "id": 0,
+        "name": "Millwall",
+        "logo": ""
+      },
+      "statistics": [
+        {
+          "type": "Ball Possession",
+          "value": "41%"
+        },
+        {
+          "type": "Total Shots",
+          "value": "5"
+        },
+        {
+          "type": "Shots on Goal",
+          "value": "0"
+        },
+        {
+          "type": "Corner Kicks",
+          "value": "1"
+        },
+        {
+          "type": "Fouls",
+          "value": "7"
+        },
+        {
+          "type": "Offsides",
+          "value": "3"
+        },
+        {
+          "type": "Yellow Cards",
+          "value": "0"
+        },
+        {
+          "type": "Red Cards",
+          "value": null
+        },
+        {
+          "type": "Goalkeeper Saves",
+          "value": "2"
+        },
+        {
+          "type": "Blocked Shots",
+          "value": "0"
+        },
+        {
+          "type": "Total passes",
+          "value": "171"
+        },
+        {
+          "type": "Passes accurate",
+          "value": "117"
+        },
+        {
+          "type": "Shots off Goal",
+          "value": "5"
+        },
+        {
+          "type": "Shots insidebox",
+          "value": "4"
+        },
+        {
+          "type": "Shots outsidebox",
+          "value": "1"
+        },
+        {
+          "type": "expected_goals",
+          "value": "0.47"
+        },
+        {
+          "type": "goals_prevented",
+          "value": "0"
+        },
+        {
+          "type": "Passes %",
+          "value": "68%"
+        }
+      ]
+    },
+    {
+      "team": {
+        "id": 0,
+        "name": "Norwich",
+        "logo": ""
+      },
+      "statistics": [
+        {
+          "type": "Ball Possession",
+          "value": "59%"
+        },
+        {
+          "type": "Total Shots",
+          "value": "8"
+        },
+        {
+          "type": "Shots on Goal",
+          "value": "2"
+        },
+        {
+          "type": "Corner Kicks",
+          "value": "3"
+        },
+        {
+          "type": "Fouls",
+          "value": "4"
+        },
+        {
+          "type": "Offsides",
+          "value": "2"
+        },
+        {
+          "type": "Yellow Cards",
+          "value": "1"
+        },
+        {
+          "type": "Red Cards",
+          "value": null
+        },
+        {
+          "type": "Goalkeeper Saves",
+          "value": "0"
+        },
+        {
+          "type": "Blocked Shots",
+          "value": "4"
+        },
+        {
+          "type": "Total passes",
+          "value": "251"
+        },
+        {
+          "type": "Passes accurate",
+          "value": "199"
+        },
+        {
+          "type": "Shots off Goal",
+          "value": "2"
+        },
+        {
+          "type": "Shots insidebox",
+          "value": "7"
+        },
+        {
+          "type": "Shots outsidebox",
+          "value": "1"
+        },
+        {
+          "type": "expected_goals",
+          "value": "1.17"
+        },
+        {
+          "type": "goals_prevented",
+          "value": "0"
+        },
+        {
+          "type": "Passes %",
+          "value": "79%"
+        }
+      ]
+    }
+  ],
+  "mockResolvedOdds": {
+    "oddsSource": "live",
+    "response": [
+      {
+        "bookmakers": [
+          {
+            "id": 0,
+            "name": "Replay Mock",
+            "bets": [
+              {
+                "id": 1,
+                "name": "Over/Under",
+                "values": [
+                  {
+                    "value": "Over",
+                    "odd": "1.775",
+                    "handicap": "2"
+                  },
+                  {
+                    "value": "Under",
+                    "odd": "2.1",
+                    "handicap": "2"
+                  }
+                ]
+              },
+              {
+                "id": 2,
+                "name": "Corners Over/Under",
+                "values": [
+                  {
+                    "value": "Over",
+                    "odd": "2.5",
+                    "handicap": "8"
+                  },
+                  {
+                    "value": "Under",
+                    "odd": "2.1",
+                    "handicap": "8"
+                  }
+                ]
+              },
+              {
+                "id": 3,
+                "name": "Both Teams Score",
+                "values": [
+                  {
+                    "value": "Yes",
+                    "odd": "2"
+                  },
+                  {
+                    "value": "No",
+                    "odd": "1.75"
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    ],
+    "oddsFetchedAt": null,
+    "freshness": "fresh",
+    "cacheStatus": "hit"
+  },
+  "previousRecommendations": [],
+  "metadata": {
+    "recommendationId": 12458,
+    "originalPromptVersion": "v6-betting-discipline-c",
+    "originalAiModel": "gemini-3-pro-preview",
+    "originalBetMarket": "under_2",
+    "originalSelection": "Under 2 Goals @2.1",
+    "originalResult": "loss",
+    "originalPnl": -3,
+    "minute": 56,
+    "score": "0-0",
+    "status": "2H",
+    "league": "Championship",
+    "homeTeam": "Millwall",
+    "awayTeam": "Norwich",
+    "evidenceMode": "full_live_data",
+    "prematchStrength": "strong",
+    "profileCoverageBand": "strong",
+    "overlayCoverageBand": "none",
+    "policyImpactBand": "clean"
+  },
+  "settlementContext": {
+    "matchId": "1387038",
+    "homeTeam": "Millwall",
+    "awayTeam": "Norwich",
+    "finalStatus": "FT",
+    "homeScore": 1,
+    "awayScore": 2,
+    "regularHomeScore": 1,
+    "regularAwayScore": 2,
+    "settlementStats": [
+      {
+        "away": 5,
+        "home": 2,
+        "type": "Shots on Goal"
+      },
+      {
+        "away": 3,
+        "home": 6,
+        "type": "Shots off Goal"
+      },
+      {
+        "away": 12,
+        "home": 10,
+        "type": "Total Shots"
+      },
+      {
+        "away": 4,
+        "home": 2,
+        "type": "Blocked Shots"
+      },
+      {
+        "away": 10,
+        "home": 8,
+        "type": "Shots insidebox"
+      },
+      {
+        "away": 2,
+        "home": 2,
+        "type": "Shots outsidebox"
+      },
+      {
+        "away": 7,
+        "home": 12,
+        "type": "Fouls"
+      },
+      {
+        "away": 5,
+        "home": 2,
+        "type": "Corner Kicks"
+      },
+      {
+        "away": 3,
+        "home": 4,
+        "type": "Offsides"
+      },
+      {
+        "away": "54%",
+        "home": "46%",
+        "type": "Ball Possession"
+      },
+      {
+        "away": 2,
+        "home": 1,
+        "type": "Yellow Cards"
+      },
+      {
+        "away": null,
+        "home": null,
+        "type": "Red Cards"
+      },
+      {
+        "away": 1,
+        "home": 3,
+        "type": "Goalkeeper Saves"
+      },
+      {
+        "away": 367,
+        "home": 302,
+        "type": "Total passes"
+      },
+      {
+        "away": 273,
+        "home": 197,
+        "type": "Passes accurate"
+      },
+      {
+        "away": "74%",
+        "home": "65%",
+        "type": "Passes %"
+      },
+      {
+        "away": "2.19",
+        "home": "0.92",
+        "type": "expected_goals"
+      },
+      {
+        "away": 0,
+        "home": 0,
+        "type": "goals_prevented"
+      }
+    ]
+  }
+}

@@ -1,0 +1,19 @@
+{
+  "generatedAt": "2026-04-06T22:35:55.629Z",
+  "totalScenarios": 2,
+  "contaminatedCount": 1,
+  "rows": [
+    {
+      "name": "smoke-contaminated-same-line",
+      "recommendationId": 900002,
+      "originalBetMarket": "under_10.5",
+      "minute": 60,
+      "score": "1-1",
+      "currentGoals": 2,
+      "goalsLine": 10,
+      "cornersLine": 10,
+      "contaminated": true,
+      "reason": "Removed goals O/U market from prompt: goals line 10 exactly matches corners line 10 while current total goals are only 2, which strongly suggests corners-market contamination or malformed odds canonicalization."
+    }
+  ]
+}

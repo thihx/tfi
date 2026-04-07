@@ -1,0 +1,431 @@
+{
+  "name": "12245-1391109-44m-under-3-25",
+  "matchId": "1391109",
+  "fixture": {
+    "fixture": {
+      "id": 1391109,
+      "referee": null,
+      "timezone": "UTC",
+      "date": "2026-04-05T19:00:00.000Z",
+      "timestamp": 1775415600,
+      "periods": {
+        "first": null,
+        "second": null
+      },
+      "venue": {
+        "id": null,
+        "name": "Estadio Mendizorrotza",
+        "city": null
+      },
+      "status": {
+        "long": "1H",
+        "short": "1H",
+        "elapsed": 44
+      }
+    },
+    "league": {
+      "id": 140,
+      "name": "La Liga",
+      "country": "",
+      "logo": "",
+      "flag": null,
+      "season": 0,
+      "round": ""
+    },
+    "teams": {
+      "home": {
+        "id": 542,
+        "name": "Alaves",
+        "logo": "",
+        "winner": null
+      },
+      "away": {
+        "id": 727,
+        "name": "Osasuna",
+        "logo": "",
+        "winner": null
+      }
+    },
+    "goals": {
+      "home": 1,
+      "away": 1
+    },
+    "score": {
+      "halftime": {
+        "home": null,
+        "away": null
+      },
+      "fulltime": {
+        "home": 1,
+        "away": 1
+      }
+    }
+  },
+  "watchlistEntry": {
+    "match_id": "1391109",
+    "league": "La Liga",
+    "home_team": "Alaves",
+    "away_team": "Osasuna",
+    "mode": "B",
+    "status": "active",
+    "custom_conditions": "",
+    "date": "2026-04-05",
+    "kickoff": "19:00:00",
+    "strategic_context": null
+  },
+  "pipelineOptions": {
+    "forceAnalyze": true,
+    "skipProceedGate": true,
+    "skipStalenessGate": true
+  },
+  "statistics": [
+    {
+      "team": {
+        "id": 0,
+        "name": "Alaves",
+        "logo": ""
+      },
+      "statistics": [
+        {
+          "type": "Ball Possession",
+          "value": "45%"
+        },
+        {
+          "type": "Total Shots",
+          "value": "9"
+        },
+        {
+          "type": "Shots on Goal",
+          "value": "3"
+        },
+        {
+          "type": "Corner Kicks",
+          "value": "4"
+        },
+        {
+          "type": "Fouls",
+          "value": "3"
+        },
+        {
+          "type": "Offsides",
+          "value": "0"
+        },
+        {
+          "type": "Yellow Cards",
+          "value": "1"
+        },
+        {
+          "type": "Red Cards",
+          "value": null
+        },
+        {
+          "type": "Goalkeeper Saves",
+          "value": "1"
+        },
+        {
+          "type": "Blocked Shots",
+          "value": "3"
+        },
+        {
+          "type": "Total passes",
+          "value": "160"
+        },
+        {
+          "type": "Passes accurate",
+          "value": "128"
+        },
+        {
+          "type": "Shots off Goal",
+          "value": "3"
+        },
+        {
+          "type": "Shots insidebox",
+          "value": "6"
+        },
+        {
+          "type": "Shots outsidebox",
+          "value": "3"
+        },
+        {
+          "type": "expected_goals",
+          "value": "0.55"
+        },
+        {
+          "type": "goals_prevented",
+          "value": "0"
+        },
+        {
+          "type": "Passes %",
+          "value": "80%"
+        }
+      ]
+    },
+    {
+      "team": {
+        "id": 0,
+        "name": "Osasuna",
+        "logo": ""
+      },
+      "statistics": [
+        {
+          "type": "Ball Possession",
+          "value": "55%"
+        },
+        {
+          "type": "Total Shots",
+          "value": "3"
+        },
+        {
+          "type": "Shots on Goal",
+          "value": "2"
+        },
+        {
+          "type": "Corner Kicks",
+          "value": "1"
+        },
+        {
+          "type": "Fouls",
+          "value": "8"
+        },
+        {
+          "type": "Offsides",
+          "value": "1"
+        },
+        {
+          "type": "Yellow Cards",
+          "value": "2"
+        },
+        {
+          "type": "Red Cards",
+          "value": null
+        },
+        {
+          "type": "Goalkeeper Saves",
+          "value": "4"
+        },
+        {
+          "type": "Blocked Shots",
+          "value": "1"
+        },
+        {
+          "type": "Total passes",
+          "value": "202"
+        },
+        {
+          "type": "Passes accurate",
+          "value": "167"
+        },
+        {
+          "type": "Shots off Goal",
+          "value": "0"
+        },
+        {
+          "type": "Shots insidebox",
+          "value": "3"
+        },
+        {
+          "type": "Shots outsidebox",
+          "value": "0"
+        },
+        {
+          "type": "expected_goals",
+          "value": "0.24"
+        },
+        {
+          "type": "goals_prevented",
+          "value": "0"
+        },
+        {
+          "type": "Passes %",
+          "value": "83%"
+        }
+      ]
+    }
+  ],
+  "mockResolvedOdds": {
+    "oddsSource": "live",
+    "response": [
+      {
+        "bookmakers": [
+          {
+            "id": 0,
+            "name": "Replay Mock",
+            "bets": [
+              {
+                "id": 1,
+                "name": "Over/Under",
+                "values": [
+                  {
+                    "value": "Over",
+                    "odd": "1.925",
+                    "handicap": "3.25"
+                  },
+                  {
+                    "value": "Under",
+                    "odd": "1.925",
+                    "handicap": "3.25"
+                  }
+                ]
+              },
+              {
+                "id": 2,
+                "name": "Corners Over/Under",
+                "values": [
+                  {
+                    "value": "Over",
+                    "odd": "2.2",
+                    "handicap": "10"
+                  },
+                  {
+                    "value": "Under",
+                    "odd": "2.2",
+                    "handicap": "10"
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    ],
+    "oddsFetchedAt": null,
+    "freshness": "fresh",
+    "cacheStatus": "hit"
+  },
+  "previousRecommendations": [
+    {
+      "minute": 21,
+      "odds": "1.875",
+      "bet_market": "under_3",
+      "selection": "Under 3 Goals @1.875",
+      "score": "0-1",
+      "status": "1H",
+      "result": "loss",
+      "confidence": 6,
+      "stake_percent": "3.00",
+      "reasoning": "Despite an early goal by Osasuna in the 4th minute, the match dynamics have settled into a very slow and uncreative rhythm. In 21 minutes, the teams have combined for just 5 total shots (2 on target) and a remarkably low expected goals (xG) total of 0.31. Furthermore, the passing volume is exceptionally low (under 150 combined passes), indicating a lack of sustained attacking pressure or fluidity from either side. The early goal has artificially inflated the live total line to 3.0. Break-even about 53.3%. My fair range is around 60-62%. Edge looks about 7-8%. This is a solid value play as Osasuna is likely to protect their lead while Alaves currently lacks the offensive sharpness to turn this into a shootout, offering the safety of a push if exactly three goals are scored."
+    }
+  ],
+  "metadata": {
+    "recommendationId": 12245,
+    "originalPromptVersion": "v4-evidence-hardened",
+    "originalAiModel": "gemini-3-pro-preview",
+    "originalBetMarket": "under_3.25",
+    "originalSelection": "Under 3.25 Goals @1.925",
+    "originalResult": "loss",
+    "originalPnl": -4,
+    "minute": 44,
+    "score": "1-1",
+    "status": "1H",
+    "league": "La Liga",
+    "homeTeam": "Alaves",
+    "awayTeam": "Osasuna",
+    "evidenceMode": "full_live_data",
+    "prematchStrength": "strong",
+    "profileCoverageBand": "strong",
+    "overlayCoverageBand": "none",
+    "policyImpactBand": "clean"
+  },
+  "settlementContext": {
+    "matchId": "1391109",
+    "homeTeam": "Alaves",
+    "awayTeam": "Osasuna",
+    "finalStatus": "FT",
+    "homeScore": 2,
+    "awayScore": 2,
+    "regularHomeScore": 2,
+    "regularAwayScore": 2,
+    "settlementStats": [
+      {
+        "away": 5,
+        "home": 6,
+        "type": "Shots on Goal"
+      },
+      {
+        "away": 0,
+        "home": 8,
+        "type": "Shots off Goal"
+      },
+      {
+        "away": 8,
+        "home": 17,
+        "type": "Total Shots"
+      },
+      {
+        "away": 3,
+        "home": 3,
+        "type": "Blocked Shots"
+      },
+      {
+        "away": 5,
+        "home": 13,
+        "type": "Shots insidebox"
+      },
+      {
+        "away": 3,
+        "home": 4,
+        "type": "Shots outsidebox"
+      },
+      {
+        "away": 17,
+        "home": 7,
+        "type": "Fouls"
+      },
+      {
+        "away": 1,
+        "home": 7,
+        "type": "Corner Kicks"
+      },
+      {
+        "away": 3,
+        "home": 1,
+        "type": "Offsides"
+      },
+      {
+        "away": "52%",
+        "home": "48%",
+        "type": "Ball Possession"
+      },
+      {
+        "away": 4,
+        "home": 2,
+        "type": "Yellow Cards"
+      },
+      {
+        "away": 1,
+        "home": 0,
+        "type": "Red Cards"
+      },
+      {
+        "away": 5,
+        "home": 3,
+        "type": "Goalkeeper Saves"
+      },
+      {
+        "away": 412,
+        "home": 368,
+        "type": "Total passes"
+      },
+      {
+        "away": 341,
+        "home": 298,
+        "type": "Passes accurate"
+      },
+      {
+        "away": "83%",
+        "home": "81%",
+        "type": "Passes %"
+      },
+      {
+        "away": "1.30",
+        "home": "2.02",
+        "type": "expected_goals"
+      },
+      {
+        "away": 0,
+        "home": 0,
+        "type": "goals_prevented"
+      }
+    ]
+  }
+}

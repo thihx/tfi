@@ -17,6 +17,13 @@ coverage/
 .env.azure
 .env.e2e
 
+# Server replay integration (DB export + LLM cache)
+packages/server/replay-work/
+packages/server/replay-benchmarks/goals-totals-benchmark/**/*.json
+packages/server/replay-benchmarks/eval-last-summary.json
+packages/server/replay-benchmarks/eval-last-summary.md
+packages/server/replay-benchmarks/eval-last-cases.json
+
 # Playwright auth state (contains real tokens)
 e2e/.auth.json
 

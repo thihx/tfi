@@ -78,4 +78,51 @@ describe('odds canonical parser', () => {
       under: 2.2,
     });
   });
+
+  test('picks main plus nearest adjacent goals O/U ladder line', () => {
+    const result = buildOddsCanonical([{
+      bookmakers: [{
+        name: 'Replay Mock',
+        bets: [
+          {
+            name: 'Over/Under',
+            values: [
+              { value: 'Over', odd: '1.91', handicap: '2.5' },
+              { value: 'Under', odd: '1.93', handicap: '2.5' },
+              { value: 'Over', odd: '1.85', handicap: '3.0' },
+              { value: 'Under', odd: '2.00', handicap: '3.0' },
+            ],
+          },
+        ],
+      }],
+    }]);
+
+    expect(result.canonical.ou?.line).toBe(2.5);
+    expect(result.canonical.ou_adjacent?.line).toBe(3);
+  });
+
+  test('picks main plus nearest adjacent Asian handicap line', () => {
+    const result = buildOddsCanonical([{
+      bookmakers: [{
+        name: 'Replay Mock',
+        bets: [
+          {
+            name: 'Asian Handicap',
+            values: [
+              { value: '1', odd: '1.90', handicap: '-0.75' },
+              { value: '2', odd: '1.92', handicap: '+0.75' },
+              { value: '1', odd: '1.88', handicap: '-0.25' },
+              { value: '2', odd: '1.95', handicap: '+0.25' },
+              { value: '1', odd: '1.85', handicap: '-1.0' },
+              { value: '2', odd: '1.98', handicap: '+1.0' },
+            ],
+          },
+        ],
+      }],
+    }]);
+
+    expect(result.canonical.ah?.line).toBe(-0.75);
+    // |-0.75−(−1)| = 0.25 < |-0.75−(−0.25)| = 0.5 → adjacent is −1
+    expect(result.canonical.ah_adjacent?.line).toBe(-1);
+  });
 });

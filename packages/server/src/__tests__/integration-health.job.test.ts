@@ -284,7 +284,7 @@ describe('integrationHealthJob — multiple services', () => {
     mockCheckAll.mockResolvedValue(makeSnapshot([
       makeService('postgresql', 'HEALTHY'),
       makeService('redis', 'NOT_CONFIGURED'),
-      makeService('odds-api', 'NOT_CONFIGURED'),
+      makeService('google-oauth', 'NOT_CONFIGURED'),
     ]));
 
     const { integrationHealthJob } = await import('../jobs/integration-health.job.js');

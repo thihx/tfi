@@ -1,5 +1,5 @@
-import { mkdirSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
-import { dirname, extname, resolve } from 'node:path';
+import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { dirname, resolve } from 'node:path';
 import { config } from '../config.js';
 import { runReplayScenario } from '../lib/pipeline-replay.js';
 import type { SettledReplayScenario } from '../lib/db-replay-scenarios.js';
@@ -18,6 +18,7 @@ import {
   loadReplayLlmCache,
   saveReplayLlmCache,
 } from '../lib/replay-llm-cache.js';
+import { listReplayScenarioJsonBasenames } from '../lib/replay-scenario-files.js';
 
 interface EvaluateArgs {
   dirPath: string;
@@ -27,10 +28,14 @@ interface EvaluateArgs {
   allowRealLlm: boolean;
   oddsMode: 'recorded' | 'live' | 'mock';
   delayMs: number;
+  /** Cap cohort size after manifest order (first N scenarios). */
+  maxScenarios?: number;
   reportJsonPath?: string;
   reportMdPath?: string;
   reportCasesJsonPath?: string;
   llmCacheDir?: string;
+  /** Run recommendation-policy after LLM parse (production parity with settled-replay trace). */
+  applySettledReplayPolicy?: boolean;
 }
 
 function parseArgs(argv: string[]): EvaluateArgs {
@@ -45,6 +50,8 @@ function parseArgs(argv: string[]): EvaluateArgs {
   let reportMdPath: string | undefined;
   let reportCasesJsonPath: string | undefined;
   let llmCacheDir: string | undefined;
+  let maxScenarios: number | undefined;
+  let applySettledReplayPolicy = false;
 
   for (let i = 0; i < argv.length; i++) {
     const arg = argv[i];
@@ -103,10 +110,19 @@ function parseArgs(argv: string[]): EvaluateArgs {
       i++;
       continue;
     }
+    if (arg === '--max-scenarios' && next) {
+      maxScenarios = Math.max(1, Math.min(2000, Number(next) || 0));
+      i++;
+      continue;
+    }
+    if (arg === '--apply-replay-policy') {
+      applySettledReplayPolicy = true;
+      continue;
+    }
   }
 
   if (!dirPath) {
-    throw new Error('Usage: tsx src/scripts/evaluate-settled-prompt-variants.ts --dir <folder> [--prompt-version <version>]... [--llm real|mock] [--model <gemini-model>] [--allow-real-llm] [--odds recorded|live|mock] [--delay-ms N] [--llm-cache-dir <dir>] [--report-json <file>] [--report-md <file>] [--report-cases-json <file>]');
+    throw new Error('Usage: tsx src/scripts/evaluate-settled-prompt-variants.ts --dir <folder> [--prompt-version <version>]... [--llm real|mock] [--model <gemini-model>] [--allow-real-llm] [--odds recorded|live|mock] [--delay-ms N] [--max-scenarios N] [--apply-replay-policy] [--llm-cache-dir <dir>] [--report-json <file>] [--report-md <file>] [--report-cases-json <file>]');
   }
 
   const fallbackPromptVersions = [
@@ -126,6 +142,8 @@ function parseArgs(argv: string[]): EvaluateArgs {
     reportMdPath,
     reportCasesJsonPath,
     llmCacheDir,
+    maxScenarios,
+    applySettledReplayPolicy,
   };
 }
 
@@ -144,9 +162,10 @@ async function evaluateScenarioAgainstSettlement(
   llmModel: string,
   oddsMode: EvaluateArgs['oddsMode'],
   llmCacheDir?: string,
+  applySettledReplayPolicy?: boolean,
 ): Promise<EvaluatedReplayCase> {
   const cachePath = llmMode === 'real' && llmCacheDir
-    ? buildReplayLlmCachePath(llmCacheDir, scenario, promptVersion, oddsMode)
+    ? buildReplayLlmCachePath(llmCacheDir, scenario, promptVersion, oddsMode, 'settled-trace')
     : null;
   const cached = cachePath ? loadReplayLlmCache(cachePath) : null;
   const output = await runReplayScenario({
@@ -162,6 +181,8 @@ async function evaluateScenarioAgainstSettlement(
     advisoryOnly: true,
     promptVersionOverride: promptVersion as never,
     capturedAiText: cached?.aiText,
+    settledReplayApprovedTrace: true,
+    applySettledReplayPolicy: applySettledReplayPolicy === true,
   });
 
   if (cachePath && !cached && output.result.debug?.aiText) {
@@ -237,9 +258,26 @@ async function evaluateScenarioAgainstSettlement(
   );
 }
 
+function formatSideMarketKpis(variant: ReturnType<typeof summarizeSettledReplayVariant>): string[] {
+  const x2 = variant.byMarketFamily.find((f) => f.family === '1x2');
+  const ah = variant.byMarketFamily.find((f) => f.family === 'asian_handicap');
+  const pushTotal = variant.pushCount;
+  const x2n = x2?.pushCount ?? 0;
+  const ahn = ah?.pushCount ?? 0;
+  const share = (count: number) => (pushTotal > 0 ? (count / pushTotal) * 100 : 0);
+  return [
+    '### Side markets KPI (1X2 / Asian Handicap)',
+    '',
+    `- 1X2 pushes: ${x2n} (${share(x2n).toFixed(2)}% of actionable pushes, ${((x2?.pushRateOfCohort ?? 0) * 100).toFixed(2)}% of cohort)`,
+    `- Asian Handicap pushes: ${ahn} (${share(ahn).toFixed(2)}% of actionable pushes, ${((ah?.pushRateOfCohort ?? 0) * 100).toFixed(2)}% of cohort)`,
+    '',
+  ];
+}
+
 function buildMarkdownReport(summary: {
   generatedAt: string;
   totalScenarios: number;
+  applySettledReplayPolicy?: boolean;
   promptVersions: string[];
   variants: ReturnType<typeof summarizeSettledReplayVariant>[];
 }): string {
@@ -248,6 +286,7 @@ function buildMarkdownReport(summary: {
     '',
     `- Generated: ${summary.generatedAt}`,
     `- Scenarios: ${summary.totalScenarios}`,
+    `- Post-parse recommendation policy: ${summary.applySettledReplayPolicy ? 'applied (production parity)' : 'skipped (settled-replay default)'}`,
     `- Prompt versions: ${summary.promptVersions.join(', ') || '(none)'}`,
     '',
   ];
@@ -265,10 +304,19 @@ function buildMarkdownReport(summary: {
     lines.push(`- Replay P/L: ${variant.totalPnl.toFixed(2)} units`);
     lines.push(`- Replay ROI: ${(variant.roi * 100).toFixed(2)}%`);
     lines.push('');
+    lines.push(...formatSideMarketKpis(variant));
     lines.push('| Cohort | Total | Push | No Bet | Under | Over | Under Share | Accuracy | Avg Odds | Break-even | P/L | ROI |');
     lines.push('| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |');
     for (const row of variant.byMinuteBand) {
       lines.push(`| Minute ${row.bucket} | ${row.total} | ${row.pushCount} | ${row.noBetCount} | ${row.goalsUnderCount} | ${row.goalsOverCount} | ${(row.underShare * 100).toFixed(2)}% | ${(row.accuracy * 100).toFixed(2)}% | ${row.avgOdds.toFixed(2)} | ${(row.avgBreakEvenRate * 100).toFixed(2)}% | ${row.totalPnl.toFixed(2)} | ${(row.roi * 100).toFixed(2)}% |`);
+    }
+    lines.push('');
+    lines.push('### Fine time windows (hotspot diagnosis)');
+    lines.push('');
+    lines.push('| Window | Total | Push | No Bet | Under | Over | Under Share | Accuracy | Avg Odds | Break-even | P/L | ROI |');
+    lines.push('| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |');
+    for (const row of variant.byFineTimeWindow) {
+      lines.push(`| ${row.bucket} | ${row.total} | ${row.pushCount} | ${row.noBetCount} | ${row.goalsUnderCount} | ${row.goalsOverCount} | ${(row.underShare * 100).toFixed(2)}% | ${(row.accuracy * 100).toFixed(2)}% | ${row.avgOdds.toFixed(2)} | ${(row.avgBreakEvenRate * 100).toFixed(2)}% | ${row.totalPnl.toFixed(2)} | ${(row.roi * 100).toFixed(2)}% |`);
     }
     lines.push('');
     lines.push('### By Evidence Mode');
@@ -287,6 +335,46 @@ function buildMarkdownReport(summary: {
       lines.push(`| ${row.bucket} | ${row.total} | ${row.pushCount} | ${row.noBetCount} | ${row.goalsUnderCount} | ${row.goalsOverCount} | ${(row.underShare * 100).toFixed(2)}% | ${(row.accuracy * 100).toFixed(2)}% | ${row.avgOdds.toFixed(2)} | ${(row.avgBreakEvenRate * 100).toFixed(2)}% | ${row.totalPnl.toFixed(2)} | ${(row.roi * 100).toFixed(2)}% |`);
     }
     lines.push('');
+    lines.push('### By market family (actionable pushes only)');
+    lines.push('');
+    lines.push('| Family | Pushes | Share of pushes | Push % of cohort | Wins | Losses | Win rate | Avg odds | Staked | P/L | ROI |');
+    lines.push('| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |');
+    for (const mf of variant.byMarketFamily) {
+      lines.push(
+        `| ${mf.family} | ${mf.pushCount} | ${(mf.shareOfActionable * 100).toFixed(2)}% | ${(mf.pushRateOfCohort * 100).toFixed(2)}% | ${mf.winCount} | ${mf.lossCount} | ${(mf.accuracy * 100).toFixed(2)}% | ${mf.avgOdds.toFixed(2)} | ${mf.totalStaked.toFixed(2)} | ${mf.totalPnl.toFixed(2)} | ${(mf.roi * 100).toFixed(2)}% |`,
+      );
+    }
+    lines.push('');
+    lines.push('### Top canonical markets (actionable pushes)');
+    lines.push('');
+    lines.push('| Market | Family | Pushes | Push % of cohort | Wins | Losses | Win rate | Avg odds | Staked | P/L | ROI |');
+    lines.push('| --- | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |');
+    for (const cm of variant.byCanonicalMarketTop) {
+      lines.push(
+        `| ${cm.canonicalMarket} | ${cm.family} | ${cm.pushCount} | ${(cm.pushRateOfCohort * 100).toFixed(2)}% | ${cm.winCount} | ${cm.lossCount} | ${(cm.accuracy * 100).toFixed(2)}% | ${cm.avgOdds.toFixed(2)} | ${cm.totalStaked.toFixed(2)} | ${cm.totalPnl.toFixed(2)} | ${(cm.roi * 100).toFixed(2)}% |`,
+      );
+    }
+    lines.push('');
+    lines.push('### Minute band × market family (push rate in band, win rate, ROI)');
+    lines.push('');
+    lines.push('| Minute | Family | Pushes | Band total | Push % in band | Wins | Losses | Win rate | Staked | P/L | ROI |');
+    lines.push('| --- | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |');
+    for (const cell of variant.byMinuteBandMarketFamily) {
+      lines.push(
+        `| ${cell.slice} | ${cell.family} | ${cell.pushCount} | ${cell.sliceTotal} | ${(cell.pushRateInSlice * 100).toFixed(2)}% | ${cell.winCount} | ${cell.lossCount} | ${(cell.accuracy * 100).toFixed(2)}% | ${cell.totalStaked.toFixed(2)} | ${cell.totalPnl.toFixed(2)} | ${(cell.roi * 100).toFixed(2)}% |`,
+      );
+    }
+    lines.push('');
+    lines.push('### Score state × market family');
+    lines.push('');
+    lines.push('| Score state | Family | Pushes | Slice total | Push % in slice | Wins | Losses | Win rate | Staked | P/L | ROI |');
+    lines.push('| --- | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |');
+    for (const cell of variant.byScoreStateMarketFamily) {
+      lines.push(
+        `| ${cell.slice} | ${cell.family} | ${cell.pushCount} | ${cell.sliceTotal} | ${(cell.pushRateInSlice * 100).toFixed(2)}% | ${cell.winCount} | ${cell.lossCount} | ${(cell.accuracy * 100).toFixed(2)}% | ${cell.totalStaked.toFixed(2)} | ${cell.totalPnl.toFixed(2)} | ${(cell.roi * 100).toFixed(2)}% |`,
+      );
+    }
+    lines.push('');
   }
 
   return lines.join('\n');
@@ -297,9 +385,10 @@ async function main(): Promise<void> {
   if (args.llmMode === 'real' && !args.allowRealLlm) {
     throw new Error('Refusing to run real-LLM replay without explicit opt-in. Re-run with --allow-real-llm or set ALLOW_REAL_LLM_REPLAY=true.');
   }
-  const files = readdirSync(args.dirPath)
-    .filter((name) => extname(name).toLowerCase() === '.json' && !name.startsWith('_'))
-    .sort((a, b) => a.localeCompare(b));
+  let files = listReplayScenarioJsonBasenames(args.dirPath);
+  if (typeof args.maxScenarios === 'number' && files.length > args.maxScenarios) {
+    files = files.slice(0, args.maxScenarios);
+  }
 
   if (files.length === 0) {
     throw new Error(`No scenario JSON files found in ${args.dirPath}`);
@@ -322,6 +411,7 @@ async function main(): Promise<void> {
         args.llmModel,
         args.oddsMode,
         args.llmCacheDir,
+        args.applySettledReplayPolicy,
       ));
       if (args.delayMs > 0 && index < scenarios.length - 1) {
         await sleep(args.delayMs);
@@ -333,6 +423,7 @@ async function main(): Promise<void> {
   const summary = {
     generatedAt: new Date().toISOString(),
     totalScenarios: scenarios.length,
+    applySettledReplayPolicy: args.applySettledReplayPolicy === true,
     promptVersions: args.promptVersions,
     variants: args.promptVersions.map((promptVersion) => summarizeSettledReplayVariant(
       promptVersion,
@@ -342,6 +433,7 @@ async function main(): Promise<void> {
   const casesPayload = {
     generatedAt: summary.generatedAt,
     totalScenarios: scenarios.length,
+    applySettledReplayPolicy: summary.applySettledReplayPolicy,
     promptVersions: args.promptVersions,
     variants: args.promptVersions.map((promptVersion) => ({
       promptVersion,

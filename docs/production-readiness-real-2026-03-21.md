@@ -50,7 +50,7 @@
 
 ## Provider Samples
 
-- stats: [{"provider":"api-football","consumer":"replay","sample_count":13},{"provider":"api-football","consumer":"server-pipeline","sample_count":24},{"provider":"live-score-api","consumer":"replay","sample_count":13},{"provider":"live-score-api","consumer":"server-pipeline","sample_count":6}]
+- stats: [{"provider":"api-football","consumer":"replay","sample_count":13},{"provider":"api-football","consumer":"server-pipeline","sample_count":24}] *(2026-04: `live-score-api` samples no longer emitted)*
 - odds: [{"provider":"api-football","source":"live","consumer":"proxy-route","sample_count":2},{"provider":"api-football","source":"live","consumer":"replay","sample_count":11},{"provider":"api-football","source":"live","consumer":"server-pipeline","sample_count":16}]
 
 ## Settle

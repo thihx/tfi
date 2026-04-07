@@ -1,0 +1,475 @@
+{
+  "name": "11772-1523086-71m-btts-yes",
+  "matchId": "1523086",
+  "fixture": {
+    "fixture": {
+      "id": 1523086,
+      "referee": null,
+      "timezone": "UTC",
+      "date": "2026-04-04T11:00:00.000Z",
+      "timestamp": 1775300400,
+      "periods": {
+        "first": null,
+        "second": null
+      },
+      "venue": {
+        "id": null,
+        "name": "Jinan Olympic Sports Center",
+        "city": null
+      },
+      "status": {
+        "long": "2H",
+        "short": "2H",
+        "elapsed": 71
+      }
+    },
+    "league": {
+      "id": 169,
+      "name": "Super League",
+      "country": "",
+      "logo": "",
+      "flag": null,
+      "season": 0,
+      "round": ""
+    },
+    "teams": {
+      "home": {
+        "id": 0,
+        "name": "Shandong Luneng",
+        "logo": "",
+        "winner": null
+      },
+      "away": {
+        "id": 0,
+        "name": "Dalian Zhixing",
+        "logo": "",
+        "winner": null
+      }
+    },
+    "goals": {
+      "home": 0,
+      "away": 2
+    },
+    "score": {
+      "halftime": {
+        "home": null,
+        "away": null
+      },
+      "fulltime": {
+        "home": 0,
+        "away": 2
+      }
+    }
+  },
+  "watchlistEntry": {
+    "match_id": "1523086",
+    "league": "Super League",
+    "home_team": "Shandong Luneng",
+    "away_team": "Dalian Zhixing",
+    "mode": "B",
+    "status": "active",
+    "custom_conditions": "",
+    "date": "2026-04-04",
+    "kickoff": "20:00:00",
+    "strategic_context": null
+  },
+  "pipelineOptions": {
+    "forceAnalyze": true,
+    "skipProceedGate": true,
+    "skipStalenessGate": true
+  },
+  "statistics": [
+    {
+      "team": {
+        "id": 0,
+        "name": "Shandong Luneng",
+        "logo": ""
+      },
+      "statistics": [
+        {
+          "type": "Ball Possession",
+          "value": "68%"
+        },
+        {
+          "type": "Total Shots",
+          "value": "13"
+        },
+        {
+          "type": "Shots on Goal",
+          "value": "4"
+        },
+        {
+          "type": "Corner Kicks",
+          "value": "5"
+        },
+        {
+          "type": "Fouls",
+          "value": "11"
+        },
+        {
+          "type": "Offsides",
+          "value": "1"
+        },
+        {
+          "type": "Yellow Cards",
+          "value": "2"
+        },
+        {
+          "type": "Red Cards",
+          "value": null
+        },
+        {
+          "type": "Goalkeeper Saves",
+          "value": "3"
+        },
+        {
+          "type": "Blocked Shots",
+          "value": "4"
+        },
+        {
+          "type": "Total passes",
+          "value": "356"
+        },
+        {
+          "type": "Passes accurate",
+          "value": "294"
+        },
+        {
+          "type": "Shots off Goal",
+          "value": "5"
+        },
+        {
+          "type": "Shots insidebox",
+          "value": "9"
+        },
+        {
+          "type": "Shots outsidebox",
+          "value": "4"
+        },
+        {
+          "type": "expected_goals",
+          "value": null
+        },
+        {
+          "type": "goals_prevented",
+          "value": null
+        },
+        {
+          "type": "Passes %",
+          "value": "83%"
+        }
+      ]
+    },
+    {
+      "team": {
+        "id": 0,
+        "name": "Dalian Zhixing",
+        "logo": ""
+      },
+      "statistics": [
+        {
+          "type": "Ball Possession",
+          "value": "32%"
+        },
+        {
+          "type": "Total Shots",
+          "value": "7"
+        },
+        {
+          "type": "Shots on Goal",
+          "value": "5"
+        },
+        {
+          "type": "Corner Kicks",
+          "value": "4"
+        },
+        {
+          "type": "Fouls",
+          "value": "12"
+        },
+        {
+          "type": "Offsides",
+          "value": "1"
+        },
+        {
+          "type": "Yellow Cards",
+          "value": "3"
+        },
+        {
+          "type": "Red Cards",
+          "value": null
+        },
+        {
+          "type": "Goalkeeper Saves",
+          "value": "4"
+        },
+        {
+          "type": "Blocked Shots",
+          "value": "1"
+        },
+        {
+          "type": "Total passes",
+          "value": "171"
+        },
+        {
+          "type": "Passes accurate",
+          "value": "116"
+        },
+        {
+          "type": "Shots off Goal",
+          "value": "1"
+        },
+        {
+          "type": "Shots insidebox",
+          "value": "4"
+        },
+        {
+          "type": "Shots outsidebox",
+          "value": "3"
+        },
+        {
+          "type": "expected_goals",
+          "value": null
+        },
+        {
+          "type": "goals_prevented",
+          "value": null
+        },
+        {
+          "type": "Passes %",
+          "value": "68%"
+        }
+      ]
+    }
+  ],
+  "mockResolvedOdds": {
+    "oddsSource": "live",
+    "response": [
+      {
+        "bookmakers": [
+          {
+            "id": 0,
+            "name": "Replay Mock",
+            "bets": [
+              {
+                "id": 1,
+                "name": "Match Winner",
+                "values": [
+                  {
+                    "value": "Home",
+                    "odd": "126"
+                  },
+                  {
+                    "value": "Draw",
+                    "odd": "29"
+                  },
+                  {
+                    "value": "Away",
+                    "odd": "1.055"
+                  }
+                ]
+              },
+              {
+                "id": 2,
+                "name": "Over/Under",
+                "values": [
+                  {
+                    "value": "Over",
+                    "odd": "2",
+                    "handicap": "2.75"
+                  },
+                  {
+                    "value": "Under",
+                    "odd": "1.8",
+                    "handicap": "2.75"
+                  }
+                ]
+              },
+              {
+                "id": 3,
+                "name": "Corners Over/Under",
+                "values": [
+                  {
+                    "value": "Over",
+                    "odd": "2.375",
+                    "handicap": "13"
+                  },
+                  {
+                    "value": "Under",
+                    "odd": "2.25",
+                    "handicap": "13"
+                  }
+                ]
+              },
+              {
+                "id": 4,
+                "name": "Both Teams Score",
+                "values": [
+                  {
+                    "value": "Yes",
+                    "odd": "2.1"
+                  },
+                  {
+                    "value": "No",
+                    "odd": "1.666"
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    ],
+    "oddsFetchedAt": null,
+    "freshness": "fresh",
+    "cacheStatus": "hit"
+  },
+  "previousRecommendations": [
+    {
+      "minute": 71,
+      "odds": "2.000",
+      "bet_market": "over_2.75",
+      "selection": "Over 2.75 Goals @2.00",
+      "score": "0-2",
+      "status": "2H",
+      "result": "half_win",
+      "confidence": 6,
+      "stake_percent": "3.00",
+      "reasoning": "Shandong Luneng is unexpectedly trailing 0-2 at home and applying heavy pressure with 68% possession, 13 shots, and 9 shots inside the box. Dalian remains a threat on the counter with 5 shots on target. The game state is highly stretched as the hosts chase the game. One more goal provides a half-win on the Over 2.75 line, which covers both a home comeback effort and an away counter-attack. Break-even about 50.0%. My fair range is around 58-62%. Edge looks about 10%."
+    },
+    {
+      "minute": 20,
+      "odds": "1.850",
+      "bet_market": "under_2.25",
+      "selection": "Under 2.25 Goals @1.85",
+      "score": "0-0",
+      "status": "1H",
+      "result": "loss",
+      "confidence": 6,
+      "stake_percent": "3.00",
+      "reasoning": "At minute 20, the match remains scoreless with extremely low passing volume (only ~105 combined passes) and fragmented play. Both teams are struggling to build sustained possession, evidenced by low pass accuracy (77% and 69%) and early yellow cards disrupting the flow. With only 2 shots on target so far, the attacking threat is minimal. Break-even about 54%. My fair range is around 60-63%. Edge looks about 8%. The scrappy nature of the game supports a low-scoring affair."
+    }
+  ],
+  "metadata": {
+    "recommendationId": 11772,
+    "originalPromptVersion": "v8-market-balance-followup-f",
+    "originalAiModel": "gemini-3-pro-preview",
+    "originalBetMarket": "btts_yes",
+    "originalSelection": "BTTS Yes @1.571",
+    "originalResult": "win",
+    "originalPnl": 3.3,
+    "minute": 71,
+    "score": "0-2",
+    "status": "2H",
+    "league": "Super League",
+    "homeTeam": "Shandong Luneng",
+    "awayTeam": "Dalian Zhixing",
+    "evidenceMode": "full_live_data",
+    "prematchStrength": "none",
+    "profileCoverageBand": "unknown",
+    "overlayCoverageBand": "none",
+    "policyImpactBand": "clean"
+  },
+  "settlementContext": {
+    "matchId": "1523086",
+    "homeTeam": "Shandong Luneng",
+    "awayTeam": "Dalian Zhixing",
+    "finalStatus": "FT",
+    "homeScore": 1,
+    "awayScore": 2,
+    "regularHomeScore": 1,
+    "regularAwayScore": 2,
+    "settlementStats": [
+      {
+        "away": 5,
+        "home": 6,
+        "type": "Shots on Goal"
+      },
+      {
+        "away": 1,
+        "home": 7,
+        "type": "Shots off Goal"
+      },
+      {
+        "away": 7,
+        "home": 17,
+        "type": "Total Shots"
+      },
+      {
+        "away": 1,
+        "home": 4,
+        "type": "Blocked Shots"
+      },
+      {
+        "away": 4,
+        "home": 12,
+        "type": "Shots insidebox"
+      },
+      {
+        "away": 3,
+        "home": 5,
+        "type": "Shots outsidebox"
+      },
+      {
+        "away": 20,
+        "home": 18,
+        "type": "Fouls"
+      },
+      {
+        "away": 6,
+        "home": 7,
+        "type": "Corner Kicks"
+      },
+      {
+        "away": 1,
+        "home": 2,
+        "type": "Offsides"
+      },
+      {
+        "away": "30%",
+        "home": "70%",
+        "type": "Ball Possession"
+      },
+      {
+        "away": 4,
+        "home": 3,
+        "type": "Yellow Cards"
+      },
+      {
+        "away": null,
+        "home": null,
+        "type": "Red Cards"
+      },
+      {
+        "away": 5,
+        "home": 3,
+        "type": "Goalkeeper Saves"
+      },
+      {
+        "away": 224,
+        "home": 528,
+        "type": "Total passes"
+      },
+      {
+        "away": 145,
+        "home": 442,
+        "type": "Passes accurate"
+      },
+      {
+        "away": "65%",
+        "home": "84%",
+        "type": "Passes %"
+      },
+      {
+        "away": null,
+        "home": null,
+        "type": "expected_goals"
+      },
+      {
+        "away": null,
+        "home": null,
+        "type": "goals_prevented"
+      }
+    ]
+  }
+}

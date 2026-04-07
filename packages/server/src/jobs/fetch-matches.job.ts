@@ -2,7 +2,7 @@
 // Job: Fetch Matches
 //
 // 1. Read active approved leagues from DB
-// 2. Call API-Football for today + tomorrow fixtures
+// 2. Call API-Football for yesterday + today + tomorrow fixtures (3 date requests per run — no extra live=all call).
 // 3. Filter by league + status
 // 4. Full-refresh matches table
 // 5. Archive finished rows before replacing the table
@@ -138,32 +138,26 @@ export async function fetchMatchesJob(): Promise<{ saved: number; leagues: numbe
   const leagueIdSet = new Set(activeLeagues.map((league) => league.league_id));
 
   const now = new Date();
-  const localHour = Number(
-    new Intl.DateTimeFormat('en', {
-      timeZone: config.timezone,
-      hour: 'numeric',
-      hour12: false,
-    }).format(now),
-  );
   const yesterday = new Date(now);
   yesterday.setDate(yesterday.getDate() - 1);
   const tomorrow = new Date(now);
   tomorrow.setDate(tomorrow.getDate() + 1);
-  const dateYesterday = localHour < 6 ? toDateString(yesterday, config.timezone) : null;
+  /** Always include yesterday — not only 00:00–06:00 local. Otherwise after 06:00 the job
+   * stops requesting the prior calendar day, and replaceAllMatches drops still-LIVE fixtures
+   * whose API fixture.date is “yesterday” (cross-midnight / server TZ vs user TZ). */
+  const dateYesterday = toDateString(yesterday, config.timezone);
   const dateFrom = toDateString(now, config.timezone);
   const dateTo = toDateString(tomorrow, config.timezone);
 
-  const fetchLabel = dateYesterday ? `${dateYesterday}, ${dateFrom}, ${dateTo}` : `${dateFrom}, ${dateTo}`;
+  const fetchLabel = `${dateYesterday}, ${dateFrom}, ${dateTo}`;
   await reportJobProgress(jobName, 'api', `Fetching fixtures for ${fetchLabel}...`, 15);
 
   let yesterdayFixtures: ApiFixture[] = [];
-  if (dateYesterday) {
-    try {
-      yesterdayFixtures = await fetchFixturesForDate(dateYesterday);
-      console.log(`[fetchMatchesJob] Cross-midnight fetch: ${yesterdayFixtures.length} fixtures for ${dateYesterday}`);
-    } catch (err) {
-      console.warn('[fetchMatchesJob] Yesterday fetch failed (non-critical):', err instanceof Error ? err.message : err);
-    }
+  try {
+    yesterdayFixtures = await fetchFixturesForDate(dateYesterday);
+    console.log(`[fetchMatchesJob] Yesterday window: ${yesterdayFixtures.length} fixtures for ${dateYesterday}`);
+  } catch (err) {
+    console.warn('[fetchMatchesJob] Yesterday fetch failed (non-critical):', err instanceof Error ? err.message : err);
   }
 
   const [resultToday, resultTomorrow] = await Promise.allSettled([

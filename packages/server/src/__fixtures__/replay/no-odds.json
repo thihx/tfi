@@ -45,8 +45,6 @@
   "events": [],
   "liveOddsResponse": [],
   "preMatchOddsResponse": [],
-  "theOddsEventsResponse": [],
-  "theOddsEventOddsResponse": null,
   "expected": {
     "oddsSource": "none",
     "saved": false,

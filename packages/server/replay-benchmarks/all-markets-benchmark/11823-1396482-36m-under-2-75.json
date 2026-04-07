@@ -1,0 +1,445 @@
+{
+  "name": "11823-1396482-36m-under-2-75",
+  "matchId": "1396482",
+  "fixture": {
+    "fixture": {
+      "id": 1396482,
+      "referee": null,
+      "timezone": "UTC",
+      "date": "2026-04-04T19:30:00.000Z",
+      "timestamp": 1775331000,
+      "periods": {
+        "first": null,
+        "second": null
+      },
+      "venue": {
+        "id": null,
+        "name": "Estádio Do Dragão",
+        "city": null
+      },
+      "status": {
+        "long": "1H",
+        "short": "1H",
+        "elapsed": 36
+      }
+    },
+    "league": {
+      "id": 94,
+      "name": "Primeira Liga",
+      "country": "",
+      "logo": "",
+      "flag": null,
+      "season": 0,
+      "round": ""
+    },
+    "teams": {
+      "home": {
+        "id": 0,
+        "name": "FC Porto",
+        "logo": "",
+        "winner": null
+      },
+      "away": {
+        "id": 0,
+        "name": "Famalicao",
+        "logo": "",
+        "winner": null
+      }
+    },
+    "goals": {
+      "home": 1,
+      "away": 0
+    },
+    "score": {
+      "halftime": {
+        "home": null,
+        "away": null
+      },
+      "fulltime": {
+        "home": 1,
+        "away": 0
+      }
+    }
+  },
+  "watchlistEntry": {
+    "match_id": "1396482",
+    "league": "Primeira Liga",
+    "home_team": "FC Porto",
+    "away_team": "Famalicao",
+    "mode": "B",
+    "status": "active",
+    "custom_conditions": "",
+    "date": "2026-04-05",
+    "kickoff": "04:30:00",
+    "strategic_context": null
+  },
+  "pipelineOptions": {
+    "forceAnalyze": true,
+    "skipProceedGate": true,
+    "skipStalenessGate": true
+  },
+  "statistics": [
+    {
+      "team": {
+        "id": 0,
+        "name": "FC Porto",
+        "logo": ""
+      },
+      "statistics": [
+        {
+          "type": "Ball Possession",
+          "value": "47%"
+        },
+        {
+          "type": "Total Shots",
+          "value": "3"
+        },
+        {
+          "type": "Shots on Goal",
+          "value": "1"
+        },
+        {
+          "type": "Corner Kicks",
+          "value": "2"
+        },
+        {
+          "type": "Fouls",
+          "value": "8"
+        },
+        {
+          "type": "Offsides",
+          "value": null
+        },
+        {
+          "type": "Yellow Cards",
+          "value": "1"
+        },
+        {
+          "type": "Red Cards",
+          "value": null
+        },
+        {
+          "type": "Goalkeeper Saves",
+          "value": "1"
+        },
+        {
+          "type": "Blocked Shots",
+          "value": "2"
+        },
+        {
+          "type": "Total passes",
+          "value": "145"
+        },
+        {
+          "type": "Passes accurate",
+          "value": "117"
+        },
+        {
+          "type": "Shots off Goal",
+          "value": "0"
+        },
+        {
+          "type": "Shots insidebox",
+          "value": "2"
+        },
+        {
+          "type": "Shots outsidebox",
+          "value": "1"
+        },
+        {
+          "type": "expected_goals",
+          "value": "0.20"
+        },
+        {
+          "type": "goals_prevented",
+          "value": "0"
+        },
+        {
+          "type": "Passes %",
+          "value": "81%"
+        }
+      ]
+    },
+    {
+      "team": {
+        "id": 0,
+        "name": "Famalicao",
+        "logo": ""
+      },
+      "statistics": [
+        {
+          "type": "Ball Possession",
+          "value": "53%"
+        },
+        {
+          "type": "Total Shots",
+          "value": "3"
+        },
+        {
+          "type": "Shots on Goal",
+          "value": "1"
+        },
+        {
+          "type": "Corner Kicks",
+          "value": "2"
+        },
+        {
+          "type": "Fouls",
+          "value": "4"
+        },
+        {
+          "type": "Offsides",
+          "value": null
+        },
+        {
+          "type": "Yellow Cards",
+          "value": "0"
+        },
+        {
+          "type": "Red Cards",
+          "value": null
+        },
+        {
+          "type": "Goalkeeper Saves",
+          "value": "1"
+        },
+        {
+          "type": "Blocked Shots",
+          "value": "0"
+        },
+        {
+          "type": "Total passes",
+          "value": "169"
+        },
+        {
+          "type": "Passes accurate",
+          "value": "142"
+        },
+        {
+          "type": "Shots off Goal",
+          "value": "2"
+        },
+        {
+          "type": "Shots insidebox",
+          "value": "2"
+        },
+        {
+          "type": "Shots outsidebox",
+          "value": "1"
+        },
+        {
+          "type": "expected_goals",
+          "value": "0.17"
+        },
+        {
+          "type": "goals_prevented",
+          "value": "0"
+        },
+        {
+          "type": "Passes %",
+          "value": "84%"
+        }
+      ]
+    }
+  ],
+  "mockResolvedOdds": {
+    "oddsSource": "live",
+    "response": [
+      {
+        "bookmakers": [
+          {
+            "id": 0,
+            "name": "Replay Mock",
+            "bets": [
+              {
+                "id": 1,
+                "name": "Over/Under",
+                "values": [
+                  {
+                    "value": "Over",
+                    "odd": "2.05",
+                    "handicap": "2.75"
+                  },
+                  {
+                    "value": "Under",
+                    "odd": "1.8",
+                    "handicap": "2.75"
+                  }
+                ]
+              },
+              {
+                "id": 2,
+                "name": "Corners Over/Under",
+                "values": [
+                  {
+                    "value": "Over",
+                    "odd": "1.825",
+                    "handicap": "9.5"
+                  },
+                  {
+                    "value": "Under",
+                    "odd": "1.975",
+                    "handicap": "9.5"
+                  }
+                ]
+              },
+              {
+                "id": 3,
+                "name": "Both Teams Score",
+                "values": [
+                  {
+                    "value": "Yes",
+                    "odd": "2.5"
+                  },
+                  {
+                    "value": "No",
+                    "odd": "1.5"
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    ],
+    "oddsFetchedAt": null,
+    "freshness": "fresh",
+    "cacheStatus": "hit"
+  },
+  "previousRecommendations": [
+    {
+      "minute": 36,
+      "odds": "1.975",
+      "bet_market": "under_9.5",
+      "selection": "Under 9.5 Goals @ 1.975",
+      "score": "1-0",
+      "status": "1H",
+      "result": "win",
+      "confidence": 10,
+      "stake_percent": "8.00",
+      "reasoning": "Break-even about 50.6%. My fair range is around 95-99%. Edge looks about 48%. The match is extremely slow-paced with only 6 total shots and 0.37 combined xG after 36 minutes. The current score is 1-0, meaning 9 more goals would be needed to beat the 9.5 line. Given the lack of attacking intensity and low expected goals, staying under 9.5 goals is a near certainty, making the offered odds highly valuable."
+    }
+  ],
+  "metadata": {
+    "recommendationId": 11823,
+    "originalPromptVersion": "v8-market-balance-followup-f",
+    "originalAiModel": "gemini-3-pro-preview",
+    "originalBetMarket": "under_2.75",
+    "originalSelection": "Under 2.75 Goals @1.8",
+    "originalResult": "loss",
+    "originalPnl": -3,
+    "minute": 36,
+    "score": "1-0",
+    "status": "1H",
+    "league": "Primeira Liga",
+    "homeTeam": "FC Porto",
+    "awayTeam": "Famalicao",
+    "evidenceMode": "full_live_data",
+    "prematchStrength": "weak",
+    "profileCoverageBand": "partial",
+    "overlayCoverageBand": "none",
+    "policyImpactBand": "clean"
+  },
+  "settlementContext": {
+    "matchId": "1396482",
+    "homeTeam": "FC Porto",
+    "awayTeam": "Famalicao",
+    "finalStatus": "FT",
+    "homeScore": 2,
+    "awayScore": 2,
+    "regularHomeScore": 2,
+    "regularAwayScore": 2,
+    "settlementStats": [
+      {
+        "away": 6,
+        "home": 3,
+        "type": "Shots on Goal"
+      },
+      {
+        "away": 4,
+        "home": 2,
+        "type": "Shots off Goal"
+      },
+      {
+        "away": 11,
+        "home": 8,
+        "type": "Total Shots"
+      },
+      {
+        "away": 1,
+        "home": 3,
+        "type": "Blocked Shots"
+      },
+      {
+        "away": 10,
+        "home": 5,
+        "type": "Shots insidebox"
+      },
+      {
+        "away": 1,
+        "home": 3,
+        "type": "Shots outsidebox"
+      },
+      {
+        "away": 14,
+        "home": 20,
+        "type": "Fouls"
+      },
+      {
+        "away": 3,
+        "home": 4,
+        "type": "Corner Kicks"
+      },
+      {
+        "away": 0,
+        "home": 2,
+        "type": "Offsides"
+      },
+      {
+        "away": "49%",
+        "home": "51%",
+        "type": "Ball Possession"
+      },
+      {
+        "away": 3,
+        "home": 5,
+        "type": "Yellow Cards"
+      },
+      {
+        "away": null,
+        "home": null,
+        "type": "Red Cards"
+      },
+      {
+        "away": 1,
+        "home": 4,
+        "type": "Goalkeeper Saves"
+      },
+      {
+        "away": 408,
+        "home": 418,
+        "type": "Total passes"
+      },
+      {
+        "away": 332,
+        "home": 351,
+        "type": "Passes accurate"
+      },
+      {
+        "away": "81%",
+        "home": "84%",
+        "type": "Passes %"
+      },
+      {
+        "away": "1.32",
+        "home": "0.43",
+        "type": "expected_goals"
+      },
+      {
+        "away": 0,
+        "home": 0,
+        "type": "goals_prevented"
+      }
+    ]
+  }
+}

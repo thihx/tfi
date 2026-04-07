@@ -1,0 +1,432 @@
+{
+  "name": "12486-1396481-28m-under-2-25",
+  "matchId": "1396481",
+  "fixture": {
+    "fixture": {
+      "id": 1396481,
+      "referee": null,
+      "timezone": "UTC",
+      "date": "2026-04-06T19:45:00.000Z",
+      "timestamp": 1775504700,
+      "periods": {
+        "first": null,
+        "second": null
+      },
+      "venue": {
+        "id": null,
+        "name": "Estádio Municipal de Rio Maior",
+        "city": null
+      },
+      "status": {
+        "long": "1H",
+        "short": "1H",
+        "elapsed": 28
+      }
+    },
+    "league": {
+      "id": 94,
+      "name": "Primeira Liga",
+      "country": "",
+      "logo": "",
+      "flag": null,
+      "season": 0,
+      "round": ""
+    },
+    "teams": {
+      "home": {
+        "id": 0,
+        "name": "Casa Pia",
+        "logo": "",
+        "winner": null
+      },
+      "away": {
+        "id": 0,
+        "name": "Benfica",
+        "logo": "",
+        "winner": null
+      }
+    },
+    "goals": {
+      "home": 0,
+      "away": 0
+    },
+    "score": {
+      "halftime": {
+        "home": null,
+        "away": null
+      },
+      "fulltime": {
+        "home": 0,
+        "away": 0
+      }
+    }
+  },
+  "watchlistEntry": {
+    "match_id": "1396481",
+    "league": "Primeira Liga",
+    "home_team": "Casa Pia",
+    "away_team": "Benfica",
+    "mode": "B",
+    "status": "active",
+    "custom_conditions": "",
+    "date": "2026-04-07",
+    "kickoff": "04:45:00",
+    "strategic_context": null
+  },
+  "pipelineOptions": {
+    "forceAnalyze": true,
+    "skipProceedGate": true,
+    "skipStalenessGate": true
+  },
+  "statistics": [
+    {
+      "team": {
+        "id": 0,
+        "name": "Casa Pia",
+        "logo": ""
+      },
+      "statistics": [
+        {
+          "type": "Ball Possession",
+          "value": "17%"
+        },
+        {
+          "type": "Total Shots",
+          "value": "1"
+        },
+        {
+          "type": "Shots on Goal",
+          "value": "0"
+        },
+        {
+          "type": "Corner Kicks",
+          "value": "1"
+        },
+        {
+          "type": "Fouls",
+          "value": "5"
+        },
+        {
+          "type": "Offsides",
+          "value": null
+        },
+        {
+          "type": "Yellow Cards",
+          "value": null
+        },
+        {
+          "type": "Red Cards",
+          "value": null
+        },
+        {
+          "type": "Goalkeeper Saves",
+          "value": "1"
+        },
+        {
+          "type": "Blocked Shots",
+          "value": "1"
+        },
+        {
+          "type": "Total passes",
+          "value": "33"
+        },
+        {
+          "type": "Passes accurate",
+          "value": "18"
+        },
+        {
+          "type": "Shots off Goal",
+          "value": "0"
+        },
+        {
+          "type": "Shots insidebox",
+          "value": "0"
+        },
+        {
+          "type": "Shots outsidebox",
+          "value": "1"
+        },
+        {
+          "type": "expected_goals",
+          "value": "0.02"
+        },
+        {
+          "type": "goals_prevented",
+          "value": "0"
+        },
+        {
+          "type": "Passes %",
+          "value": "55%"
+        }
+      ]
+    },
+    {
+      "team": {
+        "id": 0,
+        "name": "Benfica",
+        "logo": ""
+      },
+      "statistics": [
+        {
+          "type": "Ball Possession",
+          "value": "83%"
+        },
+        {
+          "type": "Total Shots",
+          "value": "3"
+        },
+        {
+          "type": "Shots on Goal",
+          "value": "1"
+        },
+        {
+          "type": "Corner Kicks",
+          "value": "2"
+        },
+        {
+          "type": "Fouls",
+          "value": "0"
+        },
+        {
+          "type": "Offsides",
+          "value": null
+        },
+        {
+          "type": "Yellow Cards",
+          "value": null
+        },
+        {
+          "type": "Red Cards",
+          "value": null
+        },
+        {
+          "type": "Goalkeeper Saves",
+          "value": "0"
+        },
+        {
+          "type": "Blocked Shots",
+          "value": "1"
+        },
+        {
+          "type": "Total passes",
+          "value": "175"
+        },
+        {
+          "type": "Passes accurate",
+          "value": "162"
+        },
+        {
+          "type": "Shots off Goal",
+          "value": "1"
+        },
+        {
+          "type": "Shots insidebox",
+          "value": "1"
+        },
+        {
+          "type": "Shots outsidebox",
+          "value": "2"
+        },
+        {
+          "type": "expected_goals",
+          "value": "0.08"
+        },
+        {
+          "type": "goals_prevented",
+          "value": "0"
+        },
+        {
+          "type": "Passes %",
+          "value": "93%"
+        }
+      ]
+    }
+  ],
+  "mockResolvedOdds": {
+    "oddsSource": "live",
+    "response": [
+      {
+        "bookmakers": [
+          {
+            "id": 0,
+            "name": "Replay Mock",
+            "bets": [
+              {
+                "id": 1,
+                "name": "Over/Under",
+                "values": [
+                  {
+                    "value": "Over",
+                    "odd": "1.85",
+                    "handicap": "2.25"
+                  },
+                  {
+                    "value": "Under",
+                    "odd": "2",
+                    "handicap": "2.25"
+                  }
+                ]
+              },
+              {
+                "id": 2,
+                "name": "Corners Over/Under",
+                "values": [
+                  {
+                    "value": "Over",
+                    "odd": "1.9",
+                    "handicap": "11.5"
+                  },
+                  {
+                    "value": "Under",
+                    "odd": "1.9",
+                    "handicap": "11.5"
+                  }
+                ]
+              },
+              {
+                "id": 3,
+                "name": "Both Teams Score",
+                "values": [
+                  {
+                    "value": "Yes",
+                    "odd": "3.25"
+                  },
+                  {
+                    "value": "No",
+                    "odd": "1.333"
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    ],
+    "oddsFetchedAt": null,
+    "freshness": "fresh",
+    "cacheStatus": "hit"
+  },
+  "previousRecommendations": [],
+  "metadata": {
+    "recommendationId": 12486,
+    "originalPromptVersion": "v4-evidence-hardened",
+    "originalAiModel": "gemini-3-pro-preview",
+    "originalBetMarket": "under_2.25",
+    "originalSelection": "Under 2.25 Goals @2",
+    "originalResult": "half_win",
+    "originalPnl": 1.5,
+    "minute": 28,
+    "score": "0-0",
+    "status": "1H",
+    "league": "Primeira Liga",
+    "homeTeam": "Casa Pia",
+    "awayTeam": "Benfica",
+    "evidenceMode": "full_live_data",
+    "prematchStrength": "strong",
+    "profileCoverageBand": "strong",
+    "overlayCoverageBand": "none",
+    "policyImpactBand": "clean"
+  },
+  "settlementContext": {
+    "matchId": "1396481",
+    "homeTeam": "Casa Pia",
+    "awayTeam": "Benfica",
+    "finalStatus": "FT",
+    "homeScore": 1,
+    "awayScore": 1,
+    "regularHomeScore": 1,
+    "regularAwayScore": 1,
+    "settlementStats": [
+      {
+        "away": 3,
+        "home": 2,
+        "type": "Shots on Goal"
+      },
+      {
+        "away": 9,
+        "home": 3,
+        "type": "Shots off Goal"
+      },
+      {
+        "away": 18,
+        "home": 8,
+        "type": "Total Shots"
+      },
+      {
+        "away": 6,
+        "home": 3,
+        "type": "Blocked Shots"
+      },
+      {
+        "away": 12,
+        "home": 7,
+        "type": "Shots insidebox"
+      },
+      {
+        "away": 6,
+        "home": 1,
+        "type": "Shots outsidebox"
+      },
+      {
+        "away": 9,
+        "home": 19,
+        "type": "Fouls"
+      },
+      {
+        "away": 12,
+        "home": 3,
+        "type": "Corner Kicks"
+      },
+      {
+        "away": 2,
+        "home": 0,
+        "type": "Offsides"
+      },
+      {
+        "away": "78%",
+        "home": "22%",
+        "type": "Ball Possession"
+      },
+      {
+        "away": 0,
+        "home": 1,
+        "type": "Yellow Cards"
+      },
+      {
+        "away": null,
+        "home": null,
+        "type": "Red Cards"
+      },
+      {
+        "away": 1,
+        "home": 2,
+        "type": "Goalkeeper Saves"
+      },
+      {
+        "away": 604,
+        "home": 163,
+        "type": "Total passes"
+      },
+      {
+        "away": 521,
+        "home": 72,
+        "type": "Passes accurate"
+      },
+      {
+        "away": "86%",
+        "home": "44%",
+        "type": "Passes %"
+      },
+      {
+        "away": "1.70",
+        "home": "0.36",
+        "type": "expected_goals"
+      },
+      {
+        "away": 0,
+        "home": 0,
+        "type": "goals_prevented"
+      }
+    ]
+  }
+}

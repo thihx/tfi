@@ -1,0 +1,80 @@
+{
+  "name": "smoke-ok-separate-lines",
+  "matchId": "fixture-smoke-1",
+  "fixture": {},
+  "metadata": {
+    "recommendationId": 900001,
+    "originalPromptVersion": "v8-market-balance-followup-h",
+    "originalAiModel": "fixture",
+    "originalBetMarket": "under_2.5",
+    "originalSelection": "Under 2.5 Goals",
+    "originalResult": "win",
+    "originalPnl": 1,
+    "minute": 55,
+    "score": "1-1",
+    "status": "2H",
+    "league": "Smoke",
+    "homeTeam": "Home",
+    "awayTeam": "Away",
+    "evidenceMode": "full_live_data",
+    "prematchStrength": "strong",
+    "profileCoverageBand": "high",
+    "overlayCoverageBand": "neutral",
+    "policyImpactBand": "none"
+  },
+  "settlementContext": {
+    "matchId": "fixture-smoke-1",
+    "homeTeam": "Home",
+    "awayTeam": "Away",
+    "finalStatus": "FT",
+    "homeScore": 1,
+    "awayScore": 1,
+    "regularHomeScore": 1,
+    "regularAwayScore": 1,
+    "settlementStats": []
+  },
+  "mockResolvedOdds": {
+    "oddsSource": "live",
+    "response": [
+      {
+        "bookmakers": [
+          {
+            "name": "Replay Mock",
+            "bets": [
+              {
+                "name": "Over/Under",
+                "values": [
+                  {
+                    "value": "Over",
+                    "odd": "1.91",
+                    "handicap": "2.5"
+                  },
+                  {
+                    "value": "Under",
+                    "odd": "1.93",
+                    "handicap": "2.5"
+                  }
+                ]
+              },
+              {
+                "name": "Corners Over/Under",
+                "values": [
+                  {
+                    "value": "Over",
+                    "odd": "2.10",
+                    "handicap": "10"
+                  },
+                  {
+                    "value": "Under",
+                    "odd": "2.20",
+                    "handicap": "10"
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  }
+}

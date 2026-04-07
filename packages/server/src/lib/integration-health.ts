@@ -115,50 +115,6 @@ async function probeFootballApi(): Promise<IntegrationProbeResult> {
   }
 }
 
-async function probeOddsApi(): Promise<IntegrationProbeResult> {
-  const ID = 'odds-api';
-  const LABEL = 'The Odds API';
-  const DESC = 'Fallback odds source';
-  if (!isConfigured(config.theOddsApiKey)) {
-    return makeResult(ID, LABEL, DESC, 'NOT_CONFIGURED', 0, 'THE_ODDS_API_KEY not set');
-  }
-  try {
-    // Reachability-only: call without apiKey → server returns 401 without consuming quota.
-    // Any HTTP response means the service is up; only a network error means DOWN.
-    const { result: res, latencyMs } = await timed(() =>
-      withTimeout(fetch(`${config.theOddsApiBaseUrl}/sports`)),
-    );
-    if (res.ok || res.status === 401 || res.status === 422) {
-      return makeResult(ID, LABEL, DESC, 'HEALTHY', latencyMs, 'API reachable (credentials configured)');
-    }
-    return makeResult(ID, LABEL, DESC, 'DEGRADED', latencyMs, `HTTP ${res.status}`);
-  } catch (err: unknown) {
-    return makeResult(ID, LABEL, DESC, 'DOWN', 0, (err as Error).message);
-  }
-}
-
-async function probeLiveScoreApi(): Promise<IntegrationProbeResult> {
-  const ID = 'live-score-api';
-  const LABEL = 'Live Score API';
-  const DESC = 'Benchmark live stats provider';
-  if (!isConfigured(config.liveScoreApiKey, config.liveScoreApiSecret)) {
-    return makeResult(ID, LABEL, DESC, 'NOT_CONFIGURED', 0, 'LIVE_SCORE_API_KEY/SECRET not set');
-  }
-  try {
-    // Reachability-only: call without credentials → server returns 4xx without consuming quota.
-    // Any HTTP response means the service is up; only a network error means DOWN.
-    const { result: res, latencyMs } = await timed(() =>
-      withTimeout(fetch(`${config.liveScoreApiBaseUrl}/scores/live.json`)),
-    );
-    if (res.ok || res.status === 400 || res.status === 401 || res.status === 403) {
-      return makeResult(ID, LABEL, DESC, 'HEALTHY', latencyMs, 'API reachable (credentials configured)');
-    }
-    return makeResult(ID, LABEL, DESC, 'DEGRADED', latencyMs, `HTTP ${res.status}`);
-  } catch (err: unknown) {
-    return makeResult(ID, LABEL, DESC, 'DOWN', 0, (err as Error).message);
-  }
-}
-
 async function probeGemini(): Promise<IntegrationProbeResult> {
   const ID = 'gemini';
   const LABEL = 'Google Gemini AI';
@@ -262,8 +218,6 @@ export async function checkAllIntegrations(): Promise<IntegrationHealthSnapshot>
     probePostgres(),
     probeRedis(),
     probeFootballApi(),
-    probeOddsApi(),
-    probeLiveScoreApi(),
     probeGemini(),
     probeTelegram(),
     probeGoogleOAuth(),
@@ -281,8 +235,6 @@ export async function checkSingleIntegration(id: string): Promise<IntegrationPro
     postgresql:   probePostgres,
     redis:        probeRedis,
     'football-api': probeFootballApi,
-    'odds-api':   probeOddsApi,
-    'live-score-api': probeLiveScoreApi,
     gemini:       probeGemini,
     telegram:     probeTelegram,
     'google-oauth': probeGoogleOAuth,

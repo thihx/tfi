@@ -1,0 +1,479 @@
+{
+  "name": "11819-1436153-72m-over-3-75",
+  "matchId": "1436153",
+  "fixture": {
+    "fixture": {
+      "id": 1436153,
+      "referee": null,
+      "timezone": "UTC",
+      "date": "2026-04-04T18:00:00.000Z",
+      "timestamp": 1775325600,
+      "periods": {
+        "first": null,
+        "second": null
+      },
+      "venue": {
+        "id": null,
+        "name": "Kingdom Arena",
+        "city": null
+      },
+      "status": {
+        "long": "2H",
+        "short": "2H",
+        "elapsed": 72
+      }
+    },
+    "league": {
+      "id": 307,
+      "name": "Pro League",
+      "country": "",
+      "logo": "",
+      "flag": null,
+      "season": 0,
+      "round": ""
+    },
+    "teams": {
+      "home": {
+        "id": 0,
+        "name": "Al-Hilal Saudi FC",
+        "logo": "",
+        "winner": null
+      },
+      "away": {
+        "id": 0,
+        "name": "Al Taawon",
+        "logo": "",
+        "winner": null
+      }
+    },
+    "goals": {
+      "home": 1,
+      "away": 2
+    },
+    "score": {
+      "halftime": {
+        "home": null,
+        "away": null
+      },
+      "fulltime": {
+        "home": 1,
+        "away": 2
+      }
+    }
+  },
+  "watchlistEntry": {
+    "match_id": "1436153",
+    "league": "Pro League",
+    "home_team": "Al-Hilal Saudi FC",
+    "away_team": "Al Taawon",
+    "mode": "B",
+    "status": "active",
+    "custom_conditions": "",
+    "date": "2026-04-05",
+    "kickoff": "03:00:00",
+    "strategic_context": null
+  },
+  "pipelineOptions": {
+    "forceAnalyze": true,
+    "skipProceedGate": true,
+    "skipStalenessGate": true
+  },
+  "statistics": [
+    {
+      "team": {
+        "id": 0,
+        "name": "Al-Hilal Saudi FC",
+        "logo": ""
+      },
+      "statistics": [
+        {
+          "type": "Ball Possession",
+          "value": "56%"
+        },
+        {
+          "type": "Total Shots",
+          "value": "16"
+        },
+        {
+          "type": "Shots on Goal",
+          "value": "6"
+        },
+        {
+          "type": "Corner Kicks",
+          "value": "6"
+        },
+        {
+          "type": "Fouls",
+          "value": "5"
+        },
+        {
+          "type": "Offsides",
+          "value": null
+        },
+        {
+          "type": "Yellow Cards",
+          "value": "0"
+        },
+        {
+          "type": "Red Cards",
+          "value": null
+        },
+        {
+          "type": "Goalkeeper Saves",
+          "value": "0"
+        },
+        {
+          "type": "Blocked Shots",
+          "value": "1"
+        },
+        {
+          "type": "Total passes",
+          "value": "355"
+        },
+        {
+          "type": "Passes accurate",
+          "value": "310"
+        },
+        {
+          "type": "Shots off Goal",
+          "value": "9"
+        },
+        {
+          "type": "Shots insidebox",
+          "value": "8"
+        },
+        {
+          "type": "Shots outsidebox",
+          "value": "8"
+        },
+        {
+          "type": "expected_goals",
+          "value": "1.38"
+        },
+        {
+          "type": "goals_prevented",
+          "value": "0"
+        },
+        {
+          "type": "Passes %",
+          "value": "87%"
+        }
+      ]
+    },
+    {
+      "team": {
+        "id": 0,
+        "name": "Al Taawon",
+        "logo": ""
+      },
+      "statistics": [
+        {
+          "type": "Ball Possession",
+          "value": "44%"
+        },
+        {
+          "type": "Total Shots",
+          "value": "5"
+        },
+        {
+          "type": "Shots on Goal",
+          "value": "2"
+        },
+        {
+          "type": "Corner Kicks",
+          "value": "4"
+        },
+        {
+          "type": "Fouls",
+          "value": "3"
+        },
+        {
+          "type": "Offsides",
+          "value": null
+        },
+        {
+          "type": "Yellow Cards",
+          "value": "1"
+        },
+        {
+          "type": "Red Cards",
+          "value": null
+        },
+        {
+          "type": "Goalkeeper Saves",
+          "value": "5"
+        },
+        {
+          "type": "Blocked Shots",
+          "value": "2"
+        },
+        {
+          "type": "Total passes",
+          "value": "289"
+        },
+        {
+          "type": "Passes accurate",
+          "value": "239"
+        },
+        {
+          "type": "Shots off Goal",
+          "value": "1"
+        },
+        {
+          "type": "Shots insidebox",
+          "value": "5"
+        },
+        {
+          "type": "Shots outsidebox",
+          "value": "0"
+        },
+        {
+          "type": "expected_goals",
+          "value": "0.42"
+        },
+        {
+          "type": "goals_prevented",
+          "value": "0"
+        },
+        {
+          "type": "Passes %",
+          "value": "83%"
+        }
+      ]
+    }
+  ],
+  "mockResolvedOdds": {
+    "oddsSource": "live",
+    "response": [
+      {
+        "bookmakers": [
+          {
+            "id": 0,
+            "name": "Replay Mock",
+            "bets": [
+              {
+                "id": 1,
+                "name": "Over/Under",
+                "values": [
+                  {
+                    "value": "Over",
+                    "odd": "1.75",
+                    "handicap": "3.75"
+                  },
+                  {
+                    "value": "Under",
+                    "odd": "2.05",
+                    "handicap": "3.75"
+                  }
+                ]
+              },
+              {
+                "id": 2,
+                "name": "Corners Over/Under",
+                "values": [
+                  {
+                    "value": "Over",
+                    "odd": "2.25",
+                    "handicap": "13"
+                  },
+                  {
+                    "value": "Under",
+                    "odd": "2.375",
+                    "handicap": "13"
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    ],
+    "oddsFetchedAt": null,
+    "freshness": "fresh",
+    "cacheStatus": "hit"
+  },
+  "previousRecommendations": [
+    {
+      "minute": 42,
+      "odds": "1.900",
+      "bet_market": "corners_over_12.5",
+      "selection": "Corners Over 12.5 @1.9",
+      "score": "0-0",
+      "status": "1H",
+      "result": "loss",
+      "confidence": 6,
+      "stake_percent": "3.00",
+      "reasoning": "At minute 42, the score remains 0-0. Al-Hilal is dominating possession (61%) and territory but struggling to create clear chances, resulting in 5 shots outside the box and 5 corners. Al Taawon has also contributed 2 corners. With 7 corners already on the board, the pace is well ahead of the 12.5 line. Given the level scoreline, Al-Hilal's urgency will increase in the second half, ensuring sustained pressure and frequent final-third entries. This makes the corners market cleaner than a fragile Under 1.75 goals line. Break-even is about 52.6%. My fair range is around 60-65%. Edge looks about 10%."
+    },
+    {
+      "minute": 42,
+      "odds": "1.850",
+      "bet_market": "over_1.75",
+      "selection": "Over 1.75 Goals @1.85",
+      "score": "0-0",
+      "status": "1H",
+      "result": "win",
+      "confidence": 5,
+      "stake_percent": "2.00",
+      "reasoning": "Al-Hilal is dominating possession (61%) and has registered 8 shots, though only 1 on target so far, keeping the first-half xG low (0.27). However, as a massive class favorite in the Pro League, a 0-0 scoreline approaching half-time typically forces them to significantly increase the tempo and attacking pressure in the second half. While an Over line requiring two goals is usually a pass, the major class mismatch and expected second-half siege make this an exception. Break-even is about 54.1%. My fair range is around 58-60%. Edge looks about 4-5%."
+    },
+    {
+      "minute": 42,
+      "odds": "1.950",
+      "bet_market": "under_1.75",
+      "selection": "Under 1.75 Goals @1.95",
+      "score": "0-0",
+      "status": "1H",
+      "result": "loss",
+      "confidence": 6,
+      "stake_percent": "3.00",
+      "reasoning": "Approaching half-time at 0-0, the live data shows a very restricted game. Despite Al-Hilal holding 61% possession, they have only managed 1 shot on target and a minimal 0.27 xG, with 5 of their 8 shots coming from outside the box. Al Taawon is defending deep and limiting high-quality chances. The Under 1.75 line provides a full win for 0 or 1 goal, and limits exposure to a half-loss if exactly two goals are scored. Break-even is about 51.3%. My fair range is around 56-58%. Edge looks about 5%."
+    },
+    {
+      "minute": 42,
+      "odds": "1.900",
+      "bet_market": "under_12.5",
+      "selection": "Under 12.5 Goals @1.9",
+      "score": "0-0",
+      "status": "1H",
+      "result": "win",
+      "confidence": 7,
+      "stake_percent": "4.00",
+      "reasoning": "At minute 42 with the score 0-0, the match has seen very low attacking efficiency, featuring only 1 shot on target combined and 0.40 total xG. Priors are aligned with low-scoring outcomes. The offered line of Under 12.5 Goals at 1.90 is a massive outlier and provides an extreme mathematical edge. Break-even about 52.6%. My fair range is around 99-100%. Edge looks about 47%. While this line appears to be a synthetic test or feed anomaly, it is not logically settled yet, making it the most mathematically secure position available."
+    },
+    {
+      "minute": 72,
+      "odds": "2.375",
+      "bet_market": "under_13",
+      "selection": "Under 13 Goals @2.375",
+      "score": "1-2",
+      "status": "2H",
+      "result": "win",
+      "confidence": 10,
+      "stake_percent": "8.00",
+      "reasoning": "Break-even about 42.1%. My fair range is around 95-99%. Edge looks about 50%. With the score at 1-2 (3 total goals) in the 72nd minute, the Under 13 Goals line provides an extraordinary mathematical edge. It would require 10 more goals in roughly 18 minutes plus stoppage time to lose. Since this is a completely different market from our previous Corners Over exposure, it does not violate our correlation rules. The line is extreme but not logically settled, making it a highly secure investment."
+    }
+  ],
+  "metadata": {
+    "recommendationId": 11819,
+    "originalPromptVersion": "v8-market-balance-followup-f",
+    "originalAiModel": "gemini-3-pro-preview",
+    "originalBetMarket": "over_3.75",
+    "originalSelection": "Over 3.75 Goals @1.75",
+    "originalResult": "half_win",
+    "originalPnl": 1.5,
+    "minute": 72,
+    "score": "1-2",
+    "status": "2H",
+    "league": "Pro League",
+    "homeTeam": "Al-Hilal Saudi FC",
+    "awayTeam": "Al Taawon",
+    "evidenceMode": "full_live_data",
+    "prematchStrength": "none",
+    "profileCoverageBand": "unknown",
+    "overlayCoverageBand": "none",
+    "policyImpactBand": "clean"
+  },
+  "settlementContext": {
+    "matchId": "1436153",
+    "homeTeam": "Al-Hilal Saudi FC",
+    "awayTeam": "Al Taawon",
+    "finalStatus": "FT",
+    "homeScore": 2,
+    "awayScore": 2,
+    "regularHomeScore": 2,
+    "regularAwayScore": 2,
+    "settlementStats": [
+      {
+        "away": 2,
+        "home": 7,
+        "type": "Shots on Goal"
+      },
+      {
+        "away": 1,
+        "home": 11,
+        "type": "Shots off Goal"
+      },
+      {
+        "away": 4,
+        "home": 23,
+        "type": "Total Shots"
+      },
+      {
+        "away": 1,
+        "home": 5,
+        "type": "Blocked Shots"
+      },
+      {
+        "away": 4,
+        "home": 15,
+        "type": "Shots insidebox"
+      },
+      {
+        "away": 0,
+        "home": 8,
+        "type": "Shots outsidebox"
+      },
+      {
+        "away": 6,
+        "home": 5,
+        "type": "Fouls"
+      },
+      {
+        "away": 4,
+        "home": 7,
+        "type": "Corner Kicks"
+      },
+      {
+        "away": 0,
+        "home": 1,
+        "type": "Offsides"
+      },
+      {
+        "away": "41%",
+        "home": "59%",
+        "type": "Ball Possession"
+      },
+      {
+        "away": 2,
+        "home": 0,
+        "type": "Yellow Cards"
+      },
+      {
+        "away": null,
+        "home": null,
+        "type": "Red Cards"
+      },
+      {
+        "away": 6,
+        "home": 0,
+        "type": "Goalkeeper Saves"
+      },
+      {
+        "away": 334,
+        "home": 469,
+        "type": "Total passes"
+      },
+      {
+        "away": 268,
+        "home": 417,
+        "type": "Passes accurate"
+      },
+      {
+        "away": "80%",
+        "home": "89%",
+        "type": "Passes %"
+      },
+      {
+        "away": "0.41",
+        "home": "1.76",
+        "type": "expected_goals"
+      },
+      {
+        "away": 0,
+        "home": 0,
+        "type": "goals_prevented"
+      }
+    ]
+  }
+}

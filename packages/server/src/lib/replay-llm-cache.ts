@@ -27,14 +27,19 @@ export function buildReplayLlmCachePath(
   scenario: Pick<SettledReplayScenario, 'name' | 'metadata'>,
   promptVersion: string,
   oddsMode: ReplayLlmCacheEntry['oddsMode'],
+  /** e.g. settled-trace when prompt/policy differ from generic replay */
+  variant?: string,
 ): string {
   const recommendationId = Number(scenario.metadata?.recommendationId ?? 0) || 0;
-  const filename = [
+  const parts = [
     recommendationId || 'no-rec',
     sanitizeFilePart(scenario.name),
     sanitizeFilePart(promptVersion),
     sanitizeFilePart(oddsMode),
-  ].join('__') + '.json';
+  ];
+  const v = String(variant ?? '').trim();
+  if (v) parts.push(sanitizeFilePart(v));
+  const filename = parts.join('__') + '.json';
   return resolve(cacheDir, filename);
 }
 

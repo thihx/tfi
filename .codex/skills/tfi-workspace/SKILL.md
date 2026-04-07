@@ -17,7 +17,7 @@ Use this skill to rebuild project context quickly before changing code.
 
 1. Treat `src/` as the active frontend and `packages/server/src/` as the active backend.
 2. Ignore `legacy/` unless the task explicitly asks for historical reference.
-3. For UI changes, inspect the tab component, shared layout component, and the frontend service calling the backend route.
+3. For UI changes, inspect the tab component, shared layout component, and the frontend service calling the backend route. For layout, modals, tables, or mobile/desktop behavior, also follow **`tfi-responsive-ui`**.
 4. For backend changes, inspect the route, repo/lib layer, tests, and any migration impact.
 
 ## TFI Guardrails

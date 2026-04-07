@@ -1,0 +1,432 @@
+{
+  "name": "12474-1378166-18m-under-4-5",
+  "matchId": "1378166",
+  "fixture": {
+    "fixture": {
+      "id": 1378166,
+      "referee": null,
+      "timezone": "UTC",
+      "date": "2026-04-06T16:00:00.000Z",
+      "timestamp": 1775491200,
+      "periods": {
+        "first": null,
+        "second": null
+      },
+      "venue": {
+        "id": null,
+        "name": "Allianz Stadium",
+        "city": null
+      },
+      "status": {
+        "long": "1H",
+        "short": "1H",
+        "elapsed": 18
+      }
+    },
+    "league": {
+      "id": 135,
+      "name": "Serie A",
+      "country": "",
+      "logo": "",
+      "flag": null,
+      "season": 0,
+      "round": ""
+    },
+    "teams": {
+      "home": {
+        "id": 0,
+        "name": "Juventus",
+        "logo": "",
+        "winner": null
+      },
+      "away": {
+        "id": 0,
+        "name": "Genoa",
+        "logo": "",
+        "winner": null
+      }
+    },
+    "goals": {
+      "home": 2,
+      "away": 0
+    },
+    "score": {
+      "halftime": {
+        "home": null,
+        "away": null
+      },
+      "fulltime": {
+        "home": 2,
+        "away": 0
+      }
+    }
+  },
+  "watchlistEntry": {
+    "match_id": "1378166",
+    "league": "Serie A",
+    "home_team": "Juventus",
+    "away_team": "Genoa",
+    "mode": "B",
+    "status": "active",
+    "custom_conditions": "",
+    "date": "2026-04-07",
+    "kickoff": "01:00:00",
+    "strategic_context": null
+  },
+  "pipelineOptions": {
+    "forceAnalyze": true,
+    "skipProceedGate": true,
+    "skipStalenessGate": true
+  },
+  "statistics": [
+    {
+      "team": {
+        "id": 0,
+        "name": "Juventus",
+        "logo": ""
+      },
+      "statistics": [
+        {
+          "type": "Ball Possession",
+          "value": "75%"
+        },
+        {
+          "type": "Total Shots",
+          "value": "4"
+        },
+        {
+          "type": "Shots on Goal",
+          "value": "2"
+        },
+        {
+          "type": "Corner Kicks",
+          "value": "1"
+        },
+        {
+          "type": "Fouls",
+          "value": "1"
+        },
+        {
+          "type": "Offsides",
+          "value": null
+        },
+        {
+          "type": "Yellow Cards",
+          "value": "1"
+        },
+        {
+          "type": "Red Cards",
+          "value": null
+        },
+        {
+          "type": "Goalkeeper Saves",
+          "value": "0"
+        },
+        {
+          "type": "Blocked Shots",
+          "value": "1"
+        },
+        {
+          "type": "Total passes",
+          "value": "122"
+        },
+        {
+          "type": "Passes accurate",
+          "value": "108"
+        },
+        {
+          "type": "Shots off Goal",
+          "value": "1"
+        },
+        {
+          "type": "Shots insidebox",
+          "value": "3"
+        },
+        {
+          "type": "Shots outsidebox",
+          "value": "1"
+        },
+        {
+          "type": "expected_goals",
+          "value": "0.16"
+        },
+        {
+          "type": "goals_prevented",
+          "value": "0"
+        },
+        {
+          "type": "Passes %",
+          "value": "89%"
+        }
+      ]
+    },
+    {
+      "team": {
+        "id": 0,
+        "name": "Genoa",
+        "logo": ""
+      },
+      "statistics": [
+        {
+          "type": "Ball Possession",
+          "value": "25%"
+        },
+        {
+          "type": "Total Shots",
+          "value": "0"
+        },
+        {
+          "type": "Shots on Goal",
+          "value": "0"
+        },
+        {
+          "type": "Corner Kicks",
+          "value": "0"
+        },
+        {
+          "type": "Fouls",
+          "value": "2"
+        },
+        {
+          "type": "Offsides",
+          "value": null
+        },
+        {
+          "type": "Yellow Cards",
+          "value": "0"
+        },
+        {
+          "type": "Red Cards",
+          "value": null
+        },
+        {
+          "type": "Goalkeeper Saves",
+          "value": "1"
+        },
+        {
+          "type": "Blocked Shots",
+          "value": "0"
+        },
+        {
+          "type": "Total passes",
+          "value": "40"
+        },
+        {
+          "type": "Passes accurate",
+          "value": "30"
+        },
+        {
+          "type": "Shots off Goal",
+          "value": "0"
+        },
+        {
+          "type": "Shots insidebox",
+          "value": "0"
+        },
+        {
+          "type": "Shots outsidebox",
+          "value": "0"
+        },
+        {
+          "type": "expected_goals",
+          "value": "0.03"
+        },
+        {
+          "type": "goals_prevented",
+          "value": "0"
+        },
+        {
+          "type": "Passes %",
+          "value": "75%"
+        }
+      ]
+    }
+  ],
+  "mockResolvedOdds": {
+    "oddsSource": "live",
+    "response": [
+      {
+        "bookmakers": [
+          {
+            "id": 0,
+            "name": "Replay Mock",
+            "bets": [
+              {
+                "id": 1,
+                "name": "Over/Under",
+                "values": [
+                  {
+                    "value": "Over",
+                    "odd": "2",
+                    "handicap": "4.5"
+                  },
+                  {
+                    "value": "Under",
+                    "odd": "1.85",
+                    "handicap": "4.5"
+                  }
+                ]
+              },
+              {
+                "id": 2,
+                "name": "Corners Over/Under",
+                "values": [
+                  {
+                    "value": "Over",
+                    "odd": "1.975",
+                    "handicap": "9.5"
+                  },
+                  {
+                    "value": "Under",
+                    "odd": "1.825",
+                    "handicap": "9.5"
+                  }
+                ]
+              },
+              {
+                "id": 3,
+                "name": "Both Teams Score",
+                "values": [
+                  {
+                    "value": "Yes",
+                    "odd": "1.7"
+                  },
+                  {
+                    "value": "No",
+                    "odd": "2.05"
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    ],
+    "oddsFetchedAt": null,
+    "freshness": "fresh",
+    "cacheStatus": "hit"
+  },
+  "previousRecommendations": [],
+  "metadata": {
+    "recommendationId": 12474,
+    "originalPromptVersion": "v8-market-balance-followup-h",
+    "originalAiModel": "gemini-3-pro-preview",
+    "originalBetMarket": "under_4.5",
+    "originalSelection": "Under 4.5 Goals @1.85",
+    "originalResult": "win",
+    "originalPnl": 3.4,
+    "minute": 18,
+    "score": "2-0",
+    "status": "1H",
+    "league": "Serie A",
+    "homeTeam": "Juventus",
+    "awayTeam": "Genoa",
+    "evidenceMode": "full_live_data",
+    "prematchStrength": "strong",
+    "profileCoverageBand": "strong",
+    "overlayCoverageBand": "both",
+    "policyImpactBand": "clean"
+  },
+  "settlementContext": {
+    "matchId": "1378166",
+    "homeTeam": "Juventus",
+    "awayTeam": "Genoa",
+    "finalStatus": "FT",
+    "homeScore": 2,
+    "awayScore": 0,
+    "regularHomeScore": 2,
+    "regularAwayScore": 0,
+    "settlementStats": [
+      {
+        "away": 3,
+        "home": 5,
+        "type": "Shots on Goal"
+      },
+      {
+        "away": 2,
+        "home": 8,
+        "type": "Shots off Goal"
+      },
+      {
+        "away": 12,
+        "home": 16,
+        "type": "Total Shots"
+      },
+      {
+        "away": 7,
+        "home": 3,
+        "type": "Blocked Shots"
+      },
+      {
+        "away": 6,
+        "home": 10,
+        "type": "Shots insidebox"
+      },
+      {
+        "away": 6,
+        "home": 6,
+        "type": "Shots outsidebox"
+      },
+      {
+        "away": 8,
+        "home": 10,
+        "type": "Fouls"
+      },
+      {
+        "away": 5,
+        "home": 4,
+        "type": "Corner Kicks"
+      },
+      {
+        "away": null,
+        "home": null,
+        "type": "Offsides"
+      },
+      {
+        "away": "38%",
+        "home": "62%",
+        "type": "Ball Possession"
+      },
+      {
+        "away": 1,
+        "home": 4,
+        "type": "Yellow Cards"
+      },
+      {
+        "away": null,
+        "home": null,
+        "type": "Red Cards"
+      },
+      {
+        "away": 3,
+        "home": 3,
+        "type": "Goalkeeper Saves"
+      },
+      {
+        "away": 339,
+        "home": 567,
+        "type": "Total passes"
+      },
+      {
+        "away": 284,
+        "home": 513,
+        "type": "Passes accurate"
+      },
+      {
+        "away": "84%",
+        "home": "90%",
+        "type": "Passes %"
+      },
+      {
+        "away": "1.37",
+        "home": "2.20",
+        "type": "expected_goals"
+      },
+      {
+        "away": 0,
+        "home": 0,
+        "type": "goals_prevented"
+      }
+    ]
+  }
+}

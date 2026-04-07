@@ -1,0 +1,12 @@
+{
+  "summaryPath": "replay-benchmarks/eval-last-summary.json",
+  "promptVersion": "v8-market-balance-followup-j",
+  "minScenarios": 40,
+  "pushRate": {
+    "min": 0.7,
+    "max": 0.98
+  },
+  "goalsUnderShareMax": 0.5,
+  "roiMin": 0,
+  "accuracyMin": 0.7
+}

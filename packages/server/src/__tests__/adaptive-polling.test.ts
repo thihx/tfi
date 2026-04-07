@@ -109,10 +109,14 @@ vi.mock('../repos/settings.repo.js', () => ({
   }),
 }));
 
-vi.mock('../lib/football-api.js', () => ({
-  fetchFixturesForDate: vi.fn().mockResolvedValue([]),
-  fetchFixtureStatistics: vi.fn().mockResolvedValue([]),
-}));
+vi.mock('../lib/football-api.js', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../lib/football-api.js')>();
+  return {
+    ...actual,
+    fetchFixturesForDate: vi.fn().mockResolvedValue([]),
+    fetchFixtureStatistics: vi.fn().mockResolvedValue([]),
+  };
+});
 
 vi.mock('../config.js', () => ({
   config: {

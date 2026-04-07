@@ -1,0 +1,443 @@
+{
+  "name": "11834-1504738-24m-under-4-25",
+  "matchId": "1504738",
+  "fixture": {
+    "fixture": {
+      "id": 1504738,
+      "referee": null,
+      "timezone": "UTC",
+      "date": "2026-04-05T07:00:00.000Z",
+      "timestamp": 1775372400,
+      "periods": {
+        "first": null,
+        "second": null
+      },
+      "venue": {
+        "id": null,
+        "name": "Kawasaki Todoroki Stadium",
+        "city": null
+      },
+      "status": {
+        "long": "1H",
+        "short": "1H",
+        "elapsed": 24
+      }
+    },
+    "league": {
+      "id": 98,
+      "name": "J1 League",
+      "country": "",
+      "logo": "",
+      "flag": null,
+      "season": 0,
+      "round": ""
+    },
+    "teams": {
+      "home": {
+        "id": 0,
+        "name": "Kawasaki Frontale",
+        "logo": "",
+        "winner": null
+      },
+      "away": {
+        "id": 0,
+        "name": "Urawa",
+        "logo": "",
+        "winner": null
+      }
+    },
+    "goals": {
+      "home": 1,
+      "away": 1
+    },
+    "score": {
+      "halftime": {
+        "home": null,
+        "away": null
+      },
+      "fulltime": {
+        "home": 1,
+        "away": 1
+      }
+    }
+  },
+  "watchlistEntry": {
+    "match_id": "1504738",
+    "league": "J1 League",
+    "home_team": "Kawasaki Frontale",
+    "away_team": "Urawa",
+    "mode": "B",
+    "status": "active",
+    "custom_conditions": "",
+    "date": "2026-04-05",
+    "kickoff": "16:00:00",
+    "strategic_context": null
+  },
+  "pipelineOptions": {
+    "forceAnalyze": true,
+    "skipProceedGate": true,
+    "skipStalenessGate": true
+  },
+  "statistics": [
+    {
+      "team": {
+        "id": 0,
+        "name": "Kawasaki Frontale",
+        "logo": ""
+      },
+      "statistics": [
+        {
+          "type": "Ball Possession",
+          "value": "67%"
+        },
+        {
+          "type": "Total Shots",
+          "value": "1"
+        },
+        {
+          "type": "Shots on Goal",
+          "value": "0"
+        },
+        {
+          "type": "Corner Kicks",
+          "value": null
+        },
+        {
+          "type": "Fouls",
+          "value": "2"
+        },
+        {
+          "type": "Offsides",
+          "value": null
+        },
+        {
+          "type": "Yellow Cards",
+          "value": null
+        },
+        {
+          "type": "Red Cards",
+          "value": null
+        },
+        {
+          "type": "Goalkeeper Saves",
+          "value": null
+        },
+        {
+          "type": "Blocked Shots",
+          "value": "0"
+        },
+        {
+          "type": "Total passes",
+          "value": "61"
+        },
+        {
+          "type": "Passes accurate",
+          "value": "46"
+        },
+        {
+          "type": "Shots off Goal",
+          "value": "1"
+        },
+        {
+          "type": "Shots insidebox",
+          "value": "0"
+        },
+        {
+          "type": "Shots outsidebox",
+          "value": "1"
+        },
+        {
+          "type": "expected_goals",
+          "value": null
+        },
+        {
+          "type": "goals_prevented",
+          "value": null
+        },
+        {
+          "type": "Passes %",
+          "value": "75%"
+        }
+      ]
+    },
+    {
+      "team": {
+        "id": 0,
+        "name": "Urawa",
+        "logo": ""
+      },
+      "statistics": [
+        {
+          "type": "Ball Possession",
+          "value": "33%"
+        },
+        {
+          "type": "Total Shots",
+          "value": "2"
+        },
+        {
+          "type": "Shots on Goal",
+          "value": "1"
+        },
+        {
+          "type": "Corner Kicks",
+          "value": null
+        },
+        {
+          "type": "Fouls",
+          "value": "2"
+        },
+        {
+          "type": "Offsides",
+          "value": null
+        },
+        {
+          "type": "Yellow Cards",
+          "value": null
+        },
+        {
+          "type": "Red Cards",
+          "value": null
+        },
+        {
+          "type": "Goalkeeper Saves",
+          "value": null
+        },
+        {
+          "type": "Blocked Shots",
+          "value": "0"
+        },
+        {
+          "type": "Total passes",
+          "value": "29"
+        },
+        {
+          "type": "Passes accurate",
+          "value": "18"
+        },
+        {
+          "type": "Shots off Goal",
+          "value": "1"
+        },
+        {
+          "type": "Shots insidebox",
+          "value": "2"
+        },
+        {
+          "type": "Shots outsidebox",
+          "value": "0"
+        },
+        {
+          "type": "expected_goals",
+          "value": null
+        },
+        {
+          "type": "goals_prevented",
+          "value": null
+        },
+        {
+          "type": "Passes %",
+          "value": "62%"
+        }
+      ]
+    }
+  ],
+  "mockResolvedOdds": {
+    "oddsSource": "live",
+    "response": [
+      {
+        "bookmakers": [
+          {
+            "id": 0,
+            "name": "Replay Mock",
+            "bets": [
+              {
+                "id": 1,
+                "name": "Over/Under",
+                "values": [
+                  {
+                    "value": "Over",
+                    "odd": "1.975",
+                    "handicap": "4.25"
+                  },
+                  {
+                    "value": "Under",
+                    "odd": "1.825",
+                    "handicap": "4.25"
+                  }
+                ]
+              },
+              {
+                "id": 2,
+                "name": "Corners Over/Under",
+                "values": [
+                  {
+                    "value": "Over",
+                    "odd": "2",
+                    "handicap": "7"
+                  },
+                  {
+                    "value": "Under",
+                    "odd": "2.25",
+                    "handicap": "7"
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    ],
+    "oddsFetchedAt": null,
+    "freshness": "fresh",
+    "cacheStatus": "hit"
+  },
+  "previousRecommendations": [
+    {
+      "minute": 38,
+      "odds": "2.100",
+      "bet_market": "under_6",
+      "selection": "Under 6 Goals @2.1",
+      "score": "1-1",
+      "status": "1H",
+      "result": "win",
+      "confidence": 7,
+      "stake_percent": "4.00",
+      "reasoning": "Despite already having exposure to the Under thesis from minute 24 (Under 4.25), the current line of Under 6 Goals at 2.10 represents an exceptional structural upgrade. The match has seen only 4 total shots and 1 shot on target combined in 38 minutes. The pace is extremely slow with only 190 total passes. Moving from a 4.25 line to a 6.0 line provides a massive 1.75-goal safety margin increase while also improving the payout. Break-even is about 47.6%. Given the dead attacking metrics, my fair range is around 80-85%. Edge looks about 35%. This justifies a secondary entry."
+    },
+    {
+      "minute": 38,
+      "odds": "2.000",
+      "bet_market": "under_3.75",
+      "selection": "Under 3.75 Goals @2.0",
+      "score": "1-1",
+      "status": "1H",
+      "result": "loss",
+      "confidence": 7,
+      "stake_percent": "4.00",
+      "reasoning": "Following up on the previous Under 4.25 recommendation at minute 24, the match conditions have only strengthened our thesis. By minute 38, the game remains incredibly stagnant with a mere 4 total shots (1 on target) and a combined 190 passes. The early goals (including an own goal) heavily inflated the total line, but the actual on-pitch tempo is exceptionally slow. Break-even for Under 3.75 at 2.0 is exactly 50%. Given the severe lack of attacking threat and slow build-up from both sides, my fair range is around 60-65%. Edge looks about 10-15%. We have a strong margin of safety here."
+    }
+  ],
+  "metadata": {
+    "recommendationId": 11834,
+    "originalPromptVersion": "v8-market-balance-followup-f",
+    "originalAiModel": "gemini-3-pro-preview",
+    "originalBetMarket": "under_4.25",
+    "originalSelection": "Under 4.25 Goals @1.8",
+    "originalResult": "loss",
+    "originalPnl": -3,
+    "minute": 24,
+    "score": "1-1",
+    "status": "1H",
+    "league": "J1 League",
+    "homeTeam": "Kawasaki Frontale",
+    "awayTeam": "Urawa",
+    "evidenceMode": "full_live_data",
+    "prematchStrength": "weak",
+    "profileCoverageBand": "partial",
+    "overlayCoverageBand": "none",
+    "policyImpactBand": "clean"
+  },
+  "settlementContext": {
+    "matchId": "1504738",
+    "homeTeam": "Kawasaki Frontale",
+    "awayTeam": "Urawa",
+    "finalStatus": "FT",
+    "homeScore": 3,
+    "awayScore": 2,
+    "regularHomeScore": 3,
+    "regularAwayScore": 2,
+    "settlementStats": [
+      {
+        "away": 3,
+        "home": 3,
+        "type": "Shots on Goal"
+      },
+      {
+        "away": 4,
+        "home": 5,
+        "type": "Shots off Goal"
+      },
+      {
+        "away": 13,
+        "home": 14,
+        "type": "Total Shots"
+      },
+      {
+        "away": 6,
+        "home": 6,
+        "type": "Blocked Shots"
+      },
+      {
+        "away": 7,
+        "home": 9,
+        "type": "Shots insidebox"
+      },
+      {
+        "away": 6,
+        "home": 5,
+        "type": "Shots outsidebox"
+      },
+      {
+        "away": 19,
+        "home": 6,
+        "type": "Fouls"
+      },
+      {
+        "away": 3,
+        "home": 7,
+        "type": "Corner Kicks"
+      },
+      {
+        "away": 2,
+        "home": 2,
+        "type": "Offsides"
+      },
+      {
+        "away": "47%",
+        "home": "53%",
+        "type": "Ball Possession"
+      },
+      {
+        "away": 1,
+        "home": 2,
+        "type": "Yellow Cards"
+      },
+      {
+        "away": null,
+        "home": null,
+        "type": "Red Cards"
+      },
+      {
+        "away": 1,
+        "home": 1,
+        "type": "Goalkeeper Saves"
+      },
+      {
+        "away": 346,
+        "home": 383,
+        "type": "Total passes"
+      },
+      {
+        "away": 279,
+        "home": 299,
+        "type": "Passes accurate"
+      },
+      {
+        "away": "81%",
+        "home": "78%",
+        "type": "Passes %"
+      },
+      {
+        "away": null,
+        "home": null,
+        "type": "expected_goals"
+      },
+      {
+        "away": null,
+        "home": null,
+        "type": "goals_prevented"
+      }
+    ]
+  }
+}

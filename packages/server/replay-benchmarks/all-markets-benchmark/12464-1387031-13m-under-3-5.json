@@ -1,0 +1,432 @@
+{
+  "name": "12464-1387031-13m-under-3-5",
+  "matchId": "1387031",
+  "fixture": {
+    "fixture": {
+      "id": 1387031,
+      "referee": null,
+      "timezone": "UTC",
+      "date": "2026-04-06T14:00:00.000Z",
+      "timestamp": 1775484000,
+      "periods": {
+        "first": null,
+        "second": null
+      },
+      "venue": {
+        "id": null,
+        "name": "Hillsborough",
+        "city": null
+      },
+      "status": {
+        "long": "1H",
+        "short": "1H",
+        "elapsed": 13
+      }
+    },
+    "league": {
+      "id": 40,
+      "name": "Championship",
+      "country": "",
+      "logo": "",
+      "flag": null,
+      "season": 0,
+      "round": ""
+    },
+    "teams": {
+      "home": {
+        "id": 74,
+        "name": "Sheffield Wednesday",
+        "logo": "",
+        "winner": null
+      },
+      "away": {
+        "id": 46,
+        "name": "Leicester",
+        "logo": "",
+        "winner": null
+      }
+    },
+    "goals": {
+      "home": 1,
+      "away": 0
+    },
+    "score": {
+      "halftime": {
+        "home": null,
+        "away": null
+      },
+      "fulltime": {
+        "home": 1,
+        "away": 0
+      }
+    }
+  },
+  "watchlistEntry": {
+    "match_id": "1387031",
+    "league": "Championship",
+    "home_team": "Sheffield Wednesday",
+    "away_team": "Leicester",
+    "mode": "B",
+    "status": "active",
+    "custom_conditions": "",
+    "date": "2026-04-06",
+    "kickoff": "14:00:00",
+    "strategic_context": null
+  },
+  "pipelineOptions": {
+    "forceAnalyze": true,
+    "skipProceedGate": true,
+    "skipStalenessGate": true
+  },
+  "statistics": [
+    {
+      "team": {
+        "id": 0,
+        "name": "Sheffield Wednesday",
+        "logo": ""
+      },
+      "statistics": [
+        {
+          "type": "Ball Possession",
+          "value": "31%"
+        },
+        {
+          "type": "Total Shots",
+          "value": "3"
+        },
+        {
+          "type": "Shots on Goal",
+          "value": "1"
+        },
+        {
+          "type": "Corner Kicks",
+          "value": "1"
+        },
+        {
+          "type": "Fouls",
+          "value": "1"
+        },
+        {
+          "type": "Offsides",
+          "value": "1"
+        },
+        {
+          "type": "Yellow Cards",
+          "value": null
+        },
+        {
+          "type": "Red Cards",
+          "value": null
+        },
+        {
+          "type": "Goalkeeper Saves",
+          "value": null
+        },
+        {
+          "type": "Blocked Shots",
+          "value": "1"
+        },
+        {
+          "type": "Total passes",
+          "value": "24"
+        },
+        {
+          "type": "Passes accurate",
+          "value": "14"
+        },
+        {
+          "type": "Shots off Goal",
+          "value": "1"
+        },
+        {
+          "type": "Shots insidebox",
+          "value": "2"
+        },
+        {
+          "type": "Shots outsidebox",
+          "value": "1"
+        },
+        {
+          "type": "expected_goals",
+          "value": "0.70"
+        },
+        {
+          "type": "goals_prevented",
+          "value": "0"
+        },
+        {
+          "type": "Passes %",
+          "value": "58%"
+        }
+      ]
+    },
+    {
+      "team": {
+        "id": 0,
+        "name": "Leicester",
+        "logo": ""
+      },
+      "statistics": [
+        {
+          "type": "Ball Possession",
+          "value": "69%"
+        },
+        {
+          "type": "Total Shots",
+          "value": "1"
+        },
+        {
+          "type": "Shots on Goal",
+          "value": "0"
+        },
+        {
+          "type": "Corner Kicks",
+          "value": "1"
+        },
+        {
+          "type": "Fouls",
+          "value": "0"
+        },
+        {
+          "type": "Offsides",
+          "value": "0"
+        },
+        {
+          "type": "Yellow Cards",
+          "value": null
+        },
+        {
+          "type": "Red Cards",
+          "value": null
+        },
+        {
+          "type": "Goalkeeper Saves",
+          "value": null
+        },
+        {
+          "type": "Blocked Shots",
+          "value": "0"
+        },
+        {
+          "type": "Total passes",
+          "value": "55"
+        },
+        {
+          "type": "Passes accurate",
+          "value": "48"
+        },
+        {
+          "type": "Shots off Goal",
+          "value": "1"
+        },
+        {
+          "type": "Shots insidebox",
+          "value": "1"
+        },
+        {
+          "type": "Shots outsidebox",
+          "value": "0"
+        },
+        {
+          "type": "expected_goals",
+          "value": "0.10"
+        },
+        {
+          "type": "goals_prevented",
+          "value": "0"
+        },
+        {
+          "type": "Passes %",
+          "value": "87%"
+        }
+      ]
+    }
+  ],
+  "mockResolvedOdds": {
+    "oddsSource": "live",
+    "response": [
+      {
+        "bookmakers": [
+          {
+            "id": 0,
+            "name": "Replay Mock",
+            "bets": [
+              {
+                "id": 1,
+                "name": "Over/Under",
+                "values": [
+                  {
+                    "value": "Over",
+                    "odd": "1.909",
+                    "handicap": "3.5"
+                  },
+                  {
+                    "value": "Under",
+                    "odd": "1.975",
+                    "handicap": "3.5"
+                  }
+                ]
+              },
+              {
+                "id": 2,
+                "name": "Corners Over/Under",
+                "values": [
+                  {
+                    "value": "Over",
+                    "odd": "1.9",
+                    "handicap": "11.5"
+                  },
+                  {
+                    "value": "Under",
+                    "odd": "1.9",
+                    "handicap": "11.5"
+                  }
+                ]
+              },
+              {
+                "id": 3,
+                "name": "Both Teams Score",
+                "values": [
+                  {
+                    "value": "Yes",
+                    "odd": "1.111"
+                  },
+                  {
+                    "value": "No",
+                    "odd": "6.5"
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    ],
+    "oddsFetchedAt": null,
+    "freshness": "fresh",
+    "cacheStatus": "hit"
+  },
+  "previousRecommendations": [],
+  "metadata": {
+    "recommendationId": 12464,
+    "originalPromptVersion": "v4-evidence-hardened",
+    "originalAiModel": "gemini-3-pro-preview",
+    "originalBetMarket": "under_3.5",
+    "originalSelection": "Under 3.5 Goals @1.975",
+    "originalResult": "win",
+    "originalPnl": 2.93,
+    "minute": 13,
+    "score": "1-0",
+    "status": "1H",
+    "league": "Championship",
+    "homeTeam": "Sheffield Wednesday",
+    "awayTeam": "Leicester",
+    "evidenceMode": "full_live_data",
+    "prematchStrength": "strong",
+    "profileCoverageBand": "strong",
+    "overlayCoverageBand": "one",
+    "policyImpactBand": "clean"
+  },
+  "settlementContext": {
+    "matchId": "1387031",
+    "homeTeam": "Sheffield Wednesday",
+    "awayTeam": "Leicester",
+    "finalStatus": "FT",
+    "homeScore": 1,
+    "awayScore": 1,
+    "regularHomeScore": 1,
+    "regularAwayScore": 1,
+    "settlementStats": [
+      {
+        "away": 9,
+        "home": 1,
+        "type": "Shots on Goal"
+      },
+      {
+        "away": 10,
+        "home": 2,
+        "type": "Shots off Goal"
+      },
+      {
+        "away": 22,
+        "home": 6,
+        "type": "Total Shots"
+      },
+      {
+        "away": 3,
+        "home": 3,
+        "type": "Blocked Shots"
+      },
+      {
+        "away": 12,
+        "home": 5,
+        "type": "Shots insidebox"
+      },
+      {
+        "away": 10,
+        "home": 1,
+        "type": "Shots outsidebox"
+      },
+      {
+        "away": 11,
+        "home": 6,
+        "type": "Fouls"
+      },
+      {
+        "away": 9,
+        "home": 1,
+        "type": "Corner Kicks"
+      },
+      {
+        "away": 3,
+        "home": 1,
+        "type": "Offsides"
+      },
+      {
+        "away": "70%",
+        "home": "30%",
+        "type": "Ball Possession"
+      },
+      {
+        "away": null,
+        "home": null,
+        "type": "Yellow Cards"
+      },
+      {
+        "away": null,
+        "home": null,
+        "type": "Red Cards"
+      },
+      {
+        "away": 0,
+        "home": 9,
+        "type": "Goalkeeper Saves"
+      },
+      {
+        "away": 547,
+        "home": 239,
+        "type": "Total passes"
+      },
+      {
+        "away": 450,
+        "home": 141,
+        "type": "Passes accurate"
+      },
+      {
+        "away": "82%",
+        "home": "59%",
+        "type": "Passes %"
+      },
+      {
+        "away": "2.25",
+        "home": "1.17",
+        "type": "expected_goals"
+      },
+      {
+        "away": 0,
+        "home": 0,
+        "type": "goals_prevented"
+      }
+    ]
+  }
+}

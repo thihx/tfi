@@ -1,3 +1,4 @@
+/** Post-parse gates: see `docs/live-monitor-ai-ou-under-bias.md` before tightening Under/Over asymmetry. */
 import { normalizeMarket } from './normalize-market.js';
 
 export interface RecommendationPolicyPreviousRow {
@@ -109,7 +110,8 @@ export function applyRecommendationPolicy(input: RecommendationPolicyInput): Rec
   const isV8g = promptVersion === 'v8-market-balance-followup-g';
   const isV8h = promptVersion === 'v8-market-balance-followup-h';
   const isV8i = promptVersion === 'v8-market-balance-followup-i';
-  const isV8dFamily = isV8d || isV8f || isV8g || isV8h || isV8i;
+  const isV8j = promptVersion === 'v8-market-balance-followup-j';
+  const isV8dFamily = isV8d || isV8f || isV8g || isV8h || isV8i || isV8j;
   const scoreState = getScoreState(input.score);
   const totalGoals = getTotalGoals(input.score);
   const marketLine = getMarketLine(canonicalMarket);
@@ -155,7 +157,7 @@ export function applyRecommendationPolicy(input: RecommendationPolicyInput): Rec
   }
 
   if (
-    (isV8f || isV8g || isV8h || isV8i)
+    (isV8f || isV8g || isV8h || isV8i || isV8j)
     && canonicalMarket.startsWith('under_')
     && !canonicalMarket.startsWith('under_0.5')
     && input.minute >= 30
@@ -168,7 +170,7 @@ export function applyRecommendationPolicy(input: RecommendationPolicyInput): Rec
   }
 
   if (
-    (isV8f || isV8g || isV8h || isV8i)
+    (isV8f || isV8g || isV8h || isV8i || isV8j)
     && canonicalMarket.startsWith('under_')
     && !canonicalMarket.startsWith('under_0.5')
     && input.minute >= 30
@@ -182,7 +184,7 @@ export function applyRecommendationPolicy(input: RecommendationPolicyInput): Rec
   }
 
   if (
-    (isV8f || isV8g || isV8h || isV8i)
+    (isV8f || isV8g || isV8h || isV8i || isV8j)
     && canonicalMarket.startsWith('corners_over_')
     && input.minute < 60
     && marketLine != null
@@ -192,7 +194,7 @@ export function applyRecommendationPolicy(input: RecommendationPolicyInput): Rec
   }
 
   if (
-    (isV8g || isV8h || isV8i)
+    (isV8g || isV8h || isV8i || isV8j)
     && canonicalMarket.startsWith('under_')
     && !canonicalMarket.startsWith('under_0.5')
     && input.minute <= 44
@@ -204,7 +206,7 @@ export function applyRecommendationPolicy(input: RecommendationPolicyInput): Rec
   }
 
   if (
-    (isV8h || isV8i)
+    (isV8h || isV8i || isV8j)
     && canonicalMarket.startsWith('under_')
     && !canonicalMarket.startsWith('under_0.5')
     && input.minute >= 45
@@ -217,7 +219,7 @@ export function applyRecommendationPolicy(input: RecommendationPolicyInput): Rec
   }
 
   if (
-    (isV8h || isV8i)
+    (isV8h || isV8i || isV8j)
     && canonicalMarket.startsWith('over_')
     && input.minute >= 45
     && input.minute <= 59
@@ -229,7 +231,7 @@ export function applyRecommendationPolicy(input: RecommendationPolicyInput): Rec
   }
 
   if (
-    (isV8h || isV8i)
+    (isV8h || isV8i || isV8j)
     && canonicalMarket.startsWith('corners_over_')
     && input.minute >= 45
     && input.minute <= 59
@@ -238,6 +240,24 @@ export function applyRecommendationPolicy(input: RecommendationPolicyInput): Rec
     && marketLine >= 10
   ) {
     block('POLICY_BLOCK_CORNERS_OVER_45_59_ONE_GOAL_HIGH_LINE_V8H');
+  }
+
+  const inPropsHotZoneV8j =
+    isV8j
+    && ((input.minute >= 30 && input.minute <= 44) || (input.minute >= 53 && input.minute <= 59));
+  const propsHotZoneMinEdge =
+    input.minute >= 37 && input.minute <= 44 ? 8 : 7;
+
+  if (
+    inPropsHotZoneV8j
+    && (canonicalMarket.startsWith('corners_') || canonicalMarket === 'btts_yes')
+  ) {
+    if (input.valuePercent < propsHotZoneMinEdge) {
+      block('POLICY_BLOCK_PROPS_HOT_ZONE_LOW_EDGE_V8J');
+    }
+    if (input.confidence < 8) {
+      block('POLICY_BLOCK_PROPS_HOT_ZONE_LOW_CONFIDENCE_V8J');
+    }
   }
 
   if (canonicalMarket === 'btts_no') {
@@ -250,8 +270,21 @@ export function applyRecommendationPolicy(input: RecommendationPolicyInput): Rec
     if (input.odds != null && input.odds >= BTTS_NO_MAX_ODDS) {
       block('POLICY_BLOCK_BTTS_NO_HIGH_PRICE');
     }
-    if (input.valuePercent < BTTS_NO_MIN_EDGE) {
-      block('POLICY_BLOCK_BTTS_NO_LOW_EDGE');
+    let minBttsNoEdge = BTTS_NO_MIN_EDGE;
+    if (isV8j) {
+      minBttsNoEdge = Math.max(minBttsNoEdge, 6);
+      if (input.minute >= 37 && input.minute <= 44) {
+        minBttsNoEdge = Math.max(minBttsNoEdge, 8);
+      } else if ((input.minute >= 30 && input.minute <= 44) || (input.minute >= 53 && input.minute <= 59)) {
+        minBttsNoEdge = Math.max(minBttsNoEdge, 7);
+      }
+    }
+    if (input.valuePercent < minBttsNoEdge) {
+      block(
+        minBttsNoEdge > BTTS_NO_MIN_EDGE
+          ? 'POLICY_BLOCK_BTTS_NO_LOW_EDGE_V8J'
+          : 'POLICY_BLOCK_BTTS_NO_LOW_EDGE',
+      );
     }
 
     const homeShotsOnTarget = parseStatInt(input.statsCompact?.shots_on_target?.home);

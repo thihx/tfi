@@ -318,7 +318,7 @@ Tests:
 - `server-pipeline.test.ts`
   - auto vs manual vs system-force prompt metadata
   - odds-only degraded mode
-  - live-score fallback with updated prompt semantics
+  - API-Football-only stats with degraded `odds_events_only_degraded` when stats are missing (no alternate stats provider)
   - repeated recommendation suppression
 
 - `proxy.routes.test.ts`

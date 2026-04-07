@@ -1,0 +1,431 @@
+{
+  "name": "12244-1392133-45m-under-3-25",
+  "matchId": "1392133",
+  "fixture": {
+    "fixture": {
+      "id": 1392133,
+      "referee": null,
+      "timezone": "UTC",
+      "date": "2026-04-05T19:00:00.000Z",
+      "timestamp": 1775415600,
+      "periods": {
+        "first": null,
+        "second": null
+      },
+      "venue": {
+        "id": null,
+        "name": "Ibercaja Estadio",
+        "city": null
+      },
+      "status": {
+        "long": "1H",
+        "short": "1H",
+        "elapsed": 45
+      }
+    },
+    "league": {
+      "id": 141,
+      "name": "Segunda División",
+      "country": "",
+      "logo": "",
+      "flag": null,
+      "season": 0,
+      "round": ""
+    },
+    "teams": {
+      "home": {
+        "id": 0,
+        "name": "Zaragoza",
+        "logo": "",
+        "winner": null
+      },
+      "away": {
+        "id": 0,
+        "name": "Mirandes",
+        "logo": "",
+        "winner": null
+      }
+    },
+    "goals": {
+      "home": 1,
+      "away": 1
+    },
+    "score": {
+      "halftime": {
+        "home": null,
+        "away": null
+      },
+      "fulltime": {
+        "home": 1,
+        "away": 1
+      }
+    }
+  },
+  "watchlistEntry": {
+    "match_id": "1392133",
+    "league": "Segunda División",
+    "home_team": "Zaragoza",
+    "away_team": "Mirandes",
+    "mode": "B",
+    "status": "active",
+    "custom_conditions": "",
+    "date": "2026-04-06",
+    "kickoff": "04:00:00",
+    "strategic_context": null
+  },
+  "pipelineOptions": {
+    "forceAnalyze": true,
+    "skipProceedGate": true,
+    "skipStalenessGate": true
+  },
+  "statistics": [
+    {
+      "team": {
+        "id": 0,
+        "name": "Zaragoza",
+        "logo": ""
+      },
+      "statistics": [
+        {
+          "type": "Ball Possession",
+          "value": "55%"
+        },
+        {
+          "type": "Total Shots",
+          "value": "8"
+        },
+        {
+          "type": "Shots on Goal",
+          "value": "1"
+        },
+        {
+          "type": "Corner Kicks",
+          "value": "2"
+        },
+        {
+          "type": "Fouls",
+          "value": "7"
+        },
+        {
+          "type": "Offsides",
+          "value": null
+        },
+        {
+          "type": "Yellow Cards",
+          "value": "2"
+        },
+        {
+          "type": "Red Cards",
+          "value": null
+        },
+        {
+          "type": "Goalkeeper Saves",
+          "value": "1"
+        },
+        {
+          "type": "Blocked Shots",
+          "value": "5"
+        },
+        {
+          "type": "Total passes",
+          "value": "153"
+        },
+        {
+          "type": "Passes accurate",
+          "value": "128"
+        },
+        {
+          "type": "Shots off Goal",
+          "value": "2"
+        },
+        {
+          "type": "Shots insidebox",
+          "value": "5"
+        },
+        {
+          "type": "Shots outsidebox",
+          "value": "3"
+        },
+        {
+          "type": "expected_goals",
+          "value": null
+        },
+        {
+          "type": "goals_prevented",
+          "value": null
+        },
+        {
+          "type": "Passes %",
+          "value": "84%"
+        }
+      ]
+    },
+    {
+      "team": {
+        "id": 0,
+        "name": "Mirandes",
+        "logo": ""
+      },
+      "statistics": [
+        {
+          "type": "Ball Possession",
+          "value": "45%"
+        },
+        {
+          "type": "Total Shots",
+          "value": "5"
+        },
+        {
+          "type": "Shots on Goal",
+          "value": "1"
+        },
+        {
+          "type": "Corner Kicks",
+          "value": "3"
+        },
+        {
+          "type": "Fouls",
+          "value": "7"
+        },
+        {
+          "type": "Offsides",
+          "value": null
+        },
+        {
+          "type": "Yellow Cards",
+          "value": "2"
+        },
+        {
+          "type": "Red Cards",
+          "value": null
+        },
+        {
+          "type": "Goalkeeper Saves",
+          "value": "0"
+        },
+        {
+          "type": "Blocked Shots",
+          "value": "2"
+        },
+        {
+          "type": "Total passes",
+          "value": "119"
+        },
+        {
+          "type": "Passes accurate",
+          "value": "95"
+        },
+        {
+          "type": "Shots off Goal",
+          "value": "2"
+        },
+        {
+          "type": "Shots insidebox",
+          "value": "3"
+        },
+        {
+          "type": "Shots outsidebox",
+          "value": "2"
+        },
+        {
+          "type": "expected_goals",
+          "value": null
+        },
+        {
+          "type": "goals_prevented",
+          "value": null
+        },
+        {
+          "type": "Passes %",
+          "value": "80%"
+        }
+      ]
+    }
+  ],
+  "mockResolvedOdds": {
+    "oddsSource": "live",
+    "response": [
+      {
+        "bookmakers": [
+          {
+            "id": 0,
+            "name": "Replay Mock",
+            "bets": [
+              {
+                "id": 1,
+                "name": "Over/Under",
+                "values": [
+                  {
+                    "value": "Over",
+                    "odd": "1.825",
+                    "handicap": "3.25"
+                  },
+                  {
+                    "value": "Under",
+                    "odd": "1.975",
+                    "handicap": "3.25"
+                  }
+                ]
+              },
+              {
+                "id": 2,
+                "name": "Corners Over/Under",
+                "values": [
+                  {
+                    "value": "Over",
+                    "odd": "2.05",
+                    "handicap": "11.5"
+                  },
+                  {
+                    "value": "Under",
+                    "odd": "1.75",
+                    "handicap": "11.5"
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    ],
+    "oddsFetchedAt": null,
+    "freshness": "fresh",
+    "cacheStatus": "hit"
+  },
+  "previousRecommendations": [
+    {
+      "minute": 31,
+      "odds": "1.850",
+      "bet_market": "under_2.75",
+      "selection": "Under 2.75 Goals @1.85",
+      "score": "1-0",
+      "status": "1H",
+      "result": "half_loss",
+      "confidence": 6,
+      "stake_percent": "3.00",
+      "reasoning": "The match has seen exactly 1 goal, which came from a penalty. Strikingly, there have been 0 shots on target from open play in the first 31 minutes. The tempo is exceptionally slow, with only 166 total passes attempted between both teams combined. While historical priors suggest caution for Under 2.75, the live evidence of a completely stagnant attacking environment provides a strong edge. Break-even is about 54%. My fair range is around 62-64%. Edge looks about 8%."
+    }
+  ],
+  "metadata": {
+    "recommendationId": 12244,
+    "originalPromptVersion": "v4-evidence-hardened",
+    "originalAiModel": "gemini-3-pro-preview",
+    "originalBetMarket": "under_3.25",
+    "originalSelection": "Under 3.25 Goals @1.975",
+    "originalResult": "half_win",
+    "originalPnl": 1.95,
+    "minute": 45,
+    "score": "1-1",
+    "status": "1H",
+    "league": "Segunda División",
+    "homeTeam": "Zaragoza",
+    "awayTeam": "Mirandes",
+    "evidenceMode": "full_live_data",
+    "prematchStrength": "strong",
+    "profileCoverageBand": "strong",
+    "overlayCoverageBand": "none",
+    "policyImpactBand": "clean"
+  },
+  "settlementContext": {
+    "matchId": "1392133",
+    "homeTeam": "Zaragoza",
+    "awayTeam": "Mirandes",
+    "finalStatus": "FT",
+    "homeScore": 1,
+    "awayScore": 2,
+    "regularHomeScore": 1,
+    "regularAwayScore": 2,
+    "settlementStats": [
+      {
+        "away": 3,
+        "home": 5,
+        "type": "Shots on Goal"
+      },
+      {
+        "away": 5,
+        "home": 7,
+        "type": "Shots off Goal"
+      },
+      {
+        "away": 15,
+        "home": 25,
+        "type": "Total Shots"
+      },
+      {
+        "away": 7,
+        "home": 13,
+        "type": "Blocked Shots"
+      },
+      {
+        "away": 9,
+        "home": 18,
+        "type": "Shots insidebox"
+      },
+      {
+        "away": 6,
+        "home": 7,
+        "type": "Shots outsidebox"
+      },
+      {
+        "away": 21,
+        "home": 16,
+        "type": "Fouls"
+      },
+      {
+        "away": 6,
+        "home": 6,
+        "type": "Corner Kicks"
+      },
+      {
+        "away": 2,
+        "home": 1,
+        "type": "Offsides"
+      },
+      {
+        "away": "39%",
+        "home": "61%",
+        "type": "Ball Possession"
+      },
+      {
+        "away": 7,
+        "home": 5,
+        "type": "Yellow Cards"
+      },
+      {
+        "away": null,
+        "home": null,
+        "type": "Red Cards"
+      },
+      {
+        "away": 4,
+        "home": 1,
+        "type": "Goalkeeper Saves"
+      },
+      {
+        "away": 228,
+        "home": 344,
+        "type": "Total passes"
+      },
+      {
+        "away": 171,
+        "home": 283,
+        "type": "Passes accurate"
+      },
+      {
+        "away": "75%",
+        "home": "82%",
+        "type": "Passes %"
+      },
+      {
+        "away": null,
+        "home": null,
+        "type": "expected_goals"
+      },
+      {
+        "away": null,
+        "home": null,
+        "type": "goals_prevented"
+      }
+    ]
+  }
+}

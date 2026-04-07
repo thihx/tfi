@@ -1,0 +1,461 @@
+{
+  "name": "12138-1388553-79m-over-3-5",
+  "matchId": "1388553",
+  "fixture": {
+    "fixture": {
+      "id": 1388553,
+      "referee": null,
+      "timezone": "UTC",
+      "date": "2026-04-05T15:30:00.000Z",
+      "timestamp": 1775403000,
+      "periods": {
+        "first": null,
+        "second": null
+      },
+      "venue": {
+        "id": null,
+        "name": "Deutsche Bank Park",
+        "city": null
+      },
+      "status": {
+        "long": "2H",
+        "short": "2H",
+        "elapsed": 79
+      }
+    },
+    "league": {
+      "id": 78,
+      "name": "Bundesliga",
+      "country": "",
+      "logo": "",
+      "flag": null,
+      "season": 0,
+      "round": ""
+    },
+    "teams": {
+      "home": {
+        "id": 0,
+        "name": "Eintracht Frankfurt",
+        "logo": "",
+        "winner": null
+      },
+      "away": {
+        "id": 0,
+        "name": "1. FC Köln",
+        "logo": "",
+        "winner": null
+      }
+    },
+    "goals": {
+      "home": 2,
+      "away": 1
+    },
+    "score": {
+      "halftime": {
+        "home": null,
+        "away": null
+      },
+      "fulltime": {
+        "home": 2,
+        "away": 1
+      }
+    }
+  },
+  "watchlistEntry": {
+    "match_id": "1388553",
+    "league": "Bundesliga",
+    "home_team": "Eintracht Frankfurt",
+    "away_team": "1. FC Köln",
+    "mode": "B",
+    "status": "active",
+    "custom_conditions": "",
+    "date": "2026-04-06",
+    "kickoff": "00:30:00",
+    "strategic_context": null
+  },
+  "pipelineOptions": {
+    "forceAnalyze": true,
+    "skipProceedGate": true,
+    "skipStalenessGate": true
+  },
+  "statistics": [
+    {
+      "team": {
+        "id": 0,
+        "name": "Eintracht Frankfurt",
+        "logo": ""
+      },
+      "statistics": [
+        {
+          "type": "Ball Possession",
+          "value": "66%"
+        },
+        {
+          "type": "Total Shots",
+          "value": "15"
+        },
+        {
+          "type": "Shots on Goal",
+          "value": "7"
+        },
+        {
+          "type": "Corner Kicks",
+          "value": "3"
+        },
+        {
+          "type": "Fouls",
+          "value": "6"
+        },
+        {
+          "type": "Offsides",
+          "value": "0"
+        },
+        {
+          "type": "Yellow Cards",
+          "value": "1"
+        },
+        {
+          "type": "Red Cards",
+          "value": null
+        },
+        {
+          "type": "Goalkeeper Saves",
+          "value": "6"
+        },
+        {
+          "type": "Blocked Shots",
+          "value": "4"
+        },
+        {
+          "type": "Total passes",
+          "value": "460"
+        },
+        {
+          "type": "Passes accurate",
+          "value": "412"
+        },
+        {
+          "type": "Shots off Goal",
+          "value": "4"
+        },
+        {
+          "type": "Shots insidebox",
+          "value": "9"
+        },
+        {
+          "type": "Shots outsidebox",
+          "value": "6"
+        },
+        {
+          "type": "expected_goals",
+          "value": "1.94"
+        },
+        {
+          "type": "goals_prevented",
+          "value": "0"
+        },
+        {
+          "type": "Passes %",
+          "value": "90%"
+        }
+      ]
+    },
+    {
+      "team": {
+        "id": 0,
+        "name": "1. FC Köln",
+        "logo": ""
+      },
+      "statistics": [
+        {
+          "type": "Ball Possession",
+          "value": "34%"
+        },
+        {
+          "type": "Total Shots",
+          "value": "11"
+        },
+        {
+          "type": "Shots on Goal",
+          "value": "7"
+        },
+        {
+          "type": "Corner Kicks",
+          "value": "0"
+        },
+        {
+          "type": "Fouls",
+          "value": "5"
+        },
+        {
+          "type": "Offsides",
+          "value": "3"
+        },
+        {
+          "type": "Yellow Cards",
+          "value": "0"
+        },
+        {
+          "type": "Red Cards",
+          "value": null
+        },
+        {
+          "type": "Goalkeeper Saves",
+          "value": "5"
+        },
+        {
+          "type": "Blocked Shots",
+          "value": "3"
+        },
+        {
+          "type": "Total passes",
+          "value": "230"
+        },
+        {
+          "type": "Passes accurate",
+          "value": "179"
+        },
+        {
+          "type": "Shots off Goal",
+          "value": "1"
+        },
+        {
+          "type": "Shots insidebox",
+          "value": "10"
+        },
+        {
+          "type": "Shots outsidebox",
+          "value": "1"
+        },
+        {
+          "type": "expected_goals",
+          "value": "1.69"
+        },
+        {
+          "type": "goals_prevented",
+          "value": "0"
+        },
+        {
+          "type": "Passes %",
+          "value": "78%"
+        }
+      ]
+    }
+  ],
+  "mockResolvedOdds": {
+    "oddsSource": "live",
+    "response": [
+      {
+        "bookmakers": [
+          {
+            "id": 0,
+            "name": "Replay Mock",
+            "bets": [
+              {
+                "id": 1,
+                "name": "Match Winner",
+                "values": [
+                  {
+                    "value": "Home",
+                    "odd": "1.181"
+                  },
+                  {
+                    "value": "Draw",
+                    "odd": "15"
+                  },
+                  {
+                    "value": "Away",
+                    "odd": "34"
+                  }
+                ]
+              },
+              {
+                "id": 2,
+                "name": "Over/Under",
+                "values": [
+                  {
+                    "value": "Over",
+                    "odd": "2.025",
+                    "handicap": "3.5"
+                  },
+                  {
+                    "value": "Under",
+                    "odd": "1.825",
+                    "handicap": "3.5"
+                  }
+                ]
+              },
+              {
+                "id": 3,
+                "name": "Corners Over/Under",
+                "values": [
+                  {
+                    "value": "Over",
+                    "odd": "1.975",
+                    "handicap": "4.5"
+                  },
+                  {
+                    "value": "Under",
+                    "odd": "1.825",
+                    "handicap": "4.5"
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    ],
+    "oddsFetchedAt": null,
+    "freshness": "fresh",
+    "cacheStatus": "hit"
+  },
+  "previousRecommendations": [
+    {
+      "minute": 65,
+      "odds": "1.875",
+      "bet_market": "under_1",
+      "selection": "Under 1 Goals @1.875",
+      "score": "0-0",
+      "status": "2H",
+      "result": "loss",
+      "confidence": 7,
+      "stake_percent": "4.00",
+      "reasoning": "At minute 34, we recommended Under 2 Goals @1.80. The match has progressed to minute 65 and the score remains 0-0, validating our initial read. While the combined xG has climbed to 2.20, actual finishing has been poor and both goalkeepers have been solid with 4 saves each. Following the principle to prefer Under markets in 0-0 matches after minute 55, the Under 1 line offers a highly secure continuation. If exactly one goal is scored, the bet pushes; we only lose if two or more goals are scored in the final 25 minutes, which is statistically unlikely given the current game state. Break-even is about 53.3%. My fair range for under 1.5 goals (covering the win/push scenarios) is around 68-72%. Edge looks about 15%."
+    },
+    {
+      "minute": 34,
+      "odds": "1.800",
+      "bet_market": "under_2",
+      "selection": "Under 2 Goals @1.8",
+      "score": "0-0",
+      "status": "1H",
+      "result": "loss",
+      "confidence": 6,
+      "stake_percent": "3.00",
+      "reasoning": "At minute 34, the score remains 0-0. Eintracht Frankfurt is dominating possession (67%) but struggling to break down Köln's defense, generating only 0.19 xG from 4 shots. Köln is playing on the counter and has created better chances (0.99 xG from 4 shots inside the box), but the overall match pace is slow with only 8 total shots so far. Frankfurt's sterile possession and Köln's defensive setup point towards a low-scoring affair. The Under 2 Goals line offers a safety net of a push if exactly two goals are scored. Break-even is about 55.6%. My fair range is around 63-65%. Edge looks about 8%."
+    }
+  ],
+  "metadata": {
+    "recommendationId": 12138,
+    "originalPromptVersion": "v4-evidence-hardened",
+    "originalAiModel": "gemini-3-pro-preview",
+    "originalBetMarket": "over_3.5",
+    "originalSelection": "Over 3.5 Goals @2.025",
+    "originalResult": "win",
+    "originalPnl": 3.08,
+    "minute": 79,
+    "score": "2-1",
+    "status": "2H",
+    "league": "Bundesliga",
+    "homeTeam": "Eintracht Frankfurt",
+    "awayTeam": "1. FC Köln",
+    "evidenceMode": "full_live_data",
+    "prematchStrength": "strong",
+    "profileCoverageBand": "strong",
+    "overlayCoverageBand": "none",
+    "policyImpactBand": "clean"
+  },
+  "settlementContext": {
+    "matchId": "1388553",
+    "homeTeam": "Eintracht Frankfurt",
+    "awayTeam": "1. FC Köln",
+    "finalStatus": "FT",
+    "homeScore": 2,
+    "awayScore": 2,
+    "regularHomeScore": 2,
+    "regularAwayScore": 2,
+    "settlementStats": [
+      {
+        "away": 9,
+        "home": 7,
+        "type": "Shots on Goal"
+      },
+      {
+        "away": 2,
+        "home": 7,
+        "type": "Shots off Goal"
+      },
+      {
+        "away": 14,
+        "home": 18,
+        "type": "Total Shots"
+      },
+      {
+        "away": 3,
+        "home": 4,
+        "type": "Blocked Shots"
+      },
+      {
+        "away": 13,
+        "home": 11,
+        "type": "Shots insidebox"
+      },
+      {
+        "away": 1,
+        "home": 7,
+        "type": "Shots outsidebox"
+      },
+      {
+        "away": 6,
+        "home": 10,
+        "type": "Fouls"
+      },
+      {
+        "away": 0,
+        "home": 7,
+        "type": "Corner Kicks"
+      },
+      {
+        "away": 3,
+        "home": 0,
+        "type": "Offsides"
+      },
+      {
+        "away": "33%",
+        "home": "67%",
+        "type": "Ball Possession"
+      },
+      {
+        "away": 1,
+        "home": 1,
+        "type": "Yellow Cards"
+      },
+      {
+        "away": null,
+        "home": null,
+        "type": "Red Cards"
+      },
+      {
+        "away": 5,
+        "home": 7,
+        "type": "Goalkeeper Saves"
+      },
+      {
+        "away": 285,
+        "home": 578,
+        "type": "Total passes"
+      },
+      {
+        "away": 217,
+        "home": 513,
+        "type": "Passes accurate"
+      },
+      {
+        "away": "76%",
+        "home": "89%",
+        "type": "Passes %"
+      },
+      {
+        "away": "3.02",
+        "home": "2.14",
+        "type": "expected_goals"
+      },
+      {
+        "away": 0,
+        "home": 0,
+        "type": "goals_prevented"
+      }
+    ]
+  }
+}

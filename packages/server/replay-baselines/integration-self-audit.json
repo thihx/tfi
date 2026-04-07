@@ -1,0 +1,2217 @@
+{
+  "generatedAt": "2026-04-07T07:10:29.998Z",
+  "promptVersion": "v8-market-balance-followup-h",
+  "oddsMode": "mock",
+  "totalScenarios": 60,
+  "filters": {
+    "minuteBand": null,
+    "scoreState": null,
+    "originalMarketFamily": null,
+    "scenarioNameContains": null,
+    "maxScenarios": 60
+  },
+  "summary": {
+    "total": 60,
+    "underFallbackDetected": 0,
+    "genericReasoningDetected": 0,
+    "oddsAvailabilityIssue": 9,
+    "continuityBlock": 18,
+    "policyRestriction": 29,
+    "priorsIgnored": 22,
+    "priorsContradicting": 12,
+    "replayUnderCount": 16,
+    "replayNoBetCount": 34,
+    "primaryDrivers": [
+      {
+        "key": "Arminia Bielefeld's overwhelming attacking dominance, high expected goals (xG) of 1.88 compared to Darmstadt's 0.19, and high volume of quality chances (19 shots, 14 inside the box, 6 on target) at a 1-1 scoreline in the 73rd minute, indicating a strong likelihood of scoring another goal.",
+        "count": 1
+      },
+      {
+        "key": "Betting discipline rule preventing a new bet on a tighter line (Under 1.75) when a previous bet on a looser line (Under 2 Goals) already exists for the same thesis, to avoid compounding bankroll exposure without significant price/risk improvement.",
+        "count": 1
+      },
+      {
+        "key": "Birmingham's extremely low attacking threat (0.10 xG from 2 shots) combined with Ipswich's likely game management strategy while leading 2-1 at minute 62, making two additional goals improbable.",
+        "count": 1
+      },
+      {
+        "key": "Calculated strong edge of approximately 10.9% for Under 1.25 goals, based on a fair value of 62.85% compared to the market's break-even of 51.95% at odds of 1.925. This valuation is derived from the live match dynamics.",
+        "count": 1
+      },
+      {
+        "key": "Continuity rule violation (no material change since previous identical recommendation)",
+        "count": 1
+      },
+      {
+        "key": "Continuity rule violation for Over 3.5 Goals. A previous recommendation for the same market and selection (Over 3.5 Goals @1.875) was made at the exact same minute (72) with the same odds. The system's continuity rules require a significant odds improvement (>= 0.10), a material change in match state, or at least 5 minutes passed with stronger evidence for a new recommendation on the same market/selection, none of which were met.",
+        "count": 1
+      },
+      {
+        "key": "Continuity rules and insufficient odds improvement for the 'Under Goals' market, given existing exposure.",
+        "count": 1
+      },
+      {
+        "key": "Continuity rules for re-entry were not met.",
+        "count": 1
+      },
+      {
+        "key": "continuity_block",
+        "count": 1
+      },
+      {
+        "key": "Continuity/Exposure Block",
+        "count": 1
+      },
+      {
+        "key": "Continuity/exposure block: No material change in match state or odds improvement to justify a second entry on the same thesis.",
+        "count": 1
+      },
+      {
+        "key": "Continuity/exposure management: An existing bet on Under 3.5 Goals was active, and the Under 3.25 Goals market did not offer a material upgrade or distinct edge to justify compounding risk.",
+        "count": 1
+      },
+      {
+        "key": "Existing exposure and policy restriction against 'laddering' similar bets (Under Goals) with a tighter line, leading to compounding bankroll risk.",
+        "count": 1
+      },
+      {
+        "key": "Existing exposure on a similar market (Under 2.25 Goals) combined with the current Under 1.75 line not offering an 'exceptional upgrade in price/risk' to justify compounding bankroll exposure.",
+        "count": 1
+      },
+      {
+        "key": "Extremely low attacking output and goal threat from both teams based on live statistics (0 shots on target, 0.05 xG home, 0.03 xG away) at minute 21, indicating a very quiet game.",
+        "count": 1
+      },
+      {
+        "key": "Extremely low combined xG (0.14) after 20 minutes, indicating a very tight and defensively oriented game with a lack of attacking penetration from both sides.",
+        "count": 1
+      },
+      {
+        "key": "Extremely low corner count (4) at minute 60, combined with the game state (2-0 score) and Rosenborg's complete lack of attacking threat (1 shot, 0 SOT, 0.11 xG), making it highly improbable for the total corners to reach 9.5.",
+        "count": 1
+      },
+      {
+        "key": "Extremely low live xG and shot count, indicating a very low-event match with a lack of quality scoring opportunities.",
+        "count": 1
+      },
+      {
+        "key": "Extremely low offensive output and suppressed attacking environment based on live statistics (shots, shots on target, xG).",
+        "count": 1
+      },
+      {
+        "key": "High attacking pressure from the trailing home team combined with efficient counter-attacking threat from the away team, creating an open, late-game scenario highly conducive to another goal, supported by a calculated edge on the Over 3.5 market.",
+        "count": 1
+      },
+      {
+        "key": "Identification of value in Over 3.5 Goals based on live attacking statistics and strong market signals for further goals.",
+        "count": 1
+      },
+      {
+        "key": "Inability to identify a confident betting opportunity due to lack of sufficient live evidence.",
+        "count": 1
+      },
+      {
+        "key": "Lack of a strong betting edge on the Over/Under 4.5 goals market due to balanced odds and conflicting signals from live data and prematch priors.",
+        "count": 1
+      },
+      {
+        "key": "Lack of material value upgrade for a follow-up bet on the same 'Under Goals' thesis, combined with a policy restriction against compounding exposure.",
+        "count": 1
+      },
+      {
+        "key": "Lack of sufficient betting edge (3% or more) across all available markets, considering live evidence, historical priors, and policy rules.",
+        "count": 1
+      },
+      {
+        "key": "Lack of sufficient edge for Under 3.25 Goals due to market lean, caution prior, and insufficient live evidence to override these factors.",
+        "count": 1
+      },
+      {
+        "key": "Live game dynamics indicating increased corner opportunities and perceived value in the odds for Corners Over 8.",
+        "count": 1
+      },
+      {
+        "key": "Live match statistics indicating a very low-event game with minimal attacking threat (low shots, zero shots on target, low xG) and a very low corner generation rate (3 corners by minute 41), making 'Corners Under 8' a high-value selection.",
+        "count": 1
+      },
+      {
+        "key": "Live match statistics indicating extremely low attacking threat and offensive impotence from both teams.",
+        "count": 1
+      },
+      {
+        "key": "Live match statistics indicating extremely low offensive output and a tight, defensive game flow, combined with perceived significant value in the Under 0.5 Goals odds.",
+        "count": 1
+      },
+      {
+        "key": "Live statistical evidence of extremely low attacking activity (1 shot each, 0 shots on target, combined xG of 0.20) indicating a tight and defensive game flow.",
+        "count": 1
+      },
+      {
+        "key": "Millwall's severe lack of attacking threat, evidenced by 0 shots on target, 0.47 xG, and significantly lower possession (41%) and shots (5) compared to Norwich, made it highly probable they would not score. This created a perceived value on the BTTS No market.",
+        "count": 1
+      },
+      {
+        "key": "No clear betting edge was identified for the proposed Under 3.25 Goals market, nor for alternative markets, due to conflicting game dynamics and an early stage of the match.",
+        "count": 1
+      },
+      {
+        "key": "Overwhelming live statistical dominance by the home team (65% possession, 12 shots, 7 inside box, 2 on target, 1.13 xG) combined with a crucial numerical advantage due to the away team receiving a red card, strongly indicating a high probability of goals.",
+        "count": 1
+      },
+      {
+        "key": "Policy restriction (POLICY_BLOCK_BTTS_NO_HIGH_PRICE) prevented the bet despite a perceived edge.",
+        "count": 1
+      },
+      {
+        "key": "Policy restriction (POLICY_BLOCK_BTTS_NO_LOW_PRICE) prevented the identified value bet on BTTS No from being placed, resulting in a no_bet decision.",
+        "count": 1
+      },
+      {
+        "key": "Policy restriction (POLICY_BLOCK_BTTS_NO_LOW_PRICE) preventing a bet on BTTS No, despite the system identifying a strong edge for this market based on live statistics.",
+        "count": 1
+      },
+      {
+        "key": "Policy restriction (POLICY_BLOCK_GOALS_UNDER_EARLY_ONE_GOAL_HIGH_LINE_V8G)",
+        "count": 1
+      },
+      {
+        "key": "Policy restriction (POLICY_BLOCK_GOALS_UNDER_EARLY_ONE_GOAL_HIGH_LINE_V8G) prevented the intended bet.",
+        "count": 1
+      },
+      {
+        "key": "Policy restriction against compounding bankroll exposure on the same directional thesis (Under Goals) at a materially riskier line, given a previous 'Under 6.5 Goals' bet was already placed.",
+        "count": 1
+      },
+      {
+        "key": "Policy restriction against compounding bankroll risk on existing, correlated positions, especially when new lines are tighter and do not offer a materially better structural entry.",
+        "count": 1
+      },
+      {
+        "key": "Policy restriction against re-betting the same market without material change or improved value.",
+        "count": 1
+      },
+      {
+        "key": "Policy restriction blocked the intended bet.",
+        "count": 1
+      },
+      {
+        "key": "Policy restriction: POLICY_BLOCK_GOALS_UNDER_30_44_0_0_OVER_1_5_V8F explicitly blocked the identified 'Under 1.75 Goals' selection, leading to a 'no_bet' decision.",
+        "count": 1
+      },
+      {
+        "key": "Policy restrictions and continuity block for relevant markets, leading to a no-bet decision.",
+        "count": 1
+      },
+      {
+        "key": "Policy restrictions blocked the identified value bet on BTTS No, leading to a no_bet decision.",
+        "count": 1
+      },
+      {
+        "key": "Policy restrictions, specifically 'POLICY_BLOCK_BTTS_NO_LOW_PRICE', which prevented the placement of the identified value bet.",
+        "count": 1
+      },
+      {
+        "key": "Policy restrictions, specifically `POLICY_BLOCK_BTTS_NO_HIGH_PRICE`, `POLICY_CAP_BTTS_NO_CONFIDENCE`, and `POLICY_CAP_BTTS_NO_STAKE`, which converted the identified BTTS No selection into a `no_bet` decision.",
+        "count": 1
+      },
+      {
+        "key": "policy_restriction",
+        "count": 1
+      },
+      {
+        "key": "Strong live attacking performance by Hellas Verona (1.17 xG, 15 shots, 7 on target, 7 goalkeeper saves forced) indicating high probability of at least one goal, creating a significant value edge against the implied probability of Over 0.75 Goals @2.05.",
+        "count": 1
+      },
+      {
+        "key": "Strong live attacking pressure from the trailing away team (Middlesbrough) combined with the home team's (Swansea) counter-attacking potential, leading to a higher probability of additional goals than implied by the Over 4 odds.",
+        "count": 1
+      },
+      {
+        "key": "The extremely low attacking output and highly defensive match script observed in live statistics, including minimal xG (0.02 H, 0.08 A), few shots (1 H, 3 A), and only one shot on target in total.",
+        "count": 1
+      },
+      {
+        "key": "The extremely low total expected goals (xG 0.48) and shot count (2-1) at minute 27, indicating a very slow-paced and low-scoring game despite Rangers' possession dominance.",
+        "count": 1
+      },
+      {
+        "key": "The home team (Al-Hilal) was trailing 1-2 in the 72nd minute and exhibiting strong offensive dominance, evidenced by high possession (56%), numerous shots (16 total, 6 on target), and a significantly higher expected goals (xG 1.38 vs 0.42). This created a high motivation for them to score an equalizer, which was predicted to open up the game further and increase the probability of additional goals. The current total of 3 goals meant one more goal would result in a half-win for Over 3.75, which the model assessed as highly probable and offering significant value.",
+        "count": 1
+      },
+      {
+        "key": "The primary driver for the 'no_bet' decision on Under 3.25 was the early stage of the match (21st minute) combined with the expectation of significant volatility. Despite Cruz Azul's current lack of attacking output (0 shots, 0.00 xG) and high possession (65%), the system anticipated they would increase pressure and create chances due to being at home and trailing 0-1. This potential for future goals made it too risky to confidently back the Under market, as the odds of 1.80 did not present a clear value edge given this uncertainty.",
+        "count": 1
+      },
+      {
+        "key": "The primary driver was the identification of significant value (estimated 6-11% edge) in the Under 1.75 Goals market, based on a detailed analysis of the live game state and team performance, which indicated a low probability of two or more additional goals being scored.",
+        "count": 1
+      },
+      {
+        "key": "The primary driver was the significant statistical edge identified in the 'Corners Over/Under 8' market. The live stats showed an exceptionally low number of corners (2 in 42 minutes) compared to the market line of 8 and the league average (9.35). This, combined with modest attacking statistics (shots, SOT, xG) indicating a lack of sustained pressure, made the market's expectation of a significant increase in corner activity (implied by symmetric odds of 2.2 for both Over and Under 8) appear unlikely. The decision was based on a strong discrepancy between current game flow and market pricing.",
+        "count": 1
+      },
+      {
+        "key": "The red card received by Portsmouth in the 41st minute, fundamentally altering the game dynamic by giving Oxford United a numerical advantage and strong incentive to score.",
+        "count": 1
+      },
+      {
+        "key": "The V8H Symmetric-Odds Tie-Break rule, which advised against defaulting to Under 3.5 when odds were balanced and live stats did not show dominant suppression, combined with the early stage of the match and Leicester's residual goal threat.",
+        "count": 1
+      },
+      {
+        "key": "Very low offensive output and poor quality chances from both teams based on live statistics (shots, shots on target, and expected goals).",
+        "count": 1
+      }
+    ]
+  },
+  "rows": [
+    {
+      "scenarioName": "11758-1388857-25m-under-3-5",
+      "recommendationId": 11758,
+      "promptVersion": "v8-market-balance-followup-h",
+      "originalBetMarket": "under_3.5",
+      "replayBetMarket": "over_3.5",
+      "replayShouldPush": true,
+      "primaryDecisionDriver": "Identification of value in Over 3.5 Goals based on live attacking statistics and strong market signals for further goals.",
+      "secondaryDrivers": [
+        "Home team (Arminia Bielefeld) trailing 0-1 at minute 25, showing significant attacking intent (5 shots, 3 inside box, 0.30 xG) despite being behind.",
+        "Very low BTTS Yes odds (1.2), implying a high probability (83.3%) of both teams scoring, which suggests Bielefeld is highly likely to equalize.",
+        "The scenario of Bielefeld scoring to make it 1-1 would leave only two more goals needed for Over 3.5, making the target more achievable.",
+        "The 2. Bundesliga's 'high' goal environment, with an average of 2.94 goals per match, confirming a general tendency for goals."
+      ],
+      "consideredMarkets": [
+        "Over/Under 3.5 Goals",
+        "Both Teams Score (as a signal for goal probability)"
+      ],
+      "rejectedMarkets": [
+        "Under 3.5 Goals (explicitly stated as less appealing due to Bielefeld's attacking pressure and high BTTS Yes probability)"
+      ],
+      "underFallbackDetected": false,
+      "genericReasoningDetected": false,
+      "priorsRole": "confirming",
+      "liveEvidenceWeight": "primary",
+      "oddsAvailabilityIssue": true,
+      "continuityBlock": false,
+      "policyRestriction": false,
+      "whyNot1x2": "Odds for the 1x2 market were not present in the `RECORDED_ODDS_CONTEXT`.",
+      "whyNotAsianHandicap": "Odds for the Asian Handicap market were not present in the `RECORDED_ODDS_CONTEXT`.",
+      "notes": "The decision to push Over 3.5 Goals was driven by a perceived edge (4-7%) derived from a combination of live match dynamics (home team's attacking pressure, xG), strong market signals (very low BTTS Yes odds), and a supportive prematch goal environment. The reasoning explicitly rejects Under 3.5 Goals, indicating a clear directional bet rather than a fallback. Although prematch features had 'minimal' availability and a 'high' noise penalty (60), the league's average goals were still cited to confirm the goal-scoring environment."
+    },
+    {
+      "scenarioName": "11763-1394681-31m-under-2-75",
+      "recommendationId": 11763,
+      "promptVersion": "v8-market-balance-followup-h",
+      "originalBetMarket": "under_2.75",
+      "replayBetMarket": "btts_no",
+      "replayShouldPush": false,
+      "primaryDecisionDriver": "Policy restrictions blocked the identified value bet on BTTS No, leading to a no_bet decision.",
+      "secondaryDrivers": [
+        "Extremely poor attacking output from the away team (Kayserispor) based on live stats (xG 0.07, 2 shots, 1 SOT).",
+        "Rejection of the Over 2.75 Goals market due to perceived structural weakness and low attacking quality from both sides."
+      ],
+      "consideredMarkets": [
+        "Both Teams Score (No)",
+        "Over/Under (Over 2.75)"
+      ],
+      "rejectedMarkets": [
+        "Over 2.75 Goals"
+      ],
+      "underFallbackDetected": false,
+      "genericReasoningDetected": false,
+      "priorsRole": "ignored",
+      "liveEvidenceWeight": "primary",
+      "oddsAvailabilityIssue": false,
+      "continuityBlock": false,
+      "policyRestriction": true,
+      "whyNot1x2": "1x2 market odds were not available in the RECORDED_ODDS_CONTEXT.",
+      "whyNotAsianHandicap": "Asian Handicap market odds were not available in the RECORDED_ODDS_CONTEXT.",
+      "notes": "The model identified a strong edge for 'Both Teams Score No' based on Kayserispor's minimal attacking threat (xG 0.07, 2 shots, 1 SOT) at 1-0 in the 31st minute. It estimated a fair probability of 65-70% for BTTS No against implied odds of 44.44%. However, the decision was ultimately 'no_bet' due to policy restrictions, specifically 'POLICY_BLOCK_BTTS_NO_HIGH_PRICE' and confidence/stake capping policies for BTTS No. The 'Over 2.75 Goals' market was considered but explicitly rejected as a weaker option. Prematch priors were ignored due to minimal availability and a high noise penalty, as per prompt instructions."
+    },
+    {
+      "scenarioName": "11767-1394679-41m-under-2-25",
+      "recommendationId": 11767,
+      "promptVersion": "v8-market-balance-followup-h",
+      "originalBetMarket": "under_2.25",
+      "replayBetMarket": "corners_under_8",
+      "replayShouldPush": true,
+      "primaryDecisionDriver": "Live match statistics indicating a very low-event game with minimal attacking threat (low shots, zero shots on target, low xG) and a very low corner generation rate (3 corners by minute 41), making 'Corners Under 8' a high-value selection.",
+      "secondaryDrivers": [
+        "Favorable odds for Corners Under 8 (2.375) offering significant value (estimated 13-18% edge) compared to the implied probability from the game state.",
+        "The current score (0-1) and minute (41) imply a need for the trailing team (Gençlerbirliği) to increase attacking pressure, but their current attacking output (0 corners, 0 shots on target) suggests they are not effectively generating the necessary pressure to drive up corner counts."
+      ],
+      "consideredMarkets": [
+        "Over/Under 2.25 Goals",
+        "Corners Over/Under 8",
+        "Both Teams Score"
+      ],
+      "rejectedMarkets": [
+        "Over 2.25 Goals",
+        "Under 2.25 Goals",
+        "Corners Over 8",
+        "Both Teams Score - Yes",
+        "Both Teams Score - No"
+      ],
+      "underFallbackDetected": false,
+      "genericReasoningDetected": false,
+      "priorsRole": "ignored",
+      "liveEvidenceWeight": "primary",
+      "oddsAvailabilityIssue": false,
+      "continuityBlock": false,
+      "policyRestriction": false,
+      "whyNot1x2": "1x2 odds were not available in the RECORDED_ODDS_CONTEXT.",
+      "whyNotAsianHandicap": "Asian Handicap odds were not available in the RECORDED_ODDS_CONTEXT.",
+      "notes": "The PREMATCH EXPERT FEATURES V1 were explicitly down-weighted due to 'minimal' availability and a 'high' prematch_noise_penalty (60), leading to their effective disregard in the decision-making process. The reasoning is entirely driven by live statistics and current odds. The previous recommendation for 'Under 2 Goals' at minute 50 is chronologically after this snapshot (minute 41) and thus not a direct influence on this specific decision."
+    },
+    {
+      "scenarioName": "11768-1523087-62m-under-3-25",
+      "recommendationId": 11768,
+      "promptVersion": "v8-market-balance-followup-h",
+      "originalBetMarket": "under_3.25",
+      "replayBetMarket": "unknown",
+      "replayShouldPush": false,
+      "primaryDecisionDriver": "Lack of sufficient edge for Under 3.25 Goals due to market lean, caution prior, and insufficient live evidence to override these factors.",
+      "secondaryDrivers": [
+        "Policy restriction/continuity block on Corners Under 11.5 due to a worse line than a previous recommendation.",
+        "Lack of clear dominance from either side in live stats to justify a 1x2 bet."
+      ],
+      "consideredMarkets": [
+        "Under 3.25 Goals",
+        "Corners Under 11.5",
+        "Match Winner (1x2)"
+      ],
+      "rejectedMarkets": [
+        "Under 3.25 Goals",
+        "Corners Under 11.5",
+        "Match Winner (1x2)"
+      ],
+      "underFallbackDetected": false,
+      "genericReasoningDetected": false,
+      "priorsRole": "contradicting",
+      "liveEvidenceWeight": "balanced",
+      "oddsAvailabilityIssue": false,
+      "continuityBlock": true,
+      "policyRestriction": true,
+      "whyNot1x2": "The live stats did not show clear dominance from either SHANGHAI SIPG (possession but ineffective) or Yunnan Yukun (more direct but not overwhelming) to justify a 1x2 bet. Odds were available.",
+      "whyNotAsianHandicap": "Asian Handicap markets were not available in the provided RECORDED_ODDS_CONTEXT.",
+      "notes": "The decision to 'no_bet' was a result of multiple factors. The most thoroughly evaluated potential bet, Under 3.25 Goals, was rejected because the market slightly favored the Over, the 'Super League' prior for Under markets was a 'caution prior' (40% success), and live stats did not show dominant suppression to override these. A policy rule (V8H SYMMETRIC-ODDS TIE-BREAK) also advised against defaulting to goals_under in such conditions. Additionally, a bet on Corners Under 11.5 was blocked by a continuity rule, as a previous recommendation for Corners Under 12.5 already existed at the same minute with a better line. 1x2 markets were not viable due to a lack of clear dominance in live stats."
+    },
+    {
+      "scenarioName": "11776-1391116-27m-under-2-25",
+      "recommendationId": 11776,
+      "promptVersion": "v8-market-balance-followup-h",
+      "originalBetMarket": "under_2.25",
+      "replayBetMarket": "btts_no",
+      "replayShouldPush": false,
+      "primaryDecisionDriver": "Policy restriction (POLICY_BLOCK_BTTS_NO_LOW_PRICE) preventing a bet on BTTS No, despite the system identifying a strong edge for this market based on live statistics.",
+      "secondaryDrivers": [
+        "Strong live statistics indicating Real Sociedad's dominance and Levante's complete lack of offensive presence (0 shots, 0 xG), leading to a high perceived probability for BTTS No.",
+        "Other policy caps (POLICY_CAP_BTTS_NO_CONFIDENCE, POLICY_CAP_BTTS_NO_STAKE) further restricting the potential bet."
+      ],
+      "consideredMarkets": [
+        "Both Teams Score (No)",
+        "Over/Under 2.25"
+      ],
+      "rejectedMarkets": [
+        "Both Teams Score (Yes)",
+        "Corners Over/Under 10.5"
+      ],
+      "underFallbackDetected": false,
+      "genericReasoningDetected": false,
+      "priorsRole": "ignored",
+      "liveEvidenceWeight": "primary",
+      "oddsAvailabilityIssue": false,
+      "continuityBlock": false,
+      "policyRestriction": true,
+      "whyNot1x2": "Odds for 1x2 market were not available in the RECORDED_ODDS_CONTEXT.",
+      "whyNotAsianHandicap": "Odds for Asian Handicap market were not available in the RECORDED_ODDS_CONTEXT.",
+      "notes": "The original prompt was for 'under-2-25', but the system selected 'BTTS No' as the target market for the decision. The decision was 'no_bet' for BTTS No because the odds of 1.615 were deemed too low by policy (POLICY_BLOCK_BTTS_NO_LOW_PRICE), despite the system calculating a significant edge (18-23%) based on Levante's complete inability to generate any offensive action (0 shots, 0 xG) and Real Sociedad's strong defensive performance."
+    },
+    {
+      "scenarioName": "11780-1523086-83m-over-3-5",
+      "recommendationId": 11780,
+      "promptVersion": "v8-market-balance-followup-h",
+      "originalBetMarket": "over_3.5",
+      "replayBetMarket": "over_3.5",
+      "replayShouldPush": true,
+      "primaryDecisionDriver": "High attacking pressure from the trailing home team combined with efficient counter-attacking threat from the away team, creating an open, late-game scenario highly conducive to another goal, supported by a calculated edge on the Over 3.5 market.",
+      "secondaryDrivers": [
+        "Dominant possession (68%) and significant attacking stats (17 shots, 6 on target, 12 inside box) from Shandong Luneng, desperate for an equalizer.",
+        "Dalian Zhixing's high efficiency (7 shots, 5 on target, 2 goals) posing a constant counter-threat.",
+        "The late stage of the game (83rd minute) increasing urgency and likelihood of an open play.",
+        "Calculated edge of 4.5-8.5% on the Over 3.5 market, with a fair range of 48-52% against a break-even of 43.48%."
+      ],
+      "consideredMarkets": [
+        "Over 3.5 Goals",
+        "Under 3.5 Goals"
+      ],
+      "rejectedMarkets": [
+        "Under 3.5 Goals"
+      ],
+      "underFallbackDetected": false,
+      "genericReasoningDetected": false,
+      "priorsRole": "confirming",
+      "liveEvidenceWeight": "primary",
+      "oddsAvailabilityIssue": false,
+      "continuityBlock": false,
+      "policyRestriction": false,
+      "whyNot1x2": "The Match Winner market was available, but the odds for Home (26.0) and Draw (3.75) were very high, indicating a low probability for these outcomes given the score (1-2) and minute (83). The model likely identified a stronger value proposition in the goals market due to the specific attacking dynamics and desperation described in the reasoning, rather than a direct outcome bet.",
+      "whyNotAsianHandicap": "Asian Handicap odds were not available in the provided RECORDED_ODDS_CONTEXT.",
+      "notes": "The reasoning explicitly rejected the alternative Under 3.5 Goals due to it being 'below minimum odds and structurally weaker given the attacking intent from both sides'. The Super League prior was noted as a 'caution', but the 'late-game phase prior' was 'supportive', indicating that the specific context of the game phase outweighed general league tendencies in the final decision."
+    },
+    {
+      "scenarioName": "11793-1378171-32m-under-2-75",
+      "recommendationId": 11793,
+      "promptVersion": "v8-market-balance-followup-h",
+      "originalBetMarket": "under_2.75",
+      "replayBetMarket": "under_2.75",
+      "replayShouldPush": false,
+      "primaryDecisionDriver": "Policy restriction (POLICY_BLOCK_GOALS_UNDER_EARLY_ONE_GOAL_HIGH_LINE_V8G)",
+      "secondaryDrivers": [
+        "Low attacking threat from Sassuolo (0 shots on target, xG 0.04)",
+        "Modest xG from Cagliari (0.50)",
+        "Low overall match pace (6 total shots, 1 corner)",
+        "Confirming league priors for a lower-scoring environment (avg goals 2.45, negative totals bias, high clean sheet suppression score)",
+        "Perceived value in Under 2.75 Goals odds (2.05 vs fair value 52-55%)"
+      ],
+      "consideredMarkets": [
+        "Under 2.75 Goals"
+      ],
+      "rejectedMarkets": [
+        "Over 2.75 Goals",
+        "Corners Over/Under",
+        "Both Teams Score",
+        "Asian Handicap"
+      ],
+      "underFallbackDetected": false,
+      "genericReasoningDetected": false,
+      "priorsRole": "confirming",
+      "liveEvidenceWeight": "primary",
+      "oddsAvailabilityIssue": false,
+      "continuityBlock": false,
+      "policyRestriction": true,
+      "whyNot1x2": "Odds for a standard 1X2 market were not available in the provided RECORDED_ODDS_CONTEXT.",
+      "whyNotAsianHandicap": "While Asian Handicap odds were available, the model's analysis and perceived edge were strongly focused on the total goals market due to the observed low-scoring dynamics and supporting priors, leading it to prioritize Under 2.75 Goals without evaluating the Asian Handicap as a primary opportunity.",
+      "notes": "The model identified a strong perceived edge for Under 2.75 Goals based on live stats and confirming prematch priors. However, the final decision was 'no_bet' because a specific policy, 'POLICY_BLOCK_GOALS_UNDER_EARLY_ONE_GOAL_HIGH_LINE_V8G', prevented the bet from being placed. The reasoning provided in the replay output details the model's internal selection process for Under 2.75, which was ultimately overridden by the policy."
+    },
+    {
+      "scenarioName": "11795-1388559-30m-under-3-25",
+      "recommendationId": 11795,
+      "promptVersion": "v8-market-balance-followup-h",
+      "originalBetMarket": "under_3.25",
+      "replayBetMarket": "unknown",
+      "replayShouldPush": false,
+      "primaryDecisionDriver": "Policy restriction against compounding bankroll exposure on the same directional thesis (Under Goals) at a materially riskier line, given a previous 'Under 6.5 Goals' bet was already placed.",
+      "secondaryDrivers": [
+        "Lack of a clear market edge, as the odds for Over 3.25 (1.90) and Under 3.25 (1.95) were very balanced.",
+        "Contradictory prematch priors indicating a higher goal environment for the league and RB Leipzig's attacking profile.",
+        "Expectation that Werder Bremen, trailing 0-1 at home, would increase pressure, making further goals structurally plausible."
+      ],
+      "consideredMarkets": [
+        "Over/Under 3.25 Goals"
+      ],
+      "rejectedMarkets": [],
+      "underFallbackDetected": false,
+      "genericReasoningDetected": false,
+      "priorsRole": "contradicting",
+      "liveEvidenceWeight": "primary",
+      "oddsAvailabilityIssue": false,
+      "continuityBlock": true,
+      "policyRestriction": true,
+      "whyNot1x2": "Odds for the 1x2 market were not available in the RECORDED_ODDS_CONTEXT.",
+      "whyNotAsianHandicap": "Odds for the Asian Handicap market were not available in the RECORDED_ODDS_CONTEXT.",
+      "notes": "The decision was a 'no_bet' primarily due to a policy against 'laddering' or compounding exposure on the same 'Under Goals' thesis. An 'Under 6.5 Goals' bet was already active. While live stats showed a low-event game (0-1), the proposed 'Under 3.25 Goals' line was considered materially riskier. This policy was reinforced by balanced odds, prematch priors suggesting a higher goal environment, and the expectation of increased offensive pressure from the home team."
+    },
+    {
+      "scenarioName": "11798-1394678-21m-under-2",
+      "recommendationId": 11798,
+      "promptVersion": "v8-market-balance-followup-h",
+      "originalBetMarket": "under_2",
+      "replayBetMarket": "under_2",
+      "replayShouldPush": true,
+      "primaryDecisionDriver": "Extremely low attacking output and goal threat from both teams based on live statistics (0 shots on target, 0.05 xG home, 0.03 xG away) at minute 21, indicating a very quiet game.",
+      "secondaryDrivers": [
+        "Identification of a strong edge (10-15%) by comparing the market odds for Under 2 Goals (2.00, implying 50% break-even) against an estimated fair value of 60-65%.",
+        "Explicit rejection of Over 2 Goals @1.80 as 'highly unlikely' given the current match script."
+      ],
+      "consideredMarkets": [
+        "Over/Under (handicap 2)"
+      ],
+      "rejectedMarkets": [
+        "Over 2 Goals (handicap 2)",
+        "Corners Over/Under (handicap 8.5)",
+        "Both Teams Score"
+      ],
+      "underFallbackDetected": false,
+      "genericReasoningDetected": false,
+      "priorsRole": "confirming",
+      "liveEvidenceWeight": "primary",
+      "oddsAvailabilityIssue": false,
+      "continuityBlock": false,
+      "policyRestriction": false,
+      "whyNot1x2": "1x2 odds were not present in the RECORDED_ODDS_CONTEXT.",
+      "whyNotAsianHandicap": "Asian Handicap odds for match outcome were not present in the RECORDED_ODDS_CONTEXT.",
+      "notes": "The decision was overwhelmingly driven by the live match statistics, particularly the very low xG and lack of shots on target, which strongly supported an 'Under' bet. While prematch priors (specifically 'over_tendency_score' and 'projected_goal_environment_score' being low) aligned with a low-scoring game, their impact was likely secondary and down-weighted due to the 'minimal' availability and 'high' noise penalty as per the prematch feature rules. The market for Under 2 Goals was available and offered perceived value."
+    },
+    {
+      "scenarioName": "11801-1382856-27m-under-2-25",
+      "recommendationId": 11801,
+      "promptVersion": "v8-market-balance-followup-h",
+      "originalBetMarket": "under_2.25",
+      "replayBetMarket": "under_2.25",
+      "replayShouldPush": true,
+      "primaryDecisionDriver": "The extremely low total expected goals (xG 0.48) and shot count (2-1) at minute 27, indicating a very slow-paced and low-scoring game despite Rangers' possession dominance.",
+      "secondaryDrivers": [
+        "Dundee Utd's negligible offensive threat (0 shots on target, xG 0.02).",
+        "Prematch goal environment priors (over_tendency_score 14, projected_goal_environment_score 26) confirming a tendency for lower-scoring matches.",
+        "A calculated clear edge of 5.37-9.37% for Under 2.25 Goals against the market odds."
+      ],
+      "consideredMarkets": [
+        "Under 2.25 Goals",
+        "Over 2.25 Goals"
+      ],
+      "rejectedMarkets": [
+        "Over 2.25 Goals",
+        "Match Winner",
+        "Corners Over/Under",
+        "Both Teams Score"
+      ],
+      "underFallbackDetected": false,
+      "genericReasoningDetected": false,
+      "priorsRole": "confirming",
+      "liveEvidenceWeight": "primary",
+      "oddsAvailabilityIssue": false,
+      "continuityBlock": false,
+      "policyRestriction": false,
+      "whyNot1x2": "While Rangers were dominating possession and were favorites (1.5), the overall low xG and shot count suggested that even if Rangers won, it was likely to be a low-scoring affair (e.g., 1-0 or 2-0). The system identified a stronger value proposition and a clearer edge in the 'Under 2.25 Goals' market based on the goal-scoring dynamics, rather than the 'Match Winner' market.",
+      "whyNotAsianHandicap": "An explicit 'Asian Handicap Home' market was not present in the `RECORDED_ODDS_CONTEXT` provided.",
+      "notes": "The decision was a data-driven selection of 'Under 2.25 Goals' due to the significant discrepancy between the game's progression (minute 27, 0-0 score) and the very low accumulated xG and shot statistics from both teams, further supported by the away team's complete lack of threat and confirming prematch priors. The system found a strong quantitative edge in this specific market."
+    },
+    {
+      "scenarioName": "11802-1536966-35m-under-2-75",
+      "recommendationId": 11802,
+      "promptVersion": "v8-market-balance-followup-h",
+      "originalBetMarket": "under_2.75",
+      "replayBetMarket": "corners_over_8",
+      "replayShouldPush": true,
+      "primaryDecisionDriver": "Live game dynamics indicating increased corner opportunities and perceived value in the odds for Corners Over 8.",
+      "secondaryDrivers": [
+        "Cercle Brugge's attacking dominance and Zulte Waregem's need to chase the game, expected to increase tempo.",
+        "High league average for corners (10.69 corners/match) suggesting potential for more corners despite a slow start.",
+        "Rejection of the Under 2.75 goals market due to conflicting prematch profiles and Zulte Waregem's need to score."
+      ],
+      "consideredMarkets": [
+        "corners_over_8",
+        "under_2_75"
+      ],
+      "rejectedMarkets": [
+        "under_2_75"
+      ],
+      "underFallbackDetected": false,
+      "genericReasoningDetected": false,
+      "priorsRole": "contradicting",
+      "liveEvidenceWeight": "primary",
+      "oddsAvailabilityIssue": false,
+      "continuityBlock": false,
+      "policyRestriction": false,
+      "whyNot1x2": "Odds for the 1x2 market were not available in the provided RECORDED_ODDS_CONTEXT.",
+      "whyNotAsianHandicap": "Odds for the Asian Handicap market (match outcome) were not available in the provided RECORDED_ODDS_CONTEXT.",
+      "notes": "The decision to push 'Corners Over 8' was driven by a combination of live game state (score, minute, team dominance, xG), the expectation of increased game tempo, and a favorable comparison against the alternative 'Under 2.75' goals market. Prematch features played a specific role in contradicting the 'Under 2.75' alternative by suggesting higher-scoring games, thereby indirectly supporting the chosen bet by eliminating a competitor. The reasoning for corners itself primarily relied on live dynamics and a general league average for corners, which is not explicitly from the provided PREMATCH_EXPERT_FEATURES_V1 structure."
+    },
+    {
+      "scenarioName": "11805-1382857-43m-under-2-25",
+      "recommendationId": 11805,
+      "promptVersion": "v8-market-balance-followup-h",
+      "originalBetMarket": "under_2.25",
+      "replayBetMarket": "btts_no",
+      "replayShouldPush": false,
+      "primaryDecisionDriver": "Policy restrictions, specifically 'POLICY_BLOCK_BTTS_NO_LOW_PRICE', which prevented the placement of the identified value bet.",
+      "secondaryDrivers": [
+        "Overwhelming live statistical evidence indicating Aberdeen's complete lack of attacking threat.",
+        "Confirmation from prematch features suggesting a lower-scoring environment."
+      ],
+      "consideredMarkets": [
+        "Both Teams Score (No)",
+        "Both Teams Score (Yes)",
+        "Match Winner",
+        "Over/Under 2.25"
+      ],
+      "rejectedMarkets": [
+        "Both Teams Score (Yes) (due to Aberdeen's poor attacking performance)",
+        "Match Winner (not selected, likely due to focus on BTTS or perceived lower value at 1.222)",
+        "Over/Under 2.25 (not selected)"
+      ],
+      "underFallbackDetected": false,
+      "genericReasoningDetected": false,
+      "priorsRole": "confirming",
+      "liveEvidenceWeight": "primary",
+      "oddsAvailabilityIssue": false,
+      "continuityBlock": false,
+      "policyRestriction": true,
+      "whyNot1x2": "The system identified a strong edge in the 'Both Teams Score (No)' market based on live data. While 'Match Winner' odds for Home were available at 1.222, the reasoning does not indicate it was meaningfully considered for selection, likely due to the system prioritizing the BTTS market where it found a more significant edge or value.",
+      "whyNotAsianHandicap": "Asian Handicap for the match winner was not explicitly available in the 'RECORDED_ODDS_CONTEXT'.",
+      "notes": "The system successfully identified a strong value bet on 'BTTS No' with a perceived edge of 10-15% based on dominant live statistics (73% possession, 7 shots, 0.54 xG for ST Mirren vs. 27% possession, 1 shot, 0.04 xG for Aberdeen) and confirming prematch priors. However, the bet was blocked by an internal policy ('POLICY_BLOCK_BTTS_NO_LOW_PRICE') due to the odds of 1.666 being considered too low, leading to a 'no_bet' decision despite the identified edge."
+    },
+    {
+      "scenarioName": "11806-1388556-57m-under-3-5",
+      "recommendationId": 11806,
+      "promptVersion": "v8-market-balance-followup-h",
+      "originalBetMarket": "under_3.5",
+      "replayBetMarket": "unknown",
+      "replayShouldPush": false,
+      "primaryDecisionDriver": "continuity_block",
+      "secondaryDrivers": [
+        "odds_availability_issue",
+        "policy_restriction"
+      ],
+      "consideredMarkets": [
+        "Over/Under 3.5 Goals",
+        "Corners Over/Under 11"
+      ],
+      "rejectedMarkets": [
+        "Over 3.5 Goals",
+        "Under 3.5 Goals",
+        "Corners Over/Under 11"
+      ],
+      "underFallbackDetected": false,
+      "genericReasoningDetected": false,
+      "priorsRole": "ignored",
+      "liveEvidenceWeight": "primary",
+      "oddsAvailabilityIssue": true,
+      "continuityBlock": true,
+      "policyRestriction": true,
+      "whyNot1x2": "Odds for the 1x2 market were not available in the `RECORDED_ODDS_CONTEXT`.",
+      "whyNotAsianHandicap": "Odds for the Asian Handicap market were not available in the `RECORDED_ODDS_CONTEXT`.",
+      "notes": "The replay output was a 'no_bet' decision primarily due to a continuity block. A previous recommendation for 'Over 3.5 Goals @2.05' was made at the same minute (57) with the same score (1-1) and no material changes in match state or odds. The system's continuity rules prevent a new bet on the same market and line without significant strengthening evidence or changed conditions. Additionally, the reasoning explicitly states that 'No other market presents a clear, actionable edge at this time,' indicating that other available markets (Under 3.5 Goals, Corners Over/Under 11) were considered but did not meet the criteria for a bet. Prematch priors were not a decisive factor in this outcome, as the decision was driven by live state and policy."
+    },
+    {
+      "scenarioName": "11808-1378173-65m-over-0-75",
+      "recommendationId": 11808,
+      "promptVersion": "v8-market-balance-followup-h",
+      "originalBetMarket": "over_0.75",
+      "replayBetMarket": "over_0.75",
+      "replayShouldPush": true,
+      "primaryDecisionDriver": "Strong live attacking performance by Hellas Verona (1.17 xG, 15 shots, 7 on target, 7 goalkeeper saves forced) indicating high probability of at least one goal, creating a significant value edge against the implied probability of Over 0.75 Goals @2.05.",
+      "secondaryDrivers": [
+        "Fiorentina's minimal attacking threat (0.21 xG, 4 shots, 0 on target) suggesting a low likelihood of them scoring, but also not preventing Verona from scoring.",
+        "The explicit overriding of contradictory prematch priors by compelling live statistics, as per policy."
+      ],
+      "consideredMarkets": [
+        "Over 0.75 Goals",
+        "Under 0.75 Goals"
+      ],
+      "rejectedMarkets": [
+        "Corners Over/Under 10.5",
+        "Both Teams Score Yes/No"
+      ],
+      "underFallbackDetected": false,
+      "genericReasoningDetected": false,
+      "priorsRole": "contradicting",
+      "liveEvidenceWeight": "primary",
+      "oddsAvailabilityIssue": false,
+      "continuityBlock": false,
+      "policyRestriction": false,
+      "whyNot1x2": "1x2 odds were not available in the RECORDED_ODDS_CONTEXT.",
+      "whyNotAsianHandicap": "Asian Handicap odds were not available in the RECORDED_ODDS_CONTEXT.",
+      "notes": "The decision was a clear 'ai_push' driven by a strong statistical edge identified in the live data, specifically Verona's offensive output, which was deemed to make the 'Over 0.75 Goals' outcome significantly more probable than the odds implied. The prematch priors, which suggested a low-scoring game, were explicitly acknowledged and then disregarded due to the overwhelming live evidence, aligning with the policy to prioritize live stats over prematch features when they contradict."
+    },
+    {
+      "scenarioName": "11810-1381127-38m-under-3",
+      "recommendationId": 11810,
+      "promptVersion": "v8-market-balance-followup-h",
+      "originalBetMarket": "under_3",
+      "replayBetMarket": "unknown",
+      "replayShouldPush": false,
+      "primaryDecisionDriver": "Continuity rules for re-entry were not met.",
+      "secondaryDrivers": [
+        "No significant odds improvement (>= 0.10) for any available market, including the previously recommended one.",
+        "No material change in match state or events since the last recommendation at the same minute.",
+        "Less than 5 minutes had passed since the previous recommendation, and no stronger evidence emerged."
+      ],
+      "consideredMarkets": [
+        "Over/Under 3",
+        "Corners Over/Under 16.5",
+        "Both Teams Score"
+      ],
+      "rejectedMarkets": [
+        "Over/Under 3",
+        "Corners Over/Under 16.5",
+        "Both Teams Score"
+      ],
+      "underFallbackDetected": false,
+      "genericReasoningDetected": false,
+      "priorsRole": "ignored",
+      "liveEvidenceWeight": "primary",
+      "oddsAvailabilityIssue": false,
+      "continuityBlock": true,
+      "policyRestriction": true,
+      "whyNot1x2": "Odds for 1x2 market were not available in the provided context.",
+      "whyNotAsianHandicap": "Odds for Asian Handicap market were not available in the provided context.",
+      "notes": "The previous recommendation at minute 38 was 'Under 16.5 Goals @1.9'. Given the 'Corners Over/Under' market with a '16.5' handicap and 'Under' odd of '1.9' in the current context, it is highly probable that the previous recommendation was for 'Corners Under 16.5'. The current odds for 'Corners Under 16.5' are identical ('1.9'), reinforcing the continuity block due to no odds improvement. The decision was a 'no_bet' because the conditions for re-entering a bet, as defined by continuity rules (significant odds improvement, material match state change, or sufficient time passed with stronger evidence), were not met. Prematch features were down-weighted heavily and effectively ignored due to 'minimal' availability and a 'high' noise penalty, as per the PREMATCH FEATURE RULES."
+    },
+    {
+      "scenarioName": "11812-1388557-45m-under-1-75",
+      "recommendationId": 11812,
+      "promptVersion": "v8-market-balance-followup-h",
+      "originalBetMarket": "under_1.75",
+      "replayBetMarket": "unknown",
+      "replayShouldPush": false,
+      "primaryDecisionDriver": "Continuity/Exposure Block",
+      "secondaryDrivers": [
+        "No time elapsed since previous recommendation",
+        "No new events occurred since previous recommendation",
+        "Insufficient odds improvement for a new bet"
+      ],
+      "consideredMarkets": [
+        "Over/Under 1.75 Goals",
+        "Corners Over/Under 10.5"
+      ],
+      "rejectedMarkets": [],
+      "underFallbackDetected": false,
+      "genericReasoningDetected": false,
+      "priorsRole": "ignored",
+      "liveEvidenceWeight": "primary",
+      "oddsAvailabilityIssue": false,
+      "continuityBlock": true,
+      "policyRestriction": false,
+      "whyNot1x2": "Odds for 1x2 market were not available in the RECORDED_ODDS_CONTEXT.",
+      "whyNotAsianHandicap": "Odds for Asian Handicap market were not available in the RECORDED_ODDS_CONTEXT.",
+      "notes": "The replay decision was a strict 'no_bet' due to the continuity rule. The system had already made recommendations for 'Over 1.75 Goals' and 'Corners Over 10.5' at the same minute (45) with the current odds and match state. Since no time had passed, no new events occurred, and the odds for the relevant markets had not improved by the required margin (>= 0.10), a new bet on the same or a related thesis was not justified according to continuity rules. Prematch priors were heavily down-weighted due to 'minimal' availability and a 'high noise penalty' (60), and therefore played no discernible role in this specific 'no_bet' decision."
+    },
+    {
+      "scenarioName": "11813-1394684-31m-under-3",
+      "recommendationId": 11813,
+      "promptVersion": "v8-market-balance-followup-h",
+      "originalBetMarket": "under_3",
+      "replayBetMarket": "unknown",
+      "replayShouldPush": false,
+      "primaryDecisionDriver": "Lack of sufficient betting edge (3% or more) across all available markets, considering live evidence, historical priors, and policy rules.",
+      "secondaryDrivers": [
+        "Policy restriction (V8G rule) advising against defaulting to 'goals_under' in early one-goal games (before minute 45), especially with a strong team trailing.",
+        "Contradictory self-learning 'caution prior' for 'under_3' in this league (38.1% success rate).",
+        "Galatasaray's inherent team quality and motivation to score an equalizer, despite current low offensive stats (0 shots on target).",
+        "High league BTTS tendency (54.4%) making 'BTTS No' a difficult bet.",
+        "Galatasaray chasing a goal making 'Corners Under' unsuitable due to expected increased pressure."
+      ],
+      "consideredMarkets": [
+        "Over/Under 3 Goals",
+        "Corners Over/Under 10.5",
+        "Both Teams Score"
+      ],
+      "rejectedMarkets": [
+        "Under 3 Goals",
+        "BTTS No",
+        "Corners Under 10.5"
+      ],
+      "underFallbackDetected": false,
+      "genericReasoningDetected": false,
+      "priorsRole": "contradicting",
+      "liveEvidenceWeight": "balanced",
+      "oddsAvailabilityIssue": false,
+      "continuityBlock": false,
+      "policyRestriction": true,
+      "whyNot1x2": "1x2 odds were not available in the RECORDED_ODDS_CONTEXT.",
+      "whyNotAsianHandicap": "Asian Handicap odds were not available in the RECORDED_ODDS_CONTEXT.",
+      "notes": "The decision to 'no_bet' was driven by a comprehensive evaluation. While initial live stats (1-0, low xG, low shots) might suggest an 'under' bet, this was strongly counteracted by a specific policy rule (V8G), a negative self-learning prior for 'under_3', and the qualitative assessment of Galatasaray's strength and motivation. Similarly, BTTS No and Corners Under were rejected due to team dynamics and league priors. No market presented a compelling value proposition."
+    },
+    {
+      "scenarioName": "11815-1391111-55m-over-1",
+      "recommendationId": 11815,
+      "promptVersion": "v8-market-balance-followup-h",
+      "originalBetMarket": "over_1",
+      "replayBetMarket": "over_1",
+      "replayShouldPush": false,
+      "primaryDecisionDriver": "Policy restriction blocked the intended bet.",
+      "secondaryDrivers": [
+        "Overwhelming live statistical dominance by Real Betis (possession, shots, xG)",
+        "High calculated expected value for 'Over 1 Goals'",
+        "League priors confirming a goal-friendly environment"
+      ],
+      "consideredMarkets": [
+        "Over/Under 1 Goals",
+        "Both Teams Score",
+        "Corners Over/Under 7"
+      ],
+      "rejectedMarkets": [
+        "Under 1 Goals",
+        "Corners Over/Under 7"
+      ],
+      "underFallbackDetected": false,
+      "genericReasoningDetected": false,
+      "priorsRole": "confirming",
+      "liveEvidenceWeight": "primary",
+      "oddsAvailabilityIssue": false,
+      "continuityBlock": false,
+      "policyRestriction": true,
+      "whyNot1x2": "Odds for 1x2 market were not available in the RECORDED_ODDS_CONTEXT.",
+      "whyNotAsianHandicap": "Odds for Asian Handicap market were not available in the RECORDED_ODDS_CONTEXT.",
+      "notes": "The system identified a strong betting opportunity on 'Over 1 Goals' due to Real Betis's significant attacking dominance (1.36 xG vs 0.15 xG for Espanyol, 12 shots vs 4, 72% possession). The reasoning calculated a high expected profit for this selection. However, the decision was ultimately 'no_bet' because of the explicit policy block 'POLICY_BLOCK_GOALS_OVER_45_59_0_0_LOW_LINE_V8H'. The 'Under 1 Goals' market was considered and rejected due to a calculated negative edge. The corners market was also skipped due to suspicious odds. The league prior for La Liga was noted as supportive of goals, aligning with the intended 'Over' bet."
+    },
+    {
+      "scenarioName": "11816-1396484-44m-under-2-25",
+      "recommendationId": 11816,
+      "promptVersion": "v8-market-balance-followup-h",
+      "originalBetMarket": "under_2.25",
+      "replayBetMarket": "btts_no",
+      "replayShouldPush": false,
+      "primaryDecisionDriver": "Policy restriction (POLICY_BLOCK_BTTS_NO_LOW_PRICE) prevented the identified value bet on BTTS No from being placed, resulting in a no_bet decision.",
+      "secondaryDrivers": [
+        "Identification of perceived value on BTTS No (fair value 70-75% vs market implied 66.67%) based on live match dominance by SC Braga and Moreirense's lack of offensive threat.",
+        "Live statistics showing SC Braga's strong offensive performance (0.93 xG, 3 shots on target) and Moreirense's negligible offensive output (0.04 xG, 0 shots on target).",
+        "Rejection of Over 2.25 as a riskier alternative, requiring two more goals and relying heavily on Braga's scoring without Moreirense contributing."
+      ],
+      "consideredMarkets": [
+        "Both Teams Score (No)",
+        "Over/Under (2.25)"
+      ],
+      "rejectedMarkets": [
+        "Over 2.25"
+      ],
+      "underFallbackDetected": false,
+      "genericReasoningDetected": false,
+      "priorsRole": "confirming",
+      "liveEvidenceWeight": "primary",
+      "oddsAvailabilityIssue": false,
+      "continuityBlock": false,
+      "policyRestriction": true,
+      "whyNot1x2": "The 1x2 market was not selected because the odds for Moreirense to win (Home @151) or Draw (@11) were extremely high, indicating a very low probability and no perceived value. While SC Braga to win (Away @1.2) was highly probable, it likely offered poor value, and the decision focused on goal markets where a clearer edge was identified.",
+      "whyNotAsianHandicap": "Asian Handicap odds were not available in the provided RECORDED_ODDS_CONTEXT.",
+      "notes": "The system successfully identified a perceived value opportunity on BTTS No based on strong live data and confirming prematch priors. However, the final decision was 'no_bet' due to a policy restriction related to the low price of the BTTS No selection, which capped confidence and stake, ultimately blocking the bet."
+    },
+    {
+      "scenarioName": "11819-1436153-72m-over-3-75",
+      "recommendationId": 11819,
+      "promptVersion": "v8-market-balance-followup-h",
+      "originalBetMarket": "over_3.75",
+      "replayBetMarket": "over_3.75",
+      "replayShouldPush": true,
+      "primaryDecisionDriver": "The home team (Al-Hilal) was trailing 1-2 in the 72nd minute and exhibiting strong offensive dominance, evidenced by high possession (56%), numerous shots (16 total, 6 on target), and a significantly higher expected goals (xG 1.38 vs 0.42). This created a high motivation for them to score an equalizer, which was predicted to open up the game further and increase the probability of additional goals. The current total of 3 goals meant one more goal would result in a half-win for Over 3.75, which the model assessed as highly probable and offering significant value.",
+      "secondaryDrivers": [
+        "The high number of goalkeeper saves by the away team (5 saves) indicated sustained pressure from Al-Hilal.",
+        "The calculated edge of 12.0% and a fair range of 62-67% for at least a half-win, compared to the break-even of 57.14%, confirmed the perceived value in the Over 3.75 market.",
+        "The explicit rejection of 'Under 3.75 Goals' as structurally weaker in a high-pressure, open game reinforced the conviction for the 'Over' selection."
+      ],
+      "consideredMarkets": [
+        "Over/Under Goals",
+        "Corners Over/Under"
+      ],
+      "rejectedMarkets": [
+        "Under 3.75 Goals"
+      ],
+      "underFallbackDetected": false,
+      "genericReasoningDetected": false,
+      "priorsRole": "ignored",
+      "liveEvidenceWeight": "primary",
+      "oddsAvailabilityIssue": false,
+      "continuityBlock": false,
+      "policyRestriction": false,
+      "whyNot1x2": "Odds for the 1x2 market were not available in the RECORDED_ODDS_CONTEXT.",
+      "whyNotAsianHandicap": "Odds for the Asian Handicap market were not available in the RECORDED_ODDS_CONTEXT.",
+      "notes": "The decision was a direct result of the model's interpretation of live match statistics and game state, identifying a strong value proposition for more goals. The reasoning is highly specific to the match dynamics and statistical evidence."
+    },
+    {
+      "scenarioName": "11822-1391110-42m-under-4",
+      "recommendationId": 11822,
+      "promptVersion": "v8-market-balance-followup-h",
+      "originalBetMarket": "under_4",
+      "replayBetMarket": "corners_under_8",
+      "replayShouldPush": true,
+      "primaryDecisionDriver": "The primary driver was the significant statistical edge identified in the 'Corners Over/Under 8' market. The live stats showed an exceptionally low number of corners (2 in 42 minutes) compared to the market line of 8 and the league average (9.35). This, combined with modest attacking statistics (shots, SOT, xG) indicating a lack of sustained pressure, made the market's expectation of a significant increase in corner activity (implied by symmetric odds of 2.2 for both Over and Under 8) appear unlikely. The decision was based on a strong discrepancy between current game flow and market pricing.",
+      "secondaryDrivers": [
+        "Rejection of 'Under 4 Goals' as a less valuable bet due to the market already favoring 'Over 4 Goals' (1.8 vs 2.05) and a perceived higher residual goal threat from both strong teams.",
+        "The absence of odds for 1x2 and Asian Handicap markets in the provided context, preventing their consideration."
+      ],
+      "consideredMarkets": [
+        "Corners Over/Under 8",
+        "Over/Under 4 Goals"
+      ],
+      "rejectedMarkets": [
+        "Under 4 Goals"
+      ],
+      "underFallbackDetected": false,
+      "genericReasoningDetected": false,
+      "priorsRole": "ignored",
+      "liveEvidenceWeight": "primary",
+      "oddsAvailabilityIssue": true,
+      "continuityBlock": false,
+      "policyRestriction": false,
+      "whyNot1x2": "Odds for the 1x2 market were not available in the RECORDED_ODDS_CONTEXT.",
+      "whyNotAsianHandicap": "Odds for the Asian Handicap market were not available in the RECORDED_ODDS_CONTEXT.",
+      "notes": "The decision explicitly evaluated and rejected 'Under 4 Goals' based on live market odds and perceived goal threat, indicating it was not a fallback. The reasoning for 'Corners Under 8' was highly specific to the live game state and market dynamics, not generic. Prematch priors were explicitly down-weighted due to 'minimal' availability and 'high' noise penalty, and their content (mostly goal-related) did not directly influence the corner market decision."
+    },
+    {
+      "scenarioName": "11823-1396482-36m-under-2-75",
+      "recommendationId": 11823,
+      "promptVersion": "v8-market-balance-followup-h",
+      "originalBetMarket": "under_2.75",
+      "replayBetMarket": "unknown",
+      "replayShouldPush": false,
+      "primaryDecisionDriver": "Continuity/exposure block: No material change in match state or odds improvement to justify a second entry on the same thesis.",
+      "secondaryDrivers": [],
+      "consideredMarkets": [
+        "corners_under_9.5",
+        "goals_over_under_2.75",
+        "btts"
+      ],
+      "rejectedMarkets": [
+        "corners_under_9.5"
+      ],
+      "underFallbackDetected": false,
+      "genericReasoningDetected": false,
+      "priorsRole": "ignored",
+      "liveEvidenceWeight": "primary",
+      "oddsAvailabilityIssue": false,
+      "continuityBlock": true,
+      "policyRestriction": true,
+      "whyNot1x2": "Odds for 1x2 market were not available in the RECORDED_ODDS_CONTEXT.",
+      "whyNotAsianHandicap": "Odds for Asian Handicap market were not available in the RECORDED_ODDS_CONTEXT.",
+      "notes": "The scenario name indicated a prompt for 'under-2-75' goals, but the replay decision was driven by the previous recommendation, which was 'Under 9.5 Goals' (correctly identified as corners_under_9.5 by the system). The 'no_bet' decision was a direct result of a policy preventing re-betting on the same market without significant changes in match state or odds improvement (>= 0.10)."
+    },
+    {
+      "scenarioName": "11825-1492574-20m-under-3-5",
+      "recommendationId": 11825,
+      "promptVersion": "v8-market-balance-followup-h",
+      "originalBetMarket": "under_3.5",
+      "replayBetMarket": "under_3.5",
+      "replayShouldPush": true,
+      "primaryDecisionDriver": "Extremely low combined xG (0.14) after 20 minutes, indicating a very tight and defensively oriented game with a lack of attacking penetration from both sides.",
+      "secondaryDrivers": [
+        "Score is 0-0 at minute 20.",
+        "Monterrey's dominant possession (70%) has not translated into shots on target (0) or significant xG (0.12).",
+        "Atletico San Luis's single shot on target yielded negligible xG (0.02).",
+        "The current pace and lack of attacking output make 4 or more goals unlikely."
+      ],
+      "consideredMarkets": [
+        "Under 3.5 Goals",
+        "Over 3.5 Goals"
+      ],
+      "rejectedMarkets": [
+        "Over 3.5 Goals"
+      ],
+      "underFallbackDetected": false,
+      "genericReasoningDetected": false,
+      "priorsRole": "ignored",
+      "liveEvidenceWeight": "primary",
+      "oddsAvailabilityIssue": false,
+      "continuityBlock": false,
+      "policyRestriction": false,
+      "whyNot1x2": "Odds for the 1x2 market were not available in the `RECORDED_ODDS_CONTEXT`.",
+      "whyNotAsianHandicap": "Odds for the Asian Handicap market were not available in the `RECORDED_ODDS_CONTEXT`.",
+      "notes": "The decision is strongly driven by live statistical evidence, particularly the very low xG and lack of attacking threat. The reasoning explicitly calculates break-even points and fair value ranges, demonstrating a data-driven approach. Prematch features, despite having some 'under' leaning scores (low over_tendency_score and totals_bias_score), were effectively ignored due to the high `prematch_noise_penalty` (60) and the explicit rule to down-weight them heavily in such cases, as well as their complete absence from the decision's reasoning."
+    },
+    {
+      "scenarioName": "11826-1492578-24m-under-2-25",
+      "recommendationId": 11826,
+      "promptVersion": "v8-market-balance-followup-h",
+      "originalBetMarket": "under_2.25",
+      "replayBetMarket": "unknown",
+      "replayShouldPush": false,
+      "primaryDecisionDriver": "Policy restriction against re-betting the same market without material change or improved value.",
+      "secondaryDrivers": [
+        "Previous recommendation context at the same minute and odds",
+        "Lack of significant change in live match state since the previous recommendation"
+      ],
+      "consideredMarkets": [
+        "Over/Under 2.25",
+        "Corners Over/Under 11.5",
+        "Both Teams Score"
+      ],
+      "rejectedMarkets": [],
+      "underFallbackDetected": false,
+      "genericReasoningDetected": false,
+      "priorsRole": "ignored",
+      "liveEvidenceWeight": "weak",
+      "oddsAvailabilityIssue": false,
+      "continuityBlock": true,
+      "policyRestriction": true,
+      "whyNot1x2": "Odds for 1x2 market were not available in the RECORDED_ODDS_CONTEXT.",
+      "whyNotAsianHandicap": "Odds for Asian Handicap market were not available in the RECORDED_ODDS_CONTEXT.",
+      "notes": "The replay output's reasoning directly cites a previous recommendation for 'Corners Under 11.5 @1.925' made at the exact same minute (24) with identical odds and match state. The 'no_bet' decision is a strict application of a betting discipline policy to prevent repeated entries on the same thesis without material change. While live stats were available, they were not deemed to have changed significantly enough to override this policy. Prematch priors were heavily down-weighted due to 'minimal availability' and 'high noise penalty' and played no decisive role in this specific 'no_bet' outcome."
+    },
+    {
+      "scenarioName": "11827-1490185-25m-under-4-5",
+      "recommendationId": 11827,
+      "promptVersion": "v8-market-balance-followup-h",
+      "originalBetMarket": "under_4.5",
+      "replayBetMarket": "unknown",
+      "replayShouldPush": false,
+      "primaryDecisionDriver": "Lack of a strong betting edge on the Over/Under 4.5 goals market due to balanced odds and conflicting signals from live data and prematch priors.",
+      "secondaryDrivers": [
+        "Missing live data for the Corners market, rendering it unactionable despite available odds.",
+        "Unavailability of odds for other potential markets (e.g., 1x2, Asian Handicap) in the provided context."
+      ],
+      "consideredMarkets": [
+        "Over/Under 4.5 Goals",
+        "Corners Over/Under 7"
+      ],
+      "rejectedMarkets": [
+        "Corners Over/Under 7",
+        "1x2",
+        "Asian Handicap"
+      ],
+      "underFallbackDetected": false,
+      "genericReasoningDetected": false,
+      "priorsRole": "contradicting",
+      "liveEvidenceWeight": "balanced",
+      "oddsAvailabilityIssue": true,
+      "continuityBlock": false,
+      "policyRestriction": true,
+      "whyNot1x2": "Odds for the 1x2 market were not present in the `RECORDED_ODDS_CONTEXT` and the replay output explicitly stated 'No other markets are eligible at this minute'.",
+      "whyNotAsianHandicap": "Odds for the Asian Handicap market were not present in the `RECORDED_ODDS_CONTEXT` and the replay output explicitly stated 'No other markets are eligible at this minute'.",
+      "notes": "The decision was a 'no_bet' because the only market with both available odds and sufficient live data (Over/Under 4.5 Goals) presented no clear edge. The 1-1 score at 25 minutes and NYRB's high xG suggested attacking potential, while prematch priors indicated a high-scoring league environment, which contradicted betting 'Under 4.5'. However, betting 'Over 4.5' required 3 more goals, deemed a high demand, especially with balanced odds. The Corners market was rejected due to missing live data, and other markets like 1x2 and Asian Handicap were not available in the odds context and deemed ineligible by the system."
+    },
+    {
+      "scenarioName": "11828-1490183-11m-under-5",
+      "recommendationId": 11828,
+      "promptVersion": "v8-market-balance-followup-h",
+      "originalBetMarket": "under_5",
+      "replayBetMarket": "unknown",
+      "replayShouldPush": false,
+      "primaryDecisionDriver": "Continuity rule violation (no material change since previous identical recommendation)",
+      "secondaryDrivers": [],
+      "consideredMarkets": [
+        "Total Goals Over/Under 5",
+        "Corners Over/Under 11"
+      ],
+      "rejectedMarkets": [
+        "Total Goals Under 5"
+      ],
+      "underFallbackDetected": false,
+      "genericReasoningDetected": false,
+      "priorsRole": "ignored",
+      "liveEvidenceWeight": "weak",
+      "oddsAvailabilityIssue": false,
+      "continuityBlock": true,
+      "policyRestriction": false,
+      "whyNot1x2": "Odds for 1x2 market were not available in the RECORDED_ODDS_CONTEXT.",
+      "whyNotAsianHandicap": "Odds for Asian Handicap market were not available in the RECORDED_ODDS_CONTEXT.",
+      "notes": "The replay output explicitly states that a previous recommendation for 'Under 11 Goals' (assumed to be 'Corners Under 11') was made at the exact same minute (11), with identical odds (2.1) and match state (1-1 score, 1H status). The continuity rule requires a material change in match state, improved odds by at least 0.10, or at least 5 minutes passed with stronger evidence to place a new bet on the same thesis. None of these conditions were met, leading to a 'no_bet' decision. The prematch features were likely down-weighted due to 'minimal' availability and high 'prematch_noise_penalty' and did not influence this continuity-driven decision."
+    },
+    {
+      "scenarioName": "11830-1492576-21m-under-3-25",
+      "recommendationId": 11830,
+      "promptVersion": "v8-market-balance-followup-h",
+      "originalBetMarket": "under_3.25",
+      "replayBetMarket": "unknown",
+      "replayShouldPush": false,
+      "primaryDecisionDriver": "The primary driver for the 'no_bet' decision on Under 3.25 was the early stage of the match (21st minute) combined with the expectation of significant volatility. Despite Cruz Azul's current lack of attacking output (0 shots, 0.00 xG) and high possession (65%), the system anticipated they would increase pressure and create chances due to being at home and trailing 0-1. This potential for future goals made it too risky to confidently back the Under market, as the odds of 1.80 did not present a clear value edge given this uncertainty.",
+      "secondaryDrivers": [
+        "Cruz Azul's high possession (65%) despite 0 shots/xG suggested latent attacking potential that could materialize later in the game.",
+        "The odds for Under 3.25 (1.80) did not offer a clear value edge when considering the early stage and expected game flow.",
+        "Policy restriction: The 'Both Teams Score - Yes' market was rejected because its odds (1.333) were below the minimum acceptable threshold.",
+        "Missing live data: The 'Corners Over/Under' market could not be evaluated due to the absence of live corner count data."
+      ],
+      "consideredMarkets": [
+        "Over/Under 3.25",
+        "Corners Over/Under 7",
+        "Both Teams Score"
+      ],
+      "rejectedMarkets": [
+        "Under 3.25",
+        "Corners Over/Under 7",
+        "Both Teams Score - Yes",
+        "Both Teams Score - No"
+      ],
+      "underFallbackDetected": false,
+      "genericReasoningDetected": false,
+      "priorsRole": "neutral",
+      "liveEvidenceWeight": "primary",
+      "oddsAvailabilityIssue": true,
+      "continuityBlock": false,
+      "policyRestriction": true,
+      "whyNot1x2": "The 1x2 market was not available in the RECORDED_ODDS_CONTEXT.",
+      "whyNotAsianHandicap": "The Asian Handicap market was not available in the RECORDED_ODDS_CONTEXT.",
+      "notes": "The prematch features, specifically the 'totals_bias_score' and 'league_profile', were noted as 'supportive' for the Under market. However, their influence was effectively neutralized by the strong live evidence and the anticipated game dynamics (Cruz Azul's expected push), which were given primary weight. The high 'prematch_noise_penalty' (60) also suggests a deliberate down-weighting of prematch priors."
+    },
+    {
+      "scenarioName": "11831-1504737-38m-under-1-25",
+      "recommendationId": 11831,
+      "promptVersion": "v8-market-balance-followup-h",
+      "originalBetMarket": "under_1.25",
+      "replayBetMarket": "under_1.25",
+      "replayShouldPush": true,
+      "primaryDecisionDriver": "Calculated strong edge of approximately 10.9% for Under 1.25 goals, based on a fair value of 62.85% compared to the market's break-even of 51.95% at odds of 1.925. This valuation is derived from the live match dynamics.",
+      "secondaryDrivers": [
+        "Live match dynamics indicating a low-scoring game: FC Tokyo's dominance in possession (67%) and shots (4 shots, 2 on target) did not translate into goals, forcing 2 saves from the away keeper.",
+        "Machida Zelvia's defensive setup, with only 2 shots and 0 on target, and a higher foul count (6 fouls), making multiple goals unlikely.",
+        "Low overall pace of the game despite FC Tokyo's pressure.",
+        "Prematch totals bias for the league leaning towards unders, providing a weak confirmation, albeit with a high noise penalty."
+      ],
+      "consideredMarkets": [
+        "Under 1.25 Goals",
+        "Over 1.25 Goals"
+      ],
+      "rejectedMarkets": [
+        "Over 1.25 Goals (explicitly deemed structurally weaker)",
+        "Corners Over/Under",
+        "Both Teams Score"
+      ],
+      "underFallbackDetected": false,
+      "genericReasoningDetected": false,
+      "priorsRole": "confirming",
+      "liveEvidenceWeight": "primary",
+      "oddsAvailabilityIssue": false,
+      "continuityBlock": false,
+      "policyRestriction": false,
+      "whyNot1x2": "1x2 odds were not available in the `RECORDED_ODDS_CONTEXT`.",
+      "whyNotAsianHandicap": "Match Asian Handicap odds (e.g., for home/away win with handicap) were not available in the `RECORDED_ODDS_CONTEXT`. The 'Over/Under' market with a handicap was considered and selected.",
+      "notes": "The `PREVIOUS_RECOMMENDATIONS_CONTEXT` shows a prior 'Under 1 Goals' bet for this match, indicating a consistent system view on low-scoring potential. The `prompt_version: v8-market-balance-followup-h` suggests a focus on market balance and follow-up, which aligns with finding an edge against market odds. The prematch features were down-weighted due to 'minimal' availability and a 'high' noise penalty (60)."
+    },
+    {
+      "scenarioName": "11834-1504738-24m-under-4-25",
+      "recommendationId": 11834,
+      "promptVersion": "v8-market-balance-followup-h",
+      "originalBetMarket": "under_4.25",
+      "replayBetMarket": "unknown",
+      "replayShouldPush": false,
+      "primaryDecisionDriver": "policy_restriction",
+      "secondaryDrivers": [
+        "weak_live_evidence_for_over_market",
+        "missing_live_data_for_corners_evaluation"
+      ],
+      "consideredMarkets": [
+        "Over 4.25 Goals",
+        "Under 4.25 Goals",
+        "Corners Over 7",
+        "Corners Under 7"
+      ],
+      "rejectedMarkets": [
+        "Under 4.25 Goals",
+        "Over 4.25 Goals",
+        "Corners Over 7",
+        "Corners Under 7"
+      ],
+      "underFallbackDetected": false,
+      "genericReasoningDetected": false,
+      "priorsRole": "ignored",
+      "liveEvidenceWeight": "primary",
+      "oddsAvailabilityIssue": false,
+      "continuityBlock": true,
+      "policyRestriction": true,
+      "whyNot1x2": "Odds for 1x2 market were not present in the RECORDED_ODDS_CONTEXT.",
+      "whyNotAsianHandicap": "Odds for Asian Handicap market were not present in the RECORDED_ODDS_CONTEXT.",
+      "notes": "The replayed decision resulted in 'no_bet' due to a combination of factors across different markets. The primary reason for not placing a bet on 'Under 4.25 Goals' was a strict policy restriction, specifically a 'ladder alert' triggered by existing exposure from two prior 'Under Goals' recommendations in the same match. This continuity block prevented any further entries into this thesis. For 'Over 4.25 Goals', despite two early goals, the live statistics (Kawasaki's 67% possession with only 1 shot and 0 shots on target, Urawa's low possession) did not provide sufficient evidence to support a strong 'Over' thesis. For the 'Corners Over/Under 7' market, while odds were available, the market could not be evaluated due to the absence of live corners data. Prematch priors were effectively ignored due to their 'minimal' availability and a 'high' noise penalty (60), as per the specified rules for down-weighting."
+    },
+    {
+      "scenarioName": "11838-1506931-72m-under-3-5",
+      "recommendationId": 11838,
+      "promptVersion": "v8-market-balance-followup-h",
+      "originalBetMarket": "under_3.5",
+      "replayBetMarket": "unknown",
+      "replayShouldPush": false,
+      "primaryDecisionDriver": "Continuity rule violation for Over 3.5 Goals. A previous recommendation for the same market and selection (Over 3.5 Goals @1.875) was made at the exact same minute (72) with the same odds. The system's continuity rules require a significant odds improvement (>= 0.10), a material change in match state, or at least 5 minutes passed with stronger evidence for a new recommendation on the same market/selection, none of which were met.",
+      "secondaryDrivers": [
+        "Rejection of Match Winner (Home) due to its odds (1.222) being below the minimum acceptable threshold (1.5).",
+        "Rejection of Under 3.5 Goals because the live game state (Incheon's 13 shots, 6 SOT, and Gimcheon's need to chase an equalizer) made further goals 'structurally possible' and the selection 'not compelling'.",
+        "Rejection of Match Winner (Draw) and Match Winner (Away) as not supported by the current game state."
+      ],
+      "consideredMarkets": [
+        "Over 3.5 Goals",
+        "Under 3.5 Goals",
+        "Match Winner (Home)",
+        "Match Winner (Draw)",
+        "Match Winner (Away)"
+      ],
+      "rejectedMarkets": [
+        "Over 3.5 Goals",
+        "Under 3.5 Goals",
+        "Match Winner (Home)",
+        "Match Winner (Draw)",
+        "Match Winner (Away)"
+      ],
+      "underFallbackDetected": false,
+      "genericReasoningDetected": false,
+      "priorsRole": "contradicting",
+      "liveEvidenceWeight": "balanced",
+      "oddsAvailabilityIssue": true,
+      "continuityBlock": true,
+      "policyRestriction": true,
+      "whyNot1x2": "The odds for Match Winner (Home) were 1.222, which is below the system's minimum odds policy of 1.5. Match Winner (Draw) at 8.5 and Match Winner (Away) at 126 were not supported by the current game state (2-1 score, Incheon's attacking stats, and Gimcheon's need to equalize).",
+      "whyNotAsianHandicap": "Asian Handicap markets were not available in the `RECORDED_ODDS_CONTEXT` for consideration.",
+      "notes": "The replay output resulted in a 'no_bet' decision primarily due to a strict continuity rule. A previous recommendation for Over 3.5 Goals at the exact same minute and odds prevented a new bet on that market. Other available markets were evaluated and rejected based on policy restrictions (minimum odds for 1x2_home) or live game state analysis (Under 3.5 Goals, 1x2_draw/away). The scenario name 'under-3-5' suggests the prompt might have been for this market, but it was explicitly rejected with specific reasoning, confirming it was not a fallback."
+    },
+    {
+      "scenarioName": "11966-1388857-73m-over-2-5",
+      "recommendationId": 11966,
+      "promptVersion": "v8-market-balance-followup-h",
+      "originalBetMarket": "over_2.5",
+      "replayBetMarket": "over_2.5",
+      "replayShouldPush": true,
+      "primaryDecisionDriver": "Arminia Bielefeld's overwhelming attacking dominance, high expected goals (xG) of 1.88 compared to Darmstadt's 0.19, and high volume of quality chances (19 shots, 14 inside the box, 6 on target) at a 1-1 scoreline in the 73rd minute, indicating a strong likelihood of scoring another goal.",
+      "secondaryDrivers": [
+        "Darmstadt's very low xG (0.19) suggesting their goal was fortunate and they are unlikely to score again.",
+        "The 2. Bundesliga league prior being supportive of goals (average 2.94 goals per game, 58.3% over 2.5 rate)."
+      ],
+      "consideredMarkets": [
+        "Over 2.5 Goals",
+        "Under 2.5 Goals",
+        "Corners Over 12.5",
+        "Corners Under 12.5"
+      ],
+      "rejectedMarkets": [
+        "Under 2.5 Goals",
+        "Corners Over 12.5",
+        "Corners Under 12.5"
+      ],
+      "underFallbackDetected": false,
+      "genericReasoningDetected": false,
+      "priorsRole": "confirming",
+      "liveEvidenceWeight": "primary",
+      "oddsAvailabilityIssue": false,
+      "continuityBlock": false,
+      "policyRestriction": false,
+      "whyNot1x2": "1x2 odds were not available in the RECORDED_ODDS_CONTEXT.",
+      "whyNotAsianHandicap": "Asian Handicap odds were not available in the RECORDED_ODDS_CONTEXT.",
+      "notes": "The system identified a significant edge (7.1%) for Over 2.5 Goals, calculating a fair range of 62-68% probability against a break-even of 57.9% for the offered odds. This was driven by the strong live statistical evidence of Bielefeld's offensive pressure and underperformance relative to their xG, making another goal highly probable."
+    },
+    {
+      "scenarioName": "12014-1388862-54m-over-1-25",
+      "recommendationId": 12014,
+      "promptVersion": "v8-market-balance-followup-h",
+      "originalBetMarket": "over_1.25",
+      "replayBetMarket": "over_1.25",
+      "replayShouldPush": true,
+      "primaryDecisionDriver": "Overwhelming live statistical dominance by the home team (65% possession, 12 shots, 7 inside box, 2 on target, 1.13 xG) combined with a crucial numerical advantage due to the away team receiving a red card, strongly indicating a high probability of goals.",
+      "secondaryDrivers": [
+        "The 'Over 1.25 Goals' market offers a favorable risk-reward profile where one goal results in a push and two goals result in a win.",
+        "Calculated edge of approximately 8.7% based on a fair range of 65-70% probability for Over 1.25 Goals against a break-even of 56.3%."
+      ],
+      "consideredMarkets": [
+        "Over 1.25 Goals"
+      ],
+      "rejectedMarkets": [
+        "Under 1.25 Goals",
+        "Corners Over/Under 9.5",
+        "Both Teams Score"
+      ],
+      "underFallbackDetected": false,
+      "genericReasoningDetected": false,
+      "priorsRole": "confirming",
+      "liveEvidenceWeight": "primary",
+      "oddsAvailabilityIssue": false,
+      "continuityBlock": false,
+      "policyRestriction": false,
+      "whyNot1x2": "1x2 odds were not available in the RECORDED_ODDS_CONTEXT.",
+      "whyNotAsianHandicap": "Team-specific Asian Handicap odds (e.g., asian_handicap_home) were not available in the RECORDED_ODDS_CONTEXT. The chosen market 'Over 1.25 Goals' is itself an Asian Handicap for total goals.",
+      "notes": "The replay output explicitly reverses a previous decision for 'Under 1.25 Goals' at the same minute and recommendation ID, indicating a re-evaluation based on the strong live evidence and the red card. The reasoning directly refutes the 'Under 1.25 Goals' selection, highlighting its structural weakness given the match circumstances. Prematch priors, such as a league average of 2.94 goals and a positive 'projected_goal_environment_score' of 29, generally supported a goal-friendly environment, aligning with the live data's indication for goals."
+    },
+    {
+      "scenarioName": "12385-1523086-71m-over-2-75",
+      "recommendationId": 12385,
+      "promptVersion": "v8-market-balance-followup-h",
+      "originalBetMarket": "over_2.75",
+      "replayBetMarket": "unknown",
+      "replayShouldPush": false,
+      "primaryDecisionDriver": "Continuity rules and insufficient odds improvement for the 'Under Goals' market, given existing exposure.",
+      "secondaryDrivers": [
+        "Caution prior for the Super League",
+        "Risk associated with BTTS No due to home team's attacking volume",
+        "Uncertainty for BTTS Yes due to home team's inefficiency",
+        "Lack of clear edge in Corners market"
+      ],
+      "consideredMarkets": [
+        "Over/Under 2.75 Goals",
+        "Both Teams Score",
+        "Corners Over/Under 13"
+      ],
+      "rejectedMarkets": [
+        "Over/Under 2.75 Goals (Under)",
+        "Both Teams Score (Yes)",
+        "Both Teams Score (No)",
+        "Corners Over/Under 13 (Over)",
+        "Corners Over/Under 13 (Under)"
+      ],
+      "underFallbackDetected": false,
+      "genericReasoningDetected": false,
+      "priorsRole": "confirming",
+      "liveEvidenceWeight": "primary",
+      "oddsAvailabilityIssue": false,
+      "continuityBlock": true,
+      "policyRestriction": true,
+      "whyNot1x2": "The 'Match Winner' market was available, but the odds for Home (126) and Draw (29) were extremely high, indicating a very low probability of these outcomes given the 0-2 scoreline in the 71st minute. The Away odds (1.055) were too low to offer value. The reasoning did not explicitly consider these options, likely due to their obvious lack of value or high risk.",
+      "whyNotAsianHandicap": "Asian Handicap markets were not available in the `RECORDED_ODDS_CONTEXT`.",
+      "notes": "The decision was primarily driven by risk management related to existing exposure on an 'Under Goals' bet, combined with the lack of a sufficiently improved entry point for a new 'Under Goals' bet. Other available markets were assessed but deemed too risky or lacking a strong edge based on live data and the current score. The 'caution prior for the Super League' also contributed to the conservative 'no_bet' decision."
+    },
+    {
+      "scenarioName": "12425-1403794-56m-under-1",
+      "recommendationId": 12425,
+      "promptVersion": "v6-betting-discipline-c",
+      "originalBetMarket": "under_1",
+      "replayBetMarket": "unknown",
+      "replayShouldPush": false,
+      "primaryDecisionDriver": "Inability to identify a confident betting opportunity due to lack of sufficient live evidence.",
+      "secondaryDrivers": [
+        "Absence of live statistical data (LIVE_STATS_COMPACT was empty).",
+        "Reliance solely on odds events, which did not provide a strong enough signal for a bet.",
+        "Zero confidence score in the replay output."
+      ],
+      "consideredMarkets": [
+        "Match Winner",
+        "Over/Under",
+        "Corners Over/Under",
+        "Both Teams Score"
+      ],
+      "rejectedMarkets": [
+        "Match Winner",
+        "Over/Under",
+        "Corners Over/Under",
+        "Both Teams Score"
+      ],
+      "underFallbackDetected": false,
+      "genericReasoningDetected": false,
+      "priorsRole": "ignored",
+      "liveEvidenceWeight": "weak",
+      "oddsAvailabilityIssue": false,
+      "continuityBlock": false,
+      "policyRestriction": false,
+      "whyNot1x2": "The 1x2 market (Match Winner) was available with odds, but no strong signal was identified for any outcome (Home, Draw, Away) to warrant a bet, particularly in the absence of live statistical data.",
+      "whyNotAsianHandicap": "An Asian Handicap market for the match outcome was not available in the provided odds context.",
+      "notes": "The replay output was a 'no_bet' with 'unknown' market and zero confidence. This outcome was primarily driven by the `evidence_mode: odds_events_only_degraded` and `LIVE_STATS_COMPACT: {}`, indicating a complete lack of live statistical data. While odds were available and fresh, the system could not form a confident betting decision based on odds alone. No explicit prematch priors were available, so they were ignored. There were no odds availability issues, continuity blocks, or policy restrictions impacting the decision."
+    },
+    {
+      "scenarioName": "12434-1380626-20m-under-3-25",
+      "recommendationId": 12434,
+      "promptVersion": "v8-market-balance-followup-h",
+      "originalBetMarket": "under_3.25",
+      "replayBetMarket": "unknown",
+      "replayShouldPush": false,
+      "primaryDecisionDriver": "No clear betting edge was identified for the proposed Under 3.25 Goals market, nor for alternative markets, due to conflicting game dynamics and an early stage of the match.",
+      "secondaryDrivers": [
+        "The match was only in the 20th minute, making it too early to confidently predict a low-scoring outcome.",
+        "Piast Gliwice, despite trailing 1-0, showed dominance in possession (62%), passes, and had more shots (2 total, 2 inside box) than Nieciecza, indicating a potential for increased offensive pressure.",
+        "The 'game-killing script' was not evident, and Piast still posed a residual goal threat, suggesting the game could open up.",
+        "The odds for Under 3.25 Goals (2.0) were not deemed sufficiently valuable given the uncertainty, and the Over 3.25 Goals alternative (1.8) was not clearly worse value.",
+        "Both Teams Score (BTTS) market was rejected due to low odds for 'Yes' (1.222) and high risk for 'No' (4.0) given Piast's pressure."
+      ],
+      "consideredMarkets": [
+        "Over/Under 3.25 Goals",
+        "Both Teams Score",
+        "Corners Over/Under 8"
+      ],
+      "rejectedMarkets": [
+        "Under 3.25 Goals",
+        "Over 3.25 Goals",
+        "Both Teams Score Yes",
+        "Both Teams Score No",
+        "Corners Over/Under 8"
+      ],
+      "underFallbackDetected": false,
+      "genericReasoningDetected": false,
+      "priorsRole": "ignored",
+      "liveEvidenceWeight": "primary",
+      "oddsAvailabilityIssue": false,
+      "continuityBlock": false,
+      "policyRestriction": false,
+      "whyNot1x2": "The 1x2 market was not available in the RECORDED_ODDS_CONTEXT.",
+      "whyNotAsianHandicap": "The Asian Handicap market was not available in the RECORDED_ODDS_CONTEXT.",
+      "notes": "Analysis of the Corners Over/Under market was prevented due to the current corner count being unknown, despite the odds being available."
+    },
+    {
+      "scenarioName": "12453-1380626-38m-under-3",
+      "recommendationId": 12453,
+      "promptVersion": "v8-market-balance-followup-h",
+      "originalBetMarket": "under_3",
+      "replayBetMarket": "unknown",
+      "replayShouldPush": false,
+      "primaryDecisionDriver": "Lack of material value upgrade for a follow-up bet on the same 'Under Goals' thesis, combined with a policy restriction against compounding exposure.",
+      "secondaryDrivers": [
+        "Piast Gliwice's attacking intent (7 shots, 4 inside box, 59% possession) indicating the game is not entirely suppressed, which weakens the 'Under' thesis.",
+        "No other available market presented a clear edge meeting minimum confidence and value requirements."
+      ],
+      "consideredMarkets": [
+        "Over/Under 3 Goals",
+        "Corners Over/Under 7.5",
+        "Both Teams Score"
+      ],
+      "rejectedMarkets": [],
+      "underFallbackDetected": false,
+      "genericReasoningDetected": false,
+      "priorsRole": "confirming",
+      "liveEvidenceWeight": "balanced",
+      "oddsAvailabilityIssue": true,
+      "continuityBlock": true,
+      "policyRestriction": true,
+      "whyNot1x2": "1x2 odds were not available in the RECORDED_ODDS_CONTEXT.",
+      "whyNotAsianHandicap": "Asian Handicap odds were not available in the RECORDED_ODDS_CONTEXT.",
+      "notes": "The decision explicitly references the previous 'Under 3.25 Goals' bet and compares the current 'Under 3.0' odds, highlighting the lack of a material upgrade and the policy against compounding exposure as the main blockers for a new bet on the same market type. Live stats were used to assess the game state, further indicating that the 'Under' thesis wasn't overwhelmingly strong, contributing to the 'no bet' decision."
+    },
+    {
+      "scenarioName": "12454-1378172-41m-under-1-5",
+      "recommendationId": 12454,
+      "promptVersion": "v8-market-balance-followup-h",
+      "originalBetMarket": "under_1.5",
+      "replayBetMarket": "under_1.5",
+      "replayShouldPush": true,
+      "primaryDecisionDriver": "Very low offensive output and poor quality chances from both teams based on live statistics (shots, shots on target, and expected goals).",
+      "secondaryDrivers": [
+        "The league's prematch totals bias score was strongly negative (-21), reinforcing the expectation of a low-scoring match.",
+        "A calculated edge of at least 5.95% was identified, based on a fair value estimate for Under 1.5 Goals (60-65%) significantly exceeding the implied probability from the odds (54.05%).",
+        "The dynamic prior for 'under_1.5' was supportive (65.12%)."
+      ],
+      "consideredMarkets": [
+        "Under 1.5 Goals",
+        "Over 1.5 Goals"
+      ],
+      "rejectedMarkets": [
+        "Over 1.5 Goals"
+      ],
+      "underFallbackDetected": false,
+      "genericReasoningDetected": false,
+      "priorsRole": "confirming",
+      "liveEvidenceWeight": "primary",
+      "oddsAvailabilityIssue": false,
+      "continuityBlock": false,
+      "policyRestriction": false,
+      "whyNot1x2": "1x2 odds were not available in the RECORDED_ODDS_CONTEXT.",
+      "whyNotAsianHandicap": "Asian Handicap odds were not available in the RECORDED_ODDS_CONTEXT.",
+      "notes": "The decision for 'Under 1.5 Goals' was driven by a strong convergence of live game data (low xG, shots, and scoreline at 41 minutes) and supportive prematch priors (negative totals bias). The explicit comparison and rejection of 'Over 1.5 Goals' based on current game flow indicates a deliberate choice rather than a generic fallback. The confidence level of 7 reflects this strong alignment of evidence."
+    },
+    {
+      "scenarioName": "12456-1387040-41m-under-2-25",
+      "recommendationId": 12456,
+      "promptVersion": "v8-market-balance-followup-h",
+      "originalBetMarket": "under_2.25",
+      "replayBetMarket": "btts_yes",
+      "replayShouldPush": true,
+      "primaryDecisionDriver": "The red card received by Portsmouth in the 41st minute, fundamentally altering the game dynamic by giving Oxford United a numerical advantage and strong incentive to score.",
+      "secondaryDrivers": [
+        "Oxford United's motivation to equalize while trailing 1-0.",
+        "The perceived strong value edge in the BTTS Yes market (fair value 70-75% vs. implied 65.23% at 1.533 odds).",
+        "The comparative unattractiveness of the Over 2.25 market, which required more goals and offered a thinner edge."
+      ],
+      "consideredMarkets": [
+        "Both Teams Score",
+        "Over/Under 2.25"
+      ],
+      "rejectedMarkets": [
+        "Over/Under 2.25"
+      ],
+      "underFallbackDetected": false,
+      "genericReasoningDetected": false,
+      "priorsRole": "ignored",
+      "liveEvidenceWeight": "primary",
+      "oddsAvailabilityIssue": false,
+      "continuityBlock": false,
+      "policyRestriction": false,
+      "whyNot1x2": "1x2 odds were not available in the RECORDED_ODDS_CONTEXT.",
+      "whyNotAsianHandicap": "Asian Handicap odds were not available in the RECORDED_ODDS_CONTEXT.",
+      "notes": "The scenario name 'under-2-25' is misleading as the actual decision was a BTTS Yes bet. The decision was driven almost entirely by the immediate and significant impact of the red card on the game's dynamics and Oxford's scoring probability, overriding pre-card statistics and making the BTTS Yes market highly attractive. Prematch priors, despite showing a positive BTTS tendency, were explicitly down-weighted due to 'minimal availability' and 'high noise penalty' and were not referenced in the decisive reasoning."
+    },
+    {
+      "scenarioName": "12458-1387038-56m-under-2",
+      "recommendationId": 12458,
+      "promptVersion": "v8-market-balance-followup-h",
+      "originalBetMarket": "under_2",
+      "replayBetMarket": "btts_no",
+      "replayShouldPush": true,
+      "primaryDecisionDriver": "Millwall's severe lack of attacking threat, evidenced by 0 shots on target, 0.47 xG, and significantly lower possession (41%) and shots (5) compared to Norwich, made it highly probable they would not score. This created a perceived value on the BTTS No market.",
+      "secondaryDrivers": [
+        "Norwich's relatively stronger attacking performance (2 shots on target, 1.17 xG, 59% possession) suggested they were more likely to score, reinforcing the BTTS No outcome over a 0-0 draw.",
+        "The comparison to the Over 2 goals market, which was deemed riskier given Millwall's offensive impotence, further highlighted the relative attractiveness of the BTTS No selection."
+      ],
+      "consideredMarkets": [
+        "Both Teams Score (No)",
+        "Over/Under 2 Goals"
+      ],
+      "rejectedMarkets": [
+        "Both Teams Score (Yes)",
+        "Under 2 Goals",
+        "Corners Over/Under"
+      ],
+      "underFallbackDetected": false,
+      "genericReasoningDetected": false,
+      "priorsRole": "ignored",
+      "liveEvidenceWeight": "primary",
+      "oddsAvailabilityIssue": false,
+      "continuityBlock": false,
+      "policyRestriction": true,
+      "whyNot1x2": "1x2 market odds were not available in the RECORDED_ODDS_CONTEXT.",
+      "whyNotAsianHandicap": "Asian Handicap market odds were not available in the RECORDED_ODDS_CONTEXT.",
+      "notes": "The decision to push BTTS No was strongly driven by Millwall's complete lack of attacking threat as evidenced by 0 shots on target and very low xG (0.47) by minute 56. The system identified significant value in the BTTS No odds (1.75) compared to its estimated fair probability (65-70%). Prematch priors for BTTS (tendency and bias scores of 13) suggested BTTS Yes, directly contradicting the live decision, but were ignored due to 'minimal availability' and 'high noise penalty' as per rules, and the overwhelming live data. While policy caps were applied to confidence and stake (POLICY_CAP_BTTS_NO_CONFIDENCE, POLICY_CAP_BTTS_NO_STAKE), they did not prevent the selection of this market, only limited its magnitude."
+    },
+    {
+      "scenarioName": "12459-1378168-33m-under-2-75",
+      "recommendationId": 12459,
+      "promptVersion": "v8-market-balance-followup-h",
+      "originalBetMarket": "under_2.75",
+      "replayBetMarket": "btts_no",
+      "replayShouldPush": false,
+      "primaryDecisionDriver": "Policy restriction (POLICY_BLOCK_BTTS_NO_HIGH_PRICE) prevented the bet despite a perceived edge.",
+      "secondaryDrivers": [
+        "Strong live data indicating extremely poor attacking output from Lecce (0 SOT, 0.07 xG) and solid defense from Atalanta.",
+        "Atalanta's control of the game (61% possession) limiting Lecce's opportunities.",
+        "Pre-match priors confirming a tendency towards BTTS No and a low-event environment.",
+        "Other policy caps (POLICY_CAP_BTTS_NO_CONFIDENCE, POLICY_CAP_BTTS_NO_STAKE) also influencing the outcome."
+      ],
+      "consideredMarkets": [
+        "Both Teams Score",
+        "Over/Under 2.75"
+      ],
+      "rejectedMarkets": [
+        "Over/Under 2.75"
+      ],
+      "underFallbackDetected": false,
+      "genericReasoningDetected": false,
+      "priorsRole": "confirming",
+      "liveEvidenceWeight": "primary",
+      "oddsAvailabilityIssue": false,
+      "continuityBlock": false,
+      "policyRestriction": true,
+      "whyNot1x2": "1x2 odds were not available in the RECORDED_ODDS_CONTEXT.",
+      "whyNotAsianHandicap": "Asian Handicap odds were not available in the RECORDED_ODDS_CONTEXT.",
+      "notes": "The system identified a significant edge for BTTS No based on live stats and confirmed by prematch priors. However, the bet was ultimately blocked by a policy restriction (POLICY_BLOCK_BTTS_NO_HIGH_PRICE), leading to a 'no_bet' decision despite the strong reasoning for the selection. The 'Over 2.75' market was explicitly rejected due to low chance creation, not as a generic fallback."
+    },
+    {
+      "scenarioName": "12460-1494612-75m-over-1-75",
+      "recommendationId": 12460,
+      "promptVersion": "v8-market-balance-followup-h",
+      "originalBetMarket": "over_1.75",
+      "replayBetMarket": "under_1.75",
+      "replayShouldPush": true,
+      "primaryDecisionDriver": "The primary driver was the identification of significant value (estimated 6-11% edge) in the Under 1.75 Goals market, based on a detailed analysis of the live game state and team performance, which indicated a low probability of two or more additional goals being scored.",
+      "secondaryDrivers": [
+        "Valerenga's extremely poor attacking output, evidenced by an xG of 0.45 and only 1 shot on target from 10 total shots, making their scoring highly improbable.",
+        "Viking's 0-1 lead at minute 75, which strongly suggested they would shift to a more defensive, game-management strategy to protect their advantage, thereby reducing the likelihood of them scoring additional goals.",
+        "The specific payout structure of the Under 1.75 Goals market, where the bet wins if no more goals are scored and pushes if exactly one more goal is scored, aligning favorably with the low expectation of further goals."
+      ],
+      "consideredMarkets": [
+        "Over/Under 1.75 Goals"
+      ],
+      "rejectedMarkets": [
+        "Match Winner",
+        "Corners Over/Under",
+        "Both Teams Score",
+        "Over 1.75 Goals"
+      ],
+      "underFallbackDetected": false,
+      "genericReasoningDetected": false,
+      "priorsRole": "ignored",
+      "liveEvidenceWeight": "primary",
+      "oddsAvailabilityIssue": false,
+      "continuityBlock": false,
+      "policyRestriction": false,
+      "whyNot1x2": "The odds for Valerenga to win (126) were extremely high, indicating a negligible probability of success, making a 1x2 bet on the home team unviable. The AI focused on a goals market where value was identified.",
+      "whyNotAsianHandicap": "Asian Handicap for the match outcome was not available in the provided RECORDED_ODDS_CONTEXT.",
+      "notes": "The decision to push 'Under 1.75 Goals' was a direct result of the AI's assessment of Valerenga's attacking impotence and Viking's likely defensive shift to protect their lead, supported by strong live statistics (xG, shots on target) and a calculated positive edge. The reasoning was specific to the match dynamics and not a generic 'under' bet."
+    },
+    {
+      "scenarioName": "12462-1378168-45m-under-2-25",
+      "recommendationId": 12462,
+      "promptVersion": "v8-market-balance-followup-h",
+      "originalBetMarket": "under_2.25",
+      "replayBetMarket": "unknown",
+      "replayShouldPush": false,
+      "primaryDecisionDriver": "Existing exposure and policy restriction against 'laddering' similar bets (Under Goals) with a tighter line, leading to compounding bankroll risk.",
+      "secondaryDrivers": [
+        "Policy restriction: BTTS No odds (1.615) were below the required minimum (>= 1.70).",
+        "Policy restriction/Live stats: Corners Over 6.5 was deemed too demanding given low first-half volume (2 corners).",
+        "Policy restriction/Live stats: Corners Under 6.5 was advised against due to the trailing home team (Lecce) likely to chase goals, which typically increases corner activity."
+      ],
+      "consideredMarkets": [
+        "Under 2.25 Goals",
+        "Both Teams Score (No)",
+        "Corners Over/Under 6.5"
+      ],
+      "rejectedMarkets": [
+        "Under 2.25 Goals (due to existing exposure and laddering policy)",
+        "Both Teams Score (No) (due to odds below policy threshold)",
+        "Corners Over 6.5 (due to low first-half volume and high requirement)",
+        "Corners Under 6.5 (due to policy against Under when a team is trailing)"
+      ],
+      "underFallbackDetected": false,
+      "genericReasoningDetected": false,
+      "priorsRole": "ignored",
+      "liveEvidenceWeight": "primary",
+      "oddsAvailabilityIssue": false,
+      "continuityBlock": true,
+      "policyRestriction": true,
+      "whyNot1x2": "Odds for 1x2 market were not available in the provided context.",
+      "whyNotAsianHandicap": "Odds for Asian Handicap market were not available in the provided context.",
+      "notes": "The prematch features indicated a strong 'under' tendency (e.g., projected_goal_environment_score: -20, totals_bias_score: -21). However, the 'prematch_noise_penalty' was high (60), instructing to down-weight them heavily. The decision to not bet on Under 2.25 was driven purely by live context, existing exposure, and strict policy rules, effectively ignoring the supportive prematch priors for an 'under' thesis."
+    },
+    {
+      "scenarioName": "12464-1387031-13m-under-3-5",
+      "recommendationId": 12464,
+      "promptVersion": "v8-market-balance-followup-h",
+      "originalBetMarket": "under_3.5",
+      "replayBetMarket": "unknown",
+      "replayShouldPush": false,
+      "primaryDecisionDriver": "The V8H Symmetric-Odds Tie-Break rule, which advised against defaulting to Under 3.5 when odds were balanced and live stats did not show dominant suppression, combined with the early stage of the match and Leicester's residual goal threat.",
+      "secondaryDrivers": [
+        "Early stage of the match (13th minute, 1-0 score) making it too soon to confidently predict total goals.",
+        "Leicester's significant possession dominance (69%) indicating potential for future goals despite current low xG (0.10) and no shots on target.",
+        "Lack of 'overwhelming full-live evidence' or 'major class mismatch' to justify an Over 3.5 bet.",
+        "Symmetrical odds for Over/Under 3.5 (Over 1.909, Under 1.975) indicating market uncertainty."
+      ],
+      "consideredMarkets": [
+        "Over/Under 3.5",
+        "Corners Over/Under 11.5",
+        "Both Teams Score"
+      ],
+      "rejectedMarkets": [
+        "Over 3.5",
+        "Under 3.5",
+        "Corners Over/Under 11.5",
+        "Both Teams Score"
+      ],
+      "underFallbackDetected": false,
+      "genericReasoningDetected": false,
+      "priorsRole": "neutral",
+      "liveEvidenceWeight": "primary",
+      "oddsAvailabilityIssue": true,
+      "continuityBlock": false,
+      "policyRestriction": true,
+      "whyNot1x2": "Odds for the 1x2 market were not available in the RECORDED_ODDS_CONTEXT.",
+      "whyNotAsianHandicap": "Odds for the Asian Handicap market were not available in the RECORDED_ODDS_CONTEXT.",
+      "notes": "The replay output was a 'no_bet' despite the scenario name suggesting a focus on Under 3.5. The decision was driven by a specific policy rule (V8H Symmetric-Odds Tie-Break) preventing a default to Under, coupled with the early game stage and the potential threat from the dominant away team. Prematch priors were not explicitly cited as decisive factors."
+    },
+    {
+      "scenarioName": "12465-1387031-18m-under-3-25",
+      "recommendationId": 12465,
+      "promptVersion": "v8-market-balance-followup-h",
+      "originalBetMarket": "under_3.25",
+      "replayBetMarket": "unknown",
+      "replayShouldPush": false,
+      "primaryDecisionDriver": "Continuity/exposure management: An existing bet on Under 3.5 Goals was active, and the Under 3.25 Goals market did not offer a material upgrade or distinct edge to justify compounding risk.",
+      "secondaryDrivers": [
+        "Early stage of the match (18 minutes) making overall goal trajectory prediction uncertain.",
+        "Live stats did not provide a strong enough signal for a new bet (Leicester's low xG despite possession, Sheffield Wednesday's efficiency).",
+        "Lack of clear edge in other available markets (BTTS, Corners) due to unfavorable odds or risk factors."
+      ],
+      "consideredMarkets": [
+        "Under 3.25 Goals",
+        "Over 3.25 Goals",
+        "Both Teams Score (Yes/No)",
+        "Corners Over/Under 11"
+      ],
+      "rejectedMarkets": [
+        "Under 3.25 Goals (due to existing position and lack of material upgrade)",
+        "Both Teams Score Yes (odds too low)",
+        "Both Teams Score No (risky given Leicester's attacking profile and need to chase)",
+        "Corners Over 11 (current count too low)",
+        "Corners Under 11 (risky with Leicester likely to push)"
+      ],
+      "underFallbackDetected": false,
+      "genericReasoningDetected": false,
+      "priorsRole": "neutral",
+      "liveEvidenceWeight": "primary",
+      "oddsAvailabilityIssue": false,
+      "continuityBlock": true,
+      "policyRestriction": false,
+      "whyNot1x2": "Odds for the 1x2 market were not available in the provided RECORDED_ODDS_CONTEXT.",
+      "whyNotAsianHandicap": "Odds for the Asian Handicap market were not available in the provided RECORDED_ODDS_CONTEXT.",
+      "notes": "The decision was a clear 'no_bet' driven by the principle of not adding a redundant or marginally different bet to an already active position, especially on a tighter line. The reasoning also comprehensively dismisses other available markets based on live data and odds."
+    },
+    {
+      "scenarioName": "12466-1387034-20m-under-2-25",
+      "recommendationId": 12466,
+      "promptVersion": "v8-market-balance-followup-h",
+      "originalBetMarket": "under_2.25",
+      "replayBetMarket": "under_2.25",
+      "replayShouldPush": true,
+      "primaryDecisionDriver": "Live statistical evidence of extremely low attacking activity (1 shot each, 0 shots on target, combined xG of 0.20) indicating a tight and defensive game flow.",
+      "secondaryDrivers": [
+        "Odds analysis, identifying an edge by comparing the implied probability of Under 2.25 Goals (54.79%) with an estimated fair value (58-62%)."
+      ],
+      "consideredMarkets": [
+        "Over/Under 2.25 Goals"
+      ],
+      "rejectedMarkets": [
+        "Corners Over/Under 11.5",
+        "Both Teams Score"
+      ],
+      "underFallbackDetected": false,
+      "genericReasoningDetected": false,
+      "priorsRole": "contradicting",
+      "liveEvidenceWeight": "primary",
+      "oddsAvailabilityIssue": false,
+      "continuityBlock": false,
+      "policyRestriction": false,
+      "whyNot1x2": "1x2 odds were not available in the provided RECORDED_ODDS_CONTEXT for the 'Replay Mock' bookmaker.",
+      "whyNotAsianHandicap": "Asian Handicap odds were not available in the provided RECORDED_ODDS_CONTEXT for the 'Replay Mock' bookmaker.",
+      "notes": "The decision to recommend Under 2.25 Goals was primarily driven by the stark live statistics showing minimal attacking threat and goal-scoring opportunities after 20 minutes. Despite prematch priors suggesting a 'balanced to slightly goal-friendly environment', the live data strongly contradicted this, leading the model to prioritize the current game state. The available odds for Under 2.25 were then evaluated to confirm a perceived value edge. Other markets like Corners Over/Under and Both Teams Score were available but not selected, likely due to the strong signal from the goal market and lack of compelling evidence for those alternatives."
+    },
+    {
+      "scenarioName": "12469-1387032-29m-under-1-75",
+      "recommendationId": 12469,
+      "promptVersion": "v8-market-balance-followup-h",
+      "originalBetMarket": "under_1.75",
+      "replayBetMarket": "under_1.75",
+      "replayShouldPush": true,
+      "primaryDecisionDriver": "Live match statistics indicating extremely low attacking threat and offensive impotence from both teams.",
+      "secondaryDrivers": [
+        "Perceived value in the Under 1.75 Goals odds (2.05) given the low probability of two goals.",
+        "Contradiction between general league goal tendency (balanced) and strong live match-specific goal suppression."
+      ],
+      "consideredMarkets": [
+        "under_1.75"
+      ],
+      "rejectedMarkets": [
+        "over_1.75",
+        "corners_over_under",
+        "both_teams_score"
+      ],
+      "underFallbackDetected": false,
+      "genericReasoningDetected": false,
+      "priorsRole": "contradicting",
+      "liveEvidenceWeight": "primary",
+      "oddsAvailabilityIssue": false,
+      "continuityBlock": false,
+      "policyRestriction": false,
+      "whyNot1x2": "1x2 odds were not available in the RECORDED_ODDS_CONTEXT.",
+      "whyNotAsianHandicap": "Asian Handicap odds (for match outcome) were not available in the RECORDED_ODDS_CONTEXT.",
+      "notes": "The decision was heavily driven by the live stats (0.11 xG, 0 shots on target, lack of penetration) which strongly indicated a low-scoring game. The system explicitly noted that while the league's goal environment was 'balanced', the live match data showed 'strong match-specific suppression', effectively overriding any general league priors. The 'Under 1.75 Goals' market was available and offered perceived value based on the live assessment. The reasoning is specific to the observed lack of attacking play, not a generic 'under' bet."
+    },
+    {
+      "scenarioName": "12471-1536967-31m-under-1-5",
+      "recommendationId": 12471,
+      "promptVersion": "v8-market-balance-followup-h",
+      "originalBetMarket": "under_1.5",
+      "replayBetMarket": "under_1.5",
+      "replayShouldPush": true,
+      "primaryDecisionDriver": "Extremely low live xG and shot count, indicating a very low-event match with a lack of quality scoring opportunities.",
+      "secondaryDrivers": [
+        "Ineffective attacking play by the dominant possession team (Dender) resulting in negligible xG.",
+        "Supportive dynamic priors for 'under_1.5' at 65.12%.",
+        "Calculated value edge for Under 1.5 (3.72-6.72%) over the offered odds."
+      ],
+      "consideredMarkets": [
+        "Over/Under 1.5 Goals"
+      ],
+      "rejectedMarkets": [
+        "Corners Over/Under 7",
+        "Both Teams Score"
+      ],
+      "underFallbackDetected": false,
+      "genericReasoningDetected": false,
+      "priorsRole": "contradicting",
+      "liveEvidenceWeight": "primary",
+      "oddsAvailabilityIssue": false,
+      "continuityBlock": false,
+      "policyRestriction": false,
+      "whyNot1x2": "1x2 odds were not available in the RECORDED_ODDS_CONTEXT.",
+      "whyNotAsianHandicap": "Asian Handicap odds were not available in the RECORDED_ODDS_CONTEXT.",
+      "notes": "The replay reasoning explicitly states that 'The league and team priors for goals are balanced to slightly over-leaning, but the live evidence of extreme suppression and low xG overrides this.' This indicates that prematch priors were considered to be slightly contradictory to an 'under' bet but were ultimately ignored due to overwhelming live data. Dynamic priors, however, were supportive."
+    },
+    {
+      "scenarioName": "12472-1387042-36m-under-2-75",
+      "recommendationId": 12472,
+      "promptVersion": "v8-market-balance-followup-h",
+      "originalBetMarket": "under_2.75",
+      "replayBetMarket": "under_2.75",
+      "replayShouldPush": false,
+      "primaryDecisionDriver": "Policy restriction (POLICY_BLOCK_GOALS_UNDER_EARLY_ONE_GOAL_HIGH_LINE_V8G) prevented the intended bet.",
+      "secondaryDrivers": [
+        "Strong statistical evidence for Under 2.75 Goals based on extremely low expected goals (Home 0.21, Away 0.15) and very few shots (2 for each team) at minute 36.",
+        "The current 1-0 score was identified as an outlier given the overall lack of attacking output and low xG."
+      ],
+      "consideredMarkets": [
+        "Under 2.75 Goals"
+      ],
+      "rejectedMarkets": [
+        "Over 2.75 Goals",
+        "Corners Over/Under",
+        "Both Teams Score"
+      ],
+      "underFallbackDetected": false,
+      "genericReasoningDetected": false,
+      "priorsRole": "neutral",
+      "liveEvidenceWeight": "primary",
+      "oddsAvailabilityIssue": false,
+      "continuityBlock": false,
+      "policyRestriction": true,
+      "whyNot1x2": "Odds for 1x2 market were not available in the RECORDED_ODDS_CONTEXT.",
+      "whyNotAsianHandicap": "Odds for Asian Handicap market were not available in the RECORDED_ODDS_CONTEXT.",
+      "notes": "The system identified a strong value bet on Under 2.75 Goals, supported by extremely low live xG and shot counts, indicating the current 1-0 score was an outlier. The calculated edge for Under 2.75 was significant. However, the final output was 'no_bet' because a specific policy (POLICY_BLOCK_GOALS_UNDER_EARLY_ONE_GOAL_HIGH_LINE_V8G) was triggered. This policy likely prevents 'Under' bets early in the game when only one goal has been scored and the goal line is still relatively high (2.75 in this case). Prematch priors were considered, with Sheffield Utd's profile contradicting their live performance and the league's goal environment being balanced, but live evidence was explicitly stated as paramount, overriding any conflicting or neutral prior information for the intended bet direction."
+    },
+    {
+      "scenarioName": "12473-1387032-62m-under-4",
+      "recommendationId": 12473,
+      "promptVersion": "v8-market-balance-followup-h",
+      "originalBetMarket": "under_4",
+      "replayBetMarket": "under_4",
+      "replayShouldPush": true,
+      "primaryDecisionDriver": "Birmingham's extremely low attacking threat (0.10 xG from 2 shots) combined with Ipswich's likely game management strategy while leading 2-1 at minute 62, making two additional goals improbable.",
+      "secondaryDrivers": [
+        "Ipswich's dominant possession (62%) and higher xG (1.72) indicating control.",
+        "The 'Under 4 Goals' market offering value, with the model's fair value range (60-65%) exceeding the implied probability (57.97%) of the 1.725 odds.",
+        "The structural weakness of the 'Over 4 Goals' alternative, which requires two more goals in a low-threat environment."
+      ],
+      "consideredMarkets": [
+        "Over/Under 4 Goals"
+      ],
+      "rejectedMarkets": [
+        "Over 4 Goals",
+        "Corners Over/Under 10.5"
+      ],
+      "underFallbackDetected": false,
+      "genericReasoningDetected": false,
+      "priorsRole": "confirming",
+      "liveEvidenceWeight": "primary",
+      "oddsAvailabilityIssue": false,
+      "continuityBlock": false,
+      "policyRestriction": false,
+      "whyNot1x2": "The 1x2 market was not available in the RECORDED_ODDS_CONTEXT.",
+      "whyNotAsianHandicap": "The Asian Handicap market was not available in the RECORDED_ODDS_CONTEXT.",
+      "notes": "The prematch priors, specifically the low 'over_tendency_score' (2), low 'projected_goal_environment_score' (9), and negative 'late_goal_profile_score' (-25), align with and reinforce the live data's indication of a lower-scoring second half, thus confirming the 'Under' decision. The reasoning is highly specific to the match's live stats and tactical implications, not generic."
+    },
+    {
+      "scenarioName": "12474-1378166-18m-under-4-5",
+      "recommendationId": 12474,
+      "promptVersion": "v8-market-balance-followup-h",
+      "originalBetMarket": "under_4.5",
+      "replayBetMarket": "btts_no",
+      "replayShouldPush": false,
+      "primaryDecisionDriver": "Policy restrictions, specifically `POLICY_BLOCK_BTTS_NO_HIGH_PRICE`, `POLICY_CAP_BTTS_NO_CONFIDENCE`, and `POLICY_CAP_BTTS_NO_STAKE`, which converted the identified BTTS No selection into a `no_bet` decision.",
+      "secondaryDrivers": [
+        "Genoa's complete lack of attacking threat as evidenced by live stats (0 shots, 0 shots on target, 0.03 xG) at minute 18, making them highly improbable to score.",
+        "The 2-0 scoreline in favor of Juventus, further reducing Genoa's likelihood of scoring.",
+        "Prematch tendencies from `PREMATCH_EXPERT_FEATURES_V1` which slightly leaned towards BTTS No, confirming the live data assessment."
+      ],
+      "consideredMarkets": [
+        "btts_no",
+        "btts_yes",
+        "over_under_4.5",
+        "corners_over_under_9.5"
+      ],
+      "rejectedMarkets": [
+        "btts_yes",
+        "over_under_4.5",
+        "corners_over_under_9.5"
+      ],
+      "underFallbackDetected": false,
+      "genericReasoningDetected": false,
+      "priorsRole": "confirming",
+      "liveEvidenceWeight": "primary",
+      "oddsAvailabilityIssue": false,
+      "continuityBlock": false,
+      "policyRestriction": true,
+      "whyNot1x2": "Odds for 1x2 market were not available in the `RECORDED_ODDS_CONTEXT`.",
+      "whyNotAsianHandicap": "Odds for Asian Handicap market were not available in the `RECORDED_ODDS_CONTEXT`.",
+      "notes": "The system identified a strong edge for BTTS No based on Genoa's attacking impotence and supporting prematch priors. However, despite this clear selection and estimated edge, policy restrictions related to the price of BTTS No, confidence, and stake prevented a bet from being placed, resulting in a `no_bet` decision. The `scenario_name` includes 'under-4-5', but the system's strongest conviction was for BTTS No, indicating it evaluated multiple available markets."
+    },
+    {
+      "scenarioName": "12475-1387041-64m-under-4",
+      "recommendationId": 12475,
+      "promptVersion": "v8-market-balance-followup-h",
+      "originalBetMarket": "under_4",
+      "replayBetMarket": "over_4",
+      "replayShouldPush": true,
+      "primaryDecisionDriver": "Strong live attacking pressure from the trailing away team (Middlesbrough) combined with the home team's (Swansea) counter-attacking potential, leading to a higher probability of additional goals than implied by the Over 4 odds.",
+      "secondaryDrivers": [
+        "Middlesbrough's high possession (62%), numerous shots (12 total, 9 inside box), and high corners (7) indicating intent to equalize.",
+        "Swansea's efficient attack with a higher xG (1.89) despite less possession, suggesting a threat on the break.",
+        "The current score (2-1) at minute 64, creating a dynamic where both teams have motivation to score.",
+        "Calculated fair value range (60-65%) for Over 4 Goals significantly exceeding the implied odds (56.3%) of 1.775."
+      ],
+      "consideredMarkets": [
+        "Over 4 Goals",
+        "Under 4 Goals"
+      ],
+      "rejectedMarkets": [
+        "Under 4 Goals",
+        "Corners Over/Under 13"
+      ],
+      "underFallbackDetected": false,
+      "genericReasoningDetected": false,
+      "priorsRole": "ignored",
+      "liveEvidenceWeight": "primary",
+      "oddsAvailabilityIssue": false,
+      "continuityBlock": false,
+      "policyRestriction": false,
+      "whyNot1x2": "1x2 odds were not available in the RECORDED_ODDS_CONTEXT for the 'Replay Mock' bookmaker.",
+      "whyNotAsianHandicap": "Asian Handicap odds were not available in the RECORDED_ODDS_CONTEXT for the 'Replay Mock' bookmaker.",
+      "notes": "The prematch features indicated 'minimal' availability and a 'high' noise penalty (60), with a slight 'totals_bias_score' of -7 (leaning Under) and a low 'projected_goal_environment_score' of 1. Per the PREMATCH FEATURE RULES, these were heavily down-weighted and not allowed to override live data, thus effectively ignored in the decision-making process which was driven entirely by live match dynamics and statistics."
+    },
+    {
+      "scenarioName": "12476-1494617-60m-under-3",
+      "recommendationId": 12476,
+      "promptVersion": "v8-market-balance-followup-h",
+      "originalBetMarket": "under_3",
+      "replayBetMarket": "corners_under_9.5",
+      "replayShouldPush": true,
+      "primaryDecisionDriver": "Extremely low corner count (4) at minute 60, combined with the game state (2-0 score) and Rosenborg's complete lack of attacking threat (1 shot, 0 SOT, 0.11 xG), making it highly improbable for the total corners to reach 9.5.",
+      "secondaryDrivers": [
+        "Tromso's comfortable lead (2-0) reduces their incentive to aggressively push for more corners.",
+        "The current corner rate of 0.067 per minute is significantly below the rate required to hit Over 9.5.",
+        "The calculated edge of 12-17% for Corners Under 9.5, based on a fair range of 70-75% probability versus a break-even of 57.97%."
+      ],
+      "consideredMarkets": [
+        "corners_under_9.5",
+        "goals_over_3"
+      ],
+      "rejectedMarkets": [
+        "goals_over_3",
+        "corners_over_9.5",
+        "match_winner_home",
+        "both_teams_score_no"
+      ],
+      "underFallbackDetected": false,
+      "genericReasoningDetected": false,
+      "priorsRole": "ignored",
+      "liveEvidenceWeight": "primary",
+      "oddsAvailabilityIssue": false,
+      "continuityBlock": false,
+      "policyRestriction": false,
+      "whyNot1x2": "The odds for 'Match Winner Home' (Tromso) were extremely low at 1.012, offering no value for a bet push. The odds for 'Draw' (41) and 'Away' (301) were too high, reflecting their unlikelihood given the 2-0 score at minute 60.",
+      "whyNotAsianHandicap": "Asian Handicap markets were not available in the provided RECORDED_ODDS_CONTEXT.",
+      "notes": "The decision was driven by a strong statistical case for 'Corners Under 9.5' based on live data, explicitly rejecting 'Over 3 Goals' as a structurally weaker alternative. The high confidence (7) and calculated edge underscore the conviction in this specific selection."
+    },
+    {
+      "scenarioName": "12477-1494617-79m-under-2-5",
+      "recommendationId": 12477,
+      "promptVersion": "v8-market-balance-followup-h",
+      "originalBetMarket": "under_2.5",
+      "replayBetMarket": "unknown",
+      "replayShouldPush": false,
+      "primaryDecisionDriver": "Policy restrictions and continuity block for relevant markets, leading to a no-bet decision.",
+      "secondaryDrivers": [
+        "Odds for 1x2 Home were too low (1.004) to offer value.",
+        "Odds for BTTS No were below the minimum required odds of 1.5 (1.125).",
+        "Policy restriction against 'Corners Under' due to one-sided attacking pressure from Tromso (7 corners, 13 shots, 5 shots on target)."
+      ],
+      "consideredMarkets": [
+        "Under 2.5 Goals",
+        "Match Winner (Home)",
+        "Both Teams Score (No)",
+        "Corners Under 8.5"
+      ],
+      "rejectedMarkets": [
+        "Under 2.5 Goals (rejected due to laddering the same thesis at a tighter line and lower odds, given existing exposure from a previous 'Under 3 Goals' bet)",
+        "Match Winner (Home) (rejected due to extremely low odds of 1.004, offering no value)",
+        "Both Teams Score (No) (rejected due to odds of 1.125 being below the minimum required odds of 1.5)",
+        "Corners Under 8.5 (rejected due to policy cautioning against 'Corners Under' when one-sided pressure, evidenced by Tromso's 7 corners and strong attack, suggests repeated final-third entries)"
+      ],
+      "underFallbackDetected": false,
+      "genericReasoningDetected": false,
+      "priorsRole": "confirming",
+      "liveEvidenceWeight": "primary",
+      "oddsAvailabilityIssue": false,
+      "continuityBlock": true,
+      "policyRestriction": true,
+      "whyNot1x2": "The odds for Tromso to win were 1.004, which is too low to offer any value according to betting discipline rules.",
+      "whyNotAsianHandicap": "Asian Handicap odds were not available in the provided RECORDED_ODDS_CONTEXT.",
+      "notes": "The decision was a 'no_bet' because the most relevant market ('Under 2.5 Goals') was blocked by a continuity rule (laddering an existing 'Under' position), and all other considered markets were rejected due to specific policy restrictions related to minimum odds or game state (e.g., one-sided pressure for corners)."
+    },
+    {
+      "scenarioName": "12480-1391113-29m-under-2",
+      "recommendationId": 12480,
+      "promptVersion": "v8-market-balance-followup-h",
+      "originalBetMarket": "under_2",
+      "replayBetMarket": "under_2",
+      "replayShouldPush": true,
+      "primaryDecisionDriver": "Extremely low offensive output and suppressed attacking environment based on live statistics (shots, shots on target, xG).",
+      "secondaryDrivers": [
+        "Supportive dynamic and La Liga priors for 'Under' markets.",
+        "Favorable odds for Under 2 Goals (1.975) compared to the estimated fair value, indicating a clear edge."
+      ],
+      "consideredMarkets": [
+        "Over/Under 2 Goals"
+      ],
+      "rejectedMarkets": [
+        "Over 2 Goals",
+        "Corners Over/Under 10.5",
+        "Both Teams Score"
+      ],
+      "underFallbackDetected": false,
+      "genericReasoningDetected": false,
+      "priorsRole": "confirming",
+      "liveEvidenceWeight": "primary",
+      "oddsAvailabilityIssue": false,
+      "continuityBlock": false,
+      "policyRestriction": false,
+      "whyNot1x2": "Odds for 1x2 market were not available in the provided context.",
+      "whyNotAsianHandicap": "Odds for Asian Handicap market were not available in the provided context.",
+      "notes": "The decision was heavily driven by the live match statistics showing a severe lack of attacking threat (e.g., 0 shots on target, extremely low xG of 0.04 and 0.13). While the provided PREMATCH_EXPERT_FEATURES_V1 had a high `prematch_noise_penalty` (60) and `availability` was minimal, suggesting these specific prematch priors should be down-weighted, the reasoning explicitly states 'Dynamic priors for 'Under' markets and the current match phase (0-29 min) are supportive, as is the La Liga prior.' This indicates the system utilized other, likely live-derived or phase-specific, priors that confirmed the 'Under' sentiment."
+    },
+    {
+      "scenarioName": "12482-1391113-35m-under-1-75",
+      "recommendationId": 12482,
+      "promptVersion": "v8-market-balance-followup-h",
+      "originalBetMarket": "under_1.75",
+      "replayBetMarket": "unknown",
+      "replayShouldPush": false,
+      "primaryDecisionDriver": "Betting discipline rule preventing a new bet on a tighter line (Under 1.75) when a previous bet on a looser line (Under 2 Goals) already exists for the same thesis, to avoid compounding bankroll exposure without significant price/risk improvement.",
+      "secondaryDrivers": [
+        "Lack of a clear, strong edge in other available markets (Corners Over/Under, Both Teams Score).",
+        "League prior for Under 1.75 identified as a 'caution prior', supporting a disciplined pass."
+      ],
+      "consideredMarkets": [
+        "Over/Under",
+        "Corners Over/Under",
+        "Both Teams Score"
+      ],
+      "rejectedMarkets": [
+        "Under 1.75 Goals"
+      ],
+      "underFallbackDetected": false,
+      "genericReasoningDetected": false,
+      "priorsRole": "confirming",
+      "liveEvidenceWeight": "primary",
+      "oddsAvailabilityIssue": false,
+      "continuityBlock": true,
+      "policyRestriction": true,
+      "whyNot1x2": "Odds for 1x2 market were not present in the RECORDED_ODDS_CONTEXT.",
+      "whyNotAsianHandicap": "Odds for Asian Handicap market were not present in the RECORDED_ODDS_CONTEXT.",
+      "notes": "The decision was primarily driven by a policy restriction related to continuity and bankroll exposure. A previous 'Under 2 Goals' bet was active. The current 'Under 1.75 Goals' line, while potentially attractive based on live stats (low xG, 0-0 score), was deemed a tighter line on the same thesis. Betting discipline rules dictated that this did not constitute an 'exceptional upgrade' and would only compound risk. The 'caution prior' from prematch features for Under 1.75 served as a secondary confirmation for the 'no bet' decision, rather than being the primary driver itself. Other markets were assessed but found to lack a strong edge."
+    },
+    {
+      "scenarioName": "12483-1387035-41m-under-1-75",
+      "recommendationId": 12483,
+      "promptVersion": "v8-market-balance-followup-h",
+      "originalBetMarket": "under_1.75",
+      "replayBetMarket": "under_1.75",
+      "replayShouldPush": false,
+      "primaryDecisionDriver": "Policy restriction: POLICY_BLOCK_GOALS_UNDER_30_44_0_0_OVER_1_5_V8F explicitly blocked the identified 'Under 1.75 Goals' selection, leading to a 'no_bet' decision.",
+      "secondaryDrivers": [
+        "Strong live evidence of a low-scoring match script (low shots, shots on target, and xG) strongly supported the 'Under 1.75 Goals' selection.",
+        "Prematch priors (totals_bias_score, over_tendency_score, projected_goal_environment_score) aligned with an 'under' sentiment."
+      ],
+      "consideredMarkets": [
+        "Under 1.75 Goals"
+      ],
+      "rejectedMarkets": [
+        "Over 1.75 Goals",
+        "Corners Over/Under",
+        "Both Teams Score"
+      ],
+      "underFallbackDetected": false,
+      "genericReasoningDetected": false,
+      "priorsRole": "confirming",
+      "liveEvidenceWeight": "primary",
+      "oddsAvailabilityIssue": true,
+      "continuityBlock": false,
+      "policyRestriction": true,
+      "whyNot1x2": "Odds for 1x2 markets were not available in the RECORDED_ODDS_CONTEXT.",
+      "whyNotAsianHandicap": "Odds for Asian Handicap markets were not available in the RECORDED_ODDS_CONTEXT.",
+      "notes": "The system identified a strong value bet on 'Under 1.75 Goals' based on compelling live statistics (0-0 score at 41m, very low shots, SOT, and xG of 0.35). Prematch priors also leaned towards an 'under' outcome. However, a specific policy ('POLICY_BLOCK_GOALS_UNDER_30_44_0_0_OVER_1_5_V8F') designed for 'under' goal markets in 0-0 scenarios within the 30-44 minute range, prevented the bet from being placed, resulting in a 'no_bet' decision. The reasoning for the 'Under 1.75 Goals' selection was highly specific to the match's live data, not a generic fallback."
+    },
+    {
+      "scenarioName": "12484-1387035-50m-under-1-25",
+      "recommendationId": 12484,
+      "promptVersion": "v8-market-balance-followup-h",
+      "originalBetMarket": "under_1.25",
+      "replayBetMarket": "unknown",
+      "replayShouldPush": false,
+      "primaryDecisionDriver": "Policy restriction against compounding bankroll risk on existing, correlated positions, especially when new lines are tighter and do not offer a materially better structural entry.",
+      "secondaryDrivers": [
+        "Existing exposure on Under 1.75 Goals and Under 9 Corners from previous recommendations.",
+        "The available lines for Goals Under (1.25) and Corners Under (7.5) are significantly tighter than the previous entries.",
+        "High risk profile of Under 1.25 Goals (push on one goal, loss on two) with 40 minutes remaining.",
+        "Potential for increased attacking intent and more corners due to the 0-0 scoreline.",
+        "Lack of an exceptional upgrade in price or risk profile to justify a second entry on the same thesis."
+      ],
+      "consideredMarkets": [
+        "Under 1.25 Goals",
+        "Under 7.5 Corners"
+      ],
+      "rejectedMarkets": [
+        "Under 1.25 Goals",
+        "Under 7.5 Corners"
+      ],
+      "underFallbackDetected": false,
+      "genericReasoningDetected": false,
+      "priorsRole": "ignored",
+      "liveEvidenceWeight": "primary",
+      "oddsAvailabilityIssue": false,
+      "continuityBlock": true,
+      "policyRestriction": true,
+      "whyNot1x2": "Odds for the 1x2 market were not available in the `RECORDED_ODDS_CONTEXT`.",
+      "whyNotAsianHandicap": "Odds for the Asian Handicap market were not available in the `RECORDED_ODDS_CONTEXT`.",
+      "notes": "The live stats (low xG, low shots on target, low corners) supported the 'Under' thesis, but the decision to not bet was primarily driven by portfolio management policies and risk assessment of adding to existing positions with tighter lines. Prematch features were explicitly instructed to be down-weighted due to 'minimal' availability and a high 'prematch_noise_penalty' (60), and were not referenced in the decision reasoning."
+    },
+    {
+      "scenarioName": "12485-1378169-68m-under-0-5",
+      "recommendationId": 12485,
+      "promptVersion": "v8-market-balance-followup-h",
+      "originalBetMarket": "under_0.5",
+      "replayBetMarket": "under_0.5",
+      "replayShouldPush": true,
+      "primaryDecisionDriver": "Live match statistics indicating extremely low offensive output and a tight, defensive game flow, combined with perceived significant value in the Under 0.5 Goals odds.",
+      "secondaryDrivers": [
+        "Confirmation from prematch features indicating a low-scoring tendency and strong historical priors for Under 0.5 in similar situations.",
+        "Low number of corners and fouls further supporting a defensive game state."
+      ],
+      "consideredMarkets": [
+        "Under 0.5 Goals",
+        "Over 0.5 Goals",
+        "Corners Over/Under 5.5",
+        "Both Teams Score"
+      ],
+      "rejectedMarkets": [
+        "Over 0.5 Goals",
+        "Corners Over/Under 5.5",
+        "Both Teams Score"
+      ],
+      "underFallbackDetected": false,
+      "genericReasoningDetected": false,
+      "priorsRole": "confirming",
+      "liveEvidenceWeight": "primary",
+      "oddsAvailabilityIssue": false,
+      "continuityBlock": false,
+      "policyRestriction": false,
+      "whyNot1x2": "1x2 odds were not present in the `RECORDED_ODDS_CONTEXT`.",
+      "whyNotAsianHandicap": "Asian Handicap odds were not present in the `RECORDED_ODDS_CONTEXT`.",
+      "notes": "The decision to recommend 'Under 0.5 Goals' was primarily based on the live match data at minute 68, which showed a 0-0 scoreline with very limited offensive action from both teams (Napoli xG 0.58, AC Milan xG 0.25; SOT 1-1, 3 total corners, low fouls). This indicated a high probability of the match remaining goalless. The odds of 2.05 for Under 0.5 Goals were identified as offering significant value, with the system's fair probability range (58-62%) being considerably higher than the implied probability (48.78%). Prematch expert features, specifically the 'projected_goal_environment_score' (-20) and 'totals_bias_score' (-21), confirmed a low-scoring tendency, providing secondary support for the decision. The reasoning was specific to the match's dynamics and not a generic 'goals under' fallback. Other available markets like Corners Over/Under and Both Teams Score were not selected, and 1x2 or Asian Handicap odds were not available in the provided context."
+    },
+    {
+      "scenarioName": "12486-1396481-28m-under-2-25",
+      "recommendationId": 12486,
+      "promptVersion": "v8-market-balance-followup-h",
+      "originalBetMarket": "under_2.25",
+      "replayBetMarket": "under_2.25",
+      "replayShouldPush": true,
+      "primaryDecisionDriver": "The extremely low attacking output and highly defensive match script observed in live statistics, including minimal xG (0.02 H, 0.08 A), few shots (1 H, 3 A), and only one shot on target in total.",
+      "secondaryDrivers": [
+        "Casa Pia's highly defensive posture, evidenced by 17% possession and 5 fouls, effectively stifling Benfica's attack despite their 83% possession.",
+        "Benfica's struggle to create clear chances despite dominance in possession.",
+        "The perceived value edge for Under 2.25, with a fair value range of 55-60% against a 50.00% break-even odd."
+      ],
+      "consideredMarkets": [
+        "Over/Under 2.25 Goals"
+      ],
+      "rejectedMarkets": [
+        "Over 2.25 Goals",
+        "Corners Over/Under 11.5",
+        "Both Teams Score"
+      ],
+      "underFallbackDetected": false,
+      "genericReasoningDetected": false,
+      "priorsRole": "contradicting",
+      "liveEvidenceWeight": "primary",
+      "oddsAvailabilityIssue": false,
+      "continuityBlock": false,
+      "policyRestriction": false,
+      "whyNot1x2": "1x2 odds were not available in the provided RECORDED_ODDS_CONTEXT.",
+      "whyNotAsianHandicap": "Asian Handicap odds were not available in the provided RECORDED_ODDS_CONTEXT.",
+      "notes": "The decision to bet on Under 2.25 Goals was primarily driven by the live match dynamics, which showed a highly suppressive and low-scoring script. This live evidence explicitly outweighed the prematch priors indicating a league tendency for higher goals (league_avg_goals: 2.8, over_tendency_score: 17). The available odds for Under 2.25 were deemed to offer a significant value edge based on the real-time assessment of attacking output and defensive solidity."
+    },
+    {
+      "scenarioName": "12487-1396481-44m-under-1-75",
+      "recommendationId": 12487,
+      "promptVersion": "v8-market-balance-followup-h",
+      "originalBetMarket": "under_1.75",
+      "replayBetMarket": "unknown",
+      "replayShouldPush": false,
+      "primaryDecisionDriver": "Existing exposure on a similar market (Under 2.25 Goals) combined with the current Under 1.75 line not offering an 'exceptional upgrade in price/risk' to justify compounding bankroll exposure.",
+      "secondaryDrivers": [
+        "League priors indicating a high-scoring and volatile environment, contradicting a strong Under thesis.",
+        "Specific market prior for Under 1.75 being a 'caution prior'.",
+        "Inherent risk of a very tight Under 1.75 line given Benfica's quality and the distinct possibility of a goal, despite current low xG."
+      ],
+      "consideredMarkets": [
+        "Under 1.75 Goals"
+      ],
+      "rejectedMarkets": [],
+      "underFallbackDetected": false,
+      "genericReasoningDetected": false,
+      "priorsRole": "contradicting",
+      "liveEvidenceWeight": "primary",
+      "oddsAvailabilityIssue": false,
+      "continuityBlock": true,
+      "policyRestriction": false,
+      "whyNot1x2": "Odds for 1x2 market (Home/Draw/Away) were not available in the RECORDED_ODDS_CONTEXT.",
+      "whyNotAsianHandicap": "Odds for Asian Handicap market (match result) were not available in the RECORDED_ODDS_CONTEXT. The available handicap was for the Over/Under goals market.",
+      "notes": "The live stats strongly supported a low-event game, which would typically favor an Under bet. However, the decision to not bet was primarily driven by risk management related to existing exposure and the perceived insufficient value of the tighter Under 1.75 line, further reinforced by contradictory prematch priors."
+    }
+  ]
+}

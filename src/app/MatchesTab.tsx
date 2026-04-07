@@ -24,7 +24,7 @@ import {
   type ServerMatchPipelineResult,
   getParsedAiResult,
 } from '@/features/live-monitor/services/server-monitor.service';
-import { MatchScoutModal } from '@/components/ui/MatchScoutModal';
+import { MatchHubModal } from '@/components/ui/MatchHubModal';
 import { Modal } from '@/components/ui/Modal';
 import { applyFavoriteLeaguesToWatchlist, fetchFavoriteLeagueSelection } from '@/lib/services/api';
 import { fetchCurrentUser } from '@/lib/services/auth';
@@ -147,11 +147,18 @@ export function MatchesTab() {
   const [analyzingMatches, _setAnalyzingMatches] = useState<Set<string>>(() => new Set(_matchesTabStore.analyzingMatches));
   const [aiResults, _setAiResults] = useState<Map<string, AiResultEntry>>(() => {
     const fromDisk = loadMatchesAiResultsFromStorage();
-    if (fromDisk && fromDisk.size > 0) {
-      _matchesTabStore.aiResults = fromDisk;
-      return fromDisk;
+    const merged = new Map<string, AiResultEntry>();
+    if (fromDisk) {
+      for (const [k, v] of fromDisk) merged.set(k, v);
     }
-    return new Map(_matchesTabStore.aiResults);
+    for (const [k, v] of _matchesTabStore.aiResults) {
+      const diskEntry = fromDisk?.get(k);
+      const storeLen = v.followUpMessages?.length ?? 0;
+      const diskLen = diskEntry?.followUpMessages?.length ?? 0;
+      if (!diskEntry || storeLen >= diskLen) merged.set(k, v);
+    }
+    _matchesTabStore.aiResults = merged;
+    return merged;
   });
   const [viewMode, setViewMode] = useViewMode('viewMode:matches');
   const [scoutMatch, setScoutMatch] = useState<Match | null>(null);
@@ -207,30 +214,43 @@ export function MatchesTab() {
     return () => { cancelAnimationFrame(raf); ro.disconnect(); };
   }, []);
 
-  // Wrapped setters that sync state back to the module-level store
-  const setAnalyzingMatches = useCallback((fn: (prev: Set<string>) => Set<string>) => {
-    _setAnalyzingMatches((prev) => {
-      const next = fn(prev);
-      _matchesTabStore.analyzingMatches = next;
-      return next;
-    });
-  }, []);
-  const setAiResults = useCallback((fn: (prev: Map<string, AiResultEntry>) => Map<string, AiResultEntry>) => {
-    _setAiResults((prev) => {
-      const next = fn(prev);
-      _matchesTabStore.aiResults = next;
-      return next;
-    });
-  }, []);
-
   const persistAiResultsDebounced = useRef(
     debounce((m: Map<string, AiResultEntry>) => {
       saveMatchesAiResultsToStorage(m);
     }, 400),
   );
+
+  // Wrapped setters: update `_matchesTabStore` synchronously from the module copy so pipeline
+  // callbacks still run after MatchesTab unmounts (React may drop setState updaters — store stays truth).
+  const setAnalyzingMatches = useCallback((fn: (prev: Set<string>) => Set<string>) => {
+    const next = fn(new Set(_matchesTabStore.analyzingMatches));
+    _matchesTabStore.analyzingMatches = next;
+    _setAnalyzingMatches(next);
+  }, []);
+  const setAiResults = useCallback((fn: (prev: Map<string, AiResultEntry>) => Map<string, AiResultEntry>) => {
+    const next = fn(new Map(_matchesTabStore.aiResults));
+    _matchesTabStore.aiResults = next;
+    _setAiResults(next);
+    persistAiResultsDebounced.current(next);
+  }, []);
+
   useEffect(() => {
     persistAiResultsDebounced.current(aiResults);
   }, [aiResults]);
+
+  useEffect(() => () => {
+    saveMatchesAiResultsToStorage(_matchesTabStore.aiResults);
+  }, []);
+
+  useEffect(() => {
+    const onVis = () => {
+      if (document.visibilityState !== 'visible') return;
+      _setAnalyzingMatches(new Set(_matchesTabStore.analyzingMatches));
+      _setAiResults(new Map(_matchesTabStore.aiResults));
+    };
+    document.addEventListener('visibilitychange', onVis);
+    return () => document.removeEventListener('visibilitychange', onVis);
+  }, []);
 
   // Auto-scroll to result panel after DOM has updated (e.g. user was scrolled down in card grid)
   useEffect(() => {
@@ -914,10 +934,6 @@ export function MatchesTab() {
   const dateToday = getDateKeyAtOffsetInTimeZone(0, effectiveTimeZone);
   const dateTomorrow = getDateKeyAtOffsetInTimeZone(1, effectiveTimeZone);
   const dateYesterday = getDateKeyAtOffsetInTimeZone(-1, effectiveTimeZone);
-  const hasYesterday = matches.some((m) => {
-    const iso = getKickoffDateKey(m, effectiveTimeZone);
-    return iso === dateYesterday;
-  });
   const activeDateTab =
     dateFrom === dateToday    && dateTo === dateToday    ? 'today'
     : dateFrom === dateTomorrow && dateTo === dateTomorrow ? 'tomorrow'
@@ -1001,9 +1017,7 @@ export function MatchesTab() {
         {/* Date tab shortcuts */}
         <div className="date-tab-bar">
           <button style={tabBtn(activeDateTab === 'all')} onClick={() => { setDateFrom(''); setDateTo(''); }}>All</button>
-          {hasYesterday && (
-            <button style={tabBtn(activeDateTab === 'yesterday')} onClick={() => { setDateFrom(dateYesterday); setDateTo(dateYesterday); }}>Yesterday</button>
-          )}
+          <button style={tabBtn(activeDateTab === 'yesterday')} onClick={() => { setDateFrom(dateYesterday); setDateTo(dateYesterday); }}>Yesterday</button>
           <button style={tabBtn(activeDateTab === 'today')} onClick={() => { setDateFrom(dateToday); setDateTo(dateToday); }}>Today</button>
           <button style={tabBtn(activeDateTab === 'tomorrow')} onClick={() => { setDateFrom(dateTomorrow); setDateTo(dateTomorrow); }}>Tomorrow</button>
           {favoriteFeatureVisible && (
@@ -1139,7 +1153,7 @@ export function MatchesTab() {
                   actions={[
                     ...(watchlistMap.has(String(m.match_id))
                       ? [
-                          { label: 'Edit', icon: <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>, title: 'Edit watchlist entry', onClick: (match: Match) => { const entry = watchlistMap.get(String(match.match_id)); if (entry) setEditItem(entry); }, variant: 'secondary' as const },
+                          { label: 'Rules', icon: <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/></svg>, title: 'Watch alerts and conditions', onClick: (match: Match) => { const entry = watchlistMap.get(String(match.match_id)); if (entry) setEditItem(entry); }, variant: 'secondary' as const },
                         ]
                       : [
                           FINISHED_STATUSES.has(m.status)
@@ -1255,8 +1269,6 @@ export function MatchesTab() {
       <WatchlistEditModal
         key={editItem ? String(editItem.match_id) : 'watchlist-edit-modal'}
         item={editItem}
-        match={editItem ? matches.find((m) => String(m.match_id) === String(editItem.match_id)) ?? null : null}
-        config={config}
         defaultMode={config.defaultMode}
         uiLanguage={uiLanguage}
         onClose={() => setEditItem(null)}
@@ -1278,9 +1290,10 @@ export function MatchesTab() {
       />
 
       {scoutMatch && (
-        <MatchScoutModal
+        <MatchHubModal
           open
           matchId={String(scoutMatch.match_id)}
+          matchDisplay={`${scoutMatch.home_team} vs ${scoutMatch.away_team}`}
           homeTeam={scoutMatch.home_team}
           awayTeam={scoutMatch.away_team}
           homeLogo={scoutMatch.home_logo}
@@ -1288,6 +1301,8 @@ export function MatchesTab() {
           leagueName={scoutMatch.league_name ?? ''}
           leagueId={scoutMatch.league_id}
           status={scoutMatch.status}
+          homeTeamId={scoutMatch.home_team_id ?? undefined}
+          awayTeamId={scoutMatch.away_team_id ?? undefined}
           onClose={() => setScoutMatch(null)}
         />
       )}
@@ -1522,8 +1537,8 @@ function MatchRow({ match, isWatched, isPending, isPendingRemove, isSelected, is
                   ? <span className="inline-spinner" style={{ width: '14px', height: '14px' }} />
                   : watchHovered ? <EyeOffIcon /> : <EyeIcon checked />}
               </button>
-              <button className="btn btn-secondary btn-sm action-icon-btn" onClick={onEdit} aria-label="Edit watchlist item" title="Edit watchlist item">
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 20h9" /><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4 12.5-12.5z" /></svg>
+              <button className="btn btn-secondary btn-sm action-icon-btn" onClick={onEdit} aria-label="Watch alerts and conditions" title="Watch alerts and conditions">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/></svg>
               </button>
             </>
           ) : isPending ? (

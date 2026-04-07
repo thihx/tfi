@@ -1,0 +1,12 @@
+{
+  "$comment": "Targets for settled replay (real LLM). Tune after prompt/policy changes; widen temporarily while iterating.",
+  "summaryPath": "replay-baselines/integration-replay-summary.json",
+  "selfAuditPath": "replay-baselines/integration-self-audit.json",
+  "promptVersion": "v8-market-balance-followup-h",
+  "minScenarios": 20,
+  "pushRate": { "min": 0.7, "max": 0.8 },
+  "goalsUnderShareMax": 0.55,
+  "roiMin": 0,
+  "accuracyMin": 0.52,
+  "underFallbackMax": 0
+}

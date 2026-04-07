@@ -19,11 +19,6 @@ vi.mock('../config.js', () => ({
     redisUrl:           'redis://localhost:6379',
     footballApiKey:     'fb-key-123',
     footballApiBaseUrl: 'https://v3.football.api-sports.io',
-    theOddsApiKey:      'odds-key-123',
-    theOddsApiBaseUrl:  'https://api.the-odds-api.com/v4',
-    liveScoreApiKey:    'live-score-key-123',
-    liveScoreApiSecret: 'live-score-secret-123',
-    liveScoreApiBaseUrl:'https://livescore-api.example.com/api-client',
     geminiApiKey:       'gemini-key-123',
     geminiModel:        'gemini-pro',
     telegramBotToken:   'bot123:TOKEN',
@@ -61,7 +56,7 @@ beforeEach(() => {
 // ── Tests ─────────────────────────────────────────────────────
 
 describe('checkAllIntegrations', () => {
-  test('returns snapshot with overall status and all 7 services', async () => {
+  test('returns snapshot with overall status and all integrations', async () => {
     // Postgres OK
     mockQuery.mockResolvedValue({ rows: [{ '?column?': 1 }] } as never);
     // Redis OK
@@ -74,7 +69,7 @@ describe('checkAllIntegrations', () => {
     const { checkAllIntegrations } = await import('../lib/integration-health.js');
     const snapshot = await checkAllIntegrations();
 
-    expect(snapshot.services).toHaveLength(8);
+    expect(snapshot.services).toHaveLength(6);
     expect(snapshot.checkedAt).toBeTruthy();
     expect(snapshot.durationMs).toBeGreaterThanOrEqual(0);
     expect(['HEALTHY', 'DEGRADED', 'DOWN', 'NOT_CONFIGURED']).toContain(snapshot.overall);
@@ -147,8 +142,6 @@ describe('Redis probe', () => {
       config: {
         redisUrl: '',
         footballApiKey: 'key', footballApiBaseUrl: 'https://x.com',
-        theOddsApiKey: 'key', theOddsApiBaseUrl: 'https://x.com',
-        liveScoreApiKey: 'key', liveScoreApiSecret: 'secret', liveScoreApiBaseUrl: 'https://x.com',
         geminiApiKey: 'key', geminiModel: 'gemini',
         telegramBotToken: 'token',
         googleClientId: 'cid', googleClientSecret: 'csec',
@@ -213,51 +206,6 @@ describe('Gemini probe', () => {
     const { checkSingleIntegration } = await import('../lib/integration-health.js');
     const result = await checkSingleIntegration('gemini');
     expect(result!.status).toBe('DOWN');
-  });
-});
-
-// Live Score API probe
-
-describe('Live Score API probe', () => {
-  test('HEALTHY when server responds 401 (reachability check, no quota consumed)', async () => {
-    // No credentials sent → server returns 401 → service is up
-    global.fetch = mockFetch(401, {});
-    const { checkSingleIntegration } = await import('../lib/integration-health.js');
-    const result = await checkSingleIntegration('live-score-api');
-    expect(result!.status).toBe('HEALTHY');
-    expect(result!.message).toContain('reachable');
-  });
-
-  test('HEALTHY when server responds 200 without credentials', async () => {
-    global.fetch = mockFetch(200, {});
-    const { checkSingleIntegration } = await import('../lib/integration-health.js');
-    const result = await checkSingleIntegration('live-score-api');
-    expect(result!.status).toBe('HEALTHY');
-  });
-
-  test('DEGRADED when server returns unexpected 5xx', async () => {
-    global.fetch = mockFetch(503, {});
-    const { checkSingleIntegration } = await import('../lib/integration-health.js');
-    const result = await checkSingleIntegration('live-score-api');
-    expect(result!.status).toBe('DEGRADED');
-  });
-
-  test('NOT_CONFIGURED when key/secret missing', async () => {
-    vi.doMock('../config.js', () => ({
-      config: {
-        redisUrl: 'redis://localhost:6379',
-        footballApiKey: 'key', footballApiBaseUrl: 'https://x.com',
-        theOddsApiKey: 'key', theOddsApiBaseUrl: 'https://x.com',
-        liveScoreApiKey: '', liveScoreApiSecret: '', liveScoreApiBaseUrl: 'https://x.com',
-        geminiApiKey: 'key', geminiModel: 'gemini',
-        telegramBotToken: 'token',
-        googleClientId: 'cid', googleClientSecret: 'csec',
-      },
-    }));
-    vi.resetModules();
-    const { checkSingleIntegration } = await import('../lib/integration-health.js');
-    const result = await checkSingleIntegration('live-score-api');
-    expect(result!.status).toBe('NOT_CONFIGURED');
   });
 });
 

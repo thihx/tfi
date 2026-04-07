@@ -1,0 +1,457 @@
+{
+  "name": "11763-1394681-31m-under-2-75",
+  "matchId": "1394681",
+  "fixture": {
+    "fixture": {
+      "id": 1394681,
+      "referee": null,
+      "timezone": "UTC",
+      "date": "2026-04-04T11:30:00.000Z",
+      "timestamp": 1775302200,
+      "periods": {
+        "first": null,
+        "second": null
+      },
+      "venue": {
+        "id": null,
+        "name": "Recep Tayyip Erdoğan Stadyumu",
+        "city": null
+      },
+      "status": {
+        "long": "1H",
+        "short": "1H",
+        "elapsed": 31
+      }
+    },
+    "league": {
+      "id": 203,
+      "name": "Süper Lig",
+      "country": "",
+      "logo": "",
+      "flag": null,
+      "season": 0,
+      "round": ""
+    },
+    "teams": {
+      "home": {
+        "id": 0,
+        "name": "Kasımpaşa",
+        "logo": "",
+        "winner": null
+      },
+      "away": {
+        "id": 0,
+        "name": "Kayserispor",
+        "logo": "",
+        "winner": null
+      }
+    },
+    "goals": {
+      "home": 1,
+      "away": 0
+    },
+    "score": {
+      "halftime": {
+        "home": null,
+        "away": null
+      },
+      "fulltime": {
+        "home": 1,
+        "away": 0
+      }
+    }
+  },
+  "watchlistEntry": {
+    "match_id": "1394681",
+    "league": "Süper Lig",
+    "home_team": "Kasımpaşa",
+    "away_team": "Kayserispor",
+    "mode": "B",
+    "status": "active",
+    "custom_conditions": "",
+    "date": "2026-04-04",
+    "kickoff": "20:30:00",
+    "strategic_context": null
+  },
+  "pipelineOptions": {
+    "forceAnalyze": true,
+    "skipProceedGate": true,
+    "skipStalenessGate": true
+  },
+  "statistics": [
+    {
+      "team": {
+        "id": 0,
+        "name": "Kasımpaşa",
+        "logo": ""
+      },
+      "statistics": [
+        {
+          "type": "Ball Possession",
+          "value": "46%"
+        },
+        {
+          "type": "Total Shots",
+          "value": "4"
+        },
+        {
+          "type": "Shots on Goal",
+          "value": "2"
+        },
+        {
+          "type": "Corner Kicks",
+          "value": "0"
+        },
+        {
+          "type": "Fouls",
+          "value": "4"
+        },
+        {
+          "type": "Offsides",
+          "value": "1"
+        },
+        {
+          "type": "Yellow Cards",
+          "value": null
+        },
+        {
+          "type": "Red Cards",
+          "value": null
+        },
+        {
+          "type": "Goalkeeper Saves",
+          "value": "1"
+        },
+        {
+          "type": "Blocked Shots",
+          "value": "1"
+        },
+        {
+          "type": "Total passes",
+          "value": "115"
+        },
+        {
+          "type": "Passes accurate",
+          "value": "97"
+        },
+        {
+          "type": "Shots off Goal",
+          "value": "1"
+        },
+        {
+          "type": "Shots insidebox",
+          "value": "1"
+        },
+        {
+          "type": "Shots outsidebox",
+          "value": "3"
+        },
+        {
+          "type": "expected_goals",
+          "value": "0.19"
+        },
+        {
+          "type": "goals_prevented",
+          "value": "0"
+        },
+        {
+          "type": "Passes %",
+          "value": "84%"
+        }
+      ]
+    },
+    {
+      "team": {
+        "id": 0,
+        "name": "Kayserispor",
+        "logo": ""
+      },
+      "statistics": [
+        {
+          "type": "Ball Possession",
+          "value": "54%"
+        },
+        {
+          "type": "Total Shots",
+          "value": "2"
+        },
+        {
+          "type": "Shots on Goal",
+          "value": "1"
+        },
+        {
+          "type": "Corner Kicks",
+          "value": "2"
+        },
+        {
+          "type": "Fouls",
+          "value": "3"
+        },
+        {
+          "type": "Offsides",
+          "value": "1"
+        },
+        {
+          "type": "Yellow Cards",
+          "value": null
+        },
+        {
+          "type": "Red Cards",
+          "value": null
+        },
+        {
+          "type": "Goalkeeper Saves",
+          "value": "1"
+        },
+        {
+          "type": "Blocked Shots",
+          "value": "0"
+        },
+        {
+          "type": "Total passes",
+          "value": "134"
+        },
+        {
+          "type": "Passes accurate",
+          "value": "108"
+        },
+        {
+          "type": "Shots off Goal",
+          "value": "1"
+        },
+        {
+          "type": "Shots insidebox",
+          "value": "1"
+        },
+        {
+          "type": "Shots outsidebox",
+          "value": "1"
+        },
+        {
+          "type": "expected_goals",
+          "value": "0.07"
+        },
+        {
+          "type": "goals_prevented",
+          "value": "0"
+        },
+        {
+          "type": "Passes %",
+          "value": "81%"
+        }
+      ]
+    }
+  ],
+  "mockResolvedOdds": {
+    "oddsSource": "live",
+    "response": [
+      {
+        "bookmakers": [
+          {
+            "id": 0,
+            "name": "Replay Mock",
+            "bets": [
+              {
+                "id": 1,
+                "name": "Over/Under",
+                "values": [
+                  {
+                    "value": "Over",
+                    "odd": "1.875",
+                    "handicap": "2.75"
+                  },
+                  {
+                    "value": "Under",
+                    "odd": "1.925",
+                    "handicap": "2.75"
+                  }
+                ]
+              },
+              {
+                "id": 2,
+                "name": "Corners Over/Under",
+                "values": [
+                  {
+                    "value": "Over",
+                    "odd": "2",
+                    "handicap": "9"
+                  },
+                  {
+                    "value": "Under",
+                    "odd": "2.25",
+                    "handicap": "9"
+                  }
+                ]
+              },
+              {
+                "id": 3,
+                "name": "Both Teams Score",
+                "values": [
+                  {
+                    "value": "Yes",
+                    "odd": "1.571"
+                  },
+                  {
+                    "value": "No",
+                    "odd": "2.25"
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    ],
+    "oddsFetchedAt": null,
+    "freshness": "fresh",
+    "cacheStatus": "hit"
+  },
+  "previousRecommendations": [
+    {
+      "minute": 54,
+      "odds": "2.200",
+      "bet_market": "under_14",
+      "selection": "Under 14 Goals @2.2",
+      "score": "1-0",
+      "status": "2H",
+      "result": "win",
+      "confidence": 10,
+      "stake_percent": "8.00",
+      "reasoning": "We previously entered Under 2.75 goals at minute 31. The current odds feed presents an Under 14 Goals line at 2.2. This is an exceptional structural upgrade, providing over 11 goals of additional safety margin compared to our initial position while offering better odds. The match itself is extremely low-event, with only 7 total shots and 0.28 combined xG by minute 54. Break-even is about 45.5%. My fair range is around 99%. Edge looks about 54%."
+    },
+    {
+      "minute": 54,
+      "odds": "2.000",
+      "bet_market": "under_2",
+      "selection": "Under 2 Goals @2.0",
+      "score": "1-0",
+      "status": "2H",
+      "result": "push",
+      "confidence": 7,
+      "stake_percent": "4.00",
+      "reasoning": "Following up on the Under 2.75 recommendation at minute 31, the match dynamics have remained extremely stagnant. By minute 54, the combined xG is a mere 0.28 with only 7 total shots. Kayserispor has accumulated 9 corners but failed to convert this territorial pressure into meaningful chances (0.07 xG). Kasımpaşa is content to defend their early lead with 43% possession. The Under 2 line offers a strong Asian total position: a full win if the score remains 1-0, and a push if exactly one more goal is scored. Break-even about 50.0%. My fair range is around 60-64% (excluding pushes). Edge looks about 12%."
+    }
+  ],
+  "metadata": {
+    "recommendationId": 11763,
+    "originalPromptVersion": "v8-market-balance-followup-f",
+    "originalAiModel": "gemini-3-pro-preview",
+    "originalBetMarket": "under_2.75",
+    "originalSelection": "Under 2.75 Goals @1.925",
+    "originalResult": "win",
+    "originalPnl": 1.85,
+    "minute": 31,
+    "score": "1-0",
+    "status": "1H",
+    "league": "Süper Lig",
+    "homeTeam": "Kasımpaşa",
+    "awayTeam": "Kayserispor",
+    "evidenceMode": "full_live_data",
+    "prematchStrength": "weak",
+    "profileCoverageBand": "partial",
+    "overlayCoverageBand": "none",
+    "policyImpactBand": "clean"
+  },
+  "settlementContext": {
+    "matchId": "1394681",
+    "homeTeam": "Kasımpaşa",
+    "awayTeam": "Kayserispor",
+    "finalStatus": "FT",
+    "homeScore": 2,
+    "awayScore": 0,
+    "regularHomeScore": 2,
+    "regularAwayScore": 0,
+    "settlementStats": [
+      {
+        "away": 1,
+        "home": 3,
+        "type": "Shots on Goal"
+      },
+      {
+        "away": 2,
+        "home": 2,
+        "type": "Shots off Goal"
+      },
+      {
+        "away": 3,
+        "home": 8,
+        "type": "Total Shots"
+      },
+      {
+        "away": 1,
+        "home": 3,
+        "type": "Blocked Shots"
+      },
+      {
+        "away": 2,
+        "home": 1,
+        "type": "Shots insidebox"
+      },
+      {
+        "away": 1,
+        "home": 7,
+        "type": "Shots outsidebox"
+      },
+      {
+        "away": 13,
+        "home": 18,
+        "type": "Fouls"
+      },
+      {
+        "away": 9,
+        "home": 1,
+        "type": "Corner Kicks"
+      },
+      {
+        "away": 5,
+        "home": 2,
+        "type": "Offsides"
+      },
+      {
+        "away": "61%",
+        "home": "39%",
+        "type": "Ball Possession"
+      },
+      {
+        "away": 2,
+        "home": 1,
+        "type": "Yellow Cards"
+      },
+      {
+        "away": 0,
+        "home": 1,
+        "type": "Red Cards"
+      },
+      {
+        "away": 1,
+        "home": 1,
+        "type": "Goalkeeper Saves"
+      },
+      {
+        "away": 476,
+        "home": 305,
+        "type": "Total passes"
+      },
+      {
+        "away": 396,
+        "home": 227,
+        "type": "Passes accurate"
+      },
+      {
+        "away": "83%",
+        "home": "74%",
+        "type": "Passes %"
+      },
+      {
+        "away": "0.31",
+        "home": "0.33",
+        "type": "expected_goals"
+      },
+      {
+        "away": -1,
+        "home": -1,
+        "type": "goals_prevented"
+      }
+    ]
+  }
+}

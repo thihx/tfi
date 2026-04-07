@@ -6,11 +6,9 @@ They are **not** part of the request-serving runtime path.
 
 ### Current intent
 
-- `benchmark-live-score.ts`
 - `replay-pipeline-suite.ts`
 - `replay-pipeline.ts`
 - `replay-strategic-context-suite.ts`
-- `replay-web-live-fallback-suite.ts`
 - `validate-production-readiness-real.ts`
 
 Use these only for:

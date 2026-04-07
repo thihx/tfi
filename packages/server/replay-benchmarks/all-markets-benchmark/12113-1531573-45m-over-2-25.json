@@ -1,0 +1,445 @@
+{
+  "name": "12113-1531573-45m-over-2-25",
+  "matchId": "1531573",
+  "fixture": {
+    "fixture": {
+      "id": 1531573,
+      "referee": null,
+      "timezone": "UTC",
+      "date": "2026-04-05T15:30:00.000Z",
+      "timestamp": 1775403000,
+      "periods": {
+        "first": null,
+        "second": null
+      },
+      "venue": {
+        "id": null,
+        "name": "London Stadium",
+        "city": null
+      },
+      "status": {
+        "long": "HT",
+        "short": "HT",
+        "elapsed": 45
+      }
+    },
+    "league": {
+      "id": 45,
+      "name": "FA Cup",
+      "country": "",
+      "logo": "",
+      "flag": null,
+      "season": 0,
+      "round": ""
+    },
+    "teams": {
+      "home": {
+        "id": 0,
+        "name": "West Ham",
+        "logo": "",
+        "winner": null
+      },
+      "away": {
+        "id": 0,
+        "name": "Leeds",
+        "logo": "",
+        "winner": null
+      }
+    },
+    "goals": {
+      "home": 0,
+      "away": 1
+    },
+    "score": {
+      "halftime": {
+        "home": null,
+        "away": null
+      },
+      "fulltime": {
+        "home": 0,
+        "away": 1
+      }
+    }
+  },
+  "watchlistEntry": {
+    "match_id": "1531573",
+    "league": "FA Cup",
+    "home_team": "West Ham",
+    "away_team": "Leeds",
+    "mode": "B",
+    "status": "active",
+    "custom_conditions": "",
+    "date": "2026-04-06",
+    "kickoff": "00:30:00",
+    "strategic_context": null
+  },
+  "pipelineOptions": {
+    "forceAnalyze": true,
+    "skipProceedGate": true,
+    "skipStalenessGate": true
+  },
+  "statistics": [
+    {
+      "team": {
+        "id": 0,
+        "name": "West Ham",
+        "logo": ""
+      },
+      "statistics": [
+        {
+          "type": "Ball Possession",
+          "value": "45%"
+        },
+        {
+          "type": "Total Shots",
+          "value": "6"
+        },
+        {
+          "type": "Shots on Goal",
+          "value": "2"
+        },
+        {
+          "type": "Corner Kicks",
+          "value": "1"
+        },
+        {
+          "type": "Fouls",
+          "value": "7"
+        },
+        {
+          "type": "Offsides",
+          "value": "3"
+        },
+        {
+          "type": "Yellow Cards",
+          "value": "0"
+        },
+        {
+          "type": "Red Cards",
+          "value": null
+        },
+        {
+          "type": "Goalkeeper Saves",
+          "value": "3"
+        },
+        {
+          "type": "Blocked Shots",
+          "value": "2"
+        },
+        {
+          "type": "Total passes",
+          "value": "188"
+        },
+        {
+          "type": "Passes accurate",
+          "value": "151"
+        },
+        {
+          "type": "Shots off Goal",
+          "value": "2"
+        },
+        {
+          "type": "Shots insidebox",
+          "value": "5"
+        },
+        {
+          "type": "Shots outsidebox",
+          "value": "1"
+        },
+        {
+          "type": "expected_goals",
+          "value": null
+        },
+        {
+          "type": "goals_prevented",
+          "value": null
+        },
+        {
+          "type": "Passes %",
+          "value": "80%"
+        }
+      ]
+    },
+    {
+      "team": {
+        "id": 0,
+        "name": "Leeds",
+        "logo": ""
+      },
+      "statistics": [
+        {
+          "type": "Ball Possession",
+          "value": "55%"
+        },
+        {
+          "type": "Total Shots",
+          "value": "8"
+        },
+        {
+          "type": "Shots on Goal",
+          "value": "4"
+        },
+        {
+          "type": "Corner Kicks",
+          "value": "3"
+        },
+        {
+          "type": "Fouls",
+          "value": "4"
+        },
+        {
+          "type": "Offsides",
+          "value": "0"
+        },
+        {
+          "type": "Yellow Cards",
+          "value": "1"
+        },
+        {
+          "type": "Red Cards",
+          "value": null
+        },
+        {
+          "type": "Goalkeeper Saves",
+          "value": "2"
+        },
+        {
+          "type": "Blocked Shots",
+          "value": "2"
+        },
+        {
+          "type": "Total passes",
+          "value": "236"
+        },
+        {
+          "type": "Passes accurate",
+          "value": "196"
+        },
+        {
+          "type": "Shots off Goal",
+          "value": "2"
+        },
+        {
+          "type": "Shots insidebox",
+          "value": "6"
+        },
+        {
+          "type": "Shots outsidebox",
+          "value": "2"
+        },
+        {
+          "type": "expected_goals",
+          "value": null
+        },
+        {
+          "type": "goals_prevented",
+          "value": null
+        },
+        {
+          "type": "Passes %",
+          "value": "83%"
+        }
+      ]
+    }
+  ],
+  "mockResolvedOdds": {
+    "oddsSource": "live",
+    "response": [
+      {
+        "bookmakers": [
+          {
+            "id": 0,
+            "name": "Replay Mock",
+            "bets": [
+              {
+                "id": 1,
+                "name": "Over/Under",
+                "values": [
+                  {
+                    "value": "Over",
+                    "odd": "1.8",
+                    "handicap": "2.25"
+                  },
+                  {
+                    "value": "Under",
+                    "odd": "2.05",
+                    "handicap": "2.25"
+                  }
+                ]
+              },
+              {
+                "id": 2,
+                "name": "Corners Over/Under",
+                "values": [
+                  {
+                    "value": "Over",
+                    "odd": "1.975",
+                    "handicap": "9.5"
+                  },
+                  {
+                    "value": "Under",
+                    "odd": "1.825",
+                    "handicap": "9.5"
+                  }
+                ]
+              },
+              {
+                "id": 3,
+                "name": "Both Teams Score",
+                "values": [
+                  {
+                    "value": "Yes",
+                    "odd": "1.7"
+                  },
+                  {
+                    "value": "No",
+                    "odd": "2.05"
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    ],
+    "oddsFetchedAt": null,
+    "freshness": "fresh",
+    "cacheStatus": "hit"
+  },
+  "previousRecommendations": [
+    {
+      "minute": 29,
+      "odds": "1.800",
+      "bet_market": "over_2.75",
+      "selection": "Over 2.75 Goals @1.8",
+      "score": "0-1",
+      "status": "1H",
+      "result": "win",
+      "confidence": 6,
+      "stake_percent": "3.00",
+      "reasoning": "Break-even is about 55.5%. My fair range is around 59-60%. Edge looks about 3.5-4.5%. Leeds took an early lead (26'), forcing West Ham to chase the game at home. Despite Leeds dominating possession (69%), West Ham has already managed 2 shots on target and 3 shots inside the box, indicating they remain dangerous on the counter. The market heavily expects both teams to score (BTTS Yes priced at 1.44), and an equalizer would likely open the match up further. With over 60 minutes remaining, Over 2.75 goals offers a solid angle."
+    }
+  ],
+  "metadata": {
+    "recommendationId": 12113,
+    "originalPromptVersion": "v4-evidence-hardened",
+    "originalAiModel": "gemini-3-pro-preview",
+    "originalBetMarket": "over_2.25",
+    "originalSelection": "Over 2.25 Goals @1.8",
+    "originalResult": "win",
+    "originalPnl": 2.4,
+    "minute": 45,
+    "score": "0-1",
+    "status": "HT",
+    "league": "FA Cup",
+    "homeTeam": "West Ham",
+    "awayTeam": "Leeds",
+    "evidenceMode": "full_live_data",
+    "prematchStrength": "strong",
+    "profileCoverageBand": "partial",
+    "overlayCoverageBand": "none",
+    "policyImpactBand": "clean"
+  },
+  "settlementContext": {
+    "matchId": "1531573",
+    "homeTeam": "West Ham",
+    "awayTeam": "Leeds",
+    "finalStatus": "PEN",
+    "homeScore": 2,
+    "awayScore": 2,
+    "regularHomeScore": 2,
+    "regularAwayScore": 2,
+    "settlementStats": [
+      {
+        "away": 8,
+        "home": 6,
+        "type": "Shots on Goal"
+      },
+      {
+        "away": 8,
+        "home": 9,
+        "type": "Shots off Goal"
+      },
+      {
+        "away": 21,
+        "home": 22,
+        "type": "Total Shots"
+      },
+      {
+        "away": 5,
+        "home": 7,
+        "type": "Blocked Shots"
+      },
+      {
+        "away": 17,
+        "home": 17,
+        "type": "Shots insidebox"
+      },
+      {
+        "away": 4,
+        "home": 5,
+        "type": "Shots outsidebox"
+      },
+      {
+        "away": 11,
+        "home": 20,
+        "type": "Fouls"
+      },
+      {
+        "away": 5,
+        "home": 4,
+        "type": "Corner Kicks"
+      },
+      {
+        "away": 0,
+        "home": 8,
+        "type": "Offsides"
+      },
+      {
+        "away": "45%",
+        "home": "55%",
+        "type": "Ball Possession"
+      },
+      {
+        "away": 3,
+        "home": 2,
+        "type": "Yellow Cards"
+      },
+      {
+        "away": null,
+        "home": null,
+        "type": "Red Cards"
+      },
+      {
+        "away": 4,
+        "home": 5,
+        "type": "Goalkeeper Saves"
+      },
+      {
+        "away": 491,
+        "home": 604,
+        "type": "Total passes"
+      },
+      {
+        "away": 377,
+        "home": 494,
+        "type": "Passes accurate"
+      },
+      {
+        "away": "77%",
+        "home": "82%",
+        "type": "Passes %"
+      },
+      {
+        "away": null,
+        "home": null,
+        "type": "expected_goals"
+      },
+      {
+        "away": null,
+        "home": null,
+        "type": "goals_prevented"
+      }
+    ]
+  }
+}

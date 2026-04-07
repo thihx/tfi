@@ -1,0 +1,431 @@
+{
+  "name": "11828-1490183-11m-under-5",
+  "matchId": "1490183",
+  "fixture": {
+    "fixture": {
+      "id": 1490183,
+      "referee": null,
+      "timezone": "UTC",
+      "date": "2026-04-04T23:30:00.000Z",
+      "timestamp": 1775345400,
+      "periods": {
+        "first": null,
+        "second": null
+      },
+      "venue": {
+        "id": null,
+        "name": "Nu Stadium",
+        "city": null
+      },
+      "status": {
+        "long": "1H",
+        "short": "1H",
+        "elapsed": 11
+      }
+    },
+    "league": {
+      "id": 253,
+      "name": "Major League Soccer",
+      "country": "",
+      "logo": "",
+      "flag": null,
+      "season": 0,
+      "round": ""
+    },
+    "teams": {
+      "home": {
+        "id": 0,
+        "name": "Inter Miami",
+        "logo": "",
+        "winner": null
+      },
+      "away": {
+        "id": 0,
+        "name": "Austin",
+        "logo": "",
+        "winner": null
+      }
+    },
+    "goals": {
+      "home": 1,
+      "away": 1
+    },
+    "score": {
+      "halftime": {
+        "home": null,
+        "away": null
+      },
+      "fulltime": {
+        "home": 1,
+        "away": 1
+      }
+    }
+  },
+  "watchlistEntry": {
+    "match_id": "1490183",
+    "league": "Major League Soccer",
+    "home_team": "Inter Miami",
+    "away_team": "Austin",
+    "mode": "B",
+    "status": "active",
+    "custom_conditions": "",
+    "date": "2026-04-05",
+    "kickoff": "08:30:00",
+    "strategic_context": null
+  },
+  "pipelineOptions": {
+    "forceAnalyze": true,
+    "skipProceedGate": true,
+    "skipStalenessGate": true
+  },
+  "statistics": [
+    {
+      "team": {
+        "id": 0,
+        "name": "Inter Miami",
+        "logo": ""
+      },
+      "statistics": [
+        {
+          "type": "Ball Possession",
+          "value": "64%"
+        },
+        {
+          "type": "Total Shots",
+          "value": "0"
+        },
+        {
+          "type": "Shots on Goal",
+          "value": "0"
+        },
+        {
+          "type": "Corner Kicks",
+          "value": "0"
+        },
+        {
+          "type": "Fouls",
+          "value": "1"
+        },
+        {
+          "type": "Offsides",
+          "value": null
+        },
+        {
+          "type": "Yellow Cards",
+          "value": null
+        },
+        {
+          "type": "Red Cards",
+          "value": null
+        },
+        {
+          "type": "Goalkeeper Saves",
+          "value": null
+        },
+        {
+          "type": "Blocked Shots",
+          "value": "0"
+        },
+        {
+          "type": "Total passes",
+          "value": "25"
+        },
+        {
+          "type": "Passes accurate",
+          "value": "23"
+        },
+        {
+          "type": "Shots off Goal",
+          "value": "0"
+        },
+        {
+          "type": "Shots insidebox",
+          "value": "0"
+        },
+        {
+          "type": "Shots outsidebox",
+          "value": "0"
+        },
+        {
+          "type": "expected_goals",
+          "value": "0.00"
+        },
+        {
+          "type": "goals_prevented",
+          "value": "0"
+        },
+        {
+          "type": "Passes %",
+          "value": "92%"
+        }
+      ]
+    },
+    {
+      "team": {
+        "id": 0,
+        "name": "Austin",
+        "logo": ""
+      },
+      "statistics": [
+        {
+          "type": "Ball Possession",
+          "value": "36%"
+        },
+        {
+          "type": "Total Shots",
+          "value": "2"
+        },
+        {
+          "type": "Shots on Goal",
+          "value": "1"
+        },
+        {
+          "type": "Corner Kicks",
+          "value": "1"
+        },
+        {
+          "type": "Fouls",
+          "value": "0"
+        },
+        {
+          "type": "Offsides",
+          "value": null
+        },
+        {
+          "type": "Yellow Cards",
+          "value": null
+        },
+        {
+          "type": "Red Cards",
+          "value": null
+        },
+        {
+          "type": "Goalkeeper Saves",
+          "value": null
+        },
+        {
+          "type": "Blocked Shots",
+          "value": "0"
+        },
+        {
+          "type": "Total passes",
+          "value": "13"
+        },
+        {
+          "type": "Passes accurate",
+          "value": "11"
+        },
+        {
+          "type": "Shots off Goal",
+          "value": "1"
+        },
+        {
+          "type": "Shots insidebox",
+          "value": "1"
+        },
+        {
+          "type": "Shots outsidebox",
+          "value": "1"
+        },
+        {
+          "type": "expected_goals",
+          "value": "0.13"
+        },
+        {
+          "type": "goals_prevented",
+          "value": "0"
+        },
+        {
+          "type": "Passes %",
+          "value": "85%"
+        }
+      ]
+    }
+  ],
+  "mockResolvedOdds": {
+    "oddsSource": "live",
+    "response": [
+      {
+        "bookmakers": [
+          {
+            "id": 0,
+            "name": "Replay Mock",
+            "bets": [
+              {
+                "id": 1,
+                "name": "Over/Under",
+                "values": [
+                  {
+                    "value": "Over",
+                    "odd": "2",
+                    "handicap": "5"
+                  },
+                  {
+                    "value": "Under",
+                    "odd": "1.8",
+                    "handicap": "5"
+                  }
+                ]
+              },
+              {
+                "id": 2,
+                "name": "Corners Over/Under",
+                "values": [
+                  {
+                    "value": "Over",
+                    "odd": "2.1",
+                    "handicap": "11"
+                  },
+                  {
+                    "value": "Under",
+                    "odd": "2.1",
+                    "handicap": "11"
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    ],
+    "oddsFetchedAt": null,
+    "freshness": "fresh",
+    "cacheStatus": "hit"
+  },
+  "previousRecommendations": [
+    {
+      "minute": 11,
+      "odds": "2.100",
+      "bet_market": "under_11",
+      "selection": "Under 11 Goals @2.1",
+      "score": "1-1",
+      "status": "1H",
+      "result": "win",
+      "confidence": 9,
+      "stake_percent": "8.00",
+      "reasoning": "Break-even about 47.6%. My fair range is around 95-99%. Edge looks about 50%. The match has seen two early goals (1-1 at minute 11), but a total goals line of 11 is statistically extreme for any professional soccer match. The probability of seeing 9 additional goals in the remaining 80 minutes is practically zero. Furthermore, the extremely low pass volume (only 38 total passes combined) and low shot count (2 total shots) indicate that the early goals are anomalies rather than the result of sustained, high-tempo attacking play. Taking Under 11 Goals at 2.1 odds provides a massive mathematical advantage."
+    }
+  ],
+  "metadata": {
+    "recommendationId": 11828,
+    "originalPromptVersion": "v8-market-balance-followup-f",
+    "originalAiModel": "gemini-3-pro-preview",
+    "originalBetMarket": "under_5",
+    "originalSelection": "Under 5 Goals @1.8",
+    "originalResult": "win",
+    "originalPnl": 2.4,
+    "minute": 11,
+    "score": "1-1",
+    "status": "1H",
+    "league": "Major League Soccer",
+    "homeTeam": "Inter Miami",
+    "awayTeam": "Austin",
+    "evidenceMode": "full_live_data",
+    "prematchStrength": "weak",
+    "profileCoverageBand": "partial",
+    "overlayCoverageBand": "none",
+    "policyImpactBand": "clean"
+  },
+  "settlementContext": {
+    "matchId": "1490183",
+    "homeTeam": "Inter Miami",
+    "awayTeam": "Austin",
+    "finalStatus": "FT",
+    "homeScore": 2,
+    "awayScore": 2,
+    "regularHomeScore": 2,
+    "regularAwayScore": 2,
+    "settlementStats": [
+      {
+        "away": 3,
+        "home": 7,
+        "type": "Shots on Goal"
+      },
+      {
+        "away": 5,
+        "home": 10,
+        "type": "Shots off Goal"
+      },
+      {
+        "away": 9,
+        "home": 20,
+        "type": "Total Shots"
+      },
+      {
+        "away": 1,
+        "home": 3,
+        "type": "Blocked Shots"
+      },
+      {
+        "away": 7,
+        "home": 14,
+        "type": "Shots insidebox"
+      },
+      {
+        "away": 2,
+        "home": 6,
+        "type": "Shots outsidebox"
+      },
+      {
+        "away": 8,
+        "home": 7,
+        "type": "Fouls"
+      },
+      {
+        "away": 3,
+        "home": 7,
+        "type": "Corner Kicks"
+      },
+      {
+        "away": 1,
+        "home": 3,
+        "type": "Offsides"
+      },
+      {
+        "away": "35%",
+        "home": "65%",
+        "type": "Ball Possession"
+      },
+      {
+        "away": 0,
+        "home": 2,
+        "type": "Yellow Cards"
+      },
+      {
+        "away": null,
+        "home": null,
+        "type": "Red Cards"
+      },
+      {
+        "away": 5,
+        "home": 1,
+        "type": "Goalkeeper Saves"
+      },
+      {
+        "away": 307,
+        "home": 554,
+        "type": "Total passes"
+      },
+      {
+        "away": 252,
+        "home": 487,
+        "type": "Passes accurate"
+      },
+      {
+        "away": "82%",
+        "home": "88%",
+        "type": "Passes %"
+      },
+      {
+        "away": "1.68",
+        "home": "2.88",
+        "type": "expected_goals"
+      },
+      {
+        "away": 0,
+        "home": 0,
+        "type": "goals_prevented"
+      }
+    ]
+  }
+}

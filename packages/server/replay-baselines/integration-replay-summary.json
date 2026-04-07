@@ -1,0 +1,906 @@
+{
+  "generatedAt": "2026-04-07T06:56:32.733Z",
+  "totalScenarios": 60,
+  "promptVersions": [
+    "v8-market-balance-followup-h",
+    "v10-hybrid-legacy-b"
+  ],
+  "variants": [
+    {
+      "promptVersion": "v8-market-balance-followup-h",
+      "totalScenarios": 60,
+      "pushCount": 26,
+      "noBetCount": 34,
+      "pushRate": 0.4333,
+      "noBetRate": 0.5667,
+      "goalsUnderCount": 13,
+      "goalsOverCount": 7,
+      "goalsUnderShare": 0.65,
+      "settledDirectionalCount": 24,
+      "winCount": 15,
+      "lossCount": 9,
+      "accuracy": 0.625,
+      "avgOdds": 1.9225,
+      "avgBreakEvenRate": 0.5249,
+      "totalStaked": 97,
+      "totalPnl": 14.7705,
+      "roi": 0.1523,
+      "byMinuteBand": [
+        {
+          "bucket": "00-29",
+          "total": 18,
+          "pushCount": 8,
+          "noBetCount": 10,
+          "goalsUnderCount": 7,
+          "goalsOverCount": 1,
+          "underShare": 0.875,
+          "settledDirectionalCount": 7,
+          "winCount": 4,
+          "lossCount": 3,
+          "accuracy": 0.5714,
+          "avgOdds": 1.9594,
+          "avgBreakEvenRate": 0.5109,
+          "totalStaked": 29,
+          "totalPnl": 0.4375,
+          "roi": 0.0151
+        },
+        {
+          "bucket": "30-44",
+          "total": 21,
+          "pushCount": 7,
+          "noBetCount": 14,
+          "goalsUnderCount": 3,
+          "goalsOverCount": 0,
+          "underShare": 1,
+          "settledDirectionalCount": 7,
+          "winCount": 4,
+          "lossCount": 3,
+          "accuracy": 0.5714,
+          "avgOdds": 1.9761,
+          "avgBreakEvenRate": 0.5144,
+          "totalStaked": 26,
+          "totalPnl": 4.148,
+          "roi": 0.1595
+        },
+        {
+          "bucket": "45-59",
+          "total": 8,
+          "pushCount": 2,
+          "noBetCount": 6,
+          "goalsUnderCount": 0,
+          "goalsOverCount": 1,
+          "underShare": 0,
+          "settledDirectionalCount": 2,
+          "winCount": 1,
+          "lossCount": 1,
+          "accuracy": 0.5,
+          "avgOdds": 1.7625,
+          "avgBreakEvenRate": 0.5674,
+          "totalStaked": 6,
+          "totalPnl": 1.1,
+          "roi": 0.1833
+        },
+        {
+          "bucket": "60-74",
+          "total": 10,
+          "pushCount": 7,
+          "noBetCount": 3,
+          "goalsUnderCount": 2,
+          "goalsOverCount": 4,
+          "underShare": 0.3333,
+          "settledDirectionalCount": 6,
+          "winCount": 5,
+          "lossCount": 1,
+          "accuracy": 0.8333,
+          "avgOdds": 1.8289,
+          "avgBreakEvenRate": 0.5498,
+          "totalStaked": 29,
+          "totalPnl": 8.685,
+          "roi": 0.2995
+        },
+        {
+          "bucket": "75+",
+          "total": 3,
+          "pushCount": 2,
+          "noBetCount": 1,
+          "goalsUnderCount": 1,
+          "goalsOverCount": 1,
+          "underShare": 0.5,
+          "settledDirectionalCount": 2,
+          "winCount": 1,
+          "lossCount": 1,
+          "accuracy": 0.5,
+          "avgOdds": 2.075,
+          "avgBreakEvenRate": 0.4877,
+          "totalStaked": 7,
+          "totalPnl": 0.4,
+          "roi": 0.0571
+        }
+      ],
+      "byScoreState": [
+        {
+          "bucket": "0-0",
+          "total": 23,
+          "pushCount": 14,
+          "noBetCount": 9,
+          "goalsUnderCount": 11,
+          "goalsOverCount": 2,
+          "underShare": 0.8462,
+          "settledDirectionalCount": 13,
+          "winCount": 9,
+          "lossCount": 4,
+          "accuracy": 0.6923,
+          "avgOdds": 1.9321,
+          "avgBreakEvenRate": 0.5189,
+          "totalStaked": 51,
+          "totalPnl": 12.5875,
+          "roi": 0.2468
+        },
+        {
+          "bucket": "level",
+          "total": 7,
+          "pushCount": 2,
+          "noBetCount": 5,
+          "goalsUnderCount": 0,
+          "goalsOverCount": 1,
+          "underShare": 0,
+          "settledDirectionalCount": 2,
+          "winCount": 1,
+          "lossCount": 1,
+          "accuracy": 0.5,
+          "avgOdds": 1.9635,
+          "avgBreakEvenRate": 0.5168,
+          "totalStaked": 8,
+          "totalPnl": 0.635,
+          "roi": 0.0794
+        },
+        {
+          "bucket": "one-goal-margin",
+          "total": 26,
+          "pushCount": 9,
+          "noBetCount": 17,
+          "goalsUnderCount": 2,
+          "goalsOverCount": 4,
+          "underShare": 0.3333,
+          "settledDirectionalCount": 8,
+          "winCount": 4,
+          "lossCount": 4,
+          "accuracy": 0.5,
+          "avgOdds": 1.9203,
+          "avgBreakEvenRate": 0.5299,
+          "totalStaked": 34,
+          "totalPnl": -1.352,
+          "roi": -0.0398
+        },
+        {
+          "bucket": "two-plus-margin",
+          "total": 4,
+          "pushCount": 1,
+          "noBetCount": 3,
+          "goalsUnderCount": 0,
+          "goalsOverCount": 0,
+          "underShare": 0,
+          "settledDirectionalCount": 1,
+          "winCount": 1,
+          "lossCount": 0,
+          "accuracy": 1,
+          "avgOdds": 1.725,
+          "avgBreakEvenRate": 0.5797,
+          "totalStaked": 4,
+          "totalPnl": 2.9,
+          "roi": 0.725
+        }
+      ],
+      "byPrematchStrength": [
+        {
+          "bucket": "moderate",
+          "total": 5,
+          "pushCount": 3,
+          "noBetCount": 2,
+          "goalsUnderCount": 2,
+          "goalsOverCount": 0,
+          "underShare": 1,
+          "settledDirectionalCount": 3,
+          "winCount": 3,
+          "lossCount": 0,
+          "accuracy": 1,
+          "avgOdds": 1.8417,
+          "avgBreakEvenRate": 0.5443,
+          "totalStaked": 11,
+          "totalPnl": 9.15,
+          "roi": 0.8318
+        },
+        {
+          "bucket": "none",
+          "total": 7,
+          "pushCount": 2,
+          "noBetCount": 5,
+          "goalsUnderCount": 0,
+          "goalsOverCount": 2,
+          "underShare": 0,
+          "settledDirectionalCount": 2,
+          "winCount": 1,
+          "lossCount": 1,
+          "accuracy": 0.5,
+          "avgOdds": 2.025,
+          "avgBreakEvenRate": 0.5031,
+          "totalStaked": 8,
+          "totalPnl": -1.125,
+          "roi": -0.1406
+        },
+        {
+          "bucket": "strong",
+          "total": 27,
+          "pushCount": 13,
+          "noBetCount": 14,
+          "goalsUnderCount": 8,
+          "goalsOverCount": 2,
+          "underShare": 0.8,
+          "settledDirectionalCount": 12,
+          "winCount": 7,
+          "lossCount": 5,
+          "accuracy": 0.5833,
+          "avgOdds": 1.8622,
+          "avgBreakEvenRate": 0.5405,
+          "totalStaked": 47,
+          "totalPnl": 2.5105,
+          "roi": 0.0534
+        },
+        {
+          "bucket": "weak",
+          "total": 21,
+          "pushCount": 8,
+          "noBetCount": 13,
+          "goalsUnderCount": 3,
+          "goalsOverCount": 3,
+          "underShare": 0.5,
+          "settledDirectionalCount": 7,
+          "winCount": 4,
+          "lossCount": 3,
+          "accuracy": 0.5714,
+          "avgOdds": 2.0252,
+          "avgBreakEvenRate": 0.4976,
+          "totalStaked": 31,
+          "totalPnl": 4.235,
+          "roi": 0.1366
+        }
+      ],
+      "byEvidenceMode": [
+        {
+          "bucket": "full_live_data",
+          "total": 59,
+          "pushCount": 26,
+          "noBetCount": 33,
+          "goalsUnderCount": 13,
+          "goalsOverCount": 7,
+          "underShare": 0.65,
+          "settledDirectionalCount": 24,
+          "winCount": 15,
+          "lossCount": 9,
+          "accuracy": 0.625,
+          "avgOdds": 1.9225,
+          "avgBreakEvenRate": 0.5249,
+          "totalStaked": 97,
+          "totalPnl": 14.7705,
+          "roi": 0.1523
+        },
+        {
+          "bucket": "odds_events_only_degraded",
+          "total": 1,
+          "pushCount": 0,
+          "noBetCount": 1,
+          "goalsUnderCount": 0,
+          "goalsOverCount": 0,
+          "underShare": 0,
+          "settledDirectionalCount": 0,
+          "winCount": 0,
+          "lossCount": 0,
+          "accuracy": 0,
+          "avgOdds": 0,
+          "avgBreakEvenRate": 0,
+          "totalStaked": 0,
+          "totalPnl": 0,
+          "roi": 0
+        }
+      ],
+      "byMarketAvailability": [
+        {
+          "bucket": "playable_side_market",
+          "total": 8,
+          "pushCount": 3,
+          "noBetCount": 5,
+          "goalsUnderCount": 2,
+          "goalsOverCount": 1,
+          "underShare": 0.6667,
+          "settledDirectionalCount": 3,
+          "winCount": 1,
+          "lossCount": 2,
+          "accuracy": 0.3333,
+          "avgOdds": 2.0167,
+          "avgBreakEvenRate": 0.5005,
+          "totalStaked": 11,
+          "totalPnl": -3.6,
+          "roi": -0.3273
+        },
+        {
+          "bucket": "side_market_unplayable",
+          "total": 4,
+          "pushCount": 1,
+          "noBetCount": 3,
+          "goalsUnderCount": 0,
+          "goalsOverCount": 0,
+          "underShare": 0,
+          "settledDirectionalCount": 1,
+          "winCount": 1,
+          "lossCount": 0,
+          "accuracy": 1,
+          "avgOdds": 1.725,
+          "avgBreakEvenRate": 0.5797,
+          "totalStaked": 4,
+          "totalPnl": 2.9,
+          "roi": 0.725
+        },
+        {
+          "bucket": "totals_only",
+          "total": 48,
+          "pushCount": 22,
+          "noBetCount": 26,
+          "goalsUnderCount": 11,
+          "goalsOverCount": 6,
+          "underShare": 0.6471,
+          "settledDirectionalCount": 20,
+          "winCount": 13,
+          "lossCount": 7,
+          "accuracy": 0.65,
+          "avgOdds": 1.9186,
+          "avgBreakEvenRate": 0.5257,
+          "totalStaked": 82,
+          "totalPnl": 15.4705,
+          "roi": 0.1887
+        }
+      ],
+      "marketCounts": [
+        {
+          "market": "under_2.25",
+          "count": 3
+        },
+        {
+          "market": "corners_under_8",
+          "count": 2
+        },
+        {
+          "market": "over_3.5",
+          "count": 2
+        },
+        {
+          "market": "under_1.5",
+          "count": 2
+        },
+        {
+          "market": "under_1.75",
+          "count": 2
+        },
+        {
+          "market": "under_2",
+          "count": 2
+        },
+        {
+          "market": "btts_no",
+          "count": 1
+        },
+        {
+          "market": "btts_yes",
+          "count": 1
+        },
+        {
+          "market": "corners_over_8",
+          "count": 1
+        },
+        {
+          "market": "corners_under_9.5",
+          "count": 1
+        },
+        {
+          "market": "over_0.75",
+          "count": 1
+        },
+        {
+          "market": "over_1.25",
+          "count": 1
+        },
+        {
+          "market": "over_2.5",
+          "count": 1
+        },
+        {
+          "market": "over_3.75",
+          "count": 1
+        },
+        {
+          "market": "over_4",
+          "count": 1
+        },
+        {
+          "market": "under_0.5",
+          "count": 1
+        },
+        {
+          "market": "under_1.25",
+          "count": 1
+        },
+        {
+          "market": "under_3.5",
+          "count": 1
+        },
+        {
+          "market": "under_4",
+          "count": 1
+        }
+      ]
+    },
+    {
+      "promptVersion": "v10-hybrid-legacy-b",
+      "totalScenarios": 60,
+      "pushCount": 38,
+      "noBetCount": 22,
+      "pushRate": 0.6333,
+      "noBetRate": 0.3667,
+      "goalsUnderCount": 7,
+      "goalsOverCount": 11,
+      "goalsUnderShare": 0.3889,
+      "settledDirectionalCount": 35,
+      "winCount": 18,
+      "lossCount": 17,
+      "accuracy": 0.5143,
+      "avgOdds": 1.9661,
+      "avgBreakEvenRate": 0.5127,
+      "totalStaked": 150,
+      "totalPnl": -7.392,
+      "roi": -0.0493,
+      "byMinuteBand": [
+        {
+          "bucket": "00-29",
+          "total": 18,
+          "pushCount": 11,
+          "noBetCount": 7,
+          "goalsUnderCount": 5,
+          "goalsOverCount": 3,
+          "underShare": 0.625,
+          "settledDirectionalCount": 10,
+          "winCount": 5,
+          "lossCount": 5,
+          "accuracy": 0.5,
+          "avgOdds": 1.9349,
+          "avgBreakEvenRate": 0.5181,
+          "totalStaked": 42,
+          "totalPnl": 1.35,
+          "roi": 0.0321
+        },
+        {
+          "bucket": "30-44",
+          "total": 21,
+          "pushCount": 14,
+          "noBetCount": 7,
+          "goalsUnderCount": 2,
+          "goalsOverCount": 1,
+          "underShare": 0.6667,
+          "settledDirectionalCount": 12,
+          "winCount": 6,
+          "lossCount": 6,
+          "accuracy": 0.5,
+          "avgOdds": 1.993,
+          "avgBreakEvenRate": 0.5052,
+          "totalStaked": 58,
+          "totalPnl": -9.9,
+          "roi": -0.1707
+        },
+        {
+          "bucket": "45-59",
+          "total": 8,
+          "pushCount": 5,
+          "noBetCount": 3,
+          "goalsUnderCount": 0,
+          "goalsOverCount": 2,
+          "underShare": 0,
+          "settledDirectionalCount": 5,
+          "winCount": 2,
+          "lossCount": 3,
+          "accuracy": 0.4,
+          "avgOdds": 1.955,
+          "avgBreakEvenRate": 0.5209,
+          "totalStaked": 17,
+          "totalPnl": -2.4,
+          "roi": -0.1412
+        },
+        {
+          "bucket": "60-74",
+          "total": 10,
+          "pushCount": 5,
+          "noBetCount": 5,
+          "goalsUnderCount": 0,
+          "goalsOverCount": 3,
+          "underShare": 0,
+          "settledDirectionalCount": 5,
+          "winCount": 5,
+          "lossCount": 0,
+          "accuracy": 1,
+          "avgOdds": 1.8704,
+          "avgBreakEvenRate": 0.5388,
+          "totalStaked": 22,
+          "totalPnl": 14.558,
+          "roi": 0.6617
+        },
+        {
+          "bucket": "75+",
+          "total": 3,
+          "pushCount": 3,
+          "noBetCount": 0,
+          "goalsUnderCount": 0,
+          "goalsOverCount": 2,
+          "underShare": 0,
+          "settledDirectionalCount": 3,
+          "winCount": 0,
+          "lossCount": 3,
+          "accuracy": 0,
+          "avgOdds": 2.1333,
+          "avgBreakEvenRate": 0.4709,
+          "totalStaked": 11,
+          "totalPnl": -11,
+          "roi": -1
+        }
+      ],
+      "byScoreState": [
+        {
+          "bucket": "0-0",
+          "total": 23,
+          "pushCount": 14,
+          "noBetCount": 9,
+          "goalsUnderCount": 4,
+          "goalsOverCount": 5,
+          "underShare": 0.4444,
+          "settledDirectionalCount": 12,
+          "winCount": 5,
+          "lossCount": 7,
+          "accuracy": 0.4167,
+          "avgOdds": 1.9375,
+          "avgBreakEvenRate": 0.5189,
+          "totalStaked": 53,
+          "totalPnl": -9.05,
+          "roi": -0.1708
+        },
+        {
+          "bucket": "level",
+          "total": 7,
+          "pushCount": 5,
+          "noBetCount": 2,
+          "goalsUnderCount": 0,
+          "goalsOverCount": 2,
+          "underShare": 0,
+          "settledDirectionalCount": 5,
+          "winCount": 4,
+          "lossCount": 1,
+          "accuracy": 0.8,
+          "avgOdds": 2.0904,
+          "avgBreakEvenRate": 0.4858,
+          "totalStaked": 23,
+          "totalPnl": 13.808,
+          "roi": 0.6003
+        },
+        {
+          "bucket": "one-goal-margin",
+          "total": 26,
+          "pushCount": 17,
+          "noBetCount": 9,
+          "goalsUnderCount": 3,
+          "goalsOverCount": 4,
+          "underShare": 0.4286,
+          "settledDirectionalCount": 16,
+          "winCount": 8,
+          "lossCount": 8,
+          "accuracy": 0.5,
+          "avgOdds": 1.9565,
+          "avgBreakEvenRate": 0.5144,
+          "totalStaked": 67,
+          "totalPnl": -12.05,
+          "roi": -0.1799
+        },
+        {
+          "bucket": "two-plus-margin",
+          "total": 4,
+          "pushCount": 2,
+          "noBetCount": 2,
+          "goalsUnderCount": 0,
+          "goalsOverCount": 0,
+          "underShare": 0,
+          "settledDirectionalCount": 2,
+          "winCount": 1,
+          "lossCount": 1,
+          "accuracy": 0.5,
+          "avgOdds": 1.9375,
+          "avgBreakEvenRate": 0.5224,
+          "totalStaked": 7,
+          "totalPnl": -0.1,
+          "roi": -0.0143
+        }
+      ],
+      "byPrematchStrength": [
+        {
+          "bucket": "moderate",
+          "total": 5,
+          "pushCount": 4,
+          "noBetCount": 1,
+          "goalsUnderCount": 0,
+          "goalsOverCount": 1,
+          "underShare": 0,
+          "settledDirectionalCount": 3,
+          "winCount": 1,
+          "lossCount": 2,
+          "accuracy": 0.3333,
+          "avgOdds": 2.0188,
+          "avgBreakEvenRate": 0.5005,
+          "totalStaked": 16,
+          "totalPnl": -5.1,
+          "roi": -0.3187
+        },
+        {
+          "bucket": "none",
+          "total": 7,
+          "pushCount": 3,
+          "noBetCount": 4,
+          "goalsUnderCount": 0,
+          "goalsOverCount": 2,
+          "underShare": 0,
+          "settledDirectionalCount": 3,
+          "winCount": 1,
+          "lossCount": 2,
+          "accuracy": 0.3333,
+          "avgOdds": 1.9257,
+          "avgBreakEvenRate": 0.5284,
+          "totalStaked": 13,
+          "totalPnl": -4.75,
+          "roi": -0.3654
+        },
+        {
+          "bucket": "strong",
+          "total": 27,
+          "pushCount": 17,
+          "noBetCount": 10,
+          "goalsUnderCount": 4,
+          "goalsOverCount": 3,
+          "underShare": 0.5714,
+          "settledDirectionalCount": 16,
+          "winCount": 8,
+          "lossCount": 8,
+          "accuracy": 0.5,
+          "avgOdds": 1.9741,
+          "avgBreakEvenRate": 0.5102,
+          "totalStaked": 67,
+          "totalPnl": 0.2,
+          "roi": 0.003
+        },
+        {
+          "bucket": "weak",
+          "total": 21,
+          "pushCount": 14,
+          "noBetCount": 7,
+          "goalsUnderCount": 3,
+          "goalsOverCount": 5,
+          "underShare": 0.375,
+          "settledDirectionalCount": 13,
+          "winCount": 8,
+          "lossCount": 5,
+          "accuracy": 0.6154,
+          "avgOdds": 1.9501,
+          "avgBreakEvenRate": 0.5159,
+          "totalStaked": 54,
+          "totalPnl": 2.258,
+          "roi": 0.0418
+        }
+      ],
+      "byEvidenceMode": [
+        {
+          "bucket": "full_live_data",
+          "total": 59,
+          "pushCount": 38,
+          "noBetCount": 21,
+          "goalsUnderCount": 7,
+          "goalsOverCount": 11,
+          "underShare": 0.3889,
+          "settledDirectionalCount": 35,
+          "winCount": 18,
+          "lossCount": 17,
+          "accuracy": 0.5143,
+          "avgOdds": 1.9661,
+          "avgBreakEvenRate": 0.5127,
+          "totalStaked": 150,
+          "totalPnl": -7.392,
+          "roi": -0.0493
+        },
+        {
+          "bucket": "odds_events_only_degraded",
+          "total": 1,
+          "pushCount": 0,
+          "noBetCount": 1,
+          "goalsUnderCount": 0,
+          "goalsOverCount": 0,
+          "underShare": 0,
+          "settledDirectionalCount": 0,
+          "winCount": 0,
+          "lossCount": 0,
+          "accuracy": 0,
+          "avgOdds": 0,
+          "avgBreakEvenRate": 0,
+          "totalStaked": 0,
+          "totalPnl": 0,
+          "roi": 0
+        }
+      ],
+      "byMarketAvailability": [
+        {
+          "bucket": "playable_side_market",
+          "total": 8,
+          "pushCount": 4,
+          "noBetCount": 4,
+          "goalsUnderCount": 0,
+          "goalsOverCount": 2,
+          "underShare": 0,
+          "settledDirectionalCount": 4,
+          "winCount": 2,
+          "lossCount": 2,
+          "accuracy": 0.5,
+          "avgOdds": 1.9938,
+          "avgBreakEvenRate": 0.5055,
+          "totalStaked": 15,
+          "totalPnl": -2,
+          "roi": -0.1333
+        },
+        {
+          "bucket": "side_market_unplayable",
+          "total": 4,
+          "pushCount": 3,
+          "noBetCount": 1,
+          "goalsUnderCount": 1,
+          "goalsOverCount": 0,
+          "underShare": 1,
+          "settledDirectionalCount": 3,
+          "winCount": 2,
+          "lossCount": 1,
+          "accuracy": 0.6667,
+          "avgOdds": 1.975,
+          "avgBreakEvenRate": 0.5109,
+          "totalStaked": 11,
+          "totalPnl": 2,
+          "roi": 0.1818
+        },
+        {
+          "bucket": "totals_only",
+          "total": 48,
+          "pushCount": 31,
+          "noBetCount": 17,
+          "goalsUnderCount": 6,
+          "goalsOverCount": 9,
+          "underShare": 0.4,
+          "settledDirectionalCount": 28,
+          "winCount": 14,
+          "lossCount": 14,
+          "accuracy": 0.5,
+          "avgOdds": 1.9617,
+          "avgBreakEvenRate": 0.5138,
+          "totalStaked": 124,
+          "totalPnl": -7.392,
+          "roi": -0.0596
+        }
+      ],
+      "marketCounts": [
+        {
+          "market": "corners_under_7",
+          "count": 3
+        },
+        {
+          "market": "btts_no",
+          "count": 2
+        },
+        {
+          "market": "corners_over_11.5",
+          "count": 2
+        },
+        {
+          "market": "corners_under_11",
+          "count": 2
+        },
+        {
+          "market": "corners_under_7.5",
+          "count": 2
+        },
+        {
+          "market": "corners_under_8",
+          "count": 2
+        },
+        {
+          "market": "over_1.25",
+          "count": 2
+        },
+        {
+          "market": "over_3.5",
+          "count": 2
+        },
+        {
+          "market": "under_2",
+          "count": 2
+        },
+        {
+          "market": "under_2.25",
+          "count": 2
+        },
+        {
+          "market": "corners_over_10.5",
+          "count": 1
+        },
+        {
+          "market": "corners_over_8.5",
+          "count": 1
+        },
+        {
+          "market": "corners_under_10",
+          "count": 1
+        },
+        {
+          "market": "corners_under_13",
+          "count": 1
+        },
+        {
+          "market": "corners_under_6.5",
+          "count": 1
+        },
+        {
+          "market": "corners_under_9",
+          "count": 1
+        },
+        {
+          "market": "corners_under_9.5",
+          "count": 1
+        },
+        {
+          "market": "over_0.75",
+          "count": 1
+        },
+        {
+          "market": "over_1",
+          "count": 1
+        },
+        {
+          "market": "over_1.75",
+          "count": 1
+        },
+        {
+          "market": "over_2.25",
+          "count": 1
+        },
+        {
+          "market": "over_2.5",
+          "count": 1
+        },
+        {
+          "market": "over_3.75",
+          "count": 1
+        },
+        {
+          "market": "over_4.5",
+          "count": 1
+        },
+        {
+          "market": "under_1.75",
+          "count": 1
+        },
+        {
+          "market": "under_2.75",
+          "count": 1
+        },
+        {
+          "market": "under_3.25",
+          "count": 1
+        }
+      ]
+    }
+  ]
+}

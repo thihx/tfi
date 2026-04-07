@@ -1886,6 +1886,248 @@ table tbody#watchlist-table td:not(.select-col) {
     }
 }
 
+/* Strategic context — stacked fields (Match Hub context / sections) */
+.strategic-context-subtitle {
+    font-size: 12px;
+    font-weight: 700;
+    color: #854d0e;
+    text-transform: uppercase;
+    letter-spacing: 0.6px;
+    margin-bottom: 10px;
+}
+.strategic-context-label--block {
+    display: block;
+    margin-bottom: 4px;
+    white-space: normal;
+}
+.strategic-context-stack-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+}
+.strategic-context-stack-grid--tight {
+    gap: 10px;
+}
+.strategic-context-stack-grid--meta {
+    margin-bottom: 12px;
+}
+.strategic-context-stack--span {
+    grid-column: 1 / -1;
+}
+.strategic-context-stack-value {
+    padding: 8px 10px;
+    border-radius: 6px;
+    font-size: 12px;
+    line-height: 1.5;
+    background: rgba(255, 255, 255, 0.75);
+    border: 1px solid #fde68a;
+    color: #451a03;
+    white-space: pre-wrap;
+    font-weight: 400;
+}
+.strategic-context-stack-value--highlight {
+    border-color: #bfdbfe;
+    background: #eff6ff;
+    color: #1e40af;
+    font-weight: 600;
+}
+.strategic-context-stack-value--warn {
+    border-color: #fcd34d;
+    background: #fef3c7;
+    color: #92400e;
+}
+.strategic-context-lede {
+    padding: 12px 16px;
+    background: rgba(255, 255, 255, 0.85);
+    border-radius: 8px;
+    border: 1px solid #fde68a;
+    border-left: 3px solid var(--primary);
+    font-size: 13px;
+    line-height: 1.6;
+    color: #451a03;
+    margin-bottom: 12px;
+}
+.strategic-context-footnote {
+    font-size: 11px;
+    color: #a16207;
+    opacity: 0.9;
+    margin-top: 8px;
+}
+.strategic-context-footnote--neutral {
+    color: var(--gray-400);
+    opacity: 1;
+}
+.strategic-context-grid--offset-top {
+    margin-top: 8px;
+}
+.strategic-context-text--offset-top {
+    margin-top: 8px;
+}
+.strategic-context-priors-intro {
+    font-size: 12px;
+    color: var(--text-secondary, #666);
+    margin-bottom: 12px;
+    line-height: 1.55;
+}
+.strategic-context-priors-stack {
+    display: grid;
+    gap: 12px;
+}
+.strategic-context-priors-team-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+    gap: 12px;
+}
+.form-group.form-group--mb-0 {
+    margin-bottom: 0;
+}
+.strategic-context-box--compact {
+    padding: 12px;
+}
+.strategic-context-header--tight {
+    margin-bottom: 8px;
+}
+
+/* Match Hub chrome (tabs, KPI, loading) */
+.match-hub-stack {
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+}
+.match-hub-kpi-strip {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 16px;
+    padding: 10px 14px;
+    margin-bottom: 14px;
+    background: var(--gray-50);
+    border-radius: 8px;
+    border: 1px solid var(--gray-200);
+    align-items: center;
+}
+.match-hub-kpi-chip {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 2px;
+    min-width: 60px;
+}
+.match-hub-kpi-chip-label {
+    font-size: 10px;
+    color: var(--gray-400);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+.match-hub-kpi-chip-value {
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--gray-900);
+}
+.match-hub-kpi-chip-value--bold {
+    font-weight: 700;
+}
+.match-hub-tab-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin-bottom: 16px;
+}
+.match-hub-tab-row-refresh {
+    margin-left: auto;
+    display: inline-flex;
+    align-items: center;
+}
+.match-hub-tab-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+}
+.match-hub-loading {
+    padding: 40px;
+    text-align: center;
+    color: var(--gray-400);
+}
+.match-hub-loading-spinner {
+    margin: 0 auto 12px;
+}
+.match-hub-empty {
+    padding: 40px 20px;
+    text-align: center;
+    color: var(--gray-400);
+}
+.match-hub-empty-icon {
+    margin-bottom: 8px;
+    display: flex;
+    justify-content: center;
+}
+.match-hub-scroll-panel {
+    max-height: 500px;
+    overflow-y: auto;
+    padding-right: 4px;
+}
+.match-hub-bets-meta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 20px;
+    margin-bottom: 12px;
+    font-size: 13px;
+}
+.match-hub-bets-meta-muted {
+    color: var(--gray-500);
+}
+.match-hub-bets-meta-icons {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+}
+.match-hub-bets-meta-pnl {
+    font-weight: 700;
+}
+.match-hub-bets-meta-pnl--pos {
+    color: var(--success);
+}
+.match-hub-bets-meta-pnl--neg {
+    color: var(--danger);
+}
+.match-hub-bets-table-wrap {
+    max-height: 400px;
+    overflow: auto;
+}
+.match-hub-bets-th-center {
+    text-align: center;
+}
+.match-hub-bets-th-right {
+    text-align: right;
+}
+.match-hub-bets-td-muted {
+    font-size: 12px;
+    color: var(--gray-600);
+}
+.match-hub-bets-td-strong {
+    font-weight: 600;
+}
+.match-hub-bets-td-odds {
+    text-align: center;
+    font-weight: 700;
+    color: var(--primary);
+}
+.match-hub-bets-td-center {
+    text-align: center;
+}
+.match-hub-bets-td-pnl {
+    text-align: right;
+    font-weight: 700;
+}
+.match-hub-bets-td-pnl--pos {
+    color: var(--success);
+}
+.match-hub-bets-td-pnl--neg {
+    color: var(--danger);
+}
+.match-hub-bets-badge {
+    font-size: 11px;
+}
+
 @media (max-width: 480px) {
   .cond-row.has-operator { grid-template-columns: 90px 1fr 32px; }
 }

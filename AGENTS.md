@@ -30,10 +30,12 @@ Read [docs/agent-onboarding.md](docs/agent-onboarding.md) before making non-triv
   Some frontend service calls still send a bearer token from `localStorage`.
 - When changing Playwright tests, verify current visible UI text first.
   Do not assume older labels are still valid.
+- **UI runs on desktop and mobile web:** keep layouts responsive, touch-friendly, and scroll-safe (modals, tables, toolbars). Codex skill: `.codex/skills/tfi-responsive-ui/`.
+- **Sports data provider:** the browser must not call API-Sports directly; use backend routes (e.g. `/api/matches`, `/api/proxy/football/*`). On the server, outbound provider calls go through `packages/server/src/lib/football-api.ts` only — see [docs/agent-onboarding.md](docs/agent-onboarding.md).
 
 ## Change Workflow
 
-- For UI work, inspect the tab/page component, shared layout component, and the frontend API/service call it depends on.
+- For UI work, inspect the tab/page component, shared layout component, and the frontend API/service call it depends on. Validate narrow viewports and mobile interaction where relevant.
 - For backend work, inspect the route, service/lib or repo layer, tests, and any migration impact.
 - Prefer focused test runs first, then broader verification.
 

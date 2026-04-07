@@ -1,0 +1,432 @@
+{
+  "name": "12172-1391117-81m-corners-under-15-5",
+  "matchId": "1391117",
+  "fixture": {
+    "fixture": {
+      "id": 1391117,
+      "referee": null,
+      "timezone": "UTC",
+      "date": "2026-04-05T16:30:00.000Z",
+      "timestamp": 1775406600,
+      "periods": {
+        "first": null,
+        "second": null
+      },
+      "venue": {
+        "id": null,
+        "name": "Estadio Nuevo Carlos Tartiere",
+        "city": null
+      },
+      "status": {
+        "long": "2H",
+        "short": "2H",
+        "elapsed": 81
+      }
+    },
+    "league": {
+      "id": 140,
+      "name": "La Liga",
+      "country": "",
+      "logo": "",
+      "flag": null,
+      "season": 0,
+      "round": ""
+    },
+    "teams": {
+      "home": {
+        "id": 0,
+        "name": "Oviedo",
+        "logo": "",
+        "winner": null
+      },
+      "away": {
+        "id": 0,
+        "name": "Sevilla",
+        "logo": "",
+        "winner": null
+      }
+    },
+    "goals": {
+      "home": 1,
+      "away": 0
+    },
+    "score": {
+      "halftime": {
+        "home": null,
+        "away": null
+      },
+      "fulltime": {
+        "home": 1,
+        "away": 0
+      }
+    }
+  },
+  "watchlistEntry": {
+    "match_id": "1391117",
+    "league": "La Liga",
+    "home_team": "Oviedo",
+    "away_team": "Sevilla",
+    "mode": "B",
+    "status": "active",
+    "custom_conditions": "",
+    "date": "2026-04-06",
+    "kickoff": "01:30:00",
+    "strategic_context": null
+  },
+  "pipelineOptions": {
+    "forceAnalyze": true,
+    "skipProceedGate": true,
+    "skipStalenessGate": true
+  },
+  "statistics": [
+    {
+      "team": {
+        "id": 0,
+        "name": "Oviedo",
+        "logo": ""
+      },
+      "statistics": [
+        {
+          "type": "Ball Possession",
+          "value": "74%"
+        },
+        {
+          "type": "Total Shots",
+          "value": "5"
+        },
+        {
+          "type": "Shots on Goal",
+          "value": "2"
+        },
+        {
+          "type": "Corner Kicks",
+          "value": "5"
+        },
+        {
+          "type": "Fouls",
+          "value": "7"
+        },
+        {
+          "type": "Offsides",
+          "value": "1"
+        },
+        {
+          "type": "Yellow Cards",
+          "value": "2"
+        },
+        {
+          "type": "Red Cards",
+          "value": "0"
+        },
+        {
+          "type": "Goalkeeper Saves",
+          "value": "0"
+        },
+        {
+          "type": "Blocked Shots",
+          "value": "1"
+        },
+        {
+          "type": "Total passes",
+          "value": "458"
+        },
+        {
+          "type": "Passes accurate",
+          "value": "388"
+        },
+        {
+          "type": "Shots off Goal",
+          "value": "2"
+        },
+        {
+          "type": "Shots insidebox",
+          "value": "2"
+        },
+        {
+          "type": "Shots outsidebox",
+          "value": "3"
+        },
+        {
+          "type": "expected_goals",
+          "value": "0.46"
+        },
+        {
+          "type": "goals_prevented",
+          "value": "0"
+        },
+        {
+          "type": "Passes %",
+          "value": "85%"
+        }
+      ]
+    },
+    {
+      "team": {
+        "id": 0,
+        "name": "Sevilla",
+        "logo": ""
+      },
+      "statistics": [
+        {
+          "type": "Ball Possession",
+          "value": "26%"
+        },
+        {
+          "type": "Total Shots",
+          "value": "8"
+        },
+        {
+          "type": "Shots on Goal",
+          "value": "0"
+        },
+        {
+          "type": "Corner Kicks",
+          "value": "7"
+        },
+        {
+          "type": "Fouls",
+          "value": "11"
+        },
+        {
+          "type": "Offsides",
+          "value": "0"
+        },
+        {
+          "type": "Yellow Cards",
+          "value": "3"
+        },
+        {
+          "type": "Red Cards",
+          "value": "1"
+        },
+        {
+          "type": "Goalkeeper Saves",
+          "value": "2"
+        },
+        {
+          "type": "Blocked Shots",
+          "value": "2"
+        },
+        {
+          "type": "Total passes",
+          "value": "159"
+        },
+        {
+          "type": "Passes accurate",
+          "value": "93"
+        },
+        {
+          "type": "Shots off Goal",
+          "value": "6"
+        },
+        {
+          "type": "Shots insidebox",
+          "value": "7"
+        },
+        {
+          "type": "Shots outsidebox",
+          "value": "1"
+        },
+        {
+          "type": "expected_goals",
+          "value": "0.61"
+        },
+        {
+          "type": "goals_prevented",
+          "value": "0"
+        },
+        {
+          "type": "Passes %",
+          "value": "58%"
+        }
+      ]
+    }
+  ],
+  "mockResolvedOdds": {
+    "oddsSource": "live",
+    "response": [
+      {
+        "bookmakers": [
+          {
+            "id": 0,
+            "name": "Replay Mock",
+            "bets": [
+              {
+                "id": 1,
+                "name": "Over/Under",
+                "values": [
+                  {
+                    "value": "Over",
+                    "odd": "2.75",
+                    "handicap": "1.5"
+                  },
+                  {
+                    "value": "Under",
+                    "odd": "1.475",
+                    "handicap": "1.5"
+                  }
+                ]
+              },
+              {
+                "id": 2,
+                "name": "Corners Over/Under",
+                "values": [
+                  {
+                    "value": "Over",
+                    "odd": "1.95",
+                    "handicap": "15.5"
+                  },
+                  {
+                    "value": "Under",
+                    "odd": "1.85",
+                    "handicap": "15.5"
+                  }
+                ]
+              },
+              {
+                "id": 3,
+                "name": "Both Teams Score",
+                "values": [
+                  {
+                    "value": "Yes",
+                    "odd": "6.5"
+                  },
+                  {
+                    "value": "No",
+                    "odd": "1.111"
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    ],
+    "oddsFetchedAt": null,
+    "freshness": "fresh",
+    "cacheStatus": "hit"
+  },
+  "previousRecommendations": [],
+  "metadata": {
+    "recommendationId": 12172,
+    "originalPromptVersion": "v4-evidence-hardened",
+    "originalAiModel": "gemini-3-pro-preview",
+    "originalBetMarket": "corners_under_15.5",
+    "originalSelection": "Corners Under 15.5 @1.85",
+    "originalResult": "win",
+    "originalPnl": 3.4,
+    "minute": 81,
+    "score": "1-0",
+    "status": "2H",
+    "league": "La Liga",
+    "homeTeam": "Oviedo",
+    "awayTeam": "Sevilla",
+    "evidenceMode": "full_live_data",
+    "prematchStrength": "strong",
+    "profileCoverageBand": "strong",
+    "overlayCoverageBand": "none",
+    "policyImpactBand": "clean"
+  },
+  "settlementContext": {
+    "matchId": "1391117",
+    "homeTeam": "Oviedo",
+    "awayTeam": "Sevilla",
+    "finalStatus": "FT",
+    "homeScore": 1,
+    "awayScore": 0,
+    "regularHomeScore": 1,
+    "regularAwayScore": 0,
+    "settlementStats": [
+      {
+        "away": 0,
+        "home": 4,
+        "type": "Shots on Goal"
+      },
+      {
+        "away": 7,
+        "home": 2,
+        "type": "Shots off Goal"
+      },
+      {
+        "away": 9,
+        "home": 7,
+        "type": "Total Shots"
+      },
+      {
+        "away": 2,
+        "home": 1,
+        "type": "Blocked Shots"
+      },
+      {
+        "away": 7,
+        "home": 3,
+        "type": "Shots insidebox"
+      },
+      {
+        "away": 2,
+        "home": 4,
+        "type": "Shots outsidebox"
+      },
+      {
+        "away": 12,
+        "home": 11,
+        "type": "Fouls"
+      },
+      {
+        "away": 9,
+        "home": 5,
+        "type": "Corner Kicks"
+      },
+      {
+        "away": 1,
+        "home": 2,
+        "type": "Offsides"
+      },
+      {
+        "away": "30%",
+        "home": "70%",
+        "type": "Ball Possession"
+      },
+      {
+        "away": 3,
+        "home": 5,
+        "type": "Yellow Cards"
+      },
+      {
+        "away": 1,
+        "home": 0,
+        "type": "Red Cards"
+      },
+      {
+        "away": 3,
+        "home": 0,
+        "type": "Goalkeeper Saves"
+      },
+      {
+        "away": 207,
+        "home": 504,
+        "type": "Total passes"
+      },
+      {
+        "away": 123,
+        "home": 422,
+        "type": "Passes accurate"
+      },
+      {
+        "away": "59%",
+        "home": "84%",
+        "type": "Passes %"
+      },
+      {
+        "away": "0.65",
+        "home": "0.59",
+        "type": "expected_goals"
+      },
+      {
+        "away": 0,
+        "home": 0,
+        "type": "goals_prevented"
+      }
+    ]
+  }
+}

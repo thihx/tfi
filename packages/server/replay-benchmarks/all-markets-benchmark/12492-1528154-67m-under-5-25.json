@@ -1,0 +1,345 @@
+{
+  "name": "12492-1528154-67m-under-5-25",
+  "matchId": "1528154",
+  "fixture": {
+    "fixture": {
+      "id": 1528154,
+      "referee": null,
+      "timezone": "UTC",
+      "date": "2026-04-07T12:15:00.000Z",
+      "timestamp": 1775564100,
+      "periods": {
+        "first": null,
+        "second": null
+      },
+      "venue": {
+        "id": null,
+        "name": "Sultan Ibrahim Stadium",
+        "city": null
+      },
+      "status": {
+        "long": "2H",
+        "short": "2H",
+        "elapsed": 67
+      }
+    },
+    "league": {
+      "id": 499,
+      "name": "Malaysia Cup",
+      "country": "",
+      "logo": "",
+      "flag": null,
+      "season": 0,
+      "round": ""
+    },
+    "teams": {
+      "home": {
+        "id": 0,
+        "name": "Johor Darul Takzim FC",
+        "logo": "",
+        "winner": null
+      },
+      "away": {
+        "id": 0,
+        "name": "Kuala Lumpur FA",
+        "logo": "",
+        "winner": null
+      }
+    },
+    "goals": {
+      "home": 3,
+      "away": 0
+    },
+    "score": {
+      "halftime": {
+        "home": null,
+        "away": null
+      },
+      "fulltime": {
+        "home": 3,
+        "away": 0
+      }
+    }
+  },
+  "watchlistEntry": {
+    "match_id": "1528154",
+    "league": "Malaysia Cup",
+    "home_team": "Johor Darul Takzim FC",
+    "away_team": "Kuala Lumpur FA",
+    "mode": "B",
+    "status": "active",
+    "custom_conditions": "",
+    "date": "2026-04-07",
+    "kickoff": "21:15:00",
+    "strategic_context": null
+  },
+  "pipelineOptions": {
+    "forceAnalyze": true,
+    "skipProceedGate": true,
+    "skipStalenessGate": true
+  },
+  "statistics": [
+    {
+      "team": {
+        "id": 0,
+        "name": "Johor Darul Takzim FC",
+        "logo": ""
+      },
+      "statistics": [
+        {
+          "type": "Ball Possession",
+          "value": null
+        },
+        {
+          "type": "Total Shots",
+          "value": null
+        },
+        {
+          "type": "Shots on Goal",
+          "value": null
+        },
+        {
+          "type": "Corner Kicks",
+          "value": null
+        },
+        {
+          "type": "Fouls",
+          "value": null
+        },
+        {
+          "type": "Offsides",
+          "value": null
+        },
+        {
+          "type": "Yellow Cards",
+          "value": null
+        },
+        {
+          "type": "Red Cards",
+          "value": null
+        },
+        {
+          "type": "Goalkeeper Saves",
+          "value": null
+        },
+        {
+          "type": "Blocked Shots",
+          "value": null
+        },
+        {
+          "type": "Total passes",
+          "value": null
+        },
+        {
+          "type": "Passes accurate",
+          "value": null
+        },
+        {
+          "type": "Shots off Goal",
+          "value": null
+        },
+        {
+          "type": "Shots insidebox",
+          "value": null
+        },
+        {
+          "type": "Shots outsidebox",
+          "value": null
+        },
+        {
+          "type": "expected_goals",
+          "value": null
+        },
+        {
+          "type": "goals_prevented",
+          "value": null
+        },
+        {
+          "type": "Passes %",
+          "value": null
+        }
+      ]
+    },
+    {
+      "team": {
+        "id": 0,
+        "name": "Kuala Lumpur FA",
+        "logo": ""
+      },
+      "statistics": [
+        {
+          "type": "Ball Possession",
+          "value": null
+        },
+        {
+          "type": "Total Shots",
+          "value": null
+        },
+        {
+          "type": "Shots on Goal",
+          "value": null
+        },
+        {
+          "type": "Corner Kicks",
+          "value": null
+        },
+        {
+          "type": "Fouls",
+          "value": null
+        },
+        {
+          "type": "Offsides",
+          "value": null
+        },
+        {
+          "type": "Yellow Cards",
+          "value": null
+        },
+        {
+          "type": "Red Cards",
+          "value": null
+        },
+        {
+          "type": "Goalkeeper Saves",
+          "value": null
+        },
+        {
+          "type": "Blocked Shots",
+          "value": null
+        },
+        {
+          "type": "Total passes",
+          "value": null
+        },
+        {
+          "type": "Passes accurate",
+          "value": null
+        },
+        {
+          "type": "Shots off Goal",
+          "value": null
+        },
+        {
+          "type": "Shots insidebox",
+          "value": null
+        },
+        {
+          "type": "Shots outsidebox",
+          "value": null
+        },
+        {
+          "type": "expected_goals",
+          "value": null
+        },
+        {
+          "type": "goals_prevented",
+          "value": null
+        },
+        {
+          "type": "Passes %",
+          "value": null
+        }
+      ]
+    }
+  ],
+  "mockResolvedOdds": {
+    "oddsSource": "live",
+    "response": [
+      {
+        "bookmakers": [
+          {
+            "id": 0,
+            "name": "Replay Mock",
+            "bets": [
+              {
+                "id": 1,
+                "name": "Match Winner",
+                "values": [
+                  {
+                    "value": "Home",
+                    "odd": "1.006"
+                  },
+                  {
+                    "value": "Draw",
+                    "odd": "29"
+                  },
+                  {
+                    "value": "Away",
+                    "odd": "51"
+                  }
+                ]
+              },
+              {
+                "id": 2,
+                "name": "Over/Under",
+                "values": [
+                  {
+                    "value": "Over",
+                    "odd": "1.9",
+                    "handicap": "5.25"
+                  },
+                  {
+                    "value": "Under",
+                    "odd": "1.9",
+                    "handicap": "5.25"
+                  }
+                ]
+              },
+              {
+                "id": 3,
+                "name": "Corners Over/Under",
+                "values": [
+                  {
+                    "value": "Over",
+                    "odd": "2.1",
+                    "handicap": "15.5"
+                  },
+                  {
+                    "value": "Under",
+                    "odd": "1.666",
+                    "handicap": "15.5"
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    ],
+    "oddsFetchedAt": null,
+    "freshness": "fresh",
+    "cacheStatus": "hit"
+  },
+  "previousRecommendations": [],
+  "metadata": {
+    "recommendationId": 12492,
+    "originalPromptVersion": "v4-evidence-hardened",
+    "originalAiModel": "gemini-3-pro-preview",
+    "originalBetMarket": "under_5.25",
+    "originalSelection": "Under 5.25 Goals @1.9",
+    "originalResult": "half_win",
+    "originalPnl": 1.35,
+    "minute": 67,
+    "score": "3-0",
+    "status": "2H",
+    "league": "Malaysia Cup",
+    "homeTeam": "Johor Darul Takzim FC",
+    "awayTeam": "Kuala Lumpur FA",
+    "evidenceMode": "odds_events_only_degraded",
+    "prematchStrength": "moderate",
+    "profileCoverageBand": "partial",
+    "overlayCoverageBand": "none",
+    "policyImpactBand": "clean"
+  },
+  "settlementContext": {
+    "matchId": "1528154",
+    "homeTeam": "Johor Darul Takzim FC",
+    "awayTeam": "Kuala Lumpur FA",
+    "finalStatus": "FT",
+    "homeScore": 4,
+    "awayScore": 1,
+    "regularHomeScore": 4,
+    "regularAwayScore": 1,
+    "settlementStats": []
+  }
+}

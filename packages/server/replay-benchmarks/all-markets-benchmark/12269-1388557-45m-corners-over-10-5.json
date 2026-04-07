@@ -1,0 +1,445 @@
+{
+  "name": "12269-1388557-45m-corners-over-10-5",
+  "matchId": "1388557",
+  "fixture": {
+    "fixture": {
+      "id": 1388557,
+      "referee": null,
+      "timezone": "UTC",
+      "date": "2026-04-04T16:30:00.000Z",
+      "timestamp": 1775320200,
+      "periods": {
+        "first": null,
+        "second": null
+      },
+      "venue": {
+        "id": null,
+        "name": "MHPArena",
+        "city": null
+      },
+      "status": {
+        "long": "HT",
+        "short": "HT",
+        "elapsed": 45
+      }
+    },
+    "league": {
+      "id": 78,
+      "name": "Bundesliga",
+      "country": "",
+      "logo": "",
+      "flag": null,
+      "season": 0,
+      "round": ""
+    },
+    "teams": {
+      "home": {
+        "id": 0,
+        "name": "VfB Stuttgart",
+        "logo": "",
+        "winner": null
+      },
+      "away": {
+        "id": 0,
+        "name": "Borussia Dortmund",
+        "logo": "",
+        "winner": null
+      }
+    },
+    "goals": {
+      "home": 0,
+      "away": 0
+    },
+    "score": {
+      "halftime": {
+        "home": null,
+        "away": null
+      },
+      "fulltime": {
+        "home": 0,
+        "away": 0
+      }
+    }
+  },
+  "watchlistEntry": {
+    "match_id": "1388557",
+    "league": "Bundesliga",
+    "home_team": "VfB Stuttgart",
+    "away_team": "Borussia Dortmund",
+    "mode": "B",
+    "status": "active",
+    "custom_conditions": "",
+    "date": "2026-04-05",
+    "kickoff": "01:30:00",
+    "strategic_context": null
+  },
+  "pipelineOptions": {
+    "forceAnalyze": true,
+    "skipProceedGate": true,
+    "skipStalenessGate": true
+  },
+  "statistics": [
+    {
+      "team": {
+        "id": 0,
+        "name": "VfB Stuttgart",
+        "logo": ""
+      },
+      "statistics": [
+        {
+          "type": "Ball Possession",
+          "value": "72%"
+        },
+        {
+          "type": "Total Shots",
+          "value": "8"
+        },
+        {
+          "type": "Shots on Goal",
+          "value": "2"
+        },
+        {
+          "type": "Corner Kicks",
+          "value": "4"
+        },
+        {
+          "type": "Fouls",
+          "value": "7"
+        },
+        {
+          "type": "Offsides",
+          "value": null
+        },
+        {
+          "type": "Yellow Cards",
+          "value": "0"
+        },
+        {
+          "type": "Red Cards",
+          "value": null
+        },
+        {
+          "type": "Goalkeeper Saves",
+          "value": "1"
+        },
+        {
+          "type": "Blocked Shots",
+          "value": "3"
+        },
+        {
+          "type": "Total passes",
+          "value": "321"
+        },
+        {
+          "type": "Passes accurate",
+          "value": "275"
+        },
+        {
+          "type": "Shots off Goal",
+          "value": "3"
+        },
+        {
+          "type": "Shots insidebox",
+          "value": "4"
+        },
+        {
+          "type": "Shots outsidebox",
+          "value": "4"
+        },
+        {
+          "type": "expected_goals",
+          "value": "0.40"
+        },
+        {
+          "type": "goals_prevented",
+          "value": "0"
+        },
+        {
+          "type": "Passes %",
+          "value": "86%"
+        }
+      ]
+    },
+    {
+      "team": {
+        "id": 0,
+        "name": "Borussia Dortmund",
+        "logo": ""
+      },
+      "statistics": [
+        {
+          "type": "Ball Possession",
+          "value": "28%"
+        },
+        {
+          "type": "Total Shots",
+          "value": "2"
+        },
+        {
+          "type": "Shots on Goal",
+          "value": "1"
+        },
+        {
+          "type": "Corner Kicks",
+          "value": "1"
+        },
+        {
+          "type": "Fouls",
+          "value": "5"
+        },
+        {
+          "type": "Offsides",
+          "value": null
+        },
+        {
+          "type": "Yellow Cards",
+          "value": "1"
+        },
+        {
+          "type": "Red Cards",
+          "value": null
+        },
+        {
+          "type": "Goalkeeper Saves",
+          "value": "2"
+        },
+        {
+          "type": "Blocked Shots",
+          "value": "0"
+        },
+        {
+          "type": "Total passes",
+          "value": "124"
+        },
+        {
+          "type": "Passes accurate",
+          "value": "84"
+        },
+        {
+          "type": "Shots off Goal",
+          "value": "1"
+        },
+        {
+          "type": "Shots insidebox",
+          "value": "1"
+        },
+        {
+          "type": "Shots outsidebox",
+          "value": "1"
+        },
+        {
+          "type": "expected_goals",
+          "value": "0.07"
+        },
+        {
+          "type": "goals_prevented",
+          "value": "0"
+        },
+        {
+          "type": "Passes %",
+          "value": "68%"
+        }
+      ]
+    }
+  ],
+  "mockResolvedOdds": {
+    "oddsSource": "live",
+    "response": [
+      {
+        "bookmakers": [
+          {
+            "id": 0,
+            "name": "Replay Mock",
+            "bets": [
+              {
+                "id": 1,
+                "name": "Over/Under",
+                "values": [
+                  {
+                    "value": "Over",
+                    "odd": "2",
+                    "handicap": "1.75"
+                  },
+                  {
+                    "value": "Under",
+                    "odd": "1.85",
+                    "handicap": "1.75"
+                  }
+                ]
+              },
+              {
+                "id": 2,
+                "name": "Corners Over/Under",
+                "values": [
+                  {
+                    "value": "Over",
+                    "odd": "1.975",
+                    "handicap": "10.5"
+                  },
+                  {
+                    "value": "Under",
+                    "odd": "1.825",
+                    "handicap": "10.5"
+                  }
+                ]
+              },
+              {
+                "id": 3,
+                "name": "Both Teams Score",
+                "values": [
+                  {
+                    "value": "Yes",
+                    "odd": "2.5"
+                  },
+                  {
+                    "value": "No",
+                    "odd": "1.5"
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    ],
+    "oddsFetchedAt": null,
+    "freshness": "fresh",
+    "cacheStatus": "hit"
+  },
+  "previousRecommendations": [
+    {
+      "minute": 45,
+      "odds": "2.000",
+      "bet_market": "over_1.75",
+      "selection": "Over 1.75 Goals @ 2",
+      "score": "0-0",
+      "status": "HT",
+      "result": "half_win",
+      "confidence": 6,
+      "stake_percent": "3.00",
+      "reasoning": "Break-even about 50.0%. My fair range is around 55-58%. Edge looks about 6%. Stuttgart is heavily controlling the match with 72% possession and 8 shots (4 inside the box), indicating sustained territorial pressure despite the 0-0 scoreline. While first-half xG was modest, the Bundesliga's strong goal priors (avg 3.2 goals, 62.8% Over 2.5 rate) align well with the expectation that the game will open up in the second half. Stuttgart's push for a home win will likely create chances while leaving space for Dortmund's counter-attacks. The Over 1.75 line offers a half-win if exactly two goals are scored, making it a sensible entry."
+    }
+  ],
+  "metadata": {
+    "recommendationId": 12269,
+    "originalPromptVersion": "v8-market-balance-followup-d",
+    "originalAiModel": "gemini-3-pro-preview",
+    "originalBetMarket": "corners_over_10.5",
+    "originalSelection": "Corners Over 10.5 @1.975",
+    "originalResult": "loss",
+    "originalPnl": -3,
+    "minute": 45,
+    "score": "0-0",
+    "status": "HT",
+    "league": "Bundesliga",
+    "homeTeam": "VfB Stuttgart",
+    "awayTeam": "Borussia Dortmund",
+    "evidenceMode": "full_live_data",
+    "prematchStrength": "weak",
+    "profileCoverageBand": "partial",
+    "overlayCoverageBand": "none",
+    "policyImpactBand": "clean"
+  },
+  "settlementContext": {
+    "matchId": "1388557",
+    "homeTeam": "VfB Stuttgart",
+    "awayTeam": "Borussia Dortmund",
+    "finalStatus": "FT",
+    "homeScore": 0,
+    "awayScore": 2,
+    "regularHomeScore": 0,
+    "regularAwayScore": 2,
+    "settlementStats": [
+      {
+        "away": 2,
+        "home": 3,
+        "type": "Shots on Goal"
+      },
+      {
+        "away": 1,
+        "home": 5,
+        "type": "Shots off Goal"
+      },
+      {
+        "away": 4,
+        "home": 12,
+        "type": "Total Shots"
+      },
+      {
+        "away": 1,
+        "home": 4,
+        "type": "Blocked Shots"
+      },
+      {
+        "away": 3,
+        "home": 6,
+        "type": "Shots insidebox"
+      },
+      {
+        "away": 1,
+        "home": 6,
+        "type": "Shots outsidebox"
+      },
+      {
+        "away": 12,
+        "home": 10,
+        "type": "Fouls"
+      },
+      {
+        "away": 2,
+        "home": 5,
+        "type": "Corner Kicks"
+      },
+      {
+        "away": 0,
+        "home": 3,
+        "type": "Offsides"
+      },
+      {
+        "away": "33%",
+        "home": "67%",
+        "type": "Ball Possession"
+      },
+      {
+        "away": 3,
+        "home": 1,
+        "type": "Yellow Cards"
+      },
+      {
+        "away": null,
+        "home": null,
+        "type": "Red Cards"
+      },
+      {
+        "away": 3,
+        "home": 1,
+        "type": "Goalkeeper Saves"
+      },
+      {
+        "away": 300,
+        "home": 608,
+        "type": "Total passes"
+      },
+      {
+        "away": 210,
+        "home": 513,
+        "type": "Passes accurate"
+      },
+      {
+        "away": "70%",
+        "home": "84%",
+        "type": "Passes %"
+      },
+      {
+        "away": "0.14",
+        "home": "0.55",
+        "type": "expected_goals"
+      },
+      {
+        "away": 0,
+        "home": 0,
+        "type": "goals_prevented"
+      }
+    ]
+  }
+}

@@ -1,0 +1,206 @@
+{
+  "name": "struct-nobet-40",
+  "matchId": "struct-910004",
+  "fixture": {
+    "fixture": {
+      "id": 910004,
+      "referee": null,
+      "timezone": "UTC",
+      "date": "2026-04-05T15:00:00.000Z",
+      "timestamp": 1743865200,
+      "periods": {
+        "first": 45,
+        "second": null
+      },
+      "venue": {
+        "id": null,
+        "name": null,
+        "city": null
+      },
+      "status": {
+        "long": "Second Half",
+        "short": "2H",
+        "elapsed": 40
+      }
+    },
+    "league": {
+      "id": 999,
+      "name": "Structural Test League",
+      "country": "World",
+      "logo": "",
+      "flag": null,
+      "season": 2026,
+      "round": "Round 1"
+    },
+    "teams": {
+      "home": {
+        "id": 101,
+        "name": "Alpha FC",
+        "logo": "",
+        "winner": null
+      },
+      "away": {
+        "id": 102,
+        "name": "Beta United",
+        "logo": "",
+        "winner": null
+      }
+    },
+    "goals": {
+      "home": 0,
+      "away": 0
+    },
+    "score": {
+      "halftime": {
+        "home": null,
+        "away": null
+      },
+      "fulltime": {
+        "home": null,
+        "away": null
+      }
+    }
+  },
+  "watchlistEntry": {
+    "match_id": "struct-910004",
+    "league": "Structural Test League",
+    "home_team": "Alpha FC",
+    "away_team": "Beta United",
+    "mode": "B",
+    "status": "active",
+    "custom_conditions": "",
+    "date": "2026-04-05",
+    "kickoff": "15:00",
+    "strategic_context": null
+  },
+  "pipelineOptions": {
+    "forceAnalyze": true,
+    "skipProceedGate": true,
+    "skipStalenessGate": true
+  },
+  "statistics": [
+    {
+      "team": {
+        "id": 1,
+        "name": "Alpha FC",
+        "logo": ""
+      },
+      "statistics": [
+        {
+          "type": "Ball Possession",
+          "value": "52%"
+        },
+        {
+          "type": "Total Shots",
+          "value": "9"
+        },
+        {
+          "type": "Shots on Goal",
+          "value": "3"
+        }
+      ]
+    },
+    {
+      "team": {
+        "id": 2,
+        "name": "Beta United",
+        "logo": ""
+      },
+      "statistics": [
+        {
+          "type": "Ball Possession",
+          "value": "48%"
+        },
+        {
+          "type": "Total Shots",
+          "value": "6"
+        },
+        {
+          "type": "Shots on Goal",
+          "value": "2"
+        }
+      ]
+    }
+  ],
+  "events": [],
+  "mockResolvedOdds": {
+    "oddsSource": "live",
+    "response": [
+      {
+        "bookmakers": [
+          {
+            "name": "Structural Replay",
+            "bets": [
+              {
+                "name": "Over/Under",
+                "values": [
+                  {
+                    "value": "Over",
+                    "odd": "1.91",
+                    "handicap": "2.5"
+                  },
+                  {
+                    "value": "Under",
+                    "odd": "1.93",
+                    "handicap": "2.5"
+                  }
+                ]
+              },
+              {
+                "name": "Corners Over/Under",
+                "values": [
+                  {
+                    "value": "Over",
+                    "odd": "2.10",
+                    "handicap": "10"
+                  },
+                  {
+                    "value": "Under",
+                    "odd": "2.20",
+                    "handicap": "10"
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    ],
+    "oddsFetchedAt": "2026-04-06T22:58:47.505Z",
+    "freshness": "fresh",
+    "cacheStatus": "hit"
+  },
+  "mockAiText": "{\"should_push\":false,\"ai_should_push\":false,\"selection\":\"No bet\",\"bet_market\":\"\",\"confidence\":4,\"reasoning_en\":\"Structural replay fixture.\",\"reasoning_vi\":\"Structural replay fixture.\",\"warnings\":[],\"value_percent\":8,\"risk_level\":\"MEDIUM\",\"stake_percent\":3,\"condition_triggered_suggestion\":\"\",\"custom_condition_matched\":false}",
+  "previousRecommendations": [],
+  "metadata": {
+    "recommendationId": 910004,
+    "originalPromptVersion": "v8-market-balance-followup-h",
+    "originalAiModel": "structural-fixture",
+    "originalBetMarket": "under_2.5",
+    "originalSelection": "Under 2.5 Goals @1.93",
+    "originalResult": "win",
+    "originalPnl": 0,
+    "minute": 40,
+    "score": "0-0",
+    "status": "2H",
+    "league": "Structural Test League",
+    "homeTeam": "Alpha FC",
+    "awayTeam": "Beta United",
+    "evidenceMode": "full_live_data",
+    "prematchStrength": "strong",
+    "profileCoverageBand": "high",
+    "overlayCoverageBand": "neutral",
+    "policyImpactBand": "none"
+  },
+  "settlementContext": {
+    "matchId": "struct-910004",
+    "homeTeam": "Alpha FC",
+    "awayTeam": "Beta United",
+    "finalStatus": "FT",
+    "homeScore": 0,
+    "awayScore": 0,
+    "regularHomeScore": 0,
+    "regularAwayScore": 0,
+    "settlementStats": []
+  }
+}

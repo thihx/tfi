@@ -1,5 +1,5 @@
-import { mkdirSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
-import { dirname, extname, resolve } from 'node:path';
+import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { dirname, resolve } from 'node:path';
 import { config } from '../config.js';
 import { callGemini } from '../lib/gemini.js';
 import { runReplayScenario } from '../lib/pipeline-replay.js';
@@ -16,6 +16,7 @@ import {
   loadReplayLlmCache,
   saveReplayLlmCache,
 } from '../lib/replay-llm-cache.js';
+import { listReplayScenarioJsonBasenames } from '../lib/replay-scenario-files.js';
 
 interface EvaluateArgs {
   dirPath: string;
@@ -263,9 +264,7 @@ async function main(): Promise<void> {
   if (!args.allowRealLlm) {
     throw new Error('Refusing to run real-LLM self-audit without explicit opt-in. Re-run with --allow-real-llm or set ALLOW_REAL_LLM_REPLAY=true.');
   }
-  const files = readdirSync(args.dirPath)
-    .filter((name) => extname(name).toLowerCase() === '.json' && !name.startsWith('_'))
-    .sort((a, b) => a.localeCompare(b));
+  const files = listReplayScenarioJsonBasenames(args.dirPath);
 
   if (files.length === 0) {
     throw new Error(`No scenario JSON files found in ${args.dirPath}`);

@@ -1,0 +1,445 @@
+{
+  "name": "11821-1531572-36m-corners-over-14",
+  "matchId": "1531572",
+  "fixture": {
+    "fixture": {
+      "id": 1531572,
+      "referee": null,
+      "timezone": "UTC",
+      "date": "2026-04-04T19:00:00.000Z",
+      "timestamp": 1775329200,
+      "periods": {
+        "first": null,
+        "second": null
+      },
+      "venue": {
+        "id": null,
+        "name": "St. Mary's Stadium",
+        "city": null
+      },
+      "status": {
+        "long": "1H",
+        "short": "1H",
+        "elapsed": 36
+      }
+    },
+    "league": {
+      "id": 45,
+      "name": "FA Cup",
+      "country": "",
+      "logo": "",
+      "flag": null,
+      "season": 0,
+      "round": ""
+    },
+    "teams": {
+      "home": {
+        "id": 0,
+        "name": "Southampton",
+        "logo": "",
+        "winner": null
+      },
+      "away": {
+        "id": 0,
+        "name": "Arsenal",
+        "logo": "",
+        "winner": null
+      }
+    },
+    "goals": {
+      "home": 1,
+      "away": 0
+    },
+    "score": {
+      "halftime": {
+        "home": null,
+        "away": null
+      },
+      "fulltime": {
+        "home": 1,
+        "away": 0
+      }
+    }
+  },
+  "watchlistEntry": {
+    "match_id": "1531572",
+    "league": "FA Cup",
+    "home_team": "Southampton",
+    "away_team": "Arsenal",
+    "mode": "B",
+    "status": "active",
+    "custom_conditions": "",
+    "date": "2026-04-05",
+    "kickoff": "04:00:00",
+    "strategic_context": null
+  },
+  "pipelineOptions": {
+    "forceAnalyze": true,
+    "skipProceedGate": true,
+    "skipStalenessGate": true
+  },
+  "statistics": [
+    {
+      "team": {
+        "id": 0,
+        "name": "Southampton",
+        "logo": ""
+      },
+      "statistics": [
+        {
+          "type": "Ball Possession",
+          "value": "28%"
+        },
+        {
+          "type": "Total Shots",
+          "value": "1"
+        },
+        {
+          "type": "Shots on Goal",
+          "value": "0"
+        },
+        {
+          "type": "Corner Kicks",
+          "value": "0"
+        },
+        {
+          "type": "Fouls",
+          "value": "4"
+        },
+        {
+          "type": "Offsides",
+          "value": null
+        },
+        {
+          "type": "Yellow Cards",
+          "value": "1"
+        },
+        {
+          "type": "Red Cards",
+          "value": null
+        },
+        {
+          "type": "Goalkeeper Saves",
+          "value": "3"
+        },
+        {
+          "type": "Blocked Shots",
+          "value": "1"
+        },
+        {
+          "type": "Total passes",
+          "value": "86"
+        },
+        {
+          "type": "Passes accurate",
+          "value": "65"
+        },
+        {
+          "type": "Shots off Goal",
+          "value": "0"
+        },
+        {
+          "type": "Shots insidebox",
+          "value": "1"
+        },
+        {
+          "type": "Shots outsidebox",
+          "value": "0"
+        },
+        {
+          "type": "expected_goals",
+          "value": null
+        },
+        {
+          "type": "goals_prevented",
+          "value": null
+        },
+        {
+          "type": "Passes %",
+          "value": "76%"
+        }
+      ]
+    },
+    {
+      "team": {
+        "id": 0,
+        "name": "Arsenal",
+        "logo": ""
+      },
+      "statistics": [
+        {
+          "type": "Ball Possession",
+          "value": "72%"
+        },
+        {
+          "type": "Total Shots",
+          "value": "11"
+        },
+        {
+          "type": "Shots on Goal",
+          "value": "3"
+        },
+        {
+          "type": "Corner Kicks",
+          "value": "7"
+        },
+        {
+          "type": "Fouls",
+          "value": "3"
+        },
+        {
+          "type": "Offsides",
+          "value": null
+        },
+        {
+          "type": "Yellow Cards",
+          "value": "0"
+        },
+        {
+          "type": "Red Cards",
+          "value": null
+        },
+        {
+          "type": "Goalkeeper Saves",
+          "value": "0"
+        },
+        {
+          "type": "Blocked Shots",
+          "value": "6"
+        },
+        {
+          "type": "Total passes",
+          "value": "210"
+        },
+        {
+          "type": "Passes accurate",
+          "value": "195"
+        },
+        {
+          "type": "Shots off Goal",
+          "value": "2"
+        },
+        {
+          "type": "Shots insidebox",
+          "value": "7"
+        },
+        {
+          "type": "Shots outsidebox",
+          "value": "4"
+        },
+        {
+          "type": "expected_goals",
+          "value": null
+        },
+        {
+          "type": "goals_prevented",
+          "value": null
+        },
+        {
+          "type": "Passes %",
+          "value": "93%"
+        }
+      ]
+    }
+  ],
+  "mockResolvedOdds": {
+    "oddsSource": "live",
+    "response": [
+      {
+        "bookmakers": [
+          {
+            "id": 0,
+            "name": "Replay Mock",
+            "bets": [
+              {
+                "id": 1,
+                "name": "Over/Under",
+                "values": [
+                  {
+                    "value": "Over",
+                    "odd": "2.05",
+                    "handicap": "3.25"
+                  },
+                  {
+                    "value": "Under",
+                    "odd": "1.8",
+                    "handicap": "3.25"
+                  }
+                ]
+              },
+              {
+                "id": 2,
+                "name": "Corners Over/Under",
+                "values": [
+                  {
+                    "value": "Over",
+                    "odd": "2.1",
+                    "handicap": "14"
+                  },
+                  {
+                    "value": "Under",
+                    "odd": "2.2",
+                    "handicap": "14"
+                  }
+                ]
+              },
+              {
+                "id": 3,
+                "name": "Both Teams Score",
+                "values": [
+                  {
+                    "value": "Yes",
+                    "odd": "1.142"
+                  },
+                  {
+                    "value": "No",
+                    "odd": "5.5"
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    ],
+    "oddsFetchedAt": null,
+    "freshness": "fresh",
+    "cacheStatus": "hit"
+  },
+  "previousRecommendations": [
+    {
+      "minute": 64,
+      "odds": "2.000",
+      "bet_market": "over_2.25",
+      "selection": "Over 2.25 Goals @2",
+      "score": "1-0",
+      "status": "2H",
+      "result": "win",
+      "confidence": 6,
+      "stake_percent": "3.00",
+      "reasoning": "Arsenal is trailing 1-0 but dominating the match with 65% possession, 15 shots (10 inside the box), and heavy final-third pressure. The class mismatch is evident, and Arsenal's aggressive triple substitution at minute 60 (including Gyokeres and Madueke) confirms their intent to chase the game. This trailing favorite scenario creates an asymmetric, high-tempo environment. While Over 2.25 requires two more goals for a full win, the overwhelming live evidence and tactical urgency support the Over. Break-even about 50.0%. My fair range is around 55-58%. Edge looks about 5%."
+    }
+  ],
+  "metadata": {
+    "recommendationId": 11821,
+    "originalPromptVersion": "v8-market-balance-followup-e",
+    "originalAiModel": "gemini-3-pro-preview",
+    "originalBetMarket": "corners_over_14",
+    "originalSelection": "Corners Over 14 @2.1",
+    "originalResult": "loss",
+    "originalPnl": -3,
+    "minute": 36,
+    "score": "1-0",
+    "status": "1H",
+    "league": "FA Cup",
+    "homeTeam": "Southampton",
+    "awayTeam": "Arsenal",
+    "evidenceMode": "full_live_data",
+    "prematchStrength": "none",
+    "profileCoverageBand": "unknown",
+    "overlayCoverageBand": "none",
+    "policyImpactBand": "clean"
+  },
+  "settlementContext": {
+    "matchId": "1531572",
+    "homeTeam": "Southampton",
+    "awayTeam": "Arsenal",
+    "finalStatus": "FT",
+    "homeScore": 2,
+    "awayScore": 1,
+    "regularHomeScore": 2,
+    "regularAwayScore": 1,
+    "settlementStats": [
+      {
+        "away": 7,
+        "home": 3,
+        "type": "Shots on Goal"
+      },
+      {
+        "away": 6,
+        "home": 3,
+        "type": "Shots off Goal"
+      },
+      {
+        "away": 23,
+        "home": 7,
+        "type": "Total Shots"
+      },
+      {
+        "away": 10,
+        "home": 1,
+        "type": "Blocked Shots"
+      },
+      {
+        "away": 15,
+        "home": 6,
+        "type": "Shots insidebox"
+      },
+      {
+        "away": 8,
+        "home": 1,
+        "type": "Shots outsidebox"
+      },
+      {
+        "away": 11,
+        "home": 9,
+        "type": "Fouls"
+      },
+      {
+        "away": 9,
+        "home": 3,
+        "type": "Corner Kicks"
+      },
+      {
+        "away": null,
+        "home": null,
+        "type": "Offsides"
+      },
+      {
+        "away": "64%",
+        "home": "36%",
+        "type": "Ball Possession"
+      },
+      {
+        "away": 1,
+        "home": 2,
+        "type": "Yellow Cards"
+      },
+      {
+        "away": null,
+        "home": null,
+        "type": "Red Cards"
+      },
+      {
+        "away": 1,
+        "home": 6,
+        "type": "Goalkeeper Saves"
+      },
+      {
+        "away": 515,
+        "home": 295,
+        "type": "Total passes"
+      },
+      {
+        "away": 458,
+        "home": 233,
+        "type": "Passes accurate"
+      },
+      {
+        "away": "89%",
+        "home": "79%",
+        "type": "Passes %"
+      },
+      {
+        "away": null,
+        "home": null,
+        "type": "expected_goals"
+      },
+      {
+        "away": null,
+        "home": null,
+        "type": "goals_prevented"
+      }
+    ]
+  }
+}

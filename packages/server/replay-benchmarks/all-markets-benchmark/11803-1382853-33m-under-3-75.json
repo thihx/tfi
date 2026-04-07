@@ -1,0 +1,463 @@
+{
+  "name": "11803-1382853-33m-under-3-75",
+  "matchId": "1382853",
+  "fixture": {
+    "fixture": {
+      "id": 1382853,
+      "referee": null,
+      "timezone": "UTC",
+      "date": "2026-04-04T14:00:00.000Z",
+      "timestamp": 1775311200,
+      "periods": {
+        "first": null,
+        "second": null
+      },
+      "venue": {
+        "id": null,
+        "name": "Easter Road",
+        "city": null
+      },
+      "status": {
+        "long": "1H",
+        "short": "1H",
+        "elapsed": 33
+      }
+    },
+    "league": {
+      "id": 179,
+      "name": "Premiership",
+      "country": "",
+      "logo": "",
+      "flag": null,
+      "season": 0,
+      "round": ""
+    },
+    "teams": {
+      "home": {
+        "id": 249,
+        "name": "Hibernian",
+        "logo": "",
+        "winner": null
+      },
+      "away": {
+        "id": 250,
+        "name": "Kilmarnock",
+        "logo": "",
+        "winner": null
+      }
+    },
+    "goals": {
+      "home": 2,
+      "away": 0
+    },
+    "score": {
+      "halftime": {
+        "home": null,
+        "away": null
+      },
+      "fulltime": {
+        "home": 2,
+        "away": 0
+      }
+    }
+  },
+  "watchlistEntry": {
+    "match_id": "1382853",
+    "league": "Premiership",
+    "home_team": "Hibernian",
+    "away_team": "Kilmarnock",
+    "mode": "B",
+    "status": "active",
+    "custom_conditions": "",
+    "date": "2026-04-04",
+    "kickoff": "14:00:00",
+    "strategic_context": null
+  },
+  "pipelineOptions": {
+    "forceAnalyze": true,
+    "skipProceedGate": true,
+    "skipStalenessGate": true
+  },
+  "statistics": [
+    {
+      "team": {
+        "id": 0,
+        "name": "Hibernian",
+        "logo": ""
+      },
+      "statistics": [
+        {
+          "type": "Ball Possession",
+          "value": "67%"
+        },
+        {
+          "type": "Total Shots",
+          "value": "4"
+        },
+        {
+          "type": "Shots on Goal",
+          "value": "2"
+        },
+        {
+          "type": "Corner Kicks",
+          "value": "1"
+        },
+        {
+          "type": "Fouls",
+          "value": "2"
+        },
+        {
+          "type": "Offsides",
+          "value": null
+        },
+        {
+          "type": "Yellow Cards",
+          "value": "0"
+        },
+        {
+          "type": "Red Cards",
+          "value": null
+        },
+        {
+          "type": "Goalkeeper Saves",
+          "value": null
+        },
+        {
+          "type": "Blocked Shots",
+          "value": "1"
+        },
+        {
+          "type": "Total passes",
+          "value": "184"
+        },
+        {
+          "type": "Passes accurate",
+          "value": "158"
+        },
+        {
+          "type": "Shots off Goal",
+          "value": "1"
+        },
+        {
+          "type": "Shots insidebox",
+          "value": "4"
+        },
+        {
+          "type": "Shots outsidebox",
+          "value": "0"
+        },
+        {
+          "type": "expected_goals",
+          "value": "1.71"
+        },
+        {
+          "type": "goals_prevented",
+          "value": "0"
+        },
+        {
+          "type": "Passes %",
+          "value": "86%"
+        }
+      ]
+    },
+    {
+      "team": {
+        "id": 0,
+        "name": "Kilmarnock",
+        "logo": ""
+      },
+      "statistics": [
+        {
+          "type": "Ball Possession",
+          "value": "33%"
+        },
+        {
+          "type": "Total Shots",
+          "value": "1"
+        },
+        {
+          "type": "Shots on Goal",
+          "value": "1"
+        },
+        {
+          "type": "Corner Kicks",
+          "value": "1"
+        },
+        {
+          "type": "Fouls",
+          "value": "5"
+        },
+        {
+          "type": "Offsides",
+          "value": null
+        },
+        {
+          "type": "Yellow Cards",
+          "value": "1"
+        },
+        {
+          "type": "Red Cards",
+          "value": null
+        },
+        {
+          "type": "Goalkeeper Saves",
+          "value": null
+        },
+        {
+          "type": "Blocked Shots",
+          "value": "0"
+        },
+        {
+          "type": "Total passes",
+          "value": "90"
+        },
+        {
+          "type": "Passes accurate",
+          "value": "70"
+        },
+        {
+          "type": "Shots off Goal",
+          "value": "0"
+        },
+        {
+          "type": "Shots insidebox",
+          "value": "1"
+        },
+        {
+          "type": "Shots outsidebox",
+          "value": "0"
+        },
+        {
+          "type": "expected_goals",
+          "value": "0.26"
+        },
+        {
+          "type": "goals_prevented",
+          "value": "0"
+        },
+        {
+          "type": "Passes %",
+          "value": "78%"
+        }
+      ]
+    }
+  ],
+  "mockResolvedOdds": {
+    "oddsSource": "live",
+    "response": [
+      {
+        "bookmakers": [
+          {
+            "id": 0,
+            "name": "Replay Mock",
+            "bets": [
+              {
+                "id": 1,
+                "name": "Match Winner",
+                "values": [
+                  {
+                    "value": "Home",
+                    "odd": "1.035"
+                  },
+                  {
+                    "value": "Draw",
+                    "odd": "15"
+                  },
+                  {
+                    "value": "Away",
+                    "odd": "41"
+                  }
+                ]
+              },
+              {
+                "id": 2,
+                "name": "Over/Under",
+                "values": [
+                  {
+                    "value": "Over",
+                    "odd": "1.85",
+                    "handicap": "3.75"
+                  },
+                  {
+                    "value": "Under",
+                    "odd": "2",
+                    "handicap": "3.75"
+                  }
+                ]
+              },
+              {
+                "id": 3,
+                "name": "Corners Over/Under",
+                "values": [
+                  {
+                    "value": "Over",
+                    "odd": "1.95",
+                    "handicap": "8.5"
+                  },
+                  {
+                    "value": "Under",
+                    "odd": "1.85",
+                    "handicap": "8.5"
+                  }
+                ]
+              },
+              {
+                "id": 4,
+                "name": "Both Teams Score",
+                "values": [
+                  {
+                    "value": "Yes",
+                    "odd": "1.909"
+                  },
+                  {
+                    "value": "No",
+                    "odd": "1.909"
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    ],
+    "oddsFetchedAt": null,
+    "freshness": "fresh",
+    "cacheStatus": "hit"
+  },
+  "previousRecommendations": [
+    {
+      "minute": 33,
+      "odds": "1.850",
+      "bet_market": "under_8.5",
+      "selection": "Under 8.5 Goals @1.85",
+      "score": "2-0",
+      "status": "1H",
+      "result": "win",
+      "confidence": 8,
+      "stake_percent": "5.00",
+      "reasoning": "Team priors are neutral (avg 1.64 goals scored, 52% over 2.5 rate), which aligns with the live suppression of only 5 total shots. The match currently has 2 goals at minute 33. Despite Hibernian's clinical 2-0 lead, the overall match pace does not support an extreme 9-goal shootout. The Under 8.5 goals line offers an enormous cushion. Break-even is about 54%. My fair range is around 90-95%. Edge looks about 40%."
+    }
+  ],
+  "metadata": {
+    "recommendationId": 11803,
+    "originalPromptVersion": "v8-market-balance-followup-e",
+    "originalAiModel": "gemini-3-pro-preview",
+    "originalBetMarket": "under_3.75",
+    "originalSelection": "Under 3.75 Goals @2",
+    "originalResult": "win",
+    "originalPnl": 4,
+    "minute": 33,
+    "score": "2-0",
+    "status": "1H",
+    "league": "Premiership",
+    "homeTeam": "Hibernian",
+    "awayTeam": "Kilmarnock",
+    "evidenceMode": "full_live_data",
+    "prematchStrength": "strong",
+    "profileCoverageBand": "partial",
+    "overlayCoverageBand": "none",
+    "policyImpactBand": "clean"
+  },
+  "settlementContext": {
+    "matchId": "1382853",
+    "homeTeam": "Hibernian",
+    "awayTeam": "Kilmarnock",
+    "finalStatus": "FT",
+    "homeScore": 3,
+    "awayScore": 0,
+    "regularHomeScore": 3,
+    "regularAwayScore": 0,
+    "settlementStats": [
+      {
+        "away": 1,
+        "home": 2,
+        "type": "Shots on Goal"
+      },
+      {
+        "away": 1,
+        "home": 1,
+        "type": "Shots off Goal"
+      },
+      {
+        "away": 3,
+        "home": 4,
+        "type": "Total Shots"
+      },
+      {
+        "away": 1,
+        "home": 1,
+        "type": "Blocked Shots"
+      },
+      {
+        "away": 2,
+        "home": 4,
+        "type": "Shots insidebox"
+      },
+      {
+        "away": 1,
+        "home": 0,
+        "type": "Shots outsidebox"
+      },
+      {
+        "away": 8,
+        "home": 3,
+        "type": "Fouls"
+      },
+      {
+        "away": 5,
+        "home": 1,
+        "type": "Corner Kicks"
+      },
+      {
+        "away": 1,
+        "home": 1,
+        "type": "Offsides"
+      },
+      {
+        "away": "41%",
+        "home": "59%",
+        "type": "Ball Possession"
+      },
+      {
+        "away": 2,
+        "home": 0,
+        "type": "Yellow Cards"
+      },
+      {
+        "away": null,
+        "home": null,
+        "type": "Red Cards"
+      },
+      {
+        "away": 0,
+        "home": 1,
+        "type": "Goalkeeper Saves"
+      },
+      {
+        "away": 164,
+        "home": 246,
+        "type": "Total passes"
+      },
+      {
+        "away": 137,
+        "home": 209,
+        "type": "Passes accurate"
+      },
+      {
+        "away": "84%",
+        "home": "85%",
+        "type": "Passes %"
+      },
+      {
+        "away": "0.07",
+        "home": "1.71",
+        "type": "expected_goals"
+      },
+      {
+        "away": 0,
+        "home": 0,
+        "type": "goals_prevented"
+      }
+    ]
+  }
+}

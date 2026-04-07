@@ -128,16 +128,16 @@ Real verified success:
 - Telegram notification delivered
 - DB row persisted with notification metadata after bug fix
 
-### Fallbacks / Benchmark
+### Provider sampling / odds
 
 Observed in real validation passes:
 - `api-football` live odds used successfully
-- `live-score-api` benchmark samples persisted alongside `api-football`
 - `the-odds-api` was observed in earlier real/provider-sample passes the same day, though not on the latest 3-match live slate
 
+*(2026-04: Live Score API benchmark and web live fallback were removed; stats samples are `api-football` only.)*
+
 Conclusion:
-- benchmark instrumentation is working
-- provider sampling is producing usable evidence for future provider decisions
+- provider sampling continues to support observability for the primary football data provider
 
 ### Settle
 

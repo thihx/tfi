@@ -1,7 +1,6 @@
 import { readFileSync } from 'node:fs';
 import type { ApiFixture, ApiFixtureEvent, ApiFixtureStat } from './football-api.js';
 import { resolveMatchOdds, type ResolveMatchOddsResult } from './odds-resolver.js';
-import { fetchTheOddsLiveDetailed, type TheOddsEvent } from './the-odds-api.js';
 import { runPipelineForFixture, type MatchPipelineResult } from './server-pipeline.js';
 import type { LiveAnalysisPromptVersion, PromptAnalysisMode, PromptEvidenceMode } from './live-analysis-prompt.js';
 import type { WatchlistRow } from '../repos/watchlist.repo.js';
@@ -38,8 +37,6 @@ export interface ReplayScenario {
   events?: ApiFixtureEvent[];
   liveOddsResponse?: unknown[];
   preMatchOddsResponse?: unknown[];
-  theOddsEventsResponse?: TheOddsEvent[];
-  theOddsEventOddsResponse?: TheOddsEvent | null;
   mockAiText?: string;
   mockResolvedOdds?: ResolveMatchOddsResult;
   previousRecommendations?: Array<{
@@ -86,6 +83,10 @@ export interface ReplayRunOptions {
   promptVersionOverride?: LiveAnalysisPromptVersion;
   capturedAiText?: string;
   advisoryOnly?: boolean;
+  /** Forward to pipeline: settled replay eval uses approved-trace prompt + skips post-parse policy block. */
+  settledReplayApprovedTrace?: boolean;
+  /** When true with settledReplayApprovedTrace, run recommendation-policy after parse (production parity). */
+  applySettledReplayPolicy?: boolean;
 }
 
 export interface ReplayAssertionResult {
@@ -160,19 +161,6 @@ function buildRecordedOddsResolver(scenario: ReplayScenario) {
   return async (input: Parameters<typeof resolveMatchOdds>[0]) => resolveMatchOdds(input, {
     fetchLiveOdds: async () => scenario.liveOddsResponse ?? [],
     fetchPreMatchOdds: async () => scenario.preMatchOddsResponse ?? [],
-    fetchTheOddsLiveDetailed: async (homeTeam, awayTeam, fixtureId, kickoffTimestamp, options) => (
-      fetchTheOddsLiveDetailed(
-        homeTeam,
-        awayTeam,
-        fixtureId,
-        kickoffTimestamp,
-        options,
-        {
-          fetchEventsForSport: async () => scenario.theOddsEventsResponse ?? [],
-          fetchEventOddsForMatch: async () => scenario.theOddsEventOddsResponse ?? null,
-        },
-      )
-    ),
   });
 }
 
@@ -294,6 +282,17 @@ function evaluateAssertions(
   return assertions;
 }
 
+function pickSettledReplayTraceMeta(scenario: ReplayScenario): { betMarket?: string; selection?: string } {
+  const meta = (scenario as { metadata?: { originalBetMarket?: string; originalSelection?: string } }).metadata;
+  if (!meta) return {};
+  const betMarket = String(meta.originalBetMarket ?? '').trim();
+  const selection = String(meta.originalSelection ?? '').trim();
+  return {
+    betMarket: betMarket || undefined,
+    selection: selection || undefined,
+  };
+}
+
 export async function runReplayScenario(
   scenario: ReplayScenario,
   options: ReplayRunOptions = {},
@@ -333,6 +332,7 @@ export async function runReplayScenario(
     dependencies.callGemini = async () => scenario.mockAiText ?? DEFAULT_MOCK_AI_TEXT;
   }
 
+  const traceMeta = options.settledReplayApprovedTrace ? pickSettledReplayTraceMeta(scenario) : {};
   const result = await runPipelineForFixture(
     scenario.matchId,
     scenario.fixture,
@@ -349,6 +349,10 @@ export async function runReplayScenario(
       promptVersionOverride: options.promptVersionOverride ?? scenario.pipelineOptions?.promptVersionOverride,
       previousRecommendations: scenario.previousRecommendations ?? null,
       previousSnapshot: scenario.previousSnapshot ?? null,
+      settledReplayApprovedTrace: options.settledReplayApprovedTrace === true,
+      settledReplayTraceOriginalBetMarket: traceMeta.betMarket,
+      settledReplayTraceOriginalSelection: traceMeta.selection,
+      applySettledReplayPolicy: options.applySettledReplayPolicy === true,
       dependencies,
     },
   );

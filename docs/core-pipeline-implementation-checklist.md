@@ -463,124 +463,18 @@ Final audit summary:
 - `PASS` DB test contains real provider odds/stats samples after smoke.
 - `OPEN NOTE` For operational consistency, migrations and smoke scripts should be run from `packages/server` so the intended `.env` is loaded.
 
-## Live Score API benchmark extension (2026-03-20)
+## Live Score API & web live fallback (removed 2026-04)
 
-Implementation:
+The following were **removed** from the active codebase (see git history around 2026-04 for the full diff):
 
-- Added benchmark-only Live Score adapter and matcher:
-  - `packages/server/src/lib/live-score-api.ts`
-- Added manual smoke helper:
-  - `packages/server/src/scripts/benchmark-live-score.ts`
-  - `packages/server/package.json` -> `benchmark:live-score`
-- Wired side-by-side stats sampling into production pipeline without changing the primary decision source:
-  - `packages/server/src/lib/server-pipeline.ts`
-  - gate: `LIVE_SCORE_BENCHMARK_ENABLED=true`
-  - default behavior remains unchanged when the flag is not enabled
-- Added integration health probe:
-  - `packages/server/src/lib/integration-health.ts`
-- Added regression coverage:
-  - `packages/server/src/__tests__/live-score-api.test.ts`
-  - `packages/server/src/__tests__/server-pipeline.test.ts`
-  - `packages/server/src/__tests__/integration-health.lib.test.ts`
+- Live Score API client, `benchmark:live-score`, integration-health probe `live-score-api`, and any pipeline use of `LIVE_SCORE_*` env vars
+- Trusted web live fallback (`web-live-fallback`), deterministic site extractors, `WEB_LIVE_STATS_FALLBACK_ENABLED`, and `replay:web-live-fallback-suite`
 
-Verification:
+**Current behavior:** live statistics and events for the pipeline are sourced **only** from **API-Football (API-Sports)**. When stats are missing or weak, the pipeline uses evidence modes such as `odds_events_only_degraded` or `low_evidence` without substituting another stats provider.
+
+The checklist entries that previously lived under “Live Score API benchmark extension (2026-03-20)” and “Live Score fallback + evidence modes (2026-03-21)” are **historical**; they described behavior that no longer exists in `main`.
+
+**Verification (current repo):**
 
 - `npm run typecheck --prefix packages/server`
-  - result: `pass`
-- `npm run test --prefix packages/server`
-  - result: `pass` (`35` files, `363` tests)
-- Real Live Score API auth/health:
-  - checked `checkSingleIntegration('live-score-api')`
-  - result: `status=HEALTHY`, `Live matches visible: 24`
-- Manual benchmark smoke on fixture `1516000` (`Sogdiana vs Pakhtakor`):
-  - command: `npm run benchmark:live-score -- --fixture 1516000`
-  - result: `matched=false`, `error=NO_LIVE_SCORE_MATCH`
-  - conclusion: provider does not cover this fixture well enough for stats benchmark
-- Live scan across current API-Sports live fixtures found a real overlap on fixture `1521310`:
-  - API-Sports: `ATK Mohun Bagan vs Mumbai City`
-  - Live Score match: provider match `695742`
-  - coverage: `has_possession=true`, `has_shots=true`, `has_shots_on_target=true`, `has_corners=true`
-- Live shadow run with benchmark sampling enabled on fixture `1521310`:
-  - result inserted both provider samples into DB test:
-    - `provider=api-football`, `success=true`
-    - `provider=live-score-api`, `success=true`
-  - latest Live Score coverage flags:
-    - `matched=true`
-    - `provider_match_id=695742`
-    - `provider_fixture_id=1840648`
-    - `event_count=6`
-    - `populated_stat_pairs=10`
-    - `has_possession=true`
-    - `has_shots=true`
-    - `has_shots_on_target=true`
-    - `has_corners=true`
-- Manual benchmark script smoke on fixture `1521310`:
-  - command: `npm run benchmark:live-score -- --fixture 1521310 --record`
-  - result: `matched=true`, `providerMatchId=695742`, `recorded=true`
-  - confirmed script can independently persist benchmark samples to DB test
-
-Audit note:
-
-- The full live pipeline on fixture `1521310` still hit an unrelated upstream abort (`This operation was aborted`) even when benchmark sampling was disabled. This confirms the new Live Score benchmark path did not introduce that failure.
-
-## Live Score fallback + evidence modes (2026-03-21)
-
-Implementation:
-
-- Added guarded runtime fallback flag:
-  - `LIVE_SCORE_STATS_FALLBACK_ENABLED=true`
-  - config wired in `packages/server/src/config.ts`
-- Server pipeline now:
-  - keeps `API-Sports` as primary stats/events source
-  - only attempts Live Score fallback when `API-Sports` stats fail the quality gate
-  - only accepts fallback when Live Score passes the same quality gate and improves the core stat-pair count
-  - records `statsSource`, `statsFallbackUsed`, `statsFallbackReason`, and `evidenceMode` in debug output
-  - stores fallback-origin snapshots with source `server-pipeline:live-score-fallback`
-- Prompt now includes machine-readable evidence context:
-  - `STATS_SOURCE`
-  - `EVIDENCE_MODE`
-  - `Stats Fallback Note`
-  - explicit degraded rules for `odds_events_only_degraded`
-
-Files:
-
-- `packages/server/src/lib/server-pipeline.ts`
-- `packages/server/src/config.ts`
-- `packages/server/src/__tests__/server-pipeline.test.ts`
-
-Verification:
-
-- `npm run typecheck --prefix packages/server`
-  - result: `pass`
-- `npm run test --prefix packages/server -- src/__tests__/server-pipeline.test.ts src/__tests__/live-score-api.test.ts`
-  - result: `pass`
-- `npm run test --prefix packages/server`
-  - result: `pass` (`35` files, `366` tests)
-- `npm run typecheck`
-  - result: `pass`
-
-Real-data checks:
-
-- Conservative non-override check:
-  - fixture `1533574` (`Haras El Hodood vs Ismaily SC`)
-  - result:
-    - `statsSource=api-football`
-    - `statsFallbackUsed=false`
-    - `evidenceMode=full_live_data`
-  - conclusion: Live Score does not override a healthy API-Sports stats feed
-- Degraded-mode check when fallback is not good enough:
-  - fixture `1445911` (`Neftchi Baku vs Imisli FK`)
-  - result:
-    - `statsSource=api-football`
-    - `statsAvailable=false`
-    - `statsFallbackUsed=false`
-    - `statsFallbackReason=Live Score fallback rejected: api_pairs=0, live_pairs=1, live_quality=VERY_POOR`
-    - `evidenceMode=odds_events_only_degraded`
-  - conclusion: pipeline stays stable, does not trust weak fallback data, and switches prompt into degraded evidence mode instead
-
-Open observation:
-
-- On the current live slate sampled during this pass, no real match was found where `API-Sports` stats were unusable while `Live Score` simultaneously met the fallback acceptance threshold strongly enough to be chosen as the live stats source.
-- That means:
-  - the runtime fallback is implemented and test-covered
-  - real production benefit still needs more live sampling across additional leagues/time windows
+- `npm run test --prefix packages/server -- src/__tests__/server-pipeline.test.ts src/__tests__/integration-health.lib.test.ts`

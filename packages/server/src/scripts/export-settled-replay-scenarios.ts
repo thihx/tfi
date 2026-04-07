@@ -1,4 +1,4 @@
-import { mkdirSync, writeFileSync } from 'node:fs';
+import { mkdirSync, readdirSync, unlinkSync, writeFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import {
   buildSettledReplayScenarios,
@@ -70,6 +70,12 @@ async function main(): Promise<void> {
   });
 
   mkdirSync(args.outDir, { recursive: true });
+  for (const entry of readdirSync(args.outDir)) {
+    if (entry.toLowerCase().endsWith('.json')) {
+      unlinkSync(join(args.outDir, entry));
+    }
+  }
+
   for (const scenario of scenarios) {
     writeFileSync(
       join(args.outDir, `${scenario.name}.json`),

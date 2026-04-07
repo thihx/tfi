@@ -9,7 +9,7 @@ import { Pagination } from '@/components/ui/Pagination';
 import { PLACEHOLDER_HOME, PLACEHOLDER_AWAY, LIVE_STATUSES } from '@/config/constants';
 import { Modal } from '@/components/ui/Modal';
 import { formatDateTimeDisplay, getKickoffDateKey, getKickoffDateTime, getLeagueDisplayName, debounce } from '@/lib/utils/helpers';
-import { MatchScoutModal } from '@/components/ui/MatchScoutModal';
+import { MatchHubModal } from '@/components/ui/MatchHubModal';
 import { WatchlistEditModal } from '@/components/ui/WatchlistEditModal';
 import { WatchlistCard } from '@/components/ui/WatchlistCard';
 import { getDateGroupLabelInTimeZone, getDateKeyAtOffsetInTimeZone } from '@/lib/utils/timezone';
@@ -484,8 +484,6 @@ export function WatchlistTab() {
       <WatchlistEditModal
         key={editItem ? String(editItem.match_id) : 'watchlist-edit-modal'}
         item={editItem}
-        match={editItem ? matches.find((m) => String(m.match_id) === String(editItem.match_id)) ?? null : null}
-        config={config}
         defaultMode={config.defaultMode}
         uiLanguage={uiLanguage}
         onClose={() => setEditItem(null)}
@@ -512,9 +510,10 @@ export function WatchlistTab() {
         let leagueId = scoutItem.league_id;
         if (!leagueId && m) leagueId = m.league_id;
         return (
-          <MatchScoutModal
+          <MatchHubModal
             open
             matchId={String(scoutItem.match_id)}
+            matchDisplay={`${scoutItem.home_team ?? ''} vs ${scoutItem.away_team ?? ''}`}
             homeTeam={scoutItem.home_team ?? ''}
             awayTeam={scoutItem.away_team ?? ''}
             homeLogo={scoutItem.home_logo || m?.home_logo}
@@ -522,6 +521,8 @@ export function WatchlistTab() {
             leagueName={scoutItem.league_name || scoutItem.league || ''}
             leagueId={leagueId ?? undefined}
             status={m?.status}
+            homeTeamId={m?.home_team_id ?? undefined}
+            awayTeamId={m?.away_team_id ?? undefined}
             onClose={() => setScoutItem(null)}
           />
         );

@@ -1,0 +1,418 @@
+{
+  "name": "11827-1490185-25m-under-4-5",
+  "matchId": "1490185",
+  "fixture": {
+    "fixture": {
+      "id": 1490185,
+      "referee": null,
+      "timezone": "UTC",
+      "date": "2026-04-04T23:30:00.000Z",
+      "timestamp": 1775345400,
+      "periods": {
+        "first": null,
+        "second": null
+      },
+      "venue": {
+        "id": null,
+        "name": "Sports Illustrated Stadium",
+        "city": null
+      },
+      "status": {
+        "long": "1H",
+        "short": "1H",
+        "elapsed": 25
+      }
+    },
+    "league": {
+      "id": 253,
+      "name": "Major League Soccer",
+      "country": "",
+      "logo": "",
+      "flag": null,
+      "season": 0,
+      "round": ""
+    },
+    "teams": {
+      "home": {
+        "id": 0,
+        "name": "New York Red Bulls",
+        "logo": "",
+        "winner": null
+      },
+      "away": {
+        "id": 0,
+        "name": "FC Cincinnati",
+        "logo": "",
+        "winner": null
+      }
+    },
+    "goals": {
+      "home": 1,
+      "away": 1
+    },
+    "score": {
+      "halftime": {
+        "home": null,
+        "away": null
+      },
+      "fulltime": {
+        "home": 1,
+        "away": 1
+      }
+    }
+  },
+  "watchlistEntry": {
+    "match_id": "1490185",
+    "league": "Major League Soccer",
+    "home_team": "New York Red Bulls",
+    "away_team": "FC Cincinnati",
+    "mode": "B",
+    "status": "active",
+    "custom_conditions": "",
+    "date": "2026-04-05",
+    "kickoff": "08:30:00",
+    "strategic_context": null
+  },
+  "pipelineOptions": {
+    "forceAnalyze": true,
+    "skipProceedGate": true,
+    "skipStalenessGate": true
+  },
+  "statistics": [
+    {
+      "team": {
+        "id": 0,
+        "name": "New York Red Bulls",
+        "logo": ""
+      },
+      "statistics": [
+        {
+          "type": "Ball Possession",
+          "value": "47%"
+        },
+        {
+          "type": "Total Shots",
+          "value": "2"
+        },
+        {
+          "type": "Shots on Goal",
+          "value": "1"
+        },
+        {
+          "type": "Corner Kicks",
+          "value": null
+        },
+        {
+          "type": "Fouls",
+          "value": "1"
+        },
+        {
+          "type": "Offsides",
+          "value": null
+        },
+        {
+          "type": "Yellow Cards",
+          "value": null
+        },
+        {
+          "type": "Red Cards",
+          "value": null
+        },
+        {
+          "type": "Goalkeeper Saves",
+          "value": null
+        },
+        {
+          "type": "Blocked Shots",
+          "value": "1"
+        },
+        {
+          "type": "Total passes",
+          "value": "94"
+        },
+        {
+          "type": "Passes accurate",
+          "value": "78"
+        },
+        {
+          "type": "Shots off Goal",
+          "value": "0"
+        },
+        {
+          "type": "Shots insidebox",
+          "value": "1"
+        },
+        {
+          "type": "Shots outsidebox",
+          "value": "1"
+        },
+        {
+          "type": "expected_goals",
+          "value": "0.85"
+        },
+        {
+          "type": "goals_prevented",
+          "value": "0"
+        },
+        {
+          "type": "Passes %",
+          "value": "83%"
+        }
+      ]
+    },
+    {
+      "team": {
+        "id": 0,
+        "name": "FC Cincinnati",
+        "logo": ""
+      },
+      "statistics": [
+        {
+          "type": "Ball Possession",
+          "value": "53%"
+        },
+        {
+          "type": "Total Shots",
+          "value": "1"
+        },
+        {
+          "type": "Shots on Goal",
+          "value": "1"
+        },
+        {
+          "type": "Corner Kicks",
+          "value": null
+        },
+        {
+          "type": "Fouls",
+          "value": "1"
+        },
+        {
+          "type": "Offsides",
+          "value": null
+        },
+        {
+          "type": "Yellow Cards",
+          "value": null
+        },
+        {
+          "type": "Red Cards",
+          "value": null
+        },
+        {
+          "type": "Goalkeeper Saves",
+          "value": null
+        },
+        {
+          "type": "Blocked Shots",
+          "value": "0"
+        },
+        {
+          "type": "Total passes",
+          "value": "109"
+        },
+        {
+          "type": "Passes accurate",
+          "value": "94"
+        },
+        {
+          "type": "Shots off Goal",
+          "value": "0"
+        },
+        {
+          "type": "Shots insidebox",
+          "value": "0"
+        },
+        {
+          "type": "Shots outsidebox",
+          "value": "1"
+        },
+        {
+          "type": "expected_goals",
+          "value": "0.12"
+        },
+        {
+          "type": "goals_prevented",
+          "value": "0"
+        },
+        {
+          "type": "Passes %",
+          "value": "86%"
+        }
+      ]
+    }
+  ],
+  "mockResolvedOdds": {
+    "oddsSource": "live",
+    "response": [
+      {
+        "bookmakers": [
+          {
+            "id": 0,
+            "name": "Replay Mock",
+            "bets": [
+              {
+                "id": 1,
+                "name": "Over/Under",
+                "values": [
+                  {
+                    "value": "Over",
+                    "odd": "1.925",
+                    "handicap": "4.5"
+                  },
+                  {
+                    "value": "Under",
+                    "odd": "1.875",
+                    "handicap": "4.5"
+                  }
+                ]
+              },
+              {
+                "id": 2,
+                "name": "Corners Over/Under",
+                "values": [
+                  {
+                    "value": "Over",
+                    "odd": "2.1",
+                    "handicap": "7"
+                  },
+                  {
+                    "value": "Under",
+                    "odd": "2.2",
+                    "handicap": "7"
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    ],
+    "oddsFetchedAt": null,
+    "freshness": "fresh",
+    "cacheStatus": "hit"
+  },
+  "previousRecommendations": [],
+  "metadata": {
+    "recommendationId": 11827,
+    "originalPromptVersion": "v8-market-balance-followup-f",
+    "originalAiModel": "gemini-3-pro-preview",
+    "originalBetMarket": "under_4.5",
+    "originalSelection": "Under 4.5 Goals @1.875",
+    "originalResult": "loss",
+    "originalPnl": -3,
+    "minute": 25,
+    "score": "1-1",
+    "status": "1H",
+    "league": "Major League Soccer",
+    "homeTeam": "New York Red Bulls",
+    "awayTeam": "FC Cincinnati",
+    "evidenceMode": "full_live_data",
+    "prematchStrength": "weak",
+    "profileCoverageBand": "partial",
+    "overlayCoverageBand": "none",
+    "policyImpactBand": "clean"
+  },
+  "settlementContext": {
+    "matchId": "1490185",
+    "homeTeam": "New York Red Bulls",
+    "awayTeam": "FC Cincinnati",
+    "finalStatus": "FT",
+    "homeScore": 4,
+    "awayScore": 2,
+    "regularHomeScore": 4,
+    "regularAwayScore": 2,
+    "settlementStats": [
+      {
+        "away": 6,
+        "home": 6,
+        "type": "Shots on Goal"
+      },
+      {
+        "away": 8,
+        "home": 6,
+        "type": "Shots off Goal"
+      },
+      {
+        "away": 17,
+        "home": 18,
+        "type": "Total Shots"
+      },
+      {
+        "away": 3,
+        "home": 6,
+        "type": "Blocked Shots"
+      },
+      {
+        "away": 15,
+        "home": 9,
+        "type": "Shots insidebox"
+      },
+      {
+        "away": 2,
+        "home": 9,
+        "type": "Shots outsidebox"
+      },
+      {
+        "away": 9,
+        "home": 12,
+        "type": "Fouls"
+      },
+      {
+        "away": 6,
+        "home": 2,
+        "type": "Corner Kicks"
+      },
+      {
+        "away": 5,
+        "home": 1,
+        "type": "Offsides"
+      },
+      {
+        "away": "48%",
+        "home": "52%",
+        "type": "Ball Possession"
+      },
+      {
+        "away": 2,
+        "home": 2,
+        "type": "Yellow Cards"
+      },
+      {
+        "away": null,
+        "home": null,
+        "type": "Red Cards"
+      },
+      {
+        "away": 3,
+        "home": 4,
+        "type": "Goalkeeper Saves"
+      },
+      {
+        "away": 459,
+        "home": 503,
+        "type": "Total passes"
+      },
+      {
+        "away": 378,
+        "home": 430,
+        "type": "Passes accurate"
+      },
+      {
+        "away": "82%",
+        "home": "85%",
+        "type": "Passes %"
+      },
+      {
+        "away": "2.05",
+        "home": "1.68",
+        "type": "expected_goals"
+      },
+      {
+        "away": -1,
+        "home": -1,
+        "type": "goals_prevented"
+      }
+    ]
+  }
+}

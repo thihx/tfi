@@ -1,0 +1,457 @@
+{
+  "name": "11826-1492578-24m-under-2-25",
+  "matchId": "1492578",
+  "fixture": {
+    "fixture": {
+      "id": 1492578,
+      "referee": null,
+      "timezone": "UTC",
+      "date": "2026-04-04T23:00:00.000Z",
+      "timestamp": 1775343600,
+      "periods": {
+        "first": null,
+        "second": null
+      },
+      "venue": {
+        "id": null,
+        "name": "Estadio La Corregidora",
+        "city": null
+      },
+      "status": {
+        "long": "1H",
+        "short": "1H",
+        "elapsed": 24
+      }
+    },
+    "league": {
+      "id": 262,
+      "name": "Liga MX",
+      "country": "",
+      "logo": "",
+      "flag": null,
+      "season": 0,
+      "round": ""
+    },
+    "teams": {
+      "home": {
+        "id": 0,
+        "name": "Club Queretaro",
+        "logo": "",
+        "winner": null
+      },
+      "away": {
+        "id": 0,
+        "name": "Toluca",
+        "logo": "",
+        "winner": null
+      }
+    },
+    "goals": {
+      "home": 0,
+      "away": 0
+    },
+    "score": {
+      "halftime": {
+        "home": null,
+        "away": null
+      },
+      "fulltime": {
+        "home": 0,
+        "away": 0
+      }
+    }
+  },
+  "watchlistEntry": {
+    "match_id": "1492578",
+    "league": "Liga MX",
+    "home_team": "Club Queretaro",
+    "away_team": "Toluca",
+    "mode": "B",
+    "status": "active",
+    "custom_conditions": "",
+    "date": "2026-04-05",
+    "kickoff": "08:00:00",
+    "strategic_context": null
+  },
+  "pipelineOptions": {
+    "forceAnalyze": true,
+    "skipProceedGate": true,
+    "skipStalenessGate": true
+  },
+  "statistics": [
+    {
+      "team": {
+        "id": 0,
+        "name": "Club Queretaro",
+        "logo": ""
+      },
+      "statistics": [
+        {
+          "type": "Ball Possession",
+          "value": "21%"
+        },
+        {
+          "type": "Total Shots",
+          "value": "1"
+        },
+        {
+          "type": "Shots on Goal",
+          "value": "1"
+        },
+        {
+          "type": "Corner Kicks",
+          "value": "1"
+        },
+        {
+          "type": "Fouls",
+          "value": "1"
+        },
+        {
+          "type": "Offsides",
+          "value": null
+        },
+        {
+          "type": "Yellow Cards",
+          "value": null
+        },
+        {
+          "type": "Red Cards",
+          "value": null
+        },
+        {
+          "type": "Goalkeeper Saves",
+          "value": "0"
+        },
+        {
+          "type": "Blocked Shots",
+          "value": "0"
+        },
+        {
+          "type": "Total passes",
+          "value": "31"
+        },
+        {
+          "type": "Passes accurate",
+          "value": "17"
+        },
+        {
+          "type": "Shots off Goal",
+          "value": "0"
+        },
+        {
+          "type": "Shots insidebox",
+          "value": "1"
+        },
+        {
+          "type": "Shots outsidebox",
+          "value": "0"
+        },
+        {
+          "type": "expected_goals",
+          "value": "0.12"
+        },
+        {
+          "type": "goals_prevented",
+          "value": "0"
+        },
+        {
+          "type": "Passes %",
+          "value": "55%"
+        }
+      ]
+    },
+    {
+      "team": {
+        "id": 0,
+        "name": "Toluca",
+        "logo": ""
+      },
+      "statistics": [
+        {
+          "type": "Ball Possession",
+          "value": "79%"
+        },
+        {
+          "type": "Total Shots",
+          "value": "1"
+        },
+        {
+          "type": "Shots on Goal",
+          "value": "0"
+        },
+        {
+          "type": "Corner Kicks",
+          "value": "1"
+        },
+        {
+          "type": "Fouls",
+          "value": "0"
+        },
+        {
+          "type": "Offsides",
+          "value": null
+        },
+        {
+          "type": "Yellow Cards",
+          "value": null
+        },
+        {
+          "type": "Red Cards",
+          "value": null
+        },
+        {
+          "type": "Goalkeeper Saves",
+          "value": "1"
+        },
+        {
+          "type": "Blocked Shots",
+          "value": "0"
+        },
+        {
+          "type": "Total passes",
+          "value": "125"
+        },
+        {
+          "type": "Passes accurate",
+          "value": "113"
+        },
+        {
+          "type": "Shots off Goal",
+          "value": "1"
+        },
+        {
+          "type": "Shots insidebox",
+          "value": "0"
+        },
+        {
+          "type": "Shots outsidebox",
+          "value": "1"
+        },
+        {
+          "type": "expected_goals",
+          "value": "0.01"
+        },
+        {
+          "type": "goals_prevented",
+          "value": "0"
+        },
+        {
+          "type": "Passes %",
+          "value": "90%"
+        }
+      ]
+    }
+  ],
+  "mockResolvedOdds": {
+    "oddsSource": "live",
+    "response": [
+      {
+        "bookmakers": [
+          {
+            "id": 0,
+            "name": "Replay Mock",
+            "bets": [
+              {
+                "id": 1,
+                "name": "Over/Under",
+                "values": [
+                  {
+                    "value": "Over",
+                    "odd": "1.95",
+                    "handicap": "2.25"
+                  },
+                  {
+                    "value": "Under",
+                    "odd": "1.85",
+                    "handicap": "2.25"
+                  }
+                ]
+              },
+              {
+                "id": 2,
+                "name": "Corners Over/Under",
+                "values": [
+                  {
+                    "value": "Over",
+                    "odd": "1.875",
+                    "handicap": "11.5"
+                  },
+                  {
+                    "value": "Under",
+                    "odd": "1.925",
+                    "handicap": "11.5"
+                  }
+                ]
+              },
+              {
+                "id": 3,
+                "name": "Both Teams Score",
+                "values": [
+                  {
+                    "value": "Yes",
+                    "odd": "2.1"
+                  },
+                  {
+                    "value": "No",
+                    "odd": "1.666"
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    ],
+    "oddsFetchedAt": null,
+    "freshness": "fresh",
+    "cacheStatus": "hit"
+  },
+  "previousRecommendations": [
+    {
+      "minute": 85,
+      "odds": "1.600",
+      "bet_market": "corners_over_9.5",
+      "selection": "Corners Over 9.5 @1.6",
+      "score": "1-0",
+      "status": "2H",
+      "result": "win",
+      "confidence": 6,
+      "stake_percent": "3.00",
+      "reasoning": "At minute 85, Toluca is trailing 1-0 but completely dominating possession (76%) and shot volume (18 shots). They are committing heavily forward to find an equalizer, while Queretaro defends deep. This one-sided pressure naturally invites crosses and deflections. The current corner count is 9, needing just one more to clear the 9.5 line. Break-even is about 62.5% at 1.60 odds. My fair range is around 75-80% for at least one more corner in the remaining time plus stoppage. Edge looks about 15%."
+    },
+    {
+      "minute": 24,
+      "odds": "1.925",
+      "bet_market": "corners_under_11.5",
+      "selection": "Corners Under 11.5 @1.925",
+      "score": "0-0",
+      "status": "1H",
+      "result": "win",
+      "confidence": 5,
+      "stake_percent": "2.00",
+      "reasoning": "At minute 24, the match is locked in a highly controlled, low-event script. Toluca dominates possession (79%) but has generated zero shots inside the box and a negligible 0.01 xG, indicating sterile possession rather than sustained final-third pressure. Queretaro is sitting deep with only 31 total passes and 1 shot. With just 2 total shots and 2 corners so far, the game lacks the verticality, transitions, or box entries required to threaten a high corners line. The break-even for Under 11.5 Corners is 51.9% (1.925). Given the dead pace and lack of trailing urgency at 0-0, my fair range is around 65-70%. Edge looks about 15%."
+    }
+  ],
+  "metadata": {
+    "recommendationId": 11826,
+    "originalPromptVersion": "v8-market-balance-followup-f",
+    "originalAiModel": "gemini-3-pro-preview",
+    "originalBetMarket": "under_2.25",
+    "originalSelection": "Under 2.25 Goals @1.85",
+    "originalResult": "win",
+    "originalPnl": 3.4,
+    "minute": 24,
+    "score": "0-0",
+    "status": "1H",
+    "league": "Liga MX",
+    "homeTeam": "Club Queretaro",
+    "awayTeam": "Toluca",
+    "evidenceMode": "full_live_data",
+    "prematchStrength": "weak",
+    "profileCoverageBand": "partial",
+    "overlayCoverageBand": "none",
+    "policyImpactBand": "clean"
+  },
+  "settlementContext": {
+    "matchId": "1492578",
+    "homeTeam": "Club Queretaro",
+    "awayTeam": "Toluca",
+    "finalStatus": "FT",
+    "homeScore": 1,
+    "awayScore": 0,
+    "regularHomeScore": 1,
+    "regularAwayScore": 0,
+    "settlementStats": [
+      {
+        "away": 5,
+        "home": 4,
+        "type": "Shots on Goal"
+      },
+      {
+        "away": 10,
+        "home": 3,
+        "type": "Shots off Goal"
+      },
+      {
+        "away": 20,
+        "home": 8,
+        "type": "Total Shots"
+      },
+      {
+        "away": 5,
+        "home": 1,
+        "type": "Blocked Shots"
+      },
+      {
+        "away": 10,
+        "home": 7,
+        "type": "Shots insidebox"
+      },
+      {
+        "away": 10,
+        "home": 1,
+        "type": "Shots outsidebox"
+      },
+      {
+        "away": 6,
+        "home": 11,
+        "type": "Fouls"
+      },
+      {
+        "away": 7,
+        "home": 3,
+        "type": "Corner Kicks"
+      },
+      {
+        "away": 2,
+        "home": 1,
+        "type": "Offsides"
+      },
+      {
+        "away": "76%",
+        "home": "24%",
+        "type": "Ball Possession"
+      },
+      {
+        "away": 0,
+        "home": 1,
+        "type": "Yellow Cards"
+      },
+      {
+        "away": null,
+        "home": null,
+        "type": "Red Cards"
+      },
+      {
+        "away": 3,
+        "home": 5,
+        "type": "Goalkeeper Saves"
+      },
+      {
+        "away": 616,
+        "home": 184,
+        "type": "Total passes"
+      },
+      {
+        "away": 557,
+        "home": 116,
+        "type": "Passes accurate"
+      },
+      {
+        "away": "90%",
+        "home": "63%",
+        "type": "Passes %"
+      },
+      {
+        "away": "1.24",
+        "home": "1.94",
+        "type": "expected_goals"
+      },
+      {
+        "away": 0,
+        "home": 0,
+        "type": "goals_prevented"
+      }
+    ]
+  }
+}

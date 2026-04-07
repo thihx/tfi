@@ -1,12 +1,12 @@
 {
-  "name": "the-odds-fallback",
+  "name": "live-empty-prematch",
   "matchId": "100",
   "fixture": {
     "fixture": {
       "id": 100,
       "date": "2026-03-20T12:00:00Z",
       "timestamp": 1774008000,
-      "status": { "short": "2H", "elapsed": 65 }
+      "status": { "short": "NS", "elapsed": null }
     },
     "teams": {
       "home": { "id": 1, "name": "Arsenal", "logo": "", "winner": null },
@@ -21,8 +21,12 @@
       "season": 2026,
       "round": "Regular Season - 28"
     },
-    "goals": { "home": 1, "away": 1 },
+    "goals": { "home": 0, "away": 0 },
     "score": {}
+  },
+  "pipelineOptions": {
+    "skipProceedGate": true,
+    "forceAnalyze": true
   },
   "statistics": [
     {
@@ -67,43 +71,8 @@
       ]
     }
   ],
-  "theOddsEventsResponse": [
-    {
-      "id": "event-1",
-      "sport_key": "soccer_epl",
-      "sport_title": "EPL",
-      "commence_time": "2026-03-20T12:00:00Z",
-      "home_team": "Arsenal",
-      "away_team": "Chelsea"
-    }
-  ],
-  "theOddsEventOddsResponse": {
-    "id": "event-1",
-    "sport_key": "soccer_epl",
-    "sport_title": "EPL",
-    "commence_time": "2026-03-20T12:00:00Z",
-    "home_team": "Arsenal",
-    "away_team": "Chelsea",
-    "bookmakers": [
-      {
-        "key": "fallback",
-        "title": "FallbackBook",
-        "last_update": "2026-03-20T12:45:00Z",
-        "markets": [
-          {
-            "key": "totals",
-            "last_update": "2026-03-20T12:45:00Z",
-            "outcomes": [
-              { "name": "Over", "price": 1.8, "point": 2.5 },
-              { "name": "Under", "price": 2.05, "point": 2.5 }
-            ]
-          }
-        ]
-      }
-    ]
-  },
   "expected": {
-    "oddsSource": "the-odds-api",
+    "oddsSource": "reference-prematch",
     "saved": false,
     "notified": false
   }

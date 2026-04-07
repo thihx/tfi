@@ -1,0 +1,432 @@
+{
+  "name": "12459-1378168-33m-under-2-75",
+  "matchId": "1378168",
+  "fixture": {
+    "fixture": {
+      "id": 1378168,
+      "referee": null,
+      "timezone": "UTC",
+      "date": "2026-04-06T13:00:00.000Z",
+      "timestamp": 1775480400,
+      "periods": {
+        "first": null,
+        "second": null
+      },
+      "venue": {
+        "id": null,
+        "name": "Stadio Ettore Giardiniero - Via del Mare",
+        "city": null
+      },
+      "status": {
+        "long": "1H",
+        "short": "1H",
+        "elapsed": 33
+      }
+    },
+    "league": {
+      "id": 135,
+      "name": "Serie A",
+      "country": "",
+      "logo": "",
+      "flag": null,
+      "season": 0,
+      "round": ""
+    },
+    "teams": {
+      "home": {
+        "id": 0,
+        "name": "Lecce",
+        "logo": "",
+        "winner": null
+      },
+      "away": {
+        "id": 0,
+        "name": "Atalanta",
+        "logo": "",
+        "winner": null
+      }
+    },
+    "goals": {
+      "home": 0,
+      "away": 1
+    },
+    "score": {
+      "halftime": {
+        "home": null,
+        "away": null
+      },
+      "fulltime": {
+        "home": 0,
+        "away": 1
+      }
+    }
+  },
+  "watchlistEntry": {
+    "match_id": "1378168",
+    "league": "Serie A",
+    "home_team": "Lecce",
+    "away_team": "Atalanta",
+    "mode": "B",
+    "status": "active",
+    "custom_conditions": "",
+    "date": "2026-04-06",
+    "kickoff": "22:00:00",
+    "strategic_context": null
+  },
+  "pipelineOptions": {
+    "forceAnalyze": true,
+    "skipProceedGate": true,
+    "skipStalenessGate": true
+  },
+  "statistics": [
+    {
+      "team": {
+        "id": 0,
+        "name": "Lecce",
+        "logo": ""
+      },
+      "statistics": [
+        {
+          "type": "Ball Possession",
+          "value": "39%"
+        },
+        {
+          "type": "Total Shots",
+          "value": "2"
+        },
+        {
+          "type": "Shots on Goal",
+          "value": "0"
+        },
+        {
+          "type": "Corner Kicks",
+          "value": "0"
+        },
+        {
+          "type": "Fouls",
+          "value": "6"
+        },
+        {
+          "type": "Offsides",
+          "value": "0"
+        },
+        {
+          "type": "Yellow Cards",
+          "value": null
+        },
+        {
+          "type": "Red Cards",
+          "value": null
+        },
+        {
+          "type": "Goalkeeper Saves",
+          "value": "1"
+        },
+        {
+          "type": "Blocked Shots",
+          "value": "1"
+        },
+        {
+          "type": "Total passes",
+          "value": "104"
+        },
+        {
+          "type": "Passes accurate",
+          "value": "76"
+        },
+        {
+          "type": "Shots off Goal",
+          "value": "1"
+        },
+        {
+          "type": "Shots insidebox",
+          "value": "2"
+        },
+        {
+          "type": "Shots outsidebox",
+          "value": "0"
+        },
+        {
+          "type": "expected_goals",
+          "value": "0.07"
+        },
+        {
+          "type": "goals_prevented",
+          "value": "0"
+        },
+        {
+          "type": "Passes %",
+          "value": "73%"
+        }
+      ]
+    },
+    {
+      "team": {
+        "id": 0,
+        "name": "Atalanta",
+        "logo": ""
+      },
+      "statistics": [
+        {
+          "type": "Ball Possession",
+          "value": "61%"
+        },
+        {
+          "type": "Total Shots",
+          "value": "2"
+        },
+        {
+          "type": "Shots on Goal",
+          "value": "2"
+        },
+        {
+          "type": "Corner Kicks",
+          "value": "1"
+        },
+        {
+          "type": "Fouls",
+          "value": "6"
+        },
+        {
+          "type": "Offsides",
+          "value": "2"
+        },
+        {
+          "type": "Yellow Cards",
+          "value": null
+        },
+        {
+          "type": "Red Cards",
+          "value": null
+        },
+        {
+          "type": "Goalkeeper Saves",
+          "value": "0"
+        },
+        {
+          "type": "Blocked Shots",
+          "value": "0"
+        },
+        {
+          "type": "Total passes",
+          "value": "160"
+        },
+        {
+          "type": "Passes accurate",
+          "value": "132"
+        },
+        {
+          "type": "Shots off Goal",
+          "value": "0"
+        },
+        {
+          "type": "Shots insidebox",
+          "value": "2"
+        },
+        {
+          "type": "Shots outsidebox",
+          "value": "0"
+        },
+        {
+          "type": "expected_goals",
+          "value": "0.23"
+        },
+        {
+          "type": "goals_prevented",
+          "value": "0"
+        },
+        {
+          "type": "Passes %",
+          "value": "83%"
+        }
+      ]
+    }
+  ],
+  "mockResolvedOdds": {
+    "oddsSource": "live",
+    "response": [
+      {
+        "bookmakers": [
+          {
+            "id": 0,
+            "name": "Replay Mock",
+            "bets": [
+              {
+                "id": 1,
+                "name": "Over/Under",
+                "values": [
+                  {
+                    "value": "Over",
+                    "odd": "2.025",
+                    "handicap": "2.75"
+                  },
+                  {
+                    "value": "Under",
+                    "odd": "1.825",
+                    "handicap": "2.75"
+                  }
+                ]
+              },
+              {
+                "id": 2,
+                "name": "Corners Over/Under",
+                "values": [
+                  {
+                    "value": "Over",
+                    "odd": "2.25",
+                    "handicap": "7"
+                  },
+                  {
+                    "value": "Under",
+                    "odd": "2.1",
+                    "handicap": "7"
+                  }
+                ]
+              },
+              {
+                "id": 3,
+                "name": "Both Teams Score",
+                "values": [
+                  {
+                    "value": "Yes",
+                    "odd": "1.909"
+                  },
+                  {
+                    "value": "No",
+                    "odd": "1.909"
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    ],
+    "oddsFetchedAt": null,
+    "freshness": "fresh",
+    "cacheStatus": "hit"
+  },
+  "previousRecommendations": [],
+  "metadata": {
+    "recommendationId": 12459,
+    "originalPromptVersion": "v6-betting-discipline-c",
+    "originalAiModel": "gemini-3-pro-preview",
+    "originalBetMarket": "under_2.75",
+    "originalSelection": "Under 2.75 Goals @1.825",
+    "originalResult": "half_loss",
+    "originalPnl": -2,
+    "minute": 33,
+    "score": "0-1",
+    "status": "1H",
+    "league": "Serie A",
+    "homeTeam": "Lecce",
+    "awayTeam": "Atalanta",
+    "evidenceMode": "full_live_data",
+    "prematchStrength": "strong",
+    "profileCoverageBand": "strong",
+    "overlayCoverageBand": "none",
+    "policyImpactBand": "clean"
+  },
+  "settlementContext": {
+    "matchId": "1378168",
+    "homeTeam": "Lecce",
+    "awayTeam": "Atalanta",
+    "finalStatus": "FT",
+    "homeScore": 0,
+    "awayScore": 3,
+    "regularHomeScore": 0,
+    "regularAwayScore": 3,
+    "settlementStats": [
+      {
+        "away": 6,
+        "home": 0,
+        "type": "Shots on Goal"
+      },
+      {
+        "away": 6,
+        "home": 5,
+        "type": "Shots off Goal"
+      },
+      {
+        "away": 16,
+        "home": 10,
+        "type": "Total Shots"
+      },
+      {
+        "away": 4,
+        "home": 5,
+        "type": "Blocked Shots"
+      },
+      {
+        "away": 13,
+        "home": 5,
+        "type": "Shots insidebox"
+      },
+      {
+        "away": 3,
+        "home": 5,
+        "type": "Shots outsidebox"
+      },
+      {
+        "away": 17,
+        "home": 10,
+        "type": "Fouls"
+      },
+      {
+        "away": 5,
+        "home": 2,
+        "type": "Corner Kicks"
+      },
+      {
+        "away": 5,
+        "home": 2,
+        "type": "Offsides"
+      },
+      {
+        "away": "60%",
+        "home": "40%",
+        "type": "Ball Possession"
+      },
+      {
+        "away": 2,
+        "home": 0,
+        "type": "Yellow Cards"
+      },
+      {
+        "away": null,
+        "home": null,
+        "type": "Red Cards"
+      },
+      {
+        "away": 0,
+        "home": 3,
+        "type": "Goalkeeper Saves"
+      },
+      {
+        "away": 450,
+        "home": 293,
+        "type": "Total passes"
+      },
+      {
+        "away": 369,
+        "home": 234,
+        "type": "Passes accurate"
+      },
+      {
+        "away": "82%",
+        "home": "80%",
+        "type": "Passes %"
+      },
+      {
+        "away": "2.13",
+        "home": "0.32",
+        "type": "expected_goals"
+      },
+      {
+        "away": 0,
+        "home": 0,
+        "type": "goals_prevented"
+      }
+    ]
+  }
+}

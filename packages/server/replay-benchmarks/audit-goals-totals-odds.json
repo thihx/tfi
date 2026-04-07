@@ -1,0 +1,12 @@
+{
+  "generatedAt": "2026-04-07T15:08:25.222Z",
+  "totalScenarios": 120,
+  "contaminatedCount": 0,
+  "oddsCoverage": {
+    "withComplete1x2": 31,
+    "withAsianHandicap": 3,
+    "withGoalsOu": 120,
+    "withCornersOu": 114
+  },
+  "rows": []
+}

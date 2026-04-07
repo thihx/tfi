@@ -370,22 +370,25 @@ describe('applyRecommendationPolicy', () => {
     expect(result.blocked).toBe(false);
   });
 
-  test('v8h blocks 45-59 zero-zero low-line goals under', () => {
-    const result = applyRecommendationPolicy({
-      selection: 'Under 1.75 Goals @1.85',
-      betMarket: 'under_1.75',
-      minute: 45,
-      score: '0-0',
-      odds: 1.85,
-      confidence: 6,
-      valuePercent: 7,
-      stakePercent: 3,
-      promptVersion: 'v8-market-balance-followup-h',
-    });
+  test.each(['v8-market-balance-followup-h', 'v8-market-balance-followup-j'] as const)(
+    '%s blocks 45-59 zero-zero low-line goals under',
+    (promptVersion) => {
+      const result = applyRecommendationPolicy({
+        selection: 'Under 1.75 Goals @1.85',
+        betMarket: 'under_1.75',
+        minute: 45,
+        score: '0-0',
+        odds: 1.85,
+        confidence: 6,
+        valuePercent: 7,
+        stakePercent: 3,
+        promptVersion,
+      });
 
-    expect(result.blocked).toBe(true);
-    expect(result.warnings).toContain('POLICY_BLOCK_GOALS_UNDER_45_59_0_0_LOW_LINE_V8H');
-  });
+      expect(result.blocked).toBe(true);
+      expect(result.warnings).toContain('POLICY_BLOCK_GOALS_UNDER_45_59_0_0_LOW_LINE_V8H');
+    },
+  );
 
   test('v8h blocks 45-59 zero-zero low-line goals over', () => {
     const result = applyRecommendationPolicy({
@@ -435,5 +438,79 @@ describe('applyRecommendationPolicy', () => {
     });
 
     expect(result.blocked).toBe(false);
+  });
+
+  test('v8j blocks corners in 30-44 hot zone when edge/confidence below props bar', () => {
+    const lowEdge = applyRecommendationPolicy({
+      selection: 'Corners Over 10 @2.00',
+      betMarket: 'corners_over_10',
+      minute: 40,
+      score: '0-0',
+      odds: 2,
+      confidence: 8,
+      valuePercent: 6,
+      stakePercent: 3,
+      promptVersion: 'v8-market-balance-followup-j',
+    });
+    expect(lowEdge.blocked).toBe(true);
+    expect(lowEdge.warnings).toContain('POLICY_BLOCK_PROPS_HOT_ZONE_LOW_EDGE_V8J');
+
+    const lowConf = applyRecommendationPolicy({
+      selection: 'Corners Over 10 @2.00',
+      betMarket: 'corners_over_10',
+      minute: 40,
+      score: '0-0',
+      odds: 2,
+      confidence: 7,
+      valuePercent: 9,
+      stakePercent: 3,
+      promptVersion: 'v8-market-balance-followup-j',
+    });
+    expect(lowConf.blocked).toBe(true);
+    expect(lowConf.warnings).toContain('POLICY_BLOCK_PROPS_HOT_ZONE_LOW_CONFIDENCE_V8J');
+  });
+
+  test('v8j allows corners in 30-44 hot zone when edge and confidence clear bar', () => {
+    const result = applyRecommendationPolicy({
+      selection: 'Corners Over 9.5 @2.00',
+      betMarket: 'corners_over_9.5',
+      minute: 32,
+      score: '0-0',
+      odds: 2,
+      confidence: 8,
+      valuePercent: 8,
+      stakePercent: 3,
+      promptVersion: 'v8-market-balance-followup-j',
+    });
+    expect(result.blocked).toBe(false);
+  });
+
+  test('v8j requires higher btts_no edge in 37-44 than in 30-36', () => {
+    const early = applyRecommendationPolicy({
+      selection: 'BTTS No @1.75',
+      betMarket: 'btts_no',
+      minute: 33,
+      score: '0-0',
+      odds: 1.75,
+      confidence: 6,
+      valuePercent: 7,
+      stakePercent: 2,
+      promptVersion: 'v8-market-balance-followup-j',
+    });
+    expect(early.blocked).toBe(false);
+
+    const late = applyRecommendationPolicy({
+      selection: 'BTTS No @1.75',
+      betMarket: 'btts_no',
+      minute: 40,
+      score: '0-0',
+      odds: 1.75,
+      confidence: 6,
+      valuePercent: 7,
+      stakePercent: 2,
+      promptVersion: 'v8-market-balance-followup-j',
+    });
+    expect(late.blocked).toBe(true);
+    expect(late.warnings).toContain('POLICY_BLOCK_BTTS_NO_LOW_EDGE_V8J');
   });
 });

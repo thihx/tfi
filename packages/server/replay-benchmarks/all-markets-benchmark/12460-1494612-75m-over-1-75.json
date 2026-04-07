@@ -1,0 +1,450 @@
+{
+  "name": "12460-1494612-75m-over-1-75",
+  "matchId": "1494612",
+  "fixture": {
+    "fixture": {
+      "id": 1494612,
+      "referee": null,
+      "timezone": "UTC",
+      "date": "2026-04-06T12:30:00.000Z",
+      "timestamp": 1775478600,
+      "periods": {
+        "first": null,
+        "second": null
+      },
+      "venue": {
+        "id": null,
+        "name": "Intility Arena",
+        "city": null
+      },
+      "status": {
+        "long": "2H",
+        "short": "2H",
+        "elapsed": 75
+      }
+    },
+    "league": {
+      "id": 103,
+      "name": "Eliteserien",
+      "country": "",
+      "logo": "",
+      "flag": null,
+      "season": 0,
+      "round": ""
+    },
+    "teams": {
+      "home": {
+        "id": 0,
+        "name": "Valerenga",
+        "logo": "",
+        "winner": null
+      },
+      "away": {
+        "id": 0,
+        "name": "Viking",
+        "logo": "",
+        "winner": null
+      }
+    },
+    "goals": {
+      "home": 0,
+      "away": 1
+    },
+    "score": {
+      "halftime": {
+        "home": null,
+        "away": null
+      },
+      "fulltime": {
+        "home": 0,
+        "away": 1
+      }
+    }
+  },
+  "watchlistEntry": {
+    "match_id": "1494612",
+    "league": "Eliteserien",
+    "home_team": "Valerenga",
+    "away_team": "Viking",
+    "mode": "B",
+    "status": "active",
+    "custom_conditions": "",
+    "date": "2026-04-06",
+    "kickoff": "21:30:00",
+    "strategic_context": null
+  },
+  "pipelineOptions": {
+    "forceAnalyze": true,
+    "skipProceedGate": true,
+    "skipStalenessGate": true
+  },
+  "statistics": [
+    {
+      "team": {
+        "id": 0,
+        "name": "Valerenga",
+        "logo": ""
+      },
+      "statistics": [
+        {
+          "type": "Ball Possession",
+          "value": "48%"
+        },
+        {
+          "type": "Total Shots",
+          "value": "10"
+        },
+        {
+          "type": "Shots on Goal",
+          "value": "1"
+        },
+        {
+          "type": "Corner Kicks",
+          "value": "6"
+        },
+        {
+          "type": "Fouls",
+          "value": "6"
+        },
+        {
+          "type": "Offsides",
+          "value": "1"
+        },
+        {
+          "type": "Yellow Cards",
+          "value": "2"
+        },
+        {
+          "type": "Red Cards",
+          "value": null
+        },
+        {
+          "type": "Goalkeeper Saves",
+          "value": "4"
+        },
+        {
+          "type": "Blocked Shots",
+          "value": "3"
+        },
+        {
+          "type": "Total passes",
+          "value": "313"
+        },
+        {
+          "type": "Passes accurate",
+          "value": "239"
+        },
+        {
+          "type": "Shots off Goal",
+          "value": "6"
+        },
+        {
+          "type": "Shots insidebox",
+          "value": "5"
+        },
+        {
+          "type": "Shots outsidebox",
+          "value": "5"
+        },
+        {
+          "type": "expected_goals",
+          "value": "0.45"
+        },
+        {
+          "type": "goals_prevented",
+          "value": "0"
+        },
+        {
+          "type": "Passes %",
+          "value": "76%"
+        }
+      ]
+    },
+    {
+      "team": {
+        "id": 0,
+        "name": "Viking",
+        "logo": ""
+      },
+      "statistics": [
+        {
+          "type": "Ball Possession",
+          "value": "52%"
+        },
+        {
+          "type": "Total Shots",
+          "value": "15"
+        },
+        {
+          "type": "Shots on Goal",
+          "value": "4"
+        },
+        {
+          "type": "Corner Kicks",
+          "value": "5"
+        },
+        {
+          "type": "Fouls",
+          "value": "10"
+        },
+        {
+          "type": "Offsides",
+          "value": "0"
+        },
+        {
+          "type": "Yellow Cards",
+          "value": "2"
+        },
+        {
+          "type": "Red Cards",
+          "value": null
+        },
+        {
+          "type": "Goalkeeper Saves",
+          "value": "1"
+        },
+        {
+          "type": "Blocked Shots",
+          "value": "6"
+        },
+        {
+          "type": "Total passes",
+          "value": "345"
+        },
+        {
+          "type": "Passes accurate",
+          "value": "279"
+        },
+        {
+          "type": "Shots off Goal",
+          "value": "5"
+        },
+        {
+          "type": "Shots insidebox",
+          "value": "13"
+        },
+        {
+          "type": "Shots outsidebox",
+          "value": "2"
+        },
+        {
+          "type": "expected_goals",
+          "value": "2.15"
+        },
+        {
+          "type": "goals_prevented",
+          "value": "0"
+        },
+        {
+          "type": "Passes %",
+          "value": "81%"
+        }
+      ]
+    }
+  ],
+  "mockResolvedOdds": {
+    "oddsSource": "live",
+    "response": [
+      {
+        "bookmakers": [
+          {
+            "id": 0,
+            "name": "Replay Mock",
+            "bets": [
+              {
+                "id": 1,
+                "name": "Match Winner",
+                "values": [
+                  {
+                    "value": "Home",
+                    "odd": "126"
+                  },
+                  {
+                    "value": "Draw",
+                    "odd": "8.5"
+                  },
+                  {
+                    "value": "Away",
+                    "odd": "1.25"
+                  }
+                ]
+              },
+              {
+                "id": 2,
+                "name": "Over/Under",
+                "values": [
+                  {
+                    "value": "Over",
+                    "odd": "1.95",
+                    "handicap": "1.75"
+                  },
+                  {
+                    "value": "Under",
+                    "odd": "1.85",
+                    "handicap": "1.75"
+                  }
+                ]
+              },
+              {
+                "id": 3,
+                "name": "Corners Over/Under",
+                "values": [
+                  {
+                    "value": "Over",
+                    "odd": "1.975",
+                    "handicap": "13.5"
+                  },
+                  {
+                    "value": "Under",
+                    "odd": "1.825",
+                    "handicap": "13.5"
+                  }
+                ]
+              },
+              {
+                "id": 4,
+                "name": "Both Teams Score",
+                "values": [
+                  {
+                    "value": "Yes",
+                    "odd": "2.625"
+                  },
+                  {
+                    "value": "No",
+                    "odd": "1.444"
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    ],
+    "oddsFetchedAt": null,
+    "freshness": "fresh",
+    "cacheStatus": "hit"
+  },
+  "previousRecommendations": [],
+  "metadata": {
+    "recommendationId": 12460,
+    "originalPromptVersion": "v4-evidence-hardened",
+    "originalAiModel": "gemini-3-pro-preview",
+    "originalBetMarket": "over_1.75",
+    "originalSelection": "Over 1.75 Goals @1.75",
+    "originalResult": "loss",
+    "originalPnl": -4,
+    "minute": 75,
+    "score": "0-1",
+    "status": "2H",
+    "league": "Eliteserien",
+    "homeTeam": "Valerenga",
+    "awayTeam": "Viking",
+    "evidenceMode": "full_live_data",
+    "prematchStrength": "moderate",
+    "profileCoverageBand": "partial",
+    "overlayCoverageBand": "none",
+    "policyImpactBand": "clean"
+  },
+  "settlementContext": {
+    "matchId": "1494612",
+    "homeTeam": "Valerenga",
+    "awayTeam": "Viking",
+    "finalStatus": "FT",
+    "homeScore": 0,
+    "awayScore": 1,
+    "regularHomeScore": 0,
+    "regularAwayScore": 1,
+    "settlementStats": [
+      {
+        "away": 5,
+        "home": 1,
+        "type": "Shots on Goal"
+      },
+      {
+        "away": 5,
+        "home": 9,
+        "type": "Shots off Goal"
+      },
+      {
+        "away": 17,
+        "home": 14,
+        "type": "Total Shots"
+      },
+      {
+        "away": 7,
+        "home": 4,
+        "type": "Blocked Shots"
+      },
+      {
+        "away": 15,
+        "home": 6,
+        "type": "Shots insidebox"
+      },
+      {
+        "away": 2,
+        "home": 8,
+        "type": "Shots outsidebox"
+      },
+      {
+        "away": 13,
+        "home": 7,
+        "type": "Fouls"
+      },
+      {
+        "away": 5,
+        "home": 8,
+        "type": "Corner Kicks"
+      },
+      {
+        "away": 0,
+        "home": 1,
+        "type": "Offsides"
+      },
+      {
+        "away": "49%",
+        "home": "51%",
+        "type": "Ball Possession"
+      },
+      {
+        "away": 3,
+        "home": 2,
+        "type": "Yellow Cards"
+      },
+      {
+        "away": null,
+        "home": null,
+        "type": "Red Cards"
+      },
+      {
+        "away": 1,
+        "home": 5,
+        "type": "Goalkeeper Saves"
+      },
+      {
+        "away": 416,
+        "home": 425,
+        "type": "Total passes"
+      },
+      {
+        "away": 325,
+        "home": 330,
+        "type": "Passes accurate"
+      },
+      {
+        "away": "78%",
+        "home": "78%",
+        "type": "Passes %"
+      },
+      {
+        "away": "2.56",
+        "home": "0.60",
+        "type": "expected_goals"
+      },
+      {
+        "away": 0,
+        "home": 0,
+        "type": "goals_prevented"
+      }
+    ]
+  }
+}

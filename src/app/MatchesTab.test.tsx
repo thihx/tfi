@@ -141,8 +141,8 @@ vi.mock('@/features/live-monitor/services/server-monitor.service', () => ({
   getParsedAiResult: mockGetParsedAiResult,
 }));
 
-vi.mock('@/components/ui/MatchScoutModal', () => ({
-  MatchScoutModal: () => null,
+vi.mock('@/components/ui/MatchHubModal', () => ({
+  MatchHubModal: () => null,
 }));
 
 vi.mock('@/lib/services/api', () => ({
@@ -372,7 +372,7 @@ describe('MatchesTab', () => {
     render(<MatchesTab />);
 
     await user.click(screen.getByTitle('Table view'));
-    await user.click(screen.getByRole('button', { name: 'Edit watchlist item' }));
+    await user.click(screen.getByRole('button', { name: 'Watch alerts and conditions' }));
     await user.click(await screen.findByRole('button', { name: 'Save Changes' }));
 
     await waitFor(() => {
@@ -394,7 +394,7 @@ describe('MatchesTab', () => {
     render(<MatchesTab />);
 
     await user.click(screen.getByTitle('Table view'));
-    await user.click(screen.getByRole('button', { name: 'Edit watchlist item' }));
+    await user.click(screen.getByRole('button', { name: 'Watch alerts and conditions' }));
     await user.click(await screen.findByLabelText('Auto-apply recommended condition for this match'));
     await user.click(screen.getByRole('button', { name: 'Save Changes' }));
 

@@ -127,7 +127,7 @@ beforeEach(() => {
           prematchAvailability: 'minimal',
           prematchNoisePenalty: 60,
           prematchStrength: 'weak',
-          promptVersion: 'v4-evidence-hardened',
+          promptVersion: 'v10-hybrid-legacy-b',
           statsSource: 'api-football',
           evidenceMode: 'full_live_data',
         },
@@ -153,7 +153,7 @@ beforeEach(() => {
           prematchAvailability: 'full',
           prematchNoisePenalty: 12,
           prematchStrength: 'strong',
-          promptVersion: 'v4-evidence-hardened',
+          promptVersion: 'v10-hybrid-legacy-b',
           statsSource: 'api-football',
           evidenceMode: 'full_live_data',
           parsed: {
@@ -199,7 +199,7 @@ describe('LiveMonitorTab', () => {
     expect(screen.getByText('Basic Prompt')).toBeInTheDocument();
     expect(screen.getByText('Prematch Strong')).toBeInTheDocument();
     expect(screen.getByText('Prematch Weak')).toBeInTheDocument();
-    expect(screen.getByText('v4-evidence-hardened | Advanced Prompt | api-football | full_live_data')).toBeInTheDocument();
+    expect(screen.getByText('v10-hybrid-legacy-b | Advanced Prompt | api-football | full_live_data')).toBeInTheDocument();
     expect(screen.getByText('Prematch Strong | full | noise 12')).toBeInTheDocument();
     expect(screen.getByText('Prematch Weak | minimal | noise 60')).toBeInTheDocument();
     expect(screen.getByText(/Condition Suggestion:/)).toBeInTheDocument();

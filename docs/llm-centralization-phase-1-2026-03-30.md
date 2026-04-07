@@ -29,13 +29,13 @@ These paths now use the same transport:
 - proxy AI analyze path
 - auto-settle AI fallback
 - grounded strategic-context Gemini requests
-- web-live-fallback Gemini requests
 
 Concretely:
 
 - [gemini.ts](C:/tfi/packages/server/src/lib/gemini.ts)
 - [strategic-context.service.ts](C:/tfi/packages/server/src/lib/strategic-context.service.ts)
-- [web-live-fallback.ts](C:/tfi/packages/server/src/lib/web-live-fallback.ts)
+
+*(Historical note, 2026-04: `web-live-fallback` and its Gemini path were removed; live stats are API-Football only.)*
 
 ## What Is Not Claimed Yet
 
@@ -65,5 +65,5 @@ would have to be duplicated across multiple bespoke Gemini implementations.
 
 Validated after refactor:
 
-- `npm test --prefix packages/server -- src/__tests__/re-evaluate.test.ts src/__tests__/strategic-context.service.test.ts src/__tests__/web-live-fallback.test.ts src/__tests__/proxy.routes.test.ts src/__tests__/server-pipeline.test.ts`
+- `npm test --prefix packages/server -- src/__tests__/re-evaluate.test.ts src/__tests__/strategic-context.service.test.ts src/__tests__/proxy.routes.test.ts src/__tests__/server-pipeline.test.ts`
 - `npm run typecheck --prefix packages/server`

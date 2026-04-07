@@ -20,10 +20,6 @@ The production Container App now has the new runtime env keys required by the re
 - `GEMINI_STRATEGIC_STRUCTURED_MAX_OUTPUT_TOKENS`
 - `GEMINI_STRATEGIC_GROUNDED_THINKING_BUDGET`
 - `GEMINI_STRATEGIC_STRUCTURED_THINKING_BUDGET`
-- `LIVE_SCORE_API_KEY`
-- `LIVE_SCORE_API_SECRET`
-- `LIVE_SCORE_BENCHMARK_ENABLED`
-- `LIVE_SCORE_STATS_FALLBACK_ENABLED`
 - `PROVIDER_SAMPLING_ENABLED`
 
 ## Deploy Incident Fixed
@@ -58,12 +54,11 @@ Using production env + production DB after deploy:
 - `Ask AI` route returned `200`
 - pipeline auto/system/manual shadow runs completed without runtime errors
 - batch run completed with `processed=2`, `errors=0`
-- provider sampling is flowing in production for both `api-football` and `live-score-api`
+- provider stats sampling in production uses `api-football` only (Live Score API and web fallback were removed in 2026-04)
 
-Recent provider stats sample counts observed in production:
+Recent provider stats sample counts observed in production (historical note from this deploy era):
 
 - `api-football / server-pipeline`: `99`
-- `live-score-api / server-pipeline`: `29`
 
 ## Production-Complete Patch Included
 
@@ -86,7 +81,7 @@ Reasoning:
 - production container is running the latest healthy revision
 - DB schema is current
 - core live-analysis, odds, auth, settings, and scheduler startup paths are healthy
-- provider benchmark/fallback instrumentation is live
+- provider sampling for API-Football stats is live
 - bilingual strategic-context display path is now wired end-to-end
 
 Residual non-blocking risk:

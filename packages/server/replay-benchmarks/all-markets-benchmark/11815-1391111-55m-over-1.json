@@ -1,0 +1,432 @@
+{
+  "name": "11815-1391111-55m-over-1",
+  "matchId": "1391111",
+  "fixture": {
+    "fixture": {
+      "id": 1391111,
+      "referee": null,
+      "timezone": "UTC",
+      "date": "2026-04-04T16:30:00.000Z",
+      "timestamp": 1775320200,
+      "periods": {
+        "first": null,
+        "second": null
+      },
+      "venue": {
+        "id": null,
+        "name": "Estadio La Cartuja de Sevilla",
+        "city": null
+      },
+      "status": {
+        "long": "2H",
+        "short": "2H",
+        "elapsed": 55
+      }
+    },
+    "league": {
+      "id": 140,
+      "name": "La Liga",
+      "country": "",
+      "logo": "",
+      "flag": null,
+      "season": 0,
+      "round": ""
+    },
+    "teams": {
+      "home": {
+        "id": 0,
+        "name": "Real Betis",
+        "logo": "",
+        "winner": null
+      },
+      "away": {
+        "id": 0,
+        "name": "Espanyol",
+        "logo": "",
+        "winner": null
+      }
+    },
+    "goals": {
+      "home": 0,
+      "away": 0
+    },
+    "score": {
+      "halftime": {
+        "home": null,
+        "away": null
+      },
+      "fulltime": {
+        "home": 0,
+        "away": 0
+      }
+    }
+  },
+  "watchlistEntry": {
+    "match_id": "1391111",
+    "league": "La Liga",
+    "home_team": "Real Betis",
+    "away_team": "Espanyol",
+    "mode": "B",
+    "status": "active",
+    "custom_conditions": "",
+    "date": "2026-04-05",
+    "kickoff": "01:30:00",
+    "strategic_context": null
+  },
+  "pipelineOptions": {
+    "forceAnalyze": true,
+    "skipProceedGate": true,
+    "skipStalenessGate": true
+  },
+  "statistics": [
+    {
+      "team": {
+        "id": 0,
+        "name": "Real Betis",
+        "logo": ""
+      },
+      "statistics": [
+        {
+          "type": "Ball Possession",
+          "value": "72%"
+        },
+        {
+          "type": "Total Shots",
+          "value": "12"
+        },
+        {
+          "type": "Shots on Goal",
+          "value": "4"
+        },
+        {
+          "type": "Corner Kicks",
+          "value": "2"
+        },
+        {
+          "type": "Fouls",
+          "value": "7"
+        },
+        {
+          "type": "Offsides",
+          "value": "1"
+        },
+        {
+          "type": "Yellow Cards",
+          "value": null
+        },
+        {
+          "type": "Red Cards",
+          "value": null
+        },
+        {
+          "type": "Goalkeeper Saves",
+          "value": "1"
+        },
+        {
+          "type": "Blocked Shots",
+          "value": "2"
+        },
+        {
+          "type": "Total passes",
+          "value": "430"
+        },
+        {
+          "type": "Passes accurate",
+          "value": "387"
+        },
+        {
+          "type": "Shots off Goal",
+          "value": "6"
+        },
+        {
+          "type": "Shots insidebox",
+          "value": "8"
+        },
+        {
+          "type": "Shots outsidebox",
+          "value": "4"
+        },
+        {
+          "type": "expected_goals",
+          "value": "1.36"
+        },
+        {
+          "type": "goals_prevented",
+          "value": "0"
+        },
+        {
+          "type": "Passes %",
+          "value": "90%"
+        }
+      ]
+    },
+    {
+      "team": {
+        "id": 0,
+        "name": "Espanyol",
+        "logo": ""
+      },
+      "statistics": [
+        {
+          "type": "Ball Possession",
+          "value": "28%"
+        },
+        {
+          "type": "Total Shots",
+          "value": "4"
+        },
+        {
+          "type": "Shots on Goal",
+          "value": "1"
+        },
+        {
+          "type": "Corner Kicks",
+          "value": "1"
+        },
+        {
+          "type": "Fouls",
+          "value": "9"
+        },
+        {
+          "type": "Offsides",
+          "value": "1"
+        },
+        {
+          "type": "Yellow Cards",
+          "value": null
+        },
+        {
+          "type": "Red Cards",
+          "value": null
+        },
+        {
+          "type": "Goalkeeper Saves",
+          "value": "4"
+        },
+        {
+          "type": "Blocked Shots",
+          "value": "0"
+        },
+        {
+          "type": "Total passes",
+          "value": "168"
+        },
+        {
+          "type": "Passes accurate",
+          "value": "128"
+        },
+        {
+          "type": "Shots off Goal",
+          "value": "3"
+        },
+        {
+          "type": "Shots insidebox",
+          "value": "1"
+        },
+        {
+          "type": "Shots outsidebox",
+          "value": "3"
+        },
+        {
+          "type": "expected_goals",
+          "value": "0.15"
+        },
+        {
+          "type": "goals_prevented",
+          "value": "0"
+        },
+        {
+          "type": "Passes %",
+          "value": "76%"
+        }
+      ]
+    }
+  ],
+  "mockResolvedOdds": {
+    "oddsSource": "live",
+    "response": [
+      {
+        "bookmakers": [
+          {
+            "id": 0,
+            "name": "Replay Mock",
+            "bets": [
+              {
+                "id": 1,
+                "name": "Over/Under",
+                "values": [
+                  {
+                    "value": "Over",
+                    "odd": "1.775",
+                    "handicap": "1"
+                  },
+                  {
+                    "value": "Under",
+                    "odd": "2.1",
+                    "handicap": "1"
+                  }
+                ]
+              },
+              {
+                "id": 2,
+                "name": "Corners Over/Under",
+                "values": [
+                  {
+                    "value": "Over",
+                    "odd": "2.5",
+                    "handicap": "7"
+                  },
+                  {
+                    "value": "Under",
+                    "odd": "2.1",
+                    "handicap": "7"
+                  }
+                ]
+              },
+              {
+                "id": 3,
+                "name": "Both Teams Score",
+                "values": [
+                  {
+                    "value": "Yes",
+                    "odd": "5"
+                  },
+                  {
+                    "value": "No",
+                    "odd": "1.166"
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    ],
+    "oddsFetchedAt": null,
+    "freshness": "fresh",
+    "cacheStatus": "hit"
+  },
+  "previousRecommendations": [],
+  "metadata": {
+    "recommendationId": 11815,
+    "originalPromptVersion": "v8-market-balance-followup-f",
+    "originalAiModel": "gemini-3-pro-preview",
+    "originalBetMarket": "over_1",
+    "originalSelection": "Over 1 Goals @1.775",
+    "originalResult": "loss",
+    "originalPnl": -3,
+    "minute": 55,
+    "score": "0-0",
+    "status": "2H",
+    "league": "La Liga",
+    "homeTeam": "Real Betis",
+    "awayTeam": "Espanyol",
+    "evidenceMode": "full_live_data",
+    "prematchStrength": "weak",
+    "profileCoverageBand": "partial",
+    "overlayCoverageBand": "none",
+    "policyImpactBand": "clean"
+  },
+  "settlementContext": {
+    "matchId": "1391111",
+    "homeTeam": "Real Betis",
+    "awayTeam": "Espanyol",
+    "finalStatus": "FT",
+    "homeScore": 0,
+    "awayScore": 0,
+    "regularHomeScore": 0,
+    "regularAwayScore": 0,
+    "settlementStats": [
+      {
+        "away": 1,
+        "home": 6,
+        "type": "Shots on Goal"
+      },
+      {
+        "away": 6,
+        "home": 9,
+        "type": "Shots off Goal"
+      },
+      {
+        "away": 8,
+        "home": 18,
+        "type": "Total Shots"
+      },
+      {
+        "away": 1,
+        "home": 3,
+        "type": "Blocked Shots"
+      },
+      {
+        "away": 1,
+        "home": 12,
+        "type": "Shots insidebox"
+      },
+      {
+        "away": 7,
+        "home": 6,
+        "type": "Shots outsidebox"
+      },
+      {
+        "away": 18,
+        "home": 12,
+        "type": "Fouls"
+      },
+      {
+        "away": 3,
+        "home": 4,
+        "type": "Corner Kicks"
+      },
+      {
+        "away": 4,
+        "home": 1,
+        "type": "Offsides"
+      },
+      {
+        "away": "31%",
+        "home": "69%",
+        "type": "Ball Possession"
+      },
+      {
+        "away": 3,
+        "home": 1,
+        "type": "Yellow Cards"
+      },
+      {
+        "away": null,
+        "home": null,
+        "type": "Red Cards"
+      },
+      {
+        "away": 6,
+        "home": 1,
+        "type": "Goalkeeper Saves"
+      },
+      {
+        "away": 278,
+        "home": 644,
+        "type": "Total passes"
+      },
+      {
+        "away": 202,
+        "home": 568,
+        "type": "Passes accurate"
+      },
+      {
+        "away": "73%",
+        "home": "88%",
+        "type": "Passes %"
+      },
+      {
+        "away": "0.20",
+        "home": "1.55",
+        "type": "expected_goals"
+      },
+      {
+        "away": 0,
+        "home": 0,
+        "type": "goals_prevented"
+      }
+    ]
+  }
+}

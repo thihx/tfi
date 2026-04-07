@@ -2,6 +2,8 @@
 // Server Pipeline Gates
 // ============================================================
 
+import { parseBetMarketLineSuffix, sameOddsLine } from './odds-line-utils.js';
+
 export interface MinimalStatsCompact {
   possession?: { home: string | null; away: string | null };
   shots?: { home: string | null; away: string | null };
@@ -240,8 +242,20 @@ function extractMarketOdd(
   const selectionLower = String(selection || '').toLowerCase();
 
   if ((marketLower.includes('over_') || marketLower.includes('under_')) && !marketLower.startsWith('corners_')) {
-    if (marketLower.startsWith('over_')) return oc.ou?.over ?? null;
-    if (marketLower.startsWith('under_')) return oc.ou?.under ?? null;
+    if (marketLower.startsWith('over_')) {
+      const line = parseBetMarketLineSuffix('over_', marketLower);
+      if (line == null) return oc.ou?.over ?? null;
+      if (sameOddsLine(line, oc.ou?.line)) return oc.ou?.over ?? null;
+      if (sameOddsLine(line, oc.ou_adjacent?.line)) return oc.ou_adjacent?.over ?? null;
+      return null;
+    }
+    if (marketLower.startsWith('under_')) {
+      const line = parseBetMarketLineSuffix('under_', marketLower);
+      if (line == null) return oc.ou?.under ?? null;
+      if (sameOddsLine(line, oc.ou?.line)) return oc.ou?.under ?? null;
+      if (sameOddsLine(line, oc.ou_adjacent?.line)) return oc.ou_adjacent?.under ?? null;
+      return null;
+    }
   }
 
   if (marketLower.startsWith('1x2_')) {
@@ -256,8 +270,24 @@ function extractMarketOdd(
   }
 
   if (marketLower.startsWith('asian_handicap_')) {
-    if (marketLower.includes('_home_')) return oc.ah?.home ?? null;
-    if (marketLower.includes('_away_')) return oc.ah?.away ?? null;
+    if (marketLower.includes('_home_')) {
+      const line = parseBetMarketLineSuffix('asian_handicap_home_', marketLower);
+      if (line == null) return oc.ah?.home ?? null;
+      if (sameOddsLine(line, oc.ah?.line)) return oc.ah?.home ?? null;
+      if (sameOddsLine(line, oc.ah_adjacent?.line)) return oc.ah_adjacent?.home ?? null;
+      return null;
+    }
+    if (marketLower.includes('_away_')) {
+      const line = parseBetMarketLineSuffix('asian_handicap_away_', marketLower);
+      if (line == null) return oc.ah?.away ?? null;
+      const matchMain =
+        sameOddsLine(line, oc.ah?.line) || sameOddsLine(-line, oc.ah?.line);
+      if (matchMain) return oc.ah?.away ?? null;
+      const matchAdj =
+        sameOddsLine(line, oc.ah_adjacent?.line) || sameOddsLine(-line, oc.ah_adjacent?.line);
+      if (matchAdj) return oc.ah_adjacent?.away ?? null;
+      return null;
+    }
   }
 
   if (marketLower.startsWith('corners_')) {
@@ -297,9 +327,15 @@ function flattenOdds(canonical: Record<string, unknown> | null | undefined): Map
   setIfFinite('ou.line', oc.ou?.line);
   setIfFinite('ou.over', oc.ou?.over);
   setIfFinite('ou.under', oc.ou?.under);
+  setIfFinite('ou_adjacent.line', oc.ou_adjacent?.line);
+  setIfFinite('ou_adjacent.over', oc.ou_adjacent?.over);
+  setIfFinite('ou_adjacent.under', oc.ou_adjacent?.under);
   setIfFinite('ah.line', oc.ah?.line);
   setIfFinite('ah.home', oc.ah?.home);
   setIfFinite('ah.away', oc.ah?.away);
+  setIfFinite('ah_adjacent.line', oc.ah_adjacent?.line);
+  setIfFinite('ah_adjacent.home', oc.ah_adjacent?.home);
+  setIfFinite('ah_adjacent.away', oc.ah_adjacent?.away);
   setIfFinite('btts.yes', oc.btts?.yes);
   setIfFinite('btts.no', oc.btts?.no);
   setIfFinite('corners_ou.line', oc.corners_ou?.line);

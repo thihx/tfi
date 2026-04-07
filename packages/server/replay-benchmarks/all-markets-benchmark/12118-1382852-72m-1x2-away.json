@@ -1,0 +1,461 @@
+{
+  "name": "12118-1382852-72m-1x2-away",
+  "matchId": "1382852",
+  "fixture": {
+    "fixture": {
+      "id": 1382852,
+      "referee": null,
+      "timezone": "UTC",
+      "date": "2026-04-05T15:30:00.000Z",
+      "timestamp": 1775403000,
+      "periods": {
+        "first": null,
+        "second": null
+      },
+      "venue": {
+        "id": null,
+        "name": "Dens Park",
+        "city": null
+      },
+      "status": {
+        "long": "2H",
+        "short": "2H",
+        "elapsed": 72
+      }
+    },
+    "league": {
+      "id": 179,
+      "name": "Premiership",
+      "country": "",
+      "logo": "",
+      "flag": null,
+      "season": 0,
+      "round": ""
+    },
+    "teams": {
+      "home": {
+        "id": 0,
+        "name": "Dundee",
+        "logo": "",
+        "winner": null
+      },
+      "away": {
+        "id": 0,
+        "name": "Celtic",
+        "logo": "",
+        "winner": null
+      }
+    },
+    "goals": {
+      "home": 1,
+      "away": 1
+    },
+    "score": {
+      "halftime": {
+        "home": null,
+        "away": null
+      },
+      "fulltime": {
+        "home": 1,
+        "away": 1
+      }
+    }
+  },
+  "watchlistEntry": {
+    "match_id": "1382852",
+    "league": "Premiership",
+    "home_team": "Dundee",
+    "away_team": "Celtic",
+    "mode": "B",
+    "status": "active",
+    "custom_conditions": "",
+    "date": "2026-04-06",
+    "kickoff": "00:30:00",
+    "strategic_context": null
+  },
+  "pipelineOptions": {
+    "forceAnalyze": true,
+    "skipProceedGate": true,
+    "skipStalenessGate": true
+  },
+  "statistics": [
+    {
+      "team": {
+        "id": 0,
+        "name": "Dundee",
+        "logo": ""
+      },
+      "statistics": [
+        {
+          "type": "Ball Possession",
+          "value": "49%"
+        },
+        {
+          "type": "Total Shots",
+          "value": "8"
+        },
+        {
+          "type": "Shots on Goal",
+          "value": "3"
+        },
+        {
+          "type": "Corner Kicks",
+          "value": "1"
+        },
+        {
+          "type": "Fouls",
+          "value": "3"
+        },
+        {
+          "type": "Offsides",
+          "value": null
+        },
+        {
+          "type": "Yellow Cards",
+          "value": "0"
+        },
+        {
+          "type": "Red Cards",
+          "value": null
+        },
+        {
+          "type": "Goalkeeper Saves",
+          "value": "5"
+        },
+        {
+          "type": "Blocked Shots",
+          "value": "2"
+        },
+        {
+          "type": "Total passes",
+          "value": "328"
+        },
+        {
+          "type": "Passes accurate",
+          "value": "265"
+        },
+        {
+          "type": "Shots off Goal",
+          "value": "3"
+        },
+        {
+          "type": "Shots insidebox",
+          "value": "6"
+        },
+        {
+          "type": "Shots outsidebox",
+          "value": "2"
+        },
+        {
+          "type": "expected_goals",
+          "value": "1.42"
+        },
+        {
+          "type": "goals_prevented",
+          "value": "0"
+        },
+        {
+          "type": "Passes %",
+          "value": "81%"
+        }
+      ]
+    },
+    {
+      "team": {
+        "id": 0,
+        "name": "Celtic",
+        "logo": ""
+      },
+      "statistics": [
+        {
+          "type": "Ball Possession",
+          "value": "51%"
+        },
+        {
+          "type": "Total Shots",
+          "value": "13"
+        },
+        {
+          "type": "Shots on Goal",
+          "value": "7"
+        },
+        {
+          "type": "Corner Kicks",
+          "value": "2"
+        },
+        {
+          "type": "Fouls",
+          "value": "10"
+        },
+        {
+          "type": "Offsides",
+          "value": null
+        },
+        {
+          "type": "Yellow Cards",
+          "value": "1"
+        },
+        {
+          "type": "Red Cards",
+          "value": null
+        },
+        {
+          "type": "Goalkeeper Saves",
+          "value": "2"
+        },
+        {
+          "type": "Blocked Shots",
+          "value": "2"
+        },
+        {
+          "type": "Total passes",
+          "value": "351"
+        },
+        {
+          "type": "Passes accurate",
+          "value": "283"
+        },
+        {
+          "type": "Shots off Goal",
+          "value": "4"
+        },
+        {
+          "type": "Shots insidebox",
+          "value": "6"
+        },
+        {
+          "type": "Shots outsidebox",
+          "value": "7"
+        },
+        {
+          "type": "expected_goals",
+          "value": "3.18"
+        },
+        {
+          "type": "goals_prevented",
+          "value": "0"
+        },
+        {
+          "type": "Passes %",
+          "value": "81%"
+        }
+      ]
+    }
+  ],
+  "mockResolvedOdds": {
+    "oddsSource": "live",
+    "response": [
+      {
+        "bookmakers": [
+          {
+            "id": 0,
+            "name": "Replay Mock",
+            "bets": [
+              {
+                "id": 1,
+                "name": "Match Winner",
+                "values": [
+                  {
+                    "value": "Home",
+                    "odd": "7"
+                  },
+                  {
+                    "value": "Draw",
+                    "odd": "2"
+                  },
+                  {
+                    "value": "Away",
+                    "odd": "2.4"
+                  }
+                ]
+              },
+              {
+                "id": 2,
+                "name": "Over/Under",
+                "values": [
+                  {
+                    "value": "Over",
+                    "odd": "1.925",
+                    "handicap": "2.75"
+                  },
+                  {
+                    "value": "Under",
+                    "odd": "1.925",
+                    "handicap": "2.75"
+                  }
+                ]
+              },
+              {
+                "id": 3,
+                "name": "Corners Over/Under",
+                "values": [
+                  {
+                    "value": "Over",
+                    "odd": "1.85",
+                    "handicap": "6.5"
+                  },
+                  {
+                    "value": "Under",
+                    "odd": "1.95",
+                    "handicap": "6.5"
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    ],
+    "oddsFetchedAt": null,
+    "freshness": "fresh",
+    "cacheStatus": "hit"
+  },
+  "previousRecommendations": [
+    {
+      "minute": 45,
+      "odds": "1.975",
+      "bet_market": "over_2.75",
+      "selection": "Over 2.75 Goals @1.975",
+      "score": "0-1",
+      "status": "1H",
+      "result": "half_win",
+      "confidence": 7,
+      "stake_percent": "4.00",
+      "reasoning": "Previously at minute 34, we recommended Over 3 Goals based on Celtic's overwhelming dominance. The underlying conditions remain exactly the same: Celtic finished the first half with a staggering 2.79 xG, 11 shots, and 6 on target, yet they only lead 0-1 due to poor finishing and 4 saves from the Dundee goalkeeper. Combined with Dundee's 0.29 xG, the first half saw 3.08 total xG. Because no further goals were scored before halftime, the market line has dropped to 2.75 and the odds have improved to 1.975, offering a materially better entry point than our previous pick. Break-even is about 50.6%. Given the sheer volume of high-quality chances, my fair range for at least two more goals is around 60-65%. Edge looks about 10-14%."
+    },
+    {
+      "minute": 34,
+      "odds": "1.825",
+      "bet_market": "over_3",
+      "selection": "Over 3 Goals @1.825",
+      "score": "0-1",
+      "status": "1H",
+      "result": "push",
+      "confidence": 6,
+      "stake_percent": "3.00",
+      "reasoning": "Celtic is completely dominating the first half, generating an incredible 2.70 xG and 5 shots on target in just 34 minutes. Despite this massive chance creation, they only lead 1-0. This represents a major class mismatch and overwhelming live evidence of an open, attacking game. Although the Over 3 line requires two more goals for a push and three to win, Celtic's extreme offensive output justifies the position. Break-even is about 54.8%. My fair range is around 62-65%. Edge looks about 8%."
+    }
+  ],
+  "metadata": {
+    "recommendationId": 12118,
+    "originalPromptVersion": "v4-evidence-hardened",
+    "originalAiModel": "gemini-3-pro-preview",
+    "originalBetMarket": "1x2_away",
+    "originalSelection": "Away Win @2.05",
+    "originalResult": "win",
+    "originalPnl": 5.6,
+    "minute": 72,
+    "score": "1-1",
+    "status": "2H",
+    "league": "Premiership",
+    "homeTeam": "Dundee",
+    "awayTeam": "Celtic",
+    "evidenceMode": "full_live_data",
+    "prematchStrength": "strong",
+    "profileCoverageBand": "partial",
+    "overlayCoverageBand": "none",
+    "policyImpactBand": "clean"
+  },
+  "settlementContext": {
+    "matchId": "1382852",
+    "homeTeam": "Dundee",
+    "awayTeam": "Celtic",
+    "finalStatus": "FT",
+    "homeScore": 1,
+    "awayScore": 2,
+    "regularHomeScore": 1,
+    "regularAwayScore": 2,
+    "settlementStats": [
+      {
+        "away": 8,
+        "home": 3,
+        "type": "Shots on Goal"
+      },
+      {
+        "away": 7,
+        "home": 3,
+        "type": "Shots off Goal"
+      },
+      {
+        "away": 17,
+        "home": 8,
+        "type": "Total Shots"
+      },
+      {
+        "away": 2,
+        "home": 2,
+        "type": "Blocked Shots"
+      },
+      {
+        "away": 8,
+        "home": 6,
+        "type": "Shots insidebox"
+      },
+      {
+        "away": 9,
+        "home": 2,
+        "type": "Shots outsidebox"
+      },
+      {
+        "away": 11,
+        "home": 6,
+        "type": "Fouls"
+      },
+      {
+        "away": 4,
+        "home": 1,
+        "type": "Corner Kicks"
+      },
+      {
+        "away": null,
+        "home": null,
+        "type": "Offsides"
+      },
+      {
+        "away": "56%",
+        "home": "44%",
+        "type": "Ball Possession"
+      },
+      {
+        "away": 1,
+        "home": 0,
+        "type": "Yellow Cards"
+      },
+      {
+        "away": 0,
+        "home": 1,
+        "type": "Red Cards"
+      },
+      {
+        "away": 2,
+        "home": 5,
+        "type": "Goalkeeper Saves"
+      },
+      {
+        "away": 499,
+        "home": 389,
+        "type": "Total passes"
+      },
+      {
+        "away": 413,
+        "home": 301,
+        "type": "Passes accurate"
+      },
+      {
+        "away": "83%",
+        "home": "77%",
+        "type": "Passes %"
+      },
+      {
+        "away": "3.77",
+        "home": "1.42",
+        "type": "expected_goals"
+      },
+      {
+        "away": 0,
+        "home": 0,
+        "type": "goals_prevented"
+      }
+    ]
+  }
+}

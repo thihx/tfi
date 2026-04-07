@@ -1,5 +1,9 @@
 // ============================================================
 // Football API Client — api-sports.io v3
+//
+// Canonical entry point for all outbound HTTP to the sports data provider.
+// Call sites (jobs, pipelines, caches, proxy routes) must use this module —
+// do not add ad-hoc fetch() to the provider base URL elsewhere.
 // ============================================================
 
 import { config } from '../config.js';

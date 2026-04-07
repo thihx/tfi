@@ -1,0 +1,17 @@
+{
+  "_note": "Use ONLY with eval from full pipeline + post-parse policy: npm run replay:benchmark:eval:policy (summary eval-last-summary-policy.json). Targets are aggressive; expect failures until cohort + prompt/policy are tuned.",
+  "summaryPath": "replay-benchmarks/eval-last-summary-policy.json",
+  "promptVersion": "v8-market-balance-followup-j",
+  "minScenarios": 80,
+  "pushRate": {
+    "min": 0.7,
+    "max": 0.98
+  },
+  "goalsUnderShareMax": 0.5,
+  "accuracyMin": 0.7,
+  "marketFamiliesAccuracy": {
+    "minSettledDirectionalPerFamily": 8,
+    "minAccuracy": 0.5,
+    "failOnInsufficientSample": true
+  }
+}

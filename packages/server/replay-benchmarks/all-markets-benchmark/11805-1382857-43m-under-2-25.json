@@ -1,0 +1,463 @@
+{
+  "name": "11805-1382857-43m-under-2-25",
+  "matchId": "1382857",
+  "fixture": {
+    "fixture": {
+      "id": 1382857,
+      "referee": null,
+      "timezone": "UTC",
+      "date": "2026-04-04T14:00:00.000Z",
+      "timestamp": 1775311200,
+      "periods": {
+        "first": null,
+        "second": null
+      },
+      "venue": {
+        "id": null,
+        "name": "The SMISA Stadium",
+        "city": null
+      },
+      "status": {
+        "long": "1H",
+        "short": "1H",
+        "elapsed": 43
+      }
+    },
+    "league": {
+      "id": 179,
+      "name": "Premiership",
+      "country": "",
+      "logo": "",
+      "flag": null,
+      "season": 0,
+      "round": ""
+    },
+    "teams": {
+      "home": {
+        "id": 251,
+        "name": "ST Mirren",
+        "logo": "",
+        "winner": null
+      },
+      "away": {
+        "id": 252,
+        "name": "Aberdeen",
+        "logo": "",
+        "winner": null
+      }
+    },
+    "goals": {
+      "home": 1,
+      "away": 0
+    },
+    "score": {
+      "halftime": {
+        "home": null,
+        "away": null
+      },
+      "fulltime": {
+        "home": 1,
+        "away": 0
+      }
+    }
+  },
+  "watchlistEntry": {
+    "match_id": "1382857",
+    "league": "Premiership",
+    "home_team": "ST Mirren",
+    "away_team": "Aberdeen",
+    "mode": "B",
+    "status": "active",
+    "custom_conditions": "",
+    "date": "2026-04-04",
+    "kickoff": "14:00:00",
+    "strategic_context": null
+  },
+  "pipelineOptions": {
+    "forceAnalyze": true,
+    "skipProceedGate": true,
+    "skipStalenessGate": true
+  },
+  "statistics": [
+    {
+      "team": {
+        "id": 0,
+        "name": "ST Mirren",
+        "logo": ""
+      },
+      "statistics": [
+        {
+          "type": "Ball Possession",
+          "value": "73%"
+        },
+        {
+          "type": "Total Shots",
+          "value": "7"
+        },
+        {
+          "type": "Shots on Goal",
+          "value": "2"
+        },
+        {
+          "type": "Corner Kicks",
+          "value": "6"
+        },
+        {
+          "type": "Fouls",
+          "value": "2"
+        },
+        {
+          "type": "Offsides",
+          "value": "2"
+        },
+        {
+          "type": "Yellow Cards",
+          "value": "0"
+        },
+        {
+          "type": "Red Cards",
+          "value": null
+        },
+        {
+          "type": "Goalkeeper Saves",
+          "value": "0"
+        },
+        {
+          "type": "Blocked Shots",
+          "value": "1"
+        },
+        {
+          "type": "Total passes",
+          "value": "288"
+        },
+        {
+          "type": "Passes accurate",
+          "value": "248"
+        },
+        {
+          "type": "Shots off Goal",
+          "value": "4"
+        },
+        {
+          "type": "Shots insidebox",
+          "value": "4"
+        },
+        {
+          "type": "Shots outsidebox",
+          "value": "3"
+        },
+        {
+          "type": "expected_goals",
+          "value": "0.54"
+        },
+        {
+          "type": "goals_prevented",
+          "value": "0"
+        },
+        {
+          "type": "Passes %",
+          "value": "86%"
+        }
+      ]
+    },
+    {
+      "team": {
+        "id": 0,
+        "name": "Aberdeen",
+        "logo": ""
+      },
+      "statistics": [
+        {
+          "type": "Ball Possession",
+          "value": "27%"
+        },
+        {
+          "type": "Total Shots",
+          "value": "1"
+        },
+        {
+          "type": "Shots on Goal",
+          "value": "0"
+        },
+        {
+          "type": "Corner Kicks",
+          "value": "0"
+        },
+        {
+          "type": "Fouls",
+          "value": "7"
+        },
+        {
+          "type": "Offsides",
+          "value": "0"
+        },
+        {
+          "type": "Yellow Cards",
+          "value": "2"
+        },
+        {
+          "type": "Red Cards",
+          "value": null
+        },
+        {
+          "type": "Goalkeeper Saves",
+          "value": "1"
+        },
+        {
+          "type": "Blocked Shots",
+          "value": "0"
+        },
+        {
+          "type": "Total passes",
+          "value": "110"
+        },
+        {
+          "type": "Passes accurate",
+          "value": "71"
+        },
+        {
+          "type": "Shots off Goal",
+          "value": "1"
+        },
+        {
+          "type": "Shots insidebox",
+          "value": "0"
+        },
+        {
+          "type": "Shots outsidebox",
+          "value": "1"
+        },
+        {
+          "type": "expected_goals",
+          "value": "0.04"
+        },
+        {
+          "type": "goals_prevented",
+          "value": "0"
+        },
+        {
+          "type": "Passes %",
+          "value": "65%"
+        }
+      ]
+    }
+  ],
+  "mockResolvedOdds": {
+    "oddsSource": "live",
+    "response": [
+      {
+        "bookmakers": [
+          {
+            "id": 0,
+            "name": "Replay Mock",
+            "bets": [
+              {
+                "id": 1,
+                "name": "Match Winner",
+                "values": [
+                  {
+                    "value": "Home",
+                    "odd": "1.222"
+                  },
+                  {
+                    "value": "Draw",
+                    "odd": "5.5"
+                  },
+                  {
+                    "value": "Away",
+                    "odd": "17"
+                  }
+                ]
+              },
+              {
+                "id": 2,
+                "name": "Over/Under",
+                "values": [
+                  {
+                    "value": "Over",
+                    "odd": "1.8",
+                    "handicap": "2.25"
+                  },
+                  {
+                    "value": "Under",
+                    "odd": "2.05",
+                    "handicap": "2.25"
+                  }
+                ]
+              },
+              {
+                "id": 3,
+                "name": "Corners Over/Under",
+                "values": [
+                  {
+                    "value": "Over",
+                    "odd": "1.8",
+                    "handicap": "11.5"
+                  },
+                  {
+                    "value": "Under",
+                    "odd": "2",
+                    "handicap": "11.5"
+                  }
+                ]
+              },
+              {
+                "id": 4,
+                "name": "Both Teams Score",
+                "values": [
+                  {
+                    "value": "Yes",
+                    "odd": "2.1"
+                  },
+                  {
+                    "value": "No",
+                    "odd": "1.666"
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    ],
+    "oddsFetchedAt": null,
+    "freshness": "fresh",
+    "cacheStatus": "hit"
+  },
+  "previousRecommendations": [
+    {
+      "minute": 43,
+      "odds": "2.000",
+      "bet_market": "under_11.5",
+      "selection": "Under 11.5 Goals @2",
+      "score": "1-0",
+      "status": "1H",
+      "result": "win",
+      "confidence": 7,
+      "stake_percent": "4.00",
+      "reasoning": "Break-even about 50%. My fair range is around 99%. Edge looks about 49%. The goals O/U line is currently quoted at 11.5 with the Under at 2.00. Given the score is 1-0 at minute 43, expecting 11 more goals in the remainder of the match is practically impossible. While this may be a palpable feed error, mathematically it presents an extreme value anomaly based on the provided odds. St Mirren is dominating possession (73%) and xG (0.54 vs 0.04), completely contradicting a 12-goal outcome."
+    }
+  ],
+  "metadata": {
+    "recommendationId": 11805,
+    "originalPromptVersion": "v8-market-balance-followup-e",
+    "originalAiModel": "gemini-3-pro-preview",
+    "originalBetMarket": "under_2.25",
+    "originalSelection": "Under 2.25 Goals @2.05",
+    "originalResult": "half_win",
+    "originalPnl": 1.57,
+    "minute": 43,
+    "score": "1-0",
+    "status": "1H",
+    "league": "Premiership",
+    "homeTeam": "ST Mirren",
+    "awayTeam": "Aberdeen",
+    "evidenceMode": "full_live_data",
+    "prematchStrength": "strong",
+    "profileCoverageBand": "partial",
+    "overlayCoverageBand": "one",
+    "policyImpactBand": "clean"
+  },
+  "settlementContext": {
+    "matchId": "1382857",
+    "homeTeam": "ST Mirren",
+    "awayTeam": "Aberdeen",
+    "finalStatus": "FT",
+    "homeScore": 2,
+    "awayScore": 0,
+    "regularHomeScore": 2,
+    "regularAwayScore": 0,
+    "settlementStats": [
+      {
+        "away": 0,
+        "home": 2,
+        "type": "Shots on Goal"
+      },
+      {
+        "away": 1,
+        "home": 4,
+        "type": "Shots off Goal"
+      },
+      {
+        "away": 1,
+        "home": 7,
+        "type": "Total Shots"
+      },
+      {
+        "away": 0,
+        "home": 1,
+        "type": "Blocked Shots"
+      },
+      {
+        "away": 0,
+        "home": 4,
+        "type": "Shots insidebox"
+      },
+      {
+        "away": 1,
+        "home": 3,
+        "type": "Shots outsidebox"
+      },
+      {
+        "away": 8,
+        "home": 3,
+        "type": "Fouls"
+      },
+      {
+        "away": 0,
+        "home": 6,
+        "type": "Corner Kicks"
+      },
+      {
+        "away": 0,
+        "home": 2,
+        "type": "Offsides"
+      },
+      {
+        "away": "27%",
+        "home": "73%",
+        "type": "Ball Possession"
+      },
+      {
+        "away": 3,
+        "home": 0,
+        "type": "Yellow Cards"
+      },
+      {
+        "away": null,
+        "home": null,
+        "type": "Red Cards"
+      },
+      {
+        "away": 1,
+        "home": 0,
+        "type": "Goalkeeper Saves"
+      },
+      {
+        "away": 120,
+        "home": 317,
+        "type": "Total passes"
+      },
+      {
+        "away": 78,
+        "home": 268,
+        "type": "Passes accurate"
+      },
+      {
+        "away": "65%",
+        "home": "85%",
+        "type": "Passes %"
+      },
+      {
+        "away": "0.04",
+        "home": "0.54",
+        "type": "expected_goals"
+      },
+      {
+        "away": 0,
+        "home": 0,
+        "type": "goals_prevented"
+      }
+    ]
+  }
+}
