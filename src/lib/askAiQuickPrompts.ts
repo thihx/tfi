@@ -8,6 +8,9 @@ import labels from './askAiQuickPrompts.labels.json';
 import en from './askAiQuickPrompts.en.json';
 import vi from './askAiQuickPrompts.vi.json';
 
+/** Max length for Ask AI first question (dialog) and match follow-up chat input; keep server `ASK_AI_QUICK_PROMPTS_LIMITS.maxTextLength` in sync. */
+export const ASK_AI_CHAT_MAX_CHARS = 200;
+
 /** Extend when new UI locales ship prompt catalogs. */
 export type AskAiPromptLocale = 'en' | 'vi';
 
@@ -54,7 +57,7 @@ export function mergeAskAiQuickPromptsForLocale(
   if (custom && custom.length > 0) {
     return custom.map((item, i) => ({
       id: item.id?.trim() ? item.id.trim().slice(0, 64) : `user_${i}`,
-      text: item.text.slice(0, 100),
+      text: item.text.slice(0, ASK_AI_CHAT_MAX_CHARS),
     }));
   }
   return getAskAiQuickPrompts(locale);
@@ -71,7 +74,7 @@ export function linesToAskAiQuickPromptItems(raw: string): AskAiQuickPromptItem[
     .slice(0, USER_QUICK_PROMPT_MAX_LINES);
   return lines.map((text, i) => ({
     id: `user_${i}`,
-    text: text.slice(0, 100),
+    text: text.slice(0, ASK_AI_CHAT_MAX_CHARS),
   }));
 }
 

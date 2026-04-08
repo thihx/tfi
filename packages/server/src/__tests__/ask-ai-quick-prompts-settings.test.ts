@@ -13,7 +13,7 @@ describe('ask-ai-quick-prompts-settings', () => {
     ]);
     expect(items).toHaveLength(2);
     expect(items[0]?.text).toBe('hello');
-    expect(items[1]?.text.length).toBe(100);
+    expect(items[1]?.text.length).toBe(200);
   });
 
   it('merges partial patch without dropping other locale', () => {

@@ -4,12 +4,11 @@ import { AskAiQuickPromptChips } from '@/components/ui/AskAiQuickPromptChips';
 import { useAskAiQuickPromptList } from '@/hooks/useAskAiQuickPromptList';
 import { useUiLanguage } from '@/hooks/useUiLanguage';
 import {
+  ASK_AI_CHAT_MAX_CHARS,
   getAskAiQuickPromptsSectionLabel,
   uiLanguageToAskAiPromptLocale,
 } from '@/lib/askAiQuickPrompts';
 import type { Match } from '@/types';
-
-const MAX_QUESTION_CHARS = 200;
 
 interface AskAiMatchDialogProps {
   open: boolean;
@@ -64,7 +63,7 @@ export function AskAiMatchDialog({ open, match, isRunning, onClose, onSubmit }: 
             type="button"
             className="btn btn-primary"
             onClick={() => onSubmit(draft.trim())}
-            disabled={isRunning || draft.length > MAX_QUESTION_CHARS}
+            disabled={isRunning || draft.length > ASK_AI_CHAT_MAX_CHARS}
             aria-busy={isRunning}
           >
             {isRunning ? 'Running…' : 'Run analysis'}
@@ -87,9 +86,10 @@ export function AskAiMatchDialog({ open, match, isRunning, onClose, onSubmit }: 
         aria-labelledby={descId}
         aria-label="Your question (optional)"
         value={draft}
-        onChange={(e) => setDraft(e.target.value.slice(0, MAX_QUESTION_CHARS))}
+        onChange={(e) => setDraft(e.target.value.slice(0, ASK_AI_CHAT_MAX_CHARS))}
         onKeyDown={handleKeyDown}
         disabled={isRunning}
+        maxLength={ASK_AI_CHAT_MAX_CHARS}
         placeholder="Your question (optional)"
         rows={4}
         style={{

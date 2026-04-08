@@ -7,9 +7,10 @@ export interface AskAiQuickPromptItem {
   text: string;
 }
 
+/** Keep `maxTextLength` aligned with frontend `ASK_AI_CHAT_MAX_CHARS` (askAiQuickPrompts.ts). */
 export const ASK_AI_QUICK_PROMPTS_LIMITS = {
   maxPerLocale: 12,
-  maxTextLength: 100,
+  maxTextLength: 200,
   maxIdLength: 64,
 } as const;
 

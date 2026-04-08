@@ -20,6 +20,7 @@ import { useAskAiQuickPromptList } from '@/hooks/useAskAiQuickPromptList';
 import { useAuth } from '@/hooks/useAuth';
 import { useUiLanguage } from '@/hooks/useUiLanguage';
 import {
+  ASK_AI_CHAT_MAX_CHARS,
   getAskAiQuickPromptsSectionLabel,
   uiLanguageToAskAiPromptLocale,
 } from '@/lib/askAiQuickPrompts';
@@ -301,8 +302,6 @@ interface Props {
   onFollowUp?: (question: string, history: AskAiFollowUpMessage[]) => Promise<void>;
 }
 
-/** Max length for match follow-up chat input (UI + client-side cap). */
-const FOLLOW_UP_MAX_CHARS = 100;
 
 const PANEL_ICON_BTN: CSSProperties = {
   background: 'none',
@@ -624,7 +623,7 @@ export function AiAnalysisPanel({ entry, onClose, onFollowUp }: Props) {
                 label={quickPromptsLabel}
                 prompts={quickPrompts}
                 disabled={followUpInputLocked}
-                onPick={(text) => setFollowUpInput(text.slice(0, FOLLOW_UP_MAX_CHARS))}
+                onPick={(text) => setFollowUpInput(text.slice(0, ASK_AI_CHAT_MAX_CHARS))}
               />
               <div style={{ display: 'flex', gap: '10px', alignItems: 'stretch' }}>
                 <input
@@ -632,7 +631,7 @@ export function AiAnalysisPanel({ entry, onClose, onFollowUp }: Props) {
                   id={`ai-followup-input-${entry.matchId}`}
                   aria-label="Follow-up question for this match"
                   value={followUpInput}
-                  maxLength={FOLLOW_UP_MAX_CHARS}
+                  maxLength={ASK_AI_CHAT_MAX_CHARS}
                   onChange={(event) => setFollowUpInput(event.target.value)}
                   onKeyDown={onFollowUpKeyDown}
                   placeholder="Question… Enter to send"

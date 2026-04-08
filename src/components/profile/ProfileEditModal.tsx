@@ -543,7 +543,7 @@ export function ProfileEditModal({ open, onClose, user, onUserChange }: ProfileE
               Ask AI — quick prompts
             </div>
             <div style={{ fontSize: '11px', color: 'var(--gray-500)', marginBottom: '10px', lineHeight: 1.45 }}>
-              One line per chip (max 12 lines, 100 characters each). Leave empty to use the built-in defaults for that language.
+              One line per chip (max 12 lines, 200 characters each). Leave empty to use the built-in defaults for that language.
             </div>
             <div style={{ marginBottom: '10px' }}>
               <div style={{ fontSize: '11px', fontWeight: 600, color: 'var(--gray-600)', marginBottom: '4px' }}>English</div>

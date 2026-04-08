@@ -703,6 +703,8 @@ export interface MatchPipelineResult {
     aiTextChars?: number;
     aiTextEstimatedTokens?: number;
     llmLatencyMs?: number;
+    /** Wall time from processMatch start until immediately before executePromptAnalysis (excludes prompt build + Gemini). */
+    preLlmLatencyMs?: number;
     totalLatencyMs?: number;
     prompt?: string;
     aiText?: string;
@@ -2661,72 +2663,99 @@ async function processMatch(
       };
     }
 
-    // 3. Fetch odds (API-Football live, then pre-match when not bypassed by real_required in-play)
-    let oddsCanonical: OddsCanonical = {};
-    let oddsAvailable = false;
-    let oddsSource: string = 'none';
-    let oddsFetchedAt: string | null = null;
+    // 3–4. Odds resolution and DB prompt context (historical + profiles) in parallel — same inputs as before staleness/prompt.
+    type OddsSideResult = {
+      oddsCanonical: OddsCanonical;
+      oddsAvailable: boolean;
+      oddsSource: string;
+      oddsFetchedAt: string | null;
+      oddsSanityWarnings: string[];
+      oddsSuspicious: boolean;
+    };
 
-    const resolvedOdds = await deps.resolveMatchOdds({
-      matchId,
-      homeTeam: homeName,
-      awayTeam: awayName,
-      kickoffTimestamp: fixture.fixture?.timestamp,
-      leagueName: fixture.league?.name,
-      leagueCountry: fixture.league?.country,
-      status,
-      matchMinute: minute,
-      consumer: shadowMode ? 'replay' : 'server-pipeline',
-      sampleProviderData,
-      freshnessMode: 'real_required',
-    });
-
-    oddsSource = resolvedOdds.oddsSource;
-    oddsFetchedAt = resolvedOdds.oddsFetchedAt;
-
-    const oddsResult = buildOddsCanonical(resolvedOdds.response);
-    let oddsSanityWarnings: string[] = [];
-    let oddsSuspicious = false;
-    if (oddsResult.available) {
-      const cornersHome = Number.parseInt(String(statsCompact.corners.home ?? ''), 10);
-      const cornersAway = Number.parseInt(String(statsCompact.corners.away ?? ''), 10);
-      const currentTotalCorners = Number.isNaN(cornersHome) || Number.isNaN(cornersAway)
-        ? null
-        : cornersHome + cornersAway;
-      const sanitizedOdds = sanitizePromptOddsCanonical({
-        canonical: oddsResult.canonical,
-        homeGoals,
-        awayGoals,
-        currentTotalGoals: homeGoals + awayGoals,
-        currentTotalCorners,
+    const loadOddsSide = async (): Promise<OddsSideResult> => {
+      const resolvedOdds = await deps.resolveMatchOdds({
+        matchId,
+        homeTeam: homeName,
+        awayTeam: awayName,
+        kickoffTimestamp: fixture.fixture?.timestamp,
+        leagueName: fixture.league?.name,
+        leagueCountry: fixture.league?.country,
+        status,
         matchMinute: minute,
+        consumer: shadowMode ? 'replay' : 'server-pipeline',
+        sampleProviderData,
+        freshnessMode: 'real_required',
       });
-      oddsCanonical = sanitizedOdds.canonical;
-      oddsAvailable = sanitizedOdds.available;
-      oddsSanityWarnings = sanitizedOdds.warnings;
-      oddsSuspicious = sanitizedOdds.suspicious;
-    }
 
-    // 4. Load prompt-only context after the heavy providers already passed coarse gating.
-    const [historicalPerformance, leagueProfile, leagueMeta, homeTeamProfile, awayTeamProfile] = await Promise.all([
-      loadHistoricalPromptContext(deps),
-      fixture.league?.id
-        ? deps.getLeagueProfileByLeagueId(fixture.league.id).catch(() => null)
-        : Promise.resolve(null),
-      fixture.league?.id
-        ? deps.getLeagueById(fixture.league.id).catch(() => null)
-        : Promise.resolve(null),
-      fixture.teams?.home?.id != null
-        ? deps.getTeamProfileByTeamId(String(fixture.teams.home.id)).catch(() => null)
-        : Promise.resolve(null),
-      fixture.teams?.away?.id != null
-        ? deps.getTeamProfileByTeamId(String(fixture.teams.away.id)).catch(() => null)
-        : Promise.resolve(null),
+      const oddsSource = resolvedOdds.oddsSource;
+      const oddsFetchedAt = resolvedOdds.oddsFetchedAt;
+      const oddsResult = buildOddsCanonical(resolvedOdds.response);
+      let oddsCanonical: OddsCanonical = {};
+      let oddsAvailable = false;
+      const oddsSanityWarnings: string[] = [];
+      let oddsSuspicious = false;
+      if (oddsResult.available) {
+        const cornersHome = Number.parseInt(String(statsCompact.corners.home ?? ''), 10);
+        const cornersAway = Number.parseInt(String(statsCompact.corners.away ?? ''), 10);
+        const currentTotalCorners = Number.isNaN(cornersHome) || Number.isNaN(cornersAway)
+          ? null
+          : cornersHome + cornersAway;
+        const sanitizedOdds = sanitizePromptOddsCanonical({
+          canonical: oddsResult.canonical,
+          homeGoals,
+          awayGoals,
+          currentTotalGoals: homeGoals + awayGoals,
+          currentTotalCorners,
+          matchMinute: minute,
+        });
+        oddsCanonical = sanitizedOdds.canonical;
+        oddsAvailable = sanitizedOdds.available;
+        oddsSanityWarnings.push(...sanitizedOdds.warnings);
+        oddsSuspicious = sanitizedOdds.suspicious;
+      }
+      return {
+        oddsCanonical,
+        oddsAvailable,
+        oddsSource,
+        oddsFetchedAt,
+        oddsSanityWarnings,
+        oddsSuspicious,
+      };
+    };
+
+    const [oddsSide, promptContextBundle] = await Promise.all([
+      loadOddsSide(),
+      Promise.all([
+        loadHistoricalPromptContext(deps),
+        fixture.league?.id
+          ? deps.getLeagueProfileByLeagueId(fixture.league.id).catch(() => null)
+          : Promise.resolve(null),
+        fixture.league?.id
+          ? deps.getLeagueById(fixture.league.id).catch(() => null)
+          : Promise.resolve(null),
+        fixture.teams?.home?.id != null
+          ? deps.getTeamProfileByTeamId(String(fixture.teams.home.id)).catch(() => null)
+          : Promise.resolve(null),
+        fixture.teams?.away?.id != null
+          ? deps.getTeamProfileByTeamId(String(fixture.teams.away.id)).catch(() => null)
+          : Promise.resolve(null),
+      ]),
     ]);
 
-    // Track latest state for future gating and context.
+    const {
+      oddsCanonical,
+      oddsAvailable,
+      oddsSource,
+      oddsFetchedAt,
+      oddsSanityWarnings,
+      oddsSuspicious,
+    } = oddsSide;
+    const [historicalPerformance, leagueProfile, leagueMeta, homeTeamProfile, awayTeamProfile] = promptContextBundle;
+
+    // Persist latest state for the next run's staleness gate; do not block LLM on DB write.
     if (!shadowMode) {
-      await deps.createSnapshot({
+      void deps.createSnapshot({
         match_id: matchId,
         minute,
         status,
@@ -2811,6 +2840,7 @@ async function processMatch(
           statsSource,
           statsFallbackUsed,
           statsFallbackReason: statsFallbackReason || undefined,
+          preLlmLatencyMs: Date.now() - startedAt,
           totalLatencyMs: Date.now() - startedAt,
         },
       };
@@ -2936,6 +2966,7 @@ async function processMatch(
           structuredPrematchAskAiReason: structuredPrematchAskAiCheck.reason,
           statsFallbackUsed,
           statsFallbackReason: statsFallbackReason || undefined,
+          preLlmLatencyMs: Date.now() - startedAt,
           totalLatencyMs: Date.now() - startedAt,
         },
       };
@@ -2977,6 +3008,7 @@ async function processMatch(
 
     // 6. Call Gemini
     const model = options.modelOverride || settings.aiModel;
+    const preLlmLatencyMs = Date.now() - startedAt;
     const activeAnalysis = await executePromptAnalysis(
       deps,
       model,
@@ -3351,6 +3383,7 @@ async function processMatch(
         aiTextChars: activeAnalysis.aiTextChars,
         aiTextEstimatedTokens: activeAnalysis.aiTextEstimatedTokens,
         llmLatencyMs: activeAnalysis.llmLatencyMs,
+        preLlmLatencyMs,
         totalLatencyMs: Date.now() - startedAt,
         prompt: activeAnalysis.prompt,
         aiText: activeAnalysis.aiText,

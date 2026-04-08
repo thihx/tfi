@@ -9,8 +9,7 @@ import {
   uiLanguageToAskAiPromptLocale,
 } from './askAiQuickPrompts';
 
-const DIALOG_MAX = 200;
-const FOLLOW_UP_MAX = 100;
+const CHAT_MAX = 200;
 
 describe('askAiQuickPrompts', () => {
   it('maps UI language to en or vi', () => {
@@ -35,8 +34,7 @@ describe('askAiQuickPrompts', () => {
   it('keeps every prompt within dialog and follow-up limits', () => {
     for (const locale of ['en', 'vi'] as const) {
       for (const item of ASK_AI_QUICK_PROMPTS[locale]) {
-        expect(item.text.length).toBeLessThanOrEqual(FOLLOW_UP_MAX);
-        expect(item.text.length).toBeLessThanOrEqual(DIALOG_MAX);
+        expect(item.text.length).toBeLessThanOrEqual(CHAT_MAX);
         expect(item.id.length).toBeGreaterThan(0);
       }
     }
