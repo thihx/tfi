@@ -1,6 +1,15 @@
 {
-  "generatedAt": "2026-04-06T22:32:06.944Z",
+  "generatedAt": "2026-04-09T11:30:54.910Z",
   "totalScenarios": 4,
   "contaminatedCount": 0,
-  "rows": []
+  "htContaminatedCount": 0,
+  "oddsCoverage": {
+    "withComplete1x2": 0,
+    "withAsianHandicap": 0,
+    "withGoalsOu": 4,
+    "withHtGoalsOu": 0,
+    "withCornersOu": 4
+  },
+  "rows": [],
+  "htContaminatedRows": []
 }

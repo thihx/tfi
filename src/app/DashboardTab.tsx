@@ -76,13 +76,13 @@ const PnlChart = memo(function PnlChart({ data }: { data: { date: string; pnl: n
 
 
 const MarketBreakdownChart = memo(function MarketBreakdownChart({ data }: { data: MarketReportRow[] }) {
+  const [showAllMarkets, setShowAllMarkets] = useState(false);
   if (!data.length) return null;
   const sorted = [...data].sort((a, b) => b.pnl - a.pnl);
   const topMarkets = sorted.slice(0, 6);
   const remainingMarkets = sorted.slice(6);
   const totalTrackedBets = sorted.reduce((sum, row) => sum + row.wins + row.losses, 0);
   const positiveMarkets = sorted.filter((row) => row.pnl > 0).length;
-  const [showAllMarkets, setShowAllMarkets] = useState(false);
   const visibleMarkets = showAllMarkets ? sorted : topMarkets;
 
   return (

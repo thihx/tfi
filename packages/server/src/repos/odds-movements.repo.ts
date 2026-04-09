@@ -19,7 +19,7 @@ export interface OddsMovementRow {
   prev_price_2: number | null;
 }
 
-export async function recordOddsMovement(mov: {
+export interface OddsMovementInput {
   match_id: string;
   match_minute?: number | null;
   market: string;
@@ -30,7 +30,9 @@ export async function recordOddsMovement(mov: {
   price_x?: number | null;
   prev_price_1?: number | null;
   prev_price_2?: number | null;
-}): Promise<OddsMovementRow> {
+}
+
+export async function recordOddsMovement(mov: OddsMovementInput): Promise<OddsMovementRow> {
   const r = await query<OddsMovementRow>(
     `INSERT INTO odds_movements (match_id, match_minute, market, bookmaker, line, price_1, price_2, price_x, prev_price_1, prev_price_2)
      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
@@ -58,6 +60,15 @@ export async function recordOddsMovement(mov: {
     ],
   );
   return r.rows[0]!;
+}
+
+export async function recordOddsMovementsBulk(movements: OddsMovementInput[]): Promise<OddsMovementRow[]> {
+  const results: OddsMovementRow[] = [];
+  for (const movement of movements) {
+    if (!movement.match_id || !movement.market) continue;
+    results.push(await recordOddsMovement(movement));
+  }
+  return results;
 }
 
 export async function getOddsHistory(

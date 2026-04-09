@@ -20,6 +20,9 @@ const ADMIN_USER = {
   avatarUrl: '',
 };
 
+/** Present on every self-service settings response (normalizeSelfServiceSettings). */
+const ASK_AI_QUICK_PROMPTS_BY_LOCALE = { en: [], vi: [] } as const;
+
 vi.mock('../repos/settings.repo.js', () => ({
   getSettings: vi.fn().mockResolvedValue({ AUTO_APPLY_RECOMMENDED_CONDITION: true }),
   saveSettings: vi.fn().mockResolvedValue({
@@ -127,6 +130,7 @@ describe('GET /api/settings', () => {
       WEB_PUSH_ENABLED: false,
       NOTIFICATION_LANGUAGE: 'vi',
       SUGGESTED_TOP_LEAGUE_IDS: [],
+      ASK_AI_QUICK_PROMPTS_BY_LOCALE,
     });
 
     expect(repo.getSettings).toHaveBeenCalledWith('user-1', { fallbackToDefault: false });
@@ -147,6 +151,7 @@ describe('GET /api/settings', () => {
       WEB_PUSH_ENABLED: false,
       NOTIFICATION_LANGUAGE: 'vi',
       SUGGESTED_TOP_LEAGUE_IDS: [],
+      ASK_AI_QUICK_PROMPTS_BY_LOCALE,
     });
 
     expect(repo.getSettings).toHaveBeenCalledWith('user-1', { fallbackToDefault: false });
@@ -249,6 +254,7 @@ describe('PUT /api/settings', () => {
       WEB_PUSH_ENABLED: false,
       NOTIFICATION_LANGUAGE: 'vi',
       SUGGESTED_TOP_LEAGUE_IDS: [],
+      ASK_AI_QUICK_PROMPTS_BY_LOCALE,
     });
 
     expect(repo.getSettings).toHaveBeenCalledWith('user-1', { fallbackToDefault: false });
@@ -284,6 +290,7 @@ describe('PUT /api/settings', () => {
       WEB_PUSH_ENABLED: false,
       NOTIFICATION_LANGUAGE: 'vi',
       SUGGESTED_TOP_LEAGUE_IDS: [],
+      ASK_AI_QUICK_PROMPTS_BY_LOCALE,
     });
 
     expect(repo.saveSettings).toHaveBeenCalledWith(
@@ -312,6 +319,7 @@ describe('PUT /api/settings', () => {
       WEB_PUSH_ENABLED: false,
       NOTIFICATION_LANGUAGE: 'vi',
       SUGGESTED_TOP_LEAGUE_IDS: [],
+      ASK_AI_QUICK_PROMPTS_BY_LOCALE,
     });
     expect(repo.saveSettings).toHaveBeenCalledWith(
       { UI_LANGUAGE: 'vi', USER_TIMEZONE: 'America/New_York', USER_TIMEZONE_CONFIRMED: true },
@@ -358,6 +366,7 @@ describe('PUT /api/settings', () => {
       WEB_PUSH_ENABLED: true,
       NOTIFICATION_LANGUAGE: 'both',
       SUGGESTED_TOP_LEAGUE_IDS: [],
+      ASK_AI_QUICK_PROMPTS_BY_LOCALE,
     });
     expect(notificationRepo.saveNotificationSettings).toHaveBeenCalledWith('user-1', {
       webPushEnabled: true,
@@ -390,6 +399,7 @@ describe('PUT /api/settings', () => {
       WEB_PUSH_ENABLED: false,
       NOTIFICATION_LANGUAGE: 'vi',
       SUGGESTED_TOP_LEAGUE_IDS: [39, 140],
+      ASK_AI_QUICK_PROMPTS_BY_LOCALE,
     });
     expect(repo.saveSettings).toHaveBeenCalledWith(
       { SUGGESTED_TOP_LEAGUE_IDS: [39, 140] },

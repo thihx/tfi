@@ -4175,11 +4175,10 @@ table td:last-child, table th:last-child {
     }
 
     /* Leagues table: hide non-essential columns on mobile */
-    /* Hidden: Checkbox(1), Country(4), Tier(5), Type(6), Profile(8) */
+    /* Columns: 1=checkbox 2=logo 3=order 4=league(name+teams) 5=country 6=tier 7=type 8=favorite 9=profile 10=active */
+    /* Hidden: checkbox, country, tier, favorite star — keep league (4) for name + expand teams (+) */
     .leagues-table th:nth-child(1),
     .leagues-table td:nth-child(1),
-    .leagues-table th:nth-child(4),
-    .leagues-table td:nth-child(4),
     .leagues-table th:nth-child(5),
     .leagues-table td:nth-child(5),
     .leagues-table th:nth-child(6),
@@ -4187,6 +4186,24 @@ table td:last-child, table th:last-child {
     .leagues-table th:nth-child(8),
     .leagues-table td:nth-child(8) {
         display: none;
+    }
+
+    .leagues-table .league-name-cell {
+        align-items: flex-start;
+        gap: 6px;
+    }
+
+    .leagues-table .league-name-cell .filter-input {
+        max-width: none;
+        width: 100%;
+        min-width: 0;
+        box-sizing: border-box;
+    }
+
+    .leagues-table .league-teams-toggle {
+        min-width: 40px;
+        min-height: 40px;
+        flex-shrink: 0;
     }
 
     /* Expanded teams row must always be visible (overrides nth-child hide rules) */

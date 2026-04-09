@@ -330,7 +330,7 @@ describe('recommendations repository prompt versioning', () => {
 
     expect(query).toHaveBeenCalledWith(
       expect.stringContaining('notification_channels'),
-      [1, 'yes', 'telegram'],
+      [1, 'telegram'],
     );
   });
 });

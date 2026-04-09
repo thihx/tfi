@@ -13,6 +13,9 @@ vi.mock('../repos/odds-movements.repo.js', () => ({
   recordOddsMovement: vi.fn().mockImplementation((body: Record<string, unknown>) =>
     Promise.resolve({ id: 50, ...body }),
   ),
+  recordOddsMovementsBulk: vi.fn().mockImplementation((body: Array<Record<string, unknown>>) =>
+    Promise.resolve(body.filter((item) => item.match_id && item.market).map((item, index) => ({ id: 50 + index, ...item }))),
+  ),
 }));
 
 let app: FastifyInstance;

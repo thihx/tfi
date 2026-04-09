@@ -320,16 +320,25 @@ const LeagueRow = memo(function LeagueRow({
               style={{ fontSize: 13, fontWeight: 600, maxWidth: 280, flex: '1 1 160px', minWidth: 120 }}
             />
             <button
+              type="button"
+              className="league-teams-toggle"
               onClick={(e) => { e.stopPropagation(); onToggleTeams(league.league_id); }}
-              title={teamsExpanded ? 'Collapse teams' : 'Show teams'}
+              title={teamsExpanded ? 'Collapse team list' : 'Show teams in this league'}
+              aria-expanded={teamsExpanded}
+              aria-label={teamsExpanded ? 'Collapse team list' : 'Show teams in this league'}
               style={{
                 background: teamsExpanded ? 'var(--gray-200)' : 'none',
                 border: '1px solid var(--gray-200)',
-                borderRadius: 4,
+                borderRadius: 6,
                 cursor: 'pointer',
-                width: 20, height: 20,
-                display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
-                fontSize: 12, color: teamsExpanded ? 'var(--gray-700)' : 'var(--gray-400)',
+                width: 28,
+                height: 28,
+                display: 'inline-flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                fontSize: 16,
+                lineHeight: 1,
+                color: teamsExpanded ? 'var(--gray-800)' : 'var(--primary, #2563eb)',
                 fontWeight: 700,
                 flexShrink: 0,
               }}

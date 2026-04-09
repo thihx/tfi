@@ -480,6 +480,31 @@ describe('buildLiveAnalysisPrompt', () => {
     expect(prompt).toContain('- Corners require tier 1 live stats + live corners data');
   });
 
+  test('filters exact output enums to degraded-mode allowed markets only', () => {
+    const prompt = buildLiveAnalysisPrompt({
+      ...baseInput,
+      statsAvailable: false,
+      evidenceMode: 'odds_events_only_degraded',
+      oddsCanonical: {
+        '1x2': { home: 2.1, draw: 3.2, away: 3.8 },
+        ou: { line: 2.5, over: 1.84, under: 2.0 },
+        ah: { line: -0.25, home: 1.95, away: 1.91 },
+        btts: { yes: 1.8, no: 1.95 },
+        corners_ou: { line: 9.5, over: 1.9, under: 1.9 },
+        ht_ou: { line: 1.5, over: 2.05, under: 1.8 },
+      },
+    }, settings);
+
+    expect(prompt).toContain('"over_2.5"');
+    expect(prompt).toContain('"under_2.5"');
+    expect(prompt).toContain('"asian_handicap_home_-0.25"');
+    expect(prompt).toContain('"asian_handicap_away_-0.25"');
+    expect(prompt).not.toContain('"1x2_home"');
+    expect(prompt).not.toContain('"btts_yes"');
+    expect(prompt).not.toContain('"corners_over_9.5"');
+    expect(prompt).not.toContain('"ht_over_1.5"');
+  });
+
   test('uses rounded break-even wording instead of fake exact-probability wording', () => {
     const prompt = buildLiveAnalysisPrompt(baseInput, settings);
 

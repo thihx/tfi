@@ -73,6 +73,7 @@ import {
   markRecommendationDeliveriesDelivered,
   stageConditionOnlyDeliveries,
 } from '../repos/recommendation-deliveries.repo.js';
+import { recordOddsMovementsBulk, type OddsMovementInput } from '../repos/odds-movements.repo.js';
 import {
   buildPrematchExpertFeaturesV1,
   getPrematchPriorStrength,
@@ -91,6 +92,7 @@ import {
   detectHtGoalsCornersLineContamination,
 } from './odds-integrity.js';
 import { parseBetMarketLineSuffix as parseLineSuffix, sameOddsLine as sameLine } from './odds-line-utils.js';
+import { isMarketAllowedForEvidenceMode } from './evidence-mode-market-allowlist.js';
 import { isFirstHalfApiBetName, isSecondHalfOnlyApiBetName } from './first-half-markets.js';
 import { extractHalftimeScoreFromFixture } from './settle-context.js';
 import { formatSelectionWithMarketContext } from './market-display.js';
@@ -125,6 +127,114 @@ interface PipelineSettings {
   telegramEnabled: boolean;
   /** Master switch for Web Push notifications. Default: false. */
   webPushEnabled: boolean;
+}
+
+function buildOddsMovementRows(
+  matchId: string,
+  matchMinute: number,
+  oddsCanonical: Record<string, unknown> | null | undefined,
+): OddsMovementInput[] {
+  const toNullableNumber = (value: unknown): number | null => {
+    if (value == null || value === '') return null;
+    const num = Number(value);
+    return Number.isFinite(num) ? num : null;
+  };
+  const oc = (oddsCanonical ?? {}) as Record<string, Record<string, unknown> | undefined>;
+  const movements: OddsMovementInput[] = [];
+
+  if (oc['1x2']) {
+    movements.push({
+      match_id: matchId,
+      match_minute: matchMinute,
+      market: '1x2',
+      price_1: toNullableNumber(oc['1x2'].home),
+      price_2: toNullableNumber(oc['1x2'].away),
+      price_x: toNullableNumber(oc['1x2'].draw),
+    });
+  }
+  if (oc.ou) {
+    movements.push({
+      match_id: matchId,
+      match_minute: matchMinute,
+      market: 'ou',
+      line: toNullableNumber(oc.ou.line),
+      price_1: toNullableNumber(oc.ou.over),
+      price_2: toNullableNumber(oc.ou.under),
+    });
+  }
+  if (oc.ah) {
+    movements.push({
+      match_id: matchId,
+      match_minute: matchMinute,
+      market: 'ah',
+      line: toNullableNumber(oc.ah.line),
+      price_1: toNullableNumber(oc.ah.home),
+      price_2: toNullableNumber(oc.ah.away),
+    });
+  }
+  if (oc.btts) {
+    movements.push({
+      match_id: matchId,
+      match_minute: matchMinute,
+      market: 'btts',
+      price_1: toNullableNumber(oc.btts.yes),
+      price_2: toNullableNumber(oc.btts.no),
+    });
+  }
+  if (oc.corners_ou) {
+    movements.push({
+      match_id: matchId,
+      match_minute: matchMinute,
+      market: 'corners_ou',
+      line: toNullableNumber(oc.corners_ou.line),
+      price_1: toNullableNumber(oc.corners_ou.over),
+      price_2: toNullableNumber(oc.corners_ou.under),
+    });
+  }
+  if (oc['ht_1x2']) {
+    movements.push({
+      match_id: matchId,
+      match_minute: matchMinute,
+      market: 'ht_1x2',
+      price_1: toNullableNumber(oc['ht_1x2'].home),
+      price_2: toNullableNumber(oc['ht_1x2'].away),
+      price_x: toNullableNumber(oc['ht_1x2'].draw),
+    });
+  }
+  if (oc.ht_ou) {
+    movements.push({
+      match_id: matchId,
+      match_minute: matchMinute,
+      market: 'ht_ou',
+      line: toNullableNumber(oc.ht_ou.line),
+      price_1: toNullableNumber(oc.ht_ou.over),
+      price_2: toNullableNumber(oc.ht_ou.under),
+    });
+  }
+  if (oc.ht_ah) {
+    movements.push({
+      match_id: matchId,
+      match_minute: matchMinute,
+      market: 'ht_ah',
+      line: toNullableNumber(oc.ht_ah.line),
+      price_1: toNullableNumber(oc.ht_ah.home),
+      price_2: toNullableNumber(oc.ht_ah.away),
+    });
+  }
+  if (oc.ht_btts) {
+    movements.push({
+      match_id: matchId,
+      match_minute: matchMinute,
+      market: 'ht_btts',
+      price_1: toNullableNumber(oc.ht_btts.yes),
+      price_2: toNullableNumber(oc.ht_btts.no),
+    });
+  }
+
+  return movements.filter((movement) => (
+    movement.market
+    && Object.values(movement).some((value) => value !== null && value !== undefined && value !== movement.match_id && value !== movement.match_minute && value !== movement.market)
+  ));
 }
 
 /** Parse a numeric setting from DB, falling back to envDefault if absent or NaN. */
@@ -653,26 +763,6 @@ function evaluateConditionTriggeredSaveDecision(args: {
     reasoningVi: args.parsed.condition_triggered_reasoning_vi,
     warnings,
   };
-}
-
-function isMarketAllowedForEvidenceMode(betMarket: string, evidenceMode: EvidenceMode): boolean {
-  const market = (betMarket || '').toLowerCase();
-  if (!market) return false;
-
-  switch (evidenceMode) {
-    case 'full_live_data':
-      return true;
-    case 'stats_only':
-      return false;
-    case 'odds_events_only_degraded':
-      return market.startsWith('over_')
-        || market.startsWith('under_')
-        || market.startsWith('asian_handicap_');
-    case 'events_only_degraded':
-    case 'low_evidence':
-    default:
-      return false;
-  }
 }
 
 export interface MatchPipelineResult {
@@ -3178,6 +3268,13 @@ async function processMatch(
       }).catch((err) => {
         console.warn(`[pipeline] Snapshot save failed for ${matchId}:`, err instanceof Error ? err.message : String(err));
       });
+
+      const oddsMovements = buildOddsMovementRows(matchId, minute, oddsCanonical as Record<string, unknown>);
+      if (oddsMovements.length > 0) {
+        void recordOddsMovementsBulk(oddsMovements).catch((err) => {
+          console.warn(`[pipeline] Odds movements save failed for ${matchId}:`, err instanceof Error ? err.message : String(err));
+        });
+      }
     }
 
     const staleness = checkStalenessServer({

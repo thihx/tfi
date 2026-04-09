@@ -48,11 +48,7 @@ export async function oddsRoutes(app: FastifyInstance) {
     }>;
   }>('/api/odds/bulk', async (req, reply) => {
     if (!Array.isArray(req.body)) return reply.code(400).send({ error: 'Body must be an array' });
-    const results = [];
-    for (const mov of req.body) {
-      if (!mov.match_id || !mov.market) continue;
-      results.push(await repo.recordOddsMovement(mov));
-    }
+    const results = await repo.recordOddsMovementsBulk(req.body);
     return reply.code(201).send({ recorded: results.length });
   });
 }

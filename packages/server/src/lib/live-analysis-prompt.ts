@@ -6,15 +6,14 @@ import {
 } from './prematch-expert-features.js';
 import { flattenLeagueProfileData } from '../repos/league-profiles.repo.js';
 import { buildProfileMetricSemanticsSection } from './profile-metric-semantics.js';
+import {
+  isMarketAllowedForEvidenceMode,
+  type LiveAnalysisEvidenceMode,
+} from './evidence-mode-market-allowlist.js';
 
 export type PromptStatsSource = 'api-football' | string;
 export type PromptAnalysisMode = 'auto' | 'system_force' | 'manual_force';
-export type PromptEvidenceMode =
-  | 'full_live_data'
-  | 'stats_only'
-  | 'odds_events_only_degraded'
-  | 'events_only_degraded'
-  | 'low_evidence';
+export type PromptEvidenceMode = LiveAnalysisEvidenceMode;
 
 export const LIVE_ANALYSIS_PROMPT_VERSIONS = ['v4-evidence-hardened', 'v5-compact-a', 'v6-betting-discipline-a', 'v6-betting-discipline-b', 'v6-betting-discipline-c', 'v7-profile-overlay-discipline-a', 'v8-market-balance-followup-a', 'v8-market-balance-followup-b', 'v8-market-balance-followup-c', 'v8-market-balance-followup-d', 'v8-market-balance-followup-e', 'v8-market-balance-followup-f', 'v8-market-balance-followup-g', 'v8-market-balance-followup-h', 'v8-market-balance-followup-i', 'v8-market-balance-followup-j', 'v9-legacy-lean-a', 'v10-hybrid-legacy-a', 'v10-hybrid-legacy-b', 'v10-hybrid-legacy-c', 'v10-hybrid-legacy-d', 'v10-hybrid-legacy-e', 'v10-hybrid-legacy-f', 'v10-hybrid-legacy-g'] as const;
 export type LiveAnalysisPromptVersion = (typeof LIVE_ANALYSIS_PROMPT_VERSIONS)[number];
@@ -1839,8 +1838,9 @@ function buildExactMarketContractSectionCompact(data: LiveAnalysisPromptInput): 
   const oc = data.oddsCanonical as Record<string, Record<string, unknown>>;
   const exactKeys: string[] = [];
   const rules: string[] = [];
+  const allow = (...keys: string[]) => keys.every((key) => isMarketAllowedForEvidenceMode(key, data.evidenceMode));
 
-  if (oc['1x2'] && oc['1x2'].home != null && oc['1x2'].draw != null && oc['1x2'].away != null) {
+  if (allow('1x2_home') && oc['1x2'] && oc['1x2'].home != null && oc['1x2'].draw != null && oc['1x2'].away != null) {
     exactKeys.push('1x2_home', '1x2_draw', '1x2_away');
     rules.push('- 1X2: use exactly "1x2_home", "1x2_draw", or "1x2_away".');
     rules.push('  selection: "Home Win @[odds]", "Draw @[odds]", or "Away Win @[odds]".');
@@ -1863,7 +1863,7 @@ function buildExactMarketContractSectionCompact(data: LiveAnalysisPromptInput): 
     rules.push(`  selection: same pattern as main ("Over ${line} Goals @[odds]" / "Under ${line} Goals @[odds]").`);
   }
 
-  if (oc.ah && oc.ah.line != null && oc.ah.home != null && oc.ah.away != null) {
+  if (allow('asian_handicap_home_0') && oc.ah && oc.ah.line != null && oc.ah.home != null && oc.ah.away != null) {
     const line = String(oc.ah.line);
     exactKeys.push(`asian_handicap_home_${line}`, `asian_handicap_away_${line}`);
     rules.push(`- Asian Handicap MAIN line ${line}: use exactly "asian_handicap_home_${line}" or "asian_handicap_away_${line}".`);
@@ -1871,7 +1871,7 @@ function buildExactMarketContractSectionCompact(data: LiveAnalysisPromptInput): 
   }
 
   const ahAdj = oc['ah_adjacent'] as { line?: unknown; home?: unknown; away?: unknown } | undefined;
-  if (ahAdj && ahAdj.line != null && ahAdj.home != null && ahAdj.away != null) {
+  if (allow('asian_handicap_home_0') && ahAdj && ahAdj.line != null && ahAdj.home != null && ahAdj.away != null) {
     const line = String(ahAdj.line);
     exactKeys.push(`asian_handicap_home_${line}`, `asian_handicap_away_${line}`);
     rules.push(
@@ -1880,26 +1880,26 @@ function buildExactMarketContractSectionCompact(data: LiveAnalysisPromptInput): 
     rules.push(`  selection: "Home ${line} @[odds]" or "Away ${line} @[odds]".`);
   }
 
-  if (oc.btts && oc.btts.yes != null && oc.btts.no != null) {
+  if (allow('btts_yes') && oc.btts && oc.btts.yes != null && oc.btts.no != null) {
     exactKeys.push('btts_yes', 'btts_no');
     rules.push('- BTTS: use exactly "btts_yes" or "btts_no".');
     rules.push('  selection: "BTTS Yes @[odds]" or "BTTS No @[odds]".');
   }
 
-  if (oc.corners_ou && oc.corners_ou.line != null && oc.corners_ou.over != null && oc.corners_ou.under != null) {
+  if (allow('corners_over_0') && oc.corners_ou && oc.corners_ou.line != null && oc.corners_ou.over != null && oc.corners_ou.under != null) {
     const line = String(oc.corners_ou.line);
     exactKeys.push(`corners_over_${line}`, `corners_under_${line}`);
     rules.push(`- Corners O/U line ${line}: use exactly "corners_over_${line}" or "corners_under_${line}".`);
     rules.push(`  selection: "Corners Over ${line} @[odds]" or "Corners Under ${line} @[odds]".`);
   }
 
-  if (oc['ht_1x2'] && oc['ht_1x2'].home != null && oc['ht_1x2'].draw != null && oc['ht_1x2'].away != null) {
+  if (allow('ht_1x2_home') && oc['ht_1x2'] && oc['ht_1x2'].home != null && oc['ht_1x2'].draw != null && oc['ht_1x2'].away != null) {
     exactKeys.push('ht_1x2_home', 'ht_1x2_draw', 'ht_1x2_away');
     rules.push('- H1 1X2: use exactly "ht_1x2_home", "ht_1x2_draw", or "ht_1x2_away".');
     rules.push('  selection: "H1 Home Win @[odds]", "H1 Draw @[odds]", or "H1 Away Win @[odds]".');
   }
 
-  if (oc.ht_ou && oc.ht_ou.line != null && oc.ht_ou.over != null && oc.ht_ou.under != null) {
+  if (allow('ht_over_0') && oc.ht_ou && oc.ht_ou.line != null && oc.ht_ou.over != null && oc.ht_ou.under != null) {
     const line = String(oc.ht_ou.line);
     exactKeys.push(`ht_over_${line}`, `ht_under_${line}`);
     rules.push(`- H1 Goals O/U MAIN line ${line}: use exactly "ht_over_${line}" or "ht_under_${line}".`);
@@ -1907,7 +1907,7 @@ function buildExactMarketContractSectionCompact(data: LiveAnalysisPromptInput): 
   }
 
   const htOuAdj = oc['ht_ou_adjacent'] as { line?: unknown; over?: unknown; under?: unknown } | undefined;
-  if (htOuAdj && htOuAdj.line != null && htOuAdj.over != null && htOuAdj.under != null) {
+  if (allow('ht_over_0') && htOuAdj && htOuAdj.line != null && htOuAdj.over != null && htOuAdj.under != null) {
     const line = String(htOuAdj.line);
     exactKeys.push(`ht_over_${line}`, `ht_under_${line}`);
     rules.push(
@@ -1916,7 +1916,7 @@ function buildExactMarketContractSectionCompact(data: LiveAnalysisPromptInput): 
     rules.push(`  selection: same pattern as main ("H1 Over ${line} Goals @[odds]" / "H1 Under ${line} Goals @[odds]").`);
   }
 
-  if (oc.ht_ah && oc.ht_ah.line != null && oc.ht_ah.home != null && oc.ht_ah.away != null) {
+  if (allow('ht_asian_handicap_home_0') && oc.ht_ah && oc.ht_ah.line != null && oc.ht_ah.home != null && oc.ht_ah.away != null) {
     const line = String(oc.ht_ah.line);
     exactKeys.push(`ht_asian_handicap_home_${line}`, `ht_asian_handicap_away_${line}`);
     rules.push(`- H1 Asian Handicap MAIN line ${line}: use exactly "ht_asian_handicap_home_${line}" or "ht_asian_handicap_away_${line}".`);
@@ -1924,7 +1924,7 @@ function buildExactMarketContractSectionCompact(data: LiveAnalysisPromptInput): 
   }
 
   const htAhAdj = oc['ht_ah_adjacent'] as { line?: unknown; home?: unknown; away?: unknown } | undefined;
-  if (htAhAdj && htAhAdj.line != null && htAhAdj.home != null && htAhAdj.away != null) {
+  if (allow('ht_asian_handicap_home_0') && htAhAdj && htAhAdj.line != null && htAhAdj.home != null && htAhAdj.away != null) {
     const line = String(htAhAdj.line);
     exactKeys.push(`ht_asian_handicap_home_${line}`, `ht_asian_handicap_away_${line}`);
     rules.push(
@@ -1933,7 +1933,7 @@ function buildExactMarketContractSectionCompact(data: LiveAnalysisPromptInput): 
     rules.push(`  selection: "H1 Home ${line} @[odds]" or "H1 Away ${line} @[odds]".`);
   }
 
-  if (oc.ht_btts && oc.ht_btts.yes != null && oc.ht_btts.no != null) {
+  if (allow('ht_btts_yes') && oc.ht_btts && oc.ht_btts.yes != null && oc.ht_btts.no != null) {
     exactKeys.push('ht_btts_yes', 'ht_btts_no');
     rules.push('- H1 BTTS: use exactly "ht_btts_yes" or "ht_btts_no".');
     rules.push('  selection: "H1 BTTS Yes @[odds]" or "H1 BTTS No @[odds]".');

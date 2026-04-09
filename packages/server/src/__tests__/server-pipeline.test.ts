@@ -290,6 +290,10 @@ vi.mock('../repos/match-snapshots.repo.js', () => ({
   getLatestSnapshot: vi.fn().mockResolvedValue(null),
 }));
 
+vi.mock('../repos/odds-movements.repo.js', () => ({
+  recordOddsMovementsBulk: vi.fn().mockResolvedValue([]),
+}));
+
 vi.mock('../lib/web-push.js', () => ({
   isWebPushConfigured: vi.fn().mockReturnValue(true),
   sendWebPushNotification: vi.fn().mockResolvedValue({ ok: true, gone: false }),
@@ -1430,6 +1434,29 @@ describe('runPipelineBatch', () => {
     expect(result.results[0].success).toBe(true);
     expect(result.results[0].saved).toBe(false);
     expect(result.results[0].notified).toBe(false);
+  });
+
+  test('records odds movements from the server pipeline when canonical odds are available', async () => {
+    await runPipelineBatch(['100']);
+
+    const { recordOddsMovementsBulk } = await import('../repos/odds-movements.repo.js');
+    expect(recordOddsMovementsBulk).toHaveBeenCalledTimes(1);
+    const payload = vi.mocked(recordOddsMovementsBulk).mock.calls[0]?.[0] ?? [];
+    expect(payload).toEqual(expect.arrayContaining([
+      expect.objectContaining({ match_id: '100', match_minute: 65, market: '1x2' }),
+      expect.objectContaining({ match_id: '100', match_minute: 65, market: 'ou', line: 2.5 }),
+    ]));
+  });
+
+  test('does not record odds movements when odds are unavailable', async () => {
+    const footballApi = await import('../lib/football-api.js');
+    vi.mocked(footballApi.fetchLiveOdds).mockResolvedValueOnce([]);
+    vi.mocked(footballApi.fetchPreMatchOdds).mockResolvedValueOnce([]);
+
+    await runPipelineBatch(['100']);
+
+    const { recordOddsMovementsBulk } = await import('../repos/odds-movements.repo.js');
+    expect(recordOddsMovementsBulk).not.toHaveBeenCalled();
   });
 
   test('does NOT save condition-only no-bet analyses into recommendations', async () => {
