@@ -2,6 +2,7 @@ import { query } from '../db/pool.js';
 import type { ApiFixture, ApiFixtureStat } from './football-api.js';
 import type { ReplayScenario } from './pipeline-replay.js';
 import type { ResolveMatchOddsResult } from './odds-resolver.js';
+import { buildOddsCanonical } from './server-pipeline.js';
 import { parseStoredSettlementStats, type SettlementStatRow } from './settlement-stat-cache.js';
 
 type JsonObject = Record<string, unknown>;
@@ -74,7 +75,7 @@ export interface SettledReplayScenarioFilters {
   limit?: number;
   lookbackDays?: number;
   promptVersion?: string;
-  marketFamily?: 'all' | 'goals_totals' | 'goals_under' | 'goals_over';
+  marketFamily?: 'all' | 'goals_totals' | 'goals_under' | 'goals_over' | 'first_half';
   recommendationIds?: number[];
   matchIds?: string[];
 }
@@ -117,6 +118,8 @@ interface SettledReplaySourceRow {
   away_score: number | null;
   regular_home_score: number | null;
   regular_away_score: number | null;
+  halftime_home: number | null;
+  halftime_away: number | null;
   settlement_stats: unknown;
 }
 
@@ -170,6 +173,53 @@ function parseJsonObject(input: JsonObject | string | null | undefined): JsonObj
     }
   }
   return input;
+}
+
+const HT_CANONICAL_MERGE_KEYS = [
+  'ht_1x2',
+  'ht_ou',
+  'ht_ou_adjacent',
+  'ht_ah',
+  'ht_ah_adjacent',
+  'ht_btts',
+] as const;
+
+/**
+ * Fills missing H1 canonical keys from `provider_odds_cache.response` for the same match.
+ * Odds may reflect a later refresh than the original recommendation minute; use for replay
+ * coverage / audits when historical `odds_snapshot` omitted half-time ladders.
+ */
+export function mergeHtMarketsIntoSnapshot(
+  snapshot: JsonObject | string,
+  providerOddsResponse: unknown[] | null | undefined,
+): JsonObject {
+  const base = { ...parseJsonObject(snapshot) };
+  if (!providerOddsResponse || !Array.isArray(providerOddsResponse) || providerOddsResponse.length === 0) {
+    return base;
+  }
+  const { canonical } = buildOddsCanonical(providerOddsResponse);
+  for (const key of HT_CANONICAL_MERGE_KEYS) {
+    const incoming = canonical[key as keyof typeof canonical];
+    if (incoming == null) continue;
+    if (base[key] != null) continue;
+    base[key] = incoming as JsonObject[string];
+  }
+  return base;
+}
+
+async function loadProviderOddsCacheByMatchIds(matchIds: string[]): Promise<Map<string, unknown[]>> {
+  const unique = [...new Set(matchIds.filter((id) => id.length > 0))];
+  if (unique.length === 0) return new Map();
+  const result = await query<{ match_id: string; response: unknown }>(
+    `SELECT match_id, response FROM provider_odds_cache WHERE match_id = ANY($1::text[])`,
+    [unique],
+  );
+  const map = new Map<string, unknown[]>();
+  for (const row of result.rows) {
+    const r = row.response;
+    map.set(row.match_id, Array.isArray(r) ? (r as unknown[]) : []);
+  }
+  return map;
 }
 
 function coerceStatValue(value: string | number | null | undefined): string | number | null {
@@ -258,7 +308,10 @@ function buildFixtureFromRow(row: SettledReplaySourceRow): ApiFixture {
       away: score.away,
     },
     score: {
-      halftime: { home: null, away: null },
+      halftime: {
+        home: row.halftime_home != null ? Number(row.halftime_home) : null,
+        away: row.halftime_away != null ? Number(row.halftime_away) : null,
+      },
       fulltime: { home: score.home, away: score.away },
     },
   };
@@ -360,6 +413,66 @@ export function canonicalOddsToRecordedResponse(snapshot: JsonObject | string): 
     if (values.length > 0) bets.push({ id: nextId++, name: 'Asian Handicap', values });
   }
 
+  const ht1x2 = canonical['ht_1x2'];
+  if (ht1x2 && typeof ht1x2 === 'object') {
+    const row = ht1x2 as Record<string, unknown>;
+    const values = [
+      { value: 'Home', odd: row.home },
+      { value: 'Draw', odd: row.draw },
+      { value: 'Away', odd: row.away },
+    ]
+      .filter((entry) => Number(entry.odd) > 1)
+      .map((entry) => ({ value: entry.value, odd: String(entry.odd) }));
+    if (values.length > 0) bets.push({ id: nextId++, name: '1st Half Match Winner', values });
+  }
+
+  const htOu = canonical['ht_ou'];
+  if (htOu && typeof htOu === 'object') {
+    const row = htOu as Record<string, unknown>;
+    const line = Number(row.line);
+    const values = [
+      { value: 'Over', odd: row.over, handicap: String(line) },
+      { value: 'Under', odd: row.under, handicap: String(line) },
+    ]
+      .filter((entry) => Number(entry.odd) > 1 && Number.isFinite(line))
+      .map((entry) => ({ value: entry.value, odd: String(entry.odd), handicap: entry.handicap }));
+    if (values.length > 0) bets.push({ id: nextId++, name: 'Over/Under First Half', values });
+  }
+
+  const htBtts = canonical['ht_btts'];
+  if (htBtts && typeof htBtts === 'object') {
+    const row = htBtts as Record<string, unknown>;
+    const values = [
+      { value: 'Yes', odd: row.yes },
+      { value: 'No', odd: row.no },
+    ]
+      .filter((entry) => Number(entry.odd) > 1)
+      .map((entry) => ({ value: entry.value, odd: String(entry.odd) }));
+    if (values.length > 0) {
+      bets.push({ id: nextId++, name: 'Both Teams Score - First Half', values });
+    }
+  }
+
+  const htAh = canonical['ht_ah'];
+  if (htAh && typeof htAh === 'object') {
+    const row = htAh as Record<string, unknown>;
+    const lineNum = Number(row.line);
+    if (Number.isFinite(lineNum)) {
+      const awayLine = -lineNum;
+      const homeHcap = lineNum >= 0 ? `+${lineNum}` : String(lineNum);
+      const awayHcap = awayLine >= 0 ? `+${awayLine}` : String(awayLine);
+      const values = [
+        { value: 'Home', odd: row.home, handicap: homeHcap },
+        { value: 'Away', odd: row.away, handicap: awayHcap },
+      ]
+        .filter((entry) => Number(entry.odd) > 1)
+        .map((entry) => ({ value: entry.value, odd: String(entry.odd), handicap: entry.handicap }));
+      if (values.length > 0) {
+        bets.push({ id: nextId++, name: 'Asian Handicap First Half', values });
+      }
+    }
+  }
+
   if (bets.length === 0) return [];
 
   return [{
@@ -451,6 +564,8 @@ export function buildSettledReplayScenario(
 
 function marketFamilyWhereClause(filter: SettledReplayScenarioFilters['marketFamily']): string {
   switch (filter) {
+    case 'first_half':
+      return `AND COALESCE(NULLIF(r.bet_market, ''), '') LIKE 'ht\\_%' ESCAPE '\\'`;
     case 'goals_totals':
       return `AND (
         (COALESCE(NULLIF(r.bet_market, ''), '') LIKE 'under\\_%' ESCAPE '\\' OR COALESCE(NULLIF(r.bet_market, ''), '') LIKE 'over\\_%' ESCAPE '\\')
@@ -548,6 +663,8 @@ async function loadSettledReplaySourceRows(filters: SettledReplayScenarioFilters
        mh.away_score,
        mh.regular_home_score,
        mh.regular_away_score,
+       mh.halftime_home,
+       mh.halftime_away,
        mh.settlement_stats
      FROM recommendations r
      LEFT JOIN matches_history mh ON mh.match_id = r.match_id
@@ -629,6 +746,13 @@ export async function buildSettledReplayScenarios(
   filters: SettledReplayScenarioFilters = {},
 ): Promise<SettledReplayScenario[]> {
   const baseRows = await loadSettledReplaySourceRows(filters);
-  const previousMap = await loadPreviousRecommendationsMap([...new Set(baseRows.map((row) => row.match_id))]);
-  return baseRows.map((row) => buildSettledReplayScenario(row, buildPreviousRecommendationsForRow(row, previousMap)));
+  const matchIds = [...new Set(baseRows.map((row) => row.match_id))];
+  const previousMap = await loadPreviousRecommendationsMap(matchIds);
+  const oddsCacheByMatch = await loadProviderOddsCacheByMatchIds(matchIds);
+  return baseRows.map((row) => {
+    const cacheResp = oddsCacheByMatch.get(row.match_id);
+    const mergedSnapshot = mergeHtMarketsIntoSnapshot(row.odds_snapshot, cacheResp);
+    const enrichedRow: SettledReplaySourceRow = { ...row, odds_snapshot: mergedSnapshot };
+    return buildSettledReplayScenario(enrichedRow, buildPreviousRecommendationsForRow(row, previousMap));
+  });
 }

@@ -193,10 +193,21 @@ export interface FootballApiOddsResponse {
 
 export interface OddsCanonical {
   '1x2'?: { home: number | null; draw: number | null; away: number | null };
-  ou?: { line: number | null; over: number | null; under: number | null };
-  ah?: { line: number | null; home: number | null; away: number | null };
+  ou?: { line: number; over: number | null; under: number | null };
+  /** Second goals O/U line nearest to main (tighter ladder); optional context for LLM. */
+  ou_adjacent?: { line: number; over: number | null; under: number | null };
+  ah?: { line: number; home: number | null; away: number | null };
+  /** Second Asian handicap line nearest to main; optional context for LLM. */
+  ah_adjacent?: { line: number; home: number | null; away: number | null };
   btts?: { yes: number | null; no: number | null };
-  corners_ou?: { line: number | null; over: number | null; under: number | null };
+  corners_ou?: { line: number; over: number | null; under: number | null };
+  /** First-half (H1) match odds — keys in prompts / bet_market use `ht_*` prefix. */
+  ht_1x2?: { home: number | null; draw: number | null; away: number | null };
+  ht_ou?: { line: number; over: number | null; under: number | null };
+  ht_ou_adjacent?: { line: number; over: number | null; under: number | null };
+  ht_ah?: { line: number; home: number | null; away: number | null };
+  ht_ah_adjacent?: { line: number; home: number | null; away: number | null };
+  ht_btts?: { yes: number | null; no: number | null };
 }
 
 // ==================== Pre-match Prediction ====================

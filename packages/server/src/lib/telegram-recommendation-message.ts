@@ -1,3 +1,5 @@
+import { formatSelectionWithMarketContext } from './market-display.js';
+
 export type TelegramNotificationLanguage = 'vi' | 'en' | 'both';
 
 export interface TelegramRecommendationMessageInput {
@@ -10,6 +12,7 @@ export interface TelegramRecommendationMessageInput {
   model?: string | null;
   mode?: string | null;
   selection?: string | null;
+  betMarket?: string | null;
   odds?: number | null;
   confidence?: number | null;
   stakePercent?: number | null;
@@ -65,13 +68,6 @@ function localizedEmoji(kind: TelegramRecommendationMessageInput['kind']): strin
   return '📊';
 }
 
-function formatSelection(selection: string, odds: number | null | undefined): string {
-  const trimmed = selection.trim();
-  if (!trimmed) return '';
-  if (odds == null || trimmed.includes('@')) return trimmed;
-  return `${trimmed} @${odds}`;
-}
-
 function getMetricLine(input: TelegramRecommendationMessageInput): string {
   const confidence = Number.isFinite(Number(input.confidence)) ? Number(input.confidence) : 0;
   const stake = Number.isFinite(Number(input.stakePercent)) ? Number(input.stakePercent) : 0;
@@ -122,7 +118,12 @@ export function buildTelegramRecommendationMessage(input: TelegramRecommendation
     lines.push(`<b>${conditionLabel}:</b> ${safeHtml(input.conditionText.trim())}`);
   }
 
-  const selection = formatSelection(input.selection ?? '', input.odds);
+  const selection = formatSelectionWithMarketContext({
+    selection: input.selection ?? '',
+    betMarket: input.betMarket,
+    odds: input.odds,
+    language: input.language === 'vi' ? 'vi' : 'en',
+  });
   if (selection) {
     lines.push('');
     lines.push(`<b>${safeHtml(selection)}</b>`);

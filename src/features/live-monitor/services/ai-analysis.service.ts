@@ -12,6 +12,10 @@ import type {
   AiPromptContext,
 } from '../types';
 import { runAiAnalysis } from './proxy.service';
+import {
+  parseBetMarketLineSuffix as parseLineSuffix,
+  sameOddsLine as sameLine,
+} from '../../../lib/odds-line-utils';
 
 // ==================== Helpers ====================
 
@@ -46,54 +50,158 @@ function extractJsonString(text: string): string {
   return text.trim();
 }
 
+/** Mirror packages/server extractOddsFromSelection(bet_market-driven). */
+function extractOddsFromBetMarket(betMarket: string, canonical: OddsCanonical): number | null {
+  const market = (betMarket || '').toLowerCase();
+  const oc = canonical;
+  if (!market) return null;
+
+  if (market === '1x2_home') return oc['1x2']?.home ?? null;
+  if (market === '1x2_away') return oc['1x2']?.away ?? null;
+  if (market === '1x2_draw') return oc['1x2']?.draw ?? null;
+  if (market === 'btts_yes') return oc.btts?.yes ?? null;
+  if (market === 'btts_no') return oc.btts?.no ?? null;
+
+  if (market === 'ht_1x2_home') return oc['ht_1x2']?.home ?? null;
+  if (market === 'ht_1x2_away') return oc['ht_1x2']?.away ?? null;
+  if (market === 'ht_1x2_draw') return oc['ht_1x2']?.draw ?? null;
+  if (market === 'ht_btts_yes') return oc.ht_btts?.yes ?? null;
+  if (market === 'ht_btts_no') return oc.ht_btts?.no ?? null;
+
+  const htGoalOverLine = parseLineSuffix('ht_over_', market);
+  if (htGoalOverLine !== null) {
+    if (sameLine(htGoalOverLine, oc.ht_ou?.line)) return oc.ht_ou?.over ?? null;
+    if (sameLine(htGoalOverLine, oc.ht_ou_adjacent?.line)) return oc.ht_ou_adjacent?.over ?? null;
+    return null;
+  }
+
+  const htGoalUnderLine = parseLineSuffix('ht_under_', market);
+  if (htGoalUnderLine !== null) {
+    if (sameLine(htGoalUnderLine, oc.ht_ou?.line)) return oc.ht_ou?.under ?? null;
+    if (sameLine(htGoalUnderLine, oc.ht_ou_adjacent?.line)) return oc.ht_ou_adjacent?.under ?? null;
+    return null;
+  }
+
+  const htAhHomeLine = parseLineSuffix('ht_asian_handicap_home_', market);
+  if (htAhHomeLine !== null) {
+    if (sameLine(htAhHomeLine, oc.ht_ah?.line)) return oc.ht_ah?.home ?? null;
+    if (sameLine(htAhHomeLine, oc.ht_ah_adjacent?.line)) return oc.ht_ah_adjacent?.home ?? null;
+    return null;
+  }
+
+  const htAhAwayLine = parseLineSuffix('ht_asian_handicap_away_', market);
+  if (htAhAwayLine !== null) {
+    const matchMain =
+      sameLine(htAhAwayLine, oc.ht_ah?.line) || sameLine(-htAhAwayLine, oc.ht_ah?.line);
+    if (matchMain) return oc.ht_ah?.away ?? null;
+    const matchAdj =
+      sameLine(htAhAwayLine, oc.ht_ah_adjacent?.line) || sameLine(-htAhAwayLine, oc.ht_ah_adjacent?.line);
+    if (matchAdj) return oc.ht_ah_adjacent?.away ?? null;
+    return null;
+  }
+
+  const goalOverLine = parseLineSuffix('over_', market);
+  if (goalOverLine !== null) {
+    if (sameLine(goalOverLine, oc.ou?.line)) return oc.ou?.over ?? null;
+    if (sameLine(goalOverLine, oc.ou_adjacent?.line)) return oc.ou_adjacent?.over ?? null;
+    return null;
+  }
+
+  const goalUnderLine = parseLineSuffix('under_', market);
+  if (goalUnderLine !== null) {
+    if (sameLine(goalUnderLine, oc.ou?.line)) return oc.ou?.under ?? null;
+    if (sameLine(goalUnderLine, oc.ou_adjacent?.line)) return oc.ou_adjacent?.under ?? null;
+    return null;
+  }
+
+  const ahHomeLine = parseLineSuffix('asian_handicap_home_', market);
+  if (ahHomeLine !== null) {
+    if (sameLine(ahHomeLine, oc.ah?.line)) return oc.ah?.home ?? null;
+    if (sameLine(ahHomeLine, oc.ah_adjacent?.line)) return oc.ah_adjacent?.home ?? null;
+    return null;
+  }
+
+  const ahAwayLine = parseLineSuffix('asian_handicap_away_', market);
+  if (ahAwayLine !== null) {
+    const matchMain =
+      sameLine(ahAwayLine, oc.ah?.line) || sameLine(-ahAwayLine, oc.ah?.line);
+    if (matchMain) return oc.ah?.away ?? null;
+    const matchAdj =
+      sameLine(ahAwayLine, oc.ah_adjacent?.line) || sameLine(-ahAwayLine, oc.ah_adjacent?.line);
+    if (matchAdj) return oc.ah_adjacent?.away ?? null;
+    return null;
+  }
+
+  const cornersOverLine = parseLineSuffix('corners_over_', market);
+  if (cornersOverLine !== null) {
+    return sameLine(cornersOverLine, oc.corners_ou?.line) ? (oc.corners_ou?.over ?? null) : null;
+  }
+
+  const cornersUnderLine = parseLineSuffix('corners_under_', market);
+  if (cornersUnderLine !== null) {
+    return sameLine(cornersUnderLine, oc.corners_ou?.line) ? (oc.corners_ou?.under ?? null) : null;
+  }
+
+  return null;
+}
+
 /**
- * Extract odds value from AI selection text + odds maps.
- * 3-method extraction exactly like n8n node.
+ * Extract odds: prefer structured bet_market (server-aligned), else selection heuristics + oddsMap.
  */
 function extractOddsFromSelection(
   selection: string,
+  betMarket: string,
   oddsMap: Record<string, number>,
   oddsCanonical: OddsCanonical,
 ): number | null {
+  const fromMarket = extractOddsFromBetMarket(betMarket, oddsCanonical);
+  if (fromMarket !== null) return fromMarket;
+
   if (!selection) return null;
 
-  // Method 1: Extract @ price from selection text (e.g., "Home Win @2.10")
   const atMatch = selection.match(/@\s*([\d.]+)/);
   if (atMatch?.[1]) {
     const price = parseFloat(atMatch[1]);
     if (!isNaN(price) && price > 1) return price;
   }
 
-  // Method 2: Direct oddsMap lookup
   const selLower = selection.toLowerCase().trim();
   if (oddsMap[selLower] !== undefined) return oddsMap[selLower];
 
-  // Partial key matching
   for (const [key, value] of Object.entries(oddsMap)) {
     if (selLower.includes(key) || key.includes(selLower)) return value;
   }
 
-  // Method 3: Canonical market detection
   const oc = oddsCanonical;
+  const htCtx = /\b(1st\s*half|first\s*half|\bh1\b|\bht\b)/i.test(selection);
 
-  // 1X2
+  if (htCtx && oc['ht_1x2']) {
+    if (/home\s*win/i.test(selection) && oc['ht_1x2'].home) return oc['ht_1x2'].home;
+    if (/away\s*win/i.test(selection) && oc['ht_1x2'].away) return oc['ht_1x2'].away;
+    if (/\bdraw\b/i.test(selection) && oc['ht_1x2'].draw) return oc['ht_1x2'].draw;
+  }
+  if (htCtx && oc.ht_ou) {
+    if (/over/i.test(selection) && oc.ht_ou.over) return oc.ht_ou.over;
+    if (/under/i.test(selection) && oc.ht_ou.under) return oc.ht_ou.under;
+  }
+  if (htCtx && oc.ht_btts) {
+    if (/btts\s*yes/i.test(selection) && oc.ht_btts.yes) return oc.ht_btts.yes;
+    if (/btts\s*no/i.test(selection) && oc.ht_btts.no) return oc.ht_btts.no;
+  }
+
   if (/home\s*win/i.test(selection) && oc['1x2']?.home) return oc['1x2'].home;
   if (/away\s*win/i.test(selection) && oc['1x2']?.away) return oc['1x2'].away;
   if (/\bdraw\b/i.test(selection) && oc['1x2']?.draw) return oc['1x2'].draw;
 
-  // O/U
   if (/over/i.test(selection) && oc.ou?.over) return oc.ou.over;
   if (/under/i.test(selection) && oc.ou?.under) return oc.ou.under;
 
-  // BTTS
   if (/btts\s*yes/i.test(selection) && oc.btts?.yes) return oc.btts.yes;
   if (/btts\s*no/i.test(selection) && oc.btts?.no) return oc.btts.no;
 
-  // AH
   if (/home.*[+-]?\d/i.test(selection) && oc.ah?.home) return oc.ah.home;
   if (/away.*[+-]?\d/i.test(selection) && oc.ah?.away) return oc.ah.away;
 
-  // Corners
   if (/corner.*over/i.test(selection) && oc.corners_ou?.over) return oc.corners_ou.over;
   if (/corner.*under/i.test(selection) && oc.corners_ou?.under) return oc.corners_ou.under;
 
@@ -152,9 +260,17 @@ export function parseAiResponse(
     if (oc.ou.over) oddsMap[`over ${oc.ou.line}`] = oc.ou.over;
     if (oc.ou.under) oddsMap[`under ${oc.ou.line}`] = oc.ou.under;
   }
+  if (oc.ou_adjacent) {
+    if (oc.ou_adjacent.over) oddsMap[`over ${oc.ou_adjacent.line}`] = oc.ou_adjacent.over;
+    if (oc.ou_adjacent.under) oddsMap[`under ${oc.ou_adjacent.line}`] = oc.ou_adjacent.under;
+  }
   if (oc.ah) {
     if (oc.ah.home) oddsMap[`home ${oc.ah.line}`] = oc.ah.home;
     if (oc.ah.away) oddsMap[`away ${oc.ah.line}`] = oc.ah.away;
+  }
+  if (oc.ah_adjacent) {
+    if (oc.ah_adjacent.home) oddsMap[`home ${oc.ah_adjacent.line}`] = oc.ah_adjacent.home;
+    if (oc.ah_adjacent.away) oddsMap[`away ${oc.ah_adjacent.line}`] = oc.ah_adjacent.away;
   }
   if (oc.btts) {
     if (oc.btts.yes) oddsMap['btts yes'] = oc.btts.yes;
@@ -163,6 +279,40 @@ export function parseAiResponse(
   if (oc.corners_ou) {
     if (oc.corners_ou.over) oddsMap[`corners over ${oc.corners_ou.line}`] = oc.corners_ou.over;
     if (oc.corners_ou.under) oddsMap[`corners under ${oc.corners_ou.line}`] = oc.corners_ou.under;
+  }
+  if (oc['ht_1x2']) {
+    if (oc['ht_1x2'].home) {
+      oddsMap['ht home win'] = oc['ht_1x2'].home;
+      oddsMap['1st half home'] = oc['ht_1x2'].home;
+    }
+    if (oc['ht_1x2'].draw) {
+      oddsMap['ht draw'] = oc['ht_1x2'].draw;
+      oddsMap['1st half draw'] = oc['ht_1x2'].draw;
+    }
+    if (oc['ht_1x2'].away) {
+      oddsMap['ht away win'] = oc['ht_1x2'].away;
+      oddsMap['1st half away'] = oc['ht_1x2'].away;
+    }
+  }
+  if (oc.ht_ou) {
+    if (oc.ht_ou.over) oddsMap[`ht over ${oc.ht_ou.line}`] = oc.ht_ou.over;
+    if (oc.ht_ou.under) oddsMap[`ht under ${oc.ht_ou.line}`] = oc.ht_ou.under;
+  }
+  if (oc.ht_ou_adjacent) {
+    if (oc.ht_ou_adjacent.over) oddsMap[`ht over ${oc.ht_ou_adjacent.line}`] = oc.ht_ou_adjacent.over;
+    if (oc.ht_ou_adjacent.under) oddsMap[`ht under ${oc.ht_ou_adjacent.line}`] = oc.ht_ou_adjacent.under;
+  }
+  if (oc.ht_ah) {
+    if (oc.ht_ah.home) oddsMap[`ht home ${oc.ht_ah.line}`] = oc.ht_ah.home;
+    if (oc.ht_ah.away) oddsMap[`ht away ${oc.ht_ah.line}`] = oc.ht_ah.away;
+  }
+  if (oc.ht_ah_adjacent) {
+    if (oc.ht_ah_adjacent.home) oddsMap[`ht home ${oc.ht_ah_adjacent.line}`] = oc.ht_ah_adjacent.home;
+    if (oc.ht_ah_adjacent.away) oddsMap[`ht away ${oc.ht_ah_adjacent.line}`] = oc.ht_ah_adjacent.away;
+  }
+  if (oc.ht_btts) {
+    if (oc.ht_btts.yes) oddsMap['ht btts yes'] = oc.ht_btts.yes;
+    if (oc.ht_btts.no) oddsMap['ht btts no'] = oc.ht_btts.no;
   }
 
   // Try to extract AI text from multiple response formats
@@ -273,7 +423,7 @@ export function parseAiResponse(
   const aiShouldPush = parsed.should_push === true;
 
   // Map odds from selection
-  const mappedOdd = extractOddsFromSelection(aiSelection, oddsMap, oddsCanonical);
+  const mappedOdd = extractOddsFromSelection(aiSelection, betMarket, oddsMap, oddsCanonical);
   const aiOddRaw = mappedOdd;
 
   // Safety checks
@@ -307,7 +457,14 @@ export function parseAiResponse(
   }
 
   // 1X2_TOO_EARLY: business rule — no 1X2 bets before minute 35
-  if (aiShouldPush && betMarket.toLowerCase().includes('1x2') && minuteNum !== null && minuteNum < 35) {
+  const bmLower = betMarket.toLowerCase();
+  if (
+    aiShouldPush
+    && bmLower.includes('1x2')
+    && !bmLower.startsWith('ht_')
+    && minuteNum !== null
+    && minuteNum < 35
+  ) {
     safetyWarnings.push('1X2_TOO_EARLY');
   }
 

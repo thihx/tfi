@@ -63,6 +63,9 @@ interface MatchContext {
   awayTeam: string;
   homeScore: number;
   awayScore: number;
+  /** H1 goals when available (matches_history / archive); required for deterministic `ht_*` rule settle. */
+  htHomeScore?: number;
+  htAwayScore?: number;
   finalStatus: string;
   settlementScope: 'regular_time';
   statistics?: SettlementStatRow[];
@@ -202,6 +205,8 @@ export async function settleMatch(
       selection: bet.selection,
       homeScore: match.homeScore,
       awayScore: match.awayScore,
+      htHomeScore: match.htHomeScore,
+      htAwayScore: match.htAwayScore,
       statistics: match.statistics,
     });
     if (ruleResult) {
@@ -774,12 +779,17 @@ function buildMatchContextForSettlement(
   );
   if (!settlementScore) return null;
 
+  const htHome = hist.halftime_home;
+  const htAway = hist.halftime_away;
+  const hasHt = typeof htHome === 'number' && typeof htAway === 'number';
+
   return {
     matchId,
     homeTeam: hist.home_team,
     awayTeam: hist.away_team,
     homeScore: settlementScore.home,
     awayScore: settlementScore.away,
+    ...(hasHt ? { htHomeScore: htHome, htAwayScore: htAway } : {}),
     finalStatus: hist.final_status || 'FT',
     settlementScope: 'regular_time',
     statistics,

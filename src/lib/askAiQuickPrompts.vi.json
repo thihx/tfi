@@ -22,5 +22,13 @@
   {
     "id": "sides",
     "text": "Chủ/khách: bên nào vẫn còn cửa hợp lý?"
+  },
+  {
+    "id": "h1_ou",
+    "text": "Hiệp 1: tài xỉu H1 với diễn biến hiện tại còn hợp lý không?"
+  },
+  {
+    "id": "h1_winner",
+    "text": "Chỉ hiệp 1 — chủ hòa khách: kèo 1X2 H1 bên nào còn giá?"
   }
 ]

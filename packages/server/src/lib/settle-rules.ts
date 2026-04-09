@@ -14,6 +14,9 @@ export interface SettleInput {
   selection: string;
   homeScore: number;
   awayScore: number;
+  /** First-half goals (H1). Required to settle `ht_*` goal markets deterministically. */
+  htHomeScore?: number;
+  htAwayScore?: number;
   statistics?: Array<{ type: string; home: string | number | null; away: string | number | null }>;
 }
 
@@ -116,6 +119,8 @@ export function earlySettleByRule(input: SettleInput): SettleOutput | null {
 
   if (looksLikeCardsMarket(input.market, input.selection)) return null;
 
+  if (market.startsWith('ht_')) return null;
+
   // Over X: early win only when result is definitively 'win'
   // (covers regular + quarter lines — quarter 'half_win' is excluded because
   //  the upper split could still go from push → win, making the final better)
@@ -165,6 +170,87 @@ export function settleByRule(input: SettleInput): SettleOutput | null {
   // "cards" from the market string, causing it to look like a goals total.
   if (looksLikeCardsMarket(input.market, input.selection)) {
     return null; // always AI — card markets need stats context
+  }
+
+  const htGoalsTotal =
+    input.htHomeScore !== undefined && input.htAwayScore !== undefined
+      ? input.htHomeScore + input.htAwayScore
+      : null;
+
+  const htOverMatch = market.match(/^ht_over_(\d+(?:\.\d+)?)$/);
+  if (htOverMatch) {
+    if (htGoalsTotal === null) return null;
+    const line = parseFloat(htOverMatch[1]!);
+    const result = settleTotalMarket(htGoalsTotal, line, 'over');
+    return result ? { result, explanation: explainTotalResult(htGoalsTotal, line, result) + ' (H1)' } : null;
+  }
+
+  const htUnderMatch = market.match(/^ht_under_(\d+(?:\.\d+)?)$/);
+  if (htUnderMatch) {
+    if (htGoalsTotal === null) return null;
+    const line = parseFloat(htUnderMatch[1]!);
+    const result = settleTotalMarket(htGoalsTotal, line, 'under');
+    return result ? { result, explanation: explainTotalResult(htGoalsTotal, line, result) + ' (H1)' } : null;
+  }
+
+  if (market === 'ht_1x2_home') {
+    if (input.htHomeScore === undefined || input.htAwayScore === undefined) return null;
+    const result: FinalSettlementResult = input.htHomeScore > input.htAwayScore ? 'win' : 'loss';
+    return {
+      result,
+      explanation: `H1 score ${input.htHomeScore}-${input.htAwayScore}, Home win -> ${result}`,
+    };
+  }
+
+  if (market === 'ht_1x2_away') {
+    if (input.htHomeScore === undefined || input.htAwayScore === undefined) return null;
+    const result: FinalSettlementResult = input.htAwayScore > input.htHomeScore ? 'win' : 'loss';
+    return {
+      result,
+      explanation: `H1 score ${input.htHomeScore}-${input.htAwayScore}, Away win -> ${result}`,
+    };
+  }
+
+  if (market === 'ht_1x2_draw') {
+    if (input.htHomeScore === undefined || input.htAwayScore === undefined) return null;
+    const result: FinalSettlementResult = input.htHomeScore === input.htAwayScore ? 'win' : 'loss';
+    return {
+      result,
+      explanation: `H1 score ${input.htHomeScore}-${input.htAwayScore}, Draw -> ${result}`,
+    };
+  }
+
+  if (market === 'ht_btts_yes') {
+    if (input.htHomeScore === undefined || input.htAwayScore === undefined) return null;
+    const bothScored = input.htHomeScore > 0 && input.htAwayScore > 0;
+    return {
+      result: bothScored ? 'win' : 'loss',
+      explanation: `H1 ${input.htHomeScore}-${input.htAwayScore}, BTTS Yes -> ${bothScored ? 'win' : 'loss'}`,
+    };
+  }
+
+  if (market === 'ht_btts_no') {
+    if (input.htHomeScore === undefined || input.htAwayScore === undefined) return null;
+    const bothScored = input.htHomeScore > 0 && input.htAwayScore > 0;
+    return {
+      result: bothScored ? 'loss' : 'win',
+      explanation: `H1 ${input.htHomeScore}-${input.htAwayScore}, BTTS No -> ${bothScored ? 'loss' : 'win'}`,
+    };
+  }
+
+  const htAhMatch = market.match(/^ht_asian_handicap_(home|away)_([+-]?\d+(?:\.\d+)?)$/);
+  if (htAhMatch) {
+    if (input.htHomeScore === undefined || input.htAwayScore === undefined) return null;
+    const handicap = parseFloat(htAhMatch[2]!);
+    if (!Number.isFinite(handicap)) return null;
+    const side = htAhMatch[1] as 'home' | 'away';
+    const scoreDiff = side === 'home'
+      ? input.htHomeScore - input.htAwayScore
+      : input.htAwayScore - input.htHomeScore;
+    const result = settleHandicapMarket(scoreDiff, handicap);
+    return result
+      ? { result, explanation: `${explainHandicapResult(side, handicap, scoreDiff + handicap, result)} (H1)` }
+      : null;
   }
 
   const overMatch = market.match(/^over_(\d+(?:\.\d+)?)$/);

@@ -22,5 +22,13 @@
   {
     "id": "sides",
     "text": "Home vs away: which side still offers value?"
+  },
+  {
+    "id": "h1_ou",
+    "text": "First half: is the H1 over/under still fair vs how the half is playing?"
+  },
+  {
+    "id": "h1_winner",
+    "text": "First half only — home, draw, or away: best value on the H1 1X2 line?"
   }
 ]

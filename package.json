@@ -8,6 +8,7 @@
     "dev": "concurrently -n \"server,client\" -c \"blue,green\" \"npm run dev:server\" \"npm run dev:client\"",
     "dev:client": "vite",
     "dev:server": "npm run dev --prefix packages/server",
+    "migrate:server": "npm run migrate --prefix packages/server",
     "build": "tsc --noEmit && vite build",
     "preview": "vite preview",
     "test": "vitest run",

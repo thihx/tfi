@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { formatLocalTime } from '@/lib/utils/helpers';
 import type { MatchSnapshot, OddsMovement } from '@/lib/services/api';
 import {
@@ -416,13 +416,73 @@ export function TimelineView({ snapshots, matchDisplay }: { snapshots: MatchSnap
   );
 }
 
+const ODDS_MARKET_TAB_ORDER = [
+  '1x2', 'ou', 'ah', 'btts', 'corners_ou',
+  'ht_1x2', 'ht_ou', 'ht_ah', 'ht_btts',
+];
+
+function sortOddsMarketKeys(markets: string[]): string[] {
+  return [...markets].sort((a, b) => {
+    const ia = ODDS_MARKET_TAB_ORDER.indexOf(a);
+    const ib = ODDS_MARKET_TAB_ORDER.indexOf(b);
+    if (ia === -1 && ib === -1) return a.localeCompare(b);
+    if (ia === -1) return 1;
+    if (ib === -1) return -1;
+    return ia - ib;
+  });
+}
+
+function formatOddsMarketTab(market: string): string {
+  const labels: Record<string, string> = {
+    '1x2': '1X2',
+    ou: 'O/U goals',
+    ah: 'Asian H.',
+    btts: 'BTTS',
+    corners_ou: 'Corners O/U',
+    ht_1x2: 'H1 1X2',
+    ht_ou: 'H1 O/U',
+    ht_ah: 'H1 Asian H.',
+    ht_btts: 'H1 BTTS',
+  };
+  return labels[market] ?? market;
+}
+
+function oddsMovementColumnLabels(market: string): { p1: string; p2: string; px: string } {
+  switch (market) {
+    case '1x2':
+    case 'ht_1x2':
+      return { p1: 'Home', p2: 'Away', px: 'Draw' };
+    case 'ou':
+    case 'ht_ou':
+    case 'corners_ou':
+      return { p1: 'Over', p2: 'Under', px: '—' };
+    case 'ah':
+    case 'ht_ah':
+      return { p1: 'Home', p2: 'Away', px: '—' };
+    case 'btts':
+    case 'ht_btts':
+      return { p1: 'Yes', p2: 'No', px: '—' };
+    default:
+      return { p1: 'P1', p2: 'P2', px: 'PX' };
+  }
+}
+
 export function OddsView({ odds }: { odds: OddsMovement[] }) {
-  const markets = [...new Set(odds.map((odd) => odd.market))];
-  const [selectedMarket, setSelectedMarket] = useState(markets[0] || '');
+  const markets = useMemo(
+    () => sortOddsMarketKeys([...new Set(odds.map((odd) => odd.market))]),
+    [odds],
+  );
+  const [selectedMarket, setSelectedMarket] = useState(() => markets[0] || '');
+
+  useEffect(() => {
+    setSelectedMarket((prev) => (markets.includes(prev) ? prev : (markets[0] || '')));
+  }, [markets]);
 
   if (!odds.length) {
     return <EmptyState icon={<svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/><polyline points="17 6 23 6 23 12"/></svg>} message="No odds movements recorded" />;
   }
+
+  const col = oddsMovementColumnLabels(selectedMarket);
 
   const marketOdds = odds
     .filter((odd) => odd.market === selectedMarket)
@@ -449,7 +509,7 @@ export function OddsView({ odds }: { odds: OddsMovement[] }) {
             className={`btn btn-sm ${selectedMarket === market ? 'btn-primary' : 'btn-secondary'}`}
             onClick={() => setSelectedMarket(market)}
           >
-            {market}
+            {formatOddsMarketTab(market)}
           </button>
         ))}
       </div>
@@ -464,13 +524,13 @@ export function OddsView({ odds }: { odds: OddsMovement[] }) {
               <Tooltip />
               <Legend wrapperStyle={{ fontSize: 11 }} />
               {chartData.some((row) => row.price_1 != null) && (
-                <Line type="monotone" dataKey="price_1" name="Price 1" stroke="#3b82f6" strokeWidth={2} dot={{ r: 2 }} />
+                <Line type="monotone" dataKey="price_1" name={col.p1} stroke="#3b82f6" strokeWidth={2} dot={{ r: 2 }} />
               )}
               {chartData.some((row) => row.price_2 != null) && (
-                <Line type="monotone" dataKey="price_2" name="Price 2" stroke="#ef4444" strokeWidth={2} dot={{ r: 2 }} />
+                <Line type="monotone" dataKey="price_2" name={col.p2} stroke="#ef4444" strokeWidth={2} dot={{ r: 2 }} />
               )}
               {chartData.some((row) => row.price_x != null) && (
-                <Line type="monotone" dataKey="price_x" name="Draw" stroke="#f59e0b" strokeWidth={2} dot={{ r: 2 }} />
+                <Line type="monotone" dataKey="price_x" name={col.px} stroke="#f59e0b" strokeWidth={2} dot={{ r: 2 }} />
               )}
             </LineChart>
           </ResponsiveContainer>
@@ -483,9 +543,9 @@ export function OddsView({ odds }: { odds: OddsMovement[] }) {
             <tr>
               <th>Min</th>
               <th>Line</th>
-              <th style={{ textAlign: 'center' }}>P1</th>
-              <th style={{ textAlign: 'center' }}>PX</th>
-              <th style={{ textAlign: 'center' }}>P2</th>
+              <th style={{ textAlign: 'center' }}>{col.p1}</th>
+              <th style={{ textAlign: 'center' }}>{col.px}</th>
+              <th style={{ textAlign: 'center' }}>{col.p2}</th>
               <th style={{ color: 'var(--gray-400)' }}>Captured</th>
             </tr>
           </thead>

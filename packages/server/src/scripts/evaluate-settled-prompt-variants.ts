@@ -36,6 +36,8 @@ interface EvaluateArgs {
   llmCacheDir?: string;
   /** Run recommendation-policy after LLM parse (production parity with settled-replay trace). */
   applySettledReplayPolicy?: boolean;
+  /** Opt-in only: inject stored settled replay trace hints into the prompt. */
+  settledReplayTraceMode?: boolean;
 }
 
 function parseArgs(argv: string[]): EvaluateArgs {
@@ -52,6 +54,7 @@ function parseArgs(argv: string[]): EvaluateArgs {
   let llmCacheDir: string | undefined;
   let maxScenarios: number | undefined;
   let applySettledReplayPolicy = false;
+  let settledReplayTraceMode = false;
 
   for (let i = 0; i < argv.length; i++) {
     const arg = argv[i];
@@ -119,10 +122,14 @@ function parseArgs(argv: string[]): EvaluateArgs {
       applySettledReplayPolicy = true;
       continue;
     }
+    if (arg === '--settled-replay-trace-mode') {
+      settledReplayTraceMode = true;
+      continue;
+    }
   }
 
   if (!dirPath) {
-    throw new Error('Usage: tsx src/scripts/evaluate-settled-prompt-variants.ts --dir <folder> [--prompt-version <version>]... [--llm real|mock] [--model <gemini-model>] [--allow-real-llm] [--odds recorded|live|mock] [--delay-ms N] [--max-scenarios N] [--apply-replay-policy] [--llm-cache-dir <dir>] [--report-json <file>] [--report-md <file>] [--report-cases-json <file>]');
+    throw new Error('Usage: tsx src/scripts/evaluate-settled-prompt-variants.ts --dir <folder> [--prompt-version <version>]... [--llm real|mock] [--model <gemini-model>] [--allow-real-llm] [--odds recorded|live|mock] [--delay-ms N] [--max-scenarios N] [--apply-replay-policy] [--settled-replay-trace-mode] [--llm-cache-dir <dir>] [--report-json <file>] [--report-md <file>] [--report-cases-json <file>]');
   }
 
   const fallbackPromptVersions = [
@@ -144,6 +151,7 @@ function parseArgs(argv: string[]): EvaluateArgs {
     llmCacheDir,
     maxScenarios,
     applySettledReplayPolicy,
+    settledReplayTraceMode,
   };
 }
 
@@ -163,9 +171,16 @@ async function evaluateScenarioAgainstSettlement(
   oddsMode: EvaluateArgs['oddsMode'],
   llmCacheDir?: string,
   applySettledReplayPolicy?: boolean,
+  settledReplayTraceMode?: boolean,
 ): Promise<EvaluatedReplayCase> {
   const cachePath = llmMode === 'real' && llmCacheDir
-    ? buildReplayLlmCachePath(llmCacheDir, scenario, promptVersion, oddsMode, 'settled-trace')
+    ? buildReplayLlmCachePath(
+        llmCacheDir,
+        scenario,
+        promptVersion,
+        oddsMode,
+        settledReplayTraceMode === true ? 'settled-trace' : 'standard',
+      )
     : null;
   const cached = cachePath ? loadReplayLlmCache(cachePath) : null;
   const output = await runReplayScenario({
@@ -181,7 +196,7 @@ async function evaluateScenarioAgainstSettlement(
     advisoryOnly: true,
     promptVersionOverride: promptVersion as never,
     capturedAiText: cached?.aiText,
-    settledReplayApprovedTrace: true,
+    settledReplayApprovedTrace: settledReplayTraceMode === true,
     applySettledReplayPolicy: applySettledReplayPolicy === true,
   });
 
@@ -278,6 +293,7 @@ function buildMarkdownReport(summary: {
   generatedAt: string;
   totalScenarios: number;
   applySettledReplayPolicy?: boolean;
+  settledReplayTraceMode?: boolean;
   promptVersions: string[];
   variants: ReturnType<typeof summarizeSettledReplayVariant>[];
 }): string {
@@ -287,6 +303,7 @@ function buildMarkdownReport(summary: {
     `- Generated: ${summary.generatedAt}`,
     `- Scenarios: ${summary.totalScenarios}`,
     `- Post-parse recommendation policy: ${summary.applySettledReplayPolicy ? 'applied (production parity)' : 'skipped (settled-replay default)'}`,
+    `- Settled replay trace mode: ${summary.settledReplayTraceMode ? 'enabled (trace-injected, diagnostics only)' : 'disabled (production-like economics)'}`,
     `- Prompt versions: ${summary.promptVersions.join(', ') || '(none)'}`,
     '',
   ];
@@ -412,6 +429,7 @@ async function main(): Promise<void> {
         args.oddsMode,
         args.llmCacheDir,
         args.applySettledReplayPolicy,
+        args.settledReplayTraceMode,
       ));
       if (args.delayMs > 0 && index < scenarios.length - 1) {
         await sleep(args.delayMs);
@@ -424,6 +442,7 @@ async function main(): Promise<void> {
     generatedAt: new Date().toISOString(),
     totalScenarios: scenarios.length,
     applySettledReplayPolicy: args.applySettledReplayPolicy === true,
+    settledReplayTraceMode: args.settledReplayTraceMode === true,
     promptVersions: args.promptVersions,
     variants: args.promptVersions.map((promptVersion) => summarizeSettledReplayVariant(
       promptVersion,
@@ -434,6 +453,7 @@ async function main(): Promise<void> {
     generatedAt: summary.generatedAt,
     totalScenarios: scenarios.length,
     applySettledReplayPolicy: summary.applySettledReplayPolicy,
+    settledReplayTraceMode: summary.settledReplayTraceMode,
     promptVersions: args.promptVersions,
     variants: args.promptVersions.map((promptVersion) => ({
       promptVersion,

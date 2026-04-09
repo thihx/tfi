@@ -286,11 +286,11 @@ describe('mergeOddsToMatch — pre-match format', () => {
         name: 'Asian Handicap',
         values: [
           { value: 'Home -1', odd: '1.95', handicap: '' },
-          { value: 'Away -1', odd: '1.85', handicap: '' },
+          { value: 'Away +1', odd: '1.85', handicap: '' },
           { value: 'Home -0.5', odd: '1.55', handicap: '' },
-          { value: 'Away -0.5', odd: '2.38', handicap: '' },
+          { value: 'Away +0.5', odd: '2.38', handicap: '' },
           { value: 'Home -1.5', odd: '2.50', handicap: '' },
-          { value: 'Away -1.5', odd: '1.50', handicap: '' },
+          { value: 'Away +1.5', odd: '1.50', handicap: '' },
           { value: 'Home +0', odd: '1.19', handicap: '' },
           { value: 'Away +0', odd: '4.50', handicap: '' },
         ],
@@ -383,7 +383,7 @@ describe('mergeOddsToMatch — pre-match format', () => {
             { value: 'Home', odd: '1.53' }, { value: 'Draw', odd: '3.75' }, { value: 'Away', odd: '5.80' },
           ]},
           { name: 'Asian Handicap', values: [
-            { value: 'Home -1', odd: '1.95', handicap: '' }, { value: 'Away -1', odd: '1.80', handicap: '' },
+            { value: 'Home -1', odd: '1.95', handicap: '' }, { value: 'Away +1', odd: '1.80', handicap: '' },
           ]},
           { name: 'Goals Over/Under', values: [
             { value: 'Over 2.5', odd: '1.83', handicap: '' }, { value: 'Under 2.5', odd: '1.91', handicap: '' },
@@ -403,9 +403,9 @@ describe('mergeOddsToMatch — pre-match format', () => {
             { value: 'Home', odd: '1.48' }, { value: 'Draw', odd: '3.60' }, { value: 'Away', odd: '5.75' },
           ]},
           { name: 'Asian Handicap', values: [
-            { value: 'Home -1', odd: '1.95', handicap: '' }, { value: 'Away -1', odd: '1.85', handicap: '' },
-            { value: 'Home -0.5', odd: '1.55', handicap: '' }, { value: 'Away -0.5', odd: '2.38', handicap: '' },
-            { value: 'Home -1.5', odd: '2.50', handicap: '' }, { value: 'Away -1.5', odd: '1.50', handicap: '' },
+            { value: 'Home -1', odd: '1.95', handicap: '' }, { value: 'Away +1', odd: '1.85', handicap: '' },
+            { value: 'Home -0.5', odd: '1.55', handicap: '' }, { value: 'Away +0.5', odd: '2.38', handicap: '' },
+            { value: 'Home -1.5', odd: '2.50', handicap: '' }, { value: 'Away +1.5', odd: '1.50', handicap: '' },
           ]},
           { name: 'Goals Over/Under', values: [
             { value: 'Over 0.5', odd: '1.05', handicap: '' }, { value: 'Under 0.5', odd: '11.00', handicap: '' },
@@ -460,9 +460,9 @@ describe('mergeOddsToMatch — pre-match format', () => {
         name: 'Asian Handicap',
         values: [
           { value: 'Home -1.25', odd: '2.21', handicap: '' },
-          { value: 'Away -1.25', odd: '1.55', handicap: '' },
+          { value: 'Away +1.25', odd: '1.55', handicap: '' },
           { value: 'Home -0.75', odd: '1.65', handicap: '' },
-          { value: 'Away -0.75', odd: '2.04', handicap: '' },
+          { value: 'Away +0.75', odd: '2.04', handicap: '' },
         ],
       }],
     }]);
@@ -506,9 +506,9 @@ describe('mergeOddsToMatch — pre-match format', () => {
         name: 'Asian Handicap',
         values: [
           { value: 'Home +0.25', odd: '1.38', handicap: '' },
-          { value: 'Away +0.25', odd: '3.00', handicap: '' },
+          { value: 'Away -0.25', odd: '3.00', handicap: '' },
           { value: 'Home +0.5', odd: '1.13', handicap: '' },
-          { value: 'Away +0.5', odd: '5.90', handicap: '' },
+          { value: 'Away -0.5', odd: '5.90', handicap: '' },
         ],
       }],
     }]);
@@ -519,7 +519,7 @@ describe('mergeOddsToMatch — pre-match format', () => {
     expect(ah?.line).toBe(0.25);
   });
 
-  test('skips half-time markets in pre-match format', () => {
+  test('keeps FT 1x2 separate from first-half 1x2 in pre-match format', () => {
     const odds = preMatchOddsResponse([{
       name: 'Bet365',
       bets: [
@@ -538,8 +538,8 @@ describe('mergeOddsToMatch — pre-match format', () => {
       ],
     }]);
     const result = mergeOddsToMatch(createMergedMatchData(), odds);
-    // Should only use full-time 1X2, not half-time
     expect(result.odds_canonical['1x2']?.home).toBe(1.5);
+    expect(result.odds_canonical['ht_1x2']?.home).toBe(2.5);
   });
 
   test('existing live format still works (value="Over", handicap="2.5")', () => {
@@ -660,7 +660,7 @@ describe('mergeOddsToMatch — pre-match format', () => {
               ]},
               // AH with extremely wide margin (~67% implied probability)
               { id: 2, name: 'Asian Handicap', values: [
-                { value: 'Home', odd: '3.50', handicap: '-1' }, { value: 'Away', odd: '3.00', handicap: '-1' },
+                { value: 'Home', odd: '3.50', handicap: '-1' }, { value: 'Away', odd: '3.00', handicap: '+1' },
               ]},
             ],
           },

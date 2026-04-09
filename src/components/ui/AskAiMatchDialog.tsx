@@ -22,7 +22,7 @@ export function AskAiMatchDialog({ open, match, isRunning, onClose, onSubmit }: 
   const uiLanguage = useUiLanguage();
   const promptLocale = uiLanguageToAskAiPromptLocale(uiLanguage);
   const quickPrompts = useAskAiQuickPromptList(promptLocale);
-  const quickPromptsLabel = getAskAiQuickPromptsSectionLabel('en');
+  const quickPromptsLabel = getAskAiQuickPromptsSectionLabel(promptLocale);
 
   const [draft, setDraft] = useState('');
   const descId = useId();
@@ -45,7 +45,7 @@ export function AskAiMatchDialog({ open, match, isRunning, onClose, onSubmit }: 
   const handleKeyDown = (e: KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key !== 'Enter' || e.shiftKey) return;
     e.preventDefault();
-    if (!isRunning && draft.length <= MAX_QUESTION_CHARS) onSubmit(draft.trim());
+    if (!isRunning && draft.length <= ASK_AI_CHAT_MAX_CHARS) onSubmit(draft.trim());
   };
 
   return (
@@ -78,7 +78,7 @@ export function AskAiMatchDialog({ open, match, isRunning, onClose, onSubmit }: 
         label={quickPromptsLabel}
         prompts={quickPrompts}
         disabled={isRunning}
-        onPick={(text) => setDraft(text.slice(0, MAX_QUESTION_CHARS))}
+        onPick={(text) => setDraft(text.slice(0, ASK_AI_CHAT_MAX_CHARS))}
       />
       <textarea
         ref={textareaRef}

@@ -2,7 +2,11 @@ import { readFileSync, writeFileSync, mkdirSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import type { SettledReplayScenario } from '../lib/db-replay-scenarios.js';
 import { buildOddsCanonical } from '../lib/server-pipeline.js';
-import { detectGoalsCornersLineContamination } from '../lib/odds-integrity.js';
+import {
+  detectGoalsCornersLineContamination,
+  detectHtGoalsCornersLineContamination,
+} from '../lib/odds-integrity.js';
+import { extractHalftimeScoreFromFixture } from '../lib/settle-context.js';
 import { listReplayScenarioJsonBasenames } from '../lib/replay-scenario-files.js';
 
 interface Args {
@@ -46,6 +50,12 @@ function parseCurrentGoals(score: string): number {
   return Number(match[1] ?? 0) + Number(match[2] ?? 0);
 }
 
+function parseHtTotalGoalsFromScenario(scenario: SettledReplayScenario): number {
+  const ht = extractHalftimeScoreFromFixture(scenario.fixture);
+  if (!ht) return 0;
+  return Math.max(0, ht.home) + Math.max(0, ht.away);
+}
+
 async function main(): Promise<void> {
   const args = parseArgs(process.argv.slice(2));
   const files = listReplayScenarioJsonBasenames(args.dirPath);
@@ -55,6 +65,8 @@ async function main(): Promise<void> {
     const currentGoals = parseCurrentGoals(scenario.metadata.score);
     const canonical = buildOddsCanonical(scenario.mockResolvedOdds?.response ?? []).canonical;
     const contamination = detectGoalsCornersLineContamination(canonical, currentGoals);
+    const htGoalsTotal = parseHtTotalGoalsFromScenario(scenario);
+    const htContamination = detectHtGoalsCornersLineContamination(canonical, htGoalsTotal);
     const x2 = canonical['1x2'];
     const has1x2Complete = !!(
       x2
@@ -80,13 +92,17 @@ async function main(): Promise<void> {
       minute: scenario.metadata.minute,
       score: scenario.metadata.score,
       currentGoals,
+      htGoalsTotal,
       goalsLine: canonical.ou?.line ?? null,
+      htGoalsLine: canonical.ht_ou?.line ?? null,
       cornersLine: canonical.corners_ou?.line ?? null,
       ahLine: ah?.line ?? null,
       has1x2Complete,
       hasAsianHandicapPlayable,
       contaminated: contamination.contaminated,
       reason: contamination.reason,
+      htContaminated: htContamination.contaminated,
+      htReason: htContamination.reason,
     };
   });
 
@@ -94,13 +110,16 @@ async function main(): Promise<void> {
     generatedAt: new Date().toISOString(),
     totalScenarios: rows.length,
     contaminatedCount: rows.filter((row) => row.contaminated).length,
+    htContaminatedCount: rows.filter((row) => row.htContaminated).length,
     oddsCoverage: {
       withComplete1x2: rows.filter((row) => row.has1x2Complete).length,
       withAsianHandicap: rows.filter((row) => row.hasAsianHandicapPlayable).length,
       withGoalsOu: rows.filter((row) => row.goalsLine != null).length,
+      withHtGoalsOu: rows.filter((row) => row.htGoalsLine != null).length,
       withCornersOu: rows.filter((row) => row.cornersLine != null).length,
     },
     rows: rows.filter((row) => row.contaminated),
+    htContaminatedRows: rows.filter((row) => row.htContaminated),
   };
 
   if (args.reportJsonPath) {

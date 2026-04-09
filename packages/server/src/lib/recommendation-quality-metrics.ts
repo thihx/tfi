@@ -115,6 +115,19 @@ function parseScore(score: string): { home: number; away: number; total: number 
 
 function getCorrelatedThesis(canonicalMarket: string): { thesisKey: string; label: string } | null {
   if (!canonicalMarket || canonicalMarket === 'unknown') return null;
+  if (canonicalMarket.startsWith('ht_over_')) return { thesisKey: 'ht_goals_over', label: 'H1 Goals Over thesis' };
+  if (canonicalMarket.startsWith('ht_under_')) return { thesisKey: 'ht_goals_under', label: 'H1 Goals Under thesis' };
+  if (canonicalMarket.startsWith('ht_asian_handicap_home_')) {
+    return { thesisKey: 'ht_asian_handicap_home', label: 'H1 Asian Handicap Home thesis' };
+  }
+  if (canonicalMarket.startsWith('ht_asian_handicap_away_')) {
+    return { thesisKey: 'ht_asian_handicap_away', label: 'H1 Asian Handicap Away thesis' };
+  }
+  if (canonicalMarket === 'ht_1x2_home') return { thesisKey: 'ht_1x2_home', label: 'H1 Home Win thesis' };
+  if (canonicalMarket === 'ht_1x2_away') return { thesisKey: 'ht_1x2_away', label: 'H1 Away Win thesis' };
+  if (canonicalMarket === 'ht_1x2_draw') return { thesisKey: 'ht_1x2_draw', label: 'H1 Draw thesis' };
+  if (canonicalMarket === 'ht_btts_yes') return { thesisKey: 'ht_btts_yes', label: 'H1 BTTS Yes thesis' };
+  if (canonicalMarket === 'ht_btts_no') return { thesisKey: 'ht_btts_no', label: 'H1 BTTS No thesis' };
   if (canonicalMarket.startsWith('over_')) return { thesisKey: 'goals_over', label: 'Goals Over thesis' };
   if (canonicalMarket.startsWith('under_')) return { thesisKey: 'goals_under', label: 'Goals Under thesis' };
   if (canonicalMarket.startsWith('corners_over_')) return { thesisKey: 'corners_over', label: 'Corners Over thesis' };
@@ -131,6 +144,7 @@ function getCorrelatedThesis(canonicalMarket: string): { thesisKey: string; labe
 
 function getMarketFamily(canonicalMarket: string): string {
   if (!canonicalMarket || canonicalMarket === 'unknown') return 'other';
+  if (canonicalMarket.startsWith('ht_')) return 'first_half';
   if (canonicalMarket.startsWith('corners_')) return 'corners';
   if (canonicalMarket.startsWith('over_') || canonicalMarket.startsWith('under_')) return 'goals_totals';
   if (canonicalMarket.startsWith('asian_handicap_')) return 'asian_handicap';

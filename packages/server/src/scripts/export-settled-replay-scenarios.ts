@@ -46,7 +46,11 @@ function parseArgs(argv: string[]): ExportArgs {
       i++;
       continue;
     }
-    if (arg === '--market-family' && next && ['all', 'goals_totals', 'goals_under', 'goals_over'].includes(next)) {
+    if (
+      arg === '--market-family'
+      && next
+      && ['all', 'goals_totals', 'goals_under', 'goals_over', 'first_half'].includes(next)
+    ) {
       args.marketFamily = next as ExportArgs['marketFamily'];
       i++;
       continue;
@@ -54,7 +58,7 @@ function parseArgs(argv: string[]): ExportArgs {
   }
 
   if (!args.outDir) {
-    throw new Error('Usage: tsx src/scripts/export-settled-replay-scenarios.ts --out-dir <dir> [--manifest <file>] [--lookback-days N] [--limit N] [--prompt-version <version>] [--market-family all|goals_totals|goals_under|goals_over]');
+    throw new Error('Usage: tsx src/scripts/export-settled-replay-scenarios.ts --out-dir <dir> [--manifest <file>] [--lookback-days N] [--limit N] [--prompt-version <version>] [--market-family all|goals_totals|goals_under|goals_over|first_half]');
   }
 
   return args;

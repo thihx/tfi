@@ -16,12 +16,12 @@ export type PromptEvidenceMode =
   | 'events_only_degraded'
   | 'low_evidence';
 
-export const LIVE_ANALYSIS_PROMPT_VERSIONS = ['v4-evidence-hardened', 'v5-compact-a', 'v6-betting-discipline-a', 'v6-betting-discipline-b', 'v6-betting-discipline-c', 'v7-profile-overlay-discipline-a', 'v8-market-balance-followup-a', 'v8-market-balance-followup-b', 'v8-market-balance-followup-c', 'v8-market-balance-followup-d', 'v8-market-balance-followup-e', 'v8-market-balance-followup-f', 'v8-market-balance-followup-g', 'v8-market-balance-followup-h', 'v8-market-balance-followup-i', 'v8-market-balance-followup-j', 'v9-legacy-lean-a', 'v10-hybrid-legacy-a', 'v10-hybrid-legacy-b'] as const;
+export const LIVE_ANALYSIS_PROMPT_VERSIONS = ['v4-evidence-hardened', 'v5-compact-a', 'v6-betting-discipline-a', 'v6-betting-discipline-b', 'v6-betting-discipline-c', 'v7-profile-overlay-discipline-a', 'v8-market-balance-followup-a', 'v8-market-balance-followup-b', 'v8-market-balance-followup-c', 'v8-market-balance-followup-d', 'v8-market-balance-followup-e', 'v8-market-balance-followup-f', 'v8-market-balance-followup-g', 'v8-market-balance-followup-h', 'v8-market-balance-followup-i', 'v8-market-balance-followup-j', 'v9-legacy-lean-a', 'v10-hybrid-legacy-a', 'v10-hybrid-legacy-b', 'v10-hybrid-legacy-c', 'v10-hybrid-legacy-d', 'v10-hybrid-legacy-e', 'v10-hybrid-legacy-f', 'v10-hybrid-legacy-g'] as const;
 export type LiveAnalysisPromptVersion = (typeof LIVE_ANALYSIS_PROMPT_VERSIONS)[number];
 /** Default live-analysis prompt when `LIVE_ANALYSIS_ACTIVE_PROMPT_VERSION` is unset or invalid. */
 export const LIVE_ANALYSIS_PROMPT_VERSION = 'v10-hybrid-legacy-b';
 /** Reference compact version for tests/replay tooling; runtime shadow uses env (`LIVE_ANALYSIS_SHADOW_*`), not this constant. */
-export const LIVE_ANALYSIS_PROMPT_CANDIDATE_VERSION = 'v9-legacy-lean-a';
+export const LIVE_ANALYSIS_PROMPT_CANDIDATE_VERSION = 'v10-hybrid-legacy-e';
 
 export function isLiveAnalysisPromptVersion(value: string): value is LiveAnalysisPromptVersion {
   return (LIVE_ANALYSIS_PROMPT_VERSIONS as readonly string[]).includes(value);
@@ -87,6 +87,18 @@ export interface LiveAnalysisHistoricalPerformance {
 export interface LiveAnalysisPromptFollowUpMessage {
   role: 'user' | 'assistant';
   text: string;
+}
+
+export interface LiveAnalysisPromptLineupsSnapshot {
+  available: boolean;
+  teams: Array<{
+    side: 'home' | 'away';
+    teamName: string;
+    formation: string | null;
+    coachName: string | null;
+    starters: string[];
+    substitutes: string[];
+  }>;
 }
 
 export interface LiveAnalysisPromptInput {
@@ -159,6 +171,7 @@ export interface LiveAnalysisPromptInput {
   statsFallbackReason: string;
   userQuestion?: string;
   followUpHistory?: LiveAnalysisPromptFollowUpMessage[];
+  lineupsSnapshot?: LiveAnalysisPromptLineupsSnapshot | null;
   /** Settled replay eval: snapshot came from a stored non-NO_BET recommendation. */
   settledReplayApprovedTrace?: boolean;
   /** Stored row canonical market (replay calibration anchor). */
@@ -1181,11 +1194,46 @@ function isV9PromptVersion(promptVersion: LiveAnalysisPromptVersion): boolean {
 }
 
 function isV10PromptVersion(promptVersion: LiveAnalysisPromptVersion): boolean {
-  return promptVersion === 'v10-hybrid-legacy-a' || promptVersion === 'v10-hybrid-legacy-b';
+  return promptVersion === 'v10-hybrid-legacy-a'
+    || promptVersion === 'v10-hybrid-legacy-b'
+    || promptVersion === 'v10-hybrid-legacy-c'
+    || promptVersion === 'v10-hybrid-legacy-d'
+    || promptVersion === 'v10-hybrid-legacy-e'
+    || promptVersion === 'v10-hybrid-legacy-f';
 }
 
 function isV10HybridLegacyB(promptVersion: LiveAnalysisPromptVersion): boolean {
-  return promptVersion === 'v10-hybrid-legacy-b';
+  return promptVersion === 'v10-hybrid-legacy-b'
+    || promptVersion === 'v10-hybrid-legacy-c'
+    || promptVersion === 'v10-hybrid-legacy-d'
+    || promptVersion === 'v10-hybrid-legacy-e'
+    || promptVersion === 'v10-hybrid-legacy-f'
+    || promptVersion === 'v10-hybrid-legacy-g';
+}
+
+function isV10HybridLegacyC(promptVersion: LiveAnalysisPromptVersion): boolean {
+  return promptVersion === 'v10-hybrid-legacy-c'
+    || promptVersion === 'v10-hybrid-legacy-d'
+    || promptVersion === 'v10-hybrid-legacy-e'
+    || promptVersion === 'v10-hybrid-legacy-f'
+    || promptVersion === 'v10-hybrid-legacy-g';
+}
+
+function isV10HybridLegacyD(promptVersion: LiveAnalysisPromptVersion): boolean {
+  return promptVersion === 'v10-hybrid-legacy-d';
+}
+
+function isV10HybridLegacyE(promptVersion: LiveAnalysisPromptVersion): boolean {
+  return promptVersion === 'v10-hybrid-legacy-e';
+}
+
+function isV10HybridLegacyF(promptVersion: LiveAnalysisPromptVersion): boolean {
+  return promptVersion === 'v10-hybrid-legacy-f'
+    || promptVersion === 'v10-hybrid-legacy-g';
+}
+
+function isV10HybridLegacyG(promptVersion: LiveAnalysisPromptVersion): boolean {
+  return promptVersion === 'v10-hybrid-legacy-g';
 }
 
 function readProfileRecord(profile: Record<string, unknown> | null | undefined): Record<string, unknown> | null {
@@ -1298,6 +1346,10 @@ ${historyLines.length > 0 ? `FOLLOW_UP_HISTORY:\n${historyLines.join('\n')}\n` :
 - Advisory only: do not assume this run will save or notify anything.
 - If the user asks about a specific market, evaluate that market first, explain why it is acceptable or weak, then mention any better alternative only if clearly stronger.
 - If the requested market is unavailable, logically impossible, or policy-unsafe, say so explicitly in follow_up_answer_en/vi.
+- Whenever you mention a betting angle, explicitly name the market period (H1 or Full-time) and market family (European 1X2, Asian Handicap, Goals O/U, BTTS, or Corners O/U).
+- If the user asks about the starting lineup, answer only from LINEUPS SNAPSHOT below.
+- If the user asked about lineups and LINEUPS SNAPSHOT is unavailable, explicitly say lineup data is unavailable BEFORE answering any betting-market part of the question.
+- Never guess or infer missing lineup details from other context.
 
 `
     : `========================
@@ -1310,6 +1362,54 @@ ${historyLines.length > 0 ? `FOLLOW_UP_HISTORY:\n${historyLines.join('\n')}\n` :
 - Advisory only: do not assume this run will save or notify anything.
 - If the user asks about a specific market, evaluate that market first, explain why it is acceptable or weak, then mention any better alternative only if clearly stronger.
 - If the requested market is unavailable, logically impossible, or policy-unsafe, say so explicitly in follow_up_answer_en/vi.
+- Whenever you mention a betting angle, explicitly name the market period (H1 or Full-time) and market family (European 1X2, Asian Handicap, Goals O/U, BTTS, or Corners O/U).
+- If the user asks about the starting lineup, answer only from LINEUPS SNAPSHOT below.
+- If the user asked about lineups and LINEUPS SNAPSHOT is unavailable, explicitly say lineup data is unavailable BEFORE answering any betting-market part of the question.
+- Never guess or infer missing lineup details from other context.
+
+`;
+}
+
+function buildLineupsSnapshotSection(data: LiveAnalysisPromptInput, compact: boolean): string {
+  const shouldRender = String(data.userQuestion ?? '').trim().length > 0
+    || (data.followUpHistory?.length ?? 0) > 0
+    || data.lineupsSnapshot?.available === true;
+  if (!shouldRender) return '';
+
+  const snapshot = data.lineupsSnapshot;
+  if (!snapshot?.available || !Array.isArray(snapshot.teams) || snapshot.teams.length === 0) {
+    return compact
+      ? 'LINEUPS_SNAPSHOT: unavailable\n\n'
+      : `========================
+LINEUPS SNAPSHOT
+========================
+LINEUPS_SNAPSHOT: unavailable
+
+`;
+  }
+
+  const payload = snapshot.teams.map((team) => ({
+    side: team.side,
+    team_name: team.teamName,
+    formation: team.formation ?? null,
+    coach: team.coachName ?? null,
+    starters: team.starters,
+    substitutes: team.substitutes,
+  }));
+
+  return compact
+    ? `LINEUPS_SNAPSHOT:
+${JSON.stringify(payload)}
+- Treat lineup data as confirmed only for the names listed above.
+- If lineup details are absent here, do not invent player names, formations, or absences.
+
+`
+    : `========================
+LINEUPS SNAPSHOT
+========================
+${JSON.stringify(payload)}
+- Treat lineup data as confirmed only for the names listed above.
+- If lineup details are absent here, do not invent player names, formations, or absences.
 
 `;
 }
@@ -1438,11 +1538,65 @@ function buildV9LegacyLeanMarketSelectionSection(compact: boolean): string {
 `;
 }
 
-function buildV10HybridLegacyMarketSelectionSection(compact: boolean): string {
+function buildV10HybridLegacyMarketSelectionSection(compact: boolean, promptVersion?: LiveAnalysisPromptVersion): string {
   const inheritedV8hRules = buildV8MarketBalanceSectionCompact('v8-market-balance-followup-h')
     .replace('V8 MARKET-BALANCE DISCIPLINE:\n', '')
     .trimEnd();
-
+  const v10cExtra = isV10HybridLegacyC(promptVersion ?? LIVE_ANALYSIS_PROMPT_VERSION)
+    ? `${compact
+      ? `- V10C CORNERS EARLY REALISM: before minute 30, corners markets are exceptional-only. Do not back corners_over 11.5+ or corners_under 9+ unless realized corner count is already near the line and the wing/set-piece script is extreme.
+- V10C CORNERS EARLY RUNWAY: if a corners line still needs a large late run, early possession/territory alone is not enough. Prefer no bet.
+- V10C BTTS MIDGAME: from minute 30-59, BTTS is exceptional-only. BTTS Yes needs direct threat from BOTH teams right now; BTTS No needs a structural reason why one side is effectively dead.
+- V10C BTTS NO PRE60: quietness or a temporary 1-0 / 0-0 score is not enough to justify BTTS No before minute 60.
+- V10C WEAK-PREMATCH RULE: when prematch strength is weak and only totals/props are available, corners and BTTS are off-menu unless the live evidence is overwhelming and line-specific.
+- V10C WEAK 0-0 OVER RULE: in weak-prematch 0-0 states before minute 60, low-line goals_over (0.5 to 1.25) needs a truly strong first-goal script; generic pressure is not enough.
+`
+      : `- V10C CORNERS EARLY REALISM: before minute 30, treat corners markets as exceptional-only. Do not back corners_over 11.5+ or corners_under 9+ unless the realized corner count is already near the offered line and the live wing/set-piece script is clearly extreme and still accelerating.
+- V10C CORNERS EARLY RUNWAY: if an early corners line still needs a large run-rate over 60+ minutes of football, that is usually a no-bet. Early possession, territory, or one-sided control alone is not enough to justify a corners position.
+- V10C BTTS MIDGAME: from minute 30-59, BTTS is exceptional-only. BTTS Yes requires direct current threat from BOTH teams; BTTS No requires a structural reason why one side is effectively dead, not just temporary quietness.
+- V10C BTTS NO PRE60: do not force BTTS No before minute 60 from a 0-0 or 1-0 scoreboard alone. You need a clear one-side-impotence script with live evidence, not a generic low-event read.
+- V10C WEAK-PREMATCH RULE: when prematch strength is weak and only totals/props are available, corners and BTTS are effectively off-menu unless the live evidence is overwhelming, line-specific, and clearly superior to no_bet.
+- V10C WEAK 0-0 OVER RULE: in weak-prematch 0-0 states before minute 60, low-line goals_over (0.5 to 1.25) needs a truly strong first-goal script backed by direct attacking evidence. Generic pressure, field tilt, or \"it only needs one goal\" is not enough.
+`}`
+    : '';
+  const v10dExtra = isV10HybridLegacyD(promptVersion ?? LIVE_ANALYSIS_PROMPT_VERSION)
+    ? `${compact
+      ? `- V10D 45-59 CORNERS: in minute 45-59, one-goal corners positions are not generic tempo trades. Avoid corners_under 6.5 and corners_over 13.5+ unless realized corners are already near the line and the live script is exceptional.
+- V10D ONE-GOAL OVER RUNWAY: in one-goal-margin states, goals_over needs realistic runway. Before minute 30, do not back an over that still needs 2.25+ extra goals. Before minute 45, if the score already has 3+ goals, avoid overs that still need 1.75+ extra goals.
+- V10D 45-59 TWO-PLUS UNDER: when the match is already 2+ goals clear in minute 45-59, low-cushion goals_under is fragile. If one more goal kills the ticket, prefer no bet.
+`
+      : `- V10D 45-59 CORNERS: from minute 45-59, corners in one-goal games are not generic rhythm trades. Avoid corners_under 6.5 and corners_over 13.5+ unless the realized corner count is already close to the line and the current wing/set-piece script is clearly exceptional.
+- V10D ONE-GOAL OVER RUNWAY: in one-goal-margin states, goals_over needs realistic runway, not generic "game still feels open" language. Before minute 30, do not back an over that still needs 2.25+ extra goals from the current score. Before minute 45, if the score already contains 3+ goals, avoid overs that still need 1.75+ extra goals unless the acceleration case is genuinely exceptional.
+- V10D 45-59 TWO-PLUS UNDER: at minute 45-59 with a two-plus-goal margin, a goals_under line that dies from just one more goal is structurally fragile. Treat that as a no-bet unless the collapse risk is truly minimal and line-specific.
+`}`
+    : '';
+  const v10eExtra = isV10HybridLegacyE(promptVersion ?? LIVE_ANALYSIS_PROMPT_VERSION)
+    ? `${compact
+      ? `- V10E 45-59 CORNERS ONLY: in minute 45-59 with a one-goal margin, treat corners_under 6.5 and corners_over 13.5+ as exceptional-only. If the realized corner count is not already close to the offered line, prefer no bet.
+`
+      : `- V10E 45-59 CORNERS ONLY: from minute 45-59 in one-goal games, corners_under 6.5 and corners_over 13.5+ are exceptional-only. If the realized corner count is not already close to the offered line, prefer no bet over a generic corners thesis.
+`}`
+    : '';
+  const v10fExtra = isV10HybridLegacyF(promptVersion ?? LIVE_ANALYSIS_PROMPT_VERSION)
+    ? `${compact
+      ? `- V10F 45-59 CORNERS-UNDER CHASE RULE: in minute 45-59, Full-time corners_under 6.5 is exceptional-only when the match already has goals and the score is level or a one-goal game. A quiet first-half corner count alone is not enough if either side is still chasing.
+- V10F SAME-THESIS UNDER ROLLOVER: in minute 45-59 with a two-plus-goal margin, do not roll an existing Full-time goals_under into a looser nearby line just because the line moved up. Without materially stronger suppression and near-zero residual threat, prefer no bet.
+`
+      : `- V10F 45-59 CORNERS-UNDER CHASE RULE: from minute 45-59, Full-time corners_under 6.5 is exceptional-only when the match already contains goals and the score is level or within one goal. A low first-half corner count by itself is not enough if the second-half script still contains chase pressure.
+- V10F SAME-THESIS UNDER ROLLOVER: from minute 45-59 with a two-plus-goal margin, do not justify a new Full-time goals_under just because the market line drifted to a looser rung. If the thesis is unchanged and residual goal threat is not close to dead, prefer no bet over line-rolling.
+`}`
+    : '';
+  const v10gExtra = isV10HybridLegacyG(promptVersion ?? LIVE_ANALYSIS_PROMPT_VERSION)
+    ? `${compact
+      ? `- V10G 30-44 CORNERS-UNDER REALISM: in minute 30-44, low-line Full-time corners_under is exceptional-only once the match already has goals or the prematch prior is weak. Quiet corner volume alone is not enough.
+- V10G 30-44 BTTS-YES REALISM: in one-goal games between minute 30-44, BTTS Yes needs genuine dual-side threat now. One shot on target each or generic chase pressure is not enough.
+- V10G 30-44 HIGH-LINE OVER RULE: in one-goal games before halftime, do not force Full-time goals_over 4.5+ unless the game is already extreme and still accelerating.
+`
+      : `- V10G 30-44 CORNERS-UNDER REALISM: from minute 30-44, low-line Full-time corners_under is exceptional-only once the match already contains goals or the prematch prior is weak. A low realized corner count by itself is not enough.
+- V10G 30-44 BTTS-YES REALISM: in one-goal games between minute 30-44, BTTS Yes requires clear current threat from both teams, not just scoreboard pressure or prematch attacking reputation.
+- V10G 30-44 HIGH-LINE OVER RULE: before halftime in one-goal games, do not treat Full-time goals_over 4.5+ as a routine chase trade. It needs an already extreme, still-accelerating scoring script.
+`}`
+    : '';
   return compact
     ? `LEGACY-HYBRID O/U TIMING:
 - Keep the stricter v8h market discipline, but borrow only the old prompt's O/U timing logic.
@@ -1451,7 +1605,7 @@ function buildV10HybridLegacyMarketSelectionSection(compact: boolean): string {
 - Minute 5-65: only consider goals O/U when the attacking pattern is clearly open and sustained. If the read is merely quiet or balanced, prefer no bet.
 - Minute 65+: goals_under becomes eligible only when the match is still low-scoring and both teams genuinely look conservative or defensive.
 - Do NOT treat 0-0 after minute 55 as automatic under.
-${inheritedV8hRules}
+${v10cExtra}${v10dExtra}${v10eExtra}${v10fExtra}${v10gExtra}${inheritedV8hRules}
 
 `
     : `LEGACY-HYBRID O/U TIMING:
@@ -1461,15 +1615,70 @@ ${inheritedV8hRules}
 - Minute 5-65: only consider goals O/U when the attacking pattern is clearly open and sustained. If the match merely looks quiet, balanced, or low-event, prefer no bet instead of a generic Under.
 - Minute 65+: goals_under becomes eligible only when the match is still low-scoring and both teams genuinely look conservative or defensive.
 - Do NOT treat 0-0 after minute 55 as automatic under.
-${inheritedV8hRules}
+${v10cExtra}${v10dExtra}${v10eExtra}${v10fExtra}${v10gExtra}${inheritedV8hRules}
 
 `;
 }
 
-function buildV10HybridLegacyMinimalSection(compact: boolean): string {
+function buildV10HybridLegacyMinimalSection(compact: boolean, promptVersion?: LiveAnalysisPromptVersion): string {
   const inheritedV8hRules = buildV8MarketBalanceSectionCompact('v8-market-balance-followup-h')
     .replace('V8 MARKET-BALANCE DISCIPLINE:\n', '')
     .trimEnd();
+  const v10cExtra = isV10HybridLegacyC(promptVersion ?? LIVE_ANALYSIS_PROMPT_VERSION)
+    ? `${compact
+      ? `- V10C CORNERS EARLY REALISM: before minute 30, corners markets are exceptional-only. Do not back corners_over 11.5+ or corners_under 9+ unless realized corner count is already near the line and the wing/set-piece script is extreme.
+- V10C CORNERS EARLY RUNWAY: if a corners line still needs a large late run, early possession/territory alone is not enough. Prefer no bet.
+- V10C BTTS MIDGAME: from minute 30-59, BTTS is exceptional-only. BTTS Yes needs direct threat from BOTH teams right now; BTTS No needs a structural reason why one side is effectively dead.
+- V10C BTTS NO PRE60: quietness or a temporary 1-0 / 0-0 score is not enough to justify BTTS No before minute 60.
+- V10C WEAK-PREMATCH RULE: when prematch strength is weak and only totals/props are available, corners and BTTS are off-menu unless the live evidence is overwhelming and line-specific.
+- V10C WEAK 0-0 OVER RULE: in weak-prematch 0-0 states before minute 60, low-line goals_over (0.5 to 1.25) needs a truly strong first-goal script; generic pressure is not enough.
+`
+      : `- V10C CORNERS EARLY REALISM: before minute 30, corners markets are exceptional-only. Do not back corners_over 11.5+ or corners_under 9+ unless the realized corner count is already near the offered line and the wing/set-piece script is extreme and still accelerating.
+- V10C CORNERS EARLY RUNWAY: if an early corners line still needs a large run-rate over 60+ minutes of football, early possession/territory alone is not enough. Prefer no bet.
+- V10C BTTS MIDGAME: from minute 30-59, BTTS is exceptional-only. BTTS Yes needs direct current threat from BOTH teams; BTTS No needs a structural reason why one side is effectively dead.
+- V10C BTTS NO PRE60: quietness or a temporary 1-0 / 0-0 score is not enough to justify BTTS No before minute 60.
+- V10C WEAK-PREMATCH RULE: when prematch strength is weak and only totals/props are available, corners and BTTS are off-menu unless the live evidence is overwhelming and line-specific.
+- V10C WEAK 0-0 OVER RULE: in weak-prematch 0-0 states before minute 60, low-line goals_over (0.5 to 1.25) needs a truly strong first-goal script; generic pressure is not enough.
+`}`
+    : '';
+  const v10dExtra = isV10HybridLegacyD(promptVersion ?? LIVE_ANALYSIS_PROMPT_VERSION)
+    ? `${compact
+      ? `- V10D 45-59 CORNERS: in minute 45-59, one-goal corners positions are not generic tempo trades. Avoid corners_under 6.5 and corners_over 13.5+ unless realized corners are already near the line and the live script is exceptional.
+- V10D ONE-GOAL OVER RUNWAY: in one-goal-margin states, goals_over needs realistic runway. Before minute 30, do not back an over that still needs 2.25+ extra goals. Before minute 45, if the score already has 3+ goals, avoid overs that still need 1.75+ extra goals.
+- V10D 45-59 TWO-PLUS UNDER: when the match is already 2+ goals clear in minute 45-59, low-cushion goals_under is fragile. If one more goal kills the ticket, prefer no bet.
+`
+      : `- V10D 45-59 CORNERS: from minute 45-59, corners in one-goal games are not generic rhythm trades. Avoid corners_under 6.5 and corners_over 13.5+ unless the realized corner count is already close to the line and the current wing/set-piece script is clearly exceptional.
+- V10D ONE-GOAL OVER RUNWAY: in one-goal-margin states, goals_over needs realistic runway, not generic "game still feels open" language. Before minute 30, do not back an over that still needs 2.25+ extra goals from the current score. Before minute 45, if the score already contains 3+ goals, avoid overs that still need 1.75+ extra goals unless the acceleration case is genuinely exceptional.
+- V10D 45-59 TWO-PLUS UNDER: at minute 45-59 with a two-plus-goal margin, a goals_under line that dies from just one more goal is structurally fragile. Treat that as a no-bet unless the collapse risk is truly minimal and line-specific.
+`}`
+    : '';
+  const v10eExtra = isV10HybridLegacyE(promptVersion ?? LIVE_ANALYSIS_PROMPT_VERSION)
+    ? `${compact
+      ? `- V10E 45-59 CORNERS ONLY: in minute 45-59 with a one-goal margin, treat corners_under 6.5 and corners_over 13.5+ as exceptional-only. If the realized corner count is not already close to the offered line, prefer no bet.
+`
+      : `- V10E 45-59 CORNERS ONLY: from minute 45-59 in one-goal games, corners_under 6.5 and corners_over 13.5+ are exceptional-only. If the realized corner count is not already close to the offered line, prefer no bet over a generic corners thesis.
+`}`
+    : '';
+  const v10fExtra = isV10HybridLegacyF(promptVersion ?? LIVE_ANALYSIS_PROMPT_VERSION)
+    ? `${compact
+      ? `- V10F 45-59 CORNERS-UNDER CHASE RULE: in minute 45-59, Full-time corners_under 6.5 is exceptional-only when the match already has goals and the score is level or a one-goal game. A quiet first-half corner count alone is not enough if either side is still chasing.
+- V10F SAME-THESIS UNDER ROLLOVER: in minute 45-59 with a two-plus-goal margin, do not roll an existing Full-time goals_under into a looser nearby line just because the line moved up. Without materially stronger suppression and near-zero residual threat, prefer no bet.
+`
+      : `- V10F 45-59 CORNERS-UNDER CHASE RULE: from minute 45-59, Full-time corners_under 6.5 is exceptional-only when the match already contains goals and the score is level or within one goal. A low first-half corner count by itself is not enough if the second-half script still contains chase pressure.
+- V10F SAME-THESIS UNDER ROLLOVER: from minute 45-59 with a two-plus-goal margin, do not justify a new Full-time goals_under just because the market line drifted to a looser rung. If the thesis is unchanged and residual goal threat is not close to dead, prefer no bet over line-rolling.
+`}`
+    : '';
+  const v10gExtra = isV10HybridLegacyG(promptVersion ?? LIVE_ANALYSIS_PROMPT_VERSION)
+    ? `${compact
+      ? `- V10G 30-44 CORNERS-UNDER REALISM: in minute 30-44, low-line Full-time corners_under is exceptional-only once the match already has goals or the prematch prior is weak. Quiet corner volume alone is not enough.
+- V10G 30-44 BTTS-YES REALISM: in one-goal games between minute 30-44, BTTS Yes needs genuine dual-side threat now. One shot on target each or generic chase pressure is not enough.
+- V10G 30-44 HIGH-LINE OVER RULE: in one-goal games before halftime, do not force Full-time goals_over 4.5+ unless the game is already extreme and still accelerating.
+`
+      : `- V10G 30-44 CORNERS-UNDER REALISM: from minute 30-44, low-line Full-time corners_under is exceptional-only once the match already contains goals or the prematch prior is weak. A low realized corner count by itself is not enough.
+- V10G 30-44 BTTS-YES REALISM: in one-goal games between minute 30-44, BTTS Yes requires clear current threat from both teams, not just scoreboard pressure or prematch attacking reputation.
+- V10G 30-44 HIGH-LINE OVER RULE: before halftime in one-goal games, do not treat Full-time goals_over 4.5+ as a routine chase trade. It needs an already extreme, still-accelerating scoring script.
+`}`
+    : '';
 
   return compact
     ? `MINIMAL LEGACY TIMING ADJUSTMENT:
@@ -1477,7 +1686,7 @@ function buildV10HybridLegacyMinimalSection(compact: boolean): string {
 - If 1X2 or BTTS No does not clear the higher bar, goals O/U may still be considered only when the O/U edge is independently clear.
 - Do NOT treat 0-0 after minute 55 as automatic goals_under.
 - Before minute 65, quiet or balanced states usually mean no bet rather than a generic Under.
-${inheritedV8hRules}
+${v10cExtra}${v10dExtra}${v10eExtra}${v10fExtra}${v10gExtra}${inheritedV8hRules}
 
 `
     : `MINIMAL LEGACY TIMING ADJUSTMENT:
@@ -1485,13 +1694,26 @@ ${inheritedV8hRules}
 - If 1X2 or BTTS No does not clear the higher bar, goals O/U may still be considered only when the O/U edge is independently clear.
 - Do NOT treat 0-0 after minute 55 as automatic goals_under.
 - Before minute 65, quiet or balanced states usually mean no bet rather than a generic Under.
-${inheritedV8hRules}
+${v10cExtra}${v10dExtra}${v10eExtra}${v10fExtra}${v10gExtra}${inheritedV8hRules}
 
 `;
 }
 
 function getCorrelatedThesis(canonicalMarket: string): { thesisKey: string; label: string } | null {
   if (!canonicalMarket || canonicalMarket === 'unknown') return null;
+  if (canonicalMarket.startsWith('ht_over_')) return { thesisKey: 'ht_goals_over', label: 'H1 Goals Over thesis' };
+  if (canonicalMarket.startsWith('ht_under_')) return { thesisKey: 'ht_goals_under', label: 'H1 Goals Under thesis' };
+  if (canonicalMarket.startsWith('ht_asian_handicap_home_')) {
+    return { thesisKey: 'ht_asian_handicap_home', label: 'H1 Asian Handicap Home thesis' };
+  }
+  if (canonicalMarket.startsWith('ht_asian_handicap_away_')) {
+    return { thesisKey: 'ht_asian_handicap_away', label: 'H1 Asian Handicap Away thesis' };
+  }
+  if (canonicalMarket === 'ht_1x2_home') return { thesisKey: 'ht_1x2_home', label: 'H1 Home Win thesis' };
+  if (canonicalMarket === 'ht_1x2_away') return { thesisKey: 'ht_1x2_away', label: 'H1 Away Win thesis' };
+  if (canonicalMarket === 'ht_1x2_draw') return { thesisKey: 'ht_1x2_draw', label: 'H1 Draw thesis' };
+  if (canonicalMarket === 'ht_btts_yes') return { thesisKey: 'ht_btts_yes', label: 'H1 BTTS Yes thesis' };
+  if (canonicalMarket === 'ht_btts_no') return { thesisKey: 'ht_btts_no', label: 'H1 BTTS No thesis' };
   if (canonicalMarket.startsWith('over_')) return { thesisKey: 'goals_over', label: 'Goals Over thesis' };
   if (canonicalMarket.startsWith('under_')) return { thesisKey: 'goals_under', label: 'Goals Under thesis' };
   if (canonicalMarket.startsWith('corners_over_')) return { thesisKey: 'corners_over', label: 'Corners Over thesis' };
@@ -1671,6 +1893,52 @@ function buildExactMarketContractSectionCompact(data: LiveAnalysisPromptInput): 
     rules.push(`  selection: "Corners Over ${line} @[odds]" or "Corners Under ${line} @[odds]".`);
   }
 
+  if (oc['ht_1x2'] && oc['ht_1x2'].home != null && oc['ht_1x2'].draw != null && oc['ht_1x2'].away != null) {
+    exactKeys.push('ht_1x2_home', 'ht_1x2_draw', 'ht_1x2_away');
+    rules.push('- H1 1X2: use exactly "ht_1x2_home", "ht_1x2_draw", or "ht_1x2_away".');
+    rules.push('  selection: "H1 Home Win @[odds]", "H1 Draw @[odds]", or "H1 Away Win @[odds]".');
+  }
+
+  if (oc.ht_ou && oc.ht_ou.line != null && oc.ht_ou.over != null && oc.ht_ou.under != null) {
+    const line = String(oc.ht_ou.line);
+    exactKeys.push(`ht_over_${line}`, `ht_under_${line}`);
+    rules.push(`- H1 Goals O/U MAIN line ${line}: use exactly "ht_over_${line}" or "ht_under_${line}".`);
+    rules.push(`  selection: "H1 Over ${line} Goals @[odds]" or "H1 Under ${line} Goals @[odds]".`);
+  }
+
+  const htOuAdj = oc['ht_ou_adjacent'] as { line?: unknown; over?: unknown; under?: unknown } | undefined;
+  if (htOuAdj && htOuAdj.line != null && htOuAdj.over != null && htOuAdj.under != null) {
+    const line = String(htOuAdj.line);
+    exactKeys.push(`ht_over_${line}`, `ht_under_${line}`);
+    rules.push(
+      `- H1 Goals O/U ADJACENT line ${line}: nearest H1 ladder line to main; use "ht_over_${line}" / "ht_under_${line}" only when it clearly fits better than main ${oc.ht_ou?.line ?? '?'}.`,
+    );
+    rules.push(`  selection: same pattern as main ("H1 Over ${line} Goals @[odds]" / "H1 Under ${line} Goals @[odds]").`);
+  }
+
+  if (oc.ht_ah && oc.ht_ah.line != null && oc.ht_ah.home != null && oc.ht_ah.away != null) {
+    const line = String(oc.ht_ah.line);
+    exactKeys.push(`ht_asian_handicap_home_${line}`, `ht_asian_handicap_away_${line}`);
+    rules.push(`- H1 Asian Handicap MAIN line ${line}: use exactly "ht_asian_handicap_home_${line}" or "ht_asian_handicap_away_${line}".`);
+    rules.push(`  selection: "H1 Home ${line} @[odds]" or "H1 Away ${line} @[odds]".`);
+  }
+
+  const htAhAdj = oc['ht_ah_adjacent'] as { line?: unknown; home?: unknown; away?: unknown } | undefined;
+  if (htAhAdj && htAhAdj.line != null && htAhAdj.home != null && htAhAdj.away != null) {
+    const line = String(htAhAdj.line);
+    exactKeys.push(`ht_asian_handicap_home_${line}`, `ht_asian_handicap_away_${line}`);
+    rules.push(
+      `- H1 Asian Handicap ADJACENT line ${line}: second H1 line nearest to main; use this only when it fits better than main ${oc.ht_ah?.line ?? '?'}.`,
+    );
+    rules.push(`  selection: "H1 Home ${line} @[odds]" or "H1 Away ${line} @[odds]".`);
+  }
+
+  if (oc.ht_btts && oc.ht_btts.yes != null && oc.ht_btts.no != null) {
+    exactKeys.push('ht_btts_yes', 'ht_btts_no');
+    rules.push('- H1 BTTS: use exactly "ht_btts_yes" or "ht_btts_no".');
+    rules.push('  selection: "H1 BTTS Yes @[odds]" or "H1 BTTS No @[odds]".');
+  }
+
   if (exactKeys.length === 0) {
     return `EXACT OUTPUT ENUMS:
 - If should_push=false, selection="" and bet_market="".
@@ -1685,6 +1953,7 @@ ${exactKeys.map((key) => `  - "${key}"`).join('\n')}
 - INVALID generic values: "ou", "over/under goals", "1X2", "btts", "asian_handicap", "corners".
 - Any other bet_market will be rejected by the system as invalid.
 ${rules.join('\n')}
+- In reasoning_en/vi and follow_up_answer_en/vi, whenever you mention a betting angle, explicitly state whether it is H1 or Full-time and name the market family (European 1X2, Asian Handicap, Goals O/U, BTTS, or Corners O/U).
 - If should_push=false, selection="" and bet_market="".
 
 `;
@@ -1784,7 +2053,7 @@ export function buildLiveAnalysisPrompt(
   - If cornersNeeded >= 3 AND minutesRemaining <= 20 -> should_push = false.
   - After minute 75: Corners Over requires cornersNeeded <= 1.
   - After minute 80: should_push = false for any Corners Over.
-${buildV10HybridLegacyMinimalSection(false)}- risk_level = HIGH -> should_push = false.
+${buildV10HybridLegacyMinimalSection(false, promptVersion)}- risk_level = HIGH -> should_push = false.
 `
     : isV10PromptVersion(promptVersion)
     ? `- 1X2 and BTTS No are Tier-1-only markets. They require full_live_data, confidence >= 7, significant stat gaps, and pre-match support.
@@ -1802,7 +2071,7 @@ ${buildV10HybridLegacyMinimalSection(false)}- risk_level = HIGH -> should_push =
   - If cornersNeeded >= 3 AND minutesRemaining <= 20 -> should_push = false.
   - After minute 75: Corners Over requires cornersNeeded <= 1.
   - After minute 80: should_push = false for any Corners Over.
-${buildV10HybridLegacyMarketSelectionSection(false)}- risk_level = HIGH -> should_push = false.
+${buildV10HybridLegacyMarketSelectionSection(false, promptVersion)}- risk_level = HIGH -> should_push = false.
 `
     : isV9PromptVersion(promptVersion)
     ? `${buildV9LegacyLeanMarketSelectionSection(false)}- Corners markets still require Tier 1 live stats and live corners data. No corners recommendation in Tier 2-4.
@@ -1890,6 +2159,7 @@ ${promptVersion === 'v8-market-balance-followup-b' || promptVersion === 'v8-mark
       : '';
     const profileOverlayDisciplineSection = buildProfileAndOverlayDisciplineSectionCompact(data, promptVersion);
     const followUpContextSection = buildFollowUpContextSection(data, true);
+    const lineupsSnapshotSection = buildLineupsSnapshotSection(data, true);
     const v8MarketBalanceSection = isV8PromptVersion(promptVersion)
       ? buildV8MarketBalanceSectionCompact(promptVersion)
       : '';
@@ -1905,7 +2175,7 @@ ${promptVersion === 'v8-market-balance-followup-b' || promptVersion === 'v8-mark
 ${advancedCornersRules}
 ${advancedBalancedTotalsRule}
 ${profileOverlayDisciplineSection}
-${buildV10HybridLegacyMinimalSection(true)}${activeCornersSanityAlert}
+${buildV10HybridLegacyMinimalSection(true, promptVersion)}${activeCornersSanityAlert}
 - If DYNAMIC PERFORMANCE PRIORS are present and the chosen market is tagged as a caution prior, require a stronger live edge or skip the bet.
 - Odds >= 2.50 => confidence cap 6, stake cap 3%
 - Over 3.5+ needs current goals >= line-1 or a clearly open match
@@ -1923,7 +2193,7 @@ ${advancedLineSpecificRule}- risk_level HIGH => should_push false
 ${advancedCornersRules}
 ${advancedBalancedTotalsRule}
 ${profileOverlayDisciplineSection}
-${buildV10HybridLegacyMarketSelectionSection(true)}${activeCornersSanityAlert}
+${buildV10HybridLegacyMarketSelectionSection(true, promptVersion)}${activeCornersSanityAlert}
 - If DYNAMIC PERFORMANCE PRIORS are present and the chosen market is tagged as a caution prior, require a stronger live edge or skip the bet.
 - Odds >= 2.50 => confidence cap 6, stake cap 3%
 - Over 3.5+ needs current goals >= line-1 or a clearly open match
@@ -2037,6 +2307,7 @@ CONFIG / EVIDENCE
 
 ${buildAiRecommendedConditionSection(data)}
 ${followUpContextSection}
+${lineupsSnapshotSection}
 
 ============================================================
 DECISION RULES

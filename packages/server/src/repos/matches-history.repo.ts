@@ -23,6 +23,8 @@ export interface MatchHistoryRow {
   away_score: number;
   regular_home_score?: number | null;
   regular_away_score?: number | null;
+  halftime_home?: number | null;
+  halftime_away?: number | null;
   result_provider?: string;
   settlement_stats?: SettlementStatRow[] | null;
   settlement_event_summary?: unknown;
@@ -49,6 +51,8 @@ export interface MatchHistoryArchiveInput {
   away_score: number;
   regular_home_score?: number | null;
   regular_away_score?: number | null;
+  halftime_home?: number | null;
+  halftime_away?: number | null;
   result_provider?: string;
   settlement_stats?: SettlementStatRow[];
   settlement_event_summary?: unknown;
@@ -70,26 +74,26 @@ export async function archiveFinishedMatches(
   if (finished.length === 0) return 0;
 
   // Single multi-row INSERT per chunk (max 500 rows to stay well within pg's 65535 param limit)
-  const COLS = 21;
+  const COLS = 23;
   const CHUNK = 500;
   let totalArchived = 0;
 
   for (let offset = 0; offset < finished.length; offset += CHUNK) {
     const chunk = finished.slice(offset, offset + CHUNK);
     const placeholders = chunk.map((_, i) =>
-      `($${i*COLS+1},$${i*COLS+2},$${i*COLS+3},$${i*COLS+4},$${i*COLS+5},$${i*COLS+6},$${i*COLS+7},$${i*COLS+8},$${i*COLS+9},$${i*COLS+10},$${i*COLS+11},$${i*COLS+12},$${i*COLS+13},$${i*COLS+14},$${i*COLS+15},$${i*COLS+16},$${i*COLS+17},$${i*COLS+18},$${i*COLS+19},$${i*COLS+20},$${i*COLS+21})`,
+      `($${i*COLS+1},$${i*COLS+2},$${i*COLS+3},$${i*COLS+4},$${i*COLS+5},$${i*COLS+6},$${i*COLS+7},$${i*COLS+8},$${i*COLS+9},$${i*COLS+10},$${i*COLS+11},$${i*COLS+12},$${i*COLS+13},$${i*COLS+14},$${i*COLS+15},$${i*COLS+16},$${i*COLS+17},$${i*COLS+18},$${i*COLS+19},$${i*COLS+20},$${i*COLS+21},$${i*COLS+22},$${i*COLS+23})`,
     ).join(',');
     const params = chunk.flatMap((m) => [
       m.match_id, m.date, m.kickoff, m.kickoff_at_utc ?? null, m.league_id, m.league_name ?? '',
       m.home_team_id ?? null, m.home_team ?? '', m.away_team_id ?? null, m.away_team ?? '', m.venue ?? 'TBD', m.final_status,
       m.home_score ?? 0, m.away_score ?? 0, m.regular_home_score ?? null,
-      m.regular_away_score ?? null, m.result_provider ?? '', JSON.stringify(m.settlement_stats ?? []), m.settlement_event_summary == null ? null : JSON.stringify(m.settlement_event_summary),
+      m.regular_away_score ?? null, m.halftime_home ?? null, m.halftime_away ?? null, m.result_provider ?? '', JSON.stringify(m.settlement_stats ?? []), m.settlement_event_summary == null ? null : JSON.stringify(m.settlement_event_summary),
       m.settlement_stats_provider ?? '', m.settlement_stats_fetched_at ?? null,
     ]);
     const result = await query(
       `INSERT INTO matches_history (
          match_id, date, kickoff, kickoff_at_utc, league_id, league_name, home_team_id, home_team, away_team_id, away_team, venue,
-         final_status, home_score, away_score, regular_home_score, regular_away_score,
+         final_status, home_score, away_score, regular_home_score, regular_away_score, halftime_home, halftime_away,
          result_provider, settlement_stats, settlement_event_summary, settlement_stats_provider, settlement_stats_fetched_at
        )
        VALUES ${placeholders}
@@ -102,6 +106,8 @@ export async function archiveFinishedMatches(
          away_score   = EXCLUDED.away_score,
          regular_home_score = COALESCE(EXCLUDED.regular_home_score, matches_history.regular_home_score),
          regular_away_score = COALESCE(EXCLUDED.regular_away_score, matches_history.regular_away_score),
+         halftime_home = COALESCE(EXCLUDED.halftime_home, matches_history.halftime_home),
+         halftime_away = COALESCE(EXCLUDED.halftime_away, matches_history.halftime_away),
          result_provider = CASE
            WHEN EXCLUDED.result_provider <> '' THEN EXCLUDED.result_provider
            ELSE matches_history.result_provider
@@ -133,6 +139,8 @@ export async function updateHistoricalMatchSettlementData(
   patch: {
     regular_home_score?: number | null;
     regular_away_score?: number | null;
+    halftime_home?: number | null;
+    halftime_away?: number | null;
     result_provider?: string;
     settlement_stats?: SettlementStatRow[];
     settlement_event_summary?: unknown;
@@ -145,15 +153,17 @@ export async function updateHistoricalMatchSettlementData(
      SET
        regular_home_score = COALESCE($2, regular_home_score),
        regular_away_score = COALESCE($3, regular_away_score),
-       result_provider = CASE WHEN $4 <> '' THEN $4 ELSE result_provider END,
+       halftime_home = COALESCE($4, halftime_home),
+       halftime_away = COALESCE($5, halftime_away),
+       result_provider = CASE WHEN $6 <> '' THEN $6 ELSE result_provider END,
        settlement_stats = CASE
-         WHEN $5::jsonb IS NOT NULL AND jsonb_array_length($5::jsonb) > 0 THEN $5::jsonb
+         WHEN $7::jsonb IS NOT NULL AND jsonb_array_length($7::jsonb) > 0 THEN $7::jsonb
          ELSE settlement_stats
        END,
-       settlement_event_summary = COALESCE($6::jsonb, settlement_event_summary),
-       settlement_stats_provider = CASE WHEN $7 <> '' THEN $7 ELSE settlement_stats_provider END,
+       settlement_event_summary = COALESCE($8::jsonb, settlement_event_summary),
+       settlement_stats_provider = CASE WHEN $9 <> '' THEN $9 ELSE settlement_stats_provider END,
        settlement_stats_updated_at = CASE
-         WHEN $5::jsonb IS NOT NULL AND jsonb_array_length($5::jsonb) > 0 THEN NOW()
+         WHEN $7::jsonb IS NOT NULL AND jsonb_array_length($7::jsonb) > 0 THEN NOW()
          ELSE settlement_stats_updated_at
        END,
        archived_at = NOW()
@@ -162,6 +172,8 @@ export async function updateHistoricalMatchSettlementData(
       matchId,
       patch.regular_home_score ?? null,
       patch.regular_away_score ?? null,
+      patch.halftime_home ?? null,
+      patch.halftime_away ?? null,
       patch.result_provider ?? '',
       hasStats ? JSON.stringify(patch.settlement_stats) : null,
       patch.settlement_event_summary != null ? JSON.stringify(patch.settlement_event_summary) : null,
@@ -267,6 +279,8 @@ function normalizeArchiveInput(
     final_status: match.status,
     home_score: match.home_score ?? 0,
     away_score: match.away_score ?? 0,
+    halftime_home: match.halftime_home ?? null,
+    halftime_away: match.halftime_away ?? null,
     result_provider: '',
     settlement_stats: [],
     settlement_event_summary: null,

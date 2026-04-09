@@ -32,6 +32,15 @@ export function extractRegularTimeScoreFromFixture(fixture: ApiFixture): Regulat
   return { home, away };
 }
 
+/** Half-time score from provider fixture (H1 goals). Both sides must be present. */
+export function extractHalftimeScoreFromFixture(fixture: ApiFixture): RegulationScore | null {
+  const ht = fixture.score?.halftime;
+  const home = typeof ht?.home === 'number' ? ht.home : null;
+  const away = typeof ht?.away === 'number' ? ht.away : null;
+  if (home == null || away == null) return null;
+  return { home, away };
+}
+
 export function resolveSettlementScore(
   finalStatus: string | null | undefined,
   officialHomeScore: number,

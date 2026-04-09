@@ -13,7 +13,7 @@ import { fetchFixturesForDate, type ApiFixture, type ApiFixtureStat } from '../l
 import { kickoffAtUtcFromFixtureDate } from '../lib/kickoff-time.js';
 import { ensureFixtureStatistics } from '../lib/provider-insight-cache.js';
 import { getRedisClient } from '../lib/redis.js';
-import { extractRegularTimeScoreFromFixture } from '../lib/settle-context.js';
+import { extractHalftimeScoreFromFixture, extractRegularTimeScoreFromFixture } from '../lib/settle-context.js';
 import { mergeApiFixtureStatistics } from '../lib/settlement-stat-cache.js';
 import { reportJobProgress } from './job-progress.js';
 import * as leagueRepo from '../repos/leagues.repo.js';
@@ -351,6 +351,7 @@ function buildArchiveRowFromFixture(
   settlementStatsFetchedAt: string | null = null,
 ): MatchHistoryArchiveInput {
   const regularTimeScore = extractRegularTimeScoreFromFixture(fixture);
+  const halftimeScore = extractHalftimeScoreFromFixture(fixture);
   return {
     match_id: String(fixture.fixture.id),
     date: fixture.fixture.date.substring(0, 10),
@@ -366,6 +367,8 @@ function buildArchiveRowFromFixture(
     away_score: fixture.goals.away ?? 0,
     regular_home_score: regularTimeScore?.home ?? null,
     regular_away_score: regularTimeScore?.away ?? null,
+    halftime_home: halftimeScore?.home ?? null,
+    halftime_away: halftimeScore?.away ?? null,
     result_provider: 'api-football',
     settlement_stats: settlementStats,
     settlement_stats_provider: settlementStats.length > 0 ? 'api-football' : '',

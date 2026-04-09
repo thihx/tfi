@@ -197,6 +197,10 @@ function getCacheAgeMs(row: ProviderOddsCacheRow | null, now: Date): number | nu
   return now.getTime() - parsed;
 }
 
+function isLegacyProviderSource(providerSource: string | null | undefined): boolean {
+  return String(providerSource || '').toLowerCase() === 'the-odds-live';
+}
+
 function responseArrayOf(row: ProviderOddsCacheRow): unknown[] {
   return Array.isArray(row.response) ? row.response : [];
 }
@@ -227,6 +231,7 @@ async function loadFreshCachedOdds(
     const freshness = classifyFreshness(getCacheAgeMs(cached, now), getOddsCacheTtlMs(input));
     const mode = input.freshnessMode ?? 'stale_safe';
     if (!cached) return { staleRow: null };
+    if (isLegacyProviderSource(cached.provider_source)) return { staleRow: null };
     if (freshness === 'fresh' && !bypassStartedCache(mode, input.status ?? cached.match_status)) {
       return buildCacheResult(cached, 'fresh', 'hit');
     }

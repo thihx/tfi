@@ -513,4 +513,306 @@ describe('applyRecommendationPolicy', () => {
     expect(late.blocked).toBe(true);
     expect(late.warnings).toContain('POLICY_BLOCK_BTTS_NO_LOW_EDGE_V8J');
   });
+
+  test('v10c blocks early high-line corners overs before minute 30', () => {
+    const result = applyRecommendationPolicy({
+      selection: 'Corners Over 11.5 @1.78',
+      betMarket: 'corners_over_11.5',
+      minute: 20,
+      score: '0-0',
+      odds: 1.78,
+      confidence: 7,
+      valuePercent: 8,
+      stakePercent: 3,
+      promptVersion: 'v10-hybrid-legacy-c',
+    });
+
+    expect(result.blocked).toBe(true);
+    expect(result.warnings).toContain('POLICY_BLOCK_CORNERS_OVER_HIGH_LINE_PRE30_V10C');
+  });
+
+  test('v10c blocks early high-line corners unders before minute 30', () => {
+    const result = applyRecommendationPolicy({
+      selection: 'Corners Under 9 @2.10',
+      betMarket: 'corners_under_9',
+      minute: 20,
+      score: '0-0',
+      odds: 2.1,
+      confidence: 7,
+      valuePercent: 8,
+      stakePercent: 3,
+      promptVersion: 'v10-hybrid-legacy-c',
+    });
+
+    expect(result.blocked).toBe(true);
+    expect(result.warnings).toContain('POLICY_BLOCK_CORNERS_UNDER_EARLY_HIGH_LINE_V10C');
+  });
+
+  test('v10c blocks BTTS No before minute 60', () => {
+    const result = applyRecommendationPolicy({
+      selection: 'BTTS No @1.78',
+      betMarket: 'btts_no',
+      minute: 41,
+      score: '0-0',
+      odds: 1.78,
+      confidence: 6,
+      valuePercent: 8,
+      stakePercent: 2,
+      promptVersion: 'v10-hybrid-legacy-c',
+      statsCompact: {
+        shots_on_target: { home: '1', away: '1' },
+      },
+    });
+
+    expect(result.blocked).toBe(true);
+    expect(result.warnings).toContain('POLICY_BLOCK_BTTS_NO_PRE60_V10C');
+  });
+
+  test('v10c blocks midgame BTTS Yes without dual threat from both teams', () => {
+    const result = applyRecommendationPolicy({
+      selection: 'BTTS Yes @1.55',
+      betMarket: 'btts_yes',
+      minute: 53,
+      score: '1-0',
+      odds: 1.55,
+      confidence: 7,
+      valuePercent: 8,
+      stakePercent: 3,
+      promptVersion: 'v10-hybrid-legacy-c',
+      statsCompact: {
+        shots_on_target: { home: '3', away: '1' },
+      },
+    });
+
+    expect(result.blocked).toBe(true);
+    expect(result.warnings).toContain('POLICY_BLOCK_BTTS_YES_MIDGAME_LOW_DUAL_THREAT_V10C');
+  });
+
+  test('v10d blocks 45-59 one-goal corners unders on fragile 6.5 lines', () => {
+    const result = applyRecommendationPolicy({
+      selection: 'Corners Under 6.5 @1.98',
+      betMarket: 'corners_under_6.5',
+      minute: 45,
+      score: '0-1',
+      odds: 1.98,
+      confidence: 7,
+      valuePercent: 8,
+      stakePercent: 3,
+      promptVersion: 'v10-hybrid-legacy-d',
+    });
+
+    expect(result.blocked).toBe(true);
+    expect(result.warnings).toContain('POLICY_BLOCK_CORNERS_UNDER_45_59_ONE_GOAL_LOW_LINE_V10D');
+  });
+
+  test('v10d blocks 45-59 one-goal extreme corners overs at 13.5+', () => {
+    const result = applyRecommendationPolicy({
+      selection: 'Corners Over 13.5 @2.05',
+      betMarket: 'corners_over_13.5',
+      minute: 57,
+      score: '1-2',
+      odds: 2.05,
+      confidence: 7,
+      valuePercent: 8,
+      stakePercent: 3,
+      promptVersion: 'v10-hybrid-legacy-d',
+    });
+
+    expect(result.blocked).toBe(true);
+    expect(result.warnings).toContain('POLICY_BLOCK_CORNERS_OVER_45_59_ONE_GOAL_EXTREME_LINE_V10D');
+  });
+
+  test('v10d blocks early one-goal goals-over when runway is too long', () => {
+    const result = applyRecommendationPolicy({
+      selection: 'Over 3.25 @2.00',
+      betMarket: 'over_3.25',
+      minute: 21,
+      score: '0-1',
+      odds: 2,
+      confidence: 7,
+      valuePercent: 8,
+      stakePercent: 3,
+      promptVersion: 'v10-hybrid-legacy-d',
+    });
+
+    expect(result.blocked).toBe(true);
+    expect(result.warnings).toContain('POLICY_BLOCK_GOALS_OVER_ONE_GOAL_EARLY_LONG_RUNWAY_V10D');
+  });
+
+  test('v10d blocks pre45 one-goal high-scoring goals-over when runway is still too long', () => {
+    const result = applyRecommendationPolicy({
+      selection: 'Over 4.75 @1.85',
+      betMarket: 'over_4.75',
+      minute: 39,
+      score: '1-2',
+      odds: 1.85,
+      confidence: 7,
+      valuePercent: 8,
+      stakePercent: 3,
+      promptVersion: 'v10-hybrid-legacy-d',
+    });
+
+    expect(result.blocked).toBe(true);
+    expect(result.warnings).toContain('POLICY_BLOCK_GOALS_OVER_ONE_GOAL_MID_LONG_RUNWAY_V10D');
+  });
+
+  test('v10d blocks 45-59 two-plus-margin goals-under with only one-goal cushion', () => {
+    const result = applyRecommendationPolicy({
+      selection: 'Under 3 @2.08',
+      betMarket: 'under_3',
+      minute: 50,
+      score: '2-0',
+      odds: 2.08,
+      confidence: 7,
+      valuePercent: 8,
+      stakePercent: 3,
+      promptVersion: 'v10-hybrid-legacy-d',
+    });
+
+    expect(result.blocked).toBe(true);
+    expect(result.warnings).toContain('POLICY_BLOCK_GOALS_UNDER_45_59_TWO_PLUS_LOW_CUSHION_V10D');
+  });
+
+  test('v10e blocks 45-59 one-goal corners unders on fragile 6.5 lines', () => {
+    const result = applyRecommendationPolicy({
+      selection: 'Corners Under 6.5 @1.98',
+      betMarket: 'corners_under_6.5',
+      minute: 45,
+      score: '0-1',
+      odds: 1.98,
+      confidence: 7,
+      valuePercent: 8,
+      stakePercent: 3,
+      promptVersion: 'v10-hybrid-legacy-e',
+    });
+
+    expect(result.blocked).toBe(true);
+    expect(result.warnings).toContain('POLICY_BLOCK_CORNERS_UNDER_45_59_ONE_GOAL_LOW_LINE_V10E');
+  });
+
+  test('v10e blocks 45-59 one-goal extreme corners overs at 13.5+', () => {
+    const result = applyRecommendationPolicy({
+      selection: 'Corners Over 13.5 @2.05',
+      betMarket: 'corners_over_13.5',
+      minute: 57,
+      score: '1-2',
+      odds: 2.05,
+      confidence: 7,
+      valuePercent: 8,
+      stakePercent: 3,
+      promptVersion: 'v10-hybrid-legacy-e',
+    });
+
+    expect(result.blocked).toBe(true);
+    expect(result.warnings).toContain('POLICY_BLOCK_CORNERS_OVER_45_59_ONE_GOAL_EXTREME_LINE_V10E');
+  });
+
+  test('v10f blocks 45-59 low-line corners under when goals are already on the board in chase states', () => {
+    const result = applyRecommendationPolicy({
+      selection: 'Corners Under 6.5 @1.85',
+      betMarket: 'corners_under_6.5',
+      minute: 45,
+      score: '1-2',
+      odds: 1.85,
+      confidence: 7,
+      valuePercent: 8,
+      stakePercent: 3,
+      promptVersion: 'v10-hybrid-legacy-f',
+    });
+
+    expect(result.blocked).toBe(true);
+    expect(result.warnings).toContain('POLICY_BLOCK_CORNERS_UNDER_45_59_LOW_LINE_CHASE_V10F');
+  });
+
+  test('v10f blocks 45-59 two-plus-margin same-thesis goals-under rollover to a looser line', () => {
+    const result = applyRecommendationPolicy({
+      selection: 'Under 3 Goals @2.08',
+      betMarket: 'under_3',
+      minute: 50,
+      score: '2-0',
+      odds: 2.08,
+      confidence: 7,
+      valuePercent: 8,
+      stakePercent: 3,
+      promptVersion: 'v10-hybrid-legacy-f',
+      previousRecommendations: [
+        { minute: 38, selection: 'Under 2.25 Goals @1.95', bet_market: 'under_2.25', stake_percent: 4, result: 'pending' },
+      ],
+    });
+
+    expect(result.blocked).toBe(true);
+    expect(result.warnings).toContain('POLICY_BLOCK_GOALS_UNDER_45_59_TWO_PLUS_SAME_THESIS_ROLLOVER_V10F');
+  });
+
+  test('v10g blocks 30-44 low-line corners under when goals are already on the board', () => {
+    const result = applyRecommendationPolicy({
+      selection: 'Corners Under 8 @2.20',
+      betMarket: 'corners_under_8',
+      minute: 42,
+      score: '1-1',
+      odds: 2.2,
+      confidence: 7,
+      valuePercent: 8,
+      stakePercent: 3,
+      promptVersion: 'v10-hybrid-legacy-g',
+    });
+
+    expect(result.blocked).toBe(true);
+    expect(result.warnings).toContain('POLICY_BLOCK_CORNERS_UNDER_30_44_GOALS_ON_BOARD_LOW_LINE_V10G');
+  });
+
+  test('v10g blocks 30-44 weak-prematch low-line corners under even without goals on board', () => {
+    const result = applyRecommendationPolicy({
+      selection: 'Corners Under 8 @2.02',
+      betMarket: 'corners_under_8',
+      minute: 34,
+      score: '0-0',
+      odds: 2.02,
+      confidence: 7,
+      valuePercent: 8,
+      stakePercent: 3,
+      promptVersion: 'v10-hybrid-legacy-g',
+      prematchStrength: 'weak',
+    });
+
+    expect(result.blocked).toBe(true);
+    expect(result.warnings).toContain('POLICY_BLOCK_CORNERS_UNDER_30_44_WEAK_PREMATCH_V10G');
+  });
+
+  test('v10g blocks 30-44 one-goal BTTS Yes without clear dual threat', () => {
+    const result = applyRecommendationPolicy({
+      selection: 'BTTS Yes @1.50',
+      betMarket: 'btts_yes',
+      minute: 36,
+      score: '1-0',
+      odds: 1.5,
+      confidence: 7,
+      valuePercent: 8,
+      stakePercent: 3,
+      promptVersion: 'v10-hybrid-legacy-g',
+      statsCompact: {
+        shots_on_target: { home: '1', away: '1' },
+      },
+    });
+
+    expect(result.blocked).toBe(true);
+    expect(result.warnings).toContain('POLICY_BLOCK_BTTS_YES_30_44_ONE_GOAL_LOW_DUAL_THREAT_V10G');
+  });
+
+  test('v10g blocks 30-44 one-goal extreme-runway goals overs at 4.5+', () => {
+    const result = applyRecommendationPolicy({
+      selection: 'Over 4.75 @1.93',
+      betMarket: 'over_4.75',
+      minute: 39,
+      score: '1-0',
+      odds: 1.93,
+      confidence: 7,
+      valuePercent: 8,
+      stakePercent: 3,
+      promptVersion: 'v10-hybrid-legacy-g',
+    });
+
+    expect(result.blocked).toBe(true);
+    expect(result.warnings).toContain('POLICY_BLOCK_GOALS_OVER_30_44_ONE_GOAL_EXTREME_RUNWAY_V10G');
+  });
 });

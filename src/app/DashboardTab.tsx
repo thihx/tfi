@@ -8,6 +8,7 @@ import { fetchAiStats, fetchAiStatsByModel, fetchDashboardSummary, fetchMarketRe
 import type { AiAccuracyStats, AiModelStats, DashboardSummary, ExposureSummary, MarketReportRow } from '@/lib/services/api';
 import { StatusBadge } from '@/components/ui/StatusBadge';
 import { formatLocalDateTime } from '@/lib/utils/helpers';
+import { formatCanonicalMarketLabel } from '@/lib/utils/marketDisplay';
 import { MARKET_COLORS } from '@/config/constants';
 
 // ==================== Sub-components ====================
@@ -33,20 +34,6 @@ function formatFullChartDate(value: string): string {
   const parsed = new Date(value);
   if (Number.isNaN(parsed.getTime())) return value;
   return parsed.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
-}
-
-function formatMarketLabel(market: string): string {
-  return market
-    .split('_')
-    .filter(Boolean)
-    .map((segment) => {
-      if (/^\d+(\.\d+)?$/.test(segment)) return segment;
-      if (segment === 'btts') return 'BTTS';
-      if (segment === 'ou') return 'O/U';
-      if (segment === '1x2') return '1X2';
-      return segment.charAt(0).toUpperCase() + segment.slice(1);
-    })
-    .join(' ');
 }
 
 const PnlChart = memo(function PnlChart({ data }: { data: { date: string; pnl: number; cumulative: number }[] }) {
@@ -142,7 +129,7 @@ const MarketBreakdownChart = memo(function MarketBreakdownChart({ data }: { data
                 <div style={{ display: 'flex', justifyContent: 'space-between', gap: '10px', alignItems: 'flex-start' }}>
                   <div>
                     <div style={{ fontWeight: 700, fontSize: '13px', color: accent }}>
-                      {formatMarketLabel(d.market || 'other')}
+                      {formatCanonicalMarketLabel(d.market || 'other')}
                     </div>
                     <div style={{ fontSize: '11px', color: 'var(--gray-500)', marginTop: '2px' }}>
                       {total} graded picks

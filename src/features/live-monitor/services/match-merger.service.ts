@@ -14,6 +14,10 @@ import type {
   PreMatchPrediction,
   DerivedMatchInsights,
 } from '../types';
+import {
+  isFirstHalfApiBetName,
+  isSecondHalfOnlyApiBetName,
+} from '../../../lib/first-half-markets';
 
 // ==================== Helpers ====================
 
@@ -394,30 +398,6 @@ export function mergeMatchData(
 
 // ==================== Merge Odds ====================
 
-function isHalfTimeMarket(betName: string): boolean {
-  const name = betName.toLowerCase();
-  return (
-    name.includes('1st half') ||
-    name.includes('2nd half') ||
-    name.includes('(1st half)') ||
-    name.includes('(2nd half)') ||
-    name.includes('first half') ||
-    name.includes('second half') ||
-    name.includes(' 1h') ||
-    name.includes('1h ') ||
-    name.includes(' 2h') ||
-    name.includes('2h ') ||
-    name.includes(' ht') ||
-    name.endsWith(' ht') ||
-    name.includes('half time') ||
-    name.includes('halftime') ||
-    name.includes('half-time') ||
-    /\b1h\b/.test(name) ||
-    /\b2h\b/.test(name) ||
-    /\bht\b/.test(name)
-  );
-}
-
 /**
  * Validate implied-probability margins for each market.
  * Removes markets with unrealistic margins (implied probability outside 85-115% for 2-way,
@@ -451,6 +431,15 @@ function validateMarketMargins(canonical: OddsCanonical): { warnings: string[]; 
     }
   }
 
+  const ouAdj = canonical['ou_adjacent'];
+  if (ouAdj && ouAdj.over !== null && ouAdj.under !== null) {
+    const total = ip(ouAdj.over) + ip(ouAdj.under);
+    if (total > 0 && (total < 0.85 || total > 1.15)) {
+      warnings.push(`MARGIN_INVALID: O/U adjacent ${ouAdj.line} implied probability ${(total * 100).toFixed(1)}% outside 85-115% range — removed`);
+      delete cleaned['ou_adjacent'];
+    }
+  }
+
   // AH (2-way): valid range 85%-115%
   const ah = canonical['ah'];
   if (ah && ah.home !== null && ah.away !== null) {
@@ -458,6 +447,15 @@ function validateMarketMargins(canonical: OddsCanonical): { warnings: string[]; 
     if (total > 0 && (total < 0.85 || total > 1.15)) {
       warnings.push(`MARGIN_INVALID: AH ${ah.line} implied probability ${(total * 100).toFixed(1)}% outside 85-115% range — removed`);
       delete cleaned['ah'];
+    }
+  }
+
+  const ahAdj = canonical['ah_adjacent'];
+  if (ahAdj && ahAdj.home !== null && ahAdj.away !== null) {
+    const total = ip(ahAdj.home) + ip(ahAdj.away);
+    if (total > 0 && (total < 0.85 || total > 1.15)) {
+      warnings.push(`MARGIN_INVALID: AH adjacent ${ahAdj.line} implied probability ${(total * 100).toFixed(1)}% outside 85-115% range — removed`);
+      delete cleaned['ah_adjacent'];
     }
   }
 
@@ -478,6 +476,60 @@ function validateMarketMargins(canonical: OddsCanonical): { warnings: string[]; 
     if (total > 0 && (total < 0.85 || total > 1.15)) {
       warnings.push(`MARGIN_INVALID: Corners O/U ${cornersOu.line} implied probability ${(total * 100).toFixed(1)}% outside 85-115% range — removed`);
       delete cleaned['corners_ou'];
+    }
+  }
+
+  const ht1x2 = canonical['ht_1x2'];
+  if (ht1x2) {
+    const total = ip(ht1x2.home) + ip(ht1x2.draw) + ip(ht1x2.away);
+    if (total > 0 && (total < 0.90 || total > 1.20)) {
+      warnings.push(`MARGIN_INVALID: HT 1X2 implied probability ${(total * 100).toFixed(1)}% outside 90-120% range — removed`);
+      delete cleaned['ht_1x2'];
+    }
+  }
+
+  const htOu = canonical['ht_ou'];
+  if (htOu && htOu.over !== null && htOu.under !== null) {
+    const total = ip(htOu.over) + ip(htOu.under);
+    if (total > 0 && (total < 0.85 || total > 1.15)) {
+      warnings.push(`MARGIN_INVALID: HT O/U ${htOu.line} implied probability ${(total * 100).toFixed(1)}% outside 85-115% range — removed`);
+      delete cleaned['ht_ou'];
+    }
+  }
+
+  const htAh = canonical['ht_ah'];
+  if (htAh && htAh.home !== null && htAh.away !== null) {
+    const total = ip(htAh.home) + ip(htAh.away);
+    if (total > 0 && (total < 0.85 || total > 1.15)) {
+      warnings.push(`MARGIN_INVALID: HT AH ${htAh.line} implied probability ${(total * 100).toFixed(1)}% outside 85-115% range — removed`);
+      delete cleaned['ht_ah'];
+    }
+  }
+
+  const htAhAdj = canonical['ht_ah_adjacent'];
+  if (htAhAdj && htAhAdj.home !== null && htAhAdj.away !== null) {
+    const total = ip(htAhAdj.home) + ip(htAhAdj.away);
+    if (total > 0 && (total < 0.85 || total > 1.15)) {
+      warnings.push(`MARGIN_INVALID: HT AH adjacent ${htAhAdj.line} implied probability ${(total * 100).toFixed(1)}% outside 85-115% range — removed`);
+      delete cleaned['ht_ah_adjacent'];
+    }
+  }
+
+  const htOuAdj = canonical['ht_ou_adjacent'];
+  if (htOuAdj && htOuAdj.over !== null && htOuAdj.under !== null) {
+    const total = ip(htOuAdj.over) + ip(htOuAdj.under);
+    if (total > 0 && (total < 0.85 || total > 1.15)) {
+      warnings.push(`MARGIN_INVALID: HT O/U adjacent ${htOuAdj.line} implied probability ${(total * 100).toFixed(1)}% outside 85-115% range — removed`);
+      delete cleaned['ht_ou_adjacent'];
+    }
+  }
+
+  const htBtts = canonical['ht_btts'];
+  if (htBtts && htBtts.yes !== null && htBtts.no !== null) {
+    const total = ip(htBtts.yes) + ip(htBtts.no);
+    if (total > 0 && (total < 0.85 || total > 1.15)) {
+      warnings.push(`MARGIN_INVALID: HT BTTS implied probability ${(total * 100).toFixed(1)}% outside 85-115% range — removed`);
+      delete cleaned['ht_btts'];
     }
   }
 
@@ -568,211 +620,237 @@ export function mergeOddsToMatch(
   }
 
   let oddsAvailable = false;
-  const oddsMap: Record<string, number> = {};
+  const ftOddsMap: Record<string, number> = {};
+  const htOddsMap: Record<string, number> = {};
+  const best1X2 = { home: 0, draw: 0, away: 0 };
+  const best1X2Ht = { home: 0, draw: 0, away: 0 };
+  const bestBTTS = { yes: 0, no: 0 };
+  const bestBTTSHt = { yes: 0, no: 0 };
 
-  const best1X2 = {
-    home: { odd: 0, bm: '' },
-    draw: { odd: 0, bm: '' },
-    away: { odd: 0, bm: '' },
-  };
-  const bestBTTS = {
-    yes: { odd: 0, bm: '' },
-    no: { odd: 0, bm: '' },
+  type OddRow = { value?: string; odd?: string | number; handicap?: string | number | null };
+
+  const ingestPeriod = (args: {
+    betName: string;
+    values: OddRow[];
+    isCornerBet: boolean;
+    keyPrefix: '' | 'ht ';
+    oddsMap: Record<string, number>;
+    best1X2Local: { home: number; draw: number; away: number };
+    bestBTTSLocal: { yes: number; no: number };
+  }) => {
+    const {
+      betName, values, isCornerBet, keyPrefix, oddsMap, best1X2Local, bestBTTSLocal,
+    } = args;
+    const pk = (k: string) => (keyPrefix ? `${keyPrefix}${k}` : k);
+    const rowHc = (v: OddRow) =>
+      (v.handicap != null && String(v.handicap).trim() !== '' ? String(v.handicap).trim() : '');
+
+    const is1x2Ft =
+      betName.includes('1x2')
+      || betName.includes('match winner')
+      || betName.includes('fulltime result')
+      || betName === 'full time result';
+    const is1x2Ht =
+      betName.includes('1x2')
+      || betName.includes('winner')
+      || betName.includes('fulltime result')
+      || betName === 'full time result';
+    const is1x2 = keyPrefix ? is1x2Ht : is1x2Ft;
+
+    if (is1x2) {
+      for (const v of values) {
+        const label = String(v.value || '').toLowerCase().trim();
+        const odd = toNumber(v.odd) ?? 0;
+        if (!odd || odd <= 1) continue;
+        if (label === 'home' || label === '1') best1X2Local.home = Math.max(best1X2Local.home, odd);
+        if (label === 'draw' || label === 'x') best1X2Local.draw = Math.max(best1X2Local.draw, odd);
+        if (label === 'away' || label === '2') best1X2Local.away = Math.max(best1X2Local.away, odd);
+      }
+    }
+
+    if (
+      !isCornerBet
+      && (betName.includes('over/under')
+        || betName.includes('over / under')
+        || betName.includes('total goals')
+        || betName.includes('match goals'))
+    ) {
+      for (const v of values) {
+        const raw = String(v.value || '').toLowerCase().trim();
+        const hc = rowHc(v);
+        const odd = toNumber(v.odd) ?? 0;
+        if (!odd || odd <= 1) continue;
+        let key: string;
+        if (hc) {
+          key = `${raw} ${hc}`.toLowerCase();
+        } else {
+          const m = raw.match(/^(over|under)\s+([0-9]+(?:\.[0-9]+)?)$/);
+          if (!m) continue;
+          key = raw;
+        }
+        const slot = pk(key);
+        if (!(slot in oddsMap) || odd > (oddsMap[slot] ?? 0)) oddsMap[slot] = odd;
+      }
+    }
+
+    if (betName.includes('both teams') || betName === 'btts') {
+      for (const v of values) {
+        const label = String(v.value || '').toLowerCase().trim();
+        const odd = toNumber(v.odd) ?? 0;
+        if (!odd || odd <= 1) continue;
+        if (label === 'yes') bestBTTSLocal.yes = Math.max(bestBTTSLocal.yes, odd);
+        if (label === 'no') bestBTTSLocal.no = Math.max(bestBTTSLocal.no, odd);
+      }
+    }
+
+    if (!isCornerBet && betName.includes('handicap')) {
+      for (const v of values) {
+        let raw = String(v.value || '').toLowerCase().trim();
+        const hc = rowHc(v);
+        const odd = toNumber(v.odd) ?? 0;
+        if (!odd || odd <= 1) continue;
+        let key: string;
+        if (hc) {
+          if (raw === '1') raw = 'home';
+          if (raw === '2') raw = 'away';
+          key = `${raw} ${hc}`.toLowerCase();
+        } else {
+          const m = raw.match(/^(home|away|1|2)\s+([-+]?[0-9]+(?:\.[0-9]+)?)$/);
+          if (!m) continue;
+          let side = m[1];
+          if (side === '1') side = 'home';
+          if (side === '2') side = 'away';
+          key = `${side} ${m[2]}`;
+        }
+        const slot = pk(key);
+        if (!(slot in oddsMap) || odd > (oddsMap[slot] ?? 0)) oddsMap[slot] = odd;
+      }
+    }
+
+    if (betName.includes('corner')) {
+      for (const v of values) {
+        const raw = String(v.value || '').toLowerCase().trim();
+        const hc = rowHc(v);
+        const odd = toNumber(v.odd) ?? 0;
+        if (!odd || odd <= 1) continue;
+        let key: string | null = null;
+        if (hc && (raw === 'over' || raw === 'under')) {
+          key = `corners ${raw} ${hc}`.toLowerCase();
+        } else {
+          const m = raw.match(/^(over|under)\s+([0-9]+(?:\.[0-9]+)?)$/);
+          if (m) key = `corners ${m[1]} ${m[2]}`.toLowerCase();
+        }
+        if (key) {
+          const slot = pk(key);
+          if (!(slot in oddsMap) || odd > (oddsMap[slot] ?? 0)) oddsMap[slot] = odd;
+        }
+      }
+    }
   };
 
   if (bookmakers.length > 0) {
     oddsAvailable = true;
-
-    for (const bk of bookmakers) {
-      const bkName = bk.name || 'Bookmaker';
-
-      for (const bet of bk.bets || []) {
+    for (const bookmaker of bookmakers) {
+      for (const bet of bookmaker.bets || []) {
         const betName = String(bet.name || '').toLowerCase();
-        const values = bet.values || [];
-        const isHalfMarket = isHalfTimeMarket(betName);
-        const isSpecialMinuteMarket = /\d+\s*minute/.test(betName);
-        const isCornersMarket = betName.includes('corner');
+        if (/\d+\s*minute/.test(betName)) continue;
+        const values = (bet.values || []) as OddRow[];
+        const isCornerBet = betName.includes('corner');
+        const isHalfSpecific = isFirstHalfApiBetName(betName) || isSecondHalfOnlyApiBetName(betName);
+        const isHtFirstHalfOnly = isFirstHalfApiBetName(betName) && !isSecondHalfOnlyApiBetName(betName);
 
-        // --- 1X2 ---
-        if (
-          !isHalfMarket &&
-          !isSpecialMinuteMarket &&
-          !isCornersMarket &&
-          (betName.includes('1x2') ||
-            betName.includes('match winner') ||
-            betName === 'full time result' ||
-            betName === 'fulltime result' ||
-            betName.includes('fulltime result'))
-        ) {
-          for (const v of values) {
-            const label = String(v.value || '').toLowerCase().trim();
-            const odd = toNumber(v.odd) ?? 0;
-            if (!odd || odd <= 1) continue;
-
-            if (label === 'home' || label === '1') {
-              if (odd > best1X2.home.odd) best1X2.home = { odd, bm: bkName };
-              oddsMap['home'] = Math.max(oddsMap['home'] || 0, odd);
-            }
-            if (label === 'draw' || label === 'x') {
-              if (odd > best1X2.draw.odd) best1X2.draw = { odd, bm: bkName };
-              oddsMap['draw'] = Math.max(oddsMap['draw'] || 0, odd);
-            }
-            if (label === 'away' || label === '2') {
-              if (odd > best1X2.away.odd) best1X2.away = { odd, bm: bkName };
-              oddsMap['away'] = Math.max(oddsMap['away'] || 0, odd);
-            }
-          }
+        if (!isHalfSpecific) {
+          ingestPeriod({
+            betName,
+            values,
+            isCornerBet,
+            keyPrefix: '',
+            oddsMap: ftOddsMap,
+            best1X2Local: best1X2,
+            bestBTTSLocal: bestBTTS,
+          });
         }
-
-        // --- Over/Under ---
-        if (
-          !isHalfMarket &&
-          (betName.includes('over/under') ||
-            betName.includes('over / under') ||
-            betName.includes('total goals') ||
-            betName.includes('match goals'))
-        ) {
-          for (const v of values) {
-            const raw = String(v.value || '').toLowerCase().trim();
-            const hc = (v as Record<string, unknown>).handicap != null
-              ? String((v as Record<string, unknown>).handicap).trim()
-              : '';
-            const odd = toNumber(v.odd) ?? 0;
-            if (!odd || odd <= 1) continue;
-
-            // Live format: value="Over", handicap="2.5"
-            // Pre-match format: value="Over 2.5", handicap=""
-            let key: string;
-            if (hc) {
-              key = `${raw} ${hc}`.toLowerCase();
-            } else {
-              // Try to parse from value e.g. "over 2.5" → keep as-is
-              const m = raw.match(/^(over|under)\s+([0-9]+(?:\.[0-9]+)?)$/);
-              if (!m) continue;
-              key = raw;
-            }
-            if (!oddsMap[key] || odd > oddsMap[key]!) {
-              oddsMap[key] = odd;
-            }
-          }
-        }
-
-        // --- Asian Handicap ---
-        if (
-          !isHalfMarket &&
-          (betName.includes('asian handicap') || betName.includes('handicap'))
-        ) {
-          for (const v of values) {
-            let raw = String(v.value || '').toLowerCase().trim();
-            const hc = (v as Record<string, unknown>).handicap != null
-              ? String((v as Record<string, unknown>).handicap).trim()
-              : '';
-            const odd = toNumber(v.odd) ?? 0;
-            if (!odd || odd <= 1) continue;
-
-            // Live format: value="Home", handicap="-1"
-            // Pre-match format: value="Home -1", handicap=""
-            let key: string;
-            if (hc) {
-              if (raw === '1') raw = 'home';
-              if (raw === '2') raw = 'away';
-              key = `${raw} ${hc}`.toLowerCase();
-            } else {
-              // Try to parse from value e.g. "home -1" or "away -0.5"
-              const m = raw.match(/^(home|away|1|2)\s+([-+]?[0-9]+(?:\.[0-9]+)?)$/);
-              if (!m) continue;
-              let side = m[1];
-              if (side === '1') side = 'home';
-              if (side === '2') side = 'away';
-              key = `${side} ${m[2]}`;
-            }
-            if (!oddsMap[key] || odd > oddsMap[key]!) {
-              oddsMap[key] = odd;
-            }
-          }
-        }
-
-        // --- Corners ---
-        if (!isHalfMarket && betName.includes('corner')) {
-          for (const v of values) {
-            const raw = String(v.value || '').toLowerCase().trim();
-            const hc = (v as Record<string, unknown>).handicap != null
-              ? String((v as Record<string, unknown>).handicap).trim()
-              : '';
-            const odd = toNumber(v.odd) ?? 0;
-            if (!odd || odd <= 1) continue;
-
-            // Live format: value="Over", handicap="9.5"
-            // Pre-match format: value="Over 9.5", handicap=""
-            let key: string | null = null;
-            if (hc && (raw === 'over' || raw === 'under')) {
-              key = `corners ${raw} ${hc}`.toLowerCase();
-            } else {
-              const m = raw.match(/^(over|under)\s+([0-9]+(?:\.[0-9]+)?)$/);
-              if (m) key = `corners ${m[1]} ${m[2]}`.toLowerCase();
-            }
-            if (key && (!oddsMap[key] || odd > oddsMap[key]!)) {
-              oddsMap[key] = odd;
-            }
-          }
-        }
-
-        // --- BTTS ---
-        if (!isHalfMarket && (betName.includes('both teams') || betName === 'btts')) {
-          for (const v of values) {
-            const label = String(v.value || '').toLowerCase().trim();
-            const odd = toNumber(v.odd) ?? 0;
-            if (!odd || odd <= 1) continue;
-
-            if (label === 'yes') {
-              if (odd > bestBTTS.yes.odd) bestBTTS.yes = { odd, bm: bkName };
-              oddsMap['btts yes'] = Math.max(oddsMap['btts yes'] || 0, odd);
-            }
-            if (label === 'no') {
-              if (odd > bestBTTS.no.odd) bestBTTS.no = { odd, bm: bkName };
-              oddsMap['btts no'] = Math.max(oddsMap['btts no'] || 0, odd);
-            }
-          }
+        if (isHtFirstHalfOnly) {
+          ingestPeriod({
+            betName,
+            values,
+            isCornerBet,
+            keyPrefix: 'ht ',
+            oddsMap: htOddsMap,
+            best1X2Local: best1X2Ht,
+            bestBTTSLocal: bestBTTSHt,
+          });
         }
       }
     }
   }
 
-  // Build canonical odds
+  // Build canonical odds (mirror packages/server buildOddsCanonical)
   const oddsCanonical: OddsCanonical = {};
 
-  // 1X2
-  if (best1X2.home.odd > 0 || best1X2.away.odd > 0 || best1X2.draw.odd > 0) {
+  if (best1X2.home > 0 || best1X2.away > 0 || best1X2.draw > 0) {
     oddsCanonical['1x2'] = {
-      home: best1X2.home.odd || null,
-      draw: best1X2.draw.odd || null,
-      away: best1X2.away.odd || null,
+      home: best1X2.home || null,
+      draw: best1X2.draw || null,
+      away: best1X2.away || null,
     };
   }
 
-  // OU Goals
-  oddsCanonical['ou'] = buildMainOU(
-    oddsMap,
+  const goalsOuPair = buildMainOUWithAdjacent(
+    ftOddsMap,
     /^(over|under)\s+[0-9]+(\.[0-9]+)?$/,
     /^(over|under)\s+([0-9]+(\.[0-9]+)?)/,
   );
+  if (goalsOuPair) {
+    oddsCanonical['ou'] = goalsOuPair.main;
+    if (goalsOuPair.adjacent) oddsCanonical['ou_adjacent'] = goalsOuPair.adjacent;
+  }
 
-  // Asian Handicap
-  oddsCanonical['ah'] = buildMainAH(oddsMap);
+  const ahPair = buildMainAHWithAdjacent(ftOddsMap);
+  if (ahPair) {
+    oddsCanonical['ah'] = ahPair.main;
+    if (ahPair.adjacent) oddsCanonical['ah_adjacent'] = ahPair.adjacent;
+  }
 
-  // Corners OU
-  oddsCanonical['corners_ou'] = buildMainOU(
-    oddsMap,
+  const cornersOuPair = buildMainOUWithAdjacent(
+    ftOddsMap,
     /^corners\s+(over|under)\s+[0-9]+(\.[0-9]+)?$/,
     /^corners\s+(over|under)\s+([0-9]+(\.[0-9]+)?)/,
   );
+  if (cornersOuPair) {
+    oddsCanonical['corners_ou'] = cornersOuPair.main;
+  }
 
-  // BTTS
-  if (bestBTTS.yes.odd > 0 || bestBTTS.no.odd > 0) {
-    oddsCanonical['btts'] = {
-      yes: bestBTTS.yes.odd || null,
-      no: bestBTTS.no.odd || null,
+  if (bestBTTS.yes > 0 || bestBTTS.no > 0) {
+    oddsCanonical['btts'] = { yes: bestBTTS.yes || null, no: bestBTTS.no || null };
+  }
+
+  if (best1X2Ht.home > 0 || best1X2Ht.away > 0 || best1X2Ht.draw > 0) {
+    oddsCanonical['ht_1x2'] = {
+      home: best1X2Ht.home || null,
+      draw: best1X2Ht.draw || null,
+      away: best1X2Ht.away || null,
     };
+  }
+
+  const htGoalsOuPair = buildMainOUWithAdjacent(
+    htOddsMap,
+    /^ht (over|under)\s+[0-9]+(\.[0-9]+)?$/,
+    /^ht (over|under)\s+([0-9]+(\.[0-9]+)?)/,
+  );
+  if (htGoalsOuPair) {
+    oddsCanonical['ht_ou'] = htGoalsOuPair.main;
+    if (htGoalsOuPair.adjacent) oddsCanonical['ht_ou_adjacent'] = htGoalsOuPair.adjacent;
+  }
+
+  const htAhPair = buildMainAHWithAdjacent(htOddsMap, 'ht ');
+  if (htAhPair) {
+    oddsCanonical['ht_ah'] = htAhPair.main;
+    if (htAhPair.adjacent) oddsCanonical['ht_ah_adjacent'] = htAhPair.adjacent;
+  }
+
+  if (bestBTTSHt.yes > 0 || bestBTTSHt.no > 0) {
+    oddsCanonical['ht_btts'] = { yes: bestBTTSHt.yes || null, no: bestBTTSHt.no || null };
   }
 
   // Sanity check — skip for pre-match odds since they don't reflect live game state
@@ -792,10 +870,16 @@ export function mergeOddsToMatch(
     oddsSuspicious = oddsSanityWarnings.some(w => w.startsWith('SANITY_FAIL'));
   }
 
-  // Check if any valid markets remain after margin validation
   const hasAnyMarket = !!(
-    oddsCanonical['1x2'] || oddsCanonical['ou'] || oddsCanonical['ah'] ||
-    oddsCanonical['btts'] || oddsCanonical['corners_ou']
+    oddsCanonical['1x2']
+    || oddsCanonical['ou']
+    || oddsCanonical['ah']
+    || oddsCanonical['btts']
+    || oddsCanonical['corners_ou']
+    || oddsCanonical['ht_1x2']
+    || oddsCanonical['ht_ou']
+    || oddsCanonical['ht_ah']
+    || oddsCanonical['ht_btts']
   );
   const oddsStillAvailable = oddsAvailable && hasAnyMarket;
 
@@ -810,13 +894,16 @@ export function mergeOddsToMatch(
   };
 }
 
-// ==================== OU/AH Line Builders ====================
+// ==================== OU/AH Line Builders (mirror server-pipeline) ====================
 
-function buildMainOU(
+function buildMainOUWithAdjacent(
   oddsMap: Record<string, number>,
   regexKey: RegExp,
   regexParse: RegExp,
-): { line: number; over: number | null; under: number | null } | undefined {
+): {
+  main: { line: number; over: number | null; under: number | null };
+  adjacent?: { line: number; over: number | null; under: number | null };
+} | undefined {
   const entries = Object.entries(oddsMap).filter(([k]) => regexKey.test(k));
   if (!entries.length) return undefined;
 
@@ -824,18 +911,14 @@ function buildMainOU(
   for (const [k, odd] of entries) {
     const m = k.match(regexParse);
     if (!m?.[1] || !m[2]) continue;
-    const dir = m[1]; // over / under
-    const lineStr = m[2]; // "2.5"
-    const line = Number(lineStr);
-    if (!Number.isFinite(line)) continue;
-
+    const dir = m[1];
+    const lineStr = m[2];
+    if (!Number.isFinite(Number(lineStr))) continue;
     if (!lineMap.has(lineStr)) lineMap.set(lineStr, {});
     const entry = lineMap.get(lineStr)!;
     entry[dir] = Math.max(entry[dir] || 0, odd);
   }
 
-  // Pick the most balanced line (smallest spread between over/under odds).
-  // This correctly selects e.g. O/U 2.5 from pre-match data with all lines.
   let bestLine: string | null = null;
   let bestSpread = Infinity;
   for (const [lineStr, data] of lineMap) {
@@ -849,73 +932,129 @@ function buildMainOU(
       }
     }
   }
-  // Fallback: pick smallest absolute line if no line has both sides
   if (!bestLine) {
     const sorted = Array.from(lineMap.keys())
-      .map((s) => Number(s))
-      .filter((n) => Number.isFinite(n))
+      .map(Number)
+      .filter(Number.isFinite)
       .sort((a, b) => Math.abs(a) - Math.abs(b));
     if (!sorted.length) return undefined;
     bestLine = String(sorted[0]);
   }
   const bestData = lineMap.get(bestLine) || {};
-  return {
+  const main = {
     line: Number(bestLine),
     over: bestData['over'] ?? null,
     under: bestData['under'] ?? null,
   };
+
+  const candidates: string[] = [];
+  for (const [lineStr, data] of lineMap) {
+    if (lineStr === bestLine) continue;
+    const o = data['over'];
+    const u = data['under'];
+    if (o && u) candidates.push(lineStr);
+  }
+  if (candidates.length === 0) return { main };
+
+  const mainNum = Number(bestLine);
+  let adjacentLine: string | null = null;
+  let bestDist = Infinity;
+  let bestAdjSpread = Infinity;
+  for (const lineStr of candidates) {
+    const dist = Math.abs(Number(lineStr) - mainNum);
+    const data = lineMap.get(lineStr) || {};
+    const spread = Math.abs((data['over'] || 0) - (data['under'] || 0));
+    if (dist < bestDist || (dist === bestDist && spread < bestAdjSpread)) {
+      bestDist = dist;
+      bestAdjSpread = spread;
+      adjacentLine = lineStr;
+    }
+  }
+  if (!adjacentLine) return { main };
+  const adjData = lineMap.get(adjacentLine) || {};
+  return {
+    main,
+    adjacent: {
+      line: Number(adjacentLine),
+      over: adjData['over'] ?? null,
+      under: adjData['under'] ?? null,
+    },
+  };
 }
 
-function buildMainAH(
+function buildMainAHWithAdjacent(
   oddsMap: Record<string, number>,
-): { line: number; home: number | null; away: number | null } | undefined {
-  const entries = Object.entries(oddsMap).filter(([k]) =>
-    /^(home|away)\s+[-+]?[0-9]+(\.[0-9]+)?$/.test(k),
-  );
+  keyPrefix = '',
+): {
+  main: { line: number; home: number | null; away: number | null };
+  adjacent?: { line: number; home: number | null; away: number | null };
+} | undefined {
+  const esc = keyPrefix.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const keyRe = new RegExp(`^${esc}(home|away)\\s+[-+]?[0-9]+(\\.[0-9]+)?$`);
+  const parseRe = new RegExp(`^${esc}(home|away)\\s+([-+]?[0-9]+(\\.[0-9]+)?)`);
+  const entries = Object.entries(oddsMap).filter(([k]) => keyRe.test(k));
   if (!entries.length) return undefined;
 
   const lineMap = new Map<string, Record<string, number>>();
   for (const [k, odd] of entries) {
-    const m = k.match(/^(home|away)\s+([-+]?[0-9]+(\.[0-9]+)?)/);
+    const m = k.match(parseRe);
     if (!m?.[1] || !m[2]) continue;
-    const side = m[1];
-    const lineStr = m[2];
-    const line = Number(lineStr);
-    if (!Number.isFinite(line)) continue;
-
+    const hc = Number(m[2]);
+    if (!Number.isFinite(hc)) continue;
+    const canonicalLine = m[1] === 'home' ? hc : -hc;
+    const lineStr = String(canonicalLine);
     if (!lineMap.has(lineStr)) lineMap.set(lineStr, {});
-    const entry = lineMap.get(lineStr)!;
-    entry[side] = Math.max(entry[side] || 0, odd);
+    lineMap.get(lineStr)![m[1]] = Math.max(lineMap.get(lineStr)![m[1]] || 0, odd);
   }
 
-  // Pick the most balanced line (smallest spread between home/away odds).
-  // This correctly selects e.g. AH -1 from pre-match data with all lines.
   let bestLine: string | null = null;
   let bestSpread = Infinity;
   for (const [lineStr, data] of lineMap) {
-    const h = data['home'];
-    const a = data['away'];
-    if (h && a) {
-      const spread = Math.abs(h - a);
+    if (data['home'] && data['away']) {
+      const spread = Math.abs(data['home'] - data['away']);
       if (spread < bestSpread) {
         bestSpread = spread;
         bestLine = lineStr;
       }
     }
   }
-  // Fallback: pick smallest absolute line if no line has both sides
-  if (!bestLine) {
-    const sorted = Array.from(lineMap.keys())
-      .map((s) => Number(s))
-      .filter((n) => Number.isFinite(n))
-      .sort((a, b) => Math.abs(a) - Math.abs(b));
-    if (!sorted.length) return undefined;
-    bestLine = String(sorted[0]);
-  }
-  const bestData = lineMap.get(bestLine) || {};
-  return {
+  if (!bestLine) return undefined;
+  const best = lineMap.get(bestLine) || {};
+  const main = {
     line: Number(bestLine),
-    home: bestData['home'] ?? null,
-    away: bestData['away'] ?? null,
+    home: best['home'] ?? null,
+    away: best['away'] ?? null,
+  };
+
+  const candidates: string[] = [];
+  for (const [lineStr, data] of lineMap) {
+    if (lineStr === bestLine) continue;
+    if (data['home'] && data['away']) candidates.push(lineStr);
+  }
+  if (candidates.length === 0) return { main };
+
+  const mainNum = Number(bestLine);
+  let adjacentLine: string | null = null;
+  let bestDist = Infinity;
+  let bestAdjSpread = Infinity;
+  for (const lineStr of candidates) {
+    const dist = Math.abs(Number(lineStr) - mainNum);
+    const data = lineMap.get(lineStr) || {};
+    const spread = Math.abs((data['home'] || 0) - (data['away'] || 0));
+    if (dist < bestDist || (dist === bestDist && spread < bestAdjSpread)) {
+      bestDist = dist;
+      bestAdjSpread = spread;
+      adjacentLine = lineStr;
+    }
+  }
+  if (!adjacentLine) return { main };
+  const adj = lineMap.get(adjacentLine) || {};
+  return {
+    main,
+    adjacent: {
+      line: Number(adjacentLine),
+      home: adj['home'] ?? null,
+      away: adj['away'] ?? null,
+    },
   };
 }

@@ -6,6 +6,9 @@ export interface SettlePromptMatchContext {
   awayTeam: string;
   homeScore: number;
   awayScore: number;
+  /** When present, use for first-half (H1) markets such as ht_over_*, ht_1x2_*. */
+  htHomeScore?: number;
+  htAwayScore?: number;
   finalStatus: string;
   settlementScope: 'regular_time';
   statistics?: Array<{ type: string; home: string | number | null; away: string | number | null }>;
@@ -35,6 +38,10 @@ export function buildSettlePrompt(
 ): string {
   const score = `${match.homeScore}-${match.awayScore}`;
   const totalGoals = match.homeScore + match.awayScore;
+  const htScoreLine =
+    typeof match.htHomeScore === 'number' && typeof match.htAwayScore === 'number'
+      ? `Half-time (1st half) score: ${match.htHomeScore}-${match.htAwayScore}\n`
+      : '';
   const statsSection = match.statistics && match.statistics.length > 0
     ? match.statistics.map(
       (s) => `- ${s.type}: ${s.home ?? '?'} (Home) - ${s.away ?? '?'} (Away)`,
@@ -52,7 +59,7 @@ Only decide the bets listed below.
 MATCH CONTEXT:
 ${match.homeTeam} ${score} ${match.awayTeam}
 Total goals: ${totalGoals}
-Official final status: ${match.finalStatus || 'FT'}
+${htScoreLine}Official final status: ${match.finalStatus || 'FT'}
 Settlement scope: regular time only (90 minutes plus stoppage time). Extra time and penalties are excluded for standard soccer markets.
 The score shown above is already the score to use for this settlement scope.
 
@@ -64,6 +71,7 @@ ${betsSection}
 
 RULES:
 - Only use official evidence from the score and official statistics shown above.
+- For first-half markets (bet_market starts with "ht_"), use the half-time score when provided; do not substitute full-time goals.
 - If a market needs official statistics that are missing, return "unresolved". Missing data is NOT a push.
 - Use "push" only when the actual outcome lands exactly on the bookmaker line.
 - Do not infer corners or cards from goals, momentum, or narrative clues.

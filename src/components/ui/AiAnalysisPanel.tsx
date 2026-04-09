@@ -24,6 +24,7 @@ import {
   getAskAiQuickPromptsSectionLabel,
   uiLanguageToAskAiPromptLocale,
 } from '@/lib/askAiQuickPrompts';
+import { formatSelectionWithMarketContext } from '@/lib/utils/marketDisplay';
 import type { AuthUser } from '@/lib/services/auth';
 import { UserAvatar } from '@/components/ui/UserAvatar';
 
@@ -331,6 +332,12 @@ export function AiAnalysisPanel({ entry, onClose, onFollowUp }: Props) {
   const contextTags = buildContextTags(dbg);
   const selection = ai?.selection || result.selection || '--';
   const market = ai?.bet_market || '--';
+  const selectionDisplay = selection !== '--'
+    ? formatSelectionWithMarketContext({
+        selection,
+        betMarket: market !== '--' ? market : undefined,
+      })
+    : '--';
   const followUps = useMemo(() => entry.followUpMessages ?? [], [entry.followUpMessages]);
   const [followUpInput, setFollowUpInput] = useState('');
   const [sendingFollowUp, setSendingFollowUp] = useState(false);
@@ -479,14 +486,9 @@ export function AiAnalysisPanel({ entry, onClose, onFollowUp }: Props) {
         <>
           <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
             <DecisionBadge kind={result.decisionKind} />
-            {selection !== '--' ? (
+            {selectionDisplay !== '--' ? (
               <span style={{ fontSize: '12px', fontWeight: 600, color: 'var(--gray-800)', whiteSpace: 'nowrap' }}>
-                {selection}
-              </span>
-            ) : null}
-            {market !== '--' ? (
-              <span style={{ fontSize: '12px', color: 'var(--gray-500)', whiteSpace: 'nowrap' }}>
-                [{market}]
+                {selectionDisplay}
               </span>
             ) : null}
             <span style={{ color: 'var(--gray-300)', fontSize: '12px' }}>|</span>

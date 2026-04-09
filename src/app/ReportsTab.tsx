@@ -16,6 +16,7 @@ import type {
   TimeReportRow, ConfidenceBandRow, OddsRangeRow, MinuteBandRow,
   DayOfWeekRow, LeagueMarketRow, AiInsightsData,
 } from '@/lib/services/api';
+import { formatCanonicalMarketLabel } from '@/lib/utils/marketDisplay';
 
 // ── Report sub-tabs ──
 
@@ -56,6 +57,7 @@ function familyLabel(value: string): string {
     asian_handicap: 'Asian Handicap',
     btts: 'BTTS',
     '1x2': '1X2',
+    first_half: 'First Half',
     other: 'Other',
   };
   return map[value] ?? value;
@@ -200,7 +202,7 @@ const LeagueSection = memo(function LeagueSection({ data, topLeagueNames }: { da
 const MarketSection = memo(function MarketSection({ data }: { data: MarketReportRow[] }) {
   if (!data.length) return <EmptyReport message="No market data for this period" />;
   const chartData = data.map((d) => ({
-    name: d.market,
+    name: formatCanonicalMarketLabel(d.market),
     wins: d.wins,
     losses: d.losses,
     pnl: d.pnl,
@@ -226,7 +228,7 @@ const MarketSection = memo(function MarketSection({ data }: { data: MarketReport
       <ReportTable
         columns={['Market', 'Total', 'Dir W', 'Dir L', 'Push/Void', 'Hit%', 'P/L', 'Avg Odds', 'ROI']}
         rows={data.map((d) => [
-          d.market, d.total, d.wins, d.losses, d.pushVoid, wrStr(d.winRate),
+          formatCanonicalMarketLabel(d.market), d.total, d.wins, d.losses, d.pushVoid, wrStr(d.winRate),
           { value: pnlStr(d.pnl), color: pnlColor(d.pnl) },
           d.avgOdds.toFixed(2),
           { value: `${d.roi >= 0 ? '+' : ''}${d.roi.toFixed(1)}%`, color: pnlColor(d.roi) },
@@ -465,7 +467,7 @@ const LeagueMarketSection = memo(function LeagueMarketSection({ data, topLeagueN
               <tbody>
                 {rows.map((r, i) => (
                   <tr key={i}>
-                    <td><span className="cell-value">{r.market}</span></td>
+                    <td><span className="cell-value">{formatCanonicalMarketLabel(r.market)}</span></td>
                     <td><span className="cell-value">{r.total}</span></td>
                     <td><span className="cell-value">{r.wins}</span></td>
                     <td><span className="cell-value">{r.losses}</span></td>
@@ -528,8 +530,8 @@ const AiInsightsSection = memo(function AiInsightsSection({ data }: { data: AiIn
       <div className="report-insights-grid">
         <InsightList title="Strong Leagues" items={data.strongLeagues.map((l) => `${l.league}: ${wrStr(l.winRate)} (${pnlStr(l.pnl)}, ${l.total} bets)`)} color="var(--success)" />
         <InsightList title="Weak Leagues" items={data.weakLeagues.map((l) => `${l.league}: ${wrStr(l.winRate)} (${pnlStr(l.pnl)}, ${l.total} bets)`)} color="var(--danger)" />
-        <InsightList title="Strong Markets" items={data.strongMarkets.map((m) => `${m.market}: ${wrStr(m.winRate)} (${pnlStr(m.pnl)}, ${m.total} bets)`)} color="var(--success)" />
-        <InsightList title="Weak Markets" items={data.weakMarkets.map((m) => `${m.market}: ${wrStr(m.winRate)} (${pnlStr(m.pnl)}, ${m.total} bets)`)} color="var(--danger)" />
+        <InsightList title="Strong Markets" items={data.strongMarkets.map((m) => `${formatCanonicalMarketLabel(m.market)}: ${wrStr(m.winRate)} (${pnlStr(m.pnl)}, ${m.total} bets)`)} color="var(--success)" />
+        <InsightList title="Weak Markets" items={data.weakMarkets.map((m) => `${formatCanonicalMarketLabel(m.market)}: ${wrStr(m.winRate)} (${pnlStr(m.pnl)}, ${m.total} bets)`)} color="var(--danger)" />
         <InsightList title="Best Time Slots" items={data.bestTimeSlots.map((t) => `${t.band}: ${wrStr(t.winRate)} (${pnlStr(t.pnl)}, ${t.total} bets)`)} color="var(--success)" />
         <InsightList title="Worst Time Slots" items={data.worstTimeSlots.map((t) => `${t.band}: ${wrStr(t.winRate)} (${pnlStr(t.pnl)}, ${t.total} bets)`)} color="var(--danger)" />
       </div>

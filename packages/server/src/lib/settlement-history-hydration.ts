@@ -1,6 +1,7 @@
 import type { ApiFixture } from './football-api.js';
 import { ensureFixturesForMatchIds } from './provider-insight-cache.js';
 import {
+  extractHalftimeScoreFromFixture,
   extractRegularTimeScoreFromFixture,
   requiresRegularTimeBreakdown,
 } from './settle-context.js';
@@ -13,6 +14,7 @@ export const FINISHED_SETTLEMENT_STATUSES = new Set(['FT', 'AET', 'PEN', 'AWD', 
 
 export function buildHistoricalArchiveRowFromFixture(fx: ApiFixture): MatchHistoryArchiveInput {
   const regularTimeScore = extractRegularTimeScoreFromFixture(fx);
+  const halftimeScore = extractHalftimeScoreFromFixture(fx);
   return {
     match_id: String(fx.fixture.id),
     date: fx.fixture.date?.substring(0, 10) ?? '',
@@ -30,6 +32,8 @@ export function buildHistoricalArchiveRowFromFixture(fx: ApiFixture): MatchHisto
     away_score: fx.goals?.away ?? 0,
     regular_home_score: regularTimeScore?.home ?? null,
     regular_away_score: regularTimeScore?.away ?? null,
+    halftime_home: halftimeScore?.home ?? null,
+    halftime_away: halftimeScore?.away ?? null,
     result_provider: 'api-football',
     settlement_stats: [],
     settlement_stats_provider: '',
@@ -71,9 +75,12 @@ export async function fetchRegularTimeScoresForHistoryMatches(
     if (!regularTimeScore) continue;
     const matchId = String(fx.fixture.id);
     scoreMap.set(matchId, regularTimeScore);
+    const halftimeScore = extractHalftimeScoreFromFixture(fx);
     await matchHistoryRepo.updateHistoricalMatchSettlementData(matchId, {
       regular_home_score: regularTimeScore.home,
       regular_away_score: regularTimeScore.away,
+      halftime_home: halftimeScore?.home ?? null,
+      halftime_away: halftimeScore?.away ?? null,
       result_provider: 'api-football',
     });
   }

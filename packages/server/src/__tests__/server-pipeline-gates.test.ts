@@ -205,6 +205,54 @@ describe('checkStalenessServer', () => {
     expect(result.reason).toBe('odds_movement');
   });
 
+  test('re-analyzes when HT O/U odds changed versus prior snapshot', () => {
+    const result = checkStalenessServer({
+      minute: 38,
+      status: '1H',
+      score: '0-0',
+      eventsCompact: [],
+      oddsCanonical: {
+        ht_ou: { line: 1.5, over: 2.08, under: 1.72 },
+      },
+      previousSnapshot: {
+        minute: 30,
+        home_score: 0,
+        away_score: 0,
+        odds: {
+          ht_ou: { line: 1.5, over: 1.95, under: 1.85 },
+        },
+      },
+      settings: stalenessSettings,
+    });
+
+    expect(result.isStale).toBe(false);
+    expect(result.reason).toBe('odds_movement');
+  });
+
+  test('detects odds movement for prior pick on ht_over via extractMarketOdd', () => {
+    const result = checkStalenessServer({
+      minute: 40,
+      status: '1H',
+      score: '0-0',
+      eventsCompact: [],
+      oddsCanonical: {
+        ht_ou: { line: 1.5, over: 2.1, under: 1.7 },
+      },
+      previousRecommendation: {
+        minute: 30,
+        odds: 1.95,
+        bet_market: 'ht_over_1.5',
+        selection: 'First half over 1.5',
+        score: '0-0',
+      },
+      settings: stalenessSettings,
+    });
+
+    expect(result.isStale).toBe(false);
+    expect(result.reason).toBe('odds_movement');
+    expect(result.baseline).toBe('recommendation');
+  });
+
   test('re-analyzes once cooldown window fully elapsed', () => {
     const result = checkStalenessServer({
       minute: 75,

@@ -30,6 +30,12 @@ describe('settle prompt', () => {
     expect(prompt).toContain('"unresolved"');
   });
 
+  test('includes half-time score when ht scores are provided', () => {
+    const prompt = buildSettlePrompt({ ...match, htHomeScore: 1, htAwayScore: 0 }, bets);
+    expect(prompt).toContain('Half-time (1st half) score: 1-0');
+    expect(prompt).toContain('bet_market starts with "ht_"');
+  });
+
   test('parses only exact valid batches', () => {
     const parsed = parseAISettleResponse(JSON.stringify([
       { id: 1, result: 'unresolved', explanation: 'Khong du thong ke' },

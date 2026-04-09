@@ -101,35 +101,50 @@ function buildMarkdown(summary: {
     `- AH home playable: ${summary.summary.playableAsianHandicapHome}`,
     `- Goals O/U available: ${summary.summary.hasGoalsOu}`,
     `- Corners O/U available: ${summary.summary.hasCornersOu}`,
+    `- H1 1X2 home available: ${summary.summary.hasHt1x2Home}`,
+    `- H1 1X2 home playable: ${summary.summary.playableHt1x2Home}`,
+    `- H1 AH home available: ${summary.summary.hasHtAsianHandicapHome}`,
+    `- H1 AH home playable: ${summary.summary.playableHtAsianHandicapHome}`,
+    `- H1 goals O/U available: ${summary.summary.hasHtGoalsOu}`,
     '',
     '## By Minute Band',
     '',
-    '| Bucket | Total | 1X2 Home | 1X2 Playable | AH Home | AH Playable |',
-    '| --- | --- | --- | --- | --- | --- |',
+    '| Bucket | Total | 1X2 H | 1X2 P | AH H | AH P | HT1X2 H | HT1X2 P | HTAH H | HTAH P | G O/U | Cor | HT G O/U |',
+    '| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |',
   ];
 
   for (const row of summary.summary.byMinuteBand) {
-    lines.push(`| ${row.bucket} | ${row.total} | ${row.has1x2Home} | ${row.playable1x2Home} | ${row.hasAsianHandicapHome} | ${row.playableAsianHandicapHome} |`);
+    lines.push(
+      `| ${row.bucket} | ${row.total} | ${row.has1x2Home} | ${row.playable1x2Home} | ${row.hasAsianHandicapHome} | ${row.playableAsianHandicapHome} | ${row.hasHt1x2Home} | ${row.playableHt1x2Home} | ${row.hasHtAsianHandicapHome} | ${row.playableHtAsianHandicapHome} | ${row.hasGoalsOu} | ${row.hasCornersOu} | ${row.hasHtGoalsOu} |`,
+    );
   }
 
   lines.push('');
   lines.push('## By Score State');
   lines.push('');
-  lines.push('| Bucket | Total | 1X2 Home | 1X2 Playable | AH Home | AH Playable |');
-  lines.push('| --- | --- | --- | --- | --- | --- |');
+  lines.push('| Bucket | Total | 1X2 H | 1X2 P | AH H | AH P | HT1X2 H | HT1X2 P | HTAH H | HTAH P | G O/U | Cor | HT G O/U |');
+  lines.push('| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |');
   for (const row of summary.summary.byScoreState) {
-    lines.push(`| ${row.bucket} | ${row.total} | ${row.has1x2Home} | ${row.playable1x2Home} | ${row.hasAsianHandicapHome} | ${row.playableAsianHandicapHome} |`);
+    lines.push(
+      `| ${row.bucket} | ${row.total} | ${row.has1x2Home} | ${row.playable1x2Home} | ${row.hasAsianHandicapHome} | ${row.playableAsianHandicapHome} | ${row.hasHt1x2Home} | ${row.playableHt1x2Home} | ${row.hasHtAsianHandicapHome} | ${row.playableHtAsianHandicapHome} | ${row.hasGoalsOu} | ${row.hasCornersOu} | ${row.hasHtGoalsOu} |`,
+    );
   }
 
   lines.push('');
   lines.push('## Scenario Rows');
   lines.push('');
-  lines.push('| Scenario | Minute Band | Score State | 1X2 Home | AH Home | Goals O/U | Corners O/U |');
-  lines.push('| --- | --- | --- | --- | --- | --- | --- |');
+  lines.push('| Scenario | Band | Score | 1X2 H | AH | G O/U | Cor | HT1X2 H | HT AH | HT G O/U |');
+  lines.push('| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |');
   for (const row of summary.rows) {
-    const oneX2 = row.has1x2Home ? `${row.oneX2HomeOdds}${row.playable1x2Home ? ' (playable)' : ' (cheap)'}` : '-';
-    const ah = row.hasAsianHandicapHome ? `${row.asianHandicapLine} @ ${row.asianHandicapHomeOdds}${row.playableAsianHandicapHome ? ' (playable)' : ' (cheap)'}` : '-';
-    lines.push(`| ${row.scenarioName} | ${row.minuteBand} | ${row.scoreState} | ${oneX2} | ${ah} | ${row.hasGoalsOu} | ${row.hasCornersOu} |`);
+    const oneX2 = row.has1x2Home ? `${row.oneX2HomeOdds}${row.playable1x2Home ? ' (P)' : ''}` : '-';
+    const ah = row.hasAsianHandicapHome ? `${row.asianHandicapLine}@${row.asianHandicapHomeOdds}${row.playableAsianHandicapHome ? ' (P)' : ''}` : '-';
+    const ht1 = row.hasHt1x2Home ? `${row.ht1x2HomeOdds}${row.playableHt1x2Home ? ' (P)' : ''}` : '-';
+    const htAh = row.hasHtAsianHandicapHome
+      ? `${row.htAsianHandicapLine}@${row.htAsianHandicapHomeOdds}${row.playableHtAsianHandicapHome ? ' (P)' : ''}`
+      : '-';
+    lines.push(
+      `| ${row.scenarioName} | ${row.minuteBand} | ${row.scoreState} | ${oneX2} | ${ah} | ${row.hasGoalsOu} | ${row.hasCornersOu} | ${ht1} | ${htAh} | ${row.hasHtGoalsOu} |`,
+    );
   }
 
   return lines.join('\n');

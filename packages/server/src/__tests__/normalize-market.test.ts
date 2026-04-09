@@ -16,6 +16,9 @@ describe('normalizeMarket', () => {
 
     test('keeps canonical totals from bet_market', () => {
       expect(normalizeMarket('Over 1.5', 'over_1.5')).toBe('over_1.5');
+      expect(normalizeMarket('', 'ht_over_1.5')).toBe('ht_over_1.5');
+      expect(normalizeMarket('', 'ht_under_2.5')).toBe('ht_under_2.5');
+      expect(normalizeMarket('', 'ht_1x2_home')).toBe('ht_1x2_home');
     });
 
     test('canonicalizes descriptive totals bet_market using selection direction', () => {

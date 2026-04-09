@@ -13,6 +13,7 @@ describe('buildTelegramRecommendationMessage', () => {
       model: 'gemini-3-pro-preview',
       mode: 'B',
       selection: 'Under 1.75 Goals',
+      betMarket: 'ht_under_1.75',
       odds: 2.05,
       confidence: 6,
       stakePercent: 3,
@@ -25,6 +26,7 @@ describe('buildTelegramRecommendationMessage', () => {
     });
 
     expect(message).toContain('AI RECOMMENDATION');
+    expect(message).toContain('H1 Goals O/U · Under 1.75 Goals @2.05');
     expect(message).toContain('Minute 32\'');
     expect(message).toContain('Score 0-0');
     expect(message).toContain('Confidence: 6/10');
@@ -46,6 +48,7 @@ describe('buildTelegramRecommendationMessage', () => {
       model: 'gemini-3-pro-preview',
       mode: 'B',
       selection: 'Under 0.75 Goals',
+      betMarket: 'asian_handicap_home_-0.25',
       odds: 1.9,
       confidence: 5,
       stakePercent: 2,
@@ -94,5 +97,24 @@ describe('buildTelegramRecommendationMessage', () => {
     expect(message).toContain('Dieu kien da dat');
     expect(message).toContain('No fresh edge remains.');
     expect(message).toContain('Khong con loi the moi.');
+  });
+
+  test('labels full-time European 1X2 explicitly in Vietnamese', () => {
+    const message = buildTelegramRecommendationMessage({
+      kind: 'recommendation',
+      matchDisplay: 'Team A vs Team B',
+      minute: 71,
+      score: '1-0',
+      status: '2H',
+      selection: 'Home Win',
+      betMarket: '1x2_home',
+      odds: 1.82,
+      confidence: 7,
+      stakePercent: 3,
+      reasoningVi: 'Chu nha kiem soat tran dau tot hon.',
+      language: 'vi',
+    });
+
+    expect(message).toContain('Kèo Châu Âu 1X2 Full-time · Home Win @1.82');
   });
 });

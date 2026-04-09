@@ -78,7 +78,7 @@ describe('replay market opportunities', () => {
         name: 'Asian Handicap',
         values: [
           { value: 'Home', handicap: '-0.25', odd: '1.82' },
-          { value: 'Away', handicap: '-0.25', odd: '2.02' },
+          { value: 'Away', handicap: '+0.25', odd: '2.02' },
         ],
       },
     ]), 1.5);
@@ -120,5 +120,38 @@ describe('replay market opportunities', () => {
     expect(summary.byMinuteBand).toHaveLength(1);
     expect(summary.byMinuteBand[0]?.bucket).toBe('45-59');
     expect(summary.byMinuteBand[0]?.playable1x2Home).toBe(1);
+  });
+
+  test('detects first-half goals O/U and H1 1x2 from canonical builder', () => {
+    const row = buildReplayMarketOpportunity(makeScenario([
+      {
+        name: 'Match Winner',
+        values: [
+          { value: 'Home', odd: '1.62' },
+          { value: 'Draw', odd: '3.7' },
+          { value: 'Away', odd: '5.4' },
+        ],
+      },
+      {
+        name: 'Over/Under First Half',
+        values: [
+          { value: 'Over', odd: '2.05', handicap: '1.5' },
+          { value: 'Under', odd: '1.75', handicap: '1.5' },
+        ],
+      },
+      {
+        name: '1st Half Match Winner',
+        values: [
+          { value: 'Home', odd: '2.2' },
+          { value: 'Draw', odd: '2.4' },
+          { value: 'Away', odd: '4.5' },
+        ],
+      },
+    ]), 1.5);
+
+    expect(row.hasHtGoalsOu).toBe(true);
+    expect(row.hasHt1x2Home).toBe(true);
+    expect(row.playableHt1x2Home).toBe(true);
+    expect(row.ht1x2HomeOdds).toBe(2.2);
   });
 });

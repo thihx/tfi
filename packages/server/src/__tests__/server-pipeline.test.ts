@@ -161,6 +161,29 @@ vi.mock('../lib/provider-insight-cache.js', () => ({
       },
     };
   }),
+  ensureScoutInsight: vi.fn(async () => ({
+    lineups: {
+      payload: [
+        {
+          team: { id: 1, name: 'Team A', logo: '' },
+          coach: { id: 10, name: 'Coach A', photo: null },
+          formation: '4-2-3-1',
+          startXI: [
+            { player: { id: 1, name: 'Keeper A', number: 1, pos: 'G', grid: '1:1' } },
+            { player: { id: 2, name: 'Forward A', number: 9, pos: 'F', grid: '4:1' } },
+          ],
+          substitutes: [
+            { player: { id: 3, name: 'Bench A', number: 14, pos: 'M', grid: null } },
+          ],
+        },
+      ],
+      freshness: 'fresh',
+      cacheStatus: 'hit',
+      cachedAt: new Date().toISOString(),
+      fetchedAt: new Date().toISOString(),
+      degraded: false,
+    },
+  })),
 }));
 
 vi.mock('../lib/provider-sampling.js', () => ({
@@ -2260,6 +2283,66 @@ describe('runPipelineBatch', () => {
     expect(result.prompt).toContain('"corners_ou":{"line":10,"over":2.1,"under":2.2}');
   });
 
+  test('prompt-only analysis removes first-half-only markets once the match reaches HT', async () => {
+    const footballApi = await import('../lib/football-api.js');
+
+    vi.mocked(footballApi.fetchFixturesByIds).mockResolvedValueOnce([{
+      fixture: {
+        id: 100,
+        status: { short: 'HT', elapsed: 45 },
+        timestamp: 1700000000,
+      },
+      teams: { home: { id: 1, name: 'Team A' }, away: { id: 2, name: 'Team B' } },
+      league: { id: 39, name: 'Test League' },
+      goals: { home: 1, away: 0 },
+      score: { halftime: { home: 1, away: 0 } },
+    }] as never);
+    vi.mocked(footballApi.fetchFixtureStatistics).mockResolvedValueOnce([
+      { team: { id: 1 }, statistics: [
+        { type: 'Ball Possession', value: '52%' },
+        { type: 'Total Shots', value: 6 },
+        { type: 'Shots on Goal', value: 2 },
+        { type: 'Corner Kicks', value: 2 },
+        { type: 'Fouls', value: 4 },
+      ] },
+      { team: { id: 2 }, statistics: [
+        { type: 'Ball Possession', value: '48%' },
+        { type: 'Total Shots', value: 4 },
+        { type: 'Shots on Goal', value: 1 },
+        { type: 'Corner Kicks', value: 1 },
+        { type: 'Fouls', value: 6 },
+      ] },
+    ] as never);
+    vi.mocked(footballApi.fetchLiveOdds).mockResolvedValueOnce([{
+      bookmakers: [{
+        name: 'TestBook',
+        bets: [
+          { name: 'Over/Under', values: [
+            { value: 'Over', odd: '1.95', handicap: '2.5' },
+            { value: 'Under', odd: '1.88', handicap: '2.5' },
+          ] },
+          { name: '1st Half Match Winner', values: [
+            { value: 'Home', odd: '2.20' },
+            { value: 'Draw', odd: '2.10' },
+            { value: 'Away', odd: '6.00' },
+          ] },
+          { name: 'Over/Under First Half', values: [
+            { value: 'Over', odd: '2.20', handicap: '1.5' },
+            { value: 'Under', odd: '1.70', handicap: '1.5' },
+          ] },
+        ],
+      }],
+    }] as never);
+
+    const result = await runPromptOnlyAnalysisForMatch('100', { forceAnalyze: true });
+
+    expect(result.prompt).toContain('Removed H1 1X2 market from prompt: first half is already closed (status HT).');
+    expect(result.prompt).toContain('Removed H1 goals O/U market from prompt: first half is already closed (status HT).');
+    expect(result.prompt).toContain('"ou":{"line":2.5,"over":1.95,"under":1.88}');
+    expect(result.prompt).not.toContain('"ht_1x2"');
+    expect(result.prompt).not.toContain('"ht_ou"');
+  });
+
   test('prompt-only analysis upgrades prompt with optional advanced stats only when API data is rich enough', async () => {
     const footballApi = await import('../lib/football-api.js');
     vi.mocked(footballApi.fetchFixtureStatistics).mockResolvedValueOnce([
@@ -2831,6 +2914,9 @@ describe('runPipelineBatch', () => {
     const prompt = vi.mocked(callGemini).mock.calls[0]?.[0] ?? '';
     expect(prompt).toContain('FOLLOW_UP_MODE: advisory');
     expect(prompt).toContain('USER_QUESTION: Would Home -0.25 be better here?');
+    expect(prompt).toContain('LINEUPS_SNAPSHOT:');
+    expect(prompt).toContain('Coach A');
+    expect(prompt).toContain('Forward A');
     expect(result.result.success).toBe(true);
     expect(result.result.saved).toBe(false);
     expect(result.result.notified).toBe(false);
@@ -2840,5 +2926,66 @@ describe('runPipelineBatch', () => {
       follow_up_answer_vi: 'Keo chu nha -0.25 chi nen can nhac neu the tran kiem soat van duoc duy tri.',
     }));
     expect(createRecommendation).not.toHaveBeenCalled();
+  });
+
+  test('advisory follow-up prepends lineup-unavailable notice when question mixes lineup and market', async () => {
+    const { callGemini } = await import('../lib/gemini.js');
+    const { ensureScoutInsight } = await import('../lib/provider-insight-cache.js');
+
+    vi.mocked(ensureScoutInsight).mockResolvedValueOnce({
+      lineups: {
+        payload: [],
+        freshness: 'missing',
+        cacheStatus: 'miss',
+        cachedAt: null,
+        fetchedAt: null,
+        degraded: false,
+      },
+    } as Awaited<ReturnType<typeof ensureScoutInsight>>);
+
+    vi.mocked(callGemini).mockResolvedValueOnce(JSON.stringify({
+      should_push: false,
+      selection: '',
+      bet_market: '',
+      market_chosen_reason: 'No direct edge',
+      confidence: 0,
+      reasoning_en: 'No bet.',
+      reasoning_vi: 'Khong vao keo.',
+      warnings: ['ADVISORY_ONLY'],
+      value_percent: 0,
+      risk_level: 'LOW',
+      stake_percent: 0,
+      custom_condition_matched: false,
+      custom_condition_status: 'none',
+      custom_condition_summary_en: '',
+      custom_condition_summary_vi: '',
+      custom_condition_reason_en: '',
+      custom_condition_reason_vi: '',
+      condition_triggered_suggestion: '',
+      condition_triggered_reasoning_en: '',
+      condition_triggered_reasoning_vi: '',
+      condition_triggered_confidence: 0,
+      condition_triggered_stake: 0,
+      condition_triggered_special_override: false,
+      condition_triggered_special_override_reason_en: '',
+      condition_triggered_special_override_reason_vi: '',
+      follow_up_answer_en: 'Full-time European 1X2 away still looks like the cleaner angle if the pressure holds.',
+      follow_up_answer_vi: 'Keo chau Au 1X2 full-time cua doi khach van la lua chon sach hon neu suc ep duoc duy tri.',
+    }));
+
+    const result = await runPromptOnlyAnalysisForMatch('100', {
+      forceAnalyze: true,
+      advisoryOnly: true,
+      userQuestion: 'Lineup thế nào và kèo 1x2 đội khách có ổn không?',
+      followUpHistory: [],
+    });
+
+    expect(result.result.success).toBe(true);
+    expect(result.result.saved).toBe(false);
+    expect(result.result.notified).toBe(false);
+    expect(result.result.debug?.parsed).toEqual(expect.objectContaining({
+      follow_up_answer_en: expect.stringContaining('Confirmed lineup data is currently unavailable in this snapshot.'),
+      follow_up_answer_vi: expect.stringContaining('Du lieu doi hinh chinh thuc hien chua co trong snapshot nay.'),
+    }));
   });
 });

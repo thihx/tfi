@@ -125,4 +125,35 @@ describe('odds canonical parser', () => {
     // |-0.75−(−1)| = 0.25 < |-0.75−(−0.25)| = 0.5 → adjacent is −1
     expect(result.canonical.ah_adjacent?.line).toBe(-1);
   });
+
+  test('first half goals O/U maps to ht_ou without polluting FT ou', () => {
+    const result = buildOddsCanonical([{
+      bookmakers: [{
+        name: 'Replay Mock',
+        bets: [
+          {
+            name: 'Over/Under First Half',
+            values: [
+              { value: 'Over', odd: '2.05', handicap: '1.5' },
+              { value: 'Under', odd: '1.75', handicap: '1.5' },
+            ],
+          },
+          {
+            name: 'Over/Under',
+            values: [
+              { value: 'Over', odd: '1.91', handicap: '2.5' },
+              { value: 'Under', odd: '1.93', handicap: '2.5' },
+            ],
+          },
+        ],
+      }],
+    }]);
+
+    expect(result.canonical.ou?.line).toBe(2.5);
+    expect(result.canonical.ht_ou).toEqual({
+      line: 1.5,
+      over: 2.05,
+      under: 1.75,
+    });
+  });
 });

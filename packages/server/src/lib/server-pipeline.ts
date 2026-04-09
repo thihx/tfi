@@ -21,9 +21,10 @@ import {
   fetchFixtureEvents,
   type ApiFixture,
   type ApiFixtureEvent,
+  type ApiFixtureLineup,
   type ApiFixtureStat,
 } from './football-api.js';
-import { ensureFixturesForMatchIds, ensureMatchInsight } from './provider-insight-cache.js';
+import { ensureFixturesForMatchIds, ensureMatchInsight, ensureScoutInsight } from './provider-insight-cache.js';
 import * as watchlistRepo from '../repos/watchlist.repo.js';
 import {
   createRecommendation,
@@ -85,8 +86,14 @@ import {
   type RecommendationPolicyPreviousRow,
   type RecommendationPolicyStatsCompact,
 } from './recommendation-policy.js';
-import { detectGoalsCornersLineContamination } from './odds-integrity.js';
+import {
+  detectGoalsCornersLineContamination,
+  detectHtGoalsCornersLineContamination,
+} from './odds-integrity.js';
 import { parseBetMarketLineSuffix as parseLineSuffix, sameOddsLine as sameLine } from './odds-line-utils.js';
+import { isFirstHalfApiBetName, isSecondHalfOnlyApiBetName } from './first-half-markets.js';
+import { extractHalftimeScoreFromFixture } from './settle-context.js';
+import { formatSelectionWithMarketContext } from './market-display.js';
 
 const pipelineSkipAuditCounters = new Map<string, number>();
 
@@ -184,6 +191,7 @@ const defaultPipelineDeps = {
   fetchFixtureStatistics,
   fetchFixtureEvents,
   ensureMatchInsight,
+  ensureScoutInsight,
   resolveMatchOdds,
   getRecommendationsByMatchId,
   getLatestSnapshot,
@@ -317,6 +325,13 @@ interface OddsCanonical {
   ah_adjacent?: { line: number; home: number | null; away: number | null };
   btts?: { yes: number | null; no: number | null };
   corners_ou?: { line: number; over: number | null; under: number | null };
+  /** First-half (H1) match odds — keys in prompts / bet_market use `ht_*` prefix. */
+  ht_1x2?: { home: number | null; draw: number | null; away: number | null };
+  ht_ou?: { line: number; over: number | null; under: number | null };
+  ht_ou_adjacent?: { line: number; over: number | null; under: number | null };
+  ht_ah?: { line: number; home: number | null; away: number | null };
+  ht_ah_adjacent?: { line: number; home: number | null; away: number | null };
+  ht_btts?: { yes: number | null; no: number | null };
 }
 
 interface OddsSanitizationResult {
@@ -1053,6 +1068,17 @@ interface PromptExecutionContext {
   statsFallbackReason: string;
   userQuestion?: string;
   followUpHistory?: Array<{ role: 'user' | 'assistant'; text: string }>;
+  lineupsSnapshot?: {
+    available: boolean;
+    teams: Array<{
+      side: 'home' | 'away';
+      teamName: string;
+      formation: string | null;
+      coachName: string | null;
+      starters: string[];
+      substitutes: string[];
+    }>;
+  } | null;
   settledReplayApprovedTrace?: boolean;
   settledReplayOriginalBetMarket?: string;
   settledReplayOriginalSelection?: string;
@@ -1367,6 +1393,122 @@ function deriveInsightsFromEvents(
   };
 }
 
+function summarizeLineupsForPrompt(
+  lineups: ApiFixtureLineup[] | null | undefined,
+  homeTeamName: string,
+  awayTeamName: string,
+): {
+  available: boolean;
+  teams: Array<{
+    side: 'home' | 'away';
+    teamName: string;
+    formation: string | null;
+    coachName: string | null;
+    starters: string[];
+    substitutes: string[];
+  }>;
+} | null {
+  if (!Array.isArray(lineups) || lineups.length === 0) return null;
+
+  const teams = lineups.map((row) => {
+    const normalizedName = String(row.team?.name ?? '').trim().toLowerCase();
+    const side: 'home' | 'away' = normalizedName === awayTeamName.trim().toLowerCase() ? 'away' : 'home';
+    return {
+      side,
+      teamName: String(row.team?.name ?? (side === 'home' ? homeTeamName : awayTeamName)).trim(),
+      formation: row.formation ? String(row.formation).trim() : null,
+      coachName: row.coach?.name ? String(row.coach.name).trim() : null,
+      starters: Array.isArray(row.startXI)
+        ? row.startXI
+            .map((entry) => {
+              const name = String(entry.player?.name ?? '').trim();
+              const number = entry.player?.number != null ? `#${entry.player.number}` : '';
+              const pos = entry.player?.pos ? ` ${entry.player.pos}` : '';
+              return [number, name, pos].join(' ').trim();
+            })
+            .filter(Boolean)
+            .slice(0, 11)
+        : [],
+      substitutes: Array.isArray(row.substitutes)
+        ? row.substitutes
+            .map((entry) => {
+              const name = String(entry.player?.name ?? '').trim();
+              const number = entry.player?.number != null ? `#${entry.player.number}` : '';
+              const pos = entry.player?.pos ? ` ${entry.player.pos}` : '';
+              return [number, name, pos].join(' ').trim();
+            })
+            .filter(Boolean)
+            .slice(0, 12)
+        : [],
+    };
+  });
+
+  return { available: teams.length > 0, teams };
+}
+
+function normalizeComparableText(value: string | null | undefined): string {
+  return String(value ?? '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase();
+}
+
+function questionMentionsLineup(question: string | null | undefined): boolean {
+  const normalized = normalizeComparableText(question);
+  if (!normalized) return false;
+  return [
+    'lineup',
+    'line-up',
+    'starting lineup',
+    'starting xi',
+    'start xi',
+    'doi hinh',
+    'doi hinh ra san',
+    'ra san',
+    'formation',
+    'so do',
+    'starting eleven',
+    'xi',
+  ].some((term) => normalized.includes(term));
+}
+
+function answerAlreadyMentionsLineupUnavailable(answer: string | null | undefined): boolean {
+  const normalized = normalizeComparableText(answer);
+  if (!normalized) return false;
+  return (
+    (normalized.includes('lineup') && (normalized.includes('unavailable') || normalized.includes('not available') || normalized.includes('not provided')))
+    || (normalized.includes('doi hinh') && (normalized.includes('chua co') || normalized.includes('khong co') || normalized.includes('khong san co')))
+  );
+}
+
+function enforceFollowUpLineupAvailability(
+  parsed: ParsedAiResponse,
+  options: {
+    userQuestion?: string;
+    lineupsSnapshot?: { available: boolean } | null;
+  },
+): void {
+  if (!questionMentionsLineup(options.userQuestion)) return;
+  if (options.lineupsSnapshot?.available === true) return;
+
+  const unavailableEn = 'Confirmed lineup data is currently unavailable in this snapshot.';
+  const unavailableVi = 'Du lieu doi hinh chinh thuc hien chua co trong snapshot nay.';
+
+  const currentEn = String(parsed.follow_up_answer_en || '').trim();
+  const currentVi = String(parsed.follow_up_answer_vi || '').trim();
+
+  parsed.follow_up_answer_en = answerAlreadyMentionsLineupUnavailable(currentEn)
+    ? currentEn
+    : currentEn
+      ? `${unavailableEn} ${currentEn}`
+      : unavailableEn;
+  parsed.follow_up_answer_vi = answerAlreadyMentionsLineupUnavailable(currentVi)
+    ? currentVi
+    : currentVi
+      ? `${unavailableVi} ${currentVi}`
+      : unavailableVi;
+}
+
 // ==================== Build Stats Compact ====================
 
 function buildStatsCompact(
@@ -1445,100 +1587,145 @@ export function buildOddsCanonical(oddsResponse: unknown[]): { canonical: OddsCa
   const bookmakers = resp[0]?.bookmakers || [];
   if (bookmakers.length === 0) return { canonical: {}, available: false };
 
-  const oddsMap: Record<string, number> = {};
+  const ftOddsMap: Record<string, number> = {};
+  const htOddsMap: Record<string, number> = {};
   const best1X2 = { home: 0, draw: 0, away: 0 };
+  const best1X2Ht = { home: 0, draw: 0, away: 0 };
   const bestBTTS = { yes: 0, no: 0 };
+  const bestBTTSHt = { yes: 0, no: 0 };
+
+  const ingestPeriod = (args: {
+    betName: string;
+    values: Array<{ value: string; odd: string; handicap?: string }>;
+    isCornerBet: boolean;
+    keyPrefix: '' | 'ht ';
+    oddsMap: Record<string, number>;
+    best1X2Local: { home: number; draw: number; away: number };
+    bestBTTSLocal: { yes: number; no: number };
+  }) => {
+    const {
+      betName, values, isCornerBet, keyPrefix, oddsMap, best1X2Local, bestBTTSLocal,
+    } = args;
+    const pk = (k: string) => (keyPrefix ? `${keyPrefix}${k}` : k);
+
+    const is1x2Ft = betName.includes('1x2') || betName.includes('match winner') || betName.includes('fulltime result') || betName === 'full time result';
+    const is1x2Ht = betName.includes('1x2') || betName.includes('winner') || betName.includes('fulltime result') || betName === 'full time result';
+    const is1x2 = keyPrefix ? is1x2Ht : is1x2Ft;
+
+    if (is1x2) {
+      for (const v of values) {
+        const label = String(v.value || '').toLowerCase().trim();
+        const odd = toNumber(v.odd) ?? 0;
+        if (!odd || odd <= 1) continue;
+        if (label === 'home' || label === '1') best1X2Local.home = Math.max(best1X2Local.home, odd);
+        if (label === 'draw' || label === 'x') best1X2Local.draw = Math.max(best1X2Local.draw, odd);
+        if (label === 'away' || label === '2') best1X2Local.away = Math.max(best1X2Local.away, odd);
+      }
+    }
+
+    if (!isCornerBet && (betName.includes('over/under') || betName.includes('over / under') || betName.includes('total goals') || betName.includes('match goals'))) {
+      for (const v of values) {
+        const raw = String(v.value || '').toLowerCase().trim();
+        const hc = v.handicap ? String(v.handicap).trim() : '';
+        const odd = toNumber(v.odd) ?? 0;
+        if (!odd || odd <= 1) continue;
+        let key: string;
+        if (hc) {
+          key = `${raw} ${hc}`;
+        } else {
+          const m = raw.match(/^(over|under)\s+([0-9]+(?:\.[0-9]+)?)$/);
+          if (!m) continue;
+          key = raw;
+        }
+        const slot = pk(key);
+        if (!(slot in oddsMap) || odd > (oddsMap[slot] ?? 0)) oddsMap[slot] = odd;
+      }
+    }
+
+    if (betName.includes('both teams') || betName === 'btts') {
+      for (const v of values) {
+        const label = String(v.value || '').toLowerCase().trim();
+        const odd = toNumber(v.odd) ?? 0;
+        if (!odd || odd <= 1) continue;
+        if (label === 'yes') bestBTTSLocal.yes = Math.max(bestBTTSLocal.yes, odd);
+        if (label === 'no') bestBTTSLocal.no = Math.max(bestBTTSLocal.no, odd);
+      }
+    }
+
+    if (!isCornerBet && betName.includes('handicap')) {
+      for (const v of values) {
+        let raw = String(v.value || '').toLowerCase().trim();
+        const hc = v.handicap ? String(v.handicap).trim() : '';
+        const odd = toNumber(v.odd) ?? 0;
+        if (!odd || odd <= 1) continue;
+        let key: string;
+        if (hc) {
+          if (raw === '1') raw = 'home';
+          if (raw === '2') raw = 'away';
+          key = `${raw} ${hc}`;
+        } else {
+          const m = raw.match(/^(home|away|1|2)\s+([-+]?[0-9]+(?:\.[0-9]+)?)$/);
+          if (!m) continue;
+          let side = m[1];
+          if (side === '1') side = 'home';
+          if (side === '2') side = 'away';
+          key = `${side} ${m[2]}`;
+        }
+        const slot = pk(key);
+        if (!(slot in oddsMap) || odd > (oddsMap[slot] ?? 0)) oddsMap[slot] = odd;
+      }
+    }
+
+    if (betName.includes('corner')) {
+      for (const v of values) {
+        const raw = String(v.value || '').toLowerCase().trim();
+        const hc = v.handicap ? String(v.handicap).trim() : '';
+        const odd = toNumber(v.odd) ?? 0;
+        if (!odd || odd <= 1) continue;
+        let key: string | null = null;
+        if (hc && (raw === 'over' || raw === 'under')) {
+          key = `corners ${raw} ${hc}`;
+        } else {
+          const m = raw.match(/^(over|under)\s+([0-9]+(?:\.[0-9]+)?)$/);
+          if (m) key = `corners ${m[1]} ${m[2]}`;
+        }
+        if (key) {
+          const slot = pk(key);
+          if (!(slot in oddsMap) || odd > (oddsMap[slot] ?? 0)) oddsMap[slot] = odd;
+        }
+      }
+    }
+  };
 
   for (const bk of bookmakers) {
     for (const bet of bk.bets || []) {
       const betName = String(bet.name || '').toLowerCase();
       const values = bet.values || [];
-      const isHalf = /1st half|2nd half|first half|second half|\bht\b|\b1h\b|\b2h\b|half.?time/i.test(betName);
       const isCornerBet = betName.includes('corner');
-      if (isHalf) continue;
+      const isHalfSpecific = isFirstHalfApiBetName(betName) || isSecondHalfOnlyApiBetName(betName);
+      const isHtFirstHalfOnly = isFirstHalfApiBetName(betName) && !isSecondHalfOnlyApiBetName(betName);
 
-      // 1X2
-      if (betName.includes('1x2') || betName.includes('match winner') || betName.includes('fulltime result') || betName === 'full time result') {
-        for (const v of values) {
-          const label = String(v.value || '').toLowerCase().trim();
-          const odd = toNumber(v.odd) ?? 0;
-          if (!odd || odd <= 1) continue;
-          if (label === 'home' || label === '1') best1X2.home = Math.max(best1X2.home, odd);
-          if (label === 'draw' || label === 'x') best1X2.draw = Math.max(best1X2.draw, odd);
-          if (label === 'away' || label === '2') best1X2.away = Math.max(best1X2.away, odd);
-        }
+      if (!isHalfSpecific) {
+        ingestPeriod({
+          betName,
+          values,
+          isCornerBet,
+          keyPrefix: '',
+          oddsMap: ftOddsMap,
+          best1X2Local: best1X2,
+          bestBTTSLocal: bestBTTS,
+        });
       }
-
-      // Over/Under
-      if (!isCornerBet && (betName.includes('over/under') || betName.includes('over / under') || betName.includes('total goals') || betName.includes('match goals'))) {
-        for (const v of values) {
-          const raw = String(v.value || '').toLowerCase().trim();
-          const hc = v.handicap ? String(v.handicap).trim() : '';
-          const odd = toNumber(v.odd) ?? 0;
-          if (!odd || odd <= 1) continue;
-          let key: string;
-          if (hc) {
-            key = `${raw} ${hc}`;
-          } else {
-            const m = raw.match(/^(over|under)\s+([0-9]+(?:\.[0-9]+)?)$/);
-            if (!m) continue;
-            key = raw;
-          }
-          if (!(key in oddsMap) || odd > (oddsMap[key] ?? 0)) oddsMap[key] = odd;
-        }
-      }
-
-      // BTTS
-      if (betName.includes('both teams') || betName === 'btts') {
-        for (const v of values) {
-          const label = String(v.value || '').toLowerCase().trim();
-          const odd = toNumber(v.odd) ?? 0;
-          if (!odd || odd <= 1) continue;
-          if (label === 'yes') bestBTTS.yes = Math.max(bestBTTS.yes, odd);
-          if (label === 'no') bestBTTS.no = Math.max(bestBTTS.no, odd);
-        }
-      }
-
-      // Asian Handicap
-      if (!isCornerBet && betName.includes('handicap')) {
-        for (const v of values) {
-          let raw = String(v.value || '').toLowerCase().trim();
-          const hc = v.handicap ? String(v.handicap).trim() : '';
-          const odd = toNumber(v.odd) ?? 0;
-          if (!odd || odd <= 1) continue;
-          let key: string;
-          if (hc) {
-            if (raw === '1') raw = 'home';
-            if (raw === '2') raw = 'away';
-            key = `${raw} ${hc}`;
-          } else {
-            const m = raw.match(/^(home|away|1|2)\s+([-+]?[0-9]+(?:\.[0-9]+)?)$/);
-            if (!m) continue;
-            let side = m[1];
-            if (side === '1') side = 'home';
-            if (side === '2') side = 'away';
-            key = `${side} ${m[2]}`;
-          }
-          if (!(key in oddsMap) || odd > (oddsMap[key] ?? 0)) oddsMap[key] = odd;
-        }
-      }
-
-      // Corners
-      if (betName.includes('corner')) {
-        for (const v of values) {
-          const raw = String(v.value || '').toLowerCase().trim();
-          const hc = v.handicap ? String(v.handicap).trim() : '';
-          const odd = toNumber(v.odd) ?? 0;
-          if (!odd || odd <= 1) continue;
-          let key: string | null = null;
-          if (hc && (raw === 'over' || raw === 'under')) {
-            key = `corners ${raw} ${hc}`;
-          } else {
-            const m = raw.match(/^(over|under)\s+([0-9]+(?:\.[0-9]+)?)$/);
-            if (m) key = `corners ${m[1]} ${m[2]}`;
-          }
-          if (key && (!(key in oddsMap) || odd > (oddsMap[key] ?? 0))) oddsMap[key] = odd;
-        }
+      if (isHtFirstHalfOnly) {
+        ingestPeriod({
+          betName,
+          values,
+          isCornerBet,
+          keyPrefix: 'ht ',
+          oddsMap: htOddsMap,
+          best1X2Local: best1X2Ht,
+          bestBTTSLocal: bestBTTSHt,
+        });
       }
     }
   }
@@ -1554,7 +1741,7 @@ export function buildOddsCanonical(oddsResponse: unknown[]): { canonical: OddsCa
   }
 
   const goalsOuPair = buildMainOUWithAdjacent(
-    oddsMap,
+    ftOddsMap,
     /^(over|under)\s+[0-9]+(\.[0-9]+)?$/,
     /^(over|under)\s+([0-9]+(\.[0-9]+)?)/,
   );
@@ -1563,21 +1750,45 @@ export function buildOddsCanonical(oddsResponse: unknown[]): { canonical: OddsCa
     if (goalsOuPair.adjacent) canonical['ou_adjacent'] = goalsOuPair.adjacent;
   }
   const cornersOuPair = buildMainOUWithAdjacent(
-    oddsMap,
+    ftOddsMap,
     /^corners\s+(over|under)\s+[0-9]+(\.[0-9]+)?$/,
     /^corners\s+(over|under)\s+([0-9]+(\.[0-9]+)?)/,
   );
   if (cornersOuPair) {
     canonical['corners_ou'] = cornersOuPair.main;
   }
-  const ahPair = buildMainAHWithAdjacent(oddsMap);
+  const ahPair = buildMainAHWithAdjacent(ftOddsMap);
   if (ahPair) {
     canonical['ah'] = ahPair.main;
     if (ahPair.adjacent) canonical['ah_adjacent'] = ahPair.adjacent;
   }
-  // BTTS
   if (bestBTTS.yes > 0 || bestBTTS.no > 0) {
     canonical['btts'] = { yes: bestBTTS.yes || null, no: bestBTTS.no || null };
+  }
+
+  if (best1X2Ht.home > 0 || best1X2Ht.away > 0 || best1X2Ht.draw > 0) {
+    canonical['ht_1x2'] = {
+      home: best1X2Ht.home || null,
+      draw: best1X2Ht.draw || null,
+      away: best1X2Ht.away || null,
+    };
+  }
+  const htGoalsOuPair = buildMainOUWithAdjacent(
+    htOddsMap,
+    /^ht (over|under)\s+[0-9]+(\.[0-9]+)?$/,
+    /^ht (over|under)\s+([0-9]+(\.[0-9]+)?)/,
+  );
+  if (htGoalsOuPair) {
+    canonical['ht_ou'] = htGoalsOuPair.main;
+    if (htGoalsOuPair.adjacent) canonical['ht_ou_adjacent'] = htGoalsOuPair.adjacent;
+  }
+  const htAhPair = buildMainAHWithAdjacent(htOddsMap, 'ht ');
+  if (htAhPair) {
+    canonical['ht_ah'] = htAhPair.main;
+    if (htAhPair.adjacent) canonical['ht_ah_adjacent'] = htAhPair.adjacent;
+  }
+  if (bestBTTSHt.yes > 0 || bestBTTSHt.no > 0) {
+    canonical['ht_btts'] = { yes: bestBTTSHt.yes || null, no: bestBTTSHt.no || null };
   }
 
   // Validate implied-probability margins — remove markets with unrealistic margins
@@ -1620,7 +1831,50 @@ export function buildOddsCanonical(oddsResponse: unknown[]): { canonical: OddsCa
     if (t > 0 && (t < 0.85 || t > 1.15)) delete canonical['corners_ou'];
   }
 
-  const hasAnyMarket = !!(canonical['1x2'] || canonical['ou'] || canonical['ah'] || canonical['btts'] || canonical['corners_ou']);
+  if (canonical['ht_1x2']) {
+    const t = ip(canonical['ht_1x2'].home) + ip(canonical['ht_1x2'].draw) + ip(canonical['ht_1x2'].away);
+    if (t > 0 && (t < 0.90 || t > 1.20)) delete canonical['ht_1x2'];
+  }
+  if (canonical['ht_ou'] && canonical['ht_ou'].over !== null && canonical['ht_ou'].under !== null) {
+    const t = ip(canonical['ht_ou'].over) + ip(canonical['ht_ou'].under);
+    if (t > 0 && (t < 0.85 || t > 1.15)) delete canonical['ht_ou'];
+  }
+  if (
+    canonical['ht_ou_adjacent']
+    && canonical['ht_ou_adjacent'].over !== null
+    && canonical['ht_ou_adjacent'].under !== null
+  ) {
+    const t = ip(canonical['ht_ou_adjacent'].over) + ip(canonical['ht_ou_adjacent'].under);
+    if (t > 0 && (t < 0.85 || t > 1.15)) delete canonical['ht_ou_adjacent'];
+  }
+  if (canonical['ht_ah'] && canonical['ht_ah'].home !== null && canonical['ht_ah'].away !== null) {
+    const t = ip(canonical['ht_ah'].home) + ip(canonical['ht_ah'].away);
+    if (t > 0 && (t < 0.85 || t > 1.15)) delete canonical['ht_ah'];
+  }
+  if (
+    canonical['ht_ah_adjacent']
+    && canonical['ht_ah_adjacent'].home !== null
+    && canonical['ht_ah_adjacent'].away !== null
+  ) {
+    const t = ip(canonical['ht_ah_adjacent'].home) + ip(canonical['ht_ah_adjacent'].away);
+    if (t > 0 && (t < 0.85 || t > 1.15)) delete canonical['ht_ah_adjacent'];
+  }
+  if (canonical['ht_btts'] && canonical['ht_btts'].yes !== null && canonical['ht_btts'].no !== null) {
+    const t = ip(canonical['ht_btts'].yes) + ip(canonical['ht_btts'].no);
+    if (t > 0 && (t < 0.85 || t > 1.15)) delete canonical['ht_btts'];
+  }
+
+  const hasAnyMarket = !!(
+    canonical['1x2']
+    || canonical['ou']
+    || canonical['ah']
+    || canonical['btts']
+    || canonical['corners_ou']
+    || canonical['ht_1x2']
+    || canonical['ht_ou']
+    || canonical['ht_ah']
+    || canonical['ht_btts']
+  );
   return { canonical, available: hasAnyMarket };
 }
 
@@ -1631,6 +1885,10 @@ function sanitizePromptOddsCanonical(args: {
   currentTotalGoals: number;
   currentTotalCorners: number | null;
   matchMinute: number;
+  matchStatus?: string | null;
+  /** Official H1 goals when API provides `score.halftime`; drives ht_* prompt cleanup. */
+  htHomeGoals?: number | null;
+  htAwayGoals?: number | null;
 }): OddsSanitizationResult {
   const sanitized: OddsCanonical = { ...args.canonical };
   const warnings: string[] = [];
@@ -1646,6 +1904,75 @@ function sanitizePromptOddsCanonical(args: {
       'btts',
       `Removed BTTS market from prompt: both teams have already scored (${args.homeGoals}-${args.awayGoals}), so BTTS is already logically settled.`,
     );
+  }
+
+  const htHome = args.htHomeGoals;
+  const htAway = args.htAwayGoals;
+  const htTotalKnown =
+    typeof htHome === 'number' && typeof htAway === 'number' ? htHome + htAway : null;
+  const matchStatus = String(args.matchStatus ?? '').toUpperCase();
+  const firstHalfClosed = !!matchStatus && matchStatus !== 'NS' && matchStatus !== '1H';
+
+  if (firstHalfClosed) {
+    removeMarket(
+      'ht_1x2',
+      `Removed H1 1X2 market from prompt: first half is already closed (status ${matchStatus}).`,
+    );
+    removeMarket(
+      'ht_ou',
+      `Removed H1 goals O/U market from prompt: first half is already closed (status ${matchStatus}).`,
+    );
+    removeMarket(
+      'ht_ou_adjacent',
+      `Removed adjacent H1 goals O/U line from prompt: first half is already closed (status ${matchStatus}).`,
+    );
+    removeMarket(
+      'ht_ah',
+      `Removed H1 Asian Handicap market from prompt: first half is already closed (status ${matchStatus}).`,
+    );
+    removeMarket(
+      'ht_ah_adjacent',
+      `Removed adjacent H1 Asian Handicap line from prompt: first half is already closed (status ${matchStatus}).`,
+    );
+    removeMarket(
+      'ht_btts',
+      `Removed H1 BTTS market from prompt: first half is already closed (status ${matchStatus}).`,
+    );
+  }
+
+  if (typeof htHome === 'number' && typeof htAway === 'number' && htHome > 0 && htAway > 0) {
+    removeMarket(
+      'ht_btts',
+      `Removed H1 BTTS from prompt: both teams already scored in the first half (${htHome}-${htAway}).`,
+    );
+  }
+
+  if (htTotalKnown !== null && typeof sanitized.ht_ou?.line === 'number' && htTotalKnown > sanitized.ht_ou.line) {
+    removeMarket(
+      'ht_ou',
+      `Removed H1 goals O/U from prompt: H1 total ${htTotalKnown} already exceeds line ${sanitized.ht_ou.line}.`,
+    );
+  }
+  if (
+    htTotalKnown !== null
+    && typeof sanitized.ht_ou_adjacent?.line === 'number'
+    && htTotalKnown > sanitized.ht_ou_adjacent.line
+  ) {
+    removeMarket(
+      'ht_ou_adjacent',
+      `Removed adjacent H1 goals O/U from prompt: H1 total ${htTotalKnown} already exceeds line ${sanitized.ht_ou_adjacent.line}.`,
+    );
+  }
+
+  if (htTotalKnown !== null) {
+    const htContam = detectHtGoalsCornersLineContamination(sanitized, htTotalKnown);
+    if (htContam.contaminated) {
+      removeMarket('ht_ou', htContam.reason);
+      removeMarket(
+        'ht_ou_adjacent',
+        `${htContam.reason} (cleared adjacent H1 O/U ladder).`,
+      );
+    }
   }
 
   if (typeof sanitized.ou?.line === 'number' && args.currentTotalGoals > sanitized.ou.line) {
@@ -1714,6 +2041,10 @@ function sanitizePromptOddsCanonical(args: {
     || sanitized['ah']
     || sanitized['btts']
     || sanitized['corners_ou']
+    || sanitized['ht_1x2']
+    || sanitized['ht_ou']
+    || sanitized['ht_ah']
+    || sanitized['ht_btts']
   );
 
   return {
@@ -1800,17 +2131,23 @@ function buildMainOUWithAdjacent(
   };
 }
 
-function buildMainAHWithAdjacent(oddsMap: Record<string, number>): {
+function buildMainAHWithAdjacent(
+  oddsMap: Record<string, number>,
+  keyPrefix = '',
+): {
   main: { line: number; home: number | null; away: number | null };
   adjacent?: { line: number; home: number | null; away: number | null };
 } | undefined {
-  const entries = Object.entries(oddsMap).filter(([k]) => /^(home|away)\s+[-+]?[0-9]+(\.[0-9]+)?$/.test(k));
+  const esc = keyPrefix.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const keyRe = new RegExp(`^${esc}(home|away)\\s+[-+]?[0-9]+(\\.[0-9]+)?$`);
+  const parseRe = new RegExp(`^${esc}(home|away)\\s+([-+]?[0-9]+(\\.[0-9]+)?)`);
+  const entries = Object.entries(oddsMap).filter(([k]) => keyRe.test(k));
   if (!entries.length) return undefined;
 
   /** Home-centric line: `home -0.75` & `away +0.75` merge to line `-0.75`. */
   const lineMap = new Map<string, Record<string, number>>();
   for (const [k, odd] of entries) {
-    const m = k.match(/^(home|away)\s+([-+]?[0-9]+(\.[0-9]+)?)/);
+    const m = k.match(parseRe);
     if (!m?.[1] || !m[2]) continue;
     const hc = Number(m[2]);
     if (!Number.isFinite(hc)) continue;
@@ -2056,6 +2393,44 @@ function extractOddsFromSelection(selection: string, betMarket: string, canonica
   if (market === 'btts_yes') return oc.btts?.yes ?? null;
   if (market === 'btts_no') return oc.btts?.no ?? null;
 
+  if (market === 'ht_1x2_home') return oc['ht_1x2']?.home ?? null;
+  if (market === 'ht_1x2_away') return oc['ht_1x2']?.away ?? null;
+  if (market === 'ht_1x2_draw') return oc['ht_1x2']?.draw ?? null;
+  if (market === 'ht_btts_yes') return oc.ht_btts?.yes ?? null;
+  if (market === 'ht_btts_no') return oc.ht_btts?.no ?? null;
+
+  const htGoalOverLine = parseLineSuffix('ht_over_', market);
+  if (htGoalOverLine !== null) {
+    if (sameLine(htGoalOverLine, oc.ht_ou?.line)) return oc.ht_ou?.over ?? null;
+    if (sameLine(htGoalOverLine, oc.ht_ou_adjacent?.line)) return oc.ht_ou_adjacent?.over ?? null;
+    return null;
+  }
+
+  const htGoalUnderLine = parseLineSuffix('ht_under_', market);
+  if (htGoalUnderLine !== null) {
+    if (sameLine(htGoalUnderLine, oc.ht_ou?.line)) return oc.ht_ou?.under ?? null;
+    if (sameLine(htGoalUnderLine, oc.ht_ou_adjacent?.line)) return oc.ht_ou_adjacent?.under ?? null;
+    return null;
+  }
+
+  const htAhHomeLine = parseLineSuffix('ht_asian_handicap_home_', market);
+  if (htAhHomeLine !== null) {
+    if (sameLine(htAhHomeLine, oc.ht_ah?.line)) return oc.ht_ah?.home ?? null;
+    if (sameLine(htAhHomeLine, oc.ht_ah_adjacent?.line)) return oc.ht_ah_adjacent?.home ?? null;
+    return null;
+  }
+
+  const htAhAwayLine = parseLineSuffix('ht_asian_handicap_away_', market);
+  if (htAhAwayLine !== null) {
+    const matchMain =
+      sameLine(htAhAwayLine, oc.ht_ah?.line) || sameLine(-htAhAwayLine, oc.ht_ah?.line);
+    if (matchMain) return oc.ht_ah?.away ?? null;
+    const matchAdj =
+      sameLine(htAhAwayLine, oc.ht_ah_adjacent?.line) || sameLine(-htAhAwayLine, oc.ht_ah_adjacent?.line);
+    if (matchAdj) return oc.ht_ah_adjacent?.away ?? null;
+    return null;
+  }
+
   const goalOverLine = parseLineSuffix('over_', market);
   if (goalOverLine !== null) {
     if (sameLine(goalOverLine, oc.ou?.line)) return oc.ou?.over ?? null;
@@ -2127,6 +2502,18 @@ function displaySelection(parsed: ParsedAiResponse): string {
   if (parsed.final_should_bet && parsed.selection) return parsed.selection;
   if (parsed.condition_triggered_should_push) return parsed.condition_triggered_suggestion;
   return parsed.selection;
+}
+
+function displaySelectionWithContext(parsed: ParsedAiResponse, odds: number | null | undefined): string {
+  if (!parsed.final_should_bet) {
+    return displaySelection(parsed);
+  }
+  return formatSelectionWithMarketContext({
+    selection: parsed.selection,
+    betMarket: parsed.bet_market,
+    odds,
+    language: 'en',
+  });
 }
 
 function displayConfidence(parsed: ParsedAiResponse): number {
@@ -2260,7 +2647,7 @@ function buildTelegramCaption(
   const isCondition = isConditionOnlyTrigger(parsed) || parsed.custom_condition_matched;
   const emoji = isRec ? '🎯' : isCondition ? '⚡' : '📊';
   const label = isRec ? 'AI RECOMMENDATION' : isCondition ? 'CONDITION TRIGGERED' : 'MATCH ANALYSIS';
-  const selection = displaySelection(parsed);
+  const selection = displaySelectionWithContext(parsed, parsed.mapped_odd);
   const confidence = displayConfidence(parsed);
   const stake = displayStake(parsed);
 
@@ -2356,7 +2743,7 @@ function buildTelegramMessage(
   const isRec = isAiRecommendation(parsed);
   const isCondition = isConditionOnlyTrigger(parsed) || parsed.custom_condition_matched;
   const INTERNAL = new Set(['FORCE_MODE', 'EARLY_GAME_RISK']);
-  const selection = displaySelection(parsed);
+  const selection = displaySelectionWithContext(parsed, parsed.mapped_odd);
   const confidence = displayConfidence(parsed);
   const stake = displayStake(parsed);
 
@@ -2458,6 +2845,7 @@ async function processMatch(
   const homeGoals = fixture.goals?.home ?? 0;
   const awayGoals = fixture.goals?.away ?? 0;
   const score = `${homeGoals}-${awayGoals}`;
+  const htScoreLive = extractHalftimeScoreFromFixture(fixture);
   const deps: PipelineDeps = { ...defaultPipelineDeps, ...options.dependencies };
   const shadowMode = options.shadowMode === true;
   const sampleProviderData = options.sampleProviderData !== false;
@@ -2672,6 +3060,9 @@ async function processMatch(
       oddsSanityWarnings: string[];
       oddsSuspicious: boolean;
     };
+    const needsLineupsSnapshot = advisoryOnly
+      || String(options.userQuestion ?? '').trim().length > 0
+      || (options.followUpHistory?.length ?? 0) > 0;
 
     const loadOddsSide = async (): Promise<OddsSideResult> => {
       const resolvedOdds = await deps.resolveMatchOdds({
@@ -2708,6 +3099,9 @@ async function processMatch(
           currentTotalGoals: homeGoals + awayGoals,
           currentTotalCorners,
           matchMinute: minute,
+          matchStatus: status,
+          htHomeGoals: htScoreLive?.home ?? null,
+          htAwayGoals: htScoreLive?.away ?? null,
         });
         oddsCanonical = sanitizedOdds.canonical;
         oddsAvailable = sanitizedOdds.available;
@@ -2740,6 +3134,17 @@ async function processMatch(
         fixture.teams?.away?.id != null
           ? deps.getTeamProfileByTeamId(String(fixture.teams.away.id)).catch(() => null)
           : Promise.resolve(null),
+        needsLineupsSnapshot
+          ? deps.ensureScoutInsight(matchId, {
+              fixture,
+              leagueId: fixture.league?.id,
+              season: fixture.league?.season,
+              status,
+              consumer: 'server-pipeline-ask-ai',
+              sampleProviderData: false,
+              freshnessMode: 'real_required',
+            }).catch(() => null)
+          : Promise.resolve(null),
       ]),
     ]);
 
@@ -2751,7 +3156,12 @@ async function processMatch(
       oddsSanityWarnings,
       oddsSuspicious,
     } = oddsSide;
-    const [historicalPerformance, leagueProfile, leagueMeta, homeTeamProfile, awayTeamProfile] = promptContextBundle;
+    const [historicalPerformance, leagueProfile, leagueMeta, homeTeamProfile, awayTeamProfile, scoutInsight] = promptContextBundle;
+    const lineupsSnapshot = summarizeLineupsForPrompt(
+      (scoutInsight?.lineups?.payload as ApiFixtureLineup[] | null | undefined) ?? null,
+      homeName,
+      awayName,
+    );
 
     // Persist latest state for the next run's staleness gate; do not block LLM on DB write.
     if (!shadowMode) {
@@ -2999,6 +3409,7 @@ async function processMatch(
       statsFallbackReason,
       userQuestion: options.userQuestion,
       followUpHistory: options.followUpHistory,
+      lineupsSnapshot,
       settledReplayApprovedTrace: options.settledReplayApprovedTrace === true,
       settledReplayOriginalBetMarket: options.settledReplayTraceOriginalBetMarket,
       settledReplayOriginalSelection: options.settledReplayTraceOriginalSelection,
@@ -3026,6 +3437,10 @@ async function processMatch(
       },
     );
     const parsed = activeAnalysis.parsed;
+    enforceFollowUpLineupAvailability(parsed, {
+      userQuestion: options.userQuestion,
+      lineupsSnapshot,
+    });
     const promptShadowRequested = shouldRunPromptShadow({
       matchId,
       minute,
@@ -3097,6 +3512,14 @@ async function processMatch(
     const notificationOdds = parsed.final_should_bet
       ? extractOddsFromSelection(parsed.selection, parsed.bet_market, oddsCanonical)
       : conditionTriggeredSaveDecision.odds;
+    const notificationSelectionDisplay = parsed.final_should_bet
+      ? formatSelectionWithMarketContext({
+          selection: notificationSelection,
+          betMarket: parsed.bet_market,
+          odds: notificationOdds,
+          language: 'en',
+        })
+      : notificationSelection;
     let saved = false;
     let recId: number | null = null;
     let notified = false;
@@ -3273,7 +3696,7 @@ async function processMatch(
           const pushTitle = parsed.final_should_bet ? '🎯 AI RECOMMENDATION' : '⚡ CONDITION TRIGGERED';
           const pushBody = [
             matchDisplay,
-            notificationSelection ? `${notificationSelection} | Odds: ${notificationOdds ?? 'N/A'} | Confidence: ${notificationConfidence}/10` : '',
+            notificationSelectionDisplay ? `${notificationSelectionDisplay} | Odds: ${notificationOdds ?? 'N/A'} | Confidence: ${notificationConfidence}/10` : '',
           ].filter(Boolean).join('\n');
 
           const deliveredUserIds = new Set<string>();
@@ -3319,7 +3742,7 @@ async function processMatch(
         outcome: parsed.should_push ? 'SUCCESS' : 'SKIPPED',
         actor: 'auto-pipeline',
         metadata: {
-          matchId, matchDisplay, selection: notificationSelection,
+          matchId, matchDisplay, selection: notificationSelectionDisplay,
           confidence: notificationConfidence, shouldPush: parsed.should_push,
           saved, recId, notified,
           promptVersion: activePromptVersion,
@@ -3622,6 +4045,17 @@ function buildServerPrompt(data: {
   statsFallbackReason: string;
   userQuestion?: string;
   followUpHistory?: FollowUpHistoryEntry[];
+  lineupsSnapshot?: {
+    available: boolean;
+    teams: Array<{
+      side: 'home' | 'away';
+      teamName: string;
+      formation: string | null;
+      coachName: string | null;
+      starters: string[];
+      substitutes: string[];
+    }>;
+  } | null;
   settledReplayApprovedTrace?: boolean;
   settledReplayOriginalBetMarket?: string;
   settledReplayOriginalSelection?: string;
@@ -3671,6 +4105,7 @@ function buildServerPrompt(data: {
       statsFallbackReason: data.statsFallbackReason,
       userQuestion: data.userQuestion,
       followUpHistory: data.followUpHistory,
+      lineupsSnapshot: data.lineupsSnapshot ?? null,
       settledReplayApprovedTrace: data.settledReplayApprovedTrace === true,
       settledReplayOriginalBetMarket: data.settledReplayOriginalBetMarket,
       settledReplayOriginalSelection: data.settledReplayOriginalSelection,

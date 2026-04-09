@@ -3,7 +3,9 @@ import {
   buildSettledReplayScenario,
   canonicalOddsToRecordedResponse,
   compactStatsToApiFixtureStats,
+  mergeHtMarketsIntoSnapshot,
 } from '../lib/db-replay-scenarios.js';
+import { buildOddsCanonical } from '../lib/server-pipeline.js';
 
 describe('db replay scenarios', () => {
   test('compactStatsToApiFixtureStats converts snapshot pairs into raw provider stat rows', () => {
@@ -47,6 +49,41 @@ describe('db replay scenarios', () => {
       expect.objectContaining({ name: 'Corners Over/Under' }),
       expect.objectContaining({ name: 'Both Teams Score' }),
     ]));
+  });
+
+  test('canonicalOddsToRecordedResponse round-trips ht_* markets through buildOddsCanonical', () => {
+    const response = canonicalOddsToRecordedResponse({
+      '1x2': { home: 2.0, draw: 3.0, away: 4.0 },
+      ht_1x2: { home: 2.2, draw: 2.4, away: 4.5 },
+      ht_ou: { line: 1.5, over: 2.05, under: 1.75 },
+      ht_btts: { yes: 2.1, no: 1.72 },
+      ht_ah: { line: -0.5, home: 1.92, away: 1.88 },
+    }) as unknown[];
+    const built = buildOddsCanonical(response);
+    expect(built.canonical['ht_1x2']?.home).toBe(2.2);
+    expect(built.canonical['ht_ou']?.line).toBe(1.5);
+    expect(built.canonical['ht_btts']?.yes).toBe(2.1);
+    expect(built.canonical['ht_ah']?.line).toBe(-0.5);
+  });
+
+  test('mergeHtMarketsIntoSnapshot copies H1 markets from provider response when snapshot omits them', () => {
+    const providerLike = canonicalOddsToRecordedResponse({
+      ou: { line: 2.5, over: 1.9, under: 1.9 },
+      ht_ou: { line: 1.5, over: 2.0, under: 1.8 },
+      ht_1x2: { home: 2.5, draw: 2.9, away: 3.2 },
+    }) as unknown[];
+    const merged = mergeHtMarketsIntoSnapshot({ ou: { line: 2.5, over: 1.91, under: 1.89 } }, providerLike);
+    expect(merged.ht_ou).toEqual({ line: 1.5, over: 2, under: 1.8 });
+    expect(merged['ht_1x2']).toEqual({ home: 2.5, draw: 2.9, away: 3.2 });
+    expect(merged.ou).toEqual({ line: 2.5, over: 1.91, under: 1.89 });
+  });
+
+  test('mergeHtMarketsIntoSnapshot does not overwrite existing ht_ou on snapshot', () => {
+    const providerLike = canonicalOddsToRecordedResponse({
+      ht_ou: { line: 2.5, over: 2.1, under: 1.7 },
+    }) as unknown[];
+    const merged = mergeHtMarketsIntoSnapshot({ ht_ou: { line: 1.5, over: 1.95, under: 1.85 } }, providerLike);
+    expect(merged.ht_ou).toEqual({ line: 1.5, over: 1.95, under: 1.85 });
   });
 
   test('buildMockResolvedOdds wraps canonical odds into a usable resolver result', () => {
@@ -111,6 +148,8 @@ describe('db replay scenarios', () => {
         away_score: 0,
         regular_home_score: 1,
         regular_away_score: 0,
+        halftime_home: 0,
+        halftime_away: 0,
         settlement_stats: [
           { type: 'Total Shots', home: 12, away: 7 },
         ],
@@ -135,6 +174,7 @@ describe('db replay scenarios', () => {
     expect(scenario.pipelineOptions?.skipStalenessGate).toBe(true);
     expect(scenario.metadata.prematchStrength).toBe('strong');
     expect(scenario.settlementContext.regularHomeScore).toBe(1);
+    expect(scenario.fixture.score?.halftime).toEqual({ home: 0, away: 0 });
     expect(scenario.previousRecommendations).toHaveLength(1);
     expect(scenario.statistics?.[0]?.statistics).toEqual(expect.arrayContaining([
       { type: 'Total Shots', value: 8 },

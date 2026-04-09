@@ -75,6 +75,65 @@ describe('buildLiveAnalysisPrompt', () => {
     expect(prompt).toContain(`PROMPT_VERSION: ${LIVE_ANALYSIS_PROMPT_VERSION}`);
   });
 
+  test('includes first-half exact market enums when only H1 odds are available', () => {
+    const prompt = buildLiveAnalysisPrompt({
+      ...baseInput,
+      minute: 30,
+      score: '0-0',
+      status: '1H',
+      currentTotalGoals: 0,
+      oddsCanonical: {
+        ht_1x2: { home: 2.1, draw: 1.95, away: 4.8 },
+        ht_ou: { line: 1.5, over: 2.0, under: 1.8 },
+        ht_ah: { line: -0.25, home: 1.92, away: 1.96 },
+        ht_btts: { yes: 2.9, no: 1.32 },
+      },
+    }, settings);
+
+    expect(prompt).toContain('"ht_1x2_home"');
+    expect(prompt).toContain('"ht_1x2_draw"');
+    expect(prompt).toContain('"ht_over_1.5"');
+    expect(prompt).toContain('"ht_under_1.5"');
+    expect(prompt).toContain('"ht_asian_handicap_home_-0.25"');
+    expect(prompt).toContain('"ht_asian_handicap_away_-0.25"');
+    expect(prompt).toContain('"ht_btts_yes"');
+    expect(prompt).toContain('"ht_btts_no"');
+    expect(prompt).not.toContain('No usable exact market keys exist for this run');
+  });
+
+  test('includes lineup snapshot and explicit market wording guidance for follow-up mode', () => {
+    const prompt = buildLiveAnalysisPrompt({
+      ...baseInput,
+      minute: 28,
+      status: '1H',
+      score: '0-0',
+      userQuestion: 'Lineup thế nào và kèo H1 châu Á có ổn không?',
+      followUpHistory: [
+        { role: 'user', text: 'What about H1?' },
+      ],
+      lineupsSnapshot: {
+        available: true,
+        teams: [
+          {
+            side: 'home',
+            teamName: 'Team A',
+            formation: '4-2-3-1',
+            coachName: 'Coach A',
+            starters: ['#1 Keeper A G', '#9 Forward A F'],
+            substitutes: ['#14 Bench A M'],
+          },
+        ],
+      },
+    }, settings);
+
+    expect(prompt).toContain('LINEUPS_SNAPSHOT:');
+    expect(prompt).toContain('Coach A');
+    expect(prompt).toContain('Forward A');
+    expect(prompt).toContain('Whenever you mention a betting angle, explicitly name the market period');
+    expect(prompt).toContain('If the user asks about the starting lineup, answer only from LINEUPS SNAPSHOT below.');
+    expect(prompt).toContain('European 1X2, Asian Handicap, Goals O/U, BTTS, or Corners O/U');
+  });
+
   test('keeps auto mode free of force-analysis instructions', () => {
     const prompt = buildLiveAnalysisPrompt(baseInput, settings);
 
@@ -435,11 +494,11 @@ describe('buildLiveAnalysisPrompt', () => {
 
     expect(candidate).toContain(`PROMPT_VERSION: ${LIVE_ANALYSIS_PROMPT_CANDIDATE_VERSION}`);
     expect(candidate).toContain('EXACT OUTPUT ENUMS:');
-    expect(candidate).toContain('LEGACY-LEAN MARKET SELECTION:');
+    expect(candidate).toContain('MINIMAL LEGACY TIMING ADJUSTMENT:');
     expect(baseline).toContain(`PROMPT_VERSION: ${LIVE_ANALYSIS_PROMPT_VERSION}`);
   });
 
-  test('candidate prompt includes follow-up contract and legacy-lean market selection rules', () => {
+  test('candidate prompt includes follow-up contract and targeted hybrid market selection rules', () => {
     const candidate = buildLiveAnalysisPrompt({
       ...baseInput,
       userQuestion: 'What about Home -0.25 here?',
@@ -452,14 +511,12 @@ describe('buildLiveAnalysisPrompt', () => {
     expect(candidate).toContain('FOLLOW_UP_MODE: advisory');
     expect(candidate).toContain('USER_QUESTION: What about Home -0.25 here?');
     expect(candidate).toContain('FOLLOW_UP_HISTORY:');
-    expect(candidate).toContain('LEGACY-LEAN MARKET SELECTION:');
-    expect(candidate).toContain('If 1X2 or BTTS No does not clear the higher bar, evaluate goals O/U instead.');
-    expect(candidate).toContain('Minute 5-65: only consider Over X.5 when attacking patterns are clearly open and sustained.');
-    expect(candidate).toContain('Minute 65+: only consider Under X.5 when the match is still low-scoring and both teams genuinely look conservative or defensive.');
-    expect(candidate).toContain('Do NOT treat Goals Under as a default before minute 65.');
-    expect(candidate).not.toContain('V8 MARKET-BALANCE DISCIPLINE:');
+    expect(candidate).toContain('MINIMAL LEGACY TIMING ADJUSTMENT:');
+    expect(candidate).toContain('V10C CORNERS EARLY REALISM');
+    expect(candidate).toContain('V10C BTTS MIDGAME');
+    expect(candidate).toContain('V10C WEAK-PREMATCH RULE');
+    expect(candidate).toContain('V10E 45-59 CORNERS ONLY');
     expect(candidate).not.toContain('Score 0-0 after minute 55: prefer goal unders, not corners under');
-    expect(candidate).not.toContain('1X2 and BTTS No need full_live_data, confidence >= 7, and strong stat support');
     expect(candidate).toContain('"follow_up_answer_en": string');
     expect(candidate).toContain('"follow_up_answer_vi": string');
   });
@@ -510,6 +567,59 @@ describe('buildLiveAnalysisPrompt', () => {
     expect(prompt).toContain('V8H SYMMETRIC-ODDS TIE-BREAK');
     expect(prompt).toContain('V8H EDGE-PUSH RULE');
     expect(prompt).not.toContain('Score 0-0 after minute 55: prefer GOALS Under markets');
+  });
+
+  test('v10d adds targeted 45-59 and one-goal-margin discipline on top of v10c', () => {
+    const prompt = buildLiveAnalysisPrompt(baseInput, settings, 'v10-hybrid-legacy-d');
+
+    expect(prompt).toContain('MINIMAL LEGACY TIMING ADJUSTMENT:');
+    expect(prompt).toContain('V10C CORNERS EARLY REALISM');
+    expect(prompt).toContain('V10C BTTS MIDGAME');
+    expect(prompt).toContain('V10C WEAK-PREMATCH RULE');
+    expect(prompt).toContain('V10C WEAK 0-0 OVER RULE');
+    expect(prompt).toContain('V10D 45-59 CORNERS');
+    expect(prompt).toContain('V10D ONE-GOAL OVER RUNWAY');
+    expect(prompt).toContain('V10D 45-59 TWO-PLUS UNDER');
+    expect(prompt).not.toContain('Score 0-0 after minute 55: prefer GOALS Under markets');
+  });
+
+  test('v10e keeps v10c foundation and only adds narrow 45-59 corners discipline', () => {
+    const prompt = buildLiveAnalysisPrompt(baseInput, settings, 'v10-hybrid-legacy-e');
+
+    expect(prompt).toContain('MINIMAL LEGACY TIMING ADJUSTMENT:');
+    expect(prompt).toContain('V10C CORNERS EARLY REALISM');
+    expect(prompt).toContain('V10C BTTS MIDGAME');
+    expect(prompt).toContain('V10C WEAK-PREMATCH RULE');
+    expect(prompt).toContain('V10E 45-59 CORNERS ONLY');
+    expect(prompt).not.toContain('V10D ONE-GOAL OVER RUNWAY');
+    expect(prompt).not.toContain('V10D 45-59 TWO-PLUS UNDER');
+    expect(prompt).not.toContain('Score 0-0 after minute 55: prefer GOALS Under markets');
+  });
+
+  test('v10f keeps v10c foundation and adds only chase-aware corners-under plus same-thesis under-rollover discipline', () => {
+    const prompt = buildLiveAnalysisPrompt(baseInput, settings, 'v10-hybrid-legacy-f');
+
+    expect(prompt).toContain('MINIMAL LEGACY TIMING ADJUSTMENT:');
+    expect(prompt).toContain('V10C CORNERS EARLY REALISM');
+    expect(prompt).toContain('V10C BTTS MIDGAME');
+    expect(prompt).toContain('V10C WEAK-PREMATCH RULE');
+    expect(prompt).toContain('V10F 45-59 CORNERS-UNDER CHASE RULE');
+    expect(prompt).toContain('V10F SAME-THESIS UNDER ROLLOVER');
+    expect(prompt).not.toContain('V10D ONE-GOAL OVER RUNWAY');
+    expect(prompt).not.toContain('V10E 45-59 CORNERS ONLY');
+  });
+
+  test('v10g keeps v10f foundation and adds only narrow 30-44 realism checks', () => {
+    const prompt = buildLiveAnalysisPrompt(baseInput, settings, 'v10-hybrid-legacy-g');
+
+    expect(prompt).toContain('MINIMAL LEGACY TIMING ADJUSTMENT:');
+    expect(prompt).toContain('V10C CORNERS EARLY REALISM');
+    expect(prompt).toContain('V10F 45-59 CORNERS-UNDER CHASE RULE');
+    expect(prompt).toContain('V10F SAME-THESIS UNDER ROLLOVER');
+    expect(prompt).toContain('V10G 30-44 CORNERS-UNDER REALISM');
+    expect(prompt).toContain('V10G 30-44 BTTS-YES REALISM');
+    expect(prompt).toContain('V10G 30-44 HIGH-LINE OVER RULE');
+    expect(prompt).not.toContain('V10E 45-59 CORNERS ONLY');
   });
 
   test('v8h market-balance section includes residual-scoring and over-rejection tightening', () => {

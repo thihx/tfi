@@ -166,24 +166,25 @@ function main(): void {
 
   const promptFlags = args.promptVersions.map((v) => `--prompt-version ${v}`).join(' ');
   const relDir = args.structural ? STRUCTURAL_REL : DEFAULT_WORK_REL;
+  const artifactPrefix = args.structural ? 'integration-structural-' : 'integration-';
 
   console.log('[replay-integration] Step B: evaluate-settled-prompt-variants (real LLM)');
   sh(
-    `npx tsx src/scripts/evaluate-settled-prompt-variants.ts --dir ${relDir} ${promptFlags} --llm real --model ${args.model} --allow-real-llm --odds ${args.oddsMode} --delay-ms 750 --llm-cache-dir ${DEFAULT_CACHE_REL} --report-json replay-baselines/integration-replay-summary.json --report-md replay-baselines/integration-replay-summary.md --report-cases-json replay-baselines/integration-replay-cases.json`,
+    `npx tsx src/scripts/evaluate-settled-prompt-variants.ts --dir ${relDir} ${promptFlags} --llm real --model ${args.model} --allow-real-llm --odds ${args.oddsMode} --delay-ms 750 --llm-cache-dir ${DEFAULT_CACHE_REL} --report-json replay-baselines/${artifactPrefix}replay-summary.json --report-md replay-baselines/${artifactPrefix}replay-summary.md --report-cases-json replay-baselines/${artifactPrefix}replay-cases.json`,
   );
 
   const primaryPrompt = args.promptVersions[0] ?? 'v8-market-balance-followup-h';
   console.log(`[replay-integration] Step C: self-audit (${primaryPrompt}, max ${args.selfAuditMax})`);
   sh(
-    `npx tsx src/scripts/evaluate-settled-prompt-self-audit.ts --dir ${relDir} --prompt-version ${primaryPrompt} --model ${args.model} --allow-real-llm --odds ${args.oddsMode} --delay-ms 750 --max-scenarios ${args.selfAuditMax} --llm-cache-dir ${DEFAULT_CACHE_REL} --report-json replay-baselines/integration-self-audit.json --report-md replay-baselines/integration-self-audit.md`,
+    `npx tsx src/scripts/evaluate-settled-prompt-self-audit.ts --dir ${relDir} --prompt-version ${primaryPrompt} --model ${args.model} --allow-real-llm --odds ${args.oddsMode} --delay-ms 750 --max-scenarios ${args.selfAuditMax} --llm-cache-dir ${DEFAULT_CACHE_REL} --report-json replay-baselines/${artifactPrefix}self-audit.json --report-md replay-baselines/${artifactPrefix}self-audit.md`,
   );
 
   console.log('[replay-integration] Step E: audit-replay-odds-integrity');
   sh(
-    `npx tsx src/scripts/audit-replay-odds-integrity.ts --dir ${relDir} --report-json replay-baselines/integration-odds-audit.json`,
+    `npx tsx src/scripts/audit-replay-odds-integrity.ts --dir ${relDir} --report-json replay-baselines/${artifactPrefix}odds-audit.json`,
   );
 
-  console.log('[replay-integration] Done. Artifacts: replay-baselines/integration-*');
+  console.log(`[replay-integration] Done. Artifacts: replay-baselines/${artifactPrefix}*`);
 }
 
 main();

@@ -240,6 +240,36 @@ export async function runPipeline(
               price_1: oc.btts.yes, price_2: oc.btts.no,
             });
           }
+          if (oc.corners_ou) {
+            movements.push({
+              match_id: mergedWithOdds.match_id, match_minute: currentMinute, market: 'corners_ou',
+              line: oc.corners_ou.line, price_1: oc.corners_ou.over, price_2: oc.corners_ou.under,
+            });
+          }
+          if (oc['ht_1x2']) {
+            movements.push({
+              match_id: mergedWithOdds.match_id, match_minute: currentMinute, market: 'ht_1x2',
+              price_1: oc['ht_1x2'].home, price_2: oc['ht_1x2'].away, price_x: oc['ht_1x2'].draw,
+            });
+          }
+          if (oc.ht_ou) {
+            movements.push({
+              match_id: mergedWithOdds.match_id, match_minute: currentMinute, market: 'ht_ou',
+              line: oc.ht_ou.line, price_1: oc.ht_ou.over, price_2: oc.ht_ou.under,
+            });
+          }
+          if (oc.ht_ah) {
+            movements.push({
+              match_id: mergedWithOdds.match_id, match_minute: currentMinute, market: 'ht_ah',
+              line: oc.ht_ah.line, price_1: oc.ht_ah.home, price_2: oc.ht_ah.away,
+            });
+          }
+          if (oc.ht_btts) {
+            movements.push({
+              match_id: mergedWithOdds.match_id, match_minute: currentMinute, market: 'ht_btts',
+              price_1: oc.ht_btts.yes, price_2: oc.ht_btts.no,
+            });
+          }
 
           trackSilent(saveOddsMovements(appConfig, movements), `odds:${mergedWithOdds.match_id}@${currentMinute}`);
         }

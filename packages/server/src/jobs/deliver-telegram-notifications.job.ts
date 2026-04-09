@@ -88,6 +88,7 @@ function buildTelegramDeliveryMessage(row: PendingTelegramDeliveryRow): string {
     model: model || 'AI',
     mode: mode || 'B',
     selection,
+    betMarket: row.recommendationBetMarket,
     odds,
     confidence,
     stakePercent: stake,

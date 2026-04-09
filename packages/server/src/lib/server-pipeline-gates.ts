@@ -241,7 +241,58 @@ function extractMarketOdd(
   const marketLower = String(market || '').toLowerCase();
   const selectionLower = String(selection || '').toLowerCase();
 
-  if ((marketLower.includes('over_') || marketLower.includes('under_')) && !marketLower.startsWith('corners_')) {
+  if (marketLower.startsWith('ht_over_')) {
+    const line = parseBetMarketLineSuffix('ht_over_', marketLower);
+    if (line == null) return oc.ht_ou?.over ?? null;
+    if (sameOddsLine(line, oc.ht_ou?.line)) return oc.ht_ou?.over ?? null;
+    if (sameOddsLine(line, oc.ht_ou_adjacent?.line)) return oc.ht_ou_adjacent?.over ?? null;
+    return null;
+  }
+  if (marketLower.startsWith('ht_under_')) {
+    const line = parseBetMarketLineSuffix('ht_under_', marketLower);
+    if (line == null) return oc.ht_ou?.under ?? null;
+    if (sameOddsLine(line, oc.ht_ou?.line)) return oc.ht_ou?.under ?? null;
+    if (sameOddsLine(line, oc.ht_ou_adjacent?.line)) return oc.ht_ou_adjacent?.under ?? null;
+    return null;
+  }
+
+  if (marketLower.startsWith('ht_1x2_')) {
+    if (marketLower.endsWith('_home')) return oc['ht_1x2']?.home ?? null;
+    if (marketLower.endsWith('_away')) return oc['ht_1x2']?.away ?? null;
+    if (marketLower.endsWith('_draw')) return oc['ht_1x2']?.draw ?? null;
+  }
+
+  if (marketLower.startsWith('ht_btts_')) {
+    if (marketLower.endsWith('_yes')) return oc.ht_btts?.yes ?? null;
+    if (marketLower.endsWith('_no')) return oc.ht_btts?.no ?? null;
+  }
+
+  if (marketLower.startsWith('ht_asian_handicap_')) {
+    if (marketLower.includes('_home_')) {
+      const line = parseBetMarketLineSuffix('ht_asian_handicap_home_', marketLower);
+      if (line == null) return oc.ht_ah?.home ?? null;
+      if (sameOddsLine(line, oc.ht_ah?.line)) return oc.ht_ah?.home ?? null;
+      if (sameOddsLine(line, oc.ht_ah_adjacent?.line)) return oc.ht_ah_adjacent?.home ?? null;
+      return null;
+    }
+    if (marketLower.includes('_away_')) {
+      const line = parseBetMarketLineSuffix('ht_asian_handicap_away_', marketLower);
+      if (line == null) return oc.ht_ah?.away ?? null;
+      const matchMain =
+        sameOddsLine(line, oc.ht_ah?.line) || sameOddsLine(-line, oc.ht_ah?.line);
+      if (matchMain) return oc.ht_ah?.away ?? null;
+      const matchAdj =
+        sameOddsLine(line, oc.ht_ah_adjacent?.line) || sameOddsLine(-line, oc.ht_ah_adjacent?.line);
+      if (matchAdj) return oc.ht_ah_adjacent?.away ?? null;
+      return null;
+    }
+  }
+
+  if (
+    (marketLower.includes('over_') || marketLower.includes('under_'))
+    && !marketLower.startsWith('corners_')
+    && !marketLower.startsWith('ht_')
+  ) {
     if (marketLower.startsWith('over_')) {
       const line = parseBetMarketLineSuffix('over_', marketLower);
       if (line == null) return oc.ou?.over ?? null;
@@ -338,6 +389,23 @@ function flattenOdds(canonical: Record<string, unknown> | null | undefined): Map
   setIfFinite('ah_adjacent.away', oc.ah_adjacent?.away);
   setIfFinite('btts.yes', oc.btts?.yes);
   setIfFinite('btts.no', oc.btts?.no);
+  setIfFinite('ht_1x2.home', oc['ht_1x2']?.home);
+  setIfFinite('ht_1x2.draw', oc['ht_1x2']?.draw);
+  setIfFinite('ht_1x2.away', oc['ht_1x2']?.away);
+  setIfFinite('ht_ou.line', oc.ht_ou?.line);
+  setIfFinite('ht_ou.over', oc.ht_ou?.over);
+  setIfFinite('ht_ou.under', oc.ht_ou?.under);
+  setIfFinite('ht_ou_adjacent.line', oc.ht_ou_adjacent?.line);
+  setIfFinite('ht_ou_adjacent.over', oc.ht_ou_adjacent?.over);
+  setIfFinite('ht_ou_adjacent.under', oc.ht_ou_adjacent?.under);
+  setIfFinite('ht_ah.line', oc.ht_ah?.line);
+  setIfFinite('ht_ah.home', oc.ht_ah?.home);
+  setIfFinite('ht_ah.away', oc.ht_ah?.away);
+  setIfFinite('ht_ah_adjacent.line', oc.ht_ah_adjacent?.line);
+  setIfFinite('ht_ah_adjacent.home', oc.ht_ah_adjacent?.home);
+  setIfFinite('ht_ah_adjacent.away', oc.ht_ah_adjacent?.away);
+  setIfFinite('ht_btts.yes', oc.ht_btts?.yes);
+  setIfFinite('ht_btts.no', oc.ht_btts?.no);
   setIfFinite('corners_ou.line', oc.corners_ou?.line);
   setIfFinite('corners_ou.over', oc.corners_ou?.over);
   setIfFinite('corners_ou.under', oc.corners_ou?.under);

@@ -24,6 +24,11 @@ function parseCanonicalMarket(primaryText: string, secondaryText = ''): string {
   const combined = `${primary} ${secondary}`.trim();
   if (!combined) return 'unknown';
 
+  const htTotalsAlias = primary.match(/^ht_(over|under)_(\d+(?:\.\d+)?)$/);
+  if (htTotalsAlias) {
+    return `ht_${htTotalsAlias[1]}_${formatUnsignedLine(htTotalsAlias[2]!)}`;
+  }
+
   const totalsAlias = primary.match(/^(over|under)_(\d+(?:\.\d+)?)$/);
   if (totalsAlias) {
     return `${totalsAlias[1]}_${formatUnsignedLine(totalsAlias[2]!)}`;
@@ -40,6 +45,20 @@ function parseCanonicalMarket(primaryText: string, secondaryText = ''): string {
   }
 
   if (/^1x2_(home|away|draw)$/.test(primary)) return primary;
+
+  if (/^ht_1x2_(home|away|draw)$/.test(primary)) return primary;
+
+  if (primary === 'ht_btts' || primary === 'ht_btts_yes' || primary === 'ht_btts_no') {
+    if (primary === 'ht_btts_yes' || primary === 'ht_btts_no') return primary;
+    return /\bno\b/.test(secondary) ? 'ht_btts_no' : 'ht_btts_yes';
+  }
+
+  const htAhAlias = primary.match(/^ht_asian_handicap_(home|away)(?:_([^\s]+))?$/);
+  if (htAhAlias) {
+    const side = htAhAlias[1]!;
+    const line = normalizeSignedLine(htAhAlias[2] ?? extractLineFromText(secondary, true));
+    return line ? `ht_asian_handicap_${side}_${line}` : `ht_asian_handicap_${side}`;
+  }
 
   const ahAlias = primary.match(/^ah_(home|away)(?:_([^\s]+))?$/);
   if (ahAlias) {

@@ -24,6 +24,7 @@ export interface RecommendationPolicyInput {
   valuePercent: number;
   stakePercent: number;
   promptVersion?: string | null;
+  prematchStrength?: string | null;
   previousRecommendations?: RecommendationPolicyPreviousRow[];
   statsCompact?: RecommendationPolicyStatsCompact | null;
 }
@@ -78,6 +79,15 @@ function getMarketLine(canonicalMarket: string): number | null {
 
 export function getCorrelatedThesis(canonicalMarket: string): string | null {
   if (!canonicalMarket || canonicalMarket === 'unknown') return null;
+  if (canonicalMarket.startsWith('ht_over_')) return 'ht_goals_over';
+  if (canonicalMarket.startsWith('ht_under_')) return 'ht_goals_under';
+  if (canonicalMarket.startsWith('ht_asian_handicap_home_')) return 'ht_asian_handicap_home';
+  if (canonicalMarket.startsWith('ht_asian_handicap_away_')) return 'ht_asian_handicap_away';
+  if (canonicalMarket === 'ht_1x2_home') return 'ht_1x2_home';
+  if (canonicalMarket === 'ht_1x2_away') return 'ht_1x2_away';
+  if (canonicalMarket === 'ht_1x2_draw') return 'ht_1x2_draw';
+  if (canonicalMarket === 'ht_btts_yes') return 'ht_btts_yes';
+  if (canonicalMarket === 'ht_btts_no') return 'ht_btts_no';
   if (canonicalMarket.startsWith('over_')) return 'goals_over';
   if (canonicalMarket.startsWith('under_')) return 'goals_under';
   if (canonicalMarket.startsWith('corners_over_')) return 'corners_over';
@@ -111,6 +121,11 @@ export function applyRecommendationPolicy(input: RecommendationPolicyInput): Rec
   const isV8h = promptVersion === 'v8-market-balance-followup-h';
   const isV8i = promptVersion === 'v8-market-balance-followup-i';
   const isV8j = promptVersion === 'v8-market-balance-followup-j';
+  const isV10c = promptVersion === 'v10-hybrid-legacy-c';
+  const isV10d = promptVersion === 'v10-hybrid-legacy-d';
+  const isV10e = promptVersion === 'v10-hybrid-legacy-e';
+  const isV10f = promptVersion === 'v10-hybrid-legacy-f';
+  const isV10g = promptVersion === 'v10-hybrid-legacy-g';
   const isV8dFamily = isV8d || isV8f || isV8g || isV8h || isV8i || isV8j;
   const scoreState = getScoreState(input.score);
   const totalGoals = getTotalGoals(input.score);
@@ -194,6 +209,26 @@ export function applyRecommendationPolicy(input: RecommendationPolicyInput): Rec
   }
 
   if (
+    isV10c
+    && canonicalMarket.startsWith('corners_over_')
+    && input.minute < 30
+    && marketLine != null
+    && marketLine >= 11.5
+  ) {
+    block('POLICY_BLOCK_CORNERS_OVER_HIGH_LINE_PRE30_V10C');
+  }
+
+  if (
+    isV10c
+    && canonicalMarket.startsWith('corners_under_')
+    && input.minute < 30
+    && marketLine != null
+    && marketLine >= 9
+  ) {
+    block('POLICY_BLOCK_CORNERS_UNDER_EARLY_HIGH_LINE_V10C');
+  }
+
+  if (
     (isV8g || isV8h || isV8i || isV8j)
     && canonicalMarket.startsWith('under_')
     && !canonicalMarket.startsWith('under_0.5')
@@ -261,6 +296,9 @@ export function applyRecommendationPolicy(input: RecommendationPolicyInput): Rec
   }
 
   if (canonicalMarket === 'btts_no') {
+    if (isV10c && input.minute < 60) {
+      block('POLICY_BLOCK_BTTS_NO_PRE60_V10C');
+    }
     if (input.minute >= 60 && input.minute < 75) {
       block('POLICY_BLOCK_BTTS_NO_60_74');
     }
@@ -303,6 +341,150 @@ export function applyRecommendationPolicy(input: RecommendationPolicyInput): Rec
     }
   }
 
+  if (
+    (isV10c || isV10g)
+    && canonicalMarket === 'btts_yes'
+    && input.minute >= 30
+    && input.minute <= 59
+  ) {
+    const homeShotsOnTarget = parseStatInt(input.statsCompact?.shots_on_target?.home);
+    const awayShotsOnTarget = parseStatInt(input.statsCompact?.shots_on_target?.away);
+    if ((homeShotsOnTarget ?? 0) < 2 || (awayShotsOnTarget ?? 0) < 2) {
+      block(
+        isV10g && input.minute <= 44 && scoreState === 'one-goal-margin'
+          ? 'POLICY_BLOCK_BTTS_YES_30_44_ONE_GOAL_LOW_DUAL_THREAT_V10G'
+          : 'POLICY_BLOCK_BTTS_YES_MIDGAME_LOW_DUAL_THREAT_V10C',
+      );
+    }
+  }
+
+  if (
+    isV10d
+    && canonicalMarket.startsWith('corners_under_')
+    && input.minute >= 45
+    && input.minute <= 59
+    && scoreState === 'one-goal-margin'
+    && marketLine != null
+    && marketLine <= 6.5
+  ) {
+    block('POLICY_BLOCK_CORNERS_UNDER_45_59_ONE_GOAL_LOW_LINE_V10D');
+  }
+
+  if (
+    isV10d
+    && canonicalMarket.startsWith('corners_over_')
+    && input.minute >= 45
+    && input.minute <= 59
+    && scoreState === 'one-goal-margin'
+    && marketLine != null
+    && marketLine >= 13.5
+  ) {
+    block('POLICY_BLOCK_CORNERS_OVER_45_59_ONE_GOAL_EXTREME_LINE_V10D');
+  }
+
+  if (
+    isV10d
+    && canonicalMarket.startsWith('over_')
+    && scoreState === 'one-goal-margin'
+    && marketLine != null
+    && totalGoals != null
+  ) {
+    const runway = marketLine - totalGoals;
+    if (input.minute < 30 && runway >= 2.25) {
+      block('POLICY_BLOCK_GOALS_OVER_ONE_GOAL_EARLY_LONG_RUNWAY_V10D');
+    }
+    if (input.minute >= 30 && input.minute <= 44 && totalGoals >= 3 && runway >= 1.75) {
+      block('POLICY_BLOCK_GOALS_OVER_ONE_GOAL_MID_LONG_RUNWAY_V10D');
+    }
+  }
+
+  if (
+    isV10d
+    && canonicalMarket.startsWith('under_')
+    && input.minute >= 45
+    && input.minute <= 59
+    && scoreState === 'two-plus-margin'
+    && marketLine != null
+    && totalGoals != null
+    && marketLine <= totalGoals + 1
+  ) {
+    block('POLICY_BLOCK_GOALS_UNDER_45_59_TWO_PLUS_LOW_CUSHION_V10D');
+  }
+
+  if (
+    isV10e
+    && canonicalMarket.startsWith('corners_under_')
+    && input.minute >= 45
+    && input.minute <= 59
+    && scoreState === 'one-goal-margin'
+    && marketLine != null
+    && marketLine <= 6.5
+  ) {
+    block('POLICY_BLOCK_CORNERS_UNDER_45_59_ONE_GOAL_LOW_LINE_V10E');
+  }
+
+  if (
+    isV10e
+    && canonicalMarket.startsWith('corners_over_')
+    && input.minute >= 45
+    && input.minute <= 59
+    && scoreState === 'one-goal-margin'
+    && marketLine != null
+    && marketLine >= 13.5
+  ) {
+    block('POLICY_BLOCK_CORNERS_OVER_45_59_ONE_GOAL_EXTREME_LINE_V10E');
+  }
+
+  if (
+    isV10f
+    && canonicalMarket.startsWith('corners_under_')
+    && input.minute >= 45
+    && input.minute <= 59
+    && marketLine != null
+    && marketLine <= 6.5
+    && (totalGoals ?? 0) >= 1
+    && (scoreState === 'level' || scoreState === 'one-goal-margin')
+  ) {
+    block('POLICY_BLOCK_CORNERS_UNDER_45_59_LOW_LINE_CHASE_V10F');
+  }
+
+  if (
+    isV10g
+    && canonicalMarket.startsWith('corners_under_')
+    && input.minute >= 30
+    && input.minute <= 44
+    && marketLine != null
+    && marketLine <= 8
+    && (totalGoals ?? 0) >= 1
+  ) {
+    block('POLICY_BLOCK_CORNERS_UNDER_30_44_GOALS_ON_BOARD_LOW_LINE_V10G');
+  }
+
+  if (
+    isV10g
+    && canonicalMarket.startsWith('corners_under_')
+    && input.minute >= 30
+    && input.minute <= 44
+    && marketLine != null
+    && marketLine <= 8
+  ) {
+    if (String(input.prematchStrength ?? '').trim() === 'weak') {
+      block('POLICY_BLOCK_CORNERS_UNDER_30_44_WEAK_PREMATCH_V10G');
+    }
+  }
+
+  if (
+    isV10g
+    && canonicalMarket.startsWith('over_')
+    && input.minute >= 30
+    && input.minute <= 44
+    && scoreState === 'one-goal-margin'
+    && marketLine != null
+    && marketLine >= 4.5
+  ) {
+    block('POLICY_BLOCK_GOALS_OVER_30_44_ONE_GOAL_EXTREME_RUNWAY_V10G');
+  }
+
   const thesis = getCorrelatedThesis(canonicalMarket);
   if (thesis) {
     const sameThesisRows = (input.previousRecommendations ?? [])
@@ -315,6 +497,23 @@ export function applyRecommendationPolicy(input: RecommendationPolicyInput): Rec
     }
     if (sameThesisStake + (Number(stakePercent) || 0) > SAME_THESIS_MAX_STAKE_PERCENT) {
       block('POLICY_BLOCK_SAME_THESIS_STAKE_CAP');
+    }
+
+    if (
+      isV10f
+      && canonicalMarket.startsWith('under_')
+      && input.minute >= 45
+      && input.minute <= 59
+      && scoreState === 'two-plus-margin'
+      && marketLine != null
+      && sameThesisRows.some((row) => {
+        const previousCanonical = normalizeMarket(row.selection ?? '', row.bet_market ?? '');
+        if (!previousCanonical.startsWith('under_') || previousCanonical.startsWith('under_0.5')) return false;
+        const previousLine = getMarketLine(previousCanonical);
+        return previousLine != null && previousLine < marketLine;
+      })
+    ) {
+      block('POLICY_BLOCK_GOALS_UNDER_45_59_TWO_PLUS_SAME_THESIS_ROLLOVER_V10F');
     }
   }
 

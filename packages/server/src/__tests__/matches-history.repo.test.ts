@@ -44,6 +44,8 @@ describe('matches history repository', () => {
     expect(sql).toContain('COALESCE(EXCLUDED.kickoff_at_utc, matches_history.kickoff_at_utc)');
     expect(sql).toContain('home_team_id');
     expect(sql).toContain('away_team_id');
+    expect(sql).toContain('halftime_home');
+    expect(sql).toContain('halftime_away');
     expect(params).toContain('2026-03-25T06:00:00.000Z');
     expect(params).toContain(42);
     expect(params).toContain(49);
