@@ -1,12 +1,17 @@
 # ============================================================
 # TFI - Azure Container Apps deployment script
+#
+# Prerequisites: Azure CLI (`az`), logged in (`az login`), rights on RG/ACR/Container App.
+# No local Docker required — image builds in ACR (`az acr build --no-wait`).
+#
 # Usage:
-#   .\scripts\azure\deploy.ps1 -ReleaseTag "v1.0.0"
+#   .\scripts\azure\deploy.ps1
+#   .\scripts\azure\deploy.ps1 -ReleaseTag "prod-20260409-1cb1ae2"
 #   .\scripts\azure\deploy.ps1 -ReleaseTag "v1.0.0" -SkipBuild
+#   Copy .env.azure.example -> .env.azure and fill secrets before first deploy.
 # ============================================================
 param(
-  [Parameter(Mandatory = $true)]
-  [string]$ReleaseTag,
+  [string]$ReleaseTag = "",
 
   [string]$ResourceGroup = "fkr_resource",
   [string]$AcrName = "vocs2026",
@@ -22,10 +27,27 @@ param(
 Set-StrictMode -Version Latest
 $ErrorActionPreference = "Continue"
 
+# Reduce Azure CLI (Python) Unicode issues on Windows consoles (e.g. charmap / ✓ in logs).
+$env:PYTHONUTF8 = "1"
+$env:PYTHONIOENCODING = "utf-8"
+try {
+  [Console]::OutputEncoding = [System.Text.UTF8Encoding]::new($false)
+  $OutputEncoding = [System.Text.UTF8Encoding]::new($false)
+} catch { }
+
 # Ensure we always run from the repo root (the directory that contains Dockerfile)
 $ScriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
 $RepoRoot  = Split-Path -Parent (Split-Path -Parent $ScriptDir)
 Set-Location $RepoRoot
+
+if ([string]::IsNullOrWhiteSpace($ReleaseTag)) {
+  $short = (& git -C $RepoRoot rev-parse --short HEAD 2>$null)
+  if ([string]::IsNullOrWhiteSpace($short)) {
+    throw "ReleaseTag is empty and git short hash is unavailable. Pass -ReleaseTag explicitly."
+  }
+  $ReleaseTag = "prod-{0}-{1}" -f (Get-Date -Format "yyyyMMdd"), $short.Trim()
+  Write-Host "[deploy] Auto ReleaseTag: $ReleaseTag"
+}
 
 $repo = "tfi"
 $acrLoginServer = az acr show -n $AcrName --query loginServer -o tsv
@@ -41,15 +63,18 @@ Write-Host "[deploy] ContainerApp  = $ContainerAppName"
 
 # ── Step 1: Build & push image to ACR ────────────────────────
 if (-not $SkipBuild) {
-  Write-Host "[deploy][build] Building image via ACR task..."
-  az acr build -g $ResourceGroup -r $AcrName -t "${repo}:${ReleaseTag}" -f Dockerfile . --no-wait 1>$null 2>$null
+  Write-Host "[deploy][build] Queuing ACR build (no local Docker; use --no-wait — full logs stay in ACR portal)..."
+  az acr build -g $ResourceGroup -r $AcrName -t "${repo}:${ReleaseTag}" -f Dockerfile . --no-wait --only-show-errors
+  if ($LASTEXITCODE -ne 0) {
+    throw "az acr build failed to queue (exit $LASTEXITCODE). Check az login and registry name."
+  }
 
   Write-Host "[deploy][build] Waiting for ACR build to complete..."
   $deadline = (Get-Date).AddMinutes(30)
   $ready = $false
   while (-not $ready) {
     if ((Get-Date) -gt $deadline) {
-      throw "Build timeout: image '${repo}:${ReleaseTag}' not available in ACR within 20 minutes."
+      throw "Build timeout: image '${repo}:${ReleaseTag}' not available in ACR within 30 minutes."
     }
     Start-Sleep -Seconds 10
     $tag = az acr repository show-tags -n $AcrName --repository $repo --detail --orderby time_desc --top 10 `

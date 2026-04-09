@@ -13,6 +13,12 @@ Read [docs/agent-onboarding.md](docs/agent-onboarding.md) before making non-triv
 - Backend tests: `packages/server/src/__tests__/`
 - Legacy reference only: `legacy/`
 
+## Deploy (Azure Container Apps)
+
+- Runbook: [docs/deploy-azure-runbook.md](docs/deploy-azure-runbook.md)
+- Scripts: `scripts/azure/deploy.ps1` (Windows), `scripts/azure/deploy.sh` (bash/WSL/CI)
+- Optional CI: `.github/workflows/deploy-azure.yml` (`workflow_dispatch`)
+
 ## Quick Start
 
 - Full dev: `npm run dev`

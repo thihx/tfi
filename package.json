@@ -21,7 +21,8 @@
     "typecheck": "tsc --noEmit",
     "lint": "eslint src/",
     "lint:fix": "eslint src/ --fix",
-    "format": "prettier --write \"src/**/*.{ts,tsx}\""
+    "format": "prettier --write \"src/**/*.{ts,tsx}\"",
+    "deploy:azure": "pwsh -NoProfile -ExecutionPolicy Bypass -File ./scripts/azure/deploy.ps1"
   },
   "dependencies": {
     "react": "^19.2.4",
