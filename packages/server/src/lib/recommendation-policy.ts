@@ -30,6 +30,8 @@ export interface RecommendationPolicyInput {
   statsCompact?: RecommendationPolicyStatsCompact | null;
   /** Optional keys `minuteBand::marketFamily` (replay segment shape); blocks persistence when matched. */
   segmentBlocklist?: ReadonlySet<string> | null;
+  /** Optional max stake % per segment key; lowers stake and adds a warning (does not block). */
+  segmentStakeCaps?: ReadonlyMap<string, number> | null;
 }
 
 export interface RecommendationPolicyResult {
@@ -524,6 +526,18 @@ export function applyRecommendationPolicy(input: RecommendationPolicyInput): Rec
       })
     ) {
       block('POLICY_BLOCK_GOALS_UNDER_45_59_TWO_PLUS_SAME_THESIS_ROLLOVER_V10F');
+    }
+  }
+
+  if (!blocked && input.segmentStakeCaps?.size) {
+    const segKey = buildRecommendationSegmentKey(input.minute, canonicalMarket);
+    const cap = input.segmentStakeCaps.get(segKey);
+    if (cap != null && Number.isFinite(cap) && cap >= 0) {
+      const prev = stakePercent;
+      stakePercent = Math.min(Number(stakePercent) || 0, cap);
+      if (stakePercent < prev) {
+        warnings.push('POLICY_WARN_SEGMENT_STAKE_CAP');
+      }
     }
   }
 

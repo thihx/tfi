@@ -51,6 +51,25 @@ describe('applyRecommendationPolicy', () => {
     expect(result.warnings).toContain('POLICY_BLOCK_SEGMENT_BLOCKLIST');
   });
 
+  test('caps stake when segmentStakeCaps matches', () => {
+    const caps = new Map<string, number>([['30-44::goals_over', 1]]);
+    const result = applyRecommendationPolicy({
+      selection: 'Over 2.5 @1.95',
+      betMarket: 'over_2.5',
+      minute: 40,
+      score: '0-0',
+      odds: 1.95,
+      confidence: 6,
+      valuePercent: 8,
+      stakePercent: 4,
+      segmentStakeCaps: caps,
+    });
+
+    expect(result.blocked).toBe(false);
+    expect(result.stakePercent).toBe(1);
+    expect(result.warnings).toContain('POLICY_WARN_SEGMENT_STAKE_CAP');
+  });
+
   test('blocks over_0.5 at 75 plus', () => {
     const result = applyRecommendationPolicy({
       selection: 'Over 0.5 Goals @1.95',

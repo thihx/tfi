@@ -22,6 +22,7 @@ Read [docs/agent-onboarding.md](docs/agent-onboarding.md) before making non-triv
 - Segment hotspots from existing `eval-cases.json`: `npm run data-driven:segment-hotspots --prefix packages/server -- --cases-json <path>`.
 - Segment gates on `segment-hotspots.json`: copy `packages/server/data-driven-segment-gates.example.json` to `data-driven-segment-gates.json`, then `npm run data-driven:check-segment-gates --prefix packages/server`.
 - Optional live blocklist: `SEGMENT_POLICY_BLOCKLIST_PATH` → JSON per `segment-policy-blocklist.example.json`; draft keys from a run via `npm run data-driven:suggest-segment-blocklist --prefix packages/server -- --hotspots-json <path>`.
+- Optional segment stake ceiling: `SEGMENT_POLICY_STAKE_CAP_PATH` → `segment-policy-stake-cap.example.json`.
 
 ## Deploy (Azure Container Apps)
 

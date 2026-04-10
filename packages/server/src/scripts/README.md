@@ -20,6 +20,7 @@ They are **not** part of the request-serving runtime path.
 - `npm run data-driven:segment-hotspots` — `--cases-json <eval-cases.json> [--variant-index 0] [--out-json ...] [--min-settled N] [--min-staked N]` for segment rollups on an existing eval run (same logic as batch `segment-hotspots.json`).
 - `npm run data-driven:check-segment-gates` — Step 4b: `--config data-driven-segment-gates.json` (copy from `data-driven-segment-gates.example.json`, set `hotspotPath` + optional `promptVersion` + per-segment `rules`); exit 1 if hotspot metrics breach thresholds.
 - **Runtime segment blocklist** (optional): set `SEGMENT_POLICY_BLOCKLIST_PATH` to a JSON file like `segment-policy-blocklist.example.json` (`minuteBand::marketFamily` keys). Live pipeline policy will block matching recommendations.
+- **Runtime segment stake cap** (optional): `SEGMENT_POLICY_STAKE_CAP_PATH` → `segment-policy-stake-cap.example.json` (`caps` map). Matching segments get `min(modelStake, cap)` with warning `POLICY_WARN_SEGMENT_STAKE_CAP` (blocklist still wins if both apply).
 - `npm run data-driven:suggest-segment-blocklist` — `--hotspots-json <segment-hotspots.json>` prints JSON `{ segmentKeys }` (default: union top 8 worst-accuracy + top 8 worst-ROI rows). Tighten with `--max-accuracy`, `--max-roi`, `--worst-accuracy-top 0` to disable a source, `--out-json <file>` to write.
 
 Use these only for:

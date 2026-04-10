@@ -140,6 +140,8 @@ export const config = {
 
   /** Optional JSON blocklist for minuteBand::marketFamily (see segment-policy-blocklist.example.json). */
   segmentPolicyBlocklistPath: process.env['SEGMENT_POLICY_BLOCKLIST_PATH'] || '',
+  /** Optional JSON max stake % per segment key (see segment-policy-stake-cap.example.json). */
+  segmentPolicyStakeCapPath: process.env['SEGMENT_POLICY_STAKE_CAP_PATH'] || '',
 
   // Tactical overlay refresh
   tacticalOverlayRefreshMaxPerRun: Number(process.env['TACTICAL_OVERLAY_REFRESH_MAX_PER_RUN'] || 6),
