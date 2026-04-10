@@ -166,7 +166,7 @@ describe('RecommendationsTab delete actions', () => {
 
     const arsenalCard = screen.getByText('Arsenal vs Chelsea').closest('.card') as HTMLElement | null;
     expect(arsenalCard).not.toBeNull();
-    await user.click(within(arsenalCard!).getByRole('button', { name: 'Delete' }));
+    await user.click(within(arsenalCard!).getByRole('button', { name: /delete recommendation/i }));
 
     expect(screen.getByText('Are you sure you want to delete 1 recommendation(s)?')).toBeInTheDocument();
     const deleteModal = getDeleteModal();
@@ -204,7 +204,7 @@ describe('RecommendationsTab delete actions', () => {
 
     const arsenalCard = screen.getByText('Arsenal vs Chelsea').closest('.card') as HTMLElement | null;
     expect(arsenalCard).not.toBeNull();
-    await user.click(within(arsenalCard!).getByRole('button', { name: 'Delete' }));
+    await user.click(within(arsenalCard!).getByRole('button', { name: /delete recommendation/i }));
 
     const deleteModal = getDeleteModal();
     await user.click(within(deleteModal).getByRole('button', { name: 'Delete' }));
@@ -220,12 +220,12 @@ describe('RecommendationsTab delete actions', () => {
 
     const user = await renderTab();
 
-    expect(screen.queryByRole('button', { name: 'Delete' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /delete recommendation/i })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Delete Selected' })).not.toBeInTheDocument();
 
     await user.click(screen.getByRole('button', { name: 'My Deliveries' }));
     expect(await screen.findByText('Arsenal vs Chelsea')).toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: 'Delete' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /delete recommendation/i })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Delete Selected' })).not.toBeInTheDocument();
   }, 10000);
 });

@@ -134,7 +134,7 @@ describe('ProfileEditModal', () => {
     const input = await screen.findByDisplayValue('User Example');
     await user.clear(input);
     await user.type(input, 'Thi Nguyen');
-    await user.click(screen.getByRole('button', { name: 'Save Profile' }));
+    await user.click(screen.getByRole('button', { name: 'Save' }));
 
     await waitFor(() => {
       expect(mockUpdateCurrentUserProfile).toHaveBeenCalledWith({ displayName: 'Thi Nguyen' });
@@ -157,6 +157,7 @@ describe('ProfileEditModal', () => {
       />,
     );
 
+    await user.click(await screen.findByRole('button', { name: 'Notifications' }));
     const chatIdInput = await screen.findByDisplayValue('123456');
     await user.clear(chatIdInput);
     await user.type(chatIdInput, '987654');

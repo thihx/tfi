@@ -28,6 +28,7 @@ Read [docs/agent-onboarding.md](docs/agent-onboarding.md) before making non-triv
 
 - Runbook: [docs/deploy-azure-runbook.md](docs/deploy-azure-runbook.md)
 - Scripts: `scripts/azure/deploy.ps1` (Windows), `scripts/azure/deploy.sh` (bash/WSL/CI)
+- PR/push CI: `.github/workflows/ci.yml` (server: typecheck + vitest; client: typecheck + vitest).
 - Optional CI: `.github/workflows/deploy-azure.yml` (`workflow_dispatch`)
 
 ## Quick Start

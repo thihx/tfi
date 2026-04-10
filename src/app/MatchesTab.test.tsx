@@ -263,7 +263,7 @@ describe('MatchesTab', () => {
 
     expect(await screen.findByText(/Match analysis/i)).toBeInTheDocument();
     expect(screen.getByText('Signal')).toBeInTheDocument();
-    expect(screen.getByText('Over 2.5')).toBeInTheDocument();
+    expect(screen.getByText(/Over 2\.5/)).toBeInTheDocument();
     expect(screen.getByText('Ap luc tang dan')).toBeInTheDocument();
     expect(screen.getByText('Strong prematch context')).toBeInTheDocument();
     expect(screen.getByText('Expanded analysis')).toBeInTheDocument();

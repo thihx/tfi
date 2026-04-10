@@ -108,7 +108,9 @@ describe('auth service', () => {
         email: 'admin@example.com',
         role: 'admin',
         name: 'Admin',
+        displayName: 'Admin',
         picture: '',
+        avatarUrl: '',
       });
       expect(globalThis.fetch).toHaveBeenCalledWith(
         'http://localhost:4000/api/auth/me',
