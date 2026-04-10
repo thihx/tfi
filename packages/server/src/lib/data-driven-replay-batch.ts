@@ -1,9 +1,14 @@
-import { mkdirSync, readdirSync, unlinkSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, readdirSync, unlinkSync, writeFileSync } from 'node:fs';
 import { join, resolve, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { spawnSync } from 'node:child_process';
 import { buildRecommendationSnapshotCoverageReport } from './recommendation-snapshot-coverage.js';
 import { buildSettledReplayScenarios, type SettledReplayScenarioFilters } from './db-replay-scenarios.js';
+import {
+  buildReplayVsOriginalReport,
+  evaluatedCasesToCsv,
+  loadEvalCasesPayload,
+} from './replay-vs-original-analysis.js';
 import { config } from '../config.js';
 
 const serverRoot = resolve(dirname(fileURLToPath(import.meta.url)), '../..');
@@ -22,6 +27,8 @@ export interface DataDrivenBatchOptions {
   applyReplayPolicy: boolean;
   skipEval: boolean;
   llmModel: string;
+  /** After eval: write replay-vs-original.json + cases-flat.csv (variant 0). */
+  postSummarize: boolean;
 }
 
 export interface DataDrivenBatchResult {
@@ -69,6 +76,8 @@ export async function runDataDrivenReplayBatch(opts: DataDrivenBatchOptions): Pr
     evalSummaryJson: join(runRoot, 'eval-summary.json'),
     evalSummaryMd: join(runRoot, 'eval-summary.md'),
     evalCasesJson: join(runRoot, 'eval-cases.json'),
+    replayVsOriginalJson: join(runRoot, 'replay-vs-original.json'),
+    casesFlatCsv: join(runRoot, 'cases-flat.csv'),
   };
 
   mkdirSync(runRoot, { recursive: true });
@@ -131,6 +140,16 @@ export async function runDataDrivenReplayBatch(opts: DataDrivenBatchOptions): Pr
     const sh = spawnSync(cmd, { cwd: serverRoot, shell: true, stdio: 'inherit', env });
     if (sh.status !== 0) {
       throw new Error(`evaluate-settled-prompt-variants exited with ${sh.status ?? 'unknown'}`);
+    }
+
+    if (opts.postSummarize && existsSync(paths.evalCasesJson)) {
+      const payload = loadEvalCasesPayload(readFileSync(paths.evalCasesJson, 'utf8'));
+      const delta = buildReplayVsOriginalReport(payload);
+      writeFileSync(paths.replayVsOriginalJson, JSON.stringify(delta, null, 2));
+      const v0 = payload.variants[0];
+      if (v0) {
+        writeFileSync(paths.casesFlatCsv, evaluatedCasesToCsv(v0.cases), 'utf8');
+      }
     }
   }
 

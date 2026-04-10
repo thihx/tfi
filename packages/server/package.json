@@ -39,7 +39,8 @@
     "replay:benchmark:check-gates:targets": "tsx src/scripts/check-replay-integration-gates.ts --config replay-benchmark-gates-policy-targets.json",
     "analyze:goals-totals-recent": "tsx src/scripts/analyze-goals-totals-recent.ts",
     "data-driven:coverage": "tsx src/scripts/report-recommendation-snapshot-coverage.ts",
-    "data-driven:replay-batch": "tsx src/scripts/run-data-driven-replay-batch.ts"
+    "data-driven:replay-batch": "tsx src/scripts/run-data-driven-replay-batch.ts",
+    "data-driven:summarize-vs-original": "tsx src/scripts/summarize-replay-vs-original.ts"
   },
   "dependencies": {
     "@fastify/cors": "^11.0.1",

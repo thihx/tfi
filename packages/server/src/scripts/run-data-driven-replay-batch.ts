@@ -14,6 +14,7 @@ function parseArgs(argv: string[]): DataDrivenBatchOptions {
   let delayMs = 750;
   let applyReplayPolicy = false;
   let skipEval = false;
+  let postSummarize = true;
   let llmModel = process.env['GEMINI_REPLAY_MODEL']?.trim() || config.geminiModel;
 
   for (let i = 0; i < argv.length; i++) {
@@ -52,6 +53,8 @@ function parseArgs(argv: string[]): DataDrivenBatchOptions {
       applyReplayPolicy = true;
     } else if (a === '--skip-eval') {
       skipEval = true;
+    } else if (a === '--no-post-summarize') {
+      postSummarize = false;
     } else if (a === '--model' && n) {
       llmModel = n;
       i++;
@@ -78,13 +81,19 @@ function parseArgs(argv: string[]): DataDrivenBatchOptions {
     delayMs,
     applyReplayPolicy,
     skipEval,
+    postSummarize,
     llmModel,
   };
 }
 
 async function main(): Promise<void> {
   const opts = parseArgs(process.argv.slice(2));
-  console.log('[data-driven-batch] starting', { lookbackDays: opts.lookbackDays, limit: opts.limit, llmMode: opts.llmMode });
+  console.log('[data-driven-batch] starting', {
+    lookbackDays: opts.lookbackDays,
+    limit: opts.limit,
+    llmMode: opts.llmMode,
+    postSummarize: opts.postSummarize,
+  });
   const out = await runDataDrivenReplayBatch(opts);
   console.log('[data-driven-batch] runRoot=', out.runRoot, 'scenarios=', out.scenarioCount);
   if (out.scenarioCount === 0) {

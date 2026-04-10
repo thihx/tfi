@@ -14,7 +14,8 @@ They are **not** part of the request-serving runtime path.
 ### Data-driven pipeline improvement (Step 0–1)
 
 - `npm run data-driven:coverage` — JSON report of recommendation snapshot coverage vs settled-replay export filters (`--lookback-days`, `--out-json`).
-- `npm run data-driven:replay-batch` — writes `replay-work/data-driven-runs/<runId>/`: `coverage.json`, `run-spec.json`, exported scenario JSONs, then runs `evaluate-settled-prompt-variants` (default `--llm mock`; real LLM: `--llm real --allow-real-llm`). Use `--apply-replay-policy` for production parity after parse.
+- `npm run data-driven:replay-batch` — writes `replay-work/data-driven-runs/<runId>/`: `coverage.json`, `run-spec.json`, scenarios, eval reports, and (unless `--no-post-summarize`) `replay-vs-original.json` + `cases-flat.csv` (variant 0). Default `--llm mock`; real: `--llm real --allow-real-llm`. `--apply-replay-policy` for production parity after parse.
+- `npm run data-driven:summarize-vs-original` — `--cases-json <eval-cases.json> [--out-json] [--out-csv] [--csv-variant-index N]` for Step 2 delta vs production outcomes on an existing run.
 
 Use these only for:
 
