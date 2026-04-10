@@ -18,6 +18,7 @@ Read [docs/agent-onboarding.md](docs/agent-onboarding.md) before making non-triv
 - Snapshot coverage (DB): `npm run data-driven:coverage --prefix packages/server` (`--lookback-days`, `--out-json`).
 - Full batch (coverage + export + eval + replay-vs-original summary): `npm run data-driven:replay-batch --prefix packages/server` (under `packages/server/replay-work/data-driven-runs/<runId>/`; add `--no-post-summarize` to skip delta CSV/JSON). Real LLM: `--llm real --allow-real-llm`. Policy parity: `--apply-replay-policy`.
 - Step 2 on existing `eval-cases.json`: `npm run data-driven:summarize-vs-original --prefix packages/server -- --cases-json <path> [--out-json ...] [--out-csv ...]`.
+- Step 3 gates on `replay-vs-original.json`: copy `packages/server/data-driven-replay-gates.example.json` to `data-driven-replay-gates.json`, edit paths/thresholds, then `npm run data-driven:check-gates --prefix packages/server`.
 
 ## Deploy (Azure Container Apps)
 
