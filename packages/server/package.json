@@ -43,7 +43,8 @@
     "data-driven:summarize-vs-original": "tsx src/scripts/summarize-replay-vs-original.ts",
     "data-driven:check-gates": "tsx src/scripts/check-data-driven-replay-gates.ts",
     "data-driven:segment-hotspots": "tsx src/scripts/summarize-replay-segment-hotspots.ts",
-    "data-driven:check-segment-gates": "tsx src/scripts/check-data-driven-segment-gates.ts"
+    "data-driven:check-segment-gates": "tsx src/scripts/check-data-driven-segment-gates.ts",
+    "data-driven:suggest-segment-blocklist": "tsx src/scripts/suggest-segment-policy-blocklist.ts"
   },
   "dependencies": {
     "@fastify/cors": "^11.0.1",
