@@ -1,0 +1,53 @@
+name: Data-driven DB coverage (artifact)
+
+on:
+  workflow_dispatch:
+
+env:
+  DATABASE_URL: postgresql://tfi:tfi_password@127.0.0.1:5432/tfi
+
+jobs:
+  coverage:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: tfi
+          POSTGRES_PASSWORD: tfi_password
+          POSTGRES_DB: tfi
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U tfi -d tfi"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: packages/server/package-lock.json
+
+      - name: Install (server)
+        run: npm ci --prefix packages/server
+
+      - name: Migrate database
+        run: npm run migrate --prefix packages/server
+
+      - name: Data-driven snapshot coverage (JSON)
+        run: |
+          npm run data-driven:coverage --prefix packages/server -- \
+            --lookback-days 14 \
+            --out-json replay-work/ci-artifacts/snapshot-coverage.json
+
+      - name: Upload snapshot coverage artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: data-driven-snapshot-coverage
+          path: packages/server/replay-work/ci-artifacts/snapshot-coverage.json
+          if-no-files-found: error

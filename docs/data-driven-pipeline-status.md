@@ -57,11 +57,18 @@ Not automated (by design): full `data-driven:replay-batch` against DB, auto-PR t
 | Track | Scope | Progress |
 |-------|-------|----------|
 | **A — MVP** | Scripts, delta/segment gates, unit tests, CI on push, `verify:ci`, docs | **100%** |
-| **B — Post-MVP automation** | Gitattributes + baseline smoke workflow (this section) | **100%** |
+| **B — Post-MVP automation** | Gitattributes + baseline smoke workflow | **100%** |
+| **C — DB artifact (dispatch)** | Postgres service, migrate, `data-driven:coverage` JSON upload | **100%** |
 
-**Overall (A + B, per this document): 100%.**  
+**Overall (A + B + C, per this document): 100%.**
+
 *Separate from global [core-pipeline-implementation-checklist.md](./core-pipeline-implementation-checklist.md).*
 
+## Track C — DB-backed CI (on demand)
+
+| Item | Status | Notes |
+|------|--------|-------|
+| Postgres + migrate + `data-driven:coverage` artifact | Done | `.github/workflows/data-driven-db-coverage.yml` — `workflow_dispatch` only; artifact name `data-driven-snapshot-coverage`. Empty DB yields zero counts; run against a populated DB for real signal. |
 ## How to read percentages for stakeholders
 
 - **Data-driven implementation (this table):** **100%** MVP.
