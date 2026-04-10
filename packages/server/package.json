@@ -40,6 +40,7 @@
     "analyze:goals-totals-recent": "tsx src/scripts/analyze-goals-totals-recent.ts",
     "data-driven:coverage": "tsx src/scripts/report-recommendation-snapshot-coverage.ts",
     "data-driven:replay-batch": "tsx src/scripts/run-data-driven-replay-batch.ts",
+    "data-driven:improvement-run": "tsx src/scripts/run-data-driven-replay-batch.ts --lookback-days 14 --limit 50 --max-scenarios 30 --llm mock --delay-ms 0 --odds recorded --apply-replay-policy",
     "data-driven:summarize-vs-original": "tsx src/scripts/summarize-replay-vs-original.ts",
     "data-driven:check-gates": "tsx src/scripts/check-data-driven-replay-gates.ts",
     "data-driven:segment-hotspots": "tsx src/scripts/summarize-replay-segment-hotspots.ts",

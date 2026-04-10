@@ -10,6 +10,7 @@ import {
   loadEvalCasesPayload,
 } from './replay-vs-original-analysis.js';
 import { buildHotspotReport } from './replay-segment-hotspots.js';
+import { LIVE_ANALYSIS_PROMPT_VERSION } from './live-analysis-prompt.js';
 import { config } from '../config.js';
 
 const serverRoot = resolve(dirname(fileURLToPath(import.meta.url)), '../..');
@@ -64,9 +65,8 @@ export async function runDataDrivenReplayBatch(opts: DataDrivenBatchOptions): Pr
   if (opts.llmMode === 'real' && !config.geminiApiKey?.trim()) {
     throw new Error('GEMINI_API_KEY is required for real LLM.');
   }
-  if (opts.evalPromptVersions.length === 0) {
-    throw new Error('evalPromptVersions is empty.');
-  }
+  const evalPromptVersions =
+    opts.evalPromptVersions.length > 0 ? opts.evalPromptVersions : [LIVE_ANALYSIS_PROMPT_VERSION];
 
   const runId = runIdNow();
   const runRoot = join(serverRoot, 'replay-work', 'data-driven-runs', runId);
@@ -87,7 +87,11 @@ export async function runDataDrivenReplayBatch(opts: DataDrivenBatchOptions): Pr
   mkdirSync(runRoot, { recursive: true });
   writeFileSync(
     paths.runSpecJson,
-    JSON.stringify({ runId, generatedAt: new Date().toISOString(), ...opts, paths }, null, 2),
+    JSON.stringify(
+      { runId, generatedAt: new Date().toISOString(), ...opts, evalPromptVersions, paths },
+      null,
+      2,
+    ),
   );
 
   const coverage = await buildRecommendationSnapshotCoverageReport(opts.lookbackDays);
@@ -127,7 +131,7 @@ export async function runDataDrivenReplayBatch(opts: DataDrivenBatchOptions): Pr
     mkdirSync(join(serverRoot, cacheRel), { recursive: true });
     const relScenarios = `replay-work/data-driven-runs/${runId}/scenarios`;
     const runRel = `replay-work/data-driven-runs/${runId}`;
-    const pv = opts.evalPromptVersions.map((v) => `--prompt-version ${v}`).join(' ');
+    const pv = evalPromptVersions.map((v) => `--prompt-version ${v}`).join(' ');
     const policy = opts.applyReplayPolicy ? ' --apply-replay-policy' : '';
     const allow = opts.llmMode === 'real' ? ' --allow-real-llm' : '';
     const cmd =
