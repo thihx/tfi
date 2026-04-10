@@ -1,0 +1,2 @@
+# Keep CI JSON baselines as normalized text (avoids surprise UTF-16 / mixed EOL on Windows).
+packages/server/ci-baselines/** text eol=lf

@@ -38,9 +38,29 @@ The MVP is **complete** when all of the following are true:
 
 ## Suggested next steps after MVP
 
-1. **Process**: After meaningful prompt/policy changes, run a fixed batch, compare outputs to CI baselines; update `ci-baselines/data-driven-gates/` only when you accept the new metrics.
-2. **Optional automation**: `workflow_dispatch` or `schedule` workflow uploading JSON artifacts (no need to auto-merge baselines).
-3. **Encoding**: Keep baseline JSON files UTF-8 to avoid CI parse failures.
+1. **Process** (manual): After meaningful prompt/policy changes, run a fixed batch, compare outputs to CI baselines; update `ci-baselines/data-driven-gates/` only when you accept the new metrics.
+2. **Automation shipped**: Baseline smoke workflow — `.github/workflows/data-driven-baselines-smoke.yml` (`workflow_dispatch` + weekly schedule).
+3. **Encoding shipped**: `.gitattributes` on `packages/server/ci-baselines/**`; still avoid saving those JSON files as UTF-16 in editors.
+
+
+## Optional automation track (post-MVP)
+
+| Item | Status | Notes |
+|------|--------|-------|
+| Baseline JSON as normalized text | Done | Root `.gitattributes` → `packages/server/ci-baselines/**` uses `text eol=lf` |
+| Scheduled / manual smoke for gate baselines | Done | `.github/workflows/data-driven-baselines-smoke.yml` — `workflow_dispatch` + weekly cron; runs `data-driven:verify-gates-ci` only (no DB) |
+
+Not automated (by design): full `data-driven:replay-batch` against DB, auto-PR to refresh baselines, UI dashboard.
+
+## Stakeholder progress summary
+
+| Track | Scope | Progress |
+|-------|-------|----------|
+| **A — MVP** | Scripts, delta/segment gates, unit tests, CI on push, `verify:ci`, docs | **100%** |
+| **B — Post-MVP automation** | Gitattributes + baseline smoke workflow (this section) | **100%** |
+
+**Overall (A + B, per this document): 100%.**  
+*Separate from global [core-pipeline-implementation-checklist.md](./core-pipeline-implementation-checklist.md).*
 
 ## How to read percentages for stakeholders
 

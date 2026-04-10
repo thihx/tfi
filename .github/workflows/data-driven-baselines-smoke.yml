@@ -1,0 +1,28 @@
+# Lightweight check that committed gate baselines still parse and pass thresholds.
+# Does not run full server tests (see ci.yml on push). Use workflow_dispatch anytime;
+# schedule is optional heartbeat.
+
+name: Data-driven baseline smoke
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "0 12 * * 1"
+
+jobs:
+  verify-baselines:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: packages/server/package-lock.json
+
+      - name: Install (server)
+        run: npm ci --prefix packages/server
+
+      - name: Verify data-driven gate baselines
+        run: npm run data-driven:verify-gates-ci --prefix packages/server

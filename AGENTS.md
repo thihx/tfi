@@ -23,6 +23,7 @@ Read [docs/agent-onboarding.md](docs/agent-onboarding.md) before making non-triv
 - Segment hotspots from existing `eval-cases.json`: `npm run data-driven:segment-hotspots --prefix packages/server -- --cases-json <path>`.
 - Segment gates on `segment-hotspots.json`: copy `packages/server/data-driven-segment-gates.example.json` to `data-driven-segment-gates.json`, then `npm run data-driven:check-segment-gates --prefix packages/server`.
 - **CI baselines** (checked on every server CI job): `packages/server/ci-baselines/data-driven-gates/` — `npm run data-driven:verify-gates-ci --prefix packages/server` runs replay-delta + segment gate configs against those JSON files (no DB/LLM). Update the baselines when you intentionally change expected cohort metrics.
+- **Optional baseline smoke** (lightweight): `.github/workflows/data-driven-baselines-smoke.yml` — `workflow_dispatch` or weekly schedule; runs only `data-driven:verify-gates-ci` (not the full server test suite).
 - Optional live blocklist: `SEGMENT_POLICY_BLOCKLIST_PATH` → JSON per `segment-policy-blocklist.example.json`; draft keys from a run via `npm run data-driven:suggest-segment-blocklist --prefix packages/server -- --hotspots-json <path>`.
 - Optional segment stake ceiling: `SEGMENT_POLICY_STAKE_CAP_PATH` → `segment-policy-stake-cap.example.json`.
 
