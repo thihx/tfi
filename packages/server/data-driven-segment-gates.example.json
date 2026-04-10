@@ -1,0 +1,13 @@
+{
+  "hotspotPath": "replay-work/data-driven-runs/REPLACE-RUN-ID/segment-hotspots.json",
+  "promptVersion": "REPLACE_WITH_ACTIVE_PROMPT_VERSION",
+  "minTotalCases": 20,
+  "rules": [
+    {
+      "segmentKey": "30-44::goals_under",
+      "minSettledDirectional": 5,
+      "minReplayAccuracy": 0.45,
+      "minReplayRoi": -0.05
+    }
+  ]
+}

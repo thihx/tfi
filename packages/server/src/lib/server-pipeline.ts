@@ -87,6 +87,7 @@ import {
   type RecommendationPolicyPreviousRow,
   type RecommendationPolicyStatsCompact,
 } from './recommendation-policy.js';
+import { getSegmentPolicyBlocklist } from './load-segment-policy-blocklist.js';
 import {
   detectGoalsCornersLineContamination,
   detectHtGoalsCornersLineContamination,
@@ -650,6 +651,7 @@ function evaluateConditionTriggeredSaveDecision(args: {
     promptVersion: args.promptVersion,
     previousRecommendations: args.previousRecommendations,
     statsCompact: args.statsCompact ?? undefined,
+    segmentBlocklist: getSegmentPolicyBlocklist(),
   });
 
   if (policyResult.blocked) {
@@ -1262,6 +1264,7 @@ async function executePromptAnalysis(
     promptVersion,
     previousRecommendations: policyContext.previousRecommendations,
     statsCompact: promptContext.statsCompact,
+    segmentBlocklist: getSegmentPolicyBlocklist(),
   });
   const policyBlockedEffective = policyResult.blocked && !promptContext.skipRecommendationPolicy;
   const hasCustomCondition = !!String(promptContext.customConditions || '').trim();

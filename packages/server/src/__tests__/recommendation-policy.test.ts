@@ -34,6 +34,23 @@ describe('applyRecommendationPolicy', () => {
     expect(result.warnings).toContain('POLICY_BLOCK_1X2_DRAW');
   });
 
+  test('blocks when segmentBlocklist matches minute band and market family', () => {
+    const result = applyRecommendationPolicy({
+      selection: 'Over 2.5 @1.95',
+      betMarket: 'over_2.5',
+      minute: 40,
+      score: '0-0',
+      odds: 1.95,
+      confidence: 6,
+      valuePercent: 8,
+      stakePercent: 2,
+      segmentBlocklist: new Set(['30-44::goals_over']),
+    });
+
+    expect(result.blocked).toBe(true);
+    expect(result.warnings).toContain('POLICY_BLOCK_SEGMENT_BLOCKLIST');
+  });
+
   test('blocks over_0.5 at 75 plus', () => {
     const result = applyRecommendationPolicy({
       selection: 'Over 0.5 Goals @1.95',

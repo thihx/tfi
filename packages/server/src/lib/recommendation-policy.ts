@@ -1,5 +1,6 @@
 /** Post-parse gates: see `docs/live-monitor-ai-ou-under-bias.md` before tightening Under/Over asymmetry. */
 import { normalizeMarket } from './normalize-market.js';
+import { buildRecommendationSegmentKey } from './segment-policy-blocklist.js';
 
 export interface RecommendationPolicyPreviousRow {
   minute: number | null;
@@ -27,6 +28,8 @@ export interface RecommendationPolicyInput {
   prematchStrength?: string | null;
   previousRecommendations?: RecommendationPolicyPreviousRow[];
   statsCompact?: RecommendationPolicyStatsCompact | null;
+  /** Optional keys `minuteBand::marketFamily` (replay segment shape); blocks persistence when matched. */
+  segmentBlocklist?: ReadonlySet<string> | null;
 }
 
 export interface RecommendationPolicyResult {
@@ -135,6 +138,13 @@ export function applyRecommendationPolicy(input: RecommendationPolicyInput): Rec
     blocked = true;
     warnings.push(warning);
   };
+
+  if (input.segmentBlocklist?.size) {
+    const segKey = buildRecommendationSegmentKey(input.minute, canonicalMarket);
+    if (input.segmentBlocklist.has(segKey)) {
+      block('POLICY_BLOCK_SEGMENT_BLOCKLIST');
+    }
+  }
 
   if (canonicalMarket === '1x2_draw') {
     block('POLICY_BLOCK_1X2_DRAW');

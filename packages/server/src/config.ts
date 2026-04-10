@@ -138,6 +138,9 @@ export const config = {
   liveAnalysisShadowSampleRate: Number(process.env['LIVE_ANALYSIS_SHADOW_SAMPLE_RATE'] || 0),
   promptShadowKeepDays: Number(process.env['PROMPT_SHADOW_KEEP_DAYS'] || 14),
 
+  /** Optional JSON blocklist for minuteBand::marketFamily (see segment-policy-blocklist.example.json). */
+  segmentPolicyBlocklistPath: process.env['SEGMENT_POLICY_BLOCKLIST_PATH'] || '',
+
   // Tactical overlay refresh
   tacticalOverlayRefreshMaxPerRun: Number(process.env['TACTICAL_OVERLAY_REFRESH_MAX_PER_RUN'] || 6),
   tacticalOverlayRefreshStaleDays: Number(process.env['TACTICAL_OVERLAY_REFRESH_STALE_DAYS'] || 30),

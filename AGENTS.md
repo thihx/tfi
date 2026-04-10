@@ -20,6 +20,8 @@ Read [docs/agent-onboarding.md](docs/agent-onboarding.md) before making non-triv
 - Step 2 on existing `eval-cases.json`: `npm run data-driven:summarize-vs-original --prefix packages/server -- --cases-json <path> [--out-json ...] [--out-csv ...]`.
 - Step 3 gates on `replay-vs-original.json`: copy `packages/server/data-driven-replay-gates.example.json` to `data-driven-replay-gates.json`, edit paths/thresholds, then `npm run data-driven:check-gates --prefix packages/server`.
 - Segment hotspots from existing `eval-cases.json`: `npm run data-driven:segment-hotspots --prefix packages/server -- --cases-json <path>`.
+- Segment gates on `segment-hotspots.json`: copy `packages/server/data-driven-segment-gates.example.json` to `data-driven-segment-gates.json`, then `npm run data-driven:check-segment-gates --prefix packages/server`.
+- Optional live blocklist: `SEGMENT_POLICY_BLOCKLIST_PATH` → JSON per `segment-policy-blocklist.example.json`.
 
 ## Deploy (Azure Container Apps)
 

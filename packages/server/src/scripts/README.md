@@ -18,6 +18,8 @@ They are **not** part of the request-serving runtime path.
 - `npm run data-driven:summarize-vs-original` — `--cases-json <eval-cases.json> [--out-json] [--out-csv] [--csv-variant-index N]` for Step 2 delta vs production outcomes on an existing run.
 - `npm run data-driven:check-gates` — Step 3: `--config data-driven-replay-gates.json` (copy from `data-driven-replay-gates.example.json`, set `deltaPath` + `promptVersion` + thresholds); exit 1 if replay-vs-original metrics regress.
 - `npm run data-driven:segment-hotspots` — `--cases-json <eval-cases.json> [--variant-index 0] [--out-json ...] [--min-settled N] [--min-staked N]` for segment rollups on an existing eval run (same logic as batch `segment-hotspots.json`).
+- `npm run data-driven:check-segment-gates` — Step 4b: `--config data-driven-segment-gates.json` (copy from `data-driven-segment-gates.example.json`, set `hotspotPath` + optional `promptVersion` + per-segment `rules`); exit 1 if hotspot metrics breach thresholds.
+- **Runtime segment blocklist** (optional): set `SEGMENT_POLICY_BLOCKLIST_PATH` to a JSON file like `segment-policy-blocklist.example.json` (`minuteBand::marketFamily` keys). Live pipeline policy will block matching recommendations.
 
 Use these only for:
 
