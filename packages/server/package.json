@@ -41,7 +41,8 @@
     "data-driven:coverage": "tsx src/scripts/report-recommendation-snapshot-coverage.ts",
     "data-driven:replay-batch": "tsx src/scripts/run-data-driven-replay-batch.ts",
     "data-driven:summarize-vs-original": "tsx src/scripts/summarize-replay-vs-original.ts",
-    "data-driven:check-gates": "tsx src/scripts/check-data-driven-replay-gates.ts"
+    "data-driven:check-gates": "tsx src/scripts/check-data-driven-replay-gates.ts",
+    "data-driven:segment-hotspots": "tsx src/scripts/summarize-replay-segment-hotspots.ts"
   },
   "dependencies": {
     "@fastify/cors": "^11.0.1",

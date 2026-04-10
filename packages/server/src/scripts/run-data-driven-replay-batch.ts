@@ -15,6 +15,7 @@ function parseArgs(argv: string[]): DataDrivenBatchOptions {
   let applyReplayPolicy = false;
   let skipEval = false;
   let postSummarize = true;
+  let postSegmentHotspots = true;
   let llmModel = process.env['GEMINI_REPLAY_MODEL']?.trim() || config.geminiModel;
 
   for (let i = 0; i < argv.length; i++) {
@@ -55,6 +56,8 @@ function parseArgs(argv: string[]): DataDrivenBatchOptions {
       skipEval = true;
     } else if (a === '--no-post-summarize') {
       postSummarize = false;
+    } else if (a === '--no-post-segment-hotspots') {
+      postSegmentHotspots = false;
     } else if (a === '--model' && n) {
       llmModel = n;
       i++;
@@ -82,6 +85,7 @@ function parseArgs(argv: string[]): DataDrivenBatchOptions {
     applyReplayPolicy,
     skipEval,
     postSummarize,
+    postSegmentHotspots,
     llmModel,
   };
 }
@@ -93,6 +97,7 @@ async function main(): Promise<void> {
     limit: opts.limit,
     llmMode: opts.llmMode,
     postSummarize: opts.postSummarize,
+    postSegmentHotspots: opts.postSegmentHotspots,
   });
   const out = await runDataDrivenReplayBatch(opts);
   console.log('[data-driven-batch] runRoot=', out.runRoot, 'scenarios=', out.scenarioCount);

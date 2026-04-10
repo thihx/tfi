@@ -9,6 +9,7 @@ import {
   evaluatedCasesToCsv,
   loadEvalCasesPayload,
 } from './replay-vs-original-analysis.js';
+import { buildHotspotReport } from './replay-segment-hotspots.js';
 import { config } from '../config.js';
 
 const serverRoot = resolve(dirname(fileURLToPath(import.meta.url)), '../..');
@@ -29,6 +30,8 @@ export interface DataDrivenBatchOptions {
   llmModel: string;
   /** After eval: write replay-vs-original.json + cases-flat.csv (variant 0). */
   postSummarize: boolean;
+  /** After eval: write segment-hotspots.json (variant 0) for minute × market rollups. */
+  postSegmentHotspots: boolean;
 }
 
 export interface DataDrivenBatchResult {
@@ -78,6 +81,7 @@ export async function runDataDrivenReplayBatch(opts: DataDrivenBatchOptions): Pr
     evalCasesJson: join(runRoot, 'eval-cases.json'),
     replayVsOriginalJson: join(runRoot, 'replay-vs-original.json'),
     casesFlatCsv: join(runRoot, 'cases-flat.csv'),
+    segmentHotspotsJson: join(runRoot, 'segment-hotspots.json'),
   };
 
   mkdirSync(runRoot, { recursive: true });
@@ -142,13 +146,22 @@ export async function runDataDrivenReplayBatch(opts: DataDrivenBatchOptions): Pr
       throw new Error(`evaluate-settled-prompt-variants exited with ${sh.status ?? 'unknown'}`);
     }
 
-    if (opts.postSummarize && existsSync(paths.evalCasesJson)) {
+    if ((opts.postSummarize || opts.postSegmentHotspots) && existsSync(paths.evalCasesJson)) {
       const payload = loadEvalCasesPayload(readFileSync(paths.evalCasesJson, 'utf8'));
-      const delta = buildReplayVsOriginalReport(payload);
-      writeFileSync(paths.replayVsOriginalJson, JSON.stringify(delta, null, 2));
-      const v0 = payload.variants[0];
-      if (v0) {
-        writeFileSync(paths.casesFlatCsv, evaluatedCasesToCsv(v0.cases), 'utf8');
+      if (opts.postSummarize) {
+        const delta = buildReplayVsOriginalReport(payload);
+        writeFileSync(paths.replayVsOriginalJson, JSON.stringify(delta, null, 2));
+        const v0 = payload.variants[0];
+        if (v0) {
+          writeFileSync(paths.casesFlatCsv, evaluatedCasesToCsv(v0.cases), 'utf8');
+        }
+      }
+      if (opts.postSegmentHotspots) {
+        const v0 = payload.variants[0];
+        if (v0) {
+          const seg = buildHotspotReport(v0.promptVersion, v0.cases);
+          writeFileSync(paths.segmentHotspotsJson, JSON.stringify(seg, null, 2));
+        }
       }
     }
   }
