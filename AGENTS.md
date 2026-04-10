@@ -15,6 +15,7 @@ Read [docs/agent-onboarding.md](docs/agent-onboarding.md) before making non-triv
 
 ## Data-driven replay (recommendation quality)
 
+- Tiến độ % và điều kiện “xong” MVP: [docs/data-driven-pipeline-status.md](docs/data-driven-pipeline-status.md).
 - Snapshot coverage (DB): `npm run data-driven:coverage --prefix packages/server` (`--lookback-days`, `--out-json`).
 - Full batch (coverage + export + eval + replay-vs-original summary + segment hotspots): `npm run data-driven:replay-batch --prefix packages/server` (under `packages/server/replay-work/data-driven-runs/<runId>/`; `--no-post-summarize` skips delta CSV/JSON; `--no-post-segment-hotspots` skips `segment-hotspots.json`). Real LLM: `--llm real --allow-real-llm`. Policy parity: `--apply-replay-policy`.
 - Step 2 on existing `eval-cases.json`: `npm run data-driven:summarize-vs-original --prefix packages/server -- --cases-json <path> [--out-json ...] [--out-csv ...]`.
