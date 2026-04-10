@@ -13,6 +13,11 @@ Read [docs/agent-onboarding.md](docs/agent-onboarding.md) before making non-triv
 - Backend tests: `packages/server/src/__tests__/`
 - Legacy reference only: `legacy/`
 
+## Data-driven replay (recommendation quality)
+
+- Snapshot coverage (DB): `npm run data-driven:coverage --prefix packages/server` (`--lookback-days`, `--out-json`).
+- Full batch (coverage + export + eval): `npm run data-driven:replay-batch --prefix packages/server` (outputs under `packages/server/replay-work/data-driven-runs/<runId>/`; default mock LLM; real: `--llm real --allow-real-llm`). Policy parity: `--apply-replay-policy`.
+
 ## Deploy (Azure Container Apps)
 
 - Runbook: [docs/deploy-azure-runbook.md](docs/deploy-azure-runbook.md)
