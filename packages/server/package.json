@@ -44,6 +44,7 @@
     "data-driven:check-gates": "tsx src/scripts/check-data-driven-replay-gates.ts",
     "data-driven:segment-hotspots": "tsx src/scripts/summarize-replay-segment-hotspots.ts",
     "data-driven:check-segment-gates": "tsx src/scripts/check-data-driven-segment-gates.ts",
+    "data-driven:verify-gates-ci": "tsx src/scripts/check-data-driven-replay-gates.ts --config ci-baselines/data-driven-gates/gates-delta.ci.json && tsx src/scripts/check-data-driven-segment-gates.ts --config ci-baselines/data-driven-gates/gates-segment.ci.json",
     "data-driven:suggest-segment-blocklist": "tsx src/scripts/suggest-segment-policy-blocklist.ts"
   },
   "dependencies": {

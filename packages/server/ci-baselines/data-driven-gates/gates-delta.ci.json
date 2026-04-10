@@ -1,0 +1,15 @@
+{
+  "deltaPath": "ci-baselines/data-driven-gates/replay-vs-original.ci.json",
+  "promptVersion": "ci-baseline-prompt",
+  "minScenarios": 5,
+  "onOriginalDirectionalLoss": {
+    "minTotal": 5,
+    "minReplayPushed": 2,
+    "minAccuracyAmongPushed": 0.5
+  },
+  "onOriginalDirectionalWin": {
+    "minTotal": 3,
+    "minReplayPushed": 2,
+    "maxLossRateAmongPushed": 0.55
+  }
+}

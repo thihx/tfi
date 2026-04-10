@@ -1,0 +1,22 @@
+{
+  "variants": [
+    {
+      "promptVersion": "ci-baseline-prompt",
+      "scenarioCount": 40,
+      "byOriginalResult": [],
+      "onOriginalDirectionalLoss": {
+        "total": 18,
+        "replayPushed": 9,
+        "replayWinAmongPushed": 5,
+        "replayLossAmongPushed": 4,
+        "replayAccAmongPushed": 0.5556
+      },
+      "onOriginalDirectionalWin": {
+        "total": 12,
+        "replayPushed": 6,
+        "replayWinAmongPushed": 4,
+        "replayLossAmongPushed": 2
+      }
+    }
+  ]
+}

@@ -21,6 +21,7 @@ Read [docs/agent-onboarding.md](docs/agent-onboarding.md) before making non-triv
 - Step 3 gates on `replay-vs-original.json`: copy `packages/server/data-driven-replay-gates.example.json` to `data-driven-replay-gates.json`, edit paths/thresholds, then `npm run data-driven:check-gates --prefix packages/server`.
 - Segment hotspots from existing `eval-cases.json`: `npm run data-driven:segment-hotspots --prefix packages/server -- --cases-json <path>`.
 - Segment gates on `segment-hotspots.json`: copy `packages/server/data-driven-segment-gates.example.json` to `data-driven-segment-gates.json`, then `npm run data-driven:check-segment-gates --prefix packages/server`.
+- **CI baselines** (checked on every server CI job): `packages/server/ci-baselines/data-driven-gates/` — `npm run data-driven:verify-gates-ci --prefix packages/server` runs replay-delta + segment gate configs against those JSON files (no DB/LLM). Update the baselines when you intentionally change expected cohort metrics.
 - Optional live blocklist: `SEGMENT_POLICY_BLOCKLIST_PATH` → JSON per `segment-policy-blocklist.example.json`; draft keys from a run via `npm run data-driven:suggest-segment-blocklist --prefix packages/server -- --hotspots-json <path>`.
 - Optional segment stake ceiling: `SEGMENT_POLICY_STAKE_CAP_PATH` → `segment-policy-stake-cap.example.json`.
 
@@ -28,7 +29,7 @@ Read [docs/agent-onboarding.md](docs/agent-onboarding.md) before making non-triv
 
 - Runbook: [docs/deploy-azure-runbook.md](docs/deploy-azure-runbook.md)
 - Scripts: `scripts/azure/deploy.ps1` (Windows), `scripts/azure/deploy.sh` (bash/WSL/CI)
-- PR/push CI: `.github/workflows/ci.yml` (server: typecheck + vitest; client: typecheck + vitest).
+- PR/push CI: `.github/workflows/ci.yml` (server: typecheck + vitest + data-driven gate baselines; client: typecheck + vitest). Local mirror: `npm run verify:ci` at repo root.
 - Optional CI: `.github/workflows/deploy-azure.yml` (`workflow_dispatch`)
 
 ## Quick Start

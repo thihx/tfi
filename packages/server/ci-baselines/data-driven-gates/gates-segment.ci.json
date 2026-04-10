@@ -1,0 +1,6 @@
+{
+  "hotspotPath": "ci-baselines/data-driven-gates/segment-hotspots.ci.json",
+  "promptVersion": "ci-baseline-prompt",
+  "minTotalCases": 10,
+  "rules": []
+}
