@@ -77,9 +77,10 @@ if (-not $SkipBuild) {
       throw "Build timeout: image '${repo}:${ReleaseTag}' not available in ACR within 30 minutes."
     }
     Start-Sleep -Seconds 10
-    # PowerShell 5 parses `[0]` inside double quotes; escape `[` so JMESPath reaches Azure CLI.
+    # Avoid double-quoted --query: PS treats `[...]` as type literals. Build JMESPath with single-quoted segments.
+    $jmes = '[?name==''' + $ReleaseTag + '''] | [0]'
     $tag = az acr repository show-tags -n $AcrName --repository $repo --detail --orderby time_desc --top 10 `
-      --query "[?name=='$ReleaseTag'] | ``[0]" -o json 2>$null
+      --query $jmes -o json 2>$null
     if (-not [string]::IsNullOrWhiteSpace($tag) -and $tag -ne "null") {
       $ready = $true
       Write-Host "[deploy][build] Image ready: $image"
