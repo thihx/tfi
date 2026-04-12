@@ -1,5 +1,5 @@
 /**
- * Aggregate live DB: goals Under vs Over share and prompt_version (recent window).
+ * Aggregate live DB: goals Under/Over share, prompt_version, and settlement mix (recent window).
  * cd packages/server && npx tsx src/scripts/analyze-goals-totals-recent.ts [days=14]
  */
 import { config } from '../config.js';
@@ -30,6 +30,42 @@ async function main(): Promise<void> {
     [days],
   );
 
+  const [byResult, byBetType, directionalSettlement] = await Promise.all([
+    pool.query<{ result: string; c: string }>(
+      `SELECT COALESCE(NULLIF(TRIM(result), ''), '(empty)') AS result, COUNT(*)::text AS c
+       FROM recommendations
+       WHERE timestamp >= NOW() - make_interval(days => $1::int)
+       GROUP BY 1 ORDER BY COUNT(*) DESC`,
+      [days],
+    ),
+    pool.query<{ bet_type: string; c: string }>(
+      `SELECT COALESCE(NULLIF(TRIM(bet_type), ''), '(empty)') AS bet_type, COUNT(*)::text AS c
+       FROM recommendations
+       WHERE timestamp >= NOW() - make_interval(days => $1::int)
+       GROUP BY 1 ORDER BY COUNT(*) DESC`,
+      [days],
+    ),
+    pool.query<{
+      directional: string;
+      wins: string;
+      losses: string;
+      push_like: string;
+      pending_or_other: string;
+    }>(
+      `SELECT
+         COUNT(*)::text AS directional,
+         COUNT(*) FILTER (WHERE result = 'win')::text AS wins,
+         COUNT(*) FILTER (WHERE result = 'loss')::text AS losses,
+         COUNT(*) FILTER (WHERE result IN ('push','void','half_win','half_loss'))::text AS push_like,
+         COUNT(*) FILTER (WHERE result = '' OR result IS NULL OR result NOT IN ('win','loss','push','half_win','half_loss','void'))::text AS pending_or_other
+       FROM recommendations
+       WHERE timestamp >= NOW() - make_interval(days => $1::int)
+         AND bet_type IS DISTINCT FROM 'NO_BET'
+         AND result IS DISTINCT FROM 'duplicate'`,
+      [days],
+    ),
+  ]);
+
   const byVersion = await pool.query<{
     prompt_version: string;
     total: string;
@@ -52,8 +88,17 @@ async function main(): Promise<void> {
     [days],
   );
 
+  const ds = directionalSettlement.rows[0];
+  const w = Number(ds?.wins ?? 0);
+  const lo = Number(ds?.losses ?? 0);
+  const decidedWl = w + lo;
+
   const out = {
     lookbackDays: days,
+    allRowsByResult: byResult.rows,
+    allRowsByBetType: byBetType.rows,
+    directionalSettlement: ds ?? null,
+    winRateAmongDecidedWinLoss: decidedWl > 0 ? Number((w / decidedWl).toFixed(4)) : null,
     goalsTotalsSide: overall.rows[0] ?? null,
     byPromptVersion: byVersion.rows,
   };

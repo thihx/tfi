@@ -298,7 +298,7 @@ function LiveView({ data, homeTeam, awayTeam, homeLogo, awayLogo, leagueName, st
             </div>
           )}
           {!isLive && status && (
-            <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--gray-500)', letterSpacing: '1px', marginBottom: 4 }}>{status === 'HT' ? 'HALF TIME' : 'FULL TIME'}</div>
+            <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--gray-500)', letterSpacing: '1px', marginBottom: 4 }}>{status === 'HT' ? 'HT' : (status || '')}</div>
           )}
           <div style={{ fontSize: 28, fontWeight: 900, color: isLive ? '#f9fafb' : 'var(--gray-900)', letterSpacing: '-1px', lineHeight: 1 }}>
             {homeGoals} <span style={{ color: isLive ? '#4b5563' : 'var(--gray-300)' }}>–</span> {awayGoals}

@@ -59,28 +59,31 @@ export async function getMatchesByStatus(statuses: string[]): Promise<MatchRow[]
   return result.rows;
 }
 
-export async function getMatchesForLeaguesOnLocalDate(
-  leagueIds: number[],
-  localDate: string,
-  userTimeZone: string,
-): Promise<MatchRow[]> {
+/** Terminal / non-actionable — watchlist auto-add from favorite leagues. */
+export const MATCH_STATUSES_EXCLUDED_FROM_WATCHLIST_BULK_ADD = [
+  'FT',
+  'AET',
+  'PEN',
+  'CANC',
+  'ABD',
+  'AWD',
+  'PST',
+] as const;
+
+/**
+ * Same rows as `getAllMatches()` but restricted to leagues and excluding terminal/postponed
+ * statuses (adding finished matches to watchlist is not useful).
+ * Matches the Matches tab data source (`GET /api/matches`) with only a league_id filter.
+ */
+export async function getMatchesForLeaguesEligibleForWatchlist(leagueIds: number[]): Promise<MatchRow[]> {
   if (leagueIds.length === 0) return [];
   const result = await query<MatchRow>(
     `SELECT *
        FROM matches
       WHERE league_id = ANY($1)
-        AND status <> ALL($4)
-        AND (
-          (kickoff_at_utc IS NOT NULL AND (kickoff_at_utc AT TIME ZONE $3)::date = $2::date)
-          OR (kickoff_at_utc IS NULL AND date = $2::date)
-        )
+        AND status <> ALL($2)
       ORDER BY kickoff_at_utc NULLS LAST, date, kickoff`,
-    [
-      leagueIds,
-      localDate,
-      userTimeZone,
-      ['FT', 'AET', 'PEN', 'CANC', 'ABD', 'AWD', 'PST'],
-    ],
+    [leagueIds, [...MATCH_STATUSES_EXCLUDED_FROM_WATCHLIST_BULK_ADD]],
   );
   return result.rows;
 }

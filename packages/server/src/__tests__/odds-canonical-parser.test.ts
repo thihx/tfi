@@ -121,9 +121,63 @@ describe('odds canonical parser', () => {
       }],
     }]);
 
-    expect(result.canonical.ah?.line).toBe(-0.75);
-    // |-0.75−(−1)| = 0.25 < |-0.75−(−0.25)| = 0.5 → adjacent is −1
-    expect(result.canonical.ah_adjacent?.line).toBe(-1);
+    // Main = smallest |handicap| among fully quoted lines (live-style main), not tightest price spread.
+    expect(result.canonical.ah?.line).toBe(-0.25);
+    // Nearest other rung to −0.25 is −0.75 (distance 0.5) vs −1 (0.75)
+    expect(result.canonical.ah_adjacent?.line).toBe(-0.75);
+  });
+
+  test('includes up to two extra Asian handicap rungs beyond main and adjacent', () => {
+    const result = buildOddsCanonical([{
+      bookmakers: [{
+        name: 'Replay Mock',
+        bets: [
+          {
+            name: 'Asian Handicap',
+            values: [
+              { value: '1', odd: '1.88', handicap: '-0.25' },
+              { value: '2', odd: '1.95', handicap: '+0.25' },
+              { value: '1', odd: '1.90', handicap: '-0.75' },
+              { value: '2', odd: '1.92', handicap: '+0.75' },
+              { value: '1', odd: '1.85', handicap: '-1' },
+              { value: '2', odd: '1.98', handicap: '+1' },
+              { value: '1', odd: '1.82', handicap: '-1.25' },
+              { value: '2', odd: '2.00', handicap: '+1.25' },
+            ],
+          },
+        ],
+      }],
+    }]);
+
+    expect(result.canonical.ah?.line).toBe(-0.25);
+    expect(result.canonical.ah_adjacent?.line).toBe(-0.75);
+    expect(result.canonical.ah_extra?.map((r) => r.line)).toEqual([-1, -1.25]);
+  });
+
+  test('goals O/U main follows smallest line above current total when goal hint is set', () => {
+    const response = [{
+      bookmakers: [{
+        name: 'Replay Mock',
+        bets: [
+          {
+            name: 'Over/Under',
+            values: [
+              { value: 'Over', odd: '1.90', handicap: '3.5' },
+              { value: 'Under', odd: '1.90', handicap: '3.5' },
+              { value: 'Over', odd: '1.85', handicap: '2.5' },
+              { value: 'Under', odd: '1.95', handicap: '2.5' },
+            ],
+          },
+        ],
+      }],
+    }];
+
+    const withoutHint = buildOddsCanonical(response);
+    expect(withoutHint.canonical.ou?.line).toBe(3.5);
+
+    const withHint = buildOddsCanonical(response, { totalGoalsFt: 2 });
+    expect(withHint.canonical.ou?.line).toBe(2.5);
+    expect(withHint.canonical.ou_adjacent?.line).toBe(3.5);
   });
 
   test('first half goals O/U maps to ht_ou without polluting FT ou', () => {

@@ -1880,6 +1880,20 @@ function buildExactMarketContractSectionCompact(data: LiveAnalysisPromptInput): 
     rules.push(`  selection: "Home ${line} @[odds]" or "Away ${line} @[odds]".`);
   }
 
+  const ahExtraList = Array.isArray(oc['ah_extra'])
+    ? oc['ah_extra'] as Array<{ line?: unknown; home?: unknown; away?: unknown }>
+    : [];
+  for (const row of ahExtraList) {
+    if (!allow('asian_handicap_home_0')) break;
+    if (row.line == null || row.home == null || row.away == null) continue;
+    const line = String(row.line);
+    exactKeys.push(`asian_handicap_home_${line}`, `asian_handicap_away_${line}`);
+    rules.push(
+      `- Asian Handicap EXTRA ladder line ${line}: additional quoted rung beyond main/adjacent; use only when it clearly beats primary lines for the live script.`,
+    );
+    rules.push(`  selection: "Home ${line} @[odds]" or "Away ${line} @[odds]".`);
+  }
+
   if (allow('btts_yes') && oc.btts && oc.btts.yes != null && oc.btts.no != null) {
     exactKeys.push('btts_yes', 'btts_no');
     rules.push('- BTTS: use exactly "btts_yes" or "btts_no".');
@@ -1929,6 +1943,20 @@ function buildExactMarketContractSectionCompact(data: LiveAnalysisPromptInput): 
     exactKeys.push(`ht_asian_handicap_home_${line}`, `ht_asian_handicap_away_${line}`);
     rules.push(
       `- H1 Asian Handicap ADJACENT line ${line}: second H1 line nearest to main; use this only when it fits better than main ${oc.ht_ah?.line ?? '?'}.`,
+    );
+    rules.push(`  selection: "H1 Home ${line} @[odds]" or "H1 Away ${line} @[odds]".`);
+  }
+
+  const htAhExtraList = Array.isArray(oc['ht_ah_extra'])
+    ? oc['ht_ah_extra'] as Array<{ line?: unknown; home?: unknown; away?: unknown }>
+    : [];
+  for (const row of htAhExtraList) {
+    if (!allow('ht_asian_handicap_home_0')) break;
+    if (row.line == null || row.home == null || row.away == null) continue;
+    const line = String(row.line);
+    exactKeys.push(`ht_asian_handicap_home_${line}`, `ht_asian_handicap_away_${line}`);
+    rules.push(
+      `- H1 Asian Handicap EXTRA ladder line ${line}: additional H1 quoted rung; use only when it clearly beats main/adjacent for the half-time script.`,
     );
     rules.push(`  selection: "H1 Home ${line} @[odds]" or "H1 Away ${line} @[odds]".`);
   }
@@ -2103,7 +2131,7 @@ ${buildV10HybridLegacyMarketSelectionSection(false, promptVersion)}- risk_level 
   - After minute 75: Corners Over requires cornersNeeded <= 1.
   - After minute 80: should_push = false for any Corners Over.
 ${fullV8MarketBalanceRules}
-- Score 0-0 after minute 55: prefer GOALS Under markets (under_2.5, under_1.5). NOT corners_under.
+- GOALS O/U (full match; not corners): late 0-0 (e.g. after minute 55) is not enough to default to goals_under. Before goals_under, compare explicitly against the best available goals_over on the same or nearest ladder line; pick Under only if Under's edge clearly exceeds Over by roughly 3+ percentage points. If edges are close or the script is not clearly shut down, prefer goals_over, a justified side market, or no_bet — not Under by habit. Do NOT use corners_under as a substitute for goal-total reads.
 - risk_level = HIGH -> should_push = false.
 `;
 
@@ -2226,7 +2254,7 @@ ${v8MarketBalanceSection}
 ${activeCornersSanityAlert}
 - Odds >= 2.50 => confidence cap 6, stake cap 3%
 - Over 3.5+ needs current goals >= line-1 or a clearly open match
-${advancedLineSpecificRule}- Score 0-0 after minute 55: prefer goal unders, not corners under
+${advancedLineSpecificRule}- Late 0-0 (e.g. after min 55): compare goals_over vs goals_under before any goals_under; no default Under. Do not use corners_under as a goals substitute.
 - risk_level HIGH => should_push false
 `;
     return `
@@ -2577,7 +2605,7 @@ BTTS RULES (DATA-DRIVEN):
   - MANDATORY: Calculate break_even_rate = 1/odds. Estimated probability must exceed break_even_rate + 5%.
   - Odds >= 2.00 for BTTS Yes -> should_push = false unless BOTH teams have shots_on_target >= 2.
   - "Pressure != Goals": Need evidence BOTH teams are dangerous. If weaker team has 0 SOT -> no BTTS Yes.
-  - Score 0-0 after minute 60: reduce confidence by 2 for BTTS Yes, prefer Under.
+  - Score 0-0 after minute 60: reduce confidence by 2 for BTTS Yes. If leaving BTTS Yes, do not default to goals_under — compare goals Over vs Under explicitly, or choose a justified side market / no_bet.
 - BTTS NO:
   - Requires odds >= 1.70.
   - If BOTH teams have shots_on_target >= 2 -> should_push = false for BTTS No.

@@ -268,11 +268,18 @@ function extractMarketOdd(
   }
 
   if (marketLower.startsWith('ht_asian_handicap_')) {
+    const htAhExtras = Array.isArray((oc as Record<string, unknown>)['ht_ah_extra'])
+      ? (oc as { ht_ah_extra?: Array<{ line?: number; home?: number | null; away?: number | null }> }).ht_ah_extra
+      : undefined;
     if (marketLower.includes('_home_')) {
       const line = parseBetMarketLineSuffix('ht_asian_handicap_home_', marketLower);
       if (line == null) return oc.ht_ah?.home ?? null;
       if (sameOddsLine(line, oc.ht_ah?.line)) return oc.ht_ah?.home ?? null;
       if (sameOddsLine(line, oc.ht_ah_adjacent?.line)) return oc.ht_ah_adjacent?.home ?? null;
+      for (const row of htAhExtras ?? []) {
+        if (row?.line == null || row.home == null) continue;
+        if (sameOddsLine(line, row.line)) return row.home;
+      }
       return null;
     }
     if (marketLower.includes('_away_')) {
@@ -284,6 +291,10 @@ function extractMarketOdd(
       const matchAdj =
         sameOddsLine(line, oc.ht_ah_adjacent?.line) || sameOddsLine(-line, oc.ht_ah_adjacent?.line);
       if (matchAdj) return oc.ht_ah_adjacent?.away ?? null;
+      for (const row of htAhExtras ?? []) {
+        if (row?.line == null || row.away == null) continue;
+        if (sameOddsLine(line, row.line) || sameOddsLine(-line, row.line)) return row.away;
+      }
       return null;
     }
   }
@@ -321,11 +332,18 @@ function extractMarketOdd(
   }
 
   if (marketLower.startsWith('asian_handicap_')) {
+    const ahExtras = Array.isArray((oc as Record<string, unknown>)['ah_extra'])
+      ? (oc as { ah_extra?: Array<{ line?: number; home?: number | null; away?: number | null }> }).ah_extra
+      : undefined;
     if (marketLower.includes('_home_')) {
       const line = parseBetMarketLineSuffix('asian_handicap_home_', marketLower);
       if (line == null) return oc.ah?.home ?? null;
       if (sameOddsLine(line, oc.ah?.line)) return oc.ah?.home ?? null;
       if (sameOddsLine(line, oc.ah_adjacent?.line)) return oc.ah_adjacent?.home ?? null;
+      for (const row of ahExtras ?? []) {
+        if (row?.line == null || row.home == null) continue;
+        if (sameOddsLine(line, row.line)) return row.home;
+      }
       return null;
     }
     if (marketLower.includes('_away_')) {
@@ -337,6 +355,10 @@ function extractMarketOdd(
       const matchAdj =
         sameOddsLine(line, oc.ah_adjacent?.line) || sameOddsLine(-line, oc.ah_adjacent?.line);
       if (matchAdj) return oc.ah_adjacent?.away ?? null;
+      for (const row of ahExtras ?? []) {
+        if (row?.line == null || row.away == null) continue;
+        if (sameOddsLine(line, row.line) || sameOddsLine(-line, row.line)) return row.away;
+      }
       return null;
     }
   }

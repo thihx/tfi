@@ -181,5 +181,8 @@ describe('db replay scenarios', () => {
       { type: 'Shots on Goal', value: 2 },
       { type: 'expected_goals', value: '0.84' },
     ]));
+    expect(Array.isArray(scenario.liveOddsResponse)).toBe(true);
+    expect(scenario.liveOddsResponse!.length).toBeGreaterThan(0);
+    expect(scenario.liveOddsResponse).toBe(scenario.mockResolvedOdds?.response);
   });
 });

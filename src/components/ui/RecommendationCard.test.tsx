@@ -126,8 +126,20 @@ describe('RecommendationCard', () => {
   it('shows ft_score and actual_outcome in footer', () => {
     const rec: Recommendation = { ...BASE, ft_score: '2-1', actual_outcome: 'Over hit at 75th minute' };
     render(<RecommendationCard rec={rec} />);
-    expect(screen.getByText('2-1')).toBeInTheDocument();
+    expect(screen.getByText('FT 2-1')).toBeInTheDocument();
     expect(screen.getByText('Over hit at 75th minute')).toBeInTheDocument();
+  });
+
+  it('shows HT and optional corner totals next to FT when present', () => {
+    const rec: Recommendation = {
+      ...BASE,
+      ft_score: '1-0',
+      ht_score: '0-0',
+      corners_ft: '7-4',
+      actual_outcome: 'Under cashed',
+    };
+    render(<RecommendationCard rec={rec} />);
+    expect(screen.getByText('FT 1-0 (HT 0-0) · Cr 7-4')).toBeInTheDocument();
   });
 
   it('renders P/L with sign and color class', () => {

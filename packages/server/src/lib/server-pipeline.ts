@@ -427,6 +427,9 @@ interface EventCompact {
   player: string;
 }
 
+/** Single quoted Asian handicap rung (home-centric line). */
+export type OddsAhRung = { line: number; home: number | null; away: number | null };
+
 interface OddsCanonical {
   '1x2'?: { home: number | null; draw: number | null; away: number | null };
   ou?: { line: number; over: number | null; under: number | null };
@@ -435,6 +438,8 @@ interface OddsCanonical {
   ah?: { line: number; home: number | null; away: number | null };
   /** Second Asian handicap line nearest to main; optional context for LLM. */
   ah_adjacent?: { line: number; home: number | null; away: number | null };
+  /** Additional FT Asian handicap rungs (beyond main+adjacent), sorted by distance from main — up to 2. */
+  ah_extra?: OddsAhRung[];
   btts?: { yes: number | null; no: number | null };
   corners_ou?: { line: number; over: number | null; under: number | null };
   /** First-half (H1) match odds — keys in prompts / bet_market use `ht_*` prefix. */
@@ -443,6 +448,8 @@ interface OddsCanonical {
   ht_ou_adjacent?: { line: number; over: number | null; under: number | null };
   ht_ah?: { line: number; home: number | null; away: number | null };
   ht_ah_adjacent?: { line: number; home: number | null; away: number | null };
+  /** Additional H1 Asian handicap rungs (beyond main+adjacent), up to 2. */
+  ht_ah_extra?: OddsAhRung[];
   ht_btts?: { yes: number | null; no: number | null };
 }
 
@@ -1674,7 +1681,19 @@ function buildEventsCompact(
 
 // ==================== Build Odds Canonical ====================
 
-export function buildOddsCanonical(oddsResponse: unknown[]): { canonical: OddsCanonical; available: boolean } {
+const MAX_AH_LADDER_EXTRAS = 2;
+
+export interface BuildOddsCanonicalOptions {
+  /** Full-time total goals — steers main goals O/U toward the next tradable line in-play. */
+  totalGoalsFt?: number | null;
+  /** H1 total goals when known (live 1H/HT = current score; 2H+ = halftime score) — steers H1 O/U main. */
+  totalGoalsHt?: number | null;
+}
+
+export function buildOddsCanonical(
+  oddsResponse: unknown[],
+  opts?: BuildOddsCanonicalOptions,
+): { canonical: OddsCanonical; available: boolean } {
   if (!oddsResponse || !Array.isArray(oddsResponse) || oddsResponse.length === 0) {
     return { canonical: {}, available: false };
   }
@@ -1840,6 +1859,7 @@ export function buildOddsCanonical(oddsResponse: unknown[]): { canonical: OddsCa
     ftOddsMap,
     /^(over|under)\s+[0-9]+(\.[0-9]+)?$/,
     /^(over|under)\s+([0-9]+(\.[0-9]+)?)/,
+    opts?.totalGoalsFt ?? null,
   );
   if (goalsOuPair) {
     canonical['ou'] = goalsOuPair.main;
@@ -1857,6 +1877,7 @@ export function buildOddsCanonical(oddsResponse: unknown[]): { canonical: OddsCa
   if (ahPair) {
     canonical['ah'] = ahPair.main;
     if (ahPair.adjacent) canonical['ah_adjacent'] = ahPair.adjacent;
+    if (ahPair.extras.length > 0) canonical['ah_extra'] = ahPair.extras;
   }
   if (bestBTTS.yes > 0 || bestBTTS.no > 0) {
     canonical['btts'] = { yes: bestBTTS.yes || null, no: bestBTTS.no || null };
@@ -1873,6 +1894,7 @@ export function buildOddsCanonical(oddsResponse: unknown[]): { canonical: OddsCa
     htOddsMap,
     /^ht (over|under)\s+[0-9]+(\.[0-9]+)?$/,
     /^ht (over|under)\s+([0-9]+(\.[0-9]+)?)/,
+    opts?.totalGoalsHt ?? null,
   );
   if (htGoalsOuPair) {
     canonical['ht_ou'] = htGoalsOuPair.main;
@@ -1882,6 +1904,7 @@ export function buildOddsCanonical(oddsResponse: unknown[]): { canonical: OddsCa
   if (htAhPair) {
     canonical['ht_ah'] = htAhPair.main;
     if (htAhPair.adjacent) canonical['ht_ah_adjacent'] = htAhPair.adjacent;
+    if (htAhPair.extras.length > 0) canonical['ht_ah_extra'] = htAhPair.extras;
   }
   if (bestBTTSHt.yes > 0 || bestBTTSHt.no > 0) {
     canonical['ht_btts'] = { yes: bestBTTSHt.yes || null, no: bestBTTSHt.no || null };
@@ -1908,7 +1931,11 @@ export function buildOddsCanonical(oddsResponse: unknown[]): { canonical: OddsCa
   }
   if (canonical['ah'] && canonical['ah'].home !== null && canonical['ah'].away !== null) {
     const t = ip(canonical['ah'].home) + ip(canonical['ah'].away);
-    if (t > 0 && (t < 0.85 || t > 1.15)) delete canonical['ah'];
+    if (t > 0 && (t < 0.85 || t > 1.15)) {
+      delete canonical['ah'];
+      delete canonical['ah_adjacent'];
+      delete canonical['ah_extra'];
+    }
   }
   if (
     canonical['ah_adjacent']
@@ -1917,6 +1944,15 @@ export function buildOddsCanonical(oddsResponse: unknown[]): { canonical: OddsCa
   ) {
     const t = ip(canonical['ah_adjacent'].home) + ip(canonical['ah_adjacent'].away);
     if (t > 0 && (t < 0.85 || t > 1.15)) delete canonical['ah_adjacent'];
+  }
+  if (Array.isArray(canonical['ah_extra']) && canonical['ah_extra'].length > 0) {
+    const filtered = canonical['ah_extra'].filter((row) => {
+      if (row.home == null || row.away == null) return false;
+      const t = ip(row.home) + ip(row.away);
+      return t >= 0.85 && t <= 1.15;
+    });
+    if (filtered.length > 0) canonical['ah_extra'] = filtered;
+    else delete canonical['ah_extra'];
   }
   if (canonical['btts'] && canonical['btts'].yes !== null && canonical['btts'].no !== null) {
     const t = ip(canonical['btts'].yes) + ip(canonical['btts'].no);
@@ -1945,7 +1981,11 @@ export function buildOddsCanonical(oddsResponse: unknown[]): { canonical: OddsCa
   }
   if (canonical['ht_ah'] && canonical['ht_ah'].home !== null && canonical['ht_ah'].away !== null) {
     const t = ip(canonical['ht_ah'].home) + ip(canonical['ht_ah'].away);
-    if (t > 0 && (t < 0.85 || t > 1.15)) delete canonical['ht_ah'];
+    if (t > 0 && (t < 0.85 || t > 1.15)) {
+      delete canonical['ht_ah'];
+      delete canonical['ht_ah_adjacent'];
+      delete canonical['ht_ah_extra'];
+    }
   }
   if (
     canonical['ht_ah_adjacent']
@@ -1954,6 +1994,15 @@ export function buildOddsCanonical(oddsResponse: unknown[]): { canonical: OddsCa
   ) {
     const t = ip(canonical['ht_ah_adjacent'].home) + ip(canonical['ht_ah_adjacent'].away);
     if (t > 0 && (t < 0.85 || t > 1.15)) delete canonical['ht_ah_adjacent'];
+  }
+  if (Array.isArray(canonical['ht_ah_extra']) && canonical['ht_ah_extra'].length > 0) {
+    const filtered = canonical['ht_ah_extra'].filter((row) => {
+      if (row.home == null || row.away == null) return false;
+      const t = ip(row.home) + ip(row.away);
+      return t >= 0.85 && t <= 1.15;
+    });
+    if (filtered.length > 0) canonical['ht_ah_extra'] = filtered;
+    else delete canonical['ht_ah_extra'];
   }
   if (canonical['ht_btts'] && canonical['ht_btts'].yes !== null && canonical['ht_btts'].no !== null) {
     const t = ip(canonical['ht_btts'].yes) + ip(canonical['ht_btts'].no);
@@ -2029,6 +2078,10 @@ function sanitizePromptOddsCanonical(args: {
     removeMarket(
       'ht_ah_adjacent',
       `Removed adjacent H1 Asian Handicap line from prompt: first half is already closed (status ${matchStatus}).`,
+    );
+    removeMarket(
+      'ht_ah_extra',
+      `Removed extra H1 Asian Handicap ladder lines from prompt: first half is already closed (status ${matchStatus}).`,
     );
     removeMarket(
       'ht_btts',
@@ -2155,6 +2208,8 @@ function buildMainOUWithAdjacent(
   oddsMap: Record<string, number>,
   regexKey: RegExp,
   regexParse: RegExp,
+  /** When set (in-play), prefer the smallest quoted line **strictly above** this total; else closest line by |Δ|. */
+  goalHint?: number | null,
 ): {
   main: { line: number; over: number | null; under: number | null };
   adjacent?: { line: number; over: number | null; under: number | null };
@@ -2176,12 +2231,49 @@ function buildMainOUWithAdjacent(
 
   let bestLine: string | null = null;
   let bestSpread = Infinity;
-  for (const [lineStr, data] of lineMap) {
-    const o = data['over'];
-    const u = data['under'];
-    if (o && u) {
-      const spread = Math.abs(o - u);
-      if (spread < bestSpread) { bestSpread = spread; bestLine = lineStr; }
+  const useGoalHint = goalHint != null && Number.isFinite(goalHint) && goalHint >= 0;
+
+  if (useGoalHint) {
+    const gh = goalHint as number;
+    const pairs = [...lineMap].filter(([, d]) => d['over'] && d['under']);
+    const above = pairs.filter(([ls]) => Number(ls) > gh);
+    if (above.length > 0) {
+      const minAbove = Math.min(...above.map(([ls]) => Number(ls)));
+      const tied = above.filter(([ls]) => Number(ls) === minAbove);
+      let pickSpread = Infinity;
+      for (const [ls, data] of tied) {
+        const spread = Math.abs((data['over'] || 0) - (data['under'] || 0));
+        if (spread < pickSpread) {
+          pickSpread = spread;
+          bestLine = ls;
+        }
+      }
+      bestSpread = pickSpread;
+    } else {
+      let bestDist = Infinity;
+      for (const [lineStr, data] of pairs) {
+        const o = data['over'];
+        const u = data['under'];
+        if (!o || !u) continue;
+        const spread = Math.abs(o - u);
+        const dist = Math.abs(Number(lineStr) - gh);
+        if (dist < bestDist - 1e-9 || (Math.abs(dist - bestDist) <= 1e-9 && spread < bestSpread)) {
+          bestDist = dist;
+          bestSpread = spread;
+          bestLine = lineStr;
+        }
+      }
+    }
+  }
+
+  if (!bestLine) {
+    for (const [lineStr, data] of lineMap) {
+      const o = data['over'];
+      const u = data['under'];
+      if (o && u) {
+        const spread = Math.abs(o - u);
+        if (spread < bestSpread) { bestSpread = spread; bestLine = lineStr; }
+      }
     }
   }
   if (!bestLine) {
@@ -2233,6 +2325,7 @@ function buildMainAHWithAdjacent(
 ): {
   main: { line: number; home: number | null; away: number | null };
   adjacent?: { line: number; home: number | null; away: number | null };
+  extras: OddsAhRung[];
 } | undefined {
   const esc = keyPrefix.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
   const keyRe = new RegExp(`^${esc}(home|away)\\s+[-+]?[0-9]+(\\.[0-9]+)?$`);
@@ -2253,12 +2346,27 @@ function buildMainAHWithAdjacent(
     lineMap.get(lineStr)![m[1]] = Math.max(lineMap.get(lineStr)![m[1]] || 0, odd);
   }
 
+  /**
+   * Pick MAIN Asian line for live/prompt use: prefer the handicap rung closest to level (smallest |line|)
+   * among fully quoted lines, then tie-break by tightest home/away price spread.
+   * Rationale: the "current" traded line after kickoff is usually near pick'em in handicap space; choosing
+   * only by spread (old behavior) often elevated a deeper opening rung (-0.75) over the live main (-0.25).
+   */
   let bestLine: string | null = null;
+  let bestAbsMag = Infinity;
   let bestSpread = Infinity;
   for (const [lineStr, data] of lineMap) {
-    if (data['home'] && data['away']) {
-      const spread = Math.abs(data['home'] - data['away']);
-      if (spread < bestSpread) { bestSpread = spread; bestLine = lineStr; }
+    if (!data['home'] || !data['away']) continue;
+    const spread = Math.abs(data['home'] - data['away']);
+    const absMag = Math.abs(Number(lineStr));
+    if (!Number.isFinite(absMag)) continue;
+    if (absMag < bestAbsMag - 1e-9) {
+      bestAbsMag = absMag;
+      bestSpread = spread;
+      bestLine = lineStr;
+    } else if (Math.abs(absMag - bestAbsMag) <= 1e-9 && spread < bestSpread) {
+      bestSpread = spread;
+      bestLine = lineStr;
     }
   }
   if (!bestLine) return undefined;
@@ -2270,23 +2378,41 @@ function buildMainAHWithAdjacent(
     if (lineStr === bestLine) continue;
     if (data['home'] && data['away']) candidates.push(lineStr);
   }
-  if (candidates.length === 0) return { main };
 
   const mainNum = Number(bestLine);
   let adjacentLine: string | null = null;
-  let bestDist = Infinity;
-  let bestAdjSpread = Infinity;
-  for (const lineStr of candidates) {
-    const dist = Math.abs(Number(lineStr) - mainNum);
-    const data = lineMap.get(lineStr) || {};
-    const spread = Math.abs((data['home'] || 0) - (data['away'] || 0));
-    if (dist < bestDist || (dist === bestDist && spread < bestAdjSpread)) {
-      bestDist = dist;
-      bestAdjSpread = spread;
-      adjacentLine = lineStr;
+  if (candidates.length > 0) {
+    let bestDist = Infinity;
+    let bestAdjSpread = Infinity;
+    for (const lineStr of candidates) {
+      const dist = Math.abs(Number(lineStr) - mainNum);
+      const data = lineMap.get(lineStr) || {};
+      const spread = Math.abs((data['home'] || 0) - (data['away'] || 0));
+      if (dist < bestDist || (dist === bestDist && spread < bestAdjSpread)) {
+        bestDist = dist;
+        bestAdjSpread = spread;
+        adjacentLine = lineStr;
+      }
     }
   }
-  if (!adjacentLine) return { main };
+
+  const usedLines = new Set<string>([bestLine]);
+  if (adjacentLine) usedLines.add(adjacentLine);
+  const extras: OddsAhRung[] = [];
+  const pool = [...lineMap.keys()].filter((ls) => {
+    if (usedLines.has(ls)) return false;
+    const d = lineMap.get(ls);
+    return !!(d?.home && d?.away);
+  });
+  pool.sort((a, b) => Math.abs(Number(a) - mainNum) - Math.abs(Number(b) - mainNum));
+  for (const ls of pool.slice(0, MAX_AH_LADDER_EXTRAS)) {
+    const d = lineMap.get(ls)!;
+    extras.push({ line: Number(ls), home: d.home ?? null, away: d.away ?? null });
+  }
+
+  if (!adjacentLine) {
+    return { main, extras };
+  }
   const adj = lineMap.get(adjacentLine) || {};
   return {
     main,
@@ -2295,6 +2421,7 @@ function buildMainAHWithAdjacent(
       home: adj['home'] ?? null,
       away: adj['away'] ?? null,
     },
+    extras,
   };
 }
 
@@ -2513,6 +2640,8 @@ function extractOddsFromSelection(selection: string, betMarket: string, canonica
   if (htAhHomeLine !== null) {
     if (sameLine(htAhHomeLine, oc.ht_ah?.line)) return oc.ht_ah?.home ?? null;
     if (sameLine(htAhHomeLine, oc.ht_ah_adjacent?.line)) return oc.ht_ah_adjacent?.home ?? null;
+    const htExtraH = oc.ht_ah_extra?.find((r) => sameLine(htAhHomeLine, r.line));
+    if (htExtraH) return htExtraH.home ?? null;
     return null;
   }
 
@@ -2524,6 +2653,10 @@ function extractOddsFromSelection(selection: string, betMarket: string, canonica
     const matchAdj =
       sameLine(htAhAwayLine, oc.ht_ah_adjacent?.line) || sameLine(-htAhAwayLine, oc.ht_ah_adjacent?.line);
     if (matchAdj) return oc.ht_ah_adjacent?.away ?? null;
+    const htExtraA = oc.ht_ah_extra?.find(
+      (r) => sameLine(htAhAwayLine, r.line) || sameLine(-htAhAwayLine, r.line),
+    );
+    if (htExtraA) return htExtraA.away ?? null;
     return null;
   }
 
@@ -2545,6 +2678,8 @@ function extractOddsFromSelection(selection: string, betMarket: string, canonica
   if (ahHomeLine !== null) {
     if (sameLine(ahHomeLine, oc.ah?.line)) return oc.ah?.home ?? null;
     if (sameLine(ahHomeLine, oc.ah_adjacent?.line)) return oc.ah_adjacent?.home ?? null;
+    const extraH = oc.ah_extra?.find((r) => sameLine(ahHomeLine, r.line));
+    if (extraH) return extraH.home ?? null;
     return null;
   }
 
@@ -2556,6 +2691,10 @@ function extractOddsFromSelection(selection: string, betMarket: string, canonica
     const matchAdj =
       sameLine(ahAwayLine, oc.ah_adjacent?.line) || sameLine(-ahAwayLine, oc.ah_adjacent?.line);
     if (matchAdj) return oc.ah_adjacent?.away ?? null;
+    const extraA = oc.ah_extra?.find(
+      (r) => sameLine(ahAwayLine, r.line) || sameLine(-ahAwayLine, r.line),
+    );
+    if (extraA) return extraA.away ?? null;
     return null;
   }
 
@@ -3177,11 +3316,28 @@ async function processMatch(
 
       const oddsSource = resolvedOdds.oddsSource;
       const oddsFetchedAt = resolvedOdds.oddsFetchedAt;
-      const oddsResult = buildOddsCanonical(resolvedOdds.response);
+      const normStatusOdds = String(status ?? '').toUpperCase();
+      const totalFtGoals = homeGoals + awayGoals;
+      const htGoalsHint =
+        normStatusOdds === '1H' || normStatusOdds === 'HT'
+          ? totalFtGoals
+          : typeof htScoreLive?.home === 'number' && typeof htScoreLive?.away === 'number'
+            ? htScoreLive.home + htScoreLive.away
+            : null;
+      const oddsResult = buildOddsCanonical(resolvedOdds.response, {
+        totalGoalsFt: totalFtGoals,
+        totalGoalsHt: htGoalsHint,
+      });
       let oddsCanonical: OddsCanonical = {};
       let oddsAvailable = false;
       const oddsSanityWarnings: string[] = [];
       let oddsSuspicious = false;
+      const liveStatusesForOdds = new Set(['1H', '2H', 'HT', 'ET', 'BT', 'P', 'LIVE', 'INT']);
+      if (liveStatusesForOdds.has(String(status ?? '').toUpperCase()) && oddsSource === 'reference-prematch') {
+        oddsSanityWarnings.push(
+          'ODDS_SOURCE_PREMATCH_WHILE_LIVE: canonical prices may be opening/pre-match lines, not the active live ladder — do not treat as current in-play prices.',
+        );
+      }
       if (oddsResult.available) {
         const cornersHome = Number.parseInt(String(statsCompact.corners.home ?? ''), 10);
         const cornersAway = Number.parseInt(String(statsCompact.corners.away ?? ''), 10);

@@ -60,7 +60,7 @@ export const ENTITLEMENT_CATALOG: EntitlementCatalogEntry[] = [
   {
     key: 'watchlist.suggested_top_leagues.enabled',
     label: 'Favorite leagues automation enabled',
-    description: 'Allows the user to choose from system-managed favorite leagues and auto-add today’s matches into Watchlist.',
+    description: 'Allows the user to choose from system-managed favorite leagues and bulk-add eligible matches from the same Matches list (filtered to those leagues) into Watchlist.',
     category: 'watchlist',
     valueType: 'boolean',
     defaultValue: true,

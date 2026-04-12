@@ -22,6 +22,30 @@ function hasFinalResult(result: string | null | undefined): boolean {
   return FINAL_RESULTS.has(String(result));
 }
 
+const SCORE_PAIR_RE = /^\d{1,3}-\d{1,3}$/;
+
+function isValidScorePair(s: string | null | undefined): boolean {
+  return Boolean(s && SCORE_PAIR_RE.test(s.trim()));
+}
+
+/** FT / HT goals and optional FT corner totals for settled footer. */
+function formatSettledMatchScores(rec: Recommendation): string | null {
+  const ft = isValidScorePair(rec.ft_score ?? undefined) ? rec.ft_score!.trim() : '';
+  const ht = isValidScorePair(rec.ht_score ?? undefined) ? rec.ht_score!.trim() : '';
+  const cr = isValidScorePair(rec.corners_ft ?? undefined) ? rec.corners_ft!.trim() : '';
+
+  const parts: string[] = [];
+  if (ft) {
+    parts.push(ht ? `FT ${ft} (HT ${ht})` : `FT ${ft}`);
+  } else if (ht) {
+    parts.push(`HT ${ht}`);
+  }
+  if (cr) {
+    parts.push(`Cr ${cr}`);
+  }
+  return parts.length > 0 ? parts.join(' · ') : null;
+}
+
 function pickReasoning(rec: Recommendation, lang?: 'en' | 'vi' | 'both'): string {
   const en = rec.reasoning ?? '';
   const vi = rec.reasoning_vi ?? '';
@@ -51,6 +75,7 @@ function RecommendationCardBase({ rec, lang, onViewMatch, adminAction }: Props) 
   const reasoning = pickReasoning(rec, lang);
   const showReviewBadge = rec.settlement_status === 'unresolved' && hasFinalResult(rec.result ?? null);
   const showPendingNote = rec.settlement_status === 'unresolved' && !hasFinalResult(rec.result ?? null);
+  const settledScoreLine = formatSettledMatchScores(rec);
 
   return (
     <div className="card" style={{ padding: '0', marginBottom: '8px', overflow: 'hidden' }}>
@@ -247,16 +272,19 @@ function RecommendationCardBase({ rec, lang, onViewMatch, adminAction }: Props) 
         </div>
       )}
 
-      {/* Outcome / FT score footer */}
-      {(rec.ft_score || rec.actual_outcome || ((showReviewBadge || showPendingNote) && rec.settlement_note)) && (
+      {/* Outcome / FT+HT score footer */}
+      {(settledScoreLine || rec.actual_outcome || ((showReviewBadge || showPendingNote) && rec.settlement_note)) && (
         <div style={{
           padding: '7px 14px', borderTop: '1px solid var(--gray-200)',
           background: 'linear-gradient(180deg, #ffffff 0%, #fafbfc 100%)',
           display: 'flex', gap: '14px', alignItems: 'center', flexWrap: 'wrap',
         }}>
-          {rec.ft_score && (
-            <span style={{ fontSize: '11px', color: 'var(--gray-600)', fontWeight: 600 }}>
-              FT: <span style={{ color: 'var(--gray-900)' }}>{rec.ft_score}</span>
+          {settledScoreLine && (
+            <span
+              style={{ fontSize: '11px', color: 'var(--gray-600)', fontWeight: 600 }}
+              title="Kết quả trận (FT/HT bàn thắng; Cr = phạt góc cả trận nếu có trong dữ liệu)"
+            >
+              <span style={{ color: 'var(--gray-900)' }}>{settledScoreLine}</span>
             </span>
           )}
           {rec.actual_outcome && (

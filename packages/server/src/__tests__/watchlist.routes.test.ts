@@ -76,7 +76,7 @@ vi.mock('../repos/leagues.repo.js', () => ({
 }));
 
 vi.mock('../repos/matches.repo.js', () => ({
-  getMatchesForLeaguesOnLocalDate: vi.fn().mockResolvedValue([
+  getMatchesForLeaguesEligibleForWatchlist: vi.fn().mockResolvedValue([
     {
       match_id: '300',
       date: '2026-03-24',
@@ -247,7 +247,7 @@ describe('favorite leagues watchlist automation', () => {
     }));
   });
 
-  test('saves selection and adds today matches into watchlist', async () => {
+  test('saves selection and adds eligible matches from Matches pool into watchlist', async () => {
     const watchlistRepo = await import('../repos/watchlist.repo.js');
     const settingsRepo = await import('../repos/settings.repo.js');
 

@@ -201,12 +201,12 @@ export async function watchlistRoutes(app: FastifyInstance) {
 
     const userTimeZone = isValidTimeZone(mergedSettings.USER_TIMEZONE) ? mergedSettings.USER_TIMEZONE : config.timezone;
     const localDate = toLocalDateString(new Date(), userTimeZone);
-    const todayMatches = await matchesRepo.getMatchesForLeaguesOnLocalDate(requestedLeagueIds, localDate, userTimeZone);
+    const candidateMatchesList = await matchesRepo.getMatchesForLeaguesEligibleForWatchlist(requestedLeagueIds);
     const existingMatchIds = await repo.getExistingUserWatchlistMatchIds(
       user.userId,
-      todayMatches.map((match) => match.match_id),
+      candidateMatchesList.map((match) => match.match_id),
     );
-    const newMatches = todayMatches.filter((match) => !existingMatchIds.has(match.match_id));
+    const newMatches = candidateMatchesList.filter((match) => !existingMatchIds.has(match.match_id));
     const currentWatchlistCount = await repo.countActiveWatchSubscriptionsByUser(user.userId);
 
     if (user.role !== 'admin' && user.role !== 'owner' && newMatches.length > 0) {
@@ -222,7 +222,7 @@ export async function watchlistRoutes(app: FastifyInstance) {
               : 'Would exceed your watchlist limit. No matches were added.',
             limitExceeded: true,
             savedLeagueIds: requestedLeagueIds,
-            candidateMatches: todayMatches.length,
+            candidateMatches: candidateMatchesList.length,
             alreadyWatched: existingMatchIds.size,
             newMatches: newMatches.length,
             added: 0,
@@ -249,7 +249,7 @@ export async function watchlistRoutes(app: FastifyInstance) {
       error: null,
       limitExceeded: false,
       savedLeagueIds: requestedLeagueIds,
-      candidateMatches: todayMatches.length,
+      candidateMatches: candidateMatchesList.length,
       alreadyWatched: existingMatchIds.size,
       newMatches: newMatches.length,
       added: addedRows.length,

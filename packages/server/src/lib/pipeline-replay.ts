@@ -157,9 +157,17 @@ function buildReplayWatchlistEntry(scenario: ReplayScenario): WatchlistRow {
   };
 }
 
+function recordedLiveOddsForFetch(scenario: ReplayScenario): unknown[] {
+  const live = scenario.liveOddsResponse;
+  if (Array.isArray(live) && live.length > 0) return live;
+  const fromResolved = scenario.mockResolvedOdds?.response;
+  if (Array.isArray(fromResolved) && fromResolved.length > 0) return fromResolved;
+  return Array.isArray(live) ? live : [];
+}
+
 function buildRecordedOddsResolver(scenario: ReplayScenario) {
   return async (input: Parameters<typeof resolveMatchOdds>[0]) => resolveMatchOdds(input, {
-    fetchLiveOdds: async () => scenario.liveOddsResponse ?? [],
+    fetchLiveOdds: async () => recordedLiveOddsForFetch(scenario),
     fetchPreMatchOdds: async () => scenario.preMatchOddsResponse ?? [],
   });
 }

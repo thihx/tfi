@@ -994,12 +994,12 @@ export function MatchesTab() {
       await loadAllDataRef.current(true);
       if (result.limitExceeded) {
         showToast(
-          result.error || 'Favorite leagues saved, but today\'s matches would exceed your watchlist limit. No matches were added.',
+          result.error || 'Favorite leagues saved, but your watchlist limit would be exceeded. No matches were added.',
           'info',
         );
       } else {
         showToast(
-          `Favorite leagues saved. Added ${result.added} match${result.added === 1 ? '' : 'es'} for ${result.localDate}${result.alreadyWatched > 0 ? ` (${result.alreadyWatched} already in watchlist)` : ''}.`,
+          `Favorite leagues saved. Added ${result.added} match${result.added === 1 ? '' : 'es'}${result.alreadyWatched > 0 ? ` (${result.alreadyWatched} already in watchlist)` : ''}.`,
           'success',
         );
       }
@@ -1023,7 +1023,7 @@ export function MatchesTab() {
           {favoriteFeatureVisible && (
             <button
               onClick={handleOpenFavoritePicker}
-              title="Bulk-add today's matches from favorite leagues to Watchlist"
+              title="Add matches from your favorite leagues to Watchlist"
               style={{
                 marginLeft: 'auto',
                 display: 'inline-flex', alignItems: 'center', gap: '5px',
@@ -1157,7 +1157,7 @@ export function MatchesTab() {
                         ]
                       : [
                           FINISHED_STATUSES.has(m.status)
-                            ? { label: 'Finished', icon: <EyeIcon />, title: 'Match is finished', onClick: () => {}, disabled: true }
+                            ? { label: 'FT', icon: <EyeIcon />, title: 'Match is finished', onClick: () => {}, disabled: true }
                             : pendingAdds.has(String(m.match_id))
                               ? { label: 'Saving…', onClick: () => {}, disabled: true }
                               : { label: '+ Watch', icon: <EyeIcon />, title: 'Watch this match', onClick: (match: Match) => quickAdd(match), variant: 'primary' as const },
@@ -1324,7 +1324,7 @@ export function MatchesTab() {
         <div className="watchlist-favorite-leagues-picker" style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
           {/* Description */}
           <p style={{ margin: 0, fontSize: '11px', color: 'var(--gray-500)', lineHeight: 1.45 }}>
-            Choose your favorite leagues to auto-add today&apos;s matches into your watchlist.
+            Choose your favorite leagues to add their matches from the list to your watchlist.
             {!userBypassesFavoriteLeagueLimits && favoriteLeaguesLimit != null && (
               <span style={{ color: 'var(--gray-400)' }}> Up to {favoriteLeaguesLimit} allowed.</span>
             )}

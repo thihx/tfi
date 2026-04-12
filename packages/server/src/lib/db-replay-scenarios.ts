@@ -502,6 +502,7 @@ export function buildSettledReplayScenario(
   const decisionContext = compactDecisionContext(row.decision_context);
   const settlementHomeScore = row.regular_home_score ?? row.home_score ?? 0;
   const settlementAwayScore = row.regular_away_score ?? row.away_score ?? 0;
+  const mockResolvedOdds = buildMockResolvedOdds(row.odds_snapshot);
 
   return {
     name: buildScenarioName(row),
@@ -526,7 +527,8 @@ export function buildSettledReplayScenario(
       promptVersionOverride: undefined,
     },
     statistics: compactStatsToApiFixtureStats(statsSnapshot, row.home_team, row.away_team),
-    mockResolvedOdds: buildMockResolvedOdds(row.odds_snapshot),
+    mockResolvedOdds,
+    liveOddsResponse: mockResolvedOdds.response,
     previousRecommendations,
     metadata: {
       recommendationId: row.recommendation_id,

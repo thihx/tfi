@@ -199,6 +199,10 @@ export interface Recommendation {
   result: string;
   pnl: number | string;
   ft_score?: string | null;
+  /** Half-time goals from matches_history when archived (e.g. "0-0"). */
+  ht_score?: string | null;
+  /** Full-time corner totals from cached settlement_stats when present (e.g. "8-7"). */
+  corners_ft?: string | null;
   settled_at?: string | null;
   settlement_status?: string;
   settlement_method?: string;

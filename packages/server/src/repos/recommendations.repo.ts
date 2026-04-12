@@ -23,6 +23,22 @@ import {
 
 export { normalizeMarket, buildDedupKey };
 
+/** Joined from matches_history for settled-card score lines (goals + optional corner totals from cached stats). */
+const MATCH_HISTORY_SCORE_FIELDS = `
+  CASE WHEN mh.home_score IS NOT NULL THEN mh.home_score || '-' || mh.away_score ELSE NULL END AS ft_score,
+  CASE
+    WHEN mh.halftime_home IS NOT NULL AND mh.halftime_away IS NOT NULL
+    THEN mh.halftime_home || '-' || mh.halftime_away
+    ELSE NULL
+  END AS ht_score,
+  (
+    SELECT (elem->>'home') || '-' || (elem->>'away')
+    FROM jsonb_array_elements(COALESCE(mh.settlement_stats, '[]'::jsonb)) AS elem
+    WHERE elem->>'type' = 'Corner Kicks'
+    LIMIT 1
+  ) AS corners_ft
+`;
+
 /** SQL fragment: exclude duplicate-marked rows (IS DISTINCT FROM handles NULLs) */
 const NOT_DUP = `result IS DISTINCT FROM 'duplicate'`;
 const ACTIONABLE_REC_SQL = `bet_type IS DISTINCT FROM 'NO_BET'`;
@@ -207,8 +223,8 @@ export async function getAllRecommendations(opts: PaginationOpts = {}): Promise<
   params.push(limit, offset);
 
   const [data, countRes] = await Promise.all([
-    query<RecommendationRow & { ft_score: string | null }>(
-      `SELECT r.*, CASE WHEN mh.home_score IS NOT NULL THEN mh.home_score || '-' || mh.away_score ELSE NULL END AS ft_score
+    query<RecommendationRow & { ft_score: string | null; ht_score: string | null; corners_ft: string | null }>(
+      `SELECT r.*, ${MATCH_HISTORY_SCORE_FIELDS}
        FROM recommendations r
        LEFT JOIN matches_history mh ON r.match_id = mh.match_id
        ${whereClause}
@@ -754,9 +770,9 @@ export async function getDashboardSummary(): Promise<DashboardSummary> {
       GROUP BY timestamp::date
       ORDER BY timestamp::date`),
 
-    // Recent 8 recommendations (with FT score from matches_history)
-    query<RecommendationRow & { ft_score: string | null }>(
-      `SELECT r.*, CASE WHEN mh.home_score IS NOT NULL THEN mh.home_score || '-' || mh.away_score ELSE NULL END AS ft_score
+    // Recent 8 recommendations (with FT / HT / corner totals from matches_history when present)
+    query<RecommendationRow & { ft_score: string | null; ht_score: string | null; corners_ft: string | null }>(
+      `SELECT r.*, ${MATCH_HISTORY_SCORE_FIELDS}
        FROM recommendations r
        LEFT JOIN matches_history mh ON r.match_id = mh.match_id
        WHERE r.${ACTIONABLE_NOT_DUP}
