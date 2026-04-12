@@ -25,7 +25,8 @@ describe('buildTelegramRecommendationMessage', () => {
       timestampLabel: '12:00 PM',
     });
 
-    expect(message).toContain('AI RECOMMENDATION');
+    expect(message).toContain('RECOMMENDATION');
+    expect(message).not.toContain('gemini-3-pro-preview');
     expect(message).toContain('H1 Goals O/U · Under 1.75 Goals @2.05');
     expect(message).toContain('Minute 32\'');
     expect(message).toContain('Score 0-0');
@@ -115,6 +116,6 @@ describe('buildTelegramRecommendationMessage', () => {
       language: 'vi',
     });
 
-    expect(message).toContain('Kèo Châu Âu 1X2 Full-time · Home Win @1.82');
+    expect(message).toContain('Kèo Châu Âu 1X2 FT · Home Win @1.82');
   });
 });

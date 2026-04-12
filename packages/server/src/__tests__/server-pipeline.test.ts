@@ -1542,7 +1542,7 @@ describe('runPipelineBatch', () => {
       selection: 'Over 2.5 Goals @1.85',
       bet_market: 'over_2.5',
       confidence: 7,
-      stake_percent: 3,
+      stake_percent: 2.5,
       custom_condition_matched: true,
     }));
     expect(createAiPerformanceRecord).toHaveBeenCalledTimes(1);

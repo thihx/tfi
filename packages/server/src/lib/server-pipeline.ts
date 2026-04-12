@@ -665,6 +665,7 @@ function evaluateConditionTriggeredSaveDecision(args: {
     statsCompact: args.statsCompact ?? undefined,
     segmentBlocklist: getSegmentPolicyBlocklist(),
     segmentStakeCaps: getSegmentPolicyStakeCaps(),
+    riskLevel: args.parsed.risk_level,
   });
 
   if (policyResult.blocked) {
@@ -1279,6 +1280,7 @@ async function executePromptAnalysis(
     statsCompact: promptContext.statsCompact,
     segmentBlocklist: getSegmentPolicyBlocklist(),
     segmentStakeCaps: getSegmentPolicyStakeCaps(),
+    riskLevel: parsedRaw.risk_level,
   });
   const policyBlockedEffective = policyResult.blocked && !promptContext.skipRecommendationPolicy;
   const hasCustomCondition = !!String(promptContext.customConditions || '').trim();
@@ -2884,15 +2886,14 @@ function buildTelegramCaption(
 ): string {
   const isRec = isAiRecommendation(parsed);
   const isCondition = isConditionOnlyTrigger(parsed) || parsed.custom_condition_matched;
-  const emoji = isRec ? '🎯' : isCondition ? '⚡' : '📊';
-  const label = isRec ? 'AI RECOMMENDATION' : isCondition ? 'CONDITION TRIGGERED' : 'MATCH ANALYSIS';
+  const label = isRec ? 'RECOMMENDATION' : isCondition ? 'CONDITION TRIGGERED' : 'MATCH ANALYSIS';
   const selection = displaySelectionWithContext(parsed, parsed.mapped_odd);
   const confidence = displayConfidence(parsed);
   const stake = displayStake(parsed);
 
   const INTERNAL = new Set(['FORCE_MODE', 'EARLY_GAME_RISK']);
 
-  let text = `<b>${emoji} ${label}</b>\n`;
+  let text = `<b>${label}</b>\n`;
   text += `<b>${safeHtml(matchDisplay)}</b>\n`;
   text += `${safeHtml(league)}\n`;
   text += `⏱ ${safeHtml(String(minute))}' | 📋 ${safeHtml(score)} | ${safeHtml(status)}\n`;
@@ -2986,10 +2987,9 @@ function buildTelegramMessage(
   const confidence = displayConfidence(parsed);
   const stake = displayStake(parsed);
 
-  const emoji = isRec ? '🎯' : isCondition ? '⚡' : '📊';
-  const label = isRec ? 'AI RECOMMENDATION' : isCondition ? 'CONDITION TRIGGERED' : 'MATCH ANALYSIS';
+  const label = isRec ? 'RECOMMENDATION' : isCondition ? 'CONDITION TRIGGERED' : 'MATCH ANALYSIS';
 
-  let text = `<b>${emoji} ${label}</b>\n`;
+  let text = `<b>${label}</b>\n`;
   text += `<b>${safeHtml(matchDisplay)}</b>\n`;
   text += `${safeHtml(league)}\n`;
   text += `⏱ ${safeHtml(String(minute))}' | 📋 ${safeHtml(score)} | ${safeHtml(status)}\n`;
@@ -3960,18 +3960,28 @@ async function processMatch(
           : [];
 
         if (targetSubscriptions.length > 0) {
-          const pushTitle = parsed.final_should_bet ? '🎯 AI RECOMMENDATION' : '⚡ CONDITION TRIGGERED';
+          const pushIsRec = parsed.final_should_bet === true;
+          const pushTitle = pushIsRec ? 'RECOMMENDATION' : 'CONDITION TRIGGERED';
+          const pushIcon = pushIsRec ? '/icons/notification-recommendation.svg' : '/icons/notification-condition.svg';
           const pushBody = [
             matchDisplay,
             notificationSelectionDisplay ? `${notificationSelectionDisplay} | Odds: ${notificationOdds ?? 'N/A'} | Confidence: ${notificationConfidence}/10` : '',
           ].filter(Boolean).join('\n');
+          const pushNavigateUrl =
+            `/?tab=matches&match=${encodeURIComponent(String(matchId))}&matchDisplay=${encodeURIComponent(matchDisplay)}`;
 
           const deliveredUserIds = new Set<string>();
 
           await Promise.all(targetSubscriptions.map(async (sub) => {
             const result = await sendWebPushNotification(
               { endpoint: sub.endpoint, keys: { p256dh: sub.p256dh, auth: sub.auth } },
-              { title: pushTitle, body: pushBody, tag: `tfi-rec-${matchId}`, url: '/' },
+              {
+                title: pushTitle,
+                body: pushBody,
+                tag: `tfi-rec-${matchId}`,
+                url: pushNavigateUrl,
+                icon: pushIcon,
+              },
             );
             if (result.ok) {
               deliveredUserIds.add(sub.user_id);

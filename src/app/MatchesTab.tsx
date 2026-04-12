@@ -14,7 +14,7 @@ import { AskAiMatchDialog } from '@/components/ui/AskAiMatchDialog';
 import { AskAiMatchSplitControl } from '@/components/ui/AskAiMatchSplitControl';
 import { MatchCard } from '@/components/ui/MatchCard';
 import { WatchlistEditModal } from '@/components/ui/WatchlistEditModal';
-import { LIVE_STATUSES, PLACEHOLDER_HOME, PLACEHOLDER_AWAY } from '@/config/constants';
+import { LIVE_STATUSES, PLACEHOLDER_HOME, PLACEHOLDER_AWAY, TFI_FOCUS_MATCH_IN_MATCHES_EVENT } from '@/config/constants';
 import { formatDateTimeDisplay, getKickoffDateKey, getKickoffDateTime, getLeagueDisplayName, debounce, parseKickoffForSave, shouldFastRefreshMatch, normalizeToISO } from '@/lib/utils/helpers';
 import { getDateGroupLabelInTimeZone, getDateKeyAtOffsetInTimeZone, getMatchDateKeyInTimeZone } from '@/lib/utils/timezone';
 import type { Match, SortState, League, WatchlistItem } from '@/types';
@@ -65,6 +65,11 @@ const _matchesTabStore = {
 };
 
 const PAGE_SIZE = 30;
+
+/** DOM id for `document.getElementById` when scrolling to a match from push / hub modal */
+function tfiMatchAnchorId(matchId: string): string {
+  return `tfi-match-${String(matchId).replace(/[^a-zA-Z0-9_-]/g, '_')}`;
+}
 
 /** `<select name=league>` value: chỉ hiện trận thuộc favorite leagues đã lưu (lọc client, không gọi API). */
 const LEAGUE_FILTER_FAVORITES_VALUE = '__tfi_favorite_leagues__';
@@ -172,6 +177,7 @@ export function MatchesTab() {
   const [favoriteLeaguesLimit, setFavoriteLeaguesLimit] = useState<number | null>(null);
   const [favoriteLeagueOptions, setFavoriteLeagueOptions] = useState<League[]>([]);
   const [currentUserRole, setCurrentUserRole] = useState<string>('member');
+  const [matchFocusTick, setMatchFocusTick] = useState(0);
   const aiResultsRef = useRef<HTMLDivElement>(null);
   const filterBarRef = useRef<HTMLDivElement>(null);
   const [filterBarBottom, setFilterBarBottom] = useState(240);
@@ -588,6 +594,47 @@ export function MatchesTab() {
   // Keep refs in sync so scroll handler always reads latest values
   safePageRef.current = safePage;
   totalPagesRef.current = totalPages;
+
+  const filteredRef = useRef(filtered);
+  useEffect(() => {
+    filteredRef.current = filtered;
+  }, [filtered]);
+
+  const pendingFocusMatchIdRef = useRef<string | null>(null);
+
+  useEffect(() => {
+    const onFocusMatch = (e: Event) => {
+      const mid = String((e as CustomEvent<{ matchId?: string }>).detail?.matchId ?? '').trim();
+      if (!mid) return;
+      const list = filteredRef.current;
+      const idx = list.findIndex((m) => String(m.match_id) === mid);
+      if (idx < 0) return;
+      const totalP = Math.max(1, Math.ceil(list.length / PAGE_SIZE));
+      const targetPage = Math.min(Math.floor(idx / PAGE_SIZE) + 1, totalP);
+      pendingFocusMatchIdRef.current = mid;
+      setPage(targetPage);
+      setMatchFocusTick((t) => t + 1);
+    };
+    window.addEventListener(TFI_FOCUS_MATCH_IN_MATCHES_EVENT, onFocusMatch as EventListener);
+    return () => window.removeEventListener(TFI_FOCUS_MATCH_IN_MATCHES_EVENT, onFocusMatch as EventListener);
+  }, []);
+
+  useLayoutEffect(() => {
+    const mid = pendingFocusMatchIdRef.current;
+    if (!mid) return;
+    if (!pageItems.some((m) => String(m.match_id) === mid)) return;
+    const domId = tfiMatchAnchorId(mid);
+    const el = document.getElementById(domId);
+    if (!el) return;
+    pendingFocusMatchIdRef.current = null;
+    el.scrollIntoView({ behavior: 'smooth', block: 'center', inline: 'nearest' });
+    const prevOutline = el.style.outline;
+    el.style.outline = '2px solid var(--primary)';
+    const tid = window.setTimeout(() => {
+      if (el.isConnected) el.style.outline = prevOutline;
+    }, 2200);
+    return () => window.clearTimeout(tid);
+  }, [pageItems, viewMode, matchFocusTick]);
 
   useEffect(() => { if (page > totalPages) setPage(totalPages); }, [page, totalPages]);
 
@@ -1140,8 +1187,8 @@ export function MatchesTab() {
           ) : (
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(min(100%, 320px), 1fr))', gap: '12px' }}>
               {pageItems.map((m) => (
+                <div key={m.match_id} id={tfiMatchAnchorId(String(m.match_id))} style={{ minWidth: 0 }}>
                 <MatchCard
-                  key={m.match_id}
                   match={m}
                   highlighted={selected.has(String(m.match_id))}
                   flashMap={flashMap}
@@ -1177,6 +1224,7 @@ export function MatchesTab() {
                     },
                   ]}
                 />
+                </div>
               ))}
             </div>
           )}
@@ -1225,6 +1273,7 @@ export function MatchesTab() {
                 rows.push(
                   <MatchRow
                     key={m.match_id}
+                    anchorId={tfiMatchAnchorId(String(m.match_id))}
                     match={m}
                     isWatched={watchlistMap.has(String(m.match_id))}
                     isPending={pendingAdds.has(String(m.match_id))}
@@ -1414,6 +1463,7 @@ export function MatchesTab() {
 }
 
 interface MatchRowProps {
+  anchorId: string;
   match: Match;
   isWatched: boolean;
   isPending: boolean;
@@ -1432,7 +1482,7 @@ interface MatchRowProps {
   onDoubleClick: () => void;
 }
 
-function MatchRow({ match, isWatched, isPending, isPendingRemove, isSelected, isAnalyzing, hasResult, leagues, flashMap, onQuickAdd, onQuickRemove, onToggleSelect, onAskAiQuick, onAskAiOpenQuestion, onEdit, onDoubleClick }: MatchRowProps) {
+function MatchRow({ anchorId, match, isWatched, isPending, isPendingRemove, isSelected, isAnalyzing, hasResult, leagues, flashMap, onQuickAdd, onQuickRemove, onToggleSelect, onAskAiQuick, onAskAiOpenQuestion, onEdit, onDoubleClick }: MatchRowProps) {
   const [watchHovered, setWatchHovered] = React.useState(false);
   const isPlaying = PLAYING_STATUSES.has(match.status);
   const isFinished = FINISHED_STATUSES.has(match.status);
@@ -1451,7 +1501,7 @@ function MatchRow({ match, isWatched, isPending, isPendingRemove, isSelected, is
   const awayRedGen      = flashMap.get(`${id}:ar`)    ?? 0;
 
   return (
-    <tr onDoubleClick={onDoubleClick} className={LIVE_STATUSES.includes(match.status) ? 'match-is-live' : undefined} style={{ cursor: 'pointer' }} title="Double-click to view match details">
+    <tr id={anchorId} onDoubleClick={onDoubleClick} className={LIVE_STATUSES.includes(match.status) ? 'match-is-live' : undefined} style={{ cursor: 'pointer' }} title="Double-click to view match details">
       <td data-label="Time" style={{ whiteSpace: 'nowrap', textAlign: 'center' }}>
         <div className="cell-value">
           <span className="time-pill" style={{ background: 'var(--gray-200)', padding: '3px 7px', borderRadius: '4px', fontWeight: 600, color: 'var(--gray-900)', fontSize: '12px' }}>{timeDisplay}</span>

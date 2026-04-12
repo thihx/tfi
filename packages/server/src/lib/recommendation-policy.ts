@@ -1,4 +1,8 @@
-/** Post-parse gates: see `docs/live-monitor-ai-ou-under-bias.md` before tightening Under/Over asymmetry. */
+/**
+ * Post-parse gates: see `docs/live-monitor-ai-ou-under-bias.md` before tightening Under/Over asymmetry.
+ * Global settlement-informed guards (all prompt versions) reduce recurring loss clusters (HT Under tight,
+ * BTTS Yes one-sided score, AH home chalk, corners under in open games, MEDIUM with thin edge).
+ */
 import { normalizeMarket } from './normalize-market.js';
 import { buildRecommendationSegmentKey } from './segment-policy-blocklist.js';
 
@@ -32,6 +36,8 @@ export interface RecommendationPolicyInput {
   segmentBlocklist?: ReadonlySet<string> | null;
   /** Optional max stake % per segment key; lowers stake and adds a warning (does not block). */
   segmentStakeCaps?: ReadonlyMap<string, number> | null;
+  /** AI risk tier; used to tighten MEDIUM picks that historically underperform. */
+  riskLevel?: string | null;
 }
 
 export interface RecommendationPolicyResult {
@@ -80,6 +86,14 @@ function getMarketLine(canonicalMarket: string): number | null {
   if (!match) return null;
   const line = Number(match[1]);
   return Number.isFinite(line) ? line : null;
+}
+
+/** Parsed Asian handicap for home (e.g. asian_handicap_home_-0.5 -> -0.5). */
+function getAsianHandicapHomeLine(canonicalMarket: string): number | null {
+  const prefix = 'asian_handicap_home_';
+  if (!canonicalMarket.startsWith(prefix)) return null;
+  const n = Number(canonicalMarket.slice(prefix.length));
+  return Number.isFinite(n) ? n : null;
 }
 
 export function getCorrelatedThesis(canonicalMarket: string): string | null {
@@ -495,6 +509,97 @@ export function applyRecommendationPolicy(input: RecommendationPolicyInput): Rec
     && marketLine >= 4.5
   ) {
     block('POLICY_BLOCK_GOALS_OVER_30_44_ONE_GOAL_EXTREME_RUNWAY_V10G');
+  }
+
+  // ── Global guards (all prompt versions) — informed by recent settlement loss mix ──
+  const ahHomeLine = getAsianHandicapHomeLine(canonicalMarket);
+  if (
+    canonicalMarket.startsWith('ht_under_')
+    && marketLine != null
+    && marketLine <= 1.5
+  ) {
+    if (input.minute < 22) {
+      block('POLICY_BLOCK_HT_UNDER_TIGHT_PRE22_GLOBAL');
+    } else if (totalGoals != null && totalGoals >= 1 && input.minute <= 38) {
+      block('POLICY_BLOCK_HT_UNDER_TIGHT_AFTER_EARLY_GOAL_GLOBAL');
+    } else if (input.confidence < 8 || input.valuePercent < 7) {
+      block('POLICY_BLOCK_HT_UNDER_TIGHT_LOW_SIGNAL_GLOBAL');
+    }
+  }
+
+  if (canonicalMarket === 'btts_yes') {
+    if (
+      scoreState === 'one-goal-margin'
+      && input.minute >= 12
+      && input.minute < 82
+      && totalGoals != null
+      && totalGoals >= 1
+    ) {
+      const m = String(input.score || '').trim().match(/^(\d+)\s*[-:]\s*(\d+)$/);
+      if (m) {
+        const h = Number(m[1] ?? 0);
+        const a = Number(m[2] ?? 0);
+        if (h === 0 || a === 0) {
+          block('POLICY_BLOCK_BTTS_YES_ONE_SIDE_BLANK_GLOBAL');
+        }
+      }
+    }
+    if (input.minute >= 28) {
+      const homeShotsOnTarget = parseStatInt(input.statsCompact?.shots_on_target?.home);
+      const awayShotsOnTarget = parseStatInt(input.statsCompact?.shots_on_target?.away);
+      const haveBoth = homeShotsOnTarget != null && awayShotsOnTarget != null;
+      if (haveBoth && (homeShotsOnTarget < 2 || awayShotsOnTarget < 2)) {
+        block('POLICY_BLOCK_BTTS_YES_LOW_DUAL_THREAT_GLOBAL');
+      }
+    }
+  }
+
+  if (ahHomeLine != null && ahHomeLine <= -0.5) {
+    if (input.confidence < 8 || input.valuePercent < 7) {
+      block('POLICY_BLOCK_AH_HOME_CHALK_LOW_SIGNAL_GLOBAL');
+    }
+  } else if (ahHomeLine != null && ahHomeLine <= -0.25 && ahHomeLine > -0.5) {
+    if (input.minute < 50 && scoreState === 'level' && (totalGoals ?? 0) === 0) {
+      if (input.confidence < 8 || input.valuePercent < 7) {
+        block('POLICY_BLOCK_AH_HOME_QUARTER_BALL_EARLY_0_0_GLOBAL');
+      }
+    }
+  }
+
+  if (canonicalMarket.startsWith('corners_under_') && marketLine != null) {
+    if (
+      input.minute >= 35
+      && input.minute <= 52
+      && (totalGoals ?? 0) >= 2
+      && marketLine <= 7.5
+    ) {
+      block('POLICY_BLOCK_CORNERS_UNDER_MIDGAME_GOALS_GLOBAL');
+    }
+    if (
+      input.minute >= 40
+      && input.minute <= 59
+      && marketLine <= 6.5
+      && scoreState === 'one-goal-margin'
+    ) {
+      block('POLICY_BLOCK_CORNERS_UNDER_LATE_ONE_GOAL_LOW_LINE_GLOBAL');
+    }
+  }
+
+  const risk = String(input.riskLevel ?? '').trim().toUpperCase();
+  if (risk === 'MEDIUM') {
+    const thinEdge =
+      input.valuePercent > 0
+      && input.valuePercent < 7
+      && canonicalMarket !== 'btts_no';
+    if (thinEdge) {
+      block('POLICY_BLOCK_MEDIUM_RISK_THIN_EDGE_GLOBAL');
+    } else if (!blocked && stakePercent > 2.5) {
+      const prev = stakePercent;
+      stakePercent = Math.min(Number(stakePercent) || 0, 2.5);
+      if (stakePercent < prev) {
+        warnings.push('POLICY_CAP_MEDIUM_RISK_STAKE_GLOBAL');
+      }
+    }
   }
 
   const thesis = getCorrelatedThesis(canonicalMarket);

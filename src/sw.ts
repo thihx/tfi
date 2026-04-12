@@ -15,7 +15,7 @@ precacheAndRoute(self.__WB_MANIFEST);
 const DEFAULT_NOTIFICATION_DURATION_MS = 10_000; // 10 seconds
 
 self.addEventListener('push', (event) => {
-  let payload: { title?: string; body?: string; tag?: string; url?: string; duration?: number } = {};
+  let payload: { title?: string; body?: string; tag?: string; url?: string; icon?: string; duration?: number } = {};
   try {
     payload = event.data?.json() ?? {};
   } catch {
@@ -28,7 +28,7 @@ self.addEventListener('push', (event) => {
 
   const options: NotificationOptions & { renotify?: boolean } = {
     body: payload.body ?? '',
-    icon: '/pwa-192x192.png',
+    icon: payload.icon?.trim() || '/pwa-192x192.png',
     badge: '/pwa-192x192.png',
     tag,
     renotify: true,
@@ -61,11 +61,12 @@ self.addEventListener('notificationclick', (event) => {
   const matchDisplay = event.notification.body?.split('\n')[0] ?? '';
 
   const msg = matchId
-    ? { type: 'tfi:openMatchDetail', matchId, matchDisplay }
+    ? { type: 'tfi:openMatchDetail', matchId, matchDisplay, tab: 'matches' as const }
     : { type: 'tfi:navigate', tab: 'recommendations' };
 
-  // Open URL without ?tab= — we keep the user on their current page
-  const targetUrl = matchId ? `/?match=${matchId}&matchDisplay=${encodeURIComponent(matchDisplay)}` : '/';
+  const targetUrl = matchId
+    ? `/?tab=matches&match=${encodeURIComponent(matchId)}&matchDisplay=${encodeURIComponent(matchDisplay)}`
+    : '/';
 
   event.waitUntil(
     self.clients

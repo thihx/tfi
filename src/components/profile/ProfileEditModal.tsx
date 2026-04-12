@@ -4,7 +4,11 @@ import { Toggle } from '@/components/ui/Toggle';
 import { useToast } from '@/hooks/useToast';
 import type { AuthUser } from '@/lib/services/auth';
 import { updateCurrentUserProfile } from '@/lib/services/auth';
-import { fetchNotificationChannels, persistNotificationChannel } from '@/lib/services/notification-channels';
+import {
+  fetchNotificationChannels,
+  persistNotificationChannel,
+  userMessageForNotificationChannelFailure,
+} from '@/lib/services/notification-channels';
 import {
   getExistingSubscription,
   getNotificationPermission,
@@ -283,14 +287,20 @@ export function ProfileEditModal({ open, onClose, user, onUserChange }: ProfileE
     const previous = telegramEnabled;
     setTelegramEnabled(enabled);
     try {
-      await persistMonitorConfig({ TELEGRAM_ENABLED: enabled });
       const saved = await persistNotificationChannel('telegram', { enabled });
+      await persistMonitorConfig({ TELEGRAM_ENABLED: enabled });
       syncChannel(saved);
       showToast(`Telegram ${enabled ? 'enabled' : 'disabled'}`, 'success');
-    } catch {
+    } catch (err) {
       setTelegramEnabled(previous);
+      try {
+        const reverted = await persistNotificationChannel('telegram', { enabled: previous });
+        syncChannel(reverted);
+      } catch {
+        /* ignore rollback failures */
+      }
       await persistMonitorConfig({ TELEGRAM_ENABLED: previous }).catch(() => undefined);
-      showToast('Failed to save Telegram setting', 'error');
+      showToast(userMessageForNotificationChannelFailure(err, 'Không lưu được cài đặt Telegram.'), 'error');
     }
   };
 
@@ -310,9 +320,9 @@ export function ProfileEditModal({ open, onClose, user, onUserChange }: ProfileE
         syncChannel(saved);
       }
       showToast(`Notification language → ${lang.toUpperCase()}`, 'success');
-    } catch {
+    } catch (err) {
       setNotificationLanguage(previous);
-      showToast('Failed to save notification language', 'error');
+      showToast(userMessageForNotificationChannelFailure(err, 'Không lưu được ngôn ngữ thông báo.'), 'error');
     }
   };
 
@@ -358,7 +368,7 @@ export function ProfileEditModal({ open, onClose, user, onUserChange }: ProfileE
       setWebPushEnabled(enabled);
       showToast(`Web Push ${enabled ? 'enabled' : 'disabled'}`, 'success');
     } catch (err) {
-      showToast(`Web Push error: ${err instanceof Error ? err.message : String(err)}`, 'error');
+      showToast(userMessageForNotificationChannelFailure(err, 'Không lưu được cài đặt Web Push.'), 'error');
     } finally {
       setWebPushLoading(false);
     }
@@ -373,8 +383,8 @@ export function ProfileEditModal({ open, onClose, user, onUserChange }: ProfileE
       });
       syncChannel(saved);
       showToast(`${channel.channelType === 'telegram' ? 'Telegram' : channel.channelType === 'email' ? 'Email' : 'Zalo'} target saved`, 'success');
-    } catch {
-      showToast('Failed to save notification channel', 'error');
+    } catch (err) {
+      showToast(userMessageForNotificationChannelFailure(err, 'Không lưu được kênh thông báo.'), 'error');
     } finally {
       setChannelSaving((prev) => ({ ...prev, [channel.channelType]: false }));
     }
@@ -604,7 +614,7 @@ export function ProfileEditModal({ open, onClose, user, onUserChange }: ProfileE
                 </div>
                 <div style={{ fontSize: '11px', color: 'var(--gray-500)', marginTop: '3px' }}>
                   {telegramReady
-                    ? 'Ready to receive recommendations via Telegram.'
+                    ? 'Ready to receive recommendations via Telegram. Use “Open Telegram to change chat” below to relink without typing Chat ID.'
                     : telegramEnabled
                       ? 'Open the link below and tap Start in Telegram, or paste Chat ID manually.'
                       : 'Telegram delivery is off for this account.'}

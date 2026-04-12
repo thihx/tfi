@@ -58,14 +58,8 @@ function localizedLabel(
 
 function localizedHeading(kind: TelegramRecommendationMessageInput['kind'], lang: TelegramNotificationLanguage): string {
   if (kind === 'condition') return localizedLabel(lang, 'CONDITION TRIGGERED', 'ĐIỀU KIỆN ĐÃ THỎA');
-  if (kind === 'recommendation') return localizedLabel(lang, 'AI RECOMMENDATION', 'KHUYẾN NGHỊ AI');
+  if (kind === 'recommendation') return localizedLabel(lang, 'RECOMMENDATION', 'KHUYẾN NGHỊ');
   return localizedLabel(lang, 'MATCH ANALYSIS', 'PHÂN TÍCH TRẬN ĐẤU');
-}
-
-function localizedEmoji(kind: TelegramRecommendationMessageInput['kind']): string {
-  if (kind === 'condition') return '⚡';
-  if (kind === 'recommendation') return '🎯';
-  return '📊';
 }
 
 function getMetricLine(input: TelegramRecommendationMessageInput): string {
@@ -87,16 +81,13 @@ function getMetricLine(input: TelegramRecommendationMessageInput): string {
 export function buildTelegramRecommendationMessage(input: TelegramRecommendationMessageInput): string {
   const lines: string[] = [];
   const heading = localizedHeading(input.kind, input.language);
-  const emoji = localizedEmoji(input.kind);
   const minuteLabel = localizedLabel(input.language, 'Minute', 'Phút');
   const scoreLabel = localizedLabel(input.language, 'Score', 'Tỷ số');
-  const modelLabel = localizedLabel(input.language, 'AI', 'AI');
-  const modeLabel = localizedLabel(input.language, 'Mode', 'Chế độ');
   const conditionLabel = localizedLabel(input.language, 'Condition', 'Điều kiện');
   const matchedLabel = localizedLabel(input.language, 'Matched', 'Điều kiện đạt');
   const warningsLabel = localizedLabel(input.language, 'Warnings', 'Lưu ý');
 
-  lines.push(`<b>${emoji} ${heading}</b>`);
+  lines.push(`<b>${heading}</b>`);
   lines.push(`<b>${safeHtml(input.matchDisplay)}</b>`);
   if (input.league?.trim()) lines.push(safeHtml(input.league.trim()));
 
@@ -106,12 +97,6 @@ export function buildTelegramRecommendationMessage(input: TelegramRecommendation
     input.status?.trim() ? safeHtml(input.status.trim()) : '',
   ].filter(Boolean);
   if (summaryParts.length > 0) lines.push(summaryParts.join(' | '));
-
-  const modelLine = [
-    input.model?.trim() ? `${modelLabel} ${safeHtml(input.model.trim())}` : '',
-    input.mode?.trim() ? `${modeLabel}: ${safeHtml(input.mode.trim())}` : '',
-  ].filter(Boolean).join(' | ');
-  if (modelLine) lines.push(modelLine);
 
   if (input.kind === 'condition' && input.conditionText?.trim()) {
     lines.push('');

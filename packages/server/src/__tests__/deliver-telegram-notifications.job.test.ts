@@ -92,7 +92,7 @@ describe('deliverTelegramNotificationsJob', () => {
 
     expect(result).toEqual({ pending: 1, delivered: 1, failed: 0 });
     expect(mockSendTelegramMessage).toHaveBeenCalledOnce();
-    expect(mockSendTelegramMessage.mock.calls[0]?.[1]).toContain('AI RECOMMENDATION');
+    expect(mockSendTelegramMessage.mock.calls[0]?.[1]).toContain('RECOMMENDATION');
     expect(mockMarkRecommendationDeliveriesDelivered).toHaveBeenCalledWith(42, ['user-1'], 'telegram');
     expect(mockMarkRecommendationNotified).toHaveBeenCalledWith(42, 'telegram');
   });

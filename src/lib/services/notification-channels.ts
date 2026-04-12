@@ -7,20 +7,59 @@ function authHeaders(): Record<string, string> {
   return token ? { Authorization: `Bearer ${token}` } : {};
 }
 
+/** Thrown when a notification-channel API returns 4xx/5xx; carries server `code` when present. */
+export class NotificationChannelRequestError extends Error {
+  readonly code?: string;
+
+  constructor(message: string, code?: string) {
+    super(message);
+    this.name = 'NotificationChannelRequestError';
+    this.code = code;
+  }
+}
+
+/** User-facing toast text: ưu tiên giải thích gói/limit bằng tiếng Việt khi server gửi `code`. */
+export function userMessageForNotificationChannelFailure(err: unknown, fallbackVi: string): string {
+  const code = err instanceof NotificationChannelRequestError ? err.code : undefined;
+  if (code === 'NOTIFICATION_CHANNEL_LIMIT_REACHED') {
+    return 'Gói hiện tại giới hạn số kênh thông báo bật cùng lúc. Hãy tắt kênh khác (ví dụ Web Push) hoặc nâng cấp gói để bật thêm Telegram.';
+  }
+  if (code === 'NOTIFICATION_CHANNEL_NOT_ALLOWED') {
+    return 'Gói hiện tại không bật được kênh này. Nâng cấp gói để dùng Telegram (hoặc kênh tương ứng).';
+  }
+  if (code === 'TELEGRAM_BOT_DISABLED') {
+    return 'Máy chủ chưa cấu hình bot Telegram. Liên hệ quản trị.';
+  }
+  if (code === 'TELEGRAM_BOT_USERNAME_UNAVAILABLE') {
+    return 'Không lấy được tên bot Telegram trên máy chủ. Thử lại sau hoặc liên hệ quản trị.';
+  }
+  if (err instanceof Error && err.message.trim()) return err.message;
+  return fallbackVi;
+}
+
+function throwChannelRequestError(
+  defaultMessage: string,
+  body: { error?: string; code?: string } | null | undefined,
+): never {
+  const message =
+    typeof body?.error === 'string' && body.error.trim() ? body.error.trim() : defaultMessage;
+  const code = typeof body?.code === 'string' && body.code.trim() ? body.code.trim() : undefined;
+  throw new NotificationChannelRequestError(message, code);
+}
+
 export async function fetchNotificationChannels(): Promise<NotificationChannelConfig[]> {
   const res = await fetch(internalApiUrl('/api/me/notification-channels'), {
     headers: { Accept: 'application/json', ...authHeaders() },
     credentials: 'include',
   });
   if (!res.ok) {
-    let message = `Load notification channels failed: ${res.status}`;
     try {
-      const body = (await res.json()) as { error?: string };
-      if (typeof body.error === 'string' && body.error.trim()) message = body.error;
-    } catch {
-      /* ignore */
+      const body = (await res.json()) as { error?: string; code?: string };
+      throwChannelRequestError(`Load notification channels failed: ${res.status}`, body);
+    } catch (e) {
+      if (e instanceof NotificationChannelRequestError) throw e;
+      throw new NotificationChannelRequestError(`Load notification channels failed: ${res.status}`);
     }
-    throw new Error(message);
   }
   return res.json() as Promise<NotificationChannelConfig[]>;
 }
@@ -38,14 +77,13 @@ export async function requestTelegramLinkOffer(): Promise<TelegramLinkOfferRespo
     credentials: 'include',
   });
   if (!res.ok) {
-    let message = `Link offer failed: ${res.status}`;
     try {
-      const body = (await res.json()) as { error?: string };
-      if (typeof body.error === 'string' && body.error.trim()) message = body.error;
-    } catch {
-      /* ignore */
+      const body = (await res.json()) as { error?: string; code?: string };
+      throwChannelRequestError(`Link offer failed: ${res.status}`, body);
+    } catch (e) {
+      if (e instanceof NotificationChannelRequestError) throw e;
+      throw new NotificationChannelRequestError(`Link offer failed: ${res.status}`);
     }
-    throw new Error(message);
   }
   return res.json() as Promise<TelegramLinkOfferResponse>;
 }
@@ -66,14 +104,13 @@ export async function persistNotificationChannel(
     credentials: 'include',
   });
   if (!res.ok) {
-    let message = `Save notification channel failed: ${res.status}`;
     try {
       const body = (await res.json()) as { error?: string; code?: string };
-      if (typeof body.error === 'string' && body.error.trim()) message = body.error;
-    } catch {
-      /* ignore */
+      throwChannelRequestError(`Save notification channel failed: ${res.status}`, body);
+    } catch (e) {
+      if (e instanceof NotificationChannelRequestError) throw e;
+      throw new NotificationChannelRequestError(`Save notification channel failed: ${res.status}`);
     }
-    throw new Error(message);
   }
   return res.json() as Promise<NotificationChannelConfig>;
 }

@@ -121,6 +121,15 @@ export async function persistMonitorConfig(config: Partial<LiveMonitorConfig>): 
     body: JSON.stringify(config),
     credentials: 'include',
   });
-  if (!res.ok) throw new Error(`Save failed: ${res.status}`);
+  if (!res.ok) {
+    let message = `Save failed: ${res.status}`;
+    try {
+      const body = (await res.json()) as { error?: string };
+      if (typeof body.error === 'string' && body.error.trim()) message = body.error;
+    } catch {
+      /* ignore */
+    }
+    throw new Error(message);
+  }
   writeMonitorConfigCache(createDefaultConfig(await res.json() as Partial<LiveMonitorConfig>));
 }

@@ -14,6 +14,6 @@ describe('marketDisplay', () => {
       selection: 'Home -0.25',
       betMarket: 'asian_handicap_home_-0.25',
       odds: 1.95,
-    })).toBe('Full-time Asian Handicap · Home -0.25 @1.95');
+    })).toBe('FT Asian Handicap · Home -0.25 @1.95');
   });
 });

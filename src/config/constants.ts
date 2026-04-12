@@ -95,3 +95,6 @@ export const BET_RESULT_BADGES: Record<string, { cls: string; label: string }> =
 // ==================== SVG PLACEHOLDERS ====================
 export const PLACEHOLDER_HOME = "data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 width=%2224%22 height=%2224%22%3E%3Crect fill=%22%23e5e7eb%22 width=%2224%22 height=%2224%22 rx=%224%22/%3E%3Ctext x=%2250%25%22 y=%2250%25%22 dominant-baseline=%22middle%22 text-anchor=%22middle%22 font-size=%2212%22 font-weight=%22bold%22 fill=%22%23374151%22%3EH%3C/text%3E%3C/svg%3E";
 export const PLACEHOLDER_AWAY = "data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 width=%2224%22 height=%2224%22%3E%3Crect fill=%22%23e5e7eb%22 width=%2224%22 height=%2224%22 rx=%224%22/%3E%3Ctext x=%2250%25%22 y=%2250%25%22 dominant-baseline=%22middle%22 text-anchor=%22middle%22 font-size=%2212%22 font-weight=%22bold%22 fill=%22%23374151%22%3EA%3C/text%3E%3C/svg%3E";
+
+/** Window event: MatchesTab jumps to page and scrolls to the match card/row */
+export const TFI_FOCUS_MATCH_IN_MATCHES_EVENT = 'tfi:focusMatchInMatches';

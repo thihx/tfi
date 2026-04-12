@@ -851,4 +851,67 @@ describe('applyRecommendationPolicy', () => {
     expect(result.blocked).toBe(true);
     expect(result.warnings).toContain('POLICY_BLOCK_GOALS_OVER_30_44_ONE_GOAL_EXTREME_RUNWAY_V10G');
   });
+
+  test('global blocks tight HT Under before minute 22', () => {
+    const result = applyRecommendationPolicy({
+      selection: 'HT Under 1.5 @1.90',
+      betMarket: 'ht_under_1.5',
+      minute: 18,
+      score: '0-0',
+      odds: 1.9,
+      confidence: 9,
+      valuePercent: 9,
+      stakePercent: 2,
+    });
+    expect(result.blocked).toBe(true);
+    expect(result.warnings).toContain('POLICY_BLOCK_HT_UNDER_TIGHT_PRE22_GLOBAL');
+  });
+
+  test('global blocks BTTS Yes when one team still on zero (one-goal scoreline)', () => {
+    const result = applyRecommendationPolicy({
+      selection: 'BTTS Yes @1.60',
+      betMarket: 'btts_yes',
+      minute: 40,
+      score: '1-0',
+      odds: 1.6,
+      confidence: 8,
+      valuePercent: 8,
+      stakePercent: 2,
+      statsCompact: { shots_on_target: { home: '4', away: '3' } },
+    });
+    expect(result.blocked).toBe(true);
+    expect(result.warnings).toContain('POLICY_BLOCK_BTTS_YES_ONE_SIDE_BLANK_GLOBAL');
+  });
+
+  test('global blocks AH home -0.5 with thin confidence or edge', () => {
+    const result = applyRecommendationPolicy({
+      selection: 'Home -0.5 @1.92',
+      betMarket: 'asian_handicap_home_-0.5',
+      minute: 60,
+      score: '1-1',
+      odds: 1.92,
+      confidence: 7,
+      valuePercent: 9,
+      stakePercent: 2,
+    });
+    expect(result.blocked).toBe(true);
+    expect(result.warnings).toContain('POLICY_BLOCK_AH_HOME_CHALK_LOW_SIGNAL_GLOBAL');
+  });
+
+  test('global caps stake for MEDIUM risk when edge is OK', () => {
+    const result = applyRecommendationPolicy({
+      selection: 'Over 2.5 @1.95',
+      betMarket: 'over_2.5',
+      minute: 78,
+      score: '1-1',
+      odds: 1.95,
+      confidence: 7,
+      valuePercent: 8,
+      stakePercent: 4,
+      riskLevel: 'MEDIUM',
+    });
+    expect(result.blocked).toBe(false);
+    expect(result.stakePercent).toBe(2.5);
+    expect(result.warnings).toContain('POLICY_CAP_MEDIUM_RISK_STAKE_GLOBAL');
+  });
 });

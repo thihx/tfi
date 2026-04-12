@@ -33,10 +33,16 @@ vi.mock('@/features/live-monitor/config', () => ({
   persistMonitorConfig: (...args: unknown[]) => mockPersistMonitorConfig(...args),
 }));
 
-vi.mock('@/lib/services/notification-channels', () => ({
-  fetchNotificationChannels: (...args: unknown[]) => mockFetchNotificationChannels(...args),
-  persistNotificationChannel: (...args: unknown[]) => mockPersistNotificationChannel(...args),
-}));
+vi.mock('@/lib/services/notification-channels', async () => {
+  const actual = await vi.importActual<typeof import('@/lib/services/notification-channels')>(
+    '@/lib/services/notification-channels',
+  );
+  return {
+    ...actual,
+    fetchNotificationChannels: (...args: unknown[]) => mockFetchNotificationChannels(...args),
+    persistNotificationChannel: (...args: unknown[]) => mockPersistNotificationChannel(...args),
+  };
+});
 
 vi.mock('@/lib/services/push', () => ({
   isPushSupported: () => pushSupported,

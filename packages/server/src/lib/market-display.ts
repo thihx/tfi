@@ -10,8 +10,8 @@ function parseCanonicalMarket(value: string | null | undefined): {
   const canonical = String(value ?? '').trim();
   const isH1 = canonical.startsWith('ht_');
   const base = isH1 ? canonical.slice(3) : canonical;
-  const periodLabelEn = isH1 ? 'H1' : 'Full-time';
-  const periodLabelVi = isH1 ? 'H1' : 'Full-time';
+  const periodLabelEn = isH1 ? 'H1' : 'FT';
+  const periodLabelVi = isH1 ? 'H1' : 'FT';
 
   if (base === '1x2_home' || base === '1x2_draw' || base === '1x2_away') {
     return {

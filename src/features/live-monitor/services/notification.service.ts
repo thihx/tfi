@@ -76,7 +76,7 @@ function getEventIcon(event: EventCompact): string {
   const detail = (event.detail || '').toLowerCase();
 
   if (type === 'goal') {
-    if (detail.includes('penalty')) return '⚽🎯';
+    if (detail.includes('penalty')) return '⚽ P';
     if (detail.includes('own')) return '⚽🔴';
     return '⚽';
   }
@@ -118,7 +118,7 @@ function buildEmailHtml(ctx: NotificationContext): string {
 
   const headerColor = section === 'ai_recommendation' ? '#2e7d32' :
     section === 'condition_triggered' ? '#e65100' : '#616161';
-  const headerText = section === 'ai_recommendation' ? '🎯 RECOMMENDATION' :
+  const headerText = section === 'ai_recommendation' ? 'RECOMMENDATION' :
     section === 'condition_triggered' ? '⚡ CONDITION TRIGGERED' : '📊 MATCH ANALYSIS (No Actionable)';
 
   let html = `
@@ -344,10 +344,10 @@ function buildTelegramCaption(ctx: NotificationContext): string {
   const section = determineSection(ctx);
   const events = sortEvents(matchData.events_compact || []);
 
-  const emoji = section === 'ai_recommendation' ? '🎯' : section === 'condition_triggered' ? '⚡' : '📊';
+  const emoji = section === 'ai_recommendation' ? '' : section === 'condition_triggered' ? '⚡' : '📊';
   const label = section === 'ai_recommendation' ? 'RECOMMENDATION' : section === 'condition_triggered' ? 'CONDITION TRIGGERED' : 'MATCH ANALYSIS';
 
-  let text = `<b>${emoji} ${label}</b>\n`;
+  let text = emoji ? `<b>${emoji} ${label}</b>\n` : `<b>${label}</b>\n`;
   text += `<b>${safeHtml(rec.match_display)}</b>\n`;
   text += `${safeHtml(rec.league)}\n`;
   text += `⏱ ${safeHtml(String(rec.minute))}' | 📋 ${safeHtml(rec.score)} | ${safeHtml(rec.status)}\n`;
@@ -428,13 +428,13 @@ function buildTelegramMessages(ctx: NotificationContext): string[] {
     lang === 'vi' ? (vi || en) : (en || vi);
   const reasoningLabel = lang === 'vi' ? 'Phân tích' : 'Reasoning';
 
-  const headerEmoji = section === 'ai_recommendation' ? '🎯' :
+  const headerEmoji = section === 'ai_recommendation' ? '' :
     section === 'condition_triggered' ? '⚡' : '📊';
   const headerLabel = section === 'ai_recommendation' ? 'RECOMMENDATION' :
     section === 'condition_triggered' ? 'CONDITION TRIGGERED' : 'MATCH ANALYSIS';
 
   let text = '';
-  text += `<b>${headerEmoji} ${headerLabel}</b>\n`;
+  text += headerEmoji ? `<b>${headerEmoji} ${headerLabel}</b>\n` : `<b>${headerLabel}</b>\n`;
   text += `<b>${safeHtml(rec.match_display)}</b>\n`;
   text += `${safeHtml(rec.league)}\n`;
   text += `⏱ ${safeHtml(String(rec.minute))}' | 📋 ${safeHtml(rec.score)} | ${safeHtml(rec.status)}\n`;
@@ -567,7 +567,7 @@ export async function notifyRecommendation(
   try {
     const emailHtml = buildEmailHtml(ctx);
     const subject = section === 'ai_recommendation'
-      ? `🎯 TFI: ${recommendation.match_display} | ${recommendation.selection}`
+      ? `TFI: ${recommendation.match_display} | ${recommendation.selection}`
       : `⚡ TFI: ${recommendation.match_display} | Condition Triggered`;
 
     const emailPayload: EmailPayload = {

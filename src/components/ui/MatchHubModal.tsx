@@ -25,6 +25,9 @@ import type { Recommendation, WatchlistItem } from '@/types';
 const TimelineView = lazy(() => import('./MatchDetailChartViews').then((m) => ({ default: m.TimelineView })));
 const OddsView = lazy(() => import('./MatchDetailChartViews').then((m) => ({ default: m.OddsView })));
 
+/** Match over or voided — same semantics as MatchesTab FINISHED_STATUSES */
+const HUB_FINISHED_STATUSES = new Set(['FT', 'AET', 'PEN', 'CANC', 'ABD', 'AWD']);
+
 export type MatchHubTabKey = 'tfi' | 'scout' | 'timeline' | 'odds' | 'recs' | 'bets';
 
 export interface MatchHubModalProps {
@@ -199,8 +202,36 @@ function MatchHubModalInner({
   const betsLen = bets?.length ?? 0;
   const titleText = matchDisplay || `${homeTeam} vs ${awayTeam}`;
 
+  const matchRow = state.matches.find((m) => String(m.match_id) === String(matchId));
+  const finished = matchRow ? HUB_FINISHED_STATUSES.has(String(matchRow.status).toUpperCase()) : false;
+  const notInFeed = !state.loading && !matchRow;
+  const hubNotice =
+    open && !tfiLoading && (finished || notInFeed)
+      ? finished
+        ? 'This match has finished. Saved picks, timeline, and odds history (if captured) remain available in the tabs below.'
+        : 'This match is not in your current fixtures list. It may have ended or been removed from the feed — saved picks and charts may still load below.'
+      : null;
+
   return (
     <Modal open={open} title={titleText} onClose={onClose} size="xl">
+      {hubNotice && (
+        <div
+          role="status"
+          className="match-hub-notice-banner"
+          style={{
+            marginBottom: '12px',
+            padding: '10px 12px',
+            borderRadius: '8px',
+            border: '1px solid var(--amber-200, #fde68a)',
+            background: 'var(--amber-50, #fffbeb)',
+            fontSize: '12px',
+            lineHeight: 1.45,
+            color: 'var(--gray-800, #1f2937)',
+          }}
+        >
+          {hubNotice}
+        </div>
+      )}
       {latest && (
         <div className="match-hub-kpi-strip">
           <KpiChip label="Score" value={`${latest.home_score} - ${latest.away_score}`} bold />

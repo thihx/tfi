@@ -11,12 +11,31 @@ import { Sidebar } from '@/components/layout/Sidebar';
 import { LoginScreen } from '@/app/LoginScreen';
 import { useUserTimeZone } from '@/hooks/useUserTimeZone';
 import { shouldFastRefreshMatch } from '@/lib/utils/helpers';
+import { TFI_FOCUS_MATCH_IN_MATCHES_EVENT } from '@/config/constants';
 import { buildTimeZoneOptions, DEFAULT_APP_TIMEZONE } from '@/lib/utils/timezone';
 import { fetchMonitorConfig, persistMonitorConfig } from '@/features/live-monitor/config';
 import { useToast } from '@/hooks/useToast';
 import { fetchNotificationChannels } from '@/lib/services/notification-channels';
 import { TelegramDeepLinkConnect } from '@/components/profile/TelegramDeepLinkConnect';
 import type { NotificationChannelConfig, TabName } from '@/types';
+
+const TAB_NAMES = new Set<TabName>([
+  'dashboard',
+  'matches',
+  'watchlist',
+  'recommendations',
+  'bet-tracker',
+  'live-monitor',
+  'reports',
+  'leagues',
+  'settings',
+]);
+
+function parseTabParam(value: string | null): TabName | null {
+  if (!value) return null;
+  const t = value.trim() as TabName;
+  return TAB_NAMES.has(t) ? t : null;
+}
 
 // bundle-dynamic-imports: lazy-load each tab so users only download code for tabs they visit
 const DashboardTab = lazy(() => import('@/app/DashboardTab').then((m) => ({ default: m.DashboardTab })));
@@ -159,8 +178,14 @@ function AppContent() {
       const params = new URLSearchParams(window.location.search);
       const matchId = params.get('match');
       const matchDisplay = params.get('matchDisplay') ?? '';
+      const tabFromUrl = parseTabParam(params.get('tab'));
       if (matchId) {
-        setPushModal({ id: matchId, display: decodeURIComponent(matchDisplay) });
+        setActiveTab('matches');
+        setPushModal({ id: matchId, display: matchDisplay });
+        void refreshMatchesRef.current();
+        window.history.replaceState(null, '', window.location.pathname);
+      } else if (tabFromUrl) {
+        setActiveTab(tabFromUrl);
         window.history.replaceState(null, '', window.location.pathname);
       }
     };
@@ -173,7 +198,10 @@ function AppContent() {
   useEffect(() => {
     const handler = (e: MessageEvent) => {
       if (e.data?.type === 'tfi:openMatchDetail' && e.data?.matchId) {
+        const t = parseTabParam(typeof e.data.tab === 'string' ? e.data.tab : null) ?? 'matches';
+        setActiveTab(t);
         setPushModal({ id: e.data.matchId, display: e.data.matchDisplay ?? '' });
+        void refreshMatchesRef.current();
       } else if (e.data?.type === 'tfi:navigate' && e.data?.tab) {
         setActiveTab(e.data.tab as TabName);
       }
@@ -189,6 +217,18 @@ function AppContent() {
     mq.addEventListener('change', handler);
     return () => mq.removeEventListener('change', handler);
   }, []);
+
+  const dispatchFocusMatchInMatches = (matchId: string) => {
+    const id = matchId.trim();
+    if (!id) return;
+    window.dispatchEvent(new CustomEvent(TFI_FOCUS_MATCH_IN_MATCHES_EVENT, { detail: { matchId: id } }));
+  };
+
+  useEffect(() => {
+    if (!pushModal) return;
+    const t = window.setTimeout(() => dispatchFocusMatchInMatches(pushModal.id), 400);
+    return () => window.clearTimeout(t);
+  }, [pushModal?.id]);
 
   if (!authed) {
     return <LoginScreen onLogin={login} error={error ?? ''} />;
@@ -230,7 +270,11 @@ function AppContent() {
             matchId={pushModal.id}
             matchDisplay={pushModal.display}
             initialTab="recs"
-            onClose={() => setPushModal(null)}
+            onClose={() => {
+              const id = pushModal.id;
+              setPushModal(null);
+              queueMicrotask(() => dispatchFocusMatchInMatches(id));
+            }}
           />
         </Suspense>
       )}

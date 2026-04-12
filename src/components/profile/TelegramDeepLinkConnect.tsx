@@ -4,6 +4,7 @@ import {
   fetchNotificationChannels,
   persistNotificationChannel,
   requestTelegramLinkOffer,
+  userMessageForNotificationChannelFailure,
 } from '@/lib/services/notification-channels';
 import type { NotificationChannelConfig } from '@/types';
 
@@ -37,6 +38,7 @@ export function TelegramDeepLinkConnect({
   const [linkBusy, setLinkBusy] = useState(false);
   const [polling, setPolling] = useState(false);
   const pollDeadlineRef = useRef(0);
+  const pollAddressBaselineRef = useRef('');
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const stopPolling = useCallback(() => {
@@ -62,7 +64,8 @@ export function TelegramDeepLinkConnect({
       const channels = await fetchNotificationChannels();
       onChannelsRefresh?.(channels);
       const tg = channels.find((c) => c.channelType === 'telegram');
-      if ((tg?.address ?? '').trim()) {
+      const addr = (tg?.address ?? '').trim();
+      if (addr && addr !== pollAddressBaselineRef.current) {
         stopPolling();
         onToast('Telegram connected.', 'success');
       }
@@ -75,10 +78,11 @@ export function TelegramDeepLinkConnect({
     setLinkBusy(true);
     try {
       if (autoEnableTelegram && !telegramEnabled) {
-        await persistMonitorConfig({ TELEGRAM_ENABLED: true });
         const saved = await persistNotificationChannel('telegram', { enabled: true });
+        await persistMonitorConfig({ TELEGRAM_ENABLED: true });
         onTelegramEnabled?.(saved);
       }
+      pollAddressBaselineRef.current = (telegramChannel?.address ?? '').trim();
       const { deepLinkUrl } = await requestTelegramLinkOffer();
       window.open(deepLinkUrl, '_blank', 'noopener,noreferrer');
       onToast('In Telegram, tap Start. Then return here — we will detect the link automatically.', 'info');
@@ -88,17 +92,31 @@ export function TelegramDeepLinkConnect({
       timerRef.current = setInterval(() => void runPoll(), 3000);
       void runPoll();
     } catch (e) {
-      onToast(e instanceof Error ? e.message : 'Could not create Telegram link', 'error');
+      onToast(userMessageForNotificationChannelFailure(e, 'Không tạo được liên kết Telegram.'), 'error');
     } finally {
       setLinkBusy(false);
     }
   };
 
   if (hasAddress) {
-    return compact ? null : (
-      <p style={{ margin: 0, fontSize: '11px', color: 'var(--gray-500)', lineHeight: 1.45 }}>
-        Telegram chat is linked. You can use “Open Telegram” again to replace this device chat (generates a new link).
-      </p>
+    if (compact) return null;
+    return (
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+        <p style={{ margin: 0, fontSize: '11px', color: 'var(--gray-500)', lineHeight: 1.45 }}>
+          Chat ID is set. To use another Telegram account or device, tap the button below — no need to type the ID manually.
+        </p>
+        <button
+          type="button"
+          className="btn btn-secondary btn-sm"
+          disabled={linkBusy}
+          onClick={() => void handleOpenTelegram()}
+        >
+          {linkBusy ? 'Preparing…' : polling ? 'Waiting for Telegram…' : 'Open Telegram to change chat'}
+        </button>
+        {polling && (
+          <span style={{ fontSize: '11px', color: 'var(--gray-500)' }}>Checking for connection…</span>
+        )}
+      </div>
     );
   }
 
