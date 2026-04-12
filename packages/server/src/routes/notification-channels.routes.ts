@@ -1,5 +1,7 @@
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
+import { config } from '../config.js';
 import { requireCurrentUser } from '../lib/authz.js';
+import { resolveTelegramBotUsername } from '../lib/telegram-bot-username.js';
 import { assertNotificationChannelAllowed, resolveSubscriptionAccess, sendEntitlementError } from '../lib/subscription-access.js';
 import {
   getNotificationChannelConfigs,
@@ -7,6 +9,7 @@ import {
   SUPPORTED_NOTIFICATION_CHANNELS,
   type NotificationChannelType,
 } from '../repos/notification-channels.repo.js';
+import { createTelegramLinkOffer } from '../repos/telegram-link-tokens.repo.js';
 
 interface NotificationChannelBody {
   enabled?: boolean;
@@ -24,6 +27,37 @@ function isSupportedChannelType(value: string): value is NotificationChannelType
 }
 
 export async function notificationChannelsRoutes(app: FastifyInstance) {
+  const postTelegramLinkOffer = async (req: FastifyRequest, reply: FastifyReply) => {
+    const user = requireCurrentUser(req, reply);
+    if (!user) return;
+    if (!config.telegramBotToken.trim()) {
+      return reply.status(503).send({
+        error: 'Telegram bot is not configured on this server',
+        code: 'TELEGRAM_BOT_DISABLED',
+      });
+    }
+    try {
+      const access = await resolveSubscriptionAccess(user.userId);
+      await assertNotificationChannelAllowed(access, user.userId, 'telegram', true);
+    } catch (error) {
+      const entitlement = sendEntitlementError(error);
+      if (entitlement) {
+        return reply.status(entitlement.statusCode).send(entitlement.payload);
+      }
+      throw error;
+    }
+    const username = await resolveTelegramBotUsername();
+    if (!username) {
+      return reply.status(503).send({
+        error: 'Could not resolve Telegram bot username. Set TELEGRAM_BOT_USERNAME or check TELEGRAM_BOT_TOKEN.',
+        code: 'TELEGRAM_BOT_USERNAME_UNAVAILABLE',
+      });
+    }
+    const { token, expiresAt } = await createTelegramLinkOffer(user.userId);
+    const deepLinkUrl = `https://t.me/${username}?start=${token}`;
+    return { deepLinkUrl, expiresAt: expiresAt.toISOString() };
+  };
+
   const getCurrentUserNotificationChannels = async (req: FastifyRequest, reply: FastifyReply) => {
     const user = requireCurrentUser(req, reply);
     if (!user) return;
@@ -75,6 +109,9 @@ export async function notificationChannelsRoutes(app: FastifyInstance) {
       throw error;
     }
   };
+
+  app.post('/api/me/notification-channels/telegram/link-offer', postTelegramLinkOffer);
+  app.post('/api/notification-channels/telegram/link-offer', postTelegramLinkOffer);
 
   app.get('/api/notification-channels', getCurrentUserNotificationChannels);
   app.get('/api/me/notification-channels', getCurrentUserNotificationChannels);

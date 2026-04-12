@@ -227,6 +227,7 @@ vi.mock('../repos/recommendation-deliveries.repo.js', () => ({
 
 vi.mock('../repos/notification-channels.repo.js', () => ({
   getNotificationChannelAddressesByUserIds: vi.fn().mockResolvedValue([]),
+  filterUserIdsAllowingWebPushNotifications: vi.fn((ids: string[]) => Promise.resolve(new Set(ids))),
 }));
 
 vi.mock('../repos/push-subscriptions.repo.js', () => ({

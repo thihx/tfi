@@ -6,6 +6,7 @@ vi.mock('../db/pool.js', () => ({
 
 import { query } from '../db/pool.js';
 import {
+  filterUserIdsAllowingWebPushNotifications,
   getNotificationChannelConfigs,
   saveNotificationChannelConfig,
 } from '../repos/notification-channels.repo.js';
@@ -110,5 +111,19 @@ describe('notification channels repository', () => {
         JSON.stringify({ setupState: 'reserved', senderImplemented: false }),
       ],
     );
+  });
+
+  test('filterUserIdsAllowingWebPushNotifications drops users who disabled web push', async () => {
+    vi.mocked(query).mockResolvedValueOnce({
+      rows: [{ user_id: 'aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee' }],
+    } as never);
+
+    const result = await filterUserIdsAllowingWebPushNotifications([
+      'aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee',
+      'ffffffff-ffff-ffff-ffff-ffffffffffff',
+    ]);
+
+    expect([...result]).toEqual(['aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee']);
+    expect(String(vi.mocked(query).mock.calls[0]?.[0])).toContain('unnest');
   });
 });

@@ -13,7 +13,10 @@ import { useUserTimeZone } from '@/hooks/useUserTimeZone';
 import { shouldFastRefreshMatch } from '@/lib/utils/helpers';
 import { buildTimeZoneOptions, DEFAULT_APP_TIMEZONE } from '@/lib/utils/timezone';
 import { fetchMonitorConfig, persistMonitorConfig } from '@/features/live-monitor/config';
-import type { TabName } from '@/types';
+import { useToast } from '@/hooks/useToast';
+import { fetchNotificationChannels } from '@/lib/services/notification-channels';
+import { TelegramDeepLinkConnect } from '@/components/profile/TelegramDeepLinkConnect';
+import type { NotificationChannelConfig, TabName } from '@/types';
 
 // bundle-dynamic-imports: lazy-load each tab so users only download code for tabs they visit
 const DashboardTab = lazy(() => import('@/app/DashboardTab').then((m) => ({ default: m.DashboardTab })));
@@ -38,6 +41,7 @@ function TabFallback() {
 
 function AppContent() {
   const { authed, user, error, login, logout, setCurrentUser } = useAuth();
+  const { showToast } = useToast();
   const { state, loadAllData, refreshMatches, refreshLeaguesAndWatchlist } = useAppState();
   const timeZone = useUserTimeZone();
   const [activeTab, setActiveTab]         = useState<TabName>('dashboard');
@@ -50,6 +54,11 @@ function AppContent() {
   const [isMobile, setIsMobile]           = useState(() =>
     typeof window !== 'undefined' ? window.innerWidth < 768 : false,
   );
+  const [onboardingTelegram, setOnboardingTelegram] = useState<{
+    loaded: boolean;
+    enabled: boolean;
+    channel: NotificationChannelConfig | null;
+  }>({ loaded: false, enabled: false, channel: null });
 
   // Keep stable refs so effects don't re-fire on reference changes
   const loadAllDataRef = useRef(loadAllData);
@@ -83,6 +92,27 @@ function AppContent() {
       });
     return () => { active = false; };
   }, [authed]);
+
+  const showTimezonePrompt = timezonePromptReady && !timezonePromptDismissed && !timeZone.confirmed;
+
+  useEffect(() => {
+    if (!showTimezonePrompt) {
+      setOnboardingTelegram({ loaded: false, enabled: false, channel: null });
+      return;
+    }
+    let active = true;
+    Promise.all([fetchMonitorConfig().catch(() => null), fetchNotificationChannels().catch(() => [] as NotificationChannelConfig[])])
+      .then(([cfg, channels]) => {
+        if (!active) return;
+        const ch = channels.find((c) => c.channelType === 'telegram') ?? null;
+        setOnboardingTelegram({
+          loaded: true,
+          enabled: cfg?.TELEGRAM_ENABLED === true,
+          channel: ch,
+        });
+      });
+    return () => { active = false; };
+  }, [showTimezonePrompt]);
 
   useEffect(() => {
     setTimezoneDraft(timeZone.userTimeZone ?? timeZone.detectedTimeZone ?? timeZone.effectiveTimeZone ?? DEFAULT_APP_TIMEZONE);
@@ -165,7 +195,6 @@ function AppContent() {
   }
 
   const timezoneOptions = buildTimeZoneOptions(timeZone.userTimeZone, timeZone.detectedTimeZone, timezoneDraft);
-  const showTimezonePrompt = timezonePromptReady && !timezonePromptDismissed && !timeZone.confirmed;
 
   const confirmTimeZone = async () => {
     setTimezonePromptSaving(true);
@@ -234,6 +263,38 @@ function AppContent() {
           <div style={{ fontSize: '11px', color: 'var(--gray-500)' }}>
             Browser detected: {timeZone.detectedTimeZone ?? 'Unavailable'}
           </div>
+          {onboardingTelegram.loaded && (
+            <>
+              <hr style={{ border: 0, borderTop: '1px solid var(--gray-200)', margin: '12px 0' }} />
+              <p style={{ margin: 0, fontSize: '12px', fontWeight: 600, color: 'var(--gray-800)' }}>Telegram alerts (optional)</p>
+              <p style={{ margin: 0, fontSize: '12px', color: 'var(--gray-600)', lineHeight: 1.5 }}>
+                Open Telegram and tap Start to link this account — no Chat ID. Skip if you prefer; set it later under Profile → Notifications.
+                UI language: Profile → Preferences.
+              </p>
+              {(onboardingTelegram.channel?.address ?? '').trim() ? (
+                <p style={{ margin: 0, fontSize: '11px', color: 'var(--gray-600)' }}>Telegram is already linked.</p>
+              ) : (
+                <TelegramDeepLinkConnect
+                  compact
+                  autoEnableTelegram
+                  telegramEnabled={onboardingTelegram.enabled}
+                  telegramChannel={onboardingTelegram.channel}
+                  onToast={(msg, variant) => showToast(msg, variant)}
+                  onTelegramEnabled={(ch) => {
+                    setOnboardingTelegram((prev) => ({
+                      ...prev,
+                      enabled: true,
+                      channel: ch.channelType === 'telegram' ? ch : prev.channel,
+                    }));
+                  }}
+                  onChannelsRefresh={(channels) => {
+                    const tg = channels.find((c) => c.channelType === 'telegram') ?? null;
+                    setOnboardingTelegram((prev) => ({ ...prev, channel: tg }));
+                  }}
+                />
+              )}
+            </>
+          )}
         </div>
       </Modal>
 

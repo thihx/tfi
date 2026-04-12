@@ -63,7 +63,10 @@ import { createPromptShadowRun } from '../repos/prompt-shadow-runs.repo.js';
 import { getLeagueProfileByLeagueId } from '../repos/league-profiles.repo.js';
 import { getTeamProfileByTeamId } from '../repos/team-profiles.repo.js';
 import { getLeagueById } from '../repos/leagues.repo.js';
-import { getNotificationChannelAddressesByUserIds } from '../repos/notification-channels.repo.js';
+import {
+  filterUserIdsAllowingWebPushNotifications,
+  getNotificationChannelAddressesByUserIds,
+} from '../repos/notification-channels.repo.js';
 import { isWebPushConfigured, sendWebPushNotification } from './web-push.js';
 import { getAllSubscriptions, deleteSubscription, updateLastUsed } from '../repos/push-subscriptions.repo.js';
 import {
@@ -320,6 +323,7 @@ const defaultPipelineDeps = {
   getTeamProfileByTeamId,
   getLeagueById,
   getNotificationChannelAddressesByUserIds,
+  filterUserIdsAllowingWebPushNotifications,
   getEligibleTelegramDeliveryTargets,
   getEligibleDeliveryUserIds,
   markDeliveryRowsDelivered,
@@ -3944,12 +3948,16 @@ async function processMatch(
           await ensureConditionOnlyDeliveries();
         }
         const subscriptions = await getAllSubscriptions();
-        const eligibleUserIds = recId != null
+        let eligibleUserIds = recId != null
           ? await deps.getEligibleDeliveryUserIds(recId).catch(() => new Set<string>())
           : new Set(conditionOnlyDeliveryMap.keys());
-        const targetSubscriptions = eligibleUserIds
+        if (eligibleUserIds.size > 0) {
+          const allowed = await deps.filterUserIdsAllowingWebPushNotifications([...eligibleUserIds]);
+          eligibleUserIds = new Set([...eligibleUserIds].filter((id) => allowed.has(id)));
+        }
+        const targetSubscriptions = eligibleUserIds.size > 0
           ? subscriptions.filter((sub) => eligibleUserIds.has(sub.user_id))
-          : subscriptions;
+          : [];
 
         if (targetSubscriptions.length > 0) {
           const pushTitle = parsed.final_should_bet ? '🎯 AI RECOMMENDATION' : '⚡ CONDITION TRIGGERED';

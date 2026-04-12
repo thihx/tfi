@@ -32,6 +32,7 @@ import { recommendationDeliveriesRoutes } from './routes/recommendation-deliveri
 import { reportRoutes } from './routes/reports.routes.js';
 import { notificationSettingsRoutes } from './routes/notification-settings.routes.js';
 import { notificationChannelsRoutes } from './routes/notification-channels.routes.js';
+import { telegramWebhookRoutes } from './routes/telegram-webhook.routes.js';
 import { settingsRoutes } from './routes/settings.routes.js';
 import { snapshotRoutes } from './routes/snapshots.routes.js';
 import { subscriptionsRoutes } from './routes/subscriptions.routes.js';
@@ -130,7 +131,14 @@ if (hasJwtSecret) {
   app.addHook('preHandler', async (req, reply) => {
     req.currentUser = null;
     const url = req.url.split('?')[0]!;
-    if (!url.startsWith('/api/') || url.startsWith('/api/auth/') || url === '/api/health') return;
+    if (
+      !url.startsWith('/api/')
+      || url.startsWith('/api/auth/')
+      || url === '/api/health'
+      || url === '/api/telegram/webhook'
+    ) {
+      return;
+    }
 
     const authHeader = req.headers['authorization'];
     const bearer = authHeader?.startsWith('Bearer ') ? authHeader.slice(7) : null;
@@ -178,6 +186,7 @@ await app.register(settingsRoutes);
 await app.register(subscriptionsRoutes);
 await app.register(notificationSettingsRoutes);
 await app.register(notificationChannelsRoutes);
+await app.register(telegramWebhookRoutes);
 await app.register(auditLogRoutes);
 await app.register(integrationsRoutes);
 await app.register(pushRoutes);

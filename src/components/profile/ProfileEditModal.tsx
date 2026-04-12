@@ -21,6 +21,7 @@ import {
 } from '@/lib/askAiQuickPrompts';
 import { buildTimeZoneOptions, DEFAULT_APP_TIMEZONE, detectBrowserTimeZone } from '@/lib/utils/timezone';
 import type { NotificationChannelConfig, NotificationChannelType } from '@/types';
+import { TelegramDeepLinkConnect } from '@/components/profile/TelegramDeepLinkConnect';
 
 interface ProfileEditModalProps {
   open: boolean;
@@ -54,7 +55,7 @@ function getAvatarColor(email: string): string {
 }
 
 function getChannelDescription(channel: NotificationChannelConfig): string {
-  if (channel.channelType === 'telegram') return 'Chat ID or delivery target for Telegram bot alerts.';
+  if (channel.channelType === 'telegram') return 'Use “Open Telegram to link” (recommended) or paste your Chat ID.';
   if (channel.channelType === 'email') return 'Email destination for alert delivery.';
   if (channel.channelType === 'zalo') return 'Zalo destination identifier for future delivery support.';
   return 'Browser subscription status for Web Push delivery on this device.';
@@ -602,7 +603,11 @@ export function ProfileEditModal({ open, onClose, user, onUserChange }: ProfileE
                   </span>
                 </div>
                 <div style={{ fontSize: '11px', color: 'var(--gray-500)', marginTop: '3px' }}>
-                  {telegramReady ? 'Ready to receive recommendations via Telegram.' : telegramEnabled ? 'Add a chat ID below to complete setup.' : 'Telegram delivery is off for this account.'}
+                  {telegramReady
+                    ? 'Ready to receive recommendations via Telegram.'
+                    : telegramEnabled
+                      ? 'Open the link below and tap Start in Telegram, or paste Chat ID manually.'
+                      : 'Telegram delivery is off for this account.'}
                 </div>
               </div>
               <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
@@ -621,22 +626,42 @@ export function ProfileEditModal({ open, onClose, user, onUserChange }: ProfileE
               </div>
             </div>
             {telegramChannel && (
-              <div style={{ padding: '0 16px 12px', display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap' }}>
-                <input
-                  type="text"
-                  className="filter-input"
-                  value={channelAddresses.telegram ?? telegramChannel.address ?? ''}
-                  placeholder={getChannelPlaceholder('telegram')}
-                  onChange={(e) => setChannelAddresses((prev) => ({ ...prev, telegram: e.target.value }))}
-                  style={{ flex: '1 1 200px', background: 'white', fontSize: '12px' }}
+              <div style={{ padding: '0 16px 12px', display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                <TelegramDeepLinkConnect
+                  telegramEnabled={telegramEnabled}
+                  telegramChannel={telegramChannel}
+                  onToast={(msg, variant) => showToast(msg, variant)}
+                  onChannelsRefresh={(channels) => {
+                    setNotificationChannels(channels);
+                    setChannelAddresses(
+                      Object.fromEntries(
+                        channels
+                          .filter((channel) => channel.address)
+                          .map((channel) => [channel.channelType, channel.address ?? '']),
+                      ),
+                    );
+                  }}
                 />
-                <button
-                  className="btn btn-secondary btn-sm"
-                  disabled={channelSaving.telegram === true}
-                  onClick={() => { void handleChannelAddressSave(telegramChannel); }}
-                >
-                  {channelSaving.telegram === true ? 'Saving…' : 'Save Chat ID'}
-                </button>
+                <div style={{ fontSize: '10px', fontWeight: 600, color: 'var(--gray-500)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                  Manual Chat ID (optional)
+                </div>
+                <div style={{ display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap' }}>
+                  <input
+                    type="text"
+                    className="filter-input"
+                    value={channelAddresses.telegram ?? telegramChannel.address ?? ''}
+                    placeholder={getChannelPlaceholder('telegram')}
+                    onChange={(e) => setChannelAddresses((prev) => ({ ...prev, telegram: e.target.value }))}
+                    style={{ flex: '1 1 200px', background: 'white', fontSize: '12px' }}
+                  />
+                  <button
+                    className="btn btn-secondary btn-sm"
+                    disabled={channelSaving.telegram === true}
+                    onClick={() => { void handleChannelAddressSave(telegramChannel); }}
+                  >
+                    {channelSaving.telegram === true ? 'Saving…' : 'Save Chat ID'}
+                  </button>
+                </div>
               </div>
             )}
           </div>

@@ -51,6 +51,10 @@ export const config = {
 
   // Telegram
   telegramBotToken: process.env['TELEGRAM_BOT_TOKEN'] || '',
+  /** Without @ — optional if token is set (server can call getMe). */
+  telegramBotUsername: process.env['TELEGRAM_BOT_USERNAME'] || '',
+  /** If set, webhook requests must send X-Telegram-Bot-Api-Secret-Token with this value. */
+  telegramWebhookSecret: process.env['TELEGRAM_WEBHOOK_SECRET'] || '',
 
   // Redis
   redisUrl: process.env['REDIS_URL'] || '',

@@ -12,8 +12,42 @@ export async function fetchNotificationChannels(): Promise<NotificationChannelCo
     headers: { Accept: 'application/json', ...authHeaders() },
     credentials: 'include',
   });
-  if (!res.ok) throw new Error(`Load notification channels failed: ${res.status}`);
+  if (!res.ok) {
+    let message = `Load notification channels failed: ${res.status}`;
+    try {
+      const body = (await res.json()) as { error?: string };
+      if (typeof body.error === 'string' && body.error.trim()) message = body.error;
+    } catch {
+      /* ignore */
+    }
+    throw new Error(message);
+  }
   return res.json() as Promise<NotificationChannelConfig[]>;
+}
+
+export interface TelegramLinkOfferResponse {
+  deepLinkUrl: string;
+  expiresAt: string;
+}
+
+/** Opens t.me/bot?start=… — user taps Start; server webhook stores chat_id. */
+export async function requestTelegramLinkOffer(): Promise<TelegramLinkOfferResponse> {
+  const res = await fetch(internalApiUrl('/api/me/notification-channels/telegram/link-offer'), {
+    method: 'POST',
+    headers: { Accept: 'application/json', ...authHeaders() },
+    credentials: 'include',
+  });
+  if (!res.ok) {
+    let message = `Link offer failed: ${res.status}`;
+    try {
+      const body = (await res.json()) as { error?: string };
+      if (typeof body.error === 'string' && body.error.trim()) message = body.error;
+    } catch {
+      /* ignore */
+    }
+    throw new Error(message);
+  }
+  return res.json() as Promise<TelegramLinkOfferResponse>;
 }
 
 export async function persistNotificationChannel(
@@ -31,6 +65,15 @@ export async function persistNotificationChannel(
     body: JSON.stringify(patch),
     credentials: 'include',
   });
-  if (!res.ok) throw new Error(`Save notification channel failed: ${res.status}`);
+  if (!res.ok) {
+    let message = `Save notification channel failed: ${res.status}`;
+    try {
+      const body = (await res.json()) as { error?: string; code?: string };
+      if (typeof body.error === 'string' && body.error.trim()) message = body.error;
+    } catch {
+      /* ignore */
+    }
+    throw new Error(message);
+  }
   return res.json() as Promise<NotificationChannelConfig>;
 }

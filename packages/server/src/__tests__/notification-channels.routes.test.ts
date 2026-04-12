@@ -11,6 +11,30 @@ const CURRENT_USER = {
   avatarUrl: '',
 };
 
+vi.mock('../config.js', () => ({
+  config: {
+    telegramBotToken: 'test-token',
+    telegramBotUsername: 'env_bot',
+    telegramWebhookSecret: 'whsec',
+  },
+}));
+
+vi.mock('../lib/telegram-link-flow.js', () => ({
+  processTelegramDeepLinkStart: vi.fn().mockResolvedValue({ respond: true, userMessage: 'ok' }),
+  replyTelegramUser: vi.fn().mockResolvedValue(undefined),
+}));
+
+vi.mock('../repos/telegram-link-tokens.repo.js', () => ({
+  createTelegramLinkOffer: vi.fn().mockResolvedValue({
+    token: 'deadbeef',
+    expiresAt: new Date('2030-01-01T00:00:00.000Z'),
+  }),
+}));
+
+vi.mock('../lib/telegram-bot-username.js', () => ({
+  resolveTelegramBotUsername: vi.fn().mockResolvedValue('tfi_test_bot'),
+}));
+
 vi.mock('../repos/notification-channels.repo.js', () => ({
   SUPPORTED_NOTIFICATION_CHANNELS: ['telegram', 'zalo', 'web_push', 'email'],
   getNotificationChannelConfigs: vi.fn().mockResolvedValue([
@@ -59,10 +83,12 @@ vi.mock('../repos/notification-channels.repo.js', () => ({
 
 vi.mock('../lib/subscription-access.js', () => ({
   resolveSubscriptionAccess: vi.fn().mockResolvedValue({
-    plan: { plan_code: 'free' },
+    subscription: null,
+    plan: { plan_code: 'free', display_name: 'Free', entitlements: {} },
+    effectiveStatus: 'free_fallback',
     entitlements: {
-      'notifications.channels.allowed_types': ['web_push'],
-      'notifications.channels.max_active': 1,
+      'notifications.channels.allowed_types': ['web_push', 'telegram'],
+      'notifications.channels.max_active': 2,
     },
   }),
   assertNotificationChannelAllowed: vi.fn().mockResolvedValue(undefined),
@@ -74,14 +100,18 @@ vi.mock('../lib/subscription-access.js', () => ({
 }));
 
 let app: FastifyInstance;
+let webhookApp: FastifyInstance;
 
 beforeAll(async () => {
   const { notificationChannelsRoutes } = await import('../routes/notification-channels.routes.js');
+  const { telegramWebhookRoutes } = await import('../routes/telegram-webhook.routes.js');
   app = await buildApp([notificationChannelsRoutes], { currentUser: CURRENT_USER });
+  webhookApp = await buildApp([telegramWebhookRoutes]);
 });
 
 afterAll(async () => {
   await app.close();
+  await webhookApp.close();
 });
 
 beforeEach(() => {
@@ -105,6 +135,58 @@ describe('GET /api/notification-channels', () => {
     expect(res.statusCode).toBe(200);
     expect(Array.isArray(res.json())).toBe(true);
     expect(repo.getNotificationChannelConfigs).toHaveBeenCalledWith('user-1');
+  });
+});
+
+describe('POST /api/telegram/webhook', () => {
+  test('rejects when secret token header does not match', async () => {
+    const linkFlow = await import('../lib/telegram-link-flow.js');
+    const res = await webhookApp.inject({
+      method: 'POST',
+      url: '/api/telegram/webhook',
+      headers: { 'x-telegram-bot-api-secret-token': 'wrong' },
+      payload: { message: { chat: { id: 1 }, text: '/start abc' } },
+    });
+    expect(res.statusCode).toBe(401);
+    expect(linkFlow.processTelegramDeepLinkStart).not.toHaveBeenCalled();
+  });
+
+  test('runs link flow for /start with payload', async () => {
+    const linkFlow = await import('../lib/telegram-link-flow.js');
+    const res = await webhookApp.inject({
+      method: 'POST',
+      url: '/api/telegram/webhook',
+      headers: { 'x-telegram-bot-api-secret-token': 'whsec' },
+      payload: { message: { chat: { id: 42 }, text: '/start tok123' } },
+    });
+    expect(res.statusCode).toBe(200);
+    expect(linkFlow.processTelegramDeepLinkStart).toHaveBeenCalledWith('tok123', '42');
+    expect(linkFlow.replyTelegramUser).toHaveBeenCalledWith('42', 'ok');
+  });
+
+  test('ignores non-start messages', async () => {
+    const linkFlow = await import('../lib/telegram-link-flow.js');
+    const res = await webhookApp.inject({
+      method: 'POST',
+      url: '/api/telegram/webhook',
+      headers: { 'x-telegram-bot-api-secret-token': 'whsec' },
+      payload: { message: { chat: { id: 1 }, text: 'hello' } },
+    });
+    expect(res.statusCode).toBe(200);
+    expect(linkFlow.processTelegramDeepLinkStart).not.toHaveBeenCalled();
+  });
+});
+
+describe('POST /api/me/notification-channels/telegram/link-offer', () => {
+  test('returns a t.me deep link for the current user', async () => {
+    const tokens = await import('../repos/telegram-link-tokens.repo.js');
+    const res = await app.inject({ method: 'POST', url: '/api/me/notification-channels/telegram/link-offer' });
+
+    expect(res.statusCode).toBe(200);
+    const body = res.json() as { deepLinkUrl: string; expiresAt: string };
+    expect(body.deepLinkUrl).toBe('https://t.me/tfi_test_bot?start=deadbeef');
+    expect(body.expiresAt).toBe('2030-01-01T00:00:00.000Z');
+    expect(tokens.createTelegramLinkOffer).toHaveBeenCalledWith('user-1');
   });
 });
 

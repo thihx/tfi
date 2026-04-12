@@ -32,6 +32,8 @@ export interface NotificationChannelConfigPatch {
   address?: string | null;
   config?: Record<string, unknown>;
   metadata?: Record<string, unknown>;
+  /** Internal / trusted callers only (e.g. Telegram webhook). Not accepted from public HTTP body. */
+  status?: NotificationChannelStatus;
 }
 
 export const SUPPORTED_NOTIFICATION_CHANNELS: NotificationChannelType[] = [
@@ -126,7 +128,10 @@ export async function saveNotificationChannelConfig(
   const nextAddress = patch.address === undefined ? existing.address : normalizeAddress(patch.address);
   const nextConfig = patch.config ? { ...existing.config, ...patch.config } : existing.config;
   const nextMetadata = patch.metadata ? { ...existing.metadata, ...patch.metadata } : existing.metadata;
-  const nextStatus = deriveStatus(nextEnabled, nextAddress, existing.status);
+  const nextStatus =
+    patch.status !== undefined
+      ? patch.status
+      : deriveStatus(nextEnabled, nextAddress, existing.status);
 
   const result = await query<UserNotificationChannelConfigRow>(
     `INSERT INTO user_notification_channel_configs (
@@ -184,4 +189,25 @@ export async function getNotificationChannelAddressesByUserIds(
     userId: row.user_id,
     address: row.address,
   }));
+}
+
+/**
+ * Web push may be sent unless the user has explicitly turned the channel off (or disabled).
+ * Missing channel row is treated as allowed (legacy accounts with only a browser subscription).
+ */
+export async function filterUserIdsAllowingWebPushNotifications(userIds: string[]): Promise<Set<string>> {
+  if (userIds.length === 0) return new Set();
+  const result = await query<{ user_id: string }>(
+    `SELECT x.uid::text AS user_id
+       FROM unnest($1::uuid[]) AS x(uid)
+      WHERE NOT EXISTS (
+        SELECT 1
+          FROM user_notification_channel_configs wp
+         WHERE wp.user_id = x.uid
+           AND wp.channel_type = 'web_push'
+           AND (wp.enabled = FALSE OR wp.status = 'disabled')
+      )`,
+    [userIds],
+  );
+  return new Set(result.rows.map((row) => row.user_id));
 }

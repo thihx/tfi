@@ -336,6 +336,13 @@ async function syncDeliveryChannelStates(
             'web_push'::text AS channel_type,
             CASE
               WHEN td.eligibility_status <> 'eligible' OR td.delivery_status = 'suppressed' THEN 'suppressed'
+              WHEN EXISTS (
+                SELECT 1
+                  FROM user_notification_channel_configs wp
+                 WHERE wp.user_id = td.user_id
+                   AND wp.channel_type = 'web_push'
+                   AND (wp.enabled = FALSE OR wp.status = 'disabled')
+              ) THEN 'suppressed'
               ELSE 'pending'
             END AS status
           FROM target_deliveries td
@@ -902,7 +909,14 @@ export async function getEligibleDeliveryUserIds(recommendationId: number): Prom
         AND c.channel_type = 'web_push'
       WHERE d.recommendation_id = $1
         AND d.eligibility_status = 'eligible'
-        AND c.status = 'pending'`,
+        AND c.status = 'pending'
+        AND NOT EXISTS (
+          SELECT 1
+            FROM user_notification_channel_configs wp
+           WHERE wp.user_id = d.user_id
+             AND wp.channel_type = 'web_push'
+             AND (wp.enabled = FALSE OR wp.status = 'disabled')
+        )`,
     [recommendationId],
   );
   return new Set(result.rows.map((row) => row.user_id));
