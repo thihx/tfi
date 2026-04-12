@@ -63,7 +63,7 @@ Write-Host "[deploy] ContainerApp  = $ContainerAppName"
 
 # ── Step 1: Build & push image to ACR ────────────────────────
 if (-not $SkipBuild) {
-  Write-Host "[deploy][build] Queuing ACR build (no local Docker; use --no-wait — full logs stay in ACR portal)..."
+  Write-Host "[deploy][build] Queuing ACR build (no local Docker; use --no-wait - full logs stay in ACR portal)..."
   az acr build -g $ResourceGroup -r $AcrName -t "${repo}:${ReleaseTag}" -f Dockerfile . --no-wait --only-show-errors
   if ($LASTEXITCODE -ne 0) {
     throw "az acr build failed to queue (exit $LASTEXITCODE). Check az login and registry name."
@@ -77,8 +77,9 @@ if (-not $SkipBuild) {
       throw "Build timeout: image '${repo}:${ReleaseTag}' not available in ACR within 30 minutes."
     }
     Start-Sleep -Seconds 10
+    # PowerShell 5 parses `[0]` inside double quotes; escape `[` so JMESPath reaches Azure CLI.
     $tag = az acr repository show-tags -n $AcrName --repository $repo --detail --orderby time_desc --top 10 `
-      --query "[?name=='$ReleaseTag'] | [0]" -o json 2>$null
+      --query "[?name=='$ReleaseTag'] | ``[0]" -o json 2>$null
     if (-not [string]::IsNullOrWhiteSpace($tag) -and $tag -ne "null") {
       $ready = $true
       Write-Host "[deploy][build] Image ready: $image"
