@@ -104,6 +104,12 @@ import { formatSelectionWithMarketContext } from './market-display.js';
 
 const pipelineSkipAuditCounters = new Map<string, number>();
 
+/** Absolute URL shown in web push body (tap notification still uses same path on the PWA origin). */
+function buildWebPushMatchOpenUrl(baseUrl: string, matchId: string, matchDisplay: string): string {
+  const origin = String(baseUrl || '').trim().replace(/\/$/, '') || 'http://localhost:3000';
+  return `${origin}/?tab=matches&match=${encodeURIComponent(String(matchId))}&matchDisplay=${encodeURIComponent(matchDisplay)}`;
+}
+
 function shouldSamplePipelineSkipAudit(reason: string, stage: string, sampleEvery: number): boolean {
   const key = `${stage}:${reason || 'unknown'}`;
   const next = (pipelineSkipAuditCounters.get(key) ?? 0) + 1;
@@ -3963,9 +3969,11 @@ async function processMatch(
           const pushIsRec = parsed.final_should_bet === true;
           const pushTitle = pushIsRec ? 'RECOMMENDATION' : 'CONDITION TRIGGERED';
           const pushIcon = pushIsRec ? '/icons/notification-recommendation.svg' : '/icons/notification-condition.svg';
+          const pushOpenUrl = buildWebPushMatchOpenUrl(config.frontendUrl, matchId, matchDisplay);
           const pushBody = [
             matchDisplay,
             notificationSelectionDisplay ? `${notificationSelectionDisplay} | Odds: ${notificationOdds ?? 'N/A'} | Confidence: ${notificationConfidence}/10` : '',
+            `Open match: ${pushOpenUrl}`,
           ].filter(Boolean).join('\n');
           const pushNavigateUrl =
             `/?tab=matches&match=${encodeURIComponent(String(matchId))}&matchDisplay=${encodeURIComponent(matchDisplay)}`;

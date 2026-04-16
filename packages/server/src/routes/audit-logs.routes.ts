@@ -5,6 +5,7 @@
 import type { FastifyInstance } from 'fastify';
 import { requireAdminOrOwner, requireCurrentUser } from '../lib/authz.js';
 import * as repo from '../repos/audit-logs.repo.js';
+import { audit } from '../lib/audit.js';
 
 export async function auditLogRoutes(app: FastifyInstance) {
   // GET /api/audit-logs — list with filters
@@ -64,4 +65,19 @@ export async function auditLogRoutes(app: FastifyInstance) {
       return { deleted };
     },
   );
+
+  // DELETE /api/audit-logs/reset — truncate all audit logs
+  app.delete('/api/audit-logs/reset', async (req, reply) => {
+    const user = requireAdminOrOwner(req, reply);
+    if (!user) return;
+    const deleted = await repo.resetAuditLogs();
+    audit({
+      category: 'SYSTEM',
+      action: 'audit_logs.reset',
+      outcome: 'SUCCESS',
+      actor: user.email,
+      metadata: { deletedCount: deleted },
+    });
+    return { deleted };
+  });
 }

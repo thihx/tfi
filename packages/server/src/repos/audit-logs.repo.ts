@@ -163,3 +163,9 @@ export async function purgeAuditLogs(keepDays: number = 30): Promise<number> {
   );
   return result.rowCount ?? 0;
 }
+
+/** Reset all audit logs (truncate) */
+export async function resetAuditLogs(): Promise<number> {
+  const result = await query(`DELETE FROM audit_logs`);
+  return result.rowCount ?? 0;
+}

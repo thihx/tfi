@@ -156,6 +156,26 @@ export function AuditLogsPanel() {
 
   const totalPages = Math.ceil(total / PAGE_SIZE) || 1;
 
+  const [resetting, setResetting] = useState(false);
+
+  const handleReset = async () => {
+    if (apiUrl == null) return;
+    const count = stats?.totalLogs ?? 0;
+    if (!window.confirm(`Reset toàn bộ ${count.toLocaleString()} audit logs? Hành động này không thể hoàn tác.`)) return;
+    setResetting(true);
+    try {
+      await fetch(internalApiUrl('/api/audit-logs/reset', apiUrl), {
+        method: 'DELETE',
+        headers: authHeaders(),
+        credentials: 'include',
+      });
+      setPage(1);
+      await Promise.all([fetchStats(), fetchLogs()]);
+    } catch { /* ignore */ } finally {
+      setResetting(false);
+    }
+  };
+
   const handleExport = async () => {
     if (apiUrl == null) return;
     try {
@@ -292,8 +312,16 @@ export function AuditLogsPanel() {
         <button className="btn btn-sm" onClick={() => { setFilterCategory(''); setFilterOutcome(''); setFilterAction(''); setFilterPrematchStrength(''); setFilterPrematchNoiseMin(''); setPage(1); }}>
           Clear
         </button>
-        <div style={{ marginLeft: 'auto' }}>
+        <div style={{ marginLeft: 'auto', display: 'flex', gap: '8px' }}>
           <button className="btn btn-sm" onClick={handleExport}>📥 Export CSV</button>
+          <button
+            className="btn btn-sm"
+            onClick={handleReset}
+            disabled={resetting}
+            style={{ color: '#dc2626', borderColor: '#fca5a5' }}
+          >
+            {resetting ? 'Resetting…' : '🗑 Reset Logs'}
+          </button>
         </div>
       </div>
 

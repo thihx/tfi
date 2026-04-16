@@ -17,6 +17,9 @@ coverage/
 .env.azure
 .env.e2e
 
+# PITR recovery dumps (may contain sensitive data)
+packages/server/pitr-dumps/
+
 # Server replay integration (DB export + LLM cache)
 packages/server/replay-work/
 packages/server/replay-benchmarks/goals-totals-benchmark/**/*.json
