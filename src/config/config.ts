@@ -31,7 +31,7 @@ export function loadConfig(): AppConfig {
 }
 
 export function saveConfig(config: AppConfig): void {
-  localStorage.setItem('defaultMode', config.defaultMode);
+  localStorage.setItem('defaultMode', config.defaultMode || 'B');
 }
 
 // ==================== UTILITY FUNCTIONS ====================

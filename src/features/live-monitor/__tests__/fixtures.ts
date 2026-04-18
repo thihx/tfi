@@ -321,6 +321,7 @@ export function createOddsResponse(overrides?: Partial<FootballApiOddsResponse>)
 
 export function createAppConfig() {
   return {
+    defaultMode: 'B',
     apiUrl: 'http://localhost:4000',
   };
 }

@@ -93,10 +93,7 @@ const watchlist: WatchlistItem[] = [
     home_team: 'Arsenal',
     away_team: 'Chelsea',
     kickoff: '19:00',
-    mode: 'B',
-    priority: 2,
     custom_conditions: '',
-    status: 'active',
   },
 ];
 

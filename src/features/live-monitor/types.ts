@@ -458,7 +458,6 @@ export interface RecommendationData {
   stats_snapshot: string;
   odds_snapshot: string;
   ai_model: string;
-  mode: string;
   notified: string;
   notification_channels: string;
   execution_id: string;

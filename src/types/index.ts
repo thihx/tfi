@@ -408,7 +408,7 @@ export interface SortState {
 }
 
 export interface AppConfig {
-  defaultMode: string;
+  defaultMode?: string;
   apiUrl: string;
 }
 

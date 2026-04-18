@@ -574,13 +574,11 @@ describe('pipeline context & staleness', () => {
         match_id: '12345',
         date: ko.date,
         kickoff: ko.time,
-        mode: 'F', // Force mode
       }),
     ]);
     (checkStaleness as Mock).mockReturnValue({ isStale: true, reason: 'no_significant_change' });
 
-    // force_analyze is set in prepareMatchData when mode='F' or match is in MANUAL_PUSH_MATCH_IDS
-    // For this test, we also set MANUAL_PUSH_MATCH_IDS
+    // force_analyze is set in prepareMatchData when match is in MANUAL_PUSH_MATCH_IDS
     const config = createConfig({ MANUAL_PUSH_MATCH_IDS: ['12345'] });
     (loadMonitorConfig as Mock).mockReturnValue(config);
 

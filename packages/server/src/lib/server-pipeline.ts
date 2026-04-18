@@ -4465,7 +4465,6 @@ function buildServerPrompt(data: {
     autoRules: PerformanceMemoryCandidateRule[];
   } | null;
   preMatchPredictionSummary: string;
-  mode: string;
   statsFallbackReason: string;
   userQuestion?: string;
   followUpHistory?: FollowUpHistoryEntry[];

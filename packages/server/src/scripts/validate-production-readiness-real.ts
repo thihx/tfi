@@ -316,17 +316,12 @@ async function main() {
       });
       liveRuns.push(toLiveRecord(liveRow.match_id, matchDisplay, watchlistEntry.league, liveRow.status, liveRow.current_minute, 'auto', true, autoResult));
 
-      const originalMode = watchlistEntry.mode;
-      await watchlistRepo.updateOperationalWatchlistEntry(liveRow.match_id, { mode: 'F' } as never);
-      const forcedEntry = await watchlistRepo.getOperationalWatchlistByMatchId(liveRow.match_id);
-      if (forcedEntry) {
-        const systemForceResult = await runPipelineForFixture(liveRow.match_id, fixture, forcedEntry, {
-          shadowMode: true,
-          sampleProviderData: true,
-        });
-        liveRuns.push(toLiveRecord(liveRow.match_id, matchDisplay, forcedEntry.league, liveRow.status, liveRow.current_minute, 'system_force', true, systemForceResult));
-      }
-      await watchlistRepo.updateOperationalWatchlistEntry(liveRow.match_id, { mode: originalMode } as never);
+      const systemForceResult = await runPipelineForFixture(liveRow.match_id, fixture, watchlistEntry, {
+        shadowMode: true,
+        sampleProviderData: true,
+        forceAnalyze: true,
+      });
+      liveRuns.push(toLiveRecord(liveRow.match_id, matchDisplay, watchlistEntry.league, liveRow.status, liveRow.current_minute, 'system_force', true, systemForceResult));
 
       const manualResult = await runPipelineForFixture(liveRow.match_id, fixture, watchlistEntry, {
         shadowMode: true,
@@ -343,17 +338,12 @@ async function main() {
       const fixture = fixtureMap.get(nonShadowCandidate.matchId);
       const originalEntry = await watchlistRepo.getOperationalWatchlistByMatchId(nonShadowCandidate.matchId);
       if (fixture && originalEntry) {
-        const originalMode = originalEntry.mode;
-        const shouldForceViaMode = nonShadowCandidate.mode === 'system_force';
-        if (shouldForceViaMode) {
-          await watchlistRepo.updateOperationalWatchlistEntry(nonShadowCandidate.matchId, { mode: 'F' } as never);
-        }
-        const targetEntry = await watchlistRepo.getOperationalWatchlistByMatchId(nonShadowCandidate.matchId);
+        const targetEntry = originalEntry;
         if (targetEntry) {
           const nonShadowResult = await runPipelineForFixture(nonShadowCandidate.matchId, fixture, targetEntry, {
             shadowMode: false,
             sampleProviderData: true,
-            forceAnalyze: nonShadowCandidate.mode === 'manual_force',
+            forceAnalyze: nonShadowCandidate.mode !== 'auto',
             skipProceedGate: nonShadowCandidate.mode === 'manual_force',
             skipStalenessGate: nonShadowCandidate.mode === 'manual_force',
           });
@@ -370,9 +360,6 @@ async function main() {
             [nonShadowCandidate.matchId],
           );
           saveAndNotify.recommendationRow = recRow.rows[0] ?? null;
-        }
-        if (shouldForceViaMode) {
-          await watchlistRepo.updateOperationalWatchlistEntry(nonShadowCandidate.matchId, { mode: originalMode } as never);
         }
       }
     }

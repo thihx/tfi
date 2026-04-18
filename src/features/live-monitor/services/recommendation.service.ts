@@ -142,7 +142,6 @@ export function prepareRecommendationData(
     stats_snapshot: statsSnapshot,
     odds_snapshot: oddsSnapshot,
     ai_model: config.AI_MODEL || '',
-    mode: matchData.mode || 'auto',
     notified: notified,
     notification_channels: uniqueChannels.join(','),
     execution_id: executionId,

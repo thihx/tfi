@@ -133,7 +133,6 @@ function buildEmailHtml(ctx: NotificationContext): string {
   <div style="border:1px solid #e0e0e0;border-top:none;padding:16px;border-radius:0 0 8px 8px;">
     <table style="width:100%;border-collapse:collapse;font-size:13px;">
       <tr><td style="padding:4px 8px;color:#666;">Score</td><td style="padding:4px 8px;font-weight:bold;">${esc(rec.score)} (${esc(String(rec.minute))}' - ${esc(rec.status)})</td></tr>
-      <tr><td style="padding:4px 8px;color:#666;">Mode</td><td style="padding:4px 8px;">${esc(rec.mode)}</td></tr>
       <tr><td style="padding:4px 8px;color:#666;">Model</td><td style="padding:4px 8px;">${esc(rec.ai_model)}</td></tr>
     </table>`;
 
@@ -351,7 +350,6 @@ function buildTelegramCaption(ctx: NotificationContext): string {
   text += `<b>${safeHtml(rec.match_display)}</b>\n`;
   text += `${safeHtml(rec.league)}\n`;
   text += `⏱ ${safeHtml(String(rec.minute))}' | 📋 ${safeHtml(rec.score)} | ${safeHtml(rec.status)}\n`;
-  text += `Mode: ${safeHtml(rec.mode)}\n`;
 
   if (section === 'ai_recommendation') {
     text += `\n<b>💰 ${safeHtml(rec.selection)}</b>\n`;
@@ -438,7 +436,6 @@ function buildTelegramMessages(ctx: NotificationContext): string[] {
   text += `<b>${safeHtml(rec.match_display)}</b>\n`;
   text += `${safeHtml(rec.league)}\n`;
   text += `⏱ ${safeHtml(String(rec.minute))}' | 📋 ${safeHtml(rec.score)} | ${safeHtml(rec.status)}\n`;
-  text += `Mode: ${safeHtml(rec.mode)}\n`;
   text += '\n';
 
   if (section === 'ai_recommendation') {
