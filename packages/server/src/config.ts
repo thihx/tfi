@@ -147,6 +147,14 @@ export const config = {
   /** Optional JSON max stake % per segment key (see segment-policy-stake-cap.example.json). */
   segmentPolicyStakeCapPath: process.env['SEGMENT_POLICY_STAKE_CAP_PATH'] || '',
 
+  // Prompt-improvement policy thresholds
+  policyRequiredBreakEvenMax: Number(process.env['POLICY_REQUIRED_BREAKEVEN_MAX'] || 0.5),
+  policyHighRiskBreakEvenMax: Number(process.env['POLICY_HIGH_RISK_BREAKEVEN_MAX'] || 0.48),
+  policyLateGameBreakEvenRelaxation: Number(process.env['POLICY_LATE_GAME_BREAKEVEN_RELAXATION'] || 0.05),
+  performanceMemoryPromptLimit: Number(process.env['PERFORMANCE_MEMORY_PROMPT_LIMIT'] || 5),
+  performanceMemoryAutoRuleMinSamples: Number(process.env['PERFORMANCE_MEMORY_AUTO_RULE_MIN_SAMPLES'] || 15),
+  performanceMemoryAutoRuleMaxWinRate: Number(process.env['PERFORMANCE_MEMORY_AUTO_RULE_MAX_WIN_RATE'] || 0.4),
+
   // Tactical overlay refresh
   tacticalOverlayRefreshMaxPerRun: Number(process.env['TACTICAL_OVERLAY_REFRESH_MAX_PER_RUN'] || 6),
   tacticalOverlayRefreshStaleDays: Number(process.env['TACTICAL_OVERLAY_REFRESH_STALE_DAYS'] || 30),

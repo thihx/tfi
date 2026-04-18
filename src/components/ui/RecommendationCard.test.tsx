@@ -36,8 +36,8 @@ describe('RecommendationCard', () => {
 
   it('renders league and timestamp together', () => {
     render(<RecommendationCard rec={BASE} />);
-    expect(screen.getByText(/Premier League/)).toBeInTheDocument();
-    expect(screen.getByText(/15-Jan-2026 23:00/)).toBeInTheDocument();
+    const leagueAndTime = screen.getByTitle(/Premier League · 15-Jan-2026 \d{2}:00/);
+    expect(leagueAndTime).toBeInTheDocument();
   });
 
   it('renders selection without a separate market badge', () => {

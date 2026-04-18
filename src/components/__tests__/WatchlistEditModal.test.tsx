@@ -16,10 +16,7 @@ const baseItem: WatchlistItem = {
   home_team: 'Ulsan Hyundai',
   away_team: 'Gimcheon Sangmu',
   kickoff: '18:00',
-  mode: 'B',
-  priority: 2,
   custom_conditions: '',
-  status: 'active',
   recommended_custom_condition: '(Minute >= 60) AND (NOT Home leading)',
   recommended_condition_reason_vi: 'Nhip tran phu hop de theo doi ban thang muon.',
   strategic_context: null,
@@ -35,7 +32,6 @@ describe('WatchlistEditModal', () => {
     render(
       <WatchlistEditModal
         item={baseItem}
-        defaultMode="B"
         uiLanguage="vi"
         onClose={() => {}}
         onSave={() => {}}
@@ -55,7 +51,6 @@ describe('WatchlistEditModal', () => {
           custom_conditions: '(Minute >= 55) AND (Total goals <= 1)',
           auto_apply_recommended_condition: true,
         }}
-        defaultMode="B"
         uiLanguage="vi"
         onClose={() => {}}
         onSave={onSave}
@@ -79,7 +74,6 @@ describe('WatchlistEditModal', () => {
     render(
       <WatchlistEditModal
         item={baseItem}
-        defaultMode="B"
         uiLanguage="vi"
         onClose={() => {}}
         onSave={onSave}
@@ -98,7 +92,7 @@ describe('WatchlistEditModal', () => {
 
   test('points users to match hub for context', () => {
     render(
-      <WatchlistEditModal item={baseItem} defaultMode="B" uiLanguage="vi" onClose={() => {}} onSave={() => {}} />,
+      <WatchlistEditModal item={baseItem} uiLanguage="vi" onClose={() => {}} onSave={() => {}} />,
     );
     expect(screen.getByText(/match hub/i)).toBeInTheDocument();
   });

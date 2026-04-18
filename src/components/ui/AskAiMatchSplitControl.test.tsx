@@ -1,11 +1,9 @@
-﻿import { render, screen } from '@testing-library/react';
-import userEvent from '@testing-library/user-event';
+﻿import { fireEvent, render, screen } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 import { AskAiMatchSplitControl } from './AskAiMatchSplitControl';
 
 describe('AskAiMatchSplitControl', () => {
-  it('calls onOpenQuestion when the chat button is clicked (no dropdown step)', async () => {
-    const user = userEvent.setup();
+  it('calls onOpenQuestion when the chat button is clicked (no dropdown step)', () => {
     const onQuick = vi.fn();
     const onOpenQuestion = vi.fn();
 
@@ -20,7 +18,7 @@ describe('AskAiMatchSplitControl', () => {
       />,
     );
 
-    await user.click(screen.getByRole('button', { name: 'Ask with a custom question' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Ask with a custom question' }));
     expect(onOpenQuestion).toHaveBeenCalledTimes(1);
     expect(onQuick).not.toHaveBeenCalled();
   });

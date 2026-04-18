@@ -218,8 +218,6 @@ function buildScenario(def: ScenarioDef) {
       league: 'Structural Test League',
       home_team: 'Alpha FC',
       away_team: 'Beta United',
-      mode: 'B',
-      status: 'active',
       custom_conditions: '',
       date: '2026-04-05',
       kickoff: '15:00',

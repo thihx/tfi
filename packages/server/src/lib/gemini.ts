@@ -16,7 +16,6 @@ export interface GeminiGenerateOptions {
 
 const GEMINI_MODEL_ALIASES: Record<string, string> = {
   'gemini-3.0-flash': 'gemini-3-flash-preview',
-  'gemini-3.0-pro-preview': 'gemini-3-pro-preview',
 };
 
 export function normalizeGeminiModelName(model: string): string {

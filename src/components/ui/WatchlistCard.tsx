@@ -31,10 +31,8 @@ function parsePrediction(raw?: string): { home: number; draw: number; away: numb
 }
 
 function WatchlistCardBase({ item, liveMatch, homeLogo, awayLogo, timeDisplay, leagueDisplay, onEdit, onDelete, onDoubleClick }: Props) {
-  const priority = Math.max(1, Math.min(3, parseInt(String(item.priority)) || 2));
   const pred = parsePrediction(item.prediction as string | undefined);
   const condition = item.custom_conditions?.trim();
-  const isPending = (item.status || 'active') === 'pending';
 
   const liveStatus = liveMatch?.status;
   const liveScore = liveMatch && liveMatch.home_score != null
@@ -61,13 +59,6 @@ function WatchlistCardBase({ item, liveMatch, homeLogo, awayLogo, timeDisplay, l
         <span style={{ fontSize: 12, color: 'var(--gray-500)', flex: 1, textAlign: 'center', minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
           {leagueDisplay}
         </span>
-        <div style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
-          <span className="badge" style={{ background: 'var(--gray-100)', color: 'var(--gray-700)', fontSize: 11 }}>{item.mode}</span>
-          <span style={{ fontSize: 11, color: 'var(--gray-500)', fontWeight: 500 }}>P{priority}</span>
-          {isPending
-            ? <span className="badge" style={{ background: 'var(--gray-100)', color: '#b45309', border: '1px solid #fde68a', fontSize: 11 }}>Pending</span>
-            : <span className="badge" style={{ background: 'var(--gray-100)', color: '#15803d', border: '1px solid #d1fae5', fontSize: 11 }}>Active</span>}
-        </div>
       </div>
 
       {/* Teams */}

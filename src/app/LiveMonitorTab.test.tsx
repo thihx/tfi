@@ -49,8 +49,6 @@ beforeEach(() => {
           minute: null,
           score: '0-0',
           live: false,
-          mode: 'B',
-          priority: 95,
           customConditions: '',
           recommendedCondition: '(Home scores first)',
           lastChecked: null,
@@ -67,8 +65,6 @@ beforeEach(() => {
           minute: 64,
           score: '2-1',
           live: true,
-          mode: 'B',
-          priority: 90,
           customConditions: '(Minute >= 60)',
           recommendedCondition: '',
           lastChecked: '2026-03-24T11:59:00.000Z',
@@ -85,8 +81,6 @@ beforeEach(() => {
           minute: 72,
           score: '1-1',
           live: true,
-          mode: 'F',
-          priority: 70,
           customConditions: '',
           recommendedCondition: '(Home scores first)',
           lastChecked: null,
@@ -186,7 +180,7 @@ describe('LiveMonitorTab', () => {
     expect(screen.getByText('Tracked live, but not sent to analysis yet.')).toBeInTheDocument();
     expect(screen.getByText('This match is in the system monitoring pool but is not live yet.')).toBeInTheDocument();
     expect(screen.getByText('Waiting for Kickoff')).toBeInTheDocument();
-    expect(screen.getByText('Forced by monitor mode | Baseline None')).toBeInTheDocument();
+    expect(screen.getByText('Forced by manual trigger | Baseline None')).toBeInTheDocument();
     expect(screen.getByText('No meaningful change since last baseline | Baseline Recommendation')).toBeInTheDocument();
     expect(screen.getByText('Custom condition:', { exact: false })).toBeInTheDocument();
     expect(screen.getAllByText('Suggested condition:', { exact: false }).length).toBeGreaterThanOrEqual(1);

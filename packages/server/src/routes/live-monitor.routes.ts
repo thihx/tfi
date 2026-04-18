@@ -36,8 +36,6 @@ interface LiveMonitorMonitoringTarget {
   minute: number | null;
   score: string;
   live: boolean;
-  mode: string;
-  priority: number;
   customConditions: string;
   recommendedCondition: string;
   lastChecked: string | null;
@@ -132,8 +130,6 @@ async function buildMonitoringScope(): Promise<LiveMonitorMonitoringScope> {
   const targets = activeWatchlist.map((row) => {
     const match = matchMap.get(row.match_id);
     const live = Boolean(match?.status && config.liveStatuses.includes(match.status));
-    const mode = String(row.mode || 'B').toUpperCase();
-    const forceAnalyze = mode === 'F';
     const score = `${match?.home_score ?? 0}-${match?.away_score ?? 0}`;
     const staleness = live
       ? checkCoarseStalenessServer({
@@ -160,7 +156,7 @@ async function buildMonitoringScope(): Promise<LiveMonitorMonitoringScope> {
               }
             : null,
           settings: { reanalyzeMinMinutes },
-          forceAnalyze,
+          forceAnalyze: false,
         })
       : { isStale: true, reason: 'not_live', baseline: 'none' as const };
 
@@ -168,12 +164,10 @@ async function buildMonitoringScope(): Promise<LiveMonitorMonitoringScope> {
       matchId: row.match_id,
       matchDisplay: [match?.home_team, match?.away_team].filter(Boolean).join(' vs ') || row.match_id,
       league: match?.league_name || row.league || '',
-      status: match?.status ?? row.status ?? null,
+      status: match?.status ?? null,
       minute: match?.current_minute ?? null,
       score,
       live,
-      mode,
-      priority: Number(row.priority ?? 0),
       customConditions: row.custom_conditions || '',
       recommendedCondition: row.recommended_custom_condition || '',
       lastChecked: row.last_checked ?? null,
@@ -185,7 +179,6 @@ async function buildMonitoringScope(): Promise<LiveMonitorMonitoringScope> {
   }).sort((left, right) => {
     if (left.live !== right.live) return Number(right.live) - Number(left.live);
     if (left.candidate !== right.candidate) return Number(right.candidate) - Number(left.candidate);
-    if (left.priority !== right.priority) return right.priority - left.priority;
     return (right.minute ?? 0) - (left.minute ?? 0);
   });
 

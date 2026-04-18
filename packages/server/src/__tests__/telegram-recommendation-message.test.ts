@@ -10,7 +10,7 @@ describe('buildTelegramRecommendationMessage', () => {
       minute: 32,
       score: '0-0',
       status: '1H',
-      model: 'gemini-3-pro-preview',
+      model: 'gemini-2.5-flash',
       mode: 'B',
       selection: 'Under 1.75 Goals',
       betMarket: 'ht_under_1.75',
@@ -26,7 +26,7 @@ describe('buildTelegramRecommendationMessage', () => {
     });
 
     expect(message).toContain('RECOMMENDATION');
-    expect(message).not.toContain('gemini-3-pro-preview');
+    expect(message).not.toContain('gemini-2.5-flash');
     expect(message).toContain('H1 Goals O/U · Under 1.75 Goals @2.05');
     expect(message).toContain('Minute 32\'');
     expect(message).toContain('Score 0-0');
@@ -46,7 +46,7 @@ describe('buildTelegramRecommendationMessage', () => {
       minute: 59,
       score: '0-0',
       status: '2H',
-      model: 'gemini-3-pro-preview',
+      model: 'gemini-2.5-flash',
       mode: 'B',
       selection: 'Under 0.75 Goals',
       betMarket: 'asian_handicap_home_-0.25',

@@ -36,10 +36,7 @@ function makeWatchItem(overrides: Partial<WatchlistItem> = {}): WatchlistItem {
     home_team: 'Machida Zelvia',
     away_team: 'FC Tokyo',
     kickoff: '18:00',
-    mode: 'B',
-    priority: 2,
     custom_conditions: '',
-    status: 'active',
     ...overrides,
   };
 }

@@ -16,22 +16,15 @@ function normalizeCondition(value: string | null | undefined): string {
 
 interface WatchlistEditModalProps {
   item: WatchlistItem | null;
-  defaultMode: string;
   uiLanguage: UiLanguage;
   onClose: () => void;
   onSave: (changes: {
-    mode: string;
-    priority: number;
-    status: string;
     custom_conditions: string;
     auto_apply_recommended_condition: boolean;
   }) => void;
 }
 
-export function WatchlistEditModal({ item, defaultMode, onClose, onSave }: WatchlistEditModalProps) {
-  const [editMode, setEditMode] = useState(() => item?.mode || defaultMode);
-  const [editPriority, setEditPriority] = useState(() => String(item?.priority || 2));
-  const [editStatus, setEditStatus] = useState(() => item?.status || 'active');
+export function WatchlistEditModal({ item, onClose, onSave }: WatchlistEditModalProps) {
   const [editConditions, setEditConditions] = useState(() => item?.custom_conditions || '');
   const [autoApplyRecommendedCondition, setAutoApplyRecommendedCondition] = useState(() => item?.auto_apply_recommended_condition ?? true);
 
@@ -57,12 +50,9 @@ export function WatchlistEditModal({ item, defaultMode, onClose, onSave }: Watch
 
   useEffect(() => {
     if (!item) return;
-    setEditMode(item.mode || defaultMode);
-    setEditPriority(String(item.priority || 2));
-    setEditStatus(item.status || 'active');
     setEditConditions(item.custom_conditions || '');
     setAutoApplyRecommendedCondition(item.auto_apply_recommended_condition ?? true);
-  }, [item, defaultMode]);
+  }, [item]);
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -71,9 +61,6 @@ export function WatchlistEditModal({ item, defaultMode, onClose, onSave }: Watch
     const currentCondition = normalizeCondition(editConditions);
     const safeToAutoApply = !currentCondition || currentCondition === recommendedCondition;
     onSave({
-      mode: editMode,
-      priority: parseInt(editPriority, 10),
-      status: editStatus,
       custom_conditions: autoApplyRecommendedCondition && recommendedCondition && safeToAutoApply
         ? recommendedCondition
         : editConditions,
@@ -88,33 +75,8 @@ export function WatchlistEditModal({ item, defaultMode, onClose, onSave }: Watch
       {item && (
         <form onSubmit={handleSubmit}>
           <p style={{ fontSize: '12px', color: 'var(--gray-500)', margin: '0 0 16px', lineHeight: 1.5 }}>
-            Set mode, priority, and alert conditions for this watchlist match. View league/team priors and match context from the match hub (double-click the row).
+            Set alert conditions for this watchlist match. View league/team priors and match context from the match hub (double-click the row).
           </p>
-          <div className="form-row" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(min(100%, 160px), 1fr))', gap: '12px' }}>
-            <div className="form-group">
-              <label>Mode:</label>
-              <select value={editMode} onChange={(e) => setEditMode(e.target.value)}>
-                <option value="A">A - Aggressive</option>
-                <option value="B">B - Balanced</option>
-                <option value="C">C - Conservative</option>
-              </select>
-            </div>
-            <div className="form-group">
-              <label>Priority:</label>
-              <select value={editPriority} onChange={(e) => setEditPriority(e.target.value)}>
-                <option value="1">1 - Low</option>
-                <option value="2">2 - Medium</option>
-                <option value="3">3 - High</option>
-              </select>
-            </div>
-            <div className="form-group">
-              <label>Status:</label>
-              <select value={editStatus} onChange={(e) => setEditStatus(e.target.value)}>
-                <option value="pending">Pending</option>
-                <option value="active">Active</option>
-              </select>
-            </div>
-          </div>
 
           {item.recommended_custom_condition && (
             <div className="form-group">

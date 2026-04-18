@@ -16,9 +16,7 @@ describe('mergeMatchData', () => {
       home_team: 'Arsenal',
       away_team: 'Chelsea',
       league: 'Premier League',
-      mode: 'B',
       custom_conditions: '',
-      priority: 3,
       prediction: '',
       force_analyze: false,
       is_manual_push: false,
@@ -106,17 +104,14 @@ describe('mergeMatchData', () => {
     expect(result[0]!.status).toBe('FT');
   });
 
-  test('preserves original prepared fields (mode, custom_conditions, force_analyze)', () => {
+  test('preserves original prepared fields (custom_conditions, force_analyze)', () => {
     const prepared = [makePrepared({
-      mode: 'S',
       custom_conditions: 'btts check',
       force_analyze: true,
-      priority: 1,
     })];
     const fixtures = [createFootballApiFixture()];
     const result = mergeMatchData(prepared, fixtures);
 
-    expect(result[0]!.mode).toBe('S');
     expect(result[0]!.custom_conditions).toBe('btts check');
     expect(result[0]!.force_analyze).toBe(true);
   });
@@ -797,9 +792,7 @@ describe('mergeMatchData — derived insights from events', () => {
       home_team: 'Arsenal',
       away_team: 'Chelsea',
       league: 'Premier League',
-      mode: 'B',
       custom_conditions: '',
-      priority: 3,
       prediction: '',
       force_analyze: false,
       is_manual_push: false,

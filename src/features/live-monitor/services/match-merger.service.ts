@@ -178,9 +178,7 @@ interface PreparedMatch {
   home_team: string;
   away_team: string;
   league: string;
-  mode: string;
   custom_conditions: string;
-  priority: number;
   prediction: string;
   force_analyze: boolean;
   is_manual_push: boolean;
@@ -365,7 +363,6 @@ export function mergeMatchData(
       minute,
       score: `${homeGoals}-${awayGoals}`,
       status,
-      mode: match.mode,
       custom_conditions: match.custom_conditions,
       recommended_custom_condition: match.recommended_custom_condition,
       recommended_condition_reason: match.recommended_condition_reason,

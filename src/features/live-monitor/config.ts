@@ -52,7 +52,7 @@ export function createDefaultConfig(overrides?: Partial<LiveMonitorConfig>): Liv
     VERY_LATE_PHASE_MINUTE: 85,
     ENDGAME_MINUTE: 88,
     AI_PROVIDER: 'gemini',
-    AI_MODEL: 'gemini-3-pro-preview',
+    AI_MODEL: 'gemini-2.5-flash',
     EMAIL_TO: '',
     TELEGRAM_CHAT_ID: '',
     MANUAL_PUSH_MATCH_IDS: [],

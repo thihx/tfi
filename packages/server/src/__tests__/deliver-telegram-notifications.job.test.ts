@@ -83,7 +83,7 @@ describe('deliverTelegramNotificationsJob', () => {
         recommendationAwayTeam: 'Sydney',
         recommendationLeague: 'A-League',
         recommendationStatus: '1H',
-        recommendationAiModel: 'gemini-3-pro-preview',
+        recommendationAiModel: 'gemini-2.5-flash',
         recommendationMode: 'B',
       },
     ]);
@@ -111,7 +111,7 @@ describe('deliverTelegramNotificationsJob', () => {
           custom_condition_text: '(minute >= 50 AND score_total = 0)',
           condition_evaluation_summary: 'Dieu kien da dat',
           recommendation_reasoning_vi: 'Tran dau van rat chat che.',
-          recommendation_ai_model: 'gemini-3-pro-preview',
+          recommendation_ai_model: 'gemini-2.5-flash',
           recommendation_mode: 'B',
         },
         createdAt: '2026-04-02T10:00:00.000Z',

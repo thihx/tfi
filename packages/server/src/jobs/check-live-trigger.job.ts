@@ -89,8 +89,6 @@ export async function checkLiveTriggerJob(): Promise<{
     const watchlistEntry = watchlistMap.get(matchId);
     if (!match || !watchlistEntry) return false;
 
-    const mode = String((watchlistEntry as { mode?: string }).mode || 'B').toUpperCase();
-    const forceAnalyze = mode === 'F';
     const score = `${match.home_score ?? 0}-${match.away_score ?? 0}`;
     const staleness = checkCoarseStalenessServer({
       minute: match.current_minute ?? 0,
@@ -116,7 +114,7 @@ export async function checkLiveTriggerJob(): Promise<{
           }
         : null,
       settings: { reanalyzeMinMinutes },
-      forceAnalyze,
+      forceAnalyze: false,
     });
     return !staleness.isStale;
   });

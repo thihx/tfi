@@ -5,6 +5,7 @@
  */
 import { normalizeMarket } from './normalize-market.js';
 import { buildRecommendationSegmentKey } from './segment-policy-blocklist.js';
+import { config } from '../config.js';
 
 export interface RecommendationPolicyPreviousRow {
   minute: number | null;
@@ -38,6 +39,12 @@ export interface RecommendationPolicyInput {
   segmentStakeCaps?: ReadonlyMap<string, number> | null;
   /** AI risk tier; used to tighten MEDIUM picks that historically underperform. */
   riskLevel?: string | null;
+  /** Runtime evidence tier used by prompt and policy gates. */
+  evidenceMode?: string | null;
+  /** Break-even probability in decimal form (0..1). */
+  breakEvenRate?: number | null;
+  /** Optional directional gate signal (true means directional case is valid). */
+  directionalWin?: boolean | null;
 }
 
 export interface RecommendationPolicyResult {
@@ -54,6 +61,22 @@ const BTTS_NO_MAX_CONFIDENCE = 6;
 const BTTS_NO_MAX_STAKE_PERCENT = 2;
 const SAME_THESIS_MAX_RECOMMENDATIONS = 2;
 const SAME_THESIS_MAX_STAKE_PERCENT = 10;
+const MIDGAME_BLACKLISTED_MARKETS = new Set([
+  'over_2.5',
+  'ht_over_1.5',
+  'under_2.25',
+  'ht_1x2_draw',
+  'corners_under_7.5',
+  'corners_under_9.5',
+]);
+const HIGH_RISK_MARKETS = new Set([
+  'btts_no',
+  'corners_under_7.5',
+  'corners_under_8.5',
+  'corners_under_9.5',
+  'under_2.25',
+  'over_2.5',
+]);
 
 function parseStatInt(value: string | null | undefined): number | null {
   if (value == null) return null;
@@ -70,6 +93,14 @@ function getScoreState(score: string): 'unknown' | 'level' | 'one-goal-margin' |
   if (diff === 0) return 'level';
   if (diff === 1) return 'one-goal-margin';
   return 'two-plus-margin';
+}
+
+function getMinuteBand(minute: number): '00-29' | '30-44' | '45-59' | '60-74' | '75+' {
+  if (minute <= 29) return '00-29';
+  if (minute <= 44) return '30-44';
+  if (minute <= 59) return '45-59';
+  if (minute <= 74) return '60-74';
+  return '75+';
 }
 
 function getTotalGoals(score: string): number | null {
@@ -149,11 +180,111 @@ export function applyRecommendationPolicy(input: RecommendationPolicyInput): Rec
   const scoreState = getScoreState(input.score);
   const totalGoals = getTotalGoals(input.score);
   const marketLine = getMarketLine(canonicalMarket);
+  const minuteBand = getMinuteBand(input.minute);
+  const evidenceMode = String(input.evidenceMode ?? '').trim() || 'unknown';
+  const breakEvenRate = Number.isFinite(input.breakEvenRate)
+    ? Number(input.breakEvenRate)
+    : (input.odds != null && input.odds > 0 ? 1 / input.odds : null);
+  const directionalGate = input.directionalWin ?? true;
+  const isGoalLess = totalGoals === 0;
+  const lateGameDirectionalOverride = minuteBand === '75+'
+    && scoreState === 'one-goal-margin'
+    && evidenceMode === 'full_live_data';
+  const applyPromptImprovementSpec = isV10g;
 
   const block = (warning: string) => {
     blocked = true;
     warnings.push(warning);
   };
+
+  // Prompt-improvement spec rule #5: unresolved markets are a hard stop.
+  if (!canonicalMarket || canonicalMarket === 'unknown') {
+    block('MARKET_UNRESOLVED');
+    return { blocked, warnings, confidence, stakePercent };
+  }
+
+  if (applyPromptImprovementSpec) {
+    // Prompt-improvement spec rule #4 + #6: tighten global push requirements with late-game relaxation.
+    const requiredBreakEvenMax = config.policyRequiredBreakEvenMax;
+    const highRiskBreakEvenMax = config.policyHighRiskBreakEvenMax;
+    const lateRelaxation = minuteBand === '75+' ? config.policyLateGameBreakEvenRelaxation : 0;
+    const effectiveRequiredBreakEven = requiredBreakEvenMax + lateRelaxation;
+    const effectiveHighRiskBreakEven = highRiskBreakEvenMax + lateRelaxation;
+    const directionalSatisfied = lateGameDirectionalOverride ? true : directionalGate === true;
+    const shouldEnforcePushRequirements =
+      input.evidenceMode != null
+      || input.breakEvenRate != null
+      || input.directionalWin != null;
+    const requiredConditionsMet = (
+      evidenceMode === 'full_live_data'
+      && directionalSatisfied
+      && breakEvenRate != null
+      && breakEvenRate < effectiveRequiredBreakEven
+    );
+    if (shouldEnforcePushRequirements && !requiredConditionsMet) {
+      block('REQUIRED_CONDITIONS_NOT_MET');
+    }
+
+    if (
+      shouldEnforcePushRequirements
+      && HIGH_RISK_MARKETS.has(canonicalMarket)
+      && (breakEvenRate == null || breakEvenRate >= effectiveHighRiskBreakEven)
+    ) {
+      block('HIGH_RISK_MARKET_BREAKEVEN_TOO_HIGH');
+    }
+
+    // Prompt-improvement spec rule #1: BTTS No hard safety gates.
+    if (canonicalMarket === 'btts_no') {
+      if (scoreState === 'two-plus-margin' && minuteBand === '75+') {
+        // Allow this specific pocket.
+      } else if (scoreState === 'one-goal-margin' || scoreState === 'two-plus-margin') {
+        block('BTTS_NO_BLOCKED_GOAL_MARGIN');
+      } else if (isGoalLess && (minuteBand === '45-59' || minuteBand === '60-74')) {
+        block('BTTS_NO_BLOCKED_MIDGAME_GOALLESS');
+      } else if (
+        isGoalLess
+        && (minuteBand === '00-29' || minuteBand === '30-44')
+        && evidenceMode === 'full_live_data'
+      ) {
+        // Allow early 0-0 BTTS No with full evidence.
+      } else {
+        block('BTTS_NO_INSUFFICIENT_CONDITIONS');
+      }
+    }
+
+    // Prompt-improvement spec rule #2: market blacklist in 45-74 volatility window.
+    if (
+      MIDGAME_BLACKLISTED_MARKETS.has(canonicalMarket)
+      && (minuteBand === '45-59' || minuteBand === '60-74')
+    ) {
+      block('MARKET_BLACKLISTED_FOR_MIDGAME_WINDOW');
+    }
+    if (canonicalMarket === 'over_1.5' && minuteBand === '60-74') {
+      block('OVER_1_5_BLOCKED_LATE_MIDGAME');
+    }
+
+    // Prompt-improvement spec rule #3: dangerous score/minute combinations.
+    if (scoreState === 'two-plus-margin' && minuteBand === '45-59') {
+      block('HIGH_MARGIN_MIDGAME_BLOCK');
+    }
+    if (scoreState === 'one-goal-margin' && minuteBand === '30-44') {
+      const strictOk = evidenceMode === 'full_live_data'
+        && breakEvenRate != null
+        && breakEvenRate < 0.48
+        && directionalSatisfied;
+      if (!strictOk) {
+        block('ONE_GOAL_MIDGAME_INSUFFICIENT_CONFIDENCE');
+      }
+    }
+    if ((isGoalLess || scoreState === 'two-plus-margin') && minuteBand === '60-74') {
+      const strictOk = evidenceMode === 'full_live_data'
+        && breakEvenRate != null
+        && breakEvenRate < 0.48;
+      if (!strictOk) {
+        block('LATE_MIDGAME_INSUFFICIENT_CONFIDENCE');
+      }
+    }
+  }
 
   if (input.segmentBlocklist?.size) {
     const segKey = buildRecommendationSegmentKey(input.minute, canonicalMarket);

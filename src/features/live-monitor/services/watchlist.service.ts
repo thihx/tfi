@@ -141,7 +141,7 @@ export function filterActiveMatches(
 
   return relevant.map((item) => {
     const mid = String(item.match_id || '').trim();
-    const forceAnalyze = item.mode === 'F' || manualPushIds.has(mid);
+    const forceAnalyze = manualPushIds.has(mid);
     return {
       ...item,
       force_analyze: forceAnalyze,
@@ -163,9 +163,7 @@ export function prepareMatchData(
   home_team: string;
   away_team: string;
   league: string;
-  mode: string;
   custom_conditions: string;
-  priority: number;
   prediction: string;
   force_analyze: boolean;
   is_manual_push: boolean;
@@ -180,9 +178,7 @@ export function prepareMatchData(
     home_team: match.home_team,
     away_team: match.away_team,
     league: match.league || match.league_name || '',
-    mode: match.mode || 'B',
     custom_conditions: match.custom_conditions || '',
-    priority: match.priority || 3,
     prediction: match.prediction || '',
     force_analyze: match.force_analyze || false,
     is_manual_push: match.is_manual_push || false,

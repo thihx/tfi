@@ -513,8 +513,6 @@ export function buildSettledReplayScenario(
       league: row.league,
       home_team: row.home_team,
       away_team: row.away_team,
-      mode: row.mode || 'B',
-      status: 'active',
       custom_conditions: '',
       date: row.date,
       kickoff: row.kickoff,

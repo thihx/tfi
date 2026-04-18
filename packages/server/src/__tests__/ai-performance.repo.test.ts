@@ -102,7 +102,7 @@ describe('ai-performance repository', () => {
     await createAiPerformanceRecord({
       recommendation_id: 11,
       match_id: '100',
-      ai_model: 'gemini-3-pro-preview',
+      ai_model: 'gemini-2.5-flash',
       prompt_version: 'v4',
       ai_confidence: 8,
       ai_should_push: true,

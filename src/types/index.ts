@@ -157,10 +157,7 @@ export interface WatchlistItem {
   home_logo?: string;
   away_logo?: string;
   kickoff: string;
-  mode: string;
-  priority: number;
   custom_conditions: string;
-  status: string;
   added_at?: string;
   prediction?: string;
   recommended_custom_condition?: string;

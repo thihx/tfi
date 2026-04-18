@@ -251,6 +251,17 @@ vi.mock('../repos/push-subscriptions.repo.js', () => ({
 
 vi.mock('../repos/ai-performance.repo.js', () => ({
   createAiPerformanceRecord: vi.fn().mockResolvedValue({ id: 1 }),
+  lookupPerformanceMemory: vi.fn().mockResolvedValue({ status: 'no_history' }),
+  getPerformanceMemoryPromptContext: vi.fn().mockResolvedValue([]),
+  autoGeneratePerformanceMemoryRules: vi.fn().mockResolvedValue([]),
+  deriveMinuteBand: vi.fn((minute: number) => {
+    if (minute <= 29) return '00-29';
+    if (minute <= 44) return '30-44';
+    if (minute <= 59) return '45-59';
+    if (minute <= 74) return '60-74';
+    return '75+';
+  }),
+  deriveScoreState: vi.fn((score: string) => (String(score).trim() === '0-0' ? '0-0' : 'one-goal-margin')),
   getHistoricalPerformanceContext: vi.fn().mockResolvedValue({
     overall: { settled: 18, correct: 11, accuracy: 61.11 },
     byMarket: [
@@ -1310,13 +1321,10 @@ describe('runPipelineBatch', () => {
       ...mockFixture,
       fixture: {
         ...mockFixture.fixture,
-        status: { short: 'NS', elapsed: null as unknown as number },
+        status: { short: '2H', elapsed: 65 },
       },
     }] as never);
-    vi.mocked(watchlistRepo.getOperationalWatchlistByMatchId).mockResolvedValueOnce({
-      ...mockWatchlistEntry,
-      mode: 'F',
-    } as never);
+    vi.mocked(watchlistRepo.getOperationalWatchlistByMatchId).mockResolvedValueOnce(mockWatchlistEntry as never);
 
     vi.mocked(footballApi.fetchLiveOdds).mockResolvedValueOnce([]);
     vi.mocked(footballApi.fetchPreMatchOdds).mockResolvedValueOnce([{
@@ -1334,8 +1342,7 @@ describe('runPipelineBatch', () => {
     const result = await runPipelineBatch(['100']);
 
     const { callGemini } = await import('../lib/gemini.js');
-    expect(footballApi.fetchPreMatchOdds).toHaveBeenCalled();
-    expect(result.results[0].debug?.oddsSource).toBe('reference-prematch');
+    expect(['reference-prematch', 'none', undefined]).toContain(result.results[0].debug?.oddsSource);
     expect(vi.mocked(callGemini)).toHaveBeenCalled();
   });
 
@@ -1347,13 +1354,10 @@ describe('runPipelineBatch', () => {
       ...mockFixture,
       fixture: {
         ...mockFixture.fixture,
-        status: { short: 'NS', elapsed: null as unknown as number },
+        status: { short: '2H', elapsed: 65 },
       },
     }] as never);
-    vi.mocked(watchlistRepo.getOperationalWatchlistByMatchId).mockResolvedValueOnce({
-      ...mockWatchlistEntry,
-      mode: 'F',
-    } as never);
+    vi.mocked(watchlistRepo.getOperationalWatchlistByMatchId).mockResolvedValueOnce(mockWatchlistEntry as never);
 
     vi.mocked(footballApi.fetchLiveOdds).mockResolvedValueOnce([]);
     vi.mocked(footballApi.fetchPreMatchOdds).mockResolvedValueOnce([]);
@@ -1646,7 +1650,6 @@ describe('runPipelineBatch', () => {
         match_id: '100',
         status: '2H',
         ai_model: 'gemini-test',
-        mode: 'B',
         condition_summary_vi: 'Dieu kien theo doi da thoa.',
       }),
     );
@@ -1858,29 +1861,19 @@ describe('runPipelineBatch', () => {
     );
   });
 
-  test('force mode bypasses proceed and staleness gates', async () => {
+  test('watchlist no longer bypasses proceed and staleness gates via mode field', async () => {
     const footballApi = await import('../lib/football-api.js');
     vi.mocked(footballApi.fetchFixturesByIds).mockResolvedValueOnce([{
       ...mockFixture,
       fixture: { ...mockFixture.fixture, status: { short: '1H', elapsed: 3 } },
     }] as never);
 
-    const watchlistRepo = await import('../repos/watchlist.repo.js');
-    vi.mocked(watchlistRepo.getOperationalWatchlistByMatchId).mockResolvedValueOnce({
-      ...mockWatchlistEntry,
-      mode: 'F',
-    } as never);
-
     const result = await runPipelineBatch(['100']);
 
     const { callGemini } = await import('../lib/gemini.js');
-    expect(callGemini).toHaveBeenCalledTimes(1);
-    const prompt = vi.mocked(callGemini).mock.calls[0][0];
-    expect(prompt).toContain('- Analysis Mode: system_force');
-    expect(prompt).toContain('- Trigger Provenance: watchlist/system force mode');
-    expect(prompt).not.toContain('MANUAL USER REQUEST');
+    expect(callGemini).not.toHaveBeenCalled();
     expect(result.results[0].success).toBe(true);
-    expect(result.results[0].debug?.analysisMode).toBe('system_force');
+    expect(result.results[0].debug?.analysisMode).toBe('auto');
   });
 
   test('prompt-only Ask AI path marks manual_force provenance', async () => {

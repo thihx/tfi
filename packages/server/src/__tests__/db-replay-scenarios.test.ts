@@ -115,7 +115,7 @@ describe('db replay scenarios', () => {
         stake_percent: 3,
         reasoning: 'Slow game.',
         reasoning_vi: 'Nhịp trận chậm.',
-        ai_model: 'gemini-3-pro-preview',
+        ai_model: 'gemini-2.5-flash',
         mode: 'B',
         result: 'win',
         pnl: 2.76,

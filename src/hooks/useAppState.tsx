@@ -212,10 +212,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       home_team: i.home_team || '',
       away_team: i.away_team || '',
       kickoff: i.kickoff || '',
-      mode: i.mode || config.defaultMode,
-      priority: i.priority || 2,
       custom_conditions: i.custom_conditions || '',
-      status: 'active',
       added_at: new Date().toISOString(),
     }));
     dispatch({ type: 'ADD_WATCHLIST_ITEMS', payload: optimistic });

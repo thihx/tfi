@@ -419,7 +419,7 @@ describe('data tracking', () => {
 
     expect(saveAiPerformance).toHaveBeenCalledWith(appConfig, expect.objectContaining({
       recommendation_id: 42,
-      ai_model: 'gemini-3-pro-preview',
+      ai_model: 'gemini-2.5-flash',
       prompt_version: 'v3-context-aware',
     }));
   });

@@ -33,7 +33,14 @@ import {
 } from '../repos/recommendations.repo.js';
 import { createAiPerformanceRecord } from '../repos/ai-performance.repo.js';
 import {
+  autoGeneratePerformanceMemoryRules,
+  deriveMinuteBand,
+  deriveScoreState,
+  getPerformanceMemoryPromptContext,
   getHistoricalPerformanceContext,
+  lookupPerformanceMemory,
+  type PerformanceMemoryCandidateRule,
+  type PerformanceMemoryRecord,
   type HistoricalPerformanceContext,
 } from '../repos/ai-performance.repo.js';
 import { getSettings } from '../repos/settings.repo.js';
@@ -322,6 +329,9 @@ const defaultPipelineDeps = {
   markRecommendationNotified,
   createAiPerformanceRecord,
   getHistoricalPerformanceContext,
+  lookupPerformanceMemory,
+  getPerformanceMemoryPromptContext,
+  autoGeneratePerformanceMemoryRules,
   sendTelegramMessage,
   sendTelegramPhoto,
   createPromptShadowRun,
@@ -344,6 +354,16 @@ let historicalPromptContextCache: {
   data: HistoricalPerformanceContext;
   expiresAt: number;
 } | null = null;
+const PERFORMANCE_MEMORY_PROMPT_CONTEXT_TTL_MS = 60 * 1000;
+const PERFORMANCE_MEMORY_AUTO_RULES_TTL_MS = 5 * 60 * 1000;
+const performanceMemoryPromptContextCache = new Map<string, {
+  data: PerformanceMemoryRecord[];
+  expiresAt: number;
+}>();
+let performanceMemoryAutoRulesCache: {
+  data: PerformanceMemoryCandidateRule[];
+  expiresAt: number;
+} | null = null;
 
 async function loadHistoricalPromptContext(deps: Pick<PipelineDeps, 'getHistoricalPerformanceContext'>) {
   const now = Date.now();
@@ -361,6 +381,53 @@ async function loadHistoricalPromptContext(deps: Pick<PipelineDeps, 'getHistoric
   } catch (err) {
     console.warn('[pipeline] Historical performance context unavailable:', err instanceof Error ? err.message : String(err));
     return null;
+  }
+}
+
+async function loadPerformanceMemoryPromptContext(
+  deps: Pick<PipelineDeps, 'getPerformanceMemoryPromptContext'>,
+  args: { minuteBand: string; scoreState: string; limit: number },
+): Promise<PerformanceMemoryRecord[]> {
+  const cacheKey = `${args.minuteBand}|${args.scoreState}|${args.limit}`;
+  const now = Date.now();
+  const cached = performanceMemoryPromptContextCache.get(cacheKey);
+  if (cached && cached.expiresAt > now) return cached.data;
+  try {
+    const data = await deps.getPerformanceMemoryPromptContext({
+      minuteBand: args.minuteBand as Parameters<PipelineDeps['getPerformanceMemoryPromptContext']>[0]['minuteBand'],
+      scoreState: args.scoreState as Parameters<PipelineDeps['getPerformanceMemoryPromptContext']>[0]['scoreState'],
+      limit: args.limit,
+    });
+    performanceMemoryPromptContextCache.set(cacheKey, {
+      data,
+      expiresAt: now + PERFORMANCE_MEMORY_PROMPT_CONTEXT_TTL_MS,
+    });
+    return data;
+  } catch {
+    return [];
+  }
+}
+
+async function loadPerformanceMemoryAutoRules(
+  deps: Pick<PipelineDeps, 'autoGeneratePerformanceMemoryRules'>,
+  args: { minSamples: number; maxWinRate: number },
+): Promise<PerformanceMemoryCandidateRule[]> {
+  const now = Date.now();
+  if (performanceMemoryAutoRulesCache && performanceMemoryAutoRulesCache.expiresAt > now) {
+    return performanceMemoryAutoRulesCache.data;
+  }
+  try {
+    const data = await deps.autoGeneratePerformanceMemoryRules({
+      minSamples: args.minSamples,
+      maxWinRate: args.maxWinRate,
+    });
+    performanceMemoryAutoRulesCache = {
+      data,
+      expiresAt: now + PERFORMANCE_MEMORY_AUTO_RULES_TTL_MS,
+    };
+    return data;
+  } catch {
+    return [];
   }
 }
 
@@ -574,6 +641,7 @@ function evaluateConditionTriggeredSaveDecision(args: {
   oddsCanonical: OddsCanonical;
   minute: number;
   score: string;
+  evidenceMode: EvidenceMode;
   minOdds: number;
   minConfidence: number;
   promptVersion: LiveAnalysisPromptVersion;
@@ -672,6 +740,9 @@ function evaluateConditionTriggeredSaveDecision(args: {
     segmentBlocklist: getSegmentPolicyBlocklist(),
     segmentStakeCaps: getSegmentPolicyStakeCaps(),
     riskLevel: args.parsed.risk_level,
+    evidenceMode: args.evidenceMode,
+    breakEvenRate: odds != null && odds > 0 ? 1 / odds : null,
+    directionalWin: args.parsed.condition_triggered_should_push,
   });
 
   if (policyResult.blocked) {
@@ -1175,8 +1246,13 @@ interface PromptExecutionContext {
   currentTotalGoals: number;
   previousRecommendations: Array<Record<string, unknown>>;
   historicalPerformance: HistoricalPerformanceContext | null;
+  performanceMemory: {
+    minuteBand: string;
+    scoreState: string;
+    records: PerformanceMemoryRecord[];
+    autoRules: PerformanceMemoryCandidateRule[];
+  } | null;
   preMatchPredictionSummary: string;
-  mode: string;
   statsFallbackReason: string;
   userQuestion?: string;
   followUpHistory?: Array<{ role: 'user' | 'assistant'; text: string }>;
@@ -1248,7 +1324,7 @@ function shouldRunPromptShadow(args: {
 }
 
 async function executePromptAnalysis(
-  deps: Pick<PipelineDeps, 'callGemini'>,
+  deps: Pick<PipelineDeps, 'callGemini' | 'lookupPerformanceMemory'>,
   model: string,
   settings: PipelineSettings,
   promptContext: PromptExecutionContext,
@@ -1287,8 +1363,44 @@ async function executePromptAnalysis(
     segmentBlocklist: getSegmentPolicyBlocklist(),
     segmentStakeCaps: getSegmentPolicyStakeCaps(),
     riskLevel: parsedRaw.risk_level,
+    evidenceMode: promptContext.evidenceMode,
+    breakEvenRate: parsedRaw.mapped_odd != null && parsedRaw.mapped_odd > 0 ? 1 / parsedRaw.mapped_odd : null,
+    directionalWin: parsedRaw.ai_should_push,
   });
-  const policyBlockedEffective = policyResult.blocked && !promptContext.skipRecommendationPolicy;
+  const parsedCanonicalMarket = normalizeMarket(parsedRaw.selection ?? '', parsedRaw.bet_market ?? '');
+  const memoryWarnings: string[] = [];
+  let memoryOverrideBlocked = false;
+  if (parsedCanonicalMarket && parsedCanonicalMarket !== 'unknown') {
+    try {
+      const memoryMinuteBand = deriveMinuteBand(promptContext.minute);
+      const memoryScoreState = deriveScoreState(promptContext.score);
+      const memory = await deps.lookupPerformanceMemory({
+        canonicalMarket: parsedCanonicalMarket,
+        minuteBand: memoryMinuteBand,
+        scoreState: memoryScoreState,
+      });
+      if (memory.status === 'found' && memory.record) {
+        const breakEvenRate = parsedRaw.mapped_odd != null && parsedRaw.mapped_odd > 0 ? (1 / parsedRaw.mapped_odd) : null;
+        const winRate = memory.record.empiricalWinRate;
+        if (memory.record.sampleReliable && winRate < 0.4) {
+          memoryOverrideBlocked = true;
+          memoryWarnings.push(`MEMORY_OVERRIDE_LOW_WIN_RATE_${Math.round(winRate * 100)}PCT`);
+        } else if (memory.record.sampleReliable && winRate < 0.45) {
+          if (breakEvenRate == null || breakEvenRate >= 0.46) {
+            memoryOverrideBlocked = true;
+            memoryWarnings.push('MEMORY_OVERRIDE_MARGINAL_WIN_RATE');
+          }
+        } else if (!memory.record.sampleReliable && winRate < 0.35) {
+          memoryWarnings.push(`SMALL_SAMPLE_WARNING_${Math.round(winRate * 100)}PCT`);
+        }
+      } else {
+        memoryWarnings.push('MEMORY_FLAG_NO_HISTORY');
+      }
+    } catch (err) {
+      memoryWarnings.push('MEMORY_LOOKUP_UNAVAILABLE');
+    }
+  }
+  const policyBlockedEffective = (policyResult.blocked || memoryOverrideBlocked) && !promptContext.skipRecommendationPolicy;
   const hasCustomCondition = !!String(promptContext.customConditions || '').trim();
   const lowEvidenceConditionOnly = promptContext.evidenceMode === 'low_evidence' && hasCustomCondition;
   const finalShouldBet = lowEvidenceConditionOnly
@@ -1315,11 +1427,13 @@ async function executePromptAnalysis(
     warnings: [
       ...parsedRaw.warnings,
       ...policyResult.warnings,
+      ...memoryWarnings,
       ...(lowEvidenceConditionOnly ? ['LOW_EVIDENCE_CONDITION_ONLY'] : []),
     ],
     ai_warnings: [
       ...parsedRaw.ai_warnings,
       ...policyResult.warnings,
+      ...memoryWarnings,
       ...(lowEvidenceConditionOnly ? ['LOW_EVIDENCE_CONDITION_ONLY'] : []),
     ],
   };
@@ -1335,8 +1449,8 @@ async function executePromptAnalysis(
     llmLatencyMs,
     totalLatencyMs: Date.now() - startedAt,
     parsed,
-    policyBlocked: policyResult.blocked,
-    policyWarnings: [...policyResult.warnings],
+    policyBlocked: policyResult.blocked || memoryOverrideBlocked,
+    policyWarnings: [...policyResult.warnings, ...memoryWarnings],
   };
 }
 
@@ -1355,7 +1469,7 @@ async function recordPromptShadowRunSafe(
 }
 
 async function runPromptShadowComparison(args: {
-  deps: Pick<PipelineDeps, 'callGemini' | 'createPromptShadowRun'>;
+  deps: Pick<PipelineDeps, 'callGemini' | 'lookupPerformanceMemory' | 'createPromptShadowRun'>;
   analysisRunId: string;
   matchId: string;
   activePromptVersion: LiveAnalysisPromptVersion;
@@ -3108,13 +3222,10 @@ async function processMatch(
     const homeTeamId = fixture.teams?.home?.id;
     const awayTeamId = fixture.teams?.away?.id;
     const isManualForce = options.forceAnalyze === true;
-    const isSystemForce = !isManualForce && (watchlistEntry.mode || 'B').toUpperCase() === 'F';
-    const forceAnalyze = isManualForce || isSystemForce;
+    const forceAnalyze = isManualForce;
     const analysisMode: PromptAnalysisMode = isManualForce
       ? 'manual_force'
-      : isSystemForce
-        ? 'system_force'
-        : 'auto';
+      : 'auto';
 
     const [prevRecs, latestSnapshot] = await Promise.all([
       options.previousRecommendations !== undefined
@@ -3407,6 +3518,15 @@ async function processMatch(
               freshnessMode: 'real_required',
             }).catch(() => null)
           : Promise.resolve(null),
+        loadPerformanceMemoryPromptContext(deps, {
+          minuteBand: deriveMinuteBand(minute),
+          scoreState: deriveScoreState(score),
+          limit: config.performanceMemoryPromptLimit,
+        }),
+        loadPerformanceMemoryAutoRules(deps, {
+          minSamples: config.performanceMemoryAutoRuleMinSamples,
+          maxWinRate: config.performanceMemoryAutoRuleMaxWinRate,
+        }),
       ]),
     ]);
 
@@ -3418,7 +3538,16 @@ async function processMatch(
       oddsSanityWarnings,
       oddsSuspicious,
     } = oddsSide;
-    const [historicalPerformance, leagueProfile, leagueMeta, homeTeamProfile, awayTeamProfile, scoutInsight] = promptContextBundle;
+    const [
+      historicalPerformance,
+      leagueProfile,
+      leagueMeta,
+      homeTeamProfile,
+      awayTeamProfile,
+      scoutInsight,
+      performanceMemoryRecords,
+      performanceMemoryAutoRules,
+    ] = promptContextBundle;
     const lineupsSnapshot = summarizeLineupsForPrompt(
       (scoutInsight?.lineups?.payload as ApiFixtureLineup[] | null | undefined) ?? null,
       homeName,
@@ -3673,8 +3802,13 @@ async function processMatch(
       currentTotalGoals: homeGoals + awayGoals,
       previousRecommendations: prevRecsContext,
       historicalPerformance,
+      performanceMemory: {
+        minuteBand: deriveMinuteBand(minute),
+        scoreState: deriveScoreState(score),
+        records: performanceMemoryRecords,
+        autoRules: performanceMemoryAutoRules,
+      },
       preMatchPredictionSummary: '',
-      mode: watchlistEntry.mode || 'B',
       statsFallbackReason,
       userQuestion: options.userQuestion,
       followUpHistory: options.followUpHistory,
@@ -3759,6 +3893,7 @@ async function processMatch(
       oddsCanonical,
       minute,
       score,
+      evidenceMode,
       minOdds: settings.minOdds,
       minConfidence: settings.minConfidence,
       promptVersion: activePromptVersion,
@@ -3825,7 +3960,6 @@ async function processMatch(
         condition_reason_en: parsed.custom_condition_reason_en,
         condition_reason_vi: parsed.custom_condition_reason_vi,
         ai_model: model,
-        mode: watchlistEntry.mode || 'B',
       }).catch(() => []);
 
       for (const row of staged) {
@@ -3900,7 +4034,6 @@ async function processMatch(
         key_factors: '',
         warnings: parsed.warnings.join(', '),
         ai_model: model,
-        mode: watchlistEntry.mode || 'B',
         bet_market: savedBetMarket,
         notified: '',
         notification_channels: '',
@@ -4325,6 +4458,12 @@ function buildServerPrompt(data: {
   currentTotalGoals: number;
   previousRecommendations: Array<Record<string, unknown>>;
   historicalPerformance: HistoricalPerformanceContext | null;
+  performanceMemory: {
+    minuteBand: string;
+    scoreState: string;
+    records: PerformanceMemoryRecord[];
+    autoRules: PerformanceMemoryCandidateRule[];
+  } | null;
   preMatchPredictionSummary: string;
   mode: string;
   statsFallbackReason: string;
@@ -4385,8 +4524,8 @@ function buildServerPrompt(data: {
       previousRecommendations: data.previousRecommendations,
       matchTimeline: [],
       historicalPerformance: data.historicalPerformance,
+      performanceMemory: data.performanceMemory,
       preMatchPredictionSummary: data.preMatchPredictionSummary,
-      mode: data.mode,
       statsFallbackReason: data.statsFallbackReason,
       userQuestion: data.userQuestion,
       followUpHistory: data.followUpHistory,

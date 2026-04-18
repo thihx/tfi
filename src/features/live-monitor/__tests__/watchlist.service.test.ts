@@ -84,9 +84,7 @@ describe('prepareMatchData', () => {
         home_team: 'Arsenal',
         away_team: 'Chelsea',
         league: 'Premier League',
-        mode: 'A',
         custom_conditions: 'btts check',
-        priority: 1,
         prediction: 'Home Win',
         force_analyze: true,
         is_manual_push: true,
@@ -101,9 +99,7 @@ describe('prepareMatchData', () => {
       home_team: 'Arsenal',
       away_team: 'Chelsea',
       league: 'Premier League',
-      mode: 'A',
       custom_conditions: 'btts check',
-      priority: 1,
       prediction: 'Home Win',
       force_analyze: true,
       is_manual_push: true,
@@ -111,12 +107,10 @@ describe('prepareMatchData', () => {
   });
 
   test('defaults missing fields', () => {
-    const matches = [createFilteredMatch({ mode: '', custom_conditions: '', priority: 0, prediction: '' })];
+    const matches = [createFilteredMatch({ custom_conditions: '', prediction: '' })];
     const result = prepareMatchData(matches, config);
 
-    expect(result[0]!.mode).toBe('B');
     expect(result[0]!.custom_conditions).toBe('');
-    expect(result[0]!.priority).toBe(3);
     expect(result[0]!.prediction).toBe('');
   });
 

@@ -1318,17 +1318,13 @@ export function MatchesTab() {
       <WatchlistEditModal
         key={editItem ? String(editItem.match_id) : 'watchlist-edit-modal'}
         item={editItem}
-        defaultMode={config.defaultMode}
         uiLanguage={uiLanguage}
         onClose={() => setEditItem(null)}
-        onSave={async ({ mode, priority, status, custom_conditions, auto_apply_recommended_condition }) => {
+        onSave={async ({ custom_conditions, auto_apply_recommended_condition }) => {
           if (!editItem) return;
           const ok = await updateWatchlistItem({
             id: editItem.id,
             match_id: editItem.match_id,
-            mode,
-            priority,
-            status,
             custom_conditions,
             auto_apply_recommended_condition,
           });

@@ -74,7 +74,7 @@ function candidateReasonLabel(reason: string): string {
     case 'not_live':
       return 'Not live yet';
     case 'force_analyze':
-      return 'Forced by monitor mode';
+      return 'Forced by manual trigger';
     case 'minute_unknown':
       return 'Minute unavailable, analyze once';
     case 'first_analysis':
@@ -113,7 +113,6 @@ function ScopeRow({ target }: { target: LiveMonitorTarget }) {
             <span className={`badge ${target.candidate ? 'badge-active' : target.live ? 'badge-pending' : 'badge-draw'}`}>
               {target.candidate ? 'Analysis candidate' : target.live ? 'Watching Live' : 'Waiting for Kickoff'}
             </span>
-            <span className="badge badge-pending">Mode {target.mode}</span>
             {target.customConditions ? <span className="badge badge-draw">Custom Condition</span> : null}
             {target.recommendedCondition ? <span className="badge badge-pending">Suggested condition</span> : null}
           </div>
@@ -144,8 +143,6 @@ function ScopeRow({ target }: { target: LiveMonitorTarget }) {
           </div>
         </div>
         <div style={{ textAlign: 'right', minWidth: '120px' }}>
-          <div style={{ fontSize: '12px', color: 'var(--gray-500)' }}>Priority</div>
-          <div style={{ fontWeight: 700, color: 'var(--gray-700)' }}>{target.priority}</div>
           <div style={{ fontSize: '12px', color: 'var(--gray-500)', marginTop: '8px' }}>Checks</div>
           <div style={{ fontWeight: 700, color: 'var(--gray-700)' }}>{target.totalChecks}</div>
           {target.lastChecked && (
@@ -350,13 +347,13 @@ export function LiveMonitorTab() {
   const liveTargets = useMemo(() => {
     return [...(status?.monitoring.targets || [])]
       .filter((target) => target.live)
-      .sort((left, right) => Number(right.candidate) - Number(left.candidate) || right.priority - left.priority);
+      .sort((left, right) => Number(right.candidate) - Number(left.candidate));
   }, [status?.monitoring.targets]);
 
   const waitingTargets = useMemo(() => {
     return [...(status?.monitoring.targets || [])]
       .filter((target) => !target.live)
-      .sort((left, right) => right.priority - left.priority);
+      .sort((left, right) => left.matchId.localeCompare(right.matchId));
   }, [status?.monitoring.targets]);
 
   if (loading && !status) {
@@ -412,7 +409,7 @@ export function LiveMonitorTab() {
         {status && liveTargets.length > 0 ? (
           <div>
             {liveTargets.map((target) => (
-              <ScopeRow key={`${target.matchId}-${target.mode}-${target.lastChecked ?? 'never'}`} target={target} />
+              <ScopeRow key={`${target.matchId}-${target.lastChecked ?? 'never'}`} target={target} />
             ))}
           </div>
         ) : (
@@ -435,7 +432,7 @@ export function LiveMonitorTab() {
         {status && waitingTargets.length > 0 ? (
           <div>
             {waitingTargets.map((target) => (
-              <ScopeRow key={`${target.matchId}-${target.mode}-${target.lastChecked ?? 'never'}`} target={target} />
+              <ScopeRow key={`${target.matchId}-${target.lastChecked ?? 'never'}`} target={target} />
             ))}
           </div>
         ) : (

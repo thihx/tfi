@@ -57,10 +57,7 @@ export interface WatchlistMatch {
   home_team: string;
   away_team: string;
   kickoff: string;
-  mode: string;
-  priority: number;
   custom_conditions: string;
-  status: string;
   match_status?: string;
   added_at?: string;
   prediction?: string;
@@ -304,7 +301,6 @@ export interface MergedMatchData {
   minute: number | string;
   score: string;
   status: string;
-  mode: string;
   custom_conditions: string;
   recommended_custom_condition: string;
   recommended_condition_reason: string;

@@ -20,7 +20,7 @@ export type LiveAnalysisPromptVersion = (typeof LIVE_ANALYSIS_PROMPT_VERSIONS)[n
 /** Default live-analysis prompt when `LIVE_ANALYSIS_ACTIVE_PROMPT_VERSION` is unset or invalid. */
 export const LIVE_ANALYSIS_PROMPT_VERSION = 'v10-hybrid-legacy-b';
 /** Reference compact version for tests/replay tooling; runtime shadow uses env (`LIVE_ANALYSIS_SHADOW_*`), not this constant. */
-export const LIVE_ANALYSIS_PROMPT_CANDIDATE_VERSION = 'v10-hybrid-legacy-e';
+export const LIVE_ANALYSIS_PROMPT_CANDIDATE_VERSION = 'v10-hybrid-legacy-g';
 
 export function isLiveAnalysisPromptVersion(value: string): value is LiveAnalysisPromptVersion {
   return (LIVE_ANALYSIS_PROMPT_VERSIONS as readonly string[]).includes(value);
@@ -81,6 +81,21 @@ export interface LiveAnalysisHistoricalPerformance {
   byMinuteBand: Array<{ band: string; settled: number; correct: number; accuracy: number }>;
   byOddsRange: Array<{ range: string; settled: number; correct: number; accuracy: number }>;
   byLeague: Array<{ league: string; settled: number; correct: number; accuracy: number }>;
+}
+
+export interface LiveAnalysisPerformanceMemoryRecord {
+  key: string;
+  canonicalMarket: string;
+  minuteBand: string;
+  scoreState: string;
+  total: number;
+  wins: number;
+  losses: number;
+  halfWins: number;
+  halfLosses: number;
+  pushes: number;
+  empiricalWinRate: number;
+  sampleReliable: boolean;
 }
 
 export interface LiveAnalysisPromptFollowUpMessage {
@@ -165,8 +180,21 @@ export interface LiveAnalysisPromptInput {
   previousRecommendations?: LiveAnalysisPromptPreviousRecommendation[];
   matchTimeline?: LiveAnalysisMatchTimelineSnapshot[];
   historicalPerformance?: LiveAnalysisHistoricalPerformance | null;
+  performanceMemory?: {
+    minuteBand: string;
+    scoreState: string;
+    records: LiveAnalysisPerformanceMemoryRecord[];
+    autoRules?: Array<{
+      key: string;
+      canonicalMarket: string;
+      minuteBand: string;
+      scoreState: string;
+      total: number;
+      empiricalWinRate: number;
+      suggestedAction: 'block' | 'raise_threshold';
+    }>;
+  } | null;
   preMatchPredictionSummary: string;
-  mode: string;
   statsFallbackReason: string;
   userQuestion?: string;
   followUpHistory?: LiveAnalysisPromptFollowUpMessage[];
@@ -613,6 +641,46 @@ function buildHistoricalPerformanceSection(data: LiveAnalysisPromptInput): strin
   lines.push('- Never treat historical priors as hard bans or standalone reasons to bet.');
   lines.push('');
 
+  return lines.join('\n');
+}
+
+function buildPerformanceMemorySection(data: LiveAnalysisPromptInput): string {
+  const memory = data.performanceMemory;
+  if (!memory || !Array.isArray(memory.records) || memory.records.length === 0) return '';
+
+  const lines: string[] = [];
+  lines.push('========================');
+  lines.push('PERFORMANCE MEMORY');
+  lines.push('========================');
+  lines.push(`Current state: minuteBand=${memory.minuteBand}, scoreState=${memory.scoreState}`);
+  lines.push('Historical combination priors (canonicalMarket|minuteBand|scoreState):');
+  for (const record of memory.records) {
+    const effectiveWins = record.wins + record.halfWins * 0.5;
+    const effectiveLosses = record.losses + record.halfLosses * 0.5;
+    lines.push(
+      `- ${record.canonicalMarket}|${record.minuteBand}|${record.scoreState}: `
+      + `${effectiveWins.toFixed(1)}W / ${effectiveLosses.toFixed(1)}L `
+      + `(n=${record.total}, empirical_win_rate=${(record.empiricalWinRate * 100).toFixed(1)}%, `
+      + `sample_reliable=${record.sampleReliable ? 'true' : 'false'})`,
+    );
+  }
+  if (Array.isArray(memory.autoRules) && memory.autoRules.length > 0) {
+    lines.push('');
+    lines.push('Auto-generated risk candidates (lowest empirical win-rate first):');
+    for (const rule of memory.autoRules.slice(0, 5)) {
+      lines.push(
+        `- ${rule.key}: win_rate=${(rule.empiricalWinRate * 100).toFixed(1)}%, `
+        + `n=${rule.total}, suggested_action=${rule.suggestedAction}`,
+      );
+    }
+  }
+  lines.push('');
+  lines.push('Memory usage rules:');
+  lines.push('- If reliable empirical_win_rate < 40%, treat as hard no-bet unless exceptional hard evidence exists.');
+  lines.push('- If reliable empirical_win_rate < 45%, require stricter live edge and lower stake.');
+  lines.push('- If sample is not reliable and empirical_win_rate < 35%, treat as high-risk caution signal.');
+  lines.push('- Do not invent memory records; use only records shown here.');
+  lines.push('');
   return lines.join('\n');
 }
 
@@ -2321,7 +2389,7 @@ RECENT EVENTS
 ${JSON.stringify(data.eventsCompact)}
 EVENT_COUNT: ${data.eventsCompact.length}
 
-${buildPreviousRecommendationsSectionCompact(data)}${bettingDisciplineSection}${buildContinuityRulesSectionCompact(data, promptVersion)}${buildMatchTimelineSection(data)}${buildHistoricalPerformanceSection(data)}========================
+${buildPreviousRecommendationsSectionCompact(data)}${bettingDisciplineSection}${buildContinuityRulesSectionCompact(data, promptVersion)}${buildMatchTimelineSection(data)}${buildHistoricalPerformanceSection(data)}${buildPerformanceMemorySection(data)}========================
 CONFIG / EVIDENCE
 ========================
 - MIN_CONFIDENCE: ${MIN_CONFIDENCE}
@@ -2531,6 +2599,7 @@ ${buildPreviousRecommendationsSection(data)}
 ${buildMatchTimelineSection(data)}
 ${buildContinuityRulesSection(data)}
 ${buildHistoricalPerformanceSection(data)}
+${buildPerformanceMemorySection(data)}
 ${buildFollowUpContextSection(data, false)}
 ========================
 CONFIG / MODE

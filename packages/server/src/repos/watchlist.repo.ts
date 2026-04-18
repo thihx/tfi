@@ -17,7 +17,6 @@ export interface WatchlistRow {
   home_logo: string;
   away_logo: string;
   kickoff: string | null;
-  mode: string;
   prediction: unknown;
   recommended_custom_condition: string;
   recommended_condition_reason: string;
@@ -25,8 +24,6 @@ export interface WatchlistRow {
   recommended_condition_at: string | null;
   auto_apply_recommended_condition?: boolean;
   custom_conditions: string;
-  priority: number;
-  status: string;
   added_at: string;
   added_by: string;
   last_checked: string | null;
@@ -43,12 +40,9 @@ interface SubscriptionWatchlistQueryRow {
   subscription_id: number;
   user_id: string;
   match_id: string;
-  mode: string;
-  priority: number;
   custom_condition_text: string;
   auto_apply_recommended_condition: boolean;
   notify_enabled: boolean;
-  status: string;
   source: string;
   created_at: string;
   subscriber_count: number | null;
@@ -66,11 +60,8 @@ interface SubscriptionWatchlistQueryRow {
 
 interface AggregatedWatchlistQueryRow {
   match_id: string;
-  mode: string;
-  priority: number;
   custom_condition_text: string | null;
   auto_apply_recommended_condition: boolean;
-  status: string;
   source: string;
   created_at: string;
   subscriber_count: number;
@@ -129,11 +120,8 @@ function buildWatchlistRow(
   },
   subscription: {
     id?: number | null;
-    mode?: string | null;
-    priority?: number | null;
     custom_conditions?: string | null;
     auto_apply_recommended_condition?: boolean | null;
-    status?: string | null;
     added_at?: string | null;
     added_by?: string | null;
   },
@@ -155,7 +143,6 @@ function buildWatchlistRow(
     home_logo: base.home_logo ?? normalizeNullableString(sharedMetadata.home_logo) ?? '',
     away_logo: base.away_logo ?? normalizeNullableString(sharedMetadata.away_logo) ?? '',
     kickoff: base.kickoff ?? normalizeNullableString(sharedMetadata.kickoff),
-    mode: subscription.mode ?? 'B',
     prediction,
     recommended_custom_condition: normalizeNullableString(sharedMetadata.recommended_custom_condition) ?? '',
     recommended_condition_reason: normalizeNullableString(sharedMetadata.recommended_condition_reason) ?? '',
@@ -163,8 +150,6 @@ function buildWatchlistRow(
     recommended_condition_at: normalizeNullableString(sharedMetadata.recommended_condition_at),
     auto_apply_recommended_condition: subscription.auto_apply_recommended_condition ?? true,
     custom_conditions: subscription.custom_conditions ?? '',
-    priority: subscription.priority ?? 0,
-    status: subscription.status ?? 'active',
     added_at: subscription.added_at ?? new Date(0).toISOString(),
     added_by: subscription.added_by ?? 'user',
     last_checked: normalizeNullableString(sharedMetadata.last_checked),
@@ -211,10 +196,7 @@ function extractSharedMetadata(fields: Partial<WatchlistRow>): Record<string, un
 function extractOperationalMetadata(fields: Partial<WatchlistRow>): Record<string, unknown> {
   const metadata = extractSharedMetadata(fields);
   const keys: Array<keyof WatchlistRow> = [
-    'mode',
     'custom_conditions',
-    'priority',
-    'status',
     'added_at',
     'added_by',
     'auto_apply_recommended_condition',
@@ -294,12 +276,9 @@ async function getUserWatchlistRows(
         s.id AS subscription_id,
         s.user_id,
         s.match_id,
-        s.mode,
-        s.priority,
         s.custom_condition_text,
         s.auto_apply_recommended_condition,
         s.notify_enabled,
-        s.status,
         s.source,
         s.created_at,
         mm.subscriber_count,
@@ -317,7 +296,7 @@ async function getUserWatchlistRows(
       LEFT JOIN monitored_matches mm ON mm.match_id = s.match_id
       LEFT JOIN matches m ON m.match_id::text = s.match_id
       WHERE s.user_id = $1
-      ORDER BY s.priority DESC, match_date NULLS LAST, match_kickoff NULLS LAST`,
+      ORDER BY match_date NULLS LAST, match_kickoff NULLS LAST`,
     [userId],
   );
 
@@ -336,11 +315,8 @@ async function getUserWatchlistRows(
     },
     {
       id: row.subscription_id,
-      mode: row.mode,
-      priority: row.priority,
       custom_conditions: row.custom_condition_text,
       auto_apply_recommended_condition: row.auto_apply_recommended_condition,
-      status: row.status,
       added_at: row.created_at,
       added_by: row.source,
     },
@@ -360,29 +336,20 @@ async function getMonitoredOperationalWatchlist(
     `WITH ranked AS (
        SELECT
          s.match_id,
-         s.mode,
-         s.priority,
          s.custom_condition_text,
          s.auto_apply_recommended_condition,
-         s.status,
          s.source,
          s.created_at,
          ROW_NUMBER() OVER (
            PARTITION BY s.match_id
-           ORDER BY CASE WHEN UPPER(s.mode) = 'F' THEN 1 ELSE 0 END DESC,
-                    s.priority DESC,
-                    s.created_at ASC
+           ORDER BY s.created_at ASC
          ) AS row_rank
        FROM user_watch_subscriptions s
-      WHERE ($1::boolean = false OR s.status = 'active')
      )
      SELECT
        mm.match_id,
-       COALESCE(ranked.mode, NULLIF(mm.metadata->>'mode', ''), 'B') AS mode,
-       COALESCE(ranked.priority, NULLIF(mm.metadata->>'priority', '')::int, 0) AS priority,
        COALESCE(ranked.custom_condition_text, NULLIF(mm.metadata->>'custom_conditions', '')) AS custom_condition_text,
        COALESCE(ranked.auto_apply_recommended_condition, (mm.metadata->>'auto_apply_recommended_condition')::boolean, true) AS auto_apply_recommended_condition,
-       COALESCE(ranked.status, NULLIF(mm.metadata->>'status', '')) AS status,
        COALESCE(ranked.source, NULLIF(mm.metadata->>'added_by', ''), 'system') AS source,
        COALESCE(ranked.created_at::text, NULLIF(mm.metadata->>'added_at', ''), mm.last_interest_at::text) AS created_at,
        COALESCE(mm.subscriber_count, 0) AS subscriber_count,
@@ -402,20 +369,15 @@ async function getMonitoredOperationalWatchlist(
      WHERE (
        $1::boolean = false
        OR (
-         COALESCE(ranked.status, NULLIF(mm.metadata->>'status', '')) = 'active'
-         AND (
-           COALESCE(mm.subscriber_count, 0) > 0
-           OR EXISTS (
-             SELECT 1
-             FROM watchlist w
-             WHERE w.match_id = mm.match_id
-               AND COALESCE(w.status, 'active') = 'active'
-           )
+         COALESCE(mm.subscriber_count, 0) > 0
+         OR EXISTS (
+           SELECT 1
+           FROM watchlist w
+           WHERE w.match_id = mm.match_id
          )
        )
      )
-     ORDER BY COALESCE(ranked.priority, NULLIF(mm.metadata->>'priority', '')::int, 0) DESC,
-              match_date NULLS LAST,
+     ORDER BY match_date NULLS LAST,
               match_kickoff NULLS LAST`,
     [activeOnly],
   );
@@ -437,11 +399,8 @@ async function getMonitoredOperationalWatchlist(
       },
       {
         id: 0,
-        mode: row.mode,
-        priority: row.priority,
         custom_conditions: row.custom_condition_text ?? normalizeNullableString(metadata.custom_conditions) ?? '',
         auto_apply_recommended_condition: normalizeBoolean(row.auto_apply_recommended_condition, true),
-        status: row.status,
         added_at: row.created_at,
         added_by: row.source,
       },
@@ -476,7 +435,6 @@ export async function backfillOperationalWatchlistFromLegacy(): Promise<number> 
          'home_logo', NULLIF(w.home_logo, ''),
          'away_logo', NULLIF(w.away_logo, ''),
          'kickoff', w.kickoff,
-         'mode', NULLIF(w.mode, ''),
          'prediction', w.prediction,
          'recommended_custom_condition', NULLIF(w.recommended_custom_condition, ''),
          'recommended_condition_reason', NULLIF(w.recommended_condition_reason, ''),
@@ -484,8 +442,6 @@ export async function backfillOperationalWatchlistFromLegacy(): Promise<number> 
          'recommended_condition_at', w.recommended_condition_at,
          'auto_apply_recommended_condition', w.auto_apply_recommended_condition,
          'custom_conditions', NULLIF(w.custom_conditions, ''),
-         'priority', w.priority,
-         'status', NULLIF(w.status, ''),
          'added_at', w.added_at,
          'added_by', NULLIF(w.added_by, ''),
          'last_checked', w.last_checked,
@@ -604,12 +560,9 @@ export async function getWatchlistByMatchId(matchId: string, userId: string): Pr
         s.id AS subscription_id,
         s.user_id,
         s.match_id,
-        s.mode,
-        s.priority,
         s.custom_condition_text,
         s.auto_apply_recommended_condition,
         s.notify_enabled,
-        s.status,
         s.source,
         s.created_at,
         mm.subscriber_count,
@@ -647,11 +600,8 @@ export async function getWatchlistByMatchId(matchId: string, userId: string): Pr
       },
       {
         id: row.subscription_id,
-        mode: row.mode,
-        priority: row.priority,
         custom_conditions: row.custom_condition_text,
         auto_apply_recommended_condition: row.auto_apply_recommended_condition,
-        status: row.status,
         added_at: row.created_at,
         added_by: row.source,
       },
@@ -668,12 +618,9 @@ export async function getWatchSubscriptionById(subscriptionId: number, userId: s
         s.id AS subscription_id,
         s.user_id,
         s.match_id,
-        s.mode,
-        s.priority,
         s.custom_condition_text,
         s.auto_apply_recommended_condition,
         s.notify_enabled,
-        s.status,
         s.source,
         s.created_at,
         mm.subscriber_count,
@@ -713,11 +660,8 @@ export async function getWatchSubscriptionById(subscriptionId: number, userId: s
     },
     {
       id: row.subscription_id,
-      mode: row.mode,
-      priority: row.priority,
       custom_conditions: row.custom_condition_text,
       auto_apply_recommended_condition: row.auto_apply_recommended_condition,
-      status: row.status,
       added_at: row.created_at,
       added_by: row.source,
     },
@@ -755,8 +699,7 @@ export async function countActiveWatchSubscriptionsByUser(userId: string): Promi
   const result = await query<{ count: string }>(
     `SELECT COUNT(*)::text AS count
        FROM user_watch_subscriptions
-      WHERE user_id = $1
-        AND status = 'active'`,
+      WHERE user_id = $1`,
     [userId],
   );
   return Number(result.rows[0]?.count ?? '0');
@@ -771,26 +714,20 @@ export async function createWatchlistEntry(
 
   await query(
     `INSERT INTO user_watch_subscriptions (
-        user_id, match_id, mode, priority, custom_condition_text,
-        auto_apply_recommended_condition, notify_enabled, status, source, updated_at
+        user_id, match_id, custom_condition_text,
+        auto_apply_recommended_condition, notify_enabled, source, updated_at
      )
-     VALUES ($1, $2, $3, $4, $5, $6, TRUE, $7, $8, NOW())
+     VALUES ($1, $2, $3, $4, TRUE, $5, NOW())
      ON CONFLICT (user_id, match_id) DO UPDATE
-       SET mode = EXCLUDED.mode,
-           priority = EXCLUDED.priority,
-           custom_condition_text = EXCLUDED.custom_condition_text,
+       SET custom_condition_text = EXCLUDED.custom_condition_text,
            auto_apply_recommended_condition = EXCLUDED.auto_apply_recommended_condition,
-           status = EXCLUDED.status,
            source = EXCLUDED.source,
            updated_at = NOW()`,
     [
       userId,
       w.match_id,
-      w.mode ?? 'B',
-      w.priority ?? 0,
       w.custom_conditions ?? '',
       w.auto_apply_recommended_condition ?? true,
-      w.status ?? 'active',
       w.added_by ?? 'manual',
     ],
   );
@@ -818,26 +755,20 @@ export async function createWatchlistEntriesBatch(
       await upsertMonitoredMatchWithClient(client, entry.match_id, metadata);
       await client.query(
         `INSERT INTO user_watch_subscriptions (
-            user_id, match_id, mode, priority, custom_condition_text,
-            auto_apply_recommended_condition, notify_enabled, status, source, updated_at
+            user_id, match_id, custom_condition_text,
+            auto_apply_recommended_condition, notify_enabled, source, updated_at
          )
-         VALUES ($1, $2, $3, $4, $5, $6, TRUE, $7, $8, NOW())
+         VALUES ($1, $2, $3, $4, TRUE, $5, NOW())
          ON CONFLICT (user_id, match_id) DO UPDATE
-           SET mode = EXCLUDED.mode,
-               priority = EXCLUDED.priority,
-               custom_condition_text = EXCLUDED.custom_condition_text,
+           SET custom_condition_text = EXCLUDED.custom_condition_text,
                auto_apply_recommended_condition = EXCLUDED.auto_apply_recommended_condition,
-               status = EXCLUDED.status,
                source = EXCLUDED.source,
                updated_at = NOW()`,
         [
           userId,
           entry.match_id,
-          entry.mode ?? 'B',
-          entry.priority ?? 0,
           entry.custom_conditions ?? '',
           entry.auto_apply_recommended_condition ?? true,
-          entry.status ?? 'active',
           entry.added_by ?? 'manual',
         ],
       );
@@ -856,11 +787,8 @@ export async function updateWatchlistEntry(
   userId: string,
 ): Promise<WatchlistRow | null> {
   const subscriptionFields: Array<keyof WatchlistRow> = [
-    'mode',
-    'priority',
     'custom_conditions',
     'auto_apply_recommended_condition',
-    'status',
   ];
   const shouldUpdateSubscription = subscriptionFields.some((key) => key in fields);
   if (shouldUpdateSubscription) {
@@ -871,21 +799,15 @@ export async function updateWatchlistEntry(
     if (existing.rows[0]) {
       await query(
         `UPDATE user_watch_subscriptions
-            SET mode = COALESCE($3, mode),
-                priority = COALESCE($4, priority),
-                custom_condition_text = COALESCE($5, custom_condition_text),
-                auto_apply_recommended_condition = COALESCE($6, auto_apply_recommended_condition),
-                status = COALESCE($7, status),
+            SET custom_condition_text = COALESCE($3, custom_condition_text),
+                auto_apply_recommended_condition = COALESCE($4, auto_apply_recommended_condition),
                 updated_at = NOW()
           WHERE user_id = $1 AND match_id = $2`,
         [
           userId,
           matchId,
-          fields.mode ?? null,
-          fields.priority ?? null,
           fields.custom_conditions ?? null,
           fields.auto_apply_recommended_condition ?? null,
-          fields.status ?? null,
         ],
       );
       await refreshSubscriberCount(matchId);
@@ -1074,7 +996,6 @@ export async function syncWatchlistDates(): Promise<number> {
      )
      FROM matches m
      WHERE mm.match_id = m.match_id::text
-       AND COALESCE(NULLIF(mm.metadata->>'status', ''), 'active') = 'active'
        AND (
          NULLIF(mm.metadata->>'date', '') IS DISTINCT FROM m.date::text
          OR NULLIF(mm.metadata->>'kickoff', '') IS DISTINCT FROM to_char(m.kickoff, 'HH24:MI')

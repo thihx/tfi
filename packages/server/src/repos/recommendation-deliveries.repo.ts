@@ -493,8 +493,6 @@ export async function stageRecommendationDeliveries(
        END AS delivery_status,
        '[]'::jsonb,
        jsonb_strip_nulls(jsonb_build_object(
-         'subscription_mode', s.mode,
-         'subscription_priority', s.priority,
          'custom_condition_text', s.custom_condition_text,
          'subscription_source', s.source,
          'recommendation_timestamp', $3::text,
@@ -507,7 +505,6 @@ export async function stageRecommendationDeliveries(
        COALESCE($3::timestamptz, NOW())
      FROM user_watch_subscriptions s
      WHERE s.match_id = $2
-       AND s.status = 'active'
      ON CONFLICT (user_id, recommendation_id) DO UPDATE
        SET matched_condition = EXCLUDED.matched_condition,
            eligibility_status = EXCLUDED.eligibility_status,
@@ -633,7 +630,6 @@ export async function stageConditionOnlyDeliveries(
     `SELECT user_id, custom_condition_text
        FROM user_watch_subscriptions
       WHERE match_id = $1
-        AND status = 'active'
         AND notify_enabled = TRUE`,
     [input.match_id],
   );

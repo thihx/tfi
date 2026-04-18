@@ -29,7 +29,7 @@ export function createConfig(overrides?: Partial<LiveMonitorConfig>): LiveMonito
     VERY_LATE_PHASE_MINUTE: 85,
     ENDGAME_MINUTE: 88,
     AI_PROVIDER: 'gemini',
-    AI_MODEL: 'gemini-3-pro-preview',
+    AI_MODEL: 'gemini-2.5-flash',
     EMAIL_TO: 'test@example.com',
     TELEGRAM_CHAT_ID: '1234567',
     MANUAL_PUSH_MATCH_IDS: [],
@@ -52,10 +52,7 @@ export function createWatchlistMatch(overrides?: Partial<WatchlistMatch>): Watch
     home_team: 'Arsenal',
     away_team: 'Chelsea',
     kickoff: '20:00',
-    mode: 'B',
-    priority: 3,
     custom_conditions: '',
-    status: 'active',
     ...overrides,
   };
 }
@@ -124,7 +121,6 @@ export function createMergedMatchData(overrides?: Partial<MergedMatchData>): Mer
     minute: 65,
     score: '1-0',
     status: '2H',
-    mode: 'B',
     custom_conditions: '',
     recommended_custom_condition: '',
     recommended_condition_reason: '',
@@ -325,7 +321,6 @@ export function createOddsResponse(overrides?: Partial<FootballApiOddsResponse>)
 
 export function createAppConfig() {
   return {
-    defaultMode: 'B',
     apiUrl: 'http://localhost:4000',
   };
 }

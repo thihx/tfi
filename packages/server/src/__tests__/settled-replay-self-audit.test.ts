@@ -62,7 +62,7 @@ function makeScenario(): SettledReplayScenario {
     metadata: {
       recommendationId: 1001,
       originalPromptVersion: 'v6-betting-discipline-c',
-      originalAiModel: 'gemini-3-pro-preview',
+      originalAiModel: 'gemini-2.5-flash',
       originalBetMarket: 'under_2.5',
       originalSelection: 'Under 2.5 Goals @1.90',
       originalResult: 'win',

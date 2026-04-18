@@ -133,7 +133,7 @@ describe('reports repository', () => {
         ],
       } as never)
       .mockResolvedValueOnce({
-        rows: [{ cohort: 'gemini-3-pro-preview | v6-betting-discipline-c', wins: '4', total: '5', pnl: '3.6', total_staked: '10' }],
+        rows: [{ cohort: 'gemini-2.5-flash | v6-betting-discipline-c', wins: '4', total: '5', pnl: '3.6', total_staked: '10' }],
       } as never)
       .mockResolvedValueOnce({
         rows: [{ bucket: 'strong', wins: '3', total: '5', pnl: '2.8', total_staked: '10' }],
@@ -173,7 +173,7 @@ describe('reports repository', () => {
     expect(result.marketFamilies).toHaveLength(2);
     expect(result.lateEntries.find((row) => row.bucket === '75+')?.roi).toBeGreaterThan(0);
     expect(result.modelPromptCohorts[0]).toMatchObject({
-      cohort: 'gemini-3-pro-preview | v6-betting-discipline-c',
+      cohort: 'gemini-2.5-flash | v6-betting-discipline-c',
       winRate: 80,
       pnl: 3.6,
       roi: 36,

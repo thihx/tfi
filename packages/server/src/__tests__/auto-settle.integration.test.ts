@@ -99,7 +99,7 @@ function makeRec(overrides: Partial<RecommendationRow> = {}): RecommendationRow 
     reasoning: 'Both pressing',
     key_factors: '',
     warnings: '[]',
-    ai_model: 'gemini-3-pro-preview',
+    ai_model: 'gemini-2.5-flash',
     mode: 'B',
     bet_market: 'Over/Under 2.5',
     notified: 'yes',

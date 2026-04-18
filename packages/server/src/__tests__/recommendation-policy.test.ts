@@ -102,7 +102,7 @@ describe('applyRecommendationPolicy', () => {
     expect(result.warnings).toContain('POLICY_BLOCK_UNDER_2_5_PRE75');
   });
 
-  test('caps BTTS No confidence and stake when otherwise valid', () => {
+  test('blocks BTTS No on goal-margin states and still applies caps', () => {
     const result = applyRecommendationPolicy({
       selection: 'BTTS No @1.88',
       betMarket: 'btts_no',
@@ -115,9 +115,11 @@ describe('applyRecommendationPolicy', () => {
       statsCompact: {
         shots_on_target: { home: '1', away: '1' },
       },
+      promptVersion: 'v10-hybrid-legacy-g',
     });
 
-    expect(result.blocked).toBe(false);
+    expect(result.blocked).toBe(true);
+    expect(result.warnings).toContain('BTTS_NO_BLOCKED_GOAL_MARGIN');
     expect(result.confidence).toBe(6);
     expect(result.stakePercent).toBe(2);
     expect(result.warnings).toContain('POLICY_CAP_BTTS_NO_CONFIDENCE');
@@ -532,6 +534,9 @@ describe('applyRecommendationPolicy', () => {
       valuePercent: 7,
       stakePercent: 2,
       promptVersion: 'v8-market-balance-followup-j',
+      evidenceMode: 'full_live_data',
+      breakEvenRate: 0.47,
+      directionalWin: true,
     });
     expect(early.blocked).toBe(false);
 
@@ -545,6 +550,9 @@ describe('applyRecommendationPolicy', () => {
       valuePercent: 7,
       stakePercent: 2,
       promptVersion: 'v8-market-balance-followup-j',
+      evidenceMode: 'full_live_data',
+      breakEvenRate: 0.47,
+      directionalWin: true,
     });
     expect(late.blocked).toBe(true);
     expect(late.warnings).toContain('POLICY_BLOCK_BTTS_NO_LOW_EDGE_V8J');
@@ -913,5 +921,77 @@ describe('applyRecommendationPolicy', () => {
     expect(result.blocked).toBe(false);
     expect(result.stakePercent).toBe(2.5);
     expect(result.warnings).toContain('POLICY_CAP_MEDIUM_RISK_STAKE_GLOBAL');
+  });
+
+  test('blocks unresolved canonical market immediately', () => {
+    const result = applyRecommendationPolicy({
+      selection: '',
+      betMarket: '',
+      minute: 55,
+      score: '1-0',
+      odds: 1.9,
+      confidence: 8,
+      valuePercent: 9,
+      stakePercent: 2,
+      evidenceMode: 'full_live_data',
+    });
+    expect(result.blocked).toBe(true);
+    expect(result.warnings).toContain('MARKET_UNRESOLVED');
+  });
+
+  test('blocks btts_no in one-goal margin regardless of other signals', () => {
+    const result = applyRecommendationPolicy({
+      selection: 'BTTS No @1.82',
+      betMarket: 'btts_no',
+      minute: 33,
+      score: '1-0',
+      odds: 1.82,
+      confidence: 8,
+      valuePercent: 10,
+      stakePercent: 2,
+      evidenceMode: 'full_live_data',
+      breakEvenRate: 0.45,
+      directionalWin: true,
+      promptVersion: 'v10-hybrid-legacy-g',
+    });
+    expect(result.blocked).toBe(true);
+    expect(result.warnings).toContain('BTTS_NO_BLOCKED_GOAL_MARGIN');
+  });
+
+  test('blocks blacklisted midgame market over_2.5 in 45-74', () => {
+    const result = applyRecommendationPolicy({
+      selection: 'Over 2.5 Goals @1.95',
+      betMarket: 'over_2.5',
+      minute: 58,
+      score: '1-1',
+      odds: 1.95,
+      confidence: 8,
+      valuePercent: 9,
+      stakePercent: 2,
+      evidenceMode: 'full_live_data',
+      breakEvenRate: 0.46,
+      directionalWin: true,
+      promptVersion: 'v10-hybrid-legacy-g',
+    });
+    expect(result.blocked).toBe(true);
+    expect(result.warnings).toContain('MARKET_BLACKLISTED_FOR_MIDGAME_WINDOW');
+  });
+
+  test('late-game one-goal full evidence allows directional override path', () => {
+    const result = applyRecommendationPolicy({
+      selection: 'Over 1.5 Goals @1.95',
+      betMarket: 'over_1.5',
+      minute: 79,
+      score: '2-1',
+      odds: 1.95,
+      confidence: 7,
+      valuePercent: 8,
+      stakePercent: 2,
+      evidenceMode: 'full_live_data',
+      breakEvenRate: 0.54,
+      directionalWin: false,
+      promptVersion: 'v10-hybrid-legacy-g',
+    });
+    expect(result.warnings).not.toContain('REQUIRED_CONDITIONS_NOT_MET');
   });
 });

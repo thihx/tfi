@@ -22,11 +22,10 @@ export function WatchlistTab() {
   const { showToast } = useToast();
   const uiLanguage = useUiLanguage();
   const { effectiveTimeZone } = useUserTimeZone();
-  const { watchlist, matches, leagues, config } = state;
+  const { watchlist, matches, leagues } = state;
 
   const [search, setSearch] = useState('');
   const [leagueFilter, setLeagueFilter] = useState('');
-  const [statusFilter, setStatusFilter] = useState('active');
   const [dateFrom, setDateFrom] = useState('');
   const [dateTo, setDateTo] = useState('');
   const [page, setPage] = useState(1);
@@ -109,9 +108,6 @@ export function WatchlistTab() {
   // Filtered & sorted
   const filtered = useMemo(() => {
     let items = [...watchlist];
-    if (statusFilter) {
-      items = items.filter((i) => (i.status || 'active') === statusFilter);
-    }
     if (debouncedSearch) {
       const s = debouncedSearch.toLowerCase();
       items = items.filter((i) => `${i.home_team || ''} ${i.away_team || ''} ${i.league || ''}`.toLowerCase().includes(s));
@@ -143,9 +139,6 @@ export function WatchlistTab() {
             break;
           case 'league': valA = (a.league || '').toLowerCase(); valB = (b.league || '').toLowerCase(); break;
           case 'match': valA = `${a.home_team} vs ${a.away_team}`.toLowerCase(); valB = `${b.home_team} vs ${b.away_team}`.toLowerCase(); break;
-          case 'mode': valA = a.mode || ''; valB = b.mode || ''; break;
-          case 'priority': valA = parseInt(String(a.priority)) || 0; valB = parseInt(String(b.priority)) || 0; break;
-          case 'status': valA = (a.status || '').toLowerCase(); valB = (b.status || '').toLowerCase(); break;
           default: return 0;
         }
         if (valA < valB) return sort.order === 'asc' ? -1 : 1;
@@ -154,7 +147,7 @@ export function WatchlistTab() {
       });
     }
     return items;
-  }, [watchlist, debouncedSearch, leagueFilter, statusFilter, dateFrom, dateTo, sort, matches, effectiveTimeZone]);
+  }, [watchlist, debouncedSearch, leagueFilter, dateFrom, dateTo, sort, matches, effectiveTimeZone]);
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
   const safePage = Math.min(page, totalPages);
@@ -166,7 +159,7 @@ export function WatchlistTab() {
   };
 
   const clearFilters = () => {
-    setSearch(''); setDebouncedSearch(''); setLeagueFilter(''); setStatusFilter('active'); setDateFrom(''); setDateTo('');
+    setSearch(''); setDebouncedSearch(''); setLeagueFilter(''); setDateFrom(''); setDateTo('');
     setPage(1);
   };
 
@@ -178,11 +171,6 @@ export function WatchlistTab() {
 
   const handleLeagueFilterChange = (value: string) => {
     setLeagueFilter(value);
-    setPage(1);
-  };
-
-  const handleStatusFilterChange = (value: string) => {
-    setStatusFilter(value);
     setPage(1);
   };
 
@@ -281,11 +269,6 @@ export function WatchlistTab() {
               <option value="">All Leagues</option>
               {leagueOptions.map((l) => <option key={l.id} value={l.id}>{l.displayName} ({l.count})</option>)}
             </select>
-            <select className="filter-input" value={statusFilter} onChange={(e) => handleStatusFilterChange(e.target.value)}>
-              <option value="">All Status</option>
-              <option value="active">Active</option>
-              <option value="pending">Pending</option>
-            </select>
             <DatePicker className="filter-input" value={dateFrom} onChange={handleDateFromChange} title="From date" placeholder="From date" />
             <DatePicker className="filter-input" value={dateTo} onChange={handleDateToChange} title="To date" placeholder="To date" />
             <button className="btn btn-secondary" onClick={clearFilters}>Clear Filters</button>
@@ -329,8 +312,8 @@ export function WatchlistTab() {
             {pageItems.length === 0 ? (
               <div style={{ padding: '24px', textAlign: 'center', color: 'var(--gray-400)' }}>
                 <div style={{ marginBottom: '8px', display: 'flex', justifyContent: 'center' }}><svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg></div>
-                <p>{debouncedSearch || leagueFilter || (statusFilter && statusFilter !== 'active') || dateFrom || dateTo ? 'No matches found for your filters' : 'Your watchlist is empty'}</p>
-                {!debouncedSearch && !leagueFilter && statusFilter === 'active' && !dateFrom && !dateTo && (
+                <p>{debouncedSearch || leagueFilter || dateFrom || dateTo ? 'No matches found for your filters' : 'Your watchlist is empty'}</p>
+                {!debouncedSearch && !leagueFilter && !dateFrom && !dateTo && (
                   <button className="btn btn-primary btn-sm" style={{ marginTop: 8 }} onClick={() => window.dispatchEvent(new CustomEvent('tfi:navigate', { detail: 'matches' }))}>Browse Matches</button>
                 )}
               </div>
@@ -374,20 +357,17 @@ export function WatchlistTab() {
                 <th style={{ width: 40, textAlign: 'center' }}>
                   <input type="checkbox" checked={allPageSelected} onChange={toggleSelectAll} />
                 </th>
-                <th style={{ cursor: 'pointer' }} onClick={() => handleSort('mode')}>Mode {sortIndicator('mode')}</th>
-                <th style={{ cursor: 'pointer' }} onClick={() => handleSort('priority')}>Priority {sortIndicator('priority')}</th>
                 <th style={{ textAlign: 'center' }}>Prediction</th>
                 <th style={{ textAlign: 'center' }}>Condition</th>
-                <th style={{ cursor: 'pointer' }} onClick={() => handleSort('status')}>Status {sortIndicator('status')}</th>
                 <th style={{ textAlign: 'center' }}>Actions</th>
               </tr>
             </thead>
             <tbody>
               {pageItems.length === 0 ? (
-                <tr><td colSpan={10} className="empty-state">
+                <tr><td colSpan={7} className="empty-state">
                   <div className="empty-state-icon"><svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg></div>
-                  <p>{debouncedSearch || leagueFilter || (statusFilter && statusFilter !== 'active') || dateFrom || dateTo ? 'No matches found for your filters' : 'Your watchlist is empty'}</p>
-                  {!debouncedSearch && !leagueFilter && statusFilter === 'active' && !dateFrom && !dateTo && (
+                  <p>{debouncedSearch || leagueFilter || dateFrom || dateTo ? 'No matches found for your filters' : 'Your watchlist is empty'}</p>
+                  {!debouncedSearch && !leagueFilter && !dateFrom && !dateTo && (
                     <button
                       className="btn btn-primary btn-sm"
                       style={{ marginTop: 8 }}
@@ -407,17 +387,13 @@ export function WatchlistTab() {
                 const dateLabel = getDateGroupLabelInTimeZone(localDT, effectiveTimeZone);
                 if (dateLabel !== lastLabel) {
                   lastLabel = dateLabel;
-                  rows.push(<tr key={`grp-${dateLabel}`} className="date-group-row"><td colSpan={10}>{dateLabel}</td></tr>);
+                  rows.push(<tr key={`grp-${dateLabel}`} className="date-group-row"><td colSpan={7}>{dateLabel}</td></tr>);
                 }
                 let leagueId = item.league_id;
                 const liveMatchRow = matches.find((x) => String(x.match_id) === String(item.match_id));
                 if (!leagueId && liveMatchRow) leagueId = liveMatchRow.league_id;
                 const leagueDisplay = getLeagueDisplayName(leagueId || '', item.league_name || item.league || '', leagues);
                 const isLiveRow = liveMatchRow ? LIVE_STATUSES.includes(liveMatchRow.status) : false;
-
-                const modeColors: Record<string, { bg: string; color: string }> = { A: { bg: 'var(--gray-100)', color: 'var(--gray-700)' }, B: { bg: 'var(--gray-100)', color: 'var(--gray-700)' }, C: { bg: 'var(--gray-100)', color: 'var(--gray-700)' } };
-                const mc = modeColors[item.mode] || modeColors.B!;
-                const p = Math.max(1, Math.min(3, parseInt(String(item.priority)) || 2));
 
                 rows.push(
                   <tr key={item.match_id} onDoubleClick={() => setScoutItem(item)} className={isLiveRow ? 'match-is-live' : undefined} style={{ cursor: 'pointer' }} title="Double-click to view match details">
@@ -447,17 +423,8 @@ export function WatchlistTab() {
                         <input type="checkbox" checked={selected.has(String(item.match_id))} onChange={() => toggleSelect(String(item.match_id))} />
                       </div>
                     </td>
-                    <td data-label="Mode"><div className="cell-value"><span className="badge" style={{ background: mc.bg, color: mc.color }}>{item.mode}</span></div></td>
-                    <td data-label="Priority" style={{ textAlign: 'center' }}><div className="cell-value" style={{ fontSize: '12px', color: 'var(--gray-600)', fontWeight: 500 }}>P{p}</div></td>
                     <td data-label="Prediction" style={{ textAlign: 'center' }}><div className="cell-value"><PredictionCell prediction={item.prediction} /></div></td>
                     <td data-label="Condition" style={{ textAlign: 'center' }}><div className="cell-value"><small style={{ whiteSpace: 'normal' }}>{item.custom_conditions || '-'}</small></div></td>
-                    <td data-label="Status" className="status-cell" style={{ textAlign: 'center' }}>
-                      <div className="cell-value">
-                        {item.status === 'pending'
-                          ? <span className="badge" style={{ background: 'var(--gray-100)', color: '#b45309', border: '1px solid #fde68a' }}>Pending</span>
-                          : <span className="badge" style={{ background: 'var(--gray-100)', color: '#15803d', border: '1px solid #d1fae5' }}>Active</span>}
-                      </div>
-                    </td>
                     <td data-label="Actions" style={{ textAlign: 'center' }}>
                       <div className="cell-value">
                         <div style={{ display: 'inline-flex', gap: '6px', alignItems: 'center' }}>
@@ -484,17 +451,13 @@ export function WatchlistTab() {
       <WatchlistEditModal
         key={editItem ? String(editItem.match_id) : 'watchlist-edit-modal'}
         item={editItem}
-        defaultMode={config.defaultMode}
         uiLanguage={uiLanguage}
         onClose={() => setEditItem(null)}
-        onSave={async ({ mode, priority, status, custom_conditions, auto_apply_recommended_condition }) => {
+        onSave={async ({ custom_conditions, auto_apply_recommended_condition }) => {
           if (!editItem) return;
           const ok = await updateWatchlistItem({
             id: editItem.id,
             match_id: editItem.match_id,
-            mode,
-            priority,
-            status,
             custom_conditions,
             auto_apply_recommended_condition,
           });

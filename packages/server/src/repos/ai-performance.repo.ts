@@ -7,6 +7,7 @@ import {
   FINAL_SETTLEMENT_RESULTS_SQL,
   type SettlementPersistenceMeta,
 } from '../lib/settle-types.js';
+import { normalizeMarket } from '../lib/normalize-market.js';
 
 const PENDING_RESULT_SQL = `(r.result IS NULL OR r.result = '' OR r.result NOT IN (${FINAL_SETTLEMENT_RESULTS_SQL}))`;
 const ACTIONABLE_REC_SQL = `r.bet_type IS DISTINCT FROM 'NO_BET'`;
@@ -595,4 +596,271 @@ export async function getHistoricalPerformanceContext(): Promise<HistoricalPerfo
     byLeague: findSection('league').map((r) => ({ league: r.label, ...r })),
     generatedAt: new Date().toISOString(),
   };
+}
+
+// ============================================================
+// Performance Memory Layer (combination-key feedback loop)
+// ============================================================
+
+export type PerformanceMinuteBand = '00-29' | '30-44' | '45-59' | '60-74' | '75+' | 'unknown';
+export type PerformanceScoreState = '0-0' | 'level' | 'one-goal-margin' | 'two-plus-margin' | 'unknown';
+
+export interface PerformanceMemoryRecord {
+  key: string;
+  canonicalMarket: string;
+  minuteBand: PerformanceMinuteBand;
+  scoreState: PerformanceScoreState;
+  total: number;
+  wins: number;
+  losses: number;
+  halfWins: number;
+  halfLosses: number;
+  pushes: number;
+  empiricalWinRate: number;
+  sampleReliable: boolean;
+  lastUpdated: string;
+}
+
+export interface PerformanceMemoryLookupResult {
+  status: 'found' | 'no_history';
+  record?: PerformanceMemoryRecord;
+}
+
+export interface PerformanceMemoryCandidateRule {
+  key: string;
+  canonicalMarket: string;
+  minuteBand: PerformanceMinuteBand;
+  scoreState: PerformanceScoreState;
+  total: number;
+  empiricalWinRate: number;
+  suggestedAction: 'block' | 'raise_threshold';
+}
+
+let performanceMemoryTableEnsured = false;
+
+type PerformanceMemoryRow = {
+  key: string;
+  canonical_market: string;
+  minute_band: string;
+  score_state: string;
+  total: string;
+  wins: string;
+  losses: string;
+  half_wins: string;
+  half_losses: string;
+  pushes: string;
+  empirical_win_rate: string;
+  sample_reliable: boolean;
+  last_updated: string;
+};
+
+function toPerformanceMemoryRecord(row: PerformanceMemoryRow): PerformanceMemoryRecord {
+  return {
+    key: row.key,
+    canonicalMarket: row.canonical_market,
+    minuteBand: row.minute_band as PerformanceMinuteBand,
+    scoreState: row.score_state as PerformanceScoreState,
+    total: Number(row.total),
+    wins: Number(row.wins),
+    losses: Number(row.losses),
+    halfWins: Number(row.half_wins),
+    halfLosses: Number(row.half_losses),
+    pushes: Number(row.pushes),
+    empiricalWinRate: Number(row.empirical_win_rate),
+    sampleReliable: Boolean(row.sample_reliable),
+    lastUpdated: row.last_updated,
+  };
+}
+
+async function ensurePerformanceMemoryTable(): Promise<void> {
+  if (performanceMemoryTableEnsured) return;
+  await query(`
+    CREATE TABLE IF NOT EXISTS recommendation_performance_memory (
+      key text PRIMARY KEY,
+      canonical_market text NOT NULL,
+      minute_band text NOT NULL,
+      score_state text NOT NULL,
+      total integer NOT NULL DEFAULT 0,
+      wins integer NOT NULL DEFAULT 0,
+      losses integer NOT NULL DEFAULT 0,
+      half_wins integer NOT NULL DEFAULT 0,
+      half_losses integer NOT NULL DEFAULT 0,
+      pushes integer NOT NULL DEFAULT 0,
+      empirical_win_rate numeric NOT NULL DEFAULT 0,
+      sample_reliable boolean NOT NULL DEFAULT false,
+      last_updated timestamptz NOT NULL DEFAULT NOW()
+    )
+  `);
+  performanceMemoryTableEnsured = true;
+}
+
+export function deriveMinuteBand(minute: number | null | undefined): PerformanceMinuteBand {
+  const m = Number(minute);
+  if (!Number.isFinite(m) || m < 0) return 'unknown';
+  if (m <= 29) return '00-29';
+  if (m <= 44) return '30-44';
+  if (m <= 59) return '45-59';
+  if (m <= 74) return '60-74';
+  return '75+';
+}
+
+export function deriveScoreState(score: string | null | undefined): PerformanceScoreState {
+  const match = String(score || '').trim().match(/^(\d+)\s*[-:]\s*(\d+)$/);
+  if (!match) return 'unknown';
+  const home = Number(match[1] ?? 0);
+  const away = Number(match[2] ?? 0);
+  if (!Number.isFinite(home) || !Number.isFinite(away)) return 'unknown';
+  if (home === 0 && away === 0) return '0-0';
+  const diff = Math.abs(home - away);
+  if (diff === 0) return 'level';
+  if (diff === 1) return 'one-goal-margin';
+  return 'two-plus-margin';
+}
+
+function buildPerformanceMemoryKey(canonicalMarket: string, minuteBand: PerformanceMinuteBand, scoreState: PerformanceScoreState): string {
+  return `${canonicalMarket}|${minuteBand}|${scoreState}`;
+}
+
+function settlementVector(result: string): { wins: number; losses: number; halfWins: number; halfLosses: number; pushes: number } {
+  const normalized = String(result || '').trim().toLowerCase();
+  if (normalized === 'win') return { wins: 1, losses: 0, halfWins: 0, halfLosses: 0, pushes: 0 };
+  if (normalized === 'loss') return { wins: 0, losses: 1, halfWins: 0, halfLosses: 0, pushes: 0 };
+  if (normalized === 'half_win') return { wins: 0, losses: 0, halfWins: 1, halfLosses: 0, pushes: 0 };
+  if (normalized === 'half_loss') return { wins: 0, losses: 0, halfWins: 0, halfLosses: 1, pushes: 0 };
+  if (normalized === 'push' || normalized === 'void') return { wins: 0, losses: 0, halfWins: 0, halfLosses: 0, pushes: 1 };
+  return { wins: 0, losses: 0, halfWins: 0, halfLosses: 0, pushes: 0 };
+}
+
+export async function writePerformanceMemoryFromSettlement(input: {
+  selection: string;
+  betMarket: string;
+  minute: number | null;
+  score: string;
+  result: string;
+}): Promise<void> {
+  const canonicalMarket = normalizeMarket(input.selection ?? '', input.betMarket ?? '');
+  if (!canonicalMarket || canonicalMarket === 'unknown') return;
+  const minuteBand = deriveMinuteBand(input.minute);
+  const scoreState = deriveScoreState(input.score);
+  const key = buildPerformanceMemoryKey(canonicalMarket, minuteBand, scoreState);
+  const vec = settlementVector(input.result);
+
+  await ensurePerformanceMemoryTable();
+  await query(
+    `
+    INSERT INTO recommendation_performance_memory (
+      key, canonical_market, minute_band, score_state,
+      total, wins, losses, half_wins, half_losses, pushes,
+      empirical_win_rate, sample_reliable, last_updated
+    )
+    VALUES (
+      $1, $2, $3, $4,
+      1, $5, $6, $7, $8, $9,
+      CASE WHEN 1 > 0 THEN (($5 + $7 * 0.5)::numeric / 1) ELSE 0 END,
+      false,
+      NOW()
+    )
+    ON CONFLICT (key) DO UPDATE
+    SET total = recommendation_performance_memory.total + 1,
+        wins = recommendation_performance_memory.wins + EXCLUDED.wins,
+        losses = recommendation_performance_memory.losses + EXCLUDED.losses,
+        half_wins = recommendation_performance_memory.half_wins + EXCLUDED.half_wins,
+        half_losses = recommendation_performance_memory.half_losses + EXCLUDED.half_losses,
+        pushes = recommendation_performance_memory.pushes + EXCLUDED.pushes,
+        empirical_win_rate =
+          CASE
+            WHEN recommendation_performance_memory.total + 1 > 0 THEN (
+              (recommendation_performance_memory.wins + EXCLUDED.wins)
+              + (recommendation_performance_memory.half_wins + EXCLUDED.half_wins) * 0.5
+            )::numeric / (recommendation_performance_memory.total + 1)
+            ELSE 0
+          END,
+        sample_reliable = (recommendation_performance_memory.total + 1) >= 10,
+        last_updated = NOW()
+    `,
+    [key, canonicalMarket, minuteBand, scoreState, vec.wins, vec.losses, vec.halfWins, vec.halfLosses, vec.pushes],
+  );
+}
+
+export async function lookupPerformanceMemory(input: {
+  canonicalMarket: string;
+  minuteBand: PerformanceMinuteBand;
+  scoreState: PerformanceScoreState;
+}): Promise<PerformanceMemoryLookupResult> {
+  await ensurePerformanceMemoryTable();
+  const key = buildPerformanceMemoryKey(input.canonicalMarket, input.minuteBand, input.scoreState);
+  const r = await query<PerformanceMemoryRow>(
+    `
+    SELECT key, canonical_market, minute_band, score_state, total, wins, losses,
+           half_wins, half_losses, pushes, empirical_win_rate, sample_reliable, last_updated
+      FROM recommendation_performance_memory
+     WHERE key = $1
+     LIMIT 1
+    `,
+    [key],
+  );
+  const row = r.rows[0];
+  if (!row) return { status: 'no_history' };
+  return { status: 'found', record: toPerformanceMemoryRecord(row) };
+}
+
+export async function getPerformanceMemoryPromptContext(input: {
+  minuteBand: PerformanceMinuteBand;
+  scoreState: PerformanceScoreState;
+  limit?: number;
+}): Promise<PerformanceMemoryRecord[]> {
+  await ensurePerformanceMemoryTable();
+  const limit = Math.max(1, Math.min(10, input.limit ?? 5));
+  const r = await query<PerformanceMemoryRow>(
+    `
+    SELECT key, canonical_market, minute_band, score_state, total, wins, losses,
+           half_wins, half_losses, pushes, empirical_win_rate, sample_reliable, last_updated
+      FROM recommendation_performance_memory
+     WHERE minute_band = $1
+       AND score_state = $2
+     ORDER BY sample_reliable DESC, empirical_win_rate ASC, total DESC
+     LIMIT $3
+    `,
+    [input.minuteBand, input.scoreState, limit],
+  );
+  return r.rows.map(toPerformanceMemoryRecord);
+}
+
+export async function autoGeneratePerformanceMemoryRules(input?: {
+  minSamples?: number;
+  maxWinRate?: number;
+}): Promise<PerformanceMemoryCandidateRule[]> {
+  await ensurePerformanceMemoryTable();
+  const minSamples = Math.max(1, Math.floor(input?.minSamples ?? 15));
+  const maxWinRate = Number.isFinite(input?.maxWinRate) ? Number(input?.maxWinRate) : 0.4;
+  const r = await query<{
+    key: string;
+    canonical_market: string;
+    minute_band: string;
+    score_state: string;
+    total: string;
+    empirical_win_rate: string;
+  }>(
+    `
+    SELECT key, canonical_market, minute_band, score_state, total, empirical_win_rate
+      FROM recommendation_performance_memory
+     WHERE total >= $1
+       AND empirical_win_rate <= $2
+     ORDER BY empirical_win_rate ASC, total DESC
+    `,
+    [minSamples, maxWinRate],
+  );
+
+  return r.rows.map((row) => {
+    const winRate = Number(row.empirical_win_rate);
+    return {
+      key: row.key,
+      canonicalMarket: row.canonical_market,
+      minuteBand: row.minute_band as PerformanceMinuteBand,
+      scoreState: row.score_state as PerformanceScoreState,
+      total: Number(row.total),
+      empiricalWinRate: winRate,
+      suggestedAction: winRate < 0.35 ? 'block' : 'raise_threshold',
+    };
+  });
 }

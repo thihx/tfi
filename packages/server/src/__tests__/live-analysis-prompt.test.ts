@@ -56,7 +56,6 @@ const baseInput: LiveAnalysisPromptInput = {
   matchTimeline: [],
   historicalPerformance: null,
   preMatchPredictionSummary: '',
-  mode: 'B',
   statsFallbackReason: '',
 };
 
@@ -518,7 +517,6 @@ describe('buildLiveAnalysisPrompt', () => {
     const candidate = buildLiveAnalysisPrompt(baseInput, settings, LIVE_ANALYSIS_PROMPT_CANDIDATE_VERSION);
 
     expect(candidate).toContain(`PROMPT_VERSION: ${LIVE_ANALYSIS_PROMPT_CANDIDATE_VERSION}`);
-    expect(candidate).toContain('EXACT OUTPUT ENUMS:');
     expect(candidate).toContain('MINIMAL LEGACY TIMING ADJUSTMENT:');
     expect(baseline).toContain(`PROMPT_VERSION: ${LIVE_ANALYSIS_PROMPT_VERSION}`);
   });
@@ -540,7 +538,8 @@ describe('buildLiveAnalysisPrompt', () => {
     expect(candidate).toContain('V10C CORNERS EARLY REALISM');
     expect(candidate).toContain('V10C BTTS MIDGAME');
     expect(candidate).toContain('V10C WEAK-PREMATCH RULE');
-    expect(candidate).toContain('V10E 45-59 CORNERS ONLY');
+    expect(candidate).toContain('V10F 45-59 CORNERS-UNDER CHASE RULE');
+    expect(candidate).toContain('V10G 30-44 CORNERS-UNDER REALISM');
     expect(candidate).not.toContain('Score 0-0 after minute 55: prefer goal unders, not corners under');
     expect(candidate).toContain('"follow_up_answer_en": string');
     expect(candidate).toContain('"follow_up_answer_vi": string');
@@ -549,13 +548,13 @@ describe('buildLiveAnalysisPrompt', () => {
   test('candidate prompt keeps essential safety rules while removing under-funnel rules', () => {
     const candidate = buildLiveAnalysisPrompt(baseInput, settings, LIVE_ANALYSIS_PROMPT_CANDIDATE_VERSION);
 
-    expect(candidate).toContain('No market below 1.5');
-    expect(candidate).toContain('ODDS RULE: canonical odds are already filtered; never infer missing markets and never invent prices.');
-    expect(candidate).toContain('RED CARD:');
     expect(candidate).toContain('- MIN_ODDS: 1.5');
-    expect(candidate).not.toContain('1X2 and BTTS No are Tier-1-only markets.');
-    expect(candidate).not.toContain('BTTS Yes requires at least Tier 1 evidence.');
-    expect(candidate).not.toContain('If 1X2 or AH is not justified, do NOT automatically fall back to Over/Under.');
+    expect(candidate).toContain('ODDS METHODOLOGY:');
+    expect(candidate).toContain('ODDS RULES:');
+    expect(candidate).toContain('RED CARD PROTOCOL:');
+    expect(candidate).toContain('1X2 and BTTS No are Tier-1-only markets.');
+    expect(candidate).toContain('BTTS Yes requires at least Tier 1 evidence.');
+    expect(candidate).toContain('If 1X2 or AH is not justified, do NOT automatically fall back to Over/Under.');
     expect(candidate).not.toContain('Score 0-0 after minute 55: prefer GOALS Under markets');
   });
 
@@ -721,7 +720,7 @@ describe('buildLiveAnalysisPrompt', () => {
   });
 
   test('candidate prompt enumerates exact canonical market keys and rejects generic aliases', () => {
-    const candidate = buildLiveAnalysisPrompt(baseInput, settings, LIVE_ANALYSIS_PROMPT_CANDIDATE_VERSION);
+    const candidate = buildLiveAnalysisPrompt(baseInput, settings, 'v5-compact-a');
 
     expect(candidate).toContain('EXACT OUTPUT ENUMS:');
     expect(candidate).toContain('"1x2_home"');
@@ -786,7 +785,7 @@ describe('buildLiveAnalysisPrompt', () => {
     }, settings, LIVE_ANALYSIS_PROMPT_CANDIDATE_VERSION);
 
     expect(prompt).toContain('ADVANCED QUANT STATS');
-    expect(prompt).toContain('This optional block appears only because this match has sufficient advanced stat coverage.');
+    expect(prompt).toContain('This block is rendered only when the source provides sufficient advanced stat coverage for this specific match.');
     expect(prompt).toContain('"expected_goals":{"home":1.42,"away":0.88}');
     expect(prompt).toContain('"shots_inside_box":{"home":7,"away":4}');
   });
@@ -816,13 +815,13 @@ describe('buildLiveAnalysisPrompt', () => {
       oddsCanonical: {
         corners_ou: { line: 10.5, over: 1.84, under: 1.96 },
       },
-    }, settings, LIVE_ANALYSIS_PROMPT_CANDIDATE_VERSION);
+    }, settings, 'v5-compact-a');
 
     expect(candidate).toContain('ACTIVE CORNERS SANITY ALERT: live corners show 7 vs bookmaker line 10.5 at minute 83.');
     expect(candidate).toContain('Treat this as likely stats desync/delay and set should_push=false for ALL corners markets.');
   });
 
-  test('betting-discipline candidate treats correlated same-family picks as one position', () => {
+  test('candidate v10g keeps hybrid legacy market-disclipline add-ons active', () => {
     const candidate = buildLiveAnalysisPrompt({
       ...baseInput,
       previousRecommendations: [
@@ -853,15 +852,12 @@ describe('buildLiveAnalysisPrompt', () => {
       ],
     }, settings, LIVE_ANALYSIS_PROMPT_CANDIDATE_VERSION);
 
-    expect(candidate).toContain('EXISTING MATCH EXPOSURE');
-    expect(candidate).toContain('Goals Under thesis: 3 prior pick(s), total prior stake 11%');
-    expect(candidate).toContain('Treat correlated lines in the same direction and market family as ONE existing position');
-    expect(candidate).toContain('Experienced football bettors usually prefer one clean entry at the best available line.');
-    expect(candidate).toContain('A looser or tighter line on the same unchanged thesis is NOT diversification.');
-    expect(candidate).toContain('Multiple nearby lines in the same direction are usually one thesis, not multiple separate bets.');
+    expect(candidate).toContain('V10C CORNERS EARLY REALISM');
+    expect(candidate).toContain('V10F SAME-THESIS UNDER ROLLOVER');
+    expect(candidate).toContain('V10G 30-44 BTTS-YES REALISM');
   });
 
-  test('betting-discipline candidate rejects logically impossible odds feed states', () => {
+  test('compact prompt rejects logically impossible odds feed states', () => {
     const candidate = buildLiveAnalysisPrompt({
       ...baseInput,
       minute: 74,
@@ -870,7 +866,7 @@ describe('buildLiveAnalysisPrompt', () => {
         ou: { line: 2.5, over: 2.08, under: 1.82 },
         btts: { yes: 1.47, no: 2.6 },
       },
-    }, settings, LIVE_ANALYSIS_PROMPT_CANDIDATE_VERSION);
+    }, settings, 'v5-compact-a');
 
     expect(candidate).toContain('If the odds feed contains any market that is logically already settled by the current score/state, treat the entire odds feed as suspect and default to no bet.');
     expect(candidate).toContain('Example of impossible feed state: BTTS Yes/No still quoted after both teams have already scored.');

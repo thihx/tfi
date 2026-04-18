@@ -8,7 +8,7 @@
 //
 // Requires: GEMINI_API_KEY (reads from packages/server/.env)
 // Timeout: 90s per test (AI calls may take 10-30s)
-// Model: gemini-3-pro-preview (same as production)
+// Model: gemini-2.5-flash (same as production default)
 // ============================================================
 
 import { describe, test, expect } from 'vitest';
@@ -33,7 +33,7 @@ function loadGeminiApiKey(): string {
 }
 
 const GEMINI_API_KEY = loadGeminiApiKey();
-const GEMINI_MODEL = 'gemini-3-pro-preview';
+const GEMINI_MODEL = 'gemini-2.5-flash';
 const RUN_LLM_TESTS = process.env['RUN_LLM_TESTS'] === '1';
 
 // ==================== Direct Gemini API Call ====================

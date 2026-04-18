@@ -20,6 +20,7 @@ import {
   evaluateRecommendationDeliveryConditions,
   stageRecommendationDeliveries,
 } from './recommendation-deliveries.repo.js';
+import { writePerformanceMemoryFromSettlement } from './ai-performance.repo.js';
 
 export { normalizeMarket, buildDedupKey };
 
@@ -495,7 +496,22 @@ export async function settleRecommendation(
       meta.note ?? actualOutcome,
     ],
   );
-  return r.rows[0] ?? null;
+  const settled = r.rows[0] ?? null;
+  if (settled) {
+    try {
+      await writePerformanceMemoryFromSettlement({
+        selection: settled.selection ?? '',
+        betMarket: settled.bet_market ?? '',
+        minute: settled.minute ?? null,
+        score: settled.score ?? '',
+        result: settled.result ?? '',
+      });
+    } catch (err) {
+      // Keep settlement path resilient even if memory writer fails.
+      console.warn('[recommendations] performance-memory write failed:', err instanceof Error ? err.message : String(err));
+    }
+  }
+  return settled;
 }
 
 export interface RecommendationDeleteSummary {

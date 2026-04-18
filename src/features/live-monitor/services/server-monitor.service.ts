@@ -78,8 +78,6 @@ export interface LiveMonitorTarget {
   minute: number | null;
   score: string;
   live: boolean;
-  mode: string;
-  priority: number;
   customConditions: string;
   recommendedCondition: string;
   lastChecked: string | null;

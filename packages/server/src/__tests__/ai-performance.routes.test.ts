@@ -20,7 +20,7 @@ vi.mock('../repos/ai-performance.repo.js', () => ({
     accuracy: 0.667,
   }),
   getAccuracyByModel: vi.fn().mockResolvedValue([
-    { model: 'gemini-3-pro-preview', total: 50, correct: 30, accuracy: 0.667 },
+    { model: 'gemini-2.5-flash', total: 50, correct: 30, accuracy: 0.667 },
   ]),
   createAiPerformanceRecord: vi.fn().mockImplementation((body: Record<string, unknown>) =>
     Promise.resolve({ id: 1, ...body }),
@@ -73,7 +73,7 @@ describe('GET /api/ai-performance/stats/by-model', () => {
     expect(res.statusCode).toBe(200);
     const body = res.json();
     expect(body).toHaveLength(1);
-    expect(body[0].model).toBe('gemini-3-pro-preview');
+    expect(body[0].model).toBe('gemini-2.5-flash');
   });
 });
 
@@ -85,7 +85,7 @@ describe('POST /api/ai-performance', () => {
       payload: {
         recommendation_id: 1,
         match_id: '100',
-        ai_model: 'gemini-3-pro-preview',
+        ai_model: 'gemini-2.5-flash',
         ai_confidence: 8,
         ai_should_push: true,
       },

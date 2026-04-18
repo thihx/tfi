@@ -23,7 +23,7 @@ describe('createDefaultConfig', () => {
     expect(config.VERY_LATE_PHASE_MINUTE).toBe(85);
     expect(config.ENDGAME_MINUTE).toBe(88);
     expect(config.AI_PROVIDER).toBe('gemini');
-    expect(config.AI_MODEL).toBe('gemini-3-pro-preview');
+    expect(config.AI_MODEL).toBe('gemini-2.5-flash');
     expect(config.MANUAL_PUSH_MATCH_IDS).toEqual([]);
   });
 

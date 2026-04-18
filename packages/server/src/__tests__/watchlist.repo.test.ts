@@ -25,6 +25,7 @@ import {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  vi.mocked(query).mockResolvedValue({ rows: [], rowCount: 0 } as never);
 });
 
 describe('watchlist repository user-scoped isolation', () => {
@@ -55,7 +56,7 @@ describe('watchlist repository user-scoped isolation', () => {
       .mockResolvedValueOnce({ rows: [] } as never)
       .mockResolvedValueOnce({ rows: [] } as never);
 
-    const result = await updateWatchlistEntry('match-1', { priority: 3 }, 'user-1');
+    const result = await updateWatchlistEntry('match-1', { custom_conditions: '(Minute >= 70)' }, 'user-1');
 
     expect(result).toBeNull();
     expect(query).toHaveBeenCalledTimes(2);
@@ -92,17 +93,12 @@ describe('watchlist repository user-scoped isolation', () => {
       .mockResolvedValueOnce({
         rows: [{
           match_id: 'match-1',
-          mode: 'B',
-          priority: 0,
           custom_condition_text: '',
           auto_apply_recommended_condition: true,
-          status: 'active',
           source: 'top-league-auto',
           created_at: '2026-03-24T00:00:00.000Z',
           subscriber_count: 0,
           metadata: {
-            mode: 'B',
-            status: 'active',
             added_by: 'top-league-auto',
             home_team: 'Arsenal',
             away_team: 'Chelsea',
@@ -124,8 +120,6 @@ describe('watchlist repository user-scoped isolation', () => {
       home_team: 'Arsenal',
       away_team: 'Chelsea',
       league: 'Premier League',
-      mode: 'B',
-      status: 'active',
       added_by: 'top-league-auto',
     });
 
@@ -176,7 +170,7 @@ describe('watchlist repository user-scoped isolation', () => {
     expect(String(vi.mocked(query).mock.calls[1]?.[0])).toContain('FROM monitored_matches mm');
   });
 
-  test('getActiveOperationalWatchlist ranks only active subscriptions for each match', async () => {
+  test('getActiveOperationalWatchlist uses subscriber/activity existence guard for active scope', async () => {
     vi.mocked(query)
       .mockResolvedValueOnce({ rowCount: 0 } as never)
       .mockResolvedValueOnce({ rows: [] } as never);
@@ -184,7 +178,7 @@ describe('watchlist repository user-scoped isolation', () => {
     await getActiveOperationalWatchlist();
 
     const sql = String(vi.mocked(query).mock.calls[1]?.[0]);
-    expect(sql).toContain("WHERE ($1::boolean = false OR s.status = 'active')");
+    expect(sql).toContain('COALESCE(mm.subscriber_count, 0) > 0');
   });
 
   test('getActiveOperationalWatchlist excludes orphan monitored rows with zero subscribers unless legacy watchlist is still active', async () => {
@@ -226,7 +220,6 @@ describe('watchlist repository user-scoped isolation', () => {
           home_logo: '',
           away_logo: '',
           kickoff: '15:00',
-          mode: 'B',
           prediction: null,
           recommended_custom_condition: '',
           recommended_condition_reason: '',
@@ -234,8 +227,6 @@ describe('watchlist repository user-scoped isolation', () => {
           recommended_condition_at: null,
           auto_apply_recommended_condition: true,
           custom_conditions: '',
-          priority: 0,
-          status: 'active',
           added_at: '2026-03-24T00:00:00.000Z',
           added_by: 'top-league-auto',
           last_checked: null,
@@ -249,11 +240,8 @@ describe('watchlist repository user-scoped isolation', () => {
       .mockResolvedValueOnce({
         rows: [{
           match_id: 'match-9',
-          mode: 'B',
-          priority: 0,
           custom_condition_text: '',
           auto_apply_recommended_condition: true,
-          status: 'active',
           source: 'top-league-auto',
           created_at: '2026-03-24T00:00:00.000Z',
           subscriber_count: 0,
@@ -262,7 +250,6 @@ describe('watchlist repository user-scoped isolation', () => {
             away_team: 'Chelsea',
             league: 'Premier League',
             added_by: 'top-league-auto',
-            status: 'active',
           },
           match_date: '2026-03-24',
           match_kickoff: '15:00',
@@ -297,7 +284,6 @@ describe('watchlist repository user-scoped isolation', () => {
           home_logo: '',
           away_logo: '',
           kickoff: '20:00',
-          mode: 'B',
           prediction: null,
           recommended_custom_condition: '',
           recommended_condition_reason: '',
@@ -305,8 +291,6 @@ describe('watchlist repository user-scoped isolation', () => {
           recommended_condition_at: null,
           auto_apply_recommended_condition: true,
           custom_conditions: '',
-          priority: 0,
-          status: 'expired',
           added_at: '2026-03-24T00:00:00.000Z',
           added_by: 'top-league-auto',
           last_checked: null,
@@ -320,11 +304,8 @@ describe('watchlist repository user-scoped isolation', () => {
       .mockResolvedValueOnce({
         rows: [{
           match_id: 'match-10',
-          mode: 'B',
-          priority: 0,
           custom_condition_text: '',
           auto_apply_recommended_condition: true,
-          status: 'expired',
           source: 'top-league-auto',
           created_at: '2026-03-24T00:00:00.000Z',
           subscriber_count: 0,
@@ -333,7 +314,6 @@ describe('watchlist repository user-scoped isolation', () => {
             away_team: 'Sevilla',
             league: 'La Liga',
             added_by: 'top-league-auto',
-            status: 'expired',
           },
           match_date: '2026-03-24',
           match_kickoff: '20:00',
@@ -349,7 +329,6 @@ describe('watchlist repository user-scoped isolation', () => {
     const result = await getOperationalWatchlistByMatchId('match-10');
 
     expect(result?.match_id).toBe('match-10');
-    expect(result?.status).toBe('expired');
     const sqlTexts = vi.mocked(query).mock.calls.map((call) => String(call[0]));
     expect(sqlTexts.some((sql) => sql.includes('SELECT * FROM watchlist WHERE match_id = $1'))).toBe(true);
     expect(sqlTexts.some((sql) => sql.includes('INSERT INTO monitored_matches'))).toBe(true);
@@ -388,17 +367,13 @@ describe('watchlist repository user-scoped isolation', () => {
       .mockResolvedValueOnce({
         rows: [{
           match_id: 'match-1',
-          mode: 'B',
-          priority: 3,
           custom_condition_text: '',
           auto_apply_recommended_condition: true,
-          status: 'active',
           source: 'manual',
           created_at: '2026-03-24T00:00:00.000Z',
           subscriber_count: 0,
           metadata: {
-            priority: 3,
-            status: 'active',
+            custom_conditions: '(Minute >= 70)',
             added_by: 'manual',
           },
           match_date: '2026-03-24',
@@ -412,16 +387,16 @@ describe('watchlist repository user-scoped isolation', () => {
         }],
       } as never);
 
-    const result = await updateOperationalWatchlistEntry('match-1', { priority: 3 });
+    const result = await updateOperationalWatchlistEntry('match-1', { custom_conditions: '(Minute >= 70)' });
 
-    expect(result?.priority).toBe(3);
+    expect(result?.match_id).toBe('match-1');
     const sqlTexts = vi.mocked(query).mock.calls.map((call) => String(call[0]));
     expect(sqlTexts.some((sql) => sql.includes('INSERT INTO monitored_matches'))).toBe(true);
     expect(sqlTexts.some((sql) => sql.includes('UPDATE watchlist SET'))).toBe(false);
   });
 
   test('syncWatchlistDates updates monitored metadata rather than legacy watchlist rows', async () => {
-    vi.mocked(query).mockResolvedValueOnce({ rowCount: 3 } as never);
+    vi.mocked(query).mockResolvedValue({ rowCount: 3, rows: [] } as never);
 
     const synced = await syncWatchlistDates();
 
