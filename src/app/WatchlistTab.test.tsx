@@ -149,7 +149,7 @@ describe('WatchlistTab edit flow', () => {
 
     render(<WatchlistTab />);
     await user.click(screen.getByRole('button', { name: 'Edit' }));
-    await user.click(await screen.findByRole('button', { name: 'Save Changes' }));
+    await user.click(await screen.findByRole('button', { name: /Save Changes|Lưu thay đổi/ }));
 
     expect(mockUpdateWatchlistItem).toHaveBeenCalledWith(
       expect.objectContaining({ id: 11, match_id: '100' }),

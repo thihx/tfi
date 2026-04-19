@@ -10,6 +10,8 @@
 
 import { config } from '../config.js';
 import { generateGeminiContent as requestGeminiContent } from './gemini.js';
+import { mkdir, writeFile } from 'node:fs/promises';
+import path from 'node:path';
 import {
   classifyStrategicSourceDomain,
   type StrategicSearchQuality,
@@ -19,6 +21,7 @@ import {
 
 const REQUEST_TIMEOUT_MS = 90_000;
 const STRUCTURE_REQUEST_TIMEOUT_MS = 45_000;
+const QUANT_EXTRACTION_TIMEOUT_MS = 28_000;
 
 const NO_DATA = 'No data found';
 const NO_DATA_VI = 'Không tìm thấy dữ liệu';
@@ -145,6 +148,10 @@ export interface StrategicContextUsabilityOptions {
 export interface StrategicContextFetchOptions extends StrategicContextUsabilityOptions {
   leagueCountry?: string | null;
   rescueMode?: boolean;
+  /** Extra grounded attempt focused on recovering numeric priors (internal). */
+  quantitativeGroundingPass?: boolean;
+  highPriority?: boolean;
+  favoriteLeague?: boolean;
 }
 
 const EMPTY_NARRATIVE: StrategicContextNarrative = {
@@ -195,10 +202,49 @@ interface DraftFallbackPayload {
   reportedDomains: string[];
 }
 
+function isStrategicDebugArtifactsEnabled(): boolean {
+  const raw = String(process.env['STRATEGIC_CONTEXT_DEBUG_ARTIFACTS'] ?? '').trim().toLowerCase();
+  return raw === '1' || raw === 'true' || raw === 'yes' || raw === 'on';
+}
+
+function slugifyForFileName(value: string): string {
+  return cleanText(value, 'unknown')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    .slice(0, 40) || 'unknown';
+}
+
+async function writeStrategicDebugArtifact(
+  payload: Record<string, unknown>,
+  homeTeam: string,
+  awayTeam: string,
+): Promise<void> {
+  if (!isStrategicDebugArtifactsEnabled()) return;
+  try {
+    const dir = path.resolve(process.cwd(), 'tmp', 'strategic-context-debug');
+    await mkdir(dir, { recursive: true });
+    const ts = new Date().toISOString().replace(/[:.]/g, '-');
+    const file = `${ts}-${slugifyForFileName(homeTeam)}-vs-${slugifyForFileName(awayTeam)}.json`;
+    await writeFile(path.join(dir, file), JSON.stringify(payload, null, 2), { encoding: 'utf8' });
+  } catch {
+    // best-effort debug only
+  }
+}
+
 function cleanText(value: unknown, fallback = ''): string {
   const text = typeof value === 'string' ? value : value == null ? '' : String(value);
   const normalized = text.replace(/\s+/g, ' ').trim();
   return normalized || fallback;
+}
+
+/** Strip placeholder strings models sometimes emit for missing rationale. */
+function sanitizeAiConditionReason(value: unknown): string {
+  const t = cleanText(value);
+  if (!t) return '';
+  const lower = t.toLowerCase();
+  if (lower === 'null' || lower === 'undefined' || lower === '(null)') return '';
+  return t;
 }
 
 function parseDraftKeyValueLines(text: string): Record<string, string> {
@@ -331,6 +377,19 @@ function buildScoreStateAtom(state: StrategicConditionScoreState): string | null
   }
 }
 
+function hasSpecificConditionSignal(condition: string): boolean {
+  const normalized = cleanText(condition);
+  if (!normalized) return false;
+  return /(Total goals\s*[<>]=?\s*\d+|Home leading|Away leading|\bDraw\b|NOT Home leading|NOT Away leading)/i.test(normalized);
+}
+
+function isMinuteOnlyCondition(condition: string): boolean {
+  const normalized = cleanText(condition);
+  if (!normalized) return true;
+  const hasMinute = /\(Minute\s*[<>]=?\s*\d+\)/i.test(normalized);
+  return hasMinute && !hasSpecificConditionSignal(normalized);
+}
+
 function normalizeConditionBlueprint(raw: unknown): StrategicConditionBlueprint | null {
   if (!raw || typeof raw !== 'object') return null;
   const obj = raw as Record<string, unknown>;
@@ -345,11 +404,259 @@ function normalizeConditionBlueprint(raw: unknown): StrategicConditionBlueprint 
   };
 }
 
+function averageNumbers(...values: Array<number | null | undefined>): number | null {
+  const filtered = values.filter((value): value is number => typeof value === 'number' && Number.isFinite(value));
+  if (filtered.length === 0) return null;
+  return filtered.reduce((sum, value) => sum + value, 0) / filtered.length;
+}
+
+function normalizeRate01(value: number | null | undefined): number | null {
+  if (value == null || !Number.isFinite(value)) return null;
+  if (value > 1.5) return Math.max(0, Math.min(1, value / 100));
+  return Math.max(0, Math.min(1, value));
+}
+
+function finalizeQuantitativeRates01(quantitative: StrategicContextQuantitative): StrategicContextQuantitative {
+  return {
+    ...quantitative,
+    home_over_2_5_rate_last10: normalizeRate01(quantitative.home_over_2_5_rate_last10),
+    away_over_2_5_rate_last10: normalizeRate01(quantitative.away_over_2_5_rate_last10),
+    home_btts_rate_last10: normalizeRate01(quantitative.home_btts_rate_last10),
+    away_btts_rate_last10: normalizeRate01(quantitative.away_btts_rate_last10),
+    home_clean_sheet_rate_last10: normalizeRate01(quantitative.home_clean_sheet_rate_last10),
+    away_clean_sheet_rate_last10: normalizeRate01(quantitative.away_clean_sheet_rate_last10),
+    home_failed_to_score_rate_last10: normalizeRate01(quantitative.home_failed_to_score_rate_last10),
+    away_failed_to_score_rate_last10: normalizeRate01(quantitative.away_failed_to_score_rate_last10),
+  };
+}
+
+function mergeQuantitativePreferExisting(
+  base: StrategicContextQuantitative,
+  patch: StrategicContextQuantitative,
+): StrategicContextQuantitative {
+  const keys: (keyof StrategicContextQuantitative)[] = [
+    'home_last5_points',
+    'away_last5_points',
+    'home_last5_goals_for',
+    'away_last5_goals_for',
+    'home_last5_goals_against',
+    'away_last5_goals_against',
+    'home_home_goals_avg',
+    'away_away_goals_avg',
+    'home_over_2_5_rate_last10',
+    'away_over_2_5_rate_last10',
+    'home_btts_rate_last10',
+    'away_btts_rate_last10',
+    'home_clean_sheet_rate_last10',
+    'away_clean_sheet_rate_last10',
+    'home_failed_to_score_rate_last10',
+    'away_failed_to_score_rate_last10',
+  ];
+  const out: StrategicContextQuantitative = { ...base };
+  const writable = out as unknown as Record<string, number | null>;
+  const patchValues = patch as unknown as Record<string, number | null>;
+  for (const key of keys) {
+    const k = key as string;
+    if (writable[k] == null && patchValues[k] != null) {
+      writable[k] = patchValues[k]!;
+    }
+  }
+  return finalizeQuantitativeRates01(out);
+}
+
+function isWindowValid(start: number | null, end: number | null): boolean {
+  if (start == null || start < 1 || start > 90) return false;
+  if (end != null && (end <= start || end > 95)) return false;
+  return true;
+}
+
+function inferMinuteWindow(quantitative: StrategicContextQuantitative): { start: number; end: number } {
+  const over25 = averageNumbers(
+    normalizeRate01(quantitative.home_over_2_5_rate_last10),
+    normalizeRate01(quantitative.away_over_2_5_rate_last10),
+  );
+  const btts = averageNumbers(
+    normalizeRate01(quantitative.home_btts_rate_last10),
+    normalizeRate01(quantitative.away_btts_rate_last10),
+  );
+  const goalsAvg = averageNumbers(quantitative.home_home_goals_avg, quantitative.away_away_goals_avg);
+  const cleanSheet = averageNumbers(
+    normalizeRate01(quantitative.home_clean_sheet_rate_last10),
+    normalizeRate01(quantitative.away_clean_sheet_rate_last10),
+  );
+  const failedToScore = averageNumbers(
+    normalizeRate01(quantitative.home_failed_to_score_rate_last10),
+    normalizeRate01(quantitative.away_failed_to_score_rate_last10),
+  );
+  const avgGoalsForPerMatch = averageNumbers(
+    quantitative.home_last5_goals_for != null ? quantitative.home_last5_goals_for / 5 : null,
+    quantitative.away_last5_goals_for != null ? quantitative.away_last5_goals_for / 5 : null,
+  );
+
+  const openGameSignal = (over25 != null && over25 >= 0.62)
+    || (btts != null && btts >= 0.62)
+    || (goalsAvg != null && goalsAvg >= 3.0)
+    || (avgGoalsForPerMatch != null && avgGoalsForPerMatch >= 1.5);
+  const tightGameSignal = (cleanSheet != null && cleanSheet >= 0.38)
+    || (failedToScore != null && failedToScore >= 0.33)
+    || (goalsAvg != null && goalsAvg <= 2.1)
+    || (avgGoalsForPerMatch != null && avgGoalsForPerMatch <= 1.0);
+
+  if (openGameSignal && !tightGameSignal) return { start: 52, end: 82 };
+  if (tightGameSignal && !openGameSignal) return { start: 64, end: 88 };
+  return { start: 58, end: 84 };
+}
+
+function inferScoreStateFromQuantitative(quantitative: StrategicContextQuantitative): StrategicConditionScoreState {
+  const hasPoints = quantitative.home_last5_points != null && quantitative.away_last5_points != null;
+  const hasGoals = quantitative.home_last5_goals_for != null && quantitative.away_last5_goals_for != null;
+  if (!hasPoints && !hasGoals) return 'any';
+  const pointsDiff = (quantitative.home_last5_points ?? 0) - (quantitative.away_last5_points ?? 0);
+  const goalsDiff = (quantitative.home_last5_goals_for ?? 0) - (quantitative.away_last5_goals_for ?? 0);
+  const combined = pointsDiff + goalsDiff * 0.5;
+
+  if (combined >= 4) return 'home_leading';
+  if (combined <= -4) return 'away_leading';
+  if (Math.abs(combined) <= 1.5) return 'draw';
+  return combined > 0 ? 'not_away_leading' : 'not_home_leading';
+}
+
+function inferScoreStateFromNarrative(qualitative: StrategicContextNarrative): StrategicConditionScoreState {
+  const leaguePositions = cleanText(qualitative.league_positions).toLowerCase();
+  if (!leaguePositions || isNoDataText(leaguePositions)) return 'any';
+
+  const homePosMatch = leaguePositions.match(/home[^0-9]{0,30}(\d{1,2})/i);
+  const awayPosMatch = leaguePositions.match(/away[^0-9]{0,30}(\d{1,2})/i);
+  const homePos = homePosMatch ? Number(homePosMatch[1]) : null;
+  const awayPos = awayPosMatch ? Number(awayPosMatch[1]) : null;
+  if (homePos != null && awayPos != null && Number.isFinite(homePos) && Number.isFinite(awayPos)) {
+    const diff = awayPos - homePos;
+    if (diff >= 5) return 'home_leading';
+    if (diff <= -5) return 'away_leading';
+    if (Math.abs(diff) <= 2) return 'draw';
+    return diff > 0 ? 'not_away_leading' : 'not_home_leading';
+  }
+
+  return 'any';
+}
+
+function inferGoalStateFromQuantitative(quantitative: StrategicContextQuantitative): StrategicConditionGoalState {
+  const over25 = averageNumbers(
+    normalizeRate01(quantitative.home_over_2_5_rate_last10),
+    normalizeRate01(quantitative.away_over_2_5_rate_last10),
+  );
+  const btts = averageNumbers(
+    normalizeRate01(quantitative.home_btts_rate_last10),
+    normalizeRate01(quantitative.away_btts_rate_last10),
+  );
+  const cleanSheet = averageNumbers(
+    normalizeRate01(quantitative.home_clean_sheet_rate_last10),
+    normalizeRate01(quantitative.away_clean_sheet_rate_last10),
+  );
+  const failedToScore = averageNumbers(
+    normalizeRate01(quantitative.home_failed_to_score_rate_last10),
+    normalizeRate01(quantitative.away_failed_to_score_rate_last10),
+  );
+  const goalsAvg = averageNumbers(quantitative.home_home_goals_avg, quantitative.away_away_goals_avg);
+  const avgGoalsForPerMatch = averageNumbers(
+    quantitative.home_last5_goals_for != null ? quantitative.home_last5_goals_for / 5 : null,
+    quantitative.away_last5_goals_for != null ? quantitative.away_last5_goals_for / 5 : null,
+  );
+
+  const evidenceCount = [over25, btts, cleanSheet, failedToScore, goalsAvg, avgGoalsForPerMatch]
+    .filter((value) => value != null).length;
+  if (evidenceCount === 0) return 'any';
+
+  const openGameSignal = (over25 != null && over25 >= 0.55)
+    || (btts != null && btts >= 0.57)
+    || (goalsAvg != null && goalsAvg >= 2.7)
+    || (avgGoalsForPerMatch != null && avgGoalsForPerMatch >= 1.45);
+  const tightGameSignal = (cleanSheet != null && cleanSheet >= 0.4)
+    || (failedToScore != null && failedToScore >= 0.35)
+    || (goalsAvg != null && goalsAvg <= 2.2)
+    || (avgGoalsForPerMatch != null && avgGoalsForPerMatch <= 1.05);
+
+  if (openGameSignal && !tightGameSignal) return 'goals_gte_2';
+  if (tightGameSignal && !openGameSignal) return 'goals_lte_2';
+  return 'any';
+}
+
+function inferGoalStateFromNarrative(qualitative: StrategicContextNarrative): StrategicConditionGoalState {
+  const corpus = [
+    qualitative.summary,
+    qualitative.h2h_narrative,
+    qualitative.fixture_congestion,
+    qualitative.rotation_risk,
+  ]
+    .map((value) => cleanText(value).toLowerCase())
+    .join(' ');
+  if (!corpus || isNoDataText(corpus)) return 'any';
+
+  if (/(high[- ]scoring|many goals|over 2\.5|btts|both teams to score|open game|attacking)/i.test(corpus)) {
+    return 'goals_gte_2';
+  }
+  if (/(low[- ]scoring|under 2\.5|tight game|defensive|few goals|cagey)/i.test(corpus)) {
+    return 'goals_lte_2';
+  }
+  return 'any';
+}
+
+function refineConditionBlueprint(
+  blueprint: StrategicConditionBlueprint | null,
+  quantitative: StrategicContextQuantitative,
+  sourceMeta: StrategicContextSourceMeta,
+  qualitative?: StrategicContextNarrative | null,
+): StrategicConditionBlueprint | null {
+  if (!blueprint) return null;
+
+  const preferredScore = blueprint.preferred_score_state;
+  const preferredGoal = blueprint.preferred_goal_state;
+  const bothAny = preferredScore === 'any' && preferredGoal === 'any';
+  const evidenceStrong = sourceMeta.trusted_source_count >= 2
+    && (sourceMeta.search_quality === 'medium' || sourceMeta.search_quality === 'high');
+
+  const result: StrategicConditionBlueprint = { ...blueprint };
+  if (!isWindowValid(result.alert_window_start, result.alert_window_end)) {
+    const inferred = inferMinuteWindow(quantitative);
+    result.alert_window_start = inferred.start;
+    result.alert_window_end = inferred.end;
+  }
+
+  if (bothAny && evidenceStrong) {
+    const inferredGoal = inferGoalStateFromQuantitative(quantitative);
+    const narrativeGoal = inferredGoal === 'any' && qualitative ? inferGoalStateFromNarrative(qualitative) : 'any';
+    if (inferredGoal !== 'any') {
+      result.preferred_goal_state = inferredGoal;
+    } else if (narrativeGoal !== 'any') {
+      result.preferred_goal_state = narrativeGoal;
+    } else {
+      const quantitativeScore = inferScoreStateFromQuantitative(quantitative);
+      const narrativeScore = quantitativeScore === 'any' && qualitative ? inferScoreStateFromNarrative(qualitative) : 'any';
+      result.preferred_score_state = quantitativeScore !== 'any' ? quantitativeScore : narrativeScore;
+    }
+  }
+
+  if (result.favoured_side === 'none') {
+    if (result.preferred_score_state === 'home_leading' || result.preferred_score_state === 'not_away_leading') {
+      result.favoured_side = 'home';
+    } else if (result.preferred_score_state === 'away_leading' || result.preferred_score_state === 'not_home_leading') {
+      result.favoured_side = 'away';
+    }
+  }
+
+  return result;
+}
+
 function parseReportedCsvLine(value: string | undefined): string[] {
   return (value || '')
     .split(',')
     .map((item) => item.trim())
     .filter(Boolean);
+}
+
+function countDraftQuantitativeCoverage(quantitative: Partial<StrategicContextQuantitative> | null | undefined): number {
+  if (!quantitative || typeof quantitative !== 'object') return 0;
+  return Object.values(quantitative).filter((value) => value != null).length;
 }
 
 function extractDraftFallbackPayload(draftText: string): DraftFallbackPayload {
@@ -803,10 +1110,11 @@ function normalizeContextPayload(payload: unknown, searchedAt: string, sourceMet
   const qualitativeVi = normalizeNarrative(raw.qualitative_vi ?? qualitativeRoot.vi ?? raw.vi, NO_DATA_VI);
   const quantitative = normalizeQuantitative(raw.quantitative);
   const competitionType = normalizeCompetitionType(raw.competition_type);
-  const blueprint = normalizeConditionBlueprint(raw.condition_blueprint ?? raw.ai_condition_blueprint);
+  const rawBlueprint = normalizeConditionBlueprint(raw.condition_blueprint ?? raw.ai_condition_blueprint);
+  const blueprint = refineConditionBlueprint(rawBlueprint, quantitative, sourceMeta, qualitativeEn);
   const aiCondition = buildMachineConditionFromBlueprint(blueprint) || cleanText(raw.ai_condition);
-  const aiConditionReason = cleanText(raw.ai_condition_reason || blueprint?.alert_rationale_en);
-  const aiConditionReasonVi = cleanText(raw.ai_condition_reason_vi || blueprint?.alert_rationale_vi);
+  const aiConditionReason = sanitizeAiConditionReason(raw.ai_condition_reason || blueprint?.alert_rationale_en);
+  const aiConditionReasonVi = sanitizeAiConditionReason(raw.ai_condition_reason_vi || blueprint?.alert_rationale_vi);
 
   const context: StrategicContext = {
     ...qualitativeEn,
@@ -899,8 +1207,9 @@ function mergeStrategicContextWithDraftFallback(
     away_failed_to_score_rate_last10: context.quantitative.away_failed_to_score_rate_last10 ?? draftFallback.quantitative.away_failed_to_score_rate_last10 ?? null,
   };
 
-  const blueprint = context.ai_condition_blueprint || draftFallback.blueprint;
   const mergedSourceMeta = mergeSourceMeta(sourceMeta, draftFallback);
+  const rawBlueprint = context.ai_condition_blueprint || draftFallback.blueprint;
+  const blueprint = refineConditionBlueprint(rawBlueprint, mergedQuantitative, mergedSourceMeta, mergedQualitativeEn);
 
   return {
     ...context,
@@ -953,6 +1262,142 @@ function parseStrategicResponse(text: string, searchedAt: string, sourceMeta: St
   return normalizeContextPayload(parsed, searchedAt, sourceMeta);
 }
 
+function buildConditionSpecializationPrompt(
+  context: StrategicContext,
+  draftText: string,
+  attempt: 1 | 2,
+): string {
+  const machineCondition = cleanText(context.ai_condition || buildMachineConditionFromBlueprint(context.ai_condition_blueprint));
+  const compactContext = {
+    source_quality: context.source_meta.search_quality,
+    trusted_source_count: context.source_meta.trusted_source_count,
+    summary_en: context.qualitative.en.summary,
+    league_positions: context.qualitative.en.league_positions,
+    h2h_narrative: context.qualitative.en.h2h_narrative,
+    quantitative: context.quantitative,
+    current_machine_condition: machineCondition,
+    current_blueprint: context.ai_condition_blueprint,
+  };
+  const retryBlock = attempt === 2
+    ? `
+RETRY PASS (STRICT — ATTEMPT 2):
+- The first specialization attempt failed or still produced a minute-only condition.
+- You MUST output a non-minute-only machine condition when TRUSTED_SOURCE_COUNT >= 3.
+- At least one of preferred_goal_state or preferred_score_state MUST NOT be "any".
+- Pick the single strongest defensible signal from evidence (prefer goal-state if quantitative is sparse but narrative implies scoring tempo; otherwise score-state from league_positions / momentum).
+- Do NOT contradict explicit grounded facts.
+`
+    : '';
+  return `You are improving ONLY the live-betting condition for a high-priority (Top/Favorite) football match.
+
+GOAL:
+- Upgrade generic minute-only condition into a specific, actionable condition when trusted evidence exists.
+${retryBlock}
+
+STRICT RULES:
+- Return STRICT JSON only. No commentary.
+- Use only evidence from CONTEXT and GROUNDED NOTES below.
+- Keep schema exact (no extra keys).
+- condition_blueprint enums allowed:
+  - preferred_score_state: "any" | "draw" | "home_leading" | "away_leading" | "not_home_leading" | "not_away_leading"
+  - preferred_goal_state: "any" | "goals_lte_0" | "goals_lte_1" | "goals_lte_2" | "goals_gte_1" | "goals_gte_2" | "goals_gte_3"
+  - favoured_side: "home" | "away" | "none"
+- alert_window_start: integer 1..90, alert_window_end: null or integer > start and <=95.
+- ai_condition must be machine-readable and use uppercase " AND".
+- Allowed atoms:
+  - (Minute >= N)
+  - (Minute <= N)
+  - (Total goals <= 0|1|2)
+  - (Total goals >= 1|2|3)
+  - (Draw)
+  - (Home leading)
+  - (Away leading)
+  - (NOT Home leading)
+  - (NOT Away leading)
+- For this high-priority case, avoid minute-only condition when TRUSTED_SOURCE_COUNT >= 3.
+- Prefer adding one specific signal (goal-state or score-state) that is most defensible from evidence.
+
+CONTEXT:
+${JSON.stringify(compactContext, null, 2)}
+
+GROUNDED NOTES:
+${draftText}
+
+Return STRICT JSON with this schema only:
+{
+  "condition_blueprint": {
+    "alert_window_start": number | null,
+    "alert_window_end": number | null,
+    "preferred_score_state": "any" | "draw" | "home_leading" | "away_leading" | "not_home_leading" | "not_away_leading",
+    "preferred_goal_state": "any" | "goals_lte_0" | "goals_lte_1" | "goals_lte_2" | "goals_gte_1" | "goals_gte_2" | "goals_gte_3",
+    "favoured_side": "home" | "away" | "none",
+    "alert_rationale_en": string,
+    "alert_rationale_vi": string
+  },
+  "ai_condition": string,
+  "ai_condition_reason": string,
+  "ai_condition_reason_vi": string
+}`;
+}
+
+function shouldSpecializeCondition(
+  context: StrategicContext,
+  options: StrategicContextFetchOptions,
+): boolean {
+  if (!options.highPriority) return false;
+  const trusted = Number(context.source_meta?.trusted_source_count ?? 0);
+  const quality = cleanText(context.source_meta?.search_quality).toLowerCase();
+  if (trusted < 3) return false;
+  if (quality !== 'medium' && quality !== 'high') return false;
+  const machine = cleanText(context.ai_condition || buildMachineConditionFromBlueprint(context.ai_condition_blueprint));
+  return isMinuteOnlyCondition(machine);
+}
+
+async function specializeConditionForPriorityMatch(
+  context: StrategicContext,
+  draftText: string,
+): Promise<StrategicContext | null> {
+  for (const attempt of [1, 2] as const) {
+    const data = await generateGeminiContent(
+      buildConditionSpecializationPrompt(context, draftText, attempt),
+      {
+        model: config.geminiStrategicStructuredModel || config.geminiModel,
+        withSearch: false,
+        timeoutMs: STRUCTURE_REQUEST_TIMEOUT_MS,
+        maxOutputTokens: config.geminiStrategicStructuredMaxOutputTokens,
+        responseMimeType: 'application/json',
+        thinkingBudget: config.geminiStrategicStructuredThinkingBudget,
+      },
+    );
+    if (!data) continue;
+    const text = extractCandidateText(data);
+    if (!text) continue;
+    const json = extractJsonString(text);
+    if (!json) continue;
+    try {
+      const parsed = JSON.parse(json) as Record<string, unknown>;
+      const refinedBlueprint = refineConditionBlueprint(
+        normalizeConditionBlueprint(parsed.condition_blueprint),
+        context.quantitative,
+        context.source_meta,
+        context.qualitative.en,
+      );
+      const machine = buildMachineConditionFromBlueprint(refinedBlueprint) || cleanText(parsed.ai_condition);
+      if (!machine || !machine.startsWith('(') || isMinuteOnlyCondition(machine)) continue;
+      return {
+        ...context,
+        ai_condition_blueprint: refinedBlueprint,
+        ai_condition: machine,
+        ai_condition_reason: sanitizeAiConditionReason(parsed.ai_condition_reason || parsed.ai_condition_reason_vi || refinedBlueprint?.alert_rationale_en || context.ai_condition_reason),
+        ai_condition_reason_vi: sanitizeAiConditionReason(parsed.ai_condition_reason_vi || refinedBlueprint?.alert_rationale_vi || context.ai_condition_reason_vi),
+      };
+    } catch {
+      continue;
+    }
+  }
+  return null;
+}
+
 async function generateGeminiContent(
   prompt: string,
   options: {
@@ -975,6 +1420,87 @@ async function generateGeminiContent(
   });
 }
 
+function reapplyConditionRefinementAfterQuantitativeChange(ctx: StrategicContext): StrategicContext {
+  const baseBp = ctx.ai_condition_blueprint;
+  if (!baseBp) return ctx;
+  const refined = refineConditionBlueprint(
+    baseBp,
+    ctx.quantitative,
+    ctx.source_meta,
+    ctx.qualitative.en,
+  );
+  if (!refined) return ctx;
+  const machine = buildMachineConditionFromBlueprint(refined) || cleanText(ctx.ai_condition);
+  return {
+    ...ctx,
+    ai_condition_blueprint: refined,
+    ai_condition: machine.startsWith('(') ? machine : ctx.ai_condition,
+    ai_condition_reason: sanitizeAiConditionReason(ctx.ai_condition_reason || refined.alert_rationale_en),
+    ai_condition_reason_vi: sanitizeAiConditionReason(ctx.ai_condition_reason_vi || refined.alert_rationale_vi),
+  };
+}
+
+async function enrichQuantitativeFromGroundedNotes(
+  draftText: string,
+  existing: StrategicContextQuantitative,
+): Promise<StrategicContextQuantitative> {
+  if (process.env['NODE_ENV'] === 'test') return existing;
+  const prompt = `You extract ONLY explicit numeric football statistics already stated in GROUNDED NOTES.
+
+RULES:
+- Return STRICT JSON only. One object. No commentary.
+- Use null when the notes do not explicitly give that exact metric as a number.
+- Do NOT guess, infer from vague wording, or fabricate values.
+- If notes say "No data found" for a metric, use null.
+- For rate fields (*_rate_* and failed_to_score), output a decimal between 0 and 1 (e.g. 45% or 45 -> 0.45).
+
+Keys (all required in JSON):
+home_last5_points, away_last5_points, home_last5_goals_for, away_last5_goals_for, home_last5_goals_against, away_last5_goals_against,
+home_home_goals_avg, away_away_goals_avg,
+home_over_2_5_rate_last10, away_over_2_5_rate_last10, home_btts_rate_last10, away_btts_rate_last10,
+home_clean_sheet_rate_last10, away_clean_sheet_rate_last10, home_failed_to_score_rate_last10, away_failed_to_score_rate_last10
+
+GROUNDED NOTES:
+${draftText.slice(0, 14000)}`;
+
+  try {
+    const data = await generateGeminiContent(prompt, {
+      model: config.geminiStrategicStructuredModel || config.geminiModel,
+      withSearch: false,
+      timeoutMs: QUANT_EXTRACTION_TIMEOUT_MS,
+      maxOutputTokens: Math.min(4096, config.geminiStrategicStructuredMaxOutputTokens),
+      responseMimeType: 'application/json',
+      thinkingBudget: config.geminiStrategicStructuredThinkingBudget,
+    });
+    if (!data) return existing;
+    const text = extractCandidateText(data);
+    if (!text) return existing;
+    const json = extractJsonString(text);
+    if (!json) return existing;
+    const parsed = JSON.parse(json) as Record<string, unknown>;
+    const extracted = normalizeQuantitative(parsed);
+    return mergeQuantitativePreferExisting(existing, extracted);
+  } catch {
+    return existing;
+  }
+}
+
+async function tryQuantitativeBackfillFromNotes(
+  ctx: StrategicContext,
+  draftText: string,
+  options: StrategicContextFetchOptions,
+): Promise<StrategicContext> {
+  if (process.env['NODE_ENV'] === 'test') return ctx;
+  if (!options.highPriority) return ctx;
+  const quality = cleanText(ctx.source_meta?.search_quality).toLowerCase();
+  if (quality !== 'medium' && quality !== 'high') return ctx;
+  if (Number(ctx.source_meta?.trusted_source_count ?? 0) < 2) return ctx;
+  if (countStrategicQuantitativeCoverage(ctx.quantitative) >= 4) return ctx;
+
+  const merged = await enrichQuantitativeFromGroundedNotes(draftText, ctx.quantitative);
+  return reapplyConditionRefinementAfterQuantitativeChange({ ...ctx, quantitative: merged });
+}
+
 async function fetchGroundedResearchDraft(
   homeTeam: string,
   awayTeam: string,
@@ -993,11 +1519,117 @@ async function fetchGroundedResearchDraft(
   });
   if (!data) return null;
 
-  const draftText = extractCandidateText(data);
+  let draftText = extractCandidateText(data);
   if (!draftText) return null;
 
-  const fallback = extractDraftFallbackPayload(draftText);
-  const sourceMeta = mergeSourceMeta(buildSourceMeta(extractGroundingMetadata(data)), fallback);
+  let fallback = extractDraftFallbackPayload(draftText);
+  let sourceMeta = mergeSourceMeta(buildSourceMeta(extractGroundingMetadata(data)), fallback);
+  let quantitativeCoverage = countDraftQuantitativeCoverage(fallback.quantitative);
+  let sparseQuantitativeDespiteTrustedSources = sourceMeta.trusted_source_count >= 2
+    && (sourceMeta.search_quality === 'medium' || sourceMeta.search_quality === 'high')
+    && quantitativeCoverage < 4;
+
+  const allowDraftRescue = process.env['NODE_ENV'] !== 'test' && options.highPriority === true;
+  if (sparseQuantitativeDespiteTrustedSources && allowDraftRescue) {
+    try {
+      const rescueData = await generateGeminiContent(
+        buildGroundedResearchDraftPrompt(homeTeam, awayTeam, league, dateStr, { ...options, rescueMode: true }),
+        {
+          model: config.geminiStrategicGroundedModel || config.geminiModel,
+          withSearch: true,
+          timeoutMs: REQUEST_TIMEOUT_MS,
+          maxOutputTokens: config.geminiStrategicGroundedMaxOutputTokens,
+          responseMimeType: 'text/plain',
+          thinkingBudget: config.geminiStrategicGroundedThinkingBudget,
+        },
+      );
+      if (rescueData) {
+        const rescueDraftText = extractCandidateText(rescueData);
+        if (rescueDraftText) {
+          const rescueFallback = extractDraftFallbackPayload(rescueDraftText);
+          const rescueSourceMeta = mergeSourceMeta(buildSourceMeta(extractGroundingMetadata(rescueData)), rescueFallback);
+          const rescueCoverage = countDraftQuantitativeCoverage(rescueFallback.quantitative);
+          const shouldAdoptRescue = rescueCoverage > quantitativeCoverage
+            || (
+              rescueCoverage === quantitativeCoverage
+              && rescueSourceMeta.trusted_source_count > sourceMeta.trusted_source_count
+            );
+          if (shouldAdoptRescue) {
+            draftText = rescueDraftText;
+            fallback = rescueFallback;
+            sourceMeta = rescueSourceMeta;
+            quantitativeCoverage = rescueCoverage;
+            sparseQuantitativeDespiteTrustedSources = sourceMeta.trusted_source_count >= 2
+              && (sourceMeta.search_quality === 'medium' || sourceMeta.search_quality === 'high')
+              && quantitativeCoverage < 4;
+          }
+        }
+      }
+    } catch {
+      // best-effort rescue; keep original draft on rescue failure
+    }
+  }
+
+  if (sparseQuantitativeDespiteTrustedSources && allowDraftRescue) {
+    try {
+      const quantPassData = await generateGeminiContent(
+        buildGroundedResearchDraftPrompt(homeTeam, awayTeam, league, dateStr, { ...options, quantitativeGroundingPass: true }),
+        {
+          model: config.geminiStrategicGroundedModel || config.geminiModel,
+          withSearch: true,
+          timeoutMs: REQUEST_TIMEOUT_MS,
+          maxOutputTokens: config.geminiStrategicGroundedMaxOutputTokens,
+          responseMimeType: 'text/plain',
+          thinkingBudget: config.geminiStrategicGroundedThinkingBudget,
+        },
+      );
+      if (quantPassData) {
+        const quantDraftText = extractCandidateText(quantPassData);
+        if (quantDraftText) {
+          const quantFallback = extractDraftFallbackPayload(quantDraftText);
+          const quantSourceMeta = mergeSourceMeta(buildSourceMeta(extractGroundingMetadata(quantPassData)), quantFallback);
+          const quantCoverage = countDraftQuantitativeCoverage(quantFallback.quantitative);
+          const shouldAdoptQuantPass = quantCoverage > quantitativeCoverage
+            || (
+              quantCoverage === quantitativeCoverage
+              && quantSourceMeta.trusted_source_count > sourceMeta.trusted_source_count
+            );
+          if (shouldAdoptQuantPass) {
+            draftText = quantDraftText;
+            fallback = quantFallback;
+            sourceMeta = quantSourceMeta;
+            quantitativeCoverage = quantCoverage;
+            sparseQuantitativeDespiteTrustedSources = sourceMeta.trusted_source_count >= 2
+              && (sourceMeta.search_quality === 'medium' || sourceMeta.search_quality === 'high')
+              && quantitativeCoverage < 4;
+          }
+        }
+      }
+    } catch {
+      // best-effort quantitative grounding pass
+    }
+  }
+
+  if (sparseQuantitativeDespiteTrustedSources) {
+    console.warn(
+      `[strategic-context] Sparse quantitative draft for ${homeTeam} vs ${awayTeam}: `
+      + `coverage=${quantitativeCoverage}, trusted=${sourceMeta.trusted_source_count}, quality=${sourceMeta.search_quality}`,
+    );
+  }
+
+  await writeStrategicDebugArtifact(
+    {
+      stage: 'grounded-draft',
+      match: { homeTeam, awayTeam, league, dateStr },
+      sourceMeta,
+      quantitativeCoverage,
+      sparseQuantitativeDespiteTrustedSources,
+      fallbackQuantitative: fallback.quantitative,
+      draftTextPreview: draftText.slice(0, 4000),
+    },
+    homeTeam,
+    awayTeam,
+  );
   return { draftText, sourceMeta, fallback };
 }
 
@@ -1027,6 +1659,16 @@ async function buildStructuredStrategicContext(
 
   const text = extractCandidateText(data);
   if (!text) return draftOnlyContext;
+  await writeStrategicDebugArtifact(
+    {
+      stage: 'structured-raw',
+      sourceMeta,
+      draftPreview: draftText.slice(0, 2500),
+      structuredTextPreview: text.slice(0, 3500),
+    },
+    'structured',
+    'context',
+  );
 
   try {
     const parsed = parseStrategicResponse(text, searchedAt, sourceMeta);
@@ -1062,6 +1704,23 @@ function buildGroundedResearchDraftPrompt(
   options: StrategicContextFetchOptions = {},
 ): string {
   const leagueCountry = cleanText(options.leagueCountry);
+  const highPriorityFocus = options.highPriority
+    ? `
+PRIORITY ENRICHMENT MODE:
+- This match is in a Top/Favorite league bucket and needs higher-quality strategic output.
+- Your output should maximize actionable live-betting context while staying fact-grounded.
+- For trusted-source runs, avoid generic all-null quantitative blocks.
+- If quantitative evidence exists in trusted references, surface it explicitly in numeric fields.
+- HARD TARGET: when your search yields medium/high quality with multiple trustworthy domains, populate at least 8 of the 16 quantitative keys with numeric literals (not null). Prioritize last-5 points, last-5 goals for/against, home/away goals averages, Over2.5 and BTTS last-10 rates.
+`
+    : '';
+  const favoriteLeagueFocus = options.favoriteLeague
+    ? `
+FAVORITE LEAGUE CONTEXT:
+- This competition is explicitly selected by users as a favorite league.
+- Prioritize practical, actionable context over generic narrative.
+`
+    : '';
   const topLeagueFocus = options.topLeague
     ? `
 TOP-LEAGUE PRIORITY:
@@ -1088,6 +1747,23 @@ RESCUE PASS:
   - a summary grounded in current season context
 `
     : '';
+  const quantitativeGroundingPassFocus = options.quantitativeGroundingPass
+    ? `
+QUANT-FOCUSED GROUNDING PASS (NUMERIC RECOVERY):
+- Prior output still lacked recoverable numeric priors. Open season/match stat pages (FBref, SofaScore, FotMob, Flashscore, official league stats) for BOTH teams.
+- You MUST fill HOME_LAST5_POINTS, AWAY_LAST5_POINTS, HOME_LAST5_GOALS_FOR, AWAY_LAST5_GOALS_FOR, HOME_LAST5_GOALS_AGAINST, AWAY_LAST5_GOALS_AGAINST when the page shows last-five form rows.
+- Fill HOME_OVER_2_5_RATE_LAST10 / AWAY_OVER_2_5_RATE_LAST10 and BTTS rates when explicitly listed (numeric literals or null).
+- Keep qualitative lines short; numeric accuracy is the priority of this pass.
+`
+    : '';
+  const quantRecoveryFloor = (options.highPriority || options.topLeague)
+    ? `
+QUANTITATIVE FLOOR (STATS TABLES):
+- When any trustworthy stats table exists for the current season, do not leave all 16 quantitative keys null unless the table truly lacks that data.
+- Prefer filling last-five points and last-five goals for/against for BOTH teams first, then home/away goals averages, then Over2.5/BTTS last-10 if shown.
+`
+    : '';
+  const wordLimit = options.highPriority ? 640 : options.topLeague ? 560 : 500;
   return `You are a football pre-match research analyst preparing grounded raw notes for a live betting decision engine.
 
 Match:
@@ -1108,8 +1784,13 @@ SEARCH DISCIPLINE:
 - Do NOT invent exact numbers.
 - Do NOT infer team strength solely from brand size, reputation, or club-name recognition.
 - Return ENGLISH only in this step.
+- Keep each value compact so all keys fit. For qualitative fields, target <= 16 words.
+${highPriorityFocus}
+${favoriteLeagueFocus}
 ${topLeagueFocus}
 ${rescueFocus}
+${quantitativeGroundingPassFocus}
+${quantRecoveryFloor}
 
 TASKS:
 1. Produce concise qualitative notes:
@@ -1150,6 +1831,13 @@ TASKS:
    - "friendly"
 4. Generate ONE monitoring condition expression for live monitoring, only if strategically meaningful.
 
+QUANTITATIVE EXTRACTION RULES (IMPORTANT):
+- For quantitative keys, prioritize official competition pages and reputable stats/reference sources.
+- If a trustworthy source provides a numeric clue, extract a numeric value instead of "No data found"/null.
+- For rate fields, return numeric values only (decimal 0..1 or percentage-style number) without prose.
+- For medium/high confidence research runs, avoid all-null quantitative output and populate every recoverable metric.
+- Use null only when no trustworthy source provides that specific metric.
+
 CONDITION GENERATION RULES:
 - For european/international/friendly matches: the teams are from different domestic leagues, so do NOT compare their league positions directly.
 - If competition_type is unknown or unclear, leave it as an empty string and disable league-position-gap reasoning.
@@ -1157,8 +1845,12 @@ CONDITION GENERATION RULES:
 
 OUTPUT:
 - Return PLAIN TEXT only, no JSON and no markdown table.
-- Keep total output under 300 words.
+- Keep total output under ${wordLimit} words.
 - Every listed key must appear exactly once, even if the value is "No data found" or null.
+- No duplicated keys.
+- Do not include citation markers like "[cite: ...]" in values.
+- The output must start with "COMPETITION_TYPE:" and end with "SOURCE_DOMAINS:".
+- For numeric fields, output numeric literals or null only (no prose).
 - Use exactly this key-value layout:
 COMPETITION_TYPE:
 HOME_MOTIVATION:
@@ -1219,6 +1911,7 @@ REJECTED_SOURCE_COUNT: ${sourceMeta.rejected_source_count}
 RULES:
 - Use ONLY facts present in the grounded notes below.
 - If a field is missing or uncertain, use "No data found" for narrative fields and null for numeric fields.
+- Preserve numeric values from grounded notes whenever present; do NOT replace grounded numeric values with null.
 - Keep English and Vietnamese fields aligned to the same facts.
 - Keep each narrative field concise: usually <= 18 words. Keep summary <= 28 words.
 - Do NOT add commentary outside JSON.
@@ -1229,6 +1922,36 @@ RULES:
   - preferred_score_state: "any" | "draw" | "home_leading" | "away_leading" | "not_home_leading" | "not_away_leading"
   - preferred_goal_state: "any" | "goals_lte_0" | "goals_lte_1" | "goals_lte_2" | "goals_gte_1" | "goals_gte_2" | "goals_gte_3"
   - favoured_side: "home" | "away" | "none"
+- QUALITY TARGET FOR LIVE BETTING:
+  - If SOURCE_QUALITY is "medium" or "high" and TRUSTED_SOURCE_COUNT >= 2, do NOT leave both preferred_goal_state and preferred_score_state as "any".
+  - Prefer goal-state specialization from grounded quantitative signals (over/under tendency, BTTS, clean-sheet, failed-to-score rates).
+  - Use score-state specialization when side momentum is clear (recent points/goals trend).
+- CONDITION OUTPUT MUST BE EVALUABLE FOR LIVE FILTERING:
+  - alert_window_start must be an integer from 1..90 (NEVER null).
+  - alert_window_end must be null or an integer from 2..95 and strictly greater than alert_window_start.
+  - If both preferred_goal_state and preferred_score_state are "any", then alert_window_end is REQUIRED.
+  - Do NOT return an empty or non-evaluable condition blueprint.
+- ai_condition must be a machine-readable boolean expression derived from condition_blueprint only:
+  - Allowed atoms:
+    - (Minute >= N)
+    - (Minute <= N)
+    - (Total goals <= 0|1|2)
+    - (Total goals >= 1|2|3)
+    - (Draw)
+    - (Home leading)
+    - (Away leading)
+    - (NOT Home leading)
+    - (NOT Away leading)
+  - Join atoms using uppercase " AND ".
+  - Do NOT output natural language in ai_condition.
+- If evidence is weak/uncertain, still output a conservative evaluable fallback:
+  - condition_blueprint.alert_window_start = 60
+  - condition_blueprint.alert_window_end = 85
+  - preferred_goal_state = "any"
+  - preferred_score_state = "any"
+  - favoured_side = "none"
+  - ai_condition = "(Minute >= 60) AND (Minute <= 85)"
+  - reason fields should explain conservative fallback due limited evidence.
 
 GROUNDED NOTES:
 ${draftText}
@@ -1311,6 +2034,15 @@ REJECTED_SOURCE_COUNT: ${sourceMeta.rejected_source_count}
 Use only facts from GROUNDED NOTES below.
 If uncertain, use "No data found" for narrative fields and null for numeric fields.
 Do not add extra keys or commentary.
+Ensure condition_blueprint is evaluable:
+- alert_window_start: integer 1..90 (never null)
+- alert_window_end: null or integer > alert_window_start and <= 95
+- if preferred_goal_state and preferred_score_state are both "any", alert_window_end must not be null
+When SOURCE_QUALITY is medium/high and TRUSTED_SOURCE_COUNT >= 2, ensure at least one of preferred_goal_state or preferred_score_state is not "any".
+Ensure ai_condition is machine-readable using only allowed atoms and uppercase " AND".
+If uncertain, use conservative fallback:
+- alert_window_start=60, alert_window_end=85, preferred_goal_state="any", preferred_score_state="any", favoured_side="none"
+- ai_condition="(Minute >= 60) AND (Minute <= 85)"
 
 GROUNDED NOTES:
 ${draftText}
@@ -1344,7 +2076,8 @@ export async function fetchStrategicContext(
   try {
     let grounded: { draftText: string; sourceMeta: StrategicContextSourceMeta; fallback: DraftFallbackPayload } | null = null;
     let groundedError: unknown = null;
-    for (let attempt = 0; attempt < 2; attempt++) {
+    const groundedAttempts = options.highPriority ? 3 : 1;
+    for (let attempt = 0; attempt < groundedAttempts; attempt++) {
       try {
         grounded = await fetchGroundedResearchDraft(homeTeam, awayTeam, league, dateStr, options);
         if (grounded) break;
@@ -1363,6 +2096,8 @@ export async function fetchStrategicContext(
       return null;
     }
 
+    let activeDraftText = grounded.draftText;
+
     let structured = await buildStructuredStrategicContext(
       grounded.draftText,
       searchedAt,
@@ -1374,7 +2109,7 @@ export async function fetchStrategicContext(
       return null;
     }
 
-    if (options.topLeague && !hasUsableStrategicContext(structured, { topLeague: true })) {
+    if ((options.topLeague || options.highPriority) && !hasUsableStrategicContext(structured, { topLeague: options.topLeague })) {
       try {
         const rescueGrounded = await fetchGroundedResearchDraft(
           homeTeam,
@@ -1383,7 +2118,6 @@ export async function fetchStrategicContext(
           dateStr,
           {
             ...options,
-            topLeague: true,
             rescueMode: true,
           },
         );
@@ -1394,12 +2128,29 @@ export async function fetchStrategicContext(
             rescueGrounded.sourceMeta,
             rescueGrounded.fallback,
           );
-          if (scoreStrategicContextCandidate(rescueStructured, { topLeague: true }) > scoreStrategicContextCandidate(structured, { topLeague: true })) {
+          if (
+            scoreStrategicContextCandidate(rescueStructured, { topLeague: options.topLeague }) >
+            scoreStrategicContextCandidate(structured, { topLeague: options.topLeague })
+          ) {
             structured = rescueStructured ?? structured;
+            activeDraftText = rescueGrounded.draftText;
           }
         }
       } catch (err) {
-        console.warn('[strategic-context] Top-league rescue pass failed:', err instanceof Error ? err.message : String(err));
+        console.warn('[strategic-context] Priority rescue pass failed:', err instanceof Error ? err.message : String(err));
+      }
+    }
+
+    structured = await tryQuantitativeBackfillFromNotes(structured, activeDraftText, options);
+
+    if (shouldSpecializeCondition(structured, options)) {
+      try {
+        const specialized = await specializeConditionForPriorityMatch(structured, activeDraftText);
+        if (specialized) {
+          structured = specialized;
+        }
+      } catch (err) {
+        console.warn('[strategic-context] Condition specialization pass failed:', err instanceof Error ? err.message : String(err));
       }
     }
 

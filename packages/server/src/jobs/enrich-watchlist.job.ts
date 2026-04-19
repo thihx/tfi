@@ -39,6 +39,8 @@ type EnrichRefreshWindow = 'broad' | 'prematch' | 'final';
 
 interface EnrichLeagueHints {
   topLeague?: boolean;
+  favoriteLeague?: boolean;
+  highPriority?: boolean;
   leagueCountry?: string | null;
 }
 
@@ -144,6 +146,10 @@ function getStoredRefreshWindow(ctx: StoredStrategicContext | null): EnrichRefre
   const raw = String(ctx?._meta?.refresh_window ?? '').trim().toLowerCase();
   if (raw === 'broad' || raw === 'prematch' || raw === 'final') return raw;
   return null;
+}
+
+function isFavoriteLeagueSource(addedBy: string | null | undefined): boolean {
+  return String(addedBy ?? '').trim().toLowerCase() === 'favorite-league-auto';
 }
 
 function pickBackoffMinutes(
@@ -357,8 +363,12 @@ export async function enrichWatchlistJob(): Promise<{ checked: number; enriched:
     const ctx = (entry.strategic_context as StoredStrategicContext | null) ?? null;
     const match = matchMap.get(entry.match_id);
     const leagueMeta = match?.league_id != null ? leagueMap.get(match.league_id) : null;
+    const favoriteLeague = isFavoriteLeagueSource(entry.added_by);
+    const topLeague = leagueMeta?.top_league === true;
     const hints: EnrichLeagueHints = {
-      topLeague: leagueMeta?.top_league === true,
+      topLeague,
+      favoriteLeague,
+      highPriority: topLeague || favoriteLeague,
       leagueCountry: leagueMeta?.country ?? null,
     };
     const minsToKickoff = kickoffMinutesByMatchId.get(entry.match_id);
@@ -383,11 +393,21 @@ export async function enrichWatchlistJob(): Promise<{ checked: number; enriched:
     if (leftTop !== rightTop) return rightTop - leftTop;
     const leftWindow = getTargetRefreshWindow(
       kickoffMinutesByMatchId.get(left.match_id),
-      { topLeague: leftTop === 1, leagueCountry: leftLeague?.country ?? null },
+      {
+        topLeague: leftTop === 1,
+        favoriteLeague: isFavoriteLeagueSource(left.added_by),
+        highPriority: leftTop === 1 || isFavoriteLeagueSource(left.added_by),
+        leagueCountry: leftLeague?.country ?? null,
+      },
     );
     const rightWindow = getTargetRefreshWindow(
       kickoffMinutesByMatchId.get(right.match_id),
-      { topLeague: rightTop === 1, leagueCountry: rightLeague?.country ?? null },
+      {
+        topLeague: rightTop === 1,
+        favoriteLeague: isFavoriteLeagueSource(right.added_by),
+        highPriority: rightTop === 1 || isFavoriteLeagueSource(right.added_by),
+        leagueCountry: rightLeague?.country ?? null,
+      },
     );
     const windowPriority = (value: EnrichRefreshWindow | null) => {
       if (value === 'final') return 3;
@@ -424,8 +444,12 @@ export async function enrichWatchlistJob(): Promise<{ checked: number; enriched:
     const attemptedAt = new Date().toISOString();
     const match = matchMap.get(entry.match_id);
     const leagueMeta = match?.league_id != null ? leagueMap.get(match.league_id) : null;
+    const favoriteLeague = isFavoriteLeagueSource(entry.added_by);
+    const topLeague = leagueMeta?.top_league === true;
     const hints: EnrichLeagueHints = {
-      topLeague: leagueMeta?.top_league === true,
+      topLeague,
+      favoriteLeague,
+      highPriority: topLeague || favoriteLeague,
       leagueCountry: leagueMeta?.country ?? null,
     };
     const minsToKickoff = force

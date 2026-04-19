@@ -11,6 +11,12 @@ interface ConditionRow {
 interface ConditionBuilderProps {
   initialValue: string;
   onChange: (value: string) => void;
+  /** Section heading above the clause rows (default: Conditions) */
+  sectionLabel?: string;
+  /** Placeholder for each clause input */
+  inputPlaceholder?: string;
+  /** Short note shown under the preview line (e.g. auto-apply vs preview) */
+  previewNote?: string | null;
 }
 
 let nextRowId = 1;
@@ -34,7 +40,13 @@ function buildConditionsString(rows: ConditionRow[]): string {
   return valid.map((r, i) => (i > 0 ? `${r.operator} ` : '') + `(${r.text.trim()})`).join(' ');
 }
 
-export function ConditionBuilder({ initialValue, onChange }: ConditionBuilderProps) {
+export function ConditionBuilder({
+  initialValue,
+  onChange,
+  sectionLabel = 'Conditions',
+  inputPlaceholder = 'e.g., Corners > 10, BTTS, Shots ≥ 5',
+  previewNote = null,
+}: ConditionBuilderProps) {
   const [rows, setRows] = useState<ConditionRow[]>(() => {
     const parsed = parseConditionsString(initialValue);
     return parsed.length > 0 ? parsed : [{ id: nextRowId++, text: '', operator: 'AND' }];
@@ -82,7 +94,7 @@ export function ConditionBuilder({ initialValue, onChange }: ConditionBuilderPro
 
   return (
     <div className="form-group">
-      <label>Conditions:</label>
+      <label>{sectionLabel}</label>
       <div className="cond-builder">
         {rows.map((row, idx) => (
           <div key={row.id} className={`cond-row${idx > 0 ? ' has-operator' : ''}`}>
@@ -96,7 +108,7 @@ export function ConditionBuilder({ initialValue, onChange }: ConditionBuilderPro
               <input
                 type="text"
                 className="cond-input"
-                placeholder="e.g., Corners > 10, BTTS, Shots ≥ 5"
+                placeholder={inputPlaceholder}
                 value={row.text}
                 onChange={(e) => updateRow(row.id, 'text', e.target.value)}
               />
@@ -120,6 +132,7 @@ export function ConditionBuilder({ initialValue, onChange }: ConditionBuilderPro
         </button>
       </div>
       <div className="cond-preview">{preview ? `Preview: ${preview}` : 'Preview: (no conditions)'}</div>
+      {previewNote ? <div className="cond-preview-note">{previewNote}</div> : null}
     </div>
   );
 }

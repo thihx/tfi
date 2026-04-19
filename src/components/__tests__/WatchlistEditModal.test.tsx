@@ -38,7 +38,7 @@ describe('WatchlistEditModal', () => {
       />,
     );
 
-    const checkbox = screen.getByLabelText('Auto-apply recommended condition for this match') as HTMLInputElement;
+    const checkbox = screen.getByRole('checkbox') as HTMLInputElement;
     expect(checkbox.checked).toBe(true);
   });
 
@@ -57,9 +57,8 @@ describe('WatchlistEditModal', () => {
       />,
     );
 
-    const checkbox = screen.getByLabelText('Auto-apply recommended condition for this match');
-    fireEvent.click(checkbox);
-    fireEvent.click(screen.getByRole('button', { name: 'Save Changes' }));
+    fireEvent.click(screen.getByRole('checkbox'));
+    fireEvent.click(screen.getByRole('button', { name: /Lưu thay đổi|Save Changes/ }));
 
     expect(onSave).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -80,7 +79,7 @@ describe('WatchlistEditModal', () => {
       />,
     );
 
-    fireEvent.click(screen.getByRole('button', { name: 'Save Changes' }));
+    fireEvent.click(screen.getByRole('button', { name: /Lưu thay đổi|Save Changes/ }));
 
     expect(onSave).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -94,6 +93,22 @@ describe('WatchlistEditModal', () => {
     render(
       <WatchlistEditModal item={baseItem} uiLanguage="vi" onClose={() => {}} onSave={() => {}} />,
     );
-    expect(screen.getByText(/match hub/i)).toBeInTheDocument();
+    expect(screen.getByText(/hub trận|Match hub/i)).toBeInTheDocument();
+  });
+
+  test('shows empty-state copy when there is no recommended condition', () => {
+    render(
+      <WatchlistEditModal
+        item={{
+          ...baseItem,
+          recommended_custom_condition: '',
+          recommended_condition_reason_vi: '',
+        }}
+        uiLanguage="vi"
+        onClose={() => {}}
+        onSave={() => {}}
+      />,
+    );
+    expect(screen.getByText(/Chưa có điều kiện gợi ý/i)).toBeInTheDocument();
   });
 });
