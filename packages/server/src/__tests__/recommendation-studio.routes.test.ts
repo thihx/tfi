@@ -257,6 +257,54 @@ describe('recommendation studio routes', () => {
     });
   });
 
+  test('falls back to latest replayable recommendation when preview ids are invalid', async () => {
+    repoMocks.getRecommendationPromptTemplateById.mockResolvedValue({
+      id: 11,
+      template_key: 'prompt-1',
+      name: 'Prompt 1',
+      base_prompt_version: 'v10-hybrid-legacy-b',
+      status: 'draft',
+      notes: '',
+      advanced_appendix: '',
+      created_by: null,
+      updated_by: null,
+      created_at: '2026-04-20T00:00:00.000Z',
+      updated_at: '2026-04-20T00:00:00.000Z',
+      sections: [],
+    });
+    repoMocks.findRecommendationIdsForReplaySelection.mockResolvedValue([456]);
+    replayMocks.buildRecommendationStudioReplayScenarios
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([{ name: 'fallback-scenario', metadata: { recommendationId: 456 } }]);
+    pipelineReplayMocks.runReplayScenario.mockResolvedValue({
+      result: {
+        shouldPush: false,
+        selection: '',
+        debug: { prompt: 'FALLBACK PREVIEW PROMPT' },
+      },
+    });
+
+    const res = await adminApp.inject({
+      method: 'POST',
+      url: '/api/settings/recommendation-studio/prompts/11/compile-preview',
+      payload: {
+        recommendationIds: [999999],
+      },
+    });
+
+    expect(res.statusCode).toBe(200);
+    expect(res.json().prompt).toBe('FALLBACK PREVIEW PROMPT');
+    expect(repoMocks.findRecommendationIdsForReplaySelection).toHaveBeenCalledWith({ limit: 1 });
+    expect(replayMocks.buildRecommendationStudioReplayScenarios).toHaveBeenNthCalledWith(1, {
+      recommendationIds: [999999],
+      snapshotIds: [],
+    });
+    expect(replayMocks.buildRecommendationStudioReplayScenarios).toHaveBeenNthCalledWith(2, {
+      recommendationIds: [456],
+      snapshotIds: [],
+    });
+  });
+
   test('creates replay runs and schedules execution', async () => {
     repoMocks.getRecommendationReleaseById.mockResolvedValue({
       id: 5,

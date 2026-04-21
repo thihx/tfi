@@ -199,6 +199,26 @@ async function resolveReleaseLike(input: {
   };
 }
 
+async function resolvePreviewScenario(input: {
+  recommendationIds: number[];
+  snapshotIds: number[];
+}) {
+  const primaryScenarios = await buildRecommendationStudioReplayScenarios({
+    recommendationIds: input.recommendationIds.slice(0, 1),
+    snapshotIds: input.snapshotIds.slice(0, 1),
+  });
+  if (primaryScenarios[0]) return primaryScenarios[0];
+
+  const fallbackRecommendationIds = await findRecommendationIdsForReplaySelection({ limit: 1 });
+  if (fallbackRecommendationIds.length === 0) return null;
+
+  const fallbackScenarios = await buildRecommendationStudioReplayScenarios({
+    recommendationIds: fallbackRecommendationIds,
+    snapshotIds: [],
+  });
+  return fallbackScenarios[0] ?? null;
+}
+
 function buildReleaseDiff(currentRelease: RecommendationReleaseDetail, targetRelease: RecommendationReleaseDetail) {
   const promptDiff = buildPromptTemplateDiff(currentRelease.promptTemplate, targetRelease.promptTemplate);
   const ruleDiff = buildRuleSetDiff(currentRelease.ruleSet, targetRelease.ruleSet);
@@ -435,11 +455,7 @@ export async function recommendationStudioRoutes(app: FastifyInstance) {
     const snapshotIds = asNumberArray(req.body?.snapshotIds);
     const release = await resolveReleaseLike({ promptTemplateId, ruleSetId });
     if (!release) return reply.status(400).send({ error: 'Valid prompt template and optional rule set are required' });
-    const scenarios = await buildRecommendationStudioReplayScenarios({
-      recommendationIds: recommendationIds.slice(0, 1),
-      snapshotIds: snapshotIds.slice(0, 1),
-    });
-    const scenario = scenarios[0];
+    const scenario = await resolvePreviewScenario({ recommendationIds, snapshotIds });
     if (!scenario) return reply.status(400).send({ error: 'No replayable recommendation/snapshot found for preview' });
     const output = await runReplayScenario(scenario, {
       llmMode: 'mock',
@@ -734,11 +750,7 @@ export async function recommendationStudioRoutes(app: FastifyInstance) {
     if (!release) return reply.status(400).send({ error: 'Valid releaseId or promptTemplateId+ruleSetId is required' });
     const recommendationIds = asNumberArray(req.body?.recommendationIds);
     const snapshotIds = asNumberArray(req.body?.snapshotIds);
-    const scenarios = await buildRecommendationStudioReplayScenarios({
-      recommendationIds: recommendationIds.slice(0, 1),
-      snapshotIds: snapshotIds.slice(0, 1),
-    });
-    const scenario = scenarios[0];
+    const scenario = await resolvePreviewScenario({ recommendationIds, snapshotIds });
     if (!scenario) return reply.status(400).send({ error: 'No replayable recommendation/snapshot found for preview' });
     const output = await runReplayScenario(scenario, {
       llmMode: 'mock',
