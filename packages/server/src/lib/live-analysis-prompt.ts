@@ -1902,7 +1902,7 @@ void [
   buildPreMatchPredictionSectionCompact,
 ];
 
-function buildExactMarketContractSectionCompact(data: LiveAnalysisPromptInput): string {
+export function buildExactMarketContractSectionCompact(data: LiveAnalysisPromptInput): string {
   const oc = data.oddsCanonical as Record<string, Record<string, unknown>>;
   const exactKeys: string[] = [];
   const rules: string[] = [];

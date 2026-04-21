@@ -85,6 +85,18 @@ export async function getLatestSnapshotsForMatches(matchIds: string[]): Promise<
   return new Map(r.rows.map((row) => [row.match_id, row] as const));
 }
 
+export async function getSnapshotsByIds(snapshotIds: number[]): Promise<MatchSnapshotRow[]> {
+  if (snapshotIds.length === 0) return [];
+  const r = await query<MatchSnapshotRow>(
+    `SELECT *
+       FROM match_snapshots
+      WHERE id = ANY($1::bigint[])
+      ORDER BY captured_at DESC, id DESC`,
+    [snapshotIds],
+  );
+  return r.rows;
+}
+
 export async function purgeMatchSnapshots(keepDays: number): Promise<number> {
   if (keepDays <= 0) return 0;
   const result = await query(

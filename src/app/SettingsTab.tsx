@@ -5,6 +5,7 @@ import { formatLocalDateTime } from '@/lib/utils/helpers';
 import { AuditLogsPanel } from '@/components/AuditLogsPanel';
 import { IntegrationHealthPanel } from '@/components/IntegrationHealthPanel';
 import { OpsMonitoringPanel } from '@/components/OpsMonitoringPanel';
+import { RecommendationStudioPanel } from '@/components/RecommendationStudioPanel';
 import { fetchCurrentUser, getToken, getUser } from '@/lib/services/auth';
 import { internalApiUrl } from '@/lib/internal-api';
 import {
@@ -1348,13 +1349,14 @@ function SubscriptionManagementPanel() {
 
 // ── Tab constants ────────────────────────────────────────────────────────────
 
-type SettingsTab = 'user-mgmt' | 'subscription-mgmt' | 'scheduler' | 'system' | 'audit';
+type SettingsTab = 'user-mgmt' | 'subscription-mgmt' | 'scheduler' | 'system' | 'recommendation-studio' | 'audit';
 
-const ALL_TABS: { id: SettingsTab; label: string; adminOnly?: boolean }[] = [
+const ALL_TABS: { id: SettingsTab; label: string; adminOnly?: boolean; adminStrictOnly?: boolean }[] = [
   { id: 'user-mgmt',         label: 'User',         adminOnly: true },
   { id: 'subscription-mgmt', label: 'Subscription', adminOnly: true },
   { id: 'scheduler',         label: 'Scheduler' },
   { id: 'system',            label: 'System' },
+  { id: 'recommendation-studio', label: 'Recommendation Studio', adminStrictOnly: true },
   { id: 'audit',             label: 'Audit' },
 ];
 
@@ -1363,6 +1365,7 @@ const ALL_TABS: { id: SettingsTab; label: string; adminOnly?: boolean }[] = [
 export function SettingsTab() {
   const [authUser, setAuthUser] = useState(() => getUser(getToken()));
   const isAdminOrOwner = authUser?.role === 'admin' || authUser?.role === 'owner';
+  const isAdminOnly = authUser?.role === 'admin';
   useToast();
   const [activeTab, setActiveTab] = useState<SettingsTab>('scheduler');
   useEffect(() => {
@@ -1380,7 +1383,11 @@ export function SettingsTab() {
     <div className="settings-tab-root">
       {/* Tab bar — horizontal scroll on narrow screens */}
       <div className="settings-tab-bar" role="tablist" aria-label="Settings sections">
-        {ALL_TABS.filter((tab) => !tab.adminOnly || isAdminOrOwner).map((tab) => {
+        {ALL_TABS.filter((tab) => {
+          if (tab.adminStrictOnly) return isAdminOnly;
+          if (tab.adminOnly) return isAdminOrOwner;
+          return true;
+        }).map((tab) => {
           const active = activeTab === tab.id;
           return (
             <button
@@ -1454,6 +1461,17 @@ export function SettingsTab() {
           </div>
           <div className="settings-panel-padding">
             <AuditLogsPanel />
+          </div>
+        </div>
+      )}
+
+      {activeTab === 'recommendation-studio' && isAdminOnly && (
+        <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
+          <div className="settings-panel-padding" style={{ borderBottom: '1px solid var(--gray-100)', background: 'var(--gray-50)' }}>
+            <div style={{ fontSize: '13px', fontWeight: 600, color: 'var(--gray-700)' }}>Recommendation Studio</div>
+          </div>
+          <div className="settings-panel-padding">
+            <RecommendationStudioPanel />
           </div>
         </div>
       )}

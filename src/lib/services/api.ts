@@ -1067,3 +1067,326 @@ export async function addFavoriteTeam(config: AppConfig, team: { team_id: string
 export async function removeFavoriteTeam(config: AppConfig, teamId: string): Promise<void> {
   await pgDelete(config, `/api/me/favorite-teams/${encodeURIComponent(teamId)}`);
 }
+
+// ==================== RECOMMENDATION STUDIO ====================
+
+export type RecommendationStudioEntityStatus = 'draft' | 'validated' | 'candidate' | 'active' | 'archived';
+export type RecommendationStudioRuleStage = 'pre_prompt' | 'post_parse';
+
+export interface RecommendationStudioPromptSection {
+  id: number;
+  template_id: number;
+  section_key: string;
+  label: string;
+  content: string;
+  enabled: boolean;
+  sort_order: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface RecommendationStudioPromptTemplate {
+  id: number;
+  template_key: string;
+  name: string;
+  base_prompt_version: string;
+  status: RecommendationStudioEntityStatus;
+  notes: string;
+  advanced_appendix: string;
+  created_by: string | null;
+  updated_by: string | null;
+  created_at: string;
+  updated_at: string;
+  sections?: RecommendationStudioPromptSection[];
+}
+
+export interface RecommendationStudioRuleConditions {
+  minuteBands?: string[];
+  scoreStates?: string[];
+  evidenceModes?: string[];
+  prematchStrengths?: string[];
+  promptVersions?: string[];
+  releaseIds?: number[];
+  releaseKeys?: string[];
+  marketFamilies?: string[];
+  canonicalMarketEquals?: string[];
+  canonicalMarketPrefixes?: string[];
+  periodKinds?: Array<'ft' | 'h1'>;
+  oddsMin?: number | null;
+  oddsMax?: number | null;
+  lineMin?: number | null;
+  lineMax?: number | null;
+  totalGoalsMin?: number | null;
+  totalGoalsMax?: number | null;
+  currentCornersMin?: number | null;
+  currentCornersMax?: number | null;
+  riskLevels?: string[];
+}
+
+export interface RecommendationStudioRuleActions {
+  block?: boolean;
+  forceNoBet?: boolean;
+  capConfidence?: number | null;
+  capStakePercent?: number | null;
+  raiseMinEdge?: number | null;
+  warning?: string | null;
+  hideMarketFamiliesFromPrompt?: string[];
+  appendInstruction?: string | null;
+  markExceptionalOnly?: boolean;
+}
+
+export interface RecommendationStudioRule {
+  id: number;
+  rule_set_id: number;
+  name: string;
+  stage: RecommendationStudioRuleStage;
+  priority: number;
+  enabled: boolean;
+  conditions_json: RecommendationStudioRuleConditions;
+  actions_json: RecommendationStudioRuleActions;
+  notes: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface RecommendationStudioRuleSet {
+  id: number;
+  rule_set_key: string;
+  name: string;
+  status: RecommendationStudioEntityStatus;
+  notes: string;
+  created_by: string | null;
+  updated_by: string | null;
+  created_at: string;
+  updated_at: string;
+  rules?: RecommendationStudioRule[];
+}
+
+export interface RecommendationStudioRelease {
+  id: number;
+  release_key: string;
+  name: string;
+  prompt_template_id: number;
+  rule_set_id: number;
+  status: RecommendationStudioEntityStatus;
+  activation_scope: 'global';
+  replay_validation_status: 'not_validated' | 'running' | 'validated' | 'failed';
+  notes: string;
+  is_active: boolean;
+  activated_by: string | null;
+  activated_at: string | null;
+  rollback_of_release_id: number | null;
+  created_by: string | null;
+  updated_by: string | null;
+  created_at: string;
+  updated_at: string;
+  promptTemplate?: RecommendationStudioPromptTemplate;
+  ruleSet?: RecommendationStudioRuleSet;
+}
+
+export interface RecommendationStudioReplayRun {
+  id: number;
+  run_key: string;
+  name: string;
+  release_id: number | null;
+  prompt_template_id: number;
+  rule_set_id: number;
+  status: 'queued' | 'running' | 'completed' | 'completed_with_errors' | 'failed' | 'canceled';
+  source_filters: Record<string, unknown>;
+  release_snapshot_json: Record<string, unknown>;
+  summary_json: Record<string, unknown>;
+  total_items: number;
+  completed_items: number;
+  error_message: string | null;
+  llm_mode: 'real';
+  llm_model: string;
+  created_by: string | null;
+  created_at: string;
+  started_at: string | null;
+  completed_at: string | null;
+}
+
+export interface RecommendationStudioReplayRunItem {
+  id: number;
+  run_id: number;
+  source_kind: 'recommendation' | 'snapshot';
+  source_ref: string;
+  recommendation_id: number | null;
+  snapshot_id: number | null;
+  match_id: string | null;
+  status: 'queued' | 'running' | 'completed' | 'failed' | 'canceled';
+  original_decision_json: Record<string, unknown>;
+  replayed_decision_json: Record<string, unknown>;
+  evaluation_json: Record<string, unknown>;
+  output_summary: Record<string, unknown>;
+  error_message: string | null;
+  created_at: string;
+  completed_at: string | null;
+}
+
+export interface RecommendationStudioAuditLog {
+  id: number;
+  entity_type: string;
+  entity_id: number;
+  action: string;
+  actor_user_id: string | null;
+  metadata: Record<string, unknown>;
+  before_json: Record<string, unknown>;
+  after_json: Record<string, unknown>;
+  notes: string;
+  created_at: string;
+}
+
+export interface RecommendationStudioBootstrap {
+  promptVersions: string[];
+  tokenCatalog: Array<{ key: string; label: string; description: string }>;
+  sectionDefinitions?: Array<{ key: string; label: string; description: string }>;
+  ruleMeta: {
+    stages: string[];
+    marketFamilies: string[];
+    periodKinds: string[];
+    conditionFields?: string[];
+    actions?: string[];
+    operators?: Record<string, string[]>;
+    validationRules?: Record<string, unknown>;
+  };
+  replayGuardrails: {
+    maxItems: number;
+    llmModel: string;
+  };
+  prompts: RecommendationStudioPromptTemplate[];
+  ruleSets: RecommendationStudioRuleSet[];
+  releases: RecommendationStudioRelease[];
+  activeRelease: RecommendationStudioRelease | null;
+  replayRuns: RecommendationStudioReplayRun[];
+  auditLogs: RecommendationStudioAuditLog[];
+}
+
+export async function fetchRecommendationStudioBootstrap(config: AppConfig): Promise<RecommendationStudioBootstrap> {
+  return pgFetch<RecommendationStudioBootstrap>(config, '/api/settings/recommendation-studio/bootstrap');
+}
+
+export async function fetchRecommendationStudioTokenCatalog(config: AppConfig): Promise<{
+  tokens: Array<{ key: string; label: string; description: string }>;
+  sectionDefinitions: Array<{ key: string; label: string; description: string }>;
+}> {
+  return pgFetch(config, '/api/settings/recommendation-studio/token-catalog');
+}
+
+export async function fetchRecommendationStudioRuleMetadata(config: AppConfig): Promise<RecommendationStudioBootstrap['ruleMeta']> {
+  return pgFetch(config, '/api/settings/recommendation-studio/rule-metadata');
+}
+
+export async function fetchRecommendationStudioPrompt(config: AppConfig, id: number): Promise<RecommendationStudioPromptTemplate> {
+  return pgFetch<RecommendationStudioPromptTemplate>(config, `/api/settings/recommendation-studio/prompts/${id}`);
+}
+
+export async function createRecommendationStudioPrompt(config: AppConfig, body: Record<string, unknown>): Promise<RecommendationStudioPromptTemplate> {
+  return pgPost<RecommendationStudioPromptTemplate>(config, '/api/settings/recommendation-studio/prompts', body);
+}
+
+export async function updateRecommendationStudioPrompt(config: AppConfig, id: number, body: Record<string, unknown>): Promise<RecommendationStudioPromptTemplate> {
+  return pgPut<RecommendationStudioPromptTemplate>(config, `/api/settings/recommendation-studio/prompts/${id}`, body);
+}
+
+export async function cloneRecommendationStudioPrompt(config: AppConfig, id: number): Promise<RecommendationStudioPromptTemplate> {
+  return pgPost<RecommendationStudioPromptTemplate>(config, `/api/settings/recommendation-studio/prompts/${id}/clone`, {});
+}
+
+export async function fetchRecommendationStudioPromptDiff(config: AppConfig, id: number, otherId: number): Promise<Record<string, unknown>> {
+  return pgFetch(config, `/api/settings/recommendation-studio/prompts/${id}/diff/${otherId}`);
+}
+
+export async function compileRecommendationStudioPromptPreview(config: AppConfig, id: number, body: Record<string, unknown>): Promise<{
+  release: RecommendationStudioRelease;
+  prompt: string | null | undefined;
+}> {
+  return pgPost(config, `/api/settings/recommendation-studio/prompts/${id}/compile-preview`, body);
+}
+
+export async function fetchRecommendationStudioRuleSet(config: AppConfig, id: number): Promise<RecommendationStudioRuleSet> {
+  return pgFetch<RecommendationStudioRuleSet>(config, `/api/settings/recommendation-studio/rule-sets/${id}`);
+}
+
+export async function createRecommendationStudioRuleSet(config: AppConfig, body: Record<string, unknown>): Promise<RecommendationStudioRuleSet> {
+  return pgPost<RecommendationStudioRuleSet>(config, '/api/settings/recommendation-studio/rule-sets', body);
+}
+
+export async function updateRecommendationStudioRuleSet(config: AppConfig, id: number, body: Record<string, unknown>): Promise<RecommendationStudioRuleSet> {
+  return pgPut<RecommendationStudioRuleSet>(config, `/api/settings/recommendation-studio/rule-sets/${id}`, body);
+}
+
+export async function cloneRecommendationStudioRuleSet(config: AppConfig, id: number): Promise<RecommendationStudioRuleSet> {
+  return pgPost<RecommendationStudioRuleSet>(config, `/api/settings/recommendation-studio/rule-sets/${id}/clone`, {});
+}
+
+export async function fetchRecommendationStudioRuleSetDiff(config: AppConfig, id: number, otherId: number): Promise<Record<string, unknown>> {
+  return pgFetch(config, `/api/settings/recommendation-studio/rule-sets/${id}/diff/${otherId}`);
+}
+
+export async function createRecommendationStudioRule(config: AppConfig, body: Record<string, unknown>): Promise<RecommendationStudioRuleSet> {
+  return pgPost(config, '/api/settings/recommendation-studio/rules', body);
+}
+
+export async function updateRecommendationStudioRule(config: AppConfig, id: number, body: Record<string, unknown>): Promise<RecommendationStudioRuleSet> {
+  return pgPut(config, `/api/settings/recommendation-studio/rules/${id}`, body);
+}
+
+export async function toggleRecommendationStudioRule(config: AppConfig, id: number, enabled: boolean): Promise<RecommendationStudioRuleSet> {
+  return pgPost(config, `/api/settings/recommendation-studio/rules/${id}/toggle`, { enabled });
+}
+
+export async function fetchRecommendationStudioRelease(config: AppConfig, id: number): Promise<RecommendationStudioRelease> {
+  return pgFetch<RecommendationStudioRelease>(config, `/api/settings/recommendation-studio/releases/${id}`);
+}
+
+export async function createRecommendationStudioRelease(config: AppConfig, body: Record<string, unknown>): Promise<RecommendationStudioRelease> {
+  return pgPost<RecommendationStudioRelease>(config, '/api/settings/recommendation-studio/releases', body);
+}
+
+export async function activateRecommendationStudioRelease(config: AppConfig, id: number): Promise<RecommendationStudioRelease> {
+  return pgPost<RecommendationStudioRelease>(config, `/api/settings/recommendation-studio/releases/${id}/activate`, {});
+}
+
+export async function cloneRollbackRecommendationStudioRelease(config: AppConfig, id: number): Promise<RecommendationStudioRelease> {
+  return pgPost<RecommendationStudioRelease>(config, `/api/settings/recommendation-studio/releases/${id}/rollback-clone`, {});
+}
+
+export async function rollbackRecommendationStudioRelease(config: AppConfig, id: number): Promise<RecommendationStudioRelease> {
+  return pgPost<RecommendationStudioRelease>(config, `/api/settings/recommendation-studio/releases/${id}/rollback`, {});
+}
+
+export async function fetchRecommendationStudioReleaseDiff(config: AppConfig, id: number, against?: number): Promise<{
+  currentReleaseId: number;
+  targetReleaseId: number;
+  promptChanged: boolean;
+  ruleSetChanged: boolean;
+  changedPromptSections: string[];
+  changedRules: string[];
+}> {
+  const query = against ? `?against=${against}` : '';
+  return pgFetch(config, `/api/settings/recommendation-studio/releases/${id}/diff${query}`);
+}
+
+export async function previewRecommendationStudioPrompt(config: AppConfig, body: Record<string, unknown>): Promise<{
+  release: RecommendationStudioRelease;
+  prompt: string | null | undefined;
+}> {
+  return pgPost(config, '/api/settings/recommendation-studio/preview', body);
+}
+
+export async function createRecommendationStudioReplayRun(config: AppConfig, body: Record<string, unknown>): Promise<RecommendationStudioReplayRun> {
+  return pgPost<RecommendationStudioReplayRun>(config, '/api/settings/recommendation-studio/replays', body);
+}
+
+export async function fetchRecommendationStudioReplayRun(config: AppConfig, id: number): Promise<RecommendationStudioReplayRun> {
+  return pgFetch<RecommendationStudioReplayRun>(config, `/api/settings/recommendation-studio/replays/${id}`);
+}
+
+export async function fetchRecommendationStudioReplayRunItems(config: AppConfig, id: number): Promise<RecommendationStudioReplayRunItem[]> {
+  return pgFetch<RecommendationStudioReplayRunItem[]>(config, `/api/settings/recommendation-studio/replays/${id}/items`);
+}
+
+export async function cancelRecommendationStudioReplayRun(config: AppConfig, id: number): Promise<RecommendationStudioReplayRun> {
+  return pgPost(config, `/api/settings/recommendation-studio/replays/${id}/cancel`, {});
+}

@@ -56,7 +56,6 @@ import {
   recordProviderStatsSampleSafe,
 } from './provider-sampling.js';
 import {
-  buildLiveAnalysisPrompt,
   getPromptStatsDetailLevel,
   isLiveAnalysisPromptVersion,
   LIVE_ANALYSIS_PROMPT_VERSION,
@@ -108,6 +107,15 @@ import { isMarketAllowedForEvidenceMode } from './evidence-mode-market-allowlist
 import { isFirstHalfApiBetName, isSecondHalfOnlyApiBetName } from './first-half-markets.js';
 import { extractHalftimeScoreFromFixture } from './settle-context.js';
 import { formatSelectionWithMarketContext } from './market-display.js';
+import {
+  applyRecommendationStudioPostParseRules,
+  applyRecommendationStudioPrePromptRules,
+  buildPromptFromRecommendationStudioRelease,
+  getEffectiveBasePromptVersion,
+  resolveRecommendationStudioRelease,
+  type RecommendationStudioRuntimeOverride,
+} from './recommendation-studio-runtime.js';
+import type { RecommendationReleaseDetail } from './recommendation-studio-types.js';
 
 const pipelineSkipAuditCounters = new Map<string, number>();
 
@@ -253,6 +261,21 @@ function buildOddsMovementRows(
     movement.market
     && Object.values(movement).some((value) => value !== null && value !== undefined && value !== movement.match_id && value !== movement.match_minute && value !== movement.market)
   ));
+}
+
+function parseNumericStat(value: unknown): number | null {
+  if (value == null || value === '') return null;
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
+function parseScoreString(score: string): { home: number; away: number } {
+  const match = String(score || '').trim().match(/^(\d+)\s*[-:]\s*(\d+)$/);
+  if (!match) return { home: 0, away: 0 };
+  return {
+    home: Number(match[1] ?? 0),
+    away: Number(match[2] ?? 0),
+  };
 }
 
 /** Parse a numeric setting from DB, falling back to envDefault if absent or NaN. */
@@ -470,6 +493,7 @@ export interface PipelineExecutionOptions {
   settledReplayTraceOriginalSelection?: string;
   /** When true with settledReplayApprovedTrace, still run recommendation-policy (production parity). Default skips policy when trace is on. */
   applySettledReplayPolicy?: boolean;
+  recommendationStudioOverride?: RecommendationStudioRuntimeOverride;
 }
 
 // ==================== Types ====================
@@ -1330,9 +1354,11 @@ async function executePromptAnalysis(
   promptContext: PromptExecutionContext,
   promptVersion: LiveAnalysisPromptVersion,
   policyContext: PromptPolicyContext,
+  studioRelease: RecommendationReleaseDetail | null,
+  prePromptDecision: ReturnType<typeof applyRecommendationStudioPrePromptRules>,
 ): Promise<PromptExecutionArtifacts> {
   const startedAt = Date.now();
-  const prompt = buildServerPrompt(promptContext, settings, promptVersion);
+  const prompt = buildServerPrompt(promptContext, settings, promptVersion, studioRelease, prePromptDecision);
   const promptChars = prompt.length;
   const promptEstimatedTokens = estimateTokenCount(prompt);
 
@@ -1367,6 +1393,26 @@ async function executePromptAnalysis(
     breakEvenRate: parsedRaw.mapped_odd != null && parsedRaw.mapped_odd > 0 ? 1 / parsedRaw.mapped_odd : null,
     directionalWin: parsedRaw.ai_should_push,
   });
+  const dynamicPolicyResult = applyRecommendationStudioPostParseRules(studioRelease, {
+    minute: promptContext.minute,
+    score: promptContext.score,
+    evidenceMode: promptContext.evidenceMode,
+    prematchStrength: getPrematchPriorStrength(promptContext.prematchExpertFeatures ?? null),
+    promptVersion,
+    releaseId: studioRelease?.id ?? null,
+    releaseKey: studioRelease?.release_key ?? null,
+    selection: parsedRaw.selection,
+    betMarket: parsedRaw.bet_market,
+    odds: parsedRaw.mapped_odd,
+    valuePercent: parsedRaw.value_percent,
+    confidence: policyResult.confidence,
+    stakePercent: policyResult.stakePercent,
+    riskLevel: parsedRaw.risk_level,
+    currentCorners: parseNumericStat(promptContext.statsCompact?.corners?.home) != null && parseNumericStat(promptContext.statsCompact?.corners?.away) != null
+      ? Number(parseNumericStat(promptContext.statsCompact?.corners?.home)) + Number(parseNumericStat(promptContext.statsCompact?.corners?.away))
+      : null,
+    currentGoals: parseScoreString(promptContext.score).home + parseScoreString(promptContext.score).away,
+  });
   const parsedCanonicalMarket = normalizeMarket(parsedRaw.selection ?? '', parsedRaw.bet_market ?? '');
   const memoryWarnings: string[] = [];
   let memoryOverrideBlocked = false;
@@ -1400,7 +1446,12 @@ async function executePromptAnalysis(
       memoryWarnings.push('MEMORY_LOOKUP_UNAVAILABLE');
     }
   }
-  const policyBlockedEffective = (policyResult.blocked || memoryOverrideBlocked) && !promptContext.skipRecommendationPolicy;
+  const policyBlockedEffective = (
+    policyResult.blocked
+    || dynamicPolicyResult.blocked
+    || dynamicPolicyResult.forceNoBet
+    || memoryOverrideBlocked
+  ) && !promptContext.skipRecommendationPolicy;
   const hasCustomCondition = !!String(promptContext.customConditions || '').trim();
   const lowEvidenceConditionOnly = promptContext.evidenceMode === 'low_evidence' && hasCustomCondition;
   const finalShouldBet = lowEvidenceConditionOnly
@@ -1420,19 +1471,21 @@ async function executePromptAnalysis(
     system_should_bet: lowEvidenceConditionOnly ? false : parsedRaw.system_should_bet && !policyBlockedEffective,
     final_should_bet: finalShouldBet,
     decision_kind: decisionKind,
-    confidence: policyResult.confidence,
-    stake_percent: policyResult.stakePercent,
-    ai_confidence: policyResult.confidence,
+    confidence: dynamicPolicyResult.confidence,
+    stake_percent: dynamicPolicyResult.stakePercent,
+    ai_confidence: dynamicPolicyResult.confidence,
     condition_triggered_should_push: conditionTriggeredShouldPush,
     warnings: [
       ...parsedRaw.warnings,
       ...policyResult.warnings,
+      ...dynamicPolicyResult.warnings,
       ...memoryWarnings,
       ...(lowEvidenceConditionOnly ? ['LOW_EVIDENCE_CONDITION_ONLY'] : []),
     ],
     ai_warnings: [
       ...parsedRaw.ai_warnings,
       ...policyResult.warnings,
+      ...dynamicPolicyResult.warnings,
       ...memoryWarnings,
       ...(lowEvidenceConditionOnly ? ['LOW_EVIDENCE_CONDITION_ONLY'] : []),
     ],
@@ -1449,8 +1502,8 @@ async function executePromptAnalysis(
     llmLatencyMs,
     totalLatencyMs: Date.now() - startedAt,
     parsed,
-    policyBlocked: policyResult.blocked || memoryOverrideBlocked,
-    policyWarnings: [...policyResult.warnings, ...memoryWarnings],
+    policyBlocked: policyResult.blocked || dynamicPolicyResult.blocked || dynamicPolicyResult.forceNoBet || memoryOverrideBlocked,
+    policyWarnings: [...policyResult.warnings, ...dynamicPolicyResult.warnings, ...memoryWarnings],
   };
 }
 
@@ -1483,6 +1536,8 @@ async function runPromptShadowComparison(args: {
   activeAnalysis: PromptExecutionArtifacts;
   model: string;
   settings: PipelineSettings;
+  studioRelease: RecommendationReleaseDetail | null;
+  prePromptDecision: ReturnType<typeof applyRecommendationStudioPrePromptRules>;
 }): Promise<void> {
   await recordPromptShadowRunSafe(args.deps, {
     analysis_run_id: args.analysisRunId,
@@ -1515,6 +1570,8 @@ async function runPromptShadowComparison(args: {
       args.promptContext,
       args.shadowPromptVersion,
       args.policyContext,
+      args.studioRelease,
+      args.prePromptDecision,
     );
 
     await recordPromptShadowRunSafe(args.deps, {
@@ -3209,11 +3266,13 @@ async function processMatch(
   const shadowMode = options.shadowMode === true;
   const sampleProviderData = options.sampleProviderData !== false;
   const startedAt = Date.now();
-  const activePromptVersion = options.promptVersionOverride
-    || resolveConfiguredPromptVersion(config.liveAnalysisActivePromptVersion, LIVE_ANALYSIS_PROMPT_VERSION);
+  const configuredPromptVersion = resolveConfiguredPromptVersion(
+    config.liveAnalysisActivePromptVersion,
+    LIVE_ANALYSIS_PROMPT_VERSION,
+  );
   const shadowPromptVersion = resolveConfiguredPromptVersion(
     config.liveAnalysisShadowPromptVersion,
-    activePromptVersion,
+    configuredPromptVersion,
   );
   const analysisRunId = randomUUID();
   const advisoryOnly = options.advisoryOnly === true;
@@ -3227,14 +3286,17 @@ async function processMatch(
       ? 'manual_force'
       : 'auto';
 
-    const [prevRecs, latestSnapshot] = await Promise.all([
+    const [prevRecs, latestSnapshot, studioRelease] = await Promise.all([
       options.previousRecommendations !== undefined
         ? Promise.resolve(options.previousRecommendations ?? [])
         : deps.getRecommendationsByMatchId(matchId).catch(() => []),
       options.previousSnapshot !== undefined
         ? Promise.resolve(options.previousSnapshot)
         : deps.getLatestSnapshot(matchId).catch(() => null),
+      resolveRecommendationStudioRelease(options.recommendationStudioOverride),
     ]);
+    const activePromptVersion = options.promptVersionOverride
+      || getEffectiveBasePromptVersion(studioRelease, configuredPromptVersion);
 
     const coarseStaleness = checkCoarseStalenessServer({
       minute,
@@ -3819,6 +3881,22 @@ async function processMatch(
       skipRecommendationPolicy:
         options.settledReplayApprovedTrace === true && options.applySettledReplayPolicy !== true,
     };
+    const prePromptDecision = applyRecommendationStudioPrePromptRules(studioRelease, {
+      minute,
+      score,
+      evidenceMode,
+      prematchStrength,
+      promptVersion: activePromptVersion,
+      releaseId: studioRelease?.id ?? null,
+      releaseKey: studioRelease?.release_key ?? null,
+      odds: oddsCanonical as Record<string, unknown>,
+      currentCorners: (() => {
+        const home = parseNumericStat(statsCompact.corners.home);
+        const away = parseNumericStat(statsCompact.corners.away);
+        return home != null && away != null ? home + away : null;
+      })(),
+      currentGoals: homeGoals + awayGoals,
+    });
 
     // 6. Call Gemini
     const model = options.modelOverride || settings.aiModel;
@@ -3838,6 +3916,8 @@ async function processMatch(
           result: r.result ?? null,
         })),
       },
+      studioRelease,
+      prePromptDecision,
     );
     const parsed = activeAnalysis.parsed;
     enforceFollowUpLineupAvailability(parsed, {
@@ -3877,6 +3957,8 @@ async function processMatch(
         activeAnalysis,
         model,
         settings,
+        studioRelease,
+        prePromptDecision,
       });
     }
 
@@ -4482,8 +4564,13 @@ function buildServerPrompt(data: {
   settledReplayApprovedTrace?: boolean;
   settledReplayOriginalBetMarket?: string;
   settledReplayOriginalSelection?: string;
-}, settings: PipelineSettings, promptVersion: LiveAnalysisPromptVersion = LIVE_ANALYSIS_PROMPT_VERSION): string {
-  return buildLiveAnalysisPrompt(
+},
+settings: PipelineSettings,
+promptVersion: LiveAnalysisPromptVersion = LIVE_ANALYSIS_PROMPT_VERSION,
+studioRelease: RecommendationReleaseDetail | null = null,
+prePromptDecision: ReturnType<typeof applyRecommendationStudioPrePromptRules> | null = null,
+): string {
+  return buildPromptFromRecommendationStudioRelease(
     {
       homeName: data.homeName,
       awayName: data.awayName,
@@ -4541,5 +4628,7 @@ function buildServerPrompt(data: {
       endgameMinute: settings.endgameMinute,
     },
     promptVersion,
+    studioRelease,
+    prePromptDecision ?? undefined,
   );
 }
