@@ -4076,6 +4076,12 @@ async function processMatch(
         policyBlocked: activeAnalysis.policyBlocked,
         policyWarnings: activeAnalysis.policyWarnings,
       });
+      decisionContext['studioReleaseActive'] = studioRelease != null;
+      decisionContext['studioReleaseId'] = studioRelease?.id ?? null;
+      decisionContext['studioReleaseKey'] = studioRelease?.release_key ?? null;
+      decisionContext['studioReleaseName'] = studioRelease?.name ?? null;
+      decisionContext['studioPromptTemplateId'] = studioRelease?.prompt_template_id ?? null;
+      decisionContext['studioRuleSetId'] = studioRelease?.rule_set_id ?? null;
       decisionContext['recommendationSource'] = saveFromConditionTrigger ? 'condition_triggered' : 'ai_primary';
       decisionContext['conditionTriggeredSpecialOverride'] = saveFromConditionTrigger
         ? parsed.condition_triggered_special_override

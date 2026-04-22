@@ -571,6 +571,9 @@ describe('runPipelineBatch', () => {
         profileCoverageBand: expect.any(String),
         overlayCoverageBand: expect.any(String),
         policyImpactBand: expect.any(String),
+        studioReleaseActive: false,
+        studioReleaseId: null,
+        studioReleaseKey: null,
       }),
     }));
   });
