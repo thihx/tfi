@@ -33,6 +33,10 @@ export const config = {
   footballApiBaseUrl: process.env['FOOTBALL_API_BASE_URL'] || 'https://v3.football.api-sports.io',
   /** Pause outbound Football API calls until UTC midnight after daily quota is hit. */
   footballApiCircuitEnabled: process.env['FOOTBALL_API_CIRCUIT_ENABLED'] !== 'false',
+  /** Remove stale legacy watchlist rows during expire-watchlist (preview via npm script first). */
+  legacyWatchlistCleanupEnabled: process.env['LEGACY_WATCHLIST_CLEANUP_ENABLED'] === 'true',
+  /** Kickoff older than this many days marks legacy rows as stale cleanup candidates. */
+  legacyWatchlistStaleDays: Number(process.env['LEGACY_WATCHLIST_STALE_DAYS'] || 7),
 
   // AI (Gemini)
   geminiApiKey: process.env['GEMINI_API_KEY'] || '',
