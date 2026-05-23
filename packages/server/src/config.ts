@@ -75,7 +75,7 @@ export const config = {
   nodeEnv: process.env['NODE_ENV'] || 'development',
   jwtExpiresInSeconds: Number(process.env['JWT_EXPIRES_IN_SECONDS'] || 604800), // 7 days
 
-  // Job intervals (ms) — 0 = disabled
+  // Job intervals (ms) — 0 = disabled. Production quota tuning: see .env.azure.example (Phase 2).
   jobFetchMatchesMs: Number(process.env['JOB_FETCH_MATCHES_MS'] || 1 * 60_000),         // 1 min
   jobSyncWatchlistMetadataMs: Number(process.env['JOB_SYNC_WATCHLIST_METADATA_MS'] || process.env['JOB_FETCH_MATCHES_MS'] || 1 * 60_000),
   jobAutoAddTopLeagueWatchlistMs: Number(process.env['JOB_AUTO_ADD_TOP_LEAGUE_WATCHLIST_MS'] || process.env['JOB_FETCH_MATCHES_MS'] || 1 * 60_000),
