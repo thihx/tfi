@@ -14,13 +14,21 @@ vi.mock('../lib/redis.js', () => ({
   getRedisClient: vi.fn(),
 }));
 
+const mockOpenFootballApiCircuitUntilNextUtcMidnight = vi.fn().mockResolvedValue('2026-05-24T00:00:00.000Z');
+
+vi.mock('../lib/football-api-circuit.js', () => ({
+  isFootballApiDailyLimitMessage: (message: string) => message.toLowerCase().includes('request limit for the day'),
+  openFootballApiCircuitUntilNextUtcMidnight: (...args: unknown[]) => mockOpenFootballApiCircuitUntilNextUtcMidnight(...args),
+}));
+
 vi.mock('../config.js', () => ({
   config: {
     redisUrl:           'redis://localhost:6379',
     footballApiKey:     'fb-key-123',
     footballApiBaseUrl: 'https://v3.football.api-sports.io',
+    footballApiCircuitEnabled: true,
     geminiApiKey:       'gemini-key-123',
-    geminiModel:        'gemini-pro',
+    geminiModel:        'gemini-3.0-flash',
     telegramBotToken:   'bot123:TOKEN',
     googleClientId:     'google-client-id',
     googleClientSecret: 'google-client-secret',
@@ -51,6 +59,7 @@ function mockFetchError(message: string) {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  mockOpenFootballApiCircuitUntilNextUtcMidnight.mockResolvedValue('2026-05-24T00:00:00.000Z');
 });
 
 // ── Tests ─────────────────────────────────────────────────────
@@ -142,7 +151,7 @@ describe('Redis probe', () => {
       config: {
         redisUrl: '',
         footballApiKey: 'key', footballApiBaseUrl: 'https://x.com',
-        geminiApiKey: 'key', geminiModel: 'gemini',
+        geminiApiKey: 'key', geminiModel: 'gemini-3.0-flash',
         telegramBotToken: 'token',
         googleClientId: 'cid', googleClientSecret: 'csec',
       },
@@ -174,6 +183,29 @@ describe('Football API probe', () => {
     const result = await checkSingleIntegration('football-api');
     expect(result!.status).toBe('DEGRADED');
     expect(result!.message).toContain('429');
+  });
+
+  test('opens circuit when usage reports daily quota exhausted', async () => {
+    global.fetch = mockFetch(200, {
+      response: { account: { requests: { current: 7000, limit_day: 7000 } } },
+    });
+    const { checkSingleIntegration } = await import('../lib/integration-health.js');
+    const result = await checkSingleIntegration('football-api');
+    expect(result!.status).toBe('HEALTHY');
+    expect(result!.message).toContain('7000/7000');
+    expect(mockOpenFootballApiCircuitUntilNextUtcMidnight).toHaveBeenCalledTimes(1);
+  });
+
+  test('opens circuit when /status payload contains daily limit error', async () => {
+    global.fetch = mockFetch(200, {
+      errors: {
+        requests: 'You have reached the request limit for the day, Go to https://dashboard.api-football.com to upgrade your plan.',
+      },
+    });
+    const { checkSingleIntegration } = await import('../lib/integration-health.js');
+    const result = await checkSingleIntegration('football-api');
+    expect(result!.status).toBe('DEGRADED');
+    expect(mockOpenFootballApiCircuitUntilNextUtcMidnight).toHaveBeenCalledTimes(1);
   });
 
   test('DOWN when fetch throws (network error)', async () => {

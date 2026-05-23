@@ -1,4 +1,5 @@
 import type { ApiFixtureStat } from '../lib/football-api.js';
+import { skipIfFootballApiCircuitOpen } from '../lib/football-api-circuit.js';
 import { kickoffAtUtcFromFixtureDate } from '../lib/kickoff-time.js';
 import { ensureFixtureStatistics, ensureFixturesForMatchIds } from '../lib/provider-insight-cache.js';
 import * as matchRepo from '../repos/matches.repo.js';
@@ -45,8 +46,22 @@ export async function refreshLiveMatchesJob(): Promise<{
   refreshed: number;
   live: number;
   statsRefreshed: number;
+  skipped?: boolean;
+  skipReason?: string;
+  openUntil?: string;
 }> {
   const JOB = 'refresh-live-matches';
+  const circuitSkip = await skipIfFootballApiCircuitOpen();
+  if (circuitSkip) {
+    return {
+      tracked: 0,
+      refreshed: 0,
+      live: 0,
+      statsRefreshed: 0,
+      ...circuitSkip,
+    };
+  }
+
   await reportJobProgress(JOB, 'load', 'Loading live and near-live matches...', 10);
 
   const now = Date.now();

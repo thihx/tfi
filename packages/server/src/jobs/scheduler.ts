@@ -922,16 +922,6 @@ export async function startScheduler() {
   }
 
   for (const job of jobs) {
-    if (job.skipKey) {
-      try {
-        await getRedisClient().del(job.skipKey);
-      } catch {
-        // ignore
-      }
-    }
-  }
-
-  for (const job of jobs) {
     if (!job.enabled) {
       console.log(`[scheduler] Job "${job.name}" disabled (interval=0)`);
       continue;

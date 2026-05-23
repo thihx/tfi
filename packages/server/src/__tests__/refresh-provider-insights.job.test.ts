@@ -29,10 +29,17 @@ vi.mock('../config.js', () => ({
   },
 }));
 
+const mockSkipIfFootballApiCircuitOpen = vi.fn().mockResolvedValue(null);
+
+vi.mock('../lib/football-api-circuit.js', () => ({
+  skipIfFootballApiCircuitOpen: (...args: unknown[]) => mockSkipIfFootballApiCircuitOpen(...args),
+}));
+
 const { refreshProviderInsightsJob } = await import('../jobs/refresh-provider-insights.job.js');
 
 beforeEach(() => {
   vi.clearAllMocks();
+  mockSkipIfFootballApiCircuitOpen.mockResolvedValue(null);
   mockGetMatchesByStatus.mockResolvedValue([]);
   mockGetActiveOperationalWatchlist.mockResolvedValue([]);
   mockEnsureFixturesForMatchIds.mockResolvedValue([]);
@@ -93,6 +100,33 @@ describe('refreshProviderInsightsJob', () => {
       consumer: 'provider-insight-refresh-job',
       freshnessMode: 'prewarm_only',
     }));
+  });
+
+  test('skips when Football API daily limit circuit is open', async () => {
+    mockSkipIfFootballApiCircuitOpen.mockResolvedValueOnce({
+      skipped: true,
+      skipReason: 'football_api_daily_limit',
+      openUntil: '2026-05-24T00:00:00.000Z',
+    });
+
+    const result = await refreshProviderInsightsJob();
+
+    expect(result).toEqual({
+      candidates: 0,
+      skippedLiveCandidates: 0,
+      fixturesAvailable: 0,
+      fixtureRefreshed: 0,
+      eventRefreshed: 0,
+      statisticsRefreshed: 0,
+      lineupsRefreshed: 0,
+      predictionsRefreshed: 0,
+      standingsRefreshed: 0,
+      skipped: true,
+      skipReason: 'football_api_daily_limit',
+      openUntil: '2026-05-24T00:00:00.000Z',
+    });
+    expect(mockGetMatchesByStatus).not.toHaveBeenCalled();
+    expect(mockEnsureFixturesForMatchIds).not.toHaveBeenCalled();
   });
 
   test('returns early when all current candidates are live', async () => {

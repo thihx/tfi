@@ -10,6 +10,7 @@
 
 import { config } from '../config.js';
 import { fetchFixturesForDate, type ApiFixture, type ApiFixtureStat } from '../lib/football-api.js';
+import { skipIfFootballApiCircuitOpen } from '../lib/football-api-circuit.js';
 import { kickoffAtUtcFromFixtureDate } from '../lib/kickoff-time.js';
 import { ensureFixtureStatistics } from '../lib/provider-insight-cache.js';
 import { getRedisClient } from '../lib/redis.js';
@@ -108,8 +109,20 @@ function fixtureToMatchRow(fixture: ApiFixture): matchRepo.MatchRow {
   };
 }
 
-export async function fetchMatchesJob(): Promise<{ saved: number; leagues: number }> {
+export async function fetchMatchesJob(): Promise<{
+  saved: number;
+  leagues: number;
+  skipped?: boolean;
+  skipReason?: string;
+  openUntil?: string;
+}> {
   const jobName = 'fetch-matches';
+
+  const circuitSkip = await skipIfFootballApiCircuitOpen();
+  if (circuitSkip) {
+    console.log(`[fetchMatchesJob] Skipping - Football API daily limit until ${circuitSkip.openUntil}`);
+    return { saved: 0, leagues: 0, ...circuitSkip };
+  }
 
   try {
     const redis = getRedisClient();

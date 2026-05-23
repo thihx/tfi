@@ -1,4 +1,5 @@
 import { config } from '../config.js';
+import { skipIfFootballApiCircuitOpen } from '../lib/football-api-circuit.js';
 import { getMatchesByStatus } from '../repos/matches.repo.js';
 import { getActiveOperationalWatchlist } from '../repos/watchlist.repo.js';
 import { ensureFixturesForMatchIds, ensureScoutInsight } from '../lib/provider-insight-cache.js';
@@ -26,8 +27,27 @@ export async function refreshProviderInsightsJob(): Promise<{
   lineupsRefreshed: number;
   predictionsRefreshed: number;
   standingsRefreshed: number;
+  skipped?: boolean;
+  skipReason?: string;
+  openUntil?: string;
 }> {
   const job = 'refresh-provider-insights';
+  const circuitSkip = await skipIfFootballApiCircuitOpen();
+  if (circuitSkip) {
+    return {
+      candidates: 0,
+      skippedLiveCandidates: 0,
+      fixturesAvailable: 0,
+      fixtureRefreshed: 0,
+      eventRefreshed: 0,
+      statisticsRefreshed: 0,
+      lineupsRefreshed: 0,
+      predictionsRefreshed: 0,
+      standingsRefreshed: 0,
+      ...circuitSkip,
+    };
+  }
+
   await reportJobProgress(job, 'load', 'Loading live and watched matches...', 10);
 
   const [liveMatches, watchlist] = await Promise.all([

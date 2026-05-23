@@ -185,6 +185,28 @@ describe('scheduler remote state hygiene', () => {
   });
 });
 
+describe('scheduler adaptive skip preservation', () => {
+  test('does not clear fetch-matches adaptive skip key on scheduler start', async () => {
+    const redis = {
+      set: vi.fn().mockResolvedValue('OK'),
+      get: vi.fn().mockResolvedValue(null),
+      del: vi.fn().mockResolvedValue(1),
+      hset: vi.fn().mockResolvedValue(1),
+      hgetall: vi.fn().mockResolvedValue({}),
+      expire: vi.fn().mockResolvedValue(1),
+    };
+    const { scheduler } = await loadScheduler({
+      configOverrides: { jobFetchMatchesMs: 10 },
+      redisFactory: () => redis,
+    });
+
+    await scheduler.startScheduler();
+
+    expect(redis.del).not.toHaveBeenCalledWith('job:fetch-matches:next-run-at');
+    scheduler.stopScheduler();
+  });
+});
+
 describe('scheduler cadence resilience', () => {
   test('queues one pending rerun when a single-concurrency job overruns its interval', async () => {
     let resolveFirstRun: (() => void) | null = null;

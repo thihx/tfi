@@ -5,6 +5,7 @@
 // ============================================================
 
 import { config } from '../config.js';
+import { skipIfFootballApiCircuitOpen } from '../lib/football-api-circuit.js';
 import * as watchlistRepo from '../repos/watchlist.repo.js';
 import * as matchRepo from '../repos/matches.repo.js';
 import * as snapshotsRepo from '../repos/match-snapshots.repo.js';
@@ -33,8 +34,16 @@ export async function checkLiveTriggerJob(): Promise<{
   liveCount: number;
   candidateCount?: number;
   pipelineResults?: PipelineResult[];
+  skipped?: boolean;
+  skipReason?: string;
+  openUntil?: string;
 }> {
   const JOB = 'check-live-trigger';
+
+  const circuitSkip = await skipIfFootballApiCircuitOpen();
+  if (circuitSkip) {
+    return { liveCount: 0, ...circuitSkip };
+  }
 
   // 1. Get active watchlist match IDs
   await reportJobProgress(JOB, 'load', 'Loading active watchlist...', 15);

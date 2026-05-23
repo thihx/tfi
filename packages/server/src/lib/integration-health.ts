@@ -4,6 +4,10 @@
 
 import { query } from '../db/pool.js';
 import { config } from '../config.js';
+import {
+  isFootballApiDailyLimitMessage,
+  openFootballApiCircuitUntilNextUtcMidnight,
+} from './football-api-circuit.js';
 
 export type IntegrationStatus = 'HEALTHY' | 'DEGRADED' | 'DOWN' | 'NOT_CONFIGURED';
 
@@ -104,10 +108,27 @@ async function probeFootballApi(): Promise<IntegrationProbeResult> {
       ),
     );
     if (res.ok) {
-      const data = await res.json() as { response?: { account?: { requests?: { current?: number; limit_day?: number } } } };
+      const data = await res.json() as {
+        errors?: Record<string, string>;
+        response?: { account?: { requests?: { current?: number; limit_day?: number } } };
+      };
+      const serialized = JSON.stringify(data);
+      if (data.errors && Object.keys(data.errors).length > 0 && isFootballApiDailyLimitMessage(serialized)) {
+        await openFootballApiCircuitUntilNextUtcMidnight();
+        return makeResult(ID, LABEL, DESC, 'DEGRADED', latencyMs, JSON.stringify(data.errors));
+      }
       const req = data?.response?.account?.requests;
+      const current = req?.current;
+      const limitDay = req?.limit_day;
+      if (typeof current === 'number' && typeof limitDay === 'number' && current >= limitDay) {
+        await openFootballApiCircuitUntilNextUtcMidnight();
+      }
       const msg = req ? `Requests today: ${req.current ?? '?'}/${req.limit_day ?? '?'}` : undefined;
       return makeResult(ID, LABEL, DESC, 'HEALTHY', latencyMs, msg);
+    }
+    const errorText = await res.text();
+    if (isFootballApiDailyLimitMessage(errorText)) {
+      await openFootballApiCircuitUntilNextUtcMidnight();
     }
     return makeResult(ID, LABEL, DESC, 'DEGRADED', latencyMs, `HTTP ${res.status}`);
   } catch (err: unknown) {

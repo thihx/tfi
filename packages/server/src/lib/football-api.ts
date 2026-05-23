@@ -7,6 +7,14 @@
 // ============================================================
 
 import { config } from '../config.js';
+import {
+  assertFootballApiAvailable,
+  extractFootballApiDailyLimitError,
+  FootballApiDailyLimitError,
+  isFootballApiDailyLimitMessage,
+  openFootballApiCircuitUntilNextUtcMidnight,
+  recordFootballApiDailyLimitFromError,
+} from './football-api-circuit.js';
 
 interface ApiFootballResponse<T> {
   get: string;
@@ -81,6 +89,8 @@ const MAX_RETRIES = 2;
 async function apiGet<T>(endpoint: string, params: Record<string, string> = {}): Promise<T[]> {
   if (!config.footballApiKey) throw new Error('FOOTBALL_API_KEY not configured');
 
+  await assertFootballApiAvailable();
+
   const url = new URL(config.footballApiBaseUrl + endpoint);
   for (const [k, v] of Object.entries(params)) url.searchParams.set(k, v);
 
@@ -101,7 +111,11 @@ async function apiGet<T>(endpoint: string, params: Record<string, string> = {}):
       clearTimeout(timer);
 
       if (res.status === 429) {
-        // Rate limited — wait and retry
+        const text = await res.text();
+        if (isFootballApiDailyLimitMessage(text)) {
+          const openUntil = await openFootballApiCircuitUntilNextUtcMidnight();
+          throw new FootballApiDailyLimitError(openUntil, `Football API ${res.status}: ${text.substring(0, 300)}`);
+        }
         const waitMs = 2000 * (attempt + 1);
         console.warn(`[football-api] Rate limited (429), retrying in ${waitMs}ms...`);
         await new Promise((r) => setTimeout(r, waitMs));
@@ -110,16 +124,31 @@ async function apiGet<T>(endpoint: string, params: Record<string, string> = {}):
 
       if (!res.ok) {
         const text = await res.text();
+        if (isFootballApiDailyLimitMessage(text)) {
+          const openUntil = await openFootballApiCircuitUntilNextUtcMidnight();
+          throw new FootballApiDailyLimitError(openUntil, `Football API ${res.status}: ${text.substring(0, 300)}`);
+        }
         throw new Error(`Football API ${res.status}: ${text.substring(0, 300)}`);
       }
 
       const data: ApiFootballResponse<T> = await res.json();
       if (data.errors && Object.keys(data.errors).length > 0) {
-        throw new Error(`Football API errors: ${JSON.stringify(data.errors)}`);
+        const serializedErrors = JSON.stringify(data.errors);
+        if (isFootballApiDailyLimitMessage(serializedErrors)) {
+          const openUntil = await openFootballApiCircuitUntilNextUtcMidnight();
+          throw new FootballApiDailyLimitError(openUntil, `Football API errors: ${serializedErrors}`);
+        }
+        throw new Error(`Football API errors: ${serializedErrors}`);
       }
       return data.response;
     } catch (err) {
       lastError = err instanceof Error ? err : new Error(String(err));
+      if (lastError instanceof FootballApiDailyLimitError) {
+        throw lastError;
+      }
+      if (await recordFootballApiDailyLimitFromError(lastError)) {
+        throw extractFootballApiDailyLimitError(lastError) ?? lastError;
+      }
       if (attempt < MAX_RETRIES) {
         const waitMs = 1000 * (attempt + 1);
         console.warn(`[football-api] Attempt ${attempt + 1} failed, retrying in ${waitMs}ms...`, lastError.message);

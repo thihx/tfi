@@ -126,12 +126,19 @@ vi.mock('../config.js', () => ({
   },
 }));
 
+const mockSkipIfFootballApiCircuitOpen = vi.fn().mockResolvedValue(null);
+
+vi.mock('../lib/football-api-circuit.js', () => ({
+  skipIfFootballApiCircuitOpen: (...args: unknown[]) => mockSkipIfFootballApiCircuitOpen(...args),
+}));
+
 const { fetchMatchesJob } = await import('../jobs/fetch-matches.job.js');
 
 beforeEach(() => {
   vi.clearAllMocks();
   mockRedis.get.mockResolvedValue(null);
   mockRedis.set.mockResolvedValue('OK');
+  mockSkipIfFootballApiCircuitOpen.mockResolvedValue(null);
 });
 
 describe('fetchMatchesJob adaptive skip', () => {
@@ -142,6 +149,26 @@ describe('fetchMatchesJob adaptive skip', () => {
     // Should have called the football API
     const footballApi = await import('../lib/football-api.js');
     expect(footballApi.fetchFixturesForDate).toHaveBeenCalled();
+  });
+
+  test('skips when Football API daily limit circuit is open', async () => {
+    mockSkipIfFootballApiCircuitOpen.mockResolvedValueOnce({
+      skipped: true,
+      skipReason: 'football_api_daily_limit',
+      openUntil: '2026-05-24T00:00:00.000Z',
+    });
+
+    const result = await fetchMatchesJob();
+    expect(result).toEqual({
+      saved: 0,
+      leagues: 0,
+      skipped: true,
+      skipReason: 'football_api_daily_limit',
+      openUntil: '2026-05-24T00:00:00.000Z',
+    });
+    const footballApi = await import('../lib/football-api.js');
+    expect(footballApi.fetchFixturesForDate).not.toHaveBeenCalled();
+    expect(mockRedis.get).not.toHaveBeenCalled();
   });
 
   test('skips when next-run-at is in the future', async () => {

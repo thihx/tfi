@@ -31,15 +31,17 @@ export const config = {
   // Football API
   footballApiKey: process.env['FOOTBALL_API_KEY'] || '',
   footballApiBaseUrl: process.env['FOOTBALL_API_BASE_URL'] || 'https://v3.football.api-sports.io',
+  /** Pause outbound Football API calls until UTC midnight after daily quota is hit. */
+  footballApiCircuitEnabled: process.env['FOOTBALL_API_CIRCUIT_ENABLED'] !== 'false',
 
   // AI (Gemini)
   geminiApiKey: process.env['GEMINI_API_KEY'] || '',
-  geminiModel: process.env['GEMINI_MODEL'] || 'gemini-2.5-flash',
+  geminiModel: process.env['GEMINI_MODEL'] || 'gemini-3.0-flash',
   /** Model for auto-settle AI fallback (rule-based settle unchanged). Default Flash to reduce cost vs live pipeline Pro. */
-  geminiSettleModel: process.env['GEMINI_SETTLE_MODEL'] || 'gemini-2.5-flash',
+  geminiSettleModel: process.env['GEMINI_SETTLE_MODEL'] || 'gemini-3.0-flash',
   geminiTimeoutMs: Number(process.env['GEMINI_TIMEOUT_MS'] || 90000),
-  geminiStrategicGroundedModel: process.env['GEMINI_STRATEGIC_GROUNDED_MODEL'] || 'gemini-2.5-flash',
-  geminiStrategicStructuredModel: process.env['GEMINI_STRATEGIC_STRUCTURED_MODEL'] || 'gemini-2.5-flash',
+  geminiStrategicGroundedModel: process.env['GEMINI_STRATEGIC_GROUNDED_MODEL'] || 'gemini-3.0-flash',
+  geminiStrategicStructuredModel: process.env['GEMINI_STRATEGIC_STRUCTURED_MODEL'] || 'gemini-3.0-flash',
   geminiStrategicGroundedMaxOutputTokens: Number(process.env['GEMINI_STRATEGIC_GROUNDED_MAX_OUTPUT_TOKENS'] || 4000),
   geminiStrategicStructuredMaxOutputTokens: Number(process.env['GEMINI_STRATEGIC_STRUCTURED_MAX_OUTPUT_TOKENS'] || 2048),
   geminiStrategicGroundedThinkingBudget: process.env['GEMINI_STRATEGIC_GROUNDED_THINKING_BUDGET'] == null
