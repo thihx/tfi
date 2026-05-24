@@ -325,7 +325,7 @@ Khi LLP **defer** (`LLP_BLOCK_AH_WAIT_OU_OVER_LINE`, `LLP_BLOCK_OVER_AGGRESSIVE_
 ## 13. Performance memory
 
 - Memory block: WR < 40% (mẫu đủ); WR < 45% + BE cao
-- Recommendation Studio đã gỡ khỏi runtime (chỉ còn bảng DB lịch sử nếu đã migrate)
+- Recommendation Studio đã gỡ; migration `053_drop_recommendation_studio.sql` xóa các bảng studio khỏi DB
 
 ---
 
