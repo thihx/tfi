@@ -158,6 +158,8 @@ export interface WatchlistItem {
   away_logo?: string;
   kickoff: string;
   custom_conditions: string;
+  /** When false, server-side condition/push delivery is suppressed for this watch subscription. */
+  notify_enabled?: boolean;
   added_at?: string;
   prediction?: string;
   recommended_custom_condition?: string;

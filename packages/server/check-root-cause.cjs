@@ -44,7 +44,7 @@ const pool = new Pool({ connectionString: 'postgresql://fkr:Panda%40241205@fkr-d
         '', '', 'tfi_test_bug', '{}', '{}', '', false,
         45, '1-0', 'AI', 'Over 2.5', 1.85, 75, 10, 'MEDIUM',
         2, null, 'test reasoning', '', '',
-        'test-model', 'B', 'over_2.5', '', '',
+        'gemini-3.0-flash', 'B', 'over_2.5', '', '',
         '', '', 0, '', false  // <-- settled_at = '' here!
       ]
     );
@@ -79,7 +79,7 @@ const pool = new Pool({ connectionString: 'postgresql://fkr:Panda%40241205@fkr-d
         '', '', 'tfi_test_null', '{}', '{}', '', false,
         45, '1-0', 'AI', 'Over 2.5', 1.85, 75, 10, 'MEDIUM',
         2, null, 'test reasoning', '', '',
-        'test-model', 'B', 'over_2.5', '', '',
+        'gemini-3.0-flash', 'B', 'over_2.5', '', '',
         '', '', 0, null, false  // <-- settled_at = null here!
       ]
     );

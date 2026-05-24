@@ -111,7 +111,7 @@ function ScopeRow({ target }: { target: LiveMonitorTarget }) {
           <div style={{ display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap', marginBottom: '4px' }}>
             <strong style={{ fontSize: '13px' }}>{target.matchDisplay}</strong>
             <span className={`badge ${target.candidate ? 'badge-active' : target.live ? 'badge-pending' : 'badge-draw'}`}>
-              {target.candidate ? 'Analysis candidate' : target.live ? 'Watching Live' : 'Waiting for Kickoff'}
+              {target.candidate ? 'Pre-check candidate' : target.live ? 'Watching Live' : 'Waiting for Kickoff'}
             </span>
             {target.customConditions ? <span className="badge badge-draw">Custom Condition</span> : null}
             {target.recommendedCondition ? <span className="badge badge-pending">Suggested condition</span> : null}
@@ -123,7 +123,7 @@ function ScopeRow({ target }: { target: LiveMonitorTarget }) {
           </div>
           <div style={{ fontSize: '12px', color: 'var(--gray-500)', marginTop: '4px' }}>
             {target.candidate
-              ? 'Will go to analysis on the next engine run.'
+              ? 'Passed the coarse gate; the engine may still skip after fresh stats and odds.'
               : target.live
                 ? 'Tracked live, but not sent to analysis yet.'
                 : 'This match is in the system monitoring pool but is not live yet.'}
@@ -372,7 +372,7 @@ export function LiveMonitorTab() {
         <div style={{ padding: '20px' }}>
           <div className="monitor-stats-row">
             <SummaryStat label="Live Now" value={status?.monitoring.liveWatchCount ?? 0} color={(status?.monitoring.liveWatchCount ?? 0) > 0 ? 'var(--success)' : undefined} />
-            <SummaryStat label="Ready for analysis" value={status?.monitoring.candidateCount ?? 0} color={(status?.monitoring.candidateCount ?? 0) > 0 ? 'var(--primary)' : undefined} />
+            <SummaryStat label="Pre-check candidates" value={status?.monitoring.candidateCount ?? 0} color={(status?.monitoring.candidateCount ?? 0) > 0 ? 'var(--primary)' : undefined} />
             <SummaryStat label="My Watchlist" value={state.watchlist.length} />
             <SummaryStat label="System Pool" value={status?.monitoring.activeWatchCount ?? 0} />
           </div>
@@ -450,7 +450,7 @@ export function LiveMonitorTab() {
           {status?.summary ? (
             <div className="monitor-stats-row">
               <SummaryStat label="Live Matches" value={status.summary.liveCount} />
-              <SummaryStat label="Ready for analysis" value={status.summary.candidateCount} />
+              <SummaryStat label="Pre-check candidates" value={status.summary.candidateCount} />
               <SummaryStat label="Checked This Run" value={status.summary.processed} />
               <SummaryStat label="Recommendations Saved" value={status.summary.savedRecommendations} color="var(--success)" />
               <SummaryStat label="Notifications" value={status.summary.pushedNotifications} color="var(--primary)" />

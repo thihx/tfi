@@ -69,6 +69,28 @@ export function resetFootballApiCircuitForTests(): void {
   memoryOpenUntilMs = null;
 }
 
+/** Admin / manual job run: clear open circuit so a retry can probe the provider. */
+export async function clearFootballApiCircuit(): Promise<void> {
+  memoryOpenUntilMs = null;
+  try {
+    const redis = getRedisClient();
+    await redis.del(FOOTBALL_API_CIRCUIT_KEY);
+  } catch {
+    // memory-only clear is enough for this process
+  }
+}
+
+export async function getFootballApiCircuitStatus(): Promise<{
+  open: boolean;
+  openUntil: string | null;
+}> {
+  const openUntilMs = await getFootballApiCircuitOpenUntilMs();
+  if (openUntilMs == null) {
+    return { open: false, openUntil: null };
+  }
+  return { open: true, openUntil: new Date(openUntilMs).toISOString() };
+}
+
 export async function openFootballApiCircuitUntil(untilMs: number): Promise<string> {
   const openUntil = new Date(untilMs).toISOString();
   writeMemoryOpenUntilMs(untilMs);

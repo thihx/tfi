@@ -55,7 +55,7 @@ const BOOTSTRAP_BASE = {
   ],
   sectionDefinitions: [],
   ruleMeta: { stages: ['pre_prompt', 'post_parse'], marketFamilies: ['corners'], periodKinds: ['ft', 'h1'] },
-  replayGuardrails: { maxItems: 20, llmModel: 'gemini-2.5-flash' },
+  replayGuardrails: { maxItems: 20, llmModel: 'gemini-3.5-flash' },
   prompts: [
     { id: 11, template_key: 'prompt-1', name: 'Prompt 1', base_prompt_version: 'v10-hybrid-legacy-b', status: 'draft', notes: '', advanced_appendix: '', created_by: null, updated_by: null, created_at: '', updated_at: '' },
   ],
@@ -92,7 +92,7 @@ const BOOTSTRAP_BASE = {
       completed_items: 1,
       error_message: null,
       llm_mode: 'real',
-      llm_model: 'gemini-2.5-flash',
+      llm_model: 'gemini-3.5-flash',
       created_by: null,
       created_at: '',
       started_at: '',

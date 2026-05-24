@@ -3,9 +3,9 @@ import { beforeEach, describe, expect, test, vi } from 'vitest';
 vi.mock('../config.js', () => ({
   config: {
     geminiApiKey: 'test-key',
-    geminiModel: 'gemini-test',
-    geminiStrategicGroundedModel: 'gemini-strategic-grounded',
-    geminiStrategicStructuredModel: 'gemini-strategic-structured',
+    geminiModel: 'gemini-3.5-flash',
+    geminiStrategicGroundedModel: 'gemini-3.5-flash',
+    geminiStrategicStructuredModel: 'gemini-3.5-flash',
     geminiStrategicGroundedMaxOutputTokens: 4000,
     geminiStrategicStructuredMaxOutputTokens: 2048,
     geminiStrategicGroundedThinkingBudget: 0,
@@ -315,10 +315,10 @@ ALERT_RATIONALE:`,
     const structuredUrl = String(fetchMock.mock.calls[1]?.[0] ?? '');
     const structuredBody = JSON.parse(String((fetchMock.mock.calls[1]?.[1] as { body?: string } | undefined)?.body ?? '{}'));
 
-    expect(groundedUrl).toContain('/gemini-strategic-grounded:generateContent');
+    expect(groundedUrl).toContain('/gemini-3.5-flash:generateContent');
     expect(groundedBody.generationConfig?.responseMimeType).toBe('text/plain');
     expect(groundedBody.thinkingConfig).toEqual({ thinkingBudget: 0 });
-    expect(structuredUrl).toContain('/gemini-strategic-structured:generateContent');
+    expect(structuredUrl).toContain('/gemini-3.5-flash:generateContent');
     expect(structuredBody.generationConfig?.responseMimeType).toBe('application/json');
     expect(structuredBody.thinkingConfig).toEqual({ thinkingBudget: 0 });
   });

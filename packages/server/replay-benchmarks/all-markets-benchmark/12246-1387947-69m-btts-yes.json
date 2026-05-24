@@ -353,7 +353,7 @@
   "metadata": {
     "recommendationId": 12246,
     "originalPromptVersion": "v4-evidence-hardened",
-    "originalAiModel": "gemini-3-pro-preview",
+    "originalAiModel": "gemini-3.0-flash",
     "originalBetMarket": "btts_yes",
     "originalSelection": "BTTS Yes @2.00",
     "originalResult": "win",

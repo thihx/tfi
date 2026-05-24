@@ -7,6 +7,7 @@ import { useAppState } from '@/hooks/useAppState';
 import { formatLocalDateTime } from '@/lib/utils/helpers';
 import { getToken } from '@/lib/services/auth';
 import { internalApiUrl } from '@/lib/internal-api';
+import { Modal } from '@/components/ui/Modal';
 
 function authHeaders(): Record<string, string> {
   const t = getToken();
@@ -157,11 +158,10 @@ export function AuditLogsPanel() {
   const totalPages = Math.ceil(total / PAGE_SIZE) || 1;
 
   const [resetting, setResetting] = useState(false);
+  const [resetConfirmOpen, setResetConfirmOpen] = useState(false);
 
-  const handleReset = async () => {
+  const performAuditReset = async () => {
     if (apiUrl == null) return;
-    const count = stats?.totalLogs ?? 0;
-    if (!window.confirm(`Reset toàn bộ ${count.toLocaleString()} audit logs? Hành động này không thể hoàn tác.`)) return;
     setResetting(true);
     try {
       await fetch(internalApiUrl('/api/audit-logs/reset', apiUrl), {
@@ -171,6 +171,7 @@ export function AuditLogsPanel() {
       });
       setPage(1);
       await Promise.all([fetchStats(), fetchLogs()]);
+      setResetConfirmOpen(false);
     } catch { /* ignore */ } finally {
       setResetting(false);
     }
@@ -316,7 +317,8 @@ export function AuditLogsPanel() {
           <button className="btn btn-sm" onClick={handleExport}>📥 Export CSV</button>
           <button
             className="btn btn-sm"
-            onClick={handleReset}
+            type="button"
+            onClick={() => setResetConfirmOpen(true)}
             disabled={resetting}
             style={{ color: '#dc2626', borderColor: '#fca5a5' }}
           >
@@ -428,6 +430,26 @@ export function AuditLogsPanel() {
       <div style={{ marginTop: '12px', textAlign: 'right' }}>
         <button className="btn btn-sm" onClick={() => { fetchLogs(); fetchStats(); }} style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg> Refresh</button>
       </div>
+
+      <Modal
+        open={resetConfirmOpen}
+        title="Xác nhận reset audit logs"
+        onClose={() => { if (!resetting) setResetConfirmOpen(false); }}
+        footer={
+          <>
+            <button type="button" className="btn btn-secondary" onClick={() => setResetConfirmOpen(false)} disabled={resetting}>
+              Hủy
+            </button>
+            <button type="button" className="btn btn-danger" onClick={() => void performAuditReset()} disabled={resetting}>
+              {resetting ? 'Đang reset…' : 'Reset toàn bộ'}
+            </button>
+          </>
+        }
+      >
+        <p style={{ margin: 0, color: 'var(--gray-600)', fontSize: '14px', lineHeight: 1.5 }}>
+          Reset toàn bộ {(stats?.totalLogs ?? 0).toLocaleString()} audit logs? Hành động này không thể hoàn tác.
+        </p>
+      </Modal>
     </div>
   );
 }

@@ -279,6 +279,7 @@ function JobSchedulerPanel() {
   const { state } = useAppState();
   const { showToast } = useToast();
   const [jobs, setJobs] = useState<JobInfo[]>([]);
+  const [footballApiCircuit, setFootballApiCircuit] = useState<{ open: boolean; openUntil: string | null } | null>(null);
   const [triggering, setTriggering] = useState<Set<string>>(new Set());
   const [expandedHistoryJob, setExpandedHistoryJob] = useState<string | null>(null);
   const [jobRunsByName, setJobRunsByName] = useState<Record<string, JobRunHistoryRow[]>>({});
@@ -291,7 +292,13 @@ function JobSchedulerPanel() {
     if (apiUrl == null) return;
     try {
       const res = await fetch(internalApiUrl('/api/jobs', apiUrl), { headers: authHeaders(), credentials: 'include' });
-      if (res.ok) setJobs(await res.json());
+      if (res.ok) {
+        const payload = await res.json() as JobInfo[] | { jobs?: JobInfo[]; footballApiCircuit?: { open: boolean; openUntil: string | null } };
+        setJobs(Array.isArray(payload) ? payload : (payload.jobs ?? []));
+        if (!Array.isArray(payload) && payload.footballApiCircuit) {
+          setFootballApiCircuit(payload.footballApiCircuit);
+        }
+      }
     } catch { /* server offline */ }
   }, [apiUrl]);
 
@@ -368,7 +375,8 @@ function JobSchedulerPanel() {
       if (res.ok) {
         fetchJobs();
       } else if (res.status === 409) {
-        showToast('Job is already running', 'error');
+        const body = await res.json().catch(() => ({})) as { error?: string };
+        showToast(body.error || 'Job is already running', 'error');
       }
     } catch {
       showToast('Failed to trigger job', 'error');
@@ -387,6 +395,12 @@ function JobSchedulerPanel() {
 
   return (
     <div className="job-scheduler">
+      {footballApiCircuit?.open ? (
+        <div className="job-circuit-banner" role="status">
+          Football API daily limit active until {footballApiCircuit.openUntil ? formatLocalDateTime(footballApiCircuit.openUntil) : 'reset'}.
+          Football jobs will skip until then. Use <strong>Force</strong> on a job to clear the circuit and retry (only if quota has reset).
+        </div>
+      ) : null}
       {[...jobs].sort((a, b) => (a.order ?? JOB_META[a.name]?.order ?? 99) - (b.order ?? JOB_META[b.name]?.order ?? 99)).map((job) => {
         const meta = JOB_META[job.name];
         const label = job.label || meta?.label || job.name;
@@ -404,7 +418,13 @@ function JobSchedulerPanel() {
         const recentRuns = jobRunsByName[job.name] ?? [];
         const isHistoryLoading = historyLoadingByName[job.name] === true;
         const historyError = historyErrorByName[job.name];
-        const latestStatus: JobRunStatus | null = overview?.lastStatus ?? (isRunning ? 'success' : job.lastError ? 'failure' : null);
+        const inferredSkipped = !!job.lastError && (
+          job.lastError.includes('football_api_daily_limit')
+          || job.lastError.startsWith('Skipped')
+        );
+        const latestStatus: JobRunStatus | null = overview?.lastStatus ?? (
+          isRunning ? 'success' : inferredSkipped ? 'skipped' : job.lastError ? 'failure' : null
+        );
         const historyButtonLabel = isHistoryExpanded ? 'Hide Runs' : 'Recent Runs';
 
         let runBtnLabel = 'Run';
@@ -441,13 +461,15 @@ function JobSchedulerPanel() {
                 >
                   {runBtnLabel}
                 </button>
-                {job.name === 'enrich-watchlist' && (
+                {(job.name === 'enrich-watchlist' || ['fetch-matches', 'refresh-live-matches', 'sync-reference-data', 'refresh-provider-insights', 'check-live-trigger', 'update-predictions'].includes(job.name)) && (
                   <button
                     className="btn btn-sm"
                     style={{ marginLeft: 4, background: '#f59e0b', color: '#fff', border: 'none', display: 'inline-flex', alignItems: 'center', gap: '4px' }}
                     onClick={() => handleTrigger(job.name, true)}
                     disabled={isRunning || triggering.has(job.name)}
-                    title="Force re-enrich all entries (ignore 6h cache)"
+                    title={job.name === 'enrich-watchlist'
+                      ? 'Force re-enrich all entries (ignore 6h cache)'
+                      : 'Force run: clear API limit circuit and adaptive backoff'}
                   >
                     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg> Force
                   </button>

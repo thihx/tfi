@@ -310,7 +310,7 @@
   "metadata": {
     "recommendationId": 11815,
     "originalPromptVersion": "v8-market-balance-followup-f",
-    "originalAiModel": "gemini-3-pro-preview",
+    "originalAiModel": "gemini-3.0-flash",
     "originalBetMarket": "over_1",
     "originalSelection": "Over 1 Goals @1.775",
     "originalResult": "loss",

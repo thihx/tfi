@@ -51,7 +51,8 @@
     "data-driven:check-segment-gates": "tsx src/scripts/check-data-driven-segment-gates.ts",
     "data-driven:verify-gates-ci": "tsx src/scripts/check-data-driven-replay-gates.ts --config ci-baselines/data-driven-gates/gates-delta.ci.json && tsx src/scripts/check-data-driven-segment-gates.ts --config ci-baselines/data-driven-gates/gates-segment.ci.json",
     "data-driven:suggest-segment-blocklist": "tsx src/scripts/suggest-segment-policy-blocklist.ts",
-    "legacy-watchlist:cleanup-preview": "tsx src/scripts/preview-legacy-watchlist-cleanup.ts"
+    "benchmark:gemini-models": "tsx src/scripts/compare-gemini-model-benchmark.ts --apply-replay-policy --max-scenarios 12",
+    "benchmark:gemini-models:smoke": "tsx src/scripts/compare-gemini-model-benchmark.ts --smoke-only"
   },
   "dependencies": {
     "@fastify/cors": "^11.0.1",

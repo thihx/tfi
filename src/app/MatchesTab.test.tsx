@@ -129,8 +129,8 @@ vi.mock('@/hooks/useToast', () => ({
   useToast: () => ({ showToast: mockShowToast }),
 }));
 
-vi.mock('@/hooks/useUiLanguage', () => ({
-  useUiLanguage: () => 'vi',
+vi.mock('@/lib/services/notification-channels', () => ({
+  fetchNotificationChannels: vi.fn().mockResolvedValue([]),
 }));
 
 vi.mock('@/features/live-monitor/services/server-monitor.service', () => ({
@@ -147,6 +147,13 @@ vi.mock('@/lib/services/api', () => ({
   fetchTeamProfile: vi.fn().mockResolvedValue(null),
   fetchFavoriteLeagueSelection: mockFetchFavoriteLeagueSelection,
   applyFavoriteLeaguesToWatchlist: mockApplyFavoriteLeaguesToWatchlist,
+  evaluateWatchConditionPreview: vi.fn().mockResolvedValue({
+    supported: true,
+    matched: true,
+    summary: 'ok',
+    notify_enabled: true,
+    context_summary: { minute: 1, home_goals: 0, away_goals: 0, data_source: 'match_fixture' },
+  }),
 }));
 
 vi.mock('@/lib/services/auth', async () => {
@@ -370,7 +377,7 @@ describe('MatchesTab', () => {
 
     await user.click(screen.getByTitle('Table view'));
     await user.click(screen.getByRole('button', { name: 'Watch alerts and conditions' }));
-    await user.click(await screen.findByRole('button', { name: /Save Changes|Lưu thay đổi/ }));
+    await user.click(await screen.findByRole('button', { name: 'Save Changes' }));
 
     await waitFor(() => {
       expect(mockUpdateWatchlistItem).toHaveBeenCalledWith(
@@ -392,10 +399,10 @@ describe('MatchesTab', () => {
 
     await user.click(screen.getByTitle('Table view'));
     await user.click(screen.getByRole('button', { name: 'Watch alerts and conditions' }));
-    const saveBtn = await screen.findByRole('button', { name: /Save Changes|Lưu thay đổi/ });
+    const saveBtn = await screen.findByRole('button', { name: 'Save Changes' });
     const form = saveBtn.closest('form');
     expect(form).toBeTruthy();
-    await user.click(within(form!).getByRole('checkbox'));
+    await user.click(within(form!).getByRole('checkbox', { name: /Use system suggestion when saving/i }));
     await user.click(saveBtn);
 
     await waitFor(() => {

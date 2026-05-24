@@ -454,7 +454,7 @@ async function main(): Promise<void> {
     ruleSetId: releaseADetail.rule_set_id,
     sourceFilters: { recommendationIds: [settledRecommendationIds[0]] },
     releaseSnapshotJson: JSON.parse(JSON.stringify(releaseADetail)) as Record<string, unknown>,
-    llmModel: 'gemini-2.5-flash',
+    llmModel: 'gemini-3.5-flash',
     items: [
       {
         source_kind: 'recommendation',

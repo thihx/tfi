@@ -349,7 +349,7 @@
   "metadata": {
     "recommendationId": 11973,
     "originalPromptVersion": "v8-market-balance-followup-f",
-    "originalAiModel": "gemini-3-pro-preview",
+    "originalAiModel": "gemini-3.0-flash",
     "originalBetMarket": "corners_under_7.5",
     "originalSelection": "Corners Under 7.5 @1.975",
     "originalResult": "win",

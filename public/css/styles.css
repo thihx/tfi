@@ -4361,6 +4361,17 @@ tbody tr.date-group-row:hover {
   gap: 4px;
 }
 
+.job-circuit-banner {
+  padding: 10px 12px;
+  margin-bottom: 8px;
+  border-radius: 6px;
+  background: #fff3cd;
+  border: 1px solid #ffc107;
+  color: #664d03;
+  font-size: 0.9rem;
+  line-height: 1.45;
+}
+
 .job-card {
   background: var(--bg-secondary, #f8f9fa);
   border-radius: 6px;
@@ -4767,6 +4778,40 @@ tbody tr.date-group-row:hover {
   .job-history-toolbar {
     flex-direction: column;
     align-items: stretch;
+  }
+}
+
+/* ── Recommendation Studio responsive grid ────────────────────────────────── */
+.studio-sidebar-grid {
+  display: grid;
+  grid-template-columns: 240px minmax(0, 1fr);
+  gap: 12px;
+  align-items: start;
+}
+
+.studio-sidebar-grid-wide {
+  display: grid;
+  grid-template-columns: 320px minmax(0, 1fr);
+  gap: 12px;
+  align-items: start;
+}
+
+@media (max-width: 680px) {
+  .studio-sidebar-grid,
+  .studio-sidebar-grid-wide {
+    grid-template-columns: 1fr;
+  }
+
+  .studio-section-row {
+    display: flex !important;
+    flex-wrap: wrap;
+    gap: 6px;
+  }
+
+  .studio-rule-row {
+    display: flex !important;
+    flex-wrap: wrap;
+    gap: 6px;
   }
 }
 

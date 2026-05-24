@@ -68,14 +68,31 @@ describe('football-api-circuit', () => {
     expect(await isFootballApiCircuitOpen()).toBe(true);
   });
 
+  test('clearFootballApiCircuit removes open state', async () => {
+    const {
+      openFootballApiCircuitUntil,
+      clearFootballApiCircuit,
+      isFootballApiCircuitOpen,
+      getFootballApiCircuitStatus,
+    } = await import('../lib/football-api-circuit.js');
+
+    await openFootballApiCircuitUntil(Date.now() + 60_000);
+    expect(await isFootballApiCircuitOpen()).toBe(true);
+
+    await clearFootballApiCircuit();
+    expect(await isFootballApiCircuitOpen()).toBe(false);
+    await expect(getFootballApiCircuitStatus()).resolves.toEqual({ open: false, openUntil: null });
+  });
+
   test('skipIfFootballApiCircuitOpen returns skip payload when circuit is open', async () => {
-    const untilMs = Date.parse('2026-05-24T00:00:00.000Z');
+    const untilMs = Date.now() + 60_000;
+    const openUntil = new Date(untilMs).toISOString();
     mockRedis.get.mockResolvedValue(String(untilMs));
     const { skipIfFootballApiCircuitOpen } = await import('../lib/football-api-circuit.js');
     await expect(skipIfFootballApiCircuitOpen()).resolves.toEqual({
       skipped: true,
       skipReason: 'football_api_daily_limit',
-      openUntil: '2026-05-24T00:00:00.000Z',
+      openUntil,
     });
   });
 
@@ -89,7 +106,7 @@ describe('football-api-circuit', () => {
   });
 
   test('assertFootballApiAvailable throws FootballApiDailyLimitError when open', async () => {
-    const untilMs = Date.parse('2026-05-24T00:00:00.000Z');
+    const untilMs = Date.now() + 60_000;
     mockRedis.get.mockResolvedValue(String(untilMs));
     const { assertFootballApiAvailable, FootballApiDailyLimitError } = await import('../lib/football-api-circuit.js');
 

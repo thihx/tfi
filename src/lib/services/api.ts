@@ -129,6 +129,31 @@ export async function fetchWatchlist(config: AppConfig): Promise<WatchlistItem[]
   return items.map(normalizeWatchlistItem);
 }
 
+export interface WatchConditionEvaluationResult {
+  supported: boolean;
+  matched: boolean;
+  summary: string;
+  notify_enabled: boolean;
+  context_summary: {
+    minute: number | null;
+    home_goals: number;
+    away_goals: number;
+    data_source: string;
+  };
+}
+
+/** Preview condition evaluation against latest snapshot or match row (requires watch subscription). */
+export async function evaluateWatchConditionPreview(
+  config: AppConfig,
+  payload: { condition_text: string; match_id: string },
+): Promise<WatchConditionEvaluationResult> {
+  return pgPost<WatchConditionEvaluationResult>(
+    config,
+    '/api/me/watch-subscriptions/evaluate-condition',
+    payload,
+  );
+}
+
 export async function fetchWatchlistItem(config: AppConfig, matchId: string): Promise<WatchlistItem | null> {
   try {
     const items = await fetchWatchlist(config);

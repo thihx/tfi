@@ -24,6 +24,8 @@ export interface WatchlistRow {
   recommended_condition_at: string | null;
   auto_apply_recommended_condition?: boolean;
   custom_conditions: string;
+  /** When false, condition-based push paths are suppressed for this subscription. */
+  notify_enabled?: boolean;
   added_at: string;
   added_by: string;
   last_checked: string | null;
@@ -122,6 +124,7 @@ function buildWatchlistRow(
     id?: number | null;
     custom_conditions?: string | null;
     auto_apply_recommended_condition?: boolean | null;
+    notify_enabled?: boolean | null;
     added_at?: string | null;
     added_by?: string | null;
   },
@@ -150,6 +153,7 @@ function buildWatchlistRow(
     recommended_condition_at: normalizeNullableString(sharedMetadata.recommended_condition_at),
     auto_apply_recommended_condition: subscription.auto_apply_recommended_condition ?? true,
     custom_conditions: subscription.custom_conditions ?? '',
+    notify_enabled: subscription.notify_enabled ?? true,
     added_at: subscription.added_at ?? new Date(0).toISOString(),
     added_by: subscription.added_by ?? 'user',
     last_checked: normalizeNullableString(sharedMetadata.last_checked),
@@ -317,6 +321,7 @@ async function getUserWatchlistRows(
       id: row.subscription_id,
       custom_conditions: row.custom_condition_text,
       auto_apply_recommended_condition: row.auto_apply_recommended_condition,
+      notify_enabled: row.notify_enabled,
       added_at: row.created_at,
       added_by: row.source,
     },
@@ -496,6 +501,37 @@ export async function updateOperationalWatchlistEntry(
   return getOperationalWatchlistByMatchId(matchId);
 }
 
+export async function applyAutoConditionToSubscriptions(
+  matchId: string,
+  conditionText: string,
+  previousRecommendedCondition: string | null = null,
+): Promise<number> {
+  const nextCondition = conditionText.trim();
+  if (!nextCondition) return 0;
+
+  const previousCondition = previousRecommendedCondition?.trim() ?? '';
+  const params: unknown[] = [matchId, nextCondition];
+  let previousConditionClause = '';
+  if (previousCondition) {
+    params.push(previousCondition);
+    previousConditionClause = `OR BTRIM(custom_condition_text) = $${params.length}`;
+  }
+
+  const result = await query(
+    `UPDATE user_watch_subscriptions
+        SET custom_condition_text = $2,
+            updated_at = NOW()
+      WHERE match_id = $1
+        AND auto_apply_recommended_condition = TRUE
+        AND (
+          NULLIF(BTRIM(custom_condition_text), '') IS NULL
+          ${previousConditionClause}
+        )`,
+    params,
+  );
+  return result.rowCount ?? 0;
+}
+
 export async function createOperationalWatchlistEntry(
   w: Partial<WatchlistCreate>,
 ): Promise<WatchlistRow> {
@@ -602,6 +638,7 @@ export async function getWatchlistByMatchId(matchId: string, userId: string): Pr
         id: row.subscription_id,
         custom_conditions: row.custom_condition_text,
         auto_apply_recommended_condition: row.auto_apply_recommended_condition,
+        notify_enabled: row.notify_enabled,
         added_at: row.created_at,
         added_by: row.source,
       },
@@ -662,6 +699,7 @@ export async function getWatchSubscriptionById(subscriptionId: number, userId: s
       id: row.subscription_id,
       custom_conditions: row.custom_condition_text,
       auto_apply_recommended_condition: row.auto_apply_recommended_condition,
+      notify_enabled: row.notify_enabled,
       added_at: row.created_at,
       added_by: row.source,
     },
@@ -789,6 +827,7 @@ export async function updateWatchlistEntry(
   const subscriptionFields: Array<keyof WatchlistRow> = [
     'custom_conditions',
     'auto_apply_recommended_condition',
+    'notify_enabled',
   ];
   const shouldUpdateSubscription = subscriptionFields.some((key) => key in fields);
   if (shouldUpdateSubscription) {
@@ -797,20 +836,31 @@ export async function updateWatchlistEntry(
       [userId, matchId],
     );
     if (existing.rows[0]) {
-      await query(
-        `UPDATE user_watch_subscriptions
-            SET custom_condition_text = COALESCE($3, custom_condition_text),
-                auto_apply_recommended_condition = COALESCE($4, auto_apply_recommended_condition),
-                updated_at = NOW()
-          WHERE user_id = $1 AND match_id = $2`,
-        [
-          userId,
-          matchId,
-          fields.custom_conditions ?? null,
-          fields.auto_apply_recommended_condition ?? null,
-        ],
-      );
-      await refreshSubscriberCount(matchId);
+      const setFragments: string[] = [];
+      const values: unknown[] = [];
+      let param = 1;
+      if ('custom_conditions' in fields) {
+        setFragments.push(`custom_condition_text = $${param++}`);
+        values.push(fields.custom_conditions ?? '');
+      }
+      if ('auto_apply_recommended_condition' in fields) {
+        setFragments.push(`auto_apply_recommended_condition = $${param++}`);
+        values.push(fields.auto_apply_recommended_condition ?? true);
+      }
+      if ('notify_enabled' in fields) {
+        setFragments.push(`notify_enabled = $${param++}`);
+        values.push(Boolean(fields.notify_enabled));
+      }
+      if (setFragments.length > 0) {
+        values.push(userId, matchId);
+        await query(
+          `UPDATE user_watch_subscriptions
+              SET ${setFragments.join(', ')}, updated_at = NOW()
+            WHERE user_id = $${param++} AND match_id = $${param}`,
+          values,
+        );
+        await refreshSubscriberCount(matchId);
+      }
     }
   }
 

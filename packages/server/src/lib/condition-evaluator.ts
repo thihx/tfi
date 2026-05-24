@@ -160,3 +160,54 @@ export function evaluateCustomConditionText(
 
   return { supported: true, matched: true, summary: `Condition matched: ${clauses.join(' AND ')}` };
 }
+
+export type ConditionPreviewDataSource = 'latest_snapshot' | 'match_fixture' | 'empty';
+
+export type ConditionPreviewMatchInput = {
+  current_minute?: number | null;
+  home_score?: number | null;
+  away_score?: number | null;
+};
+
+export type ConditionPreviewSnapshotInput = {
+  minute?: number | null;
+  home_score?: number | null;
+  away_score?: number | null;
+  stats?: Record<string, unknown>;
+};
+
+export function buildConditionPreviewContext(
+  match: ConditionPreviewMatchInput | null | undefined,
+  snapshot: ConditionPreviewSnapshotInput | null | undefined,
+): ConditionEvaluationContext {
+  if (snapshot) {
+    const rawStats = snapshot.stats;
+    const stats: ConditionStatsSnapshot = rawStats && typeof rawStats === 'object'
+      ? (rawStats as ConditionStatsSnapshot)
+      : {};
+    return {
+      minute: snapshot.minute ?? null,
+      homeGoals: snapshot.home_score ?? 0,
+      awayGoals: snapshot.away_score ?? 0,
+      stats,
+    };
+  }
+  if (match) {
+    return {
+      minute: match.current_minute ?? null,
+      homeGoals: match.home_score ?? 0,
+      awayGoals: match.away_score ?? 0,
+      stats: {},
+    };
+  }
+  return { minute: null, homeGoals: 0, awayGoals: 0, stats: {} };
+}
+
+export function conditionPreviewDataSource(
+  snapshot: ConditionPreviewSnapshotInput | null | undefined,
+  match: ConditionPreviewMatchInput | null | undefined,
+): ConditionPreviewDataSource {
+  if (snapshot) return 'latest_snapshot';
+  if (match) return 'match_fixture';
+  return 'empty';
+}

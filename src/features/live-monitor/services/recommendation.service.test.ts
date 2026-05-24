@@ -57,7 +57,7 @@ function makeParsed(overrides: Partial<ParsedAiResponse> = {}): ParsedAiResponse
 }
 
 const config: LiveMonitorConfig = {
-  AI_MODEL: 'gemini-3.0-flash',
+  AI_MODEL: 'gemini-3.5-flash',
 } as LiveMonitorConfig;
 
 describe('prepareRecommendationData', () => {

@@ -4,6 +4,7 @@
 
 import type { FastifyInstance } from 'fastify';
 import { requireAdminOrOwner } from '../lib/authz.js';
+import { getFootballApiCircuitStatus } from '../lib/football-api-circuit.js';
 import { getJobsStatus, triggerJob, updateJobInterval } from '../jobs/scheduler.js';
 import { setForceEnrich } from '../jobs/enrich-watchlist.job.js';
 import { previewHousekeepingImpact } from '../jobs/purge-audit.job.js';
@@ -14,7 +15,11 @@ export async function jobRoutes(app: FastifyInstance) {
   app.get('/api/jobs', async (req, reply) => {
     const user = requireAdminOrOwner(req, reply);
     if (!user) return;
-    return getJobsStatus();
+    const [jobs, footballApiCircuit] = await Promise.all([
+      getJobsStatus(),
+      getFootballApiCircuitStatus(),
+    ]);
+    return { jobs, footballApiCircuit };
   });
 
   app.get<{ Querystring: { limit?: string; jobName?: string; hours?: string } }>('/api/jobs/runs', async (req, reply) => {
@@ -56,14 +61,19 @@ export async function jobRoutes(app: FastifyInstance) {
     if (req.params.name === 'enrich-watchlist' && req.body?.force) {
       setForceEnrich();
     }
-    const result = triggerJob(req.params.name);
+    const result = await triggerJob(req.params.name, { force: req.body?.force === true });
     if (!result) {
       return reply.status(404).send({ error: `Job "${req.params.name}" not found` });
     }
     if (!result.triggered) {
-      return reply.status(409).send({ error: 'Job is already running' });
+      const message = result.reason === 'queue_full'
+        ? 'Job queue is full'
+        : result.reason === 'already_running'
+          ? 'Job is already running'
+          : 'Job could not be started';
+      return reply.status(409).send({ error: message, reason: result.reason ?? 'not_triggered' });
     }
-    return { triggered: true };
+    return { triggered: true, queued: result.queued === true };
   });
 
   // PUT /api/jobs/:name — update job interval

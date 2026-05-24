@@ -51,7 +51,7 @@ vi.mock('../lib/gemini.js', () => ({
 }));
 
 vi.mock('../config.js', () => ({
-  config: { geminiApiKey: 'test-key', geminiModel: 'test-model' },
+  config: { geminiApiKey: 'test-key', geminiModel: 'gemini-3.5-flash' },
 }));
 
 vi.mock('../jobs/job-progress.js', () => ({
@@ -117,7 +117,7 @@ function makeRec(overrides: Partial<RecommendationRow> = {}): RecommendationRow 
     reasoning: 'Good form',
     key_factors: 'Home advantage',
     warnings: '',
-    ai_model: 'gemini-3.0-flash',
+    ai_model: 'gemini-3.5-flash',
     mode: 'auto',
     bet_market: '1x2_home',
     notified: 'sent',

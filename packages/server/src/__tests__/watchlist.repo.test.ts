@@ -18,6 +18,7 @@ import {
   getKickoffMinutesForMatchIds,
   getOperationalWatchlistByMatchId,
   getWatchlistByMatchId,
+  applyAutoConditionToSubscriptions,
   syncWatchlistDates,
   updateOperationalWatchlistEntry,
   updateWatchlistEntry,
@@ -62,6 +63,50 @@ describe('watchlist repository user-scoped isolation', () => {
     expect(query).toHaveBeenCalledTimes(2);
     const sqlTexts = vi.mocked(query).mock.calls.map((call) => String(call[0]));
     expect(sqlTexts.some((sql) => sql.includes('UPDATE watchlist SET'))).toBe(false);
+  });
+
+  test('updateWatchlistEntry updates notify_enabled on user_watch_subscriptions when row exists', async () => {
+    vi.mocked(query)
+      .mockResolvedValueOnce({ rows: [{ id: 42 }] } as never)
+      .mockResolvedValueOnce({ rowCount: 1 } as never)
+      .mockResolvedValueOnce({ rowCount: 1 } as never)
+      .mockResolvedValueOnce({
+        rows: [{
+          subscription_id: 42,
+          user_id: 'user-1',
+          match_id: 'match-1',
+          custom_condition_text: '(Minute >= 60)',
+          auto_apply_recommended_condition: true,
+          notify_enabled: false,
+          source: 'manual',
+          created_at: '2026-01-01T00:00:00.000Z',
+          subscriber_count: 1,
+          metadata: {},
+          match_date: '2026-01-01',
+          match_kickoff: '15:00',
+          match_kickoff_at_utc: null,
+          match_league: 'Premier League',
+          home_team: 'Arsenal',
+          away_team: 'Chelsea',
+          home_logo: '',
+          away_logo: '',
+          match_status: 'NS',
+        }],
+      } as never);
+
+    const result = await updateWatchlistEntry('match-1', { notify_enabled: false }, 'user-1');
+
+    expect(result?.notify_enabled).toBe(false);
+    const updateCalls = vi.mocked(query).mock.calls.filter((call) =>
+      String(call[0]).includes('UPDATE user_watch_subscriptions'),
+    );
+    expect(updateCalls.length).toBeGreaterThanOrEqual(1);
+    const updateSql = String(updateCalls[0]![0]);
+    expect(updateSql).toContain('notify_enabled');
+    const updateParams = updateCalls[0]![1] as unknown[];
+    expect(updateParams[0]).toBe(false);
+    expect(updateParams[1]).toBe('user-1');
+    expect(updateParams[2]).toBe('match-1');
   });
 
   test('deleteWatchlistEntry(userId) returns false when subscription is missing instead of deleting legacy row', async () => {
@@ -204,6 +249,30 @@ describe('watchlist repository user-scoped isolation', () => {
     const sql = String(vi.mocked(query).mock.calls[1]?.[0]);
     expect(sql).toContain('COALESCE(ranked.created_at::text');
     expect(sql).toContain("mm.last_interest_at::text");
+  });
+
+  test('applyAutoConditionToSubscriptions updates blank auto-apply subscriptions for a match', async () => {
+    vi.mocked(query).mockResolvedValueOnce({ rowCount: 2 } as never);
+
+    const updated = await applyAutoConditionToSubscriptions('match-1', '(Minute >= 60)');
+
+    expect(updated).toBe(2);
+    expect(query).toHaveBeenCalledTimes(1);
+    const sql = String(vi.mocked(query).mock.calls[0]?.[0]);
+    expect(sql).toContain('UPDATE user_watch_subscriptions');
+    expect(sql).toContain('auto_apply_recommended_condition = TRUE');
+    expect(sql).toContain("NULLIF(BTRIM(custom_condition_text), '') IS NULL");
+    expect(vi.mocked(query).mock.calls[0]?.[1]).toEqual(['match-1', '(Minute >= 60)']);
+  });
+
+  test('applyAutoConditionToSubscriptions also replaces the previous AI-applied condition', async () => {
+    vi.mocked(query).mockResolvedValueOnce({ rowCount: 1 } as never);
+
+    await applyAutoConditionToSubscriptions('match-1', '(Minute >= 65)', '(Minute >= 60)');
+
+    const sql = String(vi.mocked(query).mock.calls[0]?.[0]);
+    expect(sql).toContain('OR BTRIM(custom_condition_text) = $3');
+    expect(vi.mocked(query).mock.calls[0]?.[1]).toEqual(['match-1', '(Minute >= 65)', '(Minute >= 60)']);
   });
 
   test('getOperationalWatchlistByMatchId mirrors legacy rows into monitored matches before returning', async () => {

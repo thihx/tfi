@@ -339,7 +339,7 @@
   "metadata": {
     "recommendationId": 12118,
     "originalPromptVersion": "v4-evidence-hardened",
-    "originalAiModel": "gemini-3-pro-preview",
+    "originalAiModel": "gemini-3.0-flash",
     "originalBetMarket": "1x2_away",
     "originalSelection": "Away Win @2.05",
     "originalResult": "win",

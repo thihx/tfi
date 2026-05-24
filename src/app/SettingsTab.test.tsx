@@ -327,7 +327,8 @@ beforeEach(() => {
     }
 
     if (url.includes('/api/jobs')) {
-      return new Response(JSON.stringify([
+      return new Response(JSON.stringify({
+        jobs: [
         {
           name: 'refresh-live-matches',
           intervalMs: 5000,
@@ -361,7 +362,9 @@ beforeEach(() => {
             lastStatus: 'success',
           },
         },
-      ]), { status: 200 });
+        ],
+        footballApiCircuit: { open: false, openUntil: null },
+      }), { status: 200 });
     }
 
     return new Response('{}', { status: 404 });

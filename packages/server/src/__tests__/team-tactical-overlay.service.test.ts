@@ -10,7 +10,7 @@ const mockAuditSkipped = vi.fn();
 vi.mock('../config.js', () => ({
   config: {
     geminiApiKey: 'test-key',
-    geminiStrategicGroundedModel: 'gemini-2.5-flash',
+    geminiStrategicGroundedModel: 'gemini-3.5-flash',
     geminiTimeoutMs: 90_000,
     geminiStrategicGroundedThinkingBudget: 0,
     tacticalOverlayRefreshMaxPerRun: 2,
@@ -304,7 +304,7 @@ describe('team tactical overlay service', () => {
     vi.doMock('../config.js', () => ({
       config: {
         geminiApiKey: '',
-        geminiStrategicGroundedModel: 'gemini-2.5-flash',
+        geminiStrategicGroundedModel: 'gemini-3.5-flash',
         geminiTimeoutMs: 90_000,
         geminiStrategicGroundedThinkingBudget: 0,
         tacticalOverlayRefreshMaxPerRun: 2,

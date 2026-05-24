@@ -2,7 +2,6 @@ import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { DatePicker } from '@/components/ui/DatePicker';
 import { useAppState } from '@/hooks/useAppState';
 import { useToast } from '@/hooks/useToast';
-import { useUiLanguage } from '@/hooks/useUiLanguage';
 import { useUserTimeZone } from '@/hooks/useUserTimeZone';
 import { useViewMode } from '@/hooks/useViewMode';
 import { Pagination } from '@/components/ui/Pagination';
@@ -20,7 +19,6 @@ const PAGE_SIZE = 30;
 export function WatchlistTab() {
   const { state, updateWatchlistItem, removeFromWatchlist } = useAppState();
   const { showToast } = useToast();
-  const uiLanguage = useUiLanguage();
   const { effectiveTimeZone } = useUserTimeZone();
   const { watchlist, matches, leagues } = state;
 
@@ -451,15 +449,15 @@ export function WatchlistTab() {
       <WatchlistEditModal
         key={editItem ? String(editItem.match_id) : 'watchlist-edit-modal'}
         item={editItem}
-        uiLanguage={uiLanguage}
         onClose={() => setEditItem(null)}
-        onSave={async ({ custom_conditions, auto_apply_recommended_condition }) => {
+        onSave={async ({ custom_conditions, auto_apply_recommended_condition, notify_enabled }) => {
           if (!editItem) return;
           const ok = await updateWatchlistItem({
             id: editItem.id,
             match_id: editItem.match_id,
             custom_conditions,
             auto_apply_recommended_condition,
+            notify_enabled,
           });
           setEditItem(null);
           if (ok) showToast('Watchlist item updated', 'success');

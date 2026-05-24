@@ -1,7 +1,7 @@
 # TFI System Review — Code & Business Logic Audit
 
 > **Review Date:** 2026-03-18
-> **Reviewer:** Claude Code (claude-sonnet-4-6)
+> **Reviewer:** Claude Code (gemini-3.0-flash)
 > **Scope:** Full codebase — frontend (React/TypeScript), backend (Fastify/TypeScript), pipeline, jobs, repos, routes
 > **Status:** ✅ Tất cả vấn đề đã được fix (2 sessions)
 

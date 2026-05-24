@@ -310,7 +310,7 @@
   "metadata": {
     "recommendationId": 12486,
     "originalPromptVersion": "v4-evidence-hardened",
-    "originalAiModel": "gemini-3-pro-preview",
+    "originalAiModel": "gemini-3.0-flash",
     "originalBetMarket": "under_2.25",
     "originalSelection": "Under 2.25 Goals @2",
     "originalResult": "half_win",

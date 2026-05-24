@@ -228,7 +228,7 @@ export async function liveMonitorRoutes(app: FastifyInstance) {
   });
 
   app.post('/api/live-monitor/check-live/trigger', async (_req, reply) => {
-    const result = triggerJob('check-live-trigger');
+    const result = await triggerJob('check-live-trigger');
     if (!result) {
       return reply.status(404).send({ error: 'Job "check-live-trigger" not found' });
     }

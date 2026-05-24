@@ -41,6 +41,8 @@ import {
   getJobProgress,
   reportJobProgress,
 } from './job-progress.js';
+import { classifyJobResult } from './job-run-outcome.js';
+import { clearFootballApiCircuit } from '../lib/football-api-circuit.js';
 
 export type { JobProgress };
 
@@ -157,6 +159,16 @@ function safeNumber(value: string | undefined): number | null {
   return Number.isFinite(parsed) ? parsed : null;
 }
 
+/** Jobs that call API-Football; manual Run with force clears the daily-limit circuit. */
+export const FOOTBALL_API_JOB_NAMES = new Set([
+  'fetch-matches',
+  'refresh-live-matches',
+  'refresh-provider-insights',
+  'check-live-trigger',
+  'update-predictions',
+  'sync-reference-data',
+]);
+
 const SUCCESS_LOG_SAMPLE_EVERY: Partial<Record<string, number>> = {
   'refresh-live-matches': 20,
   'check-live-trigger': 20,
@@ -245,11 +257,40 @@ function stopHeartbeat(job: ManagedJob): void {
   }
 }
 
+function isRemoteJobRunningFresh(state: PersistedJobState, now = Date.now()): boolean {
+  if (state.running !== '1') return false;
+  const heartbeatTs = state.lastHeartbeatAt ? Date.parse(state.lastHeartbeatAt) : NaN;
+  return Number.isFinite(heartbeatTs) && (now - heartbeatTs) <= RUN_HEARTBEAT_STALE_MS;
+}
+
+/** After deploy/restart, Redis may still hold a lock from a dead instance with no fresh heartbeat. */
+async function clearStaleJobLockIfNeeded(job: ManagedJob): Promise<boolean> {
+  try {
+    const redis = getRedisClient();
+    const holder = await redis.get(lockKey(job.name));
+    if (!holder || holder === instanceId) return false;
+
+    const state = await redis.hgetall(stateKey(job.name)) as PersistedJobState;
+    if (isRemoteJobRunningFresh(state)) return false;
+
+    await redis.del(lockKey(job.name));
+    console.warn(
+      `[scheduler] Cleared stale lock for "${job.name}" (previous holder ${holder.slice(0, 8)})`,
+    );
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 async function acquireLock(job: ManagedJob): Promise<LockAcquireResult> {
   try {
     const redis = getRedisClient();
     const ttlSec = Math.ceil(job.lockTtlMs / 1000);
-    const result = await redis.set(lockKey(job.name), instanceId, 'EX', ttlSec, 'NX');
+    let result = await redis.set(lockKey(job.name), instanceId, 'EX', ttlSec, 'NX');
+    if (result !== 'OK' && await clearStaleJobLockIfNeeded(job)) {
+      result = await redis.set(lockKey(job.name), instanceId, 'EX', ttlSec, 'NX');
+    }
     if (result === 'OK') return { acquired: true, degraded: false };
     return { acquired: false, degraded: false, reason: 'held-by-other-instance' };
   } catch (err) {
@@ -411,7 +452,10 @@ async function runSingleJob(job: ManagedJob, scheduledAt: number): Promise<void>
         error: job.lastError,
       });
     } else {
+      const lockMsg = 'Skipped: distributed lock held by another instance (retry after lock TTL or redeploy with stale-lock recovery)';
       console.log(`[scheduler] Job "${job.name}" skipped — another instance holds the lock`);
+      job.lastError = lockMsg;
+      await persistState(job);
     }
     return;
   }
@@ -429,50 +473,73 @@ async function runSingleJob(job: ManagedJob, scheduledAt: number): Promise<void>
 
   try {
     const result = await (job.maxRunMs ? callWithTimeout(job.fn, job.maxRunMs) : job.fn());
+    const outcome = classifyJobResult(result);
     const summary = normalizeHistorySummary(summarizeJobResultForAudit(job.name, result));
     const completedAt = new Date().toISOString();
     job.lastRun = completedAt;
     job.lastCompletedAt = completedAt;
-    job.lastError = null;
     job.lastDurationMs = Date.now() - startTs;
     job.runCount++;
-    await completeJobProgress(job.name, result, null);
-    const shouldLogSuccess = shouldSampleSuccessLog(job);
-    if (shouldLogSuccess || lock.degraded) {
+
+    if (outcome.status === 'skipped') {
+      job.lastError = outcome.errorMessage ?? `Skipped (${outcome.skipReason ?? 'job_skipped'})`;
+      await completeJobProgress(job.name, result, null);
       await recordJobRunBestEffort({
         jobName: job.name,
         scheduledAt: new Date(scheduledAt).toISOString(),
         startedAt: job.lastStartedAt ?? new Date(startTs).toISOString(),
         completedAt,
-        status: 'success',
+        status: 'skipped',
+        skipReason: outcome.skipReason ?? 'job_skipped',
         lockPolicy: job.lockPolicy,
         degradedLocking: lock.degraded,
         instanceId,
         lagMs: job.lastLagMs,
         durationMs: job.lastDurationMs,
+        error: job.lastError,
         summary,
       });
-    }
-    if (shouldLogSuccess || lock.degraded) {
-      audit({
-        category: 'JOB',
-        action: buildJobAuditAction(job),
-        outcome: lock.degraded ? 'PARTIAL' : 'SUCCESS',
-        actor: 'scheduler',
-        duration_ms: job.lastDurationMs,
-        metadata: {
+      console.log(`[scheduler] Job "${job.name}" skipped (#${job.runCount}): ${job.lastError}`);
+    } else {
+      job.lastError = null;
+      await completeJobProgress(job.name, result, null);
+      const shouldLogSuccess = shouldSampleSuccessLog(job);
+      if (shouldLogSuccess || lock.degraded) {
+        await recordJobRunBestEffort({
+          jobName: job.name,
+          scheduledAt: new Date(scheduledAt).toISOString(),
+          startedAt: job.lastStartedAt ?? new Date(startTs).toISOString(),
+          completedAt,
+          status: 'success',
+          lockPolicy: job.lockPolicy,
           degradedLocking: lock.degraded,
+          instanceId,
           lagMs: job.lastLagMs,
-          sampled: !lock.degraded && !shouldLogSuccess ? true : undefined,
-          ...summary,
-        },
+          durationMs: job.lastDurationMs,
+          summary,
+        });
+      }
+      if (shouldLogSuccess || lock.degraded) {
+        audit({
+          category: 'JOB',
+          action: buildJobAuditAction(job),
+          outcome: lock.degraded ? 'PARTIAL' : 'SUCCESS',
+          actor: 'scheduler',
+          duration_ms: job.lastDurationMs,
+          metadata: {
+            degradedLocking: lock.degraded,
+            lagMs: job.lastLagMs,
+            sampled: !lock.degraded && !shouldLogSuccess ? true : undefined,
+            ...summary,
+          },
+        });
+      }
+      console.log(`[scheduler] Job "${job.name}" completed (#${job.runCount})`, {
+        degradedLocking: lock.degraded,
+        lagMs: job.lastLagMs,
+        durationMs: job.lastDurationMs,
       });
     }
-    console.log(`[scheduler] Job "${job.name}" completed (#${job.runCount})`, {
-      degradedLocking: lock.degraded,
-      lagMs: job.lastLagMs,
-      durationMs: job.lastDurationMs,
-    });
   } catch (err) {
     const completedAt = new Date().toISOString();
     job.lastRun = completedAt;
@@ -919,6 +986,7 @@ export async function startScheduler() {
 
   for (const job of jobs) {
     await restoreState(job);
+    await clearStaleJobLockIfNeeded(job);
   }
 
   for (const job of jobs) {
@@ -1013,11 +1081,7 @@ export async function getJobsStatus(): Promise<JobInfo[]> {
         if (state.runCount) runCount = Math.max(runCount, Number(state.runCount));
         degradedLocking = degradedLocking || state.degradedLocking === '1';
 
-        const heartbeatTs = state.lastHeartbeatAt ? Date.parse(state.lastHeartbeatAt) : NaN;
-        const remoteRunning = state.running === '1'
-          && Number.isFinite(heartbeatTs)
-          && (now - heartbeatTs) <= RUN_HEARTBEAT_STALE_MS;
-        if (remoteRunning && !running) running = true;
+        if (isRemoteJobRunningFresh(state, now) && !running) running = true;
       } catch {
         // ignore — use in-memory fallback
       }
@@ -1055,27 +1119,43 @@ export async function getJobsStatus(): Promise<JobInfo[]> {
   return result;
 }
 
-export function triggerJob(name: string): { triggered: boolean; queued?: boolean } | null {
+export async function triggerJob(
+  name: string,
+  options: { force?: boolean } = {},
+): Promise<{ triggered: boolean; queued?: boolean; reason?: string } | null> {
   const job = jobs.find((entry) => entry.name === name);
   if (!job) return null;
 
+  if (options.force) {
+    if (job.skipKey) {
+      try {
+        await getRedisClient().del(job.skipKey);
+      } catch {
+        // ignore
+      }
+    }
+    if (FOOTBALL_API_JOB_NAMES.has(name)) {
+      await clearFootballApiCircuit();
+    }
+  }
+
+  await clearStaleJobLockIfNeeded(job);
+
   if (job.concurrency > 1) {
     if (job.activeRuns >= job.concurrency && job.pendingRuns >= job.concurrency) {
-      return { triggered: false };
+      return { triggered: false, reason: 'queue_full' };
     }
-    audit({ category: 'JOB', action: 'JOB_MANUAL_TRIGGER', actor: 'user', metadata: { jobName: name } });
+    audit({ category: 'JOB', action: 'JOB_MANUAL_TRIGGER', actor: 'user', metadata: { jobName: name, force: options.force === true } });
     const willQueue = job.activeRuns >= job.concurrency;
     void requestRun(job, Date.now());
     return { triggered: true, queued: willQueue };
   }
 
-  if (job.running) return { triggered: false };
-  if (job.skipKey) {
-    getRedisClient().del(job.skipKey).catch(() => {
-      // ignore
-    });
+  if (job.running) {
+    return { triggered: false, reason: 'already_running' };
   }
-  audit({ category: 'JOB', action: 'JOB_MANUAL_TRIGGER', actor: 'user', metadata: { jobName: name } });
+
+  audit({ category: 'JOB', action: 'JOB_MANUAL_TRIGGER', actor: 'user', metadata: { jobName: name, force: options.force === true } });
   void requestRun(job, Date.now());
   return { triggered: true };
 }

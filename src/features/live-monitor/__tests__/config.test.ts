@@ -23,19 +23,19 @@ describe('createDefaultConfig', () => {
     expect(config.VERY_LATE_PHASE_MINUTE).toBe(85);
     expect(config.ENDGAME_MINUTE).toBe(88);
     expect(config.AI_PROVIDER).toBe('gemini');
-    expect(config.AI_MODEL).toBe('gemini-2.5-flash');
+    expect(config.AI_MODEL).toBe('gemini-3.5-flash');
     expect(config.MANUAL_PUSH_MATCH_IDS).toEqual([]);
   });
 
   test('applies overrides to defaults', () => {
     const config = createDefaultConfig({
       AI_PROVIDER: 'claude',
-      AI_MODEL: 'claude-sonnet-4-20250514',
+      AI_MODEL: 'gemini-3.5-flash',
       MIN_CONFIDENCE: 7,
     });
 
     expect(config.AI_PROVIDER).toBe('claude');
-    expect(config.AI_MODEL).toBe('claude-sonnet-4-20250514');
+    expect(config.AI_MODEL).toBe('gemini-3.5-flash');
     expect(config.MIN_CONFIDENCE).toBe(7);
     // Other defaults preserved
     expect(config.TIMEZONE).toBe('Asia/Seoul');
@@ -97,12 +97,12 @@ describe('saveMonitorConfig', () => {
   });
 
   test('saved config can be loaded back', () => {
-    const original = createDefaultConfig({ MIN_CONFIDENCE: 8, AI_MODEL: 'test-model' });
+    const original = createDefaultConfig({ MIN_CONFIDENCE: 8, AI_MODEL: 'gemini-3.5-flash' });
     saveMonitorConfig(original);
     const loaded = loadMonitorConfig();
 
     expect(loaded.MIN_CONFIDENCE).toBe(8);
-    expect(loaded.AI_MODEL).toBe('test-model');
+    expect(loaded.AI_MODEL).toBe('gemini-3.5-flash');
   });
 
   test('dispatches a settings updated event when cache changes', () => {

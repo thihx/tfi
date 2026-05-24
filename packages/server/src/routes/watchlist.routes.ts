@@ -16,7 +16,13 @@ import { isValidTimeZone } from '../lib/user-personalization-settings.js';
 import * as leaguesRepo from '../repos/leagues.repo.js';
 import * as matchesRepo from '../repos/matches.repo.js';
 import * as repo from '../repos/watchlist.repo.js';
+import * as snapshotsRepo from '../repos/match-snapshots.repo.js';
 import { getSettings, saveSettings } from '../repos/settings.repo.js';
+import {
+  buildConditionPreviewContext,
+  conditionPreviewDataSource,
+  evaluateCustomConditionText,
+} from '../lib/condition-evaluator.js';
 import { buildAutoWatchlistEntry } from '../jobs/watchlist-side-effects.shared.js';
 
 const FAVORITE_LEAGUE_IDS_KEY = 'FAVORITE_LEAGUE_IDS';
@@ -65,6 +71,46 @@ export async function watchlistRoutes(app: FastifyInstance) {
     const user = requireCurrentUser(req, reply);
     if (!user) return;
     return repo.getAllWatchlist(user.userId);
+  });
+
+  /**
+   * Preview whether a condition would match using the latest snapshot (if any) or current `matches` row.
+   * Used by the watchlist rules UI before/after save; requires an existing subscription for the match.
+   */
+  app.post<{
+    Body: { condition_text?: unknown; match_id?: unknown };
+  }>('/api/me/watch-subscriptions/evaluate-condition', async (req, reply) => {
+    const user = requireCurrentUser(req, reply);
+    if (!user) return;
+    const conditionText = typeof req.body?.condition_text === 'string' ? req.body.condition_text : '';
+    const matchId = typeof req.body?.match_id === 'string' ? req.body.match_id.trim() : '';
+    if (!matchId) {
+      return reply.code(400).send({ error: 'match_id is required' });
+    }
+
+    const entry = await repo.getWatchlistByMatchId(matchId, user.userId);
+    if (!entry) {
+      return reply.code(404).send({ error: 'Watch subscription not found for this match' });
+    }
+
+    const [matchRows, snapshot] = await Promise.all([
+      matchesRepo.getMatchesByIds([matchId]),
+      snapshotsRepo.getLatestSnapshot(matchId),
+    ]);
+    const match = matchRows[0] ?? null;
+    const context = buildConditionPreviewContext(match, snapshot);
+    const evaluation = evaluateCustomConditionText(conditionText, context);
+
+    return {
+      ...evaluation,
+      notify_enabled: entry.notify_enabled !== false,
+      context_summary: {
+        minute: context.minute,
+        home_goals: context.homeGoals,
+        away_goals: context.awayGoals,
+        data_source: conditionPreviewDataSource(snapshot, match),
+      },
+    };
   });
 
   app.get<{ Params: { id: string } }>('/api/me/watch-subscriptions/:id', async (req, reply) => {

@@ -337,7 +337,7 @@
   "metadata": {
     "recommendationId": 12393,
     "originalPromptVersion": "v8-market-balance-followup-e",
-    "originalAiModel": "gemini-3-pro-preview",
+    "originalAiModel": "gemini-3.0-flash",
     "originalBetMarket": "asian_handicap_away_+1",
     "originalSelection": "Away 1 @1.833",
     "originalResult": "win",

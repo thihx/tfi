@@ -44,12 +44,12 @@ The main drag is legacy output:
 
 Recent pro cohorts are materially better:
 
-- `gemini-3-pro-preview + v4-evidence-hardened`
+- `gemini-3.0-flash + v4-evidence-hardened`
   - `316` settled picks
   - `54.92%` hit rate
   - `+54.93` P/L
   - `+4.54%` ROI
-- `gemini-3-pro-preview + v6-betting-discipline-c`
+- `gemini-3.0-flash + v6-betting-discipline-c`
   - `76` settled picks
   - `60.27%` hit rate
   - `+26.62` P/L

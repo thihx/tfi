@@ -310,7 +310,7 @@
   "metadata": {
     "recommendationId": 12175,
     "originalPromptVersion": "v6-betting-discipline-c",
-    "originalAiModel": "gemini-3-pro-preview",
+    "originalAiModel": "gemini-3.0-flash",
     "originalBetMarket": "corners_over_13.5",
     "originalSelection": "Corners Over 13.5 @1.825",
     "originalResult": "win",

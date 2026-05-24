@@ -14,14 +14,9 @@ export interface GeminiGenerateOptions {
   thinkingBudget?: number | null;
 }
 
-const GEMINI_MODEL_ALIASES: Record<string, string> = {
-  'gemini-3.0-flash': 'gemini-3-flash-preview',
-};
-
 export function normalizeGeminiModelName(model: string): string {
   const trimmed = String(model || '').trim().replace(/^models\//i, '');
-  if (!trimmed) return trimmed;
-  return GEMINI_MODEL_ALIASES[trimmed] ?? trimmed;
+  return trimmed;
 }
 
 function buildGenerateRequestBody(

@@ -41,7 +41,7 @@ function createRecommendation(overrides?: Partial<RecommendationData>): Recommen
     pre_match_prediction_summary: '',
     stats_snapshot: '{}',
     odds_snapshot: '{}',
-    ai_model: 'gemini-2.5-flash',
+    ai_model: 'gemini-3.5-flash',
     notified: 'pending',
     notification_channels: 'email,telegram',
     execution_id: 'exec_001',

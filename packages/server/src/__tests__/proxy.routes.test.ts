@@ -21,7 +21,7 @@ vi.mock('../config.js', () => ({
     databaseUrl: 'postgresql://test:test@localhost:5432/test',
     timezone: 'Asia/Seoul',
     geminiApiKey: 'test-key',
-    geminiModel: 'gemini-test',
+    geminiModel: 'gemini-3.5-flash',
     telegramBotToken: 'test-bot-token',
     footballApiKey: 'test-football-key',
     footballApiBaseUrl: 'https://api-football.example.com',
@@ -217,7 +217,7 @@ describe('POST /api/proxy/ai/analyze — error handling', () => {
     const res = await app.inject({
       method: 'POST',
       url: '/api/proxy/ai/analyze',
-      payload: { prompt: 'test', provider: 'gemini', model: 'gemini-pro' },
+      payload: { prompt: 'test', provider: 'gemini', model: 'gemini-3.5-flash' },
     });
 
     expect(res.statusCode).toBe(429);
@@ -234,7 +234,7 @@ describe('POST /api/proxy/ai/analyze — error handling', () => {
     const res = await app.inject({
       method: 'POST',
       url: '/api/proxy/ai/analyze',
-      payload: { prompt: 'test', provider: 'gemini', model: 'gemini-pro' },
+      payload: { prompt: 'test', provider: 'gemini', model: 'gemini-3.5-flash' },
     });
     expect(res.statusCode).toBe(502);
     expect(res.json().error).toContain('Gemini API');
@@ -261,7 +261,7 @@ describe('POST /api/proxy/ai/analyze — error handling', () => {
     const res = await app.inject({
       method: 'POST',
       url: '/api/proxy/ai/analyze',
-      payload: { prompt: 'test', provider: 'gemini', model: 'gemini-pro' },
+      payload: { prompt: 'test', provider: 'gemini', model: 'gemini-3.5-flash' },
     });
     expect(res.statusCode).toBe(200);
     expect(res.json().text).toBe('AI response here');
@@ -270,7 +270,7 @@ describe('POST /api/proxy/ai/analyze — error handling', () => {
     expect(access.consumeManualAiQuota).toHaveBeenCalledWith(
       expect.objectContaining({ plan: { plan_code: 'free' } }),
       'user-1',
-      expect.objectContaining({ provider: 'gemini', model: 'gemini-pro' }),
+      expect.objectContaining({ provider: 'gemini', model: 'gemini-3.5-flash' }),
     );
   });
 
@@ -278,7 +278,7 @@ describe('POST /api/proxy/ai/analyze — error handling', () => {
     const res = await app.inject({
       method: 'POST',
       url: '/api/proxy/ai/analyze',
-      payload: { matchId: '12345', provider: 'gemini', model: 'gemini-pro', forceAnalyze: true },
+      payload: { matchId: '12345', provider: 'gemini', model: 'gemini-3.5-flash', forceAnalyze: true },
     });
     expect(res.statusCode).toBe(200);
     expect(res.json().text).toBe('AI response here');
@@ -288,7 +288,7 @@ describe('POST /api/proxy/ai/analyze — error handling', () => {
       advisoryOnly: false,
       forceAnalyze: true,
       followUpHistory: undefined,
-      modelOverride: 'gemini-pro',
+      modelOverride: 'gemini-3.5-flash',
       userQuestion: undefined,
     });
 
@@ -300,7 +300,7 @@ describe('POST /api/proxy/ai/analyze — error handling', () => {
       metadata: expect.objectContaining({
         matchId: '12345',
         provider: 'gemini',
-        model: 'gemini-pro',
+        model: 'gemini-3.5-flash',
       }),
     }));
   });
@@ -321,7 +321,7 @@ describe('POST /api/proxy/ai/analyze — error handling', () => {
       const res = await adminApp.inject({
         method: 'POST',
         url: '/api/proxy/ai/analyze',
-        payload: { matchId: '12345', provider: 'gemini', model: 'gemini-pro', forceAnalyze: true },
+        payload: { matchId: '12345', provider: 'gemini', model: 'gemini-3.5-flash', forceAnalyze: true },
       });
 
       expect(res.statusCode).toBe(200);
@@ -341,7 +341,7 @@ describe('POST /api/proxy/ai/analyze — error handling', () => {
       payload: {
         matchId: '12345',
         provider: 'gemini',
-        model: 'gemini-pro',
+        model: 'gemini-3.5-flash',
         question: 'What about Home -0.25 here?',
         history: [
           { role: 'user', text: 'Why not under?' },
@@ -360,7 +360,7 @@ describe('POST /api/proxy/ai/analyze — error handling', () => {
         { role: 'user', text: 'Why not under?' },
         { role: 'assistant', text: 'Because the home side is still controlling the game.' },
       ],
-      modelOverride: 'gemini-pro',
+      modelOverride: 'gemini-3.5-flash',
       userQuestion: 'What about Home -0.25 here?',
     });
 

@@ -29,7 +29,7 @@ export function createConfig(overrides?: Partial<LiveMonitorConfig>): LiveMonito
     VERY_LATE_PHASE_MINUTE: 85,
     ENDGAME_MINUTE: 88,
     AI_PROVIDER: 'gemini',
-    AI_MODEL: 'gemini-2.5-flash',
+    AI_MODEL: 'gemini-3.5-flash',
     EMAIL_TO: 'test@example.com',
     TELEGRAM_CHAT_ID: '1234567',
     MANUAL_PUSH_MATCH_IDS: [],

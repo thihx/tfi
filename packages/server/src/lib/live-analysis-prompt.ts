@@ -1185,6 +1185,17 @@ ${lines.join('\n')}
 `;
 }
 
+function buildLinePatienceDeferHintSection(promptVersion: LiveAnalysisPromptVersion): string {
+  if (!isV8PromptVersion(promptVersion)) return '';
+  return `LINE PATIENCE (server may defer — still be honest now):
+- AH chalk (-0.5/-0.75/-1): if live goals O/U Over is still above ~1.0, prefer should_push=false until Over drops toward 1.0/0.75/0.5.
+- goals_over: avoid pushing an aggressive high line when a lower Over ladder rung has similar edge; prefer the conservative line or no_bet.
+- corners_over: prefer lower corner lines when the ladder offers them; only exceptional confidence should push a higher line.
+The server may hold your thesis across cycles and auto-promote when odds improve.
+
+`;
+}
+
 function buildContinuityRulesSectionCompact(
   data: LiveAnalysisPromptInput,
   promptVersion: LiveAnalysisPromptVersion,
@@ -2389,7 +2400,7 @@ RECENT EVENTS
 ${JSON.stringify(data.eventsCompact)}
 EVENT_COUNT: ${data.eventsCompact.length}
 
-${buildPreviousRecommendationsSectionCompact(data)}${bettingDisciplineSection}${buildContinuityRulesSectionCompact(data, promptVersion)}${buildMatchTimelineSection(data)}${buildHistoricalPerformanceSection(data)}${buildPerformanceMemorySection(data)}========================
+${buildPreviousRecommendationsSectionCompact(data)}${bettingDisciplineSection}${buildContinuityRulesSectionCompact(data, promptVersion)}${buildLinePatienceDeferHintSection(promptVersion)}${buildMatchTimelineSection(data)}${buildHistoricalPerformanceSection(data)}${buildPerformanceMemorySection(data)}========================
 CONFIG / EVIDENCE
 ========================
 - MIN_CONFIDENCE: ${MIN_CONFIDENCE}

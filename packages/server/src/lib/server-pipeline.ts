@@ -98,6 +98,21 @@ import {
 } from './recommendation-policy.js';
 import { getSegmentPolicyBlocklist } from './load-segment-policy-blocklist.js';
 import { getSegmentPolicyStakeCaps } from './load-segment-policy-stake-cap.js';
+import { applyLinePatiencePolicy } from './line-patience-policy.js';
+import {
+  getLinePatienceConfig,
+  isLinePatienceEnabled,
+} from './load-line-patience-policy.js';
+import { isThesisWatchGateSatisfied, resolveThesisWatchPromoteMarket } from './thesis-watch-gates.js';
+import {
+  isThesisWatchPipelineActive,
+  registerThesisWatchFromLlpBlock,
+} from './thesis-watch.service.js';
+import type { ThesisWatchRow } from './thesis-watch-types.js';
+import {
+  getPendingThesisWatchesByMatchId,
+  markThesisWatchPromoted,
+} from '../repos/thesis-watch.repo.js';
 import {
   detectGoalsCornersLineContamination,
   detectHtGoalsCornersLineContamination,
@@ -659,6 +674,92 @@ function findSameThesisRecommendations(
     .filter((row) => getCorrelatedThesis(normalizeMarket(row.selection ?? '', row.bet_market ?? '')) === thesis);
 }
 
+const PARSE_BLOCKING_WARNING_CODES = new Set([
+  'NO_SELECTION',
+  'NO_BET_MARKET',
+  'CONFIDENCE_BELOW_MIN',
+  'HIGH_RISK',
+  'EDGE_BELOW_MIN',
+  'MARKET_NOT_ALLOWED_FOR_EVIDENCE',
+  '1X2_TOO_EARLY',
+]);
+
+function applyLinePatienceToParsed(args: {
+  parsed: ParsedAiResponse;
+  oddsCanonical: OddsCanonical;
+  minute: number;
+  score: string;
+  evidenceMode: EvidenceMode;
+  eventsCompact?: EventCompact[];
+  pipelineSettings: PipelineSettings;
+}): { parsed: ParsedAiResponse; linePatienceBlocked: boolean } {
+  if (!isLinePatienceEnabled()) {
+    return { parsed: args.parsed, linePatienceBlocked: false };
+  }
+
+  const hasActionableAi =
+    args.parsed.ai_should_push
+    || args.parsed.system_should_bet
+    || (String(args.parsed.selection || '').trim() && String(args.parsed.bet_market || '').trim());
+  if (!hasActionableAi) {
+    return { parsed: args.parsed, linePatienceBlocked: false };
+  }
+
+  const llp = applyLinePatiencePolicy({
+    selection: args.parsed.selection,
+    betMarket: args.parsed.bet_market,
+    minute: args.minute,
+    score: args.score,
+    confidence: args.parsed.confidence,
+    valuePercent: args.parsed.value_percent,
+    evidenceMode: args.evidenceMode,
+    oddsCanonical: args.oddsCanonical,
+    eventsCompact: args.eventsCompact,
+    enabled: true,
+    config: getLinePatienceConfig(),
+  });
+
+  const mergedWarnings = [...args.parsed.warnings, ...llp.warnings];
+  const mergedAiWarnings = [...args.parsed.ai_warnings, ...llp.warnings];
+
+  if (llp.blocked) {
+    return {
+      linePatienceBlocked: true,
+      parsed: {
+        ...args.parsed,
+        system_should_bet: false,
+        final_should_bet: false,
+        warnings: mergedWarnings,
+        ai_warnings: mergedAiWarnings,
+      },
+    };
+  }
+
+  const MIN_ODDS = args.pipelineSettings.minOdds ?? config.pipelineMinOdds;
+  const mappedOdd = extractOddsFromSelection(llp.selection, llp.betMarket, args.oddsCanonical);
+  const hasBlocking = mergedAiWarnings.some((w) => PARSE_BLOCKING_WARNING_CODES.has(w));
+  const systemShouldBet = args.parsed.ai_should_push && !hasBlocking;
+  const usableOdd = mappedOdd !== null && mappedOdd >= MIN_ODDS ? mappedOdd : null;
+  const finalShouldBet = systemShouldBet && usableOdd !== null;
+  const oddsForDisplay = usableOdd ?? mappedOdd ?? (args.parsed.ai_should_push ? 'N/A' : null);
+
+  return {
+    linePatienceBlocked: false,
+    parsed: {
+      ...args.parsed,
+      selection: llp.selection,
+      bet_market: llp.betMarket,
+      system_should_bet: systemShouldBet,
+      final_should_bet: finalShouldBet,
+      usable_odd: usableOdd,
+      mapped_odd: mappedOdd,
+      odds_for_display: oddsForDisplay,
+      warnings: mergedWarnings,
+      ai_warnings: mergedAiWarnings,
+    },
+  };
+}
+
 function evaluateConditionTriggeredSaveDecision(args: {
   parsed: ParsedAiResponse;
   previousRecommendations: RecommendationPolicyPreviousRow[];
@@ -666,6 +767,7 @@ function evaluateConditionTriggeredSaveDecision(args: {
   minute: number;
   score: string;
   evidenceMode: EvidenceMode;
+  eventsCompact?: EventCompact[];
   minOdds: number;
   minConfidence: number;
   promptVersion: LiveAnalysisPromptVersion;
@@ -718,13 +820,48 @@ function evaluateConditionTriggeredSaveDecision(args: {
     };
   }
 
-  const odds = extractOddsFromSelection(selection, betMarket, args.oddsCanonical);
+  let effectiveSelection = selection;
+  let effectiveBetMarket = betMarket;
+  if (isLinePatienceEnabled()) {
+    const llp = applyLinePatiencePolicy({
+      selection,
+      betMarket,
+      minute: args.minute,
+      score: args.score,
+      confidence: args.parsed.condition_triggered_confidence,
+      valuePercent: args.parsed.value_percent,
+      evidenceMode: args.evidenceMode,
+      oddsCanonical: args.oddsCanonical,
+      eventsCompact: args.eventsCompact,
+      enabled: true,
+      config: getLinePatienceConfig(),
+    });
+    warnings.push(...llp.warnings);
+    if (llp.blocked) {
+      warnings.push('Condition-triggered bet kept as alert only because line patience policy blocked persistence.');
+      return {
+        shouldSave: false,
+        selection: llp.selection,
+        betMarket: llp.betMarket,
+        odds: null,
+        confidence: args.parsed.condition_triggered_confidence,
+        stakePercent: args.parsed.condition_triggered_stake,
+        reasoningEn: args.parsed.condition_triggered_reasoning_en,
+        reasoningVi: args.parsed.condition_triggered_reasoning_vi,
+        warnings,
+      };
+    }
+    effectiveSelection = llp.selection;
+    effectiveBetMarket = llp.betMarket;
+  }
+
+  const odds = extractOddsFromSelection(effectiveSelection, effectiveBetMarket, args.oddsCanonical);
   if (odds == null || odds < args.minOdds) {
     warnings.push('Condition-triggered bet not saved because live odds are unavailable or below the minimum threshold.');
     return {
       shouldSave: false,
-      selection,
-      betMarket,
+      selection: effectiveSelection,
+      betMarket: effectiveBetMarket,
       odds,
       confidence: args.parsed.condition_triggered_confidence,
       stakePercent: args.parsed.condition_triggered_stake,
@@ -738,8 +875,8 @@ function evaluateConditionTriggeredSaveDecision(args: {
     warnings.push('Condition-triggered bet not saved because confidence is below the minimum threshold.');
     return {
       shouldSave: false,
-      selection,
-      betMarket,
+      selection: effectiveSelection,
+      betMarket: effectiveBetMarket,
       odds,
       confidence: args.parsed.condition_triggered_confidence,
       stakePercent: args.parsed.condition_triggered_stake,
@@ -750,8 +887,8 @@ function evaluateConditionTriggeredSaveDecision(args: {
   }
 
   const policyResult = applyRecommendationPolicy({
-    selection,
-    betMarket,
+    selection: effectiveSelection,
+    betMarket: effectiveBetMarket,
     minute: args.minute,
     score: args.score,
     odds,
@@ -774,8 +911,8 @@ function evaluateConditionTriggeredSaveDecision(args: {
     warnings.push('Condition-triggered bet kept as alert only because policy blocked persistence.');
     return {
       shouldSave: false,
-      selection,
-      betMarket,
+      selection: effectiveSelection,
+      betMarket: effectiveBetMarket,
       odds,
       confidence: policyResult.confidence,
       stakePercent: policyResult.stakePercent,
@@ -785,12 +922,16 @@ function evaluateConditionTriggeredSaveDecision(args: {
     };
   }
 
-  const sameThesisRows = findSameThesisRecommendations(args.previousRecommendations, selection, betMarket);
+  const sameThesisRows = findSameThesisRecommendations(
+    args.previousRecommendations,
+    effectiveSelection,
+    effectiveBetMarket,
+  );
   if (sameThesisRows.length === 0) {
     return {
       shouldSave: true,
-      selection,
-      betMarket,
+      selection: effectiveSelection,
+      betMarket: effectiveBetMarket,
       odds,
       confidence: policyResult.confidence,
       stakePercent: policyResult.stakePercent,
@@ -804,8 +945,8 @@ function evaluateConditionTriggeredSaveDecision(args: {
     warnings.push('Existing saved exposure already covers this thesis. Condition alert sent without saving another bet.');
     return {
       shouldSave: false,
-      selection,
-      betMarket,
+      selection: effectiveSelection,
+      betMarket: effectiveBetMarket,
       odds,
       confidence: policyResult.confidence,
       stakePercent: policyResult.stakePercent,
@@ -826,8 +967,8 @@ function evaluateConditionTriggeredSaveDecision(args: {
     warnings.push('Special override requested, but no override reason was provided. Alert sent without saving another bet.');
     return {
       shouldSave: false,
-      selection,
-      betMarket,
+      selection: effectiveSelection,
+      betMarket: effectiveBetMarket,
       odds,
       confidence: policyResult.confidence,
       stakePercent: policyResult.stakePercent,
@@ -837,12 +978,12 @@ function evaluateConditionTriggeredSaveDecision(args: {
     };
   }
 
-  if (!latestCanonicalMarket || latestCanonicalMarket !== betMarket) {
+  if (!latestCanonicalMarket || latestCanonicalMarket !== effectiveBetMarket) {
     warnings.push('Special override can only update the same saved line. A different line on the same thesis stays alert-only.');
     return {
       shouldSave: false,
-      selection,
-      betMarket,
+      selection: effectiveSelection,
+      betMarket: effectiveBetMarket,
       odds,
       confidence: policyResult.confidence,
       stakePercent: policyResult.stakePercent,
@@ -857,8 +998,8 @@ function evaluateConditionTriggeredSaveDecision(args: {
     warnings.push('Special override requires a materially better live price on the same line. Alert sent without saving another bet.');
     return {
       shouldSave: false,
-      selection,
-      betMarket,
+      selection: effectiveSelection,
+      betMarket: effectiveBetMarket,
       odds,
       confidence: policyResult.confidence,
       stakePercent: policyResult.stakePercent,
@@ -871,8 +1012,8 @@ function evaluateConditionTriggeredSaveDecision(args: {
   warnings.push('Special override accepted: updating the existing saved line with a materially better price.');
   return {
     shouldSave: true,
-    selection,
-    betMarket,
+    selection: effectiveSelection,
+    betMarket: effectiveBetMarket,
     odds,
     confidence: policyResult.confidence,
     stakePercent: policyResult.stakePercent,
@@ -1229,6 +1370,8 @@ interface PromptExecutionArtifacts {
   parsed: ParsedAiResponse;
   policyBlocked: boolean;
   policyWarnings: string[];
+  /** Set when promote path is ready; marked promoted only after recommendation save succeeds. */
+  thesisWatchId?: number;
 }
 
 interface PromptPolicyContext {
@@ -1347,6 +1490,271 @@ function shouldRunPromptShadow(args: {
   return ratio < sampleRate;
 }
 
+function buildParsedFromThesisWatchRow(
+  watch: ThesisWatchRow,
+  oddsCanonical: OddsCanonical,
+  settings: PipelineSettings,
+): ParsedAiResponse {
+  const mappedOdd = extractOddsFromSelection(watch.selection, watch.bet_market, oddsCanonical);
+  const minOdds = settings.minOdds ?? config.pipelineMinOdds;
+  const usableOdd = mappedOdd != null && mappedOdd >= minOdds ? mappedOdd : null;
+  const hasActionable = !!String(watch.selection || '').trim() && !!String(watch.bet_market || '').trim();
+  const systemShouldBet = hasActionable;
+  const finalShouldBet = systemShouldBet && usableOdd != null;
+  const promoteTag = '[THESIS_WATCH_PROMOTE]';
+  return {
+    decision_kind: finalShouldBet ? 'ai_push' : 'no_bet',
+    should_push: finalShouldBet,
+    ai_should_push: hasActionable,
+    system_should_bet: systemShouldBet,
+    final_should_bet: finalShouldBet,
+    selection: watch.selection,
+    bet_market: watch.bet_market,
+    confidence: watch.confidence,
+    reasoning_en: watch.reasoning_en ? `${watch.reasoning_en} ${promoteTag}` : promoteTag,
+    reasoning_vi: watch.reasoning_vi ? `${watch.reasoning_vi} ${promoteTag}` : promoteTag,
+    warnings: ['THESIS_WATCH_PROMOTED', watch.last_block_reason].filter(Boolean),
+    value_percent: Number(watch.value_percent) || 0,
+    risk_level: watch.risk_level || 'MEDIUM',
+    stake_percent: Number(watch.stake_percent) || 0,
+    condition_triggered_suggestion: '',
+    custom_condition_matched: false,
+    custom_condition_status: 'none',
+    custom_condition_summary_en: '',
+    custom_condition_summary_vi: '',
+    custom_condition_reason_en: '',
+    custom_condition_reason_vi: '',
+    condition_triggered_reasoning_en: '',
+    condition_triggered_reasoning_vi: '',
+    condition_triggered_confidence: 0,
+    condition_triggered_stake: 0,
+    condition_triggered_special_override: false,
+    condition_triggered_special_override_reason_en: '',
+    condition_triggered_special_override_reason_vi: '',
+    condition_triggered_should_push: false,
+    follow_up_answer_en: '',
+    follow_up_answer_vi: '',
+    ai_selection: watch.selection,
+    ai_confidence: watch.confidence,
+    ai_odd_raw: mappedOdd,
+    ai_warnings: ['THESIS_WATCH_PROMOTED'],
+    usable_odd: usableOdd,
+    mapped_odd: mappedOdd,
+    odds_for_display: usableOdd ?? mappedOdd ?? (hasActionable ? 'N/A' : null),
+  };
+}
+
+async function finalizeParsedRecommendation(
+  deps: Pick<PipelineDeps, 'lookupPerformanceMemory'>,
+  args: {
+    patienceParsed: ParsedAiResponse;
+    linePatienceBlocked: boolean;
+    promptContext: PromptExecutionContext;
+    promptVersion: LiveAnalysisPromptVersion;
+    policyContext: PromptPolicyContext;
+    studioRelease: RecommendationReleaseDetail | null;
+  },
+): Promise<{
+  parsed: ParsedAiResponse;
+  policyBlocked: boolean;
+  policyWarnings: string[];
+}> {
+  const { patienceParsed, linePatienceBlocked, promptContext, promptVersion, policyContext, studioRelease } = args;
+  const policyResult = applyRecommendationPolicy({
+    selection: patienceParsed.selection,
+    betMarket: patienceParsed.bet_market,
+    minute: promptContext.minute,
+    score: promptContext.score,
+    odds: patienceParsed.mapped_odd,
+    confidence: patienceParsed.confidence,
+    valuePercent: patienceParsed.value_percent,
+    stakePercent: patienceParsed.stake_percent,
+    promptVersion,
+    previousRecommendations: policyContext.previousRecommendations,
+    statsCompact: promptContext.statsCompact,
+    segmentBlocklist: getSegmentPolicyBlocklist(),
+    segmentStakeCaps: getSegmentPolicyStakeCaps(),
+    riskLevel: patienceParsed.risk_level,
+    evidenceMode: promptContext.evidenceMode,
+    breakEvenRate: patienceParsed.mapped_odd != null && patienceParsed.mapped_odd > 0 ? 1 / patienceParsed.mapped_odd : null,
+    directionalWin: patienceParsed.ai_should_push,
+  });
+  const dynamicPolicyResult = applyRecommendationStudioPostParseRules(studioRelease, {
+    minute: promptContext.minute,
+    score: promptContext.score,
+    evidenceMode: promptContext.evidenceMode,
+    prematchStrength: getPrematchPriorStrength(promptContext.prematchExpertFeatures ?? null),
+    promptVersion,
+    releaseId: studioRelease?.id ?? null,
+    releaseKey: studioRelease?.release_key ?? null,
+    selection: patienceParsed.selection,
+    betMarket: patienceParsed.bet_market,
+    odds: patienceParsed.mapped_odd,
+    valuePercent: patienceParsed.value_percent,
+    confidence: policyResult.confidence,
+    stakePercent: policyResult.stakePercent,
+    riskLevel: patienceParsed.risk_level,
+    currentCorners: parseNumericStat(promptContext.statsCompact?.corners?.home) != null && parseNumericStat(promptContext.statsCompact?.corners?.away) != null
+      ? Number(parseNumericStat(promptContext.statsCompact?.corners?.home)) + Number(parseNumericStat(promptContext.statsCompact?.corners?.away))
+      : null,
+    currentGoals: parseScoreString(promptContext.score).home + parseScoreString(promptContext.score).away,
+  });
+  const parsedCanonicalMarket = normalizeMarket(patienceParsed.selection ?? '', patienceParsed.bet_market ?? '');
+  const memoryWarnings: string[] = [];
+  let memoryOverrideBlocked = false;
+  if (parsedCanonicalMarket && parsedCanonicalMarket !== 'unknown') {
+    try {
+      const memoryMinuteBand = deriveMinuteBand(promptContext.minute);
+      const memoryScoreState = deriveScoreState(promptContext.score);
+      const memory = await deps.lookupPerformanceMemory({
+        canonicalMarket: parsedCanonicalMarket,
+        minuteBand: memoryMinuteBand,
+        scoreState: memoryScoreState,
+      });
+      if (memory.status === 'found' && memory.record) {
+        const breakEvenRate = patienceParsed.mapped_odd != null && patienceParsed.mapped_odd > 0 ? (1 / patienceParsed.mapped_odd) : null;
+        const winRate = memory.record.empiricalWinRate;
+        if (memory.record.sampleReliable && winRate < 0.4) {
+          memoryOverrideBlocked = true;
+          memoryWarnings.push(`MEMORY_OVERRIDE_LOW_WIN_RATE_${Math.round(winRate * 100)}PCT`);
+        } else if (memory.record.sampleReliable && winRate < 0.45) {
+          if (breakEvenRate == null || breakEvenRate >= 0.46) {
+            memoryOverrideBlocked = true;
+            memoryWarnings.push('MEMORY_OVERRIDE_MARGINAL_WIN_RATE');
+          }
+        } else if (!memory.record.sampleReliable && winRate < 0.35) {
+          memoryWarnings.push(`SMALL_SAMPLE_WARNING_${Math.round(winRate * 100)}PCT`);
+        }
+      } else {
+        memoryWarnings.push('MEMORY_FLAG_NO_HISTORY');
+      }
+    } catch (err) {
+      memoryWarnings.push('MEMORY_LOOKUP_UNAVAILABLE');
+    }
+  }
+  const policyBlockedEffective = (
+    linePatienceBlocked
+    || policyResult.blocked
+    || dynamicPolicyResult.blocked
+    || dynamicPolicyResult.forceNoBet
+    || memoryOverrideBlocked
+  ) && !promptContext.skipRecommendationPolicy;
+  const hasCustomCondition = !!String(promptContext.customConditions || '').trim();
+  const lowEvidenceConditionOnly = promptContext.evidenceMode === 'low_evidence' && hasCustomCondition;
+  const finalShouldBet = lowEvidenceConditionOnly
+    ? false
+    : patienceParsed.final_should_bet && !policyBlockedEffective;
+  const conditionTriggeredShouldPush = patienceParsed.condition_triggered_should_push;
+  const shouldPush = finalShouldBet || conditionTriggeredShouldPush;
+  const decisionKind = finalShouldBet
+    ? 'ai_push'
+    : conditionTriggeredShouldPush
+      ? 'condition_only'
+      : 'no_bet';
+  const parsed: ParsedAiResponse = {
+    ...patienceParsed,
+    should_push: shouldPush,
+    ai_should_push: lowEvidenceConditionOnly ? false : patienceParsed.ai_should_push,
+    system_should_bet: lowEvidenceConditionOnly ? false : patienceParsed.system_should_bet && !policyBlockedEffective,
+    final_should_bet: finalShouldBet,
+    decision_kind: decisionKind,
+    confidence: dynamicPolicyResult.confidence,
+    stake_percent: dynamicPolicyResult.stakePercent,
+    ai_confidence: dynamicPolicyResult.confidence,
+    condition_triggered_should_push: conditionTriggeredShouldPush,
+    warnings: [
+      ...patienceParsed.warnings,
+      ...policyResult.warnings,
+      ...dynamicPolicyResult.warnings,
+      ...memoryWarnings,
+      ...(lowEvidenceConditionOnly ? ['LOW_EVIDENCE_CONDITION_ONLY'] : []),
+    ],
+    ai_warnings: [
+      ...patienceParsed.ai_warnings,
+      ...policyResult.warnings,
+      ...dynamicPolicyResult.warnings,
+      ...memoryWarnings,
+      ...(lowEvidenceConditionOnly ? ['LOW_EVIDENCE_CONDITION_ONLY'] : []),
+    ],
+  };
+
+  return {
+    parsed,
+    policyBlocked: linePatienceBlocked || policyResult.blocked || dynamicPolicyResult.blocked || dynamicPolicyResult.forceNoBet || memoryOverrideBlocked,
+    policyWarnings: [...policyResult.warnings, ...dynamicPolicyResult.warnings, ...memoryWarnings],
+  };
+}
+
+async function executeThesisWatchPromote(
+  deps: Pick<PipelineDeps, 'lookupPerformanceMemory'>,
+  matchId: string,
+  settings: PipelineSettings,
+  promptContext: PromptExecutionContext,
+  promptVersion: LiveAnalysisPromptVersion,
+  policyContext: PromptPolicyContext,
+  studioRelease: RecommendationReleaseDetail | null,
+  pipelineOptions: { shadowMode?: boolean; advisoryOnly?: boolean },
+): Promise<PromptExecutionArtifacts | null> {
+  if (!isThesisWatchPipelineActive(pipelineOptions)) return null;
+
+  const watches = await getPendingThesisWatchesByMatchId(matchId);
+  if (watches.length === 0) return null;
+
+  const startedAt = Date.now();
+  for (const watch of watches) {
+    if (!isThesisWatchGateSatisfied(watch.gate_type, watch.gate_payload, promptContext.oddsCanonical)) {
+      continue;
+    }
+
+    const resolvedMarket = resolveThesisWatchPromoteMarket(watch, promptContext.oddsCanonical);
+    const watchForPromote: ThesisWatchRow = {
+      ...watch,
+      selection: resolvedMarket.selection,
+      bet_market: resolvedMarket.betMarket,
+    };
+    const parsedSeed = buildParsedFromThesisWatchRow(watchForPromote, promptContext.oddsCanonical, settings);
+    const { parsed: patienceParsed, linePatienceBlocked } = applyLinePatienceToParsed({
+      parsed: parsedSeed,
+      oddsCanonical: promptContext.oddsCanonical,
+      minute: promptContext.minute,
+      score: promptContext.score,
+      evidenceMode: promptContext.evidenceMode,
+      eventsCompact: promptContext.eventsCompact,
+      pipelineSettings: settings,
+    });
+    if (linePatienceBlocked) continue;
+
+    const finalized = await finalizeParsedRecommendation(deps, {
+      patienceParsed,
+      linePatienceBlocked,
+      promptContext,
+      promptVersion,
+      policyContext,
+      studioRelease,
+    });
+    if (!finalized.parsed.final_should_bet) continue;
+
+    const promoteNote = `{"source":"thesis_watch","watchId":${watch.id},"gateType":"${watch.gate_type}","watchKey":"${watch.watch_key}"}`;
+    return {
+      promptVersion,
+      prompt: promoteNote,
+      promptChars: promoteNote.length,
+      promptEstimatedTokens: 0,
+      aiText: promoteNote,
+      aiTextChars: promoteNote.length,
+      aiTextEstimatedTokens: 0,
+      llmLatencyMs: 0,
+      totalLatencyMs: Date.now() - startedAt,
+      parsed: finalized.parsed,
+      policyBlocked: finalized.policyBlocked,
+      policyWarnings: finalized.policyWarnings,
+      thesisWatchId: watch.id,
+    };
+  }
+
+  return null;
+}
+
 async function executePromptAnalysis(
   deps: Pick<PipelineDeps, 'callGemini' | 'lookupPerformanceMemory'>,
   model: string,
@@ -1374,122 +1782,23 @@ async function executePromptAnalysis(
     settings,
     promptContext.evidenceMode,
   );
-  const policyResult = applyRecommendationPolicy({
-    selection: parsedRaw.selection,
-    betMarket: parsedRaw.bet_market,
-    minute: promptContext.minute,
-    score: promptContext.score,
-    odds: parsedRaw.mapped_odd,
-    confidence: parsedRaw.confidence,
-    valuePercent: parsedRaw.value_percent,
-    stakePercent: parsedRaw.stake_percent,
-    promptVersion,
-    previousRecommendations: policyContext.previousRecommendations,
-    statsCompact: promptContext.statsCompact,
-    segmentBlocklist: getSegmentPolicyBlocklist(),
-    segmentStakeCaps: getSegmentPolicyStakeCaps(),
-    riskLevel: parsedRaw.risk_level,
-    evidenceMode: promptContext.evidenceMode,
-    breakEvenRate: parsedRaw.mapped_odd != null && parsedRaw.mapped_odd > 0 ? 1 / parsedRaw.mapped_odd : null,
-    directionalWin: parsedRaw.ai_should_push,
-  });
-  const dynamicPolicyResult = applyRecommendationStudioPostParseRules(studioRelease, {
+  const { parsed: patienceParsed, linePatienceBlocked } = applyLinePatienceToParsed({
+    parsed: parsedRaw,
+    oddsCanonical: promptContext.oddsCanonical,
     minute: promptContext.minute,
     score: promptContext.score,
     evidenceMode: promptContext.evidenceMode,
-    prematchStrength: getPrematchPriorStrength(promptContext.prematchExpertFeatures ?? null),
-    promptVersion,
-    releaseId: studioRelease?.id ?? null,
-    releaseKey: studioRelease?.release_key ?? null,
-    selection: parsedRaw.selection,
-    betMarket: parsedRaw.bet_market,
-    odds: parsedRaw.mapped_odd,
-    valuePercent: parsedRaw.value_percent,
-    confidence: policyResult.confidence,
-    stakePercent: policyResult.stakePercent,
-    riskLevel: parsedRaw.risk_level,
-    currentCorners: parseNumericStat(promptContext.statsCompact?.corners?.home) != null && parseNumericStat(promptContext.statsCompact?.corners?.away) != null
-      ? Number(parseNumericStat(promptContext.statsCompact?.corners?.home)) + Number(parseNumericStat(promptContext.statsCompact?.corners?.away))
-      : null,
-    currentGoals: parseScoreString(promptContext.score).home + parseScoreString(promptContext.score).away,
+    eventsCompact: promptContext.eventsCompact,
+    pipelineSettings: settings,
   });
-  const parsedCanonicalMarket = normalizeMarket(parsedRaw.selection ?? '', parsedRaw.bet_market ?? '');
-  const memoryWarnings: string[] = [];
-  let memoryOverrideBlocked = false;
-  if (parsedCanonicalMarket && parsedCanonicalMarket !== 'unknown') {
-    try {
-      const memoryMinuteBand = deriveMinuteBand(promptContext.minute);
-      const memoryScoreState = deriveScoreState(promptContext.score);
-      const memory = await deps.lookupPerformanceMemory({
-        canonicalMarket: parsedCanonicalMarket,
-        minuteBand: memoryMinuteBand,
-        scoreState: memoryScoreState,
-      });
-      if (memory.status === 'found' && memory.record) {
-        const breakEvenRate = parsedRaw.mapped_odd != null && parsedRaw.mapped_odd > 0 ? (1 / parsedRaw.mapped_odd) : null;
-        const winRate = memory.record.empiricalWinRate;
-        if (memory.record.sampleReliable && winRate < 0.4) {
-          memoryOverrideBlocked = true;
-          memoryWarnings.push(`MEMORY_OVERRIDE_LOW_WIN_RATE_${Math.round(winRate * 100)}PCT`);
-        } else if (memory.record.sampleReliable && winRate < 0.45) {
-          if (breakEvenRate == null || breakEvenRate >= 0.46) {
-            memoryOverrideBlocked = true;
-            memoryWarnings.push('MEMORY_OVERRIDE_MARGINAL_WIN_RATE');
-          }
-        } else if (!memory.record.sampleReliable && winRate < 0.35) {
-          memoryWarnings.push(`SMALL_SAMPLE_WARNING_${Math.round(winRate * 100)}PCT`);
-        }
-      } else {
-        memoryWarnings.push('MEMORY_FLAG_NO_HISTORY');
-      }
-    } catch (err) {
-      memoryWarnings.push('MEMORY_LOOKUP_UNAVAILABLE');
-    }
-  }
-  const policyBlockedEffective = (
-    policyResult.blocked
-    || dynamicPolicyResult.blocked
-    || dynamicPolicyResult.forceNoBet
-    || memoryOverrideBlocked
-  ) && !promptContext.skipRecommendationPolicy;
-  const hasCustomCondition = !!String(promptContext.customConditions || '').trim();
-  const lowEvidenceConditionOnly = promptContext.evidenceMode === 'low_evidence' && hasCustomCondition;
-  const finalShouldBet = lowEvidenceConditionOnly
-    ? false
-    : parsedRaw.final_should_bet && !policyBlockedEffective;
-  const conditionTriggeredShouldPush = parsedRaw.condition_triggered_should_push;
-  const shouldPush = finalShouldBet || conditionTriggeredShouldPush;
-  const decisionKind = finalShouldBet
-    ? 'ai_push'
-    : conditionTriggeredShouldPush
-      ? 'condition_only'
-      : 'no_bet';
-  const parsed: ParsedAiResponse = {
-    ...parsedRaw,
-    should_push: shouldPush,
-    ai_should_push: lowEvidenceConditionOnly ? false : parsedRaw.ai_should_push,
-    system_should_bet: lowEvidenceConditionOnly ? false : parsedRaw.system_should_bet && !policyBlockedEffective,
-    final_should_bet: finalShouldBet,
-    decision_kind: decisionKind,
-    confidence: dynamicPolicyResult.confidence,
-    stake_percent: dynamicPolicyResult.stakePercent,
-    ai_confidence: dynamicPolicyResult.confidence,
-    condition_triggered_should_push: conditionTriggeredShouldPush,
-    warnings: [
-      ...parsedRaw.warnings,
-      ...policyResult.warnings,
-      ...dynamicPolicyResult.warnings,
-      ...memoryWarnings,
-      ...(lowEvidenceConditionOnly ? ['LOW_EVIDENCE_CONDITION_ONLY'] : []),
-    ],
-    ai_warnings: [
-      ...parsedRaw.ai_warnings,
-      ...policyResult.warnings,
-      ...dynamicPolicyResult.warnings,
-      ...memoryWarnings,
-      ...(lowEvidenceConditionOnly ? ['LOW_EVIDENCE_CONDITION_ONLY'] : []),
-    ],
-  };
+  const finalized = await finalizeParsedRecommendation(deps, {
+    patienceParsed,
+    linePatienceBlocked,
+    promptContext,
+    promptVersion,
+    policyContext,
+    studioRelease,
+  });
 
   return {
     promptVersion,
@@ -1501,9 +1810,9 @@ async function executePromptAnalysis(
     aiTextEstimatedTokens,
     llmLatencyMs,
     totalLatencyMs: Date.now() - startedAt,
-    parsed,
-    policyBlocked: policyResult.blocked || dynamicPolicyResult.blocked || dynamicPolicyResult.forceNoBet || memoryOverrideBlocked,
-    policyWarnings: [...policyResult.warnings, ...dynamicPolicyResult.warnings, ...memoryWarnings],
+    parsed: finalized.parsed,
+    policyBlocked: finalized.policyBlocked,
+    policyWarnings: finalized.policyWarnings,
   };
 }
 
@@ -3898,33 +4207,64 @@ async function processMatch(
       currentGoals: homeGoals + awayGoals,
     });
 
-    // 6. Call Gemini
+    // 6. Thesis watch promote (skip Gemini when a deferred LLP thesis is ready)
     const model = options.modelOverride || settings.aiModel;
     const preLlmLatencyMs = Date.now() - startedAt;
-    const activeAnalysis = await executePromptAnalysis(
+    const policyContextForPrompt = {
+      previousRecommendations: prevRecs.map((r) => ({
+        minute: r.minute ?? null,
+        selection: r.selection ?? '',
+        bet_market: r.bet_market ?? '',
+        stake_percent: r.stake_percent ?? null,
+        result: r.result ?? null,
+      })),
+    };
+    const thesisPromoteResult = await executeThesisWatchPromote(
+      deps,
+      matchId,
+      settings,
+      promptContext,
+      activePromptVersion,
+      policyContextForPrompt,
+      studioRelease,
+      { shadowMode, advisoryOnly },
+    );
+    const thesisWatchId = thesisPromoteResult?.thesisWatchId;
+    const thesisPromoted = thesisWatchId != null;
+    const activeAnalysis = thesisPromoteResult ?? await executePromptAnalysis(
       deps,
       model,
       settings,
       promptContext,
       activePromptVersion,
-      {
-        previousRecommendations: prevRecs.map((r) => ({
-          minute: r.minute ?? null,
-          selection: r.selection ?? '',
-          bet_market: r.bet_market ?? '',
-          stake_percent: r.stake_percent ?? null,
-          result: r.result ?? null,
-        })),
-      },
+      policyContextForPrompt,
       studioRelease,
       prePromptDecision,
     );
     const parsed = activeAnalysis.parsed;
+    if (!thesisPromoted && !parsed.final_should_bet) {
+      await registerThesisWatchFromLlpBlock({
+        matchId,
+        minute,
+        shadowMode,
+        advisoryOnly,
+        warnings: parsed.warnings,
+        selection: parsed.selection,
+        betMarket: parsed.bet_market,
+        confidence: parsed.confidence,
+        valuePercent: parsed.value_percent,
+        stakePercent: parsed.stake_percent,
+        riskLevel: parsed.risk_level,
+        reasoningEn: parsed.reasoning_en,
+        reasoningVi: parsed.reasoning_vi,
+        oddsCanonical: oddsCanonical,
+      });
+    }
     enforceFollowUpLineupAvailability(parsed, {
       userQuestion: options.userQuestion,
       lineupsSnapshot,
     });
-    const promptShadowRequested = shouldRunPromptShadow({
+    const promptShadowRequested = !thesisPromoted && shouldRunPromptShadow({
       matchId,
       minute,
       activePromptVersion,
@@ -3976,6 +4316,7 @@ async function processMatch(
       minute,
       score,
       evidenceMode,
+      eventsCompact: eventsCompact.slice(-12),
       minOdds: settings.minOdds,
       minConfidence: settings.minConfidence,
       promptVersion: activePromptVersion,
@@ -4082,7 +4423,14 @@ async function processMatch(
       decisionContext['studioReleaseName'] = studioRelease?.name ?? null;
       decisionContext['studioPromptTemplateId'] = studioRelease?.prompt_template_id ?? null;
       decisionContext['studioRuleSetId'] = studioRelease?.rule_set_id ?? null;
-      decisionContext['recommendationSource'] = saveFromConditionTrigger ? 'condition_triggered' : 'ai_primary';
+      decisionContext['recommendationSource'] = thesisPromoted
+        ? 'thesis_watch_promote'
+        : saveFromConditionTrigger
+          ? 'condition_triggered'
+          : 'ai_primary';
+      if (thesisPromoted) {
+        decisionContext['thesisWatchPromoted'] = true;
+      }
       decisionContext['conditionTriggeredSpecialOverride'] = saveFromConditionTrigger
         ? parsed.condition_triggered_special_override
         : false;
@@ -4147,6 +4495,17 @@ async function processMatch(
             league: league,
           });
         } catch { /* non-critical — duplicate key or other */ }
+      }
+
+      if (thesisWatchId != null) {
+        try {
+          await markThesisWatchPromoted(thesisWatchId);
+        } catch (err) {
+          console.warn(
+            '[thesis-watch] Failed to mark watch promoted after save:',
+            err instanceof Error ? err.message : String(err),
+          );
+        }
       }
     }
 

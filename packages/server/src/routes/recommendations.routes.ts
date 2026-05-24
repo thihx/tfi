@@ -248,12 +248,14 @@ export async function recommendationRoutes(app: FastifyInstance) {
   );
 
   // Mark legacy duplicates
-  app.post('/api/recommendations/mark-duplicates', async () => {
+  app.post('/api/recommendations/mark-duplicates', async (req, reply) => {
+    if (!requireAdminOrOwner(req, reply)) return;
     return repo.markLegacyDuplicates();
   });
 
   // Re-evaluate all results using real Football API scores
-  app.post('/api/recommendations/re-evaluate', async () => {
+  app.post('/api/recommendations/re-evaluate', async (req, reply) => {
+    if (!requireAdminOrOwner(req, reply)) return;
     return reEvaluateAllResults();
   });
 }

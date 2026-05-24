@@ -52,11 +52,15 @@ const mockHousekeepingPreview = {
   ],
 };
 
+vi.mock('../lib/football-api-circuit.js', () => ({
+  getFootballApiCircuitStatus: vi.fn().mockResolvedValue({ open: false, openUntil: null }),
+}));
+
 vi.mock('../jobs/scheduler.js', () => ({
   getJobsStatus: vi.fn().mockResolvedValue(mockJobs),
-  triggerJob: vi.fn().mockImplementation((name: string) => {
+  triggerJob: vi.fn().mockImplementation(async (name: string) => {
     if (name === 'fetch-matches') return { triggered: true };
-    if (name === 'expire-watchlist') return { triggered: false }; // already running
+    if (name === 'expire-watchlist') return { triggered: false, reason: 'already_running' };
     return null; // not found
   }),
   updateJobInterval: vi.fn().mockImplementation((name: string, intervalMs: number) => {
@@ -92,13 +96,14 @@ describe('GET /api/jobs', () => {
     expect(res.statusCode).toBe(403);
   });
 
-  test('returns all job statuses', async () => {
+  test('returns all job statuses and football API circuit', async () => {
     const res = await app.inject({ method: 'GET', url: '/api/jobs' });
     expect(res.statusCode).toBe(200);
     const body = res.json();
-    expect(body).toHaveLength(2);
-    expect(body[0].name).toBe('fetch-matches');
-    expect(body[0].label).toBe('Fetch Matches');
+    expect(body.jobs).toHaveLength(2);
+    expect(body.jobs[0].name).toBe('fetch-matches');
+    expect(body.jobs[0].label).toBe('Fetch Matches');
+    expect(body.footballApiCircuit).toEqual({ open: false, openUntil: null });
   });
 });
 

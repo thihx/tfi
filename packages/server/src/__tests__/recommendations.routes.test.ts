@@ -437,16 +437,36 @@ describe('DELETE /api/recommendations/bulk', () => {
 });
 
 describe('POST /api/recommendations/mark-duplicates', () => {
-  test('marks legacy duplicates', async () => {
+  test('rejects unauthenticated requests', async () => {
     const res = await app.inject({ method: 'POST', url: '/api/recommendations/mark-duplicates' });
+    expect(res.statusCode).toBe(401);
+  });
+
+  test('rejects non-admin users', async () => {
+    const res = await memberApp.inject({ method: 'POST', url: '/api/recommendations/mark-duplicates' });
+    expect(res.statusCode).toBe(403);
+  });
+
+  test('marks legacy duplicates', async () => {
+    const res = await adminApp.inject({ method: 'POST', url: '/api/recommendations/mark-duplicates' });
     expect(res.statusCode).toBe(200);
     expect(res.json().marked).toBe(3);
   });
 });
 
 describe('POST /api/recommendations/re-evaluate', () => {
-  test('re-evaluates all results', async () => {
+  test('rejects unauthenticated requests', async () => {
     const res = await app.inject({ method: 'POST', url: '/api/recommendations/re-evaluate' });
+    expect(res.statusCode).toBe(401);
+  });
+
+  test('rejects non-admin users', async () => {
+    const res = await memberApp.inject({ method: 'POST', url: '/api/recommendations/re-evaluate' });
+    expect(res.statusCode).toBe(403);
+  });
+
+  test('re-evaluates all results', async () => {
+    const res = await adminApp.inject({ method: 'POST', url: '/api/recommendations/re-evaluate' });
     expect(res.statusCode).toBe(200);
     expect(res.json().corrected).toBe(2);
   });

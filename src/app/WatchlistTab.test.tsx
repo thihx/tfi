@@ -52,9 +52,20 @@ vi.mock('@/hooks/useToast', () => ({
   useToast: () => ({ showToast: mockShowToast }),
 }));
 
+vi.mock('@/lib/services/notification-channels', () => ({
+  fetchNotificationChannels: vi.fn().mockResolvedValue([]),
+}));
+
 vi.mock('@/lib/services/api', () => ({
   fetchLeagueProfile: vi.fn().mockResolvedValue(null),
   fetchTeamProfile: vi.fn().mockResolvedValue(null),
+  evaluateWatchConditionPreview: vi.fn().mockResolvedValue({
+    supported: true,
+    matched: true,
+    summary: 'ok',
+    notify_enabled: true,
+    context_summary: { minute: 1, home_goals: 0, away_goals: 0, data_source: 'match_fixture' },
+  }),
 }));
 
 function getVisibleTeams(): string[] {
@@ -149,7 +160,7 @@ describe('WatchlistTab edit flow', () => {
 
     render(<WatchlistTab />);
     await user.click(screen.getByRole('button', { name: 'Edit' }));
-    await user.click(await screen.findByRole('button', { name: /Save Changes|Lưu thay đổi/ }));
+    await user.click(await screen.findByRole('button', { name: 'Save Changes' }));
 
     expect(mockUpdateWatchlistItem).toHaveBeenCalledWith(
       expect.objectContaining({ id: 11, match_id: '100' }),

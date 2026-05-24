@@ -98,10 +98,10 @@ describe('prepareRecommendationData', () => {
     const result = prepareRecommendationData(
       createMergedMatchData(),
       createParsedAiResponse(),
-      createConfig({ AI_MODEL: 'claude-sonnet-4-20250514' }),
+      createConfig({ AI_MODEL: 'gemini-3.5-flash' }),
       'exec_001',
     );
-    expect(result.ai_model).toBe('claude-sonnet-4-20250514');
+    expect(result.ai_model).toBe('gemini-3.5-flash');
   });
 
   test('builds key_factors from market_chosen_reason + warnings', () => {

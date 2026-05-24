@@ -33,7 +33,7 @@ function loadGeminiApiKey(): string {
 }
 
 const GEMINI_API_KEY = loadGeminiApiKey();
-const GEMINI_MODEL = 'gemini-2.5-flash';
+const GEMINI_MODEL = 'gemini-3.5-flash';
 const RUN_LLM_TESTS = process.env['RUN_LLM_TESTS'] === '1';
 
 // ==================== Direct Gemini API Call ====================

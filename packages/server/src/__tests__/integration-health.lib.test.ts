@@ -28,7 +28,7 @@ vi.mock('../config.js', () => ({
     footballApiBaseUrl: 'https://v3.football.api-sports.io',
     footballApiCircuitEnabled: true,
     geminiApiKey:       'gemini-key-123',
-    geminiModel:        'gemini-3.0-flash',
+    geminiModel:        'gemini-3.5-flash',
     telegramBotToken:   'bot123:TOKEN',
     googleClientId:     'google-client-id',
     googleClientSecret: 'google-client-secret',
@@ -151,7 +151,7 @@ describe('Redis probe', () => {
       config: {
         redisUrl: '',
         footballApiKey: 'key', footballApiBaseUrl: 'https://x.com',
-        geminiApiKey: 'key', geminiModel: 'gemini-3.0-flash',
+        geminiApiKey: 'key', geminiModel: 'gemini-3.5-flash',
         telegramBotToken: 'token',
         googleClientId: 'cid', googleClientSecret: 'csec',
       },

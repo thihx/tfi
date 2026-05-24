@@ -1,6 +1,11 @@
 import { getFavoriteTeamOwnersByTeamIds } from '../repos/favorite-teams.repo.js';
 import * as matchRepo from '../repos/matches.repo.js';
 import * as watchlistRepo from '../repos/watchlist.repo.js';
+import {
+  EntitlementError,
+  assertWatchlistCapacityAvailable,
+  resolveSubscriptionAccess,
+} from '../lib/subscription-access.js';
 import { reportJobProgress } from './job-progress.js';
 import {
   buildAutoWatchlistEntry,
@@ -17,6 +22,7 @@ export async function autoAddFavoriteTeamWatchlistJob(): Promise<{
   targetUsers: number;
   added: number;
   skippedExisting: number;
+  skippedCapacity: number;
 }> {
   const JOB = 'auto-add-favorite-team-watchlist';
 
@@ -27,7 +33,7 @@ export async function autoAddFavoriteTeamWatchlistJob(): Promise<{
   );
 
   if (candidateMatches.length === 0) {
-    return { candidateMatches: 0, targetUsers: 0, added: 0, skippedExisting: 0 };
+    return { candidateMatches: 0, targetUsers: 0, added: 0, skippedExisting: 0, skippedCapacity: 0 };
   }
 
   const teamIds = Array.from(new Set(candidateMatches.flatMap((match) => [
@@ -37,7 +43,7 @@ export async function autoAddFavoriteTeamWatchlistJob(): Promise<{
 
   const favoriteTeamOwners = await getFavoriteTeamOwnersByTeamIds(teamIds);
   if (favoriteTeamOwners.length === 0) {
-    return { candidateMatches: candidateMatches.length, targetUsers: 0, added: 0, skippedExisting: 0 };
+    return { candidateMatches: candidateMatches.length, targetUsers: 0, added: 0, skippedExisting: 0, skippedCapacity: 0 };
   }
 
   const favoriteOwnersByTeamId = new Map<string, Set<string>>();
@@ -79,8 +85,10 @@ export async function autoAddFavoriteTeamWatchlistJob(): Promise<{
   }
 
   const autoApplyCache = new Map<string, boolean>();
+  const accessCache = new Map<string, Awaited<ReturnType<typeof resolveSubscriptionAccess>>>();
   let added = 0;
   let skippedExisting = 0;
+  let skippedCapacity = 0;
   let index = 0;
   const actionableMatches = candidateMatches.filter((match) => userIdsByMatchId.has(match.match_id));
 
@@ -106,6 +114,12 @@ export async function autoAddFavoriteTeamWatchlistJob(): Promise<{
       );
 
       try {
+        let access = accessCache.get(userId);
+        if (!access) {
+          access = await resolveSubscriptionAccess(userId);
+          accessCache.set(userId, access);
+        }
+        await assertWatchlistCapacityAvailable(access, userId);
         await watchlistRepo.createWatchlistEntry(
           buildAutoWatchlistEntry(match, autoApplyRecommendedCondition, 'favorite-team-auto'),
           userId,
@@ -114,6 +128,10 @@ export async function autoAddFavoriteTeamWatchlistJob(): Promise<{
         existingFavoriteIdsByUserId.set(userId, existingIds);
         added++;
       } catch (err) {
+        if (err instanceof EntitlementError) {
+          skippedCapacity++;
+          continue;
+        }
         if (isUniqueConflict(err)) {
           existingIds.add(match.match_id);
           existingFavoriteIdsByUserId.set(userId, existingIds);
@@ -130,5 +148,6 @@ export async function autoAddFavoriteTeamWatchlistJob(): Promise<{
     targetUsers: candidateMatchIdsByUserId.size,
     added,
     skippedExisting,
+    skippedCapacity,
   };
 }

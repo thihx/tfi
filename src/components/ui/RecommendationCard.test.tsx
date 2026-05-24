@@ -24,7 +24,7 @@ const BASE: Recommendation = {
   reasoning: 'Both teams have scored in first 30 mins, expect more goals.',
   key_factors: 'High press intensity, xG divergence',
   warnings: 'Slight rain forecast',
-  ai_model: 'claude-sonnet-4-6',
+  ai_model: 'gemini-3.5-flash',
   timestamp: '2026-01-15T14:00:00Z',
 };
 

@@ -3,7 +3,7 @@ import { beforeEach, describe, expect, test, vi } from 'vitest';
 vi.mock('../repos/settings.repo.js', () => ({
   getSettings: vi.fn().mockResolvedValue({
     TELEGRAM_CHAT_ID: '123456',
-    AI_MODEL: 'gemini-test',
+    AI_MODEL: 'gemini-3.5-flash',
     MIN_CONFIDENCE: 5,
     MIN_ODDS: 1.5,
     MIN_MINUTE: 5,
@@ -22,7 +22,7 @@ vi.mock('../config.js', () => ({
     databaseUrl: 'postgresql://test:test@localhost:5432/test',
     timezone: 'Asia/Seoul',
     geminiApiKey: 'test-key',
-    geminiModel: 'gemini-test',
+    geminiModel: 'gemini-3.5-flash',
     telegramBotToken: 'test-bot',
     pipelineTelegramChatId: '123456',
     pipelineEnabled: true,

@@ -520,6 +520,16 @@ export async function enrichWatchlistJob(): Promise<{ checked: number; enriched:
       }
 
       await watchlistRepo.updateOperationalWatchlistEntry(entry.match_id, updateFields);
+      const autoAppliedCondition = typeof (updateFields as Record<string, unknown>).custom_conditions === 'string'
+        ? String((updateFields as Record<string, unknown>).custom_conditions).trim()
+        : '';
+      if (autoAppliedCondition) {
+        await watchlistRepo.applyAutoConditionToSubscriptions(
+          entry.match_id,
+          autoAppliedCondition,
+          entry.recommended_custom_condition || null,
+        );
+      }
       enriched++;
       console.log(`[enrichWatchlistJob] Enriched ${entry.home_team} vs ${entry.away_team}`);
     } catch (err) {

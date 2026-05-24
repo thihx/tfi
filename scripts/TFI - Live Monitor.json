@@ -799,9 +799,9 @@
       "parameters": {
         "modelId": {
           "__rl": true,
-          "value": "claude-sonnet-4-20250514",
+          "value": "gemini-3.0-flash",
           "mode": "list",
-          "cachedResultName": "claude-sonnet-4-20250514"
+          "cachedResultName": "gemini-3.0-flash"
         },
         "messages": {
           "values": [
@@ -866,9 +866,9 @@
       "parameters": {
         "modelId": {
           "__rl": true,
-          "value": "models/gemini-3-pro-preview",
+          "value": "models/gemini-3.0-flash",
           "mode": "list",
-          "cachedResultName": "models/gemini-3-pro-preview"
+          "cachedResultName": "models/gemini-3.0-flash"
         },
         "messages": {
           "values": [

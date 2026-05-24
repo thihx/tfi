@@ -1,4 +1,5 @@
 import * as leaguesRepo from '../repos/leagues.repo.js';
+import { skipIfFootballApiCircuitOpen } from '../lib/football-api-circuit.js';
 import { refreshLeagueCatalog } from '../lib/league-catalog.service.js';
 import { refreshLeagueTeamsDirectoryNow } from '../lib/league-team-directory.service.js';
 import { syncDerivedPrematchProfiles } from '../lib/prematch-profile-sync.js';
@@ -61,7 +62,45 @@ export async function syncReferenceDataJob(): Promise<{
     refreshedTeamProfiles: number;
     skippedTeamProfiles: number;
   };
+  skipped?: boolean;
+  skipReason?: string;
+  openUntil?: string;
 }> {
+  const circuitSkip = await skipIfFootballApiCircuitOpen();
+  if (circuitSkip) {
+    await reportJobProgress(JOB, 'skipped', `Football API daily limit until ${circuitSkip.openUntil}`, 100);
+    return {
+      entityGroups: [],
+      leagueCatalog: {
+        candidateLeagues: 0,
+        attemptedLeagues: 0,
+        refreshedLeagues: 0,
+        skippedFreshLeagues: 0,
+        failedLeagues: 0,
+      },
+      leagueTeamDirectory: {
+        candidateLeagues: 0,
+        refreshedLeagues: 0,
+        skippedFreshLeagues: 0,
+        staleFallbackLeagues: 0,
+        emptyLeagues: 0,
+        failedLeagues: 0,
+        topLeagueCount: 0,
+        activeLeagueCount: 0,
+      },
+      prematchProfiles: {
+        lookbackDays: 0,
+        candidateLeagues: 0,
+        refreshedLeagueProfiles: 0,
+        skippedLeagueProfiles: 0,
+        candidateTeams: 0,
+        refreshedTeamProfiles: 0,
+        skippedTeamProfiles: 0,
+      },
+      ...circuitSkip,
+    };
+  }
+
   const [topLeagues, activeLeagues] = await Promise.all([
     leaguesRepo.getTopLeagues(),
     leaguesRepo.getActiveLeagues(),

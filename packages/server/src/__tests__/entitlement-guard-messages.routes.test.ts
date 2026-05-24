@@ -16,7 +16,7 @@ vi.mock('../config.js', () => ({
     databaseUrl: 'postgresql://test:test@localhost:5432/test',
     timezone: 'Asia/Seoul',
     geminiApiKey: 'test-key',
-    geminiModel: 'gemini-test',
+    geminiModel: 'gemini-3.5-flash',
     telegramBotToken: 'test-bot-token',
     footballApiKey: 'test-football-key',
     footballApiBaseUrl: 'https://api-football.example.com',
@@ -198,7 +198,7 @@ describe('entitlement guard messages through routes', () => {
     const res = await proxyApp.inject({
       method: 'POST',
       url: '/api/proxy/ai/analyze',
-      payload: { prompt: 'test', provider: 'gemini', model: 'gemini-pro' },
+      payload: { prompt: 'test', provider: 'gemini', model: 'gemini-3.5-flash' },
     });
 
     expect(res.statusCode).toBe(429);

@@ -1,5 +1,9 @@
 import { describe, expect, test } from 'vitest';
-import { evaluateCustomConditionText } from '../lib/condition-evaluator.js';
+import {
+  buildConditionPreviewContext,
+  conditionPreviewDataSource,
+  evaluateCustomConditionText,
+} from '../lib/condition-evaluator.js';
 
 describe('condition evaluator', () => {
   const baseContext = {
@@ -36,5 +40,43 @@ describe('condition evaluator', () => {
       matched: false,
       summary: 'Unsupported OR operator',
     });
+  });
+});
+
+describe('condition preview context builder', () => {
+  const match = {
+    current_minute: 44,
+    home_score: 0,
+    away_score: 1,
+  };
+
+  const snapshot = {
+    minute: 65,
+    home_score: 1,
+    away_score: 1,
+    stats: { possession: { home: '55%', away: '45%' } },
+  };
+
+  test('prefers snapshot over match', () => {
+    const ctx = buildConditionPreviewContext(match, snapshot);
+    expect(ctx.minute).toBe(65);
+    expect(ctx.homeGoals).toBe(1);
+    expect(ctx.awayGoals).toBe(1);
+    expect(ctx.stats.possession?.home).toBe('55%');
+    expect(conditionPreviewDataSource(snapshot, match)).toBe('latest_snapshot');
+  });
+
+  test('falls back to match when no snapshot', () => {
+    const ctx = buildConditionPreviewContext(match, null);
+    expect(ctx.minute).toBe(44);
+    expect(ctx.homeGoals).toBe(0);
+    expect(ctx.awayGoals).toBe(1);
+    expect(conditionPreviewDataSource(null, match)).toBe('match_fixture');
+  });
+
+  test('empty when neither', () => {
+    const ctx = buildConditionPreviewContext(undefined, null);
+    expect(ctx).toEqual({ minute: null, homeGoals: 0, awayGoals: 0, stats: {} });
+    expect(conditionPreviewDataSource(null, null)).toBe('empty');
   });
 });

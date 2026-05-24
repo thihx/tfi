@@ -8,7 +8,7 @@ import { LIVE_ANALYSIS_PROMPT_VERSION } from '../lib/live-analysis-prompt.js';
 const { mockConfig } = vi.hoisted(() => ({
   mockConfig: {
     geminiApiKey: 'test-key',
-    geminiModel: 'gemini-test',
+    geminiModel: 'gemini-3.5-flash',
     telegramBotToken: 'test-bot',
     pipelineTelegramChatId: '123456',
     pipelineEnabled: true,
@@ -24,6 +24,8 @@ const { mockConfig } = vi.hoisted(() => ({
     liveAnalysisShadowPromptVersion: '',
     liveAnalysisShadowEnabled: false,
     liveAnalysisShadowSampleRate: 0,
+    linePatienceEnabled: true,
+    linePatienceConfigPath: '',
   },
 }));
 
@@ -288,7 +290,7 @@ vi.mock('../repos/settings.repo.js', () => ({
   getSettings: vi.fn().mockResolvedValue({
     TELEGRAM_CHAT_ID: '123456',
     TELEGRAM_ENABLED: true,
-    AI_MODEL: 'gemini-test',
+    AI_MODEL: 'gemini-3.5-flash',
     MIN_CONFIDENCE: 5,
     MIN_ODDS: 1.5,
     LATE_PHASE_MINUTE: 75,
@@ -1108,7 +1110,7 @@ describe('runPipelineBatch', () => {
     expect(createAiPerformanceRecord).toHaveBeenCalledTimes(1);
     expect(createAiPerformanceRecord).toHaveBeenCalledWith(expect.objectContaining({
       match_id: '100',
-      ai_model: 'gemini-test',
+      ai_model: 'gemini-3.5-flash',
       prompt_version: LIVE_ANALYSIS_PROMPT_VERSION,
       ai_should_push: true,
       predicted_market: 'over_2.5',
@@ -1129,7 +1131,7 @@ describe('runPipelineBatch', () => {
   test('does not send Telegram inline even when eligible user channels exist', async () => {
     const settingsRepo = await import('../repos/settings.repo.js');
     vi.mocked(settingsRepo.getSettings).mockResolvedValueOnce({
-      AI_MODEL: 'gemini-test',
+      AI_MODEL: 'gemini-3.5-flash',
       MIN_CONFIDENCE: 5,
       MIN_ODDS: 1.5,
       LATE_PHASE_MINUTE: 75,
@@ -1159,7 +1161,7 @@ describe('runPipelineBatch', () => {
   test('does not fall back to env telegram chat id when DB setting is missing', async () => {
     const settingsRepo = await import('../repos/settings.repo.js');
     vi.mocked(settingsRepo.getSettings).mockResolvedValueOnce({
-      AI_MODEL: 'gemini-test',
+      AI_MODEL: 'gemini-3.5-flash',
       MIN_CONFIDENCE: 5,
       MIN_ODDS: 1.5,
       LATE_PHASE_MINUTE: 75,
@@ -1181,7 +1183,7 @@ describe('runPipelineBatch', () => {
     const settingsRepo = await import('../repos/settings.repo.js');
     vi.mocked(settingsRepo.getSettings).mockResolvedValueOnce({
       TELEGRAM_CHAT_ID: '123456',
-      AI_MODEL: 'gemini-test',
+      AI_MODEL: 'gemini-3.5-flash',
       MIN_CONFIDENCE: 5,
       MIN_ODDS: 1.5,
       LATE_PHASE_MINUTE: 75,
@@ -1202,7 +1204,7 @@ describe('runPipelineBatch', () => {
     const settingsRepo = await import('../repos/settings.repo.js');
     vi.mocked(settingsRepo.getSettings).mockResolvedValueOnce({
       TELEGRAM_CHAT_ID: '123456',
-      AI_MODEL: 'gemini-test',
+      AI_MODEL: 'gemini-3.5-flash',
       MIN_CONFIDENCE: 5,
       MIN_ODDS: 1.5,
       LATE_PHASE_MINUTE: 75,
@@ -1652,7 +1654,7 @@ describe('runPipelineBatch', () => {
       expect.objectContaining({
         match_id: '100',
         status: '2H',
-        ai_model: 'gemini-test',
+        ai_model: 'gemini-3.5-flash',
         condition_summary_vi: 'Dieu kien theo doi da thoa.',
       }),
     );
@@ -1693,7 +1695,7 @@ describe('runPipelineBatch', () => {
         reasoning_vi: 'Previous under thesis already saved.',
         key_factors: '',
         warnings: '',
-        ai_model: 'gemini-test',
+        ai_model: 'gemini-3.5-flash',
         mode: 'B',
         bet_market: 'under_1.25',
         notified: '',
@@ -1791,7 +1793,7 @@ describe('runPipelineBatch', () => {
         reasoning_vi: 'Saved under line.',
         key_factors: '',
         warnings: '',
-        ai_model: 'gemini-test',
+        ai_model: 'gemini-3.5-flash',
         mode: 'B',
         bet_market: 'over_2.5',
         notified: '',

@@ -3,7 +3,7 @@ import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest';
 vi.mock('../config.js', () => ({
   config: {
     geminiApiKey: 'test-key',
-    geminiModel: 'gemini-3.0-flash',
+    geminiModel: 'gemini-3.5-flash',
     geminiTimeoutMs: 5000,
   },
 }));
@@ -20,7 +20,7 @@ afterEach(() => {
 });
 
 describe('gemini model normalization', () => {
-  test('maps legacy gemini-3.0-flash to a supported generateContent model', async () => {
+  test('maps legacy gemini-3.5-flash to a supported generateContent model', async () => {
     const { generateGeminiContent } = await import('../lib/gemini.js');
 
     mockFetch.mockResolvedValueOnce({
@@ -28,9 +28,9 @@ describe('gemini model normalization', () => {
       json: () => Promise.resolve({ candidates: [] }),
     });
 
-    await generateGeminiContent('hello', { model: 'gemini-3.0-flash' });
+    await generateGeminiContent('hello', { model: 'gemini-3.5-flash' });
 
     const requestUrl = String(mockFetch.mock.calls[0]?.[0] ?? '');
-    expect(requestUrl).toContain('/models/gemini-3-flash-preview:generateContent');
+    expect(requestUrl).toContain('/models/gemini-3.5-flash:generateContent');
   });
 });

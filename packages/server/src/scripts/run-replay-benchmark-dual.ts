@@ -2,7 +2,7 @@
  * Run settled replay benchmark twice: without post-parse policy (model intent),
  * then with --apply-replay-policy (production parity). Writes both report triplets.
  *
- * Model: GEMINI_REPLAY_MODEL or gemini-2.5-flash (not GEMINI_MODEL from production).
+ * Model: GEMINI_REPLAY_MODEL or gemini-3.5-flash (not GEMINI_MODEL from production).
  *
  * cd packages/server
  * npx tsx src/scripts/run-replay-benchmark-dual.ts --max-scenarios 20 --clear-llm-cache
@@ -18,7 +18,7 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 const SERVER_ROOT = resolve(__dirname, '../..');
 const BENCH_DIR_REL = 'replay-benchmarks/goals-totals-benchmark';
 const CACHE_REL = 'replay-work/replay-benchmark-llm-cache';
-const DEFAULT_REPLAY_MODEL = 'gemini-2.5-flash';
+const DEFAULT_REPLAY_MODEL = 'gemini-3.5-flash';
 
 function stripApplyReplayPolicyFlag(argv: string[]): string[] {
   return argv.filter((a) => a !== '--apply-replay-policy');

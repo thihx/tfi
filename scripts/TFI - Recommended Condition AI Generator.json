@@ -3,7 +3,7 @@
   "nodes": [
     {
       "parameters": {
-        "jsCode": "const CONFIG = {\n  SPREADSHEET_ID: '1kwXtpKxtQE52lFnz5MRRV0dnzeftN_X5tD69CL12ycU',\n  SHEET_IDS: {\n    CONFIG: 1170756615,\n    MATCHES: 996094587,\n    WATCHLIST: 715101038,\n    RECOMMENDATIONS: 532487099,\n  },\n  TIMEZONE: 'Asia/Seoul',\n  AI_PROVIDER: 'gemini',\n  AI_MODEL: 'gemini-2.0-flash',\n  AI_TEMPERATURE: '0.3',\n  AI_MAX_TOKENS: '4096',\n  PROCESS_MODES: ['A', 'B', 'C'],\n  SKIP_IF_HAS_CONDITION: true,\n  SKIP_IF_HAS_RECOMMENDATION: false,\n  MIN_PRIORITY: 1,\n  MAX_PRIORITY: 5,\n  PRE_MATCH_WINDOW_HOURS: 24,\n  // NEW: Batch size for AI calls\n  AI_BATCH_SIZE: 10,\n};\n\nreturn { json: CONFIG };\n"
+        "jsCode": "const CONFIG = {\n  SPREADSHEET_ID: '1kwXtpKxtQE52lFnz5MRRV0dnzeftN_X5tD69CL12ycU',\n  SHEET_IDS: {\n    CONFIG: 1170756615,\n    MATCHES: 996094587,\n    WATCHLIST: 715101038,\n    RECOMMENDATIONS: 532487099,\n  },\n  TIMEZONE: 'Asia/Seoul',\n  AI_PROVIDER: 'gemini',\n  AI_MODEL: 'gemini-3.0-flash',\n  AI_TEMPERATURE: '0.3',\n  AI_MAX_TOKENS: '4096',\n  PROCESS_MODES: ['A', 'B', 'C'],\n  SKIP_IF_HAS_CONDITION: true,\n  SKIP_IF_HAS_RECOMMENDATION: false,\n  MIN_PRIORITY: 1,\n  MAX_PRIORITY: 5,\n  PRE_MATCH_WINDOW_HOURS: 24,\n  // NEW: Batch size for AI calls\n  AI_BATCH_SIZE: 10,\n};\n\nreturn { json: CONFIG };\n"
       },
       "id": "694b45ad-f52a-4acb-86e9-e6802b2c16a2",
       "name": "Set Config",
@@ -199,9 +199,9 @@
       "parameters": {
         "modelId": {
           "__rl": true,
-          "value": "models/gemini-3-pro-preview",
+          "value": "models/gemini-3.0-flash",
           "mode": "list",
-          "cachedResultName": "models/gemini-3-pro-preview"
+          "cachedResultName": "models/gemini-3.0-flash"
         },
         "messages": {
           "values": [
@@ -621,9 +621,9 @@
       "parameters": {
         "modelId": {
           "__rl": true,
-          "value": "claude-sonnet-4-20250514",
+          "value": "gemini-3.0-flash",
           "mode": "list",
-          "cachedResultName": "claude-sonnet-4-20250514"
+          "cachedResultName": "gemini-3.0-flash"
         },
         "messages": {
           "values": [

@@ -130,7 +130,7 @@ export async function fetchMatchesJob(): Promise<{
     if (nextRunAt && Date.now() < Number(nextRunAt)) {
       const remainSec = Math.round((Number(nextRunAt) - Date.now()) / 1000);
       console.log(`[fetchMatchesJob] Skipping - next allowed run in ${remainSec}s`);
-      return { saved: 0, leagues: 0 };
+      return { saved: 0, leagues: 0, skipped: true, skipReason: 'adaptive_poll_backoff' };
     }
   } catch {
     // Redis unavailable -> proceed with fetch.
@@ -146,7 +146,7 @@ export async function fetchMatchesJob(): Promise<{
     } catch {
       // ignore
     }
-    return { saved: 0, leagues: 0 };
+    return { saved: 0, leagues: 0, skipped: true, skipReason: 'no_active_leagues' };
   }
   const leagueIdSet = new Set(activeLeagues.map((league) => league.league_id));
 

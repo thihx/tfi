@@ -1,7 +1,10 @@
 node_modules
 packages/server/node_modules
 packages/server/dist
+packages/server/replay-work
+packages/server/output
 dist
+output
 .git
 .env
 .env.*
@@ -10,5 +13,7 @@ packages/server/.env
 *.log
 coverage
 test-results
+playwright-report
 .vscode
+.cursor
 docs

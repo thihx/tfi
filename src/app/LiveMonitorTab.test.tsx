@@ -176,7 +176,7 @@ describe('LiveMonitorTab', () => {
     expect(screen.getAllByText('Arsenal vs Chelsea').length).toBeGreaterThanOrEqual(1);
     expect(screen.getByText('Machida Zelvia vs FC Tokyo')).toBeInTheDocument();
     expect(screen.getAllByText('Premier League | 64\' | 2-1 | 2H').length).toBeGreaterThanOrEqual(1);
-    expect(screen.getByText('Will go to analysis on the next engine run.')).toBeInTheDocument();
+    expect(screen.getByText('Passed the coarse gate; the engine may still skip after fresh stats and odds.')).toBeInTheDocument();
     expect(screen.getByText('Tracked live, but not sent to analysis yet.')).toBeInTheDocument();
     expect(screen.getByText('This match is in the system monitoring pool but is not live yet.')).toBeInTheDocument();
     expect(screen.getByText('Waiting for Kickoff')).toBeInTheDocument();
@@ -200,7 +200,7 @@ describe('LiveMonitorTab', () => {
     expect(screen.getByText('My Watchlist')).toBeInTheDocument();
     expect(screen.getByText('System Pool')).toBeInTheDocument();
     expect(screen.getByText('Live Now')).toBeInTheDocument();
-    expect(screen.getAllByText('Ready for analysis').length).toBeGreaterThanOrEqual(1);
+    expect(screen.getAllByText('Pre-check candidates').length).toBeGreaterThanOrEqual(1);
     expect(screen.queryByText('Engine Progress')).not.toBeInTheDocument();
     expect(screen.queryByText('Live Engine Is Working')).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Run Check Live' })).not.toBeInTheDocument();

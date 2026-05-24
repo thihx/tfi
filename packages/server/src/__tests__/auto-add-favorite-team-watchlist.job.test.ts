@@ -60,6 +60,20 @@ vi.mock('../repos/watchlist.repo.js', () => ({
   createWatchlistEntry: vi.fn().mockResolvedValue({}),
 }));
 
+vi.mock('../lib/subscription-access.js', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../lib/subscription-access.js')>();
+  return {
+    ...actual,
+    resolveSubscriptionAccess: vi.fn().mockResolvedValue({
+      subscription: null,
+      plan: { plan_code: 'free', display_name: 'Free' },
+      effectiveStatus: 'free_fallback',
+      entitlements: {},
+    }),
+    assertWatchlistCapacityAvailable: vi.fn().mockResolvedValue(undefined),
+  };
+});
+
 const { autoAddFavoriteTeamWatchlistJob } = await import('../jobs/auto-add-favorite-team-watchlist.job.js');
 
 beforeEach(() => {
@@ -69,9 +83,17 @@ beforeEach(() => {
 describe('autoAddFavoriteTeamWatchlistJob', () => {
   test('adds matches for users who follow participating teams', async () => {
     const result = await autoAddFavoriteTeamWatchlistJob();
-    expect(result).toEqual({ candidateMatches: 2, targetUsers: 2, added: 1, skippedExisting: 1 });
+    expect(result).toEqual({
+      candidateMatches: 2,
+      targetUsers: 2,
+      added: 1,
+      skippedExisting: 1,
+      skippedCapacity: 0,
+    });
 
     const watchlistRepo = await import('../repos/watchlist.repo.js');
+    const access = await import('../lib/subscription-access.js');
+    expect(access.assertWatchlistCapacityAvailable).toHaveBeenCalledWith(expect.any(Object), 'user-1');
     expect(watchlistRepo.createWatchlistEntry).toHaveBeenCalledWith(
       expect.objectContaining({
         match_id: '2001',
@@ -80,5 +102,26 @@ describe('autoAddFavoriteTeamWatchlistJob', () => {
       }),
       'user-1',
     );
+  });
+
+  test('skips favorite-team auto-add when watchlist capacity is exhausted', async () => {
+    const access = await import('../lib/subscription-access.js');
+    vi.mocked(access.assertWatchlistCapacityAvailable).mockRejectedValueOnce(
+      new access.EntitlementError('watchlist limit reached', {
+        code: 'WATCHLIST_ACTIVE_LIMIT_REACHED',
+      }),
+    );
+
+    const result = await autoAddFavoriteTeamWatchlistJob();
+
+    expect(result).toEqual({
+      candidateMatches: 2,
+      targetUsers: 2,
+      added: 0,
+      skippedExisting: 1,
+      skippedCapacity: 1,
+    });
+    const watchlistRepo = await import('../repos/watchlist.repo.js');
+    expect(watchlistRepo.createWatchlistEntry).not.toHaveBeenCalled();
   });
 });

@@ -32,6 +32,17 @@ const mockEntry = {
 
 vi.mock('../repos/watchlist.repo.js', () => ({
   getAllWatchlist: vi.fn().mockResolvedValue([mockEntry]),
+  getWatchlistByMatchId: vi.fn().mockImplementation((matchId: string, userId: string) => (
+    matchId === '100' && userId === 'member-1'
+      ? Promise.resolve({
+        ...mockEntry,
+        match_id: '100',
+        notify_enabled: true,
+        custom_conditions: '(Minute >= 60)',
+        auto_apply_recommended_condition: true,
+      })
+      : Promise.resolve(null)
+  )),
   countActiveWatchSubscriptionsByUser: vi.fn().mockResolvedValue(1),
   getExistingUserWatchlistMatchIds: vi.fn().mockResolvedValue(new Set()),
   getWatchSubscriptionById: vi.fn().mockImplementation((subscriptionId: number) =>
@@ -75,7 +86,12 @@ vi.mock('../repos/leagues.repo.js', () => ({
   ]),
 }));
 
+vi.mock('../repos/match-snapshots.repo.js', () => ({
+  getLatestSnapshot: vi.fn(),
+}));
+
 vi.mock('../repos/matches.repo.js', () => ({
+  getMatchesByIds: vi.fn(),
   getMatchesForLeaguesEligibleForWatchlist: vi.fn().mockResolvedValue([
     {
       match_id: '300',
@@ -183,6 +199,62 @@ describe('GET /api/me/watch-subscriptions/:id', () => {
   test('returns 404 when subscription ID is not found', async () => {
     const res = await app.inject({ method: 'GET', url: '/api/me/watch-subscriptions/999' });
     expect(res.statusCode).toBe(404);
+  });
+});
+
+describe('POST /api/me/watch-subscriptions/evaluate-condition', () => {
+  test('evaluates using latest snapshot when present', async () => {
+    const snaps = await import('../repos/match-snapshots.repo.js');
+    const matches = await import('../repos/matches.repo.js');
+    vi.mocked(snaps.getLatestSnapshot).mockResolvedValueOnce({
+      id: 1,
+      match_id: '100',
+      captured_at: '2026-05-01T12:00:00.000Z',
+      source: 'test',
+      minute: 65,
+      status: '1H',
+      home_score: 1,
+      away_score: 0,
+      stats: {},
+      events: [],
+      odds: {},
+    });
+    vi.mocked(matches.getMatchesByIds).mockResolvedValueOnce([]);
+
+    const res = await app.inject({
+      method: 'POST',
+      url: '/api/me/watch-subscriptions/evaluate-condition',
+      payload: { match_id: '100', condition_text: '(Minute >= 60) AND (Home leading)' },
+    });
+
+    expect(res.statusCode).toBe(200);
+    const body = res.json() as {
+      supported: boolean;
+      matched: boolean;
+      context_summary: { data_source: string; minute: number };
+    };
+    expect(body.supported).toBe(true);
+    expect(body.matched).toBe(true);
+    expect(body.context_summary.data_source).toBe('latest_snapshot');
+    expect(body.context_summary.minute).toBe(65);
+  });
+
+  test('returns 404 when user does not watch the match', async () => {
+    const res = await app.inject({
+      method: 'POST',
+      url: '/api/me/watch-subscriptions/evaluate-condition',
+      payload: { match_id: '999', condition_text: '(Minute >= 60)' },
+    });
+    expect(res.statusCode).toBe(404);
+  });
+
+  test('returns 400 without match_id', async () => {
+    const res = await app.inject({
+      method: 'POST',
+      url: '/api/me/watch-subscriptions/evaluate-condition',
+      payload: { condition_text: '(Minute >= 60)' },
+    });
+    expect(res.statusCode).toBe(400);
   });
 });
 

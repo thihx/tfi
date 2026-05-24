@@ -347,7 +347,7 @@
   "metadata": {
     "recommendationId": 12334,
     "originalPromptVersion": "v4-evidence-hardened",
-    "originalAiModel": "gemini-3-pro-preview",
+    "originalAiModel": "gemini-3.0-flash",
     "originalBetMarket": "corners_under_10.5",
     "originalSelection": "Corners Under 10.5 @1.775",
     "originalResult": "win",

@@ -95,7 +95,7 @@ function main(): void {
     mkdirSync(cacheAbs, { recursive: true });
   }
 
-  const model = process.env['GEMINI_REPLAY_MODEL']?.trim() || 'gemini-2.5-flash';
+  const model = process.env['GEMINI_REPLAY_MODEL']?.trim() || 'gemini-3.5-flash';
   console.log(
     `[replay-benchmark] dir=${benchDirRel} scenarios=${n}, first ${max}, ${promptVersion}, model=${model}, odds=${oddsMode}, delayMs=${delayMs}${applyReplayPolicy ? ' (post-parse policy ON)' : ''}`,
   );

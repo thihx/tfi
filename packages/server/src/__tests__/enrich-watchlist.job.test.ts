@@ -157,6 +157,7 @@ vi.mock('../repos/watchlist.repo.js', () => ({
     return Promise.resolve(map);
   }),
   updateOperationalWatchlistEntry: vi.fn().mockResolvedValue({}),
+  applyAutoConditionToSubscriptions: vi.fn().mockResolvedValue(0),
 }));
 
 vi.mock('../lib/strategic-context.service.js', async (importOriginal) => {
@@ -182,6 +183,7 @@ beforeEach(async () => {
     return Promise.resolve(map);
   });
   vi.mocked(watchlistRepo.updateOperationalWatchlistEntry).mockResolvedValue({} as never);
+  vi.mocked(watchlistRepo.applyAutoConditionToSubscriptions).mockResolvedValue(0);
 
   const matchRepo = await import('../repos/matches.repo.js');
   vi.mocked(matchRepo.getAllMatches).mockResolvedValue([
@@ -358,6 +360,11 @@ describe('enrichWatchlistJob', () => {
         custom_conditions: '(Minute >= 60) AND (NOT Home leading)',
       }),
     );
+    expect(watchlistRepo.applyAutoConditionToSubscriptions).toHaveBeenCalledWith(
+      '100',
+      '(Minute >= 60) AND (NOT Home leading)',
+      null,
+    );
   });
 
   test('does not overwrite manually set trigger conditions', async () => {
@@ -390,6 +397,7 @@ describe('enrichWatchlistJob', () => {
         custom_conditions: '(Minute >= 60) AND (NOT Home leading)',
       }),
     );
+    expect(watchlistRepo.applyAutoConditionToSubscriptions).not.toHaveBeenCalled();
   });
 
   test('replaces trigger condition when it still matches the previous AI recommendation', async () => {
@@ -421,6 +429,11 @@ describe('enrichWatchlistJob', () => {
         recommended_custom_condition: '(Minute >= 60) AND (NOT Home leading)',
         custom_conditions: '(Minute >= 60) AND (NOT Home leading)',
       }),
+    );
+    expect(watchlistRepo.applyAutoConditionToSubscriptions).toHaveBeenCalledWith(
+      '510',
+      '(Minute >= 60) AND (NOT Home leading)',
+      '(Minute >= 50) AND (NOT Home leading)',
     );
   });
 
@@ -459,6 +472,7 @@ describe('enrichWatchlistJob', () => {
         custom_conditions: '(Minute >= 60) AND (NOT Home leading)',
       }),
     );
+    expect(watchlistRepo.applyAutoConditionToSubscriptions).not.toHaveBeenCalled();
   });
 
   test('skips poor context entries until retry_after passes', async () => {

@@ -1,12 +1,57 @@
-import { fireEvent, render, screen } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { beforeEach, describe, expect, test, vi } from 'vitest';
 import { WatchlistEditModal } from '@/components/ui/WatchlistEditModal';
+import { evaluateWatchConditionPreview } from '@/lib/services/api';
 import type { WatchlistItem } from '@/types';
+
+vi.mock('@/hooks/useAppState', () => ({
+  useAppState: () => ({
+    state: { config: { apiUrl: 'http://localhost:4000' } },
+  }),
+}));
+
+vi.mock('@/lib/services/api', () => ({
+  evaluateWatchConditionPreview: vi.fn().mockResolvedValue({
+    supported: true,
+    matched: true,
+    summary: 'Condition matched: Minute >= 60',
+    notify_enabled: true,
+    context_summary: {
+      minute: 65,
+      home_goals: 1,
+      away_goals: 1,
+      data_source: 'latest_snapshot',
+    },
+  }),
+}));
 
 vi.mock('@/features/live-monitor/config', () => ({
   fetchMonitorConfig: vi.fn().mockResolvedValue({
     AUTO_APPLY_RECOMMENDED_CONDITION: true,
+    TELEGRAM_ENABLED: true,
+    ZALO_ENABLED: false,
   }),
+}));
+
+vi.mock('@/lib/services/notification-channels', () => ({
+  fetchNotificationChannels: vi.fn().mockResolvedValue([
+    {
+      channelType: 'telegram',
+      enabled: true,
+      status: 'verified',
+      address: '1',
+      config: {},
+      metadata: {},
+    },
+    {
+      channelType: 'zalo',
+      enabled: true,
+      status: 'draft',
+      address: null,
+      config: {},
+      metadata: {},
+    },
+  ]),
 }));
 
 const baseItem: WatchlistItem = {
@@ -18,6 +63,7 @@ const baseItem: WatchlistItem = {
   kickoff: '18:00',
   custom_conditions: '',
   recommended_custom_condition: '(Minute >= 60) AND (NOT Home leading)',
+  recommended_condition_reason: 'Late phase is a good window for late goals.',
   recommended_condition_reason_vi: 'Nhip tran phu hop de theo doi ban thang muon.',
   strategic_context: null,
 };
@@ -32,14 +78,12 @@ describe('WatchlistEditModal', () => {
     render(
       <WatchlistEditModal
         item={baseItem}
-        uiLanguage="vi"
         onClose={() => {}}
         onSave={() => {}}
       />,
     );
 
-    const checkbox = screen.getByRole('checkbox') as HTMLInputElement;
-    expect(checkbox.checked).toBe(true);
+    expect(screen.getByRole('checkbox', { name: /Use system suggestion when saving/i })).toBeChecked();
   });
 
   test('submits explicit per-match override when disabled', () => {
@@ -51,19 +95,19 @@ describe('WatchlistEditModal', () => {
           custom_conditions: '(Minute >= 55) AND (Total goals <= 1)',
           auto_apply_recommended_condition: true,
         }}
-        uiLanguage="vi"
         onClose={() => {}}
         onSave={onSave}
       />,
     );
 
-    fireEvent.click(screen.getByRole('checkbox'));
-    fireEvent.click(screen.getByRole('button', { name: /Lưu thay đổi|Save Changes/ }));
+    fireEvent.click(screen.getByRole('checkbox', { name: /Use system suggestion when saving/i }));
+    fireEvent.click(screen.getByRole('button', { name: 'Save Changes' }));
 
     expect(onSave).toHaveBeenCalledWith(
       expect.objectContaining({
         auto_apply_recommended_condition: false,
         custom_conditions: '(Minute >= 55) AND (Total goals <= 1)',
+        notify_enabled: true,
       }),
     );
   });
@@ -73,27 +117,78 @@ describe('WatchlistEditModal', () => {
     render(
       <WatchlistEditModal
         item={baseItem}
-        uiLanguage="vi"
         onClose={() => {}}
         onSave={onSave}
       />,
     );
 
-    fireEvent.click(screen.getByRole('button', { name: /Lưu thay đổi|Save Changes/ }));
+    fireEvent.click(screen.getByRole('button', { name: 'Save Changes' }));
 
     expect(onSave).toHaveBeenCalledWith(
       expect.objectContaining({
         auto_apply_recommended_condition: true,
         custom_conditions: '(Minute >= 60) AND (NOT Home leading)',
+        notify_enabled: true,
       }),
     );
   });
 
+  test('calls evaluate API when checking trigger against live data', async () => {
+    render(
+      <WatchlistEditModal item={baseItem} onClose={() => {}} onSave={() => {}} />,
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: 'Check against current match data' }));
+
+    await waitFor(() => {
+      expect(evaluateWatchConditionPreview).toHaveBeenCalledWith(
+        expect.objectContaining({ apiUrl: 'http://localhost:4000' }),
+        expect.objectContaining({
+          match_id: '100',
+          condition_text: '(Minute >= 60) AND (NOT Home leading)',
+        }),
+      );
+    });
+    expect(await screen.findByText(/Would trigger now/i)).toBeInTheDocument();
+  });
+
+  test('surfaces when subscription has notifications disabled', async () => {
+    vi.mocked(evaluateWatchConditionPreview).mockResolvedValueOnce({
+      supported: true,
+      matched: true,
+      summary: 'Condition matched',
+      notify_enabled: false,
+      context_summary: {
+        minute: 10,
+        home_goals: 0,
+        away_goals: 0,
+        data_source: 'match_fixture',
+      },
+    });
+
+    render(
+      <WatchlistEditModal item={baseItem} onClose={() => {}} onSave={() => {}} />,
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: 'Check against current match data' }));
+
+    expect(await screen.findByText(/Notifications are disabled for this watch/i)).toBeInTheDocument();
+  });
+
   test('points users to match hub for context', () => {
     render(
-      <WatchlistEditModal item={baseItem} uiLanguage="vi" onClose={() => {}} onSave={() => {}} />,
+      <WatchlistEditModal item={baseItem} onClose={() => {}} onSave={() => {}} />,
     );
-    expect(screen.getByText(/hub trận|Match hub/i)).toBeInTheDocument();
+    expect(screen.getByText(/Match hub/i)).toBeInTheDocument();
+  });
+
+  test('shows account Telegram and Zalo delivery summary', async () => {
+    render(
+      <WatchlistEditModal item={baseItem} onClose={() => {}} onSave={() => {}} />,
+    );
+    expect(await screen.findByText(/Account channels:/)).toBeInTheDocument();
+    expect(await screen.findByText(/Telegram: monitor on/)).toBeInTheDocument();
+    expect(await screen.findByText(/Zalo: monitor off/)).toBeInTheDocument();
   });
 
   test('shows empty-state copy when there is no recommended condition', () => {
@@ -102,13 +197,13 @@ describe('WatchlistEditModal', () => {
         item={{
           ...baseItem,
           recommended_custom_condition: '',
+          recommended_condition_reason: '',
           recommended_condition_reason_vi: '',
         }}
-        uiLanguage="vi"
         onClose={() => {}}
         onSave={() => {}}
       />,
     );
-    expect(screen.getByText(/Chưa có điều kiện gợi ý/i)).toBeInTheDocument();
+    expect(screen.getByText(/No machine-evaluable suggestion yet/i)).toBeInTheDocument();
   });
 });

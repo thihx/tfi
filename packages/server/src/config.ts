@@ -33,19 +33,15 @@ export const config = {
   footballApiBaseUrl: process.env['FOOTBALL_API_BASE_URL'] || 'https://v3.football.api-sports.io',
   /** Pause outbound Football API calls until UTC midnight after daily quota is hit. */
   footballApiCircuitEnabled: process.env['FOOTBALL_API_CIRCUIT_ENABLED'] !== 'false',
-  /** Remove stale legacy watchlist rows during expire-watchlist (preview via npm script first). */
-  legacyWatchlistCleanupEnabled: process.env['LEGACY_WATCHLIST_CLEANUP_ENABLED'] === 'true',
-  /** Kickoff older than this many days marks legacy rows as stale cleanup candidates. */
-  legacyWatchlistStaleDays: Number(process.env['LEGACY_WATCHLIST_STALE_DAYS'] || 7),
 
   // AI (Gemini)
   geminiApiKey: process.env['GEMINI_API_KEY'] || '',
-  geminiModel: process.env['GEMINI_MODEL'] || 'gemini-3.0-flash',
+  geminiModel: process.env['GEMINI_MODEL'] || 'gemini-3.5-flash',
   /** Model for auto-settle AI fallback (rule-based settle unchanged). Default Flash to reduce cost vs live pipeline Pro. */
-  geminiSettleModel: process.env['GEMINI_SETTLE_MODEL'] || 'gemini-3.0-flash',
+  geminiSettleModel: process.env['GEMINI_SETTLE_MODEL'] || 'gemini-3.5-flash',
   geminiTimeoutMs: Number(process.env['GEMINI_TIMEOUT_MS'] || 90000),
-  geminiStrategicGroundedModel: process.env['GEMINI_STRATEGIC_GROUNDED_MODEL'] || 'gemini-3.0-flash',
-  geminiStrategicStructuredModel: process.env['GEMINI_STRATEGIC_STRUCTURED_MODEL'] || 'gemini-3.0-flash',
+  geminiStrategicGroundedModel: process.env['GEMINI_STRATEGIC_GROUNDED_MODEL'] || 'gemini-3.5-flash',
+  geminiStrategicStructuredModel: process.env['GEMINI_STRATEGIC_STRUCTURED_MODEL'] || 'gemini-3.5-flash',
   geminiStrategicGroundedMaxOutputTokens: Number(process.env['GEMINI_STRATEGIC_GROUNDED_MAX_OUTPUT_TOKENS'] || 4000),
   geminiStrategicStructuredMaxOutputTokens: Number(process.env['GEMINI_STRATEGIC_STRUCTURED_MAX_OUTPUT_TOKENS'] || 2048),
   geminiStrategicGroundedThinkingBudget: process.env['GEMINI_STRATEGIC_GROUNDED_THINKING_BUDGET'] == null
@@ -152,6 +148,15 @@ export const config = {
   segmentPolicyBlocklistPath: process.env['SEGMENT_POLICY_BLOCKLIST_PATH'] || '',
   /** Optional JSON max stake % per segment key (see segment-policy-stake-cap.example.json). */
   segmentPolicyStakeCapPath: process.env['SEGMENT_POLICY_STAKE_CAP_PATH'] || '',
+
+  /** Line Ladder Patience after AI parse (default on). */
+  linePatienceEnabled: process.env['LINE_PATIENCE_ENABLED'] !== 'false',
+  /** Optional JSON overrides (see line-patience-policy.example.json). */
+  linePatienceConfigPath: process.env['LINE_PATIENCE_CONFIG_PATH'] || '',
+
+  /** Thesis watch deferral across analyze cycles (requires line patience). */
+  thesisWatchEnabled: process.env['THESIS_WATCH_ENABLED'] !== 'false',
+  thesisWatchTtlMinutes: Number(process.env['THESIS_WATCH_TTL_MINUTES'] || 45),
 
   // Prompt-improvement policy thresholds
   policyRequiredBreakEvenMax: Number(process.env['POLICY_REQUIRED_BREAKEVEN_MAX'] || 0.5),

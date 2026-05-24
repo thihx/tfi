@@ -28,6 +28,8 @@ They are **not** part of the request-serving runtime path.
 - **GitHub Actions (on demand):** `.github/workflows/data-driven-db-coverage.yml` — Postgres service, `npm run migrate`, then `data-driven:coverage` writing `replay-work/ci-artifacts/snapshot-coverage.json` and uploading artifact `data-driven-snapshot-coverage` (empty DB is valid; counts are zero).
 - **Runtime segment blocklist** (optional): set `SEGMENT_POLICY_BLOCKLIST_PATH` to a JSON file like `segment-policy-blocklist.example.json` (`minuteBand::marketFamily` keys). Live pipeline policy will block matching recommendations.
 - **Runtime segment stake cap** (optional): `SEGMENT_POLICY_STAKE_CAP_PATH` → `segment-policy-stake-cap.example.json` (`caps` map). Matching segments get `min(modelStake, cap)` with warning `POLICY_WARN_SEGMENT_STAKE_CAP` (blocklist still wins if both apply).
+- **Line Ladder Patience** (default on): `LINE_PATIENCE_ENABLED` (`false` to disable). Optional `LINE_PATIENCE_CONFIG_PATH` → `line-patience-policy.example.json`. Runs after AI parse, before `applyRecommendationPolicy` — see [line-ladder-patience-spec.md](../../../docs/line-ladder-patience-spec.md).
+- **Thesis watch** (default on, requires LLP): `THESIS_WATCH_ENABLED`, `THESIS_WATCH_TTL_MINUTES`. Persists LLP deferrals and promotes on the next cycle without a second LLM call — see spec Phase 2.
 - `npm run data-driven:suggest-segment-blocklist` — `--hotspots-json <segment-hotspots.json>` prints JSON `{ segmentKeys }` (default: union top 8 worst-accuracy + top 8 worst-ROI rows). Tighten with `--max-accuracy`, `--max-roi`, `--worst-accuracy-top 0` to disable a source, `--out-json <file>` to write.
 
 Use these only for:

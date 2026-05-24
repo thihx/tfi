@@ -43,7 +43,7 @@ async function main() {
         '{}', '{}', '', false,
         81, '0-4', 'under_4.5', 'Under 4.5 Goals', 1.65, 6, 14.4, 'LOW',
         3, null, 'test reasoning', '', '',
-        'gemini-3-pro-preview', 'B', 'under_4.5', 'pending', 'telegram',
+        'gemini-3.0-flash', 'B', 'under_4.5', 'pending', 'telegram',
         '', '', 0, null, false
       ) RETURNING id, prompt_version
     `);
