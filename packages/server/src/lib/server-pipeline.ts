@@ -269,21 +269,6 @@ function buildOddsMovementRows(
   ));
 }
 
-function parseNumericStat(value: unknown): number | null {
-  if (value == null || value === '') return null;
-  const parsed = Number(value);
-  return Number.isFinite(parsed) ? parsed : null;
-}
-
-function parseScoreString(score: string): { home: number; away: number } {
-  const match = String(score || '').trim().match(/^(\d+)\s*[-:]\s*(\d+)$/);
-  if (!match) return { home: 0, away: 0 };
-  return {
-    home: Number(match[1] ?? 0),
-    away: Number(match[2] ?? 0),
-  };
-}
-
 /** Parse a numeric setting from DB, falling back to envDefault if absent or NaN. */
 function parseNumSetting(raw: unknown, envDefault: number): number {
   const n = Number(raw);

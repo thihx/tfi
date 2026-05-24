@@ -187,8 +187,6 @@ async function evaluateOneModel(
     const replayOdds = Number(parsed.mapped_odd ?? 0) || 2;
     const replayStake = Number(parsed.stake_percent ?? 1) || 1;
     let settlementResult: EvaluatedReplayCase['settlementResult'] = null;
-    let directionalWin: boolean | null = null;
-
     if (output.result.shouldPush && output.result.selection) {
       const settled = await settleMatch(
         {
@@ -210,11 +208,6 @@ async function evaluateOneModel(
         }],
       );
       settlementResult = settled.get(1)?.result ?? 'unresolved';
-      directionalWin = settlementResult === 'win' || settlementResult === 'half_win'
-        ? true
-        : settlementResult === 'loss' || settlementResult === 'half_loss'
-          ? false
-          : null;
     }
 
     const evaluated = buildEvaluatedReplayCase(
@@ -228,8 +221,8 @@ async function evaluateOneModel(
       classifyReplayMarketAvailability(buildReplayMarketOpportunity(scenario)),
     );
 
-    const originalPushed = String(scenario.metadata?.result ?? '').trim().toLowerCase() !== 'duplicate'
-      && String(scenario.metadata?.selection ?? '').trim() !== '';
+    const originalPushed = String(scenario.metadata?.originalResult ?? '').trim().toLowerCase() !== 'duplicate'
+      && String(scenario.metadata?.originalSelection ?? '').trim() !== '';
 
     return {
       model,
