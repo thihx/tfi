@@ -176,4 +176,43 @@ describe("applyLinePatiencePolicy", () => {
   test("formatSelectionForMarket builds readable under label", () => {
     expect(formatSelectionForMarket("under_1")).toBe("Under 1 Goals");
   });
+
+  test("blocks under 4.75 at 72' with 4 goals when no conservative remap exists", () => {
+    const result = applyLinePatiencePolicy({
+      selection: "Under 4.75 Goals",
+      betMarket: "under_4.75",
+      minute: 72,
+      score: "1-3",
+      confidence: 6,
+      valuePercent: 7,
+      evidenceMode: "full_live_data",
+      oddsCanonical: {
+        ou: { line: 4.75, over: 2.0, under: 1.95 },
+      },
+      config: DEFAULT_LINE_PATIENCE_CONFIG,
+    });
+    expect(result.blocked).toBe(true);
+    expect(result.warnings).toContain("LLP_BLOCK_UNDER_THIN_CUSHION_NO_REMAP");
+  });
+
+  test("blocks thin cushion in 60-74 band when line stays below min cushion", () => {
+    const result = applyLinePatiencePolicy({
+      selection: "Under 4.5 Goals",
+      betMarket: "under_4.5",
+      minute: 72,
+      score: "1-3",
+      confidence: 6,
+      valuePercent: 7,
+      evidenceMode: "full_live_data",
+      oddsCanonical: {
+        ou: { line: 4.5, over: 2.0, under: 1.9 },
+      },
+      config: {
+        ...DEFAULT_LINE_PATIENCE_CONFIG,
+        goalsUnderBlockWhenRemapFails: false,
+      },
+    });
+    expect(result.blocked).toBe(true);
+    expect(result.warnings).toContain("LLP_BLOCK_LOW_CUSHION");
+  });
 });

@@ -5,7 +5,6 @@ import { formatLocalDateTime } from '@/lib/utils/helpers';
 import { AuditLogsPanel } from '@/components/AuditLogsPanel';
 import { IntegrationHealthPanel } from '@/components/IntegrationHealthPanel';
 import { OpsMonitoringPanel } from '@/components/OpsMonitoringPanel';
-import { RecommendationStudioPanel } from '@/components/RecommendationStudioPanel';
 import { fetchCurrentUser, getToken, getUser } from '@/lib/services/auth';
 import { internalApiUrl } from '@/lib/internal-api';
 import {
@@ -1371,14 +1370,13 @@ function SubscriptionManagementPanel() {
 
 // ── Tab constants ────────────────────────────────────────────────────────────
 
-type SettingsTab = 'user-mgmt' | 'subscription-mgmt' | 'scheduler' | 'system' | 'recommendation-studio' | 'audit';
+type SettingsTab = 'user-mgmt' | 'subscription-mgmt' | 'scheduler' | 'system' | 'audit';
 
 const ALL_TABS: { id: SettingsTab; label: string; adminOnly?: boolean; adminStrictOnly?: boolean }[] = [
   { id: 'user-mgmt',         label: 'User',         adminOnly: true },
   { id: 'subscription-mgmt', label: 'Subscription', adminOnly: true },
   { id: 'scheduler',         label: 'Scheduler' },
   { id: 'system',            label: 'System' },
-  { id: 'recommendation-studio', label: 'Recommendation Studio', adminStrictOnly: true },
   { id: 'audit',             label: 'Audit' },
 ];
 
@@ -1487,16 +1485,6 @@ export function SettingsTab() {
         </div>
       )}
 
-      {activeTab === 'recommendation-studio' && isAdminOnly && (
-        <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
-          <div className="settings-panel-padding" style={{ borderBottom: '1px solid var(--gray-100)', background: 'var(--gray-50)' }}>
-            <div style={{ fontSize: '13px', fontWeight: 600, color: 'var(--gray-700)' }}>Recommendation Studio</div>
-          </div>
-          <div className="settings-panel-padding">
-            <RecommendationStudioPanel />
-          </div>
-        </div>
-      )}
     </div>
   );
 }

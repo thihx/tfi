@@ -643,6 +643,44 @@ export function applyRecommendationPolicy(input: RecommendationPolicyInput): Rec
   }
 
   // ── Global guards (all prompt versions) — informed by recent settlement loss mix ──
+  if (
+    canonicalMarket.startsWith('under_')
+    && !canonicalMarket.startsWith('ht_under_')
+    && marketLine != null
+    && totalGoals != null
+    && input.minute >= 60
+  ) {
+    const cushion = marketLine - totalGoals;
+    if (cushion < 1.0 && input.confidence < 8) {
+      block('POLICY_BLOCK_GOALS_UNDER_THIN_CUSHION_LOW_CONF_GLOBAL');
+    } else if (
+      cushion < 1.0
+      && input.confidence < 9
+      && !blocked
+      && stakePercent > 2.5
+    ) {
+      const prev = stakePercent;
+      stakePercent = Math.min(Number(stakePercent) || 0, 2.5);
+      if (stakePercent < prev) {
+        warnings.push('POLICY_CAP_GOALS_UNDER_THIN_CUSHION_STAKE_GLOBAL');
+      }
+    }
+  }
+
+  if (
+    canonicalMarket.startsWith('under_')
+    && !canonicalMarket.startsWith('ht_under_')
+    && input.minute >= 45
+    && input.minute <= 59
+    && scoreState === 'two-plus-margin'
+    && marketLine != null
+    && totalGoals != null
+    && marketLine - totalGoals <= 1
+    && input.confidence < 8
+  ) {
+    block('POLICY_BLOCK_GOALS_UNDER_MID_LATE_THIN_CUSHION_LOW_CONF_GLOBAL');
+  }
+
   const ahHomeLine = getAsianHandicapHomeLine(canonicalMarket);
   if (
     canonicalMarket.startsWith('ht_under_')

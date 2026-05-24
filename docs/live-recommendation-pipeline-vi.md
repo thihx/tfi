@@ -7,7 +7,7 @@
 
 ## Mục lục
 
-1. [Tổng quan](#1-tổng-quan-và-phạm-vi) · 2. [Kiến trúc](#2-kiến-trúc-tổng-thể) · 3. [Dữ liệu live](#3-nguồn-dữ-liệu-live-score) · 4. [Jobs](#4-jobs-nền-scheduler) · 5. [Vào pipeline](#5-điều-kiện-vào-pipeline) · 6. [processMatch](#6-luồng-processmatch-từng-bước) · 7. [Gates](#7-gates-trước-llm) · 8. [Odds](#8-odds-pipeline) · 9. [Evidence](#9-evidence-mode-và-market-allowlist) · 10. [Prompt](#10-xây-dựng-prompt) · 11. [Parse](#11-parse-và-safety-layer) · 12. [Policy](#12-policy-sau-parse) · 13. [Studio](#13-recommendation-studio-và-performance-memory) · 14. [Condition](#14-condition-triggered-path) · 15. [Lưu trữ](#15-lưu-trữ-dedup-thông-báo) · 16. [Settlement](#16-settlement) · 17. [UI](#17-trigger-thủ-công-và-ui) · 18. [Cấu hình](#18-cấu-hình-và-vận-hành) · 19. [Offline](#19-ranh-giới-pipeline-offline) · 20. [Phụ lục](#20-phụ-lục)
+1. [Tổng quan](#1-tổng-quan-và-phạm-vi) · 2. [Kiến trúc](#2-kiến-trúc-tổng-thể) · 3. [Dữ liệu live](#3-nguồn-dữ-liệu-live-score) · 4. [Jobs](#4-jobs-nền-scheduler) · 5. [Vào pipeline](#5-điều-kiện-vào-pipeline) · 6. [processMatch](#6-luồng-processmatch-từng-bước) · 7. [Gates](#7-gates-trước-llm) · 8. [Odds](#8-odds-pipeline) · 9. [Evidence](#9-evidence-mode-và-market-allowlist) · 10. [Prompt](#10-xây-dựng-prompt) · 11. [Parse](#11-parse-và-safety-layer) · 12. [Policy](#12-policy-sau-parse) · 13. [Performance memory](#13-performance-memory) · 14. [Condition](#14-condition-triggered-path) · 15. [Lưu trữ](#15-lưu-trữ-dedup-thông-báo) · 16. [Settlement](#16-settlement) · 17. [UI](#17-trigger-thủ-công-và-ui) · 18. [Cấu hình](#18-cấu-hình-và-vận-hành) · 19. [Offline](#19-ranh-giới-pipeline-offline) · 20. [Phụ lục](#20-phụ-lục)
 
 ---
 
@@ -154,7 +154,7 @@ Hàm: `processMatch()` — [server-pipeline.ts](../packages/server/src/lib/serve
 
 | Bước | Hành động | Nếu fail / skip |
 |------|-----------|-----------------|
-| 0 | Fixture, settings, studio, prompt version | error |
+| 0 | Fixture, settings, prompt version | error |
 | 1 | Coarse staleness | `skippedAt: staleness` |
 | 2 | `ensureMatchInsight` (`real_required`) | — |
 | 3 | `checkShouldProceedServer` | `skippedAt: proceed` |
@@ -188,7 +188,7 @@ flowchart TD
   B -->|có| D[final_should_bet false]
   B -->|không| E{usableOdd >= MIN_ODDS?}
   E -->|không| D
-  E -->|có| F[policy studio memory]
+  E -->|có| F[policy + memory]
   F --> G{policy block?}
   G -->|có| D
   G -->|không| H[OK]
@@ -272,7 +272,7 @@ File: [server-pipeline-gates.ts](../packages/server/src/lib/server-pipeline-gate
 ## 10. Xây dựng prompt
 
 - 20 versions; mặc định `v10-hybrid-legacy-b`
-- `buildLiveAnalysisPrompt` + strategic + prematch + memory + Studio
+- `buildLiveAnalysisPrompt` + strategic + prematch + memory
 - Shadow không ảnh hưởng user
 
 | Họ | Điểm chính |
@@ -322,11 +322,10 @@ Khi LLP **defer** (`LLP_BLOCK_AH_WAIT_OU_OVER_LINE`, `LLP_BLOCK_OVER_AGGRESSIVE_
 
 ---
 
-## 13. Studio và performance memory
+## 13. Performance memory
 
-- Pre-prompt: ẩn market, thêm instruction
-- Post-parse: block, cap, forceNoBet
 - Memory block: WR < 40% (mẫu đủ); WR < 45% + BE cao
+- Recommendation Studio đã gỡ khỏi runtime (chỉ còn bảng DB lịch sử nếu đã migrate)
 
 ---
 

@@ -56,6 +56,7 @@ import {
   recordProviderStatsSampleSafe,
 } from './provider-sampling.js';
 import {
+  buildLiveAnalysisPrompt,
   getPromptStatsDetailLevel,
   isLiveAnalysisPromptVersion,
   LIVE_ANALYSIS_PROMPT_VERSION,
@@ -122,16 +123,6 @@ import { isMarketAllowedForEvidenceMode } from './evidence-mode-market-allowlist
 import { isFirstHalfApiBetName, isSecondHalfOnlyApiBetName } from './first-half-markets.js';
 import { extractHalftimeScoreFromFixture } from './settle-context.js';
 import { formatSelectionWithMarketContext } from './market-display.js';
-import {
-  applyRecommendationStudioPostParseRules,
-  applyRecommendationStudioPrePromptRules,
-  buildPromptFromRecommendationStudioRelease,
-  getEffectiveBasePromptVersion,
-  resolveRecommendationStudioRelease,
-  type RecommendationStudioRuntimeOverride,
-} from './recommendation-studio-runtime.js';
-import type { RecommendationReleaseDetail } from './recommendation-studio-types.js';
-
 const pipelineSkipAuditCounters = new Map<string, number>();
 
 /** Absolute URL shown in web push body (tap notification still uses same path on the PWA origin). */
@@ -508,7 +499,6 @@ export interface PipelineExecutionOptions {
   settledReplayTraceOriginalSelection?: string;
   /** When true with settledReplayApprovedTrace, still run recommendation-policy (production parity). Default skips policy when trace is on. */
   applySettledReplayPolicy?: boolean;
-  recommendationStudioOverride?: RecommendationStudioRuntimeOverride;
 }
 
 // ==================== Types ====================
@@ -1552,14 +1542,13 @@ async function finalizeParsedRecommendation(
     promptContext: PromptExecutionContext;
     promptVersion: LiveAnalysisPromptVersion;
     policyContext: PromptPolicyContext;
-    studioRelease: RecommendationReleaseDetail | null;
   },
 ): Promise<{
   parsed: ParsedAiResponse;
   policyBlocked: boolean;
   policyWarnings: string[];
 }> {
-  const { patienceParsed, linePatienceBlocked, promptContext, promptVersion, policyContext, studioRelease } = args;
+  const { patienceParsed, linePatienceBlocked, promptContext, promptVersion, policyContext } = args;
   const policyResult = applyRecommendationPolicy({
     selection: patienceParsed.selection,
     betMarket: patienceParsed.bet_market,
@@ -1578,26 +1567,6 @@ async function finalizeParsedRecommendation(
     evidenceMode: promptContext.evidenceMode,
     breakEvenRate: patienceParsed.mapped_odd != null && patienceParsed.mapped_odd > 0 ? 1 / patienceParsed.mapped_odd : null,
     directionalWin: patienceParsed.ai_should_push,
-  });
-  const dynamicPolicyResult = applyRecommendationStudioPostParseRules(studioRelease, {
-    minute: promptContext.minute,
-    score: promptContext.score,
-    evidenceMode: promptContext.evidenceMode,
-    prematchStrength: getPrematchPriorStrength(promptContext.prematchExpertFeatures ?? null),
-    promptVersion,
-    releaseId: studioRelease?.id ?? null,
-    releaseKey: studioRelease?.release_key ?? null,
-    selection: patienceParsed.selection,
-    betMarket: patienceParsed.bet_market,
-    odds: patienceParsed.mapped_odd,
-    valuePercent: patienceParsed.value_percent,
-    confidence: policyResult.confidence,
-    stakePercent: policyResult.stakePercent,
-    riskLevel: patienceParsed.risk_level,
-    currentCorners: parseNumericStat(promptContext.statsCompact?.corners?.home) != null && parseNumericStat(promptContext.statsCompact?.corners?.away) != null
-      ? Number(parseNumericStat(promptContext.statsCompact?.corners?.home)) + Number(parseNumericStat(promptContext.statsCompact?.corners?.away))
-      : null,
-    currentGoals: parseScoreString(promptContext.score).home + parseScoreString(promptContext.score).away,
   });
   const parsedCanonicalMarket = normalizeMarket(patienceParsed.selection ?? '', patienceParsed.bet_market ?? '');
   const memoryWarnings: string[] = [];
@@ -1635,8 +1604,6 @@ async function finalizeParsedRecommendation(
   const policyBlockedEffective = (
     linePatienceBlocked
     || policyResult.blocked
-    || dynamicPolicyResult.blocked
-    || dynamicPolicyResult.forceNoBet
     || memoryOverrideBlocked
   ) && !promptContext.skipRecommendationPolicy;
   const hasCustomCondition = !!String(promptContext.customConditions || '').trim();
@@ -1658,21 +1625,19 @@ async function finalizeParsedRecommendation(
     system_should_bet: lowEvidenceConditionOnly ? false : patienceParsed.system_should_bet && !policyBlockedEffective,
     final_should_bet: finalShouldBet,
     decision_kind: decisionKind,
-    confidence: dynamicPolicyResult.confidence,
-    stake_percent: dynamicPolicyResult.stakePercent,
-    ai_confidence: dynamicPolicyResult.confidence,
+    confidence: policyResult.confidence,
+    stake_percent: policyResult.stakePercent,
+    ai_confidence: policyResult.confidence,
     condition_triggered_should_push: conditionTriggeredShouldPush,
     warnings: [
       ...patienceParsed.warnings,
       ...policyResult.warnings,
-      ...dynamicPolicyResult.warnings,
       ...memoryWarnings,
       ...(lowEvidenceConditionOnly ? ['LOW_EVIDENCE_CONDITION_ONLY'] : []),
     ],
     ai_warnings: [
       ...patienceParsed.ai_warnings,
       ...policyResult.warnings,
-      ...dynamicPolicyResult.warnings,
       ...memoryWarnings,
       ...(lowEvidenceConditionOnly ? ['LOW_EVIDENCE_CONDITION_ONLY'] : []),
     ],
@@ -1680,8 +1645,8 @@ async function finalizeParsedRecommendation(
 
   return {
     parsed,
-    policyBlocked: linePatienceBlocked || policyResult.blocked || dynamicPolicyResult.blocked || dynamicPolicyResult.forceNoBet || memoryOverrideBlocked,
-    policyWarnings: [...policyResult.warnings, ...dynamicPolicyResult.warnings, ...memoryWarnings],
+    policyBlocked: linePatienceBlocked || policyResult.blocked || memoryOverrideBlocked,
+    policyWarnings: [...policyResult.warnings, ...memoryWarnings],
   };
 }
 
@@ -1692,7 +1657,6 @@ async function executeThesisWatchPromote(
   promptContext: PromptExecutionContext,
   promptVersion: LiveAnalysisPromptVersion,
   policyContext: PromptPolicyContext,
-  studioRelease: RecommendationReleaseDetail | null,
   pipelineOptions: { shadowMode?: boolean; advisoryOnly?: boolean },
 ): Promise<PromptExecutionArtifacts | null> {
   if (!isThesisWatchPipelineActive(pipelineOptions)) return null;
@@ -1730,7 +1694,6 @@ async function executeThesisWatchPromote(
       promptContext,
       promptVersion,
       policyContext,
-      studioRelease,
     });
     if (!finalized.parsed.final_should_bet) continue;
 
@@ -1755,6 +1718,72 @@ async function executeThesisWatchPromote(
   return null;
 }
 
+function buildPromptFromExecutionContext(
+  promptContext: PromptExecutionContext,
+  settings: PipelineSettings,
+  promptVersion: LiveAnalysisPromptVersion,
+): string {
+  return buildLiveAnalysisPrompt(
+    {
+      homeName: promptContext.homeName,
+      awayName: promptContext.awayName,
+      league: promptContext.league,
+      minute: promptContext.minute,
+      score: promptContext.score,
+      status: promptContext.status,
+      statsCompact: promptContext.statsCompact,
+      statsAvailable: promptContext.statsAvailable,
+      statsSource: promptContext.statsSource,
+      evidenceMode: promptContext.evidenceMode,
+      statsMeta: null,
+      eventsCompact: promptContext.eventsCompact,
+      oddsCanonical: promptContext.oddsCanonical as Record<string, unknown>,
+      oddsAvailable: promptContext.oddsAvailable,
+      oddsSource: promptContext.oddsSource,
+      oddsFetchedAt: promptContext.oddsFetchedAt,
+      oddsSanityWarnings: promptContext.oddsSanityWarnings,
+      oddsSuspicious: promptContext.oddsSuspicious,
+      derivedInsights: promptContext.derivedInsights as Record<string, unknown> | null,
+      customConditions: promptContext.customConditions,
+      recommendedCondition: promptContext.recommendedCondition,
+      recommendedConditionReason: promptContext.recommendedConditionReason,
+      strategicContext: promptContext.strategicContext,
+      leagueProfile: promptContext.leagueProfile,
+      homeTeamProfile: promptContext.homeTeamProfile,
+      awayTeamProfile: promptContext.awayTeamProfile,
+      prematchExpertFeatures: promptContext.prematchExpertFeatures,
+      structuredPrematchAskAi: promptContext.structuredPrematchAskAi,
+      analysisMode: promptContext.analysisMode,
+      forceAnalyze: promptContext.forceAnalyze,
+      isManualPush: promptContext.isManualPush,
+      skippedFilters: [],
+      originalWouldProceed: true,
+      prediction: promptContext.prediction,
+      currentTotalGoals: promptContext.currentTotalGoals,
+      previousRecommendations: promptContext.previousRecommendations,
+      matchTimeline: [],
+      historicalPerformance: promptContext.historicalPerformance,
+      performanceMemory: promptContext.performanceMemory,
+      preMatchPredictionSummary: promptContext.preMatchPredictionSummary,
+      statsFallbackReason: promptContext.statsFallbackReason,
+      userQuestion: promptContext.userQuestion,
+      followUpHistory: promptContext.followUpHistory,
+      lineupsSnapshot: promptContext.lineupsSnapshot ?? null,
+      settledReplayApprovedTrace: promptContext.settledReplayApprovedTrace === true,
+      settledReplayOriginalBetMarket: promptContext.settledReplayOriginalBetMarket,
+      settledReplayOriginalSelection: promptContext.settledReplayOriginalSelection,
+    },
+    {
+      minConfidence: settings.minConfidence,
+      minOdds: settings.minOdds,
+      latePhaseMinute: settings.latePhaseMinute,
+      veryLatePhaseMinute: settings.veryLatePhaseMinute,
+      endgameMinute: settings.endgameMinute,
+    },
+    promptVersion,
+  );
+}
+
 async function executePromptAnalysis(
   deps: Pick<PipelineDeps, 'callGemini' | 'lookupPerformanceMemory'>,
   model: string,
@@ -1762,11 +1791,9 @@ async function executePromptAnalysis(
   promptContext: PromptExecutionContext,
   promptVersion: LiveAnalysisPromptVersion,
   policyContext: PromptPolicyContext,
-  studioRelease: RecommendationReleaseDetail | null,
-  prePromptDecision: ReturnType<typeof applyRecommendationStudioPrePromptRules>,
 ): Promise<PromptExecutionArtifacts> {
   const startedAt = Date.now();
-  const prompt = buildServerPrompt(promptContext, settings, promptVersion, studioRelease, prePromptDecision);
+  const prompt = buildPromptFromExecutionContext(promptContext, settings, promptVersion);
   const promptChars = prompt.length;
   const promptEstimatedTokens = estimateTokenCount(prompt);
 
@@ -1797,7 +1824,6 @@ async function executePromptAnalysis(
     promptContext,
     promptVersion,
     policyContext,
-    studioRelease,
   });
 
   return {
@@ -1845,8 +1871,6 @@ async function runPromptShadowComparison(args: {
   activeAnalysis: PromptExecutionArtifacts;
   model: string;
   settings: PipelineSettings;
-  studioRelease: RecommendationReleaseDetail | null;
-  prePromptDecision: ReturnType<typeof applyRecommendationStudioPrePromptRules>;
 }): Promise<void> {
   await recordPromptShadowRunSafe(args.deps, {
     analysis_run_id: args.analysisRunId,
@@ -1879,8 +1903,6 @@ async function runPromptShadowComparison(args: {
       args.promptContext,
       args.shadowPromptVersion,
       args.policyContext,
-      args.studioRelease,
-      args.prePromptDecision,
     );
 
     await recordPromptShadowRunSafe(args.deps, {
@@ -3595,17 +3617,15 @@ async function processMatch(
       ? 'manual_force'
       : 'auto';
 
-    const [prevRecs, latestSnapshot, studioRelease] = await Promise.all([
+    const [prevRecs, latestSnapshot] = await Promise.all([
       options.previousRecommendations !== undefined
         ? Promise.resolve(options.previousRecommendations ?? [])
         : deps.getRecommendationsByMatchId(matchId).catch(() => []),
       options.previousSnapshot !== undefined
         ? Promise.resolve(options.previousSnapshot)
         : deps.getLatestSnapshot(matchId).catch(() => null),
-      resolveRecommendationStudioRelease(options.recommendationStudioOverride),
     ]);
-    const activePromptVersion = options.promptVersionOverride
-      || getEffectiveBasePromptVersion(studioRelease, configuredPromptVersion);
+    const activePromptVersion = options.promptVersionOverride || configuredPromptVersion;
 
     const coarseStaleness = checkCoarseStalenessServer({
       minute,
@@ -4190,23 +4210,6 @@ async function processMatch(
       skipRecommendationPolicy:
         options.settledReplayApprovedTrace === true && options.applySettledReplayPolicy !== true,
     };
-    const prePromptDecision = applyRecommendationStudioPrePromptRules(studioRelease, {
-      minute,
-      score,
-      evidenceMode,
-      prematchStrength,
-      promptVersion: activePromptVersion,
-      releaseId: studioRelease?.id ?? null,
-      releaseKey: studioRelease?.release_key ?? null,
-      odds: oddsCanonical as Record<string, unknown>,
-      currentCorners: (() => {
-        const home = parseNumericStat(statsCompact.corners.home);
-        const away = parseNumericStat(statsCompact.corners.away);
-        return home != null && away != null ? home + away : null;
-      })(),
-      currentGoals: homeGoals + awayGoals,
-    });
-
     // 6. Thesis watch promote (skip Gemini when a deferred LLP thesis is ready)
     const model = options.modelOverride || settings.aiModel;
     const preLlmLatencyMs = Date.now() - startedAt;
@@ -4226,7 +4229,6 @@ async function processMatch(
       promptContext,
       activePromptVersion,
       policyContextForPrompt,
-      studioRelease,
       { shadowMode, advisoryOnly },
     );
     const thesisWatchId = thesisPromoteResult?.thesisWatchId;
@@ -4238,8 +4240,6 @@ async function processMatch(
       promptContext,
       activePromptVersion,
       policyContextForPrompt,
-      studioRelease,
-      prePromptDecision,
     );
     const parsed = activeAnalysis.parsed;
     if (!thesisPromoted && !parsed.final_should_bet) {
@@ -4297,8 +4297,6 @@ async function processMatch(
         activeAnalysis,
         model,
         settings,
-        studioRelease,
-        prePromptDecision,
       });
     }
 
@@ -4417,12 +4415,6 @@ async function processMatch(
         policyBlocked: activeAnalysis.policyBlocked,
         policyWarnings: activeAnalysis.policyWarnings,
       });
-      decisionContext['studioReleaseActive'] = studioRelease != null;
-      decisionContext['studioReleaseId'] = studioRelease?.id ?? null;
-      decisionContext['studioReleaseKey'] = studioRelease?.release_key ?? null;
-      decisionContext['studioReleaseName'] = studioRelease?.name ?? null;
-      decisionContext['studioPromptTemplateId'] = studioRelease?.prompt_template_id ?? null;
-      decisionContext['studioRuleSetId'] = studioRelease?.rule_set_id ?? null;
       decisionContext['recommendationSource'] = thesisPromoted
         ? 'thesis_watch_promote'
         : saveFromConditionTrigger
@@ -4866,134 +4858,4 @@ export async function runPipelineBatch(matchIds: string[]): Promise<PipelineResu
   }
 
   return result;
-}
-
-// ==================== Build Server Prompt ====================
-
-function buildServerPrompt(data: {
-  homeName: string;
-  awayName: string;
-  league: string;
-  minute: number;
-  score: string;
-  status: string;
-  statsCompact: StatsCompact;
-  statsAvailable: boolean;
-  statsSource: StatsSource;
-  evidenceMode: EvidenceMode;
-  eventsCompact: EventCompact[];
-  oddsCanonical: OddsCanonical;
-  oddsAvailable: boolean;
-  oddsSource: string;
-  oddsFetchedAt: string | null;
-  oddsSanityWarnings: string[];
-  oddsSuspicious: boolean;
-  derivedInsights: DerivedInsights | null;
-  customConditions: string;
-  recommendedCondition: string;
-  recommendedConditionReason: string;
-  strategicContext: Record<string, unknown> | null;
-  leagueProfile: Record<string, unknown> | null;
-  homeTeamProfile: Record<string, unknown> | null;
-  awayTeamProfile: Record<string, unknown> | null;
-  prematchExpertFeatures: PrematchExpertFeaturesV1 | null;
-  structuredPrematchAskAi: boolean;
-  analysisMode: PromptAnalysisMode;
-  forceAnalyze: boolean;
-  isManualPush: boolean;
-  prediction: Record<string, unknown> | null;
-  currentTotalGoals: number;
-  previousRecommendations: Array<Record<string, unknown>>;
-  historicalPerformance: HistoricalPerformanceContext | null;
-  performanceMemory: {
-    minuteBand: string;
-    scoreState: string;
-    records: PerformanceMemoryRecord[];
-    autoRules: PerformanceMemoryCandidateRule[];
-  } | null;
-  preMatchPredictionSummary: string;
-  statsFallbackReason: string;
-  userQuestion?: string;
-  followUpHistory?: FollowUpHistoryEntry[];
-  lineupsSnapshot?: {
-    available: boolean;
-    teams: Array<{
-      side: 'home' | 'away';
-      teamName: string;
-      formation: string | null;
-      coachName: string | null;
-      starters: string[];
-      substitutes: string[];
-    }>;
-  } | null;
-  settledReplayApprovedTrace?: boolean;
-  settledReplayOriginalBetMarket?: string;
-  settledReplayOriginalSelection?: string;
-},
-settings: PipelineSettings,
-promptVersion: LiveAnalysisPromptVersion = LIVE_ANALYSIS_PROMPT_VERSION,
-studioRelease: RecommendationReleaseDetail | null = null,
-prePromptDecision: ReturnType<typeof applyRecommendationStudioPrePromptRules> | null = null,
-): string {
-  return buildPromptFromRecommendationStudioRelease(
-    {
-      homeName: data.homeName,
-      awayName: data.awayName,
-      league: data.league,
-      minute: data.minute,
-      score: data.score,
-      status: data.status,
-      statsCompact: data.statsCompact,
-      statsAvailable: data.statsAvailable,
-      statsSource: data.statsSource,
-      evidenceMode: data.evidenceMode,
-      statsMeta: null,
-      eventsCompact: data.eventsCompact,
-      oddsCanonical: data.oddsCanonical as Record<string, unknown>,
-      oddsAvailable: data.oddsAvailable,
-      oddsSource: data.oddsSource,
-      oddsFetchedAt: data.oddsFetchedAt,
-      oddsSanityWarnings: data.oddsSanityWarnings,
-      oddsSuspicious: data.oddsSuspicious,
-      derivedInsights: data.derivedInsights as Record<string, unknown> | null,
-      customConditions: data.customConditions,
-      recommendedCondition: data.recommendedCondition,
-      recommendedConditionReason: data.recommendedConditionReason,
-      strategicContext: data.strategicContext,
-      leagueProfile: data.leagueProfile,
-      homeTeamProfile: data.homeTeamProfile,
-      awayTeamProfile: data.awayTeamProfile,
-      prematchExpertFeatures: data.prematchExpertFeatures,
-      structuredPrematchAskAi: data.structuredPrematchAskAi,
-      analysisMode: data.analysisMode,
-      forceAnalyze: data.forceAnalyze,
-      isManualPush: data.isManualPush,
-      skippedFilters: [],
-      originalWouldProceed: true,
-      prediction: data.prediction,
-      currentTotalGoals: data.currentTotalGoals,
-      previousRecommendations: data.previousRecommendations,
-      matchTimeline: [],
-      historicalPerformance: data.historicalPerformance,
-      performanceMemory: data.performanceMemory,
-      preMatchPredictionSummary: data.preMatchPredictionSummary,
-      statsFallbackReason: data.statsFallbackReason,
-      userQuestion: data.userQuestion,
-      followUpHistory: data.followUpHistory,
-      lineupsSnapshot: data.lineupsSnapshot ?? null,
-      settledReplayApprovedTrace: data.settledReplayApprovedTrace === true,
-      settledReplayOriginalBetMarket: data.settledReplayOriginalBetMarket,
-      settledReplayOriginalSelection: data.settledReplayOriginalSelection,
-    },
-    {
-      minConfidence: settings.minConfidence,
-      minOdds: settings.minOdds,
-      latePhaseMinute: settings.latePhaseMinute,
-      veryLatePhaseMinute: settings.veryLatePhaseMinute,
-      endgameMinute: settings.endgameMinute,
-    },
-    promptVersion,
-    studioRelease,
-    prePromptDecision ?? undefined,
-  );
 }

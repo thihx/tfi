@@ -994,4 +994,39 @@ describe('applyRecommendationPolicy', () => {
     });
     expect(result.warnings).not.toContain('REQUIRED_CONDITIONS_NOT_MET');
   });
+
+  test('blocks goals under with thin cushion and confidence below 8 from minute 60', () => {
+    const result = applyRecommendationPolicy({
+      selection: 'Under 4.75 Goals @1.95',
+      betMarket: 'under_4.75',
+      minute: 72,
+      score: '1-3',
+      odds: 1.95,
+      confidence: 6,
+      valuePercent: 7,
+      stakePercent: 2.5,
+      evidenceMode: 'full_live_data',
+      promptVersion: 'v10-hybrid-legacy-b',
+    });
+    expect(result.blocked).toBe(true);
+    expect(result.warnings).toContain('POLICY_BLOCK_GOALS_UNDER_THIN_CUSHION_LOW_CONF_GLOBAL');
+  });
+
+  test('caps stake for goals under thin cushion when confidence is 8', () => {
+    const result = applyRecommendationPolicy({
+      selection: 'Under 4.75 Goals @1.95',
+      betMarket: 'under_4.75',
+      minute: 72,
+      score: '1-3',
+      odds: 1.95,
+      confidence: 8,
+      valuePercent: 7,
+      stakePercent: 4,
+      evidenceMode: 'full_live_data',
+      promptVersion: 'v10-hybrid-legacy-b',
+    });
+    expect(result.blocked).toBe(false);
+    expect(result.stakePercent).toBe(2.5);
+    expect(result.warnings).toContain('POLICY_CAP_GOALS_UNDER_THIN_CUSHION_STAKE_GLOBAL');
+  });
 });

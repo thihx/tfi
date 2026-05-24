@@ -4,7 +4,6 @@ import { resolveMatchOdds, type ResolveMatchOddsResult } from './odds-resolver.j
 import { runPipelineForFixture, type MatchPipelineResult } from './server-pipeline.js';
 import type { LiveAnalysisPromptVersion, PromptAnalysisMode, PromptEvidenceMode } from './live-analysis-prompt.js';
 import type { WatchlistRow } from '../repos/watchlist.repo.js';
-import type { RecommendationStudioRuntimeOverride } from './recommendation-studio-runtime.js';
 
 const DEFAULT_MOCK_AI_TEXT = JSON.stringify({
   should_push: true,
@@ -84,7 +83,6 @@ export interface ReplayRunOptions {
   promptVersionOverride?: LiveAnalysisPromptVersion;
   capturedAiText?: string;
   advisoryOnly?: boolean;
-  recommendationStudioOverride?: RecommendationStudioRuntimeOverride;
   /** Forward to pipeline: settled replay eval uses approved-trace prompt + skips post-parse policy block. */
   settledReplayApprovedTrace?: boolean;
   /** When true with settledReplayApprovedTrace, run recommendation-policy after parse (production parity). */
@@ -360,7 +358,6 @@ export async function runReplayScenario(
       settledReplayTraceOriginalBetMarket: traceMeta.betMarket,
       settledReplayTraceOriginalSelection: traceMeta.selection,
       applySettledReplayPolicy: options.applySettledReplayPolicy === true,
-      recommendationStudioOverride: options.recommendationStudioOverride,
       dependencies,
     },
   );

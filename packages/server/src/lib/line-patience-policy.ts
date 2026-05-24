@@ -30,6 +30,8 @@ export interface LinePatienceConfig {
   goalsUnderBlockedQuarterLines: number[];
   goalsUnderRemapMinMinute: number;
   goalsUnderRemapMinCushion: number;
+  /** When remap cannot find a higher Under line, block instead of passing thin cushion. */
+  goalsUnderBlockWhenRemapFails: boolean;
   goalsOverRemapMaxLine: number;
   cornersOverPreferredMaxLine: number;
   ahChalkMinAbsLine: number;
@@ -44,11 +46,16 @@ export const DEFAULT_LINE_PATIENCE_CONFIG: LinePatienceConfig = {
   goalsUnderBlockedQuarterLines: [0.5, 0.75],
   goalsUnderRemapMinMinute: 60,
   goalsUnderRemapMinCushion: 1.0,
+  goalsUnderBlockWhenRemapFails: true,
   goalsOverRemapMaxLine: 1.0,
   cornersOverPreferredMaxLine: 7.5,
   ahChalkMinAbsLine: 0.5,
   ahWaitOuMainOverLineMax: 1.0,
-  minCushionUnderByMinute: { '75+': 0.5 },
+  minCushionUnderByMinute: {
+    '45-59': 1.0,
+    '60-74': 1.0,
+    '75+': 0.5,
+  },
 };
 
 export interface LinePatiencePolicyInput {
@@ -263,7 +270,15 @@ function isPatienceSensitiveMarket(canonicalMarket: string): boolean {
 function getMinCushionUnder(minute: number, config: LinePatienceConfig): number | null {
   const band = getMinuteBand(minute);
   const v = config.minCushionUnderByMinute[band];
-  return v != null && Number.isFinite(v) ? v : null;
+  if (v != null && Number.isFinite(v)) return v;
+  if (minute >= config.goalsUnderRemapMinMinute) {
+    return config.goalsUnderRemapMinCushion;
+  }
+  return null;
+}
+
+function getGoalsUnderCushion(marketLine: number, totalGoals: number): number {
+  return marketLine - totalGoals;
 }
 
 export function applyLinePatiencePolicy(input: LinePatiencePolicyInput): LinePatiencePolicyResult {
@@ -336,7 +351,7 @@ export function applyLinePatiencePolicy(input: LinePatiencePolicyInput): LinePat
       !exceptional
       && minute >= config.goalsUnderRemapMinMinute
       && totalGoals != null
-      && marketLine - totalGoals < config.goalsUnderRemapMinCushion
+      && getGoalsUnderCushion(marketLine, totalGoals) < config.goalsUnderRemapMinCushion
     ) {
       const conservativeLine = findBestUnderLine(input.oddsCanonical, 1.0);
       if (
@@ -347,6 +362,8 @@ export function applyLinePatiencePolicy(input: LinePatiencePolicyInput): LinePat
         )
       ) {
         remapTo(`under_${formatUnsignedLine(conservativeLine)}`, 'LLP_REMAP_UNDER_CONSERVATIVE_LINE');
+      } else if (config.goalsUnderBlockWhenRemapFails) {
+        block('LLP_BLOCK_UNDER_THIN_CUSHION_NO_REMAP');
       }
     }
 
