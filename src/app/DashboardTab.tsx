@@ -4,8 +4,9 @@ import {
   AreaChart, Area, XAxis, YAxis, CartesianGrid,
   Tooltip, ResponsiveContainer, Cell, PieChart, Pie,
 } from 'recharts';
-import { fetchAiStats, fetchAiStatsByModel, fetchDashboardSummary, fetchMarketReport } from '@/lib/services/api';
+import { fetchAiStats, fetchAiStatsByModel, fetchDashboardSummary, fetchMarketReport, fetchMyBankroll } from '@/lib/services/api';
 import type { AiAccuracyStats, AiModelStats, DashboardSummary, ExposureSummary, MarketReportRow } from '@/lib/services/api';
+import type { BankrollSnapshot } from '@/types';
 import { StatusBadge } from '@/components/ui/StatusBadge';
 import { formatLocalDateTime } from '@/lib/utils/helpers';
 import { formatCanonicalMarketLabel } from '@/lib/utils/marketDisplay';
@@ -34,6 +35,15 @@ function formatFullChartDate(value: string): string {
   const parsed = new Date(value);
   if (Number.isNaN(parsed.getTime())) return value;
   return parsed.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
+}
+
+function formatBankrollDashboardAmount(value: number | null | undefined, currency: string, multiplier: number): string {
+  const amount = Number(value ?? 0);
+  if (!Number.isFinite(amount)) return '-';
+  const display = Number.isInteger(amount) ? String(amount) : amount.toFixed(2);
+  const full = amount * multiplier;
+  const fullText = new Intl.NumberFormat('en-US', { maximumFractionDigits: 0 }).format(full);
+  return `${display} (${fullText} ${currency})`;
 }
 
 const PnlChart = memo(function PnlChart({ data }: { data: { date: string; pnl: number; cumulative: number }[] }) {
@@ -308,21 +318,24 @@ export function DashboardTab() {
   const [aiStats, setAiStats] = useState<AiAccuracyStats | null>(null);
   const [aiModels, setAiModels] = useState<AiModelStats[]>([]);
   const [marketStats, setMarketStats] = useState<MarketReportRow[]>([]);
+  const [bankroll, setBankroll] = useState<BankrollSnapshot | null>(null);
   const [loading, setLoading] = useState(true);
 
   const loadAll = useCallback(async () => {
     setLoading(true);
     try {
-      const [dash, ai, models, markets] = await Promise.all([
+      const [dash, ai, models, markets, bankrollSnapshot] = await Promise.all([
         fetchDashboardSummary(config),
         fetchAiStats(config).catch(() => null),
         fetchAiStatsByModel(config).catch(() => []),
         fetchMarketReport(config, { period: 'all' }).catch(() => []),
+        fetchMyBankroll(config).catch(() => null),
       ]);
       setDashboard(dash);
       setAiStats(ai);
       setAiModels(models);
       setMarketStats(markets);
+      setBankroll(bankrollSnapshot);
     } catch {
       // Non-critical
     } finally {
@@ -344,6 +357,12 @@ export function DashboardTab() {
   const d = dashboard;
   const pnlTrend = d?.pnlTrend ?? [];
   const recentRecs = d?.recentRecs ?? [];
+  const bankrollAccount = bankroll?.account;
+  const bankrollCurrency = bankrollAccount?.currency ?? 'VND';
+  const bankrollMultiplier = bankrollAccount?.unit_multiplier ?? 1000;
+  const bankrollDelta = bankrollAccount
+    ? bankrollAccount.current_balance - bankrollAccount.initial_balance
+    : 0;
 
   return (
     <div className="dashboard">
@@ -370,6 +389,32 @@ export function DashboardTab() {
           color={(d?.roi ?? 0) >= 0 ? 'positive' : 'negative'}
         />
       </div>
+
+      {bankrollAccount && (
+        <div className="stats-grid">
+          <StatCard
+            label="Bankroll Balance"
+            value={formatBankrollDashboardAmount(bankrollAccount.current_balance, bankrollCurrency, bankrollMultiplier)}
+            sub={`Initial ${formatBankrollDashboardAmount(bankrollAccount.initial_balance, bankrollCurrency, bankrollMultiplier)}`}
+          />
+          <StatCard
+            label="Bankroll P/L"
+            value={`${bankrollDelta >= 0 ? '+' : ''}${formatBankrollDashboardAmount(bankrollDelta, bankrollCurrency, bankrollMultiplier)}`}
+            sub={`${bankrollDelta >= 0 ? 'Growth' : 'Drawdown'} in bankroll units`}
+            color={bankrollDelta >= 0 ? 'positive' : 'negative'}
+          />
+          <StatCard
+            label="Unit Multiplier"
+            value={`x${bankrollMultiplier}`}
+            sub={`Currency ${bankrollCurrency}`}
+          />
+          <StatCard
+            label="Stake Rule"
+            value="Personal"
+            sub="Stake % -> amount"
+          />
+        </div>
+      )}
 
       {/* Charts Row */}
       <div className="dashboard-charts-row">

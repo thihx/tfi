@@ -1786,7 +1786,7 @@ describe('runPipelineBatch', () => {
     expect(createRecommendation).not.toHaveBeenCalled();
   });
 
-  test('allows a condition-triggered special override only on the same canonical line with materially better price', async () => {
+  test('saves an actionable condition-triggered recommendation after normal policy gates pass', async () => {
     const recommendationsRepo = await import('../repos/recommendations.repo.js');
     vi.mocked(recommendationsRepo.getRecommendationsByMatchId).mockResolvedValueOnce([
       {
@@ -1893,8 +1893,8 @@ describe('runPipelineBatch', () => {
       confidence: 8,
       stake_percent: 2,
     }));
-    expect(result.results[0]?.debug?.parsed?.warnings).toContain(
-      'Special override accepted: updating the existing saved line with a materially better price.',
+    expect(result.results[0]?.debug?.parsed?.warnings).not.toContain(
+      'Existing saved exposure already covers this thesis. Condition alert sent without saving another bet.',
     );
   });
 

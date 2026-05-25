@@ -115,6 +115,36 @@ function getBankrollLine(input: TelegramRecommendationMessageInput): string {
   return segments.join(' | ');
 }
 
+function simplifyBankrollReasoning(
+  reasoning: string,
+  input: TelegramRecommendationMessageInput,
+): string {
+  const text = reasoning.trim();
+  if (!text) return '';
+  const jargonPattern = /(điểm hòa vốn|hoa vốn|break[- ]?even|xác suất công bằng|fair probability|fair range|khoảng giá trị hợp lý|lợi thế khoảng|edge looks|edge khoảng)/i;
+  if (!jargonPattern.test(text)) return text;
+
+  const sentences = text
+    .split(/(?<=[.!?])\s+/)
+    .map((part) => part.trim())
+    .filter(Boolean);
+  const kept = sentences.filter((sentence) => !jargonPattern.test(sentence));
+  const stake = Number(input.stakePercent ?? 0);
+  const stakeText = Number.isFinite(stake) && stake > 0 ? `${stake}%` : localizedLabel(input.language, 'a small stake', 'một phần vốn nhỏ');
+  const amount = Number(input.stakeAmount ?? 0);
+  const amountText = Number.isFinite(amount) && amount > 0
+    ? input.language === 'en'
+      ? `, about ${formatBankrollAmount(amount, input)}`
+      : `, khoảng ${formatBankrollAmount(amount, input)}`
+    : '';
+  const simpleLine = input.language === 'en'
+    ? `Plain view: odds look slightly better than the required win chance, so use only ${stakeText}${amountText} and keep bankroll risk controlled.`
+    : input.language === 'both'
+      ? `Plain view / Dễ hiểu: odds look slightly better than the required win chance; chỉ dùng ${stakeText}${amountText} để giữ rủi ro vốn trong kiểm soát.`
+      : `Dễ hiểu: kèo này có lợi thế so với tỷ lệ cược, nhưng lợi thế không lớn nên chỉ dùng ${stakeText}${amountText} để giữ rủi ro vốn trong kiểm soát.`;
+  return [...kept, simpleLine].join(' ').trim();
+}
+
 export function buildTelegramRecommendationMessage(input: TelegramRecommendationMessageInput): string {
   const lines: string[] = [];
   const heading = localizedHeading(input.kind, input.language);
@@ -163,7 +193,10 @@ export function buildTelegramRecommendationMessage(input: TelegramRecommendation
     lines.push(`${matchedLabel}: ${safeHtml(matchedSummary)}`);
   }
 
-  const reasoning = pickLocalizedText(input.language, input.reasoningEn, input.reasoningVi);
+  const reasoning = simplifyBankrollReasoning(
+    pickLocalizedText(input.language, input.reasoningEn, input.reasoningVi),
+    input,
+  );
   if (reasoning) {
     lines.push('');
     lines.push(safeHtml(reasoning));

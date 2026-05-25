@@ -141,4 +141,28 @@ describe('buildTelegramRecommendationMessage', () => {
     expect(message).toContain('Bet amount: 30 (30,000 VND)');
     expect(message).toContain('Balance: 1000 (1,000,000 VND)');
   });
+
+  test('rewrites break-even jargon into bankroll-friendly wording', () => {
+    const message = buildTelegramRecommendationMessage({
+      kind: 'recommendation',
+      matchDisplay: 'Home vs Away',
+      selection: 'Over 0.75 Goals',
+      betMarket: 'over_0.75',
+      odds: 1.675,
+      confidence: 7,
+      stakePercent: 2.5,
+      stakeAmount: 25,
+      bankrollBalance: 1000,
+      bankrollCurrency: 'VND',
+      bankrollUnitMultiplier: 1000,
+      reasoningVi: 'Trận đấu có áp lực tốt. Điểm hòa vốn khoảng 59.7%. Đánh giá xác suất công bằng khoảng 70-75%, tạo ra lợi thế khoảng 8%.',
+      language: 'vi',
+    });
+
+    expect(message).toContain('Trận đấu có áp lực tốt.');
+    expect(message).not.toContain('Điểm hòa vốn');
+    expect(message).not.toContain('xác suất công bằng');
+    expect(message).toContain('Dễ hiểu: kèo này có lợi thế so với tỷ lệ cược');
+    expect(message).toContain('2.5%, khoảng 25 (25,000 VND)');
+  });
 });

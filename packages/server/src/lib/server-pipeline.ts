@@ -93,7 +93,6 @@ import {
 } from './prematch-expert-features.js';
 import {
   applyRecommendationPolicy,
-  getCorrelatedThesis,
   type RecommendationPolicyPreviousRow,
   type RecommendationPolicyStatsCompact,
 } from './recommendation-policy.js';
@@ -654,22 +653,6 @@ function isNoBetConditionSuggestion(value: string): boolean {
   return /^no bet\b/i.test(String(value || '').trim());
 }
 
-function hasNonDuplicateResult(result: string | null | undefined): boolean {
-  return String(result ?? '').trim().toLowerCase() !== 'duplicate';
-}
-
-function findSameThesisRecommendations(
-  previousRecommendations: RecommendationPolicyPreviousRow[],
-  selection: string,
-  betMarket: string,
-): RecommendationPolicyPreviousRow[] {
-  const thesis = getCorrelatedThesis(normalizeMarket(selection, betMarket));
-  if (!thesis) return [];
-  return previousRecommendations
-    .filter((row) => hasNonDuplicateResult(row.result))
-    .filter((row) => getCorrelatedThesis(normalizeMarket(row.selection ?? '', row.bet_market ?? '')) === thesis);
-}
-
 const PARSE_BLOCKING_WARNING_CODES = new Set([
   'NO_SELECTION',
   'NO_BET_MARKET',
@@ -918,94 +901,6 @@ function evaluateConditionTriggeredSaveDecision(args: {
     };
   }
 
-  const sameThesisRows = findSameThesisRecommendations(
-    args.previousRecommendations,
-    effectiveSelection,
-    effectiveBetMarket,
-  );
-  if (sameThesisRows.length === 0) {
-    return {
-      shouldSave: true,
-      selection: effectiveSelection,
-      betMarket: effectiveBetMarket,
-      odds,
-      confidence: policyResult.confidence,
-      stakePercent: policyResult.stakePercent,
-      reasoningEn: args.parsed.condition_triggered_reasoning_en,
-      reasoningVi: args.parsed.condition_triggered_reasoning_vi,
-      warnings,
-    };
-  }
-
-  if (!args.parsed.condition_triggered_special_override) {
-    warnings.push('Existing saved exposure already covers this thesis. Condition alert sent without saving another bet.');
-    return {
-      shouldSave: false,
-      selection: effectiveSelection,
-      betMarket: effectiveBetMarket,
-      odds,
-      confidence: policyResult.confidence,
-      stakePercent: policyResult.stakePercent,
-      reasoningEn: args.parsed.condition_triggered_reasoning_en,
-      reasoningVi: args.parsed.condition_triggered_reasoning_vi,
-      warnings,
-    };
-  }
-
-  const latestSameThesis = sameThesisRows[0] ?? null;
-  const latestCanonicalMarket = latestSameThesis
-    ? normalizeMarket(latestSameThesis.selection ?? '', latestSameThesis.bet_market ?? '')
-    : null;
-  const overrideReasonEn = String(args.parsed.condition_triggered_special_override_reason_en || '').trim();
-  const overrideReasonVi = String(args.parsed.condition_triggered_special_override_reason_vi || '').trim();
-
-  if (!overrideReasonEn && !overrideReasonVi) {
-    warnings.push('Special override requested, but no override reason was provided. Alert sent without saving another bet.');
-    return {
-      shouldSave: false,
-      selection: effectiveSelection,
-      betMarket: effectiveBetMarket,
-      odds,
-      confidence: policyResult.confidence,
-      stakePercent: policyResult.stakePercent,
-      reasoningEn: args.parsed.condition_triggered_reasoning_en,
-      reasoningVi: args.parsed.condition_triggered_reasoning_vi,
-      warnings,
-    };
-  }
-
-  if (!latestCanonicalMarket || latestCanonicalMarket !== effectiveBetMarket) {
-    warnings.push('Special override can only update the same saved line. A different line on the same thesis stays alert-only.');
-    return {
-      shouldSave: false,
-      selection: effectiveSelection,
-      betMarket: effectiveBetMarket,
-      odds,
-      confidence: policyResult.confidence,
-      stakePercent: policyResult.stakePercent,
-      reasoningEn: args.parsed.condition_triggered_reasoning_en,
-      reasoningVi: args.parsed.condition_triggered_reasoning_vi,
-      warnings,
-    };
-  }
-
-  const previousOdds = Number(latestSameThesis?.odds ?? null);
-  if (!Number.isFinite(previousOdds) || odds < previousOdds + 0.1) {
-    warnings.push('Special override requires a materially better live price on the same line. Alert sent without saving another bet.');
-    return {
-      shouldSave: false,
-      selection: effectiveSelection,
-      betMarket: effectiveBetMarket,
-      odds,
-      confidence: policyResult.confidence,
-      stakePercent: policyResult.stakePercent,
-      reasoningEn: args.parsed.condition_triggered_reasoning_en,
-      reasoningVi: args.parsed.condition_triggered_reasoning_vi,
-      warnings,
-    };
-  }
-
-  warnings.push('Special override accepted: updating the existing saved line with a materially better price.');
   return {
     shouldSave: true,
     selection: effectiveSelection,
@@ -3146,10 +3041,9 @@ function parseAiResponse(
     'MARKET_NOT_ALLOWED_FOR_EVIDENCE',
     '1X2_TOO_EARLY',
   ].includes(w));
-  // AI save path: only the AI recommendation itself can create a DB record.
-  // Condition-trigger metadata may still notify the user, but it must never be
-  // promoted into a saved recommendation unless the same run also produced an
-  // actionable AI bet with valid market/odds/confidence.
+  // Main AI save path. Condition-triggered suggestions have a separate save
+  // guard later so they can be persisted only after the same odds, confidence,
+  // market, policy, and thesis-exposure checks pass.
   const systemShouldBet = aiShouldPush && !hasBlocking;
   const usableOdd = mappedOdd !== null && mappedOdd >= MIN_ODDS ? mappedOdd : null;
   const aiFinalShouldBet = systemShouldBet && usableOdd !== null;

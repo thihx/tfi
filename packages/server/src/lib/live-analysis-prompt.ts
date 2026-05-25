@@ -2147,7 +2147,7 @@ BREAK-EVEN:
 - For every market, break_even_rate = 1/odds * 100
 - Edge must be >= 3% or should_push=false
 - Explain valuation using exact break-even plus a rounded fair-value range
-- Preferred reasoning_en wording: "Break-even about X%. My fair range is around Y-Z%. Edge looks about W%."
+- Do not expose break-even/fair-probability jargon in user-facing reasoning. Explain it as bankroll discipline, e.g. "Odds are slightly better than the required win chance, so keep stake small and controlled."
 
 STAKE:
 - confidence 8-10 => 5-8%
@@ -2383,7 +2383,7 @@ BREAK-EVEN CHECK (MANDATORY FOR ALL):
 - Estimated probability must exceed break_even_rate by >= 3% (edge >= 3%).
 - If edge < 3% -> should_push = false.
 - Report valuation using exact break-even from odds plus a rounded fair-value estimate or range.
-- Preferred wording style in reasoning_en: "Break-even about X%. My fair range is around Y-Z%. Edge looks about W%."
+- Do not expose break-even/fair-probability jargon in user-facing reasoning. Explain it as bankroll discipline, e.g. "Odds are slightly better than the required win chance, so keep stake small and controlled."
 - Do NOT pretend to know false precision. Rounded estimates are better than fabricated exact decimals.
 
 ODDS RULES:
