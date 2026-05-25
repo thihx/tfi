@@ -15,6 +15,7 @@ import {
   openFootballApiCircuitUntilNextUtcMidnight,
   recordFootballApiDailyLimitFromError,
 } from './football-api-circuit.js';
+import { incrementFootballApiDailyCount, checkAndTripCircuitAtCritical } from './football-api-quota.js';
 
 interface ApiFootballResponse<T> {
   get: string;
@@ -130,6 +131,9 @@ async function apiGet<T>(endpoint: string, params: Record<string, string> = {}):
         }
         throw new Error(`Football API ${res.status}: ${text.substring(0, 300)}`);
       }
+
+      await incrementFootballApiDailyCount();
+      await checkAndTripCircuitAtCritical();
 
       const data: ApiFootballResponse<T> = await res.json();
       if (data.errors && Object.keys(data.errors).length > 0) {

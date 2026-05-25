@@ -26,13 +26,19 @@ vi.mock('../lib/provider-insight-cache.js', () => ({
 vi.mock('../config.js', () => ({
   config: {
     jobRefreshProviderInsightsMs: 60_000,
+    refreshProviderInsightsApiBudget: 30,
   },
 }));
 
 const mockSkipIfFootballApiCircuitOpen = vi.fn().mockResolvedValue(null);
+const mockGetFootballApiDailyCount = vi.fn().mockResolvedValue(0);
 
 vi.mock('../lib/football-api-circuit.js', () => ({
   skipIfFootballApiCircuitOpen: (...args: unknown[]) => mockSkipIfFootballApiCircuitOpen(...args),
+}));
+
+vi.mock('../lib/football-api-quota.js', () => ({
+  getFootballApiDailyCount: (...args: unknown[]) => mockGetFootballApiDailyCount(...args),
 }));
 
 const { refreshProviderInsightsJob } = await import('../jobs/refresh-provider-insights.job.js');
@@ -40,6 +46,7 @@ const { refreshProviderInsightsJob } = await import('../jobs/refresh-provider-in
 beforeEach(() => {
   vi.clearAllMocks();
   mockSkipIfFootballApiCircuitOpen.mockResolvedValue(null);
+  mockGetFootballApiDailyCount.mockResolvedValue(0);
   mockGetMatchesByStatus.mockResolvedValue([]);
   mockGetActiveOperationalWatchlist.mockResolvedValue([]);
   mockEnsureFixturesForMatchIds.mockResolvedValue([]);
@@ -148,5 +155,37 @@ describe('refreshProviderInsightsJob', () => {
     });
     expect(mockEnsureFixturesForMatchIds).not.toHaveBeenCalled();
     expect(mockEnsureScoutInsight).not.toHaveBeenCalled();
+  });
+
+  test('caps candidates to budget limit and reports budgetCapped', async () => {
+    const ids = Array.from({ length: 50 }, (_, i) => ({ match_id: String(400 + i) }));
+    mockGetMatchesByStatus.mockResolvedValue([]);
+    mockGetActiveOperationalWatchlist.mockResolvedValue(ids);
+    mockEnsureFixturesForMatchIds.mockResolvedValue(
+      ids.slice(0, 30).map((entry) => ({
+        fixture: { id: Number(entry.match_id), status: { short: 'NS', elapsed: null } },
+        league: { id: 39, season: 2025 },
+      })),
+    );
+    mockEnsureScoutInsight.mockResolvedValue({
+      fixture: { cacheStatus: 'hit' },
+      statistics: { cacheStatus: 'hit' },
+      events: { cacheStatus: 'hit' },
+      lineups: { cacheStatus: 'hit' },
+      prediction: { cacheStatus: 'hit' },
+      standings: { cacheStatus: 'hit' },
+    });
+
+    const result = await refreshProviderInsightsJob();
+
+    expect(result.candidates).toBe(50);
+    expect(result.budgetCapped).toBe(true);
+    expect(result.budgetLimit).toBe(30);
+    expect(mockEnsureFixturesForMatchIds).toHaveBeenCalledWith(
+      expect.arrayContaining([String(ids[0]!.match_id)]),
+      { freshnessMode: 'prewarm_only' },
+    );
+    const calledIds = mockEnsureFixturesForMatchIds.mock.calls[0][0] as string[];
+    expect(calledIds.length).toBe(30);
   });
 });

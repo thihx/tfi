@@ -131,8 +131,8 @@ describe('prematch profile sync helpers', () => {
     });
   });
 
-  test('selects current and previous season for historical backfill', () => {
-    expect(__testables__.buildBackfillSeasons(2026)).toEqual([2026, 2025]);
+  test('selects current season for historical backfill (depth=1)', () => {
+    expect(__testables__.buildBackfillSeasons(2026)).toEqual([2026]);
     expect(__testables__.buildBackfillSeasons(null)).toEqual([]);
   });
 

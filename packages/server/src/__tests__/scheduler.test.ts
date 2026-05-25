@@ -98,6 +98,9 @@ async function loadScheduler(options: SchedulerLoadOptions = {}) {
   vi.doMock('../jobs/purge-audit.job.js', () => ({ housekeepingJob }));
   vi.doMock('../jobs/integration-health.job.js', () => ({ integrationHealthJob }));
   vi.doMock('../jobs/health-watchdog.job.js', () => ({ healthWatchdogJob }));
+  vi.doMock('../lib/football-api-quota.js', () => ({
+    shouldThrottleJob: vi.fn().mockResolvedValue(false),
+  }));
 
   const scheduler = await import('../jobs/scheduler.js');
   const jobRunsRepo = await import('../repos/job-runs.repo.js');
@@ -299,6 +302,28 @@ describe('scheduler cadence resilience', () => {
       outcome: 'SUCCESS',
     }));
 
+    scheduler.stopScheduler();
+  });
+});
+
+describe('startup stagger delay', () => {
+  test('getStartupStaggerDelay returns 0 for live-critical jobs', async () => {
+    const { scheduler } = await loadScheduler();
+    expect(scheduler.getStartupStaggerDelay('refresh-live-matches')).toBe(0);
+    expect(scheduler.getStartupStaggerDelay('check-live-trigger')).toBe(0);
+    scheduler.stopScheduler();
+  });
+
+  test('getStartupStaggerDelay returns positive delay for non-critical jobs', async () => {
+    const { scheduler } = await loadScheduler();
+    expect(scheduler.getStartupStaggerDelay('sync-reference-data')).toBeGreaterThan(0);
+    expect(scheduler.getStartupStaggerDelay('refresh-provider-insights')).toBeGreaterThan(0);
+    scheduler.stopScheduler();
+  });
+
+  test('getStartupStaggerDelay returns default for unknown jobs', async () => {
+    const { scheduler } = await loadScheduler();
+    expect(scheduler.getStartupStaggerDelay('unknown-job')).toBe(5_000);
     scheduler.stopScheduler();
   });
 });

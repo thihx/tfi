@@ -1,6 +1,7 @@
 import { query } from '../db/pool.js';
 import { ensureMatchInsight } from './provider-insight-cache.js';
 import { classifyTacticalOverlayCompetition } from './tactical-overlay-eligibility.js';
+import { getFootballApiQuotaTier } from './football-api-quota.js';
 import * as matchHistoryRepo from '../repos/matches-history.repo.js';
 import {
   upsertLeagueProfile,
@@ -30,12 +31,12 @@ const INTERNATIONAL_LOOKBACK_DAYS = 365;
 const EVENT_SUMMARY_COVERAGE_FLOOR = 0.6;
 // Phase 1 rollout acceleration: top-league backfill should fill historical goal-timeline
 // coverage quickly enough for derived profile metrics to become usable after a small number of runs.
-const EVENT_SUMMARY_BACKFILL_LIMIT = 500;
-const EVENT_SUMMARY_BACKFILL_CONCURRENCY = 4;
-const EVENT_SUMMARY_BACKFILL_BATCH_DELAY_MS = 300;
+const EVENT_SUMMARY_BACKFILL_LIMIT = 50;
+const EVENT_SUMMARY_BACKFILL_CONCURRENCY = 2;
+const EVENT_SUMMARY_BACKFILL_BATCH_DELAY_MS = 500;
 const HISTORY_FIXTURE_BACKFILL_CONCURRENCY = 1;
-const HISTORY_FIXTURE_BACKFILL_BATCH_DELAY_MS = 500;
-const HISTORY_FIXTURE_BACKFILL_SEASON_DEPTH = 2;
+const HISTORY_FIXTURE_BACKFILL_BATCH_DELAY_MS = 800;
+const HISTORY_FIXTURE_BACKFILL_SEASON_DEPTH = 1;
 
 type LeagueTier = LeagueProfileData['tempo_tier'];
 type TeamReliabilityTier = TeamProfileData['data_reliability_tier'];
@@ -773,10 +774,16 @@ function buildTeamPerspectiveSamplesByCandidate(
 }
 
 async function hydrateMissingEventSummaries(rows: HistoricalMatchRow[]): Promise<void> {
+  const tier = await getFootballApiQuotaTier();
+  if (tier === 'critical' || tier === 'high') return;
+  const effectiveLimit = tier === 'elevated'
+    ? Math.min(EVENT_SUMMARY_BACKFILL_LIMIT, 10)
+    : EVENT_SUMMARY_BACKFILL_LIMIT;
+
   const targets = rows
     .filter((row) => parseStoredSettlementEventSummary(row.settlement_event_summary) == null)
     .sort((left, right) => Date.parse(right.date) - Date.parse(left.date))
-    .slice(0, EVENT_SUMMARY_BACKFILL_LIMIT);
+    .slice(0, effectiveLimit);
 
   for (let start = 0; start < targets.length; start += EVENT_SUMMARY_BACKFILL_CONCURRENCY) {
     const batch = targets.slice(start, start + EVENT_SUMMARY_BACKFILL_CONCURRENCY);
@@ -811,6 +818,9 @@ async function backfillHistoricalMatchesForLeagues(
   lookbackDays: number,
   leaguePolicies: Map<number, ProfileDerivationPolicy>,
 ): Promise<void> {
+  const tier = await getFootballApiQuotaTier();
+  if (tier === 'critical' || tier === 'high') return;
+
   const cutoffDate = isoDateDaysAgo(lookbackDays);
   const existingCoverage = await getExistingHistoryCoverage(leagueIds, lookbackDays);
   const seasonPlans = await Promise.all(leagueIds.map(async (leagueId) => {

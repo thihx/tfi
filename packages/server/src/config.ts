@@ -33,6 +33,18 @@ export const config = {
   footballApiBaseUrl: process.env['FOOTBALL_API_BASE_URL'] || 'https://v3.football.api-sports.io',
   /** Pause outbound Football API calls until UTC midnight after daily quota is hit. */
   footballApiCircuitEnabled: process.env['FOOTBALL_API_CIRCUIT_ENABLED'] !== 'false',
+  /** Daily request budget for API-Football (default 7 000). */
+  footballApiDailyLimit: Number(process.env['FOOTBALL_API_DAILY_LIMIT'] || 7000),
+  /** Quota tier thresholds (percent of daily limit). */
+  footballApiElevatedPct: Number(process.env['FOOTBALL_API_ELEVATED_PCT'] || 60),
+  footballApiHighPct: Number(process.env['FOOTBALL_API_HIGH_PCT'] || 80),
+  footballApiCriticalPct: Number(process.env['FOOTBALL_API_CRITICAL_PCT'] || 95),
+  /** Per-run API call budget for refresh-provider-insights (0 = unlimited). */
+  refreshProviderInsightsApiBudget: Number(process.env['REFRESH_PROVIDER_INSIGHTS_API_BUDGET'] || 30),
+  /** Max matches auto-added to watchlist per run of auto-add-top-league-watchlist (0 = unlimited). */
+  autoAddTopLeagueMaxPerRun: Number(process.env['AUTO_ADD_TOP_LEAGUE_MAX_PER_RUN'] || 20),
+  /** Only auto-add matches kicking off within this many hours (0 = no filter). */
+  autoAddTopLeagueKickoffWindowHours: Number(process.env['AUTO_ADD_TOP_LEAGUE_KICKOFF_WINDOW_HOURS'] || 36),
 
   // AI (Gemini)
   geminiApiKey: process.env['GEMINI_API_KEY'] || '',
@@ -85,7 +97,7 @@ export const config = {
   jobPredictionsMs: Number(process.env['JOB_PREDICTIONS_MS'] || 30 * 60_000),            // 30 min
   jobExpireWatchlistMs: Number(process.env['JOB_EXPIRE_WATCHLIST_MS'] || 5 * 60_000),    // 5 min
   jobCheckLiveMs: Number(process.env['JOB_CHECK_LIVE_MS'] || 5_000),                     // 5 sec
-  jobRefreshProviderInsightsMs: Number(process.env['JOB_REFRESH_PROVIDER_INSIGHTS_MS'] || 60 * 1000), // 1 min
+  jobRefreshProviderInsightsMs: Number(process.env['JOB_REFRESH_PROVIDER_INSIGHTS_MS'] || 5 * 60_000), // 5 min
   jobAutoSettleMs: Number(process.env['JOB_AUTO_SETTLE_MS'] || 10 * 60_000),              // 10 min
   jobEnrichWatchlistMs: Number(process.env['JOB_ENRICH_WATCHLIST_MS'] || 60 * 60_000),   // 60 min
   jobSyncReferenceDataMs: Number(process.env['JOB_SYNC_REFERENCE_DATA_MS'] || 12 * 60 * 60_000), // 12h

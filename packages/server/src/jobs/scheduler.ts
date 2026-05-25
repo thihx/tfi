@@ -43,6 +43,7 @@ import {
 } from './job-progress.js';
 import { classifyJobResult } from './job-run-outcome.js';
 import { clearFootballApiCircuit } from '../lib/football-api-circuit.js';
+import { shouldThrottleJob } from '../lib/football-api-quota.js';
 
 export type { JobProgress };
 
@@ -406,6 +407,18 @@ function queuePendingSingleRun(job: ManagedJob, scheduledAt: number): void {
 }
 
 async function requestRun(job: ManagedJob, scheduledAt: number): Promise<void> {
+  if (FOOTBALL_API_JOB_NAMES.has(job.name)) {
+    try {
+      const throttled = await shouldThrottleJob(job.name);
+      if (throttled) {
+        console.log(`[scheduler] Job "${job.name}" throttled by quota guard`);
+        return;
+      }
+    } catch {
+      // quota check failed — proceed with the run
+    }
+  }
+
   if (job.concurrency === 1) {
     if (job.running) {
       queuePendingSingleRun(job, scheduledAt);
@@ -684,6 +697,19 @@ async function runConcurrentJob(job: ManagedJob, scheduledAt: number): Promise<v
       });
     }
   }
+}
+
+const STARTUP_STAGGER_TIERS: Record<string, number> = {
+  'refresh-live-matches': 0,
+  'check-live-trigger': 0,
+  'fetch-matches': 2_000,
+  'update-predictions': 15_000,
+  'refresh-provider-insights': 30_000,
+  'sync-reference-data': 60_000,
+};
+
+export function getStartupStaggerDelay(jobName: string): number {
+  return STARTUP_STAGGER_TIERS[jobName] ?? 5_000;
 }
 
 export async function startScheduler() {
@@ -1000,11 +1026,13 @@ export async function startScheduler() {
       ? new Date(job.lastCompletedAt).getTime()
       : (job.lastRun ? new Date(job.lastRun).getTime() : 0);
     const overdue = lastCompletedTs > 0 && (now - lastCompletedTs) > job.intervalMs;
-    const firstDueAt = overdue ? now : now + job.intervalMs;
+    const staggerDelay = overdue ? getStartupStaggerDelay(job.name) : 0;
+    const firstDueAt = overdue ? now + staggerDelay : now + job.intervalMs;
     scheduleJob(job, firstDueAt);
 
     if (overdue) {
-      console.log(`[scheduler] Job "${job.name}" is overdue (last completed ${job.lastCompletedAt ?? job.lastRun}), running immediately`);
+      const staggerNote = staggerDelay > 0 ? ` (staggered +${Math.round(staggerDelay / 1000)}s)` : '';
+      console.log(`[scheduler] Job "${job.name}" is overdue (last completed ${job.lastCompletedAt ?? job.lastRun}), running soon${staggerNote}`);
     }
 
     console.log(`[scheduler] Job "${job.name}" every ${job.intervalMs / 1000}s (runs so far: ${job.runCount})`);

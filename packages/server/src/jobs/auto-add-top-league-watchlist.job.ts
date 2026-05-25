@@ -1,3 +1,4 @@
+import { config } from '../config.js';
 import * as leagueRepo from '../repos/leagues.repo.js';
 import * as matchRepo from '../repos/matches.repo.js';
 import * as watchlistRepo from '../repos/watchlist.repo.js';
@@ -30,7 +31,17 @@ export async function autoAddTopLeagueWatchlistJob(): Promise<{
   }
 
   const topLeagueIds = new Set(topLeagues.map((league) => league.league_id));
-  const candidates = allMatches.filter((match) => topLeagueIds.has(match.league_id) && match.status === 'NS');
+  let candidates = allMatches.filter((match) => topLeagueIds.has(match.league_id) && match.status === 'NS');
+
+  const windowHours = config.autoAddTopLeagueKickoffWindowHours;
+  if (windowHours > 0) {
+    const cutoffMs = Date.now() + windowHours * 60 * 60_000;
+    candidates = candidates.filter((match) => {
+      const kickoffMs = match.date ? Date.parse(match.date) : NaN;
+      return Number.isFinite(kickoffMs) && kickoffMs <= cutoffMs;
+    });
+  }
+
   if (candidates.length === 0) {
     return { candidates: 0, added: 0, skippedExisting: 0 };
   }
@@ -40,10 +51,12 @@ export async function autoAddTopLeagueWatchlistJob(): Promise<{
   const autoApplyCache = new Map<string, boolean>();
   const autoApplyRecommendedCondition = await getAutoApplyRecommendedCondition(autoApplyCache);
 
+  const maxPerRun = config.autoAddTopLeagueMaxPerRun;
   let added = 0;
   let skippedExisting = 0;
   let index = 0;
   for (const match of candidates) {
+    if (maxPerRun > 0 && added >= maxPerRun) break;
     index++;
     await reportJobProgress(
       JOB,

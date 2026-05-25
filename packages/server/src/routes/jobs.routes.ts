@@ -5,6 +5,7 @@
 import type { FastifyInstance } from 'fastify';
 import { requireAdminOrOwner } from '../lib/authz.js';
 import { getFootballApiCircuitStatus } from '../lib/football-api-circuit.js';
+import { getFootballApiQuotaStatus } from '../lib/football-api-quota.js';
 import { getJobsStatus, triggerJob, updateJobInterval } from '../jobs/scheduler.js';
 import { setForceEnrich } from '../jobs/enrich-watchlist.job.js';
 import { previewHousekeepingImpact } from '../jobs/purge-audit.job.js';
@@ -15,11 +16,12 @@ export async function jobRoutes(app: FastifyInstance) {
   app.get('/api/jobs', async (req, reply) => {
     const user = requireAdminOrOwner(req, reply);
     if (!user) return;
-    const [jobs, footballApiCircuit] = await Promise.all([
+    const [jobs, footballApiCircuit, footballApiQuota] = await Promise.all([
       getJobsStatus(),
       getFootballApiCircuitStatus(),
+      getFootballApiQuotaStatus(),
     ]);
-    return { jobs, footballApiCircuit };
+    return { jobs, footballApiCircuit, footballApiQuota };
   });
 
   app.get<{ Querystring: { limit?: string; jobName?: string; hours?: string } }>('/api/jobs/runs', async (req, reply) => {
