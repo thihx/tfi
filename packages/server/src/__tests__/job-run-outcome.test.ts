@@ -22,7 +22,9 @@ describe('classifyJobResult', () => {
       leagues: 0,
     });
     expect(outcome.status).toBe('skipped');
-    expect(outcome.errorMessage).toContain('adaptive poll backoff');
+    expect(outcome.skipReason).toBe('adaptive_poll_backoff');
+    expect(outcome.planned).toBe(true);
+    expect(outcome.errorMessage).toBeUndefined();
   });
 
   test('success when no skip flag', () => {

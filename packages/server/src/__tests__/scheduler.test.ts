@@ -208,6 +208,32 @@ describe('scheduler adaptive skip preservation', () => {
     expect(redis.del).not.toHaveBeenCalledWith('job:fetch-matches:next-run-at');
     scheduler.stopScheduler();
   });
+
+  test('records adaptive poll backoff without marking the job as failed', async () => {
+    const { scheduler, fetchMatchesJob, jobRunsRepo } = await loadScheduler({
+      configOverrides: { jobFetchMatchesMs: 10 },
+    });
+    vi.mocked(fetchMatchesJob).mockResolvedValueOnce({
+      saved: 0,
+      leagues: 0,
+      skipped: true,
+      skipReason: 'adaptive_poll_backoff',
+    });
+
+    await scheduler.startScheduler();
+    await vi.advanceTimersByTimeAsync(15);
+
+    const jobs = await scheduler.getJobsStatus();
+    const fetchJob = jobs.find((job) => job.name === 'fetch-matches');
+    expect(fetchJob?.lastError).toBeNull();
+    expect(jobRunsRepo.recordJobRun).toHaveBeenCalledWith(expect.objectContaining({
+      jobName: 'fetch-matches',
+      status: 'skipped',
+      skipReason: 'adaptive_poll_backoff',
+      error: null,
+    }));
+    scheduler.stopScheduler();
+  });
 });
 
 describe('scheduler cadence resilience', () => {

@@ -10,6 +10,7 @@ export interface ClassifiedJobOutcome {
   status: 'success' | 'skipped';
   skipReason?: string;
   errorMessage?: string;
+  planned?: boolean;
 }
 
 function asObject(value: unknown): Record<string, unknown> | null {
@@ -37,7 +38,7 @@ export function classifyJobResult(result: unknown): ClassifiedJobOutcome {
   if (skipReason === 'football_api_daily_limit' && openUntil) {
     errorMessage = `Football API daily request limit reached (football_api_daily_limit until ${openUntil})`;
   } else if (skipReason === 'adaptive_poll_backoff') {
-    errorMessage = 'Skipped: adaptive poll backoff (next run scheduled)';
+    return { status: 'skipped', skipReason, planned: true };
   }
 
   return { status: 'skipped', skipReason, errorMessage };

@@ -321,6 +321,23 @@ beforeEach(() => {
             summary: {},
             created_at: '2026-03-31T09:55:06.000Z',
           },
+          {
+            id: 99,
+            job_name: 'refresh-live-matches',
+            scheduled_at: '2026-03-31T09:49:55.000Z',
+            started_at: '2026-03-31T09:50:00.000Z',
+            completed_at: '2026-03-31T09:50:00.020Z',
+            status: 'skipped',
+            skip_reason: 'adaptive_poll_backoff',
+            lock_policy: 'degraded-local',
+            degraded_locking: true,
+            instance_id: 'tfi-app-1',
+            lag_ms: 800,
+            duration_ms: 20,
+            error: 'Skipped: adaptive poll backoff (next run scheduled)',
+            summary: {},
+            created_at: '2026-03-31T09:50:00.020Z',
+          },
         ],
         overview: [],
       }), { status: 200 });
@@ -525,6 +542,9 @@ describe('SettingsTab', () => {
 
     expect(await screen.findByText('Latest 8 runs from the last 24 hours')).toBeInTheDocument();
     expect(screen.getByText('Provider timeout')).toBeInTheDocument();
+    expect(screen.getByText('Reason: Adaptive poll backoff')).toBeInTheDocument();
+    expect(screen.getByText('Waiting for next adaptive poll window')).toBeInTheDocument();
+    expect(screen.queryByText('Skipped: adaptive poll backoff (next run scheduled)')).not.toBeInTheDocument();
     expect(mockFetch).toHaveBeenCalledWith(
       expect.stringContaining('/api/jobs/runs?jobName=refresh-live-matches&limit=8&hours=24'),
       expect.objectContaining({ credentials: 'include' }),

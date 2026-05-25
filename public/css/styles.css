@@ -4454,6 +4454,10 @@ tbody tr.date-group-row:hover {
   color: var(--danger, #dc3545);
 }
 
+.job-skip-note {
+  color: var(--gray-500, #6c757d);
+}
+
 .job-actions {
   display: flex;
   align-items: center;
@@ -4780,4 +4784,3 @@ tbody tr.date-group-row:hover {
     align-items: stretch;
   }
 }
-

@@ -495,7 +495,8 @@ async function runSingleJob(job: ManagedJob, scheduledAt: number): Promise<void>
     job.runCount++;
 
     if (outcome.status === 'skipped') {
-      job.lastError = outcome.errorMessage ?? `Skipped (${outcome.skipReason ?? 'job_skipped'})`;
+      const skippedMessage = outcome.errorMessage ?? `Skipped (${outcome.skipReason ?? 'job_skipped'})`;
+      job.lastError = outcome.planned ? null : skippedMessage;
       await completeJobProgress(job.name, result, null);
       await recordJobRunBestEffort({
         jobName: job.name,
@@ -509,10 +510,10 @@ async function runSingleJob(job: ManagedJob, scheduledAt: number): Promise<void>
         instanceId,
         lagMs: job.lastLagMs,
         durationMs: job.lastDurationMs,
-        error: job.lastError,
+        error: outcome.planned ? null : job.lastError,
         summary,
       });
-      console.log(`[scheduler] Job "${job.name}" skipped (#${job.runCount}): ${job.lastError}`);
+      console.log(`[scheduler] Job "${job.name}" skipped (#${job.runCount}): ${skippedMessage}`);
     } else {
       job.lastError = null;
       await completeJobProgress(job.name, result, null);

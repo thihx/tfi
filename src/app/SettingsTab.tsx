@@ -208,6 +208,20 @@ function formatJobRunStatus(status: JobRunStatus | null | undefined): string {
   return 'Idle';
 }
 
+function isAdaptivePollBackoffMessage(value: string | null | undefined): boolean {
+  return typeof value === 'string' && value.toLowerCase().includes('adaptive poll backoff');
+}
+
+function isAdaptivePollBackoffRun(run: JobRunHistoryRow): boolean {
+  return run.status === 'skipped' && run.skip_reason === 'adaptive_poll_backoff';
+}
+
+function formatSkipReason(reason: string): string {
+  if (reason === 'adaptive_poll_backoff') return 'Adaptive poll backoff';
+  if (reason === 'football_api_daily_limit') return 'Football API daily limit';
+  return reason;
+}
+
 function formatLockPolicy(policy: JobInfo['lockPolicy'] | string | null | undefined): string {
   if (policy === 'degraded-local') return 'Degraded local lock';
   if (policy === 'strict') return 'Strict lock';
@@ -407,7 +421,9 @@ function JobSchedulerPanel() {
         const progress = job.progress;
         const isRunning = job.running;
         const isCompleted = progress?.completedAt && !isRunning;
-        const hasError = !!job.lastError || !!progress?.error;
+        const lastErrorIsPlannedSkip = isAdaptivePollBackoffMessage(job.lastError);
+        const progressErrorIsPlannedSkip = isAdaptivePollBackoffMessage(progress?.error);
+        const hasError = (!!job.lastError && !lastErrorIsPlannedSkip) || (!!progress?.error && !progressErrorIsPlannedSkip);
         const percent = progress?.percent ?? 0;
         const isMulti = (job.concurrency ?? 1) > 1;
         const isQueueFull = isMulti && job.activeRuns >= job.concurrency && job.pendingRuns >= job.concurrency;
@@ -438,7 +454,9 @@ function JobSchedulerPanel() {
                 <div className="job-title-row">
                   <span className="job-label">{label}</span>
                   {job.lastError && !isRunning && (
-                    <span className="job-error-text">{job.lastError}</span>
+                    <span className={lastErrorIsPlannedSkip ? 'job-skip-note' : 'job-error-text'}>
+                      {lastErrorIsPlannedSkip ? 'Waiting for next adaptive poll window' : job.lastError}
+                    </span>
                   )}
                 </div>
                 <div className="job-description" title={description}>{description}</div>
@@ -565,9 +583,12 @@ function JobSchedulerPanel() {
                         <div className="job-history-row-detail">
                           <span>{run.completed_at ? `Completed ${formatLocalDateTime(run.completed_at)}` : 'Still running'}</span>
                           <span>{formatLockPolicy(run.lock_policy)}</span>
-                          {run.skip_reason ? <span>Reason: {run.skip_reason}</span> : null}
+                          {run.skip_reason ? <span>Reason: {formatSkipReason(run.skip_reason)}</span> : null}
                           {run.degraded_locking ? <span>Degraded locking</span> : null}
-                          {run.error ? <span className="job-history-error">{run.error}</span> : null}
+                          {isAdaptivePollBackoffRun(run) || isAdaptivePollBackoffMessage(run.error) ? (
+                            <span className="job-skip-note">Waiting for next adaptive poll window</span>
+                          ) : null}
+                          {run.error && !isAdaptivePollBackoffMessage(run.error) ? <span className="job-history-error">{run.error}</span> : null}
                         </div>
                       </div>
                     ))}
