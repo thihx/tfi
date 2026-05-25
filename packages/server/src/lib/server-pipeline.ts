@@ -109,7 +109,11 @@ import {
   isThesisWatchPipelineActive,
   registerThesisWatchFromLlpBlock,
 } from './thesis-watch.service.js';
-import type { ThesisWatchRow } from './thesis-watch-types.js';
+import type {
+  ThesisWatchAuditSnapshot,
+  ThesisWatchPromoteReason,
+  ThesisWatchRow,
+} from './thesis-watch-types.js';
 import {
   getPendingThesisWatchesByMatchId,
   markThesisWatchPromoted,
@@ -1415,6 +1419,10 @@ interface PromptExecutionArtifacts {
   policyWarnings: string[];
   /** Set when promote path is ready; marked promoted only after recommendation save succeeds. */
   thesisWatchId?: number;
+  thesisWatchPromotion?: {
+    promoteSnapshot: ThesisWatchAuditSnapshot;
+    promoteReason: ThesisWatchPromoteReason;
+  };
 }
 
 interface PromptPolicyContext {
@@ -1750,6 +1758,34 @@ async function executeThesisWatchPromote(
     });
     if (!finalized.parsed.final_should_bet) continue;
 
+    const promoteSnapshot: ThesisWatchAuditSnapshot = {
+      matchId,
+      minute: promptContext.minute,
+      score: promptContext.score,
+      status: promptContext.status,
+      evidenceMode: promptContext.evidenceMode,
+      selection: finalized.parsed.selection,
+      betMarket: finalized.parsed.bet_market,
+      oddsCanonical: promptContext.oddsCanonical as Record<string, unknown>,
+      statsCompact: promptContext.statsCompact as unknown as Record<string, unknown>,
+      eventsCompact: promptContext.eventsCompact.slice(-8),
+      warnings: finalized.parsed.warnings,
+      confidence: finalized.parsed.confidence,
+      valuePercent: finalized.parsed.value_percent,
+      stakePercent: finalized.parsed.stake_percent,
+      riskLevel: finalized.parsed.risk_level,
+    };
+    const promoteReason: ThesisWatchPromoteReason = {
+      watchKey: watch.watch_key,
+      gateType: watch.gate_type,
+      gatePayload: watch.gate_payload,
+      lastBlockReason: watch.last_block_reason,
+      originalSelection: watch.selection,
+      originalBetMarket: watch.bet_market,
+      promotedSelection: finalized.parsed.selection,
+      promotedBetMarket: finalized.parsed.bet_market,
+      policyWarnings: finalized.policyWarnings,
+    };
     const promoteNote = `{"source":"thesis_watch","watchId":${watch.id},"gateType":"${watch.gate_type}","watchKey":"${watch.watch_key}"}`;
     return {
       promptVersion,
@@ -1765,6 +1801,10 @@ async function executeThesisWatchPromote(
       policyBlocked: finalized.policyBlocked,
       policyWarnings: finalized.policyWarnings,
       thesisWatchId: watch.id,
+      thesisWatchPromotion: {
+        promoteSnapshot,
+        promoteReason,
+      },
     };
   }
 
@@ -4322,6 +4362,11 @@ async function processMatch(
         reasoningEn: parsed.reasoning_en,
         reasoningVi: parsed.reasoning_vi,
         oddsCanonical: oddsCanonical,
+        score,
+        status,
+        evidenceMode,
+        statsCompact: statsCompact as unknown as Record<string, unknown>,
+        eventsCompact,
       });
     }
     enforceFollowUpLineupAvailability(parsed, {
@@ -4486,6 +4531,9 @@ async function processMatch(
           : 'ai_primary';
       if (thesisPromoted) {
         decisionContext['thesisWatchPromoted'] = true;
+        decisionContext['thesisWatchId'] = thesisWatchId;
+        decisionContext['thesisWatchPromoteReason'] =
+          activeAnalysis.thesisWatchPromotion?.promoteReason ?? {};
       }
       decisionContext['conditionTriggeredSpecialOverride'] = saveFromConditionTrigger
         ? parsed.condition_triggered_special_override
@@ -4555,7 +4603,11 @@ async function processMatch(
 
       if (thesisWatchId != null) {
         try {
-          await markThesisWatchPromoted(thesisWatchId);
+          await markThesisWatchPromoted(thesisWatchId, {
+            recommendationId: rec.id,
+            promoteSnapshot: activeAnalysis.thesisWatchPromotion?.promoteSnapshot,
+            promoteReason: activeAnalysis.thesisWatchPromotion?.promoteReason,
+          });
         } catch (err) {
           console.warn(
             '[thesis-watch] Failed to mark watch promoted after save:',

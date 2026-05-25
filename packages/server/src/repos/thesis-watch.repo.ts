@@ -1,5 +1,10 @@
 import { query } from '../db/pool.js';
-import type { ThesisWatchIntent, ThesisWatchRow } from '../lib/thesis-watch-types.js';
+import type {
+  ThesisWatchAuditSnapshot,
+  ThesisWatchIntent,
+  ThesisWatchPromoteReason,
+  ThesisWatchRow,
+} from '../lib/thesis-watch-types.js';
 
 function mapRow(row: Record<string, unknown>): ThesisWatchRow {
   return {
@@ -19,6 +24,12 @@ function mapRow(row: Record<string, unknown>): ThesisWatchRow {
     reasoning_vi: String(row.reasoning_vi ?? ''),
     source: String(row.source ?? 'llp_defer'),
     last_block_reason: String(row.last_block_reason ?? ''),
+    initial_snapshot: (row.initial_snapshot ?? {}) as ThesisWatchAuditSnapshot,
+    promote_snapshot: (row.promote_snapshot ?? {}) as ThesisWatchAuditSnapshot,
+    promote_reason: (row.promote_reason ?? {}) as ThesisWatchPromoteReason,
+    promoted_recommendation_id: row.promoted_recommendation_id != null
+      ? Number(row.promoted_recommendation_id)
+      : null,
     created_at: String(row.created_at ?? ''),
     updated_at: String(row.updated_at ?? ''),
     expires_at: String(row.expires_at ?? ''),
@@ -40,11 +51,13 @@ export async function upsertPendingThesisWatch(
     `INSERT INTO match_thesis_watch (
       match_id, watch_key, status, gate_type, gate_payload,
       selection, bet_market, confidence, value_percent, stake_percent,
-      risk_level, reasoning_en, reasoning_vi, source, last_block_reason, expires_at, updated_at
+      risk_level, reasoning_en, reasoning_vi, source, last_block_reason,
+      initial_snapshot, expires_at, updated_at
     ) VALUES (
       $1, $2, 'pending', $3, $4::jsonb,
       $5, $6, $7, $8, $9,
-      $10, $11, $12, 'llp_defer', $13, $14, NOW()
+      $10, $11, $12, 'llp_defer', $13,
+      $14::jsonb, $15, NOW()
     )
     RETURNING *`,
     [
@@ -61,6 +74,7 @@ export async function upsertPendingThesisWatch(
       intent.reasoningEn,
       intent.reasoningVi,
       intent.lastBlockReason,
+      JSON.stringify(intent.initialSnapshot ?? {}),
       expiresAt.toISOString(),
     ],
   );
@@ -80,12 +94,29 @@ export async function getPendingThesisWatchesByMatchId(matchId: string): Promise
   return result.rows.map(mapRow);
 }
 
-export async function markThesisWatchPromoted(id: number): Promise<void> {
+export async function markThesisWatchPromoted(
+  id: number,
+  details: {
+    recommendationId?: number | null;
+    promoteSnapshot?: ThesisWatchAuditSnapshot;
+    promoteReason?: ThesisWatchPromoteReason;
+  } = {},
+): Promise<void> {
   await query(
     `UPDATE match_thesis_watch
-     SET status = 'promoted', promoted_at = NOW(), updated_at = NOW()
+     SET status = 'promoted',
+         promoted_at = NOW(),
+         updated_at = NOW(),
+         promoted_recommendation_id = $2,
+         promote_snapshot = $3::jsonb,
+         promote_reason = $4::jsonb
      WHERE id = $1`,
-    [id],
+    [
+      id,
+      details.recommendationId ?? null,
+      JSON.stringify(details.promoteSnapshot ?? {}),
+      JSON.stringify(details.promoteReason ?? {}),
+    ],
   );
 }
 

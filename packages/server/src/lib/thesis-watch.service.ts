@@ -2,6 +2,7 @@ import { config } from '../config.js';
 import { upsertPendingThesisWatch } from '../repos/thesis-watch.repo.js';
 import { buildThesisWatchIntentFromLlpBlock } from './thesis-watch-gates.js';
 import type { LinePatienceOddsCanonical } from './line-patience-policy.js';
+import type { ThesisWatchAuditSnapshot } from './thesis-watch-types.js';
 
 export function isThesisWatchEnabled(): boolean {
   if (!config.thesisWatchEnabled) return false;
@@ -19,6 +20,9 @@ export function isThesisWatchPipelineActive(options: {
 export async function registerThesisWatchFromLlpBlock(args: {
   matchId: string;
   minute: number;
+  score: string;
+  status: string;
+  evidenceMode: string;
   shadowMode?: boolean;
   advisoryOnly?: boolean;
   warnings: string[];
@@ -31,6 +35,8 @@ export async function registerThesisWatchFromLlpBlock(args: {
   reasoningEn: string;
   reasoningVi: string;
   oddsCanonical: LinePatienceOddsCanonical;
+  statsCompact?: Record<string, unknown>;
+  eventsCompact?: unknown[];
 }): Promise<void> {
   if (!isThesisWatchPipelineActive({ shadowMode: args.shadowMode, advisoryOnly: args.advisoryOnly })) {
     return;
@@ -50,6 +56,24 @@ export async function registerThesisWatchFromLlpBlock(args: {
   });
   if (!intent) return;
 
+  const initialSnapshot: ThesisWatchAuditSnapshot = {
+    matchId: args.matchId,
+    minute: args.minute,
+    score: args.score,
+    status: args.status,
+    evidenceMode: args.evidenceMode,
+    selection: args.selection,
+    betMarket: args.betMarket,
+    oddsCanonical: args.oddsCanonical as Record<string, unknown>,
+    statsCompact: args.statsCompact,
+    eventsCompact: args.eventsCompact,
+    warnings: args.warnings,
+    confidence: args.confidence,
+    valuePercent: args.valuePercent,
+    stakePercent: args.stakePercent,
+    riskLevel: args.riskLevel,
+  };
+
   const ttlMinutes = Number.isFinite(config.thesisWatchTtlMinutes)
     ? config.thesisWatchTtlMinutes
     : 45;
@@ -60,7 +84,7 @@ export async function registerThesisWatchFromLlpBlock(args: {
   }
 
   try {
-    await upsertPendingThesisWatch(args.matchId, intent, expiresAt);
+    await upsertPendingThesisWatch(args.matchId, { ...intent, initialSnapshot }, expiresAt);
   } catch (err) {
     console.warn(
       '[thesis-watch] Failed to persist pending watch:',

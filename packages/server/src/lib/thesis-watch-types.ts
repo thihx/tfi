@@ -12,6 +12,36 @@ export interface ThesisWatchGatePayload {
   intendedMarketLine?: number | null;
 }
 
+export interface ThesisWatchAuditSnapshot {
+  matchId?: string;
+  minute?: number;
+  score?: string;
+  status?: string;
+  evidenceMode?: string;
+  selection?: string;
+  betMarket?: string;
+  oddsCanonical?: Record<string, unknown>;
+  statsCompact?: Record<string, unknown>;
+  eventsCompact?: unknown[];
+  warnings?: string[];
+  confidence?: number;
+  valuePercent?: number;
+  stakePercent?: number;
+  riskLevel?: string;
+}
+
+export interface ThesisWatchPromoteReason {
+  watchKey?: string;
+  gateType?: ThesisWatchGateType;
+  gatePayload?: ThesisWatchGatePayload;
+  lastBlockReason?: string;
+  originalSelection?: string;
+  originalBetMarket?: string;
+  promotedSelection?: string;
+  promotedBetMarket?: string;
+  policyWarnings?: string[];
+}
+
 export interface ThesisWatchIntent {
   watchKey: string;
   gateType: ThesisWatchGateType;
@@ -25,6 +55,7 @@ export interface ThesisWatchIntent {
   reasoningEn: string;
   reasoningVi: string;
   lastBlockReason: string;
+  initialSnapshot?: ThesisWatchAuditSnapshot;
 }
 
 export interface ThesisWatchRow {
@@ -44,6 +75,10 @@ export interface ThesisWatchRow {
   reasoning_vi: string;
   source: string;
   last_block_reason: string;
+  initial_snapshot: ThesisWatchAuditSnapshot;
+  promote_snapshot: ThesisWatchAuditSnapshot;
+  promote_reason: ThesisWatchPromoteReason;
+  promoted_recommendation_id: number | null;
   created_at: string;
   updated_at: string;
   expires_at: string;
