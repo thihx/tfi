@@ -17,7 +17,7 @@ describe('replay llm cache', () => {
           name: '1504751 Machida Zelvia vs FC Tokyo',
           metadata: { recommendationId: 88 } as never,
         },
-        'v8-market-balance-followup-f',
+        'v10-hybrid-legacy-g',
         'mock',
       );
 
@@ -25,7 +25,7 @@ describe('replay llm cache', () => {
         generatedAt: '2026-04-06T00:00:00.000Z',
         recommendationId: 88,
         scenarioName: '1504751 Machida Zelvia vs FC Tokyo',
-        promptVersion: 'v8-market-balance-followup-f',
+        promptVersion: 'v10-hybrid-legacy-g',
         oddsMode: 'mock',
         aiText: '{"should_push":true}',
         prompt: 'Prompt',
@@ -34,7 +34,7 @@ describe('replay llm cache', () => {
 
       const loaded = loadReplayLlmCache(path);
       expect(loaded?.recommendationId).toBe(88);
-      expect(loaded?.promptVersion).toBe('v8-market-balance-followup-f');
+      expect(loaded?.promptVersion).toBe('v10-hybrid-legacy-g');
       expect(loaded?.aiText).toContain('should_push');
       expect(path).toContain('88__1504751-machida-zelvia-vs-fc-tokyo');
 
@@ -44,7 +44,7 @@ describe('replay llm cache', () => {
           name: '1504751 Machida Zelvia vs FC Tokyo',
           metadata: { recommendationId: 88 } as never,
         },
-        'v8-market-balance-followup-f',
+        'v10-hybrid-legacy-g',
         'mock',
         'settled-trace',
       );

@@ -22,7 +22,7 @@ export async function expireWatchlistJob(): Promise<{
 
   if (result.totalChanged > 0) {
     console.log(
-      `[expireWatchlistJob] cleaned subscriptions=${result.expiredSubscriptions} monitored=${result.deletedMonitoredMatches}`,
+      `[expireWatchlistJob] cleaned subscriptions=${result.expiredSubscriptions} monitored=${result.deletedMonitoredMatches} legacy=${result.deletedLegacyWatchlist}`,
     );
   }
 

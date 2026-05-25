@@ -37,14 +37,14 @@ describe('settled replay evaluation', () => {
   test('summarizes under share, no-bet rate, and accuracy by cohort', () => {
     const rows = [
       buildEvaluatedReplayCase(
-        'v6-betting-discipline-c',
+        'v10-hybrid-legacy-g',
         {
           name: 'case-a',
           matchId: '1',
           fixture: {} as never,
           metadata: {
             recommendationId: 1,
-            originalPromptVersion: 'v6-betting-discipline-c',
+            originalPromptVersion: 'v10-hybrid-legacy-g',
             originalAiModel: 'gemini',
             originalBetMarket: 'under_2.5',
             originalSelection: '',
@@ -101,14 +101,14 @@ describe('settled replay evaluation', () => {
         'totals_only',
       ),
       buildEvaluatedReplayCase(
-        'v6-betting-discipline-c',
+        'v10-hybrid-legacy-g',
         {
           name: 'case-b',
           matchId: '2',
           fixture: {} as never,
           metadata: {
             recommendationId: 2,
-            originalPromptVersion: 'v6-betting-discipline-c',
+            originalPromptVersion: 'v10-hybrid-legacy-g',
             originalAiModel: 'gemini',
             originalBetMarket: 'over_2.5',
             originalSelection: '',
@@ -166,7 +166,7 @@ describe('settled replay evaluation', () => {
       ),
     ];
 
-    const summary = summarizeSettledReplayVariant('v6-betting-discipline-c', rows);
+    const summary = summarizeSettledReplayVariant('v10-hybrid-legacy-g', rows);
 
     expect(summary.totalScenarios).toBe(2);
     expect(summary.pushCount).toBe(1);

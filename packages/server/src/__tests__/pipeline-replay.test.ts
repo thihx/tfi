@@ -150,11 +150,10 @@ describe('runReplayScenario', () => {
         }],
       }],
       expected: {
-        shouldPush: true,
+        shouldPush: false,
         oddsSource: 'live',
         saved: false,
         notified: false,
-        selectionContains: 'Over 2.5',
       },
     });
 
@@ -288,7 +287,7 @@ describe('runReplayScenario', () => {
 
   test('supports prompt version override for candidate replay', async () => {
     const output = await runReplayScenario({
-      name: 'candidate-prompt-replay',
+      name: 'candidate-official-replay',
       matchId: '100',
       fixture: makeFixture(),
       statistics: makeStats(),
@@ -305,10 +304,10 @@ describe('runReplayScenario', () => {
         }],
       }],
     }, {
-      promptVersionOverride: 'v5-compact-a',
+      promptVersionOverride: 'v10-hybrid-legacy-g',
     });
 
-    expect(output.result.debug?.promptVersion).toBe('v5-compact-a');
+    expect(output.result.debug?.promptVersion).toBe('v10-hybrid-legacy-g');
     expect(output.result.debug?.promptChars).toBeGreaterThan(0);
   });
 

@@ -13,6 +13,13 @@ Read [docs/agent-onboarding.md](docs/agent-onboarding.md) before making non-triv
 - Backend tests: `packages/server/src/__tests__/`
 - Legacy reference only: `legacy/`
 
+## Recommendation Pipeline Ground Truth
+
+- Before changing recommendation, live monitor, prompt, replay, watchlist trigger, settlement, or delivery code, read `docs/live-recommendation-pipeline-vi.md`.
+- Codex agents should also use `.codex/skills/tfi-recommendation-pipeline/`.
+- The only official live-analysis prompt is `v10-hybrid-legacy-g`; do not reintroduce retired prompt versions or shadow candidates without intentionally creating a new official baseline.
+- Money-critical flow: provider/cache inputs -> canonical odds -> prompt -> JSON parse -> market normalization -> policy/memory/segment guards -> recommendation save/delivery staging.
+
 ## Data-driven replay (recommendation quality)
 
 - Tiến độ % và điều kiện “xong” MVP: [docs/data-driven-pipeline-status.md](docs/data-driven-pipeline-status.md).

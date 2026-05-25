@@ -88,6 +88,11 @@ function parseCanonicalMarket(primaryText: string, secondaryText = ''): string {
     if (side) return `asian_handicap_${side}`;
   }
 
+  const signedSideLine = combined.match(/\b(home|away)\b[^\d+-]*([+-]\d+(?:\.\d+)?)/);
+  if (signedSideLine?.[1] && signedSideLine[2]) {
+    return `asian_handicap_${signedSideLine[1]}_${normalizeSignedLine(signedSideLine[2])!}`;
+  }
+
   if (/btts|both\s*teams?\s*(to\s+)?scor/.test(combined)) {
     return /\bno\b/.test(combined) ? 'btts_no' : 'btts_yes';
   }

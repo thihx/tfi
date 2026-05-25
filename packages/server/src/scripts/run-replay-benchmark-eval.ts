@@ -28,7 +28,7 @@ function parseArgs(argv: string[]): {
 } {
   let max = 120;
   let clearCache = false;
-  let promptVersion = 'v8-market-balance-followup-j';
+  let promptVersion = 'v10-hybrid-legacy-g';
   let applyReplayPolicy = false;
   let benchDirRel = DEFAULT_BENCH_DIR_REL;
   let oddsMode: 'recorded' | 'mock' = 'mock';

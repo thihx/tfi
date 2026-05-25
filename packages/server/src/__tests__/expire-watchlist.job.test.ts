@@ -17,6 +17,7 @@ vi.mock('../repos/watchlist.repo.js', () => ({
     expiredSubscriptions: 3,
     refreshedSubscriberCounts: 2,
     deletedMonitoredMatches: 1,
+    deletedLegacyWatchlist: 2,
     totalChanged: 3,
   }),
 }));
@@ -34,6 +35,7 @@ describe('expireWatchlistJob', () => {
       expiredSubscriptions: 3,
       refreshedSubscriberCounts: 2,
       deletedMonitoredMatches: 1,
+      deletedLegacyWatchlist: 2,
       totalChanged: 3,
     });
 
@@ -47,6 +49,7 @@ describe('expireWatchlistJob', () => {
       expiredSubscriptions: 0,
       refreshedSubscriberCounts: 0,
       deletedMonitoredMatches: 0,
+      deletedLegacyWatchlist: 0,
       totalChanged: 0,
     });
 

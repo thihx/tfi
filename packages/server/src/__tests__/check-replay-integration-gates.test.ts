@@ -5,7 +5,7 @@ describe('evaluateReplayGates', () => {
   const baseSummary = {
     variants: [
       {
-        promptVersion: 'v8-market-balance-followup-h',
+        promptVersion: 'v10-hybrid-legacy-g',
         totalScenarios: 20,
         pushRate: 0.75,
         goalsUnderShare: 0.5,
@@ -18,7 +18,7 @@ describe('evaluateReplayGates', () => {
   test('passes when all metrics inside gates', () => {
     const config: ReplayGateConfig = {
       summaryPath: 'x.json',
-      promptVersion: 'v8-market-balance-followup-h',
+      promptVersion: 'v10-hybrid-legacy-g',
       minScenarios: 20,
       pushRate: { min: 0.7, max: 0.8 },
       goalsUnderShareMax: 0.55,
@@ -41,7 +41,7 @@ describe('evaluateReplayGates', () => {
     };
     const config: ReplayGateConfig = {
       summaryPath: 'x.json',
-      promptVersion: 'v8-market-balance-followup-h',
+      promptVersion: 'v10-hybrid-legacy-g',
       pushRate: { min: 0.7, max: 0.8 },
     };
     const r = evaluateReplayGates(config, summary, null);
@@ -53,7 +53,7 @@ describe('evaluateReplayGates', () => {
     const summary = {
       variants: [
         {
-          promptVersion: 'v8-market-balance-followup-h',
+          promptVersion: 'v10-hybrid-legacy-g',
           totalScenarios: 40,
           pushRate: 0.75,
           goalsUnderShare: 0.4,
@@ -68,7 +68,7 @@ describe('evaluateReplayGates', () => {
     };
     const config: ReplayGateConfig = {
       summaryPath: 'x.json',
-      promptVersion: 'v8-market-balance-followup-h',
+      promptVersion: 'v10-hybrid-legacy-g',
       marketFamiliesAccuracy: {
         minSettledDirectionalPerFamily: 5,
         minAccuracy: 0.5,
@@ -84,7 +84,7 @@ describe('evaluateReplayGates', () => {
     const summary = {
       variants: [
         {
-          promptVersion: 'v8-market-balance-followup-h',
+          promptVersion: 'v10-hybrid-legacy-g',
           totalScenarios: 20,
           pushRate: 0.75,
           goalsUnderShare: 0.5,
@@ -99,7 +99,7 @@ describe('evaluateReplayGates', () => {
     };
     const config: ReplayGateConfig = {
       summaryPath: 'x.json',
-      promptVersion: 'v8-market-balance-followup-h',
+      promptVersion: 'v10-hybrid-legacy-g',
       marketFamiliesAccuracy: {
         minSettledDirectionalPerFamily: 5,
         minAccuracy: 0.5,
@@ -121,7 +121,7 @@ describe('evaluateReplayGates', () => {
     };
     const config: ReplayGateConfig = {
       summaryPath: 'x.json',
-      promptVersion: 'v8-market-balance-followup-h',
+      promptVersion: 'v10-hybrid-legacy-g',
       goalsUnderShareMax: 0.55,
     };
     const r = evaluateReplayGates(config, summary, null);

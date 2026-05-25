@@ -264,14 +264,14 @@ describe('POST /api/recommendations', () => {
         bet_market: 'over_2.5',
         odds: 1.93,
         stake_percent: 3,
-        prompt_version: 'v4-evidence-hardened',
+        prompt_version: 'v10-hybrid-legacy-g',
       },
     });
 
     const aiPerfRepo = await import('../repos/ai-performance.repo.js');
     expect(aiPerfRepo.createAiPerformanceRecord).toHaveBeenCalledWith(expect.objectContaining({
       match_id: '203',
-      prompt_version: 'v4-evidence-hardened',
+      prompt_version: 'v10-hybrid-legacy-g',
     }));
   });
 

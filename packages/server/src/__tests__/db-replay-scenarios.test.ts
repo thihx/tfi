@@ -119,7 +119,7 @@ describe('db replay scenarios', () => {
         mode: 'B',
         result: 'win',
         pnl: 2.76,
-        prompt_version: 'v6-betting-discipline-c',
+        prompt_version: 'v10-hybrid-legacy-g',
         odds_snapshot: {
           ou: { line: 2.5, over: 2.02, under: 1.82 },
         },

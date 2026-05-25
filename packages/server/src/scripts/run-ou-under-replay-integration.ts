@@ -90,8 +90,7 @@ function parseArgs(argv: string[]): CliArgs {
   }
 
   const fallback = [
-    'v8-market-balance-followup-h',
-    'v10-hybrid-legacy-b',
+    'v10-hybrid-legacy-g',
     config.liveAnalysisActivePromptVersion,
   ].filter((v): v is string => typeof v === 'string' && v.trim().length > 0);
   const versions = promptVersions.length > 0 ? [...new Set(promptVersions)] : [...new Set(fallback)];
@@ -173,7 +172,7 @@ function main(): void {
     `npx tsx src/scripts/evaluate-settled-prompt-variants.ts --dir ${relDir} ${promptFlags} --llm real --model ${args.model} --allow-real-llm --odds ${args.oddsMode} --delay-ms 750 --llm-cache-dir ${DEFAULT_CACHE_REL} --report-json replay-baselines/${artifactPrefix}replay-summary.json --report-md replay-baselines/${artifactPrefix}replay-summary.md --report-cases-json replay-baselines/${artifactPrefix}replay-cases.json`,
   );
 
-  const primaryPrompt = args.promptVersions[0] ?? 'v8-market-balance-followup-h';
+  const primaryPrompt = args.promptVersions[0] ?? 'v10-hybrid-legacy-g';
   console.log(`[replay-integration] Step C: self-audit (${primaryPrompt}, max ${args.selfAuditMax})`);
   sh(
     `npx tsx src/scripts/evaluate-settled-prompt-self-audit.ts --dir ${relDir} --prompt-version ${primaryPrompt} --model ${args.model} --allow-real-llm --odds ${args.oddsMode} --delay-ms 750 --max-scenarios ${args.selfAuditMax} --llm-cache-dir ${DEFAULT_CACHE_REL} --report-json replay-baselines/${artifactPrefix}self-audit.json --report-md replay-baselines/${artifactPrefix}self-audit.md`,

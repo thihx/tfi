@@ -174,7 +174,12 @@ describe('fetchMatchesJob adaptive skip', () => {
   test('skips when next-run-at is in the future', async () => {
     mockRedis.get.mockResolvedValue(String(Date.now() + 5 * 60_000)); // 5 min from now
     const result = await fetchMatchesJob();
-    expect(result).toEqual({ saved: 0, leagues: 0 });
+    expect(result).toEqual({
+      saved: 0,
+      leagues: 0,
+      skipped: true,
+      skipReason: 'adaptive_poll_backoff',
+    });
     const footballApi = await import('../lib/football-api.js');
     expect(footballApi.fetchFixturesForDate).not.toHaveBeenCalled();
   });

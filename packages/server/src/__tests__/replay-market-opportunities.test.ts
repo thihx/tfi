@@ -32,7 +32,7 @@ function makeScenario(responseBets: Array<{ name: string; values: Array<{ value:
     settlementContext: {} as never,
     metadata: {
       recommendationId: 1,
-      originalPromptVersion: 'v8-market-balance-followup-b',
+      originalPromptVersion: 'v10-hybrid-legacy-g',
       originalAiModel: 'test',
       originalBetMarket: 'under_2.5',
       originalSelection: 'Under 2.5 Goals @1.90',

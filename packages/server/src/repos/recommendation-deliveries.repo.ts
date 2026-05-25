@@ -433,25 +433,6 @@ async function markDeliveryChannelRowsDelivered(
 
   await recomputeParentDeliveryState(db, updatedDeliveryIds);
 
-  // #region agent log
-  fetch('http://127.0.0.1:7269/ingest/6dfe8d16-35df-4400-a424-8cd498d50c14', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', 'X-Debug-Session-Id': '524a3d' },
-    body: JSON.stringify({
-      sessionId: '524a3d',
-      runId: 'post-fix',
-      hypothesisId: 'H4',
-      location: 'recommendation-deliveries.repo.ts:markDeliveryChannelRowsDelivered',
-      message: 'Marked delivery channel delivered',
-      data: {
-        channel,
-        deliveryIds: updatedDeliveryIds.length,
-      },
-      timestamp: Date.now(),
-    }),
-  }).catch(() => {});
-  // #endregion
-
   return updatedDeliveryIds.length;
 }
 
@@ -528,26 +509,6 @@ export async function stageRecommendationDeliveries(
   );
   const stagedDeliveryIds = Array.isArray(stagedRows.rows) ? stagedRows.rows.map((row) => Number(row.id)) : [];
   await syncDeliveryChannelStates(db, stagedDeliveryIds);
-
-  // #region agent log
-  fetch('http://127.0.0.1:7269/ingest/6dfe8d16-35df-4400-a424-8cd498d50c14', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', 'X-Debug-Session-Id': '524a3d' },
-    body: JSON.stringify({
-      sessionId: '524a3d',
-      runId: 'pre-fix',
-      hypothesisId: 'H2',
-      location: 'recommendation-deliveries.repo.ts:257',
-      message: 'Staged recommendation deliveries',
-      data: {
-        recommendationId: recommendation.id,
-        matchId: recommendation.match_id,
-        rowCount: result.rowCount ?? 0,
-      },
-      timestamp: Date.now(),
-    }),
-  }).catch(() => {});
-  // #endregion
 
   return result.rowCount ?? 0;
 }
@@ -1066,27 +1027,6 @@ export async function getPendingTelegramDeliveries(limit = 20): Promise<PendingT
       LIMIT $1`,
     [safeLimit],
   );
-
-  // #region agent log
-  fetch('http://127.0.0.1:7269/ingest/6dfe8d16-35df-4400-a424-8cd498d50c14', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', 'X-Debug-Session-Id': '524a3d' },
-    body: JSON.stringify({
-      sessionId: '524a3d',
-      runId: 'pre-fix',
-      hypothesisId: 'H4',
-      location: 'recommendation-deliveries.repo.ts:786',
-      message: 'Loaded pending Telegram deliveries',
-      data: {
-        limit: safeLimit,
-        rowCount: result.rows.length,
-        sampleRecommendationId: result.rows[0]?.recommendation_id ?? null,
-        sampleUserId: result.rows[0]?.user_id ?? null,
-      },
-      timestamp: Date.now(),
-    }),
-  }).catch(() => {});
-  // #endregion
 
   return result.rows.map((row) => ({
     deliveryId: row.delivery_id,

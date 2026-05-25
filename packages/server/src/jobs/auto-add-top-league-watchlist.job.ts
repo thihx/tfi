@@ -13,6 +13,18 @@ function isUniqueConflict(err: unknown): boolean {
   return message.includes('duplicate') || message.includes('unique');
 }
 
+function kickoffMs(match: Pick<matchRepo.MatchRow, 'kickoff_at_utc' | 'date' | 'kickoff'>): number {
+  if (match.kickoff_at_utc) {
+    const ts = Date.parse(match.kickoff_at_utc);
+    if (Number.isFinite(ts)) return ts;
+  }
+  if (match.date && match.kickoff) {
+    const ts = Date.parse(`${match.date}T${match.kickoff}:00`);
+    if (Number.isFinite(ts)) return ts;
+  }
+  return Number.NaN;
+}
+
 export async function autoAddTopLeagueWatchlistJob(): Promise<{
   candidates: number;
   added: number;
@@ -37,8 +49,8 @@ export async function autoAddTopLeagueWatchlistJob(): Promise<{
   if (windowHours > 0) {
     const cutoffMs = Date.now() + windowHours * 60 * 60_000;
     candidates = candidates.filter((match) => {
-      const kickoffMs = match.date ? Date.parse(match.date) : NaN;
-      return Number.isFinite(kickoffMs) && kickoffMs <= cutoffMs;
+      const kickoff = kickoffMs(match);
+      return Number.isFinite(kickoff) && kickoff <= cutoffMs;
     });
   }
 

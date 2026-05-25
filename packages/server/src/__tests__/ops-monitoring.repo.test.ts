@@ -137,7 +137,7 @@ describe('ops-monitoring.repo', () => {
         rows: [
           {
             execution_role: 'active',
-            prompt_version: 'v4-evidence-hardened',
+            prompt_version: 'v10-hybrid-legacy-g',
             total: '4',
             successes: '4',
             avg_latency_ms: '19000',
@@ -145,7 +145,7 @@ describe('ops-monitoring.repo', () => {
           },
           {
             execution_role: 'shadow',
-            prompt_version: 'v5-compact-a',
+            prompt_version: 'v10-hybrid-legacy-g',
             total: '4',
             successes: '4',
             avg_latency_ms: '16000',

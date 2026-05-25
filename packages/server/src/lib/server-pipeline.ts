@@ -1260,6 +1260,57 @@ function buildRecommendationDecisionContext(args: {
   };
 }
 
+function buildPrematchDecisionSummary(args: {
+  prediction: Record<string, unknown> | null;
+  strategicContext: Record<string, unknown> | null;
+  prematchExpertFeatures: PrematchExpertFeaturesV1 | null;
+  prematchAvailability?: PrematchFeatureAvailability;
+  prematchStrength?: PrematchPriorStrength;
+  prematchNoisePenalty: number | null;
+  leagueProfileWindow: { sampleMatches: number | null; eventCoverage: number | null; topLeagueOnly: boolean | null };
+  homeTeamProfileWindow: { sampleMatches: number | null; eventCoverage: number | null; topLeagueOnly: boolean | null };
+  awayTeamProfileWindow: { sampleMatches: number | null; eventCoverage: number | null; topLeagueOnly: boolean | null };
+}): string {
+  const predictionRecord = asObjectRecord(args.prediction);
+  const predictionPayload = asObjectRecord(predictionRecord?.predictions) ?? predictionRecord;
+  const strategicMeta = asObjectRecord(args.strategicContext?._meta) ?? asObjectRecord(args.strategicContext?.source_meta);
+  const strategicQuant = asObjectRecord(args.strategicContext?.quantitative);
+  const features = args.prematchExpertFeatures;
+
+  const summary = {
+    version: 1,
+    availability: args.prematchAvailability ?? 'none',
+    strength: args.prematchStrength ?? 'none',
+    noisePenalty: args.prematchNoisePenalty,
+    predictionFallbackUsed: features?.meta.prediction_fallback_used ?? null,
+    strategicContextPresent: !!args.strategicContext,
+    strategicTrustedSourceCount: features?.meta.trusted_source_count ?? null,
+    strategicRejectedSourceCount: features?.meta.rejected_source_count ?? null,
+    strategicRefreshStatus: strategicMeta?.refresh_status ?? null,
+    competitionType: features?.meta.competition_type ?? null,
+    sourceQuality: features?.meta.source_quality ?? null,
+    topLeague: features?.meta.top_league ?? null,
+    providerAdvice: predictionPayload?.advice ?? predictionPayload?.winner ?? null,
+    providerWinnerName: asObjectRecord(predictionPayload?.winner)?.name ?? null,
+    quantitativeFieldCount: strategicQuant ? Object.keys(strategicQuant).length : 0,
+    coverage: {
+      league: args.leagueProfileWindow,
+      homeTeam: args.homeTeamProfileWindow,
+      awayTeam: args.awayTeamProfileWindow,
+    },
+    featureSnapshot: features
+      ? {
+          strengthDelta: features.strength_delta,
+          goalEnvironment: features.goal_environment,
+          marketPriors: features.market_priors,
+          trustAndCoverage: features.trust_and_coverage,
+        }
+      : null,
+  };
+
+  return JSON.stringify(summary);
+}
+
 function deriveEvidenceMode(
   statsAvailable: boolean,
   oddsAvailable: boolean,
@@ -4078,6 +4129,17 @@ async function processMatch(
     const awayTeamProfileWindow = readProfileWindowSnapshot(awayTeamProfile);
     const homeOverlaySnapshot = readTeamOverlaySnapshot(homeTeamProfile);
     const awayOverlaySnapshot = readTeamOverlaySnapshot(awayTeamProfile);
+    const preMatchPredictionSummary = buildPrematchDecisionSummary({
+      prediction,
+      strategicContext,
+      prematchExpertFeatures,
+      prematchAvailability,
+      prematchStrength,
+      prematchNoisePenalty,
+      leagueProfileWindow,
+      homeTeamProfileWindow,
+      awayTeamProfileWindow,
+    });
     const structuredPrematchAskAiCheck = canRunStructuredPrematchAskAi({
       analysisMode,
       status,
@@ -4184,7 +4246,7 @@ async function processMatch(
         records: performanceMemoryRecords,
         autoRules: performanceMemoryAutoRules,
       },
-      preMatchPredictionSummary: '',
+      preMatchPredictionSummary,
       statsFallbackReason,
       userQuestion: options.userQuestion,
       followUpHistory: options.followUpHistory,
@@ -4430,7 +4492,7 @@ async function processMatch(
         odds_snapshot: oddsCanonical as Record<string, unknown>,
         stats_snapshot: statsCompact as unknown as Record<string, unknown>,
         decision_context: decisionContext,
-        pre_match_prediction_summary: '',
+        pre_match_prediction_summary: preMatchPredictionSummary,
         prompt_version: activePromptVersion,
         custom_condition_matched: parsed.custom_condition_matched,
         minute,

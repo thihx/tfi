@@ -71,6 +71,8 @@ describe('normalizeMarket', () => {
       expect(normalizeMarket('Asian Handicap -1.5', '')).toBe('asian_handicap_home_-1.5');
       expect(normalizeMarket('AH +0.5 Home', '')).toBe('asian_handicap_home_+0.5');
       expect(normalizeMarket('Asian Handicap Away -0.5', '')).toBe('asian_handicap_away_-0.5');
+      expect(normalizeMarket('Away +0.25 @2.10', '')).toBe('asian_handicap_away_+0.25');
+      expect(normalizeMarket('Home -0.75 @1.92', '')).toBe('asian_handicap_home_-0.75');
     });
 
     test('canonicalizes quarter notation and descriptive bet_market', () => {

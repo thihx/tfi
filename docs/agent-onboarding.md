@@ -30,7 +30,7 @@ The active runtime is the React/Vite app plus the Fastify backend.
 - Routes: `packages/server/src/routes/`
 - Repos/data access: `packages/server/src/repos/`
 - Shared libs/services: `packages/server/src/lib/`
-- Live analysis prompt default: `LIVE_ANALYSIS_PROMPT_VERSION` in `packages/server/src/lib/live-analysis-prompt.ts`. Override production/staging with `LIVE_ANALYSIS_ACTIVE_PROMPT_VERSION`. Prompt shadow is **off** in checked-in examples (`LIVE_ANALYSIS_SHADOW_ENABLED=false`, `LIVE_ANALYSIS_SHADOW_SAMPLE_RATE=0`); re-enable A/B only after setting a current `LIVE_ANALYSIS_SHADOW_PROMPT_VERSION` (see `packages/server/.env.example`, `.env.azure.example`).
+- Live analysis prompt default: `LIVE_ANALYSIS_PROMPT_VERSION` in `packages/server/src/lib/live-analysis-prompt.ts`. The only official live prompt is `v10-hybrid-legacy-g`; invalid or retired env values fall back to that default. Prompt shadow is **off** in checked-in examples (`LIVE_ANALYSIS_SHADOW_ENABLED=false`, `LIVE_ANALYSIS_SHADOW_SAMPLE_RATE=0`).
 - Jobs/scheduler: `packages/server/src/jobs/`
 - Migrations: `packages/server/src/db/migrations/`
 
@@ -151,7 +151,7 @@ Inspect:
 
 - **Do not** call the provider (api-sports.io) from the browser: no provider API keys in the client, no direct `fetch` to the vendor host.
 - Use the Fastify backend instead: e.g. `GET /api/matches` for the matches list, and **`/api/proxy/football/*`** for live-monitor style needs. The live-monitor feature uses `src/features/live-monitor/services/proxy.service.ts` (POST to `/api/proxy/football/live-fixtures`, `/odds`, etc.); `football-api.service.ts` wraps that proxy, not the vendor.
-- **AI live recommendations (O/U bias, prompt versions, testing):** see [docs/live-monitor-ai-ou-under-bias.md](live-monitor-ai-ou-under-bias.md).
+- **AI live recommendations:** see [docs/live-recommendation-pipeline-vi.md](live-recommendation-pipeline-vi.md).
 
 ### Backend (`packages/server/src/`)
 
@@ -170,3 +170,4 @@ Inspect:
 This repo may also contain Codex-oriented skills under `.codex/skills/`.
 They can help Codex, but they are not required for agents that do not support that system.
 This onboarding doc should remain the neutral source of truth.
+For Codex agents, recommendation pipeline work must also use `.codex/skills/tfi-recommendation-pipeline/`.

@@ -37,19 +37,19 @@ beforeEach(() => {
 describe('recommendations repository prompt versioning', () => {
   test('createRecommendation inserts prompt_version', async () => {
     clientQuery.mockResolvedValueOnce({
-      rows: [{ id: 1, prompt_version: 'v4-evidence-hardened' }],
+      rows: [{ id: 1, prompt_version: 'v10-hybrid-legacy-g' }],
     } as never);
 
     await createRecommendation({
       match_id: '100',
       selection: 'Over 2.5 Goals @1.85',
       bet_market: 'over_2.5',
-      prompt_version: 'v4-evidence-hardened',
+      prompt_version: 'v10-hybrid-legacy-g',
     });
 
     expect(clientQuery).toHaveBeenCalledWith(
       expect.stringContaining('prompt_version'),
-      expect.arrayContaining(['v4-evidence-hardened']),
+      expect.arrayContaining(['v10-hybrid-legacy-g']),
     );
     expect(stageRecommendationDeliveries).toHaveBeenCalledWith(
       { query: clientQuery },
@@ -62,20 +62,20 @@ describe('recommendations repository prompt versioning', () => {
   });
 
   test('bulkCreateRecommendations inserts prompt_version', async () => {
-    clientQuery.mockResolvedValueOnce({ rowCount: 1, rows: [{ id: 1, prompt_version: 'v4-evidence-hardened' }] } as never);
+    clientQuery.mockResolvedValueOnce({ rowCount: 1, rows: [{ id: 1, prompt_version: 'v10-hybrid-legacy-g' }] } as never);
 
     await bulkCreateRecommendations([
       {
         match_id: '100',
         selection: 'Over 2.5 Goals @1.85',
         bet_market: 'over_2.5',
-        prompt_version: 'v4-evidence-hardened',
+        prompt_version: 'v10-hybrid-legacy-g',
       },
     ]);
 
     expect(clientQuery).toHaveBeenCalledWith(
       expect.stringContaining('prompt_version'),
-      expect.arrayContaining(['v4-evidence-hardened']),
+      expect.arrayContaining(['v10-hybrid-legacy-g']),
     );
     expect(stageRecommendationDeliveries).toHaveBeenCalledWith(
       { query: clientQuery },

@@ -61,7 +61,7 @@ function makeScenario(): SettledReplayScenario {
     }],
     metadata: {
       recommendationId: 1001,
-      originalPromptVersion: 'v6-betting-discipline-c',
+      originalPromptVersion: 'v10-hybrid-legacy-g',
       originalAiModel: 'gemini-3.5-flash',
       originalBetMarket: 'under_2.5',
       originalSelection: 'Under 2.5 Goals @1.90',
@@ -112,7 +112,7 @@ function makeReplayOutput(): ReplayRunOutput {
       saved: false,
       notified: false,
       debug: {
-        promptVersion: 'v8-market-balance-followup-a',
+        promptVersion: 'v10-hybrid-legacy-g',
         prompt: `
 ========================
 LEAGUE PROFILE
@@ -189,7 +189,7 @@ describe('settled replay self audit', () => {
       {
         scenarioName: 'case-a',
         recommendationId: 1,
-        promptVersion: 'v8-market-balance-followup-a',
+        promptVersion: 'v10-hybrid-legacy-g',
         originalBetMarket: 'under_2.5',
         replayBetMarket: 'under_2.5',
         replayShouldPush: true,
@@ -211,7 +211,7 @@ describe('settled replay self audit', () => {
       {
         scenarioName: 'case-b',
         recommendationId: 2,
-        promptVersion: 'v8-market-balance-followup-a',
+        promptVersion: 'v10-hybrid-legacy-g',
         originalBetMarket: '1x2_home',
         replayBetMarket: 'unknown',
         replayShouldPush: false,

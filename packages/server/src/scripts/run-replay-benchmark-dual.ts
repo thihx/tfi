@@ -27,7 +27,7 @@ function stripApplyReplayPolicyFlag(argv: string[]): string[] {
 function parseArgs(argv: string[]): { max: number; clearCache: boolean; promptVersion: string } {
   let max = 120;
   let clearCache = false;
-  let promptVersion = 'v8-market-balance-followup-j';
+  let promptVersion = 'v10-hybrid-legacy-g';
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i];
     const n = argv[i + 1];

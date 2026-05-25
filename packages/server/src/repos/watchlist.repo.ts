@@ -80,6 +80,7 @@ interface AggregatedWatchlistQueryRow {
 }
 
 const LIVE_MATCH_STATUSES = ['1H', '2H', 'HT', 'ET', 'BT', 'P', 'LIVE', 'INT'] as const;
+const OPERATIONAL_WATCHLIST_CUTOFF_MINUTES = 120;
 
 function normalizeObject(value: unknown): Record<string, unknown> {
   return value && typeof value === 'object' && !Array.isArray(value)
@@ -330,7 +331,34 @@ async function getUserWatchlistRows(
 }
 
 async function getLegacyWatchlistByMatchId(matchId: string): Promise<WatchlistRow | null> {
-  const r = await query<WatchlistRow>('SELECT * FROM watchlist WHERE match_id = $1', [matchId]);
+  const r = await query<WatchlistRow>(
+    `SELECT w.*
+     FROM watchlist w
+     LEFT JOIN matches m ON m.match_id::text = w.match_id
+     WHERE w.match_id = $1
+       AND (
+         EXISTS (
+           SELECT 1
+           FROM user_watch_subscriptions s
+           WHERE s.match_id = w.match_id
+         )
+         OR
+         m.status = ANY($3)
+         OR COALESCE(
+           m.kickoff_at_utc,
+           CASE
+             WHEN COALESCE(m.date, w.date) IS NOT NULL
+              AND COALESCE(m.kickoff, w.kickoff) IS NOT NULL
+             THEN (
+               COALESCE(m.date, w.date)
+               + COALESCE(m.kickoff, w.kickoff)
+             ) AT TIME ZONE $2
+             ELSE NULL
+           END
+         ) + $4 * INTERVAL '1 minute' >= NOW()
+       )`,
+    [matchId, config.timezone, LIVE_MATCH_STATUSES, OPERATIONAL_WATCHLIST_CUTOFF_MINUTES],
+  );
   return r.rows[0] ?? null;
 }
 
@@ -377,14 +405,28 @@ async function getMonitoredOperationalWatchlist(
          COALESCE(mm.subscriber_count, 0) > 0
          OR EXISTS (
            SELECT 1
-           FROM watchlist w
-           WHERE w.match_id = mm.match_id
+           FROM user_watch_subscriptions s
+           WHERE s.match_id = mm.match_id
          )
+         OR m.status = ANY($3)
+         OR COALESCE(
+           m.kickoff_at_utc,
+           NULLIF(mm.metadata->>'kickoff_at_utc', '')::timestamptz,
+           CASE
+             WHEN COALESCE(m.date, NULLIF(mm.metadata->>'date', '')::date) IS NOT NULL
+              AND COALESCE(m.kickoff, NULLIF(mm.metadata->>'kickoff', '')::time) IS NOT NULL
+             THEN (
+               COALESCE(m.date, NULLIF(mm.metadata->>'date', '')::date)
+               + COALESCE(m.kickoff, NULLIF(mm.metadata->>'kickoff', '')::time)
+             ) AT TIME ZONE $2
+             ELSE NULL
+           END
+         ) + $4 * INTERVAL '1 minute' >= NOW()
        )
      )
      ORDER BY match_date NULLS LAST,
               match_kickoff NULLS LAST`,
-    [activeOnly],
+    [activeOnly, config.timezone, LIVE_MATCH_STATUSES, OPERATIONAL_WATCHLIST_CUTOFF_MINUTES],
   );
 
   return result.rows.map((row) => {
@@ -429,11 +471,15 @@ export async function backfillOperationalWatchlistFromLegacy(): Promise<number> 
        NOW(),
        jsonb_strip_nulls(jsonb_build_object(
          'date', w.date,
-         'kickoff_at_utc', CASE
-           WHEN w.date IS NOT NULL AND w.kickoff IS NOT NULL
-             THEN (((w.date + w.kickoff) AT TIME ZONE current_setting('TIMEZONE'))::text)
-           ELSE NULL
-         END,
+         'kickoff_at_utc', COALESCE(
+           m.kickoff_at_utc::text,
+           CASE
+             WHEN COALESCE(m.date, w.date) IS NOT NULL
+              AND COALESCE(m.kickoff, w.kickoff) IS NOT NULL
+             THEN (((COALESCE(m.date, w.date) + COALESCE(m.kickoff, w.kickoff)) AT TIME ZONE $2)::text)
+             ELSE NULL
+           END
+         ),
          'league', NULLIF(w.league, ''),
          'home_team', NULLIF(w.home_team, ''),
          'away_team', NULLIF(w.away_team, ''),
@@ -457,8 +503,31 @@ export async function backfillOperationalWatchlistFromLegacy(): Promise<number> 
        ))
      FROM watchlist w
      LEFT JOIN monitored_matches mm ON mm.match_id = w.match_id
+     LEFT JOIN matches m ON m.match_id::text = w.match_id
      WHERE mm.match_id IS NULL
+       AND (
+         EXISTS (
+           SELECT 1
+           FROM user_watch_subscriptions s
+           WHERE s.match_id = w.match_id
+         )
+         OR
+         m.status = ANY($3)
+         OR COALESCE(
+           m.kickoff_at_utc,
+           CASE
+             WHEN COALESCE(m.date, w.date) IS NOT NULL
+              AND COALESCE(m.kickoff, w.kickoff) IS NOT NULL
+             THEN (
+               COALESCE(m.date, w.date)
+               + COALESCE(m.kickoff, w.kickoff)
+             ) AT TIME ZONE $2
+             ELSE NULL
+           END
+         ) + $1 * INTERVAL '1 minute' >= NOW()
+       )
      ON CONFLICT (match_id) DO NOTHING`,
+    [OPERATIONAL_WATCHLIST_CUTOFF_MINUTES, config.timezone, LIVE_MATCH_STATUSES],
   );
 
   return result.rowCount ?? 0;
@@ -947,6 +1016,7 @@ export async function expireOldEntriesDetailed(cutoffMinutes: number = 120): Pro
   expiredSubscriptions: number;
   refreshedSubscriberCounts: number;
   deletedMonitoredMatches: number;
+  deletedLegacyWatchlist: number;
   totalChanged: number;
 }> {
   await backfillOperationalWatchlistFromLegacy();
@@ -1011,11 +1081,48 @@ export async function expireOldEntriesDetailed(cutoffMinutes: number = 120): Pro
     [cutoffMinutes, config.timezone, LIVE_MATCH_STATUSES],
   );
 
+  const legacyResult = await query(
+    `DELETE FROM watchlist w
+      USING (
+        SELECT
+          w2.match_id,
+          COALESCE(
+            m.kickoff_at_utc,
+            CASE
+              WHEN COALESCE(m.date, w2.date) IS NOT NULL
+               AND COALESCE(m.kickoff, w2.kickoff) IS NOT NULL
+              THEN (
+                COALESCE(m.date, w2.date)
+                + COALESCE(m.kickoff, w2.kickoff)
+              ) AT TIME ZONE $2
+              ELSE NULL
+            END
+          ) AS resolved_kickoff_at,
+          COALESCE(m.status, 'NS') AS resolved_status
+        FROM watchlist w2
+        LEFT JOIN matches m ON m.match_id::text = w2.match_id
+      ) resolved
+      WHERE resolved.match_id = w.match_id
+        AND resolved.resolved_kickoff_at + $1 * INTERVAL '1 minute' < NOW()
+        AND resolved.resolved_status <> ALL($3)
+        AND NOT EXISTS (
+          SELECT 1
+          FROM user_watch_subscriptions s
+          WHERE s.match_id = w.match_id
+        )`,
+    [cutoffMinutes, config.timezone, LIVE_MATCH_STATUSES],
+  );
+
   return {
     expiredSubscriptions: expiredSubscriptions.rowCount ?? 0,
     refreshedSubscriberCounts: expiredMatchIds.length,
     deletedMonitoredMatches: monitoredResult.rowCount ?? 0,
-    totalChanged: Math.max(expiredMatchIds.length, monitoredResult.rowCount ?? 0),
+    deletedLegacyWatchlist: legacyResult.rowCount ?? 0,
+    totalChanged: Math.max(
+      expiredMatchIds.length,
+      monitoredResult.rowCount ?? 0,
+      legacyResult.rowCount ?? 0,
+    ),
   };
 }
 

@@ -173,7 +173,7 @@ describe('watchlist repository user-scoped isolation', () => {
     expect(sqlTexts.some((sql) => sql.includes('INSERT INTO watchlist'))).toBe(false);
   });
 
-  test('backfillOperationalWatchlistFromLegacy seeds monitored rows for legacy entries regardless of status', async () => {
+  test('backfillOperationalWatchlistFromLegacy only seeds legacy entries that are still operational', async () => {
     vi.mocked(query).mockResolvedValueOnce({ rowCount: 4 } as never);
 
     const inserted = await backfillOperationalWatchlistFromLegacy();
@@ -185,6 +185,10 @@ describe('watchlist repository user-scoped isolation', () => {
     expect(sql).toContain('FROM watchlist w');
     expect(sql).toContain("'kickoff_at_utc'");
     expect(sql).toContain('LEFT JOIN monitored_matches mm ON mm.match_id = w.match_id');
+    expect(sql).toContain('LEFT JOIN matches m ON m.match_id::text = w.match_id');
+    expect(sql).toContain('FROM user_watch_subscriptions s');
+    expect(sql).toContain("m.status = ANY($3)");
+    expect(sql).toContain("$1 * INTERVAL '1 minute' >= NOW()");
     expect(sql).not.toContain("w.status = 'active'");
   });
 
@@ -226,7 +230,7 @@ describe('watchlist repository user-scoped isolation', () => {
     expect(sql).toContain('COALESCE(mm.subscriber_count, 0) > 0');
   });
 
-  test('getActiveOperationalWatchlist excludes orphan monitored rows with zero subscribers unless legacy watchlist is still active', async () => {
+  test('getActiveOperationalWatchlist excludes orphan monitored rows with zero subscribers after cutoff', async () => {
     vi.mocked(query)
       .mockResolvedValueOnce({ rowCount: 0 } as never)
       .mockResolvedValueOnce({ rows: [] } as never);
@@ -235,8 +239,9 @@ describe('watchlist repository user-scoped isolation', () => {
 
     const sql = String(vi.mocked(query).mock.calls[1]?.[0]);
     expect(sql).toContain('COALESCE(mm.subscriber_count, 0) > 0');
-    expect(sql).toContain('EXISTS (');
-    expect(sql).toContain('FROM watchlist w');
+    expect(sql).toContain("m.status = ANY($3)");
+    expect(sql).toContain("$4 * INTERVAL '1 minute' >= NOW()");
+    expect(sql).not.toContain('FROM watchlist w');
   });
 
   test('getAllOperationalWatchlist casts ranked created_at before coalescing with metadata text fallbacks', async () => {
@@ -335,72 +340,21 @@ describe('watchlist repository user-scoped isolation', () => {
 
     expect(result?.match_id).toBe('match-9');
     const sqlTexts = vi.mocked(query).mock.calls.map((call) => String(call[0]));
-    expect(sqlTexts.some((sql) => sql.includes('SELECT * FROM watchlist WHERE match_id = $1'))).toBe(true);
+    expect(sqlTexts.some((sql) => sql.includes('FROM watchlist w'))).toBe(true);
     expect(sqlTexts.some((sql) => sql.includes('INSERT INTO monitored_matches'))).toBe(true);
   });
 
-  test('getOperationalWatchlistByMatchId mirrors expired legacy rows into monitored matches before returning', async () => {
+  test('getOperationalWatchlistByMatchId does not mirror expired legacy rows into monitored matches', async () => {
     vi.mocked(query)
       .mockResolvedValueOnce({ rows: [] } as never)
-      .mockResolvedValueOnce({
-        rows: [{
-          id: 15,
-          match_id: 'match-10',
-          date: '2026-03-24',
-          league: 'La Liga',
-          home_team: 'Barcelona',
-          away_team: 'Sevilla',
-          home_logo: '',
-          away_logo: '',
-          kickoff: '20:00',
-          prediction: null,
-          recommended_custom_condition: '',
-          recommended_condition_reason: '',
-          recommended_condition_reason_vi: '',
-          recommended_condition_at: null,
-          auto_apply_recommended_condition: true,
-          custom_conditions: '',
-          added_at: '2026-03-24T00:00:00.000Z',
-          added_by: 'top-league-auto',
-          last_checked: null,
-          total_checks: 0,
-          recommendations_count: 0,
-          strategic_context: null,
-          strategic_context_at: null,
-        }],
-      } as never)
-      .mockResolvedValueOnce({ rows: [] } as never)
-      .mockResolvedValueOnce({
-        rows: [{
-          match_id: 'match-10',
-          custom_condition_text: '',
-          auto_apply_recommended_condition: true,
-          source: 'top-league-auto',
-          created_at: '2026-03-24T00:00:00.000Z',
-          subscriber_count: 0,
-          metadata: {
-            home_team: 'Barcelona',
-            away_team: 'Sevilla',
-            league: 'La Liga',
-            added_by: 'top-league-auto',
-          },
-          match_date: '2026-03-24',
-          match_kickoff: '20:00',
-          match_league: 'La Liga',
-          home_team: 'Barcelona',
-          away_team: 'Sevilla',
-          home_logo: '',
-          away_logo: '',
-          match_status: 'FT',
-        }],
-      } as never);
+      .mockResolvedValueOnce({ rows: [] } as never);
 
     const result = await getOperationalWatchlistByMatchId('match-10');
 
-    expect(result?.match_id).toBe('match-10');
+    expect(result).toBeNull();
     const sqlTexts = vi.mocked(query).mock.calls.map((call) => String(call[0]));
-    expect(sqlTexts.some((sql) => sql.includes('SELECT * FROM watchlist WHERE match_id = $1'))).toBe(true);
-    expect(sqlTexts.some((sql) => sql.includes('INSERT INTO monitored_matches'))).toBe(true);
+    expect(sqlTexts.some((sql) => sql.includes('FROM watchlist w'))).toBe(true);
+    expect(sqlTexts.some((sql) => sql.includes('INSERT INTO monitored_matches'))).toBe(false);
   });
 
   test('getKickoffMinutesForMatchIds uses monitored metadata fallback instead of legacy watchlist rows', async () => {
@@ -500,22 +454,24 @@ describe('watchlist repository user-scoped isolation', () => {
     expect(statusList).toContain('2H');
   });
 
-  test('expireOldEntries deletes completed subscriptions and prunes monitored matches without mutating legacy rows', async () => {
+  test('expireOldEntries deletes completed subscriptions and prunes monitored plus stale legacy rows', async () => {
     vi.mocked(query)
       .mockResolvedValueOnce({ rowCount: 0 } as never)
       .mockResolvedValueOnce({ rows: [{ match_id: 'match-1' }, { match_id: 'match-2' }, { match_id: 'match-2' }] } as never)
       .mockResolvedValueOnce({ rowCount: 1 } as never)
       .mockResolvedValueOnce({ rowCount: 1 } as never)
-      .mockResolvedValueOnce({ rowCount: 2 } as never);
+      .mockResolvedValueOnce({ rowCount: 2 } as never)
+      .mockResolvedValueOnce({ rowCount: 3 } as never);
 
     const expired = await expireOldEntries(120);
 
-    expect(expired).toBe(2);
+    expect(expired).toBe(3);
     const sqlTexts = vi.mocked(query).mock.calls.map((call) => String(call[0]));
     expect(sqlTexts.some((sql) => sql.includes('UPDATE watchlist SET status'))).toBe(false);
     expect(sqlTexts.some((sql) => sql.includes('m.kickoff_at_utc'))).toBe(true);
     expect(sqlTexts.filter((sql) => sql.includes('DELETE FROM user_watch_subscriptions')).length).toBe(1);
     expect(sqlTexts.filter((sql) => sql.includes('DELETE FROM monitored_matches')).length).toBe(1);
+    expect(sqlTexts.filter((sql) => sql.includes('DELETE FROM watchlist w')).length).toBe(1);
     expect(sqlTexts.filter((sql) => sql.includes('INSERT INTO monitored_matches')).length).toBe(3);
   });
 });

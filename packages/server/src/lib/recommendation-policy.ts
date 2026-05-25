@@ -1,6 +1,6 @@
 /**
- * Post-parse gates: see `docs/live-monitor-ai-ou-under-bias.md` before tightening Under/Over asymmetry.
- * Global settlement-informed guards (all prompt versions) reduce recurring loss clusters (HT Under tight,
+ * Post-parse gates: see `docs/live-recommendation-pipeline-vi.md` before tightening Under/Over asymmetry.
+ * Global settlement-informed guards reduce recurring loss clusters (HT Under tight,
  * BTTS Yes one-sided score, AH home chalk, corners under in open games, MEDIUM with thin edge).
  */
 import { normalizeMarket } from './normalize-market.js';
@@ -162,20 +162,17 @@ export function applyRecommendationPolicy(input: RecommendationPolicyInput): Rec
   let blocked = false;
   let confidence = input.confidence;
   let stakePercent = input.stakePercent;
-  const promptVersion = String(input.promptVersion ?? '').trim();
-  const isV8 = promptVersion === 'v8-market-balance-followup-a' || promptVersion === 'v8-market-balance-followup-b';
-  const isV8b = promptVersion === 'v8-market-balance-followup-b';
-  const isV8d = promptVersion === 'v8-market-balance-followup-d' || promptVersion === 'v8-market-balance-followup-e';
-  const isV8f = promptVersion === 'v8-market-balance-followup-f';
-  const isV8g = promptVersion === 'v8-market-balance-followup-g';
-  const isV8h = promptVersion === 'v8-market-balance-followup-h';
-  const isV8i = promptVersion === 'v8-market-balance-followup-i';
-  const isV8j = promptVersion === 'v8-market-balance-followup-j';
-  const isV10c = promptVersion === 'v10-hybrid-legacy-c';
-  const isV10d = promptVersion === 'v10-hybrid-legacy-d';
-  const isV10e = promptVersion === 'v10-hybrid-legacy-e';
-  const isV10f = promptVersion === 'v10-hybrid-legacy-f';
-  const isV10g = promptVersion === 'v10-hybrid-legacy-g';
+  const isV8d = true;
+  const isV8f = true;
+  const isV8g = true;
+  const isV8h = true;
+  const isV8i = true;
+  const isV8j = true;
+  const isV10c = true;
+  const isV10d = true;
+  const isV10e = true;
+  const isV10f = true;
+  const isV10g = true;
   const isV8dFamily = isV8d || isV8f || isV8g || isV8h || isV8i || isV8j;
   const scoreState = getScoreState(input.score);
   const totalGoals = getTotalGoals(input.score);
@@ -297,16 +294,8 @@ export function applyRecommendationPolicy(input: RecommendationPolicyInput): Rec
     block('POLICY_BLOCK_1X2_DRAW');
   }
 
-  if (canonicalMarket === '1x2_home' && input.minute < (isV8dFamily ? 35 : isV8b ? 55 : isV8 ? 60 : 75)) {
-    block(
-      isV8dFamily
-        ? 'POLICY_BLOCK_1X2_HOME_PRE35_V8D'
-        : isV8b
-          ? 'POLICY_BLOCK_1X2_HOME_PRE55_V8B'
-          : isV8
-            ? 'POLICY_BLOCK_1X2_HOME_PRE60_V8'
-            : 'POLICY_BLOCK_1X2_HOME_PRE75',
-    );
+  if (canonicalMarket === '1x2_home' && input.minute < 75) {
+    block('POLICY_BLOCK_1X2_HOME_PRE75');
   }
 
   if (canonicalMarket === 'over_0.5' && input.minute >= 75) {

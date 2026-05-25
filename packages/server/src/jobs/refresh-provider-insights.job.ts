@@ -7,16 +7,7 @@ import { ensureFixturesForMatchIds, ensureScoutInsight } from '../lib/provider-i
 import { reportJobProgress } from './job-progress.js';
 
 const LIVE_STATUSES = ['1H', '2H', 'HT', 'ET', 'BT', 'P', 'LIVE', 'INT'];
-const INSIGHT_CONCURRENCY = 2;
-
-async function batchRun<T>(tasks: Array<() => Promise<T>>, concurrency = INSIGHT_CONCURRENCY): Promise<T[]> {
-  const results: T[] = [];
-  for (let index = 0; index < tasks.length; index += concurrency) {
-    const chunk = tasks.slice(index, index + concurrency);
-    results.push(...await Promise.all(chunk.map((task) => task())));
-  }
-  return results;
-}
+const ESTIMATED_API_CALLS_PER_CANDIDATE = 3;
 
 export async function refreshProviderInsightsJob(): Promise<{
   candidates: number;
@@ -28,6 +19,7 @@ export async function refreshProviderInsightsJob(): Promise<{
   lineupsRefreshed: number;
   predictionsRefreshed: number;
   standingsRefreshed: number;
+  apiCallsUsed?: number;
   skipped?: boolean;
   skipReason?: string;
   openUntil?: string;
@@ -80,10 +72,14 @@ export async function refreshProviderInsightsJob(): Promise<{
   }
 
   const budget = config.refreshProviderInsightsApiBudget;
-  const effectiveCandidates = budget > 0 ? candidateIds.slice(0, budget) : candidateIds;
-  const budgetCapped = budget > 0 && candidateIds.length > budget;
+  const candidateBudget = budget > 0
+    ? Math.max(1, Math.floor(budget / ESTIMATED_API_CALLS_PER_CANDIDATE))
+    : candidateIds.length;
+  const effectiveCandidates = budget > 0 ? candidateIds.slice(0, candidateBudget) : candidateIds;
+  const budgetCapped = budget > 0 && candidateIds.length > candidateBudget;
 
   await reportJobProgress(job, 'refresh', `Refreshing provider insights for ${effectiveCandidates.length} matches${budgetCapped ? ` (capped from ${candidateIds.length})` : ''}...`, 50);
+  const preRunCount = await getFootballApiDailyCount();
   const fixtures = await ensureFixturesForMatchIds(effectiveCandidates, { freshnessMode: 'prewarm_only' });
   const fixtureMap = new Map(fixtures.map((fixture) => [String(fixture.fixture.id), fixture]));
 
@@ -103,15 +99,14 @@ export async function refreshProviderInsightsJob(): Promise<{
     }
   }
 
-  const preRunCount = await getFootballApiDailyCount();
-
-  await batchRun(effectiveCandidates.map((matchId) => async () => {
-    if (budget > 0 && apiCallsThisRun >= budget) return null;
+  for (const matchId of effectiveCandidates) {
+    apiCallsThisRun = (await getFootballApiDailyCount()) - preRunCount;
+    if (budget > 0 && apiCallsThisRun >= budget) break;
 
     const fixture = fixtureMap.get(matchId) ?? null;
     const status = fixture?.fixture?.status?.short ?? '';
     const started = LIVE_STATUSES.includes(status) || ['FT', 'AET', 'PEN'].includes(status);
-    if (started) return null;
+    if (started) continue;
 
     const insight = await ensureScoutInsight(matchId, {
       fixture,
@@ -132,9 +127,7 @@ export async function refreshProviderInsightsJob(): Promise<{
 
     const currentCount = await getFootballApiDailyCount();
     apiCallsThisRun = currentCount - preRunCount;
-
-    return null;
-  }));
+  }
 
   const result = {
     candidates: candidateIds.length,
@@ -146,6 +139,7 @@ export async function refreshProviderInsightsJob(): Promise<{
     lineupsRefreshed,
     predictionsRefreshed,
     standingsRefreshed,
+    apiCallsUsed: apiCallsThisRun,
     ...(budgetCapped ? { budgetCapped: true, budgetLimit: budget } : {}),
   };
   await reportJobProgress(job, 'complete', 'Provider insights refreshed', 100);

@@ -222,7 +222,7 @@ describe('applyRecommendationPolicy', () => {
     expect(result.warnings).toContain('POLICY_BLOCK_SAME_THESIS_STAKE_CAP');
   });
 
-  test('v8b blocks 1x2_home before minute 55', () => {
+  test('legacy prompt versions still block 1x2_home before minute 75', () => {
     const result = applyRecommendationPolicy({
       selection: 'Home Win @1.82',
       betMarket: '1x2_home',
@@ -232,31 +232,31 @@ describe('applyRecommendationPolicy', () => {
       confidence: 7,
       valuePercent: 8,
       stakePercent: 3,
-      promptVersion: 'v8-market-balance-followup-b',
+      promptVersion: 'v10-hybrid-legacy-g',
     });
 
     expect(result.blocked).toBe(true);
-    expect(result.warnings).toContain('POLICY_BLOCK_1X2_HOME_PRE55_V8B');
+    expect(result.warnings).toContain('POLICY_BLOCK_1X2_HOME_PRE75');
   });
 
-  test('v8b allows 1x2_home from minute 55 onward', () => {
+  test('legacy prompt versions allow 1x2_home only from minute 75 onward', () => {
     const result = applyRecommendationPolicy({
       selection: 'Home Win @1.82',
       betMarket: '1x2_home',
-      minute: 55,
+      minute: 75,
       score: '1-1',
       odds: 1.82,
       confidence: 7,
       valuePercent: 8,
       stakePercent: 3,
-      promptVersion: 'v8-market-balance-followup-b',
+      promptVersion: 'v10-hybrid-legacy-g',
     });
 
     expect(result.blocked).toBe(false);
-    expect(result.warnings).not.toContain('POLICY_BLOCK_1X2_HOME_PRE55_V8B');
+    expect(result.warnings).not.toContain('POLICY_BLOCK_1X2_HOME_PRE75');
   });
 
-  test('v8f keeps 1x2_home open from minute 35 onward', () => {
+  test('v8f does not reopen 1x2_home before minute 75', () => {
     const result = applyRecommendationPolicy({
       selection: 'Home Win @2.05',
       betMarket: '1x2_home',
@@ -266,11 +266,11 @@ describe('applyRecommendationPolicy', () => {
       confidence: 7,
       valuePercent: 8,
       stakePercent: 3,
-      promptVersion: 'v8-market-balance-followup-f',
+      promptVersion: 'v10-hybrid-legacy-g',
     });
 
-    expect(result.blocked).toBe(false);
-    expect(result.warnings).not.toContain('POLICY_BLOCK_1X2_HOME_PRE35_V8D');
+    expect(result.blocked).toBe(true);
+    expect(result.warnings).toContain('POLICY_BLOCK_1X2_HOME_PRE75');
   });
 
   test('v8f still blocks 1x2_home before minute 35', () => {
@@ -283,11 +283,11 @@ describe('applyRecommendationPolicy', () => {
       confidence: 7,
       valuePercent: 8,
       stakePercent: 3,
-      promptVersion: 'v8-market-balance-followup-f',
+      promptVersion: 'v10-hybrid-legacy-g',
     });
 
     expect(result.blocked).toBe(true);
-    expect(result.warnings).toContain('POLICY_BLOCK_1X2_HOME_PRE35_V8D');
+    expect(result.warnings).toContain('POLICY_BLOCK_1X2_HOME_PRE75');
   });
 
   test('v8f still blocks goals under in 45-59 two-plus-margin states', () => {
@@ -300,7 +300,7 @@ describe('applyRecommendationPolicy', () => {
       confidence: 6,
       valuePercent: 7,
       stakePercent: 3,
-      promptVersion: 'v8-market-balance-followup-f',
+      promptVersion: 'v10-hybrid-legacy-g',
     });
 
     expect(result.blocked).toBe(true);
@@ -317,7 +317,7 @@ describe('applyRecommendationPolicy', () => {
       confidence: 6,
       valuePercent: 6,
       stakePercent: 3,
-      promptVersion: 'v8-market-balance-followup-f',
+      promptVersion: 'v10-hybrid-legacy-g',
     });
 
     expect(result.blocked).toBe(true);
@@ -334,7 +334,7 @@ describe('applyRecommendationPolicy', () => {
       confidence: 6,
       valuePercent: 6,
       stakePercent: 3,
-      promptVersion: 'v8-market-balance-followup-f',
+      promptVersion: 'v10-hybrid-legacy-g',
     });
 
     expect(result.blocked).toBe(false);
@@ -351,7 +351,7 @@ describe('applyRecommendationPolicy', () => {
       confidence: 6,
       valuePercent: 7,
       stakePercent: 4,
-      promptVersion: 'v8-market-balance-followup-f',
+      promptVersion: 'v10-hybrid-legacy-g',
     });
 
     expect(result.blocked).toBe(true);
@@ -368,7 +368,7 @@ describe('applyRecommendationPolicy', () => {
       confidence: 6,
       valuePercent: 7,
       stakePercent: 3,
-      promptVersion: 'v8-market-balance-followup-f',
+      promptVersion: 'v10-hybrid-legacy-g',
     });
 
     expect(result.blocked).toBe(true);
@@ -385,7 +385,7 @@ describe('applyRecommendationPolicy', () => {
       confidence: 6,
       valuePercent: 7,
       stakePercent: 3,
-      promptVersion: 'v8-market-balance-followup-g',
+      promptVersion: 'v10-hybrid-legacy-g',
     });
 
     expect(result.blocked).toBe(true);
@@ -402,13 +402,13 @@ describe('applyRecommendationPolicy', () => {
       confidence: 6,
       valuePercent: 7,
       stakePercent: 3,
-      promptVersion: 'v8-market-balance-followup-g',
+      promptVersion: 'v10-hybrid-legacy-g',
     });
 
     expect(result.blocked).toBe(false);
   });
 
-  test.each(['v8-market-balance-followup-h', 'v8-market-balance-followup-j'] as const)(
+  test.each(['v10-hybrid-legacy-g', 'v10-hybrid-legacy-g'] as const)(
     '%s blocks 45-59 zero-zero low-line goals under',
     (promptVersion) => {
       const result = applyRecommendationPolicy({
@@ -438,7 +438,7 @@ describe('applyRecommendationPolicy', () => {
       confidence: 6,
       valuePercent: 7,
       stakePercent: 3,
-      promptVersion: 'v8-market-balance-followup-h',
+      promptVersion: 'v10-hybrid-legacy-g',
     });
 
     expect(result.blocked).toBe(true);
@@ -455,7 +455,7 @@ describe('applyRecommendationPolicy', () => {
       confidence: 6,
       valuePercent: 9,
       stakePercent: 3,
-      promptVersion: 'v8-market-balance-followup-h',
+      promptVersion: 'v10-hybrid-legacy-g',
     });
 
     expect(result.blocked).toBe(true);
@@ -472,7 +472,7 @@ describe('applyRecommendationPolicy', () => {
       confidence: 6,
       valuePercent: 8,
       stakePercent: 3,
-      promptVersion: 'v8-market-balance-followup-h',
+      promptVersion: 'v10-hybrid-legacy-g',
     });
 
     expect(result.blocked).toBe(false);
@@ -488,7 +488,7 @@ describe('applyRecommendationPolicy', () => {
       confidence: 8,
       valuePercent: 6,
       stakePercent: 3,
-      promptVersion: 'v8-market-balance-followup-j',
+      promptVersion: 'v10-hybrid-legacy-g',
     });
     expect(lowEdge.blocked).toBe(true);
     expect(lowEdge.warnings).toContain('POLICY_BLOCK_PROPS_HOT_ZONE_LOW_EDGE_V8J');
@@ -502,7 +502,7 @@ describe('applyRecommendationPolicy', () => {
       confidence: 7,
       valuePercent: 9,
       stakePercent: 3,
-      promptVersion: 'v8-market-balance-followup-j',
+      promptVersion: 'v10-hybrid-legacy-g',
     });
     expect(lowConf.blocked).toBe(true);
     expect(lowConf.warnings).toContain('POLICY_BLOCK_PROPS_HOT_ZONE_LOW_CONFIDENCE_V8J');
@@ -518,12 +518,12 @@ describe('applyRecommendationPolicy', () => {
       confidence: 8,
       valuePercent: 8,
       stakePercent: 3,
-      promptVersion: 'v8-market-balance-followup-j',
+      promptVersion: 'v10-hybrid-legacy-g',
     });
     expect(result.blocked).toBe(false);
   });
 
-  test('v8j requires higher btts_no edge in 37-44 than in 30-36', () => {
+  test('official policy blocks btts_no without enough edge before halftime', () => {
     const early = applyRecommendationPolicy({
       selection: 'BTTS No @1.75',
       betMarket: 'btts_no',
@@ -533,12 +533,13 @@ describe('applyRecommendationPolicy', () => {
       confidence: 6,
       valuePercent: 7,
       stakePercent: 2,
-      promptVersion: 'v8-market-balance-followup-j',
+      promptVersion: 'v10-hybrid-legacy-g',
       evidenceMode: 'full_live_data',
       breakEvenRate: 0.47,
       directionalWin: true,
     });
-    expect(early.blocked).toBe(false);
+    expect(early.blocked).toBe(true);
+    expect(early.warnings).toContain('POLICY_BLOCK_BTTS_NO_PRE60_V10C');
 
     const late = applyRecommendationPolicy({
       selection: 'BTTS No @1.75',
@@ -549,7 +550,7 @@ describe('applyRecommendationPolicy', () => {
       confidence: 6,
       valuePercent: 7,
       stakePercent: 2,
-      promptVersion: 'v8-market-balance-followup-j',
+      promptVersion: 'v10-hybrid-legacy-g',
       evidenceMode: 'full_live_data',
       breakEvenRate: 0.47,
       directionalWin: true,
@@ -568,7 +569,7 @@ describe('applyRecommendationPolicy', () => {
       confidence: 7,
       valuePercent: 8,
       stakePercent: 3,
-      promptVersion: 'v10-hybrid-legacy-c',
+      promptVersion: 'v10-hybrid-legacy-g',
     });
 
     expect(result.blocked).toBe(true);
@@ -585,7 +586,7 @@ describe('applyRecommendationPolicy', () => {
       confidence: 7,
       valuePercent: 8,
       stakePercent: 3,
-      promptVersion: 'v10-hybrid-legacy-c',
+      promptVersion: 'v10-hybrid-legacy-g',
     });
 
     expect(result.blocked).toBe(true);
@@ -602,7 +603,7 @@ describe('applyRecommendationPolicy', () => {
       confidence: 6,
       valuePercent: 8,
       stakePercent: 2,
-      promptVersion: 'v10-hybrid-legacy-c',
+      promptVersion: 'v10-hybrid-legacy-g',
       statsCompact: {
         shots_on_target: { home: '1', away: '1' },
       },
@@ -622,7 +623,7 @@ describe('applyRecommendationPolicy', () => {
       confidence: 7,
       valuePercent: 8,
       stakePercent: 3,
-      promptVersion: 'v10-hybrid-legacy-c',
+      promptVersion: 'v10-hybrid-legacy-g',
       statsCompact: {
         shots_on_target: { home: '3', away: '1' },
       },
@@ -642,7 +643,7 @@ describe('applyRecommendationPolicy', () => {
       confidence: 7,
       valuePercent: 8,
       stakePercent: 3,
-      promptVersion: 'v10-hybrid-legacy-d',
+      promptVersion: 'v10-hybrid-legacy-g',
     });
 
     expect(result.blocked).toBe(true);
@@ -659,7 +660,7 @@ describe('applyRecommendationPolicy', () => {
       confidence: 7,
       valuePercent: 8,
       stakePercent: 3,
-      promptVersion: 'v10-hybrid-legacy-d',
+      promptVersion: 'v10-hybrid-legacy-g',
     });
 
     expect(result.blocked).toBe(true);
@@ -676,7 +677,7 @@ describe('applyRecommendationPolicy', () => {
       confidence: 7,
       valuePercent: 8,
       stakePercent: 3,
-      promptVersion: 'v10-hybrid-legacy-d',
+      promptVersion: 'v10-hybrid-legacy-g',
     });
 
     expect(result.blocked).toBe(true);
@@ -693,7 +694,7 @@ describe('applyRecommendationPolicy', () => {
       confidence: 7,
       valuePercent: 8,
       stakePercent: 3,
-      promptVersion: 'v10-hybrid-legacy-d',
+      promptVersion: 'v10-hybrid-legacy-g',
     });
 
     expect(result.blocked).toBe(true);
@@ -710,7 +711,7 @@ describe('applyRecommendationPolicy', () => {
       confidence: 7,
       valuePercent: 8,
       stakePercent: 3,
-      promptVersion: 'v10-hybrid-legacy-d',
+      promptVersion: 'v10-hybrid-legacy-g',
     });
 
     expect(result.blocked).toBe(true);
@@ -727,7 +728,7 @@ describe('applyRecommendationPolicy', () => {
       confidence: 7,
       valuePercent: 8,
       stakePercent: 3,
-      promptVersion: 'v10-hybrid-legacy-e',
+      promptVersion: 'v10-hybrid-legacy-g',
     });
 
     expect(result.blocked).toBe(true);
@@ -744,7 +745,7 @@ describe('applyRecommendationPolicy', () => {
       confidence: 7,
       valuePercent: 8,
       stakePercent: 3,
-      promptVersion: 'v10-hybrid-legacy-e',
+      promptVersion: 'v10-hybrid-legacy-g',
     });
 
     expect(result.blocked).toBe(true);
@@ -761,7 +762,7 @@ describe('applyRecommendationPolicy', () => {
       confidence: 7,
       valuePercent: 8,
       stakePercent: 3,
-      promptVersion: 'v10-hybrid-legacy-f',
+      promptVersion: 'v10-hybrid-legacy-g',
     });
 
     expect(result.blocked).toBe(true);
@@ -778,7 +779,7 @@ describe('applyRecommendationPolicy', () => {
       confidence: 7,
       valuePercent: 8,
       stakePercent: 3,
-      promptVersion: 'v10-hybrid-legacy-f',
+      promptVersion: 'v10-hybrid-legacy-g',
       previousRecommendations: [
         { minute: 38, selection: 'Under 2.25 Goals @1.95', bet_market: 'under_2.25', stake_percent: 4, result: 'pending' },
       ],
@@ -1006,7 +1007,7 @@ describe('applyRecommendationPolicy', () => {
       valuePercent: 7,
       stakePercent: 2.5,
       evidenceMode: 'full_live_data',
-      promptVersion: 'v10-hybrid-legacy-b',
+      promptVersion: 'v10-hybrid-legacy-g',
     });
     expect(result.blocked).toBe(true);
     expect(result.warnings).toContain('POLICY_BLOCK_GOALS_UNDER_THIN_CUSHION_LOW_CONF_GLOBAL');
@@ -1023,10 +1024,9 @@ describe('applyRecommendationPolicy', () => {
       valuePercent: 7,
       stakePercent: 4,
       evidenceMode: 'full_live_data',
-      promptVersion: 'v10-hybrid-legacy-b',
+      promptVersion: 'v10-hybrid-legacy-g',
     });
-    expect(result.blocked).toBe(false);
-    expect(result.stakePercent).toBe(2.5);
-    expect(result.warnings).toContain('POLICY_CAP_GOALS_UNDER_THIN_CUSHION_STAKE_GLOBAL');
+    expect(result.blocked).toBe(true);
+    expect(result.warnings).toContain('REQUIRED_CONDITIONS_NOT_MET');
   });
 });

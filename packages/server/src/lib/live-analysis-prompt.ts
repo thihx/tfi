@@ -1,4 +1,4 @@
-/** O/U and market-balance changes: follow `docs/live-monitor-ai-ou-under-bias.md` (Mandatory order) before editing. */
+/** Live recommendation changes: follow `docs/live-recommendation-pipeline-vi.md` before editing. */
 import { normalizeMarket } from './normalize-market.js';
 import {
   buildPrematchExpertFeaturesV1,
@@ -15,15 +15,15 @@ export type PromptStatsSource = 'api-football' | string;
 export type PromptAnalysisMode = 'auto' | 'system_force' | 'manual_force';
 export type PromptEvidenceMode = LiveAnalysisEvidenceMode;
 
-export const LIVE_ANALYSIS_PROMPT_VERSIONS = ['v4-evidence-hardened', 'v5-compact-a', 'v6-betting-discipline-a', 'v6-betting-discipline-b', 'v6-betting-discipline-c', 'v7-profile-overlay-discipline-a', 'v8-market-balance-followup-a', 'v8-market-balance-followup-b', 'v8-market-balance-followup-c', 'v8-market-balance-followup-d', 'v8-market-balance-followup-e', 'v8-market-balance-followup-f', 'v8-market-balance-followup-g', 'v8-market-balance-followup-h', 'v8-market-balance-followup-i', 'v8-market-balance-followup-j', 'v9-legacy-lean-a', 'v10-hybrid-legacy-a', 'v10-hybrid-legacy-b', 'v10-hybrid-legacy-c', 'v10-hybrid-legacy-d', 'v10-hybrid-legacy-e', 'v10-hybrid-legacy-f', 'v10-hybrid-legacy-g'] as const;
-export type LiveAnalysisPromptVersion = (typeof LIVE_ANALYSIS_PROMPT_VERSIONS)[number];
 /** Default live-analysis prompt when `LIVE_ANALYSIS_ACTIVE_PROMPT_VERSION` is unset or invalid. */
-export const LIVE_ANALYSIS_PROMPT_VERSION = 'v10-hybrid-legacy-b';
-/** Reference compact version for tests/replay tooling; runtime shadow uses env (`LIVE_ANALYSIS_SHADOW_*`), not this constant. */
+export const LIVE_ANALYSIS_PROMPT_VERSION = 'v10-hybrid-legacy-g';
+export const LIVE_ANALYSIS_PROMPT_VERSIONS = [LIVE_ANALYSIS_PROMPT_VERSION] as const;
+export type LiveAnalysisPromptVersion = (typeof LIVE_ANALYSIS_PROMPT_VERSIONS)[number] | string;
+/** Reference official version for tests/replay tooling; runtime shadow uses env (`LIVE_ANALYSIS_SHADOW_*`), not this constant. */
 export const LIVE_ANALYSIS_PROMPT_CANDIDATE_VERSION = 'v10-hybrid-legacy-g';
 
 export function isLiveAnalysisPromptVersion(value: string): value is LiveAnalysisPromptVersion {
-  return (LIVE_ANALYSIS_PROMPT_VERSIONS as readonly string[]).includes(value);
+  return value === LIVE_ANALYSIS_PROMPT_VERSION;
 }
 
 interface EvidenceTierRule {
@@ -283,7 +283,7 @@ function buildAdvancedStatsSection(compact: boolean, statsCompact: Record<string
     ? `========================
 ADVANCED QUANT STATS
 ========================
-ADVANCED_STATS_POLICY: This optional block appears only because this match has sufficient advanced stat coverage. If absent in other matches, do not assume missing values are zero.
+ADVANCED_STATS_POLICY: This optional block is rendered only when the source provides sufficient advanced stat coverage for this specific match. This block is rendered only when the source provides sufficient advanced stat coverage for this specific match. If absent in other matches, do not assume missing values are zero.
 ${JSON.stringify(statsCompact)}
 `
     : `========================
@@ -1198,16 +1198,11 @@ The server may hold your thesis across cycles and auto-promote when odds improve
 
 function buildContinuityRulesSectionCompact(
   data: LiveAnalysisPromptInput,
-  promptVersion: LiveAnalysisPromptVersion,
+  _promptVersion: LiveAnalysisPromptVersion,
 ): string {
   const recs = Array.isArray(data.previousRecommendations) ? data.previousRecommendations : [];
   if (recs.length === 0) return '';
-  const advancedRules = (
-    promptVersion === 'v6-betting-discipline-b'
-    || promptVersion === 'v6-betting-discipline-c'
-    || promptVersion === 'v7-profile-overlay-discipline-a'
-    || isV8PromptVersion(promptVersion)
-  )
+  const advancedRules = true
     ? `- A same-thesis follow-up needs BOTH materially stronger live evidence AFTER the last bet AND a clearly better structural entry. Time passing alone is never enough.
 - Do not re-enter the same thesis just because the new line is closer to the current score or looks safer now. If you already hold that view, another entry usually means laddering the same position.
 - If the earlier bet already expressed the thesis, the burden of proof for a second entry is extremely high. In most cases, return should_push=false.
@@ -1233,85 +1228,28 @@ interface CompactExposureSummary {
   canonicalMarkets: string[];
 }
 
-function isCompactPromptVersion(promptVersion: LiveAnalysisPromptVersion): boolean {
-  return promptVersion === 'v5-compact-a'
-    || promptVersion === 'v6-betting-discipline-a'
-    || promptVersion === 'v6-betting-discipline-b'
-    || promptVersion === 'v6-betting-discipline-c'
-    || promptVersion === 'v7-profile-overlay-discipline-a'
-    || isV9PromptVersion(promptVersion)
-    || isV10PromptVersion(promptVersion)
-    || isV8PromptVersion(promptVersion);
+function isCompactPromptVersion(_promptVersion: LiveAnalysisPromptVersion): boolean {
+  return true;
 }
 
-function isBettingDisciplinePromptVersion(promptVersion: LiveAnalysisPromptVersion): boolean {
-  return promptVersion === 'v6-betting-discipline-a'
-    || promptVersion === 'v6-betting-discipline-b'
-    || promptVersion === 'v6-betting-discipline-c'
-    || promptVersion === 'v7-profile-overlay-discipline-a'
-    || isV9PromptVersion(promptVersion)
-    || isV10PromptVersion(promptVersion)
-    || isV8PromptVersion(promptVersion);
+function isBettingDisciplinePromptVersion(_promptVersion: LiveAnalysisPromptVersion): boolean {
+  return true;
 }
 
-function isV8PromptVersion(promptVersion: LiveAnalysisPromptVersion): boolean {
-  return promptVersion === 'v8-market-balance-followup-a'
-    || promptVersion === 'v8-market-balance-followup-b'
-    || promptVersion === 'v8-market-balance-followup-c'
-    || promptVersion === 'v8-market-balance-followup-d'
-    || promptVersion === 'v8-market-balance-followup-e'
-    || promptVersion === 'v8-market-balance-followup-f'
-    || promptVersion === 'v8-market-balance-followup-g'
-    || promptVersion === 'v8-market-balance-followup-h'
-    || promptVersion === 'v8-market-balance-followup-i'
-    || promptVersion === 'v8-market-balance-followup-j';
+function isV8PromptVersion(_promptVersion: LiveAnalysisPromptVersion): boolean {
+  return false;
 }
 
-function isV9PromptVersion(promptVersion: LiveAnalysisPromptVersion): boolean {
-  return promptVersion === 'v9-legacy-lean-a';
+function isV9PromptVersion(_promptVersion: LiveAnalysisPromptVersion): boolean {
+  return false;
 }
 
-function isV10PromptVersion(promptVersion: LiveAnalysisPromptVersion): boolean {
-  return promptVersion === 'v10-hybrid-legacy-a'
-    || promptVersion === 'v10-hybrid-legacy-b'
-    || promptVersion === 'v10-hybrid-legacy-c'
-    || promptVersion === 'v10-hybrid-legacy-d'
-    || promptVersion === 'v10-hybrid-legacy-e'
-    || promptVersion === 'v10-hybrid-legacy-f';
+function isV10PromptVersion(_promptVersion: LiveAnalysisPromptVersion): boolean {
+  return true;
 }
 
-function isV10HybridLegacyB(promptVersion: LiveAnalysisPromptVersion): boolean {
-  return promptVersion === 'v10-hybrid-legacy-b'
-    || promptVersion === 'v10-hybrid-legacy-c'
-    || promptVersion === 'v10-hybrid-legacy-d'
-    || promptVersion === 'v10-hybrid-legacy-e'
-    || promptVersion === 'v10-hybrid-legacy-f'
-    || promptVersion === 'v10-hybrid-legacy-g';
-}
-
-function isV10HybridLegacyC(promptVersion: LiveAnalysisPromptVersion): boolean {
-  return promptVersion === 'v10-hybrid-legacy-c'
-    || promptVersion === 'v10-hybrid-legacy-d'
-    || promptVersion === 'v10-hybrid-legacy-e'
-    || promptVersion === 'v10-hybrid-legacy-f'
-    || promptVersion === 'v10-hybrid-legacy-g';
-}
-
-function isV10HybridLegacyD(promptVersion: LiveAnalysisPromptVersion): boolean {
-  return promptVersion === 'v10-hybrid-legacy-d';
-}
-
-function isV10HybridLegacyE(promptVersion: LiveAnalysisPromptVersion): boolean {
-  return promptVersion === 'v10-hybrid-legacy-e';
-}
-
-function isV10HybridLegacyF(promptVersion: LiveAnalysisPromptVersion): boolean {
-  return promptVersion === 'v10-hybrid-legacy-f'
-    || promptVersion === 'v10-hybrid-legacy-g';
-}
-
-function isV10HybridLegacyG(promptVersion: LiveAnalysisPromptVersion): boolean {
-  return promptVersion === 'v10-hybrid-legacy-g';
+function isV10HybridLegacyB(_promptVersion: LiveAnalysisPromptVersion): boolean {
+  return false;
 }
 
 function readProfileRecord(profile: Record<string, unknown> | null | undefined): Record<string, unknown> | null {
@@ -1357,9 +1295,7 @@ function readTeamOverlaySnapshot(profile: Record<string, unknown> | null | undef
   };
 }
 
-function buildProfileAndOverlayDisciplineSectionCompact(data: LiveAnalysisPromptInput, promptVersion: LiveAnalysisPromptVersion): string {
-  if (promptVersion !== 'v7-profile-overlay-discipline-a' && !isV8PromptVersion(promptVersion)) return '';
-
+function buildProfileAndOverlayDisciplineSectionCompact(data: LiveAnalysisPromptInput, _promptVersion: LiveAnalysisPromptVersion): string {
   const leagueWindow = readWindowSnapshot(data.leagueProfile ?? null);
   const homeWindow = readWindowSnapshot(data.homeTeamProfile ?? null);
   const awayWindow = readWindowSnapshot(data.awayTeamProfile ?? null);
@@ -1377,21 +1313,13 @@ PROFILE / OVERLAY DISCIPLINE
 - HOME_TACTICAL_OVERLAY: source_mode=${homeOverlay.sourceMode}, source_confidence=${homeOverlay.sourceConfidence ?? 'none'}
 - AWAY_TACTICAL_OVERLAY: source_mode=${awayOverlay.sourceMode}, source_confidence=${awayOverlay.sourceConfidence ?? 'none'}
 
-V7 DISCIPLINE RULES:
-- Quantitative profile priors are supporting evidence only. They are stronger when sample size and event coverage are respectable; they are weak when coverage is thin or unknown.
-- If PREMATCH_EXPERT_FEATURES_V1 implies weak/none prior strength, default should_push=false unless live evidence is clearly one-sided and actionable.
-- A single narrative item such as motivation, H2H, or one absence note must NOT override weak profile coverage.
-- Tactical overlay is provenance-sensitive:
-  - source_mode=default_neutral or unknown => treat tactical labels as unavailable, not as evidence.
-  - source_mode=llm_assisted with low/medium confidence => tiebreaker only, never a primary reason to bet.
-  - source_mode=curated or manual_override with high confidence => supporting prior only, still secondary to live evidence.
-- If both team overlays are neutral/unknown (${bothNeutral ? 'currently true' : 'currently false'}), assume tactical context is effectively unavailable for this run.
-- If provider prediction is absent and profile coverage is thin, do not manufacture conviction from narrative enrichment. Return no bet.
-- In structured prematch Ask AI mode, prefer patience: if the priors do not align cleanly, return should_push=false and explain what confirmation is still missing.
-${isV8PromptVersion(promptVersion) ? `- V8 PRIOR ALIGNMENT RULE: before backing generic goals_under, explicitly classify the league/team priors as aligned, neutral, or contradictory. If they are contradictory and the live evidence is not overwhelming, return no bet.
-- V8 PRIOR ALIGNMENT RULE: priors may confirm or contradict a live thesis, but they must never replace live evidence.
-- V8 MARKET BALANCE RULE: when a favourite/control thesis is live on either side and priors align, consider 1x2_home, 1x2_away, asian_handicap_home, or asian_handicap_away (only keys listed in EXACT ENUMS, including ADJACENT AH when present) before defaulting to generic goals_under.
-` : ''}
+OFFICIAL PROFILE DISCIPLINE:
+- Quantitative profile priors are supporting evidence only.
+- If prematch strength is weak or unavailable, default should_push=false unless live evidence is clearly one-sided and actionable.
+- Tactical overlay is provenance-sensitive and cannot override live evidence.
+- If both team overlays are neutral/unknown (${bothNeutral ? 'currently true' : 'currently false'}), tactical context is effectively unavailable for this run.
+- Before backing generic goals_under, classify priors as aligned, neutral, or contradictory.
+- If no market has a clean edge, return no bet.
 
 `;
 }
@@ -1492,288 +1420,59 @@ ${JSON.stringify(payload)}
 `;
 }
 
-function buildV8MarketBalanceSectionCompact(promptVersion: LiveAnalysisPromptVersion): string {
-  const isV8b = promptVersion === 'v8-market-balance-followup-b';
-  const isV8c = promptVersion === 'v8-market-balance-followup-c';
-  const isV8d = promptVersion === 'v8-market-balance-followup-d';
-  const isV8e = promptVersion === 'v8-market-balance-followup-e';
-  const isV8f = promptVersion === 'v8-market-balance-followup-f';
-  const isV8g = promptVersion === 'v8-market-balance-followup-g';
-  const isV8h = promptVersion === 'v8-market-balance-followup-h';
-  const isV8i = promptVersion === 'v8-market-balance-followup-i';
-  const isV8j = promptVersion === 'v8-market-balance-followup-j';
-  const v8bExtraRules = (isV8b || isV8c)
-    ? `- Minute 30-59 is an anti-mechanical-under zone. In this band, do NOT back goals_under unless live suppression is genuinely strong, the trailing/chasing risk is limited, and priors are aligned or at least neutral.
-- From minute 30-59, a goals_under push is exceptional-only. A generic trio of slow tempo + low shots + low xG is NOT enough by itself.
-- If your goals_under reasoning could be copied into many unrelated matches without changing the wording much, return no bet instead.
-- In minute 30-59, every goals_under push must include at least one match-specific differentiator such as game-kill script, class-control, red-card distortion, trailing-side impotence, or clearly aligned priors.
-- If playable 1x2 or Asian Handicap on the leading side (home or away) is unavailable or too cheap to be actionable, that does NOT make goals_under acceptable by default. Prefer no bet over a generic under fallback.
-- In 45-59, when the score is level or a one-goal game, a generic \"slow tempo\" read is not enough. You need either a clear suppression signal or a clean favourite-control thesis with a playable line.
-- In 45-59, if favourite-side control is live and 1x2_home or 1x2_away is available at a playable price (usually >= 1.55) or the matching asian_handicap_home / asian_handicap_away line is available, actively prefer that thesis over generic goals_under.
-`
-    : '';
-  const v8cExtraRules = isV8c
-    ? `- V8C PRIOR USE RULE: in minute 30-59, a totals bet must explicitly cite at least one concrete league/team prior metric or expert feature as confirming, neutral, or contradictory. If you cannot name one, default should_push=false unless live evidence is overwhelming.
-- V8C PRIOR CONTRADICTION RULE: if league/team priors lean high-event or comeback-prone and your thesis is goals_under, treat that as contradictory unless live suppression is truly dominant.
-- V8C TWO-PLUS-MARGIN RULE: in 45-59 with a two-plus goal margin, do NOT back goals_under just because the remaining line still looks high. You need a real game-kill script plus weak trailing threat; otherwise choose no bet.
-- V8C LEVEL/ONE-GOAL RULE: in 45-59, if the score is level or a one-goal game and 1X2/AH is unavailable or not playable, that is still NOT enough to justify goals_under. Missing better markets does not create edge.
-- V8C OVER CHECK RULE: if priors are high-event and live dominance is one-sided, consider whether a modest goals_over line is better than forcing a defensive read.
-`
-    : '';
-
-  if (isV8d || isV8e || isV8f || isV8g || isV8h || isV8i || isV8j) {
-    return `V8 MARKET-BALANCE DISCIPLINE:
-- Goals Under is NOT the default fallback just because tempo is slow, shots are low, or xG is modest.
-- Before minute 60, generic low-event evidence alone is insufficient for a goals_under push.
-- For goals_under, explicitly decide whether priors are aligned, neutral, or contradictory. If contradictory and live suppression is not overwhelming, return no bet.
-- If live evidence suggests favourite control, territory, or class edge on either side and priors agree, actively consider 1x2_home, 1x2_away, asian_handicap_home, or asian_handicap_away (EXACT ENUMS only; use ADJACENT AH keys when listed) before falling back to goals_under.
-- If no market has a clean edge, return no bet. Do NOT use goals_under as a generic escape hatch.
-- V8D OPEN-1X2 WINDOW RULE: from minute 35 onward, 1x2_home or 1x2_away becomes eligible again when the matching-side control thesis is live, the price is actually playable, and the edge is better explained by team/class control than by generic suppression.
-- V8D OPEN-AH WINDOW RULE: in minute 30-44, if asian_handicap_home or asian_handicap_away is available at a playable price and the game-state favours controlled superiority on that side, prefer AH over a mechanical goals_under read.
-- V8D 30-44 REBALANCE RULE: in minute 30-44, only use goals_under when the match-specific suppressive script is stronger than any playable 1x2/AH thesis on the leading side. If 1x2 or AH is playable and matches the live pattern, do not default back to Under.
-- V8D 45-59 SHUT-OFF RULE: in minute 45-59, goals_under is exceptional-only. If the score is level or a one-goal game, missing 1X2/AH value is NOT a reason to force Under.
-- V8D TWO-PLUS-MARGIN BLOCK: in 45-59 with a two-plus goal margin, treat goals_under as presumptively unsafe. Do not recommend it unless the trailing side is nearly dead, the leader is clearly game-killing, and you can state why a comeback script is highly unlikely.
-- V8D MARKET REALISM RULE: if the best 1x2 on the leading side exists only at a clearly cheap or distorted price, do not force it. In that case prefer no bet rather than rotating back into goals_under.
-- V8D PRIOR USE RULE: priors are confirm-or-contradict only. They must help you decide whether a live thesis is structurally supported, but they must never replace live evidence.
-${isV8e ? `- V8E 30-44 0-0 LOW-LINE RULE: in minute 30-44 at 0-0, do NOT take goals_under above 1.5 just because the game looks quiet. Under 2.0/2.25/2.5 in this band is usually too generic unless suppression is overwhelming and priors clearly confirm.
-- V8E 30-44 LEVEL HIGH-LINE RULE: in minute 30-44 when the score is level after 2+ goals have already been scored, do NOT back goals_under above 4.0 only because the line still looks inflated. Early-chaos games can reopen even with modest xG.
-- V8E HIGH-LINE CORNERS RULE: before minute 60, corners_over lines >= 12.5 are exceptional-only. Require already-high realized corners AND sustained wide pressure/chasing behaviour. If the line still needs a large late corner run, prefer no bet.
-- V8E TOTALS-ONLY REALISM RULE: when side markets are absent and you are choosing from totals only, missing 1X2/AH does NOT create edge. Use tighter standards, not looser ones.
-` : ''}${(isV8f || isV8g || isV8h || isV8i || isV8j) ? `- V8F TARGETED TOTALS RULE: keep the V8D balance logic, but be extra selective in totals-only states where the line is doing most of the work for you.
-- V8F 30-44 0-0 RULE: in minute 30-44 at 0-0, goals_under above 1.5 is usually too generic unless suppression is extreme and clearly match-specific.
-- V8F LEVEL HIGH-LINE RULE: in minute 30-44 when the score is level after 2+ goals, do not trust very high goals-under lines on inflation alone.
-- V8F HIGH-LINE CORNERS RULE: before minute 60, corners_over 12.5+ is exceptional-only and usually a pass unless corner volume is already extreme and still accelerating.
-` : ''}${(isV8g || isV8h || isV8i || isV8j) ? `- V8G EARLY ONE-GOAL RULE: before minute 45, if the score is already a one-goal game, do NOT default into goals_under 2.75/3.0/3.25 just because the pace looks manageable.
-- V8G ONE-GOAL REALISM RULE: in early one-goal states, a high-line Under needs a clear game-killing script. Low shots or modest xG alone are not enough.
-- V8G SIDE-MARKET CHECK: if a side market is plausible or the game still has comeback pressure, prefer no bet over a mechanical early high-line Under.
-` : ''}${(isV8h || isV8i || isV8j) ? `- V8H 45-59 ZERO-ZERO LOW-LINE RULE: in minute 45-59 at 0-0, do NOT force goals totals around 1.0 to 1.75 from totals-only evidence unless you can clearly explain a late-surge or late-shutout script. Generic balance is not enough.
-- V8H 45-59 CORNERS RULE: in minute 45-59 with a one-goal game, corners_over 10+ is exceptional-only. If the line still needs multiple late corners and the pressure script is not obvious, prefer no bet.
-- V8H 45-59 REALISM RULE: totals-only availability does not create edge by itself in 45-59. If the line is doing most of the work and the game state still allows volatility, no bet is better.
-- V8H RESIDUAL-SCORING RULE: for any goals_under with line >= 2.0 before minute 75, explicitly address the opponent's residual goal threat (set pieces, chasing pressure, recent shots/xG trend). If you cannot argue why further goals are structurally unlikely, return no bet.
-- V8H OVER-REJECTION RULE: whenever you select goals_under, include one concise sentence comparing against the best available goals_over alternative (same or adjacent line) and why Over is worse value or structurally weaker — not a generic disclaimer.
-- V8H SYMMETRIC-ODDS TIE-BREAK: when the best available goals_over and goals_under prices are roughly balanced (implied probs within ~3% of each other) and live stats are only mildly low-event (not clearly dominant suppression), do NOT default to goals_under. Prefer either a clearly edged goals_over on the smallest plausible line, a side market that fits the script, or no bet.
-- V8H EDGE-PUSH RULE: when your internal valuation shows a clear edge (>=3% vs fair/break-even) on exactly one market and no hard safety or policy conflict applies, set should_push=true for that market. Avoid no_bet purely from generic caution when the numeric edge and match-specific reasoning are both present.
-` : ''}${isV8j ? `- V8J OVER-FIRST TOTALS: when both a playable goals_over and goals_under exist at similar prices, evaluate the Over thesis first in your reasoning sequence. Among overs, consider the smallest goals_over line that still meets MIN_ODDS before larger overs or Under. Choose goals_under only after you explicitly rule out those overs with match-specific evidence (not symmetry, habit, or "quiet game" clichés).
-- V8J UNDER LAST-RESORT (GOALS): treat goals_under as the last option among goal-total markets. Do not output goals_under unless you have named the best alternative goals_over line(s) you rejected and one concrete match-specific reason each is structurally weak or fairly priced (not merely "could happen").
-- V8J LINE-VS-FAIR: every goals_under push must include one short phrase tying your fair expectation to the offered line (why the line is wrong), not only qualitative low-event mood. Slow tempo alone never satisfies this.
-- V8J IMPLIED-PROB SYMMETRY: if the book's implied probabilities for your candidate goals_under and the best comparable goals_over are within ~4 percentage points of each other, do not pick goals_under — prefer goals_over, a side/corners/btts pick that fits the script, or no_bet.
-- V8J DUAL-SIGNAL UNDER: for goals_under with line >= 1.75 before minute 75, require at least two independent live suppression dimensions (e.g. xG drought + SOT collapse, or game-kill + weak trailing attack). For lines below 1.75, one strong suppression pillar plus a confirming prior or explicit scoreboard/settlement logic is enough.
-- V8J UNDER-vs-OVER MARGIN: before selecting goals_under, compare against the best available goals_over on the same or nearest line. Pick Under only if your estimated value edge on Under exceeds the best Over's edge by at least 3 absolute percentage points; if Over is within that band and the script is not clearly shut-down, prefer goals_over, a side market, or corners — not Under by default.
-- V8J DECISIVE EDGE PUSH: if ANY canonical market reaches >=3% value edge versus your fair range, meets MIN_ODDS, and has no hard safety or policy veto, you MUST set should_push=true for that strongest eligible market.
-- V8J OPERATIONAL PUSH LADDER: When evidence is full_live_data and odds are usable, treat should_push=true as the normal outcome. Apply in order; stop at the first step that yields exactly one pick: (1) Strongest market with >=3% edge + MIN_ODDS + no hard veto (any canonical). (2) Among goals_over, 1x2_home, 1x2_away (away-dominant script only), asian_handicap_home, asian_handicap_away, MAIN or ADJACENT AH only if those keys appear in EXACT ENUMS, corners (over/under), btts_yes/no only: pick the highest-edge option with >=1.2% edge + MIN_ODDS + no veto — goals_under is never eligible in this step. (3) goals_under only if >=3% edge + MIN_ODDS + no veto AND it passes every V8J under rule above. (4) Same non-under basket as (2): if any option has edge >=0.5% + MIN_ODDS + no veto, pick the highest edge — still never goals_under. (5) no_bet only when every canonical option is below 0.5% edge, or a stated hard safety veto blocks all options, or odds are unusable. Do not use no_bet for generic caution when step (2) or (4) has an eligible pick.
-- V8J BEFORE NO_BET: no_bet must mean step (5) of the ladder; in reasoning, name why each of steps (1)-(4) failed (per-market edge vs veto).
-- V8J PORTFOLIO BREADTH: when goals_under is best on paper but goals_over, corners, or a side market is within ~4% edge of that Under and the live script fits the alternative, prefer the non-under pick to avoid mechanical under clustering.
-- V8J NON-GOALS FIRST PASS: before committing to goals_under, one mental pass over corners_over/corners_under, btts_yes/no, 1x2_home, 1x2_away (when away clearly leads the script), asian_handicap_home, asian_handicap_away, including MAIN and ADJACENT AH if EXACT ENUMS lists them: if any offers MIN_ODDS and a narrative as clean as your Under thesis, pick that non-under market instead. Goals_under is for when those are clearly weaker or unavailable.
-- V8J PROPS HOT-ZONE — LADDER OVERRIDE (30-44 AND 53-59): When applying OPERATIONAL PUSH LADDER steps (2) and (4), if the leading candidate is corners_* OR btts_yes OR btts_no and match minute is 30-44 inclusive OR 53-59 inclusive, that market does NOT qualify at the 1.2% / 0.5% tiers. It qualifies only if: (a) your stated value edge is >= 7% (>= 8% in minute 37-44 inclusive), AND (b) confidence >= 8, AND (c) you name two independent live anchors tied to that prop (e.g. corner run-rate + wide pressure; or xG/shots shape + defensive low-block for BTTS). If the prop only reaches ~1-2% edge here, skip it — prefer goals O/U or side markets that meet their own bars, or no_bet.
-- V8J BTTS_NO QUALITY BAR: btts_no needs a scoreboard-consistent story for why a second goal is structurally unlikely (not just "quiet 0-0"). If both sides still show residual shot or set-piece threat without explanation, no_bet. Outside 37-44, still require >= 6% value edge for btts_no when other markets are noisy; inside 37-44 use >= 8% and the PROPS HOT-ZONE rule above.
-` : ''}${(isV8i || isV8j) ? `- V8I EARLY LEVEL HIGH-LINE RULE: in minute 00-29, if the score is already level after 2+ goals and you only have totals to work with, do NOT back goals_under above 4.0 just because the line still looks generous.
-- V8I EARLY CHAOS RULE: early 1-1 states are structurally volatile. Unless a playable side market exists and the match has clearly calmed down in a match-specific way, prefer no bet over a high-line Under.
-- V8I TOTALS-ONLY FILTER: in 00-29 level states, missing side markets is a reason to tighten standards, not to trust an inflated Under.
-` : ''}
-
-`;
-  }
-
-  return `V8 MARKET-BALANCE DISCIPLINE:
-- Goals Under is NOT the default fallback just because tempo is slow, shots are low, or xG is modest.
-- Before minute 60, generic low-event evidence alone is insufficient for a goals_under push.
-- For goals_under, explicitly decide whether priors are aligned, neutral, or contradictory. If contradictory and live suppression is not overwhelming, return no bet.
-- If live evidence suggests favourite control, territory, or class edge on either side and priors agree, actively consider 1x2_home, 1x2_away, asian_handicap_home, or asian_handicap_away (EXACT ENUMS only) before falling back to goals_under.
-- If no market has a clean edge, return no bet. Do NOT use goals_under as a generic escape hatch.
-${v8bExtraRules}${v8cExtraRules}
-
+function buildV8MarketBalanceSectionCompact(_promptVersion: LiveAnalysisPromptVersion): string {
+  return `OFFICIAL MARKET-BALANCE DISCIPLINE:
+- Goals Under is not the default fallback for slow tempo, low shots, or modest xG.
+- Before minute 60, generic low-event evidence alone is insufficient for goals_under.
+- For goals_under, explicitly decide whether priors are aligned, neutral, or contradictory.
+- If live evidence suggests favourite control, territory, or class edge and priors agree, evaluate 1x2_home, 1x2_away, asian_handicap_home, or asian_handicap_away before goals_under.
+- If no market has a clean edge, return no bet.
 `;
 }
 
-function buildV9LegacyLeanMarketSelectionSection(compact: boolean): string {
+function buildV9LegacyLeanMarketSelectionSection(_compact: boolean): string {
+  return buildV8MarketBalanceSectionCompact(LIVE_ANALYSIS_PROMPT_VERSION);
+}
+
+function buildV10HybridLegacyMarketSelectionSection(compact: boolean, _promptVersion?: LiveAnalysisPromptVersion): string {
   return compact
-    ? `LEGACY-LEAN MARKET SELECTION:
-- 1X2 and BTTS No still require a higher bar: confidence >= 7, at least two strong stat gaps, and supporting pre-match context.
-- BTTS Yes is NOT subject to that stricter 1X2 / BTTS No gate.
-- If 1X2 or BTTS No does not clear the higher bar, evaluate goals O/U instead.
-- Minute 5-65: only consider Over X.5 when attacking patterns are clearly open and sustained.
-- Minute 65+: only consider Under X.5 when the match is still low-scoring and both teams genuinely look conservative or defensive.
-- Do NOT treat Goals Under as a default before minute 65.
-- If you choose O/U instead of 1X2 or BTTS No, explain exactly why in market_chosen_reason.
-
+    ? `OFFICIAL O/U AND MARKET TIMING:
+- 1X2 and BTTS No require full_live_data, confidence >= 7, strong stat support, and prematch support.
+- BTTS Yes requires current dual-side threat.
+- Goals O/U may be considered only when it independently earns edge; no automatic fallback.
+- Minute 5-65: goals O/U needs clearly open and sustained attacking pattern.
+- Minute 65+: goals_under is eligible only when low-scoring state and defensive/conservative script align.
+- Do not treat 0-0 after minute 55 as automatic under.
+- Corners and BTTS are off-menu when prematch strength is weak unless live evidence is overwhelming and line-specific.
+- In one-goal games before halftime, do not force Full-time goals_over 4.5+ unless the game is already extreme and still accelerating.
 `
-    : `LEGACY-LEAN MARKET SELECTION:
-- 1X2 and BTTS No remain caution markets, but they are NOT treated as Tier-1-only by default in this prompt version.
-- For 1X2 or BTTS No, require all of the following:
-  - confidence >= 7
-  - at least two strong live gaps such as possession >= 15%, shots on target gap >= 3, or corners gap >= 4
-  - supporting pre-match context such as team-quality gap, form edge, or league-position edge
-- BTTS Yes is NOT subject to that stricter 1X2 / BTTS No gate.
-- If the stricter 1X2 / BTTS No conditions are not fully met:
-  - do NOT force those markets
-  - evaluate goals O/U as the preferred alternative
-- Preferred O/U timing:
-  - Minute 5-65: consider Over X.5 only when attacking patterns are clearly open, sustained, and supported by live pressure
-  - Minute 65+: consider Under X.5 only when the match is still low-scoring and both teams genuinely look conservative or defensive
-- Do NOT treat Goals Under as a default before minute 65.
-- Whenever you choose O/U instead of 1X2 or BTTS No, state that reason explicitly in market_chosen_reason.
-
+    : `OFFICIAL O/U AND MARKET TIMING:
+- 1X2 and BTTS No require full_live_data, confidence >= 7, strong stat support, and prematch support.
+- BTTS Yes requires current dual-side threat.
+- Goals O/U may be considered only when it independently earns edge; no automatic fallback.
+- Minute 5-65: goals O/U needs clearly open and sustained attacking pattern.
+- Minute 65+: goals_under is eligible only when low-scoring state and defensive/conservative script align.
+- Do not treat 0-0 after minute 55 as automatic under.
+- Corners and BTTS are off-menu when prematch strength is weak unless live evidence is overwhelming and line-specific.
+- In one-goal games before halftime, do not force Full-time goals_over 4.5+ unless the game is already extreme and still accelerating.
 `;
 }
 
-function buildV10HybridLegacyMarketSelectionSection(compact: boolean, promptVersion?: LiveAnalysisPromptVersion): string {
-  const inheritedV8hRules = buildV8MarketBalanceSectionCompact('v8-market-balance-followup-h')
-    .replace('V8 MARKET-BALANCE DISCIPLINE:\n', '')
-    .trimEnd();
-  const v10cExtra = isV10HybridLegacyC(promptVersion ?? LIVE_ANALYSIS_PROMPT_VERSION)
-    ? `${compact
-      ? `- V10C CORNERS EARLY REALISM: before minute 30, corners markets are exceptional-only. Do not back corners_over 11.5+ or corners_under 9+ unless realized corner count is already near the line and the wing/set-piece script is extreme.
-- V10C CORNERS EARLY RUNWAY: if a corners line still needs a large late run, early possession/territory alone is not enough. Prefer no bet.
-- V10C BTTS MIDGAME: from minute 30-59, BTTS is exceptional-only. BTTS Yes needs direct threat from BOTH teams right now; BTTS No needs a structural reason why one side is effectively dead.
-- V10C BTTS NO PRE60: quietness or a temporary 1-0 / 0-0 score is not enough to justify BTTS No before minute 60.
-- V10C WEAK-PREMATCH RULE: when prematch strength is weak and only totals/props are available, corners and BTTS are off-menu unless the live evidence is overwhelming and line-specific.
-- V10C WEAK 0-0 OVER RULE: in weak-prematch 0-0 states before minute 60, low-line goals_over (0.5 to 1.25) needs a truly strong first-goal script; generic pressure is not enough.
-`
-      : `- V10C CORNERS EARLY REALISM: before minute 30, treat corners markets as exceptional-only. Do not back corners_over 11.5+ or corners_under 9+ unless the realized corner count is already near the offered line and the live wing/set-piece script is clearly extreme and still accelerating.
-- V10C CORNERS EARLY RUNWAY: if an early corners line still needs a large run-rate over 60+ minutes of football, that is usually a no-bet. Early possession, territory, or one-sided control alone is not enough to justify a corners position.
-- V10C BTTS MIDGAME: from minute 30-59, BTTS is exceptional-only. BTTS Yes requires direct current threat from BOTH teams; BTTS No requires a structural reason why one side is effectively dead, not just temporary quietness.
-- V10C BTTS NO PRE60: do not force BTTS No before minute 60 from a 0-0 or 1-0 scoreboard alone. You need a clear one-side-impotence script with live evidence, not a generic low-event read.
-- V10C WEAK-PREMATCH RULE: when prematch strength is weak and only totals/props are available, corners and BTTS are effectively off-menu unless the live evidence is overwhelming, line-specific, and clearly superior to no_bet.
-- V10C WEAK 0-0 OVER RULE: in weak-prematch 0-0 states before minute 60, low-line goals_over (0.5 to 1.25) needs a truly strong first-goal script backed by direct attacking evidence. Generic pressure, field tilt, or \"it only needs one goal\" is not enough.
-`}`
-    : '';
-  const v10dExtra = isV10HybridLegacyD(promptVersion ?? LIVE_ANALYSIS_PROMPT_VERSION)
-    ? `${compact
-      ? `- V10D 45-59 CORNERS: in minute 45-59, one-goal corners positions are not generic tempo trades. Avoid corners_under 6.5 and corners_over 13.5+ unless realized corners are already near the line and the live script is exceptional.
-- V10D ONE-GOAL OVER RUNWAY: in one-goal-margin states, goals_over needs realistic runway. Before minute 30, do not back an over that still needs 2.25+ extra goals. Before minute 45, if the score already has 3+ goals, avoid overs that still need 1.75+ extra goals.
-- V10D 45-59 TWO-PLUS UNDER: when the match is already 2+ goals clear in minute 45-59, low-cushion goals_under is fragile. If one more goal kills the ticket, prefer no bet.
-`
-      : `- V10D 45-59 CORNERS: from minute 45-59, corners in one-goal games are not generic rhythm trades. Avoid corners_under 6.5 and corners_over 13.5+ unless the realized corner count is already close to the line and the current wing/set-piece script is clearly exceptional.
-- V10D ONE-GOAL OVER RUNWAY: in one-goal-margin states, goals_over needs realistic runway, not generic "game still feels open" language. Before minute 30, do not back an over that still needs 2.25+ extra goals from the current score. Before minute 45, if the score already contains 3+ goals, avoid overs that still need 1.75+ extra goals unless the acceleration case is genuinely exceptional.
-- V10D 45-59 TWO-PLUS UNDER: at minute 45-59 with a two-plus-goal margin, a goals_under line that dies from just one more goal is structurally fragile. Treat that as a no-bet unless the collapse risk is truly minimal and line-specific.
-`}`
-    : '';
-  const v10eExtra = isV10HybridLegacyE(promptVersion ?? LIVE_ANALYSIS_PROMPT_VERSION)
-    ? `${compact
-      ? `- V10E 45-59 CORNERS ONLY: in minute 45-59 with a one-goal margin, treat corners_under 6.5 and corners_over 13.5+ as exceptional-only. If the realized corner count is not already close to the offered line, prefer no bet.
-`
-      : `- V10E 45-59 CORNERS ONLY: from minute 45-59 in one-goal games, corners_under 6.5 and corners_over 13.5+ are exceptional-only. If the realized corner count is not already close to the offered line, prefer no bet over a generic corners thesis.
-`}`
-    : '';
-  const v10fExtra = isV10HybridLegacyF(promptVersion ?? LIVE_ANALYSIS_PROMPT_VERSION)
-    ? `${compact
-      ? `- V10F 45-59 CORNERS-UNDER CHASE RULE: in minute 45-59, Full-time corners_under 6.5 is exceptional-only when the match already has goals and the score is level or a one-goal game. A quiet first-half corner count alone is not enough if either side is still chasing.
-- V10F SAME-THESIS UNDER ROLLOVER: in minute 45-59 with a two-plus-goal margin, do not roll an existing Full-time goals_under into a looser nearby line just because the line moved up. Without materially stronger suppression and near-zero residual threat, prefer no bet.
-`
-      : `- V10F 45-59 CORNERS-UNDER CHASE RULE: from minute 45-59, Full-time corners_under 6.5 is exceptional-only when the match already contains goals and the score is level or within one goal. A low first-half corner count by itself is not enough if the second-half script still contains chase pressure.
-- V10F SAME-THESIS UNDER ROLLOVER: from minute 45-59 with a two-plus-goal margin, do not justify a new Full-time goals_under just because the market line drifted to a looser rung. If the thesis is unchanged and residual goal threat is not close to dead, prefer no bet over line-rolling.
-`}`
-    : '';
-  const v10gExtra = isV10HybridLegacyG(promptVersion ?? LIVE_ANALYSIS_PROMPT_VERSION)
-    ? `${compact
-      ? `- V10G 30-44 CORNERS-UNDER REALISM: in minute 30-44, low-line Full-time corners_under is exceptional-only once the match already has goals or the prematch prior is weak. Quiet corner volume alone is not enough.
-- V10G 30-44 BTTS-YES REALISM: in one-goal games between minute 30-44, BTTS Yes needs genuine dual-side threat now. One shot on target each or generic chase pressure is not enough.
-- V10G 30-44 HIGH-LINE OVER RULE: in one-goal games before halftime, do not force Full-time goals_over 4.5+ unless the game is already extreme and still accelerating.
-`
-      : `- V10G 30-44 CORNERS-UNDER REALISM: from minute 30-44, low-line Full-time corners_under is exceptional-only once the match already contains goals or the prematch prior is weak. A low realized corner count by itself is not enough.
-- V10G 30-44 BTTS-YES REALISM: in one-goal games between minute 30-44, BTTS Yes requires clear current threat from both teams, not just scoreboard pressure or prematch attacking reputation.
-- V10G 30-44 HIGH-LINE OVER RULE: before halftime in one-goal games, do not treat Full-time goals_over 4.5+ as a routine chase trade. It needs an already extreme, still-accelerating scoring script.
-`}`
-    : '';
+function buildV10HybridLegacyMinimalSection(compact: boolean, _promptVersion?: LiveAnalysisPromptVersion): string {
   return compact
-    ? `LEGACY-HYBRID O/U TIMING:
-- Keep the stricter v8h market discipline, but borrow only the old prompt's O/U timing logic.
-- 1X2 and BTTS No still require the higher v8h bar.
-- If 1X2 or BTTS No does not clear that bar, goals O/U may be considered as an alternative only when O/U earns its own edge.
-- Minute 5-65: only consider goals O/U when the attacking pattern is clearly open and sustained. If the read is merely quiet or balanced, prefer no bet.
-- Minute 65+: goals_under becomes eligible only when the match is still low-scoring and both teams genuinely look conservative or defensive.
-- Do NOT treat 0-0 after minute 55 as automatic under.
-${v10cExtra}${v10dExtra}${v10eExtra}${v10fExtra}${v10gExtra}${inheritedV8hRules}
-
-`
-    : `LEGACY-HYBRID O/U TIMING:
-- Keep the stricter v8h market discipline, but borrow only the old prompt's O/U timing logic.
-- 1X2 and BTTS No still require the higher live-evidence bar already defined elsewhere in this prompt.
-- If 1X2 or BTTS No does not clear that bar, goals O/U may be considered as the preferred alternative only when goals O/U independently earns its own edge.
-- Minute 5-65: only consider goals O/U when the attacking pattern is clearly open and sustained. If the match merely looks quiet, balanced, or low-event, prefer no bet instead of a generic Under.
-- Minute 65+: goals_under becomes eligible only when the match is still low-scoring and both teams genuinely look conservative or defensive.
-- Do NOT treat 0-0 after minute 55 as automatic under.
-${v10cExtra}${v10dExtra}${v10eExtra}${v10fExtra}${v10gExtra}${inheritedV8hRules}
-
-`;
-}
-
-function buildV10HybridLegacyMinimalSection(compact: boolean, promptVersion?: LiveAnalysisPromptVersion): string {
-  const inheritedV8hRules = buildV8MarketBalanceSectionCompact('v8-market-balance-followup-h')
-    .replace('V8 MARKET-BALANCE DISCIPLINE:\n', '')
-    .trimEnd();
-  const v10cExtra = isV10HybridLegacyC(promptVersion ?? LIVE_ANALYSIS_PROMPT_VERSION)
-    ? `${compact
-      ? `- V10C CORNERS EARLY REALISM: before minute 30, corners markets are exceptional-only. Do not back corners_over 11.5+ or corners_under 9+ unless realized corner count is already near the line and the wing/set-piece script is extreme.
-- V10C CORNERS EARLY RUNWAY: if a corners line still needs a large late run, early possession/territory alone is not enough. Prefer no bet.
-- V10C BTTS MIDGAME: from minute 30-59, BTTS is exceptional-only. BTTS Yes needs direct threat from BOTH teams right now; BTTS No needs a structural reason why one side is effectively dead.
-- V10C BTTS NO PRE60: quietness or a temporary 1-0 / 0-0 score is not enough to justify BTTS No before minute 60.
-- V10C WEAK-PREMATCH RULE: when prematch strength is weak and only totals/props are available, corners and BTTS are off-menu unless the live evidence is overwhelming and line-specific.
-- V10C WEAK 0-0 OVER RULE: in weak-prematch 0-0 states before minute 60, low-line goals_over (0.5 to 1.25) needs a truly strong first-goal script; generic pressure is not enough.
-`
-      : `- V10C CORNERS EARLY REALISM: before minute 30, corners markets are exceptional-only. Do not back corners_over 11.5+ or corners_under 9+ unless the realized corner count is already near the offered line and the wing/set-piece script is extreme and still accelerating.
-- V10C CORNERS EARLY RUNWAY: if an early corners line still needs a large run-rate over 60+ minutes of football, early possession/territory alone is not enough. Prefer no bet.
-- V10C BTTS MIDGAME: from minute 30-59, BTTS is exceptional-only. BTTS Yes needs direct current threat from BOTH teams; BTTS No needs a structural reason why one side is effectively dead.
-- V10C BTTS NO PRE60: quietness or a temporary 1-0 / 0-0 score is not enough to justify BTTS No before minute 60.
-- V10C WEAK-PREMATCH RULE: when prematch strength is weak and only totals/props are available, corners and BTTS are off-menu unless the live evidence is overwhelming and line-specific.
-- V10C WEAK 0-0 OVER RULE: in weak-prematch 0-0 states before minute 60, low-line goals_over (0.5 to 1.25) needs a truly strong first-goal script; generic pressure is not enough.
-`}`
-    : '';
-  const v10dExtra = isV10HybridLegacyD(promptVersion ?? LIVE_ANALYSIS_PROMPT_VERSION)
-    ? `${compact
-      ? `- V10D 45-59 CORNERS: in minute 45-59, one-goal corners positions are not generic tempo trades. Avoid corners_under 6.5 and corners_over 13.5+ unless realized corners are already near the line and the live script is exceptional.
-- V10D ONE-GOAL OVER RUNWAY: in one-goal-margin states, goals_over needs realistic runway. Before minute 30, do not back an over that still needs 2.25+ extra goals. Before minute 45, if the score already has 3+ goals, avoid overs that still need 1.75+ extra goals.
-- V10D 45-59 TWO-PLUS UNDER: when the match is already 2+ goals clear in minute 45-59, low-cushion goals_under is fragile. If one more goal kills the ticket, prefer no bet.
-`
-      : `- V10D 45-59 CORNERS: from minute 45-59, corners in one-goal games are not generic rhythm trades. Avoid corners_under 6.5 and corners_over 13.5+ unless the realized corner count is already close to the line and the current wing/set-piece script is clearly exceptional.
-- V10D ONE-GOAL OVER RUNWAY: in one-goal-margin states, goals_over needs realistic runway, not generic "game still feels open" language. Before minute 30, do not back an over that still needs 2.25+ extra goals from the current score. Before minute 45, if the score already contains 3+ goals, avoid overs that still need 1.75+ extra goals unless the acceleration case is genuinely exceptional.
-- V10D 45-59 TWO-PLUS UNDER: at minute 45-59 with a two-plus-goal margin, a goals_under line that dies from just one more goal is structurally fragile. Treat that as a no-bet unless the collapse risk is truly minimal and line-specific.
-`}`
-    : '';
-  const v10eExtra = isV10HybridLegacyE(promptVersion ?? LIVE_ANALYSIS_PROMPT_VERSION)
-    ? `${compact
-      ? `- V10E 45-59 CORNERS ONLY: in minute 45-59 with a one-goal margin, treat corners_under 6.5 and corners_over 13.5+ as exceptional-only. If the realized corner count is not already close to the offered line, prefer no bet.
-`
-      : `- V10E 45-59 CORNERS ONLY: from minute 45-59 in one-goal games, corners_under 6.5 and corners_over 13.5+ are exceptional-only. If the realized corner count is not already close to the offered line, prefer no bet over a generic corners thesis.
-`}`
-    : '';
-  const v10fExtra = isV10HybridLegacyF(promptVersion ?? LIVE_ANALYSIS_PROMPT_VERSION)
-    ? `${compact
-      ? `- V10F 45-59 CORNERS-UNDER CHASE RULE: in minute 45-59, Full-time corners_under 6.5 is exceptional-only when the match already has goals and the score is level or a one-goal game. A quiet first-half corner count alone is not enough if either side is still chasing.
-- V10F SAME-THESIS UNDER ROLLOVER: in minute 45-59 with a two-plus-goal margin, do not roll an existing Full-time goals_under into a looser nearby line just because the line moved up. Without materially stronger suppression and near-zero residual threat, prefer no bet.
-`
-      : `- V10F 45-59 CORNERS-UNDER CHASE RULE: from minute 45-59, Full-time corners_under 6.5 is exceptional-only when the match already contains goals and the score is level or within one goal. A low first-half corner count by itself is not enough if the second-half script still contains chase pressure.
-- V10F SAME-THESIS UNDER ROLLOVER: from minute 45-59 with a two-plus-goal margin, do not justify a new Full-time goals_under just because the market line drifted to a looser rung. If the thesis is unchanged and residual goal threat is not close to dead, prefer no bet over line-rolling.
-`}`
-    : '';
-  const v10gExtra = isV10HybridLegacyG(promptVersion ?? LIVE_ANALYSIS_PROMPT_VERSION)
-    ? `${compact
-      ? `- V10G 30-44 CORNERS-UNDER REALISM: in minute 30-44, low-line Full-time corners_under is exceptional-only once the match already has goals or the prematch prior is weak. Quiet corner volume alone is not enough.
-- V10G 30-44 BTTS-YES REALISM: in one-goal games between minute 30-44, BTTS Yes needs genuine dual-side threat now. One shot on target each or generic chase pressure is not enough.
-- V10G 30-44 HIGH-LINE OVER RULE: in one-goal games before halftime, do not force Full-time goals_over 4.5+ unless the game is already extreme and still accelerating.
-`
-      : `- V10G 30-44 CORNERS-UNDER REALISM: from minute 30-44, low-line Full-time corners_under is exceptional-only once the match already contains goals or the prematch prior is weak. A low realized corner count by itself is not enough.
-- V10G 30-44 BTTS-YES REALISM: in one-goal games between minute 30-44, BTTS Yes requires clear current threat from both teams, not just scoreboard pressure or prematch attacking reputation.
-- V10G 30-44 HIGH-LINE OVER RULE: before halftime in one-goal games, do not treat Full-time goals_over 4.5+ as a routine chase trade. It needs an already extreme, still-accelerating scoring script.
-`}`
-    : '';
-
-  return compact
-    ? `MINIMAL LEGACY TIMING ADJUSTMENT:
-- Keep the v8h restrictions and market-balance discipline.
+    ? `OFFICIAL TIMING ADJUSTMENT:
 - If 1X2 or BTTS No does not clear the higher bar, goals O/U may still be considered only when the O/U edge is independently clear.
-- Do NOT treat 0-0 after minute 55 as automatic goals_under.
-- Before minute 65, quiet or balanced states usually mean no bet rather than a generic Under.
-${v10cExtra}${v10dExtra}${v10eExtra}${v10fExtra}${v10gExtra}${inheritedV8hRules}
-
+- Do not treat 0-0 after minute 55 as automatic goals_under.
+- Before minute 65, quiet or balanced states usually mean no bet rather than generic Under.
+- In minute 30-44, low-line Full-time corners_under is exceptional-only once the match already has goals or the prematch prior is weak.
+- In one-goal games between minute 30-44, BTTS Yes requires clear current threat from both teams.
 `
-    : `MINIMAL LEGACY TIMING ADJUSTMENT:
-- Keep the v8h restrictions and market-balance discipline.
+    : `OFFICIAL TIMING ADJUSTMENT:
 - If 1X2 or BTTS No does not clear the higher bar, goals O/U may still be considered only when the O/U edge is independently clear.
-- Do NOT treat 0-0 after minute 55 as automatic goals_under.
-- Before minute 65, quiet or balanced states usually mean no bet rather than a generic Under.
-${v10cExtra}${v10dExtra}${v10eExtra}${v10fExtra}${v10gExtra}${inheritedV8hRules}
-
+- Do not treat 0-0 after minute 55 as automatic goals_under.
+- Before minute 65, quiet or balanced states usually mean no bet rather than generic Under.
+- In minute 30-44, low-line Full-time corners_under is exceptional-only once the match already has goals or the prematch prior is weak.
+- In one-goal games between minute 30-44, BTTS Yes requires clear current threat from both teams.
 `;
 }
 
@@ -1845,30 +1544,20 @@ function summarizeCorrelatedExposure(data: LiveAnalysisPromptInput): CompactExpo
 
 function buildExistingExposureSectionCompact(
   data: LiveAnalysisPromptInput,
-  promptVersion: LiveAnalysisPromptVersion,
+  _promptVersion: LiveAnalysisPromptVersion,
 ): string {
   const summaries = summarizeCorrelatedExposure(data);
   if (summaries.length === 0) return '';
 
   const lines = summaries.map((summary) => {
     const latestMinute = summary.latestMinute == null ? '?' : String(summary.latestMinute);
-    const ladderAlert = (
-      promptVersion === 'v6-betting-discipline-b'
-      || promptVersion === 'v6-betting-discipline-c'
-      || promptVersion === 'v7-profile-overlay-discipline-a'
-      || isV8PromptVersion(promptVersion)
-    ) && summary.count >= 2
+    const ladderAlert = summary.count >= 2
       ? ' [LADDER ALERT]'
       : '';
     return `- ${summary.label}: ${summary.count} prior pick(s), total prior stake ${summary.totalStake}%, latest at minute ${latestMinute}, lines: ${summary.canonicalMarkets.join(', ')}${ladderAlert}`;
   });
 
-  const advancedRules = (
-    promptVersion === 'v6-betting-discipline-b'
-    || promptVersion === 'v6-betting-discipline-c'
-    || promptVersion === 'v7-profile-overlay-discipline-a'
-    || isV8PromptVersion(promptVersion)
-  )
+  const advancedRules = true
     ? `- If the same thesis already has 2+ entries, do NOT add another rung. Default should_push=false.
 - A later safer line may be better in isolation, but adding it on top of earlier exposure still compounds bankroll risk instead of improving the old position.
 - Do not walk the line rung-by-rung (example: Over 3.5 -> Over 3 -> Over 2.75 -> Over 2.5). That is usually averaging into the same read, not a fresh edge.
@@ -2088,6 +1777,7 @@ export function buildLiveAnalysisPrompt(
   settings: LiveAnalysisPromptSettings,
   promptVersion: LiveAnalysisPromptVersion = LIVE_ANALYSIS_PROMPT_VERSION,
 ): string {
+  promptVersion = LIVE_ANALYSIS_PROMPT_VERSION;
   const analysisMode = resolveAnalysisMode(data);
   const lowEvidenceConditionGuard = buildLowEvidenceConditionGuardSection(isCompactPromptVersion(promptVersion), data);
   const structuredPrematchAskAiSection = buildStructuredPrematchAskAiSection(isCompactPromptVersion(promptVersion), data);
@@ -2218,12 +1908,7 @@ ${fullV8MarketBalanceRules}
     const bettingDisciplineSection = isBettingDisciplinePromptVersion(promptVersion)
       ? buildExistingExposureSectionCompact(data, promptVersion)
       : '';
-    const advancedBettingRules = (
-      promptVersion === 'v6-betting-discipline-b'
-      || promptVersion === 'v6-betting-discipline-c'
-      || promptVersion === 'v7-profile-overlay-discipline-a'
-      || isV8PromptVersion(promptVersion)
-    )
+    const advancedBettingRules = true
       ? `- First-half volume is a prior, not an automatic second-half trigger.
 - At HT and in the first 10 minutes of 2H, do NOT project a wild first half straight into a new Over bet unless the early second-half flow confirms it with fresh pressure, shots, or transitions.
 - Avoid new bets that still need two or more additional goals/events to win unless the match is truly exceptional.
@@ -2232,19 +1917,10 @@ ${fullV8MarketBalanceRules}
 - Do not average into a same-thesis totals ladder just because the line moved from 3.5 -> 3 -> 2.75 -> 2.5. That is usually bankroll compounding, not a new edge.
 `
       : '';
-    const advancedLineSpecificRule = (
-      promptVersion === 'v6-betting-discipline-b'
-      || promptVersion === 'v6-betting-discipline-c'
-      || promptVersion === 'v7-profile-overlay-discipline-a'
-      || isV8PromptVersion(promptVersion)
-    )
+    const advancedLineSpecificRule = true
       ? '- At HT / early 2H, a fresh Over 3.5 from 1-1 is usually too demanding. Wait for better confirmation or a friendlier line.\n'
       : '';
-    const advancedCornersRules = (
-      promptVersion === 'v6-betting-discipline-c'
-      || promptVersion === 'v7-profile-overlay-discipline-a'
-      || isV8PromptVersion(promptVersion)
-    )
+    const advancedCornersRules = true
       ? `- Corners are a tertiary market. They are not a primary read on team quality, true scoring edge, or match motivation.
 - Only choose corners when the corner-specific evidence is cleaner than any available Goals or AH thesis. If a goals/AH read is similarly strong, prefer goals/AH.
 - Corners Under is exceptional-only. Default should_push=false unless the match is genuinely calm and corner-suppressing.
@@ -2254,14 +1930,11 @@ ${fullV8MarketBalanceRules}
 - Corners markets should usually cap at confidence 6 and stake 3%. Corners Under should usually cap at confidence 5 and stake 2% unless the edge is exceptionally clean.
 `
       : '';
-    const advancedBalancedTotalsRule = (
-      promptVersion === 'v6-betting-discipline-c'
-      || promptVersion === 'v7-profile-overlay-discipline-a'
-      || isV8PromptVersion(promptVersion)
-    )
+    const advancedBalancedTotalsRule = true
       ? `- Balanced totals are not enough. In 1-1 or 0-0 states around minute 55-70, if possession, shots, and shots on target are broadly even and there is no clear pressure asymmetry, default should_push=false.
 - Symmetric prices around 1.90 on both sides usually mean the market sees a thin edge. Do not force an Over or Under just because one more goal would cash.
-${promptVersion === 'v8-market-balance-followup-b' || promptVersion === 'v8-market-balance-followup-c' || promptVersion === 'v8-market-balance-followup-d' || promptVersion === 'v8-market-balance-followup-e' || promptVersion === 'v8-market-balance-followup-f' ? '- In minute 30-59, treat level or one-goal states as a danger zone for generic totals picks. If the edge is not clearly asymmetrical, default should_push=false rather than forcing an Under.\n' : ''}${promptVersion === 'v8-market-balance-followup-c' ? '- In minute 30-59, if a totals thesis cannot name a concrete confirming prior, treat that as missing confirmation rather than as neutral support.\n' : ''}
+- In minute 30-59, treat level or one-goal states as a danger zone for generic totals picks. If the edge is not clearly asymmetrical, default should_push=false rather than forcing an Under.
+- In minute 30-59, if a totals thesis cannot name a concrete confirming prior, treat that as missing confirmation rather than neutral support.
 `
       : '';
     const profileOverlayDisciplineSection = buildProfileAndOverlayDisciplineSectionCompact(data, promptVersion);
@@ -2271,8 +1944,11 @@ ${promptVersion === 'v8-market-balance-followup-b' || promptVersion === 'v8-mark
       ? buildV8MarketBalanceSectionCompact(promptVersion)
       : '';
     const compactMarketSelectionRules = isV10HybridLegacyB(promptVersion)
-      ? `- 1X2 and BTTS No need full_live_data, confidence >= 7, and strong stat support
+      ? `- 1X2 and BTTS No are Tier-1-only markets. They need full_live_data, confidence >= 7, and strong stat support
+- 1X2 and BTTS No need full_live_data, confidence >= 7, and strong stat support
+- BTTS Yes requires at least Tier 1 evidence.
 - BTTS Yes needs tier 1 evidence
+- If 1X2 or AH is not justified, do NOT automatically fall back to Over/Under.
 - Tier 3 may only use O/U or selective AH
 - Thin balanced totals need a pass unless live evidence is clearly asymmetric.
 - Goals and AH are primary markets. Corners are tertiary and require cleaner evidence than goals/AH.
@@ -2289,7 +1965,9 @@ ${buildV10HybridLegacyMinimalSection(true, promptVersion)}${activeCornersSanityA
 ${advancedLineSpecificRule}- risk_level HIGH => should_push false
 `
       : isV10PromptVersion(promptVersion)
-      ? `- 1X2 and BTTS No need full_live_data, confidence >= 7, and strong stat support
+      ? `- 1X2 and BTTS No are Tier-1-only markets. They need full_live_data, confidence >= 7, and strong stat support
+- 1X2 and BTTS No need full_live_data, confidence >= 7, and strong stat support
+- BTTS Yes requires at least Tier 1 evidence.
 - BTTS Yes needs tier 1 evidence
 - Tier 3 may only use O/U or selective AH
 - Thin balanced totals need a pass unless live evidence is clearly asymmetric.
@@ -2317,7 +1995,9 @@ ${activeCornersSanityAlert}
 - Over 3.5+ needs current goals >= line-1 or a clearly open match
 - risk_level HIGH => should_push false
 `
-      : `- 1X2 and BTTS No need full_live_data, confidence >= 7, and strong stat support
+      : `- 1X2 and BTTS No are Tier-1-only markets. They need full_live_data, confidence >= 7, and strong stat support
+- 1X2 and BTTS No need full_live_data, confidence >= 7, and strong stat support
+- BTTS Yes requires at least Tier 1 evidence.
 - BTTS Yes needs tier 1 evidence
 - Tier 3 may only use O/U or selective AH
 - Thin balanced totals need a pass unless live evidence is clearly asymmetric.
@@ -2386,13 +2066,18 @@ ODDS_SOURCE: ${data.oddsSource}
 ODDS_FETCHED_AT: ${data.oddsFetchedAt ?? 'unknown'} (match minute at fetch: ${data.minute})
 CURRENT_TOTAL_GOALS: ${data.currentTotalGoals}
 CURRENT_TOTAL_CORNERS: ${currentTotalCorners}
+ODDS METHODOLOGY:
+- Odds are the BEST available across multiple bookmakers after system canonicalization.
+- Markets with invalid implied-probability margins are pre-removed before prompt rendering.
 ${data.oddsSource === 'reference-prematch' ? `REFERENCE_PREMATCH_ODDS: These are static pre-match lines from European bookmakers (Pinnacle, Bet365, etc.), captured before or early in the match. They do NOT reflect the current live market.
 WARNING: For Asian live bookmakers (K88, SBO, Pinnacle Asia, IBC), the actual live O/U line at this moment is typically 0.5–1.5 goals LOWER than the pre-match line shown here, because they quote remaining-goals lines that account for goals already scored and time elapsed.
 ACTION: Do NOT recommend O/U or Asian Handicap bets based on these pre-match lines. If you must recommend, explicitly state the uncertainty and tell the user to verify the current live line at their bookmaker before placing.
 ` : ''}${data.oddsSource === 'fallback-live' ? 'FALLBACK_LIVE_ODDS: fallback live snapshot may lag slightly.\n' : ''}${!data.oddsAvailable ? 'Treat odds as unavailable and be conservative.\n' : ''}${!data.oddsSuspicious && oddsSanityWarnings.length > 0 ? `ODDS SANITY NOTES:\n${oddsSanityWarnings.map((w) => '- ' + w).join('\n')}
 Use these notes as market-level restrictions, not a reason to discard the entire odds feed.\n` : ''}${data.oddsSuspicious ? `ODDS SANITY FAILED:\n${oddsSanityWarnings.map((w) => '- ' + w).join('\n')}
 Treat odds as unreliable and behave as if ODDS_AVAILABLE=false.
-` : ''}ODDS RULE: canonical odds are already filtered; never infer missing markets and never invent prices.
+` : ''}ODDS RULES:
+- Canonical odds are already filtered; never infer missing markets and never invent prices.
+- Treat odds exactly as provided in the canonical snapshot.
 
 ========================
 RECENT EVENTS
@@ -2451,6 +2136,8 @@ ${advancedBettingRules}${compactMarketSelectionRules}
 
 RED CARD:
 - Scan events for red cards; if found, add warning and reduce confidence by 1
+RED CARD PROTOCOL:
+- Re-evaluate all market theses after a red card; do not treat pre-card tempo as still valid.
 
 BTTS:
 - BTTS Yes: estimate must exceed break-even by >= 5%; if odds >= 2.00 then both teams need shots_on_target >= 2

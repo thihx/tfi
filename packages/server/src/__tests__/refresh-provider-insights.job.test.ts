@@ -98,6 +98,7 @@ describe('refreshProviderInsightsJob', () => {
       lineupsRefreshed: 1,
       predictionsRefreshed: 1,
       standingsRefreshed: 1,
+      apiCallsUsed: 0,
     });
     expect(mockEnsureFixturesForMatchIds).toHaveBeenCalledWith(['300'], { freshnessMode: 'prewarm_only' });
     expect(mockEnsureScoutInsight).toHaveBeenCalledWith('300', expect.objectContaining({
@@ -157,12 +158,12 @@ describe('refreshProviderInsightsJob', () => {
     expect(mockEnsureScoutInsight).not.toHaveBeenCalled();
   });
 
-  test('caps candidates to budget limit and reports budgetCapped', async () => {
+  test('caps candidates by estimated request budget and reports budgetCapped', async () => {
     const ids = Array.from({ length: 50 }, (_, i) => ({ match_id: String(400 + i) }));
     mockGetMatchesByStatus.mockResolvedValue([]);
     mockGetActiveOperationalWatchlist.mockResolvedValue(ids);
     mockEnsureFixturesForMatchIds.mockResolvedValue(
-      ids.slice(0, 30).map((entry) => ({
+      ids.slice(0, 10).map((entry) => ({
         fixture: { id: Number(entry.match_id), status: { short: 'NS', elapsed: null } },
         league: { id: 39, season: 2025 },
       })),
@@ -186,6 +187,6 @@ describe('refreshProviderInsightsJob', () => {
       { freshnessMode: 'prewarm_only' },
     );
     const calledIds = mockEnsureFixturesForMatchIds.mock.calls[0][0] as string[];
-    expect(calledIds.length).toBe(30);
+    expect(calledIds.length).toBe(10);
   });
 });

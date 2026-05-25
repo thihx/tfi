@@ -70,7 +70,7 @@ interface ModelRunMetrics {
 
 function parseArgs(argv: string[]): BenchArgs {
   let benchDir = resolve(SERVER_ROOT, 'replay-benchmarks/all-markets-benchmark');
-  let promptVersion = process.env['LIVE_ANALYSIS_ACTIVE_PROMPT_VERSION']?.trim() || 'v10-hybrid-legacy-b';
+  let promptVersion = process.env['LIVE_ANALYSIS_ACTIVE_PROMPT_VERSION']?.trim() || 'v10-hybrid-legacy-g';
   /** Production today is often gemini-3.5-flash (.env.azure); config default may still say 3.0-flash. */
   let baselineModel = process.env['GEMINI_MODEL']?.trim() || config.geminiModel || 'gemini-3.5-flash';
   let candidateModel = 'gemini-3.5-flash';

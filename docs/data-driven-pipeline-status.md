@@ -1,6 +1,6 @@
 # Data-driven replay pipeline: progress and definition of done
 
-This document tracks the data-driven recommendation replay workstream (coverage, batch, delta vs production, gates, segment analysis, CI). It does not replace [core-pipeline-implementation-checklist.md](./core-pipeline-implementation-checklist.md), which covers a wider scope (harness, provider sampling, live smoke, etc.).
+This document tracks the data-driven recommendation replay workstream (coverage, batch, delta vs production, gates, segment analysis, CI). It complements [live-recommendation-pipeline-vi.md](./live-recommendation-pipeline-vi.md), which is the current source of truth for the live recommendation pipeline.
 
 ## MVP definition of done
 
@@ -34,7 +34,7 @@ The MVP is **complete** when all of the following are true:
 |------|--------|
 | Scheduled job running real batch and auto-updating baselines | Not built; add if you want automation |
 | UI/dashboard for `replay-work/` outputs | Not built; product decision |
-| Full core-pipeline checklist closure | See [core-pipeline-implementation-checklist.md](./core-pipeline-implementation-checklist.md) |
+| Full live-pipeline hardening closure | See [live-recommendation-pipeline-vi.md](./live-recommendation-pipeline-vi.md) |
 
 ## Suggested next steps after MVP
 
@@ -62,7 +62,7 @@ Not automated (by design): full `data-driven:replay-batch` against DB, auto-PR t
 
 **Overall (A + B + C, per this document): 100%.**
 
-*Separate from global [core-pipeline-implementation-checklist.md](./core-pipeline-implementation-checklist.md).*
+*Separate from the live pipeline source of truth in [live-recommendation-pipeline-vi.md](./live-recommendation-pipeline-vi.md).*
 
 ## Track C — DB-backed CI (on demand)
 

@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { ProfileEditModal } from './ProfileEditModal';
@@ -138,8 +138,7 @@ describe('ProfileEditModal', () => {
     );
 
     const input = await screen.findByDisplayValue('User Example');
-    await user.clear(input);
-    await user.type(input, 'Thi Nguyen');
+    fireEvent.change(input, { target: { value: 'Thi Nguyen' } });
     await user.click(screen.getByRole('button', { name: 'Save' }));
 
     await waitFor(() => {

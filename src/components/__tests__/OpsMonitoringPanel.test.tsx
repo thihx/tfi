@@ -85,7 +85,7 @@ const mockSnapshot = {
     versionBreakdown: [
       {
         executionRole: 'active',
-        promptVersion: 'v10-hybrid-legacy-b',
+        promptVersion: 'v10-hybrid-legacy-g',
         samples: 4,
         successRate: 100,
         avgLatencyMs: 19000,
@@ -93,7 +93,7 @@ const mockSnapshot = {
       },
       {
         executionRole: 'shadow',
-        promptVersion: 'v9-legacy-lean-a',
+        promptVersion: 'v10-hybrid-legacy-g',
         samples: 4,
         successRate: 100,
         avgLatencyMs: 16000,
@@ -235,7 +235,6 @@ describe('OpsMonitoringPanel', () => {
     expect(screen.getByText('Prediction or profile coverage too thin')).toBeInTheDocument();
     expect(screen.getByText('Stacking rate')).toBeInTheDocument();
     expect(screen.getByText('Atletico San Luis vs Leon')).toBeInTheDocument();
-    expect(screen.getByText('v10-hybrid-legacy-b')).toBeInTheDocument();
-    expect(screen.getByText('v9-legacy-lean-a')).toBeInTheDocument();
+    expect(screen.getAllByText('v10-hybrid-legacy-g').length).toBeGreaterThanOrEqual(2);
   });
 });

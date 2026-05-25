@@ -131,7 +131,12 @@ describe('fetchMatchesJob', () => {
     vi.mocked(leagueRepo.getActiveLeagues).mockResolvedValueOnce([]);
 
     const result = await fetchMatchesJob();
-    expect(result).toEqual({ saved: 0, leagues: 0 });
+    expect(result).toEqual({
+      saved: 0,
+      leagues: 0,
+      skipped: true,
+      skipReason: 'no_active_leagues',
+    });
   });
 
   test('does not perform watchlist side effects directly anymore', async () => {

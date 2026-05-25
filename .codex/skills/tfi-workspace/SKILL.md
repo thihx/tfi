@@ -11,7 +11,8 @@ Use this skill to rebuild project context quickly before changing code.
 
 1. Read `references/runtime.md` for the repo map, boot commands, ports, and auth topology.
 2. Read `references/testing.md` when touching Playwright, Vitest, or auth-sensitive flows.
-3. If the task is E2E-specific, also use `tfi-e2e-playwright`.
+3. If the task touches recommendations, live monitor, prompts, replay, settlement, watchlist triggers, or notification delivery, also use `tfi-recommendation-pipeline`.
+4. If the task is E2E-specific, also use `tfi-e2e-playwright`.
 
 ## Working Model
 
@@ -28,6 +29,7 @@ Use this skill to rebuild project context quickly before changing code.
 - Expect the backend to require both Postgres and Redis before it can start cleanly.
 - Do not assume older Playwright assertions match the current UI copy. Check the rendered tab and current headings first.
 - Prefer current runtime files over archived docs if they disagree.
+- For live football recommendations, `docs/live-recommendation-pipeline-vi.md` is the source of truth and `v10-hybrid-legacy-g` is the only official prompt.
 
 ## Task Routing
 

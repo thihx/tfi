@@ -15,9 +15,9 @@ vi.mock('../repos/matches.repo.js', () => ({
   getAllMatches: vi.fn().mockResolvedValue([
     {
       match_id: '1001',
-      date: '2026-03-31',
+      date: new Date(Date.now() + 6 * 60 * 60_000).toISOString().slice(0, 10),
       kickoff: '19:00',
-      kickoff_at_utc: '2026-03-31T19:00:00.000Z',
+      kickoff_at_utc: new Date(Date.now() + 6 * 60 * 60_000).toISOString(),
       league_id: 39,
       league_name: 'Premier League',
       home_team: 'Arsenal',
@@ -28,9 +28,9 @@ vi.mock('../repos/matches.repo.js', () => ({
     },
     {
       match_id: '1002',
-      date: '2026-03-31',
+      date: new Date(Date.now() + 6 * 60 * 60_000).toISOString().slice(0, 10),
       kickoff: '21:00',
-      kickoff_at_utc: '2026-03-31T21:00:00.000Z',
+      kickoff_at_utc: new Date(Date.now() + 6 * 60 * 60_000).toISOString(),
       league_id: 140,
       league_name: 'La Liga',
       home_team: 'Barca',

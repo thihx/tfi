@@ -24,6 +24,9 @@ const { mockConfig } = vi.hoisted(() => ({
     liveAnalysisShadowPromptVersion: '',
     liveAnalysisShadowEnabled: false,
     liveAnalysisShadowSampleRate: 0,
+    policyRequiredBreakEvenMax: 0.5,
+    policyHighRiskBreakEvenMax: 0.48,
+    policyLateGameBreakEvenRelaxation: 0.05,
     linePatienceEnabled: false,
     linePatienceConfigPath: '',
   },
@@ -42,8 +45,8 @@ vi.mock('../lib/audit.js', () => ({
 vi.mock('../lib/gemini.js', () => ({
   callGemini: vi.fn().mockResolvedValue(JSON.stringify({
     should_push: true,
-    selection: 'Over 2.5 Goals @1.85',
-    bet_market: 'over_2.5',
+    selection: 'Away +0.25 @2.10',
+    bet_market: 'asian_handicap_away_+0.25',
     market_chosen_reason: 'High tempo match',
     confidence: 8,
     reasoning_en: 'Open match with high shot count',
@@ -117,6 +120,10 @@ vi.mock('../lib/football-api.js', () => ({
         { name: 'Both Teams Score', values: [
           { value: 'Yes', odd: '1.60' },
           { value: 'No', odd: '2.15' },
+        ] },
+        { name: 'Asian Handicap', values: [
+          { value: 'Home', odd: '1.82', handicap: '-0.25' },
+          { value: 'Away', odd: '2.10', handicap: '+0.25' },
         ] },
       ],
     }],
@@ -393,6 +400,10 @@ beforeEach(async () => {
           { value: 'Yes', odd: '1.60' },
           { value: 'No', odd: '2.15' },
         ] },
+        { name: 'Asian Handicap', values: [
+          { value: 'Home', odd: '1.82', handicap: '-0.25' },
+          { value: 'Away', odd: '2.10', handicap: '+0.25' },
+        ] },
       ],
     }],
   }] as never);
@@ -427,7 +438,7 @@ describe('runPipelineBatch', () => {
     expect(match.matchId).toBe('100');
     expect(match.success).toBe(true);
     expect(match.shouldPush).toBe(true);
-    expect(match.selection).toBe('Over 2.5 Goals @1.85');
+    expect(match.selection).toBe('Away +0.25 @2.10');
     expect(match.confidence).toBe(8);
     expect(match.saved).toBe(true);
     expect(match.notified).toBe(true);
@@ -485,7 +496,7 @@ describe('runPipelineBatch', () => {
       reasoning_vi: 'Tran dau se tiep tuc co phat goc.',
       warnings: [],
       value_percent: 12,
-      risk_level: 'MEDIUM',
+      risk_level: 'LOW',
       stake_percent: 3,
       custom_condition_matched: false,
       custom_condition_status: 'none',
@@ -525,7 +536,7 @@ describe('runPipelineBatch', () => {
       reasoning_vi: 'Ap luc chu nha dang tang.',
       warnings: [],
       value_percent: 7,
-      risk_level: 'MEDIUM',
+      risk_level: 'LOW',
       stake_percent: 4,
       custom_condition_matched: false,
     }));
@@ -586,9 +597,9 @@ describe('runPipelineBatch', () => {
       ...mockFixture,
       fixture: {
         ...mockFixture.fixture,
-        status: { ...mockFixture.fixture.status, elapsed: 52 },
+        status: { ...mockFixture.fixture.status, elapsed: 78 },
       },
-      goals: { home: 1, away: 0 },
+      goals: { home: 2, away: 0 },
     }] as never);
     vi.mocked(footballApi.fetchFixtureStatistics).mockResolvedValueOnce([
       { team: { id: 1 }, statistics: [
@@ -621,21 +632,21 @@ describe('runPipelineBatch', () => {
           ] },
           { name: 'Both Teams Score', values: [
             { value: 'Yes', odd: '1.95' },
-            { value: 'No', odd: '1.82' },
+            { value: 'No', odd: '1.89' },
           ] },
         ],
       }],
     }] as never);
     vi.mocked(callGemini).mockResolvedValueOnce(JSON.stringify({
       should_push: true,
-      selection: 'BTTS No @1.82',
+      selection: 'BTTS No @1.89',
       bet_market: 'btts_no',
       confidence: 9,
       reasoning_en: 'One side should keep a clean sheet.',
       reasoning_vi: 'Mot doi co the giu sach luoi.',
       warnings: [],
-      value_percent: 6,
-      risk_level: 'MEDIUM',
+      value_percent: 8,
+      risk_level: 'LOW',
       stake_percent: 5,
       custom_condition_matched: false,
     }));
@@ -906,15 +917,15 @@ describe('runPipelineBatch', () => {
     const { callGemini } = await import('../lib/gemini.js');
     vi.mocked(callGemini).mockResolvedValueOnce(JSON.stringify({
       should_push: true,
-      selection: 'Over 2.5 Goals @1.85',
-      bet_market: 'over_2.5',
-      market_chosen_reason: 'Full analysis still finds a live over edge.',
+      selection: 'Away +0.25 @2.10',
+      bet_market: 'asian_handicap_away_+0.25',
+      market_chosen_reason: 'Full analysis still finds a live handicap edge.',
       confidence: 8,
-      reasoning_en: 'Live tempo, shot volume, and odds all support the over.',
-      reasoning_vi: 'Live tempo, shot volume, and odds all support the over.',
+      reasoning_en: 'Live tempo, shot volume, and odds all support the away handicap.',
+      reasoning_vi: 'Live tempo, shot volume, and odds all support the away handicap.',
       warnings: [],
       value_percent: 12,
-      risk_level: 'MEDIUM',
+      risk_level: 'LOW',
       stake_percent: 5,
       custom_condition_matched: true,
       custom_condition_status: 'evaluated',
@@ -922,7 +933,7 @@ describe('runPipelineBatch', () => {
       custom_condition_summary_vi: 'Tracked total-goals condition matched.',
       custom_condition_reason_en: 'Score and minute satisfy the watch rule.',
       custom_condition_reason_vi: 'Score and minute satisfy the watch rule.',
-      condition_triggered_suggestion: 'Over 2.5 Goals @1.85',
+      condition_triggered_suggestion: 'Away +0.25 @2.10',
       condition_triggered_reasoning_en: 'The watched trigger and the full thesis align.',
       condition_triggered_reasoning_vi: 'The watched trigger and the full thesis align.',
       condition_triggered_confidence: 7,
@@ -939,7 +950,7 @@ describe('runPipelineBatch', () => {
     expect(result.results[0]?.decisionKind).toBe('ai_push');
     expect(result.results[0]?.saved).toBe(true);
     expect(result.results[0]?.notified).toBe(true);
-    expect(result.results[0]?.selection).toBe('Over 2.5 Goals @1.85');
+    expect(result.results[0]?.selection).toBe('Away +0.25 @2.10');
     expect(result.results[0]?.debug?.evidenceMode).toBe('full_live_data');
     expect(result.results[0]?.debug?.parsed).toEqual(expect.objectContaining({
       custom_condition_matched: true,
@@ -1094,7 +1105,7 @@ describe('runPipelineBatch', () => {
       match_id: '100',
       home_team: 'Team A',
       away_team: 'Team B',
-      selection: 'Over 2.5 Goals @1.85',
+      selection: 'Away +0.25 @2.10',
       confidence: 8,
       prompt_version: LIVE_ANALYSIS_PROMPT_VERSION,
     }));
@@ -1110,8 +1121,8 @@ describe('runPipelineBatch', () => {
       ai_model: 'gemini-3.5-flash',
       prompt_version: LIVE_ANALYSIS_PROMPT_VERSION,
       ai_should_push: true,
-      predicted_market: 'over_2.5',
-      predicted_selection: 'Over 2.5 Goals @1.85',
+      predicted_market: 'asian_handicap_away_+0.25',
+      predicted_selection: 'Away +0.25 @2.10',
     }));
   });
 
@@ -1506,7 +1517,7 @@ describe('runPipelineBatch', () => {
       reasoning_vi: 'AI khong thay edge truc tiep, nhung dieu kien theo doi da thoa.',
       warnings: [],
       value_percent: 0,
-      risk_level: 'MEDIUM',
+      risk_level: 'LOW',
       stake_percent: 0,
       custom_condition_matched: true,
       custom_condition_status: 'evaluated',
@@ -1514,10 +1525,10 @@ describe('runPipelineBatch', () => {
       custom_condition_summary_vi: 'Dieu kien under cuoi tran da thoa',
       custom_condition_reason_en: 'Minute and goal state match the watchlist rule',
       custom_condition_reason_vi: 'Phut va ty so phu hop voi rule watchlist',
-      condition_triggered_suggestion: 'Over 2.5 Goals @1.85',
-      condition_triggered_reasoning_en: 'Condition says the over thesis is live.',
-      condition_triggered_reasoning_vi: 'Dieu kien cho thay thesis over dang hop le.',
-      condition_triggered_confidence: 7,
+      condition_triggered_suggestion: 'Away +0.25 @2.10',
+      condition_triggered_reasoning_en: 'Condition says the away handicap thesis is live.',
+      condition_triggered_reasoning_vi: 'Dieu kien cho thay thesis handicap doi khach dang hop le.',
+      condition_triggered_confidence: 8,
       condition_triggered_stake: 3,
     }));
 
@@ -1530,13 +1541,13 @@ describe('runPipelineBatch', () => {
     expect(result.results[0]?.shouldPush).toBe(true);
     expect(result.results[0]?.saved).toBe(true);
     expect(result.results[0]?.notified).toBe(true);
-    expect(result.results[0]?.selection).toBe('Over 2.5 Goals @1.85');
-    expect(result.results[0]?.confidence).toBe(7);
+    expect(result.results[0]?.selection).toBe('Away +0.25 @2.10');
+    expect(result.results[0]?.confidence).toBe(8);
     expect(result.results[0]?.debug?.parsed).toEqual(expect.objectContaining({
       custom_condition_matched: true,
       custom_condition_status: 'evaluated',
-      condition_triggered_suggestion: 'Over 2.5 Goals @1.85',
-      condition_triggered_confidence: 7,
+      condition_triggered_suggestion: 'Away +0.25 @2.10',
+      condition_triggered_confidence: 8,
       condition_triggered_stake: 3,
       condition_triggered_should_push: true,
       should_push: true,
@@ -1545,10 +1556,10 @@ describe('runPipelineBatch', () => {
     }));
     expect(createRecommendation).toHaveBeenCalledTimes(1);
     expect(createRecommendation).toHaveBeenCalledWith(expect.objectContaining({
-      selection: 'Over 2.5 Goals @1.85',
-      bet_market: 'over_2.5',
-      confidence: 7,
-      stake_percent: 2.5,
+      selection: 'Away +0.25 @2.10',
+      bet_market: 'asian_handicap_away_+0.25',
+      confidence: 8,
+      stake_percent: 3,
       custom_condition_matched: true,
     }));
     expect(createAiPerformanceRecord).toHaveBeenCalledTimes(1);
@@ -1760,7 +1771,7 @@ describe('runPipelineBatch', () => {
     vi.mocked(recommendationsRepo.getRecommendationsByMatchId).mockResolvedValueOnce([
       {
         id: 52,
-        unique_key: '100_over_2.5',
+        unique_key: '100_asian_handicap_away_+0.25',
         match_id: '100',
         timestamp: '2026-04-02T07:00:00.000Z',
         league: 'Test League',
@@ -1779,8 +1790,8 @@ describe('runPipelineBatch', () => {
         minute: 60,
         score: '0-0',
         bet_type: 'AI',
-        selection: 'Over 2.5 Goals @1.85',
-        odds: 1.85,
+        selection: 'Away +0.25 @2.10',
+        odds: 2.1,
         confidence: 6,
         value_percent: 8,
         risk_level: 'MEDIUM',
@@ -1792,7 +1803,7 @@ describe('runPipelineBatch', () => {
         warnings: '',
         ai_model: 'gemini-3.5-flash',
         mode: 'B',
-        bet_market: 'over_2.5',
+        bet_market: 'asian_handicap_away_+0.25',
         notified: '',
         notification_channels: '',
         result: '',
@@ -1816,6 +1827,10 @@ describe('runPipelineBatch', () => {
             { value: 'Over', odd: '2.05', handicap: '2.5' },
             { value: 'Under', odd: '1.70', handicap: '2.5' },
           ] },
+          { name: 'Asian Handicap', values: [
+            { value: 'Home', odd: '1.70', handicap: '-0.25' },
+            { value: 'Away', odd: '2.25', handicap: '+0.25' },
+          ] },
         ],
       }],
     }] as never);
@@ -1838,10 +1853,10 @@ describe('runPipelineBatch', () => {
       custom_condition_summary_vi: 'Late under condition matched',
       custom_condition_reason_en: 'The match remains slow and the same line is now better priced.',
       custom_condition_reason_vi: 'The match remains slow and the same line is now better priced.',
-      condition_triggered_suggestion: 'Over 2.5 Goals @2.05',
-      condition_triggered_reasoning_en: 'The same over line now has materially better price.',
-      condition_triggered_reasoning_vi: 'The same over line now has materially better price.',
-      condition_triggered_confidence: 6,
+      condition_triggered_suggestion: 'Away +0.25 @2.25',
+      condition_triggered_reasoning_en: 'The same away handicap line now has materially better price.',
+      condition_triggered_reasoning_vi: 'The same away handicap line now has materially better price.',
+      condition_triggered_confidence: 8,
       condition_triggered_stake: 2,
       condition_triggered_special_override: true,
       condition_triggered_special_override_reason_en: 'Same line, but the live price improved materially versus the earlier save.',
@@ -1853,9 +1868,9 @@ describe('runPipelineBatch', () => {
 
     expect(result.results[0]?.saved).toBe(true);
     expect(createRecommendation).toHaveBeenCalledWith(expect.objectContaining({
-      selection: 'Over 2.5 Goals @2.05',
-      bet_market: 'over_2.5',
-      confidence: 6,
+      selection: 'Away +0.25 @2.25',
+      bet_market: 'asian_handicap_away_+0.25',
+      confidence: 8,
       stake_percent: 2,
     }));
     expect(result.results[0]?.debug?.parsed?.warnings).toContain(
@@ -2397,11 +2412,11 @@ describe('runPipelineBatch', () => {
     expect(result.result.debug?.promptDataLevel).toBe('advanced-upgraded');
   });
 
-  test('records active and shadow prompt outputs with shared analysisRunId when shadow is enabled', async () => {
+  test('does not run prompt shadow when retired shadow env values resolve to the single official prompt', async () => {
     mockConfig.liveAnalysisShadowEnabled = true;
     mockConfig.liveAnalysisShadowSampleRate = 1;
-    mockConfig.liveAnalysisActivePromptVersion = 'v4-evidence-hardened';
-    mockConfig.liveAnalysisShadowPromptVersion = 'v5-compact-a';
+    mockConfig.liveAnalysisActivePromptVersion = 'v10-hybrid-legacy-g';
+    mockConfig.liveAnalysisShadowPromptVersion = 'v10-hybrid-legacy-g';
 
     const result = await runPipelineBatch(['100']);
     await flushAsyncWork();
@@ -2410,23 +2425,19 @@ describe('runPipelineBatch', () => {
     const { createPromptShadowRun } = await import('../repos/prompt-shadow-runs.repo.js');
     const shadowCalls = vi.mocked(createPromptShadowRun).mock.calls;
 
-    expect(callGemini).toHaveBeenCalledTimes(2);
-    expect(shadowCalls).toHaveLength(2);
-    expect(shadowCalls[0]?.[0].execution_role).toBe('active');
-    expect(shadowCalls[0]?.[0].prompt_version).toBe('v4-evidence-hardened');
-    expect(shadowCalls[1]?.[0].execution_role).toBe('shadow');
-    expect(shadowCalls[1]?.[0].prompt_version).toBe('v5-compact-a');
-    expect(shadowCalls[0]?.[0].analysis_run_id).toBe(shadowCalls[1]?.[0].analysis_run_id);
+    expect(callGemini).toHaveBeenCalledTimes(1);
+    expect(shadowCalls).toHaveLength(0);
     expect(result.results[0]?.saved).toBe(true);
     expect(result.results[0]?.notified).toBe(true);
     expect(result.results[0]?.debug?.analysisRunId).toBeTypeOf('string');
+    expect(result.results[0]?.debug?.promptVersion).toBe(LIVE_ANALYSIS_PROMPT_VERSION);
   });
 
   test('shadow prompt never creates extra recommendation, performance row, or notification side effects', async () => {
     mockConfig.liveAnalysisShadowEnabled = true;
     mockConfig.liveAnalysisShadowSampleRate = 1;
-    mockConfig.liveAnalysisActivePromptVersion = 'v4-evidence-hardened';
-    mockConfig.liveAnalysisShadowPromptVersion = 'v5-compact-a';
+    mockConfig.liveAnalysisActivePromptVersion = 'v10-hybrid-legacy-g';
+    mockConfig.liveAnalysisShadowPromptVersion = 'v10-hybrid-legacy-g';
 
     await runPipelineBatch(['100']);
     await flushAsyncWork();
@@ -2442,28 +2453,13 @@ describe('runPipelineBatch', () => {
     expect(sendTelegramMessage).not.toHaveBeenCalled();
   });
 
-  test('stores shadow failure separately without breaking active pipeline result', async () => {
+  test('ignores invalid shadow prompt configuration before any second LLM call can fail', async () => {
     mockConfig.liveAnalysisShadowEnabled = true;
     mockConfig.liveAnalysisShadowSampleRate = 1;
-    mockConfig.liveAnalysisActivePromptVersion = 'v4-evidence-hardened';
-    mockConfig.liveAnalysisShadowPromptVersion = 'v5-compact-a';
+    mockConfig.liveAnalysisActivePromptVersion = 'v10-hybrid-legacy-g';
+    mockConfig.liveAnalysisShadowPromptVersion = 'v10-hybrid-legacy-g';
 
     const { callGemini } = await import('../lib/gemini.js');
-    vi.mocked(callGemini)
-      .mockResolvedValueOnce(JSON.stringify({
-        should_push: true,
-        selection: 'Over 2.5 Goals @1.85',
-        bet_market: 'over_2.5',
-        confidence: 8,
-        reasoning_en: 'Open match with high shot count',
-        reasoning_vi: 'Open match with high shot count',
-        warnings: [],
-        value_percent: 12,
-        risk_level: 'MEDIUM',
-        stake_percent: 5,
-        custom_condition_matched: false,
-      }))
-      .mockRejectedValueOnce(new Error('shadow llm aborted'));
 
     const result = await runPipelineBatch(['100']);
     await flushAsyncWork();
@@ -2473,20 +2469,15 @@ describe('runPipelineBatch', () => {
 
     expect(result.results[0]?.success).toBe(true);
     expect(result.results[0]?.shouldPush).toBe(true);
-    expect(shadowCalls).toHaveLength(2);
-    expect(shadowCalls[1]?.[0]).toMatchObject({
-      execution_role: 'shadow',
-      prompt_version: 'v5-compact-a',
-      success: false,
-      error: 'shadow llm aborted',
-    });
+    expect(callGemini).toHaveBeenCalledTimes(1);
+    expect(shadowCalls).toHaveLength(0);
   });
 
   test('does not run prompt shadow when prompt version override is explicitly supplied', async () => {
     mockConfig.liveAnalysisShadowEnabled = true;
     mockConfig.liveAnalysisShadowSampleRate = 1;
-    mockConfig.liveAnalysisActivePromptVersion = 'v4-evidence-hardened';
-    mockConfig.liveAnalysisShadowPromptVersion = 'v5-compact-a';
+    mockConfig.liveAnalysisActivePromptVersion = 'v10-hybrid-legacy-g';
+    mockConfig.liveAnalysisShadowPromptVersion = 'v10-hybrid-legacy-g';
 
     await runPromptOnlyAnalysisForMatch('100', { forceAnalyze: true, promptVersionOverride: LIVE_ANALYSIS_PROMPT_VERSION });
     await flushAsyncWork();

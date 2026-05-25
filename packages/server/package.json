@@ -17,7 +17,7 @@
     "test:watch": "vitest",
     "verify:delivery-runtime": "tsx src/scripts/verify-delivery-runtime.ts",
     "replay:fixtures:structural": "tsx src/scripts/emit-structural-settled-replay-fixtures.ts",
-    "replay:eval:structural": "tsx src/scripts/evaluate-settled-prompt-variants.ts --dir fixtures/settled-replay-structural --prompt-version v8-market-balance-followup-h --prompt-version v10-hybrid-legacy-b --llm mock --odds mock --delay-ms 0 --report-json replay-baselines/structural-replay-summary.json --report-md replay-baselines/structural-replay-summary.md --report-cases-json replay-baselines/structural-replay-cases.json",
+    "replay:eval:structural": "tsx src/scripts/evaluate-settled-prompt-variants.ts --dir fixtures/settled-replay-structural --prompt-version v10-hybrid-legacy-g --llm mock --odds mock --delay-ms 0 --report-json replay-baselines/structural-replay-summary.json --report-md replay-baselines/structural-replay-summary.md --report-cases-json replay-baselines/structural-replay-cases.json",
     "replay:audit:odds:smoke": "tsx src/scripts/audit-replay-odds-integrity.ts --dir fixtures/odds-audit-smoke --report-json replay-baselines/last-odds-audit-smoke.json",
     "replay:audit:odds:structural": "tsx src/scripts/audit-replay-odds-integrity.ts --dir fixtures/settled-replay-structural --report-json replay-baselines/last-odds-audit-structural-replay.json",
     "replay:audit:market:structural": "tsx src/scripts/audit-replay-market-opportunities.ts --dir fixtures/settled-replay-structural --min-odds 1.5 --report-json replay-baselines/structural-market-opportunities.json --report-md replay-baselines/structural-market-opportunities.md",

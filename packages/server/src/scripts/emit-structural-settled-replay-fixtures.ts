@@ -258,7 +258,7 @@ function buildScenario(def: ScenarioDef) {
     previousRecommendations: [],
     metadata: {
       recommendationId: def.recommendationId,
-      originalPromptVersion: 'v8-market-balance-followup-h',
+      originalPromptVersion: 'v10-hybrid-legacy-g',
       originalAiModel: 'structural-fixture',
       originalBetMarket: def.originalBetMarket,
       originalSelection: def.originalSelection,
@@ -327,4 +327,3 @@ function main(): void {
 }
 
 main();
-
