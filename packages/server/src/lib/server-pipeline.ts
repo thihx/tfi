@@ -295,6 +295,23 @@ function buildConfigPipelineSettings(): PipelineSettings {
   };
 }
 
+export function resolveRuntimeAiModel(
+  dbModel: unknown,
+  fallbackModel: string,
+  allowExpensiveModels = config.allowExpensiveGeminiModels,
+): string {
+  const candidate = typeof dbModel === 'string' ? dbModel.trim() : '';
+  if (!candidate) return fallbackModel;
+  const isProClass = /\bpro\b/i.test(candidate);
+  if (!allowExpensiveModels && isProClass) {
+    console.warn(
+      `[pipeline] Ignoring DB AI_MODEL="${candidate}" because Pro-class runtime models require ALLOW_EXPENSIVE_GEMINI_MODELS=true. Falling back to ${fallbackModel}.`,
+    );
+    return fallbackModel;
+  }
+  return candidate;
+}
+
 function parseBoolSetting(raw: unknown, fallback: boolean): boolean {
   if (raw === true || raw === 'true') return true;
   if (raw === false || raw === 'false') return false;
@@ -310,7 +327,7 @@ async function loadPipelineSettings(): Promise<PipelineSettings> {
   console.log(`[pipeline] Settings loaded: webPushEnabled=${webPushEnabled} (raw=${JSON.stringify(db['WEB_PUSH_ENABLED'])}), telegramEnabled=${telegramEnabled}`);
   return {
     telegramChatId,
-    aiModel: String(db['AI_MODEL'] || '') || fallback.aiModel,
+    aiModel: resolveRuntimeAiModel(db['AI_MODEL'], fallback.aiModel),
     minConfidence: parseNumSetting(db['MIN_CONFIDENCE'], fallback.minConfidence),
     minOdds: parseNumSetting(db['MIN_ODDS'], fallback.minOdds),
     minMinute: parseNumSetting(db['MIN_MINUTE'], fallback.minMinute),

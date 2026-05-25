@@ -9,6 +9,7 @@ const { mockConfig } = vi.hoisted(() => ({
   mockConfig: {
     geminiApiKey: 'test-key',
     geminiModel: 'gemini-3.5-flash',
+    allowExpensiveGeminiModels: false,
     telegramBotToken: 'test-bot',
     pipelineTelegramChatId: '123456',
     pipelineEnabled: true,
@@ -370,6 +371,7 @@ vi.mock('../repos/leagues.repo.js', () => ({
 const {
   runPipelineBatch,
   runPromptOnlyAnalysisForMatch,
+  resolveRuntimeAiModel,
 } = await import('../lib/server-pipeline.js');
 
 beforeEach(async () => {
@@ -378,6 +380,7 @@ beforeEach(async () => {
   mockConfig.liveAnalysisShadowPromptVersion = '';
   mockConfig.liveAnalysisShadowEnabled = false;
   mockConfig.liveAnalysisShadowSampleRate = 0;
+  mockConfig.allowExpensiveGeminiModels = false;
 
   const footballApi = await import('../lib/football-api.js');
   vi.mocked(footballApi.fetchFixturesByIds).mockResolvedValue([mockFixture]);
@@ -419,6 +422,23 @@ async function flushAsyncWork() {
 }
 
 // ─── Tests ───────────────────────────────────────────────
+
+describe('runtime AI model guard', () => {
+  test('falls back from DB Pro-class model unless explicitly allowed', () => {
+    expect(resolveRuntimeAiModel('gemini-3-pro-preview', 'gemini-3.5-flash', false))
+      .toBe('gemini-3.5-flash');
+  });
+
+  test('keeps DB Pro-class model when expensive models are explicitly allowed', () => {
+    expect(resolveRuntimeAiModel('gemini-3-pro-preview', 'gemini-3.5-flash', true))
+      .toBe('gemini-3-pro-preview');
+  });
+
+  test('allows Flash runtime model from DB settings', () => {
+    expect(resolveRuntimeAiModel('gemini-3.5-flash', 'gemini-2.5-flash', false))
+      .toBe('gemini-3.5-flash');
+  });
+});
 
 describe('runPipelineBatch', () => {
   test('returns empty result for empty input', async () => {
