@@ -118,4 +118,27 @@ describe('buildTelegramRecommendationMessage', () => {
 
     expect(message).toContain('Kèo Châu Âu 1X2 FT · Home Win @1.82');
   });
+
+  test('includes stake percent, concrete bet amount, and bankroll balance', () => {
+    const message = buildTelegramRecommendationMessage({
+      kind: 'recommendation',
+      matchDisplay: 'Home vs Away',
+      selection: 'Over 2.5 Goals',
+      betMarket: 'over_2.5',
+      odds: 1.85,
+      confidence: 8,
+      stakePercent: 3,
+      stakeAmount: 30,
+      bankrollBalance: 1000,
+      bankrollCurrency: 'VND',
+      bankrollUnitMultiplier: 1000,
+      riskLevel: 'MEDIUM',
+      valuePercent: 6,
+      language: 'en',
+    });
+
+    expect(message).toContain('Stake: 3%');
+    expect(message).toContain('Bet amount: 30 (30,000 VND)');
+    expect(message).toContain('Balance: 1000 (1,000,000 VND)');
+  });
 });

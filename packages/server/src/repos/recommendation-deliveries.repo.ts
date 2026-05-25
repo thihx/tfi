@@ -1,6 +1,9 @@
 import type { QueryResult, QueryResultRow } from 'pg';
 import { query } from '../db/pool.js';
 import { evaluateCustomConditionText, type ConditionStatsSnapshot } from '../lib/condition-evaluator.js';
+import {
+  attachBankrollMetadataForDeliveryIds,
+} from './bankroll.repo.js';
 
 interface QueryExecutor {
   query<T extends QueryResultRow = QueryResultRow>(
@@ -34,6 +37,11 @@ export interface RecommendationDeliveryRow {
   recommendation_value_percent: number | null;
   recommendation_risk_level: string | null;
   recommendation_stake_percent: number | null;
+  recommendation_stake_amount: number | null;
+  bankroll_currency: string | null;
+  bankroll_unit_multiplier: number | null;
+  bankroll_balance_before: number | null;
+  bankroll_balance_after: number | null;
   recommendation_reasoning: string | null;
   recommendation_reasoning_vi: string | null;
   recommendation_key_factors: string | null;
@@ -154,6 +162,11 @@ export interface PendingTelegramDeliveryRow {
   recommendationValuePercent: number | null;
   recommendationRiskLevel: string | null;
   recommendationStakePercent: number | null;
+  recommendationStakeAmount: number | null;
+  bankrollCurrency: string | null;
+  bankrollUnitMultiplier: number | null;
+  bankrollBalanceBefore: number | null;
+  bankrollBalanceAfter: number | null;
   recommendationReasoning: string | null;
   recommendationReasoningVi: string | null;
   recommendationWarnings: string | null;
@@ -185,6 +198,11 @@ interface PendingTelegramDeliveryQueryRow {
   recommendation_value_percent: number | null;
   recommendation_risk_level: string | null;
   recommendation_stake_percent: number | null;
+  recommendation_stake_amount: number | null;
+  bankroll_currency: string | null;
+  bankroll_unit_multiplier: number | null;
+  bankroll_balance_before: number | null;
+  bankroll_balance_after: number | null;
   recommendation_reasoning: string | null;
   recommendation_reasoning_vi: string | null;
   recommendation_warnings: string | null;
@@ -508,6 +526,7 @@ export async function stageRecommendationDeliveries(
     [recommendation.id],
   );
   const stagedDeliveryIds = Array.isArray(stagedRows.rows) ? stagedRows.rows.map((row) => Number(row.id)) : [];
+  await attachBankrollMetadataForDeliveryIds(db, stagedDeliveryIds);
   await syncDeliveryChannelStates(db, stagedDeliveryIds);
 
   return result.rowCount ?? 0;
@@ -571,6 +590,7 @@ export async function evaluateRecommendationDeliveryConditions(
     }
   }
 
+  await attachBankrollMetadataForDeliveryIds(db, updatedDeliveryIds);
   await syncDeliveryChannelStates(db, updatedDeliveryIds);
 
   return updated;
@@ -700,6 +720,7 @@ export async function stageConditionOnlyDeliveries(
 
   await syncDeliveryChannelStates(db, created.map((row) => row.deliveryId));
 
+  await attachBankrollMetadataForDeliveryIds(db, created.map((row) => row.deliveryId));
   return created;
 }
 
@@ -823,6 +844,11 @@ export async function getRecommendationDeliveriesByUserId(
          COALESCE(r.value_percent, NULLIF(d.metadata->>'recommendation_value_percent', '')::numeric) AS recommendation_value_percent,
          COALESCE(r.risk_level, NULLIF(d.metadata->>'recommendation_risk_level', '')) AS recommendation_risk_level,
          COALESCE(r.stake_percent, NULLIF(d.metadata->>'recommendation_stake_percent', '')::numeric) AS recommendation_stake_percent,
+         NULLIF(d.metadata->>'stake_amount', '')::numeric AS recommendation_stake_amount,
+         NULLIF(d.metadata->>'bankroll_currency', '') AS bankroll_currency,
+         NULLIF(d.metadata->>'bankroll_unit_multiplier', '')::integer AS bankroll_unit_multiplier,
+         NULLIF(d.metadata->>'bankroll_balance_before', '')::numeric AS bankroll_balance_before,
+         NULLIF(d.metadata->>'bankroll_balance_after', '')::numeric AS bankroll_balance_after,
          COALESCE(r.reasoning, NULLIF(d.metadata->>'recommendation_reasoning', '')) AS recommendation_reasoning,
          COALESCE(r.reasoning_vi, NULLIF(d.metadata->>'recommendation_reasoning_vi', '')) AS recommendation_reasoning_vi,
          COALESCE(r.key_factors, NULLIF(d.metadata->>'recommendation_key_factors', '')) AS recommendation_key_factors,
@@ -997,6 +1023,11 @@ export async function getPendingTelegramDeliveries(limit = 20): Promise<PendingT
         COALESCE(r.value_percent, NULLIF(d.metadata->>'recommendation_value_percent', '')::numeric) AS recommendation_value_percent,
         COALESCE(r.risk_level, NULLIF(d.metadata->>'recommendation_risk_level', '')) AS recommendation_risk_level,
         COALESCE(r.stake_percent, NULLIF(d.metadata->>'recommendation_stake_percent', '')::numeric) AS recommendation_stake_percent,
+        NULLIF(d.metadata->>'stake_amount', '')::numeric AS recommendation_stake_amount,
+        NULLIF(d.metadata->>'bankroll_currency', '') AS bankroll_currency,
+        NULLIF(d.metadata->>'bankroll_unit_multiplier', '')::integer AS bankroll_unit_multiplier,
+        NULLIF(d.metadata->>'bankroll_balance_before', '')::numeric AS bankroll_balance_before,
+        NULLIF(d.metadata->>'bankroll_balance_after', '')::numeric AS bankroll_balance_after,
         COALESCE(r.reasoning, NULLIF(d.metadata->>'recommendation_reasoning', '')) AS recommendation_reasoning,
         COALESCE(r.reasoning_vi, NULLIF(d.metadata->>'recommendation_reasoning_vi', '')) AS recommendation_reasoning_vi,
         COALESCE(r.warnings, NULLIF(d.metadata->>'recommendation_warnings', '')) AS recommendation_warnings,
@@ -1050,6 +1081,11 @@ export async function getPendingTelegramDeliveries(limit = 20): Promise<PendingT
     recommendationValuePercent: row.recommendation_value_percent,
     recommendationRiskLevel: row.recommendation_risk_level,
     recommendationStakePercent: row.recommendation_stake_percent,
+    recommendationStakeAmount: row.recommendation_stake_amount,
+    bankrollCurrency: row.bankroll_currency,
+    bankrollUnitMultiplier: row.bankroll_unit_multiplier,
+    bankrollBalanceBefore: row.bankroll_balance_before,
+    bankrollBalanceAfter: row.bankroll_balance_after,
     recommendationReasoning: row.recommendation_reasoning,
     recommendationReasoningVi: row.recommendation_reasoning_vi,
     recommendationWarnings: row.recommendation_warnings,

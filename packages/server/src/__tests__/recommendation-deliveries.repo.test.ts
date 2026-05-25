@@ -27,6 +27,8 @@ describe('recommendation deliveries repository', () => {
         .mockResolvedValueOnce({ rowCount: 2 })
         .mockResolvedValueOnce({ rows: [{ id: 101 }, { id: 102 }] })
         .mockResolvedValueOnce({ rowCount: 2 })
+        .mockResolvedValueOnce({ rowCount: 2 })
+        .mockResolvedValueOnce({ rowCount: 2 })
         .mockResolvedValueOnce({ rowCount: 0 })
         .mockResolvedValueOnce({ rowCount: 2 }),
     };
@@ -48,7 +50,13 @@ describe('recommendation deliveries repository', () => {
       expect.stringContaining('INSERT INTO user_recommendation_deliveries'),
       [11, 'match-1', '2026-03-24T12:30:00.000Z', 'Over 2.5 Goals', 'over_2.5', 1.91, 7, 'MEDIUM'],
     );
-    expect(String(db.query.mock.calls[2]?.[0])).toContain('ps.user_id = td.user_id::text');
+    expect(db.query.mock.calls.some((call) =>
+      String(call[0]).includes('bankroll_balance_before')
+      && String(call[0]).includes('stake_amount_full'),
+    )).toBe(true);
+    expect(db.query.mock.calls.some((call) =>
+      String(call[0]).includes('ps.user_id = td.user_id::text'),
+    )).toBe(true);
   });
 
   test('getRecommendationDeliveriesByUserId normalizes rows and respects filters', async () => {

@@ -58,6 +58,19 @@ function pickReasoning(rec: Recommendation, lang?: 'en' | 'vi' | 'both'): string
   return vi || en;
 }
 
+function formatBankrollAmount(value: unknown, rec: Recommendation): string {
+  const amount = parseFloat(String(value ?? 0));
+  if (!Number.isFinite(amount) || amount <= 0) return '';
+  const currency = rec.bankroll_currency ?? '';
+  const multiplier = Number(rec.bankroll_unit_multiplier ?? 1);
+  const display = Number.isInteger(amount) ? String(amount) : amount.toFixed(2);
+  if (Number.isFinite(multiplier) && multiplier > 1) {
+    const full = new Intl.NumberFormat('en-US', { maximumFractionDigits: 0 }).format(amount * multiplier);
+    return currency ? `${display} (${full} ${currency})` : `${display} (${full})`;
+  }
+  return currency ? `${display} ${currency}` : display;
+}
+
 function RecommendationCardBase({ rec, lang, onViewMatch, adminAction }: Props) {
   const [reasoningExpanded, setReasoningExpanded] = useState(false);
   const [warningsExpanded, setWarningsExpanded] = useState(false);
@@ -76,6 +89,8 @@ function RecommendationCardBase({ rec, lang, onViewMatch, adminAction }: Props) 
   const showReviewBadge = rec.settlement_status === 'unresolved' && hasFinalResult(rec.result ?? null);
   const showPendingNote = rec.settlement_status === 'unresolved' && !hasFinalResult(rec.result ?? null);
   const settledScoreLine = formatSettledMatchScores(rec);
+  const stakeAmountText = formatBankrollAmount(rec.stake_amount, rec);
+  const bankrollText = formatBankrollAmount(rec.bankroll_balance_before, rec);
 
   return (
     <div className="card" style={{ padding: '0', marginBottom: '8px', overflow: 'hidden' }}>
@@ -197,6 +212,20 @@ function RecommendationCardBase({ rec, lang, onViewMatch, adminAction }: Props) 
             <div style={{ fontWeight: 600, color: 'var(--gray-700)', fontSize: '12px' }}>
               {parseFloat(String(rec.stake_percent)).toFixed(0)}%
             </div>
+          </div>
+        )}
+
+        {stakeAmountText && (
+          <div>
+            <div style={{ fontSize: '10px', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.5px', color: 'var(--gray-400)', marginBottom: '2px' }}>Bet Amount</div>
+            <div style={{ fontWeight: 600, color: 'var(--gray-700)', fontSize: '12px' }}>{stakeAmountText}</div>
+          </div>
+        )}
+
+        {bankrollText && (
+          <div>
+            <div style={{ fontSize: '10px', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.5px', color: 'var(--gray-400)', marginBottom: '2px' }}>Bankroll</div>
+            <div style={{ fontWeight: 600, color: 'var(--gray-700)', fontSize: '12px' }}>{bankrollText}</div>
           </div>
         )}
 

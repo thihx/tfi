@@ -4,6 +4,7 @@ import type {
   WatchlistItem,
   Recommendation,
   RecommendationDelivery,
+  BankrollSnapshot,
   League,
   LeagueFixture,
   LeagueProfile,
@@ -391,6 +392,24 @@ export async function fetchRecommendationDeliveriesPaginated(
   if (params.sort_by) qs.set('sort_by', params.sort_by);
   if (params.sort_dir) qs.set('sort_dir', params.sort_dir);
   return pgFetch<PaginatedRecommendationDeliveries>(config, `/api/me/recommendation-deliveries?${qs.toString()}`);
+}
+
+export async function fetchMyBankroll(config: AppConfig): Promise<BankrollSnapshot> {
+  return pgFetch<BankrollSnapshot>(config, '/api/me/bankroll');
+}
+
+export async function resetMyBankroll(
+  config: AppConfig,
+  payload: { balance: number; currency?: string; unitMultiplier?: number; note?: string },
+): Promise<BankrollSnapshot> {
+  return pgPut<BankrollSnapshot>(config, '/api/me/bankroll', payload);
+}
+
+export async function depositMyBankroll(
+  config: AppConfig,
+  payload: { amount: number; note?: string },
+): Promise<BankrollSnapshot> {
+  return pgPost<BankrollSnapshot>(config, '/api/me/bankroll/deposit', payload);
 }
 
 export async function settleRecommendationFinal(

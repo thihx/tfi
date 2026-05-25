@@ -15,6 +15,9 @@ import {
   updateSubscriptionPlan,
   fetchAdminUserSubscriptions,
   updateAdminUserSubscription,
+  fetchMyBankroll,
+  resetMyBankroll,
+  depositMyBankroll,
   type AdminUserRecord,
   type AdminSubscriptionUserRecord,
   type EntitlementCatalogEntry,
@@ -22,6 +25,7 @@ import {
   type SubscriptionPlanRecord,
   type SubscriptionStatus,
 } from '@/lib/services/api';
+import type { BankrollSnapshot } from '@/types';
 
 function authHeaders(): Record<string, string> {
   const t = getToken();
@@ -220,6 +224,159 @@ function formatSkipReason(reason: string): string {
   if (reason === 'adaptive_poll_backoff') return 'Adaptive poll backoff';
   if (reason === 'football_api_daily_limit') return 'Football API daily limit';
   return reason;
+}
+
+function formatBankrollAmount(value: number | string | null | undefined, currency: string, multiplier: number): string {
+  const amount = Number(value ?? 0);
+  if (!Number.isFinite(amount)) return '-';
+  const display = Number.isInteger(amount) ? String(amount) : amount.toFixed(2);
+  const full = amount * multiplier;
+  const fullText = new Intl.NumberFormat('en-US', { maximumFractionDigits: 0 }).format(full);
+  return `${display} (${fullText} ${currency})`;
+}
+
+function BankrollPanel() {
+  const { state } = useAppState();
+  const { showToast } = useToast();
+  const [snapshot, setSnapshot] = useState<BankrollSnapshot | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [balanceDraft, setBalanceDraft] = useState('1000');
+  const [depositDraft, setDepositDraft] = useState('');
+  const [currencyDraft, setCurrencyDraft] = useState('VND');
+  const [multiplierDraft, setMultiplierDraft] = useState('1000');
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    try {
+      const next = await fetchMyBankroll(state.config);
+      setSnapshot(next);
+      setBalanceDraft(String(next.account.current_balance));
+      setCurrencyDraft(next.account.currency);
+      setMultiplierDraft(String(next.account.unit_multiplier));
+    } catch (err) {
+      showToast(err instanceof Error ? err.message : 'Failed to load bankroll', 'error');
+    } finally {
+      setLoading(false);
+    }
+  }, [state.config, showToast]);
+
+  useEffect(() => {
+    void load();
+  }, [load]);
+
+  const account = snapshot?.account;
+  const currency = account?.currency ?? currencyDraft;
+  const multiplier = Number(account?.unit_multiplier ?? multiplierDraft) || 1;
+
+  const handleReset = useCallback(async () => {
+    const balance = Number(balanceDraft);
+    const unitMultiplier = Number(multiplierDraft);
+    if (!Number.isFinite(balance) || balance < 0 || !Number.isFinite(unitMultiplier) || unitMultiplier <= 0) {
+      showToast('Enter a valid bankroll and unit multiplier.', 'error');
+      return;
+    }
+    setSaving(true);
+    try {
+      const next = await resetMyBankroll(state.config, {
+        balance,
+        currency: currencyDraft,
+        unitMultiplier,
+        note: 'User reset bankroll',
+      });
+      setSnapshot(next);
+      showToast('Bankroll reset.', 'success');
+    } catch (err) {
+      showToast(err instanceof Error ? err.message : 'Failed to reset bankroll', 'error');
+    } finally {
+      setSaving(false);
+    }
+  }, [balanceDraft, currencyDraft, multiplierDraft, state.config, showToast]);
+
+  const handleDeposit = useCallback(async () => {
+    const amount = Number(depositDraft);
+    if (!Number.isFinite(amount) || amount <= 0) {
+      showToast('Enter a positive top-up amount.', 'error');
+      return;
+    }
+    setSaving(true);
+    try {
+      const next = await depositMyBankroll(state.config, {
+        amount,
+        note: 'User top-up',
+      });
+      setSnapshot(next);
+      setDepositDraft('');
+      showToast('Bankroll topped up.', 'success');
+    } catch (err) {
+      showToast(err instanceof Error ? err.message : 'Failed to top up bankroll', 'error');
+    } finally {
+      setSaving(false);
+    }
+  }, [depositDraft, state.config, showToast]);
+
+  return (
+    <div className="settings-section">
+      <div className="section-header">
+        <div>
+          <h3>Bankroll Discipline</h3>
+          <p>Set a personal investment bankroll. AI stake % is converted into a concrete bet amount for your delivery messages.</p>
+        </div>
+        <button className="btn btn-secondary btn-sm" onClick={() => { void load(); }} disabled={loading || saving}>Refresh</button>
+      </div>
+
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '12px', marginBottom: '16px' }}>
+        <div className="card" style={{ padding: '12px' }}>
+          <div style={{ fontSize: '11px', color: 'var(--gray-500)', textTransform: 'uppercase', fontWeight: 700 }}>Current Balance</div>
+          <div style={{ fontSize: '22px', fontWeight: 800, color: 'var(--gray-900)', marginTop: '4px' }}>
+            {account ? formatBankrollAmount(account.current_balance, currency, multiplier) : '-'}
+          </div>
+        </div>
+        <div className="card" style={{ padding: '12px' }}>
+          <div style={{ fontSize: '11px', color: 'var(--gray-500)', textTransform: 'uppercase', fontWeight: 700 }}>Initial Capital</div>
+          <div style={{ fontSize: '22px', fontWeight: 800, color: 'var(--gray-900)', marginTop: '4px' }}>
+            {account ? formatBankrollAmount(account.initial_balance, currency, multiplier) : '-'}
+          </div>
+        </div>
+      </div>
+
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '12px' }}>
+        <div className="card" style={{ padding: '12px' }}>
+          <div style={{ fontSize: '13px', fontWeight: 700, marginBottom: '10px' }}>Reset bankroll</div>
+          <div style={{ display: 'grid', gap: '8px' }}>
+            <input className="filter-input" type="number" min="0" step="0.01" value={balanceDraft} onChange={(e) => setBalanceDraft(e.target.value)} placeholder="1000" />
+            <input className="filter-input" value={currencyDraft} onChange={(e) => setCurrencyDraft(e.target.value.toUpperCase())} placeholder="VND" />
+            <input className="filter-input" type="number" min="1" step="1" value={multiplierDraft} onChange={(e) => setMultiplierDraft(e.target.value)} placeholder="1000" />
+            <button className="btn btn-primary btn-sm" onClick={() => { void handleReset(); }} disabled={saving}>Reset</button>
+          </div>
+        </div>
+        <div className="card" style={{ padding: '12px' }}>
+          <div style={{ fontSize: '13px', fontWeight: 700, marginBottom: '10px' }}>Top up</div>
+          <div style={{ display: 'grid', gap: '8px' }}>
+            <input className="filter-input" type="number" min="0.01" step="0.01" value={depositDraft} onChange={(e) => setDepositDraft(e.target.value)} placeholder="Amount" />
+            <button className="btn btn-secondary btn-sm" onClick={() => { void handleDeposit(); }} disabled={saving}>Add Funds</button>
+          </div>
+        </div>
+      </div>
+
+      {snapshot && snapshot.recentLedger.length > 0 && (
+        <div style={{ marginTop: '16px' }}>
+          <div style={{ fontSize: '13px', fontWeight: 700, marginBottom: '8px' }}>Recent ledger</div>
+          <div className="card" style={{ overflow: 'hidden' }}>
+            {snapshot.recentLedger.slice(0, 8).map((entry) => (
+              <div key={entry.id} style={{ display: 'grid', gridTemplateColumns: '120px 1fr 120px', gap: '8px', padding: '10px 12px', borderBottom: '1px solid var(--gray-100)', fontSize: '12px' }}>
+                <span style={{ fontWeight: 700 }}>{entry.entry_type}</span>
+                <span style={{ color: 'var(--gray-600)' }}>{entry.note || '-'}</span>
+                <span style={{ textAlign: 'right', color: entry.amount >= 0 ? '#15803d' : '#b91c1c', fontWeight: 700 }}>
+                  {entry.amount >= 0 ? '+' : ''}{entry.amount.toFixed(2)}
+                </span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
 }
 
 function formatLockPolicy(policy: JobInfo['lockPolicy'] | string | null | undefined): string {
@@ -1391,9 +1548,10 @@ function SubscriptionManagementPanel() {
 
 // ── Tab constants ────────────────────────────────────────────────────────────
 
-type SettingsTab = 'user-mgmt' | 'subscription-mgmt' | 'scheduler' | 'system' | 'audit';
+type SettingsTab = 'bankroll' | 'user-mgmt' | 'subscription-mgmt' | 'scheduler' | 'system' | 'audit';
 
 const ALL_TABS: { id: SettingsTab; label: string; adminOnly?: boolean; adminStrictOnly?: boolean }[] = [
+  { id: 'bankroll',          label: 'Bankroll' },
   { id: 'user-mgmt',         label: 'User',         adminOnly: true },
   { id: 'subscription-mgmt', label: 'Subscription', adminOnly: true },
   { id: 'scheduler',         label: 'Scheduler' },
@@ -1446,6 +1604,13 @@ export function SettingsTab() {
         })}
       </div>
 
+
+      {/* Tab: Bankroll */}
+      {activeTab === 'bankroll' && (
+        <div className="settings-content">
+          <BankrollPanel />
+        </div>
+      )}
 
       {/* Tab: Scheduler */}
       {activeTab === 'scheduler' && (

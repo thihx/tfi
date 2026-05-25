@@ -21,6 +21,7 @@ import {
   stageRecommendationDeliveries,
 } from './recommendation-deliveries.repo.js';
 import { writePerformanceMemoryFromSettlement } from './ai-performance.repo.js';
+import { applyRecommendationSettlementToBankroll } from './bankroll.repo.js';
 
 export { normalizeMarket, buildDedupKey };
 
@@ -498,6 +499,19 @@ export async function settleRecommendation(
   );
   const settled = r.rows[0] ?? null;
   if (settled) {
+    try {
+      await applyRecommendationSettlementToBankroll({
+        recommendationId: settled.id,
+        result,
+        odds: settled.odds,
+        note: meta.note ?? actualOutcome,
+      });
+    } catch (err) {
+      console.warn(
+        '[bankroll] Failed to apply recommendation settlement:',
+        err instanceof Error ? err.message : String(err),
+      );
+    }
     try {
       await writePerformanceMemoryFromSettlement({
         selection: settled.selection ?? '',

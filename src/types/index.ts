@@ -190,6 +190,10 @@ export interface Recommendation {
   risk_level?: string;
   stake_percent?: number | string | null;
   stake_amount: number | string;
+  bankroll_currency?: string | null;
+  bankroll_unit_multiplier?: number | null;
+  bankroll_balance_before?: number | string | null;
+  bankroll_balance_after?: number | string | null;
   reasoning?: string;
   reasoning_vi?: string;
   key_factors?: string;
@@ -235,6 +239,11 @@ export interface RecommendationDelivery {
   recommendation_value_percent: number | null;
   recommendation_risk_level: string | null;
   recommendation_stake_percent: number | null;
+  recommendation_stake_amount: number | null;
+  bankroll_currency: string | null;
+  bankroll_unit_multiplier: number | null;
+  bankroll_balance_before: number | null;
+  bankroll_balance_after: number | null;
   recommendation_reasoning: string | null;
   recommendation_reasoning_vi: string | null;
   recommendation_key_factors: string | null;
@@ -247,6 +256,37 @@ export interface RecommendationDelivery {
   recommendation_settlement_note: string | null;
   recommendation_actual_outcome: string | null;
   recommendation_pnl: number | null;
+}
+
+export interface BankrollAccount {
+  user_id: string;
+  currency: string;
+  unit_multiplier: number;
+  initial_balance: number;
+  current_balance: number;
+  active: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface BankrollLedgerEntry {
+  id: number;
+  user_id: string;
+  recommendation_id: number | null;
+  delivery_id: number | null;
+  entry_type: string;
+  amount: number;
+  balance_before: number;
+  balance_after: number;
+  currency: string;
+  note: string;
+  metadata: Record<string, unknown>;
+  created_at: string;
+}
+
+export interface BankrollSnapshot {
+  account: BankrollAccount;
+  recentLedger: BankrollLedgerEntry[];
 }
 
 export type NotificationChannelType = 'telegram' | 'zalo' | 'web_push' | 'email';

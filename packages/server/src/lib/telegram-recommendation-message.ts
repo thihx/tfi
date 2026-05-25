@@ -16,6 +16,11 @@ export interface TelegramRecommendationMessageInput {
   odds?: number | null;
   confidence?: number | null;
   stakePercent?: number | null;
+  stakeAmount?: number | null;
+  bankrollBalance?: number | null;
+  bankrollBalanceAfter?: number | null;
+  bankrollCurrency?: string | null;
+  bankrollUnitMultiplier?: number | null;
   riskLevel?: string | null;
   valuePercent?: number | null;
   reasoningEn?: string | null;
@@ -78,6 +83,38 @@ function getMetricLine(input: TelegramRecommendationMessageInput): string {
   return segments.join(' | ');
 }
 
+function formatBankrollAmount(value: number, input: TelegramRecommendationMessageInput): string {
+  const currency = input.bankrollCurrency?.trim() || '';
+  const unitMultiplier = Number(input.bankrollUnitMultiplier ?? 1);
+  const display = Number.isFinite(value) ? value : 0;
+  const full = Number.isFinite(unitMultiplier) && unitMultiplier > 1
+    ? display * unitMultiplier
+    : null;
+  const displayText = Number.isInteger(display) ? String(display) : display.toFixed(2);
+  if (full == null) return currency ? `${displayText} ${currency}` : displayText;
+  const fullText = new Intl.NumberFormat('en-US', {
+    maximumFractionDigits: 0,
+  }).format(full);
+  return currency ? `${displayText} (${fullText} ${currency})` : `${displayText} (${fullText})`;
+}
+
+function getBankrollLine(input: TelegramRecommendationMessageInput): string {
+  const stakeAmount = Number(input.stakeAmount);
+  const balance = Number(input.bankrollBalance);
+  const balanceAfter = Number(input.bankrollBalanceAfter);
+  const segments: string[] = [];
+  if (Number.isFinite(stakeAmount) && stakeAmount > 0) {
+    segments.push(`${localizedLabel(input.language, 'Bet amount', 'Số tiền vào')}: ${formatBankrollAmount(stakeAmount, input)}`);
+  }
+  if (Number.isFinite(balance)) {
+    segments.push(`${localizedLabel(input.language, 'Balance', 'Vốn hiện tại')}: ${formatBankrollAmount(balance, input)}`);
+  }
+  if (Number.isFinite(balanceAfter)) {
+    segments.push(`${localizedLabel(input.language, 'After settlement', 'Sau settlement')}: ${formatBankrollAmount(balanceAfter, input)}`);
+  }
+  return segments.join(' | ');
+}
+
 export function buildTelegramRecommendationMessage(input: TelegramRecommendationMessageInput): string {
   const lines: string[] = [];
   const heading = localizedHeading(input.kind, input.language);
@@ -117,6 +154,8 @@ export function buildTelegramRecommendationMessage(input: TelegramRecommendation
   const isNoBet = /^no bet\b/i.test(selection);
   if (selection && (!isNoBet || (Number(input.confidence ?? 0) > 0 || Number(input.stakePercent ?? 0) > 0))) {
     lines.push(getMetricLine(input));
+    const bankrollLine = getBankrollLine(input);
+    if (bankrollLine) lines.push(bankrollLine);
   }
 
   const matchedSummary = pickLocalizedText(input.language, input.conditionSummaryEn, input.conditionSummaryVi);

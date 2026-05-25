@@ -63,6 +63,11 @@ function buildTelegramDeliveryMessage(row: PendingTelegramDeliveryRow): string {
     || toStringValue(metadata.custom_condition_reason_en);
   const confidence = row.recommendationConfidence ?? toNumber(metadata.recommendation_confidence) ?? 0;
   const stake = row.recommendationStakePercent ?? toNumber(metadata.recommendation_stake_percent) ?? 0;
+  const stakeAmount = row.recommendationStakeAmount ?? toNumber(metadata.stake_amount);
+  const bankrollBalance = row.bankrollBalanceBefore ?? toNumber(metadata.bankroll_balance_before);
+  const bankrollBalanceAfter = row.bankrollBalanceAfter ?? toNumber(metadata.bankroll_balance_after);
+  const bankrollCurrency = row.bankrollCurrency ?? toStringValue(metadata.bankroll_currency);
+  const bankrollUnitMultiplier = row.bankrollUnitMultiplier ?? toNumber(metadata.bankroll_unit_multiplier);
   const odds = row.recommendationOdds ?? toNumber(metadata.recommendation_odds);
   const valuePercent = row.recommendationValuePercent ?? toNumber(metadata.recommendation_value_percent);
   const riskLevel = row.recommendationRiskLevel ?? toStringValue(metadata.recommendation_risk_level);
@@ -92,6 +97,11 @@ function buildTelegramDeliveryMessage(row: PendingTelegramDeliveryRow): string {
     odds,
     confidence,
     stakePercent: stake,
+    stakeAmount,
+    bankrollBalance,
+    bankrollBalanceAfter,
+    bankrollCurrency,
+    bankrollUnitMultiplier,
     riskLevel,
     valuePercent,
     reasoningEn: row.recommendationReasoning || toStringValue(metadata.recommendation_reasoning),
