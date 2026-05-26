@@ -15,8 +15,10 @@ vi.mock('../lib/redis.js', () => ({
 }));
 
 const mockOpenFootballApiCircuitUntilNextUtcMidnight = vi.fn().mockResolvedValue('2026-05-24T00:00:00.000Z');
+const mockGetFootballApiCircuitStatus = vi.fn().mockResolvedValue({ open: false, openUntil: null });
 
 vi.mock('../lib/football-api-circuit.js', () => ({
+  getFootballApiCircuitStatus: (...args: unknown[]) => mockGetFootballApiCircuitStatus(...args),
   isFootballApiDailyLimitMessage: (message: string) => message.toLowerCase().includes('request limit for the day'),
   openFootballApiCircuitUntilNextUtcMidnight: (...args: unknown[]) => mockOpenFootballApiCircuitUntilNextUtcMidnight(...args),
 }));
@@ -60,6 +62,7 @@ function mockFetchError(message: string) {
 beforeEach(() => {
   vi.clearAllMocks();
   mockOpenFootballApiCircuitUntilNextUtcMidnight.mockResolvedValue('2026-05-24T00:00:00.000Z');
+  mockGetFootballApiCircuitStatus.mockResolvedValue({ open: false, openUntil: null });
 });
 
 // ── Tests ─────────────────────────────────────────────────────
@@ -206,6 +209,24 @@ describe('Football API probe', () => {
     const result = await checkSingleIntegration('football-api');
     expect(result!.status).toBe('DEGRADED');
     expect(mockOpenFootballApiCircuitUntilNextUtcMidnight).toHaveBeenCalledTimes(1);
+  });
+
+  test('does not probe Football API when daily-limit circuit is open', async () => {
+    const fetchMock = mockFetch(200, {
+      response: { account: { requests: { current: 42, limit_day: 100 } } },
+    });
+    global.fetch = fetchMock;
+    mockGetFootballApiCircuitStatus.mockResolvedValueOnce({
+      open: true,
+      openUntil: '2026-05-24T00:00:00.000Z',
+    });
+
+    const { checkSingleIntegration } = await import('../lib/integration-health.js');
+    const result = await checkSingleIntegration('football-api');
+
+    expect(result!.status).toBe('DEGRADED');
+    expect(result!.message).toContain('2026-05-24T00:00:00.000Z');
+    expect(fetchMock).not.toHaveBeenCalled();
   });
 
   test('DOWN when fetch throws (network error)', async () => {

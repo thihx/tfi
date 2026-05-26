@@ -422,13 +422,15 @@ export async function enrichWatchlistJob(): Promise<{ checked: number; enriched:
     const rightKickoff = kickoffMinutesByMatchId.get(right.match_id) ?? Number.POSITIVE_INFINITY;
     return leftKickoff - rightKickoff;
   });
+  const maxPerRun = Math.max(1, Math.trunc(config.jobEnrichWatchlistMaxPerRun));
+  const selected = eligible.slice(0, maxPerRun);
 
   let checked = 0;
   let enriched = 0;
   const JOB_SOFT_DEADLINE_MS = 25 * 60_000; // stop accepting new matches after 25 min
   const jobStarted = Date.now();
 
-  for (const entry of eligible) {
+  for (const entry of selected) {
     if (Date.now() - jobStarted > JOB_SOFT_DEADLINE_MS) {
       console.warn(`[enrichWatchlistJob] Soft deadline reached after ${Math.round((Date.now() - jobStarted) / 60_000)}m, stopping early (${checked}/${eligible.length} processed)`);
       break;
@@ -437,8 +439,8 @@ export async function enrichWatchlistJob(): Promise<{ checked: number; enriched:
     await reportJobProgress(
       JOB,
       'enrich',
-      `Enriching ${checked}/${eligible.length}: ${entry.home_team} vs ${entry.away_team}`,
-      5 + (checked / eligible.length) * 90,
+      `Enriching ${checked}/${selected.length}: ${entry.home_team} vs ${entry.away_team}`,
+      5 + (checked / selected.length) * 90,
     );
 
     const attemptedAt = new Date().toISOString();
@@ -548,6 +550,6 @@ export async function enrichWatchlistJob(): Promise<{ checked: number; enriched:
     await sleep(API_DELAY_MS);
   }
 
-  console.log(`[enrichWatchlistJob] Checked ${checked}, enriched ${enriched}`);
+  console.log(`[enrichWatchlistJob] Checked ${checked}/${eligible.length} eligible, enriched ${enriched}`);
   return { checked, enriched };
 }

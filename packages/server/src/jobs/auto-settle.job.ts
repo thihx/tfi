@@ -303,7 +303,7 @@ export async function autoSettleJob(): Promise<SettleResult> {
 async function getUnsettledRecommendations(): Promise<RecommendationRow[]> {
   // Use the repo's "pending" filter so quarter-line / void outcomes are not re-processed as open rows.
   const { rows } = await recommendationsRepo.getAllRecommendations({ result: 'pending', limit: 2000 });
-  return rows;
+  return rows.filter((row) => row.settlement_status !== 'unresolved');
 }
 
 async function settleRecommendations(recs: RecommendationRow[], stats: SettleResult) {

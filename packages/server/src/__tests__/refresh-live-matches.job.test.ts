@@ -5,6 +5,7 @@ const mockGetLiveRefreshCandidates = vi.fn();
 const mockUpdateMatches = vi.fn();
 const mockEnsureFixturesForMatchIds = vi.fn();
 const mockEnsureFixtureStatistics = vi.fn();
+const mockGetActiveOperationalWatchlist = vi.fn();
 
 vi.mock('../jobs/job-progress.js', () => ({
   reportJobProgress: mockReportJobProgress,
@@ -13,6 +14,10 @@ vi.mock('../jobs/job-progress.js', () => ({
 vi.mock('../repos/matches.repo.js', () => ({
   getLiveRefreshCandidates: mockGetLiveRefreshCandidates,
   updateMatches: mockUpdateMatches,
+}));
+
+vi.mock('../repos/watchlist.repo.js', () => ({
+  getActiveOperationalWatchlist: mockGetActiveOperationalWatchlist,
 }));
 
 vi.mock('../lib/provider-insight-cache.js', () => ({
@@ -42,9 +47,20 @@ beforeEach(() => {
   mockUpdateMatches.mockResolvedValue(0);
   mockEnsureFixturesForMatchIds.mockResolvedValue([]);
   mockEnsureFixtureStatistics.mockResolvedValue({ payload: [], cacheStatus: 'miss' });
+  mockGetActiveOperationalWatchlist.mockResolvedValue([{ match_id: '100' }, { match_id: '200' }]);
 });
 
 describe('refreshLiveMatchesJob', () => {
+  test('returns early without provider calls when no matches are actively watched', async () => {
+    mockGetActiveOperationalWatchlist.mockResolvedValueOnce([]);
+
+    const result = await refreshLiveMatchesJob();
+
+    expect(result).toEqual({ tracked: 0, refreshed: 0, live: 0, statsRefreshed: 0 });
+    expect(mockGetLiveRefreshCandidates).not.toHaveBeenCalled();
+    expect(mockEnsureFixturesForMatchIds).not.toHaveBeenCalled();
+  });
+
   test('returns early when no live or near-live matches are tracked', async () => {
     mockGetLiveRefreshCandidates.mockResolvedValue([
       {
@@ -248,5 +264,41 @@ describe('refreshLiveMatchesJob', () => {
 
     expect(mockGetLiveRefreshCandidates).toHaveBeenCalledOnce();
     expect(mockGetLiveRefreshCandidates.mock.calls[0]?.[0]).toContain('1H');
+  });
+
+  test('ignores un-watched live candidates before touching provider cache', async () => {
+    vi.setSystemTime(new Date('2026-03-26T10:05:00.000Z'));
+    mockGetActiveOperationalWatchlist.mockResolvedValueOnce([{ match_id: '200' }]);
+    mockGetLiveRefreshCandidates.mockResolvedValue([
+      {
+        match_id: '100',
+        status: '1H',
+        date: '2026-03-26',
+        kickoff: '19:00',
+        kickoff_at_utc: '2026-03-26T10:00:00.000Z',
+      },
+      {
+        match_id: '200',
+        status: 'NS',
+        date: '2026-03-26',
+        kickoff: '19:12',
+        kickoff_at_utc: '2026-03-26T10:12:00.000Z',
+      },
+    ]);
+    mockEnsureFixturesForMatchIds.mockResolvedValue([
+      {
+        fixture: {
+          id: 200,
+          date: '2026-03-26T10:12:00+00:00',
+          status: { short: 'NS', elapsed: null },
+        },
+        goals: { home: null, away: null },
+      },
+    ]);
+
+    await refreshLiveMatchesJob();
+
+    expect(mockEnsureFixturesForMatchIds).toHaveBeenCalledWith(['200'], { freshnessMode: 'stale_safe' });
+    expect(mockEnsureFixtureStatistics).not.toHaveBeenCalled();
   });
 });

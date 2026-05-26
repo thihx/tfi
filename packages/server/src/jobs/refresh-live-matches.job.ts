@@ -3,6 +3,7 @@ import { skipIfFootballApiCircuitOpen } from '../lib/football-api-circuit.js';
 import { kickoffAtUtcFromFixtureDate } from '../lib/kickoff-time.js';
 import { ensureFixtureStatistics, ensureFixturesForMatchIds } from '../lib/provider-insight-cache.js';
 import * as matchRepo from '../repos/matches.repo.js';
+import * as watchlistRepo from '../repos/watchlist.repo.js';
 import { reportJobProgress } from './job-progress.js';
 
 const LIVE_STATUSES = new Set(['1H', 'HT', '2H', 'ET', 'BT', 'P', 'LIVE', 'INT']);
@@ -64,6 +65,12 @@ export async function refreshLiveMatchesJob(): Promise<{
 
   await reportJobProgress(JOB, 'load', 'Loading live and near-live matches...', 10);
 
+  const activeWatchlist = await watchlistRepo.getActiveOperationalWatchlist();
+  const watchedMatchIds = new Set(activeWatchlist.map((row) => String(row.match_id)));
+  if (watchedMatchIds.size === 0) {
+    return { tracked: 0, refreshed: 0, live: 0, statsRefreshed: 0 };
+  }
+
   const now = Date.now();
   const kickoffWindowStart = new Date(now - (TRACK_NS_AFTER_KICKOFF_MIN * 60_000)).toISOString();
   const kickoffWindowEnd = new Date(now + (TRACK_NS_BEFORE_KICKOFF_MIN * 60_000)).toISOString();
@@ -72,7 +79,9 @@ export async function refreshLiveMatchesJob(): Promise<{
     kickoffWindowStart,
     kickoffWindowEnd,
   );
-  const tracked = candidateMatches.filter((row) => shouldTrackMatch(row, now));
+  const tracked = candidateMatches.filter((row) =>
+    watchedMatchIds.has(String(row.match_id)) && shouldTrackMatch(row, now),
+  );
   if (tracked.length === 0) {
     return { tracked: 0, refreshed: 0, live: 0, statsRefreshed: 0 };
   }

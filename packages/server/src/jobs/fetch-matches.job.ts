@@ -24,9 +24,11 @@ import {
   type MatchHistoryArchiveInput,
 } from '../repos/matches-history.repo.js';
 import * as matchRepo from '../repos/matches.repo.js';
+import * as watchlistRepo from '../repos/watchlist.repo.js';
 
 const ALLOWED_STATUSES = ['NS', '1H', 'HT', '2H', 'ET', 'BT', 'P', 'LIVE', 'INT'];
 const LIVE_STATUSES = new Set(['1H', 'HT', '2H', 'ET', 'BT', 'LIVE', 'INT']);
+export const IDLE_NO_WATCH_POLL_DELAY_MS = 6 * 60 * 60_000;
 
 async function batchRun<T>(tasks: Array<() => Promise<T>>, concurrency = 5): Promise<T[]> {
   const results: T[] = [];
@@ -49,8 +51,13 @@ export const ADAPTIVE_SKIP_KEY = 'job:fetch-matches:next-run-at';
 export function computeNextPollDelayMs(
   state: matchRepo.MatchScheduleState,
   baseIntervalMs: number,
+  options: { hasActiveWatchlist?: boolean } = {},
 ): number {
   const minute = 60_000;
+
+  if (options.hasActiveWatchlist === false) {
+    return IDLE_NO_WATCH_POLL_DELAY_MS;
+  }
 
   if (state.liveCount > 0) return baseIntervalMs;
   if (state.minsToNextKickoff === null) return 30 * minute;
@@ -342,7 +349,13 @@ export async function fetchMatchesJob(): Promise<{
 
   try {
     const scheduleState = await matchRepo.getMatchScheduleState(config.timezone);
-    const delayMs = computeNextPollDelayMs(scheduleState, config.jobFetchMatchesMs);
+    let hasActiveWatchlist = true;
+    try {
+      hasActiveWatchlist = (await watchlistRepo.getActiveOperationalWatchlist()).length > 0;
+    } catch {
+      // If the watchlist lookup is unavailable, keep the existing match-slate cadence.
+    }
+    const delayMs = computeNextPollDelayMs(scheduleState, config.jobFetchMatchesMs, { hasActiveWatchlist });
     const redis = getRedisClient();
     await redis.set(ADAPTIVE_SKIP_KEY, String(Date.now() + delayMs), 'PX', delayMs + 10_000);
     if (delayMs > config.jobFetchMatchesMs) {

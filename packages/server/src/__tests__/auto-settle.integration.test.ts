@@ -372,6 +372,19 @@ describe('autoSettleJob', () => {
     expect(ensureFixturesForMatchIds).not.toHaveBeenCalled();
   });
 
+  test('does not retry unresolved recommendations in the default auto-settle loop', async () => {
+    const rec = makeRec({ match_id: '55555', settlement_status: 'unresolved' });
+    (recommendationsRepo.getAllRecommendations as Mock).mockResolvedValue({ rows: [rec] });
+
+    const stats = await autoSettleJob();
+
+    expect(stats.settled).toBe(0);
+    expect(stats.skipped).toBe(0);
+    expect(matchHistoryRepo.getHistoricalMatchesBatch).not.toHaveBeenCalled();
+    expect(ensureFixturesForMatchIds).not.toHaveBeenCalled();
+    expect(callGemini).not.toHaveBeenCalled();
+  });
+
   test('loss result is computed correctly via API fallback', async () => {
     const rec = makeRec({
       match_id: '88888',

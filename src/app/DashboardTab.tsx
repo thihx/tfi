@@ -37,14 +37,61 @@ function formatFullChartDate(value: string): string {
   return parsed.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
 }
 
-function formatBankrollDashboardAmount(value: number | null | undefined, currency: string, multiplier: number): string {
+function formatBankrollUnits(value: number | null | undefined): string {
   const amount = Number(value ?? 0);
   if (!Number.isFinite(amount)) return '-';
-  const display = Number.isInteger(amount) ? String(amount) : amount.toFixed(2);
-  const full = amount * multiplier;
-  const fullText = new Intl.NumberFormat('en-US', { maximumFractionDigits: 0 }).format(full);
-  return `${display} (${fullText} ${currency})`;
+  return new Intl.NumberFormat('en-US', {
+    minimumFractionDigits: Number.isInteger(amount) ? 0 : 2,
+    maximumFractionDigits: 2,
+  }).format(amount);
 }
+
+const BankrollSummaryCard = memo(function BankrollSummaryCard({
+  currentBalance,
+  initialBalance,
+  delta,
+  currency,
+  multiplier,
+}: {
+  currentBalance: number;
+  initialBalance: number;
+  delta: number;
+  currency: string;
+  multiplier: number;
+}) {
+  const deltaTone = delta >= 0 ? 'positive' : 'negative';
+  const deltaPrefix = delta >= 0 ? '+' : '';
+
+  return (
+    <div className="bankroll-summary-card">
+      <div className="bankroll-summary-main">
+        <div className="stat-label">Bankroll</div>
+        <div className="bankroll-summary-balance">{formatBankrollUnits(currentBalance)}</div>
+        <div className="stat-sub">Initial {formatBankrollUnits(initialBalance)} units</div>
+      </div>
+
+      <div className="bankroll-summary-metrics" aria-label="Bankroll details">
+        <div className="bankroll-summary-metric">
+          <div className="stat-label">P/L</div>
+          <div className={`bankroll-summary-value ${deltaTone}`}>
+            {deltaPrefix}{formatBankrollUnits(delta)}
+          </div>
+          <div className="stat-sub">{delta >= 0 ? 'Growth' : 'Drawdown'} in units</div>
+        </div>
+        <div className="bankroll-summary-metric">
+          <div className="stat-label">Unit Multiplier</div>
+          <div className="bankroll-summary-value">x{multiplier}</div>
+          <div className="stat-sub">Currency {currency}</div>
+        </div>
+        <div className="bankroll-summary-metric">
+          <div className="stat-label">Stake Rule</div>
+          <div className="bankroll-summary-value">Personal</div>
+          <div className="stat-sub">Stake % -&gt; amount</div>
+        </div>
+      </div>
+    </div>
+  );
+});
 
 const PnlChart = memo(function PnlChart({ data }: { data: { date: string; pnl: number; cumulative: number }[] }) {
   if (!data.length) return null;
@@ -391,29 +438,13 @@ export function DashboardTab() {
       </div>
 
       {bankrollAccount && (
-        <div className="stats-grid">
-          <StatCard
-            label="Bankroll Balance"
-            value={formatBankrollDashboardAmount(bankrollAccount.current_balance, bankrollCurrency, bankrollMultiplier)}
-            sub={`Initial ${formatBankrollDashboardAmount(bankrollAccount.initial_balance, bankrollCurrency, bankrollMultiplier)}`}
-          />
-          <StatCard
-            label="Bankroll P/L"
-            value={`${bankrollDelta >= 0 ? '+' : ''}${formatBankrollDashboardAmount(bankrollDelta, bankrollCurrency, bankrollMultiplier)}`}
-            sub={`${bankrollDelta >= 0 ? 'Growth' : 'Drawdown'} in bankroll units`}
-            color={bankrollDelta >= 0 ? 'positive' : 'negative'}
-          />
-          <StatCard
-            label="Unit Multiplier"
-            value={`x${bankrollMultiplier}`}
-            sub={`Currency ${bankrollCurrency}`}
-          />
-          <StatCard
-            label="Stake Rule"
-            value="Personal"
-            sub="Stake % -> amount"
-          />
-        </div>
+        <BankrollSummaryCard
+          currentBalance={bankrollAccount.current_balance}
+          initialBalance={bankrollAccount.initial_balance}
+          delta={bankrollDelta}
+          currency={bankrollCurrency}
+          multiplier={bankrollMultiplier}
+        />
       )}
 
       {/* Charts Row */}

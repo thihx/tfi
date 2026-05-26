@@ -5,6 +5,7 @@
 import { query } from '../db/pool.js';
 import { config } from '../config.js';
 import {
+  getFootballApiCircuitStatus,
   isFootballApiDailyLimitMessage,
   openFootballApiCircuitUntilNextUtcMidnight,
 } from './football-api-circuit.js';
@@ -100,6 +101,11 @@ async function probeFootballApi(): Promise<IntegrationProbeResult> {
     return makeResult(ID, LABEL, DESC, 'NOT_CONFIGURED', 0, 'FOOTBALL_API_KEY not set');
   }
   try {
+    const circuit = await getFootballApiCircuitStatus();
+    if (circuit.open) {
+      return makeResult(ID, LABEL, DESC, 'DEGRADED', 0, `Daily limit circuit open until ${circuit.openUntil ?? 'reset'}`);
+    }
+
     const { result: res, latencyMs } = await timed(() =>
       withTimeout(
         fetch(`${config.footballApiBaseUrl}/status`, {

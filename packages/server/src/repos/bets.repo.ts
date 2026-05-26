@@ -70,7 +70,11 @@ export async function getBetsByMatchId(matchId: string): Promise<BetRow[]> {
 
 export async function getUnsettledBets(): Promise<BetRow[]> {
   const r = await query<BetRow>(
-    `SELECT * FROM bets WHERE ${PENDING_RESULT_SQL} ORDER BY placed_at`,
+    `SELECT *
+       FROM bets
+      WHERE ${PENDING_RESULT_SQL}
+        AND COALESCE(settlement_status, 'pending') <> 'unresolved'
+      ORDER BY placed_at`,
   );
   return r.rows;
 }

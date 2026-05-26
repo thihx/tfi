@@ -1440,6 +1440,65 @@ table tbody#watchlist-table td:not(.select-col) {
     color: var(--danger);
 }
 
+.bankroll-summary-card {
+    display: grid;
+    grid-template-columns: minmax(220px, 0.8fr) minmax(0, 1.6fr);
+    gap: 20px;
+    align-items: stretch;
+    background: white;
+    border: 1px solid var(--gray-200);
+    border-radius: 12px;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+    margin-bottom: 20px;
+    padding: 20px;
+}
+
+.bankroll-summary-main {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    min-width: 0;
+}
+
+.bankroll-summary-balance {
+    color: var(--gray-900);
+    font-size: 32px;
+    font-weight: 800;
+    line-height: 1.1;
+}
+
+.bankroll-summary-metrics {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 0;
+    border-left: 1px solid var(--gray-200);
+}
+
+.bankroll-summary-metric {
+    min-width: 0;
+    padding: 4px 18px;
+    border-right: 1px solid var(--gray-200);
+}
+
+.bankroll-summary-metric:last-child {
+    border-right: 0;
+}
+
+.bankroll-summary-value {
+    color: var(--gray-900);
+    font-size: 24px;
+    font-weight: 700;
+    line-height: 1.2;
+}
+
+.bankroll-summary-value.positive {
+    color: var(--success);
+}
+
+.bankroll-summary-value.negative {
+    color: var(--danger);
+}
+
 /* ==================== MATCH DISPLAY ==================== */
 .match-teams {
     display: flex;
@@ -2447,6 +2506,23 @@ table td:last-child, table th:last-child {
         grid-template-columns: 1fr 1fr;
         gap: 12px;
     }
+
+    .bankroll-summary-card {
+        grid-template-columns: 1fr;
+        gap: 16px;
+        padding: 16px;
+    }
+
+    .bankroll-summary-metrics {
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        border-left: 0;
+        border-top: 1px solid var(--gray-200);
+        padding-top: 14px;
+    }
+
+    .bankroll-summary-metric {
+        padding: 0 12px;
+    }
     
     .card {
         border-radius: 12px;
@@ -2849,6 +2925,30 @@ table td:last-child, table th:last-child {
 @media (max-width: 430px) {
     .stats-grid {
         grid-template-columns: 1fr 1fr;
+    }
+
+    .bankroll-summary-card {
+        padding: 14px;
+    }
+
+    .bankroll-summary-balance {
+        font-size: 28px;
+    }
+
+    .bankroll-summary-metrics {
+        grid-template-columns: 1fr;
+        gap: 12px;
+    }
+
+    .bankroll-summary-metric {
+        border-right: 0;
+        border-bottom: 1px solid var(--gray-200);
+        padding: 0 0 12px;
+    }
+
+    .bankroll-summary-metric:last-child {
+        border-bottom: 0;
+        padding-bottom: 0;
     }
 
     .main-content {

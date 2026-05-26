@@ -75,18 +75,20 @@ describe('DashboardTab bankroll summary', () => {
     });
   });
 
-  it('shows bankroll balance, P/L, unit multiplier, and stake rule', async () => {
+  it('shows bankroll details in one compact summary without repeated VND amounts', async () => {
     render(<DashboardTab />);
 
-    await waitFor(() => expect(screen.getByText('Bankroll Balance')).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByText('Bankroll')).toBeInTheDocument());
 
-    expect(screen.getByText('1125.50 (1,125,500 VND)')).toBeInTheDocument();
-    expect(screen.getByText('Initial 1000 (1,000,000 VND)')).toBeInTheDocument();
-    expect(screen.getByText('Bankroll P/L')).toBeInTheDocument();
-    expect(screen.getByText('+125.50 (125,500 VND)')).toBeInTheDocument();
+    expect(screen.getByText('1,125.50')).toBeInTheDocument();
+    expect(screen.getByText('Initial 1,000 units')).toBeInTheDocument();
+    expect(screen.getByText('P/L')).toBeInTheDocument();
+    expect(screen.getByText('+125.50')).toBeInTheDocument();
     expect(screen.getByText('Unit Multiplier')).toBeInTheDocument();
     expect(screen.getByText('x1000')).toBeInTheDocument();
+    expect(screen.getByText('Currency VND')).toBeInTheDocument();
     expect(screen.getByText('Stake Rule')).toBeInTheDocument();
     expect(screen.getByText('Stake % -> amount')).toBeInTheDocument();
+    expect(screen.queryByText('1125.50 (1,125,500 VND)')).not.toBeInTheDocument();
   });
 });

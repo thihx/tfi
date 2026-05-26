@@ -1,0 +1,216 @@
+{
+  "generatedAt": "2026-05-24T02:06:34.919Z",
+  "promptVersion": "v10-hybrid-legacy-b",
+  "applyReplayPolicy": true,
+  "scenarioCount": 6,
+  "baselineModel": "gemini-2.5-flash",
+  "candidateModel": "gemini-3.5-flash",
+  "smoke": {
+    "baseline": {
+      "ok": true,
+      "latencyMs": 1247
+    },
+    "candidate": {
+      "ok": true,
+      "latencyMs": 1459
+    }
+  },
+  "baseline": {
+    "medianLlmMs": 24047.5,
+    "medianTotalMs": 26104.5,
+    "medianPromptChars": 26642.5,
+    "errors": 0,
+    "pushRate": 50,
+    "pushMatchOriginal": 50,
+    "accuracy": 66.67,
+    "roi": 0
+  },
+  "candidate": {
+    "medianLlmMs": 21806,
+    "medianTotalMs": 23831.5,
+    "medianPromptChars": 26642.5,
+    "errors": 0,
+    "pushRate": 33.33,
+    "pushMatchOriginal": 66.66666666666666,
+    "accuracy": 50,
+    "roi": 0
+  },
+  "headToHead": {
+    "comparable": 6,
+    "pushAgreementPct": 50,
+    "marketAgreementPct": 16.666666666666664,
+    "bothWinWhenPush": 1,
+    "baselineOnlyWin": 1,
+    "candidateOnlyWin": 0
+  },
+  "rows": [
+    {
+      "scenarioName": "11757-1388863-51m-under-3-5",
+      "recommendationId": 11757,
+      "baseline": {
+        "model": "gemini-2.5-flash",
+        "ok": true,
+        "llmLatencyMs": 29461,
+        "totalLatencyMs": 33238,
+        "promptChars": 26731,
+        "shouldPush": false,
+        "canonicalMarket": "btts_no",
+        "sameAsOriginalPush": true,
+        "settlementResult": null,
+        "directionalWin": null
+      },
+      "candidate": {
+        "model": "gemini-3.5-flash",
+        "ok": true,
+        "llmLatencyMs": 17456,
+        "totalLatencyMs": 20112,
+        "promptChars": 26731,
+        "shouldPush": false,
+        "canonicalMarket": "unknown",
+        "sameAsOriginalPush": true,
+        "settlementResult": null,
+        "directionalWin": null
+      }
+    },
+    {
+      "scenarioName": "11758-1388857-25m-under-3-5",
+      "recommendationId": 11758,
+      "baseline": {
+        "model": "gemini-2.5-flash",
+        "ok": true,
+        "llmLatencyMs": 24529,
+        "totalLatencyMs": 26674,
+        "promptChars": 26886,
+        "shouldPush": false,
+        "canonicalMarket": "over_3.5",
+        "sameAsOriginalPush": true,
+        "settlementResult": null,
+        "directionalWin": null
+      },
+      "candidate": {
+        "model": "gemini-3.5-flash",
+        "ok": true,
+        "llmLatencyMs": 25282,
+        "totalLatencyMs": 27396,
+        "promptChars": 26886,
+        "shouldPush": true,
+        "canonicalMarket": "corners_under_10",
+        "sameAsOriginalPush": false,
+        "settlementResult": "loss",
+        "directionalWin": false
+      }
+    },
+    {
+      "scenarioName": "11759-1388862-28m-btts-no",
+      "recommendationId": 11759,
+      "baseline": {
+        "model": "gemini-2.5-flash",
+        "ok": true,
+        "llmLatencyMs": 20977,
+        "totalLatencyMs": 23026,
+        "promptChars": 39385,
+        "shouldPush": true,
+        "canonicalMarket": "btts_no",
+        "sameAsOriginalPush": false,
+        "settlementResult": "win",
+        "directionalWin": true
+      },
+      "candidate": {
+        "model": "gemini-3.5-flash",
+        "ok": true,
+        "llmLatencyMs": 24705,
+        "totalLatencyMs": 26751,
+        "promptChars": 39385,
+        "shouldPush": true,
+        "canonicalMarket": "btts_no",
+        "sameAsOriginalPush": false,
+        "settlementResult": "win",
+        "directionalWin": true
+      }
+    },
+    {
+      "scenarioName": "11763-1394681-31m-under-2-75",
+      "recommendationId": 11763,
+      "baseline": {
+        "model": "gemini-2.5-flash",
+        "ok": true,
+        "llmLatencyMs": 23566,
+        "totalLatencyMs": 25535,
+        "promptChars": 26554,
+        "shouldPush": false,
+        "canonicalMarket": "btts_no",
+        "sameAsOriginalPush": true,
+        "settlementResult": null,
+        "directionalWin": null
+      },
+      "candidate": {
+        "model": "gemini-3.5-flash",
+        "ok": true,
+        "llmLatencyMs": 18907,
+        "totalLatencyMs": 20912,
+        "promptChars": 26554,
+        "shouldPush": false,
+        "canonicalMarket": "unknown",
+        "sameAsOriginalPush": true,
+        "settlementResult": null,
+        "directionalWin": null
+      }
+    },
+    {
+      "scenarioName": "11767-1394679-41m-under-2-25",
+      "recommendationId": 11767,
+      "baseline": {
+        "model": "gemini-2.5-flash",
+        "ok": true,
+        "llmLatencyMs": 21409,
+        "totalLatencyMs": 23412,
+        "promptChars": 26393,
+        "shouldPush": true,
+        "canonicalMarket": "corners_under_8",
+        "sameAsOriginalPush": false,
+        "settlementResult": "loss",
+        "directionalWin": false
+      },
+      "candidate": {
+        "model": "gemini-3.5-flash",
+        "ok": true,
+        "llmLatencyMs": 17534,
+        "totalLatencyMs": 19438,
+        "promptChars": 26393,
+        "shouldPush": false,
+        "canonicalMarket": "unknown",
+        "sameAsOriginalPush": true,
+        "settlementResult": null,
+        "directionalWin": null
+      }
+    },
+    {
+      "scenarioName": "11768-1523087-62m-under-3-25",
+      "recommendationId": 11768,
+      "baseline": {
+        "model": "gemini-2.5-flash",
+        "ok": true,
+        "llmLatencyMs": 44285,
+        "totalLatencyMs": 46928,
+        "promptChars": 20692,
+        "shouldPush": true,
+        "canonicalMarket": "under_3.25",
+        "sameAsOriginalPush": false,
+        "settlementResult": "half_win",
+        "directionalWin": true
+      },
+      "candidate": {
+        "model": "gemini-3.5-flash",
+        "ok": true,
+        "llmLatencyMs": 29187,
+        "totalLatencyMs": 31815,
+        "promptChars": 20692,
+        "shouldPush": false,
+        "canonicalMarket": "unknown",
+        "sameAsOriginalPush": true,
+        "settlementResult": null,
+        "directionalWin": null
+      }
+    }
+  ]
+}

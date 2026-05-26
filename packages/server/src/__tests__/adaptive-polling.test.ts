@@ -3,7 +3,7 @@
 // ============================================================
 
 import { describe, test, expect, vi, beforeEach } from 'vitest';
-import { computeNextPollDelayMs, ADAPTIVE_SKIP_KEY } from '../jobs/fetch-matches.job.js';
+import { computeNextPollDelayMs, ADAPTIVE_SKIP_KEY, IDLE_NO_WATCH_POLL_DELAY_MS } from '../jobs/fetch-matches.job.js';
 import type { MatchScheduleState } from '../repos/matches.repo.js';
 
 // ── Pure function tests ──────────────────────────────────────
@@ -60,6 +60,14 @@ describe('computeNextPollDelayMs', () => {
     expect(computeNextPollDelayMs(state({ liveCount: 1 }), customBase)).toBe(customBase);
     expect(computeNextPollDelayMs(state({ minsToNextKickoff: null }), customBase)).toBe(30 * MIN);
   });
+
+  test('uses long idle delay when no matches are actively watched', () => {
+    expect(computeNextPollDelayMs(
+      state({ liveCount: 3, minsToNextKickoff: 0 }),
+      BASE,
+      { hasActiveWatchlist: false },
+    )).toBe(IDLE_NO_WATCH_POLL_DELAY_MS);
+  });
 });
 
 // ── Skip logic integration tests ────────────────────────────
@@ -94,6 +102,7 @@ vi.mock('../repos/matches.repo.js', () => ({
 
 vi.mock('../repos/watchlist.repo.js', () => ({
   backfillOperationalWatchlistFromLegacy: vi.fn().mockResolvedValue(0),
+  getActiveOperationalWatchlist: vi.fn().mockResolvedValue([{ match_id: '100' }]),
   getExistingWatchlistMatchIds: vi.fn().mockResolvedValue(new Set()),
   syncWatchlistDates: vi.fn().mockResolvedValue(0),
 }));
@@ -234,6 +243,22 @@ describe('fetchMatchesJob adaptive skip', () => {
     const delay = Number(storedValue) - Date.now();
     expect(delay).toBeLessThanOrEqual(60_000 + 500); // ~1 min
     expect(delay).toBeGreaterThan(59_000);
+  });
+
+  test('sets long skip key after fetch when there is no active watchlist interest', async () => {
+    const matchRepo = await import('../repos/matches.repo.js');
+    const watchlistRepo = await import('../repos/watchlist.repo.js');
+    vi.mocked(matchRepo.getMatchScheduleState).mockResolvedValue({
+      liveCount: 2, nsCount: 0, minsToNextKickoff: null,
+    });
+    vi.mocked(watchlistRepo.getActiveOperationalWatchlist).mockResolvedValueOnce([]);
+
+    await fetchMatchesJob();
+
+    const [, storedValue] = mockRedis.set.mock.calls.at(-1) as [string, string, string, number];
+    const delay = Number(storedValue) - Date.now();
+    expect(delay).toBeGreaterThan(IDLE_NO_WATCH_POLL_DELAY_MS - 1_000);
+    expect(delay).toBeLessThan(IDLE_NO_WATCH_POLL_DELAY_MS + 1_000);
   });
 
   test('sets skip key after fetch — kickoff in 60 min → 2 min delay', async () => {
