@@ -66,6 +66,7 @@ const baseUser = {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  sessionStorage.clear();
   pushSupported = false;
   notificationPermission = 'default';
   mockFetchMonitorConfig.mockResolvedValue({
@@ -149,6 +150,53 @@ describe('ProfileEditModal', () => {
       name: 'Thi Nguyen',
     }));
     expect(mockShowToast).toHaveBeenCalledWith('Profile updated', 'success');
+  });
+
+  it('disables Save when display name is unchanged', async () => {
+    render(
+      <ProfileEditModal
+        open
+        onClose={() => {}}
+        user={baseUser}
+      />,
+    );
+
+    expect(await screen.findByRole('button', { name: 'Save' })).toBeDisabled();
+    expect(screen.queryByText('Account Info')).not.toBeInTheDocument();
+    expect(screen.getByText('Photo from Google sign-in')).toBeInTheDocument();
+  });
+
+  it('restores the last opened profile tab from session storage', async () => {
+    sessionStorage.setItem('profile-edit-active-tab', 'watchlist');
+    const user = userEvent.setup();
+
+    render(
+      <ProfileEditModal
+        open
+        onClose={() => {}}
+        user={baseUser}
+      />,
+    );
+
+    expect(await screen.findByText(/Bulk add by favorite leagues is on the Matches tab/i)).toBeInTheDocument();
+    await user.click(screen.getByRole('tab', { name: 'Profile' }));
+    expect(sessionStorage.getItem('profile-edit-active-tab')).toBe('identity');
+  });
+
+  it('shows notification channel summary chips on the notifications tab', async () => {
+    const user = userEvent.setup();
+
+    render(
+      <ProfileEditModal
+        open
+        onClose={() => {}}
+        user={baseUser}
+      />,
+    );
+
+    await user.click(await screen.findByRole('tab', { name: 'Notifications' }));
+    expect(await screen.findByLabelText('Notification channel status')).toBeInTheDocument();
+    expect(screen.getByText(/Telegram · Ready/i)).toBeInTheDocument();
   });
 
   it('lets the user update Telegram delivery data from the profile modal', async () => {

@@ -1,5 +1,7 @@
-import { useState, useEffect, useCallback, memo, useMemo, type ReactNode } from 'react';
+import { useState, useEffect, useCallback, memo, useMemo, useRef, type ReactNode } from 'react';
 import { useAppState } from '@/hooks/useAppState';
+import { DatePicker } from '@/components/ui/DatePicker';
+import { downloadReportTableCsv } from '@/lib/utils/reportTableCsv';
 import {
   BarChart, Bar, LineChart, Line, AreaChart, Area,
   XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell, Legend,
@@ -50,6 +52,35 @@ const PERIOD_OPTIONS: { value: ReportPeriodFilter['period']; label: string }[] =
 function pnlColor(v: number): string { return v >= 0 ? 'var(--success)' : 'var(--danger)'; }
 function pnlStr(v: number): string { return `${v >= 0 ? '+' : ''}$${v.toFixed(2)}`; }
 function wrStr(v: number): string { return `${v.toFixed(1)}%`; }
+
+function formatDirectionalRecordBrief(data: OverviewReport): string {
+  return `${data.wins}W · ${data.losses}L`;
+}
+
+function formatDirectionalRecordDetail(data: OverviewReport): string {
+  const fullW = data.wins - data.halfWins;
+  const fullL = data.losses - data.halfLosses;
+  return [
+    `Full won ${fullW}`,
+    `Full lost ${fullL}`,
+    `Half won ${data.halfWins}`,
+    `Half lost ${data.halfLosses}`,
+    `Push ${data.pushes}`,
+    `Void ${data.voids}`,
+  ].join(' | ');
+}
+
+function formatExposureClusterSub(data: OverviewReport): string {
+  const { stackedRecommendations, stackedStake } = data.exposureConcentration;
+  return `${stackedRecommendations} picks · ${stackedStake.toFixed(1)}% combined stake`;
+}
+
+const EXPOSURE_CLUSTER_SUB_TITLE =
+  'Combined stake % summed across clusters in this period—not total bankroll exposure.';
+
+function reportCacheKey(section: ReportSection, filter: ReportPeriodFilter): string {
+  return `${section}|${filter.period ?? 'all'}|${filter.dateFrom ?? ''}|${filter.dateTo ?? ''}`;
+}
 function familyLabel(value: string): string {
   const map: Record<string, string> = {
     goals_totals: 'Goals Totals',
@@ -104,16 +135,46 @@ const CHART_PURPLE = '#8b5cf6';
 const OverviewSection = memo(function OverviewSection({ data }: { data: OverviewReport }) {
   return (
     <div>
-      <div className="report-kpi-grid">
-        <KpiCard label="Recommendations" value={data.total} sub={`${data.pending} pending`} />
-        <KpiCard label="Directional Hit Rate" value={wrStr(data.winRate)} color={data.winRate >= 50 ? 'positive' : 'negative'} />
-        <KpiCard label="P/L" value={pnlStr(data.totalPnl)} color={data.totalPnl >= 0 ? 'positive' : 'negative'} />
-        <KpiCard label="ROI on Stake" value={`${data.roi >= 0 ? '+' : ''}${data.roi.toFixed(1)}%`} color={data.roi >= 0 ? 'positive' : 'negative'} />
+      <div className="report-kpi-grid report-kpi-grid--primary">
+        <KpiCard
+          label="Hit Rate"
+          value={wrStr(data.winRate)}
+          color={data.winRate >= 50 ? 'positive' : 'negative'}
+          sub="Directional picks"
+          subTitle="Win rate on settled directional results; push and void excluded."
+        />
+        <KpiCard
+          label="P/L"
+          value={pnlStr(data.totalPnl)}
+          color={data.totalPnl >= 0 ? 'positive' : 'negative'}
+          sub="Recommendation stake P/L"
+        />
+        <KpiCard
+          label="ROI on Stake"
+          value={`${data.roi >= 0 ? '+' : ''}${data.roi.toFixed(1)}%`}
+          color={data.roi >= 0 ? 'positive' : 'negative'}
+        />
+        <KpiCard
+          label="Settled"
+          value={data.settled}
+          sub={`${data.directionalSettled} directional · ${data.pushVoidSettled} push/void`}
+          subTitle={`${data.total} total · ${data.pending} pending · ${data.directionalSettled} directional · ${data.pushVoidSettled} push/void`}
+        />
+      </div>
+      <div className="report-kpi-grid report-kpi-grid--secondary">
         <KpiCard label="Avg Odds" value={data.avgOdds.toFixed(2)} />
         <KpiCard label="Avg Confidence" value={data.avgConfidence.toFixed(1)} />
-        <KpiCard label="Settled" value={data.settled} sub={`Directional ${data.directionalSettled} | Push/Void ${data.pushVoidSettled}`} />
-        <KpiCard label="Directional Record" value={`${data.wins}W - ${data.losses}L`} sub={`Full W ${data.wins - data.halfWins} | Full L ${data.losses - data.halfLosses} | Half W ${data.halfWins} | Half L ${data.halfLosses} | Push ${data.pushes} | Void ${data.voids}`} />
-        <KpiCard label="Exposure Clusters" value={data.exposureConcentration.stackedClusters} sub={`${data.exposureConcentration.stackedRecommendations} recs | ${data.exposureConcentration.stackedStake}% stake`} />
+        <KpiCard
+          label="Directional Record"
+          value={formatDirectionalRecordBrief(data)}
+          valueTitle={formatDirectionalRecordDetail(data)}
+        />
+        <KpiCard
+          label="Exposure Clusters"
+          value={data.exposureConcentration.stackedClusters}
+          sub={formatExposureClusterSub(data)}
+          subTitle={EXPOSURE_CLUSTER_SUB_TITLE}
+        />
       </div>
       {(data.bestDay || data.worstDay) && (
         <div className="report-highlight-row">
@@ -138,6 +199,7 @@ const OverviewSection = memo(function OverviewSection({ data }: { data: Overview
             Same match + same thesis clusters with at least 2 entries in the selected period.
           </div>
           <ReportTable
+            exportName="exposure-concentration"
             columns={['Match', 'Thesis', 'Picks', 'Settled', 'Stake', 'Latest', 'P/L']}
             rows={data.exposureConcentration.topClusters.map((cluster) => [
               cluster.matchDisplay,
@@ -187,6 +249,7 @@ const LeagueSection = memo(function LeagueSection({ data, topLeagueNames }: { da
         </div>
       </div>
       <ReportTable
+        exportName="report-by-league"
         columns={['League', 'Total', 'Dir W', 'Dir L', 'Push/Void', 'Hit%', 'P/L', 'Avg Odds', 'Avg Conf', 'ROI']}
         rows={sorted.map((d) => [
           d.league, d.total, d.wins, d.losses, d.pushVoid, wrStr(d.winRate),
@@ -226,6 +289,7 @@ const MarketSection = memo(function MarketSection({ data }: { data: MarketReport
         </div>
       </div>
       <ReportTable
+        exportName="report-by-market"
         columns={['Market', 'Total', 'Dir W', 'Dir L', 'Push/Void', 'Hit%', 'P/L', 'Avg Odds', 'ROI']}
         rows={data.map((d) => [
           formatCanonicalMarketLabel(d.market), d.total, d.wins, d.losses, d.pushVoid, wrStr(d.winRate),
@@ -286,6 +350,7 @@ const TimeSection = memo(function TimeSection({ weekly, monthly }: { weekly: Tim
         </div>
       </div>
       <ReportTable
+        exportName={`report-time-${view}`}
         columns={['Period', 'Total', 'Dir W', 'Dir L', 'Push/Void', 'Hit%', 'P/L', 'Cumul.', 'Avg Odds', 'ROI']}
         rows={data.map((d) => [
           d.period, d.total, d.wins, d.losses, d.pushVoid, wrStr(d.winRate),
@@ -325,6 +390,7 @@ const ConfidenceSection = memo(function ConfidenceSection({ data }: { data: Conf
         </div>
       </div>
       <ReportTable
+        exportName="report-confidence"
         columns={['Band', 'Total', 'Dir W', 'Dir L', 'Actual Hit%', 'Expected Hit%', 'Gap', 'P/L', 'Avg Odds']}
         rows={data.map((d) => {
           const gap = d.winRate - d.expectedWinRate;
@@ -362,6 +428,7 @@ const OddsSection = memo(function OddsSection({ data }: { data: OddsRangeRow[] }
         </div>
       </div>
       <ReportTable
+        exportName="report-odds-range"
         columns={['Odds Range', 'Total', 'Dir W', 'Dir L', 'Hit%', 'P/L', 'Avg Confidence']}
         rows={data.map((d) => [
           d.range, d.total, d.wins, d.losses, wrStr(d.winRate),
@@ -394,6 +461,7 @@ const MinuteSection = memo(function MinuteSection({ data }: { data: MinuteBandRo
         </div>
       </div>
       <ReportTable
+        exportName="report-match-minute"
         columns={['Minute Band', 'Total', 'Dir W', 'Dir L', 'Hit%', 'P/L', 'Avg Odds']}
         rows={data.map((d) => [
           d.band, d.total, d.wins, d.losses, wrStr(d.winRate),
@@ -427,6 +495,7 @@ const DayOfWeekSection = memo(function DayOfWeekSection({ data }: { data: DayOfW
         </div>
       </div>
       <ReportTable
+        exportName="report-day-of-week"
         columns={['Day', 'Bets', 'Dir W', 'Dir L', 'Push/Void', 'Hit%', 'P/L']}
         rows={data.map((d) => [
           d.dayName, d.total, d.wins, d.losses, d.pushVoid, wrStr(d.winRate),
@@ -527,26 +596,31 @@ const AiInsightsSection = memo(function AiInsightsSection({ data }: { data: AiIn
       </div>
 
       {/* Strengths */}
-      <div className="report-insights-grid">
-        <InsightList title="Strong Leagues" items={data.strongLeagues.map((l) => `${l.league}: ${wrStr(l.winRate)} (${pnlStr(l.pnl)}, ${l.total} bets)`)} color="var(--success)" />
-        <InsightList title="Weak Leagues" items={data.weakLeagues.map((l) => `${l.league}: ${wrStr(l.winRate)} (${pnlStr(l.pnl)}, ${l.total} bets)`)} color="var(--danger)" />
-        <InsightList title="Strong Markets" items={data.strongMarkets.map((m) => `${formatCanonicalMarketLabel(m.market)}: ${wrStr(m.winRate)} (${pnlStr(m.pnl)}, ${m.total} bets)`)} color="var(--success)" />
-        <InsightList title="Weak Markets" items={data.weakMarkets.map((m) => `${formatCanonicalMarketLabel(m.market)}: ${wrStr(m.winRate)} (${pnlStr(m.pnl)}, ${m.total} bets)`)} color="var(--danger)" />
-        <InsightList title="Best Time Slots" items={data.bestTimeSlots.map((t) => `${t.band}: ${wrStr(t.winRate)} (${pnlStr(t.pnl)}, ${t.total} bets)`)} color="var(--success)" />
-        <InsightList title="Worst Time Slots" items={data.worstTimeSlots.map((t) => `${t.band}: ${wrStr(t.winRate)} (${pnlStr(t.pnl)}, ${t.total} bets)`)} color="var(--danger)" />
-      </div>
+      <details className="report-insights-group" open>
+        <summary className="report-insights-group__summary">League &amp; market highlights</summary>
+        <div className="report-insights-grid">
+          <InsightList title="Strong Leagues" items={data.strongLeagues.map((l) => `${l.league}: ${wrStr(l.winRate)} (${pnlStr(l.pnl)}, ${l.total} bets)`)} color="var(--success)" />
+          <InsightList title="Weak Leagues" items={data.weakLeagues.map((l) => `${l.league}: ${wrStr(l.winRate)} (${pnlStr(l.pnl)}, ${l.total} bets)`)} color="var(--danger)" />
+          <InsightList title="Strong Markets" items={data.strongMarkets.map((m) => `${formatCanonicalMarketLabel(m.market)}: ${wrStr(m.winRate)} (${pnlStr(m.pnl)}, ${m.total} bets)`)} color="var(--success)" />
+          <InsightList title="Weak Markets" items={data.weakMarkets.map((m) => `${formatCanonicalMarketLabel(m.market)}: ${wrStr(m.winRate)} (${pnlStr(m.pnl)}, ${m.total} bets)`)} color="var(--danger)" />
+          <InsightList title="Best Time Slots" items={data.bestTimeSlots.map((t) => `${t.band}: ${wrStr(t.winRate)} (${pnlStr(t.pnl)}, ${t.total} bets)`)} color="var(--success)" />
+          <InsightList title="Worst Time Slots" items={data.worstTimeSlots.map((t) => `${t.band}: ${wrStr(t.winRate)} (${pnlStr(t.pnl)}, ${t.total} bets)`)} color="var(--danger)" />
+        </div>
+      </details>
 
-      <div className="report-insights-grid" style={{ marginTop: 16 }}>
-        <InsightList
-          title="Prompt / Model Cohorts"
-          items={data.modelPromptCohorts.map((row) => `${row.cohort}: ${wrStr(row.winRate)} (${pnlStr(row.pnl)}, ROI ${row.roi >= 0 ? '+' : ''}${row.roi.toFixed(1)}%, ${row.total} bets)`)}
-          color="var(--gray-700)"
-        />
-        <InsightList
-          title="Prematch Strength Cohorts"
-          items={data.prematchStrengthCohorts.map((row) => `${cohortBucketLabel(row.bucket)}: ${wrStr(row.winRate)} (${pnlStr(row.pnl)}, ROI ${row.roi >= 0 ? '+' : ''}${row.roi.toFixed(1)}%, ${row.total} bets)`)}
-          color="var(--gray-700)"
-        />
+      <details className="report-insights-group">
+        <summary className="report-insights-group__summary">Model &amp; profile cohorts</summary>
+        <div className="report-insights-grid">
+          <InsightList
+            title="Prompt / Model Cohorts"
+            items={data.modelPromptCohorts.map((row) => `${row.cohort}: ${wrStr(row.winRate)} (${pnlStr(row.pnl)}, ROI ${row.roi >= 0 ? '+' : ''}${row.roi.toFixed(1)}%, ${row.total} bets)`)}
+            color="var(--gray-700)"
+          />
+          <InsightList
+            title="Prematch Strength Cohorts"
+            items={data.prematchStrengthCohorts.map((row) => `${cohortBucketLabel(row.bucket)}: ${wrStr(row.winRate)} (${pnlStr(row.pnl)}, ROI ${row.roi >= 0 ? '+' : ''}${row.roi.toFixed(1)}%, ${row.total} bets)`)}
+            color="var(--gray-700)"
+          />
           <InsightList
             title="Profile Coverage Cohorts"
             items={data.profileCoverageCohorts.map((row) => `${cohortBucketLabel(row.bucket)}: ${wrStr(row.winRate)} (${pnlStr(row.pnl)}, ROI ${row.roi >= 0 ? '+' : ''}${row.roi.toFixed(1)}%, ${row.total} bets)`)}
@@ -561,52 +635,54 @@ const AiInsightsSection = memo(function AiInsightsSection({ data }: { data: AiIn
             title="Tactical Overlay Cohorts"
             items={data.overlayCoverageCohorts.map((row) => `${cohortBucketLabel(row.bucket)}: ${wrStr(row.winRate)} (${pnlStr(row.pnl)}, ROI ${row.roi >= 0 ? '+' : ''}${row.roi.toFixed(1)}%, ${row.total} bets)`)}
             color="var(--gray-700)"
-        />
-        <InsightList
-          title="Policy Impact Cohorts"
-          items={data.policyImpactCohorts.map((row) => `${cohortBucketLabel(row.bucket)}: ${wrStr(row.winRate)} (${pnlStr(row.pnl)}, ROI ${row.roi >= 0 ? '+' : ''}${row.roi.toFixed(1)}%, ${row.total} bets)`)}
-          color="var(--gray-700)"
-        />
-      </div>
+          />
+          <InsightList
+            title="Policy Impact Cohorts"
+            items={data.policyImpactCohorts.map((row) => `${cohortBucketLabel(row.bucket)}: ${wrStr(row.winRate)} (${pnlStr(row.pnl)}, ROI ${row.roi >= 0 ? '+' : ''}${row.roi.toFixed(1)}%, ${row.total} bets)`)}
+            color="var(--gray-700)"
+          />
+        </div>
+      </details>
 
-      <div className="card tab-section report-insight-card" style={{ marginTop: 16 }}>
-        <div className="card-header"><div className="card-title">Goals Under Bias</div></div>
-        <div style={{ padding: '16px 20px' }}>
-          <div className="report-insight-row">
-            <span><strong>Share of Goals Under Picks:</strong></span>
-            <span style={{ fontWeight: 700 }}>{wrStr(data.underBiasSummary.underShare)}</span>
-            <span style={{ color: 'var(--gray-500)', fontSize: 12 }}>
-              ({data.underBiasSummary.underCount}/{data.underBiasSummary.total} picks, {data.underBiasSummary.nonUnderCount} non-under)
-            </span>
-          </div>
-          <div className="report-insight-row" style={{ color: 'var(--gray-500)', fontSize: 12 }}>
-            This view tracks selection bias, not whether under picks won or lost.
+      <details className="report-insights-group">
+        <summary className="report-insights-group__summary">Goals under bias</summary>
+        <div className="card tab-section report-insight-card">
+          <div style={{ padding: '16px 20px' }}>
+            <div className="report-insight-row">
+              <span><strong>Share of Goals Under Picks:</strong></span>
+              <span style={{ fontWeight: 700 }}>{wrStr(data.underBiasSummary.underShare)}</span>
+              <span style={{ color: 'var(--gray-500)', fontSize: 12 }}>
+                ({data.underBiasSummary.underCount}/{data.underBiasSummary.total} picks, {data.underBiasSummary.nonUnderCount} non-under)
+              </span>
+            </div>
+            <div className="report-insight-row" style={{ color: 'var(--gray-500)', fontSize: 12 }}>
+              This view tracks selection bias, not whether under picks won or lost.
+            </div>
           </div>
         </div>
-      </div>
-
-      <div className="report-insights-grid" style={{ marginTop: 16 }}>
-        <InsightList
-          title="Under Bias by Minute"
-          items={data.underBiasMinuteBands.map((row) => `${underBiasLabel(row.bucket)}: ${wrStr(row.underShare)} (${row.underCount}/${row.total} picks)`)}
-          color="var(--gray-700)"
-        />
-        <InsightList
-          title="Under Bias by Score State"
-          items={data.underBiasScoreStates.map((row) => `${underBiasLabel(row.bucket)}: ${wrStr(row.underShare)} (${row.underCount}/${row.total} picks)`)}
-          color="var(--gray-700)"
-        />
-        <InsightList
-          title="Under Bias by Evidence Mode"
-          items={data.underBiasEvidenceModes.map((row) => `${underBiasLabel(row.bucket)}: ${wrStr(row.underShare)} (${row.underCount}/${row.total} picks)`)}
-          color="var(--gray-700)"
-        />
-        <InsightList
-          title="Under Bias by Prematch Strength"
-          items={data.underBiasPrematchStrengths.map((row) => `${cohortBucketLabel(row.bucket)}: ${wrStr(row.underShare)} (${row.underCount}/${row.total} picks)`)}
-          color="var(--gray-700)"
-        />
-      </div>
+        <div className="report-insights-grid">
+          <InsightList
+            title="Under Bias by Minute"
+            items={data.underBiasMinuteBands.map((row) => `${underBiasLabel(row.bucket)}: ${wrStr(row.underShare)} (${row.underCount}/${row.total} picks)`)}
+            color="var(--gray-700)"
+          />
+          <InsightList
+            title="Under Bias by Score State"
+            items={data.underBiasScoreStates.map((row) => `${underBiasLabel(row.bucket)}: ${wrStr(row.underShare)} (${row.underCount}/${row.total} picks)`)}
+            color="var(--gray-700)"
+          />
+          <InsightList
+            title="Under Bias by Evidence Mode"
+            items={data.underBiasEvidenceModes.map((row) => `${underBiasLabel(row.bucket)}: ${wrStr(row.underShare)} (${row.underCount}/${row.total} picks)`)}
+            color="var(--gray-700)"
+          />
+          <InsightList
+            title="Under Bias by Prematch Strength"
+            items={data.underBiasPrematchStrengths.map((row) => `${cohortBucketLabel(row.bucket)}: ${wrStr(row.underShare)} (${row.underCount}/${row.total} picks)`)}
+            color="var(--gray-700)"
+          />
+        </div>
+      </details>
 
       {/* Calibration Warnings */}
       {data.overconfidentBands.length > 0 && (
@@ -626,6 +702,7 @@ const AiInsightsSection = memo(function AiInsightsSection({ data }: { data: AiIn
         <div className="card tab-section" style={{ marginTop: 16 }}>
           <div className="card-header"><div className="card-title">Market Family ROI</div></div>
           <ReportTable
+            exportName="insights-market-family"
             columns={['Family', 'Settled', 'Push/Void', 'Dir W', 'Dir L', 'Hit%', 'P/L', 'ROI']}
             rows={data.marketFamilies.map((row) => [
               familyLabel(row.family),
@@ -648,6 +725,7 @@ const AiInsightsSection = memo(function AiInsightsSection({ data }: { data: AiIn
             Timing buckets show where prompt entries are actually strongest on stake-adjusted return.
           </div>
           <ReportTable
+            exportName="insights-late-entry"
             columns={['Bucket', 'Settled', 'Push/Void', 'Dir W', 'Dir L', 'Hit%', 'P/L', 'ROI']}
             rows={data.lateEntries.map((row) => [
               row.bucket,
@@ -668,12 +746,28 @@ const AiInsightsSection = memo(function AiInsightsSection({ data }: { data: AiIn
 
 // ── Small shared components ──
 
-function KpiCard({ label, value, sub, color }: { label: string; value: string | number; sub?: string; color?: string }) {
+function KpiCard({
+  label,
+  value,
+  sub,
+  subTitle,
+  valueTitle,
+  color,
+}: {
+  label: string;
+  value: string | number;
+  sub?: string;
+  subTitle?: string;
+  valueTitle?: string;
+  color?: string;
+}) {
   return (
     <div className="report-kpi-card">
       <div className="report-kpi-label">{label}</div>
-      <div className={`report-kpi-value ${color || ''}`}>{value}</div>
-      {sub && <div className="report-kpi-sub">{sub}</div>}
+      <div className={`report-kpi-value ${color || ''}`} title={valueTitle}>{value}</div>
+      {sub && (
+        <div className="report-kpi-sub" title={subTitle}>{sub}</div>
+      )}
     </div>
   );
 }
@@ -689,10 +783,29 @@ function EmptyReport({ message }: { message: string }) {
 
 type CellValue = string | number | { value: string; color: string };
 
-function ReportTable({ columns, rows }: { columns: string[]; rows: CellValue[][] }) {
+function ReportTable({
+  columns,
+  rows,
+  exportName,
+}: {
+  columns: string[];
+  rows: CellValue[][];
+  exportName?: string;
+}) {
   return (
-    <div className="card">
-      <div className="table-container report-table">
+    <div className="card report-table-card">
+      {rows.length > 0 && exportName ? (
+        <div className="report-table-card__toolbar">
+          <button
+            type="button"
+            className="btn btn-secondary btn-sm"
+            onClick={() => downloadReportTableCsv(exportName, columns, rows)}
+          >
+            Export CSV
+          </button>
+        </div>
+      ) : null}
+      <div className="table-container table-cards report-table">
         <table>
           <thead>
             <tr>{columns.map((c, i) => <th key={i}>{c}</th>)}</tr>
@@ -701,7 +814,7 @@ function ReportTable({ columns, rows }: { columns: string[]; rows: CellValue[][]
             {rows.map((row, ri) => (
               <tr key={ri}>
                 {row.map((cell, ci) => (
-                  <td key={ci}>
+                  <td key={ci} data-label={columns[ci]}>
                     <span className="cell-value" style={typeof cell === 'object' && cell !== null ? { color: cell.color, fontWeight: 600 } : undefined}>
                       {typeof cell === 'object' && cell !== null ? cell.value : cell}
                     </span>
@@ -719,14 +832,17 @@ function ReportTable({ columns, rows }: { columns: string[]; rows: CellValue[][]
 function InsightList({ title, items, color }: { title: string; items: string[]; color: string }) {
   if (!items.length) return null;
   return (
-    <div className="card report-insight-list">
-      <div className="card-header"><div className="card-title" style={{ fontSize: 13 }}>{title}</div></div>
-      <ul style={{ padding: '8px 20px 12px 36px', margin: 0 }}>
+    <details className="report-insight-collapse card report-insight-list">
+      <summary className="report-insight-collapse__summary">
+        <span className="report-insight-collapse__title">{title}</span>
+        <span className="report-insight-collapse__count">{items.length}</span>
+      </summary>
+      <ul className="report-insight-collapse__list">
         {items.map((item, i) => (
-          <li key={i} style={{ fontSize: 12, color, marginBottom: 4, lineHeight: 1.5 }}>{item}</li>
+          <li key={i} style={{ color }}>{item}</li>
         ))}
       </ul>
-    </div>
+    </details>
   );
 }
 
@@ -750,9 +866,12 @@ export function ReportsTab() {
   const { state } = useAppState();
   const { config, leagues: appLeagues } = state;
   const topLeagueNames = useMemo(() => new Set(appLeagues.filter((l) => l.top_league).map((l) => l.league_name)), [appLeagues]);
+  const cacheRef = useRef<Map<string, Partial<ReportData>>>(new Map());
 
   const [section, setSection] = useState<ReportSection>('overview');
   const [period, setPeriod] = useState<ReportPeriodFilter['period']>('all');
+  const [dateFrom, setDateFrom] = useState('');
+  const [dateTo, setDateTo] = useState('');
   const [loading, setLoading] = useState(true);
   const [data, setData] = useState<ReportData>({
     overview: null, leagues: [], markets: [], weekly: [], monthly: [],
@@ -760,75 +879,104 @@ export function ReportsTab() {
     leagueMarket: [], aiInsights: null,
   });
 
-  const filter: ReportPeriodFilter = { period };
+  const usingCustomRange = Boolean(dateFrom || dateTo);
 
-  const loadSection = useCallback(async (sec: ReportSection) => {
+  const filter: ReportPeriodFilter = useMemo(() => ({
+    dateFrom: dateFrom || undefined,
+    dateTo: dateTo || undefined,
+    period: usingCustomRange ? undefined : period,
+  }), [dateFrom, dateTo, period, usingCustomRange]);
+
+  const loadSection = useCallback(async (sec: ReportSection, activeFilter: ReportPeriodFilter) => {
+    const key = reportCacheKey(sec, activeFilter);
+    const cached = cacheRef.current.get(key);
+    if (cached) {
+      setData((d) => ({ ...d, ...cached }));
+      setLoading(false);
+      return;
+    }
+
     setLoading(true);
     try {
+      let patch: Partial<ReportData> = {};
       switch (sec) {
         case 'overview': {
-          const overview = await fetchOverviewReport(config, filter);
-          setData((d) => ({ ...d, overview }));
+          const overview = await fetchOverviewReport(config, activeFilter);
+          patch = { overview };
           break;
         }
         case 'league': {
-          const leagues = await fetchLeagueReport(config, filter);
-          setData((d) => ({ ...d, leagues }));
+          const leagues = await fetchLeagueReport(config, activeFilter);
+          patch = { leagues };
           break;
         }
         case 'market': {
-          const markets = await fetchMarketReport(config, filter);
-          setData((d) => ({ ...d, markets }));
+          const markets = await fetchMarketReport(config, activeFilter);
+          patch = { markets };
           break;
         }
         case 'time': {
           const [weekly, monthly] = await Promise.all([
-            fetchWeeklyReport(config, filter),
-            fetchMonthlyReport(config, filter),
+            fetchWeeklyReport(config, activeFilter),
+            fetchMonthlyReport(config, activeFilter),
           ]);
-          setData((d) => ({ ...d, weekly, monthly }));
+          patch = { weekly, monthly };
           break;
         }
         case 'confidence': {
-          const confidence = await fetchConfidenceReport(config, filter);
-          setData((d) => ({ ...d, confidence }));
+          const confidence = await fetchConfidenceReport(config, activeFilter);
+          patch = { confidence };
           break;
         }
         case 'odds': {
-          const oddsRange = await fetchOddsRangeReport(config, filter);
-          setData((d) => ({ ...d, oddsRange }));
+          const oddsRange = await fetchOddsRangeReport(config, activeFilter);
+          patch = { oddsRange };
           break;
         }
         case 'minute': {
-          const minutes = await fetchMinuteReport(config, filter);
-          setData((d) => ({ ...d, minutes }));
+          const minutes = await fetchMinuteReport(config, activeFilter);
+          patch = { minutes };
           break;
         }
         case 'day-of-week': {
-          const dayOfWeek = await fetchDayOfWeekReport(config, filter);
-          setData((d) => ({ ...d, dayOfWeek }));
+          const dayOfWeek = await fetchDayOfWeekReport(config, activeFilter);
+          patch = { dayOfWeek };
           break;
         }
         case 'league-market': {
-          const leagueMarket = await fetchLeagueMarketReport(config, filter);
-          setData((d) => ({ ...d, leagueMarket }));
+          const leagueMarket = await fetchLeagueMarketReport(config, activeFilter);
+          patch = { leagueMarket };
           break;
         }
         case 'ai-insights': {
-          const aiInsights = await fetchAiInsights(config, filter);
-          setData((d) => ({ ...d, aiInsights }));
+          const aiInsights = await fetchAiInsights(config, activeFilter);
+          patch = { aiInsights };
           break;
         }
       }
+      cacheRef.current.set(key, patch);
+      setData((d) => ({ ...d, ...patch }));
     } catch {
       // Non-critical
     } finally {
       setLoading(false);
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [config, period]);
+  }, [config]);
 
-  useEffect(() => { loadSection(section); }, [section, loadSection]);
+  useEffect(() => {
+    void loadSection(section, filter);
+  }, [section, filter, loadSection]);
+
+  const selectPeriod = useCallback((next: ReportPeriodFilter['period']) => {
+    setDateFrom('');
+    setDateTo('');
+    setPeriod(next);
+  }, []);
+
+  const clearCustomRange = useCallback(() => {
+    setDateFrom('');
+    setDateTo('');
+  }, []);
 
   const renderContent = () => {
     if (loading) {
@@ -855,36 +1003,65 @@ export function ReportsTab() {
 
   return (
     <div className="reports-tab">
-      {/* Period selector */}
-      <div className="report-toolbar">
-        <div className="report-period-selector">
-          {PERIOD_OPTIONS.map((opt) => (
+      <div className="sticky-filter-bar reports-sticky-nav">
+        <div className="report-toolbar">
+          <div className="report-period-selector">
+            {PERIOD_OPTIONS.map((opt) => (
+              <button
+                key={opt.value}
+                type="button"
+                className={!usingCustomRange && period === opt.value ? 'active' : ''}
+                onClick={() => selectPeriod(opt.value)}
+              >
+                {opt.label}
+              </button>
+            ))}
+          </div>
+          <div className="report-custom-range">
+            <DatePicker
+              className="filter-input filter-input--date"
+              value={dateFrom}
+              onChange={setDateFrom}
+              title="From date"
+              placeholder="From date"
+            />
+            <DatePicker
+              className="filter-input filter-input--date"
+              value={dateTo}
+              onChange={setDateTo}
+              title="To date"
+              placeholder="To date"
+            />
+            {usingCustomRange ? (
+              <button type="button" className="btn btn-secondary btn-sm" onClick={clearCustomRange}>
+                Clear dates
+              </button>
+            ) : null}
+          </div>
+        </div>
+        {usingCustomRange ? (
+          <div className="report-custom-range-hint" aria-live="polite">
+            Custom range{dateFrom ? ` from ${dateFrom}` : ''}{dateTo ? ` to ${dateTo}` : ''} — preset periods ignored
+          </div>
+        ) : null}
+
+        <div className="report-section-tabs" role="tablist" aria-label="Report sections">
+          {REPORT_SECTIONS.map((s) => (
             <button
-              key={opt.value}
-              className={`btn btn-sm ${period === opt.value ? 'btn-primary' : 'btn-secondary'}`}
-              onClick={() => setPeriod(opt.value)}
+              key={s.key}
+              type="button"
+              role="tab"
+              aria-selected={section === s.key}
+              className={`report-section-tab ${section === s.key ? 'active' : ''}`}
+              onClick={() => setSection(s.key)}
             >
-              {opt.label}
+              <span className="report-tab-icon">{s.icon}</span>
+              <span className="report-tab-label">{s.label}</span>
             </button>
           ))}
         </div>
       </div>
 
-      {/* Report section tabs */}
-      <div className="report-section-tabs">
-        {REPORT_SECTIONS.map((s) => (
-          <button
-            key={s.key}
-            className={`report-section-tab ${section === s.key ? 'active' : ''}`}
-            onClick={() => setSection(s.key)}
-          >
-            <span className="report-tab-icon">{s.icon}</span>
-            <span className="report-tab-label">{s.label}</span>
-          </button>
-        ))}
-      </div>
-
-      {/* Content */}
       <div className="report-content">
         {renderContent()}
       </div>

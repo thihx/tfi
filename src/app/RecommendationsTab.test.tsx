@@ -82,7 +82,15 @@ vi.mock('@/lib/services/auth', () => ({
 
 vi.mock('@/lib/services/api', () => ({
   fetchRecommendationsPaginated: vi.fn().mockResolvedValue({ rows: recommendationRows, total: 2 }),
+  fetchRecommendationsSummary: vi.fn().mockResolvedValue({
+    total: 2, won: 0, lost: 0, push: 0, voided: 0, pending: 2, review: 0, pnl: 0,
+  }),
+  fetchRecommendationsChartSeries: vi.fn().mockResolvedValue([]),
   fetchRecommendationDeliveriesPaginated: mockFetchRecommendationDeliveriesPaginated,
+  fetchRecommendationDeliveriesSummary: vi.fn().mockResolvedValue({
+    total: 1, won: 0, lost: 0, push: 0, voided: 0, pending: 1, review: 0, pnl: 0,
+  }),
+  fetchRecommendationDeliveriesChartSeries: vi.fn().mockResolvedValue([]),
   fetchBetTypes: vi.fn().mockResolvedValue(['AI']),
   fetchDistinctLeagues: vi.fn().mockResolvedValue(['Premier League']),
   settleRecommendationFinal: vi.fn(),

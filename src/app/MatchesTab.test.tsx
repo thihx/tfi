@@ -98,9 +98,9 @@ const watchlist: WatchlistItem[] = [
 ];
 
 const leagues: League[] = [
-  { league_id: 39, league_name: 'Premier League', top_league: true } as League,
-  { league_id: 140, league_name: 'La Liga', top_league: true } as League,
-  { league_id: 9, league_name: 'Friendly League', top_league: false } as League,
+  { league_id: 39, league_name: 'Premier League', country: 'England', top_league: true } as League,
+  { league_id: 140, league_name: 'La Liga', country: 'Spain', top_league: true } as League,
+  { league_id: 9, league_name: 'Friendly League', country: 'World', top_league: false } as League,
 ];
 
 const mockState = {
@@ -165,6 +165,19 @@ vi.mock('@/lib/services/auth', async () => {
 });
 
 beforeAll(() => {
+  Object.defineProperty(window, 'matchMedia', {
+    writable: true,
+    value: vi.fn().mockImplementation((query: string) => ({
+      matches: false,
+      media: query,
+      onchange: null,
+      addListener: vi.fn(),
+      removeListener: vi.fn(),
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
+      dispatchEvent: vi.fn(),
+    })),
+  });
   Object.defineProperty(HTMLElement.prototype, 'scrollIntoView', {
     configurable: true,
     value: vi.fn(),
@@ -455,22 +468,30 @@ describe('MatchesTab', () => {
     render(<MatchesTab />);
 
     expect(await screen.findByRole('option', { name: 'Favorite Leagues' })).toBeInTheDocument();
-    expect(screen.getAllByText('Premier League').length).toBeGreaterThan(0);
+    expect(screen.getAllByText(/Premier League/).length).toBeGreaterThan(0);
   });
 
-  it('saves favorite leagues and applies today matches into watchlist', async () => {
+  it('saves favorite leagues and applies eligible matches into watchlist', async () => {
     const user = userEvent.setup();
     const { container } = render(<MatchesTab />);
 
     await user.click(await screen.findByRole('button', { name: /Watchlist by Favorite Leagues/i }));
+    expect(screen.getByText(/across all dates, not just the filter on this tab/i)).toBeInTheDocument();
     expect(screen.getByText(/Up to 1 allowed/i)).toBeInTheDocument();
 
-    await user.click(screen.getByLabelText('La Liga'));
-    expect(mockShowToast).toHaveBeenCalledWith(expect.stringContaining('allows up to 1 favorite leagues'), 'info');
-    await user.click(screen.getByLabelText('Premier League'));
     const modal = await waitFor(() => container.querySelector('.modal-overlay .modal'));
     expect(modal).toBeTruthy();
-    await user.click(within(modal as HTMLElement).getByRole('button', { name: 'Save' }));
+    const modalScope = within(modal as HTMLElement);
+    expect(modalScope.getByText(/already in your watchlist/i)).toBeInTheDocument();
+
+    const saveButton = modalScope.getByRole('button', { name: 'Save' });
+    expect(saveButton).toBeDisabled();
+
+    await user.click(modalScope.getByRole('checkbox', { name: 'La Liga' }));
+    expect(mockShowToast).toHaveBeenCalledWith(expect.stringContaining('allows up to 1 favorite leagues'), 'info');
+    await user.click(modalScope.getByRole('checkbox', { name: 'Premier League' }));
+    expect(saveButton).not.toBeDisabled();
+    await user.click(saveButton);
 
     await waitFor(() => {
       expect(mockApplyFavoriteLeaguesToWatchlist).toHaveBeenCalledWith(
@@ -493,10 +514,12 @@ describe('MatchesTab', () => {
     const { container } = render(<MatchesTab />);
 
     await user.click(await screen.findByRole('button', { name: /Watchlist by Favorite Leagues/i }));
-    await user.click(screen.getByLabelText('La Liga'));
     const modal = await waitFor(() => container.querySelector('.modal-overlay .modal'));
     expect(modal).toBeTruthy();
-    await user.click(within(modal as HTMLElement).getByRole('button', { name: 'Save' }));
+    const modalScope = within(modal as HTMLElement);
+    await user.click(modalScope.getByRole('checkbox', { name: 'La Liga' }));
+    expect(modalScope.getByText(/new match will be added/i)).toBeInTheDocument();
+    await user.click(modalScope.getByRole('button', { name: 'Save' }));
 
     await waitFor(() => {
       expect(mockApplyFavoriteLeaguesToWatchlist).toHaveBeenCalledWith(

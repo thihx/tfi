@@ -203,3 +203,38 @@ export function debounce<TArgs extends unknown[]>(fn: (...args: TArgs) => void, 
     timer = setTimeout(() => fn(...args), ms);
   };
 }
+
+/** Terminal / non-actionable — mirrors server bulk-add from favorite leagues. */
+export const MATCH_STATUSES_EXCLUDED_FROM_WATCHLIST_BULK_ADD = [
+  'FT',
+  'AET',
+  'PEN',
+  'CANC',
+  'ABD',
+  'AWD',
+  'PST',
+] as const;
+
+const EXCLUDED_WATCHLIST_BULK_STATUS_SET = new Set<string>(MATCH_STATUSES_EXCLUDED_FROM_WATCHLIST_BULK_ADD);
+
+export function isMatchEligibleForWatchlistBulkAdd(status: string): boolean {
+  return !EXCLUDED_WATCHLIST_BULK_STATUS_SET.has(status);
+}
+
+export function countEligibleWatchlistCandidates(
+  matches: { match_id: string | number; league_id: number | string; status: string }[],
+  leagueIds: number[],
+  watchedMatchIds: Set<string>,
+): { eligible: number; newMatches: number } {
+  if (leagueIds.length === 0) return { eligible: 0, newMatches: 0 };
+  const leagueIdSet = new Set(leagueIds);
+  let eligible = 0;
+  let newMatches = 0;
+  for (const match of matches) {
+    if (!leagueIdSet.has(Number(match.league_id))) continue;
+    if (!isMatchEligibleForWatchlistBulkAdd(match.status)) continue;
+    eligible += 1;
+    if (!watchedMatchIds.has(String(match.match_id))) newMatches += 1;
+  }
+  return { eligible, newMatches };
+}

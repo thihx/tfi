@@ -11,13 +11,18 @@ import {
 } from 'recharts';
 import {
   fetchRecommendationsPaginated,
+  fetchRecommendationsSummary,
+  fetchRecommendationsChartSeries,
   fetchRecommendationDeliveriesPaginated,
+  fetchRecommendationDeliveriesSummary,
+  fetchRecommendationDeliveriesChartSeries,
   fetchBetTypes,
   fetchDistinctLeagues,
   settleRecommendationFinal,
   deleteRecommendation,
   deleteRecommendationsBulk,
 } from '@/lib/services/api';
+import type { RecommendationListSummary, RecommendationChartPoint } from '@/lib/services/api';
 import { formatLocalDateTime } from '@/lib/utils/helpers';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { DatePicker } from '@/components/ui/DatePicker';
@@ -34,6 +39,26 @@ type ViewMode = 'cards' | 'table';
 type RecommendationFeedMode = 'shared' | 'deliveries';
 
 const PAGE_SIZE = 30;
+
+const EMPTY_SUMMARY: RecommendationListSummary = {
+  total: 0,
+  won: 0,
+  lost: 0,
+  push: 0,
+  voided: 0,
+  pending: 0,
+  review: 0,
+  pnl: 0,
+};
+
+const RESULT_FILTER_LABELS: Record<string, string> = {
+  correct: 'Won',
+  incorrect: 'Lost',
+  push: 'Push',
+  void: 'Void',
+  pending: 'Pending',
+  review: 'Needs Review',
+};
 
 /** Display label for API `bet_type` values (keeps stored values unchanged). */
 function betTypeLabel(value: string): string {
@@ -174,6 +199,10 @@ export function RecommendationsTab() {
   // Server data
   const [rows, setRows] = useState<Recommendation[]>([]);
   const [total, setTotal] = useState(0);
+  const [summary, setSummary] = useState<RecommendationListSummary>(EMPTY_SUMMARY);
+  const [summaryScope, setSummaryScope] = useState<'filtered' | 'page'>('filtered');
+  const [chartSeries, setChartSeries] = useState<RecommendationChartPoint[]>([]);
+  const [chartScope, setChartScope] = useState<'filtered' | 'page'>('filtered');
   const [betTypes, setBetTypes] = useState<string[]>([]);
   const [leagues, setLeagues] = useState<string[]>([]);
   const [loading, setLoading] = useState(false);
@@ -234,6 +263,7 @@ export function RecommendationsTab() {
 
   // Count active filters
   const activeFilterCount = [
+    search.trim() !== '',
     resultFilter !== 'all',
     betTypeFilter !== 'all',
     leagueFilter !== 'all',
@@ -242,49 +272,90 @@ export function RecommendationsTab() {
     dateTo !== '',
   ].filter(Boolean).length;
 
+  const listFilterParams = useMemo(() => ({
+    result: resultFilter !== 'all' ? resultFilter : undefined,
+    bet_type: betTypeFilter !== 'all' ? betTypeFilter : undefined,
+    league: leagueFilter !== 'all' ? leagueFilter : undefined,
+    risk_level: riskFilter !== 'all' ? riskFilter : undefined,
+    date_from: dateFrom || undefined,
+    date_to: dateTo || undefined,
+    search: search.trim() || undefined,
+  }), [betTypeFilter, dateFrom, dateTo, leagueFilter, resultFilter, riskFilter, search]);
+
+  const computePageSummary = useCallback((pageRows: Recommendation[], pageTotal: number): RecommendationListSummary => {
+    const settled = pageRows.filter((r) => isFinalResult(r.result ?? null));
+    return {
+      total: pageTotal,
+      won: settled.filter((r) => DIRECTIONAL_WIN_RESULTS.has(String(r.result))).length,
+      lost: settled.filter((r) => DIRECTIONAL_LOSS_RESULTS.has(String(r.result))).length,
+      push: settled.filter((r) => r.result === 'push').length,
+      voided: settled.filter((r) => r.result === 'void').length,
+      pending: pageRows.filter((r) => !isFinalResult(r.result ?? null)).length,
+      review: pageRows.filter((r) => needsReview(r)).length,
+      pnl: settled.reduce((s, r) => s + parseFloat(String(r.pnl ?? 0)), 0),
+    };
+  }, []);
+
+  const computePageChartSeries = useCallback((pageRows: Recommendation[]): RecommendationChartPoint[] => {
+    const sorted = [...pageRows]
+      .filter((r) => isFinalResult(r.result ?? null) && (r.timestamp || r.created_at))
+      .sort((a, b) => new Date(a.timestamp || a.created_at!).getTime() - new Date(b.timestamp || b.created_at!).getTime());
+
+    let cum = 0;
+    return sorted.map((r, i) => {
+      cum += parseFloat(String(r.pnl ?? 0));
+      return { idx: i + 1, cumulative: parseFloat(cum.toFixed(2)) };
+    });
+  }, []);
+
   // Fetch recommendations from server
   const fetchData = useCallback(async (p: number) => {
     setLoading(true);
+    const queryParams = {
+      ...listFilterParams,
+      limit: PAGE_SIZE,
+      offset: (p - 1) * PAGE_SIZE,
+      sort_by: sortCol ? SORT_COL_MAP[sortCol] : undefined,
+      sort_dir: sortCol ? sortDir : undefined,
+    };
+
     try {
       if (feedMode === 'deliveries') {
-        const res = await fetchRecommendationDeliveriesPaginated(config, {
-          limit: PAGE_SIZE,
-          offset: (p - 1) * PAGE_SIZE,
-          result: resultFilter !== 'all' ? resultFilter : undefined,
-          bet_type: betTypeFilter !== 'all' ? betTypeFilter : undefined,
-          league: leagueFilter !== 'all' ? leagueFilter : undefined,
-          risk_level: riskFilter !== 'all' ? riskFilter : undefined,
-          date_from: dateFrom || undefined,
-          date_to: dateTo || undefined,
-          search: search.trim() || undefined,
-          sort_by: sortCol ? SORT_COL_MAP[sortCol] : undefined,
-          sort_dir: sortCol ? sortDir : undefined,
-        });
-        setRows(res.rows.map(mapDeliveryToRecommendation));
+        const [res, summaryRes] = await Promise.all([
+          fetchRecommendationDeliveriesPaginated(config, queryParams),
+          fetchRecommendationDeliveriesSummary(config, listFilterParams).catch(() => null),
+        ]);
+        const mappedRows = res.rows.map(mapDeliveryToRecommendation);
+        setRows(mappedRows);
         setTotal(res.total);
+        if (summaryRes) {
+          setSummary(summaryRes);
+          setSummaryScope('filtered');
+        } else {
+          setSummary(computePageSummary(mappedRows, res.total));
+          setSummaryScope('page');
+        }
       } else {
-        const res = await fetchRecommendationsPaginated(config, {
-          limit: PAGE_SIZE,
-          offset: (p - 1) * PAGE_SIZE,
-          result: resultFilter !== 'all' ? resultFilter : undefined,
-          bet_type: betTypeFilter !== 'all' ? betTypeFilter : undefined,
-          league: leagueFilter !== 'all' ? leagueFilter : undefined,
-          risk_level: riskFilter !== 'all' ? riskFilter : undefined,
-          date_from: dateFrom || undefined,
-          date_to: dateTo || undefined,
-          search: search.trim() || undefined,
-          sort_by: sortCol ? SORT_COL_MAP[sortCol] : undefined,
-          sort_dir: sortCol ? sortDir : undefined,
-        });
+        const [res, summaryRes] = await Promise.all([
+          fetchRecommendationsPaginated(config, queryParams),
+          fetchRecommendationsSummary(config, listFilterParams).catch(() => null),
+        ]);
         setRows(res.rows);
         setTotal(res.total);
+        if (summaryRes) {
+          setSummary(summaryRes);
+          setSummaryScope('filtered');
+        } else {
+          setSummary(computePageSummary(res.rows, res.total));
+          setSummaryScope('page');
+        }
       }
     } catch {
       // keep previous data
     } finally {
       setLoading(false);
     }
-  }, [config, dateFrom, dateTo, feedMode, leagueFilter, resultFilter, betTypeFilter, riskFilter, search, sortCol, sortDir]);
+  }, [computePageSummary, config, feedMode, listFilterParams, sortCol, sortDir]);
 
   // Load filter options once
   useEffect(() => {
@@ -302,6 +373,34 @@ export function RecommendationsTab() {
   }, [fetchData, page]);
 
   useEffect(() => {
+    if (!showChart) {
+      setChartSeries([]);
+      return;
+    }
+
+    let cancelled = false;
+    const loadChart = async () => {
+      try {
+        const series = feedMode === 'deliveries'
+          ? await fetchRecommendationDeliveriesChartSeries(config, listFilterParams)
+          : await fetchRecommendationsChartSeries(config, listFilterParams);
+        if (!cancelled) {
+          setChartSeries(series);
+          setChartScope('filtered');
+        }
+      } catch {
+        if (!cancelled) {
+          setChartSeries(computePageChartSeries(rows));
+          setChartScope('page');
+        }
+      }
+    };
+
+    void loadChart();
+    return () => { cancelled = true; };
+  }, [computePageChartSeries, config, feedMode, listFilterParams, rows, showChart]);
+
+  useEffect(() => {
     setSelectedIds((prev) => {
       if (prev.size === 0) return prev;
       const validIds = new Set(rows.map((row) => row.id).filter((id): id is number => typeof id === 'number'));
@@ -310,34 +409,59 @@ export function RecommendationsTab() {
     });
   }, [rows]);
 
-  // Summary computed from server total + current page
-  const summary = (() => {
-    const settled = rows.filter((r) => isFinalResult(r.result ?? null));
-    const won = settled.filter((r) => DIRECTIONAL_WIN_RESULTS.has(String(r.result))).length;
-    const lost = settled.filter((r) => DIRECTIONAL_LOSS_RESULTS.has(String(r.result))).length;
-    const push = settled.filter((r) => r.result === 'push').length;
-    const voided = settled.filter((r) => r.result === 'void').length;
-    const pending = rows.filter((r) => !isFinalResult(r.result ?? null)).length;
-    const review = rows.filter((r) => needsReview(r)).length;
-    const pnl = settled.reduce((s, r) => s + parseFloat(String(r.pnl ?? 0)), 0);
-    return { total, won, lost, push, voided, pending, review, pnl };
-  })();
-
-  // Cumulative P/L chart for current page data
-  const chartData = (() => {
-    if (!showChart) return [];
-    const sorted = [...rows]
-      .filter((r) => isFinalResult(r.result ?? null) && (r.timestamp || r.created_at))
-      .sort((a, b) => new Date(a.timestamp || a.created_at!).getTime() - new Date(b.timestamp || b.created_at!).getTime());
-
-    let cum = 0;
-    return sorted.map((r, i) => {
-      cum += parseFloat(String(r.pnl ?? 0));
-      return { idx: i + 1, cumulative: parseFloat(cum.toFixed(2)) };
-    });
-  })();
-
+  const chartData = showChart ? chartSeries : [];
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
+
+  const activeFilterChips = useMemo(() => {
+    const chips: Array<{ key: string; label: string; onRemove: () => void }> = [];
+    const trimmedSearch = search.trim();
+    if (trimmedSearch) {
+      chips.push({ key: 'search', label: `Search: ${trimmedSearch}`, onRemove: () => { setSearch(''); setPage(1); } });
+    }
+    if (resultFilter !== 'all') {
+      chips.push({
+        key: 'result',
+        label: `Status: ${RESULT_FILTER_LABELS[resultFilter] ?? resultFilter}`,
+        onRemove: () => { setResultFilter('all'); setPage(1); },
+      });
+    }
+    if (betTypeFilter !== 'all') {
+      chips.push({
+        key: 'market',
+        label: `Market: ${betTypeLabel(betTypeFilter)}`,
+        onRemove: () => { setBetTypeFilter('all'); setPage(1); },
+      });
+    }
+    if (leagueFilter !== 'all') {
+      chips.push({
+        key: 'league',
+        label: `League: ${leagueFilter}`,
+        onRemove: () => { setLeagueFilter('all'); setPage(1); },
+      });
+    }
+    if (riskFilter !== 'all') {
+      chips.push({
+        key: 'risk',
+        label: `Risk: ${riskFilter}`,
+        onRemove: () => { setRiskFilter('all'); setPage(1); },
+      });
+    }
+    if (dateFrom) {
+      chips.push({
+        key: 'dateFrom',
+        label: `From: ${dateFrom}`,
+        onRemove: () => { setDateFrom(''); setPage(1); },
+      });
+    }
+    if (dateTo) {
+      chips.push({
+        key: 'dateTo',
+        label: `To: ${dateTo}`,
+        onRemove: () => { setDateTo(''); setPage(1); },
+      });
+    }
+    return chips;
+  }, [betTypeFilter, dateFrom, dateTo, leagueFilter, resultFilter, riskFilter, search]);
 
   const handleSort = (col: SortCol) => {
     if (sortCol === col) {
@@ -471,7 +595,10 @@ export function RecommendationsTab() {
       <PageHeader
         subtitle={
           <div className="stat-strip">
-            <span className="stat-strip__label">{feedMode === 'shared' ? 'Shared feed' : 'My deliveries'}</span>
+            <span className="stat-strip__label">
+              {feedMode === 'shared' ? 'Shared feed' : 'My deliveries'}
+              {summaryScope === 'page' ? ' · page stats' : ' · filtered'}
+            </span>
             <span className="stat-strip__item">{summary.total} total</span>
             <span className="stat-strip__item text-positive">{summary.won} Won</span>
             <span className="stat-strip__item text-negative">{summary.lost} Lost</span>
@@ -498,8 +625,8 @@ export function RecommendationsTab() {
           ]}
           hint={
             feedMode === 'shared'
-              ? 'Canonical recommendation history shared across users.'
-              : 'User-scoped delivery history staged from matching watch subscriptions.'
+              ? 'Shared recommendation history for all users.'
+              : 'Recommendations delivered to your watch subscriptions.'
           }
         />
         <div className="sticky-filter-bar">
@@ -554,6 +681,23 @@ export function RecommendationsTab() {
             />
           </div>
         </div>
+        {activeFilterChips.length > 0 && (
+          <div className="filter-chips-row">
+            {activeFilterChips.map((chip) => (
+              <span key={chip.key} className="filter-chip">
+                {chip.label}
+                <button
+                  type="button"
+                  className="filter-chip__remove"
+                  onClick={chip.onRemove}
+                  aria-label={`Remove ${chip.label} filter`}
+                >
+                  ×
+                </button>
+              </span>
+            ))}
+          </div>
+        )}
         </div>
       </div>
 
@@ -563,7 +707,9 @@ export function RecommendationsTab() {
           <div className="chart-panel__header">
             <span className="chart-panel__title">Cumulative P/L</span>
             <span className="chart-panel__hint">
-              Settled win/loss picks over time (current filters)
+              {chartScope === 'filtered'
+                ? 'Settled picks over time (current filters)'
+                : 'Settled picks on this page only'}
             </span>
           </div>
           <div className="chart-panel__body">
@@ -617,8 +763,8 @@ export function RecommendationsTab() {
                         title="Delete recommendation"
                         aria-label="Delete recommendation"
                       >
-                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-                          <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                          <polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/>
                         </svg>
                       </button>
                     </div>
@@ -634,6 +780,7 @@ export function RecommendationsTab() {
               ))}
             </div>
           )}
+          <Pagination currentPage={page} totalPages={totalPages} onPageChange={setPage} />
         </div>
       )}
 
@@ -788,6 +935,7 @@ export function RecommendationsTab() {
               })}
             </tbody>
           </table>
+          <Pagination currentPage={page} totalPages={totalPages} onPageChange={setPage} />
         </div>
       </div>}
 

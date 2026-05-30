@@ -36,6 +36,8 @@ interface ProfileEditModalProps {
 
 type ProfileTab = 'identity' | 'preferences' | 'notifications' | 'watchlist';
 
+const PROFILE_TAB_STORAGE_KEY = 'profile-edit-active-tab';
+
 function getUserDisplayName(user: AuthUser): string {
   return user.displayName?.trim() || user.name || user.email;
 }
@@ -119,6 +121,7 @@ export function ProfileEditModal({ open, onClose, user, onUserChange }: ProfileE
   const [channelSaving, setChannelSaving] = useState<Record<string, boolean>>({});
   const [enQuickLines, setEnQuickLines] = useState('');
   const [viQuickLines, setViQuickLines] = useState('');
+  const [initialQuickLines, setInitialQuickLines] = useState({ en: '', vi: '' });
   const [savingQuickPrompts, setSavingQuickPrompts] = useState(false);
 
   const telegramChannel = notificationChannels.find((channel) => channel.channelType === 'telegram') ?? null;
@@ -133,6 +136,19 @@ export function ProfileEditModal({ open, onClose, user, onUserChange }: ProfileE
   useEffect(() => {
     setDisplayNameDraft(getUserDisplayName(user));
   }, [user]);
+
+  useEffect(() => {
+    if (!open) return;
+    const saved = sessionStorage.getItem(PROFILE_TAB_STORAGE_KEY) as ProfileTab | null;
+    if (saved === 'identity' || saved === 'preferences' || saved === 'notifications' || saved === 'watchlist') {
+      setActiveTab(saved);
+    }
+  }, [open]);
+
+  const handleTabChange = (tab: ProfileTab) => {
+    setActiveTab(tab);
+    sessionStorage.setItem(PROFILE_TAB_STORAGE_KEY, tab);
+  };
 
   useEffect(() => {
     if (!open) return;
@@ -156,16 +172,15 @@ export function ProfileEditModal({ open, onClose, user, onUserChange }: ProfileE
           setAutoApplyRecommendedCondition(config.AUTO_APPLY_RECOMMENDED_CONDITION !== false);
           setWebPushEnabled(config.WEB_PUSH_ENABLED === true);
           const by = config.ASK_AI_QUICK_PROMPTS_BY_LOCALE;
-          if (by?.en?.length) {
-            setEnQuickLines(askAiQuickPromptItemsToLines(by.en as AskAiQuickPromptItem[]));
-          } else {
-            setEnQuickLines('');
-          }
-          if (by?.vi?.length) {
-            setViQuickLines(askAiQuickPromptItemsToLines(by.vi as AskAiQuickPromptItem[]));
-          } else {
-            setViQuickLines('');
-          }
+          const nextEn = by?.en?.length
+            ? askAiQuickPromptItemsToLines(by.en as AskAiQuickPromptItem[])
+            : '';
+          const nextVi = by?.vi?.length
+            ? askAiQuickPromptItemsToLines(by.vi as AskAiQuickPromptItem[])
+            : '';
+          setEnQuickLines(nextEn);
+          setViQuickLines(nextVi);
+          setInitialQuickLines({ en: nextEn, vi: nextVi });
         }
         setNotificationChannels(channels);
         setChannelAddresses(
@@ -232,6 +247,7 @@ export function ProfileEditModal({ open, onClose, user, onUserChange }: ProfileE
           vi: linesToAskAiQuickPromptItems(viQuickLines),
         },
       });
+      setInitialQuickLines({ en: enQuickLines, vi: viQuickLines });
       showToast('Ask AI quick prompts saved', 'success');
     } catch (err) {
       showToast(err instanceof Error ? err.message : 'Failed to save quick prompts', 'error');
@@ -368,6 +384,9 @@ export function ProfileEditModal({ open, onClose, user, onUserChange }: ProfileE
   const webPushReady = webPushEnabled && hasWebPushSubscription && webPushPermission === 'granted';
   const webPushStatusLabel = !webPushEnabled ? 'Off' : webPushReady ? 'Ready' : webPushPermission === 'denied' ? 'Blocked' : 'Setup required';
   const webPushStatusColor = webPushReady ? '#047857' : webPushPermission === 'denied' ? '#991b1b' : webPushEnabled ? '#92400e' : 'var(--gray-500)';
+  const quickPromptsUnchanged = enQuickLines === initialQuickLines.en && viQuickLines === initialQuickLines.vi;
+  const displayNameUnchanged = displayNameDraft.trim() === getUserDisplayName(user);
+  const futureChannels = [emailChannel, zaloChannel].filter((channel): channel is NotificationChannelConfig => channel != null);
   const TABS: { id: ProfileTab; label: string }[] = [
     { id: 'identity',      label: 'Profile' },
     { id: 'preferences',   label: 'Preferences' },
@@ -388,7 +407,7 @@ export function ProfileEditModal({ open, onClose, user, onUserChange }: ProfileE
               role="tab"
               aria-selected={active}
               className={`modal-tab-button${active ? ' modal-tab-button--active' : ''}`}
-              onClick={() => setActiveTab(tab.id)}
+              onClick={() => handleTabChange(tab.id)}
             >
               {tab.label}
             </button>
@@ -400,75 +419,66 @@ export function ProfileEditModal({ open, onClose, user, onUserChange }: ProfileE
 
       {/* ── Tab: Profile ── */}
       {activeTab === 'identity' && (
-        <div className="profile-form-stack">
+        <div className="profile-edit-modal profile-form-stack">
           <div className="profile-identity-row">
-            {avatarUrl ? (
-              <img
-                src={avatarUrl}
-                alt={getUserDisplayName(user)}
-                referrerPolicy="no-referrer"
-                className="profile-avatar"
-              />
-            ) : (
-              <div
-                className="profile-avatar profile-avatar--initials"
-                style={{ background: getAvatarColor(user.email) }}
-              >
-                {getUserInitials(user)}
-              </div>
-            )}
+            <div className="profile-identity-row__avatar">
+              {avatarUrl ? (
+                <img
+                  src={avatarUrl}
+                  alt={getUserDisplayName(user)}
+                  referrerPolicy="no-referrer"
+                  className="profile-avatar"
+                />
+              ) : (
+                <div
+                  className="profile-avatar profile-avatar--initials"
+                  style={{ background: getAvatarColor(user.email) }}
+                >
+                  {getUserInitials(user)}
+                </div>
+              )}
+              <span className="profile-avatar-caption">Photo from Google sign-in</span>
+            </div>
 
-            <div style={{ flex: '1 1 240px', display: 'flex', flexDirection: 'column', gap: '6px', minWidth: 0 }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
-                <span style={{ fontSize: '18px', fontWeight: 700, color: 'var(--gray-900)' }}>
-                  {getUserDisplayName(user)}
-                </span>
+            <div className="profile-identity-row__meta">
+              <div className="profile-identity-row__title">
+                <span className="profile-identity-row__name">{getUserDisplayName(user)}</span>
                 {user.role && (
                   <span className={roleBadgeClass(user.role)}>{user.role}</span>
                 )}
               </div>
-              <div className="text-muted" style={{ fontSize: 13 }}>{user.email}</div>
+              <div className="profile-info-strip profile-info-strip--compact">
+                <div className="profile-info-chip">
+                  <div className="profile-info-chip__label">Email</div>
+                  <div className="profile-info-chip__value">{user.email}</div>
+                </div>
+              </div>
             </div>
           </div>
 
           <div className="card settings-panel-card">
             <div className="settings-panel-card__header">
               <div>Display Name</div>
-              <div className="pref-row__hint" style={{ marginTop: 1 }}>Shown in the app header and notifications. Email is managed by Google sign-in.</div>
+              <div className="pref-row__hint" style={{ marginTop: 1 }}>Shown in the app header and notifications. Email and photo are managed by Google sign-in.</div>
             </div>
-            <div className="settings-panel-card__body" style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+            <div className="settings-panel-card__body profile-display-name-row">
               <input
                 className="filter-input"
                 value={displayNameDraft}
                 onChange={(e) => setDisplayNameDraft(e.target.value)}
                 maxLength={80}
                 placeholder="Your display name"
-                style={{ flex: '1 1 200px' }}
+                aria-label="Display name"
                 onKeyDown={(e) => { if (e.key === 'Enter') void handleSaveProfile(); }}
               />
               <button
                 className="btn btn-primary btn-sm"
                 onClick={() => void handleSaveProfile()}
-                disabled={savingProfile || displayNameDraft.trim() === getUserDisplayName(user)}
+                disabled={savingProfile || displayNameUnchanged}
+                title={displayNameUnchanged ? 'No changes to save' : undefined}
               >
                 {savingProfile ? 'Saving…' : 'Save'}
               </button>
-            </div>
-          </div>
-
-          <div className="card settings-panel-card">
-            <div className="settings-panel-card__header">Account Info</div>
-            <div className="settings-panel-card__body" style={{ paddingTop: 4, paddingBottom: 4 }}>
-              <div className="pref-row" style={{ borderBottom: 'none' }}>
-                <span className="pref-row__hint">Email</span>
-                <span style={{ fontSize: 13, color: 'var(--gray-800)', fontWeight: 500 }}>{user.email}</span>
-              </div>
-              {user.role && (
-                <div className="pref-row" style={{ borderBottom: 'none' }}>
-                  <span className="pref-row__hint">Role</span>
-                  <span className={roleBadgeClass(user.role)}>{user.role}</span>
-                </div>
-              )}
             </div>
           </div>
         </div>
@@ -476,6 +486,7 @@ export function ProfileEditModal({ open, onClose, user, onUserChange }: ProfileE
 
       {/* ── Tab: Preferences ── */}
       {activeTab === 'preferences' && (
+        <div className="profile-edit-modal">
         <div className="card settings-panel-card">
           <div className="settings-panel-card__header">
             <div>Personal Preferences</div>
@@ -512,70 +523,80 @@ export function ProfileEditModal({ open, onClose, user, onUserChange }: ProfileE
               </select>
             </PrefRow>
           </div>
-          <div style={{ padding: '12px 16px 16px', borderTop: '1px solid var(--gray-100)' }}>
-            <div style={{ fontSize: '12px', fontWeight: 600, color: 'var(--gray-700)', marginBottom: '4px' }}>
-              Ask AI — quick prompts
+          <details className="profile-collapsible">
+            <summary>Ask AI quick prompts</summary>
+            <div className="profile-collapsible__body">
+              <p className="profile-collapsible__hint">
+                One line per chip (max 12 lines, 200 characters each). Leave empty to use the built-in defaults for that language.
+              </p>
+              <div className="profile-quick-prompts-grid">
+                <div>
+                  <div className="profile-quick-prompts-grid__label">English</div>
+                  <textarea
+                    className="filter-input"
+                    value={enQuickLines}
+                    onChange={(e) => setEnQuickLines(e.target.value)}
+                    placeholder="e.g. Is the over/under still fair?"
+                    rows={4}
+                  />
+                </div>
+                <div>
+                  <div className="profile-quick-prompts-grid__label">Vietnamese</div>
+                  <textarea
+                    className="filter-input"
+                    value={viQuickLines}
+                    onChange={(e) => setViQuickLines(e.target.value)}
+                    placeholder="Ví dụ: Tài xỉu với tỷ số hiện tại còn hợp lý không?"
+                    rows={4}
+                  />
+                </div>
+              </div>
+              <button
+                type="button"
+                className="btn btn-secondary btn-sm"
+                disabled={savingQuickPrompts || quickPromptsUnchanged}
+                title={quickPromptsUnchanged ? 'No changes to save' : undefined}
+                onClick={() => void handleSaveAskAiQuickPrompts()}
+              >
+                {savingQuickPrompts ? 'Saving…' : 'Save quick prompts'}
+              </button>
             </div>
-            <div style={{ fontSize: '11px', color: 'var(--gray-500)', marginBottom: '10px', lineHeight: 1.45 }}>
-              One line per chip (max 12 lines, 200 characters each). Leave empty to use the built-in defaults for that language.
-            </div>
-            <div style={{ marginBottom: '10px' }}>
-              <div style={{ fontSize: '11px', fontWeight: 600, color: 'var(--gray-600)', marginBottom: '4px' }}>English</div>
-              <textarea
-                className="filter-input"
-                value={enQuickLines}
-                onChange={(e) => setEnQuickLines(e.target.value)}
-                placeholder="e.g. Is the over/under still fair?"
-                rows={4}
-                style={{ width: '100%', fontSize: '12px', lineHeight: 1.4, resize: 'vertical', boxSizing: 'border-box' }}
-              />
-            </div>
-            <div style={{ marginBottom: '10px' }}>
-              <div style={{ fontSize: '11px', fontWeight: 600, color: 'var(--gray-600)', marginBottom: '4px' }}>Vietnamese</div>
-              <textarea
-                className="filter-input"
-                value={viQuickLines}
-                onChange={(e) => setViQuickLines(e.target.value)}
-                placeholder="Ví dụ: Tài xỉu với tỷ số hiện tại còn hợp lý không?"
-                rows={4}
-                style={{ width: '100%', fontSize: '12px', lineHeight: 1.4, resize: 'vertical', boxSizing: 'border-box' }}
-              />
-            </div>
-            <button
-              type="button"
-              className="btn btn-secondary btn-sm"
-              disabled={savingQuickPrompts}
-              onClick={() => void handleSaveAskAiQuickPrompts()}
-            >
-              {savingQuickPrompts ? 'Saving…' : 'Save quick prompts'}
-            </button>
-          </div>
+          </details>
+        </div>
         </div>
       )}
 
       {/* ── Tab: Notifications ── */}
       {activeTab === 'notifications' && (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', opacity: loadingPrefs ? 0.65 : 1, transition: 'opacity 0.2s' }}>
+        <div className={`profile-edit-modal profile-notif-stack${loadingPrefs ? ' profile-notif-stack--loading' : ''}`}>
           {loadingPrefs && (
-            <div style={{ fontSize: '12px', color: 'var(--gray-400)', textAlign: 'center', padding: '8px 0' }}>Loading preferences…</div>
+            <div className="pref-row__hint" style={{ textAlign: 'center', padding: '8px 0' }}>Loading preferences…</div>
           )}
 
-          {/* Telegram */}
-          <div style={{
-            borderRadius: '12px',
-            border: `1px solid ${telegramReady ? '#bfdbfe' : telegramEnabled ? '#fcd34d' : 'var(--gray-200)'}`,
-            background: telegramReady ? '#eff6ff' : telegramEnabled ? '#fffbeb' : '#fafafa',
-            overflow: 'hidden',
-          }}>
-            <div style={{ padding: '12px 16px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
+          <div className="profile-notif-summary" aria-label="Notification channel status">
+            <span className={`profile-notif-summary__chip profile-notif-summary__chip--${telegramReady ? 'ok' : telegramEnabled ? 'warn' : 'off'}`}>
+              Telegram · {telegramStatusLabel}
+            </span>
+            {isPushSupported() && (
+              <span className={`profile-notif-summary__chip profile-notif-summary__chip--${
+                webPushReady ? 'ok' : webPushPermission === 'denied' ? 'blocked' : webPushEnabled ? 'warn' : 'off'
+              }`}
+              >
+                Web Push · {webPushStatusLabel}
+              </span>
+            )}
+          </div>
+
+          <div className={`profile-channel-card${telegramReady ? ' profile-channel-card--ready' : telegramEnabled ? ' profile-channel-card--warn' : ''}`}>
+            <div className="profile-channel-card__head">
               <div style={{ flex: '1 1 200px' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                  <span style={{ fontSize: '13px', fontWeight: 600, color: 'var(--gray-900)' }}>Telegram</span>
-                  <span style={{ fontSize: '10px', fontWeight: 700, padding: '2px 7px', borderRadius: '999px', background: 'white', color: telegramStatusColor, border: `1px solid ${telegramStatusColor}20` }}>
+                <div className="profile-channel-card__title-row">
+                  <span className="profile-channel-card__title">Telegram</span>
+                  <span className="profile-channel-status" style={{ color: telegramStatusColor, borderColor: `${telegramStatusColor}33` }}>
                     {telegramStatusLabel}
                   </span>
                 </div>
-                <div style={{ fontSize: '11px', color: 'var(--gray-500)', marginTop: '3px' }}>
+                <div className="profile-channel-card__hint">
                   {telegramReady
                     ? 'Ready to receive recommendations via Telegram. Use “Open Telegram to change chat” below to relink without typing Chat ID.'
                     : telegramEnabled
@@ -583,13 +604,14 @@ export function ProfileEditModal({ open, onClose, user, onUserChange }: ProfileE
                       : 'Telegram delivery is off for this account.'}
                 </div>
               </div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
                 <select
                   className="job-interval-select"
                   value={notificationLanguage}
                   onChange={(e) => void handleNotificationLanguage(e.target.value as 'vi' | 'en' | 'both')}
                   disabled={!telegramEnabled}
                   style={{ minWidth: '110px', opacity: telegramEnabled ? 1 : 0.4, fontSize: '12px' }}
+                  aria-label="Telegram notification language"
                 >
                   <option value="vi">Vietnamese</option>
                   <option value="en">English</option>
@@ -599,7 +621,7 @@ export function ProfileEditModal({ open, onClose, user, onUserChange }: ProfileE
               </div>
             </div>
             {telegramChannel && (
-              <div style={{ padding: '0 16px 12px', display: 'flex', flexDirection: 'column', gap: '10px' }}>
+              <div className="profile-channel-card__body">
                 <TelegramDeepLinkConnect
                   telegramEnabled={telegramEnabled}
                   telegramChannel={telegramChannel}
@@ -615,17 +637,17 @@ export function ProfileEditModal({ open, onClose, user, onUserChange }: ProfileE
                     );
                   }}
                 />
-                <div style={{ fontSize: '10px', fontWeight: 600, color: 'var(--gray-500)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                <div className="profile-quick-prompts-grid__label" style={{ textTransform: 'uppercase', letterSpacing: '0.04em' }}>
                   Manual Chat ID (optional)
                 </div>
-                <div style={{ display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap' }}>
+                <div className="profile-channel-card__actions">
                   <input
                     type="text"
                     className="filter-input"
                     value={channelAddresses.telegram ?? telegramChannel.address ?? ''}
                     placeholder={getChannelPlaceholder('telegram')}
                     onChange={(e) => setChannelAddresses((prev) => ({ ...prev, telegram: e.target.value }))}
-                    style={{ flex: '1 1 200px', background: 'white', fontSize: '12px' }}
+                    aria-label="Telegram chat ID"
                   />
                   <button
                     className="btn btn-secondary btn-sm"
@@ -639,23 +661,17 @@ export function ProfileEditModal({ open, onClose, user, onUserChange }: ProfileE
             )}
           </div>
 
-          {/* Web Push */}
           {isPushSupported() && (
-            <div style={{
-              borderRadius: '12px',
-              border: `1px solid ${webPushReady ? '#bbf7d0' : webPushEnabled ? '#fcd34d' : 'var(--gray-200)'}`,
-              background: webPushReady ? '#f0fdf4' : webPushEnabled ? '#fffbeb' : '#fafafa',
-              overflow: 'hidden',
-            }}>
-              <div style={{ padding: '12px 16px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
+            <div className={`profile-channel-card${webPushReady ? ' profile-channel-card--ready-green' : webPushEnabled ? ' profile-channel-card--warn' : ''}`}>
+              <div className="profile-channel-card__head">
                 <div style={{ flex: '1 1 200px' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                    <span style={{ fontSize: '13px', fontWeight: 600, color: 'var(--gray-900)' }}>Web Push</span>
-                    <span style={{ fontSize: '10px', fontWeight: 700, padding: '2px 7px', borderRadius: '999px', background: 'white', color: webPushStatusColor, border: `1px solid ${webPushStatusColor}20` }}>
+                  <div className="profile-channel-card__title-row">
+                    <span className="profile-channel-card__title">Web Push</span>
+                    <span className="profile-channel-status" style={{ color: webPushStatusColor, borderColor: `${webPushStatusColor}33` }}>
                       {webPushStatusLabel}
                     </span>
                   </div>
-                  <div style={{ fontSize: '11px', color: 'var(--gray-500)', marginTop: '3px' }}>
+                  <div className="profile-channel-card__hint">
                     {webPushReady
                       ? 'This browser is subscribed and ready to receive push alerts.'
                       : webPushPermission === 'denied'
@@ -675,66 +691,69 @@ export function ProfileEditModal({ open, onClose, user, onUserChange }: ProfileE
             </div>
           )}
 
-          {/* Email + Zalo — future channels */}
-          {[emailChannel, zaloChannel].filter((channel): channel is NotificationChannelConfig => channel != null).map((channel) => (
-            <div
-              key={channel.channelType}
-              style={{
-                borderRadius: '12px',
-                border: '1px solid var(--gray-200)',
-                background: '#fafafa',
-                overflow: 'hidden',
-              }}
-            >
-              <div style={{ padding: '12px 16px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
-                <div style={{ flex: '1 1 200px' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
-                    <span style={{ fontSize: '13px', fontWeight: 600, color: 'var(--gray-700)' }}>
-                      {channel.channelType === 'email' ? 'Email' : 'Zalo'}
-                    </span>
-                    <span style={{ fontSize: '10px', fontWeight: 700, padding: '2px 6px', borderRadius: '999px', background: 'white', color: getChannelStatusColor(channel.status), border: `1px solid ${getChannelStatusColor(channel.status)}20` }}>
-                      {channel.status.toUpperCase()}
-                    </span>
-                    {channel.channelType === 'email' && (
-                      <span style={{ fontSize: '10px', fontWeight: 600, padding: '2px 6px', borderRadius: '999px', background: '#fef3c7', color: '#92400e' }}>Sender pending</span>
-                    )}
-                    {channel.channelType === 'zalo' && (
-                      <span style={{ fontSize: '10px', fontWeight: 600, padding: '2px 6px', borderRadius: '999px', background: '#fde68a', color: '#92400e' }}>Coming soon</span>
-                    )}
+          {futureChannels.length > 0 && (
+            <details className="profile-collapsible profile-collapsible--muted">
+              <summary>More channels (coming soon)</summary>
+              <div className="profile-collapsible__body">
+                {futureChannels.map((channel) => (
+                  <div key={channel.channelType} className="profile-channel-card">
+                    <div className="profile-channel-card__head">
+                      <div style={{ flex: '1 1 200px' }}>
+                        <div className="profile-channel-card__title-row">
+                          <span className="profile-channel-card__title">
+                            {channel.channelType === 'email' ? 'Email' : 'Zalo'}
+                          </span>
+                          <span className="profile-channel-status" style={{ color: getChannelStatusColor(channel.status), borderColor: `${getChannelStatusColor(channel.status)}33` }}>
+                            {channel.status.toUpperCase()}
+                          </span>
+                          {channel.channelType === 'email' && (
+                            <span className="profile-channel-tag profile-channel-tag--pending">Sender pending</span>
+                          )}
+                          {channel.channelType === 'zalo' && (
+                            <span className="profile-channel-tag profile-channel-tag--soon">Coming soon</span>
+                          )}
+                        </div>
+                        <div className="profile-channel-card__hint">{getChannelDescription(channel)}</div>
+                      </div>
+                    </div>
+                    <div className="profile-channel-card__body">
+                      <div className="profile-channel-card__actions">
+                        <input
+                          type="text"
+                          className="filter-input"
+                          value={channelAddresses[channel.channelType] ?? channel.address ?? ''}
+                          placeholder={getChannelPlaceholder(channel.channelType)}
+                          onChange={(e) => setChannelAddresses((prev) => ({ ...prev, [channel.channelType]: e.target.value }))}
+                          aria-label={channel.channelType === 'email' ? 'Email address' : 'Zalo recipient'}
+                        />
+                        <button
+                          className="btn btn-secondary btn-sm"
+                          disabled={channelSaving[channel.channelType] === true}
+                          onClick={() => { void handleChannelAddressSave(channel); }}
+                        >
+                          {channelSaving[channel.channelType] === true ? 'Saving…' : `Save ${channel.channelType === 'email' ? 'Email' : 'Zalo'}`}
+                        </button>
+                      </div>
+                    </div>
                   </div>
-                  <div style={{ fontSize: '11px', color: 'var(--gray-400)', marginTop: '3px' }}>{getChannelDescription(channel)}</div>
-                </div>
+                ))}
               </div>
-              <div style={{ padding: '0 16px 12px', display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap' }}>
-                <input
-                  type="text"
-                  className="filter-input"
-                  value={channelAddresses[channel.channelType] ?? channel.address ?? ''}
-                  placeholder={getChannelPlaceholder(channel.channelType)}
-                  onChange={(e) => setChannelAddresses((prev) => ({ ...prev, [channel.channelType]: e.target.value }))}
-                  style={{ flex: '1 1 200px', background: 'white', fontSize: '12px' }}
-                />
-                <button
-                  className="btn btn-secondary btn-sm"
-                  disabled={channelSaving[channel.channelType] === true}
-                  onClick={() => { void handleChannelAddressSave(channel); }}
-                >
-                  {channelSaving[channel.channelType] === true ? 'Saving…' : `Save ${channel.channelType === 'email' ? 'Email' : 'Zalo'}`}
-                </button>
-              </div>
-            </div>
-          ))}
+            </details>
+          )}
         </div>
       )}
 
       {/* ── Tab: Watchlist ── */}
       {activeTab === 'watchlist' && (
-        <div style={{ border: '1px solid var(--gray-200)', borderRadius: '12px', overflow: 'hidden' }}>
-          <div style={{ padding: '10px 16px', background: 'var(--gray-50)', borderBottom: '1px solid var(--gray-100)' }}>
-            <div style={{ fontSize: '12px', fontWeight: 600, color: 'var(--gray-700)' }}>Watchlist Defaults</div>
-            <div style={{ fontSize: '11px', color: 'var(--gray-500)', marginTop: '1px' }}>Per-user defaults that influence how new watchlist items are created.</div>
+        <div className="profile-edit-modal">
+        <div className="card settings-panel-card">
+          <div className="settings-panel-card__header">
+            <div>Watchlist Defaults</div>
+            <div className="pref-row__hint" style={{ marginTop: 1 }}>
+              Per-user defaults for new watchlist items. Bulk add by favorite leagues is on the Matches tab.
+            </div>
           </div>
-          <div style={{ padding: '0 16px' }}>
+          <div className="settings-panel-card__body" style={{ paddingTop: 4, paddingBottom: 4 }}>
             <PrefRow
               label="Auto-apply suggested trigger condition"
               hint="For new or safely updatable watchlist entries, copy the suggested recommendation into Trigger Condition by default."
@@ -746,6 +765,7 @@ export function ProfileEditModal({ open, onClose, user, onUserChange }: ProfileE
               />
             </PrefRow>
           </div>
+        </div>
         </div>
       )}
 

@@ -2,6 +2,44 @@ import type { FastifyInstance } from 'fastify';
 import { requireCurrentUser } from '../lib/authz.js';
 import * as repo from '../repos/recommendation-deliveries.repo.js';
 
+function parseDeliveryListQuery(query: {
+  limit?: string;
+  offset?: string;
+  matchId?: string;
+  eligibilityStatus?: string;
+  deliveryStatus?: string;
+  includeHidden?: string;
+  dismissed?: string;
+  result?: string;
+  bet_type?: string;
+  search?: string;
+  league?: string;
+  date_from?: string;
+  date_to?: string;
+  risk_level?: string;
+  sort_by?: string;
+  sort_dir?: string;
+}) {
+  return {
+    limit: query.limit ? Number(query.limit) : undefined,
+    offset: query.offset ? Number(query.offset) : undefined,
+    matchId: query.matchId || undefined,
+    eligibilityStatus: query.eligibilityStatus || undefined,
+    deliveryStatus: query.deliveryStatus || undefined,
+    includeHidden: query.includeHidden === 'true',
+    dismissed: query.dismissed === undefined ? undefined : query.dismissed === 'true',
+    result: query.result || undefined,
+    betType: query.bet_type || undefined,
+    search: query.search || undefined,
+    league: query.league || undefined,
+    dateFrom: query.date_from || undefined,
+    dateTo: query.date_to || undefined,
+    riskLevel: query.risk_level || undefined,
+    sortBy: query.sort_by || undefined,
+    sortDir: query.sort_dir || undefined,
+  };
+}
+
 export async function recommendationDeliveriesRoutes(app: FastifyInstance) {
   app.get<{
     Querystring: {
@@ -26,24 +64,43 @@ export async function recommendationDeliveriesRoutes(app: FastifyInstance) {
     const user = requireCurrentUser(req, reply);
     if (!user) return;
 
-    return repo.getRecommendationDeliveriesByUserId(user.userId, {
-      limit: req.query.limit ? Number(req.query.limit) : undefined,
-      offset: req.query.offset ? Number(req.query.offset) : undefined,
-      matchId: req.query.matchId || undefined,
-      eligibilityStatus: req.query.eligibilityStatus || undefined,
-      deliveryStatus: req.query.deliveryStatus || undefined,
-      includeHidden: req.query.includeHidden === 'true',
-      dismissed: req.query.dismissed === undefined ? undefined : req.query.dismissed === 'true',
-      result: req.query.result || undefined,
-      betType: req.query.bet_type || undefined,
-      search: req.query.search || undefined,
-      league: req.query.league || undefined,
-      dateFrom: req.query.date_from || undefined,
-      dateTo: req.query.date_to || undefined,
-      riskLevel: req.query.risk_level || undefined,
-      sortBy: req.query.sort_by || undefined,
-      sortDir: req.query.sort_dir || undefined,
-    });
+    return repo.getRecommendationDeliveriesByUserId(user.userId, parseDeliveryListQuery(req.query));
+  });
+
+  app.get<{
+    Querystring: {
+      result?: string;
+      bet_type?: string;
+      search?: string;
+      league?: string;
+      date_from?: string;
+      date_to?: string;
+      risk_level?: string;
+    };
+  }>('/api/me/recommendation-deliveries/summary', async (req, reply) => {
+    const user = requireCurrentUser(req, reply);
+    if (!user) return;
+
+    const { limit: _l, offset: _o, sortBy: _sb, sortDir: _sd, ...summaryOpts } = parseDeliveryListQuery(req.query);
+    return repo.getRecommendationDeliveriesSummary(user.userId, summaryOpts);
+  });
+
+  app.get<{
+    Querystring: {
+      result?: string;
+      bet_type?: string;
+      search?: string;
+      league?: string;
+      date_from?: string;
+      date_to?: string;
+      risk_level?: string;
+    };
+  }>('/api/me/recommendation-deliveries/chart-series', async (req, reply) => {
+    const user = requireCurrentUser(req, reply);
+    if (!user) return;
+
+    const { limit: _l, offset: _o, sortBy: _sb, sortDir: _sd, ...chartOpts } = parseDeliveryListQuery(req.query);
+    return repo.getRecommendationDeliveriesChartSeries(user.userId, chartOpts);
   });
 
   app.patch<{

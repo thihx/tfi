@@ -45,7 +45,7 @@ if ([string]::IsNullOrWhiteSpace($ReleaseTag)) {
   if ([string]::IsNullOrWhiteSpace($short)) {
     throw "ReleaseTag is empty and git short hash is unavailable. Pass -ReleaseTag explicitly."
   }
-  $ReleaseTag = "prod-{0}-{1}" -f (Get-Date -Format "yyyyMMdd"), $short.Trim()
+  $ReleaseTag = "prod-{0}-{1}-{2}" -f (Get-Date -Format "yyyyMMdd"), (Get-Date -Format "HHmm"), $short.Trim()
   Write-Host "[deploy] Auto ReleaseTag: $ReleaseTag"
 }
 
@@ -63,27 +63,31 @@ Write-Host "[deploy] ContainerApp  = $ContainerAppName"
 
 # ── Step 1: Build & push image to ACR ────────────────────────
 if (-not $SkipBuild) {
-  Write-Host "[deploy][build] Queuing ACR build (no local Docker; use --no-wait - full logs stay in ACR portal)..."
-  az acr build -g $ResourceGroup -r $AcrName -t "${repo}:${ReleaseTag}" -f Dockerfile . --no-wait --only-show-errors
+  Write-Host "[deploy][build] Queuing ACR build (no local Docker; poll run status until complete)..."
+  $buildOutput = az acr build -g $ResourceGroup -r $AcrName -t "${repo}:${ReleaseTag}" -f Dockerfile . --no-wait 2>&1 | Out-String
   if ($LASTEXITCODE -ne 0) {
-    throw "az acr build failed to queue (exit $LASTEXITCODE). Check az login and registry name."
+    throw "az acr build failed to queue (exit $LASTEXITCODE). Check az login and registry name.`n$buildOutput"
   }
+  if ($buildOutput -match 'Queued a build with ID:\s*(\S+)') {
+    $runId = $Matches[1]
+  } else {
+    throw "az acr build did not return a runId.`n$buildOutput"
+  }
+  Write-Host "[deploy][build] Run ID: $runId - waiting for completion..."
 
-  Write-Host "[deploy][build] Waiting for ACR build to complete..."
   $deadline = (Get-Date).AddMinutes(30)
   $ready = $false
   while (-not $ready) {
     if ((Get-Date) -gt $deadline) {
-      throw "Build timeout: image '${repo}:${ReleaseTag}' not available in ACR within 30 minutes."
+      throw "Build timeout: ACR run '$runId' did not finish within 30 minutes."
     }
     Start-Sleep -Seconds 10
-    # Avoid double-quoted --query: PS treats `[...]` as type literals. Build JMESPath with single-quoted segments.
-    $jmes = '[?name==''' + $ReleaseTag + '''] | [0]'
-    $tag = az acr repository show-tags -n $AcrName --repository $repo --detail --orderby time_desc --top 10 `
-      --query $jmes -o json 2>$null
-    if (-not [string]::IsNullOrWhiteSpace($tag) -and $tag -ne "null") {
+    $status = az acr task show-run -r $AcrName --run-id $runId --query status -o tsv 2>$null
+    if ($status -eq "Succeeded") {
       $ready = $true
       Write-Host "[deploy][build] Image ready: $image"
+    } elseif ($status -eq "Failed" -or $status -eq "Canceled" -or $status -eq "Timeout") {
+      throw "ACR build run '$runId' ended with status: $status"
     }
   }
 }

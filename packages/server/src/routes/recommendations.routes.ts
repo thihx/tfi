@@ -100,6 +100,38 @@ export async function recommendationRoutes(app: FastifyInstance) {
     return repo.getStats();
   });
 
+  app.get<{ Querystring: {
+    result?: string; bet_type?: string; search?: string;
+    league?: string; date_from?: string; date_to?: string; risk_level?: string;
+  } }>(
+    '/api/recommendations/summary',
+    async (req) => repo.getFilteredRecommendationsSummary({
+      result: req.query.result || undefined,
+      bet_type: req.query.bet_type || undefined,
+      search: req.query.search || undefined,
+      league: req.query.league || undefined,
+      date_from: req.query.date_from || undefined,
+      date_to: req.query.date_to || undefined,
+      risk_level: req.query.risk_level || undefined,
+    }),
+  );
+
+  app.get<{ Querystring: {
+    result?: string; bet_type?: string; search?: string;
+    league?: string; date_from?: string; date_to?: string; risk_level?: string;
+  } }>(
+    '/api/recommendations/chart-series',
+    async (req) => repo.getFilteredRecommendationsChartSeries({
+      result: req.query.result || undefined,
+      bet_type: req.query.bet_type || undefined,
+      search: req.query.search || undefined,
+      league: req.query.league || undefined,
+      date_from: req.query.date_from || undefined,
+      date_to: req.query.date_to || undefined,
+      risk_level: req.query.risk_level || undefined,
+    }),
+  );
+
   app.post<{ Body: Partial<repo.RecommendationCreate> }>(
     '/api/recommendations',
     async (req, reply) => {

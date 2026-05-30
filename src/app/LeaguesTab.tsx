@@ -4,6 +4,8 @@ import { BulkActionBar } from '@/components/ui/BulkActionBar';
 import { LeagueFixturesDialog } from '@/components/ui/LeagueFixturesDialog';
 import { LeagueProfileModal } from '@/components/ui/LeagueProfileModal';
 import { TeamProfileModal } from '@/components/ui/TeamProfileModal';
+import { Modal } from '@/components/ui/Modal';
+import { EmptyState } from '@/components/ui/EmptyState';
 import { useAppState } from '@/hooks/useAppState';
 import { useToast } from '@/hooks/useToast';
 import { formatLocalDate } from '@/lib/utils/helpers';
@@ -402,6 +404,159 @@ const LeagueRow = memo(function LeagueRow({
   );
 });
 
+interface LeagueMobileCardProps {
+  league: League;
+  selected: boolean;
+  toggling: boolean;
+  togglingTop: boolean;
+  teamsExpanded: boolean;
+  canMoveUp: boolean;
+  canMoveDown: boolean;
+  onSelect: (id: number) => void;
+  onToggle: (id: number, active: boolean) => void;
+  onToggleTop: (id: number, topLeague: boolean) => void;
+  onViewFixtures: (league: League) => void;
+  onEditProfile: (league: League) => void;
+  onToggleTeams: (id: number) => void;
+  onMoveOrder: (id: number, dir: -1 | 1) => void;
+  onRename: (league: League) => void;
+}
+
+function leagueDisplayName(league: League): string {
+  return league.display_name?.trim() || league.league_name;
+}
+
+const LeagueMobileCard = memo(function LeagueMobileCard({
+  league,
+  selected,
+  toggling,
+  togglingTop,
+  teamsExpanded,
+  canMoveUp,
+  canMoveDown,
+  onSelect,
+  onToggle,
+  onToggleTop,
+  onViewFixtures,
+  onEditProfile,
+  onToggleTeams,
+  onMoveOrder,
+  onRename,
+}: LeagueMobileCardProps) {
+  const tierColor = TIER_COLORS[league.tier] || '#94a3b8';
+  const id = leagueIdNum(league.league_id);
+
+  return (
+    <article className={`league-mobile-card${league.active ? '' : ' league-mobile-card--inactive'}`}>
+      <div className="league-mobile-card__header">
+        <label className="league-mobile-card__select">
+          <input
+            type="checkbox"
+            checked={selected}
+            onChange={() => onSelect(id)}
+            aria-label={`Select ${leagueDisplayName(league)}`}
+          />
+        </label>
+        <div className="league-mobile-card__logo">
+          {league.logo
+            ? <img src={league.logo} alt="" className="league-logo" loading="lazy" />
+            : <span className="league-logo-placeholder">🏟️</span>}
+        </div>
+        <button type="button" className="league-mobile-card__title" onClick={() => onViewFixtures(league)}>
+          <span className="league-mobile-card__name">{leagueDisplayName(league)}</span>
+          {league.display_name?.trim() && (
+            <span className="league-mobile-card__provider">Provider: {league.league_name}</span>
+          )}
+        </button>
+        <button
+          type="button"
+          className={`league-toggle ${league.active ? 'on' : 'off'}`}
+          onClick={() => onToggle(id, !league.active)}
+          disabled={toggling}
+          aria-label={league.active ? 'Deactivate league' : 'Activate league'}
+        >
+          {toggling
+            ? <span className="inline-spinner" style={{ width: 12, height: 12, display: 'inline-block' }} />
+            : <span className="league-toggle-dot" />}
+        </button>
+      </div>
+      <div className="league-mobile-card__meta">
+        <span>{league.country || '—'}</span>
+        <span className="league-mobile-card__sep" aria-hidden>·</span>
+        <span className="league-tier-badge" style={{ borderColor: tierColor, color: tierColor }}>{league.tier || '—'}</span>
+        <span className="league-mobile-card__sep" aria-hidden>·</span>
+        <span>{league.type || '—'}</span>
+        {league.has_profile && (
+          <>
+            <span className="league-mobile-card__sep" aria-hidden>·</span>
+            <span className="league-mobile-card__profile-tag">Profile</span>
+          </>
+        )}
+      </div>
+      <div className="league-mobile-card__actions">
+        <button type="button" className="league-mobile-card__action" disabled={!canMoveUp} onClick={() => onMoveOrder(id, -1)} aria-label="Move league up">↑</button>
+        <button type="button" className="league-mobile-card__action" disabled={!canMoveDown} onClick={() => onMoveOrder(id, 1)} aria-label="Move league down">↓</button>
+        <button type="button" className={`league-mobile-card__action league-mobile-card__action--teams${teamsExpanded ? ' is-active' : ''}`} onClick={() => onToggleTeams(id)} aria-expanded={teamsExpanded}>{teamsExpanded ? 'Teams −' : 'Teams +'}</button>
+        <button type="button" className="league-mobile-card__action" onClick={() => onRename(league)}>Rename</button>
+        <button type="button" className="league-mobile-card__action" onClick={() => onViewFixtures(league)}>Fixtures</button>
+        <button type="button" className={`league-mobile-card__action league-mobile-card__action--star${league.top_league ? ' is-active' : ''}`} onClick={() => onToggleTop(id, !league.top_league)} disabled={togglingTop}>{togglingTop ? '…' : (league.top_league ? '★ Fav' : '☆ Fav')}</button>
+        <button type="button" className={`league-mobile-card__action${league.has_profile ? ' is-active' : ''}`} onClick={() => onEditProfile(league)}>{league.has_profile ? 'Profile ✓' : 'Profile'}</button>
+      </div>
+    </article>
+  );
+});
+
+interface LeagueMobileTeamsPanelProps {
+  teams: LeagueTeam[];
+  loading: boolean;
+  favoriteIds: Set<string>;
+  profiledTeamIds: Set<string>;
+  onToggleFavorite: (team: LeagueTeam, isFav: boolean) => void;
+  onOpenTeamProfile: (team: LeagueTeam) => void;
+}
+
+const LeagueMobileTeamsPanel = memo(function LeagueMobileTeamsPanel({
+  teams,
+  loading,
+  favoriteIds,
+  profiledTeamIds,
+  onToggleFavorite,
+  onOpenTeamProfile,
+}: LeagueMobileTeamsPanelProps) {
+  if (loading) {
+    return (
+      <div className="league-mobile-teams league-mobile-teams--loading">
+        <div className="loading-spinner" style={{ width: 18, height: 18 }} />
+        Loading teams…
+      </div>
+    );
+  }
+  if (teams.length === 0) {
+    return <div className="league-mobile-teams league-mobile-teams--empty">No teams found</div>;
+  }
+  return (
+    <ul className="league-mobile-teams">
+      {teams.map((t) => {
+        const isFav = favoriteIds.has(String(t.team.id));
+        const hasProfile = profiledTeamIds.has(String(t.team.id));
+        return (
+          <li key={t.team.id} className="league-mobile-team">
+            <div className="league-mobile-team__main">
+              {t.team.logo ? <img src={t.team.logo} alt="" width={22} height={22} loading="lazy" /> : <span aria-hidden>⚽</span>}
+              <span className={`league-mobile-team__name${isFav ? ' is-fav' : ''}`}>{t.team.name}</span>
+              {t.rank != null && <span className="league-mobile-team__rank">#{t.rank}</span>}
+            </div>
+            <div className="league-mobile-team__actions">
+              <button type="button" className={`league-mobile-card__action league-mobile-card__action--star${isFav ? ' is-active' : ''}`} onClick={() => onToggleFavorite(t, isFav)}>{isFav ? '★' : '☆'}</button>
+              <button type="button" className={`league-mobile-card__action${hasProfile ? ' is-active' : ''}`} onClick={() => onOpenTeamProfile(t)}>{hasProfile ? 'Profile ✓' : 'Profile'}</button>
+            </div>
+          </li>
+        );
+      })}
+    </ul>
+  );
+});
+
 interface StatsFilterBarProps {
   leagues: League[];
   profileCoverage: TopLeagueProfileCoverage | null;
@@ -409,6 +564,7 @@ interface StatsFilterBarProps {
   filterTier: string;
   filterTopLeague: string;
   filterProfile: string;
+  coverageMode?: 'full' | 'compact';
   onFilterActive: (v: string) => void;
   onFilterTier: (v: string) => void;
   onFilterTopLeague: (v: string) => void;
@@ -417,6 +573,7 @@ interface StatsFilterBarProps {
 
 const StatsBar = memo(function StatsBar({
   leagues, profileCoverage, filterActive, filterTier, filterTopLeague, filterProfile,
+  coverageMode = 'full',
   onFilterActive, onFilterTier, onFilterTopLeague, onFilterProfile,
 }: StatsFilterBarProps) {
   const total = leagues.length;
@@ -519,47 +676,62 @@ const StatsBar = memo(function StatsBar({
         </button>
       ))}
     </div>
-    {profileCoverage && (
-      <div className="leagues-coverage-bar">
-        <div className="leagues-coverage-chip">
-          <span className="leagues-coverage-label">Top League Profiles</span>
-          <strong>{profileCoverage.summary.topLeagueProfiles}/{profileCoverage.summary.topLeagues}</strong>
-        </div>
-        <div className="leagues-coverage-chip">
-          <span className="leagues-coverage-label">Top Team Profiles</span>
-          <strong>{profileCoverage.summary.topLeagueTeamsWithProfile}/{profileCoverage.summary.topLeagueTeams}</strong>
-        </div>
-        <div className="leagues-coverage-chip">
-          <span className="leagues-coverage-label">Coverage</span>
-          <strong>
-            {profileCoverage.summary.teamProfileCoverage != null
-              ? `${Math.round(profileCoverage.summary.teamProfileCoverage * 100)}%`
-              : 'N/A'}
-          </strong>
-        </div>
-        <div className="leagues-coverage-chip">
-          <span className="leagues-coverage-label">Fully Covered</span>
-          <strong>{profileCoverage.summary.fullCoverageLeagues}</strong>
-        </div>
-        <div className="leagues-coverage-chip">
-          <span className="leagues-coverage-label">Coverage Gaps</span>
-          <strong>{profileCoverage.summary.partialCoverageLeagues + profileCoverage.summary.missingCoverageLeagues}</strong>
-        </div>
-        {profileCoverage.leagues.length > 0 && (
-          <div className="leagues-coverage-note">
-            {(() => {
-              const gaps = profileCoverage.leagues
-                .filter((league) => league.missingTeamProfiles > 0 || !league.hasLeagueProfile)
-                .slice(0, 3)
-                .map((league) => `${league.leagueName} (${league.profiledTeams}/${league.candidateTeams})`);
-              return gaps.length > 0
-                ? `Gaps: ${gaps.join(' · ')}`
-                : 'Top leagues currently have full profile coverage.';
-            })()}
+    {profileCoverage && (() => {
+      const coveragePct = profileCoverage.summary.teamProfileCoverage != null
+        ? `${Math.round(profileCoverage.summary.teamProfileCoverage * 100)}%`
+        : 'N/A';
+      const gapCount = profileCoverage.summary.partialCoverageLeagues + profileCoverage.summary.missingCoverageLeagues;
+      const gapNote = (() => {
+        const gaps = profileCoverage.leagues
+          .filter((league) => league.missingTeamProfiles > 0 || !league.hasLeagueProfile)
+          .slice(0, 3)
+          .map((league) => `${league.leagueName} (${league.profiledTeams}/${league.candidateTeams})`);
+        return gaps.length > 0
+          ? `Gaps: ${gaps.join(' · ')}`
+          : 'Top leagues currently have full profile coverage.';
+      })();
+
+      const coverageBody = (
+        <div className="leagues-coverage-bar">
+          <div className="leagues-coverage-chip">
+            <span className="leagues-coverage-label">Top League Profiles</span>
+            <strong>{profileCoverage.summary.topLeagueProfiles}/{profileCoverage.summary.topLeagues}</strong>
           </div>
-        )}
-      </div>
-    )}
+          <div className="leagues-coverage-chip">
+            <span className="leagues-coverage-label">Top Team Profiles</span>
+            <strong>{profileCoverage.summary.topLeagueTeamsWithProfile}/{profileCoverage.summary.topLeagueTeams}</strong>
+          </div>
+          <div className="leagues-coverage-chip">
+            <span className="leagues-coverage-label">Coverage</span>
+            <strong>{coveragePct}</strong>
+          </div>
+          <div className="leagues-coverage-chip">
+            <span className="leagues-coverage-label">Fully Covered</span>
+            <strong>{profileCoverage.summary.fullCoverageLeagues}</strong>
+          </div>
+          <div className="leagues-coverage-chip">
+            <span className="leagues-coverage-label">Coverage Gaps</span>
+            <strong>{gapCount}</strong>
+          </div>
+          {profileCoverage.leagues.length > 0 && (
+            <div className="leagues-coverage-note">{gapNote}</div>
+          )}
+        </div>
+      );
+
+      if (coverageMode === 'compact') {
+        return (
+          <details className="leagues-coverage-compact">
+            <summary>
+              Profile coverage {coveragePct} · {gapCount} gap{gapCount === 1 ? '' : 's'} · tap for details
+            </summary>
+            {coverageBody}
+          </details>
+        );
+      }
+
+      return coverageBody;
+    })()}
     </>
   );
 });
@@ -613,6 +785,11 @@ export function LeaguesTab() {
   const [teamProfileLoading, setTeamProfileLoading] = useState(false);
   const [teamProfileSaving, setTeamProfileSaving] = useState(false);
   const [profiledTeamIds, setProfiledTeamIds] = useState<Set<string>>(new Set());
+  const [renameLeague, setRenameLeague] = useState<League | null>(null);
+  const [renameDraft, setRenameDraft] = useState('');
+  const [renameSaving, setRenameSaving] = useState(false);
+  const [filterSheetOpen, setFilterSheetOpen] = useState(false);
+  const [bulkSheetOpen, setBulkSheetOpen] = useState(false);
 
   // `/` key focuses search
   useEffect(() => {
@@ -1066,14 +1243,82 @@ export function LeaguesTab() {
 
   const allFilteredSelected = filtered.length > 0 && filtered.every((l) => selectedIds.has(l.league_id));
 
-  const filterBadges: string[] = [];
-  if (search) filterBadges.push(`Search: ${search}`);
-  if (filterActive !== 'all') filterBadges.push(`Status: ${filterActive}`);
-  if (filterTier !== 'all') filterBadges.push(`Tier: ${filterTier}`);
-  if (filterCountry !== 'all') filterBadges.push(`Country: ${filterCountry}`);
-  if (filterType !== 'all') filterBadges.push(`Type: ${filterType}`);
-  if (filterTopLeague !== 'all') filterBadges.push(filterTopLeague === 'top' ? 'Favorites' : 'Non-Favorites');
-  if (filterProfile !== 'all') filterBadges.push(`Profile: ${filterProfile}`);
+  const activeLeagueCount = useMemo(() => allLeagues.filter((l) => l.active).length, [allLeagues]);
+
+  const activeFilterChips = useMemo(() => {
+    const chips: Array<{ key: string; label: string; onRemove: () => void }> = [];
+    const resetPage = () => setPage(1);
+    if (search.trim()) {
+      chips.push({ key: 'search', label: `Search: ${search.trim()}`, onRemove: () => { setSearch(''); resetPage(); } });
+    }
+    if (filterActive !== 'all') {
+      chips.push({ key: 'active', label: `Status: ${filterActive}`, onRemove: () => { setFilterActive('all'); resetPage(); } });
+    }
+    if (filterTier !== 'all') {
+      chips.push({ key: 'tier', label: `Tier: ${TIER_LABELS[filterTier] || filterTier}`, onRemove: () => { setFilterTier('all'); resetPage(); } });
+    }
+    if (filterCountry !== 'all') {
+      chips.push({ key: 'country', label: `Country: ${filterCountry}`, onRemove: () => { setFilterCountry('all'); resetPage(); } });
+    }
+    if (filterType !== 'all') {
+      chips.push({ key: 'type', label: `Type: ${filterType}`, onRemove: () => { setFilterType('all'); resetPage(); } });
+    }
+    if (filterTopLeague !== 'all') {
+      chips.push({
+        key: 'fav',
+        label: filterTopLeague === 'top' ? 'Favorites' : 'Non-Favorites',
+        onRemove: () => { setFilterTopLeague('all'); resetPage(); },
+      });
+    }
+    if (filterProfile !== 'all') {
+      chips.push({ key: 'profile', label: `Profile: ${filterProfile}`, onRemove: () => { setFilterProfile('all'); resetPage(); } });
+    }
+    return chips;
+  }, [filterActive, filterCountry, filterProfile, filterTier, filterTopLeague, filterType, search]);
+
+  const toolbarFilterCount = useMemo(() => {
+    let count = 0;
+    if (filterActive !== 'all' && filterActive !== 'active') count += 1;
+    if (filterTier !== 'all') count += 1;
+    if (filterCountry !== 'all') count += 1;
+    if (filterType !== 'all') count += 1;
+    if (filterTopLeague !== 'all') count += 1;
+    return count;
+  }, [filterActive, filterCountry, filterTier, filterTopLeague, filterType]);
+
+  const openRenameModal = useCallback((league: League) => {
+    setRenameLeague(league);
+    setRenameDraft(league.display_name ?? '');
+  }, []);
+
+  const handleSaveRename = useCallback(async () => {
+    if (!renameLeague) return;
+    setRenameSaving(true);
+    try {
+      await handleSaveLeagueDisplayName(renameLeague, renameDraft);
+      setRenameLeague(null);
+      setRenameDraft('');
+    } finally {
+      setRenameSaving(false);
+    }
+  }, [handleSaveLeagueDisplayName, renameDraft, renameLeague]);
+
+  const clearAllFilters = useCallback(() => {
+    setSearch('');
+    setFilterActive('all');
+    setFilterTier('all');
+    setFilterCountry('all');
+    setFilterType('all');
+    setFilterTopLeague('all');
+    setFilterProfile('all');
+    setPage(1);
+  }, []);
+
+  const clearSelection = useCallback(() => {
+    setSelectedIds(new Set());
+    setConfirmDeactivate(false);
+    setBulkSheetOpen(false);
+  }, []);
 
   if (loading) {
     return (
@@ -1086,79 +1331,123 @@ export function LeaguesTab() {
 
   return (
     <>
-    <div className="card tab-page-card leagues-tab">
-      {/* Stats bar — doubles as quick-filter buttons */}
-      <StatsBar
-        leagues={allLeagues}
-        profileCoverage={profileCoverage}
-        filterActive={filterActive}
-        filterTier={filterTier}
-        filterTopLeague={filterTopLeague}
-        filterProfile={filterProfile}
-        onFilterActive={setFilterActive}
-        onFilterTier={setFilterTier}
-        onFilterTopLeague={setFilterTopLeague}
-        onFilterProfile={setFilterProfile}
-      />
-
-      <div className="page-toolbar leagues-toolbar">
-        <div className="leagues-search">
-          <span className="leagues-search-icon" style={{ fontSize: 13 }}>
-            <svg width="13" height="13" viewBox="0 0 20 20" fill="none"><circle cx="9" cy="9" r="6" stroke="currentColor" strokeWidth="2"/><path d="m15 15 3 3" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/></svg>
-          </span>
-          <input
-            ref={searchRef}
-            type="text"
-            placeholder="Search name, country, ID… ( / )"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            className="leagues-search-input"
-          />
-          {search && (
-            <button className="leagues-search-clear" onClick={() => setSearch('')}>✕</button>
-          )}
-        </div>
-
-        {/* Filters */}
-        <select className="filter-input" value={filterActive} onChange={(e) => setFilterActive(e.target.value)}>
-          <option value="all">All Status</option>
-          <option value="active">Active</option>
-          <option value="inactive">Inactive</option>
-        </select>
-
-        <select className="filter-input" value={filterTier} onChange={(e) => setFilterTier(e.target.value)}>
-          <option value="all">All Tiers</option>
-          {tiers.map((t) => <option key={t} value={t}>{TIER_LABELS[t] || t}</option>)}
-        </select>
-
-        <select className="filter-input" value={filterCountry} onChange={(e) => setFilterCountry(e.target.value)}>
-          <option value="all">All Countries</option>
-          {countries.map((c) => <option key={c} value={c}>{c}</option>)}
-        </select>
-
-        <select className="filter-input" value={filterType} onChange={(e) => setFilterType(e.target.value)}>
-          <option value="all">All Types</option>
-          <option value="League">League</option>
-          <option value="Cup">Cup</option>
-        </select>
-
-        <select className="filter-input" value={filterTopLeague} onChange={(e) => setFilterTopLeague(e.target.value)}>
-          <option value="all">All Leagues</option>
-          <option value="top">Favorites</option>
-          <option value="normal">Non-Favorites</option>
-        </select>
+    <div className={`card tab-page-card leagues-tab${selectedIds.size > 0 ? ' leagues-tab--bulk-dock' : ''}`}>
+      {/* Stats — collapsible on mobile, always open on desktop */}
+      <details className="leagues-stats-collapse leagues-mobile-only">
+        <summary className="leagues-stats-collapse__summary">
+          {activeLeagueCount} active · {allLeagues.length} total — stats &amp; quick filters
+        </summary>
+        <StatsBar
+          leagues={allLeagues}
+          profileCoverage={profileCoverage}
+          filterActive={filterActive}
+          filterTier={filterTier}
+          filterTopLeague={filterTopLeague}
+          filterProfile={filterProfile}
+          coverageMode="compact"
+          onFilterActive={setFilterActive}
+          onFilterTier={setFilterTier}
+          onFilterTopLeague={setFilterTopLeague}
+          onFilterProfile={setFilterProfile}
+        />
+      </details>
+      <div className="leagues-desktop-only">
+        <StatsBar
+          leagues={allLeagues}
+          profileCoverage={profileCoverage}
+          filterActive={filterActive}
+          filterTier={filterTier}
+          filterTopLeague={filterTopLeague}
+          filterProfile={filterProfile}
+          coverageMode="full"
+          onFilterActive={setFilterActive}
+          onFilterTier={setFilterTier}
+          onFilterTopLeague={setFilterTopLeague}
+          onFilterProfile={setFilterProfile}
+        />
       </div>
 
-      {filterBadges.length > 0 && (
+      <div className="sticky-filter-bar leagues-toolbar-sticky">
+        <div className="page-toolbar leagues-toolbar">
+          <div className="leagues-search">
+            <span className="leagues-search-icon" style={{ fontSize: 13 }}>
+              <svg width="13" height="13" viewBox="0 0 20 20" fill="none"><circle cx="9" cy="9" r="6" stroke="currentColor" strokeWidth="2"/><path d="m15 15 3 3" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/></svg>
+            </span>
+            <input
+              ref={searchRef}
+              type="text"
+              placeholder="Search name, country, ID… ( / )"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              className="leagues-search-input"
+            />
+            {search && (
+              <button className="leagues-search-clear" onClick={() => setSearch('')}>✕</button>
+            )}
+          </div>
+
+          <button
+            type="button"
+            className="btn btn-secondary leagues-filter-sheet-btn leagues-mobile-only"
+            onClick={() => setFilterSheetOpen(true)}
+            aria-label={`Open filters${toolbarFilterCount > 0 ? `, ${toolbarFilterCount} active` : ''}`}
+          >
+            Filters{toolbarFilterCount > 0 ? ` (${toolbarFilterCount})` : ''}
+          </button>
+
+          <div className="leagues-toolbar-filters">
+            <select className="filter-input leagues-toolbar-filter--stat-dupe" value={filterActive} onChange={(e) => setFilterActive(e.target.value)}>
+              <option value="all">All Status</option>
+              <option value="active">Active</option>
+              <option value="inactive">Inactive</option>
+            </select>
+
+            <select className="filter-input leagues-toolbar-filter--stat-dupe" value={filterTier} onChange={(e) => setFilterTier(e.target.value)}>
+              <option value="all">All Tiers</option>
+              {tiers.map((t) => <option key={t} value={t}>{TIER_LABELS[t] || t}</option>)}
+            </select>
+
+            <select className="filter-input" value={filterCountry} onChange={(e) => setFilterCountry(e.target.value)}>
+              <option value="all">All Countries</option>
+              {countries.map((c) => <option key={c} value={c}>{c}</option>)}
+            </select>
+
+            <select className="filter-input" value={filterType} onChange={(e) => setFilterType(e.target.value)}>
+              <option value="all">All Types</option>
+              <option value="League">League</option>
+              <option value="Cup">Cup</option>
+            </select>
+
+            <select className="filter-input leagues-toolbar-filter--stat-dupe" value={filterTopLeague} onChange={(e) => setFilterTopLeague(e.target.value)}>
+              <option value="all">All Leagues</option>
+              <option value="top">Favorites</option>
+              <option value="normal">Non-Favorites</option>
+            </select>
+          </div>
+        </div>
+      </div>
+
+      {activeFilterChips.length > 0 && (
         <div className="filter-chips-row" aria-label="Active filters">
-          {filterBadges.map((label) => (
-            <span key={label} className="filter-tag">{label}</span>
+          {activeFilterChips.map((chip) => (
+            <span key={chip.key} className="filter-chip">
+              {chip.label}
+              <button
+                type="button"
+                className="filter-chip__remove"
+                onClick={chip.onRemove}
+                aria-label={`Remove ${chip.label} filter`}
+              >
+                ×
+              </button>
+            </span>
           ))}
+          <button type="button" className="btn btn-secondary btn-sm" onClick={clearAllFilters}>Clear all</button>
         </div>
       )}
 
       {selectedIds.size > 0 && confirmDeactivate && (
-        <div className="bulk-bar bulk-bar--warning" role="status">
+        <div className="bulk-bar bulk-bar--warning leagues-desktop-only" role="status">
           <span className="bulk-bar__message">
             Deactivate {selectedIds.size} league{selectedIds.size > 1 ? 's' : ''}? This will remove them from all scans.
           </span>
@@ -1169,19 +1458,96 @@ export function LeaguesTab() {
         </div>
       )}
       {selectedIds.size > 0 && !confirmDeactivate && (
-        <BulkActionBar count={selectedIds.size} variant="info" onClear={() => { setSelectedIds(new Set()); setConfirmDeactivate(false); }}>
-          <button type="button" className="btn btn-sm btn-success" onClick={() => handleBulkToggle(true)}>Activate</button>
-          <button type="button" className="btn btn-sm btn-danger" onClick={() => setConfirmDeactivate(true)}>Deactivate</button>
-          <button type="button" className="btn btn-sm btn-warning" onClick={() => handleBulkTopLeague(true)}>Add to Favorites</button>
-          <button type="button" className="btn btn-sm btn-secondary" onClick={() => handleBulkTopLeague(false)}>Remove from Favorites</button>
-        </BulkActionBar>
+        <div className="leagues-desktop-only">
+          <BulkActionBar count={selectedIds.size} variant="info" onClear={clearSelection}>
+            <button type="button" className="btn btn-sm btn-success" onClick={() => handleBulkToggle(true)}>Activate</button>
+            <button type="button" className="btn btn-sm btn-danger" onClick={() => setConfirmDeactivate(true)}>Deactivate</button>
+            <button type="button" className="btn btn-sm btn-warning" onClick={() => handleBulkTopLeague(true)}>Add to Favorites</button>
+            <button type="button" className="btn btn-sm btn-secondary" onClick={() => handleBulkTopLeague(false)}>Remove from Favorites</button>
+          </BulkActionBar>
+        </div>
+      )}
+      {selectedIds.size > 0 && (
+        <div className="leagues-bulk-dock leagues-mobile-only" role="status">
+          <span className="leagues-bulk-dock__count">{selectedIds.size} selected</span>
+          <button type="button" className="btn btn-primary btn-sm" onClick={() => setBulkSheetOpen(true)}>
+            {confirmDeactivate ? 'Confirm deactivate' : 'Actions'}
+          </button>
+          <button type="button" className="btn btn-secondary btn-sm" onClick={clearSelection}>Clear</button>
+        </div>
+      )}
+      {bulkSheetOpen && selectedIds.size > 0 && (
+        <div
+          className="leagues-bottom-sheet-overlay leagues-mobile-only"
+          onClick={(e) => e.target === e.currentTarget && setBulkSheetOpen(false)}
+          role="presentation"
+        >
+          <div className="leagues-bottom-sheet" role="dialog" aria-label="Bulk league actions">
+            <div className="leagues-bottom-sheet__header">
+              <span>{selectedIds.size} league{selectedIds.size > 1 ? 's' : ''} selected</span>
+              <button type="button" className="leagues-bottom-sheet__close" onClick={() => setBulkSheetOpen(false)} aria-label="Close">×</button>
+            </div>
+            {confirmDeactivate ? (
+              <div className="leagues-bottom-sheet__body">
+                <p className="leagues-bottom-sheet__warning">
+                  Deactivate {selectedIds.size} league{selectedIds.size > 1 ? 's' : ''}? This removes them from all scans.
+                </p>
+                <button
+                  type="button"
+                  className="btn btn-danger leagues-bottom-sheet__action"
+                  onClick={() => { setConfirmDeactivate(false); setBulkSheetOpen(false); void handleBulkToggle(false); }}
+                >
+                  Confirm deactivate
+                </button>
+                <button
+                  type="button"
+                  className="btn btn-secondary leagues-bottom-sheet__action"
+                  onClick={() => setConfirmDeactivate(false)}
+                >
+                  Cancel
+                </button>
+              </div>
+            ) : (
+              <div className="leagues-bottom-sheet__body">
+                <button
+                  type="button"
+                  className="btn btn-success leagues-bottom-sheet__action"
+                  onClick={() => { setBulkSheetOpen(false); void handleBulkToggle(true); }}
+                >
+                  Activate
+                </button>
+                <button
+                  type="button"
+                  className="btn btn-danger leagues-bottom-sheet__action"
+                  onClick={() => setConfirmDeactivate(true)}
+                >
+                  Deactivate
+                </button>
+                <button
+                  type="button"
+                  className="btn btn-warning leagues-bottom-sheet__action"
+                  onClick={() => { setBulkSheetOpen(false); void handleBulkTopLeague(true); }}
+                >
+                  Add to Favorites
+                </button>
+                <button
+                  type="button"
+                  className="btn btn-secondary leagues-bottom-sheet__action"
+                  onClick={() => { setBulkSheetOpen(false); void handleBulkTopLeague(false); }}
+                >
+                  Remove from Favorites
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
       )}
 
       {/* Pagination — top */}
       <Pagination currentPage={safePage} totalPages={totalPages} onPageChange={setPage} />
 
-      {/* Table */}
-      <div className="table-container leagues-table">
+      {/* Desktop table */}
+      <div className="table-container leagues-table leagues-desktop-only">
         <table>
           <thead>
             <tr>
@@ -1254,7 +1620,139 @@ export function LeaguesTab() {
         </table>
       </div>
 
+      {/* Mobile card list */}
+      <div className="leagues-mobile-only leagues-mobile-list">
+        {paginated.length === 0 ? (
+          <EmptyState
+            title={search || filterTier !== 'all' || filterCountry !== 'all' || filterActive !== 'all' || filterTopLeague !== 'all'
+              ? 'No leagues match your filters'
+              : 'No leagues available yet. Use Sync Reference Data in Settings if a refresh is needed.'}
+          />
+        ) : (
+          paginated.map((league) => {
+            const gIdx = globalSortedLeagueIds.indexOf(leagueIdNum(league.league_id));
+            const canMoveUp = gIdx >= 0 && findNeighborVisibleIndex(globalSortedLeagueIds, gIdx, -1, visibleLeagueIdSet) >= 0;
+            const canMoveDown = gIdx >= 0 && findNeighborVisibleIndex(globalSortedLeagueIds, gIdx, 1, visibleLeagueIdSet) >= 0;
+            return (
+              <Fragment key={league.league_id}>
+                <LeagueMobileCard
+                  league={league}
+                  selected={selectedIds.has(league.league_id)}
+                  toggling={togglingIds.has(league.league_id)}
+                  togglingTop={togglingTopIds.has(league.league_id)}
+                  teamsExpanded={expandedLeagueId === league.league_id}
+                  canMoveUp={canMoveUp}
+                  canMoveDown={canMoveDown}
+                  onSelect={handleSelect}
+                  onToggle={handleToggle}
+                  onToggleTop={handleToggleTop}
+                  onViewFixtures={setFixtureLeague}
+                  onEditProfile={handleEditProfile}
+                  onToggleTeams={handleToggleTeams}
+                  onMoveOrder={handleMoveLeagueOrder}
+                  onRename={openRenameModal}
+                />
+                {expandedLeagueId === league.league_id && (
+                  <LeagueMobileTeamsPanel
+                    teams={leagueTeamsCache[league.league_id] ?? []}
+                    loading={teamsLoading && !leagueTeamsCache[league.league_id]}
+                    favoriteIds={favoriteIds}
+                    profiledTeamIds={profiledTeamIds}
+                    onToggleFavorite={handleToggleFavorite}
+                    onOpenTeamProfile={(team) => handleOpenTeamProfile(team, league.league_name)}
+                  />
+                )}
+              </Fragment>
+            );
+          })
+        )}
+      </div>
+
+      <Pagination currentPage={safePage} totalPages={totalPages} onPageChange={setPage} />
+
     </div>
+
+    <Modal
+      open={filterSheetOpen}
+      title="League filters"
+      onClose={() => setFilterSheetOpen(false)}
+      footer={
+        <>
+          <button type="button" className="btn btn-secondary" onClick={() => { clearAllFilters(); setFilterSheetOpen(false); }}>
+            Reset
+          </button>
+          <button type="button" className="btn btn-primary" onClick={() => setFilterSheetOpen(false)}>Apply</button>
+        </>
+      }
+    >
+      <div className="leagues-filter-sheet">
+        <label className="leagues-filter-sheet__field">
+          <span className="leagues-filter-sheet__label">Status</span>
+          <select className="filter-input" value={filterActive} onChange={(e) => { setFilterActive(e.target.value); setPage(1); }}>
+            <option value="all">All Status</option>
+            <option value="active">Active</option>
+            <option value="inactive">Inactive</option>
+          </select>
+        </label>
+        <label className="leagues-filter-sheet__field">
+          <span className="leagues-filter-sheet__label">Tier</span>
+          <select className="filter-input" value={filterTier} onChange={(e) => { setFilterTier(e.target.value); setPage(1); }}>
+            <option value="all">All Tiers</option>
+            {tiers.map((t) => <option key={t} value={t}>{TIER_LABELS[t] || t}</option>)}
+          </select>
+        </label>
+        <label className="leagues-filter-sheet__field">
+          <span className="leagues-filter-sheet__label">Country</span>
+          <select className="filter-input" value={filterCountry} onChange={(e) => { setFilterCountry(e.target.value); setPage(1); }}>
+            <option value="all">All Countries</option>
+            {countries.map((c) => <option key={c} value={c}>{c}</option>)}
+          </select>
+        </label>
+        <label className="leagues-filter-sheet__field">
+          <span className="leagues-filter-sheet__label">Type</span>
+          <select className="filter-input" value={filterType} onChange={(e) => { setFilterType(e.target.value); setPage(1); }}>
+            <option value="all">All Types</option>
+            <option value="League">League</option>
+            <option value="Cup">Cup</option>
+          </select>
+        </label>
+        <label className="leagues-filter-sheet__field">
+          <span className="leagues-filter-sheet__label">Favorites</span>
+          <select className="filter-input" value={filterTopLeague} onChange={(e) => { setFilterTopLeague(e.target.value); setPage(1); }}>
+            <option value="all">All Leagues</option>
+            <option value="top">Favorites</option>
+            <option value="normal">Non-Favorites</option>
+          </select>
+        </label>
+      </div>
+    </Modal>
+
+    <Modal
+      open={renameLeague != null}
+      title={renameLeague ? `Rename: ${renameLeague.league_name}` : 'Rename league'}
+      onClose={() => !renameSaving && setRenameLeague(null)}
+      footer={
+        <>
+          <button type="button" className="btn btn-secondary" onClick={() => setRenameLeague(null)} disabled={renameSaving}>Cancel</button>
+          <button type="button" className="btn btn-primary" onClick={() => void handleSaveRename()} disabled={renameSaving}>
+            {renameSaving ? 'Saving…' : 'Save'}
+          </button>
+        </>
+      }
+    >
+      <label style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+        <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--gray-600)' }}>Display name (optional)</span>
+        <input
+          className="filter-input"
+          type="text"
+          value={renameDraft}
+          onChange={(e) => setRenameDraft(e.target.value)}
+          placeholder={renameLeague?.league_name ?? ''}
+          autoFocus
+        />
+        <span style={{ fontSize: 11, color: 'var(--gray-400)' }}>Leave empty to use the provider name only.</span>
+      </label>
+    </Modal>
 
     <LeagueFixturesDialog
       league={fixtureLeague}

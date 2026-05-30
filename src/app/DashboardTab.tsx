@@ -16,15 +16,52 @@ import { MARKET_COLORS } from '@/config/constants';
 // ==================== Sub-components ====================
 
 // rerender-memo: memoize sub-components so parent re-renders don't trigger chart redraws
-const StatCard = memo(function StatCard({ label, value, sub, color }: { label: string; value: string | number; sub?: string; color?: string }) {
+const StatCard = memo(function StatCard({
+  label,
+  value,
+  sub,
+  subTitle,
+  color,
+}: {
+  label: string;
+  value: string | number;
+  sub?: string;
+  subTitle?: string;
+  color?: string;
+}) {
   return (
     <div className="stat-card">
       <div className="stat-label">{label}</div>
       <div className={`stat-value ${color || ''}`}>{value}</div>
-      {sub && <div className="stat-sub">{sub}</div>}
+      {sub && (
+        <div className="stat-sub" title={subTitle}>{sub}</div>
+      )}
     </div>
   );
 });
+
+function formatWonRateSubBrief(d: DashboardSummary | null | undefined): string {
+  if (!d) return '';
+  const wins = d.wins ?? 0;
+  const losses = d.losses ?? 0;
+  const halfTotal = (d.halfWins ?? 0) + (d.halfLosses ?? 0);
+  const parts = [`W ${wins}`, `L ${losses}`];
+  if (halfTotal > 0) parts.push(`${halfTotal} half`);
+  if (d.streak) parts.push(d.streak);
+  return parts.join(' · ');
+}
+
+function formatWonRateSubFull(d: DashboardSummary | null | undefined): string {
+  if (!d) return '';
+  const parts = [
+    `Won ${d.wins ?? 0}`,
+    `Lost ${d.losses ?? 0}`,
+    `Half Won ${d.halfWins ?? 0}`,
+    `Half Lost ${d.halfLosses ?? 0}`,
+  ];
+  if (d.streak) parts.push(d.streak);
+  return parts.join(' | ');
+}
 
 function formatShortChartDate(value: string): string {
   const parsed = new Date(value);
@@ -47,7 +84,7 @@ function formatBankrollUnits(value: number | null | undefined): string {
   }).format(amount);
 }
 
-const BankrollSummaryCard = memo(function BankrollSummaryCard({
+const BankrollInlineBar = memo(function BankrollInlineBar({
   currentBalance,
   initialBalance,
   delta,
@@ -63,33 +100,24 @@ const BankrollSummaryCard = memo(function BankrollSummaryCard({
   const deltaTone = delta >= 0 ? 'positive' : 'negative';
   const deltaPrefix = delta >= 0 ? '+' : '';
 
-  return (
-    <div className="bankroll-summary-card">
-      <div className="bankroll-summary-main">
-        <div className="stat-label">Bankroll</div>
-        <div className="bankroll-summary-balance">{formatBankrollUnits(currentBalance)}</div>
-        <div className="stat-sub">Initial {formatBankrollUnits(initialBalance)} units</div>
-      </div>
+  const openBankrollSettings = () => {
+    window.dispatchEvent(new CustomEvent('tfi:navigate', { detail: 'settings' }));
+  };
 
-      <div className="bankroll-summary-metrics" aria-label="Bankroll details">
-        <div className="bankroll-summary-metric">
-          <div className="stat-label">P/L</div>
-          <div className={`bankroll-summary-value ${deltaTone}`}>
-            {deltaPrefix}{formatBankrollUnits(delta)}
-          </div>
-          <div className="stat-sub">{delta >= 0 ? 'Growth' : 'Drawdown'} in units</div>
-        </div>
-        <div className="bankroll-summary-metric">
-          <div className="stat-label">Unit Multiplier</div>
-          <div className="bankroll-summary-value">x{multiplier}</div>
-          <div className="stat-sub">Currency {currency}</div>
-        </div>
-        <div className="bankroll-summary-metric">
-          <div className="stat-label">Stake Rule</div>
-          <div className="bankroll-summary-value">Personal</div>
-          <div className="stat-sub">Stake % -&gt; amount</div>
-        </div>
-      </div>
+  return (
+    <div className="bankroll-inline-bar" aria-label="My bankroll summary">
+      <span className="bankroll-inline-bar__label">My Bankroll</span>
+      <span className="bankroll-inline-bar__balance">{formatBankrollUnits(currentBalance)} units</span>
+      <span className={`bankroll-inline-bar__delta ${deltaTone}`}>
+        {deltaPrefix}{formatBankrollUnits(delta)}
+      </span>
+      <span className="bankroll-inline-bar__sep" aria-hidden>·</span>
+      <span className="bankroll-inline-bar__meta">x{multiplier} {currency}</span>
+      <span className="bankroll-inline-bar__sep" aria-hidden>·</span>
+      <span className="bankroll-inline-bar__meta">Initial {formatBankrollUnits(initialBalance)}</span>
+      <button type="button" className="bankroll-inline-bar__link" onClick={openBankrollSettings}>
+        Settings
+      </button>
     </div>
   );
 });
@@ -321,13 +349,19 @@ const AiAccuracyPanel = memo(function AiAccuracyPanel({ stats, models }: { stats
             ))}
           </div>
           {models.length > 0 && (
-            <div style={{ marginTop: '10px', borderTop: '1px solid var(--gray-200)', paddingTop: '8px' }}>
-              {models.map((m) => (
-                <div key={m.model} style={{ fontSize: '12px', color: 'var(--gray-600)', marginTop: '4px' }}>
-                  <strong>{m.model}</strong>: {m.accuracy.toFixed(1)}% ({m.correct}/{m.total})
-                </div>
-              ))}
-            </div>
+            <details className="dashboard-models-collapse">
+              <summary className="dashboard-models-collapse__summary">
+                {models.length} model{models.length === 1 ? '' : 's'} — tap to expand
+              </summary>
+              <div className="dashboard-models-collapse__body">
+                {models.map((m) => (
+                  <div key={m.model} className="dashboard-models-collapse__row">
+                    <strong>{m.model}</strong>
+                    <span>{m.accuracy.toFixed(1)}% ({m.correct}/{m.total})</span>
+                  </div>
+                ))}
+              </div>
+            </details>
           )}
         </div>
       </div>
@@ -403,12 +437,14 @@ export function DashboardTab() {
         <StatCard
           label="Won Rate"
           value={`${(d?.winRate ?? 0).toFixed(1)}%`}
-          sub={`Won ${d?.wins ?? 0} | Lost ${d?.losses ?? 0} | Half Won ${d?.halfWins ?? 0} | Half Lost ${d?.halfLosses ?? 0}${d?.streak ? ` | ${d.streak}` : ''}`}
+          sub={formatWonRateSubBrief(d)}
+          subTitle={formatWonRateSubFull(d)}
         />
         <StatCard
-          label="Total P/L"
+          label="System P/L ($)"
           value={`${(d?.totalPnl ?? 0) >= 0 ? '+' : ''}$${(d?.totalPnl ?? 0).toFixed(2)}`}
           color={(d?.totalPnl ?? 0) >= 0 ? 'positive' : 'negative'}
+          sub="Recommendation stake P/L"
         />
         <StatCard
           label="ROI on Stake"
@@ -418,7 +454,7 @@ export function DashboardTab() {
       </div>
 
       {bankrollAccount && (
-        <BankrollSummaryCard
+        <BankrollInlineBar
           currentBalance={bankrollAccount.current_balance}
           initialBalance={bankrollAccount.initial_balance}
           delta={bankrollDelta}

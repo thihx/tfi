@@ -3,10 +3,10 @@ import type { Recommendation } from '@/types';
 import { StatusBadge } from './StatusBadge';
 import { formatLocalDateTime } from '@/lib/utils/helpers';
 
-const RISK_COLORS: Record<string, { bg: string; color: string; border: string }> = {
-  LOW:    { bg: 'var(--gray-100)', color: 'var(--gray-600)',  border: 'var(--gray-200)' },
-  MEDIUM: { bg: 'var(--gray-100)', color: '#92400e',          border: 'var(--gray-200)' },
-  HIGH:   { bg: '#fee2e220',       color: '#b91c1c',          border: '#fca5a520' },
+const RISK_CLASS: Record<string, string> = {
+  LOW: 'rec-card__risk--low',
+  MEDIUM: 'rec-card__risk--medium',
+  HIGH: 'rec-card__risk--high',
 };
 
 interface Props {
@@ -28,7 +28,6 @@ function isValidScorePair(s: string | null | undefined): boolean {
   return Boolean(s && SCORE_PAIR_RE.test(s.trim()));
 }
 
-/** FT / HT goals and optional FT corner totals for settled footer. */
 function formatSettledMatchScores(rec: Recommendation): string | null {
   const ft = isValidScorePair(rec.ft_score ?? undefined) ? rec.ft_score!.trim() : '';
   const ht = isValidScorePair(rec.ht_score ?? undefined) ? rec.ht_score!.trim() : '';
@@ -54,7 +53,6 @@ function pickReasoning(rec: Recommendation, lang?: 'en' | 'vi' | 'both'): string
     if (en && vi && en !== vi) return `${en}\n\n${vi}`;
     return en || vi;
   }
-  // default: 'vi'
   return vi || en;
 }
 
@@ -71,6 +69,12 @@ function formatBankrollAmount(value: unknown, rec: Recommendation): string {
   return currency ? `${display} ${currency}` : display;
 }
 
+function confidenceBarClass(conf: number): string {
+  if (conf >= 8) return 'rec-card__conf-fill--high';
+  if (conf >= 5) return 'rec-card__conf-fill--mid';
+  return 'rec-card__conf-fill--low';
+}
+
 function RecommendationCardBase({ rec, lang, onViewMatch, adminAction }: Props) {
   const [reasoningExpanded, setReasoningExpanded] = useState(false);
   const [warningsExpanded, setWarningsExpanded] = useState(false);
@@ -78,7 +82,6 @@ function RecommendationCardBase({ rec, lang, onViewMatch, adminAction }: Props) 
   const pnlVal = rec.pnl != null ? parseFloat(String(rec.pnl)) : null;
   const pnlPositive = pnlVal != null && pnlVal >= 0;
   const conf = rec.confidence != null ? parseFloat(String(rec.confidence)) : null;
-  const riskStyle = rec.risk_level ? (RISK_COLORS[rec.risk_level] ?? null) : null;
   const ts = rec.timestamp || rec.created_at;
   const display = rec.home_team && rec.away_team
     ? `${rec.home_team} vs ${rec.away_team}`
@@ -91,34 +94,15 @@ function RecommendationCardBase({ rec, lang, onViewMatch, adminAction }: Props) 
   const settledScoreLine = formatSettledMatchScores(rec);
   const stakeAmountText = formatBankrollAmount(rec.stake_amount, rec);
   const bankrollText = formatBankrollAmount(rec.bankroll_balance_before, rec);
+  const valuePercent = rec.value_percent != null ? parseFloat(String(rec.value_percent)) : null;
 
   return (
-    <div className="card" style={{ padding: '0', marginBottom: '8px', overflow: 'hidden' }}>
+    <div className="card rec-card">
 
-      {/* Header */}
-      <div style={{
-        padding: '10px 14px 8px',
-        borderBottom: '1px solid var(--gray-200)',
-        background: 'linear-gradient(180deg, #fafbfc 0%, #ffffff 100%)',
-        display: 'flex',
-        justifyContent: 'space-between',
-        alignItems: 'flex-start',
-        gap: '10px',
-        flexWrap: 'nowrap',
-      }}>
-        <div style={{ flex: '1 1 0%', minWidth: 0, maxWidth: '100%' }}>
+      <div className="rec-card__header">
+        <div className="rec-card__header-main">
           <div
-            style={{
-              fontSize: '13px',
-              fontWeight: 600,
-              color: onViewMatch ? 'var(--gray-800)' : 'var(--gray-900)',
-              cursor: onViewMatch ? 'pointer' : undefined,
-              letterSpacing: '-0.2px',
-              marginBottom: '2px',
-              whiteSpace: 'nowrap',
-              overflow: 'hidden',
-              textOverflow: 'ellipsis',
-            }}
+            className={`rec-card__match${onViewMatch ? ' rec-card__match--link' : ''}`}
             onClick={() => onViewMatch?.(rec.match_id ?? '', display)}
             title={display}
           >
@@ -126,14 +110,7 @@ function RecommendationCardBase({ rec, lang, onViewMatch, adminAction }: Props) 
           </div>
           {(rec.league || ts) && (
             <div
-              style={{
-                fontSize: '11px',
-                color: 'var(--gray-500)',
-                whiteSpace: 'nowrap',
-                overflow: 'hidden',
-                textOverflow: 'ellipsis',
-                maxWidth: '100%',
-              }}
+              className="rec-card__meta"
               title={[rec.league, ts ? formatLocalDateTime(ts) : ''].filter(Boolean).join(' · ')}
             >
               {[rec.league, ts ? formatLocalDateTime(ts) : ''].filter(Boolean).join(' · ')}
@@ -141,14 +118,14 @@ function RecommendationCardBase({ rec, lang, onViewMatch, adminAction }: Props) 
           )}
         </div>
 
-        <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexShrink: 0, flexWrap: 'nowrap' }}>
+        <div className="rec-card__header-actions">
           {isLive && (
             <span
-              style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', cursor: onViewMatch ? 'pointer' : undefined }}
+              className={onViewMatch ? 'rec-card__live rec-card__live--link' : 'rec-card__live'}
               onClick={() => onViewMatch?.(rec.match_id ?? '', display)}
               title="Click to view match details"
             >
-              {displayScore && <span style={{ fontWeight: 700, fontSize: '13px', color: 'var(--gray-900)' }}>{displayScore}</span>}
+              {displayScore && <span className="rec-card__live-score">{displayScore}</span>}
             </span>
           )}
           {rec.result && <StatusBadge status={rec.result.toUpperCase()} />}
@@ -159,175 +136,157 @@ function RecommendationCardBase({ rec, lang, onViewMatch, adminAction }: Props) 
         </div>
       </div>
 
-      {/* Core pick info */}
-      <div style={{ padding: '10px 14px', display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(90px, 1fr))', gap: '8px' }}>
-
-        <div>
-          <div style={{ fontSize: '10px', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.5px', color: 'var(--gray-400)', marginBottom: '2px' }}>Selection</div>
-          <div style={{ fontWeight: 600, color: 'var(--gray-900)', fontSize: '12px' }}>{rec.selection || '—'}</div>
+      <div className="rec-card__primary">
+        <div className="rec-card__field rec-card__field--selection">
+          <div className="rec-card__label">Selection</div>
+          <div className="rec-card__value rec-card__value--strong">{rec.selection || '—'}</div>
         </div>
-
-        <div>
-          <div style={{ fontSize: '10px', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.5px', color: 'var(--gray-400)', marginBottom: '2px' }}>Odds</div>
-          <div style={{ fontWeight: 700, fontSize: '14px', color: 'var(--gray-800)' }}>{rec.odds || '—'}</div>
+        <div className="rec-card__field">
+          <div className="rec-card__label">Odds</div>
+          <div className="rec-card__value rec-card__value--odds">{rec.odds || '—'}</div>
         </div>
+        {pnlVal != null && (
+          <div className="rec-card__field">
+            <div className="rec-card__label">P/L</div>
+            <div className={`rec-card__value ${pnlPositive ? 'text-positive' : 'text-negative'}`}>
+              {pnlPositive ? '+' : ''}${pnlVal.toFixed(2)}
+            </div>
+          </div>
+        )}
+        {rec.minute != null && (
+          <div className="rec-card__field">
+            <div className="rec-card__label">Minute</div>
+            <div className="rec-card__value">{rec.minute}&apos;</div>
+          </div>
+        )}
+      </div>
 
+      <div className="rec-card__secondary">
         {conf != null && (
-          <div>
-            <div style={{ fontSize: '10px', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.5px', color: 'var(--gray-400)', marginBottom: '2px' }}>Confidence</div>
-            <div style={{ fontWeight: 600, fontSize: '12px', color: 'var(--gray-700)' }}>{conf}/10</div>
-            <div style={{ height: '3px', background: 'var(--gray-200)', borderRadius: '2px', marginTop: '3px', overflow: 'hidden' }}>
-              <div style={{ width: `${conf * 10}%`, height: '100%', background: 'var(--gray-400)', borderRadius: '2px', transition: 'width 0.3s' }} />
+          <div className="rec-card__field">
+            <div className="rec-card__label">Confidence</div>
+            <div className="rec-card__value">{conf}/10</div>
+            <div className="rec-card__conf-bar">
+              <div className={`rec-card__conf-fill ${confidenceBarClass(conf)}`} style={{ width: `${conf * 10}%` }} />
             </div>
           </div>
         )}
 
         {rec.risk_level && (
-          <div>
-            <div style={{ fontSize: '10px', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.5px', color: 'var(--gray-400)', marginBottom: '4px' }}>Risk</div>
-            <span style={{
-              display: 'inline-block', padding: '1px 7px', borderRadius: '4px',
-              fontSize: '11px', fontWeight: 600,
-              color: riskStyle?.color ?? 'var(--gray-600)',
-              background: riskStyle?.bg ?? 'var(--gray-100)',
-              border: `1px solid ${riskStyle?.border ?? 'var(--gray-200)'}`,
-            }}>
+          <div className="rec-card__field">
+            <div className="rec-card__label">Risk</div>
+            <span className={`rec-card__risk ${RISK_CLASS[rec.risk_level] ?? ''}`}>
               {rec.risk_level}
             </span>
           </div>
         )}
 
-        {rec.value_percent != null && (
-          <div>
-            <div style={{ fontSize: '10px', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.5px', color: 'var(--gray-400)', marginBottom: '2px' }}>Value</div>
-            <div style={{ fontWeight: 600, color: 'var(--gray-700)', fontSize: '12px' }}>
-              +{parseFloat(String(rec.value_percent)).toFixed(1)}%
+        {valuePercent != null && (
+          <div className="rec-card__field">
+            <div className="rec-card__label">Value</div>
+            <div className="rec-card__value">
+              {valuePercent >= 0 ? '+' : ''}{valuePercent.toFixed(1)}%
             </div>
           </div>
         )}
 
         {rec.stake_percent != null && (
-          <div>
-            <div style={{ fontSize: '10px', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.5px', color: 'var(--gray-400)', marginBottom: '2px' }}>Stake</div>
-            <div style={{ fontWeight: 600, color: 'var(--gray-700)', fontSize: '12px' }}>
+          <div className="rec-card__field">
+            <div className="rec-card__label">Stake</div>
+            <div className="rec-card__value">
               {parseFloat(String(rec.stake_percent)).toFixed(0)}%
             </div>
           </div>
         )}
 
         {stakeAmountText && (
-          <div>
-            <div style={{ fontSize: '10px', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.5px', color: 'var(--gray-400)', marginBottom: '2px' }}>Bet Amount</div>
-            <div style={{ fontWeight: 600, color: 'var(--gray-700)', fontSize: '12px' }}>{stakeAmountText}</div>
+          <div className="rec-card__field">
+            <div className="rec-card__label">Bet Amount</div>
+            <div className="rec-card__value">{stakeAmountText}</div>
           </div>
         )}
 
         {bankrollText && (
-          <div>
-            <div style={{ fontSize: '10px', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.5px', color: 'var(--gray-400)', marginBottom: '2px' }}>Bankroll</div>
-            <div style={{ fontWeight: 600, color: 'var(--gray-700)', fontSize: '12px' }}>{bankrollText}</div>
-          </div>
-        )}
-
-        {pnlVal != null && (
-          <div>
-            <div style={{ fontSize: '10px', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.5px', color: 'var(--gray-400)', marginBottom: '2px' }}>P/L</div>
-            <div style={{ fontWeight: 600, fontSize: '12px', color: pnlPositive ? '#15803d' : '#b91c1c' }}>
-              {pnlPositive ? '+' : ''}${pnlVal.toFixed(2)}
-            </div>
-          </div>
-        )}
-
-        {rec.minute != null && (
-          <div>
-            <div style={{ fontSize: '10px', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.5px', color: 'var(--gray-400)', marginBottom: '2px' }}>Minute</div>
-            <div style={{ fontWeight: 600, color: 'var(--gray-700)', fontSize: '12px' }}>{rec.minute}&apos;</div>
+          <div className="rec-card__field">
+            <div className="rec-card__label">Bankroll</div>
+            <div className="rec-card__value">{bankrollText}</div>
           </div>
         )}
       </div>
 
-      {/* Key Factors */}
       {rec.key_factors && (
-        <div style={{ padding: '6px 14px', borderTop: '1px solid var(--gray-100)', display: 'flex', gap: '8px', alignItems: 'baseline' }}>
-          <div style={{ fontSize: '10px', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.5px', color: 'var(--gray-400)', flexShrink: 0 }}>
-            Factors
-          </div>
-          <div style={{ fontSize: '11px', color: 'var(--gray-600)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{rec.key_factors}</div>
+        <div className="rec-card__factors">
+          <div className="rec-card__label">Factors</div>
+          <div className="rec-card__factors-text">{rec.key_factors}</div>
         </div>
       )}
 
-      {/* Warnings */}
       {rec.warnings && !(Array.isArray(rec.warnings) && rec.warnings.length === 0) && String(rec.warnings) !== '[]' && String(rec.warnings).trim() !== '' && (
-        <div style={{ borderTop: '1px solid var(--gray-100)' }}>
+        <div className="rec-card__expand">
           <button
-            style={{
-              width: '100%', padding: '7px 14px', background: 'none', border: 'none',
-              cursor: 'pointer', textAlign: 'left', display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-            }}
+            type="button"
+            className="rec-card__expand-btn rec-card__expand-btn--warnings"
             onClick={() => setWarningsExpanded((v) => !v)}
+            aria-expanded={warningsExpanded}
           >
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#92400e" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><title>Warnings</title><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
-            <span style={{ fontSize: '10px', color: 'var(--gray-400)' }}>{warningsExpanded ? '▲' : '▼'}</span>
+            <span className="rec-card__expand-label">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+              Warnings
+            </span>
+            <span className="rec-card__expand-caret" aria-hidden>{warningsExpanded ? '▲' : '▼'}</span>
           </button>
           {warningsExpanded && (
-            <div style={{ padding: '0 14px 10px', fontSize: '11px', color: '#92400e', lineHeight: 1.6 }}>
+            <div className="rec-card__expand-body rec-card__expand-body--warnings">
               {String(rec.warnings)}
             </div>
           )}
         </div>
       )}
 
-      {/* Reasoning */}
       {reasoning && (
-        <div style={{ borderTop: '1px solid var(--gray-100)' }}>
+        <div className="rec-card__expand">
           <button
-            style={{
-              width: '100%', padding: '7px 14px', background: 'none', border: 'none',
-              cursor: 'pointer', textAlign: 'left', display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-            }}
+            type="button"
+            className="rec-card__expand-btn"
             onClick={() => setReasoningExpanded((v) => !v)}
+            aria-expanded={reasoningExpanded}
           >
-            <span style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--gray-400)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden><line x1="12" y1="2" x2="12" y2="3"/><path d="M12 6a6 6 0 0 1 6 6c0 2.5-1.5 4.5-3.5 5.5V19a1 1 0 0 1-1 1h-3a1 1 0 0 1-1-1v-1.5C7.5 16.5 6 14.5 6 12a6 6 0 0 1 6-6z"/><line x1="9" y1="21" x2="15" y2="21"/></svg>
-              <span style={{ fontSize: '11px', fontWeight: 600, color: 'var(--gray-600)' }}>Reasoning</span>
+            <span className="rec-card__expand-label">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden><line x1="12" y1="2" x2="12" y2="3"/><path d="M12 6a6 6 0 0 1 6 6c0 2.5-1.5 4.5-3.5 5.5V19a1 1 0 0 1-1 1h-3a1 1 0 0 1-1-1v-1.5C7.5 16.5 6 14.5 6 12a6 6 0 0 1 6-6z"/><line x1="9" y1="21" x2="15" y2="21"/></svg>
+              Reasoning
             </span>
-            <span style={{ fontSize: '10px', color: 'var(--gray-400)' }}>{reasoningExpanded ? '▲' : '▼'}</span>
+            <span className="rec-card__expand-caret" aria-hidden>{reasoningExpanded ? '▲' : '▼'}</span>
           </button>
           {reasoningExpanded && (
-            <div style={{ padding: '0 14px 10px', fontSize: '12px', color: 'var(--gray-600)', lineHeight: 1.6, whiteSpace: 'pre-wrap' }}>
+            <div className="rec-card__expand-body">
               {reasoning}
             </div>
           )}
         </div>
       )}
 
-      {/* Outcome / FT+HT score footer */}
       {(settledScoreLine || rec.actual_outcome || ((showReviewBadge || showPendingNote) && rec.settlement_note)) && (
-        <div style={{
-          padding: '7px 14px', borderTop: '1px solid var(--gray-200)',
-          background: 'linear-gradient(180deg, #ffffff 0%, #fafbfc 100%)',
-          display: 'flex', gap: '14px', alignItems: 'center', flexWrap: 'wrap',
-        }}>
+        <div className="rec-card__footer">
           {settledScoreLine && (
             <span
-              style={{ fontSize: '11px', color: 'var(--gray-600)', fontWeight: 600 }}
+              className="rec-card__footer-score"
               title="Kết quả trận (FT/HT bàn thắng; Cr = phạt góc cả trận nếu có trong dữ liệu)"
             >
-              <span style={{ color: 'var(--gray-900)' }}>{settledScoreLine}</span>
+              {settledScoreLine}
             </span>
           )}
           {rec.actual_outcome && (
-            <span style={{ fontSize: '11px', color: 'var(--gray-500)', flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={rec.actual_outcome}>
+            <span className="rec-card__footer-outcome" title={rec.actual_outcome}>
               {rec.actual_outcome}
             </span>
           )}
           {showReviewBadge && rec.settlement_note && (
-            <span style={{ fontSize: '11px', color: '#92400e', flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={rec.settlement_note}>
+            <span className="rec-card__footer-note rec-card__footer-note--review" title={rec.settlement_note}>
               Review: {rec.settlement_note}
             </span>
           )}
           {showPendingNote && rec.settlement_note && (
-            <span style={{ fontSize: '11px', color: 'var(--gray-500)', flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={rec.settlement_note}>
+            <span className="rec-card__footer-note" title={rec.settlement_note}>
               Pending: {rec.settlement_note}
             </span>
           )}

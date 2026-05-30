@@ -1,3 +1,4 @@
+import { useEffect, useRef } from 'react';
 import type { AskAiQuickPromptItem } from '@/lib/askAiQuickPrompts';
 
 interface AskAiQuickPromptChipsProps {
@@ -6,61 +7,88 @@ interface AskAiQuickPromptChipsProps {
   disabled?: boolean;
   /** Section label (locale-specific from parent). */
   label: string;
+  /** Collapse behind a summary on small screens (expanded by default on desktop). */
+  collapsible?: boolean;
+}
+
+function QuickPromptChipList({
+  prompts,
+  onPick,
+  disabled,
+}: {
+  prompts: readonly AskAiQuickPromptItem[];
+  onPick: (text: string) => void;
+  disabled?: boolean;
+}) {
+  return (
+    <div
+      role="list"
+      className="ai-quick-prompts__list"
+    >
+      {prompts.map((p) => (
+        <button
+          key={p.id}
+          type="button"
+          role="listitem"
+          className="btn btn-secondary btn-sm ai-quick-prompts__chip"
+          disabled={disabled}
+          title={p.text}
+          onClick={() => onPick(p.text)}
+        >
+          {p.text}
+        </button>
+      ))}
+    </div>
+  );
 }
 
 /**
  * Compact wrap row of default live-betting quick prompts.
  */
-export function AskAiQuickPromptChips({ prompts, onPick, disabled, label }: AskAiQuickPromptChipsProps) {
+export function AskAiQuickPromptChips({
+  prompts,
+  onPick,
+  disabled,
+  label,
+  collapsible = false,
+}: AskAiQuickPromptChipsProps) {
+  const detailsRef = useRef<HTMLDetailsElement>(null);
+
+  useEffect(() => {
+    if (!collapsible) return;
+    const mq = window.matchMedia('(min-width: 768px)');
+    const sync = () => {
+      if (detailsRef.current) detailsRef.current.open = mq.matches;
+    };
+    sync();
+    mq.addEventListener('change', sync);
+    return () => mq.removeEventListener('change', sync);
+  }, [collapsible]);
+
   if (prompts.length === 0) return null;
 
+  const chipList = (
+    <QuickPromptChipList prompts={prompts} onPick={onPick} disabled={disabled} />
+  );
+
+  if (!collapsible) {
+    return (
+      <div className="ai-quick-prompts">
+        <div className="ai-quick-prompts__label">{label}</div>
+        {chipList}
+      </div>
+    );
+  }
+
   return (
-    <div style={{ marginBottom: '10px' }}>
-      <div
-        style={{
-          fontSize: '10px',
-          fontWeight: 600,
-          color: 'var(--gray-500)',
-          textTransform: 'uppercase',
-          letterSpacing: '0.35px',
-          marginBottom: '6px',
-        }}
-      >
+    <details ref={detailsRef} className="ai-quick-prompts-collapse" data-label={label}>
+      <summary className="ai-quick-prompts-collapse__summary">
         {label}
+        <span className="ai-quick-prompts-collapse__count">{prompts.length}</span>
+      </summary>
+      <div className="ai-quick-prompts-collapse__body">
+        {chipList}
       </div>
-      <div
-        role="list"
-        style={{
-          display: 'flex',
-          flexWrap: 'wrap',
-          gap: '6px',
-          alignItems: 'center',
-        }}
-      >
-        {prompts.map((p) => (
-          <button
-            key={p.id}
-            type="button"
-            role="listitem"
-            className="btn btn-secondary btn-sm"
-            disabled={disabled}
-            title={p.text}
-            onClick={() => onPick(p.text)}
-            style={{
-              maxWidth: '100%',
-              fontSize: '11px',
-              lineHeight: 1.35,
-              padding: '4px 8px',
-              borderRadius: '6px',
-              whiteSpace: 'normal',
-              textAlign: 'left',
-              hyphens: 'auto',
-            }}
-          >
-            {p.text}
-          </button>
-        ))}
-      </div>
-    </div>
+    </details>
   );
 }

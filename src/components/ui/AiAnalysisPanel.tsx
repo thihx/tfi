@@ -25,6 +25,7 @@ import {
   uiLanguageToAskAiPromptLocale,
 } from '@/lib/askAiQuickPrompts';
 import { formatSelectionWithMarketContext } from '@/lib/utils/marketDisplay';
+import { filterUserFacingWarnings, pickAnalysisReasoning } from '@/lib/utils/aiAnalysisDisplay';
 import type { AuthUser } from '@/lib/services/auth';
 import { UserAvatar } from '@/components/ui/UserAvatar';
 
@@ -38,13 +39,6 @@ const RISK_COLOR: Record<string, string> = {
   LOW: 'var(--green)',
   MEDIUM: 'var(--orange)',
   HIGH: 'var(--red)',
-};
-
-const STRENGTH_COLOR: Record<string, string> = {
-  strong: 'var(--green)',
-  moderate: 'var(--orange)',
-  weak: 'var(--red)',
-  none: 'var(--gray-400)',
 };
 
 function DecisionBadge({ kind }: { kind: string }) {
@@ -75,71 +69,6 @@ function MetricItem({ label, children }: { label: string; children: ReactNode })
       {children}
     </span>
   );
-}
-
-function DataTag({ label, color }: { label: string; color?: string }) {
-  return (
-    <span
-      style={{
-        display: 'inline-block',
-        padding: '1px 7px',
-        borderRadius: '8px',
-        fontSize: '10px',
-        fontWeight: 500,
-        whiteSpace: 'nowrap',
-        background: 'var(--gray-100)',
-        color: color ?? 'var(--gray-500)',
-        border: '1px solid var(--gray-200)',
-      }}
-    >
-      {label}
-    </span>
-  );
-}
-
-function buildContextTags(dbg: ServerMatchPipelineResult['debug'] | undefined): { label: string; color?: string }[] {
-  if (!dbg) return [];
-
-  const tags: { label: string; color?: string }[] = [];
-
-  if (dbg.prematchStrength) {
-    const strengthLabel: Record<string, string> = {
-      strong: 'Strong prematch context',
-      moderate: 'Moderate prematch context',
-      weak: 'Limited prematch context',
-      none: 'No prematch context',
-    };
-    tags.push({
-      label: strengthLabel[dbg.prematchStrength] ?? dbg.prematchStrength,
-      color: STRENGTH_COLOR[dbg.prematchStrength],
-    });
-  }
-
-  if (dbg.promptDataLevel) {
-    const analysisLabel: Record<string, string> = {
-      'advanced-upgraded': 'Expanded analysis',
-      'basic-only': 'Compact analysis',
-    };
-    tags.push({ label: analysisLabel[dbg.promptDataLevel] ?? dbg.promptDataLevel });
-  }
-
-  if (dbg.evidenceMode) {
-    const evidenceLabel: Record<string, string> = {
-      full_live_data: 'Complete live context',
-      full_data: 'Complete context',
-      stats_only: 'Stats-led context',
-      low_evidence: 'Limited live context',
-      odds_events_only_degraded: 'Partial market context',
-      events_only_degraded: 'Event-led context',
-    };
-    tags.push({ label: evidenceLabel[dbg.evidenceMode] ?? dbg.evidenceMode.replace(/_/g, ' ') });
-  }
-
-  if (dbg.advisoryOnly) {
-    tags.push({ label: 'Advisory follow-up' });
-  }
-
-  return tags;
 }
 
 function MinuteBadge({ minute, status }: { minute: number | string; status?: string }) {
@@ -236,7 +165,7 @@ function FollowUpBubble({ message, user }: { message: AskAiFollowUpMessage; user
           <UserAvatar user={user} size={22} />
           <div
             style={{
-              fontSize: '11px',
+              fontSize: '13px',
               lineHeight: 1.55,
               color: 'var(--gray-700)',
               whiteSpace: 'pre-wrap',
@@ -274,7 +203,7 @@ function FollowUpBubble({ message, user }: { message: AskAiFollowUpMessage; user
         </span>
         <div
           style={{
-            fontSize: '11px',
+            fontSize: '13px',
             lineHeight: 1.55,
             color: 'var(--gray-700)',
             whiteSpace: 'pre-wrap',
@@ -328,8 +257,6 @@ export function AiAnalysisPanel({ entry, onClose, onFollowUp }: Props) {
 
   const { result } = entry;
   const ai: ServerParsedAiResult | null = getParsedAiResult(result);
-  const dbg = result.debug;
-  const contextTags = buildContextTags(dbg);
   const selection = ai?.selection || result.selection || '--';
   const market = ai?.bet_market || '--';
   const selectionDisplay = selection !== '--'
@@ -338,6 +265,10 @@ export function AiAnalysisPanel({ entry, onClose, onFollowUp }: Props) {
         betMarket: market !== '--' ? market : undefined,
       })
     : '--';
+  const reasoning = pickAnalysisReasoning(ai?.reasoning_vi, ai?.reasoning_en, uiLanguage);
+  const displayWarnings = useMemo(() => filterUserFacingWarnings(ai?.warnings), [ai?.warnings]);
+  const isNoPick = result.decisionKind === 'no_bet' && selectionDisplay === '--';
+  const showMetrics = !isNoPick || (result.confidence ?? 0) > 0 || (ai?.stake_percent ?? 0) > 0 || (ai?.value_percent ?? 0) > 0;
   const followUps = useMemo(() => entry.followUpMessages ?? [], [entry.followUpMessages]);
   const [followUpInput, setFollowUpInput] = useState('');
   const [sendingFollowUp, setSendingFollowUp] = useState(false);
@@ -487,62 +418,66 @@ export function AiAnalysisPanel({ entry, onClose, onFollowUp }: Props) {
           <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
             <DecisionBadge kind={result.decisionKind} />
             {selectionDisplay !== '--' ? (
-              <span style={{ fontSize: '12px', fontWeight: 600, color: 'var(--gray-800)', whiteSpace: 'nowrap' }}>
+              <span style={{ fontSize: '13px', fontWeight: 600, color: 'var(--gray-800)', whiteSpace: 'nowrap' }}>
                 {selectionDisplay}
               </span>
             ) : null}
-            <span style={{ color: 'var(--gray-300)', fontSize: '12px' }}>|</span>
-            <MetricItem label="Conf">
-              <strong style={{ color: result.confidence >= 7 ? 'var(--green)' : result.confidence >= 4 ? 'var(--orange)' : 'var(--gray-600)' }}>
-                {result.confidence}/10
-              </strong>
-            </MetricItem>
-            {ai.risk_level ? (
-              <MetricItem label="Risk">
-                <strong style={{ color: RISK_COLOR[ai.risk_level] ?? 'var(--gray-600)' }}>
-                  {ai.risk_level}
-                </strong>
-              </MetricItem>
+            {showMetrics ? (
+              <>
+                <span style={{ color: 'var(--gray-300)', fontSize: '12px' }}>|</span>
+                <MetricItem label="Conf">
+                  <strong style={{ color: result.confidence >= 7 ? 'var(--green)' : result.confidence >= 4 ? 'var(--orange)' : 'var(--gray-600)' }}>
+                    {result.confidence}/10
+                  </strong>
+                </MetricItem>
+                {ai.risk_level ? (
+                  <MetricItem label="Risk">
+                    <strong style={{ color: RISK_COLOR[ai.risk_level] ?? 'var(--gray-600)' }}>
+                      {ai.risk_level}
+                    </strong>
+                  </MetricItem>
+                ) : null}
+                <MetricItem label="Stake">
+                  <strong>{ai.stake_percent ?? 0}%</strong>
+                </MetricItem>
+                <MetricItem label="Value">
+                  <strong style={{ color: (ai.value_percent ?? 0) > 0 ? 'var(--green)' : 'var(--gray-600)' }}>
+                    {ai.value_percent ?? 0}%
+                  </strong>
+                </MetricItem>
+              </>
+            ) : ai.risk_level ? (
+              <>
+                <span style={{ color: 'var(--gray-300)', fontSize: '12px' }}>|</span>
+                <MetricItem label="Risk">
+                  <strong style={{ color: RISK_COLOR[ai.risk_level] ?? 'var(--gray-600)' }}>
+                    {ai.risk_level}
+                  </strong>
+                </MetricItem>
+              </>
             ) : null}
-            <MetricItem label="Stake">
-              <strong>{ai.stake_percent ?? 0}%</strong>
-            </MetricItem>
-            <MetricItem label="Value">
-              <strong style={{ color: (ai.value_percent ?? 0) > 0 ? 'var(--green)' : 'var(--gray-600)' }}>
-                {ai.value_percent ?? 0}%
-              </strong>
-            </MetricItem>
           </div>
 
-          {contextTags.length > 0 ? (
-            <div style={{ display: 'flex', gap: '5px', flexWrap: 'wrap', alignItems: 'center' }}>
-              {contextTags.map((tag) => (
-                <DataTag key={tag.label} label={tag.label} color={tag.color} />
-              ))}
-            </div>
-          ) : null}
-
-          {(ai.reasoning_vi || ai.reasoning_en || ai.condition_triggered_suggestion || (ai.warnings?.length ?? 0) > 0) ? (
+          {(reasoning || ai.condition_triggered_suggestion || displayWarnings.length > 0) ? (
             <div className="ai-result-panel__prose-block">
-              {(ai.reasoning_vi || ai.reasoning_en) ? (
-                <p style={{ margin: 0, fontSize: '12px', color: 'var(--gray-700)' }}>
-                  <strong style={{ color: 'var(--gray-500)', marginRight: '4px' }}>Reasoning:</strong>
-                  {ai.reasoning_vi || ai.reasoning_en}
+              {reasoning ? (
+                <p style={{ margin: 0, fontSize: '13px', color: 'var(--gray-700)' }}>
+                  {reasoning}
                 </p>
               ) : null}
 
               {ai.condition_triggered_suggestion ? (
-                <p style={{ margin: 0, fontSize: '12px', color: 'var(--gray-700)' }}>
+                <p style={{ margin: 0, fontSize: '13px', color: 'var(--gray-700)' }}>
                   <strong style={{ color: 'var(--gray-500)', marginRight: '4px' }}>Suggestion:</strong>
                   {ai.condition_triggered_suggestion}
                 </p>
               ) : null}
 
-              {(ai.warnings?.length ?? 0) > 0 ? (
+              {displayWarnings.length > 0 ? (
                 <p
                 style={{
                   margin: 0,
-                  fontSize: '11px',
+                  fontSize: '12px',
                   color: 'var(--orange)',
                   display: 'flex',
                   alignItems: 'flex-start',
@@ -558,13 +493,14 @@ export function AiAnalysisPanel({ entry, onClose, onFollowUp }: Props) {
                     strokeWidth="2"
                     strokeLinecap="round"
                     strokeLinejoin="round"
-                    style={{ flexShrink: 0, marginTop: '1px' }}
+                    style={{ flexShrink: 0, marginTop: '2px' }}
+                    aria-hidden
                   >
                     <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" />
                     <line x1="12" y1="9" x2="12" y2="13" />
                     <line x1="12" y1="17" x2="12.01" y2="17" />
                   </svg>
-                  <span style={{ lineHeight: 1.65 }}>{(ai.warnings ?? []).join(' | ')}</span>
+                  <span style={{ lineHeight: 1.65 }}>{displayWarnings.join(' · ')}</span>
                 </p>
               ) : null}
             </div>
@@ -575,27 +511,11 @@ export function AiAnalysisPanel({ entry, onClose, onFollowUp }: Props) {
               <div style={{ fontSize: '11px', fontWeight: 700, color: 'var(--gray-500)', textTransform: 'uppercase', letterSpacing: '0.4px' }}>
                 Match Follow-up
               </div>
-              {followUps.length === 1 && followUps[0]?.role === 'user' ? (
-                <p style={{ margin: '0 0 6px', fontSize: '10px', color: 'var(--gray-500)', lineHeight: 1.45 }}>
-                  Main analysis is above. Your prompt is shown here so you can tell it shaped this run; continue chatting below if needed.
-                </p>
-              ) : null}
               <div className="ai-result-panel__chat-thread">
                 <div
                   ref={followUpScrollRef}
+                  className="ai-result-panel__chat-scroll"
                   aria-busy={followUpInputLocked}
-                  style={{
-                    display: 'flex',
-                    flexDirection: 'column',
-                    gap: '6px',
-                    maxHeight: 'min(200px, 35vh)',
-                    overflowY: 'auto',
-                    overflowX: 'hidden',
-                    paddingRight: '8px',
-                    paddingBottom: '6px',
-                    paddingLeft: '8px',
-                    boxSizing: 'border-box',
-                  }}
                 >
                   {followUps.map((message, index) => (
                     <FollowUpBubble key={`${message.role}-${index}-${message.text.slice(0, 24)}`} message={message} user={user} />
@@ -625,6 +545,7 @@ export function AiAnalysisPanel({ entry, onClose, onFollowUp }: Props) {
                 label={quickPromptsLabel}
                 prompts={quickPrompts}
                 disabled={followUpInputLocked}
+                collapsible
                 onPick={(text) => setFollowUpInput(text.slice(0, ASK_AI_CHAT_MAX_CHARS))}
               />
               <div style={{ display: 'flex', gap: '10px', alignItems: 'stretch' }}>
@@ -641,11 +562,12 @@ export function AiAnalysisPanel({ entry, onClose, onFollowUp }: Props) {
                   style={{
                     flex: 1,
                     minWidth: 0,
-                    height: '36px',
-                    borderRadius: '8px',
+                    minHeight: '44px',
+                    height: '44px',
+                    borderRadius: '10px',
                     border: '1px solid var(--gray-200)',
                     padding: '0 12px',
-                    fontSize: '12px',
+                    fontSize: '13px',
                     lineHeight: 1.4,
                     fontFamily: 'inherit',
                     background: followUpInputLocked ? 'var(--gray-100)' : '#fff',

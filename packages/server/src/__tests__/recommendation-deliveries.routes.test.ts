@@ -25,6 +25,10 @@ vi.mock('../repos/recommendation-deliveries.repo.js', () => ({
     ],
     total: 1,
   }),
+  getRecommendationDeliveriesSummary: vi.fn().mockResolvedValue({
+    total: 1, won: 0, lost: 0, push: 0, voided: 0, pending: 1, review: 0, pnl: 0,
+  }),
+  getRecommendationDeliveriesChartSeries: vi.fn().mockResolvedValue([]),
   updateRecommendationDeliveryFlags: vi.fn().mockResolvedValue(true),
 }));
 
@@ -81,6 +85,22 @@ describe('GET /api/me/recommendation-deliveries', () => {
       includeHidden: true,
       dismissed: false,
     });
+  });
+});
+
+describe('GET /api/me/recommendation-deliveries/summary', () => {
+  test('returns filtered delivery summary', async () => {
+    const res = await app.inject({ method: 'GET', url: '/api/me/recommendation-deliveries/summary?result=pending' });
+    expect(res.statusCode).toBe(200);
+    expect(res.json().total).toBe(1);
+  });
+});
+
+describe('GET /api/me/recommendation-deliveries/chart-series', () => {
+  test('returns delivery chart series', async () => {
+    const res = await app.inject({ method: 'GET', url: '/api/me/recommendation-deliveries/chart-series' });
+    expect(res.statusCode).toBe(200);
+    expect(res.json()).toEqual([]);
   });
 });
 

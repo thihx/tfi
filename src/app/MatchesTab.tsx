@@ -17,7 +17,7 @@ import { AskAiMatchSplitControl } from '@/components/ui/AskAiMatchSplitControl';
 import { MatchCard } from '@/components/ui/MatchCard';
 import { WatchlistEditModal } from '@/components/ui/WatchlistEditModal';
 import { LIVE_STATUSES, PLACEHOLDER_HOME, PLACEHOLDER_AWAY, TFI_FOCUS_MATCH_IN_MATCHES_EVENT } from '@/config/constants';
-import { formatDateTimeDisplay, getKickoffDateKey, getKickoffDateTime, getLeagueDisplayName, debounce, parseKickoffForSave, shouldFastRefreshMatch, normalizeToISO } from '@/lib/utils/helpers';
+import { formatDateTimeDisplay, getKickoffDateKey, getKickoffDateTime, getLeagueDisplayName, debounce, parseKickoffForSave, shouldFastRefreshMatch, normalizeToISO, countEligibleWatchlistCandidates } from '@/lib/utils/helpers';
 import { getDateGroupLabelInTimeZone, getDateKeyAtOffsetInTimeZone, getMatchDateKeyInTimeZone } from '@/lib/utils/timezone';
 import type { Match, SortState, League, WatchlistItem } from '@/types';
 import {
@@ -89,6 +89,12 @@ function normalizeFavoriteLeagueIds(value: unknown): number[] {
     .map((entry) => (typeof entry === 'number' ? entry : Number(entry)))
     .filter((entry) => Number.isInteger(entry) && entry > 0) as number[];
   return Array.from(new Set(ids));
+}
+
+function areFavoriteLeagueIdsEqual(a: number[], b: number[]): boolean {
+  const left = normalizeFavoriteLeagueIds(a).slice().sort((x, y) => x - y);
+  const right = normalizeFavoriteLeagueIds(b).slice().sort((x, y) => x - y);
+  return left.length === right.length && left.every((id, index) => id === right[index]);
 }
 
 function normalizePositiveLimit(value: unknown): number | null {
@@ -461,6 +467,8 @@ export function MatchesTab() {
     (favoriteLeagueOptions.length > 0 ? favoriteLeagueOptions : leagues.filter((league) => league.top_league))
       .map((league) => ({
         id: league.league_id,
+        country: (league.country || '').trim(),
+        leagueName: (league.display_name?.trim() || league.league_name || '').trim(),
         displayName: getLeagueDisplayName(league.league_id, league.league_name || '', leagues),
         logo: league.logo,
         sort_order: league.sort_order ?? 0,
@@ -502,6 +510,17 @@ export function MatchesTab() {
       ? filteredIds
       : filteredIds.slice(0, favoriteLeaguesLimit);
   }, [favoriteLeagueIds, favoriteLeaguesLimit, favoriteLeagueChoices, userBypassesFavoriteLeagueLimits]);
+
+  const favoriteDraftUnchanged = useMemo(
+    () => areFavoriteLeagueIdsEqual(favoriteDraftIds, effectiveFavoriteLeagueIds),
+    [favoriteDraftIds, effectiveFavoriteLeagueIds],
+  );
+
+  const favoriteWatchlistPreview = useMemo(() => {
+    const normalizedDraft = normalizeFavoriteLeagueIds(favoriteDraftIds);
+    const watchedMatchIds = new Set(watchlist.map((item) => String(item.match_id)));
+    return countEligibleWatchlistCandidates(matches, normalizedDraft, watchedMatchIds);
+  }, [favoriteDraftIds, matches, watchlist]);
 
   const favoriteFeatureVisible = favoriteLeaguesEnabled && favoriteLeagueChoices.length > 0;
 
@@ -1068,7 +1087,7 @@ export function MatchesTab() {
             <button
               type="button"
               onClick={handleOpenFavoritePicker}
-              title="Add matches from your favorite leagues to Watchlist"
+              title="Choose favorite leagues and add their eligible matches to your watchlist"
               className={`date-tab-bar__chip${effectiveFavoriteLeagueIds.length > 0 ? ' date-tab-bar__chip--active' : ''}`}
             >
               + Watchlist by Favorite Leagues
@@ -1342,32 +1361,49 @@ export function MatchesTab() {
         footer={(
           <>
             <button className="btn btn-secondary" onClick={() => setFavoritePickerOpen(false)} disabled={savingFavoriteLeagues}>Cancel</button>
-            <button className="btn btn-primary" onClick={saveFavoriteLeagues} disabled={savingFavoriteLeagues}>
+            <button
+              className="btn btn-primary"
+              onClick={saveFavoriteLeagues}
+              disabled={savingFavoriteLeagues || favoriteDraftUnchanged}
+              title={favoriteDraftUnchanged ? 'No changes to save' : undefined}
+            >
               {savingFavoriteLeagues ? 'Saving…' : 'Save'}
             </button>
           </>
         )}
       >
-        <div className="watchlist-favorite-leagues-picker" style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-          {/* Description */}
-          <p style={{ margin: 0, fontSize: '11px', color: 'var(--gray-500)', lineHeight: 1.45 }}>
-            Choose your favorite leagues to add their matches from the list to your watchlist.
+        <div className="watchlist-favorite-leagues-picker">
+          <p className="watchlist-favorite-leagues-picker__desc">
+            Choose your favorite leagues. Save updates your selection and adds eligible upcoming or live matches from those leagues to your watchlist — across all dates, not just the filter on this tab.
             {!userBypassesFavoriteLeagueLimits && favoriteLeaguesLimit != null && (
-              <span style={{ color: 'var(--gray-400)' }}> Up to {favoriteLeaguesLimit} allowed.</span>
+              <span className="watchlist-favorite-leagues-picker__limit"> Up to {favoriteLeaguesLimit} allowed.</span>
             )}
           </p>
 
-          {/* Toolbar: count + select/deselect toggle */}
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px' }}>
-            <span style={{
-              fontSize: '11px', fontWeight: 600,
-              color: favoriteDraftIds.length > 0 ? 'var(--primary)' : 'var(--gray-400)',
-              background: favoriteDraftIds.length > 0 ? 'rgba(37,99,235,0.08)' : 'var(--gray-100)',
-              padding: '2px 8px', borderRadius: '999px',
-            }}>
+          {favoriteDraftIds.length > 0 && (
+            <p className="watchlist-favorite-leagues-picker__preview" aria-live="polite">
+              {favoriteWatchlistPreview.newMatches > 0 ? (
+                <>
+                  About <strong>{favoriteWatchlistPreview.newMatches}</strong> new match{favoriteWatchlistPreview.newMatches === 1 ? '' : 'es'} will be added
+                  {favoriteWatchlistPreview.eligible > favoriteWatchlistPreview.newMatches
+                    ? ` (${favoriteWatchlistPreview.eligible - favoriteWatchlistPreview.newMatches} already in watchlist)`
+                    : ''}.
+                </>
+              ) : favoriteWatchlistPreview.eligible > 0 ? (
+                <>All {favoriteWatchlistPreview.eligible} eligible match{favoriteWatchlistPreview.eligible === 1 ? '' : 'es'} from these leagues are already in your watchlist.</>
+              ) : (
+                <>No eligible matches found for the selected leagues right now.</>
+              )}
+            </p>
+          )}
+
+          <div className="watchlist-favorite-leagues-picker__toolbar">
+            <span className={`watchlist-favorite-leagues-picker__count${favoriteDraftIds.length > 0 ? ' watchlist-favorite-leagues-picker__count--active' : ''}`}>
               {favoriteDraftIds.length} / {favoriteLeagueChoices.length} selected
             </span>
             <button
+              type="button"
+              className="watchlist-favorite-leagues-picker__toggle"
               onClick={() => {
                 const allIds = favoriteLeagueChoices
                   .map((l) => l.id)
@@ -1376,7 +1412,6 @@ export function MatchesTab() {
                 setFavoriteDraftIds(allSelected ? [] : allIds);
               }}
               disabled={savingFavoriteLeagues}
-              style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '11px', color: 'var(--primary)', fontWeight: 500, padding: '2px 0' }}
             >
               {favoriteLeagueChoices
                 .map((l) => l.id)
@@ -1386,49 +1421,43 @@ export function MatchesTab() {
             </button>
           </div>
 
-          {/* League grid */}
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(160px, 1fr))', gap: '6px' }}>
+          <div className="watchlist-favorite-leagues-picker__grid">
             {favoriteLeagueChoices.map((league) => {
               const checked = favoriteDraftIds.includes(league.id);
               return (
-                <label key={league.id} style={{
-                  display: 'flex', alignItems: 'flex-start', gap: '8px',
-                  padding: '7px 10px', borderRadius: '8px', cursor: 'pointer',
-                  border: `1px solid ${checked ? 'var(--primary)' : 'var(--gray-200)'}`,
-                  background: checked ? 'rgba(37,99,235,0.05)' : '#fff',
-                  transition: 'border-color 0.15s, background 0.15s',
-                }}>
-                  <span style={{
-                    width: '14px', height: '14px', borderRadius: '3px', flexShrink: 0, marginTop: '1px',
-                    border: `2px solid ${checked ? 'var(--primary)' : 'var(--gray-300)'}`,
-                    background: checked ? 'var(--primary)' : '#fff',
-                    display: 'flex', alignItems: 'center', justifyContent: 'center',
-                    transition: 'all 0.15s',
-                  }}>
+                <label
+                  key={league.id}
+                  className={`watchlist-favorite-league-choice${checked ? ' watchlist-favorite-league-choice--checked' : ''}`}
+                >
+                  <span className="watchlist-favorite-league-choice__check" aria-hidden="true">
                     {checked && (
                       <svg width="9" height="9" viewBox="0 0 12 12" fill="none" stroke="#fff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                         <polyline points="2 6 5 9 10 3"/>
                       </svg>
                     )}
                   </span>
-                  <input type="checkbox" checked={checked} onChange={() => toggleFavoriteDraftLeague(league.id)} style={{ display: 'none' }} />
+                  <input
+                    type="checkbox"
+                    checked={checked}
+                    onChange={() => toggleFavoriteDraftLeague(league.id)}
+                    className="watchlist-favorite-league-choice__input"
+                    aria-label={league.leagueName || league.displayName}
+                  />
                   {league.logo && (
                     <img
                       src={league.logo}
                       alt=""
-                      width="16" height="16"
-                      style={{ objectFit: 'contain', flexShrink: 0, opacity: checked ? 1 : 0.6, marginTop: '1px' }}
+                      width="18"
+                      height="18"
+                      className="watchlist-favorite-league-choice__logo"
                       onError={(e) => { e.currentTarget.style.display = 'none'; }}
                     />
                   )}
-                  <span style={{
-                    fontSize: '11px',
-                    lineHeight: 1.35,
-                    color: checked ? 'var(--gray-800)' : 'var(--gray-600)',
-                    fontWeight: checked ? 500 : 400,
-                  }}
-                  >
-                    {league.displayName}
+                  <span className="watchlist-favorite-league-choice__text">
+                    {league.country && (
+                      <span className="watchlist-favorite-league-choice__country">{league.country}</span>
+                    )}
+                    <span className="watchlist-favorite-league-choice__name">{league.leagueName || league.displayName}</span>
                   </span>
                 </label>
               );

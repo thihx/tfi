@@ -23,6 +23,12 @@ vi.mock('../repos/recommendations.repo.js', () => ({
     Promise.resolve(mockRecs.filter((r) => r.match_id === matchId)),
   ),
   getStats: vi.fn().mockResolvedValue({ total: 50, won: 30, lost: 15, pending: 5 }),
+  getFilteredRecommendationsSummary: vi.fn().mockResolvedValue({
+    total: 2, won: 1, lost: 0, push: 0, voided: 0, pending: 1, review: 0, pnl: 0.85,
+  }),
+  getFilteredRecommendationsChartSeries: vi.fn().mockResolvedValue([
+    { idx: 1, cumulative: 0.85 },
+  ]),
   createRecommendation: vi.fn().mockImplementation((body: Record<string, unknown>) =>
     Promise.resolve({ id: 99, ...body }),
   ),
@@ -176,6 +182,23 @@ describe('GET /api/recommendations/stats', () => {
     const res = await app.inject({ method: 'GET', url: '/api/recommendations/stats' });
     expect(res.statusCode).toBe(200);
     expect(res.json().total).toBe(50);
+  });
+});
+
+describe('GET /api/recommendations/summary', () => {
+  test('returns filtered summary', async () => {
+    const res = await app.inject({ method: 'GET', url: '/api/recommendations/summary?result=win' });
+    expect(res.statusCode).toBe(200);
+    expect(res.json().total).toBe(2);
+    expect(res.json().pnl).toBe(0.85);
+  });
+});
+
+describe('GET /api/recommendations/chart-series', () => {
+  test('returns chart series', async () => {
+    const res = await app.inject({ method: 'GET', url: '/api/recommendations/chart-series' });
+    expect(res.statusCode).toBe(200);
+    expect(res.json()).toEqual([{ idx: 1, cumulative: 0.85 }]);
   });
 });
 

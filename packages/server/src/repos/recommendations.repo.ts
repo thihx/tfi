@@ -111,32 +111,46 @@ export interface RecommendationRow {
 
 export type RecommendationCreate = Omit<RecommendationRow, 'id'>;
 
-interface PaginationOpts {
-  limit?: number;
-  offset?: number;
-  result?: string;       // 'win' | 'loss' | 'push' | 'pending'
+export interface RecommendationListFilterOpts {
+  result?: string;
   bet_type?: string;
   league?: string;
-  date_from?: string;    // ISO date 'YYYY-MM-DD'
-  date_to?: string;      // ISO date 'YYYY-MM-DD'
-  risk_level?: string;   // 'LOW' | 'MEDIUM' | 'HIGH'
+  date_from?: string;
+  date_to?: string;
+  risk_level?: string;
   search?: string;
-  sort_by?: string;      // 'time' | 'odds' | 'confidence' | 'pnl' | 'league'
-  sort_dir?: string;     // 'asc' | 'desc'
 }
 
-export async function getAllRecommendations(opts: PaginationOpts = {}): Promise<{
-  rows: RecommendationRow[];
-  total: number;
-}> {
-  const limit = opts.limit ?? 50;
-  const offset = opts.offset ?? 0;
+interface PaginationOpts extends RecommendationListFilterOpts {
+  limit?: number;
+  offset?: number;
+  sort_by?: string;
+  sort_dir?: string;
+}
 
+export interface RecommendationListSummary {
+  total: number;
+  won: number;
+  lost: number;
+  push: number;
+  voided: number;
+  pending: number;
+  review: number;
+  pnl: number;
+}
+
+export interface RecommendationChartPoint {
+  idx: number;
+  cumulative: number;
+}
+
+const REVIEW_RESULT_SQL = `COALESCE(r.settlement_status, 'pending') = 'unresolved' AND r.result IN (${FINAL_SETTLEMENT_RESULTS_SQL})`;
+
+function buildRecommendationListFilters(opts: RecommendationListFilterOpts): { whereClause: string; params: unknown[] } {
   const conditions: string[] = [];
   const params: unknown[] = [];
   let paramIdx = 1;
 
-  // Result filter
   if (opts.result) {
     if (opts.result === 'correct') {
       conditions.push(`r.result IN ('win', 'half_win')`);
@@ -147,7 +161,7 @@ export async function getAllRecommendations(opts: PaginationOpts = {}): Promise<
     } else if (opts.result === 'pending') {
       conditions.push(`(r.result IS NULL OR r.result = '' OR r.result NOT IN (${FINAL_SETTLEMENT_RESULTS_SQL}))`);
     } else if (opts.result === 'review') {
-      conditions.push(`COALESCE(r.settlement_status, 'pending') = 'unresolved' AND r.result IN (${FINAL_SETTLEMENT_RESULTS_SQL})`);
+      conditions.push(REVIEW_RESULT_SQL);
     } else if (opts.result === 'duplicate') {
       conditions.push(`r.result = 'duplicate'`);
     } else {
@@ -157,12 +171,10 @@ export async function getAllRecommendations(opts: PaginationOpts = {}): Promise<
     }
   }
 
-  // By default, exclude duplicates unless specifically filtering for them
   if (opts.result !== 'duplicate') {
     conditions.push(`r.${NOT_DUP}`);
   }
 
-  // Bet type filter
   if (opts.bet_type) {
     conditions.push(`r.bet_type = $${paramIdx}`);
     params.push(opts.bet_type);
@@ -171,7 +183,6 @@ export async function getAllRecommendations(opts: PaginationOpts = {}): Promise<
     conditions.push(`r.${ACTIONABLE_REC_SQL}`);
   }
 
-  // Search filter
   if (opts.search) {
     conditions.push(`(
       r.home_team ILIKE $${paramIdx} OR r.away_team ILIKE $${paramIdx} OR r.selection ILIKE $${paramIdx}
@@ -180,14 +191,12 @@ export async function getAllRecommendations(opts: PaginationOpts = {}): Promise<
     paramIdx++;
   }
 
-  // League filter
   if (opts.league) {
     conditions.push(`r.league = $${paramIdx}`);
     params.push(opts.league);
     paramIdx++;
   }
 
-  // Date range filters
   if (opts.date_from) {
     conditions.push(`r.timestamp::date >= $${paramIdx}::date`);
     params.push(opts.date_from);
@@ -199,7 +208,6 @@ export async function getAllRecommendations(opts: PaginationOpts = {}): Promise<
     paramIdx++;
   }
 
-  // Risk level filter
   if (opts.risk_level) {
     conditions.push(`r.risk_level = $${paramIdx}`);
     params.push(opts.risk_level);
@@ -207,6 +215,79 @@ export async function getAllRecommendations(opts: PaginationOpts = {}): Promise<
   }
 
   const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
+  return { whereClause, params };
+}
+
+export async function getFilteredRecommendationsSummary(opts: RecommendationListFilterOpts = {}): Promise<RecommendationListSummary> {
+  const { whereClause, params } = buildRecommendationListFilters(opts);
+  const r = await query<{
+    total: string;
+    won: string;
+    lost: string;
+    push: string;
+    voided: string;
+    pending: string;
+    review: string;
+    pnl: string;
+  }>(
+    `SELECT
+       COUNT(*)::text AS total,
+       COUNT(*) FILTER (WHERE ${DIRECTIONAL_WIN_RESULT_SQL})::text AS won,
+       COUNT(*) FILTER (WHERE ${DIRECTIONAL_LOSS_RESULT_SQL})::text AS lost,
+       COUNT(*) FILTER (WHERE r.result = 'push')::text AS push,
+       COUNT(*) FILTER (WHERE r.result = 'void')::text AS voided,
+       COUNT(*) FILTER (WHERE ${PENDING_RESULT_SQL})::text AS pending,
+       COUNT(*) FILTER (WHERE ${REVIEW_RESULT_SQL})::text AS review,
+       COALESCE(SUM(r.pnl), 0)::text AS pnl
+     FROM recommendations r
+     ${whereClause}`,
+    params,
+  );
+
+  const row = r.rows[0]!;
+  return {
+    total: Number(row.total),
+    won: Number(row.won),
+    lost: Number(row.lost),
+    push: Number(row.push),
+    voided: Number(row.voided),
+    pending: Number(row.pending),
+    review: Number(row.review),
+    pnl: Number(row.pnl),
+  };
+}
+
+export async function getFilteredRecommendationsChartSeries(opts: RecommendationListFilterOpts = {}): Promise<RecommendationChartPoint[]> {
+  const { whereClause, params } = buildRecommendationListFilters(opts);
+  const chartWhere = whereClause
+    ? `${whereClause} AND r.result IN (${FINAL_SETTLEMENT_RESULTS_SQL}) AND r.timestamp IS NOT NULL`
+    : `WHERE r.result IN (${FINAL_SETTLEMENT_RESULTS_SQL}) AND r.timestamp IS NOT NULL`;
+
+  const r = await query<{ idx: string; cumulative: string }>(
+    `SELECT
+       ROW_NUMBER() OVER (ORDER BY r.timestamp ASC, r.id ASC)::text AS idx,
+       SUM(r.pnl) OVER (ORDER BY r.timestamp ASC, r.id ASC ROWS UNBOUNDED PRECEDING)::text AS cumulative
+     FROM recommendations r
+     ${chartWhere}
+     ORDER BY r.timestamp ASC, r.id ASC`,
+    params,
+  );
+
+  return r.rows.map((row) => ({
+    idx: Number(row.idx),
+    cumulative: Number(row.cumulative),
+  }));
+}
+
+export async function getAllRecommendations(opts: PaginationOpts = {}): Promise<{
+  rows: RecommendationRow[];
+  total: number;
+}> {
+  const limit = opts.limit ?? 50;
+  const offset = opts.offset ?? 0;
+
+  const { whereClause, params } = buildRecommendationListFilters(opts);
+  let paramIdx = params.length + 1;
 
   // Sort
   const sortMap: Record<string, string> = {

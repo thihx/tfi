@@ -112,6 +112,183 @@ interface RecommendationDeliveryListOptions {
   sortDir?: string;
 }
 
+export interface RecommendationDeliveryListSummary {
+  total: number;
+  won: number;
+  lost: number;
+  push: number;
+  voided: number;
+  pending: number;
+  review: number;
+  pnl: number;
+}
+
+export interface RecommendationDeliveryChartPoint {
+  idx: number;
+  cumulative: number;
+}
+
+const FINAL_DELIVERY_RESULTS_SQL = `'win', 'loss', 'push', 'void', 'half_win', 'half_loss'`;
+const DELIVERY_WIN_SQL = `r.result IN ('win', 'half_win')`;
+const DELIVERY_LOSS_SQL = `r.result IN ('loss', 'half_loss')`;
+const DELIVERY_PENDING_SQL = `(r.result IS NULL OR r.result = '' OR r.result NOT IN (${FINAL_DELIVERY_RESULTS_SQL}))`;
+const DELIVERY_REVIEW_SQL = `COALESCE(r.settlement_status, NULLIF(d.metadata->>'recommendation_settlement_status', ''), 'pending') = 'unresolved' AND r.result IN (${FINAL_DELIVERY_RESULTS_SQL})`;
+
+function buildRecommendationDeliveryListFilters(
+  userId: string,
+  options: RecommendationDeliveryListOptions,
+): { whereSql: string; params: unknown[]; nextIndex: number } {
+  const conditions = ['d.user_id = $1'];
+  const params: unknown[] = [userId];
+  let index = 2;
+
+  if (!options.includeHidden) {
+    conditions.push('d.hidden = FALSE');
+  }
+  if (options.matchId) {
+    conditions.push(`d.match_id = $${index}`);
+    params.push(options.matchId);
+    index++;
+  }
+  if (options.eligibilityStatus) {
+    conditions.push(`d.eligibility_status = $${index}`);
+    params.push(options.eligibilityStatus);
+    index++;
+  }
+  if (options.deliveryStatus) {
+    conditions.push(`d.delivery_status = $${index}`);
+    params.push(options.deliveryStatus);
+    index++;
+  }
+  if (typeof options.dismissed === 'boolean') {
+    conditions.push(`d.dismissed = $${index}`);
+    params.push(options.dismissed);
+    index++;
+  }
+  if (options.result) {
+    if (options.result === 'correct') {
+      conditions.push(`r.result IN ('win', 'half_win')`);
+    } else if (options.result === 'incorrect') {
+      conditions.push(`r.result IN ('loss', 'half_loss')`);
+    } else if (options.result === 'neutral') {
+      conditions.push(`r.result IN ('push', 'void')`);
+    } else if (options.result === 'pending') {
+      conditions.push(`(r.result IS NULL OR r.result = '' OR r.result NOT IN (${FINAL_DELIVERY_RESULTS_SQL}))`);
+    } else if (options.result === 'review') {
+      conditions.push(DELIVERY_REVIEW_SQL);
+    } else {
+      conditions.push(`r.result = $${index}`);
+      params.push(options.result);
+      index++;
+    }
+  }
+  if (options.betType) {
+    conditions.push(`COALESCE(r.bet_type, NULLIF(d.metadata->>'recommendation_bet_type', '')) = $${index}`);
+    params.push(options.betType);
+    index++;
+  }
+  if (options.search) {
+    conditions.push(`(
+      COALESCE(r.home_team, NULLIF(d.metadata->>'recommendation_home_team', '')) ILIKE $${index}
+      OR COALESCE(r.away_team, NULLIF(d.metadata->>'recommendation_away_team', '')) ILIKE $${index}
+      OR COALESCE(r.selection, NULLIF(d.metadata->>'recommendation_selection', '')) ILIKE $${index}
+    )`);
+    params.push(`%${options.search}%`);
+    index++;
+  }
+  if (options.league) {
+    conditions.push(`COALESCE(r.league, NULLIF(d.metadata->>'recommendation_league', '')) = $${index}`);
+    params.push(options.league);
+    index++;
+  }
+  if (options.dateFrom) {
+    conditions.push(`COALESCE(r.timestamp, d.created_at)::date >= $${index}::date`);
+    params.push(options.dateFrom);
+    index++;
+  }
+  if (options.dateTo) {
+    conditions.push(`COALESCE(r.timestamp, d.created_at)::date <= $${index}::date`);
+    params.push(options.dateTo);
+    index++;
+  }
+  if (options.riskLevel) {
+    conditions.push(`COALESCE(r.risk_level, NULLIF(d.metadata->>'recommendation_risk_level', '')) = $${index}`);
+    params.push(options.riskLevel);
+    index++;
+  }
+
+  return { whereSql: `WHERE ${conditions.join(' AND ')}`, params, nextIndex: index };
+}
+
+export async function getRecommendationDeliveriesSummary(
+  userId: string,
+  options: RecommendationDeliveryListOptions = {},
+): Promise<RecommendationDeliveryListSummary> {
+  const { whereSql, params } = buildRecommendationDeliveryListFilters(userId, options);
+  const r = await query<{
+    total: string;
+    won: string;
+    lost: string;
+    push: string;
+    voided: string;
+    pending: string;
+    review: string;
+    pnl: string;
+  }>(
+    `SELECT
+       COUNT(*)::text AS total,
+       COUNT(*) FILTER (WHERE ${DELIVERY_WIN_SQL})::text AS won,
+       COUNT(*) FILTER (WHERE ${DELIVERY_LOSS_SQL})::text AS lost,
+       COUNT(*) FILTER (WHERE r.result = 'push')::text AS push,
+       COUNT(*) FILTER (WHERE r.result = 'void')::text AS voided,
+       COUNT(*) FILTER (WHERE ${DELIVERY_PENDING_SQL})::text AS pending,
+       COUNT(*) FILTER (WHERE ${DELIVERY_REVIEW_SQL})::text AS review,
+       COALESCE(SUM(r.pnl), 0)::text AS pnl
+     FROM user_recommendation_deliveries d
+     LEFT JOIN recommendations r ON r.id = d.recommendation_id
+     ${whereSql}`,
+    params,
+  );
+
+  const row = r.rows[0]!;
+  return {
+    total: Number(row.total),
+    won: Number(row.won),
+    lost: Number(row.lost),
+    push: Number(row.push),
+    voided: Number(row.voided),
+    pending: Number(row.pending),
+    review: Number(row.review),
+    pnl: Number(row.pnl),
+  };
+}
+
+export async function getRecommendationDeliveriesChartSeries(
+  userId: string,
+  options: RecommendationDeliveryListOptions = {},
+): Promise<RecommendationDeliveryChartPoint[]> {
+  const { whereSql, params } = buildRecommendationDeliveryListFilters(userId, options);
+  const r = await query<{ idx: string; cumulative: string }>(
+    `SELECT
+       ROW_NUMBER() OVER (ORDER BY COALESCE(r.timestamp, d.created_at) ASC, d.id ASC)::text AS idx,
+       SUM(COALESCE(r.pnl, 0)) OVER (
+         ORDER BY COALESCE(r.timestamp, d.created_at) ASC, d.id ASC ROWS UNBOUNDED PRECEDING
+       )::text AS cumulative
+     FROM user_recommendation_deliveries d
+     LEFT JOIN recommendations r ON r.id = d.recommendation_id
+     ${whereSql}
+       AND r.result IN (${FINAL_DELIVERY_RESULTS_SQL})
+       AND COALESCE(r.timestamp, d.created_at) IS NOT NULL
+     ORDER BY COALESCE(r.timestamp, d.created_at) ASC, d.id ASC`,
+    params,
+  );
+
+  return r.rows.map((row) => ({
+    idx: Number(row.idx),
+    cumulative: Number(row.cumulative),
+  }));
+}
+
 interface RecommendationDeliveryUpdateFlags {
   hidden?: boolean;
   dismissed?: boolean;
@@ -737,86 +914,7 @@ export async function getRecommendationDeliveriesByUserId(
 ): Promise<{ rows: RecommendationDeliveryRow[]; total: number }> {
   const limit = options.limit ?? 50;
   const offset = options.offset ?? 0;
-  const conditions = ['d.user_id = $1'];
-  const params: unknown[] = [userId];
-  let index = 2;
-
-  if (!options.includeHidden) {
-    conditions.push('d.hidden = FALSE');
-  }
-  if (options.matchId) {
-    conditions.push(`d.match_id = $${index}`);
-    params.push(options.matchId);
-    index++;
-  }
-  if (options.eligibilityStatus) {
-    conditions.push(`d.eligibility_status = $${index}`);
-    params.push(options.eligibilityStatus);
-    index++;
-  }
-  if (options.deliveryStatus) {
-    conditions.push(`d.delivery_status = $${index}`);
-    params.push(options.deliveryStatus);
-    index++;
-  }
-  if (typeof options.dismissed === 'boolean') {
-    conditions.push(`d.dismissed = $${index}`);
-    params.push(options.dismissed);
-    index++;
-  }
-  if (options.result) {
-    if (options.result === 'correct') {
-      conditions.push(`r.result IN ('win', 'half_win')`);
-    } else if (options.result === 'incorrect') {
-      conditions.push(`r.result IN ('loss', 'half_loss')`);
-    } else if (options.result === 'neutral') {
-      conditions.push(`r.result IN ('push', 'void')`);
-    } else if (options.result === 'pending') {
-      conditions.push(`(r.result IS NULL OR r.result = '' OR r.result NOT IN ('win', 'loss', 'push', 'void', 'half_win', 'half_loss'))`);
-    } else if (options.result === 'review') {
-      conditions.push(`COALESCE(r.settlement_status, NULLIF(d.metadata->>'recommendation_settlement_status', ''), 'pending') = 'unresolved' AND r.result IN ('win', 'loss', 'push', 'void', 'half_win', 'half_loss')`);
-    } else {
-      conditions.push(`r.result = $${index}`);
-      params.push(options.result);
-      index++;
-    }
-  }
-  if (options.betType) {
-    conditions.push(`COALESCE(r.bet_type, NULLIF(d.metadata->>'recommendation_bet_type', '')) = $${index}`);
-    params.push(options.betType);
-    index++;
-  }
-  if (options.search) {
-    conditions.push(`(
-      COALESCE(r.home_team, NULLIF(d.metadata->>'recommendation_home_team', '')) ILIKE $${index}
-      OR COALESCE(r.away_team, NULLIF(d.metadata->>'recommendation_away_team', '')) ILIKE $${index}
-      OR COALESCE(r.selection, NULLIF(d.metadata->>'recommendation_selection', '')) ILIKE $${index}
-    )`);
-    params.push(`%${options.search}%`);
-    index++;
-  }
-  if (options.league) {
-    conditions.push(`COALESCE(r.league, NULLIF(d.metadata->>'recommendation_league', '')) = $${index}`);
-    params.push(options.league);
-    index++;
-  }
-  if (options.dateFrom) {
-    conditions.push(`COALESCE(r.timestamp, d.created_at)::date >= $${index}::date`);
-    params.push(options.dateFrom);
-    index++;
-  }
-  if (options.dateTo) {
-    conditions.push(`COALESCE(r.timestamp, d.created_at)::date <= $${index}::date`);
-    params.push(options.dateTo);
-    index++;
-  }
-  if (options.riskLevel) {
-    conditions.push(`COALESCE(r.risk_level, NULLIF(d.metadata->>'recommendation_risk_level', '')) = $${index}`);
-    params.push(options.riskLevel);
-    index++;
-  }
-
-  const whereSql = `WHERE ${conditions.join(' AND ')}`;
+  const { whereSql, params, nextIndex: index } = buildRecommendationDeliveryListFilters(userId, options);
   const sortMap: Record<string, string> = {
     time: 'COALESCE(r.timestamp, d.created_at)',
     odds: `COALESCE(r.odds, NULLIF(d.metadata->>'recommendation_odds', '')::numeric)`,

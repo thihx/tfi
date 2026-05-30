@@ -10,6 +10,8 @@ import {
   getLeagueDisplayName,
   parseKickoffForSave,
   debounce,
+  countEligibleWatchlistCandidates,
+  isMatchEligibleForWatchlistBulkAdd,
 } from './helpers';
 import { convertLocalDateTimeToInstant } from './timezone';
 import type { League } from '@/types';
@@ -265,5 +267,27 @@ describe('debounce', () => {
 
     await new Promise((r) => setTimeout(r, 80));
     expect(fn).toHaveBeenCalledWith('hello', 42);
+  });
+});
+
+describe('watchlist bulk-add eligibility', () => {
+  test('excludes terminal and postponed statuses', () => {
+    expect(isMatchEligibleForWatchlistBulkAdd('NS')).toBe(true);
+    expect(isMatchEligibleForWatchlistBulkAdd('1H')).toBe(true);
+    expect(isMatchEligibleForWatchlistBulkAdd('FT')).toBe(false);
+    expect(isMatchEligibleForWatchlistBulkAdd('PST')).toBe(false);
+  });
+
+  test('counts eligible and new watchlist candidates by league', () => {
+    const matches = [
+      { match_id: '1', league_id: 39, status: 'NS' },
+      { match_id: '2', league_id: 39, status: 'FT' },
+      { match_id: '3', league_id: 140, status: 'NS' },
+    ];
+    const watched = new Set(['1']);
+    expect(countEligibleWatchlistCandidates(matches, [39, 140], watched)).toEqual({
+      eligible: 2,
+      newMatches: 1,
+    });
   });
 });

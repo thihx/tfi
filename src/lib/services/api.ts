@@ -338,6 +338,44 @@ export interface RecommendationQueryParams {
   sort_dir?: string;
 }
 
+export interface RecommendationListSummary {
+  total: number;
+  won: number;
+  lost: number;
+  push: number;
+  voided: number;
+  pending: number;
+  review: number;
+  pnl: number;
+}
+
+export interface RecommendationChartPoint {
+  idx: number;
+  cumulative: number;
+}
+
+function buildRecommendationQueryString(params: RecommendationQueryParams, keys?: Array<keyof RecommendationQueryParams>): string {
+  const qs = new URLSearchParams();
+  const entries: Array<[keyof RecommendationQueryParams, string | undefined]> = [
+    ['limit', params.limit != null ? String(params.limit) : undefined],
+    ['offset', params.offset != null ? String(params.offset) : undefined],
+    ['result', params.result && params.result !== 'all' ? params.result : undefined],
+    ['bet_type', params.bet_type && params.bet_type !== 'all' ? params.bet_type : undefined],
+    ['search', params.search || undefined],
+    ['league', params.league && params.league !== 'all' ? params.league : undefined],
+    ['date_from', params.date_from || undefined],
+    ['date_to', params.date_to || undefined],
+    ['risk_level', params.risk_level && params.risk_level !== 'all' ? params.risk_level : undefined],
+    ['sort_by', params.sort_by || undefined],
+    ['sort_dir', params.sort_dir || undefined],
+  ];
+  for (const [key, value] of entries) {
+    if (keys && !keys.includes(key)) continue;
+    if (value) qs.set(key, value);
+  }
+  return qs.toString();
+}
+
 export interface PaginatedRecommendationDeliveries {
   rows: RecommendationDelivery[];
   total: number;
@@ -355,43 +393,53 @@ export async function fetchRecommendationsPaginated(
   config: AppConfig,
   params: RecommendationQueryParams,
 ): Promise<PaginatedRecommendations> {
-  const qs = new URLSearchParams();
-  if (params.limit) qs.set('limit', String(params.limit));
-  if (params.offset) qs.set('offset', String(params.offset));
-  if (params.result && params.result !== 'all') qs.set('result', params.result);
-  if (params.bet_type && params.bet_type !== 'all') qs.set('bet_type', params.bet_type);
-  if (params.search) qs.set('search', params.search);
-  if (params.league && params.league !== 'all') qs.set('league', params.league);
-  if (params.date_from) qs.set('date_from', params.date_from);
-  if (params.date_to) qs.set('date_to', params.date_to);
-  if (params.risk_level && params.risk_level !== 'all') qs.set('risk_level', params.risk_level);
-  if (params.sort_by) qs.set('sort_by', params.sort_by);
-  if (params.sort_dir) qs.set('sort_dir', params.sort_dir);
-  return pgFetch<PaginatedRecommendations>(config, `/api/recommendations?${qs.toString()}`);
+  const qs = buildRecommendationQueryString(params);
+  return pgFetch<PaginatedRecommendations>(config, `/api/recommendations?${qs}`);
+}
+
+export async function fetchRecommendationsSummary(
+  config: AppConfig,
+  params: RecommendationQueryParams,
+): Promise<RecommendationListSummary> {
+  const qs = buildRecommendationQueryString(params, ['result', 'bet_type', 'search', 'league', 'date_from', 'date_to', 'risk_level']);
+  return pgFetch<RecommendationListSummary>(config, `/api/recommendations/summary?${qs}`);
+}
+
+export async function fetchRecommendationsChartSeries(
+  config: AppConfig,
+  params: RecommendationQueryParams,
+): Promise<RecommendationChartPoint[]> {
+  const qs = buildRecommendationQueryString(params, ['result', 'bet_type', 'search', 'league', 'date_from', 'date_to', 'risk_level']);
+  return pgFetch<RecommendationChartPoint[]>(config, `/api/recommendations/chart-series?${qs}`);
 }
 
 export async function fetchRecommendationDeliveriesPaginated(
   config: AppConfig,
   params: RecommendationDeliveryQueryParams,
 ): Promise<PaginatedRecommendationDeliveries> {
-  const qs = new URLSearchParams();
-  if (params.limit) qs.set('limit', String(params.limit));
-  if (params.offset) qs.set('offset', String(params.offset));
+  const qs = new URLSearchParams(buildRecommendationQueryString(params));
   if (params.matchId) qs.set('matchId', params.matchId);
   if (params.eligibilityStatus && params.eligibilityStatus !== 'all') qs.set('eligibilityStatus', params.eligibilityStatus);
   if (params.deliveryStatus && params.deliveryStatus !== 'all') qs.set('deliveryStatus', params.deliveryStatus);
   if (typeof params.includeHidden === 'boolean') qs.set('includeHidden', String(params.includeHidden));
   if (typeof params.dismissed === 'boolean') qs.set('dismissed', String(params.dismissed));
-  if (params.result && params.result !== 'all') qs.set('result', params.result);
-  if (params.bet_type && params.bet_type !== 'all') qs.set('bet_type', params.bet_type);
-  if (params.search) qs.set('search', params.search);
-  if (params.league && params.league !== 'all') qs.set('league', params.league);
-  if (params.date_from) qs.set('date_from', params.date_from);
-  if (params.date_to) qs.set('date_to', params.date_to);
-  if (params.risk_level && params.risk_level !== 'all') qs.set('risk_level', params.risk_level);
-  if (params.sort_by) qs.set('sort_by', params.sort_by);
-  if (params.sort_dir) qs.set('sort_dir', params.sort_dir);
   return pgFetch<PaginatedRecommendationDeliveries>(config, `/api/me/recommendation-deliveries?${qs.toString()}`);
+}
+
+export async function fetchRecommendationDeliveriesSummary(
+  config: AppConfig,
+  params: RecommendationDeliveryQueryParams,
+): Promise<RecommendationListSummary> {
+  const qs = buildRecommendationQueryString(params, ['result', 'bet_type', 'search', 'league', 'date_from', 'date_to', 'risk_level']);
+  return pgFetch<RecommendationListSummary>(config, `/api/me/recommendation-deliveries/summary?${qs}`);
+}
+
+export async function fetchRecommendationDeliveriesChartSeries(
+  config: AppConfig,
+  params: RecommendationDeliveryQueryParams,
+): Promise<RecommendationChartPoint[]> {
+  const qs = buildRecommendationQueryString(params, ['result', 'bet_type', 'search', 'league', 'date_from', 'date_to', 'risk_level']);
+  return pgFetch<RecommendationChartPoint[]>(config, `/api/me/recommendation-deliveries/chart-series?${qs}`);
 }
 
 export async function fetchMyBankroll(config: AppConfig): Promise<BankrollSnapshot> {
