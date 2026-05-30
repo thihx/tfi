@@ -17,9 +17,10 @@ interface DatePickerProps {
   title?: string;
   className?: string;
   style?: React.CSSProperties;
+  id?: string;
 }
 
-export function DatePicker({ value, onChange, placeholder = 'DD-MMM-YYYY', title, className, style }: DatePickerProps) {
+export function DatePicker({ value, onChange, placeholder = 'DD-MMM-YYYY', title, className, style, id }: DatePickerProps) {
   const dateInputRef = useRef<HTMLInputElement | null>(null);
   const onChangeRef = useRef(onChange);
   useEffect(() => { onChangeRef.current = onChange; });
@@ -53,6 +54,7 @@ export function DatePicker({ value, onChange, placeholder = 'DD-MMM-YYYY', title
     <input
       type="text"
       readOnly
+      id={id}
       className={className}
       value={value ? formatIsoToDisplay(value) : ''}
       placeholder={placeholder}

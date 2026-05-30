@@ -91,6 +91,19 @@ beforeEach(() => {
 });
 
 beforeAll(() => {
+  Object.defineProperty(window, 'matchMedia', {
+    writable: true,
+    value: vi.fn().mockImplementation((query: string) => ({
+      matches: false,
+      media: query,
+      onchange: null,
+      addListener: vi.fn(),
+      removeListener: vi.fn(),
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
+      dispatchEvent: vi.fn(),
+    })),
+  });
   class ResizeObserverMock {
     observe() {}
     disconnect() {}
@@ -122,14 +135,14 @@ describe('WatchlistTab filtering', () => {
 });
 
 describe('WatchlistTab clear filters', () => {
-  it('clears keyword filter when clicking Clear Filters', async () => {
+  it('clears keyword filter when clicking Clear all', async () => {
     const user = userEvent.setup();
     render(<WatchlistTab />);
 
     await user.type(screen.getByPlaceholderText(/search teams/i), 'arsenal');
     await waitFor(() => expect(getVisibleTeams()).not.toContain('PSG'));
 
-    await user.click(screen.getByText('Clear Filters'));
+    await user.click(screen.getByRole('button', { name: 'Clear all' }));
     expect(getVisibleTeams()).toContain('PSG');
   });
 });

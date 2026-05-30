@@ -1,10 +1,12 @@
-import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
+import { useState, useEffect, useCallback, useRef, useMemo, type KeyboardEvent } from 'react';
 import { useAppState } from '@/hooks/useAppState';
 import { useToast } from '@/hooks/useToast';
 import { formatLocalDateTime } from '@/lib/utils/helpers';
 import { AuditLogsPanel } from '@/components/AuditLogsPanel';
 import { IntegrationHealthPanel } from '@/components/IntegrationHealthPanel';
 import { OpsMonitoringPanel } from '@/components/OpsMonitoringPanel';
+import { Modal } from '@/components/ui/Modal';
+import { EmptyState } from '@/components/ui/EmptyState';
 import { fetchCurrentUser, getToken, getUser } from '@/lib/services/auth';
 import { internalApiUrl } from '@/lib/internal-api';
 import {
@@ -235,6 +237,28 @@ function formatBankrollAmount(value: number | string | null | undefined, currenc
   return `${display} (${fullText} ${currency})`;
 }
 
+const BANKROLL_ENTRY_LABELS: Record<string, string> = {
+  deposit: 'Deposit',
+  reset: 'Reset',
+  withdrawal: 'Withdrawal',
+  bet_stake: 'Bet stake',
+  bet_payout: 'Bet payout',
+  adjustment: 'Adjustment',
+};
+
+function formatBankrollEntryType(entryType: string): string {
+  return BANKROLL_ENTRY_LABELS[entryType] ?? entryType.replace(/_/g, ' ');
+}
+
+const SUBSCRIPTION_STATUS_LABELS: Record<SubscriptionStatus, string> = {
+  trialing: 'Trialing',
+  active: 'Active',
+  past_due: 'Past due',
+  paused: 'Paused',
+  canceled: 'Canceled',
+  expired: 'Expired',
+};
+
 function BankrollPanel() {
   const { state } = useAppState();
   const { showToast } = useToast();
@@ -245,6 +269,7 @@ function BankrollPanel() {
   const [depositDraft, setDepositDraft] = useState('');
   const [currencyDraft, setCurrencyDraft] = useState('VND');
   const [multiplierDraft, setMultiplierDraft] = useState('1000');
+  const [resetConfirmOpen, setResetConfirmOpen] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -285,6 +310,7 @@ function BankrollPanel() {
         note: 'User reset bankroll',
       });
       setSnapshot(next);
+      setResetConfirmOpen(false);
       showToast('Bankroll reset.', 'success');
     } catch (err) {
       showToast(err instanceof Error ? err.message : 'Failed to reset bankroll', 'error');
@@ -317,7 +343,7 @@ function BankrollPanel() {
 
   return (
     <div className="settings-section">
-      <div className="section-header">
+      <div className="settings-section-header">
         <div>
           <h3>Bankroll Discipline</h3>
           <p>Set a personal investment bankroll. AI stake % is converted into a concrete bet amount for your delivery messages.</p>
@@ -328,14 +354,14 @@ function BankrollPanel() {
       <div className="settings-metric-grid">
         <div className="card settings-metric-card">
           <div className="settings-metric-card__label">Current Balance</div>
-          <div className="settings-metric-card__value">
-            {account ? formatBankrollAmount(account.current_balance, currency, multiplier) : '-'}
+          <div className="settings-metric-card__value" aria-busy={loading}>
+            {loading && !account ? '…' : account ? formatBankrollAmount(account.current_balance, currency, multiplier) : '-'}
           </div>
         </div>
         <div className="card settings-metric-card">
           <div className="settings-metric-card__label">Initial Capital</div>
-          <div className="settings-metric-card__value">
-            {account ? formatBankrollAmount(account.initial_balance, currency, multiplier) : '-'}
+          <div className="settings-metric-card__value" aria-busy={loading}>
+            {loading && !account ? '…' : account ? formatBankrollAmount(account.initial_balance, currency, multiplier) : '-'}
           </div>
         </div>
       </div>
@@ -343,38 +369,73 @@ function BankrollPanel() {
       <div className="settings-form-grid">
         <div className="card settings-form-card">
           <div className="settings-form-card__title">Reset bankroll</div>
+          <p className="settings-form-card__hint">Overwrites your balance and sets a new starting capital. This cannot be undone.</p>
           <div className="settings-form-card__fields">
-            <input className="filter-input" type="number" min="0" step="0.01" value={balanceDraft} onChange={(e) => setBalanceDraft(e.target.value)} placeholder="1000" />
-            <input className="filter-input" value={currencyDraft} onChange={(e) => setCurrencyDraft(e.target.value.toUpperCase())} placeholder="VND" />
-            <input className="filter-input" type="number" min="1" step="1" value={multiplierDraft} onChange={(e) => setMultiplierDraft(e.target.value)} placeholder="1000" />
-            <button type="button" className="btn btn-primary btn-sm" onClick={() => { void handleReset(); }} disabled={saving}>Reset</button>
+            <label className="settings-field-label">
+              Starting balance (units)
+              <input className="filter-input" type="number" min="0" step="0.01" value={balanceDraft} onChange={(e) => setBalanceDraft(e.target.value)} />
+            </label>
+            <label className="settings-field-label">
+              Currency
+              <input className="filter-input" value={currencyDraft} onChange={(e) => setCurrencyDraft(e.target.value.toUpperCase())} placeholder="VND" />
+            </label>
+            <label className="settings-field-label">
+              Unit multiplier
+              <input className="filter-input" type="number" min="1" step="1" value={multiplierDraft} onChange={(e) => setMultiplierDraft(e.target.value)} />
+            </label>
+            <button type="button" className="btn btn-danger btn-sm" onClick={() => setResetConfirmOpen(true)} disabled={saving}>Reset</button>
           </div>
         </div>
         <div className="card settings-form-card">
           <div className="settings-form-card__title">Top up</div>
           <div className="settings-form-card__fields">
-            <input className="filter-input" type="number" min="0.01" step="0.01" value={depositDraft} onChange={(e) => setDepositDraft(e.target.value)} placeholder="Amount" />
-            <button type="button" className="btn btn-secondary btn-sm" onClick={() => { void handleDeposit(); }} disabled={saving}>Add Funds</button>
+            <label className="settings-field-label">
+              Amount (units)
+              <input className="filter-input" type="number" min="0.01" step="0.01" value={depositDraft} onChange={(e) => setDepositDraft(e.target.value)} placeholder="Amount" />
+            </label>
+            <button type="button" className="btn btn-primary btn-sm" onClick={() => { void handleDeposit(); }} disabled={saving || !depositDraft}>Add Funds</button>
           </div>
         </div>
       </div>
 
-      {snapshot && snapshot.recentLedger.length > 0 && (
+      {snapshot && (
         <div>
           <div className="settings-form-card__title">Recent ledger</div>
-          <div className="card settings-ledger-list">
-            {snapshot.recentLedger.slice(0, 8).map((entry) => (
-              <div key={entry.id} className="settings-ledger-row">
-                <span style={{ fontWeight: 700 }}>{entry.entry_type}</span>
-                <span className="text-muted">{entry.note || '-'}</span>
-                <span style={{ textAlign: 'right', color: entry.amount >= 0 ? 'var(--success)' : 'var(--danger)', fontWeight: 700 }}>
-                  {entry.amount >= 0 ? '+' : ''}{entry.amount.toFixed(2)}
-                </span>
-              </div>
-            ))}
-          </div>
+          {snapshot.recentLedger.length > 0 ? (
+            <div className="card settings-ledger-list">
+              {snapshot.recentLedger.slice(0, 8).map((entry) => (
+                <div key={entry.id} className="settings-ledger-row">
+                  <span style={{ fontWeight: 700 }}>{formatBankrollEntryType(entry.entry_type)}</span>
+                  <span className="text-muted">{entry.note || '-'}</span>
+                  <span style={{ textAlign: 'right', color: entry.amount >= 0 ? 'var(--success)' : 'var(--danger)', fontWeight: 700 }}>
+                    {entry.amount >= 0 ? '+' : ''}{entry.amount.toFixed(2)}
+                  </span>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <EmptyState title="No ledger entries yet. Top up or place bets to see activity here." />
+          )}
         </div>
       )}
+
+      <Modal
+        open={resetConfirmOpen}
+        title="Reset bankroll?"
+        onClose={() => { if (!saving) setResetConfirmOpen(false); }}
+        footer={(
+          <>
+            <button type="button" className="btn btn-secondary" onClick={() => setResetConfirmOpen(false)} disabled={saving}>Cancel</button>
+            <button type="button" className="btn btn-danger" onClick={() => { void handleReset(); }} disabled={saving}>
+              {saving ? 'Resetting…' : 'Reset bankroll'}
+            </button>
+          </>
+        )}
+      >
+        <p style={{ margin: 0, color: 'var(--gray-600)', fontSize: '14px', lineHeight: 1.5 }}>
+          Set balance to {balanceDraft} {currencyDraft} (×{multiplierDraft} per unit)? Your current balance will be replaced.
+        </p>
+      </Modal>
     </div>
   );
 }
@@ -405,6 +466,34 @@ function safeParseJsonObject(raw: string): Record<string, unknown> {
     throw new Error('JSON must be an object');
   }
   return parsed as Record<string, unknown>;
+}
+
+function getPlanJsonFieldErrors(draft: SubscriptionPlanDraft): { entitlements?: string; metadata?: string } {
+  const errors: { entitlements?: string; metadata?: string } = {};
+  try {
+    safeParseJsonObject(draft.entitlementsJson);
+  } catch (err) {
+    errors.entitlements = err instanceof Error ? err.message : 'Invalid JSON';
+  }
+  try {
+    safeParseJsonObject(draft.metadataJson);
+  } catch (err) {
+    errors.metadata = err instanceof Error ? err.message : 'Invalid JSON';
+  }
+  return errors;
+}
+
+function planDraftMatchesSaved(plan: SubscriptionPlanRecord, draft: SubscriptionPlanDraft): boolean {
+  return draft.display_name === plan.display_name
+    && draft.description === (plan.description ?? '')
+    && draft.billing_interval === plan.billing_interval
+    && draft.price_amount === plan.price_amount
+    && draft.currency === plan.currency
+    && draft.active === plan.active
+    && draft.public === plan.public
+    && draft.display_order === String(plan.display_order)
+    && draft.entitlementsJson === JSON.stringify(plan.entitlements, null, 2)
+    && draft.metadataJson === JSON.stringify(plan.metadata, null, 2);
 }
 
 interface SubscriptionPlanDraft {
@@ -455,6 +544,8 @@ function JobSchedulerPanel() {
   const [jobRunsByName, setJobRunsByName] = useState<Record<string, JobRunHistoryRow[]>>({});
   const [historyLoadingByName, setHistoryLoadingByName] = useState<Record<string, boolean>>({});
   const [historyErrorByName, setHistoryErrorByName] = useState<Record<string, string | null>>({});
+  const [jobsLoading, setJobsLoading] = useState(true);
+  const [jobsError, setJobsError] = useState<string | null>(null);
   const apiUrl = state.config.apiUrl;
   const hasRunningJob = jobs.some((j) => j.running);
 
@@ -468,8 +559,15 @@ function JobSchedulerPanel() {
         if (!Array.isArray(payload) && payload.footballApiCircuit) {
           setFootballApiCircuit(payload.footballApiCircuit);
         }
+        setJobsError(null);
+      } else {
+        setJobsError(`Unable to load jobs (HTTP ${res.status}).`);
       }
-    } catch { /* server offline */ }
+    } catch {
+      setJobsError('Unable to reach the job scheduler. Check your connection and try again.');
+    } finally {
+      setJobsLoading(false);
+    }
   }, [apiUrl]);
 
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -756,7 +854,15 @@ function JobSchedulerPanel() {
           </div>
         );
       })}
-      {jobs.length === 0 && <p className="text-muted">Connecting to server...</p>}
+      {jobsError && jobs.length === 0 ? (
+        <div className="settings-banner settings-banner--error" role="alert">{jobsError}</div>
+      ) : null}
+      {jobsLoading && jobs.length === 0 ? (
+        <p className="text-muted">Loading background jobs…</p>
+      ) : null}
+      {!jobsLoading && !jobsError && jobs.length === 0 ? (
+        <EmptyState title="No background jobs are configured on this server." />
+      ) : null}
     </div>
   );
 }
@@ -787,16 +893,6 @@ const STATUS_BADGE: Record<string, { bg: string; color: string }> = {
   active:   { bg: '#dcfce7', color: '#166534' },
   disabled: { bg: '#fee2e2', color: '#b91c1c' },
   invited:  { bg: '#fef9c3', color: '#92400e' },
-};
-
-const DEFAULT_SUB_STATUS_BADGE = { bg: 'var(--gray-100)', color: 'var(--gray-500)' } as const;
-const SUB_STATUS_BADGE: Record<string, { bg: string; color: string }> = {
-  trialing: { bg: '#ede9fe', color: '#6d28d9' },
-  active:   { bg: '#dcfce7', color: '#166534' },
-  past_due: { bg: '#fee2e2', color: '#b91c1c' },
-  paused:   { bg: 'var(--gray-100)', color: 'var(--gray-600)' },
-  canceled: { bg: '#fee2e2', color: '#9f1239' },
-  expired:  { bg: 'var(--gray-100)', color: 'var(--gray-400)' },
 };
 
 function UserManagementPanel({
@@ -893,7 +989,9 @@ function UserManagementPanel({
         <div style={{ fontSize: '12px', color: 'var(--gray-500)' }}>Loading users...</div>
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-          {users.map((row) => {
+          {users.length === 0 ? (
+            <EmptyState title="No users found. New accounts will appear here after sign-in." />
+          ) : users.map((row) => {
             const draft = drafts[row.id] ?? { role: row.role, status: row.status };
             const isOwner = row.role === 'owner';
             const isSelf = currentUserId === row.id;
@@ -1292,11 +1390,16 @@ function SubscriptionManagementPanel() {
           {/* Plan cards */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
             <div style={{ fontSize: '12px', fontWeight: 600, color: 'var(--gray-600)', letterSpacing: '0.3px' }}>Subscription Plans</div>
-            {plans.map((plan) => {
+            {plans.length === 0 ? (
+              <EmptyState title="No subscription plans configured yet." />
+            ) : plans.map((plan) => {
               const draft = planDrafts[plan.plan_code];
               if (!draft) return null;
               const isExpanded = expandedPlanCodes.has(plan.plan_code);
               const isSaving = planSavingCode === plan.plan_code;
+              const isDirty = !planDraftMatchesSaved(plan, draft);
+              const jsonErrors = getPlanJsonFieldErrors(draft);
+              const hasJsonErrors = !!(jsonErrors.entitlements || jsonErrors.metadata);
               return (
                 <div key={plan.plan_code} style={{ border: '1px solid var(--gray-200)', borderRadius: '10px', overflow: 'hidden' }}>
                   <div style={{ padding: '12px 16px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '12px', background: 'var(--gray-50)', flexWrap: 'wrap' }}>
@@ -1314,7 +1417,12 @@ function SubscriptionManagementPanel() {
                         {isExpanded ? 'Collapse' : 'Edit'}
                       </button>
                       {isExpanded && (
-                        <button className="btn btn-primary btn-sm" onClick={() => { void handlePlanSave(plan); }} disabled={isSaving}>
+                        <button
+                          className="btn btn-primary btn-sm"
+                          onClick={() => { void handlePlanSave(plan); }}
+                          disabled={isSaving || !isDirty || hasJsonErrors}
+                          title={!isDirty ? 'No changes to save' : hasJsonErrors ? 'Fix JSON errors before saving' : undefined}
+                        >
                           {isSaving ? 'Saving…' : 'Save Plan'}
                         </button>
                       )}
@@ -1365,7 +1473,16 @@ function SubscriptionManagementPanel() {
                       <div className="settings-plan-json-grid">
                         <label style={{ display: 'flex', flexDirection: 'column', gap: '6px', fontSize: '11px', color: 'var(--gray-500)' }}>
                           Entitlements JSON
-                          <textarea className="filter-input" rows={10} value={draft.entitlementsJson} onChange={(e) => handlePlanDraftChange(plan.plan_code, 'entitlementsJson', e.target.value)} />
+                          <textarea
+                            className={`filter-input${jsonErrors.entitlements ? ' filter-input--invalid' : ''}`}
+                            rows={10}
+                            value={draft.entitlementsJson}
+                            onChange={(e) => handlePlanDraftChange(plan.plan_code, 'entitlementsJson', e.target.value)}
+                            aria-invalid={jsonErrors.entitlements ? true : undefined}
+                          />
+                          {jsonErrors.entitlements && (
+                            <span className="settings-field-error">{jsonErrors.entitlements}</span>
+                          )}
                         </label>
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
                           <div style={{ fontSize: '11px', color: 'var(--gray-500)' }}>Catalog reference</div>
@@ -1380,7 +1497,16 @@ function SubscriptionManagementPanel() {
                           </div>
                           <label style={{ display: 'flex', flexDirection: 'column', gap: '6px', fontSize: '11px', color: 'var(--gray-500)' }}>
                             Metadata JSON
-                            <textarea className="filter-input" rows={4} value={draft.metadataJson} onChange={(e) => handlePlanDraftChange(plan.plan_code, 'metadataJson', e.target.value)} />
+                            <textarea
+                              className={`filter-input${jsonErrors.metadata ? ' filter-input--invalid' : ''}`}
+                              rows={4}
+                              value={draft.metadataJson}
+                              onChange={(e) => handlePlanDraftChange(plan.plan_code, 'metadataJson', e.target.value)}
+                              aria-invalid={jsonErrors.metadata ? true : undefined}
+                            />
+                            {jsonErrors.metadata && (
+                              <span className="settings-field-error">{jsonErrors.metadata}</span>
+                            )}
                           </label>
                         </div>
                       </div>
@@ -1433,7 +1559,6 @@ function SubscriptionManagementPanel() {
                   currentPeriodEnd: toDateTimeLocalValue(row.subscription_current_period_end),
                   cancelAtPeriodEnd: row.subscription_cancel_at_period_end ?? false,
                 };
-                const statusStyle = SUB_STATUS_BADGE[draft.status] ?? DEFAULT_SUB_STATUS_BADGE;
                 const roleStyle = ROLE_BADGE[row.role] ?? DEFAULT_ROLE_BADGE;
                 const noSubscriptionRow = row.subscription_plan_code == null;
                 return (
@@ -1474,18 +1599,12 @@ function SubscriptionManagementPanel() {
                     </div>
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '5px' }}>
                       <div style={{ fontSize: '10px', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.5px', color: 'var(--gray-400)' }}>Status</div>
-                      <div className="settings-sub-status-inner" style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
-                        <select className="job-interval-select" value={draft.status} onChange={(e) => handleSubscriptionDraftChange(row.id, 'status', e.target.value as SubscriptionStatus)} style={{ fontSize: '12px' }}>
-                          <option value="trialing">trialing</option>
-                          <option value="active">active</option>
-                          <option value="past_due">past_due</option>
-                          <option value="paused">paused</option>
-                          <option value="canceled">canceled</option>
-                          <option value="expired">expired</option>
+                      <div className="settings-sub-status-inner">
+                        <select className="job-interval-select" value={draft.status} onChange={(e) => handleSubscriptionDraftChange(row.id, 'status', e.target.value as SubscriptionStatus)} style={{ fontSize: '12px' }} aria-label={`Status for ${row.email}`}>
+                          {(Object.keys(SUBSCRIPTION_STATUS_LABELS) as SubscriptionStatus[]).map((status) => (
+                            <option key={status} value={status}>{SUBSCRIPTION_STATUS_LABELS[status]}</option>
+                          ))}
                         </select>
-                        <span style={{ padding: '2px 7px', borderRadius: '999px', fontSize: '10px', fontWeight: 600, background: statusStyle.bg, color: statusStyle.color, flexShrink: 0 }}>
-                          {draft.status}
-                        </span>
                       </div>
                     </div>
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '5px' }}>
@@ -1552,12 +1671,28 @@ type SettingsTab = 'bankroll' | 'user-mgmt' | 'subscription-mgmt' | 'scheduler' 
 
 const ALL_TABS: { id: SettingsTab; label: string; adminOnly?: boolean; adminStrictOnly?: boolean }[] = [
   { id: 'bankroll',          label: 'Bankroll' },
-  { id: 'user-mgmt',         label: 'User',         adminOnly: true },
+  { id: 'user-mgmt',         label: 'Users',        adminOnly: true },
   { id: 'subscription-mgmt', label: 'Subscription', adminOnly: true },
   { id: 'scheduler',         label: 'Scheduler' },
   { id: 'system',            label: 'System' },
   { id: 'audit',             label: 'Audit' },
 ];
+
+const SETTINGS_TAB_STORAGE_KEY = 'tfi:settings:activeTab';
+
+function readStoredSettingsTab(): SettingsTab {
+  try {
+    const raw = localStorage.getItem(SETTINGS_TAB_STORAGE_KEY);
+    if (raw === 'bankroll' || raw === 'user-mgmt' || raw === 'subscription-mgmt' || raw === 'scheduler' || raw === 'system' || raw === 'audit') {
+      return raw;
+    }
+  } catch { /* storage unavailable */ }
+  return 'bankroll';
+}
+
+function isAdminOnlyTab(tab: SettingsTab): boolean {
+  return tab === 'user-mgmt' || tab === 'subscription-mgmt';
+}
 
 // ── Main component ───────────────────────────────────────────────────────────
 
@@ -1566,7 +1701,7 @@ export function SettingsTab() {
   const isAdminOrOwner = authUser?.role === 'admin' || authUser?.role === 'owner';
   const isAdminOnly = authUser?.role === 'admin';
   useToast();
-  const [activeTab, setActiveTab] = useState<SettingsTab>('scheduler');
+  const [activeTab, setActiveTab] = useState<SettingsTab>(readStoredSettingsTab);
   useEffect(() => {
     let mounted = true;
     void fetchCurrentUser()
@@ -1578,15 +1713,45 @@ export function SettingsTab() {
     return () => { mounted = false; };
   }, []);
 
+  useEffect(() => {
+    if (isAdminOnlyTab(activeTab) && !isAdminOrOwner) {
+      setActiveTab('bankroll');
+      return;
+    }
+    try {
+      localStorage.setItem(SETTINGS_TAB_STORAGE_KEY, activeTab);
+    } catch { /* storage unavailable */ }
+  }, [activeTab, isAdminOrOwner]);
+
+  const visibleTabs = useMemo(
+    () => ALL_TABS.filter((tab) => {
+      if (tab.adminStrictOnly) return isAdminOnly;
+      if (tab.adminOnly) return isAdminOrOwner;
+      return true;
+    }),
+    [isAdminOnly, isAdminOrOwner],
+  );
+
+  const handleTabKeyDown = useCallback((event: KeyboardEvent<HTMLButtonElement>, index: number) => {
+    const lastIndex = visibleTabs.length - 1;
+    let nextIndex: number | null = null;
+    if (event.key === 'ArrowRight') nextIndex = index >= lastIndex ? 0 : index + 1;
+    else if (event.key === 'ArrowLeft') nextIndex = index <= 0 ? lastIndex : index - 1;
+    else if (event.key === 'Home') nextIndex = 0;
+    else if (event.key === 'End') nextIndex = lastIndex;
+    if (nextIndex == null) return;
+    event.preventDefault();
+    const nextTab = visibleTabs[nextIndex];
+    if (!nextTab) return;
+    setActiveTab(nextTab.id);
+    document.getElementById(`settings-tab-${nextTab.id}`)?.focus();
+  }, [visibleTabs]);
+
   return (
     <div className="settings-tab-root">
       {/* Tab bar — horizontal scroll on narrow screens */}
       <div className="settings-tab-bar" role="tablist" aria-label="Settings sections">
-        {ALL_TABS.filter((tab) => {
-          if (tab.adminStrictOnly) return isAdminOnly;
-          if (tab.adminOnly) return isAdminOrOwner;
-          return true;
-        }).map((tab) => {
+        {visibleTabs.map((tab, index) => {
           const active = activeTab === tab.id;
           return (
             <button
@@ -1594,9 +1759,12 @@ export function SettingsTab() {
               type="button"
               role="tab"
               aria-selected={active}
+              aria-controls={`settings-panel-${tab.id}`}
+              tabIndex={active ? 0 : -1}
               id={`settings-tab-${tab.id}`}
               className={`settings-tab-button${active ? ' settings-tab-button--active' : ''}`}
               onClick={() => setActiveTab(tab.id)}
+              onKeyDown={(event) => handleTabKeyDown(event, index)}
             >
               {tab.label}
             </button>
@@ -1607,21 +1775,36 @@ export function SettingsTab() {
 
       {/* Tab: Bankroll */}
       {activeTab === 'bankroll' && (
-        <div className="settings-content">
+        <div
+          id="settings-panel-bankroll"
+          role="tabpanel"
+          aria-labelledby="settings-tab-bankroll"
+          className="settings-content"
+        >
           <BankrollPanel />
         </div>
       )}
 
       {/* Tab: Scheduler */}
       {activeTab === 'scheduler' && (
-        <div className="card settings-scheduler-card">
+        <div
+          id="settings-panel-scheduler"
+          role="tabpanel"
+          aria-labelledby="settings-tab-scheduler"
+          className="card settings-scheduler-card"
+        >
           <JobSchedulerPanel />
         </div>
       )}
 
       {/* Tab: System */}
       {activeTab === 'system' && (
-        <div className="settings-stack">
+        <div
+          id="settings-panel-system"
+          role="tabpanel"
+          aria-labelledby="settings-tab-system"
+          className="settings-stack"
+        >
           <div className="card settings-panel-card">
             <div className="settings-panel-card__header">Ops Monitoring</div>
             <div className="settings-panel-card__body">
@@ -1637,9 +1820,14 @@ export function SettingsTab() {
         </div>
       )}
 
-      {/* Tab: User (admin/owner only) */}
+      {/* Tab: Users (admin/owner only) */}
       {activeTab === 'user-mgmt' && isAdminOrOwner && (
-        <div className="card settings-panel-card">
+        <div
+          id="settings-panel-user-mgmt"
+          role="tabpanel"
+          aria-labelledby="settings-tab-user-mgmt"
+          className="card settings-panel-card"
+        >
           <div className="settings-panel-padding">
             <UserManagementPanel currentUserId={authUser?.userId ?? null} currentUserRole={authUser?.role ?? null} />
           </div>
@@ -1648,7 +1836,12 @@ export function SettingsTab() {
 
       {/* Tab: Subscription (admin/owner only) */}
       {activeTab === 'subscription-mgmt' && isAdminOrOwner && (
-        <div className="card settings-panel-card">
+        <div
+          id="settings-panel-subscription-mgmt"
+          role="tabpanel"
+          aria-labelledby="settings-tab-subscription-mgmt"
+          className="card settings-panel-card"
+        >
           <div className="settings-panel-padding">
             <SubscriptionManagementPanel />
           </div>
@@ -1657,7 +1850,12 @@ export function SettingsTab() {
 
       {/* Tab: Audit */}
       {activeTab === 'audit' && (
-        <div className="card settings-panel-card">
+        <div
+          id="settings-panel-audit"
+          role="tabpanel"
+          aria-labelledby="settings-tab-audit"
+          className="card settings-panel-card"
+        >
           <div className="settings-panel-card__header">Audit Trail</div>
           <div className="settings-panel-padding">
             <AuditLogsPanel />

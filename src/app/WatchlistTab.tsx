@@ -5,12 +5,13 @@ import { useToast } from '@/hooks/useToast';
 import { useUserTimeZone } from '@/hooks/useUserTimeZone';
 import { useViewMode } from '@/hooks/useViewMode';
 import { Pagination } from '@/components/ui/Pagination';
+import { ActiveFilterChips, type ActiveFilterChip } from '@/components/ui/ActiveFilterChips';
 import { ViewToggle } from '@/components/ui/ViewToggle';
 import { BulkActionBar } from '@/components/ui/BulkActionBar';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { PLACEHOLDER_HOME, PLACEHOLDER_AWAY, LIVE_STATUSES } from '@/config/constants';
 import { Modal } from '@/components/ui/Modal';
-import { formatDateTimeDisplay, getKickoffDateKey, getKickoffDateTime, getLeagueDisplayName, debounce } from '@/lib/utils/helpers';
+import { formatDateTimeDisplay, getKickoffDateKey, getKickoffDateTime, getLeagueDisplayName, debounce, isNarrowTabViewport } from '@/lib/utils/helpers';
 import { MatchHubModal } from '@/components/ui/MatchHubModal';
 import { WatchlistEditModal } from '@/components/ui/WatchlistEditModal';
 import { WatchlistCard } from '@/components/ui/WatchlistCard';
@@ -78,6 +79,7 @@ export function WatchlistTab() {
   // Delete confirm
   const [deleteConfirm, setDeleteConfirm] = useState<string[] | null>(null);
   const [scoutItem, setScoutItem] = useState<WatchlistItem | null>(null);
+  const [filterSheetOpen, setFilterSheetOpen] = useState(false);
 
   // Debounced search
   const [debouncedSearch, setDebouncedSearch] = useState('');
@@ -235,13 +237,35 @@ export function WatchlistTab() {
     : (!dateFrom && !dateTo) ? 'all'
     : 'custom';
 
-  const filterBadges: string[] = [];
-  if (debouncedSearch) filterBadges.push(`Teams: ${debouncedSearch}`);
-  if (leagueFilter) {
-    const op = leagueOptions.find((l) => l.id === leagueFilter);
-    filterBadges.push(`League: ${op?.displayName || leagueFilter}`);
-  }
-  if (dateFrom || dateTo) filterBadges.push(`Date: ${dateFrom || '—'} → ${dateTo || '—'}`);
+  const hasActiveFilters = !!(search || leagueFilter || dateFrom || dateTo);
+  const toolbarFilterCount = [leagueFilter, dateFrom, dateTo].filter(Boolean).length;
+
+  const activeFilterChips = useMemo((): ActiveFilterChip[] => {
+    const chips: ActiveFilterChip[] = [];
+    if (debouncedSearch) {
+      chips.push({
+        key: 'search',
+        label: `Teams: ${debouncedSearch}`,
+        onRemove: () => { setSearch(''); setDebouncedSearch(''); setPage(1); },
+      });
+    }
+    if (leagueFilter) {
+      const op = leagueOptions.find((l) => l.id === leagueFilter);
+      chips.push({
+        key: 'league',
+        label: `League: ${op?.displayName || leagueFilter}`,
+        onRemove: () => { setLeagueFilter(''); setPage(1); },
+      });
+    }
+    if (dateFrom || dateTo) {
+      chips.push({
+        key: 'date',
+        label: `Date: ${dateFrom || '—'} → ${dateTo || '—'}`,
+        onRemove: () => { setDateFrom(''); setDateTo(''); setPage(1); },
+      });
+    }
+    return chips;
+  }, [debouncedSearch, leagueFilter, dateFrom, dateTo, leagueOptions]);
 
   const emptyWatchlist = !debouncedSearch && !leagueFilter && !dateFrom && !dateTo;
   const emptyTitle = emptyWatchlist ? 'Your watchlist is empty' : 'No matches found for your filters';
@@ -271,27 +295,33 @@ export function WatchlistTab() {
           <span className="date-tab-bar__meta">{filtered.length} items</span>
         </div>
         <div className="page-toolbar">
-          <div className="page-toolbar__filters filters">
-            <input ref={searchRef} type="text" className="filter-input" placeholder="Search teams… ( / )" value={search} onChange={(e) => handleSearchChange(e.target.value)} />
-            <select className="filter-input" value={leagueFilter} onChange={(e) => handleLeagueFilterChange(e.target.value)}>
+          <div className="page-toolbar__filters filters tab-page-toolbar-filters">
+            <input ref={searchRef} id="watchlist-filter-search" type="text" className="filter-input" placeholder="Search teams… ( / )" value={search} onChange={(e) => handleSearchChange(e.target.value)} />
+            <button
+              type="button"
+              className="btn btn-secondary tab-filter-sheet-btn tab-toolbar-mobile-only"
+              onClick={() => setFilterSheetOpen(true)}
+              aria-label={`Open filters${toolbarFilterCount > 0 ? `, ${toolbarFilterCount} active` : ''}`}
+            >
+              Filters{toolbarFilterCount > 0 ? ` (${toolbarFilterCount})` : ''}
+            </button>
+            <div className="tab-page-filters-inline">
+            <select id="watchlist-filter-league" className="filter-input" value={leagueFilter} onChange={(e) => handleLeagueFilterChange(e.target.value)}>
               <option value="">All Leagues</option>
               {leagueOptions.map((l) => <option key={l.id} value={l.id}>{l.displayName} ({l.count})</option>)}
             </select>
-            <DatePicker className="filter-input" value={dateFrom} onChange={handleDateFromChange} title="From date" placeholder="From date" />
-            <DatePicker className="filter-input" value={dateTo} onChange={handleDateToChange} title="To date" placeholder="To date" />
-            <button className="btn btn-secondary" onClick={clearFilters}>Clear Filters</button>
+            <DatePicker id="watchlist-filter-from" className="filter-input" value={dateFrom} onChange={handleDateFromChange} title="From date" placeholder="From date" />
+            <DatePicker id="watchlist-filter-to" className="filter-input" value={dateTo} onChange={handleDateToChange} title="To date" placeholder="To date" />
+            {hasActiveFilters && (
+              <button className="btn btn-secondary" onClick={clearFilters}>Clear Filters</button>
+            )}
+            </div>
           </div>
           <div className="page-toolbar__actions">
             <ViewToggle mode={viewMode} onModeChange={setViewMode} />
           </div>
         </div>
-        {filterBadges.length > 0 && (
-          <div className="filter-chips-row" aria-label="Active filters">
-            {filterBadges.map((label) => (
-              <span key={label} className="filter-tag">{label}</span>
-            ))}
-          </div>
-        )}
+        <ActiveFilterChips chips={activeFilterChips} onClearAll={clearFilters} />
         {totalPages > 1 && (
           <div className="page-toolbar__footer">
             <Pagination currentPage={safePage} totalPages={totalPages} onPageChange={setPage} />
@@ -341,7 +371,7 @@ export function WatchlistTab() {
                       leagueDisplay={leagueDisplay}
                       onEdit={() => openEdit(item)}
                       onDelete={() => handleDeleteSingle(String(item.match_id))}
-                      onDoubleClick={() => setScoutItem(item)}
+                      onOpenHub={() => setScoutItem(item)}
                     />
                   );
                 })}
@@ -400,7 +430,22 @@ export function WatchlistTab() {
                 const isLiveRow = liveMatchRow ? LIVE_STATUSES.includes(liveMatchRow.status) : false;
 
                 rows.push(
-                  <tr key={item.match_id} onDoubleClick={() => setScoutItem(item)} className={isLiveRow ? 'match-is-live' : undefined} style={{ cursor: 'pointer' }} title="Double-click to view match details">
+                  <tr
+                    key={item.match_id}
+                    onClick={(e) => {
+                      if (!isNarrowTabViewport()) return;
+                      const target = e.target as HTMLElement;
+                      if (target.closest('button, input, a, select, details, summary')) return;
+                      setScoutItem(item);
+                    }}
+                    onDoubleClick={() => {
+                      if (isNarrowTabViewport()) return;
+                      setScoutItem(item);
+                    }}
+                    className={isLiveRow ? 'match-is-live' : undefined}
+                    style={{ cursor: 'pointer' }}
+                    title="Tap or double-click to view match details"
+                  >
                     <td data-label="Time" className="data-table__th--center">
                       <div className="cell-value">
                         <span className="cell-time-badge">{timeDisplay}</span>
@@ -449,7 +494,45 @@ export function WatchlistTab() {
             </tbody>
           </table>
         </div>}
+
+        {totalPages > 1 && (
+          <div className="tab-page-pagination--bottom">
+            <Pagination currentPage={safePage} totalPages={totalPages} onPageChange={setPage} />
+          </div>
+        )}
       </div>
+
+      <Modal
+        open={filterSheetOpen}
+        title="Watchlist filters"
+        onClose={() => setFilterSheetOpen(false)}
+        footer={(
+          <>
+            <button type="button" className="btn btn-secondary" onClick={() => { clearFilters(); setFilterSheetOpen(false); }}>
+              Reset
+            </button>
+            <button type="button" className="btn btn-primary" onClick={() => setFilterSheetOpen(false)}>Apply</button>
+          </>
+        )}
+      >
+        <div className="leagues-filter-sheet">
+          <label className="leagues-filter-sheet__field">
+            <span className="leagues-filter-sheet__label">League</span>
+            <select className="filter-input" value={leagueFilter} onChange={(e) => handleLeagueFilterChange(e.target.value)}>
+              <option value="">All Leagues</option>
+              {leagueOptions.map((l) => <option key={l.id} value={l.id}>{l.displayName} ({l.count})</option>)}
+            </select>
+          </label>
+          <label className="leagues-filter-sheet__field">
+            <span className="leagues-filter-sheet__label">From date</span>
+            <DatePicker className="filter-input" value={dateFrom} onChange={handleDateFromChange} title="From date" placeholder="From date" />
+          </label>
+          <label className="leagues-filter-sheet__field">
+            <span className="leagues-filter-sheet__label">To date</span>
+            <DatePicker className="filter-input" value={dateTo} onChange={handleDateToChange} title="To date" placeholder="To date" />
+          </label>
+        </div>
+      </Modal>
 
       {/* Edit Modal */}
       <WatchlistEditModal

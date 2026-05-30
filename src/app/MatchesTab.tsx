@@ -5,6 +5,7 @@ import { useToast } from '@/hooks/useToast';
 import { useUserTimeZone } from '@/hooks/useUserTimeZone';
 import { useViewMode } from '@/hooks/useViewMode';
 import { Pagination } from '@/components/ui/Pagination';
+import { ActiveFilterChips, type ActiveFilterChip } from '@/components/ui/ActiveFilterChips';
 import { ViewToggle } from '@/components/ui/ViewToggle';
 import { BulkActionBar } from '@/components/ui/BulkActionBar';
 import { EmptyState } from '@/components/ui/EmptyState';
@@ -17,7 +18,7 @@ import { AskAiMatchSplitControl } from '@/components/ui/AskAiMatchSplitControl';
 import { MatchCard } from '@/components/ui/MatchCard';
 import { WatchlistEditModal } from '@/components/ui/WatchlistEditModal';
 import { LIVE_STATUSES, PLACEHOLDER_HOME, PLACEHOLDER_AWAY, TFI_FOCUS_MATCH_IN_MATCHES_EVENT } from '@/config/constants';
-import { formatDateTimeDisplay, getKickoffDateKey, getKickoffDateTime, getLeagueDisplayName, debounce, parseKickoffForSave, shouldFastRefreshMatch, normalizeToISO, countEligibleWatchlistCandidates } from '@/lib/utils/helpers';
+import { formatDateTimeDisplay, getKickoffDateKey, getKickoffDateTime, getLeagueDisplayName, debounce, parseKickoffForSave, shouldFastRefreshMatch, normalizeToISO, countEligibleWatchlistCandidates, isNarrowTabViewport } from '@/lib/utils/helpers';
 import { getDateGroupLabelInTimeZone, getDateKeyAtOffsetInTimeZone, getMatchDateKeyInTimeZone } from '@/lib/utils/timezone';
 import type { Match, SortState, League, WatchlistItem } from '@/types';
 import {
@@ -174,6 +175,7 @@ export function MatchesTab() {
   });
   const [viewMode, setViewMode] = useViewMode('viewMode:matches');
   const [scoutMatch, setScoutMatch] = useState<Match | null>(null);
+  const [filterSheetOpen, setFilterSheetOpen] = useState(false);
   const [askAiDialogMatch, setAskAiDialogMatch] = useState<Match | null>(null);
   const [lastAddedResultId, setLastAddedResultId] = useState<string | null>(null);
   const [favoriteLeagueIds, setFavoriteLeagueIds] = useState<number[]>([]);
@@ -1007,18 +1009,43 @@ export function MatchesTab() {
     : dateFrom === dateYesterday && dateTo === dateYesterday ? 'yesterday'
     : (!dateFrom && !dateTo) ? 'all'
     : 'custom';
-  // Filter badges
-  const badges = [];
-  if (debouncedSearch) badges.push(`Teams: ${debouncedSearch}`);
-  if (statusFilter) badges.push(`Status: ${statusFilter}`);
-  if (leagueFilter) {
-    if (leagueFilter === LEAGUE_FILTER_FAVORITES_VALUE) badges.push('League: Favorite Leagues');
-    else {
-      const op = leagueOptions.find((l) => l.id === leagueFilter);
-      badges.push(`League: ${op?.displayName || leagueFilter}`);
+  const hasActiveFilters = !!(search || statusFilter || leagueFilter || actionFilter || dateFrom || dateTo);
+  const toolbarFilterCount = [statusFilter, leagueFilter, actionFilter, dateFrom, dateTo].filter(Boolean).length;
+
+  const activeFilterChips = useMemo((): ActiveFilterChip[] => {
+    const chips: ActiveFilterChip[] = [];
+    if (debouncedSearch) {
+      chips.push({
+        key: 'search',
+        label: `Teams: ${debouncedSearch}`,
+        onRemove: () => { setSearch(''); setDebouncedSearch(''); },
+      });
     }
-  }
-  if (dateFrom || dateTo) badges.push(`Date: ${dateFrom || '—'} → ${dateTo || '—'}`);
+    if (statusFilter) {
+      const statusLabel = statusFilter === 'NS' ? 'Not Started' : statusFilter === 'LIVE' ? 'Live' : statusFilter;
+      chips.push({ key: 'status', label: `Status: ${statusLabel}`, onRemove: () => setStatusFilter('') });
+    }
+    if (leagueFilter) {
+      if (leagueFilter === LEAGUE_FILTER_FAVORITES_VALUE) {
+        chips.push({ key: 'league', label: 'League: Favorite Leagues', onRemove: () => setLeagueFilter('') });
+      } else {
+        const op = leagueOptions.find((l) => l.id === leagueFilter);
+        chips.push({ key: 'league', label: `League: ${op?.displayName || leagueFilter}`, onRemove: () => setLeagueFilter('') });
+      }
+    }
+    if (actionFilter) {
+      const actionLabel = actionFilter === 'watched' ? 'Watched' : actionFilter === 'not-watched' ? 'Not Watched' : actionFilter;
+      chips.push({ key: 'action', label: `Action: ${actionLabel}`, onRemove: () => setActionFilter('') });
+    }
+    if (dateFrom || dateTo) {
+      chips.push({
+        key: 'date',
+        label: `Date: ${dateFrom || '—'} → ${dateTo || '—'}`,
+        onRemove: () => { setDateFrom(''); setDateTo(''); },
+      });
+    }
+    return chips;
+  }, [debouncedSearch, statusFilter, leagueFilter, actionFilter, dateFrom, dateTo, leagueOptions]);
 
   const handleOpenFavoritePicker = () => {
     setFavoriteDraftIds(effectiveFavoriteLeagueIds);
@@ -1090,47 +1117,52 @@ export function MatchesTab() {
               title="Choose favorite leagues and add their eligible matches to your watchlist"
               className={`date-tab-bar__chip${effectiveFavoriteLeagueIds.length > 0 ? ' date-tab-bar__chip--active' : ''}`}
             >
-              + Watchlist by Favorite Leagues
+              <span className="date-tab-bar__chip-label--long">+ Watchlist by Favorite Leagues</span>
+              <span className="date-tab-bar__chip-label--short">+ Fav Leagues</span>
             </button>
           )}
         </div>
         <div className="page-toolbar">
-        <div className="page-toolbar__filters filters">
-          <input ref={searchRef} type="text" className="filter-input" placeholder="Search teams… ( / )" value={search} onChange={(e) => handleSearchChange(e.target.value)} />
-          <select className="filter-input" value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}>
+        <div className="page-toolbar__filters filters tab-page-toolbar-filters">
+          <input ref={searchRef} id="filter-search" type="text" className="filter-input" placeholder="Search teams… ( / )" value={search} onChange={(e) => handleSearchChange(e.target.value)} />
+          <button
+            type="button"
+            className="btn btn-secondary tab-filter-sheet-btn tab-toolbar-mobile-only"
+            onClick={() => setFilterSheetOpen(true)}
+            aria-label={`Open filters${toolbarFilterCount > 0 ? `, ${toolbarFilterCount} active` : ''}`}
+          >
+            Filters{toolbarFilterCount > 0 ? ` (${toolbarFilterCount})` : ''}
+          </button>
+          <div className="tab-page-filters-inline">
+          <select id="filter-status" className="filter-input" value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}>
             <option value="">All Status</option>
             <option value="NS">Not Started</option>
             <option value="LIVE">Live</option>
           </select>
-          <select className="filter-input" value={leagueFilter} onChange={(e) => setLeagueFilter(e.target.value)}>
+          <select id="filter-league" className="filter-input" value={leagueFilter} onChange={(e) => setLeagueFilter(e.target.value)}>
             <option value="">All Leagues</option>
             {favoriteFeatureVisible && (
               <option value={LEAGUE_FILTER_FAVORITES_VALUE}>Favorite Leagues</option>
             )}
             {leagueOptions.map((l) => <option key={l.id} value={l.id}>{l.displayName} ({l.count})</option>)}
           </select>
-          <select className="filter-input" value={actionFilter} onChange={(e) => setActionFilter(e.target.value)}>
+          <select id="filter-action" className="filter-input" value={actionFilter} onChange={(e) => setActionFilter(e.target.value)}>
             <option value="">All Actions</option>
             <option value="not-watched">Not Watched</option>
             <option value="watched">Watched</option>
           </select>
-          <DatePicker className="filter-input" value={dateFrom} onChange={setDateFrom} title="From date" placeholder="From date" />
-          <DatePicker className="filter-input" value={dateTo} onChange={setDateTo} title="To date" placeholder="To date" />
-          {(search || statusFilter || leagueFilter || actionFilter || dateFrom || dateTo) && (
+          <DatePicker id="filter-from" className="filter-input" value={dateFrom} onChange={setDateFrom} title="From date" placeholder="From date" />
+          <DatePicker id="filter-to" className="filter-input" value={dateTo} onChange={setDateTo} title="To date" placeholder="To date" />
+          {hasActiveFilters && (
             <button className="btn btn-secondary" onClick={clearFilters}>Clear</button>
           )}
+          </div>
         </div>
           <div className="page-toolbar__actions">
             <ViewToggle mode={viewMode} onModeChange={setViewMode} />
           </div>
         </div>
-        {badges.length > 0 && (
-          <div className="filter-chips-row" aria-label="Active filters">
-            {badges.map((label) => (
-              <span key={label} className="filter-tag">{label}</span>
-            ))}
-          </div>
-        )}
+        <ActiveFilterChips chips={activeFilterChips} onClearAll={clearFilters} />
         {totalPages > 1 && (
           <div className="page-toolbar__footer">
             <Pagination currentPage={safePage} totalPages={totalPages} onPageChange={setPage} />
@@ -1189,6 +1221,7 @@ export function MatchesTab() {
                 <div key={m.match_id} id={tfiMatchAnchorId(String(m.match_id))} className="card-grid__item">
                 <MatchCard
                   match={m}
+                  onClick={() => setScoutMatch(m)}
                   highlighted={selected.has(String(m.match_id))}
                   flashMap={flashMap}
                   watchedAction={watchlistMap.has(String(m.match_id)) ? {
@@ -1290,7 +1323,7 @@ export function MatchesTab() {
                     onAskAiQuick={() => askAiQuick(m)}
                     onAskAiOpenQuestion={() => askAiOpenQuestionDialog(m)}
                     onEdit={() => { const entry = watchlistMap.get(String(m.match_id)); if (entry) setEditItem(entry); }}
-                    onDoubleClick={() => setScoutMatch(m)}
+                    onOpenHub={() => setScoutMatch(m)}
                   />
                 );
               });
@@ -1299,6 +1332,12 @@ export function MatchesTab() {
           </tbody>
         </table>
       </div>}
+
+      {totalPages > 1 && (
+        <div className="tab-page-pagination--bottom">
+          <Pagination currentPage={safePage} totalPages={totalPages} onPageChange={setPage} />
+        </div>
+      )}
 
       {pageItems.length > 0 && totalPages > 1 && (
         <div
@@ -1465,6 +1504,57 @@ export function MatchesTab() {
           </div>
         </div>
       </Modal>
+
+      <Modal
+        open={filterSheetOpen}
+        title="Match filters"
+        onClose={() => setFilterSheetOpen(false)}
+        footer={(
+          <>
+            <button type="button" className="btn btn-secondary" onClick={() => { clearFilters(); setFilterSheetOpen(false); }}>
+              Reset
+            </button>
+            <button type="button" className="btn btn-primary" onClick={() => setFilterSheetOpen(false)}>Apply</button>
+          </>
+        )}
+      >
+        <div className="leagues-filter-sheet">
+          <label className="leagues-filter-sheet__field">
+            <span className="leagues-filter-sheet__label">Status</span>
+            <select className="filter-input" value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}>
+              <option value="">All Status</option>
+              <option value="NS">Not Started</option>
+              <option value="LIVE">Live</option>
+            </select>
+          </label>
+          <label className="leagues-filter-sheet__field">
+            <span className="leagues-filter-sheet__label">League</span>
+            <select className="filter-input" value={leagueFilter} onChange={(e) => setLeagueFilter(e.target.value)}>
+              <option value="">All Leagues</option>
+              {favoriteFeatureVisible && (
+                <option value={LEAGUE_FILTER_FAVORITES_VALUE}>Favorite Leagues</option>
+              )}
+              {leagueOptions.map((l) => <option key={l.id} value={l.id}>{l.displayName} ({l.count})</option>)}
+            </select>
+          </label>
+          <label className="leagues-filter-sheet__field">
+            <span className="leagues-filter-sheet__label">Action</span>
+            <select className="filter-input" value={actionFilter} onChange={(e) => setActionFilter(e.target.value)}>
+              <option value="">All Actions</option>
+              <option value="not-watched">Not Watched</option>
+              <option value="watched">Watched</option>
+            </select>
+          </label>
+          <label className="leagues-filter-sheet__field">
+            <span className="leagues-filter-sheet__label">From date</span>
+            <DatePicker className="filter-input" value={dateFrom} onChange={setDateFrom} title="From date" placeholder="From date" />
+          </label>
+          <label className="leagues-filter-sheet__field">
+            <span className="leagues-filter-sheet__label">To date</span>
+            <DatePicker className="filter-input" value={dateTo} onChange={setDateTo} title="To date" placeholder="To date" />
+          </label>
+        </div>
+      </Modal>
     </div>
   );
 }
@@ -1486,10 +1576,10 @@ interface MatchRowProps {
   onAskAiQuick: () => void;
   onAskAiOpenQuestion: () => void;
   onEdit: () => void;
-  onDoubleClick: () => void;
+  onOpenHub: () => void;
 }
 
-function MatchRow({ anchorId, match, isWatched, isPending, isPendingRemove, isSelected, isAnalyzing, hasResult, leagues, flashMap, onQuickAdd, onQuickRemove, onToggleSelect, onAskAiQuick, onAskAiOpenQuestion, onEdit, onDoubleClick }: MatchRowProps) {
+function MatchRow({ anchorId, match, isWatched, isPending, isPendingRemove, isSelected, isAnalyzing, hasResult, leagues, flashMap, onQuickAdd, onQuickRemove, onToggleSelect, onAskAiQuick, onAskAiOpenQuestion, onEdit, onOpenHub }: MatchRowProps) {
   const [watchHovered, setWatchHovered] = React.useState(false);
   const isPlaying = PLAYING_STATUSES.has(match.status);
   const isFinished = FINISHED_STATUSES.has(match.status);
@@ -1507,8 +1597,21 @@ function MatchRow({ anchorId, match, isWatched, isPending, isPendingRemove, isSe
   const homeRedGen      = flashMap.get(`${id}:hr`)    ?? 0;
   const awayRedGen      = flashMap.get(`${id}:ar`)    ?? 0;
 
+  const handleRowActivate = (e: React.MouseEvent<HTMLTableRowElement>) => {
+    const target = e.target as HTMLElement;
+    if (target.closest('button, input, a, select, details, summary')) return;
+    onOpenHub();
+  };
+
   return (
-    <tr id={anchorId} onDoubleClick={onDoubleClick} className={LIVE_STATUSES.includes(match.status) ? 'match-is-live' : undefined} style={{ cursor: 'pointer' }} title="Double-click to view match details">
+    <tr
+      id={anchorId}
+      onClick={(e) => { if (isNarrowTabViewport()) handleRowActivate(e); }}
+      onDoubleClick={() => { if (!isNarrowTabViewport()) onOpenHub(); }}
+      className={LIVE_STATUSES.includes(match.status) ? 'match-is-live' : undefined}
+      style={{ cursor: 'pointer' }}
+      title="Tap or double-click to view match details"
+    >
       <td data-label="Time" style={{ whiteSpace: 'nowrap', textAlign: 'center' }}>
         <div className="cell-value">
           <span className="time-pill" style={{ background: 'var(--gray-200)', padding: '3px 7px', borderRadius: '4px', fontWeight: 600, color: 'var(--gray-900)', fontSize: '12px' }}>{timeDisplay}</span>

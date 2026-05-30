@@ -221,13 +221,11 @@ export function IntegrationHealthPanel() {
                   <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexShrink: 0 }}>
                     <StatusBadge status={svc.status} />
                     <button
+                      type="button"
+                      className="integration-health-refresh-btn"
                       onClick={() => refreshSingle(svc.id)}
                       disabled={isRefreshing}
-                      title="Refresh this service"
-                      style={{
-                        background: 'none', border: 'none', cursor: 'pointer',
-                        color: 'var(--gray-400)', padding: '2px', display: 'flex', alignItems: 'center',
-                      }}
+                      aria-label={`Refresh ${svc.label}`}
                     >
                       <RefreshIcon spinning={isRefreshing} />
                     </button>

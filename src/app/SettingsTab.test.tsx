@@ -72,6 +72,7 @@ const { SettingsTab } = await import('./SettingsTab');
 
 beforeEach(() => {
   vi.clearAllMocks();
+  localStorage.removeItem('tfi:settings:activeTab');
   vi.stubGlobal('fetch', mockFetch);
   pushSupported = false;
   notificationPermission = 'default';
@@ -124,6 +125,22 @@ beforeEach(() => {
   mockPersistNotificationChannel.mockRejectedValue(new Error('channel save failed'));
   mockFetch.mockImplementation(async (input: RequestInfo | URL) => {
     const url = String(input);
+    if (url.includes('/api/me/bankroll')) {
+      return new Response(JSON.stringify({
+        account: {
+          user_id: 'admin-1',
+          currency: 'VND',
+          unit_multiplier: 1000,
+          initial_balance: 1000,
+          current_balance: 10000,
+          active: true,
+          created_at: '2026-03-24T00:00:00.000Z',
+          updated_at: '2026-03-31T10:00:00.000Z',
+        },
+        recentLedger: [],
+      }), { status: 200 });
+    }
+
     if (url.includes('/api/settings/users/member-1')) {
       return new Response(JSON.stringify({
         id: 'member-1',
@@ -389,11 +406,12 @@ beforeEach(() => {
 });
 
 describe('SettingsTab', () => {
-  it('defaults to Scheduler and removes the self-service General tab', async () => {
+  it('defaults to Bankroll and removes the self-service General tab', async () => {
     render(<SettingsTab />);
 
     expect(screen.queryByRole('button', { name: 'General' })).not.toBeInTheDocument();
-    expect(await screen.findByText('Refresh Live Matches')).toBeInTheDocument();
+    expect(await screen.findByText('Bankroll Discipline')).toBeInTheDocument();
+    expect(screen.getByRole('tab', { name: 'Bankroll' })).toHaveAttribute('aria-selected', 'true');
   });
 
   it('shows subscription management on the system tab for admins', async () => {
@@ -527,6 +545,22 @@ describe('SettingsTab', () => {
     expect(telegramToggle).toHaveAttribute('aria-pressed', 'true');
   });
 
+  it('disables Save Plan until the subscription plan draft changes', async () => {
+    const user = userEvent.setup();
+    render(<SettingsTab />);
+
+    await user.click(await screen.findByRole('tab', { name: /^Subscription$/i }));
+    const editButtons = await screen.findAllByRole('button', { name: 'Edit' });
+    await user.click(editButtons[0]!);
+
+    const savePlan = screen.getByRole('button', { name: 'Save Plan' });
+    expect(savePlan).toBeDisabled();
+
+    await user.clear(screen.getByLabelText('Display name'));
+    await user.type(screen.getByLabelText('Display name'), 'Free Plus');
+    expect(savePlan).not.toBeDisabled();
+  });
+
   it('shows scheduler 24h summary and recent run history', async () => {
     const user = userEvent.setup();
     render(<SettingsTab />);
@@ -555,7 +589,7 @@ describe('SettingsTab', () => {
     const user = userEvent.setup();
     render(<SettingsTab />);
 
-    await user.click(screen.getByRole('tab', { name: /^User$/i }));
+    await user.click(screen.getByRole('tab', { name: /^Users$/i }));
 
     expect(await screen.findByText(/Manage user role and login access/)).toBeInTheDocument();
     expect(await screen.findByText('Member User')).toBeInTheDocument();

@@ -484,7 +484,7 @@ export function OpsMonitoringPanel() {
           {/* ── Section 3: Pipeline ── */}
           <DataCard>
             <SectionHeader title="Pipeline" subtitle="24h window" />
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
+            <div className="ops-panel-split-grid ops-panel-split-grid--lg">
               <div>
                 <div style={{ marginBottom: '12px' }}>
                   <FunnelBar label="Analyzed" value={snapshot.pipeline.analyzed24h} max={snapshot.pipeline.analyzed24h + snapshot.pipeline.skipped24h} color="#6366f1" />
@@ -563,7 +563,7 @@ export function OpsMonitoringPanel() {
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 340px), 1fr))', gap: '12px' }}>
             <DataCard>
               <SectionHeader title="Settlement" />
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', marginBottom: '12px' }}>
+              <div className="ops-panel-split-grid ops-panel-split-grid--sm" style={{ marginBottom: '12px' }}>
                 {[
                   { label: 'Rec. Pending', value: snapshot.settlement.recommendationPending, warn: snapshot.settlement.recommendationPending > 20 },
                   { label: 'Rec. Unresolved', value: snapshot.settlement.recommendationUnresolved, warn: snapshot.settlement.recommendationUnresolved > 5 },
@@ -576,7 +576,7 @@ export function OpsMonitoringPanel() {
                   </div>
                 ))}
               </div>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
+              <div className="ops-panel-split-grid ops-panel-split-grid--sm">
                 <div>
                   <div style={{ fontSize: '11px', fontWeight: 600, color: 'var(--gray-500)', textTransform: 'uppercase', letterSpacing: '0.3px', marginBottom: '5px' }}>Method Mix (30d)</div>
                   {snapshot.settlement.methodMix30d.map((r) => (
@@ -600,7 +600,7 @@ export function OpsMonitoringPanel() {
 
             <DataCard>
               <SectionHeader title="Notifications" subtitle="24h window" />
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', marginBottom: '12px' }}>
+              <div className="ops-panel-split-grid ops-panel-split-grid--sm" style={{ marginBottom: '12px' }}>
                 {[
                   { label: 'Attempts', value: snapshot.notifications.attempts24h, warn: false },
                   { label: 'Failures', value: snapshot.notifications.failures24h, warn: snapshot.notifications.failures24h > 0 },
@@ -616,7 +616,7 @@ export function OpsMonitoringPanel() {
 
               {/* Prompt Shadow summary */}
               <SectionHeader title="Prompt Shadow" subtitle={`Last ${snapshot.promptShadow.windowHours}h`} />
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '6px', marginBottom: '10px' }}>
+              <div className="ops-panel-split-grid ops-panel-split-grid--sm" style={{ marginBottom: '10px' }}>
                 {[
                   { label: 'Runs', value: snapshot.promptShadow.runs24h },
                   { label: 'Shadow rows', value: snapshot.promptShadow.shadowRows24h },
@@ -703,7 +703,7 @@ export function OpsMonitoringPanel() {
               ))}
             </div>
 
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+            <div className="ops-panel-split-grid ops-panel-split-grid--md">
               <div>
                 <div style={{ fontSize: '11px', fontWeight: 600, color: 'var(--gray-500)', textTransform: 'uppercase', letterSpacing: '0.3px', marginBottom: '5px' }}>Quality Counts</div>
                 {[

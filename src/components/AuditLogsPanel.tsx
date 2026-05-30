@@ -93,6 +93,7 @@ export function AuditLogsPanel() {
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(1);
   const [loading, setLoading] = useState(false);
+  const [loadError, setLoadError] = useState<string | null>(null);
 
   // Filters
   const [filterCategory, setFilterCategory] = useState('');
@@ -118,6 +119,7 @@ export function AuditLogsPanel() {
   const fetchLogs = useCallback(async () => {
     if (apiUrl == null) return;
     setLoading(true);
+    setLoadError(null);
     try {
       const params = new URLSearchParams();
       params.set('limit', String(PAGE_SIZE));
@@ -136,8 +138,12 @@ export function AuditLogsPanel() {
         const data = await res.json();
         setLogs(data.rows ?? data.logs);
         setTotal(data.total);
+      } else {
+        setLoadError(`Failed to load audit logs (HTTP ${res.status}).`);
       }
-    } catch { /* ignore */ }
+    } catch {
+      setLoadError('Unable to load audit logs. Check your connection and try again.');
+    }
     setLoading(false);
   }, [apiUrl, page, filterCategory, filterOutcome, filterAction, filterPrematchStrength, filterPrematchNoiseMin]);
 
@@ -258,7 +264,7 @@ export function AuditLogsPanel() {
       )}
 
       {/* Filters */}
-      <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', marginBottom: '12px', alignItems: 'center' }}>
+      <div className="audit-filter-toolbar">
         <select
           className="job-interval-select"
           value={filterCategory}
@@ -313,19 +319,27 @@ export function AuditLogsPanel() {
         <button className="btn btn-sm" onClick={() => { setFilterCategory(''); setFilterOutcome(''); setFilterAction(''); setFilterPrematchStrength(''); setFilterPrematchNoiseMin(''); setPage(1); }}>
           Clear
         </button>
-        <div style={{ marginLeft: 'auto', display: 'flex', gap: '8px' }}>
-          <button className="btn btn-sm" onClick={handleExport}>📥 Export CSV</button>
+        <div className="audit-toolbar-actions">
+          <button type="button" className="btn btn-sm" onClick={handleExport} style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+            Export CSV
+          </button>
           <button
-            className="btn btn-sm"
+            className="btn btn-sm btn-danger-outline"
             type="button"
             onClick={() => setResetConfirmOpen(true)}
             disabled={resetting}
-            style={{ color: '#dc2626', borderColor: '#fca5a5' }}
+            style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}
           >
-            {resetting ? 'Resetting…' : '🗑 Reset Logs'}
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg>
+            {resetting ? 'Resetting…' : 'Reset Logs'}
           </button>
         </div>
       </div>
+
+      {loadError && (
+        <div className="settings-banner settings-banner--error" role="alert">{loadError}</div>
+      )}
 
       {/* Table */}
       <div style={{ overflowX: 'auto' }}>
@@ -351,7 +365,15 @@ export function AuditLogsPanel() {
             {!loading && logs.map((log) => (
               <tr
                 key={log.id}
+                tabIndex={0}
                 onClick={() => setExpandedId(expandedId === log.id ? null : log.id)}
+                onKeyDown={(event) => {
+                  if (event.key === 'Enter' || event.key === ' ') {
+                    event.preventDefault();
+                    setExpandedId(expandedId === log.id ? null : log.id);
+                  }
+                }}
+                aria-expanded={expandedId === log.id}
                 style={{
                   borderBottom: '1px solid var(--gray-100)',
                   cursor: 'pointer',
@@ -433,21 +455,21 @@ export function AuditLogsPanel() {
 
       <Modal
         open={resetConfirmOpen}
-        title="Xác nhận reset audit logs"
+        title="Confirm audit log reset"
         onClose={() => { if (!resetting) setResetConfirmOpen(false); }}
         footer={
           <>
             <button type="button" className="btn btn-secondary" onClick={() => setResetConfirmOpen(false)} disabled={resetting}>
-              Hủy
+              Cancel
             </button>
             <button type="button" className="btn btn-danger" onClick={() => void performAuditReset()} disabled={resetting}>
-              {resetting ? 'Đang reset…' : 'Reset toàn bộ'}
+              {resetting ? 'Resetting…' : 'Reset all logs'}
             </button>
           </>
         }
       >
         <p style={{ margin: 0, color: 'var(--gray-600)', fontSize: '14px', lineHeight: 1.5 }}>
-          Reset toàn bộ {(stats?.totalLogs ?? 0).toLocaleString()} audit logs? Hành động này không thể hoàn tác.
+          Reset all {(stats?.totalLogs ?? 0).toLocaleString()} audit logs? This action cannot be undone.
         </p>
       </Modal>
     </div>

@@ -12,6 +12,14 @@ interface KickoffLike {
   kickoff_at_utc?: string | null;
 }
 
+export function isNarrowTabViewport(): boolean {
+  if (typeof window === 'undefined') return false;
+  if (typeof window.matchMedia === 'function') {
+    return window.matchMedia('(max-width: 767px)').matches;
+  }
+  return window.innerWidth <= 767;
+}
+
 export function getKickoffDateTime(value: KickoffLike): Date {
   if (value.kickoff_at_utc) {
     const kickoff = new Date(value.kickoff_at_utc);
