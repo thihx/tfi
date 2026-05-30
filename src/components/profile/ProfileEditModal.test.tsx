@@ -162,7 +162,7 @@ describe('ProfileEditModal', () => {
       />,
     );
 
-    await user.click(await screen.findByRole('button', { name: 'Notifications' }));
+    await user.click(await screen.findByRole('tab', { name: 'Notifications' }));
     const chatIdInput = await screen.findByDisplayValue('123456');
     await user.clear(chatIdInput);
     await user.type(chatIdInput, '987654');

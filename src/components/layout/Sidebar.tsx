@@ -1,8 +1,5 @@
 import type { TabName } from '@/types';
 
-// ==================== SVG Icon paths (Heroicons solid 20px) ====================
-// Each path renders inside a 20×20 viewBox, no emoji, monochrome.
-
 const ICON_PATHS: Record<string, string> = {
   'dashboard':
     'M3 3h5v5H3V3zm0 9h5v5H3v-5zm9-9h5v5h-5V3zm0 9h5v5h-5v-5z',
@@ -42,49 +39,39 @@ function NavIcon({ tabKey, size = 16 }: { tabKey: string; size?: number }) {
   );
 }
 
-// ==================== Nav structure ====================
-
 interface NavItem { key: TabName; label: string }
 interface NavGroup { label: string; items: NavItem[] }
 
 const NAV_GROUPS: NavGroup[] = [
   {
-    label: 'OVERVIEW',
-    items: [
-      { key: 'dashboard', label: 'Dashboard' },
-    ],
+    label: 'Overview',
+    items: [{ key: 'dashboard', label: 'Dashboard' }],
   },
   {
-    label: 'SCOUTING',
+    label: 'Scouting',
     items: [
-      { key: 'matches',   label: 'Matches' },
+      { key: 'matches', label: 'Matches' },
       { key: 'watchlist', label: 'Watchlist' },
-      { key: 'leagues',   label: 'Leagues' },
+      { key: 'leagues', label: 'Leagues' },
     ],
   },
   {
-    label: 'ANALYSIS',
+    label: 'Analysis',
     items: [
       { key: 'recommendations', label: 'Recommendations' },
-      { key: 'bet-tracker',     label: 'Investment Tracker' },
-      { key: 'reports',         label: 'Reports' },
+      { key: 'bet-tracker', label: 'Investment Tracker' },
+      { key: 'reports', label: 'Reports' },
     ],
   },
   {
-    label: 'MONITOR',
-    items: [
-      { key: 'live-monitor', label: 'Live Monitor' },
-    ],
+    label: 'Monitor',
+    items: [{ key: 'live-monitor', label: 'Live Monitor' }],
   },
   {
-    label: 'SYSTEM',
-    items: [
-      { key: 'settings', label: 'Settings' },
-    ],
+    label: 'System',
+    items: [{ key: 'settings', label: 'Settings' }],
   },
 ];
-
-// ==================== Sidebar component ====================
 
 interface SidebarProps {
   activeTab: TabName;
@@ -93,163 +80,81 @@ interface SidebarProps {
   onToggle: () => void;
 }
 
-const SIDEBAR_W   = 220;
-const SIDEBAR_COL = 56;
-
 export function Sidebar({ activeTab, onTabChange, collapsed, onToggle }: SidebarProps) {
-  const w = collapsed ? SIDEBAR_COL : SIDEBAR_W;
-
   return (
-    <div
-      style={{
-        width:         w,
-        minWidth:      w,
-        maxWidth:      w,
-        background:    '#111827',
-        color:         '#9ca3af',
-        display:       'flex',
-        flexDirection: 'column',
-        position:      'sticky',
-        top:           0,
-        height:        '100vh',
-        overflowY:     'auto',
-        overflowX:     'hidden',
-        transition:    'width 0.2s ease, min-width 0.2s ease, max-width 0.2s ease',
-        flexShrink:    0,
-        zIndex:        50,
-      }}
+    <aside
+      className={`app-sidebar${collapsed ? ' app-sidebar--collapsed' : ''}`}
+      aria-label="Main navigation"
     >
-      {/* Brand */}
-      <div style={{
-        padding:        collapsed ? '16px 0' : '0 16px',
-        borderBottom:   '1px solid rgba(255,255,255,0.06)',
-        display:        'flex',
-        alignItems:     'center',
-        gap:            10,
-        overflow:       'hidden',
-        justifyContent: collapsed ? 'center' : 'flex-start',
-        height:         52,
-        minHeight:      52,
-        flexShrink:     0,
-      }}>
-        <svg width="18" height="18" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg" style={{ flexShrink: 0 }}>
-          <rect width="20" height="20" rx="4" fill="#374151" />
-          <path d="M4 14l4-4 3 3 5-6" stroke="#e5e7eb" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" fill="none" />
-        </svg>
+      <div className="app-sidebar__brand">
+        <div className="app-sidebar__brand-mark" aria-hidden>
+          <svg width="16" height="16" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <path d="M4 14l4-4 3 3 5-6" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+          </svg>
+        </div>
         {!collapsed && (
           <div>
-            <div style={{ fontSize: 13, fontWeight: 600, color: '#f9fafb', letterSpacing: '-0.1px', whiteSpace: 'nowrap' }}>
-              TFI
-            </div>
-            <div style={{ fontSize: 10, color: '#f59e0b', fontWeight: 600, whiteSpace: 'nowrap', letterSpacing: '0.5px', textTransform: 'uppercase' }}>
-              Time for Investment
-            </div>
+            <div className="app-sidebar__brand-name">TFI</div>
+            <div className="app-sidebar__brand-tag">Time for Investment</div>
           </div>
         )}
       </div>
 
-      {/* Nav groups */}
-      <div style={{ flex: 1, paddingTop: 8, overflowY: 'auto' }}>
+      <nav className="app-sidebar__nav">
         {NAV_GROUPS.map((group) => (
-          <div key={group.label} style={{ marginBottom: 4 }}>
+          <div key={group.label} className="app-sidebar__group">
             {!collapsed && (
-              <div style={{
-                padding:       '8px 14px 2px',
-                fontSize:      9,
-                fontWeight:    600,
-                color:         '#6b7280',
-                letterSpacing: '0.8px',
-                textTransform: 'uppercase',
-                whiteSpace:    'nowrap',
-              }}>
-                {group.label}
-              </div>
+              <div className="app-sidebar__group-label">{group.label}</div>
             )}
-            {collapsed && <div style={{ height: 4 }} />}
+            {collapsed && <div className="app-sidebar__group-spacer" aria-hidden />}
 
             {group.items.map((item) => {
               const active = activeTab === item.key;
               return (
                 <button
                   key={item.key}
+                  type="button"
                   onClick={() => onTabChange(item.key)}
                   title={collapsed ? item.label : undefined}
-                  style={{
-                    width:          '100%',
-                    display:        'flex',
-                    alignItems:     'center',
-                    gap:            9,
-                    padding:        collapsed ? '8px 0' : '7px 14px',
-                    justifyContent: collapsed ? 'center' : 'flex-start',
-                    background:     active ? 'rgba(255,255,255,0.08)' : 'transparent',
-                    border:         'none',
-                    borderLeft:     active ? '2px solid #e5e7eb' : '2px solid transparent',
-                    borderRadius:   0,
-                    cursor:         'pointer',
-                    color:          active ? '#f9fafb' : '#6b7280',
-                    transition:     'background 0.1s, color 0.1s',
-                    textAlign:      'left',
-                    outline:        'none',
-                  }}
-                  onMouseEnter={(e) => {
-                    if (!active) {
-                      (e.currentTarget as HTMLButtonElement).style.background = 'rgba(255,255,255,0.05)';
-                      (e.currentTarget as HTMLButtonElement).style.color = '#d1d5db';
-                    }
-                  }}
-                  onMouseLeave={(e) => {
-                    if (!active) {
-                      (e.currentTarget as HTMLButtonElement).style.background = 'transparent';
-                      (e.currentTarget as HTMLButtonElement).style.color = '#6b7280';
-                    }
-                  }}
+                  className={`app-sidebar__item${active ? ' app-sidebar__item--active' : ''}`}
+                  aria-current={active ? 'page' : undefined}
                 >
                   <NavIcon tabKey={item.key} size={15} />
                   {!collapsed && (
-                    <span style={{
-                      fontSize:      12,
-                      fontWeight:    active ? 500 : 400,
-                      whiteSpace:    'nowrap',
-                      overflow:      'hidden',
-                      textOverflow:  'ellipsis',
-                    }}>
-                      {item.label}
-                    </span>
+                    <span className="app-sidebar__item-label">{item.label}</span>
                   )}
                 </button>
               );
             })}
           </div>
         ))}
-      </div>
+      </nav>
 
-      {/* Collapse toggle */}
-      <div style={{ borderTop: '1px solid rgba(255,255,255,0.05)', padding: '8px 0' }}>
+      <div className="app-sidebar__footer">
         <button
+          type="button"
           onClick={onToggle}
-          title={collapsed ? 'Expand' : 'Collapse'}
-          style={{
-            width:          '100%',
-            display:        'flex',
-            alignItems:     'center',
-            justifyContent: collapsed ? 'center' : 'flex-start',
-            gap:            8,
-            padding:        collapsed ? '7px 0' : '7px 14px',
-            background:     'none',
-            border:         'none',
-            cursor:         'pointer',
-            color:          '#6b7280',
-            transition:     'color 0.1s',
-          }}
-          onMouseEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.color = '#6b7280'; }}
-          onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.color = '#374151'; }}
+          title={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+          className="app-sidebar__collapse"
+          aria-expanded={!collapsed}
         >
-          <svg width="13" height="13" viewBox="0 0 20 20" fill="currentColor" style={{ flexShrink: 0, transform: collapsed ? 'rotate(180deg)' : 'none', transition: 'transform 0.2s' }}>
-            <path fillRule="evenodd" d="M12.707 5.293a1 1 0 010 1.414L9.414 10l3.293 3.293a1 1 0 01-1.414 1.414l-4-4a1 1 0 010-1.414l4-4a1 1 0 011.414 0z" clipRule="evenodd" />
+          <svg
+            className="app-sidebar__collapse-icon"
+            width="13"
+            height="13"
+            viewBox="0 0 20 20"
+            fill="currentColor"
+            aria-hidden
+          >
+            <path
+              fillRule="evenodd"
+              d="M12.707 5.293a1 1 0 010 1.414L9.414 10l3.293 3.293a1 1 0 01-1.414 1.414l-4-4a1 1 0 010-1.414l4-4a1 1 0 011.414 0z"
+              clipRule="evenodd"
+            />
           </svg>
-          {!collapsed && <span style={{ fontSize: 11, color: '#6b7280', whiteSpace: 'nowrap' }}>Collapse</span>}
+          {!collapsed && <span className="app-sidebar__collapse-label">Collapse</span>}
         </button>
       </div>
-    </div>
+    </aside>
   );
 }

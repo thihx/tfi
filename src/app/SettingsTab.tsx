@@ -325,49 +325,49 @@ function BankrollPanel() {
         <button className="btn btn-secondary btn-sm" onClick={() => { void load(); }} disabled={loading || saving}>Refresh</button>
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '12px', marginBottom: '16px' }}>
-        <div className="card" style={{ padding: '12px' }}>
-          <div style={{ fontSize: '11px', color: 'var(--gray-500)', textTransform: 'uppercase', fontWeight: 700 }}>Current Balance</div>
-          <div style={{ fontSize: '22px', fontWeight: 800, color: 'var(--gray-900)', marginTop: '4px' }}>
+      <div className="settings-metric-grid">
+        <div className="card settings-metric-card">
+          <div className="settings-metric-card__label">Current Balance</div>
+          <div className="settings-metric-card__value">
             {account ? formatBankrollAmount(account.current_balance, currency, multiplier) : '-'}
           </div>
         </div>
-        <div className="card" style={{ padding: '12px' }}>
-          <div style={{ fontSize: '11px', color: 'var(--gray-500)', textTransform: 'uppercase', fontWeight: 700 }}>Initial Capital</div>
-          <div style={{ fontSize: '22px', fontWeight: 800, color: 'var(--gray-900)', marginTop: '4px' }}>
+        <div className="card settings-metric-card">
+          <div className="settings-metric-card__label">Initial Capital</div>
+          <div className="settings-metric-card__value">
             {account ? formatBankrollAmount(account.initial_balance, currency, multiplier) : '-'}
           </div>
         </div>
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '12px' }}>
-        <div className="card" style={{ padding: '12px' }}>
-          <div style={{ fontSize: '13px', fontWeight: 700, marginBottom: '10px' }}>Reset bankroll</div>
-          <div style={{ display: 'grid', gap: '8px' }}>
+      <div className="settings-form-grid">
+        <div className="card settings-form-card">
+          <div className="settings-form-card__title">Reset bankroll</div>
+          <div className="settings-form-card__fields">
             <input className="filter-input" type="number" min="0" step="0.01" value={balanceDraft} onChange={(e) => setBalanceDraft(e.target.value)} placeholder="1000" />
             <input className="filter-input" value={currencyDraft} onChange={(e) => setCurrencyDraft(e.target.value.toUpperCase())} placeholder="VND" />
             <input className="filter-input" type="number" min="1" step="1" value={multiplierDraft} onChange={(e) => setMultiplierDraft(e.target.value)} placeholder="1000" />
-            <button className="btn btn-primary btn-sm" onClick={() => { void handleReset(); }} disabled={saving}>Reset</button>
+            <button type="button" className="btn btn-primary btn-sm" onClick={() => { void handleReset(); }} disabled={saving}>Reset</button>
           </div>
         </div>
-        <div className="card" style={{ padding: '12px' }}>
-          <div style={{ fontSize: '13px', fontWeight: 700, marginBottom: '10px' }}>Top up</div>
-          <div style={{ display: 'grid', gap: '8px' }}>
+        <div className="card settings-form-card">
+          <div className="settings-form-card__title">Top up</div>
+          <div className="settings-form-card__fields">
             <input className="filter-input" type="number" min="0.01" step="0.01" value={depositDraft} onChange={(e) => setDepositDraft(e.target.value)} placeholder="Amount" />
-            <button className="btn btn-secondary btn-sm" onClick={() => { void handleDeposit(); }} disabled={saving}>Add Funds</button>
+            <button type="button" className="btn btn-secondary btn-sm" onClick={() => { void handleDeposit(); }} disabled={saving}>Add Funds</button>
           </div>
         </div>
       </div>
 
       {snapshot && snapshot.recentLedger.length > 0 && (
-        <div style={{ marginTop: '16px' }}>
-          <div style={{ fontSize: '13px', fontWeight: 700, marginBottom: '8px' }}>Recent ledger</div>
-          <div className="card" style={{ overflow: 'hidden' }}>
+        <div>
+          <div className="settings-form-card__title">Recent ledger</div>
+          <div className="card settings-ledger-list">
             {snapshot.recentLedger.slice(0, 8).map((entry) => (
-              <div key={entry.id} style={{ display: 'grid', gridTemplateColumns: '120px 1fr 120px', gap: '8px', padding: '10px 12px', borderBottom: '1px solid var(--gray-100)', fontSize: '12px' }}>
+              <div key={entry.id} className="settings-ledger-row">
                 <span style={{ fontWeight: 700 }}>{entry.entry_type}</span>
-                <span style={{ color: 'var(--gray-600)' }}>{entry.note || '-'}</span>
-                <span style={{ textAlign: 'right', color: entry.amount >= 0 ? '#15803d' : '#b91c1c', fontWeight: 700 }}>
+                <span className="text-muted">{entry.note || '-'}</span>
+                <span style={{ textAlign: 'right', color: entry.amount >= 0 ? 'var(--success)' : 'var(--danger)', fontWeight: 700 }}>
                   {entry.amount >= 0 ? '+' : ''}{entry.amount.toFixed(2)}
                 </span>
               </div>
@@ -560,7 +560,7 @@ function JobSchedulerPanel() {
   };
 
   if (apiUrl == null) {
-    return <p style={{ color: 'var(--gray-500)' }}>Backend URL not configured (VITE_API_URL)</p>;
+    return <p className="text-muted">Backend URL not configured (VITE_API_URL)</p>;
   }
 
   return (
@@ -637,8 +637,8 @@ function JobSchedulerPanel() {
                 </button>
                 {(job.name === 'enrich-watchlist' || ['fetch-matches', 'refresh-live-matches', 'sync-reference-data', 'refresh-provider-insights', 'check-live-trigger', 'update-predictions'].includes(job.name)) && (
                   <button
-                    className="btn btn-sm"
-                    style={{ marginLeft: 4, background: '#f59e0b', color: '#fff', border: 'none', display: 'inline-flex', alignItems: 'center', gap: '4px' }}
+                    type="button"
+                    className="btn btn-sm btn-force"
                     onClick={() => handleTrigger(job.name, true)}
                     disabled={isRunning || triggering.has(job.name)}
                     title={job.name === 'enrich-watchlist'
@@ -756,7 +756,7 @@ function JobSchedulerPanel() {
           </div>
         );
       })}
-      {jobs.length === 0 && <p style={{ color: 'var(--gray-500)' }}>Connecting to server...</p>}
+      {jobs.length === 0 && <p className="text-muted">Connecting to server...</p>}
     </div>
   );
 }
@@ -873,7 +873,7 @@ function UserManagementPanel({
   }, [apiUrl, drafts, showToast]);
 
   if (apiUrl == null) {
-    return <p style={{ color: 'var(--gray-500)' }}>Backend URL not configured.</p>;
+    return <p className="text-muted">Backend URL not configured.</p>;
   }
 
   return (
@@ -935,7 +935,7 @@ function UserManagementPanel({
                         {row.display_name || row.email}
                       </span>
                       {isSelf && (
-                        <span style={{ fontSize: '10px', padding: '1px 6px', borderRadius: '999px', background: '#dbeafe', color: '#1d4ed8', fontWeight: 600, flexShrink: 0 }}>You</span>
+                        <span className="tag-you">You</span>
                       )}
                     </div>
                     <div style={{ fontSize: '11px', color: 'var(--gray-500)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{row.email}</div>
@@ -1269,7 +1269,7 @@ function SubscriptionManagementPanel() {
   }, []);
 
   if (apiUrl == null) {
-    return <p style={{ color: 'var(--gray-500)' }}>Backend URL not configured.</p>;
+    return <p className="text-muted">Backend URL not configured.</p>;
   }
 
   return (
@@ -1614,27 +1614,23 @@ export function SettingsTab() {
 
       {/* Tab: Scheduler */}
       {activeTab === 'scheduler' && (
-        <div className="card" style={{ padding: '16px' }}>
+        <div className="card settings-scheduler-card">
           <JobSchedulerPanel />
         </div>
       )}
 
       {/* Tab: System */}
       {activeTab === 'system' && (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-          <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
-            <div style={{ padding: '12px 16px', borderBottom: '1px solid var(--gray-100)', background: 'var(--gray-50)' }}>
-              <div style={{ fontSize: '13px', fontWeight: 600, color: 'var(--gray-700)' }}>Ops Monitoring</div>
-            </div>
-            <div style={{ padding: '12px 16px' }}>
+        <div className="settings-stack">
+          <div className="card settings-panel-card">
+            <div className="settings-panel-card__header">Ops Monitoring</div>
+            <div className="settings-panel-card__body">
               <OpsMonitoringPanel />
             </div>
           </div>
-          <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
-            <div style={{ padding: '12px 16px', borderBottom: '1px solid var(--gray-100)', background: 'var(--gray-50)' }}>
-              <div style={{ fontSize: '13px', fontWeight: 600, color: 'var(--gray-700)' }}>Integration Health</div>
-            </div>
-            <div style={{ padding: '12px 16px' }}>
+          <div className="card settings-panel-card">
+            <div className="settings-panel-card__header">Integration Health</div>
+            <div className="settings-panel-card__body">
               <IntegrationHealthPanel />
             </div>
           </div>
@@ -1643,7 +1639,7 @@ export function SettingsTab() {
 
       {/* Tab: User (admin/owner only) */}
       {activeTab === 'user-mgmt' && isAdminOrOwner && (
-        <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
+        <div className="card settings-panel-card">
           <div className="settings-panel-padding">
             <UserManagementPanel currentUserId={authUser?.userId ?? null} currentUserRole={authUser?.role ?? null} />
           </div>
@@ -1652,7 +1648,7 @@ export function SettingsTab() {
 
       {/* Tab: Subscription (admin/owner only) */}
       {activeTab === 'subscription-mgmt' && isAdminOrOwner && (
-        <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
+        <div className="card settings-panel-card">
           <div className="settings-panel-padding">
             <SubscriptionManagementPanel />
           </div>
@@ -1661,10 +1657,8 @@ export function SettingsTab() {
 
       {/* Tab: Audit */}
       {activeTab === 'audit' && (
-        <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
-          <div className="settings-panel-padding" style={{ borderBottom: '1px solid var(--gray-100)', background: 'var(--gray-50)' }}>
-            <div style={{ fontSize: '13px', fontWeight: 600, color: 'var(--gray-700)' }}>Audit Trail</div>
-          </div>
+        <div className="card settings-panel-card">
+          <div className="settings-panel-card__header">Audit Trail</div>
           <div className="settings-panel-padding">
             <AuditLogsPanel />
           </div>

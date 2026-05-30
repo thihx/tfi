@@ -8,6 +8,7 @@ import { fetchAiStats, fetchAiStatsByModel, fetchDashboardSummary, fetchMarketRe
 import type { AiAccuracyStats, AiModelStats, DashboardSummary, ExposureSummary, MarketReportRow } from '@/lib/services/api';
 import type { BankrollSnapshot } from '@/types';
 import { StatusBadge } from '@/components/ui/StatusBadge';
+import { EmptyState } from '@/components/ui/EmptyState';
 import { formatLocalDateTime } from '@/lib/utils/helpers';
 import { formatCanonicalMarketLabel } from '@/lib/utils/marketDisplay';
 import { MARKET_COLORS } from '@/config/constants';
@@ -98,16 +99,14 @@ const PnlChart = memo(function PnlChart({ data }: { data: { date: string; pnl: n
   const firstDate = data[0]?.date ?? '';
   const lastDate = data[data.length - 1]?.date ?? '';
   return (
-    <div className="card" style={{ marginBottom: '16px' }}>
-      <div className="card-header">
-        <div>
-          <div className="card-title">Cumulative P/L</div>
-          <div style={{ fontSize: '12px', color: 'var(--gray-500)', marginTop: '4px' }}>
-            Daily cumulative P/L {firstDate && lastDate ? `· ${formatFullChartDate(firstDate)} to ${formatFullChartDate(lastDate)}` : ''}
-          </div>
-        </div>
+    <div className="card tab-section">
+      <div className="chart-panel__header">
+        <span className="chart-panel__title">Cumulative P/L</span>
+        <span className="chart-panel__hint">
+          Daily cumulative P/L {firstDate && lastDate ? `· ${formatFullChartDate(firstDate)} to ${formatFullChartDate(lastDate)}` : ''}
+        </span>
       </div>
-      <div style={{ padding: '16px 12px 8px 0' }}>
+      <div className="chart-panel__body">
         <ResponsiveContainer width="100%" height={240}>
           <AreaChart data={data}>
             <defs>
@@ -143,92 +142,73 @@ const MarketBreakdownChart = memo(function MarketBreakdownChart({ data }: { data
   const visibleMarkets = showAllMarkets ? sorted : topMarkets;
 
   return (
-    <div className="card" style={{ marginBottom: '16px' }}>
+    <div className="card tab-section">
       <div className="card-header">
         <div>
           <div className="card-title">Recommendation Performance by Market</div>
-          <div style={{ fontSize: '12px', color: 'var(--gray-500)', marginTop: '4px' }}>
+          <div className="card-header__hint">
             Top markets by realized P/L. Focus on the strongest market groups first.
           </div>
         </div>
       </div>
       <div style={{ padding: '12px 16px 16px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
-        <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
-          <span style={{ fontSize: '11px', padding: '4px 8px', borderRadius: '999px', background: 'var(--gray-100)', color: 'var(--gray-600)', fontWeight: 600 }}>
-            {sorted.length} markets tracked
-          </span>
-          <span style={{ fontSize: '11px', padding: '4px 8px', borderRadius: '999px', background: '#ecfdf5', color: '#047857', fontWeight: 600 }}>
-            {positiveMarkets} positive P/L
-          </span>
-          <span style={{ fontSize: '11px', padding: '4px 8px', borderRadius: '999px', background: '#eff6ff', color: '#1d4ed8', fontWeight: 600 }}>
-            {totalTrackedBets} graded picks
-          </span>
+        <div className="metric-pill-row">
+          <span className="metric-pill metric-pill--neutral">{sorted.length} markets tracked</span>
+          <span className="metric-pill metric-pill--success">{positiveMarkets} positive P/L</span>
+          <span className="metric-pill metric-pill--info">{totalTrackedBets} graded picks</span>
         </div>
 
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '12px' }}>
+        <div className="dashboard-market-grid">
           {visibleMarkets.map((d) => {
             const total = d.wins + d.losses;
             const winPct = total > 0 ? Math.round((d.wins / total) * 100) : 0;
             const accent = MARKET_COLORS[d.market || ''] || 'var(--gray-400)';
+            const rank = sorted.findIndex((row) => row.market === d.market) + 1;
             return (
-              <div
-                key={d.market}
-                style={{
-                  border: '1px solid var(--gray-200)',
-                  borderRadius: '12px',
-                  padding: '12px 14px',
-                  display: 'flex',
-                  flexDirection: 'column',
-                  gap: '10px',
-                  background: 'white',
-                }}
-              >
-                <div style={{ display: 'flex', justifyContent: 'space-between', gap: '10px', alignItems: 'flex-start' }}>
+              <div key={d.market} className="market-stat-card">
+                <div className="market-stat-card__head">
                   <div>
-                    <div style={{ fontWeight: 700, fontSize: '13px', color: accent }}>
+                    <div className="market-stat-card__title" style={{ color: accent }}>
                       {formatCanonicalMarketLabel(d.market || 'other')}
                     </div>
-                    <div style={{ fontSize: '11px', color: 'var(--gray-500)', marginTop: '2px' }}>
-                      {total} graded picks
-                    </div>
+                    <div className="market-stat-card__sub">{total} graded picks</div>
                   </div>
-                  <div style={{ textAlign: 'right' }}>
-                    <div style={{ fontSize: '13px', fontWeight: 700, color: d.pnl >= 0 ? 'var(--success)' : 'var(--danger)', whiteSpace: 'nowrap' }}>
+                  <div className="market-stat-card__pnl">
+                    <div className="market-stat-card__pnl-value" style={{ color: d.pnl >= 0 ? 'var(--success)' : 'var(--danger)' }}>
                       {d.pnl >= 0 ? '+' : ''}${d.pnl.toFixed(2)}
                     </div>
-                    <div style={{ fontSize: '11px', color: d.roi >= 0 ? 'var(--success)' : 'var(--danger)', marginTop: '2px' }}>
+                    <div className="market-stat-card__roi" style={{ color: d.roi >= 0 ? 'var(--success)' : 'var(--danger)' }}>
                       {d.roi >= 0 ? '+' : ''}{d.roi}%
                     </div>
                   </div>
                 </div>
 
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', gap: '8px' }}>
+                <div className="market-stat-card__metrics">
                   <div>
-                    <div style={{ fontSize: '10px', color: 'var(--gray-400)', textTransform: 'uppercase', letterSpacing: '0.4px' }}>W-L</div>
-                    <div style={{ fontSize: '12px', fontWeight: 600, color: 'var(--gray-700)' }}>{d.wins}-{d.losses}</div>
+                    <div className="market-stat-card__metric-label">W-L</div>
+                    <div className="market-stat-card__metric-value">{d.wins}-{d.losses}</div>
                   </div>
                   <div>
-                    <div style={{ fontSize: '10px', color: 'var(--gray-400)', textTransform: 'uppercase', letterSpacing: '0.4px' }}>Win Rate</div>
-                    <div style={{ fontSize: '12px', fontWeight: 600, color: 'var(--gray-700)' }}>{winPct}%</div>
+                    <div className="market-stat-card__metric-label">Win Rate</div>
+                    <div className="market-stat-card__metric-value">{winPct}%</div>
                   </div>
                   <div>
-                    <div style={{ fontSize: '10px', color: 'var(--gray-400)', textTransform: 'uppercase', letterSpacing: '0.4px' }}>Rank</div>
-                    <div style={{ fontSize: '12px', fontWeight: 600, color: 'var(--gray-700)' }}>#{sorted.findIndex((row) => row.market === d.market) + 1}</div>
+                    <div className="market-stat-card__metric-label">Rank</div>
+                    <div className="market-stat-card__metric-value">#{rank}</div>
                   </div>
                 </div>
 
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                  <div style={{ flex: 1, height: 6, background: 'var(--gray-200)', borderRadius: 999, overflow: 'hidden' }}>
+                <div className="market-stat-card__progress">
+                  <div className="market-stat-card__progress-track">
                     <div
+                      className="market-stat-card__progress-fill"
                       style={{
                         width: `${winPct}%`,
-                        height: '100%',
                         background: winPct >= 50 ? 'var(--success)' : 'var(--danger)',
-                        borderRadius: 999,
                       }}
                     />
                   </div>
-                  <span style={{ fontSize: '11px', color: 'var(--gray-500)', minWidth: 32, textAlign: 'right' }}>{winPct}%</span>
+                  <span className="market-stat-card__progress-label">{winPct}%</span>
                 </div>
               </div>
             );
@@ -251,7 +231,7 @@ const ExposureConcentrationPanel = memo(function ExposureConcentrationPanel({ da
   if (!data || data.stackedClusters === 0) return null;
 
   return (
-    <div className="card" style={{ marginBottom: '16px' }}>
+    <div className="card tab-section">
       <div className="card-header"><div className="card-title">Open Exposure Clusters</div></div>
       <div className="stats-grid" style={{ padding: '0 16px 12px' }}>
         <StatCard label="Clusters" value={data.stackedClusters} sub={`${data.stackedRecommendations} recs involved`} />
@@ -314,10 +294,10 @@ const AiAccuracyPanel = memo(function AiAccuracyPanel({ stats, models }: { stats
   ].filter((d) => d.value > 0);
 
   return (
-    <div className="card" style={{ marginBottom: '16px' }}>
+    <div className="card tab-section">
       <div className="card-header"><div className="card-title">Analysis performance</div></div>
       <div style={{ padding: '12px 16px', display: 'flex', gap: '16px', alignItems: 'center', flexWrap: 'wrap' }}>
-        <div style={{ width: 'min(140px, 35vw)', height: 'min(140px, 35vw)', flexShrink: 0 }}>
+        <div className="pie-chart-wrap">
           <ResponsiveContainer>
             <PieChart>
               <Pie data={pieData} dataKey="value" cx="50%" cy="50%" innerRadius={35} outerRadius={60} paddingAngle={2}>
@@ -394,7 +374,7 @@ export function DashboardTab() {
 
   if (loading && !dashboard) {
     return (
-      <div className="dashboard-loading">
+      <div className="loading-panel">
         <div className="loading-spinner" />
         <p>Loading dashboard...</p>
       </div>
@@ -457,8 +437,7 @@ export function DashboardTab() {
       <MarketBreakdownChart data={marketStats} />
       <ExposureConcentrationPanel data={d?.openExposureConcentration} />
 
-      {/* Recent Activity */}
-      <div className="card">
+      <div className="card tab-section">
         <div className="card-header">
           <div className="card-title">Recent Recommendations</div>
         </div>
@@ -489,7 +468,7 @@ export function DashboardTab() {
                   const outcomeShort = outcome.length > 35 ? outcome.slice(0, 33) + '…' : outcome;
                   return (
                     <tr key={r.id ?? i}>
-                      <td data-label="Date"><span className="cell-value"><span style={{ background: 'var(--gray-100)', padding: '3px 7px', borderRadius: '4px', fontWeight: 600, color: 'var(--gray-700)', fontSize: '12px', whiteSpace: 'nowrap' }}>{dtStr}</span></span></td>
+                      <td data-label="Date"><span className="cell-value"><span className="cell-time-badge">{dtStr}</span></span></td>
                       <td data-label="League"><span className="cell-value" style={{ fontSize: '12px' }} title={String(r.league || '')}>{r.league ? (r.league.length > 20 ? r.league.slice(0, 18) + '…' : r.league) : '-'}</span></td>
                       <td data-label="Match"><span className="cell-value">{display}</span></td>
                       <td data-label="Selection"><span className="cell-value"><strong>{r.selection || '-'}</strong></span></td>
@@ -508,9 +487,7 @@ export function DashboardTab() {
             </table>
           </div>
         ) : (
-          <div className="empty-state-content">
-            No recommendations yet
-          </div>
+          <EmptyState title="No recommendations yet" />
         )}
       </div>
     </div>

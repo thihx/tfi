@@ -223,7 +223,7 @@ describe('TeamProfileModal', () => {
       />,
     );
 
-    fireEvent.click(screen.getByRole('button', { name: 'Tactical Overlay Research' }));
+    fireEvent.click(screen.getByRole('tab', { name: 'Tactical Overlay Research' }));
     expect(screen.getByRole('button', { name: 'Copy Prompt' })).toBeInTheDocument();
   });
 
@@ -237,7 +237,7 @@ describe('TeamProfileModal', () => {
       />,
     );
 
-    fireEvent.click(screen.getByRole('button', { name: 'Tactical Overlay Research' }));
+    fireEvent.click(screen.getByRole('tab', { name: 'Tactical Overlay Research' }));
     expect(screen.getByText(/associated with Premier League/)).toBeInTheDocument();
     expect(screen.getByText(/TACTICAL OVERLAY ONLY/i)).toBeInTheDocument();
   });
@@ -252,7 +252,7 @@ describe('TeamProfileModal', () => {
       />,
     );
 
-    fireEvent.click(screen.getByRole('button', { name: 'Tactical Overlay Research' }));
+    fireEvent.click(screen.getByRole('tab', { name: 'Tactical Overlay Research' }));
     expect(screen.getByText(/approved competition contexts only/i)).toBeInTheDocument();
   });
 
@@ -265,7 +265,7 @@ describe('TeamProfileModal', () => {
       />,
     );
 
-    fireEvent.click(screen.getByRole('button', { name: 'Tactical Overlay Research' }));
+    fireEvent.click(screen.getByRole('tab', { name: 'Tactical Overlay Research' }));
     fireEvent.click(screen.getByRole('button', { name: 'Copy Prompt' }));
 
     await act(async () => {
@@ -286,7 +286,7 @@ describe('TeamProfileModal', () => {
       />,
     );
 
-    fireEvent.click(screen.getByRole('button', { name: 'Tactical Overlay Research' }));
+    fireEvent.click(screen.getByRole('tab', { name: 'Tactical Overlay Research' }));
     fireEvent.click(screen.getByRole('button', { name: 'Copy Prompt' }));
     await act(async () => {
       await Promise.resolve();
@@ -347,7 +347,7 @@ describe('TeamProfileModal', () => {
       />,
     );
 
-    fireEvent.click(screen.getByRole('button', { name: 'Tactical Overlay Research' }));
+    fireEvent.click(screen.getByRole('tab', { name: 'Tactical Overlay Research' }));
     fireEvent.click(screen.getByRole('button', { name: 'Copy Prompt' }));
     await act(async () => {
       await Promise.resolve();
@@ -382,7 +382,7 @@ describe('TeamProfileModal', () => {
       />,
     );
 
-    fireEvent.click(screen.getByRole('button', { name: 'Tactical Overlay Research' }));
+    fireEvent.click(screen.getByRole('tab', { name: 'Tactical Overlay Research' }));
     fireEvent.click(screen.getByRole('button', { name: 'Copy Prompt' }));
     await act(async () => {
       await Promise.resolve();
@@ -405,7 +405,7 @@ describe('TeamProfileModal', () => {
       />,
     );
 
-    fireEvent.click(screen.getByRole('button', { name: 'Tactical Overlay Research' }));
+    fireEvent.click(screen.getByRole('tab', { name: 'Tactical Overlay Research' }));
     fireEvent.click(screen.getByRole('button', { name: 'Copy Prompt' }));
     await act(async () => {
       await Promise.resolve();

@@ -10,6 +10,7 @@ import { useAppState } from '@/hooks/useAppState';
 import { useToast } from '@/hooks/useToast';
 import { Modal } from '@/components/ui/Modal';
 import { Pagination } from '@/components/ui/Pagination';
+import { EmptyState } from '@/components/ui/EmptyState';
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip,
   ResponsiveContainer,
@@ -35,17 +36,12 @@ const MARKET_OPTIONS = ['1x2', 'Over/Under', 'Asian Handicap', 'BTTS', 'Double C
 const KpiCard = memo(function KpiCard({
   label, value, sub, positive,
 }: { label: string; value: string; sub?: string; positive?: boolean | null }) {
-  const valueColor = positive === true
-    ? 'var(--success)'
-    : positive === false
-      ? 'var(--danger)'
-      : 'var(--gray-900)';
   return (
     <div className="stat-card">
       <div className="stat-label">
         {label}
       </div>
-      <div style={{ fontSize: '26px', fontWeight: 800, color: valueColor, letterSpacing: '-0.5px' }}>{value}</div>
+      <div className={`stat-value ${positive === true ? 'positive' : positive === false ? 'negative' : ''}`} style={{ fontSize: '26px', letterSpacing: '-0.5px' }}>{value}</div>
       {sub && <div className="stat-sub">{sub}</div>}
     </div>
   );
@@ -64,11 +60,11 @@ const MarketChart = memo(function MarketChart({
     pnl:  parseFloat(d.total_pnl.toFixed(2)),
   }));
   return (
-    <div className="card" style={{ marginBottom: '12px' }}>
-      <div className="card-header">
-        <div className="card-title">P&amp;L by Market</div>
+    <div className="card tab-section">
+      <div className="chart-panel__header">
+        <span className="chart-panel__title">P&amp;L by Market</span>
       </div>
-      <div style={{ padding: '16px 8px 8px 0' }}>
+      <div className="chart-panel__body">
         <ResponsiveContainer width="100%" height={200}>
           <BarChart data={chartData} layout="vertical">
             <CartesianGrid strokeDasharray="3 3" stroke="var(--gray-200)" />
@@ -285,62 +281,61 @@ export function BetTrackerTab() {
       {/* Market Chart */}
       <MarketChart data={markets} />
 
-      {/* Bets List */}
-      <div className="card">
-        <div className="card-header">
-          <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
-            <button className="btn btn-primary btn-sm" onClick={() => setShowAdd(true)}>+ Log Investment</button>
-          </div>
+      <div className="card tab-page-card">
+        <div className="page-toolbar">
+          <button type="button" className="btn btn-primary btn-sm" onClick={() => setShowAdd(true)}>+ Log Investment</button>
         </div>
 
-        {/* Filters */}
-        <div className="sticky-filter-bar">
-        <div className="filters" style={{ padding: '12px 16px' }}>
-          <select className="filter-input" value={resultFilter} onChange={(e) => setResultFilter(e.target.value)}>
-            <option value="all">All Results</option>
-            <option value="pending">Pending</option>
-            <option value="win">Won</option>
-            <option value="loss">Lost</option>
-            <option value="push">Push</option>
-          </select>
-          <select className="filter-input" value={marketFilter} onChange={(e) => setMarketFilter(e.target.value)}>
-            <option value="all">All Markets</option>
-            {availableMarkets.map((m) => <option key={m} value={m}>{m}</option>)}
-          </select>
-          {(resultFilter !== 'all' || marketFilter !== 'all') && (
-            <button className="btn btn-secondary btn-sm" onClick={() => { setResultFilter('all'); setMarketFilter('all'); }}>
-              Clear
-            </button>
-          )}
-        </div>
+        <div className="sticky-filter-bar bet-tracker-filters">
+          <div className="filters">
+            <select className="filter-input" value={resultFilter} onChange={(e) => setResultFilter(e.target.value)}>
+              <option value="all">All Results</option>
+              <option value="pending">Pending</option>
+              <option value="win">Won</option>
+              <option value="loss">Lost</option>
+              <option value="push">Push</option>
+            </select>
+            <select className="filter-input" value={marketFilter} onChange={(e) => setMarketFilter(e.target.value)}>
+              <option value="all">All Markets</option>
+              {availableMarkets.map((m) => <option key={m} value={m}>{m}</option>)}
+            </select>
+            {(resultFilter !== 'all' || marketFilter !== 'all') && (
+              <button type="button" className="btn btn-secondary btn-sm" onClick={() => { setResultFilter('all'); setMarketFilter('all'); }}>
+                Clear
+              </button>
+            )}
+          </div>
         </div>
 
         <div className="table-container">
           {loading ? (
-            <div style={{ padding: '24px', textAlign: 'center', color: 'var(--gray-400)' }}>
-              <div className="loading-spinner" style={{ margin: '0 auto 12px' }} />
-              <p>Loading…</p>
+            <div className="loading-panel">
+              <div className="loading-spinner" />
+              <p>Loading investments…</p>
             </div>
           ) : pageItems.length === 0 ? (
-            <div style={{ padding: '24px', textAlign: 'center', color: 'var(--gray-400)' }}>
-              <p>{bets.length === 0 ? 'No investments logged yet — click "+ Log Investment" to get started' : 'No investments match filters'}</p>
-            </div>
+            <EmptyState
+              title={bets.length === 0 ? 'No investments logged yet' : 'No investments match filters'}
+              action={bets.length === 0 ? (
+                <button type="button" className="btn btn-primary btn-sm" onClick={() => setShowAdd(true)}>+ Log Investment</button>
+              ) : undefined}
+            />
           ) : (
             <>
             <Pagination currentPage={safePage} totalPages={totalPages} onPageChange={setPage} />
             <div style={{ overflowX: 'auto', WebkitOverflowScrolling: 'touch' }}>
-            <table style={{ minWidth: '700px' }}>
+            <table className="data-table" style={{ minWidth: '700px' }}>
               <thead>
                 <tr>
-                  <th style={{ width: '110px' }}>Placed</th>
+                  <th className="data-table__th--narrow">Placed</th>
                   <th>Match ID</th>
                   <th>Market</th>
                   <th>Selection</th>
-                  <th style={{ textAlign: 'center' }}>Odds</th>
-                  <th style={{ textAlign: 'center' }}>Stake</th>
+                  <th className="data-table__th--center">Odds</th>
+                  <th className="data-table__th--center">Stake</th>
                   <th>Bookmaker</th>
-                  <th style={{ textAlign: 'center' }}>Result</th>
-                  <th style={{ textAlign: 'right' }}>P/L</th>
+                  <th className="data-table__th--center">Result</th>
+                  <th className="data-table__th--right">P/L</th>
                 </tr>
               </thead>
               <tbody>
@@ -349,8 +344,8 @@ export function BetTrackerTab() {
                   const badge = BET_RESULT_BADGES[bet.result] ?? { cls: 'badge-ns', label: bet.result };
                   return (
                     <tr key={bet.id}>
-                      <td style={{ fontSize: '12px', color: 'var(--gray-500)', whiteSpace: 'nowrap' }}>
-                        {formatLocalDateTime(bet.placed_at)}
+                      <td data-label="Placed">
+                        <span className="cell-value"><span className="cell-time-badge">{formatLocalDateTime(bet.placed_at)}</span></span>
                       </td>
                       <td style={{ fontSize: '13px', color: 'var(--gray-600)', maxWidth: '120px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                         {bet.match_id || '—'}

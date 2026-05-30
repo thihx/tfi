@@ -215,20 +215,7 @@ function MatchHubModalInner({
   return (
     <Modal open={open} title={titleText} onClose={onClose} size="xl">
       {hubNotice && (
-        <div
-          role="status"
-          className="match-hub-notice-banner"
-          style={{
-            marginBottom: '12px',
-            padding: '10px 12px',
-            borderRadius: '8px',
-            border: '1px solid var(--amber-200, #fde68a)',
-            background: 'var(--amber-50, #fffbeb)',
-            fontSize: '12px',
-            lineHeight: 1.45,
-            color: 'var(--gray-800, #1f2937)',
-          }}
-        >
+        <div role="status" className="match-hub-notice-banner">
           {hubNotice}
         </div>
       )}
@@ -278,9 +265,9 @@ function MatchHubModalInner({
 
       {tab === 'tfi' &&
         (tfiLoading ? (
-          <div className="match-hub-loading">
-            <div className="loading-spinner match-hub-loading-spinner" />
-            Loading TFI match intelligence...
+          <div className="loading-panel match-hub-loading">
+            <div className="loading-spinner" />
+            <p>Loading TFI match intelligence...</p>
           </div>
         ) : (
           <div className="match-hub-stack">
@@ -320,9 +307,9 @@ function MatchHubModalInner({
 
       {tab === 'timeline' &&
         (snapshotsLoading ? (
-          <div className="match-hub-loading">
-            <div className="loading-spinner match-hub-loading-spinner" />
-            Loading timeline...
+          <div className="loading-panel match-hub-loading">
+            <div className="loading-spinner" />
+            <p>Loading timeline...</p>
           </div>
         ) : (
           <Suspense
@@ -345,9 +332,9 @@ function MatchHubModalInner({
 
       {tab === 'odds' &&
         (oddsLoading ? (
-          <div className="match-hub-loading">
-            <div className="loading-spinner match-hub-loading-spinner" />
-            Loading odds...
+          <div className="loading-panel match-hub-loading">
+            <div className="loading-spinner" />
+            <p>Loading odds...</p>
           </div>
         ) : (
           <Suspense
@@ -372,9 +359,9 @@ function MatchHubModalInner({
 
       {tab === 'bets' &&
         (betsLoading ? (
-          <div className="match-hub-loading">
-            <div className="loading-spinner match-hub-loading-spinner" />
-            Loading bets...
+          <div className="loading-panel match-hub-loading">
+            <div className="loading-spinner" />
+            <p>Loading bets...</p>
           </div>
         ) : (
           <MatchHubBetsView bets={bets ?? []} />

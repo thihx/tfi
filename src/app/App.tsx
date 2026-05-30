@@ -352,8 +352,7 @@ function AppContent() {
           <BottomNav activeTab={activeTab} onTabChange={setActiveTab} />
         </div>
       ) : (
-        /* ── Desktop: sidebar layout ── */
-        <div style={{ display: 'flex', height: '100vh', overflow: 'hidden', background: 'var(--gray-50)' }}>
+        <div className="app-shell">
           <Sidebar
             activeTab={activeTab}
             onTabChange={setActiveTab}
@@ -361,9 +360,9 @@ function AppContent() {
             onToggle={() => setSidebarCollapsed((c) => !c)}
           />
 
-          <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', height: '100vh', overflow: 'hidden' }}>
+          <div className="app-shell__main">
             <Header activeTab={activeTab} onLogout={logout} user={user} onUserChange={setCurrentUser} />
-            <div style={{ flex: 1, padding: '20px', minWidth: 0, overflowY: 'auto', '--header-height': '0px' } as React.CSSProperties}>
+            <div className="app-shell__scroll">
               <Suspense fallback={<TabFallback />}>{renderTab()}</Suspense>
             </div>
           </div>

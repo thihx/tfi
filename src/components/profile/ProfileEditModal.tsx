@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState, type CSSProperties } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Modal } from '@/components/ui/Modal';
 import { Toggle } from '@/components/ui/Toggle';
 import { useToast } from '@/hooks/useToast';
@@ -79,48 +79,20 @@ function getChannelStatusColor(status: NotificationChannelConfig['status']): str
   return '#92400e';
 }
 
-const DEFAULT_ROLE_BADGE = { bg: 'var(--gray-100)', color: 'var(--gray-600)' } as const;
-const ROLE_BADGE: Record<string, { bg: string; color: string }> = {
-  owner:  { bg: '#ede9fe', color: '#6d28d9' },
-  admin:  { bg: '#dbeafe', color: '#1d4ed8' },
-  member: DEFAULT_ROLE_BADGE,
-};
-
-const tabBarStyle: CSSProperties = {
-  display: 'flex',
-  gap: '2px',
-  borderBottom: '1px solid var(--gray-200)',
-  marginBottom: '16px',
-  flexShrink: 0,
-};
-
-function tabBtnStyle(active: boolean): CSSProperties {
-  return {
-    padding: '8px 14px',
-    fontSize: '11px',
-    fontWeight: active ? 700 : 500,
-    letterSpacing: '0.5px',
-    textTransform: 'uppercase',
-    color: active ? '#2563eb' : 'var(--gray-400)',
-    background: active ? 'rgba(37,99,235,0.06)' : 'none',
-    border: 'none',
-    borderBottom: active ? '2px solid #2563eb' : '2px solid transparent',
-    borderRadius: '4px 4px 0 0',
-    cursor: 'pointer',
-    marginBottom: '-1px',
-    transition: 'color 0.15s, background 0.15s',
-    whiteSpace: 'nowrap',
-  };
+function roleBadgeClass(role: string | undefined): string {
+  if (role === 'owner') return 'role-badge role-badge--owner';
+  if (role === 'admin') return 'role-badge role-badge--admin';
+  return 'role-badge role-badge--member';
 }
 
 function PrefRow({ label, hint, children }: { label: string; hint?: string; children: React.ReactNode }) {
   return (
-    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '16px', padding: '10px 0', borderBottom: '1px solid var(--gray-100)' }}>
-      <div style={{ flex: 1, minWidth: 0 }}>
-        <div style={{ fontSize: '13px', fontWeight: 500, color: 'var(--gray-800)' }}>{label}</div>
-        {hint && <div style={{ fontSize: '11px', color: 'var(--gray-500)', marginTop: '2px' }}>{hint}</div>}
+    <div className="pref-row">
+      <div className="pref-row__label">
+        <div>{label}</div>
+        {hint && <div className="pref-row__hint">{hint}</div>}
       </div>
-      <div style={{ flexShrink: 0 }}>{children}</div>
+      <div className="pref-row__control">{children}</div>
     </div>
   );
 }
@@ -396,8 +368,6 @@ export function ProfileEditModal({ open, onClose, user, onUserChange }: ProfileE
   const webPushReady = webPushEnabled && hasWebPushSubscription && webPushPermission === 'granted';
   const webPushStatusLabel = !webPushEnabled ? 'Off' : webPushReady ? 'Ready' : webPushPermission === 'denied' ? 'Blocked' : 'Setup required';
   const webPushStatusColor = webPushReady ? '#047857' : webPushPermission === 'denied' ? '#991b1b' : webPushEnabled ? '#92400e' : 'var(--gray-500)';
-  const roleStyle = ROLE_BADGE[user.role ?? 'member'] ?? DEFAULT_ROLE_BADGE;
-
   const TABS: { id: ProfileTab; label: string }[] = [
     { id: 'identity',      label: 'Profile' },
     { id: 'preferences',   label: 'Preferences' },
@@ -408,67 +378,65 @@ export function ProfileEditModal({ open, onClose, user, onUserChange }: ProfileE
   return (
     <Modal open={open} onClose={onClose} title="Edit Profile" size="lg">
       {/* Tab nav */}
-      <div style={tabBarStyle}>
-        {TABS.map((tab) => (
-          <button key={tab.id} style={tabBtnStyle(activeTab === tab.id)} onClick={() => setActiveTab(tab.id)}>
-            {tab.label}
-          </button>
-        ))}
+      <div className="modal-tab-bar" role="tablist" aria-label="Profile sections">
+        {TABS.map((tab) => {
+          const active = activeTab === tab.id;
+          return (
+            <button
+              key={tab.id}
+              type="button"
+              role="tab"
+              aria-selected={active}
+              className={`modal-tab-button${active ? ' modal-tab-button--active' : ''}`}
+              onClick={() => setActiveTab(tab.id)}
+            >
+              {tab.label}
+            </button>
+          );
+        })}
       </div>
 
-      {/* Tab content — fixed height so modal never resizes between tabs */}
-      <div style={{ height: '440px', overflowY: 'auto', paddingRight: '2px' }}>
+      <div className="modal-tab-panel">
 
       {/* ── Tab: Profile ── */}
       {activeTab === 'identity' && (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
-          {/* Avatar + identity */}
-          <div style={{ display: 'flex', gap: '20px', alignItems: 'flex-start', flexWrap: 'wrap' }}>
-            <div style={{ flexShrink: 0 }}>
-              {avatarUrl ? (
-                <img
-                  src={avatarUrl}
-                  alt={getUserDisplayName(user)}
-                  referrerPolicy="no-referrer"
-                  style={{ width: 88, height: 88, borderRadius: '50%', objectFit: 'cover', border: '3px solid var(--gray-200)', display: 'block' }}
-                />
-              ) : (
-                <div style={{
-                  width: 88, height: 88, borderRadius: '50%',
-                  background: getAvatarColor(user.email), color: '#fff',
-                  display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  fontSize: '30px', fontWeight: 700, border: '3px solid var(--gray-200)',
-                }}>
-                  {getUserInitials(user)}
-                </div>
-              )}
-            </div>
+        <div className="profile-form-stack">
+          <div className="profile-identity-row">
+            {avatarUrl ? (
+              <img
+                src={avatarUrl}
+                alt={getUserDisplayName(user)}
+                referrerPolicy="no-referrer"
+                className="profile-avatar"
+              />
+            ) : (
+              <div
+                className="profile-avatar profile-avatar--initials"
+                style={{ background: getAvatarColor(user.email) }}
+              >
+                {getUserInitials(user)}
+              </div>
+            )}
 
-            <div style={{ flex: '1 1 240px', display: 'flex', flexDirection: 'column', gap: '6px' }}>
+            <div style={{ flex: '1 1 240px', display: 'flex', flexDirection: 'column', gap: '6px', minWidth: 0 }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
                 <span style={{ fontSize: '18px', fontWeight: 700, color: 'var(--gray-900)' }}>
                   {getUserDisplayName(user)}
                 </span>
                 {user.role && (
-                  <span style={{
-                    fontSize: '11px', fontWeight: 600, padding: '2px 8px',
-                    borderRadius: '999px', background: roleStyle.bg, color: roleStyle.color,
-                  }}>
-                    {user.role}
-                  </span>
+                  <span className={roleBadgeClass(user.role)}>{user.role}</span>
                 )}
               </div>
-              <div style={{ fontSize: '13px', color: 'var(--gray-500)' }}>{user.email}</div>
+              <div className="text-muted" style={{ fontSize: 13 }}>{user.email}</div>
             </div>
           </div>
 
-          {/* Edit display name */}
-          <div style={{ border: '1px solid var(--gray-200)', borderRadius: '12px', overflow: 'hidden' }}>
-            <div style={{ padding: '10px 16px', background: 'var(--gray-50)', borderBottom: '1px solid var(--gray-100)' }}>
-              <div style={{ fontSize: '12px', fontWeight: 600, color: 'var(--gray-700)' }}>Display Name</div>
-              <div style={{ fontSize: '11px', color: 'var(--gray-500)', marginTop: '1px' }}>Shown in the app header and notifications. Email is managed by Google sign-in.</div>
+          <div className="card settings-panel-card">
+            <div className="settings-panel-card__header">
+              <div>Display Name</div>
+              <div className="pref-row__hint" style={{ marginTop: 1 }}>Shown in the app header and notifications. Email is managed by Google sign-in.</div>
             </div>
-            <div style={{ padding: '14px 16px', display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap' }}>
+            <div className="settings-panel-card__body" style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
               <input
                 className="filter-input"
                 value={displayNameDraft}
@@ -488,22 +456,17 @@ export function ProfileEditModal({ open, onClose, user, onUserChange }: ProfileE
             </div>
           </div>
 
-          {/* Read-only identity info */}
-          <div style={{ border: '1px solid var(--gray-200)', borderRadius: '12px', overflow: 'hidden' }}>
-            <div style={{ padding: '10px 16px', background: 'var(--gray-50)', borderBottom: '1px solid var(--gray-100)' }}>
-              <div style={{ fontSize: '12px', fontWeight: 600, color: 'var(--gray-700)' }}>Account Info</div>
-            </div>
-            <div style={{ padding: '4px 16px' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 0', borderBottom: '1px solid var(--gray-100)' }}>
-                <span style={{ fontSize: '12px', color: 'var(--gray-500)' }}>Email</span>
-                <span style={{ fontSize: '13px', color: 'var(--gray-800)', fontWeight: 500 }}>{user.email}</span>
+          <div className="card settings-panel-card">
+            <div className="settings-panel-card__header">Account Info</div>
+            <div className="settings-panel-card__body" style={{ paddingTop: 4, paddingBottom: 4 }}>
+              <div className="pref-row" style={{ borderBottom: 'none' }}>
+                <span className="pref-row__hint">Email</span>
+                <span style={{ fontSize: 13, color: 'var(--gray-800)', fontWeight: 500 }}>{user.email}</span>
               </div>
               {user.role && (
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 0', borderBottom: '1px solid var(--gray-100)' }}>
-                  <span style={{ fontSize: '12px', color: 'var(--gray-500)' }}>Role</span>
-                  <span style={{ fontSize: '11px', fontWeight: 600, padding: '2px 8px', borderRadius: '999px', background: roleStyle.bg, color: roleStyle.color }}>
-                    {user.role}
-                  </span>
+                <div className="pref-row" style={{ borderBottom: 'none' }}>
+                  <span className="pref-row__hint">Role</span>
+                  <span className={roleBadgeClass(user.role)}>{user.role}</span>
                 </div>
               )}
             </div>
@@ -513,12 +476,12 @@ export function ProfileEditModal({ open, onClose, user, onUserChange }: ProfileE
 
       {/* ── Tab: Preferences ── */}
       {activeTab === 'preferences' && (
-        <div style={{ border: '1px solid var(--gray-200)', borderRadius: '12px', overflow: 'hidden' }}>
-          <div style={{ padding: '10px 16px', background: 'var(--gray-50)', borderBottom: '1px solid var(--gray-100)' }}>
-            <div style={{ fontSize: '12px', fontWeight: 600, color: 'var(--gray-700)' }}>Personal Preferences</div>
-            <div style={{ fontSize: '11px', color: 'var(--gray-500)', marginTop: '1px' }}>These settings follow you, not the system.</div>
+        <div className="card settings-panel-card">
+          <div className="settings-panel-card__header">
+            <div>Personal Preferences</div>
+            <div className="pref-row__hint" style={{ marginTop: 1 }}>These settings follow you, not the system.</div>
           </div>
-          <div style={{ padding: '0 16px' }}>
+          <div className="settings-panel-card__body" style={{ paddingTop: 4, paddingBottom: 4 }}>
             <PrefRow
               label="UI Language"
               hint="Controls which language reasoning text is displayed in."

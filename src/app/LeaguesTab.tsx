@@ -1,5 +1,6 @@
 import { useState, useEffect, useMemo, useCallback, memo, useRef, Fragment } from 'react';
 import { Pagination } from '@/components/ui/Pagination';
+import { BulkActionBar } from '@/components/ui/BulkActionBar';
 import { LeagueFixturesDialog } from '@/components/ui/LeagueFixturesDialog';
 import { LeagueProfileModal } from '@/components/ui/LeagueProfileModal';
 import { TeamProfileModal } from '@/components/ui/TeamProfileModal';
@@ -1065,10 +1066,19 @@ export function LeaguesTab() {
 
   const allFilteredSelected = filtered.length > 0 && filtered.every((l) => selectedIds.has(l.league_id));
 
+  const filterBadges: string[] = [];
+  if (search) filterBadges.push(`Search: ${search}`);
+  if (filterActive !== 'all') filterBadges.push(`Status: ${filterActive}`);
+  if (filterTier !== 'all') filterBadges.push(`Tier: ${filterTier}`);
+  if (filterCountry !== 'all') filterBadges.push(`Country: ${filterCountry}`);
+  if (filterType !== 'all') filterBadges.push(`Type: ${filterType}`);
+  if (filterTopLeague !== 'all') filterBadges.push(filterTopLeague === 'top' ? 'Favorites' : 'Non-Favorites');
+  if (filterProfile !== 'all') filterBadges.push(`Profile: ${filterProfile}`);
+
   if (loading) {
     return (
-      <div style={{ padding: 24, textAlign: 'center', color: 'var(--gray-400)' }}>
-        <div className="loading-spinner" style={{ margin: '0 auto 12px' }} />
+      <div className="loading-panel">
+        <div className="loading-spinner" />
         <p>Loading leagues...</p>
       </div>
     );
@@ -1076,7 +1086,7 @@ export function LeaguesTab() {
 
   return (
     <>
-    <div className="card leagues-tab">
+    <div className="card tab-page-card leagues-tab">
       {/* Stats bar — doubles as quick-filter buttons */}
       <StatsBar
         leagues={allLeagues}
@@ -1091,10 +1101,8 @@ export function LeaguesTab() {
         onFilterProfile={setFilterProfile}
       />
 
-      {/* Toolbar */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '10px 16px', borderBottom: '1px solid var(--gray-100)', background: 'var(--white)' }}>
-        {/* Search */}
-        <div className="leagues-search" style={{ flex: '0 0 220px' }}>
+      <div className="page-toolbar leagues-toolbar">
+        <div className="leagues-search">
           <span className="leagues-search-icon" style={{ fontSize: 13 }}>
             <svg width="13" height="13" viewBox="0 0 20 20" fill="none"><circle cx="9" cy="9" r="6" stroke="currentColor" strokeWidth="2"/><path d="m15 15 3 3" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/></svg>
           </span>
@@ -1112,54 +1120,61 @@ export function LeaguesTab() {
         </div>
 
         {/* Filters */}
-        <select className="filter-input" value={filterActive} onChange={(e) => setFilterActive(e.target.value)} style={{ flex: '0 0 110px' }}>
+        <select className="filter-input" value={filterActive} onChange={(e) => setFilterActive(e.target.value)}>
           <option value="all">All Status</option>
           <option value="active">Active</option>
           <option value="inactive">Inactive</option>
         </select>
 
-        <select className="filter-input" value={filterTier} onChange={(e) => setFilterTier(e.target.value)} style={{ flex: '0 0 110px' }}>
+        <select className="filter-input" value={filterTier} onChange={(e) => setFilterTier(e.target.value)}>
           <option value="all">All Tiers</option>
           {tiers.map((t) => <option key={t} value={t}>{TIER_LABELS[t] || t}</option>)}
         </select>
 
-        <select className="filter-input" value={filterCountry} onChange={(e) => setFilterCountry(e.target.value)} style={{ flex: '0 0 130px' }}>
+        <select className="filter-input" value={filterCountry} onChange={(e) => setFilterCountry(e.target.value)}>
           <option value="all">All Countries</option>
           {countries.map((c) => <option key={c} value={c}>{c}</option>)}
         </select>
 
-        <select className="filter-input" value={filterType} onChange={(e) => setFilterType(e.target.value)} style={{ flex: '0 0 115px' }}>
+        <select className="filter-input" value={filterType} onChange={(e) => setFilterType(e.target.value)}>
           <option value="all">All Types</option>
           <option value="League">League</option>
           <option value="Cup">Cup</option>
         </select>
 
-        <select className="filter-input" value={filterTopLeague} onChange={(e) => setFilterTopLeague(e.target.value)} style={{ flex: '0 0 120px' }}>
+        <select className="filter-input" value={filterTopLeague} onChange={(e) => setFilterTopLeague(e.target.value)}>
           <option value="all">All Leagues</option>
           <option value="top">Favorites</option>
           <option value="normal">Non-Favorites</option>
         </select>
       </div>
 
-      {/* Contextual bulk actions */}
+      {filterBadges.length > 0 && (
+        <div className="filter-chips-row" aria-label="Active filters">
+          {filterBadges.map((label) => (
+            <span key={label} className="filter-tag">{label}</span>
+          ))}
+        </div>
+      )}
+
       {selectedIds.size > 0 && confirmDeactivate && (
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '7px 16px', background: '#fff1f2', borderBottom: '1px solid #fecdd3', fontSize: 13 }}>
-          <span style={{ fontWeight: 600, color: '#b91c1c' }}>
+        <div className="bulk-bar bulk-bar--warning" role="status">
+          <span className="bulk-bar__message">
             Deactivate {selectedIds.size} league{selectedIds.size > 1 ? 's' : ''}? This will remove them from all scans.
           </span>
-          <button className="btn btn-sm btn-danger" onClick={() => { setConfirmDeactivate(false); handleBulkToggle(false); }}>Confirm</button>
-          <button className="btn btn-sm btn-secondary" onClick={() => setConfirmDeactivate(false)}>Cancel</button>
+          <div className="bulk-bar__actions">
+            <button type="button" className="btn btn-sm btn-danger" onClick={() => { setConfirmDeactivate(false); handleBulkToggle(false); }}>Confirm</button>
+            <button type="button" className="btn btn-sm btn-secondary" onClick={() => setConfirmDeactivate(false)}>Cancel</button>
+          </div>
         </div>
       )}
       {selectedIds.size > 0 && !confirmDeactivate && (
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '7px 16px', background: '#f0f9ff', borderBottom: '1px solid #bae6fd', fontSize: 13 }}>
-          <span style={{ fontWeight: 600, color: 'var(--gray-700)', marginRight: 4 }}>{selectedIds.size} selected</span>
-          <button className="btn btn-sm btn-success" onClick={() => handleBulkToggle(true)}>Activate</button>
-          <button className="btn btn-sm btn-danger" onClick={() => setConfirmDeactivate(true)}>Deactivate</button>
-          <button className="btn btn-sm btn-warning" onClick={() => handleBulkTopLeague(true)}>Add to Favorites</button>
-          <button className="btn btn-sm btn-secondary" onClick={() => handleBulkTopLeague(false)}>Remove from Favorites</button>
-          <button className="btn btn-sm btn-secondary" onClick={() => { setSelectedIds(new Set()); setConfirmDeactivate(false); }} style={{ marginLeft: 'auto' }}>Clear</button>
-        </div>
+        <BulkActionBar count={selectedIds.size} variant="info" onClear={() => { setSelectedIds(new Set()); setConfirmDeactivate(false); }}>
+          <button type="button" className="btn btn-sm btn-success" onClick={() => handleBulkToggle(true)}>Activate</button>
+          <button type="button" className="btn btn-sm btn-danger" onClick={() => setConfirmDeactivate(true)}>Deactivate</button>
+          <button type="button" className="btn btn-sm btn-warning" onClick={() => handleBulkTopLeague(true)}>Add to Favorites</button>
+          <button type="button" className="btn btn-sm btn-secondary" onClick={() => handleBulkTopLeague(false)}>Remove from Favorites</button>
+        </BulkActionBar>
       )}
 
       {/* Pagination — top */}

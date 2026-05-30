@@ -129,12 +129,10 @@ function StatInput({
   onChange: (v: number | null) => void;
 }) {
   return (
-    <label style={{ display: 'grid', gap: 4 }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
-        <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--gray-500)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
-          {label}
-        </span>
-        {hint && <span style={{ fontSize: 10, color: 'var(--gray-400)' }}>{hint}</span>}
+    <label className="profile-stat-input">
+      <div className="profile-stat-input__head">
+        <span className="profile-stat-input__label">{label}</span>
+        {hint && <span className="profile-stat-input__hint">{hint}</span>}
       </div>
       <input
         className="filter-input"
@@ -143,29 +141,13 @@ function StatInput({
         min="0"
         value={toInputValue(value)}
         onChange={(e) => onChange(parseNullableNumber(e.target.value))}
-        style={{ fontSize: 13, padding: '6px 8px' }}
       />
     </label>
   );
 }
 
 function SectionLabel({ children }: { children: React.ReactNode }) {
-  return (
-    <div
-      style={{
-        fontSize: 10,
-        fontWeight: 700,
-        textTransform: 'uppercase',
-        letterSpacing: '0.8px',
-        color: 'var(--gray-400)',
-        borderBottom: '1px solid var(--gray-100)',
-        paddingBottom: 6,
-        marginBottom: 2,
-      }}
-    >
-      {children}
-    </div>
-  );
+  return <div className="profile-section-label">{children}</div>;
 }
 
 interface LeagueProfileModalProps {

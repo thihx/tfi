@@ -132,7 +132,7 @@ const OverviewSection = memo(function OverviewSection({ data }: { data: Overview
         </div>
       )}
       {data.exposureConcentration.stackedClusters > 0 && (
-        <div className="card" style={{ marginTop: 16 }}>
+        <div className="card tab-section" style={{ marginTop: 16 }}>
           <div className="card-header"><div className="card-title">Exposure Concentration</div></div>
           <div style={{ padding: '12px 20px', fontSize: 12, color: 'var(--gray-600)' }}>
             Same match + same thesis clusters with at least 2 entries in the selected period.
@@ -170,9 +170,9 @@ const LeagueSection = memo(function LeagueSection({ data, topLeagueNames }: { da
   }));
   return (
     <div>
-      <div className="card" style={{ marginBottom: 16 }}>
+      <div className="card tab-section">
         <div className="card-header"><div className="card-title">P/L by League</div></div>
-        <div style={{ padding: '16px 0 8px 0' }}>
+        <div className="chart-panel__body">
           <ResponsiveContainer width="100%" height={Math.max(200, sorted.slice(0, 15).length * 32)}>
             <BarChart data={chartData} layout="vertical">
               <CartesianGrid strokeDasharray="3 3" stroke="var(--gray-200)" />
@@ -209,9 +209,9 @@ const MarketSection = memo(function MarketSection({ data }: { data: MarketReport
   }));
   return (
     <div>
-      <div className="card" style={{ marginBottom: 16 }}>
+      <div className="card tab-section">
         <div className="card-header"><div className="card-title">Directional W/L by Market</div></div>
-        <div style={{ padding: '16px 0 8px 0' }}>
+        <div className="chart-panel__body">
           <ResponsiveContainer width="100%" height={Math.max(180, data.length * 32)}>
             <BarChart data={chartData} layout="vertical">
               <CartesianGrid strokeDasharray="3 3" stroke="var(--gray-200)" />
@@ -245,13 +245,13 @@ const TimeSection = memo(function TimeSection({ weekly, monthly }: { weekly: Tim
 
   return (
     <div>
-      <div style={{ marginBottom: 12, display: 'flex', gap: 8 }}>
-        <button className={`btn btn-sm ${view === 'weekly' ? 'btn-primary' : 'btn-secondary'}`} onClick={() => setView('weekly')}>Weekly</button>
-        <button className={`btn btn-sm ${view === 'monthly' ? 'btn-primary' : 'btn-secondary'}`} onClick={() => setView('monthly')}>Monthly</button>
+      <div className="btn-group" style={{ marginBottom: 12 }} role="group" aria-label="Report period">
+        <button type="button" className={`btn btn-sm${view === 'weekly' ? ' btn-primary' : ' btn-secondary'}`} onClick={() => setView('weekly')}>Weekly</button>
+        <button type="button" className={`btn btn-sm${view === 'monthly' ? ' btn-primary' : ' btn-secondary'}`} onClick={() => setView('monthly')}>Monthly</button>
       </div>
-      <div className="card" style={{ marginBottom: 16 }}>
+      <div className="card tab-section">
         <div className="card-header"><div className="card-title">Cumulative P/L ({view})</div></div>
-        <div style={{ padding: '16px 0 8px 0' }}>
+        <div className="chart-panel__body">
           <ResponsiveContainer width="100%" height={240}>
             <AreaChart data={data}>
               <defs>
@@ -271,9 +271,9 @@ const TimeSection = memo(function TimeSection({ weekly, monthly }: { weekly: Tim
           </ResponsiveContainer>
         </div>
       </div>
-      <div className="card" style={{ marginBottom: 16 }}>
+      <div className="card tab-section">
         <div className="card-header"><div className="card-title">Directional Hit Rate Trend</div></div>
-        <div style={{ padding: '16px 0 8px 0' }}>
+        <div className="chart-panel__body">
           <ResponsiveContainer width="100%" height={200}>
             <LineChart data={data}>
               <CartesianGrid strokeDasharray="3 3" stroke="var(--gray-200)" />
@@ -308,7 +308,7 @@ const ConfidenceSection = memo(function ConfidenceSection({ data }: { data: Conf
   }));
   return (
     <div>
-      <div className="card" style={{ marginBottom: 16 }}>
+      <div className="card tab-section">
         <div className="card-header"><div className="card-title">Confidence Calibration</div></div>
         <div style={{ padding: 16, display: 'flex', justifyContent: 'center' }}>
           <ResponsiveContainer width="100%" height={280}>
@@ -345,9 +345,9 @@ const OddsSection = memo(function OddsSection({ data }: { data: OddsRangeRow[] }
   const chartData = data.map((d) => ({ name: d.range, winRate: d.winRate, pnl: d.pnl }));
   return (
     <div>
-      <div className="card" style={{ marginBottom: 16 }}>
+      <div className="card tab-section">
         <div className="card-header"><div className="card-title">Directional Hit Rate by Odds Range</div></div>
-        <div style={{ padding: '16px 0 8px 0' }}>
+        <div className="chart-panel__body">
           <ResponsiveContainer width="100%" height={220}>
             <BarChart data={chartData}>
               <CartesianGrid strokeDasharray="3 3" stroke="var(--gray-200)" />
@@ -378,9 +378,9 @@ const MinuteSection = memo(function MinuteSection({ data }: { data: MinuteBandRo
   const chartData = data.map((d) => ({ name: d.band, winRate: d.winRate, pnl: d.pnl }));
   return (
     <div>
-      <div className="card" style={{ marginBottom: 16 }}>
+      <div className="card tab-section">
         <div className="card-header"><div className="card-title">Performance by Match Minute</div></div>
-        <div style={{ padding: '16px 0 8px 0' }}>
+        <div className="chart-panel__body">
           <ResponsiveContainer width="100%" height={220}>
             <BarChart data={chartData}>
               <CartesianGrid strokeDasharray="3 3" stroke="var(--gray-200)" />
@@ -410,9 +410,9 @@ const DayOfWeekSection = memo(function DayOfWeekSection({ data }: { data: DayOfW
   const chartData = data.map((d) => ({ name: d.dayName, winRate: d.winRate, pnl: d.pnl, total: d.total }));
   return (
     <div>
-      <div className="card" style={{ marginBottom: 16 }}>
+      <div className="card tab-section">
         <div className="card-header"><div className="card-title">Performance by Day of Week</div></div>
-        <div style={{ padding: '16px 0 8px 0' }}>
+        <div className="chart-panel__body">
           <ResponsiveContainer width="100%" height={220}>
             <BarChart data={chartData}>
               <CartesianGrid strokeDasharray="3 3" stroke="var(--gray-200)" />
@@ -455,7 +455,7 @@ const LeagueMarketSection = memo(function LeagueMarketSection({ data, topLeagueN
   return (
     <div>
       {sortedEntries.map(([league, rows]) => (
-        <div key={league} className="card" style={{ marginBottom: 12 }}>
+        <div key={league} className="card tab-section">
           <div className="card-header"><div className="card-title">{league}</div></div>
           <div className="table-container">
             <table>
@@ -496,7 +496,7 @@ const AiInsightsSection = memo(function AiInsightsSection({ data }: { data: AiIn
   return (
     <div className="report-insights">
       {/* Trend Summary */}
-      <div className="card report-insight-card" style={{ marginBottom: 16 }}>
+      <div className="card tab-section report-insight-card">
         <div className="card-header"><div className="card-title">Analysis performance</div></div>
         <div style={{ padding: '16px 20px' }}>
           <div className="report-insight-row" style={{ color: 'var(--gray-500)', fontSize: 12 }}>
@@ -569,7 +569,7 @@ const AiInsightsSection = memo(function AiInsightsSection({ data }: { data: AiIn
         />
       </div>
 
-      <div className="card report-insight-card" style={{ marginTop: 16 }}>
+      <div className="card tab-section report-insight-card" style={{ marginTop: 16 }}>
         <div className="card-header"><div className="card-title">Goals Under Bias</div></div>
         <div style={{ padding: '16px 20px' }}>
           <div className="report-insight-row">
@@ -610,7 +610,7 @@ const AiInsightsSection = memo(function AiInsightsSection({ data }: { data: AiIn
 
       {/* Calibration Warnings */}
       {data.overconfidentBands.length > 0 && (
-        <div className="card" style={{ marginTop: 16 }}>
+        <div className="card tab-section" style={{ marginTop: 16 }}>
           <div className="card-header"><div className="card-title">Confidence Calibration Issues</div></div>
           <div style={{ padding: '12px 20px' }}>
             {data.overconfidentBands.map((b) => (
@@ -623,7 +623,7 @@ const AiInsightsSection = memo(function AiInsightsSection({ data }: { data: AiIn
       )}
 
       {data.marketFamilies.length > 0 && (
-        <div className="card" style={{ marginTop: 16 }}>
+        <div className="card tab-section" style={{ marginTop: 16 }}>
           <div className="card-header"><div className="card-title">Market Family ROI</div></div>
           <ReportTable
             columns={['Family', 'Settled', 'Push/Void', 'Dir W', 'Dir L', 'Hit%', 'P/L', 'ROI']}
@@ -642,7 +642,7 @@ const AiInsightsSection = memo(function AiInsightsSection({ data }: { data: AiIn
       )}
 
       {data.lateEntries.length > 0 && (
-        <div className="card" style={{ marginTop: 16 }}>
+        <div className="card tab-section" style={{ marginTop: 16 }}>
           <div className="card-header"><div className="card-title">Late-Entry ROI</div></div>
           <div style={{ padding: '12px 20px', fontSize: 12, color: 'var(--gray-600)' }}>
             Timing buckets show where prompt entries are actually strongest on stake-adjusted return.

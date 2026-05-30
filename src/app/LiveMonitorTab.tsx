@@ -1,5 +1,6 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
 import { useAppState } from '@/hooks/useAppState';
+import { EmptyState } from '@/components/ui/EmptyState';
 import { formatLocalDateTime } from '@/lib/utils/helpers';
 import {
   fetchLiveMonitorStatus,
@@ -105,23 +106,23 @@ function baselineLabel(baseline: LiveMonitorTarget['baseline']): string {
 
 function ScopeRow({ target }: { target: LiveMonitorTarget }) {
   return (
-    <div style={{ borderBottom: '1px solid var(--gray-100)', padding: '14px 16px' }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', gap: '16px', alignItems: 'flex-start' }}>
-        <div style={{ minWidth: 0, flex: 1 }}>
-          <div style={{ display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap', marginBottom: '4px' }}>
-            <strong style={{ fontSize: '13px' }}>{target.matchDisplay}</strong>
+    <div className="monitor-list-row">
+      <div className="monitor-list-row__head">
+        <div className="monitor-list-row__main">
+          <div className="monitor-list-row__title-row">
+            <span className="monitor-list-row__title">{target.matchDisplay}</span>
             <span className={`badge ${target.candidate ? 'badge-active' : target.live ? 'badge-pending' : 'badge-draw'}`}>
               {target.candidate ? 'Pre-check candidate' : target.live ? 'Watching Live' : 'Waiting for Kickoff'}
             </span>
             {target.customConditions ? <span className="badge badge-draw">Custom Condition</span> : null}
             {target.recommendedCondition ? <span className="badge badge-pending">Suggested condition</span> : null}
           </div>
-          <div style={{ fontSize: '13px', color: 'var(--gray-700)' }}>
+          <div className="monitor-list-row__meta">
             {[target.league, target.minute != null ? `${target.minute}'` : null, target.score, target.status]
               .filter(Boolean)
               .join(' | ')}
           </div>
-          <div style={{ fontSize: '12px', color: 'var(--gray-500)', marginTop: '4px' }}>
+          <div className="monitor-list-row__sub">
             {target.candidate
               ? 'Passed the coarse gate; the engine may still skip after fresh stats and odds.'
               : target.live
@@ -129,24 +130,24 @@ function ScopeRow({ target }: { target: LiveMonitorTarget }) {
                 : 'This match is in the system monitoring pool but is not live yet.'}
           </div>
           {target.customConditions && (
-            <div style={{ fontSize: '12px', color: 'var(--gray-600)', marginTop: '6px' }}>
+            <div className="monitor-list-row__detail">
               <strong>Custom condition:</strong> {target.customConditions}
             </div>
           )}
           {!target.customConditions && target.recommendedCondition && (
-            <div style={{ fontSize: '12px', color: 'var(--gray-600)', marginTop: '6px' }}>
+            <div className="monitor-list-row__detail">
               <strong>Suggested condition:</strong> {target.recommendedCondition}
             </div>
           )}
-          <div style={{ fontSize: '12px', color: 'var(--gray-500)', marginTop: '6px' }}>
+          <div className="monitor-list-row__sub">
             {candidateReasonLabel(target.candidateReason)} | Baseline {baselineLabel(target.baseline)}
           </div>
         </div>
-        <div style={{ textAlign: 'right', minWidth: '120px' }}>
-          <div style={{ fontSize: '12px', color: 'var(--gray-500)', marginTop: '8px' }}>Checks</div>
-          <div style={{ fontWeight: 700, color: 'var(--gray-700)' }}>{target.totalChecks}</div>
+        <div className="monitor-list-row__aside">
+          <div className="monitor-list-row__stat-label">Checks</div>
+          <div className="monitor-list-row__stat-value">{target.totalChecks}</div>
           {target.lastChecked && (
-            <div style={{ fontSize: '11px', color: 'var(--gray-500)', marginTop: '4px' }}>
+            <div className="monitor-list-row__sub">
               Last checked {formatLocalDateTime(target.lastChecked)}
             </div>
           )}
@@ -158,31 +159,31 @@ function ScopeRow({ target }: { target: LiveMonitorTarget }) {
 
 function ProgressCard({ status }: { status: LiveMonitorStatusResponse }) {
   if (!status.progress || (!status.job.running && !status.progress.error)) return null;
+  const percent = status.progress.percent ?? 0;
+  const hasError = Boolean(status.progress.error);
 
   return (
-    <div className="card" style={{ marginBottom: '16px' }}>
+    <div className="card tab-section">
       <div className="card-header">
         <div className="card-title">Live Engine Is Working</div>
-        <small style={{ color: 'var(--gray-500)' }}>
+        <small className="text-muted">
           {status.progress.startedAt ? formatLocalDateTime(status.progress.startedAt) : '—'}
         </small>
       </div>
-      <div style={{ padding: '16px 20px' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '10px', gap: '12px' }}>
-          <strong>{status.progress.message || status.progress.step || 'Checking watched matches'}</strong>
-          <span style={{ color: 'var(--gray-500)', fontSize: '13px' }}>{status.progress.percent}%</span>
+      <div className="monitor-engine-progress">
+        <div className="monitor-engine-progress__head">
+          <span className="monitor-engine-progress__message">
+            {status.progress.message || status.progress.step || 'Checking watched matches'}
+          </span>
+          <span className="text-muted">{percent}%</span>
         </div>
-        <div style={{ height: '10px', background: 'var(--gray-100)', borderRadius: '999px', overflow: 'hidden' }}>
+        <div className="job-progress-bar-bg">
           <div
-            style={{
-              width: `${status.progress.percent}%`,
-              height: '100%',
-              background: status.progress.error ? 'var(--danger)' : 'var(--primary)',
-              transition: 'width 0.2s ease',
-            }}
+            className={`job-progress-bar-fill${hasError ? ' error' : ''}`}
+            style={{ width: `${percent}%` }}
           />
         </div>
-        <p style={{ margin: '10px 0 0', color: status.progress.error ? 'var(--danger)' : 'var(--gray-600)', fontSize: '13px' }}>
+        <p className={`monitor-list-row__sub${hasError ? '' : ''}`} style={{ margin: '10px 0 0', color: hasError ? 'var(--danger)' : undefined }}>
           {status.progress.error || 'The live engine is actively checking matches right now.'}
         </p>
       </div>
@@ -212,13 +213,18 @@ function ResultRow({ result }: { result: ServerMatchPipelineResult }) {
   const prematchMeta = prematchAvailability
     ? `${prematchStrengthLabel(prematchStrength)} | ${prematchAvailability} | noise ${prematchNoisePenalty ?? 'n/a'}`
     : '';
+  const cardClass = [
+    'monitor-list-row',
+    !result.success ? 'match-error' : '',
+    result.notified ? 'match-notified' : '',
+  ].filter(Boolean).join(' ');
 
   return (
-    <div style={{ borderBottom: '1px solid var(--gray-100)', padding: '14px 16px' }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', gap: '16px', alignItems: 'flex-start', marginBottom: '8px' }}>
-        <div style={{ minWidth: 0, flex: 1 }}>
-          <div style={{ display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap', marginBottom: '4px' }}>
-            <strong style={{ fontSize: '13px' }}>{matchTitle}</strong>
+    <div className={cardClass}>
+      <div className="monitor-list-row__head">
+        <div className="monitor-list-row__main">
+          <div className="match-card-badges monitor-list-row__title-row">
+            <span className="monitor-list-row__title">{matchTitle}</span>
             {result.shouldPush && <span className="badge badge-active">Push</span>}
             <span className="badge badge-pending">{decisionKindLabel(result.decisionKind)}</span>
             {parsed?.custom_condition_matched && <span className="badge badge-draw">Condition Matched</span>}
@@ -237,70 +243,72 @@ function ResultRow({ result }: { result: ServerMatchPipelineResult }) {
             )}
             {!result.success && <span className="badge badge-lost">Error</span>}
           </div>
-          <div style={{ fontSize: '13px', color: 'var(--gray-700)' }}>
+          <div className="monitor-list-row__meta">
             {result.selection || parsed?.selection || 'No actionable selection'}
           </div>
-          {matchMeta && (
-            <div style={{ fontSize: '12px', color: 'var(--gray-500)', marginTop: '2px' }}>
-              {matchMeta}
-            </div>
-          )}
-          {parsed?.bet_market && (
-            <div style={{ fontSize: '12px', color: 'var(--gray-500)', marginTop: '2px' }}>
-              {parsed.bet_market}
-            </div>
-          )}
-          {promptMeta && (
-            <div style={{ fontSize: '12px', color: 'var(--gray-500)', marginTop: '4px' }}>
-              {promptMeta}
-            </div>
-          )}
-          {prematchMeta && (
-            <div style={{ fontSize: '12px', color: 'var(--gray-500)', marginTop: '2px' }}>
-              {prematchMeta}
-            </div>
-          )}
+          {matchMeta && <div className="monitor-list-row__sub">{matchMeta}</div>}
+          {parsed?.bet_market && <div className="monitor-list-row__sub">{parsed.bet_market}</div>}
+          {promptMeta && <div className="monitor-list-row__sub">{promptMeta}</div>}
+          {prematchMeta && <div className="monitor-list-row__sub">{prematchMeta}</div>}
         </div>
-        <div style={{ textAlign: 'right', minWidth: '120px' }}>
-          <div style={{ fontSize: '12px', color: 'var(--gray-500)' }}>Confidence</div>
-          <div style={{ fontWeight: 700, color: result.shouldPush ? 'var(--success)' : 'var(--gray-700)' }}>
+        <div className="monitor-list-row__aside">
+          <div className="monitor-list-row__stat-label">Confidence</div>
+          <div
+            className="monitor-list-row__stat-value"
+            style={{ color: result.shouldPush ? 'var(--success)' : undefined }}
+          >
             {result.confidence}/10
           </div>
         </div>
       </div>
 
       {reasoning && (
-        <p style={{ margin: 0, fontSize: '13px', lineHeight: 1.6, color: result.error ? 'var(--danger)' : 'var(--gray-600)' }}>
+        <p className={`match-reasoning${result.error ? ' match-card-error' : ''}`} style={{ marginTop: 'var(--space-2)' }}>
           {reasoning}
         </p>
       )}
 
       {parsed?.condition_triggered_suggestion && (
-        <div style={{ marginTop: '8px', fontSize: '13px', color: 'var(--gray-700)' }}>
+        <div className="monitor-list-row__detail">
           <strong>Condition Suggestion:</strong> {parsed.condition_triggered_suggestion}
-          {conditionReasoning ? <span style={{ color: 'var(--gray-500)' }}> {' '}| {conditionReasoning}</span> : null}
+          {conditionReasoning ? <span className="text-muted"> {' '}| {conditionReasoning}</span> : null}
         </div>
       )}
 
       {warnings.length > 0 && (
-        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', marginTop: '10px' }}>
+        <div className="match-warnings">
           {warnings.map((warning) => (
-            <span
-              key={warning}
-              style={{
-                padding: '2px 8px',
-                borderRadius: '999px',
-                background: '#fef3c7',
-                color: '#92400e',
-                fontSize: '11px',
-                fontWeight: 600,
-              }}
-            >
-              {warning}
-            </span>
+            <span key={warning} className="warning-tag">{warning}</span>
           ))}
         </div>
       )}
+    </div>
+  );
+}
+
+function MonitorListPanel({
+  title,
+  hint,
+  countLabel,
+  emptyTitle,
+  isEmpty,
+  children,
+}: {
+  title: string;
+  hint: string;
+  countLabel: string;
+  emptyTitle: string;
+  isEmpty: boolean;
+  children: ReactNode;
+}) {
+  return (
+    <div className="card tab-section" style={{ overflow: 'hidden' }}>
+      <div className="card-header">
+        <div className="card-title">{title}</div>
+        <small className="text-muted">{countLabel}</small>
+      </div>
+      <div className="monitor-panel-hint">{hint}</div>
+      {isEmpty ? <EmptyState title={emptyTitle} /> : <div>{children}</div>}
     </div>
   );
 }
@@ -358,97 +366,74 @@ export function LiveMonitorTab() {
 
   if (loading && !status) {
     return (
-      <div className="card">
-        <div style={{ padding: '32px 20px', textAlign: 'center', color: 'var(--gray-500)' }}>
-          Loading live monitor dashboard...
-        </div>
+      <div className="loading-panel">
+        <div className="loading-spinner" />
+        <p>Loading live monitor dashboard...</p>
       </div>
     );
   }
 
   return (
     <div className="live-monitor-tab">
-      <div className="card" style={{ marginBottom: '16px' }}>
-        <div style={{ padding: '20px' }}>
-          <div className="monitor-stats-row">
+      <div className="card tab-section">
+        <div className="monitor-summary-panel">
+          <div className="monitor-stats-row" style={{ marginTop: 0 }}>
             <SummaryStat label="Live Now" value={status?.monitoring.liveWatchCount ?? 0} color={(status?.monitoring.liveWatchCount ?? 0) > 0 ? 'var(--success)' : undefined} />
             <SummaryStat label="Pre-check candidates" value={status?.monitoring.candidateCount ?? 0} color={(status?.monitoring.candidateCount ?? 0) > 0 ? 'var(--primary)' : undefined} />
             <SummaryStat label="My Watchlist" value={state.watchlist.length} />
             <SummaryStat label="System Pool" value={status?.monitoring.activeWatchCount ?? 0} />
           </div>
-          <p style={{ margin: '14px 0 0', color: 'var(--gray-500)', fontSize: '13px' }}>
+          <p className="monitor-list-row__sub" style={{ margin: '14px 0 0' }}>
             This screen refreshes automatically and focuses on what is live now, what is ready for analysis, and what is still waiting.
           </p>
-          <div style={{ display: 'flex', gap: '18px', flexWrap: 'wrap', marginTop: '12px', fontSize: '12px', color: 'var(--gray-500)' }}>
-            <span><strong style={{ color: 'var(--gray-700)' }}>Engine:</strong> {status?.job.running ? 'Checking now' : status?.job.enabled ? 'Waiting for next cycle' : 'Disabled'}</span>
-            <span><strong style={{ color: 'var(--gray-700)' }}>Checks so far:</strong> {status?.job.runCount ?? 0}</span>
-            <span><strong style={{ color: 'var(--gray-700)' }}>Last refresh:</strong> {formatLocalDateTime(status?.job.lastRun ?? null)}</span>
-            <span><strong style={{ color: 'var(--gray-700)' }}>Refresh cadence:</strong> {formatInterval(status?.job.intervalMs ?? 0)}</span>
+          <div className="monitor-meta-row">
+            <span><strong>Engine:</strong> {status?.job.running ? 'Checking now' : status?.job.enabled ? 'Waiting for next cycle' : 'Disabled'}</span>
+            <span><strong>Checks so far:</strong> {status?.job.runCount ?? 0}</span>
+            <span><strong>Last refresh:</strong> {formatLocalDateTime(status?.job.lastRun ?? null)}</span>
+            <span><strong>Refresh cadence:</strong> {formatInterval(status?.job.intervalMs ?? 0)}</span>
           </div>
           {refreshError && (
-            <p style={{ margin: '10px 0 0', color: 'var(--danger)', fontSize: '13px' }}>{refreshError}</p>
+            <p className="monitor-list-row__sub" style={{ margin: '10px 0 0', color: 'var(--danger)' }}>{refreshError}</p>
           )}
           {!refreshError && status?.job.lastError && (
-            <p style={{ margin: '10px 0 0', color: 'var(--danger)', fontSize: '13px' }}>{status.job.lastError}</p>
+            <p className="monitor-list-row__sub" style={{ margin: '10px 0 0', color: 'var(--danger)' }}>{status.job.lastError}</p>
           )}
         </div>
       </div>
 
       {status && <ProgressCard status={status} />}
 
-      <div className="card" style={{ overflow: 'hidden', marginBottom: '16px' }}>
-        <div className="card-header">
-          <div className="card-title">Live Right Now</div>
-          <small style={{ color: 'var(--gray-500)' }}>
-            {liveTargets.length} match{liveTargets.length === 1 ? '' : 'es'}
-          </small>
-        </div>
-        <div style={{ padding: '0 20px 14px', color: 'var(--gray-500)', fontSize: '13px' }}>
-          These are the matches the live engine is actively following at this moment.
-        </div>
-        {status && liveTargets.length > 0 ? (
-          <div>
-            {liveTargets.map((target) => (
-              <ScopeRow key={`${target.matchId}-${target.lastChecked ?? 'never'}`} target={target} />
-            ))}
-          </div>
-        ) : (
-          <div style={{ padding: '28px 20px', textAlign: 'center', color: 'var(--gray-500)' }}>
-            No watched matches are live right now.
-          </div>
-        )}
-      </div>
+      <MonitorListPanel
+        title="Live Right Now"
+        hint="These are the matches the live engine is actively following at this moment."
+        countLabel={`${liveTargets.length} match${liveTargets.length === 1 ? '' : 'es'}`}
+        emptyTitle="No watched matches are live right now."
+        isEmpty={!status || liveTargets.length === 0}
+      >
+        {liveTargets.map((target) => (
+          <ScopeRow key={`${target.matchId}-${target.lastChecked ?? 'never'}`} target={target} />
+        ))}
+      </MonitorListPanel>
 
-      <div className="card" style={{ overflow: 'hidden', marginBottom: '16px' }}>
-        <div className="card-header">
-          <div className="card-title">Waiting Or Upcoming</div>
-          <small style={{ color: 'var(--gray-500)' }}>
-            {waitingTargets.length} match{waitingTargets.length === 1 ? '' : 'es'}
-          </small>
-        </div>
-        <div style={{ padding: '0 20px 14px', color: 'var(--gray-500)', fontSize: '13px' }}>
-          These matches are still in the pool, but they are waiting for kickoff or the next meaningful change.
-        </div>
-        {status && waitingTargets.length > 0 ? (
-          <div>
-            {waitingTargets.map((target) => (
-              <ScopeRow key={`${target.matchId}-${target.lastChecked ?? 'never'}`} target={target} />
-            ))}
-          </div>
-        ) : (
-          <div style={{ padding: '28px 20px', textAlign: 'center', color: 'var(--gray-500)' }}>
-            No upcoming or waiting matches are in the monitoring pool.
-          </div>
-        )}
-      </div>
+      <MonitorListPanel
+        title="Waiting Or Upcoming"
+        hint="These matches are still in the pool, but they are waiting for kickoff or the next meaningful change."
+        countLabel={`${waitingTargets.length} match${waitingTargets.length === 1 ? '' : 'es'}`}
+        emptyTitle="No upcoming or waiting matches are in the monitoring pool."
+        isEmpty={!status || waitingTargets.length === 0}
+      >
+        {waitingTargets.map((target) => (
+          <ScopeRow key={`${target.matchId}-${target.lastChecked ?? 'never'}`} target={target} />
+        ))}
+      </MonitorListPanel>
 
-      <div className="card" style={{ overflow: 'hidden' }}>
+      <div className="card tab-section">
         <div className="card-header">
           <div className="card-title">Latest Run Summary</div>
         </div>
-        <div style={{ padding: '20px' }}>
+        <div className="monitor-summary-panel" style={{ paddingTop: 0 }}>
           {status?.summary ? (
-            <div className="monitor-stats-row">
+            <div className="monitor-stats-row" style={{ marginTop: 0 }}>
               <SummaryStat label="Live Matches" value={status.summary.liveCount} />
               <SummaryStat label="Pre-check candidates" value={status.summary.candidateCount} />
               <SummaryStat label="Checked This Run" value={status.summary.processed} />
@@ -457,30 +442,22 @@ export function LiveMonitorTab() {
               <SummaryStat label="Errors" value={status.summary.errors} color={status.summary.errors > 0 ? 'var(--danger)' : undefined} />
             </div>
           ) : (
-            <p style={{ margin: 0, color: 'var(--gray-500)', fontSize: '13px' }}>
-              No completed live-monitor run has been recorded yet.
-            </p>
+            <EmptyState title="No completed live-monitor run has been recorded yet." />
           )}
         </div>
       </div>
 
-      <div className="card" style={{ overflow: 'hidden', marginTop: '16px' }}>
-        <div className="card-header">
-          <div className="card-title">Latest Match Results</div>
-          <small style={{ color: 'var(--gray-500)' }}>{sortedResults.length} result{sortedResults.length === 1 ? '' : 's'}</small>
-        </div>
-        {sortedResults.length > 0 ? (
-          <div>
-            {sortedResults.map((result) => (
-              <ResultRow key={`${result.matchId}-${result.selection}-${result.confidence}`} result={result} />
-            ))}
-          </div>
-        ) : (
-          <div style={{ padding: '28px 20px', textAlign: 'center', color: 'var(--gray-500)' }}>
-            No result payload has been published by the server pipeline yet.
-          </div>
-        )}
-      </div>
+      <MonitorListPanel
+        title="Latest Match Results"
+        hint="Most recent pipeline outcomes from the live engine."
+        countLabel={`${sortedResults.length} result${sortedResults.length === 1 ? '' : 's'}`}
+        emptyTitle="No result payload has been published by the server pipeline yet."
+        isEmpty={sortedResults.length === 0}
+      >
+        {sortedResults.map((result) => (
+          <ResultRow key={`${result.matchId}-${result.selection}-${result.confidence}`} result={result} />
+        ))}
+      </MonitorListPanel>
     </div>
   );
 }

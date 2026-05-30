@@ -62,6 +62,7 @@ Read [docs/agent-onboarding.md](docs/agent-onboarding.md) before making non-triv
 - When changing Playwright tests, verify current visible UI text first.
   Do not assume older labels are still valid.
 - **UI runs on desktop and mobile web:** keep layouts responsive, touch-friendly, and scroll-safe (modals, tables, toolbars). Codex skill: `.codex/skills/tfi-responsive-ui/`.
+- **UI redesign (phases 0–5 done):** read [docs/ui-redesign-audit.md](docs/ui-redesign-audit.md) before broad visual changes. Cursor/agent skills: `.agents/skills/redesign-existing-projects`, `design-taste-frontend`, `minimalist-ui` (Taste Skill). Keep **vanilla CSS** in `public/css/styles.css` and existing `--primary` tokens unless the user requests a stack change. Combine with `tfi-responsive-ui` for all in-app surfaces under `src/`. Shared UI primitives include `.page-toolbar*`, `.bulk-bar*`, `.tab-section`, `.chart-panel*`, `.monitor-list-row*`, `.settings-panel-card`, `.modal--md/lg/xl`, `.empty-state-panel`; components `ViewToggle`, `BulkActionBar`, `EmptyState`, `FeedModeToggle` in `src/components/ui/`. Always validate ~360px / 768px responsive behavior on layout changes.
 - **Sports data provider:** the browser must not call API-Sports directly; use backend routes (e.g. `/api/matches`, `/api/proxy/football/*`). On the server, outbound provider calls go through `packages/server/src/lib/football-api.ts` only — see [docs/agent-onboarding.md](docs/agent-onboarding.md).
 
 ## Change Workflow

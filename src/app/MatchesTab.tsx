@@ -5,6 +5,9 @@ import { useToast } from '@/hooks/useToast';
 import { useUserTimeZone } from '@/hooks/useUserTimeZone';
 import { useViewMode } from '@/hooks/useViewMode';
 import { Pagination } from '@/components/ui/Pagination';
+import { ViewToggle } from '@/components/ui/ViewToggle';
+import { BulkActionBar } from '@/components/ui/BulkActionBar';
+import { EmptyState } from '@/components/ui/EmptyState';
 import { formatHalftimeParen, shouldShowHalftimeUnderScore } from '@/lib/utils/matchScoreDisplay';
 import { DisciplineCardIcons } from '@/components/ui/MatchDisciplineCardIcons';
 import { StatusBadge } from '@/components/ui/StatusBadge';
@@ -985,13 +988,6 @@ export function MatchesTab() {
     : dateFrom === dateYesterday && dateTo === dateYesterday ? 'yesterday'
     : (!dateFrom && !dateTo) ? 'all'
     : 'custom';
-  const tabBtn = (active: boolean) => ({
-    fontWeight: active ? 600 : 400,
-    background: active ? 'var(--gray-800)' : 'transparent',
-    borderColor: active ? 'var(--gray-800)' : 'var(--gray-300)',
-    color: active ? '#fff' : 'var(--gray-500)',
-  } as React.CSSProperties);
-
   // Filter badges
   const badges = [];
   if (debouncedSearch) badges.push(`Teams: ${debouncedSearch}`);
@@ -1056,35 +1052,31 @@ export function MatchesTab() {
   };
 
   return (
-    <div className="card" style={{ '--group-sticky-top': `${filterBarBottom}px`, '--filter-bar-bottom': `${filterBarBottom}px` } as React.CSSProperties}>
+    <div
+      className="card tab-page-card"
+      style={{ '--group-sticky-top': `${filterBarBottom}px`, '--filter-bar-bottom': `${filterBarBottom}px` } as React.CSSProperties}
+    >
       {/* Sticky filter bar */}
       <div className="sticky-filter-bar" ref={filterBarRef}>
         {/* Date tab shortcuts */}
         <div className="date-tab-bar">
-          <button style={tabBtn(activeDateTab === 'all')} onClick={() => { setDateFrom(''); setDateTo(''); }}>All</button>
-          <button style={tabBtn(activeDateTab === 'yesterday')} onClick={() => { setDateFrom(dateYesterday); setDateTo(dateYesterday); }}>Yesterday</button>
-          <button style={tabBtn(activeDateTab === 'today')} onClick={() => { setDateFrom(dateToday); setDateTo(dateToday); }}>Today</button>
-          <button style={tabBtn(activeDateTab === 'tomorrow')} onClick={() => { setDateFrom(dateTomorrow); setDateTo(dateTomorrow); }}>Tomorrow</button>
+          <button type="button" className={`date-tab-btn${activeDateTab === 'all' ? ' date-tab-btn--active' : ''}`} onClick={() => { setDateFrom(''); setDateTo(''); }}>All</button>
+          <button type="button" className={`date-tab-btn${activeDateTab === 'yesterday' ? ' date-tab-btn--active' : ''}`} onClick={() => { setDateFrom(dateYesterday); setDateTo(dateYesterday); }}>Yesterday</button>
+          <button type="button" className={`date-tab-btn${activeDateTab === 'today' ? ' date-tab-btn--active' : ''}`} onClick={() => { setDateFrom(dateToday); setDateTo(dateToday); }}>Today</button>
+          <button type="button" className={`date-tab-btn${activeDateTab === 'tomorrow' ? ' date-tab-btn--active' : ''}`} onClick={() => { setDateFrom(dateTomorrow); setDateTo(dateTomorrow); }}>Tomorrow</button>
           {favoriteFeatureVisible && (
             <button
+              type="button"
               onClick={handleOpenFavoritePicker}
               title="Add matches from your favorite leagues to Watchlist"
-              style={{
-                marginLeft: 'auto',
-                display: 'inline-flex', alignItems: 'center', gap: '5px',
-                padding: '4px 10px', borderRadius: '20px', border: '1px solid var(--gray-200)',
-                background: effectiveFavoriteLeagueIds.length > 0 ? 'rgba(37,99,235,0.06)' : 'transparent',
-                color: effectiveFavoriteLeagueIds.length > 0 ? 'var(--primary)' : 'var(--gray-500)',
-                fontSize: '12px', fontWeight: 500, cursor: 'pointer', lineHeight: 1,
-              }}
+              className={`date-tab-bar__chip${effectiveFavoriteLeagueIds.length > 0 ? ' date-tab-bar__chip--active' : ''}`}
             >
               + Watchlist by Favorite Leagues
             </button>
           )}
         </div>
-        {/* Toolbar: filters + view toggle */}
-        <div style={{ display: 'flex', alignItems: 'stretch' }}>
-        <div className="filters" style={{ flex: 1, borderBottom: 'none' }}>
+        <div className="page-toolbar">
+        <div className="page-toolbar__filters filters">
           <input ref={searchRef} type="text" className="filter-input" placeholder="Search teams… ( / )" value={search} onChange={(e) => handleSearchChange(e.target.value)} />
           <select className="filter-input" value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}>
             <option value="">All Status</option>
@@ -1109,47 +1101,38 @@ export function MatchesTab() {
             <button className="btn btn-secondary" onClick={clearFilters}>Clear</button>
           )}
         </div>
-        {/* View toggle */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '2px', padding: '0 12px', flexShrink: 0, borderLeft: '1px solid var(--gray-100)' }}>
-          <button
-            onClick={() => setViewMode('table')}
-            title="Table view"
-            style={{ padding: '5px 7px', borderRadius: '5px', border: '1px solid', cursor: 'pointer', background: viewMode === 'table' ? 'var(--gray-800)' : 'transparent', borderColor: viewMode === 'table' ? 'var(--gray-800)' : 'var(--gray-300)', color: viewMode === 'table' ? '#fff' : 'var(--gray-500)', lineHeight: 0 }}
-          >
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M3 15h18M9 3v18"/></svg>
-          </button>
-          <button
-            onClick={() => setViewMode('cards')}
-            title="Card view"
-            style={{ padding: '5px 7px', borderRadius: '5px', border: '1px solid', cursor: 'pointer', background: viewMode === 'cards' ? 'var(--gray-800)' : 'transparent', borderColor: viewMode === 'cards' ? 'var(--gray-800)' : 'var(--gray-300)', color: viewMode === 'cards' ? '#fff' : 'var(--gray-500)', lineHeight: 0 }}
-          >
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
-          </button>
+          <div className="page-toolbar__actions">
+            <ViewToggle mode={viewMode} onModeChange={setViewMode} />
+          </div>
         </div>
-        </div>
+        {badges.length > 0 && (
+          <div className="filter-chips-row" aria-label="Active filters">
+            {badges.map((label) => (
+              <span key={label} className="filter-tag">{label}</span>
+            ))}
+          </div>
+        )}
         {totalPages > 1 && (
-          <div style={{ borderTop: '1px solid var(--gray-100)' }}>
+          <div className="page-toolbar__footer">
             <Pagination currentPage={safePage} totalPages={totalPages} onPageChange={setPage} />
           </div>
         )}
-        {/* Contextual selection bar — docked inside sticky bar */}
         {viewMode === 'table' && selected.size > 0 && (
-          <div style={{ padding: '7px 16px', background: '#f0f9ff', borderTop: '1px solid #bae6fd', display: 'flex', alignItems: 'center', gap: '10px' }}>
-            <span style={{ fontSize: '12px', fontWeight: 500, color: 'var(--gray-600)' }}>{selected.size} selected</span>
-            <button className="btn btn-primary btn-sm" onClick={addSelectedToWatchlist}>+ Add to Watchlist</button>
-            <button className="btn btn-secondary btn-sm" style={{ marginLeft: 'auto' }} onClick={() => setSelected(new Set())}>Clear</button>
-          </div>
+          <BulkActionBar count={selected.size} variant="info" onClear={() => setSelected(new Set())}>
+            <button type="button" className="btn btn-primary btn-sm" onClick={addSelectedToWatchlist}>+ Add to Watchlist</button>
+          </BulkActionBar>
         )}
       </div>
 
       {/* AI Result Panels */}
       {aiResults.size > 0 && (
-        <div ref={aiResultsRef} style={{ margin: '12px 0', padding: '0 16px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+        <div ref={aiResultsRef} className="ai-results-stack">
           {aiResults.size > 1 && (
-            <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+            <div className="ai-results-stack__toolbar">
               <button
+                type="button"
+                className="btn-ghost"
                 onClick={() => setAiResults(() => new Map())}
-                style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '12px', color: 'var(--gray-400)', padding: '2px 4px' }}
               >
                 × Close all ({aiResults.size})
               </button>
@@ -1169,23 +1152,22 @@ export function MatchesTab() {
       {/* Card view */}
       {viewMode === 'cards' && (
         <div
-          style={{
-            padding: '16px',
-            paddingBottom:
-              safePage === totalPages && totalPages > 1 && pageItems.length > 0
-                ? `calc(16px + ${LAST_PAGE_BOTTOM_FUDGE})`
-                : '16px',
-          }}
+          className="tab-panel tab-panel--cards"
+          style={
+            safePage === totalPages && totalPages > 1 && pageItems.length > 0
+              ? { paddingBottom: `calc(var(--space-4) + ${LAST_PAGE_BOTTOM_FUDGE})` }
+              : undefined
+          }
         >
           {pageItems.length === 0 ? (
-            <div style={{ padding: '24px', textAlign: 'center', color: 'var(--gray-400)' }}>
-              <p>No matches found</p>
-              <button className="btn btn-secondary" onClick={clearFilters} style={{ marginTop: '10px' }}>Clear Filters</button>
-            </div>
+            <EmptyState
+              title="No matches found"
+              action={<button type="button" className="btn btn-secondary" onClick={clearFilters}>Clear Filters</button>}
+            />
           ) : (
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(min(100%, 320px), 1fr))', gap: '12px' }}>
+            <div className="card-grid">
               {pageItems.map((m) => (
-                <div key={m.match_id} id={tfiMatchAnchorId(String(m.match_id))} style={{ minWidth: 0 }}>
+                <div key={m.match_id} id={tfiMatchAnchorId(String(m.match_id))} className="card-grid__item">
                 <MatchCard
                   match={m}
                   highlighted={selected.has(String(m.match_id))}
@@ -1242,22 +1224,24 @@ export function MatchesTab() {
         <table>
           <thead>
             <tr>
-              <th style={{ cursor: 'pointer' }} onClick={() => handleSort('time')}>Time {sortIndicator('time')}</th>
-              <th style={{ cursor: 'pointer', textAlign: 'center' }} onClick={() => handleSort('league')}>League {sortIndicator('league')}</th>
-              <th style={{ cursor: 'pointer', textAlign: 'center' }} onClick={() => handleSort('status')} title="Sort by match status">
+              <th className="data-table__th--sortable" onClick={() => handleSort('time')}>Time {sortIndicator('time')}</th>
+              <th className="data-table__th--sortable data-table__th--center" onClick={() => handleSort('league')}>League {sortIndicator('league')}</th>
+              <th className="data-table__th--sortable data-table__th--center" onClick={() => handleSort('status')} title="Sort by match status">
                 Match {sortIndicator('status')}
               </th>
               <th style={{ width: 40, textAlign: 'center' }}>
                 <input type="checkbox" checked={allPageSelected} onChange={toggleSelectAll} />
               </th>
-              <th style={{ cursor: 'pointer', textAlign: 'center' }} onClick={() => handleSort('action')}>Action {sortIndicator('action')}</th>
+              <th className="data-table__th--sortable data-table__th--center" onClick={() => handleSort('action')}>Action {sortIndicator('action')}</th>
             </tr>
           </thead>
           <tbody>
             {pageItems.length === 0 ? (
-              <tr><td colSpan={5} className="empty-state">
-                <p>No matches found</p>
-                <button className="btn btn-secondary" onClick={clearFilters} style={{ marginTop: '10px' }}>Clear Filters</button>
+              <tr><td colSpan={5}>
+                <EmptyState
+                  title="No matches found"
+                  action={<button type="button" className="btn btn-secondary" onClick={clearFilters}>Clear Filters</button>}
+                />
               </td></tr>
             ) : (() => {
               const rows: React.ReactNode[] = [];

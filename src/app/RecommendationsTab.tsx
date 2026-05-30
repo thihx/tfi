@@ -21,6 +21,11 @@ import {
 import { formatLocalDateTime } from '@/lib/utils/helpers';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { DatePicker } from '@/components/ui/DatePicker';
+import { ViewToggle } from '@/components/ui/ViewToggle';
+import { BulkActionBar } from '@/components/ui/BulkActionBar';
+import { EmptyState } from '@/components/ui/EmptyState';
+import { FeedModeToggle } from '@/components/ui/FeedModeToggle';
+import { sortIndicator as tableSortIndicator } from '@/lib/utils/sortable-table';
 import { fetchMonitorConfig } from '@/features/live-monitor/config';
 import { fetchCurrentUser, getToken, getUser } from '@/lib/services/auth';
 import type { Recommendation, RecommendationDelivery } from '@/types';
@@ -344,10 +349,7 @@ export function RecommendationsTab() {
     setPage(1);
   };
 
-  const sortIcon = (col: SortCol) => {
-    if (sortCol !== col) return ' ↕';
-    return sortDir === 'asc' ? ' ↑' : ' ↓';
-  };
+  const sortIcon = (col: SortCol) => tableSortIndicator(sortCol, col, sortDir);
 
   const clearFilters = () => {
     setResultFilter('all');
@@ -467,72 +469,51 @@ export function RecommendationsTab() {
   return (
     <div>
       <PageHeader
-        subtitle={<>
-          <span style={{ color: 'var(--gray-500)' }}>{feedMode === 'shared' ? 'Shared feed' : 'My deliveries'}</span>
-          <span>{summary.total} total</span>
-          <span className="text-positive">{summary.won} Won</span>
-          <span className="text-negative">{summary.lost} Lost</span>
-          <span>{summary.push} Push</span>
-          <span>{summary.voided} Void</span>
-          <span>{summary.pending} Pending</span>
-          <span>{summary.review} Needs Review</span>
-          <span className={summary.pnl >= 0 ? 'text-positive' : 'text-negative'} style={{ fontWeight: 600 }}>
-            P/L: {summary.pnl >= 0 ? '+' : ''}${summary.pnl.toFixed(2)}
-          </span>
-          {loading && <span className="text-primary-color">Loading...</span>}
-        </>}
+        subtitle={
+          <div className="stat-strip">
+            <span className="stat-strip__label">{feedMode === 'shared' ? 'Shared feed' : 'My deliveries'}</span>
+            <span className="stat-strip__item">{summary.total} total</span>
+            <span className="stat-strip__item text-positive">{summary.won} Won</span>
+            <span className="stat-strip__item text-negative">{summary.lost} Lost</span>
+            <span className="stat-strip__item">{summary.push} Push</span>
+            <span className="stat-strip__item">{summary.voided} Void</span>
+            <span className="stat-strip__item">{summary.pending} Pending</span>
+            <span className="stat-strip__item">{summary.review} Needs Review</span>
+            <span className={`stat-strip__item ${summary.pnl >= 0 ? 'text-positive' : 'text-negative'}`} style={{ fontWeight: 600 }}>
+              P/L: {summary.pnl >= 0 ? '+' : ''}${summary.pnl.toFixed(2)}
+            </span>
+            {loading && <span className="stat-strip__item text-primary-color">Loading...</span>}
+          </div>
+        }
       />
 
       {/* Filters + view/chart toggles */}
-      <div className="card mb-16">
-        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '10px 12px', borderBottom: '1px solid var(--gray-200)', background: 'var(--gray-50)', flexWrap: 'wrap' }}>
-          <div style={{ display: 'inline-flex', padding: '3px', borderRadius: '8px', background: 'white', border: '1px solid var(--gray-200)' }}>
-            <button
-              className="btn"
-              onClick={() => { setFeedMode('shared'); setPage(1); }}
-              style={{
-                padding: '6px 10px',
-                border: 'none',
-                borderRadius: '6px',
-                background: feedMode === 'shared' ? 'var(--gray-900)' : 'transparent',
-                color: feedMode === 'shared' ? '#fff' : 'var(--gray-600)',
-              }}
-            >
-              Shared Recommendations
-            </button>
-            <button
-              className="btn"
-              onClick={() => { setFeedMode('deliveries'); setPage(1); }}
-              style={{
-                padding: '6px 10px',
-                border: 'none',
-                borderRadius: '6px',
-                background: feedMode === 'deliveries' ? 'var(--gray-900)' : 'transparent',
-                color: feedMode === 'deliveries' ? '#fff' : 'var(--gray-600)',
-              }}
-            >
-              My Deliveries
-            </button>
-          </div>
-          <span style={{ fontSize: '12px', color: 'var(--gray-500)' }}>
-            {feedMode === 'shared'
+      <div className="card mb-16 tab-page-card">
+        <FeedModeToggle
+          value={feedMode}
+          onChange={(mode) => { setFeedMode(mode); setPage(1); }}
+          options={[
+            { value: 'shared', label: 'Shared Recommendations' },
+            { value: 'deliveries', label: 'My Deliveries' },
+          ]}
+          hint={
+            feedMode === 'shared'
               ? 'Canonical recommendation history shared across users.'
-              : 'User-scoped delivery history staged from matching watch subscriptions.'}
-          </span>
-        </div>
+              : 'User-scoped delivery history staged from matching watch subscriptions.'
+          }
+        />
         <div className="sticky-filter-bar">
-        <div style={{ display: 'flex', alignItems: 'stretch' }}>
-          <div style={{ flex: 1, display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '6px', padding: '8px 12px' }}>
+        <div className="page-toolbar">
+          <div className="page-toolbar__filters page-toolbar__filters--wrap">
             <input
               ref={searchRef}
               type="text"
-              className="filter-input"
+              className="filter-input filter-input--search"
               placeholder="Search match / selection… ( / )"
               value={search}
               onChange={(e) => { setSearch(e.target.value); setPage(1); }}
-              style={{ flex: '2 1 160px', minWidth: 0 }}
             />
-            <select className="filter-input" value={resultFilter} onChange={(e) => { setResultFilter(e.target.value); setPage(1); }} style={{ flex: '1 1 100px', minWidth: 0 }}>
+            <select className="filter-input filter-input--compact" value={resultFilter} onChange={(e) => { setResultFilter(e.target.value); setPage(1); }}>
               <option value="all">All Status</option>
               <option value="correct">Won</option>
               <option value="incorrect">Lost</option>
@@ -541,52 +522,36 @@ export function RecommendationsTab() {
               <option value="pending">Pending</option>
               <option value="review">Needs Review</option>
             </select>
-            <select className="filter-input" value={leagueFilter} onChange={(e) => { setLeagueFilter(e.target.value); setPage(1); }} style={{ flex: '1 1 110px', minWidth: 0 }}>
+            <select className="filter-input filter-input--league" value={leagueFilter} onChange={(e) => { setLeagueFilter(e.target.value); setPage(1); }}>
               <option value="all">All Leagues</option>
               {sortedLeagues.map((l) => <option key={l} value={l}>{l}</option>)}
             </select>
-            <select className="filter-input" value={betTypeFilter} onChange={(e) => { setBetTypeFilter(e.target.value); setPage(1); }} style={{ flex: '1 1 100px', minWidth: 0 }}>
+            <select className="filter-input filter-input--compact" value={betTypeFilter} onChange={(e) => { setBetTypeFilter(e.target.value); setPage(1); }}>
               <option value="all">All Markets</option>
               {betTypes.map((t) => (
                 <option key={t} value={t}>{betTypeLabel(t)}</option>
               ))}
             </select>
-            <select className="filter-input" value={riskFilter} onChange={(e) => { setRiskFilter(e.target.value); setPage(1); }} style={{ flex: '1 1 90px', minWidth: 0 }}>
+            <select className="filter-input filter-input--compact" value={riskFilter} onChange={(e) => { setRiskFilter(e.target.value); setPage(1); }}>
               <option value="all">All Risk</option>
               <option value="LOW">Low</option>
               <option value="MEDIUM">Medium</option>
               <option value="HIGH">High</option>
             </select>
-            <DatePicker className="filter-input" value={dateFrom} onChange={(v) => { setDateFrom(v); setPage(1); }} title="From date" placeholder="From date" style={{ flex: '1 1 120px', minWidth: 0 }} />
-            <DatePicker className="filter-input" value={dateTo} onChange={(v) => { setDateTo(v); setPage(1); }} title="To date" placeholder="To date" style={{ flex: '1 1 120px', minWidth: 0 }} />
+            <DatePicker className="filter-input filter-input--date" value={dateFrom} onChange={(v) => { setDateFrom(v); setPage(1); }} title="From date" placeholder="From date" />
+            <DatePicker className="filter-input filter-input--date" value={dateTo} onChange={(v) => { setDateTo(v); setPage(1); }} title="To date" placeholder="To date" />
             {activeFilterCount > 0 && (
-              <button className="btn btn-secondary" onClick={clearFilters} style={{ flexShrink: 0 }}>Clear</button>
+              <button type="button" className="btn btn-secondary" onClick={clearFilters}>Clear</button>
             )}
           </div>
-
-          {/* Icon toggles: chart + view mode */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: '2px', padding: '0 12px', flexShrink: 0, borderLeft: '1px solid var(--gray-100)' }}>
-            <button
-              onClick={() => setShowChart((v) => !v)}
-              title={showChart ? 'Hide chart' : 'Show P/L chart'}
-              style={{ padding: '5px 7px', borderRadius: '5px', border: '1px solid', cursor: 'pointer', background: showChart ? 'var(--gray-800)' : 'transparent', borderColor: showChart ? 'var(--gray-800)' : 'var(--gray-300)', color: showChart ? '#fff' : 'var(--gray-500)', lineHeight: 0 }}
-            >
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
-            </button>
-            <button
-              onClick={() => setViewMode('table')}
-              title="Table view"
-              style={{ padding: '5px 7px', borderRadius: '5px', border: '1px solid', cursor: 'pointer', background: viewMode === 'table' ? 'var(--gray-800)' : 'transparent', borderColor: viewMode === 'table' ? 'var(--gray-800)' : 'var(--gray-300)', color: viewMode === 'table' ? '#fff' : 'var(--gray-500)', lineHeight: 0 }}
-            >
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M3 15h18M9 3v18"/></svg>
-            </button>
-            <button
-              onClick={() => setViewMode('cards')}
-              title="Card view"
-              style={{ padding: '5px 7px', borderRadius: '5px', border: '1px solid', cursor: 'pointer', background: viewMode === 'cards' ? 'var(--gray-800)' : 'transparent', borderColor: viewMode === 'cards' ? 'var(--gray-800)' : 'var(--gray-300)', color: viewMode === 'cards' ? '#fff' : 'var(--gray-500)', lineHeight: 0 }}
-            >
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
-            </button>
+          <div className="page-toolbar__actions">
+            <ViewToggle
+              mode={viewMode}
+              onModeChange={setViewMode}
+              showChart
+              chartActive={showChart}
+              onChartToggle={() => setShowChart((v) => !v)}
+            />
           </div>
         </div>
         </div>
@@ -594,14 +559,14 @@ export function RecommendationsTab() {
 
       {/* P/L Chart */}
       {showChart && chartData.length > 0 && (
-        <div className="card" style={{ marginBottom: '16px' }}>
-          <div style={{ padding: '12px 16px 4px 16px', borderBottom: '1px solid var(--gray-100)' }}>
-            <span style={{ fontWeight: 600, fontSize: 13, color: 'var(--gray-700)' }}>Cumulative P/L</span>
-            <span style={{ fontSize: 11, color: 'var(--gray-400)', marginLeft: 8 }}>
-              Running profit/loss over settled recommendations (win/loss), sorted by time — based on current filter
+        <div className="card mb-16">
+          <div className="chart-panel__header">
+            <span className="chart-panel__title">Cumulative P/L</span>
+            <span className="chart-panel__hint">
+              Settled win/loss picks over time (current filters)
             </span>
           </div>
-          <div style={{ padding: '8px 12px 8px 0' }}>
+          <div className="chart-panel__body">
             <ResponsiveContainer width="100%" height={180}>
               <AreaChart data={chartData}>
                 <CartesianGrid strokeDasharray="3 3" stroke="var(--gray-200)" />
@@ -620,26 +585,25 @@ export function RecommendationsTab() {
 
       {/* Card view */}
       {viewMode === 'cards' && (
-        <div>
+        <div className="tab-panel">
           <Pagination currentPage={page} totalPages={totalPages} onPageChange={setPage} />
           {rows.length === 0 ? (
-            <div className="card" style={{ padding: '24px', textAlign: 'center', color: 'var(--gray-400)' }}>
-              <p>{loading ? 'Loading...' : 'No recommendations match filters'}</p>
+            <div className="card">
+              <EmptyState title={loading ? 'Loading...' : 'No recommendations match filters'} />
             </div>
           ) : (
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(min(100%, 300px), 1fr))', gap: '10px' }}>
+            <div className="card-grid">
               {rows.map((rec, i) => (
+                <div key={rec.id ?? i} className="card-grid__item">
                 <RecommendationCard
-                  key={rec.id ?? i}
                   rec={rec}
                   lang={notificationLang}
                   adminAction={adminCanDelete && rec.id ? (
-                    <div style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', flexWrap: 'nowrap', flexShrink: 0 }}>
+                    <div className="admin-card-actions">
                       {needsReview(rec) && (
                         <button
                           type="button"
                           className="btn btn-secondary btn-sm"
-                          style={{ whiteSpace: 'nowrap', flexShrink: 0 }}
                           onClick={() => openSettleModal(rec)}
                           title="Final Settle"
                         >
@@ -647,19 +611,13 @@ export function RecommendationsTab() {
                         </button>
                       )}
                       <button
+                        type="button"
+                        className="icon-btn-danger"
                         onClick={() => handleDeleteSingle(rec.id!)}
                         title="Delete recommendation"
-                        style={{
-                          background: 'none', border: 'none', cursor: 'pointer',
-                          width: '20px', height: '20px', borderRadius: '50%',
-                          display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
-                          color: 'var(--gray-400)', padding: 0, lineHeight: 1,
-                          transition: 'background 0.15s, color 0.15s',
-                        }}
-                        onMouseEnter={(e) => { e.currentTarget.style.background = '#fee2e2'; e.currentTarget.style.color = 'var(--red)'; }}
-                        onMouseLeave={(e) => { e.currentTarget.style.background = 'none'; e.currentTarget.style.color = 'var(--gray-400)'; }}
+                        aria-label="Delete recommendation"
                       >
-                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
                           <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
                         </svg>
                       </button>
@@ -672,6 +630,7 @@ export function RecommendationsTab() {
                     if (effectiveId) setDetailMatch({ id: effectiveId, display });
                   }}
                 />
+                </div>
               ))}
             </div>
           )}
@@ -683,11 +642,9 @@ export function RecommendationsTab() {
         <div className="table-container table-cards">
           <Pagination currentPage={page} totalPages={totalPages} onPageChange={setPage} />
           {adminCanDelete && selectedIds.size > 0 && (
-            <div style={{ padding: '7px 16px', background: '#fff1f2', borderTop: '1px solid #fca5a5', display: 'flex', alignItems: 'center', gap: '10px' }}>
-              <span style={{ fontSize: '12px', fontWeight: 500, color: 'var(--gray-600)' }}>{selectedIds.size} selected</span>
-              <button className="btn btn-danger btn-sm" onClick={handleDeleteSelected}>Delete Selected</button>
-              <button className="btn btn-secondary btn-sm" onClick={() => setSelectedIds(new Set())}>Clear</button>
-            </div>
+            <BulkActionBar count={selectedIds.size} variant="danger" onClear={() => setSelectedIds(new Set())}>
+              <button type="button" className="btn btn-danger btn-sm" onClick={handleDeleteSelected}>Delete Selected</button>
+            </BulkActionBar>
           )}
           <table>
             <thead>
@@ -702,23 +659,23 @@ export function RecommendationsTab() {
                     />
                   </th>
                 )}
-                <th onClick={() => handleSort('time')} style={{ cursor: 'pointer', width: '100px' }}>Date{sortIcon('time')}</th>
-                <th onClick={() => handleSort('league')} style={{ cursor: 'pointer' }}>League{sortIcon('league')}</th>
+                <th className="data-table__th--sortable" style={{ width: '100px' }} onClick={() => handleSort('time')}>Date{sortIcon('time')}</th>
+                <th className="data-table__th--sortable" onClick={() => handleSort('league')}>League{sortIcon('league')}</th>
                 <th>Match</th>
                 <th>Selection</th>
-                <th onClick={() => handleSort('odds')} style={{ cursor: 'pointer', textAlign: 'center' }}>Odds{sortIcon('odds')}</th>
-                <th onClick={() => handleSort('confidence')} style={{ cursor: 'pointer', textAlign: 'center' }}>Conf.{sortIcon('confidence')}</th>
-                <th style={{ textAlign: 'center' }}>Risk</th>
+                <th className="data-table__th--sortable data-table__th--center" onClick={() => handleSort('odds')}>Odds{sortIcon('odds')}</th>
+                <th className="data-table__th--sortable data-table__th--center" onClick={() => handleSort('confidence')}>Conf.{sortIcon('confidence')}</th>
+                <th className="data-table__th--center">Risk</th>
                 <th>Outcome</th>
-                <th style={{ textAlign: 'center' }}>Result</th>
-                <th onClick={() => handleSort('pnl')} style={{ cursor: 'pointer', textAlign: 'right' }}>P/L{sortIcon('pnl')}</th>
+                <th className="data-table__th--center">Result</th>
+                <th className="data-table__th--sortable data-table__th--right" onClick={() => handleSort('pnl')}>P/L{sortIcon('pnl')}</th>
                 {adminCanDelete && <th style={{ textAlign: 'center', width: '150px' }}>Actions</th>}
               </tr>
             </thead>
             <tbody>
               {rows.length === 0 ? (
-                <tr><td colSpan={adminCanDelete ? 12 : 10} className="empty-state">
-                  <p>{loading ? 'Loading...' : 'No recommendations match filters'}</p>
+                <tr><td colSpan={adminCanDelete ? 12 : 10}>
+                  <EmptyState title={loading ? 'Loading...' : 'No recommendations match filters'} />
                 </td></tr>
               ) : rows.map((rec, i) => {
                 const pnlVal = parseFloat(String(rec.pnl ?? 0));

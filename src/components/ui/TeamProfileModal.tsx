@@ -90,32 +90,29 @@ function TierSegment({ label, options, value, onChange }: {
 }) {
   const active = options.find((o) => o.value === value);
   return (
-    <div style={{ display: 'grid', gap: 5 }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-        <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--gray-500)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
-          {label}
-        </span>
+    <div className="tier-segment">
+      <div className="tier-segment__head">
+        <span className="tier-slider-label">{label}</span>
         {active && (
-          <span style={{
-            fontSize: 10, fontWeight: 700, padding: '1px 6px', borderRadius: 999,
-            background: active.color + '20', color: active.color, border: `1px solid ${active.color}40`,
-          }}>
+          <span
+            className="tier-slider-badge"
+            style={{ background: active.color + '20', color: active.color, border: `1px solid ${active.color}40` }}
+          >
             {active.label}
           </span>
         )}
       </div>
-      <div style={{ display: 'flex', gap: 3 }}>
+      <div className="tier-segment__buttons">
         {options.map((opt) => {
           const isActive = opt.value === value;
           return (
-            <button key={opt.value} type="button" onClick={() => onChange(opt.value)} title={opt.label}
-              style={{
-                flex: 1, padding: '5px 2px', fontSize: 10, fontWeight: isActive ? 700 : 400,
-                borderRadius: 5, border: `1px solid ${isActive ? opt.color : 'var(--gray-200)'}`,
-                background: isActive ? opt.color + '18' : 'var(--gray-50)',
-                color: isActive ? opt.color : 'var(--gray-400)',
-                cursor: 'pointer', transition: 'all 0.15s', whiteSpace: 'nowrap',
-              }}
+            <button
+              key={opt.value}
+              type="button"
+              onClick={() => onChange(opt.value)}
+              title={opt.label}
+              className={`tier-segment-btn${isActive ? ' tier-segment-btn--active' : ''}`}
+              style={isActive ? ({ '--tier-color': opt.color } as React.CSSProperties) : undefined}
             >
               {opt.label}
             </button>
@@ -179,10 +176,10 @@ function StatInput({ label, hint, value, onChange }: {
   label: string; hint?: string; value: number | null; onChange: (v: number | null) => void;
 }) {
   return (
-    <label style={{ display: 'grid', gap: 4 }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
-        <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--gray-500)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>{label}</span>
-        {hint && <span style={{ fontSize: 10, color: 'var(--gray-400)' }}>{hint}</span>}
+    <label className="profile-stat-input">
+      <div className="profile-stat-input__head">
+        <span className="profile-stat-input__label">{label}</span>
+        {hint && <span className="profile-stat-input__hint">{hint}</span>}
       </div>
       <input
         className="filter-input"
@@ -191,21 +188,13 @@ function StatInput({ label, hint, value, onChange }: {
         min="0"
         value={toInputValue(value)}
         onChange={(e) => onChange(parseNullableNumber(e.target.value))}
-        style={{ fontSize: 13, padding: '6px 8px' }}
       />
     </label>
   );
 }
 
 function SectionLabel({ children }: { children: React.ReactNode }) {
-  return (
-    <div style={{
-      fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.8px',
-      color: 'var(--gray-400)', borderBottom: '1px solid var(--gray-100)', paddingBottom: 6, marginBottom: 2,
-    }}>
-      {children}
-    </div>
-  );
+  return <div className="profile-section-label">{children}</div>;
 }
 
 // ── Inner tabs ────────────────────────────────────────────────────────────────
@@ -218,18 +207,17 @@ function InnerTabBar({ active, onChange }: { active: InnerTab; onChange: (t: Inn
     { id: 'research', label: 'Tactical Overlay Research' },
   ];
   return (
-    <div style={{ display: 'flex', borderBottom: '1px solid var(--gray-200)', marginBottom: 16 }}>
+    <div className="modal-inner-tab-bar" role="tablist">
       {tabs.map((t) => {
         const isActive = t.id === active;
         return (
-          <button key={t.id} type="button" onClick={() => onChange(t.id)}
-            style={{
-              padding: '7px 16px', fontSize: 13, fontWeight: isActive ? 600 : 400,
-              color: isActive ? '#2563eb' : 'var(--gray-500)',
-              background: 'none', border: 'none',
-              borderBottom: isActive ? '2px solid #2563eb' : '2px solid transparent',
-              cursor: 'pointer', marginBottom: -1, transition: 'color 0.15s',
-            }}
+          <button
+            key={t.id}
+            type="button"
+            role="tab"
+            aria-selected={isActive}
+            className={`modal-inner-tab-button${isActive ? ' modal-inner-tab-button--active' : ''}`}
+            onClick={() => onChange(t.id)}
           >
             {t.label}
           </button>
@@ -245,28 +233,23 @@ const WIZARD_STEPS = ['Copy Prompt', 'Paste JSON', 'Review & Apply'];
 
 function WizardSteps({ current }: { current: number }) {
   return (
-    <div style={{ display: 'flex', alignItems: 'flex-start', marginBottom: 20 }}>
+    <div className="wizard-steps">
       {WIZARD_STEPS.map((label, i) => {
         const step = i + 1;
-        const done   = step < current;
+        const done = step < current;
         const active = step === current;
         return (
-          <div key={step} style={{ display: 'flex', alignItems: 'flex-start', flex: i < WIZARD_STEPS.length - 1 ? 1 : 'none' }}>
-            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 5 }}>
-              <div style={{
-                width: 28, height: 28, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center',
-                fontSize: 12, fontWeight: 700,
-                background: done ? '#10b981' : active ? '#2563eb' : 'var(--gray-100)',
-                color: done || active ? '#fff' : 'var(--gray-400)',
-              }}>
+          <div key={step} className="wizard-step">
+            <div className="wizard-step__node">
+              <div className={`wizard-step__circle${done ? ' wizard-step__circle--done' : active ? ' wizard-step__circle--active' : ''}`}>
                 {done ? '✓' : step}
               </div>
-              <span style={{ fontSize: 10, fontWeight: 600, color: active ? '#2563eb' : done ? '#10b981' : 'var(--gray-400)', whiteSpace: 'nowrap' }}>
+              <span className={`wizard-step__label${done ? ' wizard-step__label--done' : active ? ' wizard-step__label--active' : ''}`}>
                 {label}
               </span>
             </div>
             {i < WIZARD_STEPS.length - 1 && (
-              <div style={{ flex: 1, height: 2, background: done ? '#10b981' : 'var(--gray-200)', margin: '13px 6px 0', borderRadius: 1 }} />
+              <div className={`wizard-step__connector${done ? ' wizard-step__connector--done' : ''}`} />
             )}
           </div>
         );
@@ -282,18 +265,18 @@ function ImportReview({ summary, repaired }: { summary: ImportFieldResult[]; rep
   return (
     <div>
       {repaired && (
-        <div style={{ padding: '6px 10px', background: '#fef3c7', border: '1px solid #fcd34d', borderRadius: 6, fontSize: 12, marginBottom: 12 }}>
-          ⚠️ JSON had formatting issues and was auto-repaired before parsing.
+        <div className="import-review-banner">
+          JSON had formatting issues and was auto-repaired before parsing.
         </div>
       )}
-      <div style={{ fontSize: 12, color: 'var(--gray-500)', marginBottom: 10 }}>
+      <div className="text-muted" style={{ fontSize: 12, marginBottom: 10 }}>
         <strong style={{ color: '#10b981' }}>{setCount}</strong> of {summary.length} fields set automatically
-        {' · '}<span style={{ color: 'var(--gray-400)' }}>{summary.length - setCount} using defaults</span>
+        {' · '}{summary.length - setCount} using defaults
       </div>
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '4px 12px' }}>
+      <div className="import-review-grid">
         {summary.map((r) => (
-          <div key={r.label} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 12, padding: '3px 0', borderBottom: '1px solid var(--gray-50)' }}>
-            <span style={{ color: 'var(--gray-500)', fontSize: 11 }}>{r.label}</span>
+          <div key={r.label} className="import-review-row">
+            <span className="text-muted" style={{ fontSize: 11 }}>{r.label}</span>
             <span style={{ fontWeight: 600, color: r.status === 'set' ? '#10b981' : 'var(--gray-300)', fontSize: 11 }}>
               {r.value}
             </span>
@@ -318,9 +301,8 @@ function ProfileForm({
     onChange({ ...draft, profile: { ...p, ...patch } });
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
-      {/* Section 1: Tactical Identity */}
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+    <div className="profile-form-stack">
+      <div className="profile-form-section">
         <SectionLabel>Tactical Identity</SectionLabel>
         <TierSegment label="Attack Style"       options={ATTACK_STYLE_OPTIONS}    value={p.attack_style}       onChange={(v) => setP({ attack_style: v as TeamProfileData['attack_style'] })} />
         <TierSlider  label="Defensive Line"     options={TIER3_OPTIONS}            value={p.defensive_line}     onChange={(v) => setP({ defensive_line: v as TeamProfileData['defensive_line'] })} />
@@ -328,8 +310,7 @@ function ProfileForm({
         <TierSlider  label="Set Piece Threat"   options={TIER3_OPTIONS}            value={p.set_piece_threat}   onChange={(v) => setP({ set_piece_threat: v as TeamProfileData['set_piece_threat'] })} />
       </div>
 
-      {/* Section 2: Results Profile */}
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+      <div className="profile-form-section">
         <SectionLabel>Results Profile</SectionLabel>
         <TierSlider  label="Home Strength"      options={HOME_STRENGTH_OPTIONS}    value={p.home_strength}      onChange={(v) => setP({ home_strength: v as TeamProfileData['home_strength'] })} />
         <TierSlider  label="Form Consistency"   options={FORM_CONSISTENCY_OPTIONS} value={p.form_consistency}   onChange={(v) => setP({ form_consistency: v as TeamProfileData['form_consistency'] })} />
@@ -337,8 +318,7 @@ function ProfileForm({
         <TierSlider  label="Data Reliability"   options={RELIABILITY_OPTIONS}      value={p.data_reliability_tier} onChange={(v) => setP({ data_reliability_tier: v as TeamProfileData['data_reliability_tier'] })} />
       </div>
 
-      {/* Section 3: Goals */}
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+      <div className="profile-form-section">
         <SectionLabel>Goals (per match)</SectionLabel>
         <div className="profile-stat-grid">
           <StatInput label="Scored"       hint="/90"  value={p.avg_goals_scored}   onChange={(v) => setP({ avg_goals_scored: v })} />
@@ -351,8 +331,7 @@ function ProfileForm({
         </div>
       </div>
 
-      {/* Section 4: Corners & Cards */}
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+      <div className="profile-form-section">
         <SectionLabel>Corners & Discipline</SectionLabel>
         <div className="profile-stat-grid">
           <StatInput label="Corners For"     hint="/90" value={p.avg_corners_for}     onChange={(v) => setP({ avg_corners_for: v })} />
@@ -361,27 +340,26 @@ function ProfileForm({
         </div>
       </div>
 
-      {/* Section 5: Notes */}
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+      <div className="profile-form-section">
         <SectionLabel>Analyst Notes</SectionLabel>
-        <label style={{ display: 'grid', gap: 4 }}>
-          <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--gray-500)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>English</span>
+        <label className="profile-notes-field">
+          <span className="profile-stat-input__label">English</span>
           <textarea
+            className="profile-textarea"
             value={draft.notes_en}
             onChange={(e) => onChange({ ...draft, notes_en: e.target.value })}
             rows={3}
             placeholder="Key betting considerations: home/away splits, set-piece danger, fatigue patterns, rivalry effects…"
-            style={{ width: '100%', fontSize: 13, padding: '6px 8px', border: '1px solid var(--gray-200)', borderRadius: 6, resize: 'vertical', fontFamily: 'inherit', color: 'var(--gray-700)' }}
           />
         </label>
-        <label style={{ display: 'grid', gap: 4 }}>
-          <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--gray-500)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Tiếng Việt</span>
+        <label className="profile-notes-field">
+          <span className="profile-stat-input__label">Tiếng Việt</span>
           <textarea
+            className="profile-textarea"
             value={draft.notes_vi}
             onChange={(e) => onChange({ ...draft, notes_vi: e.target.value })}
             rows={3}
             placeholder="Ghi chú phân tích bằng tiếng Việt…"
-            style={{ width: '100%', fontSize: 13, padding: '6px 8px', border: '1px solid var(--gray-200)', borderRadius: 6, resize: 'vertical', fontFamily: 'inherit', color: 'var(--gray-700)' }}
           />
         </label>
       </div>
@@ -466,22 +444,22 @@ export function TeamProfileModal({
       onClose={onClose}
       size="lg"
       footer={
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <div className="modal-footer-split">
           <div>
             {hasProfile && !confirmDelete && (
-              <button className="btn btn-danger btn-sm" onClick={() => setConfirmDelete(true)}>Delete Profile</button>
+              <button type="button" className="btn btn-danger btn-sm" onClick={() => setConfirmDelete(true)}>Delete Profile</button>
             )}
             {confirmDelete && (
-              <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-                <span style={{ fontSize: 13, color: '#b91c1c', fontWeight: 600 }}>Delete profile?</span>
-                <button className="btn btn-danger btn-sm" onClick={handleDelete} disabled={saving}>Confirm</button>
-                <button className="btn btn-secondary btn-sm" onClick={() => setConfirmDelete(false)}>Cancel</button>
+              <div className="modal-footer-actions">
+                <span style={{ fontSize: 13, color: 'var(--danger)', fontWeight: 600 }}>Delete profile?</span>
+                <button type="button" className="btn btn-danger btn-sm" onClick={handleDelete} disabled={saving}>Confirm</button>
+                <button type="button" className="btn btn-secondary btn-sm" onClick={() => setConfirmDelete(false)}>Cancel</button>
               </div>
             )}
           </div>
-          <div style={{ display: 'flex', gap: 8 }}>
-            <button className="btn btn-secondary" onClick={onClose} disabled={saving}>Cancel</button>
-            <button className="btn btn-primary" onClick={handleSave} disabled={saving || loading}>
+          <div className="modal-footer-actions">
+            <button type="button" className="btn btn-secondary" onClick={onClose} disabled={saving}>Cancel</button>
+            <button type="button" className="btn btn-primary" onClick={handleSave} disabled={saving || loading}>
               {saving ? 'Saving…' : hasProfile ? 'Update Profile' : 'Create Profile'}
             </button>
           </div>
@@ -489,25 +467,25 @@ export function TeamProfileModal({
       }
     >
       {loading ? (
-        <div style={{ textAlign: 'center', padding: 40 }}>
-          <div className="loading-spinner" style={{ margin: '0 auto 12px' }} />
-          <p style={{ color: 'var(--gray-400)' }}>Loading profile…</p>
+        <div className="loading-panel">
+          <div className="loading-spinner" />
+          <p>Loading profile…</p>
         </div>
       ) : (
         <>
-          {/* Team info strip */}
-          <div style={{
-            display: 'grid',
-            gridTemplateColumns: `repeat(${
-              [
-                true,
-                !!leagueName,
-                !!profile,
-                !!(profile && profile.tactical_overlay_source_mode && profile.tactical_overlay_source_mode !== 'default_neutral'),
-              ].filter(Boolean).length
-            }, minmax(0, 1fr))`,
-            gap: 8, marginBottom: 16,
-          }}>
+          <div
+            className="profile-info-strip"
+            style={{
+              gridTemplateColumns: `repeat(${
+                [
+                  true,
+                  !!leagueName,
+                  !!profile,
+                  !!(profile && profile.tactical_overlay_source_mode && profile.tactical_overlay_source_mode !== 'default_neutral'),
+                ].filter(Boolean).length
+              }, minmax(0, 1fr))`,
+            }}
+          >
             {[
               { label: 'Team', value: team.name },
               ...(leagueName ? [{ label: 'League', value: leagueName }] : []),
@@ -523,12 +501,9 @@ export function TeamProfileModal({
                   }]
                 : []),
             ].map(({ label, value }) => (
-              <div key={label} style={{
-                padding: '8px 12px', borderRadius: 8,
-                border: '1px solid var(--gray-200)', background: 'var(--gray-50)',
-              }}>
-                <div style={{ fontSize: 11, color: 'var(--gray-400)', marginBottom: 2 }}>{label}</div>
-                <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--gray-900)' }}>{value}</div>
+              <div key={label} className="profile-info-chip">
+                <div className="profile-info-chip__label">{label}</div>
+                <div className="profile-info-chip__value">{value}</div>
               </div>
             ))}
           </div>
@@ -544,49 +519,38 @@ export function TeamProfileModal({
               <WizardSteps current={wizardStep} />
 
               {wizardStep === 1 && (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                <div className="profile-form-section">
                   {!overlayEligible && (
-                    <div style={{ padding: '8px 10px', background: '#fffbeb', border: '1px solid #fde68a', borderRadius: 6, fontSize: 12, color: '#92400e' }}>
+                    <div className="alert-banner alert-banner--warning">
                       Tactical overlay refresh is intended for approved competition contexts only: top domestic leagues, continental club competitions, and major international tournaments or qualifiers. You can still review the prompt, but backend save validation may reject this context.
                     </div>
                   )}
-                  <p style={{ fontSize: 13, color: 'var(--gray-600)' }}>
+                  <p className="text-muted" style={{ fontSize: 13, margin: 0 }}>
                     Copy this prompt and paste it into a research assistant (ChatGPT Deep Research, Gemini, Perplexity, etc.) to generate a tactical overlay with source audit. Quantitative core metrics stay unchanged.
                   </p>
-                  <pre style={{
-                    background: 'var(--gray-50)', border: '1px solid var(--gray-200)',
-                    borderRadius: 8, padding: '12px 14px', fontSize: 11, lineHeight: 1.6,
-                    whiteSpace: 'pre-wrap', wordBreak: 'break-word', maxHeight: 240, overflowY: 'auto',
-                    color: 'var(--gray-700)',
-                  }}>
-                    {prompt}
-                  </pre>
-                  <button className="btn btn-primary" onClick={handleCopyPrompt} style={{ alignSelf: 'flex-start' }}>
+                  <pre className="code-block-pre">{prompt}</pre>
+                  <button type="button" className="btn btn-primary" onClick={handleCopyPrompt} style={{ alignSelf: 'flex-start' }}>
                     {copied ? '✓ Copied!' : 'Copy Prompt'}
                   </button>
                 </div>
               )}
 
               {wizardStep === 2 && (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-                  <p style={{ fontSize: 13, color: 'var(--gray-600)' }}>
+                <div className="profile-form-section">
+                  <p className="text-muted" style={{ fontSize: 13, margin: 0 }}>
                     Paste the JSON response from the research tool below. The expected contract is versioned and target-specific so it stays aligned with the tactical overlay schema.
                   </p>
                   <textarea
+                    className={`code-block-textarea${parseError ? ' code-block-textarea--error' : ''}`}
                     value={jsonInput}
                     onChange={(e) => { setJsonInput(e.target.value); setParseError(''); }}
                     rows={12}
                     placeholder='{ "profile": { "attack_style": "counter", ... } }'
-                    style={{
-                      width: '100%', fontFamily: 'monospace', fontSize: 12,
-                      padding: '10px 12px', border: `1px solid ${parseError ? '#ef4444' : 'var(--gray-200)'}`,
-                      borderRadius: 8, resize: 'vertical', color: 'var(--gray-700)',
-                    }}
                   />
-                  {parseError && <p style={{ fontSize: 12, color: '#ef4444' }}>{parseError}</p>}
-                  <div style={{ display: 'flex', gap: 8 }}>
-                    <button className="btn btn-secondary" onClick={() => setWizardStep(1)}>← Back</button>
-                    <button className="btn btn-primary" onClick={handleParseJson} disabled={!jsonInput.trim()}>
+                  {parseError && <p style={{ fontSize: 12, color: 'var(--danger)', margin: 0 }}>{parseError}</p>}
+                  <div className="modal-footer-actions">
+                    <button type="button" className="btn btn-secondary" onClick={() => setWizardStep(1)}>← Back</button>
+                    <button type="button" className="btn btn-primary" onClick={handleParseJson} disabled={!jsonInput.trim()}>
                       Parse JSON →
                     </button>
                   </div>
@@ -594,16 +558,16 @@ export function TeamProfileModal({
               )}
 
               {wizardStep === 3 && parseResult && (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+                <div className="profile-form-section">
                   {parseResult.warnings.length > 0 && (
-                    <div style={{ padding: '8px 10px', background: '#fffbeb', border: '1px solid #fde68a', borderRadius: 6, fontSize: 12, color: '#92400e' }}>
+                    <div className="alert-banner alert-banner--warning">
                       {parseResult.warnings.join(' ')}
                     </div>
                   )}
                   <ImportReview summary={parseResult.summary} repaired={parseResult.repaired} />
-                  <div style={{ display: 'flex', gap: 8 }}>
-                    <button className="btn btn-secondary" onClick={() => setWizardStep(2)}>← Back</button>
-                    <button className="btn btn-primary" onClick={handleApplyImport}>
+                  <div className="modal-footer-actions">
+                    <button type="button" className="btn btn-secondary" onClick={() => setWizardStep(2)}>← Back</button>
+                    <button type="button" className="btn btn-primary" onClick={handleApplyImport}>
                       Apply to Profile →
                     </button>
                   </div>

@@ -5,6 +5,9 @@ import { useToast } from '@/hooks/useToast';
 import { useUserTimeZone } from '@/hooks/useUserTimeZone';
 import { useViewMode } from '@/hooks/useViewMode';
 import { Pagination } from '@/components/ui/Pagination';
+import { ViewToggle } from '@/components/ui/ViewToggle';
+import { BulkActionBar } from '@/components/ui/BulkActionBar';
+import { EmptyState } from '@/components/ui/EmptyState';
 import { PLACEHOLDER_HOME, PLACEHOLDER_AWAY, LIVE_STATUSES } from '@/config/constants';
 import { Modal } from '@/components/ui/Modal';
 import { formatDateTimeDisplay, getKickoffDateKey, getKickoffDateTime, getLeagueDisplayName, debounce } from '@/lib/utils/helpers';
@@ -231,12 +234,17 @@ export function WatchlistTab() {
     : dateFrom === dateTomorrow && dateTo === dateTomorrow ? 'tomorrow'
     : (!dateFrom && !dateTo) ? 'all'
     : 'custom';
-  const tabBtn = (active: boolean) => ({
-    fontWeight: active ? 600 : 400,
-    background: active ? 'var(--gray-800)' : 'transparent',
-    borderColor: active ? 'var(--gray-800)' : 'var(--gray-300)',
-    color: active ? '#fff' : 'var(--gray-500)',
-  } as React.CSSProperties);
+
+  const filterBadges: string[] = [];
+  if (debouncedSearch) filterBadges.push(`Teams: ${debouncedSearch}`);
+  if (leagueFilter) {
+    const op = leagueOptions.find((l) => l.id === leagueFilter);
+    filterBadges.push(`League: ${op?.displayName || leagueFilter}`);
+  }
+  if (dateFrom || dateTo) filterBadges.push(`Date: ${dateFrom || '—'} → ${dateTo || '—'}`);
+
+  const emptyWatchlist = !debouncedSearch && !leagueFilter && !dateFrom && !dateTo;
+  const emptyTitle = emptyWatchlist ? 'Your watchlist is empty' : 'No matches found for your filters';
 
   // Get team logos: prefer logos stored on the watchlist item, fall back to live matches data
   const getLogos = (matchId: string, item?: { home_logo?: string; away_logo?: string }) => {
@@ -249,19 +257,21 @@ export function WatchlistTab() {
 
   return (
     <>
-      <div className="card" style={{ '--group-sticky-top': `${filterBarBottom}px`, '--filter-bar-bottom': `${filterBarBottom}px` } as React.CSSProperties}>
+      <div
+        className="card tab-page-card"
+        style={{ '--group-sticky-top': `${filterBarBottom}px`, '--filter-bar-bottom': `${filterBarBottom}px` } as React.CSSProperties}
+      >
         {/* Sticky filter bar */}
         <div className="sticky-filter-bar" ref={filterBarRef}>
         {/* Date tab shortcuts */}
         <div className="date-tab-bar">
-          <button style={tabBtn(activeDateTab === 'all')} onClick={() => { setDateFrom(''); setDateTo(''); setPage(1); }}>All</button>
-          <button style={tabBtn(activeDateTab === 'today')} onClick={() => { setDateFrom(dateToday); setDateTo(dateToday); setPage(1); }}>Today</button>
-          <button style={tabBtn(activeDateTab === 'tomorrow')} onClick={() => { setDateFrom(dateTomorrow); setDateTo(dateTomorrow); setPage(1); }}>Tomorrow</button>
-          <span style={{ marginLeft: 'auto', fontSize: '12px', color: 'var(--gray-400)' }}>{filtered.length} items</span>
+          <button type="button" className={`date-tab-btn${activeDateTab === 'all' ? ' date-tab-btn--active' : ''}`} onClick={() => { setDateFrom(''); setDateTo(''); setPage(1); }}>All</button>
+          <button type="button" className={`date-tab-btn${activeDateTab === 'today' ? ' date-tab-btn--active' : ''}`} onClick={() => { setDateFrom(dateToday); setDateTo(dateToday); setPage(1); }}>Today</button>
+          <button type="button" className={`date-tab-btn${activeDateTab === 'tomorrow' ? ' date-tab-btn--active' : ''}`} onClick={() => { setDateFrom(dateTomorrow); setDateTo(dateTomorrow); setPage(1); }}>Tomorrow</button>
+          <span className="date-tab-bar__meta">{filtered.length} items</span>
         </div>
-        {/* Toolbar: filters + view toggle */}
-        <div style={{ display: 'flex', alignItems: 'stretch' }}>
-          <div className="filters" style={{ flex: 1, borderBottom: 'none' }}>
+        <div className="page-toolbar">
+          <div className="page-toolbar__filters filters">
             <input ref={searchRef} type="text" className="filter-input" placeholder="Search teams… ( / )" value={search} onChange={(e) => handleSearchChange(e.target.value)} />
             <select className="filter-input" value={leagueFilter} onChange={(e) => handleLeagueFilterChange(e.target.value)}>
               <option value="">All Leagues</option>
@@ -271,52 +281,47 @@ export function WatchlistTab() {
             <DatePicker className="filter-input" value={dateTo} onChange={handleDateToChange} title="To date" placeholder="To date" />
             <button className="btn btn-secondary" onClick={clearFilters}>Clear Filters</button>
           </div>
-          {/* View toggle */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: '2px', padding: '0 12px', flexShrink: 0, borderLeft: '1px solid var(--gray-100)' }}>
-            <button
-              onClick={() => setViewMode('table')}
-              title="Table view"
-              style={{ padding: '5px 7px', borderRadius: '5px', border: '1px solid', cursor: 'pointer', background: viewMode === 'table' ? 'var(--gray-800)' : 'transparent', borderColor: viewMode === 'table' ? 'var(--gray-800)' : 'var(--gray-300)', color: viewMode === 'table' ? '#fff' : 'var(--gray-500)', lineHeight: 0 }}
-            >
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M3 15h18M9 3v18"/></svg>
-            </button>
-            <button
-              onClick={() => setViewMode('cards')}
-              title="Card view"
-              style={{ padding: '5px 7px', borderRadius: '5px', border: '1px solid', cursor: 'pointer', background: viewMode === 'cards' ? 'var(--gray-800)' : 'transparent', borderColor: viewMode === 'cards' ? 'var(--gray-800)' : 'var(--gray-300)', color: viewMode === 'cards' ? '#fff' : 'var(--gray-500)', lineHeight: 0 }}
-            >
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
-            </button>
+          <div className="page-toolbar__actions">
+            <ViewToggle mode={viewMode} onModeChange={setViewMode} />
           </div>
         </div>
+        {filterBadges.length > 0 && (
+          <div className="filter-chips-row" aria-label="Active filters">
+            {filterBadges.map((label) => (
+              <span key={label} className="filter-tag">{label}</span>
+            ))}
+          </div>
+        )}
         {totalPages > 1 && (
-          <div style={{ borderTop: '1px solid var(--gray-100)' }}>
+          <div className="page-toolbar__footer">
             <Pagination currentPage={safePage} totalPages={totalPages} onPageChange={setPage} />
           </div>
         )}
-        {/* Contextual delete strip — docked inside sticky bar */}
         {viewMode === 'table' && selected.size > 0 && (
-          <div style={{ padding: '7px 16px', background: '#fff1f2', borderTop: '1px solid #fca5a5', display: 'flex', alignItems: 'center', gap: '10px' }}>
-            <span style={{ fontSize: '12px', fontWeight: 500, color: 'var(--gray-600)' }}>{selected.size} selected</span>
-            <button className="btn btn-danger btn-sm" onClick={handleDeleteSelected}>Delete Selected</button>
-            <button className="btn btn-secondary btn-sm" style={{ marginLeft: 'auto' }} onClick={() => setSelected(new Set())}>Clear</button>
-          </div>
+          <BulkActionBar count={selected.size} variant="danger" onClear={() => setSelected(new Set())}>
+            <button type="button" className="btn btn-danger btn-sm" onClick={handleDeleteSelected}>Delete Selected</button>
+          </BulkActionBar>
         )}
         </div>
 
         {/* Card view */}
         {viewMode === 'cards' && (
-          <div style={{ padding: '16px' }}>
+          <div className="tab-panel tab-panel--cards">
             {pageItems.length === 0 ? (
-              <div style={{ padding: '24px', textAlign: 'center', color: 'var(--gray-400)' }}>
-                <div style={{ marginBottom: '8px', display: 'flex', justifyContent: 'center' }}><svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg></div>
-                <p>{debouncedSearch || leagueFilter || dateFrom || dateTo ? 'No matches found for your filters' : 'Your watchlist is empty'}</p>
-                {!debouncedSearch && !leagueFilter && !dateFrom && !dateTo && (
-                  <button className="btn btn-primary btn-sm" style={{ marginTop: 8 }} onClick={() => window.dispatchEvent(new CustomEvent('tfi:navigate', { detail: 'matches' }))}>Browse Matches</button>
-                )}
-              </div>
+              <EmptyState
+                title={emptyTitle}
+                action={emptyWatchlist ? (
+                  <button
+                    type="button"
+                    className="btn btn-primary btn-sm"
+                    onClick={() => window.dispatchEvent(new CustomEvent('tfi:navigate', { detail: 'matches' }))}
+                  >
+                    Browse Matches
+                  </button>
+                ) : undefined}
+              />
             ) : (
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(min(100%, 320px), 1fr))', gap: '12px' }}>
+              <div className="card-grid">
                 {pageItems.map((item) => {
                   const logos = getLogos(String(item.match_id), item);
                   const localDT = getKickoffDateTime(item);
@@ -349,31 +354,32 @@ export function WatchlistTab() {
           <table>
             <thead>
               <tr>
-                <th style={{ cursor: 'pointer' }} onClick={() => handleSort('kickoff')}>Time {sortIndicator('kickoff')}</th>
-                <th style={{ cursor: 'pointer', textAlign: 'center' }} onClick={() => handleSort('league')}>League {sortIndicator('league')}</th>
-                <th style={{ cursor: 'pointer', textAlign: 'center' }} onClick={() => handleSort('match')}>Match {sortIndicator('match')}</th>
-                <th style={{ width: 40, textAlign: 'center' }}>
-                  <input type="checkbox" checked={allPageSelected} onChange={toggleSelectAll} />
+                <th className="data-table__th--sortable" onClick={() => handleSort('kickoff')}>Time {sortIndicator('kickoff')}</th>
+                <th className="data-table__th--sortable data-table__th--center" onClick={() => handleSort('league')}>League {sortIndicator('league')}</th>
+                <th className="data-table__th--sortable data-table__th--center" onClick={() => handleSort('match')}>Match {sortIndicator('match')}</th>
+                <th className="data-table__th--checkbox">
+                  <input type="checkbox" checked={allPageSelected} onChange={toggleSelectAll} aria-label="Select all on page" />
                 </th>
-                <th style={{ textAlign: 'center' }}>Prediction</th>
-                <th style={{ textAlign: 'center' }}>Condition</th>
-                <th style={{ textAlign: 'center' }}>Actions</th>
+                <th className="data-table__th--center">Prediction</th>
+                <th className="data-table__th--center">Condition</th>
+                <th className="data-table__th--center">Actions</th>
               </tr>
             </thead>
             <tbody>
               {pageItems.length === 0 ? (
-                <tr><td colSpan={7} className="empty-state">
-                  <div className="empty-state-icon"><svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg></div>
-                  <p>{debouncedSearch || leagueFilter || dateFrom || dateTo ? 'No matches found for your filters' : 'Your watchlist is empty'}</p>
-                  {!debouncedSearch && !leagueFilter && !dateFrom && !dateTo && (
-                    <button
-                      className="btn btn-primary btn-sm"
-                      style={{ marginTop: 8 }}
-                      onClick={() => window.dispatchEvent(new CustomEvent('tfi:navigate', { detail: 'matches' }))}
-                    >
-                      Browse Matches
-                    </button>
-                  )}
+                <tr><td colSpan={7}>
+                  <EmptyState
+                    title={emptyTitle}
+                    action={emptyWatchlist ? (
+                      <button
+                        type="button"
+                        className="btn btn-primary btn-sm"
+                        onClick={() => window.dispatchEvent(new CustomEvent('tfi:navigate', { detail: 'matches' }))}
+                      >
+                        Browse Matches
+                      </button>
+                    ) : undefined}
+                  />
                 </td></tr>
               ) : (() => {
                 const rows: React.ReactNode[] = [];
@@ -395,9 +401,9 @@ export function WatchlistTab() {
 
                 rows.push(
                   <tr key={item.match_id} onDoubleClick={() => setScoutItem(item)} className={isLiveRow ? 'match-is-live' : undefined} style={{ cursor: 'pointer' }} title="Double-click to view match details">
-                    <td data-label="Time" style={{ whiteSpace: 'nowrap', textAlign: 'center' }}>
+                    <td data-label="Time" className="data-table__th--center">
                       <div className="cell-value">
-                        <span style={{ background: 'var(--gray-200)', padding: '4px 8px', borderRadius: '4px', fontWeight: 600, color: 'var(--gray-900)', fontSize: '13px' }}>{timeDisplay}</span>
+                        <span className="cell-time-badge">{timeDisplay}</span>
                       </div>
                     </td>
                     <td data-label="League" style={{ textAlign: 'center' }}><div className="cell-value"><span style={{ fontWeight: 400 }}>{leagueDisplay}</span></div></td>
