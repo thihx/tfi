@@ -2,6 +2,8 @@ import type { FastifyInstance } from 'fastify';
 import { requireCurrentUser } from '../lib/authz.js';
 import * as repo from '../repos/recommendation-deliveries.repo.js';
 
+type DeliveryKind = 'actionable' | 'no_action' | 'all';
+
 function parseDeliveryListQuery(query: {
   limit?: string;
   offset?: string;
@@ -19,7 +21,11 @@ function parseDeliveryListQuery(query: {
   risk_level?: string;
   sort_by?: string;
   sort_dir?: string;
+  delivery_kind?: string;
 }) {
+  const deliveryKind: DeliveryKind | undefined = query.delivery_kind === 'actionable' || query.delivery_kind === 'no_action' || query.delivery_kind === 'all'
+    ? query.delivery_kind
+    : undefined;
   return {
     limit: query.limit ? Number(query.limit) : undefined,
     offset: query.offset ? Number(query.offset) : undefined,
@@ -37,6 +43,7 @@ function parseDeliveryListQuery(query: {
     riskLevel: query.risk_level || undefined,
     sortBy: query.sort_by || undefined,
     sortDir: query.sort_dir || undefined,
+    deliveryKind,
   };
 }
 
@@ -59,6 +66,7 @@ export async function recommendationDeliveriesRoutes(app: FastifyInstance) {
       risk_level?: string;
       sort_by?: string;
       sort_dir?: string;
+      delivery_kind?: string;
     };
   }>('/api/me/recommendation-deliveries', async (req, reply) => {
     const user = requireCurrentUser(req, reply);
@@ -76,6 +84,7 @@ export async function recommendationDeliveriesRoutes(app: FastifyInstance) {
       date_from?: string;
       date_to?: string;
       risk_level?: string;
+      delivery_kind?: string;
     };
   }>('/api/me/recommendation-deliveries/summary', async (req, reply) => {
     const user = requireCurrentUser(req, reply);
@@ -94,6 +103,7 @@ export async function recommendationDeliveriesRoutes(app: FastifyInstance) {
       date_from?: string;
       date_to?: string;
       risk_level?: string;
+      delivery_kind?: string;
     };
   }>('/api/me/recommendation-deliveries/chart-series', async (req, reply) => {
     const user = requireCurrentUser(req, reply);

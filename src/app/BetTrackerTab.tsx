@@ -227,7 +227,7 @@ function AddBetModal({ open, onClose, onSave, saving, availableBalance, currency
       </div>
     </Modal>
   );
-});
+}
 
 function LedgerRow({ entry }: { entry: BankrollLedgerEntry }) {
   const tone = entry.amount >= 0 ? 'positive' : 'negative';

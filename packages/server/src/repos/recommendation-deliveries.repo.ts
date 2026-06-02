@@ -110,6 +110,7 @@ interface RecommendationDeliveryListOptions {
   riskLevel?: string;
   sortBy?: string;
   sortDir?: string;
+  deliveryKind?: 'actionable' | 'no_action' | 'all';
 }
 
 export interface RecommendationDeliveryListSummary {
@@ -129,10 +130,22 @@ export interface RecommendationDeliveryChartPoint {
 }
 
 const FINAL_DELIVERY_RESULTS_SQL = `'win', 'loss', 'push', 'void', 'half_win', 'half_loss'`;
-const DELIVERY_WIN_SQL = `r.result IN ('win', 'half_win')`;
-const DELIVERY_LOSS_SQL = `r.result IN ('loss', 'half_loss')`;
-const DELIVERY_PENDING_SQL = `(r.result IS NULL OR r.result = '' OR r.result NOT IN (${FINAL_DELIVERY_RESULTS_SQL}))`;
-const DELIVERY_REVIEW_SQL = `COALESCE(r.settlement_status, NULLIF(d.metadata->>'recommendation_settlement_status', ''), 'pending') = 'unresolved' AND r.result IN (${FINAL_DELIVERY_RESULTS_SQL})`;
+const DELIVERY_RESULT_SQL = `COALESCE(r.result, NULLIF(d.metadata->>'recommendation_result', ''))`;
+const DELIVERY_PNL_SQL = `COALESCE(r.pnl, NULLIF(d.metadata->>'recommendation_pnl', '')::numeric, 0)`;
+const DELIVERY_WIN_SQL = `${DELIVERY_RESULT_SQL} IN ('win', 'half_win')`;
+const DELIVERY_LOSS_SQL = `${DELIVERY_RESULT_SQL} IN ('loss', 'half_loss')`;
+const DELIVERY_PENDING_SQL = `(${DELIVERY_RESULT_SQL} IS NULL OR ${DELIVERY_RESULT_SQL} = '' OR ${DELIVERY_RESULT_SQL} NOT IN (${FINAL_DELIVERY_RESULTS_SQL}))`;
+const DELIVERY_REVIEW_SQL = `COALESCE(r.settlement_status, NULLIF(d.metadata->>'recommendation_settlement_status', ''), 'pending') = 'unresolved' AND ${DELIVERY_RESULT_SQL} IN (${FINAL_DELIVERY_RESULTS_SQL})`;
+const DELIVERY_SELECTION_SQL = `COALESCE(r.selection, NULLIF(d.metadata->>'recommendation_selection', ''))`;
+const DELIVERY_ODDS_SQL = `COALESCE(r.odds, NULLIF(d.metadata->>'recommendation_odds', '')::numeric)`;
+const DELIVERY_STAKE_SQL = `COALESCE(r.stake_percent, NULLIF(d.metadata->>'recommendation_stake_percent', '')::numeric, 0)`;
+const DELIVERY_ACTIONABLE_SQL = `(
+  ${DELIVERY_SELECTION_SQL} IS NOT NULL
+  AND BTRIM(${DELIVERY_SELECTION_SQL}) <> ''
+  AND LOWER(BTRIM(${DELIVERY_SELECTION_SQL})) <> 'no bet'
+  AND ${DELIVERY_ODDS_SQL} > 1
+  AND ${DELIVERY_STAKE_SQL} > 0
+)`;
 
 function buildRecommendationDeliveryListFilters(
   userId: string,
@@ -160,6 +173,11 @@ function buildRecommendationDeliveryListFilters(
     params.push(options.deliveryStatus);
     index++;
   }
+  if (options.deliveryKind === 'actionable') {
+    conditions.push(DELIVERY_ACTIONABLE_SQL);
+  } else if (options.deliveryKind === 'no_action') {
+    conditions.push(`NOT ${DELIVERY_ACTIONABLE_SQL}`);
+  }
   if (typeof options.dismissed === 'boolean') {
     conditions.push(`d.dismissed = $${index}`);
     params.push(options.dismissed);
@@ -167,17 +185,17 @@ function buildRecommendationDeliveryListFilters(
   }
   if (options.result) {
     if (options.result === 'correct') {
-      conditions.push(`r.result IN ('win', 'half_win')`);
+      conditions.push(`${DELIVERY_RESULT_SQL} IN ('win', 'half_win')`);
     } else if (options.result === 'incorrect') {
-      conditions.push(`r.result IN ('loss', 'half_loss')`);
+      conditions.push(`${DELIVERY_RESULT_SQL} IN ('loss', 'half_loss')`);
     } else if (options.result === 'neutral') {
-      conditions.push(`r.result IN ('push', 'void')`);
+      conditions.push(`${DELIVERY_RESULT_SQL} IN ('push', 'void')`);
     } else if (options.result === 'pending') {
-      conditions.push(`(r.result IS NULL OR r.result = '' OR r.result NOT IN (${FINAL_DELIVERY_RESULTS_SQL}))`);
+      conditions.push(DELIVERY_PENDING_SQL);
     } else if (options.result === 'review') {
       conditions.push(DELIVERY_REVIEW_SQL);
     } else {
-      conditions.push(`r.result = $${index}`);
+      conditions.push(`${DELIVERY_RESULT_SQL} = $${index}`);
       params.push(options.result);
       index++;
     }
@@ -243,7 +261,7 @@ export async function getRecommendationDeliveriesSummary(
        COUNT(*) FILTER (WHERE r.result = 'void')::text AS voided,
        COUNT(*) FILTER (WHERE ${DELIVERY_PENDING_SQL})::text AS pending,
        COUNT(*) FILTER (WHERE ${DELIVERY_REVIEW_SQL})::text AS review,
-       COALESCE(SUM(r.pnl), 0)::text AS pnl
+       COALESCE(SUM(${DELIVERY_PNL_SQL}), 0)::text AS pnl
      FROM user_recommendation_deliveries d
      LEFT JOIN recommendations r ON r.id = d.recommendation_id
      ${whereSql}`,
@@ -271,13 +289,13 @@ export async function getRecommendationDeliveriesChartSeries(
   const r = await query<{ idx: string; cumulative: string }>(
     `SELECT
        ROW_NUMBER() OVER (ORDER BY COALESCE(r.timestamp, d.created_at) ASC, d.id ASC)::text AS idx,
-       SUM(COALESCE(r.pnl, 0)) OVER (
+       SUM(${DELIVERY_PNL_SQL}) OVER (
          ORDER BY COALESCE(r.timestamp, d.created_at) ASC, d.id ASC ROWS UNBOUNDED PRECEDING
        )::text AS cumulative
      FROM user_recommendation_deliveries d
      LEFT JOIN recommendations r ON r.id = d.recommendation_id
      ${whereSql}
-       AND r.result IN (${FINAL_DELIVERY_RESULTS_SQL})
+       AND ${DELIVERY_RESULT_SQL} IN (${FINAL_DELIVERY_RESULTS_SQL})
        AND COALESCE(r.timestamp, d.created_at) IS NOT NULL
      ORDER BY COALESCE(r.timestamp, d.created_at) ASC, d.id ASC`,
     params,
@@ -985,11 +1003,11 @@ export async function getRecommendationDeliveriesByUserId(
          COALESCE(r.home_team, NULLIF(d.metadata->>'recommendation_home_team', '')) AS recommendation_home_team,
          COALESCE(r.away_team, NULLIF(d.metadata->>'recommendation_away_team', '')) AS recommendation_away_team,
          COALESCE(r.league, NULLIF(d.metadata->>'recommendation_league', '')) AS recommendation_league,
-         r.result AS recommendation_result,
-         r.settlement_status AS recommendation_settlement_status,
+         ${DELIVERY_RESULT_SQL} AS recommendation_result,
+         COALESCE(r.settlement_status, NULLIF(d.metadata->>'recommendation_settlement_status', '')) AS recommendation_settlement_status,
          r.settlement_note AS recommendation_settlement_note,
-         r.actual_outcome AS recommendation_actual_outcome,
-         r.pnl AS recommendation_pnl
+         COALESCE(r.actual_outcome, NULLIF(d.metadata->>'recommendation_actual_outcome', '')) AS recommendation_actual_outcome,
+         ${DELIVERY_PNL_SQL} AS recommendation_pnl
        FROM user_recommendation_deliveries d
        LEFT JOIN recommendations r ON r.id = d.recommendation_id
        ${whereSql}

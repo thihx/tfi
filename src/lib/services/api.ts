@@ -385,6 +385,7 @@ export interface RecommendationDeliveryQueryParams extends RecommendationQueryPa
   matchId?: string;
   eligibilityStatus?: string;
   deliveryStatus?: string;
+  deliveryKind?: 'actionable' | 'no_action' | 'all';
   includeHidden?: boolean;
   dismissed?: boolean;
 }
@@ -421,6 +422,7 @@ export async function fetchRecommendationDeliveriesPaginated(
   if (params.matchId) qs.set('matchId', params.matchId);
   if (params.eligibilityStatus && params.eligibilityStatus !== 'all') qs.set('eligibilityStatus', params.eligibilityStatus);
   if (params.deliveryStatus && params.deliveryStatus !== 'all') qs.set('deliveryStatus', params.deliveryStatus);
+  if (params.deliveryKind && params.deliveryKind !== 'all') qs.set('delivery_kind', params.deliveryKind);
   if (typeof params.includeHidden === 'boolean') qs.set('includeHidden', String(params.includeHidden));
   if (typeof params.dismissed === 'boolean') qs.set('dismissed', String(params.dismissed));
   return pgFetch<PaginatedRecommendationDeliveries>(config, `/api/me/recommendation-deliveries?${qs.toString()}`);
@@ -430,7 +432,8 @@ export async function fetchRecommendationDeliveriesSummary(
   config: AppConfig,
   params: RecommendationDeliveryQueryParams,
 ): Promise<RecommendationListSummary> {
-  const qs = buildRecommendationQueryString(params, ['result', 'bet_type', 'search', 'league', 'date_from', 'date_to', 'risk_level']);
+  const qs = new URLSearchParams(buildRecommendationQueryString(params, ['result', 'bet_type', 'search', 'league', 'date_from', 'date_to', 'risk_level']));
+  if (params.deliveryKind && params.deliveryKind !== 'all') qs.set('delivery_kind', params.deliveryKind);
   return pgFetch<RecommendationListSummary>(config, `/api/me/recommendation-deliveries/summary?${qs}`);
 }
 
@@ -438,7 +441,8 @@ export async function fetchRecommendationDeliveriesChartSeries(
   config: AppConfig,
   params: RecommendationDeliveryQueryParams,
 ): Promise<RecommendationChartPoint[]> {
-  const qs = buildRecommendationQueryString(params, ['result', 'bet_type', 'search', 'league', 'date_from', 'date_to', 'risk_level']);
+  const qs = new URLSearchParams(buildRecommendationQueryString(params, ['result', 'bet_type', 'search', 'league', 'date_from', 'date_to', 'risk_level']));
+  if (params.deliveryKind && params.deliveryKind !== 'all') qs.set('delivery_kind', params.deliveryKind);
   return pgFetch<RecommendationChartPoint[]>(config, `/api/me/recommendation-deliveries/chart-series?${qs}`);
 }
 

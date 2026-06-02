@@ -1281,6 +1281,25 @@ body {
     min-width: 0;
 }
 
+.filter-toggle {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    min-height: 36px;
+    padding: 0 10px;
+    border: 1px solid var(--gray-200);
+    border-radius: 6px;
+    background: #fff;
+    color: var(--gray-700);
+    font-size: 12px;
+    font-weight: 600;
+    white-space: nowrap;
+}
+
+.filter-toggle input {
+    margin: 0;
+}
+
 .page-toolbar__actions {
     display: flex;
     align-items: center;

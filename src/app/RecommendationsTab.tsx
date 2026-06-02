@@ -38,6 +38,7 @@ import type { Recommendation, RecommendationDelivery } from '@/types';
 
 type ViewMode = 'cards' | 'table';
 type RecommendationFeedMode = 'shared' | 'deliveries';
+type DeliveryKindFilter = 'actionable' | 'all' | 'no_action';
 
 const PAGE_SIZE = 30;
 
@@ -57,8 +58,14 @@ const RESULT_FILTER_LABELS: Record<string, string> = {
   incorrect: 'Lost',
   push: 'Push',
   void: 'Void',
-  pending: 'Pending',
+  pending: 'Unsettled',
   review: 'Needs Review',
+};
+
+const DELIVERY_KIND_LABELS: Record<DeliveryKindFilter, string> = {
+  actionable: 'Actionable only',
+  all: 'All delivered',
+  no_action: 'No-action only',
 };
 
 /** Display label for API `bet_type` values (keeps stored values unchanged). */
@@ -94,6 +101,19 @@ type FinalResultValue = typeof MANUAL_SETTLE_OPTIONS[number]['value'];
 
 function isFinalResult(result: string | null | undefined): boolean {
   return FINAL_RESULTS.has(String(result));
+}
+
+function isUnsettledResult(result: string | null | undefined): boolean {
+  return !isFinalResult(result);
+}
+
+function isSettlementDelayed(rec: Recommendation): boolean {
+  if (!isUnsettledResult(rec.result ?? null)) return false;
+  const rawTs = rec.timestamp || rec.created_at;
+  if (!rawTs) return false;
+  const ts = new Date(rawTs).getTime();
+  if (!Number.isFinite(ts)) return false;
+  return Date.now() - ts > 36 * 60 * 60 * 1000;
 }
 
 function needsReview(rec: Recommendation): boolean {
@@ -166,6 +186,20 @@ function mapDeliveryToRecommendation(row: RecommendationDelivery): Recommendatio
   };
 }
 
+function latestPerMatch(rows: Recommendation[]): Recommendation[] {
+  const byMatch = new Map<string, Recommendation>();
+  for (const row of rows) {
+    const key = row.match_id || row.match_display || String(row.id ?? '');
+    const current = byMatch.get(key);
+    const rowTs = new Date(row.timestamp || row.created_at || 0).getTime();
+    const currentTs = current ? new Date(current.timestamp || current.created_at || 0).getTime() : -Infinity;
+    if (!current || rowTs > currentTs || (rowTs === currentTs && Number(row.delivery_id ?? row.id ?? 0) > Number(current.delivery_id ?? current.id ?? 0))) {
+      byMatch.set(key, row);
+    }
+  }
+  return Array.from(byMatch.values());
+}
+
 export function RecommendationsTab() {
   const { state } = useAppState();
   const { config, leagues: appLeagues, matches: appMatches } = state;
@@ -182,6 +216,8 @@ export function RecommendationsTab() {
   const [betTypeFilter, setBetTypeFilter] = useState<string>('all');
   const [leagueFilter, setLeagueFilter] = useState<string>('all');
   const [riskFilter, setRiskFilter] = useState<string>('all');
+  const [deliveryKindFilter, setDeliveryKindFilter] = useState<DeliveryKindFilter>('actionable');
+  const [latestByMatch, setLatestByMatch] = useState(true);
   const [dateFrom, setDateFrom] = useState<string>('');
   const [dateTo, setDateTo] = useState<string>('');
   const [sortCol, setSortCol] = useState<SortCol>('');
@@ -276,6 +312,8 @@ export function RecommendationsTab() {
     betTypeFilter !== 'all',
     leagueFilter !== 'all',
     riskFilter !== 'all',
+    feedMode === 'deliveries' && deliveryKindFilter !== 'actionable',
+    feedMode === 'deliveries' && !latestByMatch,
     dateFrom !== '',
     dateTo !== '',
   ].filter(Boolean).length;
@@ -288,7 +326,8 @@ export function RecommendationsTab() {
     date_from: dateFrom || undefined,
     date_to: dateTo || undefined,
     search: search.trim() || undefined,
-  }), [betTypeFilter, dateFrom, dateTo, leagueFilter, resultFilter, riskFilter, search]);
+    deliveryKind: feedMode === 'deliveries' ? deliveryKindFilter : undefined,
+  }), [betTypeFilter, dateFrom, dateTo, deliveryKindFilter, feedMode, leagueFilter, resultFilter, riskFilter, search]);
 
   const computePageSummary = useCallback((pageRows: Recommendation[], pageTotal: number): RecommendationListSummary => {
     const settled = pageRows.filter((r) => isFinalResult(r.result ?? null));
@@ -419,6 +458,7 @@ export function RecommendationsTab() {
 
   const chartData = showChart ? chartSeries : [];
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
+  const visibleRows = feedMode === 'deliveries' && latestByMatch ? latestPerMatch(rows) : rows;
 
   const activeFilterChips = useMemo(() => {
     const chips: Array<{ key: string; label: string; onRemove: () => void }> = [];
@@ -454,6 +494,20 @@ export function RecommendationsTab() {
         onRemove: () => { setRiskFilter('all'); setPage(1); },
       });
     }
+    if (feedMode === 'deliveries' && deliveryKindFilter !== 'actionable') {
+      chips.push({
+        key: 'deliveryKind',
+        label: DELIVERY_KIND_LABELS[deliveryKindFilter],
+        onRemove: () => { setDeliveryKindFilter('actionable'); setPage(1); },
+      });
+    }
+    if (feedMode === 'deliveries' && !latestByMatch) {
+      chips.push({
+        key: 'latestByMatch',
+        label: 'Showing every delivery',
+        onRemove: () => { setLatestByMatch(true); setPage(1); },
+      });
+    }
     if (dateFrom) {
       chips.push({
         key: 'dateFrom',
@@ -469,7 +523,7 @@ export function RecommendationsTab() {
       });
     }
     return chips;
-  }, [betTypeFilter, dateFrom, dateTo, leagueFilter, resultFilter, riskFilter, search]);
+  }, [betTypeFilter, dateFrom, dateTo, deliveryKindFilter, feedMode, latestByMatch, leagueFilter, resultFilter, riskFilter, search]);
 
   const handleSort = (col: SortCol) => {
     if (sortCol === col) {
@@ -488,6 +542,8 @@ export function RecommendationsTab() {
     setBetTypeFilter('all');
     setLeagueFilter('all');
     setRiskFilter('all');
+    setDeliveryKindFilter('actionable');
+    setLatestByMatch(true);
     setDateFrom('');
     setDateTo('');
     setSearch('');
@@ -504,7 +560,7 @@ export function RecommendationsTab() {
   }, []);
 
   const toggleSelectAll = useCallback(() => {
-    const pageIds = rows
+    const pageIds = visibleRows
       .map((row) => row.id)
       .filter((id): id is number => typeof id === 'number');
     const allSelected = pageIds.length > 0 && pageIds.every((id) => selectedIds.has(id));
@@ -514,7 +570,7 @@ export function RecommendationsTab() {
       else pageIds.forEach((id) => next.add(id));
       return next;
     });
-  }, [rows, selectedIds]);
+  }, [selectedIds, visibleRows]);
 
   const handleDeleteSingle = useCallback((recommendationId: number) => {
     setDeleteConfirmIds([recommendationId]);
@@ -647,7 +703,7 @@ export function RecommendationsTab() {
     }
   }, [config, fetchData, investBookmaker, investOdds, investStakeAmount, investStakePercent, investTarget, page, showToast]);
 
-  const showActionColumn = adminCanDelete || rows.some((row) => canInvest(row));
+  const showActionColumn = adminCanDelete || visibleRows.some((row) => canInvest(row));
 
   return (
     <div>
@@ -663,7 +719,7 @@ export function RecommendationsTab() {
             <span className="stat-strip__item text-negative">{summary.lost} Lost</span>
             <span className="stat-strip__item">{summary.push} Push</span>
             <span className="stat-strip__item">{summary.voided} Void</span>
-            <span className="stat-strip__item">{summary.pending} Pending</span>
+            <span className="stat-strip__item">{summary.pending} Unsettled</span>
             <span className="stat-strip__item">{summary.review} Needs Review</span>
             <span className={`stat-strip__item ${summary.pnl >= 0 ? 'text-positive' : 'text-negative'}`} style={{ fontWeight: 600 }}>
               P/L: {summary.pnl >= 0 ? '+' : ''}${summary.pnl.toFixed(2)}
@@ -724,6 +780,28 @@ export function RecommendationsTab() {
               <option value="MEDIUM">Medium</option>
               <option value="HIGH">High</option>
             </select>
+            {feedMode === 'deliveries' && (
+              <>
+                <select
+                  className="filter-input filter-input--compact"
+                  value={deliveryKindFilter}
+                  onChange={(e) => { setDeliveryKindFilter(e.target.value as DeliveryKindFilter); setPage(1); }}
+                  title="Delivery type"
+                >
+                  <option value="actionable">Actionable only</option>
+                  <option value="all">All delivered</option>
+                  <option value="no_action">No-action only</option>
+                </select>
+                <label className="filter-toggle" title="Show only the latest delivered recommendation for each match on this page">
+                  <input
+                    type="checkbox"
+                    checked={latestByMatch}
+                    onChange={(e) => { setLatestByMatch(e.target.checked); setPage(1); }}
+                  />
+                  Latest per match
+                </label>
+              </>
+            )}
             <DatePicker className="filter-input filter-input--date" value={dateFrom} onChange={(v) => { setDateFrom(v); setPage(1); }} title="From date" placeholder="From date" />
             <DatePicker className="filter-input filter-input--date" value={dateTo} onChange={(v) => { setDateTo(v); setPage(1); }} title="To date" placeholder="To date" />
             {activeFilterCount > 0 && (
@@ -792,19 +870,24 @@ export function RecommendationsTab() {
       {viewMode === 'cards' && (
         <div className="tab-panel">
           <Pagination currentPage={page} totalPages={totalPages} onPageChange={setPage} />
-          {rows.length === 0 ? (
+          {visibleRows.length === 0 ? (
             <div className="card">
               <EmptyState title={loading ? 'Loading...' : 'No recommendations match filters'} />
             </div>
           ) : (
             <div className="card-grid">
-              {rows.map((rec, i) => (
+              {visibleRows.map((rec, i) => (
                 <div key={rec.id ?? i} className="card-grid__item">
                 <RecommendationCard
                   rec={rec}
                   lang={notificationLang}
                   adminAction={rec.id ? (
                     <div className="admin-card-actions">
+                      {isSettlementDelayed(rec) && (
+                        <span className="badge badge-pending" title="This item is older than 36 hours and still has no settled result.">
+                          Settlement delayed
+                        </span>
+                      )}
                       {canInvest(rec) && (
                         <button
                           type="button"
@@ -872,7 +955,7 @@ export function RecommendationsTab() {
                     <input
                       type="checkbox"
                       aria-label="Select all recommendations on page"
-                      checked={rows.length > 0 && rows.every((rec) => rec.id != null && selectedIds.has(rec.id))}
+                      checked={visibleRows.length > 0 && visibleRows.every((rec) => rec.id != null && selectedIds.has(rec.id))}
                       onChange={toggleSelectAll}
                     />
                   </th>
@@ -891,11 +974,11 @@ export function RecommendationsTab() {
               </tr>
             </thead>
             <tbody>
-              {rows.length === 0 ? (
+              {visibleRows.length === 0 ? (
                 <tr><td colSpan={(adminCanDelete ? 11 : 10) + (showActionColumn ? 1 : 0)}>
                   <EmptyState title={loading ? 'Loading...' : 'No recommendations match filters'} />
                 </td></tr>
-              ) : rows.map((rec, i) => {
+              ) : visibleRows.map((rec, i) => {
                 const pnlVal = parseFloat(String(rec.pnl ?? 0));
                 const pnl = rec.pnl != null ? `${pnlVal >= 0 ? '+' : ''}$${pnlVal.toFixed(2)}` : '-';
                 const conf = rec.confidence != null ? `${parseFloat(String(rec.confidence))}/10` : '-';
@@ -968,7 +1051,9 @@ export function RecommendationsTab() {
                     </td>
                     <td data-label="Result" style={{ textAlign: 'center' }}>
                       <span className="cell-value" style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap', justifyContent: 'center' }}>
-                        {rec.result ? <StatusBadge status={rec.result.toUpperCase()} /> : '-'}
+                        {isSettlementDelayed(rec)
+                          ? <span className="badge badge-pending" title="Older than 36 hours and still unsettled">Settlement delayed</span>
+                          : rec.result ? <StatusBadge status={rec.result.toUpperCase()} /> : '-'}
                         {needsReview(rec) && (
                           <span className="badge badge-pending">Review</span>
                         )}

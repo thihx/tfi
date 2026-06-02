@@ -67,6 +67,7 @@ export const STATUS_BADGES: Record<string, StatusBadgeInfo> = {
   HALF_LOSS: { label: 'Half Lost', class: 'badge-lost' },
   PUSH: { label: 'Push', class: 'badge-pending' },
   VOID: { label: 'Void', class: 'badge-pending' },
+  PENDING: { label: 'Unsettled', class: 'badge-pending' },
 };
 
 export const LIVE_STATUSES = ['1H', '2H', 'HT', 'ET', 'BT', 'P', 'LIVE', 'INT'];
