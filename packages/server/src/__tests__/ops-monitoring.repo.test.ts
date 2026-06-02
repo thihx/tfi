@@ -25,6 +25,7 @@ describe('ops-monitoring.repo', () => {
       unresolvedCount: 70,
       notificationAttempts24h: 0,
       notificationFailureRate24h: 0,
+      notificationStalePending: 0,
     });
 
     expect(checklist.find((item) => item.id === 'pipeline-activity')?.status).toBe('warn');
@@ -32,7 +33,28 @@ describe('ops-monitoring.repo', () => {
     expect(checklist.find((item) => item.id === 'stats-provider-coverage')?.status).toBe('warn');
     expect(checklist.find((item) => item.id === 'odds-provider-coverage')?.status).toBe('fail');
     expect(checklist.find((item) => item.id === 'settlement-backlog')?.status).toBe('fail');
-    expect(checklist.find((item) => item.id === 'notification-health')?.status).toBe('warn');
+    expect(checklist.find((item) => item.id === 'notification-health')?.status).toBe('pass');
+    expect(checklist.find((item) => item.id === 'notification-health')?.detail).toContain('queue has no stale pending rows');
+  });
+
+  test('buildOpsChecklist warns when Telegram queue has stale pending rows', () => {
+    const checklist = buildOpsChecklist({
+      activityLast2h: 1,
+      jobFailures24h: 0,
+      statsSamples: 10,
+      statsSuccessRate: 90,
+      oddsSamples: 10,
+      oddsUsableRate: 90,
+      settlementBacklog: 0,
+      unresolvedCount: 0,
+      notificationAttempts24h: 0,
+      notificationFailureRate24h: 0,
+      notificationStalePending: 2,
+    });
+
+    const item = checklist.find((entry) => entry.id === 'notification-health');
+    expect(item?.status).toBe('warn');
+    expect(item?.detail).toContain('pending Telegram delivery row(s) older than 15m');
   });
 
   test('getOpsMonitoringSnapshot maps aggregate query results into snapshot', async () => {
@@ -111,6 +133,7 @@ describe('ops-monitoring.repo', () => {
         rows: [{
           attempts: '10',
           failures: '1',
+          stale_pending: '0',
         }],
       })
       .mockResolvedValueOnce({
@@ -266,6 +289,7 @@ describe('ops-monitoring.repo', () => {
     expect(snapshot.providers.oddsUsableRate).toBe(75);
     expect(snapshot.settlement.recommendationPending).toBe(5);
     expect(snapshot.notifications.failureRate24h).toBe(10);
+    expect(snapshot.notifications.stalePending).toBe(0);
     expect(snapshot.promptShadow.shouldPushAgreementRate24h).toBe(100);
     expect(snapshot.promptShadow.marketAgreementRate24h).toBe(75);
     expect(snapshot.promptQuality.sameThesisClusters).toBe(1);

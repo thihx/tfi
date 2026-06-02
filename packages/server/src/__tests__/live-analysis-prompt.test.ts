@@ -106,9 +106,8 @@ describe('buildLiveAnalysisPrompt', () => {
           side: 'home',
           teamName: 'Team A',
           formation: '4-2-3-1',
-          coachName: 'Coach A',
-          starters: ['GK A'],
-          substitutes: ['SUB A'],
+          confirmedStarters: ['GK A'],
+          benchCount: 1,
         }],
       },
     }, settings);
@@ -116,6 +115,7 @@ describe('buildLiveAnalysisPrompt', () => {
     expect(prompt).toContain('FOLLOW_UP_MODE: advisory_match_scoped');
     expect(prompt).toContain('LINEUPS_SNAPSHOT');
     expect(prompt).toContain('GK A');
+    expect(prompt).toContain('bench_count');
     expect(prompt).toContain('Never guess or infer missing lineup details');
   });
 });

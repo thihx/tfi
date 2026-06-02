@@ -28,7 +28,8 @@ import * as watchlistRepo from '../repos/watchlist.repo.js';
 
 const ALLOWED_STATUSES = ['NS', '1H', 'HT', '2H', 'ET', 'BT', 'P', 'LIVE', 'INT'];
 const LIVE_STATUSES = new Set(['1H', 'HT', '2H', 'ET', 'BT', 'LIVE', 'INT']);
-export const IDLE_NO_WATCH_POLL_DELAY_MS = 6 * 60 * 60_000;
+const TERMINAL_STATUSES = new Set(['FT', 'AET', 'PEN', 'AWD', 'WO']);
+export const IDLE_NO_WATCH_POLL_DELAY_MS = 30 * 60_000;
 
 async function batchRun<T>(tasks: Array<() => Promise<T>>, concurrency = 5): Promise<T[]> {
   const results: T[] = [];
@@ -56,7 +57,7 @@ export function computeNextPollDelayMs(
   const minute = 60_000;
 
   if (options.hasActiveWatchlist === false) {
-    return IDLE_NO_WATCH_POLL_DELAY_MS;
+    return Math.max(IDLE_NO_WATCH_POLL_DELAY_MS, baseIntervalMs);
   }
 
   if (state.liveCount > 0) return baseIntervalMs;
@@ -136,8 +137,15 @@ export async function fetchMatchesJob(): Promise<{
     const nextRunAt = await redis.get(ADAPTIVE_SKIP_KEY);
     if (nextRunAt && Date.now() < Number(nextRunAt)) {
       const remainSec = Math.round((Number(nextRunAt) - Date.now()) / 1000);
-      console.log(`[fetchMatchesJob] Skipping - next allowed run in ${remainSec}s`);
-      return { saved: 0, leagues: 0, skipped: true, skipReason: 'adaptive_poll_backoff' };
+      const terminalMatchCount = await matchRepo.getTerminalMatchCount().catch(() => 0);
+      if (terminalMatchCount > 0) {
+        console.log(
+          `[fetchMatchesJob] Adaptive backoff bypassed - ${terminalMatchCount} terminal matches need archive/cleanup`,
+        );
+      } else {
+        console.log(`[fetchMatchesJob] Skipping - next allowed run in ${remainSec}s`);
+        return { saved: 0, leagues: 0, skipped: true, skipReason: 'adaptive_poll_backoff' };
+      }
     }
   } catch {
     // Redis unavailable -> proceed with fetch.
@@ -218,7 +226,7 @@ export async function fetchMatchesJob(): Promise<{
     `[fetchMatchesJob] After league filter: ${leagueFiltered.length}, after status filter: ${statusFiltered.length}`,
   );
 
-  const rows = statusFiltered.map(fixtureToMatchRow);
+  let rows = statusFiltered.map(fixtureToMatchRow);
   const liveRows = rows.filter((row) => LIVE_STATUSES.has(row.status ?? ''));
   const freshFinishedFixtures = leagueFiltered.filter((fixture) =>
     ['FT', 'AET', 'PEN', 'AWD', 'WO'].includes(fixture.fixture.status.short),
@@ -325,6 +333,21 @@ export async function fetchMatchesJob(): Promise<{
     );
   }
   const archivedCount = await archiveFinishedMatches([...archiveByMatchId.values()]);
+  const terminalArchiveIds = new Set(
+    [...archiveByMatchId.values()]
+      .filter((match) => TERMINAL_STATUSES.has(
+        'final_status' in match ? match.final_status : match.status,
+      ))
+      .map((match) => match.match_id),
+  );
+  if (terminalArchiveIds.size > 0) {
+    const before = rows.length;
+    rows = rows.filter((row) => !terminalArchiveIds.has(row.match_id));
+    const removed = before - rows.length;
+    if (removed > 0) {
+      console.log(`[fetchMatchesJob] Removed ${removed} terminal archived matches from live refresh payload`);
+    }
+  }
   if (archivedCount > 0) {
     console.log(
       `[fetchMatchesJob] Archived ${archivedCount} FT matches to history (${freshFinished.length} from fresh payload)`,

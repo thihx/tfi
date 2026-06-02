@@ -3,12 +3,14 @@ export type ThesisWatchStatus = 'pending' | 'promoted' | 'expired' | 'cancelled'
 export type ThesisWatchGateType =
   | 'ah_wait_ou_over'
   | 'corners_over_line'
-  | 'goals_over_line';
+  | 'goals_over_line'
+  | 'goals_under_line';
 
 export interface ThesisWatchGatePayload {
   ouMainOverLineMax?: number;
   cornersPreferredMaxLine?: number;
   goalsOverRemapMaxLine?: number;
+  goalsUnderMinLine?: number;
   intendedMarketLine?: number | null;
 }
 

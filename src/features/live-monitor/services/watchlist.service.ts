@@ -164,7 +164,6 @@ export function prepareMatchData(
   away_team: string;
   league: string;
   custom_conditions: string;
-  prediction: string;
   force_analyze: boolean;
   is_manual_push: boolean;
   recommended_custom_condition: string;
@@ -179,7 +178,6 @@ export function prepareMatchData(
     away_team: match.away_team,
     league: match.league || match.league_name || '',
     custom_conditions: match.custom_conditions || '',
-    prediction: match.prediction || '',
     force_analyze: match.force_analyze || false,
     is_manual_push: match.is_manual_push || false,
     recommended_custom_condition: match.recommended_custom_condition || '',

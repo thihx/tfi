@@ -60,13 +60,10 @@ export interface WatchlistMatch {
   custom_conditions: string;
   match_status?: string;
   added_at?: string;
-  prediction?: string;
   recommended_custom_condition?: string;
   recommended_condition_reason?: string;
   recommended_condition_reason_vi?: string;
   auto_apply_recommended_condition?: boolean;
-  pre_match_prediction_summary?: string;
-  pre_match_prediction?: PreMatchPrediction | null;
   strategic_context?: unknown;
 }
 
@@ -123,8 +120,6 @@ export interface FootballApiFixture {
   statistics: FootballApiStatistic[];
   // statistics[0] is home team, statistics[1] is away team
   // Each entry has .team and .statistics (array of {type, value})
-  // predictions are optional
-  predictions?: FootballApiPrediction;
 }
 
 export interface FootballApiEvent {
@@ -140,26 +135,6 @@ export interface FootballApiEvent {
 export interface FootballApiStatistic {
   team: { id: number; name: string; logo: string };
   statistics: Array<{ type: string; value: number | string | null }>;
-}
-
-export interface FootballApiPrediction {
-  predictions?: {
-    winner?: { id: number | null; name: string | null; comment: string | null };
-    win_or_draw?: boolean | null;
-    under_over?: string | null;
-    goals?: { home: string | null; away: string | null };
-    advice?: string | null;
-    percent?: { home: string | null; draw: string | null; away: string | null };
-  };
-  comparison?: {
-    form?: { home: string | null; away: string | null };
-    att?: { home: string | null; away: string | null };
-    def?: { home: string | null; away: string | null };
-    poisson_distribution?: { home: string | null; away: string | null };
-    h2h?: { home: string | null; away: string | null };
-    goals?: { home: string | null; away: string | null };
-    total?: { home: string | null; away: string | null };
-  };
 }
 
 // ==================== Live Odds Types ====================
@@ -205,31 +180,6 @@ export interface OddsCanonical {
   ht_ah?: { line: number; home: number | null; away: number | null };
   ht_ah_adjacent?: { line: number; home: number | null; away: number | null };
   ht_btts?: { yes: number | null; no: number | null };
-}
-
-// ==================== Pre-match Prediction ====================
-
-export interface PreMatchPrediction {
-  predictions?: {
-    winner?: { name: string | null };
-    win_or_draw?: boolean | null;
-    goals?: { home: string | null; away: string | null };
-    percent?: { home: string | null; draw: string | null; away: string | null };
-  };
-  comparison?: {
-    form?: { home: string | null; away: string | null };
-    total?: { home: string | null; away: string | null };
-  };
-}
-
-export interface PreMatchCompact {
-  pre_favourite: string | null;
-  pre_win_or_draw: boolean | null;
-  pre_handicap_home: string | null;
-  pre_handicap_away: string | null;
-  pre_percent: { home: string | null; draw: string | null; away: string | null } | null;
-  pre_form: { home: string | null; away: string | null } | null;
-  pre_total_rating: { home: string | null; away: string | null } | null;
 }
 
 // ==================== Merged Match Data ====================
@@ -328,8 +278,6 @@ export interface MergedMatchData {
   odds_suspicious: boolean;
   odds_source?: 'live' | 'fallback-live' | 'reference-prematch' | 'none';
   derived_insights?: DerivedMatchInsights | null;
-  pre_match_prediction: PreMatchPrediction | null;
-  pre_match_prediction_summary: string;
   strategic_context: unknown;
 }
 
@@ -454,7 +402,6 @@ export interface RecommendationData {
   custom_condition_matched: boolean;
   custom_condition_raw: string;
   condition_triggered_suggestion: string;
-  pre_match_prediction_summary: string;
   stats_snapshot: string;
   odds_snapshot: string;
   ai_model: string;

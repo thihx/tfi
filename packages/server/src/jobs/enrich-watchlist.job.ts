@@ -12,7 +12,6 @@ import {
   hasUsableStrategicContext,
   type StrategicContext,
 } from '../lib/strategic-context.service.js';
-import { mergeStrategicContextWithPredictionFallback } from '../lib/strategic-context-prediction-fallback.js';
 import { config } from '../config.js';
 import { getRedisClient } from '../lib/redis.js';
 import * as matchRepo from '../repos/matches.repo.js';
@@ -477,20 +476,14 @@ export async function enrichWatchlistJob(): Promise<{ checked: number; enriched:
         continue;
       }
 
-      const enrichedContext = mergeStrategicContextWithPredictionFallback(context, {
-        homeTeam: entry.home_team,
-        awayTeam: entry.away_team,
-        prediction: entry.prediction,
-      });
-
-      if (!hasUsableContext(enrichedContext, hints)) {
-        await persistRetryState(entry, 'poor', attemptedAt, refreshWindow, enrichedContext, '', hints);
+      if (!hasUsableContext(context, hints)) {
+        await persistRetryState(entry, 'poor', attemptedAt, refreshWindow, context, '', hints);
         await sleep(API_DELAY_MS);
         continue;
       }
 
       const updateFields: Partial<watchlistRepo.WatchlistRow> = {
-        strategic_context: buildSuccessfulContext(enrichedContext, attemptedAt, refreshWindow) as unknown,
+        strategic_context: buildSuccessfulContext(context, attemptedAt, refreshWindow) as unknown,
         strategic_context_at: attemptedAt,
       };
 
@@ -501,14 +494,14 @@ export async function enrichWatchlistJob(): Promise<{ checked: number; enriched:
         entry.recommended_custom_condition || '',
       );
       if (force || !existingCond || !isEvaluable || allowRecommendationRefresh) {
-        const aiCond = (enrichedContext.ai_condition || '').trim();
+        const aiCond = (context.ai_condition || '').trim();
         const aiCondIsEvaluable = aiCond.startsWith('(');
 
         if (aiCondIsEvaluable) {
           const autoApplyEnabled = entry.auto_apply_recommended_condition ?? autoApplyDefault;
           (updateFields as Record<string, unknown>).recommended_custom_condition = aiCond;
-          (updateFields as Record<string, unknown>).recommended_condition_reason = enrichedContext.ai_condition_reason || '';
-          (updateFields as Record<string, unknown>).recommended_condition_reason_vi = enrichedContext.ai_condition_reason_vi || '';
+          (updateFields as Record<string, unknown>).recommended_condition_reason = context.ai_condition_reason || '';
+          (updateFields as Record<string, unknown>).recommended_condition_reason_vi = context.ai_condition_reason_vi || '';
           if (
             autoApplyEnabled
             && canAutoApplyCondition(entry.custom_conditions || '', entry.recommended_custom_condition || '')

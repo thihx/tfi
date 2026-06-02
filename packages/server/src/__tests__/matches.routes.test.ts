@@ -11,6 +11,10 @@ vi.mock('../repos/matches.repo.js', () => ({
     { match_id: '1', home_team: 'Arsenal', away_team: 'Chelsea', status: 'NS', league_id: 39 },
     { match_id: '2', home_team: 'Liverpool', away_team: 'Man City', status: '1H', league_id: 39 },
   ]),
+  getActiveLeagueMatches: vi.fn().mockResolvedValue([
+    { match_id: '1', home_team: 'Arsenal', away_team: 'Chelsea', status: 'NS', league_id: 39 },
+    { match_id: '2', home_team: 'Liverpool', away_team: 'Man City', status: '1H', league_id: 39 },
+  ]),
   getMatchesByStatus: vi.fn().mockImplementation((statuses: string[]) => {
     const all = [
       { match_id: '1', home_team: 'Arsenal', away_team: 'Chelsea', status: 'NS' },

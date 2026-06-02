@@ -4,6 +4,7 @@ import {
   addUserBankrollFunds,
   getUserBankroll,
   resetUserBankroll,
+  withdrawUserBankrollFunds,
 } from '../repos/bankroll.repo.js';
 
 function parseMoney(value: unknown): number | null {
@@ -68,5 +69,31 @@ export async function bankrollRoutes(app: FastifyInstance) {
       amount,
       note: req.body?.note,
     });
+  });
+
+  app.post<{
+    Body: {
+      amount?: number | string;
+      note?: string;
+    };
+  }>('/api/me/bankroll/withdraw', async (req, reply) => {
+    const user = requireCurrentUser(req, reply);
+    if (!user) return;
+
+    const amount = parseMoney(req.body?.amount);
+    if (amount == null || amount <= 0) {
+      return reply.status(400).send({ error: 'amount must be greater than 0' });
+    }
+
+    try {
+      return await withdrawUserBankrollFunds(user.userId, {
+        amount,
+        note: req.body?.note,
+      });
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      const status = /exceeds|amount/i.test(message) ? 400 : 500;
+      return reply.status(status).send({ error: message });
+    }
   });
 }

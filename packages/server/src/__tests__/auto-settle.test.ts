@@ -28,7 +28,6 @@ vi.mock('../lib/football-api.js', () => ({
   fetchFixtureStatistics: vi.fn(),
   fetchFixtureEvents: vi.fn().mockResolvedValue([]),
   fetchFixtureLineups: vi.fn().mockResolvedValue([]),
-  fetchPrediction: vi.fn().mockResolvedValue(null),
   fetchStandings: vi.fn().mockResolvedValue([]),
   fetchLiveOdds: vi.fn().mockResolvedValue([]),
   fetchPreMatchOdds: vi.fn().mockResolvedValue([]),

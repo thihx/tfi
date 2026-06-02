@@ -24,18 +24,31 @@ function collectRuntimeFiles(dir: string): string[] {
 }
 
 describe('runtime prompt path', () => {
-  test('keeps ai-prompt.service out of runtime imports', () => {
+  test('keeps frontend prompt builder out of runtime imports', () => {
     const repoRoot = path.resolve(fileURLToPath(new URL('../../../../', import.meta.url)));
     const runtimeRoots = [
       path.join(repoRoot, 'packages', 'server', 'src'),
       path.join(repoRoot, 'src'),
     ];
 
-    const offenders = runtimeRoots
+    const files = runtimeRoots
       .flatMap((root) => collectRuntimeFiles(root))
-      .filter((file) => !file.endsWith(path.join('services', 'ai-prompt.service.ts')))
-      .filter((file) => fs.readFileSync(file, 'utf8').includes('ai-prompt.service'));
+      .filter((file) => !file.endsWith(path.join('__tests__', 'prompt-runtime-path.test.ts')));
 
+    const promptBuilderFile = path.join(
+      repoRoot,
+      'src',
+      'features',
+      'live-monitor',
+      'services',
+      'ai-prompt.service.ts',
+    );
+    const offenders = files.filter((file) => {
+      const content = fs.readFileSync(file, 'utf8');
+      return content.includes('ai-prompt.service') || content.includes('buildAiPrompt');
+    });
+
+    expect(fs.existsSync(promptBuilderFile)).toBe(false);
     expect(offenders).toEqual([]);
   });
 });

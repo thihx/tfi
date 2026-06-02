@@ -390,14 +390,13 @@ export function WatchlistTab() {
                 <th className="data-table__th--checkbox">
                   <input type="checkbox" checked={allPageSelected} onChange={toggleSelectAll} aria-label="Select all on page" />
                 </th>
-                <th className="data-table__th--center">Prediction</th>
                 <th className="data-table__th--center">Condition</th>
                 <th className="data-table__th--center">Actions</th>
               </tr>
             </thead>
             <tbody>
               {pageItems.length === 0 ? (
-                <tr><td colSpan={7}>
+                <tr><td colSpan={6}>
                   <EmptyState
                     title={emptyTitle}
                     action={emptyWatchlist ? (
@@ -421,7 +420,7 @@ export function WatchlistTab() {
                 const dateLabel = getDateGroupLabelInTimeZone(localDT, effectiveTimeZone);
                 if (dateLabel !== lastLabel) {
                   lastLabel = dateLabel;
-                  rows.push(<tr key={`grp-${dateLabel}`} className="date-group-row"><td colSpan={7}>{dateLabel}</td></tr>);
+                  rows.push(<tr key={`grp-${dateLabel}`} className="date-group-row"><td colSpan={6}>{dateLabel}</td></tr>);
                 }
                 let leagueId = item.league_id;
                 const liveMatchRow = matches.find((x) => String(x.match_id) === String(item.match_id));
@@ -472,7 +471,6 @@ export function WatchlistTab() {
                         <input type="checkbox" checked={selected.has(String(item.match_id))} onChange={() => toggleSelect(String(item.match_id))} />
                       </div>
                     </td>
-                    <td data-label="Prediction" style={{ textAlign: 'center' }}><div className="cell-value"><PredictionCell prediction={item.prediction} /></div></td>
                     <td data-label="Condition" style={{ textAlign: 'center' }}><div className="cell-value"><small style={{ whiteSpace: 'normal' }}>{item.custom_conditions || '-'}</small></div></td>
                     <td data-label="Actions" style={{ textAlign: 'center' }}>
                       <div className="cell-value">
@@ -596,47 +594,3 @@ export function WatchlistTab() {
   );
 }
 
-function PredictionCell({ prediction }: { prediction?: string }) {
-  if (!prediction) return <div className="prediction-empty">-</div>;
-  try {
-    const pred = typeof prediction === 'string' ? JSON.parse(prediction) : prediction;
-    if (!pred?.predictions) return <div className="prediction-empty">N/A</div>;
-    const p = pred.predictions;
-    const homePercent = parseInt(p.percent?.home) || 0;
-    const drawPercent = parseInt(p.percent?.draw) || 0;
-    const awayPercent = parseInt(p.percent?.away) || 0;
-    const winnerName = p.winner?.name || 'N/A';
-    const winnerShort = winnerName.length > 18 ? winnerName.substring(0, 15) + '...' : winnerName;
-    const winnerClass = winnerName.toLowerCase().includes('draw') ? 'draw' : homePercent > awayPercent ? 'home' : 'away';
-    const underOverBadge = p.under_over ? <span className="pred-tag">⚽ {p.under_over}</span> : null;
-
-    return (
-      <details className="pred-card">
-        <summary>
-          <div className="pred-box">
-            <div className="pred-row">
-              <span className={`pred-winner ${winnerClass}`} style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="6 9 12 15 18 9"/></svg> {winnerShort}</span>
-              {underOverBadge}
-            </div>
-            <div className="pred-bar">
-              {homePercent > 0 && <div className="pred-seg home" style={{ width: `${homePercent}%` }} />}
-              {drawPercent > 0 && <div className="pred-seg draw" style={{ width: `${drawPercent}%` }} />}
-              {awayPercent > 0 && <div className="pred-seg away" style={{ width: `${awayPercent}%` }} />}
-            </div>
-            <div className="pred-percent">{homePercent}% | {drawPercent}% | {awayPercent}%</div>
-          </div>
-        </summary>
-        <div className="pred-details">
-          <div className="pred-detail-section">
-            <strong style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/></svg> Predictions:</strong>
-            <div className="pred-detail-item"><span>Winner:</span> <span>{winnerName}</span></div>
-            <div className="pred-detail-item"><span>Advice:</span> <span>{p.advice || 'No advice'}</span></div>
-            <div className="pred-detail-item"><span>Win %:</span> <span>{homePercent}% | {drawPercent}% | {awayPercent}%</span></div>
-          </div>
-        </div>
-      </details>
-    );
-  } catch {
-    return <div className="prediction-empty">Error</div>;
-  }
-}

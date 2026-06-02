@@ -100,7 +100,6 @@ export interface StrategicContextSourceMeta {
   trusted_source_count: number;
   rejected_source_count: number;
   rejected_domains: string[];
-  prediction_fallback_used?: boolean;
 }
 
 export interface StrategicConditionBlueprint {
@@ -1017,12 +1016,8 @@ function hasTopLeagueCoverage(ctx: Partial<StrategicContext>): boolean {
   const quantitativeCoverage = countStrategicQuantitativeCoverage(ctx.quantitative);
   const qualitativeCoverage = countStrategicNarrativeCoverage(ctx);
   const trustedSourceCount = Number(ctx.source_meta?.trusted_source_count ?? 0);
-  const predictionFallbackUsed = Boolean((ctx.source_meta as Record<string, unknown> | undefined)?.prediction_fallback_used);
 
   if (trustedSourceCount >= 1 && qualitativeCoverage >= 5) {
-    return true;
-  }
-  if (predictionFallbackUsed && qualitativeCoverage >= 4 && quantitativeCoverage >= 2) {
     return true;
   }
   if (searchQuality === 'high' || searchQuality === 'medium') {
@@ -1072,7 +1067,6 @@ export function hasUsableStrategicContext(
   const quantitativeCoverage = countStrategicQuantitativeCoverage(ctx.quantitative);
   const qualitativeCoverage = countStrategicNarrativeCoverage(ctx);
   const trustedSourceCount = Number(ctx.source_meta?.trusted_source_count ?? 0);
-  const predictionFallbackUsed = Boolean((ctx.source_meta as unknown as Record<string, unknown> | undefined)?.prediction_fallback_used);
 
   if (options.topLeague) {
     return hasTopLeagueCoverage(ctx);
@@ -1080,9 +1074,6 @@ export function hasUsableStrategicContext(
 
   if (quality === 'unknown') return false;
   if (quality === 'low') {
-    if (predictionFallbackUsed && qualitativeCoverage >= 4 && quantitativeCoverage >= 2 && !!summary && !isNoDataText(summary)) {
-      return true;
-    }
     return trustedSourceCount >= 1 && qualitativeCoverage >= 4 && !!summary && !isNoDataText(summary);
   }
   if (summary && !isNoDataText(summary)) return true;

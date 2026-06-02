@@ -15,6 +15,10 @@ function getStatusClass(status: string): string {
   return 'badge-pending';
 }
 
+function getStatusTitle(status: string): string | undefined {
+  return status === 'NS' ? 'Not Started' : undefined;
+}
+
 function TeamLogo({ src, alt }: { src: string; alt: string }) {
   return (
     <img
@@ -110,7 +114,11 @@ function MatchCardBase({ match, actions, highlighted, watchedAction, flashMap, o
               <span style={{ fontSize: '12px', color: 'var(--gray-500)' }}>{kickoffTime}</span>
             )}
             {match.status !== 'HT' ? (
-              <span className={`badge ${getStatusClass(match.status)}`} style={{ fontSize: '11px', padding: '2px 8px' }}>
+              <span
+                className={`badge ${getStatusClass(match.status)}`}
+                style={{ fontSize: '11px', padding: '2px 8px' }}
+                title={getStatusTitle(match.status)}
+              >
                 {match.status}
               </span>
             ) : null}
@@ -178,19 +186,6 @@ function MatchCardBase({ match, actions, highlighted, watchedAction, flashMap, o
               {(match.away_reds ?? 0) > 0 ? <DisciplineCardIcons key={`ar-${awayRedGen}`} variant="red" count={match.away_reds ?? 0} flashGen={awayRedGen} /> : null}
               {(match.away_yellows ?? 0) > 0 ? <DisciplineCardIcons key={`ay-${awayYellowGen}`} variant="yellow" count={match.away_yellows ?? 0} flashGen={awayYellowGen} /> : null}
             </div>
-          </div>
-        )}
-
-        {/* Prediction badge */}
-        {match.prediction && (
-          <div style={{ marginTop: '8px', textAlign: 'center' }}>
-            <span style={{
-              display: 'inline-flex', alignItems: 'center', gap: '4px',
-              padding: '2px 8px', borderRadius: '8px', fontSize: '11px', fontWeight: 500,
-              background: 'var(--gray-100)', color: 'var(--gray-500)',
-            }}>
-              {match.prediction}
-            </span>
           </div>
         )}
 

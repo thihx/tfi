@@ -30,7 +30,19 @@ const { mockConfig } = vi.hoisted(() => ({
     policyLateGameBreakEvenRelaxation: 0.05,
     linePatienceEnabled: false,
     linePatienceConfigPath: '',
+    thesisWatchEnabled: false,
+    thesisWatchTtlMinutes: 45,
   },
+}));
+
+const {
+  mockUpsertPendingThesisWatch,
+  mockGetPendingThesisWatchesByMatchId,
+  mockMarkThesisWatchPromoted,
+} = vi.hoisted(() => ({
+  mockUpsertPendingThesisWatch: vi.fn().mockResolvedValue({}),
+  mockGetPendingThesisWatchesByMatchId: vi.fn().mockResolvedValue([]),
+  mockMarkThesisWatchPromoted: vi.fn().mockResolvedValue(undefined),
 }));
 
 // ─── Mocks ───────────────────────────────────────────────
@@ -325,6 +337,12 @@ vi.mock('../repos/prompt-shadow-runs.repo.js', () => ({
   createPromptShadowRun: vi.fn().mockResolvedValue({ id: 1 }),
 }));
 
+vi.mock('../repos/thesis-watch.repo.js', () => ({
+  upsertPendingThesisWatch: mockUpsertPendingThesisWatch,
+  getPendingThesisWatchesByMatchId: mockGetPendingThesisWatchesByMatchId,
+  markThesisWatchPromoted: mockMarkThesisWatchPromoted,
+}));
+
 vi.mock('../repos/league-profiles.repo.js', () => ({
   getLeagueProfileByLeagueId: vi.fn().mockResolvedValue({
     league_id: 39,
@@ -381,6 +399,15 @@ beforeEach(async () => {
   mockConfig.liveAnalysisShadowEnabled = false;
   mockConfig.liveAnalysisShadowSampleRate = 0;
   mockConfig.allowExpensiveGeminiModels = false;
+  mockConfig.linePatienceEnabled = false;
+  mockConfig.thesisWatchEnabled = false;
+  mockConfig.thesisWatchTtlMinutes = 45;
+  mockUpsertPendingThesisWatch.mockReset();
+  mockUpsertPendingThesisWatch.mockResolvedValue({});
+  mockGetPendingThesisWatchesByMatchId.mockReset();
+  mockGetPendingThesisWatchesByMatchId.mockResolvedValue([]);
+  mockMarkThesisWatchPromoted.mockReset();
+  mockMarkThesisWatchPromoted.mockResolvedValue(undefined);
 
   const footballApi = await import('../lib/football-api.js');
   vi.mocked(footballApi.fetchFixturesByIds).mockResolvedValue([mockFixture]);
@@ -802,6 +829,79 @@ describe('runPipelineBatch', () => {
       final_should_bet: false,
     }));
     expect(createRecommendation).not.toHaveBeenCalled();
+  });
+
+  test('stores conservative line remaps as pending thesis instead of saving immediately', async () => {
+    const footballApi = await import('../lib/football-api.js');
+    const { callGemini } = await import('../lib/gemini.js');
+    const { createRecommendation } = await import('../repos/recommendations.repo.js');
+
+    mockConfig.linePatienceEnabled = true;
+    mockConfig.thesisWatchEnabled = true;
+    vi.mocked(footballApi.fetchFixturesByIds).mockResolvedValueOnce([{
+      fixture: { id: 100, status: { short: '2H', elapsed: 55 }, timestamp: 1700000000 },
+      teams: { home: { id: 1, name: 'Team A' }, away: { id: 2, name: 'Team B' } },
+      league: { id: 39, name: 'Test League' },
+      goals: { home: 0, away: 0 },
+    }] as never);
+    vi.mocked(footballApi.fetchFixtureEvents).mockResolvedValueOnce([] as never);
+    vi.mocked(footballApi.fetchLiveOdds).mockResolvedValueOnce([{
+      bookmakers: [{
+        name: 'TestBook',
+        bets: [
+          { name: 'Over/Under', values: [
+            { value: 'Over', odd: '2.00', handicap: '1.5' },
+            { value: 'Under', odd: '1.85', handicap: '1.5' },
+            { value: 'Over', odd: '1.72', handicap: '1.0' },
+            { value: 'Under', odd: '2.10', handicap: '1.0' },
+          ] },
+        ],
+      }],
+    }] as never);
+    vi.mocked(callGemini).mockResolvedValueOnce(JSON.stringify({
+      should_push: true,
+      selection: 'Over 1.5 Goals @2.00',
+      bet_market: 'over_1.5',
+      confidence: 7,
+      reasoning_en: 'Tempo supports a goal, but wait for a safer live line.',
+      reasoning_vi: 'Nhip do ung ho ban thang, nhung nen doi line an toan hon.',
+      warnings: [],
+      value_percent: 6,
+      risk_level: 'LOW',
+      stake_percent: 2,
+      custom_condition_matched: false,
+      custom_condition_status: 'none',
+      custom_condition_summary_en: '',
+      custom_condition_summary_vi: '',
+      custom_condition_reason_en: '',
+      custom_condition_reason_vi: '',
+      condition_triggered_suggestion: '',
+      condition_triggered_reasoning_en: '',
+      condition_triggered_reasoning_vi: '',
+      condition_triggered_confidence: 0,
+      condition_triggered_stake: 0,
+    }));
+
+    const result = await runPipelineBatch(['100']);
+
+    expect(result.results[0]?.shouldPush).toBe(false);
+    expect(result.results[0]?.saved).toBe(false);
+    expect(result.results[0]?.debug?.parsed).toEqual(expect.objectContaining({
+      final_should_bet: false,
+      warnings: expect.arrayContaining(['LLP_REMAP_OVER_CONSERVATIVE_LINE']),
+    }));
+    expect(createRecommendation).not.toHaveBeenCalled();
+    expect(mockUpsertPendingThesisWatch).toHaveBeenCalledWith(
+      '100',
+      expect.objectContaining({
+        gateType: 'goals_over_line',
+        watchKey: 'goals_over_line::over_1.5',
+        selection: 'Over 1.5 Goals @2.00',
+        betMarket: 'over_1.5',
+        lastBlockReason: 'LLP_REMAP_OVER_CONSERVATIVE_LINE',
+      }),
+      expect.any(Date),
+    );
   });
 
   test('fetches fixtures, stats, events in parallel', async () => {
@@ -1706,7 +1806,6 @@ describe('runPipelineBatch', () => {
         odds_snapshot: {},
         stats_snapshot: {},
         decision_context: {},
-        pre_match_prediction_summary: '',
         prompt_version: LIVE_ANALYSIS_PROMPT_VERSION,
         custom_condition_matched: false,
         minute: 59,
@@ -1804,7 +1903,6 @@ describe('runPipelineBatch', () => {
         odds_snapshot: {},
         stats_snapshot: {},
         decision_context: {},
-        pre_match_prediction_summary: '',
         prompt_version: LIVE_ANALYSIS_PROMPT_VERSION,
         custom_condition_matched: false,
         minute: 60,
@@ -2097,7 +2195,7 @@ describe('runPipelineBatch', () => {
     expect(result.result.debug?.structuredPrematchAskAiReason).toBe('eligible');
   });
 
-  test('prompt-only Ask AI still runs for low_evidence top-league prematch matches when provider prediction is missing but profile coverage is strong', async () => {
+  test('prompt-only Ask AI still runs for low_evidence top-league prematch matches when profile coverage is strong', async () => {
     const footballApi = await import('../lib/football-api.js');
     vi.mocked(footballApi.fetchFixturesByIds).mockResolvedValueOnce([{
       ...mockFixture,
@@ -2108,12 +2206,6 @@ describe('runPipelineBatch', () => {
     vi.mocked(footballApi.fetchFixtureEvents).mockResolvedValueOnce([] as never);
     vi.mocked(footballApi.fetchLiveOdds).mockResolvedValueOnce([] as never);
     vi.mocked(footballApi.fetchPreMatchOdds).mockResolvedValueOnce([] as never);
-
-    const watchlistRepo = await import('../repos/watchlist.repo.js');
-    vi.mocked(watchlistRepo.getOperationalWatchlistByMatchId).mockResolvedValueOnce({
-      ...mockWatchlistEntry,
-      prediction: null,
-    } as never);
 
     const teamProfilesRepo = await import('../repos/team-profiles.repo.js');
     vi.mocked(teamProfilesRepo.getTeamProfileByTeamId)
@@ -2186,7 +2278,7 @@ describe('runPipelineBatch', () => {
     const result = await runPromptOnlyAnalysisForMatch('100', { forceAnalyze: true });
 
     expect(result.prompt).toContain('STRUCTURED PREMATCH ASK AI OVERRIDE');
-    expect(result.prompt).toContain('provider prediction when available');
+    expect(result.prompt).toContain('profile priors and strategic context');
     expect(result.text).toContain('Profile priors keep the match eligible');
     expect(result.result.debug?.evidenceMode).toBe('low_evidence');
     expect(result.result.debug?.structuredPrematchAskAi).toBe(true);
@@ -2948,9 +3040,9 @@ describe('runPipelineBatch', () => {
     const prompt = vi.mocked(callGemini).mock.calls[0]?.[0] ?? '';
     expect(prompt).toContain('FOLLOW_UP_MODE: advisory');
     expect(prompt).toContain('USER_QUESTION: Would Home -0.25 be better here?');
-    expect(prompt).toContain('LINEUPS_SNAPSHOT:');
-    expect(prompt).toContain('Coach A');
-    expect(prompt).toContain('Forward A');
+    expect(prompt).not.toContain('LINEUPS_SNAPSHOT:');
+    expect(prompt).not.toContain('Coach A');
+    expect(prompt).not.toContain('Forward A');
     expect(result.result.success).toBe(true);
     expect(result.result.saved).toBe(false);
     expect(result.result.notified).toBe(false);
@@ -2960,6 +3052,54 @@ describe('runPipelineBatch', () => {
       follow_up_answer_vi: 'Keo chu nha -0.25 chi nen can nhac neu the tran kiem soat van duoc duy tri.',
     }));
     expect(createRecommendation).not.toHaveBeenCalled();
+  });
+
+  test('advisory lineup follow-up includes compressed lineup snapshot only', async () => {
+    const { callGemini } = await import('../lib/gemini.js');
+    vi.mocked(callGemini).mockResolvedValueOnce(JSON.stringify({
+      should_push: false,
+      selection: '',
+      bet_market: '',
+      market_chosen_reason: 'Lineup answer only',
+      confidence: 0,
+      reasoning_en: 'No bet.',
+      reasoning_vi: 'Khong vao keo.',
+      warnings: ['ADVISORY_ONLY'],
+      value_percent: 0,
+      risk_level: 'LOW',
+      stake_percent: 0,
+      custom_condition_matched: false,
+      custom_condition_status: 'none',
+      custom_condition_summary_en: '',
+      custom_condition_summary_vi: '',
+      custom_condition_reason_en: '',
+      custom_condition_reason_vi: '',
+      condition_triggered_suggestion: '',
+      condition_triggered_reasoning_en: '',
+      condition_triggered_reasoning_vi: '',
+      condition_triggered_confidence: 0,
+      condition_triggered_stake: 0,
+      condition_triggered_special_override: false,
+      condition_triggered_special_override_reason_en: '',
+      condition_triggered_special_override_reason_vi: '',
+      follow_up_answer_en: 'Team A has Keeper A and Forward A confirmed in the starting XI.',
+      follow_up_answer_vi: 'Team A co Keeper A va Forward A trong doi hinh xuat phat.',
+    }));
+
+    await runPromptOnlyAnalysisForMatch('100', {
+      forceAnalyze: true,
+      advisoryOnly: true,
+      userQuestion: 'Starting XI của Team A thế nào?',
+      followUpHistory: [],
+    });
+
+    const prompt = vi.mocked(callGemini).mock.calls[0]?.[0] ?? '';
+    expect(prompt).toContain('LINEUPS_SNAPSHOT:');
+    expect(prompt).toContain('"formation":"4-2-3-1"');
+    expect(prompt).toContain('"confirmed_starters":["Keeper A (G)","Forward A (F)"]');
+    expect(prompt).toContain('"bench_count":1');
+    expect(prompt).not.toContain('Coach A');
+    expect(prompt).not.toContain('Bench A');
   });
 
   test('advisory follow-up prepends lineup-unavailable notice when question mixes lineup and market', async () => {

@@ -6,6 +6,7 @@ import { buildTelegramRecommendationMessage, type TelegramNotificationLanguage }
 import { markRecommendationNotified } from '../repos/recommendations.repo.js';
 import {
   getPendingTelegramDeliveries,
+  markDeliveryRowsFailed,
   markDeliveryRowsDelivered,
   markRecommendationDeliveriesDelivered,
   type PendingTelegramDeliveryRow,
@@ -164,9 +165,11 @@ export async function deliverTelegramNotificationsJob(): Promise<{
       delivered += 1;
     } catch (error) {
       failed += 1;
+      const message = error instanceof Error ? error.message : String(error);
+      await markDeliveryRowsFailed([row.deliveryId], 'telegram', message).catch(() => undefined);
       console.error(
         `[deliver-telegram-notifications] Failed delivery ${row.deliveryId} for ${row.matchId}:`,
-        error instanceof Error ? error.message : String(error),
+        message,
       );
     }
   });

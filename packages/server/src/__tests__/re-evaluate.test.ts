@@ -101,7 +101,6 @@ function makeRec(overrides: Partial<RecommendationRow> = {}): RecommendationRow 
     execution_id: 'exec1',
     odds_snapshot: {},
     stats_snapshot: {},
-    pre_match_prediction_summary: '',
     prompt_version: '',
     custom_condition_matched: false,
     minute: 45,

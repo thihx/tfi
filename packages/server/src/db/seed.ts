@@ -240,14 +240,14 @@ async function seedRecommendations(data: Record<string, unknown>[]): Promise<num
           `INSERT INTO recommendations (
             unique_key, match_id, timestamp, league, home_team, away_team, status,
             condition_triggered_suggestion, custom_condition_raw, execution_id,
-            odds_snapshot, stats_snapshot, pre_match_prediction_summary, custom_condition_matched,
+            odds_snapshot, stats_snapshot, custom_condition_matched,
             minute, score, bet_type, selection, odds, confidence, value_percent,
             risk_level, stake_percent, stake_amount, reasoning, key_factors, warnings,
             ai_model, mode, bet_market, notified, notification_channels,
             result, actual_outcome, pnl, settled_at, _was_overridden
           ) VALUES (
             $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,
-            $21,$22,$23,$24,$25,$26,$27,$28,$29,$30,$31,$32,$33,$34,$35,$36,$37
+            $21,$22,$23,$24,$25,$26,$27,$28,$29,$30,$31,$32,$33,$34,$35,$36
           ) ON CONFLICT (unique_key) DO NOTHING`,
           [
             uniqueKey,
@@ -262,7 +262,6 @@ async function seedRecommendations(data: Record<string, unknown>[]): Promise<num
             toText(row['execution_id']),
             toText(row['odds_snapshot']),
             toText(row['stats_snapshot']),
-            toText(row['pre_match_prediction_summary']),
             toBool(row['custom_condition_matched']),
             toNumOrNull(row['minute']),
             toText(row['score']),

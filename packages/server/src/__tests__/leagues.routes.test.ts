@@ -2,9 +2,13 @@
 // Integration tests — Leagues routes (Top League focus)
 // ============================================================
 
-import { describe, test, expect, vi, beforeAll, afterAll } from 'vitest';
+import { describe, test, expect, vi, beforeAll, beforeEach, afterAll } from 'vitest';
 import { buildApp } from './helpers.js';
 import type { FastifyInstance } from 'fastify';
+
+const { mockTriggerJob } = vi.hoisted(() => ({
+  mockTriggerJob: vi.fn(),
+}));
 
 const MOCK_LEAGUES = [
   { league_id: 39, league_name: 'Premier League', display_name: null, sort_order: 10, country: 'England', tier: '1', active: true, top_league: false, type: 'League', logo: '', last_updated: '', has_profile: true, profile_updated_at: '2026-03-22T00:00:00Z', profile_volatility_tier: 'medium', profile_data_reliability_tier: 'high' },
@@ -138,11 +142,19 @@ vi.mock('../lib/redis.js', () => ({
   }),
 }));
 
+vi.mock('../jobs/scheduler.js', () => ({
+  triggerJob: mockTriggerJob,
+}));
+
 let app: FastifyInstance;
 
 beforeAll(async () => {
   const { leagueRoutes } = await import('../routes/leagues.routes.js');
   app = await buildApp(leagueRoutes);
+});
+
+beforeEach(() => {
+  mockTriggerJob.mockResolvedValue({ triggered: true });
 });
 
 afterAll(async () => {
@@ -356,6 +368,8 @@ describe('PUT /api/leagues/:id/active', () => {
       payload: { active: false },
     });
     expect(res.statusCode).toBe(200);
+    expect(res.json()).toEqual({ league_id: 39, active: false, match_refresh_requested: true });
+    expect(mockTriggerJob).toHaveBeenCalledWith('fetch-matches');
   });
 
   test('404 for unknown league', async () => {
@@ -435,7 +449,8 @@ describe('POST /api/leagues/bulk-active', () => {
       payload: { ids: [39, 140], active: true },
     });
     expect(res.statusCode).toBe(200);
-    expect(res.json()).toEqual({ updated: 2 });
+    expect(res.json()).toEqual({ updated: 2, match_refresh_requested: true });
+    expect(mockTriggerJob).toHaveBeenCalledWith('fetch-matches');
   });
 });
 

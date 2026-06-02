@@ -20,6 +20,7 @@ import * as jobRunsRepo from '../repos/job-runs.repo.js';
 import * as recommendationsRepo from '../repos/recommendations.repo.js';
 import * as aiPerfRepo from '../repos/ai-performance.repo.js';
 import * as recommendationDeliveriesRepo from '../repos/recommendation-deliveries.repo.js';
+import * as thesisWatchRepo from '../repos/thesis-watch.repo.js';
 import {
   resolveHousekeepingRetentionPolicy,
   type HousekeepingRetentionPolicy,
@@ -38,6 +39,8 @@ export interface HousekeepingResult {
   pipelineRunsDeleted: number;
   jobRunHistoryDeleted: number;
   recommendationDeliveriesDeleted: number;
+  thesisWatchesExpired: number;
+  thesisWatchesDeleted: number;
   recommendationsSlimmed: number;
   aiPerfAggregated: number;
   aiPerfDeleted: number;
@@ -60,6 +63,7 @@ export interface HousekeepingResult {
     pipelineRuns: number;
     jobRunHistory: number;
     recommendationDeliveries: number;
+    thesisWatch: number;
     recommendationsSlim: number;
     aiPerformance: number;
   };
@@ -119,9 +123,9 @@ async function buildHousekeepingPreview(policy: HousekeepingRetentionPolicy): Pr
     { label: 'Provider Fixture Stats Cache', tableName: 'provider_fixture_stats_cache', timestampColumn: 'cached_at', key: 'providerCache' as const, retentionClass: 'support_cache', strategy: 'delete' },
     { label: 'Provider Fixture Events Cache', tableName: 'provider_fixture_events_cache', timestampColumn: 'cached_at', key: 'providerCache' as const, retentionClass: 'support_cache', strategy: 'delete' },
     { label: 'Provider Fixture Lineups Cache', tableName: 'provider_fixture_lineups_cache', timestampColumn: 'cached_at', key: 'providerCache' as const, retentionClass: 'support_cache', strategy: 'delete' },
-    { label: 'Provider Fixture Prediction Cache', tableName: 'provider_fixture_prediction_cache', timestampColumn: 'cached_at', key: 'providerCache' as const, retentionClass: 'support_cache', strategy: 'delete' },
     { label: 'Provider League Standings Cache', tableName: 'provider_league_standings_cache', timestampColumn: 'cached_at', key: 'providerCache' as const, retentionClass: 'support_cache', strategy: 'delete' },
     { label: 'Recommendation Deliveries', tableName: 'user_recommendation_deliveries', timestampColumn: 'created_at', key: 'recommendationDeliveries' as const, retentionClass: 'delivery_trace', strategy: 'delete' },
+    { label: 'Thesis Watch', tableName: 'match_thesis_watch', timestampColumn: 'updated_at', key: 'thesisWatch' as const, retentionClass: 'thesis_watch', strategy: 'expire_then_delete' },
   ] as const;
 
   const rows = await Promise.all(
@@ -218,6 +222,8 @@ export async function housekeepingJob(): Promise<HousekeepingResult> {
     pipelineRunsDeleted,
     jobRunHistoryDeleted,
     recommendationDeliveriesDeleted,
+    thesisWatchesExpired,
+    thesisWatchesDeleted,
   ] = await Promise.all([
     runStep('audit-logs', () => auditRepo.purgeAuditLogs(keepDays.audit), 0),
     runStep('matches-history', () => historyRepo.purgeHistoricalMatches(keepDays.matchesHistory, keepDays.matchesHistoryHardDelete), 0),
@@ -246,6 +252,8 @@ export async function housekeepingJob(): Promise<HousekeepingResult> {
         0,
       )
       : Promise.resolve(0),
+    runStep('thesis-watch-expire', () => thesisWatchRepo.expireDueThesisWatches(), 0),
+    runStep('thesis-watch-purge', () => thesisWatchRepo.purgeOldThesisWatches(keepDays.thesisWatch), 0),
   ]);
 
   await reportJobProgress('purge-audit', 'analytics', 'Slimming recommendations and aggregating AI performance...', 65);
@@ -273,6 +281,7 @@ export async function housekeepingJob(): Promise<HousekeepingResult> {
     + pipelineRunsDeleted
     + jobRunHistoryDeleted
     + recommendationDeliveriesDeleted
+    + thesisWatchesDeleted
     + aiPerfDeleted;
 
   if (totalDeleted > 0 || recommendationsSlimmed > 0) {
@@ -281,7 +290,7 @@ export async function housekeepingJob(): Promise<HousekeepingResult> {
       `(audit=${auditDeleted}, history=${matchesHistoryDeleted}, providerStats=${providerStatsDeleted}, ` +
       `providerOdds=${providerOddsDeleted}, providerCache=${providerCacheDeleted}, snapshots=${matchSnapshotsDeleted}, oddsMovements=${oddsMovementsDeleted}, ` +
       `promptShadow=${promptShadowDeleted}, pipelineRuns=${pipelineRunsDeleted}, jobRuns=${jobRunHistoryDeleted}, deliveries=${recommendationDeliveriesDeleted}, ` +
-      `aiPerf=${aiPerfDeleted} aiPerfAgg=${aiPerfAggregated})`,
+      `thesisWatchExpired=${thesisWatchesExpired}, thesisWatchDeleted=${thesisWatchesDeleted}, aiPerf=${aiPerfDeleted} aiPerfAgg=${aiPerfAggregated})`,
     );
 
     await reportJobProgress('purge-audit', 'vacuum', 'Evaluating VACUUM ANALYZE thresholds...', 85);
@@ -292,12 +301,13 @@ export async function housekeepingJob(): Promise<HousekeepingResult> {
       pipelineRunsDeleted > 250 ? 'pipeline_runs' : null,
       providerStatsDeleted > 250 ? 'provider_stats_samples' : null,
       providerOddsDeleted > 250 ? 'provider_odds_samples' : null,
-      providerCacheDeleted > 250 ? 'provider_odds_cache, provider_fixture_cache, provider_fixture_stats_cache, provider_fixture_events_cache, provider_fixture_lineups_cache, provider_fixture_prediction_cache, provider_league_standings_cache' : null,
+      providerCacheDeleted > 250 ? 'provider_odds_cache, provider_fixture_cache, provider_fixture_stats_cache, provider_fixture_events_cache, provider_fixture_lineups_cache, provider_league_standings_cache' : null,
       matchSnapshotsDeleted > 250 ? 'match_snapshots' : null,
       oddsMovementsDeleted > 250 ? 'odds_movements' : null,
       promptShadowDeleted > 250 ? 'prompt_shadow_runs' : null,
       jobRunHistoryDeleted > 250 ? 'job_run_history' : null,
       recommendationDeliveriesDeleted > 250 ? 'user_recommendation_deliveries' : null,
+      thesisWatchesDeleted > 250 ? 'match_thesis_watch' : null,
     ].filter((table): table is string => table != null);
 
     if (vacuumTargets.length > 0) {
@@ -333,6 +343,8 @@ export async function housekeepingJob(): Promise<HousekeepingResult> {
     pipelineRunsDeleted,
     jobRunHistoryDeleted,
     recommendationDeliveriesDeleted,
+    thesisWatchesExpired,
+    thesisWatchesDeleted,
     recommendationsSlimmed,
     aiPerfAggregated,
     aiPerfDeleted,

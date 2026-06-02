@@ -8,7 +8,7 @@ import * as repo from '../repos/matches.repo.js';
 export async function matchRoutes(app: FastifyInstance) {
   app.get('/api/matches', async (_req, reply) => {
     reply.header('Cache-Control', 'no-store');
-    return repo.getAllMatches();
+    return repo.getActiveLeagueMatches();
   });
 
   app.get<{ Querystring: { statuses?: string } }>('/api/matches/by-status', async (req) => {

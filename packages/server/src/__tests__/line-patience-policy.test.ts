@@ -30,7 +30,7 @@ describe("applyLinePatiencePolicy", () => {
     expect(result.warnings).toContain("LLP_BLOCK_UNDER_QUARTER_LINE");
   });
 
-  test("remaps under quarter line to under 1.0 when quote exists", () => {
+  test("defers under quarter line to thesis watch when conservative quote exists", () => {
     const result = applyLinePatiencePolicy({
       selection: "Under 0.75 Goals",
       betMarket: "under_0.75",
@@ -45,9 +45,9 @@ describe("applyLinePatiencePolicy", () => {
       },
       config: DEFAULT_LINE_PATIENCE_CONFIG,
     });
-    expect(result.blocked).toBe(false);
+    expect(result.blocked).toBe(true);
     expect(result.remapped).toBe(true);
-    expect(result.betMarket).toBe("under_1");
+    expect(result.betMarket).toBe("under_0.75");
     expect(result.warnings).toContain("LLP_REMAP_UNDER_CONSERVATIVE_LINE");
   });
 
@@ -65,7 +65,7 @@ describe("applyLinePatiencePolicy", () => {
     expect(result.warnings).not.toContain("LLP_BLOCK_UNDER_QUARTER_LINE");
   });
 
-  test("remaps goals over above max line when lower quote exists", () => {
+  test("defers goals over above max line when lower quote exists", () => {
     const result = applyLinePatiencePolicy({
       selection: "Over 1.5 Goals",
       betMarket: "over_1.5",
@@ -80,9 +80,9 @@ describe("applyLinePatiencePolicy", () => {
       },
       config: DEFAULT_LINE_PATIENCE_CONFIG,
     });
-    expect(result.blocked).toBe(false);
+    expect(result.blocked).toBe(true);
     expect(result.remapped).toBe(true);
-    expect(result.betMarket).toBe("over_1");
+    expect(result.betMarket).toBe("over_1.5");
     expect(result.warnings).toContain("LLP_REMAP_OVER_CONSERVATIVE_LINE");
   });
 

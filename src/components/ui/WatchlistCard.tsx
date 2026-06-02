@@ -15,23 +15,8 @@ interface Props {
   onOpenHub: () => void;
 }
 
-function parsePrediction(raw?: string): { home: number; draw: number; away: number; winner: string } | null {
-  if (!raw) return null;
-  try {
-    const pred = typeof raw === 'string' ? JSON.parse(raw) : raw;
-    if (!pred?.predictions?.percent) return null;
-    const p = pred.predictions;
-    return {
-      home: parseInt(p.percent?.home) || 0,
-      draw: parseInt(p.percent?.draw) || 0,
-      away: parseInt(p.percent?.away) || 0,
-      winner: p.winner?.name || '',
-    };
-  } catch { return null; }
-}
-
 function WatchlistCardBase({ item, liveMatch, homeLogo, awayLogo, timeDisplay, leagueDisplay, onEdit, onDelete, onOpenHub }: Props) {
-  const pred = parsePrediction(item.prediction as string | undefined);
+
   const condition = item.custom_conditions?.trim();
 
   const liveStatus = liveMatch?.status;
@@ -101,24 +86,6 @@ function WatchlistCardBase({ item, liveMatch, homeLogo, awayLogo, timeDisplay, l
         </div>
       )}
 
-      {/* Prediction bar */}
-      {pred && (
-        <div style={{ padding: '4px 12px 8px' }}>
-          {pred.winner && (
-            <div style={{ fontSize: 11, color: 'var(--gray-500)', marginBottom: 3, textAlign: 'center', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-              🏆 {pred.winner}
-            </div>
-          )}
-          <div className="pred-bar" style={{ height: 6, borderRadius: 3, overflow: 'hidden', display: 'flex' }}>
-            {pred.home > 0 && <div className="pred-seg home" style={{ width: `${pred.home}%` }} />}
-            {pred.draw > 0 && <div className="pred-seg draw" style={{ width: `${pred.draw}%` }} />}
-            {pred.away > 0 && <div className="pred-seg away" style={{ width: `${pred.away}%` }} />}
-          </div>
-          <div className="pred-percent" style={{ fontSize: 10, marginTop: 2 }}>{pred.home}% | {pred.draw}% | {pred.away}%</div>
-        </div>
-      )}
-
-      {/* Condition */}
       {condition && (
         <div style={{ padding: '0 12px 8px', fontSize: 11, color: 'var(--gray-500)', borderTop: '1px solid var(--gray-100)', paddingTop: 6 }}>
           <span style={{

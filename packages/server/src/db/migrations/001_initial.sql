@@ -61,7 +61,6 @@ CREATE TABLE watchlist (
   away_team                       TEXT        NOT NULL DEFAULT '',
   kickoff                         TIME,
   mode                            TEXT        NOT NULL DEFAULT 'B',
-  prediction                      JSONB,               -- pre-match prediction JSON
   recommended_custom_condition    TEXT        NOT NULL DEFAULT '',
   recommended_condition_reason    TEXT        NOT NULL DEFAULT '',
   recommended_condition_reason_vi TEXT        NOT NULL DEFAULT '',
@@ -99,7 +98,6 @@ CREATE TABLE recommendations (
   -- Snapshots (stored as JSON strings for flexibility)
   odds_snapshot                 TEXT        NOT NULL DEFAULT '',
   stats_snapshot                TEXT        NOT NULL DEFAULT '',
-  pre_match_prediction_summary  TEXT        NOT NULL DEFAULT '',
   custom_condition_matched      BOOLEAN     NOT NULL DEFAULT FALSE,
 
   -- Match context

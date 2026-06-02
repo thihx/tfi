@@ -24,7 +24,6 @@ const CRITICAL_JOBS = new Set([
   'check-live-trigger',
   'auto-settle',
   'expire-watchlist',
-  'update-predictions',
   'enrich-watchlist',
 ]);
 

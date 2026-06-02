@@ -49,7 +49,7 @@ describe('bets API', () => {
 
     const result = await fetchBets(config);
 
-    expect(result).toEqual(data);
+    expect(result).toEqual([{ id: 1, match_id: '123', market: '', stake: 0 }]);
     expect(fetch).toHaveBeenCalledWith(
       'http://localhost:4000/api/bets',
       expect.objectContaining({ method: 'GET' }),

@@ -85,7 +85,6 @@ describe('prepareMatchData', () => {
         away_team: 'Chelsea',
         league: 'Premier League',
         custom_conditions: 'btts check',
-        prediction: 'Home Win',
         force_analyze: true,
         is_manual_push: true,
       }),
@@ -100,18 +99,16 @@ describe('prepareMatchData', () => {
       away_team: 'Chelsea',
       league: 'Premier League',
       custom_conditions: 'btts check',
-      prediction: 'Home Win',
       force_analyze: true,
       is_manual_push: true,
     });
   });
 
   test('defaults missing fields', () => {
-    const matches = [createFilteredMatch({ custom_conditions: '', prediction: '' })];
+    const matches = [createFilteredMatch({ custom_conditions: '' })];
     const result = prepareMatchData(matches, config);
 
     expect(result[0]!.custom_conditions).toBe('');
-    expect(result[0]!.prediction).toBe('');
   });
 
   test('prefers league_name over league', () => {

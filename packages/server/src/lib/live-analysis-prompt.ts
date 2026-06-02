@@ -109,9 +109,8 @@ export interface LiveAnalysisPromptLineupsSnapshot {
     side: 'home' | 'away';
     teamName: string;
     formation: string | null;
-    coachName: string | null;
-    starters: string[];
-    substitutes: string[];
+    confirmedStarters: string[];
+    benchCount: number;
   }>;
 }
 
@@ -175,7 +174,6 @@ export interface LiveAnalysisPromptInput {
   isManualPush?: boolean;
   skippedFilters?: string[];
   originalWouldProceed?: boolean;
-  prediction: Record<string, unknown> | null;
   currentTotalGoals: number;
   previousRecommendations?: LiveAnalysisPromptPreviousRecommendation[];
   matchTimeline?: LiveAnalysisMatchTimelineSnapshot[];
@@ -194,7 +192,7 @@ export interface LiveAnalysisPromptInput {
       suggestedAction: 'block' | 'raise_threshold';
     }>;
   } | null;
-  preMatchPredictionSummary: string;
+  preMatchContextSummary: string;
   statsFallbackReason: string;
   userQuestion?: string;
   followUpHistory?: LiveAnalysisPromptFollowUpMessage[];
@@ -411,7 +409,7 @@ function buildStructuredPrematchAskAiSection(compact: boolean, data: LiveAnalysi
   return compact
     ? `STRUCTURED PREMATCH ASK AI OVERRIDE:
 - This is a MANUAL Ask AI request for a NOT STARTED top-league match.
-- Live telemetry is sparse, but structured prematch context is available from profile priors, strategic context, and provider prediction when available.
+- Live telemetry is sparse, but structured prematch context is available from profile priors and strategic context.
 - You MAY provide one cautious prematch thesis if the structured pre-match evidence is coherent.
 - Do NOT invent live pressure, momentum, or line-movement facts that are not present.
 - Keep confidence and stake conservative versus normal full-live analysis.
@@ -424,7 +422,6 @@ This is a MANUAL Ask AI request for a NOT STARTED top-league match.
 Live telemetry is sparse, but structured prematch context is available from:
 - league/team profile priors
 - strategic context
-- provider prediction when available
 
 You MAY provide one cautious prematch thesis if the structured pre-match evidence is coherent.
 Rules:
@@ -689,7 +686,7 @@ function getEvidenceTierRule(data: LiveAnalysisPromptInput): EvidenceTierRule {
     return {
       tier: 'tier_2',
       label: 'Structured prematch context for manual Ask AI',
-      allowedMarkets: 'Selective prematch O/U, AH, or 1X2 only when supported by provider prediction and profile priors',
+      allowedMarkets: 'Selective prematch O/U, AH, or 1X2 only when supported by structured profile priors',
       forbiddenMarkets: 'Corners, BTTS No without strong supporting priors, and any market that depends on invented live telemetry',
       operationalRule: 'Manual prematch override. Use structured prematch evidence only and keep confidence/stake conservative.',
     };
@@ -749,6 +746,21 @@ function hasStrategicText(value: unknown): boolean {
   return !!text && !/^no data/i.test(text);
 }
 
+function promptTextMentionsLineup(value: string | null | undefined): boolean {
+  const normalized = String(value ?? '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase();
+  return [
+    'lineup',
+    'line-up',
+    'starting lineup',
+    'starting xi',
+    'doi hinh',
+    'doi hinh ra san',
+  ].some((term) => normalized.includes(term));
+}
+
 function getStrategicNarrative(
   strategicContext: Record<string, unknown>,
   lang: 'en' | 'vi',
@@ -776,6 +788,34 @@ function getStrategicQuantitative(strategicContext: Record<string, unknown>): Re
   return Object.fromEntries(
     Object.entries(quantitative as Record<string, unknown>).filter(([, value]) => typeof value === 'number'),
   ) as Record<string, number>;
+}
+
+function getStrategicTrustedDomains(sourceMeta: Record<string, unknown>): string[] {
+  return Array.isArray(sourceMeta.sources)
+    ? (sourceMeta.sources as Array<Record<string, unknown>>)
+      .filter((source) => {
+        const trust = readStrategicText(source.trust_tier);
+        return trust === 'tier_1' || trust === 'tier_2';
+      })
+      .map((source) => readStrategicText(source.domain))
+      .filter(Boolean)
+    : [];
+}
+
+function buildStrategicStructuredSignals(
+  ctx: Record<string, unknown>,
+  narrative: Record<string, unknown>,
+): Record<string, unknown> {
+  const pick = (...values: unknown[]) => values.find(hasStrategicText) ?? null;
+  return Object.fromEntries(Object.entries({
+    competition_type: pick(ctx.competition_type),
+    home_motivation: pick(narrative.home_motivation, ctx.home_motivation),
+    away_motivation: pick(narrative.away_motivation, ctx.away_motivation),
+    league_positions: pick(narrative.league_positions, ctx.league_positions),
+    fixture_congestion: pick(narrative.fixture_congestion, ctx.fixture_congestion),
+    rotation_risk: pick(narrative.rotation_risk, ctx.rotation_risk),
+    key_absences: pick(narrative.key_absences, ctx.key_absences),
+  }).filter(([, value]) => value != null));
 }
 
 function getLeagueProfileQuantitative(leagueProfile: Record<string, unknown>): Record<string, number> {
@@ -871,27 +911,9 @@ function buildStrategicContextSection(strategicContext: Record<string, unknown> 
   const quantitative = getStrategicQuantitative(ctx);
   const sourceMeta = getStrategicSourceMeta(ctx);
   const searchQuality = readStrategicText(sourceMeta.search_quality) || 'unknown';
-  const trustedDomains = Array.isArray(sourceMeta.sources)
-    ? (sourceMeta.sources as Array<Record<string, unknown>>)
-      .filter((source) => {
-        const trust = readStrategicText(source.trust_tier);
-        return trust === 'tier_1' || trust === 'tier_2';
-      })
-      .map((source) => readStrategicText(source.domain))
-      .filter(Boolean)
-    : [];
-
-  const summary = readStrategicText(narrativeEn.summary || ctx.summary);
-  const hasNarrativeData = [
-    narrativeEn.home_motivation,
-    narrativeEn.away_motivation,
-    narrativeEn.league_positions,
-    narrativeEn.fixture_congestion,
-    narrativeEn.rotation_risk,
-    narrativeEn.key_absences,
-    narrativeEn.h2h_narrative,
-    summary,
-  ].some(hasStrategicText);
+  const trustedDomains = getStrategicTrustedDomains(sourceMeta);
+  const structuredSignals = buildStrategicStructuredSignals(ctx, narrativeEn);
+  const hasNarrativeData = Object.keys(structuredSignals).length > 0;
   const hasQuantitativeData = Object.keys(quantitative).length > 0;
   if (!hasNarrativeData && !hasQuantitativeData) return '';
 
@@ -900,30 +922,11 @@ function buildStrategicContextSection(strategicContext: Record<string, unknown> 
   lines.push('STRATEGIC CONTEXT (FROM PRE-MATCH RESEARCH)');
   lines.push('========================');
   lines.push(`SOURCE_QUALITY: ${searchQuality}`);
-  if (sourceMeta.prediction_fallback_used === true) {
-    lines.push('PREDICTION_FALLBACK_USED: YES');
-  }
   if (trustedDomains.length > 0) {
     lines.push(`TRUSTED_SOURCE_DOMAINS: ${Array.from(new Set(trustedDomains)).join(', ')}`);
   }
-  if (hasStrategicText(narrativeEn.home_motivation || ctx.home_motivation))
-    lines.push(`HOME_MOTIVATION: ${readStrategicText(narrativeEn.home_motivation || ctx.home_motivation)}`);
-  if (hasStrategicText(narrativeEn.away_motivation || ctx.away_motivation))
-    lines.push(`AWAY_MOTIVATION: ${readStrategicText(narrativeEn.away_motivation || ctx.away_motivation)}`);
-  if (hasStrategicText(narrativeEn.league_positions || ctx.league_positions))
-    lines.push(`LEAGUE_POSITIONS: ${readStrategicText(narrativeEn.league_positions || ctx.league_positions)}`);
-  if (hasStrategicText(narrativeEn.fixture_congestion || ctx.fixture_congestion))
-    lines.push(`FIXTURE_CONGESTION: ${readStrategicText(narrativeEn.fixture_congestion || ctx.fixture_congestion)}`);
-  if (hasStrategicText(narrativeEn.rotation_risk || ctx.rotation_risk))
-    lines.push(`ROTATION_RISK: ${readStrategicText(narrativeEn.rotation_risk || ctx.rotation_risk)}`);
-  if (hasStrategicText(narrativeEn.key_absences || ctx.key_absences))
-    lines.push(`KEY_ABSENCES: ${readStrategicText(narrativeEn.key_absences || ctx.key_absences)}`);
-  if (hasStrategicText(narrativeEn.h2h_narrative || ctx.h2h_narrative))
-    lines.push(`H2H_NARRATIVE: ${readStrategicText(narrativeEn.h2h_narrative || ctx.h2h_narrative)}`);
-  if (hasStrategicText(ctx.competition_type))
-    lines.push(`COMPETITION_TYPE: ${readStrategicText(ctx.competition_type)}`);
-  if (hasStrategicText(summary)) {
-    lines.push(`SUMMARY: ${summary}`);
+  if (hasNarrativeData) {
+    lines.push(`STRUCTURED_STRATEGIC_SIGNALS: ${JSON.stringify(structuredSignals)}`);
   }
   if (hasQuantitativeData) {
     lines.push(`QUANTITATIVE_PREMATCH_PRIORS: ${JSON.stringify(quantitative)}`);
@@ -931,56 +934,19 @@ function buildStrategicContextSection(strategicContext: Record<string, unknown> 
   lines.push('');
   lines.push('STRATEGIC CONTEXT RULES:');
   lines.push('- Treat strategic context as secondary pre-match prior. Live stats/events/odds still dominate.');
-  lines.push('- If SOURCE_QUALITY is medium or unknown, use the context as soft guidance only and do NOT boost confidence aggressively.');
+  lines.push('- Use structured signals and quantitative priors only; do not infer from missing long-form narrative.');
+  lines.push('- If SOURCE_QUALITY is medium or unknown, use this context as soft guidance only and do NOT boost confidence aggressively.');
   lines.push('- QUANTITATIVE_PREMATCH_PRIORS are baseline tendencies, not live evidence. Use them to calibrate O/U, BTTS, or AH lean only when live evidence aligns.');
   lines.push('- COMPETITION_TYPE: For european/international/friendly competitions, teams are from DIFFERENT domestic leagues. LEAGUE_POSITIONS CANNOT be compared across leagues - IGNORE position gap signals.');
   lines.push('- LEAGUE_POSITIONS: ONLY for domestic_league matches: Top 3 vs bottom 3 = strong favourite signal. Within 3 places = evenly matched -> AVOID 1X2, prefer O/U or BTTS.');
-  lines.push('- ROTATION: If team likely rotates key players, reduce confidence for that team winning by 1-2.');
-  lines.push('- NOTHING TO PLAY FOR: Expect lower intensity -> favors Under, Draw.');
-  lines.push('- TITLE RACE / RELEGATION BATTLE: Expect high intensity -> supports attacking.');
+  lines.push('- ROTATION / CONGESTION / KEY_ABSENCES reduce aggression for the affected side.');
+  lines.push('- Motivation signals are weak priors: use them only if live tempo and odds agree.');
   lines.push('- FIXTURE_CONGESTION within 3 days of major match significantly increases rotation risk.');
   lines.push('- KEY_ABSENCES of star players should reduce expected goals for that team.');
   lines.push('- High Over 2.5 / BTTS rates may support attacking markets only if current tempo and shots agree.');
   lines.push('- High clean-sheet or failed-to-score rates may support Under / BTTS No only if live evidence does not contradict them.');
   lines.push('');
 
-  return lines.join('\n');
-}
-
-function buildPreMatchPredictionSection(prediction: Record<string, unknown> | null, summary: string): string {
-  if (!prediction && !summary) return '';
-
-  const lines: string[] = [];
-  lines.push('========================');
-  lines.push('PRE-MATCH PREDICTION (OPTIONAL)');
-  lines.push('========================');
-
-  if (prediction && typeof prediction === 'object') {
-    const pmPred = (prediction as Record<string, Record<string, unknown>>).predictions || {};
-    const pmComp = (prediction as Record<string, Record<string, unknown>>).comparison || {};
-
-    const compact: Record<string, unknown> = {
-      pre_favourite: (pmPred.winner as Record<string, unknown>)?.name || null,
-      pre_win_or_draw: pmPred.win_or_draw ?? null,
-      pre_handicap_home: (pmPred.goals as Record<string, unknown>)?.home ?? null,
-      pre_handicap_away: (pmPred.goals as Record<string, unknown>)?.away ?? null,
-      pre_percent: pmPred.percent || null,
-      pre_form: (pmComp.form as Record<string, unknown>) || null,
-      pre_total_rating: (pmComp.total as Record<string, unknown>) || null,
-    };
-
-    lines.push(JSON.stringify(compact));
-
-    const h2hSummary = prediction.h2h_summary;
-    if (h2hSummary) lines.push(`H2H_SUMMARY: ${JSON.stringify(h2hSummary)}`);
-
-    const teamForm = prediction.team_form;
-    if (teamForm) lines.push(`TEAM_FORM_SEQUENCE: ${JSON.stringify(teamForm)}`);
-  } else {
-    lines.push(summary || 'No pre-match prediction available.');
-  }
-
-  lines.push('');
   return lines.join('\n');
 }
 
@@ -991,7 +957,6 @@ function buildPrematchExpertFeaturesSection(
   const features = data.prematchExpertFeatures ?? buildPrematchExpertFeaturesV1({
     strategicContext: data.strategicContext,
     leagueProfile: data.leagueProfile ?? null,
-    prediction: data.prediction,
     homeTeamProfile: data.homeTeamProfile ?? null,
     awayTeamProfile: data.awayTeamProfile ?? null,
   });
@@ -1061,26 +1026,9 @@ function buildStrategicContextSectionCompact(strategicContext: Record<string, un
   const quantitative = getStrategicQuantitative(ctx);
   const sourceMeta = getStrategicSourceMeta(ctx);
   const searchQuality = readStrategicText(sourceMeta.search_quality) || 'unknown';
-  const trustedDomains = Array.isArray(sourceMeta.sources)
-    ? (sourceMeta.sources as Array<Record<string, unknown>>)
-      .filter((source) => {
-        const trust = readStrategicText(source.trust_tier);
-        return trust === 'tier_1' || trust === 'tier_2';
-      })
-      .map((source) => readStrategicText(source.domain))
-      .filter(Boolean)
-    : [];
-  const summary = readStrategicText(narrativeEn.summary || ctx.summary);
-  const hasNarrativeData = [
-    narrativeEn.home_motivation,
-    narrativeEn.away_motivation,
-    narrativeEn.league_positions,
-    narrativeEn.fixture_congestion,
-    narrativeEn.rotation_risk,
-    narrativeEn.key_absences,
-    narrativeEn.h2h_narrative,
-    summary,
-  ].some(hasStrategicText);
+  const trustedDomains = getStrategicTrustedDomains(sourceMeta);
+  const structuredSignals = buildStrategicStructuredSignals(ctx, narrativeEn);
+  const hasNarrativeData = Object.keys(structuredSignals).length > 0;
   const hasQuantitativeData = Object.keys(quantitative).length > 0;
   if (!hasNarrativeData && !hasQuantitativeData) return '';
 
@@ -1089,34 +1037,16 @@ function buildStrategicContextSectionCompact(strategicContext: Record<string, un
   lines.push('STRATEGIC CONTEXT');
   lines.push('========================');
   lines.push(`SOURCE_QUALITY: ${searchQuality}`);
-  if (sourceMeta.prediction_fallback_used === true) {
-    lines.push('PREDICTION_FALLBACK_USED: YES');
-  }
   if (trustedDomains.length > 0) {
     lines.push(`TRUSTED_SOURCE_DOMAINS: ${Array.from(new Set(trustedDomains)).join(', ')}`);
   }
-  if (hasStrategicText(narrativeEn.home_motivation || ctx.home_motivation))
-    lines.push(`HOME_MOTIVATION: ${readStrategicText(narrativeEn.home_motivation || ctx.home_motivation)}`);
-  if (hasStrategicText(narrativeEn.away_motivation || ctx.away_motivation))
-    lines.push(`AWAY_MOTIVATION: ${readStrategicText(narrativeEn.away_motivation || ctx.away_motivation)}`);
-  if (hasStrategicText(narrativeEn.league_positions || ctx.league_positions))
-    lines.push(`LEAGUE_POSITIONS: ${readStrategicText(narrativeEn.league_positions || ctx.league_positions)}`);
-  if (hasStrategicText(narrativeEn.fixture_congestion || ctx.fixture_congestion))
-    lines.push(`FIXTURE_CONGESTION: ${readStrategicText(narrativeEn.fixture_congestion || ctx.fixture_congestion)}`);
-  if (hasStrategicText(narrativeEn.rotation_risk || ctx.rotation_risk))
-    lines.push(`ROTATION_RISK: ${readStrategicText(narrativeEn.rotation_risk || ctx.rotation_risk)}`);
-  if (hasStrategicText(narrativeEn.key_absences || ctx.key_absences))
-    lines.push(`KEY_ABSENCES: ${readStrategicText(narrativeEn.key_absences || ctx.key_absences)}`);
-  if (hasStrategicText(narrativeEn.h2h_narrative || ctx.h2h_narrative))
-    lines.push(`H2H_NARRATIVE: ${readStrategicText(narrativeEn.h2h_narrative || ctx.h2h_narrative)}`);
-  if (hasStrategicText(ctx.competition_type))
-    lines.push(`COMPETITION_TYPE: ${readStrategicText(ctx.competition_type)}`);
-  if (hasStrategicText(summary)) lines.push(`SUMMARY: ${summary}`);
+  if (hasNarrativeData) lines.push(`STRUCTURED_STRATEGIC_SIGNALS: ${JSON.stringify(structuredSignals)}`);
   if (hasQuantitativeData) lines.push(`QUANTITATIVE_PREMATCH_PRIORS: ${JSON.stringify(quantitative)}`);
   lines.push('');
   lines.push('CONTEXT USE RULES:');
   lines.push('- Secondary prior only; live stats/events/odds dominate.');
   lines.push('- Medium/unknown quality => soft guidance only.');
+  lines.push('- Use structured fields only; do not infer missing long-form narrative.');
   lines.push('- Quantitative priors help only when live evidence aligns.');
   lines.push('- Cross-league position gaps are invalid outside domestic_league.');
   lines.push('- Rotation, congestion, absences reduce aggression for that side.');
@@ -1377,9 +1307,9 @@ ${historyLines.length > 0 ? `FOLLOW_UP_HISTORY:\n${historyLines.join('\n')}\n` :
 }
 
 function buildLineupsSnapshotSection(data: LiveAnalysisPromptInput, compact: boolean): string {
-  const shouldRender = String(data.userQuestion ?? '').trim().length > 0
-    || (data.followUpHistory?.length ?? 0) > 0
-    || data.lineupsSnapshot?.available === true;
+  const asksAboutLineups = promptTextMentionsLineup(data.userQuestion)
+    || (data.followUpHistory ?? []).some((entry) => promptTextMentionsLineup(entry.text));
+  const shouldRender = asksAboutLineups;
   if (!shouldRender) return '';
 
   const snapshot = data.lineupsSnapshot;
@@ -1398,16 +1328,15 @@ LINEUPS_SNAPSHOT: unavailable
     side: team.side,
     team_name: team.teamName,
     formation: team.formation ?? null,
-    coach: team.coachName ?? null,
-    starters: team.starters,
-    substitutes: team.substitutes,
+    confirmed_starters: team.confirmedStarters,
+    bench_count: team.benchCount,
   }));
 
   return compact
     ? `LINEUPS_SNAPSHOT:
 ${JSON.stringify(payload)}
 - Treat lineup data as confirmed only for the names listed above.
-- If lineup details are absent here, do not invent player names, formations, or absences.
+- Substitutes are intentionally compressed to bench_count; do not invent bench player names, formations, or absences.
 
 `
     : `========================
@@ -1415,7 +1344,7 @@ LINEUPS SNAPSHOT
 ========================
 ${JSON.stringify(payload)}
 - Treat lineup data as confirmed only for the names listed above.
-- If lineup details are absent here, do not invent player names, formations, or absences.
+- Substitutes are intentionally compressed to bench_count; do not invent bench player names, formations, or absences.
 
 `;
 }
@@ -1582,24 +1511,11 @@ ${advancedRules}
 `;
 }
 
-function buildPreMatchPredictionSectionCompact(prediction: Record<string, unknown> | null, summary: string): string {
-  const block = buildPreMatchPredictionSection(prediction, summary);
-  if (!block) return '';
-  return `${block}PRE-MATCH RULES:
-- Context only. Never override live evidence.
-- Use mainly for alignment checks, overreaction checks, H2H context, or form context.
-- Ignore it when live flow clearly contradicts it.
-- Combined pre-match + strategic weighting should stay limited.
-
-`;
-}
-
 void [
   buildLeagueProfileSection,
   buildStrategicContextSection,
   buildStrategicContextSectionCompact,
   buildLeagueProfileSectionCompact,
-  buildPreMatchPredictionSectionCompact,
 ];
 
 export function buildExactMarketContractSectionCompact(data: LiveAnalysisPromptInput): string {
@@ -2311,24 +2227,13 @@ CONFIG / MODE
 ${buildAiRecommendedConditionSection(data)}
 
 ============================================================
-PRE-MATCH PREDICTION RULES
+PRE-MATCH CONTEXT RULES
 ============================================================
-- Pre-match data is contextual only.
-- Must NEVER override live evidence.
-
-WHEN TO USE PRE-MATCH DATA:
-- When live stats are sparse but pre-match aligns with observed play style.
-- When detecting market overreaction (e.g., strong favourite concedes early -> odds swing excessively).
-- As supporting evidence when live play confirms pre-match expectations.
-- H2H_SUMMARY: If one team dominates H2H (3+ wins in last 5), factor this into 1X2 assessment.
-- TEAM_FORM_SEQUENCE: Recent WDLWW pattern reveals momentum - weight recent matches more.
-
-WHEN TO IGNORE PRE-MATCH DATA:
-- When live evidence clearly contradicts pre-match expectation.
-- When the match situation has fundamentally changed (red cards, injuries, tactical shifts).
-
-WEIGHT: Pre-match should contribute maximum 20% to your reasoning when used.
-WEIGHT: Strategic context (motivation, rotation, congestion) can add up to 10% additional weight.
+- Structured league/team profiles and strategic context are contextual only.
+- They must NEVER override live evidence.
+- Use them only when live stats are sparse and the current match state does not contradict the prior.
+- Treat market overreaction ideas as hypotheses; require live evidence or reliable odds support before recommending.
+- Strategic context (motivation, rotation, congestion) can add limited weight, but live flow and price remain primary.
 
 ============================================================
 GLOBAL RULES

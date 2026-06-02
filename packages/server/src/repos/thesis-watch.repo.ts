@@ -128,3 +128,24 @@ export async function expirePendingThesisWatchesForMatch(matchId: string): Promi
     [matchId],
   );
 }
+
+export async function expireDueThesisWatches(): Promise<number> {
+  const result = await query(
+    `UPDATE match_thesis_watch
+     SET status = 'expired', updated_at = NOW()
+     WHERE status = 'pending'
+       AND expires_at <= NOW()`,
+  );
+  return result.rowCount ?? 0;
+}
+
+export async function purgeOldThesisWatches(keepDays: number): Promise<number> {
+  if (!Number.isFinite(keepDays) || keepDays <= 0) return 0;
+  const result = await query(
+    `DELETE FROM match_thesis_watch
+     WHERE status IN ('expired', 'cancelled', 'promoted')
+       AND updated_at < NOW() - INTERVAL '1 day' * $1`,
+    [keepDays],
+  );
+  return result.rowCount ?? 0;
+}

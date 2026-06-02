@@ -95,8 +95,9 @@ export const config = {
   jobAutoAddTopLeagueWatchlistMs: Number(process.env['JOB_AUTO_ADD_TOP_LEAGUE_WATCHLIST_MS'] || 0),
   jobAutoAddFavoriteTeamWatchlistMs: Number(process.env['JOB_AUTO_ADD_FAVORITE_TEAM_WATCHLIST_MS'] || process.env['JOB_FETCH_MATCHES_MS'] || 1 * 60_000),
   jobRefreshLiveMatchesMs: Number(process.env['JOB_REFRESH_LIVE_MATCHES_MS'] || 15_000), // 15 sec
+  /** Max public live/near-live matches to score-refresh per refresh-live-matches tick. */
+  jobRefreshLiveMatchesMaxPublicMatches: Number(process.env['JOB_REFRESH_LIVE_MATCHES_MAX_PUBLIC_MATCHES'] || 40),
   jobDeliverTelegramNotificationsMs: Number(process.env['JOB_DELIVER_TELEGRAM_NOTIFICATIONS_MS'] || 5_000), // 5 sec
-  jobPredictionsMs: Number(process.env['JOB_PREDICTIONS_MS'] || 30 * 60_000),            // 30 min
   jobExpireWatchlistMs: Number(process.env['JOB_EXPIRE_WATCHLIST_MS'] || 5 * 60_000),    // 5 min
   jobCheckLiveMs: Number(process.env['JOB_CHECK_LIVE_MS'] || 30_000),                    // 30 sec
   jobRefreshProviderInsightsMs: Number(process.env['JOB_REFRESH_PROVIDER_INSIGHTS_MS'] || 5 * 60_000), // 5 min
@@ -172,6 +173,7 @@ export const config = {
   /** Thesis watch deferral across analyze cycles (requires line patience). */
   thesisWatchEnabled: process.env['THESIS_WATCH_ENABLED'] !== 'false',
   thesisWatchTtlMinutes: Number(process.env['THESIS_WATCH_TTL_MINUTES'] || 45),
+  thesisWatchKeepDays: Number(process.env['THESIS_WATCH_KEEP_DAYS'] || 30),
 
   // Prompt-improvement policy thresholds
   policyRequiredBreakEvenMax: Number(process.env['POLICY_REQUIRED_BREAKEVEN_MAX'] || 0.5),

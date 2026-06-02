@@ -150,8 +150,6 @@ export function createMergedMatchData(overrides?: Partial<MergedMatchData>): Mer
     odds_suspicious: false,
     odds_source: undefined,
     derived_insights: null,
-    pre_match_prediction: null,
-    pre_match_prediction_summary: '',
     strategic_context: null,
     ...overrides,
   };

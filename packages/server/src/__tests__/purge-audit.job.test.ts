@@ -38,7 +38,6 @@ vi.mock('../repos/provider-fixture-insight.repo.js', () => ({
     statsDeleted: 8,
     eventsDeleted: 6,
     lineupsDeleted: 4,
-    predictionDeleted: 2,
     standingsDeleted: 1,
     totalDeleted: 31,
   }),
@@ -67,6 +66,10 @@ vi.mock('../repos/ai-performance.repo.js', () => ({
 vi.mock('../repos/recommendation-deliveries.repo.js', () => ({
   purgeOldDeliveries: vi.fn().mockResolvedValue(0),
 }));
+vi.mock('../repos/thesis-watch.repo.js', () => ({
+  expireDueThesisWatches: vi.fn().mockResolvedValue(2),
+  purgeOldThesisWatches: vi.fn().mockResolvedValue(3),
+}));
 
 const { housekeepingJob, purgeAuditJob } = await import('../jobs/purge-audit.job.js');
 
@@ -89,11 +92,13 @@ describe('housekeepingJob', () => {
     expect(result.pipelineRunsDeleted).toBe(3);
     expect(result.jobRunHistoryDeleted).toBe(4);
     expect(result.recommendationDeliveriesDeleted).toBe(0);
+    expect(result.thesisWatchesExpired).toBe(2);
+    expect(result.thesisWatchesDeleted).toBe(3);
     expect(result.recommendationsSlimmed).toBe(20);
     expect(result.aiPerfAggregated).toBe(4);
     expect(result.aiPerfDeleted).toBe(8);
     // totalDeleted excludes slimmed (UPDATE not DELETE) but includes aiPerfDeleted
-    expect(result.totalDeleted).toBe(42 + 5 + 9 + 7 + 43 + 11 + 13 + 6 + 3 + 4 + 8);
+    expect(result.totalDeleted).toBe(42 + 5 + 9 + 7 + 43 + 11 + 13 + 6 + 3 + 4 + 3 + 8);
 
     expect(result.keepDays).toMatchObject({
       audit: 30,
@@ -107,6 +112,7 @@ describe('housekeepingJob', () => {
       pipelineRuns: 14,
       jobRunHistory: 30,
       recommendationDeliveries: 0,
+      thesisWatch: 30,
       recommendationsSlim: 365,
       aiPerformance: 365,
     });
@@ -126,6 +132,9 @@ describe('housekeepingJob', () => {
 
     const deliveriesRepo = await import('../repos/recommendation-deliveries.repo.js');
     expect(deliveriesRepo.purgeOldDeliveries).not.toHaveBeenCalled();
+    const thesisWatchRepo = await import('../repos/thesis-watch.repo.js');
+    expect(thesisWatchRepo.expireDueThesisWatches).toHaveBeenCalled();
+    expect(thesisWatchRepo.purgeOldThesisWatches).toHaveBeenCalledWith(30);
 
     const recsRepo = await import('../repos/recommendations.repo.js');
     expect(recsRepo.slimOldRecommendations).toHaveBeenCalledWith(365);
@@ -149,6 +158,7 @@ describe('housekeepingJob', () => {
     const recsRepo = await import('../repos/recommendations.repo.js');
     const aiRepo = await import('../repos/ai-performance.repo.js');
     const deliveriesRepo = await import('../repos/recommendation-deliveries.repo.js');
+    const thesisWatchRepo = await import('../repos/thesis-watch.repo.js');
     vi.mocked(auditRepo.purgeAuditLogs).mockResolvedValueOnce(0);
     vi.mocked(historyRepo.purgeHistoricalMatches).mockResolvedValueOnce(0);
     vi.mocked(providerStatsRepo.purgeProviderStatsSamples).mockResolvedValueOnce(0);
@@ -159,7 +169,6 @@ describe('housekeepingJob', () => {
       statsDeleted: 0,
       eventsDeleted: 0,
       lineupsDeleted: 0,
-      predictionDeleted: 0,
       standingsDeleted: 0,
       totalDeleted: 0,
     });
@@ -169,6 +178,8 @@ describe('housekeepingJob', () => {
     vi.mocked(pipelineRepo.purgePipelineRuns).mockResolvedValueOnce(0);
     vi.mocked(jobRunsRepo.purgeJobRuns).mockResolvedValueOnce(0);
     vi.mocked(deliveriesRepo.purgeOldDeliveries).mockResolvedValueOnce(0);
+    vi.mocked(thesisWatchRepo.expireDueThesisWatches).mockResolvedValueOnce(0);
+    vi.mocked(thesisWatchRepo.purgeOldThesisWatches).mockResolvedValueOnce(0);
     vi.mocked(recsRepo.slimOldRecommendations).mockResolvedValueOnce(0);
     vi.mocked(aiRepo.aggregateAndPurgeOldAiPerformance).mockResolvedValueOnce({ aggregated: 0, deleted: 0 });
 

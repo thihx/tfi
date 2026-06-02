@@ -495,7 +495,7 @@ export function ProfileEditModal({ open, onClose, user, onUserChange }: ProfileE
           <div className="settings-panel-card__body" style={{ paddingTop: 4, paddingBottom: 4 }}>
             <PrefRow
               label="UI Language"
-              hint="Controls which language reasoning text is displayed in."
+              hint="Language used for AI reasoning text."
             >
               <select
                 className="job-interval-select"

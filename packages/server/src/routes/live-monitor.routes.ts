@@ -240,7 +240,7 @@ export async function liveMonitorRoutes(app: FastifyInstance) {
 
   app.post<{
     Params: { matchId: string };
-    Body: { question?: string; history?: Array<{ role: 'user' | 'assistant'; text: string }> };
+    Body: { question?: string; history?: Array<{ role: 'user' | 'assistant'; text: string }>; advisoryOnly?: boolean };
   }>(
     '/api/live-monitor/matches/:matchId/analyze',
     async (req, reply) => {
@@ -249,14 +249,15 @@ export async function liveMonitorRoutes(app: FastifyInstance) {
         return reply.status(400).send({ error: 'matchId is required' });
       }
       const question = typeof req.body?.question === 'string' ? req.body.question.trim() : '';
-      const advisoryOnly = question.length > 0;
       const history = Array.isArray(req.body?.history)
         ? req.body.history.filter((entry) => entry && (entry.role === 'user' || entry.role === 'assistant') && typeof entry.text === 'string')
         : undefined;
+      const advisoryOnly = req.body?.advisoryOnly === true
+        || (question.length > 0 && (history?.length ?? 0) > 0);
 
       try {
         const result = await runManualAnalysisForMatch(matchId, {
-          userQuestion: advisoryOnly ? question : undefined,
+          userQuestion: question || undefined,
           followUpHistory: history,
           advisoryOnly,
         });

@@ -751,7 +751,7 @@ describe('enrichWatchlistJob', () => {
     );
   });
 
-  test('uses deterministic prediction fallback to rescue sparse top-league context', async () => {
+  test('does not rescue sparse top-league context with removed prediction fallback', async () => {
     const watchlistRepo = await import('../repos/watchlist.repo.js');
     vi.mocked(watchlistRepo.getActiveOperationalWatchlist).mockResolvedValueOnce([
       {
@@ -844,19 +844,13 @@ describe('enrichWatchlistJob', () => {
     const result = await enrichWatchlistJob();
 
     expect(result.checked).toBe(1);
-    expect(result.enriched).toBe(1);
+    expect(result.enriched).toBe(0);
     expect(watchlistRepo.updateOperationalWatchlistEntry).toHaveBeenCalledWith(
       '980',
       expect.objectContaining({
         strategic_context: expect.objectContaining({
-          summary: expect.stringContaining('Pre-match model leans Barcelona.'),
-          h2h_narrative: expect.stringContaining('Last 5 H2H'),
-          quantitative: expect.objectContaining({
-            home_last5_points: 13,
-            away_last5_points: 5,
-          }),
           _meta: expect.objectContaining({
-            refresh_status: 'good',
+            refresh_status: 'poor',
           }),
         }),
       }),

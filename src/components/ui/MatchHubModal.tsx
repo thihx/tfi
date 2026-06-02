@@ -1,7 +1,7 @@
 // Match Hub - unified modal
 import { useState, useEffect, useCallback, lazy, Suspense, type ReactNode } from 'react';
 import { Modal } from '@/components/ui/Modal';
-import { MatchScoutPanel } from '@/components/ui/MatchScoutPanel';
+import { MatchFactsPanel } from '@/components/ui/MatchFactsPanel';
 import { MatchPriorsPanel } from '@/components/ui/MatchPriorsPanel';
 import {
   MatchHubContextView,
@@ -16,26 +16,27 @@ import {
   fetchRecommendationsByMatch,
   fetchBetsByMatch,
   fetchWatchlistItem,
+  fetchMatchScout,
   type MatchSnapshot,
   type OddsMovement,
   type BetRecord,
+  type MatchScoutData,
 } from '@/lib/services/api';
 import type { Recommendation, WatchlistItem } from '@/types';
 
-const TimelineView = lazy(() => import('./MatchDetailChartViews').then((m) => ({ default: m.TimelineView })));
 const OddsView = lazy(() => import('./MatchDetailChartViews').then((m) => ({ default: m.OddsView })));
 
 /** Match over or voided — same semantics as MatchesTab FINISHED_STATUSES */
 const HUB_FINISHED_STATUSES = new Set(['FT', 'AET', 'PEN', 'CANC', 'ABD', 'AWD']);
 
-export type MatchHubTabKey = 'tfi' | 'scout' | 'timeline' | 'odds' | 'recs' | 'bets';
+export type MatchHubTabKey = 'tfi' | 'summary' | 'statistics' | 'table' | 'odds' | 'recs' | 'bets';
 
 export interface MatchHubModalProps {
   open: boolean;
   matchId: string;
   matchDisplay: string;
   onClose: () => void;
-  initialTab?: MatchHubTabKey | 'context';
+  initialTab?: MatchHubTabKey | 'context' | 'scout' | 'timeline';
   homeTeam?: string;
   awayTeam?: string;
   homeLogo?: string;
@@ -56,7 +57,8 @@ function parseTeamsFromDisplay(display: string): { home: string; away: string } 
 
 function normalizeHubTab(raw: MatchHubModalProps['initialTab']): MatchHubTabKey {
   if (raw === 'context') return 'tfi';
-  if (raw === 'tfi' || raw === 'scout' || raw === 'timeline' || raw === 'odds' || raw === 'recs' || raw === 'bets') {
+  if (raw === 'scout' || raw === 'timeline') return raw === 'timeline' ? 'statistics' : 'summary';
+  if (raw === 'tfi' || raw === 'summary' || raw === 'statistics' || raw === 'table' || raw === 'odds' || raw === 'recs' || raw === 'bets') {
     return raw;
   }
   return 'tfi';
@@ -92,6 +94,9 @@ function MatchHubModalInner({
   const [recsTfi, setRecsTfi] = useState<Recommendation[]>([]);
   const [snapshots, setSnapshots] = useState<MatchSnapshot[] | null>(null);
   const [snapshotsLoading, setSnapshotsLoading] = useState(false);
+  const [scoutData, setScoutData] = useState<MatchScoutData | null>(null);
+  const [scoutLoading, setScoutLoading] = useState(false);
+  const [scoutError, setScoutError] = useState<string | null>(null);
   const [odds, setOdds] = useState<OddsMovement[] | null>(null);
   const [oddsLoading, setOddsLoading] = useState(false);
   const [bets, setBets] = useState<BetRecord[] | null>(null);
@@ -124,10 +129,14 @@ function MatchHubModalInner({
       setWatchlistTfi(null);
       setRecsTfi([]);
       setSnapshots(null);
+      setScoutData(null);
+      setScoutError(null);
       setOdds(null);
       setBets(null);
       return;
     }
+    setScoutData(null);
+    setScoutError(null);
     void loadTfiPack();
   }, [open, matchId, loadTfiPack]);
 
@@ -142,6 +151,27 @@ function MatchHubModalInner({
       setSnapshotsLoading(false);
     }
   }, [matchId, open, state.config]);
+
+  const season = new Date().getMonth() < 6 ? new Date().getFullYear() - 1 : new Date().getFullYear();
+  const leagueIdForScout = leagueIdProp ?? watchlistTfi?.league_id ?? undefined;
+
+  const loadScout = useCallback(async () => {
+    if (!matchId || !open) return;
+    setScoutLoading(true);
+    setScoutError(null);
+    try {
+      setScoutData(await fetchMatchScout(state.config, matchId, {
+        leagueId: leagueIdForScout,
+        season,
+        status,
+      }));
+    } catch (err) {
+      setScoutData(null);
+      setScoutError(err instanceof Error ? err.message : 'Failed to load match facts');
+    } finally {
+      setScoutLoading(false);
+    }
+  }, [matchId, open, leagueIdForScout, season, status, state.config]);
 
   const loadOdds = useCallback(async () => {
     if (!matchId || !open) return;
@@ -168,9 +198,14 @@ function MatchHubModalInner({
   }, [matchId, open, state.config]);
 
   useEffect(() => {
-    if (!open || tab !== 'timeline' || snapshots !== null) return;
+    if (!open || (tab !== 'statistics') || snapshots !== null) return;
     void loadSnapshots();
   }, [open, tab, snapshots, loadSnapshots]);
+
+  useEffect(() => {
+    if (!open || !['summary', 'statistics', 'table'].includes(tab) || scoutData !== null || scoutLoading) return;
+    void loadScout();
+  }, [open, tab, scoutData, scoutLoading, loadScout]);
 
   useEffect(() => {
     if (!open || tab !== 'odds' || odds !== null) return;
@@ -184,13 +219,16 @@ function MatchHubModalInner({
 
   const refreshAll = useCallback(() => {
     setSnapshots(null);
+    setScoutData(null);
+    setScoutError(null);
     setOdds(null);
     setBets(null);
     void loadTfiPack();
-    if (tab === 'timeline') void loadSnapshots();
+    if (tab === 'statistics') void loadSnapshots();
+    if (tab === 'summary' || tab === 'statistics' || tab === 'table') void loadScout();
     if (tab === 'odds') void loadOdds();
     if (tab === 'bets') void loadBets();
-  }, [loadTfiPack, loadSnapshots, loadOdds, loadBets, tab]);
+  }, [loadTfiPack, loadSnapshots, loadScout, loadOdds, loadBets, tab]);
 
   const latest =
     snapshots && snapshots.length > 0
@@ -208,7 +246,7 @@ function MatchHubModalInner({
   const hubNotice =
     open && !tfiLoading && (finished || notInFeed)
       ? finished
-        ? 'This match has finished. Saved picks, timeline, and odds history (if captured) remain available in the tabs below.'
+        ? 'This match has finished. Saved picks, match facts, and odds history (if captured) remain available in the tabs below.'
         : 'This match is not in your current fixtures list. It may have ended or been removed from the feed — saved picks and charts may still load below.'
       : null;
 
@@ -234,11 +272,14 @@ function MatchHubModalInner({
         <HubTabBtn active={tab === 'tfi'} onClick={() => setTab('tfi')}>
           TFI
         </HubTabBtn>
-        <HubTabBtn active={tab === 'scout'} onClick={() => setTab('scout')}>
-          Scout
+        <HubTabBtn active={tab === 'summary'} onClick={() => setTab('summary')}>
+          Summary
         </HubTabBtn>
-        <HubTabBtn active={tab === 'timeline'} onClick={() => setTab('timeline')}>
-          Timeline{snapLen > 0 ? ` (${snapLen})` : ''}
+        <HubTabBtn active={tab === 'statistics'} onClick={() => setTab('statistics')}>
+          Statistics
+        </HubTabBtn>
+        <HubTabBtn active={tab === 'table'} onClick={() => setTab('table')}>
+          Table
         </HubTabBtn>
         <HubTabBtn active={tab === 'odds'} onClick={() => setTab('odds')}>
           Odds{oddsLen > 0 ? ` (${oddsLen})` : ''}
@@ -290,45 +331,22 @@ function MatchHubModalInner({
           </div>
         ))}
 
-      {tab === 'scout' && (
-        <MatchScoutPanel
-          open={open}
-          active={tab === 'scout'}
-          matchId={matchId}
+      {(tab === 'summary' || tab === 'statistics' || tab === 'table') && (
+        <MatchFactsPanel
+          view={tab}
+          data={scoutData}
+          snapshots={snapshots}
+          loading={scoutLoading || (tab === 'statistics' && snapshotsLoading && !scoutData)}
+          error={scoutError}
+          onRetry={() => void loadScout()}
           homeTeam={homeTeam}
           awayTeam={awayTeam}
           homeLogo={homeLogo ?? watchlistTfi?.home_logo}
           awayLogo={awayLogo ?? watchlistTfi?.away_logo}
           leagueName={leagueName ?? watchlistTfi?.league_name ?? watchlistTfi?.league}
-          leagueId={leagueIdForPriors ?? undefined}
           status={status}
         />
       )}
-
-      {tab === 'timeline' &&
-        (snapshotsLoading ? (
-          <div className="loading-panel match-hub-loading">
-            <div className="loading-spinner" />
-            <p>Loading timeline...</p>
-          </div>
-        ) : (
-          <Suspense
-            fallback={
-              <MatchHubEmptyState
-                icon={
-                  <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                    <line x1="18" y1="20" x2="18" y2="10" />
-                    <line x1="12" y1="20" x2="12" y2="4" />
-                    <line x1="6" y1="20" x2="6" y2="14" />
-                  </svg>
-                }
-                message="Loading charts..."
-              />
-            }
-          >
-            <TimelineView snapshots={snapshots ?? []} matchDisplay={titleText} />
-          </Suspense>
-        ))}
 
       {tab === 'odds' &&
         (oddsLoading ? (

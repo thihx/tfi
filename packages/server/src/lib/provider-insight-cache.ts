@@ -1,14 +1,12 @@
 import {
   fetchFixtureEvents,
   fetchFixtureLineups,
-  fetchPrediction,
   fetchFixtureStatistics,
   fetchFixturesByIds,
   fetchStandings,
   type ApiFixture,
   type ApiFixtureEvent,
   type ApiFixtureLineup,
-  type ApiPrediction,
   type ApiStanding,
   type ApiFixtureStat,
 } from './football-api.js';
@@ -18,19 +16,16 @@ import {
   getProviderFixtureCaches,
   getProviderFixtureEventsCache,
   getProviderFixtureLineupsCache,
-  getProviderFixturePredictionCache,
   getProviderFixtureStatsCache,
   getProviderLeagueStandingsCache,
   upsertProviderFixtureCache,
   upsertProviderFixtureEventsCache,
   upsertProviderFixtureLineupsCache,
-  upsertProviderFixturePredictionCache,
   upsertProviderFixtureStatsCache,
   upsertProviderLeagueStandingsCache,
   type ProviderFixtureCacheRow,
   type ProviderFixtureEventsCacheRow,
   type ProviderFixtureLineupsCacheRow,
-  type ProviderFixturePredictionCacheRow,
   type ProviderFixtureStatsCacheRow,
   type ProviderLeagueStandingsCacheRow,
 } from '../repos/provider-fixture-insight.repo.js';
@@ -56,7 +51,6 @@ export interface MatchInsightResult {
 
 export interface ScoutInsightResult extends MatchInsightResult {
   lineups: InsightDomainState<ApiFixtureLineup[]>;
-  prediction: InsightDomainState<ApiPrediction | null>;
   standings: InsightDomainState<ApiStanding[]>;
 }
 
@@ -78,14 +72,9 @@ export interface EnsureFixtureStatisticsOptions {
   freshnessMode?: ProviderFreshnessMode;
 }
 
-export interface EnsureFixturePredictionOptions {
-  status?: string;
-  cacheEmptyResult?: boolean;
-  freshnessMode?: ProviderFreshnessMode;
-}
-
 export interface EnsureFixturesOptions {
   freshnessMode?: ProviderFreshnessMode;
+  forceRefreshIds?: string[];
 }
 
 interface ProviderInsightDeps {
@@ -93,7 +82,6 @@ interface ProviderInsightDeps {
   fetchFixtureStatistics: typeof fetchFixtureStatistics;
   fetchFixtureEvents: typeof fetchFixtureEvents;
   fetchFixtureLineups: typeof fetchFixtureLineups;
-  fetchPrediction: typeof fetchPrediction;
   fetchStandings: typeof fetchStandings;
   resolveMatchOdds: typeof resolveMatchOdds;
   getProviderFixtureCache: typeof getProviderFixtureCache;
@@ -101,13 +89,11 @@ interface ProviderInsightDeps {
   getProviderFixtureStatsCache: typeof getProviderFixtureStatsCache;
   getProviderFixtureEventsCache: typeof getProviderFixtureEventsCache;
   getProviderFixtureLineupsCache: typeof getProviderFixtureLineupsCache;
-  getProviderFixturePredictionCache: typeof getProviderFixturePredictionCache;
   getProviderLeagueStandingsCache: typeof getProviderLeagueStandingsCache;
   upsertProviderFixtureCache: typeof upsertProviderFixtureCache;
   upsertProviderFixtureStatsCache: typeof upsertProviderFixtureStatsCache;
   upsertProviderFixtureEventsCache: typeof upsertProviderFixtureEventsCache;
   upsertProviderFixtureLineupsCache: typeof upsertProviderFixtureLineupsCache;
-  upsertProviderFixturePredictionCache: typeof upsertProviderFixturePredictionCache;
   upsertProviderLeagueStandingsCache: typeof upsertProviderLeagueStandingsCache;
   now: () => Date;
 }
@@ -117,7 +103,6 @@ const defaultDeps: ProviderInsightDeps = {
   fetchFixtureStatistics,
   fetchFixtureEvents,
   fetchFixtureLineups,
-  fetchPrediction,
   fetchStandings,
   resolveMatchOdds,
   getProviderFixtureCache,
@@ -125,13 +110,11 @@ const defaultDeps: ProviderInsightDeps = {
   getProviderFixtureStatsCache,
   getProviderFixtureEventsCache,
   getProviderFixtureLineupsCache,
-  getProviderFixturePredictionCache,
   getProviderLeagueStandingsCache,
   upsertProviderFixtureCache,
   upsertProviderFixtureStatsCache,
   upsertProviderFixtureEventsCache,
   upsertProviderFixtureLineupsCache,
-  upsertProviderFixturePredictionCache,
   upsertProviderLeagueStandingsCache,
   now: () => new Date(),
 };
@@ -170,13 +153,6 @@ function detailTtlMs(status: string, minute: number | null): number {
   return 5 * 60 * 1000;
 }
 
-function predictionTtlMs(status: string): number {
-  const normalized = status.toUpperCase();
-  if (normalized === 'NS' || normalized === '') return 6 * 60 * 60 * 1000;
-  if (hasStarted(normalized)) return 12 * 60 * 60 * 1000;
-  return 6 * 60 * 60 * 1000;
-}
-
 function standingsTtlMs(): number {
   return 6 * 60 * 60 * 1000;
 }
@@ -209,12 +185,6 @@ function eventsPayloadOf(row: ProviderFixtureEventsCacheRow | null): ApiFixtureE
 
 function lineupsPayloadOf(row: ProviderFixtureLineupsCacheRow | null): ApiFixtureLineup[] {
   return row && Array.isArray(row.lineups_payload) ? row.lineups_payload as ApiFixtureLineup[] : [];
-}
-
-function predictionPayloadOf(row: ProviderFixturePredictionCacheRow | null): ApiPrediction | null {
-  if (!row || !row.prediction_payload || typeof row.prediction_payload !== 'object' || Array.isArray(row.prediction_payload)) return null;
-  if (Object.keys(row.prediction_payload as Record<string, unknown>).length === 0) return null;
-  return row.prediction_payload as ApiPrediction;
 }
 
 function standingsPayloadOf(row: ProviderLeagueStandingsCacheRow | null): ApiStanding[] {
@@ -277,21 +247,6 @@ function buildLineupsDomain(
     cacheStatus,
     cachedAt: row?.cached_at ?? null,
     fetchedAt: row?.lineups_fetched_at ?? null,
-    degraded: row?.degraded ?? false,
-  };
-}
-
-function buildPredictionDomain(
-  row: ProviderFixturePredictionCacheRow | null,
-  freshness: InsightFreshness,
-  cacheStatus: InsightCacheStatus,
-): InsightDomainState<ApiPrediction | null> {
-  return {
-    payload: predictionPayloadOf(row),
-    freshness,
-    cacheStatus,
-    cachedAt: row?.cached_at ?? null,
-    fetchedAt: row?.prediction_fetched_at ?? null,
     degraded: row?.degraded ?? false,
   };
 }
@@ -450,48 +405,6 @@ export async function ensureFixtureStatistics(
   }
 }
 
-export async function ensureFixturePrediction(
-  matchId: string,
-  options: EnsureFixturePredictionOptions = {},
-  depsOverride?: Partial<ProviderInsightDeps>,
-): Promise<InsightDomainState<ApiPrediction | null>> {
-  const deps = { ...defaultDeps, ...depsOverride };
-  const row = await deps.getProviderFixturePredictionCache(matchId);
-  const mode = options.freshnessMode ?? 'stale_safe';
-  const status = options.status ?? row?.match_status ?? '';
-  const freshness = classifyFreshness(ageMs(row?.cached_at, deps.now()), predictionTtlMs(status));
-
-  if (freshness === 'fresh' && !bypassStartedCache(mode, status)) {
-    return buildPredictionDomain(row, 'fresh', 'hit');
-  }
-
-  try {
-    const prediction = await deps.fetchPrediction(matchId);
-    const upserted = await deps.upsertProviderFixturePredictionCache({
-      match_id: matchId,
-      prediction_payload: prediction ?? (options.cacheEmptyResult === false ? undefined : null),
-      prediction_fetched_at: deps.now().toISOString(),
-      match_status: status,
-      freshness: 'fresh',
-      degraded: false,
-      last_refresh_error: '',
-    });
-    return buildPredictionDomain(upserted, 'fresh', 'refreshed');
-  } catch {
-    if (row && keepStalePayload(mode, status)) {
-      return buildPredictionDomain(row, freshness, 'stale_fallback');
-    }
-    return {
-      payload: null,
-      freshness: 'missing',
-      cacheStatus: 'miss',
-      cachedAt: null,
-      fetchedAt: null,
-      degraded: false,
-    };
-  }
-}
-
 export async function ensureMatchInsight(
   matchId: string,
   options: EnsureMatchInsightOptions = {},
@@ -633,12 +546,14 @@ export async function ensureFixturesForMatchIds(
 ): Promise<ApiFixture[]> {
   const deps = { ...defaultDeps, ...depsOverride };
   const mode = options.freshnessMode ?? 'stale_safe';
+  const forceRefreshIds = new Set((options.forceRefreshIds ?? []).map(String));
   if (matchIds.length === 0) return [];
 
   const cachedRows = await deps.getProviderFixtureCaches(matchIds);
   const cachedMap = new Map(cachedRows.map((row) => [row.match_id, row]));
   const now = deps.now();
   const staleOrMissingIds = matchIds.filter((matchId) => {
+    if (forceRefreshIds.has(String(matchId))) return true;
     const row = cachedMap.get(matchId) ?? null;
     const fixture = fixturePayloadOf(row);
     const status = fixture?.fixture?.status?.short ?? row?.match_status ?? '';
@@ -689,7 +604,6 @@ export async function refreshProviderInsightsForMatches(
   fixtureCached: number;
   detailRefreshed: number;
   lineupsRefreshed: number;
-  predictionsRefreshed: number;
   standingsRefreshed: number;
   oddsRefreshed: number;
 }> {
@@ -701,7 +615,6 @@ export async function refreshProviderInsightsForMatches(
       fixtureCached: 0,
       detailRefreshed: 0,
       lineupsRefreshed: 0,
-      predictionsRefreshed: 0,
       standingsRefreshed: 0,
       oddsRefreshed: 0,
     };
@@ -711,7 +624,6 @@ export async function refreshProviderInsightsForMatches(
   await Promise.all(fixtures.map((fixture) => persistFixture(fixture, deps)));
 
   const detailFixtures = fixtures.filter((fixture) => hasStarted(fixture.fixture.status.short));
-  const prematchFixtures = fixtures.filter((fixture) => !hasStarted(fixture.fixture.status.short));
   const standingsKeys = new Set<string>();
   await batchRun(detailFixtures.map((fixture) => async () => {
     const matchId = String(fixture.fixture.id);
@@ -780,21 +692,7 @@ export async function refreshProviderInsightsForMatches(
     return null;
   }), 4);
 
-  await batchRun(prematchFixtures.map((fixture) => async () => {
-    const matchId = String(fixture.fixture.id);
-    const prediction = await deps.fetchPrediction(matchId).catch(() => null);
-    if (prediction) {
-      await deps.upsertProviderFixturePredictionCache({
-        match_id: matchId,
-        prediction_payload: prediction,
-        prediction_fetched_at: deps.now().toISOString(),
-        match_status: fixture.fixture.status.short,
-        freshness: 'fresh',
-        degraded: false,
-        last_refresh_error: '',
-      });
-    }
-
+  await batchRun(fixtures.filter((fixture) => !hasStarted(fixture.fixture.status.short)).map((fixture) => async () => {
     standingsKeys.add(`${fixture.league.id}:${fixture.league.season}`);
     return null;
   }), 4);
@@ -823,7 +721,6 @@ export async function refreshProviderInsightsForMatches(
     fixtureCached: fixtures.length,
     detailRefreshed: detailFixtures.length,
     lineupsRefreshed: detailFixtures.length,
-    predictionsRefreshed: prematchFixtures.length,
     standingsRefreshed: standingsKeys.size,
     oddsRefreshed: detailFixtures.length,
   };
@@ -865,14 +762,12 @@ export async function ensureScoutInsight(
   const season = options.season ?? fixture?.league?.season ?? currentSeasonDefault();
   const now = deps.now();
 
-  const [lineupsRow, predictionRow, standingsRow] = await Promise.all([
+  const [lineupsRow, standingsRow] = await Promise.all([
     deps.getProviderFixtureLineupsCache(matchId),
-    deps.getProviderFixturePredictionCache(matchId),
     leagueId ? deps.getProviderLeagueStandingsCache(leagueId, season) : Promise.resolve(null),
   ]);
 
   const lineupsFreshness = classifyFreshness(ageMs(lineupsRow?.cached_at, now), detailTtlMs(effectiveStatus, effectiveMinute));
-  const predictionFreshness = classifyFreshness(ageMs(predictionRow?.cached_at, now), predictionTtlMs(effectiveStatus));
   const standingsFreshness = classifyFreshness(ageMs(standingsRow?.cached_at, now), standingsTtlMs());
 
   if (started && (lineupsFreshness !== 'fresh' || bypassStartedCache(mode, effectiveStatus))) {
@@ -885,21 +780,6 @@ export async function ensureScoutInsight(
         lineups_fetched_at: deps.now().toISOString(),
         match_status: effectiveStatus,
         match_minute: effectiveMinute,
-        freshness: 'fresh',
-        degraded: false,
-        last_refresh_error: '',
-      });
-    }
-  }
-
-  if (!started && predictionFreshness !== 'fresh') {
-    const prediction = await deps.fetchPrediction(matchId).catch(() => null);
-    if (prediction) {
-      await deps.upsertProviderFixturePredictionCache({
-        match_id: matchId,
-        prediction_payload: prediction,
-        prediction_fetched_at: deps.now().toISOString(),
-        match_status: effectiveStatus,
         freshness: 'fresh',
         degraded: false,
         last_refresh_error: '',
@@ -922,21 +802,17 @@ export async function ensureScoutInsight(
     }
   }
 
-  const [finalLineupsRow, finalPredictionRow, finalStandingsRow] = await Promise.all([
+  const [finalLineupsRow, finalStandingsRow] = await Promise.all([
     deps.getProviderFixtureLineupsCache(matchId),
-    deps.getProviderFixturePredictionCache(matchId),
     leagueId ? deps.getProviderLeagueStandingsCache(leagueId, season) : Promise.resolve(null),
   ]);
   const finalNow = deps.now();
   const finalLineupsFreshness = classifyFreshness(ageMs(finalLineupsRow?.cached_at, finalNow), detailTtlMs(effectiveStatus, effectiveMinute));
-  const finalPredictionFreshness = classifyFreshness(ageMs(finalPredictionRow?.cached_at, finalNow), predictionTtlMs(effectiveStatus));
   const finalStandingsFreshness = classifyFreshness(ageMs(finalStandingsRow?.cached_at, finalNow), standingsTtlMs());
   const allowLiveFallback = keepStalePayload(mode, effectiveStatus);
   const safeLineupsRow = finalLineupsFreshness === 'fresh' || allowLiveFallback ? finalLineupsRow : null;
-  const safePredictionRow = finalPredictionFreshness === 'fresh' || !started ? finalPredictionRow : null;
   const safeStandingsRow = finalStandingsFreshness === 'fresh' || !started ? finalStandingsRow : null;
   const safeLineupsFreshness = finalLineupsFreshness === 'fresh' || allowLiveFallback ? finalLineupsFreshness : 'missing';
-  const predictionFreshnessSafe = finalPredictionFreshness === 'fresh' || !started ? finalPredictionFreshness : 'missing';
   const standingsFreshnessSafe = finalStandingsFreshness === 'fresh' || !started ? finalStandingsFreshness : 'missing';
 
   return {
@@ -949,17 +825,6 @@ export async function ensureScoutInsight(
         : finalLineupsFreshness === 'fresh'
           ? 'refreshed'
           : safeLineupsRow
-            ? 'stale_fallback'
-            : 'miss',
-    ),
-    prediction: buildPredictionDomain(
-      safePredictionRow,
-      !started ? predictionFreshnessSafe : 'missing',
-      started
-        ? 'miss'
-        : finalPredictionFreshness === 'fresh'
-          ? 'refreshed'
-          : safePredictionRow
             ? 'stale_fallback'
             : 'miss',
     ),

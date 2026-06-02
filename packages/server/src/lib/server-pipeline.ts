@@ -1177,7 +1177,6 @@ function buildRecommendationDecisionContext(args: {
 }
 
 function buildPrematchDecisionSummary(args: {
-  prediction: Record<string, unknown> | null;
   strategicContext: Record<string, unknown> | null;
   prematchExpertFeatures: PrematchExpertFeaturesV1 | null;
   prematchAvailability?: PrematchFeatureAvailability;
@@ -1187,8 +1186,6 @@ function buildPrematchDecisionSummary(args: {
   homeTeamProfileWindow: { sampleMatches: number | null; eventCoverage: number | null; topLeagueOnly: boolean | null };
   awayTeamProfileWindow: { sampleMatches: number | null; eventCoverage: number | null; topLeagueOnly: boolean | null };
 }): string {
-  const predictionRecord = asObjectRecord(args.prediction);
-  const predictionPayload = asObjectRecord(predictionRecord?.predictions) ?? predictionRecord;
   const strategicMeta = asObjectRecord(args.strategicContext?._meta) ?? asObjectRecord(args.strategicContext?.source_meta);
   const strategicQuant = asObjectRecord(args.strategicContext?.quantitative);
   const features = args.prematchExpertFeatures;
@@ -1198,7 +1195,6 @@ function buildPrematchDecisionSummary(args: {
     availability: args.prematchAvailability ?? 'none',
     strength: args.prematchStrength ?? 'none',
     noisePenalty: args.prematchNoisePenalty,
-    predictionFallbackUsed: features?.meta.prediction_fallback_used ?? null,
     strategicContextPresent: !!args.strategicContext,
     strategicTrustedSourceCount: features?.meta.trusted_source_count ?? null,
     strategicRejectedSourceCount: features?.meta.rejected_source_count ?? null,
@@ -1206,8 +1202,6 @@ function buildPrematchDecisionSummary(args: {
     competitionType: features?.meta.competition_type ?? null,
     sourceQuality: features?.meta.source_quality ?? null,
     topLeague: features?.meta.top_league ?? null,
-    providerAdvice: predictionPayload?.advice ?? predictionPayload?.winner ?? null,
-    providerWinnerName: asObjectRecord(predictionPayload?.winner)?.name ?? null,
     quantitativeFieldCount: strategicQuant ? Object.keys(strategicQuant).length : 0,
     coverage: {
       league: args.leagueProfileWindow,
@@ -1242,7 +1236,6 @@ function deriveEvidenceMode(
 function canRunStructuredPrematchAskAi(args: {
   analysisMode: PromptAnalysisMode;
   status: string;
-  prediction: Record<string, unknown> | null;
   prematchExpertFeatures: PrematchExpertFeaturesV1 | null;
 }): {
   eligible: boolean;
@@ -1252,7 +1245,7 @@ function canRunStructuredPrematchAskAi(args: {
     | 'prematch_features_missing'
     | 'top_league_required'
     | 'prematch_availability_too_thin'
-    | 'prediction_or_profile_coverage_too_thin'
+    | 'profile_coverage_too_thin'
     | 'eligible';
 } {
   if (args.analysisMode !== 'manual_force') {
@@ -1276,9 +1269,7 @@ function canRunStructuredPrematchAskAi(args: {
   const strategicCoverage = features.trust_and_coverage.strategic_quant_fields_present;
   const leagueCoverage = features.trust_and_coverage.league_profile_fields_present;
   const teamCoverage = features.trust_and_coverage.team_profile_fields_present;
-  const predictionCoverage = features.trust_and_coverage.prediction_fields_present;
   const sourceQuality = features.meta.source_quality;
-  const hasProviderPredictionSupport = !!args.prediction && predictionCoverage >= 2;
   const hasStrongProfileCoverage = teamCoverage >= 16 && leagueCoverage >= 6;
   const hasBalancedStructuredCoverage = (
     teamCoverage >= 8
@@ -1286,8 +1277,8 @@ function canRunStructuredPrematchAskAi(args: {
     || (leagueCoverage >= 3 && strategicCoverage >= 2 && (sourceQuality === 'high' || sourceQuality === 'medium'))
   );
 
-  if (!(hasProviderPredictionSupport || hasStrongProfileCoverage || hasBalancedStructuredCoverage)) {
-    return { eligible: false, reason: 'prediction_or_profile_coverage_too_thin' };
+  if (!(hasStrongProfileCoverage || hasBalancedStructuredCoverage)) {
+    return { eligible: false, reason: 'profile_coverage_too_thin' };
   }
 
   return { eligible: true, reason: 'eligible' };
@@ -1355,7 +1346,6 @@ interface PromptExecutionContext {
   analysisMode: PromptAnalysisMode;
   forceAnalyze: boolean;
   isManualPush: boolean;
-  prediction: Record<string, unknown> | null;
   currentTotalGoals: number;
   previousRecommendations: Array<Record<string, unknown>>;
   historicalPerformance: HistoricalPerformanceContext | null;
@@ -1365,7 +1355,7 @@ interface PromptExecutionContext {
     records: PerformanceMemoryRecord[];
     autoRules: PerformanceMemoryCandidateRule[];
   } | null;
-  preMatchPredictionSummary: string;
+  preMatchContextSummary: string;
   statsFallbackReason: string;
   userQuestion?: string;
   followUpHistory?: Array<{ role: 'user' | 'assistant'; text: string }>;
@@ -1375,9 +1365,8 @@ interface PromptExecutionContext {
       side: 'home' | 'away';
       teamName: string;
       formation: string | null;
-      coachName: string | null;
-      starters: string[];
-      substitutes: string[];
+      confirmedStarters: string[];
+      benchCount: number;
     }>;
   } | null;
   settledReplayApprovedTrace?: boolean;
@@ -1746,13 +1735,12 @@ function buildPromptFromExecutionContext(
       isManualPush: promptContext.isManualPush,
       skippedFilters: [],
       originalWouldProceed: true,
-      prediction: promptContext.prediction,
       currentTotalGoals: promptContext.currentTotalGoals,
       previousRecommendations: promptContext.previousRecommendations,
       matchTimeline: [],
       historicalPerformance: promptContext.historicalPerformance,
       performanceMemory: promptContext.performanceMemory,
-      preMatchPredictionSummary: promptContext.preMatchPredictionSummary,
+      preMatchContextSummary: promptContext.preMatchContextSummary,
       statsFallbackReason: promptContext.statsFallbackReason,
       userQuestion: promptContext.userQuestion,
       followUpHistory: promptContext.followUpHistory,
@@ -2008,9 +1996,8 @@ function summarizeLineupsForPrompt(
     side: 'home' | 'away';
     teamName: string;
     formation: string | null;
-    coachName: string | null;
-    starters: string[];
-    substitutes: string[];
+    confirmedStarters: string[];
+    benchCount: number;
   }>;
 } | null {
   if (!Array.isArray(lineups) || lineups.length === 0) return null;
@@ -2022,29 +2009,17 @@ function summarizeLineupsForPrompt(
       side,
       teamName: String(row.team?.name ?? (side === 'home' ? homeTeamName : awayTeamName)).trim(),
       formation: row.formation ? String(row.formation).trim() : null,
-      coachName: row.coach?.name ? String(row.coach.name).trim() : null,
-      starters: Array.isArray(row.startXI)
+      confirmedStarters: Array.isArray(row.startXI)
         ? row.startXI
             .map((entry) => {
               const name = String(entry.player?.name ?? '').trim();
-              const number = entry.player?.number != null ? `#${entry.player.number}` : '';
-              const pos = entry.player?.pos ? ` ${entry.player.pos}` : '';
-              return [number, name, pos].join(' ').trim();
+              const pos = entry.player?.pos ? ` (${entry.player.pos})` : '';
+              return name ? `${name}${pos}` : '';
             })
             .filter(Boolean)
             .slice(0, 11)
         : [],
-      substitutes: Array.isArray(row.substitutes)
-        ? row.substitutes
-            .map((entry) => {
-              const name = String(entry.player?.name ?? '').trim();
-              const number = entry.player?.number != null ? `#${entry.player.number}` : '';
-              const pos = entry.player?.pos ? ` ${entry.player.pos}` : '';
-              return [number, name, pos].join(' ').trim();
-            })
-            .filter(Boolean)
-            .slice(0, 12)
-        : [],
+      benchCount: Array.isArray(row.substitutes) ? row.substitutes.length : 0,
     };
   });
 
@@ -4063,11 +4038,9 @@ async function processMatch(
     )
       ? rawStrategicContext
       : null;
-    const prediction = watchlistEntry.prediction as Record<string, unknown> | null;
     const prematchExpertFeatures = buildPrematchExpertFeaturesV1({
       strategicContext,
       leagueProfile: leagueProfile as Record<string, unknown> | null,
-      prediction,
       homeTeamProfile: homeTeamProfile as Record<string, unknown> | null,
       awayTeamProfile: awayTeamProfile as Record<string, unknown> | null,
       topLeague: leagueMeta?.top_league === true,
@@ -4080,8 +4053,7 @@ async function processMatch(
     const awayTeamProfileWindow = readProfileWindowSnapshot(awayTeamProfile);
     const homeOverlaySnapshot = readTeamOverlaySnapshot(homeTeamProfile);
     const awayOverlaySnapshot = readTeamOverlaySnapshot(awayTeamProfile);
-    const preMatchPredictionSummary = buildPrematchDecisionSummary({
-      prediction,
+    const preMatchContextSummary = buildPrematchDecisionSummary({
       strategicContext,
       prematchExpertFeatures,
       prematchAvailability,
@@ -4094,7 +4066,6 @@ async function processMatch(
     const structuredPrematchAskAiCheck = canRunStructuredPrematchAskAi({
       analysisMode,
       status,
-      prediction,
       prematchExpertFeatures,
     });
     const structuredPrematchAskAi = structuredPrematchAskAiCheck.eligible;
@@ -4187,7 +4158,6 @@ async function processMatch(
       analysisMode,
       forceAnalyze,
       isManualPush: isManualForce,
-      prediction,
       currentTotalGoals: homeGoals + awayGoals,
       previousRecommendations: prevRecsContext,
       historicalPerformance,
@@ -4197,7 +4167,7 @@ async function processMatch(
         records: performanceMemoryRecords,
         autoRules: performanceMemoryAutoRules,
       },
-      preMatchPredictionSummary,
+      preMatchContextSummary,
       statsFallbackReason,
       userQuestion: options.userQuestion,
       followUpHistory: options.followUpHistory,
@@ -4326,6 +4296,29 @@ async function processMatch(
     if (conditionTriggeredSaveDecision.warnings.length > 0) {
       parsed.warnings = [...parsed.warnings, ...conditionTriggeredSaveDecision.warnings];
     }
+    if (!thesisPromoted && !conditionTriggeredSaveDecision.shouldSave) {
+      await registerThesisWatchFromLlpBlock({
+        matchId,
+        minute,
+        shadowMode,
+        advisoryOnly,
+        warnings: conditionTriggeredSaveDecision.warnings,
+        selection: conditionTriggeredSaveDecision.selection,
+        betMarket: conditionTriggeredSaveDecision.betMarket,
+        confidence: conditionTriggeredSaveDecision.confidence,
+        valuePercent: parsed.value_percent,
+        stakePercent: conditionTriggeredSaveDecision.stakePercent,
+        riskLevel: parsed.risk_level,
+        reasoningEn: conditionTriggeredSaveDecision.reasoningEn,
+        reasoningVi: conditionTriggeredSaveDecision.reasoningVi,
+        oddsCanonical: oddsCanonical,
+        score,
+        status,
+        evidenceMode,
+        statsCompact: statsCompact as unknown as Record<string, unknown>,
+        eventsCompact,
+      });
+    }
 
     // 8. Split the two outcomes explicitly:
     // - shouldSave: create recommendation + AI performance row when either the AI
@@ -4451,7 +4444,6 @@ async function processMatch(
         odds_snapshot: oddsCanonical as Record<string, unknown>,
         stats_snapshot: statsCompact as unknown as Record<string, unknown>,
         decision_context: decisionContext,
-        pre_match_prediction_summary: preMatchPredictionSummary,
         prompt_version: activePromptVersion,
         custom_condition_matched: parsed.custom_condition_matched,
         minute,
@@ -4571,6 +4563,7 @@ async function processMatch(
                 tag: `tfi-rec-${matchId}`,
                 url: pushNavigateUrl,
                 icon: pushIcon,
+                actions: pushIsRec ? [{ action: 'invest', title: 'Invest' }] : undefined,
               },
             );
             if (result.ok) {

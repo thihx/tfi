@@ -27,7 +27,6 @@ function makeMatchData(overrides: Partial<MergedMatchData> = {}): MergedMatchDat
     stats_compact: {},
     odds_canonical: {},
     custom_conditions: '',
-    pre_match_prediction_summary: '',
     mode: 'auto',
     ...overrides,
   } as MergedMatchData;

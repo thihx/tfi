@@ -98,6 +98,7 @@ vi.mock('../repos/matches.repo.js', () => ({
   getAllMatches: vi.fn().mockResolvedValue([]),
   replaceAllMatches: vi.fn().mockResolvedValue(0),
   getMatchScheduleState: vi.fn().mockResolvedValue({ liveCount: 0, nsCount: 0, minsToNextKickoff: null }),
+  getTerminalMatchCount: vi.fn().mockResolvedValue(0),
 }));
 
 vi.mock('../repos/watchlist.repo.js', () => ({
@@ -191,6 +192,18 @@ describe('fetchMatchesJob adaptive skip', () => {
     });
     const footballApi = await import('../lib/football-api.js');
     expect(footballApi.fetchFixturesForDate).not.toHaveBeenCalled();
+  });
+
+  test('bypasses adaptive skip when terminal matches need archive cleanup', async () => {
+    const matchRepo = await import('../repos/matches.repo.js');
+    vi.mocked(matchRepo.getTerminalMatchCount).mockResolvedValueOnce(1);
+    mockRedis.get.mockResolvedValue(String(Date.now() + 5 * 60_000));
+
+    const result = await fetchMatchesJob();
+
+    const footballApi = await import('../lib/football-api.js');
+    expect(footballApi.fetchFixturesForDate).toHaveBeenCalled();
+    expect(result).toMatchObject({ saved: 0, leagues: 0 });
   });
 
   test('runs when next-run-at has already passed', async () => {

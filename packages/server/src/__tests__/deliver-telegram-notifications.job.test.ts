@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, test, vi } from 'vitest';
 
 const mockReportJobProgress = vi.fn();
 const mockGetPendingTelegramDeliveries = vi.fn();
+const mockMarkDeliveryRowsFailed = vi.fn();
 const mockMarkDeliveryRowsDelivered = vi.fn();
 const mockMarkRecommendationDeliveriesDelivered = vi.fn();
 const mockMarkRecommendationNotified = vi.fn();
@@ -13,6 +14,7 @@ vi.mock('../jobs/job-progress.js', () => ({
 
 vi.mock('../repos/recommendation-deliveries.repo.js', () => ({
   getPendingTelegramDeliveries: mockGetPendingTelegramDeliveries,
+  markDeliveryRowsFailed: mockMarkDeliveryRowsFailed,
   markDeliveryRowsDelivered: mockMarkDeliveryRowsDelivered,
   markRecommendationDeliveriesDelivered: mockMarkRecommendationDeliveriesDelivered,
 }));
@@ -40,6 +42,7 @@ const { deliverTelegramNotificationsJob } = await import('../jobs/deliver-telegr
 beforeEach(() => {
   vi.clearAllMocks();
   mockGetPendingTelegramDeliveries.mockResolvedValue([]);
+  mockMarkDeliveryRowsFailed.mockResolvedValue(1);
   mockMarkDeliveryRowsDelivered.mockResolvedValue(1);
   mockMarkRecommendationDeliveriesDelivered.mockResolvedValue(1);
   mockMarkRecommendationNotified.mockResolvedValue({ id: 1 });
@@ -188,5 +191,46 @@ describe('deliverTelegramNotificationsJob', () => {
     await deliverTelegramNotificationsJob();
 
     expect(mockSendTelegramMessage.mock.calls.length).toBeGreaterThanOrEqual(2);
+  });
+
+  test('records a Telegram delivery failure when sending throws', async () => {
+    mockGetPendingTelegramDeliveries.mockResolvedValue([
+      {
+        deliveryId: 88,
+        userId: 'user-1',
+        chatId: 'chat-1',
+        notificationLanguage: 'en',
+        recommendationId: null,
+        matchId: '400',
+        metadata: { delivery_kind: 'condition_only' },
+        createdAt: '2026-04-02T10:00:00.000Z',
+        recommendationTimestamp: '2026-04-02T10:00:00.000Z',
+        recommendationMinute: 70,
+        recommendationScore: '0-0',
+        recommendationBetType: 'CONDITION_ONLY',
+        recommendationSelection: 'No bet',
+        recommendationBetMarket: '',
+        recommendationOdds: null,
+        recommendationConfidence: 0,
+        recommendationValuePercent: null,
+        recommendationRiskLevel: '',
+        recommendationStakePercent: 0,
+        recommendationReasoning: '',
+        recommendationReasoningVi: '',
+        recommendationWarnings: '',
+        recommendationHomeTeam: 'Team A',
+        recommendationAwayTeam: 'Team B',
+        recommendationLeague: 'League',
+        recommendationStatus: '2H',
+        recommendationAiModel: null,
+        recommendationMode: null,
+      },
+    ]);
+    mockSendTelegramMessage.mockRejectedValueOnce(new Error('Telegram API down'));
+
+    const result = await deliverTelegramNotificationsJob();
+
+    expect(result).toEqual({ pending: 1, delivered: 0, failed: 1 });
+    expect(mockMarkDeliveryRowsFailed).toHaveBeenCalledWith([88], 'telegram', 'Telegram API down');
   });
 });

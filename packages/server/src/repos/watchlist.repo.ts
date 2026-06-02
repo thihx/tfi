@@ -17,7 +17,6 @@ export interface WatchlistRow {
   home_logo: string;
   away_logo: string;
   kickoff: string | null;
-  prediction: unknown;
   recommended_custom_condition: string;
   recommended_condition_reason: string;
   recommended_condition_reason_vi: string;
@@ -131,7 +130,6 @@ function buildWatchlistRow(
   },
   sharedMetadata: Record<string, unknown>,
 ): WatchlistRow & { match_status?: string } {
-  const prediction = sharedMetadata.prediction ?? null;
   const strategicContext = sharedMetadata.strategic_context ?? null;
   const totalChecks = normalizeNullableNumber(sharedMetadata.total_checks) ?? 0;
   const recommendationsCount = normalizeNullableNumber(sharedMetadata.recommendations_count) ?? 0;
@@ -147,7 +145,6 @@ function buildWatchlistRow(
     home_logo: base.home_logo ?? normalizeNullableString(sharedMetadata.home_logo) ?? '',
     away_logo: base.away_logo ?? normalizeNullableString(sharedMetadata.away_logo) ?? '',
     kickoff: base.kickoff ?? normalizeNullableString(sharedMetadata.kickoff),
-    prediction,
     recommended_custom_condition: normalizeNullableString(sharedMetadata.recommended_custom_condition) ?? '',
     recommended_condition_reason: normalizeNullableString(sharedMetadata.recommended_condition_reason) ?? '',
     recommended_condition_reason_vi: normalizeNullableString(sharedMetadata.recommended_condition_reason_vi) ?? '',
@@ -170,7 +167,6 @@ function buildWatchlistRow(
 function extractSharedMetadata(fields: Partial<WatchlistRow>): Record<string, unknown> {
   const metadata: Record<string, unknown> = {};
   const keys: Array<keyof WatchlistRow> = [
-    'prediction',
     'recommended_custom_condition',
     'recommended_condition_reason',
     'recommended_condition_reason_vi',
@@ -486,7 +482,6 @@ export async function backfillOperationalWatchlistFromLegacy(): Promise<number> 
          'home_logo', NULLIF(w.home_logo, ''),
          'away_logo', NULLIF(w.away_logo, ''),
          'kickoff', w.kickoff,
-         'prediction', w.prediction,
          'recommended_custom_condition', NULLIF(w.recommended_custom_condition, ''),
          'recommended_condition_reason', NULLIF(w.recommended_condition_reason, ''),
          'recommended_condition_reason_vi', NULLIF(w.recommended_condition_reason_vi, ''),

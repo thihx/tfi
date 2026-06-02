@@ -32,7 +32,6 @@ export function buildAutoWatchlistEntry(
     home_logo: match.home_logo,
     away_logo: match.away_logo,
     kickoff: match.kickoff,
-    prediction: null,
     recommended_custom_condition: '',
     recommended_condition_reason: '',
     recommended_condition_reason_vi: '',

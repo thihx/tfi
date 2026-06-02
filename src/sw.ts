@@ -13,9 +13,22 @@ precacheAndRoute(self.__WB_MANIFEST);
 // ── Push notification handler ──────────────────────────────
 
 const DEFAULT_NOTIFICATION_DURATION_MS = 10_000; // 10 seconds
+type NotificationActionPayload = { action: string; title: string; icon?: string };
+type ExtendedNotificationOptions = NotificationOptions & {
+  renotify?: boolean;
+  actions?: NotificationActionPayload[];
+};
 
 self.addEventListener('push', (event) => {
-  let payload: { title?: string; body?: string; tag?: string; url?: string; icon?: string; duration?: number } = {};
+  let payload: {
+    title?: string;
+    body?: string;
+    tag?: string;
+    url?: string;
+    icon?: string;
+    duration?: number;
+    actions?: NotificationActionPayload[];
+  } = {};
   try {
     payload = event.data?.json() ?? {};
   } catch {
@@ -26,13 +39,14 @@ self.addEventListener('push', (event) => {
   const tag = payload.tag ?? 'tfi-notification';
   const durationMs = payload.duration ?? DEFAULT_NOTIFICATION_DURATION_MS;
 
-  const options: NotificationOptions & { renotify?: boolean } = {
+  const options: ExtendedNotificationOptions = {
     body: payload.body ?? '',
     icon: payload.icon?.trim() || '/pwa-192x192.png',
     badge: '/pwa-192x192.png',
     tag,
     renotify: true,
     data: { url: payload.url ?? '/' },
+    actions: payload.actions,
   };
 
   event.waitUntil(
@@ -60,11 +74,16 @@ self.addEventListener('notificationclick', (event) => {
   // matchDisplay is the first line of the notification body
   const matchDisplay = event.notification.body?.split('\n')[0] ?? '';
 
-  const msg = matchId
+  const action = event.action;
+  const msg = action === 'invest'
+    ? { type: 'tfi:navigate', tab: 'recommendations' }
+    : matchId
     ? { type: 'tfi:openMatchDetail', matchId, matchDisplay, tab: 'matches' as const }
     : { type: 'tfi:navigate', tab: 'recommendations' };
 
-  const targetUrl = matchId
+  const targetUrl = action === 'invest'
+    ? '/?tab=recommendations'
+    : matchId
     ? `/?tab=matches&match=${encodeURIComponent(matchId)}&matchDisplay=${encodeURIComponent(matchDisplay)}`
     : '/';
 

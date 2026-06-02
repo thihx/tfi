@@ -21,7 +21,6 @@ import {
   stageRecommendationDeliveries,
 } from './recommendation-deliveries.repo.js';
 import { writePerformanceMemoryFromSettlement } from './ai-performance.repo.js';
-import { applyRecommendationSettlementToBankroll } from './bankroll.repo.js';
 
 export { normalizeMarket, buildDedupKey };
 
@@ -76,7 +75,6 @@ export interface RecommendationRow {
   odds_snapshot: Record<string, unknown> | string;
   stats_snapshot: Record<string, unknown> | string;
   decision_context: Record<string, unknown> | string;
-  pre_match_prediction_summary: string;
   prompt_version: string;
   custom_condition_matched: boolean;
   minute: number | null;
@@ -362,7 +360,7 @@ export async function createRecommendation(
       `INSERT INTO recommendations (
        unique_key, match_id, timestamp, league, home_team, away_team, status,
        condition_triggered_suggestion, custom_condition_raw, execution_id,
-       odds_snapshot, stats_snapshot, decision_context, pre_match_prediction_summary, prompt_version, custom_condition_matched,
+       odds_snapshot, stats_snapshot, decision_context, prompt_version, custom_condition_matched,
        minute, score, bet_type, selection, odds, confidence, value_percent, risk_level,
        stake_percent, stake_amount, reasoning, reasoning_vi, key_factors, warnings,
        ai_model, mode, bet_market, notified, notification_channels,
@@ -371,8 +369,8 @@ export async function createRecommendation(
        _was_overridden
      ) VALUES (
        $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,
-       $21,$22,$23,$24,$25,$26,$27,$28,$29,$30,$31,$32,$33,$34,$35,$36,$37,$38,
-       $39,$40,$41,$42,$43,$44
+       $21,$22,$23,$24,$25,$26,$27,$28,$29,$30,$31,$32,$33,$34,$35,$36,$37,
+       $38,$39,$40,$41,$42,$43
      )
      ON CONFLICT (unique_key) DO UPDATE SET
        minute = EXCLUDED.minute,
@@ -406,7 +404,6 @@ export async function createRecommendation(
         toJsonb(rec.odds_snapshot),
         toJsonb(rec.stats_snapshot),
         toJsonb(rec.decision_context),
-        rec.pre_match_prediction_summary ?? '',
         rec.prompt_version ?? '',
         rec.custom_condition_matched ?? false,
         rec.minute ?? null,
@@ -462,7 +459,7 @@ export async function bulkCreateRecommendations(
         `INSERT INTO recommendations (
            unique_key, match_id, timestamp, league, home_team, away_team, status,
            condition_triggered_suggestion, custom_condition_raw, execution_id,
-           odds_snapshot, stats_snapshot, decision_context, pre_match_prediction_summary, prompt_version, custom_condition_matched,
+           odds_snapshot, stats_snapshot, decision_context, prompt_version, custom_condition_matched,
            minute, score, bet_type, selection, odds, confidence, value_percent, risk_level,
            stake_percent, stake_amount, reasoning, reasoning_vi, key_factors, warnings,
            ai_model, mode, bet_market, notified, notification_channels,
@@ -471,8 +468,8 @@ export async function bulkCreateRecommendations(
            _was_overridden
          ) VALUES (
            $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,
-           $21,$22,$23,$24,$25,$26,$27,$28,$29,$30,$31,$32,$33,$34,$35,$36,$37,$38,
-           $39,$40,$41,$42,$43,$44
+           $21,$22,$23,$24,$25,$26,$27,$28,$29,$30,$31,$32,$33,$34,$35,$36,$37,
+           $38,$39,$40,$41,$42,$43
          )
          ON CONFLICT (unique_key) DO UPDATE SET
            minute = EXCLUDED.minute,
@@ -506,7 +503,6 @@ export async function bulkCreateRecommendations(
           toJsonb(rec.odds_snapshot),
           toJsonb(rec.stats_snapshot),
           toJsonb(rec.decision_context),
-          rec.pre_match_prediction_summary ?? '',
           rec.prompt_version ?? '',
           rec.custom_condition_matched ?? false,
           rec.minute ?? null,
@@ -580,19 +576,6 @@ export async function settleRecommendation(
   );
   const settled = r.rows[0] ?? null;
   if (settled) {
-    try {
-      await applyRecommendationSettlementToBankroll({
-        recommendationId: settled.id,
-        result,
-        odds: settled.odds,
-        note: meta.note ?? actualOutcome,
-      });
-    } catch (err) {
-      console.warn(
-        '[bankroll] Failed to apply recommendation settlement:',
-        err instanceof Error ? err.message : String(err),
-      );
-    }
     try {
       await writePerformanceMemoryFromSettlement({
         selection: settled.selection ?? '',

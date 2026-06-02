@@ -20,7 +20,6 @@ These files are retained for local simulation, historical tests, and offline rea
 - `useScheduler.ts`
 - `services/pipeline.ts`
 - `services/ai-analysis.service.ts`
-- `services/ai-prompt.service.ts`
 - `services/filters.service.ts`
 - `services/football-api.service.ts`
 - `services/match-merger.service.ts`
@@ -31,6 +30,7 @@ These files are retained for local simulation, historical tests, and offline rea
 - `services/watchlist.service.ts`
 
 They are not the source of truth for the production pipeline anymore.
+Prompt construction is server-only in `packages/server/src/lib/live-analysis-prompt.ts`; do not add a frontend prompt builder.
 When changing live-monitor behavior, prefer inspecting:
 
 1. `packages/server/src/jobs/check-live-trigger.job.ts`

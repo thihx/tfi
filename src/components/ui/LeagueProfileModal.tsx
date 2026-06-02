@@ -248,7 +248,7 @@ export function LeagueProfileModal({
               lineHeight: 1.6,
             }}
           >
-            League profile core is auto-derived from structured historical data. Deep Research import is intentionally retired here so one-off LLM output cannot overwrite the competition prior.
+            League profile core is derived from structured historical data. Review the competition baseline below and adjust it only when the historical prior needs correction.
           </div>
 
           <div style={{ display: 'grid', gap: 14 }}>

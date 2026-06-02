@@ -19,6 +19,7 @@ import {
   fetchBetTypes,
   fetchDistinctLeagues,
   settleRecommendationFinal,
+  investInRecommendation,
   deleteRecommendation,
   deleteRecommendationsBulk,
 } from '@/lib/services/api';
@@ -130,6 +131,7 @@ function mapDeliveryToRecommendation(row: RecommendationDelivery): Recommendatio
   const awayTeam = row.recommendation_away_team ?? '';
   return {
     id: row.recommendation_id,
+    delivery_id: row.id,
     match_id: row.match_id,
     match_display: homeTeam && awayTeam ? `${homeTeam} vs ${awayTeam}` : row.match_id,
     home_team: homeTeam || undefined,
@@ -195,6 +197,12 @@ export function RecommendationsTab() {
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
   const [deleteConfirmIds, setDeleteConfirmIds] = useState<number[] | null>(null);
   const [deleteSaving, setDeleteSaving] = useState(false);
+  const [investTarget, setInvestTarget] = useState<Recommendation | null>(null);
+  const [investOdds, setInvestOdds] = useState('');
+  const [investStakePercent, setInvestStakePercent] = useState('');
+  const [investStakeAmount, setInvestStakeAmount] = useState('');
+  const [investBookmaker, setInvestBookmaker] = useState('');
+  const [investSaving, setInvestSaving] = useState(false);
 
   // Server data
   const [rows, setRows] = useState<Recommendation[]>([]);
@@ -590,6 +598,57 @@ export function RecommendationsTab() {
     }
   }, [config, fetchData, page, settleNote, settlePnl, settleResult, settleTarget, showToast]);
 
+  const canInvest = useCallback((rec: Recommendation): boolean => {
+    return Boolean(rec.id && !isFinalResult(rec.result ?? null) && rec.selection && parseNumber(rec.odds) != null);
+  }, []);
+
+  const openInvestModal = useCallback((rec: Recommendation) => {
+    setInvestTarget(rec);
+    setInvestOdds(String(parseNumber(rec.odds) ?? ''));
+    setInvestStakePercent(String(parseNumber(rec.stake_percent) ?? ''));
+    setInvestStakeAmount('');
+    setInvestBookmaker('');
+  }, []);
+
+  const handleConfirmInvest = useCallback(async () => {
+    if (!investTarget?.id) return;
+    const odds = Number(investOdds);
+    const stakePercent = investStakePercent.trim() ? Number(investStakePercent) : null;
+    const stakeAmount = investStakeAmount.trim() ? Number(investStakeAmount) : null;
+    if (!Number.isFinite(odds) || odds <= 1) {
+      showToast('Odds must be above 1.00.', 'error');
+      return;
+    }
+    if (stakePercent != null && (!Number.isFinite(stakePercent) || stakePercent <= 0)) {
+      showToast('Stake percent must be greater than 0.', 'error');
+      return;
+    }
+    if (stakeAmount != null && (!Number.isFinite(stakeAmount) || stakeAmount <= 0)) {
+      showToast('Stake amount must be greater than 0.', 'error');
+      return;
+    }
+    setInvestSaving(true);
+    try {
+      await investInRecommendation(config, investTarget.id, {
+        deliveryId: investTarget.delivery_id ?? null,
+        odds,
+        stakePercent,
+        stakeAmount,
+        bookmaker: investBookmaker.trim() || null,
+      });
+      showToast('Investment confirmed.', 'success');
+      setInvestTarget(null);
+      await fetchData(page);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Failed to confirm investment.';
+      showToast(message, 'error');
+    } finally {
+      setInvestSaving(false);
+    }
+  }, [config, fetchData, investBookmaker, investOdds, investStakeAmount, investStakePercent, investTarget, page, showToast]);
+
+  const showActionColumn = adminCanDelete || rows.some((row) => canInvest(row));
+
   return (
     <div>
       <PageHeader
@@ -744,8 +803,18 @@ export function RecommendationsTab() {
                 <RecommendationCard
                   rec={rec}
                   lang={notificationLang}
-                  adminAction={adminCanDelete && rec.id ? (
+                  adminAction={rec.id ? (
                     <div className="admin-card-actions">
+                      {canInvest(rec) && (
+                        <button
+                          type="button"
+                          className="btn btn-primary btn-sm"
+                          onClick={() => openInvestModal(rec)}
+                          title="Confirm investment"
+                        >
+                          Invest
+                        </button>
+                      )}
                       {needsReview(rec) && (
                         <button
                           type="button"
@@ -756,17 +825,19 @@ export function RecommendationsTab() {
                           Settle
                         </button>
                       )}
-                      <button
-                        type="button"
-                        className="icon-btn-danger"
-                        onClick={() => handleDeleteSingle(rec.id!)}
-                        title="Delete recommendation"
-                        aria-label="Delete recommendation"
-                      >
-                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-                          <polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/>
-                        </svg>
-                      </button>
+                      {adminCanDelete && (
+                        <button
+                          type="button"
+                          className="icon-btn-danger"
+                          onClick={() => handleDeleteSingle(rec.id!)}
+                          title="Delete recommendation"
+                          aria-label="Delete recommendation"
+                        >
+                          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                            <polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/>
+                          </svg>
+                        </button>
+                      )}
                     </div>
                   ) : null}
                   onViewMatch={(id, display) => {
@@ -816,12 +887,12 @@ export function RecommendationsTab() {
                 <th>Outcome</th>
                 <th className="data-table__th--center">Result</th>
                 <th className="data-table__th--sortable data-table__th--right" onClick={() => handleSort('pnl')}>P/L{sortIcon('pnl')}</th>
-                {adminCanDelete && <th style={{ textAlign: 'center', width: '150px' }}>Actions</th>}
+                {showActionColumn && <th style={{ textAlign: 'center', width: '180px' }}>Actions</th>}
               </tr>
             </thead>
             <tbody>
               {rows.length === 0 ? (
-                <tr><td colSpan={adminCanDelete ? 12 : 10}>
+                <tr><td colSpan={(adminCanDelete ? 11 : 10) + (showActionColumn ? 1 : 0)}>
                   <EmptyState title={loading ? 'Loading...' : 'No recommendations match filters'} />
                 </td></tr>
               ) : rows.map((rec, i) => {
@@ -908,9 +979,17 @@ export function RecommendationsTab() {
                         {pnl}
                       </span>
                     </td>
-                    {adminCanDelete && (
+                    {showActionColumn && (
                       <td data-label="Actions" style={{ textAlign: 'center' }}>
                         <span className="cell-value" style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap', justifyContent: 'center' }}>
+                          {canInvest(rec) && rec.id && (
+                            <button
+                              className="btn btn-primary btn-sm"
+                              onClick={() => openInvestModal(rec)}
+                            >
+                              Invest
+                            </button>
+                          )}
                           {needsReview(rec) && rec.id && (
                             <button
                               className="btn btn-secondary btn-sm"
@@ -919,7 +998,7 @@ export function RecommendationsTab() {
                               Final Settle
                             </button>
                           )}
-                          {rec.id && (
+                          {adminCanDelete && rec.id && (
                             <button
                               className="btn btn-danger btn-sm"
                               onClick={() => handleDeleteSingle(rec.id!)}
@@ -1004,6 +1083,75 @@ export function RecommendationsTab() {
                 onChange={(e) => setSettleNote(e.target.value)}
                 placeholder="Optional final note or actual outcome"
                 style={{ resize: 'vertical' }}
+              />
+            </label>
+          </div>
+        )}
+      </Modal>
+
+      <Modal
+        open={investTarget != null}
+        title={investTarget ? `Invest: ${investTarget.match_display || investTarget.selection}` : 'Invest'}
+        onClose={() => !investSaving && setInvestTarget(null)}
+        footer={
+          <>
+            <button className="btn btn-secondary" onClick={() => setInvestTarget(null)} disabled={investSaving}>Cancel</button>
+            <button className="btn btn-primary" onClick={() => void handleConfirmInvest()} disabled={investSaving}>
+              {investSaving ? 'Confirming...' : 'Confirm Invest'}
+            </button>
+          </>
+        }
+      >
+        {investTarget && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+            <div style={{ fontSize: '13px', color: 'var(--gray-700)' }}>
+              <strong>{investTarget.selection}</strong>
+              <div style={{ marginTop: '4px', fontSize: '12px', color: 'var(--gray-500)' }}>
+                Suggested stake {investTarget.stake_percent || '-'}% | Recommendation odds {investTarget.odds || '-'}
+              </div>
+            </div>
+            <label style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+              <span style={{ fontSize: '12px', fontWeight: 600, color: 'var(--gray-700)' }}>Executed Odds</span>
+              <input
+                className="filter-input"
+                type="number"
+                min="1.01"
+                step="0.01"
+                value={investOdds}
+                onChange={(e) => setInvestOdds(e.target.value)}
+              />
+            </label>
+            <label style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+              <span style={{ fontSize: '12px', fontWeight: 600, color: 'var(--gray-700)' }}>Stake %</span>
+              <input
+                className="filter-input"
+                type="number"
+                min="0.01"
+                step="0.01"
+                value={investStakePercent}
+                onChange={(e) => setInvestStakePercent(e.target.value)}
+                placeholder="Use recommendation stake"
+              />
+            </label>
+            <label style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+              <span style={{ fontSize: '12px', fontWeight: 600, color: 'var(--gray-700)' }}>Stake Amount Override</span>
+              <input
+                className="filter-input"
+                type="number"
+                min="0.01"
+                step="0.01"
+                value={investStakeAmount}
+                onChange={(e) => setInvestStakeAmount(e.target.value)}
+                placeholder="Optional"
+              />
+            </label>
+            <label style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+              <span style={{ fontSize: '12px', fontWeight: 600, color: 'var(--gray-700)' }}>Bookmaker</span>
+              <input
+                className="filter-input"
+                value={investBookmaker}
+                onChange={(e) => setInvestBookmaker(e.target.value)}
+                placeholder="Optional"
               />
             </label>
           </div>

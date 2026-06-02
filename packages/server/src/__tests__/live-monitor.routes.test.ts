@@ -508,6 +508,66 @@ describe('POST /api/live-monitor/matches/:matchId/analyze', () => {
     });
   });
 
+  test('treats a first-run guided question as official manual analysis', async () => {
+    mockRunManualAnalysisForMatch.mockResolvedValueOnce({
+      matchId: '123',
+      success: true,
+      decisionKind: 'ai_push',
+      shouldPush: true,
+      selection: 'Over 2.5',
+      confidence: 8,
+      saved: true,
+      notified: true,
+    });
+
+    const res = await app.inject({
+      method: 'POST',
+      url: '/api/live-monitor/matches/123/analyze',
+      payload: {
+        question: 'Focus on second-half goals.',
+        history: [],
+        advisoryOnly: false,
+      },
+    });
+
+    expect(res.statusCode).toBe(200);
+    expect(mockRunManualAnalysisForMatch).toHaveBeenCalledWith('123', {
+      advisoryOnly: false,
+      followUpHistory: [],
+      userQuestion: 'Focus on second-half goals.',
+    });
+  });
+
+  test('honors explicit advisoryOnly for first follow-up even when history is empty', async () => {
+    mockRunManualAnalysisForMatch.mockResolvedValueOnce({
+      matchId: '123',
+      success: true,
+      decisionKind: 'no_bet',
+      shouldPush: false,
+      selection: '',
+      confidence: 0,
+      saved: false,
+      notified: false,
+    });
+
+    const res = await app.inject({
+      method: 'POST',
+      url: '/api/live-monitor/matches/123/analyze',
+      payload: {
+        question: 'What if the home side gets another corner?',
+        history: [],
+        advisoryOnly: true,
+      },
+    });
+
+    expect(res.statusCode).toBe(200);
+    expect(mockRunManualAnalysisForMatch).toHaveBeenCalledWith('123', {
+      advisoryOnly: true,
+      followUpHistory: [],
+      userQuestion: 'What if the home side gets another corner?',
+    });
+  });
+
   test('returns 404 when the match is missing', async () => {
     mockRunManualAnalysisForMatch.mockRejectedValueOnce(new Error('Fixture not found for match 404'));
 

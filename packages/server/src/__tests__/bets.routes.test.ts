@@ -23,6 +23,9 @@ vi.mock('../repos/bets.repo.js', () => ({
   createBet: vi.fn().mockImplementation((body: Record<string, unknown>) =>
     Promise.resolve({ id: 99, ...body }),
   ),
+  createBetWithBankrollStake: vi.fn().mockImplementation((body: Record<string, unknown>) =>
+    Promise.resolve({ id: 99, ...body }),
+  ),
   settleBet: vi.fn().mockImplementation((id: number) =>
     id === 1
       ? Promise.resolve({ id: 1, result: 'win', pnl: 0.85 })
@@ -31,11 +34,33 @@ vi.mock('../repos/bets.repo.js', () => ({
   getUnsettledBets: vi.fn().mockResolvedValue([]),
 }));
 
+vi.mock('../repos/bankroll.repo.js', () => ({
+  getUserBankroll: vi.fn().mockResolvedValue({
+    account: {
+      user_id: '11111111-1111-1111-1111-111111111111',
+      currency: 'VND',
+      unit_multiplier: 1000,
+      initial_balance: 1000,
+      current_balance: 990,
+      active: true,
+      created_at: '2026-01-01T00:00:00.000Z',
+      updated_at: '2026-01-01T00:00:00.000Z',
+    },
+    recentLedger: [],
+  }),
+}));
+
 let app: FastifyInstance;
+const testUser = {
+  userId: '11111111-1111-1111-1111-111111111111',
+  email: 'bettor@example.com',
+  role: 'user' as const,
+  tokenVersion: 0,
+};
 
 beforeAll(async () => {
   const { betRoutes } = await import('../routes/bets.routes.js');
-  app = await buildApp(betRoutes);
+  app = await buildApp([betRoutes], { currentUser: testUser });
 });
 
 afterAll(async () => {
@@ -54,6 +79,11 @@ describe('GET /api/bets', () => {
   test('passes limit/offset to repo', async () => {
     const res = await app.inject({ method: 'GET', url: '/api/bets?limit=10&offset=5' });
     expect(res.statusCode).toBe(200);
+    expect(repo.getAllBets).toHaveBeenCalledWith({
+      limit: 10,
+      offset: 5,
+      userId: testUser.userId,
+    });
   });
 });
 
@@ -63,6 +93,7 @@ describe('GET /api/bets/match/:matchId', () => {
     expect(res.statusCode).toBe(200);
     const body = res.json();
     expect(Array.isArray(body)).toBe(true);
+    expect(repo.getBetsByMatchId).toHaveBeenCalledWith('100', testUser.userId);
   });
 });
 
@@ -73,6 +104,7 @@ describe('GET /api/bets/stats', () => {
     const body = res.json();
     expect(body.total).toBe(10);
     expect(body.won).toBe(6);
+    expect(repo.getBetStats).toHaveBeenCalledWith(testUser.userId);
   });
 });
 
@@ -83,6 +115,7 @@ describe('GET /api/bets/stats/by-market', () => {
     const body = res.json();
     expect(Array.isArray(body)).toBe(true);
     expect(body[0].market).toBe('ou2.5');
+    expect(repo.getBetStatsByMarket).toHaveBeenCalledWith(testUser.userId);
   });
 });
 
@@ -94,7 +127,14 @@ describe('POST /api/bets', () => {
       payload: { match_id: '200', bet_market: 'btts', selection: 'yes', odds: 1.9, stake: 10 },
     });
     expect(res.statusCode).toBe(201);
-    expect(res.json().id).toBe(99);
+    expect(res.json().bet.id).toBe(99);
+    expect(res.json().bankroll.account.current_balance).toBe(990);
+    expect(repo.createBetWithBankrollStake).toHaveBeenCalledWith(expect.objectContaining({
+      user_id: testUser.userId,
+      created_by: testUser.userId,
+      bet_market: 'btts',
+      stake_amount: 10,
+    }));
   });
 
   test('rejects without match_id', async () => {

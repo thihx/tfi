@@ -44,7 +44,6 @@ vi.mock('../lib/football-api.js', () => ({
   fetchLiveOdds: vi.fn().mockRejectedValue(new Error('Football API 500: Internal Server Error')),
   fetchPreMatchOdds: vi.fn().mockRejectedValue(new Error('Football API 500: Internal Server Error')),
   fetchFixtureLineups: vi.fn().mockResolvedValue([]),
-  fetchPrediction: vi.fn().mockResolvedValue(null),
   fetchStandings: vi.fn().mockResolvedValue([]),
 }));
 
@@ -59,7 +58,6 @@ vi.mock('../lib/provider-insight-cache.js', () => ({
     statistics: { payload: [], freshness: 'missing', cacheStatus: 'miss', cachedAt: null, fetchedAt: null, degraded: false },
     events: { payload: [], freshness: 'missing', cacheStatus: 'miss', cachedAt: null, fetchedAt: null, degraded: false },
     lineups: { payload: [], freshness: 'missing', cacheStatus: 'miss', cachedAt: null, fetchedAt: null, degraded: false },
-    prediction: { payload: null, freshness: 'missing', cacheStatus: 'miss', cachedAt: null, fetchedAt: null, degraded: false },
     standings: { payload: [], freshness: 'missing', cacheStatus: 'miss', cachedAt: null, fetchedAt: null, degraded: false },
   }),
 }));
@@ -147,7 +145,6 @@ describe('POST /api/proxy/football/scout', () => {
       statistics: { payload: [], freshness: 'missing', cacheStatus: 'miss', cachedAt: null, fetchedAt: null, degraded: false },
       events: { payload: [], freshness: 'missing', cacheStatus: 'miss', cachedAt: null, fetchedAt: null, degraded: false },
       lineups: { payload: [], freshness: 'missing', cacheStatus: 'miss', cachedAt: null, fetchedAt: null, degraded: false },
-      prediction: { payload: { predictions: { winner: { id: 1, name: 'Team A', comment: 'favored' }, win_or_draw: true, advice: 'Lean home', percent: null, under_over: null, goals: null }, comparison: { form: null, att: null, def: null, goals: null, total: null } }, freshness: 'fresh', cacheStatus: 'hit', cachedAt: null, fetchedAt: null, degraded: false },
       standings: { payload: [{ rank: 1, team: { id: 1, name: 'Team A', logo: '' }, points: 10, goalsDiff: 5, form: 'WWWWW', description: null, all: { played: 4, win: 3, draw: 1, lose: 0, goals: { for: 8, against: 3 } } }], freshness: 'fresh', cacheStatus: 'hit', cachedAt: null, fetchedAt: null, degraded: false },
     });
 
@@ -158,7 +155,8 @@ describe('POST /api/proxy/football/scout', () => {
     });
 
     expect(res.statusCode).toBe(200);
-    expect(res.json().prediction?.predictions?.winner?.name).toBe('Team A');
+    expect(res.json().prediction).toBeUndefined();
+    expect(res.json().fixture?.teams?.home?.name).toBe('Team A');
     expect(res.json().standings).toHaveLength(1);
     expect(insight.ensureScoutInsight).toHaveBeenCalledWith('100', expect.objectContaining({ leagueId: 39, season: 2025, status: 'NS', freshnessMode: 'stale_safe' }));
   });

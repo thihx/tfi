@@ -23,7 +23,6 @@ import { autoAddTopLeagueWatchlistJob } from './auto-add-top-league-watchlist.jo
 import { autoAddFavoriteTeamWatchlistJob } from './auto-add-favorite-team-watchlist.job.js';
 import { refreshLiveMatchesJob } from './refresh-live-matches.job.js';
 import { deliverTelegramNotificationsJob } from './deliver-telegram-notifications.job.js';
-import { updatePredictionsJob } from './update-predictions.job.js';
 import { expireWatchlistJob } from './expire-watchlist.job.js';
 import { checkLiveTriggerJob } from './check-live-trigger.job.js';
 import { autoSettleJob } from './auto-settle.job.js';
@@ -166,7 +165,6 @@ export const FOOTBALL_API_JOB_NAMES = new Set([
   'refresh-live-matches',
   'refresh-provider-insights',
   'check-live-trigger',
-  'update-predictions',
   'sync-reference-data',
 ]);
 
@@ -704,7 +702,6 @@ const STARTUP_STAGGER_TIERS: Record<string, number> = {
   'refresh-live-matches': 0,
   'check-live-trigger': 0,
   'fetch-matches': 2_000,
-  'update-predictions': 15_000,
   'refresh-provider-insights': 30_000,
   'sync-reference-data': 60_000,
 };
@@ -869,23 +866,6 @@ export async function startScheduler() {
       group: 'pipeline',
       entityScopes: ['watchlist', 'strategic-context', 'recommended-conditions'],
       order: 4,
-      lockPolicy: 'degraded-local',
-    },
-  );
-  register(
-    'update-predictions',
-    config.jobPredictionsMs,
-    updatePredictionsJob,
-    10 * 60_000,
-    undefined,
-    1,
-    undefined,
-    {
-      label: 'Update Predictions',
-      description: 'Gets pre-game outlooks for upcoming matches in the follow list and saves them for later use.',
-      group: 'pipeline',
-      entityScopes: ['watchlist', 'predictions'],
-      order: 5,
       lockPolicy: 'degraded-local',
     },
   );

@@ -4,11 +4,13 @@
 
 import type { FastifyInstance } from 'fastify';
 import * as repo from '../repos/recommendations.repo.js';
+import * as betsRepo from '../repos/bets.repo.js';
+import { getUserBankroll } from '../repos/bankroll.repo.js';
 import * as aiPerfRepo from '../repos/ai-performance.repo.js';
 import { reEvaluateAllResults } from '../jobs/re-evaluate.job.js';
 import { audit } from '../lib/audit.js';
 import { isFinalSettlementResult, settlementWasCorrect } from '../lib/settle-types.js';
-import { requireAdminOrOwner, requireAnyRole } from '../lib/authz.js';
+import { requireAdminOrOwner, requireAnyRole, requireCurrentUser } from '../lib/authz.js';
 
 function normalizeText(value: unknown): string {
   return typeof value === 'string' ? value.trim() : '';
@@ -176,6 +178,46 @@ export async function recommendationRoutes(app: FastifyInstance) {
       return reply.code(201).send(rec);
     },
   );
+
+  app.post<{
+    Params: { id: string };
+    Body: {
+      deliveryId?: number | string | null;
+      odds?: number | string | null;
+      stakePercent?: number | string | null;
+      stakeAmount?: number | string | null;
+      bookmaker?: string | null;
+    };
+  }>('/api/recommendations/:id/invest', async (req, reply) => {
+    const user = requireCurrentUser(req, reply);
+    if (!user) return;
+    const id = Number(req.params.id);
+    if (!Number.isInteger(id) || id <= 0) {
+      return reply.code(400).send({ error: 'Invalid recommendation ID' });
+    }
+    const toOptionalNumber = (value: unknown): number | null => {
+      if (value == null || value === '') return null;
+      const parsed = Number(value);
+      return Number.isFinite(parsed) ? parsed : null;
+    };
+    try {
+      const bet = await betsRepo.investFromRecommendation({
+        userId: user.userId,
+        recommendationId: id,
+        deliveryId: toOptionalNumber(req.body?.deliveryId),
+        odds: toOptionalNumber(req.body?.odds),
+        stakePercent: toOptionalNumber(req.body?.stakePercent),
+        stakeAmount: toOptionalNumber(req.body?.stakeAmount),
+        bookmaker: req.body?.bookmaker,
+      });
+      const bankroll = await getUserBankroll(user.userId);
+      return reply.code(201).send({ bet, bankroll });
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      const status = /not found/i.test(message) ? 404 : /already|settled|exceeds|stake|odds/i.test(message) ? 400 : 500;
+      return reply.code(status).send({ error: message });
+    }
+  });
 
   // Hook: audit every recommendation save
   app.addHook('onResponse', (request, reply, done) => {

@@ -19,7 +19,6 @@ import {
   updateAdminUserSubscription,
   fetchMyBankroll,
   resetMyBankroll,
-  depositMyBankroll,
   type AdminUserRecord,
   type AdminSubscriptionUserRecord,
   type EntitlementCatalogEntry,
@@ -155,11 +154,6 @@ const JOB_META: Record<string, { label: string; description: string; order: numb
     description: 'Adds more background to upcoming matches in the follow list, such as why the game may matter and whether there may be missing players or a busy schedule. It can also suggest a follow rule when there is enough context.',
     order: 7,
   },
-  'update-predictions': {
-    label: 'Update Predictions',
-    description: 'Gets pre-game outlooks for upcoming matches in the follow list and saves them for later use.',
-    order: 8,
-  },
   'check-live-trigger': {
     label: 'Check Live Matches',
     description: 'Looks for followed matches that are now live and decides which ones need a fresh review. For those matches, it runs the main review flow and may save a new result or send an alert.',
@@ -237,19 +231,6 @@ function formatBankrollAmount(value: number | string | null | undefined, currenc
   return `${display} (${fullText} ${currency})`;
 }
 
-const BANKROLL_ENTRY_LABELS: Record<string, string> = {
-  deposit: 'Deposit',
-  reset: 'Reset',
-  withdrawal: 'Withdrawal',
-  bet_stake: 'Bet stake',
-  bet_payout: 'Bet payout',
-  adjustment: 'Adjustment',
-};
-
-function formatBankrollEntryType(entryType: string): string {
-  return BANKROLL_ENTRY_LABELS[entryType] ?? entryType.replace(/_/g, ' ');
-}
-
 const SUBSCRIPTION_STATUS_LABELS: Record<SubscriptionStatus, string> = {
   trialing: 'Trialing',
   active: 'Active',
@@ -266,7 +247,6 @@ function BankrollPanel() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [balanceDraft, setBalanceDraft] = useState('1000');
-  const [depositDraft, setDepositDraft] = useState('');
   const [currencyDraft, setCurrencyDraft] = useState('VND');
   const [multiplierDraft, setMultiplierDraft] = useState('1000');
   const [resetConfirmOpen, setResetConfirmOpen] = useState(false);
@@ -319,36 +299,21 @@ function BankrollPanel() {
     }
   }, [balanceDraft, currencyDraft, multiplierDraft, state.config, showToast]);
 
-  const handleDeposit = useCallback(async () => {
-    const amount = Number(depositDraft);
-    if (!Number.isFinite(amount) || amount <= 0) {
-      showToast('Enter a positive top-up amount.', 'error');
-      return;
-    }
-    setSaving(true);
-    try {
-      const next = await depositMyBankroll(state.config, {
-        amount,
-        note: 'User top-up',
-      });
-      setSnapshot(next);
-      setDepositDraft('');
-      showToast('Bankroll topped up.', 'success');
-    } catch (err) {
-      showToast(err instanceof Error ? err.message : 'Failed to top up bankroll', 'error');
-    } finally {
-      setSaving(false);
-    }
-  }, [depositDraft, state.config, showToast]);
+  const openInvestmentTracker = useCallback(() => {
+    window.dispatchEvent(new CustomEvent('tfi:navigate', { detail: 'bet-tracker' }));
+  }, []);
 
   return (
     <div className="settings-section">
       <div className="settings-section-header">
         <div>
           <h3>Bankroll Discipline</h3>
-          <p>Set a personal investment bankroll. AI stake % is converted into a concrete bet amount for your delivery messages.</p>
+          <p>Configure your bankroll currency, unit size, and starting capital. Day-to-day top-ups, withdrawals, and ledger review live in Investment Tracker.</p>
         </div>
-        <button className="btn btn-secondary btn-sm" onClick={() => { void load(); }} disabled={loading || saving}>Refresh</button>
+        <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', justifyContent: 'flex-end' }}>
+          <button className="btn btn-secondary btn-sm" onClick={openInvestmentTracker}>Investment Tracker</button>
+          <button className="btn btn-secondary btn-sm" onClick={() => { void load(); }} disabled={loading || saving}>Refresh</button>
+        </div>
       </div>
 
       <div className="settings-metric-grid">
@@ -368,7 +333,7 @@ function BankrollPanel() {
 
       <div className="settings-form-grid">
         <div className="card settings-form-card">
-          <div className="settings-form-card__title">Reset bankroll</div>
+          <div className="settings-form-card__title">Reset and configure bankroll</div>
           <p className="settings-form-card__hint">Overwrites your balance and sets a new starting capital. This cannot be undone.</p>
           <div className="settings-form-card__fields">
             <label className="settings-field-label">
@@ -387,37 +352,11 @@ function BankrollPanel() {
           </div>
         </div>
         <div className="card settings-form-card">
-          <div className="settings-form-card__title">Top up</div>
-          <div className="settings-form-card__fields">
-            <label className="settings-field-label">
-              Amount (units)
-              <input className="filter-input" type="number" min="0.01" step="0.01" value={depositDraft} onChange={(e) => setDepositDraft(e.target.value)} placeholder="Amount" />
-            </label>
-            <button type="button" className="btn btn-primary btn-sm" onClick={() => { void handleDeposit(); }} disabled={saving || !depositDraft}>Add Funds</button>
-          </div>
+          <div className="settings-form-card__title">Daily bankroll management</div>
+          <p className="settings-form-card__hint">Use Investment Tracker to top up, withdraw, log investments, and audit the bankroll ledger beside your P/L.</p>
+          <button type="button" className="btn btn-primary btn-sm" onClick={openInvestmentTracker}>Open Investment Tracker</button>
         </div>
       </div>
-
-      {snapshot && (
-        <div>
-          <div className="settings-form-card__title">Recent ledger</div>
-          {snapshot.recentLedger.length > 0 ? (
-            <div className="card settings-ledger-list">
-              {snapshot.recentLedger.slice(0, 8).map((entry) => (
-                <div key={entry.id} className="settings-ledger-row">
-                  <span style={{ fontWeight: 700 }}>{formatBankrollEntryType(entry.entry_type)}</span>
-                  <span className="text-muted">{entry.note || '-'}</span>
-                  <span style={{ textAlign: 'right', color: entry.amount >= 0 ? 'var(--success)' : 'var(--danger)', fontWeight: 700 }}>
-                    {entry.amount >= 0 ? '+' : ''}{entry.amount.toFixed(2)}
-                  </span>
-                </div>
-              ))}
-            </div>
-          ) : (
-            <EmptyState title="No ledger entries yet. Top up or place bets to see activity here." />
-          )}
-        </div>
-      )}
 
       <Modal
         open={resetConfirmOpen}
@@ -733,7 +672,7 @@ function JobSchedulerPanel() {
                 >
                   {runBtnLabel}
                 </button>
-                {(job.name === 'enrich-watchlist' || ['fetch-matches', 'refresh-live-matches', 'sync-reference-data', 'refresh-provider-insights', 'check-live-trigger', 'update-predictions'].includes(job.name)) && (
+                {(job.name === 'enrich-watchlist' || ['fetch-matches', 'refresh-live-matches', 'sync-reference-data', 'refresh-provider-insights', 'check-live-trigger'].includes(job.name)) && (
                   <button
                     type="button"
                     className="btn btn-sm btn-force"

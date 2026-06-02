@@ -908,6 +908,37 @@ export async function markDeliveryRowsDelivered(
   return markDeliveryChannelRowsDelivered(rootQueryExecutor, deliveryIds, channel);
 }
 
+export async function markDeliveryRowsFailed(
+  deliveryIds: number[],
+  channel: string,
+  error: string,
+): Promise<number> {
+  const ids = deliveryIds.filter((id) => Number.isInteger(id) && id > 0);
+  if (ids.length === 0) return 0;
+
+  const result = await query<{ delivery_id: number }>(
+    `UPDATE user_recommendation_delivery_channels
+          SET status = CASE
+                WHEN attempt_count + 1 >= 3 THEN 'failed'
+                ELSE status
+              END,
+              last_attempt_at = NOW(),
+              attempt_count = attempt_count + 1,
+              last_error = $3,
+              updated_at = NOW()
+        WHERE delivery_id = ANY($1::bigint[])
+          AND channel_type = $2
+          AND status <> 'delivered'
+      RETURNING delivery_id`,
+    [ids, channel, error.slice(0, 1000)],
+  );
+
+  const updatedDeliveryIds = Array.from(new Set(result.rows.map((row) => Number(row.delivery_id))));
+  await recomputeParentDeliveryState(rootQueryExecutor, updatedDeliveryIds);
+
+  return updatedDeliveryIds.length;
+}
+
 export async function getRecommendationDeliveriesByUserId(
   userId: string,
   options: RecommendationDeliveryListOptions = {},

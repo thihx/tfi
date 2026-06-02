@@ -112,7 +112,6 @@ vi.mock('../lib/football-api.js', () => ({
   fetchLiveOdds: vi.fn().mockResolvedValue([]),
   fetchPreMatchOdds: vi.fn().mockResolvedValue([]),
   fetchFixtureLineups: vi.fn().mockResolvedValue([]),
-  fetchPrediction: vi.fn().mockResolvedValue(null),
   fetchStandings: vi.fn().mockResolvedValue([]),
 }));
 
@@ -127,7 +126,6 @@ vi.mock('../lib/provider-insight-cache.js', () => ({
     statistics: { payload: [], freshness: 'missing', cacheStatus: 'miss', cachedAt: null, fetchedAt: null, degraded: false },
     events: { payload: [], freshness: 'missing', cacheStatus: 'miss', cachedAt: null, fetchedAt: null, degraded: false },
     lineups: { payload: [], freshness: 'missing', cacheStatus: 'miss', cachedAt: null, fetchedAt: null, degraded: false },
-    prediction: { payload: null, freshness: 'missing', cacheStatus: 'miss', cachedAt: null, fetchedAt: null, degraded: false },
     standings: { payload: [], freshness: 'missing', cacheStatus: 'miss', cachedAt: null, fetchedAt: null, degraded: false },
   }),
 }));

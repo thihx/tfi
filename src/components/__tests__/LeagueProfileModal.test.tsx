@@ -229,7 +229,7 @@ describe('LeagueProfileModal', () => {
     });
   });
 
-  test('shows auto-derived core message and no Deep Research tab', () => {
+  test('shows structured-data message and no Deep Research import surface', () => {
     render(
       <LeagueProfileModal
         league={league}
@@ -242,7 +242,9 @@ describe('LeagueProfileModal', () => {
       />,
     );
 
-    expect(screen.getByText(/auto-derived from structured historical data/i)).toBeInTheDocument();
+    expect(screen.getByText(/derived from structured historical data/i)).toBeInTheDocument();
+    expect(screen.queryByText(/Deep Research/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/import/i)).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Deep Research' })).not.toBeInTheDocument();
   });
 });

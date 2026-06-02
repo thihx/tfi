@@ -31,7 +31,6 @@ describe('provider cache retention repositories', () => {
       .mockResolvedValueOnce({ rowCount: 2 } as never)
       .mockResolvedValueOnce({ rowCount: 3 } as never)
       .mockResolvedValueOnce({ rowCount: 4 } as never)
-      .mockResolvedValueOnce({ rowCount: 5 } as never)
       .mockResolvedValueOnce({ rowCount: 6 } as never);
 
     const result = await purgeProviderFixtureCaches(7);
@@ -41,17 +40,15 @@ describe('provider cache retention repositories', () => {
       statsDeleted: 2,
       eventsDeleted: 3,
       lineupsDeleted: 4,
-      predictionDeleted: 5,
       standingsDeleted: 6,
-      totalDeleted: 21,
+      totalDeleted: 16,
     });
-    expect(query).toHaveBeenCalledTimes(6);
+    expect(query).toHaveBeenCalledTimes(5);
     expect(vi.mocked(query).mock.calls[0]?.[0]).toContain('DELETE FROM provider_fixture_cache');
     expect(vi.mocked(query).mock.calls[1]?.[0]).toContain('DELETE FROM provider_fixture_stats_cache');
     expect(vi.mocked(query).mock.calls[2]?.[0]).toContain('DELETE FROM provider_fixture_events_cache');
     expect(vi.mocked(query).mock.calls[3]?.[0]).toContain('DELETE FROM provider_fixture_lineups_cache');
-    expect(vi.mocked(query).mock.calls[4]?.[0]).toContain('DELETE FROM provider_fixture_prediction_cache');
-    expect(vi.mocked(query).mock.calls[5]?.[0]).toContain('DELETE FROM provider_league_standings_cache');
+    expect(vi.mocked(query).mock.calls[4]?.[0]).toContain('DELETE FROM provider_league_standings_cache');
   });
 
   test('returns zero counts when keepDays is disabled', async () => {

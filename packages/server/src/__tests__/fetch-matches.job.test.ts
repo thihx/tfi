@@ -31,6 +31,7 @@ vi.mock('../repos/matches.repo.js', () => ({
   getAllMatches: vi.fn().mockResolvedValue([]),
   replaceAllMatches: vi.fn().mockImplementation((rows: unknown[]) => Promise.resolve(rows.length)),
   getMatchScheduleState: vi.fn().mockResolvedValue({ liveCount: 0, nsCount: 0, minsToNextKickoff: null }),
+  getTerminalMatchCount: vi.fn().mockResolvedValue(0),
 }));
 
 vi.mock('../repos/watchlist.repo.js', () => ({
@@ -220,6 +221,66 @@ describe('fetchMatchesJob', () => {
       away_score: 1,
       kickoff_at_utc: '2026-03-20T15:00:00.000Z',
     });
+  });
+
+  test('does not reinsert stale live fixture payload for a match archived as terminal', async () => {
+    const matchRepo = await import('../repos/matches.repo.js');
+    vi.mocked(matchRepo.getAllMatches).mockResolvedValueOnce([
+      {
+        match_id: '1001',
+        date: '2026-03-20',
+        kickoff: '15:00',
+        league_id: 39,
+        league_name: 'League',
+        home_team: 'Arsenal',
+        away_team: 'Chelsea',
+        home_logo: '',
+        away_logo: '',
+        venue: 'Stadium',
+        status: 'FT',
+        home_score: 2,
+        away_score: 1,
+        current_minute: 90,
+        last_updated: '2026-03-20T15:58:00Z',
+        home_team_id: 1,
+        away_team_id: 2,
+        round: '',
+        halftime_home: 1,
+        halftime_away: 1,
+        referee: null,
+        home_reds: 0,
+        away_reds: 0,
+        home_yellows: 0,
+        away_yellows: 0,
+      },
+    ] as never);
+
+    vi.mocked(footballApi.fetchFixturesForDate)
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([
+        {
+          fixture: {
+            id: 1001,
+            date: '2026-03-20T15:00:00+00:00',
+            status: { short: '2H', elapsed: 88 },
+            venue: { name: 'Stadium' },
+            referee: null,
+          },
+          league: { id: 39, name: 'League', round: '' },
+          teams: {
+            home: { id: 1, name: 'Arsenal', logo: '' },
+            away: { id: 2, name: 'Chelsea', logo: '' },
+          },
+          goals: { home: 2, away: 1 },
+          score: { halftime: { home: 1, away: 1 } },
+        },
+      ] as never)
+      .mockResolvedValueOnce([] as never);
+
+    await fetchMatchesJob();
+
+    const savedRows = vi.mocked(matchRepo.replaceAllMatches).mock.calls[0]?.[0] as Array<Record<string, unknown>>;
+    expect(savedRows.find((row) => row.match_id === '1001')).toBeUndefined();
   });
 
   test('does not refetch finished stats when settlement_stats_fetched_at is set', async () => {

@@ -282,8 +282,6 @@ describe('MatchesTab', () => {
     expect(screen.getByText('Signal')).toBeInTheDocument();
     expect(screen.getByText(/Over 2\.5/)).toBeInTheDocument();
     expect(screen.getByText('Ap luc tang dan')).toBeInTheDocument();
-    expect(screen.getByText('Strong prematch context')).toBeInTheDocument();
-    expect(screen.getByText('Expanded analysis')).toBeInTheDocument();
     expect(screen.getByText('Under 2.5 Goals @2.00')).toBeInTheDocument();
   }, 10000);
 
@@ -374,6 +372,7 @@ describe('MatchesTab', () => {
         {
           question: 'What about Home -0.25 here?',
           history: [],
+          advisoryOnly: true,
         },
       );
     });
@@ -381,7 +380,6 @@ describe('MatchesTab', () => {
     expect(screen.getByText('What about Home -0.25 here?')).toBeInTheDocument();
     expect(screen.getByLabelText('Assistant reply')).toBeInTheDocument();
     expect(screen.getByText('Keo Home -0.25 van co the can nhac, nhung chua tot hon over hien tai.')).toBeInTheDocument();
-    expect(screen.getByText('Advisory follow-up')).toBeInTheDocument();
   });
 
   it('passes the subscription id when saving a watched match edit', async () => {
@@ -471,6 +469,24 @@ describe('MatchesTab', () => {
     expect(screen.getAllByText(/Premier League/).length).toBeGreaterThan(0);
   });
 
+  it('keeps active leagues selectable even before their matches are fetched', async () => {
+    mockState.leagues = [
+      ...leagues,
+      {
+        league_id: 999,
+        league_name: 'Newly Active League',
+        country: 'World',
+        active: true,
+        top_league: false,
+        sort_order: 999,
+      } as League,
+    ];
+
+    render(<MatchesTab />);
+
+    expect(await screen.findByRole('option', { name: 'WORLD - Newly Active League (0)' })).toBeInTheDocument();
+  });
+
   it('saves favorite leagues and applies eligible matches into watchlist', async () => {
     const user = userEvent.setup();
     const { container } = render(<MatchesTab />);
@@ -529,4 +545,3 @@ describe('MatchesTab', () => {
     });
   });
 });
-

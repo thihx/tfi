@@ -47,6 +47,12 @@ function hasGoalsOverLineAtMost(canonical: LinePatienceOddsCanonical, maxLine: n
   );
 }
 
+function hasGoalsUnderLineAtLeast(canonical: LinePatienceOddsCanonical, minLine: number): boolean {
+  return listGoalsOuQuotes(canonical).some(
+    (q) => q.line >= minLine && hasUsablePrice(q.under),
+  );
+}
+
 export function isThesisWatchGateSatisfied(
   gateType: ThesisWatchGateType,
   gatePayload: ThesisWatchGatePayload,
@@ -55,6 +61,7 @@ export function isThesisWatchGateSatisfied(
   const ouMax = gatePayload.ouMainOverLineMax ?? DEFAULT_LINE_PATIENCE_CONFIG.ahWaitOuMainOverLineMax;
   const cornersMax = gatePayload.cornersPreferredMaxLine ?? DEFAULT_LINE_PATIENCE_CONFIG.cornersOverPreferredMaxLine;
   const goalsMax = gatePayload.goalsOverRemapMaxLine ?? DEFAULT_LINE_PATIENCE_CONFIG.goalsOverRemapMaxLine;
+  const goalsUnderMin = gatePayload.goalsUnderMinLine ?? DEFAULT_LINE_PATIENCE_CONFIG.goalsUnderRemapMinCushion;
 
   if (gateType === 'ah_wait_ou_over') {
     const mainOuLine = oddsCanonical.ou?.line ?? null;
@@ -78,6 +85,12 @@ export function isThesisWatchGateSatisfied(
       .sort((a, b) => b.line - a.line)[0];
     if (!best) return false;
     return best.line < intended || (sameOddsLine(best.line, intended) && best.line <= goalsMax);
+  }
+
+  if (gateType === 'goals_under_line') {
+    const intended = gatePayload.intendedMarketLine ?? null;
+    if (intended == null) return false;
+    return hasGoalsUnderLineAtLeast(oddsCanonical, Math.max(goalsUnderMin, intended));
   }
 
   return false;
@@ -139,6 +152,23 @@ export function resolveThesisWatchPromoteMarket(
     };
   }
 
+  if (watch.gate_type === 'goals_under_line') {
+    const intended = watch.gate_payload.intendedMarketLine ?? null;
+    const goalsUnderMin =
+      watch.gate_payload.goalsUnderMinLine ?? DEFAULT_LINE_PATIENCE_CONFIG.goalsUnderRemapMinCushion;
+    const minLine = Math.max(goalsUnderMin, intended ?? goalsUnderMin);
+    const best = listGoalsOuQuotes(oddsCanonical)
+      .filter((q) => hasUsablePrice(q.under) && q.line >= minLine)
+      .sort((a, b) => a.line - b.line)[0];
+    if (!best) return base;
+
+    const betMarket = `under_${formatLineSuffix(best.line)}`;
+    return {
+      betMarket,
+      selection: formatSelectionForMarket(betMarket),
+    };
+  }
+
   return base;
 }
 
@@ -146,6 +176,8 @@ const DEFER_WARNING_TO_GATE: Record<string, ThesisWatchGateType> = {
   LLP_BLOCK_AH_WAIT_OU_OVER_LINE: 'ah_wait_ou_over',
   LLP_BLOCK_CORNERS_OVER_AGGRESSIVE_LINE: 'corners_over_line',
   LLP_BLOCK_OVER_AGGRESSIVE_LINE: 'goals_over_line',
+  LLP_REMAP_OVER_CONSERVATIVE_LINE: 'goals_over_line',
+  LLP_REMAP_UNDER_CONSERVATIVE_LINE: 'goals_under_line',
 };
 
 export function buildThesisWatchIntentFromLlpBlock(args: {
@@ -170,8 +202,19 @@ export function buildThesisWatchIntentFromLlpBlock(args: {
     ouMainOverLineMax: DEFAULT_LINE_PATIENCE_CONFIG.ahWaitOuMainOverLineMax,
     cornersPreferredMaxLine: DEFAULT_LINE_PATIENCE_CONFIG.cornersOverPreferredMaxLine,
     goalsOverRemapMaxLine: DEFAULT_LINE_PATIENCE_CONFIG.goalsOverRemapMaxLine,
+    goalsUnderMinLine: DEFAULT_LINE_PATIENCE_CONFIG.goalsUnderRemapMinCushion,
     intendedMarketLine: marketLine,
   };
+
+  if (canonical === 'unknown') {
+    return null;
+  }
+  if (
+    (gateType === 'corners_over_line' || gateType === 'goals_over_line' || gateType === 'goals_under_line')
+    && marketLine == null
+  ) {
+    return null;
+  }
 
   return {
     watchKey: `${gateType}::${canonical}`,

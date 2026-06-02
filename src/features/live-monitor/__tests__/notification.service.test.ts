@@ -38,7 +38,6 @@ function createRecommendation(overrides?: Partial<RecommendationData>): Recommen
     custom_condition_matched: false,
     custom_condition_raw: '',
     condition_triggered_suggestion: '',
-    pre_match_prediction_summary: '',
     stats_snapshot: '{}',
     odds_snapshot: '{}',
     ai_model: 'gemini-3.5-flash',

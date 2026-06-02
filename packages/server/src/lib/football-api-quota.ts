@@ -18,7 +18,6 @@ const LIVE_CRITICAL_JOBS = new Set([
 ]);
 
 const IMPORTANT_JOBS = new Set([
-  'update-predictions',
   'refresh-provider-insights',
 ]);
 

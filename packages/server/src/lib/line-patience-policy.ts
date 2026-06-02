@@ -315,9 +315,8 @@ export function applyLinePatiencePolicy(input: LinePatiencePolicyInput): LinePat
     warnings.push(code);
   };
 
-  const remapTo = (market: string, code: string) => {
-    nextMarket = market;
-    nextSelection = formatSelectionForMarket(market);
+  const remapTo = (_market: string, code: string) => {
+    blocked = true;
     remapped = true;
     warnings.push(code);
   };

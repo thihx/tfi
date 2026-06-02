@@ -4,7 +4,6 @@
 // ============================================================
 
 import { useState, useEffect, useCallback } from 'react';
-import { formatLocalDateShortYear } from '@/lib/utils/helpers';
 import { useAppState } from '@/hooks/useAppState';
 import { fetchMatchScout, type MatchScoutData } from '@/lib/services/api';
 import { LIVE_STATUSES } from '@/config/constants';
@@ -133,107 +132,33 @@ function PreMatchView({ data, homeTeam, awayTeam, homeLogo, awayLogo, leagueName
   leagueName?: string;
 }) {
   const fix = data.fixture;
-  const pred = data.prediction;
   const standings = data.standings;
 
   const venue = fix?.fixture?.venue;
   const round = fix?.league?.round;
   const referee = fix?.fixture?.referee;
-
-  // % values from prediction
-  const pct = pred?.predictions?.percent;
-  const homeP = pct ? parseFloat(pct.home) : null;
-  const drawP = pct ? parseFloat(pct.draw) : null;
-  const awayP = pct ? parseFloat(pct.away) : null;
-
-  // Form from prediction teams
-  const homeForm = pred?.teams?.home?.league?.form ?? '';
-  const awayForm = pred?.teams?.away?.league?.form ?? '';
-
-  // H2H from prediction (raw array)
-  const h2h = Array.isArray(pred?.h2h) ? pred!.h2h!.slice(0, 5) : [];
-
-  // Comparison
-  const comp = pred?.comparison;
-
-  // Standings: find positions of home/away teams
   const homeIdx = standings.findIndex((s) => s.team.name === homeTeam || homeTeam.includes(s.team.name) || s.team.name.includes(homeTeam));
   const awayIdx = standings.findIndex((s) => s.team.name === awayTeam || awayTeam.includes(s.team.name) || s.team.name.includes(awayTeam));
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
-      {/* ── Match Header ── */}
       <div style={{ background: 'var(--gray-50)', borderRadius: 8, padding: '12px 16px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
         <TeamBadge name={homeTeam} logo={homeLogo} align="left" />
         <div style={{ textAlign: 'center', flex: 1 }}>
           {leagueName && <div style={{ fontSize: 10, color: 'var(--gray-400)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: 2 }}>{leagueName}</div>}
           {round && <div style={{ fontSize: 10, color: 'var(--gray-400)', marginBottom: 2 }}>{round}</div>}
-          <div style={{ fontSize: 20, fontWeight: 800, color: 'var(--gray-700)', letterSpacing: '-1px' }}>VS</div>
+          <div style={{ fontSize: 20, fontWeight: 800, color: 'var(--gray-700)' }}>VS</div>
           {venue?.name && <div style={{ fontSize: 10, color: 'var(--gray-400)', marginTop: 2 }}>{venue.name}{venue.city ? `, ${venue.city}` : ''}</div>}
           {referee && <div style={{ fontSize: 10, color: 'var(--gray-400)' }}>Ref: {referee}</div>}
         </div>
         <TeamBadge name={awayTeam} logo={awayLogo} align="right" />
       </div>
 
-      {/* ── Win Probability ── */}
-      {homeP !== null && (
-        <Section title="Win Probability">
-          <WinProbBar homeP={homeP} drawP={drawP ?? 0} awayP={awayP ?? 0} homeTeam={homeTeam} awayTeam={awayTeam} />
-          {pred?.predictions?.advice && (
-            <div style={{ fontSize: 12, color: 'var(--gray-500)', marginTop: 8, fontStyle: 'italic', textAlign: 'center' }}>
-              "{pred.predictions.advice}"
-            </div>
-          )}
-          {pred?.predictions?.under_over && (
-            <div style={{ fontSize: 12, color: 'var(--gray-600)', textAlign: 'center', marginTop: 4 }}>
-              Goals: <strong>{pred.predictions.under_over}</strong>
-            </div>
-          )}
-        </Section>
-      )}
-
-      {/* ── Form + H2H (2 cols) ── */}
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
-        {/* Form Guide */}
-        <Section title="Recent Form (last 5)">
-          <FormRow label={homeTeam} form={homeForm} />
-          <FormRow label={awayTeam} form={awayForm} />
-          {!homeForm && !awayForm && <EmptyNote>Form data not available</EmptyNote>}
-        </Section>
-
-        {/* H2H */}
-        <Section title="Head to Head">
-          {h2h.length > 0 ? (
-            <>
-              <H2HSummary h2h={h2h} homeTeam={homeTeam} awayTeam={awayTeam} />
-              <div style={{ marginTop: 10 }}>
-                {h2h.map((m, i) => <H2HRow key={i} match={m} homeTeam={homeTeam} />)}
-              </div>
-            </>
-          ) : <EmptyNote>No H2H data available</EmptyNote>}
-        </Section>
-      </div>
-
-      {/* ── Comparison + Standings (2 cols) ── */}
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
-        {/* Comparison */}
-        <Section title="Team Comparison">
-          {comp ? (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-              <CompBar label="Form" home={comp.form?.home} away={comp.form?.away} />
-              <CompBar label="Attack" home={comp.att?.home} away={comp.att?.away} />
-              <CompBar label="Defense" home={comp.def?.home} away={comp.def?.away} />
-            </div>
-          ) : <EmptyNote>Comparison data not available</EmptyNote>}
-        </Section>
-
-        {/* Standings */}
-        <Section title={`League Table${leagueName ? ` · ${leagueName}` : ''}`}>
-          {standings.length > 0 ? (
-            <StandingsSnippet standings={standings} homeIdx={homeIdx} awayIdx={awayIdx} homeTeam={homeTeam} awayTeam={awayTeam} />
-          ) : <EmptyNote>Standings not available</EmptyNote>}
-        </Section>
-      </div>
+      <Section title={`League Table${leagueName ? ` - ${leagueName}` : ''}`}>
+        {standings.length > 0 ? (
+          <StandingsSnippet standings={standings} homeIdx={homeIdx} awayIdx={awayIdx} homeTeam={homeTeam} awayTeam={awayTeam} />
+        ) : <EmptyNote>Standings not available</EmptyNote>}
+      </Section>
     </div>
   );
 }
@@ -371,110 +296,6 @@ function TeamBadge({ name, logo, align, dark }: { name: string; logo?: string; a
   );
 }
 
-function WinProbBar({ homeP, drawP, awayP, homeTeam, awayTeam }: { homeP: number; drawP: number; awayP: number; homeTeam: string; awayTeam: string }) {
-  return (
-    <div>
-      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, fontWeight: 600, marginBottom: 4, color: 'var(--gray-600)' }}>
-        <span>{homeTeam.split(' ').pop()}</span>
-        <span style={{ color: 'var(--gray-400)' }}>Draw</span>
-        <span>{awayTeam.split(' ').pop()}</span>
-      </div>
-      <div style={{ display: 'flex', height: 10, borderRadius: 5, overflow: 'hidden', background: 'var(--gray-100)' }}>
-        <div style={{ width: `${homeP}%`, background: '#3b82f6', transition: 'width 0.5s' }} />
-        <div style={{ width: `${drawP}%`, background: '#d1d5db' }} />
-        <div style={{ width: `${awayP}%`, background: '#f97316', transition: 'width 0.5s' }} />
-      </div>
-      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, fontWeight: 700, marginTop: 4 }}>
-        <span style={{ color: '#3b82f6' }}>{homeP}%</span>
-        <span style={{ color: 'var(--gray-400)', fontSize: 12 }}>{drawP}%</span>
-        <span style={{ color: '#f97316' }}>{awayP}%</span>
-      </div>
-    </div>
-  );
-}
-
-function FormRow({ label, form }: { label: string; form: string }) {
-  const last5 = form.slice(-5).split('');
-  const colors: Record<string, { bg: string; color: string }> = {
-    W: { bg: '#dcfce7', color: '#15803d' },
-    D: { bg: 'var(--gray-100)', color: 'var(--gray-600)' },
-    L: { bg: '#fee2e2', color: '#b91c1c' },
-  };
-  return (
-    <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
-      <span style={{ fontSize: 12, color: 'var(--gray-600)', minWidth: 100, fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{label}</span>
-      <div style={{ display: 'flex', gap: 3 }}>
-        {last5.length > 0 ? last5.map((r, i) => {
-          const c = colors[r] ?? { bg: 'var(--gray-100)', color: 'var(--gray-600)' };
-          return (
-            <span key={i} style={{ width: 22, height: 22, borderRadius: 4, background: c.bg, color: c.color, fontSize: 11, fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-              {r}
-            </span>
-          );
-        }) : <span style={{ fontSize: 12, color: 'var(--gray-400)' }}>—</span>}
-      </div>
-    </div>
-  );
-}
-
-type H2HArr = NonNullable<NonNullable<MatchScoutData['prediction']>['h2h']>;
-
-function H2HSummary({ h2h, homeTeam, awayTeam }: { h2h: H2HArr | undefined; homeTeam: string; awayTeam: string }) {
-  if (!h2h?.length) return null;
-  let hw = 0, aw = 0, d = 0;
-  for (const m of h2h) {
-    const hg = m.goals.home ?? 0, ag = m.goals.away ?? 0;
-    if (hg === ag) d++;
-    else if (m.teams.home.winner) { if (m.teams.home.name.includes(homeTeam.split(' ')[0]!)) hw++; else aw++; }
-    else if (m.teams.away.winner) { if (m.teams.away.name.includes(awayTeam.split(' ')[0]!)) hw++; else aw++; }
-  }
-  return (
-    <div style={{ display: 'flex', gap: 8, marginBottom: 8 }}>
-      {[{ v: hw, label: homeTeam.split(' ').pop()!, color: '#3b82f6' }, { v: d, label: 'Draw', color: 'var(--gray-400)' }, { v: aw, label: awayTeam.split(' ').pop()!, color: '#f97316' }].map((x) => (
-        <div key={x.label} style={{ flex: 1, textAlign: 'center', background: 'var(--gray-50)', borderRadius: 6, padding: '6px 4px' }}>
-          <div style={{ fontSize: 20, fontWeight: 800, color: x.color }}>{x.v}</div>
-          <div style={{ fontSize: 10, color: 'var(--gray-400)', fontWeight: 600 }}>{x.label}</div>
-        </div>
-      ))}
-    </div>
-  );
-}
-
-function H2HRow({ match: m, homeTeam }: { match: H2HArr[number]; homeTeam: string }) {
-  const hg = m.goals.home ?? 0, ag = m.goals.away ?? 0;
-  const date = formatLocalDateShortYear(m.fixture.date);
-  const isHomeWin = m.teams.home.winner === true;
-  const isAwayWin = m.teams.away.winner === true;
-  const isHomeTeam = m.teams.home.name.includes(homeTeam.split(' ')[0]!);
-  return (
-    <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11, padding: '3px 0', borderBottom: '1px solid var(--gray-100)', color: 'var(--gray-600)' }}>
-      <span style={{ color: 'var(--gray-400)', minWidth: 62 }}>{date}</span>
-      <span style={{ flex: 1, textAlign: 'right', fontWeight: (isHomeTeam && isHomeWin) || (!isHomeTeam && isAwayWin) ? 700 : 400 }}>{m.teams.home.name}</span>
-      <span style={{ minWidth: 36, textAlign: 'center', fontWeight: 700, color: 'var(--gray-800)', background: 'var(--gray-100)', borderRadius: 4, padding: '1px 4px' }}>{hg}–{ag}</span>
-      <span style={{ flex: 1, fontWeight: (!isHomeTeam && isHomeWin) || (isHomeTeam && isAwayWin) ? 700 : 400 }}>{m.teams.away.name}</span>
-    </div>
-  );
-}
-
-function CompBar({ label, home, away }: { label: string; home?: string; away?: string }) {
-  const hp = home ? parseFloat(home) : null;
-  const ap = away ? parseFloat(away) : null;
-  if (hp === null && ap === null) return null;
-  const hVal = hp ?? 0;
-  return (
-    <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-      <span style={{ fontSize: 11, fontWeight: 600, color: '#3b82f6', minWidth: 32, textAlign: 'right' }}>{home ?? '—'}</span>
-      <div style={{ flex: 1, height: 6, background: 'var(--gray-100)', borderRadius: 3, overflow: 'hidden', position: 'relative' }}>
-        <div style={{ position: 'absolute', right: `${100 - hVal}%`, left: 0, height: '100%', background: '#3b82f6', borderRadius: 3 }} />
-      </div>
-      <span style={{ fontSize: 10, color: 'var(--gray-400)', minWidth: 55, textAlign: 'center', fontWeight: 600 }}>{label}</span>
-      <div style={{ flex: 1, height: 6, background: 'var(--gray-100)', borderRadius: 3, overflow: 'hidden' }}>
-        <div style={{ width: `${ap ?? 0}%`, height: '100%', background: '#f97316', borderRadius: 3 }} />
-      </div>
-      <span style={{ fontSize: 11, fontWeight: 600, color: '#f97316', minWidth: 32 }}>{away ?? '—'}</span>
-    </div>
-  );
-}
 
 function StandingsSnippet({ standings, homeIdx, awayIdx, homeTeam, awayTeam }: {
   standings: MatchScoutData['standings'];

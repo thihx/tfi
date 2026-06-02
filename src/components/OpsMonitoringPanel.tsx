@@ -82,6 +82,7 @@ interface NotificationOverview {
   attempts24h: number;
   failures24h: number;
   failureRate24h: number;
+  stalePending: number;
   deliveredRecommendations24h: number;
 }
 
@@ -605,6 +606,7 @@ export function OpsMonitoringPanel() {
                   { label: 'Attempts', value: snapshot.notifications.attempts24h, warn: false },
                   { label: 'Failures', value: snapshot.notifications.failures24h, warn: snapshot.notifications.failures24h > 0 },
                   { label: 'Failure Rate', value: `${snapshot.notifications.failureRate24h}%`, warn: snapshot.notifications.failureRate24h > 10 },
+                  { label: 'Stale Pending', value: snapshot.notifications.stalePending, warn: snapshot.notifications.stalePending > 0 },
                   { label: 'Delivered', value: snapshot.notifications.deliveredRecommendations24h, warn: false },
                 ].map((item) => (
                   <div key={item.label} style={{ padding: '8px 10px', borderRadius: '6px', background: item.warn ? '#fef2f2' : 'var(--gray-50)', border: `1px solid ${item.warn ? '#fecaca' : 'var(--gray-200)'}` }}>

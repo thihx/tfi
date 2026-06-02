@@ -139,7 +139,6 @@ describe('shouldThrottleJob', () => {
     mockRedis.get.mockResolvedValue('6700');
     expect(await shouldThrottleJob('sync-reference-data')).toBe(true);
     expect(await shouldThrottleJob('refresh-provider-insights')).toBe(true);
-    expect(await shouldThrottleJob('update-predictions')).toBe(true);
   });
 
   test('throttles low-priority jobs at high tier', async () => {
@@ -151,7 +150,6 @@ describe('shouldThrottleJob', () => {
   test('throttles low-priority at elevated tier but not important jobs', async () => {
     mockRedis.get.mockResolvedValue('4500');
     expect(await shouldThrottleJob('sync-reference-data')).toBe(true);
-    expect(await shouldThrottleJob('update-predictions')).toBe(false);
     expect(await shouldThrottleJob('refresh-provider-insights')).toBe(false);
   });
 
@@ -159,7 +157,6 @@ describe('shouldThrottleJob', () => {
     mockRedis.get.mockResolvedValue('3000');
     expect(await shouldThrottleJob('sync-reference-data')).toBe(false);
     expect(await shouldThrottleJob('refresh-provider-insights')).toBe(false);
-    expect(await shouldThrottleJob('update-predictions')).toBe(false);
   });
 });
 

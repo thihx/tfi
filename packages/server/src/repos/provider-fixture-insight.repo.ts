@@ -51,17 +51,6 @@ export interface ProviderFixtureLineupsCacheRow {
   last_refresh_error: string;
 }
 
-export interface ProviderFixturePredictionCacheRow {
-  match_id: string;
-  prediction_payload: unknown;
-  prediction_fetched_at: string | null;
-  cached_at: string;
-  match_status: string;
-  freshness: string;
-  degraded: boolean;
-  last_refresh_error: string;
-}
-
 export interface ProviderLeagueStandingsCacheRow {
   league_id: number;
   season: number;
@@ -119,17 +108,6 @@ export interface UpsertProviderFixtureLineupsCacheInput {
   cached_at?: string | null;
   match_status?: string;
   match_minute?: number | null;
-  freshness?: string;
-  degraded?: boolean;
-  last_refresh_error?: string;
-}
-
-export interface UpsertProviderFixturePredictionCacheInput {
-  match_id: string;
-  prediction_payload: unknown;
-  prediction_fetched_at?: string | null;
-  cached_at?: string | null;
-  match_status?: string;
   freshness?: string;
   degraded?: boolean;
   last_refresh_error?: string;
@@ -352,49 +330,6 @@ export async function upsertProviderFixtureLineupsCache(input: UpsertProviderFix
   return result.rows[0]!;
 }
 
-export async function getProviderFixturePredictionCache(matchId: string): Promise<ProviderFixturePredictionCacheRow | null> {
-  const result = await query<ProviderFixturePredictionCacheRow>(
-    `SELECT * FROM provider_fixture_prediction_cache
-     WHERE match_id = $1`,
-    [matchId],
-  );
-  return result.rows[0] ?? null;
-}
-
-export async function upsertProviderFixturePredictionCache(input: UpsertProviderFixturePredictionCacheInput): Promise<ProviderFixturePredictionCacheRow> {
-  const result = await query<ProviderFixturePredictionCacheRow>(
-    `INSERT INTO provider_fixture_prediction_cache (
-       match_id, prediction_payload, prediction_fetched_at, cached_at,
-       match_status, freshness, degraded, last_refresh_error
-     )
-     VALUES (
-       $1, $2::jsonb, $3::timestamptz, COALESCE($4::timestamptz, NOW()),
-       $5, $6, $7, $8
-     )
-     ON CONFLICT (match_id)
-     DO UPDATE SET
-       prediction_payload = EXCLUDED.prediction_payload,
-       prediction_fetched_at = EXCLUDED.prediction_fetched_at,
-       cached_at = EXCLUDED.cached_at,
-       match_status = EXCLUDED.match_status,
-       freshness = EXCLUDED.freshness,
-       degraded = EXCLUDED.degraded,
-       last_refresh_error = EXCLUDED.last_refresh_error
-    RETURNING *`,
-    [
-      input.match_id,
-      JSON.stringify(input.prediction_payload ?? null),
-      input.prediction_fetched_at ?? null,
-      input.cached_at ?? null,
-      input.match_status ?? '',
-      input.freshness ?? 'fresh',
-      input.degraded ?? false,
-      input.last_refresh_error ?? '',
-    ],
-  );
-  return result.rows[0]!;
-}
-
 export async function getProviderLeagueStandingsCache(leagueId: number, season: number): Promise<ProviderLeagueStandingsCacheRow | null> {
   const result = await query<ProviderLeagueStandingsCacheRow>(
     `SELECT * FROM provider_league_standings_cache
@@ -442,7 +377,6 @@ export interface PurgeProviderFixtureCachesResult {
   statsDeleted: number;
   eventsDeleted: number;
   lineupsDeleted: number;
-  predictionDeleted: number;
   standingsDeleted: number;
   totalDeleted: number;
 }
@@ -454,7 +388,6 @@ export async function purgeProviderFixtureCaches(keepDays: number): Promise<Purg
       statsDeleted: 0,
       eventsDeleted: 0,
       lineupsDeleted: 0,
-      predictionDeleted: 0,
       standingsDeleted: 0,
       totalDeleted: 0,
     };
@@ -465,14 +398,12 @@ export async function purgeProviderFixtureCaches(keepDays: number): Promise<Purg
     statsResult,
     eventsResult,
     lineupsResult,
-    predictionResult,
     standingsResult,
   ] = await Promise.all([
     query(`DELETE FROM provider_fixture_cache WHERE cached_at < NOW() - INTERVAL '1 day' * $1`, [keepDays]),
     query(`DELETE FROM provider_fixture_stats_cache WHERE cached_at < NOW() - INTERVAL '1 day' * $1`, [keepDays]),
     query(`DELETE FROM provider_fixture_events_cache WHERE cached_at < NOW() - INTERVAL '1 day' * $1`, [keepDays]),
     query(`DELETE FROM provider_fixture_lineups_cache WHERE cached_at < NOW() - INTERVAL '1 day' * $1`, [keepDays]),
-    query(`DELETE FROM provider_fixture_prediction_cache WHERE cached_at < NOW() - INTERVAL '1 day' * $1`, [keepDays]),
     query(`DELETE FROM provider_league_standings_cache WHERE cached_at < NOW() - INTERVAL '1 day' * $1`, [keepDays]),
   ]);
 
@@ -480,7 +411,6 @@ export async function purgeProviderFixtureCaches(keepDays: number): Promise<Purg
   const statsDeleted = statsResult.rowCount ?? 0;
   const eventsDeleted = eventsResult.rowCount ?? 0;
   const lineupsDeleted = lineupsResult.rowCount ?? 0;
-  const predictionDeleted = predictionResult.rowCount ?? 0;
   const standingsDeleted = standingsResult.rowCount ?? 0;
 
   return {
@@ -488,14 +418,12 @@ export async function purgeProviderFixtureCaches(keepDays: number): Promise<Purg
     statsDeleted,
     eventsDeleted,
     lineupsDeleted,
-    predictionDeleted,
     standingsDeleted,
     totalDeleted:
       fixtureDeleted
       + statsDeleted
       + eventsDeleted
       + lineupsDeleted
-      + predictionDeleted
       + standingsDeleted,
   };
 }

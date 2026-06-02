@@ -130,7 +130,6 @@ function buildReplayWatchlistEntry(scenario: ReplayScenario): WatchlistRow {
     home_logo: fixture.teams?.home?.logo || '',
     away_logo: fixture.teams?.away?.logo || '',
     kickoff: kickoff.kickoff,
-    prediction: null,
     recommended_custom_condition: '',
     recommended_condition_reason: '',
     recommended_condition_reason_vi: '',

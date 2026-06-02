@@ -150,7 +150,7 @@ export async function fetchLiveMonitorStatus(config: AppConfig): Promise<LiveMon
 export async function analyzeMatchWithServerPipeline(
   config: AppConfig,
   matchId: string,
-  options: { question?: string; history?: AskAiFollowUpMessage[] } = {},
+  options: { question?: string; history?: AskAiFollowUpMessage[]; advisoryOnly?: boolean } = {},
 ): Promise<ServerMatchPipelineResult> {
   const res = await fetch(apiUrl(config, `/api/live-monitor/matches/${encodeURIComponent(matchId)}/analyze`), {
     method: 'POST',
@@ -159,6 +159,7 @@ export async function analyzeMatchWithServerPipeline(
     body: JSON.stringify({
       question: typeof options.question === 'string' && options.question.trim() ? options.question.trim() : undefined,
       history: Array.isArray(options.history) ? options.history : undefined,
+      advisoryOnly: options.advisoryOnly === true,
     }),
   });
   const payload = await parseJsonResponse<{ result: ServerMatchPipelineResult }>(res);

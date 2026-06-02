@@ -42,6 +42,17 @@ export async function getAllMatches(): Promise<MatchRow[]> {
   return result.rows;
 }
 
+export async function getActiveLeagueMatches(): Promise<MatchRow[]> {
+  const result = await query<MatchRow>(
+    `SELECT m.*
+       FROM matches m
+       JOIN leagues l ON l.league_id = m.league_id
+      WHERE l.active = TRUE
+      ORDER BY m.kickoff_at_utc NULLS LAST, m.date, m.kickoff`,
+  );
+  return result.rows;
+}
+
 export async function getMatchesByIds(ids: string[]): Promise<MatchRow[]> {
   if (ids.length === 0) return [];
   const result = await query<MatchRow>(
@@ -69,6 +80,16 @@ export const MATCH_STATUSES_EXCLUDED_FROM_WATCHLIST_BULK_ADD = [
   'AWD',
   'PST',
 ] as const;
+
+const TERMINAL_MATCH_STATUSES = ['FT', 'AET', 'PEN', 'AWD', 'WO'] as const;
+
+export async function getTerminalMatchCount(): Promise<number> {
+  const result = await query<{ count: string }>(
+    'SELECT COUNT(*)::int AS count FROM matches WHERE status = ANY($1)',
+    [[...TERMINAL_MATCH_STATUSES]],
+  );
+  return Number(result.rows[0]?.count ?? 0);
+}
 
 /**
  * Same rows as `getAllMatches()` but restricted to leagues and excluding terminal/postponed

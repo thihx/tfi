@@ -84,6 +84,7 @@ export interface NotificationOverview {
   attempts24h: number;
   failures24h: number;
   failureRate24h: number;
+  stalePending: number;
   deliveredRecommendations24h: number;
 }
 
@@ -184,6 +185,7 @@ interface ChecklistInputs {
   unresolvedCount: number;
   notificationAttempts24h: number;
   notificationFailureRate24h: number;
+  notificationStalePending: number;
 }
 
 const PIPELINE_WINDOW_HOURS = 24;
@@ -191,6 +193,7 @@ const PIPELINE_ACTIVITY_WINDOW_HOURS = 2;
 const PROVIDER_WINDOW_HOURS = 6;
 const SETTLEMENT_WINDOW_DAYS = 7;
 const NOTIFICATION_WINDOW_HOURS = 24;
+const NOTIFICATION_STALE_PENDING_MINUTES = 15;
 const PROMPT_SHADOW_WINDOW_HOURS = 24;
 const PROMPT_QUALITY_WINDOW_HOURS = 24;
 
@@ -240,8 +243,8 @@ export function buildOpsChecklist(inputs: ChecklistInputs): OpsChecklistItem[] {
   );
 
   const notificationStatus = deriveStatus(
-    inputs.notificationAttempts24h > 0 && inputs.notificationFailureRate24h <= 5,
-    inputs.notificationAttempts24h === 0 || inputs.notificationFailureRate24h <= 20,
+    inputs.notificationStalePending === 0 && inputs.notificationFailureRate24h <= 5,
+    inputs.notificationStalePending <= 3 && inputs.notificationFailureRate24h <= 20,
   );
 
   return [
@@ -292,9 +295,11 @@ export function buildOpsChecklist(inputs: ChecklistInputs): OpsChecklistItem[] {
       label: 'Telegram delivery is stable',
       status: notificationStatus,
       detail:
-        inputs.notificationAttempts24h > 0
+        inputs.notificationStalePending > 0
+          ? `${inputs.notificationStalePending} pending Telegram delivery row(s) older than ${NOTIFICATION_STALE_PENDING_MINUTES}m; ${inputs.notificationFailureRate24h}% failure over ${inputs.notificationAttempts24h} attempt(s)`
+        : inputs.notificationAttempts24h > 0
           ? `${inputs.notificationFailureRate24h}% failure over ${inputs.notificationAttempts24h} attempt(s) in last ${NOTIFICATION_WINDOW_HOURS}h`
-          : `No Telegram send attempts in last ${NOTIFICATION_WINDOW_HOURS}h`,
+          : `No Telegram deliveries attempted in last ${NOTIFICATION_WINDOW_HOURS}h; queue has no stale pending rows`,
     },
   ];
 }
@@ -497,13 +502,40 @@ export async function getOpsMonitoringSnapshot(): Promise<OpsMonitoringSnapshot>
        ORDER BY COUNT(*) DESC
        LIMIT 5`,
     ),
-    query<{ attempts: string; failures: string }>(
-      `SELECT
-         COUNT(*) FILTER (WHERE action = 'TELEGRAM_SEND')::text AS attempts,
-         COUNT(*) FILTER (WHERE action = 'TELEGRAM_SEND' AND outcome = 'FAILURE')::text AS failures
-       FROM audit_logs
-       WHERE category = 'NOTIFICATION'
-         AND timestamp >= NOW() - INTERVAL '${NOTIFICATION_WINDOW_HOURS} hours'`,
+    query<{ attempts: string; failures: string; stale_pending: string }>(
+      `WITH channel_stats AS (
+         SELECT
+           COUNT(*) FILTER (
+             WHERE c.channel_type = 'telegram'
+               AND c.attempt_count > 0
+               AND c.last_attempt_at >= NOW() - INTERVAL '${NOTIFICATION_WINDOW_HOURS} hours'
+           )::bigint AS attempts,
+           COUNT(*) FILTER (
+             WHERE c.channel_type = 'telegram'
+               AND c.status = 'failed'
+               AND c.updated_at >= NOW() - INTERVAL '${NOTIFICATION_WINDOW_HOURS} hours'
+           )::bigint AS failures,
+           COUNT(*) FILTER (
+             WHERE c.channel_type = 'telegram'
+               AND c.status = 'pending'
+               AND c.created_at < NOW() - INTERVAL '${NOTIFICATION_STALE_PENDING_MINUTES} minutes'
+           )::bigint AS stale_pending
+         FROM user_recommendation_delivery_channels c
+       ),
+       audit_stats AS (
+         SELECT
+           COUNT(*) FILTER (WHERE action = 'TELEGRAM_SEND')::bigint AS attempts,
+           COUNT(*) FILTER (WHERE action = 'TELEGRAM_SEND' AND outcome = 'FAILURE')::bigint AS failures
+         FROM audit_logs
+         WHERE category = 'NOTIFICATION'
+           AND timestamp >= NOW() - INTERVAL '${NOTIFICATION_WINDOW_HOURS} hours'
+       )
+       SELECT
+         (COALESCE(channel_stats.attempts, 0) + COALESCE(audit_stats.attempts, 0))::text AS attempts,
+         (COALESCE(channel_stats.failures, 0) + COALESCE(audit_stats.failures, 0))::text AS failures,
+         COALESCE(channel_stats.stale_pending, 0)::text AS stale_pending
+       FROM channel_stats
+       CROSS JOIN audit_stats`,
     ),
     query<{ count: string }>(
       `SELECT COUNT(*)::text AS count
@@ -777,6 +809,7 @@ export async function getOpsMonitoringSnapshot(): Promise<OpsMonitoringSnapshot>
 
   const notificationAttempts24h = Number(notificationSummary.attempts);
   const notificationFailures24h = Number(notificationSummary.failures);
+  const notificationStalePending = Number(notificationSummary.stale_pending);
   const notificationFailureRate24h = pct(notificationFailures24h, notificationAttempts24h);
   const promptShadowRuns24h = Number(promptShadowSummary.runs);
   const promptShadowRows24h = Number(promptShadowSummary.shadow_rows);
@@ -823,6 +856,7 @@ export async function getOpsMonitoringSnapshot(): Promise<OpsMonitoringSnapshot>
     unresolvedCount: recommendationUnresolved + betUnresolved,
     notificationAttempts24h,
     notificationFailureRate24h,
+    notificationStalePending,
   });
 
   const cards: OpsMetricCard[] = [
@@ -988,6 +1022,7 @@ export async function getOpsMonitoringSnapshot(): Promise<OpsMonitoringSnapshot>
       attempts24h: notificationAttempts24h,
       failures24h: notificationFailures24h,
       failureRate24h: notificationFailureRate24h,
+      stalePending: notificationStalePending,
       deliveredRecommendations24h: Number(deliveredSummary.count),
     },
     promptShadow: {

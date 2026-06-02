@@ -139,7 +139,6 @@ export async function proxyRoutes(app: FastifyInstance) {
 
       return {
         fixture,
-        prediction: scout.prediction.payload,
         events: scout.events.payload,
         statistics: scout.statistics.payload,
         lineups: scout.lineups.payload,

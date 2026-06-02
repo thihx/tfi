@@ -9,6 +9,7 @@ import * as favoriteTeamsRepo from '../repos/favorite-teams.repo.js';
 import * as teamProfilesRepo from '../repos/team-profiles.repo.js';
 import { getRedisClient } from '../lib/redis.js';
 import { requireCurrentUser } from '../lib/authz.js';
+import { triggerJob } from '../jobs/scheduler.js';
 import {
   ensureLeagueCatalogEntry,
   refreshLeagueCatalog,
@@ -19,6 +20,7 @@ import { getTopLeagueProfileCoverage } from '../lib/profile-coverage.js';
 const ACTIVE_CACHE_KEY = 'cache:leagues:active';
 const ALL_CACHE_KEY = 'cache:leagues:all';
 const ACTIVE_CACHE_TTL_SEC = 5 * 60; // 5 minutes
+const FETCH_MATCHES_ADAPTIVE_SKIP_KEY = 'job:fetch-matches:next-run-at';
 
 async function getActiveLeaguesCached(): Promise<repo.LeagueRow[]> {
   try {
@@ -54,6 +56,23 @@ async function getAllLeaguesCached(): Promise<repo.LeagueRow[]> {
 
 async function invalidateActiveLeaguesCache(): Promise<void> {
   try { await getRedisClient().del(ACTIVE_CACHE_KEY, ALL_CACHE_KEY); } catch { /* ignore */ }
+}
+
+async function requestMatchesRefreshAfterLeagueChange(): Promise<void> {
+  try {
+    await getRedisClient().del(FETCH_MATCHES_ADAPTIVE_SKIP_KEY);
+  } catch {
+    // Redis unavailable -> scheduler trigger can still try to run.
+  }
+
+  try {
+    const result = await triggerJob('fetch-matches');
+    if (result && !result.triggered && result.reason !== 'already_running') {
+      console.warn(`[leagueRoutes] fetch-matches not triggered after league change: ${result.reason ?? 'unknown'}`);
+    }
+  } catch (err) {
+    console.warn('[leagueRoutes] fetch-matches trigger after league change failed:', err instanceof Error ? err.message : err);
+  }
 }
 
 const TIER_VALUES = new Set<profileRepo.LeagueTier>(['low', 'balanced', 'high']);
@@ -178,7 +197,7 @@ export async function leagueRoutes(app: FastifyInstance) {
       ids.push(n);
     }
     const updated = await repo.reorderLeagues(ids);
-    void invalidateActiveLeaguesCache();
+    await invalidateActiveLeaguesCache();
     return { updated };
   });
 
@@ -201,8 +220,9 @@ export async function leagueRoutes(app: FastifyInstance) {
       if (Number.isNaN(id)) return reply.code(400).send({ error: 'Invalid league ID' });
       const ok = await repo.updateLeagueActive(id, req.body.active);
       if (!ok) return reply.code(404).send({ error: 'League not found' });
-      void invalidateActiveLeaguesCache();
-      return { league_id: id, active: req.body.active };
+      await invalidateActiveLeaguesCache();
+      await requestMatchesRefreshAfterLeagueChange();
+      return { league_id: id, active: req.body.active, match_refresh_requested: true };
     },
   );
 
@@ -210,8 +230,9 @@ export async function leagueRoutes(app: FastifyInstance) {
     '/api/leagues/bulk-active',
     async (req) => {
       const count = await repo.bulkSetActive(req.body.ids, req.body.active);
-      void invalidateActiveLeaguesCache();
-      return { updated: count };
+      await invalidateActiveLeaguesCache();
+      if (count > 0) await requestMatchesRefreshAfterLeagueChange();
+      return { updated: count, match_refresh_requested: count > 0 };
     },
   );
 
@@ -273,7 +294,7 @@ export async function leagueRoutes(app: FastifyInstance) {
       if (Number.isNaN(id)) return reply.code(400).send({ error: 'Invalid league ID' });
       const ok = await repo.updateLeagueTopLeague(id, req.body.top_league);
       if (!ok) return reply.code(404).send({ error: 'League not found' });
-      void invalidateActiveLeaguesCache();
+      await invalidateActiveLeaguesCache();
       return { league_id: id, top_league: req.body.top_league };
     },
   );
@@ -282,7 +303,7 @@ export async function leagueRoutes(app: FastifyInstance) {
     '/api/leagues/bulk-top-league',
     async (req) => {
       const count = await repo.bulkSetTopLeague(req.body.ids, req.body.top_league);
-      void invalidateActiveLeaguesCache();
+      await invalidateActiveLeaguesCache();
       return { updated: count };
     },
   );
@@ -300,7 +321,7 @@ export async function leagueRoutes(app: FastifyInstance) {
       const displayName = raw === null || raw === '' ? null : String(raw).trim() || null;
       const ok = await repo.updateLeagueDisplayName(id, displayName);
       if (!ok) return reply.code(404).send({ error: 'League not found' });
-      void invalidateActiveLeaguesCache();
+      await invalidateActiveLeaguesCache();
       return { league_id: id, display_name: displayName };
     },
   );
@@ -323,7 +344,7 @@ export async function leagueRoutes(app: FastifyInstance) {
         leagueIds: req.body?.leagueIds,
         force: req.body?.force ?? true,
       });
-      if (result.upserted > 0) void invalidateActiveLeaguesCache();
+      if (result.upserted > 0) await invalidateActiveLeaguesCache();
       if (result.mode === 'full' && result.fetched === 0) {
         return reply.code(502).send({ error: 'No leagues returned from Football API' });
       }
@@ -340,7 +361,7 @@ export async function leagueRoutes(app: FastifyInstance) {
 
     try {
       const result = await refreshLeagueCatalog({ mode: 'ids', leagueIds: [id], force: true });
-      if (result.upserted > 0) void invalidateActiveLeaguesCache();
+      if (result.upserted > 0) await invalidateActiveLeaguesCache();
       const league = await repo.getLeagueById(id);
       if (!league) return reply.code(404).send({ error: 'League not found' });
       return { ...result, league };

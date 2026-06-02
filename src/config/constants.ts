@@ -45,7 +45,7 @@ export const LEAGUE_TIERS: Record<string, number[]> = {
 
 // ==================== STATUS BADGES ====================
 export const STATUS_BADGES: Record<string, StatusBadgeInfo> = {
-  NS: { label: 'Not Started', class: 'badge-ns' },
+  NS: { label: 'NS', class: 'badge-ns', title: 'Not Started' },
   FT: { label: 'FT', class: 'badge-ft' },
   '1H': { label: '', class: 'badge-live', hidden: true },
   '2H': { label: '', class: 'badge-live', hidden: true },

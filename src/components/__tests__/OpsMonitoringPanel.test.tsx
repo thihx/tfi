@@ -69,6 +69,7 @@ const mockSnapshot = {
     attempts24h: 10,
     failures24h: 1,
     failureRate24h: 10,
+    stalePending: 0,
     deliveredRecommendations24h: 6,
   },
   promptShadow: {

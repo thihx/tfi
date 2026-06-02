@@ -37,6 +37,7 @@ export interface PushPayload {
   body: string;
   tag?: string;
   url?: string;
+  actions?: Array<{ action: string; title: string; icon?: string }>;
   /** Absolute or site-root path (e.g. /icons/....svg); shown as notification icon where supported */
   icon?: string;
 }

@@ -460,12 +460,37 @@ export async function depositMyBankroll(
   return pgPost<BankrollSnapshot>(config, '/api/me/bankroll/deposit', payload);
 }
 
+export async function withdrawMyBankroll(
+  config: AppConfig,
+  payload: { amount: number; note?: string },
+): Promise<BankrollSnapshot> {
+  return pgPost<BankrollSnapshot>(config, '/api/me/bankroll/withdraw', payload);
+}
+
 export async function settleRecommendationFinal(
   config: AppConfig,
   recommendationId: number,
   payload: ManualRecommendationSettlePayload,
 ): Promise<Recommendation> {
   return pgPut<Recommendation>(config, `/api/recommendations/${recommendationId}/settle`, payload);
+}
+
+export async function investInRecommendation(
+  config: AppConfig,
+  recommendationId: number,
+  payload: {
+    deliveryId?: number | null;
+    odds?: number | string | null;
+    stakePercent?: number | string | null;
+    stakeAmount?: number | string | null;
+    bookmaker?: string | null;
+  },
+): Promise<{ bet: BetRecord; bankroll: BankrollSnapshot }> {
+  return pgPost<{ bet: BetRecord; bankroll: BankrollSnapshot }>(
+    config,
+    `/api/recommendations/${recommendationId}/invest`,
+    payload,
+  );
 }
 
 export interface RecommendationDeleteResponse {
@@ -597,12 +622,6 @@ export interface MatchScoutData {
     league: { id: number; name: string; country: string; logo: string; round: string; season: number };
     teams: { home: { id: number; name: string; logo: string }; away: { id: number; name: string; logo: string } };
     goals: { home: number | null; away: number | null };
-  } | null;
-  prediction: {
-    predictions: { winner: { name: string } | null; advice: string; percent: { home: string; draw: string; away: string } | null; under_over: string | null };
-    comparison: { form: { home: string; away: string } | null; att: { home: string; away: string } | null; def: { home: string; away: string } | null };
-    h2h?: Array<{ fixture: { date: string }; teams: { home: { name: string; winner: boolean | null }; away: { name: string; winner: boolean | null } }; goals: { home: number | null; away: number | null } }>;
-    teams?: { home: { name: string; league?: { form?: string } }; away: { name: string; league?: { form?: string } } };
   } | null;
   events: Array<{ time: { elapsed: number; extra: number | null }; team: { name: string }; player: { name: string | null }; assist: { name: string | null }; type: string; detail: string }>;
   statistics: Array<{ team: { name: string }; statistics: Array<{ type: string; value: string | number | null }> }>;
@@ -791,13 +810,18 @@ export async function deleteWatchlistItems(
 
 export interface BetRecord {
   id: number;
+  user_id?: string | null;
   recommendation_id: number | null;
+  delivery_id?: number | null;
   match_id: string;
   placed_at: string;
   market: string;
+  bet_market?: string;
   selection: string;
   odds: number;
   stake: number;
+  stake_amount?: number | null;
+  stake_percent?: number | null;
   bookmaker: string;
   result: string;
   pnl: number;
@@ -832,11 +856,13 @@ export interface BetMarketStats {
 
 export async function fetchBets(config: AppConfig): Promise<BetRecord[]> {
   const data = await pgFetch<{ rows: BetRecord[]; total: number } | BetRecord[]>(config, '/api/bets');
-  return Array.isArray(data) ? data : data.rows;
+  const rows = Array.isArray(data) ? data : data.rows;
+  return rows.map(normalizeBetRecord);
 }
 
 export async function fetchBetsByMatch(config: AppConfig, matchId: string): Promise<BetRecord[]> {
-  return pgFetch<BetRecord[]>(config, `/api/bets/match/${encodeURIComponent(matchId)}`);
+  const rows = await pgFetch<BetRecord[]>(config, `/api/bets/match/${encodeURIComponent(matchId)}`);
+  return rows.map(normalizeBetRecord);
 }
 
 export async function fetchBetStats(config: AppConfig): Promise<BetStats> {
@@ -853,7 +879,17 @@ export async function createBet(
   config: AppConfig,
   bet: Omit<BetRecord, 'id' | 'placed_at' | 'result' | 'pnl' | 'settled_at'>,
 ): Promise<BetRecord> {
-  return pgPost<BetRecord>(config, '/api/bets', bet);
+  const response = await pgPost<BetRecord | { bet: BetRecord; bankroll?: BankrollSnapshot }>(config, '/api/bets', bet);
+  return normalizeBetRecord('bet' in response ? response.bet : response);
+}
+
+function normalizeBetRecord(row: BetRecord): BetRecord {
+  const stake = Number(row.stake ?? row.stake_amount ?? 0);
+  return {
+    ...row,
+    market: row.market ?? row.bet_market ?? '',
+    stake,
+  };
 }
 
 // ==================== MATCH SNAPSHOTS ====================

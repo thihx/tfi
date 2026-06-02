@@ -6,7 +6,9 @@ vi.mock('../db/pool.js', () => ({
 
 import { query } from '../db/pool.js';
 import {
+  expireDueThesisWatches,
   markThesisWatchPromoted,
+  purgeOldThesisWatches,
   upsertPendingThesisWatch,
 } from '../repos/thesis-watch.repo.js';
 
@@ -105,5 +107,29 @@ describe('thesis-watch repository', () => {
       watchKey: 'goals_over_line::over_2.5',
       promotedSelection: 'Over 1 Goals',
     });
+  });
+
+  it('expires due pending thesis watches', async () => {
+    vi.mocked(query).mockResolvedValueOnce({ rowCount: 3 } as never);
+
+    const expired = await expireDueThesisWatches();
+
+    expect(expired).toBe(3);
+    const sql = String(vi.mocked(query).mock.calls[0]?.[0]);
+    expect(sql).toContain("status = 'pending'");
+    expect(sql).toContain('expires_at <= NOW()');
+  });
+
+  it('purges old inactive thesis watches after retention', async () => {
+    vi.mocked(query).mockResolvedValueOnce({ rowCount: 4 } as never);
+
+    const deleted = await purgeOldThesisWatches(30);
+
+    expect(deleted).toBe(4);
+    const sql = String(vi.mocked(query).mock.calls[0]?.[0]);
+    const params = vi.mocked(query).mock.calls[0]?.[1] as unknown[];
+    expect(sql).toContain("status IN ('expired', 'cancelled', 'promoted')");
+    expect(sql).toContain("INTERVAL '1 day' * $1");
+    expect(params[0]).toBe(30);
   });
 });

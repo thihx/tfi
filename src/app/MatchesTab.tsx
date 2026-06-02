@@ -447,6 +447,15 @@ export function MatchesTab() {
   const leagueOptions = useMemo(() => {
     const topIds = new Set(leagues.filter((l) => l.top_league).map((l) => String(l.league_id)));
     const map = new Map<string, { id: string; displayName: string; count: number; isTop: boolean }>();
+    leagues.forEach((league) => {
+      const key = String(league.league_id);
+      map.set(key, {
+        id: key,
+        displayName: getLeagueDisplayName(league.league_id, league.league_name || '', leagues),
+        count: 0,
+        isTop: topIds.has(key),
+      });
+    });
     matches.forEach((m) => {
       const key = String(m.league_id);
       if (!map.has(key)) {
@@ -831,6 +840,7 @@ export function MatchesTab() {
       const matchResult = await analyzeMatchWithServerPipeline(config, mid, {
         question: opts?.question?.trim() || undefined,
         history: [],
+        advisoryOnly: false,
       });
       if (matchResult) {
         const parsed = getParsedAiResult(matchResult);
@@ -935,6 +945,7 @@ export function MatchesTab() {
       const matchResult = await analyzeMatchWithServerPipeline(config, mid, {
         question,
         history,
+        advisoryOnly: true,
       });
       const parsed = getParsedAiResult(matchResult);
       const assistantText = getFollowUpAnswerText(parsed);

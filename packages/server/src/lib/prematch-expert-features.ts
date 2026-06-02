@@ -15,7 +15,6 @@ export interface PrematchExpertFeaturesV1 {
     availability: PrematchFeatureAvailability;
     source_quality: PrematchFeatureSourceQuality;
     competition_type: PrematchCompetitionType;
-    prediction_fallback_used: boolean;
     trusted_source_count: number;
     rejected_source_count: number;
     top_league: boolean | null;
@@ -25,7 +24,6 @@ export interface PrematchExpertFeaturesV1 {
     attack_form_delta: number | null;
     defense_form_delta: number | null;
     venue_attack_delta: number | null;
-    provider_strength_delta: number | null;
   };
   goal_environment: {
     league_avg_goals: number | null;
@@ -54,10 +52,8 @@ export interface PrematchExpertFeaturesV1 {
   trust_and_coverage: {
     strategic_quant_fields_present: number;
     league_profile_fields_present: number;
-    prediction_fields_present: number;
     team_profile_fields_present: number;
     has_cross_league_position_risk: boolean;
-    has_prediction_model_dependency: boolean;
     has_low_reliability_warning: boolean;
     prematch_confidence_cap: number | null;
     prematch_noise_penalty: number | null;
@@ -76,7 +72,6 @@ export interface PrematchExpertFeaturesV1 {
 export interface BuildPrematchExpertFeaturesV1Input {
   strategicContext?: Record<string, unknown> | null;
   leagueProfile?: Record<string, unknown> | null;
-  prediction?: Record<string, unknown> | null;
   homeTeamProfile?: Record<string, unknown> | null;
   awayTeamProfile?: Record<string, unknown> | null;
   topLeague?: boolean | null;
@@ -299,21 +294,6 @@ function normalizeCompetitionType(value: unknown): PrematchCompetitionType {
   return 'unknown';
 }
 
-function extractPredictionStrengthDelta(prediction: Record<string, unknown> | null): number | null {
-  if (!prediction) return null;
-  const comparison = asRecord(prediction.comparison);
-  if (!comparison) return null;
-  const total = asRecord(comparison.total);
-  const form = asRecord(comparison.form);
-  const totalDelta = total
-    ? scaleSigned((toNumber(total.home) ?? 0) - (toNumber(total.away) ?? 0), 100)
-    : null;
-  const formDelta = form
-    ? scaleSigned((toNumber(form.home) ?? 0) - (toNumber(form.away) ?? 0), 100)
-    : null;
-  return round(average([totalDelta, formDelta]));
-}
-
 function computeAvailability(totalFields: number): PrematchFeatureAvailability {
   if (totalFields >= 18) return 'full';
   if (totalFields >= 10) return 'partial';
@@ -349,7 +329,6 @@ export function buildPrematchExpertFeaturesV1(
 ): PrematchExpertFeaturesV1 | null {
   const strategicContext = asRecord(input.strategicContext);
   const leagueProfile = unwrapProfileRecord(input.leagueProfile);
-  const prediction = asRecord(input.prediction);
   const homeTeamProfile = unwrapProfileRecord(input.homeTeamProfile);
   const awayTeamProfile = unwrapProfileRecord(input.awayTeamProfile);
   const strategicQuant = asRecord(strategicContext?.quantitative);
@@ -387,15 +366,13 @@ export function buildPrematchExpertFeaturesV1(
     'late_goal_rate',
     'data_reliability_tier',
   ];
-  const predictionFieldsPresent = countPresent(prediction, ['predictions', 'comparison', 'h2h_summary', 'team_form']);
   const teamProfileFieldsPresent = countPresent(homeTeamProfile, teamProfileKeys) + countPresent(awayTeamProfile, teamProfileKeys);
-  const totalFieldsPresent = strategicQuantFieldsPresent + leagueProfileFieldsPresent + predictionFieldsPresent + teamProfileFieldsPresent;
+  const totalFieldsPresent = strategicQuantFieldsPresent + leagueProfileFieldsPresent + teamProfileFieldsPresent;
   const availability = computeAvailability(totalFieldsPresent);
   if (availability === 'none') return null;
 
   const competitionType = normalizeCompetitionType(strategicContext?.competition_type);
   const sourceQuality = computeSourceQuality(strategicContext, leagueProfile, homeTeamProfile, awayTeamProfile);
-  const predictionFallbackUsed = strategicMeta?.prediction_fallback_used === true;
 
   const homeLast5Points = toNumber(strategicQuant?.home_last5_points);
   const awayLast5Points = toNumber(strategicQuant?.away_last5_points);
@@ -405,7 +382,6 @@ export function buildPrematchExpertFeaturesV1(
   const awayGoalsAgainst = toNumber(strategicQuant?.away_last5_goals_against);
   const homeHomeGoalsAvg = toNumber(strategicQuant?.home_home_goals_avg);
   const awayAwayGoalsAvg = toNumber(strategicQuant?.away_away_goals_avg);
-  const providerStrengthDelta = extractPredictionStrengthDelta(prediction);
   const leagueAvgCorners = toNumber(leagueProfile?.avg_corners);
   const leagueAvgCards = toNumber(leagueProfile?.avg_cards);
 
@@ -565,7 +541,6 @@ export function buildPrematchExpertFeaturesV1(
   const oneX2BiasScore = round(average([
     recentPointsDelta,
     venueAttackDelta,
-    providerStrengthDelta,
     deltaFromScores(homeAttackProfileScore, awayAttackProfileScore),
     deltaFromScores(homeStabilityScore, awayStabilityScore),
     homeAdvantageScore,
@@ -583,7 +558,6 @@ export function buildPrematchExpertFeaturesV1(
   const asianHandicapBiasScore = round(average([
     recentPointsDelta,
     defenseFormDelta,
-    providerStrengthDelta,
     deltaFromScores(homeAttackProfileScore, awayAttackProfileScore),
     deltaFromScores(homeStabilityScore, awayStabilityScore),
     setPieceNetEdge,
@@ -657,10 +631,9 @@ export function buildPrematchExpertFeaturesV1(
   const missingPenalty = clamp(100 - totalFieldsPresent * 4, 0, 60);
   const qualityPenalty = sourceQuality === 'high' ? 0 : sourceQuality === 'medium' ? 10 : 25;
   const crossLeaguePenalty = hasCrossLeaguePositionRisk ? 15 : 0;
-  const predictionPenalty = predictionFallbackUsed ? 10 : 0;
   const reliabilityPenalty = dataReliabilityTier === 'high' ? 0 : dataReliabilityTier === 'medium' ? 10 : 25;
   const prematchNoisePenalty = clamp(
-    missingPenalty + qualityPenalty + crossLeaguePenalty + predictionPenalty + reliabilityPenalty,
+    missingPenalty + qualityPenalty + crossLeaguePenalty + reliabilityPenalty,
     0,
     100,
   );
@@ -676,7 +649,6 @@ export function buildPrematchExpertFeaturesV1(
       availability,
       source_quality: sourceQuality,
       competition_type: competitionType,
-      prediction_fallback_used: predictionFallbackUsed,
       trusted_source_count: Number(strategicMeta?.trusted_source_count ?? 0),
       rejected_source_count: Number(strategicMeta?.rejected_source_count ?? 0),
       top_league: input.topLeague ?? null,
@@ -686,7 +658,6 @@ export function buildPrematchExpertFeaturesV1(
       attack_form_delta: attackFormDelta,
       defense_form_delta: defenseFormDelta,
       venue_attack_delta: venueAttackDelta,
-      provider_strength_delta: providerStrengthDelta,
     },
     goal_environment: {
       league_avg_goals: leagueAvgGoals,
@@ -715,10 +686,8 @@ export function buildPrematchExpertFeaturesV1(
     trust_and_coverage: {
       strategic_quant_fields_present: strategicQuantFieldsPresent,
       league_profile_fields_present: leagueProfileFieldsPresent,
-      prediction_fields_present: predictionFieldsPresent,
       team_profile_fields_present: teamProfileFieldsPresent,
       has_cross_league_position_risk: hasCrossLeaguePositionRisk,
-      has_prediction_model_dependency: predictionFallbackUsed || predictionFieldsPresent > 0,
       has_low_reliability_warning: hasLowReliabilityWarning,
       prematch_confidence_cap: prematchConfidenceCap,
       prematch_noise_penalty: prematchNoisePenalty,

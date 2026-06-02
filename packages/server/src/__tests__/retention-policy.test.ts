@@ -15,6 +15,7 @@ describe('resolveHousekeepingRetentionPolicy', () => {
       pipelineRunsKeepDays: 1,
       jobRunHistoryKeepDays: 1,
       recommendationDeliveriesKeepDays: 1,
+      thesisWatchKeepDays: 1,
       recommendationsSlimDays: 30,
       aiPerformanceKeepDays: 30,
     });
@@ -31,6 +32,7 @@ describe('resolveHousekeepingRetentionPolicy', () => {
       pipelineRuns: 3,
       jobRunHistory: 3,
       recommendationDeliveries: 7,
+      thesisWatch: 7,
       recommendationsSlim: 180,
       aiPerformance: 180,
     });
@@ -50,6 +52,7 @@ describe('resolveHousekeepingRetentionPolicy', () => {
       pipelineRunsKeepDays: 7,
       jobRunHistoryKeepDays: 7,
       recommendationDeliveriesKeepDays: 0,
+      thesisWatchKeepDays: 30,
       recommendationsSlimDays: 365,
       aiPerformanceKeepDays: 365,
     });

@@ -124,6 +124,40 @@ describe('thesis-watch promote resolution', () => {
     expect(llp.remapped).toBe(false);
   });
 
+  it('remaps goals under thesis to safer OU rung before LLP', () => {
+    const odds = {
+      ou: { line: 1.0, over: 2.0, under: 1.85 },
+      ou_adjacent: { line: 1.25, over: 1.75, under: 2.1 },
+    };
+    const watch: ThesisWatchRow = {
+      ...cornersWatch(),
+      watch_key: 'goals_under_line::under_0.75',
+      gate_type: 'goals_under_line',
+      gate_payload: { intendedMarketLine: 0.75, goalsUnderMinLine: 1.0 },
+      selection: 'Under 0.75 Goals',
+      bet_market: 'under_0.75',
+      last_block_reason: 'LLP_REMAP_UNDER_CONSERVATIVE_LINE',
+    };
+
+    expect(isThesisWatchGateSatisfied(watch.gate_type, watch.gate_payload, odds)).toBe(true);
+
+    const resolved = resolveThesisWatchPromoteMarket(watch, odds);
+    expect(resolved.betMarket).toBe('under_1');
+
+    const llp = applyLinePatiencePolicy({
+      selection: resolved.selection,
+      betMarket: resolved.betMarket,
+      minute: 70,
+      score: '0-0',
+      ...exceptional,
+      oddsCanonical: odds,
+      enabled: true,
+      config: DEFAULT_LINE_PATIENCE_CONFIG,
+    });
+    expect(llp.blocked).toBe(false);
+    expect(llp.remapped).toBe(false);
+  });
+
   it('leaves AH thesis selection unchanged', () => {
     const odds = {
       ou: { line: 1.0, over: 1.85, under: 1.95 },

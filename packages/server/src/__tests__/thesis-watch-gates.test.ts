@@ -42,6 +42,16 @@ describe('thesis-watch-gates', () => {
     ).toBe(true);
   });
 
+  it('satisfies goals_under_line when a safer under rung is available', () => {
+    const odds: LinePatienceOddsCanonical = {
+      ou: { line: 1.0, over: 2.0, under: 1.85 },
+      ou_adjacent: { line: 0.75, over: 1.8, under: 2.05 },
+    };
+    expect(
+      isThesisWatchGateSatisfied('goals_under_line', { intendedMarketLine: 0.75, goalsUnderMinLine: 1.0 }, odds),
+    ).toBe(true);
+  });
+
   it('resolveThesisWatchPromoteMarket lowers corners line to feed main', () => {
     const watch = {
       gate_type: 'corners_over_line' as const,
@@ -53,6 +63,20 @@ describe('thesis-watch-gates', () => {
       corners_ou: { line: 7.5, over: 1.9, under: 1.9 },
     });
     expect(resolved.betMarket).toBe('corners_over_7.5');
+  });
+
+  it('resolveThesisWatchPromoteMarket raises under line to safer live rung', () => {
+    const watch = {
+      gate_type: 'goals_under_line' as const,
+      gate_payload: { intendedMarketLine: 0.75, goalsUnderMinLine: 1.0 },
+      selection: 'Under 0.75 Goals',
+      bet_market: 'under_0.75',
+    };
+    const resolved = resolveThesisWatchPromoteMarket(watch as ThesisWatchRow, {
+      ou: { line: 1.0, over: 2.0, under: 1.85 },
+      ou_adjacent: { line: 1.25, over: 1.7, under: 2.15 },
+    });
+    expect(resolved.betMarket).toBe('under_1');
   });
 
   it('builds intent from LLP defer warnings', () => {
@@ -71,5 +95,41 @@ describe('thesis-watch-gates', () => {
     expect(intent).not.toBeNull();
     expect(intent?.gateType).toBe('ah_wait_ou_over');
     expect(intent?.watchKey).toContain('ah_wait_ou_over');
+  });
+
+  it('builds goals over intent from conservative remap warning', () => {
+    const intent = buildThesisWatchIntentFromLlpBlock({
+      warnings: ['LLP_REMAP_OVER_CONSERVATIVE_LINE'],
+      selection: 'Over 1.5 Goals',
+      betMarket: 'over_1.5',
+      confidence: 7,
+      valuePercent: 6,
+      stakePercent: 2,
+      riskLevel: 'LOW',
+      reasoningEn: 'Wait for lower over line',
+      reasoningVi: 'Doi line over thap hon',
+      oddsCanonical: { ou: { line: 1.5, over: 2.0, under: 1.8 } },
+    });
+    expect(intent).not.toBeNull();
+    expect(intent?.gateType).toBe('goals_over_line');
+    expect(intent?.watchKey).toBe('goals_over_line::over_1.5');
+  });
+
+  it('builds goals under intent from conservative remap warning', () => {
+    const intent = buildThesisWatchIntentFromLlpBlock({
+      warnings: ['LLP_REMAP_UNDER_CONSERVATIVE_LINE'],
+      selection: 'Under 0.75 Goals',
+      betMarket: 'under_0.75',
+      confidence: 7,
+      valuePercent: 6,
+      stakePercent: 2,
+      riskLevel: 'LOW',
+      reasoningEn: 'Wait for safer under line',
+      reasoningVi: 'Doi line under an toan hon',
+      oddsCanonical: { ou: { line: 1.0, over: 2.0, under: 1.85 } },
+    });
+    expect(intent).not.toBeNull();
+    expect(intent?.gateType).toBe('goals_under_line');
+    expect(intent?.watchKey).toBe('goals_under_line::under_0.75');
   });
 });

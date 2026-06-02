@@ -138,7 +138,6 @@ export function prepareRecommendationData(
     custom_condition_matched: parsed.custom_condition_matched ?? false,
     custom_condition_raw: customConditionRaw,
     condition_triggered_suggestion: parsed.condition_triggered_suggestion || '',
-    pre_match_prediction_summary: matchData.pre_match_prediction_summary || '',
     stats_snapshot: statsSnapshot,
     odds_snapshot: oddsSnapshot,
     ai_model: config.AI_MODEL || '',

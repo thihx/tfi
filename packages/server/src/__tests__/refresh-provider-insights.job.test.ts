@@ -55,7 +55,6 @@ beforeEach(() => {
     statistics: { cacheStatus: 'hit' },
     events: { cacheStatus: 'hit' },
     lineups: { cacheStatus: 'hit' },
-    prediction: { cacheStatus: 'hit' },
     standings: { cacheStatus: 'hit' },
   });
 });
@@ -82,7 +81,6 @@ describe('refreshProviderInsightsJob', () => {
       statistics: { cacheStatus: 'refreshed' },
       events: { cacheStatus: 'refreshed' },
       lineups: { cacheStatus: 'refreshed' },
-      prediction: { cacheStatus: 'refreshed' },
       standings: { cacheStatus: 'refreshed' },
     });
 
@@ -96,7 +94,6 @@ describe('refreshProviderInsightsJob', () => {
       eventRefreshed: 1,
       statisticsRefreshed: 1,
       lineupsRefreshed: 1,
-      predictionsRefreshed: 1,
       standingsRefreshed: 1,
       apiCallsUsed: 0,
     });
@@ -127,7 +124,6 @@ describe('refreshProviderInsightsJob', () => {
       eventRefreshed: 0,
       statisticsRefreshed: 0,
       lineupsRefreshed: 0,
-      predictionsRefreshed: 0,
       standingsRefreshed: 0,
       skipped: true,
       skipReason: 'football_api_daily_limit',
@@ -151,7 +147,6 @@ describe('refreshProviderInsightsJob', () => {
       eventRefreshed: 0,
       statisticsRefreshed: 0,
       lineupsRefreshed: 0,
-      predictionsRefreshed: 0,
       standingsRefreshed: 0,
     });
     expect(mockEnsureFixturesForMatchIds).not.toHaveBeenCalled();
@@ -163,7 +158,7 @@ describe('refreshProviderInsightsJob', () => {
     mockGetMatchesByStatus.mockResolvedValue([]);
     mockGetActiveOperationalWatchlist.mockResolvedValue(ids);
     mockEnsureFixturesForMatchIds.mockResolvedValue(
-      ids.slice(0, 10).map((entry) => ({
+      ids.slice(0, 15).map((entry) => ({
         fixture: { id: Number(entry.match_id), status: { short: 'NS', elapsed: null } },
         league: { id: 39, season: 2025 },
       })),
@@ -173,7 +168,6 @@ describe('refreshProviderInsightsJob', () => {
       statistics: { cacheStatus: 'hit' },
       events: { cacheStatus: 'hit' },
       lineups: { cacheStatus: 'hit' },
-      prediction: { cacheStatus: 'hit' },
       standings: { cacheStatus: 'hit' },
     });
 
@@ -187,6 +181,6 @@ describe('refreshProviderInsightsJob', () => {
       { freshnessMode: 'prewarm_only' },
     );
     const calledIds = mockEnsureFixturesForMatchIds.mock.calls[0][0] as string[];
-    expect(calledIds.length).toBe(10);
+    expect(calledIds.length).toBe(15);
   });
 });

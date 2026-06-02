@@ -17,7 +17,6 @@ const BASE_MATCH: Match = {
   away_score: null,
   status: 'NS',
   current_minute: undefined,
-  prediction: undefined,
 };
 
 const LIVE_MATCH: Match = {
@@ -42,7 +41,7 @@ describe('MatchCard', () => {
 
   it('renders NS status badge', () => {
     render(<MatchCard match={BASE_MATCH} />);
-    expect(screen.getByText('NS')).toBeInTheDocument();
+    expect(screen.getByText('NS')).toHaveAttribute('title', 'Not Started');
   });
 
   it('renders kickoff time for NS matches', () => {
@@ -74,17 +73,6 @@ describe('MatchCard', () => {
     const ft: Match = { ...BASE_MATCH, status: 'FT', home_score: 2, away_score: 1 };
     render(<MatchCard match={ft} />);
     expect(screen.getByText('FT')).toBeInTheDocument();
-  });
-
-  it('renders prediction badge when present', () => {
-    const m: Match = { ...BASE_MATCH, prediction: 'Over 2.5' };
-    render(<MatchCard match={m} />);
-    expect(screen.getByText('Over 2.5')).toBeInTheDocument();
-  });
-
-  it('does not render prediction section when absent', () => {
-    render(<MatchCard match={BASE_MATCH} />);
-    expect(screen.queryByText('Over 2.5')).not.toBeInTheDocument();
   });
 
   it('renders team logo images', () => {

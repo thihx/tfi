@@ -11,7 +11,6 @@ import type {
   EventCompact,
   OddsCanonical,
   MergedMatchData,
-  PreMatchPrediction,
   DerivedMatchInsights,
 } from '../types';
 import {
@@ -53,38 +52,6 @@ function toNumber(v: unknown, def: number | null = null): number | null {
   if (typeof v === 'number') return isNaN(v) ? def : v;
   const n = Number(String(v).trim());
   return isNaN(n) ? def : n;
-}
-
-function parsePreMatchPrediction(predictionRaw: unknown): PreMatchPrediction | null {
-  if (!predictionRaw) return null;
-  if (typeof predictionRaw === 'object' && predictionRaw !== null)
-    return predictionRaw as PreMatchPrediction;
-  if (typeof predictionRaw === 'string') {
-    const trimmed = predictionRaw.trim();
-    if (!trimmed || trimmed === '{}') return null;
-    try {
-      return JSON.parse(trimmed);
-    } catch {
-      return null;
-    }
-  }
-  return null;
-}
-
-function buildPreMatchSummary(prediction: PreMatchPrediction | null): string {
-  if (!prediction) return '';
-  const parts: string[] = [];
-  const pred = prediction.predictions || {};
-  const comp = prediction.comparison || {};
-  if (pred.winner?.name) parts.push(`Favourite: ${pred.winner.name}`);
-  if (pred.percent) {
-    const p = pred.percent;
-    parts.push(`H${p.home || '?'} D${p.draw || '?'} A${p.away || '?'}`);
-  }
-  if (comp.total?.home && comp.total?.away) {
-    parts.push(`Rating: ${comp.total.home} vs ${comp.total.away}`);
-  }
-  return parts.join(' | ');
 }
 
 // ==================== Derive Insights from Events ====================
@@ -179,7 +146,6 @@ interface PreparedMatch {
   away_team: string;
   league: string;
   custom_conditions: string;
-  prediction: string;
   force_analyze: boolean;
   is_manual_push: boolean;
   recommended_custom_condition: string;
@@ -306,9 +272,6 @@ export function mergeMatchData(
       }
     }
 
-    const preMatchPrediction = parsePreMatchPrediction(match.prediction);
-    const preMatchPredictionSummary = buildPreMatchSummary(preMatchPrediction);
-
     // Derive insights from events (useful when API stats are unavailable)
     const allCompactEvents = [...compactEvents]; // all events, not sliced
     const derivedInsights = deriveInsightsFromEvents(
@@ -384,8 +347,6 @@ export function mergeMatchData(
       odds_suspicious: false,
       odds_source: undefined,
       derived_insights: derivedInsights,
-      pre_match_prediction: preMatchPrediction,
-      pre_match_prediction_summary: preMatchPredictionSummary,
       strategic_context: match.strategic_context || null,
     });
   }

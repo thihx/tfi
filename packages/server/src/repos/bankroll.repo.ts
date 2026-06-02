@@ -28,6 +28,7 @@ export interface BankrollLedgerRow {
   user_id: string;
   recommendation_id: number | null;
   delivery_id: number | null;
+  bet_id?: number | null;
   entry_type: string;
   amount: number;
   balance_before: number;
@@ -83,6 +84,7 @@ function mapLedger(row: Record<string, unknown>): BankrollLedgerRow {
     user_id: String(row.user_id ?? ''),
     recommendation_id: row.recommendation_id == null ? null : Number(row.recommendation_id),
     delivery_id: row.delivery_id == null ? null : Number(row.delivery_id),
+    bet_id: row.bet_id == null ? null : Number(row.bet_id),
     entry_type: String(row.entry_type ?? ''),
     amount: toMoney(row.amount),
     balance_before: toMoney(row.balance_before),
@@ -226,6 +228,45 @@ export async function addUserBankrollFunds(
   return getUserBankroll(userId);
 }
 
+export async function withdrawUserBankrollFunds(
+  userId: string,
+  input: { amount: number; note?: string },
+): Promise<BankrollSnapshot> {
+  const amount = toMoney(input.amount);
+  if (amount <= 0) throw new Error('Amount must be greater than 0');
+  await transaction(async (client) => {
+    const account = await client.query<BankrollAccountRow>(
+      `INSERT INTO user_bankroll_accounts (user_id)
+       VALUES ($1::uuid)
+       ON CONFLICT (user_id) DO UPDATE SET updated_at = user_bankroll_accounts.updated_at
+       RETURNING *`,
+      [userId],
+    );
+    const before = toMoney(account.rows[0]?.current_balance, DEFAULT_INITIAL_BALANCE);
+    if (amount > before) {
+      throw new Error('Withdrawal exceeds current bankroll');
+    }
+    const after = toMoney(before - amount);
+    const currency = String(account.rows[0]?.currency ?? DEFAULT_CURRENCY);
+    await client.query(
+      `UPDATE user_bankroll_accounts
+          SET current_balance = $2,
+              updated_at = NOW()
+        WHERE user_id = $1::uuid`,
+      [userId, after],
+    );
+    await client.query(
+      `INSERT INTO user_bankroll_ledger (
+         user_id, entry_type, amount, balance_before, balance_after, currency, note, metadata
+       ) VALUES (
+         $1::uuid, 'withdrawal', $2, $3, $4, $5, $6, '{}'::jsonb
+       )`,
+      [userId, -amount, before, after, currency, input.note ?? 'Bankroll withdrawal'],
+    );
+  });
+  return getUserBankroll(userId);
+}
+
 export async function attachBankrollMetadataForDeliveryIds(
   db: QueryExecutor,
   deliveryIds: number[],
@@ -281,113 +322,4 @@ export async function attachBankrollMetadataForRecommendation(
     db,
     Array.isArray(rows.rows) ? rows.rows.map((row) => Number(row.id)) : [],
   );
-}
-
-export async function applyRecommendationSettlementToBankroll(input: {
-  recommendationId: number;
-  result: FinalSettlementResult | string;
-  odds: number | null | undefined;
-  note?: string;
-}): Promise<number> {
-  return transaction(async (client) => {
-    await client.query(
-      `INSERT INTO user_bankroll_accounts (user_id)
-       SELECT DISTINCT d.user_id
-         FROM user_recommendation_deliveries d
-        WHERE d.recommendation_id = $1
-          AND d.eligibility_status = 'eligible'
-       ON CONFLICT (user_id) DO NOTHING`,
-      [input.recommendationId],
-    );
-
-    const deliveries = await client.query<{
-      delivery_id: number;
-      user_id: string;
-      currency: string;
-      current_balance: string;
-      stake_amount: string | null;
-      existing_ledger_id: number | null;
-      existing_amount: string | null;
-    }>(
-      `SELECT d.id AS delivery_id,
-              d.user_id::text,
-              a.currency,
-              a.current_balance::text,
-              NULLIF(d.metadata->>'stake_amount', '') AS stake_amount,
-              l.id AS existing_ledger_id,
-              l.amount::text AS existing_amount
-         FROM user_recommendation_deliveries d
-         JOIN user_bankroll_accounts a ON a.user_id = d.user_id
-         LEFT JOIN user_bankroll_ledger l
-           ON l.user_id = d.user_id
-          AND l.recommendation_id = d.recommendation_id
-          AND l.entry_type = 'settlement'
-        WHERE d.recommendation_id = $1
-          AND d.eligibility_status = 'eligible'`,
-      [input.recommendationId],
-    );
-
-    let updated = 0;
-    for (const row of deliveries.rows) {
-      const stakeAmount = toMoney(row.stake_amount);
-      const nextAmount = calculateSettlementPnlAmount({
-        result: input.result,
-        odds: input.odds,
-        stakeAmount,
-      });
-      const previousAmount = row.existing_amount == null ? 0 : toMoney(row.existing_amount);
-      const delta = toMoney(nextAmount - previousAmount);
-      if (delta === 0 && row.existing_ledger_id != null) continue;
-
-      const before = toMoney(row.current_balance);
-      const after = toMoney(before + delta);
-      await client.query(
-        `UPDATE user_bankroll_accounts
-            SET current_balance = $2,
-                updated_at = NOW()
-          WHERE user_id = $1::uuid`,
-        [row.user_id, after],
-      );
-
-      await client.query(
-        `INSERT INTO user_bankroll_ledger (
-           user_id, recommendation_id, delivery_id, entry_type, amount,
-           balance_before, balance_after, currency, note, metadata
-         ) VALUES (
-           $1::uuid, $2, $3, 'settlement', $4,
-           $5, $6, $7, $8, $9::jsonb
-         )
-         ON CONFLICT (user_id, recommendation_id, entry_type)
-         WHERE recommendation_id IS NOT NULL AND entry_type = 'settlement'
-         DO UPDATE SET
-           delivery_id = EXCLUDED.delivery_id,
-           amount = EXCLUDED.amount,
-           balance_before = EXCLUDED.balance_before,
-           balance_after = EXCLUDED.balance_after,
-           currency = EXCLUDED.currency,
-           note = EXCLUDED.note,
-           metadata = EXCLUDED.metadata,
-           created_at = NOW()`,
-        [
-          row.user_id,
-          input.recommendationId,
-          row.delivery_id,
-          nextAmount,
-          before,
-          after,
-          row.currency,
-          input.note ?? `Settlement ${input.result}`,
-          JSON.stringify({
-            result: input.result,
-            odds: input.odds ?? null,
-            stakeAmount,
-            previousAmount,
-            delta,
-          }),
-        ],
-      );
-      updated++;
-    }
-    return updated;
-  });
 }

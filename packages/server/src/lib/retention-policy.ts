@@ -5,6 +5,7 @@ export type RetentionClass =
   | 'support_sample'
   | 'support_cache'
   | 'delivery_trace'
+  | 'thesis_watch'
   | 'canonical_history'
   | 'canonical_analytics';
 
@@ -32,6 +33,7 @@ export interface HousekeepingKeepDays {
   pipelineRuns: number;
   jobRunHistory: number;
   recommendationDeliveries: number;
+  thesisWatch: number;
   recommendationsSlim: number;
   aiPerformance: number;
 }
@@ -56,6 +58,7 @@ type ConfigShape = Pick<
   | 'pipelineRunsKeepDays'
   | 'jobRunHistoryKeepDays'
   | 'recommendationDeliveriesKeepDays'
+  | 'thesisWatchKeepDays'
   | 'recommendationsSlimDays'
   | 'aiPerformanceKeepDays'
 >;
@@ -107,6 +110,7 @@ export function resolveHousekeepingRetentionPolicy(config: ConfigShape): Houseke
       warnings,
       { allowDisable: true },
     ),
+    thesisWatch: clampKeepDays('match_thesis_watch', config.thesisWatchKeepDays, 7, warnings),
     recommendationsSlim: clampKeepDays('recommendations slim', config.recommendationsSlimDays, 180, warnings),
     aiPerformance: clampKeepDays('ai_performance', config.aiPerformanceKeepDays, 180, warnings),
   };
@@ -200,7 +204,6 @@ export function resolveHousekeepingRetentionPolicy(config: ConfigShape): Houseke
         'provider_fixture_stats_cache',
         'provider_fixture_events_cache',
         'provider_fixture_lineups_cache',
-        'provider_fixture_prediction_cache',
         'provider_league_standings_cache',
       ],
       strategy: 'delete',
@@ -218,6 +221,16 @@ export function resolveHousekeepingRetentionPolicy(config: ConfigShape): Houseke
       effectiveKeepDays: keepDays.recommendationDeliveries,
       minimumKeepDays: 7,
       allowDisable: true,
+    },
+    {
+      key: 'thesisWatch',
+      label: 'Thesis Watch',
+      retentionClass: 'thesis_watch',
+      tableNames: ['match_thesis_watch'],
+      strategy: 'delete',
+      configuredKeepDays: config.thesisWatchKeepDays,
+      effectiveKeepDays: keepDays.thesisWatch,
+      minimumKeepDays: 7,
     },
     {
       key: 'matchesHistory',

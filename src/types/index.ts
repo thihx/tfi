@@ -16,7 +16,6 @@ export interface Match {
   away_score: string | number | null;
   status: string;
   current_minute?: string;
-  prediction?: string;
   // Enriched from /fixtures (free)
   home_team_id?: number | null;
   away_team_id?: number | null;
@@ -161,7 +160,6 @@ export interface WatchlistItem {
   /** When false, server-side condition/push delivery is suppressed for this watch subscription. */
   notify_enabled?: boolean;
   added_at?: string;
-  prediction?: string;
   recommended_custom_condition?: string;
   recommended_condition_reason?: string;
   recommended_condition_reason_vi?: string;
@@ -172,6 +170,7 @@ export interface WatchlistItem {
 
 export interface Recommendation {
   id?: number;
+  delivery_id?: number | null;
   match_id?: string;
   match_display: string;
   home_team?: string;
@@ -274,6 +273,7 @@ export interface BankrollLedgerEntry {
   user_id: string;
   recommendation_id: number | null;
   delivery_id: number | null;
+  bet_id?: number | null;
   entry_type: string;
   amount: number;
   balance_before: number;
@@ -440,6 +440,7 @@ export interface LeagueInfo {
 export interface StatusBadgeInfo {
   label: string;
   class: string;
+  title?: string;
   /** When true, StatusBadge renders nothing (use for in-play except HT). */
   hidden?: boolean;
 }

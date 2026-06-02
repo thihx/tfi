@@ -49,6 +49,10 @@ function leagueIdNum(id: unknown): number {
   return Number.isFinite(n) ? n : NaN;
 }
 
+function activeLeagueSnapshot(leagues: League[]): League[] {
+  return leagues.filter((league) => league.active === true);
+}
+
 function sortOrderNum(v: unknown): number {
   if (v == null || v === '') return 0;
   const n = typeof v === 'number' ? v : Number(String(v).trim());
@@ -810,7 +814,7 @@ export function LeaguesTab() {
     try {
       const { leagues, favoriteTeamIds, profiledTeamIds } = await fetchLeaguesInitData(cfg);
       setAllLeagues(leagues);
-      dispatch({ type: 'SET_LEAGUES', payload: leagues });
+      dispatch({ type: 'SET_LEAGUES', payload: activeLeagueSnapshot(leagues) });
       setFavoriteIds(new Set(favoriteTeamIds));
       setProfiledTeamIds(new Set(profiledTeamIds));
       void fetchLeaguesProfileCoverage(cfg)
@@ -835,7 +839,7 @@ export function LeaguesTab() {
         const { leagues, favoriteTeamIds, profiledTeamIds } = await fetchLeaguesInitData(cfg);
         if (cancelled) return;
         setAllLeagues(leagues);
-        dispatch({ type: 'SET_LEAGUES', payload: leagues });
+        dispatch({ type: 'SET_LEAGUES', payload: activeLeagueSnapshot(leagues) });
         setFavoriteIds(new Set(favoriteTeamIds));
         setProfiledTeamIds(new Set(profiledTeamIds));
         void fetchLeaguesProfileCoverage(cfg)
@@ -1023,7 +1027,7 @@ export function LeaguesTab() {
     setAllLeagues((prev) => prev.map((l) => l.league_id === id ? { ...l, active } : l));
     try {
       await toggleLeagueActive(config, id, active);
-      setAllLeagues((prev) => { dispatch({ type: 'SET_LEAGUES', payload: prev }); return prev; });
+      setAllLeagues((prev) => { dispatch({ type: 'SET_LEAGUES', payload: activeLeagueSnapshot(prev) }); return prev; });
     } catch {
       setAllLeagues((prev) => prev.map((l) => l.league_id === id ? { ...l, active: !active } : l));
       showToast('Failed to toggle league', 'error');
@@ -1041,7 +1045,7 @@ export function LeaguesTab() {
     try {
       await bulkSetLeagueActive(config, ids, active);
       setAllLeagues((prev) => {
-        dispatch({ type: 'SET_LEAGUES', payload: prev });
+        dispatch({ type: 'SET_LEAGUES', payload: activeLeagueSnapshot(prev) });
         return prev;
       });
       setSelectedIds(new Set());
@@ -1058,7 +1062,7 @@ export function LeaguesTab() {
     setAllLeagues((prev) => prev.map((l) => l.league_id === id ? { ...l, top_league: topLeague } : l));
     try {
       await toggleLeagueTopLeague(config, id, topLeague);
-      setAllLeagues((prev) => { dispatch({ type: 'SET_LEAGUES', payload: prev }); return prev; });
+      setAllLeagues((prev) => { dispatch({ type: 'SET_LEAGUES', payload: activeLeagueSnapshot(prev) }); return prev; });
     } catch (err) {
       console.error('[LeaguesTab] toggleTop failed:', err);
       setAllLeagues((prev) => prev.map((l) => l.league_id === id ? { ...l, top_league: !topLeague } : l));
@@ -1076,7 +1080,7 @@ export function LeaguesTab() {
     try {
       await bulkSetTopLeague(config, ids, topLeague);
       setAllLeagues((prev) => {
-        dispatch({ type: 'SET_LEAGUES', payload: prev });
+        dispatch({ type: 'SET_LEAGUES', payload: activeLeagueSnapshot(prev) });
         return prev;
       });
       setSelectedIds(new Set());
@@ -1112,7 +1116,7 @@ export function LeaguesTab() {
           const so = sortById.get(lid);
           return so != null ? { ...l, sort_order: so } : l;
         });
-        dispatch({ type: 'SET_LEAGUES', payload: merged });
+        dispatch({ type: 'SET_LEAGUES', payload: activeLeagueSnapshot(merged) });
         return merged;
       });
       try {
@@ -1120,13 +1124,13 @@ export function LeaguesTab() {
         void fetchApprovedLeagues(cfg)
           .then((fresh) => {
             setAllLeagues(fresh);
-            dispatch({ type: 'SET_LEAGUES', payload: fresh });
+            dispatch({ type: 'SET_LEAGUES', payload: activeLeagueSnapshot(fresh) });
           })
           .catch(() => { /* keep optimistic state */ });
       } catch {
         showToast('Failed to reorder leagues', 'error');
         setAllLeagues(previous);
-        dispatch({ type: 'SET_LEAGUES', payload: previous });
+        dispatch({ type: 'SET_LEAGUES', payload: activeLeagueSnapshot(previous) });
       }
     },
     [showToast, dispatch],
@@ -1179,7 +1183,7 @@ export function LeaguesTab() {
               profile_data_reliability_tier: saved.profile.data_reliability_tier,
             }
           : league);
-        dispatch({ type: 'SET_LEAGUES', payload: next });
+        dispatch({ type: 'SET_LEAGUES', payload: activeLeagueSnapshot(next) });
         return next;
       });
       void loadLeagues();
@@ -1208,7 +1212,7 @@ export function LeaguesTab() {
               profile_data_reliability_tier: null,
             }
           : league);
-        dispatch({ type: 'SET_LEAGUES', payload: next });
+        dispatch({ type: 'SET_LEAGUES', payload: activeLeagueSnapshot(next) });
         return next;
       });
       void loadLeagues();

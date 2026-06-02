@@ -47,41 +47,6 @@ export interface ApiFixture {
   score: Record<string, { home: number | null; away: number | null }>;
 }
 
-// ==================== Predictions ====================
-
-export interface ApiH2HFixture {
-  fixture: { id: number; date: string };
-  teams: {
-    home: { id: number; name: string; winner: boolean | null };
-    away: { id: number; name: string; winner: boolean | null };
-  };
-  goals: { home: number | null; away: number | null };
-}
-
-export interface ApiPrediction {
-  predictions: {
-    winner: { id: number; name: string; comment: string } | null;
-    win_or_draw: boolean;
-    under_over: string | null;
-    goals: { home: string; away: string } | null;
-    advice: string;
-    percent: { home: string; draw: string; away: string } | null;
-  };
-  comparison: {
-    form: { home: string; away: string } | null;
-    att: { home: string; away: string } | null;
-    def: { home: string; away: string } | null;
-    goals: { home: string; away: string } | null;
-    total: { home: string; away: string } | null;
-    poisson_distribution?: { home: string; away: string } | null;
-  };
-  h2h?: ApiH2HFixture[];
-  teams?: {
-    home: { id: number; name: string; league?: { form?: string } };
-    away: { id: number; name: string; league?: { form?: string } };
-  };
-}
-
 // ==================== API Calls ====================
 
 const API_TIMEOUT_MS = 15_000;
@@ -371,61 +336,4 @@ export async function fetchTeamsByLeague(leagueId: number): Promise<{ team: ApiT
       if (b.rank !== null) return 1;
       return a.team.name.localeCompare(b.team.name);
     });
-}
-
-// ==================== Predictions ====================
-
-export async function fetchPrediction(fixtureId: string): Promise<ApiPrediction | null> {
-  const results = await apiGet<ApiPrediction>('/predictions', { fixture: fixtureId });
-  return results[0] ?? null;
-}
-
-// ==================== Helpers ====================
-
-/** Build a slim prediction object — includes H2H summary and full comparison */
-export function buildSlimPrediction(item: ApiPrediction) {
-  const pred = item.predictions;
-  const comp = item.comparison;
-
-  // Build H2H summary (last 5 meetings max)
-  let h2hSummary: { total: number; home_wins: number; away_wins: number; draws: number } | null = null;
-  if (Array.isArray(item.h2h) && item.h2h.length > 0) {
-    const recent = item.h2h.slice(0, 5);
-    const homeName = item.teams?.home?.name;
-    let homeWins = 0, awayWins = 0, draws = 0;
-    for (const m of recent) {
-      const hGoals = m.goals?.home ?? 0;
-      const aGoals = m.goals?.away ?? 0;
-      if (hGoals === aGoals) { draws++; continue; }
-      const winnerName = hGoals > aGoals ? m.teams?.home?.name : m.teams?.away?.name;
-      if (winnerName === homeName) homeWins++;
-      else awayWins++;
-    }
-    h2hSummary = { total: recent.length, home_wins: homeWins, away_wins: awayWins, draws };
-  }
-
-  // Extract team form sequence (e.g., "WDLWW")
-  const homeForm = item.teams?.home?.league?.form || null;
-  const awayForm = item.teams?.away?.league?.form || null;
-
-  return {
-    predictions: {
-      winner: pred.winner ?? null,
-      win_or_draw: pred.win_or_draw,
-      under_over: pred.under_over,
-      goals: pred.goals ?? null,
-      advice: pred.advice,
-      percent: pred.percent ?? null,
-    },
-    comparison: {
-      form: comp.form ?? null,
-      att: comp.att ?? null,
-      def: comp.def ?? null,
-      goals: comp.goals ?? null,
-      total: comp.total ?? null,
-      poisson_distribution: comp.poisson_distribution ?? null,
-    },
-    h2h_summary: h2hSummary,
-    team_form: (homeForm || awayForm) ? { home: homeForm, away: awayForm } : null,
-  };
 }

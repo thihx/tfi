@@ -7,7 +7,7 @@ import { ensureFixturesForMatchIds, ensureScoutInsight } from '../lib/provider-i
 import { reportJobProgress } from './job-progress.js';
 
 const LIVE_STATUSES = ['1H', '2H', 'HT', 'ET', 'BT', 'P', 'LIVE', 'INT'];
-const ESTIMATED_API_CALLS_PER_CANDIDATE = 3;
+const ESTIMATED_API_CALLS_PER_CANDIDATE = 2;
 
 export async function refreshProviderInsightsJob(): Promise<{
   candidates: number;
@@ -17,7 +17,6 @@ export async function refreshProviderInsightsJob(): Promise<{
   eventRefreshed: number;
   statisticsRefreshed: number;
   lineupsRefreshed: number;
-  predictionsRefreshed: number;
   standingsRefreshed: number;
   apiCallsUsed?: number;
   skipped?: boolean;
@@ -35,7 +34,6 @@ export async function refreshProviderInsightsJob(): Promise<{
       eventRefreshed: 0,
       statisticsRefreshed: 0,
       lineupsRefreshed: 0,
-      predictionsRefreshed: 0,
       standingsRefreshed: 0,
       ...circuitSkip,
     };
@@ -66,7 +64,6 @@ export async function refreshProviderInsightsJob(): Promise<{
       eventRefreshed: 0,
       statisticsRefreshed: 0,
       lineupsRefreshed: 0,
-      predictionsRefreshed: 0,
       standingsRefreshed: 0,
     };
   }
@@ -88,7 +85,6 @@ export async function refreshProviderInsightsJob(): Promise<{
   let eventRefreshed = 0;
   let statisticsRefreshed = 0;
   let lineupsRefreshed = 0;
-  let predictionsRefreshed = 0;
   let standingsRefreshed = 0;
   let apiCallsThisRun = 0;
 
@@ -122,7 +118,6 @@ export async function refreshProviderInsightsJob(): Promise<{
     if (insight.statistics.cacheStatus === 'refreshed') statisticsRefreshed += 1;
     if (insight.events.cacheStatus === 'refreshed') eventRefreshed += 1;
     if (insight.lineups.cacheStatus === 'refreshed') lineupsRefreshed += 1;
-    if (insight.prediction.cacheStatus === 'refreshed') predictionsRefreshed += 1;
     if (insight.standings.cacheStatus === 'refreshed') standingsRefreshed += 1;
 
     const currentCount = await getFootballApiDailyCount();
@@ -137,7 +132,6 @@ export async function refreshProviderInsightsJob(): Promise<{
     eventRefreshed,
     statisticsRefreshed,
     lineupsRefreshed,
-    predictionsRefreshed,
     standingsRefreshed,
     apiCallsUsed: apiCallsThisRun,
     ...(budgetCapped ? { budgetCapped: true, budgetLimit: budget } : {}),
