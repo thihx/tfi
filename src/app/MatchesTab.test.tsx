@@ -388,7 +388,7 @@ describe('MatchesTab', () => {
 
     await user.click(screen.getByTitle('Table view'));
     await user.click(screen.getByRole('button', { name: 'Watch alerts and conditions' }));
-    await user.click(await screen.findByRole('button', { name: 'Save Changes' }));
+    await user.click(await screen.findByRole('button', { name: 'Save changes' }));
 
     await waitFor(() => {
       expect(mockUpdateWatchlistItem).toHaveBeenCalledWith(
@@ -410,7 +410,7 @@ describe('MatchesTab', () => {
 
     await user.click(screen.getByTitle('Table view'));
     await user.click(screen.getByRole('button', { name: 'Watch alerts and conditions' }));
-    const saveBtn = await screen.findByRole('button', { name: 'Save Changes' });
+    const saveBtn = await screen.findByRole('button', { name: 'Save changes' });
     const form = saveBtn.closest('form');
     expect(form).toBeTruthy();
     await user.click(within(form!).getByRole('checkbox', { name: /Use system suggestion when saving/i }));

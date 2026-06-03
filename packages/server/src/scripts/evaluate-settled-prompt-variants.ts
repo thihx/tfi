@@ -19,6 +19,8 @@ import {
   saveReplayLlmCache,
 } from '../lib/replay-llm-cache.js';
 import { listReplayScenarioJsonBasenames } from '../lib/replay-scenario-files.js';
+import { closePool } from '../db/pool.js';
+import { closeRedis } from '../lib/redis.js';
 
 interface EvaluateArgs {
   dirPath: string;
@@ -478,7 +480,11 @@ async function main(): Promise<void> {
   console.log(JSON.stringify(summary, null, 2));
 }
 
-main().catch((err) => {
-  console.error(err instanceof Error ? err.message : String(err));
-  process.exit(1);
-});
+main()
+  .catch((err) => {
+    console.error(err instanceof Error ? err.message : String(err));
+    process.exitCode = 1;
+  })
+  .finally(async () => {
+    await Promise.allSettled([closePool(), closeRedis()]);
+  });

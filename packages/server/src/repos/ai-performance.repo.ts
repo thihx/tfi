@@ -626,6 +626,14 @@ export interface PerformanceMemoryLookupResult {
   record?: PerformanceMemoryRecord;
 }
 
+export interface PerformanceMemoryRebuildSummary {
+  sourceRows: number;
+  skippedUnknownMarket: number;
+  groups: number;
+  totalSamples: number;
+  reliableGroups: number;
+}
+
 export interface PerformanceMemoryCandidateRule {
   key: string;
   canonicalMarket: string;
@@ -717,7 +725,7 @@ export function deriveScoreState(score: string | null | undefined): PerformanceS
   return 'two-plus-margin';
 }
 
-function buildPerformanceMemoryKey(canonicalMarket: string, minuteBand: PerformanceMinuteBand, scoreState: PerformanceScoreState): string {
+export function buildPerformanceMemoryKey(canonicalMarket: string, minuteBand: PerformanceMinuteBand, scoreState: PerformanceScoreState): string {
   return `${canonicalMarket}|${minuteBand}|${scoreState}`;
 }
 
@@ -729,6 +737,77 @@ function settlementVector(result: string): { wins: number; losses: number; halfW
   if (normalized === 'half_loss') return { wins: 0, losses: 0, halfWins: 0, halfLosses: 1, pushes: 0 };
   if (normalized === 'push' || normalized === 'void') return { wins: 0, losses: 0, halfWins: 0, halfLosses: 0, pushes: 1 };
   return { wins: 0, losses: 0, halfWins: 0, halfLosses: 0, pushes: 0 };
+}
+
+interface PerformanceMemoryBackfillSourceRow {
+  selection: string | null;
+  bet_market: string | null;
+  minute: number | null;
+  score: string | null;
+  result: string;
+}
+
+interface PerformanceMemoryAggregatePayload {
+  key: string;
+  canonicalMarket: string;
+  minuteBand: PerformanceMinuteBand;
+  scoreState: PerformanceScoreState;
+  total: number;
+  wins: number;
+  losses: number;
+  halfWins: number;
+  halfLosses: number;
+  pushes: number;
+  empiricalWinRate: number;
+  sampleReliable: boolean;
+}
+
+function toPerformanceMemoryAggregatePayload(
+  rows: PerformanceMemoryBackfillSourceRow[],
+): { payload: PerformanceMemoryAggregatePayload[]; skippedUnknownMarket: number } {
+  const byKey = new Map<string, Omit<PerformanceMemoryAggregatePayload, 'empiricalWinRate' | 'sampleReliable'>>();
+  let skippedUnknownMarket = 0;
+
+  for (const row of rows) {
+    const canonicalMarket = normalizeMarket(row.selection ?? '', row.bet_market ?? '');
+    if (!canonicalMarket || canonicalMarket === 'unknown') {
+      skippedUnknownMarket++;
+      continue;
+    }
+    const minuteBand = deriveMinuteBand(row.minute);
+    const scoreState = deriveScoreState(row.score);
+    const key = buildPerformanceMemoryKey(canonicalMarket, minuteBand, scoreState);
+    const vec = settlementVector(row.result);
+    const current = byKey.get(key) ?? {
+      key,
+      canonicalMarket,
+      minuteBand,
+      scoreState,
+      total: 0,
+      wins: 0,
+      losses: 0,
+      halfWins: 0,
+      halfLosses: 0,
+      pushes: 0,
+    };
+    current.total += 1;
+    current.wins += vec.wins;
+    current.losses += vec.losses;
+    current.halfWins += vec.halfWins;
+    current.halfLosses += vec.halfLosses;
+    current.pushes += vec.pushes;
+    byKey.set(key, current);
+  }
+
+  const payload = [...byKey.values()]
+    .map((item) => ({
+      ...item,
+      empiricalWinRate: item.total > 0 ? (item.wins + item.halfWins * 0.5) / item.total : 0,
+      sampleReliable: item.total >= 10,
+    }))
+    .sort((a, b) => a.key.localeCompare(b.key));
+
+  return { payload, skippedUnknownMarket };
 }
 
 export async function writePerformanceMemoryFromSettlement(input: {
@@ -780,6 +859,76 @@ export async function writePerformanceMemoryFromSettlement(input: {
     `,
     [key, canonicalMarket, minuteBand, scoreState, vec.wins, vec.losses, vec.halfWins, vec.halfLosses, vec.pushes],
   );
+}
+
+export async function rebuildPerformanceMemoryFromRecommendations(): Promise<PerformanceMemoryRebuildSummary> {
+  const source = await query<PerformanceMemoryBackfillSourceRow>(
+    `SELECT selection, bet_market, minute, score, result
+       FROM recommendations r
+      WHERE r.result IN (${FINAL_SETTLEMENT_RESULTS_SQL})
+        AND r.result IS DISTINCT FROM 'duplicate'
+        AND r.bet_type IS DISTINCT FROM 'NO_BET'
+        AND COALESCE(r.settlement_status, 'resolved') IS DISTINCT FROM 'unresolved'`,
+  );
+
+  const { payload, skippedUnknownMarket } = toPerformanceMemoryAggregatePayload(source.rows);
+  await ensurePerformanceMemoryTable();
+
+  const written = await query<{ inserted: string }>(
+    `WITH incoming AS (
+       SELECT *
+       FROM jsonb_to_recordset($1::jsonb) AS x(
+         key text,
+         "canonicalMarket" text,
+         "minuteBand" text,
+         "scoreState" text,
+         total integer,
+         wins integer,
+         losses integer,
+         "halfWins" integer,
+         "halfLosses" integer,
+         pushes integer,
+         "empiricalWinRate" numeric,
+         "sampleReliable" boolean
+       )
+     ),
+     cleared AS (
+       DELETE FROM recommendation_performance_memory
+     ),
+     inserted AS (
+       INSERT INTO recommendation_performance_memory (
+         key, canonical_market, minute_band, score_state,
+         total, wins, losses, half_wins, half_losses, pushes,
+         empirical_win_rate, sample_reliable, last_updated
+       )
+       SELECT
+         key,
+         "canonicalMarket",
+         "minuteBand",
+         "scoreState",
+         total,
+         wins,
+         losses,
+         "halfWins",
+         "halfLosses",
+         pushes,
+         "empiricalWinRate",
+         "sampleReliable",
+         NOW()
+       FROM incoming
+       RETURNING 1
+     )
+     SELECT COUNT(*)::text AS inserted FROM inserted`,
+    [JSON.stringify(payload)],
+  );
+
+  return {
+    sourceRows: source.rows.length,
+    skippedUnknownMarket,
+    groups: Number(written.rows[0]?.inserted ?? payload.length),
+    totalSamples: payload.reduce((sum, item) => sum + item.total, 0),
+    reliableGroups: payload.filter((item) => item.sampleReliable).length,
+  };
 }
 
 export async function lookupPerformanceMemory(input: {

@@ -4,6 +4,12 @@ import { resolveMatchOdds, type ResolveMatchOddsResult } from './odds-resolver.j
 import { runPipelineForFixture, type MatchPipelineResult } from './server-pipeline.js';
 import type { LiveAnalysisPromptVersion, PromptAnalysisMode, PromptEvidenceMode } from './live-analysis-prompt.js';
 import type { WatchlistRow } from '../repos/watchlist.repo.js';
+import {
+  buildPerformanceMemoryKey,
+  type PerformanceMemoryLookupResult,
+  type PerformanceMinuteBand,
+  type PerformanceScoreState,
+} from '../repos/ai-performance.repo.js';
 
 const DEFAULT_MOCK_AI_TEXT = JSON.stringify({
   should_push: true,
@@ -58,6 +64,7 @@ export interface ReplayScenario {
     odds: Record<string, unknown>;
     stats?: Record<string, unknown>;
   } | null;
+  performanceMemorySnapshot?: ReplayPerformanceMemorySnapshot | null;
   expected?: {
     shouldPush?: boolean;
     oddsSource?: string;
@@ -73,6 +80,15 @@ export interface ReplayScenario {
     selectionContains?: string;
     skippedAt?: 'proceed' | 'staleness';
   };
+}
+
+export interface ReplayPerformanceMemorySnapshot {
+  key: string;
+  canonicalMarket: string;
+  minuteBand: PerformanceMinuteBand;
+  scoreState: PerformanceScoreState;
+  lookupResult: PerformanceMemoryLookupResult;
+  source: 'db' | 'scenario' | 'missing';
 }
 
 export interface ReplayRunOptions {
@@ -166,6 +182,21 @@ function buildRecordedOddsResolver(scenario: ReplayScenario) {
     fetchLiveOdds: async () => recordedLiveOddsForFetch(scenario),
     fetchPreMatchOdds: async () => scenario.preMatchOddsResponse ?? [],
   });
+}
+
+function buildReplayPerformanceMemoryLookup(scenario: ReplayScenario) {
+  return async (input: {
+    canonicalMarket: string;
+    minuteBand: PerformanceMinuteBand;
+    scoreState: PerformanceScoreState;
+  }): Promise<PerformanceMemoryLookupResult> => {
+    const snapshot = scenario.performanceMemorySnapshot;
+    if (!snapshot) return { status: 'no_history' };
+
+    const requestedKey = buildPerformanceMemoryKey(input.canonicalMarket, input.minuteBand, input.scoreState);
+    if (snapshot.key !== requestedKey) return { status: 'no_history' };
+    return snapshot.lookupResult;
+  };
 }
 
 function evaluateAssertions(
@@ -309,6 +340,7 @@ export async function runReplayScenario(
   const dependencies: NonNullable<Parameters<typeof runPipelineForFixture>[3]>['dependencies'] = {
     fetchFixtureStatistics: async () => scenario.statistics ?? [],
     fetchFixtureEvents: async () => scenario.events ?? [],
+    lookupPerformanceMemory: buildReplayPerformanceMemoryLookup(scenario),
     ensureMatchInsight: async () => ({
       fixture: { payload: scenario.fixture, freshness: 'fresh', cacheStatus: 'hit', cachedAt: null, fetchedAt: null, degraded: false },
       statistics: { payload: scenario.statistics ?? [], freshness: 'fresh', cacheStatus: 'hit', cachedAt: null, fetchedAt: null, degraded: false },

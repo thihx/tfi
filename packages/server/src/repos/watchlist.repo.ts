@@ -33,6 +33,7 @@ export interface WatchlistRow {
   strategic_context: unknown;
   strategic_context_at: string | null;
   mins_to_kickoff?: number | null;
+  subscriber_count?: number | null;
 }
 
 export type WatchlistCreate = Omit<WatchlistRow, 'id' | 'added_at'>;
@@ -119,6 +120,7 @@ function buildWatchlistRow(
     home_logo?: string | null;
     away_logo?: string | null;
     match_status?: string | null;
+    subscriber_count?: number | null;
   },
   subscription: {
     id?: number | null;
@@ -160,6 +162,7 @@ function buildWatchlistRow(
     strategic_context: strategicContext,
     strategic_context_at: normalizeNullableString(sharedMetadata.strategic_context_at),
     mins_to_kickoff: null,
+    subscriber_count: base.subscriber_count ?? null,
     match_status: base.match_status ?? undefined,
   };
 }
@@ -313,6 +316,7 @@ async function getUserWatchlistRows(
       home_logo: row.home_logo,
       away_logo: row.away_logo,
       match_status: row.match_status,
+      subscriber_count: row.subscriber_count,
     },
     {
       id: row.subscription_id,
@@ -439,6 +443,7 @@ async function getMonitoredOperationalWatchlist(
         home_logo: row.home_logo,
         away_logo: row.away_logo,
         match_status: row.match_status,
+        subscriber_count: row.subscriber_count,
       },
       {
         id: 0,
@@ -540,6 +545,11 @@ export async function getAllOperationalWatchlist(): Promise<(WatchlistRow & { ma
 export async function getActiveOperationalWatchlist(): Promise<WatchlistRow[]> {
   await backfillOperationalWatchlistFromLegacy();
   return getMonitoredOperationalWatchlist(true);
+}
+
+export async function getAutoPipelineOperationalWatchlist(): Promise<WatchlistRow[]> {
+  const rows = await getActiveOperationalWatchlist();
+  return rows.filter((row) => Number(row.subscriber_count ?? 0) > 0);
 }
 
 export async function getOperationalWatchlistByMatchId(matchId: string): Promise<WatchlistRow | null> {
@@ -697,6 +707,7 @@ export async function getWatchlistByMatchId(matchId: string, userId: string): Pr
         home_logo: row.home_logo,
         away_logo: row.away_logo,
         match_status: row.match_status,
+        subscriber_count: row.subscriber_count,
       },
       {
         id: row.subscription_id,
@@ -758,6 +769,7 @@ export async function getWatchSubscriptionById(subscriptionId: number, userId: s
       home_logo: row.home_logo,
       away_logo: row.away_logo,
       match_status: row.match_status,
+      subscriber_count: row.subscriber_count,
     },
     {
       id: row.subscription_id,

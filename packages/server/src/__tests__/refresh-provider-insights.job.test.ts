@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, test, vi } from 'vitest';
 
 const mockReportJobProgress = vi.fn();
 const mockGetMatchesByStatus = vi.fn();
-const mockGetActiveOperationalWatchlist = vi.fn();
+const mockGetAutoPipelineOperationalWatchlist = vi.fn();
 const mockEnsureFixturesForMatchIds = vi.fn();
 const mockEnsureScoutInsight = vi.fn();
 
@@ -15,7 +15,7 @@ vi.mock('../repos/matches.repo.js', () => ({
 }));
 
 vi.mock('../repos/watchlist.repo.js', () => ({
-  getActiveOperationalWatchlist: mockGetActiveOperationalWatchlist,
+  getAutoPipelineOperationalWatchlist: mockGetAutoPipelineOperationalWatchlist,
 }));
 
 vi.mock('../lib/provider-insight-cache.js', () => ({
@@ -48,7 +48,7 @@ beforeEach(() => {
   mockSkipIfFootballApiCircuitOpen.mockResolvedValue(null);
   mockGetFootballApiDailyCount.mockResolvedValue(0);
   mockGetMatchesByStatus.mockResolvedValue([]);
-  mockGetActiveOperationalWatchlist.mockResolvedValue([]);
+  mockGetAutoPipelineOperationalWatchlist.mockResolvedValue([]);
   mockEnsureFixturesForMatchIds.mockResolvedValue([]);
   mockEnsureScoutInsight.mockResolvedValue({
     fixture: { cacheStatus: 'hit' },
@@ -65,7 +65,7 @@ describe('refreshProviderInsightsJob', () => {
       { match_id: '100' },
       { match_id: '200' },
     ]);
-    mockGetActiveOperationalWatchlist.mockResolvedValue([
+    mockGetAutoPipelineOperationalWatchlist.mockResolvedValue([
       { match_id: '100' },
       { match_id: '300' },
       { match_id: '300' },
@@ -135,7 +135,7 @@ describe('refreshProviderInsightsJob', () => {
 
   test('returns early when all current candidates are live', async () => {
     mockGetMatchesByStatus.mockResolvedValue([{ match_id: '100' }]);
-    mockGetActiveOperationalWatchlist.mockResolvedValue([{ match_id: '100' }]);
+    mockGetAutoPipelineOperationalWatchlist.mockResolvedValue([{ match_id: '100' }]);
 
     const result = await refreshProviderInsightsJob();
 
@@ -156,7 +156,7 @@ describe('refreshProviderInsightsJob', () => {
   test('caps candidates by estimated request budget and reports budgetCapped', async () => {
     const ids = Array.from({ length: 50 }, (_, i) => ({ match_id: String(400 + i) }));
     mockGetMatchesByStatus.mockResolvedValue([]);
-    mockGetActiveOperationalWatchlist.mockResolvedValue(ids);
+    mockGetAutoPipelineOperationalWatchlist.mockResolvedValue(ids);
     mockEnsureFixturesForMatchIds.mockResolvedValue(
       ids.slice(0, 15).map((entry) => ({
         fixture: { id: Number(entry.match_id), status: { short: 'NS', elapsed: null } },

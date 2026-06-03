@@ -1,0 +1,57 @@
+{
+  "generatedAt": "2026-06-03T00:00:00.000Z",
+  "promptVersion": "ci-baseline-prompt",
+  "totalCases": 100,
+  "thresholds": {
+    "minSettledDirectional": 5,
+    "minReplayActionable": 3,
+    "blockAccuracyAtOrBelow": 0.35,
+    "blockRoiAtOrBelow": -0.25,
+    "capAccuracyAtOrBelow": 0.5,
+    "capRoiAtOrBelow": 0,
+    "defaultStakeCapPercent": 1.5,
+    "maxRows": 12
+  },
+  "qualityBlockers": {
+    "totalCases": 100,
+    "pushCount": 40,
+    "noBetCount": 60,
+    "actionableCount": 40,
+    "byReplayQualityAttribution": [
+      { "key": "actionable", "count": 40 },
+      { "key": "model_no_bet", "count": 60 }
+    ],
+    "byProviderCoverageStatus": [
+      { "key": "ok", "count": 100 }
+    ],
+    "byReplayContextStatus": [
+      { "key": "ok", "count": 100 }
+    ],
+    "byDecisionKind": [
+      { "key": "ai_push", "count": 40 },
+      { "key": "no_bet", "count": 60 }
+    ],
+    "byLlmDecisionDiagnostic": [
+      { "key": "actionable", "count": 40 },
+      { "key": "no_bet_intentional", "count": 60 }
+    ],
+    "byMarketResolutionStatus": [
+      { "key": "resolved", "count": 40 },
+      { "key": "not_requested", "count": 60 }
+    ],
+    "topWarnings": [],
+    "topHardPolicyWarnings": [],
+    "providerCoverageGroups": [],
+    "unresolvedMarketExamples": [],
+    "policyWarningExamples": []
+  },
+  "blocklistCandidates": [],
+  "stakeCapCandidates": [],
+  "reviewCandidates": [],
+  "suggestedBlocklistJson": {
+    "segmentKeys": []
+  },
+  "suggestedStakeCapJson": {
+    "caps": {}
+  }
+}

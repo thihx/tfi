@@ -47,6 +47,7 @@ const mockWatchlist = [
 
 vi.mock('../repos/watchlist.repo.js', () => ({
   getActiveOperationalWatchlist: vi.fn().mockResolvedValue(mockWatchlist),
+  getAutoPipelineOperationalWatchlist: vi.fn().mockResolvedValue(mockWatchlist),
   incrementChecksForMatches: vi.fn().mockResolvedValue(undefined),
 }));
 
@@ -95,7 +96,7 @@ describe('checkLiveTriggerJob', () => {
 
   test('returns 0 when watchlist is empty', async () => {
     const watchlistRepo = await import('../repos/watchlist.repo.js');
-    vi.mocked(watchlistRepo.getActiveOperationalWatchlist).mockResolvedValueOnce([]);
+    vi.mocked(watchlistRepo.getAutoPipelineOperationalWatchlist).mockResolvedValueOnce([]);
 
     const result = await checkLiveTriggerJob();
     expect(result).toEqual({ liveCount: 0 });
@@ -228,9 +229,16 @@ describe('checkLiveTriggerJob', () => {
     expect(result.pipelineResults).toEqual([]);
 
     const { audit } = await import('../lib/audit.js');
-    expect(audit).not.toHaveBeenCalledWith(expect.objectContaining({
+    expect(audit).toHaveBeenCalledWith(expect.objectContaining({
       action: 'PIPELINE_COMPLETE',
       outcome: 'SUCCESS',
+      metadata: expect.objectContaining({
+        liveCount: 2,
+        candidateCount: 0,
+        totalProcessed: 0,
+        totalLlmEligible: 0,
+        totalSavedRecommendations: 0,
+      }),
     }));
   });
 

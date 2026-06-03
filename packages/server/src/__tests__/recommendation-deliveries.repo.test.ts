@@ -128,7 +128,7 @@ describe('recommendation deliveries repository', () => {
 
     expect(query).toHaveBeenNthCalledWith(
       1,
-      expect.stringContaining("COALESCE(r.settlement_status, NULLIF(d.metadata->>'recommendation_settlement_status', ''), 'pending') = 'unresolved' AND r.result IN ('win', 'loss', 'push', 'void', 'half_win', 'half_loss')"),
+      expect.stringContaining("COALESCE(r.settlement_status, NULLIF(d.metadata->>'recommendation_settlement_status', ''), 'pending') = 'unresolved' AND COALESCE(r.result, NULLIF(d.metadata->>'recommendation_result', '')) IN ('win', 'loss', 'push', 'void', 'half_win', 'half_loss')"),
       ['user-1', 50, 0],
     );
   });
@@ -144,7 +144,7 @@ describe('recommendation deliveries repository', () => {
 
     expect(query).toHaveBeenNthCalledWith(
       1,
-      expect.stringContaining("r.result IN ('win', 'half_win')"),
+      expect.stringContaining("COALESCE(r.result, NULLIF(d.metadata->>'recommendation_result', '')) IN ('win', 'half_win')"),
       ['user-1', 50, 0],
     );
   });

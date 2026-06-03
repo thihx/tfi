@@ -101,7 +101,7 @@ describe('WatchlistEditModal', () => {
     );
 
     fireEvent.click(screen.getByRole('checkbox', { name: /Use system suggestion when saving/i }));
-    fireEvent.click(screen.getByRole('button', { name: 'Save Changes' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Save changes' }));
 
     expect(onSave).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -122,7 +122,7 @@ describe('WatchlistEditModal', () => {
       />,
     );
 
-    fireEvent.click(screen.getByRole('button', { name: 'Save Changes' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Save changes' }));
 
     expect(onSave).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -138,7 +138,7 @@ describe('WatchlistEditModal', () => {
       <WatchlistEditModal item={baseItem} onClose={() => {}} onSave={() => {}} />,
     );
 
-    fireEvent.click(screen.getByRole('button', { name: 'Check against current match data' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Test with live data' }));
 
     await waitFor(() => {
       expect(evaluateWatchConditionPreview).toHaveBeenCalledWith(
@@ -170,9 +170,9 @@ describe('WatchlistEditModal', () => {
       <WatchlistEditModal item={baseItem} onClose={() => {}} onSave={() => {}} />,
     );
 
-    fireEvent.click(screen.getByRole('button', { name: 'Check against current match data' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Test with live data' }));
 
-    expect(await screen.findByText(/Notifications are disabled for this watch/i)).toBeInTheDocument();
+    expect(await screen.findByText(/Push off for this watch/i)).toBeInTheDocument();
   });
 
   test('points users to match hub for context', () => {
@@ -182,13 +182,15 @@ describe('WatchlistEditModal', () => {
     expect(screen.getByText(/Match hub/i)).toBeInTheDocument();
   });
 
-  test('shows account Telegram and Zalo delivery summary', async () => {
+  test('shows compact Telegram and Zalo delivery status', async () => {
     render(
       <WatchlistEditModal item={baseItem} onClose={() => {}} onSave={() => {}} />,
     );
-    expect(await screen.findByText(/Account channels:/)).toBeInTheDocument();
-    expect(await screen.findByText(/Telegram: monitor on/)).toBeInTheDocument();
-    expect(await screen.findByText(/Zalo: monitor off/)).toBeInTheDocument();
+    fireEvent.click(screen.getByText('Delivery options'));
+    expect(await screen.findByText('Telegram')).toBeInTheDocument();
+    expect(await screen.findByText('Monitor on')).toBeInTheDocument();
+    expect(await screen.findByText('Zalo')).toBeInTheDocument();
+    expect(await screen.findByText('Not linked')).toBeInTheDocument();
   });
 
   test('shows empty-state copy when there is no recommended condition', () => {
@@ -204,6 +206,6 @@ describe('WatchlistEditModal', () => {
         onSave={() => {}}
       />,
     );
-    expect(screen.getByText(/No machine-evaluable suggestion yet/i)).toBeInTheDocument();
+    expect(screen.getByText(/No suggestion yet/i)).toBeInTheDocument();
   });
 });

@@ -10,6 +10,7 @@ import {
   loadEvalCasesPayload,
 } from './replay-vs-original-analysis.js';
 import { buildHotspotReport } from './replay-segment-hotspots.js';
+import { buildSegmentPolicyActionPlan } from './segment-policy-action-plan.js';
 import { LIVE_ANALYSIS_PROMPT_VERSION } from './live-analysis-prompt.js';
 import { config } from '../config.js';
 
@@ -33,6 +34,7 @@ export interface DataDrivenBatchOptions {
   postSummarize: boolean;
   /** After eval: write segment-hotspots.json (variant 0) for minute × market rollups. */
   postSegmentHotspots: boolean;
+  postActionPlan: boolean;
 }
 
 export interface DataDrivenBatchResult {
@@ -82,6 +84,7 @@ export async function runDataDrivenReplayBatch(opts: DataDrivenBatchOptions): Pr
     replayVsOriginalJson: join(runRoot, 'replay-vs-original.json'),
     casesFlatCsv: join(runRoot, 'cases-flat.csv'),
     segmentHotspotsJson: join(runRoot, 'segment-hotspots.json'),
+    segmentActionPlanJson: join(runRoot, 'segment-action-plan.json'),
   };
 
   mkdirSync(runRoot, { recursive: true });
@@ -165,6 +168,10 @@ export async function runDataDrivenReplayBatch(opts: DataDrivenBatchOptions): Pr
         if (v0) {
           const seg = buildHotspotReport(v0.promptVersion, v0.cases);
           writeFileSync(paths.segmentHotspotsJson, JSON.stringify(seg, null, 2));
+          if (opts.postActionPlan) {
+            const actionPlan = buildSegmentPolicyActionPlan(seg, undefined, v0.cases);
+            writeFileSync(paths.segmentActionPlanJson, JSON.stringify(actionPlan, null, 2));
+          }
         }
       }
     }

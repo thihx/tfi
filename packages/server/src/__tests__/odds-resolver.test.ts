@@ -15,7 +15,7 @@ vi.mock('../repos/provider-odds-cache.repo.js', () => ({
   upsertProviderOddsCache: vi.fn().mockResolvedValue(null),
 }));
 
-const { normalizeApiSportsOddsResponse, resolveMatchOdds } = await import('../lib/odds-resolver.js');
+const { normalizeApiSportsOddsResponse, resolveMatchOdds, summarizeNormalizedOdds } = await import('../lib/odds-resolver.js');
 
 describe('normalizeApiSportsOddsResponse', () => {
   test('normalizes API-Sports live odds[] payload into bookmakers[]', () => {
@@ -48,6 +48,133 @@ describe('normalizeApiSportsOddsResponse', () => {
         }],
       }],
     }]);
+  });
+});
+
+describe('summarizeNormalizedOdds', () => {
+  test('detects API-Sports market coverage across common live odds names', () => {
+    const summary = summarizeNormalizedOdds([{
+      bookmakers: [{
+        id: 1,
+        name: 'Live Odds',
+        bets: [
+          {
+            id: 1,
+            name: 'Full Time Result',
+            values: [
+              { value: '1', odd: '2.10' },
+              { value: 'X', odd: '3.20' },
+              { value: '2', odd: '3.40' },
+            ],
+          },
+          {
+            id: 2,
+            name: 'Goals Over/Under',
+            values: [
+              { value: 'Over', odd: '1.88', handicap: '2.5' },
+              { value: 'Under', odd: '1.96', handicap: '2.5' },
+            ],
+          },
+          {
+            id: 3,
+            name: 'Handicap Result',
+            values: [
+              { value: 'Home', odd: '1.91', handicap: '-0.25' },
+              { value: 'Away', odd: '1.95', handicap: '+0.25' },
+            ],
+          },
+          {
+            id: 4,
+            name: 'Both Teams To Score',
+            values: [
+              { value: 'Yes', odd: '1.75' },
+              { value: 'No', odd: '2.05' },
+            ],
+          },
+        ],
+      }],
+    }]);
+
+    expect(summary).toEqual(expect.objectContaining({
+      bookmaker_count: 1,
+      bet_count: 4,
+      priced_bet_count: 4,
+      one_x2_bet_count: 1,
+      ou_bet_count: 1,
+      ah_bet_count: 1,
+      btts_bet_count: 1,
+      has_1x2: true,
+      has_ou: true,
+      has_ah: true,
+      has_btts: true,
+      canonical_has_1x2: true,
+      canonical_has_ou: true,
+      canonical_has_ah: true,
+      canonical_has_btts: true,
+    }));
+  });
+
+  test('does not mark an unpriced market as covered', () => {
+    const summary = summarizeNormalizedOdds([{
+      bookmakers: [{
+        name: 'Live Odds',
+        bets: [{
+          name: 'Match Winner',
+          values: [
+            { value: 'Home', odd: '0' },
+            { value: 'Draw', odd: '' },
+            { value: 'Away', odd: '1' },
+          ],
+        }],
+      }],
+    }]);
+
+    expect(summary).toEqual(expect.objectContaining({
+      one_x2_bet_count: 1,
+      priced_bet_count: 0,
+      has_1x2: false,
+      canonical_has_1x2: false,
+    }));
+  });
+
+  test('keeps raw 1X2 availability separate from canonical tradability', () => {
+    const summary = summarizeNormalizedOdds([{
+      bookmakers: [{
+        name: 'Live Odds',
+        bets: [
+          {
+            name: '1x2 - 80 minutes',
+            values: [
+              { value: 'Home', odd: '251.00' },
+              { value: 'Draw', odd: '11.00' },
+              { value: 'Away', odd: '1.045' },
+            ],
+          },
+          {
+            name: 'Corners 1x2',
+            values: [
+              { value: 'Home', odd: '1.57' },
+              { value: 'Draw', odd: '3.40' },
+              { value: 'Away', odd: '5.00' },
+            ],
+          },
+          {
+            name: 'Fulltime Result',
+            values: [
+              { value: 'Home', odd: '41.00' },
+              { value: 'Draw', odd: '4.50' },
+              { value: 'Away', odd: '1.20' },
+            ],
+          },
+        ],
+      }],
+    }]);
+
+    expect(summary).toEqual(expect.objectContaining({
+      has_1x2: true,
+      one_x2_bet_count: 1,
+      canonical_has_1x2: true,
+    }));
   });
 });
 

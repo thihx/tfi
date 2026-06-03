@@ -264,6 +264,28 @@ describe('recommendations repository prompt versioning', () => {
     );
   });
 
+  test('settleRecommendation does not write performance memory for unresolved settlements', async () => {
+    vi.mocked(query).mockResolvedValueOnce({
+      rows: [{
+        id: 1,
+        selection: 'Over 2.5 Goals @1.90',
+        bet_market: 'over_2.5',
+        minute: 63,
+        score: '1-1',
+        result: 'win',
+        settlement_status: 'unresolved',
+      }],
+    } as never);
+
+    await settleRecommendation(1, 'win', 0.9, 'Needs review', {
+      status: 'unresolved',
+      method: 'ai',
+      note: 'Needs review',
+    });
+
+    expect(query).toHaveBeenCalledTimes(1);
+  });
+
   test('deleteRecommendation removes linked rows before deleting the recommendation', async () => {
     clientQuery
       .mockResolvedValueOnce({ rows: [{ id: 11 }] } as never)

@@ -132,6 +132,11 @@ export function ConditionBuilder({
         </button>
       </div>
       <div className="cond-preview">{preview ? `Preview: ${preview}` : 'Preview: (no conditions)'}</div>
+      {/\bOR\b/i.test(preview) ? (
+        <p className="cond-or-warning" role="alert">
+          OR is not evaluated by the live engine. Use AND between clauses.
+        </p>
+      ) : null}
       {previewNote ? <div className="cond-preview-note">{previewNote}</div> : null}
     </div>
   );

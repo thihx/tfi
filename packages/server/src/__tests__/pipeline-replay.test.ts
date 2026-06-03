@@ -388,6 +388,82 @@ describe('runReplayScenario', () => {
     expect(output.allPassed).toBe(true);
   });
 
+  test('uses scenario performance memory snapshot during replay policy', async () => {
+    const output = await runReplayScenario({
+      name: 'memory-snapshot-replay',
+      matchId: '100',
+      fixture: makeFixture(),
+      statistics: makeStats(),
+      events: makeEvents(),
+      pipelineOptions: {
+        forceAnalyze: true,
+        skipProceedGate: true,
+        skipStalenessGate: true,
+      },
+      liveOddsResponse: [{
+        fixture: { id: 100 },
+        odds: [{
+          id: 1,
+          name: 'Over/Under',
+          values: [
+            { value: 'Over', odd: '1.85', handicap: '2.5' },
+            { value: 'Under', odd: '2.00', handicap: '2.5' },
+          ],
+        }],
+      }],
+      mockAiText: JSON.stringify({
+        should_push: true,
+        ai_should_push: true,
+        selection: 'Over 2.5 Goals @1.85',
+        bet_market: 'over_2.5',
+        confidence: 8,
+        reasoning_en: 'Open game with pressure.',
+        reasoning_vi: 'Open game with pressure.',
+        warnings: [],
+        value_percent: 12,
+        risk_level: 'MEDIUM',
+        stake_percent: 3,
+        condition_triggered_suggestion: '',
+        custom_condition_matched: false,
+      }),
+      performanceMemorySnapshot: {
+        key: 'over_2.5|60-74|level',
+        canonicalMarket: 'over_2.5',
+        minuteBand: '60-74',
+        scoreState: 'level',
+        lookupResult: {
+          status: 'found',
+          record: {
+            key: 'over_2.5|60-74|level',
+            canonicalMarket: 'over_2.5',
+            minuteBand: '60-74',
+            scoreState: 'level',
+            total: 12,
+            wins: 3,
+            losses: 9,
+            halfWins: 0,
+            halfLosses: 0,
+            pushes: 0,
+            empiricalWinRate: 0.25,
+            sampleReliable: true,
+            lastUpdated: '2026-04-06T00:00:00.000Z',
+          },
+        },
+        source: 'db',
+      },
+      expected: {
+        warningContains: 'MEMORY_OVERRIDE_LOW_WIN_RATE_25PCT',
+        shouldPush: false,
+        saved: false,
+      },
+    }, { llmMode: 'mock' });
+
+    const warnings = ((output.result.debug?.parsed as { warnings?: string[] })?.warnings ?? []);
+    expect(warnings).toContain('MEMORY_OVERRIDE_LOW_WIN_RATE_25PCT');
+    expect(output.result.shouldPush).toBe(false);
+    expect(output.allPassed).toBe(true);
+  });
+
   test('fails when a disallowed bet market prefix is selected', async () => {
     const output = await runReplayScenario({
       name: 'disallowed-market',

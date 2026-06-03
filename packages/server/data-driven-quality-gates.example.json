@@ -1,0 +1,7 @@
+{
+  "actionPlanPath": "replay-work/data-driven-runs/<runId>/segment-action-plan.json",
+  "promptVersion": "v10-hybrid-legacy-g",
+  "minTotalCases": 30,
+  "maxProviderCoverageRate": 0.1,
+  "maxReplayContextGapRate": 0.25
+}

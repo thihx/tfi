@@ -996,6 +996,69 @@ describe('applyRecommendationPolicy', () => {
     expect(result.warnings).not.toContain('REQUIRED_CONDITIONS_NOT_MET');
   });
 
+  test('allows high-confidence Asian handicap protection in one-goal early midgame', () => {
+    const result = applyRecommendationPolicy({
+      selection: 'Home +0.25 @1.925',
+      betMarket: 'asian_handicap_home_+0.25',
+      minute: 39,
+      score: '0-1',
+      odds: 1.925,
+      confidence: 8,
+      valuePercent: 8,
+      stakePercent: 3,
+      evidenceMode: 'full_live_data',
+      breakEvenRate: 1 / 1.925,
+      directionalWin: true,
+      promptVersion: 'v10-hybrid-legacy-g',
+    });
+
+    expect(result.blocked).toBe(false);
+    expect(result.warnings).not.toContain('REQUIRED_CONDITIONS_NOT_MET');
+    expect(result.warnings).not.toContain('ONE_GOAL_MIDGAME_INSUFFICIENT_CONFIDENCE');
+  });
+
+  test('keeps Asian handicap protection blocked when confidence is below the high-confidence pocket', () => {
+    const result = applyRecommendationPolicy({
+      selection: 'Away +0.5 @1.90',
+      betMarket: 'asian_handicap_away_+0.5',
+      minute: 39,
+      score: '1-0',
+      odds: 1.9,
+      confidence: 7,
+      valuePercent: 8,
+      stakePercent: 3,
+      evidenceMode: 'full_live_data',
+      breakEvenRate: 1 / 1.9,
+      directionalWin: true,
+      promptVersion: 'v10-hybrid-legacy-g',
+    });
+
+    expect(result.blocked).toBe(true);
+    expect(result.warnings).toContain('REQUIRED_CONDITIONS_NOT_MET');
+    expect(result.warnings).toContain('ONE_GOAL_MIDGAME_INSUFFICIENT_CONFIDENCE');
+  });
+
+  test('keeps Asian handicap protection blocked for non-protective lines', () => {
+    const result = applyRecommendationPolicy({
+      selection: 'Home -0.5 @1.95',
+      betMarket: 'asian_handicap_home_-0.5',
+      minute: 39,
+      score: '0-1',
+      odds: 1.95,
+      confidence: 8,
+      valuePercent: 8,
+      stakePercent: 3,
+      evidenceMode: 'full_live_data',
+      breakEvenRate: 1 / 1.95,
+      directionalWin: true,
+      promptVersion: 'v10-hybrid-legacy-g',
+    });
+
+    expect(result.blocked).toBe(true);
+    expect(result.warnings).toContain('REQUIRED_CONDITIONS_NOT_MET');
+    expect(result.warnings).toContain('ONE_GOAL_MIDGAME_INSUFFICIENT_CONFIDENCE');
+  });
+
   test('blocks goals under with thin cushion and confidence below 8 from minute 60', () => {
     const result = applyRecommendationPolicy({
       selection: 'Under 4.75 Goals @1.95',
@@ -1009,6 +1072,71 @@ describe('applyRecommendationPolicy', () => {
       evidenceMode: 'full_live_data',
       promptVersion: 'v10-hybrid-legacy-g',
     });
+    expect(result.blocked).toBe(true);
+    expect(result.warnings).toContain('POLICY_BLOCK_GOALS_UNDER_THIN_CUSHION_LOW_CONF_GLOBAL');
+  });
+
+  test('allows the narrow late under 4.5 two-plus-margin rescue pocket and caps stake', () => {
+    const result = applyRecommendationPolicy({
+      selection: 'Under 4.5 Goals @2.025',
+      betMarket: 'under_4.5',
+      minute: 80,
+      score: '1-3',
+      odds: 2.025,
+      confidence: 7,
+      valuePercent: 9,
+      stakePercent: 3.5,
+      evidenceMode: 'full_live_data',
+      breakEvenRate: 1 / 2.025,
+      directionalWin: true,
+      riskLevel: 'MEDIUM',
+      promptVersion: 'v10-hybrid-legacy-g',
+    });
+
+    expect(result.blocked).toBe(false);
+    expect(result.warnings).not.toContain('POLICY_BLOCK_GOALS_UNDER_THIN_CUSHION_LOW_CONF_GLOBAL');
+    expect(result.warnings).toContain('POLICY_CAP_GOALS_UNDER_THIN_CUSHION_STAKE_GLOBAL');
+    expect(result.stakePercent).toBe(2.5);
+  });
+
+  test('keeps other late thin-cushion unders blocked outside the rescue pocket', () => {
+    const result = applyRecommendationPolicy({
+      selection: 'Under 3.5 Goals @2.025',
+      betMarket: 'under_3.5',
+      minute: 80,
+      score: '0-3',
+      odds: 2.025,
+      confidence: 7,
+      valuePercent: 9,
+      stakePercent: 2.5,
+      evidenceMode: 'full_live_data',
+      breakEvenRate: 1 / 2.025,
+      directionalWin: true,
+      riskLevel: 'MEDIUM',
+      promptVersion: 'v10-hybrid-legacy-g',
+    });
+
+    expect(result.blocked).toBe(true);
+    expect(result.warnings).toContain('POLICY_BLOCK_GOALS_UNDER_THIN_CUSHION_LOW_CONF_GLOBAL');
+  });
+
+  test('keeps late under 4.5 rescue blocked when value is too low', () => {
+    const result = applyRecommendationPolicy({
+      selection: 'Under 4.5 Goals @2.025',
+      betMarket: 'under_4.5',
+      minute: 80,
+      score: '1-3',
+      odds: 2.025,
+      confidence: 7,
+      valuePercent: 8,
+      stakePercent: 2.5,
+      evidenceMode: 'full_live_data',
+      breakEvenRate: 1 / 2.025,
+      directionalWin: true,
+      riskLevel: 'MEDIUM',
+      promptVersion: 'v10-hybrid-legacy-g',
+    });
+
     expect(result.blocked).toBe(true);
     expect(result.warnings).toContain('POLICY_BLOCK_GOALS_UNDER_THIN_CUSHION_LOW_CONF_GLOBAL');
   });

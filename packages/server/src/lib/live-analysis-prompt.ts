@@ -1688,6 +1688,89 @@ function buildSettledReplayTracePromptBlock(data: LiveAnalysisPromptInput): stri
 ${anchor}`;
 }
 
+function parsePromptScore(score: string): { home: number; away: number; total: number; diff: number } | null {
+  const match = String(score || '').trim().match(/^(\d+)\s*[-:]\s*(\d+)$/);
+  if (!match) return null;
+  const home = Number(match[1] ?? 0);
+  const away = Number(match[2] ?? 0);
+  if (!Number.isFinite(home) || !Number.isFinite(away)) return null;
+  return { home, away, total: home + away, diff: Math.abs(home - away) };
+}
+
+function buildRuntimePolicyPreflightSection(
+  data: LiveAnalysisPromptInput,
+  settings: LiveAnalysisPromptSettings,
+  compact: boolean,
+): string {
+  const score = parsePromptScore(data.score);
+  const scoreState = !score
+    ? 'unknown'
+    : score.diff === 0
+      ? 'level'
+      : score.diff === 1
+        ? 'one-goal-margin'
+        : 'two-plus-margin';
+  const minuteBand = data.minute <= 29
+    ? '00-29'
+    : data.minute <= 44
+      ? '30-44'
+      : data.minute <= 59
+        ? '45-59'
+        : data.minute <= 74
+          ? '60-74'
+          : '75+';
+  const restrictions: string[] = [];
+
+  restrictions.push(`- Minimum output gate: confidence must be >= ${settings.minConfidence}, value_percent must be >= 3, risk_level must not be HIGH, and odds must be >= ${settings.minOdds}.`);
+  restrictions.push('- Runtime policy requires full_live_data plus a clear directional thesis for normal automatic bets. If evidence_mode is not full_live_data, return should_push=false for the AI recommendation path.');
+  restrictions.push('- Normal automatic bets need break_even_rate < 0.50 (roughly odds > 2.00). Lower-priced bets should be no_bet unless they are the explicit high-confidence AH protection pocket below.');
+  restrictions.push('- High-risk markets (BTTS No, corners under 7.5/8.5/9.5, under 2.25, over 2.5) need break_even_rate < 0.48 and exceptional evidence; otherwise return should_push=false.');
+  restrictions.push('- High-confidence AH protection pocket: only asian_handicap_home_+0.25/+0.5 or asian_handicap_away_+0.25/+0.5 may use odds around 1.82-2.00, and only with full_live_data, confidence >= 8, value_percent >= 8, and a clear directional thesis.');
+
+  if (minuteBand === '30-44' && scoreState === 'one-goal-margin') {
+    restrictions.push('- ACTIVE SCORE/MINUTE VETO: minute 30-44 with one-goal margin is a danger zone. Return should_push=false unless the candidate is either break_even_rate < 0.48 with full_live_data, or the high-confidence AH protection pocket.');
+    restrictions.push('- BTTS No is blocked in this score state before minute 60. Do not recommend BTTS No here.');
+    restrictions.push('- Corners props in this zone require confidence >= 8 and value_percent >= 7-8; weak/medium confidence corners should be no_bet.');
+  }
+  if (minuteBand === '45-59' || minuteBand === '60-74') {
+    restrictions.push('- ACTIVE MIDGAME DISCIPLINE: do not force volatile midgame totals or props. Over 2.5, under 2.25, HT over 1.5, and fragile corners-under ladders are blocked unless a stricter listed exception applies.');
+  }
+  if (minuteBand === '60-74') {
+    restrictions.push('- Late midgame under thin-cushion rule: goals Under with less than one goal of cushion requires confidence >= 8; otherwise should_push=false.');
+    restrictions.push('- BTTS No is blocked from minute 60-74. Do not recommend BTTS No in this band.');
+  }
+  if (minuteBand === '75+' && scoreState === 'two-plus-margin') {
+    restrictions.push('- Late two-plus-margin goals Under with less than one goal of cushion is normally no_bet unless it is exactly under_4.5 with current total goals = 4, full_live_data, confidence >= 7, value_percent >= 9, risk not HIGH, and break_even_rate < 0.50.');
+  }
+  if (scoreState === 'two-plus-margin' && minuteBand === '45-59') {
+    restrictions.push('- Two-plus margin in minute 45-59 is high volatility. Default should_push=false for fresh totals/props unless the market has exceptional evidence and is not hard-blocked.');
+  }
+  if (score && score.total >= 1 && data.minute >= 30 && data.minute <= 44) {
+    restrictions.push('- Corners Under low lines in minute 30-44 with goals already on board are fragile; prefer should_push=false unless corner suppression evidence is exceptionally clean.');
+  }
+  if (data.minute < 60) {
+    restrictions.push('- BTTS No before minute 60 is a hard no-bet except narrowly supported early 0-0 full-live situations; one-goal margin BTTS No must be should_push=false.');
+  }
+  if (data.minute < 60) {
+    restrictions.push('- Corners Over high lines before minute 60 are hard-blocked when line >= 12.5; do not recommend aggressive corners-over ladders.');
+  }
+  if (data.minute < 75) {
+    restrictions.push('- 1X2 Home is blocked before minute 75 and 1X2 Draw is always blocked.');
+  }
+
+  const heading = compact
+    ? 'RUNTIME POLICY PREFLIGHT'
+    : 'RUNTIME POLICY PREFLIGHT (MIRRORS SERVER HARD GATES)';
+  return `========================
+${heading}
+========================
+CURRENT_POLICY_CONTEXT: minute_band=${minuteBand}; score_state=${scoreState}; evidence_mode=${data.evidenceMode}; total_goals=${score?.total ?? 'unknown'}.
+If your candidate violates any active line below, return should_push=false with selection="" and bet_market="". Do not output a bet and rely on the server to block it.
+${restrictions.join('\n')}
+
+`;
+}
+
 export function buildLiveAnalysisPrompt(
   data: LiveAnalysisPromptInput,
   settings: LiveAnalysisPromptSettings,
@@ -1709,6 +1792,11 @@ export function buildLiveAnalysisPrompt(
   const VERY_LATE_PHASE_MINUTE = settings.veryLatePhaseMinute;
   const ENDGAME_MINUTE = settings.endgameMinute;
   const settledReplayTraceBlock = buildSettledReplayTracePromptBlock(data);
+  const runtimePolicyPreflightSection = buildRuntimePolicyPreflightSection(
+    data,
+    settings,
+    isCompactPromptVersion(promptVersion),
+  );
 
   const cornersHome = parseInt(String(data.statsCompact?.corners?.home ?? ''), 10);
   const cornersAway = parseInt(String(data.statsCompact?.corners?.away ?? ''), 10);
@@ -2016,6 +2104,7 @@ CONFIG / EVIDENCE
 ${buildAiRecommendedConditionSection(data)}
 ${followUpContextSection}
 ${lineupsSnapshotSection}
+${runtimePolicyPreflightSection}
 
 ============================================================
 DECISION RULES
@@ -2215,6 +2304,7 @@ ${buildContinuityRulesSection(data)}
 ${buildHistoricalPerformanceSection(data)}
 ${buildPerformanceMemorySection(data)}
 ${buildFollowUpContextSection(data, false)}
+${runtimePolicyPreflightSection}
 ========================
 CONFIG / MODE
 ========================

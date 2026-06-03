@@ -44,6 +44,70 @@ describe('odds canonical parser', () => {
     expect(result.canonical.ah).toBeUndefined();
   });
 
+  test('does not let corners 1x2 contaminate full-time 1x2', () => {
+    const result = buildOddsCanonical([{
+      bookmakers: [{
+        name: 'Replay Mock',
+        bets: [
+          {
+            name: 'Corners 1x2',
+            values: [
+              { value: 'Home', odd: '1.01' },
+              { value: 'Draw', odd: '51.00' },
+              { value: 'Away', odd: '101.00' },
+            ],
+          },
+          {
+            name: 'Fulltime Result',
+            values: [
+              { value: 'Home', odd: '41.00' },
+              { value: 'Draw', odd: '4.50' },
+              { value: 'Away', odd: '1.20' },
+            ],
+          },
+        ],
+      }],
+    }]);
+
+    expect(result.canonical['1x2']).toEqual({
+      home: 41,
+      draw: 4.5,
+      away: 1.2,
+    });
+  });
+
+  test('does not let timed 1x2 contaminate full-time 1x2', () => {
+    const result = buildOddsCanonical([{
+      bookmakers: [{
+        name: 'Replay Mock',
+        bets: [
+          {
+            name: '1x2 - 80 minutes',
+            values: [
+              { value: 'Home', odd: '251.00' },
+              { value: 'Draw', odd: '11.00' },
+              { value: 'Away', odd: '1.045' },
+            ],
+          },
+          {
+            name: 'Fulltime Result',
+            values: [
+              { value: 'Home', odd: '23.00' },
+              { value: 'Draw', odd: '3.75' },
+              { value: 'Away', odd: '1.333' },
+            ],
+          },
+        ],
+      }],
+    }]);
+
+    expect(result.canonical['1x2']).toEqual({
+      home: 23,
+      draw: 3.75,
+      away: 1.333,
+    });
+  });
+
   test('keeps goals over/under separate from corners over/under when both are present', () => {
     const result = buildOddsCanonical([{
       bookmakers: [{
@@ -99,6 +163,33 @@ describe('odds canonical parser', () => {
 
     expect(result.canonical.ou?.line).toBe(2.5);
     expect(result.canonical.ou_adjacent?.line).toBe(3);
+  });
+
+  test('includes up to two extra goals O/U rungs beyond main and adjacent', () => {
+    const result = buildOddsCanonical([{
+      bookmakers: [{
+        name: 'Replay Mock',
+        bets: [
+          {
+            name: 'Over/Under',
+            values: [
+              { value: 'Over', odd: '1.90', handicap: '2.5' },
+              { value: 'Under', odd: '1.90', handicap: '2.5' },
+              { value: 'Over', odd: '1.85', handicap: '3' },
+              { value: 'Under', odd: '2.00', handicap: '3' },
+              { value: 'Over', odd: '1.78', handicap: '3.5' },
+              { value: 'Under', odd: '2.10', handicap: '3.5' },
+              { value: 'Over', odd: '1.72', handicap: '4' },
+              { value: 'Under', odd: '2.25', handicap: '4' },
+            ],
+          },
+        ],
+      }],
+    }]);
+
+    expect(result.canonical.ou?.line).toBe(2.5);
+    expect(result.canonical.ou_adjacent?.line).toBe(3);
+    expect(result.canonical.ou_extra?.map((r) => r.line)).toEqual([3.5, 4]);
   });
 
   test('picks main plus nearest adjacent Asian handicap line', () => {

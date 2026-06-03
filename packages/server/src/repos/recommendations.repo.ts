@@ -577,13 +577,15 @@ export async function settleRecommendation(
   const settled = r.rows[0] ?? null;
   if (settled) {
     try {
-      await writePerformanceMemoryFromSettlement({
-        selection: settled.selection ?? '',
-        betMarket: settled.bet_market ?? '',
-        minute: settled.minute ?? null,
-        score: settled.score ?? '',
-        result: settled.result ?? '',
-      });
+      if (settled.settlement_status !== 'unresolved') {
+        await writePerformanceMemoryFromSettlement({
+          selection: settled.selection ?? '',
+          betMarket: settled.bet_market ?? '',
+          minute: settled.minute ?? null,
+          score: settled.score ?? '',
+          result: settled.result ?? '',
+        });
+      }
     } catch (err) {
       // Keep settlement path resilient even if memory writer fails.
       console.warn('[recommendations] performance-memory write failed:', err instanceof Error ? err.message : String(err));

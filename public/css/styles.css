@@ -3119,6 +3119,203 @@ th.data-table__th--sortable:hover {
     line-height: 1.5;
 }
 
+/* Watch rules modal (Matches bell / Watchlist edit) */
+.watch-rules-modal {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-4);
+}
+
+.watch-rules-modal__hint {
+    margin: 0;
+    font-size: var(--text-sm);
+    color: var(--text-muted);
+    line-height: 1.45;
+}
+
+.watch-rules-panel {
+    padding: var(--space-3);
+    border: 1px solid var(--gray-200);
+    border-radius: var(--radius-md);
+    background: var(--gray-50);
+}
+
+.watch-rules-panel--notify {
+    background: white;
+}
+
+.watch-rules-panel__title {
+    margin: 0 0 var(--space-2);
+    font-size: var(--text-sm);
+    font-weight: 700;
+    color: var(--gray-800);
+    letter-spacing: -0.01em;
+}
+
+.watch-rules-panel__title--sr {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border: 0;
+}
+
+.watch-rules-panel__empty {
+    margin: 0;
+    font-size: var(--text-sm);
+    color: var(--gray-600);
+    line-height: 1.45;
+}
+
+.watch-rules-panel__actions {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--space-2) var(--space-3);
+    margin-top: var(--space-3);
+}
+
+.watch-rules-expression {
+    display: block;
+    width: 100%;
+    box-sizing: border-box;
+    padding: 10px 12px;
+    border-radius: var(--radius-sm);
+    border: 1px solid var(--gray-200);
+    background: white;
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    font-size: 13px;
+    color: var(--gray-900);
+    word-break: break-word;
+    white-space: pre-wrap;
+}
+
+.watch-rules-details {
+    margin-top: var(--space-2);
+    font-size: var(--text-sm);
+    color: var(--gray-600);
+}
+
+.watch-rules-details--compact {
+    margin-top: var(--space-2);
+}
+
+.watch-rules-details summary {
+    cursor: pointer;
+    font-weight: 600;
+    color: var(--primary);
+    font-size: 12px;
+}
+
+.watch-rules-details p {
+    margin: var(--space-2) 0 0;
+    line-height: 1.45;
+}
+
+.watch-rules-inline-check {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    font-size: var(--text-sm);
+    font-weight: 500;
+    color: var(--gray-800);
+    cursor: pointer;
+    min-height: 36px;
+}
+
+.watch-rules-inline-check--block {
+    display: flex;
+}
+
+.watch-rules-inline-check input {
+    width: 16px;
+    height: 16px;
+    flex-shrink: 0;
+}
+
+.watch-rules-channels {
+    list-style: none;
+    margin: var(--space-2) 0 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.watch-rules-channel {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 6px;
+}
+
+.watch-rules-channel__name {
+    font-weight: 600;
+    font-size: 12px;
+    min-width: 4.5rem;
+}
+
+.watch-rules-channel__pill {
+    font-size: 11px;
+    font-weight: 600;
+    padding: 2px 8px;
+    border-radius: 999px;
+    background: var(--gray-100);
+    color: var(--gray-600);
+}
+
+.watch-rules-channel__pill.is-on {
+    background: #dbeafe;
+    color: #1d4ed8;
+}
+
+.watch-rules-channel__pill.is-linked {
+    background: #dcfce7;
+    color: #15803d;
+}
+
+.watch-rules-footer {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-3);
+    width: 100%;
+}
+
+.watch-rules-footer__test {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 10px;
+    flex: 1;
+    min-width: 0;
+}
+
+.watch-rules-eval-summary {
+    margin: 0;
+    font-size: 12px;
+    line-height: 1.45;
+}
+
+.watch-rules-eval-error {
+    margin: 0;
+    font-size: 12px;
+    color: var(--danger);
+}
+
+.cond-or-warning {
+    margin: 6px 0 0;
+    font-size: 12px;
+    font-weight: 600;
+    color: #b45309;
+    line-height: 1.4;
+}
+
 /* Modal shared (phase 5 follow-up) */
 .modal-tab-bar {
     display: flex;
@@ -4561,6 +4758,27 @@ th.data-table__th--sortable:hover {
     .investment-tracker__log-actions {
         display: flex;
         justify-content: flex-end;
+    }
+
+    .watch-rules-footer {
+        flex-direction: column;
+        align-items: stretch;
+    }
+
+    .watch-rules-footer__test {
+        justify-content: space-between;
+    }
+
+    .watch-rules-footer .btn-primary {
+        width: 100%;
+    }
+
+    .cond-row.has-operator {
+        grid-template-columns: 1fr;
+    }
+
+    .cond-row.has-operator .cond-op {
+        width: 100%;
     }
 
     .filters {

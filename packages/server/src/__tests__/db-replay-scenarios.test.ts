@@ -66,6 +66,48 @@ describe('db replay scenarios', () => {
     expect(built.canonical['ht_ah']?.line).toBe(-0.5);
   });
 
+  test('canonicalOddsToRecordedResponse preserves adjacent and extra ladder lines', () => {
+    const response = canonicalOddsToRecordedResponse({
+      ou: { line: 2.5, over: 1.95, under: 1.9 },
+      ou_adjacent: { line: 2.75, over: 2.12, under: 1.78 },
+      ou_extra: [{ line: 3.75, over: 2.45, under: 1.55 }],
+      ah: { line: 0, home: 1.8, away: 2.05 },
+      ah_adjacent: { line: -0.25, home: 2.1, away: 1.76 },
+      ah_extra: [{ line: 0.5, home: 1.62, away: 2.35 }],
+      ht_ou: { line: 1.0, over: 1.85, under: 1.95 },
+      ht_ou_adjacent: { line: 1.25, over: 2.05, under: 1.78 },
+      ht_ah: { line: 0, home: 1.91, away: 1.91 },
+      ht_ah_adjacent: { line: 0.25, home: 1.7, away: 2.2 },
+    }) as unknown[];
+
+    const built = buildOddsCanonical(response);
+    const goalLines = [
+      built.canonical.ou,
+      built.canonical.ou_adjacent,
+      ...(built.canonical.ou_extra ?? []),
+    ].map((row) => row?.line);
+    const ahLines = [
+      built.canonical.ah,
+      built.canonical.ah_adjacent,
+      ...(built.canonical.ah_extra ?? []),
+    ].map((row) => row?.line);
+    const htGoalLines = [
+      built.canonical.ht_ou,
+      built.canonical.ht_ou_adjacent,
+      ...(built.canonical.ht_ou_extra ?? []),
+    ].map((row) => row?.line);
+    const htAhLines = [
+      built.canonical.ht_ah,
+      built.canonical.ht_ah_adjacent,
+      ...(built.canonical.ht_ah_extra ?? []),
+    ].map((row) => row?.line);
+
+    expect(goalLines).toEqual(expect.arrayContaining([2.5, 2.75, 3.75]));
+    expect(ahLines).toEqual(expect.arrayContaining([0, -0.25, 0.5]));
+    expect(htGoalLines).toEqual(expect.arrayContaining([1, 1.25]));
+    expect(htAhLines).toEqual(expect.arrayContaining([0, 0.25]));
+  });
+
   test('mergeHtMarketsIntoSnapshot copies H1 markets from provider response when snapshot omits them', () => {
     const providerLike = canonicalOddsToRecordedResponse({
       ou: { line: 2.5, over: 1.9, under: 1.9 },
@@ -173,6 +215,12 @@ describe('db replay scenarios', () => {
     expect(scenario.pipelineOptions?.skipProceedGate).toBe(true);
     expect(scenario.pipelineOptions?.skipStalenessGate).toBe(true);
     expect(scenario.metadata.prematchStrength).toBe('strong');
+    expect(scenario.metadata.performanceMemoryKey).toBe('under_2.5|45-59|0-0');
+    expect(scenario.metadata.performanceMemoryStatus).toBe('no_history');
+    expect(scenario.performanceMemorySnapshot).toEqual(expect.objectContaining({
+      key: 'under_2.5|45-59|0-0',
+      lookupResult: { status: 'no_history' },
+    }));
     expect(scenario.settlementContext.regularHomeScore).toBe(1);
     expect(scenario.fixture.score?.halftime).toEqual({ home: 0, away: 0 });
     expect(scenario.previousRecommendations).toHaveLength(1);
@@ -184,5 +232,89 @@ describe('db replay scenarios', () => {
     expect(Array.isArray(scenario.liveOddsResponse)).toBe(true);
     expect(scenario.liveOddsResponse!.length).toBeGreaterThan(0);
     expect(scenario.liveOddsResponse).toBe(scenario.mockResolvedOdds?.response);
+    expect(JSON.parse(scenario.mockAiText ?? '{}')).toEqual(expect.objectContaining({
+      should_push: true,
+      selection: 'Under 2.5 Goals @1.92',
+      bet_market: 'under_2.5',
+      confidence: 6,
+      stake_percent: 3,
+    }));
+  });
+
+  test('buildSettledReplayScenario carries a hydrated performance memory snapshot', () => {
+    const scenario = buildSettledReplayScenario(
+      {
+        recommendation_id: 89,
+        match_id: '1504752',
+        timestamp: '2026-04-05T03:30:00.000Z',
+        league: 'J1 League',
+        home_team: 'Machida Zelvia',
+        away_team: 'FC Tokyo',
+        status: '2H',
+        minute: 66,
+        score: '1-1',
+        selection: 'Over 2.5 Goals @1.92',
+        bet_market: 'over_2.5',
+        odds: 1.92,
+        confidence: 6,
+        stake_percent: 3,
+        reasoning: 'Open game.',
+        reasoning_vi: 'Open game.',
+        ai_model: 'gemini-3.5-flash',
+        mode: 'B',
+        result: 'loss',
+        pnl: -3,
+        prompt_version: 'v10-hybrid-legacy-g',
+        odds_snapshot: { ou: { line: 2.5, over: 1.92, under: 1.92 } },
+        stats_snapshot: { shots: { home: 8, away: 8 } },
+        decision_context: {},
+        league_id: 98,
+        league_name: 'J1 League',
+        home_team_id: 303,
+        away_team_id: 292,
+        kickoff_at_utc: '2026-04-05T03:00:00.000Z',
+        date: '2026-04-05',
+        kickoff: '12:00',
+        venue: 'Tokyo Stadium',
+        final_status: 'FT',
+        home_score: 1,
+        away_score: 1,
+        regular_home_score: 1,
+        regular_away_score: 1,
+        halftime_home: 0,
+        halftime_away: 0,
+        settlement_stats: [],
+      },
+      [],
+      {
+        key: 'over_2.5|60-74|level',
+        canonicalMarket: 'over_2.5',
+        minuteBand: '60-74',
+        scoreState: 'level',
+        lookupResult: {
+          status: 'found',
+          record: {
+            key: 'over_2.5|60-74|level',
+            canonicalMarket: 'over_2.5',
+            minuteBand: '60-74',
+            scoreState: 'level',
+            total: 12,
+            wins: 3,
+            losses: 9,
+            halfWins: 0,
+            halfLosses: 0,
+            pushes: 0,
+            empiricalWinRate: 0.25,
+            sampleReliable: true,
+            lastUpdated: '2026-04-06T00:00:00.000Z',
+          },
+        },
+        source: 'db',
+      },
+    );
+
+    expect(scenario.metadata.performanceMemoryKey).toBe('over_2.5|60-74|level');
+    expect(scenario.metadata.performanceMemoryStatus).toBe('found');
+    expect(scenario.performanceMemorySnapshot?.lookupResult.record?.empiricalWinRate).toBe(0.25);
   });
 });

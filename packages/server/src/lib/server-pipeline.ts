@@ -11,6 +11,7 @@
 
 import { randomUUID } from 'node:crypto';
 import { config } from '../config.js';
+import { getRedisClient } from './redis.js';
 import { query } from '../db/pool.js';
 import { callGemini } from './gemini.js';
 import { sendTelegramMessage, sendTelegramPhoto } from './telegram.js';
@@ -45,7 +46,7 @@ import {
 } from '../repos/ai-performance.repo.js';
 import { getSettings } from '../repos/settings.repo.js';
 import { createSnapshot, getLatestSnapshot } from '../repos/match-snapshots.repo.js';
-import { resolveMatchOdds } from './odds-resolver.js';
+import { resolveMatchOdds, summarizeNormalizedOdds } from './odds-resolver.js';
 import {
   checkShouldProceedServer,
   checkCoarseStalenessServer,
@@ -349,12 +350,56 @@ async function loadPipelineSettings(): Promise<PipelineSettings> {
   };
 }
 
+function deriveProviderOddsCoverageFlagsForPipeline(normalizedPayload: unknown[]): Record<string, unknown> {
+  const payload = Array.isArray(normalizedPayload) ? normalizedPayload : [];
+  const raw = summarizeNormalizedOdds(payload);
+  const rawHas1x2 = raw['has_1x2'] === true;
+  const rawHasOu = raw['has_ou'] === true;
+  const rawHasAh = raw['has_ah'] === true;
+  const rawHasBtts = raw['has_btts'] === true;
+  const canonical = buildOddsCanonical(payload).canonical as Record<string, unknown>;
+  const complete1x2 = (value: unknown) => {
+    const row = value as { home?: unknown; draw?: unknown; away?: unknown } | null;
+    return row?.home != null && row.draw != null && row.away != null;
+  };
+  const completePair = (value: unknown, first: 'over' | 'home' | 'yes', second: 'under' | 'away' | 'no') => {
+    const row = value as Record<string, unknown> | null;
+    return row?.[first] != null && row[second] != null;
+  };
+  const canonicalHas1x2 = complete1x2(canonical['1x2']);
+  const canonicalHasOu = completePair(canonical.ou, 'over', 'under') || completePair(canonical.ht_ou, 'over', 'under');
+  const canonicalHasAh = completePair(canonical.ah, 'home', 'away') || completePair(canonical.ht_ah, 'home', 'away');
+  const canonicalHasBtts = completePair(canonical.btts, 'yes', 'no') || completePair(canonical.ht_btts, 'yes', 'no');
+
+  return {
+    ...raw,
+    raw_has_1x2: rawHas1x2,
+    raw_has_ou: rawHasOu,
+    raw_has_ah: rawHasAh,
+    raw_has_btts: rawHasBtts,
+    canonical_has_1x2: canonicalHas1x2,
+    canonical_has_ou: canonicalHasOu,
+    canonical_has_ah: canonicalHasAh,
+    canonical_has_btts: canonicalHasBtts,
+  };
+}
+
+function resolveMatchOddsForPipeline(
+  input: Parameters<typeof resolveMatchOdds>[0],
+  deps?: Parameters<typeof resolveMatchOdds>[1],
+): ReturnType<typeof resolveMatchOdds> {
+  return resolveMatchOdds(input, {
+    ...deps,
+    summarizeCoverageFlags: deriveProviderOddsCoverageFlagsForPipeline,
+  });
+}
+
 const defaultPipelineDeps = {
   fetchFixtureStatistics,
   fetchFixtureEvents,
   ensureMatchInsight,
   ensureScoutInsight,
-  resolveMatchOdds,
+  resolveMatchOdds: resolveMatchOddsForPipeline,
   getRecommendationsByMatchId,
   getLatestSnapshot,
   createSnapshot,
@@ -540,12 +585,16 @@ interface EventCompact {
 
 /** Single quoted Asian handicap rung (home-centric line). */
 export type OddsAhRung = { line: number; home: number | null; away: number | null };
+/** Single quoted goals O/U ladder rung. */
+export type OddsOuRung = { line: number; over: number | null; under: number | null };
 
 interface OddsCanonical {
   '1x2'?: { home: number | null; draw: number | null; away: number | null };
   ou?: { line: number; over: number | null; under: number | null };
   /** Second goals O/U line nearest to main (tighter ladder); optional context for LLM. */
   ou_adjacent?: { line: number; over: number | null; under: number | null };
+  /** Additional FT goals O/U rungs (beyond main+adjacent), sorted by distance from main - up to 2. */
+  ou_extra?: OddsOuRung[];
   ah?: { line: number; home: number | null; away: number | null };
   /** Second Asian handicap line nearest to main; optional context for LLM. */
   ah_adjacent?: { line: number; home: number | null; away: number | null };
@@ -557,6 +606,8 @@ interface OddsCanonical {
   ht_1x2?: { home: number | null; draw: number | null; away: number | null };
   ht_ou?: { line: number; over: number | null; under: number | null };
   ht_ou_adjacent?: { line: number; over: number | null; under: number | null };
+  /** Additional H1 goals O/U rungs (beyond main+adjacent), up to 2. */
+  ht_ou_extra?: OddsOuRung[];
   ht_ah?: { line: number; home: number | null; away: number | null };
   ht_ah_adjacent?: { line: number; home: number | null; away: number | null };
   /** Additional H1 Asian handicap rungs (beyond main+adjacent), up to 2. */
@@ -635,6 +686,18 @@ interface ParsedAiResponse {
   usable_odd: number | null;
   mapped_odd: number | null;
   odds_for_display: number | string | null;
+  llm_decision_diagnostic:
+    | 'no_bet_intentional'
+    | 'market_parse_failed'
+    | 'market_not_available_in_odds'
+    | 'policy_blocked'
+    | 'actionable';
+  market_resolution_status:
+    | 'not_requested'
+    | 'resolved'
+    | 'missing_market'
+    | 'missing_selection'
+    | 'odds_unavailable';
 }
 
 interface ConditionTriggeredSaveDecision {
@@ -736,6 +799,58 @@ function applyLinePatienceToParsed(args: {
       warnings: mergedWarnings,
       ai_warnings: mergedAiWarnings,
     },
+  };
+}
+
+interface RecommendationSaveIntegrityResult {
+  ok: boolean;
+  providerCoverageStatus: 'ok' | 'provider_line_unavailable_or_stale' | 'missing_market_or_selection';
+  marketResolutionStatus: ParsedAiResponse['market_resolution_status'];
+  mappedOdd: number | null;
+  reason: string;
+}
+
+export function evaluateRecommendationSaveIntegrity(args: {
+  selection: string;
+  betMarket: string;
+  mappedOdd: number | null;
+  minOdds: number;
+}): RecommendationSaveIntegrityResult {
+  const hasSelection = !!String(args.selection || '').trim();
+  const hasMarket = !!String(args.betMarket || '').trim();
+  if (!hasSelection || !hasMarket) {
+    return {
+      ok: false,
+      providerCoverageStatus: 'missing_market_or_selection',
+      marketResolutionStatus: hasSelection ? 'missing_market' : 'missing_selection',
+      mappedOdd: args.mappedOdd,
+      reason: 'missing_market_or_selection',
+    };
+  }
+  if (args.mappedOdd == null) {
+    return {
+      ok: false,
+      providerCoverageStatus: 'provider_line_unavailable_or_stale',
+      marketResolutionStatus: 'odds_unavailable',
+      mappedOdd: null,
+      reason: 'provider_line_unavailable_or_stale',
+    };
+  }
+  if (args.mappedOdd < args.minOdds) {
+    return {
+      ok: false,
+      providerCoverageStatus: 'provider_line_unavailable_or_stale',
+      marketResolutionStatus: 'odds_unavailable',
+      mappedOdd: args.mappedOdd,
+      reason: 'odds_below_minimum_at_save',
+    };
+  }
+  return {
+    ok: true,
+    providerCoverageStatus: 'ok',
+    marketResolutionStatus: 'resolved',
+    mappedOdd: args.mappedOdd,
+    reason: 'ok',
   };
 }
 
@@ -935,7 +1050,7 @@ export interface MatchPipelineResult {
     analysisRunId?: string;
     shadowMode: boolean;
     advisoryOnly?: boolean;
-    skippedAt?: 'proceed' | 'staleness';
+    skippedAt?: 'proceed' | 'staleness' | 'llm_eligibility';
     skipReason?: string;
     analysisMode?: PromptAnalysisMode;
     oddsSource?: string;
@@ -943,6 +1058,11 @@ export interface MatchPipelineResult {
     statsAvailable?: boolean;
     statsSource?: StatsSource;
     evidenceMode?: EvidenceMode;
+    llmDecisionDiagnostic?: ParsedAiResponse['llm_decision_diagnostic'];
+    marketResolutionStatus?: ParsedAiResponse['market_resolution_status'];
+    saveIntegrityStatus?: 'not_attempted' | 'ok' | 'blocked';
+    saveBlockedReason?: string;
+    saveProviderCoverageStatus?: RecommendationSaveIntegrityResult['providerCoverageStatus'];
     statsFallbackUsed?: boolean;
     statsFallbackReason?: string;
     promptVersion?: string;
@@ -1316,6 +1436,7 @@ interface PromptPolicyContext {
 }
 
 interface PromptExecutionContext {
+  matchId: string;
   homeName: string;
   awayName: string;
   league: string;
@@ -1337,6 +1458,8 @@ interface PromptExecutionContext {
   customConditions: string;
   recommendedCondition: string;
   recommendedConditionReason: string;
+  watchlistSubscriberCount: number;
+  activeWatchInterest: boolean;
   strategicContext: Record<string, unknown> | null;
   leagueProfile: Record<string, unknown> | null;
   homeTeamProfile: Record<string, unknown> | null;
@@ -1373,6 +1496,299 @@ interface PromptExecutionContext {
   settledReplayOriginalBetMarket?: string;
   settledReplayOriginalSelection?: string;
   skipRecommendationPolicy?: boolean;
+}
+
+interface LlmEligibilityResult {
+  eligible: boolean;
+  reason: string;
+  details: Record<string, unknown>;
+}
+
+interface TradableMarketSummary {
+  count: number;
+  families: string[];
+}
+
+const autoLlmCooldowns = new Map<string, { expiresAt: number; reason: string }>();
+const AUTO_LLM_COOLDOWN_REDIS_PREFIX = 'pipeline:auto-llm-cooldown:';
+
+export function __resetPipelineLlmCooldownsForTest(): void {
+  autoLlmCooldowns.clear();
+}
+
+function hasActiveWatchInterest(entry: watchlistRepo.WatchlistRow): boolean {
+  return Number(entry.subscriber_count ?? 0) > 0;
+}
+
+function isAutoPipelineLlmContext(args: {
+  promptContext: PromptExecutionContext;
+  shadowMode: boolean;
+  advisoryOnly: boolean;
+  settledReplayApprovedTrace: boolean;
+}): boolean {
+  return !args.settledReplayApprovedTrace
+    && !args.shadowMode
+    && !args.advisoryOnly
+    && args.promptContext.analysisMode === 'auto'
+    && !args.promptContext.forceAnalyze;
+}
+
+function buildAutoLlmCooldownKey(promptContext: PromptExecutionContext): string {
+  return [
+    promptContext.matchId,
+    String(promptContext.status || '').trim().toUpperCase(),
+    promptContext.score,
+    promptContext.evidenceMode,
+  ].join('|');
+}
+
+function buildAutoLlmCooldownRedisKey(promptContext: PromptExecutionContext): string {
+  return `${AUTO_LLM_COOLDOWN_REDIS_PREFIX}${buildAutoLlmCooldownKey(promptContext)
+    .split('|')
+    .map((part) => encodeURIComponent(part))
+    .join(':')}`;
+}
+
+function countOddsAboveMin(values: Array<number | null | undefined>, minOdds: number): number {
+  return values.filter((value) => Number.isFinite(value) && Number(value) >= minOdds).length;
+}
+
+function summarizeTradableMarkets(oddsCanonical: OddsCanonical, minOdds: number): TradableMarketSummary {
+  const families = new Set<string>();
+  let count = 0;
+  const add = (family: string, values: Array<number | null | undefined>) => {
+    const hits = countOddsAboveMin(values, minOdds);
+    if (hits <= 0) return;
+    families.add(family);
+    count += hits;
+  };
+
+  add('goals_ou', [oddsCanonical.ou?.over, oddsCanonical.ou?.under]);
+  add('goals_ou_adjacent', [oddsCanonical.ou_adjacent?.over, oddsCanonical.ou_adjacent?.under]);
+  for (const rung of oddsCanonical.ou_extra ?? []) {
+    add('goals_ou_extra', [rung.over, rung.under]);
+  }
+  add('asian_handicap', [oddsCanonical.ah?.home, oddsCanonical.ah?.away]);
+  add('asian_handicap_adjacent', [oddsCanonical.ah_adjacent?.home, oddsCanonical.ah_adjacent?.away]);
+  for (const rung of oddsCanonical.ah_extra ?? []) {
+    add('asian_handicap_extra', [rung.home, rung.away]);
+  }
+  add('btts', [oddsCanonical.btts?.yes, oddsCanonical.btts?.no]);
+  add('1x2', [oddsCanonical['1x2']?.home, oddsCanonical['1x2']?.away]);
+  add('corners_ou', [oddsCanonical.corners_ou?.over, oddsCanonical.corners_ou?.under]);
+  add('ht_goals_ou', [oddsCanonical.ht_ou?.over, oddsCanonical.ht_ou?.under]);
+  add('ht_goals_ou_adjacent', [oddsCanonical.ht_ou_adjacent?.over, oddsCanonical.ht_ou_adjacent?.under]);
+  for (const rung of oddsCanonical.ht_ou_extra ?? []) {
+    add('ht_goals_ou_extra', [rung.over, rung.under]);
+  }
+  add('ht_asian_handicap', [oddsCanonical.ht_ah?.home, oddsCanonical.ht_ah?.away]);
+  add('ht_asian_handicap_adjacent', [oddsCanonical.ht_ah_adjacent?.home, oddsCanonical.ht_ah_adjacent?.away]);
+  for (const rung of oddsCanonical.ht_ah_extra ?? []) {
+    add('ht_asian_handicap_extra', [rung.home, rung.away]);
+  }
+  add('ht_btts', [oddsCanonical.ht_btts?.yes, oddsCanonical.ht_btts?.no]);
+  add('ht_1x2', [oddsCanonical.ht_1x2?.home, oddsCanonical.ht_1x2?.away]);
+
+  return { count, families: Array.from(families).sort() };
+}
+
+function buildLlmGatewayAuditMetadata(args: {
+  promptContext: PromptExecutionContext;
+  settings: PipelineSettings;
+  promptVersion?: LiveAnalysisPromptVersion;
+  model?: string;
+}): Record<string, unknown> {
+  const { promptContext, settings } = args;
+  const tradableMarkets = summarizeTradableMarkets(promptContext.oddsCanonical, settings.minOdds);
+  const customConditionPresent = promptContext.customConditions.trim().length > 0;
+  const recommendedConditionPresent = promptContext.recommendedCondition.trim().length > 0;
+
+  return {
+    gatewayContractVersion: 'ai-gateway-preflight-v1',
+    matchId: promptContext.matchId,
+    fixtureStatus: promptContext.status,
+    minute: promptContext.minute,
+    analysisMode: promptContext.analysisMode,
+    forceAnalyze: promptContext.forceAnalyze,
+    evidenceMode: promptContext.evidenceMode,
+    statsAvailable: promptContext.statsAvailable,
+    oddsAvailable: promptContext.oddsAvailable,
+    oddsSource: promptContext.oddsSource,
+    oddsFetchedAt: promptContext.oddsFetchedAt,
+    oddsSuspicious: promptContext.oddsSuspicious,
+    oddsSanityWarningCount: promptContext.oddsSanityWarnings.length,
+    minOdds: settings.minOdds,
+    canonicalMarketKeys: Object.keys(promptContext.oddsCanonical).sort(),
+    canonicalTradableMarketCount: tradableMarkets.count,
+    canonicalTradableFamilies: tradableMarkets.families,
+    activeWatchInterest: promptContext.activeWatchInterest,
+    watchlistSubscriberCount: promptContext.watchlistSubscriberCount,
+    customConditionPresent,
+    recommendedConditionPresent,
+    structuredPrematchAskAi: promptContext.structuredPrematchAskAi,
+    promptVersion: args.promptVersion,
+    model: args.model,
+  };
+}
+
+function readMemoryAutoLlmCooldown(promptContext: PromptExecutionContext): { reason: string; expiresAt: number } | null {
+  const key = buildAutoLlmCooldownKey(promptContext);
+  const existing = autoLlmCooldowns.get(key);
+  if (!existing) return null;
+  if (existing.expiresAt <= Date.now()) {
+    autoLlmCooldowns.delete(key);
+    return null;
+  }
+  return existing;
+}
+
+async function readAutoLlmCooldown(promptContext: PromptExecutionContext): Promise<{ reason: string; expiresAt: number; source: 'redis' | 'memory' } | null> {
+  try {
+    const redis = getRedisClient();
+    const raw = await redis.get(buildAutoLlmCooldownRedisKey(promptContext));
+    if (raw) {
+      const parsed = JSON.parse(raw) as { reason?: unknown; expiresAt?: unknown };
+      const reason = typeof parsed.reason === 'string' && parsed.reason.trim()
+        ? parsed.reason
+        : 'cooldown';
+      const expiresAt = Number(parsed.expiresAt);
+      if (Number.isFinite(expiresAt) && expiresAt > Date.now()) {
+        autoLlmCooldowns.set(buildAutoLlmCooldownKey(promptContext), { reason, expiresAt });
+        return { reason, expiresAt, source: 'redis' };
+      }
+    }
+    return null;
+  } catch {
+    const fallback = readMemoryAutoLlmCooldown(promptContext);
+    return fallback ? { ...fallback, source: 'memory' } : null;
+  }
+}
+
+async function writeAutoLlmCooldown(args: {
+  promptContext: PromptExecutionContext;
+  settings: PipelineSettings;
+  reason: string;
+}): Promise<void> {
+  const baseMinutes = Number.isFinite(args.settings.reanalyzeMinMinutes)
+    ? args.settings.reanalyzeMinMinutes
+    : config.pipelineReanalyzeMinMinutes;
+  const cooldownMinutes = Math.max(5, Math.min(15, Number(baseMinutes) || 10));
+  const ttlMs = cooldownMinutes * 60_000;
+  const expiresAt = Date.now() + ttlMs;
+  const payload = { reason: args.reason, expiresAt };
+  autoLlmCooldowns.set(buildAutoLlmCooldownKey(args.promptContext), payload);
+  try {
+    await getRedisClient().set(
+      buildAutoLlmCooldownRedisKey(args.promptContext),
+      JSON.stringify(payload),
+      'PX',
+      ttlMs + 5_000,
+    );
+  } catch {
+    // Memory fallback above keeps single-process protection when Redis is unavailable.
+  }
+}
+
+async function resolveLlmEligibility(args: {
+  promptContext: PromptExecutionContext;
+  watchlistEntry: watchlistRepo.WatchlistRow;
+  settings: PipelineSettings;
+  shadowMode: boolean;
+  advisoryOnly: boolean;
+  settledReplayApprovedTrace: boolean;
+}): Promise<LlmEligibilityResult> {
+  const { promptContext, watchlistEntry, settings } = args;
+  if (args.settledReplayApprovedTrace) {
+    return { eligible: true, reason: 'settled_replay', details: {} };
+  }
+  if (args.shadowMode) {
+    return { eligible: true, reason: 'manual_or_shadow_flow', details: {} };
+  }
+  if (promptContext.analysisMode !== 'auto' || args.advisoryOnly || promptContext.forceAnalyze) {
+    return { eligible: true, reason: 'manual_flow', details: {} };
+  }
+
+  const status = String(promptContext.status || '').trim().toUpperCase();
+  const minute = Number.isFinite(promptContext.minute) ? promptContext.minute : 0;
+  const configuredLiveStatuses = Array.isArray(config.liveStatuses) && config.liveStatuses.length > 0
+    ? config.liveStatuses
+    : ['1H', '2H', 'HT', 'ET', 'BT', 'P', 'LIVE', 'INT'];
+  const liveStatusAllowed = configuredLiveStatuses.map((value) => value.toUpperCase()).includes(status);
+  const subscriberCount = Number(watchlistEntry.subscriber_count ?? 0);
+  const customConditionPresent = promptContext.customConditions.trim().length > 0;
+
+  if (!hasActiveWatchInterest(watchlistEntry)) {
+    return {
+      eligible: false,
+      reason: 'no_active_watch_subscription',
+      details: { subscriberCount },
+    };
+  }
+  if (!liveStatusAllowed) {
+    return {
+      eligible: false,
+      reason: 'match_not_live_for_auto_pipeline',
+      details: { status },
+    };
+  }
+  if (minute < settings.minMinute || minute > settings.maxMinute) {
+    return {
+      eligible: false,
+      reason: 'minute_outside_auto_pipeline_window',
+      details: { minute, minMinute: settings.minMinute, maxMinute: settings.maxMinute },
+    };
+  }
+  if (promptContext.evidenceMode === 'low_evidence' && !customConditionPresent && !promptContext.structuredPrematchAskAi) {
+    return {
+      eligible: false,
+      reason: 'low_evidence_without_watch_condition',
+      details: { evidenceMode: promptContext.evidenceMode },
+    };
+  }
+  if (promptContext.evidenceMode !== 'full_live_data' && !customConditionPresent && !promptContext.structuredPrematchAskAi) {
+    return {
+      eligible: false,
+      reason: 'degraded_evidence_without_watch_condition',
+      details: {
+        evidenceMode: promptContext.evidenceMode,
+        statsAvailable: promptContext.statsAvailable,
+        oddsAvailable: promptContext.oddsAvailable,
+        eventCount: promptContext.eventsCompact.length,
+      },
+    };
+  }
+  if (!customConditionPresent && !promptContext.structuredPrematchAskAi) {
+    const tradableMarkets = summarizeTradableMarkets(promptContext.oddsCanonical, settings.minOdds);
+    if (tradableMarkets.count === 0) {
+      return {
+        eligible: false,
+        reason: 'no_tradable_canonical_market',
+        details: {
+          minOdds: settings.minOdds,
+          oddsAvailable: promptContext.oddsAvailable,
+          availableMarketFamilies: tradableMarkets.families,
+        },
+      };
+    }
+  }
+  const cooldown = await readAutoLlmCooldown(promptContext);
+  if (cooldown) {
+    return {
+      eligible: false,
+      reason: 'auto_llm_cooldown_active',
+      details: {
+        cooldownReason: cooldown.reason,
+        cooldownExpiresAt: new Date(cooldown.expiresAt).toISOString(),
+        cooldownSource: cooldown.source,
+      },
+    };
+  }
+
+  return {
+    eligible: true,
+    reason: 'eligible',
+    details: { subscriberCount, status, minute, evidenceMode: promptContext.evidenceMode },
+  };
 }
 
 type FollowUpHistoryEntry = { role: 'user' | 'assistant'; text: string };
@@ -1476,6 +1892,8 @@ function buildParsedFromThesisWatchRow(
     usable_odd: usableOdd,
     mapped_odd: mappedOdd,
     odds_for_display: usableOdd ?? mappedOdd ?? (hasActionable ? 'N/A' : null),
+    llm_decision_diagnostic: usableOdd != null ? 'actionable' : 'market_not_available_in_odds',
+    market_resolution_status: usableOdd != null ? 'resolved' : 'odds_unavailable',
   };
 }
 
@@ -1586,6 +2004,15 @@ async function finalizeParsedRecommendation(
       ...memoryWarnings,
       ...(lowEvidenceConditionOnly ? ['LOW_EVIDENCE_CONDITION_ONLY'] : []),
     ],
+    llm_decision_diagnostic: finalShouldBet
+      ? 'actionable'
+      : !patienceParsed.ai_should_push
+        ? 'no_bet_intentional'
+        : patienceParsed.market_resolution_status === 'missing_market' || patienceParsed.market_resolution_status === 'missing_selection'
+          ? 'market_parse_failed'
+          : patienceParsed.market_resolution_status === 'odds_unavailable'
+            ? 'market_not_available_in_odds'
+            : 'policy_blocked',
   };
 
   return {
@@ -1774,10 +2201,53 @@ async function executePromptAnalysis(
   const promptEstimatedTokens = estimateTokenCount(prompt);
 
   const llmStartedAt = Date.now();
-  const aiText = await deps.callGemini(prompt, model);
+  audit({
+    category: 'PIPELINE',
+    action: 'LLM_CALL_STARTED',
+    outcome: 'SUCCESS',
+    actor: promptContext.analysisMode === 'auto' ? 'auto-pipeline' : 'manual-ask-ai',
+    metadata: {
+      ...buildLlmGatewayAuditMetadata({ promptContext, settings, promptVersion, model }),
+      status: promptContext.status,
+      promptChars,
+      promptEstimatedTokens,
+    },
+  });
+  let aiText: string;
+  try {
+    aiText = await deps.callGemini(prompt, model);
+  } catch (err) {
+    const llmLatencyMs = Date.now() - llmStartedAt;
+    audit({
+      category: 'PIPELINE',
+      action: 'LLM_CALL_COMPLETED',
+      outcome: 'FAILURE',
+      actor: promptContext.analysisMode === 'auto' ? 'auto-pipeline' : 'manual-ask-ai',
+      duration_ms: llmLatencyMs,
+      metadata: {
+        ...buildLlmGatewayAuditMetadata({ promptContext, settings, promptVersion, model }),
+        status: promptContext.status,
+      },
+      error: err instanceof Error ? err.message : String(err),
+    });
+    throw err;
+  }
   const llmLatencyMs = Date.now() - llmStartedAt;
   const aiTextChars = aiText.length;
   const aiTextEstimatedTokens = estimateTokenCount(aiText);
+  audit({
+    category: 'PIPELINE',
+    action: 'LLM_CALL_COMPLETED',
+    outcome: 'SUCCESS',
+    actor: promptContext.analysisMode === 'auto' ? 'auto-pipeline' : 'manual-ask-ai',
+    duration_ms: llmLatencyMs,
+    metadata: {
+      ...buildLlmGatewayAuditMetadata({ promptContext, settings, promptVersion, model }),
+      status: promptContext.status,
+      aiTextChars,
+      aiTextEstimatedTokens,
+    },
+  });
   const parsedRaw = parseAiResponse(
     aiText,
     promptContext.oddsCanonical,
@@ -1800,6 +2270,25 @@ async function executePromptAnalysis(
     promptContext,
     promptVersion,
     policyContext,
+  });
+  audit({
+    category: 'PIPELINE',
+    action: 'LLM_PARSE_DIAGNOSTIC',
+    outcome: finalized.parsed.llm_decision_diagnostic === 'actionable' ? 'SUCCESS' : 'SKIPPED',
+    actor: promptContext.analysisMode === 'auto' ? 'auto-pipeline' : 'manual-ask-ai',
+    metadata: {
+      ...buildLlmGatewayAuditMetadata({ promptContext, settings, promptVersion, model }),
+      status: promptContext.status,
+      selection: finalized.parsed.selection,
+      betMarket: finalized.parsed.bet_market,
+      confidence: finalized.parsed.confidence,
+      llmDecisionDiagnostic: finalized.parsed.llm_decision_diagnostic,
+      marketResolutionStatus: finalized.parsed.market_resolution_status,
+      policyBlocked: finalized.policyBlocked,
+      policyWarnings: finalized.policyWarnings,
+      warnings: finalized.parsed.warnings,
+      aiTextSample: aiText.slice(0, 2000),
+    },
   });
 
   return {
@@ -2158,7 +2647,7 @@ function buildEventsCompact(
 
 // ==================== Build Odds Canonical ====================
 
-const MAX_AH_LADDER_EXTRAS = 2;
+const MAX_LADDER_EXTRAS = 2;
 
 export interface BuildOddsCanonicalOptions {
   /** Full-time total goals — steers main goals O/U toward the next tradable line in-play. */
@@ -2200,8 +2689,19 @@ export function buildOddsCanonical(
     } = args;
     const pk = (k: string) => (keyPrefix ? `${keyPrefix}${k}` : k);
 
-    const is1x2Ft = betName.includes('1x2') || betName.includes('match winner') || betName.includes('fulltime result') || betName === 'full time result';
-    const is1x2Ht = betName.includes('1x2') || betName.includes('winner') || betName.includes('fulltime result') || betName === 'full time result';
+    const isPlain1x2 = betName === '1x2' || betName === '1 x 2';
+    const is1x2Ft = !isCornerBet && (
+      isPlain1x2
+      || betName.includes('match winner')
+      || betName.includes('fulltime result')
+      || betName === 'full time result'
+    );
+    const is1x2Ht = !isCornerBet && (
+      betName.includes('1x2')
+      || betName.includes('winner')
+      || betName.includes('fulltime result')
+      || betName === 'full time result'
+    );
     const is1x2 = keyPrefix ? is1x2Ht : is1x2Ft;
 
     if (is1x2) {
@@ -2341,6 +2841,7 @@ export function buildOddsCanonical(
   if (goalsOuPair) {
     canonical['ou'] = goalsOuPair.main;
     if (goalsOuPair.adjacent) canonical['ou_adjacent'] = goalsOuPair.adjacent;
+    if (goalsOuPair.extras.length > 0) canonical['ou_extra'] = goalsOuPair.extras;
   }
   const cornersOuPair = buildMainOUWithAdjacent(
     ftOddsMap,
@@ -2376,6 +2877,7 @@ export function buildOddsCanonical(
   if (htGoalsOuPair) {
     canonical['ht_ou'] = htGoalsOuPair.main;
     if (htGoalsOuPair.adjacent) canonical['ht_ou_adjacent'] = htGoalsOuPair.adjacent;
+    if (htGoalsOuPair.extras.length > 0) canonical['ht_ou_extra'] = htGoalsOuPair.extras;
   }
   const htAhPair = buildMainAHWithAdjacent(htOddsMap, 'ht ');
   if (htAhPair) {
@@ -2405,6 +2907,15 @@ export function buildOddsCanonical(
   ) {
     const t = ip(canonical['ou_adjacent'].over) + ip(canonical['ou_adjacent'].under);
     if (t > 0 && (t < 0.85 || t > 1.15)) delete canonical['ou_adjacent'];
+  }
+  if (Array.isArray(canonical['ou_extra']) && canonical['ou_extra'].length > 0) {
+    const filtered = canonical['ou_extra'].filter((row) => {
+      if (row.over === null || row.under === null) return false;
+      const t = ip(row.over) + ip(row.under);
+      return !(t > 0 && (t < 0.85 || t > 1.15));
+    });
+    if (filtered.length > 0) canonical['ou_extra'] = filtered;
+    else delete canonical['ou_extra'];
   }
   if (canonical['ah'] && canonical['ah'].home !== null && canonical['ah'].away !== null) {
     const t = ip(canonical['ah'].home) + ip(canonical['ah'].away);
@@ -2455,6 +2966,15 @@ export function buildOddsCanonical(
   ) {
     const t = ip(canonical['ht_ou_adjacent'].over) + ip(canonical['ht_ou_adjacent'].under);
     if (t > 0 && (t < 0.85 || t > 1.15)) delete canonical['ht_ou_adjacent'];
+  }
+  if (Array.isArray(canonical['ht_ou_extra']) && canonical['ht_ou_extra'].length > 0) {
+    const filtered = canonical['ht_ou_extra'].filter((row) => {
+      if (row.over === null || row.under === null) return false;
+      const t = ip(row.over) + ip(row.under);
+      return !(t > 0 && (t < 0.85 || t > 1.15));
+    });
+    if (filtered.length > 0) canonical['ht_ou_extra'] = filtered;
+    else delete canonical['ht_ou_extra'];
   }
   if (canonical['ht_ah'] && canonical['ht_ah'].home !== null && canonical['ht_ah'].away !== null) {
     const t = ip(canonical['ht_ah'].home) + ip(canonical['ht_ah'].away);
@@ -2549,6 +3069,10 @@ function sanitizePromptOddsCanonical(args: {
       `Removed adjacent H1 goals O/U line from prompt: first half is already closed (status ${matchStatus}).`,
     );
     removeMarket(
+      'ht_ou_extra',
+      `Removed extra H1 goals O/U ladder lines from prompt: first half is already closed (status ${matchStatus}).`,
+    );
+    removeMarket(
       'ht_ah',
       `Removed H1 Asian Handicap market from prompt: first half is already closed (status ${matchStatus}).`,
     );
@@ -2589,6 +3113,14 @@ function sanitizePromptOddsCanonical(args: {
       `Removed adjacent H1 goals O/U from prompt: H1 total ${htTotalKnown} already exceeds line ${sanitized.ht_ou_adjacent.line}.`,
     );
   }
+  if (htTotalKnown !== null && Array.isArray(sanitized.ht_ou_extra)) {
+    const before = sanitized.ht_ou_extra.length;
+    sanitized.ht_ou_extra = sanitized.ht_ou_extra.filter((row) => typeof row.line === 'number' && htTotalKnown <= row.line);
+    if (sanitized.ht_ou_extra.length < before) {
+      warnings.push(`Removed settled extra H1 goals O/U ladder lines from prompt: H1 total ${htTotalKnown} already exceeds one or more lines.`);
+    }
+    if (sanitized.ht_ou_extra.length === 0) delete sanitized.ht_ou_extra;
+  }
 
   if (htTotalKnown !== null) {
     const htContam = detectHtGoalsCornersLineContamination(sanitized, htTotalKnown);
@@ -2597,6 +3129,10 @@ function sanitizePromptOddsCanonical(args: {
       removeMarket(
         'ht_ou_adjacent',
         `${htContam.reason} (cleared adjacent H1 O/U ladder).`,
+      );
+      removeMarket(
+        'ht_ou_extra',
+        `${htContam.reason} (cleared extra H1 O/U ladder).`,
       );
     }
   }
@@ -2613,6 +3149,14 @@ function sanitizePromptOddsCanonical(args: {
       `Removed adjacent goals O/U line from prompt: current total goals ${args.currentTotalGoals} already exceeds line ${sanitized.ou_adjacent.line}.`,
     );
   }
+  if (Array.isArray(sanitized.ou_extra)) {
+    const before = sanitized.ou_extra.length;
+    sanitized.ou_extra = sanitized.ou_extra.filter((row) => typeof row.line === 'number' && args.currentTotalGoals <= row.line);
+    if (sanitized.ou_extra.length < before) {
+      warnings.push(`Removed settled extra goals O/U ladder lines from prompt: current total goals ${args.currentTotalGoals} already exceeds one or more lines.`);
+    }
+    if (sanitized.ou_extra.length === 0) delete sanitized.ou_extra;
+  }
 
   const contaminationCheck = detectGoalsCornersLineContamination(sanitized, args.currentTotalGoals);
   if (contaminationCheck.contaminated) {
@@ -2620,6 +3164,10 @@ function sanitizePromptOddsCanonical(args: {
     removeMarket(
       'ou_adjacent',
       `${contaminationCheck.reason} (cleared adjacent goals O/U ladder with contaminated main line).`,
+    );
+    removeMarket(
+      'ou_extra',
+      `${contaminationCheck.reason} (cleared extra goals O/U ladder with contaminated main line).`,
     );
   }
 
@@ -2664,11 +3212,13 @@ function sanitizePromptOddsCanonical(args: {
   const available = !!(
     sanitized['1x2']
     || sanitized['ou']
+    || sanitized['ou_extra']
     || sanitized['ah']
     || sanitized['btts']
     || sanitized['corners_ou']
     || sanitized['ht_1x2']
     || sanitized['ht_ou']
+    || sanitized['ht_ou_extra']
     || sanitized['ht_ah']
     || sanitized['ht_btts']
   );
@@ -2690,6 +3240,7 @@ function buildMainOUWithAdjacent(
 ): {
   main: { line: number; over: number | null; under: number | null };
   adjacent?: { line: number; over: number | null; under: number | null };
+  extras: OddsOuRung[];
 } | undefined {
   const entries = Object.entries(oddsMap).filter(([k]) => regexKey.test(k));
   if (!entries.length) return undefined;
@@ -2768,7 +3319,7 @@ function buildMainOUWithAdjacent(
     const u = data['under'];
     if (o && u) candidates.push(lineStr);
   }
-  if (candidates.length === 0) return { main };
+  if (candidates.length === 0) return { main, extras: [] };
 
   const mainNum = Number(bestLine);
   let adjacentLine: string | null = null;
@@ -2784,7 +3335,21 @@ function buildMainOUWithAdjacent(
       adjacentLine = lineStr;
     }
   }
-  if (!adjacentLine) return { main };
+  const usedLines = new Set<string>([bestLine]);
+  if (adjacentLine) usedLines.add(adjacentLine);
+  const extras: OddsOuRung[] = [];
+  const pool = [...lineMap.keys()].filter((ls) => {
+    if (usedLines.has(ls)) return false;
+    const d = lineMap.get(ls);
+    return !!(d?.over && d?.under);
+  });
+  pool.sort((a, b) => Math.abs(Number(a) - mainNum) - Math.abs(Number(b) - mainNum));
+  for (const ls of pool.slice(0, MAX_LADDER_EXTRAS)) {
+    const d = lineMap.get(ls)!;
+    extras.push({ line: Number(ls), over: d.over ?? null, under: d.under ?? null });
+  }
+
+  if (!adjacentLine) return { main, extras };
   const adjData = lineMap.get(adjacentLine) || {};
   return {
     main,
@@ -2793,6 +3358,7 @@ function buildMainOUWithAdjacent(
       over: adjData['over'] ?? null,
       under: adjData['under'] ?? null,
     },
+    extras,
   };
 }
 
@@ -2882,7 +3448,7 @@ function buildMainAHWithAdjacent(
     return !!(d?.home && d?.away);
   });
   pool.sort((a, b) => Math.abs(Number(a) - mainNum) - Math.abs(Number(b) - mainNum));
-  for (const ls of pool.slice(0, MAX_AH_LADDER_EXTRAS)) {
+  for (const ls of pool.slice(0, MAX_LADDER_EXTRAS)) {
     const d = lineMap.get(ls)!;
     extras.push({ line: Number(ls), home: d.home ?? null, away: d.away ?? null });
   }
@@ -2943,6 +3509,8 @@ function parseAiResponse(
     follow_up_answer_vi: '',
     ai_selection: '', ai_confidence: 0, ai_odd_raw: null, ai_warnings: [],
     usable_odd: null, mapped_odd: null, odds_for_display: null,
+    llm_decision_diagnostic: 'market_parse_failed',
+    market_resolution_status: 'not_requested',
   };
   if (!aiText) return defaults;
 
@@ -2953,7 +3521,7 @@ function parseAiResponse(
   try {
     parsed = JSON.parse(jsonStr);
   } catch {
-    return { ...defaults, warnings: ['JSON_PARSE_ERROR'] };
+    return { ...defaults, warnings: ['JSON_PARSE_ERROR'], llm_decision_diagnostic: 'market_parse_failed' };
   }
 
   const aiSelection = String(parsed.selection || '');
@@ -3023,6 +3591,24 @@ function parseAiResponse(
   const usableOdd = mappedOdd !== null && mappedOdd >= MIN_ODDS ? mappedOdd : null;
   const aiFinalShouldBet = systemShouldBet && usableOdd !== null;
   const oddsForDisplay = usableOdd ?? mappedOdd ?? (aiShouldPush ? 'N/A' : null);
+  const marketResolutionStatus: ParsedAiResponse['market_resolution_status'] = !aiShouldPush
+    ? 'not_requested'
+    : !aiSelection
+      ? 'missing_selection'
+      : !betMarket
+        ? 'missing_market'
+        : mappedOdd === null
+          ? 'odds_unavailable'
+          : 'resolved';
+  const llmDecisionDiagnostic: ParsedAiResponse['llm_decision_diagnostic'] = aiFinalShouldBet
+    ? 'actionable'
+    : !aiShouldPush
+      ? 'no_bet_intentional'
+      : marketResolutionStatus === 'missing_market' || marketResolutionStatus === 'missing_selection'
+        ? 'market_parse_failed'
+        : marketResolutionStatus === 'odds_unavailable'
+          ? 'market_not_available_in_odds'
+          : 'policy_blocked';
   // Condition-trigger path: this always drives alerting when the watch condition
   // was successfully evaluated and matched. Persistence is decided later by a
   // separate hard guard so the system can save the first actionable
@@ -3078,6 +3664,8 @@ function parseAiResponse(
     usable_odd: usableOdd,
     mapped_odd: mappedOdd,
     odds_for_display: oddsForDisplay,
+    llm_decision_diagnostic: llmDecisionDiagnostic,
+    market_resolution_status: marketResolutionStatus,
   };
 }
 
@@ -3102,6 +3690,8 @@ function extractOddsFromSelection(selection: string, betMarket: string, canonica
   if (htGoalOverLine !== null) {
     if (sameLine(htGoalOverLine, oc.ht_ou?.line)) return oc.ht_ou?.over ?? null;
     if (sameLine(htGoalOverLine, oc.ht_ou_adjacent?.line)) return oc.ht_ou_adjacent?.over ?? null;
+    const htExtraO = oc.ht_ou_extra?.find((r) => sameLine(htGoalOverLine, r.line));
+    if (htExtraO) return htExtraO.over ?? null;
     return null;
   }
 
@@ -3109,6 +3699,8 @@ function extractOddsFromSelection(selection: string, betMarket: string, canonica
   if (htGoalUnderLine !== null) {
     if (sameLine(htGoalUnderLine, oc.ht_ou?.line)) return oc.ht_ou?.under ?? null;
     if (sameLine(htGoalUnderLine, oc.ht_ou_adjacent?.line)) return oc.ht_ou_adjacent?.under ?? null;
+    const htExtraU = oc.ht_ou_extra?.find((r) => sameLine(htGoalUnderLine, r.line));
+    if (htExtraU) return htExtraU.under ?? null;
     return null;
   }
 
@@ -3140,6 +3732,8 @@ function extractOddsFromSelection(selection: string, betMarket: string, canonica
   if (goalOverLine !== null) {
     if (sameLine(goalOverLine, oc.ou?.line)) return oc.ou?.over ?? null;
     if (sameLine(goalOverLine, oc.ou_adjacent?.line)) return oc.ou_adjacent?.over ?? null;
+    const extraO = oc.ou_extra?.find((r) => sameLine(goalOverLine, r.line));
+    if (extraO) return extraO.over ?? null;
     return null;
   }
 
@@ -3147,6 +3741,8 @@ function extractOddsFromSelection(selection: string, betMarket: string, canonica
   if (goalUnderLine !== null) {
     if (sameLine(goalUnderLine, oc.ou?.line)) return oc.ou?.under ?? null;
     if (sameLine(goalUnderLine, oc.ou_adjacent?.line)) return oc.ou_adjacent?.under ?? null;
+    const extraU = oc.ou_extra?.find((r) => sameLine(goalUnderLine, r.line));
+    if (extraU) return extraU.under ?? null;
     return null;
   }
 
@@ -4141,6 +4737,7 @@ async function processMatch(
     }
 
     const promptContext: PromptExecutionContext = {
+      matchId,
       homeName, awayName, league, minute, score, status,
       statsCompact, statsAvailable, statsSource, evidenceMode,
       eventsCompact: eventsCompact.slice(-8),
@@ -4149,6 +4746,8 @@ async function processMatch(
       oddsSuspicious,
       derivedInsights: !statsAvailable ? derivedInsights : null,
       customConditions, recommendedCondition, recommendedConditionReason,
+      watchlistSubscriberCount: Number(watchlistEntry.subscriber_count ?? 0),
+      activeWatchInterest: hasActiveWatchInterest(watchlistEntry),
       strategicContext,
       leagueProfile: leagueProfile as Record<string, unknown> | null,
       homeTeamProfile: homeTeamProfile as Record<string, unknown> | null,
@@ -4178,6 +4777,71 @@ async function processMatch(
       skipRecommendationPolicy:
         options.settledReplayApprovedTrace === true && options.applySettledReplayPolicy !== true,
     };
+    const llmEligibility = await resolveLlmEligibility({
+      promptContext,
+      watchlistEntry,
+      settings,
+      shadowMode,
+      advisoryOnly,
+      settledReplayApprovedTrace: options.settledReplayApprovedTrace === true,
+    });
+    if (!llmEligibility.eligible) {
+      audit({
+        category: 'PIPELINE',
+        action: 'LLM_CALL_BLOCKED',
+        outcome: 'SKIPPED',
+        actor: 'auto-pipeline',
+        metadata: {
+          ...buildLlmGatewayAuditMetadata({ promptContext, settings, promptVersion: activePromptVersion }),
+          matchId,
+          matchDisplay,
+          reason: llmEligibility.reason,
+          status,
+          minute,
+          analysisMode,
+          evidenceMode,
+          oddsSource,
+          oddsAvailable,
+          statsAvailable,
+          ...llmEligibility.details,
+        },
+      });
+
+      return {
+        matchId,
+        matchDisplay,
+        homeName,
+        awayName,
+        league,
+        minute,
+        score,
+        status,
+        success: true,
+        decisionKind: 'no_bet',
+        shouldPush: false,
+        selection: '',
+        confidence: 0,
+        saved: false,
+        notified: false,
+        debug: {
+          analysisRunId,
+          shadowMode,
+          skippedAt: 'llm_eligibility',
+          skipReason: llmEligibility.reason,
+          analysisMode,
+          advisoryOnly,
+          oddsSource,
+          oddsAvailable,
+          statsAvailable,
+          statsSource,
+          evidenceMode,
+          statsFallbackUsed,
+          statsFallbackReason: statsFallbackReason || undefined,
+          preLlmLatencyMs: Date.now() - startedAt,
+          totalLatencyMs: Date.now() - startedAt,
+        },
+      };
+    }
     // 6. Thesis watch promote (skip Gemini when a deferred LLP thesis is ready)
     const model = options.modelOverride || settings.aiModel;
     const preLlmLatencyMs = Date.now() - startedAt;
@@ -4210,6 +4874,21 @@ async function processMatch(
       policyContextForPrompt,
     );
     const parsed = activeAnalysis.parsed;
+    if (
+      isAutoPipelineLlmContext({
+        promptContext,
+        shadowMode,
+        advisoryOnly,
+        settledReplayApprovedTrace: options.settledReplayApprovedTrace === true,
+      })
+      && (!parsed.should_push || activeAnalysis.policyBlocked)
+    ) {
+      await writeAutoLlmCooldown({
+        promptContext,
+        settings,
+        reason: activeAnalysis.policyBlocked ? 'policy_blocked' : 'no_bet',
+      });
+    }
     if (!thesisPromoted && !parsed.final_should_bet) {
       await registerThesisWatchFromLlpBlock({
         matchId,
@@ -4326,8 +5005,8 @@ async function processMatch(
     //   first actionable thesis (or an approved same-line override).
     // - shouldNotify: alert the user for either an actionable AI bet OR a
     //   condition-only trigger that meets the notify threshold.
-    const shouldSave = advisoryOnly ? false : (parsed.final_should_bet || conditionTriggeredSaveDecision.shouldSave);
-    const shouldNotify = advisoryOnly ? false : parsed.should_push;
+    let shouldSave = advisoryOnly ? false : (parsed.final_should_bet || conditionTriggeredSaveDecision.shouldSave);
+    let shouldNotify = advisoryOnly ? false : parsed.should_push;
     const notificationSelection = displaySelection(parsed);
     const notificationConfidence = displayConfidence(parsed);
     const notificationOdds = parsed.final_should_bet
@@ -4344,6 +5023,9 @@ async function processMatch(
     let saved = false;
     let recId: number | null = null;
     let notified = false;
+    let saveIntegrityStatus: 'not_attempted' | 'ok' | 'blocked' = shouldSave ? 'ok' : 'not_attempted';
+    let saveBlockedReason: string | undefined = undefined;
+    let saveProviderCoverageStatus: RecommendationSaveIntegrityResult['providerCoverageStatus'] | undefined;
     const conditionOnlyDeliveryMap = new Map<string, number[]>();
     let conditionOnlyDeliveriesLoaded = false;
 
@@ -4431,6 +5113,59 @@ async function processMatch(
       decisionContext['conditionTriggeredSpecialOverrideReasonVi'] = saveFromConditionTrigger
         ? parsed.condition_triggered_special_override_reason_vi
         : '';
+      const saveIntegrity = evaluateRecommendationSaveIntegrity({
+        selection: savedSelection,
+        betMarket: savedBetMarket,
+        mappedOdd,
+        minOdds: settings.minOdds,
+      });
+      saveIntegrityStatus = saveIntegrity.ok ? 'ok' : 'blocked';
+      saveBlockedReason = saveIntegrity.ok ? undefined : saveIntegrity.reason;
+      saveProviderCoverageStatus = saveIntegrity.providerCoverageStatus;
+      decisionContext['saveIntegrityStatus'] = saveIntegrityStatus;
+      decisionContext['saveProviderCoverageStatus'] = saveIntegrity.providerCoverageStatus;
+      decisionContext['saveMarketResolutionStatus'] = saveIntegrity.marketResolutionStatus;
+      decisionContext['saveMappedOdd'] = saveIntegrity.mappedOdd;
+      decisionContext['saveIntegrityReason'] = saveIntegrity.reason;
+      decisionContext['savedSelection'] = savedSelection;
+      decisionContext['savedBetMarket'] = savedBetMarket;
+      decisionContext['oddsSource'] = oddsSource;
+      decisionContext['oddsAvailable'] = oddsAvailable;
+      decisionContext['canonicalMarket'] = normalizeMarket(savedSelection, savedBetMarket);
+      if (!saveIntegrity.ok) {
+        parsed.warnings = [...parsed.warnings, 'PROVIDER_COVERAGE_SAVE_BLOCKED'];
+        parsed.ai_warnings = [...parsed.ai_warnings, 'PROVIDER_COVERAGE_SAVE_BLOCKED'];
+        shouldSave = false;
+        if (parsed.final_should_bet && !parsed.condition_triggered_should_push) {
+          shouldNotify = false;
+        }
+        audit({
+          category: 'PIPELINE',
+          action: 'RECOMMENDATION_SAVE_BLOCKED_PROVIDER_COVERAGE',
+          outcome: 'SKIPPED',
+          actor: 'auto-pipeline',
+          metadata: {
+            matchId,
+            matchDisplay,
+            selection: savedSelection,
+            betMarket: savedBetMarket,
+            mappedOdd,
+            minOdds: settings.minOdds,
+            oddsSource,
+            oddsAvailable,
+            providerCoverageStatus: saveIntegrity.providerCoverageStatus,
+            marketResolutionStatus: saveIntegrity.marketResolutionStatus,
+            reason: saveIntegrity.reason,
+            recommendationSource: decisionContext['recommendationSource'],
+            promptVersion: activePromptVersion,
+            llmDecisionDiagnostic: parsed.llm_decision_diagnostic,
+          },
+        });
+      }
+      if (!saveIntegrity.ok) {
+        // Do not create a recommendation row from a market line that cannot be
+        // proven against the canonical provider snapshot.
+      } else {
       const rec = await deps.createRecommendation({
         match_id: matchId,
         timestamp: new Date().toISOString(),
@@ -4500,6 +5235,7 @@ async function processMatch(
             err instanceof Error ? err.message : String(err),
           );
         }
+      }
       }
     }
 
@@ -4614,6 +5350,11 @@ async function processMatch(
           structuredPrematchAskAiReason: structuredPrematchAskAiCheck.reason,
           statsSource,
           evidenceMode,
+          llmDecisionDiagnostic: parsed.llm_decision_diagnostic,
+          marketResolutionStatus: parsed.market_resolution_status,
+          saveIntegrityStatus,
+          saveBlockedReason,
+          saveProviderCoverageStatus,
           policyBlocked: activeAnalysis.policyBlocked,
           policyWarnings: activeAnalysis.policyWarnings,
           leagueProfileSampleMatches: leagueProfileWindow.sampleMatches,
@@ -4652,6 +5393,11 @@ async function processMatch(
         statsAvailable,
         statsSource,
         evidenceMode,
+        llmDecisionDiagnostic: parsed.llm_decision_diagnostic,
+        marketResolutionStatus: parsed.market_resolution_status,
+        saveIntegrityStatus,
+        saveBlockedReason,
+        saveProviderCoverageStatus,
         statsFallbackUsed,
         statsFallbackReason: statsFallbackReason || undefined,
         promptVersion: activePromptVersion,

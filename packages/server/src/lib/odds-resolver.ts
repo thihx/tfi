@@ -47,6 +47,7 @@ export interface ResolveMatchOddsDeps {
   fetchPreMatchOdds?: (fixtureId: string) => Promise<unknown[]>;
   getCachedOdds?: (matchId: string) => Promise<ProviderOddsCacheRow | null>;
   upsertCachedOdds?: (input: UpsertProviderOddsCacheInput) => Promise<unknown>;
+  summarizeCoverageFlags?: (response: unknown[]) => Record<string, unknown>;
   now?: () => Date;
 }
 
@@ -70,6 +71,7 @@ const defaultResolveDeps: ResolveMatchOddsDeps = {
   fetchPreMatchOdds,
   getCachedOdds: getProviderOddsCache,
   upsertCachedOdds: upsertProviderOddsCache,
+  summarizeCoverageFlags: summarizeNormalizedOdds,
   now: () => new Date(),
 };
 
@@ -123,14 +125,175 @@ function hasUsableBookmakers(response: unknown[]): boolean {
   return !!(first?.bookmakers && first.bookmakers.some((bk) => Array.isArray(bk.bets) && bk.bets.length > 0));
 }
 
-function summarizeNormalizedOdds(response: unknown[]): Record<string, unknown> {
+function hasUsableOddValue(values: unknown): boolean {
+  if (!Array.isArray(values)) return false;
+  return values.some((value) => {
+    const row = value as { odd?: unknown; suspended?: unknown } | null;
+    if (row?.suspended === true || String(row?.suspended).toLowerCase() === 'true') return false;
+    const odd = Number(row?.odd);
+    return Number.isFinite(odd) && odd > 1;
+  });
+}
+
+function isOneX2BetName(name: string): boolean {
+  if (name.includes('corner')) return false;
+  return name === '1x2'
+    || name === '1 x 2'
+    || name.includes('match winner')
+    || name.includes('fulltime result')
+    || name.includes('full time result');
+}
+
+function isGoalsOuBetName(name: string): boolean {
+  return !name.includes('corner')
+    && (
+      name.includes('over/under')
+      || name.includes('over / under')
+      || name.includes('total goals')
+      || name.includes('match goals')
+      || (name.includes('goals') && (name.includes('over') || name.includes('under')))
+    );
+}
+
+function isAhBetName(name: string): boolean {
+  return !name.includes('corner') && name.includes('handicap');
+}
+
+function isBttsBetName(name: string): boolean {
+  return name.includes('both teams') || name === 'btts' || name.includes('both teams to score');
+}
+
+function oddOf(value: unknown): number | null {
+  const row = value as { odd?: unknown; suspended?: unknown } | null;
+  if (row?.suspended === true || String(row?.suspended).toLowerCase() === 'true') return null;
+  const odd = Number(row?.odd);
+  return Number.isFinite(odd) && odd > 1 ? odd : null;
+}
+
+function impliedInRange(odds: Array<number | null>, min: number, max: number): boolean {
+  if (odds.some((odd) => odd == null)) return false;
+  const margin = odds.reduce<number>((sum, odd) => sum + (odd ? 1 / odd : 0), 0);
+  return margin >= min && margin <= max;
+}
+
+function handicapKey(value: unknown): string {
+  const row = value as { handicap?: unknown; value?: unknown } | null;
+  const handicap = String(row?.handicap ?? '').trim();
+  if (handicap) return String(Math.abs(Number(handicap))).replace(/\.0$/, '');
+  const label = String(row?.value ?? '').trim().toLowerCase();
+  const match = label.match(/([-+]?[0-9]+(?:\.[0-9]+)?)/);
+  return match ? String(Math.abs(Number(match[1]))).replace(/\.0$/, '') : 'main';
+}
+
+function ouLineKey(value: unknown): string {
+  const row = value as { handicap?: unknown; value?: unknown } | null;
+  const handicap = String(row?.handicap ?? '').trim();
+  if (handicap) return String(Number(handicap)).replace(/\.0$/, '');
+  const label = String(row?.value ?? '').trim().toLowerCase();
+  const match = label.match(/([0-9]+(?:\.[0-9]+)?)/);
+  return match ? String(Number(match[1])).replace(/\.0$/, '') : 'main';
+}
+
+function summarizeCanonicalCompatibleMarketFlags(response: unknown[]): Record<string, boolean> {
+  let has1x2 = false;
+  let hasOu = false;
+  let hasAh = false;
+  let hasBtts = false;
+
+  for (const entry of response) {
+    if (!entry || typeof entry !== 'object') continue;
+    const bookmakers = Array.isArray((entry as { bookmakers?: unknown[] }).bookmakers)
+      ? (entry as { bookmakers: Array<{ bets?: Array<{ name?: string; values?: unknown[] }> }> }).bookmakers
+      : [];
+
+    for (const bookmaker of bookmakers) {
+      const bets = Array.isArray(bookmaker.bets) ? bookmaker.bets : [];
+      for (const bet of bets) {
+        const name = String(bet.name || '').toLowerCase().trim();
+        const values = Array.isArray(bet.values) ? bet.values : [];
+
+        if (!has1x2 && isOneX2BetName(name)) {
+          const best = { home: 0, draw: 0, away: 0 };
+          for (const value of values) {
+            const label = String((value as { value?: unknown }).value ?? '').toLowerCase().trim();
+            const odd = oddOf(value) ?? 0;
+            if (label === 'home' || label === '1') best.home = Math.max(best.home, odd);
+            if (label === 'draw' || label === 'x') best.draw = Math.max(best.draw, odd);
+            if (label === 'away' || label === '2') best.away = Math.max(best.away, odd);
+          }
+          has1x2 = impliedInRange([best.home || null, best.draw || null, best.away || null], 0.90, 1.20);
+        }
+
+        if (!hasOu && isGoalsOuBetName(name)) {
+          const byLine = new Map<string, { over: number | null; under: number | null }>();
+          for (const value of values) {
+            const label = String((value as { value?: unknown }).value ?? '').toLowerCase().trim();
+            const odd = oddOf(value);
+            if (!odd) continue;
+            const key = ouLineKey(value);
+            const pair = byLine.get(key) ?? { over: null, under: null };
+            if (label.includes('over')) pair.over = Math.max(pair.over ?? 0, odd);
+            if (label.includes('under')) pair.under = Math.max(pair.under ?? 0, odd);
+            byLine.set(key, pair);
+          }
+          hasOu = Array.from(byLine.values()).some((pair) => impliedInRange([pair.over, pair.under], 0.85, 1.15));
+        }
+
+        if (!hasAh && isAhBetName(name)) {
+          const byLine = new Map<string, { home: number | null; away: number | null }>();
+          for (const value of values) {
+            const label = String((value as { value?: unknown }).value ?? '').toLowerCase().trim();
+            const odd = oddOf(value);
+            if (!odd) continue;
+            const key = handicapKey(value);
+            const pair = byLine.get(key) ?? { home: null, away: null };
+            if (label === 'home' || label === '1' || label.startsWith('home ')) pair.home = Math.max(pair.home ?? 0, odd);
+            if (label === 'away' || label === '2' || label.startsWith('away ')) pair.away = Math.max(pair.away ?? 0, odd);
+            byLine.set(key, pair);
+          }
+          hasAh = Array.from(byLine.values()).some((pair) => impliedInRange([pair.home, pair.away], 0.85, 1.15));
+        }
+
+        if (!hasBtts && isBttsBetName(name)) {
+          let yes = 0;
+          let no = 0;
+          for (const value of values) {
+            const label = String((value as { value?: unknown }).value ?? '').toLowerCase().trim();
+            const odd = oddOf(value) ?? 0;
+            if (label === 'yes') yes = Math.max(yes, odd);
+            if (label === 'no') no = Math.max(no, odd);
+          }
+          hasBtts = impliedInRange([yes || null, no || null], 0.85, 1.15);
+        }
+      }
+    }
+  }
+
+  return {
+    canonical_has_1x2: has1x2,
+    canonical_has_ou: hasOu,
+    canonical_has_ah: hasAh,
+    canonical_has_btts: hasBtts,
+  };
+}
+
+export function summarizeNormalizedOdds(response: unknown[]): Record<string, unknown> {
   const summary = {
     bookmaker_count: 0,
     bet_count: 0,
+    priced_bet_count: 0,
+    one_x2_bet_count: 0,
+    ou_bet_count: 0,
+    ah_bet_count: 0,
+    btts_bet_count: 0,
     has_1x2: false,
     has_ou: false,
     has_ah: false,
     has_btts: false,
+    canonical_has_1x2: false,
+    canonical_has_ou: false,
+    canonical_has_ah: false,
+    canonical_has_btts: false,
   };
 
   for (const entry of response) {
@@ -144,16 +307,33 @@ function summarizeNormalizedOdds(response: unknown[]): Record<string, unknown> {
       const bets = Array.isArray(bookmaker.bets) ? bookmaker.bets : [];
       summary.bet_count += bets.length;
       for (const bet of bets) {
-        const name = String(bet.name || '').toLowerCase();
-        if (name.includes('match winner')) summary.has_1x2 = true;
-        if (name.includes('over/under')) summary.has_ou = true;
-        if (name.includes('asian handicap')) summary.has_ah = true;
-        if (name.includes('both teams')) summary.has_btts = true;
+        const name = String(bet.name || '').toLowerCase().trim();
+        const priced = hasUsableOddValue((bet as { values?: unknown }).values);
+        if (priced) summary.priced_bet_count += 1;
+        if (isOneX2BetName(name)) {
+          summary.one_x2_bet_count += 1;
+          if (priced) summary.has_1x2 = true;
+        }
+        if (isGoalsOuBetName(name)) {
+          summary.ou_bet_count += 1;
+          if (priced) summary.has_ou = true;
+        }
+        if (isAhBetName(name)) {
+          summary.ah_bet_count += 1;
+          if (priced) summary.has_ah = true;
+        }
+        if (isBttsBetName(name)) {
+          summary.btts_bet_count += 1;
+          if (priced) summary.has_btts = true;
+        }
       }
     }
   }
 
-  return summary;
+  return {
+    ...summary,
+    ...summarizeCanonicalCompatibleMarketFlags(response),
+  };
 }
 
 function mapProviderSourceToResolved(providerSource: ProviderOddsSource): ResolvedOddsSource {
@@ -251,7 +431,7 @@ async function persistOddsCache(
 ): Promise<void> {
   if (!deps.upsertCachedOdds) return;
 
-  const summary = summarizeNormalizedOdds(result.response);
+  const summary = (deps.summarizeCoverageFlags ?? summarizeNormalizedOdds)(result.response);
   try {
     await deps.upsertCachedOdds({
       match_id: input.matchId,
@@ -369,7 +549,7 @@ async function resolveMatchOddsFromProviders(
         : liveUsable ? '' : 'NO_USABLE_ODDS',
       raw_payload: liveRaw,
       normalized_payload: liveOdds,
-      coverage_flags: summarizeNormalizedOdds(liveOdds),
+      coverage_flags: (resolvedDeps.summarizeCoverageFlags ?? summarizeNormalizedOdds)(liveOdds),
     });
   }
   if (liveUsable) {
@@ -443,7 +623,7 @@ async function resolveMatchOddsFromProviders(
         : preMatchUsable ? '' : 'NO_USABLE_ODDS',
       raw_payload: preMatchRaw,
       normalized_payload: preMatchOdds,
-      coverage_flags: summarizeNormalizedOdds(preMatchOdds),
+      coverage_flags: (resolvedDeps.summarizeCoverageFlags ?? summarizeNormalizedOdds)(preMatchOdds),
     });
   }
   if (preMatchUsable) {

@@ -28,6 +28,13 @@ function row(partial: Partial<EvaluatedReplayCase>): EvaluatedReplayCase {
     replayPnl: 1.8,
     originalBetMarket: 'under_2.5',
     originalResult: 'loss',
+    decisionKind: 'ai_push',
+    llmDecisionDiagnostic: 'actionable',
+    marketResolutionStatus: 'resolved',
+    providerCoverageStatus: 'ok',
+    replayContextStatus: 'ok',
+    replayQualityAttribution: 'actionable',
+    replayWarnings: [],
     ...partial,
   };
 }

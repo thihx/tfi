@@ -127,6 +127,13 @@ function getAsianHandicapHomeLine(canonicalMarket: string): number | null {
   return Number.isFinite(n) ? n : null;
 }
 
+function getAsianHandicapSelectedLine(canonicalMarket: string): number | null {
+  const match = String(canonicalMarket || '').match(/^asian_handicap_(?:home|away)_([+-]?\d+(?:\.\d+)?)$/);
+  if (!match?.[1]) return null;
+  const n = Number(match[1]);
+  return Number.isFinite(n) ? n : null;
+}
+
 export function getCorrelatedThesis(canonicalMarket: string): string | null {
   if (!canonicalMarket || canonicalMarket === 'unknown') return null;
   if (canonicalMarket.startsWith('ht_over_')) return 'ht_goals_over';
@@ -188,6 +195,7 @@ export function applyRecommendationPolicy(input: RecommendationPolicyInput): Rec
     && scoreState === 'one-goal-margin'
     && evidenceMode === 'full_live_data';
   const applyPromptImprovementSpec = isV10g;
+  const asianHandicapSelectedLine = getAsianHandicapSelectedLine(canonicalMarket);
 
   const block = (warning: string) => {
     blocked = true;
@@ -208,6 +216,18 @@ export function applyRecommendationPolicy(input: RecommendationPolicyInput): Rec
     const effectiveRequiredBreakEven = requiredBreakEvenMax + lateRelaxation;
     const effectiveHighRiskBreakEven = highRiskBreakEvenMax + lateRelaxation;
     const directionalSatisfied = lateGameDirectionalOverride ? true : directionalGate === true;
+    const highConfidenceAhProtection = (
+      canonicalMarket.startsWith('asian_handicap_')
+      && asianHandicapSelectedLine != null
+      && asianHandicapSelectedLine > 0
+      && asianHandicapSelectedLine <= 0.5
+      && evidenceMode === 'full_live_data'
+      && directionalSatisfied
+      && input.confidence >= 8
+      && input.valuePercent >= 8
+      && breakEvenRate != null
+      && breakEvenRate < 0.55
+    );
     const shouldEnforcePushRequirements =
       input.evidenceMode != null
       || input.breakEvenRate != null
@@ -217,7 +237,7 @@ export function applyRecommendationPolicy(input: RecommendationPolicyInput): Rec
       && directionalSatisfied
       && breakEvenRate != null
       && breakEvenRate < effectiveRequiredBreakEven
-    );
+    ) || highConfidenceAhProtection;
     if (shouldEnforcePushRequirements && !requiredConditionsMet) {
       block('REQUIRED_CONDITIONS_NOT_MET');
     }
@@ -269,7 +289,7 @@ export function applyRecommendationPolicy(input: RecommendationPolicyInput): Rec
         && breakEvenRate != null
         && breakEvenRate < 0.48
         && directionalSatisfied;
-      if (!strictOk) {
+      if (!strictOk && !highConfidenceAhProtection) {
         block('ONE_GOAL_MIDGAME_INSUFFICIENT_CONFIDENCE');
       }
     }
@@ -640,7 +660,19 @@ export function applyRecommendationPolicy(input: RecommendationPolicyInput): Rec
     && input.minute >= 60
   ) {
     const cushion = marketLine - totalGoals;
-    if (cushion < 1.0 && input.confidence < 8) {
+    const lateUnder45TwoPlusMarginRescue = canonicalMarket === 'under_4.5'
+      && minuteBand === '75+'
+      && scoreState === 'two-plus-margin'
+      && totalGoals === 4
+      && cushion === 0.5
+      && evidenceMode === 'full_live_data'
+      && input.confidence >= 7
+      && input.valuePercent >= 9
+      && String(input.riskLevel ?? '').trim().toUpperCase() !== 'HIGH'
+      && breakEvenRate != null
+      && breakEvenRate < 0.55
+      && directionalGate === true;
+    if (cushion < 1.0 && input.confidence < 8 && !lateUnder45TwoPlusMarginRescue) {
       block('POLICY_BLOCK_GOALS_UNDER_THIN_CUSHION_LOW_CONF_GLOBAL');
     } else if (
       cushion < 1.0

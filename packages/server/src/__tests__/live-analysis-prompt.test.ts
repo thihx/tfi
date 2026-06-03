@@ -85,6 +85,8 @@ describe('buildLiveAnalysisPrompt', () => {
     expect(prompt).toContain('"asian_handicap_home_-0.25"');
     expect(prompt).toContain('OFFICIAL O/U AND MARKET TIMING');
     expect(prompt).toContain('BREAK-EVEN:');
+    expect(prompt).toContain('RUNTIME POLICY PREFLIGHT');
+    expect(prompt).toContain('Normal automatic bets need break_even_rate < 0.50');
     expect(prompt).toContain('RED CARD PROTOCOL');
     expect(prompt).toContain('OUTPUT - STRICT JSON');
   });
@@ -117,5 +119,36 @@ describe('buildLiveAnalysisPrompt', () => {
     expect(prompt).toContain('GK A');
     expect(prompt).toContain('bench_count');
     expect(prompt).toContain('Never guess or infer missing lineup details');
+  });
+
+  test('renders active policy preflight constraints for one-goal early midgame', () => {
+    const prompt = buildLiveAnalysisPrompt({
+      ...baseInput,
+      minute: 39,
+      score: '0-1',
+      currentTotalGoals: 1,
+    }, settings);
+
+    expect(prompt).toContain('CURRENT_POLICY_CONTEXT: minute_band=30-44; score_state=one-goal-margin; evidence_mode=full_live_data; total_goals=1');
+    expect(prompt).toContain('ACTIVE SCORE/MINUTE VETO: minute 30-44 with one-goal margin is a danger zone');
+    expect(prompt).toContain('high-confidence AH protection pocket');
+    expect(prompt).toContain('BTTS No is blocked in this score state before minute 60');
+  });
+
+  test('renders the late under 4.5 two-plus-margin rescue pocket', () => {
+    const prompt = buildLiveAnalysisPrompt({
+      ...baseInput,
+      minute: 80,
+      score: '1-3',
+      currentTotalGoals: 4,
+      oddsCanonical: {
+        ...baseInput.oddsCanonical,
+        ou: { line: 4.5, over: 1.8, under: 2.025 },
+      },
+    }, settings);
+
+    expect(prompt).toContain('CURRENT_POLICY_CONTEXT: minute_band=75+; score_state=two-plus-margin; evidence_mode=full_live_data; total_goals=4');
+    expect(prompt).toContain('Late two-plus-margin goals Under with less than one goal of cushion is normally no_bet unless it is exactly under_4.5');
+    expect(prompt).toContain('confidence >= 7, value_percent >= 9');
   });
 });

@@ -6,8 +6,9 @@ import {
   type ExposureSummary,
   type PromptQualitySummary,
 } from '../lib/recommendation-quality-metrics.js';
+import { config } from '../config.js';
 
-export type OpsChecklistStatus = 'pass' | 'warn' | 'fail';
+export type OpsChecklistStatus = 'pass' | 'warn' | 'fail' | 'unknown';
 
 export interface OpsChecklistItem {
   id: string;
@@ -37,6 +38,15 @@ export interface PipelineOverview {
   topSkipReasons: Array<{ reason: string; count: number }>;
   jobFailures24h: number;
   jobFailuresByAction: Array<{ action: string; count: number }>;
+  failingJobs24h: Array<{
+    jobName: string;
+    failureRuns: number;
+    totalRuns: number;
+    lastStatus: string | null;
+    lastStartedAt: string | null;
+    lastCompletedAt: string | null;
+    lastError: string | null;
+  }>;
 }
 
 export interface ProviderStatsBreakdown {
@@ -57,6 +67,9 @@ export interface ProviderOddsBreakdown {
   oneX2Rate: number;
   overUnderRate: number;
   asianHandicapRate: number;
+  canonicalOneX2Rate: number;
+  canonicalOverUnderRate: number;
+  canonicalAsianHandicapRate: number;
 }
 
 export interface ProviderOverview {
@@ -66,8 +79,44 @@ export interface ProviderOverview {
   statsSuccessRate: number;
   oddsSamples: number;
   oddsUsableRate: number;
+  oddsTradableRate: number;
   statsByProvider: ProviderStatsBreakdown[];
   oddsByProvider: ProviderOddsBreakdown[];
+  samplingEnabled: boolean;
+}
+
+export interface WorkloadOverview {
+  pipelineEnabled: boolean;
+  activeWatchCount: number;
+  liveWatchCount: number;
+  providerSamplesExpected: boolean;
+  notificationExpected24h: boolean;
+}
+
+export interface LlmOpsOverview {
+  windowHours: number;
+  blocked24h: number;
+  started24h: number;
+  completed24h: number;
+  failed24h: number;
+  failureRate24h: number;
+  topBlockReasons: Array<{ reason: string; count: number }>;
+  diagnosticBreakdown: Array<{ diagnostic: string; count: number }>;
+}
+
+export interface DecisionFunnelStage {
+  id: string;
+  label: string;
+  count: number;
+  rateFromPrevious: number;
+  rateFromStart: number;
+}
+
+export interface DecisionFunnelOverview {
+  windowHours: number;
+  source: string;
+  stages: DecisionFunnelStage[];
+  silentBreakdown: Array<{ reason: string; count: number }>;
 }
 
 export interface SettlementOverview {
@@ -163,6 +212,9 @@ export interface PromptOnlyOverview {
 
 export interface OpsMonitoringSnapshot {
   generatedAt: string;
+  workload: WorkloadOverview;
+  llm: LlmOpsOverview;
+  decisionFunnel: DecisionFunnelOverview;
   checklist: OpsChecklistItem[];
   cards: OpsMetricCard[];
   pipeline: PipelineOverview;
@@ -175,17 +227,24 @@ export interface OpsMonitoringSnapshot {
 }
 
 interface ChecklistInputs {
+  pipelineEnabled: boolean;
   activityLast2h: number;
+  analyzed24h: number;
+  activeWatchCount: number;
+  liveWatchCount: number;
+  providerSamplingEnabled: boolean;
   jobFailures24h: number;
   statsSamples: number;
   statsSuccessRate: number;
   oddsSamples: number;
   oddsUsableRate: number;
+  oddsTradableRate: number;
   settlementBacklog: number;
   unresolvedCount: number;
   notificationAttempts24h: number;
   notificationFailureRate24h: number;
   notificationStalePending: number;
+  notificationExpected24h: boolean;
 }
 
 const PIPELINE_WINDOW_HOURS = 24;
@@ -207,59 +266,128 @@ function pct(numerator: number, denominator: number): number {
   return round((numerator / denominator) * 100, 1);
 }
 
+function buildDecisionFunnelStages(input: {
+  liveDetected24h: number;
+  candidate24h: number;
+  processed24h: number;
+  providerReady24h: number;
+  llmEligible24h: number;
+  llmStarted24h: number;
+  llmCompleted24h: number;
+  shouldPush24h: number;
+  saved24h: number;
+  notified24h: number;
+}): DecisionFunnelStage[] {
+  const rows: Array<{ id: string; label: string; count: number }> = [
+    { id: 'live_detected', label: 'Live detected', count: input.liveDetected24h },
+    { id: 'candidate', label: 'Candidate after staleness', count: input.candidate24h },
+    { id: 'processed', label: 'Pipeline processed', count: input.processed24h },
+    { id: 'provider_ready', label: 'Provider ready', count: input.providerReady24h },
+    { id: 'llm_eligible', label: 'LLM eligible', count: input.llmEligible24h },
+    { id: 'llm_started', label: 'LLM called', count: input.llmStarted24h },
+    { id: 'llm_completed', label: 'LLM completed', count: input.llmCompleted24h },
+    { id: 'should_push', label: 'Model/system push', count: input.shouldPush24h },
+    { id: 'saved', label: 'Saved recommendation', count: input.saved24h },
+    { id: 'notified', label: 'Notification staged', count: input.notified24h },
+  ];
+  const start = rows[0]?.count ?? 0;
+  return rows.map((row, index) => {
+    const previous = index === 0 ? row.count : rows[index - 1]!.count;
+    return {
+      ...row,
+      rateFromPrevious: index === 0 ? 100 : pct(row.count, previous),
+      rateFromStart: pct(row.count, start),
+    };
+  });
+}
+
 function deriveStatus(pass: boolean, warn: boolean): OpsChecklistStatus {
   if (pass) return 'pass';
   if (warn) return 'warn';
   return 'fail';
 }
 
+function statusRank(status: OpsChecklistStatus): number {
+  if (status === 'fail') return 3;
+  if (status === 'warn') return 2;
+  if (status === 'unknown') return 1;
+  return 0;
+}
+
 export function buildOpsChecklist(inputs: ChecklistInputs): OpsChecklistItem[] {
   const settlementBacklog = inputs.settlementBacklog;
   const unresolvedCount = inputs.unresolvedCount;
+  const providerSamplesExpected = inputs.pipelineEnabled && (inputs.liveWatchCount > 0 || inputs.analyzed24h > 0);
+  const noProviderWorkloadDetail = inputs.pipelineEnabled
+    ? `No live provider workload observed (${inputs.liveWatchCount} live watch match(es), ${inputs.analyzed24h} analyzed row(s) in 24h)`
+    : 'Pipeline is disabled';
 
-  const pipelineActivityStatus = deriveStatus(
-    inputs.activityLast2h > 0,
-    inputs.activityLast2h === 0,
-  );
+  const pipelineActivityStatus: OpsChecklistStatus = inputs.activityLast2h > 0
+    ? 'pass'
+    : inputs.pipelineEnabled && inputs.liveWatchCount > 0
+      ? 'fail'
+      : 'unknown';
 
   const jobFailureStatus = deriveStatus(
     inputs.jobFailures24h === 0,
     inputs.jobFailures24h <= 3,
   );
 
-  const statsCoverageStatus = deriveStatus(
-    inputs.statsSamples > 0 && inputs.statsSuccessRate >= 75,
-    inputs.statsSamples === 0 || inputs.statsSuccessRate >= 55,
-  );
+  const statsCoverageStatus: OpsChecklistStatus = !inputs.providerSamplingEnabled
+    ? 'unknown'
+    : inputs.statsSamples === 0
+      ? (providerSamplesExpected ? 'fail' : 'unknown')
+      : deriveStatus(inputs.statsSuccessRate >= 75, inputs.statsSuccessRate >= 55);
 
-  const oddsCoverageStatus = deriveStatus(
-    inputs.oddsSamples > 0 && inputs.oddsUsableRate >= 70,
-    inputs.oddsSamples === 0 || inputs.oddsUsableRate >= 50,
-  );
+  const oddsCoverageStatus: OpsChecklistStatus = !inputs.providerSamplingEnabled
+    ? 'unknown'
+    : inputs.oddsSamples === 0
+      ? (providerSamplesExpected ? 'fail' : 'unknown')
+      : deriveStatus(
+        inputs.oddsUsableRate >= 70 && inputs.oddsTradableRate >= 70,
+        inputs.oddsUsableRate >= 50 && inputs.oddsTradableRate >= 50,
+      );
 
   const settlementStatus = deriveStatus(
     settlementBacklog <= 50 && unresolvedCount <= 10,
     settlementBacklog <= 200 && unresolvedCount <= 50,
   );
 
-  const notificationStatus = deriveStatus(
-    inputs.notificationStalePending === 0 && inputs.notificationFailureRate24h <= 5,
-    inputs.notificationStalePending <= 3 && inputs.notificationFailureRate24h <= 20,
-  );
+  const notificationStatus: OpsChecklistStatus = inputs.notificationStalePending > 0
+    ? deriveStatus(
+      false,
+      inputs.notificationStalePending <= 3 && inputs.notificationFailureRate24h <= 20,
+    )
+    : inputs.notificationAttempts24h === 0
+      ? (inputs.notificationExpected24h ? 'warn' : 'unknown')
+      : deriveStatus(
+      inputs.notificationStalePending === 0 && inputs.notificationFailureRate24h <= 5,
+      inputs.notificationStalePending <= 3 && inputs.notificationFailureRate24h <= 20,
+    );
 
   return [
     {
       id: 'pipeline-activity',
-      label: 'Pipeline activity is present',
+      label: inputs.activityLast2h > 0
+        ? 'Pipeline activity is present'
+        : inputs.liveWatchCount > 0
+          ? 'Pipeline activity is missing'
+          : 'Pipeline activity is idle',
       status: pipelineActivityStatus,
       detail:
         inputs.activityLast2h > 0
           ? `${inputs.activityLast2h} pipeline audit events in last ${PIPELINE_ACTIVITY_WINDOW_HOURS}h`
-          : `No pipeline activity observed in last ${PIPELINE_ACTIVITY_WINDOW_HOURS}h`,
+          : inputs.liveWatchCount > 0
+            ? `No pipeline activity observed in last ${PIPELINE_ACTIVITY_WINDOW_HOURS}h while ${inputs.liveWatchCount} watch match(es) are live`
+            : `No pipeline activity observed in last ${PIPELINE_ACTIVITY_WINDOW_HOURS}h; ${noProviderWorkloadDetail}`,
     },
     {
       id: 'job-failures',
-      label: 'Critical jobs are not failing repeatedly',
+      label: inputs.jobFailures24h === 0
+        ? 'Critical jobs are not failing'
+        : inputs.jobFailures24h <= 3
+          ? 'Critical jobs have limited failures'
+          : 'Critical jobs are failing repeatedly',
       status: jobFailureStatus,
       detail:
         inputs.jobFailures24h === 0
@@ -268,21 +396,33 @@ export function buildOpsChecklist(inputs: ChecklistInputs): OpsChecklistItem[] {
     },
     {
       id: 'stats-provider-coverage',
-      label: 'Stats provider coverage is healthy',
+      label: inputs.statsSamples > 0
+        ? 'Stats provider coverage has samples'
+        : providerSamplesExpected
+          ? 'Stats provider samples are missing'
+          : 'Stats provider coverage is idle',
       status: statsCoverageStatus,
       detail:
-        inputs.statsSamples > 0
+        !inputs.providerSamplingEnabled
+          ? 'Provider sampling is disabled by PROVIDER_SAMPLING_ENABLED=false'
+        : inputs.statsSamples > 0
           ? `${inputs.statsSuccessRate}% success over ${inputs.statsSamples} sample(s) in last ${PROVIDER_WINDOW_HOURS}h`
-          : `No stats samples recorded in last ${PROVIDER_WINDOW_HOURS}h`,
+          : `${noProviderWorkloadDetail}; no stats samples recorded in last ${PROVIDER_WINDOW_HOURS}h`,
     },
     {
       id: 'odds-provider-coverage',
-      label: 'Odds provider coverage is healthy',
+      label: inputs.oddsSamples > 0
+        ? 'Odds provider coverage has samples'
+        : providerSamplesExpected
+          ? 'Odds provider samples are missing'
+          : 'Odds provider coverage is idle',
       status: oddsCoverageStatus,
       detail:
-        inputs.oddsSamples > 0
-          ? `${inputs.oddsUsableRate}% usable over ${inputs.oddsSamples} sample(s) in last ${PROVIDER_WINDOW_HOURS}h`
-          : `No odds samples recorded in last ${PROVIDER_WINDOW_HOURS}h`,
+        !inputs.providerSamplingEnabled
+          ? 'Provider sampling is disabled by PROVIDER_SAMPLING_ENABLED=false'
+        : inputs.oddsSamples > 0
+          ? `${inputs.oddsUsableRate}% usable, ${inputs.oddsTradableRate}% canonical tradable over ${inputs.oddsSamples} sample(s) in last ${PROVIDER_WINDOW_HOURS}h`
+          : `${noProviderWorkloadDetail}; no odds samples recorded in last ${PROVIDER_WINDOW_HOURS}h`,
     },
     {
       id: 'settlement-backlog',
@@ -292,16 +432,22 @@ export function buildOpsChecklist(inputs: ChecklistInputs): OpsChecklistItem[] {
     },
     {
       id: 'notification-health',
-      label: 'Telegram delivery is stable',
+      label: inputs.notificationAttempts24h > 0
+        ? 'Telegram delivery has attempts'
+        : inputs.notificationExpected24h
+          ? 'Telegram delivery attempts are missing'
+          : 'Telegram delivery is idle',
       status: notificationStatus,
       detail:
         inputs.notificationStalePending > 0
           ? `${inputs.notificationStalePending} pending Telegram delivery row(s) older than ${NOTIFICATION_STALE_PENDING_MINUTES}m; ${inputs.notificationFailureRate24h}% failure over ${inputs.notificationAttempts24h} attempt(s)`
         : inputs.notificationAttempts24h > 0
           ? `${inputs.notificationFailureRate24h}% failure over ${inputs.notificationAttempts24h} attempt(s) in last ${NOTIFICATION_WINDOW_HOURS}h`
-          : `No Telegram deliveries attempted in last ${NOTIFICATION_WINDOW_HOURS}h; queue has no stale pending rows`,
+          : inputs.notificationExpected24h
+            ? `No Telegram deliveries attempted in last ${NOTIFICATION_WINDOW_HOURS}h despite eligible/saved recommendation activity`
+            : `No Telegram deliveries expected or attempted in last ${NOTIFICATION_WINDOW_HOURS}h; queue has no stale pending rows`,
     },
-  ];
+  ].sort((left, right) => statusRank(right.status) - statusRank(left.status));
 }
 
 export async function getOpsMonitoringSnapshot(): Promise<OpsMonitoringSnapshot> {
@@ -309,6 +455,8 @@ export async function getOpsMonitoringSnapshot(): Promise<OpsMonitoringSnapshot>
     pipelineSummaryRes,
     skipReasonsRes,
     jobFailuresRes,
+    jobFailureDetailsRes,
+    workloadSummaryRes,
     providerStatsSummaryRes,
     providerStatsBreakdownRes,
     providerOddsSummaryRes,
@@ -329,6 +477,10 @@ export async function getOpsMonitoringSnapshot(): Promise<OpsMonitoringSnapshot>
     prematchStructuredReasonBreakdownRes,
     promptOnlySummaryRes,
     promptOnlyReasonBreakdownRes,
+    decisionFunnelSummaryRes,
+    llmFunnelRes,
+    llmBlockReasonsRes,
+    llmDiagnosticBreakdownRes,
   ] = await Promise.all([
     query<{
       activity_2h: string;
@@ -401,6 +553,65 @@ export async function getOpsMonitoringSnapshot(): Promise<OpsMonitoringSnapshot>
        GROUP BY action
        ORDER BY COUNT(*) DESC`,
     ),
+    query<{
+      job_name: string;
+      total_runs: string;
+      failure_runs: string;
+      last_status: string | null;
+      last_started_at: string | null;
+      last_completed_at: string | null;
+      last_error: string | null;
+    }>(
+      `WITH filtered AS (
+         SELECT *
+         FROM job_run_history
+         WHERE started_at >= NOW() - INTERVAL '24 hours'
+       ),
+       aggregate_rows AS (
+         SELECT
+           job_name,
+           COUNT(*)::text AS total_runs,
+           COUNT(*) FILTER (WHERE status = 'failure')::text AS failure_runs
+         FROM filtered
+         GROUP BY job_name
+       )
+       SELECT
+         aggregate_rows.job_name,
+         aggregate_rows.total_runs,
+         aggregate_rows.failure_runs,
+         latest.status AS last_status,
+         latest.started_at::text AS last_started_at,
+         latest.completed_at::text AS last_completed_at,
+         latest.error AS last_error
+       FROM aggregate_rows
+       LEFT JOIN LATERAL (
+         SELECT status, started_at, completed_at, error
+         FROM filtered
+         WHERE filtered.job_name = aggregate_rows.job_name
+         ORDER BY started_at DESC, id DESC
+         LIMIT 1
+       ) latest ON TRUE
+       WHERE aggregate_rows.failure_runs::int > 0
+       ORDER BY aggregate_rows.failure_runs::int DESC, aggregate_rows.job_name
+       LIMIT 8`,
+    ),
+    query<{
+      active_watch_count: string;
+      live_watch_count: string;
+    }>(
+      `SELECT
+         COUNT(*)::text AS active_watch_count,
+         COUNT(*) FILTER (WHERE m.status = ANY($1))::text AS live_watch_count
+       FROM monitored_matches mm
+       LEFT JOIN matches m ON m.match_id::text = mm.match_id
+       WHERE COALESCE(mm.subscriber_count, 0) > 0
+          OR EXISTS (
+            SELECT 1
+            FROM user_watch_subscriptions s
+            WHERE s.match_id = mm.match_id
+          )`,
+      [config.liveStatuses],
+    ),
     query<{ total: string; successes: string }>(
       `SELECT
          COUNT(*)::text AS total,
@@ -428,10 +639,18 @@ export async function getOpsMonitoringSnapshot(): Promise<OpsMonitoringSnapshot>
        GROUP BY provider
        ORDER BY COUNT(*) DESC, provider`,
     ),
-    query<{ total: string; usable: string }>(
+    query<{ total: string; usable: string; tradable: string }>(
       `SELECT
          COUNT(*)::text AS total,
-         COUNT(*) FILTER (WHERE usable = TRUE)::text AS usable
+         COUNT(*) FILTER (WHERE usable = TRUE)::text AS usable,
+         COUNT(*) FILTER (
+           WHERE usable = TRUE
+             AND (
+               COALESCE((coverage_flags->>'canonical_has_1x2')::boolean, (coverage_flags->>'has_1x2')::boolean, FALSE)
+               OR COALESCE((coverage_flags->>'canonical_has_ou')::boolean, (coverage_flags->>'has_ou')::boolean, FALSE)
+               OR COALESCE((coverage_flags->>'canonical_has_ah')::boolean, (coverage_flags->>'has_ah')::boolean, FALSE)
+             )
+         )::text AS tradable
        FROM provider_odds_samples
        WHERE captured_at >= NOW() - INTERVAL '${PROVIDER_WINDOW_HOURS} hours'`,
     ),
@@ -444,6 +663,9 @@ export async function getOpsMonitoringSnapshot(): Promise<OpsMonitoringSnapshot>
       one_x2_hits: string;
       ou_hits: string;
       ah_hits: string;
+      canonical_one_x2_hits: string;
+      canonical_ou_hits: string;
+      canonical_ah_hits: string;
     }>(
       `SELECT
          provider,
@@ -451,9 +673,12 @@ export async function getOpsMonitoringSnapshot(): Promise<OpsMonitoringSnapshot>
          COUNT(*)::text AS total,
          COUNT(*) FILTER (WHERE usable = TRUE)::text AS usable,
          AVG(latency_ms)::text AS avg_latency_ms,
-         COUNT(*) FILTER (WHERE COALESCE((coverage_flags->>'has_1x2')::boolean, FALSE))::text AS one_x2_hits,
-         COUNT(*) FILTER (WHERE COALESCE((coverage_flags->>'has_ou')::boolean, FALSE))::text AS ou_hits,
-         COUNT(*) FILTER (WHERE COALESCE((coverage_flags->>'has_ah')::boolean, FALSE))::text AS ah_hits
+         COUNT(*) FILTER (WHERE COALESCE((coverage_flags->>'raw_has_1x2')::boolean, (coverage_flags->>'has_1x2')::boolean, FALSE))::text AS one_x2_hits,
+         COUNT(*) FILTER (WHERE COALESCE((coverage_flags->>'raw_has_ou')::boolean, (coverage_flags->>'has_ou')::boolean, FALSE))::text AS ou_hits,
+         COUNT(*) FILTER (WHERE COALESCE((coverage_flags->>'raw_has_ah')::boolean, (coverage_flags->>'has_ah')::boolean, FALSE))::text AS ah_hits,
+         COUNT(*) FILTER (WHERE COALESCE((coverage_flags->>'canonical_has_1x2')::boolean, (coverage_flags->>'has_1x2')::boolean, FALSE))::text AS canonical_one_x2_hits,
+         COUNT(*) FILTER (WHERE COALESCE((coverage_flags->>'canonical_has_ou')::boolean, (coverage_flags->>'has_ou')::boolean, FALSE))::text AS canonical_ou_hits,
+         COUNT(*) FILTER (WHERE COALESCE((coverage_flags->>'canonical_has_ah')::boolean, (coverage_flags->>'has_ah')::boolean, FALSE))::text AS canonical_ah_hits
        FROM provider_odds_samples
        WHERE captured_at >= NOW() - INTERVAL '${PROVIDER_WINDOW_HOURS} hours'
        GROUP BY provider, source
@@ -777,16 +1002,103 @@ export async function getOpsMonitoringSnapshot(): Promise<OpsMonitoringSnapshot>
       )
       ORDER BY COUNT(*) DESC, reason
     `),
+    query<{
+      live_detected: string;
+      candidate: string;
+      processed: string;
+      provider_ready: string;
+      llm_eligible: string;
+      pre_llm_skipped: string;
+      skipped_proceed: string;
+      skipped_staleness: string;
+      llm_eligibility_blocked: string;
+      model_no_bet: string;
+      policy_blocked: string;
+      save_blocked: string;
+      should_push: string;
+      saved: string;
+      notified: string;
+      errors: string;
+    }>(`
+      WITH complete AS (
+        SELECT metadata
+        FROM audit_logs
+        WHERE category = 'PIPELINE'
+          AND action = 'PIPELINE_COMPLETE'
+          AND timestamp >= NOW() - INTERVAL '${PIPELINE_WINDOW_HOURS} hours'
+      )
+      SELECT
+        COALESCE(SUM(CASE WHEN COALESCE(metadata->>'liveCount', '') ~ '^-?[0-9]+$' THEN (metadata->>'liveCount')::int ELSE 0 END), 0)::text AS live_detected,
+        COALESCE(SUM(CASE WHEN COALESCE(metadata->>'candidateCount', '') ~ '^-?[0-9]+$' THEN (metadata->>'candidateCount')::int ELSE 0 END), 0)::text AS candidate,
+        COALESCE(SUM(CASE WHEN COALESCE(metadata->>'totalProcessed', '') ~ '^-?[0-9]+$' THEN (metadata->>'totalProcessed')::int ELSE 0 END), 0)::text AS processed,
+        COALESCE(SUM(CASE WHEN COALESCE(metadata->>'totalProviderReady', '') ~ '^-?[0-9]+$' THEN (metadata->>'totalProviderReady')::int ELSE 0 END), 0)::text AS provider_ready,
+        COALESCE(SUM(CASE WHEN COALESCE(metadata->>'totalLlmEligible', '') ~ '^-?[0-9]+$' THEN (metadata->>'totalLlmEligible')::int ELSE 0 END), 0)::text AS llm_eligible,
+        COALESCE(SUM(CASE WHEN COALESCE(metadata->>'totalPreLlmSkipped', '') ~ '^-?[0-9]+$' THEN (metadata->>'totalPreLlmSkipped')::int ELSE 0 END), 0)::text AS pre_llm_skipped,
+        COALESCE(SUM(CASE WHEN COALESCE(metadata->>'totalSkippedProceed', '') ~ '^-?[0-9]+$' THEN (metadata->>'totalSkippedProceed')::int ELSE 0 END), 0)::text AS skipped_proceed,
+        COALESCE(SUM(CASE WHEN COALESCE(metadata->>'totalSkippedStaleness', '') ~ '^-?[0-9]+$' THEN (metadata->>'totalSkippedStaleness')::int ELSE 0 END), 0)::text AS skipped_staleness,
+        COALESCE(SUM(CASE WHEN COALESCE(metadata->>'totalLlmEligibilityBlocked', '') ~ '^-?[0-9]+$' THEN (metadata->>'totalLlmEligibilityBlocked')::int ELSE 0 END), 0)::text AS llm_eligibility_blocked,
+        COALESCE(SUM(CASE WHEN COALESCE(metadata->>'totalModelNoBet', '') ~ '^-?[0-9]+$' THEN (metadata->>'totalModelNoBet')::int ELSE 0 END), 0)::text AS model_no_bet,
+        COALESCE(SUM(CASE WHEN COALESCE(metadata->>'totalPolicyBlocked', '') ~ '^-?[0-9]+$' THEN (metadata->>'totalPolicyBlocked')::int ELSE 0 END), 0)::text AS policy_blocked,
+        COALESCE(SUM(CASE WHEN COALESCE(metadata->>'totalSaveBlocked', '') ~ '^-?[0-9]+$' THEN (metadata->>'totalSaveBlocked')::int ELSE 0 END), 0)::text AS save_blocked,
+        COALESCE(SUM(CASE WHEN COALESCE(metadata->>'totalShouldPush', '') ~ '^-?[0-9]+$' THEN (metadata->>'totalShouldPush')::int ELSE 0 END), 0)::text AS should_push,
+        COALESCE(SUM(CASE WHEN COALESCE(metadata->>'totalSavedRecommendations', '') ~ '^-?[0-9]+$' THEN (metadata->>'totalSavedRecommendations')::int ELSE 0 END), 0)::text AS saved,
+        COALESCE(SUM(CASE WHEN COALESCE(metadata->>'totalPushedNotifications', '') ~ '^-?[0-9]+$' THEN (metadata->>'totalPushedNotifications')::int ELSE 0 END), 0)::text AS notified,
+        COALESCE(SUM(CASE WHEN COALESCE(metadata->>'totalErrors', '') ~ '^-?[0-9]+$' THEN (metadata->>'totalErrors')::int ELSE 0 END), 0)::text AS errors
+      FROM complete
+    `),
+    query<{
+      blocked: string;
+      started: string;
+      completed: string;
+      failed: string;
+    }>(`
+      SELECT
+        COUNT(*) FILTER (WHERE action = 'LLM_CALL_BLOCKED')::text AS blocked,
+        COUNT(*) FILTER (WHERE action = 'LLM_CALL_STARTED')::text AS started,
+        COUNT(*) FILTER (WHERE action = 'LLM_CALL_COMPLETED' AND outcome = 'SUCCESS')::text AS completed,
+        COUNT(*) FILTER (WHERE action = 'LLM_CALL_COMPLETED' AND outcome = 'FAILURE')::text AS failed
+      FROM audit_logs
+      WHERE category = 'PIPELINE'
+        AND action IN ('LLM_CALL_BLOCKED', 'LLM_CALL_STARTED', 'LLM_CALL_COMPLETED')
+        AND timestamp >= NOW() - INTERVAL '${PIPELINE_WINDOW_HOURS} hours'
+    `),
+    query<{ reason: string; count: string }>(`
+      SELECT
+        COALESCE(NULLIF(metadata->>'reason', ''), 'unknown') AS reason,
+        COUNT(*)::text AS count
+      FROM audit_logs
+      WHERE category = 'PIPELINE'
+        AND action = 'LLM_CALL_BLOCKED'
+        AND timestamp >= NOW() - INTERVAL '${PIPELINE_WINDOW_HOURS} hours'
+      GROUP BY COALESCE(NULLIF(metadata->>'reason', ''), 'unknown')
+      ORDER BY COUNT(*) DESC, reason
+      LIMIT 6
+    `),
+    query<{ diagnostic: string; count: string }>(`
+      SELECT
+        COALESCE(NULLIF(metadata->>'llmDecisionDiagnostic', ''), 'unknown') AS diagnostic,
+        COUNT(*)::text AS count
+      FROM audit_logs
+      WHERE category = 'PIPELINE'
+        AND action = 'LLM_PARSE_DIAGNOSTIC'
+        AND timestamp >= NOW() - INTERVAL '${PIPELINE_WINDOW_HOURS} hours'
+      GROUP BY COALESCE(NULLIF(metadata->>'llmDecisionDiagnostic', ''), 'unknown')
+      ORDER BY COUNT(*) DESC, diagnostic
+      LIMIT 8
+    `),
   ]);
 
   const pipelineSummary = pipelineSummaryRes.rows[0]!;
   const providerStatsSummary = providerStatsSummaryRes.rows[0]!;
   const providerOddsSummary = providerOddsSummaryRes.rows[0]!;
+  const workloadSummary = workloadSummaryRes.rows[0]!;
   const settlementSummary = settlementSummaryRes.rows[0]!;
   const notificationSummary = notificationRes.rows[0]!;
   const deliveredSummary = deliveredRes.rows[0]!;
   const promptShadowSummary = promptShadowSummaryRes.rows[0]!;
   const promptShadowCompared = promptShadowComparedRes.rows[0]!;
+  const llmFunnel = llmFunnelRes.rows[0]!;
+  const decisionFunnelSummary = decisionFunnelSummaryRes.rows[0]!;
 
   const analyzed24h = Number(pipelineSummary.analyzed_24h);
   const notifyEligible24h = Number(pipelineSummary.notify_eligible_24h);
@@ -799,6 +1111,7 @@ export async function getOpsMonitoringSnapshot(): Promise<OpsMonitoringSnapshot>
   const statsSuccesses = Number(providerStatsSummary.successes);
   const oddsSamples = Number(providerOddsSummary.total);
   const oddsUsable = Number(providerOddsSummary.usable);
+  const oddsTradable = Number(providerOddsSummary.tradable);
 
   const recommendationPending = Number(settlementSummary.rec_pending);
   const recommendationUnresolved = Number(settlementSummary.rec_unresolved);
@@ -841,22 +1154,56 @@ export async function getOpsMonitoringSnapshot(): Promise<OpsMonitoringSnapshot>
   const promptOnlyTotalRows = Number(promptOnlySummary.total_rows);
   const promptOnlyStructuredEligibleRows = Number(promptOnlySummary.structured_eligible_rows);
   const promptOnlyStructuredEligibleRate = pct(promptOnlyStructuredEligibleRows, promptOnlyTotalRows);
+  const llmBlocked24h = Number(llmFunnel.blocked);
+  const llmStarted24h = Number(llmFunnel.started);
+  const llmCompleted24h = Number(llmFunnel.completed);
+  const llmFailed24h = Number(llmFunnel.failed);
+  const llmFailureRate24h = pct(llmFailed24h, llmCompleted24h + llmFailed24h);
+  const funnelLiveDetected24h = Number(decisionFunnelSummary.live_detected);
+  const funnelCandidate24h = Number(decisionFunnelSummary.candidate);
+  const funnelProcessed24h = Number(decisionFunnelSummary.processed);
+  const funnelProviderReady24h = Number(decisionFunnelSummary.provider_ready);
+  const funnelLlmEligible24h = Number(decisionFunnelSummary.llm_eligible);
+  const funnelPreLlmSkipped24h = Number(decisionFunnelSummary.pre_llm_skipped);
+  const funnelSkippedProceed24h = Number(decisionFunnelSummary.skipped_proceed);
+  const funnelSkippedStaleness24h = Number(decisionFunnelSummary.skipped_staleness);
+  const funnelLlmEligibilityBlocked24h = Number(decisionFunnelSummary.llm_eligibility_blocked);
+  const funnelModelNoBet24h = Number(decisionFunnelSummary.model_no_bet);
+  const funnelPolicyBlocked24h = Number(decisionFunnelSummary.policy_blocked);
+  const funnelSaveBlocked24h = Number(decisionFunnelSummary.save_blocked);
+  const funnelShouldPush24h = Number(decisionFunnelSummary.should_push);
+  const funnelSaved24h = Number(decisionFunnelSummary.saved);
+  const funnelNotified24h = Number(decisionFunnelSummary.notified);
+  const funnelErrors24h = Number(decisionFunnelSummary.errors);
 
   const providerStatsSuccessRate = pct(statsSuccesses, statsSamples);
   const providerOddsUsableRate = pct(oddsUsable, oddsSamples);
+  const providerOddsTradableRate = pct(oddsTradable, oddsSamples);
+  const activeWatchCount = Number(workloadSummary.active_watch_count);
+  const liveWatchCount = Number(workloadSummary.live_watch_count);
+  const providerSamplesExpected = config.pipelineEnabled && (liveWatchCount > 0 || analyzed24h > 0);
+  const notificationExpected24h = notifyEligible24h > 0 || saved24h > 0 || notified24h > 0;
+  const jobFailures24h = jobFailuresRes.rows.reduce((sum, row) => sum + Number(row.count), 0);
 
   const checklist = buildOpsChecklist({
+    pipelineEnabled: config.pipelineEnabled,
     activityLast2h: Number(pipelineSummary.activity_2h),
-    jobFailures24h: jobFailuresRes.rows.reduce((sum, row) => sum + Number(row.count), 0),
+    analyzed24h,
+    activeWatchCount,
+    liveWatchCount,
+    providerSamplingEnabled: config.providerSamplingEnabled,
+    jobFailures24h,
     statsSamples,
     statsSuccessRate: providerStatsSuccessRate,
     oddsSamples,
     oddsUsableRate: providerOddsUsableRate,
+    oddsTradableRate: providerOddsTradableRate,
     settlementBacklog,
     unresolvedCount: recommendationUnresolved + betUnresolved,
     notificationAttempts24h,
     notificationFailureRate24h,
     notificationStalePending,
+    notificationExpected24h,
   });
 
   const cards: OpsMetricCard[] = [
@@ -874,15 +1221,15 @@ export async function getOpsMonitoringSnapshot(): Promise<OpsMonitoringSnapshot>
     },
     {
       label: 'Stats Coverage 6h',
-      value: `${providerStatsSuccessRate}%`,
+      value: statsSamples > 0 ? `${providerStatsSuccessRate}%` : 'n/a',
       tone: checklist.find((item) => item.id === 'stats-provider-coverage')?.status ?? 'neutral',
       detail: `${statsSamples} samples`,
     },
     {
       label: 'Odds Coverage 6h',
-      value: `${providerOddsUsableRate}%`,
+      value: oddsSamples > 0 ? `${providerOddsTradableRate}%` : 'n/a',
       tone: checklist.find((item) => item.id === 'odds-provider-coverage')?.status ?? 'neutral',
-      detail: `${oddsSamples} samples`,
+      detail: `${providerOddsUsableRate}% usable / ${providerOddsTradableRate}% tradable`,
     },
     {
       label: 'Settle Backlog',
@@ -892,7 +1239,7 @@ export async function getOpsMonitoringSnapshot(): Promise<OpsMonitoringSnapshot>
     },
     {
       label: 'Telegram Fail 24h',
-      value: `${notificationFailureRate24h}%`,
+      value: notificationAttempts24h > 0 ? `${notificationFailureRate24h}%` : 'n/a',
       tone: checklist.find((item) => item.id === 'notification-health')?.status ?? 'neutral',
       detail: `${notificationFailures24h}/${notificationAttempts24h} attempts`,
     },
@@ -922,13 +1269,43 @@ export async function getOpsMonitoringSnapshot(): Promise<OpsMonitoringSnapshot>
     },
     {
       label: 'Prematch High Noise 24h',
-      value: `${prematchHighNoiseRate}%`,
-      tone: prematchHighNoiseRate <= 10
+      value: prematchTotalRows > 0 ? `${prematchHighNoiseRate}%` : 'n/a',
+      tone: prematchTotalRows === 0
+        ? 'unknown'
+        : prematchHighNoiseRate <= 10
         ? 'pass'
         : prematchHighNoiseRate <= 25
           ? 'warn'
         : 'fail',
       detail: `${prematchHighNoiseRows}/${prematchTotalRows} analyzed rows`,
+    },
+    {
+      label: 'LLM Blocked 24h',
+      value: String(llmBlocked24h),
+      tone: llmBlocked24h > 0 ? 'warn' : 'pass',
+      detail: `${llmStarted24h} started, ${llmCompleted24h} completed`,
+    },
+    {
+      label: 'Actionable Funnel 24h',
+      value: funnelLiveDetected24h > 0 ? `${pct(funnelSaved24h, funnelLiveDetected24h)}%` : 'n/a',
+      tone: funnelLiveDetected24h === 0
+        ? 'neutral'
+        : funnelSaved24h > 0
+          ? 'pass'
+          : 'warn',
+      detail: `${funnelSaved24h}/${funnelLiveDetected24h} live detected saved`,
+    },
+    {
+      label: 'LLM Fail 24h',
+      value: llmStarted24h > 0 ? `${llmFailureRate24h}%` : 'n/a',
+      tone: llmStarted24h === 0
+        ? 'neutral'
+        : llmFailureRate24h <= 1
+          ? 'pass'
+          : llmFailureRate24h <= 5
+            ? 'warn'
+            : 'fail',
+      detail: `${llmFailed24h}/${llmCompleted24h + llmFailed24h} completed attempts`,
     },
     {
       label: 'Prematch Structured Eligible',
@@ -948,6 +1325,55 @@ export async function getOpsMonitoringSnapshot(): Promise<OpsMonitoringSnapshot>
 
   return {
     generatedAt: new Date().toISOString(),
+    workload: {
+      pipelineEnabled: config.pipelineEnabled,
+      activeWatchCount,
+      liveWatchCount,
+      providerSamplesExpected,
+      notificationExpected24h,
+    },
+    llm: {
+      windowHours: PIPELINE_WINDOW_HOURS,
+      blocked24h: llmBlocked24h,
+      started24h: llmStarted24h,
+      completed24h: llmCompleted24h,
+      failed24h: llmFailed24h,
+      failureRate24h: llmFailureRate24h,
+      topBlockReasons: llmBlockReasonsRes.rows.map((row) => ({
+        reason: row.reason,
+        count: Number(row.count),
+      })),
+      diagnosticBreakdown: llmDiagnosticBreakdownRes.rows.map((row) => ({
+        diagnostic: row.diagnostic,
+        count: Number(row.count),
+      })),
+    },
+    decisionFunnel: {
+      windowHours: PIPELINE_WINDOW_HOURS,
+      source: 'PIPELINE_COMPLETE audit summary',
+      stages: buildDecisionFunnelStages({
+        liveDetected24h: funnelLiveDetected24h,
+        candidate24h: funnelCandidate24h,
+        processed24h: funnelProcessed24h,
+        providerReady24h: funnelProviderReady24h,
+        llmEligible24h: funnelLlmEligible24h,
+        llmStarted24h,
+        llmCompleted24h,
+        shouldPush24h: funnelShouldPush24h || notifyEligible24h,
+        saved24h: funnelSaved24h || saved24h,
+        notified24h: funnelNotified24h || notified24h,
+      }),
+      silentBreakdown: [
+        { reason: 'staleness_gate', count: funnelSkippedStaleness24h },
+        { reason: 'proceed_gate', count: funnelSkippedProceed24h },
+        { reason: 'llm_eligibility_blocked', count: funnelLlmEligibilityBlocked24h || llmBlocked24h },
+        { reason: 'model_no_bet', count: funnelModelNoBet24h },
+        { reason: 'policy_blocked', count: funnelPolicyBlocked24h },
+        { reason: 'save_blocked_provider_coverage', count: funnelSaveBlocked24h },
+        { reason: 'pipeline_error', count: funnelErrors24h || errors24h },
+        { reason: 'pre_llm_total', count: funnelPreLlmSkipped24h },
+      ].filter((row) => row.count > 0),
+    },
     checklist,
     cards,
     pipeline: {
@@ -965,10 +1391,19 @@ export async function getOpsMonitoringSnapshot(): Promise<OpsMonitoringSnapshot>
         reason: row.reason,
         count: Number(row.count),
       })),
-      jobFailures24h: jobFailuresRes.rows.reduce((sum, row) => sum + Number(row.count), 0),
+      jobFailures24h,
       jobFailuresByAction: jobFailuresRes.rows.map((row) => ({
         action: row.action,
         count: Number(row.count),
+      })),
+      failingJobs24h: jobFailureDetailsRes.rows.map((row) => ({
+        jobName: row.job_name,
+        failureRuns: Number(row.failure_runs),
+        totalRuns: Number(row.total_runs),
+        lastStatus: row.last_status,
+        lastStartedAt: row.last_started_at,
+        lastCompletedAt: row.last_completed_at,
+        lastError: row.last_error,
       })),
     },
     providers: {
@@ -978,6 +1413,8 @@ export async function getOpsMonitoringSnapshot(): Promise<OpsMonitoringSnapshot>
       statsSuccessRate: providerStatsSuccessRate,
       oddsSamples,
       oddsUsableRate: providerOddsUsableRate,
+      oddsTradableRate: providerOddsTradableRate,
+      samplingEnabled: config.providerSamplingEnabled,
       statsByProvider: providerStatsBreakdownRes.rows.map((row) => {
         const samples = Number(row.total);
         return {
@@ -1000,6 +1437,9 @@ export async function getOpsMonitoringSnapshot(): Promise<OpsMonitoringSnapshot>
           oneX2Rate: pct(Number(row.one_x2_hits), samples),
           overUnderRate: pct(Number(row.ou_hits), samples),
           asianHandicapRate: pct(Number(row.ah_hits), samples),
+          canonicalOneX2Rate: pct(Number(row.canonical_one_x2_hits), samples),
+          canonicalOverUnderRate: pct(Number(row.canonical_ou_hits), samples),
+          canonicalAsianHandicapRate: pct(Number(row.canonical_ah_hits), samples),
         };
       }),
     },

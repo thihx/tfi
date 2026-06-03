@@ -2,6 +2,7 @@ import { normalizeMarket } from './normalize-market.js';
 import type { ReplayRunOutput } from './pipeline-replay.js';
 import type { FinalSettlementResult } from './settle-types.js';
 import type { SettledReplayScenario } from './db-replay-scenarios.js';
+import { buildPerformanceMemoryKey, deriveMinuteBand, deriveScoreState } from '../repos/ai-performance.repo.js';
 
 export interface EvaluatedReplayCase {
   promptVersion: string;
@@ -28,7 +29,35 @@ export interface EvaluatedReplayCase {
   replayPnl: number | null;
   originalBetMarket: string;
   originalResult: string;
+  decisionKind: string;
+  llmDecisionDiagnostic: string;
+  marketResolutionStatus: string;
+  providerCoverageStatus: ReplayProviderCoverageStatus;
+  replayContextStatus: ReplayContextStatus;
+  replayQualityAttribution: ReplayQualityAttribution;
+  replayWarnings: string[];
 }
+
+export type ReplayProviderCoverageStatus =
+  | 'ok'
+  | 'provider_line_unavailable_or_stale'
+  | 'missing_market_or_selection';
+
+export type ReplayContextStatus =
+  | 'ok'
+  | 'memory_no_history'
+  | 'replay_memory_missing'
+  | 'memory_lookup_unavailable';
+
+export type ReplayQualityAttribution =
+  | 'actionable'
+  | 'provider_coverage'
+  | 'replay_context_gap'
+  | 'pre_llm_blocked'
+  | 'model_policy_mismatch'
+  | 'hard_policy_gate'
+  | 'model_no_bet'
+  | 'parse_error';
 
 export interface ReplayCohortSummary {
   bucket: string;
@@ -220,7 +249,27 @@ export function buildEvaluatedReplayCase(
 ): EvaluatedReplayCase {
   const parsed = (output.result.debug?.parsed ?? {}) as Record<string, unknown>;
   const canonicalMarket = normalizeMarket(output.result.selection || '', String(parsed.bet_market || ''));
+  const warnings = Array.isArray(parsed.warnings) ? parsed.warnings.map(String) : [];
   const actionable = isActionableReplay(output, canonicalMarket);
+  const skippedAt = String(output.result.debug?.skippedAt || '');
+  const preLlmBlocked = skippedAt === 'proceed' || skippedAt === 'staleness' || skippedAt === 'llm_eligibility';
+  const llmDecisionDiagnostic = String(
+    parsed.llm_decision_diagnostic
+    || (preLlmBlocked ? 'pre_llm_blocked' : ''),
+  );
+  const marketResolutionStatus = String(
+    parsed.market_resolution_status
+    || (preLlmBlocked ? 'not_requested' : ''),
+  );
+  const providerCoverageStatus = classifyReplayProviderCoverageStatus(marketResolutionStatus);
+  const replayContextStatus = classifyReplayContextStatus(warnings, scenario, canonicalMarket);
+  const replayQualityAttribution = classifyReplayQualityAttribution({
+    actionable,
+    llmDecisionDiagnostic,
+    providerCoverageStatus,
+    replayContextStatus,
+    warnings,
+  });
   const normalizedOdds = actionable && Number.isFinite(Number(replayOdds)) && Number(replayOdds) > 0
     ? Number(replayOdds)
     : null;
@@ -258,7 +307,120 @@ export function buildEvaluatedReplayCase(
     replayPnl: actionable && replayPnl != null ? roundMetric(replayPnl) : null,
     originalBetMarket: scenario.metadata.originalBetMarket || '',
     originalResult: scenario.metadata.originalResult || '',
+    decisionKind: output.result.decisionKind || '',
+    llmDecisionDiagnostic,
+    marketResolutionStatus,
+    providerCoverageStatus,
+    replayContextStatus,
+    replayQualityAttribution,
+    replayWarnings: warnings,
   };
+}
+
+function classifyReplayProviderCoverageStatus(marketResolutionStatus: string): ReplayProviderCoverageStatus {
+  if (marketResolutionStatus === 'odds_unavailable') return 'provider_line_unavailable_or_stale';
+  if (marketResolutionStatus === 'missing_market' || marketResolutionStatus === 'missing_selection') {
+    return 'missing_market_or_selection';
+  }
+  return 'ok';
+}
+
+function classifyReplayContextStatus(
+  warnings: string[],
+  scenario: SettledReplayScenario,
+  canonicalMarket: string,
+): ReplayContextStatus {
+  if (warnings.includes('MEMORY_LOOKUP_UNAVAILABLE')) return 'memory_lookup_unavailable';
+  if (warnings.includes('MEMORY_FLAG_NO_HISTORY')) {
+    const snapshot = (scenario as { performanceMemorySnapshot?: unknown }).performanceMemorySnapshot;
+    const expectedKey = String(scenario.metadata.performanceMemoryKey || '');
+    const status = scenario.metadata.performanceMemoryStatus;
+    const replayKey = buildPerformanceMemoryKey(
+      canonicalMarket || 'unknown',
+      deriveMinuteBand(scenario.metadata.minute),
+      deriveScoreState(scenario.metadata.score),
+    );
+
+    if (snapshot === undefined || status === 'missing' || !expectedKey) return 'replay_memory_missing';
+    if (expectedKey !== replayKey) return 'replay_memory_missing';
+    return status === 'no_history' ? 'memory_no_history' : 'replay_memory_missing';
+  }
+  return 'ok';
+}
+
+function classifyReplayQualityAttribution(args: {
+  actionable: boolean;
+  llmDecisionDiagnostic: string;
+  providerCoverageStatus: ReplayProviderCoverageStatus;
+  replayContextStatus: ReplayContextStatus;
+  warnings: string[];
+}): ReplayQualityAttribution {
+  if (args.actionable) return 'actionable';
+  if (args.providerCoverageStatus !== 'ok') return 'provider_coverage';
+  if (args.llmDecisionDiagnostic === 'pre_llm_blocked') return 'pre_llm_blocked';
+  if (args.llmDecisionDiagnostic === 'market_parse_failed') return 'parse_error';
+  if (args.llmDecisionDiagnostic === 'no_bet_intentional') return 'model_no_bet';
+  const nonContextWarnings = args.warnings.filter((warning) => !warning.startsWith('MEMORY_'));
+  if (args.replayContextStatus !== 'ok' && nonContextWarnings.length === 0) {
+    return 'replay_context_gap';
+  }
+  if (args.llmDecisionDiagnostic === 'policy_blocked') {
+    return hasPreflightVisiblePolicyWarning(args.warnings) ? 'model_policy_mismatch' : 'hard_policy_gate';
+  }
+  return 'model_no_bet';
+}
+
+const PREFLIGHT_VISIBLE_POLICY_WARNINGS = new Set([
+  'CONFIDENCE_BELOW_MIN',
+  'HIGH_RISK',
+  'EDGE_BELOW_MIN',
+  'MARKET_NOT_ALLOWED_FOR_EVIDENCE',
+  '1X2_TOO_EARLY',
+  'REQUIRED_CONDITIONS_NOT_MET',
+  'HIGH_RISK_MARKET_BREAKEVEN_TOO_HIGH',
+  'BTTS_NO_BLOCKED_GOAL_MARGIN',
+  'BTTS_NO_BLOCKED_MIDGAME_GOALLESS',
+  'BTTS_NO_INSUFFICIENT_CONDITIONS',
+  'MARKET_BLACKLISTED_FOR_MIDGAME_WINDOW',
+  'OVER_1_5_BLOCKED_LATE_MIDGAME',
+  'HIGH_MARGIN_MIDGAME_BLOCK',
+  'ONE_GOAL_MIDGAME_INSUFFICIENT_CONFIDENCE',
+  'LATE_MIDGAME_INSUFFICIENT_CONFIDENCE',
+  'POLICY_BLOCK_1X2_DRAW',
+  'POLICY_BLOCK_1X2_HOME_PRE75',
+  'POLICY_BLOCK_BTTS_NO_PRE60_V10C',
+  'POLICY_BLOCK_BTTS_NO_60_74',
+  'POLICY_BLOCK_BTTS_NO_LOW_PRICE',
+  'POLICY_BLOCK_BTTS_NO_HIGH_PRICE',
+  'POLICY_BLOCK_BTTS_NO_LOW_EDGE',
+  'POLICY_BLOCK_BTTS_NO_LOW_EDGE_V8J',
+  'POLICY_BLOCK_BTTS_NO_BOTH_TEAMS_ON_TARGET',
+  'POLICY_BLOCK_BTTS_YES_MIDGAME_LOW_DUAL_THREAT_V10C',
+  'POLICY_BLOCK_BTTS_YES_30_44_ONE_GOAL_LOW_DUAL_THREAT_V10G',
+  'POLICY_BLOCK_BTTS_YES_ONE_SIDE_BLANK_GLOBAL',
+  'POLICY_BLOCK_BTTS_YES_LOW_DUAL_THREAT_GLOBAL',
+  'POLICY_BLOCK_CORNERS_OVER_HIGH_LINE_PRE60_V8F',
+  'POLICY_BLOCK_CORNERS_OVER_HIGH_LINE_PRE30_V10C',
+  'POLICY_BLOCK_CORNERS_OVER_45_59_ONE_GOAL_HIGH_LINE_V8H',
+  'POLICY_BLOCK_CORNERS_OVER_45_59_ONE_GOAL_EXTREME_LINE_V10D',
+  'POLICY_BLOCK_CORNERS_OVER_45_59_ONE_GOAL_EXTREME_LINE_V10E',
+  'POLICY_BLOCK_PROPS_HOT_ZONE_LOW_EDGE_V8J',
+  'POLICY_BLOCK_PROPS_HOT_ZONE_LOW_CONFIDENCE_V8J',
+  'POLICY_BLOCK_CORNERS_UNDER_EARLY_HIGH_LINE_V10C',
+  'POLICY_BLOCK_CORNERS_UNDER_45_59_ONE_GOAL_LOW_LINE_V10D',
+  'POLICY_BLOCK_CORNERS_UNDER_45_59_ONE_GOAL_LOW_LINE_V10E',
+  'POLICY_BLOCK_CORNERS_UNDER_45_59_LOW_LINE_CHASE_V10F',
+  'POLICY_BLOCK_CORNERS_UNDER_30_44_GOALS_ON_BOARD_LOW_LINE_V10G',
+  'POLICY_BLOCK_CORNERS_UNDER_MIDGAME_GOALS_GLOBAL',
+  'POLICY_BLOCK_CORNERS_UNDER_LATE_ONE_GOAL_LOW_LINE_GLOBAL',
+  'POLICY_BLOCK_GOALS_UNDER_THIN_CUSHION_LOW_CONF_GLOBAL',
+  'POLICY_BLOCK_GOALS_UNDER_MID_LATE_THIN_CUSHION_LOW_CONF_GLOBAL',
+  'POLICY_BLOCK_GOALS_UNDER_45_59_TWO_PLUS_LOW_CUSHION_V10D',
+  'POLICY_BLOCK_AH_HOME_CHALK_LOW_SIGNAL_GLOBAL',
+]);
+
+function hasPreflightVisiblePolicyWarning(warnings: string[]): boolean {
+  return warnings.some((warning) => PREFLIGHT_VISIBLE_POLICY_WARNINGS.has(warning));
 }
 
 function summarizeBucket(bucket: string, rows: EvaluatedReplayCase[]): ReplayCohortSummary {

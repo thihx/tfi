@@ -1,5 +1,7 @@
 import { runDataDrivenReplayBatch, type DataDrivenBatchOptions } from '../lib/data-driven-replay-batch.js';
 import { config } from '../config.js';
+import { closePool } from '../db/pool.js';
+import { closeRedis } from '../lib/redis.js';
 
 function parseArgs(argv: string[]): DataDrivenBatchOptions {
   let lookbackDays = 14;
@@ -16,6 +18,7 @@ function parseArgs(argv: string[]): DataDrivenBatchOptions {
   let skipEval = false;
   let postSummarize = true;
   let postSegmentHotspots = true;
+  let postActionPlan = true;
   let llmModel = process.env['GEMINI_REPLAY_MODEL']?.trim() || config.geminiModel;
 
   for (let i = 0; i < argv.length; i++) {
@@ -58,6 +61,9 @@ function parseArgs(argv: string[]): DataDrivenBatchOptions {
       postSummarize = false;
     } else if (a === '--no-post-segment-hotspots') {
       postSegmentHotspots = false;
+      postActionPlan = false;
+    } else if (a === '--no-post-action-plan') {
+      postActionPlan = false;
     } else if (a === '--model' && n) {
       llmModel = n;
       i++;
@@ -86,6 +92,7 @@ function parseArgs(argv: string[]): DataDrivenBatchOptions {
     skipEval,
     postSummarize,
     postSegmentHotspots,
+    postActionPlan: postSegmentHotspots && postActionPlan,
     llmModel,
   };
 }
@@ -98,6 +105,7 @@ async function main(): Promise<void> {
     llmMode: opts.llmMode,
     postSummarize: opts.postSummarize,
     postSegmentHotspots: opts.postSegmentHotspots,
+    postActionPlan: opts.postActionPlan,
   });
   const out = await runDataDrivenReplayBatch(opts);
   console.log('[data-driven-batch] runRoot=', out.runRoot, 'scenarios=', out.scenarioCount);
@@ -106,7 +114,11 @@ async function main(): Promise<void> {
   }
 }
 
-main().catch((err) => {
-  console.error(err instanceof Error ? err.message : String(err));
-  process.exit(1);
-});
+main()
+  .catch((err) => {
+    console.error(err instanceof Error ? err.message : String(err));
+    process.exitCode = 1;
+  })
+  .finally(async () => {
+    await Promise.allSettled([closePool(), closeRedis()]);
+  });

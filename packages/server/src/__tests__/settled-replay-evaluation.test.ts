@@ -61,6 +61,8 @@ describe('settled replay evaluation', () => {
             profileCoverageBand: 'high',
             overlayCoverageBand: 'low',
             policyImpactBand: 'neutral',
+            performanceMemoryKey: 'under_2.5|30-44|0-0',
+            performanceMemoryStatus: 'no_history',
           },
           settlementContext: {
             matchId: '1',
@@ -125,6 +127,8 @@ describe('settled replay evaluation', () => {
             profileCoverageBand: 'high',
             overlayCoverageBand: 'low',
             policyImpactBand: 'neutral',
+            performanceMemoryKey: 'over_2.5|60-74|one-goal-margin',
+            performanceMemoryStatus: 'no_history',
           },
           settlementContext: {
             matchId: '2',
@@ -208,5 +212,355 @@ describe('settled replay evaluation', () => {
     expect(summary.byCanonicalMarketTop.some((m) => m.canonicalMarket === 'under_2.5')).toBe(true);
     expect(summary.byFineTimeWindow.length).toBeGreaterThan(0);
     expect(summary.byMinuteBandMarketFamily.some((c) => c.family === 'goals_under')).toBe(true);
+  });
+
+  test('attributes replay blockers to provider coverage and replay context separately', () => {
+    const baseScenario = {
+      name: 'case-provider',
+      matchId: '1',
+      fixture: {} as never,
+      metadata: {
+        recommendationId: 1,
+        originalPromptVersion: 'v10-hybrid-legacy-g',
+        originalAiModel: 'gemini',
+        originalBetMarket: 'under_2.75',
+        originalSelection: 'Under 2.75 Goals @2.20',
+        originalResult: 'win',
+        originalPnl: 2,
+        minute: 59,
+        score: '1-1',
+        status: '2H',
+        league: 'A',
+        homeTeam: 'Home',
+        awayTeam: 'Away',
+        evidenceMode: 'full_live_data',
+        prematchStrength: 'strong',
+        profileCoverageBand: 'high',
+        overlayCoverageBand: 'low',
+        policyImpactBand: 'neutral',
+        performanceMemoryKey: 'under_2.75|45-59|level',
+        performanceMemoryStatus: 'no_history' as const,
+      },
+      settlementContext: {
+        matchId: '1',
+        homeTeam: 'Home',
+        awayTeam: 'Away',
+        finalStatus: 'FT',
+        homeScore: 1,
+        awayScore: 1,
+        regularHomeScore: 1,
+        regularAwayScore: 1,
+        settlementStats: [],
+      },
+      performanceMemorySnapshot: {
+        key: 'under_2.75|45-59|level',
+        canonicalMarket: 'under_2.75',
+        minuteBand: '45-59' as const,
+        scoreState: 'level' as const,
+        lookupResult: { status: 'no_history' },
+        source: 'db' as const,
+      },
+    };
+    const baseOutput = {
+      scenarioName: 'case-provider',
+      llmMode: 'mock',
+      oddsMode: 'mock',
+      shadowMode: false,
+      sampleProviderData: false,
+      assertions: [],
+      allPassed: true,
+      result: {
+        matchId: '1',
+        success: true,
+        decisionKind: 'no_bet' as const,
+        shouldPush: false,
+        selection: 'Under 2.75 Goals @2.20',
+        confidence: 4,
+        saved: false,
+        notified: false,
+        debug: {
+          shadowMode: false,
+          parsed: {
+            bet_market: 'under_2.75',
+            llm_decision_diagnostic: 'market_not_available_in_odds',
+            market_resolution_status: 'odds_unavailable',
+            warnings: ['ODDS_INVALID', 'MEMORY_FLAG_NO_HISTORY'],
+          },
+        },
+      },
+    };
+
+    const providerCase = buildEvaluatedReplayCase(
+      'v10-hybrid-legacy-g',
+      baseScenario,
+      baseOutput,
+      null,
+      null,
+      null,
+      null,
+      'totals_only',
+    );
+
+    expect(providerCase.providerCoverageStatus).toBe('provider_line_unavailable_or_stale');
+    expect(providerCase.replayContextStatus).toBe('memory_no_history');
+    expect(providerCase.replayQualityAttribution).toBe('provider_coverage');
+
+    const contextOnlyCase = buildEvaluatedReplayCase(
+      'v10-hybrid-legacy-g',
+      { ...baseScenario, name: 'case-memory-only' },
+      {
+        ...baseOutput,
+        scenarioName: 'case-memory-only',
+        result: {
+          ...baseOutput.result,
+          selection: 'Over 3.5 Goals @2.40',
+          debug: {
+            shadowMode: false,
+            parsed: {
+              bet_market: 'over_3.5',
+              llm_decision_diagnostic: 'policy_blocked',
+              market_resolution_status: 'resolved',
+              warnings: ['MEMORY_FLAG_NO_HISTORY'],
+            },
+          },
+        },
+      },
+      null,
+      null,
+      null,
+      null,
+      'totals_only',
+    );
+
+    expect(contextOnlyCase.providerCoverageStatus).toBe('ok');
+    expect(contextOnlyCase.replayContextStatus).toBe('replay_memory_missing');
+    expect(contextOnlyCase.replayQualityAttribution).toBe('replay_context_gap');
+
+    const productionNoHistoryCase = buildEvaluatedReplayCase(
+      'v10-hybrid-legacy-g',
+      { ...baseScenario, name: 'case-production-no-history' },
+      {
+        ...baseOutput,
+        scenarioName: 'case-production-no-history',
+        result: {
+          ...baseOutput.result,
+          debug: {
+            shadowMode: false,
+            parsed: {
+              bet_market: 'under_2.75',
+              llm_decision_diagnostic: 'policy_blocked',
+              market_resolution_status: 'resolved',
+              warnings: ['MEMORY_FLAG_NO_HISTORY'],
+            },
+          },
+        },
+      },
+      null,
+      null,
+      null,
+      null,
+      'totals_only',
+    );
+
+    expect(productionNoHistoryCase.providerCoverageStatus).toBe('ok');
+    expect(productionNoHistoryCase.replayContextStatus).toBe('memory_no_history');
+    expect(productionNoHistoryCase.replayQualityAttribution).toBe('replay_context_gap');
+  });
+
+  test('attributes preflight-visible policy blocks to model-policy mismatch', () => {
+    const scenario = {
+      name: 'case-policy-mismatch',
+      matchId: '1',
+      fixture: {} as never,
+      metadata: {
+        recommendationId: 1,
+        originalPromptVersion: 'v10-hybrid-legacy-g',
+        originalAiModel: 'gemini',
+        originalBetMarket: 'btts_no',
+        originalSelection: 'BTTS No @1.80',
+        originalResult: 'loss',
+        originalPnl: -3,
+        minute: 41,
+        score: '0-1',
+        status: '1H',
+        league: 'A',
+        homeTeam: 'Home',
+        awayTeam: 'Away',
+        evidenceMode: 'full_live_data',
+        prematchStrength: 'strong',
+        profileCoverageBand: 'high',
+        overlayCoverageBand: 'low',
+        policyImpactBand: 'neutral',
+        performanceMemoryKey: 'btts_no|30-44|one-goal-margin',
+        performanceMemoryStatus: 'no_history' as const,
+      },
+      settlementContext: {
+        matchId: '1',
+        homeTeam: 'Home',
+        awayTeam: 'Away',
+        finalStatus: 'FT',
+        homeScore: 1,
+        awayScore: 2,
+        regularHomeScore: 1,
+        regularAwayScore: 2,
+        settlementStats: [],
+      },
+      performanceMemorySnapshot: {
+        key: 'btts_no|30-44|one-goal-margin',
+        canonicalMarket: 'btts_no',
+        minuteBand: '30-44' as const,
+        scoreState: 'one-goal-margin' as const,
+        lookupResult: { status: 'no_history' },
+        source: 'db' as const,
+      },
+    };
+    const baseOutput = {
+      scenarioName: 'case-policy-mismatch',
+      llmMode: 'mock' as const,
+      oddsMode: 'mock' as const,
+      shadowMode: false,
+      sampleProviderData: false,
+      assertions: [],
+      allPassed: true,
+      result: {
+        matchId: '1',
+        success: true,
+        decisionKind: 'no_bet' as const,
+        shouldPush: false,
+        selection: 'BTTS No @1.80',
+        confidence: 6,
+        saved: false,
+        notified: false,
+        debug: {
+          shadowMode: false,
+          parsed: {
+            bet_market: 'btts_no',
+            llm_decision_diagnostic: 'policy_blocked',
+            market_resolution_status: 'resolved',
+            warnings: ['CONFIDENCE_BELOW_MIN', 'BTTS_NO_BLOCKED_GOAL_MARGIN'],
+          },
+        },
+      },
+    };
+
+    const mismatchCase = buildEvaluatedReplayCase(
+      'v10-hybrid-legacy-g',
+      scenario,
+      baseOutput,
+      null,
+      null,
+      null,
+      null,
+      'playable_side_market',
+    );
+
+    expect(mismatchCase.replayQualityAttribution).toBe('model_policy_mismatch');
+
+    const hardPolicyCase = buildEvaluatedReplayCase(
+      'v10-hybrid-legacy-g',
+      { ...scenario, name: 'case-hard-policy' },
+      {
+        ...baseOutput,
+        scenarioName: 'case-hard-policy',
+        result: {
+          ...baseOutput.result,
+          debug: {
+            shadowMode: false,
+            parsed: {
+              bet_market: 'btts_no',
+              llm_decision_diagnostic: 'policy_blocked',
+              market_resolution_status: 'resolved',
+              warnings: ['POLICY_BLOCK_SEGMENT_BLOCKLIST'],
+            },
+          },
+        },
+      },
+      null,
+      null,
+      null,
+      null,
+      'playable_side_market',
+    );
+
+    expect(hardPolicyCase.replayQualityAttribution).toBe('hard_policy_gate');
+  });
+
+  test('attributes pre-LLM skips separately from model no-bet', () => {
+    const scenario = {
+      name: 'case-pre-llm',
+      matchId: '1',
+      fixture: {} as never,
+      metadata: {
+        recommendationId: 1,
+        originalPromptVersion: 'v10-hybrid-legacy-g',
+        originalAiModel: 'gemini',
+        originalBetMarket: 'under_1.5',
+        originalSelection: 'Under 1.5 Goals @1.75',
+        originalResult: 'win',
+        originalPnl: 2,
+        minute: 83,
+        score: '0-1',
+        status: '2H',
+        league: 'A',
+        homeTeam: 'Home',
+        awayTeam: 'Away',
+        evidenceMode: 'odds_events_only_degraded',
+        prematchStrength: 'strong',
+        profileCoverageBand: 'high',
+        overlayCoverageBand: 'low',
+        policyImpactBand: 'neutral',
+        performanceMemoryKey: 'under_1.5|75+|one-goal-margin',
+        performanceMemoryStatus: 'found' as const,
+      },
+      settlementContext: {
+        matchId: '1',
+        homeTeam: 'Home',
+        awayTeam: 'Away',
+        finalStatus: 'FT',
+        homeScore: 0,
+        awayScore: 1,
+        regularHomeScore: 0,
+        regularAwayScore: 1,
+        settlementStats: [],
+      },
+    };
+
+    const row = buildEvaluatedReplayCase(
+      'v10-hybrid-legacy-g',
+      scenario,
+      {
+        scenarioName: 'case-pre-llm',
+        llmMode: 'real',
+        oddsMode: 'recorded',
+        shadowMode: false,
+        sampleProviderData: false,
+        assertions: [],
+        allPassed: true,
+        result: {
+          matchId: '1',
+          success: true,
+          decisionKind: 'no_bet',
+          shouldPush: false,
+          selection: '',
+          confidence: 0,
+          saved: false,
+          notified: false,
+          debug: {
+            shadowMode: false,
+            skippedAt: 'proceed',
+            skipReason: 'Low evidence without custom condition',
+          },
+        },
+      },
+      null,
+      null,
+      null,
+      null,
+      'playable_side_market',
+    );
+
+    expect(row.llmDecisionDiagnostic).toBe('pre_llm_blocked');
+    expect(row.marketResolutionStatus).toBe('not_requested');
+    expect(row.replayQualityAttribution).toBe('pre_llm_blocked');
   });
 });

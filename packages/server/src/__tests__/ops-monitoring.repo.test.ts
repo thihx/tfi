@@ -6,6 +6,14 @@ vi.mock('../db/pool.js', () => ({
   query,
 }));
 
+vi.mock('../config.js', () => ({
+  config: {
+    liveStatuses: ['1H', '2H'],
+    pipelineEnabled: true,
+    providerSamplingEnabled: true,
+  },
+}));
+
 const { buildOpsChecklist, getOpsMonitoringSnapshot } = await import('../repos/ops-monitoring.repo.js');
 
 describe('ops-monitoring.repo', () => {
@@ -15,46 +23,116 @@ describe('ops-monitoring.repo', () => {
 
   test('buildOpsChecklist returns pass/warn/fail states from thresholds', () => {
     const checklist = buildOpsChecklist({
+      pipelineEnabled: true,
       activityLast2h: 0,
+      analyzed24h: 0,
+      activeWatchCount: 0,
+      liveWatchCount: 0,
+      providerSamplingEnabled: true,
       jobFailures24h: 2,
       statsSamples: 10,
       statsSuccessRate: 60,
       oddsSamples: 10,
       oddsUsableRate: 40,
+      oddsTradableRate: 40,
       settlementBacklog: 250,
       unresolvedCount: 70,
       notificationAttempts24h: 0,
       notificationFailureRate24h: 0,
       notificationStalePending: 0,
+      notificationExpected24h: false,
     });
 
-    expect(checklist.find((item) => item.id === 'pipeline-activity')?.status).toBe('warn');
+    expect(checklist.find((item) => item.id === 'pipeline-activity')?.status).toBe('unknown');
     expect(checklist.find((item) => item.id === 'job-failures')?.status).toBe('warn');
     expect(checklist.find((item) => item.id === 'stats-provider-coverage')?.status).toBe('warn');
     expect(checklist.find((item) => item.id === 'odds-provider-coverage')?.status).toBe('fail');
     expect(checklist.find((item) => item.id === 'settlement-backlog')?.status).toBe('fail');
-    expect(checklist.find((item) => item.id === 'notification-health')?.status).toBe('pass');
+    expect(checklist.find((item) => item.id === 'notification-health')?.status).toBe('unknown');
     expect(checklist.find((item) => item.id === 'notification-health')?.detail).toContain('queue has no stale pending rows');
+  });
+
+  test('buildOpsChecklist fails provider sampling gaps when live workload exists', () => {
+    const checklist = buildOpsChecklist({
+      pipelineEnabled: true,
+      activityLast2h: 0,
+      analyzed24h: 0,
+      activeWatchCount: 3,
+      liveWatchCount: 2,
+      providerSamplingEnabled: true,
+      jobFailures24h: 0,
+      statsSamples: 0,
+      statsSuccessRate: 0,
+      oddsSamples: 0,
+      oddsUsableRate: 0,
+      oddsTradableRate: 0,
+      settlementBacklog: 0,
+      unresolvedCount: 0,
+      notificationAttempts24h: 0,
+      notificationFailureRate24h: 0,
+      notificationStalePending: 0,
+      notificationExpected24h: true,
+    });
+
+    expect(checklist.find((item) => item.id === 'pipeline-activity')?.status).toBe('fail');
+    expect(checklist.find((item) => item.id === 'stats-provider-coverage')?.status).toBe('fail');
+    expect(checklist.find((item) => item.id === 'odds-provider-coverage')?.status).toBe('fail');
+    expect(checklist.find((item) => item.id === 'notification-health')?.status).toBe('warn');
+    expect(checklist.find((item) => item.id === 'stats-provider-coverage')?.label).toBe('Stats provider samples are missing');
   });
 
   test('buildOpsChecklist warns when Telegram queue has stale pending rows', () => {
     const checklist = buildOpsChecklist({
+      pipelineEnabled: true,
       activityLast2h: 1,
+      analyzed24h: 1,
+      activeWatchCount: 1,
+      liveWatchCount: 1,
+      providerSamplingEnabled: true,
       jobFailures24h: 0,
       statsSamples: 10,
       statsSuccessRate: 90,
       oddsSamples: 10,
       oddsUsableRate: 90,
+      oddsTradableRate: 90,
       settlementBacklog: 0,
       unresolvedCount: 0,
       notificationAttempts24h: 0,
       notificationFailureRate24h: 0,
       notificationStalePending: 2,
+      notificationExpected24h: false,
     });
 
     const item = checklist.find((entry) => entry.id === 'notification-health');
     expect(item?.status).toBe('warn');
     expect(item?.detail).toContain('pending Telegram delivery row(s) older than 15m');
+  });
+
+  test('buildOpsChecklist flags odds samples that are usable but not canonical tradable', () => {
+    const checklist = buildOpsChecklist({
+      pipelineEnabled: true,
+      activityLast2h: 1,
+      analyzed24h: 3,
+      activeWatchCount: 1,
+      liveWatchCount: 1,
+      providerSamplingEnabled: true,
+      jobFailures24h: 0,
+      statsSamples: 10,
+      statsSuccessRate: 90,
+      oddsSamples: 10,
+      oddsUsableRate: 90,
+      oddsTradableRate: 40,
+      settlementBacklog: 0,
+      unresolvedCount: 0,
+      notificationAttempts24h: 0,
+      notificationFailureRate24h: 0,
+      notificationStalePending: 0,
+      notificationExpected24h: false,
+    });
+
+    const item = checklist.find((entry) => entry.id === 'odds-provider-coverage');
+    expect(item?.status).toBe('fail');
+    expect(item?.detail).toContain('90% usable, 40% canonical tradable');
   });
 
   test('getOpsMonitoringSnapshot maps aggregate query results into snapshot', async () => {
@@ -81,6 +159,25 @@ describe('ops-monitoring.repo', () => {
           { action: 'JOB_FETCH_MATCHES', count: '1' },
         ],
       })
+      .mockResolvedValueOnce({
+        rows: [
+          {
+            job_name: 'fetch-matches',
+            total_runs: '4',
+            failure_runs: '1',
+            last_status: 'failure',
+            last_started_at: '2026-03-21T09:58:00.000Z',
+            last_completed_at: '2026-03-21T09:59:00.000Z',
+            last_error: 'quota exceeded',
+          },
+        ],
+      })
+      .mockResolvedValueOnce({
+        rows: [{
+          active_watch_count: '3',
+          live_watch_count: '1',
+        }],
+      })
       .mockResolvedValueOnce({ rows: [{ total: '10', successes: '8' }] })
       .mockResolvedValueOnce({
         rows: [
@@ -94,7 +191,7 @@ describe('ops-monitoring.repo', () => {
           },
         ],
       })
-      .mockResolvedValueOnce({ rows: [{ total: '12', usable: '9' }] })
+      .mockResolvedValueOnce({ rows: [{ total: '12', usable: '9', tradable: '9' }] })
       .mockResolvedValueOnce({
         rows: [
           {
@@ -106,6 +203,9 @@ describe('ops-monitoring.repo', () => {
             one_x2_hits: '9',
             ou_hits: '10',
             ah_hits: '8',
+            canonical_one_x2_hits: '7',
+            canonical_ou_hits: '9',
+            canonical_ah_hits: '6',
           },
         ],
       })
@@ -279,14 +379,68 @@ describe('ops-monitoring.repo', () => {
           { reason: 'low_evidence_without_watch_condition', count: '1' },
           { reason: 'prompt_only_failed', count: '1' },
         ],
+      })
+      .mockResolvedValueOnce({
+        rows: [{
+          live_detected: '9',
+          candidate: '7',
+          processed: '6',
+          provider_ready: '5',
+          llm_eligible: '4',
+          pre_llm_skipped: '2',
+          skipped_proceed: '1',
+          skipped_staleness: '1',
+          llm_eligibility_blocked: '1',
+          model_no_bet: '2',
+          policy_blocked: '1',
+          save_blocked: '1',
+          should_push: '2',
+          saved: '1',
+          notified: '1',
+          errors: '1',
+        }],
+      })
+      .mockResolvedValueOnce({
+        rows: [{
+          blocked: '5',
+          started: '12',
+          completed: '11',
+          failed: '1',
+        }],
+      })
+      .mockResolvedValueOnce({
+        rows: [
+          { reason: 'auto_llm_cooldown_active', count: '3' },
+          { reason: 'degraded_evidence_without_watch_condition', count: '2' },
+        ],
+      })
+      .mockResolvedValueOnce({
+        rows: [
+          { diagnostic: 'no_bet_intentional', count: '7' },
+          { diagnostic: 'policy_blocked', count: '4' },
+        ],
       });
 
     const snapshot = await getOpsMonitoringSnapshot();
 
     expect(snapshot.pipeline.analyzed24h).toBe(20);
+    expect(snapshot.workload.activeWatchCount).toBe(3);
+    expect(snapshot.workload.liveWatchCount).toBe(1);
+    expect(snapshot.providers.samplingEnabled).toBe(true);
+    expect(snapshot.pipeline.failingJobs24h[0]?.jobName).toBe('fetch-matches');
+    expect(snapshot.pipeline.failingJobs24h[0]?.lastError).toBe('quota exceeded');
     expect(snapshot.pipeline.notifyEligibleRate24h).toBe(40);
     expect(snapshot.providers.statsSuccessRate).toBe(80);
     expect(snapshot.providers.oddsUsableRate).toBe(75);
+    expect(snapshot.providers.oddsTradableRate).toBe(75);
+    expect(snapshot.providers.oddsByProvider[0]).toEqual(expect.objectContaining({
+      oneX2Rate: 75,
+      overUnderRate: 83.3,
+      asianHandicapRate: 66.7,
+      canonicalOneX2Rate: 58.3,
+      canonicalOverUnderRate: 75,
+      canonicalAsianHandicapRate: 50,
+    }));
     expect(snapshot.settlement.recommendationPending).toBe(5);
     expect(snapshot.notifications.failureRate24h).toBe(10);
     expect(snapshot.notifications.stalePending).toBe(0);
@@ -296,6 +450,13 @@ describe('ops-monitoring.repo', () => {
     expect(snapshot.promptQuality.cornersRows).toBe(1);
     expect(snapshot.promptQuality.lateHighLineRows).toBe(2);
     expect(snapshot.promptQuality.prematch.highNoiseRate).toBe(16.7);
+
+    const workloadSql = vi.mocked(query).mock.calls
+      .map((call) => String(call[0]))
+      .find((sql) => sql.includes('active_watch_count')) ?? '';
+    expect(workloadSql).toContain('FROM monitored_matches mm');
+    expect(workloadSql).toContain('user_watch_subscriptions');
+    expect(workloadSql).not.toContain('FROM watchlist w');
     expect(snapshot.promptQuality.prematch.avgNoisePenalty).toBe(34.5);
     expect(snapshot.promptQuality.prematch.structuredAskAiEligibleRows).toBe(5);
     expect(snapshot.promptQuality.prematch.structuredAskAiEligibleRate).toBe(62.5);
@@ -305,9 +466,19 @@ describe('ops-monitoring.repo', () => {
     expect(snapshot.promptOnly.totalRows).toBe(6);
     expect(snapshot.promptOnly.structuredEligibleRate).toBe(66.7);
     expect(snapshot.promptOnly.reasonBreakdown[1]?.reason).toBe('low_evidence_without_watch_condition');
+    expect(snapshot.llm.blocked24h).toBe(5);
+    expect(snapshot.llm.failureRate24h).toBe(8.3);
+    expect(snapshot.decisionFunnel.stages.find((stage) => stage.id === 'live_detected')?.count).toBe(9);
+    expect(snapshot.decisionFunnel.stages.find((stage) => stage.id === 'saved')?.rateFromStart).toBe(11.1);
+    expect(snapshot.decisionFunnel.silentBreakdown).toContainEqual({ reason: 'model_no_bet', count: 2 });
+    expect(snapshot.decisionFunnel.silentBreakdown).toContainEqual({ reason: 'save_blocked_provider_coverage', count: 1 });
+    expect(snapshot.llm.topBlockReasons[0]?.reason).toBe('auto_llm_cooldown_active');
+    expect(snapshot.llm.diagnosticBreakdown[0]?.diagnostic).toBe('no_bet_intentional');
     expect(snapshot.cards.find((card) => card.label === 'Notify-Eligible Rate 24h')?.value).toBe('40%');
     expect(snapshot.cards.find((card) => card.label === 'Prematch High Noise 24h')?.value).toBe('16.7%');
     expect(snapshot.cards.find((card) => card.label === 'Prematch Structured Eligible')?.value).toBe('62.5%');
+    expect(snapshot.cards.find((card) => card.label === 'LLM Blocked 24h')?.value).toBe('5');
+    expect(snapshot.cards.find((card) => card.label === 'Actionable Funnel 24h')?.value).toBe('11.1%');
     expect(snapshot.cards.find((card) => card.label === 'Prompt Agree 24h')?.value).toBe('100%');
     expect(snapshot.cards.find((card) => card.label === 'Stacking Rate 24h')?.value).toBe('66.7%');
     expect(snapshot.checklist.some((item) => item.id === 'settlement-backlog')).toBe(true);

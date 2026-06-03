@@ -3,6 +3,44 @@ import { render, screen, waitFor } from '@testing-library/react';
 
 const mockSnapshot = {
   generatedAt: '2026-03-21T10:00:00.000Z',
+  workload: {
+    pipelineEnabled: true,
+    activeWatchCount: 3,
+    liveWatchCount: 1,
+    providerSamplesExpected: true,
+    notificationExpected24h: true,
+  },
+  llm: {
+    windowHours: 24,
+    blocked24h: 5,
+    started24h: 12,
+    completed24h: 11,
+    failed24h: 1,
+    failureRate24h: 8.3,
+    topBlockReasons: [
+      { reason: 'auto_llm_cooldown_active', count: 3 },
+      { reason: 'degraded_evidence_without_watch_condition', count: 2 },
+    ],
+    diagnosticBreakdown: [
+      { diagnostic: 'no_bet_intentional', count: 7 },
+      { diagnostic: 'policy_blocked', count: 4 },
+    ],
+  },
+  decisionFunnel: {
+    windowHours: 24,
+    source: 'PIPELINE_COMPLETE audit summary',
+    stages: [
+      { id: 'live_detected', label: 'Live detected', count: 9, rateFromPrevious: 100, rateFromStart: 100 },
+      { id: 'candidate', label: 'Candidate after staleness', count: 7, rateFromPrevious: 77.8, rateFromStart: 77.8 },
+      { id: 'llm_started', label: 'LLM called', count: 4, rateFromPrevious: 57.1, rateFromStart: 44.4 },
+      { id: 'saved', label: 'Saved recommendation', count: 1, rateFromPrevious: 25, rateFromStart: 11.1 },
+    ],
+    silentBreakdown: [
+      { reason: 'model_no_bet', count: 2 },
+      { reason: 'policy_blocked', count: 1 },
+      { reason: 'save_blocked_provider_coverage', count: 1 },
+    ],
+  },
   checklist: [
     {
       id: 'pipeline-activity',
@@ -29,6 +67,15 @@ const mockSnapshot = {
     topSkipReasons: [{ reason: 'stale_state', count: 3 }],
     jobFailures24h: 0,
     jobFailuresByAction: [{ action: 'JOB_FETCH_MATCHES', count: 1 }],
+    failingJobs24h: [{
+      jobName: 'fetch-matches',
+      failureRuns: 1,
+      totalRuns: 4,
+      lastStatus: 'failure',
+      lastStartedAt: '2026-03-21T09:58:00.000Z',
+      lastCompletedAt: '2026-03-21T09:59:00.000Z',
+      lastError: 'quota exceeded',
+    }],
   },
   providers: {
     statsWindowHours: 6,
@@ -37,6 +84,7 @@ const mockSnapshot = {
     statsSuccessRate: 80,
     oddsSamples: 12,
     oddsUsableRate: 75,
+    samplingEnabled: true,
     statsByProvider: [{
       provider: 'api-football',
       samples: 10,
@@ -54,6 +102,9 @@ const mockSnapshot = {
       oneX2Rate: 75,
       overUnderRate: 80,
       asianHandicapRate: 66.7,
+      canonicalOneX2Rate: 58.3,
+      canonicalOverUnderRate: 75,
+      canonicalAsianHandicapRate: 50,
     }],
   },
   settlement: {
@@ -218,12 +269,24 @@ describe('OpsMonitoringPanel', () => {
     });
 
     expect(screen.getByText('All systems operational')).toBeInTheDocument();
+    expect(screen.getByText('Active watch')).toBeInTheDocument();
+    expect(screen.getByText('Live watch')).toBeInTheDocument();
     expect(screen.getByText('Notify-Eligible Rate 24h')).toBeInTheDocument();
     expect(screen.getAllByText('40%').length).toBeGreaterThan(0);
     expect(screen.getByText('Stats Providers')).toBeInTheDocument();
     expect(screen.getByText('Settlement')).toBeInTheDocument();
     expect(screen.getByText('Notifications')).toBeInTheDocument();
+    expect(screen.getByText('fetch matches')).toBeInTheDocument();
+    expect(screen.getByText('quota exceeded')).toBeInTheDocument();
     expect(screen.getByText('Prompt Shadow')).toBeInTheDocument();
+    expect(screen.getByText('Decision Funnel')).toBeInTheDocument();
+    expect(screen.getByText('Live detected')).toBeInTheDocument();
+    expect(screen.getByText('Saved recommendation')).toBeInTheDocument();
+    expect(screen.getByText('Model no-bet')).toBeInTheDocument();
+    expect(screen.getByText('Save blocked by provider coverage')).toBeInTheDocument();
+    expect(screen.getByText('LLM Cost Guard')).toBeInTheDocument();
+    expect(screen.getByText('Cooldown active')).toBeInTheDocument();
+    expect(screen.getByText('Intentional no-bet')).toBeInTheDocument();
     expect(screen.getByText('Manual analysis')).toBeInTheDocument();
     expect(screen.getByText('Manual analysis outcomes')).toBeInTheDocument();
     expect(screen.getByText('Low evidence and no custom watch condition')).toBeInTheDocument();
@@ -237,5 +300,42 @@ describe('OpsMonitoringPanel', () => {
     expect(screen.getByText('Stacking rate')).toBeInTheDocument();
     expect(screen.getByText('Atletico San Luis vs Leon')).toBeInTheDocument();
     expect(screen.getAllByText('v10-hybrid-legacy-g').length).toBeGreaterThanOrEqual(2);
+  });
+
+  test('surfaces top causes when snapshot contains failed health checks', async () => {
+    const failingSnapshot = {
+      ...mockSnapshot,
+      checklist: [
+        {
+          id: 'pipeline-activity',
+          label: 'Pipeline activity is missing',
+          status: 'fail',
+          detail: 'No pipeline activity observed in last 2h while 1 watch match(es) are live',
+        },
+        {
+          id: 'stats-provider-coverage',
+          label: 'Stats provider samples are missing',
+          status: 'fail',
+          detail: 'No stats samples recorded in last 6h',
+        },
+      ],
+      cards: [
+        { label: 'Stats Coverage 6h', value: 'n/a', tone: 'fail', detail: '0 samples' },
+      ],
+    };
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => failingSnapshot,
+    }));
+
+    render(<OpsMonitoringPanel />);
+
+    await waitFor(() => {
+      expect(screen.getByText('Critical issues detected')).toBeInTheDocument();
+    });
+
+    expect(screen.getByText('Top operational causes')).toBeInTheDocument();
+    expect(screen.getByText(/Pipeline activity is missing:/)).toBeInTheDocument();
+    expect(screen.getByText('Stats provider samples are missing')).toBeInTheDocument();
   });
 });

@@ -1,9 +1,18 @@
 import { query } from '../db/pool.js';
 import type { ApiFixture, ApiFixtureStat } from './football-api.js';
-import type { ReplayScenario } from './pipeline-replay.js';
+import type { ReplayPerformanceMemorySnapshot, ReplayScenario } from './pipeline-replay.js';
 import type { ResolveMatchOddsResult } from './odds-resolver.js';
 import { buildOddsCanonical } from './server-pipeline.js';
 import { parseStoredSettlementStats, type SettlementStatRow } from './settlement-stat-cache.js';
+import { normalizeMarket } from './normalize-market.js';
+import {
+  buildPerformanceMemoryKey,
+  deriveMinuteBand,
+  deriveScoreState,
+  type PerformanceMemoryRecord,
+  type PerformanceMinuteBand,
+  type PerformanceScoreState,
+} from '../repos/ai-performance.repo.js';
 
 type JsonObject = Record<string, unknown>;
 
@@ -52,6 +61,8 @@ export interface SettledReplayScenarioMetadata {
   profileCoverageBand: string;
   overlayCoverageBand: string;
   policyImpactBand: string;
+  performanceMemoryKey: string;
+  performanceMemoryStatus: 'found' | 'no_history' | 'missing';
 }
 
 export interface SettledReplayScenarioSettlementContext {
@@ -138,6 +149,22 @@ interface PreviousRecommendationSeed {
   stake_percent: number | null;
   reasoning: string;
 }
+
+type PerformanceMemoryRow = {
+  key: string;
+  canonical_market: string;
+  minute_band: string;
+  score_state: string;
+  total: string;
+  wins: string;
+  losses: string;
+  half_wins: string;
+  half_losses: string;
+  pushes: string;
+  empirical_win_rate: string;
+  sample_reliable: boolean;
+  last_updated: string;
+};
 
 const STATS_SNAPSHOT_TO_API_TYPES: Array<[keyof CompactStatsSnapshot, string]> = [
   ['possession', 'Ball Possession'],
@@ -262,6 +289,63 @@ function buildScenarioName(row: SettledReplaySourceRow): string {
   return `${row.recommendation_id}-${row.match_id}-${minute}-${market || 'unknown'}`;
 }
 
+function toPerformanceMemoryRecord(row: PerformanceMemoryRow): PerformanceMemoryRecord {
+  return {
+    key: row.key,
+    canonicalMarket: row.canonical_market,
+    minuteBand: row.minute_band as PerformanceMinuteBand,
+    scoreState: row.score_state as PerformanceScoreState,
+    total: Number(row.total),
+    wins: Number(row.wins),
+    losses: Number(row.losses),
+    halfWins: Number(row.half_wins),
+    halfLosses: Number(row.half_losses),
+    pushes: Number(row.pushes),
+    empiricalWinRate: Number(row.empirical_win_rate),
+    sampleReliable: Boolean(row.sample_reliable),
+    lastUpdated: row.last_updated,
+  };
+}
+
+function buildReplayPerformanceMemoryReference(row: SettledReplaySourceRow): {
+  key: string;
+  canonicalMarket: string;
+  minuteBand: PerformanceMinuteBand;
+  scoreState: PerformanceScoreState;
+} {
+  const canonicalMarket = normalizeMarket(row.selection || '', row.bet_market || '');
+  const minuteBand = deriveMinuteBand(row.minute);
+  const scoreState = deriveScoreState(row.score);
+  return {
+    key: buildPerformanceMemoryKey(canonicalMarket || 'unknown', minuteBand, scoreState),
+    canonicalMarket: canonicalMarket || 'unknown',
+    minuteBand,
+    scoreState,
+  };
+}
+
+function buildNoHistoryPerformanceMemorySnapshot(row: SettledReplaySourceRow): ReplayPerformanceMemorySnapshot {
+  const ref = buildReplayPerformanceMemoryReference(row);
+  return {
+    ...ref,
+    lookupResult: { status: 'no_history' },
+    source: 'db',
+  };
+}
+
+function buildFoundPerformanceMemorySnapshot(row: SettledReplaySourceRow, record: PerformanceMemoryRecord): ReplayPerformanceMemorySnapshot {
+  const ref = buildReplayPerformanceMemoryReference(row);
+  return {
+    ...ref,
+    key: record.key || ref.key,
+    canonicalMarket: record.canonicalMarket || ref.canonicalMarket,
+    minuteBand: record.minuteBand || ref.minuteBand,
+    scoreState: record.scoreState || ref.scoreState,
+    lookupResult: { status: 'found', record },
+    source: 'db',
+  };
+}
+
 function buildFixtureFromRow(row: SettledReplaySourceRow): ApiFixture {
   const kickoffIso = row.kickoff_at_utc || row.timestamp;
   const score = parseScore(row.score);
@@ -349,6 +433,57 @@ export function canonicalOddsToRecordedResponse(snapshot: JsonObject | string): 
   const bets: Array<{ id: number; name: string; values: Array<{ value: string; odd: string; handicap?: string }> }> = [];
   let nextId = 1;
 
+  const collectOuValues = (keys: string[]): Array<{ value: string; odd: string; handicap: string }> => {
+    const values: Array<{ value: string; odd: string; handicap: string }> = [];
+    const seen = new Set<string>();
+    for (const key of keys) {
+      const entry = canonical[key];
+      const rows = Array.isArray(entry) ? entry : entry && typeof entry === 'object' ? [entry] : [];
+      for (const rawRow of rows) {
+        if (!rawRow || typeof rawRow !== 'object') continue;
+        const row = rawRow as Record<string, unknown>;
+        const line = Number(row.line);
+        if (!Number.isFinite(line)) continue;
+        for (const [value, odd] of [['Over', row.over], ['Under', row.under]] as const) {
+          if (!(Number(odd) > 1)) continue;
+          const dedupKey = `${value}:${line}`;
+          if (seen.has(dedupKey)) continue;
+          seen.add(dedupKey);
+          values.push({ value, odd: String(odd), handicap: String(line) });
+        }
+      }
+    }
+    return values;
+  };
+
+  const collectAhValues = (keys: string[]): Array<{ value: string; odd: string; handicap: string }> => {
+    const values: Array<{ value: string; odd: string; handicap: string }> = [];
+    const seen = new Set<string>();
+    for (const key of keys) {
+      const entry = canonical[key];
+      const rows = Array.isArray(entry) ? entry : entry && typeof entry === 'object' ? [entry] : [];
+      for (const rawRow of rows) {
+        if (!rawRow || typeof rawRow !== 'object') continue;
+        const row = rawRow as Record<string, unknown>;
+        const homeLine = Number(row.line);
+        if (!Number.isFinite(homeLine)) continue;
+        const awayLine = -homeLine;
+        const sides = [
+          { value: 'Home', odd: row.home, handicap: formatSignedHandicap(homeLine) },
+          { value: 'Away', odd: row.away, handicap: formatSignedHandicap(awayLine) },
+        ];
+        for (const side of sides) {
+          if (!(Number(side.odd) > 1)) continue;
+          const dedupKey = `${side.value}:${side.handicap}`;
+          if (seen.has(dedupKey)) continue;
+          seen.add(dedupKey);
+          values.push({ value: side.value, odd: String(side.odd), handicap: side.handicap });
+        }
+      }
+    }
+    return values;
+  };
+
   const oneX2 = canonical['1x2'];
   if (oneX2 && typeof oneX2 === 'object') {
     const row = oneX2 as Record<string, unknown>;
@@ -362,18 +497,8 @@ export function canonicalOddsToRecordedResponse(snapshot: JsonObject | string): 
     if (values.length > 0) bets.push({ id: nextId++, name: 'Match Winner', values });
   }
 
-  const totals = canonical.ou;
-  if (totals && typeof totals === 'object') {
-    const row = totals as Record<string, unknown>;
-    const line = Number(row.line);
-    const values = [
-      { value: 'Over', odd: row.over, handicap: String(line) },
-      { value: 'Under', odd: row.under, handicap: String(line) },
-    ]
-      .filter((entry) => Number(entry.odd) > 1 && Number.isFinite(line))
-      .map((entry) => ({ value: entry.value, odd: String(entry.odd), handicap: entry.handicap }));
-    if (values.length > 0) bets.push({ id: nextId++, name: 'Over/Under', values });
-  }
+  const totalValues = collectOuValues(['ou', 'ou_adjacent', 'ou_extra']);
+  if (totalValues.length > 0) bets.push({ id: nextId++, name: 'Over/Under', values: totalValues });
 
   const cornersTotals = canonical.corners_ou;
   if (cornersTotals && typeof cornersTotals === 'object') {
@@ -400,18 +525,8 @@ export function canonicalOddsToRecordedResponse(snapshot: JsonObject | string): 
     if (values.length > 0) bets.push({ id: nextId++, name: 'Both Teams Score', values });
   }
 
-  const ah = canonical.ah;
-  if (ah && typeof ah === 'object') {
-    const row = ah as Record<string, unknown>;
-    const line = Number(row.line);
-    const values = [
-      { value: 'Home', odd: row.home, handicap: String(line) },
-      { value: 'Away', odd: row.away, handicap: String(line) },
-    ]
-      .filter((entry) => Number(entry.odd) > 1 && Number.isFinite(line))
-      .map((entry) => ({ value: entry.value, odd: String(entry.odd), handicap: entry.handicap }));
-    if (values.length > 0) bets.push({ id: nextId++, name: 'Asian Handicap', values });
-  }
+  const ahValues = collectAhValues(['ah', 'ah_adjacent', 'ah_extra']);
+  if (ahValues.length > 0) bets.push({ id: nextId++, name: 'Asian Handicap', values: ahValues });
 
   const ht1x2 = canonical['ht_1x2'];
   if (ht1x2 && typeof ht1x2 === 'object') {
@@ -426,18 +541,8 @@ export function canonicalOddsToRecordedResponse(snapshot: JsonObject | string): 
     if (values.length > 0) bets.push({ id: nextId++, name: '1st Half Match Winner', values });
   }
 
-  const htOu = canonical['ht_ou'];
-  if (htOu && typeof htOu === 'object') {
-    const row = htOu as Record<string, unknown>;
-    const line = Number(row.line);
-    const values = [
-      { value: 'Over', odd: row.over, handicap: String(line) },
-      { value: 'Under', odd: row.under, handicap: String(line) },
-    ]
-      .filter((entry) => Number(entry.odd) > 1 && Number.isFinite(line))
-      .map((entry) => ({ value: entry.value, odd: String(entry.odd), handicap: entry.handicap }));
-    if (values.length > 0) bets.push({ id: nextId++, name: 'Over/Under First Half', values });
-  }
+  const htOuValues = collectOuValues(['ht_ou', 'ht_ou_adjacent', 'ht_ou_extra']);
+  if (htOuValues.length > 0) bets.push({ id: nextId++, name: 'Over/Under First Half', values: htOuValues });
 
   const htBtts = canonical['ht_btts'];
   if (htBtts && typeof htBtts === 'object') {
@@ -453,24 +558,9 @@ export function canonicalOddsToRecordedResponse(snapshot: JsonObject | string): 
     }
   }
 
-  const htAh = canonical['ht_ah'];
-  if (htAh && typeof htAh === 'object') {
-    const row = htAh as Record<string, unknown>;
-    const lineNum = Number(row.line);
-    if (Number.isFinite(lineNum)) {
-      const awayLine = -lineNum;
-      const homeHcap = lineNum >= 0 ? `+${lineNum}` : String(lineNum);
-      const awayHcap = awayLine >= 0 ? `+${awayLine}` : String(awayLine);
-      const values = [
-        { value: 'Home', odd: row.home, handicap: homeHcap },
-        { value: 'Away', odd: row.away, handicap: awayHcap },
-      ]
-        .filter((entry) => Number(entry.odd) > 1)
-        .map((entry) => ({ value: entry.value, odd: String(entry.odd), handicap: entry.handicap }));
-      if (values.length > 0) {
-        bets.push({ id: nextId++, name: 'Asian Handicap First Half', values });
-      }
-    }
+  const htAhValues = collectAhValues(['ht_ah', 'ht_ah_adjacent', 'ht_ah_extra']);
+  if (htAhValues.length > 0) {
+    bets.push({ id: nextId++, name: 'Asian Handicap First Half', values: htAhValues });
   }
 
   if (bets.length === 0) return [];
@@ -484,6 +574,15 @@ export function canonicalOddsToRecordedResponse(snapshot: JsonObject | string): 
   }];
 }
 
+function formatSignedHandicap(value: number): string {
+  if (!Number.isFinite(value)) return '0';
+  if (Object.is(value, -0)) value = 0;
+  const abs = Math.abs(value);
+  const formatted = Number.isInteger(abs) ? String(abs) : String(abs).replace(/\.?0+$/, '');
+  if (value === 0) return '0';
+  return `${value > 0 ? '+' : '-'}${formatted}`;
+}
+
 export function buildMockResolvedOdds(snapshot: JsonObject | string): ResolveMatchOddsResult {
   return {
     oddsSource: 'live',
@@ -494,9 +593,31 @@ export function buildMockResolvedOdds(snapshot: JsonObject | string): ResolveMat
   };
 }
 
+function buildReplayMockAiText(row: SettledReplaySourceRow): string {
+  const confidence = Number(row.confidence);
+  const stakePercent = Number(row.stake_percent);
+  const valuePercent = Number((parseJsonObject(row.decision_context)['valuePercent'] as number | string | undefined) ?? 8);
+  return JSON.stringify({
+    should_push: true,
+    ai_should_push: true,
+    selection: row.selection || '',
+    bet_market: row.bet_market || '',
+    confidence: Number.isFinite(confidence) && confidence > 0 ? confidence : 7,
+    reasoning_en: row.reasoning || 'Replay mock preserves the original recommendation.',
+    reasoning_vi: row.reasoning_vi || row.reasoning || 'Replay mock preserves the original recommendation.',
+    warnings: [],
+    value_percent: Number.isFinite(valuePercent) ? valuePercent : 8,
+    risk_level: 'MEDIUM',
+    stake_percent: Number.isFinite(stakePercent) && stakePercent > 0 ? stakePercent : 2,
+    condition_triggered_suggestion: '',
+    custom_condition_matched: false,
+  });
+}
+
 export function buildSettledReplayScenario(
   row: SettledReplaySourceRow,
   previousRecommendations: ReplayScenario['previousRecommendations'] = [],
+  performanceMemorySnapshot: ReplayPerformanceMemorySnapshot | null = buildNoHistoryPerformanceMemorySnapshot(row),
 ): SettledReplayScenario {
   const statsSnapshot = compactStatsFromUnknown(row.stats_snapshot);
   const decisionContext = compactDecisionContext(row.decision_context);
@@ -527,7 +648,9 @@ export function buildSettledReplayScenario(
     statistics: compactStatsToApiFixtureStats(statsSnapshot, row.home_team, row.away_team),
     mockResolvedOdds,
     liveOddsResponse: mockResolvedOdds.response,
+    mockAiText: buildReplayMockAiText(row),
     previousRecommendations,
+    performanceMemorySnapshot,
     metadata: {
       recommendationId: row.recommendation_id,
       originalPromptVersion: row.prompt_version || '',
@@ -547,6 +670,8 @@ export function buildSettledReplayScenario(
       profileCoverageBand: String(decisionContext['profileCoverageBand'] ?? ''),
       overlayCoverageBand: String(decisionContext['overlayCoverageBand'] ?? ''),
       policyImpactBand: String(decisionContext['policyImpactBand'] ?? ''),
+      performanceMemoryKey: performanceMemorySnapshot?.key ?? '',
+      performanceMemoryStatus: performanceMemorySnapshot?.lookupResult.status ?? 'missing',
     },
     settlementContext: {
       matchId: row.match_id,
@@ -560,6 +685,30 @@ export function buildSettledReplayScenario(
       settlementStats: parseStoredSettlementStats(row.settlement_stats),
     },
   };
+}
+
+async function loadPerformanceMemoryByKey(keys: string[]): Promise<Map<string, PerformanceMemoryRecord>> {
+  const unique = [...new Set(keys.filter((key) => key.length > 0))];
+  if (unique.length === 0) return new Map();
+
+  const tableCheck = await query<{ table_name: string | null }>(
+    `SELECT to_regclass('public.recommendation_performance_memory')::text AS table_name`,
+  );
+  if (!tableCheck.rows[0]?.table_name) return new Map();
+
+  const result = await query<PerformanceMemoryRow>(
+    `SELECT key, canonical_market, minute_band, score_state, total, wins, losses,
+            half_wins, half_losses, pushes, empirical_win_rate, sample_reliable, last_updated
+       FROM recommendation_performance_memory
+      WHERE key = ANY($1::text[])`,
+    [unique],
+  );
+
+  const map = new Map<string, PerformanceMemoryRecord>();
+  for (const row of result.rows) {
+    map.set(row.key, toPerformanceMemoryRecord(row));
+  }
+  return map;
 }
 
 function marketFamilyWhereClause(filter: SettledReplayScenarioFilters['marketFamily']): string {
@@ -749,10 +898,22 @@ export async function buildSettledReplayScenarios(
   const matchIds = [...new Set(baseRows.map((row) => row.match_id))];
   const previousMap = await loadPreviousRecommendationsMap(matchIds);
   const oddsCacheByMatch = await loadProviderOddsCacheByMatchIds(matchIds);
+  const memoryByKey = await loadPerformanceMemoryByKey(
+    baseRows.map((row) => buildReplayPerformanceMemoryReference(row).key),
+  );
   return baseRows.map((row) => {
     const cacheResp = oddsCacheByMatch.get(row.match_id);
     const mergedSnapshot = mergeHtMarketsIntoSnapshot(row.odds_snapshot, cacheResp);
     const enrichedRow: SettledReplaySourceRow = { ...row, odds_snapshot: mergedSnapshot };
-    return buildSettledReplayScenario(enrichedRow, buildPreviousRecommendationsForRow(row, previousMap));
+    const memoryRef = buildReplayPerformanceMemoryReference(row);
+    const memoryRecord = memoryByKey.get(memoryRef.key);
+    const memorySnapshot = memoryRecord
+      ? buildFoundPerformanceMemorySnapshot(row, memoryRecord)
+      : buildNoHistoryPerformanceMemorySnapshot(row);
+    return buildSettledReplayScenario(
+      enrichedRow,
+      buildPreviousRecommendationsForRow(row, previousMap),
+      memorySnapshot,
+    );
   });
 }

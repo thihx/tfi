@@ -16,18 +16,19 @@ import { reportJobProgress } from './job-progress.js';
 import { runPipelineBatch, type PipelineResult } from '../lib/server-pipeline.js';
 import { audit } from '../lib/audit.js';
 
-const pipelineAuditCounters = new Map<string, number>();
-
-function shouldSamplePipelineAudit(key: string, sampleEvery: number): boolean {
-  const next = (pipelineAuditCounters.get(key) ?? 0) + 1;
-  pipelineAuditCounters.set(key, next);
-  if (sampleEvery <= 1) return true;
-  return next % sampleEvery === 0;
-}
-
 function parseNumSetting(raw: unknown, fallback: number): number {
   const n = Number(raw);
   return Number.isFinite(n) && raw !== '' && raw !== null && raw !== undefined ? n : fallback;
+}
+
+function countPipelineResults(
+  results: PipelineResult[],
+  predicate: (result: PipelineResult['results'][number]) => boolean,
+): number {
+  return results.reduce(
+    (sum, batch) => sum + batch.results.filter(predicate).length,
+    0,
+  );
 }
 
 export async function checkLiveTriggerJob(): Promise<{
@@ -47,7 +48,7 @@ export async function checkLiveTriggerJob(): Promise<{
 
   // 1. Get active watchlist match IDs
   await reportJobProgress(JOB, 'load', 'Loading active watchlist...', 15);
-  const activeWatchlist = await watchlistRepo.getActiveOperationalWatchlist();
+  const activeWatchlist = await watchlistRepo.getAutoPipelineOperationalWatchlist();
   if (activeWatchlist.length === 0) {
     return { liveCount: 0 };
   }
@@ -130,23 +131,31 @@ export async function checkLiveTriggerJob(): Promise<{
 
   if (candidateMatchIds.length === 0) {
     await reportJobProgress(JOB, 'complete', 'Done: no candidate matches needed re-analysis', 100);
-    if (shouldSamplePipelineAudit('PIPELINE_COMPLETE:success:no-candidates', 20)) {
-      audit({
-        category: 'PIPELINE',
-        action: 'PIPELINE_COMPLETE',
-        outcome: 'SUCCESS',
-        actor: 'auto-pipeline',
-        metadata: {
-          liveCount: liveMatchIds.length,
-          candidateCount: 0,
-          batches: 0,
-          totalProcessed: 0,
-          totalSavedRecommendations: 0,
-          totalPushedNotifications: 0,
-          totalErrors: 0,
-        },
-      });
-    }
+    audit({
+      category: 'PIPELINE',
+      action: 'PIPELINE_COMPLETE',
+      outcome: 'SUCCESS',
+      actor: 'auto-pipeline',
+      metadata: {
+        liveCount: liveMatchIds.length,
+        candidateCount: 0,
+        batches: 0,
+        totalProcessed: 0,
+        totalProviderReady: 0,
+        totalLlmEligible: 0,
+        totalPreLlmSkipped: 0,
+        totalSkippedProceed: 0,
+        totalSkippedStaleness: 0,
+        totalLlmEligibilityBlocked: 0,
+        totalModelNoBet: 0,
+        totalPolicyBlocked: 0,
+        totalSaveBlocked: 0,
+        totalShouldPush: 0,
+        totalSavedRecommendations: 0,
+        totalPushedNotifications: 0,
+        totalErrors: 0,
+      },
+    });
     return { liveCount: liveMatchIds.length, candidateCount: 0, pipelineResults: [] };
   }
 
@@ -204,6 +213,48 @@ export async function checkLiveTriggerJob(): Promise<{
   const totalPushedNotifications = pipelineResults.reduce(
     (sum, r) => sum + r.results.filter((m) => m.notified).length, 0,
   );
+  const totalProviderReady = countPipelineResults(
+    pipelineResults,
+    (result) => result.debug?.statsAvailable === true && result.debug?.oddsAvailable === true,
+  );
+  const totalPreLlmSkipped = countPipelineResults(
+    pipelineResults,
+    (result) => result.debug?.skippedAt === 'proceed'
+      || result.debug?.skippedAt === 'staleness'
+      || result.debug?.skippedAt === 'llm_eligibility',
+  );
+  const totalSkippedProceed = countPipelineResults(
+    pipelineResults,
+    (result) => result.debug?.skippedAt === 'proceed',
+  );
+  const totalSkippedStaleness = countPipelineResults(
+    pipelineResults,
+    (result) => result.debug?.skippedAt === 'staleness',
+  );
+  const totalLlmEligibilityBlocked = countPipelineResults(
+    pipelineResults,
+    (result) => result.debug?.skippedAt === 'llm_eligibility',
+  );
+  const totalLlmEligible = countPipelineResults(
+    pipelineResults,
+    (result) => result.success === true && result.debug?.skippedAt == null,
+  );
+  const totalModelNoBet = countPipelineResults(
+    pipelineResults,
+    (result) => result.debug?.llmDecisionDiagnostic === 'no_bet_intentional',
+  );
+  const totalPolicyBlocked = countPipelineResults(
+    pipelineResults,
+    (result) => result.debug?.llmDecisionDiagnostic === 'policy_blocked',
+  );
+  const totalSaveBlocked = countPipelineResults(
+    pipelineResults,
+    (result) => result.debug?.saveIntegrityStatus === 'blocked',
+  );
+  const totalShouldPush = countPipelineResults(
+    pipelineResults,
+    (result) => result.shouldPush === true,
+  );
 
   await reportJobProgress(
     JOB,
@@ -213,23 +264,31 @@ export async function checkLiveTriggerJob(): Promise<{
   );
 
   const pipelineOutcome = totalErrors > 0 ? 'PARTIAL' : 'SUCCESS';
-  if (pipelineOutcome !== 'SUCCESS' || shouldSamplePipelineAudit('PIPELINE_COMPLETE:success', 20)) {
-    audit({
-      category: 'PIPELINE',
-      action: 'PIPELINE_COMPLETE',
-      outcome: pipelineOutcome,
-      actor: 'auto-pipeline',
-      metadata: {
-        liveCount: liveMatchIds.length,
-        candidateCount: candidateMatchIds.length,
-        batches: batches.length,
-        totalProcessed,
-        totalSavedRecommendations,
-        totalPushedNotifications,
-        totalErrors,
-      },
-    });
-  }
+  audit({
+    category: 'PIPELINE',
+    action: 'PIPELINE_COMPLETE',
+    outcome: pipelineOutcome,
+    actor: 'auto-pipeline',
+    metadata: {
+      liveCount: liveMatchIds.length,
+      candidateCount: candidateMatchIds.length,
+      batches: batches.length,
+      totalProcessed,
+      totalProviderReady,
+      totalLlmEligible,
+      totalPreLlmSkipped,
+      totalSkippedProceed,
+      totalSkippedStaleness,
+      totalLlmEligibilityBlocked,
+      totalModelNoBet,
+      totalPolicyBlocked,
+      totalSaveBlocked,
+      totalShouldPush,
+      totalSavedRecommendations,
+      totalPushedNotifications,
+      totalErrors,
+    },
+  });
 
   return { liveCount: liveMatchIds.length, candidateCount: candidateMatchIds.length, pipelineResults };
 }

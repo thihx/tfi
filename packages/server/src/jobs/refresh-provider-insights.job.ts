@@ -2,7 +2,7 @@ import { config } from '../config.js';
 import { skipIfFootballApiCircuitOpen } from '../lib/football-api-circuit.js';
 import { getFootballApiDailyCount } from '../lib/football-api-quota.js';
 import { getMatchesByStatus } from '../repos/matches.repo.js';
-import { getActiveOperationalWatchlist } from '../repos/watchlist.repo.js';
+import { getAutoPipelineOperationalWatchlist } from '../repos/watchlist.repo.js';
 import { ensureFixturesForMatchIds, ensureScoutInsight } from '../lib/provider-insight-cache.js';
 import { reportJobProgress } from './job-progress.js';
 
@@ -43,7 +43,7 @@ export async function refreshProviderInsightsJob(): Promise<{
 
   const [liveMatches, watchlist] = await Promise.all([
     getMatchesByStatus(LIVE_STATUSES),
-    getActiveOperationalWatchlist(),
+    getAutoPipelineOperationalWatchlist(),
   ]);
 
   const liveMatchIds = new Set(liveMatches.map((row) => String(row.match_id)));

@@ -1,0 +1,8 @@
+{
+  "actionPlanPath": "ci-baselines/data-driven-gates/action-plan.ci.json",
+  "promptVersion": "ci-baseline-prompt",
+  "minTotalCases": 10,
+  "maxProviderCoverageCount": 0,
+  "maxProviderCoverageRate": 0,
+  "maxReplayContextGapRate": 0.1
+}

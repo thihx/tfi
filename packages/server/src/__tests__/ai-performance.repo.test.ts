@@ -8,6 +8,7 @@ import { query } from '../db/pool.js';
 import {
   createAiPerformanceRecord,
   backfillFromRecommendations,
+  rebuildPerformanceMemoryFromRecommendations,
   getAccuracyStats,
   getHistoricalPerformanceContext,
   settleAiPerformance,
@@ -146,6 +147,59 @@ describe('ai-performance repository', () => {
     expect(query).toHaveBeenCalledWith(
       expect.stringContaining("WHEN r.result IN ('loss', 'half_loss') THEN false"),
     );
+  });
+
+  test('rebuildPerformanceMemoryFromRecommendations aggregates trusted settled rows idempotently', async () => {
+    vi.mocked(query)
+      .mockResolvedValueOnce({
+        rows: [
+          { selection: 'Over 2.5 Goals @1.90', bet_market: 'over_2.5', minute: 63, score: '1-1', result: 'win' },
+          { selection: 'Over 2.5 Goals @1.88', bet_market: 'over_2.5', minute: 66, score: '1-1', result: 'loss' },
+          { selection: 'Under 3.0 Goals @1.95', bet_market: 'under_3.0', minute: 42, score: '0-0', result: 'half_win' },
+          { selection: '', bet_market: '', minute: 42, score: '0-0', result: 'win' },
+        ],
+      } as never)
+      .mockResolvedValueOnce({ rows: [] } as never)
+      .mockResolvedValueOnce({ rows: [{ inserted: '2' }] } as never);
+
+    const summary = await rebuildPerformanceMemoryFromRecommendations();
+    const rebuildCall = vi.mocked(query).mock.calls.find(([sql]) =>
+      String(sql).includes('jsonb_to_recordset'),
+    );
+    const payload = JSON.parse((rebuildCall?.[1] as string[])[0] ?? '[]') as Array<{
+      key: string;
+      total: number;
+      wins: number;
+      losses: number;
+      halfWins: number;
+      empiricalWinRate: number;
+    }>;
+
+    expect(query).toHaveBeenCalledWith(
+      expect.stringContaining("COALESCE(r.settlement_status, 'resolved') IS DISTINCT FROM 'unresolved'"),
+    );
+    expect(summary).toEqual({
+      sourceRows: 4,
+      skippedUnknownMarket: 1,
+      groups: 2,
+      totalSamples: 3,
+      reliableGroups: 0,
+    });
+    expect(payload).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        key: 'over_2.5|60-74|level',
+        total: 2,
+        wins: 1,
+        losses: 1,
+        empiricalWinRate: 0.5,
+      }),
+      expect.objectContaining({
+        key: 'under_3|30-44|0-0',
+        total: 1,
+        halfWins: 1,
+        empiricalWinRate: 0.5,
+      }),
+    ]));
   });
 
   test('settleAiPerformance persists settlement provenance metadata', async () => {

@@ -36,6 +36,22 @@ const { mockConfig } = vi.hoisted(() => ({
 }));
 
 const {
+  mockRedisState,
+  mockRedisGet,
+  mockRedisSet,
+} = vi.hoisted(() => {
+  const state = new Map<string, string>();
+  return {
+    mockRedisState: state,
+    mockRedisGet: vi.fn(async (key: string) => state.get(key) ?? null),
+    mockRedisSet: vi.fn(async (key: string, value: string) => {
+      state.set(key, value);
+      return 'OK';
+    }),
+  };
+});
+
+const {
   mockUpsertPendingThesisWatch,
   mockGetPendingThesisWatchesByMatchId,
   mockMarkThesisWatchPromoted,
@@ -49,6 +65,13 @@ const {
 
 vi.mock('../config.js', () => ({
   config: mockConfig,
+}));
+
+vi.mock('../lib/redis.js', () => ({
+  getRedisClient: () => ({
+    get: mockRedisGet,
+    set: mockRedisSet,
+  }),
 }));
 
 vi.mock('../lib/audit.js', () => ({
@@ -223,6 +246,7 @@ const mockWatchlistEntry = {
   custom_conditions: '',
   recommended_custom_condition: '',
   recommended_condition_reason: '',
+  subscriber_count: 1,
 };
 
 vi.mock('../repos/watchlist.repo.js', () => ({
@@ -387,6 +411,8 @@ vi.mock('../repos/leagues.repo.js', () => ({
 }));
 
 const {
+  __resetPipelineLlmCooldownsForTest,
+  evaluateRecommendationSaveIntegrity,
   runPipelineBatch,
   runPromptOnlyAnalysisForMatch,
   resolveRuntimeAiModel,
@@ -394,11 +420,14 @@ const {
 
 beforeEach(async () => {
   vi.clearAllMocks();
+  mockRedisState.clear();
+  __resetPipelineLlmCooldownsForTest();
   mockConfig.liveAnalysisActivePromptVersion = '';
   mockConfig.liveAnalysisShadowPromptVersion = '';
   mockConfig.liveAnalysisShadowEnabled = false;
   mockConfig.liveAnalysisShadowSampleRate = 0;
   mockConfig.allowExpensiveGeminiModels = false;
+  mockConfig.pipelineMinOdds = 1.5;
   mockConfig.linePatienceEnabled = false;
   mockConfig.thesisWatchEnabled = false;
   mockConfig.thesisWatchTtlMinutes = 45;
@@ -438,6 +467,32 @@ beforeEach(async () => {
     }],
   }] as never);
   vi.mocked(footballApi.fetchPreMatchOdds).mockResolvedValue([]);
+
+  const gemini = await import('../lib/gemini.js');
+  vi.mocked(gemini.callGemini).mockResolvedValue(JSON.stringify({
+    should_push: true,
+    selection: 'Away +0.25 @2.10',
+    bet_market: 'asian_handicap_away_+0.25',
+    market_chosen_reason: 'High tempo match',
+    confidence: 8,
+    reasoning_en: 'Open match with high shot count',
+    reasoning_vi: 'Tran mo voi nhieu cu sut',
+    warnings: [],
+    value_percent: 12,
+    risk_level: 'MEDIUM',
+    stake_percent: 5,
+    custom_condition_matched: false,
+    custom_condition_status: 'none',
+    custom_condition_summary_en: '',
+    custom_condition_summary_vi: '',
+    custom_condition_reason_en: '',
+    custom_condition_reason_vi: '',
+    condition_triggered_suggestion: '',
+    condition_triggered_reasoning_en: '',
+    condition_triggered_reasoning_vi: '',
+    condition_triggered_confidence: 0,
+    condition_triggered_stake: 0,
+  }));
 
   const watchlistRepo = await import('../repos/watchlist.repo.js');
   vi.mocked(watchlistRepo.getOperationalWatchlistByMatchId).mockResolvedValue(mockWatchlistEntry as never);
@@ -931,6 +986,16 @@ describe('runPipelineBatch', () => {
     const providerSampling = await import('../lib/provider-sampling.js');
     const calls = vi.mocked(providerSampling.recordProviderStatsSampleSafe).mock.calls;
     expect(calls.some(([sample]) => sample.provider === 'api-football' && sample.success === true)).toBe(true);
+    expect(calls[0]?.[0].coverage_flags).toEqual(expect.objectContaining({
+      team_count: 2,
+      event_count: 2,
+      has_possession: true,
+      has_shots: true,
+      has_shots_on_target: true,
+      has_corners: true,
+      stats_fetch_ok: true,
+      events_fetch_ok: true,
+    }));
   });
 
   test('keeps API-Sports as stats source when current stats are already usable', async () => {
@@ -1107,7 +1172,7 @@ describe('runPipelineBatch', () => {
     expect(result.results[0]?.debug?.skipReason).toContain('no custom watch condition');
   });
 
-  test('uses degraded odds+events mode when stats stay unavailable after fallback check', async () => {
+  test('blocks auto LLM in degraded odds+events mode when no custom watch condition exists', async () => {
     const footballApi = await import('../lib/football-api.js');
     vi.mocked(footballApi.fetchFixtureStatistics).mockResolvedValueOnce([]);
     vi.mocked(footballApi.fetchFixtureEvents).mockResolvedValueOnce([
@@ -1118,11 +1183,11 @@ describe('runPipelineBatch', () => {
     const result = await runPipelineBatch(['100']);
 
     const { callGemini } = await import('../lib/gemini.js');
-    const prompt = vi.mocked(callGemini).mock.calls[0][0];
-    expect(prompt).toContain('STATS_SOURCE: api-football');
-    expect(prompt).toContain('EVIDENCE_MODE: odds_events_only_degraded');
-    expect(prompt).toContain('- Allowed markets: O/U and selective AH only');
+    expect(callGemini).not.toHaveBeenCalled();
     expect(result.results[0]?.debug?.statsFallbackUsed).toBe(false);
+    expect(result.results[0]?.debug?.evidenceMode).toBe('odds_events_only_degraded');
+    expect(result.results[0]?.debug?.skippedAt).toBe('llm_eligibility');
+    expect(result.results[0]?.debug?.skipReason).toBe('degraded_evidence_without_watch_condition');
     expect(result.results[0]?.success).toBe(true);
   });
 
@@ -1133,6 +1198,12 @@ describe('runPipelineBatch', () => {
       { time: { elapsed: 23 }, team: { id: 1 }, type: 'Goal', detail: 'Normal Goal', player: { name: 'Player A' } },
       { time: { elapsed: 55 }, team: { id: 2 }, type: 'Goal', detail: 'Normal Goal', player: { name: 'Player B' } },
     ] as never);
+
+    const watchlistRepo = await import('../repos/watchlist.repo.js');
+    vi.mocked(watchlistRepo.getOperationalWatchlistByMatchId).mockResolvedValueOnce({
+      ...mockWatchlistEntry,
+      custom_conditions: 'Alert if both teams have scored and BTTS is still playable.',
+    } as never);
 
     const { callGemini } = await import('../lib/gemini.js');
     vi.mocked(callGemini).mockResolvedValueOnce(JSON.stringify({
@@ -1172,36 +1243,57 @@ describe('runPipelineBatch', () => {
     vi.mocked(footballApi.fetchPreMatchOdds).mockResolvedValueOnce([]);
 
     const { callGemini } = await import('../lib/gemini.js');
-    vi.mocked(callGemini).mockResolvedValueOnce(JSON.stringify({
-      should_push: true,
-      selection: 'Over 2.5 Goals @1.88',
-      bet_market: 'over_2.5',
-      market_chosen_reason: 'AI attempted to infer a fair price without provider odds.',
-      confidence: 7,
-      reasoning_en: 'Tempo is decent but there are no reliable odds in the feed.',
-      reasoning_vi: 'Nhip do kha on nhung khong co odds tin cay trong feed.',
-      warnings: [],
-      value_percent: 6,
-      risk_level: 'MEDIUM',
-      stake_percent: 4,
-      custom_condition_matched: false,
-      custom_condition_status: 'none',
-      custom_condition_summary_en: '',
-      custom_condition_summary_vi: '',
-      custom_condition_reason_en: '',
-      custom_condition_reason_vi: '',
-      condition_triggered_suggestion: '',
-      condition_triggered_reasoning_en: '',
-      condition_triggered_reasoning_vi: '',
-      condition_triggered_confidence: 0,
-      condition_triggered_stake: 0,
-    }));
 
     const result = await runPipelineBatch(['100']);
     expect(result.results[0]?.shouldPush).toBe(false);
     expect(result.results[0]?.debug?.evidenceMode).toBe('stats_only');
-    expect(result.results[0]?.debug?.parsed?.warnings).toContain('ODDS_INVALID');
-    expect(result.results[0]?.debug?.parsed?.warnings).toContain('MARKET_NOT_ALLOWED_FOR_EVIDENCE');
+    expect(result.results[0]?.debug?.skippedAt).toBe('llm_eligibility');
+    expect(result.results[0]?.debug?.skipReason).toBe('degraded_evidence_without_watch_condition');
+    expect(callGemini).not.toHaveBeenCalled();
+  });
+
+  test('resolves goals O/U selections from extra canonical ladder rungs', async () => {
+    const footballApi = await import('../lib/football-api.js');
+    const { callGemini } = await import('../lib/gemini.js');
+
+    vi.mocked(footballApi.fetchLiveOdds).mockResolvedValueOnce([{
+      bookmakers: [{
+        name: 'TestBook',
+        bets: [
+          { name: 'Over/Under', values: [
+            { value: 'Over', odd: '1.90', handicap: '2.5' },
+            { value: 'Under', odd: '1.90', handicap: '2.5' },
+            { value: 'Over', odd: '1.85', handicap: '3' },
+            { value: 'Under', odd: '2.00', handicap: '3' },
+            { value: 'Over', odd: '1.78', handicap: '3.5' },
+            { value: 'Under', odd: '2.10', handicap: '3.5' },
+          ] },
+        ],
+      }],
+    }] as never);
+    vi.mocked(callGemini).mockResolvedValueOnce(JSON.stringify({
+      should_push: true,
+      selection: 'Over 3.5 Goals @1.78',
+      bet_market: 'over_3.5',
+      confidence: 7,
+      reasoning_en: 'Extra ladder line has a live price.',
+      reasoning_vi: 'Line extra co gia live.',
+      warnings: [],
+      value_percent: 8,
+      risk_level: 'MEDIUM',
+      stake_percent: 3,
+      custom_condition_matched: false,
+      custom_condition_status: 'none',
+    }));
+
+    const result = await runPipelineBatch(['100']);
+
+    const parsed = result.results[0]?.debug?.parsed;
+    expect(parsed).toEqual(expect.objectContaining({
+      mapped_odd: 1.78,
+      market_resolution_status: 'resolved',
+    }));
+    expect(parsed?.warnings).not.toContain('ODDS_INVALID');
   });
 
   test('calls Gemini with prompt containing match context', async () => {
@@ -1217,7 +1309,7 @@ describe('runPipelineBatch', () => {
   });
 
   test('saves recommendation to DB', async () => {
-    await runPipelineBatch(['100']);
+    const result = await runPipelineBatch(['100']);
 
     const { createRecommendation } = await import('../repos/recommendations.repo.js');
     expect(createRecommendation).toHaveBeenCalledTimes(1);
@@ -1228,7 +1320,35 @@ describe('runPipelineBatch', () => {
       selection: 'Away +0.25 @2.10',
       confidence: 8,
       prompt_version: LIVE_ANALYSIS_PROMPT_VERSION,
+      decision_context: expect.objectContaining({
+        saveIntegrityStatus: 'ok',
+        saveProviderCoverageStatus: 'ok',
+        saveMarketResolutionStatus: 'resolved',
+        saveMappedOdd: 2.1,
+        savedSelection: 'Away +0.25 @2.10',
+        savedBetMarket: 'asian_handicap_away_+0.25',
+        canonicalMarket: 'asian_handicap_away_+0.25',
+      }),
     }));
+    expect(result.results[0].debug).toEqual(expect.objectContaining({
+      saveIntegrityStatus: 'ok',
+      saveProviderCoverageStatus: 'ok',
+    }));
+  });
+
+  test('classifies save integrity provider coverage blocks', () => {
+    expect(evaluateRecommendationSaveIntegrity({
+      selection: 'Under 2.75 Goals @2.20',
+      betMarket: 'under_2.75',
+      mappedOdd: null,
+      minOdds: 1.5,
+    })).toEqual({
+      ok: false,
+      providerCoverageStatus: 'provider_line_unavailable_or_stale',
+      marketResolutionStatus: 'odds_unavailable',
+      mappedOdd: null,
+      reason: 'provider_line_unavailable_or_stale',
+    });
   });
 
   test('creates ai_performance tracking row when a recommendation is saved', async () => {
@@ -1401,15 +1521,159 @@ describe('runPipelineBatch', () => {
     expect(result.results[0].error).toContain('Watchlist entry not found');
   });
 
+  test('blocks auto LLM calls when the operational row has no active subscriber', async () => {
+    const watchlistRepo = await import('../repos/watchlist.repo.js');
+    const { callGemini } = await import('../lib/gemini.js');
+    const { audit } = await import('../lib/audit.js');
+
+    vi.mocked(watchlistRepo.getOperationalWatchlistByMatchId).mockResolvedValueOnce({
+      ...mockWatchlistEntry,
+      subscriber_count: 0,
+    } as never);
+
+    const result = await runPipelineBatch(['100']);
+
+    expect(result.errors).toBe(0);
+    expect(result.results[0].success).toBe(true);
+    expect(result.results[0].shouldPush).toBe(false);
+    expect(result.results[0].debug?.skippedAt).toBe('llm_eligibility');
+    expect(result.results[0].debug?.skipReason).toBe('no_active_watch_subscription');
+    expect(vi.mocked(callGemini)).not.toHaveBeenCalled();
+    expect(audit).toHaveBeenCalledWith(expect.objectContaining({
+      action: 'LLM_CALL_BLOCKED',
+      metadata: expect.objectContaining({
+        matchId: '100',
+        reason: 'no_active_watch_subscription',
+        gatewayContractVersion: 'ai-gateway-preflight-v1',
+        activeWatchInterest: false,
+        watchlistSubscriberCount: 0,
+        canonicalMarketKeys: expect.arrayContaining(['1x2', 'ou', 'ah']),
+        canonicalTradableMarketCount: expect.any(Number),
+      }),
+    }));
+  });
+
+  test('blocks auto LLM when canonical odds have no tradable market at minimum odds', async () => {
+    const settingsRepo = await import('../repos/settings.repo.js');
+    const { callGemini } = await import('../lib/gemini.js');
+    const { audit } = await import('../lib/audit.js');
+
+    vi.mocked(settingsRepo.getSettings).mockResolvedValueOnce({
+      TELEGRAM_CHAT_ID: '123456',
+      TELEGRAM_ENABLED: true,
+      AI_MODEL: 'gemini-3.5-flash',
+      MIN_CONFIDENCE: 5,
+      MIN_ODDS: 4,
+      LATE_PHASE_MINUTE: 75,
+      VERY_LATE_PHASE_MINUTE: 85,
+      ENDGAME_MINUTE: 88,
+    });
+
+    const result = await runPipelineBatch(['100']);
+
+    expect(result.errors).toBe(0);
+    expect(result.results[0].success).toBe(true);
+    expect(result.results[0].shouldPush).toBe(false);
+    expect(result.results[0].debug?.skippedAt).toBe('llm_eligibility');
+    expect(result.results[0].debug?.skipReason).toBe('no_tradable_canonical_market');
+    expect(vi.mocked(callGemini)).not.toHaveBeenCalled();
+    expect(audit).toHaveBeenCalledWith(expect.objectContaining({
+      action: 'LLM_CALL_BLOCKED',
+      metadata: expect.objectContaining({
+        reason: 'no_tradable_canonical_market',
+        minOdds: 4,
+        gatewayContractVersion: 'ai-gateway-preflight-v1',
+        activeWatchInterest: true,
+        canonicalMarketKeys: expect.arrayContaining(['1x2', 'ou', 'ah']),
+        canonicalTradableMarketCount: 0,
+      }),
+    }));
+  });
+
+  test('cools down repeated auto no-bet calls for the same match state', async () => {
+    const { callGemini } = await import('../lib/gemini.js');
+    const { audit } = await import('../lib/audit.js');
+
+    vi.mocked(callGemini).mockResolvedValue(JSON.stringify({
+      should_push: false,
+      selection: '',
+      bet_market: '',
+      confidence: 3,
+      reasoning_en: 'No clear opportunity',
+      reasoning_vi: 'Khong co co hoi ro rang',
+      warnings: [],
+      value_percent: 0,
+      risk_level: 'HIGH',
+      stake_percent: 0,
+      custom_condition_matched: false,
+    }));
+
+    const first = await runPipelineBatch(['100']);
+    const second = await runPipelineBatch(['100']);
+
+    expect(first.results[0].debug?.skippedAt).toBeUndefined();
+    expect(second.results[0].debug?.skippedAt).toBe('llm_eligibility');
+    expect(second.results[0].debug?.skipReason).toBe('auto_llm_cooldown_active');
+    expect(vi.mocked(callGemini)).toHaveBeenCalledTimes(1);
+    expect(mockRedisSet).toHaveBeenCalledWith(
+      expect.stringContaining('pipeline:auto-llm-cooldown:'),
+      expect.any(String),
+      'PX',
+      expect.any(Number),
+    );
+    expect(audit).toHaveBeenCalledWith(expect.objectContaining({
+      action: 'LLM_CALL_BLOCKED',
+      metadata: expect.objectContaining({
+        reason: 'auto_llm_cooldown_active',
+        cooldownSource: 'redis',
+        gatewayContractVersion: 'ai-gateway-preflight-v1',
+        canonicalTradableFamilies: expect.any(Array),
+      }),
+    }));
+  });
+
+  test('classifies intentional no-bet separately from unresolved markets', async () => {
+    const { callGemini } = await import('../lib/gemini.js');
+    const { audit } = await import('../lib/audit.js');
+
+    vi.mocked(callGemini).mockResolvedValueOnce(JSON.stringify({
+      should_push: false,
+      selection: '',
+      bet_market: '',
+      confidence: 0,
+      reasoning_en: 'No edge after comparing the available market prices.',
+      reasoning_vi: 'Khong co edge sau khi so sanh odds hien co.',
+      warnings: ['NO_EDGE'],
+      value_percent: 0,
+      risk_level: 'HIGH',
+      stake_percent: 0,
+      custom_condition_matched: false,
+    }));
+
+    const result = await runPipelineBatch(['100']);
+
+    expect(result.results[0].debug?.parsed).toEqual(expect.objectContaining({
+      llm_decision_diagnostic: 'no_bet_intentional',
+      market_resolution_status: 'not_requested',
+    }));
+    expect(audit).toHaveBeenCalledWith(expect.objectContaining({
+      action: 'LLM_PARSE_DIAGNOSTIC',
+      metadata: expect.objectContaining({
+        llmDecisionDiagnostic: 'no_bet_intentional',
+        marketResolutionStatus: 'not_requested',
+      }),
+    }));
+  });
+
   test('does not reuse pre-match odds for live analysis when real-time odds are unavailable', async () => {
     const footballApi = await import('../lib/football-api.js');
     vi.mocked(footballApi.fetchLiveOdds).mockResolvedValueOnce([]);
 
-    await runPipelineBatch(['100']);
+    const result = await runPipelineBatch(['100']);
 
     const { callGemini } = await import('../lib/gemini.js');
-    const prompt = vi.mocked(callGemini).mock.calls[0][0];
-    expect(prompt).toContain('ODDS_SOURCE: none');
+    expect(callGemini).not.toHaveBeenCalled();
+    expect(result.results[0].debug?.skipReason).toBe('degraded_evidence_without_watch_condition');
     expect(footballApi.fetchPreMatchOdds).not.toHaveBeenCalled();
   });
 
@@ -1476,7 +1740,8 @@ describe('runPipelineBatch', () => {
 
     const { callGemini } = await import('../lib/gemini.js');
     expect(['reference-prematch', 'none', undefined]).toContain(result.results[0].debug?.oddsSource);
-    expect(vi.mocked(callGemini)).toHaveBeenCalled();
+    expect(result.results[0].debug?.skipReason).toBe('degraded_evidence_without_watch_condition');
+    expect(vi.mocked(callGemini)).not.toHaveBeenCalled();
   });
 
   test('proceeds with no odds when live and pre-match are empty', async () => {
@@ -1498,8 +1763,9 @@ describe('runPipelineBatch', () => {
     const result = await runPipelineBatch(['100']);
 
     expect(result.results[0].debug?.oddsSource).toBe('none');
+    expect(result.results[0].debug?.skipReason).toBe('degraded_evidence_without_watch_condition');
     const { callGemini } = await import('../lib/gemini.js');
-    expect(vi.mocked(callGemini)).toHaveBeenCalled();
+    expect(vi.mocked(callGemini)).not.toHaveBeenCalled();
   });
 
   test('handles Gemini error gracefully', async () => {
@@ -1789,6 +2055,12 @@ describe('runPipelineBatch', () => {
   });
 
   test('keeps repeated same-thesis condition-triggered bets as alert-only when an actionable thesis already exists', async () => {
+    const watchlistRepo = await import('../repos/watchlist.repo.js');
+    vi.mocked(watchlistRepo.getOperationalWatchlistByMatchId).mockResolvedValueOnce({
+      ...mockWatchlistEntry,
+      custom_conditions: 'Alert if late under condition is still live.',
+    } as never);
+
     const recommendationsRepo = await import('../repos/recommendations.repo.js');
     vi.mocked(recommendationsRepo.getRecommendationsByMatchId).mockResolvedValueOnce([
       {
@@ -1886,6 +2158,12 @@ describe('runPipelineBatch', () => {
   });
 
   test('saves an actionable condition-triggered recommendation after normal policy gates pass', async () => {
+    const watchlistRepo = await import('../repos/watchlist.repo.js');
+    vi.mocked(watchlistRepo.getOperationalWatchlistByMatchId).mockResolvedValueOnce({
+      ...mockWatchlistEntry,
+      custom_conditions: 'Alert if away handicap condition is still live.',
+    } as never);
+
     const recommendationsRepo = await import('../repos/recommendations.repo.js');
     vi.mocked(recommendationsRepo.getRecommendationsByMatchId).mockResolvedValueOnce([
       {
@@ -3056,6 +3334,11 @@ describe('runPipelineBatch', () => {
 
   test('advisory lineup follow-up includes compressed lineup snapshot only', async () => {
     const { callGemini } = await import('../lib/gemini.js');
+    const watchlistRepo = await import('../repos/watchlist.repo.js');
+    vi.mocked(watchlistRepo.getOperationalWatchlistByMatchId).mockResolvedValueOnce({
+      ...mockWatchlistEntry,
+      custom_conditions: 'Alert if both teams already scored and BTTS odds are still playable.',
+    } as never);
     vi.mocked(callGemini).mockResolvedValueOnce(JSON.stringify({
       should_push: false,
       selection: '',

@@ -361,6 +361,13 @@ function summarizeVariantMetrics(rows: ModelRunMetrics[]) {
     replayPnl: null,
     originalBetMarket: '',
     originalResult: '',
+    decisionKind: r.shouldPush ? 'ai_push' : 'no_bet',
+    llmDecisionDiagnostic: r.shouldPush ? 'actionable' : 'no_bet_intentional',
+    marketResolutionStatus: r.shouldPush ? 'resolved' : 'not_requested',
+    providerCoverageStatus: 'ok',
+    replayContextStatus: 'ok',
+    replayQualityAttribution: r.shouldPush ? 'actionable' : 'model_no_bet',
+    replayWarnings: [],
   }));
 
   const variant = summarizeSettledReplayVariant('bench', cases);
