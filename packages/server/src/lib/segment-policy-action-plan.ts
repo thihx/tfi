@@ -64,6 +64,17 @@ export interface ReplayMarketMismatchExample {
   reason: string;
 }
 
+export interface ModelSelectedPolicyBlockedExample extends ReplayMarketMismatchExample {
+  recommendationId: number;
+  originalResult: string;
+  replayOdds: number | null;
+  breakEvenRate: number | null;
+  replayStakePercent: number;
+  replayQualityAttribution: string;
+  providerCoverageStatus: string;
+  replayContextStatus: string;
+}
+
 export interface OpportunityRecallExample extends ReplayMarketMismatchExample {
   originalResult: string;
   evidenceMode: string;
@@ -78,6 +89,9 @@ export interface OpportunityRecallSummary {
   originalWinCount: number;
   originalWinMissedCount: number;
   originalWinMissRate: number;
+  originalLossCount: number;
+  originalLossAvoidedCount: number;
+  originalLossAvoidanceRate: number;
   candidateRescueCount: number;
   byReplayQualityAttribution: CountRow[];
   byLlmDecisionDiagnostic: CountRow[];
@@ -85,6 +99,17 @@ export interface OpportunityRecallSummary {
   preservedNoBetReasons: CountRow[];
   candidateRescueExamples: OpportunityRecallExample[];
   preservedNoBetExamples: OpportunityRecallExample[];
+}
+
+export interface ModelSelectedPolicyBlockedSummary {
+  total: number;
+  originalWinCount: number;
+  originalLossCount: number;
+  originalPushLikeCount: number;
+  byMarketFamily: CountRow[];
+  byReplayQualityAttribution: CountRow[];
+  byWarning: CountRow[];
+  examples: ModelSelectedPolicyBlockedExample[];
 }
 
 export interface ProviderCoverageGroup {
@@ -114,6 +139,7 @@ export interface SegmentPolicyQualityBlockers {
   unresolvedMarketExamples: ReplayMarketMismatchExample[];
   policyWarningExamples: ReplayMarketMismatchExample[];
   opportunityRecall: OpportunityRecallSummary;
+  modelSelectedPolicyBlocked: ModelSelectedPolicyBlockedSummary;
 }
 
 function round(value: number): number {
@@ -160,9 +186,31 @@ function opportunityExampleFromCase(row: EvaluatedReplayCase, reason: string): O
   };
 }
 
+function modelSelectedPolicyBlockedExampleFromCase(
+  row: EvaluatedReplayCase,
+  reason: string,
+): ModelSelectedPolicyBlockedExample {
+  return {
+    ...exampleFromCase(row, reason),
+    recommendationId: row.recommendationId,
+    originalResult: row.originalResult,
+    replayOdds: row.replayOdds,
+    breakEvenRate: breakEvenFromReplay(row),
+    replayStakePercent: row.replayStakePercent,
+    replayQualityAttribution: row.replayQualityAttribution,
+    providerCoverageStatus: row.providerCoverageStatus,
+    replayContextStatus: row.replayContextStatus,
+  };
+}
+
 function isOriginalWin(row: EvaluatedReplayCase): boolean {
   const result = String(row.originalResult || '').trim().toLowerCase();
   return result === 'win' || result === 'half_win';
+}
+
+function isOriginalLoss(row: EvaluatedReplayCase): boolean {
+  const result = String(row.originalResult || '').trim().toLowerCase();
+  return result === 'loss' || result === 'half_loss';
 }
 
 function totalGoalsFromScore(score: string): number | null {
@@ -192,44 +240,91 @@ function classifyPreservedNoBetReason(row: EvaluatedReplayCase): string {
   return row.replayQualityAttribution || 'unknown';
 }
 
-function isLateUnder45TwoPlusMarginRescueCandidate(row: EvaluatedReplayCase): boolean {
+function marketForFamily(row: EvaluatedReplayCase): string {
+  const canonical = String(row.canonicalMarket || '').trim();
+  return canonical && canonical !== 'unknown' ? canonical : row.originalBetMarket || '';
+}
+
+function hasPolicyBlockedSelection(row: EvaluatedReplayCase): boolean {
+  return !row.actionable
+    && row.marketResolutionStatus === 'resolved'
+    && !!String(row.replaySelection || '').trim()
+    && (
+      row.llmDecisionDiagnostic === 'policy_blocked'
+      || row.replayQualityAttribution === 'model_policy_mismatch'
+      || row.replayQualityAttribution === 'hard_policy_gate'
+    );
+}
+
+function classifyRescueCandidateReason(row: EvaluatedReplayCase): string | null {
   const totalGoals = totalGoalsFromScore(row.score);
   const breakEvenRate = breakEvenFromReplay(row);
-  return !row.actionable
-    && row.canonicalMarket === 'under_4.5'
+  if (!hasPolicyBlockedSelection(row)) return null;
+
+  if (
+    row.canonicalMarket === 'btts_yes'
+    && row.minuteBand === '60-74'
+    && row.scoreState === 'two-plus-margin'
+    && row.evidenceMode === 'full_live_data'
+    && breakEvenRate != null
+    && breakEvenRate <= 0.49
+  ) {
+    return 'BTTS Yes rescue candidate: 60-74, two-plus margin, full live data, policy-blocked model selection priced above roughly 2.05.';
+  }
+
+  if (
+    row.canonicalMarket === 'under_4.5'
     && row.minuteBand === '75+'
     && row.scoreState === 'two-plus-margin'
     && row.evidenceMode === 'full_live_data'
     && totalGoals === 4
     && breakEvenRate != null
     && breakEvenRate < 0.55
-    && (
-      row.replayWarnings.includes('POLICY_BLOCK_GOALS_UNDER_THIN_CUSHION_LOW_CONF_GLOBAL')
-      || row.llmDecisionDiagnostic === 'policy_blocked'
-      || row.replayQualityAttribution === 'model_policy_mismatch'
-      || row.replayQualityAttribution === 'hard_policy_gate'
-    );
+  ) {
+    return 'Late Under 4.5 rescue candidate: 75+, two-plus margin, exactly 4 current goals, full live data, and break-even below late-game threshold.';
+  }
+
+  if (
+    row.canonicalMarket === 'over_1.5'
+    && row.minuteBand === '60-74'
+    && row.scoreState === 'one-goal-margin'
+    && row.evidenceMode === 'full_live_data'
+    && breakEvenRate != null
+    && breakEvenRate <= 0.67
+  ) {
+    return 'Over 1.5 rescue candidate: 60-74, one-goal margin, full live data, policy-blocked model selection with plausible break-even.';
+  }
+
+  return null;
 }
 
 function buildOpportunityRecall(cases: EvaluatedReplayCase[] = []): OpportunityRecallSummary {
   const originalWins = cases.filter(isOriginalWin);
   const missedWins = originalWins.filter((row) => !row.actionable);
-  const candidateRows = missedWins.filter(isLateUnder45TwoPlusMarginRescueCandidate);
-  const preservedRows = missedWins.filter((row) => !isLateUnder45TwoPlusMarginRescueCandidate(row));
+  const originalLosses = cases.filter(isOriginalLoss);
+  const avoidedLosses = originalLosses.filter((row) => !row.actionable);
+  const candidateRows = missedWins
+    .map((row) => ({ row, reason: classifyRescueCandidateReason(row) }))
+    .filter((entry): entry is { row: EvaluatedReplayCase; reason: string } => entry.reason != null);
+  const candidateSet = new Set(candidateRows.map((entry) => entry.row.scenarioName));
+  const preservedRows = missedWins.filter((row) => !candidateSet.has(row.scenarioName));
 
   return {
     originalWinCount: originalWins.length,
     originalWinMissedCount: missedWins.length,
     originalWinMissRate: originalWins.length > 0 ? round(missedWins.length / originalWins.length) : 0,
+    originalLossCount: originalLosses.length,
+    originalLossAvoidedCount: avoidedLosses.length,
+    originalLossAvoidanceRate: originalLosses.length > 0 ? round(avoidedLosses.length / originalLosses.length) : 0,
     candidateRescueCount: candidateRows.length,
     byReplayQualityAttribution: countRows(missedWins.map((row) => row.replayQualityAttribution || 'unknown')),
     byLlmDecisionDiagnostic: countRows(missedWins.map((row) => row.llmDecisionDiagnostic || 'unknown')),
-    byMarketFamily: countRows(missedWins.map((row) => classifyReplayMarketFamily(row.canonicalMarket || row.originalBetMarket || ''))),
+    byMarketFamily: countRows(missedWins.map((row) => classifyReplayMarketFamily(marketForFamily(row)))),
     preservedNoBetReasons: countRows(preservedRows.map(classifyPreservedNoBetReason)),
     candidateRescueExamples: candidateRows
-      .map((row) => opportunityExampleFromCase(
+      .map(({ row, reason }) => opportunityExampleFromCase(
         row,
-        'Narrow policy-rescue candidate: late full-live under_4.5, two-plus margin, exactly 4 current goals, break-even below the late-game threshold.',
+        reason,
       ))
       .slice(0, 12),
     preservedNoBetExamples: preservedRows
@@ -238,6 +333,29 @@ function buildOpportunityRecall(cases: EvaluatedReplayCase[] = []): OpportunityR
         'Original result won, but replay evidence does not meet a safe automatic rescue pattern; preserve conservative no-bet unless a larger cohort proves otherwise.',
       ))
       .slice(0, 12),
+  };
+}
+
+function buildModelSelectedPolicyBlocked(cases: EvaluatedReplayCase[] = []): ModelSelectedPolicyBlockedSummary {
+  const rows = cases.filter(hasPolicyBlockedSelection);
+  return {
+    total: rows.length,
+    originalWinCount: rows.filter(isOriginalWin).length,
+    originalLossCount: rows.filter(isOriginalLoss).length,
+    originalPushLikeCount: rows.filter((row) => {
+      const result = String(row.originalResult || '').trim().toLowerCase();
+      return result === 'push' || result === 'void';
+    }).length,
+    byMarketFamily: countRows(rows.map((row) => classifyReplayMarketFamily(marketForFamily(row)))),
+    byReplayQualityAttribution: countRows(rows.map((row) => row.replayQualityAttribution || 'unknown')),
+    byWarning: countRows(rows.flatMap((row) => row.replayWarnings), 20),
+    examples: rows
+      .map((row) => modelSelectedPolicyBlockedExampleFromCase(
+        row,
+        classifyRescueCandidateReason(row)
+          ?? 'Model selected a resolved market, but replay policy blocked it; inspect final outcome before changing policy.',
+      ))
+      .slice(0, 20),
   };
 }
 
@@ -318,6 +436,7 @@ function buildQualityBlockers(cases: EvaluatedReplayCase[] = []): SegmentPolicyQ
     unresolvedMarketExamples: unresolved,
     policyWarningExamples: policyBlocked,
     opportunityRecall: buildOpportunityRecall(cases),
+    modelSelectedPolicyBlocked: buildModelSelectedPolicyBlocked(cases),
   };
 }
 

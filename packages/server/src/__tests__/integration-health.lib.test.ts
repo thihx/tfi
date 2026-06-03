@@ -16,11 +16,21 @@ vi.mock('../lib/redis.js', () => ({
 
 const mockOpenFootballApiCircuitUntilNextUtcMidnight = vi.fn().mockResolvedValue('2026-05-24T00:00:00.000Z');
 const mockGetFootballApiCircuitStatus = vi.fn().mockResolvedValue({ open: false, openUntil: null });
+const mockFetchFootballApiStatus = vi.fn().mockResolvedValue({
+  ok: true,
+  status: 200,
+  data: { response: { account: { requests: { current: 42, limit_day: 100 } } } },
+  text: JSON.stringify({ response: { account: { requests: { current: 42, limit_day: 100 } } } }),
+});
 
 vi.mock('../lib/football-api-circuit.js', () => ({
   getFootballApiCircuitStatus: (...args: unknown[]) => mockGetFootballApiCircuitStatus(...args),
   isFootballApiDailyLimitMessage: (message: string) => message.toLowerCase().includes('request limit for the day'),
   openFootballApiCircuitUntilNextUtcMidnight: (...args: unknown[]) => mockOpenFootballApiCircuitUntilNextUtcMidnight(...args),
+}));
+
+vi.mock('../lib/football-api.js', () => ({
+  fetchFootballApiStatus: (...args: unknown[]) => mockFetchFootballApiStatus(...args),
 }));
 
 vi.mock('../config.js', () => ({
@@ -63,6 +73,12 @@ beforeEach(() => {
   vi.clearAllMocks();
   mockOpenFootballApiCircuitUntilNextUtcMidnight.mockResolvedValue('2026-05-24T00:00:00.000Z');
   mockGetFootballApiCircuitStatus.mockResolvedValue({ open: false, openUntil: null });
+  mockFetchFootballApiStatus.mockResolvedValue({
+    ok: true,
+    status: 200,
+    data: { response: { account: { requests: { current: 42, limit_day: 100 } } } },
+    text: JSON.stringify({ response: { account: { requests: { current: 42, limit_day: 100 } } } }),
+  });
 });
 
 // ── Tests ─────────────────────────────────────────────────────
@@ -171,8 +187,15 @@ describe('Redis probe', () => {
 
 describe('Football API probe', () => {
   test('HEALTHY with usage message when /status returns 200', async () => {
-    global.fetch = mockFetch(200, {
-      response: { account: { requests: { current: 42, limit_day: 100 } } },
+    mockFetchFootballApiStatus.mockResolvedValueOnce({
+      ok: true,
+      status: 200,
+      data: {
+        response: { account: { requests: { current: 42, limit_day: 100 } } },
+      },
+      text: JSON.stringify({
+        response: { account: { requests: { current: 42, limit_day: 100 } } },
+      }),
     });
     const { checkSingleIntegration } = await import('../lib/integration-health.js');
     const result = await checkSingleIntegration('football-api');
@@ -181,7 +204,12 @@ describe('Football API probe', () => {
   });
 
   test('DEGRADED when /status returns non-200', async () => {
-    global.fetch = mockFetch(429);
+    mockFetchFootballApiStatus.mockResolvedValueOnce({
+      ok: false,
+      status: 429,
+      data: {},
+      text: '',
+    });
     const { checkSingleIntegration } = await import('../lib/integration-health.js');
     const result = await checkSingleIntegration('football-api');
     expect(result!.status).toBe('DEGRADED');
@@ -189,8 +217,15 @@ describe('Football API probe', () => {
   });
 
   test('opens circuit when usage reports daily quota exhausted', async () => {
-    global.fetch = mockFetch(200, {
-      response: { account: { requests: { current: 7000, limit_day: 7000 } } },
+    mockFetchFootballApiStatus.mockResolvedValueOnce({
+      ok: true,
+      status: 200,
+      data: {
+        response: { account: { requests: { current: 7000, limit_day: 7000 } } },
+      },
+      text: JSON.stringify({
+        response: { account: { requests: { current: 7000, limit_day: 7000 } } },
+      }),
     });
     const { checkSingleIntegration } = await import('../lib/integration-health.js');
     const result = await checkSingleIntegration('football-api');
@@ -200,10 +235,19 @@ describe('Football API probe', () => {
   });
 
   test('opens circuit when /status payload contains daily limit error', async () => {
-    global.fetch = mockFetch(200, {
-      errors: {
-        requests: 'You have reached the request limit for the day, Go to https://dashboard.api-football.com to upgrade your plan.',
+    mockFetchFootballApiStatus.mockResolvedValueOnce({
+      ok: true,
+      status: 200,
+      data: {
+        errors: {
+          requests: 'You have reached the request limit for the day, Go to https://dashboard.api-football.com to upgrade your plan.',
+        },
       },
+      text: JSON.stringify({
+        errors: {
+          requests: 'You have reached the request limit for the day, Go to https://dashboard.api-football.com to upgrade your plan.',
+        },
+      }),
     });
     const { checkSingleIntegration } = await import('../lib/integration-health.js');
     const result = await checkSingleIntegration('football-api');
@@ -227,10 +271,11 @@ describe('Football API probe', () => {
     expect(result!.status).toBe('DEGRADED');
     expect(result!.message).toContain('2026-05-24T00:00:00.000Z');
     expect(fetchMock).not.toHaveBeenCalled();
+    expect(mockFetchFootballApiStatus).not.toHaveBeenCalled();
   });
 
   test('DOWN when fetch throws (network error)', async () => {
-    global.fetch = mockFetchError('fetch failed');
+    mockFetchFootballApiStatus.mockRejectedValueOnce(new Error('fetch failed'));
     const { checkSingleIntegration } = await import('../lib/integration-health.js');
     const result = await checkSingleIntegration('football-api');
     expect(result!.status).toBe('DOWN');

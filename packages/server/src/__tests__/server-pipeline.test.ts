@@ -655,6 +655,172 @@ describe('runPipelineBatch', () => {
     expect(createAiPerformanceRecord).not.toHaveBeenCalled();
   });
 
+  test('records runtime policy shadow candidate without saving or notifying', async () => {
+    const footballApi = await import('../lib/football-api.js');
+    const { callGemini } = await import('../lib/gemini.js');
+    const { audit } = await import('../lib/audit.js');
+    const { createRecommendation } = await import('../repos/recommendations.repo.js');
+
+    vi.mocked(footballApi.fetchFixturesByIds).mockResolvedValueOnce([{
+      fixture: { id: 100, status: { short: '2H', elapsed: 82 }, timestamp: 1700000000 },
+      teams: { home: { id: 1, name: 'Team A' }, away: { id: 2, name: 'Team B' } },
+      league: { id: 39, name: 'Test League' },
+      goals: { home: 3, away: 1 },
+    }] as never);
+    vi.mocked(footballApi.fetchLiveOdds).mockResolvedValueOnce([{
+      bookmakers: [{
+        name: 'TestBook',
+        bets: [
+          { name: 'Over/Under', values: [
+            { value: 'Over', odd: '1.80', handicap: '4.5' },
+            { value: 'Under', odd: '2.05', handicap: '4.5' },
+          ] },
+        ],
+      }],
+    }] as never);
+    vi.mocked(callGemini).mockResolvedValueOnce(JSON.stringify({
+      should_push: true,
+      selection: 'Under 4.5 Goals @2.05',
+      bet_market: 'under_4.5',
+      confidence: 7,
+      reasoning_en: 'Late match with a thin under cushion.',
+      reasoning_vi: 'Cuoi tran voi bien an toan mong cho keo xiu.',
+      warnings: [],
+      value_percent: 8,
+      risk_level: 'MEDIUM',
+      stake_percent: 3,
+      custom_condition_matched: false,
+      custom_condition_status: 'none',
+      custom_condition_summary_en: '',
+      custom_condition_summary_vi: '',
+      custom_condition_reason_en: '',
+      custom_condition_reason_vi: '',
+      condition_triggered_suggestion: '',
+      condition_triggered_reasoning_en: '',
+      condition_triggered_reasoning_vi: '',
+      condition_triggered_confidence: 0,
+      condition_triggered_stake: 0,
+    }));
+
+    const result = await runPipelineBatch(['100']);
+    const match = result.results[0];
+
+    expect(match.shouldPush).toBe(false);
+    expect(match.saved).toBe(false);
+    expect(match.notified).toBe(false);
+    expect(match.debug?.runtimePolicyShadow?.matchedPockets.map((pocket) => pocket.id))
+      .toEqual(['late_under_45_two_plus']);
+    expect(match.debug?.runtimePolicyShadow).toEqual(expect.objectContaining({
+      confidence: 7,
+      marketResolutionStatus: 'resolved',
+    }));
+    expect(createRecommendation).not.toHaveBeenCalled();
+    expect(audit).toHaveBeenCalledWith(expect.objectContaining({
+      category: 'PIPELINE',
+      action: 'PIPELINE_POLICY_SHADOW_CANDIDATE',
+      outcome: 'SKIPPED',
+      metadata: expect.objectContaining({
+        matchId: '100',
+        canonicalMarket: 'under_4.5',
+        minuteBand: '75+',
+        scoreState: 'two-plus-margin',
+        confidence: 7,
+        marketResolutionStatus: 'resolved',
+        shadowOnly: true,
+        saved: false,
+        notified: false,
+        matchedPockets: expect.arrayContaining([
+          expect.objectContaining({ id: 'late_under_45_two_plus' }),
+        ]),
+      }),
+    }));
+  });
+
+  test('records runtime policy shadow skipped neighbor without saving or notifying', async () => {
+    const footballApi = await import('../lib/football-api.js');
+    const { callGemini } = await import('../lib/gemini.js');
+    const { audit } = await import('../lib/audit.js');
+    const { createRecommendation } = await import('../repos/recommendations.repo.js');
+
+    vi.mocked(footballApi.fetchFixturesByIds).mockResolvedValueOnce([{
+      fixture: { id: 100, status: { short: '2H', elapsed: 70 }, timestamp: 1700000000 },
+      teams: { home: { id: 1, name: 'Team A' }, away: { id: 2, name: 'Team B' } },
+      league: { id: 39, name: 'Test League' },
+      goals: { home: 2, away: 0 },
+    }] as never);
+    vi.mocked(footballApi.fetchLiveOdds).mockResolvedValueOnce([{
+      bookmakers: [{
+        name: 'TestBook',
+        bets: [
+          { name: 'Over/Under', values: [
+            { value: 'Over', odd: '1.80', handicap: '2.5' },
+            { value: 'Under', odd: '1.95', handicap: '2.5' },
+          ] },
+          { name: 'Both Teams Score', values: [
+            { value: 'Yes', odd: '1.70' },
+            { value: 'No', odd: '2.10' },
+          ] },
+        ],
+      }],
+    }] as never);
+    vi.mocked(callGemini).mockResolvedValueOnce(JSON.stringify({
+      should_push: true,
+      selection: 'BTTS Yes @1.70',
+      bet_market: 'btts_yes',
+      confidence: 5,
+      reasoning_en: 'The trailing team has some pressure, but the price is too thin for production policy.',
+      reasoning_vi: 'Doi dang bi dan co suc ep nhung gia qua mong cho policy production.',
+      warnings: [],
+      value_percent: 4,
+      risk_level: 'MEDIUM',
+      stake_percent: 2,
+      custom_condition_matched: false,
+      custom_condition_status: 'none',
+      custom_condition_summary_en: '',
+      custom_condition_summary_vi: '',
+      custom_condition_reason_en: '',
+      custom_condition_reason_vi: '',
+      condition_triggered_suggestion: '',
+      condition_triggered_reasoning_en: '',
+      condition_triggered_reasoning_vi: '',
+      condition_triggered_confidence: 0,
+      condition_triggered_stake: 0,
+    }));
+
+    const result = await runPipelineBatch(['100']);
+    const match = result.results[0];
+
+    expect(match.shouldPush).toBe(false);
+    expect(match.saved).toBe(false);
+    expect(match.notified).toBe(false);
+    expect(match.debug?.runtimePolicyShadow?.matchedPockets).toEqual([]);
+    expect(match.debug?.runtimePolicyShadow?.skippedReason)
+      .toContain('requires odds >= 2.05');
+    expect(match.debug?.runtimePolicyShadow).toEqual(expect.objectContaining({
+      confidence: 5,
+      marketResolutionStatus: 'resolved',
+    }));
+    expect(createRecommendation).not.toHaveBeenCalled();
+    expect(audit).toHaveBeenCalledWith(expect.objectContaining({
+      category: 'PIPELINE',
+      action: 'PIPELINE_POLICY_SHADOW_SKIPPED',
+      outcome: 'SKIPPED',
+      metadata: expect.objectContaining({
+        matchId: '100',
+        canonicalMarket: 'btts_yes',
+        minuteBand: '60-74',
+        scoreState: 'two-plus-margin',
+        odds: 1.7,
+        confidence: 5,
+        marketResolutionStatus: 'resolved',
+        skippedReason: expect.stringContaining('requires odds >= 2.05'),
+        shadowOnly: true,
+        saved: false,
+        notified: false,
+      }),
+    }));
+  });
+
   test('still allows 1x2_away when it passes runtime policy', async () => {
     const { callGemini } = await import('../lib/gemini.js');
     const { createRecommendation } = await import('../repos/recommendations.repo.js');
@@ -1334,6 +1500,22 @@ describe('runPipelineBatch', () => {
       saveIntegrityStatus: 'ok',
       saveProviderCoverageStatus: 'ok',
     }));
+  });
+
+  test('falls back to the official prompt when active prompt env is retired before saving', async () => {
+    mockConfig.liveAnalysisActivePromptVersion = 'v10-hybrid-legacy-b';
+
+    const result = await runPipelineBatch(['100']);
+
+    const { createRecommendation } = await import('../repos/recommendations.repo.js');
+    expect(createRecommendation).toHaveBeenCalledTimes(1);
+    expect(createRecommendation).toHaveBeenCalledWith(expect.objectContaining({
+      prompt_version: LIVE_ANALYSIS_PROMPT_VERSION,
+      decision_context: expect.objectContaining({
+        saveIntegrityStatus: 'ok',
+      }),
+    }));
+    expect(result.results[0]?.debug?.promptVersion).toBe(LIVE_ANALYSIS_PROMPT_VERSION);
   });
 
   test('classifies save integrity provider coverage blocks', () => {

@@ -74,6 +74,25 @@ function parseCanonicalMarket(primaryText: string, secondaryText = ''): string {
     return line ? `asian_handicap_${side}_${line}` : `asian_handicap_${side}`;
   }
 
+  const firstHalfText = stripFirstHalfMarker(combined);
+  if (firstHalfText !== combined) {
+    if (/btts|both\s*teams?\s*(to\s+)?scor/.test(firstHalfText)) {
+      return /\bno\b/.test(firstHalfText) ? 'ht_btts_no' : 'ht_btts_yes';
+    }
+
+    const htAhMatch = firstHalfText.match(/\b(home|away)\b[^\d+-]*([+-]\d+(?:\.\d+)?)/);
+    if (htAhMatch?.[1] && htAhMatch[2]) {
+      return `ht_asian_handicap_${htAhMatch[1]}_${normalizeSignedLine(htAhMatch[2])!}`;
+    }
+
+    const htDirection = extractDirection(firstHalfText, '', ['over', 'under']);
+    const htLine = extractLineFromText(firstHalfText, false);
+    if (htDirection && htLine) return `ht_${htDirection}_${formatUnsignedLine(htLine)}`;
+
+    const htOutcome = inferMatchResultOutcome(firstHalfText);
+    if (htOutcome) return `ht_${htOutcome}`;
+  }
+
   if (/corner/i.test(combined)) {
     const direction = extractDirection(primary, secondary, ['over', 'under']);
     const line = extractLineFromText(primary, false) ?? extractLineFromText(secondary, false);
@@ -159,6 +178,13 @@ function extractLineFromText(text: string, signed: boolean): string | null {
   const match = text.match(regex);
   if (!match) return null;
   return signed ? formatSignedLine(Number(match[0])) : formatUnsignedLine(Number(match[0]));
+}
+
+function stripFirstHalfMarker(text: string): string {
+  return text
+    .replace(/\b(first[-\s]?half|1st[-\s]?half|h1|1h)\b/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
 }
 
 function normalizeSignedLine(raw: string | null): string | null {

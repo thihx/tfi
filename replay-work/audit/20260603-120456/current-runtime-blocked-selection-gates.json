@@ -1,0 +1,31 @@
+{
+  "blockedSelectionReportPath": "../../replay-work/audit/20260603-120456/current-runtime-blocked-selection-336h.json",
+  "minTotalSelections": 30,
+  "minSettledRows": 30,
+  "minSettledRate": 0.95,
+  "maxUnresolvedRows": 2,
+  "requiredMarkets": [
+    {
+      "id": "over_1.5",
+      "minTotalRows": 2,
+      "minSettledRows": 2,
+      "minSettledRate": 1,
+      "minWins": 2,
+      "maxLosses": 0,
+      "maxUnresolvedRows": 0,
+      "minTotalPnlPercent": 1,
+      "minRoiOnStaked": 0.5
+    },
+    {
+      "id": "under_4.5",
+      "minTotalRows": 2,
+      "minSettledRows": 2,
+      "minSettledRate": 1,
+      "minWins": 2,
+      "maxLosses": 0,
+      "maxUnresolvedRows": 0,
+      "minTotalPnlPercent": 1,
+      "minRoiOnStaked": 0.5
+    }
+  ]
+}

@@ -1,0 +1,187 @@
+{
+  "generatedAt": "2026-06-03T08:37:31.893Z",
+  "lookbackDays": 90,
+  "settledResults": [
+    "win",
+    "loss",
+    "push",
+    "half_win",
+    "half_loss",
+    "void"
+  ],
+  "totals": {
+    "inWindow": 1789,
+    "actionableNotDup": 1736,
+    "settledActionable": 1736,
+    "exportEligible": 1736,
+    "settledActionableMissingHistory": 0
+  },
+  "snapshotQuality": {
+    "amongSettledActionable": {
+      "total": 1736,
+      "emptyOddsSnapshot": 0,
+      "emptyStatsSnapshot": 0,
+      "emptyDecisionContext": 530,
+      "replayReady": 1736
+    },
+    "amongExportEligible": {
+      "total": 1736,
+      "emptyDecisionContext": 530
+    }
+  },
+  "slim": {
+    "inWindowSlimTrue": 0,
+    "inWindowSlimFalse": 1789
+  },
+  "currentRuntime": {
+    "officialPromptVersion": "v10-hybrid-legacy-g",
+    "amongExportEligible": {
+      "total": 1736,
+      "officialPrompt": 0,
+      "officialPromptWithDecisionContext": 0,
+      "officialPromptMissingDecisionContext": 0,
+      "nonOfficialPrompt": 1620,
+      "emptyPromptVersion": 116,
+      "emptyDecisionContext": 530,
+      "currentRuntimeReady": 0,
+      "currentRuntimeReadyPct": 0
+    },
+    "cohorts": [
+      {
+        "cohort": "non_official_prompt_version",
+        "count": 1620,
+        "emptyDecisionContext": 414
+      },
+      {
+        "cohort": "empty_prompt_version",
+        "count": 116,
+        "emptyDecisionContext": 116
+      }
+    ]
+  },
+  "topPromptVersions": [
+    {
+      "promptVersion": "v10-hybrid-legacy-b",
+      "count": 824,
+      "emptyOdds": 0,
+      "emptyStats": 0,
+      "emptyDecisionContext": 0
+    },
+    {
+      "promptVersion": "v4-evidence-hardened",
+      "count": 506,
+      "emptyOdds": 0,
+      "emptyStats": 0,
+      "emptyDecisionContext": 331
+    },
+    {
+      "promptVersion": "v6-betting-discipline-c",
+      "count": 183,
+      "emptyOdds": 0,
+      "emptyStats": 0,
+      "emptyDecisionContext": 83
+    },
+    {
+      "promptVersion": "(empty)",
+      "count": 169,
+      "emptyOdds": 0,
+      "emptyStats": 0,
+      "emptyDecisionContext": 169
+    },
+    {
+      "promptVersion": "v8-market-balance-followup-f",
+      "count": 32,
+      "emptyOdds": 0,
+      "emptyStats": 0,
+      "emptyDecisionContext": 0
+    },
+    {
+      "promptVersion": "v8-market-balance-followup-a",
+      "count": 21,
+      "emptyOdds": 0,
+      "emptyStats": 0,
+      "emptyDecisionContext": 0
+    },
+    {
+      "promptVersion": "v8-market-balance-followup-e",
+      "count": 12,
+      "emptyOdds": 0,
+      "emptyStats": 0,
+      "emptyDecisionContext": 0
+    },
+    {
+      "promptVersion": "v8-market-balance-followup-d",
+      "count": 9,
+      "emptyOdds": 0,
+      "emptyStats": 0,
+      "emptyDecisionContext": 0
+    },
+    {
+      "promptVersion": "v7-profile-overlay-discipline-a",
+      "count": 9,
+      "emptyOdds": 0,
+      "emptyStats": 0,
+      "emptyDecisionContext": 0
+    },
+    {
+      "promptVersion": "v8-market-balance-followup-b",
+      "count": 8,
+      "emptyOdds": 0,
+      "emptyStats": 0,
+      "emptyDecisionContext": 0
+    },
+    {
+      "promptVersion": "v8-market-balance-followup-h",
+      "count": 6,
+      "emptyOdds": 0,
+      "emptyStats": 0,
+      "emptyDecisionContext": 0
+    },
+    {
+      "promptVersion": "v8-replay-calibrated-b",
+      "count": 4,
+      "emptyOdds": 0,
+      "emptyStats": 0,
+      "emptyDecisionContext": 0
+    },
+    {
+      "promptVersion": "v8-replay-calibrated-c",
+      "count": 3,
+      "emptyOdds": 0,
+      "emptyStats": 0,
+      "emptyDecisionContext": 0
+    },
+    {
+      "promptVersion": "v8-market-balance-followup-c",
+      "count": 3,
+      "emptyOdds": 0,
+      "emptyStats": 0,
+      "emptyDecisionContext": 0
+    }
+  ],
+  "topAiModels": [
+    {
+      "aiModel": "gemini-3-pro-preview",
+      "count": 1643,
+      "emptyOdds": 0,
+      "emptyStats": 0
+    },
+    {
+      "aiModel": "gemini-3.0-flash",
+      "count": 141,
+      "emptyOdds": 0,
+      "emptyStats": 0
+    },
+    {
+      "aiModel": "gemini-2.5-flash",
+      "count": 5,
+      "emptyOdds": 0,
+      "emptyStats": 0
+    }
+  ],
+  "hints": {
+    "exportEligibleMatchesReplayLoader": "Same filters as buildSettledReplayScenarios (non-empty odds+stats, matches_history, settled actionable).",
+    "emptyDecisionContextAmongExportEligiblePct": 30.53,
+    "replayReadyAmongSettledActionablePct": 100
+  }
+}

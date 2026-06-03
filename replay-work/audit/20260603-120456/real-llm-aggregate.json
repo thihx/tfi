@@ -1,0 +1,891 @@
+{
+  "generatedAt": "2026-06-03T04:45:01.449Z",
+  "sourceRuns": [
+    "2026-06-03T04-38-56-521Z",
+    "2026-06-03T04-37-08-222Z",
+    "2026-06-03T04-15-00-372Z",
+    "2026-06-03T04-19-58-034Z"
+  ],
+  "caveat": "Corrected aggregate after preserving _manifest scenario order in replay-scenario-files. These four runs have no duplicate scenarioName or recommendationId rows.",
+  "totals": {
+    "caseRows": 35,
+    "uniqueScenarioNames": 35,
+    "uniqueRecommendationIds": 35,
+    "duplicateScenarioNames": [],
+    "duplicateRecommendationIds": [],
+    "pushCount": 0,
+    "actionableCount": 0,
+    "noBetCount": 35,
+    "pushRate": 0,
+    "originalWins": 17,
+    "originalLosses": 13,
+    "originalPushes": 2,
+    "originalHalfLosses": 2,
+    "originalWinsMissed": 17,
+    "originalWinRecall": 0,
+    "originalLossesAvoided": 13,
+    "originalLossAvoidanceRate": 1
+  },
+  "counts": {
+    "originalResult": [
+      {
+        "key": "win",
+        "count": 17
+      },
+      {
+        "key": "loss",
+        "count": 13
+      },
+      {
+        "key": "half_loss",
+        "count": 2
+      },
+      {
+        "key": "push",
+        "count": 2
+      },
+      {
+        "key": "half_win",
+        "count": 1
+      }
+    ],
+    "replayQualityAttribution": [
+      {
+        "key": "model_no_bet",
+        "count": 27
+      },
+      {
+        "key": "pre_llm_blocked",
+        "count": 4
+      },
+      {
+        "key": "hard_policy_gate",
+        "count": 2
+      },
+      {
+        "key": "model_policy_mismatch",
+        "count": 2
+      }
+    ],
+    "llmDecisionDiagnostic": [
+      {
+        "key": "no_bet_intentional",
+        "count": 27
+      },
+      {
+        "key": "policy_blocked",
+        "count": 4
+      },
+      {
+        "key": "pre_llm_blocked",
+        "count": 4
+      }
+    ],
+    "providerCoverageStatus": [
+      {
+        "key": "ok",
+        "count": 35
+      }
+    ],
+    "replayContextStatus": [
+      {
+        "key": "ok",
+        "count": 35
+      }
+    ],
+    "marketResolutionStatus": [
+      {
+        "key": "not_requested",
+        "count": 31
+      },
+      {
+        "key": "resolved",
+        "count": 4
+      }
+    ],
+    "decisionKind": [
+      {
+        "key": "no_bet",
+        "count": 35
+      }
+    ],
+    "evidenceMode": [
+      {
+        "key": "full_live_data",
+        "count": 31
+      },
+      {
+        "key": "odds_events_only_degraded",
+        "count": 4
+      }
+    ],
+    "minuteBand": [
+      {
+        "key": "60-74",
+        "count": 15
+      },
+      {
+        "key": "75+",
+        "count": 10
+      },
+      {
+        "key": "45-59",
+        "count": 8
+      },
+      {
+        "key": "30-44",
+        "count": 2
+      }
+    ],
+    "originalMarketFamilyApprox": [
+      {
+        "key": "asian_handicap",
+        "count": 7
+      },
+      {
+        "key": "corners_under",
+        "count": 4
+      },
+      {
+        "key": "over_1.5",
+        "count": 4
+      },
+      {
+        "key": "corners_over",
+        "count": 3
+      },
+      {
+        "key": "under_2.5",
+        "count": 3
+      },
+      {
+        "key": "btts_yes",
+        "count": 2
+      },
+      {
+        "key": "under_1.5",
+        "count": 2
+      },
+      {
+        "key": "under_4.5",
+        "count": 2
+      },
+      {
+        "key": "under_4.75",
+        "count": 2
+      },
+      {
+        "key": "btts_no",
+        "count": 1
+      },
+      {
+        "key": "over_0.75",
+        "count": 1
+      },
+      {
+        "key": "over_2.5",
+        "count": 1
+      },
+      {
+        "key": "over_5.5",
+        "count": 1
+      },
+      {
+        "key": "under_0.5",
+        "count": 1
+      },
+      {
+        "key": "under_4",
+        "count": 1
+      }
+    ]
+  },
+  "hardPolicyCases": [
+    {
+      "runId": "2026-06-03T04-38-56-521Z",
+      "scenarioName": "13398-1504825-67m-btts-yes",
+      "recommendationId": 13398,
+      "minute": 67,
+      "score": "0-2",
+      "originalBetMarket": "btts_yes",
+      "originalResult": "win",
+      "replaySelection": "BTTS Yes @2.2",
+      "canonicalMarket": "btts_yes",
+      "marketResolutionStatus": "resolved",
+      "replayWarnings": [
+        "POLICY_BLOCK_MEDIUM_RISK_THIN_EDGE_GLOBAL"
+      ]
+    },
+    {
+      "runId": "2026-06-03T04-38-56-521Z",
+      "scenarioName": "13395-1490320-80m-under-4-5",
+      "recommendationId": 13395,
+      "minute": 80,
+      "score": "1-3",
+      "originalBetMarket": "under_4.5",
+      "originalResult": "win",
+      "replaySelection": "Under 4.5 Goals @2.025",
+      "canonicalMarket": "under_4.5",
+      "marketResolutionStatus": "resolved",
+      "replayWarnings": [
+        "Late game phase (minute 80) carries inherent volatility as teams may exhaust tactical discipline in the final minutes.",
+        "LLP_BLOCK_UNDER_THIN_CUSHION_NO_REMAP",
+        "POLICY_CAP_GOALS_UNDER_THIN_CUSHION_STAKE_GLOBAL"
+      ]
+    },
+    {
+      "runId": "2026-06-03T04-15-00-372Z",
+      "scenarioName": "13381-1535217-61m-over-1-5",
+      "recommendationId": 13381,
+      "minute": 61,
+      "score": "1-0",
+      "originalBetMarket": "over_1.5",
+      "originalResult": "win",
+      "replaySelection": "Over 1.5 Goals @1.55",
+      "canonicalMarket": "over_1.5",
+      "marketResolutionStatus": "resolved",
+      "replayWarnings": [
+        "LLP_BLOCK_OVER_AGGRESSIVE_LINE",
+        "REQUIRED_CONDITIONS_NOT_MET",
+        "OVER_1_5_BLOCKED_LATE_MIDGAME",
+        "POLICY_BLOCK_MEDIUM_RISK_THIN_EDGE_GLOBAL"
+      ]
+    },
+    {
+      "runId": "2026-06-03T04-19-58-034Z",
+      "scenarioName": "13375-1523156-77m-under-2-5",
+      "recommendationId": 13375,
+      "minute": 77,
+      "score": "1-1",
+      "originalBetMarket": "under_2.5",
+      "originalResult": "loss",
+      "replaySelection": "Under 2.5 Goals @1.7",
+      "canonicalMarket": "under_2.5",
+      "marketResolutionStatus": "resolved",
+      "replayWarnings": [
+        "LLP_BLOCK_UNDER_THIN_CUSHION_NO_REMAP",
+        "REQUIRED_CONDITIONS_NOT_MET",
+        "POLICY_BLOCK_GOALS_UNDER_THIN_CUSHION_LOW_CONF_GLOBAL",
+        "POLICY_BLOCK_MEDIUM_RISK_THIN_EDGE_GLOBAL"
+      ]
+    }
+  ],
+  "modelNoBetOriginalWins": [
+    {
+      "runId": "2026-06-03T04-38-56-521Z",
+      "scenarioName": "13402-1545451-83m-corners-under-14-5",
+      "recommendationId": 13402,
+      "minute": 83,
+      "score": "1-1",
+      "originalBetMarket": "corners_under_14.5",
+      "evidenceMode": "full_live_data",
+      "marketAvailabilityBucket": "playable_side_market"
+    },
+    {
+      "runId": "2026-06-03T04-38-56-521Z",
+      "scenarioName": "13394-1490318-76m-corners-under-6-5",
+      "recommendationId": 13394,
+      "minute": 76,
+      "score": "1-4",
+      "originalBetMarket": "corners_under_6.5",
+      "evidenceMode": "full_live_data",
+      "marketAvailabilityBucket": "playable_side_market"
+    },
+    {
+      "runId": "2026-06-03T04-37-08-222Z",
+      "scenarioName": "13392-1490319-50m-under-4",
+      "recommendationId": 13392,
+      "minute": 50,
+      "score": "1-2",
+      "originalBetMarket": "under_4",
+      "evidenceMode": "full_live_data",
+      "marketAvailabilityBucket": "playable_side_market"
+    },
+    {
+      "runId": "2026-06-03T04-15-00-372Z",
+      "scenarioName": "13377-1523155-81m-under-2-5",
+      "recommendationId": 13377,
+      "minute": 81,
+      "score": "1-1",
+      "originalBetMarket": "under_2.5",
+      "evidenceMode": "full_live_data",
+      "marketAvailabilityBucket": "playable_side_market"
+    },
+    {
+      "runId": "2026-06-03T04-15-00-372Z",
+      "scenarioName": "13378-1523158-64m-asian-handicap-away-0-5",
+      "recommendationId": 13378,
+      "minute": 64,
+      "score": "0-0",
+      "originalBetMarket": "asian_handicap_away_+0.5",
+      "evidenceMode": "full_live_data",
+      "marketAvailabilityBucket": "playable_side_market"
+    },
+    {
+      "runId": "2026-06-03T04-15-00-372Z",
+      "scenarioName": "13380-1523158-74m-over-1-5",
+      "recommendationId": 13380,
+      "minute": 74,
+      "score": "1-0",
+      "originalBetMarket": "over_1.5",
+      "evidenceMode": "full_live_data",
+      "marketAvailabilityBucket": "side_market_unplayable"
+    },
+    {
+      "runId": "2026-06-03T04-15-00-372Z",
+      "scenarioName": "13385-1535207-69m-under-4-5",
+      "recommendationId": 13385,
+      "minute": 69,
+      "score": "2-2",
+      "originalBetMarket": "under_4.5",
+      "evidenceMode": "full_live_data",
+      "marketAvailabilityBucket": "playable_side_market"
+    },
+    {
+      "runId": "2026-06-03T04-15-00-372Z",
+      "scenarioName": "13387-1535203-76m-under-2-5",
+      "recommendationId": 13387,
+      "minute": 76,
+      "score": "1-1",
+      "originalBetMarket": "under_2.5",
+      "evidenceMode": "full_live_data",
+      "marketAvailabilityBucket": "side_market_unplayable"
+    },
+    {
+      "runId": "2026-06-03T04-19-58-034Z",
+      "scenarioName": "13367-1490309-60m-corners-over-10-5",
+      "recommendationId": 13367,
+      "minute": 60,
+      "score": "3-1",
+      "originalBetMarket": "corners_over_10.5",
+      "evidenceMode": "full_live_data",
+      "marketAvailabilityBucket": "side_market_unplayable"
+    },
+    {
+      "runId": "2026-06-03T04-19-58-034Z",
+      "scenarioName": "13369-1544856-38m-asian-handicap-home-0",
+      "recommendationId": 13369,
+      "minute": 38,
+      "score": "0-0",
+      "originalBetMarket": "asian_handicap_home_0",
+      "evidenceMode": "full_live_data",
+      "marketAvailabilityBucket": "playable_side_market"
+    },
+    {
+      "runId": "2026-06-03T04-19-58-034Z",
+      "scenarioName": "13370-1544856-58m-btts-no",
+      "recommendationId": 13370,
+      "minute": 58,
+      "score": "1-0",
+      "originalBetMarket": "btts_no",
+      "evidenceMode": "full_live_data",
+      "marketAvailabilityBucket": "side_market_unplayable"
+    },
+    {
+      "runId": "2026-06-03T04-19-58-034Z",
+      "scenarioName": "13372-1544856-81m-under-1-5",
+      "recommendationId": 13372,
+      "minute": 81,
+      "score": "1-0",
+      "originalBetMarket": "under_1.5",
+      "evidenceMode": "full_live_data",
+      "marketAvailabilityBucket": "side_market_unplayable"
+    }
+  ],
+  "aggregateSegments": [
+    {
+      "segmentKey": "60-74::goals_over",
+      "totalScenarios": 7,
+      "replayActionable": 0,
+      "settledDirectional": 0,
+      "replayWins": 0,
+      "replayLosses": 0,
+      "totalReplayPnl": 0,
+      "totalReplayStaked": 0,
+      "originalDirectionalLossCount": 4
+    },
+    {
+      "segmentKey": "75+::goals_under",
+      "totalScenarios": 6,
+      "replayActionable": 0,
+      "settledDirectional": 0,
+      "replayWins": 0,
+      "replayLosses": 0,
+      "totalReplayPnl": 0,
+      "totalReplayStaked": 0,
+      "originalDirectionalLossCount": 1
+    },
+    {
+      "segmentKey": "75+::corners",
+      "totalScenarios": 4,
+      "replayActionable": 0,
+      "settledDirectional": 0,
+      "replayWins": 0,
+      "replayLosses": 0,
+      "totalReplayPnl": 0,
+      "totalReplayStaked": 0,
+      "originalDirectionalLossCount": 2
+    },
+    {
+      "segmentKey": "45-59::asian_handicap",
+      "totalScenarios": 4,
+      "replayActionable": 0,
+      "settledDirectional": 0,
+      "replayWins": 0,
+      "replayLosses": 0,
+      "totalReplayPnl": 0,
+      "totalReplayStaked": 0,
+      "originalDirectionalLossCount": 4
+    },
+    {
+      "segmentKey": "60-74::goals_under",
+      "totalScenarios": 4,
+      "replayActionable": 0,
+      "settledDirectional": 0,
+      "replayWins": 0,
+      "replayLosses": 0,
+      "totalReplayPnl": 0,
+      "totalReplayStaked": 0,
+      "originalDirectionalLossCount": 2
+    },
+    {
+      "segmentKey": "45-59::btts",
+      "totalScenarios": 2,
+      "replayActionable": 0,
+      "settledDirectional": 0,
+      "replayWins": 0,
+      "replayLosses": 0,
+      "totalReplayPnl": 0,
+      "totalReplayStaked": 0,
+      "originalDirectionalLossCount": 1
+    },
+    {
+      "segmentKey": "60-74::corners",
+      "totalScenarios": 2,
+      "replayActionable": 0,
+      "settledDirectional": 0,
+      "replayWins": 0,
+      "replayLosses": 0,
+      "totalReplayPnl": 0,
+      "totalReplayStaked": 0,
+      "originalDirectionalLossCount": 0
+    },
+    {
+      "segmentKey": "30-44::asian_handicap",
+      "totalScenarios": 2,
+      "replayActionable": 0,
+      "settledDirectional": 0,
+      "replayWins": 0,
+      "replayLosses": 0,
+      "totalReplayPnl": 0,
+      "totalReplayStaked": 0,
+      "originalDirectionalLossCount": 0
+    },
+    {
+      "segmentKey": "60-74::btts",
+      "totalScenarios": 1,
+      "replayActionable": 0,
+      "settledDirectional": 0,
+      "replayWins": 0,
+      "replayLosses": 0,
+      "totalReplayPnl": 0,
+      "totalReplayStaked": 0,
+      "originalDirectionalLossCount": 0
+    },
+    {
+      "segmentKey": "45-59::goals_under",
+      "totalScenarios": 1,
+      "replayActionable": 0,
+      "settledDirectional": 0,
+      "replayWins": 0,
+      "replayLosses": 0,
+      "totalReplayPnl": 0,
+      "totalReplayStaked": 0,
+      "originalDirectionalLossCount": 0
+    },
+    {
+      "segmentKey": "60-74::asian_handicap",
+      "totalScenarios": 1,
+      "replayActionable": 0,
+      "settledDirectional": 0,
+      "replayWins": 0,
+      "replayLosses": 0,
+      "totalReplayPnl": 0,
+      "totalReplayStaked": 0,
+      "originalDirectionalLossCount": 0
+    },
+    {
+      "segmentKey": "45-59::corners",
+      "totalScenarios": 1,
+      "replayActionable": 0,
+      "settledDirectional": 0,
+      "replayWins": 0,
+      "replayLosses": 0,
+      "totalReplayPnl": 0,
+      "totalReplayStaked": 0,
+      "originalDirectionalLossCount": 1
+    }
+  ],
+  "runSummaries": [
+    {
+      "runId": "2026-06-03T04-38-56-521Z",
+      "lookbackDays": 14,
+      "limit": 10,
+      "offset": 0,
+      "maxScenarios": 10,
+      "scenarioCount": 10,
+      "pushCount": 0,
+      "noBetCount": 10,
+      "pushRate": 0,
+      "originalResult": [
+        {
+          "originalResult": "win",
+          "total": 4,
+          "replayPush": 0,
+          "replayPushSettled": 0,
+          "replayWins": 0,
+          "replayLosses": 0,
+          "replayAccuracy": 0,
+          "totalReplayPnl": 0,
+          "totalReplayStaked": 0,
+          "replayRoiOnStaked": 0
+        },
+        {
+          "originalResult": "loss",
+          "total": 4,
+          "replayPush": 0,
+          "replayPushSettled": 0,
+          "replayWins": 0,
+          "replayLosses": 0,
+          "replayAccuracy": 0,
+          "totalReplayPnl": 0,
+          "totalReplayStaked": 0,
+          "replayRoiOnStaked": 0
+        },
+        {
+          "originalResult": "half_win",
+          "total": 1,
+          "replayPush": 0,
+          "replayPushSettled": 0,
+          "replayWins": 0,
+          "replayLosses": 0,
+          "replayAccuracy": 0,
+          "totalReplayPnl": 0,
+          "totalReplayStaked": 0,
+          "replayRoiOnStaked": 0
+        },
+        {
+          "originalResult": "half_loss",
+          "total": 1,
+          "replayPush": 0,
+          "replayPushSettled": 0,
+          "replayWins": 0,
+          "replayLosses": 0,
+          "replayAccuracy": 0,
+          "totalReplayPnl": 0,
+          "totalReplayStaked": 0,
+          "replayRoiOnStaked": 0
+        }
+      ],
+      "qualityAttribution": [
+        {
+          "key": "model_no_bet",
+          "count": 8
+        },
+        {
+          "key": "hard_policy_gate",
+          "count": 2
+        }
+      ],
+      "llmDecisionDiagnostic": [
+        {
+          "key": "no_bet_intentional",
+          "count": 8
+        },
+        {
+          "key": "policy_blocked",
+          "count": 2
+        }
+      ],
+      "providerCoverageStatus": [
+        {
+          "key": "ok",
+          "count": 10
+        }
+      ],
+      "replayContextStatus": [
+        {
+          "key": "ok",
+          "count": 10
+        }
+      ],
+      "marketResolutionStatus": [
+        {
+          "key": "not_requested",
+          "count": 8
+        },
+        {
+          "key": "resolved",
+          "count": 2
+        }
+      ]
+    },
+    {
+      "runId": "2026-06-03T04-37-08-222Z",
+      "lookbackDays": 14,
+      "limit": 10,
+      "offset": 10,
+      "maxScenarios": 5,
+      "scenarioCount": 5,
+      "pushCount": 0,
+      "noBetCount": 5,
+      "pushRate": 0,
+      "originalResult": [
+        {
+          "originalResult": "win",
+          "total": 3,
+          "replayPush": 0,
+          "replayPushSettled": 0,
+          "replayWins": 0,
+          "replayLosses": 0,
+          "replayAccuracy": 0,
+          "totalReplayPnl": 0,
+          "totalReplayStaked": 0,
+          "replayRoiOnStaked": 0
+        },
+        {
+          "originalResult": "loss",
+          "total": 2,
+          "replayPush": 0,
+          "replayPushSettled": 0,
+          "replayWins": 0,
+          "replayLosses": 0,
+          "replayAccuracy": 0,
+          "totalReplayPnl": 0,
+          "totalReplayStaked": 0,
+          "replayRoiOnStaked": 0
+        }
+      ],
+      "qualityAttribution": [
+        {
+          "key": "pre_llm_blocked",
+          "count": 4
+        },
+        {
+          "key": "model_no_bet",
+          "count": 1
+        }
+      ],
+      "llmDecisionDiagnostic": [
+        {
+          "key": "pre_llm_blocked",
+          "count": 4
+        },
+        {
+          "key": "no_bet_intentional",
+          "count": 1
+        }
+      ],
+      "providerCoverageStatus": [
+        {
+          "key": "ok",
+          "count": 5
+        }
+      ],
+      "replayContextStatus": [
+        {
+          "key": "ok",
+          "count": 5
+        }
+      ],
+      "marketResolutionStatus": [
+        {
+          "key": "not_requested",
+          "count": 5
+        }
+      ]
+    },
+    {
+      "runId": "2026-06-03T04-15-00-372Z",
+      "lookbackDays": 30,
+      "limit": 10,
+      "offset": 15,
+      "maxScenarios": 10,
+      "scenarioCount": 10,
+      "pushCount": 0,
+      "noBetCount": 10,
+      "pushRate": 0,
+      "originalResult": [
+        {
+          "originalResult": "win",
+          "total": 6,
+          "replayPush": 0,
+          "replayPushSettled": 0,
+          "replayWins": 0,
+          "replayLosses": 0,
+          "replayAccuracy": 0,
+          "totalReplayPnl": 0,
+          "totalReplayStaked": 0,
+          "replayRoiOnStaked": 0
+        },
+        {
+          "originalResult": "loss",
+          "total": 3,
+          "replayPush": 0,
+          "replayPushSettled": 0,
+          "replayWins": 0,
+          "replayLosses": 0,
+          "replayAccuracy": 0,
+          "totalReplayPnl": 0,
+          "totalReplayStaked": 0,
+          "replayRoiOnStaked": 0
+        },
+        {
+          "originalResult": "half_loss",
+          "total": 1,
+          "replayPush": 0,
+          "replayPushSettled": 0,
+          "replayWins": 0,
+          "replayLosses": 0,
+          "replayAccuracy": 0,
+          "totalReplayPnl": 0,
+          "totalReplayStaked": 0,
+          "replayRoiOnStaked": 0
+        }
+      ],
+      "qualityAttribution": [
+        {
+          "key": "model_no_bet",
+          "count": 9
+        },
+        {
+          "key": "model_policy_mismatch",
+          "count": 1
+        }
+      ],
+      "llmDecisionDiagnostic": [
+        {
+          "key": "no_bet_intentional",
+          "count": 9
+        },
+        {
+          "key": "policy_blocked",
+          "count": 1
+        }
+      ],
+      "providerCoverageStatus": [
+        {
+          "key": "ok",
+          "count": 10
+        }
+      ],
+      "replayContextStatus": [
+        {
+          "key": "ok",
+          "count": 10
+        }
+      ],
+      "marketResolutionStatus": [
+        {
+          "key": "not_requested",
+          "count": 9
+        },
+        {
+          "key": "resolved",
+          "count": 1
+        }
+      ]
+    },
+    {
+      "runId": "2026-06-03T04-19-58-034Z",
+      "lookbackDays": 30,
+      "limit": 10,
+      "offset": 25,
+      "maxScenarios": 10,
+      "scenarioCount": 10,
+      "pushCount": 0,
+      "noBetCount": 10,
+      "pushRate": 0,
+      "originalResult": [
+        {
+          "originalResult": "win",
+          "total": 4,
+          "replayPush": 0,
+          "replayPushSettled": 0,
+          "replayWins": 0,
+          "replayLosses": 0,
+          "replayAccuracy": 0,
+          "totalReplayPnl": 0,
+          "totalReplayStaked": 0,
+          "replayRoiOnStaked": 0
+        },
+        {
+          "originalResult": "loss",
+          "total": 4,
+          "replayPush": 0,
+          "replayPushSettled": 0,
+          "replayWins": 0,
+          "replayLosses": 0,
+          "replayAccuracy": 0,
+          "totalReplayPnl": 0,
+          "totalReplayStaked": 0,
+          "replayRoiOnStaked": 0
+        },
+        {
+          "originalResult": "push",
+          "total": 2,
+          "replayPush": 0,
+          "replayPushSettled": 0,
+          "replayWins": 0,
+          "replayLosses": 0,
+          "replayAccuracy": 0,
+          "totalReplayPnl": 0,
+          "totalReplayStaked": 0,
+          "replayRoiOnStaked": 0
+        }
+      ],
+      "qualityAttribution": [
+        {
+          "key": "model_no_bet",
+          "count": 9
+        },
+        {
+          "key": "model_policy_mismatch",
+          "count": 1
+        }
+      ],
+      "llmDecisionDiagnostic": [
+        {
+          "key": "no_bet_intentional",
+          "count": 9
+        },
+        {
+          "key": "policy_blocked",
+          "count": 1
+        }
+      ],
+      "providerCoverageStatus": [
+        {
+          "key": "ok",
+          "count": 10
+        }
+      ],
+      "replayContextStatus": [
+        {
+          "key": "ok",
+          "count": 10
+        }
+      ],
+      "marketResolutionStatus": [
+        {
+          "key": "not_requested",
+          "count": 9
+        },
+        {
+          "key": "resolved",
+          "count": 1
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,16 @@
+{
+  "generatedAt": "2026-06-03T13:54:01.239Z",
+  "lookbackDays": 14,
+  "maxRows": 1000,
+  "totalEvents": 0,
+  "totalPocketMatches": 0,
+  "uniqueMatches": 0,
+  "byPocket": [],
+  "byCanonicalMarket": [],
+  "byMinuteBand": [],
+  "byScoreState": [],
+  "byConfidenceBand": [],
+  "byMarketResolutionStatus": [],
+  "byMarketAvailabilityBucket": [],
+  "recent": []
+}

@@ -45,6 +45,9 @@ function actionPlan(partial?: Partial<SegmentPolicyActionPlan>): SegmentPolicyAc
         originalWinCount: 0,
         originalWinMissedCount: 0,
         originalWinMissRate: 0,
+        originalLossCount: 0,
+        originalLossAvoidedCount: 0,
+        originalLossAvoidanceRate: 0,
         candidateRescueCount: 0,
         byReplayQualityAttribution: [],
         byLlmDecisionDiagnostic: [],
@@ -52,6 +55,16 @@ function actionPlan(partial?: Partial<SegmentPolicyActionPlan>): SegmentPolicyAc
         preservedNoBetReasons: [],
         candidateRescueExamples: [],
         preservedNoBetExamples: [],
+      },
+      modelSelectedPolicyBlocked: {
+        total: 0,
+        originalWinCount: 0,
+        originalLossCount: 0,
+        originalPushLikeCount: 0,
+        byMarketFamily: [],
+        byReplayQualityAttribution: [],
+        byWarning: [],
+        examples: [],
       },
     },
     blocklistCandidates: [],
@@ -107,5 +120,28 @@ describe('evaluateDataDrivenQualityGates', () => {
 
     expect(result.ok).toBe(false);
     expect(result.failures.some((line) => line.includes('model_policy_mismatch rate'))).toBe(true);
+  });
+
+  it('can fail when replay diagnostics contain empty fields', () => {
+    const result = evaluateDataDrivenQualityGates(
+      {
+        actionPlanPath: 'x',
+        maxEmptyLlmDecisionDiagnosticCount: 0,
+        maxEmptyMarketResolutionStatusCount: 0,
+      },
+      actionPlan({
+        qualityBlockers: {
+          ...actionPlan().qualityBlockers,
+          byLlmDecisionDiagnostic: [{ key: '(empty)', count: 1 }],
+          byMarketResolutionStatus: [{ key: '(empty)', count: 2 }],
+        },
+      }),
+    );
+
+    expect(result.ok).toBe(false);
+    expect(result.metrics.emptyLlmDecisionDiagnosticCount).toBe(1);
+    expect(result.metrics.emptyMarketResolutionStatusCount).toBe(2);
+    expect(result.failures).toContain('empty llmDecisionDiagnostic count 1 > maxEmptyLlmDecisionDiagnosticCount 0');
+    expect(result.failures).toContain('empty marketResolutionStatus count 2 > maxEmptyMarketResolutionStatusCount 0');
   });
 });

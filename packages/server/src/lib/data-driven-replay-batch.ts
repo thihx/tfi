@@ -19,6 +19,7 @@ const serverRoot = resolve(dirname(fileURLToPath(import.meta.url)), '../..');
 export interface DataDrivenBatchOptions {
   lookbackDays: number;
   limit: number;
+  offset?: number;
   marketFamily: SettledReplayScenarioFilters['marketFamily'];
   exportPromptVersion?: string;
   maxScenarios: number;
@@ -102,6 +103,7 @@ export async function runDataDrivenReplayBatch(opts: DataDrivenBatchOptions): Pr
 
   const scenarios = await buildSettledReplayScenarios({
     limit: opts.limit,
+    offset: opts.offset,
     lookbackDays: opts.lookbackDays,
     promptVersion: opts.exportPromptVersion,
     marketFamily: opts.marketFamily,
@@ -114,6 +116,7 @@ export async function runDataDrivenReplayBatch(opts: DataDrivenBatchOptions): Pr
     filters: {
       lookbackDays: opts.lookbackDays,
       limit: opts.limit,
+      offset: opts.offset ?? 0,
       promptVersion: opts.exportPromptVersion ?? null,
       marketFamily: opts.marketFamily ?? 'all',
     },

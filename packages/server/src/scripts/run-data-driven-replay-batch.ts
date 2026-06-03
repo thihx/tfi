@@ -6,6 +6,7 @@ import { closeRedis } from '../lib/redis.js';
 function parseArgs(argv: string[]): DataDrivenBatchOptions {
   let lookbackDays = 14;
   let limit = 80;
+  let offset = 0;
   let marketFamily: DataDrivenBatchOptions['marketFamily'] = 'all';
   let exportPromptVersion: string | undefined;
   let maxScenarios = 40;
@@ -29,6 +30,9 @@ function parseArgs(argv: string[]): DataDrivenBatchOptions {
       i++;
     } else if (a === '--limit' && n) {
       limit = Math.max(1, Math.min(1000, Number(n) || 80));
+      i++;
+    } else if (a === '--offset' && n) {
+      offset = Math.max(0, Math.min(10_000, Number(n) || 0));
       i++;
     } else if (a === '--market-family' && n && ['all', 'goals_totals', 'goals_under', 'goals_over', 'first_half'].includes(n)) {
       marketFamily = n as DataDrivenBatchOptions['marketFamily'];
@@ -80,6 +84,7 @@ function parseArgs(argv: string[]): DataDrivenBatchOptions {
   return {
     lookbackDays,
     limit,
+    offset,
     marketFamily,
     exportPromptVersion,
     maxScenarios,
@@ -102,6 +107,7 @@ async function main(): Promise<void> {
   console.log('[data-driven-batch] starting', {
     lookbackDays: opts.lookbackDays,
     limit: opts.limit,
+    offset: opts.offset ?? 0,
     llmMode: opts.llmMode,
     postSummarize: opts.postSummarize,
     postSegmentHotspots: opts.postSegmentHotspots,

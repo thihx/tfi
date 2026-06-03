@@ -1,0 +1,42 @@
+{
+  "skippedSettlementReportPath": "../../replay-work/audit/<runId>/runtime-policy-shadow-skipped-settlement-report.json",
+  "minTotalEvents": 30,
+  "minSettledRows": 20,
+  "minSettledRate": 0.8,
+  "minWins": 10,
+  "maxLosses": 2,
+  "minTotalPnlPercent": 5,
+  "minRoiOnStaked": 0.25,
+  "requiredMarkets": [
+    {
+      "key": "btts_yes",
+      "minTotalRows": 10,
+      "minSettledRows": 8,
+      "minSettledRate": 0.8,
+      "minWins": 5,
+      "maxLosses": 1,
+      "minTotalPnlPercent": 2,
+      "minRoiOnStaked": 0.25
+    },
+    {
+      "key": "over_1.5",
+      "minTotalRows": 10,
+      "minSettledRows": 8,
+      "minSettledRate": 0.8,
+      "minWins": 5,
+      "maxLosses": 1,
+      "minTotalPnlPercent": 2,
+      "minRoiOnStaked": 0.25
+    },
+    {
+      "key": "under_2.5",
+      "minTotalRows": 10,
+      "minSettledRows": 8,
+      "minSettledRate": 0.8,
+      "minWins": 5,
+      "maxLosses": 1,
+      "minTotalPnlPercent": 2,
+      "minRoiOnStaked": 0.25
+    }
+  ]
+}

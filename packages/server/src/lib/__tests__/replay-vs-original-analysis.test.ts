@@ -52,5 +52,25 @@ describe('summarizeReplayVsOriginalForVariant', () => {
     expect(s.onOriginalDirectionalLoss.replayWinAmongPushed).toBe(1);
     expect(s.onOriginalDirectionalLoss.replayLossAmongPushed).toBe(1);
     expect(s.onOriginalDirectionalLoss.replayAccAmongPushed).toBe(0.5);
+    expect(s.opportunityTradeoff.originalDirectionalLossCount).toBe(3);
+    expect(s.opportunityTradeoff.originalDirectionalLossReplayed).toBe(2);
+    expect(s.opportunityTradeoff.originalDirectionalLossAvoided).toBe(1);
+    expect(s.opportunityTradeoff.originalDirectionalLossAvoidanceRate).toBe(0.3333);
+  });
+
+  it('reports original winner recall versus missed winners', () => {
+    const cases: EvaluatedReplayCase[] = [
+      row({ recommendationId: 1, originalResult: 'win', actionable: true, directionalWin: true }),
+      row({ recommendationId: 2, originalResult: 'win', actionable: false, directionalWin: null }),
+      row({ recommendationId: 3, originalResult: 'half_win', actionable: false, directionalWin: null }),
+      row({ recommendationId: 4, originalResult: 'loss', actionable: false, directionalWin: null }),
+    ];
+    const s = summarizeReplayVsOriginalForVariant(cases);
+    expect(s.opportunityTradeoff.originalDirectionalWinCount).toBe(3);
+    expect(s.opportunityTradeoff.originalDirectionalWinReplayed).toBe(1);
+    expect(s.opportunityTradeoff.originalDirectionalWinMissed).toBe(2);
+    expect(s.opportunityTradeoff.originalDirectionalWinRecallRate).toBe(0.3333);
+    expect(s.opportunityTradeoff.originalDirectionalWinMissRate).toBe(0.6667);
+    expect(s.opportunityTradeoff.originalDirectionalLossAvoidanceRate).toBe(1);
   });
 });

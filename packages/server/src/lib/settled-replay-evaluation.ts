@@ -248,19 +248,33 @@ export function buildEvaluatedReplayCase(
   marketAvailabilityBucket = 'unknown',
 ): EvaluatedReplayCase {
   const parsed = (output.result.debug?.parsed ?? {}) as Record<string, unknown>;
-  const canonicalMarket = normalizeMarket(output.result.selection || '', String(parsed.bet_market || ''));
-  const warnings = Array.isArray(parsed.warnings) ? parsed.warnings.map(String) : [];
-  const actionable = isActionableReplay(output, canonicalMarket);
+  const replaySelection = output.result.selection || '';
+  const hasMarketRequest = !!replaySelection.trim() && !/^\s*no bet\b/i.test(replaySelection);
+  const canonicalMarket = normalizeMarket(replaySelection, String(parsed.bet_market || ''));
+  const rawWarnings = Array.isArray(parsed.warnings) ? parsed.warnings.map(String) : [];
+  const warnings = normalizeReplayWarnings(rawWarnings, hasMarketRequest);
+  const selectedMarketUnresolved = warnings.includes('MARKET_UNRESOLVED_AFTER_SELECTION');
+  const actionable = !selectedMarketUnresolved && isActionableReplay(output, canonicalMarket);
   const skippedAt = String(output.result.debug?.skippedAt || '');
   const preLlmBlocked = skippedAt === 'proceed' || skippedAt === 'staleness' || skippedAt === 'llm_eligibility';
-  const llmDecisionDiagnostic = String(
-    parsed.llm_decision_diagnostic
-    || (preLlmBlocked ? 'pre_llm_blocked' : ''),
-  );
-  const marketResolutionStatus = String(
-    parsed.market_resolution_status
-    || (preLlmBlocked ? 'not_requested' : ''),
-  );
+  const llmDecisionDiagnostic = deriveReplayLlmDecisionDiagnostic({
+    parsed,
+    preLlmBlocked,
+    hasMarketRequest,
+    shouldPush: output.result.shouldPush,
+    actionable,
+    canonicalMarket,
+    warnings,
+  });
+  const marketResolutionStatus = deriveReplayMarketResolutionStatus({
+    parsed,
+    preLlmBlocked,
+    hasMarketRequest,
+    shouldPush: output.result.shouldPush,
+    actionable,
+    canonicalMarket,
+    warnings,
+  });
   const providerCoverageStatus = classifyReplayProviderCoverageStatus(marketResolutionStatus);
   const replayContextStatus = classifyReplayContextStatus(warnings, scenario, canonicalMarket);
   const replayQualityAttribution = classifyReplayQualityAttribution({
@@ -300,7 +314,7 @@ export function buildEvaluatedReplayCase(
     goalsOver: actionable && canonicalMarket.startsWith('over_') && !canonicalMarket.startsWith('corners_'),
     settlementResult,
     directionalWin,
-    replaySelection: output.result.selection || '',
+    replaySelection,
     replayOdds: normalizedOdds,
     replayStakePercent: normalizedStakePercent,
     breakEvenRate: normalizedOdds ? roundMetric(1 / normalizedOdds) : null,
@@ -315,6 +329,96 @@ export function buildEvaluatedReplayCase(
     replayQualityAttribution,
     replayWarnings: warnings,
   };
+}
+
+export function normalizeEvaluatedReplayCaseDiagnostics(row: EvaluatedReplayCase): EvaluatedReplayCase {
+  const hasMarketRequest = !!row.replaySelection.trim() && !/^\s*no bet\b/i.test(row.replaySelection);
+  const warnings = normalizeReplayWarnings(row.replayWarnings ?? [], hasMarketRequest);
+  const llmDecisionDiagnostic = deriveReplayLlmDecisionDiagnostic({
+    parsed: { llm_decision_diagnostic: row.llmDecisionDiagnostic },
+    preLlmBlocked: row.replayQualityAttribution === 'pre_llm_blocked',
+    hasMarketRequest,
+    shouldPush: row.shouldPush,
+    actionable: row.actionable,
+    canonicalMarket: row.canonicalMarket,
+    warnings,
+  });
+  const marketResolutionStatus = deriveReplayMarketResolutionStatus({
+    parsed: { market_resolution_status: row.marketResolutionStatus },
+    preLlmBlocked: row.replayQualityAttribution === 'pre_llm_blocked',
+    hasMarketRequest,
+    shouldPush: row.shouldPush,
+    actionable: row.actionable,
+    canonicalMarket: row.canonicalMarket,
+    warnings,
+  });
+  const providerCoverageStatus = classifyReplayProviderCoverageStatus(marketResolutionStatus);
+  const replayQualityAttribution = classifyReplayQualityAttribution({
+    actionable: row.actionable,
+    llmDecisionDiagnostic,
+    providerCoverageStatus,
+    replayContextStatus: row.replayContextStatus,
+    warnings,
+  });
+
+  return {
+    ...row,
+    llmDecisionDiagnostic,
+    marketResolutionStatus,
+    providerCoverageStatus,
+    replayQualityAttribution,
+    replayWarnings: warnings,
+  };
+}
+
+function normalizeReplayWarnings(warnings: string[], hasMarketRequest: boolean): string[] {
+  const normalized = warnings.map((warning) => {
+    if (warning !== 'MARKET_UNRESOLVED') return warning;
+    return hasMarketRequest ? 'MARKET_UNRESOLVED_AFTER_SELECTION' : 'NO_MARKET_REQUESTED_MODEL_NO_BET';
+  });
+  return [...new Set(normalized)];
+}
+
+function deriveReplayLlmDecisionDiagnostic(args: {
+  parsed: Record<string, unknown>;
+  preLlmBlocked: boolean;
+  hasMarketRequest: boolean;
+  shouldPush: boolean;
+  actionable: boolean;
+  canonicalMarket: string;
+  warnings: string[];
+}): string {
+  const parsedValue = String(args.parsed.llm_decision_diagnostic || '').trim();
+  if (parsedValue) return parsedValue;
+  if (args.preLlmBlocked) return 'pre_llm_blocked';
+  if (!args.hasMarketRequest && !args.shouldPush) return 'no_bet_intentional';
+  if (args.warnings.includes('MARKET_UNRESOLVED_AFTER_SELECTION')) return 'market_parse_failed';
+  if (args.hasMarketRequest && (!args.canonicalMarket || args.canonicalMarket === 'unknown')) {
+    return 'market_parse_failed';
+  }
+  if (args.hasMarketRequest && !args.actionable) return 'policy_blocked';
+  return args.shouldPush ? 'actionable' : 'no_bet_intentional';
+}
+
+function deriveReplayMarketResolutionStatus(args: {
+  parsed: Record<string, unknown>;
+  preLlmBlocked: boolean;
+  hasMarketRequest: boolean;
+  shouldPush: boolean;
+  actionable: boolean;
+  canonicalMarket: string;
+  warnings: string[];
+}): string {
+  const parsedValue = String(args.parsed.market_resolution_status || '').trim();
+  if (parsedValue) return parsedValue;
+  if (args.preLlmBlocked) return 'not_requested';
+  if (!args.hasMarketRequest && !args.shouldPush) return 'not_requested';
+  if (args.warnings.includes('MARKET_UNRESOLVED_AFTER_SELECTION')) return 'missing_market';
+  if (args.hasMarketRequest && (!args.canonicalMarket || args.canonicalMarket === 'unknown')) {
+    return 'missing_market';
+  }
+  if (args.hasMarketRequest) return 'resolved';
+  return args.actionable ? 'resolved' : 'not_requested';
 }
 
 function classifyReplayProviderCoverageStatus(marketResolutionStatus: string): ReplayProviderCoverageStatus {

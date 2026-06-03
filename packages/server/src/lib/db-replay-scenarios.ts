@@ -84,6 +84,7 @@ export interface SettledReplayScenario extends ReplayScenario {
 
 export interface SettledReplayScenarioFilters {
   limit?: number;
+  offset?: number;
   lookbackDays?: number;
   promptVersion?: string;
   marketFamily?: 'all' | 'goals_totals' | 'goals_under' | 'goals_over' | 'first_half';
@@ -772,6 +773,9 @@ async function loadSettledReplaySourceRows(filters: SettledReplayScenarioFilters
   const limit = Math.max(1, Math.min(filters.limit ?? 200, 1000));
   params.push(limit);
   const limitParam = `$${params.length}`;
+  const offset = Math.max(0, Math.min(filters.offset ?? 0, 10_000));
+  params.push(offset);
+  const offsetParam = `$${params.length}`;
 
   const result = await query<SettledReplaySourceRow>(
     `SELECT
@@ -820,7 +824,8 @@ async function loadSettledReplaySourceRows(filters: SettledReplayScenarioFilters
      WHERE ${conditions.join('\n       AND ')}
        ${marketFilterSql}
      ORDER BY r.timestamp DESC, r.id DESC
-     LIMIT ${limitParam}`,
+     LIMIT ${limitParam}
+     OFFSET ${offsetParam}`,
     params,
   );
 

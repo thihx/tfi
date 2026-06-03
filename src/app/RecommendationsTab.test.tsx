@@ -189,6 +189,8 @@ describe('RecommendationsTab delete actions', () => {
   it('allows admin to bulk delete selected recommendations from table view', async () => {
     const user = await renderTab();
 
+    await user.click(screen.getByRole('button', { name: 'Shared Bets' }));
+    expect(await screen.findByText('Liverpool vs Man City')).toBeInTheDocument();
     await user.click(screen.getByTitle('Table view'));
     await user.click(screen.getByLabelText('Select recommendation 1'));
     await user.click(screen.getByLabelText('Select recommendation 2'));
@@ -204,10 +206,10 @@ describe('RecommendationsTab delete actions', () => {
     expect(mockShowToast).toHaveBeenCalledWith('Deleted 2 recommendation(s)', 'success');
   }, 10000);
 
-  it('allows admin to delete from My Deliveries when the row is linked to a canonical recommendation', async () => {
+  it('allows admin to delete from My Signals when the row is linked to a canonical recommendation', async () => {
     const user = await renderTab();
 
-    await user.click(screen.getByRole('button', { name: 'My Deliveries' }));
+    await user.click(screen.getByRole('button', { name: 'My Signals' }));
     expect(await screen.findByText('Arsenal vs Chelsea')).toBeInTheDocument();
 
     const arsenalCard = screen.getByText('Arsenal vs Chelsea').closest('.card') as HTMLElement | null;
@@ -222,6 +224,65 @@ describe('RecommendationsTab delete actions', () => {
     });
   }, 10000);
 
+  it('renders condition-only deliveries as Watch signals, not bet recommendations', async () => {
+    mockFetchRecommendationDeliveriesPaginated.mockResolvedValueOnce({
+      rows: [
+        {
+          id: 77,
+          user_id: 'admin-1',
+          recommendation_id: null,
+          match_id: '102',
+          matched_condition: true,
+          eligibility_status: 'condition_matched',
+          delivery_status: 'sent',
+          delivery_channels: ['web_push'],
+          delivered_at: null,
+          hidden: false,
+          dismissed: false,
+          metadata: {
+            delivery_kind: 'condition_only',
+            condition_evaluation_summary: 'Condition matched: minute >= 60',
+          },
+          created_at: '2026-04-03T14:05:00.000Z',
+          recommendation_home_team: 'Roma',
+          recommendation_away_team: 'Lazio',
+          recommendation_league: 'Serie A',
+          recommendation_timestamp: null,
+          recommendation_minute: 61,
+          recommendation_score: '1-1',
+          recommendation_actual_outcome: null,
+          recommendation_bet_type: 'CONDITION_ONLY',
+          recommendation_bet_market: null,
+          recommendation_selection: null,
+          recommendation_odds: null,
+          recommendation_confidence: null,
+          recommendation_value_percent: null,
+          recommendation_risk_level: null,
+          recommendation_stake_percent: null,
+          recommendation_stake_amount: null,
+          recommendation_reasoning: null,
+          recommendation_reasoning_vi: null,
+          recommendation_key_factors: null,
+          recommendation_warnings: null,
+          recommendation_result: null,
+          recommendation_pnl: null,
+          recommendation_settlement_status: null,
+          recommendation_settlement_note: null,
+        },
+      ],
+      total: 1,
+    });
+
+    render(<RecommendationsTab />);
+
+    expect(await screen.findByText('Roma vs Lazio')).toBeInTheDocument();
+    expect(screen.getByText('Watch')).toBeInTheDocument();
+    expect(screen.getByText('Watch Signal')).toBeInTheDocument();
+    expect(screen.getByText('Watch condition matched')).toBeInTheDocument();
+    expect(screen.getByText('Condition matched: minute >= 60')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /invest/i })).not.toBeInTheDocument();
+  }, 10000);
+
   it('does not expose delete actions to non-admin users in either feed', async () => {
     mockGetUser.mockReturnValue({ id: 'user-1', role: 'user', email: 'user@example.com' });
     mockFetchCurrentUser.mockResolvedValue({ id: 'user-1', role: 'user', email: 'user@example.com' });
@@ -231,7 +292,12 @@ describe('RecommendationsTab delete actions', () => {
     expect(screen.queryByRole('button', { name: /delete recommendation/i })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Delete Selected' })).not.toBeInTheDocument();
 
-    await user.click(screen.getByRole('button', { name: 'My Deliveries' }));
+    await user.click(screen.getByRole('button', { name: 'Shared Bets' }));
+    expect(await screen.findByText('Liverpool vs Man City')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /delete recommendation/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Delete Selected' })).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: 'My Signals' }));
     expect(await screen.findByText('Arsenal vs Chelsea')).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /delete recommendation/i })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Delete Selected' })).not.toBeInTheDocument();

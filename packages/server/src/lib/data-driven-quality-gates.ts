@@ -10,6 +10,10 @@ export interface DataDrivenQualityGateConfig {
   maxReplayContextGapRate?: number;
   maxHardPolicyGateRate?: number;
   maxModelPolicyMismatchRate?: number;
+  maxEmptyLlmDecisionDiagnosticCount?: number;
+  maxEmptyLlmDecisionDiagnosticRate?: number;
+  maxEmptyMarketResolutionStatusCount?: number;
+  maxEmptyMarketResolutionStatusRate?: number;
 }
 
 export interface DataDrivenQualityGateResult {
@@ -25,6 +29,10 @@ export interface DataDrivenQualityGateResult {
     hardPolicyGateRate: number;
     modelPolicyMismatchCount: number;
     modelPolicyMismatchRate: number;
+    emptyLlmDecisionDiagnosticCount: number;
+    emptyLlmDecisionDiagnosticRate: number;
+    emptyMarketResolutionStatusCount: number;
+    emptyMarketResolutionStatusRate: number;
   };
 }
 
@@ -55,10 +63,16 @@ export function evaluateDataDrivenQualityGates(
   const replayContextGapCount = countByKey(attributionRows, 'replay_context_gap');
   const hardPolicyGateCount = countByKey(attributionRows, 'hard_policy_gate');
   const modelPolicyMismatchCount = countByKey(attributionRows, 'model_policy_mismatch');
+  const diagnosticRows = actionPlan.qualityBlockers?.byLlmDecisionDiagnostic ?? [];
+  const marketResolutionRows = actionPlan.qualityBlockers?.byMarketResolutionStatus ?? [];
+  const emptyLlmDecisionDiagnosticCount = countByKey(diagnosticRows, '(empty)');
+  const emptyMarketResolutionStatusCount = countByKey(marketResolutionRows, '(empty)');
   const providerCoverageRate = ratio(providerCoverageCount, totalCases);
   const replayContextGapRate = ratio(replayContextGapCount, totalCases);
   const hardPolicyGateRate = ratio(hardPolicyGateCount, totalCases);
   const modelPolicyMismatchRate = ratio(modelPolicyMismatchCount, totalCases);
+  const emptyLlmDecisionDiagnosticRate = ratio(emptyLlmDecisionDiagnosticCount, totalCases);
+  const emptyMarketResolutionStatusRate = ratio(emptyMarketResolutionStatusCount, totalCases);
 
   if (config.maxProviderCoverageCount != null && providerCoverageCount > config.maxProviderCoverageCount) {
     failures.push(
@@ -85,6 +99,38 @@ export function evaluateDataDrivenQualityGates(
       `model_policy_mismatch rate ${modelPolicyMismatchRate.toFixed(4)} > maxModelPolicyMismatchRate ${config.maxModelPolicyMismatchRate}`,
     );
   }
+  if (
+    config.maxEmptyLlmDecisionDiagnosticCount != null
+    && emptyLlmDecisionDiagnosticCount > config.maxEmptyLlmDecisionDiagnosticCount
+  ) {
+    failures.push(
+      `empty llmDecisionDiagnostic count ${emptyLlmDecisionDiagnosticCount} > maxEmptyLlmDecisionDiagnosticCount ${config.maxEmptyLlmDecisionDiagnosticCount}`,
+    );
+  }
+  if (
+    config.maxEmptyLlmDecisionDiagnosticRate != null
+    && emptyLlmDecisionDiagnosticRate > config.maxEmptyLlmDecisionDiagnosticRate
+  ) {
+    failures.push(
+      `empty llmDecisionDiagnostic rate ${emptyLlmDecisionDiagnosticRate.toFixed(4)} > maxEmptyLlmDecisionDiagnosticRate ${config.maxEmptyLlmDecisionDiagnosticRate}`,
+    );
+  }
+  if (
+    config.maxEmptyMarketResolutionStatusCount != null
+    && emptyMarketResolutionStatusCount > config.maxEmptyMarketResolutionStatusCount
+  ) {
+    failures.push(
+      `empty marketResolutionStatus count ${emptyMarketResolutionStatusCount} > maxEmptyMarketResolutionStatusCount ${config.maxEmptyMarketResolutionStatusCount}`,
+    );
+  }
+  if (
+    config.maxEmptyMarketResolutionStatusRate != null
+    && emptyMarketResolutionStatusRate > config.maxEmptyMarketResolutionStatusRate
+  ) {
+    failures.push(
+      `empty marketResolutionStatus rate ${emptyMarketResolutionStatusRate.toFixed(4)} > maxEmptyMarketResolutionStatusRate ${config.maxEmptyMarketResolutionStatusRate}`,
+    );
+  }
 
   return {
     ok: failures.length === 0,
@@ -99,6 +145,10 @@ export function evaluateDataDrivenQualityGates(
       hardPolicyGateRate,
       modelPolicyMismatchCount,
       modelPolicyMismatchRate,
+      emptyLlmDecisionDiagnosticCount,
+      emptyLlmDecisionDiagnosticRate,
+      emptyMarketResolutionStatusCount,
+      emptyMarketResolutionStatusRate,
     },
   };
 }

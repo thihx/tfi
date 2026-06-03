@@ -1,0 +1,18 @@
+{
+  "generatedAt": "2026-06-03T11:29:50.816Z",
+  "lookbackDays": 30,
+  "maxRows": 1000,
+  "totalEvents": 0,
+  "totalPocketRows": 0,
+  "settledRows": 0,
+  "unresolvedRows": 0,
+  "wins": 0,
+  "losses": 0,
+  "pushLike": 0,
+  "totalStakedPercent": 0,
+  "totalPnlPercent": 0,
+  "roiOnStaked": 0,
+  "byPocket": [],
+  "byCanonicalMarket": [],
+  "rows": []
+}

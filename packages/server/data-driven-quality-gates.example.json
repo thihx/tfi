@@ -3,5 +3,7 @@
   "promptVersion": "v10-hybrid-legacy-g",
   "minTotalCases": 30,
   "maxProviderCoverageRate": 0.1,
-  "maxReplayContextGapRate": 0.25
+  "maxReplayContextGapRate": 0.25,
+  "maxEmptyLlmDecisionDiagnosticCount": 0,
+  "maxEmptyMarketResolutionStatusCount": 0
 }

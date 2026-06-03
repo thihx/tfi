@@ -39,6 +39,7 @@ import type { Recommendation, RecommendationDelivery } from '@/types';
 type ViewMode = 'cards' | 'table';
 type RecommendationFeedMode = 'shared' | 'deliveries';
 type DeliveryKindFilter = 'actionable' | 'all' | 'no_action';
+type SignalKind = NonNullable<Recommendation['signal_kind']>;
 
 const PAGE_SIZE = 30;
 
@@ -63,9 +64,15 @@ const RESULT_FILTER_LABELS: Record<string, string> = {
 };
 
 const DELIVERY_KIND_LABELS: Record<DeliveryKindFilter, string> = {
-  actionable: 'Actionable only',
-  all: 'All delivered',
-  no_action: 'No-action only',
+  actionable: 'Bets only',
+  all: 'All signals',
+  no_action: 'Watch / No Action',
+};
+
+const SIGNAL_CLASS: Record<SignalKind, string> = {
+  bet: 'badge-won',
+  watch: 'badge-pending',
+  no_action: 'badge-draw',
 };
 
 /** Display label for API `bet_type` values (keeps stored values unchanged). */
@@ -146,12 +153,54 @@ function calcSuggestedPnl(result: FinalResultValue, odds: number | null, stakePe
   }
 }
 
+function getMetadataString(metadata: Record<string, unknown> | null | undefined, key: string): string {
+  const value = metadata?.[key];
+  return typeof value === 'string' ? value.trim() : '';
+}
+
+function getDeliverySignalKind(row: RecommendationDelivery): SignalKind {
+  if (row.recommendation_id != null) return 'bet';
+  const deliveryKind = getMetadataString(row.metadata, 'delivery_kind');
+  const betType = String(row.recommendation_bet_type ?? '').toUpperCase();
+  if (deliveryKind === 'condition_only' || betType === 'CONDITION_ONLY' || row.matched_condition) {
+    return 'watch';
+  }
+  return 'no_action';
+}
+
+function getDeliverySignalLabel(kind: SignalKind): string {
+  if (kind === 'bet') return 'Bet';
+  if (kind === 'watch') return 'Watch';
+  return 'No Action';
+}
+
+function getDeliverySignalDetail(row: RecommendationDelivery, kind: SignalKind): string {
+  if (kind === 'bet') return 'Saved recommendation';
+  if (kind === 'watch') {
+    return getMetadataString(row.metadata, 'condition_evaluation_summary')
+      || getMetadataString(row.metadata, 'custom_condition_summary_vi')
+      || getMetadataString(row.metadata, 'custom_condition_summary_en')
+      || 'Watch condition matched';
+  }
+  return getMetadataString(row.metadata, 'condition_evaluation_summary')
+    || (row.eligibility_status ? row.eligibility_status.replace(/_/g, ' ') : '')
+    || 'No actionable signal';
+}
+
 function mapDeliveryToRecommendation(row: RecommendationDelivery): Recommendation {
   const homeTeam = row.recommendation_home_team ?? '';
   const awayTeam = row.recommendation_away_team ?? '';
+  const signalKind = getDeliverySignalKind(row);
+  const selection = row.recommendation_selection?.trim()
+    || (signalKind === 'watch' ? 'Watch condition matched' : 'No actionable signal');
+  const confidence = row.recommendation_confidence ?? null;
+  const stakePercent = row.recommendation_stake_percent ?? (signalKind === 'bet' ? undefined : null);
   return {
-    id: row.recommendation_id,
+    id: row.recommendation_id ?? undefined,
     delivery_id: row.id,
+    signal_kind: signalKind,
+    signal_label: getDeliverySignalLabel(signalKind),
+    signal_detail: getDeliverySignalDetail(row, signalKind),
     match_id: row.match_id,
     match_display: homeTeam && awayTeam ? `${homeTeam} vs ${awayTeam}` : row.match_id,
     home_team: homeTeam || undefined,
@@ -163,12 +212,12 @@ function mapDeliveryToRecommendation(row: RecommendationDelivery): Recommendatio
     actual_outcome: row.recommendation_actual_outcome ?? undefined,
     bet_type: row.recommendation_bet_type ?? 'AI',
     bet_market: row.recommendation_bet_market ?? undefined,
-    selection: row.recommendation_selection ?? '-',
+    selection,
     odds: row.recommendation_odds ?? '-',
-    confidence: row.recommendation_confidence ?? '-',
+    confidence,
     value_percent: row.recommendation_value_percent ?? undefined,
     risk_level: row.recommendation_risk_level ?? undefined,
-    stake_percent: row.recommendation_stake_percent ?? undefined,
+    stake_percent: stakePercent,
     stake_amount: row.recommendation_stake_amount ?? 0,
     bankroll_currency: row.bankroll_currency,
     bankroll_unit_multiplier: row.bankroll_unit_multiplier,
@@ -207,7 +256,7 @@ export function RecommendationsTab() {
   const [authUser, setAuthUser] = useState(() => getUser(getToken()));
   const isAdmin = authUser?.role === 'admin' || authUser?.role === 'owner';
   const [notificationLang, setNotificationLang] = useState<'vi' | 'en' | 'both'>('vi');
-  const [feedMode, setFeedMode] = useState<RecommendationFeedMode>('shared');
+  const [feedMode, setFeedMode] = useState<RecommendationFeedMode>('deliveries');
   const [page, setPage] = useState(1);
 
   // Filters
@@ -216,7 +265,7 @@ export function RecommendationsTab() {
   const [betTypeFilter, setBetTypeFilter] = useState<string>('all');
   const [leagueFilter, setLeagueFilter] = useState<string>('all');
   const [riskFilter, setRiskFilter] = useState<string>('all');
-  const [deliveryKindFilter, setDeliveryKindFilter] = useState<DeliveryKindFilter>('actionable');
+  const [deliveryKindFilter, setDeliveryKindFilter] = useState<DeliveryKindFilter>('all');
   const [latestByMatch, setLatestByMatch] = useState(true);
   const [dateFrom, setDateFrom] = useState<string>('');
   const [dateTo, setDateTo] = useState<string>('');
@@ -312,7 +361,7 @@ export function RecommendationsTab() {
     betTypeFilter !== 'all',
     leagueFilter !== 'all',
     riskFilter !== 'all',
-    feedMode === 'deliveries' && deliveryKindFilter !== 'actionable',
+    feedMode === 'deliveries' && deliveryKindFilter !== 'all',
     feedMode === 'deliveries' && !latestByMatch,
     dateFrom !== '',
     dateTo !== '',
@@ -494,11 +543,11 @@ export function RecommendationsTab() {
         onRemove: () => { setRiskFilter('all'); setPage(1); },
       });
     }
-    if (feedMode === 'deliveries' && deliveryKindFilter !== 'actionable') {
+    if (feedMode === 'deliveries' && deliveryKindFilter !== 'all') {
       chips.push({
         key: 'deliveryKind',
         label: DELIVERY_KIND_LABELS[deliveryKindFilter],
-        onRemove: () => { setDeliveryKindFilter('actionable'); setPage(1); },
+        onRemove: () => { setDeliveryKindFilter('all'); setPage(1); },
       });
     }
     if (feedMode === 'deliveries' && !latestByMatch) {
@@ -542,7 +591,7 @@ export function RecommendationsTab() {
     setBetTypeFilter('all');
     setLeagueFilter('all');
     setRiskFilter('all');
-    setDeliveryKindFilter('actionable');
+    setDeliveryKindFilter('all');
     setLatestByMatch(true);
     setDateFrom('');
     setDateTo('');
@@ -711,7 +760,7 @@ export function RecommendationsTab() {
         subtitle={
           <div className="stat-strip">
             <span className="stat-strip__label">
-              {feedMode === 'shared' ? 'Shared feed' : 'My deliveries'}
+              {feedMode === 'shared' ? 'Shared bets' : 'My signals'}
               {summaryScope === 'page' ? ' · page stats' : ' · filtered'}
             </span>
             <span className="stat-strip__item">{summary.total} total</span>
@@ -735,13 +784,13 @@ export function RecommendationsTab() {
           value={feedMode}
           onChange={(mode) => { setFeedMode(mode); setPage(1); }}
           options={[
-            { value: 'shared', label: 'Shared Recommendations' },
-            { value: 'deliveries', label: 'My Deliveries' },
+            { value: 'deliveries', label: 'My Signals' },
+            { value: 'shared', label: 'Shared Bets' },
           ]}
           hint={
             feedMode === 'shared'
-              ? 'Shared recommendation history for all users.'
-              : 'Recommendations delivered to your watch subscriptions.'
+              ? 'Saved bet-grade recommendation history for all users.'
+              : 'Bets, watch alerts, and no-action updates delivered to your watch subscriptions.'
           }
         />
         <div className="sticky-filter-bar">
@@ -788,9 +837,9 @@ export function RecommendationsTab() {
                   onChange={(e) => { setDeliveryKindFilter(e.target.value as DeliveryKindFilter); setPage(1); }}
                   title="Delivery type"
                 >
-                  <option value="actionable">Actionable only</option>
-                  <option value="all">All delivered</option>
-                  <option value="no_action">No-action only</option>
+                  <option value="all">All signals</option>
+                  <option value="actionable">Bets only</option>
+                  <option value="no_action">Watch / No Action</option>
                 </select>
                 <label className="filter-toggle" title="Show only the latest delivered recommendation for each match on this page">
                   <input
@@ -981,7 +1030,8 @@ export function RecommendationsTab() {
               ) : visibleRows.map((rec, i) => {
                 const pnlVal = parseFloat(String(rec.pnl ?? 0));
                 const pnl = rec.pnl != null ? `${pnlVal >= 0 ? '+' : ''}$${pnlVal.toFixed(2)}` : '-';
-                const conf = rec.confidence != null ? `${parseFloat(String(rec.confidence))}/10` : '-';
+                const confValue = parseNumber(rec.confidence);
+                const conf = confValue != null ? `${confValue}/10` : '-';
                 const display = rec.home_team && rec.away_team
                   ? `${rec.home_team} vs ${rec.away_team}`
                   : rec.match_display || 'N/A';
@@ -990,6 +1040,11 @@ export function RecommendationsTab() {
                 const leagueName = rec.league || '-';
                 const outcome = rec.actual_outcome || '';
                 const outcomeShort = outcome.length > 40 ? outcome.slice(0, 38) + '…' : outcome;
+                const signalKind = rec.signal_kind;
+                const signalBadgeClass = signalKind ? SIGNAL_CLASS[signalKind] : '';
+                const signalLabel = rec.signal_label || (
+                  signalKind === 'watch' ? 'Watch' : signalKind === 'no_action' ? 'No Action' : signalKind === 'bet' ? 'Bet' : ''
+                );
                 return (
                   <tr key={rec.id ?? i}>
                     {adminCanDelete && (
@@ -1025,7 +1080,15 @@ export function RecommendationsTab() {
                     </td>
                     <td data-label="Selection">
                       <span className="cell-value">
+                        {signalKind && signalLabel && (
+                          <span className={`badge ${signalBadgeClass}`} style={{ marginRight: '6px', marginBottom: '4px' }}>
+                            {signalLabel}
+                          </span>
+                        )}
                         <div><strong>{rec.selection || '-'}</strong></div>
+                        {rec.signal_detail && signalKind && signalKind !== 'bet' && (
+                          <small className="text-muted">{rec.signal_detail}</small>
+                        )}
                       </span>
                     </td>
                     <td data-label="Odds" style={{ textAlign: 'center' }}><span className="cell-value"><strong>{rec.odds || '-'}</strong></span></td>

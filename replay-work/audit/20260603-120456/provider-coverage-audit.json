@@ -1,0 +1,1811 @@
+{
+  "generatedAt": "2026-06-03T03:09:54.705Z",
+  "lookbackDays": 180,
+  "limit": 500,
+  "usableOnly": true,
+  "summary": {
+    "total": 191,
+    "ok": 191,
+    "mismatchedStored": 0,
+    "mismatchedRecomputed": 0,
+    "flaggedWithoutCanonical": 45,
+    "rawWithoutCanonical": 45,
+    "byMissingStoredFlag": [],
+    "byMissingRecomputedFlag": [],
+    "byRawWithoutCanonicalFlag": [
+      {
+        "key": "has_btts",
+        "count": 44
+      },
+      {
+        "key": "has_ah",
+        "count": 1
+      }
+    ],
+    "byCanonicalRejectReason": [
+      {
+        "key": "raw_btts_present_but_not_canonical_tradable",
+        "count": 44
+      },
+      {
+        "key": "raw_asian_handicap_present_but_not_canonical_tradable",
+        "count": 1
+      }
+    ],
+    "examples": [
+      {
+        "id": 22526,
+        "matchId": "1536927",
+        "canonicalKeys": [
+          "1x2",
+          "ou",
+          "ou_adjacent",
+          "ou_extra",
+          "ah",
+          "ah_adjacent",
+          "ah_extra"
+        ],
+        "rawFlags": {
+          "has_1x2": true,
+          "has_ou": true,
+          "has_ah": true,
+          "has_btts": true
+        },
+        "canonicalFlags": {
+          "has_1x2": true,
+          "has_ou": true,
+          "has_ah": true,
+          "has_btts": false
+        },
+        "expectedFlags": {
+          "has_1x2": true,
+          "has_ou": true,
+          "has_ah": true,
+          "has_btts": false
+        },
+        "recomputedFlags": {
+          "bookmaker_count": 1,
+          "bet_count": 37,
+          "priced_bet_count": 37,
+          "one_x2_bet_count": 1,
+          "ou_bet_count": 2,
+          "ah_bet_count": 2,
+          "btts_bet_count": 1,
+          "has_1x2": true,
+          "has_ou": true,
+          "has_ah": true,
+          "has_btts": true,
+          "canonical_has_1x2": true,
+          "canonical_has_ou": true,
+          "canonical_has_ah": true,
+          "canonical_has_btts": false,
+          "raw_has_1x2": true,
+          "raw_has_ou": true,
+          "raw_has_ah": true,
+          "raw_has_btts": true
+        },
+        "storedFlags": {
+          "has_ah": true,
+          "has_ou": true,
+          "has_1x2": true,
+          "has_btts": true,
+          "bet_count": 37,
+          "raw_has_ah": true,
+          "raw_has_ou": true,
+          "raw_has_1x2": true,
+          "ah_bet_count": 2,
+          "ou_bet_count": 2,
+          "raw_has_btts": true,
+          "btts_bet_count": 1,
+          "bookmaker_count": 1,
+          "canonical_has_ah": true,
+          "canonical_has_ou": true,
+          "one_x2_bet_count": 1,
+          "priced_bet_count": 37,
+          "canonical_has_1x2": true,
+          "canonical_has_btts": false
+        },
+        "missingStoredFlags": [],
+        "missingRecomputedFlags": [],
+        "rawWithoutCanonicalFlags": [
+          "has_btts"
+        ],
+        "flaggedWithoutCanonical": [
+          "has_btts"
+        ],
+        "canonicalRejectReasons": [
+          {
+            "flag": "has_btts",
+            "reason": "raw_btts_present_but_not_canonical_tradable"
+          }
+        ],
+        "ok": true
+      },
+      {
+        "id": 22525,
+        "matchId": "1536927",
+        "canonicalKeys": [
+          "1x2",
+          "ou",
+          "ou_adjacent",
+          "ou_extra",
+          "ah",
+          "ah_adjacent",
+          "ah_extra"
+        ],
+        "rawFlags": {
+          "has_1x2": true,
+          "has_ou": true,
+          "has_ah": true,
+          "has_btts": true
+        },
+        "canonicalFlags": {
+          "has_1x2": true,
+          "has_ou": true,
+          "has_ah": true,
+          "has_btts": false
+        },
+        "expectedFlags": {
+          "has_1x2": true,
+          "has_ou": true,
+          "has_ah": true,
+          "has_btts": false
+        },
+        "recomputedFlags": {
+          "bookmaker_count": 1,
+          "bet_count": 38,
+          "priced_bet_count": 30,
+          "one_x2_bet_count": 1,
+          "ou_bet_count": 2,
+          "ah_bet_count": 2,
+          "btts_bet_count": 1,
+          "has_1x2": true,
+          "has_ou": true,
+          "has_ah": true,
+          "has_btts": true,
+          "canonical_has_1x2": true,
+          "canonical_has_ou": true,
+          "canonical_has_ah": true,
+          "canonical_has_btts": false,
+          "raw_has_1x2": true,
+          "raw_has_ou": true,
+          "raw_has_ah": true,
+          "raw_has_btts": true
+        },
+        "storedFlags": {
+          "has_ah": true,
+          "has_ou": true,
+          "has_1x2": true,
+          "has_btts": true,
+          "bet_count": 38,
+          "raw_has_ah": true,
+          "raw_has_ou": true,
+          "raw_has_1x2": true,
+          "ah_bet_count": 2,
+          "ou_bet_count": 2,
+          "raw_has_btts": true,
+          "btts_bet_count": 1,
+          "bookmaker_count": 1,
+          "canonical_has_ah": true,
+          "canonical_has_ou": true,
+          "one_x2_bet_count": 1,
+          "priced_bet_count": 30,
+          "canonical_has_1x2": true,
+          "canonical_has_btts": false
+        },
+        "missingStoredFlags": [],
+        "missingRecomputedFlags": [],
+        "rawWithoutCanonicalFlags": [
+          "has_btts"
+        ],
+        "flaggedWithoutCanonical": [
+          "has_btts"
+        ],
+        "canonicalRejectReasons": [
+          {
+            "flag": "has_btts",
+            "reason": "raw_btts_present_but_not_canonical_tradable"
+          }
+        ],
+        "ok": true
+      },
+      {
+        "id": 22524,
+        "matchId": "1536927",
+        "canonicalKeys": [
+          "1x2",
+          "ou",
+          "ou_adjacent",
+          "ou_extra",
+          "ah",
+          "ah_adjacent",
+          "ah_extra"
+        ],
+        "rawFlags": {
+          "has_1x2": true,
+          "has_ou": true,
+          "has_ah": true,
+          "has_btts": true
+        },
+        "canonicalFlags": {
+          "has_1x2": true,
+          "has_ou": true,
+          "has_ah": true,
+          "has_btts": false
+        },
+        "expectedFlags": {
+          "has_1x2": true,
+          "has_ou": true,
+          "has_ah": true,
+          "has_btts": false
+        },
+        "recomputedFlags": {
+          "bookmaker_count": 1,
+          "bet_count": 38,
+          "priced_bet_count": 30,
+          "one_x2_bet_count": 1,
+          "ou_bet_count": 2,
+          "ah_bet_count": 2,
+          "btts_bet_count": 1,
+          "has_1x2": true,
+          "has_ou": true,
+          "has_ah": true,
+          "has_btts": true,
+          "canonical_has_1x2": true,
+          "canonical_has_ou": true,
+          "canonical_has_ah": true,
+          "canonical_has_btts": false,
+          "raw_has_1x2": true,
+          "raw_has_ou": true,
+          "raw_has_ah": true,
+          "raw_has_btts": true
+        },
+        "storedFlags": {
+          "has_ah": true,
+          "has_ou": true,
+          "has_1x2": true,
+          "has_btts": true,
+          "bet_count": 38,
+          "raw_has_ah": true,
+          "raw_has_ou": true,
+          "raw_has_1x2": true,
+          "ah_bet_count": 2,
+          "ou_bet_count": 2,
+          "raw_has_btts": true,
+          "btts_bet_count": 1,
+          "bookmaker_count": 1,
+          "canonical_has_ah": true,
+          "canonical_has_ou": true,
+          "one_x2_bet_count": 1,
+          "priced_bet_count": 30,
+          "canonical_has_1x2": true,
+          "canonical_has_btts": false
+        },
+        "missingStoredFlags": [],
+        "missingRecomputedFlags": [],
+        "rawWithoutCanonicalFlags": [
+          "has_btts"
+        ],
+        "flaggedWithoutCanonical": [
+          "has_btts"
+        ],
+        "canonicalRejectReasons": [
+          {
+            "flag": "has_btts",
+            "reason": "raw_btts_present_but_not_canonical_tradable"
+          }
+        ],
+        "ok": true
+      },
+      {
+        "id": 22523,
+        "matchId": "1536927",
+        "canonicalKeys": [
+          "1x2",
+          "ou",
+          "ou_adjacent",
+          "ou_extra",
+          "corners_ou",
+          "ah",
+          "ah_adjacent",
+          "ah_extra"
+        ],
+        "rawFlags": {
+          "has_1x2": true,
+          "has_ou": true,
+          "has_ah": true,
+          "has_btts": true
+        },
+        "canonicalFlags": {
+          "has_1x2": true,
+          "has_ou": true,
+          "has_ah": true,
+          "has_btts": false
+        },
+        "expectedFlags": {
+          "has_1x2": true,
+          "has_ou": true,
+          "has_ah": true,
+          "has_btts": false
+        },
+        "recomputedFlags": {
+          "bookmaker_count": 1,
+          "bet_count": 38,
+          "priced_bet_count": 30,
+          "one_x2_bet_count": 1,
+          "ou_bet_count": 2,
+          "ah_bet_count": 2,
+          "btts_bet_count": 1,
+          "has_1x2": true,
+          "has_ou": true,
+          "has_ah": true,
+          "has_btts": true,
+          "canonical_has_1x2": true,
+          "canonical_has_ou": true,
+          "canonical_has_ah": true,
+          "canonical_has_btts": false,
+          "raw_has_1x2": true,
+          "raw_has_ou": true,
+          "raw_has_ah": true,
+          "raw_has_btts": true
+        },
+        "storedFlags": {
+          "has_ah": true,
+          "has_ou": true,
+          "has_1x2": true,
+          "has_btts": true,
+          "bet_count": 38,
+          "raw_has_ah": true,
+          "raw_has_ou": true,
+          "raw_has_1x2": true,
+          "ah_bet_count": 2,
+          "ou_bet_count": 2,
+          "raw_has_btts": true,
+          "btts_bet_count": 1,
+          "bookmaker_count": 1,
+          "canonical_has_ah": true,
+          "canonical_has_ou": true,
+          "one_x2_bet_count": 1,
+          "priced_bet_count": 30,
+          "canonical_has_1x2": true,
+          "canonical_has_btts": false
+        },
+        "missingStoredFlags": [],
+        "missingRecomputedFlags": [],
+        "rawWithoutCanonicalFlags": [
+          "has_btts"
+        ],
+        "flaggedWithoutCanonical": [
+          "has_btts"
+        ],
+        "canonicalRejectReasons": [
+          {
+            "flag": "has_btts",
+            "reason": "raw_btts_present_but_not_canonical_tradable"
+          }
+        ],
+        "ok": true
+      },
+      {
+        "id": 22522,
+        "matchId": "1536927",
+        "canonicalKeys": [
+          "1x2",
+          "ou",
+          "ou_adjacent",
+          "ou_extra",
+          "corners_ou",
+          "ah",
+          "ah_adjacent",
+          "ah_extra"
+        ],
+        "rawFlags": {
+          "has_1x2": true,
+          "has_ou": true,
+          "has_ah": true,
+          "has_btts": true
+        },
+        "canonicalFlags": {
+          "has_1x2": true,
+          "has_ou": true,
+          "has_ah": true,
+          "has_btts": false
+        },
+        "expectedFlags": {
+          "has_1x2": true,
+          "has_ou": true,
+          "has_ah": true,
+          "has_btts": false
+        },
+        "recomputedFlags": {
+          "bookmaker_count": 1,
+          "bet_count": 38,
+          "priced_bet_count": 32,
+          "one_x2_bet_count": 1,
+          "ou_bet_count": 2,
+          "ah_bet_count": 2,
+          "btts_bet_count": 1,
+          "has_1x2": true,
+          "has_ou": true,
+          "has_ah": true,
+          "has_btts": true,
+          "canonical_has_1x2": true,
+          "canonical_has_ou": true,
+          "canonical_has_ah": true,
+          "canonical_has_btts": false,
+          "raw_has_1x2": true,
+          "raw_has_ou": true,
+          "raw_has_ah": true,
+          "raw_has_btts": true
+        },
+        "storedFlags": {
+          "has_ah": true,
+          "has_ou": true,
+          "has_1x2": true,
+          "has_btts": true,
+          "bet_count": 38,
+          "raw_has_ah": true,
+          "raw_has_ou": true,
+          "raw_has_1x2": true,
+          "ah_bet_count": 2,
+          "ou_bet_count": 2,
+          "raw_has_btts": true,
+          "btts_bet_count": 1,
+          "bookmaker_count": 1,
+          "canonical_has_ah": true,
+          "canonical_has_ou": true,
+          "one_x2_bet_count": 1,
+          "priced_bet_count": 32,
+          "canonical_has_1x2": true,
+          "canonical_has_btts": false
+        },
+        "missingStoredFlags": [],
+        "missingRecomputedFlags": [],
+        "rawWithoutCanonicalFlags": [
+          "has_btts"
+        ],
+        "flaggedWithoutCanonical": [
+          "has_btts"
+        ],
+        "canonicalRejectReasons": [
+          {
+            "flag": "has_btts",
+            "reason": "raw_btts_present_but_not_canonical_tradable"
+          }
+        ],
+        "ok": true
+      },
+      {
+        "id": 22521,
+        "matchId": "1536927",
+        "canonicalKeys": [
+          "1x2",
+          "ou",
+          "ou_adjacent",
+          "ou_extra",
+          "corners_ou",
+          "ah",
+          "ah_extra"
+        ],
+        "rawFlags": {
+          "has_1x2": true,
+          "has_ou": true,
+          "has_ah": true,
+          "has_btts": true
+        },
+        "canonicalFlags": {
+          "has_1x2": true,
+          "has_ou": true,
+          "has_ah": true,
+          "has_btts": false
+        },
+        "expectedFlags": {
+          "has_1x2": true,
+          "has_ou": true,
+          "has_ah": true,
+          "has_btts": false
+        },
+        "recomputedFlags": {
+          "bookmaker_count": 1,
+          "bet_count": 39,
+          "priced_bet_count": 29,
+          "one_x2_bet_count": 1,
+          "ou_bet_count": 2,
+          "ah_bet_count": 2,
+          "btts_bet_count": 1,
+          "has_1x2": true,
+          "has_ou": true,
+          "has_ah": true,
+          "has_btts": true,
+          "canonical_has_1x2": true,
+          "canonical_has_ou": true,
+          "canonical_has_ah": true,
+          "canonical_has_btts": false,
+          "raw_has_1x2": true,
+          "raw_has_ou": true,
+          "raw_has_ah": true,
+          "raw_has_btts": true
+        },
+        "storedFlags": {
+          "has_ah": true,
+          "has_ou": true,
+          "has_1x2": true,
+          "has_btts": true,
+          "bet_count": 39,
+          "raw_has_ah": true,
+          "raw_has_ou": true,
+          "raw_has_1x2": true,
+          "ah_bet_count": 2,
+          "ou_bet_count": 2,
+          "raw_has_btts": true,
+          "btts_bet_count": 1,
+          "bookmaker_count": 1,
+          "canonical_has_ah": true,
+          "canonical_has_ou": true,
+          "one_x2_bet_count": 1,
+          "priced_bet_count": 29,
+          "canonical_has_1x2": true,
+          "canonical_has_btts": false
+        },
+        "missingStoredFlags": [],
+        "missingRecomputedFlags": [],
+        "rawWithoutCanonicalFlags": [
+          "has_btts"
+        ],
+        "flaggedWithoutCanonical": [
+          "has_btts"
+        ],
+        "canonicalRejectReasons": [
+          {
+            "flag": "has_btts",
+            "reason": "raw_btts_present_but_not_canonical_tradable"
+          }
+        ],
+        "ok": true
+      },
+      {
+        "id": 22520,
+        "matchId": "1536927",
+        "canonicalKeys": [
+          "1x2",
+          "ou",
+          "ou_adjacent",
+          "ou_extra",
+          "corners_ou",
+          "ah",
+          "ah_adjacent",
+          "ah_extra"
+        ],
+        "rawFlags": {
+          "has_1x2": true,
+          "has_ou": true,
+          "has_ah": true,
+          "has_btts": true
+        },
+        "canonicalFlags": {
+          "has_1x2": true,
+          "has_ou": true,
+          "has_ah": true,
+          "has_btts": false
+        },
+        "expectedFlags": {
+          "has_1x2": true,
+          "has_ou": true,
+          "has_ah": true,
+          "has_btts": false
+        },
+        "recomputedFlags": {
+          "bookmaker_count": 1,
+          "bet_count": 38,
+          "priced_bet_count": 30,
+          "one_x2_bet_count": 1,
+          "ou_bet_count": 2,
+          "ah_bet_count": 2,
+          "btts_bet_count": 1,
+          "has_1x2": true,
+          "has_ou": true,
+          "has_ah": true,
+          "has_btts": true,
+          "canonical_has_1x2": true,
+          "canonical_has_ou": true,
+          "canonical_has_ah": true,
+          "canonical_has_btts": false,
+          "raw_has_1x2": true,
+          "raw_has_ou": true,
+          "raw_has_ah": true,
+          "raw_has_btts": true
+        },
+        "storedFlags": {
+          "has_ah": true,
+          "has_ou": true,
+          "has_1x2": true,
+          "has_btts": true,
+          "bet_count": 38,
+          "raw_has_ah": true,
+          "raw_has_ou": true,
+          "raw_has_1x2": true,
+          "ah_bet_count": 2,
+          "ou_bet_count": 2,
+          "raw_has_btts": true,
+          "btts_bet_count": 1,
+          "bookmaker_count": 1,
+          "canonical_has_ah": true,
+          "canonical_has_ou": true,
+          "one_x2_bet_count": 1,
+          "priced_bet_count": 30,
+          "canonical_has_1x2": true,
+          "canonical_has_btts": false
+        },
+        "missingStoredFlags": [],
+        "missingRecomputedFlags": [],
+        "rawWithoutCanonicalFlags": [
+          "has_btts"
+        ],
+        "flaggedWithoutCanonical": [
+          "has_btts"
+        ],
+        "canonicalRejectReasons": [
+          {
+            "flag": "has_btts",
+            "reason": "raw_btts_present_but_not_canonical_tradable"
+          }
+        ],
+        "ok": true
+      },
+      {
+        "id": 22519,
+        "matchId": "1536927",
+        "canonicalKeys": [
+          "1x2",
+          "ou",
+          "ou_adjacent",
+          "ou_extra",
+          "corners_ou",
+          "ah",
+          "ah_adjacent",
+          "ah_extra"
+        ],
+        "rawFlags": {
+          "has_1x2": true,
+          "has_ou": true,
+          "has_ah": true,
+          "has_btts": true
+        },
+        "canonicalFlags": {
+          "has_1x2": true,
+          "has_ou": true,
+          "has_ah": true,
+          "has_btts": false
+        },
+        "expectedFlags": {
+          "has_1x2": true,
+          "has_ou": true,
+          "has_ah": true,
+          "has_btts": false
+        },
+        "recomputedFlags": {
+          "bookmaker_count": 1,
+          "bet_count": 38,
+          "priced_bet_count": 30,
+          "one_x2_bet_count": 1,
+          "ou_bet_count": 2,
+          "ah_bet_count": 2,
+          "btts_bet_count": 1,
+          "has_1x2": true,
+          "has_ou": true,
+          "has_ah": true,
+          "has_btts": true,
+          "canonical_has_1x2": true,
+          "canonical_has_ou": true,
+          "canonical_has_ah": true,
+          "canonical_has_btts": false,
+          "raw_has_1x2": true,
+          "raw_has_ou": true,
+          "raw_has_ah": true,
+          "raw_has_btts": true
+        },
+        "storedFlags": {
+          "has_ah": true,
+          "has_ou": true,
+          "has_1x2": true,
+          "has_btts": true,
+          "bet_count": 38,
+          "raw_has_ah": true,
+          "raw_has_ou": true,
+          "raw_has_1x2": true,
+          "ah_bet_count": 2,
+          "ou_bet_count": 2,
+          "raw_has_btts": true,
+          "btts_bet_count": 1,
+          "bookmaker_count": 1,
+          "canonical_has_ah": true,
+          "canonical_has_ou": true,
+          "one_x2_bet_count": 1,
+          "priced_bet_count": 30,
+          "canonical_has_1x2": true,
+          "canonical_has_btts": false
+        },
+        "missingStoredFlags": [],
+        "missingRecomputedFlags": [],
+        "rawWithoutCanonicalFlags": [
+          "has_btts"
+        ],
+        "flaggedWithoutCanonical": [
+          "has_btts"
+        ],
+        "canonicalRejectReasons": [
+          {
+            "flag": "has_btts",
+            "reason": "raw_btts_present_but_not_canonical_tradable"
+          }
+        ],
+        "ok": true
+      },
+      {
+        "id": 22499,
+        "matchId": "1542177",
+        "canonicalKeys": [
+          "1x2",
+          "ou",
+          "ou_adjacent",
+          "ou_extra",
+          "corners_ou",
+          "ah",
+          "ah_adjacent",
+          "ah_extra"
+        ],
+        "rawFlags": {
+          "has_1x2": true,
+          "has_ou": true,
+          "has_ah": true,
+          "has_btts": true
+        },
+        "canonicalFlags": {
+          "has_1x2": true,
+          "has_ou": true,
+          "has_ah": true,
+          "has_btts": false
+        },
+        "expectedFlags": {
+          "has_1x2": true,
+          "has_ou": true,
+          "has_ah": true,
+          "has_btts": false
+        },
+        "recomputedFlags": {
+          "bookmaker_count": 1,
+          "bet_count": 23,
+          "priced_bet_count": 23,
+          "one_x2_bet_count": 1,
+          "ou_bet_count": 2,
+          "ah_bet_count": 2,
+          "btts_bet_count": 1,
+          "has_1x2": true,
+          "has_ou": true,
+          "has_ah": true,
+          "has_btts": true,
+          "canonical_has_1x2": true,
+          "canonical_has_ou": true,
+          "canonical_has_ah": true,
+          "canonical_has_btts": false,
+          "raw_has_1x2": true,
+          "raw_has_ou": true,
+          "raw_has_ah": true,
+          "raw_has_btts": true
+        },
+        "storedFlags": {
+          "has_ah": true,
+          "has_ou": true,
+          "has_1x2": true,
+          "has_btts": true,
+          "bet_count": 23,
+          "raw_has_ah": true,
+          "raw_has_ou": true,
+          "raw_has_1x2": true,
+          "ah_bet_count": 2,
+          "ou_bet_count": 2,
+          "raw_has_btts": true,
+          "btts_bet_count": 1,
+          "bookmaker_count": 1,
+          "canonical_has_ah": true,
+          "canonical_has_ou": true,
+          "one_x2_bet_count": 1,
+          "priced_bet_count": 23,
+          "canonical_has_1x2": true,
+          "canonical_has_btts": false
+        },
+        "missingStoredFlags": [],
+        "missingRecomputedFlags": [],
+        "rawWithoutCanonicalFlags": [
+          "has_btts"
+        ],
+        "flaggedWithoutCanonical": [
+          "has_btts"
+        ],
+        "canonicalRejectReasons": [
+          {
+            "flag": "has_btts",
+            "reason": "raw_btts_present_but_not_canonical_tradable"
+          }
+        ],
+        "ok": true
+      },
+      {
+        "id": 22498,
+        "matchId": "1542177",
+        "canonicalKeys": [
+          "1x2",
+          "ou",
+          "ou_adjacent",
+          "ou_extra",
+          "corners_ou",
+          "ah",
+          "ah_adjacent",
+          "ah_extra"
+        ],
+        "rawFlags": {
+          "has_1x2": true,
+          "has_ou": true,
+          "has_ah": true,
+          "has_btts": true
+        },
+        "canonicalFlags": {
+          "has_1x2": true,
+          "has_ou": true,
+          "has_ah": true,
+          "has_btts": false
+        },
+        "expectedFlags": {
+          "has_1x2": true,
+          "has_ou": true,
+          "has_ah": true,
+          "has_btts": false
+        },
+        "recomputedFlags": {
+          "bookmaker_count": 1,
+          "bet_count": 23,
+          "priced_bet_count": 23,
+          "one_x2_bet_count": 1,
+          "ou_bet_count": 2,
+          "ah_bet_count": 2,
+          "btts_bet_count": 1,
+          "has_1x2": true,
+          "has_ou": true,
+          "has_ah": true,
+          "has_btts": true,
+          "canonical_has_1x2": true,
+          "canonical_has_ou": true,
+          "canonical_has_ah": true,
+          "canonical_has_btts": false,
+          "raw_has_1x2": true,
+          "raw_has_ou": true,
+          "raw_has_ah": true,
+          "raw_has_btts": true
+        },
+        "storedFlags": {
+          "has_ah": true,
+          "has_ou": true,
+          "has_1x2": true,
+          "has_btts": true,
+          "bet_count": 23,
+          "raw_has_ah": true,
+          "raw_has_ou": true,
+          "raw_has_1x2": true,
+          "ah_bet_count": 2,
+          "ou_bet_count": 2,
+          "raw_has_btts": true,
+          "btts_bet_count": 1,
+          "bookmaker_count": 1,
+          "canonical_has_ah": true,
+          "canonical_has_ou": true,
+          "one_x2_bet_count": 1,
+          "priced_bet_count": 23,
+          "canonical_has_1x2": true,
+          "canonical_has_btts": false
+        },
+        "missingStoredFlags": [],
+        "missingRecomputedFlags": [],
+        "rawWithoutCanonicalFlags": [
+          "has_btts"
+        ],
+        "flaggedWithoutCanonical": [
+          "has_btts"
+        ],
+        "canonicalRejectReasons": [
+          {
+            "flag": "has_btts",
+            "reason": "raw_btts_present_but_not_canonical_tradable"
+          }
+        ],
+        "ok": true
+      },
+      {
+        "id": 22494,
+        "matchId": "1542177",
+        "canonicalKeys": [
+          "1x2",
+          "ou",
+          "ou_adjacent",
+          "ou_extra",
+          "corners_ou",
+          "ah",
+          "ah_adjacent",
+          "ah_extra"
+        ],
+        "rawFlags": {
+          "has_1x2": true,
+          "has_ou": true,
+          "has_ah": true,
+          "has_btts": true
+        },
+        "canonicalFlags": {
+          "has_1x2": true,
+          "has_ou": true,
+          "has_ah": true,
+          "has_btts": false
+        },
+        "expectedFlags": {
+          "has_1x2": true,
+          "has_ou": true,
+          "has_ah": true,
+          "has_btts": false
+        },
+        "recomputedFlags": {
+          "bookmaker_count": 1,
+          "bet_count": 23,
+          "priced_bet_count": 23,
+          "one_x2_bet_count": 1,
+          "ou_bet_count": 2,
+          "ah_bet_count": 2,
+          "btts_bet_count": 1,
+          "has_1x2": true,
+          "has_ou": true,
+          "has_ah": true,
+          "has_btts": true,
+          "canonical_has_1x2": true,
+          "canonical_has_ou": true,
+          "canonical_has_ah": true,
+          "canonical_has_btts": false,
+          "raw_has_1x2": true,
+          "raw_has_ou": true,
+          "raw_has_ah": true,
+          "raw_has_btts": true
+        },
+        "storedFlags": {
+          "has_ah": true,
+          "has_ou": true,
+          "has_1x2": true,
+          "has_btts": true,
+          "bet_count": 23,
+          "raw_has_ah": true,
+          "raw_has_ou": true,
+          "raw_has_1x2": true,
+          "ah_bet_count": 2,
+          "ou_bet_count": 2,
+          "raw_has_btts": true,
+          "btts_bet_count": 1,
+          "bookmaker_count": 1,
+          "canonical_has_ah": true,
+          "canonical_has_ou": true,
+          "one_x2_bet_count": 1,
+          "priced_bet_count": 23,
+          "canonical_has_1x2": true,
+          "canonical_has_btts": false
+        },
+        "missingStoredFlags": [],
+        "missingRecomputedFlags": [],
+        "rawWithoutCanonicalFlags": [
+          "has_btts"
+        ],
+        "flaggedWithoutCanonical": [
+          "has_btts"
+        ],
+        "canonicalRejectReasons": [
+          {
+            "flag": "has_btts",
+            "reason": "raw_btts_present_but_not_canonical_tradable"
+          }
+        ],
+        "ok": true
+      },
+      {
+        "id": 22492,
+        "matchId": "1542177",
+        "canonicalKeys": [
+          "1x2",
+          "ou",
+          "ou_adjacent",
+          "ou_extra",
+          "ah",
+          "ah_adjacent",
+          "ah_extra"
+        ],
+        "rawFlags": {
+          "has_1x2": true,
+          "has_ou": true,
+          "has_ah": true,
+          "has_btts": true
+        },
+        "canonicalFlags": {
+          "has_1x2": true,
+          "has_ou": true,
+          "has_ah": true,
+          "has_btts": false
+        },
+        "expectedFlags": {
+          "has_1x2": true,
+          "has_ou": true,
+          "has_ah": true,
+          "has_btts": false
+        },
+        "recomputedFlags": {
+          "bookmaker_count": 1,
+          "bet_count": 23,
+          "priced_bet_count": 23,
+          "one_x2_bet_count": 1,
+          "ou_bet_count": 2,
+          "ah_bet_count": 2,
+          "btts_bet_count": 1,
+          "has_1x2": true,
+          "has_ou": true,
+          "has_ah": true,
+          "has_btts": true,
+          "canonical_has_1x2": true,
+          "canonical_has_ou": true,
+          "canonical_has_ah": true,
+          "canonical_has_btts": false,
+          "raw_has_1x2": true,
+          "raw_has_ou": true,
+          "raw_has_ah": true,
+          "raw_has_btts": true
+        },
+        "storedFlags": {
+          "has_ah": true,
+          "has_ou": true,
+          "has_1x2": true,
+          "has_btts": true,
+          "bet_count": 23,
+          "raw_has_ah": true,
+          "raw_has_ou": true,
+          "raw_has_1x2": true,
+          "ah_bet_count": 2,
+          "ou_bet_count": 2,
+          "raw_has_btts": true,
+          "btts_bet_count": 1,
+          "bookmaker_count": 1,
+          "canonical_has_ah": true,
+          "canonical_has_ou": true,
+          "one_x2_bet_count": 1,
+          "priced_bet_count": 23,
+          "canonical_has_1x2": true,
+          "canonical_has_btts": false
+        },
+        "missingStoredFlags": [],
+        "missingRecomputedFlags": [],
+        "rawWithoutCanonicalFlags": [
+          "has_btts"
+        ],
+        "flaggedWithoutCanonical": [
+          "has_btts"
+        ],
+        "canonicalRejectReasons": [
+          {
+            "flag": "has_btts",
+            "reason": "raw_btts_present_but_not_canonical_tradable"
+          }
+        ],
+        "ok": true
+      },
+      {
+        "id": 22490,
+        "matchId": "1542177",
+        "canonicalKeys": [
+          "1x2",
+          "ou",
+          "ou_adjacent",
+          "ou_extra",
+          "ah",
+          "ah_adjacent",
+          "ah_extra"
+        ],
+        "rawFlags": {
+          "has_1x2": true,
+          "has_ou": true,
+          "has_ah": true,
+          "has_btts": true
+        },
+        "canonicalFlags": {
+          "has_1x2": true,
+          "has_ou": true,
+          "has_ah": true,
+          "has_btts": false
+        },
+        "expectedFlags": {
+          "has_1x2": true,
+          "has_ou": true,
+          "has_ah": true,
+          "has_btts": false
+        },
+        "recomputedFlags": {
+          "bookmaker_count": 1,
+          "bet_count": 23,
+          "priced_bet_count": 23,
+          "one_x2_bet_count": 1,
+          "ou_bet_count": 2,
+          "ah_bet_count": 2,
+          "btts_bet_count": 1,
+          "has_1x2": true,
+          "has_ou": true,
+          "has_ah": true,
+          "has_btts": true,
+          "canonical_has_1x2": true,
+          "canonical_has_ou": true,
+          "canonical_has_ah": true,
+          "canonical_has_btts": false,
+          "raw_has_1x2": true,
+          "raw_has_ou": true,
+          "raw_has_ah": true,
+          "raw_has_btts": true
+        },
+        "storedFlags": {
+          "has_ah": true,
+          "has_ou": true,
+          "has_1x2": true,
+          "has_btts": true,
+          "bet_count": 23,
+          "raw_has_ah": true,
+          "raw_has_ou": true,
+          "raw_has_1x2": true,
+          "ah_bet_count": 2,
+          "ou_bet_count": 2,
+          "raw_has_btts": true,
+          "btts_bet_count": 1,
+          "bookmaker_count": 1,
+          "canonical_has_ah": true,
+          "canonical_has_ou": true,
+          "one_x2_bet_count": 1,
+          "priced_bet_count": 23,
+          "canonical_has_1x2": true,
+          "canonical_has_btts": false
+        },
+        "missingStoredFlags": [],
+        "missingRecomputedFlags": [],
+        "rawWithoutCanonicalFlags": [
+          "has_btts"
+        ],
+        "flaggedWithoutCanonical": [
+          "has_btts"
+        ],
+        "canonicalRejectReasons": [
+          {
+            "flag": "has_btts",
+            "reason": "raw_btts_present_but_not_canonical_tradable"
+          }
+        ],
+        "ok": true
+      },
+      {
+        "id": 22488,
+        "matchId": "1542177",
+        "canonicalKeys": [
+          "1x2",
+          "ou",
+          "ou_adjacent",
+          "ou_extra",
+          "corners_ou",
+          "ah",
+          "ah_adjacent",
+          "ah_extra"
+        ],
+        "rawFlags": {
+          "has_1x2": true,
+          "has_ou": true,
+          "has_ah": true,
+          "has_btts": true
+        },
+        "canonicalFlags": {
+          "has_1x2": true,
+          "has_ou": true,
+          "has_ah": true,
+          "has_btts": false
+        },
+        "expectedFlags": {
+          "has_1x2": true,
+          "has_ou": true,
+          "has_ah": true,
+          "has_btts": false
+        },
+        "recomputedFlags": {
+          "bookmaker_count": 1,
+          "bet_count": 23,
+          "priced_bet_count": 23,
+          "one_x2_bet_count": 1,
+          "ou_bet_count": 2,
+          "ah_bet_count": 2,
+          "btts_bet_count": 1,
+          "has_1x2": true,
+          "has_ou": true,
+          "has_ah": true,
+          "has_btts": true,
+          "canonical_has_1x2": true,
+          "canonical_has_ou": true,
+          "canonical_has_ah": true,
+          "canonical_has_btts": false,
+          "raw_has_1x2": true,
+          "raw_has_ou": true,
+          "raw_has_ah": true,
+          "raw_has_btts": true
+        },
+        "storedFlags": {
+          "has_ah": true,
+          "has_ou": true,
+          "has_1x2": true,
+          "has_btts": true,
+          "bet_count": 23,
+          "raw_has_ah": true,
+          "raw_has_ou": true,
+          "raw_has_1x2": true,
+          "ah_bet_count": 2,
+          "ou_bet_count": 2,
+          "raw_has_btts": true,
+          "btts_bet_count": 1,
+          "bookmaker_count": 1,
+          "canonical_has_ah": true,
+          "canonical_has_ou": true,
+          "one_x2_bet_count": 1,
+          "priced_bet_count": 23,
+          "canonical_has_1x2": true,
+          "canonical_has_btts": false
+        },
+        "missingStoredFlags": [],
+        "missingRecomputedFlags": [],
+        "rawWithoutCanonicalFlags": [
+          "has_btts"
+        ],
+        "flaggedWithoutCanonical": [
+          "has_btts"
+        ],
+        "canonicalRejectReasons": [
+          {
+            "flag": "has_btts",
+            "reason": "raw_btts_present_but_not_canonical_tradable"
+          }
+        ],
+        "ok": true
+      },
+      {
+        "id": 22486,
+        "matchId": "1542177",
+        "canonicalKeys": [
+          "1x2",
+          "ou",
+          "ou_adjacent",
+          "ou_extra",
+          "ah",
+          "ah_adjacent",
+          "ah_extra"
+        ],
+        "rawFlags": {
+          "has_1x2": true,
+          "has_ou": true,
+          "has_ah": true,
+          "has_btts": true
+        },
+        "canonicalFlags": {
+          "has_1x2": true,
+          "has_ou": true,
+          "has_ah": true,
+          "has_btts": false
+        },
+        "expectedFlags": {
+          "has_1x2": true,
+          "has_ou": true,
+          "has_ah": true,
+          "has_btts": false
+        },
+        "recomputedFlags": {
+          "bookmaker_count": 1,
+          "bet_count": 23,
+          "priced_bet_count": 23,
+          "one_x2_bet_count": 1,
+          "ou_bet_count": 2,
+          "ah_bet_count": 2,
+          "btts_bet_count": 1,
+          "has_1x2": true,
+          "has_ou": true,
+          "has_ah": true,
+          "has_btts": true,
+          "canonical_has_1x2": true,
+          "canonical_has_ou": true,
+          "canonical_has_ah": true,
+          "canonical_has_btts": false,
+          "raw_has_1x2": true,
+          "raw_has_ou": true,
+          "raw_has_ah": true,
+          "raw_has_btts": true
+        },
+        "storedFlags": {
+          "has_ah": true,
+          "has_ou": true,
+          "has_1x2": true,
+          "has_btts": true,
+          "bet_count": 23,
+          "raw_has_ah": true,
+          "raw_has_ou": true,
+          "raw_has_1x2": true,
+          "ah_bet_count": 2,
+          "ou_bet_count": 2,
+          "raw_has_btts": true,
+          "btts_bet_count": 1,
+          "bookmaker_count": 1,
+          "canonical_has_ah": true,
+          "canonical_has_ou": true,
+          "one_x2_bet_count": 1,
+          "priced_bet_count": 23,
+          "canonical_has_1x2": true,
+          "canonical_has_btts": false
+        },
+        "missingStoredFlags": [],
+        "missingRecomputedFlags": [],
+        "rawWithoutCanonicalFlags": [
+          "has_btts"
+        ],
+        "flaggedWithoutCanonical": [
+          "has_btts"
+        ],
+        "canonicalRejectReasons": [
+          {
+            "flag": "has_btts",
+            "reason": "raw_btts_present_but_not_canonical_tradable"
+          }
+        ],
+        "ok": true
+      },
+      {
+        "id": 22484,
+        "matchId": "1542177",
+        "canonicalKeys": [
+          "1x2",
+          "ou",
+          "ou_adjacent",
+          "ou_extra",
+          "corners_ou",
+          "ah",
+          "ah_adjacent",
+          "ah_extra"
+        ],
+        "rawFlags": {
+          "has_1x2": true,
+          "has_ou": true,
+          "has_ah": true,
+          "has_btts": true
+        },
+        "canonicalFlags": {
+          "has_1x2": true,
+          "has_ou": true,
+          "has_ah": true,
+          "has_btts": false
+        },
+        "expectedFlags": {
+          "has_1x2": true,
+          "has_ou": true,
+          "has_ah": true,
+          "has_btts": false
+        },
+        "recomputedFlags": {
+          "bookmaker_count": 1,
+          "bet_count": 23,
+          "priced_bet_count": 23,
+          "one_x2_bet_count": 1,
+          "ou_bet_count": 2,
+          "ah_bet_count": 2,
+          "btts_bet_count": 1,
+          "has_1x2": true,
+          "has_ou": true,
+          "has_ah": true,
+          "has_btts": true,
+          "canonical_has_1x2": true,
+          "canonical_has_ou": true,
+          "canonical_has_ah": true,
+          "canonical_has_btts": false,
+          "raw_has_1x2": true,
+          "raw_has_ou": true,
+          "raw_has_ah": true,
+          "raw_has_btts": true
+        },
+        "storedFlags": {
+          "has_ah": true,
+          "has_ou": true,
+          "has_1x2": true,
+          "has_btts": true,
+          "bet_count": 23,
+          "raw_has_ah": true,
+          "raw_has_ou": true,
+          "raw_has_1x2": true,
+          "ah_bet_count": 2,
+          "ou_bet_count": 2,
+          "raw_has_btts": true,
+          "btts_bet_count": 1,
+          "bookmaker_count": 1,
+          "canonical_has_ah": true,
+          "canonical_has_ou": true,
+          "one_x2_bet_count": 1,
+          "priced_bet_count": 23,
+          "canonical_has_1x2": true,
+          "canonical_has_btts": false
+        },
+        "missingStoredFlags": [],
+        "missingRecomputedFlags": [],
+        "rawWithoutCanonicalFlags": [
+          "has_btts"
+        ],
+        "flaggedWithoutCanonical": [
+          "has_btts"
+        ],
+        "canonicalRejectReasons": [
+          {
+            "flag": "has_btts",
+            "reason": "raw_btts_present_but_not_canonical_tradable"
+          }
+        ],
+        "ok": true
+      },
+      {
+        "id": 22481,
+        "matchId": "1542177",
+        "canonicalKeys": [
+          "1x2",
+          "ou",
+          "ou_adjacent",
+          "ou_extra",
+          "corners_ou",
+          "ah",
+          "ah_adjacent",
+          "ah_extra"
+        ],
+        "rawFlags": {
+          "has_1x2": true,
+          "has_ou": true,
+          "has_ah": true,
+          "has_btts": true
+        },
+        "canonicalFlags": {
+          "has_1x2": true,
+          "has_ou": true,
+          "has_ah": true,
+          "has_btts": false
+        },
+        "expectedFlags": {
+          "has_1x2": true,
+          "has_ou": true,
+          "has_ah": true,
+          "has_btts": false
+        },
+        "recomputedFlags": {
+          "bookmaker_count": 1,
+          "bet_count": 23,
+          "priced_bet_count": 23,
+          "one_x2_bet_count": 1,
+          "ou_bet_count": 2,
+          "ah_bet_count": 2,
+          "btts_bet_count": 1,
+          "has_1x2": true,
+          "has_ou": true,
+          "has_ah": true,
+          "has_btts": true,
+          "canonical_has_1x2": true,
+          "canonical_has_ou": true,
+          "canonical_has_ah": true,
+          "canonical_has_btts": false,
+          "raw_has_1x2": true,
+          "raw_has_ou": true,
+          "raw_has_ah": true,
+          "raw_has_btts": true
+        },
+        "storedFlags": {
+          "has_ah": true,
+          "has_ou": true,
+          "has_1x2": true,
+          "has_btts": true,
+          "bet_count": 23,
+          "raw_has_ah": true,
+          "raw_has_ou": true,
+          "raw_has_1x2": true,
+          "ah_bet_count": 2,
+          "ou_bet_count": 2,
+          "raw_has_btts": true,
+          "btts_bet_count": 1,
+          "bookmaker_count": 1,
+          "canonical_has_ah": true,
+          "canonical_has_ou": true,
+          "one_x2_bet_count": 1,
+          "priced_bet_count": 23,
+          "canonical_has_1x2": true,
+          "canonical_has_btts": false
+        },
+        "missingStoredFlags": [],
+        "missingRecomputedFlags": [],
+        "rawWithoutCanonicalFlags": [
+          "has_btts"
+        ],
+        "flaggedWithoutCanonical": [
+          "has_btts"
+        ],
+        "canonicalRejectReasons": [
+          {
+            "flag": "has_btts",
+            "reason": "raw_btts_present_but_not_canonical_tradable"
+          }
+        ],
+        "ok": true
+      },
+      {
+        "id": 22478,
+        "matchId": "1542177",
+        "canonicalKeys": [
+          "1x2",
+          "ou",
+          "ou_adjacent",
+          "ou_extra",
+          "corners_ou",
+          "ah",
+          "ah_adjacent",
+          "ah_extra"
+        ],
+        "rawFlags": {
+          "has_1x2": true,
+          "has_ou": true,
+          "has_ah": true,
+          "has_btts": true
+        },
+        "canonicalFlags": {
+          "has_1x2": true,
+          "has_ou": true,
+          "has_ah": true,
+          "has_btts": false
+        },
+        "expectedFlags": {
+          "has_1x2": true,
+          "has_ou": true,
+          "has_ah": true,
+          "has_btts": false
+        },
+        "recomputedFlags": {
+          "bookmaker_count": 1,
+          "bet_count": 23,
+          "priced_bet_count": 23,
+          "one_x2_bet_count": 1,
+          "ou_bet_count": 2,
+          "ah_bet_count": 2,
+          "btts_bet_count": 1,
+          "has_1x2": true,
+          "has_ou": true,
+          "has_ah": true,
+          "has_btts": true,
+          "canonical_has_1x2": true,
+          "canonical_has_ou": true,
+          "canonical_has_ah": true,
+          "canonical_has_btts": false,
+          "raw_has_1x2": true,
+          "raw_has_ou": true,
+          "raw_has_ah": true,
+          "raw_has_btts": true
+        },
+        "storedFlags": {
+          "has_ah": true,
+          "has_ou": true,
+          "has_1x2": true,
+          "has_btts": true,
+          "bet_count": 23,
+          "raw_has_ah": true,
+          "raw_has_ou": true,
+          "raw_has_1x2": true,
+          "ah_bet_count": 2,
+          "ou_bet_count": 2,
+          "raw_has_btts": true,
+          "btts_bet_count": 1,
+          "bookmaker_count": 1,
+          "canonical_has_ah": true,
+          "canonical_has_ou": true,
+          "one_x2_bet_count": 1,
+          "priced_bet_count": 23,
+          "canonical_has_1x2": true,
+          "canonical_has_btts": false
+        },
+        "missingStoredFlags": [],
+        "missingRecomputedFlags": [],
+        "rawWithoutCanonicalFlags": [
+          "has_btts"
+        ],
+        "flaggedWithoutCanonical": [
+          "has_btts"
+        ],
+        "canonicalRejectReasons": [
+          {
+            "flag": "has_btts",
+            "reason": "raw_btts_present_but_not_canonical_tradable"
+          }
+        ],
+        "ok": true
+      },
+      {
+        "id": 22476,
+        "matchId": "1542177",
+        "canonicalKeys": [
+          "1x2",
+          "ou",
+          "ou_adjacent",
+          "ou_extra",
+          "corners_ou",
+          "ah",
+          "ah_adjacent",
+          "ah_extra"
+        ],
+        "rawFlags": {
+          "has_1x2": true,
+          "has_ou": true,
+          "has_ah": true,
+          "has_btts": true
+        },
+        "canonicalFlags": {
+          "has_1x2": true,
+          "has_ou": true,
+          "has_ah": true,
+          "has_btts": false
+        },
+        "expectedFlags": {
+          "has_1x2": true,
+          "has_ou": true,
+          "has_ah": true,
+          "has_btts": false
+        },
+        "recomputedFlags": {
+          "bookmaker_count": 1,
+          "bet_count": 23,
+          "priced_bet_count": 23,
+          "one_x2_bet_count": 1,
+          "ou_bet_count": 2,
+          "ah_bet_count": 2,
+          "btts_bet_count": 1,
+          "has_1x2": true,
+          "has_ou": true,
+          "has_ah": true,
+          "has_btts": true,
+          "canonical_has_1x2": true,
+          "canonical_has_ou": true,
+          "canonical_has_ah": true,
+          "canonical_has_btts": false,
+          "raw_has_1x2": true,
+          "raw_has_ou": true,
+          "raw_has_ah": true,
+          "raw_has_btts": true
+        },
+        "storedFlags": {
+          "has_ah": true,
+          "has_ou": true,
+          "has_1x2": true,
+          "has_btts": true,
+          "bet_count": 23,
+          "raw_has_ah": true,
+          "raw_has_ou": true,
+          "raw_has_1x2": true,
+          "ah_bet_count": 2,
+          "ou_bet_count": 2,
+          "raw_has_btts": true,
+          "btts_bet_count": 1,
+          "bookmaker_count": 1,
+          "canonical_has_ah": true,
+          "canonical_has_ou": true,
+          "one_x2_bet_count": 1,
+          "priced_bet_count": 23,
+          "canonical_has_1x2": true,
+          "canonical_has_btts": false
+        },
+        "missingStoredFlags": [],
+        "missingRecomputedFlags": [],
+        "rawWithoutCanonicalFlags": [
+          "has_btts"
+        ],
+        "flaggedWithoutCanonical": [
+          "has_btts"
+        ],
+        "canonicalRejectReasons": [
+          {
+            "flag": "has_btts",
+            "reason": "raw_btts_present_but_not_canonical_tradable"
+          }
+        ],
+        "ok": true
+      },
+      {
+        "id": 22474,
+        "matchId": "1542177",
+        "canonicalKeys": [
+          "1x2",
+          "ou",
+          "ou_adjacent",
+          "ou_extra",
+          "corners_ou",
+          "ah",
+          "ah_adjacent",
+          "ah_extra"
+        ],
+        "rawFlags": {
+          "has_1x2": true,
+          "has_ou": true,
+          "has_ah": true,
+          "has_btts": true
+        },
+        "canonicalFlags": {
+          "has_1x2": true,
+          "has_ou": true,
+          "has_ah": true,
+          "has_btts": false
+        },
+        "expectedFlags": {
+          "has_1x2": true,
+          "has_ou": true,
+          "has_ah": true,
+          "has_btts": false
+        },
+        "recomputedFlags": {
+          "bookmaker_count": 1,
+          "bet_count": 24,
+          "priced_bet_count": 24,
+          "one_x2_bet_count": 1,
+          "ou_bet_count": 2,
+          "ah_bet_count": 2,
+          "btts_bet_count": 1,
+          "has_1x2": true,
+          "has_ou": true,
+          "has_ah": true,
+          "has_btts": true,
+          "canonical_has_1x2": true,
+          "canonical_has_ou": true,
+          "canonical_has_ah": true,
+          "canonical_has_btts": false,
+          "raw_has_1x2": true,
+          "raw_has_ou": true,
+          "raw_has_ah": true,
+          "raw_has_btts": true
+        },
+        "storedFlags": {
+          "has_ah": true,
+          "has_ou": true,
+          "has_1x2": true,
+          "has_btts": true,
+          "bet_count": 24,
+          "raw_has_ah": true,
+          "raw_has_ou": true,
+          "raw_has_1x2": true,
+          "ah_bet_count": 2,
+          "ou_bet_count": 2,
+          "raw_has_btts": true,
+          "btts_bet_count": 1,
+          "bookmaker_count": 1,
+          "canonical_has_ah": true,
+          "canonical_has_ou": true,
+          "one_x2_bet_count": 1,
+          "priced_bet_count": 24,
+          "canonical_has_1x2": true,
+          "canonical_has_btts": false
+        },
+        "missingStoredFlags": [],
+        "missingRecomputedFlags": [],
+        "rawWithoutCanonicalFlags": [
+          "has_btts"
+        ],
+        "flaggedWithoutCanonical": [
+          "has_btts"
+        ],
+        "canonicalRejectReasons": [
+          {
+            "flag": "has_btts",
+            "reason": "raw_btts_present_but_not_canonical_tradable"
+          }
+        ],
+        "ok": true
+      }
+    ]
+  }
+}

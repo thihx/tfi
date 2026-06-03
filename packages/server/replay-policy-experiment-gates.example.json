@@ -1,0 +1,42 @@
+{
+  "policyExperimentPath": "replay-work/data-driven-runs/<runId>/policy-experiment.json",
+  "minTotalCases": 50,
+  "minTrustedCounterfactualCandidates": 4,
+  "minCombinedSelectedCount": 3,
+  "minOriginalWinsRescued": 3,
+  "maxCombinedLossCount": 0,
+  "maxOriginalLossesReintroduced": 0,
+  "minCombinedRoiOnStaked": 0.25,
+  "requiredExperiments": [
+    {
+      "id": "btts_yes_60_74_two_plus",
+      "minSelectedCount": 1,
+      "minWinCount": 1,
+      "minOriginalWinsRescued": 1,
+      "minTotalPnlPercent": 0.5,
+      "minRoiOnStaked": 0.5,
+      "maxLossCount": 0,
+      "maxOriginalLossesReintroduced": 0
+    },
+    {
+      "id": "late_under_45_two_plus",
+      "minSelectedCount": 1,
+      "minWinCount": 1,
+      "minOriginalWinsRescued": 1,
+      "minTotalPnlPercent": 0.5,
+      "minRoiOnStaked": 0.5,
+      "maxLossCount": 0,
+      "maxOriginalLossesReintroduced": 0
+    },
+    {
+      "id": "over_15_60_74_one_goal",
+      "minSelectedCount": 1,
+      "minWinCount": 1,
+      "minOriginalWinsRescued": 1,
+      "minTotalPnlPercent": 0.25,
+      "minRoiOnStaked": 0.25,
+      "maxLossCount": 0,
+      "maxOriginalLossesReintroduced": 0
+    }
+  ]
+}

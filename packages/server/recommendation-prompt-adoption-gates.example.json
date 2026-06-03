@@ -1,0 +1,15 @@
+{
+  "adoptionPath": "../../replay-work/audit/<auditId>/prompt-adoption-14d.json",
+  "officialPromptVersion": "v10-hybrid-legacy-g",
+  "minTotalRows": 1,
+  "minActionableRows": 1,
+  "minOfficialPromptRows": 1,
+  "minOfficialPromptRate": 0.01,
+  "minOfficialPromptWithDecisionContext": 1,
+  "minOfficialPromptWithDecisionContextRate": 0.01,
+  "maxNonOfficialPromptRate": 0.99,
+  "maxEmptyPromptVersionRate": 0.1,
+  "maxEmptyDecisionContextRate": 0.5,
+  "maxLatestRowAgeHours": 72,
+  "maxLatestOfficialPromptRowAgeHours": 72
+}

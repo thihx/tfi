@@ -1,0 +1,220 @@
+{
+  "generatedAt": "2026-06-03T15:22:11.028Z",
+  "lookbackDays": 14,
+  "officialPromptVersion": "v10-hybrid-legacy-g",
+  "activity": {
+    "firstRowAt": "2026-05-21T13:43:35.010Z",
+    "latestRowAt": "2026-05-25T02:59:20.806Z",
+    "latestRowAgeHours": 228.38,
+    "latestActionableRowAt": "2026-05-25T02:59:20.806Z",
+    "latestActionableRowAgeHours": 228.38,
+    "latestOfficialPromptRowAt": null,
+    "latestOfficialPromptRowAgeHours": null,
+    "latestNonOfficialPromptRowAt": "2026-05-25T02:59:20.806Z",
+    "latestNonOfficialPromptRowAgeHours": 228.38
+  },
+  "totals": {
+    "totalRows": 15,
+    "actionableRows": 15,
+    "officialPromptRows": 0,
+    "officialPromptWithDecisionContext": 0,
+    "officialPromptMissingDecisionContext": 0,
+    "nonOfficialPromptRows": 15,
+    "emptyPromptVersionRows": 0,
+    "emptyDecisionContextRows": 0,
+    "officialPromptRate": 0,
+    "officialPromptWithDecisionContextRate": 0
+  },
+  "byPromptVersion": [
+    {
+      "promptVersion": "v10-hybrid-legacy-b",
+      "count": 15,
+      "actionable": 15,
+      "withDecisionContext": 15,
+      "settled": 15,
+      "pending": 0
+    }
+  ],
+  "recent": [
+    {
+      "id": 13402,
+      "timestamp": "2026-05-25T02:59:20.806Z",
+      "matchId": "1545451",
+      "matchDisplay": "U.N.A.M. - Pumas vs Cruz Azul",
+      "promptVersion": "v10-hybrid-legacy-b",
+      "aiModel": "gemini-3-pro-preview",
+      "betMarket": "corners_under_14.5",
+      "result": "win",
+      "hasDecisionContext": true,
+      "decisionKind": "(empty)"
+    },
+    {
+      "id": 13401,
+      "timestamp": "2026-05-25T02:46:58.542Z",
+      "matchId": "1490324",
+      "matchDisplay": "Los Angeles FC vs Seattle Sounders",
+      "promptVersion": "v10-hybrid-legacy-b",
+      "aiModel": "gemini-3-pro-preview",
+      "betMarket": "over_0.75",
+      "result": "half_win",
+      "hasDecisionContext": true,
+      "decisionKind": "(empty)"
+    },
+    {
+      "id": 13400,
+      "timestamp": "2026-05-25T02:31:39.632Z",
+      "matchId": "1545451",
+      "matchDisplay": "U.N.A.M. - Pumas vs Cruz Azul",
+      "promptVersion": "v10-hybrid-legacy-b",
+      "aiModel": "gemini-3-pro-preview",
+      "betMarket": "asian_handicap_home_+0.25",
+      "result": "loss",
+      "hasDecisionContext": true,
+      "decisionKind": "(empty)"
+    },
+    {
+      "id": 13399,
+      "timestamp": "2026-05-24T05:51:42.654Z",
+      "matchId": "1504827",
+      "matchDisplay": "Tokyo Verdy vs Yokohama F. Marinos",
+      "promptVersion": "v10-hybrid-legacy-b",
+      "aiModel": "gemini-3-pro-preview",
+      "betMarket": "btts_yes",
+      "result": "loss",
+      "hasDecisionContext": true,
+      "decisionKind": "(empty)"
+    },
+    {
+      "id": 13398,
+      "timestamp": "2026-05-24T05:27:38.890Z",
+      "matchId": "1504825",
+      "matchDisplay": "Fagiano Okayama vs Cerezo Osaka",
+      "promptVersion": "v10-hybrid-legacy-b",
+      "aiModel": "gemini-3-pro-preview",
+      "betMarket": "btts_yes",
+      "result": "win",
+      "hasDecisionContext": true,
+      "decisionKind": "(empty)"
+    },
+    {
+      "id": 13397,
+      "timestamp": "2026-05-24T04:24:14.883Z",
+      "matchId": "1490321",
+      "matchDisplay": "Los Angeles Galaxy vs Houston Dynamo",
+      "promptVersion": "v10-hybrid-legacy-b",
+      "aiModel": "gemini-3-pro-preview",
+      "betMarket": "corners_under_8.5",
+      "result": "loss",
+      "hasDecisionContext": true,
+      "decisionKind": "(empty)"
+    },
+    {
+      "id": 13396,
+      "timestamp": "2026-05-24T03:26:14.076Z",
+      "matchId": "1490321",
+      "matchDisplay": "Los Angeles Galaxy vs Houston Dynamo",
+      "promptVersion": "v10-hybrid-legacy-b",
+      "aiModel": "gemini-3-pro-preview",
+      "betMarket": "asian_handicap_home_-0.25",
+      "result": "half_loss",
+      "hasDecisionContext": true,
+      "decisionKind": "(empty)"
+    },
+    {
+      "id": 13395,
+      "timestamp": "2026-05-24T03:20:48.524Z",
+      "matchId": "1490320",
+      "matchDisplay": "Portland Timbers vs San Jose Earthquakes",
+      "promptVersion": "v10-hybrid-legacy-b",
+      "aiModel": "gemini-3-pro-preview",
+      "betMarket": "under_4.5",
+      "result": "win",
+      "hasDecisionContext": true,
+      "decisionKind": "(empty)"
+    },
+    {
+      "id": 13394,
+      "timestamp": "2026-05-24T03:17:05.008Z",
+      "matchId": "1490318",
+      "matchDisplay": "San Diego vs Vancouver Whitecaps",
+      "promptVersion": "v10-hybrid-legacy-b",
+      "aiModel": "gemini-3-pro-preview",
+      "betMarket": "corners_under_6.5",
+      "result": "win",
+      "hasDecisionContext": true,
+      "decisionKind": "(empty)"
+    },
+    {
+      "id": 13393,
+      "timestamp": "2026-05-24T03:13:16.006Z",
+      "matchId": "1490318",
+      "matchDisplay": "San Diego vs Vancouver Whitecaps",
+      "promptVersion": "v10-hybrid-legacy-b",
+      "aiModel": "gemini-3-pro-preview",
+      "betMarket": "under_4.75",
+      "result": "loss",
+      "hasDecisionContext": true,
+      "decisionKind": "(empty)"
+    },
+    {
+      "id": 13392,
+      "timestamp": "2026-05-24T02:51:50.573Z",
+      "matchId": "1490319",
+      "matchDisplay": "Colorado Rapids vs FC Dallas",
+      "promptVersion": "v10-hybrid-legacy-b",
+      "aiModel": "gemini-3-pro-preview",
+      "betMarket": "under_4",
+      "result": "win",
+      "hasDecisionContext": true,
+      "decisionKind": "(empty)"
+    },
+    {
+      "id": 13391,
+      "timestamp": "2026-05-23T08:29:55.132Z",
+      "matchId": "1516858",
+      "matchDisplay": "Parceiro Nagano vs Ventforet Kofu",
+      "promptVersion": "v10-hybrid-legacy-b",
+      "aiModel": "gemini-3-pro-preview",
+      "betMarket": "under_0.5",
+      "result": "win",
+      "hasDecisionContext": true,
+      "decisionKind": "(empty)"
+    },
+    {
+      "id": 13390,
+      "timestamp": "2026-05-22T13:43:07.463Z",
+      "matchId": "1403861",
+      "matchDisplay": "Dewa United vs Bali United",
+      "promptVersion": "v10-hybrid-legacy-b",
+      "aiModel": "gemini-3-pro-preview",
+      "betMarket": "under_1.5",
+      "result": "win",
+      "hasDecisionContext": true,
+      "decisionKind": "(empty)"
+    },
+    {
+      "id": 13389,
+      "timestamp": "2026-05-21T14:07:19.154Z",
+      "matchId": "1396821",
+      "matchDisplay": "Shakhtar Donetsk vs Kolos Kovalivka",
+      "promptVersion": "v10-hybrid-legacy-b",
+      "aiModel": "gemini-3-pro-preview",
+      "betMarket": "over_1.5",
+      "result": "loss",
+      "hasDecisionContext": true,
+      "decisionKind": "(empty)"
+    },
+    {
+      "id": 13388,
+      "timestamp": "2026-05-21T13:43:35.010Z",
+      "matchId": "1396821",
+      "matchDisplay": "Shakhtar Donetsk vs Kolos Kovalivka",
+      "promptVersion": "v10-hybrid-legacy-b",
+      "aiModel": "gemini-3-pro-preview",
+      "betMarket": "asian_handicap_home_+0.5",
+      "result": "loss",
+      "hasDecisionContext": true,
+      "decisionKind": "(empty)"
+    }
+  ]
+}

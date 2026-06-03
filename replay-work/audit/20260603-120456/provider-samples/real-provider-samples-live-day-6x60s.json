@@ -1,0 +1,1422 @@
+{
+  "generatedAt": "2026-06-03T11:01:52.103Z",
+  "date": "2026-06-03",
+  "timezone": "Asia/Seoul",
+  "args": {
+    "date": "2026-06-03",
+    "maxFixtures": 1,
+    "maxApiCalls": 24,
+    "nearHours": 3,
+    "outJson": "../../replay-work/audit/20260603-120456/provider-samples/real-provider-samples-live-day-6x60s.json",
+    "includeLive": true,
+    "includeNear": false,
+    "includeFinished": false,
+    "includeStats": true,
+    "includeEvents": true,
+    "includeLiveOdds": true,
+    "includePreMatchOdds": false,
+    "fullPayloads": false,
+    "iterations": 6,
+    "intervalMs": 60000
+  },
+  "apiCallsUsed": 24,
+  "iterationCount": 6,
+  "fixtureCall": {
+    "status": "ok",
+    "latencyMs": 891,
+    "count": 86
+  },
+  "fixtureCountForDate": 86,
+  "selectedCount": 6,
+  "candidateCounts": {
+    "live": 5,
+    "near_kickoff": 13,
+    "finished": 51
+  },
+  "summary": [
+    {
+      "bucket": "live",
+      "iteration": 1,
+      "fixtureId": "1538898",
+      "match": "Portugal U19 vs Kazakhstan U19",
+      "status": "2H",
+      "score": {
+        "home": 1,
+        "away": 1
+      },
+      "statistics": {
+        "status": "ok",
+        "count": 0,
+        "error": ""
+      },
+      "events": {
+        "status": "ok",
+        "count": 15,
+        "error": ""
+      },
+      "liveOdds": {
+        "status": "ok",
+        "rawCount": 1,
+        "normalizedCount": 1,
+        "canonical": {
+          "has1x2": true,
+          "hasOu": true,
+          "hasAh": true,
+          "hasBtts": false
+        },
+        "error": ""
+      },
+      "preMatchOdds": {
+        "status": "skipped_disabled",
+        "rawCount": 0,
+        "normalizedCount": 0,
+        "canonical": {
+          "has1x2": false,
+          "hasOu": false,
+          "hasAh": false,
+          "hasBtts": false
+        },
+        "error": ""
+      }
+    },
+    {
+      "bucket": "live",
+      "iteration": 2,
+      "fixtureId": "1538898",
+      "match": "Portugal U19 vs Kazakhstan U19",
+      "status": "2H",
+      "score": {
+        "home": 1,
+        "away": 1
+      },
+      "statistics": {
+        "status": "ok",
+        "count": 0,
+        "error": ""
+      },
+      "events": {
+        "status": "ok",
+        "count": 16,
+        "error": ""
+      },
+      "liveOdds": {
+        "status": "ok",
+        "rawCount": 1,
+        "normalizedCount": 1,
+        "canonical": {
+          "has1x2": true,
+          "hasOu": false,
+          "hasAh": false,
+          "hasBtts": false
+        },
+        "error": ""
+      },
+      "preMatchOdds": {
+        "status": "skipped_disabled",
+        "rawCount": 0,
+        "normalizedCount": 0,
+        "canonical": {
+          "has1x2": false,
+          "hasOu": false,
+          "hasAh": false,
+          "hasBtts": false
+        },
+        "error": ""
+      }
+    },
+    {
+      "bucket": "live",
+      "iteration": 3,
+      "fixtureId": "1538898",
+      "match": "Portugal U19 vs Kazakhstan U19",
+      "status": "2H",
+      "score": {
+        "home": 1,
+        "away": 1
+      },
+      "statistics": {
+        "status": "ok",
+        "count": 0,
+        "error": ""
+      },
+      "events": {
+        "status": "ok",
+        "count": 16,
+        "error": ""
+      },
+      "liveOdds": {
+        "status": "ok",
+        "rawCount": 1,
+        "normalizedCount": 1,
+        "canonical": {
+          "has1x2": true,
+          "hasOu": false,
+          "hasAh": false,
+          "hasBtts": false
+        },
+        "error": ""
+      },
+      "preMatchOdds": {
+        "status": "skipped_disabled",
+        "rawCount": 0,
+        "normalizedCount": 0,
+        "canonical": {
+          "has1x2": false,
+          "hasOu": false,
+          "hasAh": false,
+          "hasBtts": false
+        },
+        "error": ""
+      }
+    },
+    {
+      "bucket": "live",
+      "iteration": 4,
+      "fixtureId": "1538898",
+      "match": "Portugal U19 vs Kazakhstan U19",
+      "status": "2H",
+      "score": {
+        "home": 1,
+        "away": 1
+      },
+      "statistics": {
+        "status": "ok",
+        "count": 0,
+        "error": ""
+      },
+      "events": {
+        "status": "ok",
+        "count": 16,
+        "error": ""
+      },
+      "liveOdds": {
+        "status": "ok",
+        "rawCount": 1,
+        "normalizedCount": 1,
+        "canonical": {
+          "has1x2": false,
+          "hasOu": false,
+          "hasAh": false,
+          "hasBtts": false
+        },
+        "error": ""
+      },
+      "preMatchOdds": {
+        "status": "skipped_disabled",
+        "rawCount": 0,
+        "normalizedCount": 0,
+        "canonical": {
+          "has1x2": false,
+          "hasOu": false,
+          "hasAh": false,
+          "hasBtts": false
+        },
+        "error": ""
+      }
+    },
+    {
+      "bucket": "live",
+      "iteration": 5,
+      "fixtureId": "1538898",
+      "match": "Portugal U19 vs Kazakhstan U19",
+      "status": "2H",
+      "score": {
+        "home": 1,
+        "away": 1
+      },
+      "statistics": {
+        "status": "ok",
+        "count": 0,
+        "error": ""
+      },
+      "events": {
+        "status": "ok",
+        "count": 16,
+        "error": ""
+      },
+      "liveOdds": {
+        "status": "ok",
+        "rawCount": 1,
+        "normalizedCount": 1,
+        "canonical": {
+          "has1x2": false,
+          "hasOu": false,
+          "hasAh": false,
+          "hasBtts": false
+        },
+        "error": ""
+      },
+      "preMatchOdds": {
+        "status": "skipped_disabled",
+        "rawCount": 0,
+        "normalizedCount": 0,
+        "canonical": {
+          "has1x2": false,
+          "hasOu": false,
+          "hasAh": false,
+          "hasBtts": false
+        },
+        "error": ""
+      }
+    },
+    {
+      "bucket": "live",
+      "iteration": 6,
+      "fixtureId": "1524145",
+      "match": "SC Wanderers vs St George Willawong",
+      "status": "2H",
+      "score": {
+        "home": 6,
+        "away": 0
+      },
+      "statistics": {
+        "status": "ok",
+        "count": 0,
+        "error": ""
+      },
+      "events": {
+        "status": "ok",
+        "count": 6,
+        "error": ""
+      },
+      "liveOdds": {
+        "status": "ok",
+        "rawCount": 1,
+        "normalizedCount": 1,
+        "canonical": {
+          "has1x2": false,
+          "hasOu": true,
+          "hasAh": true,
+          "hasBtts": true
+        },
+        "error": ""
+      },
+      "preMatchOdds": {
+        "status": "skipped_disabled",
+        "rawCount": 0,
+        "normalizedCount": 0,
+        "canonical": {
+          "has1x2": false,
+          "hasOu": false,
+          "hasAh": false,
+          "hasBtts": false
+        },
+        "error": ""
+      }
+    }
+  ],
+  "samples": [
+    {
+      "iteration": 1,
+      "bucket": "live",
+      "fixtureId": "1538898",
+      "home": "Portugal U19",
+      "away": "Kazakhstan U19",
+      "league": "UEFA U19 Championship - Qualification",
+      "country": "World",
+      "kickoff": "2026-06-03T18:00:00+09:00",
+      "timestamp": 1780477200,
+      "status": {
+        "long": "Second Half",
+        "short": "2H",
+        "elapsed": 90,
+        "extra": 3
+      },
+      "score": {
+        "home": 1,
+        "away": 1
+      },
+      "calls": {
+        "statistics": {
+          "status": "ok",
+          "latencyMs": 469,
+          "count": 0
+        },
+        "events": {
+          "status": "ok",
+          "latencyMs": 436,
+          "count": 15
+        },
+        "liveOdds": {
+          "status": "ok",
+          "latencyMs": 460,
+          "rawCount": 1,
+          "normalizedCount": 1,
+          "coverage": {
+            "bookmaker_count": 1,
+            "bet_count": 9,
+            "priced_bet_count": 9,
+            "one_x2_bet_count": 1,
+            "ou_bet_count": 2,
+            "ah_bet_count": 2,
+            "btts_bet_count": 0,
+            "has_1x2": true,
+            "has_ou": true,
+            "has_ah": true,
+            "has_btts": false,
+            "canonical_has_1x2": true,
+            "canonical_has_ou": true,
+            "canonical_has_ah": true,
+            "canonical_has_btts": false
+          }
+        },
+        "preMatchOdds": {
+          "status": "skipped_disabled",
+          "latencyMs": 0
+        }
+      }
+    },
+    {
+      "iteration": 2,
+      "bucket": "live",
+      "fixtureId": "1538898",
+      "home": "Portugal U19",
+      "away": "Kazakhstan U19",
+      "league": "UEFA U19 Championship - Qualification",
+      "country": "World",
+      "kickoff": "2026-06-03T18:00:00+09:00",
+      "timestamp": 1780477200,
+      "status": {
+        "long": "Second Half",
+        "short": "2H",
+        "elapsed": 90,
+        "extra": 4
+      },
+      "score": {
+        "home": 1,
+        "away": 1
+      },
+      "calls": {
+        "statistics": {
+          "status": "ok",
+          "latencyMs": 440,
+          "count": 0
+        },
+        "events": {
+          "status": "ok",
+          "latencyMs": 470,
+          "count": 16
+        },
+        "liveOdds": {
+          "status": "ok",
+          "latencyMs": 512,
+          "rawCount": 1,
+          "normalizedCount": 1,
+          "coverage": {
+            "bookmaker_count": 1,
+            "bet_count": 2,
+            "priced_bet_count": 2,
+            "one_x2_bet_count": 1,
+            "ou_bet_count": 0,
+            "ah_bet_count": 0,
+            "btts_bet_count": 0,
+            "has_1x2": true,
+            "has_ou": false,
+            "has_ah": false,
+            "has_btts": false,
+            "canonical_has_1x2": true,
+            "canonical_has_ou": false,
+            "canonical_has_ah": false,
+            "canonical_has_btts": false
+          }
+        },
+        "preMatchOdds": {
+          "status": "skipped_disabled",
+          "latencyMs": 0
+        }
+      }
+    },
+    {
+      "iteration": 3,
+      "bucket": "live",
+      "fixtureId": "1538898",
+      "home": "Portugal U19",
+      "away": "Kazakhstan U19",
+      "league": "UEFA U19 Championship - Qualification",
+      "country": "World",
+      "kickoff": "2026-06-03T18:00:00+09:00",
+      "timestamp": 1780477200,
+      "status": {
+        "long": "Second Half",
+        "short": "2H",
+        "elapsed": 90,
+        "extra": 5
+      },
+      "score": {
+        "home": 1,
+        "away": 1
+      },
+      "calls": {
+        "statistics": {
+          "status": "ok",
+          "latencyMs": 523,
+          "count": 0
+        },
+        "events": {
+          "status": "ok",
+          "latencyMs": 511,
+          "count": 16
+        },
+        "liveOdds": {
+          "status": "ok",
+          "latencyMs": 459,
+          "rawCount": 1,
+          "normalizedCount": 1,
+          "coverage": {
+            "bookmaker_count": 1,
+            "bet_count": 2,
+            "priced_bet_count": 2,
+            "one_x2_bet_count": 1,
+            "ou_bet_count": 0,
+            "ah_bet_count": 0,
+            "btts_bet_count": 0,
+            "has_1x2": true,
+            "has_ou": false,
+            "has_ah": false,
+            "has_btts": false,
+            "canonical_has_1x2": true,
+            "canonical_has_ou": false,
+            "canonical_has_ah": false,
+            "canonical_has_btts": false
+          }
+        },
+        "preMatchOdds": {
+          "status": "skipped_disabled",
+          "latencyMs": 0
+        }
+      }
+    },
+    {
+      "iteration": 4,
+      "bucket": "live",
+      "fixtureId": "1538898",
+      "home": "Portugal U19",
+      "away": "Kazakhstan U19",
+      "league": "UEFA U19 Championship - Qualification",
+      "country": "World",
+      "kickoff": "2026-06-03T18:00:00+09:00",
+      "timestamp": 1780477200,
+      "status": {
+        "long": "Second Half",
+        "short": "2H",
+        "elapsed": 90,
+        "extra": 6
+      },
+      "score": {
+        "home": 1,
+        "away": 1
+      },
+      "calls": {
+        "statistics": {
+          "status": "ok",
+          "latencyMs": 496,
+          "count": 0
+        },
+        "events": {
+          "status": "ok",
+          "latencyMs": 441,
+          "count": 16
+        },
+        "liveOdds": {
+          "status": "ok",
+          "latencyMs": 450,
+          "rawCount": 1,
+          "normalizedCount": 1,
+          "coverage": {
+            "bookmaker_count": 1,
+            "bet_count": 1,
+            "priced_bet_count": 0,
+            "one_x2_bet_count": 0,
+            "ou_bet_count": 0,
+            "ah_bet_count": 0,
+            "btts_bet_count": 0,
+            "has_1x2": false,
+            "has_ou": false,
+            "has_ah": false,
+            "has_btts": false,
+            "canonical_has_1x2": false,
+            "canonical_has_ou": false,
+            "canonical_has_ah": false,
+            "canonical_has_btts": false
+          }
+        },
+        "preMatchOdds": {
+          "status": "skipped_disabled",
+          "latencyMs": 0
+        }
+      }
+    },
+    {
+      "iteration": 5,
+      "bucket": "live",
+      "fixtureId": "1538898",
+      "home": "Portugal U19",
+      "away": "Kazakhstan U19",
+      "league": "UEFA U19 Championship - Qualification",
+      "country": "World",
+      "kickoff": "2026-06-03T18:00:00+09:00",
+      "timestamp": 1780477200,
+      "status": {
+        "long": "Second Half",
+        "short": "2H",
+        "elapsed": 90,
+        "extra": 7
+      },
+      "score": {
+        "home": 1,
+        "away": 1
+      },
+      "calls": {
+        "statistics": {
+          "status": "ok",
+          "latencyMs": 559,
+          "count": 0
+        },
+        "events": {
+          "status": "ok",
+          "latencyMs": 469,
+          "count": 16
+        },
+        "liveOdds": {
+          "status": "ok",
+          "latencyMs": 472,
+          "rawCount": 1,
+          "normalizedCount": 1,
+          "coverage": {
+            "bookmaker_count": 1,
+            "bet_count": 1,
+            "priced_bet_count": 0,
+            "one_x2_bet_count": 0,
+            "ou_bet_count": 0,
+            "ah_bet_count": 0,
+            "btts_bet_count": 0,
+            "has_1x2": false,
+            "has_ou": false,
+            "has_ah": false,
+            "has_btts": false,
+            "canonical_has_1x2": false,
+            "canonical_has_ou": false,
+            "canonical_has_ah": false,
+            "canonical_has_btts": false
+          }
+        },
+        "preMatchOdds": {
+          "status": "skipped_disabled",
+          "latencyMs": 0
+        }
+      }
+    },
+    {
+      "iteration": 6,
+      "bucket": "live",
+      "fixtureId": "1524145",
+      "home": "SC Wanderers",
+      "away": "St George Willawong",
+      "league": "Queensland Premier League",
+      "country": "Australia",
+      "kickoff": "2026-06-03T18:30:00+09:00",
+      "timestamp": 1780479000,
+      "status": {
+        "long": "Second Half",
+        "short": "2H",
+        "elapsed": 70,
+        "extra": null
+      },
+      "score": {
+        "home": 6,
+        "away": 0
+      },
+      "calls": {
+        "statistics": {
+          "status": "ok",
+          "latencyMs": 627,
+          "count": 0
+        },
+        "events": {
+          "status": "ok",
+          "latencyMs": 478,
+          "count": 6
+        },
+        "liveOdds": {
+          "status": "ok",
+          "latencyMs": 510,
+          "rawCount": 1,
+          "normalizedCount": 1,
+          "coverage": {
+            "bookmaker_count": 1,
+            "bet_count": 15,
+            "priced_bet_count": 15,
+            "one_x2_bet_count": 0,
+            "ou_bet_count": 2,
+            "ah_bet_count": 2,
+            "btts_bet_count": 2,
+            "has_1x2": false,
+            "has_ou": true,
+            "has_ah": true,
+            "has_btts": true,
+            "canonical_has_1x2": false,
+            "canonical_has_ou": true,
+            "canonical_has_ah": true,
+            "canonical_has_btts": true
+          }
+        },
+        "preMatchOdds": {
+          "status": "skipped_disabled",
+          "latencyMs": 0
+        }
+      }
+    }
+  ],
+  "iterations": [
+    {
+      "iteration": 1,
+      "generatedAt": "2026-06-03T10:56:41.631Z",
+      "fixtureCall": {
+        "status": "ok",
+        "latencyMs": 891,
+        "count": 86
+      },
+      "fixtureCountForDate": 86,
+      "selectedCount": 1,
+      "candidateCounts": {
+        "live": 5,
+        "near_kickoff": 13,
+        "finished": 51
+      },
+      "summary": [
+        {
+          "bucket": "live",
+          "iteration": 1,
+          "fixtureId": "1538898",
+          "match": "Portugal U19 vs Kazakhstan U19",
+          "status": "2H",
+          "score": {
+            "home": 1,
+            "away": 1
+          },
+          "statistics": {
+            "status": "ok",
+            "count": 0,
+            "error": ""
+          },
+          "events": {
+            "status": "ok",
+            "count": 15,
+            "error": ""
+          },
+          "liveOdds": {
+            "status": "ok",
+            "rawCount": 1,
+            "normalizedCount": 1,
+            "canonical": {
+              "has1x2": true,
+              "hasOu": true,
+              "hasAh": true,
+              "hasBtts": false
+            },
+            "error": ""
+          },
+          "preMatchOdds": {
+            "status": "skipped_disabled",
+            "rawCount": 0,
+            "normalizedCount": 0,
+            "canonical": {
+              "has1x2": false,
+              "hasOu": false,
+              "hasAh": false,
+              "hasBtts": false
+            },
+            "error": ""
+          }
+        }
+      ],
+      "samples": [
+        {
+          "iteration": 1,
+          "bucket": "live",
+          "fixtureId": "1538898",
+          "home": "Portugal U19",
+          "away": "Kazakhstan U19",
+          "league": "UEFA U19 Championship - Qualification",
+          "country": "World",
+          "kickoff": "2026-06-03T18:00:00+09:00",
+          "timestamp": 1780477200,
+          "status": {
+            "long": "Second Half",
+            "short": "2H",
+            "elapsed": 90,
+            "extra": 3
+          },
+          "score": {
+            "home": 1,
+            "away": 1
+          },
+          "calls": {
+            "statistics": {
+              "status": "ok",
+              "latencyMs": 469,
+              "count": 0
+            },
+            "events": {
+              "status": "ok",
+              "latencyMs": 436,
+              "count": 15
+            },
+            "liveOdds": {
+              "status": "ok",
+              "latencyMs": 460,
+              "rawCount": 1,
+              "normalizedCount": 1,
+              "coverage": {
+                "bookmaker_count": 1,
+                "bet_count": 9,
+                "priced_bet_count": 9,
+                "one_x2_bet_count": 1,
+                "ou_bet_count": 2,
+                "ah_bet_count": 2,
+                "btts_bet_count": 0,
+                "has_1x2": true,
+                "has_ou": true,
+                "has_ah": true,
+                "has_btts": false,
+                "canonical_has_1x2": true,
+                "canonical_has_ou": true,
+                "canonical_has_ah": true,
+                "canonical_has_btts": false
+              }
+            },
+            "preMatchOdds": {
+              "status": "skipped_disabled",
+              "latencyMs": 0
+            }
+          }
+        }
+      ]
+    },
+    {
+      "iteration": 2,
+      "generatedAt": "2026-06-03T10:57:43.628Z",
+      "fixtureCall": {
+        "status": "ok",
+        "latencyMs": 565,
+        "count": 86
+      },
+      "fixtureCountForDate": 86,
+      "selectedCount": 1,
+      "candidateCounts": {
+        "live": 5,
+        "near_kickoff": 13,
+        "finished": 51
+      },
+      "summary": [
+        {
+          "bucket": "live",
+          "iteration": 2,
+          "fixtureId": "1538898",
+          "match": "Portugal U19 vs Kazakhstan U19",
+          "status": "2H",
+          "score": {
+            "home": 1,
+            "away": 1
+          },
+          "statistics": {
+            "status": "ok",
+            "count": 0,
+            "error": ""
+          },
+          "events": {
+            "status": "ok",
+            "count": 16,
+            "error": ""
+          },
+          "liveOdds": {
+            "status": "ok",
+            "rawCount": 1,
+            "normalizedCount": 1,
+            "canonical": {
+              "has1x2": true,
+              "hasOu": false,
+              "hasAh": false,
+              "hasBtts": false
+            },
+            "error": ""
+          },
+          "preMatchOdds": {
+            "status": "skipped_disabled",
+            "rawCount": 0,
+            "normalizedCount": 0,
+            "canonical": {
+              "has1x2": false,
+              "hasOu": false,
+              "hasAh": false,
+              "hasBtts": false
+            },
+            "error": ""
+          }
+        }
+      ],
+      "samples": [
+        {
+          "iteration": 2,
+          "bucket": "live",
+          "fixtureId": "1538898",
+          "home": "Portugal U19",
+          "away": "Kazakhstan U19",
+          "league": "UEFA U19 Championship - Qualification",
+          "country": "World",
+          "kickoff": "2026-06-03T18:00:00+09:00",
+          "timestamp": 1780477200,
+          "status": {
+            "long": "Second Half",
+            "short": "2H",
+            "elapsed": 90,
+            "extra": 4
+          },
+          "score": {
+            "home": 1,
+            "away": 1
+          },
+          "calls": {
+            "statistics": {
+              "status": "ok",
+              "latencyMs": 440,
+              "count": 0
+            },
+            "events": {
+              "status": "ok",
+              "latencyMs": 470,
+              "count": 16
+            },
+            "liveOdds": {
+              "status": "ok",
+              "latencyMs": 512,
+              "rawCount": 1,
+              "normalizedCount": 1,
+              "coverage": {
+                "bookmaker_count": 1,
+                "bet_count": 2,
+                "priced_bet_count": 2,
+                "one_x2_bet_count": 1,
+                "ou_bet_count": 0,
+                "ah_bet_count": 0,
+                "btts_bet_count": 0,
+                "has_1x2": true,
+                "has_ou": false,
+                "has_ah": false,
+                "has_btts": false,
+                "canonical_has_1x2": true,
+                "canonical_has_ou": false,
+                "canonical_has_ah": false,
+                "canonical_has_btts": false
+              }
+            },
+            "preMatchOdds": {
+              "status": "skipped_disabled",
+              "latencyMs": 0
+            }
+          }
+        }
+      ]
+    },
+    {
+      "iteration": 3,
+      "generatedAt": "2026-06-03T10:58:45.728Z",
+      "fixtureCall": {
+        "status": "ok",
+        "latencyMs": 596,
+        "count": 86
+      },
+      "fixtureCountForDate": 86,
+      "selectedCount": 1,
+      "candidateCounts": {
+        "live": 5,
+        "near_kickoff": 13,
+        "finished": 51
+      },
+      "summary": [
+        {
+          "bucket": "live",
+          "iteration": 3,
+          "fixtureId": "1538898",
+          "match": "Portugal U19 vs Kazakhstan U19",
+          "status": "2H",
+          "score": {
+            "home": 1,
+            "away": 1
+          },
+          "statistics": {
+            "status": "ok",
+            "count": 0,
+            "error": ""
+          },
+          "events": {
+            "status": "ok",
+            "count": 16,
+            "error": ""
+          },
+          "liveOdds": {
+            "status": "ok",
+            "rawCount": 1,
+            "normalizedCount": 1,
+            "canonical": {
+              "has1x2": true,
+              "hasOu": false,
+              "hasAh": false,
+              "hasBtts": false
+            },
+            "error": ""
+          },
+          "preMatchOdds": {
+            "status": "skipped_disabled",
+            "rawCount": 0,
+            "normalizedCount": 0,
+            "canonical": {
+              "has1x2": false,
+              "hasOu": false,
+              "hasAh": false,
+              "hasBtts": false
+            },
+            "error": ""
+          }
+        }
+      ],
+      "samples": [
+        {
+          "iteration": 3,
+          "bucket": "live",
+          "fixtureId": "1538898",
+          "home": "Portugal U19",
+          "away": "Kazakhstan U19",
+          "league": "UEFA U19 Championship - Qualification",
+          "country": "World",
+          "kickoff": "2026-06-03T18:00:00+09:00",
+          "timestamp": 1780477200,
+          "status": {
+            "long": "Second Half",
+            "short": "2H",
+            "elapsed": 90,
+            "extra": 5
+          },
+          "score": {
+            "home": 1,
+            "away": 1
+          },
+          "calls": {
+            "statistics": {
+              "status": "ok",
+              "latencyMs": 523,
+              "count": 0
+            },
+            "events": {
+              "status": "ok",
+              "latencyMs": 511,
+              "count": 16
+            },
+            "liveOdds": {
+              "status": "ok",
+              "latencyMs": 459,
+              "rawCount": 1,
+              "normalizedCount": 1,
+              "coverage": {
+                "bookmaker_count": 1,
+                "bet_count": 2,
+                "priced_bet_count": 2,
+                "one_x2_bet_count": 1,
+                "ou_bet_count": 0,
+                "ah_bet_count": 0,
+                "btts_bet_count": 0,
+                "has_1x2": true,
+                "has_ou": false,
+                "has_ah": false,
+                "has_btts": false,
+                "canonical_has_1x2": true,
+                "canonical_has_ou": false,
+                "canonical_has_ah": false,
+                "canonical_has_btts": false
+              }
+            },
+            "preMatchOdds": {
+              "status": "skipped_disabled",
+              "latencyMs": 0
+            }
+          }
+        }
+      ]
+    },
+    {
+      "iteration": 4,
+      "generatedAt": "2026-06-03T10:59:47.758Z",
+      "fixtureCall": {
+        "status": "ok",
+        "latencyMs": 639,
+        "count": 86
+      },
+      "fixtureCountForDate": 86,
+      "selectedCount": 1,
+      "candidateCounts": {
+        "live": 5,
+        "near_kickoff": 13,
+        "finished": 51
+      },
+      "summary": [
+        {
+          "bucket": "live",
+          "iteration": 4,
+          "fixtureId": "1538898",
+          "match": "Portugal U19 vs Kazakhstan U19",
+          "status": "2H",
+          "score": {
+            "home": 1,
+            "away": 1
+          },
+          "statistics": {
+            "status": "ok",
+            "count": 0,
+            "error": ""
+          },
+          "events": {
+            "status": "ok",
+            "count": 16,
+            "error": ""
+          },
+          "liveOdds": {
+            "status": "ok",
+            "rawCount": 1,
+            "normalizedCount": 1,
+            "canonical": {
+              "has1x2": false,
+              "hasOu": false,
+              "hasAh": false,
+              "hasBtts": false
+            },
+            "error": ""
+          },
+          "preMatchOdds": {
+            "status": "skipped_disabled",
+            "rawCount": 0,
+            "normalizedCount": 0,
+            "canonical": {
+              "has1x2": false,
+              "hasOu": false,
+              "hasAh": false,
+              "hasBtts": false
+            },
+            "error": ""
+          }
+        }
+      ],
+      "samples": [
+        {
+          "iteration": 4,
+          "bucket": "live",
+          "fixtureId": "1538898",
+          "home": "Portugal U19",
+          "away": "Kazakhstan U19",
+          "league": "UEFA U19 Championship - Qualification",
+          "country": "World",
+          "kickoff": "2026-06-03T18:00:00+09:00",
+          "timestamp": 1780477200,
+          "status": {
+            "long": "Second Half",
+            "short": "2H",
+            "elapsed": 90,
+            "extra": 6
+          },
+          "score": {
+            "home": 1,
+            "away": 1
+          },
+          "calls": {
+            "statistics": {
+              "status": "ok",
+              "latencyMs": 496,
+              "count": 0
+            },
+            "events": {
+              "status": "ok",
+              "latencyMs": 441,
+              "count": 16
+            },
+            "liveOdds": {
+              "status": "ok",
+              "latencyMs": 450,
+              "rawCount": 1,
+              "normalizedCount": 1,
+              "coverage": {
+                "bookmaker_count": 1,
+                "bet_count": 1,
+                "priced_bet_count": 0,
+                "one_x2_bet_count": 0,
+                "ou_bet_count": 0,
+                "ah_bet_count": 0,
+                "btts_bet_count": 0,
+                "has_1x2": false,
+                "has_ou": false,
+                "has_ah": false,
+                "has_btts": false,
+                "canonical_has_1x2": false,
+                "canonical_has_ou": false,
+                "canonical_has_ah": false,
+                "canonical_has_btts": false
+              }
+            },
+            "preMatchOdds": {
+              "status": "skipped_disabled",
+              "latencyMs": 0
+            }
+          }
+        }
+      ]
+    },
+    {
+      "iteration": 5,
+      "generatedAt": "2026-06-03T11:00:49.854Z",
+      "fixtureCall": {
+        "status": "ok",
+        "latencyMs": 593,
+        "count": 86
+      },
+      "fixtureCountForDate": 86,
+      "selectedCount": 1,
+      "candidateCounts": {
+        "live": 5,
+        "near_kickoff": 15,
+        "finished": 51
+      },
+      "summary": [
+        {
+          "bucket": "live",
+          "iteration": 5,
+          "fixtureId": "1538898",
+          "match": "Portugal U19 vs Kazakhstan U19",
+          "status": "2H",
+          "score": {
+            "home": 1,
+            "away": 1
+          },
+          "statistics": {
+            "status": "ok",
+            "count": 0,
+            "error": ""
+          },
+          "events": {
+            "status": "ok",
+            "count": 16,
+            "error": ""
+          },
+          "liveOdds": {
+            "status": "ok",
+            "rawCount": 1,
+            "normalizedCount": 1,
+            "canonical": {
+              "has1x2": false,
+              "hasOu": false,
+              "hasAh": false,
+              "hasBtts": false
+            },
+            "error": ""
+          },
+          "preMatchOdds": {
+            "status": "skipped_disabled",
+            "rawCount": 0,
+            "normalizedCount": 0,
+            "canonical": {
+              "has1x2": false,
+              "hasOu": false,
+              "hasAh": false,
+              "hasBtts": false
+            },
+            "error": ""
+          }
+        }
+      ],
+      "samples": [
+        {
+          "iteration": 5,
+          "bucket": "live",
+          "fixtureId": "1538898",
+          "home": "Portugal U19",
+          "away": "Kazakhstan U19",
+          "league": "UEFA U19 Championship - Qualification",
+          "country": "World",
+          "kickoff": "2026-06-03T18:00:00+09:00",
+          "timestamp": 1780477200,
+          "status": {
+            "long": "Second Half",
+            "short": "2H",
+            "elapsed": 90,
+            "extra": 7
+          },
+          "score": {
+            "home": 1,
+            "away": 1
+          },
+          "calls": {
+            "statistics": {
+              "status": "ok",
+              "latencyMs": 559,
+              "count": 0
+            },
+            "events": {
+              "status": "ok",
+              "latencyMs": 469,
+              "count": 16
+            },
+            "liveOdds": {
+              "status": "ok",
+              "latencyMs": 472,
+              "rawCount": 1,
+              "normalizedCount": 1,
+              "coverage": {
+                "bookmaker_count": 1,
+                "bet_count": 1,
+                "priced_bet_count": 0,
+                "one_x2_bet_count": 0,
+                "ou_bet_count": 0,
+                "ah_bet_count": 0,
+                "btts_bet_count": 0,
+                "has_1x2": false,
+                "has_ou": false,
+                "has_ah": false,
+                "has_btts": false,
+                "canonical_has_1x2": false,
+                "canonical_has_ou": false,
+                "canonical_has_ah": false,
+                "canonical_has_btts": false
+              }
+            },
+            "preMatchOdds": {
+              "status": "skipped_disabled",
+              "latencyMs": 0
+            }
+          }
+        }
+      ]
+    },
+    {
+      "iteration": 6,
+      "generatedAt": "2026-06-03T11:01:52.103Z",
+      "fixtureCall": {
+        "status": "ok",
+        "latencyMs": 619,
+        "count": 86
+      },
+      "fixtureCountForDate": 86,
+      "selectedCount": 1,
+      "candidateCounts": {
+        "live": 4,
+        "near_kickoff": 15,
+        "finished": 52
+      },
+      "summary": [
+        {
+          "bucket": "live",
+          "iteration": 6,
+          "fixtureId": "1524145",
+          "match": "SC Wanderers vs St George Willawong",
+          "status": "2H",
+          "score": {
+            "home": 6,
+            "away": 0
+          },
+          "statistics": {
+            "status": "ok",
+            "count": 0,
+            "error": ""
+          },
+          "events": {
+            "status": "ok",
+            "count": 6,
+            "error": ""
+          },
+          "liveOdds": {
+            "status": "ok",
+            "rawCount": 1,
+            "normalizedCount": 1,
+            "canonical": {
+              "has1x2": false,
+              "hasOu": true,
+              "hasAh": true,
+              "hasBtts": true
+            },
+            "error": ""
+          },
+          "preMatchOdds": {
+            "status": "skipped_disabled",
+            "rawCount": 0,
+            "normalizedCount": 0,
+            "canonical": {
+              "has1x2": false,
+              "hasOu": false,
+              "hasAh": false,
+              "hasBtts": false
+            },
+            "error": ""
+          }
+        }
+      ],
+      "samples": [
+        {
+          "iteration": 6,
+          "bucket": "live",
+          "fixtureId": "1524145",
+          "home": "SC Wanderers",
+          "away": "St George Willawong",
+          "league": "Queensland Premier League",
+          "country": "Australia",
+          "kickoff": "2026-06-03T18:30:00+09:00",
+          "timestamp": 1780479000,
+          "status": {
+            "long": "Second Half",
+            "short": "2H",
+            "elapsed": 70,
+            "extra": null
+          },
+          "score": {
+            "home": 6,
+            "away": 0
+          },
+          "calls": {
+            "statistics": {
+              "status": "ok",
+              "latencyMs": 627,
+              "count": 0
+            },
+            "events": {
+              "status": "ok",
+              "latencyMs": 478,
+              "count": 6
+            },
+            "liveOdds": {
+              "status": "ok",
+              "latencyMs": 510,
+              "rawCount": 1,
+              "normalizedCount": 1,
+              "coverage": {
+                "bookmaker_count": 1,
+                "bet_count": 15,
+                "priced_bet_count": 15,
+                "one_x2_bet_count": 0,
+                "ou_bet_count": 2,
+                "ah_bet_count": 2,
+                "btts_bet_count": 2,
+                "has_1x2": false,
+                "has_ou": true,
+                "has_ah": true,
+                "has_btts": true,
+                "canonical_has_1x2": false,
+                "canonical_has_ou": true,
+                "canonical_has_ah": true,
+                "canonical_has_btts": true
+              }
+            },
+            "preMatchOdds": {
+              "status": "skipped_disabled",
+              "latencyMs": 0
+            }
+          }
+        }
+      ]
+    }
+  ]
+}

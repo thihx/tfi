@@ -1,0 +1,950 @@
+{
+  "generatedAt": "2026-06-03T07:57:56.951Z",
+  "promptVersion": "v10-hybrid-legacy-g",
+  "totalCases": 74,
+  "thresholds": {
+    "minSettledDirectional": 5,
+    "minReplayActionable": 3,
+    "blockAccuracyAtOrBelow": 0.35,
+    "blockRoiAtOrBelow": -0.25,
+    "capAccuracyAtOrBelow": 0.5,
+    "capRoiAtOrBelow": 0,
+    "defaultStakeCapPercent": 1.5,
+    "maxRows": 12
+  },
+  "qualityBlockers": {
+    "totalCases": 74,
+    "pushCount": 0,
+    "noBetCount": 74,
+    "actionableCount": 0,
+    "byReplayQualityAttribution": [
+      {
+        "key": "model_no_bet",
+        "count": 56
+      },
+      {
+        "key": "pre_llm_blocked",
+        "count": 13
+      },
+      {
+        "key": "model_policy_mismatch",
+        "count": 3
+      },
+      {
+        "key": "hard_policy_gate",
+        "count": 2
+      }
+    ],
+    "byProviderCoverageStatus": [
+      {
+        "key": "ok",
+        "count": 74
+      }
+    ],
+    "byReplayContextStatus": [
+      {
+        "key": "ok",
+        "count": 73
+      },
+      {
+        "key": "replay_memory_missing",
+        "count": 1
+      }
+    ],
+    "byDecisionKind": [
+      {
+        "key": "no_bet",
+        "count": 74
+      }
+    ],
+    "byLlmDecisionDiagnostic": [
+      {
+        "key": "no_bet_intentional",
+        "count": 56
+      },
+      {
+        "key": "pre_llm_blocked",
+        "count": 13
+      },
+      {
+        "key": "policy_blocked",
+        "count": 5
+      }
+    ],
+    "byMarketResolutionStatus": [
+      {
+        "key": "not_requested",
+        "count": 69
+      },
+      {
+        "key": "resolved",
+        "count": 5
+      }
+    ],
+    "topWarnings": [
+      {
+        "key": "NO_MARKET_REQUESTED_MODEL_NO_BET",
+        "count": 55
+      },
+      {
+        "key": "POLICY_BLOCK_MEDIUM_RISK_THIN_EDGE_GLOBAL",
+        "count": 4
+      },
+      {
+        "key": "REQUIRED_CONDITIONS_NOT_MET",
+        "count": 3
+      },
+      {
+        "key": "Active score/minute veto in play for minute 30-44 with one-goal margin.",
+        "count": 2
+      },
+      {
+        "key": "LLP_BLOCK_UNDER_THIN_CUSHION_NO_REMAP",
+        "count": 2
+      },
+      {
+        "key": "Active score/minute veto triggered for minute 30-44 with a one-goal margin.",
+        "count": 1
+      },
+      {
+        "key": "All primary safe markets have dropped below the minimum odds threshold of 1.5.",
+        "count": 1
+      },
+      {
+        "key": "Already exposed to Corners Under thesis.",
+        "count": 1
+      },
+      {
+        "key": "Anomalous scoreline relative to possession and shot dominance.",
+        "count": 1
+      },
+      {
+        "key": "Away team has a red card.",
+        "count": 1
+      },
+      {
+        "key": "Balanced midgame state with symmetric stats",
+        "count": 1
+      },
+      {
+        "key": "BTTS No is blocked before minute 60 in a one-goal margin state.",
+        "count": 1
+      },
+      {
+        "key": "Colorado Rapids is trailing and chasing, which blocks any Corners Under recommendations despite the extremely low current corner count.",
+        "count": 1
+      },
+      {
+        "key": "Corners Over 13 is blocked before minute 60 due to high line policy.",
+        "count": 1
+      },
+      {
+        "key": "Corners Over line >= 12.5 blocked before minute 60",
+        "count": 1
+      },
+      {
+        "key": "Danger zone minute 30-44 with one-goal margin active.",
+        "count": 1
+      },
+      {
+        "key": "Danger zone: minute 30-44 with one-goal margin.",
+        "count": 1
+      },
+      {
+        "key": "Existing Corners Over exposure already exists from minute 45.",
+        "count": 1
+      },
+      {
+        "key": "Existing exposure limits reached for both Home Asian Handicap and Corners Over directions.",
+        "count": 1
+      },
+      {
+        "key": "Existing exposure limits reached for Home AH and Corners Over.",
+        "count": 1
+      }
+    ],
+    "topHardPolicyWarnings": [
+      {
+        "key": "NO_MARKET_REQUESTED_MODEL_NO_BET",
+        "count": 55
+      },
+      {
+        "key": "POLICY_BLOCK_MEDIUM_RISK_THIN_EDGE_GLOBAL",
+        "count": 4
+      },
+      {
+        "key": "REQUIRED_CONDITIONS_NOT_MET",
+        "count": 3
+      },
+      {
+        "key": "Active score/minute veto in play for minute 30-44 with one-goal margin.",
+        "count": 2
+      },
+      {
+        "key": "LLP_BLOCK_UNDER_THIN_CUSHION_NO_REMAP",
+        "count": 2
+      },
+      {
+        "key": "Active score/minute veto triggered for minute 30-44 with a one-goal margin.",
+        "count": 1
+      },
+      {
+        "key": "All primary safe markets have dropped below the minimum odds threshold of 1.5.",
+        "count": 1
+      },
+      {
+        "key": "Already exposed to Corners Under thesis.",
+        "count": 1
+      },
+      {
+        "key": "Anomalous scoreline relative to possession and shot dominance.",
+        "count": 1
+      },
+      {
+        "key": "Away team has a red card.",
+        "count": 1
+      },
+      {
+        "key": "Balanced midgame state with symmetric stats",
+        "count": 1
+      },
+      {
+        "key": "BTTS No is blocked before minute 60 in a one-goal margin state.",
+        "count": 1
+      },
+      {
+        "key": "Colorado Rapids is trailing and chasing, which blocks any Corners Under recommendations despite the extremely low current corner count.",
+        "count": 1
+      },
+      {
+        "key": "Corners Over 13 is blocked before minute 60 due to high line policy.",
+        "count": 1
+      },
+      {
+        "key": "Corners Over line >= 12.5 blocked before minute 60",
+        "count": 1
+      },
+      {
+        "key": "Danger zone minute 30-44 with one-goal margin active.",
+        "count": 1
+      },
+      {
+        "key": "Danger zone: minute 30-44 with one-goal margin.",
+        "count": 1
+      },
+      {
+        "key": "Existing Corners Over exposure already exists from minute 45.",
+        "count": 1
+      },
+      {
+        "key": "Existing exposure limits reached for both Home Asian Handicap and Corners Over directions.",
+        "count": 1
+      },
+      {
+        "key": "Existing exposure limits reached for Home AH and Corners Over.",
+        "count": 1
+      }
+    ],
+    "providerCoverageGroups": [],
+    "unresolvedMarketExamples": [],
+    "policyWarningExamples": [
+      {
+        "scenarioName": "13398-1504825-67m-btts-yes",
+        "minute": 67,
+        "score": "0-2",
+        "canonicalMarket": "btts_yes",
+        "replaySelection": "BTTS Yes @2.2",
+        "originalBetMarket": "btts_yes",
+        "marketResolutionStatus": "resolved",
+        "llmDecisionDiagnostic": "policy_blocked",
+        "warnings": [
+          "POLICY_BLOCK_MEDIUM_RISK_THIN_EDGE_GLOBAL"
+        ],
+        "reason": "Replay resolved the market price, but hard post-parse policy gates blocked the recommendation."
+      },
+      {
+        "scenarioName": "13395-1490320-80m-under-4-5",
+        "minute": 80,
+        "score": "1-3",
+        "canonicalMarket": "under_4.5",
+        "replaySelection": "Under 4.5 Goals @2.025",
+        "originalBetMarket": "under_4.5",
+        "marketResolutionStatus": "resolved",
+        "llmDecisionDiagnostic": "policy_blocked",
+        "warnings": [
+          "Late game phase (minute 80) carries inherent volatility as teams may exhaust tactical discipline in the final minutes.",
+          "LLP_BLOCK_UNDER_THIN_CUSHION_NO_REMAP",
+          "POLICY_CAP_GOALS_UNDER_THIN_CUSHION_STAKE_GLOBAL"
+        ],
+        "reason": "Replay resolved the market price, but hard post-parse policy gates blocked the recommendation."
+      },
+      {
+        "scenarioName": "13381-1535217-61m-over-1-5",
+        "minute": 61,
+        "score": "1-0",
+        "canonicalMarket": "over_1.5",
+        "replaySelection": "Over 1.5 Goals @1.55",
+        "originalBetMarket": "over_1.5",
+        "marketResolutionStatus": "resolved",
+        "llmDecisionDiagnostic": "policy_blocked",
+        "warnings": [
+          "LLP_BLOCK_OVER_AGGRESSIVE_LINE",
+          "REQUIRED_CONDITIONS_NOT_MET",
+          "OVER_1_5_BLOCKED_LATE_MIDGAME",
+          "POLICY_BLOCK_MEDIUM_RISK_THIN_EDGE_GLOBAL"
+        ],
+        "reason": "Replay resolved the market price, but the model still proposed a bet in a policy zone already exposed by runtime preflight context."
+      },
+      {
+        "scenarioName": "13375-1523156-77m-under-2-5",
+        "minute": 77,
+        "score": "1-1",
+        "canonicalMarket": "under_2.5",
+        "replaySelection": "Under 2.5 Goals @1.7",
+        "originalBetMarket": "under_2.5",
+        "marketResolutionStatus": "resolved",
+        "llmDecisionDiagnostic": "policy_blocked",
+        "warnings": [
+          "LLP_BLOCK_UNDER_THIN_CUSHION_NO_REMAP",
+          "REQUIRED_CONDITIONS_NOT_MET",
+          "POLICY_BLOCK_GOALS_UNDER_THIN_CUSHION_LOW_CONF_GLOBAL",
+          "POLICY_BLOCK_MEDIUM_RISK_THIN_EDGE_GLOBAL"
+        ],
+        "reason": "Replay resolved the market price, but the model still proposed a bet in a policy zone already exposed by runtime preflight context."
+      },
+      {
+        "scenarioName": "13328-1492598-70m-over-2-75",
+        "minute": 70,
+        "score": "1-1",
+        "canonicalMarket": "corners_over_8.5",
+        "replaySelection": "Corners Over 8.5 @1.775",
+        "originalBetMarket": "over_2.75",
+        "marketResolutionStatus": "resolved",
+        "llmDecisionDiagnostic": "policy_blocked",
+        "warnings": [
+          "LLP_BLOCK_CORNERS_OVER_AGGRESSIVE_LINE",
+          "REQUIRED_CONDITIONS_NOT_MET",
+          "POLICY_BLOCK_MEDIUM_RISK_THIN_EDGE_GLOBAL",
+          "MEMORY_FLAG_NO_HISTORY"
+        ],
+        "reason": "Replay resolved the market price, but the model still proposed a bet in a policy zone already exposed by runtime preflight context."
+      }
+    ],
+    "opportunityRecall": {
+      "originalWinCount": 38,
+      "originalWinMissedCount": 38,
+      "originalWinMissRate": 1,
+      "originalLossCount": 33,
+      "originalLossAvoidedCount": 33,
+      "originalLossAvoidanceRate": 1,
+      "candidateRescueCount": 3,
+      "byReplayQualityAttribution": [
+        {
+          "key": "model_no_bet",
+          "count": 27
+        },
+        {
+          "key": "pre_llm_blocked",
+          "count": 8
+        },
+        {
+          "key": "hard_policy_gate",
+          "count": 2
+        },
+        {
+          "key": "model_policy_mismatch",
+          "count": 1
+        }
+      ],
+      "byLlmDecisionDiagnostic": [
+        {
+          "key": "no_bet_intentional",
+          "count": 27
+        },
+        {
+          "key": "pre_llm_blocked",
+          "count": 8
+        },
+        {
+          "key": "policy_blocked",
+          "count": 3
+        }
+      ],
+      "byMarketFamily": [
+        {
+          "key": "goals_under",
+          "count": 14
+        },
+        {
+          "key": "corners",
+          "count": 8
+        },
+        {
+          "key": "asian_handicap",
+          "count": 7
+        },
+        {
+          "key": "goals_over",
+          "count": 4
+        },
+        {
+          "key": "btts",
+          "count": 3
+        },
+        {
+          "key": "1x2",
+          "count": 1
+        },
+        {
+          "key": "other",
+          "count": 1
+        }
+      ],
+      "preservedNoBetReasons": [
+        {
+          "key": "model_intentional_no_bet",
+          "count": 27
+        },
+        {
+          "key": "pre_llm_firewall_or_low_evidence",
+          "count": 8
+        }
+      ],
+      "candidateRescueExamples": [
+        {
+          "scenarioName": "13398-1504825-67m-btts-yes",
+          "minute": 67,
+          "score": "0-2",
+          "canonicalMarket": "btts_yes",
+          "replaySelection": "BTTS Yes @2.2",
+          "originalBetMarket": "btts_yes",
+          "marketResolutionStatus": "resolved",
+          "llmDecisionDiagnostic": "policy_blocked",
+          "warnings": [
+            "POLICY_BLOCK_MEDIUM_RISK_THIN_EDGE_GLOBAL"
+          ],
+          "reason": "BTTS Yes rescue candidate: 60-74, two-plus margin, full live data, policy-blocked model selection priced above roughly 2.05.",
+          "originalResult": "win",
+          "evidenceMode": "full_live_data",
+          "scoreState": "two-plus-margin",
+          "minuteBand": "60-74",
+          "replayQualityAttribution": "hard_policy_gate",
+          "providerCoverageStatus": "ok",
+          "replayContextStatus": "ok"
+        },
+        {
+          "scenarioName": "13395-1490320-80m-under-4-5",
+          "minute": 80,
+          "score": "1-3",
+          "canonicalMarket": "under_4.5",
+          "replaySelection": "Under 4.5 Goals @2.025",
+          "originalBetMarket": "under_4.5",
+          "marketResolutionStatus": "resolved",
+          "llmDecisionDiagnostic": "policy_blocked",
+          "warnings": [
+            "Late game phase (minute 80) carries inherent volatility as teams may exhaust tactical discipline in the final minutes.",
+            "LLP_BLOCK_UNDER_THIN_CUSHION_NO_REMAP",
+            "POLICY_CAP_GOALS_UNDER_THIN_CUSHION_STAKE_GLOBAL"
+          ],
+          "reason": "Late Under 4.5 rescue candidate: 75+, two-plus margin, exactly 4 current goals, full live data, and break-even below late-game threshold.",
+          "originalResult": "win",
+          "evidenceMode": "full_live_data",
+          "scoreState": "two-plus-margin",
+          "minuteBand": "75+",
+          "replayQualityAttribution": "hard_policy_gate",
+          "providerCoverageStatus": "ok",
+          "replayContextStatus": "ok"
+        },
+        {
+          "scenarioName": "13381-1535217-61m-over-1-5",
+          "minute": 61,
+          "score": "1-0",
+          "canonicalMarket": "over_1.5",
+          "replaySelection": "Over 1.5 Goals @1.55",
+          "originalBetMarket": "over_1.5",
+          "marketResolutionStatus": "resolved",
+          "llmDecisionDiagnostic": "policy_blocked",
+          "warnings": [
+            "LLP_BLOCK_OVER_AGGRESSIVE_LINE",
+            "REQUIRED_CONDITIONS_NOT_MET",
+            "OVER_1_5_BLOCKED_LATE_MIDGAME",
+            "POLICY_BLOCK_MEDIUM_RISK_THIN_EDGE_GLOBAL"
+          ],
+          "reason": "Over 1.5 rescue candidate: 60-74, one-goal margin, full live data, policy-blocked model selection with plausible break-even.",
+          "originalResult": "win",
+          "evidenceMode": "full_live_data",
+          "scoreState": "one-goal-margin",
+          "minuteBand": "60-74",
+          "replayQualityAttribution": "model_policy_mismatch",
+          "providerCoverageStatus": "ok",
+          "replayContextStatus": "ok"
+        }
+      ],
+      "preservedNoBetExamples": [
+        {
+          "scenarioName": "13402-1545451-83m-corners-under-14-5",
+          "minute": 83,
+          "score": "1-1",
+          "canonicalMarket": "unknown",
+          "replaySelection": "",
+          "originalBetMarket": "corners_under_14.5",
+          "marketResolutionStatus": "not_requested",
+          "llmDecisionDiagnostic": "no_bet_intentional",
+          "warnings": [
+            "NO_MARKET_REQUESTED_MODEL_NO_BET"
+          ],
+          "reason": "Original result won, but replay evidence does not meet a safe automatic rescue pattern; preserve conservative no-bet unless a larger cohort proves otherwise.",
+          "originalResult": "win",
+          "evidenceMode": "full_live_data",
+          "scoreState": "level",
+          "minuteBand": "75+",
+          "replayQualityAttribution": "model_no_bet",
+          "providerCoverageStatus": "ok",
+          "replayContextStatus": "ok"
+        },
+        {
+          "scenarioName": "13401-1490324-64m-over-0-75",
+          "minute": 64,
+          "score": "0-0",
+          "canonicalMarket": "unknown",
+          "replaySelection": "",
+          "originalBetMarket": "over_0.75",
+          "marketResolutionStatus": "not_requested",
+          "llmDecisionDiagnostic": "no_bet_intentional",
+          "warnings": [
+            "NO_MARKET_REQUESTED_MODEL_NO_BET"
+          ],
+          "reason": "Original result won, but replay evidence does not meet a safe automatic rescue pattern; preserve conservative no-bet unless a larger cohort proves otherwise.",
+          "originalResult": "half_win",
+          "evidenceMode": "full_live_data",
+          "scoreState": "0-0",
+          "minuteBand": "60-74",
+          "replayQualityAttribution": "model_no_bet",
+          "providerCoverageStatus": "ok",
+          "replayContextStatus": "ok"
+        },
+        {
+          "scenarioName": "13394-1490318-76m-corners-under-6-5",
+          "minute": 76,
+          "score": "1-4",
+          "canonicalMarket": "unknown",
+          "replaySelection": "",
+          "originalBetMarket": "corners_under_6.5",
+          "marketResolutionStatus": "not_requested",
+          "llmDecisionDiagnostic": "no_bet_intentional",
+          "warnings": [
+            "Home team has a red card",
+            "Existing Goals Under exposure already exists and has been breached",
+            "NO_MARKET_REQUESTED_MODEL_NO_BET"
+          ],
+          "reason": "Original result won, but replay evidence does not meet a safe automatic rescue pattern; preserve conservative no-bet unless a larger cohort proves otherwise.",
+          "originalResult": "win",
+          "evidenceMode": "full_live_data",
+          "scoreState": "two-plus-margin",
+          "minuteBand": "75+",
+          "replayQualityAttribution": "model_no_bet",
+          "providerCoverageStatus": "ok",
+          "replayContextStatus": "ok"
+        },
+        {
+          "scenarioName": "13392-1490319-50m-under-4",
+          "minute": 50,
+          "score": "1-2",
+          "canonicalMarket": "unknown",
+          "replaySelection": "",
+          "originalBetMarket": "under_4",
+          "marketResolutionStatus": "not_requested",
+          "llmDecisionDiagnostic": "no_bet_intentional",
+          "warnings": [
+            "Colorado Rapids is trailing and chasing, which blocks any Corners Under recommendations despite the extremely low current corner count.",
+            "Goals Over lines are priced too low (below 1.50), while Under lines carry high volatility in MLS.",
+            "NO_MARKET_REQUESTED_MODEL_NO_BET"
+          ],
+          "reason": "Original result won, but replay evidence does not meet a safe automatic rescue pattern; preserve conservative no-bet unless a larger cohort proves otherwise.",
+          "originalResult": "win",
+          "evidenceMode": "full_live_data",
+          "scoreState": "one-goal-margin",
+          "minuteBand": "45-59",
+          "replayQualityAttribution": "model_no_bet",
+          "providerCoverageStatus": "ok",
+          "replayContextStatus": "ok"
+        },
+        {
+          "scenarioName": "13391-1516858-70m-under-0-5",
+          "minute": 70,
+          "score": "0-0",
+          "canonicalMarket": "unknown",
+          "replaySelection": "",
+          "originalBetMarket": "under_0.5",
+          "marketResolutionStatus": "not_requested",
+          "llmDecisionDiagnostic": "pre_llm_blocked",
+          "warnings": [],
+          "reason": "Original result won, but replay evidence does not meet a safe automatic rescue pattern; preserve conservative no-bet unless a larger cohort proves otherwise.",
+          "originalResult": "win",
+          "evidenceMode": "odds_events_only_degraded",
+          "scoreState": "0-0",
+          "minuteBand": "60-74",
+          "replayQualityAttribution": "pre_llm_blocked",
+          "providerCoverageStatus": "ok",
+          "replayContextStatus": "ok"
+        },
+        {
+          "scenarioName": "13390-1403861-83m-under-1-5",
+          "minute": 83,
+          "score": "0-1",
+          "canonicalMarket": "unknown",
+          "replaySelection": "",
+          "originalBetMarket": "under_1.5",
+          "marketResolutionStatus": "not_requested",
+          "llmDecisionDiagnostic": "pre_llm_blocked",
+          "warnings": [],
+          "reason": "Original result won, but replay evidence does not meet a safe automatic rescue pattern; preserve conservative no-bet unless a larger cohort proves otherwise.",
+          "originalResult": "win",
+          "evidenceMode": "odds_events_only_degraded",
+          "scoreState": "one-goal-margin",
+          "minuteBand": "75+",
+          "replayQualityAttribution": "pre_llm_blocked",
+          "providerCoverageStatus": "ok",
+          "replayContextStatus": "ok"
+        },
+        {
+          "scenarioName": "13377-1523155-81m-under-2-5",
+          "minute": 81,
+          "score": "1-1",
+          "canonicalMarket": "unknown",
+          "replaySelection": "",
+          "originalBetMarket": "under_2.5",
+          "marketResolutionStatus": "not_requested",
+          "llmDecisionDiagnostic": "no_bet_intentional",
+          "warnings": [
+            "Late game phase (minute 81) limits viable options.",
+            "Previous corner thesis has stalled.",
+            "NO_MARKET_REQUESTED_MODEL_NO_BET"
+          ],
+          "reason": "Original result won, but replay evidence does not meet a safe automatic rescue pattern; preserve conservative no-bet unless a larger cohort proves otherwise.",
+          "originalResult": "win",
+          "evidenceMode": "full_live_data",
+          "scoreState": "level",
+          "minuteBand": "75+",
+          "replayQualityAttribution": "model_no_bet",
+          "providerCoverageStatus": "ok",
+          "replayContextStatus": "ok"
+        },
+        {
+          "scenarioName": "13378-1523158-64m-asian-handicap-away-0-5",
+          "minute": 64,
+          "score": "0-0",
+          "canonicalMarket": "unknown",
+          "replaySelection": "",
+          "originalBetMarket": "asian_handicap_away_+0.5",
+          "marketResolutionStatus": "not_requested",
+          "llmDecisionDiagnostic": "no_bet_intentional",
+          "warnings": [
+            "NO_MARKET_REQUESTED_MODEL_NO_BET"
+          ],
+          "reason": "Original result won, but replay evidence does not meet a safe automatic rescue pattern; preserve conservative no-bet unless a larger cohort proves otherwise.",
+          "originalResult": "win",
+          "evidenceMode": "full_live_data",
+          "scoreState": "0-0",
+          "minuteBand": "60-74",
+          "replayQualityAttribution": "model_no_bet",
+          "providerCoverageStatus": "ok",
+          "replayContextStatus": "ok"
+        },
+        {
+          "scenarioName": "13380-1523158-74m-over-1-5",
+          "minute": 74,
+          "score": "1-0",
+          "canonicalMarket": "unknown",
+          "replaySelection": "",
+          "originalBetMarket": "over_1.5",
+          "marketResolutionStatus": "not_requested",
+          "llmDecisionDiagnostic": "no_bet_intentional",
+          "warnings": [
+            "Home team has received a red card.",
+            "NO_MARKET_REQUESTED_MODEL_NO_BET"
+          ],
+          "reason": "Original result won, but replay evidence does not meet a safe automatic rescue pattern; preserve conservative no-bet unless a larger cohort proves otherwise.",
+          "originalResult": "win",
+          "evidenceMode": "full_live_data",
+          "scoreState": "one-goal-margin",
+          "minuteBand": "60-74",
+          "replayQualityAttribution": "model_no_bet",
+          "providerCoverageStatus": "ok",
+          "replayContextStatus": "ok"
+        },
+        {
+          "scenarioName": "13385-1535207-69m-under-4-5",
+          "minute": 69,
+          "score": "2-2",
+          "canonicalMarket": "unknown",
+          "replaySelection": "",
+          "originalBetMarket": "under_4.5",
+          "marketResolutionStatus": "not_requested",
+          "llmDecisionDiagnostic": "no_bet_intentional",
+          "warnings": [
+            "NO_MARKET_REQUESTED_MODEL_NO_BET"
+          ],
+          "reason": "Original result won, but replay evidence does not meet a safe automatic rescue pattern; preserve conservative no-bet unless a larger cohort proves otherwise.",
+          "originalResult": "win",
+          "evidenceMode": "full_live_data",
+          "scoreState": "level",
+          "minuteBand": "60-74",
+          "replayQualityAttribution": "model_no_bet",
+          "providerCoverageStatus": "ok",
+          "replayContextStatus": "ok"
+        },
+        {
+          "scenarioName": "13387-1535203-76m-under-2-5",
+          "minute": 76,
+          "score": "1-1",
+          "canonicalMarket": "unknown",
+          "replaySelection": "",
+          "originalBetMarket": "under_2.5",
+          "marketResolutionStatus": "not_requested",
+          "llmDecisionDiagnostic": "no_bet_intentional",
+          "warnings": [
+            "NO_MARKET_REQUESTED_MODEL_NO_BET"
+          ],
+          "reason": "Original result won, but replay evidence does not meet a safe automatic rescue pattern; preserve conservative no-bet unless a larger cohort proves otherwise.",
+          "originalResult": "win",
+          "evidenceMode": "full_live_data",
+          "scoreState": "level",
+          "minuteBand": "75+",
+          "replayQualityAttribution": "model_no_bet",
+          "providerCoverageStatus": "ok",
+          "replayContextStatus": "ok"
+        },
+        {
+          "scenarioName": "13367-1490309-60m-corners-over-10-5",
+          "minute": 60,
+          "score": "3-1",
+          "canonicalMarket": "unknown",
+          "replaySelection": "",
+          "originalBetMarket": "corners_over_10.5",
+          "marketResolutionStatus": "not_requested",
+          "llmDecisionDiagnostic": "no_bet_intentional",
+          "warnings": [
+            "NO_MARKET_REQUESTED_MODEL_NO_BET"
+          ],
+          "reason": "Original result won, but replay evidence does not meet a safe automatic rescue pattern; preserve conservative no-bet unless a larger cohort proves otherwise.",
+          "originalResult": "win",
+          "evidenceMode": "full_live_data",
+          "scoreState": "two-plus-margin",
+          "minuteBand": "60-74",
+          "replayQualityAttribution": "model_no_bet",
+          "providerCoverageStatus": "ok",
+          "replayContextStatus": "ok"
+        }
+      ]
+    },
+    "modelSelectedPolicyBlocked": {
+      "total": 5,
+      "originalWinCount": 3,
+      "originalLossCount": 2,
+      "originalPushLikeCount": 0,
+      "byMarketFamily": [
+        {
+          "key": "goals_under",
+          "count": 2
+        },
+        {
+          "key": "btts",
+          "count": 1
+        },
+        {
+          "key": "corners",
+          "count": 1
+        },
+        {
+          "key": "goals_over",
+          "count": 1
+        }
+      ],
+      "byReplayQualityAttribution": [
+        {
+          "key": "model_policy_mismatch",
+          "count": 3
+        },
+        {
+          "key": "hard_policy_gate",
+          "count": 2
+        }
+      ],
+      "byWarning": [
+        {
+          "key": "POLICY_BLOCK_MEDIUM_RISK_THIN_EDGE_GLOBAL",
+          "count": 4
+        },
+        {
+          "key": "REQUIRED_CONDITIONS_NOT_MET",
+          "count": 3
+        },
+        {
+          "key": "LLP_BLOCK_UNDER_THIN_CUSHION_NO_REMAP",
+          "count": 2
+        },
+        {
+          "key": "Late game phase (minute 80) carries inherent volatility as teams may exhaust tactical discipline in the final minutes.",
+          "count": 1
+        },
+        {
+          "key": "LLP_BLOCK_CORNERS_OVER_AGGRESSIVE_LINE",
+          "count": 1
+        },
+        {
+          "key": "LLP_BLOCK_OVER_AGGRESSIVE_LINE",
+          "count": 1
+        },
+        {
+          "key": "MEMORY_FLAG_NO_HISTORY",
+          "count": 1
+        },
+        {
+          "key": "OVER_1_5_BLOCKED_LATE_MIDGAME",
+          "count": 1
+        },
+        {
+          "key": "POLICY_BLOCK_GOALS_UNDER_THIN_CUSHION_LOW_CONF_GLOBAL",
+          "count": 1
+        },
+        {
+          "key": "POLICY_CAP_GOALS_UNDER_THIN_CUSHION_STAKE_GLOBAL",
+          "count": 1
+        }
+      ],
+      "examples": [
+        {
+          "scenarioName": "13398-1504825-67m-btts-yes",
+          "minute": 67,
+          "score": "0-2",
+          "canonicalMarket": "btts_yes",
+          "replaySelection": "BTTS Yes @2.2",
+          "originalBetMarket": "btts_yes",
+          "marketResolutionStatus": "resolved",
+          "llmDecisionDiagnostic": "policy_blocked",
+          "warnings": [
+            "POLICY_BLOCK_MEDIUM_RISK_THIN_EDGE_GLOBAL"
+          ],
+          "reason": "BTTS Yes rescue candidate: 60-74, two-plus margin, full live data, policy-blocked model selection priced above roughly 2.05.",
+          "recommendationId": 13398,
+          "originalResult": "win",
+          "replayOdds": null,
+          "breakEvenRate": 0.45454545454545453,
+          "replayStakePercent": 0,
+          "replayQualityAttribution": "hard_policy_gate",
+          "providerCoverageStatus": "ok",
+          "replayContextStatus": "ok"
+        },
+        {
+          "scenarioName": "13395-1490320-80m-under-4-5",
+          "minute": 80,
+          "score": "1-3",
+          "canonicalMarket": "under_4.5",
+          "replaySelection": "Under 4.5 Goals @2.025",
+          "originalBetMarket": "under_4.5",
+          "marketResolutionStatus": "resolved",
+          "llmDecisionDiagnostic": "policy_blocked",
+          "warnings": [
+            "Late game phase (minute 80) carries inherent volatility as teams may exhaust tactical discipline in the final minutes.",
+            "LLP_BLOCK_UNDER_THIN_CUSHION_NO_REMAP",
+            "POLICY_CAP_GOALS_UNDER_THIN_CUSHION_STAKE_GLOBAL"
+          ],
+          "reason": "Late Under 4.5 rescue candidate: 75+, two-plus margin, exactly 4 current goals, full live data, and break-even below late-game threshold.",
+          "recommendationId": 13395,
+          "originalResult": "win",
+          "replayOdds": null,
+          "breakEvenRate": 0.4938271604938272,
+          "replayStakePercent": 0,
+          "replayQualityAttribution": "hard_policy_gate",
+          "providerCoverageStatus": "ok",
+          "replayContextStatus": "ok"
+        },
+        {
+          "scenarioName": "13381-1535217-61m-over-1-5",
+          "minute": 61,
+          "score": "1-0",
+          "canonicalMarket": "over_1.5",
+          "replaySelection": "Over 1.5 Goals @1.55",
+          "originalBetMarket": "over_1.5",
+          "marketResolutionStatus": "resolved",
+          "llmDecisionDiagnostic": "policy_blocked",
+          "warnings": [
+            "LLP_BLOCK_OVER_AGGRESSIVE_LINE",
+            "REQUIRED_CONDITIONS_NOT_MET",
+            "OVER_1_5_BLOCKED_LATE_MIDGAME",
+            "POLICY_BLOCK_MEDIUM_RISK_THIN_EDGE_GLOBAL"
+          ],
+          "reason": "Over 1.5 rescue candidate: 60-74, one-goal margin, full live data, policy-blocked model selection with plausible break-even.",
+          "recommendationId": 13381,
+          "originalResult": "win",
+          "replayOdds": null,
+          "breakEvenRate": 0.6451612903225806,
+          "replayStakePercent": 0,
+          "replayQualityAttribution": "model_policy_mismatch",
+          "providerCoverageStatus": "ok",
+          "replayContextStatus": "ok"
+        },
+        {
+          "scenarioName": "13375-1523156-77m-under-2-5",
+          "minute": 77,
+          "score": "1-1",
+          "canonicalMarket": "under_2.5",
+          "replaySelection": "Under 2.5 Goals @1.7",
+          "originalBetMarket": "under_2.5",
+          "marketResolutionStatus": "resolved",
+          "llmDecisionDiagnostic": "policy_blocked",
+          "warnings": [
+            "LLP_BLOCK_UNDER_THIN_CUSHION_NO_REMAP",
+            "REQUIRED_CONDITIONS_NOT_MET",
+            "POLICY_BLOCK_GOALS_UNDER_THIN_CUSHION_LOW_CONF_GLOBAL",
+            "POLICY_BLOCK_MEDIUM_RISK_THIN_EDGE_GLOBAL"
+          ],
+          "reason": "Model selected a resolved market, but replay policy blocked it; inspect final outcome before changing policy.",
+          "recommendationId": 13375,
+          "originalResult": "loss",
+          "replayOdds": null,
+          "breakEvenRate": 0.5882352941176471,
+          "replayStakePercent": 0,
+          "replayQualityAttribution": "model_policy_mismatch",
+          "providerCoverageStatus": "ok",
+          "replayContextStatus": "ok"
+        },
+        {
+          "scenarioName": "13328-1492598-70m-over-2-75",
+          "minute": 70,
+          "score": "1-1",
+          "canonicalMarket": "corners_over_8.5",
+          "replaySelection": "Corners Over 8.5 @1.775",
+          "originalBetMarket": "over_2.75",
+          "marketResolutionStatus": "resolved",
+          "llmDecisionDiagnostic": "policy_blocked",
+          "warnings": [
+            "LLP_BLOCK_CORNERS_OVER_AGGRESSIVE_LINE",
+            "REQUIRED_CONDITIONS_NOT_MET",
+            "POLICY_BLOCK_MEDIUM_RISK_THIN_EDGE_GLOBAL",
+            "MEMORY_FLAG_NO_HISTORY"
+          ],
+          "reason": "Model selected a resolved market, but replay policy blocked it; inspect final outcome before changing policy.",
+          "recommendationId": 13328,
+          "originalResult": "loss",
+          "replayOdds": null,
+          "breakEvenRate": 0.5633802816901409,
+          "replayStakePercent": 0,
+          "replayQualityAttribution": "model_policy_mismatch",
+          "providerCoverageStatus": "ok",
+          "replayContextStatus": "replay_memory_missing"
+        }
+      ]
+    }
+  },
+  "blocklistCandidates": [],
+  "stakeCapCandidates": [],
+  "reviewCandidates": [],
+  "suggestedBlocklistJson": {
+    "segmentKeys": []
+  },
+  "suggestedStakeCapJson": {
+    "caps": {}
+  }
+}

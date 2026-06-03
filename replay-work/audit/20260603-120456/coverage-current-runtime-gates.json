@@ -1,0 +1,7 @@
+{
+  "coveragePath": "../../replay-work/audit/20260603-120456/coverage-current-runtime.json",
+  "officialPromptVersion": "v10-hybrid-legacy-g",
+  "minExportEligible": 1000,
+  "minCurrentRuntimeReady": 1,
+  "minCurrentRuntimeReadyRate": 0.001
+}

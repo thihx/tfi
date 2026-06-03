@@ -4,6 +4,7 @@ import {
   getReplayFineTimeWindow,
   getReplayMinuteBand,
   getReplayScoreState,
+  normalizeEvaluatedReplayCaseDiagnostics,
   summarizeSettledReplayVariant,
 } from '../lib/settled-replay-evaluation.js';
 
@@ -562,5 +563,164 @@ describe('settled replay evaluation', () => {
     expect(row.llmDecisionDiagnostic).toBe('pre_llm_blocked');
     expect(row.marketResolutionStatus).toBe('not_requested');
     expect(row.replayQualityAttribution).toBe('pre_llm_blocked');
+  });
+
+  test('separates intentional no-market no-bets from selected-market resolution failures', () => {
+    const scenario = {
+      name: 'case-no-market',
+      matchId: '1',
+      fixture: {} as never,
+      metadata: {
+        recommendationId: 1,
+        originalPromptVersion: 'v10-hybrid-legacy-g',
+        originalAiModel: 'gemini',
+        originalBetMarket: 'corners_under_7.5',
+        originalSelection: '',
+        originalResult: 'win',
+        originalPnl: 2,
+        minute: 30,
+        score: '1-0',
+        status: '1H',
+        league: 'A',
+        homeTeam: 'Home',
+        awayTeam: 'Away',
+        evidenceMode: 'full_live_data',
+        prematchStrength: 'strong',
+        profileCoverageBand: 'high',
+        overlayCoverageBand: 'low',
+        policyImpactBand: 'neutral',
+        performanceMemoryKey: 'corners_under_7.5|30-44|one-goal-margin',
+        performanceMemoryStatus: 'found' as const,
+      },
+      settlementContext: {
+        matchId: '1',
+        homeTeam: 'Home',
+        awayTeam: 'Away',
+        finalStatus: 'FT',
+        homeScore: 1,
+        awayScore: 0,
+        regularHomeScore: 1,
+        regularAwayScore: 0,
+        settlementStats: [],
+      },
+    };
+
+    const noMarket = buildEvaluatedReplayCase(
+      'v10-hybrid-legacy-g',
+      scenario,
+      {
+        scenarioName: 'case-no-market',
+        llmMode: 'real',
+        oddsMode: 'recorded',
+        shadowMode: false,
+        sampleProviderData: false,
+        assertions: [],
+        allPassed: true,
+        result: {
+          matchId: '1',
+          success: true,
+          decisionKind: 'no_bet',
+          shouldPush: false,
+          selection: '',
+          confidence: 0,
+          saved: false,
+          notified: false,
+          debug: {
+            shadowMode: false,
+            parsed: { warnings: ['MARKET_UNRESOLVED'] },
+          },
+        },
+      },
+      null,
+      null,
+      null,
+      null,
+      'side_market_unplayable',
+    );
+
+    expect(noMarket.llmDecisionDiagnostic).toBe('no_bet_intentional');
+    expect(noMarket.marketResolutionStatus).toBe('not_requested');
+    expect(noMarket.replayWarnings).toContain('NO_MARKET_REQUESTED_MODEL_NO_BET');
+    expect(noMarket.replayWarnings).not.toContain('MARKET_UNRESOLVED');
+
+    const unresolvedSelection = buildEvaluatedReplayCase(
+      'v10-hybrid-legacy-g',
+      scenario,
+      {
+        scenarioName: 'case-unresolved-selection',
+        llmMode: 'real',
+        oddsMode: 'recorded',
+        shadowMode: false,
+        sampleProviderData: false,
+        assertions: [],
+        allPassed: true,
+        result: {
+          matchId: '1',
+          success: true,
+          decisionKind: 'no_bet',
+          shouldPush: true,
+          selection: 'Mystery Market @2.10',
+          confidence: 7,
+          saved: false,
+          notified: false,
+          debug: {
+            shadowMode: false,
+            parsed: { warnings: ['MARKET_UNRESOLVED'] },
+          },
+        },
+      },
+      null,
+      null,
+      null,
+      null,
+      'side_market_unplayable',
+    );
+
+    expect(unresolvedSelection.llmDecisionDiagnostic).toBe('market_parse_failed');
+    expect(unresolvedSelection.marketResolutionStatus).toBe('missing_market');
+    expect(unresolvedSelection.replayWarnings).toContain('MARKET_UNRESOLVED_AFTER_SELECTION');
+    expect(unresolvedSelection.providerCoverageStatus).toBe('missing_market_or_selection');
+  });
+
+  test('normalizes stored eval cases with empty replay diagnostics', () => {
+    const row = normalizeEvaluatedReplayCaseDiagnostics({
+      promptVersion: 'v10-hybrid-legacy-g',
+      scenarioName: 'case-empty-diagnostic',
+      recommendationId: 1,
+      minute: 30,
+      score: '1-0',
+      scoreState: 'one-goal-margin',
+      minuteBand: '30-44',
+      prematchStrength: 'strong',
+      evidenceMode: 'full_live_data',
+      marketAvailabilityBucket: 'side_market_unplayable',
+      shouldPush: false,
+      actionable: false,
+      canonicalMarket: 'unknown',
+      goalsUnder: false,
+      goalsOver: false,
+      settlementResult: null,
+      directionalWin: null,
+      replaySelection: '',
+      replayOdds: null,
+      replayStakePercent: 0,
+      breakEvenRate: null,
+      replayPnl: null,
+      originalBetMarket: 'corners_under_7.5',
+      originalResult: 'win',
+      decisionKind: 'no_bet',
+      llmDecisionDiagnostic: '',
+      marketResolutionStatus: '',
+      providerCoverageStatus: 'ok',
+      replayContextStatus: 'ok',
+      replayQualityAttribution: 'model_no_bet',
+      replayWarnings: ['MARKET_UNRESOLVED'],
+    });
+
+    expect(row.llmDecisionDiagnostic).toBe('no_bet_intentional');
+    expect(row.marketResolutionStatus).toBe('not_requested');
+    expect(row.providerCoverageStatus).toBe('ok');
+    expect(row.replayQualityAttribution).toBe('model_no_bet');
+    expect(row.replayWarnings).toEqual(['NO_MARKET_REQUESTED_MODEL_NO_BET']);
   });
 });

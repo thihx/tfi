@@ -1,0 +1,8 @@
+{
+  "coveragePath": "replay-work/data-driven-runs/<runId>/coverage.json",
+  "officialPromptVersion": "v10-hybrid-legacy-g",
+  "minExportEligible": 1,
+  "minCurrentRuntimeReady": 1,
+  "minCurrentRuntimeReadyRate": 0.01,
+  "maxEmptyDecisionContextRate": 0.5
+}

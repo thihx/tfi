@@ -1,0 +1,10 @@
+{
+  "settlementReportPath": "../../replay-work/audit/20260603-120456/runtime-policy-shadow-settlement-report.json",
+  "minTotalPocketRows": 0,
+  "minSettledRows": 0,
+  "minSettledRate": 0,
+  "maxLosses": 0,
+  "maxUnresolvedRows": 0,
+  "minTotalPnlPercent": 0,
+  "minRoiOnStaked": 0
+}

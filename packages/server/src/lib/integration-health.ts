@@ -9,6 +9,7 @@ import {
   isFootballApiDailyLimitMessage,
   openFootballApiCircuitUntilNextUtcMidnight,
 } from './football-api-circuit.js';
+import { fetchFootballApiStatus } from './football-api.js';
 
 export type IntegrationStatus = 'HEALTHY' | 'DEGRADED' | 'DOWN' | 'NOT_CONFIGURED';
 
@@ -106,18 +107,9 @@ async function probeFootballApi(): Promise<IntegrationProbeResult> {
       return makeResult(ID, LABEL, DESC, 'DEGRADED', 0, `Daily limit circuit open until ${circuit.openUntil ?? 'reset'}`);
     }
 
-    const { result: res, latencyMs } = await timed(() =>
-      withTimeout(
-        fetch(`${config.footballApiBaseUrl}/status`, {
-          headers: { 'x-apisports-key': config.footballApiKey },
-        }),
-      ),
-    );
+    const { result: res, latencyMs } = await timed(() => withTimeout(fetchFootballApiStatus()));
     if (res.ok) {
-      const data = await res.json() as {
-        errors?: Record<string, string>;
-        response?: { account?: { requests?: { current?: number; limit_day?: number } } };
-      };
+      const data = res.data ?? {};
       const serialized = JSON.stringify(data);
       if (data.errors && Object.keys(data.errors).length > 0 && isFootballApiDailyLimitMessage(serialized)) {
         await openFootballApiCircuitUntilNextUtcMidnight();
@@ -132,8 +124,7 @@ async function probeFootballApi(): Promise<IntegrationProbeResult> {
       const msg = req ? `Requests today: ${req.current ?? '?'}/${req.limit_day ?? '?'}` : undefined;
       return makeResult(ID, LABEL, DESC, 'HEALTHY', latencyMs, msg);
     }
-    const errorText = await res.text();
-    if (isFootballApiDailyLimitMessage(errorText)) {
+    if (isFootballApiDailyLimitMessage(res.text)) {
       await openFootballApiCircuitUntilNextUtcMidnight();
     }
     return makeResult(ID, LABEL, DESC, 'DEGRADED', latencyMs, `HTTP ${res.status}`);

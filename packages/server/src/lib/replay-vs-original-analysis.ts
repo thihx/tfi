@@ -28,6 +28,18 @@ export interface ReplayVsOriginalSummary {
   promptVersion: string;
   scenarioCount: number;
   byOriginalResult: OriginalResultBucketStat[];
+  opportunityTradeoff: {
+    originalDirectionalWinCount: number;
+    originalDirectionalWinReplayed: number;
+    originalDirectionalWinMissed: number;
+    originalDirectionalWinRecallRate: number;
+    originalDirectionalWinMissRate: number;
+    originalDirectionalLossCount: number;
+    originalDirectionalLossReplayed: number;
+    originalDirectionalLossAvoided: number;
+    originalDirectionalLossAvoidanceRate: number;
+    originalDirectionalLossReplayRate: number;
+  };
   /** Original directional loss cohort: replay still pushed and settled. */
   onOriginalDirectionalLoss: {
     total: number;
@@ -141,11 +153,25 @@ export function summarizeReplayVsOriginalForVariant(cases: EvaluatedReplayCase[]
   }
 
   const pushedSettled = lossReplayWin + lossReplayLoss;
+  const winMissed = winTotal - winReplayPushed;
+  const lossAvoided = lossTotal - lossReplayPushed;
 
   return {
     promptVersion,
     scenarioCount: cases.length,
     byOriginalResult,
+    opportunityTradeoff: {
+      originalDirectionalWinCount: winTotal,
+      originalDirectionalWinReplayed: winReplayPushed,
+      originalDirectionalWinMissed: winMissed,
+      originalDirectionalWinRecallRate: ratio(winReplayPushed, winTotal),
+      originalDirectionalWinMissRate: ratio(winMissed, winTotal),
+      originalDirectionalLossCount: lossTotal,
+      originalDirectionalLossReplayed: lossReplayPushed,
+      originalDirectionalLossAvoided: lossAvoided,
+      originalDirectionalLossAvoidanceRate: ratio(lossAvoided, lossTotal),
+      originalDirectionalLossReplayRate: ratio(lossReplayPushed, lossTotal),
+    },
     onOriginalDirectionalLoss: {
       total: lossTotal,
       replayPushed: lossReplayPushed,

@@ -15,7 +15,7 @@ export function listReplayScenarioJsonBasenames(dirPath: string): string[] {
         .map((s) => (typeof s.name === 'string' && s.name.length > 0 ? `${s.name}.json` : null))
         .filter((x): x is string => x != null);
       if (names.length > 0) {
-        return names.filter((f) => existsSync(join(dirPath, f))).sort((a, b) => a.localeCompare(b));
+        return names.filter((f) => existsSync(join(dirPath, f)));
       }
     } catch {
       /* use directory listing */

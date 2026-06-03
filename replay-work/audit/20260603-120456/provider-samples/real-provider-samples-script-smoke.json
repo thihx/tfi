@@ -1,0 +1,140 @@
+{
+  "generatedAt": "2026-06-03T03:50:59.191Z",
+  "date": "2026-06-03",
+  "timezone": "Asia/Seoul",
+  "args": {
+    "date": "2026-06-03",
+    "maxFixtures": 1,
+    "maxApiCalls": 4,
+    "nearHours": 3,
+    "outJson": "../../replay-work/audit/20260603-120456/provider-samples/real-provider-samples-script-smoke.json",
+    "includeLive": true,
+    "includeNear": true,
+    "includeFinished": true,
+    "includeStats": true,
+    "includeEvents": true,
+    "includeLiveOdds": true,
+    "includePreMatchOdds": true,
+    "fullPayloads": false
+  },
+  "apiCallsUsed": 4,
+  "fixtureCall": {
+    "status": "ok",
+    "latencyMs": 1069,
+    "count": 87
+  },
+  "fixtureCountForDate": 87,
+  "selectedCount": 1,
+  "candidateCounts": {
+    "live": 1,
+    "near_kickoff": 0,
+    "finished": 51
+  },
+  "summary": [
+    {
+      "bucket": "live",
+      "fixtureId": "1524703",
+      "match": "Bangers vs Midlakes United",
+      "status": "2H",
+      "score": {
+        "home": 2,
+        "away": 1
+      },
+      "statistics": {
+        "status": "ok",
+        "count": 0,
+        "error": ""
+      },
+      "events": {
+        "status": "ok",
+        "count": 0,
+        "error": ""
+      },
+      "liveOdds": {
+        "status": "ok",
+        "rawCount": 0,
+        "normalizedCount": 0,
+        "canonical": {
+          "has1x2": false,
+          "hasOu": false,
+          "hasAh": false,
+          "hasBtts": false
+        },
+        "error": ""
+      },
+      "preMatchOdds": {
+        "status": "skipped_budget",
+        "rawCount": 0,
+        "normalizedCount": 0,
+        "canonical": {
+          "has1x2": false,
+          "hasOu": false,
+          "hasAh": false,
+          "hasBtts": false
+        },
+        "error": ""
+      }
+    }
+  ],
+  "samples": [
+    {
+      "bucket": "live",
+      "fixtureId": "1524703",
+      "home": "Bangers",
+      "away": "Midlakes United",
+      "league": "USL League Two",
+      "country": "USA",
+      "kickoff": "2026-06-03T11:00:00+09:00",
+      "timestamp": 1780452000,
+      "status": {
+        "long": "Second Half",
+        "short": "2H",
+        "elapsed": 90,
+        "extra": null
+      },
+      "score": {
+        "home": 2,
+        "away": 1
+      },
+      "calls": {
+        "statistics": {
+          "status": "ok",
+          "latencyMs": 461,
+          "count": 0
+        },
+        "events": {
+          "status": "ok",
+          "latencyMs": 449,
+          "count": 0
+        },
+        "liveOdds": {
+          "status": "ok",
+          "latencyMs": 429,
+          "rawCount": 0,
+          "normalizedCount": 0,
+          "coverage": {
+            "bookmaker_count": 0,
+            "bet_count": 0,
+            "priced_bet_count": 0,
+            "one_x2_bet_count": 0,
+            "ou_bet_count": 0,
+            "ah_bet_count": 0,
+            "btts_bet_count": 0,
+            "has_1x2": false,
+            "has_ou": false,
+            "has_ah": false,
+            "has_btts": false,
+            "canonical_has_1x2": false,
+            "canonical_has_ou": false,
+            "canonical_has_ah": false,
+            "canonical_has_btts": false
+          }
+        },
+        "preMatchOdds": {
+          "status": "skipped_budget",
+          "latencyMs": 0
+        }
+      }
+    }
+  ]
+}

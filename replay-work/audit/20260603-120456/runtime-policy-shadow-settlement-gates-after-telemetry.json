@@ -1,0 +1,34 @@
+{
+  "settlementReportPath": "../../replay-work/audit/20260603-120456/runtime-policy-shadow-suite-after-telemetry/runtime-policy-shadow-settlement-report.json",
+  "minTotalPocketRows": 20,
+  "minSettledRows": 16,
+  "minSettledRate": 0.8,
+  "maxLosses": 1,
+  "maxUnresolvedRows": 4,
+  "minTotalPnlPercent": 2,
+  "minRoiOnStaked": 0.15,
+  "requiredPockets": [
+    {
+      "id": "late_under_45_two_plus",
+      "minTotalRows": 10,
+      "minSettledRows": 8,
+      "minSettledRate": 0.8,
+      "minWins": 5,
+      "maxLosses": 0,
+      "maxUnresolvedRows": 2,
+      "minTotalPnlPercent": 2,
+      "minRoiOnStaked": 0.25
+    },
+    {
+      "id": "over_15_60_74_one_goal",
+      "minTotalRows": 10,
+      "minSettledRows": 8,
+      "minSettledRate": 0.8,
+      "minWins": 5,
+      "maxLosses": 0,
+      "maxUnresolvedRows": 2,
+      "minTotalPnlPercent": 1,
+      "minRoiOnStaked": 0.15
+    }
+  ]
+}

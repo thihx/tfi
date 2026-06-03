@@ -1,0 +1,31 @@
+{
+  "generatedAt": "2026-06-03T13:54:01.392Z",
+  "lookbackDays": 14,
+  "settlementLookbackDays": 30,
+  "maxRows": 1000,
+  "stakePercent": 1,
+  "files": {
+    "matchedJson": "runtime-policy-shadow-report.json",
+    "matchedMd": "runtime-policy-shadow-report.md",
+    "skippedJson": "runtime-policy-shadow-skipped-report.json",
+    "skippedMd": "runtime-policy-shadow-skipped-report.md",
+    "matchedSettlementJson": "runtime-policy-shadow-settlement-report.json",
+    "matchedSettlementMd": "runtime-policy-shadow-settlement-report.md",
+    "skippedSettlementJson": "runtime-policy-shadow-skipped-settlement-report.json",
+    "skippedSettlementMd": "runtime-policy-shadow-skipped-settlement-report.md",
+    "manifestJson": "manifest.json"
+  },
+  "summary": {
+    "matchedEvents": 0,
+    "matchedPocketRows": 0,
+    "matchedSettledRows": 0,
+    "matchedWins": 0,
+    "matchedLosses": 0,
+    "matchedPnlPercent": 0,
+    "skippedEvents": 0,
+    "skippedSettledRows": 0,
+    "skippedWins": 0,
+    "skippedLosses": 0,
+    "skippedPnlPercent": 0
+  }
+}

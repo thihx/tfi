@@ -42,9 +42,10 @@ All older prompt versions are retired. Runtime env values outside this version a
 6. Parse strict JSON from the LLM.
 7. Apply line-ladder patience and thesis-watch gates.
 8. Apply post-parse recommendation policy.
-9. Save only final actionable recommendations that pass policy and dedup checks.
-10. Notify eligible users through configured delivery channels.
-11. Settle completed recommendations and feed outcomes into replay/performance memory.
+9. Record runtime policy-shadow telemetry for selected replay-backed pockets when the model picked a market but production policy blocked it. Shadow telemetry is audit/debug only and must not save or notify.
+10. Save only final actionable recommendations that pass policy and dedup checks.
+11. Notify eligible users through configured delivery channels.
+12. Settle completed recommendations and feed outcomes into replay/performance memory.
 
 ## Money-Critical I/O Guards
 
@@ -66,6 +67,7 @@ All older prompt versions are retired. Runtime env values outside this version a
 - Thin edge near break-even is blocked.
 - Same-thesis stacking is capped by count and total stake.
 - Segment blocklist and segment stake caps can override or reduce exposure.
+- Runtime policy-shadow pockets for strict BTTS, late Under 4.5, and Over 1.5 are telemetry only. Policy-blocked selections that miss those pocket definitions can also be recorded as skipped-neighbor telemetry. Neither path overrides policy, saves recommendations, or notifies users.
 
 ## Evidence Modes
 
@@ -85,6 +87,16 @@ Use replay to change the system deliberately:
 npm run data-driven:improvement-run --prefix packages/server
 npm run data-driven:verify-gates-ci --prefix packages/server
 ```
+
+For runtime shadow pockets, `data-driven:policy-shadow-suite` is the periodic entrypoint for matched, skipped-neighbor, and settlement artifacts. Then run `data-driven:check-policy-shadow-skipped-settlement-gates` for nearby skipped policy-blocked selections and `data-driven:check-policy-shadow-settlement-gates` for matched pockets; passing either settlement gate is evidence only and does not automatically change production policy.
+
+Operator procedure: [runtime-shadow-operator-runbook.md](runtime-shadow-operator-runbook.md). Use it for the read order, pass/fail interpretation, and hard no-promote rules before changing prompt or policy.
+
+Before using production rows as evidence for the current prompt, run `data-driven:prompt-adoption`, then `data-driven:check-prompt-adoption-gates`. This checks recent saved recommendations before settlement filters, including latest-row recency. If recent rows exist but `officialPromptRows=0`, or if the latest row is stale, investigate deployment/env/job adoption first; do not infer `v10-hybrid-legacy-g` production quality from rows stamped with retired prompt versions.
+
+When saved rows are stale, run `data-driven:pipeline-liveness` before assuming the scheduler is down. Pipeline audit logs can prove that `v10-hybrid-legacy-g` is active even when current model/policy decisions produce no saved recommendations.
+
+If liveness shows active `v10-hybrid-legacy-g` calls but no saves, run `data-driven:current-runtime-no-save` to separate model no-bets, policy blocks, market-resolution gaps, evidence modes, and save-integrity blocks from one another. If that report shows non-empty selections blocked before save/push, run `data-driven:current-runtime-blocked-selection` to settle those selections as counterfactual audit evidence, then `data-driven:check-current-runtime-blocked-selection-gates` for any narrow shadow-only pocket candidates before considering any prompt or policy loosening.
 
 Read these first from each run:
 

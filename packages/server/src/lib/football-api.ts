@@ -25,6 +25,25 @@ interface ApiFootballResponse<T> {
   response: T[];
 }
 
+export interface ApiFootballStatusResponse {
+  errors?: Record<string, string>;
+  response?: {
+    account?: {
+      requests?: {
+        current?: number;
+        limit_day?: number;
+      };
+    };
+  };
+}
+
+export interface ApiFootballStatusResult {
+  ok: boolean;
+  status: number;
+  data: ApiFootballStatusResponse | null;
+  text: string;
+}
+
 // ==================== Fixtures ====================
 
 export interface ApiFixture {
@@ -127,6 +146,66 @@ async function apiGet<T>(endpoint: string, params: Record<string, string> = {}):
   }
 
   throw lastError ?? new Error('Football API request failed');
+}
+
+export async function fetchFootballApiStatus(): Promise<ApiFootballStatusResult> {
+  if (!config.footballApiKey) throw new Error('FOOTBALL_API_KEY not configured');
+
+  await assertFootballApiAvailable();
+
+  const url = new URL(config.footballApiBaseUrl + '/status');
+
+  let lastError: Error | null = null;
+  for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
+    try {
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), API_TIMEOUT_MS);
+
+      const res = await fetch(url.toString(), {
+        headers: {
+          'x-apisports-key': config.footballApiKey,
+          Accept: 'application/json',
+        },
+        signal: controller.signal,
+      });
+
+      clearTimeout(timer);
+
+      const text = await res.text();
+      if (isFootballApiDailyLimitMessage(text)) {
+        await openFootballApiCircuitUntilNextUtcMidnight();
+      }
+
+      let data: ApiFootballStatusResponse | null = null;
+      try {
+        data = text ? JSON.parse(text) as ApiFootballStatusResponse : null;
+      } catch {
+        data = null;
+      }
+
+      return {
+        ok: res.ok,
+        status: res.status,
+        data,
+        text,
+      };
+    } catch (err) {
+      lastError = err instanceof Error ? err : new Error(String(err));
+      if (lastError instanceof FootballApiDailyLimitError) {
+        throw lastError;
+      }
+      if (await recordFootballApiDailyLimitFromError(lastError)) {
+        throw extractFootballApiDailyLimitError(lastError) ?? lastError;
+      }
+      if (attempt < MAX_RETRIES) {
+        const waitMs = 1000 * (attempt + 1);
+        console.warn(`[football-api] Status attempt ${attempt + 1} failed, retrying in ${waitMs}ms...`, lastError.message);
+        await new Promise((r) => setTimeout(r, waitMs));
+      }
+    }
+  }
+
+  throw lastError ?? new Error('Football API status request failed');
 }
 
 export async function fetchFixturesForDate(date: string): Promise<ApiFixture[]> {

@@ -25,6 +25,12 @@ describe('normalizeMarket', () => {
       expect(normalizeMarket('Over 2.5', 'Over/Under 2.5')).toBe('over_2.5');
       expect(normalizeMarket('Under 2.25', 'Over/Under 2.25')).toBe('under_2.25');
     });
+
+    test('parses first-half totals without treating H1 as the line', () => {
+      expect(normalizeMarket('H1 Under 2.5 Goals @1.85', '')).toBe('ht_under_2.5');
+      expect(normalizeMarket('1H Over 0.5 Goals @1.70', '')).toBe('ht_over_0.5');
+      expect(normalizeMarket('First Half Under 1.5', '')).toBe('ht_under_1.5');
+    });
   });
 
   describe('BTTS', () => {
@@ -38,6 +44,11 @@ describe('normalizeMarket', () => {
     test('uses selection to resolve descriptive BTTS bet_market', () => {
       expect(normalizeMarket('Yes', 'BTTS')).toBe('btts_yes');
       expect(normalizeMarket('No', 'Both Teams To Score')).toBe('btts_no');
+    });
+
+    test('parses first-half BTTS from selection text', () => {
+      expect(normalizeMarket('H1 BTTS Yes @2.10', '')).toBe('ht_btts_yes');
+      expect(normalizeMarket('First Half Both Teams To Score - No', '')).toBe('ht_btts_no');
     });
   });
 
@@ -58,6 +69,11 @@ describe('normalizeMarket', () => {
       expect(normalizeMarket('Home Win', 'Fulltime Result')).toBe('1x2_home');
       expect(normalizeMarket('Away Win', '1X2')).toBe('1x2_away');
       expect(normalizeMarket('Draw', 'Full Time Result')).toBe('1x2_draw');
+    });
+
+    test('parses first-half 1X2 from selection text', () => {
+      expect(normalizeMarket('H1 Home Win @2.00', '')).toBe('ht_1x2_home');
+      expect(normalizeMarket('1H Draw @2.30', '')).toBe('ht_1x2_draw');
     });
   });
 

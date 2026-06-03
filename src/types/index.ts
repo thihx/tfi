@@ -171,6 +171,9 @@ export interface WatchlistItem {
 export interface Recommendation {
   id?: number;
   delivery_id?: number | null;
+  signal_kind?: 'bet' | 'watch' | 'no_action';
+  signal_label?: string;
+  signal_detail?: string;
   match_id?: string;
   match_display: string;
   home_team?: string;
@@ -184,7 +187,7 @@ export interface Recommendation {
   bet_market?: string;
   selection: string;
   odds: number | string;
-  confidence: number | string;
+  confidence: number | string | null;
   value_percent?: number | string | null;
   risk_level?: string;
   stake_percent?: number | string | null;
@@ -216,7 +219,7 @@ export interface Recommendation {
 export interface RecommendationDelivery {
   id: number;
   user_id: string;
-  recommendation_id: number;
+  recommendation_id: number | null;
   match_id: string;
   matched_condition: boolean;
   eligibility_status: string;

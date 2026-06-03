@@ -1,0 +1,1698 @@
+[
+  {
+    "id": 13402,
+    "run": "2026-06-03T04-38-56-521Z",
+    "scenario": "13402-1545451-83m-corners-under-14-5",
+    "league": "Liga MX",
+    "home": "U.N.A.M. - Pumas",
+    "away": "Cruz Azul",
+    "minute": 83,
+    "score": "1-1",
+    "market": "corners_under_14.5",
+    "originalResult": "win",
+    "final": "1-2",
+    "attribution": "model_no_bet",
+    "diag": "no_bet_intentional",
+    "replaySelection": "",
+    "warnings": [
+      "MARKET_UNRESOLVED"
+    ],
+    "odd": {
+      "bet": "Corners Over/Under",
+      "value": "Under",
+      "handicap": "14.5",
+      "odd": "1.975"
+    },
+    "oddsCandidates": [
+      {
+        "bet": "Corners Over/Under",
+        "value": "Over",
+        "handicap": "14.5",
+        "odd": "1.825"
+      },
+      {
+        "bet": "Corners Over/Under",
+        "value": "Under",
+        "handicap": "14.5",
+        "odd": "1.975"
+      }
+    ],
+    "stats": {
+      "home": {
+        "poss": "48%",
+        "shots": "10",
+        "sot": "3",
+        "corners": "6",
+        "xg": "0.51",
+        "red": null
+      },
+      "away": {
+        "poss": "52%",
+        "shots": "15",
+        "sot": "5",
+        "corners": "6",
+        "xg": "0.73",
+        "red": null
+      }
+    },
+    "previous": [
+      {
+        "minute": 55,
+        "market": "asian_handicap_home_+0.25",
+        "result": "loss",
+        "odds": "1.750",
+        "stake": "4.00"
+      }
+    ],
+    "memory": {
+      "total": 1,
+      "wins": 1,
+      "losses": 0,
+      "pushes": 0,
+      "winRate": 1,
+      "reliable": false
+    },
+    "ai": {
+      "shouldPush": false,
+      "confidence": 0,
+      "risk": "MEDIUM",
+      "value": 0,
+      "stake": 0,
+      "selection": "",
+      "market": "",
+      "reason": "No significant strengthening since last recommendation at minute 55. With the match in the 83rd minute and the score tied at 1-1, our existing position on U.N.A.M. Pumas +0.25 is currently in a half-win state. The live stats show a relatively balanced second half (possession 48%-52%, shots on target 3-5), and there is no strong asymmetric pressure to justify a new entry. Furthermore, the Under 2.5 goals market is priced at 1.45, which is below our minimum odds threshold of 1.50, while late-game Over or Corner lines carry excessive risk. Therefore, we maintain strict bankroll discipline and pass on adding any new exposure.",
+      "warnings": []
+    }
+  },
+  {
+    "id": 13398,
+    "run": "2026-06-03T04-38-56-521Z",
+    "scenario": "13398-1504825-67m-btts-yes",
+    "league": "J1 League",
+    "home": "Fagiano Okayama",
+    "away": "Cerezo Osaka",
+    "minute": 67,
+    "score": "0-2",
+    "market": "btts_yes",
+    "originalResult": "win",
+    "final": "2-3",
+    "attribution": "hard_policy_gate",
+    "diag": "policy_blocked",
+    "replaySelection": "BTTS Yes @2.2",
+    "warnings": [
+      "POLICY_BLOCK_MEDIUM_RISK_THIN_EDGE_GLOBAL"
+    ],
+    "odd": {
+      "bet": "Both Teams Score",
+      "value": "Yes",
+      "odd": "2.2"
+    },
+    "oddsCandidates": [
+      {
+        "bet": "Both Teams Score",
+        "value": "Yes",
+        "odd": "2.2"
+      },
+      {
+        "bet": "Both Teams Score",
+        "value": "No",
+        "odd": "1.615"
+      }
+    ],
+    "stats": {
+      "home": {
+        "poss": "47%",
+        "shots": "10",
+        "sot": "4",
+        "corners": "6",
+        "xg": null,
+        "red": null
+      },
+      "away": {
+        "poss": "53%",
+        "shots": "8",
+        "sot": "3",
+        "corners": "2",
+        "xg": null,
+        "red": null
+      }
+    },
+    "previous": [],
+    "memory": {
+      "total": 25,
+      "wins": 13,
+      "losses": 12,
+      "pushes": 0,
+      "winRate": 0.52,
+      "reliable": true
+    },
+    "ai": {
+      "shouldPush": true,
+      "confidence": 7,
+      "risk": "MEDIUM",
+      "value": 6,
+      "stake": 4,
+      "selection": "BTTS Yes @2.2",
+      "market": "btts_yes",
+      "reason": "At minute 67, Fagiano Okayama is trailing 0-2 at home but continues to show strong offensive intent. They have recorded 10 shots (6 inside the box), 4 shots on target, and 6 corners, forcing 4 saves from the Cerezo Osaka goalkeeper. Cerezo Osaka has already scored twice from 3 shots on target. For the Full-time BTTS (Both Teams to Score) market, both teams meet the active criteria of having at least 2 shots on target. Historical performance memory for the BTTS Yes market in the 60-74 minute band with a two-plus goal margin shows a reliable 52% win rate (13W / 12L). With the current live odds of 2.20 representing a 45.45% break-even probability, this investment offers a solid value edge of approximately 6.5%. We recommend a disciplined 4% stake on BTTS Yes.",
+      "warnings": []
+    }
+  },
+  {
+    "id": 13395,
+    "run": "2026-06-03T04-38-56-521Z",
+    "scenario": "13395-1490320-80m-under-4-5",
+    "league": "Major League Soccer",
+    "home": "Portland Timbers",
+    "away": "San Jose Earthquakes",
+    "minute": 80,
+    "score": "1-3",
+    "market": "under_4.5",
+    "originalResult": "win",
+    "final": "1-3",
+    "attribution": "hard_policy_gate",
+    "diag": "policy_blocked",
+    "replaySelection": "Under 4.5 Goals @2.025",
+    "warnings": [
+      "Late game phase (minute 80) carries inherent volatility as teams may exhaust tactical discipline in the final minutes.",
+      "LLP_BLOCK_UNDER_THIN_CUSHION_NO_REMAP",
+      "POLICY_CAP_GOALS_UNDER_THIN_CUSHION_STAKE_GLOBAL"
+    ],
+    "odd": {
+      "bet": "Over/Under",
+      "value": "Under",
+      "handicap": "4.5",
+      "odd": "2.025"
+    },
+    "oddsCandidates": [
+      {
+        "bet": "Over/Under",
+        "value": "Over",
+        "handicap": "4.5",
+        "odd": "1.775"
+      },
+      {
+        "bet": "Over/Under",
+        "value": "Under",
+        "handicap": "4.5",
+        "odd": "2.025"
+      },
+      {
+        "bet": "Over/Under",
+        "value": "Over",
+        "handicap": "4.75",
+        "odd": "2.2"
+      },
+      {
+        "bet": "Over/Under",
+        "value": "Under",
+        "handicap": "4.75",
+        "odd": "1.65"
+      }
+    ],
+    "stats": {
+      "home": {
+        "poss": "67%",
+        "shots": "11",
+        "sot": "4",
+        "corners": "3",
+        "xg": "1.32",
+        "red": null
+      },
+      "away": {
+        "poss": "33%",
+        "shots": "5",
+        "sot": "4",
+        "corners": "5",
+        "xg": "0.61",
+        "red": null
+      }
+    },
+    "previous": [],
+    "memory": {
+      "total": 14,
+      "wins": 10,
+      "losses": 4,
+      "pushes": 0,
+      "winRate": 0.7142857142857143,
+      "reliable": true
+    },
+    "ai": {
+      "shouldPush": true,
+      "confidence": 7,
+      "risk": "MEDIUM",
+      "value": 11,
+      "stake": 4,
+      "selection": "Under 4.5 Goals @2.025",
+      "market": "under_4.5",
+      "reason": "At the 80th minute, Portland Timbers trail San Jose Earthquakes 1-3. Despite Portland's 67% possession, their attack has lacked clinical edge, resulting in 6 offsides and only 4 shots on target from 11 total attempts. San Jose is focused entirely on defending their two-goal cushion. In our performance memory, the Full-time Goals O/U market for Under 4.5 Goals in a late-stage, two-plus-margin scenario has a reliable empirical win rate of 71.4%. With the current market odds of 2.025, the break-even rate is 49.38%, which provides an estimated value edge of 11% compared to our projected fair probability of 60%. This fits the strict runtime exception for a late-game Under bet with a single-goal cushion.",
+      "warnings": [
+        "Late game phase (minute 80) carries inherent volatility as teams may exhaust tactical discipline in the final minutes."
+      ]
+    }
+  },
+  {
+    "id": 13394,
+    "run": "2026-06-03T04-38-56-521Z",
+    "scenario": "13394-1490318-76m-corners-under-6-5",
+    "league": "Major League Soccer",
+    "home": "San Diego",
+    "away": "Vancouver Whitecaps",
+    "minute": 76,
+    "score": "1-4",
+    "market": "corners_under_6.5",
+    "originalResult": "win",
+    "final": "2-4",
+    "attribution": "model_no_bet",
+    "diag": "no_bet_intentional",
+    "replaySelection": "",
+    "warnings": [
+      "Home team has a red card",
+      "Existing Goals Under exposure already exists and has been breached",
+      "MARKET_UNRESOLVED"
+    ],
+    "odd": {
+      "bet": "Corners Over/Under",
+      "value": "Under",
+      "handicap": "6.5",
+      "odd": "1.825"
+    },
+    "oddsCandidates": [
+      {
+        "bet": "Corners Over/Under",
+        "value": "Over",
+        "handicap": "6.5",
+        "odd": "1.975"
+      },
+      {
+        "bet": "Corners Over/Under",
+        "value": "Under",
+        "handicap": "6.5",
+        "odd": "1.825"
+      }
+    ],
+    "stats": {
+      "home": {
+        "poss": "54%",
+        "shots": "7",
+        "sot": "1",
+        "corners": "2",
+        "xg": "0.47",
+        "red": "1"
+      },
+      "away": {
+        "poss": "46%",
+        "shots": "11",
+        "sot": "7",
+        "corners": "2",
+        "xg": "1.88",
+        "red": "0"
+      }
+    },
+    "previous": [
+      {
+        "minute": 72,
+        "market": "under_4.75",
+        "result": "loss",
+        "odds": "1.950",
+        "stake": "2.50"
+      }
+    ],
+    "memory": {
+      "total": 4,
+      "wins": 4,
+      "losses": 0,
+      "pushes": 0,
+      "winRate": 1,
+      "reliable": false
+    },
+    "ai": {
+      "shouldPush": false,
+      "confidence": 0,
+      "risk": "MEDIUM",
+      "value": 0,
+      "stake": 0,
+      "selection": "",
+      "market": "",
+      "reason": "At minute 76, with Vancouver leading 1-4 and San Diego down to 10 men due to a red card, the match is heavily tilted but likely winding down. We already hold a Goals Under thesis from minute 72 (Under 4.75 Goals), which has been breached by the 5th goal. Adding another Goals Under bet (such as Under 5.5 at 2.25 or Under 5.75 at 1.85) would violate our bankroll discipline against laddering/chasing the same thesis, especially since late-game Under bets with less than one goal of cushion are highly restricted. Other markets like Corners or Asian Handicap do not offer viable entry points that satisfy our strict odds and confidence thresholds. Therefore, we maintain discipline and pass on any further investment for this match.",
+      "warnings": [
+        "Home team has a red card",
+        "Existing Goals Under exposure already exists and has been breached"
+      ]
+    }
+  },
+  {
+    "id": 13392,
+    "run": "2026-06-03T04-37-08-222Z",
+    "scenario": "13392-1490319-50m-under-4",
+    "league": "Major League Soccer",
+    "home": "Colorado Rapids",
+    "away": "FC Dallas",
+    "minute": 50,
+    "score": "1-2",
+    "market": "under_4",
+    "originalResult": "win",
+    "final": "1-2",
+    "attribution": "model_no_bet",
+    "diag": "no_bet_intentional",
+    "replaySelection": "",
+    "warnings": [
+      "Colorado Rapids is trailing and chasing, which blocks any Corners Under recommendations despite the extremely low current corner count.",
+      "Goals Over lines are priced too low (below 1.50), while Under lines carry high volatility in MLS.",
+      "MARKET_UNRESOLVED"
+    ],
+    "odd": {
+      "bet": "Over/Under",
+      "value": "Under",
+      "handicap": "4",
+      "odd": "3.1"
+    },
+    "oddsCandidates": [
+      {
+        "bet": "Over/Under",
+        "value": "Over",
+        "handicap": "3.5",
+        "odd": "1.2"
+      },
+      {
+        "bet": "Over/Under",
+        "value": "Under",
+        "handicap": "3.5",
+        "odd": "4.333"
+      },
+      {
+        "bet": "Over/Under",
+        "value": "Over",
+        "handicap": "4",
+        "odd": "1.35"
+      },
+      {
+        "bet": "Over/Under",
+        "value": "Under",
+        "handicap": "4",
+        "odd": "3.1"
+      }
+    ],
+    "stats": {
+      "home": {
+        "poss": "62%",
+        "shots": "6",
+        "sot": "3",
+        "corners": "1",
+        "xg": "0.69",
+        "red": null
+      },
+      "away": {
+        "poss": "38%",
+        "shots": "3",
+        "sot": "2",
+        "corners": "0",
+        "xg": "1.60",
+        "red": null
+      }
+    },
+    "previous": [],
+    "memory": {
+      "total": 5,
+      "wins": 4,
+      "losses": 1,
+      "pushes": 0,
+      "winRate": 0.8,
+      "reliable": false
+    },
+    "ai": {
+      "shouldPush": false,
+      "confidence": 0,
+      "risk": "MEDIUM",
+      "value": 0,
+      "stake": 0,
+      "selection": "",
+      "market": "",
+      "reason": "At minute 50, with the score at 1-2, the match dynamics present conflicting signals that do not justify a high-confidence investment. Colorado Rapids dominate possession (62%) but have struggled to create high-quality chances, generating only 0.69 xG and a single corner. Conversely, FC Dallas has been highly efficient (1.60 xG) but is defending deep with only 38% possession. The Goals O/U lines are unviable, as Over 3.5/4.0 odds are below our 1.50 minimum, while Under 4.0 at 3.10 carries excessive risk in a historically high-scoring league like MLS. A Corners Under 6.5 bet is statistically tempting given only 1 corner has occurred so far, but our strict discipline rules forbid backing Corners Under when a home team is trailing and actively chasing. Asian Handicap lines also lack a clear edge. Therefore, the most disciplined decision is to pass and hold capital.",
+      "warnings": [
+        "Colorado Rapids is trailing and chasing, which blocks any Corners Under recommendations despite the extremely low current corner count.",
+        "Goals Over lines are priced too low (below 1.50), while Under lines carry high volatility in MLS."
+      ]
+    }
+  },
+  {
+    "id": 13391,
+    "run": "2026-06-03T04-37-08-222Z",
+    "scenario": "13391-1516858-70m-under-0-5",
+    "league": "J2/J3 League",
+    "home": "Parceiro Nagano",
+    "away": "Ventforet Kofu",
+    "minute": 70,
+    "score": "0-0",
+    "market": "under_0.5",
+    "originalResult": "win",
+    "final": "0-0",
+    "attribution": "pre_llm_blocked",
+    "diag": "pre_llm_blocked",
+    "replaySelection": "",
+    "warnings": [],
+    "odd": {
+      "bet": "Over/Under",
+      "value": "Under",
+      "handicap": "0.5",
+      "odd": "1.75"
+    },
+    "oddsCandidates": [
+      {
+        "bet": "Over/Under",
+        "value": "Over",
+        "handicap": "0.5",
+        "odd": "2.05"
+      },
+      {
+        "bet": "Over/Under",
+        "value": "Under",
+        "handicap": "0.5",
+        "odd": "1.75"
+      },
+      {
+        "bet": "Over/Under",
+        "value": "Over",
+        "handicap": "0.75",
+        "odd": "2.625"
+      },
+      {
+        "bet": "Over/Under",
+        "value": "Under",
+        "handicap": "0.75",
+        "odd": "1.425"
+      }
+    ],
+    "stats": {
+      "home": {
+        "poss": null,
+        "shots": null,
+        "sot": null,
+        "corners": null,
+        "xg": null,
+        "red": null
+      },
+      "away": {
+        "poss": null,
+        "shots": null,
+        "sot": null,
+        "corners": null,
+        "xg": null,
+        "red": null
+      }
+    },
+    "previous": [],
+    "memory": {
+      "total": 34,
+      "wins": 20,
+      "losses": 14,
+      "pushes": 0,
+      "winRate": 0.5882352941176471,
+      "reliable": true
+    },
+    "ai": {
+      "reason": "",
+      "warnings": []
+    }
+  },
+  {
+    "id": 13390,
+    "run": "2026-06-03T04-37-08-222Z",
+    "scenario": "13390-1403861-83m-under-1-5",
+    "league": "Liga 1",
+    "home": "Dewa United",
+    "away": "Bali United",
+    "minute": 83,
+    "score": "0-1",
+    "market": "under_1.5",
+    "originalResult": "win",
+    "final": "0-1",
+    "attribution": "pre_llm_blocked",
+    "diag": "pre_llm_blocked",
+    "replaySelection": "",
+    "warnings": [],
+    "odd": {
+      "bet": "Over/Under",
+      "value": "Under",
+      "handicap": "1.5",
+      "odd": "1.75"
+    },
+    "oddsCandidates": [
+      {
+        "bet": "Over/Under",
+        "value": "Over",
+        "handicap": "1.5",
+        "odd": "2.05"
+      },
+      {
+        "bet": "Over/Under",
+        "value": "Under",
+        "handicap": "1.5",
+        "odd": "1.75"
+      },
+      {
+        "bet": "Over/Under",
+        "value": "Over",
+        "handicap": "1.75",
+        "odd": "2.625"
+      },
+      {
+        "bet": "Over/Under",
+        "value": "Under",
+        "handicap": "1.75",
+        "odd": "1.425"
+      }
+    ],
+    "stats": {
+      "home": {
+        "poss": null,
+        "shots": null,
+        "sot": null,
+        "corners": null,
+        "xg": null,
+        "red": null
+      },
+      "away": {
+        "poss": null,
+        "shots": null,
+        "sot": null,
+        "corners": null,
+        "xg": null,
+        "red": null
+      }
+    },
+    "previous": [],
+    "memory": {
+      "total": 25,
+      "wins": 18,
+      "losses": 7,
+      "pushes": 0,
+      "winRate": 0.72,
+      "reliable": true
+    },
+    "ai": {
+      "reason": "",
+      "warnings": []
+    }
+  },
+  {
+    "id": 13377,
+    "run": "2026-06-03T04-15-00-372Z",
+    "scenario": "13377-1523155-81m-under-2-5",
+    "league": "Super League",
+    "home": "Sichuan Jiuniu",
+    "away": "Dalian Zhixing",
+    "minute": 81,
+    "score": "1-1",
+    "market": "under_2.5",
+    "originalResult": "win",
+    "final": "1-1",
+    "attribution": "model_no_bet",
+    "diag": "no_bet_intentional",
+    "replaySelection": "",
+    "warnings": [
+      "Late game phase (minute 81) limits viable options.",
+      "Previous corner thesis has stalled.",
+      "MARKET_UNRESOLVED"
+    ],
+    "odd": {
+      "bet": "Over/Under",
+      "value": "Under",
+      "handicap": "2.5",
+      "odd": "1.625"
+    },
+    "oddsCandidates": [
+      {
+        "bet": "Over/Under",
+        "value": "Over",
+        "handicap": "2.5",
+        "odd": "2.25"
+      },
+      {
+        "bet": "Over/Under",
+        "value": "Under",
+        "handicap": "2.5",
+        "odd": "1.625"
+      },
+      {
+        "bet": "Over/Under",
+        "value": "Over",
+        "handicap": "2.75",
+        "odd": "3.1"
+      },
+      {
+        "bet": "Over/Under",
+        "value": "Under",
+        "handicap": "2.75",
+        "odd": "1.35"
+      }
+    ],
+    "stats": {
+      "home": {
+        "poss": "64%",
+        "shots": "9",
+        "sot": "1",
+        "corners": "6",
+        "xg": null,
+        "red": null
+      },
+      "away": {
+        "poss": "36%",
+        "shots": "12",
+        "sot": "4",
+        "corners": "6",
+        "xg": null,
+        "red": null
+      }
+    },
+    "previous": [
+      {
+        "minute": 50,
+        "market": "corners_over_16",
+        "result": "loss",
+        "odds": "2.100",
+        "stake": "2.50"
+      }
+    ],
+    "memory": {
+      "total": 15,
+      "wins": 9,
+      "losses": 6,
+      "pushes": 0,
+      "winRate": 0.6,
+      "reliable": true
+    },
+    "ai": {
+      "shouldPush": false,
+      "confidence": 0,
+      "risk": "MEDIUM",
+      "value": 0,
+      "stake": 0,
+      "selection": "",
+      "market": "",
+      "reason": "At minute 81, the match is tied at 1-1. Our previous recommendation at minute 50 was Corners Over 16, but the corner production has slowed down significantly, with only 12 corners recorded so far. Chasing a lower corner line like Over 13.5 is not disciplined as the momentum has stalled. In the goals and handicap markets, the odds for Under 2.5 Goals (1.625) and Draw (1.533) do not offer sufficient value or margin of safety in these final minutes. Sichuan dominates possession (64%) but lacks penetration (only 1 shot on target), while Dalian is more active on shots (12 total, 4 on target) but unlikely to force a late winner. Therefore, we maintain discipline and pass on any further bets.",
+      "warnings": [
+        "Late game phase (minute 81) limits viable options.",
+        "Previous corner thesis has stalled."
+      ]
+    }
+  },
+  {
+    "id": 13378,
+    "run": "2026-06-03T04-15-00-372Z",
+    "scenario": "13378-1523158-64m-asian-handicap-away-0-5",
+    "league": "Super League",
+    "home": "Qingdao Youth Island",
+    "away": "Beijing Guoan",
+    "minute": 64,
+    "score": "0-0",
+    "market": "asian_handicap_away_+0.5",
+    "originalResult": "win",
+    "final": "1-1",
+    "attribution": "model_no_bet",
+    "diag": "no_bet_intentional",
+    "replaySelection": "",
+    "warnings": [
+      "MARKET_UNRESOLVED"
+    ],
+    "odd": null,
+    "oddsCandidates": [
+      {
+        "bet": "Asian Handicap",
+        "value": "Home",
+        "handicap": "0",
+        "odd": "5.5"
+      },
+      {
+        "bet": "Asian Handicap",
+        "value": "Away",
+        "handicap": "0",
+        "odd": "1.15"
+      },
+      {
+        "bet": "Asian Handicap",
+        "value": "Home",
+        "handicap": "+0.25",
+        "odd": "2.5"
+      },
+      {
+        "bet": "Asian Handicap",
+        "value": "Away",
+        "handicap": "-0.25",
+        "odd": "1.5"
+      },
+      {
+        "bet": "Asian Handicap",
+        "value": "Home",
+        "handicap": "+0.5",
+        "odd": "1.925"
+      },
+      {
+        "bet": "Asian Handicap",
+        "value": "Away",
+        "handicap": "-0.5",
+        "odd": "1.875"
+      },
+      {
+        "bet": "Asian Handicap",
+        "value": "Home",
+        "handicap": "+0.75",
+        "odd": "1.6"
+      },
+      {
+        "bet": "Asian Handicap",
+        "value": "Away",
+        "handicap": "-0.75",
+        "odd": "2.3"
+      }
+    ],
+    "stats": {
+      "home": {
+        "poss": "35%",
+        "shots": "5",
+        "sot": "2",
+        "corners": "3",
+        "xg": null,
+        "red": null
+      },
+      "away": {
+        "poss": "65%",
+        "shots": "6",
+        "sot": "1",
+        "corners": "5",
+        "xg": null,
+        "red": null
+      }
+    },
+    "previous": [
+      {
+        "minute": 42,
+        "market": "asian_handicap_away_0",
+        "result": "push",
+        "odds": "1.550",
+        "stake": "4.00"
+      }
+    ],
+    "memory": {
+      "total": 1,
+      "wins": 1,
+      "losses": 0,
+      "pushes": 0,
+      "winRate": 1,
+      "reliable": false
+    },
+    "ai": {
+      "shouldPush": false,
+      "confidence": 0,
+      "risk": "MEDIUM",
+      "value": 0,
+      "stake": 0,
+      "selection": "",
+      "market": "",
+      "reason": "We already hold an active position on Beijing Guoan (Away 0 @ 1.55) from minute 42. Since then, the match has remained balanced at 0-0 with low offensive output (only 3 total shots on target). Beijing Guoan dominates possession (65%) but has struggled to create high-quality chances (only 1 shot on target). There is no material change in the match state or a significant upgrade in odds/lines to justify adding further exposure to the same thesis or forcing a new market. Under the rules of strict bankroll discipline, we stand aside and maintain our existing position without chasing or compounding risk.",
+      "warnings": []
+    }
+  },
+  {
+    "id": 13380,
+    "run": "2026-06-03T04-15-00-372Z",
+    "scenario": "13380-1523158-74m-over-1-5",
+    "league": "Super League",
+    "home": "Qingdao Youth Island",
+    "away": "Beijing Guoan",
+    "minute": 74,
+    "score": "1-0",
+    "market": "over_1.5",
+    "originalResult": "win",
+    "final": "1-1",
+    "attribution": "model_no_bet",
+    "diag": "no_bet_intentional",
+    "replaySelection": "",
+    "warnings": [
+      "Home team has received a red card.",
+      "MARKET_UNRESOLVED"
+    ],
+    "odd": {
+      "bet": "Over/Under",
+      "value": "Over",
+      "handicap": "1.5",
+      "odd": "1.525"
+    },
+    "oddsCandidates": [
+      {
+        "bet": "Over/Under",
+        "value": "Over",
+        "handicap": "1.5",
+        "odd": "1.525"
+      },
+      {
+        "bet": "Over/Under",
+        "value": "Under",
+        "handicap": "1.5",
+        "odd": "2.5"
+      },
+      {
+        "bet": "Over/Under",
+        "value": "Over",
+        "handicap": "1.75",
+        "odd": "1.75"
+      },
+      {
+        "bet": "Over/Under",
+        "value": "Under",
+        "handicap": "1.75",
+        "odd": "2.05"
+      }
+    ],
+    "stats": {
+      "home": {
+        "poss": "34%",
+        "shots": "6",
+        "sot": "2",
+        "corners": "3",
+        "xg": null,
+        "red": "1"
+      },
+      "away": {
+        "poss": "66%",
+        "shots": "11",
+        "sot": "3",
+        "corners": "5",
+        "xg": null,
+        "red": "0"
+      }
+    },
+    "previous": [
+      {
+        "minute": 64,
+        "market": "asian_handicap_away_+0.5",
+        "result": "win",
+        "odds": "1.875",
+        "stake": "2.50"
+      },
+      {
+        "minute": 42,
+        "market": "asian_handicap_away_0",
+        "result": "push",
+        "odds": "1.550",
+        "stake": "4.00"
+      }
+    ],
+    "memory": {
+      "total": 120,
+      "wins": 72,
+      "losses": 48,
+      "pushes": 0,
+      "winRate": 0.6,
+      "reliable": true
+    },
+    "ai": {
+      "shouldPush": false,
+      "confidence": 0,
+      "risk": "LOW",
+      "value": 0,
+      "stake": 0,
+      "selection": "",
+      "market": "",
+      "reason": "We already have two active recommendations on this match supporting Beijing Guoan (Full-time Asian Handicap Away 0 at minute 42 and Full-time Asian Handicap Away +0.5 at minute 64) with a combined stake of 6.5%. According to strict bankroll discipline, we must avoid adding a third rung to the same thesis (Asian Handicap) to prevent over-exposure and line-chasing. Alternative markets, such as Full-time Goals O/U Over 1.5 at odds of 1.525, do not offer sufficient value or meet the required break-even threshold for this late stage of the match. Therefore, we maintain our existing positions and pass on any new investments.",
+      "warnings": [
+        "Home team has received a red card."
+      ]
+    }
+  },
+  {
+    "id": 13381,
+    "run": "2026-06-03T04-15-00-372Z",
+    "scenario": "13381-1535217-61m-over-1-5",
+    "league": "CONMEBOL Sudamericana",
+    "home": "Sao Paulo",
+    "away": "Millonarios",
+    "minute": 61,
+    "score": "1-0",
+    "market": "over_1.5",
+    "originalResult": "win",
+    "final": "1-1",
+    "attribution": "model_policy_mismatch",
+    "diag": "policy_blocked",
+    "replaySelection": "Over 1.5 Goals @1.55",
+    "warnings": [
+      "LLP_BLOCK_OVER_AGGRESSIVE_LINE",
+      "REQUIRED_CONDITIONS_NOT_MET",
+      "OVER_1_5_BLOCKED_LATE_MIDGAME",
+      "POLICY_BLOCK_MEDIUM_RISK_THIN_EDGE_GLOBAL"
+    ],
+    "odd": {
+      "bet": "Over/Under",
+      "value": "Over",
+      "handicap": "1.5",
+      "odd": "1.55"
+    },
+    "oddsCandidates": [
+      {
+        "bet": "Over/Under",
+        "value": "Over",
+        "handicap": "1.5",
+        "odd": "1.55"
+      },
+      {
+        "bet": "Over/Under",
+        "value": "Under",
+        "handicap": "1.5",
+        "odd": "2.375"
+      },
+      {
+        "bet": "Over/Under",
+        "value": "Over",
+        "handicap": "1.75",
+        "odd": "1.8"
+      },
+      {
+        "bet": "Over/Under",
+        "value": "Under",
+        "handicap": "1.75",
+        "odd": "2"
+      }
+    ],
+    "stats": {
+      "home": {
+        "poss": "63%",
+        "shots": "10",
+        "sot": "3",
+        "corners": "5",
+        "xg": "1.16",
+        "red": null
+      },
+      "away": {
+        "poss": "37%",
+        "shots": "6",
+        "sot": "3",
+        "corners": "1",
+        "xg": "0.95",
+        "red": null
+      }
+    },
+    "previous": [],
+    "memory": {
+      "total": 120,
+      "wins": 72,
+      "losses": 48,
+      "pushes": 0,
+      "winRate": 0.6,
+      "reliable": true
+    },
+    "ai": {
+      "shouldPush": true,
+      "confidence": 7,
+      "risk": "MEDIUM",
+      "value": 5,
+      "stake": 4,
+      "selection": "Over 1.5 Goals @1.55",
+      "market": "over_1.5",
+      "reason": "At the 61st minute, Sao Paulo leads 1-0 in an open contest. Millonarios has shown real attacking threat with 6 shots (3 on target, 0.95 xG) and must chase the game, while Sao Paulo (10 shots, 3 on target, 1.16 xG) remains highly dangerous in possession (63%). The combined expected goals of 2.11 suggest the current 1-0 scoreline underrepresents the quality of chances created. For the Full-time Goals O/U market, backing Over 1.5 Goals at 1.55 requires a 64.5% break-even probability. We estimate the true probability of at least one more goal in the remaining 30+ minutes at 70%, offering a clear value edge. This bet is highly efficient as it requires only one more goal to fully cash.",
+      "warnings": []
+    }
+  },
+  {
+    "id": 13385,
+    "run": "2026-06-03T04-15-00-372Z",
+    "scenario": "13385-1535207-69m-under-4-5",
+    "league": "CONMEBOL Sudamericana",
+    "home": "Deportivo Cuenca",
+    "away": "Deportivo Recoleta",
+    "minute": 69,
+    "score": "2-2",
+    "market": "under_4.5",
+    "originalResult": "win",
+    "final": "2-2",
+    "attribution": "model_no_bet",
+    "diag": "no_bet_intentional",
+    "replaySelection": "",
+    "warnings": [
+      "MARKET_UNRESOLVED"
+    ],
+    "odd": {
+      "bet": "Over/Under",
+      "value": "Under",
+      "handicap": "4.5",
+      "odd": "2.1"
+    },
+    "oddsCandidates": [
+      {
+        "bet": "Over/Under",
+        "value": "Over",
+        "handicap": "4.5",
+        "odd": "1.7"
+      },
+      {
+        "bet": "Over/Under",
+        "value": "Under",
+        "handicap": "4.5",
+        "odd": "2.1"
+      },
+      {
+        "bet": "Over/Under",
+        "value": "Over",
+        "handicap": "4.75",
+        "odd": "2.05"
+      },
+      {
+        "bet": "Over/Under",
+        "value": "Under",
+        "handicap": "4.75",
+        "odd": "1.75"
+      }
+    ],
+    "stats": {
+      "home": {
+        "poss": "62%",
+        "shots": "10",
+        "sot": "4",
+        "corners": "2",
+        "xg": "0.74",
+        "red": null
+      },
+      "away": {
+        "poss": "38%",
+        "shots": "10",
+        "sot": "3",
+        "corners": "2",
+        "xg": "0.89",
+        "red": null
+      }
+    },
+    "previous": [],
+    "memory": {
+      "total": 1,
+      "wins": 1,
+      "losses": 0,
+      "pushes": 0,
+      "winRate": 1,
+      "reliable": false
+    },
+    "ai": {
+      "shouldPush": false,
+      "confidence": 0,
+      "risk": "MEDIUM",
+      "value": 0,
+      "stake": 0,
+      "selection": "",
+      "market": "",
+      "reason": "The match is currently tied at 2-2 in the 69th minute. While the scoreline suggests an active game, the underlying advanced metrics show a highly symmetric and low-creation environment (total xG of 1.63 despite 4 goals scored). This indicates extreme finishing efficiency rather than sustained attacking pressure. Under the strict runtime policies, a goals Under bet (Under 4.5) with less than a one-goal cushion requires a confidence of 8 or higher, which cannot be justified given the anomalous scoring. Conversely, an Over 4.5 bet at 1.70 is blocked by the minimum odds/break-even threshold for non-AH markets. With no clear directional bias or pressure asymmetry, the most disciplined decision is to pass.",
+      "warnings": []
+    }
+  },
+  {
+    "id": 13387,
+    "run": "2026-06-03T04-15-00-372Z",
+    "scenario": "13387-1535203-76m-under-2-5",
+    "league": "CONMEBOL Sudamericana",
+    "home": "America de Cali",
+    "away": "Tigre",
+    "minute": 76,
+    "score": "1-1",
+    "market": "under_2.5",
+    "originalResult": "win",
+    "final": "1-1",
+    "attribution": "model_no_bet",
+    "diag": "no_bet_intentional",
+    "replaySelection": "",
+    "warnings": [
+      "MARKET_UNRESOLVED"
+    ],
+    "odd": {
+      "bet": "Over/Under",
+      "value": "Under",
+      "handicap": "2.5",
+      "odd": "1.625"
+    },
+    "oddsCandidates": [
+      {
+        "bet": "Over/Under",
+        "value": "Over",
+        "handicap": "2.5",
+        "odd": "2.25"
+      },
+      {
+        "bet": "Over/Under",
+        "value": "Under",
+        "handicap": "2.5",
+        "odd": "1.625"
+      },
+      {
+        "bet": "Over/Under",
+        "value": "Over",
+        "handicap": "2.75",
+        "odd": "3.1"
+      },
+      {
+        "bet": "Over/Under",
+        "value": "Under",
+        "handicap": "2.75",
+        "odd": "1.35"
+      }
+    ],
+    "stats": {
+      "home": {
+        "poss": "71%",
+        "shots": "15",
+        "sot": "2",
+        "corners": "5",
+        "xg": "0.78",
+        "red": null
+      },
+      "away": {
+        "poss": "29%",
+        "shots": "4",
+        "sot": "1",
+        "corners": "1",
+        "xg": "0.54",
+        "red": null
+      }
+    },
+    "previous": [],
+    "memory": {
+      "total": 15,
+      "wins": 9,
+      "losses": 6,
+      "pushes": 0,
+      "winRate": 0.6,
+      "reliable": true
+    },
+    "ai": {
+      "shouldPush": false,
+      "confidence": 0,
+      "risk": "MEDIUM",
+      "value": 0,
+      "stake": 0,
+      "selection": "",
+      "market": "",
+      "reason": "At minute 76 with the score tied at 1-1, the match presents no high-value investment opportunities. The Full-time Goals O/U market for Under 2.5 Goals is priced at 1.625, which fails our minimum odds threshold of 2.00 for standard automatic bets (break-even rate > 50%) and does not qualify as an Asian Handicap protection pocket. Conversely, backing the home side in the Full-time Asian Handicap market (Home -0.25 @2.425) is highly speculative; despite America de Cali's 71% possession and 15 shots, they have registered only 2 shots on target with a low expected goals (xG) of 0.78, indicating extremely poor shot quality. Tigre is defending resolutely to secure an away draw. Under these conditions, disciplined bankroll management dictates a no-bet decision.",
+      "warnings": []
+    }
+  },
+  {
+    "id": 13367,
+    "run": "2026-06-03T04-19-58-034Z",
+    "scenario": "13367-1490309-60m-corners-over-10-5",
+    "league": "Major League Soccer",
+    "home": "Nashville SC",
+    "away": "Los Angeles FC",
+    "minute": 60,
+    "score": "3-1",
+    "market": "corners_over_10.5",
+    "originalResult": "win",
+    "final": "3-2",
+    "attribution": "model_no_bet",
+    "diag": "no_bet_intentional",
+    "replaySelection": "",
+    "warnings": [
+      "MARKET_UNRESOLVED"
+    ],
+    "odd": {
+      "bet": "Corners Over/Under",
+      "value": "Over",
+      "handicap": "10.5",
+      "odd": "2.1"
+    },
+    "oddsCandidates": [
+      {
+        "bet": "Corners Over/Under",
+        "value": "Over",
+        "handicap": "10.5",
+        "odd": "2.1"
+      },
+      {
+        "bet": "Corners Over/Under",
+        "value": "Under",
+        "handicap": "10.5",
+        "odd": "1.7"
+      }
+    ],
+    "stats": {
+      "home": {
+        "poss": "53%",
+        "shots": "5",
+        "sot": "3",
+        "corners": "2",
+        "xg": "0.63",
+        "red": null
+      },
+      "away": {
+        "poss": "47%",
+        "shots": "13",
+        "sot": "6",
+        "corners": "5",
+        "xg": "1.47",
+        "red": null
+      }
+    },
+    "previous": [
+      {
+        "minute": 19,
+        "market": "ht_over_1.5",
+        "result": "win",
+        "odds": "1.625",
+        "stake": "4.00"
+      }
+    ],
+    "memory": {
+      "total": 1,
+      "wins": 1,
+      "losses": 0,
+      "pushes": 0,
+      "winRate": 1,
+      "reliable": false
+    },
+    "ai": {
+      "shouldPush": false,
+      "confidence": 0,
+      "risk": "LOW",
+      "value": 0,
+      "stake": 0,
+      "selection": "",
+      "market": "",
+      "reason": "A comprehensive review of the live match state at minute 60 (3-1) reveals no high-value investment opportunities that satisfy our strict risk-management criteria. First, Full-time Goals O/U options are restricted: Over 4.5 is priced at 1.375 (below the 1.50 minimum), while Over 4.75 at 1.525 falls short of the preferred 2.00 threshold for non-AH midgame entries and requires multiple additional goals. Second, Full-time Goals O/U Under options (Under 4.5 at 3.00 and Under 4.75 at 2.425) carry less than one goal of cushion, triggering the thin-cushion rule which demands a confidence of 8 or higher. Given LAFC's aggressive chasing profile (13 shots, 1.47 xG) and Nashville's clinical efficiency, we cannot justify such high confidence in a scoreless remainder. Third, Full-time Corners O/U Over 10.5 at 2.10 is a tertiary option; with only 7 corners accumulated in 60 minutes, the current pace do",
+      "warnings": []
+    }
+  },
+  {
+    "id": 13369,
+    "run": "2026-06-03T04-19-58-034Z",
+    "scenario": "13369-1544856-38m-asian-handicap-home-0",
+    "league": "Liga MX",
+    "home": "U.N.A.M. - Pumas",
+    "away": "CF Pachuca",
+    "minute": 38,
+    "score": "0-0",
+    "market": "asian_handicap_home_0",
+    "originalResult": "win",
+    "final": "1-0",
+    "attribution": "model_no_bet",
+    "diag": "no_bet_intentional",
+    "replaySelection": "",
+    "warnings": [
+      "MARKET_UNRESOLVED"
+    ],
+    "odd": {
+      "bet": "Asian Handicap",
+      "value": "Home",
+      "handicap": "0",
+      "odd": "1.775"
+    },
+    "oddsCandidates": [
+      {
+        "bet": "Asian Handicap",
+        "value": "Home",
+        "handicap": "0",
+        "odd": "1.775"
+      },
+      {
+        "bet": "Asian Handicap",
+        "value": "Away",
+        "handicap": "0",
+        "odd": "2.025"
+      },
+      {
+        "bet": "Asian Handicap",
+        "value": "Home",
+        "handicap": "-0.25",
+        "odd": "2.1"
+      },
+      {
+        "bet": "Asian Handicap",
+        "value": "Away",
+        "handicap": "+0.25",
+        "odd": "1.7"
+      },
+      {
+        "bet": "Asian Handicap",
+        "value": "Home",
+        "handicap": "+0.25",
+        "odd": "1.55"
+      },
+      {
+        "bet": "Asian Handicap",
+        "value": "Away",
+        "handicap": "-0.25",
+        "odd": "2.375"
+      },
+      {
+        "bet": "Asian Handicap",
+        "value": "Home",
+        "handicap": "+0.5",
+        "odd": "1.425"
+      },
+      {
+        "bet": "Asian Handicap",
+        "value": "Away",
+        "handicap": "-0.5",
+        "odd": "2.75"
+      }
+    ],
+    "stats": {
+      "home": {
+        "poss": "70%",
+        "shots": "9",
+        "sot": "0",
+        "corners": "1",
+        "xg": "0.71",
+        "red": null
+      },
+      "away": {
+        "poss": "30%",
+        "shots": "0",
+        "sot": "0",
+        "corners": "1",
+        "xg": "0.00",
+        "red": null
+      }
+    },
+    "previous": [
+      {
+        "minute": 15,
+        "market": "ht_asian_handicap_home_0",
+        "result": "push",
+        "odds": "1.675",
+        "stake": "4.00"
+      }
+    ],
+    "memory": {
+      "total": 8,
+      "wins": 3,
+      "losses": 2,
+      "pushes": 3,
+      "winRate": 0.375,
+      "reliable": false
+    },
+    "ai": {
+      "shouldPush": false,
+      "confidence": 0,
+      "risk": "MEDIUM",
+      "value": 0,
+      "stake": 0,
+      "selection": "",
+      "market": "",
+      "reason": "We already have active exposure on the first-half (H1) Asian Handicap market family with the H1 Home 0 selection from minute 15. Although U.N.A.M. - Pumas continues to dominate possession (70%) and has registered 9 shots (0.71 xG) compared to CF Pachuca's 0 shots, they have yet to test the keeper with a shot on target. Entering another position in the Asian Handicap market family for either H1 or Full-time would violate our core bankroll discipline by compounding risk on the same thesis. No significant strengthening or structural line upgrade has occurred to justify a second entry. Therefore, we maintain our current position and pass on adding new exposure.",
+      "warnings": []
+    }
+  },
+  {
+    "id": 13370,
+    "run": "2026-06-03T04-19-58-034Z",
+    "scenario": "13370-1544856-58m-btts-no",
+    "league": "Liga MX",
+    "home": "U.N.A.M. - Pumas",
+    "away": "CF Pachuca",
+    "minute": 58,
+    "score": "1-0",
+    "market": "btts_no",
+    "originalResult": "win",
+    "final": "1-0",
+    "attribution": "model_no_bet",
+    "diag": "no_bet_intentional",
+    "replaySelection": "",
+    "warnings": [
+      "MARKET_UNRESOLVED"
+    ],
+    "odd": {
+      "bet": "Both Teams Score",
+      "value": "No",
+      "odd": "1.8"
+    },
+    "oddsCandidates": [
+      {
+        "bet": "Both Teams Score",
+        "value": "Yes",
+        "odd": "1.95"
+      },
+      {
+        "bet": "Both Teams Score",
+        "value": "No",
+        "odd": "1.8"
+      }
+    ],
+    "stats": {
+      "home": {
+        "poss": "66%",
+        "shots": "12",
+        "sot": "1",
+        "corners": "2",
+        "xg": "0.75",
+        "red": null
+      },
+      "away": {
+        "poss": "34%",
+        "shots": "1",
+        "sot": "1",
+        "corners": "1",
+        "xg": "0.01",
+        "red": null
+      }
+    },
+    "previous": [
+      {
+        "minute": 38,
+        "market": "asian_handicap_home_0",
+        "result": "win",
+        "odds": "1.775",
+        "stake": "4.00"
+      },
+      {
+        "minute": 15,
+        "market": "ht_asian_handicap_home_0",
+        "result": "push",
+        "odds": "1.675",
+        "stake": "4.00"
+      }
+    ],
+    "memory": {
+      "total": 41,
+      "wins": 25,
+      "losses": 16,
+      "pushes": 0,
+      "winRate": 0.6097560975609756,
+      "reliable": true
+    },
+    "ai": {
+      "shouldPush": false,
+      "confidence": 0,
+      "risk": "LOW",
+      "value": 0,
+      "stake": 0,
+      "selection": "",
+      "market": "",
+      "reason": "We already hold a Full-time Asian Handicap Home position (Home 0) from minute 38, which is currently leading 1-0. The current live lines do not offer a high-value entry. In the Full-time Goals O/U market, Over lines are below the 1.5 minimum odds, while Under lines carry high risk due to Liga MX's high late-goal rate (49.7% after minute 75) and are flagged as caution priors. In the Full-time Asian Handicap market, Home -0.5 is priced too low (@ 1.325), and Home -1.25 (@ 2.375) is too aggressive given Pumas' poor finishing (1 shot on target from 12 shots). Full-time BTTS No is blocked by runtime policy for one-goal margins, and Full-time Corners O/U Under lines are highly volatile with the away side trailing. We stand pat to protect our bankroll.",
+      "warnings": []
+    }
+  },
+  {
+    "id": 13372,
+    "run": "2026-06-03T04-19-58-034Z",
+    "scenario": "13372-1544856-81m-under-1-5",
+    "league": "Liga MX",
+    "home": "U.N.A.M. - Pumas",
+    "away": "CF Pachuca",
+    "minute": 81,
+    "score": "1-0",
+    "market": "under_1.5",
+    "originalResult": "win",
+    "final": "1-0",
+    "attribution": "model_no_bet",
+    "diag": "no_bet_intentional",
+    "replaySelection": "",
+    "warnings": [
+      "MARKET_UNRESOLVED"
+    ],
+    "odd": {
+      "bet": "Over/Under",
+      "value": "Under",
+      "handicap": "1.5",
+      "odd": "1.675"
+    },
+    "oddsCandidates": [
+      {
+        "bet": "Over/Under",
+        "value": "Over",
+        "handicap": "1.5",
+        "odd": "2.15"
+      },
+      {
+        "bet": "Over/Under",
+        "value": "Under",
+        "handicap": "1.5",
+        "odd": "1.675"
+      },
+      {
+        "bet": "Over/Under",
+        "value": "Over",
+        "handicap": "1.75",
+        "odd": "2.85"
+      },
+      {
+        "bet": "Over/Under",
+        "value": "Under",
+        "handicap": "1.75",
+        "odd": "1.4"
+      }
+    ],
+    "stats": {
+      "home": {
+        "poss": "60%",
+        "shots": "12",
+        "sot": "1",
+        "corners": "3",
+        "xg": "0.80",
+        "red": null
+      },
+      "away": {
+        "poss": "40%",
+        "shots": "3",
+        "sot": "1",
+        "corners": "2",
+        "xg": "0.18",
+        "red": null
+      }
+    },
+    "previous": [
+      {
+        "minute": 66,
+        "market": "corners_under_6",
+        "result": "push",
+        "odds": "2.200",
+        "stake": "2.50"
+      },
+      {
+        "minute": 58,
+        "market": "btts_no",
+        "result": "win",
+        "odds": "1.800",
+        "stake": "2.00"
+      },
+      {
+        "minute": 38,
+        "market": "asian_handicap_home_0",
+        "result": "win",
+        "odds": "1.775",
+        "stake": "4.00"
+      },
+      {
+        "minute": 15,
+        "market": "ht_asian_handicap_home_0",
+        "result": "push",
+        "odds": "1.675",
+        "stake": "4.00"
+      }
+    ],
+    "memory": {
+      "total": 25,
+      "wins": 18,
+      "losses": 7,
+      "pushes": 0,
+      "winRate": 0.72,
+      "reliable": true
+    },
+    "ai": {
+      "shouldPush": false,
+      "confidence": 0,
+      "risk": "LOW",
+      "value": 0,
+      "stake": 0,
+      "selection": "",
+      "market": "",
+      "reason": "We already have multiple active positions on this match: Full-time Corners O/U Corners Under 6 @ 2.20 (Min 66), Full-time BTTS BTTS No @ 1.80 (Min 58), and Full-time Asian Handicap Home 0 @ 1.775 (Min 38). At minute 81, the match is heavily consolidated with U.N.A.M. Pumas leading 1-0. The attacking metrics are extremely low (only 2 total shots on target, combined xG under 1.00). While Full-time Goals O/U Under 1.5 Goals is highly likely to land, the odds of 1.675 do not meet our minimum risk-reward threshold for late-game entries under the runtime policy (which prefers break-even rates under 50% / odds > 2.00 for non-AH protection bets). Furthermore, we already hold a Full-time BTTS BTTS No position at 1.80, which covers the 1-0 and 2-0 scorelines with better pricing. Adding more exposure at this late stage would violate our bankroll discipline and constitute line-chasing. Therefore, we",
+      "warnings": []
+    }
+  },
+  {
+    "id": 13375,
+    "run": "2026-06-03T04-19-58-034Z",
+    "scenario": "13375-1523156-77m-under-2-5",
+    "league": "Super League",
+    "home": "Tianjin Teda",
+    "away": "Henan Jianye",
+    "minute": 77,
+    "score": "1-1",
+    "market": "under_2.5",
+    "originalResult": "loss",
+    "final": "1-2",
+    "attribution": "model_policy_mismatch",
+    "diag": "policy_blocked",
+    "replaySelection": "Under 2.5 Goals @1.7",
+    "warnings": [
+      "LLP_BLOCK_UNDER_THIN_CUSHION_NO_REMAP",
+      "REQUIRED_CONDITIONS_NOT_MET",
+      "POLICY_BLOCK_GOALS_UNDER_THIN_CUSHION_LOW_CONF_GLOBAL",
+      "POLICY_BLOCK_MEDIUM_RISK_THIN_EDGE_GLOBAL"
+    ],
+    "odd": {
+      "bet": "Over/Under",
+      "value": "Under",
+      "handicap": "2.5",
+      "odd": "1.7"
+    },
+    "oddsCandidates": [
+      {
+        "bet": "Over/Under",
+        "value": "Over",
+        "handicap": "2.5",
+        "odd": "2.1"
+      },
+      {
+        "bet": "Over/Under",
+        "value": "Under",
+        "handicap": "2.5",
+        "odd": "1.7"
+      },
+      {
+        "bet": "Over/Under",
+        "value": "Over",
+        "handicap": "2.75",
+        "odd": "2.85"
+      },
+      {
+        "bet": "Over/Under",
+        "value": "Under",
+        "handicap": "2.75",
+        "odd": "1.4"
+      }
+    ],
+    "stats": {
+      "home": {
+        "poss": "48%",
+        "shots": "4",
+        "sot": "1",
+        "corners": "1",
+        "xg": null,
+        "red": null
+      },
+      "away": {
+        "poss": "52%",
+        "shots": "6",
+        "sot": "2",
+        "corners": "1",
+        "xg": null,
+        "red": null
+      }
+    },
+    "previous": [],
+    "memory": {
+      "total": 15,
+      "wins": 9,
+      "losses": 6,
+      "pushes": 0,
+      "winRate": 0.6,
+      "reliable": true
+    },
+    "ai": {
+      "shouldPush": true,
+      "confidence": 7,
+      "risk": "MEDIUM",
+      "value": 6,
+      "stake": 3,
+      "selection": "Under 2.5 Goals @1.7",
+      "market": "under_2.5",
+      "reason": "With the score tied at 1-1 in the 77th minute, both teams have shown extremely limited attacking intent. There have been only 10 total shots (3 on target) and a mere 2 corners throughout the entire match. This indicates a highly congested midfield and a lack of wing play or high-pressure transitions. At this stage of the match, both sides are likely to prioritize defensive stability to secure at least a point, aligning with a conservative endgame script. This is a Full-time bet in the Goals O/U market family.",
+      "warnings": []
+    }
+  }
+]

@@ -1,0 +1,99 @@
+{
+  "generatedAt": "2026-06-03T06:31:19.697Z",
+  "source": {
+    "applySettledReplayPolicy": true
+  },
+  "variants": [
+    {
+      "promptVersion": "v10-hybrid-legacy-g",
+      "scenarioCount": 54,
+      "byOriginalResult": [
+        {
+          "originalResult": "win",
+          "total": 28,
+          "replayPush": 0,
+          "replayPushSettled": 0,
+          "replayWins": 0,
+          "replayLosses": 0,
+          "replayAccuracy": 0,
+          "totalReplayPnl": 0,
+          "totalReplayStaked": 0,
+          "replayRoiOnStaked": 0
+        },
+        {
+          "originalResult": "loss",
+          "total": 20,
+          "replayPush": 0,
+          "replayPushSettled": 0,
+          "replayWins": 0,
+          "replayLosses": 0,
+          "replayAccuracy": 0,
+          "totalReplayPnl": 0,
+          "totalReplayStaked": 0,
+          "replayRoiOnStaked": 0
+        },
+        {
+          "originalResult": "push",
+          "total": 3,
+          "replayPush": 0,
+          "replayPushSettled": 0,
+          "replayWins": 0,
+          "replayLosses": 0,
+          "replayAccuracy": 0,
+          "totalReplayPnl": 0,
+          "totalReplayStaked": 0,
+          "replayRoiOnStaked": 0
+        },
+        {
+          "originalResult": "half_loss",
+          "total": 2,
+          "replayPush": 0,
+          "replayPushSettled": 0,
+          "replayWins": 0,
+          "replayLosses": 0,
+          "replayAccuracy": 0,
+          "totalReplayPnl": 0,
+          "totalReplayStaked": 0,
+          "replayRoiOnStaked": 0
+        },
+        {
+          "originalResult": "half_win",
+          "total": 1,
+          "replayPush": 0,
+          "replayPushSettled": 0,
+          "replayWins": 0,
+          "replayLosses": 0,
+          "replayAccuracy": 0,
+          "totalReplayPnl": 0,
+          "totalReplayStaked": 0,
+          "replayRoiOnStaked": 0
+        }
+      ],
+      "opportunityTradeoff": {
+        "originalDirectionalWinCount": 29,
+        "originalDirectionalWinReplayed": 0,
+        "originalDirectionalWinMissed": 29,
+        "originalDirectionalWinRecallRate": 0,
+        "originalDirectionalWinMissRate": 1,
+        "originalDirectionalLossCount": 22,
+        "originalDirectionalLossReplayed": 0,
+        "originalDirectionalLossAvoided": 22,
+        "originalDirectionalLossAvoidanceRate": 1,
+        "originalDirectionalLossReplayRate": 0
+      },
+      "onOriginalDirectionalLoss": {
+        "total": 22,
+        "replayPushed": 0,
+        "replayWinAmongPushed": 0,
+        "replayLossAmongPushed": 0,
+        "replayAccAmongPushed": 0
+      },
+      "onOriginalDirectionalWin": {
+        "total": 29,
+        "replayPushed": 0,
+        "replayWinAmongPushed": 0,
+        "replayLossAmongPushed": 0
+      }
+    }
+  ]
+}

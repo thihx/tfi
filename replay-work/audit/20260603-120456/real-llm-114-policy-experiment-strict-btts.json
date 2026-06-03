@@ -1,0 +1,273 @@
+{
+  "generatedAt": "2026-06-03T10:42:57.443Z",
+  "totalCases": 114,
+  "trustedCounterfactualCandidates": 7,
+  "skippedPolicyBlockedSelections": [
+    {
+      "scenarioName": "13375-1523156-77m-under-2-5",
+      "recommendationId": 13375,
+      "minute": 77,
+      "score": "1-1",
+      "canonicalMarket": "under_2.5",
+      "originalBetMarket": "under_2.5",
+      "replaySelection": "Under 2.5 Goals @1.7",
+      "originalResult": "loss",
+      "odds": 1.7,
+      "replayQualityAttribution": "model_policy_mismatch",
+      "llmDecisionDiagnostic": "policy_blocked",
+      "warnings": [
+        "LLP_BLOCK_UNDER_THIN_CUSHION_NO_REMAP",
+        "REQUIRED_CONDITIONS_NOT_MET",
+        "POLICY_BLOCK_GOALS_UNDER_THIN_CUSHION_LOW_CONF_GLOBAL",
+        "POLICY_BLOCK_MEDIUM_RISK_THIN_EDGE_GLOBAL"
+      ],
+      "reason": "Goals Under excluded: strict late-under pocket only covers under_4.5 at 75+, two-plus margin, full_live_data, odds >= 2.00; actual market=under_2.5, minuteBand=75+, scoreState=level, odds=1.7."
+    },
+    {
+      "scenarioName": "13307-1521548-61m-btts-yes",
+      "recommendationId": 13307,
+      "minute": 61,
+      "score": "0-2",
+      "canonicalMarket": "btts_yes",
+      "originalBetMarket": "btts_yes",
+      "replaySelection": "BTTS Yes @1.7",
+      "originalResult": "win",
+      "odds": 1.7,
+      "replayQualityAttribution": "model_policy_mismatch",
+      "llmDecisionDiagnostic": "policy_blocked",
+      "warnings": [
+        "REQUIRED_CONDITIONS_NOT_MET",
+        "LATE_MIDGAME_INSUFFICIENT_CONFIDENCE"
+      ],
+      "reason": "BTTS Yes excluded: strict clean-context pocket requires odds >= 2.05; actual odds=1.7."
+    },
+    {
+      "scenarioName": "13297-1536947-79m-over-1-5",
+      "recommendationId": 13297,
+      "minute": 79,
+      "score": "0-1",
+      "canonicalMarket": "over_1.5",
+      "originalBetMarket": "over_1.5",
+      "replaySelection": "Over 1.5 Goals @2.00",
+      "originalResult": "win",
+      "odds": 2,
+      "replayQualityAttribution": "hard_policy_gate",
+      "llmDecisionDiagnostic": "policy_blocked",
+      "warnings": [
+        "LLP_BLOCK_OVER_AGGRESSIVE_LINE",
+        "POLICY_BLOCK_MEDIUM_RISK_THIN_EDGE_GLOBAL"
+      ],
+      "reason": "Over 1.5 excluded: strict pocket requires minuteBand=60-74, scoreState=one-goal-margin, evidenceMode=full_live_data, odds >= 1.50; actual minuteBand=75+, scoreState=one-goal-margin, evidenceMode=full_live_data, odds=2."
+    },
+    {
+      "scenarioName": "13295-1536946-70m-btts-yes",
+      "recommendationId": 13295,
+      "minute": 70,
+      "score": "0-2",
+      "canonicalMarket": "btts_yes",
+      "originalBetMarket": "btts_yes",
+      "replaySelection": "BTTS Yes @2.2",
+      "originalResult": "loss",
+      "odds": 2.2,
+      "replayQualityAttribution": "hard_policy_gate",
+      "llmDecisionDiagnostic": "policy_blocked",
+      "warnings": [
+        "POLICY_BLOCK_MEDIUM_RISK_THIN_EDGE_GLOBAL"
+      ],
+      "reason": "BTTS Yes excluded: strict clean-context pocket requires minuteBand=60-74, scoreState=two-plus-margin, evidenceMode=full_live_data, prematchStrength=strong, marketAvailabilityBucket=totals_only; actual minuteBand=60-74, scoreState=two-plus-margin, evidenceMode=full_live_data, prematchStrength=moderate, marketAvailabilityBucket=playable_side_market."
+    }
+  ],
+  "experiments": [
+    {
+      "id": "btts_yes_60_74_two_plus",
+      "label": "BTTS Yes 60-74 two-plus clean context, price >= 2.05",
+      "stakeCapPercent": 1,
+      "selectedCount": 1,
+      "winCount": 1,
+      "lossCount": 0,
+      "pushLikeCount": 0,
+      "totalStakedPercent": 1,
+      "totalPnlPercent": 1.2,
+      "roiOnStaked": 1.2,
+      "originalWinsRescued": 1,
+      "originalLossesReintroduced": 0,
+      "selections": [
+        {
+          "experimentId": "btts_yes_60_74_two_plus",
+          "scenarioName": "13398-1504825-67m-btts-yes",
+          "recommendationId": 13398,
+          "minute": 67,
+          "score": "0-2",
+          "canonicalMarket": "btts_yes",
+          "originalBetMarket": "btts_yes",
+          "replaySelection": "BTTS Yes @2.2",
+          "originalResult": "win",
+          "odds": 2.2,
+          "stakePercent": 1,
+          "pnlPercent": 1.2,
+          "replayQualityAttribution": "hard_policy_gate",
+          "llmDecisionDiagnostic": "policy_blocked",
+          "warnings": [
+            "POLICY_BLOCK_MEDIUM_RISK_THIN_EDGE_GLOBAL"
+          ],
+          "reason": "Replay-only BTTS Yes clean-context pocket: 60-74, two-plus margin, strong prematch/profile context, totals-only market availability, resolved policy-blocked model selection, price >= 2.05."
+        }
+      ]
+    },
+    {
+      "id": "late_under_45_two_plus",
+      "label": "Late Under 4.5 75+ two-plus margin, price >= 2.00",
+      "stakeCapPercent": 1,
+      "selectedCount": 1,
+      "winCount": 1,
+      "lossCount": 0,
+      "pushLikeCount": 0,
+      "totalStakedPercent": 1,
+      "totalPnlPercent": 1.025,
+      "roiOnStaked": 1.025,
+      "originalWinsRescued": 1,
+      "originalLossesReintroduced": 0,
+      "selections": [
+        {
+          "experimentId": "late_under_45_two_plus",
+          "scenarioName": "13395-1490320-80m-under-4-5",
+          "recommendationId": 13395,
+          "minute": 80,
+          "score": "1-3",
+          "canonicalMarket": "under_4.5",
+          "originalBetMarket": "under_4.5",
+          "replaySelection": "Under 4.5 Goals @2.025",
+          "originalResult": "win",
+          "odds": 2.025,
+          "stakePercent": 1,
+          "pnlPercent": 1.025,
+          "replayQualityAttribution": "hard_policy_gate",
+          "llmDecisionDiagnostic": "policy_blocked",
+          "warnings": [
+            "Late game phase (minute 80) carries inherent volatility as teams may exhaust tactical discipline in the final minutes.",
+            "LLP_BLOCK_UNDER_THIN_CUSHION_NO_REMAP",
+            "POLICY_CAP_GOALS_UNDER_THIN_CUSHION_STAKE_GLOBAL"
+          ],
+          "reason": "Replay-only late Under 4.5 pocket: 75+, two-plus margin, resolved policy-blocked model selection, price >= 2.00."
+        }
+      ]
+    },
+    {
+      "id": "over_15_60_74_one_goal",
+      "label": "Over 1.5 60-74 one-goal margin, price >= 1.50",
+      "stakeCapPercent": 1,
+      "selectedCount": 1,
+      "winCount": 1,
+      "lossCount": 0,
+      "pushLikeCount": 0,
+      "totalStakedPercent": 1,
+      "totalPnlPercent": 0.55,
+      "roiOnStaked": 0.55,
+      "originalWinsRescued": 1,
+      "originalLossesReintroduced": 0,
+      "selections": [
+        {
+          "experimentId": "over_15_60_74_one_goal",
+          "scenarioName": "13381-1535217-61m-over-1-5",
+          "recommendationId": 13381,
+          "minute": 61,
+          "score": "1-0",
+          "canonicalMarket": "over_1.5",
+          "originalBetMarket": "over_1.5",
+          "replaySelection": "Over 1.5 Goals @1.55",
+          "originalResult": "win",
+          "odds": 1.55,
+          "stakePercent": 1,
+          "pnlPercent": 0.55,
+          "replayQualityAttribution": "model_policy_mismatch",
+          "llmDecisionDiagnostic": "policy_blocked",
+          "warnings": [
+            "LLP_BLOCK_OVER_AGGRESSIVE_LINE",
+            "REQUIRED_CONDITIONS_NOT_MET",
+            "OVER_1_5_BLOCKED_LATE_MIDGAME",
+            "POLICY_BLOCK_MEDIUM_RISK_THIN_EDGE_GLOBAL"
+          ],
+          "reason": "Replay-only Over 1.5 pocket: 60-74, one-goal margin, resolved policy-blocked model selection, price >= 1.50."
+        }
+      ]
+    }
+  ],
+  "combined": {
+    "selectedCount": 3,
+    "winCount": 3,
+    "lossCount": 0,
+    "pushLikeCount": 0,
+    "totalStakedPercent": 3,
+    "totalPnlPercent": 2.775,
+    "roiOnStaked": 0.925,
+    "originalWinsRescued": 3,
+    "originalLossesReintroduced": 0,
+    "selections": [
+      {
+        "experimentId": "btts_yes_60_74_two_plus",
+        "scenarioName": "13398-1504825-67m-btts-yes",
+        "recommendationId": 13398,
+        "minute": 67,
+        "score": "0-2",
+        "canonicalMarket": "btts_yes",
+        "originalBetMarket": "btts_yes",
+        "replaySelection": "BTTS Yes @2.2",
+        "originalResult": "win",
+        "odds": 2.2,
+        "stakePercent": 1,
+        "pnlPercent": 1.2,
+        "replayQualityAttribution": "hard_policy_gate",
+        "llmDecisionDiagnostic": "policy_blocked",
+        "warnings": [
+          "POLICY_BLOCK_MEDIUM_RISK_THIN_EDGE_GLOBAL"
+        ],
+        "reason": "Replay-only BTTS Yes clean-context pocket: 60-74, two-plus margin, strong prematch/profile context, totals-only market availability, resolved policy-blocked model selection, price >= 2.05."
+      },
+      {
+        "experimentId": "late_under_45_two_plus",
+        "scenarioName": "13395-1490320-80m-under-4-5",
+        "recommendationId": 13395,
+        "minute": 80,
+        "score": "1-3",
+        "canonicalMarket": "under_4.5",
+        "originalBetMarket": "under_4.5",
+        "replaySelection": "Under 4.5 Goals @2.025",
+        "originalResult": "win",
+        "odds": 2.025,
+        "stakePercent": 1,
+        "pnlPercent": 1.025,
+        "replayQualityAttribution": "hard_policy_gate",
+        "llmDecisionDiagnostic": "policy_blocked",
+        "warnings": [
+          "Late game phase (minute 80) carries inherent volatility as teams may exhaust tactical discipline in the final minutes.",
+          "LLP_BLOCK_UNDER_THIN_CUSHION_NO_REMAP",
+          "POLICY_CAP_GOALS_UNDER_THIN_CUSHION_STAKE_GLOBAL"
+        ],
+        "reason": "Replay-only late Under 4.5 pocket: 75+, two-plus margin, resolved policy-blocked model selection, price >= 2.00."
+      },
+      {
+        "experimentId": "over_15_60_74_one_goal",
+        "scenarioName": "13381-1535217-61m-over-1-5",
+        "recommendationId": 13381,
+        "minute": 61,
+        "score": "1-0",
+        "canonicalMarket": "over_1.5",
+        "originalBetMarket": "over_1.5",
+        "replaySelection": "Over 1.5 Goals @1.55",
+        "originalResult": "win",
+        "odds": 1.55,
+        "stakePercent": 1,
+        "pnlPercent": 0.55,
+        "replayQualityAttribution": "model_policy_mismatch",
+        "llmDecisionDiagnostic": "policy_blocked",
+        "warnings": [
+          "LLP_BLOCK_OVER_AGGRESSIVE_LINE",
+          "REQUIRED_CONDITIONS_NOT_MET",
+          "OVER_1_5_BLOCKED_LATE_MIDGAME",
+          "POLICY_BLOCK_MEDIUM_RISK_THIN_EDGE_GLOBAL"
+        ],
+        "reason": "Replay-only Over 1.5 pocket: 60-74, one-goal margin, resolved policy-blocked model selection, price >= 1.50."
+      }
+    ]
+  }
+}

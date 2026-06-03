@@ -47,7 +47,7 @@ function main(): void {
   const result = evaluateDataDrivenQualityGates(config, actionPlan);
   const m = result.metrics;
   console.log(
-    `[data-driven-quality-gates] ${actionPlan.promptVersion}: total=${m.totalCases} providerCoverage=${m.providerCoverageCount}/${m.totalCases} (${m.providerCoverageRate.toFixed(4)}) replayContextGap=${m.replayContextGapCount}/${m.totalCases} hardPolicyGate=${m.hardPolicyGateCount}/${m.totalCases} modelPolicyMismatch=${m.modelPolicyMismatchCount}/${m.totalCases}`,
+    `[data-driven-quality-gates] ${actionPlan.promptVersion}: total=${m.totalCases} providerCoverage=${m.providerCoverageCount}/${m.totalCases} (${m.providerCoverageRate.toFixed(4)}) replayContextGap=${m.replayContextGapCount}/${m.totalCases} hardPolicyGate=${m.hardPolicyGateCount}/${m.totalCases} modelPolicyMismatch=${m.modelPolicyMismatchCount}/${m.totalCases} emptyDiagnostic=${m.emptyLlmDecisionDiagnosticCount}/${m.totalCases} emptyMarketResolution=${m.emptyMarketResolutionStatusCount}/${m.totalCases}`,
   );
 
   if (result.ok) {

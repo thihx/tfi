@@ -1,0 +1,245 @@
+[
+  {
+    "id": "TFI-AUDIT-001",
+    "severity": "S2",
+    "area": "provider_boundary",
+    "title": "Integration health probes API-Football outside the centralized provider client",
+    "evidence": "Static scan found packages/server/src/lib/integration-health.ts calling `${config.footballApiBaseUrl}/status` with `x-apisports-key` directly. Project guardrails say server-side provider calls should stay centralized in packages/server/src/lib/football-api.ts.",
+    "affectedFiles": [
+      "packages/server/src/lib/integration-health.ts",
+      "packages/server/src/__tests__/integration-health.lib.test.ts"
+    ],
+    "businessImpact": "Low direct money risk, but it weakens provider-call governance: the health probe has its own timeout/fetch path and is not fully aligned with the canonical provider client. Future provider diagnostics can drift from runtime behavior.",
+    "reproduction": "Run `rg -n \"footballApiBaseUrl|x-apisports-key\" packages/server/src --glob '!packages/server/src/lib/football-api.ts'`.",
+    "recommendedFix": "Added `fetchFootballApiStatus` in `football-api.ts` and routed integration health through that helper. Updated integration health tests to mock the provider helper instead of global fetch for football status.",
+    "verification": [
+      "npm run test --prefix packages/server -- src/__tests__/integration-health.lib.test.ts src/__tests__/football-api.test.ts src/__tests__/football-api-quota.test.ts src/__tests__/football-api-circuit.test.ts",
+      "rg -n \"footballApiBaseUrl|x-apisports-key\" packages/server/src --glob '!packages/server/src/lib/football-api.ts'"
+    ],
+    "status": "fixed"
+  },
+  {
+    "id": "TFI-AUDIT-002",
+    "severity": "S2",
+    "area": "llm_recall_calibration",
+    "title": "Real Gemini smoke/chunk runs produced no-bet-only output and missed original winners",
+    "evidence": "Corrected aggregate replay-work/audit/20260603-120456/real-llm-aggregate.json first combined 35 unique real-Gemini replay cases. The latest diagnostics-v2 older-cohort extension replay-work/audit/20260603-120456/real-llm-114-eval-cases-diagnostics-v2.json combines 114 unique cases from twelve source runs, all on v10-hybrid-legacy-g with settled replay policy. Result: push/actionable=0, noBet=114, providerCoverageStatus ok=114/114, replayContextStatus ok=111/114, empty llmDecisionDiagnostic=0, empty marketResolutionStatus=0. Directional original winners missed=53/53; directional original losers avoided=57/57. Attribution: model_no_bet=91, pre_llm_blocked=13, model_policy_mismatch=5, hard_policy_gate=5. Gemini selected resolved markets in 10 no-bet rows; those policy-blocked selections split 5 original winners and 5 original losses.",
+    "affectedFiles": [
+      "packages/server/src/lib/live-analysis-prompt.ts",
+      "packages/server/src/lib/recommendation-policy.ts",
+      "packages/server/src/lib/data-driven-replay-batch.ts",
+      "packages/server/src/lib/replay-policy-experiment.ts",
+      "packages/server/src/lib/runtime-policy-shadow.ts",
+      "packages/server/src/lib/runtime-policy-shadow-report.ts",
+      "packages/server/src/lib/runtime-policy-shadow-skipped-report.ts",
+      "packages/server/src/lib/runtime-policy-shadow-skipped-settlement-report.ts",
+      "packages/server/src/lib/runtime-policy-shadow-skipped-settlement-gates.ts",
+      "packages/server/src/lib/runtime-policy-shadow-settlement-report.ts",
+      "packages/server/src/lib/runtime-policy-shadow-settlement-gates.ts",
+      "packages/server/src/lib/server-pipeline.ts",
+      "packages/server/src/scripts/run-runtime-policy-shadow-audit-suite.ts"
+    ],
+    "businessImpact": "Potentially severe low-recall behavior: current real-LLM plus policy stack avoided every directional historical loser in this sample, but also missed every directional historical winner. This may be acceptable if those winners were lucky/thin, but it is now strong enough to require shadow-gated calibration before progressing product investment recommendations.",
+    "reproduction": "Inspect `replay-work/audit/20260603-120456/real-llm-aggregate.json`; source runs are listed in `sourceRuns`. For a fresh chunk, run `npm run data-driven:replay-batch --prefix packages/server -- --lookback-days 14 --limit 10 --offset 0 --max-scenarios 10 --llm real --allow-real-llm --delay-ms 300 --odds recorded --apply-replay-policy`.",
+    "recommendedFix": "Case review completed in replay-work/audit/20260603-120456/missed-winner-case-review.md and replay-work/audit/20260603-120456/real-llm-74-case-review.md, then extended to 94 and 114 diagnostics-v2 cases. Replay metrics were added: replay-vs-original now includes opportunityTradeoff, segment-action-plan includes modelSelectedPolicyBlocked, and opportunityRecall includes original-loss avoidance. Replay-only counterfactual experiment completed through the 114-case cohort. Latest broad 114-case result in replay-work/audit/20260603-120456/real-llm-114-policy-experiment-diagnostics-v2.json has 7 trusted counterfactual candidates, 4 configured selections, +1.775% simulated PnL at 4% stake, 3 original wins rescued, and 1 original loss reintroduced. The broad BTTS Yes 60-74 two-plus pocket has a counterexample loss (`13295-1536946-70m-btts-yes`), so it should not be promoted. A stricter replay-only BTTS shadow filter was implemented in packages/server/src/lib/replay-policy-experiment.ts requiring `prematchStrength=strong` and `marketAvailabilityBucket=totals_only`; the strict 114-case artifact replay-work/audit/20260603-120456/real-llm-114-policy-experiment-strict-btts.json has 3 configured selections, +2.775% simulated PnL at 3% stake, 3 original wins rescued, and 0 original losses reintroduced, and its gate passes. The policy experiment report now writes explicit skip reasons for trusted policy-blocked selections, making nearby risk cases auditable: late Under 2.5 level-score, Over 1.5 at 75+, low-price BTTS Yes, and non-clean BTTS context. Do not loosen production policy globally. Keep strict BTTS, late Under 4.5, and Over 1.5 as shadow-only hypotheses, and require larger current-runtime cohorts before production policy changes. Shadow-only pocket gates were added via npm run data-driven:check-policy-experiment-gates, packages/server/src/lib/replay-policy-experiment-gates.ts, and packages/server/replay-policy-experiment-gates.example.json. The gate supports stricter per-pocket minWinCount, minOriginalWinsRescued, minTotalPnlPercent, minRoiOnStaked, maxLossCount, and maxOriginalLossesReintroduced thresholds. Multi-run aggregation was added via npm run data-driven:aggregate-cases. Runtime policy-shadow telemetry was added in packages/server/src/lib/runtime-policy-shadow.ts and integrated into server-pipeline as `PIPELINE_POLICY_SHADOW_CANDIDATE` audit/debug output only; it does not change `final_should_bet`, save recommendations, or notify users. Runtime skipped-neighbor telemetry was added as `PIPELINE_POLICY_SHADOW_SKIPPED` for policy-blocked model selections that do not match a configured pocket; npm run data-driven:policy-shadow-skipped-report aggregates these risk-neighbor cases by market, minute band, score state, availability, and skipped reason. Runtime skipped-neighbor settlement reporting was added via npm run data-driven:policy-shadow-skipped-settlement to join skipped-neighbor events to matches_history, settle supported markets, and calculate counterfactual P/L by market and skipped reason. Skipped-neighbor settlement gates were added via npm run data-driven:check-policy-shadow-skipped-settlement-gates, packages/server/src/lib/runtime-policy-shadow-skipped-settlement-gates.ts, packages/server/src/scripts/check-runtime-policy-shadow-skipped-settlement-gates.ts, and packages/server/runtime-policy-shadow-skipped-settlement-gates.example.json. Runtime shadow reporting was added via npm run data-driven:policy-shadow-report to aggregate live shadow events by pocket and context; the initial 14-day report has 0 events because telemetry was just introduced. Runtime shadow settlement reporting was added via npm run data-driven:policy-shadow-settlement to join shadow events to matches_history and settle supported markets with deterministic rules only; the initial 30-day settlement report also has 0 events. Runtime shadow settlement gates were added via npm run data-driven:check-policy-shadow-settlement-gates, packages/server/src/lib/runtime-policy-shadow-settlement-gates.ts, packages/server/src/scripts/check-runtime-policy-shadow-settlement-gates.ts, and packages/server/runtime-policy-shadow-settlement-gates.example.json. Runtime policy shadow suite was added via npm run data-driven:policy-shadow-suite and packages/server/src/scripts/run-runtime-policy-shadow-audit-suite.ts to emit matched, skipped-neighbor, matched-settlement, skipped-settlement reports plus manifest.json in one folder. The baseline gates and suite over current zero-event artifacts pass only as plumbing verification; promotion/review gates require real sample size, settled-rate, bounded losses, P/L, ROI, and pocket/market/reason thresholds.",
+    "verification": [
+      "Inspect replay-work/audit/20260603-120456/real-llm-114-replay-vs-original-diagnostics-v2.json and replay-work/audit/20260603-120456/real-llm-114-policy-experiment-diagnostics-v2.json",
+      "npm run test --prefix packages/server -- src/lib/__tests__/replay-policy-experiment-gates.test.ts",
+      "npm run test --prefix packages/server -- src/lib/__tests__/runtime-policy-shadow.test.ts src/lib/__tests__/replay-policy-experiment.test.ts",
+      "npm run test --prefix packages/server -- src/lib/__tests__/runtime-policy-shadow-report.test.ts",
+      "npm run test --prefix packages/server -- src/lib/__tests__/runtime-policy-shadow-skipped-report.test.ts",
+      "npm run test --prefix packages/server -- src/lib/__tests__/runtime-policy-shadow-skipped-settlement-report.test.ts",
+      "npm run test --prefix packages/server -- src/lib/__tests__/runtime-policy-shadow-skipped-settlement-gates.test.ts",
+      "npm run test --prefix packages/server -- src/lib/__tests__/runtime-policy-shadow-settlement-report.test.ts",
+      "npm run test --prefix packages/server -- src/__tests__/server-pipeline.test.ts",
+      "npm run data-driven:policy-shadow-report --prefix packages/server -- --lookback-days 14 --max-rows 1000 --out-json ../../replay-work/audit/20260603-120456/runtime-policy-shadow-report.json --out-md ../../replay-work/audit/20260603-120456/runtime-policy-shadow-report.md",
+      "npm run data-driven:policy-shadow-skipped-report --prefix packages/server -- --lookback-days 14 --max-rows 1000 --out-json ../../replay-work/audit/20260603-120456/runtime-policy-shadow-skipped-report.json --out-md ../../replay-work/audit/20260603-120456/runtime-policy-shadow-skipped-report.md",
+      "npm run data-driven:policy-shadow-skipped-settlement --prefix packages/server -- --lookback-days 30 --max-rows 1000 --stake-percent 1 --out-json ../../replay-work/audit/20260603-120456/runtime-policy-shadow-skipped-settlement-report.json --out-md ../../replay-work/audit/20260603-120456/runtime-policy-shadow-skipped-settlement-report.md",
+      "npm run data-driven:check-policy-shadow-skipped-settlement-gates --prefix packages/server -- --config ../../replay-work/audit/20260603-120456/runtime-policy-shadow-skipped-settlement-gates-baseline.json",
+      "npm run data-driven:policy-shadow-suite --prefix packages/server -- --lookback-days 14 --settlement-lookback-days 30 --max-rows 1000 --stake-percent 1 --out-dir ../../replay-work/audit/20260603-120456/runtime-policy-shadow-suite",
+      "npm run data-driven:policy-shadow-settlement --prefix packages/server -- --lookback-days 30 --max-rows 1000 --out-json ../../replay-work/audit/20260603-120456/runtime-policy-shadow-settlement-report.json --out-md ../../replay-work/audit/20260603-120456/runtime-policy-shadow-settlement-report.md",
+      "npm run test --prefix packages/server -- src/lib/__tests__/runtime-policy-shadow-settlement-gates.test.ts src/lib/__tests__/runtime-policy-shadow-settlement-report.test.ts",
+      "npm run data-driven:check-policy-shadow-settlement-gates --prefix packages/server -- --config ../../replay-work/audit/20260603-120456/runtime-policy-shadow-settlement-gates-baseline.json",
+      "npm run data-driven:check-quality-gates --prefix packages/server -- --config ../../replay-work/audit/20260603-120456/real-llm-114-quality-gates-diagnostics-v2.json",
+      "npm run data-driven:check-policy-experiment-gates --prefix packages/server -- --config ../../replay-work/audit/20260603-120456/real-llm-114-policy-experiment-gates-diagnostics-v2.json",
+      "npm run data-driven:check-policy-experiment-gates --prefix packages/server -- --config ../../replay-work/audit/20260603-120456/real-llm-114-policy-experiment-gates-strict-btts.json"
+    ],
+    "status": "114_case_validation_done_runtime_shadow_suite_ready"
+  },
+  {
+    "id": "TFI-AUDIT-003",
+    "severity": "S2",
+    "area": "replay_comparability",
+    "title": "30.53% of export-eligible historical rows have empty decision_context",
+    "evidence": "Coverage report replay-work/audit/20260603-120456/coverage.json shows 530 empty decision_context rows among 1736 export-eligible recommendations. Top affected cohorts include older prompt versions and empty promptVersion rows. The coverage report now includes a currentRuntime block that separates official v10-hybrid-legacy-g export-eligible rows with non-empty decision_context from official-prompt rows missing decision_context, non-official prompt versions, and empty prompt versions.",
+    "affectedFiles": [
+      "packages/server/src/scripts/report-recommendation-snapshot-coverage.ts",
+      "packages/server/src/lib/replay-vs-original-analysis.ts",
+      "packages/server/src/lib/replay-segment-hotspots.ts"
+    ],
+    "businessImpact": "Historical replay remains usable, but older cohorts have weaker comparability for decision-context based attribution. Mixing old and current runtime cohorts can make prompt/policy conclusions noisy.",
+    "reproduction": "Run `npm run data-driven:coverage --prefix packages/server -- --out-json <path>`.",
+    "recommendedFix": "Implemented current-runtime-only coverage reporting in packages/server/src/lib/recommendation-snapshot-coverage.ts. For audit reporting, use currentRuntime.amongExportEligible.currentRuntimeReady when prompt/policy conclusions require official current prompt plus non-empty decision_context. Continue using the broader exportEligible count for historical replay volume planning.",
+    "verification": [
+      "npm run test --prefix packages/server -- src/__tests__/recommendation-snapshot-coverage.test.ts",
+      "npm run typecheck --prefix packages/server",
+      "npm run data-driven:coverage --prefix packages/server -- --out-json replay-work/audit/<run>/coverage.json"
+    ],
+    "status": "fixed_current_runtime_coverage_view"
+  },
+  {
+    "id": "TFI-AUDIT-004",
+    "severity": "S3",
+    "area": "provider_coverage",
+    "title": "Real provider sample confirms sparse live data on some fixtures",
+    "evidence": "Real provider sample replay-work/audit/20260603-120456/provider-samples/real-provider-samples.json selected 3 fixtures from 87 on 2026-06-03. The live fixture had 0 stats teams, 0 events, 0 live odds raw, and 0 prematch odds raw. Finished fixtures had prematch odds but live odds raw=0. A repeatable sampler was added at packages/server/src/scripts/audit-real-provider-samples.ts and smoke-tested with max-api-calls=4. A live-day repeated run replay-work/audit/20260603-120456/provider-samples/real-provider-samples-live-day-6x60s.json used 24 API calls across 6 one-minute iterations: statistics non-empty 0/6, events non-empty 6/6, raw live odds 6/6, canonical tradable live odds 4/6, canonical BTTS 1/6.",
+    "affectedFiles": [
+      "packages/server/src/lib/odds-resolver.ts",
+      "packages/server/src/lib/server-pipeline.ts",
+      "packages/server/src/lib/evidence-mode-market-allowlist.ts"
+    ],
+    "businessImpact": "This supports the current conservative evidence-mode design. It is not a defect unless runtime saves recommendations from similarly sparse evidence.",
+    "reproduction": "Inspect replay-work/audit/20260603-120456/provider-samples/real-provider-samples.json.",
+    "recommendedFix": "Keep evidence-mode no-bet guards strict. Repeatable bounded provider-sampling script added with per-run API call budget, summary/full-payload modes, and repeated live-day sampling through `--iterations N --interval-ms MS`; the API-call budget applies across all iterations.",
+    "verification": [
+      "npm run provider:coverage-audit --prefix packages/server -- --lookback-days 180 --limit 500 --fail-on-mismatch",
+      "npm run provider:real-sample --prefix packages/server -- --max-fixtures 1 --max-api-calls 1 --iterations 2 --interval-ms 1 --no-stats --no-events --no-live-odds --no-prematch-odds --out-json ../../replay-work/audit/20260603-120456/provider-samples/real-provider-samples-iterations-smoke.json"
+    ],
+    "status": "observe_sampler_added_live_day_sampled"
+  },
+  {
+    "id": "TFI-AUDIT-005",
+    "severity": "S2",
+    "area": "replay_tooling",
+    "title": "Replay evaluator ignored manifest order when capping scenarios",
+    "evidence": "`listReplayScenarioJsonBasenames()` read `_manifest.json` but then sorted the selected filenames alphabetically. This contradicted the evaluator comment that `--max-scenarios` caps after manifest order. In real replay chunks, the first 14-day run exported newest scenarios in manifest order, but evaluation selected older alphabetic filenames first, causing overlap with the offset chunk and hiding some intended cases.",
+    "affectedFiles": [
+      "packages/server/src/lib/replay-scenario-files.ts",
+      "packages/server/src/__tests__/replay-scenario-files.test.ts",
+      "packages/server/src/lib/db-replay-scenarios.ts",
+      "packages/server/src/lib/data-driven-replay-batch.ts",
+      "packages/server/src/scripts/run-data-driven-replay-batch.ts"
+    ],
+    "businessImpact": "Replay audit chunks could silently sample the wrong cohort when `--max-scenarios` is lower than the exported scenario count. This undermines evidence quality for prompt/policy tuning even though runtime recommendation serving is not directly affected.",
+    "reproduction": "Create a scenario `_manifest.json` with names ordered `z-newest`, `a-oldest`; before the fix, `listReplayScenarioJsonBasenames()` returned `a-oldest.json` before `z-newest.json`.",
+    "recommendedFix": "Preserve manifest order and add a unit test proving stale files are ignored without re-sorting manifest entries. Add `--offset` to replay batch options so controlled real-LLM audit chunks can be run without manual folder surgery.",
+    "verification": [
+      "npm run test --prefix packages/server -- src/__tests__/replay-scenario-files.test.ts",
+      "npm run typecheck --prefix packages/server"
+    ],
+    "status": "fixed"
+  },
+  {
+    "id": "TFI-AUDIT-006",
+    "severity": "S2",
+    "area": "replay_diagnostics",
+    "title": "MARKET_UNRESOLVED conflates intentional no-bets with true market-resolution failures",
+    "evidence": "74-case review in replay-work/audit/20260603-120456/real-llm-74-case-review.md found MARKET_UNRESOLVED on 55 rows, and all 55 had empty replaySelection. Representative llm-cache entries show strict JSON no-bets with selection=\"\" and concrete reasons such as existing exposure, low odds, red cards, danger-zone state, or weak shot quality. This means the warning is mostly no_market_requested, not market_unresolved_after_selection.",
+    "affectedFiles": [
+      "packages/server/src/lib/settled-replay-evaluation.ts",
+      "packages/server/src/lib/segment-policy-action-plan.ts",
+      "packages/server/src/lib/data-driven-quality-gates.ts"
+    ],
+    "businessImpact": "The current diagnostic can mislead prompt/policy tuning. It makes intentional no-bets look like market-normalization failures, hiding the small number of true selected-market policy blocks that matter for investment calibration.",
+    "reproduction": "Inspect replay-work/audit/20260603-120456/real-llm-74-eval-cases.json and count rows where replayWarnings includes MARKET_UNRESOLVED and replaySelection is empty. Result: 55/55.",
+    "recommendedFix": "Implemented diagnostics-v2 cleanup. Empty-selection no-bets are normalized to NO_MARKET_REQUESTED_MODEL_NO_BET, selected-market unresolved warnings are normalized to MARKET_UNRESOLVED_AFTER_SELECTION, and empty llmDecisionDiagnostic / marketResolutionStatus values are backfilled for existing eval-cases via npm run data-driven:normalize-diagnostics. Data-driven quality gates now support maxEmptyLlmDecisionDiagnosticCount/rate and maxEmptyMarketResolutionStatusCount/rate.",
+    "verification": [
+      "npm run test --prefix packages/server -- src/__tests__/settled-replay-evaluation.test.ts src/lib/__tests__/data-driven-quality-gates.test.ts src/lib/__tests__/segment-policy-action-plan.test.ts src/lib/__tests__/replay-policy-experiment.test.ts src/lib/__tests__/replay-policy-experiment-gates.test.ts",
+      "npm run typecheck --prefix packages/server",
+      "npm run data-driven:check-quality-gates --prefix packages/server -- --config ../../replay-work/audit/20260603-120456/real-llm-74-quality-gates-diagnostics-v2.json",
+      "npm run data-driven:check-quality-gates --prefix packages/server -- --config ../../replay-work/audit/20260603-120456/real-llm-94-quality-gates-diagnostics-v2.json"
+    ],
+    "status": "fixed_diagnostics_v2"
+  },
+  {
+    "id": "TFI-AUDIT-007",
+    "severity": "S2",
+    "area": "current_runtime_comparability",
+    "title": "Current official runtime activity has no saved recommendation cohort yet",
+    "evidence": "The regenerated coverage reports replay-work/audit/20260603-120456/coverage-current-runtime.json and replay-work/audit/20260603-120456/coverage-current-runtime-365d.json show currentRuntime.officialPromptVersion=v10-hybrid-legacy-g, but currentRuntimeReady=0. In the 90-day window, exportEligible=1736, officialPrompt=0, nonOfficialPrompt=1620, emptyPromptVersion=116. In the 365-day window, exportEligible=2748, officialPrompt=0, nonOfficialPrompt=1620, emptyPromptVersion=1128. The prompt adoption artifact replay-work/audit/20260603-120456/prompt-adoption-14d.json shows saved-row evidence is stale: totalRows=15, actionableRows=15, officialPromptRows=0, every saved row is stamped with retired prompt version v10-hybrid-legacy-b, latestRowAt=2026-05-25T02:59:20.806Z, latestRowAgeHours=225.81, and latestOfficialPromptRowAt is null. The liveness artifact replay-work/audit/20260603-120456/pipeline-liveness-336h.json narrows the cause: check-live-trigger is active (2304 runs, latest completed 2026-06-03T12:55:38.983Z, age 0.09h), pipeline audit is active (197 PIPELINE_COMPLETE events, latest complete 2026-06-03T01:08:03.856Z, age 11.89h), and audit prompt versions show current runtime uses v10-hybrid-legacy-g (LLM_CALL_STARTED=363, LLM_CALL_COMPLETED=352, PIPELINE_MATCH_ANALYZED=133). However, recommendations remain stale (latest saved row 2026-05-25T02:59:20.806Z, age 226.03h, official saved rows=0), and latest PIPELINE_COMPLETE metadata has totalLlmEligible=1, totalModelNoBet=1, totalSavedRecommendations=0. The no-save artifact replay-work/audit/20260603-120456/current-runtime-no-save-336h.json, filtered to actor=auto-pipeline and prompt v10-hybrid-legacy-g, shows parseDiagnostics=5, parseActionable=0, parseSkipped=5, llmDecisionDiagnostics no_bet_intentional=5/5, marketResolutionStatus not_requested=5/5, matchAnalyzed=133, matchAnalyzedSaved=0, matchAnalyzedShouldPush=0, and matchAnalyzedSaveBlocked=0. The adoption gate replay-work/audit/20260603-120456/prompt-adoption-gates.json fails as expected for saved-row evidence: officialPromptRows=0, officialPromptRate=0.0000, nonOfficialPromptRate=1.0000, latestRowAgeHours > 72, and latestOfficialPromptRowAgeHours is missing. The blocked-selection artifact replay-work/audit/20260603-120456/current-runtime-blocked-selection-336h.json reviews official-prompt PIPELINE_MATCH_ANALYZED rows with non-empty selections but no push/save: totalSelections=39, uniqueMatches=5, settledRows=39, wins=20, losses=18, pushLike=1, totalPnlPercent=-2.68, roiOnStaked=-0.0687. It also shows all 39 older blocked-selection rows lack llmDecisionDiagnostic, marketResolutionStatus, and saveIntegrityStatus, while evidenceMode is present. Market-level counterfactuals are mixed: over_1.5=2 selections, 2 wins, +1.45% P/L; under_4.5=2 selections, 2 wins, +1.40% P/L; but under_3.75, under_3.5, first-half unders, high-chalk AH, and 1x2_home include losses, so global loosening remains unsupported. During this review, normalizeMarket was found to misparse first-half selections such as H1 Under 2.5 Goals @1.85 as full-time under_1; this has been fixed with regression coverage. The blocked-selection gate config replay-work/audit/20260603-120456/current-runtime-blocked-selection-gates.json passes: total=39, settled=39, unresolved=0, settledRate=1.0000, wins=20, losses=18, pnl=-2.6800, roi=-0.0687. The pass is intentionally scoped to settled coverage plus required canonical-market thresholds for over_1.5 and under_4.5; it is shadow-candidate evidence only because the overall cohort remains negative. Runtime shadow telemetry was enriched so PIPELINE_POLICY_SHADOW_CANDIDATE and PIPELINE_POLICY_SHADOW_SKIPPED events now include confidence and marketResolutionStatus. The matched/skipped shadow reports now aggregate by confidence band and market-resolution status. The post-enrichment baseline suite at replay-work/audit/20260603-120456/runtime-policy-shadow-suite-after-telemetry/manifest.json still shows matchedEvents=0, matchedPocketRows=0, skippedEvents=0, and skippedSettledRows=0, which is expected until future live cycles produce new policy-blocked selections. Pipeline-level regression coverage now asserts that enriched PIPELINE_POLICY_SHADOW_CANDIDATE and PIPELINE_POLICY_SHADOW_SKIPPED payloads include confidence and marketResolutionStatus while remaining shadow-only with no recommendation save or notification. Runtime shadow settlement gate configs were prepared for the post-telemetry observation window. The matched gate currently fails with totalPocketRows=0 and missing required pockets late_under_45_two_plus and over_15_60_74_one_goal. The skipped-neighbor gate currently fails with totalEvents=0 and missing required markets over_1.5 and under_4.5. These are expected not-ready failures on the zero-event baseline, not production regressions.",
+    "affectedFiles": [
+      "packages/server/src/lib/recommendation-snapshot-coverage.ts",
+      "packages/server/src/lib/recommendation-prompt-adoption-report.ts",
+      "packages/server/src/lib/recommendation-prompt-adoption-gates.ts",
+      "packages/server/src/lib/recommendation-pipeline-liveness-report.ts",
+      "packages/server/src/lib/current-runtime-no-save-diagnostics-report.ts",
+      "packages/server/src/scripts/report-recommendation-prompt-adoption.ts",
+      "packages/server/src/scripts/check-recommendation-prompt-adoption-gates.ts",
+      "packages/server/src/scripts/report-recommendation-pipeline-liveness.ts",
+      "packages/server/src/scripts/report-current-runtime-no-save-diagnostics.ts",
+      "packages/server/recommendation-prompt-adoption-gates.example.json",
+      "packages/server/src/lib/live-analysis-prompt.ts",
+      "packages/server/src/lib/server-pipeline.ts",
+      "packages/server/src/lib/current-runtime-blocked-selection-review.ts",
+      "packages/server/src/scripts/report-current-runtime-blocked-selection-review.ts",
+      "packages/server/src/lib/__tests__/current-runtime-blocked-selection-review.test.ts",
+      "packages/server/src/lib/normalize-market.ts",
+      "packages/server/src/__tests__/normalize-market.test.ts",
+      "packages/server/src/lib/current-runtime-blocked-selection-gates.ts",
+      "packages/server/src/scripts/check-current-runtime-blocked-selection-gates.ts",
+      "packages/server/src/lib/__tests__/current-runtime-blocked-selection-gates.test.ts",
+      "packages/server/current-runtime-blocked-selection-gates.example.json",
+      "packages/server/src/lib/runtime-policy-shadow.ts",
+      "packages/server/src/lib/runtime-policy-shadow-report.ts",
+      "packages/server/src/lib/runtime-policy-shadow-skipped-report.ts",
+      "packages/server/src/lib/__tests__/runtime-policy-shadow.test.ts",
+      "packages/server/src/lib/__tests__/runtime-policy-shadow-report.test.ts",
+      "packages/server/src/lib/__tests__/runtime-policy-shadow-skipped-report.test.ts",
+      "packages/server/src/__tests__/server-pipeline.test.ts",
+      "replay-work/audit/20260603-120456/runtime-policy-shadow-settlement-gates-after-telemetry.json",
+      "replay-work/audit/20260603-120456/runtime-policy-shadow-skipped-settlement-gates-after-telemetry.json"
+    ],
+    "businessImpact": "Historical settled rows are useful for replay counterfactuals and policy stress-tests, but they cannot directly prove production quality for the current official prompt. Current runtime audit activity is using v10-hybrid-legacy-g, but no official-prompt saved recommendations exist yet; recent production quality therefore cannot be measured from saved-row deltas. The current evidence points to deliberate no-bet decisions in recent fully diagnostic auto-pipeline samples, not save-integrity failures. This protects against overfitting policy changes to retired prompt rows, while also exposing that the current official runtime may be too conservative or seeing too few eligible live opportunities. The blocked-selection counterfactual shows current policy is not simply overblocking profitable selections: the aggregate would have lost money in this window, while a few tiny pockets remain worth shadow-only observation. The first-half normalization fix reduces settlement, deduplication, and persistence risk for H1 markets.",
+    "reproduction": "Run `npm run data-driven:prompt-adoption --prefix packages/server -- --lookback-days 14 --max-recent-rows 50 --out-json ../../replay-work/audit/20260603-120456/prompt-adoption-14d.json --out-md ../../replay-work/audit/20260603-120456/prompt-adoption-14d.md` and inspect `totals.officialPromptRows` and `byPromptVersion`. Run `npm run data-driven:coverage --prefix packages/server -- --lookback-days 90 --out-json ../../replay-work/audit/20260603-120456/coverage-current-runtime.json` to confirm settled export-eligible current-runtime readiness.",
+    "recommendedFix": "Do not treat legacy saved rows as current prompt quality evidence. Continue shadow/replay validation for v10-hybrid-legacy-g. Use pipeline liveness plus prompt adoption reports after deploy, then run current-runtime no-save diagnostics, current-runtime blocked-selection review, and current-runtime blocked-selection gates when official runtime activity has no saved rows. Keep Over 1.5 and late Under 4.5 as shadow-only candidates until larger settled current-runtime samples pass pocket-level gates. After new live cycles accumulate enriched shadow events, rerun data-driven:policy-shadow-suite and the matched/skipped settlement gates; do not loosen globally until those gates pass.",
+    "verification": [
+      "npm run data-driven:coverage --prefix packages/server -- --lookback-days 90 --out-json ../../replay-work/audit/20260603-120456/coverage-current-runtime.json",
+      "npm run data-driven:coverage --prefix packages/server -- --lookback-days 365 --out-json ../../replay-work/audit/20260603-120456/coverage-current-runtime-365d.json",
+      "npm run data-driven:prompt-adoption --prefix packages/server -- --lookback-days 14 --max-recent-rows 50 --out-json ../../replay-work/audit/20260603-120456/prompt-adoption-14d.json --out-md ../../replay-work/audit/20260603-120456/prompt-adoption-14d.md",
+      "npm run data-driven:check-prompt-adoption-gates --prefix packages/server -- --config ../../replay-work/audit/20260603-120456/prompt-adoption-gates.json",
+      "npm run data-driven:pipeline-liveness --prefix packages/server -- --lookback-hours 336 --max-recent-rows 25 --out-json ../../replay-work/audit/20260603-120456/pipeline-liveness-336h.json --out-md ../../replay-work/audit/20260603-120456/pipeline-liveness-336h.md",
+      "npm run data-driven:current-runtime-no-save --prefix packages/server -- --lookback-hours 336 --max-samples 60 --out-json ../../replay-work/audit/20260603-120456/current-runtime-no-save-336h.json --out-md ../../replay-work/audit/20260603-120456/current-runtime-no-save-336h.md",
+      "npm run data-driven:check-coverage-gates --prefix packages/server -- --config ../../replay-work/audit/20260603-120456/coverage-current-runtime-gates.json",
+      "npm run test --prefix packages/server -- src/__tests__/server-pipeline.test.ts",
+      "npm run test --prefix packages/server -- src/lib/__tests__/current-runtime-no-save-diagnostics-report.test.ts",
+      "npm run test --prefix packages/server -- src/lib/__tests__/recommendation-pipeline-liveness-report.test.ts",
+      "npm run test --prefix packages/server -- src/lib/__tests__/recommendation-prompt-adoption-gates.test.ts src/lib/__tests__/recommendation-prompt-adoption-report.test.ts",
+      "npm run test --prefix packages/server -- src/lib/__tests__/recommendation-prompt-adoption-report.test.ts src/__tests__/recommendation-snapshot-coverage.test.ts",
+      "npm run typecheck --prefix packages/server",
+      "npm run data-driven:current-runtime-blocked-selection --prefix packages/server -- --lookback-hours 336 --max-rows 1000 --stake-percent 1 --out-json ../../replay-work/audit/20260603-120456/current-runtime-blocked-selection-336h.json --out-md ../../replay-work/audit/20260603-120456/current-runtime-blocked-selection-336h.md",
+      "npm run test --prefix packages/server -- src/__tests__/normalize-market.test.ts src/lib/__tests__/current-runtime-blocked-selection-review.test.ts src/lib/__tests__/current-runtime-no-save-diagnostics-report.test.ts src/__tests__/first-half-settle.test.ts",
+      "npm run data-driven:check-current-runtime-blocked-selection-gates --prefix packages/server -- --config ../../replay-work/audit/20260603-120456/current-runtime-blocked-selection-gates.json",
+      "npm run test --prefix packages/server -- src/lib/__tests__/current-runtime-blocked-selection-gates.test.ts src/lib/__tests__/current-runtime-blocked-selection-review.test.ts src/__tests__/normalize-market.test.ts",
+      "npm run test --prefix packages/server -- src/lib/__tests__/runtime-policy-shadow.test.ts src/lib/__tests__/runtime-policy-shadow-report.test.ts src/lib/__tests__/runtime-policy-shadow-skipped-report.test.ts src/lib/__tests__/runtime-policy-shadow-settlement-report.test.ts src/lib/__tests__/runtime-policy-shadow-skipped-settlement-report.test.ts",
+      "npm run data-driven:policy-shadow-suite --prefix packages/server -- --lookback-days 14 --settlement-lookback-days 30 --max-rows 1000 --stake-percent 1 --out-dir ../../replay-work/audit/20260603-120456/runtime-policy-shadow-suite-after-telemetry",
+      "npm run test --prefix packages/server -- src/__tests__/server-pipeline.test.ts src/lib/__tests__/runtime-policy-shadow.test.ts src/lib/__tests__/runtime-policy-shadow-report.test.ts src/lib/__tests__/runtime-policy-shadow-skipped-report.test.ts",
+      "npm run data-driven:check-policy-shadow-settlement-gates --prefix packages/server -- --config ../../replay-work/audit/20260603-120456/runtime-policy-shadow-settlement-gates-after-telemetry.json",
+      "npm run data-driven:check-policy-shadow-skipped-settlement-gates --prefix packages/server -- --config ../../replay-work/audit/20260603-120456/runtime-policy-shadow-skipped-settlement-gates-after-telemetry.json"
+    ],
+    "status": "open_current_official_runtime_no_saved_cohort"
+  },
+  {
+    "id": "TFI-AUDIT-008",
+    "severity": "S3",
+    "area": "provider_docs_alignment",
+    "title": "API-Football docs reinforce internal live-odds caching and degraded prematch fallback rules",
+    "evidence": "Official API-Football documentation and guides were reviewed during the audit: https://www.api-football.com/documentation-v3, https://www.api-football.com/news/post/how-to-get-started-with-api-football-the-complete-beginners-guide, and https://www.api-football.com/news/post/fifa-world-cup-2026-guide-to-using-data-with-api-sports. Provider docs state that live fixtures/events/live odds update around 15-60 seconds, fixture statistics update every minute, `/odds/live` has no historical storage, `/odds` is pre-match/reference odds with limited history, `/fixtures?ids=` supports up to 20 IDs, and coverage flags do not guarantee data availability for every match. The live-day repeated sampler confirmed endpoint-specific availability in practice: events and raw live odds were present in 6/6 samples while fixture statistics were empty in 6/6, and canonical market availability changed minute by minute.",
+    "affectedFiles": [
+      "packages/server/src/lib/football-api.ts",
+      "packages/server/src/lib/provider-insight-cache.ts",
+      "packages/server/src/lib/odds-resolver.ts",
+      "packages/server/src/lib/server-pipeline.ts",
+      "packages/server/src/scripts/audit-real-provider-samples.ts"
+    ],
+    "businessImpact": "This supports the current conservative in-play evidence design. Live odds must be captured by TFI during the match if they will be used for replay or movement analysis; missing live odds cannot be reconstructed later from API-Football. Pre-match odds should remain reference/degraded evidence, not live tradable evidence.",
+    "reproduction": "Inspect the official docs URLs listed in evidence and compare them with TFI code paths: `provider-insight-cache.ts` chunks fixture IDs by 20, `odds-resolver.ts` separates `live` from `reference-prematch`, and replay runs use recorded odds snapshots.",
+    "recommendedFix": "No immediate runtime defect found. Keep live odds caching mandatory for replay-quality evidence, preserve `reference-prematch` as degraded/non-live evidence for in-play decisions, and use the bounded repeated provider sampler to compare actual non-empty stats/events/live-odds coverage against league coverage flags before changing evidence-mode thresholds.",
+    "verification": [
+      "rg -n \"fetchFixturesInChunks|slice\\(i, i \\+ 20\\)|reference-prematch|provider-odds-cache\" packages/server/src/lib",
+      "npm run provider:real-sample --prefix packages/server -- --max-fixtures 1 --max-api-calls 4 --out-json ../../replay-work/audit/20260603-120456/provider-samples/real-provider-samples-script-smoke.json",
+      "npm run provider:real-sample --prefix packages/server -- --max-fixtures 1 --max-api-calls 1 --iterations 2 --interval-ms 1 --no-stats --no-events --no-live-odds --no-prematch-odds --out-json ../../replay-work/audit/20260603-120456/provider-samples/real-provider-samples-iterations-smoke.json",
+      "npm run provider:real-sample --prefix packages/server -- --max-fixtures 1 --max-api-calls 24 --iterations 6 --interval-ms 60000 --no-near --no-finished --no-prematch-odds --out-json ../../replay-work/audit/20260603-120456/provider-samples/real-provider-samples-live-day-6x60s.json"
+    ],
+    "status": "docs_aligned_repeated_sampler_added_initial_live_day_sampled"
+  }
+]

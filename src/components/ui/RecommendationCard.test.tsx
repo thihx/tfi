@@ -71,6 +71,26 @@ describe('RecommendationCard', () => {
     expect(screen.getByText('3%')).toBeInTheDocument();
   });
 
+  it('renders watch signals without numeric bet fields', () => {
+    const rec: Recommendation = {
+      ...BASE,
+      id: undefined,
+      signal_kind: 'watch',
+      signal_label: 'Watch',
+      signal_detail: 'Condition matched: minute >= 60',
+      selection: 'Watch condition matched',
+      odds: '-',
+      confidence: null,
+      stake_percent: null,
+      stake_amount: 0,
+    };
+    render(<RecommendationCard rec={rec} />);
+    expect(screen.getByText('Watch')).toBeInTheDocument();
+    expect(screen.getByText('Watch Signal')).toBeInTheDocument();
+    expect(screen.getByText('Condition matched: minute >= 60')).toBeInTheDocument();
+    expect(screen.queryByText(/NaN/)).not.toBeInTheDocument();
+  });
+
   it('renders key factors section', () => {
     render(<RecommendationCard rec={BASE} />);
     expect(screen.getByText('Factors')).toBeInTheDocument();

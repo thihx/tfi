@@ -1,0 +1,41 @@
+{
+  "settlementReportPath": "../../replay-work/audit/<runId>/runtime-policy-shadow-settlement-report.json",
+  "minTotalPocketRows": 30,
+  "minSettledRows": 20,
+  "minSettledRate": 0.8,
+  "maxLosses": 0,
+  "minTotalPnlPercent": 5,
+  "minRoiOnStaked": 0.25,
+  "requiredPockets": [
+    {
+      "id": "btts_yes_60_74_two_plus",
+      "minTotalRows": 10,
+      "minSettledRows": 8,
+      "minSettledRate": 0.8,
+      "minWins": 5,
+      "maxLosses": 0,
+      "minTotalPnlPercent": 2,
+      "minRoiOnStaked": 0.25
+    },
+    {
+      "id": "late_under_45_two_plus",
+      "minTotalRows": 10,
+      "minSettledRows": 8,
+      "minSettledRate": 0.8,
+      "minWins": 5,
+      "maxLosses": 0,
+      "minTotalPnlPercent": 2,
+      "minRoiOnStaked": 0.25
+    },
+    {
+      "id": "over_15_60_74_one_goal",
+      "minTotalRows": 10,
+      "minSettledRows": 8,
+      "minSettledRate": 0.8,
+      "minWins": 5,
+      "maxLosses": 0,
+      "minTotalPnlPercent": 1,
+      "minRoiOnStaked": 0.15
+    }
+  ]
+}

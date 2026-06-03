@@ -1,0 +1,9 @@
+{
+  "actionPlanPath": "../../replay-work/audit/20260603-120456/real-llm-74-action-plan-diagnostics-v2.json",
+  "promptVersion": "v10-hybrid-legacy-g",
+  "minTotalCases": 74,
+  "maxProviderCoverageRate": 0,
+  "maxReplayContextGapRate": 0.02,
+  "maxEmptyLlmDecisionDiagnosticCount": 0,
+  "maxEmptyMarketResolutionStatusCount": 0
+}

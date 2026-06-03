@@ -9,6 +9,12 @@ const RISK_CLASS: Record<string, string> = {
   HIGH: 'rec-card__risk--high',
 };
 
+const SIGNAL_CLASS: Record<NonNullable<Recommendation['signal_kind']>, string> = {
+  bet: 'badge-won',
+  watch: 'badge-pending',
+  no_action: 'badge-draw',
+};
+
 interface Props {
   rec: Recommendation;
   lang?: 'en' | 'vi' | 'both';
@@ -69,6 +75,11 @@ function formatBankrollAmount(value: unknown, rec: Recommendation): string {
   return currency ? `${display} ${currency}` : display;
 }
 
+function parseFiniteNumber(value: unknown): number | null {
+  const parsed = typeof value === 'number' ? value : Number(value);
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
 function confidenceBarClass(conf: number): string {
   if (conf >= 8) return 'rec-card__conf-fill--high';
   if (conf >= 5) return 'rec-card__conf-fill--mid';
@@ -81,7 +92,7 @@ function RecommendationCardBase({ rec, lang, onViewMatch, adminAction }: Props) 
 
   const pnlVal = rec.pnl != null ? parseFloat(String(rec.pnl)) : null;
   const pnlPositive = pnlVal != null && pnlVal >= 0;
-  const conf = rec.confidence != null ? parseFloat(String(rec.confidence)) : null;
+  const conf = parseFiniteNumber(rec.confidence);
   const ts = rec.timestamp || rec.created_at;
   const display = rec.home_team && rec.away_team
     ? `${rec.home_team} vs ${rec.away_team}`
@@ -94,7 +105,17 @@ function RecommendationCardBase({ rec, lang, onViewMatch, adminAction }: Props) 
   const settledScoreLine = formatSettledMatchScores(rec);
   const stakeAmountText = formatBankrollAmount(rec.stake_amount, rec);
   const bankrollText = formatBankrollAmount(rec.bankroll_balance_before, rec);
-  const valuePercent = rec.value_percent != null ? parseFloat(String(rec.value_percent)) : null;
+  const valuePercent = parseFiniteNumber(rec.value_percent);
+  const stakePercent = parseFiniteNumber(rec.stake_percent);
+  const signalKind = rec.signal_kind;
+  const signalLabel = rec.signal_label || (
+    signalKind === 'watch' ? 'Watch' : signalKind === 'no_action' ? 'No Action' : signalKind === 'bet' ? 'Bet' : ''
+  );
+  const selectionLabel = signalKind === 'watch'
+    ? 'Watch Signal'
+    : signalKind === 'no_action'
+      ? 'Status'
+      : 'Selection';
 
   return (
     <div className="card rec-card">
@@ -129,6 +150,11 @@ function RecommendationCardBase({ rec, lang, onViewMatch, adminAction }: Props) 
             </span>
           )}
           {rec.result && <StatusBadge status={rec.result.toUpperCase()} />}
+          {signalKind && signalLabel && (
+            <span className={`badge ${SIGNAL_CLASS[signalKind]}`}>
+              {signalLabel}
+            </span>
+          )}
           {showReviewBadge && (
             <span className="badge badge-pending">Review</span>
           )}
@@ -138,8 +164,11 @@ function RecommendationCardBase({ rec, lang, onViewMatch, adminAction }: Props) 
 
       <div className="rec-card__primary">
         <div className="rec-card__field rec-card__field--selection">
-          <div className="rec-card__label">Selection</div>
+          <div className="rec-card__label">{selectionLabel}</div>
           <div className="rec-card__value rec-card__value--strong">{rec.selection || '—'}</div>
+          {rec.signal_detail && signalKind && signalKind !== 'bet' && (
+            <div className="rec-card__meta" title={rec.signal_detail}>{rec.signal_detail}</div>
+          )}
         </div>
         <div className="rec-card__field">
           <div className="rec-card__label">Odds</div>
@@ -190,11 +219,11 @@ function RecommendationCardBase({ rec, lang, onViewMatch, adminAction }: Props) 
           </div>
         )}
 
-        {rec.stake_percent != null && (
+        {stakePercent != null && (
           <div className="rec-card__field">
             <div className="rec-card__label">Stake</div>
             <div className="rec-card__value">
-              {parseFloat(String(rec.stake_percent)).toFixed(0)}%
+              {stakePercent.toFixed(0)}%
             </div>
           </div>
         )}

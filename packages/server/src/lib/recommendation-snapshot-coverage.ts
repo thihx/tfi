@@ -3,6 +3,7 @@
  * Aligns cohort definitions with db-replay-scenarios loadSettledReplaySourceRows.
  */
 import { query } from '../db/pool.js';
+import { LIVE_ANALYSIS_PROMPT_VERSION } from './live-analysis-prompt.js';
 
 export interface RecommendationSnapshotCoverageReport {
   generatedAt: string;
@@ -32,6 +33,25 @@ export interface RecommendationSnapshotCoverageReport {
     inWindowSlimTrue: number;
     inWindowSlimFalse: number;
   };
+  currentRuntime: {
+    officialPromptVersion: string;
+    amongExportEligible: {
+      total: number;
+      officialPrompt: number;
+      officialPromptWithDecisionContext: number;
+      officialPromptMissingDecisionContext: number;
+      nonOfficialPrompt: number;
+      emptyPromptVersion: number;
+      emptyDecisionContext: number;
+      currentRuntimeReady: number;
+      currentRuntimeReadyPct: number;
+    };
+    cohorts: Array<{
+      cohort: CurrentRuntimeCoverageCohort;
+      count: number;
+      emptyDecisionContext: number;
+    }>;
+  };
   topPromptVersions: Array<{
     promptVersion: string;
     count: number;
@@ -53,6 +73,11 @@ export interface RecommendationSnapshotCoverageReport {
 }
 
 const SETTLED_RESULTS = ['win', 'loss', 'push', 'half_win', 'half_loss', 'void'] as const;
+type CurrentRuntimeCoverageCohort =
+  | 'official_current_runtime'
+  | 'official_current_missing_decision_context'
+  | 'non_official_prompt_version'
+  | 'empty_prompt_version';
 
 function pct(part: number, whole: number): number {
   return whole > 0 ? Math.round((part / whole) * 10000) / 100 : 0;
@@ -154,7 +179,7 @@ export async function buildRecommendationSnapshotCoverageReport(
     ),
   ]);
 
-  const [slimRows, pvRows, modelRows] = await Promise.all([
+  const [slimRows, pvRows, modelRows, currentRuntimeRows] = await Promise.all([
     query<{ slim: boolean; c: string }>(
       `SELECT COALESCE(r.is_slim, false) AS slim, COUNT(*)::text AS c
        FROM recommendations r
@@ -200,6 +225,36 @@ export async function buildRecommendationSnapshotCoverageReport(
        LIMIT 25`,
       [lb],
     ),
+    query<{
+      cohort: CurrentRuntimeCoverageCohort;
+      n: string;
+      empty_dc: string;
+    }>(
+      `SELECT
+         CASE
+           WHEN COALESCE(NULLIF(r.prompt_version, ''), '') = $2
+            AND COALESCE(r.decision_context, '{}'::jsonb) <> '{}'::jsonb
+             THEN 'official_current_runtime'
+           WHEN COALESCE(NULLIF(r.prompt_version, ''), '') = $2
+             THEN 'official_current_missing_decision_context'
+           WHEN COALESCE(NULLIF(r.prompt_version, ''), '') = ''
+             THEN 'empty_prompt_version'
+           ELSE 'non_official_prompt_version'
+         END AS cohort,
+         COUNT(*)::text AS n,
+         COUNT(*) FILTER (WHERE COALESCE(r.decision_context, '{}'::jsonb) = '{}'::jsonb)::text AS empty_dc
+       FROM recommendations r
+       INNER JOIN matches_history mh ON mh.match_id = r.match_id
+       WHERE r.timestamp >= NOW() - ($1::int * INTERVAL '1 day')
+         AND r.bet_type IS DISTINCT FROM 'NO_BET'
+         AND r.result IS DISTINCT FROM 'duplicate'
+         AND r.result IN (${settledIn})
+         AND COALESCE(r.odds_snapshot, '{}'::jsonb) <> '{}'::jsonb
+         AND COALESCE(r.stats_snapshot, '{}'::jsonb) <> '{}'::jsonb
+       GROUP BY 1
+       ORDER BY COUNT(*) DESC`,
+      [lb, LIVE_ANALYSIS_PROMPT_VERSION],
+    ),
   ]);
 
   let slimTrue = 0;
@@ -215,6 +270,17 @@ export async function buildRecommendationSnapshotCoverageReport(
   const amongExportEmptyDc = Number(qe?.empty_dc ?? 0);
   const amongSettledTotal = Number(qs?.total ?? 0);
   const amongSettledReplayReady = Number(qs?.replay_ready ?? 0);
+  const currentRuntimeCohorts = currentRuntimeRows.rows.map((row) => ({
+    cohort: row.cohort,
+    count: Number(row.n),
+    emptyDecisionContext: Number(row.empty_dc),
+  }));
+  const currentRuntimeCount = (cohort: CurrentRuntimeCoverageCohort) =>
+    currentRuntimeCohorts.find((row) => row.cohort === cohort)?.count ?? 0;
+  const officialCurrentRuntime = currentRuntimeCount('official_current_runtime');
+  const officialCurrentMissingDecisionContext = currentRuntimeCount('official_current_missing_decision_context');
+  const nonOfficialPrompt = currentRuntimeCount('non_official_prompt_version');
+  const emptyPromptVersion = currentRuntimeCount('empty_prompt_version');
 
   return {
     generatedAt: new Date().toISOString(),
@@ -241,6 +307,21 @@ export async function buildRecommendationSnapshotCoverageReport(
       },
     },
     slim: { inWindowSlimTrue: slimTrue, inWindowSlimFalse: slimFalse },
+    currentRuntime: {
+      officialPromptVersion: LIVE_ANALYSIS_PROMPT_VERSION,
+      amongExportEligible: {
+        total: amongExportTotal,
+        officialPrompt: officialCurrentRuntime + officialCurrentMissingDecisionContext,
+        officialPromptWithDecisionContext: officialCurrentRuntime,
+        officialPromptMissingDecisionContext: officialCurrentMissingDecisionContext,
+        nonOfficialPrompt,
+        emptyPromptVersion,
+        emptyDecisionContext: amongExportEmptyDc,
+        currentRuntimeReady: officialCurrentRuntime,
+        currentRuntimeReadyPct: pct(officialCurrentRuntime, amongExportTotal),
+      },
+      cohorts: currentRuntimeCohorts,
+    },
     topPromptVersions: pvRows.rows.map((row) => ({
       promptVersion: row.pv,
       count: Number(row.n),

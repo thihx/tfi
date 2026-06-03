@@ -7,6 +7,18 @@ function variant(partial: Partial<ReplayVsOriginalSummary>): ReplayVsOriginalSum
     promptVersion: 'v1',
     scenarioCount: 30,
     byOriginalResult: [],
+    opportunityTradeoff: {
+      originalDirectionalWinCount: 10,
+      originalDirectionalWinReplayed: 5,
+      originalDirectionalWinMissed: 5,
+      originalDirectionalWinRecallRate: 0.5,
+      originalDirectionalWinMissRate: 0.5,
+      originalDirectionalLossCount: 20,
+      originalDirectionalLossReplayed: 10,
+      originalDirectionalLossAvoided: 10,
+      originalDirectionalLossAvoidanceRate: 0.5,
+      originalDirectionalLossReplayRate: 0.5,
+    },
     onOriginalDirectionalLoss: {
       total: 20,
       replayPushed: 10,

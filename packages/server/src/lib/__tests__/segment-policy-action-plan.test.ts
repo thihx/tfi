@@ -145,9 +145,15 @@ describe('buildSegmentPolicyActionPlan', () => {
       count: 1,
     }));
     expect(plan.qualityBlockers.policyWarningExamples[0]?.scenarioName).toBe('policy-blocked');
+    expect(plan.qualityBlockers.modelSelectedPolicyBlocked.total).toBe(1);
+    expect(plan.qualityBlockers.modelSelectedPolicyBlocked.examples[0]).toEqual(expect.objectContaining({
+      scenarioName: 'policy-blocked',
+      originalResult: 'win',
+      replayQualityAttribution: 'hard_policy_gate',
+    }));
   });
 
-  it('summarizes original-win no-bet opportunity recall and rescue candidates', () => {
+  it('summarizes opportunity recall, loss avoidance, and narrow rescue candidates', () => {
     const plan = buildSegmentPolicyActionPlan(report([]), undefined, [
       replayCase({
         scenarioName: 'late-under-45-rescue',
@@ -168,6 +174,38 @@ describe('buildSegmentPolicyActionPlan', () => {
         replayWarnings: ['POLICY_BLOCK_GOALS_UNDER_THIN_CUSHION_LOW_CONF_GLOBAL'],
       }),
       replayCase({
+        scenarioName: 'btts-rescue',
+        score: '0-2',
+        scoreState: 'two-plus-margin',
+        minuteBand: '60-74',
+        evidenceMode: 'full_live_data',
+        canonicalMarket: 'btts_yes',
+        originalBetMarket: 'btts_yes',
+        replaySelection: 'BTTS Yes @2.20',
+        llmDecisionDiagnostic: 'policy_blocked',
+        marketResolutionStatus: 'resolved',
+        providerCoverageStatus: 'ok',
+        replayContextStatus: 'ok',
+        replayQualityAttribution: 'hard_policy_gate',
+        replayWarnings: ['POLICY_BLOCK_MEDIUM_RISK_THIN_EDGE_GLOBAL'],
+      }),
+      replayCase({
+        scenarioName: 'over-15-rescue',
+        score: '1-0',
+        scoreState: 'one-goal-margin',
+        minuteBand: '60-74',
+        evidenceMode: 'full_live_data',
+        canonicalMarket: 'over_1.5',
+        originalBetMarket: 'over_1.5',
+        replaySelection: 'Over 1.5 Goals @1.55',
+        llmDecisionDiagnostic: 'policy_blocked',
+        marketResolutionStatus: 'resolved',
+        providerCoverageStatus: 'ok',
+        replayContextStatus: 'ok',
+        replayQualityAttribution: 'model_policy_mismatch',
+        replayWarnings: ['OVER_1_5_BLOCKED_LATE_MIDGAME'],
+      }),
+      replayCase({
         scenarioName: 'pre-llm-preserved',
         originalResult: 'win',
         llmDecisionDiagnostic: 'pre_llm_blocked',
@@ -180,20 +218,43 @@ describe('buildSegmentPolicyActionPlan', () => {
         llmDecisionDiagnostic: 'pre_llm_blocked',
         replayQualityAttribution: 'pre_llm_blocked',
       }),
+      replayCase({
+        scenarioName: 'policy-saved-loss',
+        originalResult: 'loss',
+        canonicalMarket: 'under_2.5',
+        replaySelection: 'Under 2.5 Goals @1.70',
+        llmDecisionDiagnostic: 'policy_blocked',
+        marketResolutionStatus: 'resolved',
+        providerCoverageStatus: 'ok',
+        replayContextStatus: 'ok',
+        replayQualityAttribution: 'model_policy_mismatch',
+        replayWarnings: ['POLICY_BLOCK_GOALS_UNDER_THIN_CUSHION_LOW_CONF_GLOBAL'],
+      }),
     ]);
 
-    expect(plan.qualityBlockers.opportunityRecall.originalWinCount).toBe(2);
-    expect(plan.qualityBlockers.opportunityRecall.originalWinMissedCount).toBe(2);
-    expect(plan.qualityBlockers.opportunityRecall.candidateRescueCount).toBe(1);
+    expect(plan.qualityBlockers.opportunityRecall.originalWinCount).toBe(4);
+    expect(plan.qualityBlockers.opportunityRecall.originalWinMissedCount).toBe(4);
+    expect(plan.qualityBlockers.opportunityRecall.originalLossCount).toBe(2);
+    expect(plan.qualityBlockers.opportunityRecall.originalLossAvoidedCount).toBe(2);
+    expect(plan.qualityBlockers.opportunityRecall.originalLossAvoidanceRate).toBe(1);
+    expect(plan.qualityBlockers.opportunityRecall.candidateRescueCount).toBe(3);
     expect(plan.qualityBlockers.opportunityRecall.byReplayQualityAttribution).toContainEqual({
       key: 'model_policy_mismatch',
-      count: 1,
+      count: 2,
     });
     expect(plan.qualityBlockers.opportunityRecall.preservedNoBetReasons).toContainEqual({
       key: 'pre_llm_firewall_or_low_evidence',
       count: 1,
     });
     expect(plan.qualityBlockers.opportunityRecall.candidateRescueExamples[0]?.scenarioName).toBe('late-under-45-rescue');
+    expect(plan.qualityBlockers.opportunityRecall.candidateRescueExamples.map((row) => row.scenarioName))
+      .toEqual(['late-under-45-rescue', 'btts-rescue', 'over-15-rescue']);
     expect(plan.qualityBlockers.opportunityRecall.preservedNoBetExamples[0]?.scenarioName).toBe('pre-llm-preserved');
+    expect(plan.qualityBlockers.modelSelectedPolicyBlocked.total).toBe(4);
+    expect(plan.qualityBlockers.modelSelectedPolicyBlocked.originalWinCount).toBe(3);
+    expect(plan.qualityBlockers.modelSelectedPolicyBlocked.originalLossCount).toBe(1);
+    expect(plan.qualityBlockers.modelSelectedPolicyBlocked.byMarketFamily).toContainEqual({ key: 'btts', count: 1 });
+    expect(plan.qualityBlockers.modelSelectedPolicyBlocked.examples.map((row) => row.scenarioName))
+      .toEqual(['late-under-45-rescue', 'btts-rescue', 'over-15-rescue', 'policy-saved-loss']);
   });
 });

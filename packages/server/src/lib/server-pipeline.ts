@@ -128,6 +128,10 @@ import { isMarketAllowedForEvidenceMode } from './evidence-mode-market-allowlist
 import { isFirstHalfApiBetName, isSecondHalfOnlyApiBetName } from './first-half-markets.js';
 import { extractHalftimeScoreFromFixture } from './settle-context.js';
 import { formatSelectionWithMarketContext } from './market-display.js';
+import {
+  buildRuntimePolicyShadowSignal,
+  type RuntimePolicyShadowSignal,
+} from './runtime-policy-shadow.js';
 const pipelineSkipAuditCounters = new Map<string, number>();
 
 /** Absolute URL shown in web push body (tap notification still uses same path on the PWA origin). */
@@ -1061,6 +1065,7 @@ export interface MatchPipelineResult {
     evidenceMode?: EvidenceMode;
     llmDecisionDiagnostic?: ParsedAiResponse['llm_decision_diagnostic'];
     marketResolutionStatus?: ParsedAiResponse['market_resolution_status'];
+    runtimePolicyShadow?: RuntimePolicyShadowSignal;
     saveIntegrityStatus?: 'not_attempted' | 'ok' | 'blocked';
     saveBlockedReason?: string;
     saveProviderCoverageStatus?: RecommendationSaveIntegrityResult['providerCoverageStatus'];
@@ -4949,6 +4954,92 @@ async function processMatch(
       policyContextForPrompt,
     );
     const parsed = activeAnalysis.parsed;
+    const runtimePolicyShadow = buildRuntimePolicyShadowSignal({
+      selection: parsed.selection,
+      betMarket: parsed.bet_market,
+      minute,
+      score,
+      odds: parsed.mapped_odd,
+      confidence: parsed.confidence,
+      policyBlocked: activeAnalysis.policyBlocked,
+      policyWarnings: activeAnalysis.policyWarnings,
+      evidenceMode,
+      marketResolutionStatus: parsed.market_resolution_status,
+      prematchStrength,
+      oddsCanonical: oddsCanonical as Record<string, unknown>,
+      minOdds: settings.minOdds,
+    });
+    if (
+      !shadowMode
+      && !advisoryOnly
+      && runtimePolicyShadow.matchedPockets.length > 0
+    ) {
+      audit({
+        category: 'PIPELINE',
+        action: 'PIPELINE_POLICY_SHADOW_CANDIDATE',
+        outcome: 'SKIPPED',
+        actor: 'auto-pipeline',
+        metadata: {
+          matchId,
+          matchDisplay,
+          promptVersion: activePromptVersion,
+          selection: parsed.selection,
+          betMarket: parsed.bet_market,
+          canonicalMarket: runtimePolicyShadow.canonicalMarket,
+          minute,
+          minuteBand: runtimePolicyShadow.minuteBand,
+          score,
+          scoreState: runtimePolicyShadow.scoreState,
+          odds: runtimePolicyShadow.odds,
+          confidence: runtimePolicyShadow.confidence,
+          evidenceMode: runtimePolicyShadow.evidenceMode,
+          marketResolutionStatus: runtimePolicyShadow.marketResolutionStatus,
+          prematchStrength: runtimePolicyShadow.prematchStrength,
+          marketAvailabilityBucket: runtimePolicyShadow.marketAvailabilityBucket,
+          policyWarnings: runtimePolicyShadow.policyWarnings,
+          matchedPockets: runtimePolicyShadow.matchedPockets,
+          saved: false,
+          notified: false,
+          shadowOnly: true,
+        },
+      });
+    }
+    if (
+      !shadowMode
+      && !advisoryOnly
+      && runtimePolicyShadow.hasPolicyBlockedSelection
+      && runtimePolicyShadow.matchedPockets.length === 0
+    ) {
+      audit({
+        category: 'PIPELINE',
+        action: 'PIPELINE_POLICY_SHADOW_SKIPPED',
+        outcome: 'SKIPPED',
+        actor: 'auto-pipeline',
+        metadata: {
+          matchId,
+          matchDisplay,
+          promptVersion: activePromptVersion,
+          selection: parsed.selection,
+          betMarket: parsed.bet_market,
+          canonicalMarket: runtimePolicyShadow.canonicalMarket,
+          minute,
+          minuteBand: runtimePolicyShadow.minuteBand,
+          score,
+          scoreState: runtimePolicyShadow.scoreState,
+          odds: runtimePolicyShadow.odds,
+          confidence: runtimePolicyShadow.confidence,
+          evidenceMode: runtimePolicyShadow.evidenceMode,
+          marketResolutionStatus: runtimePolicyShadow.marketResolutionStatus,
+          prematchStrength: runtimePolicyShadow.prematchStrength,
+          marketAvailabilityBucket: runtimePolicyShadow.marketAvailabilityBucket,
+          policyWarnings: runtimePolicyShadow.policyWarnings,
+          skippedReason: runtimePolicyShadow.skippedReason,
+          saved: false,
+          notified: false,
+          shadowOnly: true,
+        },
+      });
+    }
     if (
       isAutoPipelineLlmContext({
         promptContext,
@@ -5413,7 +5504,16 @@ async function processMatch(
         outcome: parsed.should_push ? 'SUCCESS' : 'SKIPPED',
         actor: 'auto-pipeline',
         metadata: {
-          matchId, matchDisplay, selection: notificationSelectionDisplay,
+          matchId, matchDisplay, homeName, awayName, league,
+          minute, score, status,
+          selection: notificationSelectionDisplay,
+          rawSelection: parsed.selection,
+          rawBetMarket: parsed.bet_market,
+          betMarket: parsed.bet_market,
+          mappedOdd: parsed.mapped_odd,
+          odds: parsed.mapped_odd,
+          valuePercent: parsed.value_percent,
+          riskLevel: parsed.risk_level,
           confidence: notificationConfidence, shouldPush: parsed.should_push,
           saved, recId, notified,
           promptVersion: activePromptVersion,
@@ -5427,6 +5527,7 @@ async function processMatch(
           evidenceMode,
           llmDecisionDiagnostic: parsed.llm_decision_diagnostic,
           marketResolutionStatus: parsed.market_resolution_status,
+          runtimePolicyShadow,
           saveIntegrityStatus,
           saveBlockedReason,
           saveProviderCoverageStatus,
@@ -5470,6 +5571,7 @@ async function processMatch(
         evidenceMode,
         llmDecisionDiagnostic: parsed.llm_decision_diagnostic,
         marketResolutionStatus: parsed.market_resolution_status,
+        runtimePolicyShadow,
         saveIntegrityStatus,
         saveBlockedReason,
         saveProviderCoverageStatus,

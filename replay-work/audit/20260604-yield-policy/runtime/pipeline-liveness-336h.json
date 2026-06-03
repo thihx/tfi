@@ -1,0 +1,865 @@
+{
+  "generatedAt": "2026-06-03T15:22:12.284Z",
+  "lookbackHours": 336,
+  "jobName": "check-live-trigger",
+  "officialPromptVersion": "v10-hybrid-legacy-g",
+  "job": {
+    "jobName": "check-live-trigger",
+    "totalRuns": 2318,
+    "successRuns": 1151,
+    "failureRuns": 86,
+    "skippedRuns": 1081,
+    "degradedRuns": 0,
+    "latestStartedAt": "2026-06-03T15:15:38.842Z",
+    "latestCompletedAt": "2026-06-03T15:15:38.983Z",
+    "latestCompletedAgeHours": 0.11,
+    "latestStatus": "success",
+    "latestError": null
+  },
+  "recentJobRuns": [
+    {
+      "id": 1070364,
+      "jobName": "check-live-trigger",
+      "startedAt": "2026-06-03T15:15:38.842Z",
+      "completedAt": "2026-06-03T15:15:38.983Z",
+      "status": "success",
+      "skipReason": null,
+      "degradedLocking": false,
+      "durationMs": 141,
+      "error": null,
+      "summary": {
+        "liveCount": 0
+      }
+    },
+    {
+      "id": 1070325,
+      "jobName": "check-live-trigger",
+      "startedAt": "2026-06-03T15:05:38.860Z",
+      "completedAt": "2026-06-03T15:05:39.003Z",
+      "status": "success",
+      "skipReason": null,
+      "degradedLocking": false,
+      "durationMs": 143,
+      "error": null,
+      "summary": {
+        "liveCount": 0
+      }
+    },
+    {
+      "id": 1070286,
+      "jobName": "check-live-trigger",
+      "startedAt": "2026-06-03T14:55:38.854Z",
+      "completedAt": "2026-06-03T14:55:39.114Z",
+      "status": "success",
+      "skipReason": null,
+      "degradedLocking": false,
+      "durationMs": 260,
+      "error": null,
+      "summary": {
+        "liveCount": 0
+      }
+    },
+    {
+      "id": 1070245,
+      "jobName": "check-live-trigger",
+      "startedAt": "2026-06-03T14:45:38.852Z",
+      "completedAt": "2026-06-03T14:45:38.991Z",
+      "status": "success",
+      "skipReason": null,
+      "degradedLocking": false,
+      "durationMs": 139,
+      "error": null,
+      "summary": {
+        "liveCount": 0
+      }
+    },
+    {
+      "id": 1070207,
+      "jobName": "check-live-trigger",
+      "startedAt": "2026-06-03T14:35:38.851Z",
+      "completedAt": "2026-06-03T14:35:38.980Z",
+      "status": "success",
+      "skipReason": null,
+      "degradedLocking": false,
+      "durationMs": 129,
+      "error": null,
+      "summary": {
+        "liveCount": 0
+      }
+    },
+    {
+      "id": 1070167,
+      "jobName": "check-live-trigger",
+      "startedAt": "2026-06-03T14:25:38.853Z",
+      "completedAt": "2026-06-03T14:25:38.996Z",
+      "status": "success",
+      "skipReason": null,
+      "degradedLocking": false,
+      "durationMs": 143,
+      "error": null,
+      "summary": {
+        "liveCount": 0
+      }
+    },
+    {
+      "id": 1070128,
+      "jobName": "check-live-trigger",
+      "startedAt": "2026-06-03T14:15:38.845Z",
+      "completedAt": "2026-06-03T14:15:38.952Z",
+      "status": "success",
+      "skipReason": null,
+      "degradedLocking": false,
+      "durationMs": 107,
+      "error": null,
+      "summary": {
+        "liveCount": 0
+      }
+    },
+    {
+      "id": 1070089,
+      "jobName": "check-live-trigger",
+      "startedAt": "2026-06-03T14:05:38.843Z",
+      "completedAt": "2026-06-03T14:05:39.040Z",
+      "status": "success",
+      "skipReason": null,
+      "degradedLocking": false,
+      "durationMs": 197,
+      "error": null,
+      "summary": {
+        "liveCount": 0
+      }
+    },
+    {
+      "id": 1070049,
+      "jobName": "check-live-trigger",
+      "startedAt": "2026-06-03T13:55:38.836Z",
+      "completedAt": "2026-06-03T13:55:38.972Z",
+      "status": "success",
+      "skipReason": null,
+      "degradedLocking": false,
+      "durationMs": 136,
+      "error": null,
+      "summary": {
+        "liveCount": 0
+      }
+    },
+    {
+      "id": 1070010,
+      "jobName": "check-live-trigger",
+      "startedAt": "2026-06-03T13:45:38.853Z",
+      "completedAt": "2026-06-03T13:45:39.002Z",
+      "status": "success",
+      "skipReason": null,
+      "degradedLocking": false,
+      "durationMs": 149,
+      "error": null,
+      "summary": {
+        "liveCount": 0
+      }
+    },
+    {
+      "id": 1069969,
+      "jobName": "check-live-trigger",
+      "startedAt": "2026-06-03T13:35:38.872Z",
+      "completedAt": "2026-06-03T13:35:38.968Z",
+      "status": "success",
+      "skipReason": null,
+      "degradedLocking": false,
+      "durationMs": 96,
+      "error": null,
+      "summary": {
+        "liveCount": 0
+      }
+    },
+    {
+      "id": 1069932,
+      "jobName": "check-live-trigger",
+      "startedAt": "2026-06-03T13:25:38.852Z",
+      "completedAt": "2026-06-03T13:25:39.092Z",
+      "status": "success",
+      "skipReason": null,
+      "degradedLocking": false,
+      "durationMs": 240,
+      "error": null,
+      "summary": {
+        "liveCount": 0
+      }
+    },
+    {
+      "id": 1069890,
+      "jobName": "check-live-trigger",
+      "startedAt": "2026-06-03T13:15:38.844Z",
+      "completedAt": "2026-06-03T13:15:38.949Z",
+      "status": "success",
+      "skipReason": null,
+      "degradedLocking": false,
+      "durationMs": 105,
+      "error": null,
+      "summary": {
+        "liveCount": 0
+      }
+    },
+    {
+      "id": 1069853,
+      "jobName": "check-live-trigger",
+      "startedAt": "2026-06-03T13:05:38.843Z",
+      "completedAt": "2026-06-03T13:05:39.058Z",
+      "status": "success",
+      "skipReason": null,
+      "degradedLocking": false,
+      "durationMs": 215,
+      "error": null,
+      "summary": {
+        "liveCount": 0
+      }
+    },
+    {
+      "id": 1069812,
+      "jobName": "check-live-trigger",
+      "startedAt": "2026-06-03T12:55:38.858Z",
+      "completedAt": "2026-06-03T12:55:38.983Z",
+      "status": "success",
+      "skipReason": null,
+      "degradedLocking": false,
+      "durationMs": 125,
+      "error": null,
+      "summary": {
+        "liveCount": 0
+      }
+    },
+    {
+      "id": 1069773,
+      "jobName": "check-live-trigger",
+      "startedAt": "2026-06-03T12:45:38.842Z",
+      "completedAt": "2026-06-03T12:45:39.012Z",
+      "status": "success",
+      "skipReason": null,
+      "degradedLocking": false,
+      "durationMs": 170,
+      "error": null,
+      "summary": {
+        "liveCount": 0
+      }
+    },
+    {
+      "id": 1069735,
+      "jobName": "check-live-trigger",
+      "startedAt": "2026-06-03T12:35:38.847Z",
+      "completedAt": "2026-06-03T12:35:38.981Z",
+      "status": "success",
+      "skipReason": null,
+      "degradedLocking": false,
+      "durationMs": 134,
+      "error": null,
+      "summary": {
+        "liveCount": 0
+      }
+    },
+    {
+      "id": 1069694,
+      "jobName": "check-live-trigger",
+      "startedAt": "2026-06-03T12:25:38.845Z",
+      "completedAt": "2026-06-03T12:25:38.967Z",
+      "status": "success",
+      "skipReason": null,
+      "degradedLocking": false,
+      "durationMs": 122,
+      "error": null,
+      "summary": {
+        "liveCount": 0
+      }
+    },
+    {
+      "id": 1069654,
+      "jobName": "check-live-trigger",
+      "startedAt": "2026-06-03T12:15:38.844Z",
+      "completedAt": "2026-06-03T12:15:38.986Z",
+      "status": "success",
+      "skipReason": null,
+      "degradedLocking": false,
+      "durationMs": 142,
+      "error": null,
+      "summary": {
+        "liveCount": 0
+      }
+    },
+    {
+      "id": 1069615,
+      "jobName": "check-live-trigger",
+      "startedAt": "2026-06-03T12:05:38.856Z",
+      "completedAt": "2026-06-03T12:05:38.979Z",
+      "status": "success",
+      "skipReason": null,
+      "degradedLocking": false,
+      "durationMs": 123,
+      "error": null,
+      "summary": {
+        "liveCount": 0
+      }
+    },
+    {
+      "id": 1069576,
+      "jobName": "check-live-trigger",
+      "startedAt": "2026-06-03T11:55:38.839Z",
+      "completedAt": "2026-06-03T11:55:38.947Z",
+      "status": "success",
+      "skipReason": null,
+      "degradedLocking": false,
+      "durationMs": 108,
+      "error": null,
+      "summary": {
+        "liveCount": 0
+      }
+    },
+    {
+      "id": 1069537,
+      "jobName": "check-live-trigger",
+      "startedAt": "2026-06-03T11:45:38.836Z",
+      "completedAt": "2026-06-03T11:45:38.966Z",
+      "status": "success",
+      "skipReason": null,
+      "degradedLocking": false,
+      "durationMs": 130,
+      "error": null,
+      "summary": {
+        "liveCount": 0
+      }
+    },
+    {
+      "id": 1069496,
+      "jobName": "check-live-trigger",
+      "startedAt": "2026-06-03T11:35:38.845Z",
+      "completedAt": "2026-06-03T11:35:38.995Z",
+      "status": "success",
+      "skipReason": null,
+      "degradedLocking": false,
+      "durationMs": 150,
+      "error": null,
+      "summary": {
+        "liveCount": 0
+      }
+    },
+    {
+      "id": 1069456,
+      "jobName": "check-live-trigger",
+      "startedAt": "2026-06-03T11:25:38.832Z",
+      "completedAt": "2026-06-03T11:25:38.972Z",
+      "status": "success",
+      "skipReason": null,
+      "degradedLocking": false,
+      "durationMs": 140,
+      "error": null,
+      "summary": {
+        "liveCount": 0
+      }
+    },
+    {
+      "id": 1069417,
+      "jobName": "check-live-trigger",
+      "startedAt": "2026-06-03T11:15:38.850Z",
+      "completedAt": "2026-06-03T11:15:38.987Z",
+      "status": "success",
+      "skipReason": null,
+      "degradedLocking": false,
+      "durationMs": 137,
+      "error": null,
+      "summary": {
+        "liveCount": 0
+      }
+    },
+    {
+      "id": 1069377,
+      "jobName": "check-live-trigger",
+      "startedAt": "2026-06-03T11:05:38.839Z",
+      "completedAt": "2026-06-03T11:05:38.983Z",
+      "status": "success",
+      "skipReason": null,
+      "degradedLocking": false,
+      "durationMs": 144,
+      "error": null,
+      "summary": {
+        "liveCount": 0
+      }
+    },
+    {
+      "id": 1069338,
+      "jobName": "check-live-trigger",
+      "startedAt": "2026-06-03T10:55:38.838Z",
+      "completedAt": "2026-06-03T10:55:38.964Z",
+      "status": "success",
+      "skipReason": null,
+      "degradedLocking": false,
+      "durationMs": 126,
+      "error": null,
+      "summary": {
+        "liveCount": 0
+      }
+    },
+    {
+      "id": 1069300,
+      "jobName": "check-live-trigger",
+      "startedAt": "2026-06-03T10:45:38.844Z",
+      "completedAt": "2026-06-03T10:45:39.128Z",
+      "status": "success",
+      "skipReason": null,
+      "degradedLocking": false,
+      "durationMs": 284,
+      "error": null,
+      "summary": {
+        "liveCount": 0
+      }
+    },
+    {
+      "id": 1069261,
+      "jobName": "check-live-trigger",
+      "startedAt": "2026-06-03T10:35:38.844Z",
+      "completedAt": "2026-06-03T10:35:38.991Z",
+      "status": "success",
+      "skipReason": null,
+      "degradedLocking": false,
+      "durationMs": 147,
+      "error": null,
+      "summary": {
+        "liveCount": 0
+      }
+    },
+    {
+      "id": 1069222,
+      "jobName": "check-live-trigger",
+      "startedAt": "2026-06-03T10:25:38.849Z",
+      "completedAt": "2026-06-03T10:25:39.149Z",
+      "status": "success",
+      "skipReason": null,
+      "degradedLocking": false,
+      "durationMs": 300,
+      "error": null,
+      "summary": {
+        "liveCount": 0
+      }
+    },
+    {
+      "id": 1069179,
+      "jobName": "check-live-trigger",
+      "startedAt": "2026-06-03T10:15:38.848Z",
+      "completedAt": "2026-06-03T10:15:39.015Z",
+      "status": "success",
+      "skipReason": null,
+      "degradedLocking": false,
+      "durationMs": 167,
+      "error": null,
+      "summary": {
+        "liveCount": 0
+      }
+    },
+    {
+      "id": 1069141,
+      "jobName": "check-live-trigger",
+      "startedAt": "2026-06-03T10:05:38.836Z",
+      "completedAt": "2026-06-03T10:05:38.969Z",
+      "status": "success",
+      "skipReason": null,
+      "degradedLocking": false,
+      "durationMs": 133,
+      "error": null,
+      "summary": {
+        "liveCount": 0
+      }
+    },
+    {
+      "id": 1069101,
+      "jobName": "check-live-trigger",
+      "startedAt": "2026-06-03T09:55:38.843Z",
+      "completedAt": "2026-06-03T09:55:39.003Z",
+      "status": "success",
+      "skipReason": null,
+      "degradedLocking": false,
+      "durationMs": 160,
+      "error": null,
+      "summary": {
+        "liveCount": 0
+      }
+    },
+    {
+      "id": 1069064,
+      "jobName": "check-live-trigger",
+      "startedAt": "2026-06-03T09:45:38.856Z",
+      "completedAt": "2026-06-03T09:45:39.023Z",
+      "status": "success",
+      "skipReason": null,
+      "degradedLocking": false,
+      "durationMs": 167,
+      "error": null,
+      "summary": {
+        "liveCount": 0
+      }
+    },
+    {
+      "id": 1069024,
+      "jobName": "check-live-trigger",
+      "startedAt": "2026-06-03T09:35:38.847Z",
+      "completedAt": "2026-06-03T09:35:39.091Z",
+      "status": "success",
+      "skipReason": null,
+      "degradedLocking": false,
+      "durationMs": 244,
+      "error": null,
+      "summary": {
+        "liveCount": 0
+      }
+    },
+    {
+      "id": 1068984,
+      "jobName": "check-live-trigger",
+      "startedAt": "2026-06-03T09:25:38.850Z",
+      "completedAt": "2026-06-03T09:25:39.015Z",
+      "status": "success",
+      "skipReason": null,
+      "degradedLocking": false,
+      "durationMs": 165,
+      "error": null,
+      "summary": {
+        "liveCount": 0
+      }
+    },
+    {
+      "id": 1068944,
+      "jobName": "check-live-trigger",
+      "startedAt": "2026-06-03T09:15:38.844Z",
+      "completedAt": "2026-06-03T09:15:39.002Z",
+      "status": "success",
+      "skipReason": null,
+      "degradedLocking": false,
+      "durationMs": 158,
+      "error": null,
+      "summary": {
+        "liveCount": 0
+      }
+    },
+    {
+      "id": 1068905,
+      "jobName": "check-live-trigger",
+      "startedAt": "2026-06-03T09:05:38.836Z",
+      "completedAt": "2026-06-03T09:05:39.022Z",
+      "status": "success",
+      "skipReason": null,
+      "degradedLocking": false,
+      "durationMs": 186,
+      "error": null,
+      "summary": {
+        "liveCount": 0
+      }
+    },
+    {
+      "id": 1068865,
+      "jobName": "check-live-trigger",
+      "startedAt": "2026-06-03T08:55:38.849Z",
+      "completedAt": "2026-06-03T08:55:39.020Z",
+      "status": "success",
+      "skipReason": null,
+      "degradedLocking": false,
+      "durationMs": 171,
+      "error": null,
+      "summary": {
+        "liveCount": 0
+      }
+    },
+    {
+      "id": 1068825,
+      "jobName": "check-live-trigger",
+      "startedAt": "2026-06-03T08:45:38.851Z",
+      "completedAt": "2026-06-03T08:45:39.051Z",
+      "status": "success",
+      "skipReason": null,
+      "degradedLocking": false,
+      "durationMs": 200,
+      "error": null,
+      "summary": {
+        "liveCount": 0
+      }
+    },
+    {
+      "id": 1068786,
+      "jobName": "check-live-trigger",
+      "startedAt": "2026-06-03T08:35:38.847Z",
+      "completedAt": "2026-06-03T08:35:38.993Z",
+      "status": "success",
+      "skipReason": null,
+      "degradedLocking": false,
+      "durationMs": 146,
+      "error": null,
+      "summary": {
+        "liveCount": 0
+      }
+    },
+    {
+      "id": 1068747,
+      "jobName": "check-live-trigger",
+      "startedAt": "2026-06-03T08:25:38.855Z",
+      "completedAt": "2026-06-03T08:25:39.032Z",
+      "status": "success",
+      "skipReason": null,
+      "degradedLocking": false,
+      "durationMs": 177,
+      "error": null,
+      "summary": {
+        "liveCount": 0
+      }
+    },
+    {
+      "id": 1068707,
+      "jobName": "check-live-trigger",
+      "startedAt": "2026-06-03T08:15:38.852Z",
+      "completedAt": "2026-06-03T08:15:39.068Z",
+      "status": "success",
+      "skipReason": null,
+      "degradedLocking": false,
+      "durationMs": 216,
+      "error": null,
+      "summary": {
+        "liveCount": 0
+      }
+    },
+    {
+      "id": 1068668,
+      "jobName": "check-live-trigger",
+      "startedAt": "2026-06-03T08:05:38.847Z",
+      "completedAt": "2026-06-03T08:05:39.072Z",
+      "status": "success",
+      "skipReason": null,
+      "degradedLocking": false,
+      "durationMs": 225,
+      "error": null,
+      "summary": {
+        "liveCount": 0
+      }
+    },
+    {
+      "id": 1068630,
+      "jobName": "check-live-trigger",
+      "startedAt": "2026-06-03T07:55:38.848Z",
+      "completedAt": "2026-06-03T07:55:39.045Z",
+      "status": "success",
+      "skipReason": null,
+      "degradedLocking": false,
+      "durationMs": 197,
+      "error": null,
+      "summary": {
+        "liveCount": 0
+      }
+    },
+    {
+      "id": 1068591,
+      "jobName": "check-live-trigger",
+      "startedAt": "2026-06-03T07:45:38.843Z",
+      "completedAt": "2026-06-03T07:45:39.043Z",
+      "status": "success",
+      "skipReason": null,
+      "degradedLocking": false,
+      "durationMs": 200,
+      "error": null,
+      "summary": {
+        "liveCount": 0
+      }
+    },
+    {
+      "id": 1068550,
+      "jobName": "check-live-trigger",
+      "startedAt": "2026-06-03T07:35:38.849Z",
+      "completedAt": "2026-06-03T07:35:39.059Z",
+      "status": "success",
+      "skipReason": null,
+      "degradedLocking": false,
+      "durationMs": 210,
+      "error": null,
+      "summary": {
+        "liveCount": 0
+      }
+    },
+    {
+      "id": 1068511,
+      "jobName": "check-live-trigger",
+      "startedAt": "2026-06-03T07:25:38.842Z",
+      "completedAt": "2026-06-03T07:25:39.059Z",
+      "status": "success",
+      "skipReason": null,
+      "degradedLocking": false,
+      "durationMs": 217,
+      "error": null,
+      "summary": {
+        "liveCount": 0
+      }
+    },
+    {
+      "id": 1068472,
+      "jobName": "check-live-trigger",
+      "startedAt": "2026-06-03T07:15:38.856Z",
+      "completedAt": "2026-06-03T07:15:39.096Z",
+      "status": "success",
+      "skipReason": null,
+      "degradedLocking": false,
+      "durationMs": 240,
+      "error": null,
+      "summary": {
+        "liveCount": 0
+      }
+    },
+    {
+      "id": 1068432,
+      "jobName": "check-live-trigger",
+      "startedAt": "2026-06-03T07:05:38.849Z",
+      "completedAt": "2026-06-03T07:05:39.095Z",
+      "status": "success",
+      "skipReason": null,
+      "degradedLocking": false,
+      "durationMs": 246,
+      "error": null,
+      "summary": {
+        "liveCount": 0
+      }
+    }
+  ],
+  "pipelineAudit": {
+    "totalEvents": 1423,
+    "completeEvents": 197,
+    "latestCompleteAt": "2026-06-03T01:08:03.856Z",
+    "latestCompleteAgeHours": 14.24,
+    "matchAnalyzedEvents": 133,
+    "matchSkippedEvents": 5,
+    "matchErrorEvents": 2,
+    "savedFromMatchAnalyzedEvents": 0,
+    "latestCompleteMetadata": {
+      "batches": 1,
+      "liveCount": 1,
+      "totalErrors": 0,
+      "candidateCount": 1,
+      "totalProcessed": 1,
+      "totalModelNoBet": 1,
+      "totalShouldPush": 0,
+      "totalLlmEligible": 1,
+      "totalSaveBlocked": 0,
+      "totalPolicyBlocked": 0,
+      "totalPreLlmSkipped": 0,
+      "totalProviderReady": 1,
+      "totalSkippedProceed": 0,
+      "totalSkippedStaleness": 0,
+      "totalPushedNotifications": 0,
+      "totalSavedRecommendations": 0,
+      "totalLlmEligibilityBlocked": 0
+    }
+  },
+  "pipelineActions": [
+    {
+      "action": "LLM_CALL_STARTED",
+      "outcome": "SUCCESS",
+      "count": 363,
+      "latestAt": "2026-06-03T10:21:20.340Z"
+    },
+    {
+      "action": "LLM_CALL_COMPLETED",
+      "outcome": "SUCCESS",
+      "count": 351,
+      "latestAt": "2026-06-03T10:21:17.384Z"
+    },
+    {
+      "action": "LLM_PARSE_DIAGNOSTIC",
+      "outcome": "SKIPPED",
+      "count": 344,
+      "latestAt": "2026-06-03T10:21:17.386Z"
+    },
+    {
+      "action": "PIPELINE_COMPLETE",
+      "outcome": "SUCCESS",
+      "count": 195,
+      "latestAt": "2026-06-03T01:08:03.856Z"
+    },
+    {
+      "action": "PIPELINE_MATCH_ANALYZED",
+      "outcome": "SKIPPED",
+      "count": 133,
+      "latestAt": "2026-06-03T01:08:03.830Z"
+    },
+    {
+      "action": "LLM_CALL_BLOCKED",
+      "outcome": "SKIPPED",
+      "count": 25,
+      "latestAt": "2026-06-02T20:32:40.351Z"
+    },
+    {
+      "action": "PIPELINE_MATCH_SKIPPED",
+      "outcome": "SKIPPED",
+      "count": 5,
+      "latestAt": "2026-06-02T17:51:59.665Z"
+    },
+    {
+      "action": "LLM_PARSE_DIAGNOSTIC",
+      "outcome": "SUCCESS",
+      "count": 2,
+      "latestAt": "2026-06-03T03:08:58.112Z"
+    },
+    {
+      "action": "PIPELINE_COMPLETE",
+      "outcome": "PARTIAL",
+      "count": 2,
+      "latestAt": "2026-06-01T17:45:23.517Z"
+    },
+    {
+      "action": "PIPELINE_MATCH_ERROR",
+      "outcome": "FAILURE",
+      "count": 2,
+      "latestAt": "2026-06-01T17:45:23.508Z"
+    },
+    {
+      "action": "LLM_CALL_COMPLETED",
+      "outcome": "FAILURE",
+      "count": 1,
+      "latestAt": "2026-06-03T06:29:24.977Z"
+    }
+  ],
+  "auditPromptVersions": [
+    {
+      "action": "LLM_CALL_STARTED",
+      "promptVersion": "v10-hybrid-legacy-g",
+      "count": 363,
+      "latestAt": "2026-06-03T10:21:20.340Z"
+    },
+    {
+      "action": "LLM_CALL_COMPLETED",
+      "promptVersion": "v10-hybrid-legacy-g",
+      "count": 352,
+      "latestAt": "2026-06-03T10:21:17.384Z"
+    },
+    {
+      "action": "LLM_PARSE_DIAGNOSTIC",
+      "promptVersion": "v10-hybrid-legacy-g",
+      "count": 346,
+      "latestAt": "2026-06-03T10:21:17.386Z"
+    },
+    {
+      "action": "PIPELINE_MATCH_ANALYZED",
+      "promptVersion": "v10-hybrid-legacy-g",
+      "count": 133,
+      "latestAt": "2026-06-03T01:08:03.830Z"
+    },
+    {
+      "action": "LLM_CALL_BLOCKED",
+      "promptVersion": "(empty)",
+      "count": 25,
+      "latestAt": "2026-06-02T20:32:40.351Z"
+    }
+  ],
+  "recommendations": {
+    "totalRows": 15,
+    "latestRowAt": "2026-05-25T02:59:20.806Z",
+    "latestRowAgeHours": 228.38,
+    "officialPromptRows": 0,
+    "latestOfficialPromptRowAt": null,
+    "latestOfficialPromptRowAgeHours": null,
+    "nonOfficialPromptRows": 15
+  },
+  "diagnosis": {
+    "jobHasRecentRuns": true,
+    "pipelineHasRecentComplete": true,
+    "recommendationsHaveRecentRows": true,
+    "officialPromptObserved": false
+  }
+}
