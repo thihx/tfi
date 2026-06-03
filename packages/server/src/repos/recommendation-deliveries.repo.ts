@@ -93,6 +93,41 @@ export interface ConditionOnlyDeliveryStageInput {
   mode?: string | null;
 }
 
+export type AnalysisSignalDeliveryKind = 'watch' | 'no_action';
+
+export interface AnalysisSignalDeliveryStageInput {
+  match_id: string;
+  signal_kind: AnalysisSignalDeliveryKind;
+  signal_label?: string | null;
+  signal_detail?: string | null;
+  timestamp?: string | null;
+  minute?: number | null;
+  score?: string | null;
+  status?: string | null;
+  league?: string | null;
+  home_team?: string | null;
+  away_team?: string | null;
+  selection?: string | null;
+  bet_market?: string | null;
+  odds?: number | null;
+  confidence?: number | null;
+  value_percent?: number | null;
+  risk_level?: string | null;
+  stake_percent?: number | null;
+  reasoning?: string | null;
+  reasoning_vi?: string | null;
+  warnings?: string | null;
+  ai_model?: string | null;
+  mode?: string | null;
+  prompt_version?: string | null;
+  evidence_mode?: string | null;
+  llm_decision_diagnostic?: string | null;
+  market_resolution_status?: string | null;
+  policy_warnings?: string[] | null;
+  runtime_shadow?: Record<string, unknown> | null;
+  dedupe_minutes?: number | null;
+}
+
 interface RecommendationDeliveryListOptions {
   limit?: number;
   offset?: number;
@@ -916,6 +951,138 @@ export async function stageConditionOnlyDeliveries(
   await syncDeliveryChannelStates(db, created.map((row) => row.deliveryId));
 
   await attachBankrollMetadataForDeliveryIds(db, created.map((row) => row.deliveryId));
+  return created;
+}
+
+export async function stageAnalysisSignalDeliveries(
+  db: QueryExecutor,
+  input: AnalysisSignalDeliveryStageInput,
+): Promise<ConditionOnlyDeliveryTarget[]> {
+  const deliveryKind = input.signal_kind === 'watch' ? 'watch_signal' : 'no_action';
+  const signalLabel = normalizeNullableString(input.signal_label)
+    ?? (input.signal_kind === 'watch' ? 'Watch' : 'No Action');
+  const signalDetail = normalizeNullableString(input.signal_detail)
+    ?? (input.signal_kind === 'watch' ? 'Watch candidate; no bet staged.' : 'No actionable signal.');
+  const selection = normalizeNullableString(input.selection)
+    ?? (input.signal_kind === 'watch' ? 'Watch signal' : 'No actionable signal');
+  const dedupeMinutes = Math.max(1, Math.min(180, Number(input.dedupe_minutes ?? 10) || 10));
+
+  const subscriptions = await db.query<{ user_id: string }>(
+    `SELECT DISTINCT user_id
+       FROM user_watch_subscriptions
+      WHERE match_id = $1`,
+    [input.match_id],
+  );
+
+  const created: ConditionOnlyDeliveryTarget[] = [];
+
+  for (const subscription of subscriptions.rows) {
+    const result = await db.query<ConditionOnlyDeliveryTargetRow>(
+      `INSERT INTO user_recommendation_deliveries (
+          user_id,
+          recommendation_id,
+          match_id,
+          matched_condition,
+          eligibility_status,
+          delivery_status,
+          delivery_channels,
+          metadata,
+          created_at
+       )
+       SELECT
+          $1,
+          NULL,
+          $2,
+          FALSE,
+          'informational',
+          'suppressed',
+          '[]'::jsonb,
+          jsonb_strip_nulls(jsonb_build_object(
+            'delivery_kind', $3::text,
+            'signal_kind', $4::text,
+            'signal_label', $5::text,
+            'signal_detail', $6::text,
+            'recommendation_timestamp', $7::text,
+            'recommendation_minute', $8::integer,
+            'recommendation_score', $9::text,
+            'recommendation_status', $10::text,
+            'recommendation_bet_type', $11::text,
+            'recommendation_selection', $12::text,
+            'recommendation_bet_market', $13::text,
+            'recommendation_odds', $14::numeric,
+            'recommendation_confidence', $15::numeric,
+            'recommendation_value_percent', $16::numeric,
+            'recommendation_risk_level', $17::text,
+            'recommendation_stake_percent', $18::numeric,
+            'recommendation_reasoning', $19::text,
+            'recommendation_reasoning_vi', $20::text,
+            'recommendation_warnings', $21::text,
+            'recommendation_home_team', $22::text,
+            'recommendation_away_team', $23::text,
+            'recommendation_league', $24::text,
+            'recommendation_ai_model', $25::text,
+            'recommendation_mode', $26::text,
+            'prompt_version', $27::text,
+            'evidence_mode', $28::text,
+            'llm_decision_diagnostic', $29::text,
+            'market_resolution_status', $30::text,
+            'policy_warnings', $31::jsonb,
+            'runtime_policy_shadow', $32::jsonb
+          )),
+          COALESCE($7::timestamptz, NOW())
+        WHERE NOT EXISTS (
+          SELECT 1
+            FROM user_recommendation_deliveries existing
+           WHERE existing.user_id = $1
+             AND existing.match_id = $2
+             AND existing.recommendation_id IS NULL
+             AND existing.metadata->>'delivery_kind' = $3
+             AND existing.created_at > NOW() - make_interval(mins => $33::integer)
+        )
+       RETURNING id, user_id`,
+      [
+        subscription.user_id,
+        input.match_id,
+        deliveryKind,
+        input.signal_kind,
+        signalLabel,
+        signalDetail,
+        input.timestamp ?? null,
+        input.minute ?? null,
+        input.score ?? null,
+        input.status ?? null,
+        input.signal_kind === 'watch' ? 'WATCH_SIGNAL' : 'NO_ACTION',
+        selection,
+        input.bet_market ?? null,
+        input.odds ?? null,
+        input.confidence ?? null,
+        input.value_percent ?? null,
+        input.risk_level ?? null,
+        input.stake_percent ?? null,
+        input.reasoning ?? null,
+        input.reasoning_vi ?? null,
+        input.warnings ?? null,
+        input.home_team ?? null,
+        input.away_team ?? null,
+        input.league ?? null,
+        input.ai_model ?? null,
+        input.mode ?? null,
+        input.prompt_version ?? null,
+        input.evidence_mode ?? null,
+        input.llm_decision_diagnostic ?? null,
+        input.market_resolution_status ?? null,
+        JSON.stringify(input.policy_warnings ?? []),
+        JSON.stringify(input.runtime_shadow ?? {}),
+        dedupeMinutes,
+      ],
+    );
+
+    const row = result.rows[0];
+    if (row) {
+      created.push({ deliveryId: row.id, userId: row.user_id });
+    }
+  }
+
   return created;
 }
 

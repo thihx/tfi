@@ -268,6 +268,7 @@ vi.mock('../repos/recommendation-deliveries.repo.js', () => ({
   getEligibleDeliveryUserIds: vi.fn().mockResolvedValue(new Set(['user-1'])),
   markDeliveryRowsDelivered: vi.fn().mockResolvedValue(0),
   markRecommendationDeliveriesDelivered: vi.fn().mockResolvedValue(1),
+  stageAnalysisSignalDeliveries: vi.fn().mockResolvedValue([]),
   stageConditionOnlyDeliveries: vi.fn().mockResolvedValue([]),
 }));
 
@@ -544,6 +545,53 @@ describe('runPipelineBatch', () => {
     expect(match.confidence).toBe(8);
     expect(match.saved).toBe(true);
     expect(match.notified).toBe(true);
+  });
+
+  test('stages a No Action live signal when analysis produces no saved bet', async () => {
+    const { callGemini } = await import('../lib/gemini.js');
+    const { createRecommendation } = await import('../repos/recommendations.repo.js');
+    const deliveryRepo = await import('../repos/recommendation-deliveries.repo.js');
+
+    vi.mocked(callGemini).mockResolvedValueOnce(JSON.stringify({
+      should_push: false,
+      selection: '',
+      bet_market: '',
+      confidence: 5,
+      reasoning_en: 'Signals are mixed; no edge.',
+      reasoning_vi: 'Tin hieu chua ro; khong co edge.',
+      warnings: ['NO_EDGE'],
+      value_percent: 0,
+      risk_level: 'MEDIUM',
+      stake_percent: 0,
+      custom_condition_matched: false,
+      custom_condition_status: 'none',
+      custom_condition_summary_en: '',
+      custom_condition_summary_vi: '',
+      custom_condition_reason_en: '',
+      custom_condition_reason_vi: '',
+      condition_triggered_suggestion: '',
+      condition_triggered_reasoning_en: '',
+      condition_triggered_reasoning_vi: '',
+      condition_triggered_confidence: 0,
+      condition_triggered_stake: 0,
+    }));
+
+    const result = await runPipelineBatch(['100']);
+
+    expect(result.results[0]?.decisionKind).toBe('no_bet');
+    expect(createRecommendation).not.toHaveBeenCalled();
+    expect(deliveryRepo.stageConditionOnlyDeliveries).not.toHaveBeenCalled();
+    expect(deliveryRepo.stageAnalysisSignalDeliveries).toHaveBeenCalledWith(
+      expect.any(Object),
+      expect.objectContaining({
+        match_id: '100',
+        signal_kind: 'no_action',
+        signal_label: 'No Action',
+        selection: 'No actionable signal',
+        stake_percent: 0,
+        llm_decision_diagnostic: 'no_bet_intentional',
+      }),
+    );
   });
 
   test('blocks corners recommendations when the live corners line looks stale versus the current state', async () => {

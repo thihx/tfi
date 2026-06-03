@@ -276,10 +276,6 @@ export function applyRecommendationPolicy(input: RecommendationPolicyInput): Rec
     ) {
       block('MARKET_BLACKLISTED_FOR_MIDGAME_WINDOW');
     }
-    if (canonicalMarket === 'over_1.5' && minuteBand === '60-74') {
-      block('OVER_1_5_BLOCKED_LATE_MIDGAME');
-    }
-
     // Prompt-improvement spec rule #3: dangerous score/minute combinations.
     if (scoreState === 'two-plus-margin' && minuteBand === '45-59') {
       block('HIGH_MARGIN_MIDGAME_BLOCK');
@@ -320,6 +316,10 @@ export function applyRecommendationPolicy(input: RecommendationPolicyInput): Rec
 
   if (canonicalMarket === 'over_0.5' && input.minute >= 75) {
     block('POLICY_BLOCK_OVER_0_5_75_PLUS');
+  }
+
+  if (canonicalMarket === 'over_1.5' && input.minute >= 85) {
+    block('POLICY_BLOCK_OVER_1_5_85_PLUS');
   }
 
   if (canonicalMarket === 'under_2.5' && input.minute < 75) {

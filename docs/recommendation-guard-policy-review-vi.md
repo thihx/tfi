@@ -210,6 +210,8 @@ The version flags inside `recommendation-policy.ts` are currently all set to `tr
 - BTTS No pre-60, 60-74, low/high price, low edge, and both teams on target.
 - BTTS Yes 30-59 requires dual threat; global one-side blank / low dual threat blocks.
 - Goals Over one-goal margin long-runway pockets.
+- `over_1.5` is no longer hard-blocked in minute 60-74 one-goal states by the dedicated late-midgame rule. It still must pass full evidence, confidence, break-even/edge, line-patience, memory, and same-thesis gates.
+- `over_1.5` is hard-blocked from minute 85 onward via `POLICY_BLOCK_OVER_1_5_85_PLUS`.
 - Goals Under thin-cushion low confidence pockets.
 - HT Under tight line pre-22 / after early goal / low signal.
 - AH home chalk low signal.
@@ -389,4 +391,3 @@ For replay sanity:
 npm run data-driven:improvement-run --prefix packages/server
 npm run data-driven:verify-gates-ci --prefix packages/server
 ```
-

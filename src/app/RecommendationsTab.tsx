@@ -160,15 +160,26 @@ function getMetadataString(metadata: Record<string, unknown> | null | undefined,
 
 function getDeliverySignalKind(row: RecommendationDelivery): SignalKind {
   if (row.recommendation_id != null) return 'bet';
+  const metadataSignalKind = getMetadataString(row.metadata, 'signal_kind');
+  if (metadataSignalKind === 'watch') return 'watch';
+  if (metadataSignalKind === 'no_action') return 'no_action';
   const deliveryKind = getMetadataString(row.metadata, 'delivery_kind');
   const betType = String(row.recommendation_bet_type ?? '').toUpperCase();
-  if (deliveryKind === 'condition_only' || betType === 'CONDITION_ONLY' || row.matched_condition) {
+  if (
+    deliveryKind === 'condition_only'
+    || deliveryKind === 'watch_signal'
+    || betType === 'CONDITION_ONLY'
+    || betType === 'WATCH_SIGNAL'
+    || row.matched_condition
+  ) {
     return 'watch';
   }
   return 'no_action';
 }
 
-function getDeliverySignalLabel(kind: SignalKind): string {
+function getDeliverySignalLabel(row: RecommendationDelivery, kind: SignalKind): string {
+  const metadataLabel = getMetadataString(row.metadata, 'signal_label');
+  if (metadataLabel) return metadataLabel;
   if (kind === 'bet') return 'Bet';
   if (kind === 'watch') return 'Watch';
   return 'No Action';
@@ -176,6 +187,8 @@ function getDeliverySignalLabel(kind: SignalKind): string {
 
 function getDeliverySignalDetail(row: RecommendationDelivery, kind: SignalKind): string {
   if (kind === 'bet') return 'Saved recommendation';
+  const metadataDetail = getMetadataString(row.metadata, 'signal_detail');
+  if (metadataDetail) return metadataDetail;
   if (kind === 'watch') {
     return getMetadataString(row.metadata, 'condition_evaluation_summary')
       || getMetadataString(row.metadata, 'custom_condition_summary_vi')
@@ -199,7 +212,7 @@ function mapDeliveryToRecommendation(row: RecommendationDelivery): Recommendatio
     id: row.recommendation_id ?? undefined,
     delivery_id: row.id,
     signal_kind: signalKind,
-    signal_label: getDeliverySignalLabel(signalKind),
+    signal_label: getDeliverySignalLabel(row, signalKind),
     signal_detail: getDeliverySignalDetail(row, signalKind),
     match_id: row.match_id,
     match_display: homeTeam && awayTeam ? `${homeTeam} vs ${awayTeam}` : row.match_id,

@@ -102,6 +102,38 @@ describe("applyLinePatiencePolicy", () => {
     expect(result.warnings).toContain("LLP_BLOCK_OVER_AGGRESSIVE_LINE");
   });
 
+  test("allows Over 1.5 in the live one-goal window before minute 85", () => {
+    const result = applyLinePatiencePolicy({
+      selection: "Over 1.5 Goals",
+      betMarket: "over_1.5",
+      minute: 65,
+      score: "1-0",
+      confidence: 7,
+      valuePercent: 6,
+      evidenceMode: "full_live_data",
+      oddsCanonical: { ou: { line: 1.5, over: 1.55, under: 2.35 } },
+      config: DEFAULT_LINE_PATIENCE_CONFIG,
+    });
+    expect(result.blocked).toBe(false);
+    expect(result.warnings).not.toContain("LLP_BLOCK_OVER_AGGRESSIVE_LINE");
+  });
+
+  test("still blocks Over 1.5 at minute 85 and later", () => {
+    const result = applyLinePatiencePolicy({
+      selection: "Over 1.5 Goals",
+      betMarket: "over_1.5",
+      minute: 85,
+      score: "1-0",
+      confidence: 7,
+      valuePercent: 6,
+      evidenceMode: "full_live_data",
+      oddsCanonical: { ou: { line: 1.5, over: 1.55, under: 2.35 } },
+      config: DEFAULT_LINE_PATIENCE_CONFIG,
+    });
+    expect(result.blocked).toBe(true);
+    expect(result.warnings).toContain("LLP_BLOCK_OVER_AGGRESSIVE_LINE");
+  });
+
   test("blocks corners over above preferred max on main line", () => {
     const result = applyLinePatiencePolicy({
       selection: "Over 8.5 Corners",

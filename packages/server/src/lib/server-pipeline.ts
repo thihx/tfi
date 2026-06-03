@@ -83,6 +83,7 @@ import {
   getEligibleDeliveryUserIds,
   markDeliveryRowsDelivered,
   markRecommendationDeliveriesDelivered,
+  stageAnalysisSignalDeliveries,
   stageConditionOnlyDeliveries,
 } from '../repos/recommendation-deliveries.repo.js';
 import { recordOddsMovementsBulk, type OddsMovementInput } from '../repos/odds-movements.repo.js';
@@ -428,6 +429,7 @@ const defaultPipelineDeps = {
   getEligibleDeliveryUserIds,
   markDeliveryRowsDelivered,
   markRecommendationDeliveriesDelivered,
+  stageAnalysisSignalDeliveries,
   stageConditionOnlyDeliveries,
 };
 
@@ -5194,6 +5196,7 @@ async function processMatch(
     let saveProviderCoverageStatus: RecommendationSaveIntegrityResult['providerCoverageStatus'] | undefined;
     const conditionOnlyDeliveryMap = new Map<string, number[]>();
     let conditionOnlyDeliveriesLoaded = false;
+    let analysisSignalDeliveriesLoaded = false;
 
     const ensureConditionOnlyDeliveries = async () => {
       if (conditionOnlyDeliveriesLoaded || recId != null || shadowMode || !parsed.condition_triggered_should_push) return;
@@ -5232,6 +5235,80 @@ async function processMatch(
         ids.push(row.deliveryId);
         conditionOnlyDeliveryMap.set(row.userId, ids);
       }
+    };
+
+    const stageVisibleAnalysisSignal = async () => {
+      if (
+        analysisSignalDeliveriesLoaded
+        || recId != null
+        || shouldSave
+        || shadowMode
+        || advisoryOnly
+        || parsed.condition_triggered_should_push
+      ) {
+        return;
+      }
+      analysisSignalDeliveriesLoaded = true;
+
+      const hasWatchPocket = runtimePolicyShadow.matchedPockets.length > 0;
+      const signalKind = hasWatchPocket ? 'watch' : 'no_action';
+      const watchDetail = runtimePolicyShadow.matchedPockets
+        .map((pocket) => pocket.label)
+        .filter(Boolean)
+        .join('; ');
+      const policyDetail = activeAnalysis.policyBlocked
+        ? `Policy blocked: ${activeAnalysis.policyWarnings.join(', ') || parsed.llm_decision_diagnostic}`
+        : '';
+      const saveDetail = saveIntegrityStatus === 'blocked'
+        ? `Save blocked: ${saveBlockedReason || 'save_integrity_blocked'}`
+        : '';
+      const marketDetail = parsed.market_resolution_status !== 'resolved'
+        ? `Market resolution: ${parsed.market_resolution_status}`
+        : '';
+      const noActionDetail = saveDetail
+        || policyDetail
+        || marketDetail
+        || (parsed.llm_decision_diagnostic === 'no_bet_intentional'
+          ? 'AI reviewed the match and chose no bet.'
+          : `Decision diagnostic: ${parsed.llm_decision_diagnostic}`);
+
+      await deps.stageAnalysisSignalDeliveries({
+        query,
+      }, {
+        match_id: matchId,
+        signal_kind: signalKind,
+        signal_label: signalKind === 'watch' ? 'Watch' : 'No Action',
+        signal_detail: signalKind === 'watch'
+          ? (watchDetail || 'Policy-shadow watch candidate; no bet staged.')
+          : noActionDetail,
+        timestamp: new Date().toISOString(),
+        minute,
+        score,
+        status,
+        league,
+        home_team: homeName,
+        away_team: awayName,
+        selection: signalKind === 'watch' ? parsed.selection : 'No actionable signal',
+        bet_market: signalKind === 'watch' && runtimePolicyShadow.canonicalMarket !== 'unknown'
+          ? runtimePolicyShadow.canonicalMarket
+          : null,
+        odds: signalKind === 'watch' ? parsed.mapped_odd : null,
+        confidence: parsed.confidence,
+        value_percent: parsed.value_percent,
+        risk_level: parsed.risk_level,
+        stake_percent: 0,
+        reasoning: parsed.reasoning_en,
+        reasoning_vi: parsed.reasoning_vi,
+        warnings: parsed.warnings.join(', '),
+        ai_model: model,
+        mode: analysisMode,
+        prompt_version: activePromptVersion,
+        evidence_mode: evidenceMode,
+        llm_decision_diagnostic: parsed.llm_decision_diagnostic,
+        market_resolution_status: parsed.market_resolution_status,
+        policy_warnings: activeAnalysis.policyWarnings,
+        runtime_shadow: runtimePolicyShadow as unknown as Record<string, unknown>,
+      }).catch(() => []);
     };
 
     if (shouldSave && !shadowMode) {
@@ -5404,6 +5481,8 @@ async function processMatch(
       }
       }
     }
+
+    await stageVisibleAnalysisSignal();
 
     // 9. Telegram delivery is intentionally asynchronous.
     // Recommendations stage delivery rows inside createRecommendation() and

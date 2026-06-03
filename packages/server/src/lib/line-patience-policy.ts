@@ -116,6 +116,15 @@ function getTotalGoals(score: string): number | null {
   return home + away;
 }
 
+function getScoreDiff(score: string): number | null {
+  const m = String(score || '').trim().match(/^(\d+)\s*[-:]\s*(\d+)$/);
+  if (!m) return null;
+  const home = Number(m[1] ?? 0);
+  const away = Number(m[2] ?? 0);
+  if (!Number.isFinite(home) || !Number.isFinite(away)) return null;
+  return Math.abs(home - away);
+}
+
 function getMinuteBand(minute: number): string {
   if (minute <= 29) return '00-29';
   if (minute <= 44) return '30-44';
@@ -323,6 +332,7 @@ export function applyLinePatiencePolicy(input: LinePatiencePolicyInput): LinePat
 
   const marketLine = getMarketLine(canonicalMarket);
   const totalGoals = getTotalGoals(input.score);
+  const scoreDiff = getScoreDiff(input.score);
   const minute = Number.isFinite(input.minute) ? input.minute : 0;
 
   if (
@@ -382,7 +392,11 @@ export function applyLinePatiencePolicy(input: LinePatiencePolicyInput): LinePat
 
   // Goals Over — remap down or block
   if (!blocked && canonicalMarket.startsWith('over_') && marketLine != null) {
-    if (!exceptional && marketLine > config.goalsOverRemapMaxLine) {
+    const liveOver15OneGoalWindow = canonicalMarket === 'over_1.5'
+      && minute >= 60
+      && minute < 85
+      && scoreDiff === 1;
+    if (!exceptional && !liveOver15OneGoalWindow && marketLine > config.goalsOverRemapMaxLine) {
       const targetLine = findBestOverLine(input.oddsCanonical, config.goalsOverRemapMaxLine);
       if (targetLine != null && targetLine < marketLine) {
         remapTo(`over_${formatUnsignedLine(targetLine)}`, 'LLP_REMAP_OVER_CONSERVATIVE_LINE');

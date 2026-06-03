@@ -419,6 +419,28 @@ describe('ops-monitoring.repo', () => {
           { diagnostic: 'no_bet_intentional', count: '7' },
           { diagnostic: 'policy_blocked', count: '4' },
         ],
+      })
+      .mockResolvedValueOnce({
+        rows: [{
+          blocked: '2',
+          observed: '3',
+          succeeded: '9',
+          failed: '1',
+          estimated_cost: '0.1234',
+          open_breakers: '1',
+          open_incidents: '1',
+        }],
+      })
+      .mockResolvedValueOnce({
+        rows: [
+          { reason: 'budget_daily_limit', count: '2' },
+          { reason: 'provider_backoff', count: '1' },
+        ],
+      })
+      .mockResolvedValueOnce({
+        rows: [
+          { scope: 'provider:api-football', count: '1' },
+        ],
       });
 
     const snapshot = await getOpsMonitoringSnapshot();
@@ -450,6 +472,11 @@ describe('ops-monitoring.repo', () => {
     expect(snapshot.promptQuality.cornersRows).toBe(1);
     expect(snapshot.promptQuality.lateHighLineRows).toBe(2);
     expect(snapshot.promptQuality.prematch.highNoiseRate).toBe(16.7);
+    expect(snapshot.aiGateway.blocked24h).toBe(2);
+    expect(snapshot.aiGateway.estimatedCost24h).toBe(0.1234);
+    expect(snapshot.aiGateway.openBreakers).toBe(1);
+    expect(snapshot.aiGateway.topReasons[0]).toEqual({ reason: 'budget_daily_limit', count: 2 });
+    expect(snapshot.aiGateway.breakerScopes[0]).toEqual({ scope: 'provider:api-football', count: 1 });
 
     const workloadSql = vi.mocked(query).mock.calls
       .map((call) => String(call[0]))

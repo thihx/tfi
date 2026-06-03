@@ -283,6 +283,66 @@ describe('RecommendationsTab delete actions', () => {
     expect(screen.queryByRole('button', { name: /invest/i })).not.toBeInTheDocument();
   }, 10000);
 
+  it('renders informational delivery metadata as a No Action signal', async () => {
+    mockFetchRecommendationDeliveriesPaginated.mockResolvedValueOnce({
+      rows: [
+        {
+          id: 88,
+          user_id: 'admin-1',
+          recommendation_id: null,
+          match_id: '103',
+          matched_condition: false,
+          eligibility_status: 'informational',
+          delivery_status: 'suppressed',
+          delivery_channels: [],
+          delivered_at: null,
+          hidden: false,
+          dismissed: false,
+          metadata: {
+            delivery_kind: 'no_action',
+            signal_kind: 'no_action',
+            signal_label: 'No Action',
+            signal_detail: 'AI reviewed the match and chose no bet.',
+          },
+          created_at: '2026-06-04T10:00:00.000Z',
+          recommendation_home_team: 'Milan',
+          recommendation_away_team: 'Inter',
+          recommendation_league: 'Serie A',
+          recommendation_timestamp: null,
+          recommendation_minute: 64,
+          recommendation_score: '1-1',
+          recommendation_actual_outcome: null,
+          recommendation_bet_type: 'NO_ACTION',
+          recommendation_bet_market: null,
+          recommendation_selection: 'No actionable signal',
+          recommendation_odds: null,
+          recommendation_confidence: 5,
+          recommendation_value_percent: 0,
+          recommendation_risk_level: 'MEDIUM',
+          recommendation_stake_percent: 0,
+          recommendation_stake_amount: null,
+          recommendation_reasoning: 'Signals are mixed; no edge.',
+          recommendation_reasoning_vi: 'Tin hieu chua ro; khong co edge.',
+          recommendation_key_factors: null,
+          recommendation_warnings: 'NO_EDGE',
+          recommendation_result: null,
+          recommendation_pnl: null,
+          recommendation_settlement_status: null,
+          recommendation_settlement_note: null,
+        },
+      ],
+      total: 1,
+    });
+
+    render(<RecommendationsTab />);
+
+    expect(await screen.findByText('Milan vs Inter')).toBeInTheDocument();
+    expect(screen.getByText('No Action')).toBeInTheDocument();
+    expect(screen.getByText('AI reviewed the match and chose no bet.')).toBeInTheDocument();
+    expect(screen.getByText('No actionable signal')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /invest/i })).not.toBeInTheDocument();
+  }, 10000);
+
   it('does not expose delete actions to non-admin users in either feed', async () => {
     mockGetUser.mockReturnValue({ id: 'user-1', role: 'user', email: 'user@example.com' });
     mockFetchCurrentUser.mockResolvedValue({ id: 'user-1', role: 'user', email: 'user@example.com' });

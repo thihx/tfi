@@ -86,6 +86,43 @@ describe('applyRecommendationPolicy', () => {
     expect(result.warnings).toContain('POLICY_BLOCK_OVER_0_5_75_PLUS');
   });
 
+  test('does not hard-block Over 1.5 in minute 60-74 one-goal states', () => {
+    const result = applyRecommendationPolicy({
+      selection: 'Over 1.5 Goals @2.10',
+      betMarket: 'over_1.5',
+      minute: 66,
+      score: '1-0',
+      odds: 2.1,
+      confidence: 7,
+      valuePercent: 8,
+      stakePercent: 2,
+      evidenceMode: 'full_live_data',
+      directionalWin: true,
+    });
+
+    expect(result.warnings).not.toContain('OVER_1_5_BLOCKED_LATE_MIDGAME');
+    expect(result.warnings).not.toContain('POLICY_BLOCK_OVER_1_5_85_PLUS');
+    expect(result.blocked).toBe(false);
+  });
+
+  test('blocks Over 1.5 from minute 85 onward', () => {
+    const result = applyRecommendationPolicy({
+      selection: 'Over 1.5 Goals @2.10',
+      betMarket: 'over_1.5',
+      minute: 85,
+      score: '1-0',
+      odds: 2.1,
+      confidence: 7,
+      valuePercent: 8,
+      stakePercent: 2,
+      evidenceMode: 'full_live_data',
+      directionalWin: true,
+    });
+
+    expect(result.blocked).toBe(true);
+    expect(result.warnings).toContain('POLICY_BLOCK_OVER_1_5_85_PLUS');
+  });
+
   test('blocks under_2.5 before minute 75', () => {
     const result = applyRecommendationPolicy({
       selection: 'Under 2.5 Goals @1.88',

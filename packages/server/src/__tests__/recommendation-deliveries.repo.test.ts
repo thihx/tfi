@@ -12,6 +12,7 @@ import {
   getPendingTelegramDeliveries,
   getRecommendationDeliveriesByUserId,
   markRecommendationDeliveriesDelivered,
+  stageAnalysisSignalDeliveries,
   stageRecommendationDeliveries,
   updateRecommendationDeliveryFlags,
 } from '../repos/recommendation-deliveries.repo.js';
@@ -21,6 +22,58 @@ beforeEach(() => {
 });
 
 describe('recommendation deliveries repository', () => {
+  test('stageAnalysisSignalDeliveries creates informational signal rows without delivery channels', async () => {
+    const db = {
+      query: vi.fn()
+        .mockResolvedValueOnce({ rows: [{ user_id: 'user-1' }, { user_id: 'user-2' }] })
+        .mockResolvedValueOnce({ rows: [{ id: 201, user_id: 'user-1' }] })
+        .mockResolvedValueOnce({ rows: [] }),
+    };
+
+    const created = await stageAnalysisSignalDeliveries(db, {
+      match_id: 'match-1',
+      signal_kind: 'no_action',
+      signal_detail: 'AI reviewed the match and chose no bet.',
+      timestamp: '2026-06-04T10:00:00.000Z',
+      minute: 64,
+      score: '1-1',
+      home_team: 'Roma',
+      away_team: 'Lazio',
+      confidence: 5,
+      risk_level: 'MEDIUM',
+      stake_percent: 0,
+      llm_decision_diagnostic: 'no_bet_intentional',
+      market_resolution_status: 'not_requested',
+      policy_warnings: [],
+      dedupe_minutes: 15,
+    });
+
+    expect(created).toEqual([{ deliveryId: 201, userId: 'user-1' }]);
+    expect(db.query).toHaveBeenNthCalledWith(
+      1,
+      expect.stringContaining('FROM user_watch_subscriptions'),
+      ['match-1'],
+    );
+    expect(db.query).toHaveBeenNthCalledWith(
+      2,
+      expect.stringContaining("'informational'"),
+      expect.arrayContaining([
+        'user-1',
+        'match-1',
+        'no_action',
+        'no_action',
+        'No Action',
+        'AI reviewed the match and chose no bet.',
+        'NO_ACTION',
+        'No actionable signal',
+        15,
+      ]),
+    );
+    expect(String(db.query.mock.calls[1]?.[0])).toContain("'suppressed'");
+    expect(String(db.query.mock.calls[1]?.[0])).toContain("existing.metadata->>'delivery_kind' = $3");
+    expect(String(db.query.mock.calls[1]?.[0])).toContain("'[]'::jsonb");
+  });
+
   test('stageRecommendationDeliveries stages active watch subscribers for a recommendation', async () => {
     const db = {
       query: vi.fn()

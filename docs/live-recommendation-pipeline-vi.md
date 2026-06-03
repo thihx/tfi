@@ -61,6 +61,7 @@ All older prompt versions are retired. Runtime env values outside this version a
 - `1x2_home` is blocked before minute 75.
 - `1x2_draw` is blocked.
 - `over_0.5` is blocked after minute 75.
+- `over_1.5` is blocked from minute 85 onward; minute 60-74 one-goal states are not hard-blocked by the dedicated Over 1.5 late-midgame rule, but still need full evidence and all normal policy gates.
 - `under_2.5` is blocked before minute 75.
 - BTTS, 1X2, corners, AH, and high-price totals require evidence-specific gates.
 - High-risk outputs are not persisted.

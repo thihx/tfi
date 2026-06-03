@@ -32,6 +32,22 @@ Từ audit 2026-06-04:
 - Full-live blocked slice: ROI `-53.42%`.
 - Một vài pocket nhỏ dương nhưng chưa đủ promote.
 
+Historical replay update:
+
+- Related report: `replay-work/audit/20260604-historical-yield/historical-yield-replay-vi.md`.
+- 180-day coverage found `2,748` settled actionable/export-eligible snapshots and `100%` replay-ready coverage.
+- Two non-overlapping historical mock chunks produced only `3/240` actionable recommendations, push rate `1.25%`.
+- Historical win recall was only `1.77%`: 2 replayed original winners out of 113 original directional wins.
+- Replay avoided original directional losses in these chunks: 0 replayed losses out of 114 original directional losses.
+- Broadly allowing all trusted policy-blocked candidates would be negative: 210 candidates, ROI `-9.41%`.
+- Real Gemini targeted `goals_over` historical sample produced `0/8` actionable and 0 trusted policy-experiment candidates.
+
+Conclusion from historical data:
+
+- The silence problem is real even when recent workload is ignored.
+- Broad policy loosening is still not justified.
+- Positive mock pockets must be treated as Watch/shadow experiments until real Gemini and runtime settlement confirm them.
+
 ## Principles
 
 1. Do not trade product silence for unsafe bet spam.
@@ -91,7 +107,7 @@ Review candidates:
 | Candidate | Current evidence | Action |
 | --- | --- | --- |
 | `POLICY_BLOCK_MEDIUM_RISK_THIN_EDGE_GLOBAL` | 17 runtime rows, ROI `+27.24%` | Shadow with 0.5-1% cap. |
-| Late `over_1.5` midgame | 2 rows, ROI `+72.50%` | Keep telemetry until enough rows. |
+| `over_1.5`, minute `60-74`, one-goal margin | Historical mock: 6 candidates, 5W/1L, ROI `+30.25%`; real Gemini targeted sample: 0/8 actionable | Convert to Watch/shadow prompt experiment, not production loosen. |
 | Late `under_4.5`, 75+, two-plus margin, total goals 4 | 1 real selected winner, blocked by LLP/policy cap path | Shadow exact pocket, review line-patience. |
 | `odds_events_only_degraded` O/U/AH | 15 rows, ROI `+67.60%` | Shadow only; check match concentration. |
 
@@ -112,4 +128,3 @@ Only after shadow gates pass:
 3. Run CI gates.
 4. Deploy as limited beta.
 5. Monitor runtime for two weeks before wider rollout.
-
