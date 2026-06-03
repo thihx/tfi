@@ -101,6 +101,66 @@ interface LlmOpsOverview {
   diagnosticBreakdown: Array<{ diagnostic: string; count: number }>;
 }
 
+interface AiGatewayOverview {
+  mode: string;
+  blocked24h: number;
+  observed24h: number;
+  succeeded24h: number;
+  failed24h: number;
+  estimatedCost24h: number;
+  openBreakers: number;
+  openIncidents: number;
+  topReasons: Array<{ reason: string; count: number }>;
+  breakerScopes: Array<{ scope: string; count: number }>;
+}
+
+interface AiGatewayIncident {
+  id: number;
+  created_at: string;
+  status: string;
+  severity: string;
+  incident_type: string;
+  title: string;
+  feature_key: string | null;
+  operation: string | null;
+  match_id: string | null;
+}
+
+interface AiGatewayBreaker {
+  id: number;
+  updated_at: string;
+  status: string;
+  scope_type: string;
+  scope_key: string;
+  reason: string;
+  severity: string;
+}
+
+interface AiGatewayLog {
+  id: number;
+  created_at: string;
+  provider: string;
+  model: string;
+  operation: string;
+  feature_key: string;
+  mode: string;
+  status: string;
+  decision: string;
+  reason: string | null;
+  severity: string;
+  match_id: string | null;
+  estimated_input_tokens: number;
+  estimated_output_tokens: number;
+  estimated_cost_usd: string | number;
+  latency_ms: number | null;
+}
+
+interface AiGatewayDetails {
+  incidents: AiGatewayIncident[];
+  breakers: AiGatewayBreaker[];
+  logs: AiGatewayLog[];
+}
+
 interface DecisionFunnelStage {
   id: string;
   label: string;
@@ -239,6 +299,7 @@ interface OpsMonitoringSnapshot {
   generatedAt: string;
   workload: WorkloadOverview;
   llm: LlmOpsOverview;
+  aiGateway?: AiGatewayOverview;
   decisionFunnel: DecisionFunnelOverview;
   checklist: ChecklistItem[];
   cards: MetricCard[];
@@ -494,8 +555,43 @@ export function OpsMonitoringPanel() {
   const { state } = useAppState();
   const apiUrl = state.config.apiUrl;
   const [snapshot, setSnapshot] = useState<OpsMonitoringSnapshot | null>(null);
+  const [aiGatewayDetails, setAiGatewayDetails] = useState<AiGatewayDetails>({
+    incidents: [],
+    breakers: [],
+    logs: [],
+  });
   const [loading, setLoading] = useState(false);
+  const [actionBusy, setActionBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+
+  const fetchAiGatewayDetails = useCallback(async () => {
+    if (apiUrl == null) return;
+    const [incidentsRes, breakersRes, logsRes] = await Promise.all([
+      fetch(internalApiUrl('/api/ops/ai-gateway/incidents?limit=8', apiUrl), {
+        headers: authHeaders(),
+        credentials: 'include',
+      }),
+      fetch(internalApiUrl('/api/ops/ai-gateway/breakers?limit=8', apiUrl), {
+        headers: authHeaders(),
+        credentials: 'include',
+      }),
+      fetch(internalApiUrl('/api/ops/ai-gateway/logs?limit=12', apiUrl), {
+        headers: authHeaders(),
+        credentials: 'include',
+      }),
+    ]);
+    if (!incidentsRes.ok || !breakersRes.ok || !logsRes.ok) return;
+    const [incidentsBody, breakersBody, logsBody] = await Promise.all([
+      incidentsRes.json() as Promise<{ rows?: AiGatewayIncident[] }>,
+      breakersRes.json() as Promise<{ rows?: AiGatewayBreaker[] }>,
+      logsRes.json() as Promise<{ rows?: AiGatewayLog[] }>,
+    ]);
+    setAiGatewayDetails({
+      incidents: incidentsBody.rows ?? [],
+      breakers: breakersBody.rows ?? [],
+      logs: logsBody.rows ?? [],
+    });
+  }, [apiUrl]);
 
   const fetchSnapshot = useCallback(async () => {
     if (apiUrl == null) return;
@@ -511,12 +607,39 @@ export function OpsMonitoringPanel() {
         throw new Error(body.detail || body.error || `HTTP ${res.status}`);
       }
       setSnapshot(await res.json());
+      await fetchAiGatewayDetails();
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
     } finally {
       setLoading(false);
     }
-  }, [apiUrl]);
+  }, [apiUrl, fetchAiGatewayDetails]);
+
+  const runAiGatewayAction = useCallback(async (path: string, busyKey: string) => {
+    if (apiUrl == null) return;
+    setActionBusy(busyKey);
+    setError(null);
+    try {
+      const res = await fetch(internalApiUrl(path, apiUrl), {
+        method: 'POST',
+        headers: {
+          ...authHeaders(),
+          'Content-Type': 'application/json',
+        },
+        credentials: 'include',
+        body: JSON.stringify({ note: 'Updated from Ops Monitoring' }),
+      });
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({})) as { error?: string; detail?: string };
+        throw new Error(body.detail || body.error || `HTTP ${res.status}`);
+      }
+      await Promise.all([fetchSnapshot(), fetchAiGatewayDetails()]);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setActionBusy(null);
+    }
+  }, [apiUrl, fetchAiGatewayDetails, fetchSnapshot]);
 
   useEffect(() => {
     void fetchSnapshot();
@@ -882,6 +1005,50 @@ export function OpsMonitoringPanel() {
                 </div>
               ))}
             </div>
+            {snapshot.aiGateway && (
+              <>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: '8px', marginBottom: '12px' }}>
+                  {[
+                    { label: 'Gateway Mode', value: snapshot.aiGateway.mode, warn: snapshot.aiGateway.mode === 'off' },
+                    { label: 'Gateway Blocked', value: snapshot.aiGateway.blocked24h, warn: snapshot.aiGateway.blocked24h > 0 },
+                    { label: 'Open Breakers', value: snapshot.aiGateway.openBreakers, warn: snapshot.aiGateway.openBreakers > 0 },
+                    { label: 'Open Incidents', value: snapshot.aiGateway.openIncidents, warn: snapshot.aiGateway.openIncidents > 0 },
+                    { label: 'Est. Cost', value: `$${snapshot.aiGateway.estimatedCost24h}`, warn: false },
+                  ].map((item) => (
+                    <div key={item.label} style={{ padding: '8px 10px', borderRadius: '6px', background: item.warn ? '#fef2f2' : 'var(--gray-50)', border: `1px solid ${item.warn ? '#fecaca' : 'var(--gray-200)'}` }}>
+                      <div style={{ fontSize: '10px', color: 'var(--gray-500)', textTransform: 'uppercase', letterSpacing: '0.3px' }}>{item.label}</div>
+                      <div style={{ fontSize: '18px', fontWeight: 800, color: item.warn ? '#dc2626' : 'var(--gray-800)', lineHeight: 1.2, marginTop: '2px' }}>{item.value}</div>
+                    </div>
+                  ))}
+                </div>
+                <div className="ops-panel-split-grid" style={{ marginBottom: '12px' }}>
+                  <div>
+                    <div style={{ fontSize: '11px', fontWeight: 600, color: 'var(--gray-500)', textTransform: 'uppercase', letterSpacing: '0.3px', marginBottom: '5px' }}>Gateway reasons</div>
+                    {snapshot.aiGateway.topReasons.length === 0
+                      ? <div style={{ fontSize: '12px', color: 'var(--gray-400)' }}>No gateway blocks or failures.</div>
+                      : snapshot.aiGateway.topReasons.map((row) => (
+                        <div key={row.reason} style={{ display: 'flex', justifyContent: 'space-between', fontSize: '12px', padding: '3px 0', borderBottom: '1px solid var(--gray-100)' }}>
+                          <span style={{ color: 'var(--gray-600)' }}>{humanizeReasonCode(row.reason)}</span>
+                          <span style={{ fontWeight: 600 }}>{row.count}</span>
+                        </div>
+                      ))
+                    }
+                  </div>
+                  <div>
+                    <div style={{ fontSize: '11px', fontWeight: 600, color: 'var(--gray-500)', textTransform: 'uppercase', letterSpacing: '0.3px', marginBottom: '5px' }}>Open breaker scopes</div>
+                    {snapshot.aiGateway.breakerScopes.length === 0
+                      ? <div style={{ fontSize: '12px', color: 'var(--gray-400)' }}>No open breakers.</div>
+                      : snapshot.aiGateway.breakerScopes.map((row) => (
+                        <div key={row.scope} style={{ display: 'flex', justifyContent: 'space-between', gap: '10px', fontSize: '12px', padding: '3px 0', borderBottom: '1px solid var(--gray-100)' }}>
+                          <span style={{ color: 'var(--gray-600)', overflowWrap: 'anywhere' }}>{row.scope}</span>
+                          <span style={{ fontWeight: 600 }}>{row.count}</span>
+                        </div>
+                      ))
+                    }
+                  </div>
+                </div>
+              </>
+            )}
             <div className="ops-panel-split-grid">
               <div>
                 <div style={{ fontSize: '11px', fontWeight: 600, color: 'var(--gray-500)', textTransform: 'uppercase', letterSpacing: '0.3px', marginBottom: '5px' }}>Blocked reasons</div>
@@ -907,6 +1074,113 @@ export function OpsMonitoringPanel() {
                   ))
                 }
               </div>
+            </div>
+            <div style={{ marginTop: '14px', display: 'grid', gap: '12px' }}>
+              <DiagnosticsDetails title="Gateway incidents" subtitle="Admin actions">
+                <div style={{ overflowX: 'auto' }}>
+                  <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '12px' }}>
+                    <thead>
+                      <tr style={{ background: 'var(--gray-50)' }}>
+                        {['Time', 'Status', 'Severity', 'Incident', 'Scope', 'Actions'].map((header) => (
+                          <th key={header} style={{ padding: '7px 10px', textAlign: 'left', color: 'var(--gray-500)', borderBottom: '1px solid var(--gray-200)', whiteSpace: 'nowrap' }}>{header}</th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {aiGatewayDetails.incidents.length === 0 ? (
+                        <tr><td colSpan={6} style={{ padding: '10px', color: 'var(--gray-400)' }}>No gateway incidents.</td></tr>
+                      ) : aiGatewayDetails.incidents.map((row) => (
+                        <tr key={row.id} style={{ borderBottom: '1px solid var(--gray-100)' }}>
+                          <td style={{ padding: '7px 10px', whiteSpace: 'nowrap' }}>{formatLocalDateTime(row.created_at)}</td>
+                          <td style={{ padding: '7px 10px' }}>{row.status}</td>
+                          <td style={{ padding: '7px 10px' }}>{row.severity}</td>
+                          <td style={{ padding: '7px 10px' }}>{row.title || humanizeReasonCode(row.incident_type)}</td>
+                          <td style={{ padding: '7px 10px', minWidth: '180px' }}>{row.feature_key ?? row.operation ?? row.match_id ?? '-'}</td>
+                          <td style={{ padding: '7px 10px', whiteSpace: 'nowrap' }}>
+                            {row.status === 'open' && (
+                              <button
+                                type="button"
+                                className="btn btn-secondary btn-sm"
+                                disabled={actionBusy != null}
+                                onClick={() => void runAiGatewayAction(`/api/ops/ai-gateway/incidents/${row.id}/acknowledge`, `incident-ack-${row.id}`)}
+                              >
+                                {actionBusy === `incident-ack-${row.id}` ? '...' : 'Ack'}
+                              </button>
+                            )}
+                            {row.status !== 'resolved' && (
+                              <button
+                                type="button"
+                                className="btn btn-secondary btn-sm"
+                                style={{ marginLeft: '6px' }}
+                                disabled={actionBusy != null}
+                                onClick={() => void runAiGatewayAction(`/api/ops/ai-gateway/incidents/${row.id}/resolve`, `incident-resolve-${row.id}`)}
+                              >
+                                {actionBusy === `incident-resolve-${row.id}` ? '...' : 'Resolve'}
+                              </button>
+                            )}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </DiagnosticsDetails>
+
+              <DiagnosticsDetails title="Gateway breakers" subtitle="Open and recent">
+                <div style={{ overflowX: 'auto' }}>
+                  <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '12px' }}>
+                    <thead>
+                      <tr style={{ background: 'var(--gray-50)' }}>
+                        {['Updated', 'Status', 'Scope', 'Reason', 'Severity', 'Actions'].map((header) => (
+                          <th key={header} style={{ padding: '7px 10px', textAlign: 'left', color: 'var(--gray-500)', borderBottom: '1px solid var(--gray-200)', whiteSpace: 'nowrap' }}>{header}</th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {aiGatewayDetails.breakers.length === 0 ? (
+                        <tr><td colSpan={6} style={{ padding: '10px', color: 'var(--gray-400)' }}>No gateway breakers.</td></tr>
+                      ) : aiGatewayDetails.breakers.map((row) => (
+                        <tr key={row.id} style={{ borderBottom: '1px solid var(--gray-100)' }}>
+                          <td style={{ padding: '7px 10px', whiteSpace: 'nowrap' }}>{formatLocalDateTime(row.updated_at)}</td>
+                          <td style={{ padding: '7px 10px' }}>{row.status}</td>
+                          <td style={{ padding: '7px 10px', minWidth: '180px' }}>{row.scope_type}:{row.scope_key}</td>
+                          <td style={{ padding: '7px 10px' }}>{humanizeReasonCode(row.reason)}</td>
+                          <td style={{ padding: '7px 10px' }}>{row.severity}</td>
+                          <td style={{ padding: '7px 10px', whiteSpace: 'nowrap' }}>
+                            {row.status === 'open' && (
+                              <button
+                                type="button"
+                                className="btn btn-secondary btn-sm"
+                                disabled={actionBusy != null}
+                                onClick={() => void runAiGatewayAction(`/api/ops/ai-gateway/breakers/${row.id}/close`, `breaker-close-${row.id}`)}
+                              >
+                                {actionBusy === `breaker-close-${row.id}` ? '...' : 'Close'}
+                              </button>
+                            )}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </DiagnosticsDetails>
+
+              <DiagnosticsDetails title="Gateway call log" subtitle="Recent LLM calls">
+                <DataTable
+                  headers={['Time', 'Status', 'Decision', 'Operation', 'Model', 'Cost', 'Tokens', 'Reason']}
+                  rows={aiGatewayDetails.logs.map((row) => [
+                    formatLocalDateTime(row.created_at),
+                    row.status,
+                    row.decision,
+                    row.operation,
+                    row.model,
+                    `$${Number(row.estimated_cost_usd ?? 0).toFixed(4)}`,
+                    `${row.estimated_input_tokens}/${row.estimated_output_tokens}`,
+                    row.reason ? humanizeReasonCode(row.reason) : '-',
+                  ])}
+                  emptyText="No gateway calls."
+                />
+              </DiagnosticsDetails>
             </div>
           </DataCard>
 

@@ -217,7 +217,16 @@ export async function proxyRoutes(app: FastifyInstance) {
             })
             : null;
           const text = typeof prompt === 'string' && prompt.trim()
-            ? await callGemini(prompt, resolvedModel)
+            ? await callGemini(prompt, resolvedModel, {
+              operation: advisoryOnly ? 'tfi.ask_ai_follow_up' : 'tfi.manual_prompt',
+              featureKey: 'tfi.ai_observation',
+              matchId: typeof matchId === 'string' && matchId.trim() ? matchId.trim() : null,
+              metadata: {
+                provider,
+                hasQuestion: advisoryOnly,
+                forceAnalyze: forceAnalyze === true,
+              },
+            })
             : promptOnlyResult?.text ?? null;
           if (text == null) {
             return reply.code(502).send({ error: 'AI API returned an empty response' });

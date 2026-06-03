@@ -26,6 +26,18 @@ const mockSnapshot = {
       { diagnostic: 'policy_blocked', count: 4 },
     ],
   },
+  aiGateway: {
+    mode: 'observe',
+    blocked24h: 1,
+    observed24h: 9,
+    succeeded24h: 8,
+    failed24h: 1,
+    estimatedCost24h: 0.0175,
+    openBreakers: 1,
+    openIncidents: 1,
+    topReasons: [{ reason: 'loop_detected', count: 1 }],
+    breakerScopes: [{ scope: 'match:12345', count: 1 }],
+  },
   decisionFunnel: {
     windowHours: 24,
     source: 'PIPELINE_COMPLETE audit summary',
@@ -252,9 +264,71 @@ vi.mock('@/lib/services/auth', () => ({
 
 beforeEach(() => {
   vi.restoreAllMocks();
-  vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
-    ok: true,
-    json: async () => mockSnapshot,
+  vi.stubGlobal('fetch', vi.fn(async (input: RequestInfo | URL) => {
+    const url = String(input);
+    if (url.includes('/api/ops/ai-gateway/incidents')) {
+      return {
+        ok: true,
+        json: async () => ({
+          rows: [{
+            id: 1,
+            created_at: '2026-03-21T10:01:00.000Z',
+            status: 'open',
+            severity: 'critical',
+            incident_type: 'loop_detected',
+            title: 'Repeated calls',
+            feature_key: 'tfi.live_recommendation',
+            operation: 'tfi.live_recommendation',
+            match_id: '12345',
+          }],
+        }),
+      } as Response;
+    }
+    if (url.includes('/api/ops/ai-gateway/breakers')) {
+      return {
+        ok: true,
+        json: async () => ({
+          rows: [{
+            id: 3,
+            updated_at: '2026-03-21T10:02:00.000Z',
+            status: 'open',
+            scope_type: 'match',
+            scope_key: '12345',
+            reason: 'loop_detected',
+            severity: 'critical',
+          }],
+        }),
+      } as Response;
+    }
+    if (url.includes('/api/ops/ai-gateway/logs')) {
+      return {
+        ok: true,
+        json: async () => ({
+          rows: [{
+            id: 9,
+            created_at: '2026-03-21T10:03:00.000Z',
+            provider: 'gemini',
+            model: 'gemini-3.5-flash',
+            operation: 'tfi.live_recommendation',
+            feature_key: 'tfi.live_recommendation',
+            mode: 'observe',
+            status: 'blocked',
+            decision: 'block',
+            reason: 'kill_switch',
+            severity: 'critical',
+            match_id: '12345',
+            estimated_input_tokens: 1000,
+            estimated_output_tokens: 0,
+            estimated_cost_usd: '0.0012',
+            latency_ms: 12,
+          }],
+        }),
+      } as Response;
+    }
+    return {
+      ok: true,
+      json: async () => mockSnapshot,
+    } as Response;
   }));
 });
 
@@ -285,6 +359,16 @@ describe('OpsMonitoringPanel', () => {
     expect(screen.getByText('Model no-bet')).toBeInTheDocument();
     expect(screen.getByText('Save blocked by provider coverage')).toBeInTheDocument();
     expect(screen.getByText('LLM Cost Guard')).toBeInTheDocument();
+    expect(screen.getByText('Gateway Mode')).toBeInTheDocument();
+    expect(screen.getByText('Open Breakers')).toBeInTheDocument();
+    expect(screen.getAllByText(/loop detected/i).length).toBeGreaterThan(0);
+    expect(screen.getAllByText('match:12345').length).toBeGreaterThan(0);
+    expect(screen.getByText('Gateway incidents')).toBeInTheDocument();
+    expect(screen.getByText('Gateway breakers')).toBeInTheDocument();
+    expect(screen.getByText('Gateway call log')).toBeInTheDocument();
+    expect(screen.getByText('Repeated calls')).toBeInTheDocument();
+    expect(screen.getAllByText('tfi.live_recommendation').length).toBeGreaterThan(0);
+    expect(screen.getAllByText(/kill switch/i).length).toBeGreaterThan(0);
     expect(screen.getByText('Cooldown active')).toBeInTheDocument();
     expect(screen.getByText('Intentional no-bet')).toBeInTheDocument();
     expect(screen.getByText('Manual analysis')).toBeInTheDocument();
@@ -323,10 +407,10 @@ describe('OpsMonitoringPanel', () => {
         { label: 'Stats Coverage 6h', value: 'n/a', tone: 'fail', detail: '0 samples' },
       ],
     };
-    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
+    vi.stubGlobal('fetch', vi.fn(async (input: RequestInfo | URL) => ({
       ok: true,
-      json: async () => failingSnapshot,
-    }));
+      json: async () => String(input).includes('/api/ops/overview') ? failingSnapshot : { rows: [] },
+    } as Response)));
 
     render(<OpsMonitoringPanel />);
 

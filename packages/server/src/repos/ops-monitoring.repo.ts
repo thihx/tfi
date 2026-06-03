@@ -104,6 +104,19 @@ export interface LlmOpsOverview {
   diagnosticBreakdown: Array<{ diagnostic: string; count: number }>;
 }
 
+export interface AiGatewayOverview {
+  mode: string;
+  blocked24h: number;
+  observed24h: number;
+  succeeded24h: number;
+  failed24h: number;
+  estimatedCost24h: number;
+  openBreakers: number;
+  openIncidents: number;
+  topReasons: Array<{ reason: string; count: number }>;
+  breakerScopes: Array<{ scope: string; count: number }>;
+}
+
 export interface DecisionFunnelStage {
   id: string;
   label: string;
@@ -214,6 +227,7 @@ export interface OpsMonitoringSnapshot {
   generatedAt: string;
   workload: WorkloadOverview;
   llm: LlmOpsOverview;
+  aiGateway: AiGatewayOverview;
   decisionFunnel: DecisionFunnelOverview;
   checklist: OpsChecklistItem[];
   cards: OpsMetricCard[];
@@ -481,6 +495,9 @@ export async function getOpsMonitoringSnapshot(): Promise<OpsMonitoringSnapshot>
     llmFunnelRes,
     llmBlockReasonsRes,
     llmDiagnosticBreakdownRes,
+    aiGatewaySummaryRes,
+    aiGatewayReasonsRes,
+    aiGatewayBreakerScopesRes,
   ] = await Promise.all([
     query<{
       activity_2h: string;
@@ -1086,6 +1103,56 @@ export async function getOpsMonitoringSnapshot(): Promise<OpsMonitoringSnapshot>
       ORDER BY COUNT(*) DESC, diagnostic
       LIMIT 8
     `),
+    query<{
+      blocked: string;
+      observed: string;
+      succeeded: string;
+      failed: string;
+      estimated_cost: string;
+      open_breakers: string;
+      open_incidents: string;
+    }>(`
+      SELECT
+        (SELECT COUNT(*)::text FROM ai_gateway_logs
+         WHERE status = 'blocked' AND created_at >= NOW() - INTERVAL '${PIPELINE_WINDOW_HOURS} hours') AS blocked,
+        (SELECT COUNT(*)::text FROM ai_gateway_logs
+         WHERE status = 'started' AND decision = 'observe' AND created_at >= NOW() - INTERVAL '${PIPELINE_WINDOW_HOURS} hours') AS observed,
+        (SELECT COUNT(*)::text FROM ai_gateway_logs
+         WHERE status = 'succeeded' AND created_at >= NOW() - INTERVAL '${PIPELINE_WINDOW_HOURS} hours') AS succeeded,
+        (SELECT COUNT(*)::text FROM ai_gateway_logs
+         WHERE status = 'failed' AND created_at >= NOW() - INTERVAL '${PIPELINE_WINDOW_HOURS} hours') AS failed,
+        (SELECT COALESCE(SUM(estimated_cost_usd), 0)::text FROM ai_gateway_logs
+         WHERE status = 'succeeded' AND created_at >= NOW() - INTERVAL '${PIPELINE_WINDOW_HOURS} hours') AS estimated_cost,
+        (SELECT COUNT(*)::text FROM ai_gateway_breakers WHERE status = 'open') AS open_breakers,
+        (SELECT COUNT(*)::text FROM ai_gateway_incidents WHERE status = 'open') AS open_incidents
+    `).catch(() => ({
+      rows: [{
+        blocked: '0',
+        observed: '0',
+        succeeded: '0',
+        failed: '0',
+        estimated_cost: '0',
+        open_breakers: '0',
+        open_incidents: '0',
+      }],
+    })),
+    query<{ reason: string; count: string }>(`
+      SELECT COALESCE(NULLIF(reason, ''), 'unknown') AS reason, COUNT(*)::text AS count
+      FROM ai_gateway_logs
+      WHERE created_at >= NOW() - INTERVAL '${PIPELINE_WINDOW_HOURS} hours'
+        AND status IN ('blocked', 'failed')
+      GROUP BY COALESCE(NULLIF(reason, ''), 'unknown')
+      ORDER BY COUNT(*) DESC, reason
+      LIMIT 6
+    `).catch(() => ({ rows: [] })),
+    query<{ scope: string; count: string }>(`
+      SELECT CONCAT(scope_type, ':', scope_key) AS scope, COUNT(*)::text AS count
+      FROM ai_gateway_breakers
+      WHERE status = 'open'
+      GROUP BY CONCAT(scope_type, ':', scope_key)
+      ORDER BY COUNT(*) DESC, scope
+      LIMIT 6
+    `).catch(() => ({ rows: [] })),
   ]);
 
   const pipelineSummary = pipelineSummaryRes.rows[0]!;
@@ -1099,6 +1166,7 @@ export async function getOpsMonitoringSnapshot(): Promise<OpsMonitoringSnapshot>
   const promptShadowCompared = promptShadowComparedRes.rows[0]!;
   const llmFunnel = llmFunnelRes.rows[0]!;
   const decisionFunnelSummary = decisionFunnelSummaryRes.rows[0]!;
+  const aiGatewaySummary = aiGatewaySummaryRes.rows[0]!;
 
   const analyzed24h = Number(pipelineSummary.analyzed_24h);
   const notifyEligible24h = Number(pipelineSummary.notify_eligible_24h);
@@ -1345,6 +1413,24 @@ export async function getOpsMonitoringSnapshot(): Promise<OpsMonitoringSnapshot>
       })),
       diagnosticBreakdown: llmDiagnosticBreakdownRes.rows.map((row) => ({
         diagnostic: row.diagnostic,
+        count: Number(row.count),
+      })),
+    },
+    aiGateway: {
+      mode: process.env['AI_GATEWAY_MODE'] || 'observe',
+      blocked24h: Number(aiGatewaySummary.blocked),
+      observed24h: Number(aiGatewaySummary.observed),
+      succeeded24h: Number(aiGatewaySummary.succeeded),
+      failed24h: Number(aiGatewaySummary.failed),
+      estimatedCost24h: round(Number(aiGatewaySummary.estimated_cost ?? 0), 4),
+      openBreakers: Number(aiGatewaySummary.open_breakers),
+      openIncidents: Number(aiGatewaySummary.open_incidents),
+      topReasons: aiGatewayReasonsRes.rows.map((row) => ({
+        reason: row.reason,
+        count: Number(row.count),
+      })),
+      breakerScopes: aiGatewayBreakerScopesRes.rows.map((row) => ({
+        scope: row.scope,
         count: Number(row.count),
       })),
     },

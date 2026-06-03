@@ -241,7 +241,14 @@ export async function settleWithAI(
 ): Promise<AISettleResult[]> {
   const prompt = buildStrictSettlePrompt(match, bets);
   const model = config.geminiSettleModel;
-  const aiText = await callGemini(prompt, model);
+  const aiText = await callGemini(prompt, model, {
+    operation: 'tfi.auto_settle',
+    featureKey: 'tfi.settlement',
+    matchId: match.matchId,
+    metadata: {
+      betCount: bets.length,
+    },
+  });
   return parseStrictSettleResponse(aiText, bets).map((row) => ({
     ...row,
     source: 'ai',

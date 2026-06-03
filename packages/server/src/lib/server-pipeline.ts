@@ -14,6 +14,7 @@ import { config } from '../config.js';
 import { getRedisClient } from './redis.js';
 import { query } from '../db/pool.js';
 import { callGemini } from './gemini.js';
+import { AiGatewayBlockedError } from './ai-gateway.js';
 import { sendTelegramMessage, sendTelegramPhoto } from './telegram.js';
 import { formatOperationalTimestamp } from './time.js';
 import { audit } from './audit.js';
@@ -2215,9 +2216,83 @@ async function executePromptAnalysis(
   });
   let aiText: string;
   try {
-    aiText = await deps.callGemini(prompt, model);
+    aiText = await deps.callGemini(prompt, model, {
+      operation: promptContext.analysisMode === 'auto'
+        ? 'tfi.live_recommendation'
+        : promptContext.userQuestion
+          ? 'tfi.ask_ai_follow_up'
+          : 'tfi.manual_match_analysis',
+      featureKey: promptContext.analysisMode === 'auto'
+        ? 'tfi.live_recommendation'
+        : 'tfi.ai_observation',
+      matchId: promptContext.matchId,
+      runId: promptContext.settledReplayApprovedTrace ? 'settled-replay' : undefined,
+      promptVersion,
+      metadata: {
+        analysisMode: promptContext.analysisMode,
+        evidenceMode: promptContext.evidenceMode,
+        status: promptContext.status,
+        minute: promptContext.minute,
+        forceAnalyze: promptContext.forceAnalyze,
+        oddsAvailable: promptContext.oddsAvailable,
+        statsAvailable: promptContext.statsAvailable,
+        structuredPrematchAskAi: promptContext.structuredPrematchAskAi,
+      },
+    });
   } catch (err) {
     const llmLatencyMs = Date.now() - llmStartedAt;
+    if (err instanceof AiGatewayBlockedError) {
+      audit({
+        category: 'PIPELINE',
+        action: 'LLM_CALL_BLOCKED',
+        outcome: 'SKIPPED',
+        actor: promptContext.analysisMode === 'auto' ? 'auto-pipeline' : 'manual-ask-ai',
+        duration_ms: llmLatencyMs,
+        metadata: {
+          ...buildLlmGatewayAuditMetadata({ promptContext, settings, promptVersion, model }),
+          status: promptContext.status,
+          reason: err.evaluation.reason,
+          severity: err.evaluation.severity,
+          mode: err.evaluation.mode,
+          decision: err.evaluation.decision,
+          estimatedInputTokens: err.evaluation.estimatedInputTokens,
+          estimatedCostUsd: err.evaluation.estimatedCostUsd,
+        },
+      });
+      const blockedText = JSON.stringify({
+        should_push: false,
+        selection: '',
+        bet_market: '',
+        confidence: 0,
+        reasoning_en: `AI Gateway blocked this LLM call: ${err.evaluation.reason}.`,
+        reasoning_vi: `AI Gateway đã chặn lượt gọi LLM này: ${err.evaluation.reason}.`,
+        warnings: ['AI_GATEWAY_BLOCKED', err.evaluation.reason],
+        value_percent: 0,
+        risk_level: 'HIGH',
+        stake_percent: 0,
+      });
+      const parsed = parseAiResponse(
+        blockedText,
+        promptContext.oddsCanonical,
+        promptContext.minute,
+        settings,
+        promptContext.evidenceMode,
+      );
+      return {
+        promptVersion,
+        prompt,
+        promptChars,
+        promptEstimatedTokens,
+        aiText: blockedText,
+        aiTextChars: blockedText.length,
+        aiTextEstimatedTokens: estimateTokenCount(blockedText),
+        llmLatencyMs,
+        totalLatencyMs: Date.now() - startedAt,
+        parsed,
+        policyBlocked: true,
+        policyWarnings: [`AI_GATEWAY_BLOCKED:${err.evaluation.reason}`],
+      };
+    }
     audit({
       category: 'PIPELINE',
       action: 'LLM_CALL_COMPLETED',
