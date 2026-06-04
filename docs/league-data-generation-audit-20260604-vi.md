@@ -263,3 +263,53 @@ Dry-run production sau thay đổi:
 - `currentMatchSignalLeagues`: 6
 - `recentHistorySignalLeagues`: 65
 - `favoriteSignalLeagues`: 0
+
+## Phase 2 implementation note
+
+Đã triển khai budget/cooldown nhẹ cho `sync-reference-data`:
+
+- Job đọc freshness của `league_team_directory` từ DB trước khi gọi provider refresh.
+- League directory còn fresh được tính vào `skippedFreshLeagues` và không gọi `refreshLeagueTeamsDirectoryNow`.
+- League directory stale mới được đưa vào refresh queue.
+- Stale refresh queue bị giới hạn bởi `SYNC_REFERENCE_DATA_MAX_DIRECTORY_REFRESH_PER_RUN`.
+- Stale league vượt budget được ghi `directoryRefreshDeferredLeagues` và để sang run sau.
+- Prematch profile derivation bị giới hạn bởi `SYNC_REFERENCE_DATA_MAX_PROFILE_LEAGUES_PER_RUN`.
+- Priority khi chọn stale/profile league:
+  - top league
+  - current match signal
+  - favorite-team signal
+  - recent history volume
+  - older/no profile first
+
+Env mới:
+
+```text
+SYNC_REFERENCE_DATA_MAX_DIRECTORY_REFRESH_PER_RUN=40
+SYNC_REFERENCE_DATA_MAX_PROFILE_LEAGUES_PER_RUN=40
+```
+
+Job summary mới:
+
+- `directoryStaleCandidateLeagues`
+- `directoryRefreshBudget`
+- `directoryRefreshAttemptedLeagues`
+- `directoryRefreshDeferredLeagues`
+- `profileScopeCandidateLeagues`
+- `profileScopeDeferredLeagues`
+- `profileScopeBudget`
+
+Dry-run production sau Phase 2:
+
+- `activeLeagues`: 155
+- `topLeagues`: 21
+- `directoryScope`: 86
+- `excludedNoRecentSignal`: 69
+- `directoryFresh`: 2
+- `directoryStale`: 84
+- `directoryRefreshBudget`: 40
+- `directoryRefreshAttempted`: 40
+- `directoryDeferred`: 44
+- `approvedProfileCandidates`: 40
+- `profileBudget`: 40
+- `profileSelected`: 40
+- `profileDeferred`: 0

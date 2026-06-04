@@ -16,6 +16,14 @@ export interface LeagueTeamDirectoryRow {
   expires_at: string;
 }
 
+export interface LeagueTeamDirectoryFreshnessRow {
+  league_id: number;
+  row_count: number;
+  oldest_expires_at: string | null;
+  newest_fetched_at: string | null;
+  is_fresh: boolean;
+}
+
 export interface ReplaceLeagueTeamsSnapshotInput {
   leagueId: number;
   season: number;
@@ -36,6 +44,40 @@ export interface ReplaceLeagueTeamsSnapshotInput {
     } | null;
     rank: number | null;
   }>;
+}
+
+export async function getLeagueTeamDirectoryFreshness(
+  leagueIds: number[],
+): Promise<Map<number, LeagueTeamDirectoryFreshnessRow>> {
+  const ids = Array.from(new Set(leagueIds.filter((id) => Number.isInteger(id) && id > 0)));
+  if (ids.length === 0) return new Map();
+
+  const result = await query<LeagueTeamDirectoryFreshnessRow>(
+    `WITH target AS (
+       SELECT unnest($1::integer[]) AS league_id
+     ),
+     directory AS (
+       SELECT
+         league_id,
+         COUNT(*)::int AS row_count,
+         MIN(expires_at) AS oldest_expires_at,
+         MAX(fetched_at) AS newest_fetched_at
+       FROM league_team_directory
+       WHERE league_id = ANY($1)
+       GROUP BY league_id
+     )
+     SELECT
+       target.league_id,
+       COALESCE(directory.row_count, 0)::int AS row_count,
+       directory.oldest_expires_at::text,
+       directory.newest_fetched_at::text,
+       (COALESCE(directory.row_count, 0) > 0 AND directory.oldest_expires_at > NOW()) AS is_fresh
+     FROM target
+     LEFT JOIN directory ON directory.league_id = target.league_id`,
+    [ids],
+  );
+
+  return new Map(result.rows.map((row) => [row.league_id, row]));
 }
 
 export async function getLeagueTeamDirectory(leagueId: number): Promise<LeagueTeamDirectoryRow[]> {

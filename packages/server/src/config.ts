@@ -106,6 +106,8 @@ export const config = {
   jobEnrichWatchlistMaxPerRun: Number(process.env['JOB_ENRICH_WATCHLIST_MAX_PER_RUN'] || 20),
   jobSyncReferenceDataMs: Number(process.env['JOB_SYNC_REFERENCE_DATA_MS'] || 12 * 60 * 60_000), // 12h
   syncReferenceDataRecentHistoryDays: Number(process.env['SYNC_REFERENCE_DATA_RECENT_HISTORY_DAYS'] || 90),
+  syncReferenceDataMaxDirectoryRefreshPerRun: Number(process.env['SYNC_REFERENCE_DATA_MAX_DIRECTORY_REFRESH_PER_RUN'] || 40),
+  syncReferenceDataMaxProfileLeaguesPerRun: Number(process.env['SYNC_REFERENCE_DATA_MAX_PROFILE_LEAGUES_PER_RUN'] || 40),
   jobRefreshTacticalOverlaysMs: Number(process.env['JOB_REFRESH_TACTICAL_OVERLAYS_MS'] || 12 * 60 * 60_000), // 12h
   jobHousekeepingMs: Number(process.env['JOB_HOUSEKEEPING_MS'] || process.env['JOB_AUDIT_PURGE_MS'] || 24 * 60 * 60_000), // 24h
   jobIntegrationHealthMs: Number(process.env['JOB_INTEGRATION_HEALTH_MS'] || 30 * 60_000), // 30 min

@@ -6,6 +6,10 @@ import { refreshLeagueTeamsDirectoryNow } from '../lib/league-team-directory.ser
 import { syncDerivedPrematchProfiles } from '../lib/prematch-profile-sync.js';
 import { classifyTacticalOverlayCompetition } from '../lib/tactical-overlay-eligibility.js';
 import { reportJobProgress } from './job-progress.js';
+import {
+  getLeagueTeamDirectoryFreshness,
+  type LeagueTeamDirectoryFreshnessRow,
+} from '../repos/team-directory.repo.js';
 
 const JOB = 'sync-reference-data';
 const BATCH_SIZE = 4;
@@ -13,14 +17,86 @@ const BATCH_SIZE = 4;
 interface ReferenceDataLeagueScope {
   directoryLeagueIds: number[];
   profileActiveLeagues: Awaited<ReturnType<typeof leaguesRepo.getActiveLeagues>>;
+  activityByLeagueId: Map<number, leaguesRepo.ReferenceDataLeagueActivityRow>;
   excludedNoRecentSignal: number;
   favoriteSignalLeagues: number;
   currentMatchSignalLeagues: number;
   recentHistorySignalLeagues: number;
 }
 
+interface DirectoryRefreshPlan {
+  candidateLeagueIds: number[];
+  freshLeagueIds: number[];
+  staleLeagueIds: number[];
+  selectedStaleLeagueIds: number[];
+  deferredStaleLeagueIds: number[];
+  budget: number;
+}
+
+interface PrematchProfileLeaguePlan {
+  candidateLeagueIds: number[];
+  selectedLeagueIds: number[];
+  deferredLeagueIds: number[];
+  budget: number;
+}
+
 function uniqueLeagueIds(ids: number[]): number[] {
   return [...new Set(ids.filter((id) => Number.isFinite(id) && id > 0))];
+}
+
+function normalizeBudget(value: number, total: number): number {
+  if (!Number.isFinite(value) || value <= 0) return total;
+  return Math.max(0, Math.min(Math.floor(value), total));
+}
+
+function profileUpdatedAtMs(league: leaguesRepo.LeagueRow | undefined): number {
+  if (!league?.profile_updated_at) return 0;
+  const parsed = Date.parse(league.profile_updated_at);
+  return Number.isFinite(parsed) ? parsed : 0;
+}
+
+function directoryPriorityScore(
+  leagueId: number,
+  topIds: Set<number>,
+  activityByLeagueId: Map<number, leaguesRepo.ReferenceDataLeagueActivityRow>,
+): number {
+  const activity = activityByLeagueId.get(leagueId);
+  return (topIds.has(leagueId) ? 10_000 : 0)
+    + ((activity?.current_matches ?? 0) > 0 ? 2_000 : 0)
+    + ((activity?.favorite_team_count ?? 0) > 0 ? 1_000 : 0)
+    + Math.min(activity?.recent_history_matches ?? 0, 500);
+}
+
+function buildDirectoryRefreshPlan(
+  candidateLeagueIds: number[],
+  topIds: Set<number>,
+  activityByLeagueId: Map<number, leaguesRepo.ReferenceDataLeagueActivityRow>,
+  freshnessByLeagueId: Map<number, LeagueTeamDirectoryFreshnessRow>,
+  maxStaleRefreshPerRun: number,
+): DirectoryRefreshPlan {
+  const freshLeagueIds = candidateLeagueIds.filter((leagueId) => freshnessByLeagueId.get(leagueId)?.is_fresh === true);
+  const staleLeagueIds = candidateLeagueIds.filter((leagueId) => !freshLeagueIds.includes(leagueId));
+  const budget = normalizeBudget(maxStaleRefreshPerRun, staleLeagueIds.length);
+  const selectedStaleLeagueIds = [...staleLeagueIds]
+    .sort((left, right) => {
+      const scoreDiff = directoryPriorityScore(right, topIds, activityByLeagueId)
+        - directoryPriorityScore(left, topIds, activityByLeagueId);
+      if (scoreDiff !== 0) return scoreDiff;
+      const leftFetched = Date.parse(freshnessByLeagueId.get(left)?.newest_fetched_at ?? '') || 0;
+      const rightFetched = Date.parse(freshnessByLeagueId.get(right)?.newest_fetched_at ?? '') || 0;
+      return leftFetched - rightFetched || left - right;
+    })
+    .slice(0, budget);
+  const selectedSet = new Set(selectedStaleLeagueIds);
+
+  return {
+    candidateLeagueIds,
+    freshLeagueIds,
+    staleLeagueIds,
+    selectedStaleLeagueIds,
+    deferredStaleLeagueIds: staleLeagueIds.filter((leagueId) => !selectedSet.has(leagueId)),
+    budget,
+  };
 }
 
 async function resolveReferenceDataLeagueScope(
@@ -59,6 +135,7 @@ async function resolveReferenceDataLeagueScope(
       ...usefulActiveLeagues.map((league) => league.league_id),
     ]),
     profileActiveLeagues: usefulActiveLeagues,
+    activityByLeagueId: activity,
     excludedNoRecentSignal,
     favoriteSignalLeagues,
     currentMatchSignalLeagues,
@@ -87,6 +164,38 @@ function getApprovedPrematchProfileLeagueIds(
   ]);
 }
 
+function buildPrematchProfileLeaguePlan(
+  leagueIds: number[],
+  topLeagues: Awaited<ReturnType<typeof leaguesRepo.getTopLeagues>>,
+  activeLeagues: Awaited<ReturnType<typeof leaguesRepo.getActiveLeagues>>,
+  activityByLeagueId: Map<number, leaguesRepo.ReferenceDataLeagueActivityRow>,
+  maxProfileLeaguesPerRun: number,
+): PrematchProfileLeaguePlan {
+  const candidateLeagueIds = uniqueLeagueIds(leagueIds);
+  const topIds = new Set(topLeagues.map((league) => league.league_id));
+  const leagueById = new Map([...topLeagues, ...activeLeagues].map((league) => [league.league_id, league]));
+  const budget = normalizeBudget(maxProfileLeaguesPerRun, candidateLeagueIds.length);
+  const selectedLeagueIds = [...candidateLeagueIds]
+    .sort((left, right) => {
+      const scoreDiff = directoryPriorityScore(right, topIds, activityByLeagueId)
+        - directoryPriorityScore(left, topIds, activityByLeagueId);
+      if (scoreDiff !== 0) return scoreDiff;
+      const leftLeague = leagueById.get(left);
+      const rightLeague = leagueById.get(right);
+      const missingProfileDiff = Number(!rightLeague?.has_profile) - Number(!leftLeague?.has_profile);
+      if (missingProfileDiff !== 0) return missingProfileDiff;
+      return profileUpdatedAtMs(leftLeague) - profileUpdatedAtMs(rightLeague) || left - right;
+    })
+    .slice(0, budget);
+  const selectedSet = new Set(selectedLeagueIds);
+  return {
+    candidateLeagueIds,
+    selectedLeagueIds,
+    deferredLeagueIds: candidateLeagueIds.filter((leagueId) => !selectedSet.has(leagueId)),
+    budget,
+  };
+}
+
 export async function syncReferenceDataJob(): Promise<{
   entityGroups: string[];
   leagueCatalog: {
@@ -111,6 +220,10 @@ export async function syncReferenceDataJob(): Promise<{
     favoriteSignalLeagues: number;
     currentMatchSignalLeagues: number;
     recentHistorySignalLeagues: number;
+    directoryStaleCandidateLeagues: number;
+    directoryRefreshBudget: number;
+    directoryRefreshAttemptedLeagues: number;
+    directoryRefreshDeferredLeagues: number;
   };
   prematchProfiles: {
     lookbackDays: number;
@@ -120,6 +233,9 @@ export async function syncReferenceDataJob(): Promise<{
     candidateTeams: number;
     refreshedTeamProfiles: number;
     skippedTeamProfiles: number;
+    profileScopeCandidateLeagues: number;
+    profileScopeDeferredLeagues: number;
+    profileScopeBudget: number;
   };
   skipped?: boolean;
   skipReason?: string;
@@ -152,6 +268,10 @@ export async function syncReferenceDataJob(): Promise<{
         favoriteSignalLeagues: 0,
         currentMatchSignalLeagues: 0,
         recentHistorySignalLeagues: 0,
+        directoryStaleCandidateLeagues: 0,
+        directoryRefreshBudget: 0,
+        directoryRefreshAttemptedLeagues: 0,
+        directoryRefreshDeferredLeagues: 0,
       },
       prematchProfiles: {
         lookbackDays: 0,
@@ -161,6 +281,9 @@ export async function syncReferenceDataJob(): Promise<{
         candidateTeams: 0,
         refreshedTeamProfiles: 0,
         skippedTeamProfiles: 0,
+        profileScopeCandidateLeagues: 0,
+        profileScopeDeferredLeagues: 0,
+        profileScopeBudget: 0,
       },
       ...circuitSkip,
     };
@@ -208,6 +331,10 @@ export async function syncReferenceDataJob(): Promise<{
         favoriteSignalLeagues: leagueScope.favoriteSignalLeagues,
         currentMatchSignalLeagues: leagueScope.currentMatchSignalLeagues,
         recentHistorySignalLeagues: leagueScope.recentHistorySignalLeagues,
+        directoryStaleCandidateLeagues: 0,
+        directoryRefreshBudget: 0,
+        directoryRefreshAttemptedLeagues: 0,
+        directoryRefreshDeferredLeagues: 0,
       },
       prematchProfiles: {
         lookbackDays: 180,
@@ -217,19 +344,34 @@ export async function syncReferenceDataJob(): Promise<{
         candidateTeams: 0,
         refreshedTeamProfiles: 0,
         skippedTeamProfiles: 0,
+        profileScopeCandidateLeagues: 0,
+        profileScopeDeferredLeagues: 0,
+        profileScopeBudget: 0,
       },
     };
   }
 
+  const topIds = new Set(topLeagues.map((league) => league.league_id));
+  const directoryFreshness = await getLeagueTeamDirectoryFreshness(orderedIds);
+  const directoryPlan = buildDirectoryRefreshPlan(
+    orderedIds,
+    topIds,
+    leagueScope.activityByLeagueId,
+    directoryFreshness,
+    config.syncReferenceDataMaxDirectoryRefreshPerRun,
+  );
+  skippedFreshLeagues = directoryPlan.freshLeagueIds.length;
+
   await reportJobProgress(
     JOB,
     'planning',
-    `Preparing reference-data sync for ${orderedIds.length}/${activeLeagues.length} active league-team directories. Excluded no-signal=${leagueScope.excludedNoRecentSignal}. League catalog refreshed=${leagueCatalog.refreshedLeagues}, skipped=${leagueCatalog.skippedFreshLeagues}, failed=${leagueCatalog.failedLeagues}.`,
+    `Preparing reference-data sync for ${orderedIds.length}/${activeLeagues.length} active league-team directories. Stale=${directoryPlan.staleLeagueIds.length}, refresh budget=${directoryPlan.budget}, deferred=${directoryPlan.deferredStaleLeagueIds.length}, excluded no-signal=${leagueScope.excludedNoRecentSignal}. League catalog refreshed=${leagueCatalog.refreshedLeagues}, skipped=${leagueCatalog.skippedFreshLeagues}, failed=${leagueCatalog.failedLeagues}.`,
     5,
   );
 
-  for (let start = 0; start < orderedIds.length; start += BATCH_SIZE) {
-    const batch = orderedIds.slice(start, start + BATCH_SIZE);
+  const directoryRefreshIds = directoryPlan.selectedStaleLeagueIds;
+  for (let start = 0; start < directoryRefreshIds.length; start += BATCH_SIZE) {
+    const batch = directoryRefreshIds.slice(start, start + BATCH_SIZE);
     const batchResults = await Promise.allSettled(batch.map((leagueId) => refreshLeagueTeamsDirectoryNow(leagueId)));
 
     for (const result of batchResults) {
@@ -254,18 +396,33 @@ export async function syncReferenceDataJob(): Promise<{
       }
     }
 
-    const completed = Math.min(start + BATCH_SIZE, orderedIds.length);
-    const percent = Math.max(10, Math.round((completed / orderedIds.length) * 100));
+    const completed = Math.min(start + BATCH_SIZE, directoryRefreshIds.length);
+    const percent = directoryRefreshIds.length === 0
+      ? 90
+      : Math.max(10, Math.round((completed / directoryRefreshIds.length) * 90));
     await reportJobProgress(
       JOB,
       'syncing',
-      `Synced league-team directory for ${completed}/${orderedIds.length} leagues. Refreshed=${refreshedLeagues}, fresh=${skippedFreshLeagues}, fallback=${staleFallbackLeagues}, empty=${emptyLeagues}, failed=${failedLeagues}.`,
+      `Refreshed stale league-team directory for ${completed}/${directoryRefreshIds.length} leagues. Fresh=${skippedFreshLeagues}, deferred=${directoryPlan.deferredStaleLeagueIds.length}, refreshed=${refreshedLeagues}, fallback=${staleFallbackLeagues}, empty=${emptyLeagues}, failed=${failedLeagues}.`,
       percent,
     );
   }
 
   const prematchProfileLeagueIds = getApprovedPrematchProfileLeagueIds(topLeagues, leagueScope.profileActiveLeagues);
-  const prematchProfiles = await syncDerivedPrematchProfiles(prematchProfileLeagueIds);
+  const prematchProfilePlan = buildPrematchProfileLeaguePlan(
+    prematchProfileLeagueIds,
+    topLeagues,
+    leagueScope.profileActiveLeagues,
+    leagueScope.activityByLeagueId,
+    config.syncReferenceDataMaxProfileLeaguesPerRun,
+  );
+  const prematchProfilesRaw = await syncDerivedPrematchProfiles(prematchProfilePlan.selectedLeagueIds);
+  const prematchProfiles = {
+    ...prematchProfilesRaw,
+    profileScopeCandidateLeagues: prematchProfilePlan.candidateLeagueIds.length,
+    profileScopeDeferredLeagues: prematchProfilePlan.deferredLeagueIds.length,
+    profileScopeBudget: prematchProfilePlan.budget,
+  };
 
   await reportJobProgress(
     JOB,
@@ -305,11 +462,17 @@ export async function syncReferenceDataJob(): Promise<{
       favoriteSignalLeagues: leagueScope.favoriteSignalLeagues,
       currentMatchSignalLeagues: leagueScope.currentMatchSignalLeagues,
       recentHistorySignalLeagues: leagueScope.recentHistorySignalLeagues,
+      directoryStaleCandidateLeagues: directoryPlan.staleLeagueIds.length,
+      directoryRefreshBudget: directoryPlan.budget,
+      directoryRefreshAttemptedLeagues: directoryRefreshIds.length,
+      directoryRefreshDeferredLeagues: directoryPlan.deferredStaleLeagueIds.length,
     },
     prematchProfiles,
   };
 }
 
 export const __testables__ = {
+  buildDirectoryRefreshPlan,
+  buildPrematchProfileLeaguePlan,
   resolveReferenceDataLeagueScope,
 };
