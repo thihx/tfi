@@ -760,6 +760,11 @@ describe('runPipelineBatch', () => {
       .toEqual(['late_under_45_two_plus']);
     expect(match.debug?.runtimePolicyShadow).toEqual(expect.objectContaining({
       confidence: 7,
+      valuePercent: 8,
+      valueBand: '8+',
+      riskLevel: 'MEDIUM',
+      stakePercent: 3,
+      watchSignalKey: 'none',
       marketResolutionStatus: 'resolved',
     }));
     expect(createRecommendation).not.toHaveBeenCalled();
@@ -773,6 +778,11 @@ describe('runPipelineBatch', () => {
         minuteBand: '75+',
         scoreState: 'two-plus-margin',
         confidence: 7,
+        valuePercent: 8,
+        valueBand: '8+',
+        riskLevel: 'MEDIUM',
+        stakePercent: 3,
+        watchSignalKey: 'none',
         marketResolutionStatus: 'resolved',
         shadowOnly: true,
         saved: false,
@@ -846,6 +856,11 @@ describe('runPipelineBatch', () => {
       .toContain('requires odds >= 2.05');
     expect(match.debug?.runtimePolicyShadow).toEqual(expect.objectContaining({
       confidence: 5,
+      valuePercent: 4,
+      valueBand: '0-4',
+      riskLevel: 'MEDIUM',
+      stakePercent: 2,
+      watchSignalKey: 'none',
       marketResolutionStatus: 'resolved',
     }));
     expect(createRecommendation).not.toHaveBeenCalled();
@@ -860,6 +875,11 @@ describe('runPipelineBatch', () => {
         scoreState: 'two-plus-margin',
         odds: 1.7,
         confidence: 5,
+        valuePercent: 4,
+        valueBand: '0-4',
+        riskLevel: 'MEDIUM',
+        stakePercent: 2,
+        watchSignalKey: 'none',
         marketResolutionStatus: 'resolved',
         skippedReason: expect.stringContaining('requires odds >= 2.05'),
         shadowOnly: true,

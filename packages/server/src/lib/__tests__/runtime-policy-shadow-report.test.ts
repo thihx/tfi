@@ -34,6 +34,12 @@ describe('runtime policy shadow report', () => {
             scoreState: 'two-plus-margin',
             odds: 2.05,
             confidence: 7,
+            valuePercent: 8,
+            valueBand: '8+',
+            riskLevel: 'MEDIUM',
+            stakePercent: 3,
+            watchSignalKey: 'none',
+            watchSignalLabel: 'none',
             evidenceMode: 'full_live_data',
             marketResolutionStatus: 'resolved',
             prematchStrength: 'moderate',
@@ -55,6 +61,12 @@ describe('runtime policy shadow report', () => {
             scoreState: 'two-plus-margin',
             odds: 2.2,
             confidence: 8,
+            valuePercent: 6,
+            valueBand: '6-7',
+            riskLevel: 'MEDIUM',
+            stakePercent: 2,
+            watchSignalKey: 'btts_yes_medium_edge_6_7_odds_2_plus',
+            watchSignalLabel: 'BTTS Yes MEDIUM edge 6-7 odds>=2.0',
             evidenceMode: 'full_live_data',
             marketResolutionStatus: 'resolved',
             prematchStrength: 'strong',
@@ -83,6 +95,23 @@ describe('runtime policy shadow report', () => {
       { key: '7', count: 1, avgOdds: 2.05, minOdds: 2.05, maxOdds: 2.05 },
       { key: '8+', count: 1, avgOdds: 2.2, minOdds: 2.2, maxOdds: 2.2 },
     ]);
+    expect(report.byValueBand).toEqual([
+      { key: '6-7', count: 1, avgOdds: 2.2, minOdds: 2.2, maxOdds: 2.2 },
+      { key: '8+', count: 1, avgOdds: 2.05, minOdds: 2.05, maxOdds: 2.05 },
+    ]);
+    expect(report.byRiskLevel).toEqual([
+      { key: 'MEDIUM', count: 2, avgOdds: 2.125, minOdds: 2.05, maxOdds: 2.2 },
+    ]);
+    expect(report.byWatchSignal).toEqual([
+      {
+        key: 'btts_yes_medium_edge_6_7_odds_2_plus',
+        count: 1,
+        avgOdds: 2.2,
+        minOdds: 2.2,
+        maxOdds: 2.2,
+      },
+      { key: 'none', count: 1, avgOdds: 2.05, minOdds: 2.05, maxOdds: 2.05 },
+    ]);
     expect(report.byMarketResolutionStatus).toEqual([
       { key: 'resolved', count: 2, avgOdds: 2.125, minOdds: 2.05, maxOdds: 2.2 },
     ]);
@@ -93,12 +122,16 @@ describe('runtime policy shadow report', () => {
       canonicalMarket: 'under_4.5',
       minuteBand: '75+',
       confidence: 7,
+      valuePercent: 8,
+      riskLevel: 'MEDIUM',
+      stakePercent: 3,
       marketResolutionStatus: 'resolved',
     });
 
     const markdown = formatRuntimePolicyShadowReportMarkdown(report);
     expect(markdown).toContain('# Runtime Policy Shadow Report');
     expect(markdown).toContain('| btts_yes_60_74_two_plus | 1 | 2.2 | 2.2 | 2.2 |');
+    expect(markdown).toContain('| btts_yes_medium_edge_6_7_odds_2_plus | 1 | 2.2 | 2.2 | 2.2 |');
     expect(markdown).toContain('Home A vs Away A');
   });
 

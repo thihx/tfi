@@ -15,6 +15,9 @@ describe('buildRuntimePolicyShadowSignal', () => {
       score: '3-1',
       odds: 2.2,
       confidence: 8,
+      valuePercent: 6,
+      riskLevel: 'MEDIUM',
+      stakePercent: 2,
       policyBlocked: true,
       policyWarnings: ['LATE_MIDGAME_INSUFFICIENT_CONFIDENCE'],
       evidenceMode: 'full_live_data',
@@ -26,6 +29,11 @@ describe('buildRuntimePolicyShadowSignal', () => {
 
     expect(signal.marketAvailabilityBucket).toBe('totals_only');
     expect(signal.confidence).toBe(8);
+    expect(signal.valuePercent).toBe(6);
+    expect(signal.valueBand).toBe('6-7');
+    expect(signal.riskLevel).toBe('MEDIUM');
+    expect(signal.stakePercent).toBe(2);
+    expect(signal.watchSignalKey).toBe('btts_yes_medium_edge_6_7_odds_2_plus');
     expect(signal.marketResolutionStatus).toBe('resolved');
     expect(signal.matchedPockets.map((pocket) => pocket.id)).toEqual(['btts_yes_60_74_two_plus']);
     expect(signal.matchedPockets[0]?.stakeCapPercent).toBe(1);
@@ -40,6 +48,8 @@ describe('buildRuntimePolicyShadowSignal', () => {
       score: '3-1',
       odds: 2.2,
       confidence: 8,
+      valuePercent: 7,
+      riskLevel: 'MEDIUM',
       policyBlocked: true,
       policyWarnings: ['LATE_MIDGAME_INSUFFICIENT_CONFIDENCE'],
       evidenceMode: 'full_live_data',
@@ -53,6 +63,7 @@ describe('buildRuntimePolicyShadowSignal', () => {
 
     expect(signal.marketAvailabilityBucket).toBe('playable_side_market');
     expect(signal.matchedPockets).toEqual([]);
+    expect(signal.watchSignalKey).toBe('btts_yes_medium_edge_6_7_odds_2_plus');
     expect(signal.skippedReason).toContain('marketAvailabilityBucket=playable_side_market');
   });
 

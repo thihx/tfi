@@ -35,6 +35,12 @@ describe('runtime policy shadow skipped report', () => {
             scoreState: 'two-plus-margin',
             odds: 1.7,
             confidence: 6,
+            valuePercent: 4,
+            valueBand: '0-4',
+            riskLevel: 'MEDIUM',
+            stakePercent: 2,
+            watchSignalKey: 'none',
+            watchSignalLabel: 'none',
             evidenceMode: 'full_live_data',
             marketResolutionStatus: 'resolved',
             prematchStrength: 'strong',
@@ -57,6 +63,12 @@ describe('runtime policy shadow skipped report', () => {
             scoreState: 'one-goal-margin',
             odds: 2,
             confidence: 7,
+            valuePercent: 7,
+            valueBand: '6-7',
+            riskLevel: 'MEDIUM',
+            stakePercent: 2,
+            watchSignalKey: 'none',
+            watchSignalLabel: 'none',
             evidenceMode: 'full_live_data',
             marketResolutionStatus: 'resolved',
             prematchStrength: 'moderate',
@@ -87,6 +99,16 @@ describe('runtime policy shadow skipped report', () => {
       { key: '6', count: 1, avgOdds: 1.7, minOdds: 1.7, maxOdds: 1.7 },
       { key: '7', count: 1, avgOdds: 2, minOdds: 2, maxOdds: 2 },
     ]);
+    expect(report.byValueBand).toEqual([
+      { key: '0-4', count: 1, avgOdds: 1.7, minOdds: 1.7, maxOdds: 1.7 },
+      { key: '6-7', count: 1, avgOdds: 2, minOdds: 2, maxOdds: 2 },
+    ]);
+    expect(report.byRiskLevel).toEqual([
+      { key: 'MEDIUM', count: 2, avgOdds: 1.85, minOdds: 1.7, maxOdds: 2 },
+    ]);
+    expect(report.byWatchSignal).toEqual([
+      { key: 'none', count: 2, avgOdds: 1.85, minOdds: 1.7, maxOdds: 2 },
+    ]);
     expect(report.byMarketResolutionStatus).toEqual([
       { key: 'resolved', count: 2, avgOdds: 1.85, minOdds: 1.7, maxOdds: 2 },
     ]);
@@ -96,6 +118,9 @@ describe('runtime policy shadow skipped report', () => {
       canonicalMarket: 'btts_yes',
       selection: 'BTTS Yes @1.70',
       confidence: 6,
+      valuePercent: 4,
+      riskLevel: 'MEDIUM',
+      stakePercent: 2,
       marketResolutionStatus: 'resolved',
       skippedReason: 'BTTS Yes shadow excluded: requires odds >= 2.05; actual odds=1.7.',
     });

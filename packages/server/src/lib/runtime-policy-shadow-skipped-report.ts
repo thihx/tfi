@@ -33,6 +33,12 @@ export interface RuntimePolicyShadowSkippedRecentRow {
   scoreState: string;
   odds: number | null;
   confidence: number | null;
+  valuePercent: number | null;
+  valueBand: string;
+  riskLevel: string;
+  stakePercent: number | null;
+  watchSignalKey: string;
+  watchSignalLabel: string;
   evidenceMode: string;
   marketResolutionStatus: string;
   prematchStrength: string;
@@ -51,6 +57,9 @@ export interface RuntimePolicyShadowSkippedReport {
   byMinuteBand: RuntimePolicyShadowSkippedSummaryRow[];
   byScoreState: RuntimePolicyShadowSkippedSummaryRow[];
   byConfidenceBand: RuntimePolicyShadowSkippedSummaryRow[];
+  byValueBand: RuntimePolicyShadowSkippedSummaryRow[];
+  byRiskLevel: RuntimePolicyShadowSkippedSummaryRow[];
+  byWatchSignal: RuntimePolicyShadowSkippedSummaryRow[];
   byMarketResolutionStatus: RuntimePolicyShadowSkippedSummaryRow[];
   byMarketAvailabilityBucket: RuntimePolicyShadowSkippedSummaryRow[];
   bySkippedReason: RuntimePolicyShadowSkippedSummaryRow[];
@@ -87,6 +96,15 @@ function confidenceBand(value: number | null): string {
   return '<6';
 }
 
+function valueBand(value: number | null): string {
+  if (value == null) return 'unknown';
+  if (value < 0) return '<0';
+  if (value < 5) return '0-4';
+  if (value < 6) return '5';
+  if (value < 8) return '6-7';
+  return '8+';
+}
+
 function round(value: number): number {
   return Math.round(value * 10000) / 10000;
 }
@@ -106,6 +124,12 @@ function normalizeRecentRow(row: RuntimePolicyShadowSkippedAuditRow): RuntimePol
     scoreState: String(metadata.scoreState ?? 'unknown').trim() || 'unknown',
     odds: toNumber(metadata.odds),
     confidence: toNumber(metadata.confidence),
+    valuePercent: toNumber(metadata.valuePercent),
+    valueBand: String(metadata.valueBand ?? valueBand(toNumber(metadata.valuePercent))).trim() || 'unknown',
+    riskLevel: String(metadata.riskLevel ?? 'unknown').trim() || 'unknown',
+    stakePercent: toNumber(metadata.stakePercent),
+    watchSignalKey: String(metadata.watchSignalKey ?? 'none').trim() || 'none',
+    watchSignalLabel: String(metadata.watchSignalLabel ?? 'none').trim() || 'none',
     evidenceMode: String(metadata.evidenceMode ?? 'unknown').trim() || 'unknown',
     marketResolutionStatus: String(metadata.marketResolutionStatus ?? 'unknown').trim() || 'unknown',
     prematchStrength: String(metadata.prematchStrength ?? 'unknown').trim() || 'unknown',
@@ -170,6 +194,9 @@ export async function buildRuntimePolicyShadowSkippedReport(
     byMinuteBand: summarizeBy(recent, (row) => row.minuteBand),
     byScoreState: summarizeBy(recent, (row) => row.scoreState),
     byConfidenceBand: summarizeBy(recent, (row) => confidenceBand(row.confidence)),
+    byValueBand: summarizeBy(recent, (row) => row.valueBand),
+    byRiskLevel: summarizeBy(recent, (row) => row.riskLevel),
+    byWatchSignal: summarizeBy(recent, (row) => row.watchSignalKey),
     byMarketResolutionStatus: summarizeBy(recent, (row) => row.marketResolutionStatus),
     byMarketAvailabilityBucket: summarizeBy(recent, (row) => row.marketAvailabilityBucket),
     bySkippedReason: summarizeBy(recent, (row) => row.skippedReason),
@@ -207,17 +234,20 @@ export function formatRuntimePolicyShadowSkippedReportMarkdown(
     ...formatSummaryTable('By Minute Band', report.byMinuteBand),
     ...formatSummaryTable('By Score State', report.byScoreState),
     ...formatSummaryTable('By Confidence Band', report.byConfidenceBand),
+    ...formatSummaryTable('By Value Band', report.byValueBand),
+    ...formatSummaryTable('By Risk Level', report.byRiskLevel),
+    ...formatSummaryTable('By Watch Signal', report.byWatchSignal),
     ...formatSummaryTable('By Market Resolution', report.byMarketResolutionStatus),
     ...formatSummaryTable('By Market Availability', report.byMarketAvailabilityBucket),
     ...formatSummaryTable('By Skipped Reason', report.bySkippedReason),
     '## Recent',
     '',
-    '| Timestamp | Match | Market | Selection | Minute | Score | Odds | Confidence | Resolution | Evidence | Prematch | Availability | Reason |',
-    '| --- | --- | --- | --- | ---: | --- | ---: | ---: | --- | --- | --- | --- | --- |',
+    '| Timestamp | Match | Market | Selection | Minute | Score | Odds | Confidence | Value | Risk | Stake | Watch Signal | Resolution | Evidence | Prematch | Availability | Reason |',
+    '| --- | --- | --- | --- | ---: | --- | ---: | ---: | ---: | --- | ---: | --- | --- | --- | --- | --- | --- |',
   ];
 
   if (report.recent.length === 0) {
-    lines.push('| (none) |  |  |  |  |  |  |  |  |  |  |  |  |');
+    lines.push('| (none) |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |');
   } else {
     for (const row of report.recent.slice(0, 25)) {
       lines.push([
@@ -229,6 +259,10 @@ export function formatRuntimePolicyShadowSkippedReportMarkdown(
         row.score,
         row.odds ?? '',
         row.confidence ?? '',
+        row.valuePercent ?? '',
+        row.riskLevel,
+        row.stakePercent ?? '',
+        row.watchSignalKey,
         row.marketResolutionStatus,
         row.evidenceMode,
         row.prematchStrength,

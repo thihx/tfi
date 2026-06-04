@@ -18,6 +18,9 @@ export interface RuntimePolicyShadowInput {
   score: string;
   odds: number | null;
   confidence: number | null;
+  valuePercent?: number | null;
+  riskLevel?: string | null;
+  stakePercent?: number | null;
   policyBlocked: boolean;
   policyWarnings: string[];
   evidenceMode: string;
@@ -41,6 +44,12 @@ export interface RuntimePolicyShadowSignal {
   scoreState: string;
   odds: number | null;
   confidence: number | null;
+  valuePercent: number | null;
+  valueBand: string;
+  riskLevel: string;
+  stakePercent: number | null;
+  watchSignalKey: string;
+  watchSignalLabel: string;
   evidenceMode: string;
   marketResolutionStatus: string;
   prematchStrength: string;
@@ -62,6 +71,15 @@ function getMinuteBand(minute: number): '00-29' | '30-44' | '45-59' | '60-74' | 
   if (minute <= 59) return '45-59';
   if (minute <= 74) return '60-74';
   return '75+';
+}
+
+function valueBand(value: number | null): string {
+  if (value == null) return 'unknown';
+  if (value < 0) return '<0';
+  if (value < 5) return '0-4';
+  if (value < 6) return '5';
+  if (value < 8) return '6-7';
+  return '8+';
 }
 
 function getScoreState(score: string): 'unknown' | '0-0' | 'level' | 'one-goal-margin' | 'two-plus-margin' {
@@ -173,12 +191,38 @@ function skipReason(args: {
   return 'Policy-blocked selection did not match any configured runtime shadow pocket.';
 }
 
+function classifyWatchSignal(args: {
+  canonicalMarket: string;
+  odds: number | null;
+  riskLevel: string;
+  valuePercent: number | null;
+}): { key: string; label: string } {
+  if (
+    args.canonicalMarket === 'btts_yes'
+    && args.odds != null
+    && args.odds >= 2
+    && args.riskLevel === 'MEDIUM'
+    && args.valuePercent != null
+    && args.valuePercent >= 6
+    && args.valuePercent < 8
+  ) {
+    return {
+      key: 'btts_yes_medium_edge_6_7_odds_2_plus',
+      label: 'BTTS Yes MEDIUM edge 6-7 odds>=2.0',
+    };
+  }
+  return { key: 'none', label: 'none' };
+}
+
 export function buildRuntimePolicyShadowSignal(input: RuntimePolicyShadowInput): RuntimePolicyShadowSignal {
   const canonicalMarket = normalizeMarket(input.selection ?? '', input.betMarket ?? '');
   const minuteBand = getMinuteBand(input.minute);
   const scoreState = getScoreState(input.score);
   const odds = input.odds != null && Number.isFinite(input.odds) && input.odds > 1 ? input.odds : null;
   const confidence = input.confidence != null && Number.isFinite(input.confidence) ? input.confidence : null;
+  const valuePercent = input.valuePercent != null && Number.isFinite(input.valuePercent) ? input.valuePercent : null;
+  const riskLevel = String(input.riskLevel || 'unknown').trim().toUpperCase() || 'unknown';
+  const stakePercent = input.stakePercent != null && Number.isFinite(input.stakePercent) ? input.stakePercent : null;
   const evidenceMode = String(input.evidenceMode || 'unknown');
   const marketResolutionStatus = String(input.marketResolutionStatus || 'unknown');
   const prematchStrength = String(input.prematchStrength || 'unknown');
@@ -188,6 +232,9 @@ export function buildRuntimePolicyShadowSignal(input: RuntimePolicyShadowInput):
     && canonicalMarket !== 'unknown'
     && odds != null;
   const matchedPockets: RuntimePolicyShadowPocket[] = [];
+  const watchSignal = hasPolicyBlockedSelection
+    ? classifyWatchSignal({ canonicalMarket, odds, riskLevel, valuePercent })
+    : { key: 'none', label: 'none' };
 
   if (hasPolicyBlockedSelection) {
     if (
@@ -240,6 +287,12 @@ export function buildRuntimePolicyShadowSignal(input: RuntimePolicyShadowInput):
     scoreState,
     odds,
     confidence,
+    valuePercent,
+    valueBand: valueBand(valuePercent),
+    riskLevel,
+    stakePercent,
+    watchSignalKey: watchSignal.key,
+    watchSignalLabel: watchSignal.label,
     evidenceMode,
     marketResolutionStatus,
     prematchStrength,

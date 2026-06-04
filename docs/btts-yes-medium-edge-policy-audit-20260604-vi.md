@@ -157,4 +157,52 @@ This pocket is a good candidate for `Watch` / `Signal` behavior:
 
 - Do not promote directly to `Bet`.
 - Show as watch alert when the model selects BTTS Yes but value is just below the policy edge threshold.
-- Label the reason clearly: strong live pressure, price >= 2.05, but medium-risk edge is still near threshold.
+- Label the reason clearly: strong live pressure, price around/above 2.0, but medium-risk edge is still near threshold.
+
+## Runtime instrumentation shipped
+
+The runtime shadow signal now carries the fields needed to monitor this pocket without changing production save policy:
+
+```text
+valuePercent
+valueBand
+riskLevel
+stakePercent
+watchSignalKey
+watchSignalLabel
+```
+
+The near-edge BTTS watch key is:
+
+```text
+btts_yes_medium_edge_6_7_odds_2_plus
+```
+
+Definition:
+
+```text
+canonicalMarket = btts_yes
+riskLevel = MEDIUM
+valuePercent >= 6 and < 8
+odds >= 2.0
+production policy blocked the selection
+```
+
+This key is added only to runtime shadow/debug/audit metadata. It does not save, notify, or relax the betting policy.
+
+Reports updated:
+
+```powershell
+npm run data-driven:policy-shadow-suite --prefix packages/server
+```
+
+Read these sections in the generated candidate/skipped reports:
+
+```text
+By Value Band
+By Risk Level
+By Watch Signal
+Recent
+```
+
+Promotion remains blocked until settled runtime shadow evidence meets the gate above. Replay-only evidence or a small runtime sample is not enough.
