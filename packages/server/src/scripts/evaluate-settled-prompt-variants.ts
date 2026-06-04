@@ -40,6 +40,7 @@ interface EvaluateArgs {
   applySettledReplayPolicy?: boolean;
   /** Opt-in only: inject stored settled replay trace hints into the prompt. */
   settledReplayTraceMode?: boolean;
+  prematchProfileMode: 'full' | 'none' | 'league-only' | 'team-only';
 }
 
 function parseArgs(argv: string[]): EvaluateArgs {
@@ -57,6 +58,7 @@ function parseArgs(argv: string[]): EvaluateArgs {
   let maxScenarios: number | undefined;
   let applySettledReplayPolicy = false;
   let settledReplayTraceMode = false;
+  let prematchProfileMode: EvaluateArgs['prematchProfileMode'] = 'full';
 
   for (let i = 0; i < argv.length; i++) {
     const arg = argv[i];
@@ -128,10 +130,15 @@ function parseArgs(argv: string[]): EvaluateArgs {
       settledReplayTraceMode = true;
       continue;
     }
+    if (arg === '--prematch-profile-mode' && next && ['full', 'none', 'league-only', 'team-only'].includes(next)) {
+      prematchProfileMode = next as EvaluateArgs['prematchProfileMode'];
+      i++;
+      continue;
+    }
   }
 
   if (!dirPath) {
-    throw new Error('Usage: tsx src/scripts/evaluate-settled-prompt-variants.ts --dir <folder> [--prompt-version <version>]... [--llm real|mock] [--model <gemini-model>] [--allow-real-llm] [--odds recorded|live|mock] [--delay-ms N] [--max-scenarios N] [--apply-replay-policy] [--settled-replay-trace-mode] [--llm-cache-dir <dir>] [--report-json <file>] [--report-md <file>] [--report-cases-json <file>]');
+    throw new Error('Usage: tsx src/scripts/evaluate-settled-prompt-variants.ts --dir <folder> [--prompt-version <version>]... [--llm real|mock] [--model <gemini-model>] [--allow-real-llm] [--odds recorded|live|mock] [--delay-ms N] [--max-scenarios N] [--apply-replay-policy] [--settled-replay-trace-mode] [--prematch-profile-mode full|none|league-only|team-only] [--llm-cache-dir <dir>] [--report-json <file>] [--report-md <file>] [--report-cases-json <file>]');
   }
 
   const fallbackPromptVersions = [
@@ -154,6 +161,7 @@ function parseArgs(argv: string[]): EvaluateArgs {
     maxScenarios,
     applySettledReplayPolicy,
     settledReplayTraceMode,
+    prematchProfileMode,
   };
 }
 
@@ -174,6 +182,7 @@ async function evaluateScenarioAgainstSettlement(
   llmCacheDir?: string,
   applySettledReplayPolicy?: boolean,
   settledReplayTraceMode?: boolean,
+  prematchProfileMode: EvaluateArgs['prematchProfileMode'] = 'full',
 ): Promise<EvaluatedReplayCase> {
   const cachePath = llmMode === 'real' && llmCacheDir
     ? buildReplayLlmCachePath(
@@ -181,7 +190,7 @@ async function evaluateScenarioAgainstSettlement(
         scenario,
         promptVersion,
         oddsMode,
-        settledReplayTraceMode === true ? 'settled-trace' : 'standard',
+        `${settledReplayTraceMode === true ? 'settled-trace' : 'standard'}-${prematchProfileMode}`,
       )
     : null;
   const cached = cachePath ? loadReplayLlmCache(cachePath) : null;
@@ -200,6 +209,7 @@ async function evaluateScenarioAgainstSettlement(
     capturedAiText: cached?.aiText,
     settledReplayApprovedTrace: settledReplayTraceMode === true,
     applySettledReplayPolicy: applySettledReplayPolicy === true,
+    prematchProfileMode,
   });
 
   if (cachePath && !cached && output.result.debug?.aiText) {
@@ -296,6 +306,7 @@ function buildMarkdownReport(summary: {
   totalScenarios: number;
   applySettledReplayPolicy?: boolean;
   settledReplayTraceMode?: boolean;
+  prematchProfileMode?: EvaluateArgs['prematchProfileMode'];
   promptVersions: string[];
   variants: ReturnType<typeof summarizeSettledReplayVariant>[];
 }): string {
@@ -306,6 +317,7 @@ function buildMarkdownReport(summary: {
     `- Scenarios: ${summary.totalScenarios}`,
     `- Post-parse recommendation policy: ${summary.applySettledReplayPolicy ? 'applied (production parity)' : 'skipped (settled-replay default)'}`,
     `- Settled replay trace mode: ${summary.settledReplayTraceMode ? 'enabled (trace-injected, diagnostics only)' : 'disabled (production-like economics)'}`,
+    `- Prematch profile mode: ${summary.prematchProfileMode ?? 'full'}`,
     `- Prompt versions: ${summary.promptVersions.join(', ') || '(none)'}`,
     '',
   ];
@@ -432,6 +444,7 @@ async function main(): Promise<void> {
         args.llmCacheDir,
         args.applySettledReplayPolicy,
         args.settledReplayTraceMode,
+        args.prematchProfileMode,
       ));
       if (args.delayMs > 0 && index < scenarios.length - 1) {
         await sleep(args.delayMs);
@@ -445,6 +458,7 @@ async function main(): Promise<void> {
     totalScenarios: scenarios.length,
     applySettledReplayPolicy: args.applySettledReplayPolicy === true,
     settledReplayTraceMode: args.settledReplayTraceMode === true,
+    prematchProfileMode: args.prematchProfileMode,
     promptVersions: args.promptVersions,
     variants: args.promptVersions.map((promptVersion) => summarizeSettledReplayVariant(
       promptVersion,
@@ -456,6 +470,7 @@ async function main(): Promise<void> {
     totalScenarios: scenarios.length,
     applySettledReplayPolicy: summary.applySettledReplayPolicy,
     settledReplayTraceMode: summary.settledReplayTraceMode,
+    prematchProfileMode: summary.prematchProfileMode,
     promptVersions: args.promptVersions,
     variants: args.promptVersions.map((promptVersion) => ({
       promptVersion,

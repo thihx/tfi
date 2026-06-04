@@ -63,6 +63,7 @@
     "data-driven:suggest-segment-blocklist": "tsx src/scripts/suggest-segment-policy-blocklist.ts",
     "data-driven:memory-rebuild": "tsx src/scripts/rebuild-performance-memory.ts",
     "data-driven:action-plan": "tsx src/scripts/build-segment-policy-action-plan.ts",
+    "data-driven:prematch-profile-experiment": "tsx src/scripts/run-prematch-profile-replay-experiment.ts",
     "data-driven:policy-experiment": "tsx src/scripts/run-replay-policy-experiment.ts",
     "data-driven:check-policy-experiment-gates": "tsx src/scripts/check-replay-policy-experiment-gates.ts",
     "data-driven:policy-shadow-suite": "tsx src/scripts/run-runtime-policy-shadow-audit-suite.ts",

@@ -313,3 +313,44 @@ Dry-run production sau Phase 2:
 - `profileBudget`: 40
 - `profileSelected`: 40
 - `profileDeferred`: 0
+
+## Phase 3 implementation note
+
+Da them replay experiment rieng de do incremental value cua prematch League/Team Profile layer:
+
+```powershell
+npm run data-driven:prematch-profile-experiment --prefix packages/server -- --lookback-days 30 --limit 160 --max-scenarios 80 --llm mock --odds recorded --delay-ms 0
+```
+
+Script tao cung mot settled scenario cohort, sau do replay 4 mode:
+
+- `full`: giu league profile + home/away team profile nhu runtime hien tai.
+- `none`: mask toan bo league/team profile truoc prompt construction.
+- `league-only`: chi giu league profile.
+- `team-only`: chi giu home/away team profile.
+
+Artifact can doc truoc:
+
+```text
+packages/server/replay-work/data-driven-runs/<runId>/prematch-profile-experiment/prematch-profile-experiment.md
+packages/server/replay-work/data-driven-runs/<runId>/prematch-profile-experiment/prematch-profile-experiment.json
+packages/server/replay-work/data-driven-runs/<runId>/prematch-profile-experiment/<mode>/eval-cases.json
+```
+
+Smoke run da chay:
+
+- run root: `packages/server/replay-work/data-driven-runs/2026-06-04T07-21-50-627Z`
+- exported scenarios: 54
+- evaluated scenarios per mode: 20
+- llm: `mock`
+- odds: `recorded`
+- replay policy: applied
+- ket qua: 4 mode deu cung KPI (`push=1`, `noBet=19`, `win=1`, `roi=0.8250`)
+
+Dien giai quan trong: mock LLM chi xac nhan harness/policy parity va khong ton provider/LLM quota. No khong chung minh profile vo dung, vi model khong doc prompt that. De ket luan usefulness cua profile layer, can chay real LLM cohort nho co cache:
+
+```powershell
+npm run data-driven:prematch-profile-experiment --prefix packages/server -- --lookback-days 60 --limit 160 --max-scenarios 40 --llm real --allow-real-llm --odds recorded --delay-ms 1200
+```
+
+Chi nen dung ket qua real LLM + settled cohort du lon de quyet dinh tiep tuc giu, thu hep, hoac uu tien profile theo market family/league segment.

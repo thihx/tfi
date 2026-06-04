@@ -556,6 +556,8 @@ export interface PipelineExecutionOptions {
   settledReplayTraceOriginalSelection?: string;
   /** When true with settledReplayApprovedTrace, still run recommendation-policy (production parity). Default skips policy when trace is on. */
   applySettledReplayPolicy?: boolean;
+  /** Replay/diagnostic only: mask derived league/team profile priors before prompt construction. */
+  prematchProfileMode?: 'full' | 'none' | 'league-only' | 'team-only';
 }
 
 // ==================== Types ====================
@@ -4571,14 +4573,24 @@ async function processMatch(
     } = oddsSide;
     const [
       historicalPerformance,
-      leagueProfile,
+      rawLeagueProfile,
       leagueMeta,
-      homeTeamProfile,
-      awayTeamProfile,
+      rawHomeTeamProfile,
+      rawAwayTeamProfile,
       scoutInsight,
       performanceMemoryRecords,
       performanceMemoryAutoRules,
     ] = promptContextBundle;
+    const prematchProfileMode = options.prematchProfileMode ?? 'full';
+    const leagueProfile = prematchProfileMode === 'none' || prematchProfileMode === 'team-only'
+      ? null
+      : rawLeagueProfile;
+    const homeTeamProfile = prematchProfileMode === 'none' || prematchProfileMode === 'league-only'
+      ? null
+      : rawHomeTeamProfile;
+    const awayTeamProfile = prematchProfileMode === 'none' || prematchProfileMode === 'league-only'
+      ? null
+      : rawAwayTeamProfile;
     const lineupsSnapshot = summarizeLineupsForPrompt(
       (scoutInsight?.lineups?.payload as ApiFixtureLineup[] | null | undefined) ?? null,
       homeName,

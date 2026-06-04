@@ -38,6 +38,7 @@ export interface ReplayScenario {
     skipStalenessGate?: boolean;
     modelOverride?: string;
     promptVersionOverride?: LiveAnalysisPromptVersion;
+    prematchProfileMode?: 'full' | 'none' | 'league-only' | 'team-only';
   };
   statistics?: ApiFixtureStat[];
   events?: ApiFixtureEvent[];
@@ -103,6 +104,7 @@ export interface ReplayRunOptions {
   settledReplayApprovedTrace?: boolean;
   /** When true with settledReplayApprovedTrace, run recommendation-policy after parse (production parity). */
   applySettledReplayPolicy?: boolean;
+  prematchProfileMode?: 'full' | 'none' | 'league-only' | 'team-only';
 }
 
 export interface ReplayAssertionResult {
@@ -383,6 +385,7 @@ export async function runReplayScenario(
       skipStalenessGate: scenario.pipelineOptions?.skipStalenessGate,
       modelOverride: scenario.pipelineOptions?.modelOverride,
       promptVersionOverride: options.promptVersionOverride ?? scenario.pipelineOptions?.promptVersionOverride,
+      prematchProfileMode: options.prematchProfileMode ?? scenario.pipelineOptions?.prematchProfileMode,
       previousRecommendations: scenario.previousRecommendations ?? null,
       previousSnapshot: scenario.previousSnapshot ?? null,
       settledReplayApprovedTrace: options.settledReplayApprovedTrace === true,
