@@ -9,7 +9,7 @@ import {
   isFootballApiDailyLimitMessage,
   openFootballApiCircuitUntilNextUtcMidnight,
 } from './football-api-circuit.js';
-import { fetchFootballApiStatus } from './football-api.js';
+import { fetchFootballApiStatus, getFootballApiStatusRequests } from './football-api.js';
 
 export type IntegrationStatus = 'HEALTHY' | 'DEGRADED' | 'DOWN' | 'NOT_CONFIGURED';
 
@@ -61,6 +61,15 @@ function makeResult(
   return { id, label, description, status, latencyMs, message, checkedAt: new Date().toISOString() };
 }
 
+function serializeFootballApiErrors(errors: unknown): string {
+  if (errors == null) return '';
+  if (Array.isArray(errors)) return errors.length > 0 ? JSON.stringify(errors) : '';
+  if (typeof errors === 'object') {
+    return Object.keys(errors).length > 0 ? JSON.stringify(errors) : '';
+  }
+  return String(errors);
+}
+
 // ── Probes ───────────────────────────────────────────────────
 
 async function probePostgres(): Promise<IntegrationProbeResult> {
@@ -110,12 +119,12 @@ async function probeFootballApi(): Promise<IntegrationProbeResult> {
     const { result: res, latencyMs } = await timed(() => withTimeout(fetchFootballApiStatus()));
     if (res.ok) {
       const data = res.data ?? {};
-      const serialized = JSON.stringify(data);
-      if (data.errors && Object.keys(data.errors).length > 0 && isFootballApiDailyLimitMessage(serialized)) {
+      const serializedErrors = serializeFootballApiErrors(data.errors);
+      if (serializedErrors !== '' && isFootballApiDailyLimitMessage(serializedErrors)) {
         await openFootballApiCircuitUntilNextUtcMidnight();
-        return makeResult(ID, LABEL, DESC, 'DEGRADED', latencyMs, JSON.stringify(data.errors));
+        return makeResult(ID, LABEL, DESC, 'DEGRADED', latencyMs, serializedErrors);
       }
-      const req = data?.response?.account?.requests;
+      const req = getFootballApiStatusRequests(data);
       const current = req?.current;
       const limitDay = req?.limit_day;
       if (typeof current === 'number' && typeof limitDay === 'number' && current >= limitDay) {

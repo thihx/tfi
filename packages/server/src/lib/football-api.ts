@@ -28,13 +28,17 @@ interface ApiFootballResponse<T> {
 }
 
 export interface ApiFootballStatusResponse {
-  errors?: Record<string, string>;
+  errors?: Record<string, string> | string[] | null;
   response?: {
     account?: {
       requests?: {
         current?: number;
         limit_day?: number;
       };
+    };
+    requests?: {
+      current?: number;
+      limit_day?: number;
     };
   };
 }
@@ -107,6 +111,19 @@ async function recordProviderAttempt(input: {
     quotaLimit: input.quotaLimit ?? null,
     error: input.error ?? '',
   });
+}
+
+export function getFootballApiStatusRequests(data: ApiFootballStatusResponse | null | undefined): {
+  current?: number;
+  limit_day?: number;
+} | null {
+  return data?.response?.requests ?? data?.response?.account?.requests ?? null;
+}
+
+function serializeFootballApiErrors(errors: ApiFootballStatusResponse['errors']): string {
+  if (errors == null) return '';
+  if (Array.isArray(errors)) return errors.length > 0 ? JSON.stringify(errors) : '';
+  return Object.keys(errors).length > 0 ? JSON.stringify(errors) : '';
 }
 
 async function apiGet<T>(endpoint: string, params: Record<string, string> = {}): Promise<T[]> {
@@ -274,11 +291,6 @@ export async function fetchFootballApiStatus(): Promise<ApiFootballStatusResult>
       clearTimeout(timer);
 
       const text = await res.text();
-      const dailyLimit = isFootballApiDailyLimitMessage(text);
-      if (dailyLimit) {
-        await openFootballApiCircuitUntilNextUtcMidnight();
-      }
-
       let data: ApiFootballStatusResponse | null = null;
       try {
         data = text ? JSON.parse(text) as ApiFootballStatusResponse : null;
@@ -286,7 +298,14 @@ export async function fetchFootballApiStatus(): Promise<ApiFootballStatusResult>
         data = null;
       }
 
-      const quota = data?.response?.account?.requests;
+      const serializedErrors = serializeFootballApiErrors(data?.errors);
+      const dailyLimit = (serializedErrors !== '' && isFootballApiDailyLimitMessage(serializedErrors))
+        || (!res.ok && isFootballApiDailyLimitMessage(text));
+      if (dailyLimit) {
+        await openFootballApiCircuitUntilNextUtcMidnight();
+      }
+
+      const quota = getFootballApiStatusRequests(data);
       await recordProviderAttempt({
         endpoint: '/status',
         attempt: attemptNumber,

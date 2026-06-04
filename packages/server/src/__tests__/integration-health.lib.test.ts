@@ -31,6 +31,12 @@ vi.mock('../lib/football-api-circuit.js', () => ({
 
 vi.mock('../lib/football-api.js', () => ({
   fetchFootballApiStatus: (...args: unknown[]) => mockFetchFootballApiStatus(...args),
+  getFootballApiStatusRequests: (data: {
+    response?: {
+      account?: { requests?: { current?: number; limit_day?: number } };
+      requests?: { current?: number; limit_day?: number };
+    };
+  } | null | undefined) => data?.response?.requests ?? data?.response?.account?.requests ?? null,
 }));
 
 vi.mock('../config.js', () => ({
@@ -232,6 +238,34 @@ describe('Football API probe', () => {
     expect(result!.status).toBe('HEALTHY');
     expect(result!.message).toContain('7000/7000');
     expect(mockOpenFootballApiCircuitUntilNextUtcMidnight).toHaveBeenCalledTimes(1);
+  });
+
+  test('reads current API-Sports /status quota shape without marking daily-limit', async () => {
+    mockFetchFootballApiStatus.mockResolvedValueOnce({
+      ok: true,
+      status: 200,
+      data: {
+        errors: [],
+        response: {
+          account: { firstname: 'Test' },
+          subscription: { plan: 'Pro', active: true },
+          requests: { current: 196, limit_day: 7500 },
+        },
+      },
+      text: JSON.stringify({
+        errors: [],
+        response: {
+          account: { firstname: 'Test' },
+          subscription: { plan: 'Pro', active: true },
+          requests: { current: 196, limit_day: 7500 },
+        },
+      }),
+    });
+    const { checkSingleIntegration } = await import('../lib/integration-health.js');
+    const result = await checkSingleIntegration('football-api');
+    expect(result!.status).toBe('HEALTHY');
+    expect(result!.message).toContain('196/7500');
+    expect(mockOpenFootballApiCircuitUntilNextUtcMidnight).not.toHaveBeenCalled();
   });
 
   test('opens circuit when /status payload contains daily limit error', async () => {

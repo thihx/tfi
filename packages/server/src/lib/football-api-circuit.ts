@@ -56,9 +56,7 @@ export function getNextUtcMidnightMs(now = Date.now()): number {
 export function isFootballApiDailyLimitMessage(message: string): boolean {
   const normalized = message.toLowerCase();
   return normalized.includes('request limit for the day')
-    || normalized.includes('reached the request limit')
-    || normalized.includes('"requests"')
-      && normalized.includes('limit');
+    || normalized.includes('reached the request limit');
 }
 
 function parseOpenUntilMs(raw: string | null | undefined): number | null {

@@ -100,4 +100,34 @@ describe('football-api apiGet', () => {
     await expect(promise).resolves.toEqual([{ fixture: { id: 1 } }]);
     expect(global.fetch).toHaveBeenCalledTimes(2);
   });
+
+  test('does not open circuit for healthy status quota metadata', async () => {
+    global.fetch = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      text: async () => JSON.stringify({
+        get: 'status',
+        errors: [],
+        response: {
+          account: { firstname: 'Test' },
+          subscription: { plan: 'Pro', active: true },
+          requests: { current: 196, limit_day: 7500 },
+        },
+      }),
+    });
+
+    const { fetchFootballApiStatus } = await import('../lib/football-api.js');
+    const result = await fetchFootballApiStatus();
+
+    expect(result.ok).toBe(true);
+    expect(mockOpenFootballApiCircuitUntilNextUtcMidnight).not.toHaveBeenCalled();
+    expect(mockRecordApiFootballRequestSafe).toHaveBeenCalledWith(expect.objectContaining({
+      endpoint: '/status',
+      success: true,
+      dailyLimit: false,
+      statusCode: 200,
+      quotaCurrent: 196,
+      quotaLimit: 7500,
+    }));
+  });
 });

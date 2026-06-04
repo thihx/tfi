@@ -34,6 +34,9 @@ describe('football-api-circuit', () => {
     expect(isFootballApiDailyLimitMessage(
       'Football API errors: {"requests":"You have reached the request limit for the day, Go to https://dashboard.api-football.com to upgrade your plan."}',
     )).toBe(true);
+    expect(isFootballApiDailyLimitMessage(
+      '{"get":"status","errors":[],"response":{"requests":{"current":196,"limit_day":7500}}}',
+    )).toBe(false);
     expect(isFootballApiDailyLimitMessage('temporary timeout')).toBe(false);
   });
 
