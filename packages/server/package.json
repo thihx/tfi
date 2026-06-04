@@ -74,6 +74,8 @@
     "data-driven:policy-shadow-settlement": "tsx src/scripts/report-runtime-policy-shadow-settlement.ts",
     "data-driven:check-policy-shadow-settlement-gates": "tsx src/scripts/check-runtime-policy-shadow-settlement-gates.ts",
     "provider:coverage-audit": "tsx src/scripts/audit-provider-coverage-samples.ts",
+    "provider:coverage-refresh": "tsx src/scripts/refresh-provider-league-coverage.ts",
+    "provider:odds-quality-report": "tsx src/scripts/report-provider-odds-quality.ts",
     "provider:real-sample": "tsx src/scripts/audit-real-provider-samples.ts",
     "provider:coverage-backfill": "tsx src/scripts/backfill-provider-odds-coverage-flags.ts",
     "benchmark:gemini-models": "tsx src/scripts/compare-gemini-model-benchmark.ts --apply-replay-policy --max-scenarios 12",

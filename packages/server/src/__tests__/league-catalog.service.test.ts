@@ -45,12 +45,30 @@ describe('league-catalog.service', () => {
         logo: '',
         last_updated: '2026-03-24T00:00:00Z',
         provider_synced_at: new Date().toISOString(),
+        provider_coverage_season: 2026,
+        provider_coverage: { odds: true },
+        coverage_odds: true,
       },
     ]);
     vi.mocked(referenceProvider.fetchLeagueByIdFromReferenceProvider).mockResolvedValue({
       league: { id: 39, name: 'Premier League', type: 'League', logo: '' },
       country: { name: 'England', code: 'GB', flag: null },
-      seasons: [],
+      seasons: [{
+        year: 2026,
+        current: true,
+        coverage: {
+          fixtures: {
+            events: true,
+            lineups: true,
+            statistics_fixtures: true,
+            statistics_players: false,
+          },
+          standings: true,
+          players: true,
+          predictions: true,
+          odds: true,
+        },
+      }],
     });
     vi.mocked(leaguesRepo.upsertLeagues).mockResolvedValue(1);
 
@@ -69,6 +87,14 @@ describe('league-catalog.service', () => {
     expect(leaguesRepo.upsertLeagues).toHaveBeenCalledWith(
       expect.arrayContaining([
         expect.objectContaining({ league_id: 39, active: true, top_league: true }),
+        expect.objectContaining({
+          provider_coverage_season: 2026,
+          coverage_fixtures_events: true,
+          coverage_fixtures_lineups: true,
+          coverage_fixtures_statistics: true,
+          coverage_fixtures_players: false,
+          coverage_odds: true,
+        }),
       ]),
       { touchProviderSyncAt: true },
     );

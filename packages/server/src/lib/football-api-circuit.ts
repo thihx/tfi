@@ -24,6 +24,21 @@ export class FootballApiDailyLimitError extends Error {
 }
 
 let memoryOpenUntilMs: number | null = null;
+const CIRCUIT_REDIS_TIMEOUT_MS = 1_500;
+
+async function withCircuitRedisTimeout<T>(promise: Promise<T>): Promise<T> {
+  let timer: ReturnType<typeof setTimeout> | null = null;
+  try {
+    return await Promise.race([
+      promise,
+      new Promise<T>((_, reject) => {
+        timer = setTimeout(() => reject(new Error('football-api circuit Redis timeout')), CIRCUIT_REDIS_TIMEOUT_MS);
+      }),
+    ]);
+  } finally {
+    if (timer) clearTimeout(timer);
+  }
+}
 
 export function getNextUtcMidnightMs(now = Date.now()): number {
   const current = new Date(now);
@@ -74,7 +89,7 @@ export async function clearFootballApiCircuit(): Promise<void> {
   memoryOpenUntilMs = null;
   try {
     const redis = getRedisClient();
-    await redis.del(FOOTBALL_API_CIRCUIT_KEY);
+    await withCircuitRedisTimeout(redis.del(FOOTBALL_API_CIRCUIT_KEY));
   } catch {
     // memory-only clear is enough for this process
   }
@@ -102,7 +117,7 @@ export async function openFootballApiCircuitUntil(untilMs: number): Promise<stri
   const ttlMs = Math.max(1_000, untilMs - Date.now());
   try {
     const redis = getRedisClient();
-    await redis.set(FOOTBALL_API_CIRCUIT_KEY, String(untilMs), 'PX', ttlMs + 5_000);
+    await withCircuitRedisTimeout(redis.set(FOOTBALL_API_CIRCUIT_KEY, String(untilMs), 'PX', ttlMs + 5_000));
   } catch (err) {
     console.warn('[football-api-circuit] Redis unavailable, using in-memory circuit only:', err instanceof Error ? err.message : err);
   }
@@ -121,7 +136,7 @@ export async function getFootballApiCircuitOpenUntilMs(): Promise<number | null>
 
   try {
     const redis = getRedisClient();
-    const raw = await redis.get(FOOTBALL_API_CIRCUIT_KEY);
+    const raw = await withCircuitRedisTimeout(redis.get(FOOTBALL_API_CIRCUIT_KEY));
     const parsed = parseOpenUntilMs(raw);
     if (parsed != null) {
       writeMemoryOpenUntilMs(parsed);

@@ -33,6 +33,33 @@ export interface ServerParsedAiResult {
   follow_up_answer_vi?: string;
 }
 
+export interface RuntimePolicyShadowPocket {
+  id: string;
+  label: string;
+  stakeCapPercent?: number;
+}
+
+export interface RuntimePolicyShadowDebug {
+  hasPolicyBlockedSelection?: boolean;
+  canonicalMarket?: string;
+  minuteBand?: string;
+  scoreState?: string;
+  odds?: number | null;
+  confidence?: number | null;
+  valuePercent?: number | null;
+  valueBand?: string;
+  riskLevel?: string;
+  stakePercent?: number | null;
+  watchSignalKey?: string;
+  watchSignalLabel?: string;
+  evidenceMode?: string;
+  marketResolutionStatus?: string;
+  prematchStrength?: string;
+  marketAvailabilityBucket?: string;
+  matchedPockets?: RuntimePolicyShadowPocket[];
+  skippedReason?: string;
+}
+
 export interface ServerMatchPipelineResult {
   matchId: string;
   matchDisplay?: string;
@@ -59,6 +86,9 @@ export interface ServerMatchPipelineResult {
     prematchStrength?: 'strong' | 'moderate' | 'weak' | 'none';
     statsSource?: string;
     evidenceMode?: string;
+    llmDecisionDiagnostic?: string;
+    marketResolutionStatus?: string;
+    runtimePolicyShadow?: RuntimePolicyShadowDebug;
     totalLatencyMs?: number;
     advisoryOnly?: boolean;
     parsed?: ServerParsedAiResult;

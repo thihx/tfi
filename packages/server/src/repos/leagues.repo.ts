@@ -19,6 +19,16 @@ export interface LeagueRow {
   /** Lower sorts first; set via reorder API. */
   sort_order: number;
   provider_synced_at?: string | null;
+  provider_coverage?: Record<string, unknown> | null;
+  provider_coverage_season?: number | null;
+  coverage_fixtures_events?: boolean | null;
+  coverage_fixtures_lineups?: boolean | null;
+  coverage_fixtures_statistics?: boolean | null;
+  coverage_fixtures_players?: boolean | null;
+  coverage_standings?: boolean | null;
+  coverage_players?: boolean | null;
+  coverage_predictions?: boolean | null;
+  coverage_odds?: boolean | null;
   has_profile?: boolean;
   profile_updated_at?: string | null;
   profile_volatility_tier?: string | null;
@@ -151,8 +161,16 @@ export async function upsertLeagues(
     for (const l of leagues) {
       if (l.league_id == null) continue;
       await client.query(
-        `INSERT INTO leagues (league_id, league_name, country, tier, active, top_league, type, logo, last_updated, provider_synced_at)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, NOW(), CASE WHEN $9 THEN NOW() ELSE NULL END)
+        `INSERT INTO leagues (
+           league_id, league_name, country, tier, active, top_league, type, logo, last_updated, provider_synced_at,
+           provider_coverage, provider_coverage_season, coverage_fixtures_events, coverage_fixtures_lineups,
+           coverage_fixtures_statistics, coverage_fixtures_players, coverage_standings, coverage_players,
+           coverage_predictions, coverage_odds
+         )
+         VALUES (
+           $1, $2, $3, $4, $5, $6, $7, $8, NOW(), CASE WHEN $9 THEN NOW() ELSE NULL END,
+           COALESCE($10::jsonb, '{}'::jsonb), $11, $12, $13, $14, $15, $16, $17, $18, $19
+         )
          ON CONFLICT (league_id) DO UPDATE SET
            league_name = COALESCE(NULLIF($2,''), leagues.league_name),
            country = COALESCE(NULLIF($3,''), leagues.country),
@@ -162,7 +180,17 @@ export async function upsertLeagues(
            type = COALESCE(NULLIF($7,''), leagues.type),
            logo = COALESCE(NULLIF($8,''), leagues.logo),
            last_updated = NOW(),
-           provider_synced_at = CASE WHEN $9 THEN NOW() ELSE leagues.provider_synced_at END`,
+           provider_synced_at = CASE WHEN $9 THEN NOW() ELSE leagues.provider_synced_at END,
+           provider_coverage = COALESCE($10::jsonb, leagues.provider_coverage),
+           provider_coverage_season = COALESCE($11, leagues.provider_coverage_season),
+           coverage_fixtures_events = COALESCE($12, leagues.coverage_fixtures_events),
+           coverage_fixtures_lineups = COALESCE($13, leagues.coverage_fixtures_lineups),
+           coverage_fixtures_statistics = COALESCE($14, leagues.coverage_fixtures_statistics),
+           coverage_fixtures_players = COALESCE($15, leagues.coverage_fixtures_players),
+           coverage_standings = COALESCE($16, leagues.coverage_standings),
+           coverage_players = COALESCE($17, leagues.coverage_players),
+           coverage_predictions = COALESCE($18, leagues.coverage_predictions),
+           coverage_odds = COALESCE($19, leagues.coverage_odds)`,
         [
           l.league_id,
           l.league_name ?? '',
@@ -173,8 +201,46 @@ export async function upsertLeagues(
           l.type ?? '',
           l.logo ?? '',
           options.touchProviderSyncAt === true,
+          l.provider_coverage === undefined ? null : JSON.stringify(l.provider_coverage ?? {}),
+          l.provider_coverage_season ?? null,
+          l.coverage_fixtures_events ?? null,
+          l.coverage_fixtures_lineups ?? null,
+          l.coverage_fixtures_statistics ?? null,
+          l.coverage_fixtures_players ?? null,
+          l.coverage_standings ?? null,
+          l.coverage_players ?? null,
+          l.coverage_predictions ?? null,
+          l.coverage_odds ?? null,
         ],
       );
+      if (options.touchProviderSyncAt === true && l.provider_coverage !== undefined) {
+        await client.query(
+          `INSERT INTO league_provider_coverage_history (
+             league_id, provider_coverage_season, provider_coverage,
+             coverage_fixtures_events, coverage_fixtures_lineups, coverage_fixtures_statistics,
+             coverage_fixtures_players, coverage_standings, coverage_players, coverage_predictions,
+             coverage_odds, coverage_hash
+           )
+           VALUES (
+             $1, $2, COALESCE($3::jsonb, '{}'::jsonb), $4, $5, $6, $7, $8, $9, $10, $11,
+             md5(COALESCE($3::jsonb, '{}'::jsonb)::text)
+           )
+           ON CONFLICT (league_id, COALESCE(provider_coverage_season, 0), coverage_hash) DO NOTHING`,
+          [
+            l.league_id,
+            l.provider_coverage_season ?? null,
+            JSON.stringify(l.provider_coverage ?? {}),
+            l.coverage_fixtures_events ?? null,
+            l.coverage_fixtures_lineups ?? null,
+            l.coverage_fixtures_statistics ?? null,
+            l.coverage_fixtures_players ?? null,
+            l.coverage_standings ?? null,
+            l.coverage_players ?? null,
+            l.coverage_predictions ?? null,
+            l.coverage_odds ?? null,
+          ],
+        );
+      }
       count++;
     }
     return count;

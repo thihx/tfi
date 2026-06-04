@@ -23,6 +23,21 @@ const IMPORTANT_JOBS = new Set([
 
 let memoryCount = 0;
 let memoryDateKey = '';
+const QUOTA_REDIS_TIMEOUT_MS = 1_500;
+
+async function withQuotaRedisTimeout<T>(promise: Promise<T>): Promise<T> {
+  let timer: ReturnType<typeof setTimeout> | null = null;
+  try {
+    return await Promise.race([
+      promise,
+      new Promise<T>((_, reject) => {
+        timer = setTimeout(() => reject(new Error('football-api quota Redis timeout')), QUOTA_REDIS_TIMEOUT_MS);
+      }),
+    ]);
+  } finally {
+    if (timer) clearTimeout(timer);
+  }
+}
 
 function utcDateKey(now = new Date()): string {
   return now.toISOString().substring(0, 10);
@@ -56,9 +71,9 @@ export async function incrementFootballApiDailyCount(): Promise<number> {
   try {
     const redis = getRedisClient();
     const key = redisKey(dateKey);
-    const newCount = await redis.incr(key);
+    const newCount = await withQuotaRedisTimeout(redis.incr(key));
     if (newCount === 1) {
-      await redis.expire(key, 25 * 60 * 60);
+      await withQuotaRedisTimeout(redis.expire(key, 25 * 60 * 60));
     }
     memoryCount = newCount;
     return newCount;
@@ -73,7 +88,7 @@ export async function getFootballApiDailyCount(): Promise<number> {
 
   try {
     const redis = getRedisClient();
-    const raw = await redis.get(redisKey(dateKey));
+    const raw = await withQuotaRedisTimeout(redis.get(redisKey(dateKey)));
     if (raw != null) {
       const parsed = Number(raw);
       if (Number.isFinite(parsed)) {

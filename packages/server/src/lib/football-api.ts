@@ -426,7 +426,26 @@ export async function fetchStandings(leagueId: string, season: string): Promise<
 export interface ApiLeague {
   league: { id: number; name: string; type: string; logo: string };
   country: { name: string; code: string | null; flag: string | null };
-  seasons: { year: number; current: boolean }[];
+  seasons: Array<{
+    year: number;
+    current: boolean;
+    coverage?: {
+      fixtures?: {
+        events?: boolean;
+        lineups?: boolean;
+        statistics_fixtures?: boolean;
+        statistics_players?: boolean;
+      };
+      standings?: boolean;
+      players?: boolean;
+      top_scorers?: boolean;
+      top_assists?: boolean;
+      top_cards?: boolean;
+      injuries?: boolean;
+      predictions?: boolean;
+      odds?: boolean;
+    };
+  }>;
 }
 
 export async function fetchAllLeagues(): Promise<ApiLeague[]> {

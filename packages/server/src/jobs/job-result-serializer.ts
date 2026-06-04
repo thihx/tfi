@@ -57,6 +57,35 @@ function compactPipelineMatchResult(result: MatchPipelineResult): Record<string,
     if (result.debug.statsFallbackReason) debug.statsFallbackReason = truncateString(result.debug.statsFallbackReason);
     if (result.debug.promptVersion) debug.promptVersion = result.debug.promptVersion;
     if (result.debug.promptDataLevel) debug.promptDataLevel = String(result.debug.promptDataLevel);
+    if (result.debug.prematchAvailability) debug.prematchAvailability = String(result.debug.prematchAvailability);
+    if (result.debug.prematchStrength) debug.prematchStrength = String(result.debug.prematchStrength);
+    if (result.debug.runtimePolicyShadow) {
+      const shadow = result.debug.runtimePolicyShadow;
+      debug.runtimePolicyShadow = {
+        hasPolicyBlockedSelection: shadow.hasPolicyBlockedSelection,
+        canonicalMarket: shadow.canonicalMarket,
+        minuteBand: shadow.minuteBand,
+        scoreState: shadow.scoreState,
+        odds: shadow.odds ?? null,
+        confidence: shadow.confidence ?? null,
+        valuePercent: shadow.valuePercent ?? null,
+        valueBand: shadow.valueBand,
+        riskLevel: shadow.riskLevel,
+        stakePercent: shadow.stakePercent ?? null,
+        watchSignalKey: shadow.watchSignalKey,
+        watchSignalLabel: shadow.watchSignalLabel,
+        evidenceMode: shadow.evidenceMode,
+        marketResolutionStatus: shadow.marketResolutionStatus,
+        prematchStrength: shadow.prematchStrength,
+        marketAvailabilityBucket: shadow.marketAvailabilityBucket,
+        matchedPockets: shadow.matchedPockets.map((pocket) => ({
+          id: pocket.id,
+          label: truncateString(pocket.label, 120),
+          stakeCapPercent: pocket.stakeCapPercent,
+        })),
+        skippedReason: truncateString(shadow.skippedReason),
+      };
+    }
     if (typeof result.debug.llmLatencyMs === 'number') debug.llmLatencyMs = result.debug.llmLatencyMs;
     if (typeof result.debug.totalLatencyMs === 'number') debug.totalLatencyMs = result.debug.totalLatencyMs;
     output.debug = debug;

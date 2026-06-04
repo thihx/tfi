@@ -1924,7 +1924,9 @@ describe('runPipelineBatch', () => {
     const { callGemini } = await import('../lib/gemini.js');
     expect(callGemini).not.toHaveBeenCalled();
     expect(result.results[0].debug?.skipReason).toBe('degraded_evidence_without_watch_condition');
-    expect(footballApi.fetchPreMatchOdds).not.toHaveBeenCalled();
+    expect(result.results[0].debug?.oddsSource).toBe('none');
+    expect(result.results[0].debug?.oddsAvailable).toBe(false);
+    expect(footballApi.fetchPreMatchOdds).toHaveBeenCalledWith('100');
   });
 
   test('normalizes live odds[] payloads before building canonical odds', async () => {

@@ -1462,6 +1462,9 @@ interface PromptExecutionContext {
   oddsAvailable: boolean;
   oddsSource: string;
   oddsFetchedAt: string | null;
+  referenceOddsCanonical?: OddsCanonical;
+  referenceOddsSource?: string;
+  referenceOddsFetchedAt?: string | null;
   oddsSanityWarnings: string[];
   oddsSuspicious: boolean;
   derivedInsights: DerivedInsights | null;
@@ -1625,6 +1628,8 @@ function buildLlmGatewayAuditMetadata(args: {
     oddsAvailable: promptContext.oddsAvailable,
     oddsSource: promptContext.oddsSource,
     oddsFetchedAt: promptContext.oddsFetchedAt,
+    referenceOddsSource: promptContext.referenceOddsSource ?? 'none',
+    referenceCanonicalMarketKeys: Object.keys(promptContext.referenceOddsCanonical ?? {}).sort(),
     oddsSuspicious: promptContext.oddsSuspicious,
     oddsSanityWarningCount: promptContext.oddsSanityWarnings.length,
     minOdds: settings.minOdds,
@@ -2155,6 +2160,9 @@ function buildPromptFromExecutionContext(
       oddsAvailable: promptContext.oddsAvailable,
       oddsSource: promptContext.oddsSource,
       oddsFetchedAt: promptContext.oddsFetchedAt,
+      referenceOddsCanonical: promptContext.referenceOddsCanonical as Record<string, unknown> | undefined,
+      referenceOddsSource: promptContext.referenceOddsSource,
+      referenceOddsFetchedAt: promptContext.referenceOddsFetchedAt,
       oddsSanityWarnings: promptContext.oddsSanityWarnings,
       oddsSuspicious: promptContext.oddsSuspicious,
       derivedInsights: promptContext.derivedInsights as Record<string, unknown> | null,
@@ -4446,6 +4454,9 @@ async function processMatch(
       oddsAvailable: boolean;
       oddsSource: string;
       oddsFetchedAt: string | null;
+      referenceOddsCanonical?: OddsCanonical;
+      referenceOddsSource?: string;
+      referenceOddsFetchedAt?: string | null;
       oddsSanityWarnings: string[];
       oddsSuspicious: boolean;
     };
@@ -4470,6 +4481,14 @@ async function processMatch(
 
       const oddsSource = resolvedOdds.oddsSource;
       const oddsFetchedAt = resolvedOdds.oddsFetchedAt;
+      const referenceOddsSource = resolvedOdds.referenceOddsSource;
+      const referenceOddsFetchedAt = resolvedOdds.referenceOddsFetchedAt;
+      const referenceOddsResult = resolvedOdds.referenceResponse && resolvedOdds.referenceResponse.length > 0
+        ? buildOddsCanonical(resolvedOdds.referenceResponse, {
+            totalGoalsFt: homeGoals + awayGoals,
+            totalGoalsHt: null,
+          })
+        : null;
       const normStatusOdds = String(status ?? '').toUpperCase();
       const totalFtGoals = homeGoals + awayGoals;
       const htGoalsHint =
@@ -4519,6 +4538,9 @@ async function processMatch(
         oddsAvailable,
         oddsSource,
         oddsFetchedAt,
+        referenceOddsCanonical: referenceOddsResult?.available ? referenceOddsResult.canonical : undefined,
+        referenceOddsSource,
+        referenceOddsFetchedAt,
         oddsSanityWarnings,
         oddsSuspicious,
       };
@@ -4568,6 +4590,9 @@ async function processMatch(
       oddsAvailable,
       oddsSource,
       oddsFetchedAt,
+      referenceOddsCanonical,
+      referenceOddsSource,
+      referenceOddsFetchedAt,
       oddsSanityWarnings,
       oddsSuspicious,
     } = oddsSide;
@@ -4836,6 +4861,9 @@ async function processMatch(
       statsCompact, statsAvailable, statsSource, evidenceMode,
       eventsCompact: eventsCompact.slice(-8),
       oddsCanonical, oddsAvailable, oddsSource, oddsFetchedAt,
+      referenceOddsCanonical,
+      referenceOddsSource,
+      referenceOddsFetchedAt,
       oddsSanityWarnings,
       oddsSuspicious,
       derivedInsights: !statsAvailable ? derivedInsights : null,

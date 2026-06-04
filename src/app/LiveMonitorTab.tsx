@@ -25,10 +25,89 @@ function SummaryStat({ label, value, color }: { label: string; value: string | n
   );
 }
 
+type LiveSignalKind = 'bet' | 'watch' | 'no_action';
+
+interface LiveSignalView {
+  kind: LiveSignalKind;
+  label: string;
+  badgeClass: string;
+  detail: string;
+}
+
+const SIGNAL_SORT_WEIGHT: Record<LiveSignalKind, number> = {
+  bet: 3,
+  watch: 2,
+  no_action: 1,
+};
+
+function liveSignalLabel(kind: LiveSignalKind): string {
+  if (kind === 'bet') return 'Bet';
+  if (kind === 'watch') return 'Watch';
+  return 'No Action';
+}
+
+function liveSignalBadgeClass(kind: LiveSignalKind): string {
+  if (kind === 'bet') return 'badge-won';
+  if (kind === 'watch') return 'badge-pending';
+  return 'badge-draw';
+}
+
+function hasRuntimeWatchSignal(result: ServerMatchPipelineResult): boolean {
+  const shadow = result.debug?.runtimePolicyShadow;
+  if (!shadow) return false;
+  const watchKey = String(shadow.watchSignalKey || '').trim();
+  return (watchKey.length > 0 && watchKey !== 'none')
+    || (shadow.matchedPockets?.length ?? 0) > 0;
+}
+
+function resolveLiveSignal(result: ServerMatchPipelineResult): LiveSignalView {
+  const parsed = getParsedAiResult(result);
+  const shadow = result.debug?.runtimePolicyShadow;
+
+  if (result.saved) {
+    return {
+      kind: 'bet',
+      label: 'Bet',
+      badgeClass: liveSignalBadgeClass('bet'),
+      detail: result.notified ? 'Saved and notified.' : 'Saved as an actionable recommendation.',
+    };
+  }
+
+  if (
+    hasRuntimeWatchSignal(result)
+    || result.decisionKind === 'condition_only'
+    || parsed?.condition_triggered_should_push === true
+  ) {
+    const pocketDetail = shadow?.matchedPockets?.map((pocket) => pocket.label).filter(Boolean).join('; ');
+    return {
+      kind: 'watch',
+      label: 'Watch',
+      badgeClass: liveSignalBadgeClass('watch'),
+      detail: shadow?.watchSignalLabel && shadow.watchSignalLabel !== 'none'
+        ? shadow.watchSignalLabel
+        : pocketDetail || parsed?.condition_triggered_suggestion || 'Signal present, policy did not promote it to Bet.',
+    };
+  }
+
+  return {
+    kind: 'no_action',
+    label: 'No Action',
+    badgeClass: liveSignalBadgeClass('no_action'),
+    detail: result.debug?.llmDecisionDiagnostic
+      ? result.debug.llmDecisionDiagnostic.replace(/_/g, ' ')
+      : result.error || 'No actionable signal.',
+  };
+}
+
+function formatCompactMetric(label: string, value: number | string | null | undefined): string | null {
+  if (value == null || value === '') return null;
+  return `${label} ${value}`;
+}
+
 function decisionKindLabel(kind: ServerMatchPipelineResult['decisionKind']): string {
   switch (kind) {
     case 'ai_push':
-      return 'Signal';
+      return 'AI Selected';
     case 'condition_only':
       return 'Condition Only';
     default:
@@ -193,6 +272,8 @@ function ProgressCard({ status }: { status: LiveMonitorStatusResponse }) {
 
 function ResultRow({ result }: { result: ServerMatchPipelineResult }) {
   const parsed = getParsedAiResult(result);
+  const signalView = resolveLiveSignal(result);
+  const shadow = result.debug?.runtimePolicyShadow;
   const matchTitle = result.matchDisplay || [result.homeName, result.awayName].filter(Boolean).join(' vs ') || result.matchId;
   const matchMeta = [result.league, result.minute != null ? `${result.minute}'` : null, result.score, result.status]
     .filter(Boolean)
@@ -217,7 +298,15 @@ function ResultRow({ result }: { result: ServerMatchPipelineResult }) {
     'monitor-list-row',
     !result.success ? 'match-error' : '',
     result.notified ? 'match-notified' : '',
+    signalView.kind === 'watch' ? 'match-watch' : '',
   ].filter(Boolean).join(' ');
+  const oddsFromSelection = result.selection.match(/@(\d+(?:\.\d+)?)/)?.[1] ?? null;
+  const signalMetrics = [
+    formatCompactMetric('Odds', shadow?.odds ?? oddsFromSelection),
+    formatCompactMetric('Value', shadow?.valuePercent != null ? `${shadow.valuePercent}%` : parsed?.value_percent != null ? `${parsed.value_percent}%` : null),
+    formatCompactMetric('Risk', shadow?.riskLevel || parsed?.risk_level),
+    formatCompactMetric('Market', shadow?.canonicalMarket || parsed?.bet_market),
+  ].filter(Boolean).join(' | ');
 
   return (
     <div className={cardClass}>
@@ -225,6 +314,7 @@ function ResultRow({ result }: { result: ServerMatchPipelineResult }) {
         <div className="monitor-list-row__main">
           <div className="match-card-badges monitor-list-row__title-row">
             <span className="monitor-list-row__title">{matchTitle}</span>
+            <span className={`badge ${signalView.badgeClass}`}>{signalView.label}</span>
             {result.shouldPush && <span className="badge badge-active">Push</span>}
             <span className="badge badge-pending">{decisionKindLabel(result.decisionKind)}</span>
             {parsed?.custom_condition_matched && <span className="badge badge-draw">Condition Matched</span>}
@@ -250,6 +340,10 @@ function ResultRow({ result }: { result: ServerMatchPipelineResult }) {
           {parsed?.bet_market && <div className="monitor-list-row__sub">{parsed.bet_market}</div>}
           {promptMeta && <div className="monitor-list-row__sub">{promptMeta}</div>}
           {prematchMeta && <div className="monitor-list-row__sub">{prematchMeta}</div>}
+          <div className="live-signal-detail">
+            <strong>{signalView.label}:</strong> {signalView.detail}
+            {signalMetrics ? <span className="text-muted"> {' '}| {signalMetrics}</span> : null}
+          </div>
         </div>
         <div className="monitor-list-row__aside">
           <div className="monitor-list-row__stat-label">Confidence</div>
@@ -280,6 +374,72 @@ function ResultRow({ result }: { result: ServerMatchPipelineResult }) {
           {warnings.map((warning) => (
             <span key={warning} className="warning-tag">{warning}</span>
           ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function LiveSignalsPanel({ results }: { results: ServerMatchPipelineResult[] }) {
+  const rows = results
+    .map((result) => ({ result, signal: resolveLiveSignal(result) }))
+    .sort((left, right) => {
+      const weightDelta = SIGNAL_SORT_WEIGHT[right.signal.kind] - SIGNAL_SORT_WEIGHT[left.signal.kind];
+      if (weightDelta !== 0) return weightDelta;
+      return Number(right.result.confidence ?? 0) - Number(left.result.confidence ?? 0);
+    });
+  const counts = rows.reduce<Record<LiveSignalKind, number>>((acc, row) => {
+    acc[row.signal.kind] += 1;
+    return acc;
+  }, { bet: 0, watch: 0, no_action: 0 });
+
+  return (
+    <div className="card tab-section live-signals-panel">
+      <div className="card-header">
+        <div className="card-title">Live Signals</div>
+        <small className="text-muted">{rows.length} latest result{rows.length === 1 ? '' : 's'}</small>
+      </div>
+      <div className="live-signals-overview">
+        {(['bet', 'watch', 'no_action'] as LiveSignalKind[]).map((kind) => (
+          <div key={kind} className={`live-signal-summary live-signal-summary--${kind}`}>
+            <span className={`badge ${liveSignalBadgeClass(kind)}`}>{liveSignalLabel(kind)}</span>
+            <strong>{counts[kind]}</strong>
+          </div>
+        ))}
+      </div>
+      {rows.length === 0 ? (
+        <EmptyState title="No live signals have been published yet." />
+      ) : (
+        <div className="live-signal-feed">
+          {rows.slice(0, 5).map(({ result, signal }) => {
+            const shadow = result.debug?.runtimePolicyShadow;
+            const matchTitle = result.matchDisplay || [result.homeName, result.awayName].filter(Boolean).join(' vs ') || result.matchId;
+            const metrics = [
+              result.minute != null ? `${result.minute}'` : null,
+              result.score,
+              shadow?.canonicalMarket,
+              shadow?.valueBand ? `value ${shadow.valueBand}` : null,
+              shadow?.riskLevel,
+            ].filter(Boolean).join(' | ');
+            return (
+              <div key={`${result.matchId}-${signal.kind}-${result.selection}`} className={`live-signal-row live-signal-row--${signal.kind}`}>
+                <div className="live-signal-row__main">
+                  <div className="live-signal-row__title">
+                    <span className={`badge ${signal.badgeClass}`}>{signal.label}</span>
+                    <strong>{matchTitle}</strong>
+                  </div>
+                  <div className="live-signal-row__selection">
+                    {result.selection || (signal.kind === 'no_action' ? 'No actionable signal' : 'Watch signal')}
+                  </div>
+                  <div className="live-signal-row__detail">{signal.detail}</div>
+                </div>
+                <div className="live-signal-row__aside">
+                  <strong>{result.confidence}/10</strong>
+                  {metrics ? <span>{metrics}</span> : null}
+                </div>
+              </div>
+            );
+          })}
         </div>
       )}
     </div>
@@ -402,6 +562,8 @@ export function LiveMonitorTab() {
       </div>
 
       {status && <ProgressCard status={status} />}
+
+      <LiveSignalsPanel results={sortedResults} />
 
       <MonitorListPanel
         title="Live Right Now"

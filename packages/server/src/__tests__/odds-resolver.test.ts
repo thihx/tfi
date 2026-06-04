@@ -235,6 +235,72 @@ describe('resolveMatchOdds', () => {
     expect(result.oddsSource).toBe('reference-prematch');
   });
 
+  test('uses pre-match odds first for explicit non-live statuses', async () => {
+    const footballApi = await import('../lib/football-api.js');
+
+    vi.mocked(footballApi.fetchPreMatchOdds).mockResolvedValueOnce([{
+      fixture: { id: 100 },
+      bookmakers: [{
+        id: 1,
+        name: 'PreMatchBook',
+        bets: [{
+          id: 2,
+          name: 'Over/Under',
+          values: [
+            { value: 'Over', odd: '1.90', handicap: '2.5' },
+            { value: 'Under', odd: '1.95', handicap: '2.5' },
+          ],
+        }],
+      }],
+    }] as never);
+
+    const result = await resolveMatchOdds({
+      matchId: '100',
+      status: 'NS',
+      homeTeam: 'Team A',
+      awayTeam: 'Team B',
+    });
+
+    expect(result.oddsSource).toBe('reference-prematch');
+    expect(footballApi.fetchPreMatchOdds).toHaveBeenCalledWith('100');
+    expect(footballApi.fetchLiveOdds).not.toHaveBeenCalled();
+  });
+
+  test('keeps pre-match reference context non-actionable when live odds are required but unavailable', async () => {
+    const footballApi = await import('../lib/football-api.js');
+
+    vi.mocked(footballApi.fetchLiveOdds).mockResolvedValueOnce([] as never);
+    vi.mocked(footballApi.fetchPreMatchOdds).mockResolvedValueOnce([{
+      fixture: { id: 100 },
+      bookmakers: [{
+        id: 1,
+        name: 'PreMatchBook',
+        bets: [{
+          id: 2,
+          name: 'Over/Under',
+          values: [
+            { value: 'Over', odd: '1.90', handicap: '2.5' },
+            { value: 'Under', odd: '1.95', handicap: '2.5' },
+          ],
+        }],
+      }],
+    }] as never);
+
+    const result = await resolveMatchOdds({
+      matchId: '100',
+      status: '2H',
+      matchMinute: 61,
+      homeTeam: 'Team A',
+      awayTeam: 'Team B',
+      freshnessMode: 'real_required',
+    });
+
+    expect(result.oddsSource).toBe('none');
+    expect(result.response).toEqual([]);
+    expect(result.referenceOddsSource).toBe('reference-prematch');
+    expect(result.referenceResponse).toHaveLength(1);
+  });
+
   test('records final none state when all sources are unusable', async () => {
     const footballApi = await import('../lib/football-api.js');
     const sampling = await import('../lib/provider-sampling.js');

@@ -91,6 +91,26 @@ describe('buildLiveAnalysisPrompt', () => {
     expect(prompt).toContain('OUTPUT - STRICT JSON');
   });
 
+  test('renders pre-match odds as context-only when live odds are unavailable', () => {
+    const prompt = buildLiveAnalysisPrompt({
+      ...baseInput,
+      oddsCanonical: {},
+      oddsAvailable: false,
+      oddsSource: 'none',
+      oddsFetchedAt: null,
+      referenceOddsSource: 'reference-prematch',
+      referenceOddsFetchedAt: '2026-05-25T11:00:00.000Z',
+      referenceOddsCanonical: {
+        ou: { line: 2.5, over: 1.9, under: 1.95 },
+      },
+    }, settings);
+
+    expect(prompt).toContain('NO USABLE ODDS AVAILABLE');
+    expect(prompt).toContain('REFERENCE_PREMATCH_CONTEXT_ONLY');
+    expect(prompt).toContain('MUST NOT be used to output a bet market');
+    expect(prompt).not.toContain('"over_2.5"');
+  });
+
   test('retired prompt overrides render the same official prompt', () => {
     const baseline = buildLiveAnalysisPrompt(baseInput, settings);
     const override = buildLiveAnalysisPrompt(baseInput, settings, 'retired-prompt');

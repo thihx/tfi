@@ -99,6 +99,42 @@ function isFresh(providerSyncedAt: string | null | undefined): boolean {
   return Date.now() - syncedAtMs < LEAGUE_CATALOG_REFRESH_MAX_AGE_MS;
 }
 
+function hasCoverageSnapshot(league: leaguesRepo.LeagueRow | undefined): boolean {
+  if (!league) return false;
+  return league.provider_coverage_season != null;
+}
+
+function extractCoverage(item: ApiLeague): Pick<leaguesRepo.LeagueRow,
+  | 'provider_coverage'
+  | 'provider_coverage_season'
+  | 'coverage_fixtures_events'
+  | 'coverage_fixtures_lineups'
+  | 'coverage_fixtures_statistics'
+  | 'coverage_fixtures_players'
+  | 'coverage_standings'
+  | 'coverage_players'
+  | 'coverage_predictions'
+  | 'coverage_odds'
+> {
+  const seasons = Array.isArray(item.seasons) ? item.seasons : [];
+  const season = seasons.find((entry) => entry.current === true)
+    ?? seasons.slice().sort((a, b) => b.year - a.year)[0];
+  const coverage = season?.coverage ?? {};
+  const fixtures = coverage.fixtures ?? {};
+  return {
+    provider_coverage: coverage as Record<string, unknown>,
+    provider_coverage_season: season?.year ?? null,
+    coverage_fixtures_events: fixtures.events ?? null,
+    coverage_fixtures_lineups: fixtures.lineups ?? null,
+    coverage_fixtures_statistics: fixtures.statistics_fixtures ?? null,
+    coverage_fixtures_players: fixtures.statistics_players ?? null,
+    coverage_standings: coverage.standings ?? null,
+    coverage_players: coverage.players ?? null,
+    coverage_predictions: coverage.predictions ?? null,
+    coverage_odds: coverage.odds ?? null,
+  };
+}
+
 async function fetchLeaguesByIds(leagueIds: number[]): Promise<{ leagues: ApiLeague[]; failedLeagueIds: number[] }> {
   const leagues: ApiLeague[] = [];
   const failedLeagueIds: number[] = [];
@@ -130,6 +166,7 @@ function toUpsertRows(apiLeagues: ApiLeague[], existingMap: Map<number, leaguesR
   return apiLeagues.map((item) => {
     const { tier, autoActive } = classifyLeague(item);
     const prev = existingMap.get(item.league.id);
+    const coverage = extractCoverage(item);
     return {
       league_id: item.league.id,
       league_name: item.league.name,
@@ -139,6 +176,7 @@ function toUpsertRows(apiLeagues: ApiLeague[], existingMap: Map<number, leaguesR
       top_league: prev ? prev.top_league : undefined,
       type: item.league.type,
       logo: item.league.logo,
+      ...coverage,
     };
   });
 }
@@ -182,7 +220,10 @@ export async function refreshLeagueCatalog(input: RefreshLeagueCatalogInput = {}
   const candidateLeagueIds = resolveCandidateLeagueIds(mode, existingLeagues, input.leagueIds ?? []);
   const staleLeagueIds = input.force
     ? candidateLeagueIds
-    : candidateLeagueIds.filter((leagueId) => !isFresh(existingMap.get(leagueId)?.provider_synced_at));
+    : candidateLeagueIds.filter((leagueId) => {
+        const league = existingMap.get(leagueId);
+        return !isFresh(league?.provider_synced_at) || !hasCoverageSnapshot(league);
+      });
 
   if (staleLeagueIds.length === 0) {
     return {

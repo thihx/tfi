@@ -101,6 +101,57 @@ beforeEach(() => {
     },
     results: [
       {
+        matchId: '102',
+        matchDisplay: 'Atletico vs Sevilla',
+        homeName: 'Atletico',
+        awayName: 'Sevilla',
+        league: 'La Liga',
+        minute: 67,
+        score: '0-2',
+        status: '2H',
+        success: true,
+        decisionKind: 'no_bet',
+        shouldPush: false,
+        selection: 'BTTS Yes @2.20',
+        confidence: 8,
+        saved: false,
+        notified: false,
+        debug: {
+          promptDataLevel: 'advanced-upgraded',
+          prematchAvailability: 'full',
+          prematchNoisePenalty: 10,
+          prematchStrength: 'strong',
+          promptVersion: 'v10-hybrid-legacy-g',
+          statsSource: 'api-football',
+          evidenceMode: 'full_live_data',
+          llmDecisionDiagnostic: 'policy_blocked',
+          runtimePolicyShadow: {
+            hasPolicyBlockedSelection: true,
+            canonicalMarket: 'btts_yes',
+            minuteBand: '60-74',
+            scoreState: 'two-plus-margin',
+            odds: 2.2,
+            confidence: 8,
+            valuePercent: 6,
+            valueBand: '6-7',
+            riskLevel: 'MEDIUM',
+            stakePercent: 2,
+            watchSignalKey: 'btts_yes_medium_edge_6_7_odds_2_plus',
+            watchSignalLabel: 'BTTS Yes MEDIUM edge 6-7 odds>=2.0',
+            evidenceMode: 'full_live_data',
+            marketResolutionStatus: 'resolved',
+            prematchStrength: 'strong',
+            marketAvailabilityBucket: 'totals_only',
+            matchedPockets: [{
+              id: 'btts_yes_60_74_two_plus',
+              label: 'BTTS Yes 60-74 two-plus clean context shadow',
+              stakeCapPercent: 1,
+            }],
+            skippedReason: '',
+          },
+        },
+      },
+      {
         matchId: '101',
         matchDisplay: 'Liverpool vs Man City',
         homeName: 'Liverpool',
@@ -124,6 +175,7 @@ beforeEach(() => {
           promptVersion: 'v10-hybrid-legacy-g',
           statsSource: 'api-football',
           evidenceMode: 'full_live_data',
+          llmDecisionDiagnostic: 'no_bet_intentional',
         },
       },
       {
@@ -184,17 +236,24 @@ describe('LiveMonitorTab', () => {
     expect(screen.getByText('No meaningful change since last baseline | Baseline Recommendation')).toBeInTheDocument();
     expect(screen.getByText('Custom condition:', { exact: false })).toBeInTheDocument();
     expect(screen.getAllByText('Suggested condition:', { exact: false }).length).toBeGreaterThanOrEqual(1);
-    expect(await screen.findByText('Over 2.5')).toBeInTheDocument();
+    await waitFor(() => expect(screen.getAllByText('Over 2.5').length).toBeGreaterThanOrEqual(1));
     expect(screen.getByText('Du dieu kien')).toBeInTheDocument();
     expect(screen.getByText('Condition Matched')).toBeInTheDocument();
     expect(screen.getByText('Condition Triggered')).toBeInTheDocument();
-    expect(screen.getByText('Signal')).toBeInTheDocument();
-    expect(screen.getByText('Advanced Prompt')).toBeInTheDocument();
+    expect(screen.getByText('Live Signals')).toBeInTheDocument();
+    expect(screen.getAllByText('Bet').length).toBeGreaterThanOrEqual(1);
+    expect(screen.getAllByText('Watch').length).toBeGreaterThanOrEqual(1);
+    expect(screen.getAllByText('No Action').length).toBeGreaterThanOrEqual(1);
+    expect(screen.getAllByText('Atletico vs Sevilla').length).toBeGreaterThanOrEqual(1);
+    expect(screen.getAllByText('BTTS Yes @2.20').length).toBeGreaterThanOrEqual(1);
+    expect(screen.getAllByText('BTTS Yes MEDIUM edge 6-7 odds>=2.0').length).toBeGreaterThanOrEqual(1);
+    expect(screen.getByText('AI Selected')).toBeInTheDocument();
+    expect(screen.getAllByText('Advanced Prompt').length).toBeGreaterThanOrEqual(1);
     expect(screen.getByText('Basic Prompt')).toBeInTheDocument();
-    expect(screen.getByText('Prematch Strong')).toBeInTheDocument();
+    expect(screen.getAllByText('Prematch Strong').length).toBeGreaterThanOrEqual(1);
     expect(screen.getByText('Prematch Weak')).toBeInTheDocument();
-    expect(screen.getByText('v10-hybrid-legacy-g | Advanced Prompt | api-football | full_live_data')).toBeInTheDocument();
-    expect(screen.getByText('Prematch Strong | full | noise 12')).toBeInTheDocument();
+    expect(screen.getAllByText('v10-hybrid-legacy-g | Advanced Prompt | api-football | full_live_data').length).toBeGreaterThanOrEqual(1);
+    expect(screen.getAllByText(/Prematch Strong \| full \| noise/).length).toBeGreaterThanOrEqual(1);
     expect(screen.getByText('Prematch Weak | minimal | noise 60')).toBeInTheDocument();
     expect(screen.getByText(/Condition Suggestion:/)).toBeInTheDocument();
     expect(screen.getByText('My Watchlist')).toBeInTheDocument();

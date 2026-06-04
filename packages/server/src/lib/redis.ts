@@ -41,7 +41,19 @@ export function getKeyPrefix(): string {
 
 export async function closeRedis(): Promise<void> {
   if (redisClient) {
-    await redisClient.quit();
+    const client = redisClient;
     redisClient = null;
+    let timer: ReturnType<typeof setTimeout> | null = null;
+    try {
+      await Promise.race([
+        client.quit(),
+        new Promise<void>((resolve) => {
+          timer = setTimeout(resolve, 1_500);
+        }),
+      ]);
+    } finally {
+      if (timer) clearTimeout(timer);
+      client.disconnect();
+    }
   }
 }

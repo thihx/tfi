@@ -40,6 +40,9 @@ export interface ResolveMatchOddsResult {
   oddsFetchedAt: string | null;
   freshness: ResolveMatchOddsFreshness;
   cacheStatus: ResolveMatchOddsCacheStatus;
+  referenceResponse?: unknown[];
+  referenceOddsSource?: 'reference-prematch' | 'none';
+  referenceOddsFetchedAt?: string | null;
 }
 
 export interface ResolveMatchOddsDeps {
@@ -482,6 +485,74 @@ function sampleBase(input: ResolveMatchOddsInput) {
   };
 }
 
+function isLiveOddsStatus(status?: string | null): boolean {
+  return LIVE_STATUSES.has(String(status ?? '').toUpperCase());
+}
+
+function hasExplicitNonLiveStatus(status?: string | null): boolean {
+  const normalized = String(status ?? '').toUpperCase();
+  return normalized.length > 0 && !LIVE_STATUSES.has(normalized);
+}
+
+type ProviderFetchKind = 'live' | 'pre-match';
+
+interface ProviderFetchResult {
+  raw: unknown[];
+  normalized: unknown[];
+  usable: boolean;
+  error: unknown;
+  latencyMs: number;
+}
+
+async function fetchProviderOdds(
+  kind: ProviderFetchKind,
+  input: ResolveMatchOddsInput,
+  deps: ResolveMatchOddsDeps,
+): Promise<ProviderFetchResult> {
+  const startedAt = Date.now();
+  let raw: unknown[] = [];
+  let error: unknown = null;
+  try {
+    raw = kind === 'live'
+      ? await deps.fetchLiveOdds!(input.matchId)
+      : await deps.fetchPreMatchOdds!(input.matchId);
+  } catch (err) {
+    error = err;
+  }
+  const normalized = normalizeApiSportsOddsResponse(raw);
+  const usable = hasUsableBookmakers(normalized);
+  if (isSamplingEnabled(input)) {
+    void recordProviderOddsSampleSafe({
+      ...sampleBase(input),
+      provider: 'api-football',
+      source: kind,
+      success: !error,
+      usable,
+      latency_ms: Date.now() - startedAt,
+      status_code: error ? extractStatusCode(error) : null,
+      error: error
+        ? (error instanceof Error ? error.message : String(error))
+        : usable ? '' : 'NO_USABLE_ODDS',
+      raw_payload: raw,
+      normalized_payload: normalized,
+      coverage_flags: (deps.summarizeCoverageFlags ?? summarizeNormalizedOdds)(normalized),
+    });
+  }
+  return {
+    raw,
+    normalized,
+    usable,
+    error,
+    latencyMs: Date.now() - startedAt,
+  };
+}
+
+function providerErrorMessage(error: unknown, fallback: string): string {
+  return error
+    ? (error instanceof Error ? error.message : String(error))
+    : fallback;
+}
+
 export async function resolveMatchOdds(
   input: ResolveMatchOddsInput,
   deps?: ResolveMatchOddsDeps,
@@ -524,39 +595,59 @@ async function resolveMatchOddsFromProviders(
   nowIso: () => string,
 ): Promise<ProviderResolution> {
   const mode = input.freshnessMode ?? 'stale_safe';
+  const liveFirst = isLiveOddsStatus(input.status) || !hasExplicitNonLiveStatus(input.status);
 
-  const liveStartedAt = Date.now();
-  let liveRaw: unknown[] = [];
-  let liveError: unknown = null;
-  try {
-    liveRaw = await resolvedDeps.fetchLiveOdds!(input.matchId);
-  } catch (err) {
-    liveError = err;
+  if (!liveFirst) {
+    const preMatch = await fetchProviderOdds('pre-match', input, resolvedDeps);
+    if (preMatch.usable) {
+      return {
+        result: {
+          oddsSource: 'reference-prematch',
+          response: preMatch.normalized,
+          oddsFetchedAt: nowIso(),
+          freshness: 'fresh',
+          cacheStatus: 'refreshed',
+        },
+        providerSource: 'api-football-prematch',
+        lastError: '',
+      };
+    }
+
+    const lastError = providerErrorMessage(preMatch.error, 'NO_USABLE_REFERENCE_PREMATCH_ODDS');
+    if (isSamplingEnabled(input)) {
+      void recordProviderOddsSampleSafe({
+        ...sampleBase(input),
+        provider: 'resolver',
+        source: 'none',
+        success: true,
+        usable: false,
+        latency_ms: 0,
+        error: 'NO_USABLE_PREMATCH_ODDS_FOR_NON_LIVE_STATUS',
+        raw_payload: {},
+        normalized_payload: [],
+        coverage_flags: {},
+      });
+    }
+
+    return {
+      result: {
+        oddsSource: 'none',
+        response: [],
+        oddsFetchedAt: null,
+        freshness: 'missing',
+        cacheStatus: 'miss',
+      },
+      providerSource: 'none',
+      lastError,
+    };
   }
-  const liveOdds = normalizeApiSportsOddsResponse(liveRaw);
-  const liveUsable = hasUsableBookmakers(liveOdds);
-  if (isSamplingEnabled(input)) {
-    void recordProviderOddsSampleSafe({
-      ...sampleBase(input),
-      provider: 'api-football',
-      source: 'live',
-      success: !liveError,
-      usable: liveUsable,
-      latency_ms: Date.now() - liveStartedAt,
-      status_code: liveError ? extractStatusCode(liveError) : null,
-      error: liveError
-        ? (liveError instanceof Error ? liveError.message : String(liveError))
-        : liveUsable ? '' : 'NO_USABLE_ODDS',
-      raw_payload: liveRaw,
-      normalized_payload: liveOdds,
-      coverage_flags: (resolvedDeps.summarizeCoverageFlags ?? summarizeNormalizedOdds)(liveOdds),
-    });
-  }
-  if (liveUsable) {
+
+  const live = await fetchProviderOdds('live', input, resolvedDeps);
+  if (live.usable) {
     return {
       result: {
         oddsSource: 'live',
-        response: liveOdds,
+        response: live.normalized,
         oddsFetchedAt: nowIso(),
         freshness: 'fresh',
         cacheStatus: 'refreshed',
@@ -566,11 +657,30 @@ async function resolveMatchOddsFromProviders(
     };
   }
 
-  let lastError = liveError
-    ? (liveError instanceof Error ? liveError.message : String(liveError))
-    : liveUsable ? '' : 'NO_USABLE_LIVE_ODDS';
+  let lastError = providerErrorMessage(live.error, 'NO_USABLE_LIVE_ODDS');
 
   if (bypassStartedCache(mode, input.status)) {
+    const preMatch = await fetchProviderOdds('pre-match', input, resolvedDeps);
+    if (preMatch.usable) {
+      return {
+        result: {
+          oddsSource: 'none',
+          response: [],
+          oddsFetchedAt: null,
+          freshness: 'missing',
+          cacheStatus: 'miss',
+          referenceResponse: preMatch.normalized,
+          referenceOddsSource: 'reference-prematch',
+          referenceOddsFetchedAt: nowIso(),
+        },
+        providerSource: 'none',
+        lastError,
+      };
+    }
+    lastError = preMatch.error
+      ? providerErrorMessage(preMatch.error, 'NO_USABLE_REFERENCE_PREMATCH_ODDS')
+      : lastError;
+
     if (isSamplingEnabled(input)) {
       void recordProviderOddsSampleSafe({
         ...sampleBase(input),
@@ -599,38 +709,12 @@ async function resolveMatchOddsFromProviders(
     };
   }
 
-  const preMatchStartedAt = Date.now();
-  let preMatchRaw: unknown[] = [];
-  let preMatchError: unknown = null;
-  try {
-    preMatchRaw = await resolvedDeps.fetchPreMatchOdds!(input.matchId);
-  } catch (err) {
-    preMatchError = err;
-  }
-  const preMatchOdds = normalizeApiSportsOddsResponse(preMatchRaw);
-  const preMatchUsable = hasUsableBookmakers(preMatchOdds);
-  if (isSamplingEnabled(input)) {
-    void recordProviderOddsSampleSafe({
-      ...sampleBase(input),
-      provider: 'api-football',
-      source: 'pre-match',
-      success: !preMatchError,
-      usable: preMatchUsable,
-      latency_ms: Date.now() - preMatchStartedAt,
-      status_code: preMatchError ? extractStatusCode(preMatchError) : null,
-      error: preMatchError
-        ? (preMatchError instanceof Error ? preMatchError.message : String(preMatchError))
-        : preMatchUsable ? '' : 'NO_USABLE_ODDS',
-      raw_payload: preMatchRaw,
-      normalized_payload: preMatchOdds,
-      coverage_flags: (resolvedDeps.summarizeCoverageFlags ?? summarizeNormalizedOdds)(preMatchOdds),
-    });
-  }
-  if (preMatchUsable) {
+  const preMatch = await fetchProviderOdds('pre-match', input, resolvedDeps);
+  if (preMatch.usable) {
     return {
       result: {
         oddsSource: 'reference-prematch',
-        response: preMatchOdds,
+        response: preMatch.normalized,
         oddsFetchedAt: nowIso(),
         freshness: 'fresh',
         cacheStatus: 'refreshed',
@@ -640,9 +724,7 @@ async function resolveMatchOddsFromProviders(
     };
   }
 
-  lastError = preMatchError
-    ? (preMatchError instanceof Error ? preMatchError.message : String(preMatchError))
-    : preMatchUsable ? '' : 'NO_USABLE_REFERENCE_PREMATCH_ODDS';
+  lastError = providerErrorMessage(preMatch.error, 'NO_USABLE_REFERENCE_PREMATCH_ODDS');
 
   if (isSamplingEnabled(input)) {
     void recordProviderOddsSampleSafe({
