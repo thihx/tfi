@@ -25,6 +25,13 @@ export interface LeagueRow {
   profile_data_reliability_tier?: string | null;
 }
 
+export interface ReferenceDataLeagueActivityRow {
+  league_id: number;
+  current_matches: number;
+  recent_history_matches: number;
+  favorite_team_count: number;
+}
+
 export async function getAllLeagues(): Promise<LeagueRow[]> {
   const result = await query<LeagueRow>(
     `SELECT
@@ -54,6 +61,53 @@ export async function getActiveLeagues(): Promise<LeagueRow[]> {
      ORDER BY l.sort_order ASC, l.league_name ASC`,
   );
   return result.rows;
+}
+
+export async function getReferenceDataLeagueActivity(
+  leagueIds: number[],
+  recentHistoryDays: number,
+): Promise<Map<number, ReferenceDataLeagueActivityRow>> {
+  const ids = [...new Set(leagueIds.filter((id) => Number.isInteger(id) && id > 0))];
+  if (ids.length === 0) return new Map();
+  const safeRecentHistoryDays = Math.max(1, Math.min(Math.round(recentHistoryDays), 365));
+
+  const result = await query<ReferenceDataLeagueActivityRow>(
+    `WITH target AS (
+       SELECT unnest($1::integer[]) AS league_id
+     ),
+     current_matches AS (
+       SELECT league_id, COUNT(*)::int AS current_matches
+       FROM matches
+       WHERE league_id = ANY($1)
+       GROUP BY league_id
+     ),
+     recent_history AS (
+       SELECT league_id, COUNT(*)::int AS recent_history_matches
+       FROM matches_history
+       WHERE league_id = ANY($1)
+         AND date >= CURRENT_DATE - ($2::int * INTERVAL '1 day')
+       GROUP BY league_id
+     ),
+     favorite_scope AS (
+       SELECT ltd.league_id, COUNT(DISTINCT ft.team_id)::int AS favorite_team_count
+       FROM favorite_teams ft
+       JOIN league_team_directory ltd ON ltd.team_id::text = ft.team_id
+       WHERE ltd.league_id = ANY($1)
+       GROUP BY ltd.league_id
+     )
+     SELECT
+       target.league_id,
+       COALESCE(current_matches.current_matches, 0)::int AS current_matches,
+       COALESCE(recent_history.recent_history_matches, 0)::int AS recent_history_matches,
+       COALESCE(favorite_scope.favorite_team_count, 0)::int AS favorite_team_count
+     FROM target
+     LEFT JOIN current_matches ON current_matches.league_id = target.league_id
+     LEFT JOIN recent_history ON recent_history.league_id = target.league_id
+     LEFT JOIN favorite_scope ON favorite_scope.league_id = target.league_id`,
+    [ids, safeRecentHistoryDays],
+  );
+
+  return new Map(result.rows.map((row) => [row.league_id, row]));
 }
 
 export async function getLeagueById(leagueId: number): Promise<LeagueRow | null> {

@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, test, vi } from 'vitest';
 
 const mockGetTopLeagues = vi.fn();
 const mockGetActiveLeagues = vi.fn();
+const mockGetReferenceDataLeagueActivity = vi.fn();
 const mockRefreshLeagueCatalog = vi.fn();
 const mockRefreshLeagueTeamsDirectoryNow = vi.fn();
 const mockSyncDerivedPrematchProfiles = vi.fn();
@@ -11,6 +12,7 @@ const mockSkipIfFootballApiCircuitOpen = vi.fn();
 vi.mock('../repos/leagues.repo.js', () => ({
   getTopLeagues: mockGetTopLeagues,
   getActiveLeagues: mockGetActiveLeagues,
+  getReferenceDataLeagueActivity: mockGetReferenceDataLeagueActivity,
 }));
 
 vi.mock('../lib/league-catalog.service.js', () => ({
@@ -75,6 +77,11 @@ beforeEach(() => {
     skippedFreshLeagues: 1,
     failedLeagues: 0,
   });
+  mockGetReferenceDataLeagueActivity.mockResolvedValue(new Map([
+    [39, { league_id: 39, current_matches: 0, recent_history_matches: 0, favorite_team_count: 0 }],
+    [140, { league_id: 140, current_matches: 0, recent_history_matches: 0, favorite_team_count: 0 }],
+    [2, { league_id: 2, current_matches: 0, recent_history_matches: 8, favorite_team_count: 0 }],
+  ]));
   mockSyncDerivedPrematchProfiles.mockResolvedValue({
     lookbackDays: 180,
     candidateLeagues: 1,
@@ -90,20 +97,25 @@ describe('syncReferenceDataJob', () => {
   test('tracks fresh cache, refreshed, stale fallback, and empty provider outcomes separately', async () => {
     mockRefreshLeagueTeamsDirectoryNow
       .mockResolvedValueOnce({ rows: [], source: 'provider_refreshed' })
-      .mockResolvedValueOnce({ rows: [], source: 'stale_fallback' })
-      .mockResolvedValueOnce({ rows: [], source: 'fresh_cache' });
+      .mockResolvedValueOnce({ rows: [], source: 'stale_fallback' });
 
     const result = await syncReferenceDataJob();
 
     expect(result.leagueTeamDirectory).toEqual({
-      candidateLeagues: 3,
+      candidateLeagues: 2,
       refreshedLeagues: 1,
-      skippedFreshLeagues: 1,
+      skippedFreshLeagues: 0,
       staleFallbackLeagues: 1,
       emptyLeagues: 0,
       failedLeagues: 0,
       topLeagueCount: 1,
       activeLeagueCount: 3,
+      directoryScopeExcludedLeagues: 1,
+      profileScopeExcludedLeagues: 1,
+      excludedNoRecentSignal: 1,
+      favoriteSignalLeagues: 0,
+      currentMatchSignalLeagues: 0,
+      recentHistorySignalLeagues: 1,
     });
     expect(result.prematchProfiles).toEqual({
       lookbackDays: 180,
@@ -114,7 +126,9 @@ describe('syncReferenceDataJob', () => {
       refreshedTeamProfiles: 4,
       skippedTeamProfiles: 2,
     });
-    expect(mockRefreshLeagueTeamsDirectoryNow).toHaveBeenCalledTimes(3);
+    expect(mockRefreshLeagueTeamsDirectoryNow).toHaveBeenCalledTimes(2);
+    expect(mockRefreshLeagueTeamsDirectoryNow).toHaveBeenNthCalledWith(1, 39);
+    expect(mockRefreshLeagueTeamsDirectoryNow).toHaveBeenNthCalledWith(2, 2);
     expect(mockSyncDerivedPrematchProfiles).toHaveBeenCalledWith([39, 2]);
   });
 
@@ -133,6 +147,12 @@ describe('syncReferenceDataJob', () => {
       failedLeagues: 0,
       topLeagueCount: 0,
       activeLeagueCount: 0,
+      directoryScopeExcludedLeagues: 0,
+      profileScopeExcludedLeagues: 0,
+      excludedNoRecentSignal: 0,
+      favoriteSignalLeagues: 0,
+      currentMatchSignalLeagues: 0,
+      recentHistorySignalLeagues: 0,
     });
     expect(result.prematchProfiles).toEqual({
       lookbackDays: 180,

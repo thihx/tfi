@@ -1,4 +1,5 @@
 import * as leaguesRepo from '../repos/leagues.repo.js';
+import { config } from '../config.js';
 import { skipIfFootballApiCircuitOpen } from '../lib/football-api-circuit.js';
 import { refreshLeagueCatalog } from '../lib/league-catalog.service.js';
 import { refreshLeagueTeamsDirectoryNow } from '../lib/league-team-directory.service.js';
@@ -9,8 +10,60 @@ import { reportJobProgress } from './job-progress.js';
 const JOB = 'sync-reference-data';
 const BATCH_SIZE = 4;
 
+interface ReferenceDataLeagueScope {
+  directoryLeagueIds: number[];
+  profileActiveLeagues: Awaited<ReturnType<typeof leaguesRepo.getActiveLeagues>>;
+  excludedNoRecentSignal: number;
+  favoriteSignalLeagues: number;
+  currentMatchSignalLeagues: number;
+  recentHistorySignalLeagues: number;
+}
+
 function uniqueLeagueIds(ids: number[]): number[] {
   return [...new Set(ids.filter((id) => Number.isFinite(id) && id > 0))];
+}
+
+async function resolveReferenceDataLeagueScope(
+  topLeagues: Awaited<ReturnType<typeof leaguesRepo.getTopLeagues>>,
+  activeLeagues: Awaited<ReturnType<typeof leaguesRepo.getActiveLeagues>>,
+): Promise<ReferenceDataLeagueScope> {
+  const topIds = new Set(topLeagues.map((league) => league.league_id));
+  const activeIds = uniqueLeagueIds(activeLeagues.map((league) => league.league_id));
+  const activity = await leaguesRepo.getReferenceDataLeagueActivity(
+    uniqueLeagueIds([...topIds, ...activeIds]),
+    config.syncReferenceDataRecentHistoryDays,
+  );
+
+  let excludedNoRecentSignal = 0;
+  let favoriteSignalLeagues = 0;
+  let currentMatchSignalLeagues = 0;
+  let recentHistorySignalLeagues = 0;
+
+  const usefulActiveLeagues = activeLeagues.filter((league) => {
+    if (topIds.has(league.league_id)) return true;
+    const row = activity.get(league.league_id);
+    const hasCurrentMatch = (row?.current_matches ?? 0) > 0;
+    const hasRecentHistory = (row?.recent_history_matches ?? 0) > 0;
+    const hasFavoriteSignal = (row?.favorite_team_count ?? 0) > 0;
+    if (hasCurrentMatch) currentMatchSignalLeagues += 1;
+    if (hasRecentHistory) recentHistorySignalLeagues += 1;
+    if (hasFavoriteSignal) favoriteSignalLeagues += 1;
+    if (hasCurrentMatch || hasRecentHistory || hasFavoriteSignal) return true;
+    excludedNoRecentSignal += 1;
+    return false;
+  });
+
+  return {
+    directoryLeagueIds: uniqueLeagueIds([
+      ...topLeagues.map((league) => league.league_id),
+      ...usefulActiveLeagues.map((league) => league.league_id),
+    ]),
+    profileActiveLeagues: usefulActiveLeagues,
+    excludedNoRecentSignal,
+    favoriteSignalLeagues,
+    currentMatchSignalLeagues,
+    recentHistorySignalLeagues,
+  };
 }
 
 function getApprovedPrematchProfileLeagueIds(
@@ -52,6 +105,12 @@ export async function syncReferenceDataJob(): Promise<{
     failedLeagues: number;
     topLeagueCount: number;
     activeLeagueCount: number;
+    directoryScopeExcludedLeagues: number;
+    profileScopeExcludedLeagues: number;
+    excludedNoRecentSignal: number;
+    favoriteSignalLeagues: number;
+    currentMatchSignalLeagues: number;
+    recentHistorySignalLeagues: number;
   };
   prematchProfiles: {
     lookbackDays: number;
@@ -87,6 +146,12 @@ export async function syncReferenceDataJob(): Promise<{
         failedLeagues: 0,
         topLeagueCount: 0,
         activeLeagueCount: 0,
+        directoryScopeExcludedLeagues: 0,
+        profileScopeExcludedLeagues: 0,
+        excludedNoRecentSignal: 0,
+        favoriteSignalLeagues: 0,
+        currentMatchSignalLeagues: 0,
+        recentHistorySignalLeagues: 0,
       },
       prematchProfiles: {
         lookbackDays: 0,
@@ -107,11 +172,9 @@ export async function syncReferenceDataJob(): Promise<{
   ]);
 
   const leagueCatalog = await refreshLeagueCatalog({ mode: 'active-top', force: false });
+  const leagueScope = await resolveReferenceDataLeagueScope(topLeagues, activeLeagues);
 
-  const orderedIds = uniqueLeagueIds([
-    ...topLeagues.map((league) => league.league_id),
-    ...activeLeagues.map((league) => league.league_id),
-  ]);
+  const orderedIds = leagueScope.directoryLeagueIds;
 
   let refreshedLeagues = 0;
   let skippedFreshLeagues = 0;
@@ -139,6 +202,12 @@ export async function syncReferenceDataJob(): Promise<{
         failedLeagues: 0,
         topLeagueCount: topLeagues.length,
         activeLeagueCount: activeLeagues.length,
+        directoryScopeExcludedLeagues: leagueScope.excludedNoRecentSignal,
+        profileScopeExcludedLeagues: activeLeagues.length - leagueScope.profileActiveLeagues.length,
+        excludedNoRecentSignal: leagueScope.excludedNoRecentSignal,
+        favoriteSignalLeagues: leagueScope.favoriteSignalLeagues,
+        currentMatchSignalLeagues: leagueScope.currentMatchSignalLeagues,
+        recentHistorySignalLeagues: leagueScope.recentHistorySignalLeagues,
       },
       prematchProfiles: {
         lookbackDays: 180,
@@ -155,7 +224,7 @@ export async function syncReferenceDataJob(): Promise<{
   await reportJobProgress(
     JOB,
     'planning',
-    `Preparing reference-data sync for ${orderedIds.length} league-team directories. League catalog refreshed=${leagueCatalog.refreshedLeagues}, skipped=${leagueCatalog.skippedFreshLeagues}, failed=${leagueCatalog.failedLeagues}.`,
+    `Preparing reference-data sync for ${orderedIds.length}/${activeLeagues.length} active league-team directories. Excluded no-signal=${leagueScope.excludedNoRecentSignal}. League catalog refreshed=${leagueCatalog.refreshedLeagues}, skipped=${leagueCatalog.skippedFreshLeagues}, failed=${leagueCatalog.failedLeagues}.`,
     5,
   );
 
@@ -195,7 +264,7 @@ export async function syncReferenceDataJob(): Promise<{
     );
   }
 
-  const prematchProfileLeagueIds = getApprovedPrematchProfileLeagueIds(topLeagues, activeLeagues);
+  const prematchProfileLeagueIds = getApprovedPrematchProfileLeagueIds(topLeagues, leagueScope.profileActiveLeagues);
   const prematchProfiles = await syncDerivedPrematchProfiles(prematchProfileLeagueIds);
 
   await reportJobProgress(
@@ -230,7 +299,17 @@ export async function syncReferenceDataJob(): Promise<{
       failedLeagues,
       topLeagueCount: topLeagues.length,
       activeLeagueCount: activeLeagues.length,
+      directoryScopeExcludedLeagues: leagueScope.excludedNoRecentSignal,
+      profileScopeExcludedLeagues: activeLeagues.length - leagueScope.profileActiveLeagues.length,
+      excludedNoRecentSignal: leagueScope.excludedNoRecentSignal,
+      favoriteSignalLeagues: leagueScope.favoriteSignalLeagues,
+      currentMatchSignalLeagues: leagueScope.currentMatchSignalLeagues,
+      recentHistorySignalLeagues: leagueScope.recentHistorySignalLeagues,
     },
     prematchProfiles,
   };
 }
+
+export const __testables__ = {
+  resolveReferenceDataLeagueScope,
+};
