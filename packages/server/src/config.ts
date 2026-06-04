@@ -96,7 +96,7 @@ export const config = {
   jobAutoAddFavoriteTeamWatchlistMs: Number(process.env['JOB_AUTO_ADD_FAVORITE_TEAM_WATCHLIST_MS'] || process.env['JOB_FETCH_MATCHES_MS'] || 1 * 60_000),
   jobRefreshLiveMatchesMs: Number(process.env['JOB_REFRESH_LIVE_MATCHES_MS'] || 15_000), // 15 sec
   /** Max public live/near-live matches to score-refresh per refresh-live-matches tick. */
-  jobRefreshLiveMatchesMaxPublicMatches: Number(process.env['JOB_REFRESH_LIVE_MATCHES_MAX_PUBLIC_MATCHES'] || 40),
+  jobRefreshLiveMatchesMaxPublicMatches: Number(process.env['JOB_REFRESH_LIVE_MATCHES_MAX_PUBLIC_MATCHES'] || 0),
   jobDeliverTelegramNotificationsMs: Number(process.env['JOB_DELIVER_TELEGRAM_NOTIFICATIONS_MS'] || 5_000), // 5 sec
   jobExpireWatchlistMs: Number(process.env['JOB_EXPIRE_WATCHLIST_MS'] || 5 * 60_000),    // 5 min
   jobCheckLiveMs: Number(process.env['JOB_CHECK_LIVE_MS'] || 30_000),                    // 30 sec

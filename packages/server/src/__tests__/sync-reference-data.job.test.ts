@@ -6,6 +6,7 @@ const mockRefreshLeagueCatalog = vi.fn();
 const mockRefreshLeagueTeamsDirectoryNow = vi.fn();
 const mockSyncDerivedPrematchProfiles = vi.fn();
 const mockReportJobProgress = vi.fn();
+const mockSkipIfFootballApiCircuitOpen = vi.fn();
 
 vi.mock('../repos/leagues.repo.js', () => ({
   getTopLeagues: mockGetTopLeagues,
@@ -28,10 +29,15 @@ vi.mock('../jobs/job-progress.js', () => ({
   reportJobProgress: mockReportJobProgress,
 }));
 
+vi.mock('../lib/football-api-circuit.js', () => ({
+  skipIfFootballApiCircuitOpen: (...args: unknown[]) => mockSkipIfFootballApiCircuitOpen(...args),
+}));
+
 const { syncReferenceDataJob } = await import('../jobs/sync-reference-data.job.js');
 
 beforeEach(() => {
   vi.clearAllMocks();
+  mockSkipIfFootballApiCircuitOpen.mockResolvedValue(null);
   mockGetTopLeagues.mockResolvedValue([{
     league_id: 39,
     league_name: 'Premier League',

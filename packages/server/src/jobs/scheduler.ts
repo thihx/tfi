@@ -43,6 +43,7 @@ import {
 import { classifyJobResult } from './job-run-outcome.js';
 import { clearFootballApiCircuit } from '../lib/football-api-circuit.js';
 import { shouldThrottleJob } from '../lib/football-api-quota.js';
+import { withFootballApiRequestContext } from '../lib/football-api-request-context.js';
 
 export type { JobProgress };
 
@@ -483,7 +484,8 @@ async function runSingleJob(job: ManagedJob, scheduledAt: number): Promise<void>
   startHeartbeat(job);
 
   try {
-    const result = await (job.maxRunMs ? callWithTimeout(job.fn, job.maxRunMs) : job.fn());
+    const runFn = () => withFootballApiRequestContext({ jobName: job.name }, job.fn);
+    const result = await (job.maxRunMs ? callWithTimeout(runFn, job.maxRunMs) : runFn());
     const outcome = classifyJobResult(result);
     const summary = normalizeHistorySummary(summarizeJobResultForAudit(job.name, result));
     const completedAt = new Date().toISOString();
@@ -615,7 +617,7 @@ async function runConcurrentJob(job: ManagedJob, scheduledAt: number): Promise<v
   await reportJobProgress(job.name, 'starting', 'Starting...', 0);
 
   try {
-    const result = await job.fn();
+    const result = await withFootballApiRequestContext({ jobName: job.name }, job.fn);
     const summary = normalizeHistorySummary(summarizeJobResultForAudit(job.name, result));
     const completedAt = new Date().toISOString();
     job.lastRun = completedAt;

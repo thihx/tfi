@@ -13,7 +13,7 @@ const TERMINAL_STATUSES = new Set(['FT', 'AET', 'PEN', 'AWD', 'WO']);
 const TRACK_NS_BEFORE_KICKOFF_MIN = 10;
 const TRACK_NS_AFTER_KICKOFF_MIN = 10;
 const STAT_CONCURRENCY = 4;
-const DEFAULT_MAX_PUBLIC_MATCHES = 40;
+const DEFAULT_MAX_PUBLIC_MATCHES = 0;
 
 function shouldTrackMatch(row: matchRepo.MatchRow, now = Date.now()): boolean {
   const status = String(row.status || '').trim().toUpperCase();
@@ -123,6 +123,16 @@ export async function refreshLiveMatchesJob(): Promise<{
 
   const activeWatchlist = await watchlistRepo.getActiveOperationalWatchlist();
   const watchedMatchIds = new Set(activeWatchlist.map((row) => String(row.match_id)));
+  if (watchedMatchIds.size === 0 && publicRefreshLimit() <= 0) {
+    return {
+      tracked: 0,
+      refreshed: 0,
+      live: 0,
+      statsRefreshed: 0,
+      skipped: true,
+      skipReason: 'no_active_watchlist_interest',
+    };
+  }
 
   const now = Date.now();
   const kickoffWindowStart = new Date(now - (TRACK_NS_AFTER_KICKOFF_MIN * 60_000)).toISOString();
@@ -132,12 +142,18 @@ export async function refreshLiveMatchesJob(): Promise<{
     kickoffWindowStart,
     kickoffWindowEnd,
   );
+  const trackableCandidates = candidateMatches.filter((row) => shouldTrackMatch(row, now));
+  const watchedCandidates = trackableCandidates.filter((row) => watchedMatchIds.has(String(row.match_id)));
   const publicCandidates = prioritizePublicCandidates(
-    candidateMatches.filter((row) => shouldTrackMatch(row, now)),
+    trackableCandidates.filter((row) => !watchedMatchIds.has(String(row.match_id))),
     watchedMatchIds,
   );
-  const watchedTracked = publicCandidates.filter((row) => watchedMatchIds.has(String(row.match_id)));
-  const tracked = publicCandidates;
+  const trackedById = new Map<string, matchRepo.MatchRow>();
+  for (const row of watchedCandidates.concat(publicCandidates)) {
+    trackedById.set(String(row.match_id), row);
+  }
+  const tracked = [...trackedById.values()];
+  const watchedTracked = tracked.filter((row) => watchedMatchIds.has(String(row.match_id)));
   if (tracked.length === 0) {
     return { tracked: 0, refreshed: 0, live: 0, statsRefreshed: 0 };
   }

@@ -16,7 +16,15 @@ vi.mock('../lib/redis.js', () => ({
   getRedisClient: () => ({
     get: vi.fn().mockResolvedValue(null),
     set: vi.fn().mockResolvedValue('OK'),
+    incr: vi.fn().mockResolvedValue(1),
+    expire: vi.fn().mockResolvedValue(1),
   }),
+}));
+
+const mockRecordApiFootballRequestSafe = vi.fn().mockResolvedValue(undefined);
+
+vi.mock('../repos/api-football-request-ledger.repo.js', () => ({
+  recordApiFootballRequestSafe: (...args: unknown[]) => mockRecordApiFootballRequestSafe(...args),
 }));
 
 vi.mock('../lib/football-api-circuit.js', async (importOriginal) => {

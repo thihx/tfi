@@ -16,6 +16,8 @@ import {
   recordFootballApiDailyLimitFromError,
 } from './football-api-circuit.js';
 import { incrementFootballApiDailyCount, checkAndTripCircuitAtCritical } from './football-api-quota.js';
+import { getFootballApiRequestContext } from './football-api-request-context.js';
+import { recordApiFootballRequestSafe } from '../repos/api-football-request-ledger.repo.js';
 
 interface ApiFootballResponse<T> {
   get: string;
@@ -71,6 +73,42 @@ export interface ApiFixture {
 const API_TIMEOUT_MS = 15_000;
 const MAX_RETRIES = 2;
 
+async function countOutboundAttempt(): Promise<void> {
+  await incrementFootballApiDailyCount();
+  await checkAndTripCircuitAtCritical();
+}
+
+async function recordProviderAttempt(input: {
+  endpoint: string;
+  params?: Record<string, string>;
+  attempt: number;
+  startedAt: number;
+  success: boolean;
+  dailyLimit?: boolean;
+  statusCode?: number | null;
+  resultCount?: number | null;
+  quotaCurrent?: number | null;
+  quotaLimit?: number | null;
+  error?: string | null;
+}): Promise<void> {
+  const context = getFootballApiRequestContext();
+  await recordApiFootballRequestSafe({
+    jobName: context.jobName ?? null,
+    consumer: context.consumer ?? null,
+    endpoint: input.endpoint,
+    params: input.params ?? {},
+    attempt: input.attempt,
+    success: input.success,
+    dailyLimit: input.dailyLimit,
+    statusCode: input.statusCode ?? null,
+    latencyMs: Math.max(0, Date.now() - input.startedAt),
+    resultCount: input.resultCount ?? null,
+    quotaCurrent: input.quotaCurrent ?? null,
+    quotaLimit: input.quotaLimit ?? null,
+    error: input.error ?? '',
+  });
+}
+
 async function apiGet<T>(endpoint: string, params: Record<string, string> = {}): Promise<T[]> {
   if (!config.footballApiKey) throw new Error('FOOTBALL_API_KEY not configured');
 
@@ -81,7 +119,12 @@ async function apiGet<T>(endpoint: string, params: Record<string, string> = {}):
 
   let lastError: Error | null = null;
   for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
+    const attemptNumber = attempt + 1;
+    let startedAt = Date.now();
+    let recorded = false;
     try {
+      await countOutboundAttempt();
+      startedAt = Date.now();
       const controller = new AbortController();
       const timer = setTimeout(() => controller.abort(), API_TIMEOUT_MS);
 
@@ -97,7 +140,19 @@ async function apiGet<T>(endpoint: string, params: Record<string, string> = {}):
 
       if (res.status === 429) {
         const text = await res.text();
-        if (isFootballApiDailyLimitMessage(text)) {
+        const dailyLimit = isFootballApiDailyLimitMessage(text);
+        await recordProviderAttempt({
+          endpoint,
+          params,
+          attempt: attemptNumber,
+          startedAt,
+          success: false,
+          dailyLimit,
+          statusCode: res.status,
+          error: text.substring(0, 500),
+        });
+        recorded = true;
+        if (dailyLimit) {
           const openUntil = await openFootballApiCircuitUntilNextUtcMidnight();
           throw new FootballApiDailyLimitError(openUntil, `Football API ${res.status}: ${text.substring(0, 300)}`);
         }
@@ -109,28 +164,70 @@ async function apiGet<T>(endpoint: string, params: Record<string, string> = {}):
 
       if (!res.ok) {
         const text = await res.text();
-        if (isFootballApiDailyLimitMessage(text)) {
+        const dailyLimit = isFootballApiDailyLimitMessage(text);
+        await recordProviderAttempt({
+          endpoint,
+          params,
+          attempt: attemptNumber,
+          startedAt,
+          success: false,
+          dailyLimit,
+          statusCode: res.status,
+          error: text.substring(0, 500),
+        });
+        recorded = true;
+        if (dailyLimit) {
           const openUntil = await openFootballApiCircuitUntilNextUtcMidnight();
           throw new FootballApiDailyLimitError(openUntil, `Football API ${res.status}: ${text.substring(0, 300)}`);
         }
         throw new Error(`Football API ${res.status}: ${text.substring(0, 300)}`);
       }
 
-      await incrementFootballApiDailyCount();
-      await checkAndTripCircuitAtCritical();
-
       const data: ApiFootballResponse<T> = await res.json();
       if (data.errors && Object.keys(data.errors).length > 0) {
         const serializedErrors = JSON.stringify(data.errors);
-        if (isFootballApiDailyLimitMessage(serializedErrors)) {
+        const dailyLimit = isFootballApiDailyLimitMessage(serializedErrors);
+        await recordProviderAttempt({
+          endpoint,
+          params,
+          attempt: attemptNumber,
+          startedAt,
+          success: false,
+          dailyLimit,
+          statusCode: res.status,
+          resultCount: data.results,
+          error: serializedErrors.substring(0, 500),
+        });
+        recorded = true;
+        if (dailyLimit) {
           const openUntil = await openFootballApiCircuitUntilNextUtcMidnight();
           throw new FootballApiDailyLimitError(openUntil, `Football API errors: ${serializedErrors}`);
         }
         throw new Error(`Football API errors: ${serializedErrors}`);
       }
+      await recordProviderAttempt({
+        endpoint,
+        params,
+        attempt: attemptNumber,
+        startedAt,
+        success: true,
+        statusCode: res.status,
+        resultCount: data.results,
+      });
+      recorded = true;
       return data.response;
     } catch (err) {
       lastError = err instanceof Error ? err : new Error(String(err));
+      if (!recorded && !(lastError instanceof FootballApiDailyLimitError)) {
+        await recordProviderAttempt({
+          endpoint,
+          params,
+          attempt: attemptNumber,
+          startedAt,
+          success: false,
+          error: lastError.message,
+        });
+      }
       if (lastError instanceof FootballApiDailyLimitError) {
         throw lastError;
       }
@@ -157,7 +254,12 @@ export async function fetchFootballApiStatus(): Promise<ApiFootballStatusResult>
 
   let lastError: Error | null = null;
   for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
+    const attemptNumber = attempt + 1;
+    let startedAt = Date.now();
+    let recorded = false;
     try {
+      await countOutboundAttempt();
+      startedAt = Date.now();
       const controller = new AbortController();
       const timer = setTimeout(() => controller.abort(), API_TIMEOUT_MS);
 
@@ -172,7 +274,8 @@ export async function fetchFootballApiStatus(): Promise<ApiFootballStatusResult>
       clearTimeout(timer);
 
       const text = await res.text();
-      if (isFootballApiDailyLimitMessage(text)) {
+      const dailyLimit = isFootballApiDailyLimitMessage(text);
+      if (dailyLimit) {
         await openFootballApiCircuitUntilNextUtcMidnight();
       }
 
@@ -183,6 +286,20 @@ export async function fetchFootballApiStatus(): Promise<ApiFootballStatusResult>
         data = null;
       }
 
+      const quota = data?.response?.account?.requests;
+      await recordProviderAttempt({
+        endpoint: '/status',
+        attempt: attemptNumber,
+        startedAt,
+        success: res.ok && !dailyLimit,
+        dailyLimit,
+        statusCode: res.status,
+        quotaCurrent: quota?.current ?? null,
+        quotaLimit: quota?.limit_day ?? null,
+        error: res.ok ? '' : text.substring(0, 500),
+      });
+      recorded = true;
+
       return {
         ok: res.ok,
         status: res.status,
@@ -191,6 +308,15 @@ export async function fetchFootballApiStatus(): Promise<ApiFootballStatusResult>
       };
     } catch (err) {
       lastError = err instanceof Error ? err : new Error(String(err));
+      if (!recorded && !(lastError instanceof FootballApiDailyLimitError)) {
+        await recordProviderAttempt({
+          endpoint: '/status',
+          attempt: attemptNumber,
+          startedAt,
+          success: false,
+          error: lastError.message,
+        });
+      }
       if (lastError instanceof FootballApiDailyLimitError) {
         throw lastError;
       }

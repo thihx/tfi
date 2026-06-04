@@ -41,6 +41,7 @@ vi.mock('../lib/football-api-circuit.js', () => ({
 vi.mock('../config.js', () => ({
   config: {
     timezone: 'Asia/Seoul',
+    jobRefreshLiveMatchesMaxPublicMatches: 0,
   },
 }));
 
@@ -60,13 +61,20 @@ beforeEach(() => {
 });
 
 describe('refreshLiveMatchesJob', () => {
-  test('still checks public live candidates when no matches are actively watched', async () => {
+  test('does not refresh public live candidates when no matches are actively watched', async () => {
     mockGetActiveOperationalWatchlist.mockResolvedValueOnce([]);
 
     const result = await refreshLiveMatchesJob();
 
-    expect(result).toEqual({ tracked: 0, refreshed: 0, live: 0, statsRefreshed: 0 });
-    expect(mockGetLiveRefreshCandidates).toHaveBeenCalled();
+    expect(result).toEqual({
+      tracked: 0,
+      refreshed: 0,
+      live: 0,
+      statsRefreshed: 0,
+      skipped: true,
+      skipReason: 'no_active_watchlist_interest',
+    });
+    expect(mockGetLiveRefreshCandidates).not.toHaveBeenCalled();
     expect(mockEnsureFixturesForMatchIds).not.toHaveBeenCalled();
   });
 
@@ -324,7 +332,7 @@ describe('refreshLiveMatchesJob', () => {
     expect(mockUpdateMatches).not.toHaveBeenCalled();
   });
 
-  test('refreshes public live candidates but limits live stat calls to watched matches', async () => {
+  test('refreshes watched candidates without pulling extra public live fixtures by default', async () => {
     vi.setSystemTime(new Date('2026-03-26T10:05:00.000Z'));
     mockGetActiveOperationalWatchlist.mockResolvedValueOnce([{ match_id: '200' }]);
     mockGetLiveRefreshCandidates.mockResolvedValue([
@@ -364,7 +372,7 @@ describe('refreshLiveMatchesJob', () => {
 
     await refreshLiveMatchesJob();
 
-    expect(mockEnsureFixturesForMatchIds).toHaveBeenCalledWith(['200', '100'], {
+    expect(mockEnsureFixturesForMatchIds).toHaveBeenCalledWith(['200'], {
       freshnessMode: 'stale_safe',
       forceRefreshIds: ['200'],
     });
