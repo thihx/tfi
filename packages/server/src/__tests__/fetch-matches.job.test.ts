@@ -39,6 +39,7 @@ vi.mock('../repos/watchlist.repo.js', () => ({
   syncWatchlistDates: vi.fn().mockResolvedValue(0),
   getExistingWatchlistMatchIds: vi.fn().mockResolvedValue(new Set()),
   getExistingUserWatchlistMatchIds: vi.fn().mockResolvedValue(new Set()),
+  getActiveOperationalWatchlist: vi.fn().mockResolvedValue([{ match_id: '2001' }]),
   createOperationalWatchlistEntry: vi.fn().mockResolvedValue({}),
   createWatchlistEntry: vi.fn().mockResolvedValue({}),
 }));
@@ -398,5 +399,66 @@ describe('fetchMatchesJob', () => {
       acceptFinishedPayloadRegardlessOfTtl: true,
     }));
     expect(providerInsight.ensureFixtureStatistics).toHaveBeenCalledTimes(2);
+  });
+
+  test('fetches live stats only for watched live matches during fixture sync', async () => {
+    const watchlistRepo = await import('../repos/watchlist.repo.js');
+    vi.mocked(watchlistRepo.getActiveOperationalWatchlist).mockResolvedValueOnce([{ match_id: '2001' } as never]);
+    vi.mocked(footballApi.fetchFixturesForDate)
+      .mockResolvedValueOnce([] as never)
+      .mockResolvedValueOnce([
+        {
+          fixture: { id: 2001, date: '2026-03-20T12:00:00+00:00', status: { short: '2H', elapsed: 78 }, venue: { name: 'Stadium' }, referee: null },
+          league: { id: 39, name: 'League', round: '' },
+          teams: { home: { id: 1, name: 'Arsenal', logo: '' }, away: { id: 2, name: 'Chelsea', logo: '' } },
+          goals: { home: 1, away: 1 },
+          score: { halftime: { home: 1, away: 0 } },
+        },
+        {
+          fixture: { id: 2003, date: '2026-03-20T12:30:00+00:00', status: { short: '2H', elapsed: 64 }, venue: { name: 'Stadium' }, referee: null },
+          league: { id: 39, name: 'League', round: '' },
+          teams: { home: { id: 5, name: 'Spurs', logo: '' }, away: { id: 6, name: 'Leeds', logo: '' } },
+          goals: { home: 0, away: 1 },
+          score: { halftime: { home: 0, away: 0 } },
+        },
+      ] as never)
+      .mockResolvedValueOnce([] as never);
+
+    await fetchMatchesJob();
+
+    expect(providerInsight.ensureFixtureStatistics).toHaveBeenCalledWith('2001', expect.objectContaining({
+      status: '2H',
+      acceptFinishedPayloadRegardlessOfTtl: false,
+    }));
+    expect(providerInsight.ensureFixtureStatistics).not.toHaveBeenCalledWith('2003', expect.anything());
+  });
+
+  test('does not fetch live stats for unwatched live matches during fixture sync', async () => {
+    const watchlistRepo = await import('../repos/watchlist.repo.js');
+    vi.mocked(watchlistRepo.getActiveOperationalWatchlist).mockResolvedValueOnce([]);
+    vi.mocked(footballApi.fetchFixturesForDate)
+      .mockResolvedValueOnce([] as never)
+      .mockResolvedValueOnce([
+        {
+          fixture: { id: 2001, date: '2026-03-20T12:00:00+00:00', status: { short: '2H', elapsed: 78 }, venue: { name: 'Stadium' }, referee: null },
+          league: { id: 39, name: 'League', round: '' },
+          teams: { home: { id: 1, name: 'Arsenal', logo: '' }, away: { id: 2, name: 'Chelsea', logo: '' } },
+          goals: { home: 1, away: 1 },
+          score: { halftime: { home: 1, away: 0 } },
+        },
+      ] as never)
+      .mockResolvedValueOnce([] as never);
+
+    await fetchMatchesJob();
+
+    const matchRepo = await import('../repos/matches.repo.js');
+    const savedRows = vi.mocked(matchRepo.replaceAllMatches).mock.calls[0]?.[0] as Array<Record<string, unknown>>;
+    expect(savedRows.find((row) => row.match_id === '2001')).toMatchObject({
+      match_id: '2001',
+      status: '2H',
+      home_score: 1,
+      away_score: 1,
+    });
+    expect(providerInsight.ensureFixtureStatistics).not.toHaveBeenCalledWith('2001', expect.anything());
   });
 });

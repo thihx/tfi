@@ -30,6 +30,12 @@ const ALLOWED_STATUSES = ['NS', '1H', 'HT', '2H', 'ET', 'BT', 'P', 'LIVE', 'INT'
 const LIVE_STATUSES = new Set(['1H', 'HT', '2H', 'ET', 'BT', 'LIVE', 'INT']);
 const TERMINAL_STATUSES = new Set(['FT', 'AET', 'PEN', 'AWD', 'WO']);
 export const IDLE_NO_WATCH_POLL_DELAY_MS = 30 * 60_000;
+const ADAPTIVE_BACKOFF_RECHECK_TOLERANCE_MS = 1_000;
+
+interface WatchlistInterest {
+  hasActiveWatchlist: boolean;
+  matchIds: Set<string> | null;
+}
 
 async function batchRun<T>(tasks: Array<() => Promise<T>>, concurrency = 5): Promise<T[]> {
   const results: T[] = [];
@@ -56,18 +62,48 @@ export function computeNextPollDelayMs(
 ): number {
   const minute = 60_000;
 
-  if (options.hasActiveWatchlist === false) {
-    return Math.max(IDLE_NO_WATCH_POLL_DELAY_MS, baseIntervalMs);
-  }
-
   if (state.liveCount > 0) return baseIntervalMs;
-  if (state.minsToNextKickoff === null) return 30 * minute;
+  if (state.minsToNextKickoff === null) {
+    return options.hasActiveWatchlist === false
+      ? Math.max(IDLE_NO_WATCH_POLL_DELAY_MS, baseIntervalMs)
+      : 30 * minute;
+  }
 
   const minsToNextKickoff = state.minsToNextKickoff;
   if (minsToNextKickoff <= 5) return baseIntervalMs;
   if (minsToNextKickoff <= 120) return 2 * minute;
+  if (options.hasActiveWatchlist === false) {
+    return Math.max(IDLE_NO_WATCH_POLL_DELAY_MS, baseIntervalMs);
+  }
   if (minsToNextKickoff <= 360) return 5 * minute;
   return 30 * minute;
+}
+
+async function getActiveWatchlistInterest(): Promise<WatchlistInterest> {
+  try {
+    const activeWatchlist = await watchlistRepo.getActiveOperationalWatchlist();
+    return {
+      hasActiveWatchlist: activeWatchlist.length > 0,
+      matchIds: new Set(activeWatchlist.map((row) => String(row.match_id))),
+    };
+  } catch {
+    // If watchlist state cannot be read, prefer the match-slate cadence over sleeping a live poll.
+    return { hasActiveWatchlist: true, matchIds: null };
+  }
+}
+
+async function getCurrentAdaptiveDelayMs(): Promise<number | null> {
+  try {
+    const [scheduleState, watchlistInterest] = await Promise.all([
+      matchRepo.getMatchScheduleState(config.timezone),
+      getActiveWatchlistInterest(),
+    ]);
+    return computeNextPollDelayMs(scheduleState, config.jobFetchMatchesMs, {
+      hasActiveWatchlist: watchlistInterest.hasActiveWatchlist,
+    });
+  } catch {
+    return null;
+  }
 }
 
 function toDateString(date: Date, timezone: string): string {
@@ -135,16 +171,29 @@ export async function fetchMatchesJob(): Promise<{
   try {
     const redis = getRedisClient();
     const nextRunAt = await redis.get(ADAPTIVE_SKIP_KEY);
-    if (nextRunAt && Date.now() < Number(nextRunAt)) {
-      const remainSec = Math.round((Number(nextRunAt) - Date.now()) / 1000);
+    const parsedNextRunAt = Number(nextRunAt);
+    if (nextRunAt && Number.isFinite(parsedNextRunAt) && Date.now() < parsedNextRunAt) {
+      const remainingMs = parsedNextRunAt - Date.now();
+      const remainSec = Math.round(remainingMs / 1000);
       const terminalMatchCount = await matchRepo.getTerminalMatchCount().catch(() => 0);
       if (terminalMatchCount > 0) {
         console.log(
           `[fetchMatchesJob] Adaptive backoff bypassed - ${terminalMatchCount} terminal matches need archive/cleanup`,
         );
       } else {
-        console.log(`[fetchMatchesJob] Skipping - next allowed run in ${remainSec}s`);
-        return { saved: 0, leagues: 0, skipped: true, skipReason: 'adaptive_poll_backoff' };
+        const currentDelayMs = await getCurrentAdaptiveDelayMs();
+        if (
+          currentDelayMs != null
+          && currentDelayMs + ADAPTIVE_BACKOFF_RECHECK_TOLERANCE_MS < remainingMs
+        ) {
+          console.log(
+            `[fetchMatchesJob] Adaptive backoff shortened - current slate needs poll in ` +
+            `${Math.round(currentDelayMs / 1000)}s but skip had ${remainSec}s remaining`,
+          );
+        } else {
+          console.log(`[fetchMatchesJob] Skipping - next allowed run in ${remainSec}s`);
+          return { saved: 0, leagues: 0, skipped: true, skipReason: 'adaptive_poll_backoff' };
+        }
       }
     }
   } catch {
@@ -207,6 +256,7 @@ export async function fetchMatchesJob(): Promise<{
 
   const allFixtures = yesterdayFixtures.concat(todayFixtures).concat(tomorrowFixtures);
   const partialFailure = !todayOk || !tomorrowOk;
+  const watchlistInterest = await getActiveWatchlistInterest();
   console.log(
     `[fetchMatchesJob] Raw: yesterday=${yesterdayFixtures.length} today=${todayFixtures.length}` +
     ` tomorrow=${tomorrowFixtures.length} total=${allFixtures.length}` +
@@ -228,6 +278,10 @@ export async function fetchMatchesJob(): Promise<{
 
   let rows = statusFiltered.map(fixtureToMatchRow);
   const liveRows = rows.filter((row) => LIVE_STATUSES.has(row.status ?? ''));
+  const watchlistMatchIds = watchlistInterest.matchIds;
+  const liveRowsForStats = watchlistMatchIds
+    ? liveRows.filter((row) => watchlistMatchIds.has(String(row.match_id)))
+    : liveRows;
   const freshFinishedFixtures = leagueFiltered.filter((fixture) =>
     ['FT', 'AET', 'PEN', 'AWD', 'WO'].includes(fixture.fixture.status.short),
   );
@@ -241,7 +295,7 @@ export async function fetchMatchesJob(): Promise<{
   );
 
   const allNeedingStats = [
-    ...liveRows.map((row) => row.match_id),
+    ...liveRowsForStats.map((row) => row.match_id),
     ...playableFinished.map((fixture) => String(fixture.fixture.id)),
   ];
   const statsContext = new Map<string, {
@@ -272,7 +326,7 @@ export async function fetchMatchesJob(): Promise<{
     await reportJobProgress(
       jobName,
       'stats',
-      `Fetching stats for ${liveRows.length} live + ${playableFinished.length} finished matches...`,
+      `Fetching stats for ${liveRowsForStats.length} watched live + ${playableFinished.length} finished matches...`,
       55,
     );
     await batchRun(
@@ -288,7 +342,7 @@ export async function fetchMatchesJob(): Promise<{
     );
   }
 
-  if (liveRows.length > 0) {
+  if (liveRowsForStats.length > 0) {
     let enrichedLive = 0;
     for (const row of rows) {
       const stats = rawStatsMap.get(row.match_id);
@@ -299,7 +353,7 @@ export async function fetchMatchesJob(): Promise<{
       row.away_yellows = statCount(stats, 1, 'Yellow Cards');
       enrichedLive++;
     }
-    console.log(`[fetchMatchesJob] Enriched card stats for ${enrichedLive}/${liveRows.length} live matches`);
+    console.log(`[fetchMatchesJob] Enriched card stats for ${enrichedLive}/${liveRowsForStats.length} watched live matches`);
   }
 
   const finishedStatsMap = new Map<string, ReturnType<typeof mergeApiFixtureStatistics>>();
@@ -372,13 +426,9 @@ export async function fetchMatchesJob(): Promise<{
 
   try {
     const scheduleState = await matchRepo.getMatchScheduleState(config.timezone);
-    let hasActiveWatchlist = true;
-    try {
-      hasActiveWatchlist = (await watchlistRepo.getActiveOperationalWatchlist()).length > 0;
-    } catch {
-      // If the watchlist lookup is unavailable, keep the existing match-slate cadence.
-    }
-    const delayMs = computeNextPollDelayMs(scheduleState, config.jobFetchMatchesMs, { hasActiveWatchlist });
+    const delayMs = computeNextPollDelayMs(scheduleState, config.jobFetchMatchesMs, {
+      hasActiveWatchlist: watchlistInterest.hasActiveWatchlist,
+    });
     const redis = getRedisClient();
     await redis.set(ADAPTIVE_SKIP_KEY, String(Date.now() + delayMs), 'PX', delayMs + 10_000);
     if (delayMs > config.jobFetchMatchesMs) {

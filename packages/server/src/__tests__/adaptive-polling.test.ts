@@ -61,9 +61,32 @@ describe('computeNextPollDelayMs', () => {
     expect(computeNextPollDelayMs(state({ minsToNextKickoff: null }), customBase)).toBe(30 * MIN);
   });
 
-  test('uses long idle delay when no matches are actively watched', () => {
+  test('does not let no-watchlist idle mode stretch live or near-live polling', () => {
     expect(computeNextPollDelayMs(
       state({ liveCount: 3, minsToNextKickoff: 0 }),
+      BASE,
+      { hasActiveWatchlist: false },
+    )).toBe(BASE);
+    expect(computeNextPollDelayMs(
+      state({ nsCount: 1, minsToNextKickoff: 5 }),
+      BASE,
+      { hasActiveWatchlist: false },
+    )).toBe(BASE);
+    expect(computeNextPollDelayMs(
+      state({ nsCount: 1, minsToNextKickoff: 60 }),
+      BASE,
+      { hasActiveWatchlist: false },
+    )).toBe(2 * MIN);
+  });
+
+  test('uses long idle delay when no matches are actively watched and slate is not near-live', () => {
+    expect(computeNextPollDelayMs(
+      state({ liveCount: 0, minsToNextKickoff: null }),
+      BASE,
+      { hasActiveWatchlist: false },
+    )).toBe(IDLE_NO_WATCH_POLL_DELAY_MS);
+    expect(computeNextPollDelayMs(
+      state({ nsCount: 1, minsToNextKickoff: 180 }),
       BASE,
       { hasActiveWatchlist: false },
     )).toBe(IDLE_NO_WATCH_POLL_DELAY_MS);
@@ -206,6 +229,26 @@ describe('fetchMatchesJob adaptive skip', () => {
     expect(result).toMatchObject({ saved: 0, leagues: 0 });
   });
 
+  test('bypasses stale adaptive skip when current slate needs a sooner live poll', async () => {
+    const matchRepo = await import('../repos/matches.repo.js');
+    const watchlistRepo = await import('../repos/watchlist.repo.js');
+    vi.mocked(matchRepo.getMatchScheduleState).mockResolvedValue({
+      liveCount: 2,
+      nsCount: 0,
+      minsToNextKickoff: null,
+    });
+    vi.mocked(watchlistRepo.getActiveOperationalWatchlist)
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([]);
+    mockRedis.get.mockResolvedValue(String(Date.now() + 30 * 60_000));
+
+    const result = await fetchMatchesJob();
+
+    const footballApi = await import('../lib/football-api.js');
+    expect(footballApi.fetchFixturesForDate).toHaveBeenCalled();
+    expect(result).toMatchObject({ saved: 0, leagues: 0 });
+  });
+
   test('runs when next-run-at has already passed', async () => {
     mockRedis.get.mockResolvedValue(String(Date.now() - 1000)); // 1 sec ago
     const result = await fetchMatchesJob();
@@ -258,7 +301,23 @@ describe('fetchMatchesJob adaptive skip', () => {
     expect(delay).toBeGreaterThan(59_000);
   });
 
-  test('sets long skip key after fetch when there is no active watchlist interest', async () => {
+  test('sets long skip key after fetch when there is no active watchlist interest and slate is idle', async () => {
+    const matchRepo = await import('../repos/matches.repo.js');
+    const watchlistRepo = await import('../repos/watchlist.repo.js');
+    vi.mocked(matchRepo.getMatchScheduleState).mockResolvedValue({
+      liveCount: 0, nsCount: 1, minsToNextKickoff: 180,
+    });
+    vi.mocked(watchlistRepo.getActiveOperationalWatchlist).mockResolvedValueOnce([]);
+
+    await fetchMatchesJob();
+
+    const [, storedValue] = mockRedis.set.mock.calls.at(-1) as [string, string, string, number];
+    const delay = Number(storedValue) - Date.now();
+    expect(delay).toBeGreaterThan(IDLE_NO_WATCH_POLL_DELAY_MS - 1_000);
+    expect(delay).toBeLessThan(IDLE_NO_WATCH_POLL_DELAY_MS + 1_000);
+  });
+
+  test('sets base skip key after fetch when matches are live even without active watchlist interest', async () => {
     const matchRepo = await import('../repos/matches.repo.js');
     const watchlistRepo = await import('../repos/watchlist.repo.js');
     vi.mocked(matchRepo.getMatchScheduleState).mockResolvedValue({
@@ -270,8 +329,24 @@ describe('fetchMatchesJob adaptive skip', () => {
 
     const [, storedValue] = mockRedis.set.mock.calls.at(-1) as [string, string, string, number];
     const delay = Number(storedValue) - Date.now();
-    expect(delay).toBeGreaterThan(IDLE_NO_WATCH_POLL_DELAY_MS - 1_000);
-    expect(delay).toBeLessThan(IDLE_NO_WATCH_POLL_DELAY_MS + 1_000);
+    expect(delay).toBeLessThanOrEqual(60_000 + 500);
+    expect(delay).toBeGreaterThan(59_000);
+  });
+
+  test('sets near-live skip key after fetch even without active watchlist interest', async () => {
+    const matchRepo = await import('../repos/matches.repo.js');
+    const watchlistRepo = await import('../repos/watchlist.repo.js');
+    vi.mocked(matchRepo.getMatchScheduleState).mockResolvedValue({
+      liveCount: 0, nsCount: 1, minsToNextKickoff: 60,
+    });
+    vi.mocked(watchlistRepo.getActiveOperationalWatchlist).mockResolvedValueOnce([]);
+
+    await fetchMatchesJob();
+
+    const [, storedValue] = mockRedis.set.mock.calls.at(-1) as [string, string, string, number];
+    const delay = Number(storedValue) - Date.now();
+    expect(delay).toBeGreaterThan(1.9 * 60_000);
+    expect(delay).toBeLessThan(2.1 * 60_000);
   });
 
   test('sets skip key after fetch — kickoff in 60 min → 2 min delay', async () => {
