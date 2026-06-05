@@ -1,7 +1,7 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { beforeEach, describe, expect, test, vi } from 'vitest';
 import { WatchlistEditModal } from '@/components/ui/WatchlistEditModal';
-import { evaluateWatchConditionPreview } from '@/lib/services/api';
+import { evaluateWatchConditionPreview, fetchConditionAlertPresets, fetchMatchAlertRules } from '@/lib/services/api';
 import type { WatchlistItem } from '@/types';
 
 vi.mock('@/hooks/useAppState', () => ({
@@ -23,6 +23,8 @@ vi.mock('@/lib/services/api', () => ({
       data_source: 'latest_snapshot',
     },
   }),
+  fetchConditionAlertPresets: vi.fn().mockResolvedValue([]),
+  fetchMatchAlertRules: vi.fn().mockResolvedValue([]),
 }));
 
 vi.mock('@/features/live-monitor/config', () => ({
@@ -72,6 +74,8 @@ describe('WatchlistEditModal', () => {
   beforeEach(() => {
     localStorage.clear();
     vi.clearAllMocks();
+    vi.mocked(fetchConditionAlertPresets).mockResolvedValue([]);
+    vi.mocked(fetchMatchAlertRules).mockResolvedValue([]);
   });
 
   test('defaults auto-apply to the global setting when item has no override', () => {

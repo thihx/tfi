@@ -44,6 +44,9 @@ export interface CurrentRuntimeBlockedSelectionRow {
   score: string;
   evidenceMode: string;
   confidence: number | null;
+  valuePercent: number | null;
+  riskLevel: string;
+  stakePercent: number | null;
   odds: number | null;
   saved: boolean | null;
   shouldPush: boolean | null;
@@ -200,6 +203,9 @@ function buildBlockedSelectionRow(
   const marketResolutionStatus = asString(metadata.marketResolutionStatus) || 'unknown';
   const saveIntegrityStatus = asString(metadata.saveIntegrityStatus) || 'unknown';
   const evidenceMode = asString(metadata.evidenceMode) || 'unknown';
+  const valuePercent = toNumber(metadata.valuePercent ?? metadata.value_percent);
+  const riskLevel = asString(metadata.riskLevel ?? metadata.risk_level) || 'unknown';
+  const modelStakePercent = toNumber(metadata.stakePercent ?? metadata.stake_percent);
   const metadataGaps = [
     llmDecisionDiagnostic === 'unknown' ? 'missing_llm_decision_diagnostic' : '',
     marketResolutionStatus === 'unknown' ? 'missing_market_resolution_status' : '',
@@ -220,6 +226,9 @@ function buildBlockedSelectionRow(
     score: asString(metadata.score),
     evidenceMode,
     confidence,
+    valuePercent,
+    riskLevel,
+    stakePercent: modelStakePercent,
     odds,
     saved: toBoolean(metadata.saved),
     shouldPush: toBoolean(metadata.shouldPush),

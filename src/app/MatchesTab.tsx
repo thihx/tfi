@@ -29,7 +29,13 @@ import {
 } from '@/features/live-monitor/services/server-monitor.service';
 import { MatchHubModal } from '@/components/ui/MatchHubModal';
 import { Modal } from '@/components/ui/Modal';
-import { applyFavoriteLeaguesToWatchlist, fetchFavoriteLeagueSelection } from '@/lib/services/api';
+import {
+  applyFavoriteLeaguesToWatchlist,
+  createMatchAlertRule,
+  deleteMatchAlertRule,
+  fetchFavoriteLeagueSelection,
+  fetchMatchAlertRules,
+} from '@/lib/services/api';
 import { fetchCurrentUser } from '@/lib/services/auth';
 import { loadMatchesAiResultsFromStorage, saveMatchesAiResultsToStorage } from '@/lib/matchesAiResultsStorage';
 
@@ -54,11 +60,37 @@ function EyeOffIcon() {
   );
 }
 
+function BellIcon({ active }: { active?: boolean }) {
+  return (
+    <svg width="15" height="15" viewBox="0 0 24 24" fill={active ? 'currentColor' : 'none'} stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden style={{ display: 'block' }}>
+      <path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/>
+      <path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/>
+    </svg>
+  );
+}
+
+function SlidersIcon() {
+  return (
+    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden style={{ display: 'block' }}>
+      <line x1="4" y1="21" x2="4" y2="14"/>
+      <line x1="4" y1="10" x2="4" y2="3"/>
+      <line x1="12" y1="21" x2="12" y2="12"/>
+      <line x1="12" y1="8" x2="12" y2="3"/>
+      <line x1="20" y1="21" x2="20" y2="16"/>
+      <line x1="20" y1="12" x2="20" y2="3"/>
+      <line x1="1" y1="14" x2="7" y2="14"/>
+      <line x1="9" y1="8" x2="15" y2="8"/>
+      <line x1="17" y1="16" x2="23" y2="16"/>
+    </svg>
+  );
+}
+
 // Statuses where the ball is actually in play (excludes HT, BT, INT breaks)
 const PLAYING_STATUSES = new Set(['1H', '2H', 'ET', 'P', 'LIVE']);
 
 // Statuses where the match is definitively over — block adding to watchlist
 const FINISHED_STATUSES = new Set(['FT', 'AET', 'PEN', 'CANC', 'ABD', 'AWD']);
+const NOT_STARTED_STATUSES = new Set(['NS', 'TBD', 'TIME']);
 
 // ── Module-level store — persists across tab navigation ──────────────────────
 type AiResultEntry = AiAnalysisPanelEntry;
@@ -137,6 +169,15 @@ export function shouldAutoRefreshMatch(match: Match, now = Date.now()): boolean 
   return shouldFastRefreshMatch(match, now);
 }
 
+export function shouldShowKickoffAlertAction(match: Match, now = Date.now()): boolean {
+  const status = String(match.status || '').toUpperCase();
+  if (NOT_STARTED_STATUSES.has(status)) return true;
+  if (PLAYING_STATUSES.has(status) || LIVE_STATUSES.includes(status) || FINISHED_STATUSES.has(status)) return false;
+  if (match.home_score != null || match.away_score != null || match.current_minute) return false;
+  const kickoff = getMatchKickoffTime(match).getTime();
+  return Number.isFinite(kickoff) && kickoff > now;
+}
+
 
 export function MatchesTab() {
   const { state, addToWatchlist, updateWatchlistItem, removeFromWatchlist, loadAllData, refreshMatches } = useAppState();
@@ -187,6 +228,8 @@ export function MatchesTab() {
   const [favoriteLeagueOptions, setFavoriteLeagueOptions] = useState<League[]>([]);
   const [currentUserRole, setCurrentUserRole] = useState<string>('member');
   const [matchFocusTick, setMatchFocusTick] = useState(0);
+  const [matchStartAlertRules, setMatchStartAlertRules] = useState<Map<string, number>>(new Map());
+  const [pendingMatchStartAlerts, setPendingMatchStartAlerts] = useState<Set<string>>(new Set());
   const aiResultsRef = useRef<HTMLDivElement>(null);
   const filterBarRef = useRef<HTMLDivElement>(null);
   const [filterBarBottom, setFilterBarBottom] = useState(240);
@@ -390,6 +433,23 @@ export function MatchesTab() {
   useEffect(() => {
     void loadAllDataRef.current(true);
   }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    void fetchMatchAlertRules(config, { alertKind: 'match_start' })
+      .then((rules) => {
+        if (cancelled) return;
+        const next = new Map<string, number>();
+        for (const rule of rules) {
+          if (rule.enabled && rule.matchId) next.set(String(rule.matchId), rule.id);
+        }
+        setMatchStartAlertRules(next);
+      })
+      .catch(() => undefined);
+    return () => {
+      cancelled = true;
+    };
+  }, [config]);
 
   // When the browser tab / PWA comes back to the foreground while this screen is open, timers may have been throttled — merge-refresh once.
   useEffect(() => {
@@ -831,6 +891,48 @@ export function MatchesTab() {
     });
   }, [watchlistMap, pendingRemoves, removeFromWatchlist, addToWatchlist, showToast]);
 
+  const toggleMatchStartAlert = useCallback(async (m: Match) => {
+    const mid = String(m.match_id);
+    if (!shouldShowKickoffAlertAction(m)) {
+      showToast('Kickoff alerts are only available before the match starts', 'error');
+      return;
+    }
+    if (pendingMatchStartAlerts.has(mid)) return;
+    const existingRuleId = matchStartAlertRules.get(mid);
+    setPendingMatchStartAlerts((prev) => new Set(prev).add(mid));
+    try {
+      if (existingRuleId) {
+        await deleteMatchAlertRule(config, existingRuleId);
+        setMatchStartAlertRules((prev) => {
+          const next = new Map(prev);
+          next.delete(mid);
+          return next;
+        });
+        showToast('Kickoff alert removed', 'info');
+      } else {
+        const rule = await createMatchAlertRule(config, {
+          matchId: mid,
+          alertKind: 'match_start',
+          source: 'manual',
+          metadata: {
+            matchDisplay: `${m.home_team} vs ${m.away_team}`,
+            league: m.league_name,
+          },
+        });
+        setMatchStartAlertRules((prev) => new Map(prev).set(mid, rule.id));
+        showToast('Kickoff alert enabled', 'success');
+      }
+    } catch (err) {
+      showToast(err instanceof Error ? err.message : 'Failed to update kickoff alert', 'error');
+    } finally {
+      setPendingMatchStartAlerts((prev) => {
+        const next = new Set(prev);
+        next.delete(mid);
+        return next;
+      });
+    }
+  }, [config, matchStartAlertRules, pendingMatchStartAlerts, showToast]);
+
   const executeAskAiPipeline = useCallback(async (m: Match, opts?: { question?: string }) => {
     const mid = String(m.match_id);
     setAnalyzingMatches((prev) => new Set(prev).add(mid));
@@ -1241,9 +1343,19 @@ export function MatchesTab() {
                     isPlaying: PLAYING_STATUSES.has(m.status),
                   } : undefined}
                   actions={[
+                    ...(shouldShowKickoffAlertAction(m) ? [{
+                      label: matchStartAlertRules.has(String(m.match_id)) ? 'Alert On' : 'Alert',
+                      icon: pendingMatchStartAlerts.has(String(m.match_id))
+                        ? <span className="inline-spinner" style={{ width: '14px', height: '14px' }} />
+                        : <BellIcon active={matchStartAlertRules.has(String(m.match_id))} />,
+                      title: matchStartAlertRules.has(String(m.match_id)) ? 'Kickoff alert enabled' : 'Notify when match starts',
+                      onClick: (match: Match) => void toggleMatchStartAlert(match),
+                      disabled: pendingMatchStartAlerts.has(String(m.match_id)),
+                      variant: 'secondary' as const,
+                    }] : []),
                     ...(watchlistMap.has(String(m.match_id))
                       ? [
-                          { label: 'Rules', icon: <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/></svg>, title: 'Watch alerts and conditions', onClick: (match: Match) => { const entry = watchlistMap.get(String(match.match_id)); if (entry) setEditItem(entry); }, variant: 'secondary' as const },
+                          { label: 'Rules', icon: <SlidersIcon />, title: 'Watch alerts and conditions', onClick: (match: Match) => { const entry = watchlistMap.get(String(match.match_id)); if (entry) setEditItem(entry); }, variant: 'secondary' as const },
                         ]
                       : [
                           FINISHED_STATUSES.has(m.status)
@@ -1323,6 +1435,9 @@ export function MatchesTab() {
                     isWatched={watchlistMap.has(String(m.match_id))}
                     isPending={pendingAdds.has(String(m.match_id))}
                     isPendingRemove={pendingRemoves.has(String(m.match_id))}
+                    hasMatchStartAlert={matchStartAlertRules.has(String(m.match_id))}
+                    isPendingMatchStartAlert={pendingMatchStartAlerts.has(String(m.match_id))}
+                    canShowMatchStartAlert={shouldShowKickoffAlertAction(m)}
                     isSelected={selected.has(String(m.match_id))}
                     isAnalyzing={analyzingMatches.has(String(m.match_id))}
                     hasResult={aiResults.has(String(m.match_id))}
@@ -1330,6 +1445,7 @@ export function MatchesTab() {
                     flashMap={flashMap}
                     onQuickAdd={() => quickAdd(m)}
                     onQuickRemove={() => quickRemove(m)}
+                    onToggleMatchStartAlert={() => toggleMatchStartAlert(m)}
                     onToggleSelect={() => toggleSelect(String(m.match_id), watchlistMap.has(String(m.match_id)))}
                     onAskAiQuick={() => askAiQuick(m)}
                     onAskAiOpenQuestion={() => askAiOpenQuestionDialog(m)}
@@ -1370,8 +1486,9 @@ export function MatchesTab() {
         key={editItem ? String(editItem.match_id) : 'watchlist-edit-modal'}
         item={editItem}
         onClose={() => setEditItem(null)}
-        onSave={async ({ custom_conditions, auto_apply_recommended_condition, notify_enabled }) => {
+        onSave={async ({ custom_conditions, auto_apply_recommended_condition, notify_enabled, condition_preset_ids }) => {
           if (!editItem) return;
+          let conditionAlertSyncFailed = false;
           const ok = await updateWatchlistItem({
             id: editItem.id,
             match_id: editItem.match_id,
@@ -1379,8 +1496,80 @@ export function MatchesTab() {
             auto_apply_recommended_condition,
             notify_enabled,
           });
+          if (ok && condition_preset_ids) {
+            const selectedPresetIds = new Set(condition_preset_ids);
+            const existingConditionRules = await fetchMatchAlertRules(config, {
+              matchId: String(editItem.match_id),
+              alertKind: 'condition_signal',
+            }).catch(() => {
+              conditionAlertSyncFailed = true;
+              return [];
+            });
+            const existingPresetRules = existingConditionRules.filter((rule) => rule.source.startsWith('preset:'));
+            const existingPresetIds = new Set(
+              existingPresetRules.map((rule) => rule.source.slice('preset:'.length)),
+            );
+            await Promise.all(
+              existingPresetRules
+                .filter((rule) => !selectedPresetIds.has(rule.source.slice('preset:'.length)))
+                .map((rule) => deleteMatchAlertRule(config, rule.id).catch(() => {
+                  conditionAlertSyncFailed = true;
+                  return null;
+                })),
+            );
+            await Promise.all(
+              condition_preset_ids
+                .filter((presetId) => !existingPresetIds.has(presetId))
+                .map((presetId) => createMatchAlertRule(config, {
+                  matchId: String(editItem.match_id),
+                  alertKind: 'condition_signal',
+                  source: `preset:${presetId}`,
+                  presetId,
+                  cooldownMinutes: 10,
+                  oncePerMatch: true,
+                  metadata: {
+                    watchSubscriptionId: editItem.id,
+                    matchDisplay: `${editItem.home_team} vs ${editItem.away_team}`,
+                  },
+                }).catch(() => {
+                  conditionAlertSyncFailed = true;
+                  return null;
+                })),
+            );
+
+            const existingFreeTextRules = existingConditionRules.filter((rule) => rule.source === 'manual:free_text');
+            await Promise.all(
+              existingFreeTextRules.map((rule) => deleteMatchAlertRule(config, rule.id).catch(() => {
+                conditionAlertSyncFailed = true;
+                return null;
+              })),
+            );
+            const trimmedConditions = custom_conditions.trim();
+            if (notify_enabled !== false && trimmedConditions) {
+              await createMatchAlertRule(config, {
+                matchId: String(editItem.match_id),
+                alertKind: 'condition_signal',
+                source: 'manual:free_text',
+                conditionText: trimmedConditions,
+                cooldownMinutes: 10,
+                oncePerMatch: true,
+                metadata: {
+                  watchSubscriptionId: editItem.id,
+                  matchDisplay: `${editItem.home_team} vs ${editItem.away_team}`,
+                },
+              }).catch(() => {
+                conditionAlertSyncFailed = true;
+                return null;
+              });
+            }
+          }
           setEditItem(null);
-          if (ok) showToast('Watchlist item updated', 'success');
+          if (ok) showToast(
+            conditionAlertSyncFailed
+              ? 'Watchlist saved, but one condition alert could not be synced'
+              : 'Watchlist item updated',
+            conditionAlertSyncFailed ? 'error' : 'success',
+          );
           else showToast('Failed to update', 'error');
         }}
       />
@@ -1576,6 +1765,9 @@ interface MatchRowProps {
   isWatched: boolean;
   isPending: boolean;
   isPendingRemove: boolean;
+  hasMatchStartAlert: boolean;
+  isPendingMatchStartAlert: boolean;
+  canShowMatchStartAlert: boolean;
   isSelected: boolean;
   isAnalyzing: boolean;
   hasResult: boolean;
@@ -1583,6 +1775,7 @@ interface MatchRowProps {
   flashMap: Map<string, number>;
   onQuickAdd: () => void;
   onQuickRemove: () => void;
+  onToggleMatchStartAlert: () => void;
   onToggleSelect: () => void;
   onAskAiQuick: () => void;
   onAskAiOpenQuestion: () => void;
@@ -1590,7 +1783,7 @@ interface MatchRowProps {
   onOpenHub: () => void;
 }
 
-function MatchRow({ anchorId, match, isWatched, isPending, isPendingRemove, isSelected, isAnalyzing, hasResult, leagues, flashMap, onQuickAdd, onQuickRemove, onToggleSelect, onAskAiQuick, onAskAiOpenQuestion, onEdit, onOpenHub }: MatchRowProps) {
+function MatchRow({ anchorId, match, isWatched, isPending, isPendingRemove, hasMatchStartAlert, isPendingMatchStartAlert, canShowMatchStartAlert, isSelected, isAnalyzing, hasResult, leagues, flashMap, onQuickAdd, onQuickRemove, onToggleMatchStartAlert, onToggleSelect, onAskAiQuick, onAskAiOpenQuestion, onEdit, onOpenHub }: MatchRowProps) {
   const [watchHovered, setWatchHovered] = React.useState(false);
   const isPlaying = PLAYING_STATUSES.has(match.status);
   const isFinished = FINISHED_STATUSES.has(match.status);
@@ -1687,6 +1880,24 @@ function MatchRow({ anchorId, match, isWatched, isPending, isPendingRemove, isSe
       </td>
       <td data-label="Action" style={{ textAlign: 'center' }}>
         <div className="cell-value flex-row-gap-4 flex-center flex-wrap">
+          {canShowMatchStartAlert ? (
+            <button
+              className="btn btn-secondary btn-sm action-icon-btn"
+              onClick={onToggleMatchStartAlert}
+              disabled={isPendingMatchStartAlert}
+              aria-label={hasMatchStartAlert ? 'Disable kickoff alert' : 'Enable kickoff alert'}
+              title={hasMatchStartAlert ? 'Kickoff alert enabled' : 'Notify when match starts'}
+              style={{
+                color: hasMatchStartAlert ? '#047857' : undefined,
+                borderColor: hasMatchStartAlert ? 'rgba(4,120,87,0.35)' : undefined,
+                background: hasMatchStartAlert ? 'rgba(4,120,87,0.10)' : undefined,
+              }}
+            >
+              {isPendingMatchStartAlert
+                ? <span className="inline-spinner" style={{ width: '14px', height: '14px' }} />
+                : <BellIcon active={hasMatchStartAlert} />}
+            </button>
+          ) : null}
           {isWatched ? (
             <>
               <button
@@ -1709,7 +1920,7 @@ function MatchRow({ anchorId, match, isWatched, isPending, isPendingRemove, isSe
                   : watchHovered ? <EyeOffIcon /> : <EyeIcon checked />}
               </button>
               <button className="btn btn-secondary btn-sm action-icon-btn" onClick={onEdit} aria-label="Watch alerts and conditions" title="Watch alerts and conditions">
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/></svg>
+                <SlidersIcon />
               </button>
             </>
           ) : isPending ? (

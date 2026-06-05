@@ -42,9 +42,6 @@ const baseInput: LiveAnalysisPromptInput = {
   oddsSanityWarnings: [],
   oddsSuspicious: false,
   derivedInsights: null,
-  customConditions: '',
-  recommendedCondition: '',
-  recommendedConditionReason: '',
   strategicContext: null,
   analysisMode: 'auto',
   forceAnalyze: false,
@@ -86,7 +83,12 @@ describe('buildLiveAnalysisPrompt', () => {
     expect(prompt).toContain('OFFICIAL O/U AND MARKET TIMING');
     expect(prompt).toContain('BREAK-EVEN:');
     expect(prompt).toContain('RUNTIME POLICY PREFLIGHT');
-    expect(prompt).toContain('Normal automatic bets need break_even_rate < 0.50');
+    expect(prompt).toContain('Normal automatic bets usually need break_even_rate < 0.50');
+    expect(prompt).toContain('If runtime policy explicitly enables the narrow balanced live value pocket');
+    expect(prompt).toContain('When enabled, the balanced live value pocket is limited to');
+    expect(prompt).toContain('SHADOW CANDIDATE DIAGNOSTIC');
+    expect(prompt).toContain('"shadow_candidate"');
+    expect(prompt).toContain('shadow_candidate is diagnostic only and never triggers save/notify');
     expect(prompt).toContain('RED CARD PROTOCOL');
     expect(prompt).toContain('OUTPUT - STRICT JSON');
   });

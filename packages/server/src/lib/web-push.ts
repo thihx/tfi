@@ -40,6 +40,7 @@ export interface PushPayload {
   actions?: Array<{ action: string; title: string; icon?: string }>;
   /** Absolute or site-root path (e.g. /icons/....svg); shown as notification icon where supported */
   icon?: string;
+  data?: Record<string, unknown>;
 }
 
 export type SendResult =

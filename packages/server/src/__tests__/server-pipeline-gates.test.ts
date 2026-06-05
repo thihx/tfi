@@ -56,6 +56,24 @@ describe('checkShouldProceedServer', () => {
     expect(result.reason).toBe('FORCE_ANALYZE');
     expect(result.skippedFilters.length).toBeGreaterThan(0);
   });
+
+  test('uses configured live statuses instead of a hard-coded 1H/2H list', () => {
+    const result = checkShouldProceedServer(
+      'LIVE',
+      60,
+      {
+        possession: { home: '55', away: '45' },
+        shots: { home: '10', away: '6' },
+        shots_on_target: { home: '4', away: '2' },
+        corners: { home: '5', away: '2' },
+        fouls: { home: '8', away: '7' },
+      },
+      { ...proceedSettings, liveStatuses: ['1H', '2H', 'LIVE'] },
+    );
+
+    expect(result.shouldProceed).toBe(true);
+    expect(result.reason).toBe('LIVE_IN_WINDOW');
+  });
 });
 
 describe('checkStalenessServer', () => {

@@ -239,6 +239,38 @@ describe('POST /api/me/watch-subscriptions/evaluate-condition', () => {
     expect(body.context_summary.minute).toBe(65);
   });
 
+  test('evaluates natural-language free text through the match alert compiler', async () => {
+    const snaps = await import('../repos/match-snapshots.repo.js');
+    const matches = await import('../repos/matches.repo.js');
+    vi.mocked(snaps.getLatestSnapshot).mockResolvedValueOnce({
+      id: 2,
+      match_id: '100',
+      captured_at: '2026-05-01T12:10:00.000Z',
+      source: 'test',
+      minute: 72,
+      status: '2H',
+      home_score: 0,
+      away_score: 0,
+      stats: {},
+      events: [],
+      odds: {},
+    });
+    vi.mocked(matches.getMatchesByIds).mockResolvedValueOnce([]);
+
+    const res = await app.inject({
+      method: 'POST',
+      url: '/api/me/watch-subscriptions/evaluate-condition',
+      payload: { match_id: '100', condition_text: 'Neu 2 doi ko co ban thang sau phut 70' },
+    });
+
+    expect(res.statusCode).toBe(200);
+    expect(res.json()).toEqual(expect.objectContaining({
+      supported: true,
+      matched: true,
+      notify_enabled: true,
+    }));
+  });
+
   test('returns 404 when user does not watch the match', async () => {
     const res = await app.inject({
       method: 'POST',

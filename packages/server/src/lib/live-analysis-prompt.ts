@@ -163,9 +163,6 @@ export interface LiveAnalysisPromptInput {
   oddsSanityWarnings?: string[];
   oddsSuspicious?: boolean;
   derivedInsights: Record<string, unknown> | null;
-  customConditions: string;
-  recommendedCondition: string;
-  recommendedConditionReason: string;
   strategicContext: Record<string, unknown> | null;
   leagueProfile?: Record<string, unknown> | null;
   homeTeamProfile?: Record<string, unknown> | null;
@@ -299,107 +296,6 @@ ${JSON.stringify(statsCompact)}
 
 function hasNonEmptyObject(value: Record<string, unknown> | null | undefined): value is Record<string, unknown> {
   return !!value && Object.keys(value).length > 0;
-}
-
-function hasCustomConditionContext(data: LiveAnalysisPromptInput): boolean {
-  return !!(
-    data.customConditions.trim()
-    || data.recommendedCondition.trim()
-    || data.recommendedConditionReason.trim()
-  );
-}
-
-function buildAiRecommendedConditionSection(data: LiveAnalysisPromptInput): string {
-  if (!hasCustomConditionContext(data)) {
-    return `========================
-AI-RECOMMENDED CONDITION
-========================
-AI-RECOMMENDED CONDITION: none for this run.
-
-`;
-  }
-
-  return `========================
-AI-RECOMMENDED CONDITION
-========================
-RECOMMENDED_CONDITION: ${data.recommendedCondition || '(none)'}
-RECOMMENDED_CONDITION_REASON: ${data.recommendedConditionReason || '(none)'}
-
-`;
-}
-
-function buildCustomConditionsInstructionSection(compact: boolean, data: LiveAnalysisPromptInput): string {
-  if (!hasCustomConditionContext(data)) {
-    return compact
-      ? `CUSTOM CONDITIONS:
-- No custom condition is active for this run.
-- Set custom_condition_matched=false, custom_condition_status="none", keep condition text fields empty, confidence/stake=0.
-`
-      : `============================================================
-CUSTOM CONDITIONS (INDEPENDENT EVALUATION)
-============================================================
-No custom condition is active for this run.
-- Set custom_condition_matched = false
-- Set custom_condition_status = "none"
-- Keep custom condition summary/reason/suggestion/reasoning fields empty
-- Set condition_triggered_confidence = 0 and condition_triggered_stake = 0
-
-`;
-  }
-
-  return compact
-    ? `CUSTOM CONDITIONS:
-- should_push and custom_condition_matched are separate decisions
-- If custom_condition_matched=true, provide suggestion, reasoning, confidence, and stake for the triggered condition path
-- If the triggered suggestion repeats an existing same-thesis position, default to alert-only. Only set condition_triggered_special_override=true when the SAME canonical line now has materially better price and you can explain why.
-`
-    : `============================================================
-CUSTOM CONDITIONS (INDEPENDENT EVALUATION)
-============================================================
-should_push = your investment recommendation.
-custom_condition_matched = whether user's condition pattern is detected (factual check).
-These are TWO SEPARATE decisions.
-
-When custom_condition_matched = true, provide:
-- condition_triggered_suggestion (bet or "No bet - reason")
-- condition_triggered_reasoning_en/vi
-- condition_triggered_confidence, condition_triggered_stake
-- condition_triggered_special_override = true ONLY when a repeated same-thesis condition alert deserves a saved update on the SAME canonical line with materially better price/risk
-- condition_triggered_special_override_reason_en/vi explaining that exceptional override
-
-Default behavior when same-thesis exposure already exists:
-- keep alerting if the watched condition is still true
-- do NOT create another saved bet just because the line is later or looks safer now
-- if you cannot justify a true exceptional override, set condition_triggered_special_override = false
-
-`;
-}
-
-function buildLowEvidenceConditionGuardSection(compact: boolean, data: LiveAnalysisPromptInput): string {
-  const hasCustomCondition = !!data.customConditions.trim();
-  if (data.evidenceMode !== 'low_evidence' || !hasCustomCondition) return '';
-
-  return compact
-    ? `LOW EVIDENCE CONDITION GUARD:
-- This match is in EVIDENCE_MODE=low_evidence.
-- Do NOT produce an actionable AI bet for this run.
-- Keep should_push=false, selection="", bet_market="", confidence=0, stake_percent=0 for the AI recommendation path.
-- Use the available scoreboard/event facts only to evaluate CUSTOM_CONDITIONS.
-- If a watch condition is satisfied, fill the custom_condition_* and condition_triggered_* fields naturally for alerting.
-`
-    : `============================================================
-LOW EVIDENCE CONDITION GUARD
-============================================================
-This match is in EVIDENCE_MODE = low_evidence.
-- Do NOT produce an actionable AI recommendation for this run.
-- Set should_push = false for the AI recommendation path.
-- Keep selection = "" and bet_market = "" for the AI recommendation path.
-- Use only the available scoreboard/event facts in this prompt to evaluate:
-  - CUSTOM_CONDITIONS
-- If a watch condition is satisfied, populate the custom_condition_* and condition_triggered_* fields naturally for alerting.
-- If the available facts are not enough to evaluate the watch condition, set custom_condition_status = "parse_error" and explain what is missing.
-
-`;
 }
 
 function isStructuredPrematchAskAi(data: LiveAnalysisPromptInput): boolean {
@@ -1726,7 +1622,8 @@ function buildRuntimePolicyPreflightSection(
 
   restrictions.push(`- Minimum output gate: confidence must be >= ${settings.minConfidence}, value_percent must be >= 3, risk_level must not be HIGH, and odds must be >= ${settings.minOdds}.`);
   restrictions.push('- Runtime policy requires full_live_data plus a clear directional thesis for normal automatic bets. If evidence_mode is not full_live_data, return should_push=false for the AI recommendation path.');
-  restrictions.push('- Normal automatic bets need break_even_rate < 0.50 (roughly odds > 2.00). Lower-priced bets should be no_bet unless they are the explicit high-confidence AH protection pocket below.');
+  restrictions.push('- Normal automatic bets usually need break_even_rate < 0.50 (roughly odds > 2.00). If runtime policy explicitly enables the narrow balanced live value pocket, odds 1.65-2.00 may be considered only with full_live_data, confidence >= 7, value_percent >= 7, risk is not HIGH, and a clear directional thesis.');
+  restrictions.push('- When enabled, the balanced live value pocket is limited to: Over 1.5 in minutes 60-84 with a one-goal margin, or Asian Handicap lines of +/-0.25 to +/-0.75 from minute 45-84 when the score is level or one-goal margin. Do not use it for BTTS, corners, 1X2, broad goals Under, or weak/degraded evidence.');
   restrictions.push('- High-risk markets (BTTS No, corners under 7.5/8.5/9.5, under 2.25, over 2.5) need break_even_rate < 0.48 and exceptional evidence; otherwise return should_push=false.');
   restrictions.push('- High-confidence AH protection pocket: only asian_handicap_home_+0.25/+0.5 or asian_handicap_away_+0.25/+0.5 may use odds around 1.82-2.00, and only with full_live_data, confidence >= 8, value_percent >= 8, and a clear directional thesis.');
 
@@ -1781,7 +1678,6 @@ export function buildLiveAnalysisPrompt(
 ): string {
   promptVersion = LIVE_ANALYSIS_PROMPT_VERSION;
   const analysisMode = resolveAnalysisMode(data);
-  const lowEvidenceConditionGuard = buildLowEvidenceConditionGuardSection(isCompactPromptVersion(promptVersion), data);
   const structuredPrematchAskAiSection = buildStructuredPrematchAskAiSection(isCompactPromptVersion(promptVersion), data);
   const prunedBasicStatsCompact = pruneEmptyStatsCompact(pickStatsSubset(data.statsCompact, BASIC_STATS_KEYS));
   const prunedAdvancedStatsCompact = pruneEmptyStatsCompact(pickStatsSubset(data.statsCompact, ADVANCED_STATS_KEYS));
@@ -2024,7 +1920,7 @@ ${advancedLineSpecificRule}- Late 0-0 (e.g. after min 55): compare goals_over vs
 - risk_level HIGH => should_push false
 `;
     return `
-You are a disciplined live football investment analyst. Analyze one live match and return either one realistic investment idea or no bet. Evaluate custom conditions separately.
+You are a disciplined live football investment analyst. Analyze one live match and return either one realistic investment idea or no bet.
 ${buildForceAnalyzeContextCompact(data, analysisMode)}========================
 CORE SETTINGS
 ========================
@@ -2038,7 +1934,7 @@ ${settledReplayTraceBlock ? `${settledReplayTraceBlock}\n` : ''}- Late phase >= 
 - Odds warning: ${oddsWarnings || 'none'}
 ${buildExactMarketContractSectionCompact(data)}
 
-${lowEvidenceConditionGuard}${structuredPrematchAskAiSection}${buildPrematchExpertFeaturesSection(data, true)}${buildProfileMetricSemanticsSection(data.leagueProfile ?? null, data.homeTeamProfile ?? null, data.awayTeamProfile ?? null, true)}========================
+${structuredPrematchAskAiSection}${buildPrematchExpertFeaturesSection(data, true)}${buildProfileMetricSemanticsSection(data.leagueProfile ?? null, data.homeTeamProfile ?? null, data.awayTeamProfile ?? null, true)}========================
 MATCH SNAPSHOT
 ========================
 - Match: ${data.homeName} vs ${data.awayName}
@@ -2100,14 +1996,12 @@ CONFIG / EVIDENCE
 ========================
 - MIN_CONFIDENCE: ${MIN_CONFIDENCE}
 - MIN_ODDS: ${MIN_ODDS}
-- CUSTOM_CONDITIONS: ${data.customConditions || '(none)'}
 - EVIDENCE_MODE: ${data.evidenceMode}
 - EVIDENCE_TIER: ${evidenceTierRule.tier} (${evidenceTierRule.label})
 - Allowed markets: ${evidenceTierRule.allowedMarkets}
 - Forbidden markets: ${evidenceTierRule.forbiddenMarkets}
 - Tier rule: ${evidenceTierRule.operationalRule}
 
-${buildAiRecommendedConditionSection(data)}
 ${followUpContextSection}
 ${lineupsSnapshotSection}
 ${runtimePolicyPreflightSection}
@@ -2166,7 +2060,11 @@ STAKE:
 - confidence 5 => 2-3%
 - confidence < 5 => should_push false, stake 0
 
-${buildCustomConditionsInstructionSection(true, data)}
+SHADOW CANDIDATE DIAGNOSTIC:
+- Always fill shadow_candidate in the JSON.
+- If should_push=false, shadow_candidate should describe the best market you seriously considered and rejected, using canonical bet_market and real canonical odds only.
+- If there is no viable candidate at all, leave selection/bet_market empty and set reason_code="no_viable_candidate".
+- This diagnostic is telemetry only. Do not set should_push=true just to surface a candidate.
 
 ============================================================
 OUTPUT - STRICT JSON
@@ -2183,24 +2081,21 @@ OUTPUT - STRICT JSON
   "value_percent": number,
   "risk_level": "LOW" | "MEDIUM" | "HIGH",
   "stake_percent": number,
-  "custom_condition_matched": boolean,
-  "custom_condition_status": "none" | "evaluated" | "parse_error",
-  "custom_condition_summary_en": string,
-  "custom_condition_summary_vi": string,
-  "custom_condition_reason_en": string,
-  "custom_condition_reason_vi": string,
-  "condition_triggered_suggestion": string,
-  "condition_triggered_reasoning_en": string,
-  "condition_triggered_reasoning_vi": string,
-  "condition_triggered_confidence": number,
-  "condition_triggered_stake": number,
-  "condition_triggered_special_override": boolean,
-  "condition_triggered_special_override_reason_en": string,
-  "condition_triggered_special_override_reason_vi": string,
+  "shadow_candidate": {
+    "selection": string,
+    "bet_market": string,
+    "confidence": number,
+    "value_percent": number,
+    "risk_level": "LOW" | "MEDIUM" | "HIGH",
+    "stake_percent": number,
+    "reason_code": string,
+    "reason_en": string,
+    "reason_vi": string
+  },
   "follow_up_answer_en": string,
   "follow_up_answer_vi": string
 }
-All fields must exist. selection="" and bet_market="" when should_push=false.
+All fields must exist. selection="" and bet_market="" when should_push=false. shadow_candidate is diagnostic only and never triggers save/notify.
 Return raw JSON only: first char "{" and last char "}".
 NEVER wrap the JSON in markdown fences like \`\`\`json.
 `;
@@ -2208,9 +2103,9 @@ NEVER wrap the JSON in markdown fences like \`\`\`json.
 
   return `
 You are a professional live football investment insight analyst (not a gambler).
-Your task is to analyze ONE live match and determine whether there is exactly ONE realistic, high-quality investment idea, or no idea at all. You must also evaluate a user-defined custom condition objectively.
+Your task is to analyze ONE live match and determine whether there is exactly ONE realistic, high-quality investment idea, or no idea at all.
 ${buildForceAnalyzeContext(data, analysisMode)}
-${lowEvidenceConditionGuard}${structuredPrematchAskAiSection}
+${structuredPrematchAskAiSection}
 ============================================================
 DEFINITIONS & THRESHOLDS (READ FIRST)
 ============================================================
@@ -2316,11 +2211,8 @@ CONFIG / MODE
 ========================
 - MIN_CONFIDENCE: ${MIN_CONFIDENCE}
 - MIN_ODDS: ${MIN_ODDS}
-- CUSTOM_CONDITIONS: ${data.customConditions || '(none)'}
 - EVIDENCE_MODE: ${data.evidenceMode}
 - EVIDENCE_TIER: ${evidenceTierRule.tier} (${evidenceTierRule.label})
-
-${buildAiRecommendedConditionSection(data)}
 
 ============================================================
 PRE-MATCH CONTEXT RULES
@@ -2399,7 +2291,11 @@ STAKE GUIDELINES:
 - confidence 5: stake 2-3%
 - confidence < 5: should_push = false, stake = 0
 
-${buildCustomConditionsInstructionSection(false, data)}
+SHADOW CANDIDATE DIAGNOSTIC:
+- Always fill shadow_candidate in the JSON.
+- If should_push=false, shadow_candidate should describe the best market you seriously considered and rejected, using canonical bet_market and real canonical odds only.
+- If there is no viable candidate at all, leave selection/bet_market empty and set reason_code="no_viable_candidate".
+- This diagnostic is telemetry only. Do not set should_push=true just to surface a candidate.
 
 ============================================================
 OUTPUT FORMAT - STRICT JSON
@@ -2416,25 +2312,22 @@ OUTPUT FORMAT - STRICT JSON
   "value_percent": number,
   "risk_level": "LOW" | "MEDIUM" | "HIGH",
   "stake_percent": number,
-  "custom_condition_matched": boolean,
-  "custom_condition_status": "none" | "evaluated" | "parse_error",
-  "custom_condition_summary_en": string,
-  "custom_condition_summary_vi": string,
-  "custom_condition_reason_en": string,
-  "custom_condition_reason_vi": string,
-  "condition_triggered_suggestion": string,
-  "condition_triggered_reasoning_en": string,
-  "condition_triggered_reasoning_vi": string,
-  "condition_triggered_confidence": number,
-  "condition_triggered_stake": number,
-  "condition_triggered_special_override": boolean,
-  "condition_triggered_special_override_reason_en": string,
-  "condition_triggered_special_override_reason_vi": string,
+  "shadow_candidate": {
+    "selection": string,
+    "bet_market": string,
+    "confidence": number,
+    "value_percent": number,
+    "risk_level": "LOW" | "MEDIUM" | "HIGH",
+    "stake_percent": number,
+    "reason_code": string,
+    "reason_en": string,
+    "reason_vi": string
+  },
   "follow_up_answer_en": string,
   "follow_up_answer_vi": string
 }
 
-ALL fields must exist. selection="" when should_push=false. bet_market="" when should_push=false.
+ALL fields must exist. selection="" when should_push=false. bet_market="" when should_push=false. shadow_candidate is diagnostic only and never triggers save/notify.
 The FIRST character MUST be "{" and the LAST must be "}".
 NO markdown, NO code fences, NO commentary outside JSON.
 `;

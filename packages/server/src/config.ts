@@ -53,6 +53,11 @@ export const config = {
   allowExpensiveGeminiModels: process.env['ALLOW_EXPENSIVE_GEMINI_MODELS'] === 'true',
   /** Model for auto-settle AI fallback (rule-based settle unchanged). Default Flash to reduce cost vs live pipeline Pro. */
   geminiSettleModel: process.env['GEMINI_SETTLE_MODEL'] || 'gemini-3.5-flash',
+  /** Fast, cheap model used only for User Match Alert condition adjudication. */
+  geminiMatchAlertModel: process.env['GEMINI_MATCH_ALERT_MODEL'] || 'gemini-2.5-flash-lite',
+  matchAlertLlmEnabled: process.env['MATCH_ALERT_LLM_ENABLED'] !== 'false',
+  matchAlertLlmTimeoutMs: Number(process.env['MATCH_ALERT_LLM_TIMEOUT_MS'] || 15_000),
+  matchAlertLlmMaxOutputTokens: Number(process.env['MATCH_ALERT_LLM_MAX_OUTPUT_TOKENS'] || 512),
   geminiTimeoutMs: Number(process.env['GEMINI_TIMEOUT_MS'] || 90000),
   geminiStrategicGroundedModel: process.env['GEMINI_STRATEGIC_GROUNDED_MODEL'] || 'gemini-3.5-flash',
   geminiStrategicStructuredModel: process.env['GEMINI_STRATEGIC_STRUCTURED_MODEL'] || 'gemini-3.5-flash',
@@ -95,6 +100,8 @@ export const config = {
   jobAutoAddTopLeagueWatchlistMs: Number(process.env['JOB_AUTO_ADD_TOP_LEAGUE_WATCHLIST_MS'] || 0),
   jobAutoAddFavoriteTeamWatchlistMs: Number(process.env['JOB_AUTO_ADD_FAVORITE_TEAM_WATCHLIST_MS'] || process.env['JOB_FETCH_MATCHES_MS'] || 1 * 60_000),
   jobRefreshLiveMatchesMs: Number(process.env['JOB_REFRESH_LIVE_MATCHES_MS'] || 15_000), // 15 sec
+  jobMaterializeMatchAlertsMs: Number(process.env['JOB_MATERIALIZE_MATCH_ALERTS_MS'] || process.env['JOB_FETCH_MATCHES_MS'] || 60_000),
+  jobCheckMatchAlertsMs: Number(process.env['JOB_CHECK_MATCH_ALERTS_MS'] || 15_000),
   /** Max public live/near-live matches to score-refresh per refresh-live-matches tick. */
   jobRefreshLiveMatchesMaxPublicMatches: Number(process.env['JOB_REFRESH_LIVE_MATCHES_MAX_PUBLIC_MATCHES'] || 0),
   jobDeliverTelegramNotificationsMs: Number(process.env['JOB_DELIVER_TELEGRAM_NOTIFICATIONS_MS'] || 5_000), // 5 sec
@@ -113,6 +120,7 @@ export const config = {
   jobIntegrationHealthMs: Number(process.env['JOB_INTEGRATION_HEALTH_MS'] || 30 * 60_000), // 30 min
   jobHealthWatchdogMs: Number(process.env['JOB_HEALTH_WATCHDOG_MS'] || 2 * 60_000),      // 2 min — health watchdog
   jobRefreshLiveMatchesMaxRunMs: Number(process.env['JOB_REFRESH_LIVE_MATCHES_MAX_RUN_MS'] || 90_000), // 90 sec
+  jobCheckMatchAlertsMaxRunMs: Number(process.env['JOB_CHECK_MATCH_ALERTS_MAX_RUN_MS'] || 60_000),
   jobCheckLiveMaxRunMs: Number(process.env['JOB_CHECK_LIVE_MAX_RUN_MS'] || 120_000), // 120 sec
   jobDeliverTelegramNotificationsMaxRunMs: Number(process.env['JOB_DELIVER_TELEGRAM_NOTIFICATIONS_MAX_RUN_MS'] || 60_000), // 60 sec
   auditKeepDays: Number(process.env['AUDIT_KEEP_DAYS'] || 30),                                      // 30 days
@@ -182,6 +190,12 @@ export const config = {
   policyRequiredBreakEvenMax: Number(process.env['POLICY_REQUIRED_BREAKEVEN_MAX'] || 0.5),
   policyHighRiskBreakEvenMax: Number(process.env['POLICY_HIGH_RISK_BREAKEVEN_MAX'] || 0.48),
   policyLateGameBreakEvenRelaxation: Number(process.env['POLICY_LATE_GAME_BREAKEVEN_RELAXATION'] || 0.05),
+  policyBalancedLiveEnabled: process.env['POLICY_BALANCED_LIVE_ENABLED'] === 'true',
+  policyBalancedLiveMinOdds: Number(process.env['POLICY_BALANCED_LIVE_MIN_ODDS'] || 1.65),
+  policyBalancedLiveMaxOdds: Number(process.env['POLICY_BALANCED_LIVE_MAX_ODDS'] || 2.0),
+  policyBalancedLiveMinConfidence: Number(process.env['POLICY_BALANCED_LIVE_MIN_CONFIDENCE'] || 7),
+  policyBalancedLiveMinEdge: Number(process.env['POLICY_BALANCED_LIVE_MIN_EDGE'] || 7),
+  policyBalancedLiveMaxStakePercent: Number(process.env['POLICY_BALANCED_LIVE_MAX_STAKE_PERCENT'] || 2),
   performanceMemoryPromptLimit: Number(process.env['PERFORMANCE_MEMORY_PROMPT_LIMIT'] || 5),
   performanceMemoryAutoRuleMinSamples: Number(process.env['PERFORMANCE_MEMORY_AUTO_RULE_MIN_SAMPLES'] || 15),
   performanceMemoryAutoRuleMaxWinRate: Number(process.env['PERFORMANCE_MEMORY_AUTO_RULE_MAX_WIN_RATE'] || 0.4),

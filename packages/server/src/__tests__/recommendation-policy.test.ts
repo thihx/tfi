@@ -1,5 +1,17 @@
 import { describe, expect, test } from 'vitest';
+import { config } from '../config.js';
 import { applyRecommendationPolicy } from '../lib/recommendation-policy.js';
+
+function withBalancedLivePolicy<T>(enabled: boolean, run: () => T): T {
+  const mutableConfig = config as unknown as { policyBalancedLiveEnabled: boolean };
+  const previous = mutableConfig.policyBalancedLiveEnabled;
+  mutableConfig.policyBalancedLiveEnabled = enabled;
+  try {
+    return run();
+  } finally {
+    mutableConfig.policyBalancedLiveEnabled = previous;
+  }
+}
 
 describe('applyRecommendationPolicy', () => {
   test('blocks 1x2_home before minute 75', () => {
@@ -1193,5 +1205,152 @@ describe('applyRecommendationPolicy', () => {
     });
     expect(result.blocked).toBe(true);
     expect(result.warnings).toContain('REQUIRED_CONDITIONS_NOT_MET');
+  });
+
+  test('blocks balanced live pocket while kill switch is disabled', () => {
+    withBalancedLivePolicy(false, () => {
+      const result = applyRecommendationPolicy({
+        selection: 'Over 1.5 Goals @1.80',
+        betMarket: 'over_1.5',
+        minute: 66,
+        score: '1-0',
+        odds: 1.8,
+        confidence: 7,
+        valuePercent: 7,
+        stakePercent: 2,
+        riskLevel: 'MEDIUM',
+        evidenceMode: 'full_live_data',
+        breakEvenRate: 1 / 1.8,
+        directionalWin: true,
+        promptVersion: 'v10-hybrid-legacy-g',
+      });
+
+      expect(result.blocked).toBe(true);
+      expect(result.warnings).toContain('REQUIRED_CONDITIONS_NOT_MET');
+      expect(result.warnings).not.toContain('POLICY_MATCH_BALANCED_LIVE_VALUE_POCKET');
+    });
+  });
+
+  test('allows balanced live Over 1.5 pocket below odds 2.00 and caps stake when enabled', () => {
+    withBalancedLivePolicy(true, () => {
+      const result = applyRecommendationPolicy({
+        selection: 'Over 1.5 Goals @1.80',
+        betMarket: 'over_1.5',
+        minute: 66,
+        score: '1-0',
+        odds: 1.8,
+        confidence: 7,
+        valuePercent: 7,
+        stakePercent: 4,
+        riskLevel: 'MEDIUM',
+        evidenceMode: 'full_live_data',
+        breakEvenRate: 1 / 1.8,
+        directionalWin: true,
+        promptVersion: 'v10-hybrid-legacy-g',
+      });
+
+      expect(result.blocked).toBe(false);
+      expect(result.warnings).toContain('POLICY_MATCH_BALANCED_LIVE_VALUE_POCKET');
+      expect(result.warnings).not.toContain('REQUIRED_CONDITIONS_NOT_MET');
+      expect(result.warnings).toContain('POLICY_CAP_BALANCED_LIVE_VALUE_STAKE');
+      expect(result.stakePercent).toBe(2);
+    });
+  });
+
+  test('allows balanced live Asian handicap pocket below odds 2.00 when enabled and signal is strong', () => {
+    withBalancedLivePolicy(true, () => {
+      const result = applyRecommendationPolicy({
+        selection: 'Home -0.5 @1.82',
+        betMarket: 'asian_handicap_home_-0.5',
+        minute: 63,
+        score: '1-1',
+        odds: 1.82,
+        confidence: 8,
+        valuePercent: 8,
+        stakePercent: 3,
+        riskLevel: 'LOW',
+        evidenceMode: 'full_live_data',
+        breakEvenRate: 1 / 1.82,
+        directionalWin: true,
+        promptVersion: 'v10-hybrid-legacy-g',
+      });
+
+      expect(result.blocked).toBe(false);
+      expect(result.warnings).toContain('POLICY_MATCH_BALANCED_LIVE_VALUE_POCKET');
+      expect(result.warnings).not.toContain('REQUIRED_CONDITIONS_NOT_MET');
+      expect(result.stakePercent).toBe(2);
+    });
+  });
+
+  test('does not apply balanced live Asian handicap pocket to two-plus margin score state', () => {
+    withBalancedLivePolicy(true, () => {
+      const result = applyRecommendationPolicy({
+        selection: 'Home -0.5 @1.82',
+        betMarket: 'asian_handicap_home_-0.5',
+        minute: 63,
+        score: '3-1',
+        odds: 1.82,
+        confidence: 8,
+        valuePercent: 8,
+        stakePercent: 2,
+        riskLevel: 'LOW',
+        evidenceMode: 'full_live_data',
+        breakEvenRate: 1 / 1.82,
+        directionalWin: true,
+        promptVersion: 'v10-hybrid-legacy-g',
+      });
+
+      expect(result.blocked).toBe(true);
+      expect(result.warnings).toContain('REQUIRED_CONDITIONS_NOT_MET');
+      expect(result.warnings).not.toContain('POLICY_MATCH_BALANCED_LIVE_VALUE_POCKET');
+    });
+  });
+
+  test('keeps lower-priced goals Under outside the balanced live pocket', () => {
+    withBalancedLivePolicy(true, () => {
+      const result = applyRecommendationPolicy({
+        selection: 'Under 1.5 Goals @1.80',
+        betMarket: 'under_1.5',
+        minute: 66,
+        score: '1-0',
+        odds: 1.8,
+        confidence: 8,
+        valuePercent: 8,
+        stakePercent: 2,
+        riskLevel: 'LOW',
+        evidenceMode: 'full_live_data',
+        breakEvenRate: 1 / 1.8,
+        directionalWin: true,
+        promptVersion: 'v10-hybrid-legacy-g',
+      });
+
+      expect(result.blocked).toBe(true);
+      expect(result.warnings).toContain('REQUIRED_CONDITIONS_NOT_MET');
+      expect(result.warnings).not.toContain('POLICY_MATCH_BALANCED_LIVE_VALUE_POCKET');
+    });
+  });
+
+  test('does not apply balanced live pocket to degraded evidence', () => {
+    withBalancedLivePolicy(true, () => {
+      const result = applyRecommendationPolicy({
+        selection: 'Over 1.5 Goals @1.80',
+        betMarket: 'over_1.5',
+        minute: 66,
+        score: '1-0',
+        odds: 1.8,
+        confidence: 8,
+        valuePercent: 8,
+        stakePercent: 2,
+        riskLevel: 'LOW',
+        evidenceMode: 'odds_events_only_degraded',
+        breakEvenRate: 1 / 1.8,
+        directionalWin: true,
+        promptVersion: 'v10-hybrid-legacy-g',
+      });
+
+      expect(result.blocked).toBe(true);
+      expect(result.warnings).toContain('REQUIRED_CONDITIONS_NOT_MET');
+      expect(result.warnings).not.toContain('POLICY_MATCH_BALANCED_LIVE_VALUE_POCKET');
+    });
   });
 });

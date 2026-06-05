@@ -15,6 +15,7 @@ import { config } from '../config.js';
 import { isValidTimeZone } from '../lib/user-personalization-settings.js';
 import * as leaguesRepo from '../repos/leagues.repo.js';
 import * as matchesRepo from '../repos/matches.repo.js';
+import type { MatchRow } from '../repos/matches.repo.js';
 import * as repo from '../repos/watchlist.repo.js';
 import * as snapshotsRepo from '../repos/match-snapshots.repo.js';
 import { getSettings, saveSettings } from '../repos/settings.repo.js';
@@ -23,6 +24,9 @@ import {
   conditionPreviewDataSource,
   evaluateCustomConditionText,
 } from '../lib/condition-evaluator.js';
+import { buildMatchAlertContext } from '../lib/match-alert-context.js';
+import { compileMatchAlertFreeTextRule } from '../lib/match-alert-free-text-compiler.js';
+import { evaluateMatchAlertRule } from '../lib/match-alert-rule-engine.js';
 import { buildAutoWatchlistEntry } from '../jobs/watchlist-side-effects.shared.js';
 
 const FAVORITE_LEAGUE_IDS_KEY = 'FAVORITE_LEAGUE_IDS';
@@ -66,6 +70,34 @@ function toLocalDateString(date: Date, timeZone: string): string {
   return `${part('year')}-${part('month')}-${part('day')}`;
 }
 
+function matchFromWatchlistEntry(
+  entry: repo.WatchlistRow,
+  snapshot: Awaited<ReturnType<typeof snapshotsRepo.getLatestSnapshot>>,
+): MatchRow {
+  return {
+    match_id: entry.match_id,
+    date: entry.date ?? '',
+    kickoff: entry.kickoff ?? '',
+    kickoff_at_utc: entry.kickoff_at_utc ?? null,
+    league_id: 0,
+    league_name: entry.league,
+    home_team: entry.home_team,
+    away_team: entry.away_team,
+    home_logo: entry.home_logo,
+    away_logo: entry.away_logo,
+    venue: '',
+    status: snapshot?.status ?? '',
+    home_score: snapshot?.home_score ?? 0,
+    away_score: snapshot?.away_score ?? 0,
+    current_minute: snapshot?.minute ?? null,
+    last_updated: snapshot?.captured_at ?? new Date(0).toISOString(),
+    home_reds: 0,
+    away_reds: 0,
+    home_yellows: 0,
+    away_yellows: 0,
+  };
+}
+
 export async function watchlistRoutes(app: FastifyInstance) {
   app.get('/api/me/watch-subscriptions', async (req, reply) => {
     const user = requireCurrentUser(req, reply);
@@ -98,6 +130,24 @@ export async function watchlistRoutes(app: FastifyInstance) {
       snapshotsRepo.getLatestSnapshot(matchId),
     ]);
     const match = matchRows[0] ?? null;
+    const compiled = await compileMatchAlertFreeTextRule(conditionText);
+    if (compiled.status === 'compiled' && compiled.ruleJson) {
+      const alertContext = buildMatchAlertContext(match ?? matchFromWatchlistEntry(entry, snapshot), snapshot);
+      const alertEvaluation = evaluateMatchAlertRule('condition_signal', compiled.ruleJson, alertContext);
+      return {
+        supported: alertEvaluation.supported,
+        matched: alertEvaluation.matched,
+        summary: alertEvaluation.unsupportedReason ?? alertEvaluation.summaryVi ?? alertEvaluation.summaryEn,
+        notify_enabled: entry.notify_enabled !== false,
+        context_summary: {
+          minute: alertContext.minute,
+          home_goals: alertContext.score.home,
+          away_goals: alertContext.score.away,
+          data_source: conditionPreviewDataSource(snapshot, match),
+        },
+      };
+    }
+
     const context = buildConditionPreviewContext(match, snapshot);
     const evaluation = evaluateCustomConditionText(conditionText, context);
 

@@ -59,6 +59,8 @@ vi.mock('@/lib/services/notification-channels', () => ({
 vi.mock('@/lib/services/api', () => ({
   fetchLeagueProfile: vi.fn().mockResolvedValue(null),
   fetchTeamProfile: vi.fn().mockResolvedValue(null),
+  fetchConditionAlertPresets: vi.fn().mockResolvedValue([]),
+  fetchMatchAlertRules: vi.fn().mockResolvedValue([]),
   evaluateWatchConditionPreview: vi.fn().mockResolvedValue({
     supported: true,
     matched: true,

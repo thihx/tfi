@@ -134,6 +134,69 @@ function getAsianHandicapSelectedLine(canonicalMarket: string): number | null {
   return Number.isFinite(n) ? n : null;
 }
 
+function finitePolicyNumber(value: number, fallback: number): number {
+  return Number.isFinite(value) ? value : fallback;
+}
+
+function isBalancedLiveValueMarket(args: {
+  canonicalMarket: string;
+  minute: number;
+  scoreState: ReturnType<typeof getScoreState>;
+}): boolean {
+  const { canonicalMarket, minute, scoreState } = args;
+
+  if (canonicalMarket === 'over_1.5') {
+    return minute >= 60 && minute < 85 && scoreState === 'one-goal-margin';
+  }
+
+  if (canonicalMarket.startsWith('asian_handicap_')) {
+    const line = getAsianHandicapSelectedLine(canonicalMarket);
+    if (line == null) return false;
+    const absLine = Math.abs(line);
+    return minute >= 45
+      && minute < 85
+      && absLine >= 0.25
+      && absLine <= 0.75
+      && (scoreState === 'level' || scoreState === 'one-goal-margin');
+  }
+
+  return false;
+}
+
+function isBalancedLiveValuePocket(args: {
+  input: RecommendationPolicyInput;
+  canonicalMarket: string;
+  evidenceMode: string;
+  breakEvenRate: number | null;
+  directionalSatisfied: boolean;
+  scoreState: ReturnType<typeof getScoreState>;
+  risk: string;
+}): boolean {
+  if (!config.policyBalancedLiveEnabled) return false;
+  if (args.evidenceMode !== 'full_live_data') return false;
+  if (!args.directionalSatisfied) return false;
+  if (args.risk === 'HIGH') return false;
+  if (args.breakEvenRate == null || args.breakEvenRate <= 0) return false;
+  if (HIGH_RISK_MARKETS.has(args.canonicalMarket)) return false;
+
+  const odds = args.input.odds;
+  const minOdds = finitePolicyNumber(config.policyBalancedLiveMinOdds, 1.65);
+  const maxOdds = finitePolicyNumber(config.policyBalancedLiveMaxOdds, 2.0);
+  const minConfidence = finitePolicyNumber(config.policyBalancedLiveMinConfidence, 7);
+  const minEdge = finitePolicyNumber(config.policyBalancedLiveMinEdge, 7);
+
+  if (odds == null || !Number.isFinite(odds)) return false;
+  if (odds < minOdds || odds > maxOdds) return false;
+  if (args.input.confidence < minConfidence) return false;
+  if (args.input.valuePercent < minEdge) return false;
+
+  return isBalancedLiveValueMarket({
+    canonicalMarket: args.canonicalMarket,
+    minute: args.input.minute,
+    scoreState: args.scoreState,
+  });
+}
+
 export function getCorrelatedThesis(canonicalMarket: string): string | null {
   if (!canonicalMarket || canonicalMarket === 'unknown') return null;
   if (canonicalMarket.startsWith('ht_over_')) return 'ht_goals_over';
@@ -186,6 +249,7 @@ export function applyRecommendationPolicy(input: RecommendationPolicyInput): Rec
   const marketLine = getMarketLine(canonicalMarket);
   const minuteBand = getMinuteBand(input.minute);
   const evidenceMode = String(input.evidenceMode ?? '').trim() || 'unknown';
+  const risk = String(input.riskLevel ?? '').trim().toUpperCase();
   const breakEvenRate = Number.isFinite(input.breakEvenRate)
     ? Number(input.breakEvenRate)
     : (input.odds != null && input.odds > 0 ? 1 / input.odds : null);
@@ -228,6 +292,15 @@ export function applyRecommendationPolicy(input: RecommendationPolicyInput): Rec
       && breakEvenRate != null
       && breakEvenRate < 0.55
     );
+    const balancedLiveValuePocket = isBalancedLiveValuePocket({
+      input,
+      canonicalMarket,
+      evidenceMode,
+      breakEvenRate,
+      directionalSatisfied,
+      scoreState,
+      risk,
+    });
     const shouldEnforcePushRequirements =
       input.evidenceMode != null
       || input.breakEvenRate != null
@@ -237,7 +310,10 @@ export function applyRecommendationPolicy(input: RecommendationPolicyInput): Rec
       && directionalSatisfied
       && breakEvenRate != null
       && breakEvenRate < effectiveRequiredBreakEven
-    ) || highConfidenceAhProtection;
+    ) || highConfidenceAhProtection || balancedLiveValuePocket;
+    if (balancedLiveValuePocket) {
+      warnings.push('POLICY_MATCH_BALANCED_LIVE_VALUE_POCKET');
+    }
     if (shouldEnforcePushRequirements && !requiredConditionsMet) {
       block('REQUIRED_CONDITIONS_NOT_MET');
     }
@@ -775,7 +851,6 @@ export function applyRecommendationPolicy(input: RecommendationPolicyInput): Rec
     }
   }
 
-  const risk = String(input.riskLevel ?? '').trim().toUpperCase();
   if (risk === 'MEDIUM') {
     const thinEdge =
       input.valuePercent > 0
@@ -788,6 +863,17 @@ export function applyRecommendationPolicy(input: RecommendationPolicyInput): Rec
       stakePercent = Math.min(Number(stakePercent) || 0, 2.5);
       if (stakePercent < prev) {
         warnings.push('POLICY_CAP_MEDIUM_RISK_STAKE_GLOBAL');
+      }
+    }
+  }
+
+  if (!blocked && warnings.includes('POLICY_MATCH_BALANCED_LIVE_VALUE_POCKET')) {
+    const cap = finitePolicyNumber(config.policyBalancedLiveMaxStakePercent, 2);
+    if (cap >= 0 && stakePercent > cap) {
+      const prev = stakePercent;
+      stakePercent = Math.min(Number(stakePercent) || 0, cap);
+      if (stakePercent < prev) {
+        warnings.push('POLICY_CAP_BALANCED_LIVE_VALUE_STAKE');
       }
     }
   }

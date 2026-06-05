@@ -81,10 +81,8 @@ import { getAllSubscriptions, deleteSubscription, updateLastUsed } from '../repo
 import {
   getEligibleTelegramDeliveryTargets,
   getEligibleDeliveryUserIds,
-  markDeliveryRowsDelivered,
   markRecommendationDeliveriesDelivered,
   stageAnalysisSignalDeliveries,
-  stageConditionOnlyDeliveries,
 } from '../repos/recommendation-deliveries.repo.js';
 import { recordOddsMovementsBulk, type OddsMovementInput } from '../repos/odds-movements.repo.js';
 import {
@@ -97,7 +95,6 @@ import {
 import {
   applyRecommendationPolicy,
   type RecommendationPolicyPreviousRow,
-  type RecommendationPolicyStatsCompact,
 } from './recommendation-policy.js';
 import { getSegmentPolicyBlocklist } from './load-segment-policy-blocklist.js';
 import { getSegmentPolicyStakeCaps } from './load-segment-policy-stake-cap.js';
@@ -427,10 +424,8 @@ const defaultPipelineDeps = {
   filterUserIdsAllowingWebPushNotifications,
   getEligibleTelegramDeliveryTargets,
   getEligibleDeliveryUserIds,
-  markDeliveryRowsDelivered,
   markRecommendationDeliveriesDelivered,
   stageAnalysisSignalDeliveries,
-  stageConditionOnlyDeliveries,
 };
 
 type PipelineDeps = typeof defaultPipelineDeps;
@@ -656,6 +651,35 @@ type EvidenceMode =
   | 'events_only_degraded'
   | 'low_evidence';
 
+type LlmDecisionDiagnostic =
+  | 'no_bet_intentional'
+  | 'market_parse_failed'
+  | 'market_not_available_in_odds'
+  | 'policy_blocked'
+  | 'actionable';
+
+type MarketResolutionStatus =
+  | 'not_requested'
+  | 'resolved'
+  | 'missing_market'
+  | 'missing_selection'
+  | 'odds_unavailable';
+
+interface ParsedAiShadowCandidate {
+  selection: string;
+  bet_market: string;
+  confidence: number;
+  value_percent: number;
+  risk_level: string;
+  stake_percent: number;
+  reason_code: string;
+  reason_en: string;
+  reason_vi: string;
+  mapped_odd: number | null;
+  canonical_market: string;
+  market_resolution_status: MarketResolutionStatus;
+}
+
 interface ParsedAiResponse {
   decision_kind: 'ai_push' | 'condition_only' | 'no_bet';
   should_push: boolean;
@@ -695,30 +719,9 @@ interface ParsedAiResponse {
   usable_odd: number | null;
   mapped_odd: number | null;
   odds_for_display: number | string | null;
-  llm_decision_diagnostic:
-    | 'no_bet_intentional'
-    | 'market_parse_failed'
-    | 'market_not_available_in_odds'
-    | 'policy_blocked'
-    | 'actionable';
-  market_resolution_status:
-    | 'not_requested'
-    | 'resolved'
-    | 'missing_market'
-    | 'missing_selection'
-    | 'odds_unavailable';
-}
-
-interface ConditionTriggeredSaveDecision {
-  shouldSave: boolean;
-  selection: string;
-  betMarket: string;
-  odds: number | null;
-  confidence: number;
-  stakePercent: number;
-  reasoningEn: string;
-  reasoningVi: string;
-  warnings: string[];
+  llm_decision_diagnostic: LlmDecisionDiagnostic;
+  market_resolution_status: MarketResolutionStatus;
+  shadow_candidate: ParsedAiShadowCandidate;
 }
 
 function isNoBetConditionSuggestion(value: string): boolean {
@@ -863,181 +866,6 @@ export function evaluateRecommendationSaveIntegrity(args: {
   };
 }
 
-function evaluateConditionTriggeredSaveDecision(args: {
-  parsed: ParsedAiResponse;
-  previousRecommendations: RecommendationPolicyPreviousRow[];
-  oddsCanonical: OddsCanonical;
-  minute: number;
-  score: string;
-  evidenceMode: EvidenceMode;
-  eventsCompact?: EventCompact[];
-  minOdds: number;
-  minConfidence: number;
-  promptVersion: LiveAnalysisPromptVersion;
-  statsCompact: RecommendationPolicyStatsCompact | null;
-}): ConditionTriggeredSaveDecision {
-  const warnings: string[] = [];
-  const selection = String(args.parsed.condition_triggered_suggestion || '').trim();
-  const betMarket = normalizeMarket(selection);
-
-  if (!args.parsed.condition_triggered_should_push) {
-    return {
-      shouldSave: false,
-      selection,
-      betMarket,
-      odds: null,
-      confidence: args.parsed.condition_triggered_confidence,
-      stakePercent: args.parsed.condition_triggered_stake,
-      reasoningEn: args.parsed.condition_triggered_reasoning_en,
-      reasoningVi: args.parsed.condition_triggered_reasoning_vi,
-      warnings,
-    };
-  }
-
-  if (!selection || isNoBetConditionSuggestion(selection)) {
-    return {
-      shouldSave: false,
-      selection,
-      betMarket,
-      odds: null,
-      confidence: args.parsed.condition_triggered_confidence,
-      stakePercent: args.parsed.condition_triggered_stake,
-      reasoningEn: args.parsed.condition_triggered_reasoning_en,
-      reasoningVi: args.parsed.condition_triggered_reasoning_vi,
-      warnings,
-    };
-  }
-
-  if (!betMarket || betMarket === 'unknown') {
-    warnings.push('Condition-triggered bet not saved because the suggested market could not be normalized.');
-    return {
-      shouldSave: false,
-      selection,
-      betMarket,
-      odds: null,
-      confidence: args.parsed.condition_triggered_confidence,
-      stakePercent: args.parsed.condition_triggered_stake,
-      reasoningEn: args.parsed.condition_triggered_reasoning_en,
-      reasoningVi: args.parsed.condition_triggered_reasoning_vi,
-      warnings,
-    };
-  }
-
-  let effectiveSelection = selection;
-  let effectiveBetMarket = betMarket;
-  if (isLinePatienceEnabled()) {
-    const llp = applyLinePatiencePolicy({
-      selection,
-      betMarket,
-      minute: args.minute,
-      score: args.score,
-      confidence: args.parsed.condition_triggered_confidence,
-      valuePercent: args.parsed.value_percent,
-      evidenceMode: args.evidenceMode,
-      oddsCanonical: args.oddsCanonical,
-      eventsCompact: args.eventsCompact,
-      enabled: true,
-      config: getLinePatienceConfig(),
-    });
-    warnings.push(...llp.warnings);
-    if (llp.blocked) {
-      warnings.push('Condition-triggered bet kept as alert only because line patience policy blocked persistence.');
-      return {
-        shouldSave: false,
-        selection: llp.selection,
-        betMarket: llp.betMarket,
-        odds: null,
-        confidence: args.parsed.condition_triggered_confidence,
-        stakePercent: args.parsed.condition_triggered_stake,
-        reasoningEn: args.parsed.condition_triggered_reasoning_en,
-        reasoningVi: args.parsed.condition_triggered_reasoning_vi,
-        warnings,
-      };
-    }
-    effectiveSelection = llp.selection;
-    effectiveBetMarket = llp.betMarket;
-  }
-
-  const odds = extractOddsFromSelection(effectiveSelection, effectiveBetMarket, args.oddsCanonical);
-  if (odds == null || odds < args.minOdds) {
-    warnings.push('Condition-triggered bet not saved because live odds are unavailable or below the minimum threshold.');
-    return {
-      shouldSave: false,
-      selection: effectiveSelection,
-      betMarket: effectiveBetMarket,
-      odds,
-      confidence: args.parsed.condition_triggered_confidence,
-      stakePercent: args.parsed.condition_triggered_stake,
-      reasoningEn: args.parsed.condition_triggered_reasoning_en,
-      reasoningVi: args.parsed.condition_triggered_reasoning_vi,
-      warnings,
-    };
-  }
-
-  if (args.parsed.condition_triggered_confidence < args.minConfidence) {
-    warnings.push('Condition-triggered bet not saved because confidence is below the minimum threshold.');
-    return {
-      shouldSave: false,
-      selection: effectiveSelection,
-      betMarket: effectiveBetMarket,
-      odds,
-      confidence: args.parsed.condition_triggered_confidence,
-      stakePercent: args.parsed.condition_triggered_stake,
-      reasoningEn: args.parsed.condition_triggered_reasoning_en,
-      reasoningVi: args.parsed.condition_triggered_reasoning_vi,
-      warnings,
-    };
-  }
-
-  const policyResult = applyRecommendationPolicy({
-    selection: effectiveSelection,
-    betMarket: effectiveBetMarket,
-    minute: args.minute,
-    score: args.score,
-    odds,
-    confidence: args.parsed.condition_triggered_confidence,
-    valuePercent: args.parsed.value_percent,
-    stakePercent: args.parsed.condition_triggered_stake,
-    promptVersion: args.promptVersion,
-    previousRecommendations: args.previousRecommendations,
-    statsCompact: args.statsCompact ?? undefined,
-    segmentBlocklist: getSegmentPolicyBlocklist(),
-    segmentStakeCaps: getSegmentPolicyStakeCaps(),
-    riskLevel: args.parsed.risk_level,
-    evidenceMode: args.evidenceMode,
-    breakEvenRate: odds != null && odds > 0 ? 1 / odds : null,
-    directionalWin: args.parsed.condition_triggered_should_push,
-  });
-
-  if (policyResult.blocked) {
-    warnings.push(...policyResult.warnings);
-    warnings.push('Condition-triggered bet kept as alert only because policy blocked persistence.');
-    return {
-      shouldSave: false,
-      selection: effectiveSelection,
-      betMarket: effectiveBetMarket,
-      odds,
-      confidence: policyResult.confidence,
-      stakePercent: policyResult.stakePercent,
-      reasoningEn: args.parsed.condition_triggered_reasoning_en,
-      reasoningVi: args.parsed.condition_triggered_reasoning_vi,
-      warnings,
-    };
-  }
-
-  return {
-    shouldSave: true,
-    selection: effectiveSelection,
-    betMarket: effectiveBetMarket,
-    odds,
-    confidence: policyResult.confidence,
-    stakePercent: policyResult.stakePercent,
-    reasoningEn: args.parsed.condition_triggered_reasoning_en,
-    reasoningVi: args.parsed.condition_triggered_reasoning_vi,
-    warnings,
-  };
-}
-
 export interface MatchPipelineResult {
   matchId: string;
   matchDisplay?: string;
@@ -1070,6 +898,7 @@ export interface MatchPipelineResult {
     llmDecisionDiagnostic?: ParsedAiResponse['llm_decision_diagnostic'];
     marketResolutionStatus?: ParsedAiResponse['market_resolution_status'];
     runtimePolicyShadow?: RuntimePolicyShadowSignal;
+    shadowCandidate?: Record<string, unknown>;
     saveIntegrityStatus?: 'not_attempted' | 'ok' | 'blocked';
     saveBlockedReason?: string;
     saveProviderCoverageStatus?: RecommendationSaveIntegrityResult['providerCoverageStatus'];
@@ -1468,9 +1297,6 @@ interface PromptExecutionContext {
   oddsSanityWarnings: string[];
   oddsSuspicious: boolean;
   derivedInsights: DerivedInsights | null;
-  customConditions: string;
-  recommendedCondition: string;
-  recommendedConditionReason: string;
   watchlistSubscriberCount: number;
   activeWatchInterest: boolean;
   strategicContext: Record<string, unknown> | null;
@@ -1613,14 +1439,13 @@ function buildLlmGatewayAuditMetadata(args: {
 }): Record<string, unknown> {
   const { promptContext, settings } = args;
   const tradableMarkets = summarizeTradableMarkets(promptContext.oddsCanonical, settings.minOdds);
-  const customConditionPresent = promptContext.customConditions.trim().length > 0;
-  const recommendedConditionPresent = promptContext.recommendedCondition.trim().length > 0;
 
   return {
     gatewayContractVersion: 'ai-gateway-preflight-v1',
     matchId: promptContext.matchId,
     fixtureStatus: promptContext.status,
     minute: promptContext.minute,
+    score: promptContext.score,
     analysisMode: promptContext.analysisMode,
     forceAnalyze: promptContext.forceAnalyze,
     evidenceMode: promptContext.evidenceMode,
@@ -1638,8 +1463,6 @@ function buildLlmGatewayAuditMetadata(args: {
     canonicalTradableFamilies: tradableMarkets.families,
     activeWatchInterest: promptContext.activeWatchInterest,
     watchlistSubscriberCount: promptContext.watchlistSubscriberCount,
-    customConditionPresent,
-    recommendedConditionPresent,
     structuredPrematchAskAi: promptContext.structuredPrematchAskAi,
     promptVersion: args.promptVersion,
     model: args.model,
@@ -1730,7 +1553,6 @@ async function resolveLlmEligibility(args: {
     : ['1H', '2H', 'HT', 'ET', 'BT', 'P', 'LIVE', 'INT'];
   const liveStatusAllowed = configuredLiveStatuses.map((value) => value.toUpperCase()).includes(status);
   const subscriberCount = Number(watchlistEntry.subscriber_count ?? 0);
-  const customConditionPresent = promptContext.customConditions.trim().length > 0;
 
   if (!hasActiveWatchInterest(watchlistEntry)) {
     return {
@@ -1753,17 +1575,17 @@ async function resolveLlmEligibility(args: {
       details: { minute, minMinute: settings.minMinute, maxMinute: settings.maxMinute },
     };
   }
-  if (promptContext.evidenceMode === 'low_evidence' && !customConditionPresent && !promptContext.structuredPrematchAskAi) {
+  if (promptContext.evidenceMode === 'low_evidence' && !promptContext.structuredPrematchAskAi) {
     return {
       eligible: false,
-      reason: 'low_evidence_without_watch_condition',
+      reason: 'low_evidence',
       details: { evidenceMode: promptContext.evidenceMode },
     };
   }
-  if (promptContext.evidenceMode !== 'full_live_data' && !customConditionPresent && !promptContext.structuredPrematchAskAi) {
+  if (promptContext.evidenceMode !== 'full_live_data' && !promptContext.structuredPrematchAskAi) {
     return {
       eligible: false,
-      reason: 'degraded_evidence_without_watch_condition',
+      reason: 'degraded_evidence',
       details: {
         evidenceMode: promptContext.evidenceMode,
         statsAvailable: promptContext.statsAvailable,
@@ -1772,7 +1594,7 @@ async function resolveLlmEligibility(args: {
       },
     };
   }
-  if (!customConditionPresent && !promptContext.structuredPrematchAskAi) {
+  if (!promptContext.structuredPrematchAskAi) {
     const tradableMarkets = summarizeTradableMarkets(promptContext.oddsCanonical, settings.minOdds);
     if (tradableMarkets.count === 0) {
       return {
@@ -1909,6 +1731,7 @@ function buildParsedFromThesisWatchRow(
     odds_for_display: usableOdd ?? mappedOdd ?? (hasActionable ? 'N/A' : null),
     llm_decision_diagnostic: usableOdd != null ? 'actionable' : 'market_not_available_in_odds',
     market_resolution_status: usableOdd != null ? 'resolved' : 'odds_unavailable',
+    shadow_candidate: emptyShadowCandidate('thesis_watch_promote'),
   };
 }
 
@@ -1984,40 +1807,29 @@ async function finalizeParsedRecommendation(
     || policyResult.blocked
     || memoryOverrideBlocked
   ) && !promptContext.skipRecommendationPolicy;
-  const hasCustomCondition = !!String(promptContext.customConditions || '').trim();
-  const lowEvidenceConditionOnly = promptContext.evidenceMode === 'low_evidence' && hasCustomCondition;
-  const finalShouldBet = lowEvidenceConditionOnly
-    ? false
-    : patienceParsed.final_should_bet && !policyBlockedEffective;
-  const conditionTriggeredShouldPush = patienceParsed.condition_triggered_should_push;
-  const shouldPush = finalShouldBet || conditionTriggeredShouldPush;
-  const decisionKind = finalShouldBet
-    ? 'ai_push'
-    : conditionTriggeredShouldPush
-      ? 'condition_only'
-      : 'no_bet';
+  const finalShouldBet = patienceParsed.final_should_bet && !policyBlockedEffective;
+  const shouldPush = finalShouldBet;
+  const decisionKind = finalShouldBet ? 'ai_push' : 'no_bet';
   const parsed: ParsedAiResponse = {
     ...patienceParsed,
     should_push: shouldPush,
-    ai_should_push: lowEvidenceConditionOnly ? false : patienceParsed.ai_should_push,
-    system_should_bet: lowEvidenceConditionOnly ? false : patienceParsed.system_should_bet && !policyBlockedEffective,
+    ai_should_push: patienceParsed.ai_should_push,
+    system_should_bet: patienceParsed.system_should_bet && !policyBlockedEffective,
     final_should_bet: finalShouldBet,
     decision_kind: decisionKind,
     confidence: policyResult.confidence,
     stake_percent: policyResult.stakePercent,
     ai_confidence: policyResult.confidence,
-    condition_triggered_should_push: conditionTriggeredShouldPush,
+    condition_triggered_should_push: false,
     warnings: [
       ...patienceParsed.warnings,
       ...policyResult.warnings,
       ...memoryWarnings,
-      ...(lowEvidenceConditionOnly ? ['LOW_EVIDENCE_CONDITION_ONLY'] : []),
     ],
     ai_warnings: [
       ...patienceParsed.ai_warnings,
       ...policyResult.warnings,
       ...memoryWarnings,
-      ...(lowEvidenceConditionOnly ? ['LOW_EVIDENCE_CONDITION_ONLY'] : []),
     ],
     llm_decision_diagnostic: finalShouldBet
       ? 'actionable'
@@ -2166,9 +1978,6 @@ function buildPromptFromExecutionContext(
       oddsSanityWarnings: promptContext.oddsSanityWarnings,
       oddsSuspicious: promptContext.oddsSuspicious,
       derivedInsights: promptContext.derivedInsights as Record<string, unknown> | null,
-      customConditions: promptContext.customConditions,
-      recommendedCondition: promptContext.recommendedCondition,
-      recommendedConditionReason: promptContext.recommendedConditionReason,
       strategicContext: promptContext.strategicContext,
       leagueProfile: promptContext.leagueProfile,
       homeTeamProfile: promptContext.homeTeamProfile,
@@ -2374,11 +2183,15 @@ async function executePromptAnalysis(
       selection: finalized.parsed.selection,
       betMarket: finalized.parsed.bet_market,
       confidence: finalized.parsed.confidence,
+      valuePercent: finalized.parsed.value_percent,
+      riskLevel: finalized.parsed.risk_level,
+      stakePercent: finalized.parsed.stake_percent,
       llmDecisionDiagnostic: finalized.parsed.llm_decision_diagnostic,
       marketResolutionStatus: finalized.parsed.market_resolution_status,
       policyBlocked: finalized.policyBlocked,
       policyWarnings: finalized.policyWarnings,
       warnings: finalized.parsed.warnings,
+      ...buildShadowCandidateAuditMetadata(finalized.parsed.shadow_candidate),
       aiTextSample: aiText.slice(0, 2000),
     },
   });
@@ -3574,6 +3387,89 @@ function extractJsonString(text: string): string {
   return text.trim();
 }
 
+function emptyShadowCandidate(reasonCode = 'not_provided'): ParsedAiShadowCandidate {
+  return {
+    selection: '',
+    bet_market: '',
+    confidence: 0,
+    value_percent: 0,
+    risk_level: 'HIGH',
+    stake_percent: 0,
+    reason_code: reasonCode,
+    reason_en: '',
+    reason_vi: '',
+    mapped_odd: null,
+    canonical_market: 'unknown',
+    market_resolution_status: 'not_requested',
+  };
+}
+
+function resolveMarketResolutionStatus(args: {
+  selection: string;
+  betMarket: string;
+  mappedOdd: number | null;
+  requested: boolean;
+}): MarketResolutionStatus {
+  if (!args.requested) return 'not_requested';
+  if (!args.selection) return 'missing_selection';
+  if (!args.betMarket) return 'missing_market';
+  if (args.mappedOdd == null) return 'odds_unavailable';
+  return 'resolved';
+}
+
+function parseShadowCandidate(raw: unknown, oddsCanonical: OddsCanonical): ParsedAiShadowCandidate {
+  const record = asObjectRecord(raw);
+  if (!record) return emptyShadowCandidate('not_provided');
+
+  const selection = String(record.selection ?? '').trim();
+  const betMarket = String(record.bet_market ?? '').trim();
+  const requested = !!(selection || betMarket);
+  const mappedOdd = requested ? extractOddsFromSelection(selection, betMarket, oddsCanonical) : null;
+  const riskLevel = ['LOW', 'MEDIUM', 'HIGH'].includes(String(record.risk_level))
+    ? String(record.risk_level)
+    : 'HIGH';
+
+  return {
+    selection,
+    bet_market: betMarket,
+    confidence: toNumber(record.confidence) ?? 0,
+    value_percent: toNumber(record.value_percent) ?? 0,
+    risk_level: riskLevel,
+    stake_percent: toNumber(record.stake_percent) ?? 0,
+    reason_code: String(record.reason_code ?? (requested ? 'unspecified' : 'no_viable_candidate')).trim(),
+    reason_en: String(record.reason_en ?? '').trim(),
+    reason_vi: String(record.reason_vi ?? '').trim(),
+    mapped_odd: mappedOdd,
+    canonical_market: requested ? normalizeMarket(selection, betMarket) : 'unknown',
+    market_resolution_status: resolveMarketResolutionStatus({
+      selection,
+      betMarket,
+      mappedOdd,
+      requested,
+    }),
+  };
+}
+
+function buildShadowCandidateAuditMetadata(candidate: ParsedAiShadowCandidate): Record<string, unknown> {
+  const hasCandidate = !!(candidate.selection || candidate.bet_market);
+  return {
+    shadowCandidate: candidate as unknown as Record<string, unknown>,
+    shadowCandidatePresent: hasCandidate,
+    shadowCandidateSelection: candidate.selection,
+    shadowCandidateBetMarket: candidate.bet_market,
+    shadowCandidateCanonicalMarket: candidate.canonical_market,
+    shadowCandidateMappedOdd: candidate.mapped_odd,
+    shadowCandidateMarketResolutionStatus: candidate.market_resolution_status,
+    shadowCandidateConfidence: candidate.confidence,
+    shadowCandidateValuePercent: candidate.value_percent,
+    shadowCandidateRiskLevel: candidate.risk_level,
+    shadowCandidateStakePercent: candidate.stake_percent,
+    shadowCandidateReasonCode: candidate.reason_code,
+    shadowCandidateReasonEn: candidate.reason_en,
+    shadowCandidateReasonVi: candidate.reason_vi,
+  };
+}
+
 function parseAiResponse(
   aiText: string,
   oddsCanonical: OddsCanonical,
@@ -3603,6 +3499,7 @@ function parseAiResponse(
     usable_odd: null, mapped_odd: null, odds_for_display: null,
     llm_decision_diagnostic: 'market_parse_failed',
     market_resolution_status: 'not_requested',
+    shadow_candidate: emptyShadowCandidate('parse_error'),
   };
   if (!aiText) return defaults;
 
@@ -3627,24 +3524,23 @@ function parseAiResponse(
   const riskLevel = (['LOW', 'MEDIUM', 'HIGH'].includes(String(parsed.risk_level)) ? String(parsed.risk_level) : 'HIGH');
   const stakePercent = toNumber(parsed.stake_percent) ?? 0;
   const aiShouldPush = parsed.should_push === true;
-  const customConditionMatched = parsed.custom_condition_matched === true;
-  const customConditionStatus = (['none', 'evaluated', 'parse_error'].includes(String(parsed.custom_condition_status))
-    ? String(parsed.custom_condition_status)
-    : 'none') as 'none' | 'evaluated' | 'parse_error';
-  const customConditionSummaryEn = String(parsed.custom_condition_summary_en || '');
-  const customConditionSummaryVi = String(parsed.custom_condition_summary_vi || '');
-  const customConditionReasonEn = String(parsed.custom_condition_reason_en || '');
-  const customConditionReasonVi = String(parsed.custom_condition_reason_vi || '');
-  const conditionTriggeredSuggestion = String(parsed.condition_triggered_suggestion || '').trim();
-  const conditionTriggeredReasoningEn = String(parsed.condition_triggered_reasoning_en || '');
-  const conditionTriggeredReasoningVi = String(parsed.condition_triggered_reasoning_vi || '');
-  const conditionTriggeredConfidence = toNumber(parsed.condition_triggered_confidence) ?? 0;
-  const conditionTriggeredStake = toNumber(parsed.condition_triggered_stake) ?? 0;
-  const conditionTriggeredSpecialOverride = parsed.condition_triggered_special_override === true;
-  const conditionTriggeredSpecialOverrideReasonEn = String(parsed.condition_triggered_special_override_reason_en || '');
-  const conditionTriggeredSpecialOverrideReasonVi = String(parsed.condition_triggered_special_override_reason_vi || '');
+  const customConditionMatched = false;
+  const customConditionStatus: ParsedAiResponse['custom_condition_status'] = 'none';
+  const customConditionSummaryEn = '';
+  const customConditionSummaryVi = '';
+  const customConditionReasonEn = '';
+  const customConditionReasonVi = '';
+  const conditionTriggeredSuggestion = '';
+  const conditionTriggeredReasoningEn = '';
+  const conditionTriggeredReasoningVi = '';
+  const conditionTriggeredConfidence = 0;
+  const conditionTriggeredStake = 0;
+  const conditionTriggeredSpecialOverride = false;
+  const conditionTriggeredSpecialOverrideReasonEn = '';
+  const conditionTriggeredSpecialOverrideReasonVi = '';
   const followUpAnswerEn = String(parsed.follow_up_answer_en || '');
   const followUpAnswerVi = String(parsed.follow_up_answer_vi || '');
+  const shadowCandidate = parseShadowCandidate(parsed.shadow_candidate, oddsCanonical);
 
   // Map odds from selection
   const mappedOdd = extractOddsFromSelection(aiSelection, betMarket, oddsCanonical);
@@ -3676,9 +3572,8 @@ function parseAiResponse(
     'MARKET_NOT_ALLOWED_FOR_EVIDENCE',
     '1X2_TOO_EARLY',
   ].includes(w));
-  // Main AI save path. Condition-triggered suggestions have a separate save
-  // guard later so they can be persisted only after the same odds, confidence,
-  // market, policy, and thesis-exposure checks pass.
+  // Main AI save path. User condition alerts are handled by the dedicated
+  // match-alert engine and no longer affect recommendation persistence.
   const systemShouldBet = aiShouldPush && !hasBlocking;
   const usableOdd = mappedOdd !== null && mappedOdd >= MIN_ODDS ? mappedOdd : null;
   const aiFinalShouldBet = systemShouldBet && usableOdd !== null;
@@ -3701,21 +3596,9 @@ function parseAiResponse(
         : marketResolutionStatus === 'odds_unavailable'
           ? 'market_not_available_in_odds'
           : 'policy_blocked';
-  // Condition-trigger path: this always drives alerting when the watch condition
-  // was successfully evaluated and matched. Persistence is decided later by a
-  // separate hard guard so the system can save the first actionable
-  // condition-triggered thesis without laddering duplicate rows.
-  const conditionTriggeredShouldPush =
-    customConditionMatched
-    && customConditionStatus === 'evaluated';
-  // should_push = user-facing push/notify decision.
-  // final_should_bet = AI-only save decision.
-  const finalShouldPush = aiFinalShouldBet || conditionTriggeredShouldPush;
-  const decisionKind = aiFinalShouldBet
-    ? 'ai_push'
-    : conditionTriggeredShouldPush
-      ? 'condition_only'
-      : 'no_bet';
+  const conditionTriggeredShouldPush = false;
+  const finalShouldPush = aiFinalShouldBet;
+  const decisionKind = aiFinalShouldBet ? 'ai_push' : 'no_bet';
 
   return {
     decision_kind: decisionKind,
@@ -3758,6 +3641,7 @@ function parseAiResponse(
     odds_for_display: oddsForDisplay,
     llm_decision_diagnostic: llmDecisionDiagnostic,
     market_resolution_status: marketResolutionStatus,
+    shadow_candidate: shadowCandidate,
   };
 }
 
@@ -3893,13 +3777,11 @@ function isAiRecommendation(parsed: ParsedAiResponse): boolean {
   return parsed.final_should_bet;
 }
 
-function isConditionOnlyTrigger(parsed: ParsedAiResponse): boolean {
-  return parsed.condition_triggered_should_push && !parsed.final_should_bet;
+function isConditionOnlyTrigger(_parsed: ParsedAiResponse): boolean {
+  return false;
 }
 
 function displaySelection(parsed: ParsedAiResponse): string {
-  if (parsed.final_should_bet && parsed.selection) return parsed.selection;
-  if (parsed.condition_triggered_should_push) return parsed.condition_triggered_suggestion;
   return parsed.selection;
 }
 
@@ -3916,14 +3798,10 @@ function displaySelectionWithContext(parsed: ParsedAiResponse, odds: number | nu
 }
 
 function displayConfidence(parsed: ParsedAiResponse): number {
-  if (parsed.final_should_bet) return parsed.confidence;
-  if (parsed.condition_triggered_should_push) return parsed.condition_triggered_confidence;
   return parsed.confidence;
 }
 
 function displayStake(parsed: ParsedAiResponse): number {
-  if (parsed.final_should_bet) return parsed.stake_percent;
-  if (parsed.condition_triggered_should_push) return parsed.condition_triggered_stake;
   return parsed.stake_percent;
 }
 
@@ -3933,12 +3811,8 @@ function decisionKindFromParsed(parsed: ParsedAiResponse): MatchPipelineResult['
 
 /** Pick reasoning text based on notification language setting. */
 function pickReasoning(parsed: ParsedAiResponse, lang: PipelineSettings['notificationLanguage']): string {
-  const reasoningEn = isConditionOnlyTrigger(parsed)
-    ? (parsed.condition_triggered_reasoning_en || parsed.reasoning_en)
-    : parsed.reasoning_en;
-  const reasoningVi = isConditionOnlyTrigger(parsed)
-    ? (parsed.condition_triggered_reasoning_vi || parsed.reasoning_vi)
-    : parsed.reasoning_vi;
+  const reasoningEn = parsed.reasoning_en;
+  const reasoningVi = parsed.reasoning_vi;
   if (lang === 'en') return reasoningEn || reasoningVi;
   if (lang === 'both') return [reasoningEn, reasoningVi].filter(Boolean).join('\n\n');
   // default: 'vi'
@@ -4372,6 +4246,7 @@ async function processMatch(
         minMinute: settings.minMinute,
         maxMinute: settings.maxMinute,
         secondHalfStartMinute: settings.secondHalfStartMinute,
+        liveStatuses: config.liveStatuses,
       },
       forceAnalyze,
     );
@@ -4724,10 +4599,6 @@ async function processMatch(
 
     const evidenceMode = deriveEvidenceMode(statsAvailable, oddsAvailable, eventsCompact);
     const promptDataLevel = getPromptStatsDetailLevel(statsCompact);
-    const customConditions = (watchlistEntry.custom_conditions || '').trim();
-    const recommendedCondition = (watchlistEntry.recommended_custom_condition || '').trim();
-    const recommendedConditionReason = (watchlistEntry.recommended_condition_reason || '').trim();
-    const hasCustomCondition = !!customConditions;
 
     // 5. Get previous recommendations for prompt context
     const prevRecsContext = prevRecs.slice(0, 5).map((r) => ({
@@ -4785,8 +4656,8 @@ async function processMatch(
     });
     const structuredPrematchAskAi = structuredPrematchAskAiCheck.eligible;
 
-    if (evidenceMode === 'low_evidence' && !hasCustomCondition && !structuredPrematchAskAi) {
-      if (!shadowMode && shouldSamplePipelineSkipAudit('low_evidence_without_watch_condition', 'low-evidence', 20)) {
+    if (evidenceMode === 'low_evidence' && !structuredPrematchAskAi) {
+      if (!shadowMode && shouldSamplePipelineSkipAudit('low_evidence', 'low-evidence', 20)) {
         audit({
           category: 'PIPELINE',
           action: 'PIPELINE_MATCH_SKIPPED',
@@ -4795,7 +4666,7 @@ async function processMatch(
           metadata: {
             matchId,
             matchDisplay,
-            reason: 'low_evidence_without_watch_condition',
+            reason: 'low_evidence',
             analysisMode,
             evidenceMode,
             structuredPrematchAskAiReason: structuredPrematchAskAiCheck.reason,
@@ -4835,7 +4706,7 @@ async function processMatch(
           analysisRunId,
           shadowMode,
           skippedAt: 'proceed',
-          skipReason: 'Skipped AI analysis because this match is in low-evidence mode and no custom watch condition is configured.',
+          skipReason: 'Skipped AI analysis because this match is in low-evidence mode.',
           analysisMode,
           oddsSource,
           oddsAvailable,
@@ -4867,7 +4738,6 @@ async function processMatch(
       oddsSanityWarnings,
       oddsSuspicious,
       derivedInsights: !statsAvailable ? derivedInsights : null,
-      customConditions, recommendedCondition, recommendedConditionReason,
       watchlistSubscriberCount: Number(watchlistEntry.subscriber_count ?? 0),
       activeWatchInterest: hasActiveWatchInterest(watchlistEntry),
       strategicContext,
@@ -5175,66 +5045,13 @@ async function processMatch(
       });
     }
 
-    const conditionTriggeredSaveDecision = evaluateConditionTriggeredSaveDecision({
-      parsed,
-      previousRecommendations: prevRecs.map((r) => ({
-        minute: r.minute ?? null,
-        selection: r.selection ?? '',
-        bet_market: r.bet_market ?? '',
-        stake_percent: r.stake_percent ?? null,
-        result: r.result ?? null,
-        odds: r.odds ?? null,
-      })),
-      oddsCanonical,
-      minute,
-      score,
-      evidenceMode,
-      eventsCompact: eventsCompact.slice(-12),
-      minOdds: settings.minOdds,
-      minConfidence: settings.minConfidence,
-      promptVersion: activePromptVersion,
-      statsCompact,
-    });
-    if (conditionTriggeredSaveDecision.warnings.length > 0) {
-      parsed.warnings = [...parsed.warnings, ...conditionTriggeredSaveDecision.warnings];
-    }
-    if (!thesisPromoted && !conditionTriggeredSaveDecision.shouldSave) {
-      await registerThesisWatchFromLlpBlock({
-        matchId,
-        minute,
-        shadowMode,
-        advisoryOnly,
-        warnings: conditionTriggeredSaveDecision.warnings,
-        selection: conditionTriggeredSaveDecision.selection,
-        betMarket: conditionTriggeredSaveDecision.betMarket,
-        confidence: conditionTriggeredSaveDecision.confidence,
-        valuePercent: parsed.value_percent,
-        stakePercent: conditionTriggeredSaveDecision.stakePercent,
-        riskLevel: parsed.risk_level,
-        reasoningEn: conditionTriggeredSaveDecision.reasoningEn,
-        reasoningVi: conditionTriggeredSaveDecision.reasoningVi,
-        oddsCanonical: oddsCanonical,
-        score,
-        status,
-        evidenceMode,
-        statsCompact: statsCompact as unknown as Record<string, unknown>,
-        eventsCompact,
-      });
-    }
-
-    // 8. Split the two outcomes explicitly:
-    // - shouldSave: create recommendation + AI performance row when either the AI
-    //   produced an actionable bet, or the condition-triggered branch produced the
-    //   first actionable thesis (or an approved same-line override).
-    // - shouldNotify: alert the user for either an actionable AI bet OR a
-    //   condition-only trigger that meets the notify threshold.
-    let shouldSave = advisoryOnly ? false : (parsed.final_should_bet || conditionTriggeredSaveDecision.shouldSave);
+    // 8. Persist and notify only for actionable AI recommendations. User
+    // condition alerts now live in the dedicated match-alert engine.
+    let shouldSave = advisoryOnly ? false : parsed.final_should_bet;
     let shouldNotify = advisoryOnly ? false : parsed.should_push;
     const notificationSelection = displaySelection(parsed);
     const notificationConfidence = displayConfidence(parsed);
-    const notificationOdds = parsed.final_should_bet
-      ? extractOddsFromSelection(parsed.selection, parsed.bet_market, oddsCanonical)
-      : conditionTriggeredSaveDecision.odds;
+    const notificationOdds = extractOddsFromSelection(parsed.selection, parsed.bet_market, oddsCanonical);
     const notificationSelectionDisplay = parsed.final_should_bet
       ? formatSelectionWithMarketContext({
           selection: notificationSelection,
@@ -5249,48 +5066,7 @@ async function processMatch(
     let saveIntegrityStatus: 'not_attempted' | 'ok' | 'blocked' = shouldSave ? 'ok' : 'not_attempted';
     let saveBlockedReason: string | undefined = undefined;
     let saveProviderCoverageStatus: RecommendationSaveIntegrityResult['providerCoverageStatus'] | undefined;
-    const conditionOnlyDeliveryMap = new Map<string, number[]>();
-    let conditionOnlyDeliveriesLoaded = false;
     let analysisSignalDeliveriesLoaded = false;
-
-    const ensureConditionOnlyDeliveries = async () => {
-      if (conditionOnlyDeliveriesLoaded || recId != null || shadowMode || !parsed.condition_triggered_should_push) return;
-      conditionOnlyDeliveriesLoaded = true;
-
-      const conditionOnlyBetMarket = normalizeMarket(parsed.condition_triggered_suggestion);
-      const staged = await deps.stageConditionOnlyDeliveries({
-        query,
-      }, {
-        match_id: matchId,
-        timestamp: new Date().toISOString(),
-        minute,
-        score,
-        status,
-        stats_snapshot: statsCompact as unknown as Record<string, unknown>,
-        league,
-        home_team: homeName,
-        away_team: awayName,
-        selection: parsed.condition_triggered_suggestion,
-        bet_market: conditionOnlyBetMarket === 'unknown' ? null : conditionOnlyBetMarket,
-        confidence: parsed.condition_triggered_confidence,
-        risk_level: parsed.risk_level,
-        stake_percent: parsed.condition_triggered_stake,
-        reasoning: parsed.condition_triggered_reasoning_en,
-        reasoning_vi: parsed.condition_triggered_reasoning_vi,
-        warnings: parsed.warnings.join(', '),
-        condition_summary_en: parsed.custom_condition_summary_en,
-        condition_summary_vi: parsed.custom_condition_summary_vi,
-        condition_reason_en: parsed.custom_condition_reason_en,
-        condition_reason_vi: parsed.custom_condition_reason_vi,
-        ai_model: model,
-      }).catch(() => []);
-
-      for (const row of staged) {
-        const ids = conditionOnlyDeliveryMap.get(row.userId) ?? [];
-        ids.push(row.deliveryId);
-        conditionOnlyDeliveryMap.set(row.userId, ids);
-      }
-    };
 
     const stageVisibleAnalysisSignal = async () => {
       if (
@@ -5299,7 +5075,6 @@ async function processMatch(
         || shouldSave
         || shadowMode
         || advisoryOnly
-        || parsed.condition_triggered_should_push
       ) {
         return;
       }
@@ -5367,12 +5142,9 @@ async function processMatch(
     };
 
     if (shouldSave && !shadowMode) {
-      const saveFromConditionTrigger = !parsed.final_should_bet && conditionTriggeredSaveDecision.shouldSave;
-      const savedSelection = saveFromConditionTrigger ? conditionTriggeredSaveDecision.selection : parsed.selection;
-      const savedBetMarket = saveFromConditionTrigger ? conditionTriggeredSaveDecision.betMarket : parsed.bet_market;
-      const mappedOdd = saveFromConditionTrigger
-        ? conditionTriggeredSaveDecision.odds
-        : extractOddsFromSelection(parsed.selection, parsed.bet_market, oddsCanonical);
+      const savedSelection = parsed.selection;
+      const savedBetMarket = parsed.bet_market;
+      const mappedOdd = extractOddsFromSelection(parsed.selection, parsed.bet_market, oddsCanonical);
       const decisionContext = buildRecommendationDecisionContext({
         evidenceMode,
         promptDataLevel,
@@ -5393,24 +5165,13 @@ async function processMatch(
       });
       decisionContext['recommendationSource'] = thesisPromoted
         ? 'thesis_watch_promote'
-        : saveFromConditionTrigger
-          ? 'condition_triggered'
-          : 'ai_primary';
+        : 'ai_primary';
       if (thesisPromoted) {
         decisionContext['thesisWatchPromoted'] = true;
         decisionContext['thesisWatchId'] = thesisWatchId;
         decisionContext['thesisWatchPromoteReason'] =
           activeAnalysis.thesisWatchPromotion?.promoteReason ?? {};
       }
-      decisionContext['conditionTriggeredSpecialOverride'] = saveFromConditionTrigger
-        ? parsed.condition_triggered_special_override
-        : false;
-      decisionContext['conditionTriggeredSpecialOverrideReasonEn'] = saveFromConditionTrigger
-        ? parsed.condition_triggered_special_override_reason_en
-        : '';
-      decisionContext['conditionTriggeredSpecialOverrideReasonVi'] = saveFromConditionTrigger
-        ? parsed.condition_triggered_special_override_reason_vi
-        : '';
       const saveIntegrity = evaluateRecommendationSaveIntegrity({
         selection: savedSelection,
         betMarket: savedBetMarket,
@@ -5434,9 +5195,7 @@ async function processMatch(
         parsed.warnings = [...parsed.warnings, 'PROVIDER_COVERAGE_SAVE_BLOCKED'];
         parsed.ai_warnings = [...parsed.ai_warnings, 'PROVIDER_COVERAGE_SAVE_BLOCKED'];
         shouldSave = false;
-        if (parsed.final_should_bet && !parsed.condition_triggered_should_push) {
-          shouldNotify = false;
-        }
+        shouldNotify = false;
         audit({
           category: 'PIPELINE',
           action: 'RECOMMENDATION_SAVE_BLOCKED_PROVIDER_COVERAGE',
@@ -5471,25 +5230,25 @@ async function processMatch(
         home_team: homeName,
         away_team: awayName,
         status,
-        condition_triggered_suggestion: parsed.condition_triggered_suggestion,
-        custom_condition_raw: customConditions,
+        condition_triggered_suggestion: '',
+        custom_condition_raw: '',
         execution_id: `auto-pipeline-${Date.now()}`,
         odds_snapshot: oddsCanonical as Record<string, unknown>,
         stats_snapshot: statsCompact as unknown as Record<string, unknown>,
         decision_context: decisionContext,
         prompt_version: activePromptVersion,
-        custom_condition_matched: parsed.custom_condition_matched,
+        custom_condition_matched: false,
         minute,
         score,
         bet_type: 'AI',
         selection: savedSelection,
         odds: mappedOdd,
-        confidence: saveFromConditionTrigger ? conditionTriggeredSaveDecision.confidence : parsed.confidence,
+        confidence: parsed.confidence,
         value_percent: parsed.value_percent,
         risk_level: parsed.risk_level,
-        stake_percent: saveFromConditionTrigger ? conditionTriggeredSaveDecision.stakePercent : parsed.stake_percent,
-        reasoning: saveFromConditionTrigger ? conditionTriggeredSaveDecision.reasoningEn : parsed.reasoning_en,
-        reasoning_vi: saveFromConditionTrigger ? conditionTriggeredSaveDecision.reasoningVi : parsed.reasoning_vi,
+        stake_percent: parsed.stake_percent,
+        reasoning: parsed.reasoning_en,
+        reasoning_vi: parsed.reasoning_vi,
         key_factors: '',
         warnings: parsed.warnings.join(', '),
         ai_model: model,
@@ -5508,8 +5267,8 @@ async function processMatch(
             match_id: matchId,
             ai_model: model,
             prompt_version: activePromptVersion,
-            ai_confidence: saveFromConditionTrigger ? conditionTriggeredSaveDecision.confidence : parsed.confidence,
-            ai_should_push: parsed.ai_should_push || saveFromConditionTrigger,
+            ai_confidence: parsed.confidence,
+            ai_should_push: parsed.ai_should_push,
             predicted_market: savedBetMarket || '',
             predicted_selection: savedSelection,
             predicted_odds: mappedOdd ? Number(mappedOdd) : null,
@@ -5539,14 +5298,10 @@ async function processMatch(
 
     await stageVisibleAnalysisSignal();
 
-    // 9. Telegram delivery is intentionally asynchronous.
-    // Recommendations stage delivery rows inside createRecommendation() and
-    // condition-only alerts stage rows via ensureConditionOnlyDeliveries().
-    // A dedicated delivery job flushes Telegram messages so the live pipeline
-    // does not block on network sends.
-    if (shouldNotify && !shadowMode && settings.telegramEnabled && recId == null) {
-      await ensureConditionOnlyDeliveries();
-    }
+    // 9. Telegram delivery is intentionally asynchronous. Recommendation rows
+    // stage delivery rows inside createRecommendation(); a dedicated delivery
+    // job flushes Telegram messages so the live pipeline does not block on
+    // network sends.
     if (shouldNotify && !shadowMode && settings.telegramEnabled) {
       // Async Telegram delivery is queued via delivery rows. We keep the
       // high-level notified flag truthy once the alert is staged so pipeline
@@ -5555,18 +5310,11 @@ async function processMatch(
       notified = true;
     }
 
-    // 10. Web Push follows the same semantics as Telegram: notify for AI saves
-    // and condition-only triggers, but only mark a stored recommendation when
-    // there is an actual recommendation row.
-    if (shouldNotify && !shadowMode && settings.webPushEnabled && isWebPushConfigured()) {
+    // 10. Web Push follows the same recommendation-only semantics.
+    if (shouldNotify && !shadowMode && settings.webPushEnabled && isWebPushConfigured() && recId != null) {
       try {
-        if (recId == null) {
-          await ensureConditionOnlyDeliveries();
-        }
         const subscriptions = await getAllSubscriptions();
-        let eligibleUserIds = recId != null
-          ? await deps.getEligibleDeliveryUserIds(recId).catch(() => new Set<string>())
-          : new Set(conditionOnlyDeliveryMap.keys());
+        let eligibleUserIds = await deps.getEligibleDeliveryUserIds(recId).catch(() => new Set<string>());
         if (eligibleUserIds.size > 0) {
           const allowed = await deps.filterUserIdsAllowingWebPushNotifications([...eligibleUserIds]);
           eligibleUserIds = new Set([...eligibleUserIds].filter((id) => allowed.has(id)));
@@ -5576,9 +5324,6 @@ async function processMatch(
           : [];
 
         if (targetSubscriptions.length > 0) {
-          const pushIsRec = parsed.final_should_bet === true;
-          const pushTitle = pushIsRec ? 'RECOMMENDATION' : 'CONDITION TRIGGERED';
-          const pushIcon = pushIsRec ? '/icons/notification-recommendation.svg' : '/icons/notification-condition.svg';
           const pushOpenUrl = buildWebPushMatchOpenUrl(config.frontendUrl, matchId, matchDisplay);
           const pushBody = [
             matchDisplay,
@@ -5594,12 +5339,12 @@ async function processMatch(
             const result = await sendWebPushNotification(
               { endpoint: sub.endpoint, keys: { p256dh: sub.p256dh, auth: sub.auth } },
               {
-                title: pushTitle,
+                title: 'RECOMMENDATION',
                 body: pushBody,
                 tag: `tfi-rec-${matchId}`,
                 url: pushNavigateUrl,
-                icon: pushIcon,
-                actions: pushIsRec ? [{ action: 'invest', title: 'Invest' }] : undefined,
+                icon: '/icons/notification-recommendation.svg',
+                actions: [{ action: 'invest', title: 'Invest' }],
               },
             );
             if (result.ok) {
@@ -5619,10 +5364,6 @@ async function processMatch(
               [...deliveredUserIds],
               'web_push',
             ).catch(() => undefined);
-          }
-          if (recId == null && deliveredUserIds.size > 0) {
-            const deliveredConditionDeliveryIds = [...deliveredUserIds].flatMap((userId) => conditionOnlyDeliveryMap.get(userId) ?? []);
-            await deps.markDeliveryRowsDelivered(deliveredConditionDeliveryIds, 'web_push').catch(() => undefined);
           }
           if (deliveredUserIds.size > 0) notified = true;
         }
@@ -5662,6 +5403,7 @@ async function processMatch(
           llmDecisionDiagnostic: parsed.llm_decision_diagnostic,
           marketResolutionStatus: parsed.market_resolution_status,
           runtimePolicyShadow,
+          ...buildShadowCandidateAuditMetadata(parsed.shadow_candidate),
           saveIntegrityStatus,
           saveBlockedReason,
           saveProviderCoverageStatus,
@@ -5706,6 +5448,7 @@ async function processMatch(
         llmDecisionDiagnostic: parsed.llm_decision_diagnostic,
         marketResolutionStatus: parsed.market_resolution_status,
         runtimePolicyShadow,
+        shadowCandidate: parsed.shadow_candidate as unknown as Record<string, unknown>,
         saveIntegrityStatus,
         saveBlockedReason,
         saveProviderCoverageStatus,

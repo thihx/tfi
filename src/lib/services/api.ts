@@ -143,6 +143,107 @@ export interface WatchConditionEvaluationResult {
   };
 }
 
+export interface UserMatchAlertSettings {
+  matchStartEnabled: boolean;
+  manualMatchStartEnabled: boolean;
+  favoriteTeamMatchStartEnabled: boolean;
+  favoriteLeagueMatchStartEnabled: boolean;
+  conditionAlertsEnabled: boolean;
+  favoriteTeamConditionAlertsEnabled: boolean;
+  favoriteLeagueConditionAlertsEnabled: boolean;
+  kickoffLeadMinutes: number;
+  defaultCooldownMinutes: number;
+  channelPolicy: Record<string, unknown>;
+}
+
+export interface MatchAlertRule {
+  id: number;
+  userId: string;
+  matchId: string | null;
+  alertKind: 'match_start' | 'condition_signal';
+  enabled: boolean;
+  source: string;
+  sourceRef: Record<string, unknown>;
+  ruleJson: Record<string, unknown>;
+  cooldownMinutes: number;
+  oncePerMatch: boolean;
+  channelPolicy: Record<string, unknown>;
+  metadata: Record<string, unknown>;
+}
+
+export interface ConditionAlertPreset {
+  id: string;
+  label: string;
+  labelVi: string;
+  description: string;
+  category: string;
+  enabled: boolean;
+  defaultCooldownMinutes: number;
+  defaultOncePerMatch: boolean;
+  sortOrder: number;
+  ruleJson: Record<string, unknown>;
+  source: 'system' | 'user';
+}
+
+export async function fetchMatchAlertSettings(config: AppConfig | string): Promise<UserMatchAlertSettings> {
+  return pgFetch<UserMatchAlertSettings>(config, '/api/me/match-alert-settings');
+}
+
+export async function persistMatchAlertSettings(
+  config: AppConfig | string,
+  patch: Partial<UserMatchAlertSettings>,
+): Promise<UserMatchAlertSettings> {
+  return pgPut<UserMatchAlertSettings>(config, '/api/me/match-alert-settings', patch);
+}
+
+export async function fetchMatchAlertRules(
+  config: AppConfig | string,
+  options: { matchId?: string; alertKind?: MatchAlertRule['alertKind'] } = {},
+): Promise<MatchAlertRule[]> {
+  const qs = new URLSearchParams();
+  if (options.matchId) qs.set('matchId', options.matchId);
+  if (options.alertKind) qs.set('alertKind', options.alertKind);
+  const suffix = qs.toString() ? `?${qs}` : '';
+  return pgFetch<MatchAlertRule[]>(config, `/api/me/match-alert-rules${suffix}`);
+}
+
+export async function createMatchAlertRule(
+  config: AppConfig | string,
+  payload: {
+    matchId: string;
+    alertKind: MatchAlertRule['alertKind'];
+    source?: string;
+    presetId?: string;
+    conditionText?: string;
+    ruleJson?: Record<string, unknown>;
+    cooldownMinutes?: number;
+    oncePerMatch?: boolean;
+    channelPolicy?: Record<string, unknown>;
+    metadata?: Record<string, unknown>;
+  },
+): Promise<MatchAlertRule> {
+  return pgPost<MatchAlertRule>(config, '/api/me/match-alert-rules', payload);
+}
+
+export async function deleteMatchAlertRule(config: AppConfig | string, ruleId: number): Promise<{ deleted: boolean }> {
+  return pgDelete<{ deleted: boolean }>(config, `/api/me/match-alert-rules/${ruleId}`);
+}
+
+export async function fetchConditionAlertPresets(config: AppConfig | string): Promise<ConditionAlertPreset[]> {
+  return pgFetch<ConditionAlertPreset[]>(config, '/api/me/match-alert-presets');
+}
+
+export async function persistConditionAlertPresets(
+  config: AppConfig | string,
+  presets: Array<Pick<ConditionAlertPreset, 'id' | 'enabled' | 'defaultCooldownMinutes' | 'ruleJson'>>,
+): Promise<ConditionAlertPreset[]> {
+  return pgPut<ConditionAlertPreset[]>(config, '/api/me/match-alert-presets', { presets });
+}
+
+export async function resetConditionAlertPresets(config: AppConfig | string): Promise<ConditionAlertPreset[]> {
+  return pgPost<ConditionAlertPreset[]>(config, '/api/me/match-alert-presets/reset', {});
+}
+
 /** Preview condition evaluation against latest snapshot or match row (requires watch subscription). */
 export async function evaluateWatchConditionPreview(
   config: AppConfig,

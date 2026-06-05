@@ -24,6 +24,15 @@ import {
   type AskAiQuickPromptItem,
 } from '@/lib/askAiQuickPrompts';
 import { buildTimeZoneOptions, DEFAULT_APP_TIMEZONE, detectBrowserTimeZone } from '@/lib/utils/timezone';
+import {
+  fetchConditionAlertPresets,
+  fetchMatchAlertSettings,
+  persistConditionAlertPresets,
+  persistMatchAlertSettings,
+  resetConditionAlertPresets,
+  type ConditionAlertPreset,
+  type UserMatchAlertSettings,
+} from '@/lib/services/api';
 import type { NotificationChannelConfig, NotificationChannelType } from '@/types';
 import { TelegramDeepLinkConnect } from '@/components/profile/TelegramDeepLinkConnect';
 
@@ -123,6 +132,10 @@ export function ProfileEditModal({ open, onClose, user, onUserChange }: ProfileE
   const [viQuickLines, setViQuickLines] = useState('');
   const [initialQuickLines, setInitialQuickLines] = useState({ en: '', vi: '' });
   const [savingQuickPrompts, setSavingQuickPrompts] = useState(false);
+  const [matchAlertSettings, setMatchAlertSettings] = useState<UserMatchAlertSettings | null>(null);
+  const [savingMatchAlertSetting, setSavingMatchAlertSetting] = useState<string | null>(null);
+  const [conditionAlertPresets, setConditionAlertPresets] = useState<ConditionAlertPreset[]>([]);
+  const [savingConditionPresets, setSavingConditionPresets] = useState(false);
 
   const telegramChannel = notificationChannels.find((channel) => channel.channelType === 'telegram') ?? null;
   const emailChannel = notificationChannels.find((channel) => channel.channelType === 'email') ?? null;
@@ -159,9 +172,11 @@ export function ProfileEditModal({ open, onClose, user, onUserChange }: ProfileE
     Promise.all([
       fetchMonitorConfig().catch(() => null),
       fetchNotificationChannels().catch(() => [] as NotificationChannelConfig[]),
+      fetchMatchAlertSettings('').catch(() => null),
+      fetchConditionAlertPresets('').catch(() => [] as ConditionAlertPreset[]),
       isPushSupported() ? getExistingSubscription().catch(() => null) : Promise.resolve(null),
     ])
-      .then(([config, channels, existingSubscription]) => {
+      .then(([config, channels, alertSettings, alertPresets, existingSubscription]) => {
         if (!active) return;
         if (config) {
           setUiLanguage(config.UI_LANGUAGE === 'en' ? 'en' : 'vi');
@@ -183,6 +198,8 @@ export function ProfileEditModal({ open, onClose, user, onUserChange }: ProfileE
           setInitialQuickLines({ en: nextEn, vi: nextVi });
         }
         setNotificationChannels(channels);
+        setMatchAlertSettings(alertSettings);
+        setConditionAlertPresets(alertPresets);
         setChannelAddresses(
           Object.fromEntries(
             channels
@@ -323,6 +340,66 @@ export function ProfileEditModal({ open, onClose, user, onUserChange }: ProfileE
     } catch {
       setAutoApplyRecommendedCondition(previous);
       showToast('Failed to save watchlist preference', 'error');
+    }
+  };
+
+  const handleMatchAlertSetting = async (patch: Partial<UserMatchAlertSettings>, key: string) => {
+    const previous = matchAlertSettings;
+    const optimistic = previous ? { ...previous, ...patch } : previous;
+    if (optimistic) setMatchAlertSettings(optimistic);
+    setSavingMatchAlertSetting(key);
+    try {
+      const saved = await persistMatchAlertSettings('', patch);
+      setMatchAlertSettings(saved);
+      showToast('Match alert setting saved', 'success');
+    } catch (err) {
+      if (previous) setMatchAlertSettings(previous);
+      showToast(err instanceof Error ? err.message : 'Failed to save match alert setting', 'error');
+    } finally {
+      setSavingMatchAlertSetting(null);
+    }
+  };
+
+  const handleConditionPresetToggle = (id: string, enabled: boolean) => {
+    setConditionAlertPresets((prev) => prev.map((preset) => (
+      preset.id === id ? { ...preset, enabled } : preset
+    )));
+  };
+
+  const handleConditionPresetCooldown = (id: string, cooldown: number) => {
+    setConditionAlertPresets((prev) => prev.map((preset) => (
+      preset.id === id ? { ...preset, defaultCooldownMinutes: cooldown } : preset
+    )));
+  };
+
+  const handleSaveConditionPresets = async () => {
+    setSavingConditionPresets(true);
+    try {
+      const saved = await persistConditionAlertPresets('', conditionAlertPresets.map((preset) => ({
+        id: preset.id,
+        enabled: preset.enabled,
+        defaultCooldownMinutes: preset.defaultCooldownMinutes,
+        ruleJson: preset.ruleJson,
+      })));
+      setConditionAlertPresets(saved);
+      showToast('Condition alert presets saved', 'success');
+    } catch (err) {
+      showToast(err instanceof Error ? err.message : 'Failed to save condition presets', 'error');
+    } finally {
+      setSavingConditionPresets(false);
+    }
+  };
+
+  const handleResetConditionPresets = async () => {
+    setSavingConditionPresets(true);
+    try {
+      const saved = await resetConditionAlertPresets('');
+      setConditionAlertPresets(saved);
+      showToast('Condition presets reset', 'success');
+    } catch (err) {
+      showToast(err instanceof Error ? err.message : 'Failed to reset condition presets', 'error');
+    } finally {
+      setSavingConditionPresets(false);
     }
   };
 
@@ -586,6 +663,146 @@ export function ProfileEditModal({ open, onClose, user, onUserChange }: ProfileE
               </span>
             )}
           </div>
+
+          {matchAlertSettings && (
+            <div className="profile-channel-card profile-channel-card--ready-green">
+              <div className="profile-channel-card__head">
+                <div style={{ flex: '1 1 260px' }}>
+                  <div className="profile-channel-card__title-row">
+                    <span className="profile-channel-card__title">Match Alerts</span>
+                    <span
+                      className="profile-channel-status"
+                      style={{
+                        color: matchAlertSettings.matchStartEnabled || matchAlertSettings.conditionAlertsEnabled ? '#047857' : 'var(--gray-500)',
+                        borderColor: 'rgba(4,120,87,0.22)',
+                      }}
+                    >
+                      {matchAlertSettings.matchStartEnabled || matchAlertSettings.conditionAlertsEnabled ? 'ON' : 'OFF'}
+                    </span>
+                  </div>
+                  <div className="profile-channel-card__hint">
+                    Kickoff and fast live-condition alerts run outside the AI recommendation pipeline.
+                  </div>
+                </div>
+              </div>
+              <div className="settings-panel-card__body" style={{ paddingTop: 4, paddingBottom: 4 }}>
+                <PrefRow label="Match start alerts" hint="Master switch for kickoff notifications.">
+                  <Toggle
+                    on={matchAlertSettings.matchStartEnabled}
+                    disabled={savingMatchAlertSetting === 'matchStartEnabled'}
+                    onChange={(value) => void handleMatchAlertSetting({ matchStartEnabled: value }, 'matchStartEnabled')}
+                    label="Toggle match start alerts"
+                  />
+                </PrefRow>
+                <PrefRow label="Manual match bells" hint="Use the bell in Matches to pick exact games.">
+                  <Toggle
+                    on={matchAlertSettings.manualMatchStartEnabled}
+                    disabled={savingMatchAlertSetting === 'manualMatchStartEnabled'}
+                    onChange={(value) => void handleMatchAlertSetting({ manualMatchStartEnabled: value }, 'manualMatchStartEnabled')}
+                    label="Toggle manual match alerts"
+                  />
+                </PrefRow>
+                <PrefRow label="Favorite-team kickoffs" hint="Auto-alert matches involving your favorite teams.">
+                  <Toggle
+                    on={matchAlertSettings.favoriteTeamMatchStartEnabled}
+                    disabled={savingMatchAlertSetting === 'favoriteTeamMatchStartEnabled'}
+                    onChange={(value) => void handleMatchAlertSetting({ favoriteTeamMatchStartEnabled: value }, 'favoriteTeamMatchStartEnabled')}
+                    label="Toggle favorite team kickoff alerts"
+                  />
+                </PrefRow>
+                <PrefRow label="Favorite-league kickoffs" hint="Auto-alert matches from favorite leagues.">
+                  <Toggle
+                    on={matchAlertSettings.favoriteLeagueMatchStartEnabled}
+                    disabled={savingMatchAlertSetting === 'favoriteLeagueMatchStartEnabled'}
+                    onChange={(value) => void handleMatchAlertSetting({ favoriteLeagueMatchStartEnabled: value }, 'favoriteLeagueMatchStartEnabled')}
+                    label="Toggle favorite league kickoff alerts"
+                  />
+                </PrefRow>
+                <PrefRow label="Condition alerts" hint="Fast bettor signals such as away scores first, red cards, and pressure setups.">
+                  <Toggle
+                    on={matchAlertSettings.conditionAlertsEnabled}
+                    disabled={savingMatchAlertSetting === 'conditionAlertsEnabled'}
+                    onChange={(value) => void handleMatchAlertSetting({ conditionAlertsEnabled: value }, 'conditionAlertsEnabled')}
+                    label="Toggle condition alerts"
+                  />
+                </PrefRow>
+                <PrefRow label="Condition cooldown" hint="Minutes before another alert from the same rule.">
+                  <select
+                    className="job-interval-select"
+                    value={matchAlertSettings.defaultCooldownMinutes}
+                    disabled={savingMatchAlertSetting === 'defaultCooldownMinutes'}
+                    onChange={(e) => void handleMatchAlertSetting({ defaultCooldownMinutes: Number(e.target.value) }, 'defaultCooldownMinutes')}
+                    style={{ minWidth: '110px' }}
+                  >
+                    <option value={0}>No cooldown</option>
+                    <option value={5}>5 minutes</option>
+                    <option value={10}>10 minutes</option>
+                    <option value={15}>15 minutes</option>
+                    <option value={30}>30 minutes</option>
+                  </select>
+                </PrefRow>
+                <details className="profile-collapsible">
+                  <summary>Condition alert presets</summary>
+                  <div className="profile-collapsible__body">
+                    <p className="profile-collapsible__hint">
+                      These presets are applied when you add fast condition alerts from a watched match.
+                    </p>
+                    <div className="profile-condition-preset-list">
+                      {conditionAlertPresets.map((preset) => (
+                        <div key={preset.id} className="profile-condition-preset-row">
+                          <div className="profile-condition-preset-row__main">
+                            <div className="profile-condition-preset-row__title">
+                              {preset.labelVi || preset.label}
+                            </div>
+                            <div className="profile-condition-preset-row__hint">
+                              {preset.description}
+                            </div>
+                          </div>
+                          <select
+                            className="job-interval-select"
+                            value={preset.defaultCooldownMinutes}
+                            disabled={savingConditionPresets}
+                            onChange={(e) => handleConditionPresetCooldown(preset.id, Number(e.target.value))}
+                            aria-label={`${preset.label} cooldown`}
+                          >
+                            <option value={0}>No cooldown</option>
+                            <option value={5}>5 min</option>
+                            <option value={10}>10 min</option>
+                            <option value={15}>15 min</option>
+                            <option value={30}>30 min</option>
+                          </select>
+                          <Toggle
+                            on={preset.enabled}
+                            disabled={savingConditionPresets}
+                            onChange={(value) => handleConditionPresetToggle(preset.id, value)}
+                            label={`Toggle ${preset.label}`}
+                          />
+                        </div>
+                      ))}
+                    </div>
+                    <div className="profile-condition-preset-actions">
+                      <button
+                        type="button"
+                        className="btn btn-secondary btn-sm"
+                        disabled={savingConditionPresets}
+                        onClick={() => void handleResetConditionPresets()}
+                      >
+                        Reset presets
+                      </button>
+                      <button
+                        type="button"
+                        className="btn btn-primary btn-sm"
+                        disabled={savingConditionPresets || conditionAlertPresets.length === 0}
+                        onClick={() => void handleSaveConditionPresets()}
+                      >
+                        {savingConditionPresets ? 'Saving...' : 'Save presets'}
+                      </button>
+                    </div>
+                  </div>
+                </details>
+              </div>
+            </div>
+          )}
 
           <div className={`profile-channel-card${telegramReady ? ' profile-channel-card--ready' : telegramEnabled ? ' profile-channel-card--warn' : ''}`}>
             <div className="profile-channel-card__head">

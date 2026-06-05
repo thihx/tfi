@@ -22,7 +22,10 @@ import { syncWatchlistMetadataJob } from './sync-watchlist-metadata.job.js';
 import { autoAddTopLeagueWatchlistJob } from './auto-add-top-league-watchlist.job.js';
 import { autoAddFavoriteTeamWatchlistJob } from './auto-add-favorite-team-watchlist.job.js';
 import { refreshLiveMatchesJob } from './refresh-live-matches.job.js';
+import { materializeMatchAlertsJob } from './materialize-match-alerts.job.js';
+import { checkMatchAlertsJob } from './check-match-alerts.job.js';
 import { deliverTelegramNotificationsJob } from './deliver-telegram-notifications.job.js';
+import { deliverMatchAlertTelegramJob } from './deliver-match-alert-telegram.job.js';
 import { expireWatchlistJob } from './expire-watchlist.job.js';
 import { checkLiveTriggerJob } from './check-live-trigger.job.js';
 import { autoSettleJob } from './auto-settle.job.js';
@@ -171,8 +174,10 @@ export const FOOTBALL_API_JOB_NAMES = new Set([
 
 const SUCCESS_LOG_SAMPLE_EVERY: Partial<Record<string, number>> = {
   'refresh-live-matches': 20,
+  'check-match-alerts': 20,
   'check-live-trigger': 20,
   'deliver-telegram-notifications': 20,
+  'deliver-match-alert-telegram': 20,
   'health-watchdog': 20,
   'integration-health': 20,
 };
@@ -702,6 +707,7 @@ async function runConcurrentJob(job: ManagedJob, scheduledAt: number): Promise<v
 
 const STARTUP_STAGGER_TIERS: Record<string, number> = {
   'refresh-live-matches': 0,
+  'check-match-alerts': 0,
   'check-live-trigger': 0,
   'fetch-matches': 2_000,
   'refresh-provider-insights': 30_000,
@@ -804,6 +810,40 @@ export async function startScheduler() {
     },
   );
   register(
+    'materialize-match-alerts',
+    config.jobMaterializeMatchAlertsMs,
+    materializeMatchAlertsJob,
+    undefined,
+    undefined,
+    1,
+    undefined,
+    {
+      label: 'Materialize Match Alerts',
+      description: 'Creates concrete kickoff alert rules for selected favorite-team and favorite-league matches.',
+      group: 'pipeline',
+      entityScopes: ['match-alerts', 'favorite-teams', 'favorite-leagues'],
+      order: 8,
+      lockPolicy: 'degraded-local',
+    },
+  );
+  register(
+    'check-match-alerts',
+    config.jobCheckMatchAlertsMs,
+    checkMatchAlertsJob,
+    undefined,
+    undefined,
+    1,
+    config.jobCheckMatchAlertsMaxRunMs,
+    {
+      label: 'Check Match Alerts',
+      description: 'Evaluates user kickoff and live condition alert rules without running the AI recommendation pipeline.',
+      group: 'pipeline',
+      entityScopes: ['match-alerts', 'notifications', 'web-push'],
+      order: 9,
+      lockPolicy: 'strict',
+    },
+  );
+  register(
     'deliver-telegram-notifications',
     config.jobDeliverTelegramNotificationsMs,
     deliverTelegramNotificationsJob,
@@ -816,7 +856,24 @@ export async function startScheduler() {
       description: 'Flushes pending Telegram alerts from the delivery queue so live analysis does not wait on network sends.',
       group: 'pipeline',
       entityScopes: ['notifications', 'telegram', 'delivery-queue'],
-      order: 9,
+      order: 10,
+      lockPolicy: 'strict',
+    },
+  );
+  register(
+    'deliver-match-alert-telegram',
+    config.jobDeliverTelegramNotificationsMs,
+    deliverMatchAlertTelegramJob,
+    undefined,
+    undefined,
+    1,
+    config.jobDeliverTelegramNotificationsMaxRunMs,
+    {
+      label: 'Deliver Match Alert Telegram',
+      description: 'Flushes pending Telegram messages from the user match alert queue without involving the AI recommendation pipeline.',
+      group: 'pipeline',
+      entityScopes: ['match-alerts', 'telegram', 'delivery-queue'],
+      order: 11,
       lockPolicy: 'strict',
     },
   );
@@ -884,7 +941,7 @@ export async function startScheduler() {
       description: 'Looks for followed matches that are now live and decides which ones need a fresh review. For those matches, it runs the main review flow and may save a new result or send an alert.',
       group: 'pipeline',
       entityScopes: ['watchlist', 'live-pipeline', 'recommendations', 'notifications'],
-      order: 10,
+      order: 12,
       lockPolicy: 'strict',
     },
   );
@@ -901,7 +958,7 @@ export async function startScheduler() {
       description: 'Pre-warms saved match details for non-live followed games, such as match facts, event details, and provider snapshots, so the app can read recent local copies instead of asking again each time.',
       group: 'pipeline',
       entityScopes: ['provider-fixture-cache', 'provider-stats-cache', 'provider-events-cache', 'provider-odds-cache'],
-      order: 10,
+      order: 13,
       lockPolicy: 'degraded-local',
     },
   );
@@ -918,7 +975,7 @@ export async function startScheduler() {
       description: 'Checks finished matches and updates open picks and bets with their final outcome. It uses saved match history first and only asks for missing final details when needed.',
       group: 'pipeline',
       entityScopes: ['recommendations', 'bets', 'settlement-audit'],
-      order: 11,
+      order: 14,
       lockPolicy: 'strict',
     },
   );
@@ -935,7 +992,7 @@ export async function startScheduler() {
       description: 'Removes old follow-list entries after the match has been over long enough that the app no longer needs to keep watching them.',
       group: 'maintenance',
       entityScopes: ['watchlist'],
-      order: 12,
+      order: 15,
       lockPolicy: 'degraded-local',
     },
   );
@@ -952,7 +1009,7 @@ export async function startScheduler() {
       description: 'Daily cleanup across all high-growth tables: purges expired audit logs, provider samples, pipeline runs, and match history; slims old recommendation text fields to save storage while preserving core bet data for AI retraining.',
       group: 'maintenance',
       entityScopes: ['audit-logs'],
-      order: 13,
+      order: 16,
       lockPolicy: 'degraded-local',
     },
   );
@@ -969,7 +1026,7 @@ export async function startScheduler() {
       description: 'Checks whether the key services the app depends on are working well. If one goes down or recovers, it sends a message so people notice quickly.',
       group: 'monitoring',
       entityScopes: ['postgres', 'redis', 'provider-apis', 'telegram'],
-      order: 14,
+      order: 17,
       lockPolicy: 'strict',
     },
   );
@@ -986,7 +1043,7 @@ export async function startScheduler() {
       description: 'Watches the most important background jobs and looks for ones that stop running on time or appear stuck. If a problem starts or clears, it sends a message.',
       group: 'monitoring',
       entityScopes: ['scheduler', 'critical-jobs'],
-      order: 15,
+      order: 18,
       lockPolicy: 'strict',
     },
   );

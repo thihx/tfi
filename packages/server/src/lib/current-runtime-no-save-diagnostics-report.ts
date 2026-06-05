@@ -31,6 +31,19 @@ export interface RuntimeNoSavePipelineOutcomeRow {
   latestAt: string | null;
 }
 
+export interface RuntimeNoSaveTelemetryCompleteness {
+  auditRows: number;
+  missingMinute: number;
+  missingScore: number;
+  missingEvidenceMode: number;
+  missingValuePercent: number;
+  missingRiskLevel: number;
+  missingShadowCandidate: number;
+  shadowCandidatePresent: number;
+  shadowCandidateResolved: number;
+  shadowCandidateUnresolved: number;
+}
+
 export interface RuntimeNoSaveSampleRow {
   id: number;
   timestamp: string;
@@ -50,6 +63,18 @@ export interface RuntimeNoSaveSampleRow {
   saveIntegrityStatus: string;
   saveBlockedReason: string;
   saveProviderCoverageStatus: string;
+  valuePercent: string;
+  riskLevel: string;
+  shadowCandidatePresent: string;
+  shadowCandidateSelection: string;
+  shadowCandidateBetMarket: string;
+  shadowCandidateCanonicalMarket: string;
+  shadowCandidateMappedOdd: string;
+  shadowCandidateMarketResolutionStatus: string;
+  shadowCandidateConfidence: string;
+  shadowCandidateValuePercent: string;
+  shadowCandidateRiskLevel: string;
+  shadowCandidateReasonCode: string;
   policyWarnings: string[];
   warnings: string[];
   aiTextSample: string;
@@ -72,6 +97,10 @@ export interface CurrentRuntimeNoSaveDiagnosticsReport {
   marketResolutionStatuses: RuntimeNoSaveBreakdownRow[];
   evidenceModes: RuntimeNoSaveBreakdownRow[];
   policyWarningKeys: RuntimeNoSaveBreakdownRow[];
+  telemetryCompleteness: RuntimeNoSaveTelemetryCompleteness;
+  shadowCandidateReasonCodes: RuntimeNoSaveBreakdownRow[];
+  shadowCandidateMarketResolutionStatuses: RuntimeNoSaveBreakdownRow[];
+  shadowCandidateCanonicalMarkets: RuntimeNoSaveBreakdownRow[];
   parseCrossBreakdown: RuntimeNoSaveCrossRow[];
   pipelineOutcomeBreakdown: RuntimeNoSavePipelineOutcomeRow[];
   recentSamples: RuntimeNoSaveSampleRow[];
@@ -119,6 +148,10 @@ export async function buildCurrentRuntimeNoSaveDiagnosticsReport(
     marketResult,
     evidenceResult,
     warningResult,
+    telemetryResult,
+    shadowReasonResult,
+    shadowResolutionResult,
+    shadowMarketResult,
     crossResult,
     outcomeResult,
     sampleResult,
@@ -231,6 +264,89 @@ export async function buildCurrentRuntimeNoSaveDiagnosticsReport(
       [lookbackHours, official],
     ),
     query<{
+      audit_rows: string;
+      missing_minute: string;
+      missing_score: string;
+      missing_evidence_mode: string;
+      missing_value_percent: string;
+      missing_risk_level: string;
+      missing_shadow_candidate: string;
+      shadow_candidate_present: string;
+      shadow_candidate_resolved: string;
+      shadow_candidate_unresolved: string;
+    }>(
+      `SELECT
+         COUNT(*)::text AS audit_rows,
+         COUNT(*) FILTER (WHERE COALESCE(NULLIF(metadata->>'minute', ''), '') = '')::text AS missing_minute,
+         COUNT(*) FILTER (WHERE COALESCE(NULLIF(metadata->>'score', ''), '') = '')::text AS missing_score,
+         COUNT(*) FILTER (WHERE COALESCE(NULLIF(metadata->>'evidenceMode', ''), '') = '')::text AS missing_evidence_mode,
+         COUNT(*) FILTER (WHERE COALESCE(NULLIF(metadata->>'valuePercent', ''), '') = '')::text AS missing_value_percent,
+         COUNT(*) FILTER (WHERE COALESCE(NULLIF(metadata->>'riskLevel', ''), '') = '')::text AS missing_risk_level,
+         COUNT(*) FILTER (WHERE COALESCE(NULLIF(metadata->>'shadowCandidatePresent', ''), 'false') <> 'true')::text AS missing_shadow_candidate,
+         COUNT(*) FILTER (WHERE metadata->>'shadowCandidatePresent' = 'true')::text AS shadow_candidate_present,
+         COUNT(*) FILTER (WHERE metadata->>'shadowCandidateMarketResolutionStatus' = 'resolved')::text AS shadow_candidate_resolved,
+         COUNT(*) FILTER (
+           WHERE metadata->>'shadowCandidatePresent' = 'true'
+             AND COALESCE(NULLIF(metadata->>'shadowCandidateMarketResolutionStatus', ''), 'unknown') <> 'resolved'
+         )::text AS shadow_candidate_unresolved
+       FROM audit_logs
+       WHERE category = 'PIPELINE'
+         AND actor = 'auto-pipeline'
+         AND action IN ('LLM_PARSE_DIAGNOSTIC', 'PIPELINE_MATCH_ANALYZED')
+         AND metadata->>'promptVersion' = $2
+         AND timestamp >= NOW() - ($1::int * INTERVAL '1 hour')`,
+      [lookbackHours, official],
+    ),
+    query<{ key: string; count: string; latest_at: Date | string | null }>(
+      `SELECT
+         COALESCE(NULLIF(metadata->>'shadowCandidateReasonCode', ''), 'none') AS key,
+         COUNT(*)::text AS count,
+         MAX(timestamp) AS latest_at
+       FROM audit_logs
+       WHERE category = 'PIPELINE'
+         AND actor = 'auto-pipeline'
+         AND action IN ('LLM_PARSE_DIAGNOSTIC', 'PIPELINE_MATCH_ANALYZED')
+         AND metadata->>'promptVersion' = $2
+         AND metadata->>'shadowCandidatePresent' = 'true'
+         AND timestamp >= NOW() - ($1::int * INTERVAL '1 hour')
+       GROUP BY 1
+       ORDER BY COUNT(*) DESC, key
+       LIMIT 25`,
+      [lookbackHours, official],
+    ),
+    query<{ key: string; count: string; latest_at: Date | string | null }>(
+      `SELECT
+         COALESCE(NULLIF(metadata->>'shadowCandidateMarketResolutionStatus', ''), 'unknown') AS key,
+         COUNT(*)::text AS count,
+         MAX(timestamp) AS latest_at
+       FROM audit_logs
+       WHERE category = 'PIPELINE'
+         AND actor = 'auto-pipeline'
+         AND action IN ('LLM_PARSE_DIAGNOSTIC', 'PIPELINE_MATCH_ANALYZED')
+         AND metadata->>'promptVersion' = $2
+         AND timestamp >= NOW() - ($1::int * INTERVAL '1 hour')
+       GROUP BY 1
+       ORDER BY COUNT(*) DESC, key`,
+      [lookbackHours, official],
+    ),
+    query<{ key: string; count: string; latest_at: Date | string | null }>(
+      `SELECT
+         COALESCE(NULLIF(metadata->>'shadowCandidateCanonicalMarket', ''), 'none') AS key,
+         COUNT(*)::text AS count,
+         MAX(timestamp) AS latest_at
+       FROM audit_logs
+       WHERE category = 'PIPELINE'
+         AND actor = 'auto-pipeline'
+         AND action IN ('LLM_PARSE_DIAGNOSTIC', 'PIPELINE_MATCH_ANALYZED')
+         AND metadata->>'promptVersion' = $2
+         AND metadata->>'shadowCandidatePresent' = 'true'
+         AND timestamp >= NOW() - ($1::int * INTERVAL '1 hour')
+       GROUP BY 1
+       ORDER BY COUNT(*) DESC, key
+       LIMIT 25`,
+      [lookbackHours, official],
+    ),
+    query<{
       llm_decision_diagnostic: string;
       market_resolution_status: string;
       policy_blocked: string;
@@ -327,6 +443,7 @@ export async function buildCurrentRuntimeNoSaveDiagnosticsReport(
     return value && typeof value === 'object' && !Array.isArray(value) ? value as Record<string, unknown> : {};
   };
   const asText = (value: unknown): string => value == null || value === '' ? '(empty)' : String(value);
+  const telemetry = telemetryResult.rows[0];
 
   return {
     generatedAt: new Date().toISOString(),
@@ -345,6 +462,21 @@ export async function buildCurrentRuntimeNoSaveDiagnosticsReport(
     marketResolutionStatuses: toBreakdown(marketResult.rows),
     evidenceModes: toBreakdown(evidenceResult.rows),
     policyWarningKeys: toBreakdown(warningResult.rows),
+    telemetryCompleteness: {
+      auditRows: Number(telemetry?.audit_rows ?? 0),
+      missingMinute: Number(telemetry?.missing_minute ?? 0),
+      missingScore: Number(telemetry?.missing_score ?? 0),
+      missingEvidenceMode: Number(telemetry?.missing_evidence_mode ?? 0),
+      missingValuePercent: Number(telemetry?.missing_value_percent ?? 0),
+      missingRiskLevel: Number(telemetry?.missing_risk_level ?? 0),
+      missingShadowCandidate: Number(telemetry?.missing_shadow_candidate ?? 0),
+      shadowCandidatePresent: Number(telemetry?.shadow_candidate_present ?? 0),
+      shadowCandidateResolved: Number(telemetry?.shadow_candidate_resolved ?? 0),
+      shadowCandidateUnresolved: Number(telemetry?.shadow_candidate_unresolved ?? 0),
+    },
+    shadowCandidateReasonCodes: toBreakdown(shadowReasonResult.rows),
+    shadowCandidateMarketResolutionStatuses: toBreakdown(shadowResolutionResult.rows),
+    shadowCandidateCanonicalMarkets: toBreakdown(shadowMarketResult.rows),
     parseCrossBreakdown: crossResult.rows.map((row) => ({
       llmDecisionDiagnostic: row.llm_decision_diagnostic,
       marketResolutionStatus: row.market_resolution_status,
@@ -383,6 +515,18 @@ export async function buildCurrentRuntimeNoSaveDiagnosticsReport(
         saveIntegrityStatus: asText(metadata['saveIntegrityStatus']),
         saveBlockedReason: asText(metadata['saveBlockedReason']),
         saveProviderCoverageStatus: asText(metadata['saveProviderCoverageStatus']),
+        valuePercent: asText(metadata['valuePercent']),
+        riskLevel: asText(metadata['riskLevel']),
+        shadowCandidatePresent: asText(metadata['shadowCandidatePresent']),
+        shadowCandidateSelection: asText(metadata['shadowCandidateSelection']),
+        shadowCandidateBetMarket: asText(metadata['shadowCandidateBetMarket']),
+        shadowCandidateCanonicalMarket: asText(metadata['shadowCandidateCanonicalMarket']),
+        shadowCandidateMappedOdd: asText(metadata['shadowCandidateMappedOdd']),
+        shadowCandidateMarketResolutionStatus: asText(metadata['shadowCandidateMarketResolutionStatus']),
+        shadowCandidateConfidence: asText(metadata['shadowCandidateConfidence']),
+        shadowCandidateValuePercent: asText(metadata['shadowCandidateValuePercent']),
+        shadowCandidateRiskLevel: asText(metadata['shadowCandidateRiskLevel']),
+        shadowCandidateReasonCode: asText(metadata['shadowCandidateReasonCode']),
         policyWarnings: parseStringArray(metadata['policyWarnings']),
         warnings: parseStringArray(metadata['warnings']),
         aiTextSample: truncate(asText(metadata['aiTextSample'])),
@@ -428,6 +572,31 @@ export function formatCurrentRuntimeNoSaveDiagnosticsMarkdown(
   lines.push('', '## Policy Warnings', '', '| Warning | Count | Latest at |', '| --- | ---: | --- |');
   addBreakdown(report.policyWarningKeys);
 
+  lines.push(
+    '',
+    '## Telemetry Completeness',
+    '',
+    '| Metric | Count |',
+    '| --- | ---: |',
+    `| Audit rows | ${report.telemetryCompleteness.auditRows} |`,
+    `| Missing minute | ${report.telemetryCompleteness.missingMinute} |`,
+    `| Missing score | ${report.telemetryCompleteness.missingScore} |`,
+    `| Missing evidence mode | ${report.telemetryCompleteness.missingEvidenceMode} |`,
+    `| Missing value_percent | ${report.telemetryCompleteness.missingValuePercent} |`,
+    `| Missing risk_level | ${report.telemetryCompleteness.missingRiskLevel} |`,
+    `| Missing shadow candidate | ${report.telemetryCompleteness.missingShadowCandidate} |`,
+    `| Shadow candidate present | ${report.telemetryCompleteness.shadowCandidatePresent} |`,
+    `| Shadow candidate resolved | ${report.telemetryCompleteness.shadowCandidateResolved} |`,
+    `| Shadow candidate unresolved | ${report.telemetryCompleteness.shadowCandidateUnresolved} |`,
+  );
+
+  lines.push('', '## Shadow Candidate Reason Codes', '', '| Reason | Count | Latest at |', '| --- | ---: | --- |');
+  addBreakdown(report.shadowCandidateReasonCodes);
+  lines.push('', '## Shadow Candidate Market Resolution', '', '| Status | Count | Latest at |', '| --- | ---: | --- |');
+  addBreakdown(report.shadowCandidateMarketResolutionStatuses);
+  lines.push('', '## Shadow Candidate Canonical Markets', '', '| Market | Count | Latest at |', '| --- | ---: | --- |');
+  addBreakdown(report.shadowCandidateCanonicalMarkets);
+
   lines.push('', '## Parse Cross Breakdown', '', '| Diagnostic | Market status | Policy blocked | Evidence mode | Count | Latest at |', '| --- | --- | --- | --- | ---: | --- |');
   if (report.parseCrossBreakdown.length === 0) {
     lines.push('| (none) |  |  |  | 0 |  |');
@@ -446,13 +615,16 @@ export function formatCurrentRuntimeNoSaveDiagnosticsMarkdown(
     }
   }
 
-  lines.push('', '## Recent Samples', '', '| ID | Timestamp | Action | Match | Diagnostic | Market status | Policy blocked | Selection | Warnings |', '| ---: | --- | --- | --- | --- | --- | --- | --- | --- |');
+  lines.push('', '## Recent Samples', '', '| ID | Timestamp | Action | Match | Diagnostic | Market status | Policy blocked | Selection | Shadow candidate | Shadow status | Warnings |', '| ---: | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |');
   if (report.recentSamples.length === 0) {
-    lines.push('|  | (none) |  |  |  |  |  |  |  |');
+    lines.push('|  | (none) |  |  |  |  |  |  |  |  |  |');
   } else {
     for (const row of report.recentSamples.slice(0, 50)) {
       const warnings = [...row.policyWarnings, ...row.warnings].slice(0, 6).join('; ');
-      lines.push(`| ${row.id} | ${row.timestamp} | ${row.action} | ${row.matchDisplay || row.matchId} | ${row.llmDecisionDiagnostic} | ${row.marketResolutionStatus} | ${row.policyBlocked} | ${row.selection} | ${warnings} |`);
+      const shadowCandidate = row.shadowCandidateSelection !== '(empty)'
+        ? `${row.shadowCandidateSelection} (${row.shadowCandidateCanonicalMarket})`
+        : row.shadowCandidateReasonCode;
+      lines.push(`| ${row.id} | ${row.timestamp} | ${row.action} | ${row.matchDisplay || row.matchId} | ${row.llmDecisionDiagnostic} | ${row.marketResolutionStatus} | ${row.policyBlocked} | ${row.selection} | ${shadowCandidate} | ${row.shadowCandidateMarketResolutionStatus} | ${warnings} |`);
     }
   }
   lines.push('');

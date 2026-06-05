@@ -83,7 +83,7 @@ export async function listAiGatewayAdminRecipients(): Promise<AiGatewayAdminReci
             COALESCE(ns.web_push_enabled, FALSE) AS web_push_enabled,
             BTRIM(tg.address) AS telegram_chat_id
        FROM users u
-       LEFT JOIN user_notification_settings ns ON ns.user_id = u.id
+       LEFT JOIN user_notification_settings ns ON ns.user_id = u.id::text
        LEFT JOIN user_notification_channel_configs tg
          ON tg.user_id = u.id
         AND tg.channel_type = 'telegram'

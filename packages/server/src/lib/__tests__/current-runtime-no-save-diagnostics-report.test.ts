@@ -50,6 +50,29 @@ describe('current runtime no-save diagnostics report', () => {
       } as never)
       .mockResolvedValueOnce({
         rows: [{
+          audit_rows: '8',
+          missing_minute: '0',
+          missing_score: '0',
+          missing_evidence_mode: '0',
+          missing_value_percent: '0',
+          missing_risk_level: '0',
+          missing_shadow_candidate: '1',
+          shadow_candidate_present: '7',
+          shadow_candidate_resolved: '4',
+          shadow_candidate_unresolved: '3',
+        }],
+      } as never)
+      .mockResolvedValueOnce({
+        rows: [{ key: 'thin_edge', count: '4', latest_at: '2026-06-03T11:00:00.000Z' }],
+      } as never)
+      .mockResolvedValueOnce({
+        rows: [{ key: 'resolved', count: '4', latest_at: '2026-06-03T11:00:00.000Z' }],
+      } as never)
+      .mockResolvedValueOnce({
+        rows: [{ key: 'over_2.5', count: '4', latest_at: '2026-06-03T11:00:00.000Z' }],
+      } as never)
+      .mockResolvedValueOnce({
+        rows: [{
           llm_decision_diagnostic: 'no_bet_intentional',
           market_resolution_status: 'missing_selection',
           policy_blocked: 'false',
@@ -80,6 +103,7 @@ describe('current runtime no-save diagnostics report', () => {
             matchId: 'm-1',
             matchDisplay: 'Home vs Away',
             minute: 65,
+            score: '1-1',
             status: '2H',
             evidenceMode: 'full_live_data',
             llmDecisionDiagnostic: 'no_bet_intentional',
@@ -88,6 +112,18 @@ describe('current runtime no-save diagnostics report', () => {
             selection: '',
             betMarket: '',
             confidence: 0,
+            valuePercent: 0,
+            riskLevel: 'HIGH',
+            shadowCandidatePresent: true,
+            shadowCandidateSelection: 'Over 2.5 Goals @1.85',
+            shadowCandidateBetMarket: 'over_2.5',
+            shadowCandidateCanonicalMarket: 'over_2.5',
+            shadowCandidateMappedOdd: 1.85,
+            shadowCandidateMarketResolutionStatus: 'resolved',
+            shadowCandidateConfidence: 6,
+            shadowCandidateValuePercent: 5,
+            shadowCandidateRiskLevel: 'MEDIUM',
+            shadowCandidateReasonCode: 'thin_edge',
             policyWarnings: ['POLICY_WARN_LOW_EDGE'],
             warnings: ['NO_BET'],
             aiTextSample: '{"should_push":false}',
@@ -100,9 +136,9 @@ describe('current runtime no-save diagnostics report', () => {
       maxSamples: 20,
     });
 
-    expect(mockQuery).toHaveBeenCalledTimes(8);
+    expect(mockQuery).toHaveBeenCalledTimes(12);
     expect(mockQuery.mock.calls[0]?.[1]).toEqual([336, 'v10-hybrid-legacy-g']);
-    expect(mockQuery.mock.calls[7]?.[1]).toEqual([336, 'v10-hybrid-legacy-g', 20]);
+    expect(mockQuery.mock.calls[11]?.[1]).toEqual([336, 'v10-hybrid-legacy-g', 20]);
     expect(report.totals).toMatchObject({
       parseDiagnostics: 5,
       parseActionable: 1,
@@ -117,12 +153,26 @@ describe('current runtime no-save diagnostics report', () => {
       count: 3,
       latestAt: '2026-06-03T12:00:00.000Z',
     });
+    expect(report.telemetryCompleteness).toMatchObject({
+      auditRows: 8,
+      missingShadowCandidate: 1,
+      shadowCandidatePresent: 7,
+      shadowCandidateResolved: 4,
+    });
+    expect(report.shadowCandidateReasonCodes[0]).toEqual({
+      key: 'thin_edge',
+      count: 4,
+      latestAt: '2026-06-03T11:00:00.000Z',
+    });
     expect(report.recentSamples[0]).toMatchObject({
       id: 101,
       matchId: 'm-1',
       matchDisplay: 'Home vs Away',
       evidenceMode: 'full_live_data',
       llmDecisionDiagnostic: 'no_bet_intentional',
+      shadowCandidateSelection: 'Over 2.5 Goals @1.85',
+      shadowCandidateMarketResolutionStatus: 'resolved',
+      shadowCandidateReasonCode: 'thin_edge',
       policyWarnings: ['POLICY_WARN_LOW_EDGE'],
       warnings: ['NO_BET'],
     });
@@ -130,11 +180,18 @@ describe('current runtime no-save diagnostics report', () => {
     const markdown = formatCurrentRuntimeNoSaveDiagnosticsMarkdown(report);
     expect(markdown).toContain('# Current Runtime No-Save Diagnostics');
     expect(markdown).toContain('| no_bet_intentional | 3 | 2026-06-03T12:00:00.000Z |');
+    expect(markdown).toContain('## Telemetry Completeness');
+    expect(markdown).toContain('| Shadow candidate resolved | 4 |');
+    expect(markdown).toContain('Over 2.5 Goals @1.85 (over_2.5)');
     expect(markdown).toContain('| false | false | not_attempted | unknown | no_bet_intentional | 3 |');
   });
 
   it('handles empty reports', async () => {
     mockQuery
+      .mockResolvedValueOnce({ rows: [] } as never)
+      .mockResolvedValueOnce({ rows: [] } as never)
+      .mockResolvedValueOnce({ rows: [] } as never)
+      .mockResolvedValueOnce({ rows: [] } as never)
       .mockResolvedValueOnce({ rows: [] } as never)
       .mockResolvedValueOnce({ rows: [] } as never)
       .mockResolvedValueOnce({ rows: [] } as never)

@@ -28,6 +28,7 @@ self.addEventListener('push', (event) => {
     icon?: string;
     duration?: number;
     actions?: NotificationActionPayload[];
+    data?: Record<string, unknown>;
   } = {};
   try {
     payload = event.data?.json() ?? {};
@@ -45,7 +46,7 @@ self.addEventListener('push', (event) => {
     badge: '/pwa-192x192.png',
     tag,
     renotify: true,
-    data: { url: payload.url ?? '/' },
+    data: { url: payload.url ?? '/', ...(payload.data ?? {}) },
     actions: payload.actions,
   };
 
@@ -68,9 +69,16 @@ self.addEventListener('push', (event) => {
 self.addEventListener('notificationclick', (event) => {
   event.notification.close();
 
-  // Extract matchId from tag (format: "tfi-rec-{matchId}")
+  const data = event.notification.data as { matchId?: unknown; url?: unknown } | null;
   const tag: string = event.notification.tag ?? '';
-  const matchId = tag.startsWith('tfi-rec-') ? tag.slice('tfi-rec-'.length) : '';
+  const matchIdFromTag = tag.startsWith('tfi-rec-')
+    ? tag.slice('tfi-rec-'.length)
+    : tag.startsWith('tfi-alert-match-start-')
+      ? tag.slice('tfi-alert-match-start-'.length)
+      : '';
+  const matchId = typeof data?.matchId === 'string' && data.matchId.trim()
+    ? data.matchId.trim()
+    : matchIdFromTag;
   // matchDisplay is the first line of the notification body
   const matchDisplay = event.notification.body?.split('\n')[0] ?? '';
 

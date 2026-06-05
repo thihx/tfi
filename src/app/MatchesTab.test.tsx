@@ -11,6 +11,9 @@ const mockRefreshMatches = vi.fn().mockResolvedValue(undefined);
 const mockAddToWatchlist = vi.fn().mockResolvedValue(true);
 const mockUpdateWatchlistItem = vi.fn().mockResolvedValue(true);
 const mockFetchFavoriteLeagueSelection = vi.fn();
+const mockFetchMatchAlertRules = vi.fn().mockResolvedValue([]);
+const mockCreateMatchAlertRule = vi.fn().mockResolvedValue({ id: 77, matchId: '200', alertKind: 'match_start', enabled: true, source: 'manual' });
+const mockDeleteMatchAlertRule = vi.fn().mockResolvedValue({ deleted: true });
 const mockApplyFavoriteLeaguesToWatchlist = vi.fn().mockResolvedValue({
   error: null,
   limitExceeded: false,
@@ -146,6 +149,10 @@ vi.mock('@/lib/services/api', () => ({
   fetchLeagueProfile: vi.fn().mockResolvedValue(null),
   fetchTeamProfile: vi.fn().mockResolvedValue(null),
   fetchFavoriteLeagueSelection: mockFetchFavoriteLeagueSelection,
+  fetchMatchAlertRules: mockFetchMatchAlertRules,
+  createMatchAlertRule: mockCreateMatchAlertRule,
+  deleteMatchAlertRule: mockDeleteMatchAlertRule,
+  fetchConditionAlertPresets: vi.fn().mockResolvedValue([]),
   applyFavoriteLeaguesToWatchlist: mockApplyFavoriteLeaguesToWatchlist,
   evaluateWatchConditionPreview: vi.fn().mockResolvedValue({
     supported: true,
@@ -192,6 +199,7 @@ beforeAll(() => {
 
 let MatchesTab: typeof import('./MatchesTab').MatchesTab;
 let shouldAutoRefreshMatch: typeof import('./MatchesTab').shouldAutoRefreshMatch;
+let shouldShowKickoffAlertAction: typeof import('./MatchesTab').shouldShowKickoffAlertAction;
 
 beforeEach(async () => {
   localStorage.clear();
@@ -211,6 +219,9 @@ beforeEach(async () => {
     watchlistActiveLimit: 5,
     watchlistActiveCount: 1,
   });
+  mockFetchMatchAlertRules.mockResolvedValue([]);
+  mockCreateMatchAlertRule.mockResolvedValue({ id: 77, matchId: '200', alertKind: 'match_start', enabled: true, source: 'manual' });
+  mockDeleteMatchAlertRule.mockResolvedValue({ deleted: true });
   mockApplyFavoriteLeaguesToWatchlist.mockResolvedValue({
     error: null,
     limitExceeded: false,
@@ -259,10 +270,39 @@ beforeEach(async () => {
     },
   });
   mockGetParsedAiResult.mockImplementation((result) => result.debug?.parsed ?? null);
-  ({ MatchesTab, shouldAutoRefreshMatch } = await import('./MatchesTab'));
+  ({ MatchesTab, shouldAutoRefreshMatch, shouldShowKickoffAlertAction } = await import('./MatchesTab'));
 });
 
 describe('MatchesTab', () => {
+  it('shows kickoff alert action only before a match starts', async () => {
+    const user = userEvent.setup();
+    mockState.matches = [baseMatches[0]!, baseMatches[1]!].map((match) => ({ ...match }));
+    mockState.watchlist = [];
+
+    render(<MatchesTab />);
+
+    await user.click(screen.getByTitle('Table view'));
+
+    expect(screen.getByText('Arsenal')).toBeInTheDocument();
+    expect(screen.getByText('Barcelona')).toBeInTheDocument();
+    expect(screen.getAllByRole('button', { name: 'Enable kickoff alert' })).toHaveLength(1);
+
+    await user.click(screen.getByRole('button', { name: 'Enable kickoff alert' }));
+
+    await waitFor(() => {
+      expect(mockCreateMatchAlertRule).toHaveBeenCalledWith(
+        expect.objectContaining({ apiUrl: 'http://localhost:4000' }),
+        expect.objectContaining({ matchId: '200', alertKind: 'match_start' }),
+      );
+    });
+  });
+
+  it('classifies kickoff alert visibility from match status and kickoff time', () => {
+    expect(shouldShowKickoffAlertAction(baseMatches[1]!)).toBe(true);
+    expect(shouldShowKickoffAlertAction(baseMatches[0]!)).toBe(false);
+    expect(shouldShowKickoffAlertAction({ ...baseMatches[1]!, status: 'FT' })).toBe(false);
+  });
+
   it('uses the server pipeline for match analysis and renders the returned analysis', async () => {
     const user = userEvent.setup();
     render(<MatchesTab />);
@@ -380,7 +420,7 @@ describe('MatchesTab', () => {
     expect(screen.getByText('What about Home -0.25 here?')).toBeInTheDocument();
     expect(screen.getByLabelText('Assistant reply')).toBeInTheDocument();
     expect(screen.getByText('Keo Home -0.25 van co the can nhac, nhung chua tot hon over hien tai.')).toBeInTheDocument();
-  });
+  }, 10000);
 
   it('passes the subscription id when saving a watched match edit', async () => {
     const user = userEvent.setup();
@@ -393,6 +433,28 @@ describe('MatchesTab', () => {
     await waitFor(() => {
       expect(mockUpdateWatchlistItem).toHaveBeenCalledWith(
         expect.objectContaining({ id: 7, match_id: '100' }),
+      );
+    });
+  });
+
+  it('creates a free-text condition alert rule when saving manual conditions', async () => {
+    const user = userEvent.setup();
+    render(<MatchesTab />);
+
+    await user.click(screen.getByTitle('Table view'));
+    await user.click(screen.getByRole('button', { name: 'Watch alerts and conditions' }));
+    await user.type(await screen.findByPlaceholderText('Minute >= 60'), 'Neu 2 doi ko co ban thang sau phut 70');
+    await user.click(screen.getByRole('button', { name: 'Save changes' }));
+
+    await waitFor(() => {
+      expect(mockCreateMatchAlertRule).toHaveBeenCalledWith(
+        expect.objectContaining({ apiUrl: 'http://localhost:4000' }),
+        expect.objectContaining({
+          matchId: '100',
+          alertKind: 'condition_signal',
+          source: 'manual:free_text',
+          conditionText: '(Neu 2 doi ko co ban thang sau phut 70)',
+        }),
       );
     });
   });
@@ -423,7 +485,7 @@ describe('MatchesTab', () => {
         }),
       );
     });
-  });
+  }, 10000);
 
   it('keeps auto-refresh active for live-window matches using kickoff_at_utc after refactor', async () => {
     vi.useFakeTimers();

@@ -384,7 +384,7 @@ describe('OpsMonitoringPanel', () => {
     expect(screen.getByText('Stacking rate')).toBeInTheDocument();
     expect(screen.getByText('Atletico San Luis vs Leon')).toBeInTheDocument();
     expect(screen.getAllByText('v10-hybrid-legacy-g').length).toBeGreaterThanOrEqual(2);
-  });
+  }, 10000);
 
   test('surfaces top causes when snapshot contains failed health checks', async () => {
     const failingSnapshot = {

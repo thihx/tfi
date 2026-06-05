@@ -470,6 +470,7 @@ beforeEach(async () => {
   vi.mocked(footballApi.fetchPreMatchOdds).mockResolvedValue([]);
 
   const gemini = await import('../lib/gemini.js');
+  vi.mocked(gemini.callGemini).mockReset();
   vi.mocked(gemini.callGemini).mockResolvedValue(JSON.stringify({
     should_push: true,
     selection: 'Away +0.25 @2.10',
@@ -1267,7 +1268,7 @@ describe('runPipelineBatch', () => {
     expect(result.results[0]?.debug?.skipReason).toContain('low-evidence mode');
   });
 
-  test('uses the same LLM path in low_evidence when user custom conditions exist, but keeps the alert unsaved if no usable live odds exist', async () => {
+  test('does not use custom conditions to bypass low_evidence after condition alerts moved out of AI pipeline', async () => {
     const footballApi = await import('../lib/football-api.js');
     vi.mocked(footballApi.fetchFixtureStatistics).mockResolvedValueOnce([]);
     vi.mocked(footballApi.fetchFixtureEvents).mockResolvedValueOnce([] as never);
@@ -1281,49 +1282,18 @@ describe('runPipelineBatch', () => {
     } as never);
 
     const { callGemini } = await import('../lib/gemini.js');
-    vi.mocked(callGemini).mockResolvedValueOnce(JSON.stringify({
-      should_push: true,
-      selection: 'Over 2.5 Goals @1.85',
-      bet_market: 'over_2.5',
-      market_chosen_reason: 'Legacy AI path still prefers over.',
-      confidence: 8,
-      reasoning_en: 'Condition-focused check only.',
-      reasoning_vi: 'Condition-focused check only.',
-      warnings: [],
-      value_percent: 12,
-      risk_level: 'MEDIUM',
-      stake_percent: 5,
-      custom_condition_matched: true,
-      custom_condition_status: 'evaluated',
-      custom_condition_summary_en: 'Total goals condition matched.',
-      custom_condition_summary_vi: 'Total goals condition matched.',
-      custom_condition_reason_en: 'Score is already 1-1.',
-      custom_condition_reason_vi: 'Score is already 1-1.',
-      condition_triggered_suggestion: 'Over 2.5 Goals @1.85',
-      condition_triggered_reasoning_en: 'Condition met from scoreboard only.',
-      condition_triggered_reasoning_vi: 'Condition met from scoreboard only.',
-      condition_triggered_confidence: 7,
-      condition_triggered_stake: 2,
-    }));
 
     const result = await runPipelineBatch(['100']);
 
-    const prompt = vi.mocked(callGemini).mock.calls[0]?.[0] ?? '';
     const { createRecommendation } = await import('../repos/recommendations.repo.js');
-    expect(prompt).toContain('LOW EVIDENCE CONDITION GUARD');
-    expect(prompt).toContain('CUSTOM_CONDITIONS');
+    expect(callGemini).not.toHaveBeenCalled();
     expect(result.results[0]?.success).toBe(true);
-    expect(result.results[0]?.decisionKind).toBe('condition_only');
-    expect(result.results[0]?.shouldPush).toBe(true);
+    expect(result.results[0]?.decisionKind).toBe('no_bet');
+    expect(result.results[0]?.shouldPush).toBe(false);
     expect(result.results[0]?.saved).toBe(false);
     expect(createRecommendation).not.toHaveBeenCalled();
-    expect(result.results[0]?.debug?.parsed).toEqual(
-      expect.objectContaining({
-        ai_should_push: false,
-        final_should_bet: false,
-        condition_triggered_should_push: true,
-      }),
-    );
+    expect(result.results[0]?.debug?.evidenceMode).toBe('low_evidence');
+    expect(result.results[0]?.debug?.skipReason).toContain('low-evidence mode');
   });
 
   test('keeps full analysis alive outside low_evidence even when custom conditions are present', async () => {
@@ -1372,9 +1342,10 @@ describe('runPipelineBatch', () => {
     expect(result.results[0]?.selection).toBe('Away +0.25 @2.10');
     expect(result.results[0]?.debug?.evidenceMode).toBe('full_live_data');
     expect(result.results[0]?.debug?.parsed).toEqual(expect.objectContaining({
-      custom_condition_matched: true,
-      custom_condition_status: 'evaluated',
-      condition_triggered_should_push: true,
+      custom_condition_matched: false,
+      custom_condition_status: 'none',
+      condition_triggered_suggestion: '',
+      condition_triggered_should_push: false,
       final_should_bet: true,
       ai_should_push: true,
     }));
@@ -1403,10 +1374,10 @@ describe('runPipelineBatch', () => {
     expect(result.results[0]?.success).toBe(true);
     expect(result.results[0]?.decisionKind).toBe('no_bet');
     expect(result.results[0]?.saved).toBe(false);
-    expect(result.results[0]?.debug?.skipReason).toContain('no custom watch condition');
+    expect(result.results[0]?.debug?.skipReason).toContain('low-evidence mode');
   });
 
-  test('blocks auto LLM in degraded odds+events mode when no custom watch condition exists', async () => {
+  test('blocks auto LLM in degraded odds+events mode', async () => {
     const footballApi = await import('../lib/football-api.js');
     vi.mocked(footballApi.fetchFixtureStatistics).mockResolvedValueOnce([]);
     vi.mocked(footballApi.fetchFixtureEvents).mockResolvedValueOnce([
@@ -1421,11 +1392,11 @@ describe('runPipelineBatch', () => {
     expect(result.results[0]?.debug?.statsFallbackUsed).toBe(false);
     expect(result.results[0]?.debug?.evidenceMode).toBe('odds_events_only_degraded');
     expect(result.results[0]?.debug?.skippedAt).toBe('llm_eligibility');
-    expect(result.results[0]?.debug?.skipReason).toBe('degraded_evidence_without_watch_condition');
+    expect(result.results[0]?.debug?.skipReason).toBe('degraded_evidence');
     expect(result.results[0]?.success).toBe(true);
   });
 
-  test('blocks BTTS recommendation when evidence tier only allows O/U or AH', async () => {
+  test('does not run recommendation LLM in degraded odds+events mode even when custom conditions exist', async () => {
     const footballApi = await import('../lib/football-api.js');
     vi.mocked(footballApi.fetchFixtureStatistics).mockResolvedValueOnce([]);
     vi.mocked(footballApi.fetchFixtureEvents).mockResolvedValueOnce([
@@ -1440,35 +1411,13 @@ describe('runPipelineBatch', () => {
     } as never);
 
     const { callGemini } = await import('../lib/gemini.js');
-    vi.mocked(callGemini).mockResolvedValueOnce(JSON.stringify({
-      should_push: true,
-      selection: 'BTTS Yes @1.60',
-      bet_market: 'btts_yes',
-      market_chosen_reason: 'Both teams already scored',
-      confidence: 7,
-      reasoning_en: 'Both teams already scored and the game is open.',
-      reasoning_vi: 'Ca hai doi da ghi ban va tran dau dang mo.',
-      warnings: [],
-      value_percent: 8,
-      risk_level: 'MEDIUM',
-      stake_percent: 4,
-      custom_condition_matched: false,
-      custom_condition_status: 'none',
-      custom_condition_summary_en: '',
-      custom_condition_summary_vi: '',
-      custom_condition_reason_en: '',
-      custom_condition_reason_vi: '',
-      condition_triggered_suggestion: '',
-      condition_triggered_reasoning_en: '',
-      condition_triggered_reasoning_vi: '',
-      condition_triggered_confidence: 0,
-      condition_triggered_stake: 0,
-    }));
 
     const result = await runPipelineBatch(['100']);
+    expect(callGemini).not.toHaveBeenCalled();
     expect(result.results[0]?.shouldPush).toBe(false);
     expect(result.results[0]?.debug?.evidenceMode).toBe('odds_events_only_degraded');
-    expect(result.results[0]?.debug?.parsed?.warnings).toContain('MARKET_NOT_ALLOWED_FOR_EVIDENCE');
+    expect(result.results[0]?.debug?.skippedAt).toBe('llm_eligibility');
+    expect(result.results[0]?.debug?.skipReason).toBe('degraded_evidence');
   });
 
   test('ignores hallucinated odds when canonical odds are unavailable', async () => {
@@ -1482,7 +1431,7 @@ describe('runPipelineBatch', () => {
     expect(result.results[0]?.shouldPush).toBe(false);
     expect(result.results[0]?.debug?.evidenceMode).toBe('stats_only');
     expect(result.results[0]?.debug?.skippedAt).toBe('llm_eligibility');
-    expect(result.results[0]?.debug?.skipReason).toBe('degraded_evidence_without_watch_condition');
+    expect(result.results[0]?.debug?.skipReason).toBe('degraded_evidence');
     expect(callGemini).not.toHaveBeenCalled();
   });
 
@@ -1885,6 +1834,7 @@ describe('runPipelineBatch', () => {
   test('classifies intentional no-bet separately from unresolved markets', async () => {
     const { callGemini } = await import('../lib/gemini.js');
     const { audit } = await import('../lib/audit.js');
+    const { createRecommendation } = await import('../repos/recommendations.repo.js');
 
     vi.mocked(callGemini).mockResolvedValueOnce(JSON.stringify({
       should_push: false,
@@ -1897,6 +1847,17 @@ describe('runPipelineBatch', () => {
       value_percent: 0,
       risk_level: 'HIGH',
       stake_percent: 0,
+      shadow_candidate: {
+        selection: 'Over 2.5 Goals @1.85',
+        bet_market: 'over_2.5',
+        confidence: 6,
+        value_percent: 5,
+        risk_level: 'MEDIUM',
+        stake_percent: 1,
+        reason_code: 'thin_edge',
+        reason_en: 'Projected edge is too thin for an automatic bet.',
+        reason_vi: 'Edge du kien qua mong cho keo tu dong.',
+      },
       custom_condition_matched: false,
     }));
 
@@ -1905,12 +1866,33 @@ describe('runPipelineBatch', () => {
     expect(result.results[0].debug?.parsed).toEqual(expect.objectContaining({
       llm_decision_diagnostic: 'no_bet_intentional',
       market_resolution_status: 'not_requested',
+      shadow_candidate: expect.objectContaining({
+        selection: 'Over 2.5 Goals @1.85',
+        bet_market: 'over_2.5',
+        canonical_market: 'over_2.5',
+        mapped_odd: 1.85,
+        market_resolution_status: 'resolved',
+        reason_code: 'thin_edge',
+      }),
     }));
+    expect(createRecommendation).not.toHaveBeenCalled();
     expect(audit).toHaveBeenCalledWith(expect.objectContaining({
       action: 'LLM_PARSE_DIAGNOSTIC',
       metadata: expect.objectContaining({
+        minute: 65,
+        score: '1-1',
+        evidenceMode: 'full_live_data',
         llmDecisionDiagnostic: 'no_bet_intentional',
         marketResolutionStatus: 'not_requested',
+        valuePercent: 0,
+        riskLevel: 'HIGH',
+        stakePercent: 0,
+        shadowCandidatePresent: true,
+        shadowCandidateSelection: 'Over 2.5 Goals @1.85',
+        shadowCandidateCanonicalMarket: 'over_2.5',
+        shadowCandidateMappedOdd: 1.85,
+        shadowCandidateMarketResolutionStatus: 'resolved',
+        shadowCandidateReasonCode: 'thin_edge',
       }),
     }));
   });
@@ -1923,7 +1905,7 @@ describe('runPipelineBatch', () => {
 
     const { callGemini } = await import('../lib/gemini.js');
     expect(callGemini).not.toHaveBeenCalled();
-    expect(result.results[0].debug?.skipReason).toBe('degraded_evidence_without_watch_condition');
+    expect(result.results[0].debug?.skipReason).toBe('degraded_evidence');
     expect(result.results[0].debug?.oddsSource).toBe('none');
     expect(result.results[0].debug?.oddsAvailable).toBe(false);
     expect(footballApi.fetchPreMatchOdds).toHaveBeenCalledWith('100');
@@ -1992,7 +1974,7 @@ describe('runPipelineBatch', () => {
 
     const { callGemini } = await import('../lib/gemini.js');
     expect(['reference-prematch', 'none', undefined]).toContain(result.results[0].debug?.oddsSource);
-    expect(result.results[0].debug?.skipReason).toBe('degraded_evidence_without_watch_condition');
+    expect(result.results[0].debug?.skipReason).toBe('degraded_evidence');
     expect(vi.mocked(callGemini)).not.toHaveBeenCalled();
   });
 
@@ -2015,7 +1997,7 @@ describe('runPipelineBatch', () => {
     const result = await runPipelineBatch(['100']);
 
     expect(result.results[0].debug?.oddsSource).toBe('none');
-    expect(result.results[0].debug?.skipReason).toBe('degraded_evidence_without_watch_condition');
+    expect(result.results[0].debug?.skipReason).toBe('degraded_evidence');
     const { callGemini } = await import('../lib/gemini.js');
     expect(vi.mocked(callGemini)).not.toHaveBeenCalled();
   });
@@ -2144,7 +2126,7 @@ describe('runPipelineBatch', () => {
     expect(result.results[0].shouldPush).toBe(false);
   });
 
-  test('saves a condition-triggered actionable bet even when the main AI path is no-bet', async () => {
+  test('ignores legacy condition-triggered fields when the main AI path is no-bet', async () => {
     const { callGemini } = await import('../lib/gemini.js');
     vi.mocked(callGemini).mockResolvedValueOnce(JSON.stringify({
       should_push: false,
@@ -2176,354 +2158,27 @@ describe('runPipelineBatch', () => {
     const { sendTelegramMessage } = await import('../lib/telegram.js');
     const deliveryRepo = await import('../repos/recommendation-deliveries.repo.js');
 
-    expect(result.results[0]?.shouldPush).toBe(true);
-    expect(result.results[0]?.saved).toBe(true);
-    expect(result.results[0]?.notified).toBe(true);
-    expect(result.results[0]?.selection).toBe('Away +0.25 @2.10');
-    expect(result.results[0]?.confidence).toBe(8);
-    expect(result.results[0]?.debug?.parsed).toEqual(expect.objectContaining({
-      custom_condition_matched: true,
-      custom_condition_status: 'evaluated',
-      condition_triggered_suggestion: 'Away +0.25 @2.10',
-      condition_triggered_confidence: 8,
-      condition_triggered_stake: 3,
-      condition_triggered_should_push: true,
-      should_push: true,
-      final_should_bet: false,
-      ai_should_push: false,
-    }));
-    expect(createRecommendation).toHaveBeenCalledTimes(1);
-    expect(createRecommendation).toHaveBeenCalledWith(expect.objectContaining({
-      selection: 'Away +0.25 @2.10',
-      bet_market: 'asian_handicap_away_+0.25',
-      confidence: 8,
-      stake_percent: 3,
-      custom_condition_matched: true,
-    }));
-    expect(createAiPerformanceRecord).toHaveBeenCalledTimes(1);
-    expect(sendTelegramMessage).not.toHaveBeenCalled();
-    expect(deliveryRepo.stageConditionOnlyDeliveries).not.toHaveBeenCalled();
-  });
-
-  test('pushes a condition-only alert when the condition is evaluated and matched even without a betting suggestion', async () => {
-    const { callGemini } = await import('../lib/gemini.js');
-    vi.mocked(callGemini).mockResolvedValueOnce(JSON.stringify({
-      should_push: false,
-      selection: '',
-      bet_market: '',
-      confidence: 0,
-      reasoning_en: 'No standalone AI bet, but the watch condition has been satisfied.',
-      reasoning_vi: 'Khong co keo AI doc lap, nhung dieu kien theo doi da thoa.',
-      warnings: [],
-      value_percent: 0,
-      risk_level: 'LOW',
-      stake_percent: 0,
-      custom_condition_matched: true,
-      custom_condition_status: 'evaluated',
-      custom_condition_summary_en: 'Watched condition matched.',
-      custom_condition_summary_vi: 'Dieu kien theo doi da thoa.',
-      custom_condition_reason_en: 'Minute and scoreline satisfy the watched rule.',
-      custom_condition_reason_vi: 'Phut va ty so da thoa rule theo doi.',
-      condition_triggered_suggestion: '',
-      condition_triggered_reasoning_en: 'Condition matched from scoreboard facts.',
-      condition_triggered_reasoning_vi: 'Dieu kien da thoa theo du lieu bang ty so.',
-      condition_triggered_confidence: 0,
-      condition_triggered_stake: 0,
-    }));
-
-    const result = await runPipelineBatch(['100']);
-    const { createRecommendation } = await import('../repos/recommendations.repo.js');
-    const { createAiPerformanceRecord } = await import('../repos/ai-performance.repo.js');
-    const { sendTelegramMessage } = await import('../lib/telegram.js');
-    const deliveryRepo = await import('../repos/recommendation-deliveries.repo.js');
-
-    expect(result.results[0]?.shouldPush).toBe(true);
-    expect(result.results[0]?.decisionKind).toBe('condition_only');
+    expect(result.results[0]?.shouldPush).toBe(false);
+    expect(result.results[0]?.decisionKind).toBe('no_bet');
     expect(result.results[0]?.saved).toBe(false);
-    expect(result.results[0]?.notified).toBe(true);
+    expect(result.results[0]?.notified).toBe(false);
     expect(result.results[0]?.selection).toBe('');
-    expect(result.results[0]?.confidence).toBe(0);
+    expect(result.results[0]?.confidence).toBe(4);
     expect(result.results[0]?.debug?.parsed).toEqual(expect.objectContaining({
-      custom_condition_matched: true,
-      custom_condition_status: 'evaluated',
+      custom_condition_matched: false,
+      custom_condition_status: 'none',
       condition_triggered_suggestion: '',
       condition_triggered_confidence: 0,
       condition_triggered_stake: 0,
-      condition_triggered_should_push: true,
-      should_push: true,
+      condition_triggered_should_push: false,
+      should_push: false,
       final_should_bet: false,
       ai_should_push: false,
     }));
     expect(createRecommendation).not.toHaveBeenCalled();
     expect(createAiPerformanceRecord).not.toHaveBeenCalled();
     expect(sendTelegramMessage).not.toHaveBeenCalled();
-    expect(deliveryRepo.stageConditionOnlyDeliveries).toHaveBeenCalled();
-  });
-
-  test('stages the concrete custom condition into condition-only delivery metadata', async () => {
-    const watchlistRepo = await import('../repos/watchlist.repo.js');
-    vi.mocked(watchlistRepo.getOperationalWatchlistByMatchId).mockResolvedValueOnce({
-      ...mockWatchlistEntry,
-      custom_conditions: '(Minute >= 60) AND (Total goals = 0)',
-    } as never);
-
-    const { callGemini } = await import('../lib/gemini.js');
-    vi.mocked(callGemini).mockResolvedValueOnce(JSON.stringify({
-      should_push: false,
-      selection: '',
-      bet_market: '',
-      confidence: 0,
-      reasoning_en: 'No standalone AI bet, but the watch condition is satisfied.',
-      reasoning_vi: 'Khong co keo AI doc lap, nhung dieu kien theo doi da thoa.',
-      warnings: [],
-      value_percent: 0,
-      risk_level: 'LOW',
-      stake_percent: 0,
-      custom_condition_matched: true,
-      custom_condition_status: 'evaluated',
-      custom_condition_summary_en: 'Watched condition matched.',
-      custom_condition_summary_vi: 'Dieu kien theo doi da thoa.',
-      custom_condition_reason_en: 'Minute and scoreline satisfy the watched rule.',
-      custom_condition_reason_vi: 'Phut va ty so da thoa rule theo doi.',
-      condition_triggered_suggestion: '',
-      condition_triggered_reasoning_en: 'Condition matched from scoreboard facts.',
-      condition_triggered_reasoning_vi: 'Dieu kien da thoa theo du lieu bang ty so.',
-      condition_triggered_confidence: 0,
-      condition_triggered_stake: 0,
-    }));
-
-    await runPipelineBatch(['100']);
-
-    const deliveryRepo = await import('../repos/recommendation-deliveries.repo.js');
-    expect(deliveryRepo.stageConditionOnlyDeliveries).toHaveBeenCalledWith(
-      expect.anything(),
-      expect.objectContaining({
-        match_id: '100',
-        status: '2H',
-        ai_model: 'gemini-3.5-flash',
-        condition_summary_vi: 'Dieu kien theo doi da thoa.',
-      }),
-    );
-  });
-
-  test('keeps repeated same-thesis condition-triggered bets as alert-only when an actionable thesis already exists', async () => {
-    const watchlistRepo = await import('../repos/watchlist.repo.js');
-    vi.mocked(watchlistRepo.getOperationalWatchlistByMatchId).mockResolvedValueOnce({
-      ...mockWatchlistEntry,
-      custom_conditions: 'Alert if late under condition is still live.',
-    } as never);
-
-    const recommendationsRepo = await import('../repos/recommendations.repo.js');
-    vi.mocked(recommendationsRepo.getRecommendationsByMatchId).mockResolvedValueOnce([
-      {
-        id: 41,
-        unique_key: '100_under_1.25',
-        match_id: '100',
-        timestamp: '2026-04-02T07:00:00.000Z',
-        league: 'Test League',
-        home_team: 'Team A',
-        away_team: 'Team B',
-        status: '2H',
-        condition_triggered_suggestion: '',
-        custom_condition_raw: '',
-        execution_id: 'prev-1',
-        odds_snapshot: {},
-        stats_snapshot: {},
-        decision_context: {},
-        prompt_version: LIVE_ANALYSIS_PROMPT_VERSION,
-        custom_condition_matched: false,
-        minute: 59,
-        score: '0-0',
-        bet_type: 'AI',
-        selection: 'Under 1.25 Goals @1.93',
-        odds: 1.93,
-        confidence: 7,
-        value_percent: 8,
-        risk_level: 'MEDIUM',
-        stake_percent: 3,
-        stake_amount: null,
-        reasoning: 'Previous under thesis already saved.',
-        reasoning_vi: 'Previous under thesis already saved.',
-        key_factors: '',
-        warnings: '',
-        ai_model: 'gemini-3.5-flash',
-        mode: 'B',
-        bet_market: 'under_1.25',
-        notified: '',
-        notification_channels: '',
-        result: '',
-        actual_outcome: '',
-        pnl: 0,
-        settled_at: null,
-        settlement_status: 'pending',
-        settlement_method: '',
-        settle_prompt_version: '',
-        settlement_note: '',
-        _was_overridden: false,
-      },
-    ] as never);
-
-    const footballApi = await import('../lib/football-api.js');
-    vi.mocked(footballApi.fetchLiveOdds).mockResolvedValueOnce([{
-      bookmakers: [{
-        name: 'TestBook',
-        bets: [
-          { name: 'Over/Under', values: [
-            { value: 'Over', odd: '2.15', handicap: '0.5' },
-            { value: 'Under', odd: '1.75', handicap: '0.5' },
-          ] },
-        ],
-      }],
-    }] as never);
-
-    const { callGemini } = await import('../lib/gemini.js');
-    vi.mocked(callGemini).mockResolvedValueOnce(JSON.stringify({
-      should_push: false,
-      selection: '',
-      bet_market: '',
-      confidence: 3,
-      reasoning_en: 'Main AI path still says no standalone bet.',
-      reasoning_vi: 'Main AI path still says no standalone bet.',
-      warnings: [],
-      value_percent: 6,
-      risk_level: 'MEDIUM',
-      stake_percent: 0,
-      custom_condition_matched: true,
-      custom_condition_status: 'evaluated',
-      custom_condition_summary_en: 'Late under condition matched',
-      custom_condition_summary_vi: 'Late under condition matched',
-      custom_condition_reason_en: 'Match state still supports the under.',
-      custom_condition_reason_vi: 'Match state still supports the under.',
-      condition_triggered_suggestion: 'Under 0.5 Goals @1.75',
-      condition_triggered_reasoning_en: 'The under thesis is still live, but we already hold it.',
-      condition_triggered_reasoning_vi: 'The under thesis is still live, but we already hold it.',
-      condition_triggered_confidence: 6,
-      condition_triggered_stake: 2,
-    }));
-
-    const result = await runPipelineBatch(['100']);
-    const { createRecommendation } = await import('../repos/recommendations.repo.js');
-
-    expect(result.results[0]?.shouldPush).toBe(true);
-    expect(result.results[0]?.saved).toBe(false);
-    expect(createRecommendation).not.toHaveBeenCalled();
-  });
-
-  test('saves an actionable condition-triggered recommendation after normal policy gates pass', async () => {
-    const watchlistRepo = await import('../repos/watchlist.repo.js');
-    vi.mocked(watchlistRepo.getOperationalWatchlistByMatchId).mockResolvedValueOnce({
-      ...mockWatchlistEntry,
-      custom_conditions: 'Alert if away handicap condition is still live.',
-    } as never);
-
-    const recommendationsRepo = await import('../repos/recommendations.repo.js');
-    vi.mocked(recommendationsRepo.getRecommendationsByMatchId).mockResolvedValueOnce([
-      {
-        id: 52,
-        unique_key: '100_asian_handicap_away_+0.25',
-        match_id: '100',
-        timestamp: '2026-04-02T07:00:00.000Z',
-        league: 'Test League',
-        home_team: 'Team A',
-        away_team: 'Team B',
-        status: '2H',
-        condition_triggered_suggestion: '',
-        custom_condition_raw: '',
-        execution_id: 'prev-2',
-        odds_snapshot: {},
-        stats_snapshot: {},
-        decision_context: {},
-        prompt_version: LIVE_ANALYSIS_PROMPT_VERSION,
-        custom_condition_matched: false,
-        minute: 60,
-        score: '0-0',
-        bet_type: 'AI',
-        selection: 'Away +0.25 @2.10',
-        odds: 2.1,
-        confidence: 6,
-        value_percent: 8,
-        risk_level: 'MEDIUM',
-        stake_percent: 2,
-        stake_amount: null,
-        reasoning: 'Saved under line.',
-        reasoning_vi: 'Saved under line.',
-        key_factors: '',
-        warnings: '',
-        ai_model: 'gemini-3.5-flash',
-        mode: 'B',
-        bet_market: 'asian_handicap_away_+0.25',
-        notified: '',
-        notification_channels: '',
-        result: '',
-        actual_outcome: '',
-        pnl: 0,
-        settled_at: null,
-        settlement_status: 'pending',
-        settlement_method: '',
-        settle_prompt_version: '',
-        settlement_note: '',
-        _was_overridden: false,
-      },
-    ] as never);
-
-    const footballApi = await import('../lib/football-api.js');
-    vi.mocked(footballApi.fetchLiveOdds).mockResolvedValueOnce([{
-      bookmakers: [{
-        name: 'TestBook',
-        bets: [
-          { name: 'Over/Under', values: [
-            { value: 'Over', odd: '2.05', handicap: '2.5' },
-            { value: 'Under', odd: '1.70', handicap: '2.5' },
-          ] },
-          { name: 'Asian Handicap', values: [
-            { value: 'Home', odd: '1.70', handicap: '-0.25' },
-            { value: 'Away', odd: '2.25', handicap: '+0.25' },
-          ] },
-        ],
-      }],
-    }] as never);
-
-    const { callGemini } = await import('../lib/gemini.js');
-    vi.mocked(callGemini).mockResolvedValueOnce(JSON.stringify({
-      should_push: false,
-      selection: '',
-      bet_market: '',
-      confidence: 3,
-      reasoning_en: 'Main AI path still says no standalone bet.',
-      reasoning_vi: 'Main AI path still says no standalone bet.',
-      warnings: [],
-      value_percent: 7,
-      risk_level: 'MEDIUM',
-      stake_percent: 0,
-      custom_condition_matched: true,
-      custom_condition_status: 'evaluated',
-      custom_condition_summary_en: 'Late under condition matched',
-      custom_condition_summary_vi: 'Late under condition matched',
-      custom_condition_reason_en: 'The match remains slow and the same line is now better priced.',
-      custom_condition_reason_vi: 'The match remains slow and the same line is now better priced.',
-      condition_triggered_suggestion: 'Away +0.25 @2.25',
-      condition_triggered_reasoning_en: 'The same away handicap line now has materially better price.',
-      condition_triggered_reasoning_vi: 'The same away handicap line now has materially better price.',
-      condition_triggered_confidence: 8,
-      condition_triggered_stake: 2,
-      condition_triggered_special_override: true,
-      condition_triggered_special_override_reason_en: 'Same line, but the live price improved materially versus the earlier save.',
-      condition_triggered_special_override_reason_vi: 'Same line, but the live price improved materially versus the earlier save.',
-    }));
-
-    const result = await runPipelineBatch(['100']);
-    const { createRecommendation } = await import('../repos/recommendations.repo.js');
-
-    expect(result.results[0]?.saved).toBe(true);
-    expect(createRecommendation).toHaveBeenCalledWith(expect.objectContaining({
-      selection: 'Away +0.25 @2.25',
-      bet_market: 'asian_handicap_away_+0.25',
-      confidence: 8,
-      stake_percent: 2,
-    }));
-    expect(result.results[0]?.debug?.parsed?.warnings).not.toContain(
-      'Existing saved exposure already covers this thesis. Condition alert sent without saving another bet.',
-    );
+    expect(deliveryRepo.stageConditionOnlyDeliveries).not.toHaveBeenCalled();
   });
 
   test('watchlist no longer bypasses proceed and staleness gates via mode field', async () => {
@@ -2551,7 +2206,7 @@ describe('runPipelineBatch', () => {
     expect(result.result.debug?.analysisMode).toBe('manual_force');
   });
 
-  test('prompt-only Ask AI skips low_evidence matches with no watch condition instead of calling LLM', async () => {
+  test('prompt-only Ask AI skips low_evidence matches instead of calling LLM', async () => {
     const footballApi = await import('../lib/football-api.js');
     vi.mocked(footballApi.fetchFixtureStatistics).mockResolvedValueOnce([]);
     vi.mocked(footballApi.fetchFixtureEvents).mockResolvedValueOnce([] as never);
@@ -2563,11 +2218,11 @@ describe('runPipelineBatch', () => {
     const { callGemini } = await import('../lib/gemini.js');
     expect(callGemini).not.toHaveBeenCalled();
     expect(result.prompt).toBe('[LLM skipped]');
-    expect(result.text).toContain('Skipped AI analysis because this match is in low-evidence mode and no custom watch condition is configured.');
+    expect(result.text).toContain('Skipped AI analysis because this match is in low-evidence mode.');
     expect(result.result.debug?.evidenceMode).toBe('low_evidence');
   });
 
-  test('prompt-only Ask AI still runs the shared LLM path in low_evidence when custom conditions exist', async () => {
+  test('prompt-only Ask AI does not use custom conditions to bypass low_evidence', async () => {
     const footballApi = await import('../lib/football-api.js');
     vi.mocked(footballApi.fetchFixtureStatistics).mockResolvedValueOnce([]);
     vi.mocked(footballApi.fetchFixtureEvents).mockResolvedValueOnce([] as never);
@@ -2581,35 +2236,12 @@ describe('runPipelineBatch', () => {
     } as never);
 
     const { callGemini } = await import('../lib/gemini.js');
-    vi.mocked(callGemini).mockResolvedValueOnce(JSON.stringify({
-      should_push: false,
-      selection: '',
-      bet_market: '',
-      confidence: 0,
-      reasoning_en: 'Low-evidence prompt-only analysis checked the watched condition.',
-      reasoning_vi: 'Low-evidence prompt-only analysis checked the watched condition.',
-      warnings: [],
-      value_percent: 0,
-      risk_level: 'LOW',
-      stake_percent: 0,
-      custom_condition_matched: true,
-      custom_condition_status: 'evaluated',
-      custom_condition_summary_en: 'Watched condition matched.',
-      custom_condition_summary_vi: 'Watched condition matched.',
-      custom_condition_reason_en: 'Scoreboard facts satisfy the watched rule.',
-      custom_condition_reason_vi: 'Scoreboard facts satisfy the watched rule.',
-      condition_triggered_suggestion: '',
-      condition_triggered_reasoning_en: 'The watched condition is satisfied.',
-      condition_triggered_reasoning_vi: 'The watched condition is satisfied.',
-      condition_triggered_confidence: 0,
-      condition_triggered_stake: 0,
-    }));
 
     const result = await runPromptOnlyAnalysisForMatch('100', { forceAnalyze: true });
 
-    expect(result.prompt).toContain('LOW EVIDENCE CONDITION GUARD');
-    expect(result.prompt).toContain('CUSTOM_CONDITIONS');
-    expect(result.text).toContain('Low-evidence prompt-only analysis checked the watched condition.');
+    expect(callGemini).not.toHaveBeenCalled();
+    expect(result.prompt).toBe('[LLM skipped]');
+    expect(result.text).toContain('Skipped AI analysis because this match is in low-evidence mode.');
     expect(result.result.debug?.evidenceMode).toBe('low_evidence');
   });
 

@@ -5,7 +5,13 @@ import { ConditionBuilder } from '@/components/ui/ConditionBuilder';
 import { fetchMonitorConfig } from '@/features/live-monitor/config';
 import type { LiveMonitorConfig } from '@/features/live-monitor/types';
 import { useAppState } from '@/hooks/useAppState';
-import { evaluateWatchConditionPreview, type WatchConditionEvaluationResult } from '@/lib/services/api';
+import {
+  evaluateWatchConditionPreview,
+  fetchConditionAlertPresets,
+  fetchMatchAlertRules,
+  type ConditionAlertPreset,
+  type WatchConditionEvaluationResult,
+} from '@/lib/services/api';
 import { fetchNotificationChannels } from '@/lib/services/notification-channels';
 import type { NotificationChannelConfig, WatchlistItem } from '@/types';
 
@@ -78,6 +84,7 @@ interface WatchlistEditModalProps {
     custom_conditions: string;
     auto_apply_recommended_condition: boolean;
     notify_enabled: boolean;
+    condition_preset_ids?: string[];
   }) => void;
 }
 
@@ -92,6 +99,8 @@ export function WatchlistEditModal({ item, onClose, onSave }: WatchlistEditModal
   const [conditionEvalError, setConditionEvalError] = useState<string | null>(null);
   const [conditionEvalLoading, setConditionEvalLoading] = useState(false);
   const [channelLines, setChannelLines] = useState<ChannelStatusLine[] | null>(null);
+  const [conditionPresets, setConditionPresets] = useState<ConditionAlertPreset[]>([]);
+  const [selectedPresetIds, setSelectedPresetIds] = useState<Set<string>>(new Set());
 
   useEffect(() => {
     if (!item) return;
@@ -144,6 +153,37 @@ export function WatchlistEditModal({ item, onClose, onSave }: WatchlistEditModal
     };
   }, [item]);
 
+  useEffect(() => {
+    if (!item) {
+      setConditionPresets([]);
+      setSelectedPresetIds(new Set());
+      return;
+    }
+    let cancelled = false;
+    void Promise.all([
+      fetchConditionAlertPresets(apiUrl ?? ''),
+      fetchMatchAlertRules(apiUrl ?? '', { matchId: String(item.match_id), alertKind: 'condition_signal' }).catch(() => []),
+    ])
+      .then(([presets, rules]) => {
+        if (cancelled) return;
+        setConditionPresets(presets);
+        const existingPresetIds = rules
+          .map((rule) => rule.source.startsWith('preset:') ? rule.source.slice('preset:'.length) : '')
+          .filter(Boolean);
+        setSelectedPresetIds(new Set(
+          existingPresetIds.length > 0
+            ? existingPresetIds
+            : presets.filter((preset) => preset.enabled).slice(0, 5).map((preset) => preset.id),
+        ));
+      })
+      .catch(() => {
+        if (!cancelled) setConditionPresets([]);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [apiUrl, item]);
+
   const recommendedRaw = item?.recommended_custom_condition;
   const hasRecommended = Boolean(normalizeCondition(recommendedRaw));
   const reasonText = useMemo(() => {
@@ -173,6 +213,7 @@ export function WatchlistEditModal({ item, onClose, onSave }: WatchlistEditModal
       custom_conditions: resolvePersistedCustomConditions(),
       auto_apply_recommended_condition: autoApplyRecommendedCondition,
       notify_enabled: notifyEnabled,
+      condition_preset_ids: Array.from(selectedPresetIds),
     });
   }
 
@@ -315,6 +356,37 @@ export function WatchlistEditModal({ item, onClose, onSave }: WatchlistEditModal
             inputPlaceholder={c.conditionPlaceholder}
             previewNote={previewNote}
           />
+
+          {conditionPresets.length > 0 && (
+            <section className="watch-rules-panel" aria-labelledby="watch-rules-presets-heading">
+              <h3 id="watch-rules-presets-heading" className="watch-rules-panel__title">
+                Fast condition presets
+              </h3>
+              <div className="watch-rules-preset-grid">
+                {conditionPresets.map((preset) => {
+                  const checked = selectedPresetIds.has(preset.id);
+                  return (
+                    <button
+                      key={preset.id}
+                      type="button"
+                      className={`watch-rules-preset-chip${checked ? ' watch-rules-preset-chip--selected' : ''}`}
+                      onClick={() => {
+                        setSelectedPresetIds((prev) => {
+                          const next = new Set(prev);
+                          if (next.has(preset.id)) next.delete(preset.id);
+                          else next.add(preset.id);
+                          return next;
+                        });
+                      }}
+                      title={preset.description}
+                    >
+                      <span>{preset.labelVi || preset.label}</span>
+                    </button>
+                  );
+                })}
+              </div>
+            </section>
+          )}
 
           <section className="watch-rules-panel watch-rules-panel--notify" aria-labelledby="watch-rules-notify-heading">
             <h3 id="watch-rules-notify-heading" className="watch-rules-panel__title watch-rules-panel__title--sr">

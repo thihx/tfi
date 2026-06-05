@@ -40,6 +40,7 @@ export interface PipelineProceedSettings {
   minMinute: number;
   maxMinute: number;
   secondHalfStartMinute: number;
+  liveStatuses?: string[];
 }
 
 export interface PipelineProceedResult {
@@ -137,7 +138,9 @@ export function checkShouldProceedServer(
   const reasons: string[] = [];
   let shouldProceed = true;
 
-  const liveStatuses = ['1H', '2H'];
+  const liveStatuses = (settings.liveStatuses?.length ? settings.liveStatuses : ['1H', '2H'])
+    .map((value) => String(value || '').trim().toUpperCase())
+    .filter(Boolean);
 
   if (!liveStatuses.includes(statusRaw)) {
     if (forceAnalyze) {

@@ -51,8 +51,8 @@ All older prompt versions are retired. Runtime env values outside this version a
 
 - Selection text and `bet_market` must normalize to the same canonical market before persistence.
 - Signed Home/Away lines such as `Home -0.75 @1.92` or `Away +0.25 @2.10` are Asian Handicap, not 1X2.
-- Condition-triggered suggestions follow the same odds, confidence, market normalization, policy, and same-thesis guards as normal AI recommendations before they can be saved.
-- `should_push=true` may mean a condition alert; only `saved=true` means a recommendation row exists.
+- `should_push=true` in this pipeline means an actionable AI recommendation that is eligible for user notification.
+- User condition alerts are handled outside this pipeline by the User Match Alert Engine. Do not add condition-only prompt sections, condition-triggered save branches, or condition-only delivery staging back into `server-pipeline.ts`.
 
 ## Mandatory Guards
 

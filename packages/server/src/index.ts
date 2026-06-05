@@ -33,6 +33,7 @@ import { recommendationDeliveriesRoutes } from './routes/recommendation-deliveri
 import { reportRoutes } from './routes/reports.routes.js';
 import { notificationSettingsRoutes } from './routes/notification-settings.routes.js';
 import { notificationChannelsRoutes } from './routes/notification-channels.routes.js';
+import { matchAlertsRoutes } from './routes/match-alerts.routes.js';
 import { telegramWebhookRoutes } from './routes/telegram-webhook.routes.js';
 import { settingsRoutes } from './routes/settings.routes.js';
 import { snapshotRoutes } from './routes/snapshots.routes.js';
@@ -188,6 +189,7 @@ await app.register(settingsRoutes);
 await app.register(subscriptionsRoutes);
 await app.register(notificationSettingsRoutes);
 await app.register(notificationChannelsRoutes);
+await app.register(matchAlertsRoutes);
 await app.register(telegramWebhookRoutes);
 await app.register(auditLogRoutes);
 await app.register(integrationsRoutes);
