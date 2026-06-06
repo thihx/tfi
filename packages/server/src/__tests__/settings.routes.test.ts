@@ -440,6 +440,80 @@ describe('system settings routes', () => {
     expect(repo.saveSettings).toHaveBeenCalledWith({ TELEGRAM_ENABLED: true, TELEGRAM_CHAT_ID: '999999' }, 'default');
   });
 
+  test('loads live stream locator settings for admin users', async () => {
+    const repo = await import('../repos/settings.repo.js');
+    vi.mocked(repo.getSettings).mockResolvedValueOnce({
+      LIVE_STREAM_LOCATOR_ENABLED: false,
+      LIVE_STREAM_PROVIDER_URLS: ['https://live.example/'],
+      LIVE_STREAM_LOCATOR_TIMEOUT_MS: 4500,
+      LIVE_STREAM_LOCATOR_CACHE_TTL_MS: 120000,
+      LIVE_STREAM_LOCATOR_MAX_MATCHES: 8,
+    });
+
+    const res = await adminApp.inject({ method: 'GET', url: '/api/settings/live-stream-locator' });
+
+    expect(res.statusCode).toBe(200);
+    expect(res.json()).toEqual({
+      enabled: false,
+      providerUrls: ['https://live.example/'],
+      timeoutMs: 4500,
+      cacheTtlMs: 120000,
+      maxMatches: 8,
+    });
+    expect(repo.getSettings).toHaveBeenCalledWith('default', { fallbackToDefault: false });
+  });
+
+  test('normalizes and saves live stream locator settings for admin users', async () => {
+    const repo = await import('../repos/settings.repo.js');
+    vi.mocked(repo.getSettings).mockResolvedValueOnce({ TELEGRAM_ENABLED: true });
+
+    const res = await adminApp.inject({
+      method: 'PUT',
+      url: '/api/settings/live-stream-locator',
+      payload: {
+        enabled: true,
+        providerUrls: ['https://xoilacztu.tv/#top', 'https://socolive16.cv/'],
+        timeoutMs: 5000,
+        cacheTtlMs: 240000,
+        maxMatches: 40,
+      },
+    });
+
+    expect(res.statusCode).toBe(200);
+    expect(res.json()).toEqual({
+      enabled: true,
+      providerUrls: ['https://xoilacztu.tv/', 'https://socolive16.cv/'],
+      timeoutMs: 5000,
+      cacheTtlMs: 240000,
+      maxMatches: 40,
+    });
+    expect(repo.saveSettings).toHaveBeenCalledWith({
+      TELEGRAM_ENABLED: true,
+      LIVE_STREAM_LOCATOR_ENABLED: true,
+      LIVE_STREAM_PROVIDER_URLS: ['https://xoilacztu.tv/', 'https://socolive16.cv/'],
+      LIVE_STREAM_LOCATOR_TIMEOUT_MS: 5000,
+      LIVE_STREAM_LOCATOR_CACHE_TTL_MS: 240000,
+      LIVE_STREAM_LOCATOR_MAX_MATCHES: 40,
+    }, 'default');
+  });
+
+  test('rejects invalid live stream locator settings', async () => {
+    const res = await adminApp.inject({
+      method: 'PUT',
+      url: '/api/settings/live-stream-locator',
+      payload: {
+        enabled: true,
+        providerUrls: ['ftp://bad.example/live'],
+        timeoutMs: 5000,
+        cacheTtlMs: 240000,
+        maxMatches: 40,
+      },
+    });
+
+    expect(res.statusCode).toBe(400);
+    expect(res.json()).toEqual({ error: 'Live stream provider URLs must use http or https.' });
+  });
+
   test('lists users for admin users', async () => {
     const usersRepo = await import('../repos/users.repo.js');
 

@@ -125,6 +125,59 @@ export async function fetchMatches(config: AppConfig): Promise<Match[]> {
   return pgFetch<Match[]>(config, '/api/matches');
 }
 
+export interface MatchLiveStreamLookupResult {
+  matchId: string;
+  found: boolean;
+  status: 'found' | 'not_found' | 'not_live' | 'disabled' | 'error';
+  url: string | null;
+  sourceName: string | null;
+  sourceUrl: string | null;
+  title: string | null;
+  links: MatchLiveStreamLink[];
+  checkedAt: string;
+}
+
+export interface MatchLiveStreamLink {
+  url: string;
+  sourceName: string;
+  sourceUrl: string;
+  title: string;
+  verificationStatus: 'team_match' | 'reachable';
+  liveHint: boolean;
+}
+
+export async function lookupMatchLiveStreams(
+  config: AppConfig | string,
+  matchIds: string[],
+): Promise<MatchLiveStreamLookupResult[]> {
+  if (matchIds.length === 0) return [];
+  const response = await pgPost<{ results: MatchLiveStreamLookupResult[] }>(
+    config,
+    '/api/matches/live-streams/lookup',
+    { matchIds },
+  );
+  return response.results;
+}
+
+export interface LiveStreamLocatorSettings {
+  enabled: boolean;
+  providerUrls: string[];
+  timeoutMs: number;
+  cacheTtlMs: number;
+  maxMatches: number;
+}
+
+export async function fetchLiveStreamLocatorSettings(config: AppConfig | string): Promise<LiveStreamLocatorSettings> {
+  return pgFetch<LiveStreamLocatorSettings>(config, '/api/settings/live-stream-locator');
+}
+
+export async function updateLiveStreamLocatorSettings(
+  config: AppConfig | string,
+  settings: LiveStreamLocatorSettings,
+): Promise<LiveStreamLocatorSettings> {
+  return pgPut<LiveStreamLocatorSettings>(config, '/api/settings/live-stream-locator', settings);
+}
+
 export async function fetchWatchlist(config: AppConfig): Promise<WatchlistItem[]> {
   const items = await pgFetch<WatchlistItem[]>(config, '/api/me/watch-subscriptions');
   return items.map(normalizeWatchlistItem);

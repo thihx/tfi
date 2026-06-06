@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -123,7 +123,7 @@ beforeEach(() => {
     },
   ]);
   mockPersistNotificationChannel.mockRejectedValue(new Error('channel save failed'));
-  mockFetch.mockImplementation(async (input: RequestInfo | URL) => {
+  mockFetch.mockImplementation(async (input: RequestInfo | URL, init?: RequestInit) => {
     const url = String(input);
     if (url.includes('/api/me/bankroll')) {
       return new Response(JSON.stringify({
@@ -138,6 +138,20 @@ beforeEach(() => {
           updated_at: '2026-03-31T10:00:00.000Z',
         },
         recentLedger: [],
+      }), { status: 200 });
+    }
+
+    if (url.includes('/api/settings/live-stream-locator')) {
+      if (init?.method === 'PUT') {
+        const body = JSON.parse(String(init.body ?? '{}')) as Record<string, unknown>;
+        return new Response(JSON.stringify(body), { status: 200 });
+      }
+      return new Response(JSON.stringify({
+        enabled: true,
+        providerUrls: ['https://xoilacztu.tv/', 'https://socolive16.cv/'],
+        timeoutMs: 3500,
+        cacheTtlMs: 180000,
+        maxMatches: 30,
       }), { status: 200 });
     }
 
@@ -426,6 +440,45 @@ describe('SettingsTab', () => {
     expect(screen.getByRole('option', { name: 'All plans' })).toBeInTheDocument();
     expect(screen.getByRole('option', { name: 'All statuses' })).toBeInTheDocument();
     expect(screen.getByText(/Plans are commercial access tiers, separate from internal roles\./)).toBeInTheDocument();
+  });
+
+  it('lets admins configure live stream providers', async () => {
+    const user = userEvent.setup();
+    render(<SettingsTab />);
+
+    await user.click(await screen.findByRole('tab', { name: /^Live Streams$/i }));
+
+    const providerUrls = await screen.findByLabelText('Provider URLs');
+    expect(providerUrls).toHaveValue('https://xoilacztu.tv/\nhttps://socolive16.cv/');
+
+    fireEvent.change(providerUrls, {
+      target: { value: 'https://xoilacztu.tv/\nhttps://socolive16.cv/\nhttps://live-extra.example/' },
+    });
+    await user.clear(screen.getByLabelText('Request timeout'));
+    await user.type(screen.getByLabelText('Request timeout'), '4500');
+    await user.clear(screen.getByLabelText('Cache TTL'));
+    await user.type(screen.getByLabelText('Cache TTL'), '240');
+    await user.clear(screen.getByLabelText('Max matches per scan'));
+    await user.type(screen.getByLabelText('Max matches per scan'), '40');
+    await user.click(screen.getByRole('button', { name: 'Save' }));
+
+    await waitFor(() => {
+      expect(mockFetch).toHaveBeenCalledWith(
+        expect.stringContaining('/api/settings/live-stream-locator'),
+        expect.objectContaining({
+          method: 'PUT',
+          credentials: 'include',
+          body: JSON.stringify({
+            enabled: true,
+            providerUrls: ['https://xoilacztu.tv/', 'https://socolive16.cv/', 'https://live-extra.example/'],
+            timeoutMs: 4500,
+            cacheTtlMs: 240000,
+            maxMatches: 40,
+          }),
+        }),
+      );
+    });
+    expect(mockShowToast).toHaveBeenCalledWith('Live stream settings saved.', 'success');
   });
 
   it('saves subscription period end from local datetime input as UTC', async () => {

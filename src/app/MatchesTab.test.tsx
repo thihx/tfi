@@ -14,6 +14,7 @@ const mockFetchFavoriteLeagueSelection = vi.fn();
 const mockFetchMatchAlertRules = vi.fn().mockResolvedValue([]);
 const mockCreateMatchAlertRule = vi.fn().mockResolvedValue({ id: 77, matchId: '200', alertKind: 'match_start', enabled: true, source: 'manual' });
 const mockDeleteMatchAlertRule = vi.fn().mockResolvedValue({ deleted: true });
+const mockLookupMatchLiveStreams = vi.fn().mockResolvedValue([]);
 const mockApplyFavoriteLeaguesToWatchlist = vi.fn().mockResolvedValue({
   error: null,
   limitExceeded: false,
@@ -153,6 +154,7 @@ vi.mock('@/lib/services/api', () => ({
   createMatchAlertRule: mockCreateMatchAlertRule,
   deleteMatchAlertRule: mockDeleteMatchAlertRule,
   fetchConditionAlertPresets: vi.fn().mockResolvedValue([]),
+  lookupMatchLiveStreams: mockLookupMatchLiveStreams,
   applyFavoriteLeaguesToWatchlist: mockApplyFavoriteLeaguesToWatchlist,
   evaluateWatchConditionPreview: vi.fn().mockResolvedValue({
     supported: true,
@@ -220,6 +222,7 @@ beforeEach(async () => {
     watchlistActiveCount: 1,
   });
   mockFetchMatchAlertRules.mockResolvedValue([]);
+  mockLookupMatchLiveStreams.mockResolvedValue([]);
   mockCreateMatchAlertRule.mockResolvedValue({ id: 77, matchId: '200', alertKind: 'match_start', enabled: true, source: 'manual' });
   mockDeleteMatchAlertRule.mockResolvedValue({ deleted: true });
   mockApplyFavoriteLeaguesToWatchlist.mockResolvedValue({
@@ -324,6 +327,59 @@ describe('MatchesTab', () => {
     expect(screen.getByText('Ap luc tang dan')).toBeInTheDocument();
     expect(screen.getByText('Under 2.5 Goals @2.00')).toBeInTheDocument();
   }, 10000);
+
+  it('shows a TV action for live matches when a stream link is found', async () => {
+    const user = userEvent.setup();
+    const openSpy = vi.spyOn(window, 'open').mockImplementation(() => null);
+    mockState.matches = [baseMatches[0]!].map((match) => ({ ...match }));
+    mockState.watchlist = [];
+    mockLookupMatchLiveStreams.mockResolvedValueOnce([
+      {
+        matchId: '100',
+        found: true,
+        status: 'found',
+        url: 'https://xoilacztu.tv/arsenal-chelsea',
+        sourceName: 'xoilacztu.tv',
+        sourceUrl: 'https://xoilacztu.tv/',
+        title: 'Arsenal vs Chelsea',
+        links: [
+          {
+            url: 'https://xoilacztu.tv/arsenal-chelsea',
+            sourceName: 'xoilacztu.tv',
+            sourceUrl: 'https://xoilacztu.tv/',
+            title: 'Arsenal vs Chelsea',
+            verificationStatus: 'team_match',
+            liveHint: true,
+          },
+          {
+            url: 'https://socolive16.cv/arsenal-chelsea',
+            sourceName: 'socolive16.cv',
+            sourceUrl: 'https://socolive16.cv/',
+            title: 'Arsenal vs Chelsea',
+            verificationStatus: 'reachable',
+            liveHint: true,
+          },
+        ],
+        checkedAt: '2026-03-24T10:05:00.000Z',
+      },
+    ]);
+
+    render(<MatchesTab />);
+    await user.click(screen.getByTitle('Table view'));
+
+    const liveStreamButtons = await screen.findAllByRole('button', { name: 'Watch live stream' });
+    expect(liveStreamButtons).toHaveLength(2);
+    await user.click(liveStreamButtons[0]!);
+    await user.click(liveStreamButtons[1]!);
+
+    expect(mockLookupMatchLiveStreams).toHaveBeenCalledWith(
+      expect.objectContaining({ apiUrl: 'http://localhost:4000' }),
+      ['100'],
+    );
+    expect(openSpy).toHaveBeenCalledWith('https://xoilacztu.tv/arsenal-chelsea', '_blank', 'noopener,noreferrer');
+    expect(openSpy).toHaveBeenCalledWith('https://socolive16.cv/arsenal-chelsea', '_blank', 'noopener,noreferrer');
+    openSpy.mockRestore();
+  });
 
   it('shows the cached result instead of re-calling the server pipeline', async () => {
     const user = userEvent.setup();

@@ -18,10 +18,13 @@ import {
   fetchAdminUserSubscriptions,
   updateAdminUserSubscription,
   fetchMyBankroll,
+  fetchLiveStreamLocatorSettings,
   resetMyBankroll,
+  updateLiveStreamLocatorSettings,
   type AdminUserRecord,
   type AdminSubscriptionUserRecord,
   type EntitlementCatalogEntry,
+  type LiveStreamLocatorSettings,
   type SubscriptionBillingInterval,
   type SubscriptionPlanRecord,
   type SubscriptionStatus,
@@ -1606,13 +1609,223 @@ function SubscriptionManagementPanel() {
 
 // ── Tab constants ────────────────────────────────────────────────────────────
 
-type SettingsTab = 'bankroll' | 'user-mgmt' | 'subscription-mgmt' | 'scheduler' | 'system' | 'audit';
+type LiveStreamSettingsDraft = {
+  enabled: boolean;
+  providerUrlsText: string;
+  timeoutMs: string;
+  cacheTtlSeconds: string;
+  maxMatches: string;
+};
+
+function draftFromLiveStreamSettings(settings: LiveStreamLocatorSettings): LiveStreamSettingsDraft {
+  return {
+    enabled: settings.enabled,
+    providerUrlsText: settings.providerUrls.join('\n'),
+    timeoutMs: String(settings.timeoutMs),
+    cacheTtlSeconds: String(Math.round(settings.cacheTtlMs / 1000)),
+    maxMatches: String(settings.maxMatches),
+  };
+}
+
+function parseProviderUrlsDraft(value: string): string[] {
+  return Array.from(new Set(value.split(/[\n,]/).map((item) => item.trim()).filter(Boolean)));
+}
+
+function buildLiveStreamSettingsPayload(draft: LiveStreamSettingsDraft): { payload: LiveStreamLocatorSettings | null; error: string | null } {
+  const providerUrls = parseProviderUrlsDraft(draft.providerUrlsText);
+  if (draft.enabled && providerUrls.length === 0) {
+    return { payload: null, error: 'Add at least one provider URL or disable lookup.' };
+  }
+  if (providerUrls.length > 12) {
+    return { payload: null, error: 'Provider URL list supports at most 12 entries.' };
+  }
+  for (const raw of providerUrls) {
+    try {
+      const parsed = new URL(raw);
+      if (parsed.protocol !== 'https:' && parsed.protocol !== 'http:') {
+        return { payload: null, error: 'Provider URLs must use http or https.' };
+      }
+    } catch {
+      return { payload: null, error: `Invalid provider URL: ${raw}` };
+    }
+  }
+
+  const timeoutMs = Number(draft.timeoutMs);
+  if (!Number.isInteger(timeoutMs) || timeoutMs < 500 || timeoutMs > 15_000) {
+    return { payload: null, error: 'Request timeout must be from 500 to 15000 ms.' };
+  }
+
+  const cacheTtlSeconds = Number(draft.cacheTtlSeconds);
+  if (!Number.isInteger(cacheTtlSeconds) || cacheTtlSeconds < 15 || cacheTtlSeconds > 3600) {
+    return { payload: null, error: 'Cache TTL must be from 15 to 3600 seconds.' };
+  }
+
+  const maxMatches = Number(draft.maxMatches);
+  if (!Number.isInteger(maxMatches) || maxMatches < 1 || maxMatches > 100) {
+    return { payload: null, error: 'Max matches must be from 1 to 100.' };
+  }
+
+  return {
+    payload: {
+      enabled: draft.enabled,
+      providerUrls,
+      timeoutMs,
+      cacheTtlMs: cacheTtlSeconds * 1000,
+      maxMatches,
+    },
+    error: null,
+  };
+}
+
+function LiveStreamProviderSettingsPanel() {
+  const { state } = useAppState();
+  const { showToast } = useToast();
+  const apiConfig = state.config;
+  const apiUrl = typeof apiConfig.apiUrl === 'string' ? apiConfig.apiUrl : '';
+  const [draft, setDraft] = useState<LiveStreamSettingsDraft | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const settings = await fetchLiveStreamLocatorSettings(apiConfig);
+      setDraft(draftFromLiveStreamSettings(settings));
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to load live stream settings.');
+    } finally {
+      setLoading(false);
+    }
+  }, [apiUrl]);
+
+  useEffect(() => {
+    void load();
+  }, [load]);
+
+  const updateDraft = useCallback(<K extends keyof LiveStreamSettingsDraft>(key: K, value: LiveStreamSettingsDraft[K]) => {
+    setDraft((prev) => prev ? { ...prev, [key]: value } : prev);
+  }, []);
+
+  const handleSave = useCallback(async () => {
+    if (!draft) return;
+    const built = buildLiveStreamSettingsPayload(draft);
+    if (!built.payload) {
+      setError(built.error);
+      return;
+    }
+
+    setSaving(true);
+    setError(null);
+    try {
+      const saved = await updateLiveStreamLocatorSettings(apiConfig, built.payload);
+      setDraft(draftFromLiveStreamSettings(saved));
+      showToast('Live stream settings saved.', 'success');
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to save live stream settings.');
+    } finally {
+      setSaving(false);
+    }
+  }, [apiUrl, draft, showToast]);
+
+  if (loading && !draft) {
+    return <p className="text-muted">Loading live stream settings...</p>;
+  }
+
+  return (
+    <div className="settings-section">
+      <div className="settings-toolbar-row">
+        <label className="settings-inline-check">
+          <input
+            type="checkbox"
+            checked={draft?.enabled ?? false}
+            disabled={!draft || saving}
+            onChange={(event) => updateDraft('enabled', event.target.checked)}
+          />
+          <span>Enabled</span>
+        </label>
+        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+          <button type="button" className="btn btn-secondary btn-sm" onClick={() => { void load(); }} disabled={loading || saving}>
+            {loading ? 'Refreshing...' : 'Refresh'}
+          </button>
+          <button type="button" className="btn btn-primary btn-sm" onClick={() => { void handleSave(); }} disabled={!draft || saving}>
+            {saving ? 'Saving...' : 'Save'}
+          </button>
+        </div>
+      </div>
+
+      {error ? <div className="settings-banner settings-banner--error" role="alert">{error}</div> : null}
+
+      <label className="settings-field-label">
+        <span>Provider URLs</span>
+        <textarea
+          className="filter-input settings-live-provider-textarea"
+          aria-label="Provider URLs"
+          rows={5}
+          value={draft?.providerUrlsText ?? ''}
+          disabled={!draft || saving}
+          placeholder="https://xoilacztu.tv/"
+          onChange={(event) => updateDraft('providerUrlsText', event.target.value)}
+        />
+      </label>
+
+      <div className="settings-live-grid">
+        <label className="settings-field-label">
+          <span>Request timeout (ms)</span>
+          <input
+            type="number"
+            className="filter-input"
+            aria-label="Request timeout"
+            min={500}
+            max={15000}
+            step={100}
+            value={draft?.timeoutMs ?? ''}
+            disabled={!draft || saving}
+            onChange={(event) => updateDraft('timeoutMs', event.target.value)}
+          />
+        </label>
+        <label className="settings-field-label">
+          <span>Cache TTL (seconds)</span>
+          <input
+            type="number"
+            className="filter-input"
+            aria-label="Cache TTL"
+            min={15}
+            max={3600}
+            step={15}
+            value={draft?.cacheTtlSeconds ?? ''}
+            disabled={!draft || saving}
+            onChange={(event) => updateDraft('cacheTtlSeconds', event.target.value)}
+          />
+        </label>
+        <label className="settings-field-label">
+          <span>Max matches per scan</span>
+          <input
+            type="number"
+            className="filter-input"
+            aria-label="Max matches per scan"
+            min={1}
+            max={100}
+            step={1}
+            value={draft?.maxMatches ?? ''}
+            disabled={!draft || saving}
+            onChange={(event) => updateDraft('maxMatches', event.target.value)}
+          />
+        </label>
+      </div>
+    </div>
+  );
+}
+
+type SettingsTab = 'bankroll' | 'user-mgmt' | 'subscription-mgmt' | 'scheduler' | 'live-streams' | 'system' | 'audit';
 
 const ALL_TABS: { id: SettingsTab; label: string; adminOnly?: boolean; adminStrictOnly?: boolean }[] = [
   { id: 'bankroll',          label: 'Bankroll' },
   { id: 'user-mgmt',         label: 'Users',        adminOnly: true },
   { id: 'subscription-mgmt', label: 'Subscription', adminOnly: true },
   { id: 'scheduler',         label: 'Scheduler' },
+  { id: 'live-streams',      label: 'Live Streams', adminOnly: true },
   { id: 'system',            label: 'System' },
   { id: 'audit',             label: 'Audit' },
 ];
@@ -1622,7 +1835,7 @@ const SETTINGS_TAB_STORAGE_KEY = 'tfi:settings:activeTab';
 function readStoredSettingsTab(): SettingsTab {
   try {
     const raw = localStorage.getItem(SETTINGS_TAB_STORAGE_KEY);
-    if (raw === 'bankroll' || raw === 'user-mgmt' || raw === 'subscription-mgmt' || raw === 'scheduler' || raw === 'system' || raw === 'audit') {
+    if (raw === 'bankroll' || raw === 'user-mgmt' || raw === 'subscription-mgmt' || raw === 'scheduler' || raw === 'live-streams' || raw === 'system' || raw === 'audit') {
       return raw;
     }
   } catch { /* storage unavailable */ }
@@ -1630,7 +1843,7 @@ function readStoredSettingsTab(): SettingsTab {
 }
 
 function isAdminOnlyTab(tab: SettingsTab): boolean {
-  return tab === 'user-mgmt' || tab === 'subscription-mgmt';
+  return tab === 'user-mgmt' || tab === 'subscription-mgmt' || tab === 'live-streams';
 }
 
 // ── Main component ───────────────────────────────────────────────────────────
@@ -1733,6 +1946,21 @@ export function SettingsTab() {
           className="card settings-scheduler-card"
         >
           <JobSchedulerPanel />
+        </div>
+      )}
+
+      {/* Tab: Live Streams */}
+      {activeTab === 'live-streams' && isAdminOrOwner && (
+        <div
+          id="settings-panel-live-streams"
+          role="tabpanel"
+          aria-labelledby="settings-tab-live-streams"
+          className="card settings-panel-card"
+        >
+          <div className="settings-panel-card__header">Live Stream Providers</div>
+          <div className="settings-panel-padding">
+            <LiveStreamProviderSettingsPanel />
+          </div>
         </div>
       )}
 

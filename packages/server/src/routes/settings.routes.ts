@@ -16,6 +16,12 @@ import {
 } from '../repos/users.repo.js';
 import { toAuthUserResponse } from '../lib/request-user.js';
 import { mergeAskAiQuickPromptsByLocale } from '../lib/ask-ai-quick-prompts-settings.js';
+import { clearLiveStreamLookupCache } from '../lib/live-stream-locator.js';
+import {
+  loadLiveStreamLocatorSettings,
+  normalizeLiveStreamLocatorSettingsPatch,
+  resolveLiveStreamLocatorSettings,
+} from '../lib/live-stream-settings.js';
 import {
   extractSelfServiceNotificationPatch,
   mergeNotificationSettings,
@@ -133,6 +139,27 @@ export async function settingsRoutes(app: FastifyInstance) {
     const merged = { ...existing, ...req.body };
     await settingsRepo.saveSettings(merged, 'default');
     return merged;
+  });
+
+  app.get('/api/settings/live-stream-locator', async (req, reply) => {
+    const user = requireAdminOrOwner(req, reply);
+    if (!user) return;
+    return loadLiveStreamLocatorSettings();
+  });
+
+  app.put<{ Body: Record<string, unknown> }>('/api/settings/live-stream-locator', async (req, reply) => {
+    const user = requireAdminOrOwner(req, reply);
+    if (!user) return;
+    const normalized = normalizeLiveStreamLocatorSettingsPatch(req.body ?? {});
+    if (normalized.error) {
+      return reply.status(400).send({ error: normalized.error });
+    }
+
+    const existing = await settingsRepo.getSettings('default', { fallbackToDefault: false });
+    const merged = { ...existing, ...normalized.patch };
+    await settingsRepo.saveSettings(merged, 'default');
+    clearLiveStreamLookupCache();
+    return resolveLiveStreamLocatorSettings(merged);
   });
 
   app.get('/api/settings/users', async (req, reply) => {

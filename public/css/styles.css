@@ -3016,6 +3016,36 @@ th.data-table__th--sortable:hover {
     border: 1px solid #fecaca;
 }
 
+.settings-inline-check {
+    min-height: 40px;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--gray-700);
+}
+
+.settings-live-provider-textarea {
+    width: 100%;
+    min-height: 132px;
+    resize: vertical;
+    font-family: var(--font-mono, ui-monospace, SFMono-Regular, Menlo, Consolas, monospace);
+    line-height: 1.45;
+}
+
+.settings-live-grid {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 12px;
+}
+
+@media (max-width: 760px) {
+    .settings-live-grid {
+        grid-template-columns: 1fr;
+    }
+}
+
 .audit-filter-toolbar {
     display: flex;
     gap: 8px;
