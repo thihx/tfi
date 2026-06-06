@@ -6,7 +6,7 @@ const mockUpdateMatches = vi.fn();
 const mockDeleteMatchesByIds = vi.fn();
 const mockEnsureFixturesForMatchIds = vi.fn();
 const mockEnsureFixtureStatistics = vi.fn();
-const mockGetActiveOperationalWatchlist = vi.fn();
+const mockGetAutoPipelineOperationalWatchlist = vi.fn();
 const mockArchiveFinishedMatches = vi.fn();
 const mockConfig = vi.hoisted(() => ({
   timezone: 'Asia/Seoul',
@@ -28,7 +28,7 @@ vi.mock('../repos/matches-history.repo.js', () => ({
 }));
 
 vi.mock('../repos/watchlist.repo.js', () => ({
-  getActiveOperationalWatchlist: mockGetActiveOperationalWatchlist,
+  getAutoPipelineOperationalWatchlist: mockGetAutoPipelineOperationalWatchlist,
 }));
 
 vi.mock('../lib/provider-insight-cache.js', () => ({
@@ -58,13 +58,13 @@ beforeEach(() => {
   mockArchiveFinishedMatches.mockResolvedValue(0);
   mockEnsureFixturesForMatchIds.mockResolvedValue([]);
   mockEnsureFixtureStatistics.mockResolvedValue({ payload: [], cacheStatus: 'miss' });
-  mockGetActiveOperationalWatchlist.mockResolvedValue([{ match_id: '100' }, { match_id: '200' }]);
+  mockGetAutoPipelineOperationalWatchlist.mockResolvedValue([{ match_id: '100' }, { match_id: '200' }]);
   mockConfig.jobRefreshLiveMatchesMaxPublicMatches = 0;
 });
 
 describe('refreshLiveMatchesJob', () => {
   test('does not refresh public live candidates when no matches are actively watched', async () => {
-    mockGetActiveOperationalWatchlist.mockResolvedValueOnce([]);
+    mockGetAutoPipelineOperationalWatchlist.mockResolvedValueOnce([]);
 
     const result = await refreshLiveMatchesJob();
 
@@ -337,7 +337,7 @@ describe('refreshLiveMatchesJob', () => {
   test('refreshes capped public live candidates when no matches are actively watched', async () => {
     vi.setSystemTime(new Date('2026-03-26T10:05:00.000Z'));
     mockConfig.jobRefreshLiveMatchesMaxPublicMatches = 1;
-    mockGetActiveOperationalWatchlist.mockResolvedValueOnce([]);
+    mockGetAutoPipelineOperationalWatchlist.mockResolvedValueOnce([]);
     mockGetLiveRefreshCandidates.mockResolvedValue([
       {
         match_id: '100',
@@ -378,7 +378,7 @@ describe('refreshLiveMatchesJob', () => {
 
   test('refreshes watched candidates without pulling extra public live fixtures when public cap is disabled', async () => {
     vi.setSystemTime(new Date('2026-03-26T10:05:00.000Z'));
-    mockGetActiveOperationalWatchlist.mockResolvedValueOnce([{ match_id: '200' }]);
+    mockGetAutoPipelineOperationalWatchlist.mockResolvedValueOnce([{ match_id: '200' }]);
     mockGetLiveRefreshCandidates.mockResolvedValue([
       {
         match_id: '100',

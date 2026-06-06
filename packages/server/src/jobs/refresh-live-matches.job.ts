@@ -121,8 +121,8 @@ export async function refreshLiveMatchesJob(): Promise<{
 
   await reportJobProgress(JOB, 'load', 'Loading live and near-live matches...', 10);
 
-  const activeWatchlist = await watchlistRepo.getActiveOperationalWatchlist();
-  const watchedMatchIds = new Set(activeWatchlist.map((row) => String(row.match_id)));
+  const subscribedWatchlist = await watchlistRepo.getAutoPipelineOperationalWatchlist();
+  const watchedMatchIds = new Set(subscribedWatchlist.map((row) => String(row.match_id)));
   if (watchedMatchIds.size === 0 && publicRefreshLimit() <= 0) {
     return {
       tracked: 0,

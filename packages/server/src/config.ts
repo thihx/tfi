@@ -101,14 +101,14 @@ export const config = {
   jobSyncWatchlistMetadataMs: Number(process.env['JOB_SYNC_WATCHLIST_METADATA_MS'] || process.env['JOB_FETCH_MATCHES_MS'] || 1 * 60_000),
   jobAutoAddTopLeagueWatchlistMs: Number(process.env['JOB_AUTO_ADD_TOP_LEAGUE_WATCHLIST_MS'] || 0),
   jobAutoAddFavoriteTeamWatchlistMs: Number(process.env['JOB_AUTO_ADD_FAVORITE_TEAM_WATCHLIST_MS'] || process.env['JOB_FETCH_MATCHES_MS'] || 1 * 60_000),
-  jobRefreshLiveMatchesMs: Number(process.env['JOB_REFRESH_LIVE_MATCHES_MS'] || 5_000), // 5 sec
+  jobRefreshLiveMatchesMs: Number(process.env['JOB_REFRESH_LIVE_MATCHES_MS'] || 5_000), // 5 sec for subscribed live score/status rows
   jobMaterializeMatchAlertsMs: Number(process.env['JOB_MATERIALIZE_MATCH_ALERTS_MS'] || process.env['JOB_FETCH_MATCHES_MS'] || 60_000),
   jobCheckMatchAlertsMs: Number(process.env['JOB_CHECK_MATCH_ALERTS_MS'] || 15_000),
-  /** Max public live/near-live matches to score-refresh per refresh-live-matches tick. */
-  jobRefreshLiveMatchesMaxPublicMatches: Number(process.env['JOB_REFRESH_LIVE_MATCHES_MAX_PUBLIC_MATCHES'] || 20),
+  /** Max public live/near-live matches to score-refresh per refresh-live-matches tick. Default 0 protects provider quota. */
+  jobRefreshLiveMatchesMaxPublicMatches: Number(process.env['JOB_REFRESH_LIVE_MATCHES_MAX_PUBLIC_MATCHES'] || 0),
   jobDeliverTelegramNotificationsMs: Number(process.env['JOB_DELIVER_TELEGRAM_NOTIFICATIONS_MS'] || 5_000), // 5 sec
   jobExpireWatchlistMs: Number(process.env['JOB_EXPIRE_WATCHLIST_MS'] || 5 * 60_000),    // 5 min
-  jobCheckLiveMs: Number(process.env['JOB_CHECK_LIVE_MS'] || 30_000),                    // 30 sec
+  jobCheckLiveMs: Number(process.env['JOB_CHECK_LIVE_MS'] || 2 * 60_000),                // 2 min; live UI refresh is handled separately
   jobRefreshProviderInsightsMs: Number(process.env['JOB_REFRESH_PROVIDER_INSIGHTS_MS'] || 5 * 60_000), // 5 min
   jobAutoSettleMs: Number(process.env['JOB_AUTO_SETTLE_MS'] || 10 * 60_000),              // 10 min
   jobEnrichWatchlistMs: Number(process.env['JOB_ENRICH_WATCHLIST_MS'] || 60 * 60_000),   // 60 min
