@@ -35,6 +35,8 @@ export async function checkLiveTriggerJob(): Promise<{
   liveCount: number;
   candidateCount?: number;
   pipelineResults?: PipelineResult[];
+  failedBatches?: number;
+  failedBatchMatches?: number;
   skipped?: boolean;
   skipReason?: string;
   openUntil?: string;
@@ -162,7 +164,7 @@ export async function checkLiveTriggerJob(): Promise<{
   await reportJobProgress(JOB, 'pipeline', `Running AI pipeline for ${candidateMatchIds.length} candidate matches...`, 70);
 
   // Split into batches (default: 3 matches per batch)
-  const batchSize = config.pipelineBatchSize;
+  const batchSize = Math.max(1, Math.trunc(Number(config.pipelineBatchSize) || 1));
   const batches: string[][] = [];
   for (let i = 0; i < candidateMatchIds.length; i += batchSize) {
     batches.push(candidateMatchIds.slice(i, i + batchSize));
@@ -171,6 +173,8 @@ export async function checkLiveTriggerJob(): Promise<{
   console.log(`[checkLiveTriggerJob] Processing ${batches.length} batches (${batchSize} matches each) from ${candidateMatchIds.length} candidates`);
 
   const pipelineResults: PipelineResult[] = [];
+  let failedBatches = 0;
+  let failedBatchMatches = 0;
   for (let i = 0; i < batches.length; i++) {
     const batch = batches[i]!;
     const progress = 70 + Math.round(((i + 1) / batches.length) * 25);
@@ -182,6 +186,8 @@ export async function checkLiveTriggerJob(): Promise<{
 
       console.log(`[checkLiveTriggerJob] Batch ${i + 1}/${batches.length} complete: ${batchResult.processed} processed, ${batchResult.errors} errors`);
     } catch (err) {
+      failedBatches++;
+      failedBatchMatches += batch.length;
       const errMsg = err instanceof Error ? err.message : String(err);
       console.error(`[checkLiveTriggerJob] Batch ${i + 1} failed:`, errMsg);
       audit({
@@ -206,7 +212,8 @@ export async function checkLiveTriggerJob(): Promise<{
   // This keeps operational reporting aligned with the split semantics in the
   // core pipeline: save and notify are related, but not the same outcome.
   const totalProcessed = pipelineResults.reduce((sum, r) => sum + r.processed, 0);
-  const totalErrors = pipelineResults.reduce((sum, r) => sum + r.errors, 0);
+  const totalPipelineErrors = pipelineResults.reduce((sum, r) => sum + r.errors, 0);
+  const totalErrors = totalPipelineErrors + failedBatchMatches;
   const totalSavedRecommendations = pipelineResults.reduce(
     (sum, r) => sum + r.results.filter((m) => m.saved).length, 0,
   );
@@ -273,6 +280,8 @@ export async function checkLiveTriggerJob(): Promise<{
       liveCount: liveMatchIds.length,
       candidateCount: candidateMatchIds.length,
       batches: batches.length,
+      failedBatches,
+      failedBatchMatches,
       totalProcessed,
       totalProviderReady,
       totalLlmEligible,
@@ -290,5 +299,5 @@ export async function checkLiveTriggerJob(): Promise<{
     },
   });
 
-  return { liveCount: liveMatchIds.length, candidateCount: candidateMatchIds.length, pipelineResults };
+  return { liveCount: liveMatchIds.length, candidateCount: candidateMatchIds.length, pipelineResults, failedBatches, failedBatchMatches };
 }

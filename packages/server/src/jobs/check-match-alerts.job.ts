@@ -9,7 +9,19 @@ import { adjudicateMatchAlertWithLlm } from '../lib/match-alert-llm.js';
 import {
   deliverPendingWebPushMatchAlerts,
   enqueueMatchAlertDelivery,
+  hasRecentMatchAlertDelivery,
+  recordSuppressedMatchAlertDelivery,
 } from '../repos/match-alert-deliveries.repo.js';
+
+export function shouldAdjudicateMatchAlertWithLlm(
+  rule: { alertKind: string; source?: string },
+  result: MatchAlertEvaluationResult,
+  enabled = config.matchAlertLlmEnabled,
+): boolean {
+  if (!enabled || rule.alertKind !== 'condition_signal' || result.severity === 'high') return false;
+  const source = String(rule.source ?? '');
+  return source === 'favorite_team' || source === 'favorite_league';
+}
 
 export async function checkMatchAlertsJob(): Promise<{
   rules: number;
@@ -70,10 +82,11 @@ export async function checkMatchAlertsJob(): Promise<{
     evaluated += 1;
     let result: MatchAlertEvaluationResult = evaluateMatchAlertRule(rule.alertKind, rule.ruleJson, context);
     if (!result.supported || !result.matched) continue;
+    if (result.triggerKey && await hasRecentMatchAlertDelivery(rule, result.triggerKey)) continue;
     matched += 1;
     const metadataPatch: Record<string, unknown> = {};
 
-    if (rule.alertKind === 'condition_signal' && config.matchAlertLlmEnabled) {
+    if (shouldAdjudicateMatchAlertWithLlm(rule, result)) {
       if (!config.geminiApiKey) {
         metadataPatch.llm = {
           status: 'skipped',
@@ -93,6 +106,15 @@ export async function checkMatchAlertsJob(): Promise<{
           };
           if (!decision.shouldPush) {
             llmSuppressed += 1;
+            await recordSuppressedMatchAlertDelivery(rule, result, context, {
+              llm: {
+                status: 'suppressed',
+                model: decision.model,
+                shouldPush: decision.shouldPush,
+                confidence: decision.confidence,
+                reasonVi: decision.reasonVi,
+              },
+            });
             continue;
           }
           result = {

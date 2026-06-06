@@ -1,12 +1,13 @@
 // WatchlistEditModal — watch rules and conditions (context/priors live in Match hub)
 import { useEffect, useMemo, useState } from 'react';
 import { Modal } from '@/components/ui/Modal';
-import { ConditionBuilder } from '@/components/ui/ConditionBuilder';
+import { ConditionBuilder, type ConditionLineStatus } from '@/components/ui/ConditionBuilder';
 import { fetchMonitorConfig } from '@/features/live-monitor/config';
 import type { LiveMonitorConfig } from '@/features/live-monitor/types';
 import { useAppState } from '@/hooks/useAppState';
 import {
   evaluateWatchConditionPreview,
+  evaluateMatchAlertRulePreview,
   fetchConditionAlertPresets,
   fetchMatchAlertRules,
   type ConditionAlertPreset,
@@ -31,6 +32,39 @@ type ChannelStatusLine = {
   monitorOn: boolean;
   linked: boolean;
 };
+
+type PreviewStatus = ConditionLineStatus;
+
+function statusFromEvaluation(
+  supported: boolean,
+  matched: boolean,
+  summary?: string,
+): PreviewStatus {
+  if (!supported) {
+    return { status: 'unsupported', label: 'Unsupported', summary };
+  }
+  if (matched) {
+    return { status: 'matched', label: 'Matched now', summary };
+  }
+  return { status: 'not_matched', label: 'Not now', summary };
+}
+
+function conditionStatusKey(value: string): string {
+  return value.trim().replace(/\s+/g, ' ').toLowerCase();
+}
+
+function extractConditionClauses(value: string): string[] {
+  const text = normalizeCondition(value);
+  if (!text) return [];
+  const clauses: string[] = [];
+  const regex = /\(([^)]+)\)/g;
+  let match: RegExpExecArray | null;
+  while ((match = regex.exec(text)) !== null) {
+    const clause = normalizeCondition(match[1]);
+    if (clause) clauses.push(clause);
+  }
+  return clauses.length > 0 ? clauses : [text];
+}
 
 function buildChannelStatusLines(
   cfg: LiveMonitorConfig,
@@ -67,10 +101,10 @@ const COPY = {
   previewNoteAuto: 'Empty manual list → saves the suggestion above.',
   save: 'Save changes',
   notifyLabel: 'Push when condition matches',
-  notifyDetails: 'Same check as the live pipeline. Off = in-app watch only.',
+  notifyDetails: 'Save changes to activate background push. Test only previews the current live state.',
   checkTrigger: 'Test with live data',
   checkingTrigger: 'Testing…',
-  triggerMatched: 'Would trigger now',
+  triggerMatched: 'Would trigger now (preview only)',
   triggerNotMatched: 'Would not trigger',
   triggerUnsupported: 'Unsupported or missing data',
   triggerChannelsOff: 'Push off for this watch',
@@ -98,6 +132,8 @@ export function WatchlistEditModal({ item, onClose, onSave }: WatchlistEditModal
   const [conditionEval, setConditionEval] = useState<WatchConditionEvaluationResult | null>(null);
   const [conditionEvalError, setConditionEvalError] = useState<string | null>(null);
   const [conditionEvalLoading, setConditionEvalLoading] = useState(false);
+  const [conditionLineStatuses, setConditionLineStatuses] = useState<Record<string, PreviewStatus>>({});
+  const [conditionPresetStatuses, setConditionPresetStatuses] = useState<Record<string, PreviewStatus>>({});
   const [channelLines, setChannelLines] = useState<ChannelStatusLine[] | null>(null);
   const [conditionPresets, setConditionPresets] = useState<ConditionAlertPreset[]>([]);
   const [selectedPresetIds, setSelectedPresetIds] = useState<Set<string>>(new Set());
@@ -129,6 +165,8 @@ export function WatchlistEditModal({ item, onClose, onSave }: WatchlistEditModal
     setNotifyEnabled(item.notify_enabled !== false);
     setConditionEval(null);
     setConditionEvalError(null);
+    setConditionLineStatuses({});
+    setConditionPresetStatuses({});
   }, [item]);
 
   useEffect(() => {
@@ -206,6 +244,12 @@ export function WatchlistEditModal({ item, onClose, onSave }: WatchlistEditModal
     return editConditions;
   }
 
+  function handleConditionChange(value: string) {
+    setEditConditions(value);
+    setConditionEval(null);
+    setConditionLineStatuses({});
+  }
+
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (!item) return;
@@ -222,13 +266,57 @@ export function WatchlistEditModal({ item, onClose, onSave }: WatchlistEditModal
     setConditionEvalLoading(true);
     setConditionEvalError(null);
     try {
+      const conditionText = resolvePersistedCustomConditions();
       const res = await evaluateWatchConditionPreview(state.config, {
-        condition_text: resolvePersistedCustomConditions(),
+        condition_text: conditionText,
         match_id: String(item.match_id),
       });
       setConditionEval(res);
+
+      const clauseResults = await Promise.allSettled(
+        extractConditionClauses(conditionText).map(async (clause) => {
+          const evaluation = await evaluateWatchConditionPreview(state.config, {
+            condition_text: clause,
+            match_id: String(item.match_id),
+          });
+          return {
+            key: conditionStatusKey(clause),
+            status: statusFromEvaluation(evaluation.supported, evaluation.matched, evaluation.summary),
+          };
+        }),
+      );
+      const nextLineStatuses: Record<string, PreviewStatus> = {};
+      for (const result of clauseResults) {
+        if (result.status === 'fulfilled') nextLineStatuses[result.value.key] = result.value.status;
+      }
+      setConditionLineStatuses(nextLineStatuses);
+
+      const presetResults = await Promise.allSettled(
+        conditionPresets.map(async (preset) => {
+          const preview = await evaluateMatchAlertRulePreview(state.config, {
+            matchId: String(item.match_id),
+            alertKind: 'condition_signal',
+            presetId: preset.id,
+          });
+          return {
+            key: preset.id,
+            status: statusFromEvaluation(
+              preview.evaluation.supported,
+              preview.evaluation.matched,
+              preview.evaluation.unsupportedReason ?? preview.evaluation.summaryVi ?? preview.evaluation.summaryEn,
+            ),
+          };
+        }),
+      );
+      const nextPresetStatuses: Record<string, PreviewStatus> = {};
+      for (const result of presetResults) {
+        if (result.status === 'fulfilled') nextPresetStatuses[result.value.key] = result.value.status;
+      }
+      setConditionPresetStatuses(nextPresetStatuses);
     } catch (err) {
       setConditionEval(null);
+      setConditionLineStatuses({});
+      setConditionPresetStatuses({});
       setConditionEvalError(err instanceof Error ? err.message : c.previewError);
     } finally {
       setConditionEvalLoading(false);
@@ -351,10 +439,11 @@ export function WatchlistEditModal({ item, onClose, onSave }: WatchlistEditModal
 
           <ConditionBuilder
             initialValue={editConditions}
-            onChange={setEditConditions}
+            onChange={handleConditionChange}
             sectionLabel={c.manualSection}
             inputPlaceholder={c.conditionPlaceholder}
             previewNote={previewNote}
+            lineStatuses={conditionLineStatuses}
           />
 
           {conditionPresets.length > 0 && (
@@ -365,11 +454,16 @@ export function WatchlistEditModal({ item, onClose, onSave }: WatchlistEditModal
               <div className="watch-rules-preset-grid">
                 {conditionPresets.map((preset) => {
                   const checked = selectedPresetIds.has(preset.id);
+                  const previewStatus = conditionPresetStatuses[preset.id];
                   return (
                     <button
                       key={preset.id}
                       type="button"
-                      className={`watch-rules-preset-chip${checked ? ' watch-rules-preset-chip--selected' : ''}`}
+                      className={[
+                        'watch-rules-preset-chip',
+                        checked ? 'watch-rules-preset-chip--selected' : '',
+                        previewStatus ? `watch-rules-preset-chip--${previewStatus.status}` : '',
+                      ].filter(Boolean).join(' ')}
                       onClick={() => {
                         setSelectedPresetIds((prev) => {
                           const next = new Set(prev);
@@ -381,6 +475,9 @@ export function WatchlistEditModal({ item, onClose, onSave }: WatchlistEditModal
                       title={preset.description}
                     >
                       <span>{preset.labelVi || preset.label}</span>
+                      {previewStatus ? (
+                        <span className="watch-rules-preset-chip__status">{previewStatus.label}</span>
+                      ) : null}
                     </button>
                   );
                 })}

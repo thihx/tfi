@@ -130,6 +130,8 @@ import {
   buildRuntimePolicyShadowSignal,
   type RuntimePolicyShadowSignal,
 } from './runtime-policy-shadow.js';
+import { evaluateStatsOnlyLiveSignal } from './stats-only-live-signal.js';
+import { enqueueStatsOnlyLiveSignalDeliveries } from '../repos/match-alert-deliveries.repo.js';
 const pipelineSkipAuditCounters = new Map<string, number>();
 
 /** Absolute URL shown in web push body (tap notification still uses same path on the PWA origin). */
@@ -426,6 +428,7 @@ const defaultPipelineDeps = {
   getEligibleDeliveryUserIds,
   markRecommendationDeliveriesDelivered,
   stageAnalysisSignalDeliveries,
+  enqueueStatsOnlyLiveSignalDeliveries,
 };
 
 type PipelineDeps = typeof defaultPipelineDeps;
@@ -916,6 +919,7 @@ export interface MatchPipelineResult {
     aiTextChars?: number;
     aiTextEstimatedTokens?: number;
     llmLatencyMs?: number;
+    statsOnlySignal?: Record<string, unknown>;
     /** Wall time from processMatch start until immediately before executePromptAnalysis (excludes prompt build + Gemini). */
     preLlmLatencyMs?: number;
     totalLatencyMs?: number;
@@ -4769,6 +4773,34 @@ async function processMatch(
       skipRecommendationPolicy:
         options.settledReplayApprovedTrace === true && options.applySettledReplayPolicy !== true,
     };
+    const referenceMarketKeys = Object.keys(referenceOddsCanonical ?? {}).sort();
+    if (
+      !shadowMode
+      && !advisoryOnly
+      && !oddsAvailable
+      && referenceOddsSource === 'reference-prematch'
+      && referenceMarketKeys.length > 0
+    ) {
+      audit({
+        category: 'PIPELINE',
+        action: 'LIVE_ODDS_EMPTY_PREMATCH_AVAILABLE',
+        outcome: 'SKIPPED',
+        actor: 'auto-pipeline',
+        metadata: {
+          matchId,
+          matchDisplay,
+          minute,
+          score,
+          status,
+          evidenceMode,
+          oddsSource,
+          oddsAvailable,
+          referenceOddsSource,
+          referenceMarketKeys,
+          contract: 'odds-first-stats-only-live-signal',
+        },
+      });
+    }
     const llmEligibility = await resolveLlmEligibility({
       promptContext,
       watchlistEntry,
@@ -4798,6 +4830,164 @@ async function processMatch(
           ...llmEligibility.details,
         },
       });
+
+      if (
+        !shadowMode
+        && !advisoryOnly
+        && llmEligibility.reason === 'degraded_evidence'
+        && evidenceMode === 'stats_only'
+        && statsAvailable
+        && !oddsAvailable
+      ) {
+        audit({
+          category: 'PIPELINE',
+          action: 'ACTIONABLE_BET_BLOCKED_NO_LIVE_ODDS',
+          outcome: 'SKIPPED',
+          actor: 'auto-pipeline',
+          metadata: {
+            matchId,
+            matchDisplay,
+            minute,
+            score,
+            status,
+            evidenceMode,
+            oddsSource,
+            oddsAvailable,
+            referenceOddsSource,
+            referenceMarketKeys,
+            contract: 'odds-first-stats-only-live-signal',
+          },
+        });
+
+        const statsOnlySignal = evaluateStatsOnlyLiveSignal({
+          matchId,
+          homeTeam: homeName,
+          awayTeam: awayName,
+          minute,
+          status,
+          score: { home: homeGoals, away: awayGoals },
+          stats: statsCompact,
+          events: eventsCompact,
+          oddsAvailable,
+          referenceMarketKeys,
+        });
+
+        if (statsOnlySignal.triggered) {
+          const deliveryResult = await deps.enqueueStatsOnlyLiveSignalDeliveries({
+            matchId,
+            homeTeam: homeName,
+            awayTeam: awayName,
+            league,
+            status,
+            minute,
+            score,
+            kickoffAtUtc: null,
+            signal: statsOnlySignal,
+            referenceMarketKeys,
+          }).catch((error) => {
+            audit({
+              category: 'PIPELINE',
+              action: 'STATS_ONLY_SIGNAL_EMIT_FAILED',
+              outcome: 'FAILURE',
+              actor: 'auto-pipeline',
+              error: error instanceof Error ? error.message : String(error),
+              metadata: {
+                matchId,
+                matchDisplay,
+                signalType: statsOnlySignal.signalType,
+                triggerKey: statsOnlySignal.triggerKey,
+                contract: 'odds-first-stats-only-live-signal',
+              },
+            });
+            return { enqueued: 0, deliveryIds: [] };
+          });
+
+          audit({
+            category: 'PIPELINE',
+            action: 'STATS_ONLY_SIGNAL_EMITTED',
+            outcome: deliveryResult.enqueued > 0 ? 'SUCCESS' : 'SKIPPED',
+            actor: 'auto-pipeline',
+            metadata: {
+              matchId,
+              matchDisplay,
+              minute,
+              score,
+              status,
+              signalType: statsOnlySignal.signalType,
+              signalStrength: statsOnlySignal.strength,
+              triggerKey: statsOnlySignal.triggerKey,
+              marketFamilyHint: statsOnlySignal.marketFamilyHint,
+              reasons: statsOnlySignal.reasons,
+              enqueued: deliveryResult.enqueued,
+              deliveryIds: deliveryResult.deliveryIds,
+              referenceMarketKeys,
+              savedRecommendation: false,
+              llmCalled: false,
+              contract: 'odds-first-stats-only-live-signal',
+            },
+          });
+
+          return {
+            matchId,
+            matchDisplay,
+            homeName,
+            awayName,
+            league,
+            minute,
+            score,
+            status,
+            success: true,
+            decisionKind: 'condition_only',
+            shouldPush: deliveryResult.enqueued > 0,
+            selection: statsOnlySignal.signalType ?? 'stats_only_live_signal',
+            confidence: 0,
+            saved: false,
+            notified: deliveryResult.enqueued > 0,
+            debug: {
+              analysisRunId,
+              shadowMode,
+              skippedAt: 'llm_eligibility',
+              skipReason: 'stats_only_signal_emitted',
+              analysisMode,
+              advisoryOnly,
+              oddsSource,
+              oddsAvailable,
+              statsAvailable,
+              statsSource,
+              evidenceMode,
+              statsFallbackUsed,
+              statsFallbackReason: statsFallbackReason || undefined,
+              statsOnlySignal: {
+                ...statsOnlySignal,
+                enqueued: deliveryResult.enqueued,
+                deliveryIds: deliveryResult.deliveryIds,
+                llmCalled: false,
+                savedRecommendation: false,
+              } as unknown as Record<string, unknown>,
+              preLlmLatencyMs: Date.now() - startedAt,
+              totalLatencyMs: Date.now() - startedAt,
+            },
+          };
+        }
+
+        audit({
+          category: 'PIPELINE',
+          action: 'STATS_ONLY_SIGNAL_SKIPPED_WEAK_TRIGGER',
+          outcome: 'SKIPPED',
+          actor: 'auto-pipeline',
+          metadata: {
+            matchId,
+            matchDisplay,
+            minute,
+            score,
+            status,
+            reasons: statsOnlySignal.reasons,
+            referenceMarketKeys,
+            llmCalled: false,
+            contract: 'odds-first-stats-only-live-signal',
+          },
+        });
+      }
 
       return {
         matchId,

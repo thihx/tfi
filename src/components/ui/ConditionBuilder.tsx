@@ -17,6 +17,13 @@ interface ConditionBuilderProps {
   inputPlaceholder?: string;
   /** Short note shown under the preview line (e.g. auto-apply vs preview) */
   previewNote?: string | null;
+  lineStatuses?: Record<string, ConditionLineStatus | undefined>;
+}
+
+export interface ConditionLineStatus {
+  status: 'matched' | 'not_matched' | 'unsupported';
+  label: string;
+  summary?: string;
 }
 
 let nextRowId = 1;
@@ -40,12 +47,17 @@ function buildConditionsString(rows: ConditionRow[]): string {
   return valid.map((r, i) => (i > 0 ? `${r.operator} ` : '') + `(${r.text.trim()})`).join(' ');
 }
 
+function normalizeStatusKey(value: string): string {
+  return value.trim().replace(/\s+/g, ' ').toLowerCase();
+}
+
 export function ConditionBuilder({
   initialValue,
   onChange,
   sectionLabel = 'Conditions',
   inputPlaceholder = 'e.g., Corners > 10, BTTS, Shots ≥ 5',
   previewNote = null,
+  lineStatuses = {},
 }: ConditionBuilderProps) {
   const [rows, setRows] = useState<ConditionRow[]>(() => {
     const parsed = parseConditionsString(initialValue);
@@ -104,6 +116,7 @@ export function ConditionBuilder({
                 <option value="OR">OR</option>
               </select>
             )}
+            <div className="cond-input-stack">
             <div className="cond-input-wrapper">
               <input
                 type="text"
@@ -117,6 +130,15 @@ export function ConditionBuilder({
                   ✕
                 </button>
               )}
+            </div>
+              {row.text.trim() && lineStatuses[normalizeStatusKey(row.text)] ? (
+                <div
+                  className={`cond-line-status cond-line-status--${lineStatuses[normalizeStatusKey(row.text)]!.status}`}
+                  title={lineStatuses[normalizeStatusKey(row.text)]!.summary}
+                >
+                  {lineStatuses[normalizeStatusKey(row.text)]!.label}
+                </div>
+              ) : null}
             </div>
             {idx > 0 && (
               <button type="button" className="cond-remove" onClick={() => removeRow(row.id)}>

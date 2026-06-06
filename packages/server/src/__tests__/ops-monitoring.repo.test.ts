@@ -14,11 +14,130 @@ vi.mock('../config.js', () => ({
   },
 }));
 
-const { buildOpsChecklist, getOpsMonitoringSnapshot } = await import('../repos/ops-monitoring.repo.js');
+const {
+  buildOpsChecklist,
+  getOpsMonitoringSnapshot,
+  shouldExpectProviderSamples,
+} = await import('../repos/ops-monitoring.repo.js');
 
 describe('ops-monitoring.repo', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+  });
+
+  function checklistInput(
+    overrides: Partial<Parameters<typeof buildOpsChecklist>[0]> = {},
+  ): Parameters<typeof buildOpsChecklist>[0] {
+    return {
+      pipelineEnabled: true,
+      activityLast2h: 0,
+      analyzed24h: 0,
+      activeWatchCount: 0,
+      liveWatchCount: 0,
+      providerSamplingEnabled: true,
+      jobFailures24h: 0,
+      activeJobFailures24h: 0,
+      recoveredJobFailures24h: 0,
+      statsSamples: 0,
+      statsSuccessRate: 0,
+      oddsSamples: 0,
+      oddsUsableRate: 0,
+      oddsTradableRate: 0,
+      settlementBacklog: 0,
+      unresolvedCount: 0,
+      notificationAttempts24h: 0,
+      notificationFailureRate24h: 0,
+      notificationStalePending: 0,
+      notificationExpected24h: false,
+      prematchTotalRows: 0,
+      prematchHighNoiseRows: 0,
+      prematchHighNoiseRate: 0,
+      funnelLiveDetected24h: 0,
+      funnelSaved24h: 0,
+      llmBlocked24h: 0,
+      llmCompleted24h: 0,
+      aiGatewayMode: 'observe',
+      aiGatewayBlocked24h: 0,
+      aiGatewayFailed24h: 0,
+      aiGatewayOpenBreakers: 0,
+      aiGatewayOpenIncidents: 0,
+      ...overrides,
+    };
+  }
+
+  test('shouldExpectProviderSamples ignores stale analyzed rows without live or recent workload', () => {
+    expect(shouldExpectProviderSamples({
+      pipelineEnabled: true,
+      liveWatchCount: 0,
+      activityLast2h: 0,
+    })).toBe(false);
+
+    expect(shouldExpectProviderSamples({
+      pipelineEnabled: true,
+      liveWatchCount: 0,
+      activityLast2h: 1,
+    })).toBe(true);
+
+    expect(shouldExpectProviderSamples({
+      pipelineEnabled: true,
+      liveWatchCount: 1,
+      activityLast2h: 0,
+    })).toBe(true);
+  });
+
+  test('buildOpsChecklist keeps provider gaps idle when only stale analyzed rows exist', () => {
+    const checklist = buildOpsChecklist(checklistInput({
+      analyzed24h: 6,
+      statsSamples: 0,
+      oddsSamples: 0,
+    }));
+
+    const stats = checklist.find((item) => item.id === 'stats-provider-coverage');
+    const odds = checklist.find((item) => item.id === 'odds-provider-coverage');
+
+    expect(stats?.status).toBe('unknown');
+    expect(stats?.label).toBe('Stats provider coverage is idle');
+    expect(stats?.detail).toContain('No current provider workload observed');
+    expect(stats?.detail).not.toContain('Current provider workload expected');
+    expect(odds?.status).toBe('unknown');
+    expect(odds?.label).toBe('Odds provider coverage is idle');
+  });
+
+  test('buildOpsChecklist reports recovered job failure context', () => {
+    const checklist = buildOpsChecklist(checklistInput({
+      jobFailures24h: 1,
+      activeJobFailures24h: 0,
+      recoveredJobFailures24h: 1,
+    }));
+
+    const item = checklist.find((entry) => entry.id === 'job-failures');
+    expect(item?.status).toBe('warn');
+    expect(item?.label).toBe('Critical jobs recovered after limited failures');
+    expect(item?.detail).toContain('0 currently failing job(s), 1 recovered affected job(s)');
+  });
+
+  test('buildOpsChecklist surfaces real operational quality issues', () => {
+    const checklist = buildOpsChecklist(checklistInput({
+      prematchTotalRows: 6,
+      prematchHighNoiseRows: 6,
+      prematchHighNoiseRate: 100,
+      funnelLiveDetected24h: 100,
+      funnelSaved24h: 0,
+      llmBlocked24h: 16,
+      llmCompleted24h: 6,
+      aiGatewayMode: 'observe',
+      aiGatewayBlocked24h: 0,
+      aiGatewayFailed24h: 1,
+      aiGatewayOpenBreakers: 3,
+      aiGatewayOpenIncidents: 5,
+    }));
+
+    expect(checklist.find((item) => item.id === 'prematch-high-noise')?.status).toBe('fail');
+    expect(checklist.find((item) => item.id === 'prematch-high-noise')?.detail).toContain('6/6');
+    expect(checklist.find((item) => item.id === 'actionable-funnel')?.status).toBe('warn');
+    expect(checklist.find((item) => item.id === 'llm-block-pressure')?.status).toBe('warn');
+    expect(checklist.find((item) => item.id === 'ai-gateway-health')?.status).toBe('warn');
+    expect(checklist[0]?.id).toBe('prematch-high-noise');
   });
 
   test('buildOpsChecklist returns pass/warn/fail states from thresholds', () => {
@@ -30,6 +149,8 @@ describe('ops-monitoring.repo', () => {
       liveWatchCount: 0,
       providerSamplingEnabled: true,
       jobFailures24h: 2,
+      activeJobFailures24h: 0,
+      recoveredJobFailures24h: 1,
       statsSamples: 10,
       statsSuccessRate: 60,
       oddsSamples: 10,
@@ -41,6 +162,18 @@ describe('ops-monitoring.repo', () => {
       notificationFailureRate24h: 0,
       notificationStalePending: 0,
       notificationExpected24h: false,
+      prematchTotalRows: 0,
+      prematchHighNoiseRows: 0,
+      prematchHighNoiseRate: 0,
+      funnelLiveDetected24h: 0,
+      funnelSaved24h: 0,
+      llmBlocked24h: 0,
+      llmCompleted24h: 0,
+      aiGatewayMode: 'observe',
+      aiGatewayBlocked24h: 0,
+      aiGatewayFailed24h: 0,
+      aiGatewayOpenBreakers: 0,
+      aiGatewayOpenIncidents: 0,
     });
 
     expect(checklist.find((item) => item.id === 'pipeline-activity')?.status).toBe('unknown');
@@ -61,6 +194,8 @@ describe('ops-monitoring.repo', () => {
       liveWatchCount: 2,
       providerSamplingEnabled: true,
       jobFailures24h: 0,
+      activeJobFailures24h: 0,
+      recoveredJobFailures24h: 0,
       statsSamples: 0,
       statsSuccessRate: 0,
       oddsSamples: 0,
@@ -72,6 +207,18 @@ describe('ops-monitoring.repo', () => {
       notificationFailureRate24h: 0,
       notificationStalePending: 0,
       notificationExpected24h: true,
+      prematchTotalRows: 0,
+      prematchHighNoiseRows: 0,
+      prematchHighNoiseRate: 0,
+      funnelLiveDetected24h: 0,
+      funnelSaved24h: 0,
+      llmBlocked24h: 0,
+      llmCompleted24h: 0,
+      aiGatewayMode: 'observe',
+      aiGatewayBlocked24h: 0,
+      aiGatewayFailed24h: 0,
+      aiGatewayOpenBreakers: 0,
+      aiGatewayOpenIncidents: 0,
     });
 
     expect(checklist.find((item) => item.id === 'pipeline-activity')?.status).toBe('fail');
@@ -90,6 +237,8 @@ describe('ops-monitoring.repo', () => {
       liveWatchCount: 1,
       providerSamplingEnabled: true,
       jobFailures24h: 0,
+      activeJobFailures24h: 0,
+      recoveredJobFailures24h: 0,
       statsSamples: 10,
       statsSuccessRate: 90,
       oddsSamples: 10,
@@ -101,6 +250,18 @@ describe('ops-monitoring.repo', () => {
       notificationFailureRate24h: 0,
       notificationStalePending: 2,
       notificationExpected24h: false,
+      prematchTotalRows: 0,
+      prematchHighNoiseRows: 0,
+      prematchHighNoiseRate: 0,
+      funnelLiveDetected24h: 0,
+      funnelSaved24h: 0,
+      llmBlocked24h: 0,
+      llmCompleted24h: 0,
+      aiGatewayMode: 'observe',
+      aiGatewayBlocked24h: 0,
+      aiGatewayFailed24h: 0,
+      aiGatewayOpenBreakers: 0,
+      aiGatewayOpenIncidents: 0,
     });
 
     const item = checklist.find((entry) => entry.id === 'notification-health');
@@ -117,6 +278,8 @@ describe('ops-monitoring.repo', () => {
       liveWatchCount: 1,
       providerSamplingEnabled: true,
       jobFailures24h: 0,
+      activeJobFailures24h: 0,
+      recoveredJobFailures24h: 0,
       statsSamples: 10,
       statsSuccessRate: 90,
       oddsSamples: 10,
@@ -128,6 +291,18 @@ describe('ops-monitoring.repo', () => {
       notificationFailureRate24h: 0,
       notificationStalePending: 0,
       notificationExpected24h: false,
+      prematchTotalRows: 0,
+      prematchHighNoiseRows: 0,
+      prematchHighNoiseRate: 0,
+      funnelLiveDetected24h: 0,
+      funnelSaved24h: 0,
+      llmBlocked24h: 0,
+      llmCompleted24h: 0,
+      aiGatewayMode: 'observe',
+      aiGatewayBlocked24h: 0,
+      aiGatewayFailed24h: 0,
+      aiGatewayOpenBreakers: 0,
+      aiGatewayOpenIncidents: 0,
     });
 
     const item = checklist.find((entry) => entry.id === 'odds-provider-coverage');

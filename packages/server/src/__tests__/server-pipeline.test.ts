@@ -272,6 +272,10 @@ vi.mock('../repos/recommendation-deliveries.repo.js', () => ({
   stageConditionOnlyDeliveries: vi.fn().mockResolvedValue([]),
 }));
 
+vi.mock('../repos/match-alert-deliveries.repo.js', () => ({
+  enqueueStatsOnlyLiveSignalDeliveries: vi.fn().mockResolvedValue({ enqueued: 1, deliveryIds: [10] }),
+}));
+
 vi.mock('../repos/notification-channels.repo.js', () => ({
   getNotificationChannelAddressesByUserIds: vi.fn().mockResolvedValue([]),
   filterUserIdsAllowingWebPushNotifications: vi.fn((ids: string[]) => Promise.resolve(new Set(ids))),
@@ -498,6 +502,11 @@ beforeEach(async () => {
 
   const watchlistRepo = await import('../repos/watchlist.repo.js');
   vi.mocked(watchlistRepo.getOperationalWatchlistByMatchId).mockResolvedValue(mockWatchlistEntry as never);
+
+  const matchAlertDeliveries = await import('../repos/match-alert-deliveries.repo.js');
+  vi.mocked(matchAlertDeliveries.enqueueStatsOnlyLiveSignalDeliveries).mockReset();
+  vi.mocked(matchAlertDeliveries.enqueueStatsOnlyLiveSignalDeliveries)
+    .mockResolvedValue({ enqueued: 1, deliveryIds: [10] });
 });
 
 async function flushAsyncWork() {
@@ -1426,6 +1435,7 @@ describe('runPipelineBatch', () => {
     vi.mocked(footballApi.fetchPreMatchOdds).mockResolvedValueOnce([]);
 
     const { callGemini } = await import('../lib/gemini.js');
+    const matchAlertDeliveries = await import('../repos/match-alert-deliveries.repo.js');
 
     const result = await runPipelineBatch(['100']);
     expect(result.results[0]?.shouldPush).toBe(false);
@@ -1433,6 +1443,79 @@ describe('runPipelineBatch', () => {
     expect(result.results[0]?.debug?.skippedAt).toBe('llm_eligibility');
     expect(result.results[0]?.debug?.skipReason).toBe('degraded_evidence');
     expect(callGemini).not.toHaveBeenCalled();
+    expect(matchAlertDeliveries.enqueueStatsOnlyLiveSignalDeliveries).not.toHaveBeenCalled();
+  });
+
+  test('emits deterministic stats-only signal without LLM or recommendation save when live odds are unavailable', async () => {
+    const footballApi = await import('../lib/football-api.js');
+    const recommendationsRepo = await import('../repos/recommendations.repo.js');
+    const matchAlertDeliveries = await import('../repos/match-alert-deliveries.repo.js');
+    const { callGemini } = await import('../lib/gemini.js');
+
+    vi.mocked(footballApi.fetchFixturesByIds).mockResolvedValueOnce([{
+      ...mockFixture,
+      fixture: { ...mockFixture.fixture, status: { short: '2H', elapsed: 62 } },
+      goals: { home: 0, away: 0 },
+    }] as never);
+    vi.mocked(footballApi.fetchFixtureStatistics).mockResolvedValueOnce([
+      { team: { id: 1 }, statistics: [
+        { type: 'Ball Possession', value: '58%' },
+        { type: 'Total Shots', value: 10 },
+        { type: 'Shots on Goal', value: 3 },
+        { type: 'Corner Kicks', value: 5 },
+      ] },
+      { team: { id: 2 }, statistics: [
+        { type: 'Ball Possession', value: '42%' },
+        { type: 'Total Shots', value: 8 },
+        { type: 'Shots on Goal', value: 2 },
+        { type: 'Corner Kicks', value: 4 },
+      ] },
+    ] as never);
+    vi.mocked(footballApi.fetchFixtureEvents).mockResolvedValueOnce([] as never);
+    vi.mocked(footballApi.fetchLiveOdds).mockResolvedValueOnce([] as never);
+    vi.mocked(footballApi.fetchPreMatchOdds).mockResolvedValueOnce([{
+      bookmakers: [{
+        name: 'ReferenceBook',
+        bets: [
+          { name: 'Over/Under', values: [
+            { value: 'Over', odd: '1.90', handicap: '2.5' },
+            { value: 'Under', odd: '1.90', handicap: '2.5' },
+          ] },
+          { name: 'Match Winner', values: [
+            { value: 'Home', odd: '2.20' },
+            { value: 'Draw', odd: '3.10' },
+            { value: 'Away', odd: '3.20' },
+          ] },
+        ],
+      }],
+    }] as never);
+
+    const result = await runPipelineBatch(['100']);
+
+    expect(callGemini).not.toHaveBeenCalled();
+    expect(recommendationsRepo.createRecommendation).not.toHaveBeenCalled();
+    expect(matchAlertDeliveries.enqueueStatsOnlyLiveSignalDeliveries).toHaveBeenCalledWith(expect.objectContaining({
+      matchId: '100',
+      score: '0-0',
+      signal: expect.objectContaining({
+        triggered: true,
+        signalType: 'zero_zero_pressure_after_55',
+      }),
+      referenceMarketKeys: expect.arrayContaining(['1x2', 'ou']),
+    }));
+    expect(result.results[0]).toEqual(expect.objectContaining({
+      decisionKind: 'condition_only',
+      shouldPush: true,
+      saved: false,
+      notified: true,
+      confidence: 0,
+    }));
+    expect(result.results[0]?.debug?.statsOnlySignal).toEqual(expect.objectContaining({
+      signalType: 'zero_zero_pressure_after_55',
+      enqueued: 1,
+      llmCalled: false,
+      savedRecommendation: false,
+    }));
   });
 
   test('resolves goals O/U selections from extra canonical ladder rungs', async () => {

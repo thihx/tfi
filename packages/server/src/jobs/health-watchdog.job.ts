@@ -19,8 +19,12 @@ import { formatOperationalDateTime } from '../lib/time.js';
 // The watchdog only alerts for these â€” does NOT alert for itself or utility jobs.
 const CRITICAL_JOBS = new Set([
   'fetch-matches',
+  'sync-watchlist-metadata',
   'refresh-live-matches',
+  'materialize-match-alerts',
+  'check-match-alerts',
   'deliver-telegram-notifications',
+  'deliver-match-alert-telegram',
   'check-live-trigger',
   'auto-settle',
   'expire-watchlist',

@@ -559,15 +559,32 @@ export async function getCandidateAlertRules(): Promise<MatchAlertRule[]> {
   const result = await query<MatchAlertRuleRow>(
     `SELECT r.*
        FROM user_match_alert_rules r
-       JOIN user_match_alert_settings s ON s.user_id = r.user_id
+       LEFT JOIN user_match_alert_settings s ON s.user_id = r.user_id
        JOIN matches m ON m.match_id = r.match_id
       WHERE r.enabled = TRUE
         AND r.compiled_status = 'compiled'
         AND r.match_id IS NOT NULL
         AND m.status <> ALL($1)
         AND (
-          (r.alert_kind = 'match_start' AND s.match_start_enabled = TRUE)
-          OR (r.alert_kind = 'condition_signal' AND s.condition_alerts_enabled = TRUE)
+          (
+            r.alert_kind = 'match_start'
+            AND COALESCE(s.match_start_enabled, TRUE) = TRUE
+            AND CASE
+              WHEN r.source = 'manual' THEN COALESCE(s.manual_match_start_enabled, TRUE) = TRUE
+              WHEN r.source = 'favorite_team' THEN COALESCE(s.favorite_team_match_start_enabled, FALSE) = TRUE
+              WHEN r.source = 'favorite_league' THEN COALESCE(s.favorite_league_match_start_enabled, FALSE) = TRUE
+              ELSE TRUE
+            END
+          )
+          OR (
+            r.alert_kind = 'condition_signal'
+            AND COALESCE(s.condition_alerts_enabled, TRUE) = TRUE
+            AND CASE
+              WHEN r.source = 'favorite_team' THEN COALESCE(s.favorite_team_condition_alerts_enabled, FALSE) = TRUE
+              WHEN r.source = 'favorite_league' THEN COALESCE(s.favorite_league_condition_alerts_enabled, FALSE) = TRUE
+              ELSE TRUE
+            END
+          )
         )
       ORDER BY r.match_id, r.id`,
     [TERMINAL_STATUSES],

@@ -224,6 +224,21 @@ export interface MatchAlertRule {
   metadata: Record<string, unknown>;
 }
 
+export interface MatchAlertRuleEvaluationPreview {
+  context: Record<string, unknown>;
+  evaluation: {
+    supported: boolean;
+    matched: boolean;
+    triggerKey: string | null;
+    summaryEn: string;
+    summaryVi: string;
+    severity: 'info' | 'medium' | 'high';
+    suggestedAction: string;
+    facts: Record<string, unknown>;
+    unsupportedReason?: string;
+  };
+}
+
 export interface ConditionAlertPreset {
   id: string;
   label: string;
@@ -280,6 +295,19 @@ export async function createMatchAlertRule(
 
 export async function deleteMatchAlertRule(config: AppConfig | string, ruleId: number): Promise<{ deleted: boolean }> {
   return pgDelete<{ deleted: boolean }>(config, `/api/me/match-alert-rules/${ruleId}`);
+}
+
+export async function evaluateMatchAlertRulePreview(
+  config: AppConfig | string,
+  payload: {
+    matchId: string;
+    alertKind: MatchAlertRule['alertKind'];
+    presetId?: string;
+    ruleJson?: Record<string, unknown>;
+    conditionText?: string;
+  },
+): Promise<MatchAlertRuleEvaluationPreview> {
+  return pgPost<MatchAlertRuleEvaluationPreview>(config, '/api/me/match-alert-rules/evaluate-preview', payload);
 }
 
 export async function fetchConditionAlertPresets(config: AppConfig | string): Promise<ConditionAlertPreset[]> {

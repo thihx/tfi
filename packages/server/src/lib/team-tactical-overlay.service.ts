@@ -404,6 +404,18 @@ export async function refreshTacticalOverlayForCandidate(
       temperature: 0,
       maxOutputTokens: 2048,
       thinkingBudget: config.geminiStrategicGroundedThinkingBudget,
+      aiGatewayContext: {
+        operation: 'tfi.tactical_overlay_refresh',
+        featureKey: 'tfi.tactical_overlay_refresh',
+        runId: `team:${candidate.team_id}`,
+        metadata: {
+          teamId: candidate.team_id,
+          teamName: candidate.team_name,
+          leagueId: candidate.league_id,
+          leagueName: candidate.league_name,
+          source: 'refresh-tactical-overlays',
+        },
+      },
     });
     const parsed = parseOverlayResponse(response);
     const profile = flattenTeamProfileData(candidate.profile);

@@ -108,6 +108,7 @@ const providerInsight = await import('../lib/provider-insight-cache.js');
 
 beforeEach(() => {
   vi.clearAllMocks();
+  vi.useRealTimers();
   fetchCallCount = 0;
 });
 
@@ -126,6 +127,29 @@ describe('fetchMatchesJob', () => {
   test('filters out fixtures from non-active leagues', async () => {
     const result = await fetchMatchesJob();
     expect(result.saved).toBe(3);
+  });
+
+  test('drops provider-stale NS fixtures after the kickoff grace window', async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-06-06T06:30:00+09:00'));
+
+    vi.mocked(footballApi.fetchFixturesForDate)
+      .mockResolvedValueOnce([] as never)
+      .mockResolvedValueOnce([
+        mkFixture(1548432, 39, 'NS', '2026-06-06T01:00:00+09:00', 'Ukraine U21', 'USA U21'),
+        mkFixture(1548433, 39, 'NS', '2026-06-06T12:00:00+09:00', 'Paraguay', 'Nicaragua'),
+      ] as never)
+      .mockResolvedValueOnce([] as never);
+
+    await fetchMatchesJob();
+
+    const matchRepo = await import('../repos/matches.repo.js');
+    const savedRows = vi.mocked(matchRepo.replaceAllMatches).mock.calls[0]?.[0] as Array<Record<string, unknown>>;
+    expect(savedRows.find((row) => row.match_id === '1548432')).toBeUndefined();
+    expect(savedRows.find((row) => row.match_id === '1548433')).toMatchObject({
+      match_id: '1548433',
+      status: 'NS',
+    });
   });
 
   test('returns 0 when no active leagues', async () => {

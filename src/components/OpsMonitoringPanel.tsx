@@ -34,6 +34,8 @@ interface PipelineOverview {
   notifyRate24h: number;
   topSkipReasons: Array<{ reason: string; count: number }>;
   jobFailures24h: number;
+  activeJobFailures24h: number;
+  recoveredJobFailures24h: number;
   jobFailuresByAction: Array<{ action: string; count: number }>;
   failingJobs24h: Array<{
     jobName: string;

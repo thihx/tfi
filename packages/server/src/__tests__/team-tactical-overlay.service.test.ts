@@ -281,6 +281,20 @@ describe('team tactical overlay service', () => {
     const result = await service.refreshTacticalOverlayForCandidate(buildCandidate());
 
     expect(result.outcome).toBe('refreshed');
+    expect(mockGenerateGeminiContent).toHaveBeenCalledWith(expect.any(String), expect.objectContaining({
+      aiGatewayContext: expect.objectContaining({
+        operation: 'tfi.tactical_overlay_refresh',
+        featureKey: 'tfi.tactical_overlay_refresh',
+        runId: 'team:167',
+        metadata: expect.objectContaining({
+          teamId: '167',
+          teamName: 'Arsenal',
+          leagueId: 39,
+          leagueName: 'Premier League',
+          source: 'refresh-tactical-overlays',
+        }),
+      }),
+    }));
     expect(mockUpsertTeamProfile).toHaveBeenCalledWith('167', expect.objectContaining({
       profile: expect.objectContaining({
         attack_style: 'possession',

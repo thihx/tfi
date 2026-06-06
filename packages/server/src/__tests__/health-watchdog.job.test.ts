@@ -172,6 +172,20 @@ describe('overdue job', () => {
     expect(result.alerted).toBe(1);
     expect(mockSendTelegram.mock.calls[0][1]).toContain('4x'); // consecutive = 3+1
   });
+
+  test('monitors condition alert jobs as critical pipeline jobs', async () => {
+    const job = makeJob({
+      name: 'check-match-alerts',
+      lastRun: new Date(NOW - 3 * 60_000).toISOString(),
+    });
+    mockGetJobsStatus.mockResolvedValue([job]);
+
+    const result = await healthWatchdogJob();
+
+    expect(result.checked).toBe(1);
+    expect(result.overdueJobs).toContain('check-match-alerts');
+    expect(mockSendTelegram).toHaveBeenCalledOnce();
+  });
 });
 
 // â”€â”€ In-memory cooldown (Redis unavailable) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€

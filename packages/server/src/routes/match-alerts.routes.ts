@@ -42,6 +42,9 @@ async function compileRuleFromBody(body: RuleBody, alertKind: MatchAlertKind): P
   compiledStatus: 'compiled' | 'unsupported';
   compileSource?: string;
   compileModel?: string;
+  presetId?: string;
+  defaultCooldownMinutes?: number;
+  defaultOncePerMatch?: boolean;
   unsupportedReason?: string;
 }> {
   if (alertKind === 'match_start') {
@@ -49,7 +52,15 @@ async function compileRuleFromBody(body: RuleBody, alertKind: MatchAlertKind): P
   }
   if (typeof body.presetId === 'string') {
     const preset = getSystemConditionAlertPreset(body.presetId);
-    if (preset) return { ruleJson: preset.ruleJson as Record<string, unknown>, compiledStatus: 'compiled' };
+    if (preset) {
+      return {
+        ruleJson: preset.ruleJson as Record<string, unknown>,
+        compiledStatus: 'compiled',
+        presetId: preset.id,
+        defaultCooldownMinutes: preset.defaultCooldownMinutes,
+        defaultOncePerMatch: preset.defaultOncePerMatch,
+      };
+    }
   }
   if (isRecord(body.ruleJson)) return { ruleJson: body.ruleJson, compiledStatus: 'compiled' };
   if (typeof body.conditionText === 'string' && body.conditionText.trim()) {
@@ -158,11 +169,14 @@ export async function matchAlertsRoutes(app: FastifyInstance) {
       sourceRef: isRecord(req.body?.sourceRef) ? req.body.sourceRef : {},
       ruleJson: compiled.ruleJson,
       compiledStatus: 'compiled',
-      cooldownMinutes: toNumber(req.body?.cooldownMinutes) ?? 0,
-      oncePerMatch: typeof req.body?.oncePerMatch === 'boolean' ? req.body.oncePerMatch : true,
+      cooldownMinutes: toNumber(req.body?.cooldownMinutes) ?? compiled.defaultCooldownMinutes ?? 0,
+      oncePerMatch: typeof req.body?.oncePerMatch === 'boolean'
+        ? req.body.oncePerMatch
+        : (compiled.defaultOncePerMatch ?? true),
       channelPolicy: isRecord(req.body?.channelPolicy) ? req.body.channelPolicy : {},
       metadata: {
         ...(isRecord(req.body?.metadata) ? req.body.metadata : {}),
+        ...(compiled.presetId ? { presetId: compiled.presetId } : {}),
         ...(typeof req.body?.conditionText === 'string' && req.body.conditionText.trim()
           ? {
               conditionText: req.body.conditionText.trim(),

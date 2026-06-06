@@ -13,7 +13,10 @@ async function loadScheduler(options: SchedulerLoadOptions = {}) {
   const autoAddTopLeagueWatchlistJob = vi.fn().mockResolvedValue({ candidates: 0, added: 0, skippedExisting: 0 });
   const autoAddFavoriteTeamWatchlistJob = vi.fn().mockResolvedValue({ candidateMatches: 0, targetUsers: 0, added: 0, skippedExisting: 0 });
   const refreshLiveMatchesJob = vi.fn().mockResolvedValue({ tracked: 0, refreshed: 0, live: 0, statsRefreshed: 0 });
+  const materializeMatchAlertsJob = vi.fn().mockResolvedValue({ favoriteTeamRules: 0, favoriteLeagueRules: 0 });
+  const checkMatchAlertsJob = vi.fn().mockResolvedValue({ checked: 0, triggered: 0, enqueued: 0, skippedCooldown: 0, errors: 0 });
   const deliverTelegramNotificationsJob = vi.fn().mockResolvedValue({ pending: 0, delivered: 0, failed: 0 });
+  const deliverMatchAlertTelegramJob = vi.fn().mockResolvedValue({ pending: 0, delivered: 0, failed: 0 });
   const syncReferenceDataJob = vi.fn().mockResolvedValue({});
   const refreshTacticalOverlaysJob = vi.fn().mockResolvedValue({});
   const enrichWatchlistJob = vi.fn().mockResolvedValue({});
@@ -41,6 +44,8 @@ async function loadScheduler(options: SchedulerLoadOptions = {}) {
       jobAutoAddTopLeagueWatchlistMs: 0,
       jobAutoAddFavoriteTeamWatchlistMs: 0,
       jobRefreshLiveMatchesMs: 0,
+      jobMaterializeMatchAlertsMs: 0,
+      jobCheckMatchAlertsMs: 0,
       jobDeliverTelegramNotificationsMs: 0,
       jobSyncReferenceDataMs: 0,
       jobRefreshTacticalOverlaysMs: 0,
@@ -54,6 +59,7 @@ async function loadScheduler(options: SchedulerLoadOptions = {}) {
       jobIntegrationHealthMs: 0,
       jobHealthWatchdogMs: 0,
       jobRefreshLiveMatchesMaxRunMs: 90_000,
+      jobCheckMatchAlertsMaxRunMs: 60_000,
       jobCheckLiveMaxRunMs: 120_000,
       jobDeliverTelegramNotificationsMaxRunMs: 60_000,
       ...options.configOverrides,
@@ -85,7 +91,10 @@ async function loadScheduler(options: SchedulerLoadOptions = {}) {
   vi.doMock('../jobs/auto-add-top-league-watchlist.job.js', () => ({ autoAddTopLeagueWatchlistJob }));
   vi.doMock('../jobs/auto-add-favorite-team-watchlist.job.js', () => ({ autoAddFavoriteTeamWatchlistJob }));
   vi.doMock('../jobs/refresh-live-matches.job.js', () => ({ refreshLiveMatchesJob }));
+  vi.doMock('../jobs/materialize-match-alerts.job.js', () => ({ materializeMatchAlertsJob }));
+  vi.doMock('../jobs/check-match-alerts.job.js', () => ({ checkMatchAlertsJob }));
   vi.doMock('../jobs/deliver-telegram-notifications.job.js', () => ({ deliverTelegramNotificationsJob }));
+  vi.doMock('../jobs/deliver-match-alert-telegram.job.js', () => ({ deliverMatchAlertTelegramJob }));
   vi.doMock('../jobs/sync-reference-data.job.js', () => ({ syncReferenceDataJob }));
   vi.doMock('../jobs/refresh-tactical-overlays.job.js', () => ({ refreshTacticalOverlaysJob }));
   vi.doMock('../jobs/enrich-watchlist.job.js', () => ({ enrichWatchlistJob }));
@@ -108,6 +117,8 @@ async function loadScheduler(options: SchedulerLoadOptions = {}) {
     fetchMatchesJob,
     checkLiveTriggerJob,
     refreshLiveMatchesJob,
+    integrationHealthJob,
+    healthWatchdogJob,
     deliverTelegramNotificationsJob,
     redisDefault,
     jobRunsRepo,
@@ -153,6 +164,22 @@ describe('scheduler lock policies', () => {
     await vi.advanceTimersByTimeAsync(15);
 
     expect(checkLiveTriggerJob).not.toHaveBeenCalled();
+    scheduler.stopScheduler();
+  });
+
+  test('runs monitoring jobs in degraded local mode when Redis lock is unavailable', async () => {
+    const { scheduler, integrationHealthJob, healthWatchdogJob } = await loadScheduler({
+      configOverrides: { jobIntegrationHealthMs: 10, jobHealthWatchdogMs: 10 },
+      redisFactory: () => {
+        throw new Error('redis down');
+      },
+    });
+
+    await scheduler.startScheduler();
+    await vi.advanceTimersByTimeAsync(15);
+
+    expect(integrationHealthJob).toHaveBeenCalledTimes(1);
+    expect(healthWatchdogJob).toHaveBeenCalledTimes(1);
     scheduler.stopScheduler();
   });
 });

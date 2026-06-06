@@ -3427,8 +3427,10 @@ th.data-table__th--sortable:hover {
 
 .watch-rules-preset-chip {
     display: inline-flex;
-    align-items: center;
-    min-height: 32px;
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 3px;
+    min-height: 40px;
     padding: 6px 10px;
     border: 1px solid var(--gray-300);
     border-radius: 6px;
@@ -3443,6 +3445,47 @@ th.data-table__th--sortable:hover {
     border-color: rgba(4, 120, 87, 0.38);
     background: rgba(4, 120, 87, 0.09);
     color: #047857;
+}
+
+.watch-rules-preset-chip--matched {
+    border-color: #16a34a;
+    background: #f0fdf4;
+}
+
+.watch-rules-preset-chip--not_matched {
+    border-color: var(--gray-300);
+    background: var(--white);
+}
+
+.watch-rules-preset-chip--unsupported {
+    border-color: #f59e0b;
+    background: #fffbeb;
+}
+
+.watch-rules-preset-chip__status,
+.cond-line-status {
+    font-size: 11px;
+    font-weight: 700;
+    line-height: 1.25;
+}
+
+.watch-rules-preset-chip__status {
+    color: var(--gray-500);
+}
+
+.watch-rules-preset-chip--matched .watch-rules-preset-chip__status,
+.cond-line-status--matched {
+    color: #15803d;
+}
+
+.watch-rules-preset-chip--not_matched .watch-rules-preset-chip__status,
+.cond-line-status--not_matched {
+    color: var(--gray-500);
+}
+
+.watch-rules-preset-chip--unsupported .watch-rules-preset-chip__status,
+.cond-line-status--unsupported {
+    color: #b45309;
 }
 
 .profile-condition-preset-list {
@@ -6117,6 +6160,13 @@ table tbody#watchlist-table td:not(.select-col) {
 .cond-op { padding: 8px 10px; border: 1px solid var(--gray-300); border-radius: 6px; background: white; }
 
 /* Input wrapper for clear button */
+.cond-input-stack {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    min-width: 0;
+}
+
 .cond-input-wrapper {
     position: relative;
     display: flex;

@@ -53,6 +53,7 @@ All older prompt versions are retired. Runtime env values outside this version a
 - Signed Home/Away lines such as `Home -0.75 @1.92` or `Away +0.25 @2.10` are Asian Handicap, not 1X2.
 - `should_push=true` in this pipeline means an actionable AI recommendation that is eligible for user notification.
 - User condition alerts are handled outside this pipeline by the User Match Alert Engine. Do not add condition-only prompt sections, condition-triggered save branches, or condition-only delivery staging back into `server-pipeline.ts`.
+- Odds-first stats-only live signals are defined in [odds-first-stats-only-signal-contract-vi.md](odds-first-stats-only-signal-contract-vi.md). They may notify watched users when live odds are unavailable, but they must not call LLM, save a recommendation row, carry stake, or enter settlement/ROI.
 
 ## Mandatory Guards
 

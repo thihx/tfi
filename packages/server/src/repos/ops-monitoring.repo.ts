@@ -37,6 +37,8 @@ export interface PipelineOverview {
   notifyRate24h: number;
   topSkipReasons: Array<{ reason: string; count: number }>;
   jobFailures24h: number;
+  activeJobFailures24h: number;
+  recoveredJobFailures24h: number;
   jobFailuresByAction: Array<{ action: string; count: number }>;
   failingJobs24h: Array<{
     jobName: string;
@@ -248,6 +250,8 @@ interface ChecklistInputs {
   liveWatchCount: number;
   providerSamplingEnabled: boolean;
   jobFailures24h: number;
+  activeJobFailures24h: number;
+  recoveredJobFailures24h: number;
   statsSamples: number;
   statsSuccessRate: number;
   oddsSamples: number;
@@ -259,6 +263,18 @@ interface ChecklistInputs {
   notificationFailureRate24h: number;
   notificationStalePending: number;
   notificationExpected24h: boolean;
+  prematchTotalRows: number;
+  prematchHighNoiseRows: number;
+  prematchHighNoiseRate: number;
+  funnelLiveDetected24h: number;
+  funnelSaved24h: number;
+  llmBlocked24h: number;
+  llmCompleted24h: number;
+  aiGatewayMode: string;
+  aiGatewayBlocked24h: number;
+  aiGatewayFailed24h: number;
+  aiGatewayOpenBreakers: number;
+  aiGatewayOpenIncidents: number;
 }
 
 const PIPELINE_WINDOW_HOURS = 24;
@@ -328,12 +344,26 @@ function statusRank(status: OpsChecklistStatus): number {
   return 0;
 }
 
+export function shouldExpectProviderSamples(input: {
+  pipelineEnabled: boolean;
+  liveWatchCount: number;
+  activityLast2h: number;
+}): boolean {
+  return input.pipelineEnabled && (input.liveWatchCount > 0 || input.activityLast2h > 0);
+}
+
 export function buildOpsChecklist(inputs: ChecklistInputs): OpsChecklistItem[] {
   const settlementBacklog = inputs.settlementBacklog;
   const unresolvedCount = inputs.unresolvedCount;
-  const providerSamplesExpected = inputs.pipelineEnabled && (inputs.liveWatchCount > 0 || inputs.analyzed24h > 0);
+  const providerSamplesExpected = shouldExpectProviderSamples(inputs);
+  const providerWorkloadDetail = inputs.pipelineEnabled
+    ? `${inputs.liveWatchCount} live watch match(es), ${inputs.activityLast2h} pipeline audit event(s) in last ${PIPELINE_ACTIVITY_WINDOW_HOURS}h`
+    : 'Pipeline is disabled';
+  const expectedProviderWorkloadDetail = inputs.pipelineEnabled
+    ? `Current provider workload expected (${providerWorkloadDetail})`
+    : 'Pipeline is disabled';
   const noProviderWorkloadDetail = inputs.pipelineEnabled
-    ? `No live provider workload observed (${inputs.liveWatchCount} live watch match(es), ${inputs.analyzed24h} analyzed row(s) in 24h)`
+    ? `No current provider workload observed (${providerWorkloadDetail}; ${inputs.analyzed24h} analyzed row(s) in 24h)`
     : 'Pipeline is disabled';
 
   const pipelineActivityStatus: OpsChecklistStatus = inputs.activityLast2h > 0
@@ -342,10 +372,11 @@ export function buildOpsChecklist(inputs: ChecklistInputs): OpsChecklistItem[] {
       ? 'fail'
       : 'unknown';
 
-  const jobFailureStatus = deriveStatus(
-    inputs.jobFailures24h === 0,
-    inputs.jobFailures24h <= 3,
-  );
+  const jobFailureStatus: OpsChecklistStatus = inputs.jobFailures24h === 0
+    ? 'pass'
+    : inputs.jobFailures24h > 3
+      ? 'fail'
+      : 'warn';
 
   const statsCoverageStatus: OpsChecklistStatus = !inputs.providerSamplingEnabled
     ? 'unknown'
@@ -379,6 +410,26 @@ export function buildOpsChecklist(inputs: ChecklistInputs): OpsChecklistItem[] {
       inputs.notificationStalePending <= 3 && inputs.notificationFailureRate24h <= 20,
     );
 
+  const prematchHighNoiseStatus: OpsChecklistStatus = inputs.prematchTotalRows === 0
+    ? 'unknown'
+    : deriveStatus(inputs.prematchHighNoiseRate <= 10, inputs.prematchHighNoiseRate <= 25);
+  const actionableFunnelStatus: OpsChecklistStatus = inputs.funnelLiveDetected24h === 0
+    ? 'unknown'
+    : inputs.funnelSaved24h > 0
+      ? 'pass'
+      : 'warn';
+  const llmBlockPressureStatus: OpsChecklistStatus = inputs.llmBlocked24h === 0
+    ? 'pass'
+    : inputs.llmCompleted24h > 0
+      ? 'warn'
+      : 'fail';
+  const aiGatewayHealthStatus: OpsChecklistStatus =
+    inputs.aiGatewayBlocked24h > 0 && inputs.aiGatewayMode.toLowerCase() !== 'observe'
+      ? 'fail'
+      : inputs.aiGatewayFailed24h > 0 || inputs.aiGatewayOpenBreakers > 0 || inputs.aiGatewayOpenIncidents > 0
+        ? 'warn'
+        : 'pass';
+
   return [
     {
       id: 'pipeline-activity',
@@ -399,14 +450,16 @@ export function buildOpsChecklist(inputs: ChecklistInputs): OpsChecklistItem[] {
       id: 'job-failures',
       label: inputs.jobFailures24h === 0
         ? 'Critical jobs are not failing'
-        : inputs.jobFailures24h <= 3
-          ? 'Critical jobs have limited failures'
-          : 'Critical jobs are failing repeatedly',
+        : inputs.jobFailures24h > 3
+          ? 'Critical jobs are failing repeatedly'
+          : inputs.activeJobFailures24h > 0
+            ? 'Critical jobs have active failures'
+            : 'Critical jobs recovered after limited failures',
       status: jobFailureStatus,
       detail:
         inputs.jobFailures24h === 0
           ? 'No job failures in last 24h'
-          : `${inputs.jobFailures24h} job failure event(s) in last 24h`,
+          : `${inputs.jobFailures24h} job failure event(s) in last 24h; ${inputs.activeJobFailures24h} currently failing job(s), ${inputs.recoveredJobFailures24h} recovered affected job(s)`,
     },
     {
       id: 'stats-provider-coverage',
@@ -421,7 +474,9 @@ export function buildOpsChecklist(inputs: ChecklistInputs): OpsChecklistItem[] {
           ? 'Provider sampling is disabled by PROVIDER_SAMPLING_ENABLED=false'
         : inputs.statsSamples > 0
           ? `${inputs.statsSuccessRate}% success over ${inputs.statsSamples} sample(s) in last ${PROVIDER_WINDOW_HOURS}h`
-          : `${noProviderWorkloadDetail}; no stats samples recorded in last ${PROVIDER_WINDOW_HOURS}h`,
+          : providerSamplesExpected
+            ? `${expectedProviderWorkloadDetail}; no stats samples recorded in last ${PROVIDER_WINDOW_HOURS}h`
+            : `${noProviderWorkloadDetail}; no stats samples recorded in last ${PROVIDER_WINDOW_HOURS}h`,
     },
     {
       id: 'odds-provider-coverage',
@@ -436,7 +491,9 @@ export function buildOpsChecklist(inputs: ChecklistInputs): OpsChecklistItem[] {
           ? 'Provider sampling is disabled by PROVIDER_SAMPLING_ENABLED=false'
         : inputs.oddsSamples > 0
           ? `${inputs.oddsUsableRate}% usable, ${inputs.oddsTradableRate}% canonical tradable over ${inputs.oddsSamples} sample(s) in last ${PROVIDER_WINDOW_HOURS}h`
-          : `${noProviderWorkloadDetail}; no odds samples recorded in last ${PROVIDER_WINDOW_HOURS}h`,
+          : providerSamplesExpected
+            ? `${expectedProviderWorkloadDetail}; no odds samples recorded in last ${PROVIDER_WINDOW_HOURS}h`
+            : `${noProviderWorkloadDetail}; no odds samples recorded in last ${PROVIDER_WINDOW_HOURS}h`,
     },
     {
       id: 'settlement-backlog',
@@ -460,6 +517,52 @@ export function buildOpsChecklist(inputs: ChecklistInputs): OpsChecklistItem[] {
           : inputs.notificationExpected24h
             ? `No Telegram deliveries attempted in last ${NOTIFICATION_WINDOW_HOURS}h despite eligible/saved recommendation activity`
             : `No Telegram deliveries expected or attempted in last ${NOTIFICATION_WINDOW_HOURS}h; queue has no stale pending rows`,
+    },
+    {
+      id: 'prematch-high-noise',
+      label: inputs.prematchTotalRows === 0
+        ? 'Prematch noise has no samples'
+        : inputs.prematchHighNoiseRate <= 10
+          ? 'Prematch noise is under control'
+          : inputs.prematchHighNoiseRate <= 25
+            ? 'Prematch noise is elevated'
+            : 'Prematch high-noise rate is critical',
+      status: prematchHighNoiseStatus,
+      detail: inputs.prematchTotalRows === 0
+        ? `No analyzed prematch rows in last ${PROMPT_QUALITY_WINDOW_HOURS}h`
+        : `${inputs.prematchHighNoiseRows}/${inputs.prematchTotalRows} analyzed row(s) high-noise (${inputs.prematchHighNoiseRate}%) in last ${PROMPT_QUALITY_WINDOW_HOURS}h`,
+    },
+    {
+      id: 'actionable-funnel',
+      label: inputs.funnelLiveDetected24h === 0
+        ? 'Actionable funnel has no live samples'
+        : inputs.funnelSaved24h > 0
+          ? 'Actionable funnel produced saves'
+          : 'Actionable funnel produced no saves',
+      status: actionableFunnelStatus,
+      detail: inputs.funnelLiveDetected24h === 0
+        ? `No live-detected rows in last ${PIPELINE_WINDOW_HOURS}h`
+        : `${inputs.funnelSaved24h}/${inputs.funnelLiveDetected24h} live detected row(s) saved in last ${PIPELINE_WINDOW_HOURS}h`,
+    },
+    {
+      id: 'llm-block-pressure',
+      label: inputs.llmBlocked24h === 0
+        ? 'LLM block pressure is clear'
+        : inputs.llmCompleted24h > 0
+          ? 'LLM block pressure is present'
+          : 'LLM calls are blocked',
+      status: llmBlockPressureStatus,
+      detail: `${inputs.llmBlocked24h} blocked LLM call(s), ${inputs.llmCompleted24h} completed call(s) in last ${PIPELINE_WINDOW_HOURS}h`,
+    },
+    {
+      id: 'ai-gateway-health',
+      label: inputs.aiGatewayBlocked24h > 0 && inputs.aiGatewayMode.toLowerCase() !== 'observe'
+        ? 'AI gateway is blocking calls'
+        : inputs.aiGatewayFailed24h > 0 || inputs.aiGatewayOpenBreakers > 0 || inputs.aiGatewayOpenIncidents > 0
+          ? 'AI gateway has open issues'
+          : 'AI gateway is clear',
+      status: aiGatewayHealthStatus,
+      detail: `${inputs.aiGatewayOpenBreakers} open breaker(s), ${inputs.aiGatewayOpenIncidents} open incident(s), ${inputs.aiGatewayFailed24h} failed call(s), ${inputs.aiGatewayBlocked24h} blocked call(s), mode ${inputs.aiGatewayMode}`,
     },
   ].sort((left, right) => statusRank(right.status) - statusRank(left.status));
 }
@@ -1168,6 +1271,7 @@ export async function getOpsMonitoringSnapshot(): Promise<OpsMonitoringSnapshot>
   const decisionFunnelSummary = decisionFunnelSummaryRes.rows[0]!;
   const aiGatewaySummary = aiGatewaySummaryRes.rows[0]!;
 
+  const activityLast2h = Number(pipelineSummary.activity_2h);
   const analyzed24h = Number(pipelineSummary.analyzed_24h);
   const notifyEligible24h = Number(pipelineSummary.notify_eligible_24h);
   const saved24h = Number(pipelineSummary.saved_24h);
@@ -1249,18 +1353,40 @@ export async function getOpsMonitoringSnapshot(): Promise<OpsMonitoringSnapshot>
   const providerOddsTradableRate = pct(oddsTradable, oddsSamples);
   const activeWatchCount = Number(workloadSummary.active_watch_count);
   const liveWatchCount = Number(workloadSummary.live_watch_count);
-  const providerSamplesExpected = config.pipelineEnabled && (liveWatchCount > 0 || analyzed24h > 0);
+  const providerSamplesExpected = shouldExpectProviderSamples({
+    pipelineEnabled: config.pipelineEnabled,
+    liveWatchCount,
+    activityLast2h,
+  });
   const notificationExpected24h = notifyEligible24h > 0 || saved24h > 0 || notified24h > 0;
   const jobFailures24h = jobFailuresRes.rows.reduce((sum, row) => sum + Number(row.count), 0);
+  const failingJobs24h = jobFailureDetailsRes.rows.map((row) => ({
+    jobName: row.job_name,
+    failureRuns: Number(row.failure_runs),
+    totalRuns: Number(row.total_runs),
+    lastStatus: row.last_status,
+    lastStartedAt: row.last_started_at,
+    lastCompletedAt: row.last_completed_at,
+    lastError: row.last_error,
+  }));
+  const activeJobFailures24h = failingJobs24h.filter((row) => row.lastStatus === 'failure').length;
+  const recoveredJobFailures24h = failingJobs24h.filter((row) => row.lastStatus !== 'failure').length;
+  const aiGatewayMode = process.env['AI_GATEWAY_MODE'] || 'observe';
+  const aiGatewayBlocked24h = Number(aiGatewaySummary.blocked);
+  const aiGatewayFailed24h = Number(aiGatewaySummary.failed);
+  const aiGatewayOpenBreakers = Number(aiGatewaySummary.open_breakers);
+  const aiGatewayOpenIncidents = Number(aiGatewaySummary.open_incidents);
 
   const checklist = buildOpsChecklist({
     pipelineEnabled: config.pipelineEnabled,
-    activityLast2h: Number(pipelineSummary.activity_2h),
+    activityLast2h,
     analyzed24h,
     activeWatchCount,
     liveWatchCount,
     providerSamplingEnabled: config.providerSamplingEnabled,
     jobFailures24h,
+    activeJobFailures24h,
+    recoveredJobFailures24h,
     statsSamples,
     statsSuccessRate: providerStatsSuccessRate,
     oddsSamples,
@@ -1272,12 +1398,24 @@ export async function getOpsMonitoringSnapshot(): Promise<OpsMonitoringSnapshot>
     notificationFailureRate24h,
     notificationStalePending,
     notificationExpected24h,
+    prematchTotalRows,
+    prematchHighNoiseRows,
+    prematchHighNoiseRate,
+    funnelLiveDetected24h,
+    funnelSaved24h,
+    llmBlocked24h,
+    llmCompleted24h,
+    aiGatewayMode,
+    aiGatewayBlocked24h,
+    aiGatewayFailed24h,
+    aiGatewayOpenBreakers,
+    aiGatewayOpenIncidents,
   });
 
   const cards: OpsMetricCard[] = [
     {
       label: 'Pipeline Activity 2h',
-      value: String(Number(pipelineSummary.activity_2h)),
+      value: String(activityLast2h),
       tone: checklist.find((item) => item.id === 'pipeline-activity')?.status ?? 'neutral',
       detail: 'audit events',
     },
@@ -1417,14 +1555,14 @@ export async function getOpsMonitoringSnapshot(): Promise<OpsMonitoringSnapshot>
       })),
     },
     aiGateway: {
-      mode: process.env['AI_GATEWAY_MODE'] || 'observe',
-      blocked24h: Number(aiGatewaySummary.blocked),
+      mode: aiGatewayMode,
+      blocked24h: aiGatewayBlocked24h,
       observed24h: Number(aiGatewaySummary.observed),
       succeeded24h: Number(aiGatewaySummary.succeeded),
-      failed24h: Number(aiGatewaySummary.failed),
+      failed24h: aiGatewayFailed24h,
       estimatedCost24h: round(Number(aiGatewaySummary.estimated_cost ?? 0), 4),
-      openBreakers: Number(aiGatewaySummary.open_breakers),
-      openIncidents: Number(aiGatewaySummary.open_incidents),
+      openBreakers: aiGatewayOpenBreakers,
+      openIncidents: aiGatewayOpenIncidents,
       topReasons: aiGatewayReasonsRes.rows.map((row) => ({
         reason: row.reason,
         count: Number(row.count),
@@ -1463,7 +1601,7 @@ export async function getOpsMonitoringSnapshot(): Promise<OpsMonitoringSnapshot>
     checklist,
     cards,
     pipeline: {
-      activityLast2h: Number(pipelineSummary.activity_2h),
+      activityLast2h,
       analyzed24h,
       notifyEligible24h,
       saved24h,
@@ -1478,19 +1616,13 @@ export async function getOpsMonitoringSnapshot(): Promise<OpsMonitoringSnapshot>
         count: Number(row.count),
       })),
       jobFailures24h,
+      activeJobFailures24h,
+      recoveredJobFailures24h,
       jobFailuresByAction: jobFailuresRes.rows.map((row) => ({
         action: row.action,
         count: Number(row.count),
       })),
-      failingJobs24h: jobFailureDetailsRes.rows.map((row) => ({
-        jobName: row.job_name,
-        failureRuns: Number(row.failure_runs),
-        totalRuns: Number(row.total_runs),
-        lastStatus: row.last_status,
-        lastStartedAt: row.last_started_at,
-        lastCompletedAt: row.last_completed_at,
-        lastError: row.last_error,
-      })),
+      failingJobs24h,
     },
     providers: {
       statsWindowHours: PROVIDER_WINDOW_HOURS,

@@ -33,12 +33,13 @@ import {
   applyFavoriteLeaguesToWatchlist,
   createMatchAlertRule,
   deleteMatchAlertRule,
+  fetchConditionAlertPresets,
   fetchFavoriteLeagueSelection,
   fetchMatchAlertRules,
-} from '@/lib/services/api';
   lookupMatchLiveStreams,
   type MatchLiveStreamLink,
   type MatchLiveStreamLookupResult,
+} from '@/lib/services/api';
 import { fetchCurrentUser } from '@/lib/services/auth';
 import { loadMatchesAiResultsFromStorage, saveMatchesAiResultsToStorage } from '@/lib/matchesAiResultsStorage';
 
@@ -88,7 +89,6 @@ function SlidersIcon() {
   );
 }
 
-// Statuses where the ball is actually in play (excludes HT, BT, INT breaks)
 function TvIcon() {
   return (
     <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden style={{ display: 'block' }}>
@@ -100,6 +100,7 @@ function TvIcon() {
   );
 }
 
+// Statuses where the ball is actually in play (excludes HT, BT, INT breaks)
 const PLAYING_STATUSES = new Set(['1H', '2H', 'ET', 'P', 'LIVE']);
 
 // Statuses where the match is definitively over — block adding to watchlist
@@ -114,9 +115,9 @@ const _matchesTabStore = {
 };
 
 const PAGE_SIZE = 30;
-
 const LIVE_STREAM_RETRY_MS = 2 * 60_000;
 const LIVE_STREAM_FOUND_REFRESH_MS = 3 * 60_000;
+
 /** DOM id for `document.getElementById` when scrolling to a match from push / hub modal */
 function tfiMatchAnchorId(matchId: string): string {
   return `tfi-match-${String(matchId).replace(/[^a-zA-Z0-9_-]/g, '_')}`;
@@ -194,7 +195,6 @@ export function shouldShowKickoffAlertAction(match: Match, now = Date.now()): bo
   return Number.isFinite(kickoff) && kickoff > now;
 }
 
-
 function shouldRefreshLiveStreamLookup(result: MatchLiveStreamLookupResult | undefined, now = Date.now()): boolean {
   if (!result) return true;
   const checkedAtMs = Date.parse(result.checkedAt);
@@ -230,6 +230,7 @@ function liveStreamButtonTitle(link: MatchLiveStreamLink | undefined, result: Ma
   if (result?.status === 'error') return 'Live stream lookup failed';
   return 'No live stream link found yet';
 }
+
 export function MatchesTab() {
   const { state, addToWatchlist, updateWatchlistItem, removeFromWatchlist, loadAllData, refreshMatches } = useAppState();
   const { showToast } = useToast();
@@ -281,13 +282,12 @@ export function MatchesTab() {
   const [matchFocusTick, setMatchFocusTick] = useState(0);
   const [matchStartAlertRules, setMatchStartAlertRules] = useState<Map<string, number>>(new Map());
   const [pendingMatchStartAlerts, setPendingMatchStartAlerts] = useState<Set<string>>(new Set());
-  const aiResultsRef = useRef<HTMLDivElement>(null);
   const [liveStreamLinks, setLiveStreamLinks] = useState<Map<string, MatchLiveStreamLookupResult>>(new Map());
   const [pendingLiveStreamLookups, setPendingLiveStreamLookups] = useState<Set<string>>(new Set());
   const [liveStreamLookupTick, setLiveStreamLookupTick] = useState(0);
+  const aiResultsRef = useRef<HTMLDivElement>(null);
   const filterBarRef = useRef<HTMLDivElement>(null);
   const [filterBarBottom, setFilterBarBottom] = useState(240);
-
   const liveStreamLinksRef = useRef(liveStreamLinks);
   const pendingLiveStreamLookupsRef = useRef(pendingLiveStreamLookups);
 
@@ -298,6 +298,7 @@ export function MatchesTab() {
   useEffect(() => {
     pendingLiveStreamLookupsRef.current = pendingLiveStreamLookups;
   }, [pendingLiveStreamLookups]);
+
   // ── Scroll-based pagination refs ──────────────────────────────────────────
   // null = window is the scroll parent (mobile); element = desktop scroll div
   const scrollElRef = useRef<HTMLElement | null>(null);
@@ -356,7 +357,6 @@ export function MatchesTab() {
     persistAiResultsDebounced.current(next);
   }, []);
 
-  useEffect(() => {
   const openLiveStream = useCallback((link: MatchLiveStreamLink | undefined) => {
     if (!link?.url) {
       showToast('No live stream link found yet', 'info');
@@ -365,6 +365,7 @@ export function MatchesTab() {
     window.open(link.url, '_blank', 'noopener,noreferrer');
   }, [showToast]);
 
+  useEffect(() => {
     persistAiResultsDebounced.current(aiResults);
   }, [aiResults]);
 
@@ -752,11 +753,11 @@ export function MatchesTab() {
   const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
   const safePage = Math.min(page, totalPages);
   const pageItems = filtered.slice((safePage - 1) * PAGE_SIZE, safePage * PAGE_SIZE);
-  allMatchesRef.current = matches;
   const liveStreamLookupMatchIds = useMemo(
     () => pageItems.filter(isMatchLiveForStream).map((match) => String(match.match_id)).join('|'),
     [pageItems],
   );
+  allMatchesRef.current = matches;
 
   // Keep refs in sync so scroll handler always reads latest values
   safePageRef.current = safePage;
@@ -767,7 +768,6 @@ export function MatchesTab() {
     filteredRef.current = filtered;
   }, [filtered]);
 
-  const pendingFocusMatchIdRef = useRef<string | null>(null);
   useEffect(() => {
     const now = Date.now();
     const matchIds = liveStreamLookupMatchIds
@@ -836,6 +836,7 @@ export function MatchesTab() {
     return () => window.clearTimeout(tid);
   }, [pageItems, liveStreamLinks, liveStreamLookupTick]);
 
+  const pendingFocusMatchIdRef = useRef<string | null>(null);
 
   useEffect(() => {
     const onFocusMatch = (e: Event) => {
@@ -1493,7 +1494,6 @@ export function MatchesTab() {
                     isPlaying: PLAYING_STATUSES.has(m.status),
                   } : undefined}
                   actions={[
-                    ...(shouldShowKickoffAlertAction(m) ? [{
                     ...(canShowLiveStreamActions && liveStreamPending ? [{
                       label: 'Checking TV',
                       icon: <span className="inline-spinner" style={{ width: '14px', height: '14px' }} />,
@@ -1509,6 +1509,7 @@ export function MatchesTab() {
                       onClick: () => openLiveStream(link),
                       variant: 'success' as const,
                     })),
+                    ...(shouldShowKickoffAlertAction(m) ? [{
                       label: matchStartAlertRules.has(String(m.match_id)) ? 'Alert On' : 'Alert',
                       icon: pendingMatchStartAlerts.has(String(m.match_id))
                         ? <span className="inline-spinner" style={{ width: '14px', height: '14px' }} />
@@ -1588,8 +1589,8 @@ export function MatchesTab() {
               const rows: React.ReactNode[] = [];
               let lastLabel = '';
               pageItems.forEach((m) => {
-                const label = getDateGroupLabelInTimeZone(getMatchKickoffTime(m), effectiveTimeZone);
                 const matchId = String(m.match_id);
+                const label = getDateGroupLabelInTimeZone(getMatchKickoffTime(m), effectiveTimeZone);
                 if (label !== lastLabel) {
                   lastLabel = label;
                   rows.push(<tr key={`grp-${label}`} className="date-group-row"><td colSpan={5}>{label}</td></tr>);
@@ -1608,9 +1609,9 @@ export function MatchesTab() {
                     isSelected={selected.has(String(m.match_id))}
                     isAnalyzing={analyzingMatches.has(String(m.match_id))}
                     hasResult={aiResults.has(String(m.match_id))}
-                    leagues={leagues}
                     liveStream={liveStreamLinks.get(matchId)}
                     isLiveStreamPending={pendingLiveStreamLookups.has(matchId)}
+                    leagues={leagues}
                     flashMap={flashMap}
                     onQuickAdd={() => quickAdd(m)}
                     onQuickRemove={() => quickRemove(m)}
@@ -1620,8 +1621,8 @@ export function MatchesTab() {
                     onAskAiOpenQuestion={() => askAiOpenQuestionDialog(m)}
                     onEdit={() => { const entry = watchlistMap.get(String(m.match_id)); if (entry) setEditItem(entry); }}
                     onOpenHub={() => setScoutMatch(m)}
-                  />
                     onOpenLiveStream={(link) => openLiveStream(link)}
+                  />
                 );
               });
               return rows;
@@ -1667,7 +1668,7 @@ export function MatchesTab() {
             notify_enabled,
           });
           if (ok && condition_preset_ids) {
-            const selectedPresetIds = new Set(condition_preset_ids);
+            const selectedPresetIds = notify_enabled === false ? new Set<string>() : new Set(condition_preset_ids);
             const existingConditionRules = await fetchMatchAlertRules(config, {
               matchId: String(editItem.match_id),
               alertKind: 'condition_signal',
@@ -1675,6 +1676,12 @@ export function MatchesTab() {
               conditionAlertSyncFailed = true;
               return [];
             });
+            const presetDefaults = new Map(
+              (await fetchConditionAlertPresets(config).catch(() => {
+                conditionAlertSyncFailed = true;
+                return [];
+              })).map((preset) => [preset.id, preset] as const),
+            );
             const existingPresetRules = existingConditionRules.filter((rule) => rule.source.startsWith('preset:'));
             const existingPresetIds = new Set(
               existingPresetRules.map((rule) => rule.source.slice('preset:'.length)),
@@ -1688,23 +1695,26 @@ export function MatchesTab() {
                 })),
             );
             await Promise.all(
-              condition_preset_ids
+              Array.from(selectedPresetIds)
                 .filter((presetId) => !existingPresetIds.has(presetId))
-                .map((presetId) => createMatchAlertRule(config, {
-                  matchId: String(editItem.match_id),
-                  alertKind: 'condition_signal',
-                  source: `preset:${presetId}`,
-                  presetId,
-                  cooldownMinutes: 10,
-                  oncePerMatch: true,
-                  metadata: {
-                    watchSubscriptionId: editItem.id,
-                    matchDisplay: `${editItem.home_team} vs ${editItem.away_team}`,
-                  },
-                }).catch(() => {
-                  conditionAlertSyncFailed = true;
-                  return null;
-                })),
+                .map((presetId) => {
+                  const preset = presetDefaults.get(presetId);
+                  return createMatchAlertRule(config, {
+                    matchId: String(editItem.match_id),
+                    alertKind: 'condition_signal',
+                    source: `preset:${presetId}`,
+                    presetId,
+                    cooldownMinutes: preset?.defaultCooldownMinutes,
+                    oncePerMatch: preset?.defaultOncePerMatch,
+                    metadata: {
+                      watchSubscriptionId: editItem.id,
+                      matchDisplay: `${editItem.home_team} vs ${editItem.away_team}`,
+                    },
+                  }).catch(() => {
+                    conditionAlertSyncFailed = true;
+                    return null;
+                  });
+                }),
             );
 
             const existingFreeTextRules = existingConditionRules.filter((rule) => rule.source === 'manual:free_text');
@@ -1941,6 +1951,8 @@ interface MatchRowProps {
   isSelected: boolean;
   isAnalyzing: boolean;
   hasResult: boolean;
+  liveStream?: MatchLiveStreamLookupResult;
+  isLiveStreamPending: boolean;
   leagues: League[];
   flashMap: Map<string, number>;
   onQuickAdd: () => void;
@@ -1951,27 +1963,25 @@ interface MatchRowProps {
   onAskAiOpenQuestion: () => void;
   onEdit: () => void;
   onOpenHub: () => void;
-  liveStream?: MatchLiveStreamLookupResult;
-  isLiveStreamPending: boolean;
+  onOpenLiveStream: (link: MatchLiveStreamLink) => void;
 }
 
 function MatchRow({ anchorId, match, isWatched, isPending, isPendingRemove, hasMatchStartAlert, isPendingMatchStartAlert, canShowMatchStartAlert, isSelected, isAnalyzing, hasResult, liveStream, isLiveStreamPending, leagues, flashMap, onQuickAdd, onQuickRemove, onToggleMatchStartAlert, onToggleSelect, onAskAiQuick, onAskAiOpenQuestion, onEdit, onOpenHub, onOpenLiveStream }: MatchRowProps) {
   const [watchHovered, setWatchHovered] = React.useState(false);
   const isPlaying = PLAYING_STATUSES.has(match.status);
   const isFinished = FINISHED_STATUSES.has(match.status);
+  const liveStreamActionLinks = getLiveStreamLinks(liveStream);
+  const canShowLiveStreamButton = isMatchLiveForStream(match) && (isLiveStreamPending || liveStreamActionLinks.length > 0);
   const localDT = getMatchKickoffTime(match);
   const timeDisplay = formatDateTimeDisplay(localDT);
   const leagueDisplay = getLeagueDisplayName(match.league_id, match.league_name || '', leagues);
   const score = match.home_score != null && match.home_score !== '' ? `${match.home_score} - ${match.away_score}` : '';
-  onOpenLiveStream: (link: MatchLiveStreamLink) => void;
   const currentMinute = formatMatchClock(match);
   const showHalftimeUnder = shouldShowHalftimeUnderScore(match);
 
   const id = match.match_id;
   const scoreFlashGen   = flashMap.get(`${id}:score`) ?? 0;
   const homeYellowGen   = flashMap.get(`${id}:hy`)    ?? 0;
-  const liveStreamActionLinks = getLiveStreamLinks(liveStream);
-  const canShowLiveStreamButton = isMatchLiveForStream(match) && (isLiveStreamPending || liveStreamActionLinks.length > 0);
   const awayYellowGen   = flashMap.get(`${id}:ay`)    ?? 0;
   const homeRedGen      = flashMap.get(`${id}:hr`)    ?? 0;
   const awayRedGen      = flashMap.get(`${id}:ar`)    ?? 0;
@@ -2055,16 +2065,6 @@ function MatchRow({ anchorId, match, isWatched, isPending, isPendingRemove, hasM
       </td>
       <td data-label="Action" style={{ textAlign: 'center' }}>
         <div className="cell-value flex-row-gap-4 flex-center flex-wrap">
-          {canShowMatchStartAlert ? (
-            <button
-              className="btn btn-secondary btn-sm action-icon-btn"
-              onClick={onToggleMatchStartAlert}
-              disabled={isPendingMatchStartAlert}
-              aria-label={hasMatchStartAlert ? 'Disable kickoff alert' : 'Enable kickoff alert'}
-              title={hasMatchStartAlert ? 'Kickoff alert enabled' : 'Notify when match starts'}
-              style={{
-                color: hasMatchStartAlert ? '#047857' : undefined,
-                borderColor: hasMatchStartAlert ? 'rgba(4,120,87,0.35)' : undefined,
           {canShowLiveStreamButton ? (
             <>
               {isLiveStreamPending ? (
@@ -2090,6 +2090,16 @@ function MatchRow({ anchorId, match, isWatched, isPending, isPendingRemove, hasM
               ))}
             </>
           ) : null}
+          {canShowMatchStartAlert ? (
+            <button
+              className="btn btn-secondary btn-sm action-icon-btn"
+              onClick={onToggleMatchStartAlert}
+              disabled={isPendingMatchStartAlert}
+              aria-label={hasMatchStartAlert ? 'Disable kickoff alert' : 'Enable kickoff alert'}
+              title={hasMatchStartAlert ? 'Kickoff alert enabled' : 'Notify when match starts'}
+              style={{
+                color: hasMatchStartAlert ? '#047857' : undefined,
+                borderColor: hasMatchStartAlert ? 'rgba(4,120,87,0.35)' : undefined,
                 background: hasMatchStartAlert ? 'rgba(4,120,87,0.10)' : undefined,
               }}
             >

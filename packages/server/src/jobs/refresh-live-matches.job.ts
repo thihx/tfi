@@ -13,7 +13,7 @@ const TERMINAL_STATUSES = new Set(['FT', 'AET', 'PEN', 'AWD', 'WO']);
 const TRACK_NS_BEFORE_KICKOFF_MIN = 10;
 const TRACK_NS_AFTER_KICKOFF_MIN = 10;
 const STAT_CONCURRENCY = 4;
-const DEFAULT_MAX_PUBLIC_MATCHES = 0;
+const DEFAULT_MAX_PUBLIC_MATCHES = 20;
 
 function shouldTrackMatch(row: matchRepo.MatchRow, now = Date.now()): boolean {
   const status = String(row.status || '').trim().toUpperCase();
@@ -165,11 +165,11 @@ export async function refreshLiveMatchesJob(): Promise<{
   const liveCount = tracked.filter((row) => LIVE_STATUSES.has(String(row.status || '').trim().toUpperCase())).length;
 
   await reportJobProgress(JOB, 'fixtures', `Refreshing ${fixtureIds.length} tracked fixtures...`, 35);
-  // This job exists to keep the live scoreboard fresh enough for UI and coarse
-  // candidate detection. Using stale_safe here reuses the provider cache TTL
-  // instead of forcing an upstream refresh every scheduler tick.
+  // The Matches live board needs score/status transitions, especially FT, to
+  // land inside the scheduler cadence. Keep detailed stats cached below, but
+  // force the lightweight fixture refresh every tick.
   const fixtures = await ensureFixturesForMatchIds(fixtureIds, {
-    freshnessMode: 'stale_safe',
+    freshnessMode: 'real_required',
     forceRefreshIds: transitionSensitiveFixtureIds,
   });
   if (fixtures.length === 0) {

@@ -1,7 +1,12 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { beforeEach, describe, expect, test, vi } from 'vitest';
 import { WatchlistEditModal } from '@/components/ui/WatchlistEditModal';
-import { evaluateWatchConditionPreview, fetchConditionAlertPresets, fetchMatchAlertRules } from '@/lib/services/api';
+import {
+  evaluateMatchAlertRulePreview,
+  evaluateWatchConditionPreview,
+  fetchConditionAlertPresets,
+  fetchMatchAlertRules,
+} from '@/lib/services/api';
 import type { WatchlistItem } from '@/types';
 
 vi.mock('@/hooks/useAppState', () => ({
@@ -21,6 +26,19 @@ vi.mock('@/lib/services/api', () => ({
       home_goals: 1,
       away_goals: 1,
       data_source: 'latest_snapshot',
+    },
+  }),
+  evaluateMatchAlertRulePreview: vi.fn().mockResolvedValue({
+    context: {},
+    evaluation: {
+      supported: true,
+      matched: true,
+      triggerKey: 'preset:100',
+      summaryEn: 'Preset matched',
+      summaryVi: 'Preset matched',
+      severity: 'high',
+      suggestedAction: 'review_live_market',
+      facts: {},
     },
   }),
   fetchConditionAlertPresets: vi.fn().mockResolvedValue([]),
@@ -76,6 +94,31 @@ describe('WatchlistEditModal', () => {
     vi.clearAllMocks();
     vi.mocked(fetchConditionAlertPresets).mockResolvedValue([]);
     vi.mocked(fetchMatchAlertRules).mockResolvedValue([]);
+    vi.mocked(evaluateWatchConditionPreview).mockResolvedValue({
+      supported: true,
+      matched: true,
+      summary: 'Condition matched: Minute >= 60',
+      notify_enabled: true,
+      context_summary: {
+        minute: 65,
+        home_goals: 1,
+        away_goals: 1,
+        data_source: 'latest_snapshot',
+      },
+    });
+    vi.mocked(evaluateMatchAlertRulePreview).mockResolvedValue({
+      context: {},
+      evaluation: {
+        supported: true,
+        matched: true,
+        triggerKey: 'preset:100',
+        summaryEn: 'Preset matched',
+        summaryVi: 'Preset matched',
+        severity: 'high',
+        suggestedAction: 'review_live_market',
+        facts: {},
+      },
+    });
   });
 
   test('defaults auto-apply to the global setting when item has no override', () => {
@@ -139,7 +182,11 @@ describe('WatchlistEditModal', () => {
 
   test('calls evaluate API when checking trigger against live data', async () => {
     render(
-      <WatchlistEditModal item={baseItem} onClose={() => {}} onSave={() => {}} />,
+      <WatchlistEditModal
+        item={{ ...baseItem, custom_conditions: '(Minute >= 60)' }}
+        onClose={() => {}}
+        onSave={() => {}}
+      />,
     );
 
     fireEvent.click(screen.getByRole('button', { name: 'Test with live data' }));
@@ -149,11 +196,49 @@ describe('WatchlistEditModal', () => {
         expect.objectContaining({ apiUrl: 'http://localhost:4000' }),
         expect.objectContaining({
           match_id: '100',
-          condition_text: '(Minute >= 60) AND (NOT Home leading)',
+          condition_text: '(Minute >= 60)',
         }),
       );
     });
     expect(await screen.findByText(/Would trigger now/i)).toBeInTheDocument();
+    expect(await screen.findByText('Matched now')).toBeInTheDocument();
+  });
+
+  test('shows live preview status for fast condition presets', async () => {
+    vi.mocked(fetchConditionAlertPresets).mockResolvedValueOnce([
+      {
+        id: 'red_card',
+        label: 'Red card',
+        labelVi: 'Co the do',
+        description: 'Red card detected',
+        category: 'big_event',
+        enabled: true,
+        defaultCooldownMinutes: 0,
+        defaultOncePerMatch: false,
+        sortOrder: 1,
+        ruleJson: {},
+        source: 'system',
+      },
+    ]);
+
+    render(
+      <WatchlistEditModal item={baseItem} onClose={() => {}} onSave={() => {}} />,
+    );
+
+    await screen.findByText('Co the do');
+    fireEvent.click(screen.getByRole('button', { name: 'Test with live data' }));
+
+    await waitFor(() => {
+      expect(evaluateMatchAlertRulePreview).toHaveBeenCalledWith(
+        expect.objectContaining({ apiUrl: 'http://localhost:4000' }),
+        expect.objectContaining({
+          matchId: '100',
+          alertKind: 'condition_signal',
+          presetId: 'red_card',
+        }),
+      );
+    });
+    expect(await screen.findByText('Matched now')).toBeInTheDocument();
   });
 
   test('surfaces when subscription has notifications disabled', async () => {

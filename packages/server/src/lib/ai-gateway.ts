@@ -358,9 +358,15 @@ export async function evaluateAiGatewayRequest(prompt: string, context: AiGatewa
   const recentCount = await countRecentEquivalentCalls(normalized);
   const loopThreshold = Number(process.env['AI_GATEWAY_LOOP_CALL_THRESHOLD'] || 6);
   if (recentCount >= loopThreshold) {
+    const breakerScope = normalized.matchId
+      ? { scopeType: 'match', scopeKey: normalized.matchId }
+      : normalized.runId
+        ? { scopeType: 'run', scopeKey: normalized.runId }
+        : normalized.featureKey !== 'tfi.unknown'
+          ? { scopeType: 'feature', scopeKey: normalized.featureKey }
+          : { scopeType: 'operation', scopeKey: normalized.operation };
     const breakerId = await openAiGatewayBreaker({
-      scopeType: normalized.matchId ? 'match' : 'operation',
-      scopeKey: normalized.matchId ?? normalized.operation,
+      ...breakerScope,
       reason: 'loop_detected',
       severity: 'critical',
       metadata: { ...normalized.metadata, recentCount, loopThreshold },

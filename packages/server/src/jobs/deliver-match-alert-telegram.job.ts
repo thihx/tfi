@@ -65,6 +65,71 @@ function buildTelegramMatchAlertMessage(row: PendingTelegramMatchAlertRow): stri
   return lines.join('\n');
 }
 
+function buildTelegramMatchStartBatchMessage(rows: PendingTelegramMatchAlertRow[]): string {
+  const first = rows[0]!;
+  const heading = localized(first.notificationLanguage, 'MATCHES STARTED', 'Cac tran dau bat dau');
+  const kickoffAtUtc = asString(first.metadata.kickoffAtUtc);
+  const lines = [
+    `<b>${safeHtml(heading)}</b>`,
+  ];
+  if (kickoffAtUtc) {
+    lines.push(safeHtml(formatOperationalTimestamp(new Date(kickoffAtUtc))));
+  }
+  lines.push('');
+
+  for (const row of rows) {
+    const matchDisplay = asString(row.metadata.matchDisplay) || row.matchId;
+    const league = asString(row.metadata.league);
+    const score = asString(row.metadata.score);
+    const status = asString(row.metadata.status);
+    const minute = row.metadata.minute == null ? '' : String(row.metadata.minute);
+    const meta = [
+      minute ? `${localized(row.notificationLanguage, 'Minute', 'Phut')} ${safeHtml(minute)}'` : '',
+      score ? `${localized(row.notificationLanguage, 'Score', 'Ty so')} ${safeHtml(score)}` : '',
+      status ? safeHtml(status) : '',
+    ].filter(Boolean);
+    const suffix = meta.length > 0 ? ` (${meta.join(' | ')})` : '';
+    lines.push(`- <b>${safeHtml(matchDisplay)}</b>${suffix}`);
+    if (league) lines.push(`  ${safeHtml(league)}`);
+  }
+
+  lines.push('');
+  lines.push(`<i>${safeHtml(formatOperationalTimestamp())}</i>`);
+  return lines.join('\n');
+}
+
+function getBatchKey(row: PendingTelegramMatchAlertRow): string {
+  if (row.alertKind !== 'match_start') {
+    return `single:${row.channelId}`;
+  }
+  const kickoffAtUtc = asString(row.metadata.kickoffAtUtc);
+  if (!kickoffAtUtc) {
+    return `single:${row.channelId}`;
+  }
+  return [
+    'match_start',
+    row.userId,
+    row.chatId,
+    row.notificationLanguage,
+    kickoffAtUtc,
+  ].join('|');
+}
+
+function groupTelegramMatchAlertRows(rows: PendingTelegramMatchAlertRow[]): PendingTelegramMatchAlertRow[][] {
+  const groups = new Map<string, PendingTelegramMatchAlertRow[]>();
+  for (const row of rows) {
+    const key = getBatchKey(row);
+    groups.set(key, [...(groups.get(key) ?? []), row]);
+  }
+  return Array.from(groups.values());
+}
+
+function buildTelegramMessageForRows(rows: PendingTelegramMatchAlertRow[]): string {
+  return rows.length > 1 && rows.every((row) => row.alertKind === 'match_start')
+    ? buildTelegramMatchStartBatchMessage(rows)
+    : buildTelegramMatchAlertMessage(rows[0]!);
+}
+
 async function runWithConcurrency<T>(
   items: T[],
   concurrency: number,
@@ -95,18 +160,20 @@ export async function deliverMatchAlertTelegramJob(): Promise<{
 
   let delivered = 0;
   let failed = 0;
+  const deliveryGroups = groupTelegramMatchAlertRows(pendingRows);
 
   await reportJobProgress(jobName, 'send', `Sending ${pendingRows.length} match alert Telegram deliveries...`, 50);
-  await runWithConcurrency(pendingRows, DELIVERY_CONCURRENCY, async (row) => {
+  await runWithConcurrency(deliveryGroups, DELIVERY_CONCURRENCY, async (group) => {
+    const first = group[0]!;
     try {
-      await sendTelegramMessage(row.chatId, buildTelegramMatchAlertMessage(row));
-      await markMatchAlertChannelDelivered(row.channelId);
-      delivered += 1;
+      await sendTelegramMessage(first.chatId, buildTelegramMessageForRows(group));
+      await Promise.all(group.map((row) => markMatchAlertChannelDelivered(row.channelId)));
+      delivered += group.length;
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
-      await markMatchAlertChannelFailed(row.channelId, message).catch(() => undefined);
-      failed += 1;
-      console.error(`[deliver-match-alert-telegram] Failed delivery ${row.deliveryId} for ${row.matchId}:`, message);
+      await Promise.all(group.map((row) => markMatchAlertChannelFailed(row.channelId, message).catch(() => undefined)));
+      failed += group.length;
+      console.error(`[deliver-match-alert-telegram] Failed delivery ${first.deliveryId} for ${first.matchId}:`, message);
     }
   });
 

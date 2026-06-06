@@ -50,6 +50,7 @@ describe('ai gateway', () => {
     delete process.env['AI_GATEWAY_DISABLED_FEATURES'];
     delete process.env['AI_GATEWAY_MAX_INPUT_TOKENS'];
     delete process.env['AI_GATEWAY_ALERTS_ENABLED'];
+    delete process.env['AI_GATEWAY_LOOP_CALL_THRESHOLD'];
     vi.clearAllMocks();
     mocks.query.mockResolvedValue({ rows: [] });
     mocks.listAiGatewayAdminRecipients.mockResolvedValue([]);
@@ -140,5 +141,58 @@ describe('ai gateway', () => {
 
     expect(mocks.sendWebPushNotification).toHaveBeenCalledTimes(1);
     expect(mocks.updateLastUsed).toHaveBeenCalledWith('https://push.example/1');
+  });
+
+  test('loop breaker uses run or feature scope instead of global operation when context is tagged', async () => {
+    process.env['AI_GATEWAY_MODE'] = 'observe';
+    process.env['AI_GATEWAY_LOOP_CALL_THRESHOLD'] = '6';
+    mocks.query
+      .mockResolvedValueOnce({ rows: [] })
+      .mockResolvedValueOnce({ rows: [{ count: '6' }] })
+      .mockResolvedValueOnce({ rows: [{ id: 12 }] })
+      .mockResolvedValueOnce({ rows: [] })
+      .mockResolvedValueOnce({ rows: [{ id: 6 }] });
+
+    const result = await evaluateAiGatewayRequest('short prompt', {
+      model: 'gemini-3.5-flash',
+      operation: 'tfi.tactical_overlay_refresh',
+      featureKey: 'tfi.tactical_overlay_refresh',
+      runId: 'team:167',
+    });
+
+    expect(result.allowed).toBe(true);
+    expect(result.reason).toBe('loop_detected');
+    expect(mocks.query.mock.calls[2]?.[1]).toEqual([
+      'run',
+      'team:167',
+      'loop_detected',
+      'critical',
+      JSON.stringify({ recentCount: 6, loopThreshold: 6 }),
+    ]);
+  });
+
+  test('loop breaker falls back to feature scope for tagged feature calls without match or run', async () => {
+    process.env['AI_GATEWAY_MODE'] = 'observe';
+    process.env['AI_GATEWAY_LOOP_CALL_THRESHOLD'] = '6';
+    mocks.query
+      .mockResolvedValueOnce({ rows: [] })
+      .mockResolvedValueOnce({ rows: [{ count: '6' }] })
+      .mockResolvedValueOnce({ rows: [{ id: 13 }] })
+      .mockResolvedValueOnce({ rows: [] })
+      .mockResolvedValueOnce({ rows: [{ id: 7 }] });
+
+    await evaluateAiGatewayRequest('short prompt', {
+      model: 'gemini-3.5-flash',
+      operation: 'tfi.tactical_overlay_refresh',
+      featureKey: 'tfi.tactical_overlay_refresh',
+    });
+
+    expect(mocks.query.mock.calls[2]?.[1]).toEqual([
+      'feature',
+      'tfi.tactical_overlay_refresh',
+      'loop_detected',
+      'critical',
+      JSON.stringify({ recentCount: 6, loopThreshold: 6 }),
+    ]);
   });
 });

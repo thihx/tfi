@@ -174,12 +174,43 @@ describe('checkLiveTriggerJob', () => {
     // Should not throw, just log the error
     expect(result.liveCount).toBe(2);
     expect(result.pipelineResults).toHaveLength(0);
+    expect(result.failedBatches).toBe(1);
+    expect(result.failedBatchMatches).toBe(2);
 
     const { audit } = await import('../lib/audit.js');
     expect(audit).toHaveBeenCalledWith(expect.objectContaining({
       action: 'PIPELINE_BATCH_ERROR',
       outcome: 'FAILURE',
     }));
+    expect(audit).toHaveBeenCalledWith(expect.objectContaining({
+      action: 'PIPELINE_COMPLETE',
+      outcome: 'PARTIAL',
+      metadata: expect.objectContaining({
+        failedBatches: 1,
+        failedBatchMatches: 2,
+        totalErrors: 2,
+      }),
+    }));
+  });
+
+  test('clamps invalid pipelineBatchSize to one to avoid a non-advancing batch loop', async () => {
+    const { config } = await import('../config.js');
+    (config as Record<string, unknown>).pipelineBatchSize = 0;
+
+    const matchRepo = await import('../repos/matches.repo.js');
+    vi.mocked(matchRepo.getMatchesByIds).mockResolvedValueOnce([
+      { match_id: '100', status: '1H' },
+      { match_id: '200', status: 'NS' },
+    ] as never);
+
+    const result = await checkLiveTriggerJob();
+
+    const { runPipelineBatch } = await import('../lib/server-pipeline.js');
+    expect(runPipelineBatch).toHaveBeenCalledWith(['100']);
+    expect(result.liveCount).toBe(1);
+    expect(result.candidateCount).toBe(1);
+
+    (config as Record<string, unknown>).pipelineBatchSize = 3;
   });
 
   test('skips pipeline completely when coarse candidate gate finds no changed live matches', async () => {

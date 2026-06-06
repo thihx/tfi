@@ -1,4 +1,4 @@
-import { render, screen, waitFor, within } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { League, Match, WatchlistItem } from '@/types';
@@ -14,6 +14,7 @@ const mockFetchFavoriteLeagueSelection = vi.fn();
 const mockFetchMatchAlertRules = vi.fn().mockResolvedValue([]);
 const mockCreateMatchAlertRule = vi.fn().mockResolvedValue({ id: 77, matchId: '200', alertKind: 'match_start', enabled: true, source: 'manual' });
 const mockDeleteMatchAlertRule = vi.fn().mockResolvedValue({ deleted: true });
+const mockFetchConditionAlertPresets = vi.fn().mockResolvedValue([]);
 const mockLookupMatchLiveStreams = vi.fn().mockResolvedValue([]);
 const mockApplyFavoriteLeaguesToWatchlist = vi.fn().mockResolvedValue({
   error: null,
@@ -153,7 +154,7 @@ vi.mock('@/lib/services/api', () => ({
   fetchMatchAlertRules: mockFetchMatchAlertRules,
   createMatchAlertRule: mockCreateMatchAlertRule,
   deleteMatchAlertRule: mockDeleteMatchAlertRule,
-  fetchConditionAlertPresets: vi.fn().mockResolvedValue([]),
+  fetchConditionAlertPresets: mockFetchConditionAlertPresets,
   lookupMatchLiveStreams: mockLookupMatchLiveStreams,
   applyFavoriteLeaguesToWatchlist: mockApplyFavoriteLeaguesToWatchlist,
   evaluateWatchConditionPreview: vi.fn().mockResolvedValue({
@@ -222,6 +223,7 @@ beforeEach(async () => {
     watchlistActiveCount: 1,
   });
   mockFetchMatchAlertRules.mockResolvedValue([]);
+  mockFetchConditionAlertPresets.mockResolvedValue([]);
   mockLookupMatchLiveStreams.mockResolvedValue([]);
   mockCreateMatchAlertRule.mockResolvedValue({ id: 77, matchId: '200', alertKind: 'match_start', enabled: true, source: 'manual' });
   mockDeleteMatchAlertRule.mockResolvedValue({ deleted: true });
@@ -558,7 +560,9 @@ describe('MatchesTab', () => {
 
     await user.click(screen.getByTitle('Table view'));
     await user.click(screen.getByRole('button', { name: 'Watch alerts and conditions' }));
-    await user.type(await screen.findByPlaceholderText('Minute >= 60'), 'Neu 2 doi ko co ban thang sau phut 70');
+    fireEvent.change(await screen.findByPlaceholderText('Minute >= 60'), {
+      target: { value: 'Neu 2 doi ko co ban thang sau phut 70' },
+    });
     await user.click(screen.getByRole('button', { name: 'Save changes' }));
 
     await waitFor(() => {
@@ -572,6 +576,102 @@ describe('MatchesTab', () => {
         }),
       );
     });
+  });
+
+  it('uses configured preset defaults when saving condition preset alerts', async () => {
+    const user = userEvent.setup();
+    mockFetchConditionAlertPresets.mockResolvedValue([
+      {
+        id: 'red_card',
+        label: 'Red card',
+        labelVi: 'Red card',
+        description: 'Major state change.',
+        category: 'big_event',
+        enabled: true,
+        defaultCooldownMinutes: 0,
+        defaultOncePerMatch: false,
+        sortOrder: 10,
+        ruleJson: { id: 'red_card', all: [{ field: 'events.red_card.side', op: 'exists' }] },
+        source: 'system',
+      },
+    ]);
+    render(<MatchesTab />);
+
+    await user.click(screen.getByTitle('Table view'));
+    await user.click(screen.getByRole('button', { name: 'Watch alerts and conditions' }));
+    expect(await screen.findByText('Red card')).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Save changes' }));
+
+    await waitFor(() => {
+      expect(mockCreateMatchAlertRule).toHaveBeenCalledWith(
+        expect.objectContaining({ apiUrl: 'http://localhost:4000' }),
+        expect.objectContaining({
+          matchId: '100',
+          alertKind: 'condition_signal',
+          source: 'preset:red_card',
+          presetId: 'red_card',
+          cooldownMinutes: 0,
+          oncePerMatch: false,
+        }),
+      );
+    });
+  });
+
+  it('removes condition preset alert rules when watch push is disabled', async () => {
+    const user = userEvent.setup();
+    mockFetchConditionAlertPresets.mockResolvedValue([
+      {
+        id: 'red_card',
+        label: 'Red card',
+        labelVi: 'Red card',
+        description: 'Major state change.',
+        category: 'big_event',
+        enabled: true,
+        defaultCooldownMinutes: 0,
+        defaultOncePerMatch: false,
+        sortOrder: 10,
+        ruleJson: { id: 'red_card', all: [{ field: 'events.red_card.side', op: 'exists' }] },
+        source: 'system',
+      },
+    ]);
+    mockFetchMatchAlertRules.mockImplementation((_config, options) => {
+      if (options?.alertKind === 'condition_signal') {
+        return Promise.resolve([
+          {
+            id: 88,
+            userId: 'member-1',
+            matchId: '100',
+            alertKind: 'condition_signal',
+            enabled: true,
+            source: 'preset:red_card',
+            sourceRef: {},
+            ruleJson: { id: 'red_card' },
+            cooldownMinutes: 0,
+            oncePerMatch: false,
+            channelPolicy: {},
+            metadata: {},
+          },
+        ]);
+      }
+      return Promise.resolve([]);
+    });
+    render(<MatchesTab />);
+
+    await user.click(screen.getByTitle('Table view'));
+    await user.click(screen.getByRole('button', { name: 'Watch alerts and conditions' }));
+    await user.click(await screen.findByRole('checkbox', { name: 'Push when condition matches' }));
+    await user.click(screen.getByRole('button', { name: 'Save changes' }));
+
+    await waitFor(() => {
+      expect(mockDeleteMatchAlertRule).toHaveBeenCalledWith(
+        expect.objectContaining({ apiUrl: 'http://localhost:4000' }),
+        88,
+      );
+    });
+    expect(mockCreateMatchAlertRule).not.toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({ alertKind: 'condition_signal' }),
+    );
   });
 
   it('passes auto-apply override when saving a watched match edit', async () => {

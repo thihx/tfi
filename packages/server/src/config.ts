@@ -15,6 +15,8 @@ function loadEnvFile(path: string, override: boolean): void {
   if (existsSync(path)) dotenv.config({ path, override });
 }
 
+export const DEFAULT_LIVE_STATUSES = ['1H', 'HT', '2H', 'ET', 'BT', 'P', 'LIVE', 'INT'] as const;
+
 // Repo root first (monorepo defaults), Azure deploy profile, then packages/server (overrides). Finally cwd `.env` fills gaps.
 loadEnvFile(resolve(repoRoot, '.env'), false);
 loadEnvFile(resolve(repoRoot, '.env.local'), false);
@@ -99,11 +101,11 @@ export const config = {
   jobSyncWatchlistMetadataMs: Number(process.env['JOB_SYNC_WATCHLIST_METADATA_MS'] || process.env['JOB_FETCH_MATCHES_MS'] || 1 * 60_000),
   jobAutoAddTopLeagueWatchlistMs: Number(process.env['JOB_AUTO_ADD_TOP_LEAGUE_WATCHLIST_MS'] || 0),
   jobAutoAddFavoriteTeamWatchlistMs: Number(process.env['JOB_AUTO_ADD_FAVORITE_TEAM_WATCHLIST_MS'] || process.env['JOB_FETCH_MATCHES_MS'] || 1 * 60_000),
-  jobRefreshLiveMatchesMs: Number(process.env['JOB_REFRESH_LIVE_MATCHES_MS'] || 15_000), // 15 sec
+  jobRefreshLiveMatchesMs: Number(process.env['JOB_REFRESH_LIVE_MATCHES_MS'] || 5_000), // 5 sec
   jobMaterializeMatchAlertsMs: Number(process.env['JOB_MATERIALIZE_MATCH_ALERTS_MS'] || process.env['JOB_FETCH_MATCHES_MS'] || 60_000),
   jobCheckMatchAlertsMs: Number(process.env['JOB_CHECK_MATCH_ALERTS_MS'] || 15_000),
   /** Max public live/near-live matches to score-refresh per refresh-live-matches tick. */
-  jobRefreshLiveMatchesMaxPublicMatches: Number(process.env['JOB_REFRESH_LIVE_MATCHES_MAX_PUBLIC_MATCHES'] || 0),
+  jobRefreshLiveMatchesMaxPublicMatches: Number(process.env['JOB_REFRESH_LIVE_MATCHES_MAX_PUBLIC_MATCHES'] || 20),
   jobDeliverTelegramNotificationsMs: Number(process.env['JOB_DELIVER_TELEGRAM_NOTIFICATIONS_MS'] || 5_000), // 5 sec
   jobExpireWatchlistMs: Number(process.env['JOB_EXPIRE_WATCHLIST_MS'] || 5 * 60_000),    // 5 min
   jobCheckLiveMs: Number(process.env['JOB_CHECK_LIVE_MS'] || 30_000),                    // 30 sec
@@ -137,7 +139,17 @@ export const config = {
   aiPerformanceKeepDays: Number(process.env['AI_PERFORMANCE_KEEP_DAYS'] || 365),                     // aggregate+purge ai_performance detail (keep 1yr for AI retraining)
 
   // Live match statuses
-  liveStatuses: (process.env['LIVE_STATUSES'] || '1H,2H').split(',').map(s => s.trim()),
+  liveStatuses: (process.env['LIVE_STATUSES'] || DEFAULT_LIVE_STATUSES.join(',')).split(',').map(s => s.trim()),
+
+  // Live stream locator (server-side allowlist scanner)
+  liveStreamLocatorEnabled: process.env['LIVE_STREAM_LOCATOR_ENABLED'] !== 'false',
+  liveStreamProviderUrls: (process.env['LIVE_STREAM_PROVIDER_URLS'] || 'https://xoilacztu.tv/,https://socolive16.cv/')
+    .split(',')
+    .map((s) => s.trim())
+    .filter(Boolean),
+  liveStreamLocatorTimeoutMs: Number(process.env['LIVE_STREAM_LOCATOR_TIMEOUT_MS'] || 3500),
+  liveStreamLocatorCacheTtlMs: Number(process.env['LIVE_STREAM_LOCATOR_CACHE_TTL_MS'] || 3 * 60_000),
+  liveStreamLocatorMaxMatches: Number(process.env['LIVE_STREAM_LOCATOR_MAX_MATCHES'] || 30),
 
   // Auto pipeline
   pipelineEnabled: process.env['PIPELINE_ENABLED'] !== 'false',          // auto-trigger AI for live matches

@@ -1027,7 +1027,7 @@ export async function startScheduler() {
       group: 'monitoring',
       entityScopes: ['postgres', 'redis', 'provider-apis', 'telegram'],
       order: 17,
-      lockPolicy: 'strict',
+      lockPolicy: 'degraded-local',
     },
   );
   register(
@@ -1044,7 +1044,7 @@ export async function startScheduler() {
       group: 'monitoring',
       entityScopes: ['scheduler', 'critical-jobs'],
       order: 18,
-      lockPolicy: 'strict',
+      lockPolicy: 'degraded-local',
     },
   );
 

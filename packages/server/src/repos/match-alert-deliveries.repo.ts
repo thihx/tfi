@@ -4,6 +4,7 @@ import type { MatchAlertEvaluationResult } from '../lib/match-alert-rule-engine.
 import type { MatchAlertRule } from './match-alert-rules.repo.js';
 import type { MatchAlertContext } from '../lib/match-alert-rule-engine.js';
 import { isWebPushConfigured, sendWebPushNotification, type PushPayload } from '../lib/web-push.js';
+import type { StatsOnlyLiveSignalResult } from '../lib/stats-only-live-signal.js';
 
 export interface MatchAlertDelivery {
   id: number;
@@ -70,6 +71,23 @@ interface PendingTelegramMatchAlertQueryRow {
   created_at: string;
 }
 
+interface StatsOnlySignalDeliveryRow {
+  id: number;
+}
+
+export interface EnqueueStatsOnlySignalInput {
+  matchId: string;
+  homeTeam: string;
+  awayTeam: string;
+  league: string;
+  status: string;
+  minute: number;
+  score: string;
+  kickoffAtUtc: string | null;
+  signal: StatsOnlyLiveSignalResult;
+  referenceMarketKeys?: string[];
+}
+
 function jsonObject(value: unknown): Record<string, unknown> {
   return value && typeof value === 'object' && !Array.isArray(value)
     ? value as Record<string, unknown>
@@ -96,7 +114,7 @@ function channelPolicyAllows(policy: Record<string, unknown>, channel: 'web_push
   return value !== false;
 }
 
-async function hasRecentDelivery(rule: MatchAlertRule, triggerKey: string): Promise<boolean> {
+export async function hasRecentMatchAlertDelivery(rule: MatchAlertRule, triggerKey: string): Promise<boolean> {
   if (rule.oncePerMatch) {
     const result = await query<{ exists: boolean }>(
       `SELECT EXISTS (
@@ -239,7 +257,7 @@ export async function enqueueMatchAlertDelivery(
   metadataPatch: Record<string, unknown> = {},
 ): Promise<MatchAlertDelivery | null> {
   if (!evaluation.matched || !evaluation.triggerKey || !rule.matchId) return null;
-  if (await hasRecentDelivery(rule, evaluation.triggerKey)) return null;
+  if (await hasRecentMatchAlertDelivery(rule, evaluation.triggerKey)) return null;
 
   const policy = rule.channelPolicy;
   const effectivePolicy = {
@@ -282,6 +300,7 @@ export async function enqueueMatchAlertDelivery(
         status: context.status,
         minute: context.minute,
         score: `${context.score.home}-${context.score.away}`,
+        kickoffAtUtc: context.kickoffAtUtc,
         channelPolicy: effectivePolicy,
         ...metadataPatch,
       }),
@@ -292,6 +311,193 @@ export async function enqueueMatchAlertDelivery(
   await syncDeliveryChannels([Number(row.id)]);
   await recomputeParentDelivery([Number(row.id)]);
   return mapDelivery(row);
+}
+
+export async function recordSuppressedMatchAlertDelivery(
+  rule: MatchAlertRule,
+  evaluation: MatchAlertEvaluationResult,
+  context: MatchAlertContext,
+  metadataPatch: Record<string, unknown> = {},
+): Promise<MatchAlertDelivery | null> {
+  if (!evaluation.matched || !evaluation.triggerKey || !rule.matchId) return null;
+  if (await hasRecentMatchAlertDelivery(rule, evaluation.triggerKey)) return null;
+
+  const result = await query<MatchAlertDeliveryRow>(
+    `INSERT INTO user_match_alert_deliveries (
+        rule_id,
+        user_id,
+        match_id,
+        alert_kind,
+        trigger_key,
+        trigger_snapshot,
+        delivery_status,
+        metadata
+     )
+     VALUES ($1,$2,$3,$4,$5,$6,'suppressed',$7)
+     ON CONFLICT (rule_id, trigger_key) DO NOTHING
+     RETURNING *`,
+    [
+      rule.id,
+      rule.userId,
+      rule.matchId,
+      rule.alertKind,
+      evaluation.triggerKey,
+      JSON.stringify({
+        summaryEn: evaluation.summaryEn,
+        summaryVi: evaluation.summaryVi,
+        severity: evaluation.severity,
+        suggestedAction: evaluation.suggestedAction,
+        facts: evaluation.facts,
+      }),
+      JSON.stringify({
+        matchDisplay: `${context.homeTeam} vs ${context.awayTeam}`,
+        homeTeam: context.homeTeam,
+        awayTeam: context.awayTeam,
+        league: context.leagueName,
+        status: context.status,
+        minute: context.minute,
+        score: `${context.score.home}-${context.score.away}`,
+        kickoffAtUtc: context.kickoffAtUtc,
+        suppressed: true,
+        ...metadataPatch,
+      }),
+    ],
+  );
+  const row = result.rows[0];
+  if (!row) return null;
+  await syncDeliveryChannels([Number(row.id)]);
+  await recomputeParentDelivery([Number(row.id)]);
+  return mapDelivery(row);
+}
+
+export async function enqueueStatsOnlyLiveSignalDeliveries(
+  input: EnqueueStatsOnlySignalInput,
+): Promise<{ enqueued: number; deliveryIds: number[] }> {
+  if (!input.signal.triggered || !input.signal.triggerKey) {
+    return { enqueued: 0, deliveryIds: [] };
+  }
+
+  const result = await query<StatsOnlySignalDeliveryRow>(
+    `WITH targets AS (
+       SELECT DISTINCT
+              s.user_id,
+              COALESCE(settings.channel_policy, '{}'::jsonb) AS channel_policy
+         FROM user_watch_subscriptions s
+         LEFT JOIN user_match_alert_settings settings ON settings.user_id = s.user_id
+        WHERE s.match_id = $1
+          AND s.notify_enabled = TRUE
+          AND COALESCE(settings.condition_alerts_enabled, TRUE) = TRUE
+     ),
+     rules AS (
+       INSERT INTO user_match_alert_rules (
+          user_id,
+          match_id,
+          alert_kind,
+          enabled,
+          source,
+          source_ref,
+          rule_json,
+          compiled_status,
+          cooldown_minutes,
+          once_per_match,
+          channel_policy,
+          metadata,
+          updated_at
+       )
+       SELECT
+          t.user_id,
+          $1,
+          'condition_signal',
+          TRUE,
+          'stats_only_signal',
+          jsonb_build_object('matchId', $1, 'contract', 'odds-first-stats-only-live-signal'),
+          jsonb_build_object('version', 1, 'id', 'stats_only_live_signal'),
+          'draft',
+          10,
+          FALSE,
+          t.channel_policy,
+          jsonb_build_object(
+            'materializedBy', 'server-pipeline',
+            'contract', 'odds-first-stats-only-live-signal',
+            'systemDraftRule', TRUE
+          ),
+          NOW()
+         FROM targets t
+       ON CONFLICT (user_id, match_id, alert_kind, source)
+         WHERE match_id IS NOT NULL
+       DO UPDATE
+          SET enabled = TRUE,
+              compiled_status = 'draft',
+              channel_policy = EXCLUDED.channel_policy,
+              metadata = EXCLUDED.metadata,
+              updated_at = NOW()
+       RETURNING id, user_id
+     ),
+     deliveries AS (
+       INSERT INTO user_match_alert_deliveries (
+          rule_id,
+          user_id,
+          match_id,
+          alert_kind,
+          trigger_key,
+          trigger_snapshot,
+          delivery_status,
+          metadata
+       )
+       SELECT
+          r.id,
+          r.user_id,
+          $1,
+          'condition_signal',
+          $2,
+          $3::jsonb,
+          'pending',
+          $4::jsonb
+         FROM rules r
+       ON CONFLICT (rule_id, trigger_key) DO NOTHING
+       RETURNING id
+     )
+     SELECT id FROM deliveries`,
+    [
+      input.matchId,
+      input.signal.triggerKey,
+      JSON.stringify({
+        summaryEn: input.signal.summaryEn,
+        summaryVi: input.signal.summaryVi,
+        severity: input.signal.strength === 'high' ? 'high' : 'medium',
+        suggestedAction: input.signal.suggestedAction,
+        facts: {
+          signalType: input.signal.signalType,
+          strength: input.signal.strength,
+          marketFamilyHint: input.signal.marketFamilyHint,
+          reasons: input.signal.reasons,
+          referenceMarketKeys: input.referenceMarketKeys ?? [],
+          noActionableOdds: true,
+        },
+      }),
+      JSON.stringify({
+        matchDisplay: `${input.homeTeam} vs ${input.awayTeam}`,
+        homeTeam: input.homeTeam,
+        awayTeam: input.awayTeam,
+        league: input.league,
+        status: input.status,
+        minute: input.minute,
+        score: input.score,
+        kickoffAtUtc: input.kickoffAtUtc,
+        signalType: input.signal.signalType,
+        signalStrength: input.signal.strength,
+        signalReasons: input.signal.reasons,
+        marketFamilyHint: input.signal.marketFamilyHint,
+        referenceMarketKeys: input.referenceMarketKeys ?? [],
+        noActionableOdds: true,
+        signalContractVersion: 'odds-first-stats-only-live-signal-v1',
+      }),
+    ],
+  );
+  const deliveryIds = result.rows.map((row) => Number(row.id));
+  await syncDeliveryChannels(deliveryIds);
+  await recomputeParentDelivery(deliveryIds);
+  return { enqueued: deliveryIds.length, deliveryIds };
 }
 
 function asString(value: unknown): string {

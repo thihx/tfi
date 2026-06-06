@@ -27,8 +27,9 @@ import * as matchRepo from '../repos/matches.repo.js';
 import * as watchlistRepo from '../repos/watchlist.repo.js';
 
 const ALLOWED_STATUSES = ['NS', '1H', 'HT', '2H', 'ET', 'BT', 'P', 'LIVE', 'INT'];
-const LIVE_STATUSES = new Set(['1H', 'HT', '2H', 'ET', 'BT', 'LIVE', 'INT']);
+const LIVE_STATUSES = new Set(['1H', 'HT', '2H', 'ET', 'BT', 'P', 'LIVE', 'INT']);
 const TERMINAL_STATUSES = new Set(['FT', 'AET', 'PEN', 'AWD', 'WO']);
+export const STALE_NOT_STARTED_AFTER_KICKOFF_MS = 3 * 60 * 60_000;
 export const IDLE_NO_WATCH_POLL_DELAY_MS = 30 * 60_000;
 const ADAPTIVE_BACKOFF_RECHECK_TOLERANCE_MS = 1_000;
 
@@ -153,6 +154,23 @@ function fixtureToMatchRow(fixture: ApiFixture): matchRepo.MatchRow {
   };
 }
 
+function isStaleNotStartedFixture(fixture: ApiFixture, nowMs: number): boolean {
+  if (String(fixture.fixture.status.short || '').trim().toUpperCase() !== 'NS') return false;
+  const kickoff = kickoffAtUtcFromFixtureDate(String(fixture.fixture.date));
+  if (!kickoff) return false;
+  const kickoffMs = Date.parse(kickoff);
+  if (!Number.isFinite(kickoffMs)) return false;
+  return nowMs - kickoffMs >= STALE_NOT_STARTED_AFTER_KICKOFF_MS;
+}
+
+function isStaleNotStartedMatchRow(row: matchRepo.MatchRow, nowMs: number): boolean {
+  if (String(row.status || '').trim().toUpperCase() !== 'NS') return false;
+  if (!row.kickoff_at_utc) return false;
+  const kickoffMs = Date.parse(row.kickoff_at_utc);
+  if (!Number.isFinite(kickoffMs)) return false;
+  return nowMs - kickoffMs >= STALE_NOT_STARTED_AFTER_KICKOFF_MS;
+}
+
 export async function fetchMatchesJob(): Promise<{
   saved: number;
   leagues: number;
@@ -215,6 +233,7 @@ export async function fetchMatchesJob(): Promise<{
   const leagueIdSet = new Set(activeLeagues.map((league) => league.league_id));
 
   const now = new Date();
+  const nowMs = now.getTime();
   const yesterday = new Date(now);
   yesterday.setDate(yesterday.getDate() - 1);
   const tomorrow = new Date(now);
@@ -270,10 +289,18 @@ export async function fetchMatchesJob(): Promise<{
     40,
   );
   const leagueFiltered = allFixtures.filter((fixture) => leagueIdSet.has(fixture.league.id));
-  const statusFiltered = leagueFiltered.filter((fixture) => ALLOWED_STATUSES.includes(fixture.fixture.status.short));
+  const statusFiltered = leagueFiltered.filter((fixture) =>
+    ALLOWED_STATUSES.includes(fixture.fixture.status.short)
+    && !isStaleNotStartedFixture(fixture, nowMs)
+  );
+  const staleNotStartedCount = leagueFiltered.filter((fixture) =>
+    ALLOWED_STATUSES.includes(fixture.fixture.status.short)
+    && isStaleNotStartedFixture(fixture, nowMs)
+  ).length;
 
   console.log(
-    `[fetchMatchesJob] After league filter: ${leagueFiltered.length}, after status filter: ${statusFiltered.length}`,
+    `[fetchMatchesJob] After league filter: ${leagueFiltered.length}, after status filter: ${statusFiltered.length}` +
+    (staleNotStartedCount > 0 ? `, stale NS dropped: ${staleNotStartedCount}` : ''),
   );
 
   let rows = statusFiltered.map(fixtureToMatchRow);
@@ -412,7 +439,11 @@ export async function fetchMatchesJob(): Promise<{
   let mergedRows = rows;
   if (partialFailure && allCurrentMatches.length > 0) {
     const failedDate = !todayOk ? dateFrom : dateTo;
-    const preserved = allCurrentMatches.filter((match) => match.date === failedDate && !newMatchIds.has(match.match_id));
+    const preserved = allCurrentMatches.filter((match) =>
+      match.date === failedDate
+      && !newMatchIds.has(match.match_id)
+      && !isStaleNotStartedMatchRow(match, nowMs)
+    );
     if (preserved.length > 0) {
       mergedRows = rows.concat(preserved);
       console.log(`[fetchMatchesJob] Partial failure - preserved ${preserved.length} existing rows for ${failedDate}`);
