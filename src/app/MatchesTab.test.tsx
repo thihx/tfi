@@ -306,6 +306,65 @@ describe('MatchesTab', () => {
     expect(shouldShowKickoffAlertAction({ ...baseMatches[1]!, status: 'FT' })).toBe(false);
   });
 
+  it('does not infer extra time from long stoppage time alone', async () => {
+    const user = userEvent.setup();
+    mockState.matches = [
+      {
+        ...baseMatches[0]!,
+        status: '2H',
+        current_minute: '102',
+        home_score: 0,
+        away_score: 0,
+        halftime_home: 0,
+        halftime_away: 0,
+      },
+    ];
+    mockState.watchlist = [];
+
+    render(<MatchesTab />);
+
+    await user.click(screen.getByTitle('Table view'));
+
+    expect(screen.getByText("102'")).toBeInTheDocument();
+    expect(screen.queryByText("ET 102'")).not.toBeInTheDocument();
+  });
+
+  it('labels extra time when provider status is ET', async () => {
+    const user = userEvent.setup();
+    mockState.matches = [
+      {
+        ...baseMatches[0]!,
+        status: 'ET',
+        current_minute: '102',
+        home_score: 0,
+        away_score: 0,
+        halftime_home: 0,
+        halftime_away: 0,
+      },
+    ];
+    mockState.watchlist = [];
+
+    render(<MatchesTab />);
+
+    await user.click(screen.getByTitle('Table view'));
+
+    expect(screen.getByText("ET 102'")).toBeInTheDocument();
+    expect(screen.getByTitle('Extra Time')).toBeInTheDocument();
+  });
+
+  it('labels active penalty shootouts when provider status is P', async () => {
+    const user = userEvent.setup();
+    mockState.matches = [{ ...baseMatches[0]!, status: 'P', current_minute: '120' }];
+    mockState.watchlist = [];
+
+    render(<MatchesTab />);
+
+    await user.click(screen.getByTitle('Table view'));
+
+    expect(screen.getAllByText('PEN').length).toBeGreaterThan(0);
+    expect(screen.getByTitle('Penalty shootout')).toBeInTheDocument();
+  });
+
   it('uses the server pipeline for match analysis and renders the returned analysis', async () => {
     const user = userEvent.setup();
     render(<MatchesTab />);

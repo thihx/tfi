@@ -9,7 +9,7 @@ import { ActiveFilterChips, type ActiveFilterChip } from '@/components/ui/Active
 import { ViewToggle } from '@/components/ui/ViewToggle';
 import { BulkActionBar } from '@/components/ui/BulkActionBar';
 import { EmptyState } from '@/components/ui/EmptyState';
-import { formatHalftimeParen, shouldShowHalftimeUnderScore } from '@/lib/utils/matchScoreDisplay';
+import { formatHalftimeParen, formatMatchClock, shouldShowHalftimeUnderScore } from '@/lib/utils/matchScoreDisplay';
 import { DisciplineCardIcons } from '@/components/ui/MatchDisciplineCardIcons';
 import { StatusBadge } from '@/components/ui/StatusBadge';
 import { AiAnalysisPanel, type AiAnalysisPanelEntry } from '@/components/ui/AiAnalysisPanel';
@@ -1964,7 +1964,7 @@ function MatchRow({ anchorId, match, isWatched, isPending, isPendingRemove, hasM
   const leagueDisplay = getLeagueDisplayName(match.league_id, match.league_name || '', leagues);
   const score = match.home_score != null && match.home_score !== '' ? `${match.home_score} - ${match.away_score}` : '';
   onOpenLiveStream: (link: MatchLiveStreamLink) => void;
-  const currentMinute = match.status === 'HT' ? 'HT' : (match.current_minute ? `${match.current_minute}'` : '');
+  const currentMinute = formatMatchClock(match);
   const showHalftimeUnder = shouldShowHalftimeUnderScore(match);
 
   const id = match.match_id;

@@ -1,5 +1,5 @@
 import { memo, useState, type ReactNode } from 'react';
-import { formatHalftimeParen, shouldShowHalftimeUnderScore } from '@/lib/utils/matchScoreDisplay';
+import { formatHalftimeParen, formatMatchClock, shouldShowHalftimeUnderScore } from '@/lib/utils/matchScoreDisplay';
 import { formatLocalTime } from '@/lib/utils/helpers';
 import type { Match } from '@/types';
 
@@ -73,8 +73,7 @@ function MatchCardBase({ match, actions, highlighted, watchedAction, flashMap, o
   const isLive = STATUS_LIVE.has(match.status);
   const hasScore = match.home_score != null && match.away_score != null;
 
-  const minuteNum = match.current_minute ? parseInt(String(match.current_minute), 10) : 0;
-  const minuteDisplay = match.status === 'HT' ? 'HT' : (minuteNum > 0 ? `${minuteNum}'` : '');
+  const minuteDisplay = formatMatchClock(match);
 
   const id = match.match_id;
   const scoreFlashGen  = flashMap?.get(`${id}:score`) ?? 0;

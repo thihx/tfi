@@ -2,6 +2,8 @@ import type { Match } from '@/types';
 
 const STATUS_FINISHED = new Set(['FT', 'AET', 'PEN', 'CANC', 'ABD', 'AWD']);
 const STATUS_AFTER_FIRST_HALF = new Set(['2H', 'ET', 'BT', 'P', 'INT']);
+const STATUS_EXTRA_TIME = new Set(['ET', 'BT']);
+const STATUS_PENALTY = new Set(['P']);
 
 export function parseElapsedMinute(raw: string | undefined | null): number | null {
   if (raw == null || raw === '') return null;
@@ -32,4 +34,25 @@ export function shouldShowHalftimeUnderScore(
 
 export function formatHalftimeParen(match: Pick<Match, 'halftime_home' | 'halftime_away'>): string {
   return `(${match.halftime_home}-${match.halftime_away})`;
+}
+
+export function getLivePhaseLabel(match: Pick<Match, 'status' | 'current_minute'>): string | null {
+  const status = String(match.status || '').toUpperCase();
+  if (STATUS_PENALTY.has(status)) return 'PEN';
+  if (STATUS_EXTRA_TIME.has(status)) return 'ET';
+
+  return null;
+}
+
+export function formatMatchClock(match: Pick<Match, 'status' | 'current_minute'>): string {
+  const status = String(match.status || '').toUpperCase();
+  if (status === 'HT') return 'HT';
+
+  const phase = getLivePhaseLabel(match);
+  if (phase === 'PEN') return 'PEN';
+
+  const elapsed = parseElapsedMinute(match.current_minute);
+  if (elapsed == null) return phase ?? '';
+
+  return phase ? `${phase} ${elapsed}'` : `${elapsed}'`;
 }

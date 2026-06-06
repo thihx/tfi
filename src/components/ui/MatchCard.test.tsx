@@ -64,6 +64,22 @@ describe('MatchCard', () => {
     expect(screen.getByText("67'")).toBeInTheDocument();
   });
 
+  it('does not infer extra time from long stoppage time alone', () => {
+    render(<MatchCard match={{ ...LIVE_MATCH, current_minute: '102' }} />);
+    expect(screen.getByText("102'")).toBeInTheDocument();
+    expect(screen.queryByText("ET 102'")).not.toBeInTheDocument();
+  });
+
+  it('labels extra time when provider status is ET', () => {
+    render(<MatchCard match={{ ...LIVE_MATCH, status: 'ET', current_minute: '102' }} />);
+    expect(screen.getByText("ET 102'")).toBeInTheDocument();
+  });
+
+  it('labels active penalty shootouts', () => {
+    render(<MatchCard match={{ ...LIVE_MATCH, status: 'P', current_minute: '120' }} />);
+    expect(screen.getByText('PEN')).toBeInTheDocument();
+  });
+
   it('renders live status badge', () => {
     render(<MatchCard match={LIVE_MATCH} />);
     expect(screen.getByText('2H')).toBeInTheDocument();
