@@ -9,7 +9,10 @@
 // ============================================================
 
 import { config } from '../config.js';
-import { generateGeminiContent as requestGeminiContent } from './gemini.js';
+import {
+  generateGeminiContent as requestGeminiContent,
+  type GeminiGenerateOptions,
+} from './gemini.js';
 import { mkdir, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import {
@@ -1352,6 +1355,7 @@ async function specializeConditionForPriorityMatch(
     const data = await generateGeminiContent(
       buildConditionSpecializationPrompt(context, draftText, attempt),
       {
+        stage: 'condition_specialization',
         model: config.geminiStrategicStructuredModel || config.geminiModel,
         withSearch: false,
         timeoutMs: STRUCTURE_REQUEST_TIMEOUT_MS,
@@ -1398,8 +1402,11 @@ async function generateGeminiContent(
     maxOutputTokens: number;
     responseMimeType?: string;
     thinkingBudget?: number | null;
+    stage?: string;
+    aiGatewayContext?: GeminiGenerateOptions['aiGatewayContext'];
   },
 ): Promise<Record<string, unknown> | null> {
+  const stage = cleanText(options.stage) || (options.withSearch ? 'grounded_research' : 'structured_generation');
   return requestGeminiContent(prompt, {
     model: options.model || config.geminiModel,
     withSearch: options.withSearch,
@@ -1408,6 +1415,16 @@ async function generateGeminiContent(
     responseMimeType: options.responseMimeType,
     thinkingBudget: options.thinkingBudget,
     temperature: options.withSearch ? 0.2 : 0.1,
+    aiGatewayContext: {
+      featureKey: 'tfi.strategic_context',
+      operation: `tfi.strategic_context.${stage}`,
+      ...(options.aiGatewayContext ?? {}),
+      metadata: {
+        stage,
+        withSearch: options.withSearch,
+        ...(options.aiGatewayContext?.metadata ?? {}),
+      },
+    },
   });
 }
 
@@ -1456,6 +1473,7 @@ ${draftText.slice(0, 14000)}`;
 
   try {
     const data = await generateGeminiContent(prompt, {
+      stage: 'quantitative_extraction',
       model: config.geminiStrategicStructuredModel || config.geminiModel,
       withSearch: false,
       timeoutMs: QUANT_EXTRACTION_TIMEOUT_MS,
@@ -1501,12 +1519,17 @@ async function fetchGroundedResearchDraft(
 ): Promise<{ draftText: string; sourceMeta: StrategicContextSourceMeta; fallback: DraftFallbackPayload } | null> {
   const prompt = buildGroundedResearchDraftPrompt(homeTeam, awayTeam, league, dateStr, options);
   const data = await generateGeminiContent(prompt, {
+    stage: 'grounded_research',
     model: config.geminiStrategicGroundedModel || config.geminiModel,
     withSearch: true,
     timeoutMs: REQUEST_TIMEOUT_MS,
     maxOutputTokens: config.geminiStrategicGroundedMaxOutputTokens,
     responseMimeType: 'text/plain',
     thinkingBudget: config.geminiStrategicGroundedThinkingBudget,
+    aiGatewayContext: {
+      runId: `${homeTeam} vs ${awayTeam}`,
+      metadata: { homeTeam, awayTeam, league, dateStr, highPriority: options.highPriority === true },
+    },
   });
   if (!data) return null;
 
@@ -1526,12 +1549,17 @@ async function fetchGroundedResearchDraft(
       const rescueData = await generateGeminiContent(
         buildGroundedResearchDraftPrompt(homeTeam, awayTeam, league, dateStr, { ...options, rescueMode: true }),
         {
+          stage: 'grounded_research_rescue',
           model: config.geminiStrategicGroundedModel || config.geminiModel,
           withSearch: true,
           timeoutMs: REQUEST_TIMEOUT_MS,
           maxOutputTokens: config.geminiStrategicGroundedMaxOutputTokens,
           responseMimeType: 'text/plain',
           thinkingBudget: config.geminiStrategicGroundedThinkingBudget,
+          aiGatewayContext: {
+            runId: `${homeTeam} vs ${awayTeam}`,
+            metadata: { homeTeam, awayTeam, league, dateStr, highPriority: options.highPriority === true },
+          },
         },
       );
       if (rescueData) {
@@ -1566,12 +1594,17 @@ async function fetchGroundedResearchDraft(
       const quantPassData = await generateGeminiContent(
         buildGroundedResearchDraftPrompt(homeTeam, awayTeam, league, dateStr, { ...options, quantitativeGroundingPass: true }),
         {
+          stage: 'grounded_research_quantitative_pass',
           model: config.geminiStrategicGroundedModel || config.geminiModel,
           withSearch: true,
           timeoutMs: REQUEST_TIMEOUT_MS,
           maxOutputTokens: config.geminiStrategicGroundedMaxOutputTokens,
           responseMimeType: 'text/plain',
           thinkingBudget: config.geminiStrategicGroundedThinkingBudget,
+          aiGatewayContext: {
+            runId: `${homeTeam} vs ${awayTeam}`,
+            metadata: { homeTeam, awayTeam, league, dateStr, highPriority: options.highPriority === true },
+          },
         },
       );
       if (quantPassData) {
@@ -1638,6 +1671,7 @@ async function buildStructuredStrategicContext(
   const data = await generateGeminiContent(
     buildStructuredStrategicContextPrompt(draftText, sourceMeta),
     {
+      stage: 'structured_context',
       model: config.geminiStrategicStructuredModel || config.geminiModel,
       withSearch: false,
       timeoutMs: STRUCTURE_REQUEST_TIMEOUT_MS,
@@ -1668,6 +1702,7 @@ async function buildStructuredStrategicContext(
     const repaired = await generateGeminiContent(
       buildStrategicJsonRepairPrompt(text, draftText, sourceMeta),
       {
+        stage: 'json_repair',
         model: config.geminiStrategicStructuredModel || config.geminiModel,
         withSearch: false,
         timeoutMs: STRUCTURE_REQUEST_TIMEOUT_MS,
