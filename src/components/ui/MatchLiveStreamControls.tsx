@@ -1,12 +1,12 @@
 import type { MatchLiveStreamLink } from '@/lib/services/api';
 
-function LiveStreamIcon() {
+function TvIcon() {
   return (
-    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-      <circle cx="12" cy="12" r="3.5" fill="currentColor" />
-      <path d="M5.5 8.5c1.8-2.2 4.4-3.5 6.5-3.5s4.7 1.3 6.5 3.5" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" />
-      <path d="M3.5 11.5c2.6-3.2 6.1-5 8.5-5s5.9 1.8 8.5 5" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" />
-      <path d="M1.5 14.5c3.4-4.2 7.8-6.5 10.5-6.5s7.1 2.3 10.5 6.5" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" />
+    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <rect x="3" y="7" width="18" height="12" rx="2" />
+      <path d="M8 21h8" />
+      <path d="M12 17v4" />
+      <path d="m8 3 4 4 4-4" />
     </svg>
   );
 }
@@ -32,7 +32,7 @@ export function MatchLiveStreamControls({ links, onOpen, className }: MatchLiveS
         const tooltip = getLiveStreamTooltip(link, index, links.length);
         return (
           <button key={link.url} type="button" className="match-live-stream-btn" onClick={() => onOpen(link)} aria-label={tooltip} title={tooltip}>
-            <LiveStreamIcon />
+            <TvIcon />
             {links.length > 1 ? <span className="match-live-stream-btn__index">{index + 1}</span> : null}
           </button>
         );
