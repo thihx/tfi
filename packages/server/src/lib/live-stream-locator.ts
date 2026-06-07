@@ -56,6 +56,11 @@ interface AnchorLink {
   text: string;
 }
 
+interface FetchHtmlResult {
+  html: string | null;
+  status: number | null;
+}
+
 const MAX_HTML_CHARS = 700_000;
 const MAX_DISCOVERY_LINKS_PER_PROVIDER = 3;
 const MAX_ALIAS_POSITIONS = 18;
@@ -154,6 +159,16 @@ function uniqueSortedAliases(values: string[]): string[] {
     .sort((a, b) => b.length - a.length);
 }
 
+function distinctiveSingleTokenAliases(value: string): string[] {
+  return value
+    .split(' ')
+    .filter((token) => (
+      token.length >= 5
+      && !DROPPED_TEAM_TOKENS.has(token)
+      && !SINGLE_ALIAS_DENY.has(token)
+    ));
+}
+
 export function buildTeamAliases(teamName: string): string[] {
   const normalized = normalizeSearchText(teamName);
   const noParentheses = normalizeSearchText(teamName.replace(/\([^)]*\)/g, ' '));
@@ -161,7 +176,12 @@ export function buildTeamAliases(teamName: string): string[] {
     .split(' ')
     .filter((token) => !DROPPED_TEAM_TOKENS.has(token))
     .join(' ');
-  return uniqueSortedAliases([normalized, noParentheses, withoutSportTokens]);
+  return uniqueSortedAliases([
+    normalized,
+    noParentheses,
+    withoutSportTokens,
+    ...distinctiveSingleTokenAliases(withoutSportTokens),
+  ]);
 }
 
 function escapeRegExp(value: string): string {
@@ -263,7 +283,7 @@ function isDiscoveryLink(anchor: AnchorLink): boolean {
   return DISCOVERY_HINTS.some((hint) => normalized.includes(hint));
 }
 
-async function fetchHtml(url: string, fetchImpl: FetchLike, timeoutMs: number): Promise<string | null> {
+async function fetchHtmlWithStatus(url: string, fetchImpl: FetchLike, timeoutMs: number): Promise<FetchHtmlResult> {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
   try {
@@ -275,14 +295,18 @@ async function fetchHtml(url: string, fetchImpl: FetchLike, timeoutMs: number): 
       },
       signal: controller.signal,
     });
-    if (!response.ok) return null;
+    if (!response.ok) return { html: null, status: response.status };
     const text = await response.text();
-    return text.slice(0, MAX_HTML_CHARS);
+    return { html: text.slice(0, MAX_HTML_CHARS), status: response.status };
   } catch {
-    return null;
+    return { html: null, status: null };
   } finally {
     clearTimeout(timer);
   }
+}
+
+async function fetchHtml(url: string, fetchImpl: FetchLike, timeoutMs: number): Promise<string | null> {
+  return (await fetchHtmlWithStatus(url, fetchImpl, timeoutMs)).html;
 }
 
 async function loadProviderPages(
@@ -326,8 +350,19 @@ async function verifyStreamLink(
   fetchImpl: FetchLike,
   timeoutMs: number,
 ): Promise<LiveStreamLink | null> {
-  const candidateHtml = html ?? await fetchHtml(link.url, fetchImpl, timeoutMs);
-  if (candidateHtml == null) return null;
+  const fetched = html == null ? await fetchHtmlWithStatus(link.url, fetchImpl, timeoutMs) : null;
+  const candidateHtml = html ?? fetched?.html ?? null;
+  if (candidateHtml == null) {
+    const verificationBlocked = fetched?.status === 403 || fetched?.status === 429;
+    if (!verificationBlocked) return null;
+    const linkMatchesTeams = mentionsMatch(`${link.title} ${link.url}`, homeAliases, awayAliases);
+    if (!linkMatchesTeams) return null;
+    return {
+      ...link,
+      verificationStatus: 'team_match',
+      liveHint: hasLivePageHint(`${link.title} ${link.url}`),
+    };
+  }
   const text = stripTags(candidateHtml);
   const contentMatchesTeams = mentionsMatch(text, homeAliases, awayAliases);
   return {

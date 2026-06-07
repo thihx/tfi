@@ -41,6 +41,7 @@ describe('live stream locator', () => {
   test('normalizes Vietnamese accents and builds useful team aliases', () => {
     expect(normalizeSearchText('Trực tiếp bóng đá')).toBe('truc tiep bong da');
     expect(buildTeamAliases('Manchester United FC')).toContain('manchester united');
+    expect(buildTeamAliases('Vanraure Hachinohe FC')).toContain('vanraure');
   });
 
   test('finds a same-provider live stream link for a live match', async () => {
@@ -120,6 +121,68 @@ describe('live stream locator', () => {
       'https://xoilacztu.tv/arsenal-chelsea',
       'https://socolive16.cv/watch/arsenal-chelsea',
     ]);
+  });
+
+
+  test('matches provider slugs that abbreviate a team name to a distinctive token', async () => {
+    const fetchImpl = vi.fn(async (url: string | URL) => {
+      const href = String(url);
+      if (href === 'https://xoilacztu.tv/') {
+        return new Response(
+          '<a href="/truc-tiep/vanraure-hachi-vs-fc-imabari-luc-1100-ngay-07-06-2026/">Vanraure vs Imabari</a>',
+          { status: 200 },
+        );
+      }
+      if (href === 'https://xoilacztu.tv/truc-tiep/vanraure-hachi-vs-fc-imabari-luc-1100-ngay-07-06-2026/') {
+        return new Response('<main>Vanraure vs Imabari <iframe></iframe></main>', { status: 200 });
+      }
+      return new Response('not found', { status: 404 });
+    });
+
+    const [result] = await lookupLiveStreamLinks(
+      [matchRow({ home_team: 'Vanraure Hachinohe FC', away_team: 'Imabari FC' })],
+      {
+        providers,
+        fetchImpl,
+        now: () => new Date('2026-06-07T02:05:00.000Z'),
+        useCache: false,
+      },
+    );
+
+    expect(result?.found).toBe(true);
+    expect(result?.url).toBe('https://xoilacztu.tv/truc-tiep/vanraure-hachi-vs-fc-imabari-luc-1100-ngay-07-06-2026/');
+  });
+
+  test('keeps a team-matched provider link when detail verification is blocked', async () => {
+    const multiProviders: LiveStreamProvider[] = [
+      { name: 'socolive16.cv', url: 'https://socolive16.cv/', hostname: 'socolive16.cv' },
+    ];
+    const fetchImpl = vi.fn(async (url: string | URL) => {
+      const href = String(url);
+      if (href === 'https://socolive16.cv/') {
+        return new Response(
+          '<a href="/truc-tiep/tokushima-vortis-vs-iwaki-fc-07-06-2026-1105/">Tokushima Vortis vs Iwaki FC</a>',
+          { status: 200 },
+        );
+      }
+      return new Response('Too many requests', { status: 429 });
+    });
+
+    const [result] = await lookupLiveStreamLinks(
+      [matchRow({ home_team: 'Tokushima Vortis', away_team: 'Iwaki FC' })],
+      {
+        providers: multiProviders,
+        fetchImpl,
+        now: () => new Date('2026-06-07T02:05:00.000Z'),
+        useCache: false,
+      },
+    );
+
+    expect(result?.found).toBe(true);
+    expect(result?.links[0]).toMatchObject({
+      url: 'https://socolive16.cv/truc-tiep/tokushima-vortis-vs-iwaki-fc-07-06-2026-1105/',
+      verificationStatus: 'team_match',
+    });
   });
 
   test('does not scan provider pages for matches that are not live', async () => {

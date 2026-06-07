@@ -6,6 +6,7 @@ import { ensureFixtureStatistics, ensureFixturesForMatchIds } from '../lib/provi
 import { archiveFinishedMatches, type MatchHistoryArchiveInput } from '../repos/matches-history.repo.js';
 import * as matchRepo from '../repos/matches.repo.js';
 import * as watchlistRepo from '../repos/watchlist.repo.js';
+import * as matchAlertRulesRepo from '../repos/match-alert-rules.repo.js';
 import { reportJobProgress } from './job-progress.js';
 
 const LIVE_STATUSES = new Set(['1H', 'HT', '2H', 'ET', 'BT', 'P', 'LIVE', 'INT']);
@@ -121,16 +122,23 @@ export async function refreshLiveMatchesJob(): Promise<{
 
   await reportJobProgress(JOB, 'load', 'Loading live and near-live matches...', 10);
 
-  const subscribedWatchlist = await watchlistRepo.getAutoPipelineOperationalWatchlist();
+  const [subscribedWatchlist, alertMatchIds] = await Promise.all([
+    watchlistRepo.getAutoPipelineOperationalWatchlist(),
+    matchAlertRulesRepo.getRealtimeAlertMatchIds(),
+  ]);
   const watchedMatchIds = new Set(subscribedWatchlist.map((row) => String(row.match_id)));
-  if (watchedMatchIds.size === 0 && publicRefreshLimit() <= 0) {
+  const realtimeInterestMatchIds = new Set([
+    ...watchedMatchIds,
+    ...alertMatchIds.map(String),
+  ]);
+  if (realtimeInterestMatchIds.size === 0 && publicRefreshLimit() <= 0) {
     return {
       tracked: 0,
       refreshed: 0,
       live: 0,
       statsRefreshed: 0,
       skipped: true,
-      skipReason: 'no_active_watchlist_interest',
+      skipReason: 'no_active_realtime_interest',
     };
   }
 
@@ -143,7 +151,7 @@ export async function refreshLiveMatchesJob(): Promise<{
     kickoffWindowEnd,
   );
   const trackableCandidates = candidateMatches.filter((row) => shouldTrackMatch(row, now));
-  const watchedCandidates = trackableCandidates.filter((row) => watchedMatchIds.has(String(row.match_id)));
+  const watchedCandidates = trackableCandidates.filter((row) => realtimeInterestMatchIds.has(String(row.match_id)));
   const publicCandidates = prioritizePublicCandidates(
     trackableCandidates.filter((row) => !watchedMatchIds.has(String(row.match_id))),
     watchedMatchIds,

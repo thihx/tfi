@@ -7,6 +7,7 @@ const mockDeleteMatchesByIds = vi.fn();
 const mockEnsureFixturesForMatchIds = vi.fn();
 const mockEnsureFixtureStatistics = vi.fn();
 const mockGetAutoPipelineOperationalWatchlist = vi.fn();
+const mockGetRealtimeAlertMatchIds = vi.fn();
 const mockArchiveFinishedMatches = vi.fn();
 const mockConfig = vi.hoisted(() => ({
   timezone: 'Asia/Seoul',
@@ -29,6 +30,10 @@ vi.mock('../repos/matches-history.repo.js', () => ({
 
 vi.mock('../repos/watchlist.repo.js', () => ({
   getAutoPipelineOperationalWatchlist: mockGetAutoPipelineOperationalWatchlist,
+}));
+
+vi.mock('../repos/match-alert-rules.repo.js', () => ({
+  getRealtimeAlertMatchIds: mockGetRealtimeAlertMatchIds,
 }));
 
 vi.mock('../lib/provider-insight-cache.js', () => ({
@@ -59,12 +64,14 @@ beforeEach(() => {
   mockEnsureFixturesForMatchIds.mockResolvedValue([]);
   mockEnsureFixtureStatistics.mockResolvedValue({ payload: [], cacheStatus: 'miss' });
   mockGetAutoPipelineOperationalWatchlist.mockResolvedValue([{ match_id: '100' }, { match_id: '200' }]);
+  mockGetRealtimeAlertMatchIds.mockResolvedValue([]);
   mockConfig.jobRefreshLiveMatchesMaxPublicMatches = 0;
 });
 
 describe('refreshLiveMatchesJob', () => {
-  test('does not refresh public live candidates when no matches are actively watched', async () => {
+  test('does not refresh public live candidates when no matches have realtime interest', async () => {
     mockGetAutoPipelineOperationalWatchlist.mockResolvedValueOnce([]);
+    mockGetRealtimeAlertMatchIds.mockResolvedValueOnce([]);
 
     const result = await refreshLiveMatchesJob();
 
@@ -74,10 +81,53 @@ describe('refreshLiveMatchesJob', () => {
       live: 0,
       statsRefreshed: 0,
       skipped: true,
-      skipReason: 'no_active_watchlist_interest',
+      skipReason: 'no_active_realtime_interest',
     });
     expect(mockGetLiveRefreshCandidates).not.toHaveBeenCalled();
     expect(mockEnsureFixturesForMatchIds).not.toHaveBeenCalled();
+  });
+
+  test('refreshes a near-kickoff match that only has an enabled alert rule', async () => {
+    vi.setSystemTime(new Date('2026-06-07T04:00:03.000Z'));
+    mockGetAutoPipelineOperationalWatchlist.mockResolvedValueOnce([]);
+    mockGetRealtimeAlertMatchIds.mockResolvedValueOnce(['1546317']);
+    mockGetLiveRefreshCandidates.mockResolvedValue([
+      {
+        match_id: '1546317',
+        status: 'NS',
+        date: '2026-06-07',
+        kickoff: '13:00',
+        kickoff_at_utc: '2026-06-07T04:00:00.000Z',
+      },
+    ]);
+    mockEnsureFixturesForMatchIds.mockResolvedValue([
+      {
+        fixture: {
+          id: 1546317,
+          date: '2026-06-07T04:00:00+00:00',
+          status: { short: '1H', elapsed: 3 },
+        },
+        goals: { home: 0, away: 0 },
+      },
+    ]);
+    mockUpdateMatches.mockResolvedValue(1);
+
+    const result = await refreshLiveMatchesJob();
+
+    expect(result).toEqual({ tracked: 1, refreshed: 1, live: 1, statsRefreshed: 0 });
+    expect(mockEnsureFixturesForMatchIds).toHaveBeenCalledWith(['1546317'], {
+      freshnessMode: 'real_required',
+      forceRefreshIds: ['1546317'],
+    });
+    expect(mockUpdateMatches).toHaveBeenCalledWith([
+      expect.objectContaining({
+        match_id: '1546317',
+        status: '1H',
+        current_minute: 3,
+        home_score: 0,
+        away_score: 0,
+      }),
+    ]);
   });
 
   test('returns early when no live or near-live matches are tracked', async () => {
@@ -338,6 +388,7 @@ describe('refreshLiveMatchesJob', () => {
     vi.setSystemTime(new Date('2026-03-26T10:05:00.000Z'));
     mockConfig.jobRefreshLiveMatchesMaxPublicMatches = 1;
     mockGetAutoPipelineOperationalWatchlist.mockResolvedValueOnce([]);
+    mockGetRealtimeAlertMatchIds.mockResolvedValueOnce([]);
     mockGetLiveRefreshCandidates.mockResolvedValue([
       {
         match_id: '100',

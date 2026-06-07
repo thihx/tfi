@@ -7,7 +7,7 @@ describe('provider quota protective defaults', () => {
     vi.resetModules();
   });
 
-  test('does not opt into public 5s live refresh by default', async () => {
+  test('does not opt into public refresh by default while keeping interested matches realtime', async () => {
     vi.doMock('dotenv', () => ({
       default: { config: vi.fn() },
       config: vi.fn(),
@@ -18,7 +18,9 @@ describe('provider quota protective defaults', () => {
 
     const { config } = await import('../config.js');
 
-    expect(config.jobRefreshLiveMatchesMs).toBe(5_000);
+    expect(config.jobRefreshLiveMatchesMs).toBe(3_000);
+    expect(config.jobCheckMatchAlertsMs).toBe(3_000);
+    expect(config.jobDeliverTelegramNotificationsMs).toBe(3_000);
     expect(config.jobRefreshLiveMatchesMaxPublicMatches).toBe(0);
     expect(config.jobCheckLiveMs).toBe(2 * 60_000);
   });
