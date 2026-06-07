@@ -5768,6 +5768,89 @@ table tbody#watchlist-table td:not(.select-col) {
     gap: 2px;
 }
 
+.match-cell__layout {
+    display: flex;
+    align-items: flex-start;
+    justify-content: center;
+    gap: 10px;
+    width: 100%;
+}
+
+.match-cell__body {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 2px;
+    min-width: 0;
+    flex: 1;
+}
+
+.match-live-stream-controls {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 6px;
+    flex-shrink: 0;
+    padding-top: 2px;
+}
+
+.match-live-stream-btn {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 34px;
+    height: 34px;
+    padding: 0;
+    border: 1.5px solid rgba(220, 38, 38, 0.35);
+    border-radius: 999px;
+    background: rgba(220, 38, 38, 0.08);
+    color: #dc2626;
+    cursor: pointer;
+    transition: background 0.15s ease, border-color 0.15s ease, transform 0.15s ease;
+}
+
+.match-live-stream-btn:hover {
+    background: rgba(220, 38, 38, 0.14);
+    border-color: rgba(220, 38, 38, 0.55);
+}
+
+.match-live-stream-btn:focus-visible {
+    outline: 2px solid rgba(220, 38, 38, 0.45);
+    outline-offset: 2px;
+}
+
+.match-live-stream-btn__index {
+    position: absolute;
+    right: -4px;
+    bottom: -4px;
+    min-width: 14px;
+    height: 14px;
+    padding: 0 3px;
+    border-radius: 999px;
+    background: #dc2626;
+    color: #fff;
+    font-size: 9px;
+    font-weight: 700;
+    line-height: 14px;
+    text-align: center;
+}
+
+.card-grid__item-layout {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+}
+
+.card-grid__item-layout > .card {
+    flex: 1;
+    min-width: 0;
+}
+
+.match-live-stream-controls--card {
+    padding-top: 14px;
+}
+
 .matches-table .match-meta-row {
     margin-top: 1px;
     padding-top: 1px;
@@ -7498,6 +7581,20 @@ table td:last-child, table th:last-child {
     .table-container.table-cards .cell-value.match-cell {
         justify-self: start;
         text-align: left;
+    }
+
+    .table-container.table-cards .match-cell__layout {
+        justify-content: flex-start;
+        align-items: flex-start;
+        gap: 8px;
+    }
+
+    .table-container.table-cards .match-cell__body {
+        align-items: flex-start;
+    }
+
+    .table-container.table-cards .match-live-stream-controls {
+        padding-top: 0;
     }
 
     .table-container.table-cards .time-status {

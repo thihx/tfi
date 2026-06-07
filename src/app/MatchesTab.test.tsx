@@ -389,7 +389,7 @@ describe('MatchesTab', () => {
     expect(screen.getByText('Under 2.5 Goals @2.00')).toBeInTheDocument();
   }, 10000);
 
-  it('shows a TV action for live matches when a stream link is found', async () => {
+  it('shows numbered live controls beside the match when stream links are found', async () => {
     const user = userEvent.setup();
     const openSpy = vi.spyOn(window, 'open').mockImplementation(() => null);
     mockState.matches = [baseMatches[0]!].map((match) => ({ ...match }));
@@ -428,8 +428,15 @@ describe('MatchesTab', () => {
     render(<MatchesTab />);
     await user.click(screen.getByTitle('Table view'));
 
-    const liveStreamButtons = await screen.findAllByRole('button', { name: 'Watch live stream' });
+    expect(screen.queryByLabelText('Checking live stream availability')).not.toBeInTheDocument();
+
+    const liveStreamButtons = await screen.findAllByRole('button', { name: /^Live \d+/ });
     expect(liveStreamButtons).toHaveLength(2);
+    expect(liveStreamButtons[0]).toHaveAttribute('title', 'Live 1 · xoilacztu.tv');
+    expect(liveStreamButtons[1]).toHaveAttribute('title', 'Live 2 · socolive16.cv');
+    expect(liveStreamButtons[0]!.closest('[data-label="Match"]')).toBeTruthy();
+    expect(liveStreamButtons[0]!.closest('[data-label="Action"]')).toBeNull();
+
     await user.click(liveStreamButtons[0]!);
     await user.click(liveStreamButtons[1]!);
 

@@ -16,6 +16,7 @@ import { AiAnalysisPanel, type AiAnalysisPanelEntry } from '@/components/ui/AiAn
 import { AskAiMatchDialog } from '@/components/ui/AskAiMatchDialog';
 import { AskAiMatchSplitControl } from '@/components/ui/AskAiMatchSplitControl';
 import { MatchCard } from '@/components/ui/MatchCard';
+import { MatchLiveStreamControls } from '@/components/ui/MatchLiveStreamControls';
 import { WatchlistEditModal } from '@/components/ui/WatchlistEditModal';
 import { LIVE_STATUSES, PLACEHOLDER_HOME, PLACEHOLDER_AWAY, TFI_FOCUS_MATCH_IN_MATCHES_EVENT } from '@/config/constants';
 import { formatDateTimeDisplay, getKickoffDateKey, getKickoffDateTime, getLeagueDisplayName, debounce, parseKickoffForSave, shouldFastRefreshMatch, normalizeToISO, countEligibleWatchlistCandidates, isNarrowTabViewport } from '@/lib/utils/helpers';
@@ -85,17 +86,6 @@ function SlidersIcon() {
       <line x1="1" y1="14" x2="7" y2="14"/>
       <line x1="9" y1="8" x2="15" y2="8"/>
       <line x1="17" y1="16" x2="23" y2="16"/>
-    </svg>
-  );
-}
-
-function TvIcon() {
-  return (
-    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden style={{ display: 'block' }}>
-      <rect x="3" y="7" width="18" height="12" rx="2"/>
-      <path d="M8 21h8"/>
-      <path d="M12 17v4"/>
-      <path d="m8 3 4 4 4-4"/>
     </svg>
   );
 }
@@ -219,16 +209,6 @@ function getLiveStreamLinks(result: MatchLiveStreamLookupResult | undefined): Ma
     verificationStatus: 'reachable',
     liveHint: false,
   }];
-}
-
-function liveStreamButtonTitle(link: MatchLiveStreamLink | undefined, result: MatchLiveStreamLookupResult | undefined, pending: boolean): string {
-  if (link) {
-    return 'Watch live stream';
-  }
-  if (pending) return 'Checking live stream availability';
-  if (result?.status === 'disabled') return 'Live stream lookup is disabled';
-  if (result?.status === 'error') return 'Live stream lookup failed';
-  return 'No live stream link found yet';
 }
 
 export function MatchesTab() {
@@ -1478,11 +1458,17 @@ export function MatchesTab() {
               {pageItems.map((m) => {
                 const matchId = String(m.match_id);
                 const liveStream = liveStreamLinks.get(matchId);
-                const liveStreamPending = pendingLiveStreamLookups.has(matchId);
-                const canShowLiveStreamActions = isMatchLiveForStream(m);
-                const liveStreamActionLinks = canShowLiveStreamActions ? getLiveStreamLinks(liveStream) : [];
+                const liveStreamActionLinks = isMatchLiveForStream(m) ? getLiveStreamLinks(liveStream) : [];
                 return (
-                <div key={m.match_id} id={tfiMatchAnchorId(String(m.match_id))} className="card-grid__item">
+                <div key={m.match_id} id={tfiMatchAnchorId(String(m.match_id))} className="card-grid__item card-grid__item--match">
+                <div className="card-grid__item-layout">
+                {liveStreamActionLinks.length > 0 ? (
+                  <MatchLiveStreamControls
+                    links={liveStreamActionLinks}
+                    onOpen={openLiveStream}
+                    className="match-live-stream-controls--card"
+                  />
+                ) : null}
                 <MatchCard
                   match={m}
                   onClick={() => setScoutMatch(m)}
@@ -1494,21 +1480,6 @@ export function MatchesTab() {
                     isPlaying: PLAYING_STATUSES.has(m.status),
                   } : undefined}
                   actions={[
-                    ...(canShowLiveStreamActions && liveStreamPending ? [{
-                      label: 'Checking TV',
-                      icon: <span className="inline-spinner" style={{ width: '14px', height: '14px' }} />,
-                      title: liveStreamButtonTitle(undefined, liveStream, true),
-                      onClick: () => undefined,
-                      disabled: true,
-                      variant: 'secondary' as const,
-                    }] : []),
-                    ...liveStreamActionLinks.map((link, index) => ({
-                      label: `TV ${index + 1}`,
-                      icon: <TvIcon />,
-                      title: liveStreamButtonTitle(link, liveStream, false),
-                      onClick: () => openLiveStream(link),
-                      variant: 'success' as const,
-                    })),
                     ...(shouldShowKickoffAlertAction(m) ? [{
                       label: matchStartAlertRules.has(String(m.match_id)) ? 'Alert On' : 'Alert',
                       icon: pendingMatchStartAlerts.has(String(m.match_id))
@@ -1545,6 +1516,7 @@ export function MatchesTab() {
                     },
                   ]}
                 />
+                </div>
                 </div>
                 );
               })}
@@ -1610,7 +1582,6 @@ export function MatchesTab() {
                     isAnalyzing={analyzingMatches.has(String(m.match_id))}
                     hasResult={aiResults.has(String(m.match_id))}
                     liveStream={liveStreamLinks.get(matchId)}
-                    isLiveStreamPending={pendingLiveStreamLookups.has(matchId)}
                     leagues={leagues}
                     flashMap={flashMap}
                     onQuickAdd={() => quickAdd(m)}
@@ -1952,7 +1923,6 @@ interface MatchRowProps {
   isAnalyzing: boolean;
   hasResult: boolean;
   liveStream?: MatchLiveStreamLookupResult;
-  isLiveStreamPending: boolean;
   leagues: League[];
   flashMap: Map<string, number>;
   onQuickAdd: () => void;
@@ -1966,12 +1936,11 @@ interface MatchRowProps {
   onOpenLiveStream: (link: MatchLiveStreamLink) => void;
 }
 
-function MatchRow({ anchorId, match, isWatched, isPending, isPendingRemove, hasMatchStartAlert, isPendingMatchStartAlert, canShowMatchStartAlert, isSelected, isAnalyzing, hasResult, liveStream, isLiveStreamPending, leagues, flashMap, onQuickAdd, onQuickRemove, onToggleMatchStartAlert, onToggleSelect, onAskAiQuick, onAskAiOpenQuestion, onEdit, onOpenHub, onOpenLiveStream }: MatchRowProps) {
+function MatchRow({ anchorId, match, isWatched, isPending, isPendingRemove, hasMatchStartAlert, isPendingMatchStartAlert, canShowMatchStartAlert, isSelected, isAnalyzing, hasResult, liveStream, leagues, flashMap, onQuickAdd, onQuickRemove, onToggleMatchStartAlert, onToggleSelect, onAskAiQuick, onAskAiOpenQuestion, onEdit, onOpenHub, onOpenLiveStream }: MatchRowProps) {
   const [watchHovered, setWatchHovered] = React.useState(false);
   const isPlaying = PLAYING_STATUSES.has(match.status);
   const isFinished = FINISHED_STATUSES.has(match.status);
   const liveStreamActionLinks = getLiveStreamLinks(liveStream);
-  const canShowLiveStreamButton = isMatchLiveForStream(match) && (isLiveStreamPending || liveStreamActionLinks.length > 0);
   const localDT = getMatchKickoffTime(match);
   const timeDisplay = formatDateTimeDisplay(localDT);
   const leagueDisplay = getLeagueDisplayName(match.league_id, match.league_name || '', leagues);
@@ -2009,6 +1978,9 @@ function MatchRow({ anchorId, match, isWatched, isPending, isPendingRemove, hasM
       <td data-label="League" style={{ textAlign: 'center' }}><div className="cell-value"><span style={{ fontWeight: 400 }}>{leagueDisplay}</span></div></td>
       <td data-label="Match" style={{ textAlign: 'center' }}>
         <div className="cell-value match-cell">
+          <div className="match-cell__layout">
+            <MatchLiveStreamControls links={liveStreamActionLinks} onOpen={onOpenLiveStream} />
+            <div className="match-cell__body">
           <div className="match-teams">
             <div className="team-info">
               <img src={match.home_logo} loading="lazy" decoding="async" alt={match.home_team} className="team-logo" onError={(e) => { (e.target as HTMLImageElement).src = PLACEHOLDER_HOME; }} />
@@ -2056,6 +2028,8 @@ function MatchRow({ anchorId, match, isWatched, isPending, isPendingRemove, hasM
               </>
             )}
           </div>
+            </div>
+          </div>
         </div>
       </td>
       <td className={`select-col ${isWatched ? 'select-disabled' : ''}`} data-label="Select">
@@ -2065,31 +2039,6 @@ function MatchRow({ anchorId, match, isWatched, isPending, isPendingRemove, hasM
       </td>
       <td data-label="Action" style={{ textAlign: 'center' }}>
         <div className="cell-value flex-row-gap-4 flex-center flex-wrap">
-          {canShowLiveStreamButton ? (
-            <>
-              {isLiveStreamPending ? (
-                <button
-                  className="btn btn-secondary btn-sm action-icon-btn"
-                  disabled
-                  aria-label="Checking live stream availability"
-                  title={liveStreamButtonTitle(undefined, liveStream, true)}
-                >
-                  <span className="inline-spinner" style={{ width: '14px', height: '14px' }} />
-                </button>
-              ) : null}
-              {liveStreamActionLinks.map((link) => (
-                <button
-                  key={link.url}
-                  className="btn btn-success btn-sm action-icon-btn"
-                  onClick={() => onOpenLiveStream(link)}
-                  aria-label="Watch live stream"
-                  title={liveStreamButtonTitle(link, liveStream, false)}
-                >
-                  <TvIcon />
-                </button>
-              ))}
-            </>
-          ) : null}
           {canShowMatchStartAlert ? (
             <button
               className="btn btn-secondary btn-sm action-icon-btn"

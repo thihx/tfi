@@ -1,5 +1,6 @@
 import { config } from '../config.js';
 import type { MatchRow } from '../repos/matches.repo.js';
+import { expandTeamAliases } from './live-stream-team-aliases.js';
 
 export type LiveStreamLookupStatus = 'found' | 'not_found' | 'not_live' | 'disabled' | 'error';
 
@@ -54,6 +55,12 @@ interface ProviderPage {
 interface AnchorLink {
   url: string;
   text: string;
+}
+
+interface StructuredProviderMatch {
+  homeName: string;
+  awayName: string;
+  slug: string;
 }
 
 interface FetchHtmlResult {
@@ -176,12 +183,13 @@ export function buildTeamAliases(teamName: string): string[] {
     .split(' ')
     .filter((token) => !DROPPED_TEAM_TOKENS.has(token))
     .join(' ');
-  return uniqueSortedAliases([
+  const baseAliases = [
     normalized,
     noParentheses,
     withoutSportTokens,
     ...distinctiveSingleTokenAliases(withoutSportTokens),
-  ]);
+  ];
+  return uniqueSortedAliases(expandTeamAliases(normalized, baseAliases));
 }
 
 function escapeRegExp(value: string): string {
@@ -281,6 +289,40 @@ function extractAnchors(html: string, baseUrl: string, provider: LiveStreamProvi
 function isDiscoveryLink(anchor: AnchorLink): boolean {
   const normalized = normalizeSearchText(`${anchor.text} ${anchor.url}`);
   return DISCOVERY_HINTS.some((hint) => normalized.includes(hint));
+}
+
+export function extractStructuredProviderMatches(html: string): StructuredProviderMatch[] {
+  const scriptMatch = html.match(/<script\b[^>]*\bid=["']matches-data["'][^>]*>([\s\S]*?)<\/script>/i);
+  if (!scriptMatch?.[1]) return [];
+  try {
+    const parsed = JSON.parse(scriptMatch[1]) as unknown;
+    if (!Array.isArray(parsed)) return [];
+    return parsed.flatMap((entry) => {
+      if (!entry || typeof entry !== 'object') return [];
+      const record = entry as Record<string, unknown>;
+      const homeName = typeof record.home_name === 'string' ? record.home_name.trim() : '';
+      const awayName = typeof record.away_name === 'string' ? record.away_name.trim() : '';
+      const slug = typeof record.post_name === 'string' ? record.post_name.trim() : '';
+      if (!homeName || !awayName || !slug) return [];
+      return [{ homeName, awayName, slug }];
+    });
+  } catch {
+    return [];
+  }
+}
+
+function buildProviderMatchUrl(provider: LiveStreamProvider, slug: string): string | null {
+  const trimmedSlug = slug.replace(/^\/+|\/+$/g, '');
+  if (!trimmedSlug) return null;
+  try {
+    const parsed = new URL(provider.url);
+    parsed.hash = '';
+    const basePath = parsed.pathname.replace(/\/+$/, '');
+    parsed.pathname = `${basePath}/truc-tiep/${trimmedSlug}/`.replace(/\/{2,}/g, '/');
+    return parsed.toString();
+  } catch {
+    return null;
+  }
 }
 
 async function fetchHtmlWithStatus(url: string, fetchImpl: FetchLike, timeoutMs: number): Promise<FetchHtmlResult> {
@@ -400,6 +442,24 @@ async function findStreamsInPages(
           title: anchor.text || `${match.home_team} vs ${match.away_team}`,
         },
         html: pages.find((candidate) => candidate.url === anchor.url)?.html ?? null,
+      });
+    }
+  }
+
+  for (const page of pages) {
+    for (const structured of extractStructuredProviderMatches(page.html)) {
+      const searchable = `${structured.homeName} ${structured.awayName} ${structured.slug}`;
+      if (!mentionsMatch(searchable, homeAliases, awayAliases)) continue;
+      const url = buildProviderMatchUrl(page.provider, structured.slug);
+      if (!url || linksByUrl.has(url)) continue;
+      linksByUrl.set(url, {
+        base: {
+          url,
+          sourceName: page.provider.name,
+          sourceUrl: page.provider.url,
+          title: `${structured.homeName} vs ${structured.awayName}`,
+        },
+        html: pages.find((candidate) => candidate.url === url)?.html ?? null,
       });
     }
   }
