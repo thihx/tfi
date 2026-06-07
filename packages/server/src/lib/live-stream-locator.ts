@@ -271,6 +271,12 @@ function sameProviderUrl(rawHref: string, baseUrl: string, provider: LiveStreamP
   }
 }
 
+function readAnchorAttr(attrs: string, name: string): string {
+  const pattern = new RegExp(`\\b${name}\\s*=\\s*(?:"([^"]*)"|'([^']*)'|([^\\s>]+))`, 'i');
+  const match = attrs.match(pattern);
+  return decodeHtmlEntities(match?.[1] ?? match?.[2] ?? match?.[3] ?? '').trim();
+}
+
 function extractAnchors(html: string, baseUrl: string, provider: LiveStreamProvider): AnchorLink[] {
   const anchors: AnchorLink[] = [];
   const anchorPattern = /<a\b([^>]*)>([\s\S]*?)<\/a>/gi;
@@ -281,7 +287,12 @@ function extractAnchors(html: string, baseUrl: string, provider: LiveStreamProvi
     const rawHref = hrefMatch?.[1] ?? hrefMatch?.[2] ?? hrefMatch?.[3] ?? '';
     const url = sameProviderUrl(rawHref, baseUrl, provider);
     if (!url) continue;
-    anchors.push({ url, text: stripTags(match[2] ?? '') });
+    const text = [
+      stripTags(match[2] ?? ''),
+      readAnchorAttr(attrs, 'title'),
+      readAnchorAttr(attrs, 'aria-label'),
+    ].filter(Boolean).join(' ');
+    anchors.push({ url, text });
   }
   return anchors;
 }
@@ -309,6 +320,28 @@ export function extractStructuredProviderMatches(html: string): StructuredProvid
   } catch {
     return [];
   }
+}
+
+export function extractGridProviderMatches(html: string): StructuredProviderMatch[] {
+  const results: StructuredProviderMatch[] = [];
+  const blockPattern = /<a\b[^>]*\bhref\s*=\s*["']([^"']*\/truc-tiep\/([^"'/?#]+))\/?[^"']*["'][^>]*>[\s\S]{0,5000}?grid-match__team--home-name">\s*([^<]+?)\s*<[\s\S]{0,2500}?grid-match__team--away-name">\s*([^<]+?)\s*</gi;
+  let match: RegExpExecArray | null;
+  while ((match = blockPattern.exec(html)) && results.length < 250) {
+    const slug = decodeHtmlEntities(match[2]?.trim() ?? '');
+    const homeName = stripTags(match[3]?.trim() ?? '');
+    const awayName = stripTags(match[4]?.trim() ?? '');
+    if (!slug || !homeName || !awayName) continue;
+    results.push({ homeName, awayName, slug });
+  }
+  return results;
+}
+
+function extractAllStructuredProviderMatches(html: string): StructuredProviderMatch[] {
+  const bySlug = new Map<string, StructuredProviderMatch>();
+  for (const entry of [...extractStructuredProviderMatches(html), ...extractGridProviderMatches(html)]) {
+    bySlug.set(entry.slug, entry);
+  }
+  return [...bySlug.values()];
 }
 
 function buildProviderMatchUrl(provider: LiveStreamProvider, slug: string): string | null {
@@ -447,7 +480,7 @@ async function findStreamsInPages(
   }
 
   for (const page of pages) {
-    for (const structured of extractStructuredProviderMatches(page.html)) {
+    for (const structured of extractAllStructuredProviderMatches(page.html)) {
       const searchable = `${structured.homeName} ${structured.awayName} ${structured.slug}`;
       if (!mentionsMatch(searchable, homeAliases, awayAliases)) continue;
       const url = buildProviderMatchUrl(page.provider, structured.slug);

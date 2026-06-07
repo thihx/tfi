@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, test, vi } from 'vitest';
 import {
   buildTeamAliases,
   clearLiveStreamLookupCacheForTests,
+  extractGridProviderMatches,
   extractStructuredProviderMatches,
   lookupLiveStreamLinks,
   normalizeSearchText,
@@ -238,6 +239,25 @@ describe('live stream locator', () => {
     expect(buildTeamAliases('Viettel')).toContain('the cong viettel');
     expect(buildTeamAliases('Công An Nhân Dân')).toContain('cong an ha noi fc');
     expect(expandTeamAliases('ninh binh', ['ninh binh'])).toContain('phu dong');
+    expect(expandTeamAliases('vietnam u19', ['vietnam u19'])).toContain('viet nam u19');
+    expect(expandTeamAliases('cyprus', ['cyprus'])).toContain('dao sip');
+    expect(expandTeamAliases('usa', ['usa'])).toContain('my');
+  });
+
+  test('extracts xoilac grid-match team names from homepage HTML', () => {
+    const html = `
+      <a href="/truc-tiep/liechtenstein-vs-dao-sip-luc-2000-ngay-07-06-2026/">
+        <span class="grid-match__team--home-name">Liechtenstein</span>
+        <span class="grid-match__team--away-name">Đảo Síp</span>
+      </a>
+    `;
+    expect(extractGridProviderMatches(html)).toEqual([
+      {
+        homeName: 'Liechtenstein',
+        awayName: 'Đảo Síp',
+        slug: 'liechtenstein-vs-dao-sip-luc-2000-ngay-07-06-2026',
+      },
+    ]);
   });
 
   test('extracts socolive matches-data JSON entries', () => {
@@ -348,5 +368,124 @@ describe('live stream locator', () => {
 
     expect(result?.found).toBe(true);
     expect(result?.url).toContain('the-cong-viettel-vs-cong-an-ha-noi');
+  });
+
+  test('finds xoilac link for Liechtenstein vs Cyprus using Vietnamese provider label', async () => {
+    const fetchImpl = vi.fn(async (url: string | URL) => {
+      const href = String(url);
+      if (href === 'https://xoilacztu.tv/') {
+        return new Response(
+          '<a href="/truc-tiep/liechtenstein-vs-dao-sip-luc-2000-ngay-07-06-2026/" title="Liechtenstein vs Dao Sip"></a>',
+          { status: 200 },
+        );
+      }
+      if (href.includes('liechtenstein-vs-dao-sip')) {
+        return new Response('<main>Liechtenstein vs Dao Sip <iframe></iframe></main>', { status: 200 });
+      }
+      return new Response('not found', { status: 404 });
+    });
+
+    const [result] = await lookupLiveStreamLinks(
+      [matchRow({ home_team: 'Liechtenstein', away_team: 'Cyprus', status: 'HT' })],
+      {
+        providers,
+        fetchImpl,
+        now: () => new Date('2026-06-07T13:05:00.000Z'),
+        useCache: false,
+      },
+    );
+
+    expect(result?.found).toBe(true);
+    expect(result?.url).toContain('liechtenstein-vs-dao-sip');
+  });
+
+  test('finds xoilac link for Indonesia U19 vs Vietnam U19 from title-only anchor', async () => {
+    const fetchImpl = vi.fn(async (url: string | URL) => {
+      const href = String(url);
+      if (href === 'https://xoilacztu.tv/') {
+        return new Response(
+          '<a href="/truc-tiep/indonesia-u19-vs-viet-nam-u19-luc-2000-ngay-07-06-2026/" title="Indonesia U19 vs Viet Nam U19"></a>',
+          { status: 200 },
+        );
+      }
+      if (href.includes('indonesia-u19-vs-viet-nam-u19')) {
+        return new Response('<main>Indonesia U19 vs Viet Nam U19 live player</main>', { status: 200 });
+      }
+      return new Response('not found', { status: 404 });
+    });
+
+    const [result] = await lookupLiveStreamLinks(
+      [matchRow({ home_team: 'Indonesia U19', away_team: 'Vietnam U19', status: 'HT' })],
+      {
+        providers,
+        fetchImpl,
+        now: () => new Date('2026-06-07T13:05:00.000Z'),
+        useCache: false,
+      },
+    );
+
+    expect(result?.found).toBe(true);
+    expect(result?.url).toContain('indonesia-u19-vs-viet-nam-u19');
+  });
+
+  test('finds socolive link from aria-label when anchor text is empty', async () => {
+    const fetchImpl = vi.fn(async (url: string | URL) => {
+      const href = String(url);
+      if (href === 'https://socolive16.cv/') {
+        return new Response(
+          '<a href="/truc-tiep/korea-republic-vs-japan/" aria-label="Han Quoc vs Nhat Ban"></a>',
+          { status: 200 },
+        );
+      }
+      if (href.includes('korea-republic-vs-japan')) {
+        return new Response('<main>Han Quoc vs Nhat Ban live player</main>', { status: 200 });
+      }
+      return new Response('not found', { status: 404 });
+    });
+
+    const [result] = await lookupLiveStreamLinks(
+      [matchRow({ home_team: 'South Korea', away_team: 'Japan', status: 'HT' })],
+      {
+        providers: [socoliveProvider],
+        fetchImpl,
+        now: () => new Date('2026-06-07T13:05:00.000Z'),
+        useCache: false,
+      },
+    );
+
+    expect(result?.found).toBe(true);
+    expect(result?.url).toContain('korea-republic-vs-japan');
+  });
+
+  test('finds xoilac link from homepage grid when title-only anchor has no text', async () => {
+    const fetchImpl = vi.fn(async (url: string | URL) => {
+      const href = String(url);
+      if (href === 'https://xoilacztu.tv/') {
+        return new Response(
+          `<a href="/truc-tiep/liechtenstein-vs-dao-sip-luc-2000-ngay-07-06-2026/">
+            <span class="grid-match__team--home-name">Liechtenstein</span>
+            <span class="grid-match__team--away-name">Đảo Síp</span>
+          </a>`,
+          { status: 200 },
+        );
+      }
+      if (href.includes('liechtenstein-vs-dao-sip')) {
+        return new Response('<main>Liechtenstein vs Dao Sip <iframe></iframe></main>', { status: 200 });
+      }
+      return new Response('not found', { status: 404 });
+    });
+
+    const [result] = await lookupLiveStreamLinks(
+      [matchRow({ home_team: 'Liechtenstein', away_team: 'Cyprus', status: 'HT' })],
+      {
+        providers,
+        fetchImpl,
+        now: () => new Date('2026-06-07T13:05:00.000Z'),
+        useCache: false,
+      },
+    );
+
+    expect(result?.found).toBe(true);
+    expect(result?.url).toContain('liechtenstein-vs-dao-sip');
   });
 });

@@ -5790,7 +5790,7 @@ table tbody#watchlist-table td:not(.select-col) {
     flex-direction: row;
     flex-wrap: nowrap;
     align-items: center;
-    gap: 4px;
+    gap: 8px;
     flex-shrink: 0;
 }
 
