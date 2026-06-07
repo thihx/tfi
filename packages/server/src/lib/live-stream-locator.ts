@@ -209,7 +209,7 @@ function findAliasPositions(normalizedText: string, alias: string): number[] {
   return positions;
 }
 
-function mentionsMatch(rawText: string, homeAliases: string[], awayAliases: string[]): boolean {
+function mentionsMatch(rawText: string, homeAliases: readonly string[], awayAliases: readonly string[]): boolean {
   const normalized = normalizeSearchText(rawText);
   if (!normalized || homeAliases.length === 0 || awayAliases.length === 0) return false;
 

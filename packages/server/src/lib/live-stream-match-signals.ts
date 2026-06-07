@@ -24,7 +24,11 @@ function normalizeSearchText(value: string): string {
 
 function parseMatchDateParts(match: MatchRow): { year: number; month: number; day: number } | null {
   if (!match.date) return null;
-  const [year, month, day] = match.date.split('-').map((part) => Number.parseInt(part, 10));
+  const [yearText, monthText, dayText] = match.date.split('-');
+  if (!yearText || !monthText || !dayText) return null;
+  const year = Number.parseInt(yearText, 10);
+  const month = Number.parseInt(monthText, 10);
+  const day = Number.parseInt(dayText, 10);
   if (!Number.isFinite(year) || !Number.isFinite(month) || !Number.isFinite(day)) return null;
   return { year, month, day };
 }
@@ -33,6 +37,7 @@ function parseKickoffParts(match: MatchRow): { hour: number; minute: number } | 
   const raw = match.kickoff?.trim();
   if (!raw) return null;
   const [hourText, minuteText = '0'] = raw.split(':');
+  if (!hourText) return null;
   const hour = Number.parseInt(hourText, 10);
   const minute = Number.parseInt(minuteText, 10);
   if (!Number.isInteger(hour) || !Number.isInteger(minute)) return null;
