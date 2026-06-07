@@ -243,6 +243,7 @@ describe('live stream locator', () => {
     expect(expandTeamAliases('vietnam u19', ['vietnam u19'])).toContain('viet nam u19');
     expect(expandTeamAliases('cyprus', ['cyprus'])).toContain('dao sip');
     expect(expandTeamAliases('usa', ['usa'])).toContain('my');
+    expect(buildTeamAliases('Denmark')).toContain('dan mach');
   });
 
   test('extracts xoilac grid-match team names from homepage HTML', () => {
@@ -398,6 +399,42 @@ describe('live stream locator', () => {
 
     expect(result?.found).toBe(true);
     expect(result?.url).toContain('liechtenstein-vs-dao-sip');
+  });
+
+  test('finds xoilac link for Denmark vs Ukraine via dan mach alias', async () => {
+    const fetchImpl = vi.fn(async (url: string | URL) => {
+      const href = String(url);
+      if (href === 'https://xoilacztu.tv/') {
+        return new Response(
+          '<a href="/truc-tiep/dan-mach-vs-ukraine-luc-2330-ngay-07-06-2026/" title="Dan Mach vs Ukraine"></a>',
+          { status: 200 },
+        );
+      }
+      if (href.includes('dan-mach-vs-ukraine')) {
+        return new Response('<main>Dan Mach vs Ukraine <iframe></iframe></main>', { status: 200 });
+      }
+      return new Response('not found', { status: 404 });
+    });
+
+    const [result] = await lookupLiveStreamLinks(
+      [matchRow({
+        home_team: 'Denmark',
+        away_team: 'Ukraine',
+        date: '2026-06-07',
+        kickoff: '23:30',
+        league_name: 'Friendlies',
+        status: '1H',
+      })],
+      {
+        providers,
+        fetchImpl,
+        now: () => new Date('2026-06-07T16:05:00.000Z'),
+        useCache: false,
+      },
+    );
+
+    expect(result?.found).toBe(true);
+    expect(result?.url).toContain('dan-mach-vs-ukraine');
   });
 
   test('finds xoilac link for Indonesia U19 vs Vietnam U19 from title-only anchor', async () => {

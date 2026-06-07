@@ -2,6 +2,7 @@ import { config } from '../config.js';
 import type { MatchRow } from '../repos/matches.repo.js';
 import { validateLiveStreamProviderUrls } from './live-stream-settings.js';
 import { expandTeamAliases } from './live-stream-team-aliases.js';
+import { mentionsMatchWithContext as matchWithContextSignals } from './live-stream-match-signals.js';
 
 export type LiveStreamLookupStatus = 'found' | 'not_found' | 'not_live' | 'disabled' | 'error';
 
@@ -228,6 +229,15 @@ function mentionsMatch(rawText: string, homeAliases: string[], awayAliases: stri
   return false;
 }
 
+function mentionsMatchForProvider(
+  rawText: string,
+  match: MatchRow,
+  homeAliases: string[],
+  awayAliases: string[],
+): boolean {
+  return matchWithContextSignals(rawText, match, homeAliases, awayAliases, mentionsMatch);
+}
+
 function decodeHtmlEntities(value: string): string {
   return value.replace(/&(#x?[0-9a-f]+|amp|apos|gt|lt|nbsp|quot);/gi, (match, entity: string) => {
     const key = entity.toLowerCase();
@@ -421,6 +431,7 @@ function hasLivePageHint(value: string): boolean {
 async function verifyStreamLink(
   link: Omit<LiveStreamLink, 'verificationStatus' | 'liveHint'>,
   html: string | null,
+  match: MatchRow,
   homeAliases: string[],
   awayAliases: string[],
   fetchImpl: FetchLike,
@@ -431,7 +442,7 @@ async function verifyStreamLink(
   if (candidateHtml == null) {
     const verificationBlocked = fetched?.status === 403 || fetched?.status === 429;
     if (!verificationBlocked) return null;
-    const linkMatchesTeams = mentionsMatch(`${link.title} ${link.url}`, homeAliases, awayAliases);
+    const linkMatchesTeams = mentionsMatchForProvider(`${link.title} ${link.url}`, match, homeAliases, awayAliases);
     if (!linkMatchesTeams) return null;
     return {
       ...link,
@@ -440,7 +451,7 @@ async function verifyStreamLink(
     };
   }
   const text = stripTags(candidateHtml);
-  const contentMatchesTeams = mentionsMatch(text, homeAliases, awayAliases);
+  const contentMatchesTeams = mentionsMatchForProvider(text, match, homeAliases, awayAliases);
   return {
     ...link,
     verificationStatus: contentMatchesTeams ? 'team_match' : 'reachable',
@@ -466,7 +477,7 @@ async function findStreamsInPages(
   for (const page of pages) {
     for (const anchor of extractAnchors(page.html, page.url, page.provider)) {
       const searchable = `${anchor.text} ${anchor.url}`;
-      if (!mentionsMatch(searchable, homeAliases, awayAliases)) continue;
+      if (!mentionsMatchForProvider(searchable, match, homeAliases, awayAliases)) continue;
       if (linksByUrl.has(anchor.url)) continue;
       linksByUrl.set(anchor.url, {
         base: {
@@ -483,7 +494,7 @@ async function findStreamsInPages(
   for (const page of pages) {
     for (const structured of extractAllStructuredProviderMatches(page.html)) {
       const searchable = `${structured.homeName} ${structured.awayName} ${structured.slug}`;
-      if (!mentionsMatch(searchable, homeAliases, awayAliases)) continue;
+      if (!mentionsMatchForProvider(searchable, match, homeAliases, awayAliases)) continue;
       const url = buildProviderMatchUrl(page.provider, structured.slug);
       if (!url || linksByUrl.has(url)) continue;
       linksByUrl.set(url, {
@@ -500,7 +511,7 @@ async function findStreamsInPages(
 
   for (const page of pages) {
     if (page.url === page.provider.url) continue;
-    if (!mentionsMatch(stripTags(page.html), homeAliases, awayAliases)) continue;
+    if (!mentionsMatchForProvider(stripTags(page.html), match, homeAliases, awayAliases)) continue;
     if (linksByUrl.has(page.url)) continue;
     linksByUrl.set(page.url, {
       base: {
@@ -515,7 +526,7 @@ async function findStreamsInPages(
 
   const verified = await Promise.all(
     [...linksByUrl.values()].map((candidate) => (
-      verifyStreamLink(candidate.base, candidate.html, homeAliases, awayAliases, fetchImpl, timeoutMs)
+      verifyStreamLink(candidate.base, candidate.html, match, homeAliases, awayAliases, fetchImpl, timeoutMs)
     )),
   );
 
