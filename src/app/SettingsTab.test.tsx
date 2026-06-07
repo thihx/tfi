@@ -141,6 +141,26 @@ beforeEach(() => {
       }), { status: 200 });
     }
 
+    if (url.includes('/api/settings/live-stream-locator/test-providers')) {
+      return new Response(JSON.stringify({
+        checkedAt: '2026-06-07T12:00:00.000Z',
+        results: [
+          {
+            url: 'https://xoilacztu.tv/',
+            hostname: 'xoilacztu.tv',
+            reachable: true,
+            httpStatus: 200,
+            error: null,
+            anchorLinkCount: 12,
+            structuredMatchCount: 0,
+            gridMatchCount: 4,
+            discoveryLinkCount: 3,
+            detectedParsers: ['anchors', 'grid-match'],
+          },
+        ],
+      }), { status: 200 });
+    }
+
     if (url.includes('/api/settings/live-stream-locator')) {
       if (init?.method === 'PUT') {
         const body = JSON.parse(String(init.body ?? '{}')) as Record<string, unknown>;
@@ -448,12 +468,14 @@ describe('SettingsTab', () => {
 
     await user.click(await screen.findByRole('tab', { name: /^Live Streams$/i }));
 
-    const providerUrls = await screen.findByLabelText('Provider URLs');
-    expect(providerUrls).toHaveValue('https://xoilacztu.tv/\nhttps://socolive16.cv/');
+    expect(await screen.findByText('xoilacztu.tv')).toBeInTheDocument();
+    expect(screen.getByText('socolive16.cv')).toBeInTheDocument();
 
-    fireEvent.change(providerUrls, {
-      target: { value: 'https://xoilacztu.tv/\nhttps://socolive16.cv/\nhttps://live-extra.example/' },
-    });
+    await user.type(screen.getByLabelText('Add provider URL'), 'https://live-extra.example/');
+    await user.click(screen.getByRole('button', { name: 'Add URL' }));
+    expect(screen.getByText('live-extra.example')).toBeInTheDocument();
+
+    await user.click(screen.getByText('Advanced tuning'));
     await user.clear(screen.getByLabelText('Request timeout'));
     await user.type(screen.getByLabelText('Request timeout'), '4500');
     await user.clear(screen.getByLabelText('Cache TTL'));
@@ -479,6 +501,17 @@ describe('SettingsTab', () => {
       );
     });
     expect(mockShowToast).toHaveBeenCalledWith('Live stream settings saved.', 'success');
+  });
+
+  it('rejects invalid live stream provider URLs in the add form', async () => {
+    const user = userEvent.setup();
+    render(<SettingsTab />);
+
+    await user.click(await screen.findByRole('tab', { name: /^Live Streams$/i }));
+    await user.type(await screen.findByLabelText('Add provider URL'), 'ftp://bad.example/live');
+    await user.click(screen.getByRole('button', { name: 'Add URL' }));
+
+    expect(await screen.findByRole('alert')).toHaveTextContent('Provider URLs must use http or https.');
   });
 
   it('saves subscription period end from local datetime input as UTC', async () => {

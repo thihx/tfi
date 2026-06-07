@@ -1997,12 +1997,10 @@ function MatchRow({ anchorId, match, isWatched, isPending, isPendingRemove, hasM
             </div>
           </div>
           <div
-            className={match.status === 'NS' ? 'match-meta-row match-meta-row--pre' : 'match-meta-row'}
-            aria-label={match.status === 'NS' ? 'Match status' : 'Score and status'}
+            className={NOT_STARTED_STATUSES.has(match.status) ? 'match-meta-row match-meta-row--pre' : 'match-meta-row'}
+            aria-label={NOT_STARTED_STATUSES.has(match.status) ? 'Match details' : 'Score and status'}
           >
-            {match.status === 'NS' ? (
-              <StatusBadge status={match.status} />
-            ) : (
+            {!NOT_STARTED_STATUSES.has(match.status) ? (
               <>
                 <div className="match-meta-row__score">
                   <div className="match-score-line">
@@ -2026,7 +2024,7 @@ function MatchRow({ anchorId, match, isWatched, isPending, isPendingRemove, hasM
                 </div>
                 {match.status !== 'HT' ? <StatusBadge status={match.status} /> : null}
               </>
-            )}
+            ) : null}
           </div>
             </div>
           </div>

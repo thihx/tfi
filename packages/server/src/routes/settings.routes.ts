@@ -16,11 +16,12 @@ import {
 } from '../repos/users.repo.js';
 import { toAuthUserResponse } from '../lib/request-user.js';
 import { mergeAskAiQuickPromptsByLocale } from '../lib/ask-ai-quick-prompts-settings.js';
-import { clearLiveStreamLookupCache } from '../lib/live-stream-locator.js';
+import { clearLiveStreamLookupCache, probeLiveStreamProviders } from '../lib/live-stream-locator.js';
 import {
   loadLiveStreamLocatorSettings,
   normalizeLiveStreamLocatorSettingsPatch,
   resolveLiveStreamLocatorSettings,
+  validateLiveStreamProviderUrls,
 } from '../lib/live-stream-settings.js';
 import {
   extractSelfServiceNotificationPatch,
@@ -161,6 +162,30 @@ export async function settingsRoutes(app: FastifyInstance) {
     clearLiveStreamLookupCache();
     return resolveLiveStreamLocatorSettings(merged);
   });
+
+  app.post<{ Body: { providerUrls?: unknown; timeoutMs?: unknown } }>(
+    '/api/settings/live-stream-locator/test-providers',
+    async (req, reply) => {
+      const user = requireAdminOrOwner(req, reply);
+      if (!user) return;
+
+      const validated = validateLiveStreamProviderUrls(req.body?.providerUrls);
+      if (validated.error) {
+        return reply.status(400).send({ error: validated.error });
+      }
+      if (validated.urls.length === 0) {
+        return reply.status(400).send({ error: 'Add at least one provider URL to test.' });
+      }
+
+      const settings = await loadLiveStreamLocatorSettings();
+      const timeoutMs = typeof req.body?.timeoutMs === 'number' && Number.isInteger(req.body.timeoutMs)
+        ? Math.min(15_000, Math.max(500, req.body.timeoutMs))
+        : settings.timeoutMs;
+
+      const results = await probeLiveStreamProviders(validated.urls, { timeoutMs });
+      return { results, checkedAt: new Date().toISOString() };
+    },
+  );
 
   app.get('/api/settings/users', async (req, reply) => {
     const user = requireAdminOrOwner(req, reply);

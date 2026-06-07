@@ -113,6 +113,10 @@ function validateProviderUrls(value: unknown): { urls: string[]; error: string |
   return { urls: [...urls.values()], error: null };
 }
 
+export function validateLiveStreamProviderUrls(value: unknown): { urls: string[]; error: string | null } {
+  return validateProviderUrls(value);
+}
+
 function validateBoolean(value: unknown, label: string): { value: boolean; error: string | null } {
   if (typeof value === 'boolean') return { value, error: null };
   if (typeof value === 'string') {

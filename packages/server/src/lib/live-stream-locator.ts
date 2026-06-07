@@ -1,5 +1,6 @@
 import { config } from '../config.js';
 import type { MatchRow } from '../repos/matches.repo.js';
+import { validateLiveStreamProviderUrls } from './live-stream-settings.js';
 import { expandTeamAliases } from './live-stream-team-aliases.js';
 
 export type LiveStreamLookupStatus = 'found' | 'not_found' | 'not_live' | 'disabled' | 'error';
@@ -642,4 +643,90 @@ export async function lookupLiveStreamLinks(
   }
 
   return matches.map((match) => results.get(String(match.match_id)) ?? resultFor(match, 'error', checkedAt));
+}
+
+export interface LiveStreamProviderProbeResult {
+  url: string;
+  hostname: string;
+  reachable: boolean;
+  httpStatus: number | null;
+  error: string | null;
+  anchorLinkCount: number;
+  structuredMatchCount: number;
+  gridMatchCount: number;
+  discoveryLinkCount: number;
+  detectedParsers: string[];
+}
+
+export async function probeLiveStreamProvider(
+  rawUrl: string,
+  options: { fetchImpl?: FetchLike; timeoutMs?: number } = {},
+): Promise<LiveStreamProviderProbeResult> {
+  const fetchImpl = options.fetchImpl ?? fetch;
+  const timeoutMs = Math.max(500, options.timeoutMs ?? config.liveStreamLocatorTimeoutMs);
+  const providers = parseLiveStreamProviderUrls([rawUrl]);
+  if (providers.length === 0) {
+    return {
+      url: rawUrl.trim(),
+      hostname: '',
+      reachable: false,
+      httpStatus: null,
+      error: 'Invalid provider URL.',
+      anchorLinkCount: 0,
+      structuredMatchCount: 0,
+      gridMatchCount: 0,
+      discoveryLinkCount: 0,
+      detectedParsers: [],
+    };
+  }
+
+  const provider = providers[0]!;
+  const fetched = await fetchHtmlWithStatus(provider.url, fetchImpl, timeoutMs);
+  if (!fetched.html) {
+    return {
+      url: provider.url,
+      hostname: provider.hostname,
+      reachable: false,
+      httpStatus: fetched.status,
+      error: fetched.status == null ? 'Request failed or timed out.' : `Homepage returned HTTP ${fetched.status}.`,
+      anchorLinkCount: 0,
+      structuredMatchCount: 0,
+      gridMatchCount: 0,
+      discoveryLinkCount: 0,
+      detectedParsers: [],
+    };
+  }
+
+  const anchors = extractAnchors(fetched.html, provider.url, provider);
+  const structuredMatches = extractStructuredProviderMatches(fetched.html);
+  const gridMatches = extractGridProviderMatches(fetched.html);
+  const discoveryLinkCount = anchors.filter((anchor) => isDiscoveryLink(anchor)).length;
+  const detectedParsers: string[] = [];
+  if (anchors.length > 0) detectedParsers.push('anchors');
+  if (structuredMatches.length > 0) detectedParsers.push('matches-data');
+  if (gridMatches.length > 0) detectedParsers.push('grid-match');
+
+  return {
+    url: provider.url,
+    hostname: provider.hostname,
+    reachable: true,
+    httpStatus: fetched.status,
+    error: null,
+    anchorLinkCount: anchors.length,
+    structuredMatchCount: structuredMatches.length,
+    gridMatchCount: gridMatches.length,
+    discoveryLinkCount,
+    detectedParsers,
+  };
+}
+
+export async function probeLiveStreamProviders(
+  urls: readonly string[],
+  options: { fetchImpl?: FetchLike; timeoutMs?: number } = {},
+): Promise<LiveStreamProviderProbeResult[]> {
+  const validated = validateLiveStreamProviderUrls(urls);
+  if (validated.error) {
+    throw new Error(validated.error);
+  }
+  return Promise.all(validated.urls.map((url) => probeLiveStreamProvider(url, options)));
 }

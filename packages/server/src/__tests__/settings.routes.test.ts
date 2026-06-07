@@ -514,6 +514,58 @@ describe('system settings routes', () => {
     expect(res.json()).toEqual({ error: 'Live stream provider URLs must use http or https.' });
   });
 
+  test('probes live stream providers for admin users', async () => {
+    const fetchMock = vi.fn(async (url: string | URL) => {
+      const href = String(url);
+      if (href === 'https://xoilacztu.tv/') {
+        return new Response(
+          '<a href="/truc-tiep/demo/">Demo</a><script id="matches-data">[]</script>',
+          { status: 200, headers: { 'Content-Type': 'text/html' } },
+        );
+      }
+      return new Response('not found', { status: 404 });
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    const res = await adminApp.inject({
+      method: 'POST',
+      url: '/api/settings/live-stream-locator/test-providers',
+      payload: {
+        providerUrls: ['https://xoilacztu.tv/'],
+        timeoutMs: 3500,
+      },
+    });
+
+    expect(res.statusCode).toBe(200);
+    expect(res.json()).toMatchObject({
+      checkedAt: expect.any(String),
+      results: [
+        {
+          url: 'https://xoilacztu.tv/',
+          hostname: 'xoilacztu.tv',
+          reachable: true,
+          httpStatus: 200,
+          detectedParsers: ['anchors'],
+        },
+      ],
+    });
+
+    vi.unstubAllGlobals();
+  });
+
+  test('rejects invalid provider URLs in live stream probe requests', async () => {
+    const res = await adminApp.inject({
+      method: 'POST',
+      url: '/api/settings/live-stream-locator/test-providers',
+      payload: {
+        providerUrls: ['not-a-url'],
+      },
+    });
+
+    expect(res.statusCode).toBe(400);
+    expect(res.json()).toEqual({ error: 'Invalid live stream provider URL: not-a-url' });
+  });
+
   test('lists users for admin users', async () => {
     const usersRepo = await import('../repos/users.repo.js');
 

@@ -39,9 +39,9 @@ describe('MatchCard', () => {
     expect(screen.getByText('Premier League')).toBeInTheDocument();
   });
 
-  it('renders NS status badge', () => {
+  it('does not render NS status badge for not-started matches', () => {
     render(<MatchCard match={BASE_MATCH} />);
-    expect(screen.getByText('NS')).toHaveAttribute('title', 'Not Started');
+    expect(screen.queryByText('NS')).not.toBeInTheDocument();
   });
 
   it('renders kickoff time for NS matches', () => {

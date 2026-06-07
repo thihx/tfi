@@ -178,6 +178,34 @@ export async function updateLiveStreamLocatorSettings(
   return pgPut<LiveStreamLocatorSettings>(config, '/api/settings/live-stream-locator', settings);
 }
 
+export interface LiveStreamProviderProbeResult {
+  url: string;
+  hostname: string;
+  reachable: boolean;
+  httpStatus: number | null;
+  error: string | null;
+  anchorLinkCount: number;
+  structuredMatchCount: number;
+  gridMatchCount: number;
+  discoveryLinkCount: number;
+  detectedParsers: string[];
+}
+
+export async function testLiveStreamProviders(
+  config: AppConfig | string,
+  providerUrls: string[],
+  timeoutMs?: number,
+): Promise<{ results: LiveStreamProviderProbeResult[]; checkedAt: string }> {
+  return pgPost<{ results: LiveStreamProviderProbeResult[]; checkedAt: string }>(
+    config,
+    '/api/settings/live-stream-locator/test-providers',
+    {
+      providerUrls,
+      ...(timeoutMs != null ? { timeoutMs } : {}),
+    },
+  );
+}
+
 export async function fetchWatchlist(config: AppConfig): Promise<WatchlistItem[]> {
   const items = await pgFetch<WatchlistItem[]>(config, '/api/me/watch-subscriptions');
   return items.map(normalizeWatchlistItem);

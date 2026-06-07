@@ -6,6 +6,7 @@ import {
   extractStructuredProviderMatches,
   lookupLiveStreamLinks,
   normalizeSearchText,
+  probeLiveStreamProviders,
   type LiveStreamProvider,
 } from '../lib/live-stream-locator.js';
 import { expandTeamAliases, LIVE_STREAM_TEAM_ALIASES } from '../lib/live-stream-team-aliases.js';
@@ -487,5 +488,28 @@ describe('live stream locator', () => {
 
     expect(result?.found).toBe(true);
     expect(result?.url).toContain('liechtenstein-vs-dao-sip');
+  });
+
+  test('probes provider homepages and reports detected parsers', async () => {
+    const fetchImpl = vi.fn(async (url: string | URL) => {
+      const href = String(url);
+      if (href === 'https://socolive16.cv/') {
+        return new Response(
+          '<script id="matches-data">[{"home_name":"A","away_name":"B","post_name":"a-vs-b"}]</script>',
+          { status: 200 },
+        );
+      }
+      return new Response('not found', { status: 404 });
+    });
+
+    const [result] = await probeLiveStreamProviders(['https://socolive16.cv/'], { fetchImpl, timeoutMs: 3500 });
+
+    expect(result).toMatchObject({
+      url: 'https://socolive16.cv/',
+      hostname: 'socolive16.cv',
+      reachable: true,
+      structuredMatchCount: 1,
+      detectedParsers: ['matches-data'],
+    });
   });
 });

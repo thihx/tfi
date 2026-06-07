@@ -3046,6 +3046,233 @@ th.data-table__th--sortable:hover {
     }
 }
 
+.settings-live-panel {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+}
+
+.settings-live-header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 16px;
+    flex-wrap: wrap;
+}
+
+.settings-live-title {
+    margin: 0 0 6px;
+    font-size: 1.05rem;
+    font-weight: 600;
+    color: var(--gray-800);
+}
+
+.settings-live-lead {
+    margin: 0;
+    max-width: 52ch;
+    color: var(--gray-600);
+    font-size: 0.92rem;
+    line-height: 1.5;
+}
+
+.settings-live-enabled {
+    flex-shrink: 0;
+}
+
+.settings-live-status {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 12px;
+    border: 1px solid var(--gray-200);
+    border-radius: 8px;
+    background: var(--gray-50);
+    color: var(--gray-700);
+    font-size: 0.88rem;
+}
+
+.settings-live-status__dirty {
+    margin-left: auto;
+    padding: 2px 8px;
+    border-radius: 999px;
+    background: rgba(245, 158, 11, 0.14);
+    color: #b45309;
+    font-weight: 600;
+    font-size: 0.78rem;
+}
+
+.settings-live-section {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.settings-live-section__header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    flex-wrap: wrap;
+}
+
+.settings-live-section__title {
+    margin: 0;
+    font-size: 0.98rem;
+    font-weight: 600;
+    color: var(--gray-800);
+}
+
+.settings-live-section__actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+
+.settings-live-empty {
+    padding: 14px 12px;
+    border: 1px dashed var(--gray-300);
+    border-radius: 8px;
+    color: var(--gray-600);
+    font-size: 0.9rem;
+}
+
+.settings-live-empty p {
+    margin: 0;
+}
+
+.settings-live-provider-list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.settings-live-provider-card {
+    border: 1px solid var(--gray-200);
+    border-radius: 8px;
+    padding: 12px;
+    background: #fff;
+}
+
+.settings-live-provider-card__main {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 12px;
+}
+
+.settings-live-provider-card__identity {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    min-width: 0;
+}
+
+.settings-live-provider-card__host {
+    font-weight: 600;
+    color: var(--gray-800);
+}
+
+.settings-live-provider-card__url {
+    font-family: var(--font-mono, ui-monospace, SFMono-Regular, Menlo, Consolas, monospace);
+    font-size: 0.82rem;
+    color: var(--gray-600);
+    word-break: break-all;
+}
+
+.settings-live-provider-card__probe {
+    margin: 8px 0 0;
+    font-size: 0.82rem;
+    line-height: 1.45;
+}
+
+.settings-live-provider-card__probe.is-ok {
+    color: #047857;
+}
+
+.settings-live-provider-card__probe.is-error {
+    color: #b91c1c;
+}
+
+.settings-live-provider-card__probe.is-muted {
+    color: var(--gray-500);
+}
+
+.settings-live-add {
+    display: flex;
+    align-items: flex-end;
+    gap: 10px;
+    flex-wrap: wrap;
+}
+
+.settings-live-add__field {
+    flex: 1 1 240px;
+    margin: 0;
+}
+
+.settings-live-add__error {
+    margin: 0;
+    color: #b91c1c;
+    font-size: 0.84rem;
+}
+
+.settings-live-advanced {
+    border: 1px solid var(--gray-200);
+    border-radius: 8px;
+    padding: 10px 12px;
+    background: var(--gray-50);
+}
+
+.settings-live-advanced summary {
+    cursor: pointer;
+    font-weight: 600;
+    color: var(--gray-700);
+}
+
+.settings-live-advanced .settings-live-grid {
+    margin-top: 12px;
+}
+
+.settings-live-info {
+    border-left: 3px solid var(--primary);
+    padding: 10px 12px;
+    background: rgba(59, 130, 246, 0.06);
+    border-radius: 0 8px 8px 0;
+}
+
+.settings-live-info__title {
+    margin: 0 0 8px;
+    font-size: 0.92rem;
+    font-weight: 600;
+    color: var(--gray-800);
+}
+
+.settings-live-info__list {
+    margin: 0;
+    padding-left: 18px;
+    color: var(--gray-700);
+    font-size: 0.88rem;
+    line-height: 1.5;
+}
+
+@media (max-width: 760px) {
+    .settings-live-status__dirty {
+        margin-left: 0;
+    }
+
+    .settings-live-provider-card__main {
+        flex-direction: column;
+        align-items: stretch;
+    }
+
+    .settings-live-provider-card__remove {
+        align-self: flex-start;
+    }
+}
+
 .audit-filter-toolbar {
     display: flex;
     gap: 8px;

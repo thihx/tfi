@@ -7,6 +7,7 @@ import { DisciplineCardIcons } from '@/components/ui/MatchDisciplineCardIcons';
 
 const STATUS_LIVE = new Set(['1H', '2H', 'ET', 'BT', 'P', 'INT', 'LIVE']);
 const STATUS_FT   = new Set(['FT', 'AET', 'PEN']);
+const NOT_STARTED_STATUSES = new Set(['NS', 'TBD', 'TIME']);
 
 function getStatusClass(status: string): string {
   if (STATUS_LIVE.has(status)) return 'badge-live';
@@ -112,7 +113,7 @@ function MatchCardBase({ match, actions, highlighted, watchedAction, flashMap, o
             {!isLive && kickoffTime && match.status === 'NS' && (
               <span style={{ fontSize: '12px', color: 'var(--gray-500)' }}>{kickoffTime}</span>
             )}
-            {match.status !== 'HT' ? (
+            {match.status !== 'HT' && !NOT_STARTED_STATUSES.has(match.status) ? (
               <span
                 className={`badge ${getStatusClass(match.status)}`}
                 style={{ fontSize: '11px', padding: '2px 8px' }}
