@@ -15,6 +15,9 @@ const TRACK_NS_BEFORE_KICKOFF_MIN = 10;
 const TRACK_NS_AFTER_KICKOFF_MIN = 10;
 const STAT_CONCURRENCY = 4;
 const DEFAULT_MAX_PUBLIC_MATCHES = 20;
+const DEFAULT_PUBLIC_REFRESH_MS = 15_000;
+
+let lastPublicRefreshAt = 0;
 
 function shouldTrackMatch(row: matchRepo.MatchRow, now = Date.now()): boolean {
   const status = String(row.status || '').trim().toUpperCase();
@@ -42,6 +45,22 @@ function publicRefreshLimit(): number {
   const configured = Number(config.jobRefreshLiveMatchesMaxPublicMatches);
   if (!Number.isFinite(configured)) return DEFAULT_MAX_PUBLIC_MATCHES;
   return Math.max(0, Math.floor(configured));
+}
+
+function publicRefreshIntervalMs(): number {
+  const configured = Number(config.jobRefreshLiveMatchesPublicMs);
+  if (!Number.isFinite(configured)) return DEFAULT_PUBLIC_REFRESH_MS;
+  return Math.max(0, Math.floor(configured));
+}
+
+function isPublicRefreshDue(now: number): boolean {
+  const intervalMs = publicRefreshIntervalMs();
+  if (intervalMs <= 0) return false;
+  return lastPublicRefreshAt === 0 || now - lastPublicRefreshAt >= intervalMs;
+}
+
+export function resetRefreshLiveMatchesPublicThrottleForTest(): void {
+  lastPublicRefreshAt = 0;
 }
 
 function prioritizePublicCandidates(
@@ -131,7 +150,10 @@ export async function refreshLiveMatchesJob(): Promise<{
     ...watchedMatchIds,
     ...alertMatchIds.map(String),
   ]);
-  if (realtimeInterestMatchIds.size === 0 && publicRefreshLimit() <= 0) {
+  const now = Date.now();
+  const maxPublicMatches = publicRefreshLimit();
+  const includePublicCandidates = maxPublicMatches > 0 && isPublicRefreshDue(now);
+  if (realtimeInterestMatchIds.size === 0 && maxPublicMatches <= 0) {
     return {
       tracked: 0,
       refreshed: 0,
@@ -141,8 +163,17 @@ export async function refreshLiveMatchesJob(): Promise<{
       skipReason: 'no_active_realtime_interest',
     };
   }
+  if (realtimeInterestMatchIds.size === 0 && !includePublicCandidates) {
+    return {
+      tracked: 0,
+      refreshed: 0,
+      live: 0,
+      statsRefreshed: 0,
+      skipped: true,
+      skipReason: 'public_refresh_throttled',
+    };
+  }
 
-  const now = Date.now();
   const kickoffWindowStart = new Date(now - (TRACK_NS_AFTER_KICKOFF_MIN * 60_000)).toISOString();
   const kickoffWindowEnd = new Date(now + (TRACK_NS_BEFORE_KICKOFF_MIN * 60_000)).toISOString();
   const candidateMatches = await matchRepo.getLiveRefreshCandidates(
@@ -152,10 +183,11 @@ export async function refreshLiveMatchesJob(): Promise<{
   );
   const trackableCandidates = candidateMatches.filter((row) => shouldTrackMatch(row, now));
   const watchedCandidates = trackableCandidates.filter((row) => realtimeInterestMatchIds.has(String(row.match_id)));
-  const publicCandidates = prioritizePublicCandidates(
-    trackableCandidates.filter((row) => !watchedMatchIds.has(String(row.match_id))),
+  const publicCandidates = includePublicCandidates ? prioritizePublicCandidates(
+    trackableCandidates.filter((row) => !realtimeInterestMatchIds.has(String(row.match_id))),
     watchedMatchIds,
-  );
+    maxPublicMatches,
+  ) : [];
   const trackedById = new Map<string, matchRepo.MatchRow>();
   for (const row of watchedCandidates.concat(publicCandidates)) {
     trackedById.set(String(row.match_id), row);
@@ -163,6 +195,9 @@ export async function refreshLiveMatchesJob(): Promise<{
   const tracked = [...trackedById.values()];
   const watchedTracked = tracked.filter((row) => watchedMatchIds.has(String(row.match_id)));
   if (tracked.length === 0) {
+    if (includePublicCandidates) {
+      lastPublicRefreshAt = now;
+    }
     return { tracked: 0, refreshed: 0, live: 0, statsRefreshed: 0 };
   }
 
@@ -180,6 +215,9 @@ export async function refreshLiveMatchesJob(): Promise<{
     freshnessMode: 'real_required',
     forceRefreshIds: transitionSensitiveFixtureIds,
   });
+  if (includePublicCandidates) {
+    lastPublicRefreshAt = now;
+  }
   if (fixtures.length === 0) {
     return { tracked: tracked.length, refreshed: 0, live: liveCount, statsRefreshed: 0 };
   }

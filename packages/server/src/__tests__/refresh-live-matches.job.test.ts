@@ -12,6 +12,7 @@ const mockArchiveFinishedMatches = vi.fn();
 const mockConfig = vi.hoisted(() => ({
   timezone: 'Asia/Seoul',
   jobRefreshLiveMatchesMaxPublicMatches: 0,
+  jobRefreshLiveMatchesPublicMs: 15_000,
 }));
 
 vi.mock('../jobs/job-progress.js', () => ({
@@ -51,7 +52,10 @@ vi.mock('../config.js', () => ({
   config: mockConfig,
 }));
 
-const { refreshLiveMatchesJob } = await import('../jobs/refresh-live-matches.job.js');
+const {
+  refreshLiveMatchesJob,
+  resetRefreshLiveMatchesPublicThrottleForTest,
+} = await import('../jobs/refresh-live-matches.job.js');
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -66,6 +70,8 @@ beforeEach(() => {
   mockGetAutoPipelineOperationalWatchlist.mockResolvedValue([{ match_id: '100' }, { match_id: '200' }]);
   mockGetRealtimeAlertMatchIds.mockResolvedValue([]);
   mockConfig.jobRefreshLiveMatchesMaxPublicMatches = 0;
+  mockConfig.jobRefreshLiveMatchesPublicMs = 15_000;
+  resetRefreshLiveMatchesPublicThrottleForTest();
 });
 
 describe('refreshLiveMatchesJob', () => {
@@ -425,6 +431,60 @@ describe('refreshLiveMatchesJob', () => {
       forceRefreshIds: [],
     });
     expect(mockEnsureFixtureStatistics).not.toHaveBeenCalled();
+  });
+
+  test('throttles public-only live candidates between public refresh intervals', async () => {
+    vi.setSystemTime(new Date('2026-03-26T10:05:00.000Z'));
+    mockConfig.jobRefreshLiveMatchesMaxPublicMatches = 1;
+    mockConfig.jobRefreshLiveMatchesPublicMs = 15_000;
+    mockGetAutoPipelineOperationalWatchlist.mockResolvedValue([]);
+    mockGetRealtimeAlertMatchIds.mockResolvedValue([]);
+    mockGetLiveRefreshCandidates.mockResolvedValue([
+      {
+        match_id: '100',
+        status: '1H',
+        date: '2026-03-26',
+        kickoff: '19:00',
+        kickoff_at_utc: '2026-03-26T10:00:00.000Z',
+      },
+    ]);
+    mockEnsureFixturesForMatchIds.mockResolvedValue([
+      {
+        fixture: {
+          id: 100,
+          date: '2026-03-26T10:00:00+00:00',
+          status: { short: '1H', elapsed: 6 },
+        },
+        goals: { home: 1, away: 0 },
+      },
+    ]);
+    mockUpdateMatches.mockResolvedValue(1);
+
+    await refreshLiveMatchesJob();
+    expect(mockEnsureFixturesForMatchIds).toHaveBeenCalledTimes(1);
+
+    mockEnsureFixturesForMatchIds.mockClear();
+    mockGetLiveRefreshCandidates.mockClear();
+    vi.setSystemTime(new Date('2026-03-26T10:05:03.000Z'));
+
+    const throttled = await refreshLiveMatchesJob();
+
+    expect(throttled).toEqual({
+      tracked: 0,
+      refreshed: 0,
+      live: 0,
+      statsRefreshed: 0,
+      skipped: true,
+      skipReason: 'public_refresh_throttled',
+    });
+    expect(mockGetLiveRefreshCandidates).not.toHaveBeenCalled();
+    expect(mockEnsureFixturesForMatchIds).not.toHaveBeenCalled();
+
+    vi.setSystemTime(new Date('2026-03-26T10:05:15.000Z'));
+
+    await refreshLiveMatchesJob();
+
+    expect(mockEnsureFixturesForMatchIds).toHaveBeenCalledTimes(1);
   });
 
   test('refreshes watched candidates without pulling extra public live fixtures when public cap is disabled', async () => {
