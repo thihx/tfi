@@ -18,7 +18,13 @@ The official live-analysis prompt is:
 v10-hybrid-legacy-g
 ```
 
-All older prompt versions are retired. Runtime env values outside this version are ignored by `isLiveAnalysisPromptVersion()` and fall back to the official default.
+All older prompt versions are retired. Live runtime always uses this single prompt and no longer supports active/shadow prompt selection by env.
+
+Related design contracts:
+
+- [live-recommendation-output-architecture-vi.md](live-recommendation-output-architecture-vi.md) defines the planned output split across money recommendations, stats-only signals, watch insights, shadow candidates, and audited no-action outcomes.
+- [live-recommendation-regression-matrix-vi.md](live-recommendation-regression-matrix-vi.md) defines the regression and edge-case matrix that should gate the output-router refactor.
+- [odds-first-stats-only-signal-contract-vi.md](odds-first-stats-only-signal-contract-vi.md) defines the current stats-only signal contract when live odds are unavailable.
 
 ## Active Runtime
 
@@ -42,10 +48,11 @@ All older prompt versions are retired. Runtime env values outside this version a
 6. Parse strict JSON from the LLM.
 7. Apply line-ladder patience and thesis-watch gates.
 8. Apply post-parse recommendation policy.
-9. Record runtime policy-shadow telemetry for selected replay-backed pockets when the model picked a market but production policy blocked it. Shadow telemetry is audit/debug only and must not save or notify.
-10. Save only final actionable recommendations that pass policy and dedup checks.
-11. Notify eligible users through configured delivery channels.
-12. Settle completed recommendations and feed outcomes into replay/performance memory.
+9. Route the outcome explicitly as money recommendation, stats-only signal, watch insight, shadow candidate, or audited no-action. The detailed target contract is in [live-recommendation-output-architecture-vi.md](live-recommendation-output-architecture-vi.md).
+10. Record runtime policy-shadow telemetry for selected replay-backed pockets when the model picked a market but production policy blocked it. Shadow telemetry includes normalized league/team segment keys for later settlement hotspot review.
+11. Save only final actionable recommendations that pass policy and dedup checks, or a narrowly controlled Phase 4 promotion that passes explicit promotion flags, readiness acknowledgement, rollout sampling, pocket allowlist, and save-integrity.
+12. Notify eligible users through configured delivery channels.
+13. Settle completed recommendations and feed outcomes into replay/performance memory.
 
 ## Money-Critical I/O Guards
 
@@ -69,7 +76,7 @@ All older prompt versions are retired. Runtime env values outside this version a
 - Thin edge near break-even is blocked.
 - Same-thesis stacking is capped by count and total stake.
 - Segment blocklist and segment stake caps can override or reduce exposure.
-- Runtime policy-shadow pockets for strict BTTS, late Under 4.5, and Over 1.5 are telemetry only. Policy-blocked selections that miss those pocket definitions can also be recorded as skipped-neighbor telemetry. Neither path overrides policy, saves recommendations, or notifies users.
+- Runtime policy-shadow pockets for strict BTTS, late Under 4.5, Over 1.5, medium-risk thin-edge, and odds-events degraded candidates are telemetry by default. Policy-blocked selections that miss those pocket definitions can also be recorded as skipped-neighbor telemetry. No shadow path may save or notify unless the Phase 4 controlled promotion guard is explicitly enabled with readiness acknowledgement, pocket allowlist, rollout, and kill switch controls.
 
 ## Evidence Modes
 
@@ -90,7 +97,7 @@ npm run data-driven:improvement-run --prefix packages/server
 npm run data-driven:verify-gates-ci --prefix packages/server
 ```
 
-For runtime shadow pockets, `data-driven:policy-shadow-suite` is the periodic entrypoint for matched, skipped-neighbor, and settlement artifacts. Then run `data-driven:check-policy-shadow-skipped-settlement-gates` for nearby skipped policy-blocked selections and `data-driven:check-policy-shadow-settlement-gates` for matched pockets; passing either settlement gate is evidence only and does not automatically change production policy.
+For runtime shadow pockets, `data-driven:policy-shadow-suite` is the periodic entrypoint for matched, skipped-neighbor, settlement, and Phase 3 readiness artifacts. Shadow audit and settlement rows carry normalized `leagueSegmentKey` and `teamSegmentKeys`, and readiness can gate top league/team concentration before Phase 4. Then run `data-driven:check-policy-shadow-skipped-settlement-gates` for nearby skipped policy-blocked selections, `data-driven:check-policy-shadow-settlement-gates` for matched pockets, and `data-driven:check-policy-shadow-readiness-gates` for aggregate hard no-promote checks; passing these gates is evidence only and does not automatically change production policy. Phase 4 controlled promotion remains off until `RUNTIME_POLICY_PROMOTION_ENABLED=true`, `RUNTIME_POLICY_PROMOTION_EVIDENCE_ACK=ready_for_human_review`, a pocket allowlist, rollout percentage, owner, and kill-switch posture are deliberately configured.
 
 Operator procedure: [runtime-shadow-operator-runbook.md](runtime-shadow-operator-runbook.md). Use it for the read order, pass/fail interpretation, and hard no-promote rules before changing prompt or policy.
 
@@ -128,12 +135,10 @@ npm run migrate --prefix packages/server
 
 ## Environment
 
-Recommended defaults:
+Recommended prompt baseline:
 
 ```env
-LIVE_ANALYSIS_ACTIVE_PROMPT_VERSION=v10-hybrid-legacy-g
-LIVE_ANALYSIS_SHADOW_PROMPT_VERSION=
 PIPELINE_MIN_CONFIDENCE=7
 ```
 
-Shadow prompt execution should remain disabled unless there is a deliberate A/B experiment with the same official prompt contract.
+Do not configure retired prompt versions or prompt shadow execution. Start new prompt work by editing/evaluating the single official baseline deliberately.

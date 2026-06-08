@@ -4,7 +4,10 @@ import { EmptyState } from '@/components/ui/EmptyState';
 import { formatLocalDateTime } from '@/lib/utils/helpers';
 import {
   fetchLiveMonitorStatus,
+  fetchLiveMonitorWhyNoRecommendation,
   getParsedAiResult,
+  type LiveOutputOperatorReport,
+  type LiveOutputOperatorReasonGroup,
   type LiveMonitorStatusResponse,
   type LiveMonitorTarget,
   type ServerMatchPipelineResult,
@@ -63,8 +66,9 @@ function hasRuntimeWatchSignal(result: ServerMatchPipelineResult): boolean {
 function resolveLiveSignal(result: ServerMatchPipelineResult): LiveSignalView {
   const parsed = getParsedAiResult(result);
   const shadow = result.debug?.runtimePolicyShadow;
+  const outputKind = result.outputKind ?? result.debug?.outputKind;
 
-  if (result.saved) {
+  if (outputKind === 'money_recommendation' || result.saved) {
     return {
       kind: 'bet',
       label: 'Bet',
@@ -74,7 +78,10 @@ function resolveLiveSignal(result: ServerMatchPipelineResult): LiveSignalView {
   }
 
   if (
-    hasRuntimeWatchSignal(result)
+    outputKind === 'stats_only_signal'
+    || outputKind === 'watch_insight'
+    || outputKind === 'shadow_candidate'
+    || hasRuntimeWatchSignal(result)
     || result.decisionKind === 'condition_only'
     || parsed?.condition_triggered_should_push === true
   ) {
@@ -89,12 +96,13 @@ function resolveLiveSignal(result: ServerMatchPipelineResult): LiveSignalView {
     };
   }
 
+  const reason = result.auditBucket || result.debug?.auditBucket || result.debug?.llmDecisionDiagnostic || '';
   return {
     kind: 'no_action',
     label: 'No Action',
     badgeClass: liveSignalBadgeClass('no_action'),
-    detail: result.debug?.llmDecisionDiagnostic
-      ? result.debug.llmDecisionDiagnostic.replace(/_/g, ' ')
+    detail: reason
+      ? reason.replace(/_/g, ' ')
       : result.error || 'No actionable signal.',
   };
 }
@@ -147,6 +155,31 @@ function prematchStrengthBadgeClass(
     default:
       return 'badge-pending';
   }
+}
+
+function reasonGroupLabel(group: LiveOutputOperatorReasonGroup): string {
+  switch (group) {
+    case 'provider':
+      return 'Provider';
+    case 'evidence':
+      return 'Evidence';
+    case 'model':
+      return 'Model';
+    case 'policy':
+      return 'Policy';
+    case 'save':
+      return 'Save';
+    case 'delivery':
+      return 'Delivery';
+    case 'success':
+      return 'Success';
+    default:
+      return 'Unknown';
+  }
+}
+
+function formatReasonText(reason: string): string {
+  return reason ? reason.replace(/_/g, ' ') : 'unknown';
 }
 
 function candidateReasonLabel(reason: string): string {
@@ -446,6 +479,89 @@ function LiveSignalsPanel({ results }: { results: ServerMatchPipelineResult[] })
   );
 }
 
+function WhyNoRecommendationPanel({ report }: { report: LiveOutputOperatorReport | null }) {
+  if (!report) return null;
+  const topBuckets = report.reasonBuckets.slice(0, 6);
+  const samples = report.recentDrilldown.slice(0, 4);
+
+  return (
+    <div className="card tab-section live-signals-panel">
+      <div className="card-header">
+        <div className="card-title">Why No Recommendation</div>
+        <small className="text-muted">{report.lookbackHours}h operator view</small>
+      </div>
+      <div className="monitor-stats-row" style={{ marginTop: 0 }}>
+        <SummaryStat label="Analyzed" value={report.totals.matchAnalyzed} />
+        <SummaryStat label="Official Bets" value={report.totals.moneyRecommendations} color="var(--success)" />
+        <SummaryStat label="Stats Signals" value={report.totals.statsOnlySignals} color="var(--warning)" />
+        <SummaryStat label="Shadow" value={report.totals.shadowCandidates} />
+        <SummaryStat label="No Action" value={report.totals.noActions} />
+        <SummaryStat label="LLM Skipped" value={report.totals.llmSkipped} />
+      </div>
+      <div className="live-signals-overview" style={{ marginTop: 'var(--space-3)' }}>
+        {report.reasonGroupBreakdown.length === 0 ? (
+          <EmptyState title="No no-recommendation reason buckets have been recorded in this window." />
+        ) : report.reasonGroupBreakdown.map((row) => (
+          <div key={row.group} className="live-signal-summary live-signal-summary--no_action">
+            <span className="badge badge-draw">{reasonGroupLabel(row.group)}</span>
+            <strong>{row.count}</strong>
+          </div>
+        ))}
+      </div>
+      {topBuckets.length > 0 && (
+        <div className="live-signal-feed" style={{ marginTop: 'var(--space-3)' }}>
+          {topBuckets.map((bucket) => (
+            <div key={`${bucket.group}-${bucket.key}-${bucket.evidenceMode}`} className="live-signal-row live-signal-row--no_action">
+              <div className="live-signal-row__main">
+                <div className="live-signal-row__title">
+                  <span className="badge badge-draw">{reasonGroupLabel(bucket.group)}</span>
+                  <strong>{formatReasonText(bucket.key)}</strong>
+                </div>
+                <div className="live-signal-row__detail">
+                  {bucket.outputKind.replace(/_/g, ' ')} | {bucket.evidenceMode.replace(/_/g, ' ')}
+                </div>
+              </div>
+              <div className="live-signal-row__aside">
+                <strong>{bucket.count}</strong>
+                {bucket.latestAt ? <span>{formatLocalDateTime(bucket.latestAt)}</span> : null}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+      {samples.length > 0 && (
+        <div style={{ marginTop: 'var(--space-3)' }}>
+          {samples.map((sample) => (
+            <div key={sample.id} className="monitor-list-row">
+              <div className="monitor-list-row__head">
+                <div className="monitor-list-row__main">
+                  <div className="monitor-list-row__title-row">
+                    <span className="monitor-list-row__title">{sample.matchDisplay || sample.matchId}</span>
+                    <span className="badge badge-draw">{reasonGroupLabel(sample.reasonGroup)}</span>
+                    <span className="badge badge-pending">{sample.outputKind.replace(/_/g, ' ')}</span>
+                  </div>
+                  <div className="monitor-list-row__meta">
+                    {[sample.minute !== '(empty)' ? `${sample.minute}'` : null, sample.score, sample.status, sample.evidenceMode.replace(/_/g, ' ')]
+                      .filter(Boolean)
+                      .join(' | ')}
+                  </div>
+                  <div className="monitor-list-row__sub">
+                    {formatReasonText(sample.auditBucket)} | LLM {sample.llmCalled ? 'called' : 'skipped'} | settle {sample.settlementEligible ? 'yes' : 'no'}
+                  </div>
+                </div>
+                <div className="monitor-list-row__aside">
+                  <div className="monitor-list-row__stat-label">Route</div>
+                  <div className="monitor-list-row__sub">{sample.route.replace(/_/g, ' ')}</div>
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function MonitorListPanel({
   title,
   hint,
@@ -476,14 +592,19 @@ function MonitorListPanel({
 export function LiveMonitorTab() {
   const { state } = useAppState();
   const [status, setStatus] = useState<LiveMonitorStatusResponse | null>(null);
+  const [whyNoRecommendation, setWhyNoRecommendation] = useState<LiveOutputOperatorReport | null>(null);
   const [loading, setLoading] = useState(true);
   const [refreshError, setRefreshError] = useState('');
 
   const loadStatus = useCallback(async () => {
     setRefreshError('');
     try {
-      const next = await fetchLiveMonitorStatus(state.config);
+      const [next, operatorReport] = await Promise.all([
+        fetchLiveMonitorStatus(state.config),
+        fetchLiveMonitorWhyNoRecommendation(state.config, { lookbackHours: 24, maxSamples: 8 }).catch(() => null),
+      ]);
       setStatus(next);
+      setWhyNoRecommendation(operatorReport);
     } catch (error) {
       setRefreshError(error instanceof Error ? error.message : String(error));
     } finally {
@@ -565,6 +686,8 @@ export function LiveMonitorTab() {
 
       <LiveSignalsPanel results={sortedResults} />
 
+      <WhyNoRecommendationPanel report={whyNoRecommendation} />
+
       <MonitorListPanel
         title="Live Right Now"
         hint="These are the matches the live engine is actively following at this moment."
@@ -600,7 +723,12 @@ export function LiveMonitorTab() {
               <SummaryStat label="Pre-check candidates" value={status.summary.candidateCount} />
               <SummaryStat label="Checked This Run" value={status.summary.processed} />
               <SummaryStat label="Recommendations Saved" value={status.summary.savedRecommendations} color="var(--success)" />
-              <SummaryStat label="Notifications" value={status.summary.pushedNotifications} color="var(--primary)" />
+              <SummaryStat
+                label="Official Bet Alerts"
+                value={status.summary.officialBetNotifications ?? status.summary.pushedNotifications}
+                color="var(--primary)"
+              />
+              <SummaryStat label="Signal Alerts" value={status.summary.signalNotifications ?? 0} color="var(--warning)" />
               <SummaryStat label="Errors" value={status.summary.errors} color={status.summary.errors > 0 ? 'var(--danger)' : undefined} />
             </div>
           ) : (

@@ -3,7 +3,6 @@ import { describe, expect, test } from 'vitest';
 import {
   buildLiveAnalysisPrompt,
   isLiveAnalysisPromptVersion,
-  LIVE_ANALYSIS_PROMPT_CANDIDATE_VERSION,
   LIVE_ANALYSIS_PROMPT_VERSION,
   type LiveAnalysisPromptInput,
 } from '../lib/live-analysis-prompt.js';
@@ -68,7 +67,6 @@ const settings = {
 describe('buildLiveAnalysisPrompt', () => {
   test('uses one official prompt version', () => {
     expect(LIVE_ANALYSIS_PROMPT_VERSION).toBe('v10-hybrid-legacy-g');
-    expect(LIVE_ANALYSIS_PROMPT_CANDIDATE_VERSION).toBe(LIVE_ANALYSIS_PROMPT_VERSION);
     expect(isLiveAnalysisPromptVersion(LIVE_ANALYSIS_PROMPT_VERSION)).toBe(true);
     expect(isLiveAnalysisPromptVersion('retired-prompt')).toBe(false);
   });

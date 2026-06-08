@@ -11,6 +11,7 @@ import { existsSync, mkdirSync, rmSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { config } from '../config.js';
+import { LIVE_ANALYSIS_PROMPT_VERSION } from '../lib/live-analysis-prompt.js';
 import { listReplayScenarioJsonBasenames } from '../lib/replay-scenario-files.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -89,11 +90,7 @@ function parseArgs(argv: string[]): CliArgs {
     }
   }
 
-  const fallback = [
-    'v10-hybrid-legacy-g',
-    config.liveAnalysisActivePromptVersion,
-  ].filter((v): v is string => typeof v === 'string' && v.trim().length > 0);
-  const versions = promptVersions.length > 0 ? [...new Set(promptVersions)] : [...new Set(fallback)];
+  const versions = promptVersions.length > 0 ? [...new Set(promptVersions)] : [LIVE_ANALYSIS_PROMPT_VERSION];
 
   return {
     structural,

@@ -51,7 +51,7 @@ describe('recommendation prompt adoption report', () => {
             pending: '5',
           },
           {
-            prompt_version: 'v10-hybrid-legacy-b',
+            prompt_version: 'retired-prompt',
             count: '3',
             actionable: '3',
             with_decision_context: '2',

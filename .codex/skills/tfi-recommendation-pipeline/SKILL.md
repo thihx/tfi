@@ -24,7 +24,7 @@ Use this skill before touching any recommendation, live-monitor, watchlist trigg
 - Recommendation persistence: `packages/server/src/repos/recommendations.repo.ts`
 - Delivery staging: `packages/server/src/repos/recommendation-deliveries.repo.ts`
 
-The only official live-analysis prompt is `v10-hybrid-legacy-g`. Do not reintroduce retired prompt versions, shadow candidates, or docs that imply multiple active prompts. Invalid env prompt values must resolve to the official prompt.
+The only official live-analysis prompt is `v10-hybrid-legacy-g`. Do not reintroduce retired prompt versions, shadow prompt candidates, or docs that imply multiple active prompts. Invalid env prompt values must resolve to the official prompt.
 
 ## Input Contract
 
@@ -56,12 +56,13 @@ Never save a recommendation when market normalization is `unknown`, odds are una
 ## Mandatory Guards
 
 - Keep `LIVE_ANALYSIS_PROMPT_VERSION` and checked-in env examples on `v10-hybrid-legacy-g`.
-- Keep `LIVE_ANALYSIS_SHADOW_ENABLED=false` and sample rate `0` in examples unless a new official candidate is deliberately introduced.
+- Do not reintroduce `LIVE_ANALYSIS_ACTIVE_PROMPT_VERSION`, `LIVE_ANALYSIS_SHADOW_PROMPT_VERSION`, `LIVE_ANALYSIS_SHADOW_ENABLED`, or prompt shadow sample-rate env selectors unless a new official prompt baseline is deliberately introduced.
 - Preserve provider access through backend routes and `football-api.ts`.
 - Treat market normalization as money-critical. Add tests for every new market text shape.
 - Preserve strict JSON prompt output requirements.
 - Preserve policy gates for evidence mode, break-even, high-risk markets, same-thesis exposure, segment blocklist, and stake caps.
 - Advisory/manual prompt-only flows must not save or notify.
+- When changing output routing, follow `docs/live-recommendation-output-architecture-vi.md` and gate behavior with `docs/live-recommendation-regression-matrix-vi.md`.
 
 ## Audit Checklist
 
@@ -93,4 +94,3 @@ Before handoff, run:
 If DB schema/config changed, run:
 
 - `npm run migrate --prefix packages/server`
-

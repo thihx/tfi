@@ -76,6 +76,8 @@ export interface ServerMatchPipelineResult {
   confidence: number;
   saved: boolean;
   notified: boolean;
+  outputKind?: 'money_recommendation' | 'stats_only_signal' | 'watch_insight' | 'shadow_candidate' | 'no_action';
+  auditBucket?: string;
   error?: string;
   debug?: {
     analysisMode?: string;
@@ -86,6 +88,12 @@ export interface ServerMatchPipelineResult {
     prematchStrength?: 'strong' | 'moderate' | 'weak' | 'none';
     statsSource?: string;
     evidenceMode?: string;
+    outputKind?: 'money_recommendation' | 'stats_only_signal' | 'watch_insight' | 'shadow_candidate' | 'no_action';
+    auditBucket?: string;
+    savedRecommendation?: boolean;
+    settlementEligible?: boolean;
+    roiEligible?: boolean;
+    llmCalled?: boolean;
     llmDecisionDiagnostic?: string;
     marketResolutionStatus?: string;
     runtimePolicyShadow?: RuntimePolicyShadowDebug;
@@ -147,9 +155,76 @@ export interface LiveMonitorStatusResponse {
     processed: number;
     savedRecommendations: number;
     pushedNotifications: number;
+    officialBetNotifications?: number;
+    signalNotifications?: number;
+    noActionAudits?: number;
     errors: number;
   } | null;
   results: ServerMatchPipelineResult[];
+}
+
+export type LiveOutputOperatorReasonGroup =
+  | 'provider'
+  | 'evidence'
+  | 'model'
+  | 'policy'
+  | 'save'
+  | 'delivery'
+  | 'success'
+  | 'unknown';
+
+export interface LiveOutputOperatorReport {
+  generatedAt: string;
+  lookbackHours: number;
+  officialPromptVersion: string;
+  totals: {
+    matchAnalyzed: number;
+    moneyRecommendations: number;
+    statsOnlySignals: number;
+    watchInsights: number;
+    shadowCandidates: number;
+    noActions: number;
+    llmCalled: number;
+    llmSkipped: number;
+  };
+  outputKindBreakdown: Array<{
+    outputKind: string;
+    count: number;
+    latestAt: string | null;
+  }>;
+  reasonGroupBreakdown: Array<{
+    group: LiveOutputOperatorReasonGroup;
+    count: number;
+    latestAt: string | null;
+  }>;
+  reasonBuckets: Array<{
+    key: string;
+    group: LiveOutputOperatorReasonGroup;
+    outputKind: string;
+    evidenceMode: string;
+    count: number;
+    latestAt: string | null;
+  }>;
+  recentDrilldown: Array<{
+    id: number;
+    timestamp: string;
+    matchId: string;
+    matchDisplay: string;
+    minute: string;
+    status: string;
+    score: string;
+    outputKind: string;
+    auditBucket: string;
+    reasonGroup: LiveOutputOperatorReasonGroup;
+    evidenceMode: string;
+    route: string;
+    llmCalled: boolean;
+    savedRecommendation: boolean;
+    settlementEligible: boolean;
+    roiEligible: boolean;
+    candidatePresent: boolean;
+    noActionReason: string;
+  }>;
 }
 
 function authHeaders(): Record<string, string> {
@@ -175,6 +250,21 @@ export async function fetchLiveMonitorStatus(config: AppConfig): Promise<LiveMon
     credentials: 'include',
   });
   return parseJsonResponse<LiveMonitorStatusResponse>(res);
+}
+
+export async function fetchLiveMonitorWhyNoRecommendation(
+  config: AppConfig,
+  options: { lookbackHours?: number; maxSamples?: number } = {},
+): Promise<LiveOutputOperatorReport> {
+  const params = new URLSearchParams();
+  if (options.lookbackHours) params.set('lookbackHours', String(options.lookbackHours));
+  if (options.maxSamples) params.set('maxSamples', String(options.maxSamples));
+  const suffix = params.toString() ? `?${params.toString()}` : '';
+  const res = await fetch(apiUrl(config, `/api/live-monitor/why-no-recommendation${suffix}`), {
+    headers: { Accept: 'application/json', ...authHeaders() },
+    credentials: 'include',
+  });
+  return parseJsonResponse<LiveOutputOperatorReport>(res);
 }
 
 export async function analyzeMatchWithServerPipeline(

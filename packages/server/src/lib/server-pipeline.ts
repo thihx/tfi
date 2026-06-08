@@ -60,7 +60,6 @@ import {
 import {
   buildLiveAnalysisPrompt,
   getPromptStatsDetailLevel,
-  isLiveAnalysisPromptVersion,
   LIVE_ANALYSIS_PROMPT_VERSION,
   type LiveAnalysisPromptVersion,
   type PromptAnalysisMode,
@@ -68,7 +67,6 @@ import {
 } from './live-analysis-prompt.js';
 import { normalizeMarket } from './normalize-market.js';
 import { hasUsableStrategicContext } from './strategic-context.service.js';
-import { createPromptShadowRun } from '../repos/prompt-shadow-runs.repo.js';
 import { getLeagueProfileByLeagueId } from '../repos/league-profiles.repo.js';
 import { getTeamProfileByTeamId } from '../repos/team-profiles.repo.js';
 import { getLeagueById } from '../repos/leagues.repo.js';
@@ -122,7 +120,7 @@ import {
   detectHtGoalsCornersLineContamination,
 } from './odds-integrity.js';
 import { parseBetMarketLineSuffix as parseLineSuffix, sameOddsLine as sameLine } from './odds-line-utils.js';
-import { isMarketAllowedForEvidenceMode } from './evidence-mode-market-allowlist.js';
+import { isMarketAllowedForEvidenceMode, type LiveAnalysisEvidenceMode } from './evidence-mode-market-allowlist.js';
 import { isFirstHalfApiBetName, isSecondHalfOnlyApiBetName } from './first-half-markets.js';
 import { extractHalftimeScoreFromFixture } from './settle-context.js';
 import { formatSelectionWithMarketContext } from './market-display.js';
@@ -130,7 +128,18 @@ import {
   buildRuntimePolicyShadowSignal,
   type RuntimePolicyShadowSignal,
 } from './runtime-policy-shadow.js';
+import {
+  evaluateRuntimePolicyProductionPromotion,
+  type RuntimePolicyProductionPromotionDecision,
+} from './runtime-policy-production-promotion.js';
+import { buildRuntimeShadowSegmentMetadata } from './runtime-shadow-segments.js';
 import { evaluateStatsOnlyLiveSignal } from './stats-only-live-signal.js';
+import {
+  classifyLiveEvidence,
+  routeLiveOutput,
+  type LiveOutputDecisionContext,
+  type LiveOutputKind,
+} from './live-output-router.js';
 import { enqueueStatsOnlyLiveSignalDeliveries } from '../repos/match-alert-deliveries.repo.js';
 const pipelineSkipAuditCounters = new Map<string, number>();
 
@@ -418,7 +427,6 @@ const defaultPipelineDeps = {
   autoGeneratePerformanceMemoryRules,
   sendTelegramMessage,
   sendTelegramPhoto,
-  createPromptShadowRun,
   getLeagueProfileByLeagueId,
   getTeamProfileByTeamId,
   getLeagueById,
@@ -647,12 +655,7 @@ interface DerivedInsights {
 }
 
 type StatsSource = 'api-football';
-type EvidenceMode =
-  | 'full_live_data'
-  | 'stats_only'
-  | 'odds_events_only_degraded'
-  | 'events_only_degraded'
-  | 'low_evidence';
+type EvidenceMode = LiveAnalysisEvidenceMode;
 
 type LlmDecisionDiagnostic =
   | 'no_bet_intentional'
@@ -885,6 +888,8 @@ export interface MatchPipelineResult {
   confidence: number;
   saved: boolean;
   notified: boolean;
+  outputKind?: LiveOutputKind;
+  auditBucket?: string;
   error?: string;
   debug?: {
     analysisRunId?: string;
@@ -898,9 +903,17 @@ export interface MatchPipelineResult {
     statsAvailable?: boolean;
     statsSource?: StatsSource;
     evidenceMode?: EvidenceMode;
+    outputDecision?: LiveOutputDecisionContext;
+    outputKind?: LiveOutputKind;
+    auditBucket?: string;
+    savedRecommendation?: boolean;
+    settlementEligible?: boolean;
+    roiEligible?: boolean;
+    llmCalled?: boolean;
     llmDecisionDiagnostic?: ParsedAiResponse['llm_decision_diagnostic'];
     marketResolutionStatus?: ParsedAiResponse['market_resolution_status'];
     runtimePolicyShadow?: RuntimePolicyShadowSignal;
+    runtimePolicyPromotion?: RuntimePolicyProductionPromotionDecision;
     shadowCandidate?: Record<string, unknown>;
     saveIntegrityStatus?: 'not_attempted' | 'ok' | 'blocked';
     saveBlockedReason?: string;
@@ -1189,11 +1202,11 @@ function deriveEvidenceMode(
   oddsAvailable: boolean,
   eventsCompact: EventCompact[],
 ): EvidenceMode {
-  if (statsAvailable && oddsAvailable) return 'full_live_data';
-  if (statsAvailable && !oddsAvailable) return 'stats_only';
-  if (!statsAvailable && oddsAvailable && eventsCompact.length > 0) return 'odds_events_only_degraded';
-  if (!statsAvailable && !oddsAvailable && eventsCompact.length > 0) return 'events_only_degraded';
-  return 'low_evidence';
+  return classifyLiveEvidence({
+    statsAvailable,
+    oddsAvailable,
+    eventCount: eventsCompact.length,
+  }).evidenceMode;
 }
 
 function canRunStructuredPrematchAskAi(args: {
@@ -1633,54 +1646,6 @@ async function resolveLlmEligibility(args: {
 }
 
 type FollowUpHistoryEntry = { role: 'user' | 'assistant'; text: string };
-
-function resolveConfiguredPromptVersion(
-  configuredVersion: string | undefined,
-  fallback: LiveAnalysisPromptVersion,
-): LiveAnalysisPromptVersion {
-  if (!configuredVersion) return fallback;
-  const trimmed = configuredVersion.trim();
-  return isLiveAnalysisPromptVersion(trimmed) ? trimmed : fallback;
-}
-
-function clampShadowSampleRate(value: number): number {
-  if (!Number.isFinite(value)) return 0;
-  if (value <= 0) return 0;
-  if (value >= 1) return 1;
-  return value;
-}
-
-function computeStableSampleRatio(seed: string): number {
-  let hash = 2166136261;
-  for (let i = 0; i < seed.length; i++) {
-    hash ^= seed.charCodeAt(i);
-    hash = Math.imul(hash, 16777619);
-  }
-  return (hash >>> 0) / 4294967295;
-}
-
-function shouldRunPromptShadow(args: {
-  matchId: string;
-  minute: number;
-  activePromptVersion: LiveAnalysisPromptVersion;
-  shadowPromptVersion: LiveAnalysisPromptVersion;
-  shadowMode: boolean;
-  promptVersionOverride?: LiveAnalysisPromptVersion;
-}): boolean {
-  if (args.shadowMode) return false;
-  if (args.promptVersionOverride) return false;
-  if (!config.liveAnalysisShadowEnabled) return false;
-  if (args.activePromptVersion === args.shadowPromptVersion) return false;
-
-  const sampleRate = clampShadowSampleRate(config.liveAnalysisShadowSampleRate);
-  if (sampleRate <= 0) return false;
-  if (sampleRate >= 1) return true;
-
-  const ratio = computeStableSampleRatio(
-    `${args.matchId}:${args.minute}:${args.activePromptVersion}:${args.shadowPromptVersion}`,
-  );
-  return ratio < sampleRate;
-}
 
 function buildParsedFromThesisWatchRow(
   watch: ThesisWatchRow,
@@ -2214,109 +2179,6 @@ async function executePromptAnalysis(
     policyBlocked: finalized.policyBlocked,
     policyWarnings: finalized.policyWarnings,
   };
-}
-
-async function recordPromptShadowRunSafe(
-  deps: Pick<PipelineDeps, 'createPromptShadowRun'>,
-  row: Parameters<PipelineDeps['createPromptShadowRun']>[0],
-): Promise<void> {
-  try {
-    await deps.createPromptShadowRun(row);
-  } catch (err) {
-    console.warn(
-      '[pipeline] Prompt shadow run persistence failed:',
-      err instanceof Error ? err.message : String(err),
-    );
-  }
-}
-
-async function runPromptShadowComparison(args: {
-  deps: Pick<PipelineDeps, 'callGemini' | 'lookupPerformanceMemory' | 'createPromptShadowRun'>;
-  analysisRunId: string;
-  matchId: string;
-  activePromptVersion: LiveAnalysisPromptVersion;
-  shadowPromptVersion: LiveAnalysisPromptVersion;
-  analysisMode: PromptAnalysisMode;
-  evidenceMode: EvidenceMode;
-  oddsSource: string;
-  statsSource: StatsSource;
-  promptContext: PromptExecutionContext;
-  policyContext: PromptPolicyContext;
-  activeAnalysis: PromptExecutionArtifacts;
-  model: string;
-  settings: PipelineSettings;
-}): Promise<void> {
-  await recordPromptShadowRunSafe(args.deps, {
-    analysis_run_id: args.analysisRunId,
-    match_id: args.matchId,
-    execution_role: 'active',
-    active_prompt_version: args.activePromptVersion,
-    prompt_version: args.activeAnalysis.promptVersion,
-    analysis_mode: args.analysisMode,
-    evidence_mode: args.evidenceMode,
-    success: true,
-    should_push: args.activeAnalysis.parsed.should_push,
-    ai_should_push: args.activeAnalysis.parsed.ai_should_push,
-    selection: args.activeAnalysis.parsed.selection,
-    bet_market: args.activeAnalysis.parsed.bet_market,
-    confidence: args.activeAnalysis.parsed.confidence,
-    warnings: args.activeAnalysis.parsed.warnings,
-    odds_source: args.oddsSource,
-    stats_source: args.statsSource,
-    prompt_estimated_tokens: args.activeAnalysis.promptEstimatedTokens,
-    response_estimated_tokens: args.activeAnalysis.aiTextEstimatedTokens,
-    llm_latency_ms: args.activeAnalysis.llmLatencyMs,
-    total_latency_ms: args.activeAnalysis.totalLatencyMs,
-  });
-
-  try {
-    const shadowAnalysis = await executePromptAnalysis(
-      args.deps,
-      args.model,
-      args.settings,
-      args.promptContext,
-      args.shadowPromptVersion,
-      args.policyContext,
-    );
-
-    await recordPromptShadowRunSafe(args.deps, {
-      analysis_run_id: args.analysisRunId,
-      match_id: args.matchId,
-      execution_role: 'shadow',
-      active_prompt_version: args.activePromptVersion,
-      prompt_version: args.shadowPromptVersion,
-      analysis_mode: args.analysisMode,
-      evidence_mode: args.evidenceMode,
-      success: true,
-      should_push: shadowAnalysis.parsed.should_push,
-      ai_should_push: shadowAnalysis.parsed.ai_should_push,
-      selection: shadowAnalysis.parsed.selection,
-      bet_market: shadowAnalysis.parsed.bet_market,
-      confidence: shadowAnalysis.parsed.confidence,
-      warnings: shadowAnalysis.parsed.warnings,
-      odds_source: args.oddsSource,
-      stats_source: args.statsSource,
-      prompt_estimated_tokens: shadowAnalysis.promptEstimatedTokens,
-      response_estimated_tokens: shadowAnalysis.aiTextEstimatedTokens,
-      llm_latency_ms: shadowAnalysis.llmLatencyMs,
-      total_latency_ms: shadowAnalysis.totalLatencyMs,
-    });
-  } catch (err) {
-    const error = err instanceof Error ? err.message : String(err);
-    await recordPromptShadowRunSafe(args.deps, {
-      analysis_run_id: args.analysisRunId,
-      match_id: args.matchId,
-      execution_role: 'shadow',
-      active_prompt_version: args.activePromptVersion,
-      prompt_version: args.shadowPromptVersion,
-      analysis_mode: args.analysisMode,
-      evidence_mode: args.evidenceMode,
-      success: false,
-      error,
-      odds_source: args.oddsSource,
-      stats_source: args.statsSource,
-    });
-  }
 }
 
 // ==================== Derive Insights from Events ====================
@@ -4125,14 +3987,7 @@ async function processMatch(
   const shadowMode = options.shadowMode === true;
   const sampleProviderData = options.sampleProviderData !== false;
   const startedAt = Date.now();
-  const configuredPromptVersion = resolveConfiguredPromptVersion(
-    config.liveAnalysisActivePromptVersion,
-    LIVE_ANALYSIS_PROMPT_VERSION,
-  );
-  const shadowPromptVersion = resolveConfiguredPromptVersion(
-    config.liveAnalysisShadowPromptVersion,
-    configuredPromptVersion,
-  );
+  const activePromptVersion = LIVE_ANALYSIS_PROMPT_VERSION;
   const analysisRunId = randomUUID();
   const advisoryOnly = options.advisoryOnly === true;
 
@@ -4153,8 +4008,6 @@ async function processMatch(
         ? Promise.resolve(options.previousSnapshot)
         : deps.getLatestSnapshot(matchId).catch(() => null),
     ]);
-    const activePromptVersion = options.promptVersionOverride || configuredPromptVersion;
-
     const coarseStaleness = checkCoarseStalenessServer({
       minute,
       status,
@@ -4559,6 +4412,13 @@ async function processMatch(
       forceAnalyze,
     });
     if (staleness.isStale && !forceAnalyze && options.skipStalenessGate !== true) {
+      const outputDecision = routeLiveOutput({
+        evidenceMode: 'low_evidence',
+        llmCalled: false,
+        llmEligibilityReason: staleness.reason || 'stale_snapshot',
+        advisoryOnly,
+        shadowMode,
+      });
       if (!shadowMode && shouldSamplePipelineSkipAudit(staleness.reason, 'staleness', 20)) {
         audit({
           category: 'PIPELINE',
@@ -4570,6 +4430,9 @@ async function processMatch(
             matchDisplay,
             reason: staleness.reason,
             baseline: staleness.baseline,
+            outputKind: outputDecision.outputKind,
+            auditBucket: outputDecision.auditBucket,
+            outputDecision,
           },
         });
       }
@@ -4595,6 +4458,13 @@ async function processMatch(
           statsSource,
           statsFallbackUsed,
           statsFallbackReason: statsFallbackReason || undefined,
+          outputDecision,
+          outputKind: outputDecision.outputKind,
+          auditBucket: outputDecision.auditBucket,
+          savedRecommendation: outputDecision.savedRecommendation,
+          settlementEligible: outputDecision.settlementEligible,
+          roiEligible: outputDecision.roiEligible,
+          llmCalled: outputDecision.llmCalled,
           preLlmLatencyMs: Date.now() - startedAt,
           totalLatencyMs: Date.now() - startedAt,
         },
@@ -4661,6 +4531,13 @@ async function processMatch(
     const structuredPrematchAskAi = structuredPrematchAskAiCheck.eligible;
 
     if (evidenceMode === 'low_evidence' && !structuredPrematchAskAi) {
+      const outputDecision = routeLiveOutput({
+        evidenceMode,
+        llmCalled: false,
+        llmEligibilityReason: 'low_evidence',
+        advisoryOnly,
+        shadowMode,
+      });
       if (!shadowMode && shouldSamplePipelineSkipAudit('low_evidence', 'low-evidence', 20)) {
         audit({
           category: 'PIPELINE',
@@ -4673,6 +4550,9 @@ async function processMatch(
             reason: 'low_evidence',
             analysisMode,
             evidenceMode,
+            outputKind: outputDecision.outputKind,
+            auditBucket: outputDecision.auditBucket,
+            outputDecision,
             structuredPrematchAskAiReason: structuredPrematchAskAiCheck.reason,
             prematchAvailability,
             prematchStrength,
@@ -4706,6 +4586,8 @@ async function processMatch(
         confidence: 0,
         saved: false,
         notified: false,
+        outputKind: outputDecision.outputKind,
+        auditBucket: outputDecision.auditBucket,
         debug: {
           analysisRunId,
           shadowMode,
@@ -4724,6 +4606,13 @@ async function processMatch(
           structuredPrematchAskAiReason: structuredPrematchAskAiCheck.reason,
           statsFallbackUsed,
           statsFallbackReason: statsFallbackReason || undefined,
+          outputDecision,
+          outputKind: outputDecision.outputKind,
+          auditBucket: outputDecision.auditBucket,
+          savedRecommendation: outputDecision.savedRecommendation,
+          settlementEligible: outputDecision.settlementEligible,
+          roiEligible: outputDecision.roiEligible,
+          llmCalled: outputDecision.llmCalled,
           preLlmLatencyMs: Date.now() - startedAt,
           totalLatencyMs: Date.now() - startedAt,
         },
@@ -4810,6 +4699,13 @@ async function processMatch(
       settledReplayApprovedTrace: options.settledReplayApprovedTrace === true,
     });
     if (!llmEligibility.eligible) {
+      const blockedOutputDecision = routeLiveOutput({
+        evidenceMode,
+        llmCalled: false,
+        llmEligibilityReason: llmEligibility.reason,
+        advisoryOnly,
+        shadowMode,
+      });
       audit({
         category: 'PIPELINE',
         action: 'LLM_CALL_BLOCKED',
@@ -4828,6 +4724,9 @@ async function processMatch(
           oddsAvailable,
           statsAvailable,
           ...llmEligibility.details,
+          outputKind: blockedOutputDecision.outputKind,
+          auditBucket: blockedOutputDecision.auditBucket,
+          outputDecision: blockedOutputDecision,
         },
       });
 
@@ -4901,6 +4800,14 @@ async function processMatch(
             });
             return { enqueued: 0, deliveryIds: [] };
           });
+          const outputDecision = routeLiveOutput({
+            evidenceMode,
+            llmCalled: false,
+            statsOnlySignalTriggered: true,
+            statsOnlySignalEnqueued: deliveryResult.enqueued,
+            advisoryOnly,
+            shadowMode,
+          });
 
           audit({
             category: 'PIPELINE',
@@ -4923,6 +4830,9 @@ async function processMatch(
               referenceMarketKeys,
               savedRecommendation: false,
               llmCalled: false,
+              outputKind: outputDecision.outputKind,
+              auditBucket: outputDecision.auditBucket,
+              outputDecision,
               contract: 'odds-first-stats-only-live-signal',
             },
           });
@@ -4943,6 +4853,8 @@ async function processMatch(
             confidence: 0,
             saved: false,
             notified: deliveryResult.enqueued > 0,
+            outputKind: outputDecision.outputKind,
+            auditBucket: outputDecision.auditBucket,
             debug: {
               analysisRunId,
               shadowMode,
@@ -4964,12 +4876,26 @@ async function processMatch(
                 llmCalled: false,
                 savedRecommendation: false,
               } as unknown as Record<string, unknown>,
+              outputDecision,
+              outputKind: outputDecision.outputKind,
+              auditBucket: outputDecision.auditBucket,
+              savedRecommendation: outputDecision.savedRecommendation,
+              settlementEligible: outputDecision.settlementEligible,
+              roiEligible: outputDecision.roiEligible,
+              llmCalled: outputDecision.llmCalled,
               preLlmLatencyMs: Date.now() - startedAt,
               totalLatencyMs: Date.now() - startedAt,
             },
           };
         }
 
+        const weakOutputDecision = routeLiveOutput({
+          evidenceMode,
+          llmCalled: false,
+          statsOnlySignalWeak: true,
+          advisoryOnly,
+          shadowMode,
+        });
         audit({
           category: 'PIPELINE',
           action: 'STATS_ONLY_SIGNAL_SKIPPED_WEAK_TRIGGER',
@@ -4984,6 +4910,9 @@ async function processMatch(
             reasons: statsOnlySignal.reasons,
             referenceMarketKeys,
             llmCalled: false,
+            outputKind: weakOutputDecision.outputKind,
+            auditBucket: weakOutputDecision.auditBucket,
+            outputDecision: weakOutputDecision,
             contract: 'odds-first-stats-only-live-signal',
           },
         });
@@ -5005,6 +4934,8 @@ async function processMatch(
         confidence: 0,
         saved: false,
         notified: false,
+        outputKind: blockedOutputDecision.outputKind,
+        auditBucket: blockedOutputDecision.auditBucket,
         debug: {
           analysisRunId,
           shadowMode,
@@ -5019,6 +4950,13 @@ async function processMatch(
           evidenceMode,
           statsFallbackUsed,
           statsFallbackReason: statsFallbackReason || undefined,
+          outputDecision: blockedOutputDecision,
+          outputKind: blockedOutputDecision.outputKind,
+          auditBucket: blockedOutputDecision.auditBucket,
+          savedRecommendation: blockedOutputDecision.savedRecommendation,
+          settlementEligible: blockedOutputDecision.settlementEligible,
+          roiEligible: blockedOutputDecision.roiEligible,
+          llmCalled: blockedOutputDecision.llmCalled,
           preLlmLatencyMs: Date.now() - startedAt,
           totalLatencyMs: Date.now() - startedAt,
         },
@@ -5074,6 +5012,61 @@ async function processMatch(
       oddsCanonical: oddsCanonical as Record<string, unknown>,
       minOdds: settings.minOdds,
     });
+    const runtimeShadowSegments = buildRuntimeShadowSegmentMetadata({
+      matchId,
+      leagueId: fixture.league?.id,
+      leagueName: league,
+      homeTeamId,
+      homeTeamName: homeName,
+      awayTeamId,
+      awayTeamName: awayName,
+    });
+    const runtimePolicyPromotion = evaluateRuntimePolicyProductionPromotion({
+      matchId,
+      shadowMode,
+      advisoryOnly,
+      policyBlocked: activeAnalysis.policyBlocked,
+      stakePercent: parsed.stake_percent,
+      runtimePolicyShadow,
+      config: {
+        enabled: config.runtimePolicyPromotionEnabled === true,
+        killSwitch: config.runtimePolicyPromotionKillSwitch === true,
+        pocketIds: Array.isArray(config.runtimePolicyPromotionPocketIds)
+          ? config.runtimePolicyPromotionPocketIds
+          : [],
+        rolloutPercent: Number(config.runtimePolicyPromotionRolloutPercent ?? 0),
+        maxStakePercent: Number(config.runtimePolicyPromotionMaxStakePercent ?? 1),
+        evidenceAck: String(config.runtimePolicyPromotionEvidenceAck ?? ''),
+        owner: String(config.runtimePolicyPromotionOwner ?? ''),
+      },
+    });
+    if (
+      config.runtimePolicyPromotionEnabled
+      && runtimePolicyShadow.matchedPockets.length > 0
+      && !shadowMode
+      && !advisoryOnly
+    ) {
+      audit({
+        category: 'PIPELINE',
+        action: 'PIPELINE_POLICY_PROMOTION_EVALUATED',
+        outcome: runtimePolicyPromotion.promoted ? 'SUCCESS' : 'SKIPPED',
+        actor: 'auto-pipeline',
+        metadata: {
+          matchId,
+          matchDisplay,
+          ...runtimeShadowSegments,
+          promptVersion: activePromptVersion,
+          selection: parsed.selection,
+          betMarket: parsed.bet_market,
+          canonicalMarket: runtimePolicyShadow.canonicalMarket,
+          policyBlocked: activeAnalysis.policyBlocked,
+          policyWarnings: activeAnalysis.policyWarnings,
+          runtimePolicyPromotion,
+          saved: false,
+          notified: false,
+        },
+      });
+    }
     if (
       !shadowMode
       && !advisoryOnly
@@ -5087,6 +5080,7 @@ async function processMatch(
         metadata: {
           matchId,
           matchDisplay,
+          ...runtimeShadowSegments,
           promptVersion: activePromptVersion,
           selection: parsed.selection,
           betMarket: parsed.bet_market,
@@ -5129,6 +5123,7 @@ async function processMatch(
         metadata: {
           matchId,
           matchDisplay,
+          ...runtimeShadowSegments,
           promptVersion: activePromptVersion,
           selection: parsed.selection,
           betMarket: parsed.bet_market,
@@ -5199,46 +5194,22 @@ async function processMatch(
       userQuestion: options.userQuestion,
       lineupsSnapshot,
     });
-    const promptShadowRequested = !thesisPromoted && shouldRunPromptShadow({
-      matchId,
-      minute,
-      activePromptVersion,
-      shadowPromptVersion,
-      shadowMode,
-      promptVersionOverride: options.promptVersionOverride,
-    }) && !advisoryOnly;
-
-    if (promptShadowRequested) {
-      void runPromptShadowComparison({
-        deps,
-        analysisRunId,
-        matchId,
-        activePromptVersion,
-        shadowPromptVersion,
-        analysisMode,
-        evidenceMode,
-        oddsSource,
-        statsSource,
-        promptContext,
-        policyContext: {
-          previousRecommendations: prevRecs.map((r) => ({
-            minute: r.minute ?? null,
-            selection: r.selection ?? '',
-            bet_market: r.bet_market ?? '',
-            stake_percent: r.stake_percent ?? null,
-            result: r.result ?? null,
-          })),
-        },
-        activeAnalysis,
-        model,
-        settings,
-      });
-    }
-
     // 8. Persist and notify only for actionable AI recommendations. User
     // condition alerts now live in the dedicated match-alert engine.
     let shouldSave = advisoryOnly ? false : parsed.final_should_bet;
     let shouldNotify = advisoryOnly ? false : parsed.should_push;
+    if (runtimePolicyPromotion.promoted) {
+      shouldSave = true;
+      shouldNotify = true;
+      parsed.should_push = true;
+      parsed.system_should_bet = true;
+      parsed.final_should_bet = true;
+      parsed.decision_kind = 'ai_push';
+      parsed.llm_decision_diagnostic = 'actionable';
+      parsed.stake_percent = runtimePolicyPromotion.stakePercent ?? parsed.stake_percent;
+      parsed.warnings = [...parsed.warnings, 'RUNTIME_POLICY_PROMOTION_CONTROLLED'];
+      parsed.ai_warnings = [...parsed.ai_warnings, 'RUNTIME_POLICY_PROMOTION_CONTROLLED'];
+    }
     const notificationSelection = displaySelection(parsed);
     const notificationConfidence = displayConfidence(parsed);
     const notificationOdds = extractOddsFromSelection(parsed.selection, parsed.bet_market, oddsCanonical);
@@ -5355,7 +5326,16 @@ async function processMatch(
       });
       decisionContext['recommendationSource'] = thesisPromoted
         ? 'thesis_watch_promote'
+        : runtimePolicyPromotion.promoted
+          ? 'runtime_policy_promotion'
         : 'ai_primary';
+      if (runtimePolicyPromotion.promoted) {
+        decisionContext['runtimePolicyPromotion'] = runtimePolicyPromotion as unknown as Record<string, unknown>;
+        decisionContext['runtimePolicyShadow'] = runtimePolicyShadow as unknown as Record<string, unknown>;
+        decisionContext['runtimePolicyPromotionPocketId'] = runtimePolicyPromotion.pocketId;
+        decisionContext['runtimePolicyPromotionReason'] = runtimePolicyPromotion.reason;
+        decisionContext['runtimePolicyPromotionOwner'] = runtimePolicyPromotion.owner;
+      }
       if (thesisPromoted) {
         decisionContext['thesisWatchPromoted'] = true;
         decisionContext['thesisWatchId'] = thesisWatchId;
@@ -5404,6 +5384,7 @@ async function processMatch(
             marketResolutionStatus: saveIntegrity.marketResolutionStatus,
             reason: saveIntegrity.reason,
             recommendationSource: decisionContext['recommendationSource'],
+            runtimePolicyPromotion,
             promptVersion: activePromptVersion,
             llmDecisionDiagnostic: parsed.llm_decision_diagnostic,
           },
@@ -5562,6 +5543,25 @@ async function processMatch(
       }
     }
 
+    const outputDecision = routeLiveOutput({
+      evidenceMode,
+      llmCalled: true,
+      advisoryOnly,
+      shadowMode,
+      saved,
+      notified,
+      parsedShouldPush: parsed.should_push,
+      parsedFinalShouldBet: parsed.final_should_bet,
+      policyBlocked: activeAnalysis.policyBlocked,
+      policyWarnings: activeAnalysis.policyWarnings,
+      marketResolutionStatus: parsed.market_resolution_status,
+      llmDecisionDiagnostic: parsed.llm_decision_diagnostic,
+      saveIntegrityStatus,
+      saveBlockedReason,
+      runtimePolicyShadowMatched: runtimePolicyShadow.matchedPockets.length > 0,
+      shadowCandidatePresent: Boolean(String(parsed.shadow_candidate?.selection ?? '').trim()),
+    });
+
     if (!shadowMode && !advisoryOnly) {
       audit({
         category: 'PIPELINE',
@@ -5593,10 +5593,14 @@ async function processMatch(
           llmDecisionDiagnostic: parsed.llm_decision_diagnostic,
           marketResolutionStatus: parsed.market_resolution_status,
           runtimePolicyShadow,
+          runtimePolicyPromotion,
           ...buildShadowCandidateAuditMetadata(parsed.shadow_candidate),
           saveIntegrityStatus,
           saveBlockedReason,
           saveProviderCoverageStatus,
+          outputKind: outputDecision.outputKind,
+          auditBucket: outputDecision.auditBucket,
+          outputDecision,
           policyBlocked: activeAnalysis.policyBlocked,
           policyWarnings: activeAnalysis.policyWarnings,
           leagueProfileSampleMatches: leagueProfileWindow.sampleMatches,
@@ -5625,6 +5629,8 @@ async function processMatch(
       success: true, decisionKind: decisionKindFromParsed(parsed), shouldPush: parsed.should_push,
       selection: notificationSelection, confidence: notificationConfidence,
       saved, notified,
+      outputKind: outputDecision.outputKind,
+      auditBucket: outputDecision.auditBucket,
       debug: {
         analysisRunId,
         shadowMode,
@@ -5635,9 +5641,17 @@ async function processMatch(
         statsAvailable,
         statsSource,
         evidenceMode,
+        outputDecision,
+        outputKind: outputDecision.outputKind,
+        auditBucket: outputDecision.auditBucket,
+        savedRecommendation: outputDecision.savedRecommendation,
+        settlementEligible: outputDecision.settlementEligible,
+        roiEligible: outputDecision.roiEligible,
+        llmCalled: outputDecision.llmCalled,
         llmDecisionDiagnostic: parsed.llm_decision_diagnostic,
         marketResolutionStatus: parsed.market_resolution_status,
         runtimePolicyShadow,
+        runtimePolicyPromotion,
         shadowCandidate: parsed.shadow_candidate as unknown as Record<string, unknown>,
         saveIntegrityStatus,
         saveBlockedReason,
@@ -5666,6 +5680,13 @@ async function processMatch(
   } catch (error) {
     const errMsg = error instanceof Error ? error.message : String(error);
     console.error(`[pipeline] Error processing match ${matchId}:`, errMsg);
+    const outputDecision = routeLiveOutput({
+      evidenceMode: 'low_evidence',
+      llmCalled: false,
+      llmEligibilityReason: 'pipeline_error',
+      advisoryOnly,
+      shadowMode,
+    });
 
     if (!shadowMode) {
       audit({
@@ -5674,7 +5695,12 @@ async function processMatch(
         outcome: 'FAILURE',
         actor: 'auto-pipeline',
         error: errMsg,
-        metadata: { matchId },
+        metadata: {
+          matchId,
+          outputKind: outputDecision.outputKind,
+          auditBucket: outputDecision.auditBucket,
+          outputDecision,
+        },
       });
     }
 
@@ -5690,10 +5716,19 @@ async function processMatch(
       success: false, decisionKind: 'no_bet', shouldPush: false,
       selection: '', confidence: 0,
       saved: false, notified: false, error: errMsg,
+      outputKind: outputDecision.outputKind,
+      auditBucket: outputDecision.auditBucket,
       debug: {
         analysisRunId,
         shadowMode,
         advisoryOnly,
+        outputDecision,
+        outputKind: outputDecision.outputKind,
+        auditBucket: outputDecision.auditBucket,
+        savedRecommendation: outputDecision.savedRecommendation,
+        settlementEligible: outputDecision.settlementEligible,
+        roiEligible: outputDecision.roiEligible,
+        llmCalled: outputDecision.llmCalled,
         totalLatencyMs: Date.now() - startedAt,
       },
     };

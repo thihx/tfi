@@ -6,6 +6,10 @@ import {
   type FinalSettlementResult,
 } from './settle-types.js';
 import { parseStoredSettlementStats } from './settlement-stat-cache.js';
+import {
+  readRuntimeShadowSegmentMetadata,
+  type RuntimeShadowSegmentMetadata,
+} from './runtime-shadow-segments.js';
 
 export interface RuntimePolicyShadowSkippedSettlementOptions {
   lookbackDays: number;
@@ -29,7 +33,7 @@ interface SkippedSettlementDbRow {
   settlement_stats: unknown;
 }
 
-export interface RuntimePolicyShadowSkippedSettlementRow {
+export interface RuntimePolicyShadowSkippedSettlementRow extends RuntimeShadowSegmentMetadata {
   auditLogId: number;
   timestamp: string;
   matchId: string;
@@ -77,6 +81,8 @@ export interface RuntimePolicyShadowSkippedSettlementReport {
   roiOnStaked: number;
   byCanonicalMarket: RuntimePolicyShadowSkippedSettlementSummaryRow[];
   bySkippedReason: RuntimePolicyShadowSkippedSettlementSummaryRow[];
+  byLeagueSegment: RuntimePolicyShadowSkippedSettlementSummaryRow[];
+  byTeamSegment: RuntimePolicyShadowSkippedSettlementSummaryRow[];
   rows: RuntimePolicyShadowSkippedSettlementRow[];
 }
 
@@ -128,11 +134,16 @@ function buildRowForDbRow(
   const betMarket = String(metadata.betMarket ?? metadata.canonicalMarket ?? '').trim();
   const canonicalMarket = String(metadata.canonicalMarket ?? betMarket ?? 'unknown').trim() || 'unknown';
   const odds = toNumber(metadata.odds);
+  const segments = readRuntimeShadowSegmentMetadata({
+    ...metadata,
+    matchId,
+  });
   const base = {
     auditLogId: row.id,
     timestamp: row.timestamp,
     matchId,
     matchDisplay: String(metadata.matchDisplay ?? '').trim(),
+    ...segments,
     canonicalMarket,
     selection,
     betMarket,
@@ -196,6 +207,22 @@ function summarizeBy(
   for (const row of rows) {
     const key = keyForRow(row) || 'unknown';
     map.set(key, [...(map.get(key) ?? []), row]);
+  }
+  return [...map.entries()]
+    .map(([key, group]) => summarizeGroup(key, group))
+    .sort((a, b) => b.total - a.total || a.key.localeCompare(b.key));
+}
+
+function summarizeByMany(
+  rows: RuntimePolicyShadowSkippedSettlementRow[],
+  keysForRow: (row: RuntimePolicyShadowSkippedSettlementRow) => string[],
+): RuntimePolicyShadowSkippedSettlementSummaryRow[] {
+  const map = new Map<string, RuntimePolicyShadowSkippedSettlementRow[]>();
+  for (const row of rows) {
+    for (const rawKey of keysForRow(row)) {
+      const key = rawKey || 'unknown';
+      map.set(key, [...(map.get(key) ?? []), row]);
+    }
   }
   return [...map.entries()]
     .map(([key, group]) => summarizeGroup(key, group))
@@ -274,6 +301,8 @@ export async function buildRuntimePolicyShadowSkippedSettlementReport(
     roiOnStaked: totalStakedPercent > 0 ? round(totalPnlPercent / totalStakedPercent) : 0,
     byCanonicalMarket: summarizeBy(rows, (row) => row.canonicalMarket),
     bySkippedReason: summarizeBy(rows, (row) => row.skippedReason),
+    byLeagueSegment: summarizeBy(rows, (row) => row.leagueSegmentKey),
+    byTeamSegment: summarizeByMany(rows, (row) => row.teamSegmentKeys),
     rows,
   };
 }
@@ -316,18 +345,22 @@ export function formatRuntimePolicyShadowSkippedSettlementMarkdown(
     '',
     ...formatSummaryRows('By Canonical Market', report.byCanonicalMarket),
     ...formatSummaryRows('By Skipped Reason', report.bySkippedReason),
+    ...formatSummaryRows('By League Segment', report.byLeagueSegment),
+    ...formatSummaryRows('By Team Segment', report.byTeamSegment),
     '## Rows',
     '',
-    '| Timestamp | Match | Market | Selection | Score | Odds | Result | P/L % | Status | Reason |',
-    '| --- | --- | --- | --- | --- | ---: | --- | ---: | --- | --- |',
+    '| Timestamp | Match | League Segment | Team Segments | Market | Selection | Score | Odds | Result | P/L % | Status | Reason |',
+    '| --- | --- | --- | --- | --- | --- | --- | ---: | --- | ---: | --- | --- |',
   ];
   if (report.rows.length === 0) {
-    lines.push('| (none) |  |  |  |  |  |  |  |  |  |');
+    lines.push('| (none) |  |  |  |  |  |  |  |  |  |  |  |');
   } else {
     for (const row of report.rows.slice(0, 50)) {
       lines.push([
         row.timestamp,
         row.matchDisplay || row.matchId,
+        row.leagueSegmentKey,
+        row.teamSegmentKeys.join(', '),
         row.canonicalMarket,
         row.selection,
         row.score,

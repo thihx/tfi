@@ -53,6 +53,8 @@ function report(partial: Partial<RuntimePolicyShadowSettlementReport> = {}): Run
       },
     ],
     byCanonicalMarket: [],
+    byLeagueSegment: [],
+    byTeamSegment: [],
     rows: [],
     ...partial,
   };

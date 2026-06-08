@@ -27,6 +27,17 @@ describe('runtime policy shadow skipped settlement report', () => {
           metadata: {
             matchId: 'm-1',
             matchDisplay: 'Home A vs Away A',
+            leagueId: 39,
+            leagueName: 'Premier League',
+            leagueSegmentKey: 'league:39',
+            homeTeamId: 1,
+            homeTeamName: 'Home A',
+            homeTeamSegmentKey: 'team:1',
+            awayTeamId: 2,
+            awayTeamName: 'Away A',
+            awayTeamSegmentKey: 'team:2',
+            teamSegmentKeys: ['team:1', 'team:2'],
+            matchSegmentKey: 'match:m-1',
             selection: 'BTTS Yes @1.70',
             betMarket: 'btts_yes',
             canonicalMarket: 'btts_yes',
@@ -52,6 +63,17 @@ describe('runtime policy shadow skipped settlement report', () => {
           audit_match_id: 'm-2',
           metadata: {
             matchDisplay: 'Home B vs Away B',
+            leagueId: 39,
+            leagueName: 'Premier League',
+            leagueSegmentKey: 'league:39',
+            homeTeamId: 3,
+            homeTeamName: 'Home B',
+            homeTeamSegmentKey: 'team:3',
+            awayTeamId: 4,
+            awayTeamName: 'Away B',
+            awayTeamSegmentKey: 'team:4',
+            teamSegmentKeys: ['team:3', 'team:4'],
+            matchSegmentKey: 'match:m-2',
             selection: 'Over 1.5 Goals @2.00',
             betMarket: 'over_1.5',
             canonicalMarket: 'over_1.5',
@@ -78,6 +100,17 @@ describe('runtime policy shadow skipped settlement report', () => {
           metadata: {
             matchId: 'm-3',
             matchDisplay: 'Home C vs Away C',
+            leagueId: 140,
+            leagueName: 'La Liga',
+            leagueSegmentKey: 'league:140',
+            homeTeamId: 5,
+            homeTeamName: 'Home C',
+            homeTeamSegmentKey: 'team:5',
+            awayTeamId: 6,
+            awayTeamName: 'Away C',
+            awayTeamSegmentKey: 'team:6',
+            teamSegmentKeys: ['team:5', 'team:6'],
+            matchSegmentKey: 'match:m-3',
             selection: 'Under 2.5 Goals @1.85',
             betMarket: 'under_2.5',
             canonicalMarket: 'under_2.5',
@@ -133,10 +166,38 @@ describe('runtime policy shadow skipped settlement report', () => {
       totalPnlPercent: 0.7,
       roiOnStaked: 0.7,
     });
+    expect(report.byLeagueSegment).toContainEqual({
+      key: 'league:39',
+      total: 2,
+      settled: 2,
+      wins: 1,
+      losses: 1,
+      pushLike: 0,
+      totalStakedPercent: 2,
+      totalPnlPercent: -0.3,
+      roiOnStaked: -0.15,
+    });
+    expect(report.byTeamSegment).toContainEqual({
+      key: 'team:1',
+      total: 1,
+      settled: 1,
+      wins: 1,
+      losses: 0,
+      pushLike: 0,
+      totalStakedPercent: 1,
+      totalPnlPercent: 0.7,
+      roiOnStaked: 0.7,
+    });
+    expect(report.rows[0]).toMatchObject({
+      leagueSegmentKey: 'league:39',
+      teamSegmentKeys: ['team:1', 'team:2'],
+    });
 
     const markdown = formatRuntimePolicyShadowSkippedSettlementMarkdown(report);
     expect(markdown).toContain('# Runtime Policy Shadow Skipped Settlement Report');
     expect(markdown).toContain('| btts_yes | 1 | 1 | 1 | 0 | 0 | 1 | 0.7 | 0.7 |');
+    expect(markdown).toContain('| league:39 | 2 | 2 | 1 | 1 | 0 | 2 | -0.3 | -0.15 |');
+    expect(markdown).toContain('team:1, team:2');
     expect(markdown).toContain('missing_match_history');
   });
 

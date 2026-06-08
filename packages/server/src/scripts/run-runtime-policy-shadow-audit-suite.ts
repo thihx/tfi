@@ -16,6 +16,11 @@ import {
   buildRuntimePolicyShadowSkippedSettlementReport,
   formatRuntimePolicyShadowSkippedSettlementMarkdown,
 } from '../lib/runtime-policy-shadow-skipped-settlement-report.js';
+import {
+  evaluateRuntimePolicyShadowReadinessGates,
+  formatRuntimePolicyShadowReadinessMarkdown,
+  type RuntimePolicyShadowReadinessGateConfig,
+} from '../lib/runtime-policy-shadow-readiness-gates.js';
 
 interface Args {
   lookbackDays: number;
@@ -44,6 +49,7 @@ interface RuntimePolicyShadowAuditSuiteManifest {
     skippedWins: number;
     skippedLosses: number;
     skippedPnlPercent: number;
+    readinessOk: boolean;
   };
 }
 
@@ -130,6 +136,8 @@ async function main(): Promise<void> {
     matchedSettlementMd: rel('runtime-policy-shadow-settlement-report.md'),
     skippedSettlementJson: rel('runtime-policy-shadow-skipped-settlement-report.json'),
     skippedSettlementMd: rel('runtime-policy-shadow-skipped-settlement-report.md'),
+    readinessJson: rel('runtime-policy-shadow-readiness-gates.json'),
+    readinessMd: rel('runtime-policy-shadow-readiness-gates.md'),
     manifestJson: rel('manifest.json'),
   };
 
@@ -144,6 +152,65 @@ async function main(): Promise<void> {
     resolve(args.outDir, files.skippedSettlementMd),
     formatRuntimePolicyShadowSkippedSettlementMarkdown(skippedSettlement),
   );
+  const readinessConfig: RuntimePolicyShadowReadinessGateConfig = {
+    candidates: [
+      {
+        id: 'medium_risk_thin_edge_shadow_v1',
+        label: 'Medium-risk thin-edge full-data shadow',
+        source: 'matched_pocket',
+        key: 'medium_risk_thin_edge_shadow_v1',
+        expectedEvidenceModes: ['full_live_data'],
+        minTelemetryEvents: 20,
+        minUniqueMatches: 8,
+        minSettlementRows: 20,
+        minSettledRows: 16,
+        minSettledRate: 0.8,
+        maxLosses: 5,
+        maxUnresolvedRows: 4,
+        minTotalPnlPercent: 0.5,
+        minRoiOnStaked: 0.05,
+        maxTopMatchShare: 0.25,
+        maxTopLeagueShare: 0.5,
+        maxTopTeamShare: 0.25,
+        maxTopMarketShare: 0.6,
+        maxMarketUnresolvedRate: 0.05,
+        maxEvidenceContaminationRate: 0,
+      },
+      {
+        id: 'odds_events_degraded_shadow_v1',
+        label: 'Odds-events degraded O/U-AH shadow',
+        source: 'matched_pocket',
+        key: 'odds_events_degraded_shadow_v1',
+        expectedEvidenceModes: ['odds_events_only_degraded'],
+        minTelemetryEvents: 30,
+        minUniqueMatches: 10,
+        minSettlementRows: 20,
+        minSettledRows: 16,
+        minSettledRate: 0.8,
+        maxLosses: 5,
+        maxUnresolvedRows: 4,
+        minTotalPnlPercent: 0.5,
+        minRoiOnStaked: 0.05,
+        maxTopMatchShare: 0.25,
+        maxTopLeagueShare: 0.5,
+        maxTopTeamShare: 0.25,
+        maxTopMarketShare: 0.6,
+        maxMarketUnresolvedRate: 0.05,
+        maxEvidenceContaminationRate: 0,
+      },
+    ],
+  };
+  const readiness = evaluateRuntimePolicyShadowReadinessGates(readinessConfig, {
+    matchedReport: matched,
+    skippedReport: skipped,
+    matchedSettlement,
+    skippedSettlement,
+  });
+  writeJson(resolve(args.outDir, files.readinessJson), {
+    config: readinessConfig,
+    result: readiness,
+  });
+  writeText(resolve(args.outDir, files.readinessMd), formatRuntimePolicyShadowReadinessMarkdown(readiness));
 
   const manifest: RuntimePolicyShadowAuditSuiteManifest = {
     generatedAt: new Date().toISOString(),
@@ -164,6 +231,7 @@ async function main(): Promise<void> {
       skippedWins: skippedSettlement.wins,
       skippedLosses: skippedSettlement.losses,
       skippedPnlPercent: skippedSettlement.totalPnlPercent,
+      readinessOk: readiness.ok,
     },
   };
   writeJson(resolve(args.outDir, files.manifestJson), manifest);

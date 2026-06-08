@@ -3,7 +3,9 @@ import { normalizeMarket } from './normalize-market.js';
 export type RuntimePolicyShadowPocketId =
   | 'btts_yes_60_74_two_plus'
   | 'late_under_45_two_plus'
-  | 'over_15_60_74_one_goal';
+  | 'over_15_60_74_one_goal'
+  | 'medium_risk_thin_edge_shadow_v1'
+  | 'odds_events_degraded_shadow_v1';
 
 export type RuntimePolicyShadowMarketAvailabilityBucket =
   | 'playable_side_market'
@@ -188,7 +190,16 @@ function skipReason(args: {
   if (args.canonicalMarket === 'over_1.5') {
     return `Over 1.5 shadow excluded: requires minuteBand=60-74, scoreState=one-goal-margin, evidenceMode=full_live_data, odds >= 1.50; actual minuteBand=${args.minuteBand}, scoreState=${args.scoreState}, evidenceMode=${args.evidenceMode}, odds=${oddsText}.`;
   }
+  if (args.evidenceMode === 'odds_events_only_degraded') {
+    return `Odds-events degraded shadow excluded: requires resolved O/U or AH candidate, confidence >= 8, risk not HIGH, and odds >= min odds; actual market=${args.canonicalMarket}, evidenceMode=${args.evidenceMode}, odds=${oddsText}.`;
+  }
   return 'Policy-blocked selection did not match any configured runtime shadow pocket.';
+}
+
+function isGoalsTotalOrAsianHandicap(canonicalMarket: string): boolean {
+  return canonicalMarket.startsWith('over_')
+    || canonicalMarket.startsWith('under_')
+    || canonicalMarket.startsWith('asian_handicap_');
 }
 
 function classifyWatchSignal(args: {
@@ -276,6 +287,39 @@ export function buildRuntimePolicyShadowSignal(input: RuntimePolicyShadowInput):
         'over_15_60_74_one_goal',
         'Over 1.5 60-74 one-goal shadow',
         'Runtime shadow only: mirrors replay over candidate; no save/notify promotion.',
+      ));
+    }
+    if (
+      evidenceMode === 'full_live_data'
+      && marketResolutionStatus === 'resolved'
+      && riskLevel === 'MEDIUM'
+      && confidence != null
+      && confidence >= 7
+      && valuePercent != null
+      && valuePercent >= 0
+      && valuePercent < 7
+      && odds >= input.minOdds
+      && input.policyWarnings.includes('POLICY_BLOCK_MEDIUM_RISK_THIN_EDGE_GLOBAL')
+    ) {
+      matchedPockets.push(pocket(
+        'medium_risk_thin_edge_shadow_v1',
+        'Medium-risk thin-edge full-data shadow',
+        'Runtime shadow only: evaluates medium-risk thin-edge blocked selections; no save/notify promotion.',
+      ));
+    }
+    if (
+      evidenceMode === 'odds_events_only_degraded'
+      && marketResolutionStatus === 'resolved'
+      && isGoalsTotalOrAsianHandicap(canonicalMarket)
+      && confidence != null
+      && confidence >= 8
+      && riskLevel !== 'HIGH'
+      && odds >= input.minOdds
+    ) {
+      matchedPockets.push(pocket(
+        'odds_events_degraded_shadow_v1',
+        'Odds-events degraded O/U-AH shadow',
+        'Runtime shadow only: evaluates degraded odds+events candidates; no save/notify promotion.',
       ));
     }
   }

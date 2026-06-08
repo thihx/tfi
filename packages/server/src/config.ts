@@ -170,6 +170,18 @@ export const config = {
   pipelineVeryLatePhaseMinute: Number(process.env['PIPELINE_VERY_LATE_PHASE_MINUTE'] || 85),
   pipelineEndgameMinute: Number(process.env['PIPELINE_ENDGAME_MINUTE'] || 88),
 
+  // Runtime policy-shadow controlled production promotion (Phase 4, default off).
+  runtimePolicyPromotionEnabled: process.env['RUNTIME_POLICY_PROMOTION_ENABLED'] === 'true',
+  runtimePolicyPromotionKillSwitch: process.env['RUNTIME_POLICY_PROMOTION_KILL_SWITCH'] === 'true',
+  runtimePolicyPromotionPocketIds: (process.env['RUNTIME_POLICY_PROMOTION_POCKET_IDS'] || '')
+    .split(',')
+    .map((s) => s.trim())
+    .filter(Boolean),
+  runtimePolicyPromotionRolloutPercent: Number(process.env['RUNTIME_POLICY_PROMOTION_ROLLOUT_PERCENT'] || 0),
+  runtimePolicyPromotionMaxStakePercent: Number(process.env['RUNTIME_POLICY_PROMOTION_MAX_STAKE_PERCENT'] || 1),
+  runtimePolicyPromotionEvidenceAck: process.env['RUNTIME_POLICY_PROMOTION_EVIDENCE_ACK'] || '',
+  runtimePolicyPromotionOwner: process.env['RUNTIME_POLICY_PROMOTION_OWNER'] || '',
+
   // Provider sampling / observability
   providerSamplingEnabled: process.env['PROVIDER_SAMPLING_ENABLED'] !== 'false',
 
@@ -178,11 +190,8 @@ export const config = {
   vapidPrivateKey: process.env['VAPID_PRIVATE_KEY'] || '',
   vapidContactEmail: process.env['VAPID_CONTACT_EMAIL'] || '',
 
-  // Prompt shadow rollout
-  liveAnalysisActivePromptVersion: process.env['LIVE_ANALYSIS_ACTIVE_PROMPT_VERSION'] || '',
-  liveAnalysisShadowPromptVersion: process.env['LIVE_ANALYSIS_SHADOW_PROMPT_VERSION'] || '',
-  liveAnalysisShadowEnabled: process.env['LIVE_ANALYSIS_SHADOW_ENABLED'] === 'true',
-  liveAnalysisShadowSampleRate: Number(process.env['LIVE_ANALYSIS_SHADOW_SAMPLE_RATE'] || 0),
+  // Historical prompt-shadow rows may still be retained for ops reports, but
+  // live analysis runtime uses the single official prompt from live-analysis-prompt.ts.
   promptShadowKeepDays: Number(process.env['PROMPT_SHADOW_KEEP_DAYS'] || 14),
 
   /** Optional JSON blocklist for minuteBand::marketFamily (see segment-policy-blocklist.example.json). */

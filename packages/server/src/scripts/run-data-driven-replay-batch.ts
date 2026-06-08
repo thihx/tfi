@@ -2,6 +2,7 @@ import { runDataDrivenReplayBatch, type DataDrivenBatchOptions } from '../lib/da
 import { config } from '../config.js';
 import { closePool } from '../db/pool.js';
 import { closeRedis } from '../lib/redis.js';
+import { LIVE_ANALYSIS_PROMPT_VERSION } from '../lib/live-analysis-prompt.js';
 
 function parseArgs(argv: string[]): DataDrivenBatchOptions {
   let lookbackDays = 14;
@@ -75,10 +76,7 @@ function parseArgs(argv: string[]): DataDrivenBatchOptions {
   }
 
   if (evalPromptVersions.length === 0) {
-    const fb = [config.liveAnalysisActivePromptVersion, config.liveAnalysisShadowPromptVersion].filter(
-      (v): v is string => typeof v === 'string' && v.trim().length > 0,
-    );
-    evalPromptVersions.push(...[...new Set(fb)]);
+    evalPromptVersions.push(LIVE_ANALYSIS_PROMPT_VERSION);
   }
 
   return {

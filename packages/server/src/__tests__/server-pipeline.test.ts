@@ -21,10 +21,13 @@ const { mockConfig } = vi.hoisted(() => ({
     pipelineSecondHalfStartMinute: 5,
     pipelineReanalyzeMinMinutes: 10,
     pipelineStalenessOddsDelta: 0.1,
-    liveAnalysisActivePromptVersion: '',
-    liveAnalysisShadowPromptVersion: '',
-    liveAnalysisShadowEnabled: false,
-    liveAnalysisShadowSampleRate: 0,
+    runtimePolicyPromotionEnabled: false,
+    runtimePolicyPromotionKillSwitch: false,
+    runtimePolicyPromotionPocketIds: [] as string[],
+    runtimePolicyPromotionRolloutPercent: 0,
+    runtimePolicyPromotionMaxStakePercent: 1,
+    runtimePolicyPromotionEvidenceAck: '',
+    runtimePolicyPromotionOwner: '',
     policyRequiredBreakEvenMax: 0.5,
     policyHighRiskBreakEvenMax: 0.48,
     policyLateGameBreakEvenRelaxation: 0.05,
@@ -362,10 +365,6 @@ vi.mock('../lib/web-push.js', () => ({
   sendWebPushNotification: vi.fn().mockResolvedValue({ ok: true, gone: false }),
 }));
 
-vi.mock('../repos/prompt-shadow-runs.repo.js', () => ({
-  createPromptShadowRun: vi.fn().mockResolvedValue({ id: 1 }),
-}));
-
 vi.mock('../repos/thesis-watch.repo.js', () => ({
   upsertPendingThesisWatch: mockUpsertPendingThesisWatch,
   getPendingThesisWatchesByMatchId: mockGetPendingThesisWatchesByMatchId,
@@ -427,15 +426,18 @@ beforeEach(async () => {
   vi.clearAllMocks();
   mockRedisState.clear();
   __resetPipelineLlmCooldownsForTest();
-  mockConfig.liveAnalysisActivePromptVersion = '';
-  mockConfig.liveAnalysisShadowPromptVersion = '';
-  mockConfig.liveAnalysisShadowEnabled = false;
-  mockConfig.liveAnalysisShadowSampleRate = 0;
   mockConfig.allowExpensiveGeminiModels = false;
   mockConfig.pipelineMinOdds = 1.5;
   mockConfig.linePatienceEnabled = false;
   mockConfig.thesisWatchEnabled = false;
   mockConfig.thesisWatchTtlMinutes = 45;
+  mockConfig.runtimePolicyPromotionEnabled = false;
+  mockConfig.runtimePolicyPromotionKillSwitch = false;
+  mockConfig.runtimePolicyPromotionPocketIds = [];
+  mockConfig.runtimePolicyPromotionRolloutPercent = 0;
+  mockConfig.runtimePolicyPromotionMaxStakePercent = 1;
+  mockConfig.runtimePolicyPromotionEvidenceAck = '';
+  mockConfig.runtimePolicyPromotionOwner = '';
   mockUpsertPendingThesisWatch.mockReset();
   mockUpsertPendingThesisWatch.mockResolvedValue({});
   mockGetPendingThesisWatchesByMatchId.mockReset();
@@ -766,6 +768,15 @@ describe('runPipelineBatch', () => {
     expect(match.shouldPush).toBe(false);
     expect(match.saved).toBe(false);
     expect(match.notified).toBe(false);
+    expect(match.outputKind).toBe('shadow_candidate');
+    expect(match.auditBucket).toBe('policy_blocked');
+    expect(match.debug?.outputDecision).toEqual(expect.objectContaining({
+      outputKind: 'shadow_candidate',
+      auditBucket: 'policy_blocked',
+      savedRecommendation: false,
+      settlementEligible: false,
+      roiEligible: false,
+    }));
     expect(match.debug?.runtimePolicyShadow?.matchedPockets.map((pocket) => pocket.id))
       .toEqual(['late_under_45_two_plus']);
     expect(match.debug?.runtimePolicyShadow).toEqual(expect.objectContaining({
@@ -784,6 +795,11 @@ describe('runPipelineBatch', () => {
       outcome: 'SKIPPED',
       metadata: expect.objectContaining({
         matchId: '100',
+        leagueSegmentKey: 'league:39',
+        homeTeamSegmentKey: 'team:1',
+        awayTeamSegmentKey: 'team:2',
+        teamSegmentKeys: ['team:1', 'team:2'],
+        matchSegmentKey: 'match:100',
         canonicalMarket: 'under_4.5',
         minuteBand: '75+',
         scoreState: 'two-plus-margin',
@@ -800,6 +816,104 @@ describe('runPipelineBatch', () => {
         matchedPockets: expect.arrayContaining([
           expect.objectContaining({ id: 'late_under_45_two_plus' }),
         ]),
+      }),
+    }));
+  });
+
+  test('promotes a configured runtime shadow pocket only through controlled production guard', async () => {
+    const footballApi = await import('../lib/football-api.js');
+    const { callGemini } = await import('../lib/gemini.js');
+    const { audit } = await import('../lib/audit.js');
+    const { createRecommendation } = await import('../repos/recommendations.repo.js');
+
+    mockConfig.runtimePolicyPromotionEnabled = true;
+    mockConfig.runtimePolicyPromotionPocketIds = ['late_under_45_two_plus'];
+    mockConfig.runtimePolicyPromotionRolloutPercent = 100;
+    mockConfig.runtimePolicyPromotionMaxStakePercent = 1;
+    mockConfig.runtimePolicyPromotionEvidenceAck = 'ready_for_human_review';
+    mockConfig.runtimePolicyPromotionOwner = 'ops-review';
+
+    vi.mocked(footballApi.fetchFixturesByIds).mockResolvedValueOnce([{
+      fixture: { id: 100, status: { short: '2H', elapsed: 82 }, timestamp: 1700000000 },
+      teams: { home: { id: 1, name: 'Team A' }, away: { id: 2, name: 'Team B' } },
+      league: { id: 39, name: 'Test League' },
+      goals: { home: 3, away: 1 },
+    }] as never);
+    vi.mocked(footballApi.fetchLiveOdds).mockResolvedValueOnce([{
+      bookmakers: [{
+        name: 'TestBook',
+        bets: [
+          { name: 'Over/Under', values: [
+            { value: 'Over', odd: '1.80', handicap: '4.5' },
+            { value: 'Under', odd: '2.05', handicap: '4.5' },
+          ] },
+        ],
+      }],
+    }] as never);
+    vi.mocked(callGemini).mockResolvedValueOnce(JSON.stringify({
+      should_push: true,
+      selection: 'Under 4.5 Goals @2.05',
+      bet_market: 'under_4.5',
+      confidence: 7,
+      reasoning_en: 'Late match with a thin under cushion.',
+      reasoning_vi: 'Cuoi tran voi bien an toan mong cho keo xiu.',
+      warnings: [],
+      value_percent: 8,
+      risk_level: 'MEDIUM',
+      stake_percent: 3,
+      custom_condition_matched: false,
+      custom_condition_status: 'none',
+      custom_condition_summary_en: '',
+      custom_condition_summary_vi: '',
+      custom_condition_reason_en: '',
+      custom_condition_reason_vi: '',
+      condition_triggered_suggestion: '',
+      condition_triggered_reasoning_en: '',
+      condition_triggered_reasoning_vi: '',
+      condition_triggered_confidence: 0,
+      condition_triggered_stake: 0,
+    }));
+
+    const result = await runPipelineBatch(['100']);
+    const match = result.results[0];
+
+    expect(match.shouldPush).toBe(true);
+    expect(match.saved).toBe(true);
+    expect(match.outputKind).toBe('money_recommendation');
+    expect(match.debug?.runtimePolicyPromotion).toEqual(expect.objectContaining({
+      promoted: true,
+      reason: 'promoted_controlled_pocket',
+      pocketId: 'late_under_45_two_plus',
+      stakePercent: 1,
+      owner: 'ops-review',
+    }));
+    expect(createRecommendation).toHaveBeenCalledWith(expect.objectContaining({
+      bet_market: 'under_4.5',
+      selection: 'Under 4.5 Goals @2.05',
+      stake_percent: 1,
+      warnings: expect.stringContaining('RUNTIME_POLICY_PROMOTION_CONTROLLED'),
+      decision_context: expect.objectContaining({
+        recommendationSource: 'runtime_policy_promotion',
+        policyBlocked: true,
+        runtimePolicyPromotionPocketId: 'late_under_45_two_plus',
+        runtimePolicyPromotionReason: 'promoted_controlled_pocket',
+        runtimePolicyPromotionOwner: 'ops-review',
+        saveIntegrityStatus: 'ok',
+      }),
+    }));
+    expect(audit).toHaveBeenCalledWith(expect.objectContaining({
+      category: 'PIPELINE',
+      action: 'PIPELINE_POLICY_PROMOTION_EVALUATED',
+      outcome: 'SUCCESS',
+      metadata: expect.objectContaining({
+        matchId: '100',
+        canonicalMarket: 'under_4.5',
+        runtimePolicyPromotion: expect.objectContaining({
+          promoted: true,
+          pocketId: 'late_under_45_two_plus',
+        }),
+        saved: false,
+        notified: false,
       }),
     }));
   });
@@ -880,6 +994,11 @@ describe('runPipelineBatch', () => {
       outcome: 'SKIPPED',
       metadata: expect.objectContaining({
         matchId: '100',
+        leagueSegmentKey: 'league:39',
+        homeTeamSegmentKey: 'team:1',
+        awayTeamSegmentKey: 'team:2',
+        teamSegmentKeys: ['team:1', 'team:2'],
+        matchSegmentKey: 'match:100',
         canonicalMarket: 'btts_yes',
         minuteBand: '60-74',
         scoreState: 'two-plus-margin',
@@ -1274,6 +1393,16 @@ describe('runPipelineBatch', () => {
     expect(result.results[0]?.decisionKind).toBe('no_bet');
     expect(result.results[0]?.saved).toBe(false);
     expect(result.results[0]?.debug?.evidenceMode).toBe('low_evidence');
+    expect(result.results[0]?.outputKind).toBe('no_action');
+    expect(result.results[0]?.auditBucket).toBe('low_evidence');
+    expect(result.results[0]?.debug?.outputDecision).toEqual(expect.objectContaining({
+      outputKind: 'no_action',
+      auditBucket: 'low_evidence',
+      llmCalled: false,
+      savedRecommendation: false,
+      settlementEligible: false,
+      roiEligible: false,
+    }));
     expect(result.results[0]?.debug?.skipReason).toContain('low-evidence mode');
   });
 
@@ -1350,6 +1479,16 @@ describe('runPipelineBatch', () => {
     expect(result.results[0]?.notified).toBe(true);
     expect(result.results[0]?.selection).toBe('Away +0.25 @2.10');
     expect(result.results[0]?.debug?.evidenceMode).toBe('full_live_data');
+    expect(result.results[0]?.outputKind).toBe('money_recommendation');
+    expect(result.results[0]?.auditBucket).toBe('recommendation_saved');
+    expect(result.results[0]?.debug?.outputDecision).toEqual(expect.objectContaining({
+      outputKind: 'money_recommendation',
+      auditBucket: 'recommendation_saved',
+      savedRecommendation: true,
+      settlementEligible: true,
+      roiEligible: true,
+      llmCalled: true,
+    }));
     expect(result.results[0]?.debug?.parsed).toEqual(expect.objectContaining({
       custom_condition_matched: false,
       custom_condition_status: 'none',
@@ -1509,6 +1648,17 @@ describe('runPipelineBatch', () => {
       saved: false,
       notified: true,
       confidence: 0,
+      outputKind: 'stats_only_signal',
+      auditBucket: 'stats_only_signal_emitted',
+    }));
+    expect(result.results[0]?.debug?.outputDecision).toEqual(expect.objectContaining({
+      outputKind: 'stats_only_signal',
+      auditBucket: 'stats_only_signal_emitted',
+      statsOnlySignal: true,
+      llmCalled: false,
+      savedRecommendation: false,
+      settlementEligible: false,
+      roiEligible: false,
     }));
     expect(result.results[0]?.debug?.statsOnlySignal).toEqual(expect.objectContaining({
       signalType: 'zero_zero_pressure_after_55',
@@ -1602,9 +1752,7 @@ describe('runPipelineBatch', () => {
     }));
   });
 
-  test('falls back to the official prompt when active prompt env is retired before saving', async () => {
-    mockConfig.liveAnalysisActivePromptVersion = 'v10-hybrid-legacy-b';
-
+  test('saves recommendations with the single official prompt version', async () => {
     const result = await runPipelineBatch(['100']);
 
     const { createRecommendation } = await import('../repos/recommendations.repo.js');
@@ -2767,82 +2915,6 @@ describe('runPipelineBatch', () => {
     expect(result.prompt).toContain('"expected_goals":{"home":"1.42","away":"0.88"}');
     expect(result.prompt).toContain('"shots_inside_box":{"home":"7","away":"4"}');
     expect(result.result.debug?.promptDataLevel).toBe('advanced-upgraded');
-  });
-
-  test('does not run prompt shadow when retired shadow env values resolve to the single official prompt', async () => {
-    mockConfig.liveAnalysisShadowEnabled = true;
-    mockConfig.liveAnalysisShadowSampleRate = 1;
-    mockConfig.liveAnalysisActivePromptVersion = 'v10-hybrid-legacy-g';
-    mockConfig.liveAnalysisShadowPromptVersion = 'v10-hybrid-legacy-g';
-
-    const result = await runPipelineBatch(['100']);
-    await flushAsyncWork();
-
-    const { callGemini } = await import('../lib/gemini.js');
-    const { createPromptShadowRun } = await import('../repos/prompt-shadow-runs.repo.js');
-    const shadowCalls = vi.mocked(createPromptShadowRun).mock.calls;
-
-    expect(callGemini).toHaveBeenCalledTimes(1);
-    expect(shadowCalls).toHaveLength(0);
-    expect(result.results[0]?.saved).toBe(true);
-    expect(result.results[0]?.notified).toBe(true);
-    expect(result.results[0]?.debug?.analysisRunId).toBeTypeOf('string');
-    expect(result.results[0]?.debug?.promptVersion).toBe(LIVE_ANALYSIS_PROMPT_VERSION);
-  });
-
-  test('shadow prompt never creates extra recommendation, performance row, or notification side effects', async () => {
-    mockConfig.liveAnalysisShadowEnabled = true;
-    mockConfig.liveAnalysisShadowSampleRate = 1;
-    mockConfig.liveAnalysisActivePromptVersion = 'v10-hybrid-legacy-g';
-    mockConfig.liveAnalysisShadowPromptVersion = 'v10-hybrid-legacy-g';
-
-    await runPipelineBatch(['100']);
-    await flushAsyncWork();
-
-    const { createRecommendation, markRecommendationNotified } = await import('../repos/recommendations.repo.js');
-    const { createAiPerformanceRecord } = await import('../repos/ai-performance.repo.js');
-    const { sendTelegramPhoto, sendTelegramMessage } = await import('../lib/telegram.js');
-
-    expect(createRecommendation).toHaveBeenCalledTimes(1);
-    expect(createAiPerformanceRecord).toHaveBeenCalledTimes(1);
-    expect(markRecommendationNotified).not.toHaveBeenCalled();
-    expect(sendTelegramPhoto).not.toHaveBeenCalled();
-    expect(sendTelegramMessage).not.toHaveBeenCalled();
-  });
-
-  test('ignores invalid shadow prompt configuration before any second LLM call can fail', async () => {
-    mockConfig.liveAnalysisShadowEnabled = true;
-    mockConfig.liveAnalysisShadowSampleRate = 1;
-    mockConfig.liveAnalysisActivePromptVersion = 'v10-hybrid-legacy-g';
-    mockConfig.liveAnalysisShadowPromptVersion = 'v10-hybrid-legacy-g';
-
-    const { callGemini } = await import('../lib/gemini.js');
-
-    const result = await runPipelineBatch(['100']);
-    await flushAsyncWork();
-
-    const { createPromptShadowRun } = await import('../repos/prompt-shadow-runs.repo.js');
-    const shadowCalls = vi.mocked(createPromptShadowRun).mock.calls;
-
-    expect(result.results[0]?.success).toBe(true);
-    expect(result.results[0]?.shouldPush).toBe(true);
-    expect(callGemini).toHaveBeenCalledTimes(1);
-    expect(shadowCalls).toHaveLength(0);
-  });
-
-  test('does not run prompt shadow when prompt version override is explicitly supplied', async () => {
-    mockConfig.liveAnalysisShadowEnabled = true;
-    mockConfig.liveAnalysisShadowSampleRate = 1;
-    mockConfig.liveAnalysisActivePromptVersion = 'v10-hybrid-legacy-g';
-    mockConfig.liveAnalysisShadowPromptVersion = 'v10-hybrid-legacy-g';
-
-    await runPromptOnlyAnalysisForMatch('100', { forceAnalyze: true, promptVersionOverride: LIVE_ANALYSIS_PROMPT_VERSION });
-    await flushAsyncWork();
-
-    const { callGemini } = await import('../lib/gemini.js');
-    const { createPromptShadowRun } = await import('../repos/prompt-shadow-runs.repo.js');
-    expect(callGemini).toHaveBeenCalledTimes(1);
-    expect(createPromptShadowRun).not.toHaveBeenCalled();
   });
 
   test('processes multiple matches sequentially', async () => {

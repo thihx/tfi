@@ -2,6 +2,7 @@ import { render, screen, waitFor } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const mockFetchLiveMonitorStatus = vi.fn();
+const mockFetchLiveMonitorWhyNoRecommendation = vi.fn();
 const mockGetParsedAiResult = vi.fn();
 
 vi.mock('@/hooks/useAppState', () => ({
@@ -15,6 +16,7 @@ vi.mock('@/hooks/useAppState', () => ({
 
 vi.mock('@/features/live-monitor/services/server-monitor.service', () => ({
   fetchLiveMonitorStatus: mockFetchLiveMonitorStatus,
+  fetchLiveMonitorWhyNoRecommendation: mockFetchLiveMonitorWhyNoRecommendation,
   getParsedAiResult: mockGetParsedAiResult,
 }));
 
@@ -25,6 +27,58 @@ beforeEach(() => {
   vi.spyOn(window, 'setInterval').mockImplementation(() => 0 as unknown as ReturnType<typeof window.setInterval>);
   vi.spyOn(window, 'clearInterval').mockImplementation(() => undefined);
   mockGetParsedAiResult.mockImplementation((result) => result.debug?.parsed ?? null);
+  mockFetchLiveMonitorWhyNoRecommendation.mockResolvedValue({
+    generatedAt: '2026-06-09T00:00:00.000Z',
+    lookbackHours: 24,
+    officialPromptVersion: 'v10-hybrid-legacy-g',
+    totals: {
+      matchAnalyzed: 4,
+      moneyRecommendations: 1,
+      statsOnlySignals: 1,
+      watchInsights: 0,
+      shadowCandidates: 1,
+      noActions: 2,
+      llmCalled: 2,
+      llmSkipped: 2,
+    },
+    outputKindBreakdown: [],
+    reasonGroupBreakdown: [
+      { group: 'policy', count: 1, latestAt: '2026-06-09T00:00:00.000Z' },
+      { group: 'evidence', count: 2, latestAt: '2026-06-09T00:00:00.000Z' },
+    ],
+    reasonBuckets: [
+      {
+        key: 'policy_blocked',
+        group: 'policy',
+        outputKind: 'shadow_candidate',
+        evidenceMode: 'full_live_data',
+        count: 1,
+        latestAt: '2026-06-09T00:00:00.000Z',
+      },
+    ],
+    recentDrilldown: [
+      {
+        id: 10,
+        timestamp: '2026-06-09T00:00:00.000Z',
+        matchId: '102',
+        matchDisplay: 'Atletico vs Sevilla',
+        minute: '67',
+        status: '2H',
+        score: '0-2',
+        outputKind: 'shadow_candidate',
+        auditBucket: 'policy_blocked',
+        reasonGroup: 'policy',
+        evidenceMode: 'full_live_data',
+        route: 'shadow_path',
+        llmCalled: true,
+        savedRecommendation: false,
+        settlementEligible: false,
+        roiEligible: false,
+        candidatePresent: true,
+        noActionReason: 'policy_blocked',
+      },
+    ],
+  });
   mockFetchLiveMonitorStatus.mockResolvedValue({
     job: {
       name: 'check-live-trigger',
@@ -97,6 +151,9 @@ beforeEach(() => {
       processed: 2,
       savedRecommendations: 1,
       pushedNotifications: 1,
+      officialBetNotifications: 1,
+      signalNotifications: 0,
+      noActionAudits: 1,
       errors: 0,
     },
     results: [
@@ -225,6 +282,8 @@ describe('LiveMonitorTab', () => {
     expect(screen.getByText('Live Right Now')).toBeInTheDocument();
     expect(screen.getByText('Waiting Or Upcoming')).toBeInTheDocument();
     expect(await screen.findByText('Latest Run Summary')).toBeInTheDocument();
+    expect(screen.getByText('Official Bet Alerts')).toBeInTheDocument();
+    expect(screen.getByText('Signal Alerts')).toBeInTheDocument();
     expect(screen.getAllByText('Arsenal vs Chelsea').length).toBeGreaterThanOrEqual(1);
     expect(screen.getByText('Machida Zelvia vs FC Tokyo')).toBeInTheDocument();
     expect(screen.getAllByText('Premier League | 64\' | 2-1 | 2H').length).toBeGreaterThanOrEqual(1);
@@ -241,6 +300,10 @@ describe('LiveMonitorTab', () => {
     expect(screen.getByText('Condition Matched')).toBeInTheDocument();
     expect(screen.getByText('Condition Triggered')).toBeInTheDocument();
     expect(screen.getByText('Live Signals')).toBeInTheDocument();
+    expect(screen.getByText('Why No Recommendation')).toBeInTheDocument();
+    expect(screen.getByText('24h operator view')).toBeInTheDocument();
+    expect(screen.getByText('policy blocked')).toBeInTheDocument();
+    expect(screen.getByText(/LLM called \| settle no/)).toBeInTheDocument();
     expect(screen.getAllByText('Bet').length).toBeGreaterThanOrEqual(1);
     expect(screen.getAllByText('Watch').length).toBeGreaterThanOrEqual(1);
     expect(screen.getAllByText('No Action').length).toBeGreaterThanOrEqual(1);
@@ -265,6 +328,10 @@ describe('LiveMonitorTab', () => {
     expect(screen.queryByRole('button', { name: 'Run Check Live' })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Refresh' })).not.toBeInTheDocument();
     expect(mockFetchLiveMonitorStatus).toHaveBeenCalled();
+    expect(mockFetchLiveMonitorWhyNoRecommendation).toHaveBeenCalledWith(
+      { apiUrl: 'http://localhost:4000', defaultMode: 'B' },
+      { lookbackHours: 24, maxSamples: 8 },
+    );
   });
 
   it('keeps auto-refresh polling active for a live screen', async () => {

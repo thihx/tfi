@@ -30,7 +30,7 @@ The active runtime is the React/Vite app plus the Fastify backend.
 - Routes: `packages/server/src/routes/`
 - Repos/data access: `packages/server/src/repos/`
 - Shared libs/services: `packages/server/src/lib/`
-- Live analysis prompt default: `LIVE_ANALYSIS_PROMPT_VERSION` in `packages/server/src/lib/live-analysis-prompt.ts`. The only official live prompt is `v10-hybrid-legacy-g`; invalid or retired env values fall back to that default. Prompt shadow is **off** in checked-in examples (`LIVE_ANALYSIS_SHADOW_ENABLED=false`, `LIVE_ANALYSIS_SHADOW_SAMPLE_RATE=0`).
+- Live analysis prompt: `LIVE_ANALYSIS_PROMPT_VERSION` in `packages/server/src/lib/live-analysis-prompt.ts`. The only live prompt is `v10-hybrid-legacy-g`; live runtime does not support retired active or shadow prompt versions.
 - Jobs/scheduler: `packages/server/src/jobs/`
 - Migrations: `packages/server/src/db/migrations/`
 

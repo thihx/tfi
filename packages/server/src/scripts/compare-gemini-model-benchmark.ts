@@ -13,6 +13,7 @@ import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { config } from '../config.js';
+import { LIVE_ANALYSIS_PROMPT_VERSION } from '../lib/live-analysis-prompt.js';
 import { generateGeminiContent, normalizeGeminiModelName } from '../lib/gemini.js';
 import { runReplayScenario } from '../lib/pipeline-replay.js';
 import type { SettledReplayScenario } from '../lib/db-replay-scenarios.js';
@@ -70,7 +71,7 @@ interface ModelRunMetrics {
 
 function parseArgs(argv: string[]): BenchArgs {
   let benchDir = resolve(SERVER_ROOT, 'replay-benchmarks/all-markets-benchmark');
-  let promptVersion = process.env['LIVE_ANALYSIS_ACTIVE_PROMPT_VERSION']?.trim() || 'v10-hybrid-legacy-g';
+  let promptVersion = LIVE_ANALYSIS_PROMPT_VERSION;
   /** Production today is often gemini-3.5-flash (.env.azure); config default may still say 3.0-flash. */
   let baselineModel = process.env['GEMINI_MODEL']?.trim() || config.geminiModel || 'gemini-3.5-flash';
   let candidateModel = 'gemini-3.5-flash';

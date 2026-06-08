@@ -6,7 +6,10 @@ import * as matchRepo from '../repos/matches.repo.js';
 import * as snapshotsRepo from '../repos/match-snapshots.repo.js';
 import * as recommendationsRepo from '../repos/recommendations.repo.js';
 import { getSettings } from '../repos/settings.repo.js';
+import { requireCurrentUser } from '../lib/authz.js';
 import { checkCoarseStalenessServer } from '../lib/server-pipeline-gates.js';
+import { consumeManualAiQuota, resolveSubscriptionAccess, sendEntitlementError } from '../lib/subscription-access.js';
+import { buildLiveOutputOperatorReport } from '../lib/live-output-operator-report.js';
 import {
   runManualAnalysisForMatch,
   type MatchPipelineResult,
@@ -19,6 +22,9 @@ interface LiveMonitorJobSummary {
   processed: number;
   savedRecommendations: number;
   pushedNotifications: number;
+  officialBetNotifications: number;
+  signalNotifications: number;
+  noActionAudits: number;
   errors: number;
 }
 
@@ -61,12 +67,22 @@ function summarizePipelineResults(raw: LiveMonitorProgressPayload | null): LiveM
   if (!raw) return null;
   const pipelineResults = Array.isArray(raw.pipelineResults) ? raw.pipelineResults : [];
   const results = flattenPipelineResults(pipelineResults);
+  const savedRecommendations = results.filter((result) => result.saved).length;
+  const pushedNotifications = results.filter((result) => result.notified).length;
+  const officialBetNotifications = results.filter((result) => result.saved && result.notified).length;
+  const signalNotifications = results.filter((result) => !result.saved && result.notified).length;
+  const noActionAudits = results.filter((result) =>
+    result.success && !result.saved && !result.notified && result.decisionKind === 'no_bet'
+  ).length;
   return {
     liveCount: Number(raw.liveCount ?? 0),
     candidateCount: Number(raw.candidateCount ?? 0),
     processed: pipelineResults.reduce((sum, batch) => sum + Number(batch.processed ?? 0), 0),
-    savedRecommendations: results.filter((result) => result.saved).length,
-    pushedNotifications: results.filter((result) => result.notified).length,
+    savedRecommendations,
+    pushedNotifications,
+    officialBetNotifications,
+    signalNotifications,
+    noActionAudits,
     errors: pipelineResults.reduce((sum, batch) => sum + Number(batch.errors ?? 0), 0),
   };
 }
@@ -191,6 +207,18 @@ async function buildMonitoringScope(): Promise<LiveMonitorMonitoringScope> {
 }
 
 export async function liveMonitorRoutes(app: FastifyInstance) {
+  app.get<{
+    Querystring: { lookbackHours?: string; maxSamples?: string };
+  }>('/api/live-monitor/why-no-recommendation', async (req, reply) => {
+    const user = requireCurrentUser(req, reply);
+    if (!user) return;
+
+    return buildLiveOutputOperatorReport({
+      lookbackHours: req.query.lookbackHours ? Number(req.query.lookbackHours) : 24,
+      maxSamples: req.query.maxSamples ? Number(req.query.maxSamples) : 20,
+    });
+  });
+
   app.get('/api/live-monitor/status', async (_req, reply) => {
     reply.header('Cache-Control', 'no-store');
     const jobs = await getJobsStatus();
@@ -244,6 +272,9 @@ export async function liveMonitorRoutes(app: FastifyInstance) {
   }>(
     '/api/live-monitor/matches/:matchId/analyze',
     async (req, reply) => {
+      const user = requireCurrentUser(req, reply);
+      if (!user) return;
+
       const matchId = String(req.params.matchId || '').trim();
       if (!matchId) {
         return reply.status(400).send({ error: 'matchId is required' });
@@ -256,6 +287,17 @@ export async function liveMonitorRoutes(app: FastifyInstance) {
         || (question.length > 0 && (history?.length ?? 0) > 0);
 
       try {
+        if (user.role !== 'admin' && user.role !== 'owner') {
+          const access = await resolveSubscriptionAccess(user.userId);
+          await consumeManualAiQuota(access, user.userId, {
+            provider: 'gemini',
+            route: 'live-monitor-match-analyze',
+            matchId,
+            hasQuestion: question.length > 0,
+            hasHistory: (history?.length ?? 0) > 0,
+            advisoryOnly,
+          });
+        }
         const result = await runManualAnalysisForMatch(matchId, {
           userQuestion: question || undefined,
           followUpHistory: history,
@@ -263,6 +305,10 @@ export async function liveMonitorRoutes(app: FastifyInstance) {
         });
         return { result };
       } catch (error) {
+        const entitlement = sendEntitlementError(error);
+        if (entitlement) {
+          return reply.code(entitlement.statusCode).send(entitlement.payload);
+        }
         const message = error instanceof Error ? error.message : String(error);
         if (message.includes('not found')) {
           return reply.status(404).send({ error: message });

@@ -128,7 +128,11 @@ Stake cap:
 Warning key:
   TBD, must be unique before implementation
 Kill switch / env:
-  TBD before implementation
+  `RUNTIME_POLICY_PROMOTION_ENABLED`
+  `RUNTIME_POLICY_PROMOTION_KILL_SWITCH`
+  `RUNTIME_POLICY_PROMOTION_POCKET_IDS`
+  `RUNTIME_POLICY_PROMOTION_ROLLOUT_PERCENT`
+  `RUNTIME_POLICY_PROMOTION_EVIDENCE_ACK`
 
 Before benchmark path:
   packages/server/replay-work/audit/20260606-022250/current-runtime-blocked-selection.json
@@ -140,7 +144,12 @@ Rollback condition:
   Not applicable until runtime implementation exists.
 ```
 
-Implementation status: not implemented. This is a review placeholder only.
+Implementation status:
+
+- Implemented as runtime shadow telemetry only in `packages/server/src/lib/runtime-policy-shadow.ts`.
+- Matches only policy-blocked selections with `POLICY_BLOCK_MEDIUM_RISK_THIN_EDGE_GLOBAL`, `full_live_data`, resolved market, `MEDIUM` risk, confidence >= 7, value_percent 0-6, and odds >= min odds.
+- Does not save, notify, alter `final_should_bet`, or enter settlement/ROI production tables unless explicitly allowlisted through the Phase 4 controlled promotion guard after readiness/human review.
+- Promotion remains operationally blocked until `runtime-policy-shadow-readiness-gates` passes with enough live shadow settlement evidence and the operator config sets `RUNTIME_POLICY_PROMOTION_EVIDENCE_ACK=ready_for_human_review`.
 
 ## Pocket: `odds_events_degraded_shadow_v1`
 
@@ -177,7 +186,11 @@ Stake cap:
 Warning key:
   TBD, must be unique before implementation
 Kill switch / env:
-  TBD before implementation
+  `RUNTIME_POLICY_PROMOTION_ENABLED`
+  `RUNTIME_POLICY_PROMOTION_KILL_SWITCH`
+  `RUNTIME_POLICY_PROMOTION_POCKET_IDS`
+  `RUNTIME_POLICY_PROMOTION_ROLLOUT_PERCENT`
+  `RUNTIME_POLICY_PROMOTION_EVIDENCE_ACK`
 
 Before benchmark path:
   packages/server/replay-work/audit/20260606-022250/current-runtime-blocked-selection.json
@@ -189,5 +202,10 @@ Rollback condition:
   Not applicable until runtime implementation exists.
 ```
 
-Implementation status: not implemented. Contract permits telemetry/shadow/reporting only, not runtime save/notify default.
+Implementation status:
 
+- Implemented as runtime shadow telemetry only in `packages/server/src/lib/runtime-policy-shadow.ts`.
+- Matches only policy-blocked `odds_events_only_degraded` candidates with resolved O/U or Asian Handicap market, confidence >= 8, risk not HIGH, and odds >= min odds.
+- Does not make odds+events-only matches call LLM by default; it observes only candidates that already reached a policy-blocked selection path.
+- Does not save, notify, alter `final_should_bet`, or enter settlement/ROI production tables unless explicitly allowlisted through the Phase 4 controlled promotion guard after readiness/human review.
+- Promotion remains operationally blocked until `runtime-policy-shadow-readiness-gates` passes, including normalized league/team segment concentration review, and the operator config sets `RUNTIME_POLICY_PROMOTION_EVIDENCE_ACK=ready_for_human_review`.

@@ -27,6 +27,17 @@ describe('runtime policy shadow report', () => {
           metadata: {
             matchId: 'm-1',
             matchDisplay: 'Home A vs Away A',
+            leagueId: 39,
+            leagueName: 'Premier League',
+            leagueSegmentKey: 'league:39',
+            homeTeamId: 1,
+            homeTeamName: 'Home A',
+            homeTeamSegmentKey: 'team:1',
+            awayTeamId: 2,
+            awayTeamName: 'Away A',
+            awayTeamSegmentKey: 'team:2',
+            teamSegmentKeys: ['team:1', 'team:2'],
+            matchSegmentKey: 'match:m-1',
             canonicalMarket: 'under_4.5',
             minute: 82,
             minuteBand: '75+',
@@ -54,6 +65,17 @@ describe('runtime policy shadow report', () => {
           match_id: 'm-2',
           metadata: {
             matchDisplay: 'Home B vs Away B',
+            leagueId: 39,
+            leagueName: 'Premier League',
+            leagueSegmentKey: 'league:39',
+            homeTeamId: 3,
+            homeTeamName: 'Home B',
+            homeTeamSegmentKey: 'team:3',
+            awayTeamId: 4,
+            awayTeamName: 'Away B',
+            awayTeamSegmentKey: 'team:4',
+            teamSegmentKeys: ['team:3', 'team:4'],
+            matchSegmentKey: 'match:m-2',
             canonicalMarket: 'btts_yes',
             minute: 70,
             minuteBand: '60-74',
@@ -115,9 +137,20 @@ describe('runtime policy shadow report', () => {
     expect(report.byMarketResolutionStatus).toEqual([
       { key: 'resolved', count: 2, avgOdds: 2.125, minOdds: 2.05, maxOdds: 2.2 },
     ]);
+    expect(report.byLeagueSegment).toEqual([
+      { key: 'league:39', count: 2, avgOdds: 2.125, minOdds: 2.05, maxOdds: 2.2 },
+    ]);
+    expect(report.byTeamSegment).toEqual([
+      { key: 'team:1', count: 1, avgOdds: 2.05, minOdds: 2.05, maxOdds: 2.05 },
+      { key: 'team:2', count: 1, avgOdds: 2.05, minOdds: 2.05, maxOdds: 2.05 },
+      { key: 'team:3', count: 1, avgOdds: 2.2, minOdds: 2.2, maxOdds: 2.2 },
+      { key: 'team:4', count: 1, avgOdds: 2.2, minOdds: 2.2, maxOdds: 2.2 },
+    ]);
     expect(report.recent[0]).toMatchObject({
       id: 11,
       matchId: 'm-1',
+      leagueSegmentKey: 'league:39',
+      teamSegmentKeys: ['team:1', 'team:2'],
       pocketIds: ['late_under_45_two_plus'],
       canonicalMarket: 'under_4.5',
       minuteBand: '75+',
@@ -132,6 +165,8 @@ describe('runtime policy shadow report', () => {
     expect(markdown).toContain('# Runtime Policy Shadow Report');
     expect(markdown).toContain('| btts_yes_60_74_two_plus | 1 | 2.2 | 2.2 | 2.2 |');
     expect(markdown).toContain('| btts_yes_medium_edge_6_7_odds_2_plus | 1 | 2.2 | 2.2 | 2.2 |');
+    expect(markdown).toContain('league:39');
+    expect(markdown).toContain('team:1, team:2');
     expect(markdown).toContain('Home A vs Away A');
   });
 

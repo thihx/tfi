@@ -6,6 +6,10 @@ import {
   type FinalSettlementResult,
 } from './settle-types.js';
 import { parseStoredSettlementStats } from './settlement-stat-cache.js';
+import {
+  readRuntimeShadowSegmentMetadata,
+  type RuntimeShadowSegmentMetadata,
+} from './runtime-shadow-segments.js';
 
 export interface RuntimePolicyShadowSettlementOptions {
   lookbackDays: number;
@@ -28,7 +32,7 @@ interface ShadowSettlementDbRow {
   settlement_stats: unknown;
 }
 
-export interface RuntimePolicyShadowSettlementRow {
+export interface RuntimePolicyShadowSettlementRow extends RuntimeShadowSegmentMetadata {
   auditLogId: number;
   timestamp: string;
   matchId: string;
@@ -76,6 +80,8 @@ export interface RuntimePolicyShadowSettlementReport {
   roiOnStaked: number;
   byPocket: RuntimePolicyShadowSettlementSummaryRow[];
   byCanonicalMarket: RuntimePolicyShadowSettlementSummaryRow[];
+  byLeagueSegment: RuntimePolicyShadowSettlementSummaryRow[];
+  byTeamSegment: RuntimePolicyShadowSettlementSummaryRow[];
   rows: RuntimePolicyShadowSettlementRow[];
 }
 
@@ -122,11 +128,16 @@ function buildRowsForDbRow(row: ShadowSettlementDbRow): RuntimePolicyShadowSettl
   const betMarket = String(metadata.betMarket ?? metadata.canonicalMarket ?? '').trim();
   const canonicalMarket = String(metadata.canonicalMarket ?? betMarket ?? 'unknown').trim() || 'unknown';
   const odds = toNumber(metadata.odds);
+  const segments = readRuntimeShadowSegmentMetadata({
+    ...metadata,
+    matchId,
+  });
   const base = {
     auditLogId: row.id,
     timestamp: row.timestamp,
     matchId,
     matchDisplay: String(metadata.matchDisplay ?? '').trim(),
+    ...segments,
     canonicalMarket,
     selection,
     betMarket,
@@ -212,6 +223,22 @@ function summarizeBy(
     .sort((a, b) => b.total - a.total || a.key.localeCompare(b.key));
 }
 
+function summarizeByMany(
+  rows: RuntimePolicyShadowSettlementRow[],
+  keysForRow: (row: RuntimePolicyShadowSettlementRow) => string[],
+): RuntimePolicyShadowSettlementSummaryRow[] {
+  const map = new Map<string, RuntimePolicyShadowSettlementRow[]>();
+  for (const row of rows) {
+    for (const rawKey of keysForRow(row)) {
+      const key = rawKey || 'unknown';
+      map.set(key, [...(map.get(key) ?? []), row]);
+    }
+  }
+  return [...map.entries()]
+    .map(([key, group]) => summarizeGroup(key, group))
+    .sort((a, b) => b.total - a.total || a.key.localeCompare(b.key));
+}
+
 function summarizeGroup(key: string, rows: RuntimePolicyShadowSettlementRow[]): RuntimePolicyShadowSettlementSummaryRow {
   const settled = rows.filter((row) => row.status === 'settled_rules' && row.result != null);
   const totalStakedPercent = round(settled.reduce((sum, row) => sum + row.stakePercent, 0));
@@ -280,6 +307,8 @@ export async function buildRuntimePolicyShadowSettlementReport(
     roiOnStaked: totalStakedPercent > 0 ? round(totalPnlPercent / totalStakedPercent) : 0,
     byPocket: summarizeBy(rows, (row) => row.pocketId),
     byCanonicalMarket: summarizeBy(rows, (row) => row.canonicalMarket),
+    byLeagueSegment: summarizeBy(rows, (row) => row.leagueSegmentKey),
+    byTeamSegment: summarizeByMany(rows, (row) => row.teamSegmentKeys),
     rows,
   };
 }
@@ -322,18 +351,22 @@ export function formatRuntimePolicyShadowSettlementMarkdown(
     '',
     ...formatSummaryRows('By Pocket', report.byPocket),
     ...formatSummaryRows('By Canonical Market', report.byCanonicalMarket),
+    ...formatSummaryRows('By League Segment', report.byLeagueSegment),
+    ...formatSummaryRows('By Team Segment', report.byTeamSegment),
     '## Rows',
     '',
-    '| Timestamp | Match | Pocket | Market | Selection | Score | Odds | Result | P/L % | Status |',
-    '| --- | --- | --- | --- | --- | --- | ---: | --- | ---: | --- |',
+    '| Timestamp | Match | League Segment | Team Segments | Pocket | Market | Selection | Score | Odds | Result | P/L % | Status |',
+    '| --- | --- | --- | --- | --- | --- | --- | --- | ---: | --- | ---: | --- |',
   ];
   if (report.rows.length === 0) {
-    lines.push('| (none) |  |  |  |  |  |  |  |  |  |');
+    lines.push('| (none) |  |  |  |  |  |  |  |  |  |  |  |');
   } else {
     for (const row of report.rows.slice(0, 50)) {
       lines.push([
         row.timestamp,
         row.matchDisplay || row.matchId,
+        row.leagueSegmentKey,
+        row.teamSegmentKeys.join(', '),
         row.pocketId,
         row.canonicalMarket,
         row.selection,

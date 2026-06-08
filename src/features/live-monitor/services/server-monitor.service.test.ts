@@ -3,6 +3,7 @@ import type { AppConfig } from '@/types';
 import {
   analyzeMatchWithServerPipeline,
   fetchLiveMonitorStatus,
+  fetchLiveMonitorWhyNoRecommendation,
   getParsedAiResult,
 } from './server-monitor.service';
 
@@ -79,6 +80,39 @@ describe('server-monitor.service', () => {
     expect(result.selection).toBe('Over 2.5');
     expect(result.matchDisplay).toBe('Arsenal vs Chelsea');
     expect(getParsedAiResult(result)?.bet_market).toBe('over_2.5');
+  });
+
+  test('fetchLiveMonitorWhyNoRecommendation returns operator output taxonomy', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        generatedAt: '2026-06-09T00:00:00.000Z',
+        lookbackHours: 24,
+        officialPromptVersion: 'v10-hybrid-legacy-g',
+        totals: {
+          matchAnalyzed: 3,
+          moneyRecommendations: 1,
+          statsOnlySignals: 1,
+          watchInsights: 0,
+          shadowCandidates: 1,
+          noActions: 1,
+          llmCalled: 2,
+          llmSkipped: 1,
+        },
+        outputKindBreakdown: [],
+        reasonGroupBreakdown: [{ group: 'policy', count: 1, latestAt: '2026-06-09T00:00:00.000Z' }],
+        reasonBuckets: [{ key: 'policy_blocked', group: 'policy', outputKind: 'shadow_candidate', evidenceMode: 'full_live_data', count: 1, latestAt: null }],
+        recentDrilldown: [],
+      }),
+    }));
+
+    const result = await fetchLiveMonitorWhyNoRecommendation(appConfig, { lookbackHours: 24, maxSamples: 6 });
+
+    expect(result.reasonBuckets[0]).toEqual(expect.objectContaining({ key: 'policy_blocked', group: 'policy' }));
+    expect(fetch).toHaveBeenCalledWith(
+      'http://localhost:4000/api/live-monitor/why-no-recommendation?lookbackHours=24&maxSamples=6',
+      expect.objectContaining({ credentials: 'include' }),
+    );
   });
 
   test('getParsedAiResult returns null when debug payload is missing', () => {

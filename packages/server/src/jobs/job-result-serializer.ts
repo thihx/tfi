@@ -37,6 +37,8 @@ function compactPipelineMatchResult(result: MatchPipelineResult): Record<string,
     confidence: result.confidence,
     saved: result.saved,
     notified: result.notified,
+    outputKind: result.outputKind ?? '',
+    auditBucket: result.auditBucket ?? '',
     error: result.error ? truncateString(result.error) : '',
   };
   if (result.debug) {
@@ -53,6 +55,12 @@ function compactPipelineMatchResult(result: MatchPipelineResult): Record<string,
     if (typeof result.debug.statsAvailable === 'boolean') debug.statsAvailable = result.debug.statsAvailable;
     if (result.debug.statsSource) debug.statsSource = String(result.debug.statsSource);
     if (result.debug.evidenceMode) debug.evidenceMode = String(result.debug.evidenceMode);
+    if (result.debug.outputKind) debug.outputKind = String(result.debug.outputKind);
+    if (result.debug.auditBucket) debug.auditBucket = String(result.debug.auditBucket);
+    if (typeof result.debug.savedRecommendation === 'boolean') debug.savedRecommendation = result.debug.savedRecommendation;
+    if (typeof result.debug.settlementEligible === 'boolean') debug.settlementEligible = result.debug.settlementEligible;
+    if (typeof result.debug.roiEligible === 'boolean') debug.roiEligible = result.debug.roiEligible;
+    if (typeof result.debug.llmCalled === 'boolean') debug.llmCalled = result.debug.llmCalled;
     if (typeof result.debug.statsFallbackUsed === 'boolean') debug.statsFallbackUsed = result.debug.statsFallbackUsed;
     if (result.debug.statsFallbackReason) debug.statsFallbackReason = truncateString(result.debug.statsFallbackReason);
     if (result.debug.promptVersion) debug.promptVersion = result.debug.promptVersion;
@@ -110,6 +118,9 @@ function summarizePipelineResults(results: PipelineResult[]): Record<string, Jso
     errors: results.reduce((sum, batch) => sum + Number(batch.errors ?? 0), 0),
     savedRecommendations: flattened.filter((row) => row.saved).length,
     pushedNotifications: flattened.filter((row) => row.notified).length,
+    officialBetNotifications: flattened.filter((row) => row.saved && row.notified).length,
+    signalNotifications: flattened.filter((row) => !row.saved && row.notified).length,
+    noActionAudits: flattened.filter((row) => row.success && !row.saved && !row.notified && row.decisionKind === 'no_bet').length,
     successfulAnalyses: flattened.filter((row) => row.success).length,
   };
 }

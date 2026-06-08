@@ -11,6 +11,8 @@ import {
   getEligibleDeliveryUserIds,
   getPendingTelegramDeliveries,
   getRecommendationDeliveriesByUserId,
+  getRecommendationDeliveriesChartSeries,
+  getRecommendationDeliveriesSummary,
   markRecommendationDeliveriesDelivered,
   stageAnalysisSignalDeliveries,
   stageRecommendationDeliveries,
@@ -181,7 +183,7 @@ describe('recommendation deliveries repository', () => {
 
     expect(query).toHaveBeenNthCalledWith(
       1,
-      expect.stringContaining("COALESCE(r.settlement_status, NULLIF(d.metadata->>'recommendation_settlement_status', ''), 'pending') = 'unresolved' AND COALESCE(r.result, NULLIF(d.metadata->>'recommendation_result', '')) IN ('win', 'loss', 'push', 'void', 'half_win', 'half_loss')"),
+      expect.stringContaining("d.recommendation_id IS NOT NULL AND COALESCE(r.settlement_status, NULLIF(d.metadata->>'recommendation_settlement_status', ''), 'pending') = 'unresolved' AND COALESCE(r.result, NULLIF(d.metadata->>'recommendation_result', '')) IN ('win', 'loss', 'push', 'void', 'half_win', 'half_loss')"),
       ['user-1', 50, 0],
     );
   });
@@ -197,9 +199,65 @@ describe('recommendation deliveries repository', () => {
 
     expect(query).toHaveBeenNthCalledWith(
       1,
-      expect.stringContaining("COALESCE(r.result, NULLIF(d.metadata->>'recommendation_result', '')) IN ('win', 'half_win')"),
+      expect.stringContaining("d.recommendation_id IS NOT NULL AND COALESCE(r.result, NULLIF(d.metadata->>'recommendation_result', '')) IN ('win', 'half_win')"),
       ['user-1', 50, 0],
     );
+  });
+
+  test('getRecommendationDeliveriesByUserId treats pending result as saved-recommendation-only', async () => {
+    vi.mocked(query)
+      .mockResolvedValueOnce({ rows: [] } as never)
+      .mockResolvedValueOnce({ rows: [{ count: '0' }] } as never);
+
+    await getRecommendationDeliveriesByUserId('user-1', {
+      result: 'pending',
+    });
+
+    expect(query).toHaveBeenNthCalledWith(
+      1,
+      expect.stringContaining("d.recommendation_id IS NOT NULL AND (COALESCE(r.result, NULLIF(d.metadata->>'recommendation_result', '')) IS NULL"),
+      ['user-1', 50, 0],
+    );
+  });
+
+  test('getRecommendationDeliveriesSummary excludes signal rows from settlement metrics', async () => {
+    vi.mocked(query).mockResolvedValueOnce({
+      rows: [{
+        total: '3',
+        won: '1',
+        lost: '0',
+        push: '0',
+        voided: '0',
+        pending: '1',
+        review: '0',
+        pnl: '2.4',
+      }],
+    } as never);
+
+    const summary = await getRecommendationDeliveriesSummary('user-1');
+
+    expect(summary).toEqual({
+      total: 3,
+      won: 1,
+      lost: 0,
+      push: 0,
+      voided: 0,
+      pending: 1,
+      review: 0,
+      pnl: 2.4,
+    });
+    const sql = String(vi.mocked(query).mock.calls[0]?.[0]);
+    expect(sql).toContain("COUNT(*) FILTER (WHERE d.recommendation_id IS NOT NULL AND COALESCE(r.result, NULLIF(d.metadata->>'recommendation_result', '')) IN ('win', 'half_win'))");
+    expect(sql).toContain("COALESCE(SUM(COALESCE(r.pnl, NULLIF(d.metadata->>'recommendation_pnl', '')::numeric, 0)) FILTER (WHERE d.recommendation_id IS NOT NULL), 0)::text AS pnl");
+  });
+
+  test('getRecommendationDeliveriesChartSeries only charts saved recommendations', async () => {
+    vi.mocked(query).mockResolvedValueOnce({ rows: [{ idx: '1', cumulative: '2.4' }] } as never);
+
+    const series = await getRecommendationDeliveriesChartSeries('user-1');
+
+    expect(series).toEqual([{ idx: 1, cumulative: 2.4 }]);
+    expect(String(vi.mocked(query).mock.calls[0]?.[0])).toContain('AND d.recommendation_id IS NOT NULL');
   });
 
   test('getEligibleDeliveryUserIds returns eligible user ids only', async () => {

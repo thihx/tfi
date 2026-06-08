@@ -101,6 +101,53 @@ describe('buildRuntimePolicyShadowSignal', () => {
     expect(over.matchedPockets.map((pocket) => pocket.id)).toEqual(['over_15_60_74_one_goal']);
   });
 
+  it('matches medium-risk thin-edge as shadow-only telemetry', () => {
+    const signal = buildRuntimePolicyShadowSignal({
+      selection: 'Over 2.5 Goals @1.90',
+      betMarket: 'over_2.5',
+      minute: 63,
+      score: '1-1',
+      odds: 1.9,
+      confidence: 7,
+      valuePercent: 6,
+      riskLevel: 'MEDIUM',
+      policyBlocked: true,
+      policyWarnings: ['POLICY_BLOCK_MEDIUM_RISK_THIN_EDGE_GLOBAL'],
+      evidenceMode: 'full_live_data',
+      marketResolutionStatus: 'resolved',
+      prematchStrength: 'moderate',
+      oddsCanonical: totalsOnlyOdds,
+      minOdds: 1.5,
+    });
+
+    expect(signal.matchedPockets.map((pocket) => pocket.id)).toContain('medium_risk_thin_edge_shadow_v1');
+    expect(signal.matchedPockets.find((pocket) => pocket.id === 'medium_risk_thin_edge_shadow_v1')?.reason)
+      .toContain('no save/notify promotion');
+  });
+
+  it('matches odds-events degraded O/U and AH candidates as shadow-only telemetry', () => {
+    const signal = buildRuntimePolicyShadowSignal({
+      selection: 'Away +0.25 @1.88',
+      betMarket: 'asian_handicap_away_+0.25',
+      minute: 68,
+      score: '0-1',
+      odds: 1.88,
+      confidence: 8,
+      valuePercent: 8,
+      riskLevel: 'MEDIUM',
+      policyBlocked: true,
+      policyWarnings: ['MARKET_NOT_ALLOWED_FOR_EVIDENCE_MODE'],
+      evidenceMode: 'odds_events_only_degraded',
+      marketResolutionStatus: 'resolved',
+      prematchStrength: 'none',
+      oddsCanonical: { ah: { line: 0.25, home: 2.02, away: 1.88 } },
+      minOdds: 1.5,
+    });
+
+    expect(signal.matchedPockets.map((pocket) => pocket.id)).toEqual(['odds_events_degraded_shadow_v1']);
+    expect(signal.skippedReason).toBe('');
+  });
+
   it('does not create a shadow candidate when production policy did not block', () => {
     const signal = buildRuntimePolicyShadowSignal({
       selection: 'Over 1.5 Goals @1.55',

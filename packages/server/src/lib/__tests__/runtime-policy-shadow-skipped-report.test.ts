@@ -27,6 +27,17 @@ describe('runtime policy shadow skipped report', () => {
           metadata: {
             matchId: 'm-1',
             matchDisplay: 'Home A vs Away A',
+            leagueId: 39,
+            leagueName: 'Premier League',
+            leagueSegmentKey: 'league:39',
+            homeTeamId: 1,
+            homeTeamName: 'Home A',
+            homeTeamSegmentKey: 'team:1',
+            awayTeamId: 2,
+            awayTeamName: 'Away A',
+            awayTeamSegmentKey: 'team:2',
+            teamSegmentKeys: ['team:1', 'team:2'],
+            matchSegmentKey: 'match:m-1',
             canonicalMarket: 'btts_yes',
             selection: 'BTTS Yes @1.70',
             minute: 61,
@@ -55,6 +66,17 @@ describe('runtime policy shadow skipped report', () => {
           match_id: 'm-2',
           metadata: {
             matchDisplay: 'Home B vs Away B',
+            leagueId: 140,
+            leagueName: 'La Liga',
+            leagueSegmentKey: 'league:140',
+            homeTeamId: 3,
+            homeTeamName: 'Home B',
+            homeTeamSegmentKey: 'team:3',
+            awayTeamId: 4,
+            awayTeamName: 'Away B',
+            awayTeamSegmentKey: 'team:4',
+            teamSegmentKeys: ['team:3', 'team:4'],
+            matchSegmentKey: 'match:m-2',
             canonicalMarket: 'over_1.5',
             selection: 'Over 1.5 Goals @2.00',
             minute: 79,
@@ -112,9 +134,21 @@ describe('runtime policy shadow skipped report', () => {
     expect(report.byMarketResolutionStatus).toEqual([
       { key: 'resolved', count: 2, avgOdds: 1.85, minOdds: 1.7, maxOdds: 2 },
     ]);
+    expect(report.byLeagueSegment).toEqual([
+      { key: 'league:140', count: 1, avgOdds: 2, minOdds: 2, maxOdds: 2 },
+      { key: 'league:39', count: 1, avgOdds: 1.7, minOdds: 1.7, maxOdds: 1.7 },
+    ]);
+    expect(report.byTeamSegment).toEqual([
+      { key: 'team:1', count: 1, avgOdds: 1.7, minOdds: 1.7, maxOdds: 1.7 },
+      { key: 'team:2', count: 1, avgOdds: 1.7, minOdds: 1.7, maxOdds: 1.7 },
+      { key: 'team:3', count: 1, avgOdds: 2, minOdds: 2, maxOdds: 2 },
+      { key: 'team:4', count: 1, avgOdds: 2, minOdds: 2, maxOdds: 2 },
+    ]);
     expect(report.recent[0]).toMatchObject({
       id: 21,
       matchId: 'm-1',
+      leagueSegmentKey: 'league:39',
+      teamSegmentKeys: ['team:1', 'team:2'],
       canonicalMarket: 'btts_yes',
       selection: 'BTTS Yes @1.70',
       confidence: 6,
@@ -128,6 +162,8 @@ describe('runtime policy shadow skipped report', () => {
     const markdown = formatRuntimePolicyShadowSkippedReportMarkdown(report);
     expect(markdown).toContain('# Runtime Policy Shadow Skipped Report');
     expect(markdown).toContain('Home A vs Away A');
+    expect(markdown).toContain('league:39');
+    expect(markdown).toContain('team:1, team:2');
     expect(markdown).toContain('BTTS Yes shadow excluded');
   });
 

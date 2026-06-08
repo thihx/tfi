@@ -107,7 +107,7 @@ Review candidates:
 | Candidate | Current evidence | Action |
 | --- | --- | --- |
 | `POLICY_BLOCK_MEDIUM_RISK_THIN_EDGE_GLOBAL` | 17 runtime rows, ROI `+27.24%` | Shadow with 0.5-1% cap. |
-| `over_1.5`, minute `60-74`, one-goal margin | Historical mock: 6 candidates, 5W/1L, ROI `+30.25%`; real Gemini targeted sample: 0/8 actionable | Convert to Watch/shadow prompt experiment, not production loosen. |
+| `over_1.5`, minute `60-74`, one-goal margin | Historical mock: 6 candidates, 5W/1L, ROI `+30.25%`; real Gemini targeted sample: 0/8 actionable | Convert to Watch/runtime-shadow review, not production loosen. |
 | Late `under_4.5`, 75+, two-plus margin, total goals 4 | 1 real selected winner, blocked by LLP/policy cap path | Shadow exact pocket, review line-patience. |
 | `odds_events_only_degraded` O/U/AH | 15 rows, ROI `+67.60%` | Shadow only; check match concentration. |
 

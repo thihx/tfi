@@ -75,6 +75,7 @@
     "data-driven:check-policy-shadow-skipped-settlement-gates": "tsx src/scripts/check-runtime-policy-shadow-skipped-settlement-gates.ts",
     "data-driven:policy-shadow-settlement": "tsx src/scripts/report-runtime-policy-shadow-settlement.ts",
     "data-driven:check-policy-shadow-settlement-gates": "tsx src/scripts/check-runtime-policy-shadow-settlement-gates.ts",
+    "data-driven:check-policy-shadow-readiness-gates": "tsx src/scripts/check-runtime-policy-shadow-readiness-gates.ts",
     "provider:coverage-audit": "tsx src/scripts/audit-provider-coverage-samples.ts",
     "provider:coverage-refresh": "tsx src/scripts/refresh-provider-league-coverage.ts",
     "provider:odds-quality-report": "tsx src/scripts/report-provider-odds-quality.ts",

@@ -1,4 +1,8 @@
 import { query } from '../db/pool.js';
+import {
+  readRuntimeShadowSegmentMetadata,
+  type RuntimeShadowSegmentMetadata,
+} from './runtime-shadow-segments.js';
 
 export interface RuntimePolicyShadowReportOptions {
   lookbackDays: number;
@@ -20,7 +24,7 @@ export interface RuntimePolicyShadowSummaryRow {
   maxOdds: number | null;
 }
 
-export interface RuntimePolicyShadowRecentRow {
+export interface RuntimePolicyShadowRecentRow extends RuntimeShadowSegmentMetadata {
   id: number;
   timestamp: string;
   matchId: string;
@@ -63,6 +67,8 @@ export interface RuntimePolicyShadowReport {
   byWatchSignal: RuntimePolicyShadowSummaryRow[];
   byMarketResolutionStatus: RuntimePolicyShadowSummaryRow[];
   byMarketAvailabilityBucket: RuntimePolicyShadowSummaryRow[];
+  byLeagueSegment: RuntimePolicyShadowSummaryRow[];
+  byTeamSegment: RuntimePolicyShadowSummaryRow[];
   recent: RuntimePolicyShadowRecentRow[];
 }
 
@@ -115,11 +121,16 @@ function pocketIds(metadata: Record<string, unknown>): string[] {
 
 function normalizeRecentRow(row: RuntimePolicyShadowAuditRow): RuntimePolicyShadowRecentRow {
   const metadata = asRecord(row.metadata);
+  const segments = readRuntimeShadowSegmentMetadata({
+    ...metadata,
+    matchId: metadata.matchId ?? row.match_id,
+  });
   return {
     id: row.id,
     timestamp: row.timestamp,
     matchId: String(metadata.matchId ?? row.match_id ?? '').trim(),
     matchDisplay: String(metadata.matchDisplay ?? '').trim(),
+    ...segments,
     pocketIds: pocketIds(metadata),
     canonicalMarket: String(metadata.canonicalMarket ?? 'unknown').trim() || 'unknown',
     minute: toNumber(metadata.minute),
@@ -211,6 +222,8 @@ export async function buildRuntimePolicyShadowReport(
     byWatchSignal: summarizeBy(recent, (row) => [row.watchSignalKey]),
     byMarketResolutionStatus: summarizeBy(recent, (row) => [row.marketResolutionStatus]),
     byMarketAvailabilityBucket: summarizeBy(recent, (row) => [row.marketAvailabilityBucket]),
+    byLeagueSegment: summarizeBy(recent, (row) => [row.leagueSegmentKey]),
+    byTeamSegment: summarizeBy(recent, (row) => row.teamSegmentKeys),
     recent: recent.slice(0, 100),
   };
 }
@@ -250,19 +263,23 @@ export function formatRuntimePolicyShadowReportMarkdown(report: RuntimePolicySha
     ...formatSummaryTable('By Watch Signal', report.byWatchSignal),
     ...formatSummaryTable('By Market Resolution', report.byMarketResolutionStatus),
     ...formatSummaryTable('By Market Availability', report.byMarketAvailabilityBucket),
+    ...formatSummaryTable('By League Segment', report.byLeagueSegment),
+    ...formatSummaryTable('By Team Segment', report.byTeamSegment),
     '## Recent',
     '',
-    '| Timestamp | Match | Pockets | Market | Minute | Score | Odds | Confidence | Value | Risk | Stake | Watch Signal | Resolution | Evidence | Prematch | Availability |',
-    '| --- | --- | --- | --- | ---: | --- | ---: | ---: | ---: | --- | ---: | --- | --- | --- | --- | --- |',
+    '| Timestamp | Match | League Segment | Team Segments | Pockets | Market | Minute | Score | Odds | Confidence | Value | Risk | Stake | Watch Signal | Resolution | Evidence | Prematch | Availability |',
+    '| --- | --- | --- | --- | --- | --- | ---: | --- | ---: | ---: | ---: | --- | ---: | --- | --- | --- | --- | --- |',
   ];
 
   if (report.recent.length === 0) {
-    lines.push('| (none) |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |');
+    lines.push('| (none) |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |');
   } else {
     for (const row of report.recent.slice(0, 25)) {
       lines.push([
         row.timestamp,
         row.matchDisplay || row.matchId,
+        row.leagueSegmentKey,
+        row.teamSegmentKeys.join(', '),
         row.pocketIds.join(', '),
         row.canonicalMarket,
         row.minute ?? '',

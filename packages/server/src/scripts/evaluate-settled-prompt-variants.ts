@@ -21,6 +21,7 @@ import {
 import { listReplayScenarioJsonBasenames } from '../lib/replay-scenario-files.js';
 import { closePool } from '../db/pool.js';
 import { closeRedis } from '../lib/redis.js';
+import { LIVE_ANALYSIS_PROMPT_VERSION } from '../lib/live-analysis-prompt.js';
 
 interface EvaluateArgs {
   dirPath: string;
@@ -141,14 +142,9 @@ function parseArgs(argv: string[]): EvaluateArgs {
     throw new Error('Usage: tsx src/scripts/evaluate-settled-prompt-variants.ts --dir <folder> [--prompt-version <version>]... [--llm real|mock] [--model <gemini-model>] [--allow-real-llm] [--odds recorded|live|mock] [--delay-ms N] [--max-scenarios N] [--apply-replay-policy] [--settled-replay-trace-mode] [--prematch-profile-mode full|none|league-only|team-only] [--llm-cache-dir <dir>] [--report-json <file>] [--report-md <file>] [--report-cases-json <file>]');
   }
 
-  const fallbackPromptVersions = [
-    config.liveAnalysisActivePromptVersion,
-    config.liveAnalysisShadowPromptVersion,
-  ].filter((value): value is string => typeof value === 'string' && value.trim().length > 0);
-
   return {
     dirPath,
-    promptVersions: promptVersions.length > 0 ? promptVersions : [...new Set(fallbackPromptVersions)],
+    promptVersions: promptVersions.length > 0 ? promptVersions : [LIVE_ANALYSIS_PROMPT_VERSION],
     llmMode,
     llmModel,
     allowRealLlm,

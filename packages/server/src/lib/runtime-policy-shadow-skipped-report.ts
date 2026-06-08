@@ -1,4 +1,8 @@
 import { query } from '../db/pool.js';
+import {
+  readRuntimeShadowSegmentMetadata,
+  type RuntimeShadowSegmentMetadata,
+} from './runtime-shadow-segments.js';
 
 export interface RuntimePolicyShadowSkippedReportOptions {
   lookbackDays: number;
@@ -20,7 +24,7 @@ export interface RuntimePolicyShadowSkippedSummaryRow {
   maxOdds: number | null;
 }
 
-export interface RuntimePolicyShadowSkippedRecentRow {
+export interface RuntimePolicyShadowSkippedRecentRow extends RuntimeShadowSegmentMetadata {
   id: number;
   timestamp: string;
   matchId: string;
@@ -63,6 +67,8 @@ export interface RuntimePolicyShadowSkippedReport {
   byMarketResolutionStatus: RuntimePolicyShadowSkippedSummaryRow[];
   byMarketAvailabilityBucket: RuntimePolicyShadowSkippedSummaryRow[];
   bySkippedReason: RuntimePolicyShadowSkippedSummaryRow[];
+  byLeagueSegment: RuntimePolicyShadowSkippedSummaryRow[];
+  byTeamSegment: RuntimePolicyShadowSkippedSummaryRow[];
   recent: RuntimePolicyShadowSkippedRecentRow[];
 }
 
@@ -111,11 +117,16 @@ function round(value: number): number {
 
 function normalizeRecentRow(row: RuntimePolicyShadowSkippedAuditRow): RuntimePolicyShadowSkippedRecentRow {
   const metadata = asRecord(row.metadata);
+  const segments = readRuntimeShadowSegmentMetadata({
+    ...metadata,
+    matchId: metadata.matchId ?? row.match_id,
+  });
   return {
     id: row.id,
     timestamp: row.timestamp,
     matchId: String(metadata.matchId ?? row.match_id ?? '').trim(),
     matchDisplay: String(metadata.matchDisplay ?? '').trim(),
+    ...segments,
     canonicalMarket: String(metadata.canonicalMarket ?? 'unknown').trim() || 'unknown',
     selection: String(metadata.selection ?? '').trim(),
     minute: toNumber(metadata.minute),
@@ -141,15 +152,19 @@ function normalizeRecentRow(row: RuntimePolicyShadowSkippedAuditRow): RuntimePol
 
 function summarizeBy(
   rows: RuntimePolicyShadowSkippedRecentRow[],
-  keyForRow: (row: RuntimePolicyShadowSkippedRecentRow) => string,
+  keysForRow: (row: RuntimePolicyShadowSkippedRecentRow) => string | string[],
 ): RuntimePolicyShadowSkippedSummaryRow[] {
   const map = new Map<string, { count: number; odds: number[] }>();
   for (const row of rows) {
-    const key = String(keyForRow(row) || 'unknown').trim() || 'unknown';
-    const bucket = map.get(key) ?? { count: 0, odds: [] };
-    bucket.count += 1;
-    if (row.odds != null) bucket.odds.push(row.odds);
-    map.set(key, bucket);
+    const rawKeys = keysForRow(row);
+    const keys = Array.isArray(rawKeys) ? rawKeys : [rawKeys];
+    for (const rawKey of keys) {
+      const key = String(rawKey || 'unknown').trim() || 'unknown';
+      const bucket = map.get(key) ?? { count: 0, odds: [] };
+      bucket.count += 1;
+      if (row.odds != null) bucket.odds.push(row.odds);
+      map.set(key, bucket);
+    }
   }
 
   return [...map.entries()]
@@ -200,6 +215,8 @@ export async function buildRuntimePolicyShadowSkippedReport(
     byMarketResolutionStatus: summarizeBy(recent, (row) => row.marketResolutionStatus),
     byMarketAvailabilityBucket: summarizeBy(recent, (row) => row.marketAvailabilityBucket),
     bySkippedReason: summarizeBy(recent, (row) => row.skippedReason),
+    byLeagueSegment: summarizeBy(recent, (row) => row.leagueSegmentKey),
+    byTeamSegment: summarizeBy(recent, (row) => row.teamSegmentKeys),
     recent: recent.slice(0, 100),
   };
 }
@@ -240,19 +257,23 @@ export function formatRuntimePolicyShadowSkippedReportMarkdown(
     ...formatSummaryTable('By Market Resolution', report.byMarketResolutionStatus),
     ...formatSummaryTable('By Market Availability', report.byMarketAvailabilityBucket),
     ...formatSummaryTable('By Skipped Reason', report.bySkippedReason),
+    ...formatSummaryTable('By League Segment', report.byLeagueSegment),
+    ...formatSummaryTable('By Team Segment', report.byTeamSegment),
     '## Recent',
     '',
-    '| Timestamp | Match | Market | Selection | Minute | Score | Odds | Confidence | Value | Risk | Stake | Watch Signal | Resolution | Evidence | Prematch | Availability | Reason |',
-    '| --- | --- | --- | --- | ---: | --- | ---: | ---: | ---: | --- | ---: | --- | --- | --- | --- | --- | --- |',
+    '| Timestamp | Match | League Segment | Team Segments | Market | Selection | Minute | Score | Odds | Confidence | Value | Risk | Stake | Watch Signal | Resolution | Evidence | Prematch | Availability | Reason |',
+    '| --- | --- | --- | --- | --- | --- | ---: | --- | ---: | ---: | ---: | --- | ---: | --- | --- | --- | --- | --- | --- |',
   ];
 
   if (report.recent.length === 0) {
-    lines.push('| (none) |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |');
+    lines.push('| (none) |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |');
   } else {
     for (const row of report.recent.slice(0, 25)) {
       lines.push([
         row.timestamp,
         row.matchDisplay || row.matchId,
+        row.leagueSegmentKey,
+        row.teamSegmentKeys.join(', '),
         row.canonicalMarket,
         row.selection,
         row.minute ?? '',

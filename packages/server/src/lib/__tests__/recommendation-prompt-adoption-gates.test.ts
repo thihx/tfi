@@ -40,7 +40,7 @@ function adoptionReport(partial?: Partial<RecommendationPromptAdoptionReport>): 
         pending: 12,
       },
       {
-        promptVersion: 'v10-hybrid-legacy-b',
+        promptVersion: 'retired-prompt',
         count: 3,
         actionable: 3,
         withDecisionContext: 2,
@@ -121,7 +121,7 @@ describe('evaluateRecommendationPromptAdoptionGates', () => {
         },
         byPromptVersion: [
           {
-            promptVersion: 'v10-hybrid-legacy-b',
+            promptVersion: 'retired-prompt',
             count: 15,
             actionable: 15,
             withDecisionContext: 15,

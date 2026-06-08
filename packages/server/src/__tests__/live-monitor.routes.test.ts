@@ -10,6 +10,18 @@ const mockGetMatchesByIds = vi.fn();
 const mockGetLatestSnapshotsForMatches = vi.fn();
 const mockGetLatestRecommendationsForMatches = vi.fn();
 const mockGetSettings = vi.fn();
+const mockResolveSubscriptionAccess = vi.fn();
+const mockConsumeManualAiQuota = vi.fn();
+const mockBuildLiveOutputOperatorReport = vi.fn();
+
+const CURRENT_USER = {
+  userId: 'user-1',
+  email: 'user@example.com',
+  role: 'member' as const,
+  status: 'active' as const,
+  displayName: 'User',
+  avatarUrl: '',
+};
 
 vi.mock('../jobs/scheduler.js', () => ({
   getJobsStatus: mockGetJobsStatus,
@@ -40,11 +52,30 @@ vi.mock('../repos/settings.repo.js', () => ({
   getSettings: mockGetSettings,
 }));
 
+vi.mock('../lib/subscription-access.js', () => ({
+  resolveSubscriptionAccess: mockResolveSubscriptionAccess,
+  consumeManualAiQuota: mockConsumeManualAiQuota,
+  sendEntitlementError: vi.fn((error: unknown) => {
+    if (error && typeof error === 'object' && 'statusCode' in error) {
+      const typed = error as { statusCode: number; payload?: unknown; message?: string; code?: string };
+      return {
+        statusCode: typed.statusCode,
+        payload: typed.payload ?? { error: typed.message ?? 'Entitlement blocked', code: typed.code ?? 'ENTITLEMENT_BLOCKED' },
+      };
+    }
+    return null;
+  }),
+}));
+
+vi.mock('../lib/live-output-operator-report.js', () => ({
+  buildLiveOutputOperatorReport: mockBuildLiveOutputOperatorReport,
+}));
+
 let app: FastifyInstance;
 
 beforeAll(async () => {
   const { liveMonitorRoutes } = await import('../routes/live-monitor.routes.js');
-  app = await buildApp(liveMonitorRoutes);
+  app = await buildApp([liveMonitorRoutes], { currentUser: CURRENT_USER });
 });
 
 beforeEach(() => {
@@ -54,10 +85,94 @@ beforeEach(() => {
   mockGetLatestSnapshotsForMatches.mockResolvedValue(new Map());
   mockGetLatestRecommendationsForMatches.mockResolvedValue(new Map());
   mockGetSettings.mockResolvedValue({});
+  mockResolveSubscriptionAccess.mockResolvedValue({ plan: { plan_code: 'free' }, entitlements: {} });
+  mockConsumeManualAiQuota.mockResolvedValue({ periodKey: '2026-06-09', limit: 3, used: 1 });
+  mockBuildLiveOutputOperatorReport.mockResolvedValue({
+    generatedAt: '2026-06-09T00:00:00.000Z',
+    lookbackHours: 24,
+    officialPromptVersion: 'v10-hybrid-legacy-g',
+    totals: {
+      matchAnalyzed: 0,
+      moneyRecommendations: 0,
+      statsOnlySignals: 0,
+      watchInsights: 0,
+      shadowCandidates: 0,
+      noActions: 0,
+      llmCalled: 0,
+      llmSkipped: 0,
+    },
+    outputKindBreakdown: [],
+    reasonGroupBreakdown: [],
+    reasonBuckets: [],
+    recentDrilldown: [],
+  });
 });
 
 afterAll(async () => {
   await app.close();
+});
+
+describe('GET /api/live-monitor/why-no-recommendation', () => {
+  test('returns operator reason grouping and drilldown from the report builder', async () => {
+    mockBuildLiveOutputOperatorReport.mockResolvedValueOnce({
+      generatedAt: '2026-06-09T00:00:00.000Z',
+      lookbackHours: 48,
+      officialPromptVersion: 'v10-hybrid-legacy-g',
+      totals: {
+        matchAnalyzed: 3,
+        moneyRecommendations: 1,
+        statsOnlySignals: 1,
+        watchInsights: 0,
+        shadowCandidates: 1,
+        noActions: 1,
+        llmCalled: 2,
+        llmSkipped: 1,
+      },
+      outputKindBreakdown: [{ outputKind: 'no_action', count: 1, latestAt: '2026-06-09T00:00:00.000Z' }],
+      reasonGroupBreakdown: [{ group: 'policy', count: 1, latestAt: '2026-06-09T00:00:00.000Z' }],
+      reasonBuckets: [{
+        key: 'policy_blocked',
+        group: 'policy',
+        outputKind: 'shadow_candidate',
+        evidenceMode: 'full_live_data',
+        count: 1,
+        latestAt: '2026-06-09T00:00:00.000Z',
+      }],
+      recentDrilldown: [{
+        id: 10,
+        timestamp: '2026-06-09T00:00:00.000Z',
+        matchId: '100',
+        matchDisplay: 'Arsenal vs Chelsea',
+        minute: '64',
+        status: '2H',
+        score: '1-1',
+        outputKind: 'shadow_candidate',
+        auditBucket: 'policy_blocked',
+        reasonGroup: 'policy',
+        evidenceMode: 'full_live_data',
+        route: 'shadow_path',
+        llmCalled: true,
+        savedRecommendation: false,
+        settlementEligible: false,
+        roiEligible: false,
+        candidatePresent: true,
+        noActionReason: 'policy_blocked',
+      }],
+    });
+
+    const res = await app.inject({
+      method: 'GET',
+      url: '/api/live-monitor/why-no-recommendation?lookbackHours=48&maxSamples=7',
+    });
+
+    expect(res.statusCode).toBe(200);
+    expect(mockBuildLiveOutputOperatorReport).toHaveBeenCalledWith({ lookbackHours: 48, maxSamples: 7 });
+    expect(res.json()).toMatchObject({
+      lookbackHours: 48,
+      reasonBuckets: [{ key: 'policy_blocked', group: 'policy' }],
+      recentDrilldown: [{ matchId: '100', auditBucket: 'policy_blocked' }],
+    });
+  });
 });
 
 describe('GET /api/live-monitor/status', () => {
@@ -159,6 +274,9 @@ describe('GET /api/live-monitor/status', () => {
         processed: 2,
         savedRecommendations: 1,
         pushedNotifications: 1,
+        officialBetNotifications: 1,
+        signalNotifications: 0,
+        noActionAudits: 1,
         errors: 0,
       },
       monitoring: {
@@ -274,9 +392,63 @@ describe('GET /api/live-monitor/status', () => {
       processed: 3,
       savedRecommendations: 1,
       pushedNotifications: 1,
+      officialBetNotifications: 1,
+      signalNotifications: 0,
+      noActionAudits: 1,
       errors: 1,
     });
     expect(res.json().results).toHaveLength(2);
+  });
+
+  test('separates official bet notifications from signal notifications', async () => {
+    mockGetJobsStatus.mockResolvedValueOnce([
+      {
+        name: 'check-live-trigger',
+        intervalMs: 60_000,
+        lastRun: '2026-03-24T10:00:00.000Z',
+        lastError: null,
+        running: false,
+        enabled: true,
+        runCount: 6,
+        progress: {
+          step: 'done',
+          message: 'Completed',
+          percent: 100,
+          startedAt: '2026-03-24T09:59:50.000Z',
+          completedAt: '2026-03-24T10:00:00.000Z',
+          error: null,
+          result: JSON.stringify({
+            liveCount: 3,
+            candidateCount: 3,
+            pipelineResults: [
+              {
+                processed: 3,
+                errors: 0,
+                results: [
+                  { matchId: '100', success: true, decisionKind: 'ai_push', shouldPush: true, selection: 'Over 2.5', confidence: 7, saved: true, notified: true },
+                  { matchId: '101', success: true, decisionKind: 'condition_only', shouldPush: true, selection: 'Pressure watch', confidence: 6, saved: false, notified: true },
+                  { matchId: '102', success: true, decisionKind: 'no_bet', shouldPush: false, selection: '', confidence: 0, saved: false, notified: false },
+                ],
+              },
+            ],
+          }),
+        },
+        concurrency: 1,
+        activeRuns: 0,
+        pendingRuns: 0,
+      },
+    ]);
+
+    const res = await app.inject({ method: 'GET', url: '/api/live-monitor/status' });
+
+    expect(res.statusCode).toBe(200);
+    expect(res.json().summary).toMatchObject({
+      savedRecommendations: 1,
+      pushedNotifications: 2,
+      officialBetNotifications: 1,
+      signalNotifications: 1,
+      noActionAudits: 1,
+    });
   });
 
   test('returns monitoring scope for watched live matches and exposes candidate reasons', async () => {
@@ -471,6 +643,29 @@ describe('POST /api/live-monitor/matches/:matchId/analyze', () => {
       followUpHistory: undefined,
       userQuestion: undefined,
     });
+    expect(mockResolveSubscriptionAccess).toHaveBeenCalledWith('user-1');
+    expect(mockConsumeManualAiQuota).toHaveBeenCalledWith(expect.anything(), 'user-1', expect.objectContaining({
+      route: 'live-monitor-match-analyze',
+      matchId: '123',
+      advisoryOnly: false,
+    }));
+  });
+
+  test('blocks manual match analysis when the subscription quota is exhausted', async () => {
+    mockConsumeManualAiQuota.mockRejectedValueOnce({
+      statusCode: 429,
+      code: 'MANUAL_AI_DAILY_LIMIT_REACHED',
+      message: 'Daily Manual Ask AI limit reached',
+    });
+
+    const res = await app.inject({ method: 'POST', url: '/api/live-monitor/matches/123/analyze' });
+
+    expect(res.statusCode).toBe(429);
+    expect(res.json()).toEqual({
+      error: 'Daily Manual Ask AI limit reached',
+      code: 'MANUAL_AI_DAILY_LIMIT_REACHED',
+    });
+    expect(mockRunManualAnalysisForMatch).not.toHaveBeenCalled();
   });
 
   test('passes follow-up advisory question and history to manual analysis', async () => {

@@ -167,10 +167,15 @@ export interface RecommendationDeliveryChartPoint {
 const FINAL_DELIVERY_RESULTS_SQL = `'win', 'loss', 'push', 'void', 'half_win', 'half_loss'`;
 const DELIVERY_RESULT_SQL = `COALESCE(r.result, NULLIF(d.metadata->>'recommendation_result', ''))`;
 const DELIVERY_PNL_SQL = `COALESCE(r.pnl, NULLIF(d.metadata->>'recommendation_pnl', '')::numeric, 0)`;
+const DELIVERY_SAVED_RECOMMENDATION_SQL = `d.recommendation_id IS NOT NULL`;
 const DELIVERY_WIN_SQL = `${DELIVERY_RESULT_SQL} IN ('win', 'half_win')`;
 const DELIVERY_LOSS_SQL = `${DELIVERY_RESULT_SQL} IN ('loss', 'half_loss')`;
 const DELIVERY_PENDING_SQL = `(${DELIVERY_RESULT_SQL} IS NULL OR ${DELIVERY_RESULT_SQL} = '' OR ${DELIVERY_RESULT_SQL} NOT IN (${FINAL_DELIVERY_RESULTS_SQL}))`;
 const DELIVERY_REVIEW_SQL = `COALESCE(r.settlement_status, NULLIF(d.metadata->>'recommendation_settlement_status', ''), 'pending') = 'unresolved' AND ${DELIVERY_RESULT_SQL} IN (${FINAL_DELIVERY_RESULTS_SQL})`;
+const DELIVERY_BET_WIN_SQL = `${DELIVERY_SAVED_RECOMMENDATION_SQL} AND ${DELIVERY_WIN_SQL}`;
+const DELIVERY_BET_LOSS_SQL = `${DELIVERY_SAVED_RECOMMENDATION_SQL} AND ${DELIVERY_LOSS_SQL}`;
+const DELIVERY_BET_PENDING_SQL = `${DELIVERY_SAVED_RECOMMENDATION_SQL} AND ${DELIVERY_PENDING_SQL}`;
+const DELIVERY_BET_REVIEW_SQL = `${DELIVERY_SAVED_RECOMMENDATION_SQL} AND ${DELIVERY_REVIEW_SQL}`;
 const DELIVERY_SELECTION_SQL = `COALESCE(r.selection, NULLIF(d.metadata->>'recommendation_selection', ''))`;
 const DELIVERY_ODDS_SQL = `COALESCE(r.odds, NULLIF(d.metadata->>'recommendation_odds', '')::numeric)`;
 const DELIVERY_STAKE_SQL = `COALESCE(r.stake_percent, NULLIF(d.metadata->>'recommendation_stake_percent', '')::numeric, 0)`;
@@ -220,17 +225,17 @@ function buildRecommendationDeliveryListFilters(
   }
   if (options.result) {
     if (options.result === 'correct') {
-      conditions.push(`${DELIVERY_RESULT_SQL} IN ('win', 'half_win')`);
+      conditions.push(DELIVERY_BET_WIN_SQL);
     } else if (options.result === 'incorrect') {
-      conditions.push(`${DELIVERY_RESULT_SQL} IN ('loss', 'half_loss')`);
+      conditions.push(DELIVERY_BET_LOSS_SQL);
     } else if (options.result === 'neutral') {
-      conditions.push(`${DELIVERY_RESULT_SQL} IN ('push', 'void')`);
+      conditions.push(`${DELIVERY_SAVED_RECOMMENDATION_SQL} AND ${DELIVERY_RESULT_SQL} IN ('push', 'void')`);
     } else if (options.result === 'pending') {
-      conditions.push(DELIVERY_PENDING_SQL);
+      conditions.push(DELIVERY_BET_PENDING_SQL);
     } else if (options.result === 'review') {
-      conditions.push(DELIVERY_REVIEW_SQL);
+      conditions.push(DELIVERY_BET_REVIEW_SQL);
     } else {
-      conditions.push(`${DELIVERY_RESULT_SQL} = $${index}`);
+      conditions.push(`${DELIVERY_SAVED_RECOMMENDATION_SQL} AND ${DELIVERY_RESULT_SQL} = $${index}`);
       params.push(options.result);
       index++;
     }
@@ -288,15 +293,15 @@ export async function getRecommendationDeliveriesSummary(
     review: string;
     pnl: string;
   }>(
-    `SELECT
+     `SELECT
        COUNT(*)::text AS total,
-       COUNT(*) FILTER (WHERE ${DELIVERY_WIN_SQL})::text AS won,
-       COUNT(*) FILTER (WHERE ${DELIVERY_LOSS_SQL})::text AS lost,
-       COUNT(*) FILTER (WHERE r.result = 'push')::text AS push,
-       COUNT(*) FILTER (WHERE r.result = 'void')::text AS voided,
-       COUNT(*) FILTER (WHERE ${DELIVERY_PENDING_SQL})::text AS pending,
-       COUNT(*) FILTER (WHERE ${DELIVERY_REVIEW_SQL})::text AS review,
-       COALESCE(SUM(${DELIVERY_PNL_SQL}), 0)::text AS pnl
+       COUNT(*) FILTER (WHERE ${DELIVERY_BET_WIN_SQL})::text AS won,
+       COUNT(*) FILTER (WHERE ${DELIVERY_BET_LOSS_SQL})::text AS lost,
+       COUNT(*) FILTER (WHERE ${DELIVERY_SAVED_RECOMMENDATION_SQL} AND r.result = 'push')::text AS push,
+       COUNT(*) FILTER (WHERE ${DELIVERY_SAVED_RECOMMENDATION_SQL} AND r.result = 'void')::text AS voided,
+       COUNT(*) FILTER (WHERE ${DELIVERY_BET_PENDING_SQL})::text AS pending,
+       COUNT(*) FILTER (WHERE ${DELIVERY_BET_REVIEW_SQL})::text AS review,
+       COALESCE(SUM(${DELIVERY_PNL_SQL}) FILTER (WHERE ${DELIVERY_SAVED_RECOMMENDATION_SQL}), 0)::text AS pnl
      FROM user_recommendation_deliveries d
      LEFT JOIN recommendations r ON r.id = d.recommendation_id
      ${whereSql}`,
@@ -330,6 +335,7 @@ export async function getRecommendationDeliveriesChartSeries(
      FROM user_recommendation_deliveries d
      LEFT JOIN recommendations r ON r.id = d.recommendation_id
      ${whereSql}
+       AND ${DELIVERY_SAVED_RECOMMENDATION_SQL}
        AND ${DELIVERY_RESULT_SQL} IN (${FINAL_DELIVERY_RESULTS_SQL})
        AND COALESCE(r.timestamp, d.created_at) IS NOT NULL
      ORDER BY COALESCE(r.timestamp, d.created_at) ASC, d.id ASC`,

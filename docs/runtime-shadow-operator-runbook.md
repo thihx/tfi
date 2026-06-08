@@ -112,6 +112,7 @@ Read in this order:
 3. `runtime-policy-shadow-suite/runtime-policy-shadow-skipped-report.md`
 4. `runtime-policy-shadow-suite/runtime-policy-shadow-settlement.md`
 5. `runtime-policy-shadow-suite/runtime-policy-shadow-skipped-settlement.md`
+6. `runtime-policy-shadow-suite/runtime-policy-shadow-readiness-gates.md`
 
 Interpretation:
 
@@ -134,11 +135,18 @@ Skipped-neighbor selections:
 npm run data-driven:check-policy-shadow-skipped-settlement-gates --prefix packages/server -- --config "$out/runtime-policy-shadow-skipped-settlement-gates.json"
 ```
 
+Aggregate Phase 3 readiness:
+
+```powershell
+npm run data-driven:check-policy-shadow-readiness-gates --prefix packages/server -- --config "$out/runtime-policy-shadow-readiness-gates.json"
+```
+
 Use existing audit configs as templates when starting from the current audit:
 
 - `replay-work/audit/20260603-120456/current-runtime-blocked-selection-gates.json`
 - `replay-work/audit/20260603-120456/runtime-policy-shadow-settlement-gates-after-telemetry.json`
 - `replay-work/audit/20260603-120456/runtime-policy-shadow-skipped-settlement-gates-after-telemetry.json`
+- `packages/server/runtime-policy-shadow-readiness-gates.example.json`
 
 Update the report paths inside copied configs before running gates.
 
@@ -149,17 +157,50 @@ Gate pass means:
 - Minimum sample and settled coverage were met.
 - Required pockets or markets met configured win/loss/P/L/ROI thresholds.
 - The candidate may move to human review or a longer observation window.
+- Phase 3 readiness says `ready_for_human_review` only when sample, settlement, market-resolution, evidence-purity, and concentration checks all pass.
 
 Gate pass does not mean:
 
 - Production policy should be loosened automatically.
 - Prompt instructions should be softened.
 - A new market should be persisted without normal policy, odds, confidence, same-thesis, and segment guards.
+- Phase 4 can start without adding a rollout flag, rollback switch, and owner.
 
 Gate fail means:
 
 - The evidence is insufficient, negative, unresolved, or too risky for promotion.
 - The next action is usually observe longer, inspect diagnostics, or tighten the candidate definition.
+
+## Phase 4 Controlled Promotion Controls
+
+Runtime code supports a controlled production promotion path, but it is off by default.
+
+Required env to enable a narrow pocket:
+
+```env
+RUNTIME_POLICY_PROMOTION_ENABLED=true
+RUNTIME_POLICY_PROMOTION_KILL_SWITCH=false
+RUNTIME_POLICY_PROMOTION_POCKET_IDS=late_under_45_two_plus
+RUNTIME_POLICY_PROMOTION_ROLLOUT_PERCENT=5
+RUNTIME_POLICY_PROMOTION_MAX_STAKE_PERCENT=1
+RUNTIME_POLICY_PROMOTION_EVIDENCE_ACK=ready_for_human_review
+RUNTIME_POLICY_PROMOTION_OWNER=<operator-or-thread-id>
+```
+
+Rollback:
+
+```env
+RUNTIME_POLICY_PROMOTION_KILL_SWITCH=true
+```
+
+Operational rules:
+
+- Keep `RUNTIME_POLICY_PROMOTION_ENABLED=false` until readiness gates pass and human review explicitly approves the pocket.
+- Never set `RUNTIME_POLICY_PROMOTION_EVIDENCE_ACK=ready_for_human_review` from replay-only evidence.
+- Start with a small rollout percentage and one pocket id.
+- Review `PIPELINE_POLICY_PROMOTION_EVALUATED` audit rows daily while enabled.
+- Promoted recommendation rows must show `decision_context.recommendationSource=runtime_policy_promotion` and `decision_context.policyBlocked=true`.
+- If save-integrity blocks a promoted candidate, fix market/odds proof before changing promotion settings.
 
 ## Hard No-Promote Rules
 
@@ -173,6 +214,14 @@ Do not promote or loosen policy when any of these is true:
 - Market resolution is mostly `unresolved`, `unknown`, or not provable against canonical odds.
 - The candidate depends on unsupported deterministic settlement rules.
 - The proposed change would bypass minimum odds, confidence, evidence mode, same-thesis, save-integrity, segment blocklist, or stake-cap guards.
+- Phase 3 readiness shows top-match/top-league/top-team/top-market concentration above configured limits.
+- Evidence-mode contamination appears in the candidate cohort.
+
+Segment telemetry note:
+
+- Runtime shadow candidate/skipped audit metadata and shadow settlement rows now carry normalized `leagueSegmentKey` and `teamSegmentKeys`.
+- Readiness configs can gate `maxTopLeagueShare` and `maxTopTeamShare`; keep these checks enabled before any Phase 4 promotion.
+- Older audit artifacts without these fields should be treated as incomplete segment evidence, not promotion evidence.
 
 ## Decision Table
 

@@ -15,12 +15,10 @@ export type PromptStatsSource = 'api-football' | string;
 export type PromptAnalysisMode = 'auto' | 'system_force' | 'manual_force';
 export type PromptEvidenceMode = LiveAnalysisEvidenceMode;
 
-/** Default live-analysis prompt when `LIVE_ANALYSIS_ACTIVE_PROMPT_VERSION` is unset or invalid. */
+/** Single live-analysis prompt baseline. */
 export const LIVE_ANALYSIS_PROMPT_VERSION = 'v10-hybrid-legacy-g';
 export const LIVE_ANALYSIS_PROMPT_VERSIONS = [LIVE_ANALYSIS_PROMPT_VERSION] as const;
-export type LiveAnalysisPromptVersion = (typeof LIVE_ANALYSIS_PROMPT_VERSIONS)[number] | string;
-/** Reference official version for tests/replay tooling; runtime shadow uses env (`LIVE_ANALYSIS_SHADOW_*`), not this constant. */
-export const LIVE_ANALYSIS_PROMPT_CANDIDATE_VERSION = 'v10-hybrid-legacy-g';
+export type LiveAnalysisPromptVersion = (typeof LIVE_ANALYSIS_PROMPT_VERSIONS)[number];
 
 export function isLiveAnalysisPromptVersion(value: string): value is LiveAnalysisPromptVersion {
   return value === LIVE_ANALYSIS_PROMPT_VERSION;
@@ -300,6 +298,12 @@ function hasNonEmptyObject(value: Record<string, unknown> | null | undefined): v
 
 function isStructuredPrematchAskAi(data: LiveAnalysisPromptInput): boolean {
   return data.structuredPrematchAskAi === true;
+}
+
+function normalizeLiveAnalysisPromptVersion(promptVersion: string | undefined): LiveAnalysisPromptVersion {
+  return promptVersion === LIVE_ANALYSIS_PROMPT_VERSION
+    ? LIVE_ANALYSIS_PROMPT_VERSION
+    : LIVE_ANALYSIS_PROMPT_VERSION;
 }
 
 function buildStructuredPrematchAskAiSection(compact: boolean, data: LiveAnalysisPromptInput): string {
@@ -1674,9 +1678,9 @@ ${restrictions.join('\n')}
 export function buildLiveAnalysisPrompt(
   data: LiveAnalysisPromptInput,
   settings: LiveAnalysisPromptSettings,
-  promptVersion: LiveAnalysisPromptVersion = LIVE_ANALYSIS_PROMPT_VERSION,
+  promptVersionInput: string = LIVE_ANALYSIS_PROMPT_VERSION,
 ): string {
-  promptVersion = LIVE_ANALYSIS_PROMPT_VERSION;
+  const promptVersion = normalizeLiveAnalysisPromptVersion(promptVersionInput);
   const analysisMode = resolveAnalysisMode(data);
   const structuredPrematchAskAiSection = buildStructuredPrematchAskAiSection(isCompactPromptVersion(promptVersion), data);
   const prunedBasicStatsCompact = pruneEmptyStatsCompact(pickStatsSubset(data.statsCompact, BASIC_STATS_KEYS));

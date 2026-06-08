@@ -433,7 +433,6 @@ For low-sample betting segments, mark the result as `observe` instead of `block`
 - Do not loosen policy gates based only on a few attractive examples.
 - Do not update CI baselines unless the team intentionally accepts the new metrics.
 - Do not use API-Football predictions as AI evidence; see [ai-input-source-audit.md](./ai-input-source-audit.md).
-- Do not use retired prompt versions or shadow candidates unless creating a deliberate new official baseline.
+- Do not use retired prompt versions or shadow prompt candidates unless creating a deliberate new official baseline.
 - Do not treat `should_push=true` as a saved recommendation.
 - Do not persist recommendations with unknown market, unavailable odds, odds below minimum, forbidden evidence mode, or hard policy block.
-

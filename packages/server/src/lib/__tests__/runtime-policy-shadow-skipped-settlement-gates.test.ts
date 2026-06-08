@@ -56,6 +56,8 @@ function report(
         roiOnStaked: 0.35,
       },
     ],
+    byLeagueSegment: [],
+    byTeamSegment: [],
     rows: [],
     ...partial,
   };
