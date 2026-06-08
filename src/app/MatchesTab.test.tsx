@@ -737,7 +737,7 @@ describe('MatchesTab', () => {
     expect(mockLoadAllData).toHaveBeenCalledTimes(1);
     expect(shouldAutoRefreshMatch(mockState.matches[0]!, now)).toBe(true);
 
-    await vi.advanceTimersByTimeAsync(3000);
+    await vi.advanceTimersByTimeAsync(2000);
 
     expect(mockLoadAllData).toHaveBeenCalledTimes(1);
     expect(mockLoadAllData).toHaveBeenNthCalledWith(1, true);

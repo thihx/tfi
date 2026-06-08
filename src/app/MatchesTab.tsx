@@ -515,14 +515,14 @@ export function MatchesTab() {
     return () => document.removeEventListener('visibilitychange', onVisibility);
   }, []);
 
-  // Merge-refresh from GET /api/matches while this tab is mounted: live scores (3s) + list hygiene (10s) so removals/status FT stay in sync without full reload.
+  // Merge-refresh from GET /api/matches while this tab is mounted: live scores (2s) + list hygiene (10s) so removals/status FT stay in sync without full reload.
   useEffect(() => {
     const fast = window.setInterval(() => {
       const now = Date.now();
       if (allMatchesRef.current.some((m) => shouldAutoRefreshMatch(m, now))) {
         void refreshMatchesRef.current();
       }
-    }, 3000);
+    }, 2000);
     const steady = window.setInterval(() => {
       void refreshMatchesRef.current();
     }, 10_000);

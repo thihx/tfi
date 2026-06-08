@@ -119,6 +119,34 @@ const INTERVAL_OPTIONS = [
   { label: 'Every 24 hours', value: 86_400_000 },
 ];
 
+const REALTIME_JOB_NAMES = new Set([
+  'refresh-live-matches',
+  'check-match-alerts',
+  'deliver-telegram-notifications',
+  'deliver-match-alert-telegram',
+]);
+
+const REALTIME_INTERVAL_OPTIONS = [
+  { label: 'Disabled', value: 0 },
+  { label: 'Every 2 sec', value: 2_000 },
+  { label: 'Every 3 sec', value: 3_000 },
+  { label: 'Every 5 sec', value: 5_000 },
+  { label: 'Every 10 sec', value: 10_000 },
+  { label: 'Every 30 sec', value: 30_000 },
+  { label: 'Every 1 min', value: 60_000 },
+  { label: 'Every 2 min', value: 120_000 },
+  { label: 'Every 5 min', value: 300_000 },
+];
+
+function getIntervalOptions(jobName: string, intervalMs: number): typeof INTERVAL_OPTIONS {
+  const options = REALTIME_JOB_NAMES.has(jobName) ? REALTIME_INTERVAL_OPTIONS : INTERVAL_OPTIONS;
+  if (options.some((opt) => opt.value === intervalMs)) return options;
+  return [
+    { label: `Current (${formatMsDuration(intervalMs)})`, value: intervalMs },
+    ...options,
+  ];
+}
+
 const JOB_META: Record<string, { label: string; description: string; order: number }> = {
   'fetch-matches': {
     label: 'Fetch Matches',
@@ -662,7 +690,7 @@ function JobSchedulerPanel() {
                   onChange={(e) => handleIntervalChange(job.name, Number(e.target.value))}
                   className="job-interval-select"
                 >
-                  {INTERVAL_OPTIONS.map((opt) => (
+                  {getIntervalOptions(job.name, job.intervalMs).map((opt) => (
                     <option key={opt.value} value={opt.value}>{opt.label}</option>
                   ))}
                 </select>

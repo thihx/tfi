@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -399,7 +399,7 @@ beforeEach(() => {
         jobs: [
         {
           name: 'refresh-live-matches',
-          intervalMs: 5000,
+          intervalMs: 3000,
           lastRun: '2026-03-31T10:00:04.000Z',
           lastStartedAt: '2026-03-31T10:00:00.000Z',
           lastCompletedAt: '2026-03-31T10:00:04.000Z',
@@ -657,6 +657,21 @@ describe('SettingsTab', () => {
     expect(screen.getByText('24h 118 ok / 1 fail / 1 skipped')).toBeInTheDocument();
     expect(screen.getByText('Avg lag 950 ms')).toBeInTheDocument();
     expect(screen.getByText('Avg duration 4.2 s')).toBeInTheDocument();
+    const intervalSelect = screen.getByRole('combobox');
+    expect(screen.getByRole('option', { name: 'Every 3 sec' })).toBeInTheDocument();
+    expect(intervalSelect).toHaveValue('3000');
+
+    await user.selectOptions(intervalSelect, '5000');
+    await waitFor(() => {
+      expect(mockFetch).toHaveBeenCalledWith(
+        expect.stringContaining('/api/jobs/refresh-live-matches'),
+        expect.objectContaining({
+          method: 'PUT',
+          credentials: 'include',
+          body: JSON.stringify({ intervalMs: 5000 }),
+        }),
+      );
+    });
 
     await user.click(screen.getByRole('button', { name: 'Recent Runs' }));
 

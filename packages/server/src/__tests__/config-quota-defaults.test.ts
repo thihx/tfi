@@ -7,7 +7,7 @@ describe('provider quota protective defaults', () => {
     vi.resetModules();
   });
 
-  test('does not opt into public refresh by default while keeping interested matches realtime', async () => {
+  test('keeps public live board refresh enabled by default with a quota cap', async () => {
     vi.doMock('dotenv', () => ({
       default: { config: vi.fn() },
       config: vi.fn(),
@@ -21,11 +21,11 @@ describe('provider quota protective defaults', () => {
     expect(config.jobRefreshLiveMatchesMs).toBe(3_000);
     expect(config.jobCheckMatchAlertsMs).toBe(3_000);
     expect(config.jobDeliverTelegramNotificationsMs).toBe(3_000);
-    expect(config.jobRefreshLiveMatchesMaxPublicMatches).toBe(0);
+    expect(config.jobRefreshLiveMatchesMaxPublicMatches).toBe(20);
     expect(config.jobCheckLiveMs).toBe(2 * 60_000);
   });
 
-  test('still allows an explicit public refresh cap when the operator opts in', async () => {
+  test('still allows an explicit public refresh cap override', async () => {
     vi.doMock('dotenv', () => ({
       default: { config: vi.fn() },
       config: vi.fn(),
