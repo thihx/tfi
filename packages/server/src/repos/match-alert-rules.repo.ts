@@ -568,6 +568,19 @@ export async function getCandidateAlertRules(): Promise<MatchAlertRule[]> {
         AND (
           (
             r.alert_kind = 'match_start'
+            AND NOT EXISTS (
+              SELECT 1
+                FROM user_match_alert_deliveries d
+               WHERE d.rule_id = r.id
+                 AND d.match_id = r.match_id
+            )
+            AND (
+              m.status = 'NS'
+              OR (
+                m.status IN ('1H', 'HT', '2H', 'ET', 'BT', 'P', 'LIVE', 'INT')
+                AND COALESCE(m.current_minute, 0) <= 15
+              )
+            )
             AND COALESCE(s.match_start_enabled, TRUE) = TRUE
             AND CASE
               WHEN r.source = 'manual' THEN COALESCE(s.manual_match_start_enabled, TRUE) = TRUE
@@ -605,6 +618,19 @@ export async function getRealtimeAlertMatchIds(): Promise<string[]> {
         AND (
           (
             r.alert_kind = 'match_start'
+            AND NOT EXISTS (
+              SELECT 1
+                FROM user_match_alert_deliveries d
+               WHERE d.rule_id = r.id
+                 AND d.match_id = r.match_id
+            )
+            AND (
+              m.status = 'NS'
+              OR (
+                m.status IN ('1H', 'HT', '2H', 'ET', 'BT', 'P', 'LIVE', 'INT')
+                AND COALESCE(m.current_minute, 0) <= 15
+              )
+            )
             AND COALESCE(s.match_start_enabled, TRUE) = TRUE
             AND CASE
               WHEN r.source = 'manual' THEN COALESCE(s.manual_match_start_enabled, TRUE) = TRUE
