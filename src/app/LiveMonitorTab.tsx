@@ -179,7 +179,26 @@ function reasonGroupLabel(group: LiveOutputOperatorReasonGroup): string {
 }
 
 function formatReasonText(reason: string): string {
+  if (reason === 'degraded_evidence_odds_events_only') return 'provider returned no live statistics';
+  if (reason === 'degraded_evidence_events_only') return 'provider returned no live statistics and no usable live odds';
   return reason ? reason.replace(/_/g, ' ') : 'unknown';
+}
+
+function formatEvidenceModeText(mode: string): string {
+  switch (mode) {
+    case 'full_live_data':
+      return 'Full live data';
+    case 'stats_only':
+      return 'Stats only';
+    case 'odds_events_only_degraded':
+      return 'Provider no live stats';
+    case 'events_only_degraded':
+      return 'Provider events only';
+    case 'low_evidence':
+      return 'Low provider coverage';
+    default:
+      return mode ? mode.replace(/_/g, ' ') : 'unknown';
+  }
 }
 
 function candidateReasonLabel(reason: string): string {
@@ -518,7 +537,7 @@ function WhyNoRecommendationPanel({ report }: { report: LiveOutputOperatorReport
                   <strong>{formatReasonText(bucket.key)}</strong>
                 </div>
                 <div className="live-signal-row__detail">
-                  {bucket.outputKind.replace(/_/g, ' ')} | {bucket.evidenceMode.replace(/_/g, ' ')}
+                  {bucket.outputKind.replace(/_/g, ' ')} | {formatEvidenceModeText(bucket.evidenceMode)}
                 </div>
               </div>
               <div className="live-signal-row__aside">
@@ -542,7 +561,7 @@ function WhyNoRecommendationPanel({ report }: { report: LiveOutputOperatorReport
                     <span className="badge badge-pending">{sample.outputKind.replace(/_/g, ' ')}</span>
                   </div>
                   <div className="monitor-list-row__meta">
-                    {[sample.minute !== '(empty)' ? `${sample.minute}'` : null, sample.score, sample.status, sample.evidenceMode.replace(/_/g, ' ')]
+                    {[sample.minute !== '(empty)' ? `${sample.minute}'` : null, sample.score, sample.status, formatEvidenceModeText(sample.evidenceMode)]
                       .filter(Boolean)
                       .join(' | ')}
                   </div>

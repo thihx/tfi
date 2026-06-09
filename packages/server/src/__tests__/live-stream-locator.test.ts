@@ -244,6 +244,9 @@ describe('live stream locator', () => {
     expect(expandTeamAliases('cyprus', ['cyprus'])).toContain('dao sip');
     expect(expandTeamAliases('usa', ['usa'])).toContain('my');
     expect(buildTeamAliases('Denmark')).toContain('dan mach');
+    expect(buildTeamAliases('Norway U21')).toContain('na uy u21');
+    expect(buildTeamAliases('Finland U21')).toContain('phan lan u21');
+    expect(buildTeamAliases('USA U18')).toContain('my u18');
   });
 
   test('extracts xoilac grid-match team names from homepage HTML', () => {
@@ -435,6 +438,42 @@ describe('live stream locator', () => {
 
     expect(result?.found).toBe(true);
     expect(result?.url).toContain('dan-mach-vs-ukraine');
+  });
+
+  test('finds xoilac link for Norway U21 vs Finland U21 via Vietnamese youth aliases', async () => {
+    const fetchImpl = vi.fn(async (url: string | URL) => {
+      const href = String(url);
+      if (href === 'https://xoilacztu.tv/') {
+        return new Response(
+          '<a href="/truc-tiep/na-uy-u21-vs-phan-lan-u21-luc-2000-ngay-07-06-2026/" title="Na Uy U21 vs Phan Lan U21"></a>',
+          { status: 200 },
+        );
+      }
+      if (href.includes('na-uy-u21-vs-phan-lan-u21')) {
+        return new Response('<main>Na Uy U21 vs Phan Lan U21 <iframe></iframe></main>', { status: 200 });
+      }
+      return new Response('not found', { status: 404 });
+    });
+
+    const [result] = await lookupLiveStreamLinks(
+      [matchRow({
+        home_team: 'Norway U21',
+        away_team: 'Finland U21',
+        date: '2026-06-07',
+        kickoff: '20:00',
+        league_name: 'Friendlies',
+        status: '2H',
+      })],
+      {
+        providers,
+        fetchImpl,
+        now: () => new Date('2026-06-07T13:05:00.000Z'),
+        useCache: false,
+      },
+    );
+
+    expect(result?.found).toBe(true);
+    expect(result?.url).toContain('na-uy-u21-vs-phan-lan-u21');
   });
 
   test('finds xoilac link for Indonesia U19 vs Vietnam U19 from title-only anchor', async () => {

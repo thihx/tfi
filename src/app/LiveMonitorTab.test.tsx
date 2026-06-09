@@ -51,7 +51,7 @@ beforeEach(() => {
         key: 'policy_blocked',
         group: 'policy',
         outputKind: 'shadow_candidate',
-        evidenceMode: 'full_live_data',
+        evidenceMode: 'odds_events_only_degraded',
         count: 1,
         latestAt: '2026-06-09T00:00:00.000Z',
       },
@@ -68,7 +68,7 @@ beforeEach(() => {
         outputKind: 'shadow_candidate',
         auditBucket: 'policy_blocked',
         reasonGroup: 'policy',
-        evidenceMode: 'full_live_data',
+        evidenceMode: 'odds_events_only_degraded',
         route: 'shadow_path',
         llmCalled: true,
         savedRecommendation: false,
@@ -304,6 +304,7 @@ describe('LiveMonitorTab', () => {
     expect(screen.getByText('historical operator view')).toBeInTheDocument();
     expect(screen.getByText('Audit Snapshot')).toBeInTheDocument();
     expect(screen.getByText('policy blocked')).toBeInTheDocument();
+    expect(screen.getAllByText(/Provider no live stats/).length).toBeGreaterThanOrEqual(1);
     expect(screen.getByText(/Recorded .* \| policy blocked \| LLM called \| settle no/)).toBeInTheDocument();
     expect(screen.getAllByText('Bet').length).toBeGreaterThanOrEqual(1);
     expect(screen.getAllByText('Watch').length).toBeGreaterThanOrEqual(1);

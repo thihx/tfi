@@ -111,6 +111,34 @@ describe('buildLiveAnalysisPrompt', () => {
     expect(prompt).not.toContain('"over_2.5"');
   });
 
+  test('explains no live stats as provider coverage in degraded evidence mode', () => {
+    const prompt = buildLiveAnalysisPrompt({
+      ...baseInput,
+      statsCompact: {
+        possession: { home: null, away: null },
+        shots: { home: null, away: null },
+        shots_on_target: { home: null, away: null },
+        corners: { home: null, away: null },
+        fouls: { home: null, away: null },
+      },
+      statsAvailable: false,
+      statsSource: 'api-football',
+      evidenceMode: 'odds_events_only_degraded',
+      providerWarnings: ['provider_clock_lag_high', 'provider_returned_no_live_statistics'],
+      providerClockLagMinutes: 4,
+      providerReturnedNoLiveStatistics: true,
+      providerCoverageStatus: 'clock_lag_no_live_stats',
+      derivedInsights: { goals: 1, redCards: 0 },
+    }, settings);
+
+    expect(prompt).toContain('Provider clock note: live feed appears delayed by about 4m');
+    expect(prompt).toContain('User-facing wording: say "provider live clock appears delayed"');
+    expect(prompt).toContain('Provider evidence note: api-football returned no live statistics for this fixture');
+    expect(prompt).toContain('This is provider coverage state, not an internal system failure');
+    expect(prompt).toContain('User-facing wording: say "provider returned no live statistics"');
+    expect(prompt).toContain('Score, event timeline, and usable odds are available');
+  });
+
   test('retired prompt overrides render the same official prompt', () => {
     const baseline = buildLiveAnalysisPrompt(baseInput, settings);
     const override = buildLiveAnalysisPrompt(baseInput, settings, 'retired-prompt');

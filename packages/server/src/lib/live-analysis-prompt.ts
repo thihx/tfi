@@ -142,6 +142,10 @@ export interface LiveAnalysisPromptInput {
   statsAvailable: boolean;
   statsSource: PromptStatsSource;
   evidenceMode: PromptEvidenceMode;
+  providerWarnings?: string[];
+  providerClockLagMinutes?: number | null;
+  providerReturnedNoLiveStatistics?: boolean;
+  providerCoverageStatus?: string | null;
   statsMeta?: Record<string, unknown> | null;
   eventsCompact: Array<{
     minute: number;
@@ -638,6 +642,57 @@ function getEvidenceTierRule(data: LiveAnalysisPromptInput): EvidenceTierRule {
         operationalRule: 'No-bet tier.',
       };
   }
+}
+
+function buildProviderEvidenceNote(data: LiveAnalysisPromptInput): string {
+  const lines: string[] = [];
+  const warnings = Array.isArray(data.providerWarnings) ? data.providerWarnings : [];
+  const clockLag = typeof data.providerClockLagMinutes === 'number'
+    && Number.isFinite(data.providerClockLagMinutes)
+    ? data.providerClockLagMinutes
+    : null;
+  if (clockLag != null && clockLag >= 2) {
+    lines.push(`- Provider clock note: live feed appears delayed by about ${clockLag}m versus wall-clock match time. Treat timing-sensitive markets conservatively.`);
+    lines.push('- User-facing wording: say "provider live clock appears delayed"; do not present provider minute as guaranteed broadcast time.');
+  } else if (warnings.includes('provider_clock_lag') || warnings.includes('provider_clock_lag_high') || warnings.includes('provider_clock_lag_critical')) {
+    lines.push('- Provider clock note: live feed may be delayed versus wall-clock match time. Treat timing-sensitive markets conservatively.');
+  }
+
+  if (data.statsAvailable) return lines.join('\n');
+
+  const source = data.statsSource || 'provider';
+  const base = `- Provider evidence note: ${source} returned no live statistics for this fixture. This is provider coverage state, not an internal system failure.`;
+  const wording = '- User-facing wording: say "provider returned no live statistics" or "API-Football has no live stats for this match"; do not imply that TFI fetched the wrong data or invented missing telemetry.';
+
+  if (data.evidenceMode === 'odds_events_only_degraded') {
+    lines.push(
+      base,
+      '- Score, event timeline, and usable odds are available, but live stats are not available from the provider.',
+      wording,
+    );
+    return lines.join('\n');
+  }
+  if (data.evidenceMode === 'events_only_degraded') {
+    lines.push(
+      base,
+      '- Score and event timeline are available, but live stats and usable live odds are not available from the provider.',
+      wording,
+    );
+    return lines.join('\n');
+  }
+  if (data.evidenceMode === 'low_evidence') {
+    lines.push(
+      base,
+      '- Treat this as low provider coverage for live analysis; keep the recommendation conservative or no-bet.',
+      wording,
+    );
+    return lines.join('\n');
+  }
+  lines.push(
+    base,
+    wording,
+  );
+  return lines.join('\n');
 }
 
 function readStrategicText(value: unknown): string {
@@ -1953,6 +2008,7 @@ MATCH SNAPSHOT
 - Force Analyze: ${analysisMode === 'auto' ? 'NO' : 'YES'}
 - Is Manual Push: ${analysisMode === 'manual_force' ? 'YES' : 'NO'}
 ${data.statsFallbackReason ? `- Stats Fallback Note: ${data.statsFallbackReason}` : ''}
+${buildProviderEvidenceNote(data)}
 
 ========================
 LIVE STATS JSON
@@ -2021,8 +2077,8 @@ GLOBAL STATUS:
 DATA AVAILABILITY:
 - Stats + odds: normal evaluation
 - Stats only: default no bet
-- No stats + derived insights: confidence cap 7
-- No stats + no events: default no bet
+- No stats + derived insights: confidence cap 7; explain as provider returned no live statistics
+- No stats + no events: default no bet; explain as provider returned no live statistics and no event timeline
 EVIDENCE HIERARCHY:
 - Never choose a market outside the current allowed tier
 - Narrative or strategic priors may support a pick inside the tier, but never upgrade a forbidden market into an allowed one
@@ -2161,6 +2217,7 @@ MATCH CONTEXT
 - Force Analyze: ${analysisMode === 'auto' ? 'NO' : 'YES'}
 - Is Manual Push: ${analysisMode === 'manual_force' ? 'YES' : 'NO'}
 ${data.statsFallbackReason ? `- Stats Fallback Note: ${data.statsFallbackReason}` : ''}
+${buildProviderEvidenceNote(data)}
 
 ========================
 LIVE STATS (COMPACT JSON)
@@ -2237,8 +2294,8 @@ GLOBAL RULES
 DATA RULES:
 - STATS + ODDS available: may recommend if all rules pass.
 - STATS only (no odds): should_push = false normally, exception only if extremely clear.
-- NO STATS but DERIVED INSIGHTS present: may recommend with confidence cap 7.
-- NO STATS and no events: should_push = false normally.
+- NO STATS but DERIVED INSIGHTS present: may recommend with confidence cap 7. Explain as provider returned no live statistics.
+- NO STATS and no events: should_push = false normally. Explain as provider returned no live statistics and no event timeline.
 
 EVIDENCE MODE RULES:
 - Tier 1 / full_live_data: All supported markets can be evaluated if the rest of the rules pass.

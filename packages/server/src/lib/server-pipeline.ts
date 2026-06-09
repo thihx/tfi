@@ -657,6 +657,25 @@ interface DerivedInsights {
 type StatsSource = 'api-football';
 type EvidenceMode = LiveAnalysisEvidenceMode;
 
+type ProviderStatsCoverage = 'complete' | 'partial' | 'empty' | 'missing';
+type ProviderClockLagStatus = 'ok' | 'warning' | 'degraded' | 'critical' | 'unknown';
+type ProviderCoverageStatus = 'full' | 'no_live_stats' | 'clock_lag' | 'clock_lag_no_live_stats' | 'provider_unavailable';
+
+interface ProviderHealthSnapshot {
+  provider: 'api-football';
+  statisticsCoverage: ProviderStatsCoverage;
+  providerReturnedNoLiveStatistics: boolean;
+  providerClockLagMinutes: number | null;
+  providerClockLagStatus: ProviderClockLagStatus;
+  providerReportedMinute: number | null;
+  wallClockMinute: number | null;
+  fixtureFreshness: string;
+  statisticsFreshness: string;
+  eventsFreshness: string;
+  coverageStatus: ProviderCoverageStatus;
+  warnings: string[];
+}
+
 type LlmDecisionDiagnostic =
   | 'no_bet_intentional'
   | 'market_parse_failed'
@@ -903,6 +922,12 @@ export interface MatchPipelineResult {
     statsAvailable?: boolean;
     statsSource?: StatsSource;
     evidenceMode?: EvidenceMode;
+    providerHealth?: ProviderHealthSnapshot;
+    providerWarnings?: string[];
+    providerCoverageStatus?: ProviderCoverageStatus;
+    providerReturnedNoLiveStatistics?: boolean;
+    providerClockLagMinutes?: number | null;
+    providerClockLagStatus?: ProviderClockLagStatus;
     outputDecision?: LiveOutputDecisionContext;
     outputKind?: LiveOutputKind;
     auditBucket?: string;
@@ -1209,6 +1234,129 @@ function deriveEvidenceMode(
   }).evidenceMode;
 }
 
+function classifyProviderClockLagStatus(lagMinutes: number | null): ProviderClockLagStatus {
+  if (lagMinutes == null) return 'unknown';
+  if (lagMinutes >= 7) return 'critical';
+  if (lagMinutes >= 4) return 'degraded';
+  if (lagMinutes >= 2) return 'warning';
+  return 'ok';
+}
+
+function estimateProviderClockLag(args: {
+  fixture: ApiFixture;
+  status: string;
+  elapsed: number | null;
+  now?: Date;
+}): {
+  wallClockMinute: number | null;
+  providerClockLagMinutes: number | null;
+  providerClockLagStatus: ProviderClockLagStatus;
+} {
+  const normalizedStatus = String(args.status || '').trim().toUpperCase();
+  const liveStatuses = new Set(['1H', '2H', 'ET', 'BT', 'P', 'LIVE', 'INT']);
+  if (!liveStatuses.has(normalizedStatus) || args.elapsed == null || !Number.isFinite(args.elapsed)) {
+    return { wallClockMinute: null, providerClockLagMinutes: null, providerClockLagStatus: 'unknown' };
+  }
+
+  const nowMs = (args.now ?? new Date()).getTime();
+  const firstPeriodSeconds = Number(args.fixture.fixture?.periods?.first);
+  const secondPeriodSeconds = Number(args.fixture.fixture?.periods?.second);
+  const kickoffSeconds = Number(args.fixture.fixture?.timestamp);
+  let wallClockMinute: number | null = null;
+
+  if (normalizedStatus === '2H' && Number.isFinite(secondPeriodSeconds) && secondPeriodSeconds > 0) {
+    wallClockMinute = 45 + Math.floor((nowMs - secondPeriodSeconds * 1000) / 60_000);
+  } else if (Number.isFinite(firstPeriodSeconds) && firstPeriodSeconds > 0) {
+    wallClockMinute = Math.floor((nowMs - firstPeriodSeconds * 1000) / 60_000);
+  } else if (Number.isFinite(kickoffSeconds) && kickoffSeconds > 0) {
+    const ageMinutes = Math.floor((nowMs - kickoffSeconds * 1000) / 60_000);
+    // Unit tests and replay fixtures can carry historical timestamps; avoid turning
+    // old fixture fixtures into false production clock-lag warnings.
+    if (ageMinutes >= 0 && ageMinutes <= 240) {
+      wallClockMinute = ageMinutes;
+    }
+  }
+
+  if (wallClockMinute == null || !Number.isFinite(wallClockMinute)) {
+    return { wallClockMinute: null, providerClockLagMinutes: null, providerClockLagStatus: 'unknown' };
+  }
+
+  const lagMinutes = Math.max(0, Math.floor(wallClockMinute - args.elapsed));
+  return {
+    wallClockMinute,
+    providerClockLagMinutes: lagMinutes,
+    providerClockLagStatus: classifyProviderClockLagStatus(lagMinutes),
+  };
+}
+
+function classifyProviderStatisticsCoverage(args: {
+  statsRaw: ApiFixtureStat[];
+  statsAvailable: boolean;
+  freshness: string;
+  cacheStatus: string;
+}): ProviderStatsCoverage {
+  if (args.statsAvailable) return args.statsRaw.length >= 2 ? 'complete' : 'partial';
+  if (Array.isArray(args.statsRaw) && args.statsRaw.length === 0 && args.cacheStatus !== 'miss') return 'empty';
+  if (args.freshness === 'fresh' && Array.isArray(args.statsRaw) && args.statsRaw.length === 0) return 'empty';
+  return 'missing';
+}
+
+function buildProviderHealthSnapshot(args: {
+  fixture: ApiFixture;
+  status: string;
+  minute: number;
+  statsRaw: ApiFixtureStat[];
+  statsAvailable: boolean;
+  fixtureFreshness: string;
+  statisticsFreshness: string;
+  statisticsCacheStatus: string;
+  eventsFreshness: string;
+}): ProviderHealthSnapshot {
+  const clock = estimateProviderClockLag({
+    fixture: args.fixture,
+    status: args.status,
+    elapsed: args.minute,
+  });
+  const statisticsCoverage = classifyProviderStatisticsCoverage({
+    statsRaw: args.statsRaw,
+    statsAvailable: args.statsAvailable,
+    freshness: args.statisticsFreshness,
+    cacheStatus: args.statisticsCacheStatus,
+  });
+  const providerReturnedNoLiveStatistics = statisticsCoverage === 'empty';
+  const warnings: string[] = [];
+  if (providerReturnedNoLiveStatistics) warnings.push('provider_returned_no_live_statistics');
+  if (clock.providerClockLagStatus === 'warning') warnings.push('provider_clock_lag');
+  if (clock.providerClockLagStatus === 'degraded') warnings.push('provider_clock_lag_high');
+  if (clock.providerClockLagStatus === 'critical') warnings.push('provider_clock_lag_critical');
+
+  let coverageStatus: ProviderCoverageStatus = 'full';
+  if (providerReturnedNoLiveStatistics && clock.providerClockLagStatus !== 'ok' && clock.providerClockLagStatus !== 'unknown') {
+    coverageStatus = 'clock_lag_no_live_stats';
+  } else if (providerReturnedNoLiveStatistics) {
+    coverageStatus = 'no_live_stats';
+  } else if (clock.providerClockLagStatus !== 'ok' && clock.providerClockLagStatus !== 'unknown') {
+    coverageStatus = 'clock_lag';
+  } else if (args.fixtureFreshness === 'missing') {
+    coverageStatus = 'provider_unavailable';
+  }
+
+  return {
+    provider: 'api-football',
+    statisticsCoverage,
+    providerReturnedNoLiveStatistics,
+    providerClockLagMinutes: clock.providerClockLagMinutes,
+    providerClockLagStatus: clock.providerClockLagStatus,
+    providerReportedMinute: Number.isFinite(args.minute) ? args.minute : null,
+    wallClockMinute: clock.wallClockMinute,
+    fixtureFreshness: args.fixtureFreshness,
+    statisticsFreshness: args.statisticsFreshness,
+    eventsFreshness: args.eventsFreshness,
+    coverageStatus,
+    warnings,
+  };
+}
+
 function canRunStructuredPrematchAskAi(args: {
   analysisMode: PromptAnalysisMode;
   status: string;
@@ -1303,6 +1451,11 @@ interface PromptExecutionContext {
   statsAvailable: boolean;
   statsSource: StatsSource;
   evidenceMode: EvidenceMode;
+  providerHealth?: ProviderHealthSnapshot;
+  providerWarnings?: string[];
+  providerClockLagMinutes?: number | null;
+  providerReturnedNoLiveStatistics?: boolean;
+  providerCoverageStatus?: ProviderCoverageStatus;
   eventsCompact: EventCompact[];
   oddsCanonical: OddsCanonical;
   oddsAvailable: boolean;
@@ -1474,6 +1627,11 @@ function buildLlmGatewayAuditMetadata(args: {
     referenceCanonicalMarketKeys: Object.keys(promptContext.referenceOddsCanonical ?? {}).sort(),
     oddsSuspicious: promptContext.oddsSuspicious,
     oddsSanityWarningCount: promptContext.oddsSanityWarnings.length,
+    providerHealth: promptContext.providerHealth,
+    providerWarnings: promptContext.providerWarnings ?? [],
+    providerCoverageStatus: promptContext.providerCoverageStatus,
+    providerReturnedNoLiveStatistics: promptContext.providerReturnedNoLiveStatistics,
+    providerClockLagMinutes: promptContext.providerClockLagMinutes,
     minOdds: settings.minOdds,
     canonicalMarketKeys: Object.keys(promptContext.oddsCanonical).sort(),
     canonicalTradableMarketCount: tradableMarkets.count,
@@ -1935,6 +2093,10 @@ function buildPromptFromExecutionContext(
       statsAvailable: promptContext.statsAvailable,
       statsSource: promptContext.statsSource,
       evidenceMode: promptContext.evidenceMode,
+      providerWarnings: promptContext.providerWarnings,
+      providerClockLagMinutes: promptContext.providerClockLagMinutes,
+      providerReturnedNoLiveStatistics: promptContext.providerReturnedNoLiveStatistics,
+      providerCoverageStatus: promptContext.providerCoverageStatus,
       statsMeta: null,
       eventsCompact: promptContext.eventsCompact,
       oddsCanonical: promptContext.oddsCanonical as Record<string, unknown>,
@@ -4138,6 +4300,26 @@ async function processMatch(
     const statsSource: StatsSource = 'api-football';
     const statsFallbackUsed = false;
     const statsFallbackReason = '';
+    const providerHealth = buildProviderHealthSnapshot({
+      fixture,
+      status,
+      minute,
+      statsRaw: apiStatsRaw,
+      statsAvailable: proceed.statsAvailable,
+      fixtureFreshness: insight.fixture.freshness,
+      statisticsFreshness: insight.statistics.freshness,
+      statisticsCacheStatus: insight.statistics.cacheStatus,
+      eventsFreshness: insight.events.freshness,
+    });
+    const providerWarnings = providerHealth.warnings;
+    const providerDebugMetadata = {
+      providerHealth,
+      providerWarnings,
+      providerCoverageStatus: providerHealth.coverageStatus,
+      providerReturnedNoLiveStatistics: providerHealth.providerReturnedNoLiveStatistics,
+      providerClockLagMinutes: providerHealth.providerClockLagMinutes,
+      providerClockLagStatus: providerHealth.providerClockLagStatus,
+    };
 
     // 2. Check should proceed before fetching odds / AI
     const statsAvailable = proceed.statsAvailable;
@@ -4152,6 +4334,12 @@ async function processMatch(
             matchId,
             matchDisplay,
             reason: proceed.reason,
+            providerHealth,
+            providerWarnings,
+            providerCoverageStatus: providerHealth.coverageStatus,
+            providerReturnedNoLiveStatistics: providerHealth.providerReturnedNoLiveStatistics,
+            providerClockLagMinutes: providerHealth.providerClockLagMinutes,
+            providerClockLagStatus: providerHealth.providerClockLagStatus,
           },
         });
       }
@@ -4175,6 +4363,12 @@ async function processMatch(
           statsSource,
           statsFallbackUsed,
           statsFallbackReason: statsFallbackReason || undefined,
+          providerHealth,
+          providerWarnings,
+          providerCoverageStatus: providerHealth.coverageStatus,
+          providerReturnedNoLiveStatistics: providerHealth.providerReturnedNoLiveStatistics,
+          providerClockLagMinutes: providerHealth.providerClockLagMinutes,
+          providerClockLagStatus: providerHealth.providerClockLagStatus,
           totalLatencyMs: Date.now() - startedAt,
         },
       };
@@ -4433,6 +4627,7 @@ async function processMatch(
             outputKind: outputDecision.outputKind,
             auditBucket: outputDecision.auditBucket,
             outputDecision,
+            ...providerDebugMetadata,
           },
         });
       }
@@ -4458,6 +4653,7 @@ async function processMatch(
           statsSource,
           statsFallbackUsed,
           statsFallbackReason: statsFallbackReason || undefined,
+          ...providerDebugMetadata,
           outputDecision,
           outputKind: outputDecision.outputKind,
           auditBucket: outputDecision.auditBucket,
@@ -4566,6 +4762,7 @@ async function processMatch(
             homeTacticalOverlaySourceConfidence: homeOverlaySnapshot.sourceConfidence,
             awayTacticalOverlaySourceMode: awayOverlaySnapshot.sourceMode,
             awayTacticalOverlaySourceConfidence: awayOverlaySnapshot.sourceConfidence,
+            ...providerDebugMetadata,
           },
         });
       }
@@ -4606,6 +4803,7 @@ async function processMatch(
           structuredPrematchAskAiReason: structuredPrematchAskAiCheck.reason,
           statsFallbackUsed,
           statsFallbackReason: statsFallbackReason || undefined,
+          ...providerDebugMetadata,
           outputDecision,
           outputKind: outputDecision.outputKind,
           auditBucket: outputDecision.auditBucket,
@@ -4623,6 +4821,11 @@ async function processMatch(
       matchId,
       homeName, awayName, league, minute, score, status,
       statsCompact, statsAvailable, statsSource, evidenceMode,
+      providerHealth,
+      providerWarnings,
+      providerClockLagMinutes: providerHealth.providerClockLagMinutes,
+      providerReturnedNoLiveStatistics: providerHealth.providerReturnedNoLiveStatistics,
+      providerCoverageStatus: providerHealth.coverageStatus,
       eventsCompact: eventsCompact.slice(-8),
       oddsCanonical, oddsAvailable, oddsSource, oddsFetchedAt,
       referenceOddsCanonical,
@@ -4727,6 +4930,7 @@ async function processMatch(
           outputKind: blockedOutputDecision.outputKind,
           auditBucket: blockedOutputDecision.auditBucket,
           outputDecision: blockedOutputDecision,
+          ...providerDebugMetadata,
         },
       });
 
@@ -4754,6 +4958,7 @@ async function processMatch(
             oddsAvailable,
             referenceOddsSource,
             referenceMarketKeys,
+            ...providerDebugMetadata,
             contract: 'odds-first-stats-only-live-signal',
           },
         });
@@ -4828,6 +5033,7 @@ async function processMatch(
               enqueued: deliveryResult.enqueued,
               deliveryIds: deliveryResult.deliveryIds,
               referenceMarketKeys,
+              ...providerDebugMetadata,
               savedRecommendation: false,
               llmCalled: false,
               outputKind: outputDecision.outputKind,
@@ -4869,6 +5075,7 @@ async function processMatch(
               evidenceMode,
               statsFallbackUsed,
               statsFallbackReason: statsFallbackReason || undefined,
+              ...providerDebugMetadata,
               statsOnlySignal: {
                 ...statsOnlySignal,
                 enqueued: deliveryResult.enqueued,
@@ -4913,6 +5120,7 @@ async function processMatch(
             outputKind: weakOutputDecision.outputKind,
             auditBucket: weakOutputDecision.auditBucket,
             outputDecision: weakOutputDecision,
+            ...providerDebugMetadata,
             contract: 'odds-first-stats-only-live-signal',
           },
         });
@@ -4950,6 +5158,7 @@ async function processMatch(
           evidenceMode,
           statsFallbackUsed,
           statsFallbackReason: statsFallbackReason || undefined,
+          ...providerDebugMetadata,
           outputDecision: blockedOutputDecision,
           outputKind: blockedOutputDecision.outputKind,
           auditBucket: blockedOutputDecision.auditBucket,
@@ -5360,6 +5569,12 @@ async function processMatch(
       decisionContext['savedBetMarket'] = savedBetMarket;
       decisionContext['oddsSource'] = oddsSource;
       decisionContext['oddsAvailable'] = oddsAvailable;
+      decisionContext['providerHealth'] = providerHealth as unknown as Record<string, unknown>;
+      decisionContext['providerWarnings'] = providerWarnings;
+      decisionContext['providerCoverageStatus'] = providerHealth.coverageStatus;
+      decisionContext['providerReturnedNoLiveStatistics'] = providerHealth.providerReturnedNoLiveStatistics;
+      decisionContext['providerClockLagMinutes'] = providerHealth.providerClockLagMinutes;
+      decisionContext['providerClockLagStatus'] = providerHealth.providerClockLagStatus;
       decisionContext['canonicalMarket'] = normalizeMarket(savedSelection, savedBetMarket);
       if (!saveIntegrity.ok) {
         parsed.warnings = [...parsed.warnings, 'PROVIDER_COVERAGE_SAVE_BLOCKED'];
@@ -5380,13 +5595,14 @@ async function processMatch(
             minOdds: settings.minOdds,
             oddsSource,
             oddsAvailable,
-            providerCoverageStatus: saveIntegrity.providerCoverageStatus,
+            saveProviderCoverageStatus: saveIntegrity.providerCoverageStatus,
             marketResolutionStatus: saveIntegrity.marketResolutionStatus,
             reason: saveIntegrity.reason,
             recommendationSource: decisionContext['recommendationSource'],
             runtimePolicyPromotion,
             promptVersion: activePromptVersion,
             llmDecisionDiagnostic: parsed.llm_decision_diagnostic,
+            ...providerDebugMetadata,
           },
         });
       }
@@ -5589,6 +5805,7 @@ async function processMatch(
           structuredPrematchAskAi,
           structuredPrematchAskAiReason: structuredPrematchAskAiCheck.reason,
           statsSource,
+          ...providerDebugMetadata,
           evidenceMode,
           llmDecisionDiagnostic: parsed.llm_decision_diagnostic,
           marketResolutionStatus: parsed.market_resolution_status,
@@ -5641,6 +5858,7 @@ async function processMatch(
         statsAvailable,
         statsSource,
         evidenceMode,
+        ...providerDebugMetadata,
         outputDecision,
         outputKind: outputDecision.outputKind,
         auditBucket: outputDecision.auditBucket,

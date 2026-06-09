@@ -88,10 +88,48 @@ function appendYouthAndWomenVariants(aliases: string[]): string[] {
   return [...out];
 }
 
+function lookupMappedAliases(normalizedName: string): string[] {
+  const out = new Set<string>();
+  const direct = LIVE_STREAM_TEAM_ALIASES[normalizedName] ?? [];
+  for (const alias of direct) out.add(alias);
+  for (const [canonical, aliases] of Object.entries(LIVE_STREAM_TEAM_ALIASES)) {
+    if ((aliases ?? []).includes(normalizedName)) out.add(canonical);
+  }
+  return [...out];
+}
+
+function splitYouthSuffix(name: string): { stem: string; suffix: string | null } {
+  for (const suffix of YOUTH_SUFFIXES) {
+    const spaced = ` ${suffix}`;
+    if (name.endsWith(spaced)) {
+      return { stem: name.slice(0, -spaced.length).trim(), suffix };
+    }
+  }
+  return { stem: name, suffix: null };
+}
+
+function hasYouthSuffix(name: string): boolean {
+  return splitYouthSuffix(name).suffix != null;
+}
+
 export function expandTeamAliases(normalizedTeamName: string, baseAliases: string[]): string[] {
-  const extras = LIVE_STREAM_TEAM_ALIASES[normalizedTeamName] ?? [];
-  const reverseExtras = Object.keys(LIVE_STREAM_TEAM_ALIASES).filter((canonical) => (
-    (LIVE_STREAM_TEAM_ALIASES[canonical] ?? []).includes(normalizedTeamName)
-  ));
-  return appendYouthAndWomenVariants([...baseAliases, ...extras, ...reverseExtras]);
+  const merged = new Set<string>([normalizedTeamName, ...baseAliases]);
+
+  const absorbMapped = (name: string) => {
+    for (const mapped of lookupMappedAliases(name)) merged.add(mapped);
+  };
+
+  for (const name of [...merged]) absorbMapped(name);
+
+  const { stem, suffix } = splitYouthSuffix(normalizedTeamName);
+  if (suffix) {
+    merged.add(`${stem} ${suffix}`);
+    absorbMapped(stem);
+    for (const name of [...merged]) {
+      if (hasYouthSuffix(name)) continue;
+      merged.add(`${name} ${suffix}`);
+    }
+  }
+
+  return appendYouthAndWomenVariants([...merged]);
 }

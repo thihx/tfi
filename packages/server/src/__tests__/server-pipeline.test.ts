@@ -1544,6 +1544,66 @@ describe('runPipelineBatch', () => {
     expect(result.results[0]?.success).toBe(true);
   });
 
+  test('records provider no-live-stats and clock-lag telemetry in degraded odds+events mode', async () => {
+    const footballApi = await import('../lib/football-api.js');
+    const insight = await import('../lib/provider-insight-cache.js');
+    const nowSeconds = Math.floor(Date.now() / 1000);
+    const firstPeriod = nowSeconds - (41 * 60);
+    const laggedFixture = {
+      ...mockFixture,
+      fixture: {
+        ...mockFixture.fixture,
+        status: { short: '1H', elapsed: 37 },
+        timestamp: firstPeriod,
+        periods: { first: firstPeriod, second: null },
+      },
+      teams: {
+        home: { id: 1, name: 'Peru' },
+        away: { id: 2, name: 'Spain' },
+      },
+      goals: { home: 0, away: 2 },
+    };
+    const nowIso = new Date().toISOString();
+
+    vi.mocked(footballApi.fetchFixturesByIds).mockResolvedValueOnce([laggedFixture] as never);
+    vi.mocked(insight.ensureMatchInsight).mockResolvedValueOnce({
+      fixture: { payload: laggedFixture, freshness: 'fresh', cacheStatus: 'hit', cachedAt: nowIso, fetchedAt: nowIso, degraded: false },
+      statistics: { payload: [], freshness: 'fresh', cacheStatus: 'hit', cachedAt: nowIso, fetchedAt: nowIso, degraded: false },
+      events: {
+        payload: [
+          { time: { elapsed: 12 }, team: { id: 2 }, type: 'Goal', detail: 'Normal Goal', player: { name: 'Player B' } },
+          { time: { elapsed: 36 }, team: { id: 2 }, type: 'Goal', detail: 'Normal Goal', player: { name: 'Player C' } },
+        ],
+        freshness: 'fresh',
+        cacheStatus: 'hit',
+        cachedAt: nowIso,
+        fetchedAt: nowIso,
+        degraded: false,
+      },
+    } as never);
+
+    const result = await runPipelineBatch(['100']);
+
+    const match = result.results[0];
+    expect(match?.success).toBe(true);
+    expect(match?.decisionKind).toBe('no_bet');
+    expect(match?.debug?.evidenceMode).toBe('odds_events_only_degraded');
+    expect(match?.debug?.providerReturnedNoLiveStatistics).toBe(true);
+    expect(match?.debug?.providerClockLagMinutes).toBeGreaterThanOrEqual(4);
+    expect(match?.debug?.providerClockLagStatus).toBe('degraded');
+    expect(match?.debug?.providerCoverageStatus).toBe('clock_lag_no_live_stats');
+    expect(match?.debug?.providerWarnings).toEqual(expect.arrayContaining([
+      'provider_returned_no_live_statistics',
+      'provider_clock_lag_high',
+    ]));
+    expect(match?.debug?.providerHealth).toEqual(expect.objectContaining({
+      provider: 'api-football',
+      statisticsCoverage: 'empty',
+      providerReportedMinute: 37,
+      coverageStatus: 'clock_lag_no_live_stats',
+    }));
+  });
+
   test('does not run recommendation LLM in degraded odds+events mode even when custom conditions exist', async () => {
     const footballApi = await import('../lib/football-api.js');
     vi.mocked(footballApi.fetchFixtureStatistics).mockResolvedValueOnce([]);

@@ -98,4 +98,27 @@ describe('AiAnalysisPanel', () => {
     expect(screen.getByText('Quick prompts')).toBeInTheDocument();
     expect(screen.queryByText('Is the current over/under reasonable?')).not.toBeVisible();
   });
+
+  it('shows provider coverage warnings from pipeline debug metadata', () => {
+    render(
+      <AiAnalysisPanel
+        entry={{
+          matchId: '1',
+          matchDisplay: 'Peru vs Spain',
+          result: buildResult({
+            debug: {
+              ...buildResult().debug,
+              providerClockLagMinutes: 4,
+              providerClockLagStatus: 'degraded',
+              providerReturnedNoLiveStatistics: true,
+            },
+          }),
+        }}
+        onClose={() => {}}
+      />,
+    );
+
+    expect(screen.getByText(/Provider live clock appears delayed by about 4m/)).toBeInTheDocument();
+    expect(screen.getByText(/Provider returned no live statistics/)).toBeInTheDocument();
+  });
 });

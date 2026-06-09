@@ -98,6 +98,25 @@ function MinuteBadge({ minute, status }: { minute: number | string; status?: str
   );
 }
 
+function buildProviderWarningMessages(result: ServerMatchPipelineResult): string[] {
+  const debug = result.debug;
+  if (!debug) return [];
+  const messages: string[] = [];
+  const lagMinutes = typeof debug.providerClockLagMinutes === 'number' && Number.isFinite(debug.providerClockLagMinutes)
+    ? debug.providerClockLagMinutes
+    : null;
+  const lagStatus = String(debug.providerClockLagStatus ?? debug.providerHealth?.providerClockLagStatus ?? '').toLowerCase();
+  if (lagMinutes != null && lagMinutes >= 2) {
+    messages.push(`Provider live clock appears delayed by about ${lagMinutes}m.`);
+  } else if (lagStatus === 'warning' || lagStatus === 'degraded' || lagStatus === 'critical') {
+    messages.push('Provider live clock appears delayed.');
+  }
+  if (debug.providerReturnedNoLiveStatistics || debug.providerHealth?.providerReturnedNoLiveStatistics) {
+    messages.push('Provider returned no live statistics.');
+  }
+  return messages;
+}
+
 /** Same sparkle marks as the analysis control on Matches (SparkleIcon). */
 function AskAiSparkleIcon({ size = 15 }: { size?: number }) {
   return (
@@ -266,7 +285,11 @@ export function AiAnalysisPanel({ entry, onClose, onFollowUp }: Props) {
       })
     : '--';
   const reasoning = pickAnalysisReasoning(ai?.reasoning_vi, ai?.reasoning_en, uiLanguage);
-  const displayWarnings = useMemo(() => filterUserFacingWarnings(ai?.warnings), [ai?.warnings]);
+  const providerWarnings = useMemo(() => buildProviderWarningMessages(result), [result]);
+  const displayWarnings = useMemo(
+    () => [...providerWarnings, ...filterUserFacingWarnings(ai?.warnings)],
+    [providerWarnings, ai?.warnings],
+  );
   const isNoPick = result.decisionKind === 'no_bet' && selectionDisplay === '--';
   const showMetrics = !isNoPick || (result.confidence ?? 0) > 0 || (ai?.stake_percent ?? 0) > 0 || (ai?.value_percent ?? 0) > 0;
   const followUps = useMemo(() => entry.followUpMessages ?? [], [entry.followUpMessages]);

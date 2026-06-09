@@ -25,6 +25,7 @@ Related design contracts:
 - [live-recommendation-output-architecture-vi.md](live-recommendation-output-architecture-vi.md) defines the planned output split across money recommendations, stats-only signals, watch insights, shadow candidates, and audited no-action outcomes.
 - [live-recommendation-regression-matrix-vi.md](live-recommendation-regression-matrix-vi.md) defines the regression and edge-case matrix that should gate the output-router refactor.
 - [odds-first-stats-only-signal-contract-vi.md](odds-first-stats-only-signal-contract-vi.md) defines the current stats-only signal contract when live odds are unavailable.
+- [live-data-provider-fusion-contract-vi.md](live-data-provider-fusion-contract-vi.md) defines the draft multi-provider freshness, coverage, consensus, and canonical snapshot contract for live score/events/stats/odds.
 
 ## Active Runtime
 
@@ -87,6 +88,8 @@ Related design contracts:
 - `none`: no recommendation.
 
 The browser must never call API-Sports directly. Frontend code must use backend routes such as `/api/matches` and `/api/proxy/football/*`. Server-side provider calls stay centralized in `packages/server/src/lib/football-api.ts`.
+
+Provider roadmap: API-Football is currently the active provider, but live recommendation should move toward the multi-provider fusion contract in [live-data-provider-fusion-contract-vi.md](live-data-provider-fusion-contract-vi.md). Until that is implemented, provider limitations such as empty statistics responses or delayed live clocks must be represented as provider coverage/freshness warnings, not as internal system failures.
 
 ## Replay And Improvement Loop
 

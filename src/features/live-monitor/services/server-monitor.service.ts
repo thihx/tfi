@@ -60,6 +60,21 @@ export interface RuntimePolicyShadowDebug {
   skippedReason?: string;
 }
 
+export interface ProviderHealthDebug {
+  provider?: string;
+  statisticsCoverage?: string;
+  providerReturnedNoLiveStatistics?: boolean;
+  providerClockLagMinutes?: number | null;
+  providerClockLagStatus?: string;
+  providerReportedMinute?: number | null;
+  wallClockMinute?: number | null;
+  fixtureFreshness?: string;
+  statisticsFreshness?: string;
+  eventsFreshness?: string;
+  coverageStatus?: string;
+  warnings?: string[];
+}
+
 export interface ServerMatchPipelineResult {
   matchId: string;
   matchDisplay?: string;
@@ -88,6 +103,12 @@ export interface ServerMatchPipelineResult {
     prematchStrength?: 'strong' | 'moderate' | 'weak' | 'none';
     statsSource?: string;
     evidenceMode?: string;
+    providerHealth?: ProviderHealthDebug;
+    providerWarnings?: string[];
+    providerCoverageStatus?: string;
+    providerReturnedNoLiveStatistics?: boolean;
+    providerClockLagMinutes?: number | null;
+    providerClockLagStatus?: string;
     outputKind?: 'money_recommendation' | 'stats_only_signal' | 'watch_insight' | 'shadow_candidate' | 'no_action';
     auditBucket?: string;
     savedRecommendation?: boolean;

@@ -157,6 +157,7 @@ Inspect:
 
 - **Centralize** all outbound provider HTTP in **`packages/server/src/lib/football-api.ts`** (the only module that should know the vendor base URL, headers, and retry behaviour).
 - Routes and jobs should import helpers from there (or from a thin wrapper that delegates to it). Avoid new one-off `fetch` calls to the provider from random routes or jobs.
+- For recommendation-critical provider work, read [docs/live-data-provider-fusion-contract-vi.md](live-data-provider-fusion-contract-vi.md). It defines the planned multi-provider freshness/coverage/consensus layer. Until that layer exists, empty provider stats and provider clock lag must be described as provider coverage/freshness limitations, not internal TFI data failures.
 
 ## Safety Notes
 
