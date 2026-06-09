@@ -150,6 +150,47 @@ function asText(value: unknown, fallback = '(empty)'): string {
   return String(value);
 }
 
+function inferLegacyOutputKind(metadata: Record<string, unknown>, outputDecision: Record<string, unknown>): LiveOutputKind | 'unknown' {
+  const explicit = asText(metadata['outputKind'] ?? outputDecision['outputKind'], '').trim();
+  if (explicit) return explicit as LiveOutputKind;
+  if (parseBoolean(metadata['saved'])) return 'money_recommendation';
+  if (
+    parseBoolean(metadata['policyBlocked'])
+    || parseBoolean(metadata['shadowCandidatePresent'])
+    || String(metadata['shadowCandidateSelection'] ?? '').trim()
+  ) {
+    return 'shadow_candidate';
+  }
+  return 'no_action';
+}
+
+function inferLegacyAuditBucket(metadata: Record<string, unknown>, outputDecision: Record<string, unknown>): string {
+  const explicit = asText(metadata['auditBucket'] ?? outputDecision['auditBucket'], '').trim();
+  if (explicit) return explicit;
+  if (parseBoolean(metadata['saved'])) return 'recommendation_saved';
+  if (asText(metadata['saveIntegrityStatus'], '') === 'blocked') return 'save_integrity_blocked';
+  if (parseBoolean(metadata['policyBlocked'])) return 'policy_blocked';
+  const marketResolution = asText(metadata['marketResolutionStatus'], '').trim();
+  if (marketResolution && marketResolution !== 'resolved' && marketResolution !== 'not_requested') {
+    return 'market_unresolved';
+  }
+  const diagnostic = asText(metadata['llmDecisionDiagnostic'], '').trim();
+  if (diagnostic === 'no_bet_intentional') return 'model_no_bet';
+  if (diagnostic === 'market_parse_failed') return 'market_unresolved';
+  if (diagnostic === 'policy_blocked') return 'policy_blocked';
+  return 'no_action';
+}
+
+function inferLegacyRoute(outputKind: LiveOutputKind | 'unknown', outputDecision: Record<string, unknown>): string {
+  const explicit = asText(outputDecision['route'], '').trim();
+  if (explicit) return explicit;
+  if (outputKind === 'money_recommendation') return 'money_path';
+  if (outputKind === 'stats_only_signal') return 'stats_only_path';
+  if (outputKind === 'watch_insight' || outputKind === 'shadow_candidate') return 'shadow_path';
+  if (outputKind === 'no_action') return 'no_action_path';
+  return 'unknown';
+}
+
 export function classifyLiveOutputAuditBucket(bucket: string): LiveOutputOperatorReasonGroup {
   const normalized = bucket.trim() || 'unknown';
   if (SAVE_BUCKETS.has(normalized)) {
@@ -189,8 +230,31 @@ export async function buildLiveOutputOperatorReport(
   const maxSamples = clampPositiveInt(options.maxSamples, 1, 200);
   const official = LIVE_ANALYSIS_PROMPT_VERSION;
 
-  const outputKindExpr = "COALESCE(NULLIF(metadata->>'outputKind', ''), NULLIF(metadata#>>'{outputDecision,outputKind}', ''), 'unknown')";
-  const auditBucketExpr = "COALESCE(NULLIF(metadata->>'auditBucket', ''), NULLIF(metadata#>>'{outputDecision,auditBucket}', ''), 'unknown')";
+  const outputKindExpr = `COALESCE(
+    NULLIF(metadata->>'outputKind', ''),
+    NULLIF(metadata#>>'{outputDecision,outputKind}', ''),
+    CASE
+      WHEN metadata->>'saved' = 'true' THEN 'money_recommendation'
+      WHEN metadata->>'policyBlocked' = 'true'
+        OR metadata->>'shadowCandidatePresent' = 'true'
+        OR COALESCE(NULLIF(metadata->>'shadowCandidateSelection', ''), '') <> '' THEN 'shadow_candidate'
+      ELSE 'no_action'
+    END
+  )`;
+  const auditBucketExpr = `COALESCE(
+    NULLIF(metadata->>'auditBucket', ''),
+    NULLIF(metadata#>>'{outputDecision,auditBucket}', ''),
+    CASE
+      WHEN metadata->>'saved' = 'true' THEN 'recommendation_saved'
+      WHEN metadata->>'saveIntegrityStatus' = 'blocked' THEN 'save_integrity_blocked'
+      WHEN metadata->>'policyBlocked' = 'true' THEN 'policy_blocked'
+      WHEN COALESCE(NULLIF(metadata->>'marketResolutionStatus', ''), 'not_requested') NOT IN ('resolved', 'not_requested') THEN 'market_unresolved'
+      WHEN metadata->>'llmDecisionDiagnostic' = 'no_bet_intentional' THEN 'model_no_bet'
+      WHEN metadata->>'llmDecisionDiagnostic' = 'market_parse_failed' THEN 'market_unresolved'
+      WHEN metadata->>'llmDecisionDiagnostic' = 'policy_blocked' THEN 'policy_blocked'
+      ELSE 'no_action'
+    END
+  )`;
   const evidenceModeExpr = "COALESCE(NULLIF(metadata->>'evidenceMode', ''), NULLIF(metadata#>>'{outputDecision,evidenceMode}', ''), 'unknown')";
   const llmCalledExpr = "COALESCE(NULLIF(metadata->>'llmCalled', ''), NULLIF(metadata#>>'{outputDecision,llmCalled}', ''), 'false')";
 
@@ -335,8 +399,8 @@ export async function buildLiveOutputOperatorReport(
     recentDrilldown: sampleResult.rows.map((row) => {
       const metadata = parseMetadata(row.metadata);
       const outputDecision = parseMetadata(metadata['outputDecision']);
-      const outputKind = asText(metadata['outputKind'] ?? outputDecision['outputKind'], 'unknown') as LiveOutputKind | 'unknown';
-      const auditBucket = asText(metadata['auditBucket'] ?? outputDecision['auditBucket'], 'unknown');
+      const outputKind = inferLegacyOutputKind(metadata, outputDecision);
+      const auditBucket = inferLegacyAuditBucket(metadata, outputDecision);
       return {
         id: Number(row.id),
         timestamp: nullableIso(row.timestamp) ?? String(row.timestamp),
@@ -349,7 +413,7 @@ export async function buildLiveOutputOperatorReport(
         auditBucket,
         reasonGroup: classifyLiveOutputAuditBucket(auditBucket),
         evidenceMode: asText(metadata['evidenceMode'] ?? outputDecision['evidenceMode'], 'unknown'),
-        route: asText(outputDecision['route'], 'unknown'),
+        route: inferLegacyRoute(outputKind, outputDecision),
         llmCalled: parseBoolean(metadata['llmCalled'] ?? outputDecision['llmCalled']),
         savedRecommendation: parseBoolean(metadata['savedRecommendation'] ?? outputDecision['savedRecommendation'] ?? metadata['saved']),
         settlementEligible: parseBoolean(metadata['settlementEligible'] ?? outputDecision['settlementEligible']),

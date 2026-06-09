@@ -130,4 +130,74 @@ describe('live output operator report', () => {
       noActionReason: 'stats_only_weak_trigger',
     }));
   });
+
+  test('infers output fields for legacy analyzed audits without outputDecision metadata', async () => {
+    mockQuery
+      .mockResolvedValueOnce({
+        rows: [{
+          match_analyzed: '1',
+          money_recommendations: '0',
+          stats_only_signals: '0',
+          watch_insights: '0',
+          shadow_candidates: '1',
+          no_actions: '0',
+          llm_called: '0',
+          llm_skipped: '1',
+        }],
+      })
+      .mockResolvedValueOnce({
+        rows: [{ output_kind: 'shadow_candidate', count: '1', latest_at: '2026-06-08T13:41:01.199Z' }],
+      })
+      .mockResolvedValueOnce({
+        rows: [{
+          audit_bucket: 'policy_blocked',
+          output_kind: 'shadow_candidate',
+          evidence_mode: 'odds_events_only_degraded',
+          count: '1',
+          latest_at: '2026-06-08T13:41:01.199Z',
+        }],
+      })
+      .mockResolvedValueOnce({
+        rows: [{
+          id: '1293145',
+          timestamp: '2026-06-08T13:41:01.199Z',
+          match_id: null,
+          metadata: {
+            matchId: '1547219',
+            matchDisplay: 'Thailand U19 vs Malaysia U19',
+            minute: 41,
+            status: '1H',
+            score: '1-1',
+            evidenceMode: 'odds_events_only_degraded',
+            saved: false,
+            notified: false,
+            shouldPush: false,
+            policyBlocked: true,
+            policyWarnings: ['MARKET_UNRESOLVED'],
+            llmDecisionDiagnostic: 'no_bet_intentional',
+            marketResolutionStatus: 'not_requested',
+            shadowCandidatePresent: true,
+          },
+        }],
+      });
+
+    const report = await buildLiveOutputOperatorReport({ lookbackHours: 24, maxSamples: 8 });
+
+    expect(report.reasonBuckets[0]).toEqual(expect.objectContaining({
+      key: 'policy_blocked',
+      group: 'policy',
+      outputKind: 'shadow_candidate',
+      evidenceMode: 'odds_events_only_degraded',
+    }));
+    expect(report.recentDrilldown[0]).toEqual(expect.objectContaining({
+      matchId: '1547219',
+      matchDisplay: 'Thailand U19 vs Malaysia U19',
+      outputKind: 'shadow_candidate',
+      auditBucket: 'policy_blocked',
+      reasonGroup: 'policy',
+      evidenceMode: 'odds_events_only_degraded',
+      route: 'shadow_path',
+      llmCalled: false,
+    }));
+  });
 });

@@ -487,8 +487,8 @@ function WhyNoRecommendationPanel({ report }: { report: LiveOutputOperatorReport
   return (
     <div className="card tab-section live-signals-panel">
       <div className="card-header">
-        <div className="card-title">Why No Recommendation</div>
-        <small className="text-muted">{report.lookbackHours}h operator view</small>
+        <div className="card-title">Last {report.lookbackHours}h No-Recommendation Audit</div>
+        <small className="text-muted">historical operator view</small>
       </div>
       <div className="monitor-stats-row" style={{ marginTop: 0 }}>
         <SummaryStat label="Analyzed" value={report.totals.matchAnalyzed} />
@@ -537,6 +537,7 @@ function WhyNoRecommendationPanel({ report }: { report: LiveOutputOperatorReport
                 <div className="monitor-list-row__main">
                   <div className="monitor-list-row__title-row">
                     <span className="monitor-list-row__title">{sample.matchDisplay || sample.matchId}</span>
+                    <span className="badge badge-pending">Audit Snapshot</span>
                     <span className="badge badge-draw">{reasonGroupLabel(sample.reasonGroup)}</span>
                     <span className="badge badge-pending">{sample.outputKind.replace(/_/g, ' ')}</span>
                   </div>
@@ -546,7 +547,7 @@ function WhyNoRecommendationPanel({ report }: { report: LiveOutputOperatorReport
                       .join(' | ')}
                   </div>
                   <div className="monitor-list-row__sub">
-                    {formatReasonText(sample.auditBucket)} | LLM {sample.llmCalled ? 'called' : 'skipped'} | settle {sample.settlementEligible ? 'yes' : 'no'}
+                    Recorded {formatLocalDateTime(sample.timestamp)} | {formatReasonText(sample.auditBucket)} | LLM {sample.llmCalled ? 'called' : 'skipped'} | settle {sample.settlementEligible ? 'yes' : 'no'}
                   </div>
                 </div>
                 <div className="monitor-list-row__aside">

@@ -300,10 +300,11 @@ describe('LiveMonitorTab', () => {
     expect(screen.getByText('Condition Matched')).toBeInTheDocument();
     expect(screen.getByText('Condition Triggered')).toBeInTheDocument();
     expect(screen.getByText('Live Signals')).toBeInTheDocument();
-    expect(screen.getByText('Why No Recommendation')).toBeInTheDocument();
-    expect(screen.getByText('24h operator view')).toBeInTheDocument();
+    expect(screen.getByText('Last 24h No-Recommendation Audit')).toBeInTheDocument();
+    expect(screen.getByText('historical operator view')).toBeInTheDocument();
+    expect(screen.getByText('Audit Snapshot')).toBeInTheDocument();
     expect(screen.getByText('policy blocked')).toBeInTheDocument();
-    expect(screen.getByText(/LLM called \| settle no/)).toBeInTheDocument();
+    expect(screen.getByText(/Recorded .* \| policy blocked \| LLM called \| settle no/)).toBeInTheDocument();
     expect(screen.getAllByText('Bet').length).toBeGreaterThanOrEqual(1);
     expect(screen.getAllByText('Watch').length).toBeGreaterThanOrEqual(1);
     expect(screen.getAllByText('No Action').length).toBeGreaterThanOrEqual(1);
