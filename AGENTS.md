@@ -45,6 +45,7 @@ Read [docs/agent-onboarding.md](docs/agent-onboarding.md) before making non-triv
 
 ## Deploy (Azure Container Apps)
 
+- Full deployment guide: [docs/tfi-azure-aca-deployment-guide.md](docs/tfi-azure-aca-deployment-guide.md)
 - Runbook: [docs/deploy-azure-runbook.md](docs/deploy-azure-runbook.md)
 - Scripts: `scripts/azure/deploy.ps1` (Windows), `scripts/azure/deploy.sh` (bash/WSL/CI)
 - PR/push CI: `.github/workflows/ci.yml` (server: typecheck + vitest + data-driven gate baselines; client: typecheck + vitest). Local mirror: `npm run verify:ci` at repo root.
